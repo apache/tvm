@@ -55,6 +55,7 @@ class WarpSpecializedRoleMarker : public StmtVisitor {
     if (auto call = op->value.as<CallNode>()) {
       if (call->op.same_as(TMALoadOp())) {
         role = Role::kProducer;
+        has_bulk_copy_ = true;
       }
     }
     SetRole(op, role);
@@ -79,6 +80,7 @@ class WarpSpecializedRoleMarker : public StmtVisitor {
         break;
       }
     }
+    if (role == Role::kProducer) has_simt_copy_ = true;
     SetRole(op, role);
   }
 
@@ -121,10 +123,16 @@ class WarpSpecializedRoleMarker : public StmtVisitor {
   void VisitStmt_(const AssertStmtNode* op) final { HandleBodyStmt(op); }
   void VisitStmt_(const BlockNode* op) final { HandleBodyStmt(op); }
 
+  bool HasProducer() { return has_simt_copy_ || has_bulk_copy_; }
+
+  bool HasSimtCopy() { return has_simt_copy_; }
+
  private:
   void SetRole(const StmtNode* stmt, Role role) { map_[stmt] = role; }
   Map<Var, Buffer> buffer_data_to_buffer_;
   std::unordered_map<const StmtNode*, Role> map_;
+  bool has_simt_copy_ = false;
+  bool has_bulk_copy_ = false;
 };
 
 static PrimExpr makeGetBarrier(PrimExpr barrier_id) {
@@ -461,7 +469,6 @@ class WSCodeEmitter : public StmtMutator {
         }
         new_body.push_back(stmt);
         if (collector.HasSimtCopy() > 0) {
-          has_simt_copy_ = true;
           new_body.push_back(makeCpAsyncBarrier(release_barrier_id));
         }
         if (map.release_after[i]) {
@@ -694,7 +701,6 @@ class WSCodeEmitter : public StmtMutator {
   PrimExpr stage_ = 0;
   int num_stages_ = 1;
   Var thread_var_;
-  bool has_simt_copy_ = false;
   friend class WarpSpecializedPipeline;
 };
 
@@ -715,10 +721,14 @@ class WarpSpecializedPipeline : public StmtExprMutator {
     if (attr_node->attr_key == tir::attr::thread_extent &&
         Downcast<IterVar>(attr_node->node)->thread_tag == "threadIdx.x") {
       auto block = Downcast<BlockRealize>(attr_node->body)->block;
-      auto thread_iv = Downcast<IterVar>(attr_node->node);
-
       WarpSpecializedRoleMarker marker(buffer_data_to_buffer_);
       marker(block);
+      if (!marker.HasProducer()) {
+        // Cannot detect any producer here, directly return.
+        return attr_node;
+      }
+
+      auto thread_iv = Downcast<IterVar>(attr_node->node);
       WSCodeEmitter producer(true, thread_iv, buffer_data_to_buffer_, marker);
       WSCodeEmitter consumer(false, thread_iv, buffer_data_to_buffer_, marker);
       Stmt producer_code = producer(block->body);
@@ -727,7 +737,7 @@ class WarpSpecializedPipeline : public StmtExprMutator {
       PrimExpr consumer_thread_extent = thread_iv->dom->extent;
       PrimExpr producer_thread_extent = thread_iv->dom->extent;
       // Only need one thread for bulk-copy only case
-      if (!producer.has_simt_copy_) producer_thread_extent = 1;
+      if (!marker.HasSimtCopy()) producer_thread_extent = 1;
 
       producer_code = ThreadIdxRewriter::Rewrite(producer_code, thread_iv->var,
                                                  thread_iv->var - consumer_thread_extent);
