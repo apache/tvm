@@ -657,6 +657,8 @@ void CodeGenTL::VisitExpr_(const CallNode* op, std::ostream& os) {
     print_extern_call_stmt("tl::mbarrier_init");
   } else if (op->op.same_as(builtin::ptx_arrive_barrier_expect_tx())) {
     print_extern_call_stmt("tl::mbarrier_arrive_expect_tx");
+  } else if (op->op.same_as(builtin::ptx_cp_async_barrier())) {
+    print_extern_call_stmt("tl::mbarrier_cp_async_arrive");
   } else if (op->op.same_as(tl::MBarrierExpectTX())) {
     print_extern_call_stmt("tl::mbarrier_expect_tx");
   } else if (op->op.same_as(tl::MBarrierWaitParity())) {
@@ -680,8 +682,8 @@ void CodeGenTL::VisitExpr_(const CallNode* op, std::ostream& os) {
     if (trans == 1) func_name += "_trans";
     print_extern_call_stmt(func_name, 2);
   } else if (op->op.same_as(tl::PackB16Op())) {
-    os << "__pack_half2(" << this->PrintExpr(op->args[0]) << ", "
-                 << this->PrintExpr(op->args[1]) << ")";
+    os << "__pack_half2(" << this->PrintExpr(op->args[0]) << ", " << this->PrintExpr(op->args[1])
+       << ")";
   } else {
     CodeGenC::VisitExpr_(op, os);
   }

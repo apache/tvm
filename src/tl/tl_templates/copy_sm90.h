@@ -175,6 +175,11 @@ TL_DEVICE void mbarrier_arrive_expect_tx(uint64_t& smem_barrier, uint32_t transa
                : "r"(transaction_bytes), "r"(smem_int_ptr));
 }
 
+TL_DEVICE void mbarrier_cp_async_arrive(uint64_t& smem_barrier) {
+  uint32_t smem_int_ptr = smem_ptr_to_uint(&smem_barrier);
+  asm volatile("cp.async.mbarrier.arrive.shared.b64 [%0];" : : "r"(smem_int_ptr));
+}
+
 TL_DEVICE void syncthreads_partial(uint64_t& smem_barrier) {
   uint32_t smem_int_ptr = smem_ptr_to_uint(&smem_barrier);
   uint64_t state;
