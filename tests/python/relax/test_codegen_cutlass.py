@@ -75,14 +75,7 @@ class Conv2dx2:
         return conv2
 
 
-has_cutlass = tvm.get_global_func("relax.ext.cutlass", True)
-
-cutlass_enabled = pytest.mark.skipif(
-    not has_cutlass,
-    reason="CUTLASS not enabled.",
-)
-
-pytestmark = [cutlass_enabled]
+pytestmark = tvm.testing.requires_cutlass.marks()
 
 
 def build_and_run(mod, inputs_np, target, legalize=True, cuda_graph=False):
