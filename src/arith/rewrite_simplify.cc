@@ -1415,6 +1415,16 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const MinNode* op) {
       }
     }
 
+    // vscale expression comparison
+    if (ContainsVscaleCall(op->a) || ContainsVscaleCall(op->b)) {
+      if (analyzer_->CanProve(op->a <= op->b)) {
+        return op->a;
+      }
+      if (analyzer_->CanProve(op->b <= op->a)) {
+        return op->b;
+      }
+    }
+
     // canonicalization
     TVM_TRY_RECURSIVE_REWRITE(min(min(x, c1), y), min(min(x, y), c1));
     TVM_TRY_RECURSIVE_REWRITE_IF(min(c1 - x, c2), c1 - max(x, c1 - c2), c2.Eval()->value != 0);
@@ -1595,6 +1605,16 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const MaxNode* op) {
         } else {
           return (min(x, c2val / c1val) * c1val).Eval();
         }
+      }
+    }
+
+    // vscale expression comparison
+    if (ContainsVscaleCall(op->a) || ContainsVscaleCall(op->b)) {
+      if (analyzer_->CanProve(op->a >= op->b)) {
+        return op->a;
+      }
+      if (analyzer_->CanProve(op->b >= op->a)) {
+        return op->b;
       }
     }
 
