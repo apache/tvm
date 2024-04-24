@@ -969,9 +969,9 @@ class TestMultiplicationNodesAreInligned(tvm.testing.CompareBeforeAfter):
             T.ptx_cp_async(
                 "float16",
                 A_shared.data,
-                T.Cast("int64", tx) * T.int64(128) + cse_var_1 * T.int64(8),
+                tx * T.int64(128) + cse_var_1 * T.int64(8),
                 A.data,
-                T.Cast("int64", tx) * T.int64(128) + cse_var_1 * T.int64(8),
+                tx * T.int64(128) + cse_var_1 * T.int64(8),
                 16,
             )
         T.ptx_commit_group()
