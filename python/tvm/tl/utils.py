@@ -40,6 +40,8 @@ def get_tensor_supply(supply_type: TensorSupplyType):
     def get_tensor(tensor: TensorType) -> torch.Tensor:
         dtype = torch.__getattribute__(str(tensor.dtype))
         device = torch.cuda.current_device()
+        # torch.manual_seed(0)
+        # torch.cuda.manual_seed(0)
         shape = list(map(int, tensor.shape))
         if supply_type == TensorSupplyType.Integer:
             return torch.randint(low=-2, high=3, size=shape, device=device, dtype=dtype)
@@ -130,6 +132,16 @@ class Profiler(ConvertTorch):
         assert len(lib_outs) == len(ref_outs)
         for lhs, rhs in zip(lib_outs, ref_outs):
             assert torch.allclose(lhs, rhs, rtol=rtol, atol=atol), (lhs, rhs)
+
+    def assert_consistent(self, repeat=10):
+        # Used to check no race condition inside the kernel
+        ins = self._get_inputs()
+        ref_outs = self.func(*ins)
+
+        for i in range(repeat):
+            lib_outs = self.func(*ins)
+            for lhs, rhs in zip(lib_outs, ref_outs):
+                assert torch.allclose(lhs, rhs), ["result is not consistent", lhs, rhs]
 
     def run_once(self):
         ins = self._get_inputs()
