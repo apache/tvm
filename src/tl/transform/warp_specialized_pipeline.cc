@@ -457,7 +457,8 @@ class WSCodeEmitter : public StmtMutator {
         }
         if (map.acquire[i] != -1) {
           PrimExpr acquire_barrier_id = stage_ + num_barriers_ + num_stages_ * map.acquire[i];
-          new_body.push_back(makeParityWait(acquire_barrier_id, bitwise_xor(parity_, 1)));
+          PrimExpr parity = map.is_loop_dependency(map.acquire[i]) ? bitwise_xor(parity_, 1) : parity_; 
+          new_body.push_back(makeParityWait(acquire_barrier_id, parity));
         }
         ICHECK(map.release[i] >= 0);
         PrimExpr release_barrier_id = stage_ + num_barriers_ + num_stages_ * map.release[i];
@@ -484,7 +485,8 @@ class WSCodeEmitter : public StmtMutator {
         if (marker_.GetRole(op->seq[i]) == Role::kProducer) continue;
         if (map.acquire[i] != -1) {
           PrimExpr acquire_barrier_id = stage_ + num_barriers_ + num_stages_ * map.acquire[i];
-          new_body.push_back(makeParityWait(acquire_barrier_id, parity_));
+          PrimExpr parity = map.is_loop_dependency(map.acquire[i]) ? bitwise_xor(parity_, 1) : parity_; 
+          new_body.push_back(makeParityWait(acquire_barrier_id, parity));
         }
         new_body.push_back(seq_transformed[i]);
         if (map.release_after[i]) {
@@ -497,7 +499,7 @@ class WSCodeEmitter : public StmtMutator {
       }
     }
 
-    num_barriers_ += map.num_barriers * num_stages_;
+    num_barriers_ += map.patterns.size() * num_stages_;
 
     ICHECK(new_body.size() > 0);
     return new_body.size() == 1 ? new_body[0] : SeqStmt(std::move(new_body));
@@ -560,19 +562,22 @@ class WSCodeEmitter : public StmtMutator {
     std::vector<int> acquire;
     std::vector<int> release;
     std::vector<bool> release_after;
-    int num_barriers;
+    std::vector<SyncPattern> patterns;
+    bool is_loop_dependency(int i) {
+      // return if the acquire is based on release in the previous iteration
+      return patterns[i].release_idx > patterns[i].acquire_idx;
+    }
   };
 
   static SyncPatternMap SyncPatternToMap(const std::vector<SyncPattern>& sync_patterns,
                                          const std::vector<bool>& is_producer) {
-    size_t num_barriers = sync_patterns.size();
     size_t num_stmts = is_producer.size();
     SyncPatternMap map;
+    map.patterns = sync_patterns;
     map.acquire.resize(num_stmts, -1);
     map.release.resize(num_stmts, -1);
     map.release_after.resize(num_stmts, false);
-    map.num_barriers = num_barriers;
-    for (size_t i = 0; i < num_barriers; i++) {
+    for (size_t i = 0; i < sync_patterns.size(); i++) {
       map.acquire[sync_patterns[i].acquire_idx] = i;
       map.release[sync_patterns[i].release_idx] = i;
       map.release_after[sync_patterns[i].release_idx] = true;
@@ -628,7 +633,8 @@ class WSCodeEmitter : public StmtMutator {
     // inject before the first consumer stmt for each producer
     for (int i = 0; i < n; i++) {
       for (int j = i + 1; j < n; j++) {
-        if (is_producer[i] && !is_producer[j] && intersect_fn(writes[i], reads[j])) {
+        if (is_producer[i] != is_producer[j] &&
+            (intersect_fn(writes[i], reads[j]) || intersect_fn(reads[i], writes[j]))) {
           sync_patterns.push_back({i, j});
           break;
         }
@@ -642,7 +648,8 @@ class WSCodeEmitter : public StmtMutator {
     if (in_loop) {
       for (int i = 0; i < n; i++) {
         for (int j = 0; j < i; j++) {
-          if (!is_producer[i] && is_producer[j] && intersect_fn(reads[i], writes[j])) {
+          if (is_producer[i] != is_producer[j] &&
+              (intersect_fn(writes[i], reads[j]) || intersect_fn(reads[i], writes[j]))) {
             sync_patterns.push_back({i, j});
             break;
           }
