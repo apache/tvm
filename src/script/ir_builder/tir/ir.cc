@@ -432,7 +432,8 @@ LaunchThreadFrame LaunchThread(Var var, PrimExpr extent) {
   }
   ObjectPtr<LaunchThreadFrameNode> n = make_object<LaunchThreadFrameNode>();
   if (!iter_var->dom.defined()) {
-    const_cast<tvm::tir::IterVarNode*>(iter_var.get())->dom = Range(0, extent);
+    const_cast<tvm::tir::IterVarNode*>(iter_var.get())->dom =
+        Range(tvm::tir::make_zero(extent.dtype()), extent);
   } else if (!arith::Analyzer().CanProveEqual(iter_var->dom->extent, extent)) {
     LOG(FATAL) << "ValueError: Inconsistent extents of environment thread. "
                << iter_var->dom->extent << " vs " << extent;
@@ -444,7 +445,7 @@ LaunchThreadFrame LaunchThread(Var var, PrimExpr extent) {
 }
 
 LaunchThreadFrame LaunchThread(String thread_tag, PrimExpr extent) {
-  return LaunchThread(EnvThread(thread_tag), extent);
+  return LaunchThread(EnvThread(thread_tag, extent.dtype()), extent);
 }
 
 RealizeFrame Realize(tvm::tir::BufferRegion buffer_slice, String storage_scope,
@@ -512,9 +513,8 @@ ElseFrame Else() {
   return ElseFrame(n);
 }
 
-Var EnvThread(String thread_tag) {
-  IterVar iter_var(Range{nullptr}, Var("", DataType::Int(32)), tvm::tir::IterVarType::kThreadIndex,
-                   thread_tag);
+Var EnvThread(String thread_tag, DataType dtype) {
+  IterVar iter_var(Range{nullptr}, Var("", dtype), tvm::tir::IterVarType::kThreadIndex, thread_tag);
   Var var = iter_var->var;
   if (Optional<PrimFuncFrame> opt_frame = IRBuilder::Current()->FindFrame<PrimFuncFrame>()) {
     opt_frame.value()->env_threads.Set(var, iter_var);
