@@ -111,7 +111,8 @@ class StructuralEqual : public BaseValueEqual {
    * \param map_free_params Whether or not to map free variables.
    * \return The comparison result.
    */
-  TVM_DLL bool operator()(const ObjectRef& lhs, const ObjectRef& rhs, const bool map_free_params = false) const;
+  TVM_DLL bool operator()(const ObjectRef& lhs, const ObjectRef& rhs,
+                          const bool map_free_params = false) const;
 };
 
 /*!
