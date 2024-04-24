@@ -662,32 +662,31 @@ def test_sve_scalable_split_predicated(num_elements):
     compile-time, we don't know if vscale is a multiple of the extent of the
     loop to be split.
     """
-
-    @T.prim_func
-    def before(a: T.handle):
-        A = T.match_buffer(a, (num_elements,), "float32")
-        T.func_attr({"global_symbol": "my_module", "tir.noalias": True})
-        for i in T.serial(num_elements):
-            with T.block("A"):
-                v_i = T.axis.remap("S", [i])
-                A[v_i] = 1.0
-
-    @T.prim_func
-    def after(a: T.handle):
-        A = T.match_buffer(a, (num_elements,), "float32")
-        T.func_attr({"global_symbol": "my_module", "tir.noalias": True})
-        for i_0, i_1 in T.grid(
-            (T.vscale() * 4 + (num_elements - 1)) // (T.vscale() * 4), T.vscale() * 4
-        ):
-            with T.block("A"):
-                v_i = T.axis.spatial(num_elements, i_0 * (T.vscale() * 4) + i_1)
-                T.where(i_0 * (T.vscale() * 4) + i_1 < num_elements)
-                A[v_i] = 1.0
-
     with tvm.target.Target("llvm -mtriple=aarch64-linux-gnu -mattr=+sve"):
+        outer_extent = tvm.arith.Analyzer().simplify(T.ceildiv(num_elements, 4 * T.vscale()))
+
+        @T.prim_func
+        def before(a: T.handle):
+            A = T.match_buffer(a, (num_elements,), "float32")
+            T.func_attr({"global_symbol": "my_module", "tir.noalias": True})
+            for i in T.serial(num_elements):
+                with T.block("A"):
+                    v_i = T.axis.remap("S", [i])
+                    A[v_i] = 1.0
+
+        @T.prim_func
+        def after(a: T.handle):
+            A = T.match_buffer(a, (num_elements,), "float32")
+            T.func_attr({"global_symbol": "my_module", "tir.noalias": True})
+            for i_0, i_1 in T.grid(outer_extent, T.vscale() * 4):
+                with T.block("A"):
+                    v_i = T.axis.spatial(num_elements, i_0 * (T.vscale() * 4) + i_1)
+                    T.where(i_0 * (T.vscale() * 4) + i_1 < num_elements)
+                    A[v_i] = 1.0
+
         sch = tvm.tir.Schedule(before)
         (a,) = sch.get_loops("A")
-        sch.split(a, factors=[T.ceildiv(num_elements, 4 * T.vscale()), 4 * T.vscale()])
+        sch.split(a, factors=[outer_extent, 4 * T.vscale()])
 
     tvm.ir.assert_structural_equal(sch.mod["main"], after)
 
@@ -699,31 +698,32 @@ def test_sve_scalable_split_assume_exact_multiple():
     a predicate is not created. This can be used to ensure predication is not
     inserted.
     """
-
-    @T.prim_func
-    def before(a: T.handle):
-        A = T.match_buffer(a, (128,), "float32")
-        T.func_attr({"global_symbol": "my_module", "tir.noalias": True})
-        for i in T.serial(128):
-            with T.block("A"):
-                v_i = T.axis.remap("S", [i])
-                A[v_i] = 1.0
-
-    @T.prim_func
-    def after(a: T.handle):
-        A = T.match_buffer(a, (128,), "float32")
-        T.func_attr({"global_symbol": "my_module", "tir.noalias": True})
-        for i_0, i_1 in T.grid((T.vscale() * 4 + (128 - 1)) // (T.vscale() * 4), T.vscale() * 4):
-            with T.block("A"):
-                v_i = T.axis.spatial(128, i_0 * (T.vscale() * 4) + i_1)
-                A[v_i] = 1.0
-
     with tvm.target.Target("llvm -mtriple=aarch64-linux-gnu -mattr=+sve"):
+        outer_extent = tvm.arith.Analyzer().simplify(T.ceildiv(128, 4 * T.vscale()))
+
+        @T.prim_func
+        def before(a: T.handle):
+            A = T.match_buffer(a, (128,), "float32")
+            T.func_attr({"global_symbol": "my_module", "tir.noalias": True})
+            for i in T.serial(128):
+                with T.block("A"):
+                    v_i = T.axis.remap("S", [i])
+                    A[v_i] = 1.0
+
+        @T.prim_func
+        def after(a: T.handle):
+            A = T.match_buffer(a, (128,), "float32")
+            T.func_attr({"global_symbol": "my_module", "tir.noalias": True})
+            for i_0, i_1 in T.grid(outer_extent, T.vscale() * 4):
+                with T.block("A"):
+                    v_i = T.axis.spatial(128, i_0 * (T.vscale() * 4) + i_1)
+                    A[v_i] = 1.0
+
         sch = tvm.tir.Schedule(before)
         (a,) = sch.get_loops("A")
         sch.split(
             a,
-            factors=[T.ceildiv(128, 4 * T.vscale()), 4 * T.vscale()],
+            factors=[outer_extent, 4 * T.vscale()],
             disable_predication=True,
         )
 
