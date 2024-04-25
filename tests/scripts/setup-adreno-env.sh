@@ -80,6 +80,7 @@ function def_environment() {
     export RPC_DEVICE_KEY="android"
     export RPC_TARGET="adreno"
     export TVM_NDK_CC="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android28-clang"
+    export CXX="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android28-clang"
 }
 
 def_environment
@@ -111,7 +112,7 @@ case ${ENVIRONMENT} in
     adb forward tcp:$((LISTEN_PORT + 1)) tcp:$((LISTEN_PORT + 1))
     adb forward tcp:$((LISTEN_PORT + 2)) tcp:$((LISTEN_PORT + 2))
     adb forward tcp:$((LISTEN_PORT + 3)) tcp:$((LISTEN_PORT + 3))
-    adb shell "cd ${TARGET_FOLDER}; killall -9 tvm_rpc-${USER}; sleep 2; LD_LIBRARY_PATH=${TARGET_FOLDER}/ ./tvm_rpc-${USER} server --host=0.0.0.0 --port=${LISTEN_PORT} --port-end=$((LISTEN_PORT + 10)) --tracker=127.0.0.1:${TVM_TRACKER_PORT} --key=${RPC_DEVICE_KEY}"
+    adb shell "cd ${TARGET_FOLDER}; killall -9 tvm_rpc-${USER}; sleep 2; export CLML_PROFILING=1; export CLML_IS_TUNING_RUN=1; export CLML_TUNING_CACHE=clml.bin; LD_LIBRARY_PATH=${TARGET_FOLDER}/ ./tvm_rpc-${USER} server --host=0.0.0.0 --port=${LISTEN_PORT} --port-end=$((LISTEN_PORT + 10)) --tracker=127.0.0.1:${TVM_TRACKER_PORT} --key=${RPC_DEVICE_KEY}"
     ;;
 
   "query")
