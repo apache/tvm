@@ -18,7 +18,7 @@
 """Reduction rule for operators including softmax, layer norm, RMS norm, etc"""
 from typing import List, Union
 
-from tvm import tir
+from tvm import arith, tir
 from tvm.target import Target
 
 from ..base import normalize_prim_func, try_inline_contiguous_spatial
@@ -57,13 +57,32 @@ class GeneralReduction(GPUScheduleRule):
         # Align the number of block iters of the last block.
         num_last_block_iter = len(block_infos[-1].dom_kind())
         if num_last_block_iter < len(dom_kind):
-            index_map = tir.IndexMap.from_func(
-                lambda *iters: (
-                    [tir.const(0, iters[0].dtype)] * (len(dom_kind) - num_last_block_iter)
-                    + list(iters)
-                ),
-                ndim=num_last_block_iter,
-            )
+
+            def f_layout_mapping(*iters):
+                analyzer = arith.Analyzer()
+                # Try to match the iters of last block to the iters of the first block.
+                # For matched positions, use the iter from the input `iters`.
+                # For unmatched positions, use a new iter which is constant 0.
+                num_matched = 0
+                target_layout_iters = []
+                for block_iter in block_infos[0].iters:
+                    if num_matched < len(iters) and analyzer.can_prove_equal(
+                        block_iter.dom, block_infos[-1].iters[num_matched].dom
+                    ):
+                        target_layout_iters.append(iters[num_matched])
+                        num_matched += 1
+                    else:
+                        target_layout_iters.append(tir.const(0, iters[0].dtype))
+
+                # If all the iters of the last block can match, return the new layout.
+                if num_matched == len(iters):
+                    return target_layout_iters
+                # Otherwise, fallback to appending zeros in the beginning.
+                return [tir.const(0, iters[0].dtype)] * (
+                    len(dom_kind) - num_last_block_iter
+                ) + list(iters)
+
+            index_map = tir.IndexMap.from_func(f_layout_mapping, ndim=num_last_block_iter)
             sch.transform_block_layout(block_infos[-1].block_rv, index_map)
 
         try:
