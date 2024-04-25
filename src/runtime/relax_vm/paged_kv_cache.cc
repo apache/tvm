@@ -31,6 +31,9 @@
 #include <vector>
 
 #include "kv_state.h"
+#if defined(OPENCL_ENABLE_HOST_PTR)
+#include "../opencl/opencl_common.h"
+#endif
 
 namespace tvm {
 namespace runtime {
@@ -384,6 +387,22 @@ class PlainPagedKVCacheAuxDataManager : public PagedKVCacheAuxDataManager {
       return;
     }
     DLTensor copy_dst = *array.operator->();
+#if defined(OPENCL_ENABLE_HOST_PTR)
+    tvm::runtime::cl::OpenCLWorkspace* workspace = tvm::runtime::cl::OpenCLWorkspace::Global();
+    if (workspace->IsOpenCLDevice(copy_dst.device)) {
+      void* nptr = workspace->GetNativePtr(array);
+      uint64_t copy_size;
+      if (shape.defined()) {
+        ICHECK_EQ(shape.value().size(), 1);
+        copy_size = shape.value()->data[0] * sizeof(int32_t);
+      } else {
+        copy_size = DeviceAPI::Get(array->device)->GetDataSize(*array.operator->());
+      }
+      memcpy(static_cast<char*>(nptr) + dst_elem_offset * sizeof(int32_t), vec_data, copy_size);
+      return;
+    }
+#endif
+
     if (shape.defined()) {
       ICHECK_EQ(shape.value().size(), 1);
       copy_dst.ndim = 1;
