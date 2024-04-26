@@ -405,7 +405,6 @@ def make_inputs_dict(
     dtype_dict: tvm.container.Map,
     inputs: Optional[Dict[str, np.ndarray]] = None,
     fill_mode: str = "random",
-    device: str = "cpu",
 ):
     """Make the inputs dictionary for a graph.
 
@@ -616,7 +615,6 @@ def run_module(
                 tvmc_package.input_meta["dtype_dict"],
                 inputs,
                 fill_mode,
-                dev,
             )
             for key in input_tensor.keys():
                 input_tensor[key] = tvm.nd.array(input_tensor[key], dev)
