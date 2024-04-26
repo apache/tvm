@@ -18,3 +18,4 @@
 
 from . import contrib
 from .pattern import get_tir_pattern
+from .cumsum import gpu_2d_continuous_cumsum

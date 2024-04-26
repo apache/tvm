@@ -154,7 +154,48 @@ class SortScanDispatcher(PyExprMutator):
         if call.op.name in ("relax.cumprod", "relax.cumsum"):
             tgt = self._get_target(call.struct_info)
             axis = int(call.attrs.axis) if call.attrs.axis is not None else call.attrs.axis
+            shape = call.struct_info.shape
             kwargs = {}
+            if (
+                (axis == -1 or axis == len(shape) - 1)
+                and is_gpu_target(tgt)
+                and not can_use_thrust(tgt, "tvm.contrib.thrust.sum_scan")
+                and call.op.name == "relax.cumsum"
+                and call.attrs.exclusive == 0
+            ):
+                from tvm.relax.backend_tir import (  # pylint: disable=import-outside-toplevel
+                    gpu_2d_continuous_cumsum,
+                )
+
+                dim = 1
+                for i in range(len(shape) - 1):
+                    dim *= shape[i]
+                in_dtype = call.args[0].struct_info.dtype
+                out_dtype = call.attrs.dtype
+                out_dtype = out_dtype or in_dtype
+                cumsum_2d_shape = relax.ShapeExpr([dim, shape[-1]])
+                reshape = relax.call_pure_packed(
+                    "vm.builtin.reshape",
+                    call.args[0],
+                    cumsum_2d_shape,
+                    sinfo_args=relax.TensorStructInfo(cumsum_2d_shape, out_dtype),
+                )
+                gv = self.builder_.add_func(
+                    gpu_2d_continuous_cumsum(in_dtype=in_dtype, out_dtype=out_dtype),
+                    "gpu_2d_continuous_cumsum",
+                )
+                cumsum = relax.call_tir(
+                    gv,
+                    reshape,
+                    out_sinfo=relax.TensorStructInfo(cumsum_2d_shape, out_dtype),
+                )
+                return relax.call_pure_packed(
+                    "vm.builtin.reshape",
+                    cumsum,
+                    shape,
+                    sinfo_args=call.struct_info,
+                )
+
             with tgt:
                 if call.op.name == "relax.cumsum":
                     te_func = topi.cuda.cumsum if is_gpu_target(tgt) else topi.cumsum
