@@ -450,7 +450,7 @@ def make_inputs_dict(
     for input_name in shape_dict:
         if input_name in inputs.keys():
             logger.debug("setting input '%s' with user input data", input_name)
-            inputs_dict[input_name] = tvm.nd.array(inputs[input_name], device)
+            inputs_dict[input_name] = inputs[input_name]
         else:
             # container.ShapleTuple -> tuple
             shape = tuple(shape_dict[input_name])
@@ -465,7 +465,7 @@ def make_inputs_dict(
                 fill_mode,
             )
             data = generate_tensor_data(shape, dtype, fill_mode)
-            inputs_dict[input_name] = tvm.nd.array(data, device)
+            inputs_dict[input_name] = data
 
     return inputs_dict
 
@@ -618,6 +618,8 @@ def run_module(
                 fill_mode,
                 dev,
             )
+            for key in input_tensor.keys():
+                input_tensor[key] = tvm.nd.array(input_tensor[key], dev)
             if profile:
                 logger.debug("Creating vm with profile enabled.")
                 exe = profiler_vm.VirtualMachineProfiler(lib, dev, "naive")
