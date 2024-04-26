@@ -361,5 +361,43 @@ def test_dispatch_topk_cuda():
     assert_structural_equal(mod, expected_mod)
 
 
+def test_dispatch_topk_gpu():
+    @I.ir_module
+    class Before:
+        I.module_global_infos({"vdevice": [I.vdevice("vulkan")]})
+
+        @R.function
+        def foo(x: R.Tensor((2, 3), "float32", "vulkan")):
+            with R.dataflow():
+                # Two same calls should have only one PrimFunc
+                lv0 = R.topk(x, k=2, axis=1, largest=True)
+                lv1 = R.topk(x, k=2, axis=1, largest=True)
+                gv = (lv0, lv1)
+                R.output(gv)
+            return gv
+
+    target = tvm.target.Target("vulkan", host="llvm")
+
+    vdevices = [I.vdevice("vulkan", 0)]
+    x = relax.Var("x", R.Tensor((2, 3), "float32", vdevices[0]))
+    bb = relax.BlockBuilder()
+    with target:
+        with bb.function("foo", (x,), {"global_symbol": "foo"}):
+            with bb.dataflow():
+                lv0 = bb.emit_te(topi.cuda.topk, x, k=2, axis=1, is_ascend=False, dtype="int32")
+                lv1 = bb.emit_te(topi.cuda.topk, x, k=2, axis=1, is_ascend=False, dtype="int32")
+                out = (lv0, lv1)
+                out = bb.emit_output(out)
+            bb.emit_func_output(out)
+    expected_mod = bb.finalize()
+    expected_mod.update_global_info("vdevice", vdevices)
+
+    with target:
+        mod = DispatchSortScan()(Before)
+        expected_mod = dlight.ApplyDefaultSchedule(dlight.gpu.Fallback())(expected_mod)
+
+    assert_structural_equal(mod, expected_mod)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

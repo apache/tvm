@@ -2265,7 +2265,7 @@ def sort(x: Tensor, axis: int = -1, descending: bool = False, name="sort"):
     out : Tensor
         The sorted tensor.
     """
-    return wrap_nested(_op.sort(x, axis, descending), name=name)
+    return wrap_nested(_op.sort(x._expr, axis, descending), name=name)
 
 
 def argsort(
@@ -2296,7 +2296,7 @@ def argsort(
     out : Tensor
         The indices of the sorted tensor.
     """
-    return wrap_nested(_op.argsort(data, axis, descending, dtype), name=name)
+    return wrap_nested(_op.argsort(data._expr, axis, descending, dtype), name=name)
 
 
 def topk(
@@ -2344,7 +2344,7 @@ def topk(
     out : Tensor or Tuple[Tensor, Tensor]
         The computed result.
     """
-    return wrap_nested(_op.topk(data, k, axis, ret_type, largest, dtype), name=name)
+    return wrap_nested(_op.topk(data._expr, k, axis, ret_type, largest, dtype), name=name)
 
 
 def multinomial_from_uniform(

@@ -31,6 +31,9 @@ cp ../cmake/config.cmake .
 if [ -f "${ADRENO_OPENCL}/CL/cl_qcom_ml_ops.h" ] ; then
 echo set\(USE_CLML "${ADRENO_OPENCL}"\) >> config.cmake
 echo set\(USE_CLML_GRAPH_EXECUTOR "${ADRENO_OPENCL}"\) >> config.cmake
+fi
+if [ -f "${ADRENO_OPENCL}/CL/cl.h" ] ; then
+echo set\(USE_OPENCL "${ADRENO_OPENCL}"\) >> config.cmake
 else
 echo set\(USE_OPENCL ON\) >> config.cmake
 fi

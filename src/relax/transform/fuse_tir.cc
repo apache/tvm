@@ -438,9 +438,7 @@ class FusedTIRConstructor : public ExprVisitor {
     ExprVisitor::VisitExpr_(func);
 
     // Step 3. Create and remap buffers for function output
-    ICHECK(func->body->IsInstance<SeqExprNode>())
-        << "Function body is expected to be a SeqExpr, but got: " << func->body->GetTypeKey();
-    Expr body = Downcast<SeqExpr>(func->body)->body;
+    Expr body = func->body->body;
     auto it = func_info_.expr2buffers.find(body);
     ICHECK(it != func_info_.expr2buffers.end())
         << "Fail to detect output buffers for function body";
@@ -964,7 +962,8 @@ class TIRFuseMutator : public ExprMutator {
   static IRModule Transform(IRModule mod) {
     // Collect all primitive relax functions
     Map<GlobalVar, Function> primitive_relax;
-    for (const auto& [gvar, base_func] : mod->functions) {
+    for (const auto& gvar : mod->GetGlobalVars()) {
+      const auto& base_func = mod->Lookup(gvar);
       // Only fuse primitive relax functions
       if (base_func->HasNonzeroAttr(attr::kPrimitive)) {
         if (auto func = base_func.as<relax::Function>()) {

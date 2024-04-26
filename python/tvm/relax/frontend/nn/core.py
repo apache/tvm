@@ -475,10 +475,10 @@ class Module(SubroutineMixin):
         -------
         irmodule : tvm.ir.IRModule
             The converted tvm IR representation of the model.
-        params : Dict[str, tvm.nd.array]
-            A dictionary of parameters corresponding to the weights of
-            the model.
+        params : List[Tuple[str, Parameter]]
+            A list of Parameters corresponding to the weights of the model.
         ext_mods : List[nn.ExternModule]
+            A list of ExternModules that are used in the model.
         """
         # pylint: disable=import-outside-toplevel
         from . import spec as _spec

@@ -14,18 +14,39 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-include(ExternalProject)
-if(USE_MRVL)
-  # Mrvl Module
-  message(STATUS "Build with Mrvl support")
-  file(GLOB RUNTIME_MRVL_SRCS
-    src/runtime/contrib/mrvl/mrvl_runtime.cc
-    src/runtime/contrib/mrvl/mrvl_sw_runtime_lib.cc
-  )
-  list(APPEND RUNTIME_SRCS ${RUNTIME_MRVL_SRCS})
-  file(GLOB COMPILER_MRVL_SRCS
-    src/relay/backend/contrib/mrvl/codegen.cc
-    src/relay/backend/contrib/mrvl/compiler_attr.cc
-  )
-  list(APPEND COMPILER_SRCS ${COMPILER_MRVL_SRCS})
-endif(USE_MRVL)
+
+import os
+import subprocess
+import sys
+
+import tvm
+import tvm.testing
+
+
+def test_check_if_device_exists():
+    """kExist can be checked when no devices are present
+
+    This test uses `CUDA_VISIBLE_DEVICES` to disable any CUDA-capable
+    GPUs from being accessed by the subprocess.  Within the
+    subprocess, the CUDA driver cannot be initialized.  While most
+    functionality of CUDADeviceAPI would raise an exception, the
+    `kExist` property can still be checked.
+
+    """
+
+    cmd = [
+        sys.executable,
+        "-c",
+        "import tvm; tvm.device('cuda').exist",
+    ]
+    subprocess.check_call(
+        cmd,
+        env={
+            **os.environ,
+            "CUDA_VISIBLE_DEVICES": "",
+        },
+    )
+
+
+if __name__ == "__main__":
+    tvm.testing.main()

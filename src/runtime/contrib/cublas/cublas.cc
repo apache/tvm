@@ -150,8 +150,6 @@ void CallCublasLt(cublasLtHandle_t hdl, cudaStream_t stream,
   cudaDataType_t c_type = CUDA_R_32F;
   float one_fp32 = 1.0;
   float zero_fp32 = 0.0;
-  auto one_fp16 = __truncXfYf2__<float, uint32_t, 23, uint16_t, uint16_t, 10>(1.0);
-  auto zero_fp16 = __truncXfYf2__<float, uint32_t, 23, uint16_t, uint16_t, 10>(0.0);
   int32_t one_i32 = 1;
   int32_t zero_i32 = 0;
   void* alpha = &one_fp32;
@@ -161,14 +159,13 @@ void CallCublasLt(cublasLtHandle_t hdl, cudaStream_t stream,
     ab_type = CUDA_R_16F;
   } else if (TypeMatch(A->dtype, kDLInt, 8)) {
     ab_type = CUDA_R_8I;
+  } else if (TypeMatch(A->dtype, DataType::TypeCode::kE4M3Float, 8)) {
+    ICHECK(TypeMatch(B->dtype, DataType::TypeCode::kE4M3Float, 8));
+    ab_type = CUDA_R_8F_E4M3;
   }
 
   if (TypeMatch(C->dtype, kDLFloat, 16)) {
     c_type = CUDA_R_16F;
-    compute_type = CUBLAS_COMPUTE_16F;
-    scale_type = CUDA_R_16F;
-    alpha = &one_fp16;
-    beta = &zero_fp16;
   } else if (TypeMatch(C->dtype, kDLInt, 32)) {
     c_type = CUDA_R_32I;
     compute_type = CUBLAS_COMPUTE_32I;

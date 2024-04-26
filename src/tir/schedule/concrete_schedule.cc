@@ -466,7 +466,7 @@ class NonPositiveFactorError : public ScheduleError {
 
 Array<LoopRV> ConcreteScheduleNode::Split(const LoopRV& loop_rv,
                                           const Array<Optional<ExprRV>>& factor_rvs,
-                                          bool preserve_unit_iters) {
+                                          bool preserve_unit_iters, bool disable_predication) {
   // Prepare for the splitting
   StmtSRef loop_sref = this->GetSRef(loop_rv);
   const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
@@ -502,7 +502,7 @@ Array<LoopRV> ConcreteScheduleNode::Split(const LoopRV& loop_rv,
   } else if (!this->analyzer_->CanProve(tot_length >= loop->extent)) {
     throw WrongFactorError(state_->mod, GetRef<For>(loop), true);
   }
-  results = tir::Split(state_, loop_sref, factors, preserve_unit_iters);
+  results = tir::Split(state_, loop_sref, factors, preserve_unit_iters, disable_predication);
   TVM_TIR_SCHEDULE_END("split", this->error_render_level_);
   this->state_->DebugVerify();
   return CreateRV<LoopRV>(results);

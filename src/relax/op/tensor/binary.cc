@@ -32,43 +32,103 @@ namespace relax {
 template <typename FType>
 StructInfo InferStructInfoBroadcast(const Call& call, const BlockBuilder& ctx,
                                     FType f_compute_out_dtype) {
-  Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
-  TensorStructInfo x1_sinfo = input_sinfo[0];
-  TensorStructInfo x2_sinfo = input_sinfo[1];
-
-  // DateType
-  DataType output_dtype = f_compute_out_dtype(call, ctx, x1_sinfo, x2_sinfo);
-
-  // VDevice
-  Optional<VDevice> vdevice = InferBinaryArithOpOutVDevice(call, ctx, x1_sinfo, x2_sinfo);
-
-  // ndims
-  int output_ndim;
-  if (x1_sinfo->IsUnknownNdim() || x2_sinfo->IsUnknownNdim()) {
-    output_ndim = kUnknownNDim;
-  } else {
-    output_ndim = std::max(x1_sinfo->ndim, x2_sinfo->ndim);
+  Op op = Downcast<Op>(call->op);
+  size_t n_input = op->arguments.size();
+  if (call->args.size() != n_input) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << call->op << " op should have " << n_input << " arguments");
   }
 
-  const auto* x1_shape = x1_sinfo->shape.as<ShapeExprNode>();
-  const auto* x2_shape = x2_sinfo->shape.as<ShapeExprNode>();
-  // Shapes and ndims
-  if (x1_shape && x2_shape) {
-    // If all inputs have shapes, directly infer shapes
-    Optional<Array<PrimExpr>> output_shape =
-        InferBinaryBroadcastShape(call, ctx, x1_shape->values, x2_shape->values);
-    if (!output_shape.defined()) {
-      return TensorStructInfo(output_dtype, /*ndim=*/output_ndim, vdevice);
+  auto lhs_sinfo = GetStructInfo(call->args[0]);
+  auto rhs_sinfo = GetStructInfo(call->args[1]);
 
+  CHECK(lhs_sinfo.as<PrimStructInfoNode>() || lhs_sinfo.as<TensorStructInfoNode>())
+      << "TypeError: "
+      << "Arguments to binary operators must be either R.Tensor or R.Prim types, "
+      << "but expression " << call << " has LHS " << call->args[0] << ", which has StructInfo "
+      << lhs_sinfo;
+  CHECK(rhs_sinfo.as<PrimStructInfoNode>() || rhs_sinfo.as<TensorStructInfoNode>())
+      << "TypeError: "
+      << "Arguments to binary operators must be either R.Tensor or R.Prim types, "
+      << "but expression " << call << " has RHS " << call->args[1] << ", which has StructInfo "
+      << rhs_sinfo;
+
+  // DateType
+  DataType output_dtype = f_compute_out_dtype(call, ctx, lhs_sinfo, rhs_sinfo);
+
+  if (lhs_sinfo.as<PrimStructInfoNode>() && rhs_sinfo.as<PrimStructInfoNode>()) {
+    return PrimStructInfo(output_dtype);
+  }
+
+  // VDevice
+  Optional<VDevice> vdevice = InferBinaryArithOpOutVDevice(call, ctx, lhs_sinfo, rhs_sinfo);
+
+  auto get_ndim = [&](const StructInfo& sinfo) -> int {
+    if (sinfo.as<PrimStructInfoNode>()) {
+      return 1;
+    } else if (const auto* tensor = sinfo.as<TensorStructInfoNode>()) {
+      return tensor->ndim;
     } else {
+      return kUnknownNDim;
+    }
+  };
+
+  // ndims
+  int output_ndim = [&]() {
+    int lhs_ndim = get_ndim(lhs_sinfo);
+    int rhs_ndim = get_ndim(rhs_sinfo);
+    if (lhs_ndim == kUnknownNDim || rhs_ndim == kUnknownNDim) {
+      return kUnknownNDim;
+    } else {
+      return std::max(lhs_ndim, rhs_ndim);
+    }
+  }();
+
+  // Shapes
+
+  auto get_shape = [](const StructInfo& sinfo) -> Optional<Array<PrimExpr>> {
+    if (sinfo.as<PrimStructInfoNode>()) {
+      return Array<PrimExpr>{IntImm(DataType::Int(64), 1)};
+    } else if (const auto* tensor = sinfo.as<TensorStructInfoNode>()) {
+      return tensor->GetShape();
+    } else {
+      return NullOpt;
+    }
+  };
+
+  // If both inputs have a known shape, directly infer the shape of
+  // the output.
+  auto lhs_shape = get_shape(lhs_sinfo);
+  auto rhs_shape = get_shape(rhs_sinfo);
+  if (lhs_shape && rhs_shape) {
+    Optional<Array<PrimExpr>> output_shape =
+        InferBinaryBroadcastShape(call, ctx, lhs_shape.value(), rhs_shape.value());
+    if (output_shape.defined()) {
       ICHECK_EQ(static_cast<int>(output_shape.value().size()), output_ndim);
       return TensorStructInfo(ShapeExpr(output_shape.value()), output_dtype, vdevice);
     }
-  } else if (x1_sinfo->shape.defined() && x1_sinfo->shape.same_as(x2_sinfo->shape)) {
-    return TensorStructInfo(x1_sinfo->shape.value(), output_dtype, vdevice);
-  } else {
-    return TensorStructInfo(output_dtype, /*ndim=*/output_ndim, vdevice);
   }
+
+  auto get_shape_expr = [](const StructInfo& sinfo) -> Optional<Expr> {
+    if (const auto* tensor = sinfo.as<TensorStructInfoNode>()) {
+      return tensor->shape;
+    } else {
+      return NullOpt;
+    }
+  };
+
+  // If the input shape is unknown, but both inputs have the same
+  // `ShapeStructInfo`variable for their shape, then propagate that
+  // variable to the output.
+  auto lhs_shape_expr = get_shape_expr(lhs_sinfo);
+  auto rhs_shape_expr = get_shape_expr(rhs_sinfo);
+  if (lhs_shape_expr.defined() && lhs_shape_expr.same_as(rhs_shape_expr)) {
+    return TensorStructInfo(lhs_shape_expr.value(), output_dtype, vdevice);
+  }
+
+  // If neither of those cases holds, then fall back to an unknown
+  // shape with `output_ndim` dimensionality.
+  return TensorStructInfo(output_dtype, output_ndim, vdevice);
 }
 
 StructInfo InferStructInfoBroadcastArith(const Call& call, const BlockBuilder& ctx) {
@@ -78,8 +138,8 @@ StructInfo InferStructInfoBroadcastArith(const Call& call, const BlockBuilder& c
 StructInfo InferStructInfoBroadcastCMP(const Call& call, const BlockBuilder& ctx) {
   return InferStructInfoBroadcast(
       call, ctx,
-      [](const Call& call, const BlockBuilder& ctx, const TensorStructInfo& x1_sinfo,
-         const TensorStructInfo& x2_sinfo) { return DataType::Bool(); });
+      [](const Call& call, const BlockBuilder& ctx, const StructInfo& lhs_sinfo,
+         const StructInfo& rhs_sinfo) { return DataType::Bool(); });
 }
 
 InferLayoutOutput InferLayoutBinaryEwise(const Call& call,

@@ -14,18 +14,27 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-include(ExternalProject)
-if(USE_MRVL)
-  # Mrvl Module
-  message(STATUS "Build with Mrvl support")
-  file(GLOB RUNTIME_MRVL_SRCS
-    src/runtime/contrib/mrvl/mrvl_runtime.cc
-    src/runtime/contrib/mrvl/mrvl_sw_runtime_lib.cc
-  )
-  list(APPEND RUNTIME_SRCS ${RUNTIME_MRVL_SRCS})
-  file(GLOB COMPILER_MRVL_SRCS
-    src/relay/backend/contrib/mrvl/codegen.cc
-    src/relay/backend/contrib/mrvl/compiler_attr.cc
-  )
-  list(APPEND COMPILER_SRCS ${COMPILER_MRVL_SRCS})
-endif(USE_MRVL)
+"""Test data type related API"""
+import tvm
+from tvm import DataType
+import tvm.testing
+import pytest
+
+
+@pytest.mark.parametrize(
+    "dtype_str, expected_size",
+    [("float32", 4), ("float32x4", 16), ("e5m2_float8x4", 4), ("uint8", 1)],
+)
+def test_dtype_itemsize(dtype_str, expected_size):
+    dtype = DataType(dtype_str)
+    assert dtype.itemsize() == expected_size
+
+
+@pytest.mark.parametrize("dtype_str", [("int32xvscalex4")])
+def test_dtype_itemmize_error(dtype_str):
+    with pytest.raises(ValueError):
+        size = DataType(dtype_str).itemsize()
+
+
+if __name__ == "__main__":
+    tvm.testing.main()

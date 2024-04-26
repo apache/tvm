@@ -17,7 +17,7 @@
 
 import tvm
 from tvm.relax.transform import LegalizeOps
-from tvm.script import relax as R, tir as T
+from tvm.script import ir as I, relax as R, tir as T
 import tvm.testing
 
 
@@ -164,6 +164,44 @@ def test_add_symbolic():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
+def test_add_primvalue():
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(
+            x: R.Tensor([64, 32, 16], "float32"),
+            y: R.Prim("float32"),
+        ):
+            gv = R.add(x, y)
+            return gv
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor([64, 32, 16], "float32"),
+            y: R.Prim("float32"),
+        ):
+            cls = Expected
+            gv = R.call_tir(cls.add, (x, y), R.Tensor([64, 32, 16], dtype="float32"))
+            return gv
+
+        @T.prim_func(private=True)
+        def add(
+            lhs: T.Buffer([T.int64(64), T.int64(32), T.int64(16)], "float32"),
+            rhs: T.float32,
+            output: T.Buffer([T.int64(64), T.int64(32), T.int64(16)], "float32"),
+        ):
+            T.func_attr({"tir.noalias": True})
+            for i, j, k in T.grid(*lhs.shape):
+                with T.block("T_add"):
+                    vi, vj, vk = T.axis.remap("SSS", [i, j, k])
+                    output[vi, vj, vk] = lhs[vi, vj, vk] + rhs
+
+    After = LegalizeOps()(Before)
+    tvm.ir.assert_structural_equal(Expected, After)
+
+
 def test_divide():
     # fmt: off
     @tvm.script.ir_module
@@ -301,6 +339,44 @@ def test_divide_symbolic():
 
     mod = LegalizeOps()(Divide)
     tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_divide_primvalue():
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(
+            x: R.Tensor([64, 32, 16], "float32"),
+            y: R.Prim("float32"),
+        ):
+            gv = R.divide(x, y)
+            return gv
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor([64, 32, 16], "float32"),
+            y: R.Prim("float32"),
+        ):
+            cls = Expected
+            gv = R.call_tir(cls.divide, (x, y), R.Tensor([64, 32, 16], dtype="float32"))
+            return gv
+
+        @T.prim_func(private=True)
+        def divide(
+            lhs: T.Buffer([T.int64(64), T.int64(32), T.int64(16)], "float32"),
+            rhs: T.float32,
+            output: T.Buffer([T.int64(64), T.int64(32), T.int64(16)], "float32"),
+        ):
+            T.func_attr({"tir.noalias": True})
+            for i, j, k in T.grid(*lhs.shape):
+                with T.block("T_add"):
+                    vi, vj, vk = T.axis.remap("SSS", [i, j, k])
+                    output[vi, vj, vk] = lhs[vi, vj, vk] / rhs
+
+    After = LegalizeOps()(Before)
+    tvm.ir.assert_structural_equal(Expected, After)
 
 
 def test_floor_divide():
@@ -442,6 +518,44 @@ def test_floor_divide_symbolic():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
+def test_floordiv_primvalue():
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(
+            x: R.Tensor([64, 32, 16], "float32"),
+            y: R.Prim("float32"),
+        ):
+            gv = R.floor_divide(x, y)
+            return gv
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor([64, 32, 16], "float32"),
+            y: R.Prim("float32"),
+        ):
+            cls = Expected
+            gv = R.call_tir(cls.floor_divide, (x, y), R.Tensor([64, 32, 16], dtype="float32"))
+            return gv
+
+        @T.prim_func(private=True)
+        def floor_divide(
+            lhs: T.Buffer([T.int64(64), T.int64(32), T.int64(16)], "float32"),
+            rhs: T.float32,
+            output: T.Buffer([T.int64(64), T.int64(32), T.int64(16)], "float32"),
+        ):
+            T.func_attr({"tir.noalias": True})
+            for i, j, k in T.grid(*lhs.shape):
+                with T.block("T_floordiv"):
+                    vi, vj, vk = T.axis.remap("SSS", [i, j, k])
+                    output[vi, vj, vk] = T.floor(lhs[vi, vj, vk] / rhs)
+
+    After = LegalizeOps()(Before)
+    tvm.ir.assert_structural_equal(Expected, After)
+
+
 def test_multiply():
     # fmt: off
     @tvm.script.ir_module
@@ -517,6 +631,44 @@ def test_multiply_symbolic():
 
     mod = LegalizeOps()(Multiply)
     tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_multiply_primvalue():
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(
+            x: R.Tensor([64, 32, 16], "float32"),
+            y: R.Prim("float32"),
+        ):
+            gv = R.multiply(x, y)
+            return gv
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor([64, 32, 16], "float32"),
+            y: R.Prim("float32"),
+        ):
+            cls = Expected
+            gv = R.call_tir(cls.multiply, (x, y), R.Tensor([64, 32, 16], dtype="float32"))
+            return gv
+
+        @T.prim_func(private=True)
+        def multiply(
+            lhs: T.Buffer([T.int64(64), T.int64(32), T.int64(16)], "float32"),
+            rhs: T.float32,
+            output: T.Buffer([T.int64(64), T.int64(32), T.int64(16)], "float32"),
+        ):
+            T.func_attr({"tir.noalias": True})
+            for i, j, k in T.grid(*lhs.shape):
+                with T.block("T_add"):
+                    vi, vj, vk = T.axis.remap("SSS", [i, j, k])
+                    output[vi, vj, vk] = lhs[vi, vj, vk] * rhs
+
+    After = LegalizeOps()(Before)
+    tvm.ir.assert_structural_equal(Expected, After)
 
 
 def test_power():
@@ -599,6 +751,44 @@ def test_power_symbolic():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
+def test_power_primvalue():
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(
+            x: R.Tensor([64, 32, 16], "float32"),
+            y: R.Prim("float32"),
+        ):
+            gv = R.power(x, y)
+            return gv
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor([64, 32, 16], "float32"),
+            y: R.Prim("float32"),
+        ):
+            cls = Expected
+            gv = R.call_tir(cls.power, (x, y), R.Tensor([64, 32, 16], dtype="float32"))
+            return gv
+
+        @T.prim_func(private=True)
+        def power(
+            lhs: T.Buffer([T.int64(64), T.int64(32), T.int64(16)], "float32"),
+            rhs: T.float32,
+            output: T.Buffer([T.int64(64), T.int64(32), T.int64(16)], "float32"),
+        ):
+            T.func_attr({"tir.noalias": True})
+            for i, j, k in T.grid(*lhs.shape):
+                with T.block("T_power"):
+                    vi, vj, vk = T.axis.remap("SSS", [i, j, k])
+                    output[vi, vj, vk] = T.pow(lhs[vi, vj, vk], rhs)
+
+    After = LegalizeOps()(Before)
+    tvm.ir.assert_structural_equal(Expected, After)
+
+
 def test_subtract():
     # fmt: off
     @tvm.script.ir_module
@@ -674,6 +864,44 @@ def test_subtract_symbolic():
 
     mod = LegalizeOps()(Subtract)
     tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_subtract_primvalue():
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(
+            x: R.Tensor([64, 32, 16], "float32"),
+            y: R.Prim("float32"),
+        ):
+            gv = R.subtract(x, y)
+            return gv
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor([64, 32, 16], "float32"),
+            y: R.Prim("float32"),
+        ):
+            cls = Expected
+            gv = R.call_tir(cls.subtract, (x, y), R.Tensor([64, 32, 16], dtype="float32"))
+            return gv
+
+        @T.prim_func(private=True)
+        def subtract(
+            lhs: T.Buffer([T.int64(64), T.int64(32), T.int64(16)], "float32"),
+            rhs: T.float32,
+            output: T.Buffer([T.int64(64), T.int64(32), T.int64(16)], "float32"),
+        ):
+            T.func_attr({"tir.noalias": True})
+            for i, j, k in T.grid(*lhs.shape):
+                with T.block("T_add"):
+                    vi, vj, vk = T.axis.remap("SSS", [i, j, k])
+                    output[vi, vj, vk] = lhs[vi, vj, vk] - rhs
+
+    After = LegalizeOps()(Before)
+    tvm.ir.assert_structural_equal(Expected, After)
 
 
 ##################### Binary comparison #####################
@@ -818,6 +1046,44 @@ def test_equal_symbolic():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
+def test_equal_primvalue():
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(
+            x: R.Tensor([64, 32, 16], "float32"),
+            y: R.Prim("float32"),
+        ):
+            gv = R.equal(x, y)
+            return gv
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor([64, 32, 16], "float32"),
+            y: R.Prim("float32"),
+        ):
+            cls = Expected
+            gv = R.call_tir(cls.equal, (x, y), R.Tensor([64, 32, 16], dtype="bool"))
+            return gv
+
+        @T.prim_func(private=True)
+        def equal(
+            lhs: T.Buffer([T.int64(64), T.int64(32), T.int64(16)], "float32"),
+            rhs: T.float32,
+            output: T.Buffer([T.int64(64), T.int64(32), T.int64(16)], "bool"),
+        ):
+            T.func_attr({"tir.noalias": True})
+            for i, j, k in T.grid(*lhs.shape):
+                with T.block("T_add"):
+                    vi, vj, vk = T.axis.remap("SSS", [i, j, k])
+                    output[vi, vj, vk] = lhs[vi, vj, vk] == rhs
+
+    After = LegalizeOps()(Before)
+    tvm.ir.assert_structural_equal(Expected, After)
+
+
 def test_greater():
     # fmt: off
     @tvm.script.ir_module
@@ -957,6 +1223,44 @@ def test_greater_symbolic():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
+def test_greater_primvalue():
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(
+            x: R.Tensor([64, 32, 16], "float32"),
+            y: R.Prim("float32"),
+        ):
+            gv = R.greater(x, y)
+            return gv
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor([64, 32, 16], "float32"),
+            y: R.Prim("float32"),
+        ):
+            cls = Expected
+            gv = R.call_tir(cls.greater, (x, y), R.Tensor([64, 32, 16], dtype="bool"))
+            return gv
+
+        @T.prim_func(private=True)
+        def greater(
+            lhs: T.Buffer([T.int64(64), T.int64(32), T.int64(16)], "float32"),
+            rhs: T.float32,
+            output: T.Buffer([T.int64(64), T.int64(32), T.int64(16)], "bool"),
+        ):
+            T.func_attr({"tir.noalias": True})
+            for i, j, k in T.grid(*lhs.shape):
+                with T.block("T_add"):
+                    vi, vj, vk = T.axis.remap("SSS", [i, j, k])
+                    output[vi, vj, vk] = rhs < lhs[vi, vj, vk]
+
+    After = LegalizeOps()(Before)
+    tvm.ir.assert_structural_equal(Expected, After)
+
+
 def test_greater_equal():
     # fmt: off
     @tvm.script.ir_module
@@ -1034,6 +1338,44 @@ def test_greater_equal_symbolic():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
+def test_greater_equal_primvalue():
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(
+            x: R.Tensor([64, 32, 16], "float32"),
+            y: R.Prim("float32"),
+        ):
+            gv = R.greater_equal(x, y)
+            return gv
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor([64, 32, 16], "float32"),
+            y: R.Prim("float32"),
+        ):
+            cls = Expected
+            gv = R.call_tir(cls.greater_equal, (x, y), R.Tensor([64, 32, 16], dtype="bool"))
+            return gv
+
+        @T.prim_func(private=True)
+        def greater_equal(
+            lhs: T.Buffer([T.int64(64), T.int64(32), T.int64(16)], "float32"),
+            rhs: T.float32,
+            output: T.Buffer([T.int64(64), T.int64(32), T.int64(16)], "bool"),
+        ):
+            T.func_attr({"tir.noalias": True})
+            for i, j, k in T.grid(*lhs.shape):
+                with T.block("T_add"):
+                    vi, vj, vk = T.axis.remap("SSS", [i, j, k])
+                    output[vi, vj, vk] = rhs <= lhs[vi, vj, vk]
+
+    After = LegalizeOps()(Before)
+    tvm.ir.assert_structural_equal(Expected, After)
+
+
 def test_less():
     # fmt: off
     @tvm.script.ir_module
@@ -1109,6 +1451,44 @@ def test_less_symbolic():
 
     mod = LegalizeOps()(Less)
     tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_less_primvalue():
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(
+            x: R.Tensor([64, 32, 16], "float32"),
+            y: R.Prim("float32"),
+        ):
+            gv = R.less(x, y)
+            return gv
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor([64, 32, 16], "float32"),
+            y: R.Prim("float32"),
+        ):
+            cls = Expected
+            gv = R.call_tir(cls.less, (x, y), R.Tensor([64, 32, 16], dtype="bool"))
+            return gv
+
+        @T.prim_func(private=True)
+        def less(
+            lhs: T.Buffer([T.int64(64), T.int64(32), T.int64(16)], "float32"),
+            rhs: T.float32,
+            output: T.Buffer([T.int64(64), T.int64(32), T.int64(16)], "bool"),
+        ):
+            T.func_attr({"tir.noalias": True})
+            for i, j, k in T.grid(*lhs.shape):
+                with T.block("T_add"):
+                    vi, vj, vk = T.axis.remap("SSS", [i, j, k])
+                    output[vi, vj, vk] = lhs[vi, vj, vk] < rhs
+
+    After = LegalizeOps()(Before)
+    tvm.ir.assert_structural_equal(Expected, After)
 
 
 def test_less_equal():
@@ -1250,6 +1630,44 @@ def test_less_equal_symbolic():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
+def test_less_equal_primvalue():
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(
+            x: R.Tensor([64, 32, 16], "float32"),
+            y: R.Prim("float32"),
+        ):
+            gv = R.less_equal(x, y)
+            return gv
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor([64, 32, 16], "float32"),
+            y: R.Prim("float32"),
+        ):
+            cls = Expected
+            gv = R.call_tir(cls.less_equal, (x, y), R.Tensor([64, 32, 16], dtype="bool"))
+            return gv
+
+        @T.prim_func(private=True)
+        def less_equal(
+            lhs: T.Buffer([T.int64(64), T.int64(32), T.int64(16)], "float32"),
+            rhs: T.float32,
+            output: T.Buffer([T.int64(64), T.int64(32), T.int64(16)], "bool"),
+        ):
+            T.func_attr({"tir.noalias": True})
+            for i, j, k in T.grid(*lhs.shape):
+                with T.block("T_add"):
+                    vi, vj, vk = T.axis.remap("SSS", [i, j, k])
+                    output[vi, vj, vk] = lhs[vi, vj, vk] <= rhs
+
+    After = LegalizeOps()(Before)
+    tvm.ir.assert_structural_equal(Expected, After)
+
+
 def test_not_equal():
     # fmt: off
     @tvm.script.ir_module
@@ -1325,6 +1743,44 @@ def test_not_equal_symbolic():
 
     mod = LegalizeOps()(NotEqual)
     tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_not_equal_primvalue():
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(
+            x: R.Tensor([64, 32, 16], "float32"),
+            y: R.Prim("float32"),
+        ):
+            gv = R.not_equal(x, y)
+            return gv
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor([64, 32, 16], "float32"),
+            y: R.Prim("float32"),
+        ):
+            cls = Expected
+            gv = R.call_tir(cls.not_equal, (x, y), R.Tensor([64, 32, 16], dtype="bool"))
+            return gv
+
+        @T.prim_func(private=True)
+        def not_equal(
+            lhs: T.Buffer([T.int64(64), T.int64(32), T.int64(16)], "float32"),
+            rhs: T.float32,
+            output: T.Buffer([T.int64(64), T.int64(32), T.int64(16)], "bool"),
+        ):
+            T.func_attr({"tir.noalias": True})
+            for i, j, k in T.grid(*lhs.shape):
+                with T.block("T_add"):
+                    vi, vj, vk = T.axis.remap("SSS", [i, j, k])
+                    output[vi, vj, vk] = lhs[vi, vj, vk] != rhs
+
+    After = LegalizeOps()(Before)
+    tvm.ir.assert_structural_equal(Expected, After)
 
 
 def test_maximum():
@@ -1467,6 +1923,44 @@ def test_maximum_symbolic():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
+def test_max_primvalue():
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(
+            x: R.Tensor([64, 32, 16], "float32"),
+            y: R.Prim("float32"),
+        ):
+            gv = R.maximum(x, y)
+            return gv
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor([64, 32, 16], "float32"),
+            y: R.Prim("float32"),
+        ):
+            cls = Expected
+            gv = R.call_tir(cls.maximum, (x, y), R.Tensor([64, 32, 16], dtype="float32"))
+            return gv
+
+        @T.prim_func(private=True)
+        def maximum(
+            lhs: T.Buffer([T.int64(64), T.int64(32), T.int64(16)], "float32"),
+            rhs: T.float32,
+            output: T.Buffer([T.int64(64), T.int64(32), T.int64(16)], "float32"),
+        ):
+            T.func_attr({"tir.noalias": True})
+            for i, j, k in T.grid(*lhs.shape):
+                with T.block("T_add"):
+                    vi, vj, vk = T.axis.remap("SSS", [i, j, k])
+                    output[vi, vj, vk] = T.max(lhs[vi, vj, vk], rhs)
+
+    After = LegalizeOps()(Before)
+    tvm.ir.assert_structural_equal(Expected, After)
+
+
 def test_minimum():
     # fmt: off
     @tvm.script.ir_module
@@ -1605,6 +2099,44 @@ def test_minimum_symbolic():
 
     mod = LegalizeOps()(Minimum)
     tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_min_primvalue():
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(
+            x: R.Tensor([64, 32, 16], "float32"),
+            y: R.Prim("float32"),
+        ):
+            gv = R.minimum(x, y)
+            return gv
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor([64, 32, 16], "float32"),
+            y: R.Prim("float32"),
+        ):
+            cls = Expected
+            gv = R.call_tir(cls.minimum, (x, y), R.Tensor([64, 32, 16], dtype="float32"))
+            return gv
+
+        @T.prim_func(private=True)
+        def minimum(
+            lhs: T.Buffer([T.int64(64), T.int64(32), T.int64(16)], "float32"),
+            rhs: T.float32,
+            output: T.Buffer([T.int64(64), T.int64(32), T.int64(16)], "float32"),
+        ):
+            T.func_attr({"tir.noalias": True})
+            for i, j, k in T.grid(*lhs.shape):
+                with T.block("T_add"):
+                    vi, vj, vk = T.axis.remap("SSS", [i, j, k])
+                    output[vi, vj, vk] = T.min(lhs[vi, vj, vk], rhs)
+
+    After = LegalizeOps()(Before)
+    tvm.ir.assert_structural_equal(Expected, After)
 
 
 if __name__ == "__main__":
