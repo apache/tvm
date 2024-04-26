@@ -418,7 +418,7 @@ def clml_pattern_table():
         # Scalars are not supported
         if len(call.args[1].checked_type.shape) == 0:
             return False
-        if(call.args[0] == call.args[1]):
+        if call.args[0] == call.args[1]:
             return False
 
         if tuple(call.args[0].checked_type.shape) != tuple(call.args[1].checked_type.shape):
