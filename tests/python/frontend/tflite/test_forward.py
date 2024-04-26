@@ -2150,7 +2150,9 @@ def _test_unary_elemwise(math_op, data, quantized, quant_range=(-6, 6), int_quan
         with tf.Graph().as_default():
             in_data = array_ops.placeholder(shape=data.shape, dtype=data.dtype, name="in")
             out = math_op(in_data)
-            compare_tflite_with_tvm(data, ["in:0"], [in_data], [out])
+            compare_tflite_with_tvm(
+                data, ["in:0"], [in_data], [out], experimental_new_converter=True
+            )
 
 
 def _unary_elewise_create_model(math_op, data, offset=0, int_quant_dtype=tf.int8):
@@ -2400,6 +2402,16 @@ def _test_elu(data, quantized, int_quant_dtype=tf.int8):
     return _test_unary_elemwise(nn_ops.elu, data, quantized, int_quant_dtype=int_quant_dtype)
 
 
+#######################################################################
+# Gelu
+# ---
+
+
+def _test_gelu(data, quantized, int_quant_dtype=tf.int8):
+    """One iteration of elu"""
+    return _test_unary_elemwise(nn_ops.gelu, data, quantized, int_quant_dtype=int_quant_dtype)
+
+
 def _test_forward_unary_elemwise(test_op, int_quant_dtype=None, quantized=True, negative=True):
     # input data
     in_data, inq_data = [], []
@@ -2439,15 +2451,16 @@ def test_all_unary_elemwise():
     _test_forward_unary_elemwise(_test_sin)
     _test_forward_unary_elemwise(_test_neg)
     _test_forward_unary_elemwise(_test_sqrt, negative=False)
+    _test_forward_unary_elemwise(_test_gelu, quantized=False)
     # tensorflow version upgrade support
-    if tf.__version__ < LooseVersion("2.6.1"):
+    if package_version.parse(tf.VERSION) < package_version.parse("2.6.1"):
         _test_forward_unary_elemwise(_test_rsqrt, negative=False, int_quant_dtype=tf.uint8)
     else:
         _test_forward_unary_elemwise(_test_rsqrt, negative=False, int_quant_dtype=tf.int8)
     # ceil and cos come with TFLite 1.14.0.post1 fbs schema
     if package_version.parse(tf.VERSION) >= package_version.parse("1.14.0"):
         _test_forward_unary_elemwise(_test_ceil)
-        if tf.__version__ < LooseVersion("2.6.1"):
+        if package_version.parse(tf.VERSION) < package_version.parse("2.6.1"):
             _test_forward_unary_elemwise(_test_cos, quantized=False)
         else:
             _test_forward_unary_elemwise(_test_cos, int_quant_dtype=tf.int8)
