@@ -86,6 +86,10 @@ outputs:
         - psutil
         - scipy
         - typing_extensions
+        - attrs
+        - ml_dtypes
+        - tornado
+        - cloudpickle
         - {{ pin_compatible('numpy') }}
         - {{ pin_subpackage(pkg_name + '-libs', exact=True) }}
 
