@@ -1085,7 +1085,7 @@ inline Tensor take(const Tensor& a, Variant<Tensor, PrimExpr> indices, int batch
   for (int i = batch_dims_; i < axis; ++i) {
     out_shape.push_back(a->shape[i]);
   }
-  for (size_t i = static_cast<size_t>(batch_dims_); i < indices_len; ++i) {
+  for (int i = batch_dims_; i < indices_len; ++i) {
     out_shape.push_back(indices_shape[i]);
   }
   for (size_t i = axis + 1; i < a->shape.size(); ++i) {
