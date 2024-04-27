@@ -61,6 +61,10 @@ StructInfo InferStructInfoTake(const Call& call, const BlockBuilder& ctx) {
                        << "Operator " << call->op << " requires the indices argument to be "
                        << "either a tensor or a scalar value.  "
                        << "However, argument " << arg << " has struct info " << sinfo);
+      // Unreachable, but [[noreturn]] attribute on virtual function
+      // `ReportFatal` is insufficient to silence -Wreturn-type, as
+      // child class might not be [[noreturn]].
+      return TensorStructInfo();
     }
   }();
 

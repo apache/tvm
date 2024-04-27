@@ -63,6 +63,10 @@ TensorStructInfo GetInputTensorStructInfo(const Call& call, size_t i_arg, const 
                      << "Operator " << op << " requires argument " << i_arg << " ("
                      << op->arguments[i_arg]->name << ") to be a tensor.  "
                      << "However, the argument " << arg << " is instead of type " << sinfo);
+    // Unreachable, but [[noreturn]] attribute on virtual function
+    // `ReportFatal` is insufficient to silence -Wreturn-type, as
+    // child class might not be [[noreturn]].
+    return TensorStructInfo();
   }
 }
 
@@ -71,7 +75,7 @@ Array<TensorStructInfo> GetInputTensorStructInfo(const Call& call, const BlockBu
 
   Op op = Downcast<Op>(call->op);
   Array<TensorStructInfo> input_tensor_sinfo;
-  for (int i = 0; i < call->args.size(); ++i) {
+  for (size_t i = 0; i < call->args.size(); ++i) {
     input_tensor_sinfo.push_back(GetInputTensorStructInfo(call, i, ctx));
   }
   return input_tensor_sinfo;
