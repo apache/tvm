@@ -44,9 +44,25 @@ Expr take(Expr x, Expr indices, Optional<Integer> axis) {
 TVM_REGISTER_GLOBAL("relax.op.take").set_body_typed(take);
 
 StructInfo InferStructInfoTake(const Call& call, const BlockBuilder& ctx) {
-  Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
-  TensorStructInfo data_sinfo = input_sinfo[0];
-  TensorStructInfo indices_sinfo = input_sinfo[1];
+  CheckNumArguments(call, ctx);
+  TensorStructInfo data_sinfo = GetInputTensorStructInfo(call, 0, ctx);
+
+  // StructInfo inference when the index is a PrimValue is equivalent
+  // to that of a scalar (0-d) tensor.
+  TensorStructInfo indices_sinfo = [&]() {
+    auto arg = call->args[1];
+    auto sinfo = GetStructInfo(arg);
+    if (auto tensor_sinfo = sinfo.as<TensorStructInfo>()) {
+      return tensor_sinfo.value();
+    } else if (auto prim_sinfo = sinfo.as<PrimStructInfoNode>()) {
+      return TensorStructInfo(ShapeExpr(Array<PrimExpr>{}), prim_sinfo->dtype);
+    } else {
+      ctx->ReportFatal(Diagnostic::Error(call)
+                       << "Operator " << call->op << " requires the indices argument to be "
+                       << "either a tensor or a scalar value.  "
+                       << "However, argument " << arg << " has struct info " << sinfo);
+    }
+  }();
 
   if (indices_sinfo->IsUnknownDtype()) {
     // TODO(tvm-team): Do we have an equivalent of `ctx->ReportFatal` for warning?

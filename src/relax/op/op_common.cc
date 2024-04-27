@@ -35,24 +35,44 @@ Array<Expr> GetCallArgs(const Call& call) {
   return args;
 }
 
-Array<TensorStructInfo> GetInputTensorStructInfo(const Call& call, const BlockBuilder& ctx) {
+void CheckNumArguments(const Call& call, const BlockBuilder& ctx) {
   Op op = Downcast<Op>(call->op);
-  int n_input = op->arguments.size();
-  if (static_cast<int>(call->args.size()) != n_input) {
+  int expected_input = op->arguments.size();
+  if (static_cast<int>(call->args.size()) != expected_input) {
     ctx->ReportFatal(Diagnostic::Error(call)
-                     << op << " op should have " << n_input << " arguments");
+                     << "Operator " << op << " expects " << expected_input << " arguments"
+                     << ", but was called with " << call->args.size() << " arguments");
   }
+}
+
+TensorStructInfo GetInputTensorStructInfo(const Call& call, size_t i_arg, const BlockBuilder& ctx) {
+  Op op = Downcast<Op>(call->op);
+
+  ICHECK_EQ(op->arguments.size(), call->args.size())
+      << "Failure caught by this check "
+      << "should have previously been caught by `CheckNumArguments`";
+  ICHECK_LT(i_arg, op->arguments.size());
+
+  auto arg = call->args[i_arg];
+  auto sinfo = GetStructInfo(arg);
+
+  if (auto tensor_sinfo = sinfo.as<TensorStructInfo>()) {
+    return tensor_sinfo.value();
+  } else {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "Operator " << op << " requires argument " << i_arg << " ("
+                     << op->arguments[i_arg]->name << ") to be a tensor.  "
+                     << "However, the argument " << arg << " is instead of type " << sinfo);
+  }
+}
+
+Array<TensorStructInfo> GetInputTensorStructInfo(const Call& call, const BlockBuilder& ctx) {
+  CheckNumArguments(call, ctx);
+
+  Op op = Downcast<Op>(call->op);
   Array<TensorStructInfo> input_tensor_sinfo;
-  input_tensor_sinfo.reserve(n_input);
-  for (int i = 0; i < n_input; ++i) {
-    const auto* sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[i]);
-    if (sinfo == nullptr) {
-      ctx->ReportFatal(Diagnostic::Error(call)
-                       << op << " requires the input " << op->arguments[i]->name
-                       << " to be Tensor. However, the given one has a "
-                       << call->args[i]->struct_info_->GetTypeKey());
-    }
-    input_tensor_sinfo.push_back(GetRef<TensorStructInfo>(sinfo));
+  for (int i = 0; i < call->args.size(); ++i) {
+    input_tensor_sinfo.push_back(GetInputTensorStructInfo(call, i, ctx));
   }
   return input_tensor_sinfo;
 }
