@@ -85,6 +85,7 @@ outputs:
         - decorator
         - psutil
         - scipy
+        - typing_extensions
         - {{ pin_compatible('numpy') }}
         - {{ pin_subpackage(pkg_name + '-libs', exact=True) }}
 
