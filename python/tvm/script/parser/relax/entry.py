@@ -20,6 +20,7 @@ from typing import Any
 from typing import Callable as _Callable
 from typing import Dict, List, Optional, Set, TypeVar, Union
 
+import tvm
 from tvm.relax import (
     Expr,
     SeqExpr,
@@ -277,6 +278,7 @@ class CallableProxy(StructInfoProxy):
     params: List[StructInfoProxy]
     ret: StructInfoProxy
     purity: bool
+    derive_func: Optional[Union[str, tvm.ir.EnvFunc]]
 
     """Function type.
 
@@ -296,6 +298,9 @@ class CallableProxy(StructInfoProxy):
     purity : bool
         Whether the callable is pure.
 
+    derive_func: Optional[Union[str, tvm.ir.EnvFunc]]
+        The derivation function for the outputq
+
     """
 
     def __init__(
@@ -303,6 +308,7 @@ class CallableProxy(StructInfoProxy):
         params: Optional[Union[StructInfoProxy, List[StructInfoProxy]]] = None,
         ret: Optional[StructInfoProxy] = None,
         purity: Optional[bool] = None,
+        derive_func: Optional[Union[str, tvm.ir.EnvFunc]] = None,
     ) -> None:
         if params is None:
             self.params = params
@@ -320,6 +326,7 @@ class CallableProxy(StructInfoProxy):
 
         self.ret = ret() if callable(ret) else ret
         self.purity = purity
+        self.derive_func = derive_func
 
     def get_symbolic_vars(self) -> Set[str]:
         if self.params is None:
@@ -339,7 +346,9 @@ class CallableProxy(StructInfoProxy):
             params = [param.as_struct_info(dict_globals) for param in self.params]
 
         if params is None:
-            return FuncStructInfo.opaque_func(ret=ret, purity=self.purity)
+            return FuncStructInfo.opaque_func(
+                ret=ret, derive_func=self.derive_func, purity=self.purity
+            )
         else:
             return FuncStructInfo(params, ret, purity=self.purity)
 
@@ -348,8 +357,9 @@ def Callable(
     params: Optional[Union[StructInfoProxy, List[StructInfoProxy]]] = None,
     ret: Optional[StructInfoProxy] = None,
     purity: Optional[bool] = None,
+    derive_func: Optional[Union[str, tvm.ir.EnvFunc]] = None,
 ) -> CallableProxy:
-    return CallableProxy(params, ret, purity=purity)
+    return CallableProxy(params, ret, purity=purity, derive_func=derive_func)
 
 
 ############################### R.Tuple ################################

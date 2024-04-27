@@ -233,7 +233,7 @@ class FuncStructInfo(StructInfo):
     def opaque_func(
         *,
         ret: Optional[StructInfo] = None,
-        derive_func: Optional[EnvFunc] = None,
+        derive_func: Optional[Union[str, EnvFunc]] = None,
         purity: bool = False,
         span: Span = None,
     ) -> "FuncStructInfo":
@@ -249,7 +249,7 @@ class FuncStructInfo(StructInfo):
         ret: Optional[StructInfo]
            The struct info of the function return value.
 
-        derive_func: Optional[EnvFunc]
+        derive_func: Optional[Union[str,EnvFunc]]
            The environment function used for derivation
 
         purity: bool
@@ -266,4 +266,7 @@ class FuncStructInfo(StructInfo):
         ----
         We cannot specify ret and derive_func simultaneously.
         """
+
+        if isinstance(derive_func, str):
+            derive_func = tvm.ir.EnvFunc.get("tvm.relax.struct_info.infer_view_sinfo")
         return _ffi_api.FuncStructInfoOpaqueFunc(ret, derive_func, purity, span)  # type: ignore

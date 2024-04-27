@@ -650,9 +650,14 @@ ExternFunc::ExternFunc(String global_symbol, StructInfo struct_info, Span span) 
   data_ = std::move(n);
 }
 
-TVM_REGISTER_GLOBAL("relax.ExternFunc").set_body_typed([](String global_symbol, Span span) {
-  return ExternFunc(global_symbol, span);
-});
+TVM_REGISTER_GLOBAL("relax.ExternFunc")
+    .set_body_typed([](String global_symbol, Optional<StructInfo> struct_info, Span span) {
+      if (struct_info.defined()) {
+        return ExternFunc(global_symbol, struct_info.value(), span);
+      } else {
+        return ExternFunc(global_symbol, span);
+      }
+    });
 
 Expr GetShapeOf(const Expr& expr) {
   // default case, to be normalized.
