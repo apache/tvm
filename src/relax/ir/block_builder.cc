@@ -149,7 +149,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
     }
   }
 
-  void ReportFatal(const Diagnostic& diagnostic) final {
+  [[noreturn]] void ReportFatal(const Diagnostic& diagnostic) final {
     // TODO(relax-team): Print more context information by looking
     // into the diagnostic->loc and surrounding IRModule.
     // We do not materialzie DiagnosticContext to avoid double referencing to
