@@ -150,6 +150,9 @@ class StructInfoProxy(ObjectGeneric):
     def get_symbolic_vars(self) -> Set[str]:
         return {}
 
+    def get_symbolic_size_vars(self) -> Set[str]:
+        return self.get_symbolic_vars()
+
     def asobject(self):
         return self.as_struct_info(None)
 
@@ -171,9 +174,6 @@ class ObjectProxy(StructInfoProxy):
 
     def __init__(self) -> None:
         pass
-
-    def get_symbolic_vars(self) -> Set[str]:
-        return set()
 
     def as_struct_info(self, dict_globals: Optional[Dict[str, Any]] = None) -> ShapeStructInfo:
         return ObjectStructInfo()
@@ -327,6 +327,12 @@ class CallableProxy(StructInfoProxy):
         else:
             return set().union(*[p.get_symbolic_vars() for p in self.params])
 
+    def get_symbolic_size_vars(self) -> Set[str]:
+        if self.params is None:
+            return set()
+        else:
+            return set().union(*[p.get_symbolic_size_vars() for p in self.params])
+
     def as_struct_info(self, dict_globals: Optional[Dict[str, Any]] = None) -> FuncStructInfo:
         if self.ret is None:
             ret = None
@@ -376,6 +382,9 @@ class TupleProxy(StructInfoProxy):
 
     def get_symbolic_vars(self) -> Set[str]:
         return set().union(*[f.get_symbolic_vars() for f in self.fields])
+
+    def get_symbolic_size_vars(self) -> Set[str]:
+        return set().union(*[f.get_symbolic_size_vars() for f in self.fields])
 
     def as_struct_info(self, dict_globals: Optional[Dict[str, Any]] = None) -> TupleStructInfo:
         fields = [field.as_struct_info(dict_globals) for field in self.fields]
@@ -462,6 +471,13 @@ class PrimProxy(StructInfoProxy):
             return {self.value}
         else:
             return set()
+
+    def get_symbolic_size_vars(self) -> Set[str]:
+        # While variables defined by R.Shape and R.Tensor arguments
+        # are known to be non-negative, R.Prim arguments may be
+        # negative.  Overriding the default implementation of
+        # `get_symbolic_size_vars()`
+        return set()
 
     def as_struct_info(self, dict_globals: Optional[Dict[str, Any]] = None) -> ShapeStructInfo:
         if self.value is None:

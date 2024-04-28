@@ -147,15 +147,23 @@ def is_recursive(node: doc.FunctionDef) -> bool:
 def collect_symbolic_var_from_params(self: Parser, node: doc.FunctionDef) -> None:
     # Collect symbolic vars from parameters
     symbolic_vars = set()
+    symbolic_size_vars = set()
     for arg in node.args.args:
         if arg.annotation is None:
             self.report_error(arg, "Type annotation is required for function parameters.")
         param_sinfo_proxy = eval_struct_info_proxy(self, arg.annotation)
         symbolic_vars.update(param_sinfo_proxy.get_symbolic_vars())
+        symbolic_size_vars.update(param_sinfo_proxy.get_symbolic_size_vars())
+
+    assert len(symbolic_size_vars - symbolic_vars) == 0, (
+        "Internal error: "
+        "All collected tir.SizeVar names must also appear in the list of tir.Var names"
+    )
 
     # Define symbolic vars to the current var_table frame
     for var_name in symbolic_vars:
-        self.var_table.add(var_name, tir.Var(var_name, "int64"), allow_shadowing=False)
+        var_cls = tir.SizeVar if var_name in symbolic_size_vars else tir.Var
+        self.var_table.add(var_name, var_cls(var_name, "int64"), allow_shadowing=False)
 
 
 @dispatch.register(token="relax", type_name="FunctionDef")
