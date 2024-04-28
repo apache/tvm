@@ -273,7 +273,7 @@ def test_dispatch_argsort_cuda():
                 if can_use_thrust(target, "tvm.contrib.thrust.sort"):
                     workspace = bb.emit(
                         relax.op.builtin.alloc_tensor(
-                            R.shape([4194568]), R.dtype("uint8"), R.prim_value(0), R.str("global")
+                            R.shape([8388872]), R.dtype("uint8"), R.prim_value(0), R.str("global")
                         )
                     )
                     out = bb.emit_te(
@@ -400,8 +400,8 @@ def test_dispatch_topk_gpu():
     assert_structural_equal(mod, expected_mod)
 
 
-@tvm.testing.requires_cuda
-def test_dispatch_cumsum_gpu():
+@tvm.testing.parametrize_targets("cuda", "vulkan -supports_int64=1")
+def test_dispatch_cumsum_gpu(target, dev):
     """Test cumsum kernel dispatch and numerical correctness"""
 
     @I.ir_module
@@ -416,15 +416,13 @@ def test_dispatch_cumsum_gpu():
     size = (8, 2000)
     np_data = np.random.randint(0, 10, size).astype("int32")
     np_cumsum = np.cumsum(np_data, axis=-1)
-    for target in ["cuda", "vulkan -supports_int64=1"]:
-        with tvm.target.Target(target):
-            mod = DispatchSortScan()(Module)
-            ex = tvm.relax.build(mod, target)
-            device = tvm.device(target, 0)
-            vm = tvm.relax.VirtualMachine(ex, device)
-            tvm_data = tvm.nd.array(np_data, device)
-            cumsum = vm["main"](tvm_data)
-            tvm.testing.assert_allclose(cumsum.numpy(), np_cumsum)
+    with tvm.target.Target(target):
+        mod = DispatchSortScan()(Module)
+        ex = tvm.relax.build(mod, target)
+        vm = tvm.relax.VirtualMachine(ex, dev)
+        tvm_data = tvm.nd.array(np_data, dev)
+        cumsum = vm["main"](tvm_data)
+        tvm.testing.assert_allclose(cumsum.numpy(), np_cumsum)
 
 
 if __name__ == "__main__":

@@ -27,6 +27,10 @@
 #include <tvm/tir/op.h>
 
 #include "./functor_common.h"
+#include "tvm/ir/expr.h"
+#include "tvm/tir/expr.h"
+#include "tvm/tir/stmt.h"
+#include "tvm/tir/var.h"
 
 namespace tvm {
 namespace tir {
@@ -554,6 +558,21 @@ Stmt IndexDataTypeRewriter::VisitStmt_(const ForNode* op) {
   } else {
     return GetRef<Stmt>(op);
   }
+}
+
+Stmt IndexDataTypeRewriter::VisitStmt_(const LetStmtNode* op) {
+  LetStmt let_stmt = Downcast<LetStmt>(DataTypeLegalizer::VisitStmt_(op));
+  if (var_remap_.find(let_stmt->var.get()) == var_remap_.end()) {
+    return let_stmt;
+  }
+  bool is_enabled = is_enabled_;
+  is_enabled_ = true;
+  PrimExpr value = VisitExpr(op->value);
+  Var var = var_remap_[let_stmt->var.get()];
+  is_enabled_ = is_enabled;
+  ICHECK(value.dtype() == var.dtype());
+  // No need to re-visit body
+  return LetStmt(var, value, let_stmt->body, let_stmt->span);
 }
 
 #define TVM_DEFINE_CMPOP_EXPR_MUTATE_WITH_TYPE_MATCH(OP, FUNC)                     \
