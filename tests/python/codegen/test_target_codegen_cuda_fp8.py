@@ -34,7 +34,7 @@ from tvm.target import Target
 from tvm.topi.utils import get_const_tuple
 
 
-@tvm.testing.requires_cuda_compute_version(9)
+@tvm.testing.requires_cuda_compute_version(8, 9)
 def test_e4m3_conversions():
     dtype = "e4m3_float8"
 
@@ -79,7 +79,7 @@ def test_e4m3_conversions():
     )
 
 
-@tvm.testing.requires_cuda_compute_version(9)
+@tvm.testing.requires_cuda_compute_version(8, 9)
 def test_e4m3_packing():
     length = 64
     vector_length = 4
@@ -144,7 +144,7 @@ native_dtype, promoted_dtype = tvm.testing.parameters(
 )
 
 
-@tvm.testing.requires_cuda_compute_version(9)
+@tvm.testing.requires_cuda_compute_version(8, 9)
 def test_e4m3_vector_conversions(native_dtype, promoted_dtype):
     vector_length = 64
 
@@ -784,7 +784,7 @@ class TestFP8e4x4QuantDequantScale(BaseFP8E4M3QuantScaleOnly):
             dev,
         )
 
-    @tvm.testing.requires_cuda_compute_version(9)
+    @tvm.testing.requires_cuda_compute_version(8, 9)
     def test_main(self, weight_shape, model_dtype, target_str, compiled_functions):
         quant, dequant = compiled_functions
         dev = tvm.device(target_str, 0)
@@ -799,7 +799,7 @@ class TestFP8e4x4QuantDequantScale(BaseFP8E4M3QuantScaleOnly):
         tvm.testing.assert_allclose(weight_np, dequant_weight_np, atol=10, rtol=5e-2)
 
 
-@tvm.testing.requires_cuda_compute_version(9)
+@tvm.testing.requires_cuda_compute_version(8, 9)
 @pytest.mark.parametrize("dtype", ["e5m2_float8", "e4m3_float8"])
 def test_const(dtype):
     @T.prim_func
