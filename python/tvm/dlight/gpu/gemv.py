@@ -208,15 +208,15 @@ class GEMV(GPUScheduleRule):
         elif is_inner_reduction:
             self.sch_inner_reduction(sch, target, block, vector_input_buffers, epilogue)
             return sch
-        elif target.kind.name == "opencl" and "android" in str(target.host):
-            ret = self.sch_adreno_inner_reduction(
+        elif target.kind.name == "opencl":
+            ret = self.sch_outer_reduction(
                 sch, target, block, vector_input_buffers, epilogue
             )
             if ret is None:
-                return self.sch_outer_reduction(sch, target, block, vector_input_buffers, epilogue)
+                return self.sch_outer_reduction_fallback(sch, target, block, vector_input_buffers, epilogue)
             return sch
         else:
-            return self.sch_outer_reduction(sch, target, block, vector_input_buffers, epilogue)
+            return self.sch_outer_reduction_fallback(sch, target, block, vector_input_buffers, epilogue)
 
     def sch_inner_reduction(  # pylint: disable=too-many-arguments, invalid-name, unused-argument
         self,
@@ -551,7 +551,7 @@ class GEMV(GPUScheduleRule):
             SUPPORT_WARP_SHUFFLE=SUPPORT_WARP_SHUFFLE,
         )
 
-    def sch_adreno_inner_reduction(  # pylint: disable=too-many-arguments, invalid-name, unused-argument
+    def sch_outer_reduction(  # pylint: disable=too-many-arguments, invalid-name, unused-argument
         self,
         sch: tir.Schedule,
         target: Target,
@@ -737,7 +737,7 @@ class GEMV(GPUScheduleRule):
             LOAD_V_TILE=LOAD_V_TILE,
         )
 
-    def sch_outer_reduction(  # pylint: disable=too-many-arguments, invalid-name, unused-argument
+    def sch_outer_reduction_fallback(  # pylint: disable=too-many-arguments, invalid-name, unused-argument
         self,
         sch: tir.Schedule,
         target: Target,
