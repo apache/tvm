@@ -69,11 +69,12 @@ enum class DataType : int {
   kBit64 = 22
 };
 
-static const char* dtype_str[] = {".s4",   ".u4",  ".s8",  ".u8",  ".s16",  ".u16",   ".s32",
-                                  ".u32",  ".s64", ".u64", ".e4m3", ".e5m2", ".f16", ".bf16", ".f16x2", ".f32",
-                                  ".tf32", ".f64", ".b1",  ".b8",  ".b16",  ".b32",   ".b64"};
-static const uint32_t num_bits[] = {4,  4,  8,  8,  16, 16, 32, 32, 64, 64, 8, 8, 16,
-                                    16, 32, 32, 32, 64, 1,  8,  16, 32, 64};
+static const char* dtype_str[] = {".s4",  ".u4",   ".s8",    ".u8",  ".s16",  ".u16",
+                                  ".s32", ".u32",  ".s64",   ".u64", ".e4m3", ".e5m2",
+                                  ".f16", ".bf16", ".f16x2", ".f32", ".tf32", ".f64",
+                                  ".b1",  ".b8",   ".b16",   ".b32", ".b64"};
+static const uint32_t num_bits[] = {4,  4,  8,  8,  16, 16, 32, 32, 64, 64, 8, 8,
+                                    16, 16, 32, 32, 32, 64, 1,  8,  16, 32, 64};
 
 /*!
  * \brief Create PTX data type from string.
@@ -99,12 +100,11 @@ inline DataType DTypeFromString(const std::string str) {
     return DataType::kInt64;
   } else if (str == "uint64" || str == ".u64") {
     return DataType::kUInt64;
-  } else if (str == "e4m3" || str == ".e4m3"){
+  } else if (str == "e4m3" || str == ".e4m3") {
     return DataType::kFloat8_e4m3;
-  } else if (str == "e5m2" || str == ".e5m2"){
+  } else if (str == "e5m2" || str == ".e5m2") {
     return DataType::kFloat8_e5m2;
-  }
-  else if (str == "float16" || str == "fp16" || str == ".f16") {
+  } else if (str == "float16" || str == "fp16" || str == ".f16") {
     return DataType::kFloat16;
   } else if (str == "bfloat16" || str == "bf16") {
     return DataType::kBFloat16;
