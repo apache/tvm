@@ -55,8 +55,7 @@ std::string GetFP8Type(DataType type) {
     vec = "_8";
   } else if (lanes == 16) {
     vec = "_16";
-  } 
-  else {
+  } else {
     LOG(FATAL) << "Only support scalar and vector types of width (2, 4, 8, 16) for FP8";
   }
   if (type.code() == DataType::kE4M3Float) {
