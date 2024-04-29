@@ -723,8 +723,11 @@ def get_mma_intrin_group(
     store_scope : Literal["global", "shared", "shared.dyn"]
         The memory scope of the result buffer.
 
-    in_dtype : str
-        The input data type.
+    a_dtype : str
+        The dtype of the input matrix A.
+    
+    b_dtype : str
+        The dtype of the input matrix B.
 
     out_dtype : str
         The output data dtype.
