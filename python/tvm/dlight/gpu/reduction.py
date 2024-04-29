@@ -138,7 +138,7 @@ class Reduction(GPUScheduleRule):
 
         if iter_to_info:
             for var, info in iter_to_info.items():
-                if info.kind == "S" and info.dom.extent == 1:
+                if info.kind == "S" and info.dom == 1:
                     s_loops.append(info.loop_rv)
                 else:
                     return None, None, None, None
@@ -241,7 +241,7 @@ class Reduction(GPUScheduleRule):
         # pylint: disable=invalid-name
         s, r, _ = sch.get_loops(block)
         len_tx, len_ty = 16, 16
-        s_factor = [i.dom.extent for i in block_info.iters if i.kind == "S"][-1]
+        s_factor = [i.dom for i in block_info.iters if i.kind == "S"][-1]
         # get perfect spatial factor, spatial factor should be divide the innermost spatial loop so
         # that the block after r_factor and be reversed compute at the original scope
         while len_tx > 1:
@@ -281,7 +281,7 @@ class Reduction(GPUScheduleRule):
         # Schedule epilogue
         if epilogue_info is not None:
             epilogue = epilogue_info.block_rv
-            sch.reverse_compute_at(epilogue, bx)
+            sch.reverse_compute_at(epilogue, bx, preserve_unit_loops=True)
             if is_broadcast_epilogue(sch, block, epilogue):
                 sch.set_scope(block, 0, "shared")
                 _, *s = sch.get_loops(epilogue)  # pylint: disable=invalid-name

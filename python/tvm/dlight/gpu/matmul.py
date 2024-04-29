@@ -17,11 +17,15 @@
 # pylint: disable=missing-docstring, invalid-name
 """A GEMM schedule rule for GPU operators."""
 from dataclasses import dataclass
-from typing import Optional
+from enum import Enum
+from typing import Dict, List, Optional, Set, Tuple
 
 from tvm import tir
+from tvm.ir import Range
 from tvm.target import Target
-from tvm.tir.stmt import ForKind
+from tvm.tir import IterVar, PrimExpr, Var
+from tvm.tir.analysis import undefined_vars
+from tvm.tir.schedule.schedule import BlockRV
 
 from ..base import analysis
 from .base import GPUScheduleRule
@@ -806,9 +810,19 @@ class Matmul(GPUScheduleRule):
 
         main_block = reduction_blocks[0]
         block_stmt = sch.get(main_block)
-        sch = normalize_to_matmul(sch, main_block)
-        if sch is None:
+        index_maps = get_index_map(block_stmt)
+        if index_maps is None:
             return None
+        matmul_index_map, a_index_map, b_index_map, c_index_map = index_maps
+
+        # Step 0. Normalize generic matmul to C[S, I, J] += A[S, I, K] * B[S, J, K]
+        block = sch.reindex(main_block, ("read", 0))
+        sch.transform_layout(block, ("write", 0), a_index_map)
+        block = sch.reindex(main_block, ("read", 1))
+        sch.transform_layout(block, ("write", 0), b_index_map)
+        block = sch.reindex(main_block, ("write", 0))
+        sch.transform_layout(block, ("read", 0), c_index_map)
+        sch.transform_block_layout(main_block, matmul_index_map)
 
         # Step 1. Check Tensor Core support
         # Tensorization config:
@@ -816,13 +830,9 @@ class Matmul(GPUScheduleRule):
         # tensorization rule will not be applied.
         minimal_tensorize_threshold = 64
         block_stmt = sch.get(main_block)
-        if target.kind.name == "cuda" and utils.get_sm_version(target) >= 70:
+        if target.kind.name == "cuda" and check_sm_version(target.arch) >= 70:
             apply_tensorization: bool = True
             # the batch dimension is not taken into consideration.
-            # Analyze read/write buffers and choose correct tensorizer: int8 or fp16.
-            in_dtype, out_dtype = get_in_out_dtypes(block_stmt)
-            if in_dtype not in ["int8", "float16"]:
-                apply_tensorization = False
             for item_var in block_stmt.iter_vars[1:]:
                 extent = item_var.dom.extent
                 if isinstance(extent, tir.expr.IntImm):
@@ -917,166 +927,6 @@ class Matmul(GPUScheduleRule):
             auto_inline_producers(sch, main_block)
 
         auto_inline_consumer_chain(sch, l2g)
-        sch.decompose_reduction(main_block, ko)
-
-        # Step 4. Check if there are unbound blocks. Execute fallback scheduling to them.
-        def is_scheduled(block: tir.schedule.BlockRV) -> bool:
-            loops = sch.get_loops(block)
-            loop_kinds = {sch.get(loop).kind for loop in loops}
-            return loop_kinds != {ForKind.SERIAL}
-
-        blocks = sch.get_child_blocks(root_block)
-        max_threads_per_block = utils.max_threads_per_block(target)
-        for block in blocks:
-            if is_scheduled(block):
-                continue
-            # no axis of the block is bound to thread or block
-            s_loops = sch.get_loops(block)
-            bx, tx = sch.split(
-                sch.fuse(*s_loops),
-                factors=[
-                    None,
-                    256,
-                ],
-            )
-            sch.bind(bx, "blockIdx.x")
-            sch.bind(tx, "threadIdx.x")
-
-        return sch
-
-    def apply_config(  # pylint: disable=too-many-locals,missing-docstring
-        self,
-        func: tir.PrimFunc,
-        config,
-    ) -> tir.Schedule:
-        sch = tir.Schedule(func)
-        root_block = analysis.get_root_block(sch)
-        blocks = sch.get_child_blocks(root_block)
-
-        reduction_blocks = get_reduction_blocks(sch, blocks)
-        if reduction_blocks is None:
-            return None
-
-        # in some case conv template will use this rule, but the tile config is not
-        # analyzed by matmul expr.
-        assert len(config.block) == 2, "Matmul Only support 2D block"
-
-        main_block = reduction_blocks[0]
-
-        block_stmt = sch.get(main_block)
-
-        # cuda core prefer b is [k, j] layout without swizzling.
-        index_maps = get_index_map(block_stmt, ["n", "n", "n"])
-        if index_maps is None:
-            return None
-        matmul_index_map, a_index_map, b_index_map, c_index_map = index_maps
-
-        # Step 0. Normalize generic matmul to C[S, I, J] += A[S, I, K] * B[S, J, K]
-        block = sch.reindex(main_block, ("read", 0))
-        sch.transform_layout(block, ("write", 0), a_index_map)
-        block = sch.reindex(main_block, ("read", 1))
-        sch.transform_layout(block, ("write", 0), b_index_map)
-        block = sch.reindex(main_block, ("write", 0))
-        sch.transform_layout(block, ("read", 0), c_index_map)
-        sch.transform_block_layout(main_block, matmul_index_map)
-
-        # Step 2. Get schedule config.
-        block_row_warps = config.block[0] // (config.thread[0] * config.step[0])
-        block_col_warps = config.block[1] // (config.thread[1] * config.step[1])
-        thread_row_tiles = config.thread[1] // (config.step[0] * 2)
-        thread_col_tiles = config.thread[1] // (config.step[1] * 2)
-        vthread_row_tiles = config.step[0] * 2  # expand vtrhead to avoid load band conflict
-        vthread_col_tiles = config.step[1] * 2  # expand vtrhead to avoid load band conflict
-        chunk = config.rstep[0]
-
-        # Step 3. Schedule matmul
-        BM = block_row_warps * vthread_row_tiles * thread_row_tiles
-        BN = block_col_warps * vthread_col_tiles * thread_col_tiles
-        BK = chunk
-
-        sch.pad_einsum(
-            main_block,
-            [1, BM, BN, BK],
-        )
-        batch, y, x, k = sch.get_loops(main_block)
-        by, vy, ty, yi = sch.split(y, [None, vthread_row_tiles, block_row_warps, thread_row_tiles])
-        bx, vx, tx, xi = sch.split(x, [None, vthread_col_tiles, block_col_warps, thread_col_tiles])
-        ko, ki = sch.split(k, factors=[None, BK])
-        sch.reorder(by, bx, vy, vx, ty, tx, ko, ki, yi, xi)
-        by = sch.fuse(batch, by)
-        sch.bind(bx, "blockIdx.x")
-        sch.bind(by, "blockIdx.y")
-        sch.bind(vy, "vthread.y")
-        sch.bind(vx, "vthread.x")
-        sch.bind(ty, "threadIdx.y")
-        sch.bind(tx, "threadIdx.x")
-
-        def prod(iterable):
-            return reduce(lambda x, y: x * y, iterable, 1)
-
-        l2g = sch.cache_write(main_block, 0, "local")
-        sch.reverse_compute_at(l2g, tx, preserve_unit_loops=True)
-
-        def _cooperative_fetch(index, vec_len):
-            block = sch.cache_read(main_block, index, "shared")
-            num_loops = len(sch.get_loops(block))
-            block_local = sch.cache_read(main_block, index, "local")
-            sch.compute_at(block_local, ki, preserve_unit_loops=True)
-            sch.compute_at(block, ko, preserve_unit_loops=True)
-            loops = sch.get_loops(block)[-num_loops:]
-            _, ty, tx, vec = sch.split(
-                sch.fuse(*loops),
-                factors=[None, block_row_warps, block_col_warps, vec_len],
-            )
-
-            auto_inline_producers(sch, block)
-
-            def is_trivial_load(block):
-                # avoid vectorize under global[v2, v1]] shared[v1, v2] case
-                reads = sch.get(block).reads
-                writes = sch.get(block).writes
-                if len(reads) != 1 or len(writes) != 1:
-                    return False
-                return all(
-                    read.region[-1] == write.region[-1] for read, write in zip(reads, writes)
-                )
-
-            if is_trivial_load(block):
-                sch.vectorize(vec)
-
-            sch.bind(ty, "threadIdx.y")
-            sch.bind(tx, "threadIdx.x")
-
-            _, vec = sch.split(
-                sch.fuse(*sch.get_loops(block_local)[-2:]),
-                [None, vec_len // prod(config.step)],
-            )
-            sch.vectorize(vec)
-
-            return block
-
-        for i, input_region in enumerate(sch.get(main_block).reads):
-            _buffer_name = input_region.buffer.name.replace("_reindex", "").replace("_pad", "")
-            if _buffer_name not in config.cached_tensors:
-                print(
-                    f"Warning: {_buffer_name} is not in cached_tensors {config.cached_tensors}, skip."
-                )
-                continue
-
-            # otherwise cooperative fetch in shared memory.
-            if _buffer_name in config.vectorize:
-                vectorize = config.vectorize[_buffer_name]
-            else:
-                vectorize = 1
-
-            _cooperative_fetch(i, vec_len=vectorize)
-
-        auto_inline_consumer_chain(sch, l2g)
-
-        _, vec = sch.split(
-            sch.fuse(*sch.get_loops(l2g)[-2:]), [None, vectorize // prod(config.step)]
-        )
-        sch.vectorize(vec)
 
         sch.decompose_reduction(main_block, ko)
         return sch

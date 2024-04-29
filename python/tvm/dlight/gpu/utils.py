@@ -89,11 +89,3 @@ def suggest_threads_per_block(
         results[dynamic[0]] *= threads
 
     return results
-
-
-def get_sm_version(target: Target) -> int:
-    if target.kind.name != "cuda":
-        return -1
-    arch = target.arch
-    sm_version = arch.replace("sm_", "")
-    return int(sm_version) if sm_version.isdigit() else -1

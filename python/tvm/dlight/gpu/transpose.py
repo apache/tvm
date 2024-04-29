@@ -92,7 +92,7 @@ class Transpose(GPUScheduleRule):
             block_stmt = sch.get(prologue)
             result = arith.normalize_to_iter_sum(
                 detect_dominant_read(block_stmt),
-                input_iters={i.var: i.dom.extent for i in block_stmt.iter_vars},
+                input_iters={i.var: i.dom for i in block_stmt.iter_vars},
             )
             if len(result.args) > 0:
                 c_factor = int(result.args[0].lower_factor)
