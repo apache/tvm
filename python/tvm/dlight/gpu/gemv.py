@@ -561,7 +561,7 @@ class GEMV(GPUScheduleRule):
         vector_input_buffers: List[tir.Buffer],
         epilogue_info: Optional[BlockInfo],
     ):
-        """Schedule the inner reduction block."""
+        """Schedule the outer reduction block."""
 
         def get_max_factor(n, factors):
             factors = sorted(factors, reverse=True)
@@ -683,7 +683,6 @@ class GEMV(GPUScheduleRule):
                     sch.bind(ts, "threadIdx.x")
                     sch.set_scope(block, 0, "local")
             return sch
-            # return sch.mod["main"].with_attr("tir.is_scheduled", 1)
 
         # Specify the `len_tx` and `len_ty` according to the loop extent
         batch, s, r, c = sch.get_loops(block=block)
