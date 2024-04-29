@@ -814,6 +814,31 @@ class TestMaxIndex(BaseCompare):
     )
 
 
+class TestScalableIndex(BaseCompare):
+    x, y = te.var("x"), te.var("y")
+    test_case = tvm.testing.parameter(
+        # MinNode
+        TestCase(tvm.te.min(x + tir.vscale() * 4, x), x),
+        TestCase(tvm.te.min(x - tir.vscale() * 4, x), x + tir.vscale() * -4),
+        TestCase(tvm.te.min(x + tir.vscale() * 4, x + tir.vscale() * 8), tir.vscale() * 4 + x),
+        TestCase(tvm.te.min(x + tir.vscale() * 4 - flm(4, tir.vscale() * 4), x), x),
+        TestCase(tvm.te.min(tir.vscale() * x, tir.vscale() * y), tir.vscale() * x, x < y),
+        # MaxNode
+        TestCase(tvm.te.max(x + tir.vscale() * 4, x), x + tir.vscale() * 4),
+        TestCase(tvm.te.max(x - tir.vscale() * 4, x), x),
+        TestCase(tvm.te.max(x + tir.vscale() * 4, x + tir.vscale() * 4), x + tir.vscale() * 4),
+        TestCase(
+            tvm.te.max(x + tir.vscale() * 4 - flm(4, tir.vscale() * 4), x),
+            x + tir.vscale() * 4 - flm(4, tir.vscale() * 4),
+        ),
+        TestCase(tvm.te.max(tir.vscale() * x, tir.vscale() * y), tir.vscale() * x, x > y),
+    )
+
+    def test_simplify(self, test_case):
+        with tvm.target.Target("llvm -mtriple=aarch64-linux-gnu -mattr=+sve"):
+            super().test_simplify(test_case)
+
+
 class TestComparisons(BaseCompare):
     x, y, z = te.var("x"), te.var("y"), te.var("z")
 

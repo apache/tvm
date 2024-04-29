@@ -36,14 +36,7 @@ def reset_seed():
     np.random.seed(0)
 
 
-has_cublas = tvm.get_global_func("relax.ext.cublas", True)
-
-cublas_enabled = pytest.mark.skipif(
-    not has_cublas,
-    reason="CUBLAS not enabled.",
-)
-
-pytestmark = [cublas_enabled]
+pytestmark = tvm.testing.requires_cublas.marks()
 
 
 def build_and_run(mod, inputs_np, target, legalize=False, cuda_graph=False):
@@ -231,6 +224,7 @@ def test_matmul_igemm_offload(
     tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
 
 
+@tvm.testing.requires_cuda_compute_version(9)
 @pytest.mark.skipif(ml_dtypes is None, reason="requires ml_dtypes to be installed")
 @pytest.mark.parametrize(
     "x_shape, y_shape, transpose_y, out_dtype",

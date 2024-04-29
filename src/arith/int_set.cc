@@ -532,6 +532,12 @@ class IntervalSetEvaluator : public ExprFunctor<IntervalSet(const PrimExpr&)> {
     return IntervalSet::SinglePoint(GetRef<PrimExpr>(op));
   }
 
+  IntervalSet VisitExpr_(const CallNode* op) final {
+    if (op->op.same_as(tir::builtin::vscale()))
+      return IntervalSet(GetRef<PrimExpr>(op), GetRef<PrimExpr>(op));
+    return IntervalSet::Everything();
+  }
+
   IntervalSet VisitExprDefault_(const Object* op) final {
     DLOG(WARNING) << "cannot evaluate set type " << op->GetTypeKey();
     return IntervalSet::Everything();

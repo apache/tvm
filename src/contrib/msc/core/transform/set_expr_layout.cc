@@ -1268,13 +1268,9 @@ class LayoutInfer : public ExprVisitor {
         SetExprLayout(call->args[i], var_layout_map_[func->params[i]]);
       }
     }
-    if (const auto* b_node = func->body.as<relax::SeqExprNode>()) {
-      if (b_node->body->IsInstance<VarNode>() &&
-          var_layout_map_.count(Downcast<Var>(b_node->body))) {
-        SetExprLayout(ret, var_layout_map_[Downcast<Var>(b_node->body)]);
-      }
-    } else {
-      LOG(FATAL) << "Function body should be SeqExpr, get " << func->body;
+    if (func->body->body->IsInstance<VarNode>() &&
+        var_layout_map_.count(Downcast<Var>(func->body->body))) {
+      SetExprLayout(ret, var_layout_map_[Downcast<Var>(func->body->body)]);
     }
   }
 
@@ -1288,13 +1284,9 @@ class LayoutInfer : public ExprVisitor {
           if (producer->IsInstance<CallNode>() &&
               local_funcs_.count(Downcast<Call>(producer)->op)) {
             const auto& caller = local_funcs_[Downcast<Call>(producer)->op];
-            if (const auto* b_node = caller->body.as<relax::SeqExprNode>()) {
-              if (b_node->body->IsInstance<VarNode>() &&
-                  var_map_.count(Downcast<Var>(b_node->body))) {
-                SetExprLayout(b_node->body, param_layout);
-              }
-            } else {
-              LOG(FATAL) << "Caller body should be SeqExpr, get " << caller->body;
+            if (caller->body->body->IsInstance<VarNode>() &&
+                var_map_.count(Downcast<Var>(caller->body->body))) {
+              SetExprLayout(caller->body->body, param_layout);
             }
           }
         }

@@ -19,10 +19,11 @@
 
 from functools import reduce
 from operator import mul
+from typing import Dict
 
 from tvm import DataType, dlight, relax, topi
 from tvm.contrib.thrust import can_use_thrust
-from tvm.ir import Op
+from tvm.ir import GlobalVar, Op
 from tvm.ir.module import IRModule
 from tvm.ir.transform import PassContext, module_pass
 from tvm.relax import PyExprMutator, expr_functor
@@ -41,8 +42,11 @@ class SortScanDispatcher(PyExprMutator):
 
     """
 
+    calls_to_update: Dict[GlobalVar, Target]
+
     def __init__(self, mod):
         super().__init__(mod)
+        self.calls_to_update = {}
 
     def _get_target(self, sinfo: relax.StructInfo) -> Target:
         # Get target information from TensorStructInfo
@@ -64,22 +68,32 @@ class SortScanDispatcher(PyExprMutator):
             )
         return target
 
-    def _apply_dlight_gpu_fallback(self, target: Target, tir_call: relax.Call) -> None:
-        # Apply dlight.gpu.Fallback() on GPU
+    def apply_dlight_gpu_fallback(
+        self,
+    ) -> None:
+        """Apply DLight rules for all the calls that need to be updated."""
+        for gvar, target in self.calls_to_update.items():
+            func = self.builder_.get()[gvar]
+            sch = dlight.base.transform._apply_rules(
+                func,
+                target,
+                rules=[dlight.gpu.Fallback()],
+                tunable=False,
+            )
+            if sch is not None:
+                assert len(sch) == 1
+                self.builder_.update_func(gvar, sch[0].mod["main"].with_attr("tir.is_scheduled", 1))
+
+    def _append_calls_to_update(self, tir_call: relax.Call, target: Target) -> None:
         gvar = tir_call.args[0]
-        assert isinstance(gvar, relax.GlobalVar)
-        scan_prim_func = self.builder_.get()[gvar]
-        sch = dlight.base.transform._apply_rules(
-            scan_prim_func,
-            target,
-            [
-                dlight.gpu.Fallback(),
-            ],
-            False,
-        )
-        if sch is not None:
-            assert len(sch) == 1
-            self.builder_.update_func(gvar, sch[0].mod["main"].with_attr("tir.is_scheduled", 1))
+        assert isinstance(gvar, GlobalVar)
+        existing_tgt = self.calls_to_update.get(gvar, None)
+        if existing_tgt is not None and existing_tgt != target:
+            raise ValueError(
+                f"Multiple targets detected for function {gvar}. "
+                f"Existing target: {existing_tgt}, new target: {target}"
+            )
+        self.calls_to_update[gvar] = target
 
     def visit_call_(self, call: relax.Call) -> relax.Expr:
         if not isinstance(call.op, Op):
@@ -135,15 +149,53 @@ class SortScanDispatcher(PyExprMutator):
                 dtype=call.attrs.dtype,
                 **kwargs,
             )
-            if not is_gpu_target(tgt):
-                return tir_call
-            # apply dlight gpu fallback
-            self._apply_dlight_gpu_fallback(tgt, tir_call)
+            self._append_calls_to_update(tir_call, tgt)
             return tir_call
         if call.op.name in ("relax.cumprod", "relax.cumsum"):
             tgt = self._get_target(call.struct_info)
             axis = int(call.attrs.axis) if call.attrs.axis is not None else call.attrs.axis
+            shape = call.struct_info.shape
             kwargs = {}
+            if (
+                (axis == -1 or axis == len(shape) - 1)
+                and is_gpu_target(tgt)
+                and not can_use_thrust(tgt, "tvm.contrib.thrust.sum_scan")
+                and call.op.name == "relax.cumsum"
+                and call.attrs.exclusive == 0
+            ):
+                from tvm.relax.backend_tir import (  # pylint: disable=import-outside-toplevel
+                    gpu_2d_continuous_cumsum,
+                )
+
+                dim = 1
+                for i in range(len(shape) - 1):
+                    dim *= shape[i]
+                in_dtype = call.args[0].struct_info.dtype
+                out_dtype = call.attrs.dtype
+                out_dtype = out_dtype or in_dtype
+                cumsum_2d_shape = relax.ShapeExpr([dim, shape[-1]])
+                reshape = relax.call_pure_packed(
+                    "vm.builtin.reshape",
+                    call.args[0],
+                    cumsum_2d_shape,
+                    sinfo_args=relax.TensorStructInfo(cumsum_2d_shape, out_dtype),
+                )
+                gv = self.builder_.add_func(
+                    gpu_2d_continuous_cumsum(in_dtype=in_dtype, out_dtype=out_dtype),
+                    "gpu_2d_continuous_cumsum",
+                )
+                cumsum = relax.call_tir(
+                    gv,
+                    reshape,
+                    out_sinfo=relax.TensorStructInfo(cumsum_2d_shape, out_dtype),
+                )
+                return relax.call_pure_packed(
+                    "vm.builtin.reshape",
+                    cumsum,
+                    shape,
+                    sinfo_args=call.struct_info,
+                )
+
             with tgt:
                 if call.op.name == "relax.cumsum":
                     te_func = topi.cuda.cumsum if is_gpu_target(tgt) else topi.cumsum
@@ -161,10 +213,7 @@ class SortScanDispatcher(PyExprMutator):
                     call.attrs.exclusive,
                     **kwargs,
                 )
-            if not is_gpu_target(tgt):
-                return tir_call
-            # apply dlight gpu fallback
-            self._apply_dlight_gpu_fallback(tgt, tir_call)
+            self._append_calls_to_update(tir_call, tgt)
             return tir_call
         return super().visit_call_(call)
 
@@ -178,13 +227,13 @@ class SortScanDispatcher(PyExprMutator):
         int32_byte_per_elem = DataType("int32").bits // 8
         num_elem = reduce(mul, input_shape, 1)
         input_size = num_elem * input_byte_per_elem
-        # Most GPU algorithms take O(n) space or less, we choose 8N + 4MB as a safe estimation
+        # Most GPU algorithms take O(n) space or less, we choose 8N + 8MB as a safe estimation
         # for algorithm workspace.
         # The current thrust sort implementation may need extra int64 and int32 arrays
         # for temporary data, so we further add this part to the workspace.
         return (
             8 * input_size
-            + 4 * 1024 * 1024
+            + 8 * 1024 * 1024
             + num_elem * (int64_byte_per_elem + int32_byte_per_elem)
         )
 
@@ -211,4 +260,5 @@ class DispatchSortScan:
             if isinstance(func, relax.Function):
                 func = sort_scan_dispater.visit_expr(func)
                 sort_scan_dispater.builder_.update_func(gv, func)
+        sort_scan_dispater.apply_dlight_gpu_fallback()
         return sort_scan_dispater.builder_.finalize()

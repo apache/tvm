@@ -57,15 +57,34 @@ device = tvm.testing.parameter(
         topi.arm_cpu.compute_conv2d_NHWC_hybrid,
         topi.arm_cpu.schedule_conv2d_NHWC_hybrid,
     ),
+    (
+        "llvm --device arm_cpu --mtriple aarch64-linux-gnu -mattr=+v8.6a,+sve",
+        topi.arm_cpu.compute_conv2d_NHWC_hybrid_SVE,
+        topi.arm_cpu.schedule_conv2d_NHWC_hybrid_SVE,
+    ),
 )
 
 dtype = tvm.testing.parameter("float32")
 
 batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation = tvm.testing.parameters(
+    # Pad M, N, K
+    (1, 1, 3, 15, 1, 1, "SAME", 1),
+    # Pad M, K
+    (1, 3, 9, 16, 3, 1, "SAME", 1),
+    # Pad M, N
+    (1, 2, 9, 15, 4, 1, "SAME", 1),
+    # Pad K, N
+    (1, 7, 4, 15, 3, 1, "SAME", 1),
+    # Pad M
+    (1, 2, 9, 16, 4, 1, "SAME", 1),
+    # Pad K
+    (1, 7, 4, 16, 3, 1, "SAME", 1),
+    # Pad N
+    (1, 2, 4, 15, 4, 1, "SAME", 1),
+    # Large workloads
     (1, 256, 32, 256, 3, 1, "SAME", 1),
     (4, 128, 16, 128, 5, 2, "SAME", 1),
     (4, 128, 16, 256, 5, 2, "SAME", 1),
-    (1, 256, 32, 256, 3, 1, "VALID", 1),
     (1, 256, 32, 256, 3, 1, "VALID", 1),
     (4, 128, 16, 128, 5, 2, "VALID", 1),
     (4, 128, 16, 256, 5, 2, "VALID", 1),
@@ -100,19 +119,23 @@ def test_conv2d_nhwc_gemm_fp32(device, ref_data, dtype, stride, padding, dilatio
     target, compute, schedule = device
     dev = tvm.device(target, 0)
 
-    with tvm.target.Target(target):
+    with tvm.target.Target(target) as target:
         B = compute(A, W, stride, padding, dilation, dtype)
         s = schedule([B])
-    a = tvm.nd.array(a_np, dev)
-    w = tvm.nd.array(w_np, dev)
-    b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), dev)
-    func = tvm.build(s, [A, W, B], target)
+        a = tvm.nd.array(a_np, dev)
+        w = tvm.nd.array(w_np, dev)
+        b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), dev)
+        func = tvm.build(s, [A, W, B], target)
 
-    build_only = platform.machine() != "aarch64"
-    if build_only:
-        return
+        # Run only on AArch64 devices
+        # Do not run SVE schedules on non-SVE devices
+        build_only = platform.machine() != "aarch64" or (
+            target.features.has_sve and not tvm.testing.requires_aarch64_sve.run_time_check()
+        )
+        if build_only:
+            return
 
-    func(a, w, b)
+        func(a, w, b)
     tvm.testing.assert_allclose(b.numpy(), b_np, rtol=1e-5)
 
 

@@ -1750,6 +1750,16 @@ class TestConv2DInt8Intrinsics:
         data_layout,
         kernel_layout,
     ):
+        if (
+            input_channels == 17
+            and output_channels == 29
+            and target == "llvm -mcpu=x86-64"
+            and tvm.target.codegen.llvm_version_major() in [16, 17]
+        ):
+            pytest.skip(
+                "Non divisible dims does not produce vectorized code when 15 < LLVM Version < 18."
+            )
+
         input_dtype, weight_dtype, output_dtype = dtypes
 
         image_size = (64, 64)

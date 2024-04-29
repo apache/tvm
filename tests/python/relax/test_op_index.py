@@ -194,6 +194,24 @@ def test_take_infer_struct_info():
     _check_inference(bb, relax.op.take(y3, idx7), relax.TensorStructInfo(dtype="", ndim=2))
 
 
+def test_take_infer_struct_info_scalar_tensor_index():
+    bb = relax.BlockBuilder()
+    x0 = relax.Var("x", R.Tensor((4, 10), "float32"))
+    idx = relax.Var("idx", R.Tensor([], "int64"))
+
+    _check_inference(bb, relax.op.take(x0, idx, axis=0), relax.TensorStructInfo([10], "float32"))
+    _check_inference(bb, relax.op.take(x0, idx, axis=1), relax.TensorStructInfo([4], "float32"))
+
+
+def test_take_infer_struct_info_prim_value_index():
+    bb = relax.BlockBuilder()
+    x0 = relax.Var("x", R.Tensor((4, 10), "float32"))
+    idx = relax.Var("idx", R.Prim("int64"))
+
+    _check_inference(bb, relax.op.take(x0, idx, axis=0), relax.TensorStructInfo([10], "float32"))
+    _check_inference(bb, relax.op.take(x0, idx, axis=1), relax.TensorStructInfo([4], "float32"))
+
+
 def test_take_infer_struct_info_shape_symbolic():
     bb = relax.BlockBuilder()
     m = tir.Var("m", "int64")

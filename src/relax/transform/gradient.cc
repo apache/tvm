@@ -664,8 +664,6 @@ class GradientMutator : private ExprMutator {
   }
 
   Expr VisitExpr_(const FunctionNode* func) final {
-    CHECK(func->body->IsInstance<SeqExprNode>()) << "The body of the function must be SeqExpr.";
-
     orig_params_ = func->params;
     Expr new_body = this->VisitExpr(func->body);
 

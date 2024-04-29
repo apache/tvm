@@ -34,12 +34,11 @@ if (NOT XCBUILD_AVAILABLE EQUAL 0)
     return()
 endif()
 
-
 # External project with custom mach-o dynamic loader
 # It is required to load unsigned shared modules on real iOS devices
 ExternalProject_Add(custom_dso_loader
         GIT_REPOSITORY https://github.com/octoml/macho-dyld.git
-        GIT_TAG 0742b8129de7df1130be355b74faa8c036265bfc
+        GIT_TAG d1f7032e7882bc060b49a4fb058f50a23668b074
         PREFIX custom_dso_loader
         LOG_DOWNLOAD TRUE
         LOG_CONFIGURE TRUE

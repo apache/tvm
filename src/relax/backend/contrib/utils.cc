@@ -36,7 +36,7 @@ Map<String, IntImm> ExtractArgIdx(String pattern_name, Function f) {
   ICHECK(pattern) << "Unsupported op_type " << pattern_name;
 
   auto bindings = AnalyzeVar2Value(f);
-  auto inner_body = Downcast<SeqExpr>(f->body)->body;
+  auto inner_body = f->body->body;
   auto matched_expr = relax::ExtractMatchedExpr(pattern.value()->pattern, inner_body, bindings);
   ICHECK(matched_expr) << "ValueError: "
                        << "For named pattern \"" << pattern_name

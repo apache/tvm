@@ -29,6 +29,7 @@
 
 #include <vector>
 
+#include "../tir/analysis/check_contains.h"
 #include "../tir/transforms/replace_selected_expr.h"
 #include "./pattern_match.h"
 
@@ -40,6 +41,10 @@ bool IsVScaleCall(const PrimExpr& expr) {
     return call->op.same_as(tir::builtin::vscale());
   }
   return false;
+}
+
+bool ContainsVscaleCall(const PrimExpr& expr) {
+  return tir::CheckContains::ExprContains(expr, IsVScaleCall);
 }
 
 PrimExpr SubstituteVScaleWithKnownValue(const PrimExpr& expr, unsigned int vscale_value) {
@@ -86,6 +91,15 @@ bool CanProveVscaleExpressionFromKnownValues(arith::Analyzer* analyzer, const Pr
     }
   }
   return can_prove_expr;
+}
+
+bool TargetHasSVE() {
+  Target current_target = Target::Current();
+  bool has_sve{false};
+  if (current_target.defined()) {
+    has_sve = current_target->GetFeature<Bool>("has_sve").value_or(Bool(false));
+  }
+  return has_sve;
 }
 
 }  // namespace arith

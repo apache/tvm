@@ -438,9 +438,7 @@ class FusedTIRConstructor : public ExprVisitor {
     ExprVisitor::VisitExpr_(func);
 
     // Step 3. Create and remap buffers for function output
-    ICHECK(func->body->IsInstance<SeqExprNode>())
-        << "Function body is expected to be a SeqExpr, but got: " << func->body->GetTypeKey();
-    Expr body = Downcast<SeqExpr>(func->body)->body;
+    Expr body = func->body->body;
     auto it = func_info_.expr2buffers.find(body);
     ICHECK(it != func_info_.expr2buffers.end())
         << "Fail to detect output buffers for function body";
