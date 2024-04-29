@@ -409,6 +409,7 @@ def test_e4m3e4m3f32_m16n16k32():
     if measure_perf and timer:
         print("e4m3e4m3f32_m16n16k32_trans: %f GOPS" % (gflops / (timer().mean)))
 
+
 @tvm.testing.requires_cuda_compute_version(8, 9)
 def test_e5m2e5m2f32_m16n16k32():
     def index_map_A(i, j):
