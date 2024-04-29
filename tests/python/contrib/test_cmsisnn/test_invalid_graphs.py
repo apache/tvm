@@ -23,9 +23,12 @@ from tvm.testing.aot import AOTTestModel, get_dtype_range, compile_and_run, gene
 from tvm.micro.testing.aot_test_utils import (
     AOT_USMP_CORSTONE300_RUNNER,
 )
+from .utils import (
+    skip_if_no_reference_system,
+)
 
 
-@tvm.testing.skip_if_no_reference_system
+@skip_if_no_reference_system
 @tvm.testing.requires_cmsisnn
 def test_empty_function():
     """Test partitioned function without composite function"""

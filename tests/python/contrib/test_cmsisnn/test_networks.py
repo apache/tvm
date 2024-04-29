@@ -29,6 +29,7 @@ from tvm.micro.testing.aot_test_utils import (
     AOT_CORSTONE300_RUNNER,
     AOT_USMP_CORSTONE300_RUNNER,
 )
+from .utils import skip_if_no_reference_system
 
 # pylint: disable=import-outside-toplevel
 def _convert_to_relay(
@@ -71,7 +72,7 @@ def _convert_to_relay(
     return mod, params
 
 
-@tvm.testing.skip_if_no_reference_system
+@skip_if_no_reference_system
 @tvm.testing.requires_package("tflite")
 @tvm.testing.requires_cmsisnn
 @pytest.mark.parametrize("test_runner", [AOT_CORSTONE300_RUNNER, AOT_USMP_CORSTONE300_RUNNER])

@@ -29,6 +29,7 @@ from tvm.testing.aot import (
     generate_ref_data,
 )
 from tvm.micro.testing.aot_test_utils import AOT_CORSTONE300_RUNNER, AOT_APROFILE_AEM_RUNNER
+from tvm.target.codegen import llvm_version_major
 from tvm.relay.op.strategy.arm_cpu import arm_cpu_tir_strategy
 from scalable_utils import calculate_extra_workspace_size_from_scalable_extents
 
@@ -93,7 +94,10 @@ class TestDense(BasicDenseTests):
     enable_bias = tvm.testing.parameter(False, True)
 
 
-@tvm.testing.skip_if_no_reference_system
+@pytest.mark.skipif(
+    llvm_version_major() < 17, reason="SME is not supported in earlier versions of LLVM"
+)
+@tvm.testing.requires_aprofile_aem_fvp
 @pytest.mark.parametrize(
     "data_shape,weight_shape",
     [

@@ -23,6 +23,7 @@ from tvm import relay, topi
 from tvm.relay import transform, analysis
 from tvm.relay.testing.temp_op_attr import TempOpAttr
 from tvm.relay.testing import run_infer_type
+from tvm.target.codegen import llvm_version_major
 import numpy as np
 import tvm.testing
 from tvm.relay import testing
@@ -1451,6 +1452,9 @@ def test_alter_op_dense_packed_data():
             assert tvm.ir.structural_equal(a, b)
 
 
+@pytest.mark.skipif(
+    llvm_version_major() < 17, reason="SME is not supported in earlier versions of LLVM"
+)
 def test_alter_op_dense_arm_cpu_sme():
     np.random.seed(0)
     y_data = np.random.uniform(size=(64, 32)).astype("float32")
@@ -1464,6 +1468,35 @@ def test_alter_op_dense_arm_cpu_sme():
     def expected():
         x = relay.var("x", shape=(32, 32), dtype="float32")
         y = relay.const(y_data.transpose(), dtype="float32")
+        matmul = relay.nn.matmul(x, y)
+        return relay.Function(analysis.free_vars(matmul), matmul)
+
+    with tvm.target.Target("llvm -mtriple=aarch64-linux-gnu -mattr=+v9.2a,+sme"):
+        with TempOpAttr("nn.dense", "FTVMAlterOpLayout", topi.arm_cpu.dense_alter_op._alter_dense):
+            a = run_opt_pass(before(), transform.AlterOpLayout())
+            b = run_opt_pass(expected(), transform.InferType())
+            assert tvm.ir.structural_equal(a, b)
+
+
+@pytest.mark.skipif(
+    llvm_version_major() < 17, reason="SME is not supported in earlier versions of LLVM"
+)
+@pytest.mark.parametrize(
+    "transpose_b,transform_b", [(False, lambda x: x), (True, lambda x: x.transpose())]
+)
+def test_alter_op_matmul_arm_cpu_sme(transpose_b, transform_b):
+    np.random.seed(0)
+    y_data = np.random.uniform(size=(64, 32)).astype("float32")
+
+    def before():
+        x = relay.var("x", shape=(96, 32), dtype="float32")
+        y = relay.const(y_data, dtype="float32")
+        dense = relay.nn.matmul(x, y, transpose_a=False, transpose_b=transpose_b)
+        return relay.Function(analysis.free_vars(dense), dense)
+
+    def expected():
+        x = relay.var("x", shape=(96, 32), dtype="float32")
+        y = relay.const(transform_b(y_data), dtype="float32")
         matmul = relay.nn.matmul(x, y)
         return relay.Function(analysis.free_vars(matmul), matmul)
 

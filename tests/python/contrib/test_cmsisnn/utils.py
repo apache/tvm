@@ -26,6 +26,10 @@ from tvm import relay
 from tvm.testing.aot import AOTTestRunner, get_dtype_range
 
 
+def skip_if_no_reference_system(func):
+    return tvm.testing.skip_if_32bit(reason="Reference system unavailable in i386 container")(func)
+
+
 def count_num_calls(mod):
     """Counts number of CallNode(s) in the IRModule"""
 

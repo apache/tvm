@@ -19,6 +19,7 @@
 from tvm.script import tir as T
 from tvm.script.ir_builder import IRBuilder
 from tvm.script.ir_builder.tir import prim_func as build_prim_func
+from tvm.target.codegen import llvm_version_major
 
 from .. import TensorIntrin
 from .dot_product_common import (
@@ -522,7 +523,11 @@ ARM_SME_INIT = "sme_init"
 ARM_SME_2SVLx2SVL_TRANSPOSE_INTERLEAVE = "sme_2svlx2svl_transpose_interleave"
 ARM_SME_2SVLx2SVL_GEMM_INTERLEAVED_MOPA = "sme_2svlx2svl_gemm_interleaved_mopa"
 
-TensorIntrin.register(
-    ARM_SME_2SVLx2SVL_TRANSPOSE_INTERLEAVE, *get_sme_transpose_interleave_2svlx2svl_intrin()
-)
-TensorIntrin.register(ARM_SME_INIT, *get_sme_init_intrin())
+# The following tensor intrinsics use LLVM intrinsics that are only available
+# in versions of LLVM >= 15. Installations with older versions of LLVM will
+# not be able to use them.
+if llvm_version_major() >= 15:
+    TensorIntrin.register(
+        ARM_SME_2SVLx2SVL_TRANSPOSE_INTERLEAVE, *get_sme_transpose_interleave_2svlx2svl_intrin()
+    )
+    TensorIntrin.register(ARM_SME_INIT, *get_sme_init_intrin())

@@ -26,14 +26,17 @@ from tvm.testing.aot import (
     AOTCompiledTestModel,
     run_and_check,
     generate_ref_data,
-    compile_and_run,
 )
 from tvm.micro.testing.aot_test_utils import AOT_APROFILE_AEM_RUNNER
+from tvm.target.codegen import llvm_version_major
 from tvm.relay.op.strategy.arm_cpu import arm_cpu_tir_strategy
 from scalable_utils import calculate_extra_workspace_size_from_scalable_extents
 
 
-@tvm.testing.skip_if_no_reference_system
+@pytest.mark.skipif(
+    llvm_version_major() < 17, reason="SME is not supported in earlier versions of LLVM"
+)
+@tvm.testing.requires_aprofile_aem_fvp
 @pytest.mark.parametrize(
     "data_shape,weight_shape,transpose_a,transpose_b",
     [

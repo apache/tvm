@@ -19,6 +19,8 @@
 
 import tvm
 from tvm import relay
+from tvm import autotvm
+from tvm import te
 
 from ..nn import dense_alter_layout
 
@@ -26,25 +28,40 @@ from ..nn import dense_alter_layout
 @dense_alter_layout.register("arm_cpu")
 def _alter_dense(attrs, inputs, tinfos, out_type):
     target = tvm.target.Target.current(allow_none=False)
+    dispatch_ctx = autotvm.task.DispatchContext.current
 
-    best_plevel_impl, _ = relay.backend.te_compiler.select_implementation(
+    _, outs = relay.backend.te_compiler.select_implementation(
         relay.op.get("nn.dense"),
         attrs,
         tinfos,
         out_type,
         target,
-        use_autotvm=False,
     )
+    workload = autotvm.task.get_workload(outs)
+    if workload is None:
+        # The best implementation is not an AutoTVM template,
+        # we then assume it's not necessary to alter this op.
+        return None
 
-    if best_plevel_impl.name == "matmul.arm_cpu.sme":
+    cfg = dispatch_ctx.query(target, workload)
+    topi_impl = workload[0]
+    if topi_impl == "matmul.arm_cpu.sme":
         # Pre-compute transposed weights and convert to a matmul
         assert isinstance(
             inputs[1], relay.Constant
         ), "matmul_sme.arm_cpu requires weights be a Relay Constant"
 
+        weight_dtype = tinfos[1].dtype
         weight_data = inputs[1].data.numpy()
         interleaved = weight_data.transpose()
-        encoded_weight = relay.const(interleaved, tinfos[1].dtype)
+        encoded_weight = relay.const(interleaved, weight_dtype)
+
+        new_weight = te.placeholder((weight_data.shape), dtype=weight_dtype)
+        new_workload = autotvm.task.args_to_workload(
+            [tinfos[0], new_weight, None, out_type.dtype], topi_impl
+        )
+        dispatch_ctx.update(target, new_workload, cfg)
+
         return relay.nn.matmul(
             inputs[0],
             encoded_weight,
