@@ -260,23 +260,23 @@ TensorIntrin.register(LDMATRIX_i8_B_INTRIN, *get_ldmatrix_intrin(32, "int8", "B"
 LDMATRIX_i8_B_TRANS_INTRIN = "mma_ldmatrix_i8_b_trans"
 TensorIntrin.register(LDMATRIX_i8_B_TRANS_INTRIN, *get_ldmatrix_intrin(32, "int8", "B", True))
 
-LDMATRIX_i8_A_INTRIN = "mma_ldmatrix_e4m3_a"
-TensorIntrin.register(LDMATRIX_i8_A_INTRIN, *get_ldmatrix_intrin(32, "e4m3_float8", "A", False))
+LDMATRIX_e4m3_A_INTRIN = "mma_ldmatrix_e4m3_a"
+TensorIntrin.register(LDMATRIX_e4m3_A_INTRIN, *get_ldmatrix_intrin(32, "e4m3_float8", "A", False))
 
-LDMATRIX_i8_B_INTRIN = "mma_ldmatrix_e4m3_b"
-TensorIntrin.register(LDMATRIX_i8_B_INTRIN, *get_ldmatrix_intrin(32, "e4m3_float8", "B", False))
+LDMATRIX_e4m3_B_INTRIN = "mma_ldmatrix_e4m3_b"
+TensorIntrin.register(LDMATRIX_e4m3_B_INTRIN, *get_ldmatrix_intrin(32, "e4m3_float8", "B", False))
 
-LDMATRIX_i8_B_TRANS_INTRIN = "mma_ldmatrix_e4m3_b_trans"
-TensorIntrin.register(LDMATRIX_i8_B_TRANS_INTRIN, *get_ldmatrix_intrin(32, "e4m3_float8", "B", True))
+LDMATRIX_e4m3_B_TRANS_INTRIN = "mma_ldmatrix_e4m3_b_trans"
+TensorIntrin.register(LDMATRIX_e4m3_B_TRANS_INTRIN, *get_ldmatrix_intrin(32, "e4m3_float8", "B", True))
 
-LDMATRIX_i8_A_INTRIN = "mma_ldmatrix_e5m2_a"
-TensorIntrin.register(LDMATRIX_i8_A_INTRIN, *get_ldmatrix_intrin(32, "e5m2_float8", "A", False))
+LDMATRIX_e5m2_A_INTRIN = "mma_ldmatrix_e5m2_a"
+TensorIntrin.register(LDMATRIX_e5m2_A_INTRIN, *get_ldmatrix_intrin(32, "e5m2_float8", "A", False))
 
-LDMATRIX_i8_B_INTRIN = "mma_ldmatrix_e5m2_b"
-TensorIntrin.register(LDMATRIX_i8_B_INTRIN, *get_ldmatrix_intrin(32, "e5m2_float8", "B", False))
+LDMATRIX_e5m2_B_INTRIN = "mma_ldmatrix_e5m2_b"
+TensorIntrin.register(LDMATRIX_e5m2_B_INTRIN, *get_ldmatrix_intrin(32, "e5m2_float8", "B", False))
 
-LDMATRIX_i8_B_TRANS_INTRIN = "mma_ldmatrix_e5m2_b_trans"
-TensorIntrin.register(LDMATRIX_i8_B_TRANS_INTRIN, *get_ldmatrix_intrin(32, "e5m2_float8", "B", True))
+LDMATRIX_e5m2_B_TRANS_INTRIN = "mma_ldmatrix_e5m2_b_trans"
+TensorIntrin.register(LDMATRIX_e5m2_B_TRANS_INTRIN, *get_ldmatrix_intrin(32, "e5m2_float8", "B", True))
 
 
 def get_mma_intrin(k_dim, a_dtype="float16", b_dtype="float16", out_dtype="float16", a_transposed=False, b_transposed=False):
@@ -490,17 +490,17 @@ TensorIntrin.register(MMA_i8i8i32_INTRIN, *get_mma_intrin(32, "int8", "int8", "i
 MMA_i8i8i32_TRANS_B_INTRIN = "mma_i8i8i32_trans_b"
 TensorIntrin.register(MMA_i8i8i32_TRANS_B_INTRIN, *get_mma_intrin(32, "int8", "int8", "int32", False, True))
 
-MMA_e5m2e5m2i32_INTRIN = "mma_e5m2e5m2i32"
-TensorIntrin.register(MMA_e5m2e5m2i32_INTRIN, *get_mma_intrin(32, "e5m2_float8", "e5m2_float8", "int32", False, False))
+MMA_e5m2e5m2f32_INTRIN = "mma_e5m2e5m2f32"
+TensorIntrin.register(MMA_e5m2e5m2f32_INTRIN, *get_mma_intrin(32, "e5m2_float8", "e5m2_float8", "float32", False, False))
 
-MMA_e5m2e5m2i32_TRANS_B_INTRIN = "mma_e5m2e5m2i32_trans_b"
-TensorIntrin.register(MMA_e5m2e5m2i32_TRANS_B_INTRIN, *get_mma_intrin(32, "e5m2_float8", "e5m2_float8", "int32", False, True))
+MMA_e5m2e5m2f32_TRANS_B_INTRIN = "mma_e5m2e5m2f32_trans_b"
+TensorIntrin.register(MMA_e5m2e5m2f32_TRANS_B_INTRIN, *get_mma_intrin(32, "e5m2_float8", "e5m2_float8", "float32", False, True))
 
-MMA_e4m3e4m3i32_INTRIN = "mma_e4m3e4m3i32"
-TensorIntrin.register(MMA_e4m3e4m3i32_INTRIN, *get_mma_intrin(32, "e4m3_float8", "e4m3_float8", "int32", False, False))
+MMA_e4m3e4m3f32_INTRIN = "mma_e4m3e4m3f32"
+TensorIntrin.register(MMA_e4m3e4m3f32_INTRIN, *get_mma_intrin(32, "e4m3_float8", "e4m3_float8", "float32", False, False))
 
-MMA_e4m3e4m3i32_TRANS_B_INTRIN = "mma_e4m3e4m3i32_trans_b"
-TensorIntrin.register(MMA_e4m3e4m3i32_TRANS_B_INTRIN, *get_mma_intrin(32, "e4m3_float8", "e4m3_float8", "int32", False, True))
+MMA_e4m3e4m3f32_TRANS_B_INTRIN = "mma_e4m3e4m3f32_trans_b"
+TensorIntrin.register(MMA_e4m3e4m3f32_TRANS_B_INTRIN, *get_mma_intrin(32, "e4m3_float8", "e4m3_float8", "float32", False, True))
 
 
 def get_mma_fill_intrin(dtype, local_size):

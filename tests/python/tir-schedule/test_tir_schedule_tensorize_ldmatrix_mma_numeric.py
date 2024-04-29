@@ -28,6 +28,10 @@ from tvm.tir.tensor_intrin.cuda import (
     LDMATRIX_i8_A_INTRIN,
     LDMATRIX_i8_B_TRANS_INTRIN,
     LDMATRIX_i8_B_INTRIN,
+    LDMATRIX_e4m3_A_INTRIN,
+    LDMATRIX_e4m3_B_TRANS_INTRIN,
+    LDMATRIX_e5m2_A_INTRIN,
+    LDMATRIX_e5m2_B_TRANS_INTRIN,
     MMA_f16f16f16_INTRIN,
     MMA_f16f16f16_TRANS_B_INTRIN,
     MMA_f16f16f32_INTRIN,
@@ -37,6 +41,8 @@ from tvm.tir.tensor_intrin.cuda import (
     MMA_fill_16x16_i32_INTRIN,
     MMA_i8i8i32_INTRIN,
     MMA_i8i8i32_TRANS_B_INTRIN,
+    MMA_e5m2e5m2f32_TRANS_B_INTRIN,
+    MMA_e4m3e4m3f32_TRANS_B_INTRIN,
     MMA_store_16x16_f16_global_INTRIN,
     MMA_store_16x16_f32_global_INTRIN,
     MMA_store_16x16_i32_global_INTRIN,
@@ -126,6 +132,30 @@ def run_test(
         else:
             b_np = np.random.normal(size=(K, N)).astype("float16")
             c_np = np.dot(a_np.astype("float32"), b_np.astype("float32")).astype(out_dtype)
+    elif in_dtype in ["e4m3_float8", "e5m2_float8"]:
+        typemap = {
+            "e4m3_float8": "float8_e4m3fn",
+            "e5m2_float8": "float8_e5m2",
+        }
+        a_np = (
+            np.random.uniform(low=-5, high=5, size=(M * K))
+            .reshape((M, K))
+            .astype(typemap[in_dtype])
+        )
+        if b_transposed:
+            b_np = (
+                np.random.uniform(low=-5, high=5, size=(N * K))
+                .reshape((N, K))
+                .astype(typemap[in_dtype])
+            )
+            c_np = np.dot(a_np.astype("float32"), b_np.T.astype("float32")).astype(out_dtype)
+        else:
+            b_np = (
+                np.random.uniform(low=-5, high=5, size=(N * K))
+                .reshape((K, N))
+                .astype(typemap[in_dtype])
+            )
+            c_np = np.dot(a_np.astype("float32"), b_np.astype("float32")).astype(out_dtype)
     else:
         a_np = np.random.randint(-128, 128, (M, K)).astype("int8")
 
@@ -144,7 +174,7 @@ def run_test(
 
     f(a, b, c)
 
-    if out_dtype != "float16":
+    if out_dtype != "float16" and in_dtype not in ["e4m3_float8", "e5m2_float8"]:
         # The numpy reference is computed with fp32 precision (otherwise too slow).
         # So there is non-trivial accuracy difference if TVM result is computed with fp16 accumulation.
         tvm.testing.assert_allclose(c.numpy(), c_np, rtol=1e-2, atol=1e-2)
@@ -337,5 +367,92 @@ def test_i8i8i32_m16n16k32():
         print("i8i8i32_m16n16k32_trans: %f GOPS" % (gflops / (timer().mean)))
 
 
+@tvm.testing.requires_cuda_compute_version(8, 9)
+def test_e4m3e4m3f32_m16n16k32():
+    def index_map_A(i, j):
+        return (
+            i // 16,
+            j // 32,
+            *shared_16x32_to_ldmatrix_32x16_layout(i % 16, j % 32),
+        )
+
+    def index_map_C(i, j):
+        return (
+            i // 16,
+            j // 16,
+            *shared_16x16_to_ldmatrix_32x8_layout(i % 16, j % 16),
+        )
+
+    k_inner = 32
+    in_dtype = "e4m3_float8"
+    out_dtype = "float32"
+    i_factors, j_factors, k_factors = [1, 32, 1, 4, 2], [8, 4, 4, 2, 1], [32, 2, 2]
+
+    timer = run_test(
+        k_inner,
+        in_dtype,
+        out_dtype,
+        True,  # b_transposed
+        i_factors,
+        j_factors,
+        k_factors,
+        index_map_A,
+        index_map_A,
+        index_map_C,
+        LDMATRIX_e4m3_A_INTRIN,
+        LDMATRIX_e4m3_B_TRANS_INTRIN,
+        MMA_e4m3e4m3f32_TRANS_B_INTRIN,
+        MMA_fill_16x16_f32_INTRIN,
+        MMA_store_16x16_f32_global_INTRIN,
+    )
+
+    if measure_perf and timer:
+        print("e4m3e4m3f32_m16n16k32_trans: %f GOPS" % (gflops / (timer().mean)))
+
+@tvm.testing.requires_cuda_compute_version(8, 9)
+def test_e5m2e5m2f32_m16n16k32():
+    def index_map_A(i, j):
+        return (
+            i // 16,
+            j // 32,
+            *shared_16x32_to_ldmatrix_32x16_layout(i % 16, j % 32),
+        )
+
+    def index_map_C(i, j):
+        return (
+            i // 16,
+            j // 16,
+            *shared_16x16_to_ldmatrix_32x8_layout(i % 16, j % 16),
+        )
+
+    k_inner = 32
+    in_dtype = "e5m2_float8"
+    out_dtype = "float32"
+    i_factors, j_factors, k_factors = [1, 32, 1, 4, 2], [8, 4, 4, 2, 1], [32, 2, 2]
+
+    timer = run_test(
+        k_inner,
+        in_dtype,
+        out_dtype,
+        True,  # b_transposed
+        i_factors,
+        j_factors,
+        k_factors,
+        index_map_A,
+        index_map_A,
+        index_map_C,
+        LDMATRIX_e5m2_A_INTRIN,
+        LDMATRIX_e5m2_B_TRANS_INTRIN,
+        MMA_e5m2e5m2f32_TRANS_B_INTRIN,
+        MMA_fill_16x16_f32_INTRIN,
+        MMA_store_16x16_f32_global_INTRIN,
+    )
+
+    if measure_perf and timer:
+        print("e5m2e5m2f32_m16n16k32_trans: %f GOPS" % (gflops / (timer().mean)))
+
+
 if __name__ == "__main__":
-    tvm.testing.main()
+    # tvm.testing.main()
+    # test_e5m2e5m2f32_m16n16k32()
+    test_e4m3e4m3f32_m16n16k32()

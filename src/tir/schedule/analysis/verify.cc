@@ -180,12 +180,9 @@ void VerifyCachedFlags(const ScheduleState& self) {
   }
 
   bool has_not_found = !block_info_not_found.empty();
-  // bool has_wrong_affine_binding = !block_info_wrong_affine_binding.empty();
-  // bool has_wrong_region_cover = !block_info_wrong_region_cover.empty();
-  // bool has_wrong_stage_pipeline = !block_info_wrong_stage_pipeline.empty();
-  bool has_wrong_affine_binding = false;
-  bool has_wrong_region_cover = false;
-   bool has_wrong_stage_pipeline = false;
+  bool has_wrong_affine_binding = !block_info_wrong_affine_binding.empty();
+  bool has_wrong_region_cover = !block_info_wrong_region_cover.empty();
+  bool has_wrong_stage_pipeline = !block_info_wrong_stage_pipeline.empty();
   if (!(has_not_found || has_wrong_affine_binding || has_wrong_region_cover ||
         has_wrong_stage_pipeline)) {
     return;
