@@ -208,7 +208,7 @@ class GEMV(GPUScheduleRule):
         elif is_inner_reduction:
             self.sch_inner_reduction(sch, target, block, vector_input_buffers, epilogue)
             return sch
-        elif target.kind.name == "opencl":
+        elif target.kind.name == "opencl" and "android" in str(target.host):
             ret = self.sch_outer_reduction(sch, target, block, vector_input_buffers, epilogue)
             if ret is None:
                 return self.sch_outer_reduction_fallback(
