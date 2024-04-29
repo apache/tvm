@@ -439,7 +439,7 @@ def test_if():
     if_node = relax.If(x, x, x)
     basic_check(
         if_node,
-        "\n".join(["If", "\tVar", "\tVar", "\tVar"]),
+        "\n".join(["If", "\tVar", "\tSeqExpr", "\t\tVar", "\tSeqExpr", "\t\tVar"]),
         "\n".join(["Var", "Var", "SeqExpr", "Var", "SeqExpr", "If"]),
     )
 

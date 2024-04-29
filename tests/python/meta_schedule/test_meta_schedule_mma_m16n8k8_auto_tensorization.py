@@ -696,10 +696,6 @@ __pack_half2(const half x, const half y) {
   return (v1 << 16) | v0;
 }
 
-// Some fp16 math functions are not supported in cuda_fp16.h,
-// so we define them here to make sure the generated CUDA code
-// is valid.
-#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 530)
 #define CUDA_UNSUPPORTED_HALF_MATH_BINARY(HALF_MATH_NAME, FP32_MATH_NAME) \
 static inline __device__ __host__ half HALF_MATH_NAME(half x, half y) {   \
   float tmp_x = __half2float(x);                                          \
@@ -715,16 +711,31 @@ static inline __device__ __host__ half HALF_MATH_NAME(half x) {          \
   return __float2half(result);                                           \
 }
 
+// Some fp16 math functions are not supported in cuda_fp16.h,
+// so we define them here to make sure the generated CUDA code
+// is valid.
+#if defined(__CUDA_ARCH__)
+#if (__CUDA_ARCH__ >= 530)
 CUDA_UNSUPPORTED_HALF_MATH_BINARY(hpow, powf)
 CUDA_UNSUPPORTED_HALF_MATH_UNARY(htanh, tanhf)
 CUDA_UNSUPPORTED_HALF_MATH_UNARY(htan, tanf)
 CUDA_UNSUPPORTED_HALF_MATH_UNARY(hatan, atanf)
 CUDA_UNSUPPORTED_HALF_MATH_UNARY(herf, erf)
+#else
+CUDA_UNSUPPORTED_HALF_MATH_UNARY(hexp, exp)
+#endif
+#endif
 
 #undef CUDA_UNSUPPORTED_HALF_MATH_BINARY
 #undef CUDA_UNSUPPORTED_HALF_MATH_UNARY
-
-#endif
+__forceinline__ __device__ unsigned int
+cast_smem_ptr_to_int(const void* const smem_ptr)
+{
+  unsigned int smem_int;
+  asm volatile ("{ .reg .u64 smem_int; cvta.to.shared.u64 smem_int, %1; cvt.u32.u64 %0, smem_int; }"
+    : "=r"(smem_int) : "l"(smem_ptr));
+  return smem_int;
+}
 
 #if (((__CUDACC_VER_MAJOR__ == 11) && (__CUDACC_VER_MINOR__ >= 4)) || \
      (__CUDACC_VER_MAJOR__ > 11))
@@ -746,6 +757,7 @@ CUDA_UNSUPPORTED_HALF_MATH_UNARY(herf, erf)
   #define int64_t long long
   #define uint64_t unsigned long long
 #endif
+extern "C" __global__ void __launch_bounds__(128) main_kernel(half* __restrict__ C, half* __restrict__ X, half* __restrict__ Y);
 extern "C" __global__ void __launch_bounds__(128) main_kernel(half* __restrict__ C, half* __restrict__ X, half* __restrict__ Y) {
   extern __shared__ uchar buf_dyn_shmem[];
   uint1 C_reindex_m16n8k8_matrixC[64];
@@ -761,12 +773,7 @@ extern "C" __global__ void __launch_bounds__(128) main_kernel(half* __restrict__
   for (int ax0_ax1_fused_0 = 0; ax0_ax1_fused_0 < 4; ++ax0_ax1_fused_0) {
 
   {
-    unsigned int addr;
-    __asm__ __volatile__(
-      "{ .reg .u64 addr; cvta.to.shared.u64 addr, %1; cvt.u32.u64 %0, addr; }\n"
-      : "=r"(addr)
-      : "l"((void *)(buf_dyn_shmem + (((((ax0_ax1_fused_0 * 2048) + (((int)threadIdx.y) * 512)) + ((((int)threadIdx.x) >> 2) * 64)) + (((((int)threadIdx.x) & 3) ^ (((int)threadIdx.x) >> 3)) * 16)) + 24576)))
-    );
+    unsigned int addr = cast_smem_ptr_to_int(buf_dyn_shmem + ((((ax0_ax1_fused_0 * 2048) + (((int)threadIdx.y) * 512)) + ((((int)threadIdx.x) >> 2) * 64)) + (((((int)threadIdx.x) & 3) ^ (((int)threadIdx.x) >> 3)) * 16)));
     __asm__ __volatile__(
       #if TVM_ENABLE_L2_PREFETCH
         "cp.async.cg.shared.global.L2::128B [%0], [%1], %2;"
@@ -780,12 +787,7 @@ extern "C" __global__ void __launch_bounds__(128) main_kernel(half* __restrict__
   for (int ax0_ax1_fused_0_1 = 0; ax0_ax1_fused_0_1 < 4; ++ax0_ax1_fused_0_1) {
 
   {
-    unsigned int addr;
-    __asm__ __volatile__(
-      "{ .reg .u64 addr; cvta.to.shared.u64 addr, %1; cvt.u32.u64 %0, addr; }\n"
-      : "=r"(addr)
-      : "l"((void *)(buf_dyn_shmem + ((((ax0_ax1_fused_0_1 * 2048) + (((int)threadIdx.y) * 512)) + ((((int)threadIdx.x) >> 3) * 128)) + (((((int)threadIdx.x) & 7) ^ ((((int)threadIdx.y) * 2) + (((int)threadIdx.x) >> 4))) * 16))))
-    );
+    unsigned int addr = cast_smem_ptr_to_int(buf_dyn_shmem + (((((ax0_ax1_fused_0_1 * 2048) + (((int)threadIdx.y) * 512)) + ((((int)threadIdx.x) >> 4) * 256)) + (((((int)threadIdx.x) & 15) ^ ((((int)threadIdx.y) * 2) + (((int)threadIdx.x) >> 4))) * 16)) + 24576));
     __asm__ __volatile__(
       #if TVM_ENABLE_L2_PREFETCH
         "cp.async.cg.shared.global.L2::128B [%0], [%1], %2;"
@@ -801,12 +803,7 @@ __asm__ __volatile__("cp.async.commit_group;");
   for (int ax0_ax1_fused_0_2 = 0; ax0_ax1_fused_0_2 < 4; ++ax0_ax1_fused_0_2) {
 
   {
-    unsigned int addr;
-    __asm__ __volatile__(
-      "{ .reg .u64 addr; cvta.to.shared.u64 addr, %1; cvt.u32.u64 %0, addr; }\n"
-      : "=r"(addr)
-      : "l"((void *)(buf_dyn_shmem + (((((ax0_ax1_fused_0_2 * 2048) + (((int)threadIdx.y) * 512)) + ((((int)threadIdx.x) >> 2) * 64)) + (((((int)threadIdx.x) & 3) ^ (((int)threadIdx.x) >> 3)) * 16)) + 32768)))
-    );
+    unsigned int addr = cast_smem_ptr_to_int(buf_dyn_shmem + (((((ax0_ax1_fused_0_2 * 2048) + (((int)threadIdx.y) * 512)) + ((((int)threadIdx.x) >> 2) * 64)) + (((((int)threadIdx.x) & 3) ^ (((int)threadIdx.x) >> 3)) * 16)) + 8192));
     __asm__ __volatile__(
       #if TVM_ENABLE_L2_PREFETCH
         "cp.async.cg.shared.global.L2::128B [%0], [%1], %2;"
@@ -820,12 +817,7 @@ __asm__ __volatile__("cp.async.commit_group;");
   for (int ax0_ax1_fused_0_3 = 0; ax0_ax1_fused_0_3 < 4; ++ax0_ax1_fused_0_3) {
 
   {
-    unsigned int addr;
-    __asm__ __volatile__(
-      "{ .reg .u64 addr; cvta.to.shared.u64 addr, %1; cvt.u32.u64 %0, addr; }\n"
-      : "=r"(addr)
-      : "l"((void *)(buf_dyn_shmem + (((((ax0_ax1_fused_0_3 * 2048) + (((int)threadIdx.y) * 512)) + ((((int)threadIdx.x) >> 3) * 128)) + (((((int)threadIdx.x) & 7) ^ ((((int)threadIdx.y) * 2) + (((int)threadIdx.x) >> 4))) * 16)) + 8192)))
-    );
+    unsigned int addr = cast_smem_ptr_to_int(buf_dyn_shmem + (((((ax0_ax1_fused_0_3 * 2048) + (((int)threadIdx.y) * 512)) + ((((int)threadIdx.x) >> 4) * 256)) + (((((int)threadIdx.x) & 15) ^ ((((int)threadIdx.y) * 2) + (((int)threadIdx.x) >> 4))) * 16)) + 32768));
     __asm__ __volatile__(
       #if TVM_ENABLE_L2_PREFETCH
         "cp.async.cg.shared.global.L2::128B [%0], [%1], %2;"
@@ -844,12 +836,7 @@ __asm__ __volatile__("cp.async.wait_group 1;");
   for (int ax0_0 = 0; ax0_0 < 2; ++ax0_0) {
 
   {
-    unsigned int addr;
-    __asm__ __volatile__(
-      "{ .reg .u64 addr; cvta.to.shared.u64 addr, %1; cvt.u32.u64 %0, addr; }\n"
-      : "=r"(addr)
-      : "l"((void *)((&(((half*)buf_dyn_shmem)[12288])) + (((((((int)threadIdx.y) >> 1) * 2048) + (ax0_0 * 1024)) + (((int)threadIdx.x) * 32)) + ((0 ^ ((((int)threadIdx.x) & 7) >> 1)) * 8))))
-    );
+    unsigned int addr = cast_smem_ptr_to_int((&(((half*)buf_dyn_shmem)[(((((((int)threadIdx.y) >> 1) * 2048) + (ax0_0 * 1024)) + (((int)threadIdx.x) * 32)) + ((0 ^ ((((int)threadIdx.x) & 7) >> 1)) * 8))])) + 0);
     __asm__ __volatile__(
       "ldmatrix.sync.aligned.m8n8.x4.shared.b16"
       "{%0, %1, %2, %3}, [%4];\n"
@@ -861,12 +848,7 @@ __asm__ __volatile__("cp.async.wait_group 1;");
   for (int ax1_0 = 0; ax1_0 < 2; ++ax1_0) {
 
   {
-    unsigned int addr;
-    __asm__ __volatile__(
-      "{ .reg .u64 addr; cvta.to.shared.u64 addr, %1; cvt.u32.u64 %0, addr; }\n"
-      : "=r"(addr)
-      : "l"((void *)((&(((half*)buf_dyn_shmem)[0])) + ((((((int)threadIdx.x) & 7) * 128) + ((((int)threadIdx.y) & 1) * 64)) + ((((ax1_0 * 4) + (((int)threadIdx.x) >> 3)) ^ (((int)threadIdx.x) & 7)) * 8))))
-    );
+    unsigned int addr = cast_smem_ptr_to_int((&(((half*)buf_dyn_shmem)[((((((int)threadIdx.x) & 7) * 128) + ((((((((int)threadIdx.y) & 1) * 8) + (ax1_0 * 4)) + (((int)threadIdx.x) >> 3)) ^ (((int)threadIdx.x) & 7)) * 8)) + 12288)])) + 0);
     __asm__ __volatile__(
       "ldmatrix.sync.aligned.m8n8.x4.trans.shared.b16"
       "{%0, %1, %2, %3}, [%4];\n"
@@ -880,12 +862,7 @@ __asm__ __volatile__("cp.async.wait_group 1;");
     for (int ax0_ax1_fused_0_4 = 0; ax0_ax1_fused_0_4 < 4; ++ax0_ax1_fused_0_4) {
 
   {
-    unsigned int addr;
-    __asm__ __volatile__(
-      "{ .reg .u64 addr; cvta.to.shared.u64 addr, %1; cvt.u32.u64 %0, addr; }\n"
-      : "=r"(addr)
-      : "l"((void *)(buf_dyn_shmem + ((((((((ax2_0_0 + 2) % 3) * 8192) + (ax0_ax1_fused_0_4 * 2048)) + (((int)threadIdx.y) * 512)) + ((((int)threadIdx.x) >> 2) * 64)) + (((((int)threadIdx.x) & 3) ^ (((int)threadIdx.x) >> 3)) * 16)) + 24576)))
-    );
+    unsigned int addr = cast_smem_ptr_to_int(buf_dyn_shmem + (((((((ax2_0_0 + 2) % 3) * 8192) + (ax0_ax1_fused_0_4 * 2048)) + (((int)threadIdx.y) * 512)) + ((((int)threadIdx.x) >> 2) * 64)) + (((((int)threadIdx.x) & 3) ^ (((int)threadIdx.x) >> 3)) * 16)));
     __asm__ __volatile__(
       #if TVM_ENABLE_L2_PREFETCH
         "cp.async.cg.shared.global.L2::128B [%0], [%1], %2;"
@@ -899,12 +876,7 @@ __asm__ __volatile__("cp.async.wait_group 1;");
     for (int ax0_ax1_fused_0_5 = 0; ax0_ax1_fused_0_5 < 4; ++ax0_ax1_fused_0_5) {
 
   {
-    unsigned int addr;
-    __asm__ __volatile__(
-      "{ .reg .u64 addr; cvta.to.shared.u64 addr, %1; cvt.u32.u64 %0, addr; }\n"
-      : "=r"(addr)
-      : "l"((void *)(buf_dyn_shmem + (((((((ax2_0_0 + 2) % 3) * 8192) + (ax0_ax1_fused_0_5 * 2048)) + (((int)threadIdx.y) * 512)) + ((((int)threadIdx.x) >> 3) * 128)) + (((((int)threadIdx.x) & 7) ^ ((((int)threadIdx.y) * 2) + (((int)threadIdx.x) >> 4))) * 16))))
-    );
+    unsigned int addr = cast_smem_ptr_to_int(buf_dyn_shmem + ((((((((ax2_0_0 + 2) % 3) * 8192) + (ax0_ax1_fused_0_5 * 2048)) + (((int)threadIdx.y) * 512)) + ((((int)threadIdx.x) >> 4) * 256)) + (((((int)threadIdx.x) & 15) ^ ((((int)threadIdx.y) * 2) + (((int)threadIdx.x) >> 4))) * 16)) + 24576));
     __asm__ __volatile__(
       #if TVM_ENABLE_L2_PREFETCH
         "cp.async.cg.shared.global.L2::128B [%0], [%1], %2;"
@@ -924,12 +896,7 @@ __asm__ __volatile__("cp.async.wait_group 1;");
       for (int ax0_0_1 = 0; ax0_0_1 < 2; ++ax0_0_1) {
 
   {
-    unsigned int addr;
-    __asm__ __volatile__(
-      "{ .reg .u64 addr; cvta.to.shared.u64 addr, %1; cvt.u32.u64 %0, addr; }\n"
-      : "=r"(addr)
-      : "l"((void *)((&(((half*)buf_dyn_shmem)[(((ax2_0_0 % 3) * 4096) + 12288)])) + (((((((int)threadIdx.y) >> 1) * 2048) + (ax0_0_1 * 1024)) + (((int)threadIdx.x) * 32)) + (((ax2_0_1 + 1) ^ ((((int)threadIdx.x) & 7) >> 1)) * 8))))
-    );
+    unsigned int addr = cast_smem_ptr_to_int((&(((half*)buf_dyn_shmem)[((((((ax2_0_0 % 3) * 4096) + ((((int)threadIdx.y) >> 1) * 2048)) + (ax0_0_1 * 1024)) + (((int)threadIdx.x) * 32)) + (((ax2_0_1 + 1) ^ ((((int)threadIdx.x) & 7) >> 1)) * 8))])) + 0);
     __asm__ __volatile__(
       "ldmatrix.sync.aligned.m8n8.x4.shared.b16"
       "{%0, %1, %2, %3}, [%4];\n"
@@ -941,12 +908,7 @@ __asm__ __volatile__("cp.async.wait_group 1;");
       for (int ax1_0_1 = 0; ax1_0_1 < 2; ++ax1_0_1) {
 
   {
-    unsigned int addr;
-    __asm__ __volatile__(
-      "{ .reg .u64 addr; cvta.to.shared.u64 addr, %1; cvt.u32.u64 %0, addr; }\n"
-      : "=r"(addr)
-      : "l"((void *)((&(((half*)buf_dyn_shmem)[((ax2_0_0 % 3) * 4096)])) + (((((ax2_0_1 * 1024) + ((((int)threadIdx.x) & 7) * 128)) + ((((int)threadIdx.y) & 1) * 64)) + ((((ax1_0_1 * 4) + (((int)threadIdx.x) >> 3)) ^ (((int)threadIdx.x) & 7)) * 8)) + 1024)))
-    );
+    unsigned int addr = cast_smem_ptr_to_int((&(((half*)buf_dyn_shmem)[((((((ax2_0_0 % 3) * 4096) + (ax2_0_1 * 1024)) + ((((int)threadIdx.x) & 7) * 128)) + ((((((((int)threadIdx.y) & 1) * 8) + (ax1_0_1 * 4)) + (((int)threadIdx.x) >> 3)) ^ (((int)threadIdx.x) & 7)) * 8)) + 13312)])) + 0);
     __asm__ __volatile__(
       "ldmatrix.sync.aligned.m8n8.x4.trans.shared.b16"
       "{%0, %1, %2, %3}, [%4];\n"
@@ -971,12 +933,7 @@ __asm__ __volatile__("cp.async.wait_group 1;");
     for (int ax0_0_2 = 0; ax0_0_2 < 2; ++ax0_0_2) {
 
   {
-    unsigned int addr;
-    __asm__ __volatile__(
-      "{ .reg .u64 addr; cvta.to.shared.u64 addr, %1; cvt.u32.u64 %0, addr; }\n"
-      : "=r"(addr)
-      : "l"((void *)((&(((half*)buf_dyn_shmem)[((((ax2_0_0 + 1) % 3) * 4096) + 12288)])) + (((((((int)threadIdx.y) >> 1) * 2048) + (ax0_0_2 * 1024)) + (((int)threadIdx.x) * 32)) + ((0 ^ ((((int)threadIdx.x) & 7) >> 1)) * 8))))
-    );
+    unsigned int addr = cast_smem_ptr_to_int((&(((half*)buf_dyn_shmem)[(((((((ax2_0_0 + 1) % 3) * 4096) + ((((int)threadIdx.y) >> 1) * 2048)) + (ax0_0_2 * 1024)) + (((int)threadIdx.x) * 32)) + ((0 ^ ((((int)threadIdx.x) & 7) >> 1)) * 8))])) + 0);
     __asm__ __volatile__(
       "ldmatrix.sync.aligned.m8n8.x4.shared.b16"
       "{%0, %1, %2, %3}, [%4];\n"
@@ -988,12 +945,7 @@ __asm__ __volatile__("cp.async.wait_group 1;");
     for (int ax1_0_2 = 0; ax1_0_2 < 2; ++ax1_0_2) {
 
   {
-    unsigned int addr;
-    __asm__ __volatile__(
-      "{ .reg .u64 addr; cvta.to.shared.u64 addr, %1; cvt.u32.u64 %0, addr; }\n"
-      : "=r"(addr)
-      : "l"((void *)((&(((half*)buf_dyn_shmem)[(((ax2_0_0 + 1) % 3) * 4096)])) + ((((((int)threadIdx.x) & 7) * 128) + ((((int)threadIdx.y) & 1) * 64)) + ((((ax1_0_2 * 4) + (((int)threadIdx.x) >> 3)) ^ (((int)threadIdx.x) & 7)) * 8))))
-    );
+    unsigned int addr = cast_smem_ptr_to_int((&(((half*)buf_dyn_shmem)[((((((ax2_0_0 + 1) % 3) * 4096) + ((((int)threadIdx.x) & 7) * 128)) + ((((((((int)threadIdx.y) & 1) * 8) + (ax1_0_2 * 4)) + (((int)threadIdx.x) >> 3)) ^ (((int)threadIdx.x) & 7)) * 8)) + 12288)])) + 0);
     __asm__ __volatile__(
       "ldmatrix.sync.aligned.m8n8.x4.trans.shared.b16"
       "{%0, %1, %2, %3}, [%4];\n"
@@ -1022,12 +974,7 @@ __asm__ __volatile__("cp.async.wait_group 0;");
     for (int ax0_0_3 = 0; ax0_0_3 < 2; ++ax0_0_3) {
 
   {
-    unsigned int addr;
-    __asm__ __volatile__(
-      "{ .reg .u64 addr; cvta.to.shared.u64 addr, %1; cvt.u32.u64 %0, addr; }\n"
-      : "=r"(addr)
-      : "l"((void *)((&(((half*)buf_dyn_shmem)[12288])) + (((((((int)threadIdx.y) >> 1) * 2048) + (ax0_0_3 * 1024)) + (((int)threadIdx.x) * 32)) + (((ax2_0_1_1 + 1) ^ ((((int)threadIdx.x) & 7) >> 1)) * 8))))
-    );
+    unsigned int addr = cast_smem_ptr_to_int((&(((half*)buf_dyn_shmem)[(((((((int)threadIdx.y) >> 1) * 2048) + (ax0_0_3 * 1024)) + (((int)threadIdx.x) * 32)) + (((ax2_0_1_1 + 1) ^ ((((int)threadIdx.x) & 7) >> 1)) * 8))])) + 0);
     __asm__ __volatile__(
       "ldmatrix.sync.aligned.m8n8.x4.shared.b16"
       "{%0, %1, %2, %3}, [%4];\n"
@@ -1039,12 +986,7 @@ __asm__ __volatile__("cp.async.wait_group 0;");
     for (int ax1_0_3 = 0; ax1_0_3 < 2; ++ax1_0_3) {
 
   {
-    unsigned int addr;
-    __asm__ __volatile__(
-      "{ .reg .u64 addr; cvta.to.shared.u64 addr, %1; cvt.u32.u64 %0, addr; }\n"
-      : "=r"(addr)
-      : "l"((void *)((&(((half*)buf_dyn_shmem)[0])) + (((((ax2_0_1_1 * 1024) + ((((int)threadIdx.x) & 7) * 128)) + ((((int)threadIdx.y) & 1) * 64)) + ((((ax1_0_3 * 4) + (((int)threadIdx.x) >> 3)) ^ (((int)threadIdx.x) & 7)) * 8)) + 1024)))
-    );
+    unsigned int addr = cast_smem_ptr_to_int((&(((half*)buf_dyn_shmem)[((((ax2_0_1_1 * 1024) + ((((int)threadIdx.x) & 7) * 128)) + ((((((((int)threadIdx.y) & 1) * 8) + (ax1_0_3 * 4)) + (((int)threadIdx.x) >> 3)) ^ (((int)threadIdx.x) & 7)) * 8)) + 13312)])) + 0);
     __asm__ __volatile__(
       "ldmatrix.sync.aligned.m8n8.x4.trans.shared.b16"
       "{%0, %1, %2, %3}, [%4];\n"
@@ -1069,12 +1011,7 @@ __asm__ __volatile__("cp.async.wait_group 0;");
   for (int ax0_0_5 = 0; ax0_0_5 < 2; ++ax0_0_5) {
 
   {
-    unsigned int addr;
-    __asm__ __volatile__(
-      "{ .reg .u64 addr; cvta.to.shared.u64 addr, %1; cvt.u32.u64 %0, addr; }\n"
-      : "=r"(addr)
-      : "l"((void *)((&(((half*)buf_dyn_shmem)[16384])) + (((((((int)threadIdx.y) >> 1) * 2048) + (ax0_0_5 * 1024)) + (((int)threadIdx.x) * 32)) + ((0 ^ ((((int)threadIdx.x) & 7) >> 1)) * 8))))
-    );
+    unsigned int addr = cast_smem_ptr_to_int((&(((half*)buf_dyn_shmem)[((((((((int)threadIdx.y) >> 1) * 2048) + (ax0_0_5 * 1024)) + (((int)threadIdx.x) * 32)) + ((0 ^ ((((int)threadIdx.x) & 7) >> 1)) * 8)) + 4096)])) + 0);
     __asm__ __volatile__(
       "ldmatrix.sync.aligned.m8n8.x4.shared.b16"
       "{%0, %1, %2, %3}, [%4];\n"
@@ -1086,12 +1023,7 @@ __asm__ __volatile__("cp.async.wait_group 0;");
   for (int ax1_0_5 = 0; ax1_0_5 < 2; ++ax1_0_5) {
 
   {
-    unsigned int addr;
-    __asm__ __volatile__(
-      "{ .reg .u64 addr; cvta.to.shared.u64 addr, %1; cvt.u32.u64 %0, addr; }\n"
-      : "=r"(addr)
-      : "l"((void *)((&(((half*)buf_dyn_shmem)[4096])) + ((((((int)threadIdx.x) & 7) * 128) + ((((int)threadIdx.y) & 1) * 64)) + ((((ax1_0_5 * 4) + (((int)threadIdx.x) >> 3)) ^ (((int)threadIdx.x) & 7)) * 8))))
-    );
+    unsigned int addr = cast_smem_ptr_to_int((&(((half*)buf_dyn_shmem)[((((((int)threadIdx.x) & 7) * 128) + ((((((((int)threadIdx.y) & 1) * 8) + (ax1_0_5 * 4)) + (((int)threadIdx.x) >> 3)) ^ (((int)threadIdx.x) & 7)) * 8)) + 16384)])) + 0);
     __asm__ __volatile__(
       "ldmatrix.sync.aligned.m8n8.x4.trans.shared.b16"
       "{%0, %1, %2, %3}, [%4];\n"
@@ -1116,12 +1048,7 @@ __asm__ __volatile__("cp.async.wait_group 0;");
     for (int ax0_0_6 = 0; ax0_0_6 < 2; ++ax0_0_6) {
 
   {
-    unsigned int addr;
-    __asm__ __volatile__(
-      "{ .reg .u64 addr; cvta.to.shared.u64 addr, %1; cvt.u32.u64 %0, addr; }\n"
-      : "=r"(addr)
-      : "l"((void *)((&(((half*)buf_dyn_shmem)[16384])) + (((((((int)threadIdx.y) >> 1) * 2048) + (ax0_0_6 * 1024)) + (((int)threadIdx.x) * 32)) + (((ax2_0_1_2 + 1) ^ ((((int)threadIdx.x) & 7) >> 1)) * 8))))
-    );
+    unsigned int addr = cast_smem_ptr_to_int((&(((half*)buf_dyn_shmem)[((((((((int)threadIdx.y) >> 1) * 2048) + (ax0_0_6 * 1024)) + (((int)threadIdx.x) * 32)) + (((ax2_0_1_2 + 1) ^ ((((int)threadIdx.x) & 7) >> 1)) * 8)) + 4096)])) + 0);
     __asm__ __volatile__(
       "ldmatrix.sync.aligned.m8n8.x4.shared.b16"
       "{%0, %1, %2, %3}, [%4];\n"
@@ -1133,12 +1060,7 @@ __asm__ __volatile__("cp.async.wait_group 0;");
     for (int ax1_0_6 = 0; ax1_0_6 < 2; ++ax1_0_6) {
 
   {
-    unsigned int addr;
-    __asm__ __volatile__(
-      "{ .reg .u64 addr; cvta.to.shared.u64 addr, %1; cvt.u32.u64 %0, addr; }\n"
-      : "=r"(addr)
-      : "l"((void *)((&(((half*)buf_dyn_shmem)[4096])) + (((((ax2_0_1_2 * 1024) + ((((int)threadIdx.x) & 7) * 128)) + ((((int)threadIdx.y) & 1) * 64)) + ((((ax1_0_6 * 4) + (((int)threadIdx.x) >> 3)) ^ (((int)threadIdx.x) & 7)) * 8)) + 1024)))
-    );
+    unsigned int addr = cast_smem_ptr_to_int((&(((half*)buf_dyn_shmem)[((((ax2_0_1_2 * 1024) + ((((int)threadIdx.x) & 7) * 128)) + ((((((((int)threadIdx.y) & 1) * 8) + (ax1_0_6 * 4)) + (((int)threadIdx.x) >> 3)) ^ (((int)threadIdx.x) & 7)) * 8)) + 17408)])) + 0);
     __asm__ __volatile__(
       "ldmatrix.sync.aligned.m8n8.x4.trans.shared.b16"
       "{%0, %1, %2, %3}, [%4];\n"
@@ -1175,11 +1097,11 @@ __asm__ __volatile__("cp.async.wait_group 0;");
   for (int ax0_0_7 = 0; ax0_0_7 < 8; ++ax0_0_7) {
     __syncthreads();
     for (int ax1_0_7 = 0; ax1_0_7 < 8; ++ax1_0_7) {
-      *(uint1*)(((half*)buf_dyn_shmem) + ((((((int)threadIdx.y) * 512) + (ax1_0_7 * 64)) + (((int)threadIdx.x) * 2)) + 12288)) = C_reindex_m16n8k8_matrixC[((((ax0_0_7 >> 1) * 16) + (ax1_0_7 * 2)) + (ax0_0_7 & 1))];
+      *(uint1*)(((half*)buf_dyn_shmem) + ((((((int)threadIdx.x) * 2050) + (((int)threadIdx.y) * 512)) + (ax1_0_7 * 64)) + 12288)) = C_reindex_m16n8k8_matrixC[((((ax0_0_7 >> 1) * 16) + (ax1_0_7 * 2)) + (ax0_0_7 & 1))];
     }
     __syncthreads();
-    for (int ax0_0_2_ax1_0_2_fused_cache_ax1_0_cache_ax0_1_cache_ax1_1_cache_fused_0 = 0; ax0_0_2_ax1_0_2_fused_cache_ax1_0_cache_ax0_1_cache_ax1_1_cache_fused_0 < 16; ++ax0_0_2_ax1_0_2_fused_cache_ax1_0_cache_ax0_1_cache_ax1_1_cache_fused_0) {
-      C[(((((((((((((int)blockIdx.y) >> 3) * 524288) + ((ax0_0_2_ax1_0_2_fused_cache_ax1_0_cache_ax0_1_cache_ax1_1_cache_fused_0 >> 3) * 262144)) + (ax0_0_7 * 32768)) + ((((int)threadIdx.y) & 1) * 16384)) + ((((int)threadIdx.x) >> 3) * 4096)) + (((int)blockIdx.x) * 1024)) + ((((int)blockIdx.y) & 7) * 128)) + ((ax0_0_2_ax1_0_2_fused_cache_ax1_0_cache_ax0_1_cache_ax1_1_cache_fused_0 & 7) * 16)) + ((((int)threadIdx.y) >> 1) * 8)) + (((int)threadIdx.x) & 7))] = ((half*)buf_dyn_shmem)[((((ax0_0_2_ax1_0_2_fused_cache_ax1_0_cache_ax0_1_cache_ax1_1_cache_fused_0 * 128) + (((int)threadIdx.y) * 32)) + ((int)threadIdx.x)) + 12288)];
+    for (int threadIdx_x_cache_threadIdx_y_cache_ax1_0_cache_ax0_1_cache_ax1_1_cache_fused_0 = 0; threadIdx_x_cache_threadIdx_y_cache_ax1_0_cache_ax0_1_cache_ax1_1_cache_fused_0 < 512; ++threadIdx_x_cache_threadIdx_y_cache_ax1_0_cache_ax0_1_cache_ax1_1_cache_fused_0) {
+      C[(((((((((((((int)blockIdx.y) >> 3) * 524288) + (((threadIdx_x_cache_threadIdx_y_cache_ax1_0_cache_ax0_1_cache_ax1_1_cache_fused_0 & 15) >> 3) * 262144)) + (ax0_0_7 * 32768)) + ((((int)threadIdx.y) & 1) * 16384)) + ((((int)threadIdx.x) >> 3) * 4096)) + (((int)blockIdx.x) * 1024)) + ((((int)blockIdx.y) & 7) * 128)) + ((threadIdx_x_cache_threadIdx_y_cache_ax1_0_cache_ax0_1_cache_ax1_1_cache_fused_0 & 7) * 16)) + ((((int)threadIdx.y) >> 1) * 8)) + (((int)threadIdx.x) & 7))] = ((half*)buf_dyn_shmem)[((((threadIdx_x_cache_threadIdx_y_cache_ax1_0_cache_ax0_1_cache_ax1_1_cache_fused_0 * 128) + (((int)threadIdx.y) * 32)) + ((int)threadIdx.x)) + 12288)];
     }
   }
 }
@@ -1229,7 +1151,7 @@ def test_mma_script_after_build():
 
     with tvm.transform.PassContext(config={"tir.use_async_copy": 1}):
         rt_mod = tvm.build(sch.mod, target="cuda")
-
+    print(rt_mod.imported_modules[0].get_source())
     assert rt_mod.imported_modules[0].get_source() == expected_cuda_script
 
 

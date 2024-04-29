@@ -144,6 +144,10 @@ Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& binds,
   return ExprBinder(binds, symbolic_var_map).VisitExpr(expr);
 }
 
+StructInfo Bind(const StructInfo& sinfo, const tvm::Map<tir::Var, PrimExpr>& symbolic_var_map) {
+  return ExprBinder({}, symbolic_var_map).VisitExprDepStructInfoField(sinfo);
+}
+
 tvm::Map<tir::Var, PrimExpr> InferSymbolicVarMap(
     const tvm::Map<relax::Var, relax::Expr>& relax_var_remap, arith::Analyzer* analyzer) {
   tvm::Map<tir::Var, PrimExpr> tir_var_remap;
@@ -220,12 +224,21 @@ tvm::Map<tir::Var, PrimExpr> InferSymbolicVarMap(
 
 bool IsBoolStructInfo(const StructInfo& sinfo, bool permit_unknown_rank,
                       bool permit_unknown_dtype) {
-  const TensorStructInfoNode* tt = sinfo.as<TensorStructInfoNode>();
-  if (!tt) {
+  DataType dtype;
+  int ndim;
+
+  if (const auto* tensor = sinfo.as<TensorStructInfoNode>()) {
+    dtype = tensor->dtype;
+    ndim = tensor->ndim;
+  } else if (const auto* prim = sinfo.as<PrimStructInfoNode>()) {
+    dtype = prim->dtype;
+    ndim = 0;
+  } else {
     return false;
   }
-  bool correct_dtype = tt->dtype.is_bool() || (permit_unknown_dtype && tt->dtype.is_void());
-  bool correct_rank = tt->ndim == 0 || (permit_unknown_rank && tt->ndim == -1);
+
+  bool correct_dtype = dtype.is_bool() || (permit_unknown_dtype && dtype.is_void());
+  bool correct_rank = ndim == 0 || (permit_unknown_rank && ndim == -1);
   return correct_dtype && correct_rank;
 }
 

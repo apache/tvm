@@ -25,6 +25,7 @@
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
 
+#include "./scalable_expression.h"
 #include "const_fold.h"
 #include "product_normal_form.h"
 
@@ -227,6 +228,21 @@ bool Analyzer::CanProve(const PrimExpr& expr, ProofStrength strength) {
     }
   }
 
+  // Current analysis may not be powerful enough to prove expressions containing
+  // the same symbolic value multiple times. However, when the symbolic values are
+  // "T.vscale" and the compile target uses a scalable architecture extension like
+  // SVE, we can make some assumptions about the value of vscale and iterate over a
+  // space of pre-defined values to attempt to prove the expression.
+  if (ContainsVscaleCall(simplified)) {
+    if (TargetHasSVE()) {
+      return CanProveVscaleExpressionFromKnownValues(this, simplified, kAArch64VScaleValues);
+    }
+    LOG(WARNING)
+        << "The expression contains scalable values. An attempt to prove by substituting "
+           "with known values of vscale was not performed. This proof currently only supports "
+           "AArch64 SVE targets, but the target was "
+        << Target::Current();
+  }
   return false;
 }
 
@@ -317,6 +333,16 @@ TVM_REGISTER_GLOBAL("arith.CreateAnalyzer").set_body([](TVMArgs args, TVMRetValu
     } else if (name == "can_prove_equal") {
       return PackedFunc(
           [self](TVMArgs args, TVMRetValue* ret) { *ret = self->CanProveEqual(args[0], args[1]); });
+    } else if (name == "get_enabled_extensions") {
+      return PackedFunc([self](TVMArgs args, TVMRetValue* ret) {
+        *ret = static_cast<std::int64_t>(self->rewrite_simplify.GetEnabledExtensions());
+      });
+    } else if (name == "set_enabled_extensions") {
+      return PackedFunc([self](TVMArgs args, TVMRetValue* ret) {
+        std::int64_t flags = args[0];
+        self->rewrite_simplify.SetEnabledExtensions(
+            static_cast<RewriteSimplifier::Extension>(flags));
+      });
     }
     return PackedFunc();
   };

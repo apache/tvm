@@ -122,6 +122,9 @@ class DFPattern(Node):
         attrs = make_node("DictAttrs", **attrs)
         return AttrPattern(self, attrs)
 
+    def has_struct_info(self, struct_info: "StructInfo") -> "StructInfoPattern":
+        return StructInfoPattern(self, struct_info)
+
     def has_type(self, ttype: tvm.ir.type.Type) -> "TypePattern":
         """
         Add a type constraint to this pattern
@@ -576,6 +579,27 @@ class WildcardPattern(DFPattern):
 
 
 @register_df_node
+class StructInfoPattern(DFPattern):
+    """A pattern that matches another pattern with a certain StructInfo
+
+    Parameters
+    ----------
+    pattern: tvm.relax.dpl.DFPattern
+        The input pattern that needs type annotation.
+
+    struct_info: tvm.relax.StructInfo
+        The struct info to match against
+    """
+
+    def __init__(self, pattern: "DFPattern", struct_info: "StructInfo"):
+        self.__init_handle_by_constructor__(
+            ffi.StructInfoPattern,
+            pattern,
+            struct_info,
+        )  # type: ignore
+
+
+@register_df_node
 class TypePattern(DFPattern):
     """A pattern that matches another pattern with a certain type annotation.
 
@@ -871,19 +895,23 @@ def is_shape(shape: List[tvm.ir.PrimExpr]) -> "PrimArrPattern":
 def _is_call_tir(
     func_pattern: DFPattern,
     args: Union[List, Tuple, TuplePattern] = None,
+    tir_vars: Optional[DFPattern] = None,
 ) -> CallPattern:
     if args is None:
         args = wildcard()
     elif isinstance(args, (list, tuple)):
         args = TuplePattern(args)
 
-    return is_op("relax.call_tir")(func_pattern, args, add_constraint=False)
+    if tir_vars is None:
+        return is_op("relax.call_tir")(func_pattern, args, add_constraint=False)
+    return is_op("relax.call_tir")(func_pattern, args, tir_vars, add_constraint=False)
 
 
 # Todo(relax-team): Dataflow pattern for StructInfo, and match out_sinfo
 def is_call_tir(
     func_name: str,
     args: Union[List, Tuple, TuplePattern] = None,
+    tir_vars: Optional[DFPattern] = None,
 ) -> CallPattern:
     """
     Syntax sugar for creating a CallPattern for call_tir that calls an function through global var.
@@ -894,14 +922,15 @@ def is_call_tir(
         Name of the CPS function to call.
     args : Union[List[DFPattern], Tuple[DFPattern]], optional
         Arguments in expected call_packed, by default None meaning arbitrary (number of) arguments
-
+    tir_vars : Optional[DFPattern]
+        Pattern to match the tuple of integers that are unpacked when calling the tir func.
     Returns
     -------
     CallPattern
         The resulting CallPattern
     """
     func_pattern = GlobalVarPattern(func_name)
-    return _is_call_tir(func_pattern, args)
+    return _is_call_tir(func_pattern, args, tir_vars)
 
 
 def _is_call_dps_packed(

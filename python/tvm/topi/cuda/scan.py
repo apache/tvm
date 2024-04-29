@@ -35,6 +35,21 @@ def _get_thrust_func_name(tvmop):
     return tvmop_to_thrust_func_name[tvmop]
 
 
+def _can_use_scan_thrust(binop):
+    """
+    Check if scan_thrust can be utilized based on the current target and binary op.
+    """
+    target = tvm.target.Target.current()
+    if target is None:
+        return False
+    return binop == tvm.tir.generic.add and any(
+        [
+            can_use_thrust(target, "tvm.contrib.thrust.sum_scan"),
+            can_use_rocthrust(target, "tvm.contrib.thrust.sum_scan"),
+        ]
+    )
+
+
 def exclusive_scan_ir(data, output, reduction=None, binop=tvm.tir.generic.add, identity_value=0):
     """Low level IR to do exclusive sum scan along rows of 2D input.
 
@@ -257,7 +272,12 @@ def get_reduction_from_exclusive_scan(data, ex_scan_output, binop=tvm.tir.generi
 
 
 def scan_thrust(
-    data, output_dtype, exclusive=True, return_reduction=False, binop=tvm.tir.generic.add
+    data,
+    output_dtype,
+    exclusive=True,
+    return_reduction=False,
+    binop=tvm.tir.generic.add,
+    workspace=None,
 ):
     """Do exclusive or inclusive scan on 1D or multidimensional input, using thrust.
 
@@ -282,6 +302,11 @@ def scan_thrust(
         thrust function, arbitrariy callables are not supported. Currently only
         tvm.tir.generic.add can be passed in.
 
+    workspace: Optional[tvm.te.Tensor]
+        A buffer to store intermediate results. The size of the workspace should be sufficiently
+        large, this can be obtained by overestimation or memory usage profiling. If None, it will
+        fallback to use thrust internal memory allocation.
+
     Returns
     -------
     output : tvm.te.Tensor
@@ -294,14 +319,24 @@ def scan_thrust(
     data_buf = tvm.tir.decl_buffer(data.shape, data.dtype, "data_buf", data_alignment=8)
     output_buf = tvm.tir.decl_buffer(data.shape, output_dtype, "output_buf", data_alignment=8)
 
+    workspace_buf = (
+        tvm.tir.decl_buffer(workspace.shape, workspace.dtype, "workspace_buf", data_alignment=8)
+        if workspace is not None
+        else None
+    )
+
+    def f_compute(ins, outs):
+        args = [_get_thrust_func_name(binop), ins[0], outs[0], exclusive]
+        if workspace is not None:
+            args.append(ins[1])
+        return tvm.tir.call_packed(*args)
+
     output = te.extern(
         [data.shape],
-        [data],
-        lambda ins, outs: tvm.tir.call_packed(
-            _get_thrust_func_name(binop), ins[0], outs[0], exclusive
-        ),
+        [data] if workspace is None else [data, workspace],
+        f_compute,
         dtype=[output_dtype],
-        in_buffers=[data_buf],
+        in_buffers=[data_buf] if workspace is None else [data_buf, workspace_buf],
         out_buffers=[output_buf],
         name="exclusive_scan_thrust",
         tag="exclusive_scan_thrust_gpu",
@@ -322,6 +357,7 @@ def exclusive_scan(
     output_dtype=None,
     binop=tvm.tir.generic.add,
     identity_value=0,
+    workspace=None,
 ):
     """Do exclusive scan on 1D or multidimensional input.
 
@@ -352,6 +388,11 @@ def exclusive_scan(
         your operator and i is the identity_value then a * i = a for all a in the domain of
         your operation.
 
+    workspace: Optional[tvm.te.Tensor]
+        A buffer to store intermediate results if thrust is enabled. The size of the workspace
+        should be sufficiently large, this can be obtained by overestimation or memory usage
+        profiling. If None, it will fallback to use thrust internal memory allocation.
+
     Returns
     -------
     output : tvm.te.Tensor
@@ -363,19 +404,15 @@ def exclusive_scan(
     """
 
     def do_scan(data, output_dtype):
-        target = tvm.target.Target.current()
-
         # TODO: add support for a prod_scan
-        if (
-            target
-            and binop == tvm.tir.generic.add
-            and (
-                can_use_thrust(target, "tvm.contrib.thrust.sum_scan")
-                or can_use_rocthrust(target, "tvm.contrib.thrust.sum_scan")
-            )
-        ):
+        if _can_use_scan_thrust(binop):
             return scan_thrust(
-                data, output_dtype, exclusive=True, return_reduction=return_reduction, binop=binop
+                data,
+                output_dtype,
+                exclusive=True,
+                return_reduction=return_reduction,
+                binop=binop,
+                workspace=workspace,
             )
 
         if ndim == 1:
@@ -450,7 +487,9 @@ def exclusive_scan(
     return output
 
 
-def inclusive_scan(data, axis=-1, output_dtype=None, binop=tvm.tir.generic.add, identity_value=0):
+def inclusive_scan(
+    data, axis=-1, output_dtype=None, binop=tvm.tir.generic.add, identity_value=0, workspace=None
+):
     """Do inclusive scan on 1D or multidimensional input.
 
     Parameters
@@ -474,13 +513,40 @@ def inclusive_scan(data, axis=-1, output_dtype=None, binop=tvm.tir.generic.add, 
         your operator and i is the identity_value then a * i = a for all a in the domain of
         your operation.
 
+    workspace: Optional[tvm.te.Tensor]
+        A buffer to store intermediate results if thrust is enabled. The size of the workspace
+        should be sufficiently large, this can be obtained by overestimation or memory usage
+        profiling. If None, it will fallback to use thrust internal memory allocation.
+
     Returns
     -------
     output : tvm.te.Tensor
         A N-D tensor of the same rank N as the input data.
     """
+
+    if _can_use_scan_thrust(binop):
+        if output_dtype is None or output_dtype == "":
+            output_dtype = data.dtype
+        ndim = len(data.shape)
+        if axis < 0:
+            axis += ndim
+
+        if axis != ndim - 1:
+            axes = swap(list(range(ndim)), axis)
+            data = transpose(data, axes)
+        output = scan_thrust(data, output_dtype, exclusive=False, binop=binop, workspace=workspace)
+        if axis != ndim - 1:
+            axes = swap(list(range(ndim)), axis)
+            output = transpose(output, axes)
+        return output
+
     ex_scan = exclusive_scan(
-        data, axis, output_dtype=output_dtype, binop=binop, identity_value=identity_value
+        data,
+        axis,
+        output_dtype=output_dtype,
+        binop=binop,
+        identity_value=identity_value,
+        workspace=workspace,
     )
 
     if output_dtype is not None and data.dtype != output_dtype and output_dtype != "":
@@ -527,6 +593,7 @@ def scanop(
     axis: Optional[int] = None,
     dtype: Optional[str] = None,
     exclusive: Optional[bool] = None,
+    workspace: Optional[tvm.te.Tensor] = None,
 ) -> tvm.te.Tensor:
     """Cumulative binary operator (scan) with similar axis behavior as np.cumsum and np.cumprod.
 
@@ -563,6 +630,8 @@ def scanop(
         the cumulative operation of the first (j-1) elements. Otherwise, it would be the
         cumulative operation of the first j elements.
 
+    workspace: Optional[tvm.te.Tensor]
+
     Returns
     -------
     result : tvm.te.Tensor
@@ -575,10 +644,20 @@ def scanop(
     axis = get_const_int(axis)
     if exclusive is not None and exclusive:
         return exclusive_scan(
-            data, axis, output_dtype=dtype, binop=binop, identity_value=identity_value
+            data,
+            axis,
+            output_dtype=dtype,
+            binop=binop,
+            identity_value=identity_value,
+            workspace=workspace,
         )
     return inclusive_scan(
-        data, axis, output_dtype=dtype, binop=binop, identity_value=identity_value
+        data,
+        axis,
+        output_dtype=dtype,
+        binop=binop,
+        identity_value=identity_value,
+        workspace=workspace,
     )
 
 
@@ -587,6 +666,7 @@ def cumsum(
     axis: Optional[int] = None,
     dtype: Optional[int] = None,
     exclusive: Optional[bool] = None,
+    workspace: Optional[tvm.te.Tensor] = None,
 ) -> tvm.te.Tensor:
     """Numpy style cumsum op. Return the cumulative sum of the elements along a given axis.
 
@@ -609,6 +689,11 @@ def cumsum(
         the sum of the first (j-1) elements. Otherwise, it would be the sum of
         the first j elements.
 
+    workspace: Optional[tvm.te.Tensor]
+        A buffer to store intermediate results if thrust is enabled. The size of the workspace
+        should be sufficiently large, this can be obtained by overestimation or memory usage
+        profiling. If None, it will fallback to use thrust internal memory allocation.
+
     Returns
     -------
     result : tvm.te.Tensor
@@ -622,6 +707,7 @@ def cumsum(
         axis=axis,
         dtype=dtype,
         exclusive=exclusive,
+        workspace=workspace,
     )
 
 
@@ -630,6 +716,7 @@ def cumprod(
     axis: Optional[int] = None,
     dtype: Optional[int] = None,
     exclusive: Optional[bool] = None,
+    workspace: Optional[tvm.te.Tensor] = None,
 ):
     """Numpy style cumprod op. Return the cumulative product of the elements along a given axis.
 
@@ -652,6 +739,11 @@ def cumprod(
         the product of the first (j-1) elements. Otherwise, it would be the product of
         the first j elements.
 
+    workspace: Optional[tvm.te.Tensor]
+        A buffer to store intermediate results if thrust is enabled. The size of the workspace
+        should be sufficiently large, this can be obtained by overestimation or memory usage
+        profiling. If None, it will fallback to use thrust internal memory allocation.
+
     Returns
     -------
     result : tvm.te.Tensor
@@ -665,4 +757,5 @@ def cumprod(
         axis=axis,
         dtype=dtype,
         exclusive=exclusive,
+        workspace=workspace,
     )

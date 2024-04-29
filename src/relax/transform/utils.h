@@ -137,12 +137,13 @@ inline std::string GetExtSymbol(const Function& func) {
  * \param partition A mapping from a subexpression to the containing group.
  * \param lift_constants Whether or not to lift bound constants to parameters of the
  * grouped function.
+ * \param entry_function_names The names of the entry functions.
  * \return A new module containing grouped functions.
  */
 IRModule MakeGroupedFunctions(
     IRModule mod,
     const std::unordered_map<const Object*, relay::GraphPartitioner::Group*>& partition,
-    bool lift_constants = true);
+    bool lift_constants = true, const Array<String>& entry_function_names = {});
 
 /*!
  * \brief Check if the given StructInfo is a scalar tensor. The sinfo should be an instance of
@@ -429,9 +430,12 @@ Expr CanonicalizeBindings(const Expr& expr);
  *
  * \param func The function to be updated.
  *
+ * \param param_tuple_name The name of the tuple parameter.  If
+ * unspecified, defaults to "model_params"
+ *
  * \ret The updated function.
  */
-Function BundleModelParams(const Function& func);
+Function BundleModelParams(const Function& func, Optional<String> param_tuple_name = NullOpt);
 
 }  // namespace relax
 }  // namespace tvm

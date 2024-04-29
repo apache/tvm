@@ -25,18 +25,25 @@ import torch
 import tvm
 from tvm.contrib.msc.core.runtime import ModelRunner
 from tvm.contrib.msc.core.ir import MSCGraph
+from tvm.contrib.msc.core.utils.message import MSCStage
 from tvm.contrib.msc.core.utils.namespace import MSCFramework
+from tvm.contrib.msc.core import utils as msc_utils
+from tvm.contrib.msc.framework.torch.frontend import from_torch
 from tvm.contrib.msc.framework.torch.codegen import to_torch
 from tvm.contrib.msc.framework.torch.frontend import set_weight_alias
-from tvm.contrib.msc.core import utils as msc_utils
 from tvm.contrib.msc.framework.torch import tools
 
 
 class TorchRunner(ModelRunner):
     """Runner of Torch"""
 
-    def _translate(self) -> Tuple[List[MSCGraph], Dict[str, tvm.nd.array]]:
+    def _translate(self, mod: tvm.IRModule) -> Tuple[List[MSCGraph], Dict[str, tvm.nd.array]]:
         """Translate IRModule to MSCgraphs
+
+        Parameters
+        -------
+        mod: tvm.IRModule
+            The module to be translated.
 
         Returns
         -------
@@ -45,20 +52,16 @@ class TorchRunner(ModelRunner):
         weights_list: list<dict<str, tvm.nd.array>>
             The translated weights
         """
-        graphs, weights = super()._translate()
+        graphs, weights = super()._translate(mod)
         return [set_weight_alias(graphs[0])], weights
 
-    def _to_runnable(self, model: Any, device: str, is_training: bool) -> Any:
+    def _build_runnable(self, model: Any) -> Any:
         """Build runnable object
 
         Parameters
         -------
         model: Any
             The meta model.
-        device: str
-            The device for place model
-        is_training: bool
-            Whether to load model for training
 
         Returns
         -------
@@ -66,13 +69,13 @@ class TorchRunner(ModelRunner):
             The runnable
         """
 
-        if device == "cpu":
+        if self._device.startswith("cpu"):
             pass
-        elif device.startswith("cuda"):
-            model = model.to(torch.device(device))
+        elif self._device.startswith("cuda"):
+            model = model.to(torch.device(self._device))
         else:
-            raise NotImplementedError("Unsupported device " + str(device))
-        if is_training:
+            raise NotImplementedError("Unsupported device " + str(self._device))
+        if self._training:
             model = model.train()
         else:
             model = model.eval()
@@ -98,33 +101,33 @@ class TorchRunner(ModelRunner):
             The outputs in list.
         """
 
-        model_inputs = self.get_inputs()
-        parameters = list(runnable.parameters())
-        if parameters:
-            in_dev = parameters[0].device
-        elif device == "cpu":
-            in_dev = torch.device(device)
-        elif device.startswith("cuda"):
-            in_dev = torch.device(device)
-        else:
-            raise NotImplementedError("Unsupported device " + str(device))
-        torch_inputs = [torch.from_numpy(inputs[i["name"]]).to(in_dev) for i in model_inputs]
+        input_names = [i["name"] for i in self.get_inputs()]
+        torch_inputs = [
+            msc_utils.cast_array(inputs[i], MSCFramework.TORCH, device) for i in input_names
+        ]
         return runnable(*torch_inputs)
 
-    def _device_enabled(self, device: str) -> bool:
-        """Check if the device is enabled
+    def _get_runtime_params(self) -> Dict[str, tvm.nd.array]:
+        """Get the runtime parameters
 
         Returns
         -------
-        enabled: bool
-            Whether the device is enabled.
+        params: dict<str, tvm.nd.array>
+            The parameters from runtime.
         """
 
-        if device == "cpu":
-            return True
-        if device.startswith("cuda"):
-            return torch.cuda.is_available()
-        return False
+        assert self._runnable, "runnable is needed to get params"
+        state_dict = self._runnable.state_dict()
+        params = {}
+        for graph in self._graphs:
+            for weight in graph.get_weights():
+                assert weight.alias in state_dict, "Missing weight {} in state_dict".format(
+                    weight.alias
+                )
+                params[weight.name] = msc_utils.cast_array(
+                    state_dict[weight.alias], MSCFramework.TVM, "cpu"
+                )
+        return params
 
     @property
     def codegen_func(self):
@@ -135,6 +138,46 @@ class TorchRunner(ModelRunner):
         return MSCFramework.TORCH
 
     @classmethod
+    def load_native(cls, model: Any, config: dict) -> Tuple[torch.nn.Module, str, bool]:
+        """Load the native model
+
+        Parameters
+        -------
+        model:
+            The native model.
+        config: dict
+            The config for pipeline.
+
+        Returns
+        -------
+        model: torch.nn.Module
+            The loaded native model.
+        device: str
+            The device of the model.
+        training:
+            Whether the model is for training.
+        """
+
+        if isinstance(model, str) and ":" in model:
+            native_model = msc_utils.load_callable(model)
+        elif isinstance(model, torch.nn.Module):
+            native_model = model
+        else:
+            raise NotImplementedError(
+                "Load native model {} with type {} is not supported".format(model, type(model))
+            )
+        parameters = list(model.parameters())
+        if parameters:
+            ref_device = parameters[0].device
+            if ref_device.index:
+                device = "{}:{}".format(ref_device.type, ref_device.index)
+            else:
+                device = ref_device.type
+        else:
+            device = "cpu"
+        return native_model, device, model.training
+
+    @classmethod
     def run_native(
         cls,
         model: torch.nn.Module,
@@ -143,7 +186,7 @@ class TorchRunner(ModelRunner):
         output_names: List[str],
         warm_up: int = 10,
         repeat: int = 0,
-    ) -> Dict[str, np.ndarray]:
+    ) -> Tuple[Dict[str, np.ndarray], float]:
         """Run the datas and get outputs
 
         Parameters
@@ -165,16 +208,24 @@ class TorchRunner(ModelRunner):
         -------
         outputs: dict<str, np.array>
             The outputs in dict.
+        avg_time: float
+            The average time.
         """
 
         parameters = list(model.parameters())
         if parameters:
-            device = parameters[0].device
+            ref_dev = parameters[0].device
+            if ref_dev.index:
+                device = "{}:{}".format(ref_dev.type, ref_dev.index)
+            else:
+                device = ref_dev.type
         else:
-            device = torch.device("cpu")
+            device = "cpu"
+        torch_inputs = [
+            msc_utils.cast_array(inputs[i], MSCFramework.TORCH, device) for i in input_names
+        ]
 
         def _run_once():
-            torch_inputs = [torch.from_numpy(inputs[i_name]).to(device) for i_name in input_names]
             return model(*torch_inputs)
 
         if repeat > 0:
@@ -197,3 +248,99 @@ class TorchRunner(ModelRunner):
             o_name: msc_utils.cast_array(o_data) for o_name, o_data in zip(output_names, outputs)
         }
         return outputs, avg_time
+
+    @classmethod
+    def dump_nativate(
+        cls,
+        model: torch.nn.Module,
+        folder: msc_utils.MSCDirectory,
+        dump_config: dict = None,
+    ) -> str:
+        """Dump the nativate model
+
+        Parameters
+        -------
+        model: torch.nn.Module
+            The runnable model.
+        folder: MSCDirectory
+            The export folder.
+        dump_config: dict
+            The dump config.
+
+        Returns
+        -------
+        export_path: str
+            The exported path
+        """
+
+        dump_config = dump_config or {}
+        mode = dump_config.get("mode", "fx")
+        if mode == "fx":
+            graph_model = torch.fx.symbolic_trace(model)
+            exp_path = folder.create_dir("model")
+            graph_model.to_folder(exp_path.path, "native_model")
+            return exp_path.relpath("module.py") + ":native_model"
+        if mode == "pt":
+            assert "inputs" in dump_config, "inputs are needed for torch.jit.trace"
+            parameters = list(model.parameters())
+            device = parameters[0].device if parameters else torch.device("cpu")
+            datas = [np.random.rand(i[1]).astype(i[2]) for i in dump_config["inputs"]]
+            torch_datas = [torch.from_numpy(d).to(device) for d in datas]
+            with torch.no_grad():
+                scriptde_model = torch.jit.trace(model, tuple(torch_datas)).eval()
+            exp_path = folder.relpath("model.pt")
+            torch.jit.save(scriptde_model, exp_path)
+            return exp_path
+        raise TypeError("Unexpeceted dump mode " + str(mode))
+
+    @classmethod
+    def update_config(cls, stage: str, config: dict, model: Any = None) -> dict:
+        """Update the config for parse
+
+        Parameters
+        -------
+        stage: str
+            The stage to be updated
+        config: dict
+            The config for pipeline.
+        model:
+            The native model.
+
+        Returns
+        -------
+        config: dict
+            The updated config.
+        """
+
+        config = ModelRunner.update_config(stage, config, model)
+        if stage not in config:
+            return config
+        if stage == MSCStage.PARSE:
+            config["parse"]["parser"] = from_torch
+            parse_config = config["parse"].get("parse_config", {})
+            parse_config.update(
+                {
+                    "input_info": [
+                        [i[1], "float" if len(i) < 2 else i[2]] for i in config["inputs"]
+                    ],
+                    "input_names": [i[0] for i in config["inputs"]],
+                }
+            )
+            config["parse"]["parse_config"] = parse_config
+        return config
+
+    @classmethod
+    def support_device(cls, device: str) -> bool:
+        """Check if the device is enabled
+
+        Returns
+        -------
+        enabled: bool
+            Whether the device is enabled.
+        """
+
+        if device == "cpu":
+            return True
+        if device.startswith("cuda"):
+            return torch.cuda.is_available()
+        return False

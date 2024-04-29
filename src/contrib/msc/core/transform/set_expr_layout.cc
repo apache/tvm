@@ -509,6 +509,21 @@ InferLayoutOutput ForwardInferLayoutTake(const Call& call,
   return InferLayoutOutput({LayoutDecision("WE"), input_layout}, {output_layout}, Attrs());
 }
 
+InferLayoutOutput ForwardInferLayoutPlugin(const Call& call,
+                                           const Map<String, Array<String>>& desired_layouts,
+                                           const VarLayoutMap& var_layout_map) {
+  if (!call->args[0]->IsInstance<ExternFuncNode>()) {
+    return InferLayoutOutput();
+  }
+  const auto& name = Downcast<ExternFunc>(call->args[0])->global_symbol;
+  const auto* pf = runtime::Registry::Get("msc.plugin.op.InferLayout" + name);
+  if (pf == nullptr) {
+    return InferLayoutOutput();
+  }
+  const auto& args = Downcast<Tuple>(call->args[1]);
+  return (*pf)(args->fields, var_layout_map);
+}
+
 TVM_REGISTER_OP("relax.nn.conv1d")
     .set_attr<FRelaxInferLayout>("FMSCForwardInferLayout", MSCInferLayoutConv);
 TVM_REGISTER_OP("relax.nn.conv2d")
@@ -602,6 +617,10 @@ TVM_REGISTER_OP("relax.nn.group_norm")
     .set_attr<FRelaxInferLayout>("FMSCForwardInferLayout", ForwardInferLayoutNormalize);
 TVM_REGISTER_OP("relax.nn.layer_norm")
     .set_attr<FRelaxInferLayout>("FMSCForwardInferLayout", ForwardInferLayoutNormalize);
+
+// plugin op
+TVM_REGISTER_OP("relax.call_dps_packed")
+    .set_attr<FRelaxInferLayout>("FMSCForwardInferLayout", ForwardInferLayoutPlugin);
 
 // Backward Infer
 InferLayoutOutput BackwardInferLayoutCommon(const Call& call,
@@ -1249,13 +1268,9 @@ class LayoutInfer : public ExprVisitor {
         SetExprLayout(call->args[i], var_layout_map_[func->params[i]]);
       }
     }
-    if (const auto* b_node = func->body.as<relax::SeqExprNode>()) {
-      if (b_node->body->IsInstance<VarNode>() &&
-          var_layout_map_.count(Downcast<Var>(b_node->body))) {
-        SetExprLayout(ret, var_layout_map_[Downcast<Var>(b_node->body)]);
-      }
-    } else {
-      LOG(FATAL) << "Function body should be SeqExpr, get " << func->body;
+    if (func->body->body->IsInstance<VarNode>() &&
+        var_layout_map_.count(Downcast<Var>(func->body->body))) {
+      SetExprLayout(ret, var_layout_map_[Downcast<Var>(func->body->body)]);
     }
   }
 
@@ -1269,13 +1284,9 @@ class LayoutInfer : public ExprVisitor {
           if (producer->IsInstance<CallNode>() &&
               local_funcs_.count(Downcast<Call>(producer)->op)) {
             const auto& caller = local_funcs_[Downcast<Call>(producer)->op];
-            if (const auto* b_node = caller->body.as<relax::SeqExprNode>()) {
-              if (b_node->body->IsInstance<VarNode>() &&
-                  var_map_.count(Downcast<Var>(b_node->body))) {
-                SetExprLayout(b_node->body, param_layout);
-              }
-            } else {
-              LOG(FATAL) << "Caller body should be SeqExpr, get " << caller->body;
+            if (caller->body->body->IsInstance<VarNode>() &&
+                var_map_.count(Downcast<Var>(caller->body->body))) {
+              SetExprLayout(caller->body->body, param_layout);
             }
           }
         }

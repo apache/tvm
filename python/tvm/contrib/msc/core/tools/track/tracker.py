@@ -33,13 +33,19 @@ class BaseTracker(BaseTool):
             The setup info.
         """
 
+        suffix = "." + msc_utils.MSCStage.TRACK
+        if self._stage.endswith(suffix):
+            self.change_stage(self._stage[: -len(suffix)])
+
         data_folder = msc_utils.get_dataset_dir().create_dir("Track")
         self._loaders = {}
         for folder in data_folder.listdir():
+            if folder == self._stage:
+                continue
             if msc_utils.is_simple_dataset(data_folder.relpath(folder)):
                 self._loaders[folder] = msc_utils.SimpleDataLoader(data_folder.relpath(folder))
         self._saver = msc_utils.SimpleDataSaver(data_folder.relpath(self._stage))
-        self._max_iter = self._options.get("max_iter", 1)
+        self._max_iter, self._tracked = self._options.get("max_iter", 1), False
         info = super().setup()
         info.update({"saver": self._saver, "loaders": self._loaders})
         return info
@@ -48,7 +54,7 @@ class BaseTracker(BaseTool):
         """Get the plan"""
 
         self._saver.finalize()
-        return super().finalize()
+        return {}
 
     def _execute_after_forward(self, output: Any) -> Any:
         """Execute after model forward
@@ -81,7 +87,9 @@ class BaseTracker(BaseTool):
                 msg += "; ".join(
                     ["{}: {}/{}".format(s, i["passed"], i["total"]) for s, i in passed.items()]
                 )
-            self._logger.info(msg)
+            self._logger.info(self.msg_mark(msg, in_forward=False))
+        else:
+            self._tracked = True
         return output
 
     def _check_tensor(self, name: str, consumer: str) -> bool:
@@ -163,23 +171,26 @@ class BaseTracker(BaseTool):
 
         if self._stage in self._plan.get(name, {}):
             return tensor
-        if name not in self._plan:
-            self._plan[name] = {}
-        plan = {}
+        plan = self._plan.setdefault(name, {}).setdefault(self._stage, {})
         for strategy in strategys:
             plan.update(strategy(self, tensor, name, consumer))
-        self._plan[name][self._stage] = plan
         return tensor
+
+    @property
+    def tracked(self):
+        return self._tracked
 
     @classmethod
     def tool_type(cls):
         return ToolType.TRACKER
 
+    @classmethod
+    def apply_once(cls):
+        return True
 
+
+@msc_utils.register_tool
 class DefaultTracker(BaseTracker):
     @classmethod
     def tool_style(cls):
         return "default"
-
-
-msc_utils.register_tool_cls(DefaultTracker)

@@ -330,7 +330,7 @@ def output(*vars: Tuple[Var]) -> None:
 def call_packed(
     func: py_str,
     *args: Expr,
-    sinfo_args: Union[StructInfo, List[StructInfo]],
+    sinfo_args: Optional[Union[StructInfo, List[StructInfo]]] = None,
     **kwargs: Any,
 ) -> Call:
     """Create a relax Call, which calls a packed function.
@@ -340,7 +340,7 @@ def call_packed(
         The name of extern function.
     *args : Expr
         The arguments.
-    sinfo_args: Union[StructInfo, List[StructInfo]]
+    sinfo_args: Optional[Union[StructInfo, List[StructInfo]]]
         The list of structure info arguments.
     kwargs: Expr
         The keyword arguments.
@@ -352,18 +352,20 @@ def call_packed(
     """
     op = ExternFunc(func)
     if sinfo_args is None:
-        raise ValueError("R.call_packed is required to have type_args")
+        sinfo_args = []
     if isinstance(sinfo_args, py_tuple):  # type: ignore
         sinfo_args = list(sinfo_args)
     elif not isinstance(sinfo_args, list):
         sinfo_args = [sinfo_args]
-    for i, sinfo_arg in enumerate(sinfo_args):
-        if callable(sinfo_arg):
-            sinfo_arg = sinfo_arg()
-        # Convert possible StructInfoProxy to StructInfo
-        if isinstance(sinfo_arg, ObjectGeneric):
-            sinfo_arg = sinfo_arg.asobject()
-        sinfo_args[i] = sinfo_arg
+
+    sinfo_args = [
+        sinfo()
+        if callable(sinfo)
+        else sinfo.asobject()
+        if isinstance(sinfo, ObjectGeneric)
+        else sinfo
+        for sinfo in sinfo_args
+    ]
 
     is_default = False
     if "attrs_type_key" in kwargs:
@@ -509,18 +511,25 @@ def SeqExpr() -> frame.SeqExprFrame:  # pylint: disable=invalid-name
 ############################# If Then Else #############################
 
 
-def If(condition: Expr) -> frame.IfFrame:  # pylint: disable=invalid-name
+def If(condition: Union[Expr, PrimExpr]) -> frame.IfFrame:  # pylint: disable=invalid-name
     """Create an if frame.
+
     Parameters
     ----------
-    condition : Expr
-        The condition of if statement, executes the true branch if the condition is true,
-        otherwise jump into the false branch.
+    condition : Union[Expr, PrimExpr]
+
+        The condition of if statement, executes the true branch if the
+        condition is true, otherwise jump into the false branch.
+
     Returns
     -------
     res : frame.IfFrame
         The result IfFrame.
+
     """
+    if not isinstance(condition, Expr):
+        condition = relax.PrimValue(condition)
+
     return _ffi_api.If(condition)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 

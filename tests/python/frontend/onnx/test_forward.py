@@ -1727,6 +1727,27 @@ def test_upsample_nearest(target, dev):
 
 
 @tvm.testing.parametrize_targets
+def test_upsample_nearest_default(target, dev):
+    """test_upsample_nearest_default"""
+    scale = 2
+    in_shape = (1, 1, 3, 3)
+    out_shape = (1, 1, 3 * scale, 3 * scale)
+    y = helper.make_node("Upsample", ["in"], ["out"], scales=[1.0, 1.0, 2.0, 2.0])
+
+    in_array = np.random.uniform(size=in_shape).astype(np.float32)
+
+    graph = helper.make_graph(
+        [y],
+        "upsample_nearest_test",
+        inputs=[helper.make_tensor_value_info("in", TensorProto.FLOAT, list(in_shape))],
+        outputs=[helper.make_tensor_value_info("out", TensorProto.FLOAT, list(out_shape))],
+    )
+
+    model = helper.make_model(graph, producer_name="upsample_nearest_test")
+    verify_with_ort_with_inputs(model, [in_array], [out_shape], opset=7, target=target, dev=dev)
+
+
+@tvm.testing.parametrize_targets
 def test_upsample3d_nearest(target, dev):
     """test_upsample3d_nearest"""
     scale = 2
@@ -3383,6 +3404,36 @@ def test_convtranspose(target, dev):
                 auto_pad="SAME_LOWER",
             )
 
+            verify_convtranspose_with_output_shape(
+                (1, 1) + repeat(32, dims),
+                (1, 2) + repeat(4, dims),
+                repeat(num, dims),
+                repeat(4, dims),
+                repeat(2, dims),
+                repeat(1, dims),
+                auto_pad="SAME_UPPER",
+            )
+
+    verify_convtranspose_with_output_shape(
+        (1, 1, 3, 3),
+        (1, 2, 3, 3),
+        (6, 6),
+        (3, 3),
+        (2, 2),
+        (1, 1),
+        auto_pad="SAME_UPPER",
+    )
+
+    verify_convtranspose_with_output_shape(
+        (1, 1, 3, 3),
+        (1, 2, 3, 3),
+        (6, 6),
+        (3, 3),
+        (2, 2),
+        (1, 1),
+        auto_pad="SAME_LOWER",
+    )
+
 
 @tvm.testing.parametrize_targets
 def test_unsqueeze_constant(target, dev):
@@ -4503,6 +4554,7 @@ def test_resize(target, dev):
             # scales are specified instead of sizes
             verify([1, 16] + [32] * ndim, [], [1, 1] + [0.5] * ndim, method, coord_trans)
             verify([1, 16] + [32] * ndim, [], [1, 1] + [2] * ndim, method, coord_trans)
+            verify([1, 16] + [32] * ndim, [], [1, 1] + [2] * ndim, None, coord_trans)
 
         method = "linear"
         # upsampling
@@ -5612,7 +5664,6 @@ unsupported_onnx_tests = [
     "test_cast_DOUBLE_to_FLOAT16",
     "test_castlike_DOUBLE_to_FLOAT16",
     "test_castlike_DOUBLE_to_FLOAT16_expanded",
-    "test_convtranspose_autopad_same",
     "test_convtranspose_dilations",
     "test_cumsum_1d",
     "test_cumsum_1d_exclusive",
@@ -5707,6 +5758,7 @@ unsupported_onnx_tests = [
     "test_unique_sorted_with_axis_3d",
     "test_unique_sorted_with_negative_axis",
     "test_upsample_nearest",
+    "test_upsample_nearest_default",
 ]
 
 
@@ -5743,6 +5795,15 @@ def _load_proto(proto_filename, target_list, model_type_proto):
             )
 
 
+def is_ort_version_lower_than(ver):
+    import onnxruntime as ort
+
+    v11, v12, v13 = tuple(int(v) for v in ort.__version__.split("."))
+    v21, v22, v23 = tuple(int(v) for v in ver.split("."))
+
+    return (v11 < v21) or (v11 == v21 and v12 < v22) or ((v11, v12) == (v21, v22) and v13 < v23)
+
+
 @pytest.mark.parametrize("onnx_test", onnx_test_folders)
 @tvm.testing.parametrize_targets
 def test_onnx_nodes(target, dev, onnx_test):
@@ -5758,6 +5819,12 @@ def test_onnx_nodes(target, dev, onnx_test):
     target_specific_skips = target_skips.get(target_kind, [])
     if onnx_test in target_specific_skips:
         pytest.skip(f"Onnx test '{onnx_test}' not yet supported by TVM on {target_kind} targets")
+
+    if is_ort_version_lower_than("1.13.1") and onnx_test == "test_convtranspose_autopad_same":
+        pytest.skip(
+            f"Onnx test '{onnx_test}' expected to fail for onnxruntime version lower than 1.13.1 "
+            "due to different interpretation of auto_pad parameters SAME_UPPER and SAME_LOWER."
+        )
 
     test_dir = os.path.join(onnx_test_node_dir, onnx_test)
 
@@ -8215,7 +8282,7 @@ def test_dft(target, dev):
     D = 7
 
     for axis in list(range(1, n)) + [-2]:
-        for inverse, onesided in [(0, 0), (0, 1), (1, 0)]:
+        for inverse, onesided in [(0, 0), (0, 1), (1, 0), (None, None)]:
             for n_fft in [D, D - 1, D + 1]:
                 for c in [1, 2]:
                     input_shape = [batch_size] + n * [D] + [c]

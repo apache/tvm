@@ -43,6 +43,7 @@ class TorchDistillerFactory(object):
             The distiller class.
         """
 
+        @msc_utils.register_tool
         class Distiller(base_cls):
             """Adaptive distiller for torch"""
 
@@ -79,8 +80,8 @@ class TorchDistillerFactory(object):
                     raise NotImplementedError("optimizer {} is not supported".format(optimizer))
 
                 # Get loss function
-                loss_strategy = self._strategys.get("loss.all")
-                assert loss_strategy, "Can not find loss.all in strategys"
+                loss_strategy = self._strategys.get("loss")
+                assert loss_strategy, "Can not find loss in strategys"
 
                 def get_loss(teacher_outputs, student_outputs):
                     return loss_strategy(self, teacher_outputs, student_outputs)
@@ -139,6 +140,6 @@ class TorchDistillerFactory(object):
 
 
 factory = TorchDistillerFactory()
-tools = msc_utils.get_registered_tool_cls(MSCFramework.MSC, ToolType.DISTILLER, tool_style="all")
+tools = msc_utils.get_registered_tool(MSCFramework.MSC, ToolType.DISTILLER, tool_style="all")
 for tool in tools.values():
-    msc_utils.register_tool_cls(factory.create(tool))
+    factory.create(tool)

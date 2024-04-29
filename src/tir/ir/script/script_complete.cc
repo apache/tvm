@@ -99,6 +99,17 @@ class ScriptCompleter : public StmtMutator {
     }
   }
 
+  Stmt VisitStmt_(const DeclBufferNode* op) final {
+    if (buffer_var_map_->count(op->buffer->data)) {
+      return StmtMutator::VisitStmt_(op);
+    } else {
+      buffer_var_map_->Set(op->buffer->data, op->buffer);
+      auto output = StmtMutator::VisitStmt_(op);
+      buffer_var_map_->erase(op->buffer->data);
+      return output;
+    }
+  }
+
   bool is_root_block_ = true;
 };
 

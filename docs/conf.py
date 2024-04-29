@@ -253,7 +253,7 @@ INSTALL_TVM_CUDA_FIXED = f"""\
 # you must request a Google Colab instance with a GPU by going to Runtime ->
 # Change runtime type -> Hardware accelerator -> GPU. If you wish to build from
 # source, see https://tvm.apache.org/docs/install/from_source.html
-pip install apache-tvm-cu113=={version} -f https://tlcpack.ai/wheels"""
+pip install apache-tvm-cu113=={version} --no-index  -f https://tlcpack.ai/wheels"""
 
 
 @monkey_patch("sphinx_gallery.gen_rst", "jupyter_notebook")
@@ -441,7 +441,6 @@ subsection_order = ExplicitOrder(
     for p in [
         tvm_path / "vta" / "tutorials" / "frontend",
         tvm_path / "vta" / "tutorials" / "optimize",
-        tvm_path / "vta" / "tutorials" / "autotvm",
     ]
 )
 

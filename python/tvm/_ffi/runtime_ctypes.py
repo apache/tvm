@@ -95,8 +95,9 @@ class DataType(ctypes.Structure):
         np.dtype(np.float16): "float16",
         np.dtype(np.float32): "float32",
         np.dtype(np.float64): "float64",
-        np.dtype(np.float_): "float64",
     }
+    if hasattr(np, "float_"):
+        NUMPY2STR[np.dtype(np.float_)] = "float64"
     STR2DTYPE = {
         "void": {"type_code": DataTypeCode.HANDLE, "bits": 0, "lanes": 0},
         "bool": {"type_code": DataTypeCode.UINT, "bits": 1, "lanes": 1},
@@ -135,7 +136,13 @@ class DataType(ctypes.Structure):
 
         arr = type_str.split("x")
         head = arr[0]
-        self.lanes = int(arr[1]) if len(arr) > 1 else 1
+        if len(arr) == 3:
+            assert arr[1] == "vscale", f"Invalid data type. Expected 'vscale' but got '{arr[1]}'"
+            self.lanes = ctypes.c_uint16(-int(arr[2]))
+        elif len(arr) > 1:
+            self.lanes = ctypes.c_uint16(int(arr[1]))
+        else:
+            self.lanes = 1
         bits = 32
 
         if head.startswith("int"):
@@ -188,8 +195,11 @@ class DataType(ctypes.Structure):
 
             type_name = "custom[%s]" % tvm.runtime._ffi_api._datatype_get_type_name(self.type_code)
         x = "%s%d" % (type_name, self.bits)
-        if self.lanes != 1:
+        lanes_as_int = ctypes.c_int16(self.lanes).value
+        if lanes_as_int > 1:
             x += "x%d" % self.lanes
+        elif lanes_as_int < -1:
+            x += "xvscalex%d" % -lanes_as_int
         return x
 
     def __eq__(self, other):
@@ -201,6 +211,20 @@ class DataType(ctypes.Structure):
 
     def __ne__(self, other):
         return not self.__eq__(other)
+
+    def itemsize(self):
+        """Get the number of bytes of a single element of this data type. When the number of lanes
+        is greater than 1, the itemsize is the size of the vector type.
+
+        Returns
+        -------
+        itemsize : int
+            The number of bytes of a single element of this data type
+        """
+        lanes_as_int = ctypes.c_int16(self.lanes).value
+        if lanes_as_int < 0:
+            raise ValueError("Cannot determine itemsize for scalable vector types")
+        return (self.bits * self.lanes + 7) // 8
 
 
 if ml_dtypes is not None:

@@ -199,6 +199,25 @@ bool BaseJointNode::GetAttr(const String& key, bool* val) const {
   return false;
 }
 
+bool BaseJointNode::GetAttr(const String& key, std::vector<std::string>* val) const {
+  std::string val_str;
+  if (GetAttr(key, &val_str)) {
+    int pos = val_str.find(",");
+    if (pos < 0) {
+      return false;
+    }
+    try {
+      for (const auto& s : StringUtils::Split(val_str, ",")) {
+        (*val).push_back(std::string(s));
+      }
+      return true;
+    } catch (const std::exception&) {
+      return false;
+    }
+  }
+  return false;
+}
+
 bool BaseJointNode::GetAttr(const String& key, std::vector<int>* val) const {
   std::string val_str;
   if (GetAttr(key, &val_str)) {
@@ -246,6 +265,25 @@ bool BaseJointNode::GetAttr(const String& key, std::vector<float>* val) const {
     try {
       for (const auto& s : StringUtils::Split(val_str, ",")) {
         (*val).push_back(std::atof(std::string(s).c_str()));
+      }
+      return true;
+    } catch (const std::exception&) {
+      return false;
+    }
+  }
+  return false;
+}
+
+bool BaseJointNode::GetAttr(const String& key, std::vector<bool>* val) const {
+  std::string val_str;
+  if (GetAttr(key, &val_str)) {
+    int pos = val_str.find(",");
+    if (pos < 0) {
+      return false;
+    }
+    try {
+      for (const auto& s : StringUtils::Split(val_str, ",")) {
+        (*val).push_back(std::stoi(s) != 0);
       }
       return true;
     } catch (const std::exception&) {
@@ -1029,8 +1067,7 @@ void WeightGraphNode::FromJson(const JsonWeightGraph& j_graph) {
   }
   // set friends
   for (const auto& j_joint : j_graph.nodes) {
-    name = j_joint.name;
-    const auto& node = Downcast<WeightJoint>(nodes[name]);
+    const auto& node = Downcast<WeightJoint>(nodes[j_joint.name]);
     for (const auto& f_name : j_joint.friends) {
       ICHECK(nodes.count(f_name)) << "Can not find friend " << f_name;
       node->friends.push_back(nodes[f_name]);

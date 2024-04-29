@@ -215,6 +215,7 @@ TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(GENode, operator>=);
 #undef TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH
 
 PrimExpr DataTypeLegalizer::VisitExpr_(const CallNode* op) {
+  Call before = GetRef<Call>(op);
   PrimExpr e = StmtExprMutator::VisitExpr_(op);
   op = e.as<CallNode>();
   static const Op& builtin_pow_ = Op::Get("tir.pow");
@@ -234,6 +235,16 @@ PrimExpr DataTypeLegalizer::VisitExpr_(const CallNode* op) {
     return pow(op->args[0], op->args[1]);
   } else if (op->op.same_as(builtin::if_then_else())) {
     return if_then_else(op->args[0], op->args[1], op->args[2]);
+  } else if (op->op.same_as(Op::Get("tir.clz"))) {
+    DataType before_dtype = before->args[0]->dtype;
+    DataType after_dtype = op->args[0]->dtype;
+    CHECK(before_dtype.is_int() && (before_dtype.bits() == 32 || before_dtype.bits() == 64))
+        << "clz only supports 32 or 64 bit integer types, but get type before legalizing: "
+        << before_dtype;
+    CHECK(after_dtype.is_int() && (after_dtype.bits() == 32 || after_dtype.bits() == 64))
+        << "clz only supports 32 or 64 bit integer types, but get type after legalizing: "
+        << after_dtype;
+    return e - after_dtype.bits() + before_dtype.bits();
   }
   return e;
 }
@@ -451,7 +462,7 @@ Stmt IndexDataTypeRewriter::VisitStmt_(const BufferStoreNode* op) {
 
   Buffer new_buffer = GetRemappedBuffer(op->buffer);
   auto value = this->VisitExpr(op->value);
-  if (new_buffer->dtype != value->dtype && value->dtype.lanes() == 1) {
+  if (new_buffer->dtype != value->dtype && value->dtype.is_scalar()) {
     value = cast(new_buffer->dtype, value);
   }
   auto indices = VisitIndices(op->indices);
@@ -532,6 +543,12 @@ Stmt IndexDataTypeRewriter::VisitStmt_(const ForNode* op) {
     n->loop_var = new_loop_var;
     n->min = cast(new_loop_var.dtype(), min);
     n->extent = cast(new_loop_var.dtype(), extent);
+    if (op->thread_binding.defined()) {
+      auto old_thread_binding = op->thread_binding.value();
+      auto* ptr = old_thread_binding.CopyOnWrite();
+      ptr->var = old_thread_binding->var.copy_with_dtype(new_loop_var.dtype());
+      n->thread_binding = std::move(Optional<IterVar>(std::move(old_thread_binding)));
+    }
     n->body = new_body;
     return std::move(new_for);
   } else {

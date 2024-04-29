@@ -270,6 +270,7 @@ def callback_libdevice_path(arch):
         return ""
 
 
+@tvm._ffi.register_func("tvm.contrib.nvcc.get_compute_version")
 def get_target_compute_version(target=None):
     """Utility function to get compute capability of compilation target.
 
@@ -290,8 +291,14 @@ def get_target_compute_version(target=None):
     # 2. Target.current()
     target = target or Target.current()
     if target and target.arch:
-        major, minor = target.arch.split("_")[1]
-        return major + "." + minor
+        arch = target.arch.split("_")[1]
+        if len(arch) == 2:
+            major, minor = arch
+            return major + "." + minor
+        elif len(arch) == 3:
+            # This is for arch like "sm_90a"
+            major, minor, suffix = arch
+            return major + "." + minor + "." + suffix
 
     # 3. GPU compute version
     if tvm.cuda(0).exist:
@@ -406,6 +413,7 @@ def have_cudagraph():
         return False
 
 
+@tvm._ffi.register_func("tvm.contrib.nvcc.supports_bf16")
 def have_bf16(compute_version):
     """Either bf16 support is provided in the compute capability or not
 
@@ -421,6 +429,7 @@ def have_bf16(compute_version):
     return False
 
 
+@tvm._ffi.register_func("tvm.contrib.nvcc.supports_fp8")
 def have_fp8(compute_version):
     """Whether fp8 support is provided in the specified compute capability or not
 

@@ -22,6 +22,7 @@ import numpy as np
 import tvm
 from tvm.contrib.msc.core.ir import MSCGraph, WeightJoint, MSCTensor
 from tvm.contrib.msc.core.tools.tool import ToolType, WeightTool, ToolStrategy
+from tvm.contrib.msc.core.utils.message import MSCStage
 from tvm.contrib.msc.core import _ffi_api
 from tvm.contrib.msc.core import utils as msc_utils
 from .method import PruneMethod
@@ -29,6 +30,19 @@ from .method import PruneMethod
 
 class BasePruner(WeightTool):
     """Base pruner for all"""
+
+    def setup(self) -> dict:
+        """Setup the tool
+
+        Returns
+        -------
+        info: dict
+            The setup info.
+        """
+
+        if not self._plan:
+            self.change_stage(MSCStage.PRUNE)
+        return super().setup()
 
     def _get_wtypes(self) -> Tuple[Dict[str, List[str]], Dict[str, str]]:
         """Get the weight types from options
@@ -65,13 +79,13 @@ class BasePruner(WeightTool):
             }
         return main_wtypes, relation_wtypes
 
-    def _parse_strategys(self, strategy_list: dict) -> Dict[str, ToolStrategy]:
+    def _parse_strategys(self, strategy_list: List[dict]) -> Dict[str, ToolStrategy]:
         """Parse the strategy to get valid strategy
 
         Parameters
         -------
-        strategy_list: dict
-            The given strategy
+        strategy_list: list<dict>
+            The given strategys.
 
         Returns
         -------
@@ -79,36 +93,38 @@ class BasePruner(WeightTool):
             The parsed strategy.
         """
 
+        if self._stage != MSCStage.PRUNE:
+            return {}
+
         def _update_stages(strategy):
             if "stages" not in strategy:
-                strategy["stages"] = [msc_utils.MSCStage.PRUNE]
+                strategy["stages"] = [MSCStage.PRUNE]
             return strategy
 
         return super()._parse_strategys([_update_stages(s) for s in strategy_list])
 
     def _reset(
-        self, graphs: List[MSCGraph], weights: List[Dict[str, tvm.nd.array]]
-    ) -> Tuple[List[MSCGraph], List[Dict[str, tvm.nd.array]]]:
+        self, graphs: List[MSCGraph], weights: Dict[str, tvm.nd.array]
+    ) -> Tuple[List[MSCGraph], Dict[str, tvm.nd.array]]:
         """Reset the tool
 
         Parameters
         ----------
         graphs: list<MSCgraph>
             The msc graphs.
-        weights: list<dict<str, tvm.nd.array>>
-            The weights
+        weights: dict<str, tvm.nd.array>
+            The weights.
 
         Returns
         -------
         graphs: list<MSCgraph>
             The msc graphs.
-        weights: list<dict<str, tvm.nd.array>>
-            The weights
+        weights: dict<str, tvm.nd.array>
+            The weights.
         """
 
-        self._meta_weights = {}
-        for sub_weights in weights:
-            self._meta_weights.update(sub_weights)
+        self._unpruned_tensors = {}
+        self._meta_weights = weights
         graphs, weights = super()._reset(graphs, weights)
         if self._plan and self._enabled:
             return self.prune_graphs(graphs, weights)
@@ -204,11 +220,8 @@ class BasePruner(WeightTool):
                 strategys = self._get_tensor_strategys(lazy_name, info["consumer"])
                 self._prune_tensor(lazy_name, info["consumer"], strategys)
                 t_mark = ".".join([s.get_executor().name for s in strategys])
-                self.debug_tensor(
-                    self.find_tensor(lazy_name),
-                    lazy_name,
-                    consumer,
-                    "lazy processed({})".format(t_mark),
+                self.debug_tensors(
+                    lazy_name, consumer, t_mark, {"lazy": self.find_tensor(lazy_name)}
                 )
                 lazy_pruned.add(lazy_name)
         if lazy_pruned:
@@ -302,23 +315,23 @@ class BasePruner(WeightTool):
             self._plan[w_node.name]["out_indices"] = []
 
     def prune_graphs(
-        self, graphs: List[MSCGraph], weights: List[Dict[str, tvm.nd.array]]
-    ) -> Tuple[List[MSCGraph], List[Dict[str, tvm.nd.array]]]:
+        self, graphs: List[MSCGraph], weights: Dict[str, tvm.nd.array]
+    ) -> Tuple[List[MSCGraph], Dict[str, tvm.nd.array]]:
         """Reset the tool
 
         Parameters
         ----------
         graphs: list<MSCgraph>
             The msc graphs.
-        weights: list<dict<str, tvm.nd.array>>
-            The weights
+        weights: dict<str, tvm.nd.array>
+            The weights.
 
         Returns
         -------
         graphs: list<MSCgraph>
             The msc graphs.
-        weights: list<dict<str, tvm.nd.array>>
-            The weights
+        weights: dict<str, tvm.nd.array>
+            The weights.
         """
 
         def _prune_by_shape(tensor: MSCTensor, shape: List[int]):
@@ -331,17 +344,25 @@ class BasePruner(WeightTool):
             shape[channel_axis] = dim
             return _prune_by_shape(tensor, shape)
 
-        new_graphs, new_weights = [], []
-        pruned_weights_cnt = 0
-        for graph, sub_weights in zip(graphs, weights):
-            pruned_tensors, pruned_weights = {}, {}
+        pruned_graphs, pruned_weights = [], {}
+        pruned_cnt = 0
+        for graph in graphs:
+            pruned_tensors = {}
             for node in graph.get_nodes():
                 for weight in node.get_weights().values():
                     w_node, w_name = self.find_w_node(weight.name), weight.name
-                    if w_name not in self._plan or w_node.get_attr("status", "") == "pruned":
-                        pruned_weights[w_name] = sub_weights[w_name]
+                    if w_name not in self._plan:
+                        pruned_weights[w_name] = weights[w_name]
+                    elif w_node.get_attr("pruned_shape", "") != "":
+                        pruned_weights[w_name] = weights[w_name]
+                        pruned_shape = [int(i) for i in w_node.get_attr("pruned_shape").split(",")]
+                        assert pruned_shape == list(
+                            pruned_weights[w_name].shape
+                        ), "pruned_shape {} mismatch with data shape {}".format(
+                            pruned_shape, pruned_weights[w_name].shape
+                        )
                     else:
-                        data = msc_utils.cast_array(sub_weights[w_name])
+                        data = msc_utils.cast_array(weights[w_name])
                         in_axis, out_axis = self._get_io_axes(self.find_w_node(w_name))
                         w_config = self._plan[w_name]
                         if w_config["in_indices"]:
@@ -350,8 +371,11 @@ class BasePruner(WeightTool):
                             data = PruneMethod.prune_axis(data, out_axis, w_config["out_indices"])
                         pruned_tensors[w_name] = _prune_by_shape(weight, data.shape)
                         pruned_weights[w_name] = tvm.nd.array(data)
-                        w_node.set_attr("status", "pruned")
-                        pruned_weights_cnt += 1
+                        w_node.set_attr(
+                            "pruned_shape",
+                            ",".join([str(i) for i in pruned_tensors[w_name].get_shape()]),
+                        )
+                        pruned_cnt += 1
                 if node.optype == "constant":
                     if node.weight_at("const").name not in pruned_tensors:
                         continue
@@ -375,12 +399,15 @@ class BasePruner(WeightTool):
                 elif node.optype in self._relation_wtypes:
                     for out in node.get_outputs():
                         w_node = self.find_w_node(out.name)
-                        if out.name not in self._plan or w_node.get_attr("status", "") == "pruned":
+                        if out.name not in self._plan or w_node.get_attr("pruned_shape", "") != "":
                             continue
                         pruned_tensors[out.name] = _prune_by_channel(
                             out, len(self._plan[out.name]["out_indices"])
                         )
-                        w_node.set_attr("status", "pruned")
+                        w_node.set_attr(
+                            "pruned_shape",
+                            ",".join([str(i) for i in pruned_tensors[out.name].get_shape()]),
+                        )
                 elif node.get_inputs():
                     ref_input = node.input_at(0)
                     if ref_input.name not in pruned_tensors or ref_input.layout_of("C") < 0:
@@ -397,36 +424,31 @@ class BasePruner(WeightTool):
 
             pruned_tensors = {k: v for k, v in pruned_tensors.items() if _is_pruned(v, graph)}
             if self.on_debug(3, in_forward=False):
-                self._logger.debug(msc_utils.msg_block("Pruned Tensors", pruned_tensors))
+                self._logger.debug(
+                    msc_utils.msg_block(self.tool_mark("Pruned Tensors"), pruned_tensors)
+                )
 
             if pruned_tensors:
                 pruned_graph = _ffi_api.PruneWeights(graph, pruned_tensors)
-                new_graphs.append(pruned_graph)
+                pruned_graphs.append(pruned_graph)
             else:
-                new_graphs.append(graph)
-            new_weights.append(pruned_weights)
+                pruned_graphs.append(graph)
 
         def _flatten_size(weights):
-            weight_size = 0
-            for sub_weights in weights:
-                for w_data in sub_weights.values():
-                    weight_size += w_data.asnumpy().size
+            weight_size = sum([w.asnumpy().size for w in weights.values()])
             return weight_size / 2**20
 
         raw_size = _flatten_size(weights)
         # log compress rate
-        if pruned_weights_cnt > 0:
-            new_size = _flatten_size(new_weights)
-            self._logger.info(
-                "Prune %d weights, compress to %.2f%% (%.4f M->%.4f M)",
-                pruned_weights_cnt,
-                new_size * 100 / raw_size,
-                raw_size,
-                new_size,
+        if pruned_cnt > 0:
+            new_size = _flatten_size(pruned_weights)
+            msg = "Prune {} weights, compress to {:.2f}% ({:.4f} M->{:.4f} M)".format(
+                pruned_cnt, new_size * 100 / raw_size, raw_size, new_size
             )
         else:
-            self._logger.info("No weights pruned, size %.4f M", raw_size)
-        return new_graphs, new_weights
+            msg = "No weights pruned, size {:.4f} M".format(raw_size)
+        self._logger.info(self.tool_mark(msg))
+        return pruned_graphs, pruned_weights
 
     def get_meta_data(self, name: str) -> np.ndarray:
         """Get meta weight as np.ndarray
@@ -467,40 +489,24 @@ class BasePruner(WeightTool):
             if w_node.get_attr("weight_strategy") != "main":
                 continue
             consumer = self.find_producer(w_node.name).name
-            strategy = self._get_tensor_strategy(w_node.name, consumer)
+            executor = self._get_tensor_strategy(w_node.name, consumer).get_executor(MSCStage.PRUNE)
             tasks.append(
-                {
-                    "tensor_names": [self.to_tensor_id(w_node.name, consumer)],
-                    **strategy.meta,
-                }
+                {"methods": {"tensor": executor.method_def}, "tensor_names": [w_node.name]}
             )
         return tasks
 
-    def plan_by_strategys(self, strategys: List[dict]) -> dict:
-        """Plan the pruning with startegys and get plan
+    def change_strategys(self, strategy_list: List[dict]):
+        """Change the strategys
 
         Parameters
         -------
-        strategys: list<dict>
-            The given strategys
-
-        Returns
-        -------
-        plan: dict
-            The plan after new strategy applied.
+        strategy_list: list<dict>
+            The given strategys.
         """
 
-        self._tensor_cache, self._processed_tensor = {}, {}
         self._plan = {}
-        self._strategys = self._parse_strategys(msc_utils.copy_dict(strategys))
-        info = {k: v.inspect() for k, v in self._strategys.items()}
-        title = "{}.PRUNE_STRATEGYS".format(self.tool_type().upper())
-        self._logger.debug(msc_utils.msg_block(title, info, width=0))
-        for w_node in self.get_w_nodes():
-            consumer = self.find_consumers(w_node.name)[0]
-            self.process_tensor(w_node.weight, w_node.name, consumer.name, "")
-        self._plan = {n: c for n, c in self._plan.items() if c["in_indices"] or c["out_indices"]}
-        return self._plan
+        self.change_stage(MSCStage.PRUNE)
+        super().change_strategys(strategy_list)
 
     def finalize(self) -> dict:
         """Get the plan"""
@@ -508,15 +514,21 @@ class BasePruner(WeightTool):
         self._plan = {n: c for n, c in self._plan.items() if c["in_indices"] or c["out_indices"]}
         return super().finalize()
 
+    @property
+    def pruned(self):
+        return len(self._plan) > 0
+
     @classmethod
     def tool_type(cls):
         return ToolType.PRUNER
 
+    @classmethod
+    def exportable(cls):
+        return False
 
+
+@msc_utils.register_tool
 class DefaultPruner(BasePruner):
     @classmethod
     def tool_style(cls):
         return "default"
-
-
-msc_utils.register_tool_cls(DefaultPruner)

@@ -34,8 +34,10 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="List pytest nodeids for a folder")
     parser.add_argument("--sccache-bucket", required=False, help="sccache bucket name")
+    parser.add_argument("--sccache-region", required=False, help="sccache region")
     parser.add_argument("--build-dir", default="build", help="build folder")
     parser.add_argument("--cmake-target", help="optional build target")
+    parser.add_argument("--debug", required=False, action="store_true", help="build in debug mode")
     args = parser.parse_args()
 
     env = {"VTA_HW_PATH": str(Path(os.getcwd()) / "3rdparty" / "vta-hw")}
@@ -46,9 +48,11 @@ if __name__ == "__main__":
     build_dir = build_dir.relative_to(REPO_ROOT)
 
     if use_sccache:
-        if args.sccache_bucket:
+        if args.sccache_bucket and "AWS_ACCESS_KEY_ID" in os.environ:
             env["SCCACHE_BUCKET"] = args.sccache_bucket
+            env["SCCACHE_REGION"] = args.sccache_region if args.sccache_region else "us-west-2"
             logging.info(f"Using sccache bucket: {args.sccache_bucket}")
+            logging.info(f"Using sccache region: {env['SCCACHE_REGION']}")
         else:
             logging.info(f"No sccache bucket set, using local cache")
         env["CXX"] = "/opt/sccache/c++"
@@ -79,7 +83,10 @@ if __name__ == "__main__":
     if build_platform == "i386":
         sh.run("cmake ..", cwd=build_dir)
     else:
-        sh.run("cmake -GNinja -DCMAKE_BUILD_TYPE=RelWithDebInfo ..", cwd=build_dir)
+        if args.debug:
+            sh.run("cmake -GNinja -DCMAKE_BUILD_TYPE=Debug ..", cwd=build_dir)
+        else:
+            sh.run("cmake -GNinja -DCMAKE_BUILD_TYPE=RelWithDebInfo ..", cwd=build_dir)
 
     target = ""
     if args.cmake_target:

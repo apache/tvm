@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 """A rule for GEMV and DecodeGEMV."""
-import re
 from functools import reduce
 from typing import List, Optional, Union
 
@@ -59,10 +58,9 @@ def get_extent(sch: tir.Schedule, loop_rv: tir.schedule.LoopRV):
 
 
 def get_bytes(dtype: Union[DataType, str]) -> int:
-    num = re.findall(r"\d+", dtype)
-    if len(num) != 1:
-        raise ValueError(f"Cannot get bytes from {dtype}")
-    return int(num[0]) // 8
+    if isinstance(dtype, str):
+        dtype = DataType(dtype)
+    return dtype.itemsize()
 
 
 def is_gemv(sch: tir.Schedule, block_info: BlockInfo) -> Optional[List[tir.Buffer]]:
@@ -304,6 +302,8 @@ class GEMV(GPUScheduleRule):
         sch = tir.Schedule(func)
         block_infos = normalize_prim_func(sch)
         block_infos = try_inline_contiguous_spatial(sch, block_infos)
+        if block_infos is None:
+            return None
         if len(block_infos) == 1:
             epilogue = None
         elif len(block_infos) == 2:
@@ -366,6 +366,7 @@ class GEMV(GPUScheduleRule):
             LOAD_V_SHARED,
             LOAD_V_VEC,
             UNROLL,
+            SUPPORT_WARP_SHUFFLE,
         ):
             # rfactor: reduce to tx * vec_c
             _, s, r, c = sch.get_loops(block=gemv)
@@ -395,10 +396,17 @@ class GEMV(GPUScheduleRule):
 
             shared_mem_usage = 0
             for buf in vector_input_buffers:
-                buf_size = reduce(
-                    lambda x, y: x * y, buf.shape, tir.IntImm(buf.shape[0].dtype, 1)
-                ) * get_bytes(buf.dtype)
+                dtype_bytes = get_bytes(buf.dtype)
+                buf_size = (
+                    reduce(lambda x, y: x * y, buf.shape, tir.IntImm(buf.shape[0].dtype, 1))
+                    * dtype_bytes
+                )
                 shared_mem_usage += buf_size
+                if not SUPPORT_WARP_SHUFFLE:
+                    # When warp shuffle is not able, cross-thread allreduce
+                    # is implemented with shared memory.
+                    shared_mem_usage += TS * TR * dtype_bytes
+
             LOAD_V_SHARED = (
                 LOAD_V_SHARED
                 and isinstance(shared_mem_usage, tir.IntImm)
@@ -411,10 +419,11 @@ class GEMV(GPUScheduleRule):
             Aq_local = sch.cache_read(rf, read_buffer_index=1, storage_scope="local")
             sch.compute_at(Aq_local, r, preserve_unit_loops=True)
             s_local, r_local = sch.get_loops(block=Aq_local)[-2:]
-            s_local, vec_load = sch.split(
-                s_local, factors=[None, VEC_LOAD], preserve_unit_iters=True
+            fused_load = sch.fuse(s_local, r_local)
+            aq_vec_len = max(1, VEC_LOAD // get_bytes(sch.get(Aq_local).reads[0].buffer.dtype))
+            fused_load, vec_load = sch.split(
+                fused_load, factors=[None, aq_vec_len], preserve_unit_iters=True
             )
-            sch.reorder(s_local, r_local, vec_load)  # either s_local or r_local should be 1
             sch.vectorize(vec_load)
 
             # load vector into shared memory, shape should be the whole vector
@@ -456,12 +465,16 @@ class GEMV(GPUScheduleRule):
             sch.reverse_compute_at(rf2, loop=bx, preserve_unit_loops=True)
             tr, vec_c, *ts_tile_s = sch.get_loops(block=rf2)[1:]
             ts_tile_s = sch.fuse(*ts_tile_s)
-            ts, tile_s = sch.split(ts_tile_s, factors=[TS, None], preserve_unit_iters=True)
+            ts_o, ts_i, tile_s = sch.split(
+                ts_tile_s, factors=[None, TS, TILE_S], preserve_unit_iters=True
+            )
             tile_s, vec_s = sch.split(
                 tile_s,
                 factors=[None, get_max_factor(TILE_S, [1, 2, 4, 8])],
                 preserve_unit_iters=True,
             )
+            assert sch.get(ts_o).extent.value == 1
+            ts = sch.fuse(ts_o, ts_i)
             sch.reorder(ts, tr, tile_s, vec_s, vec_c)
             sch.bind(ts, TAG_S)
             sch.bind(tr, TAG_R)
@@ -471,7 +484,11 @@ class GEMV(GPUScheduleRule):
             sch.reverse_compute_at(gemv, loop=bx, preserve_unit_loops=True)
             tr, *ts_tile_s = sch.get_loops(block=gemv)[1:]
             ts_tile_s = sch.fuse(*ts_tile_s)
-            ts, tile_s = sch.split(ts_tile_s, factors=[TS, None], preserve_unit_iters=True)
+            ts_o, ts_i, tile_s = sch.split(
+                ts_tile_s, factors=[None, TS, TILE_S], preserve_unit_iters=True
+            )
+            assert sch.get(ts_o).extent.value == 1
+            ts = sch.fuse(ts_o, ts_i)
             sch.reorder(tile_s, ts, tr)
             sch.bind(ts, TAG_S)
             sch.bind(tr, TAG_R)
@@ -525,7 +542,11 @@ class GEMV(GPUScheduleRule):
                     sch.reverse_compute_at(epilogue, bx, preserve_unit_loops=True)
                     ts_tile_s = sch.fuse(*sch.get_loops(epilogue)[1:])
                     ts_tile_s = sch.get_loops(epilogue)[-1]
-                    ts, tile_s = sch.split(ts_tile_s, factors=[TS, None], preserve_unit_iters=True)
+                    ts_o, ts_i, tile_s = sch.split(
+                        ts_tile_s, factors=[None, TS, TILE_S], preserve_unit_iters=True
+                    )
+                    assert sch.get(ts_o).extent.value == 1
+                    ts = sch.fuse(ts_o, ts_i)
                     sch.bind(ts, TAG_S)
                     sch.set_scope(block, 0, "local")
             # pylint: enable=invalid-name
@@ -543,11 +564,15 @@ class GEMV(GPUScheduleRule):
         len_R = len_r * len_c
 
         TAG_S, TAG_R = "threadIdx.y", "threadIdx.x"
+        SUPPORT_WARP_SHUFFLE = False
+        VEC_LOAD = 1
         if target.kind.name == "cuda":
             VEC_C = 4
             LOAD_V_SHARED = True
             LOAD_V_VEC = 8
+            VEC_LOAD = 4
             UNROLL = 256
+            SUPPORT_WARP_SHUFFLE = True
             if isinstance(len_S, int):
                 if len_S > len_R:
                     TS, TR = 4, 64
@@ -560,6 +585,7 @@ class GEMV(GPUScheduleRule):
             LOAD_V_SHARED = False
             LOAD_V_VEC = -1
             UNROLL = 256
+            SUPPORT_WARP_SHUFFLE = True
             if isinstance(len_S, int):
                 if len_S > len_R:
                     TS, TR = 4, 16
@@ -567,7 +593,10 @@ class GEMV(GPUScheduleRule):
                     TS, TR = 2, 64
         elif target.kind.name == "rocm":
             VEC_C = 4
-            LOAD_V_SHARED = True
+            # TODO: set LOAD_V_SHARED = False for now
+            # rocm might have some issues when load/store of shared do not belong to same data type
+            # and only works for certain vector lens, our commonly useful vector lens are in 4
+            LOAD_V_SHARED = False
             LOAD_V_VEC = 8
             UNROLL = 256
             if isinstance(len_S, int):
@@ -621,7 +650,6 @@ class GEMV(GPUScheduleRule):
             else max(get_max_factor(len_r, [TR * 1, TR * 2, TR * 4, TR * 8]) // TR, 1),
         )
         VEC_C = min(get_max_factor(TILE_R, [1, 2, 4, 8]), VEC_C)
-        VEC_LOAD = 1
 
         return apply(
             sch,
@@ -637,6 +665,7 @@ class GEMV(GPUScheduleRule):
             LOAD_V_SHARED=LOAD_V_SHARED,
             LOAD_V_VEC=LOAD_V_VEC,
             UNROLL=UNROLL,
+            SUPPORT_WARP_SHUFFLE=SUPPORT_WARP_SHUFFLE,
         )
 
     def sch_outer_reduction(  # pylint: disable=too-many-arguments, invalid-name, unused-argument

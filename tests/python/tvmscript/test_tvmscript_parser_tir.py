@@ -272,7 +272,7 @@ def test_tir_starred_for_loop():
     @T.prim_func(private=True)
     def starred(a: T.handle, b: T.handle):
         A = T.match_buffer(a, [*dims, 128], "int32")
-        B = T.match_buffer(a, dims, "int32")
+        B = T.match_buffer(b, dims, "int32")
         for *spatial, reduction in T.grid(*A.shape):
             with T.block("reduce"):
                 with T.init():
@@ -282,7 +282,7 @@ def test_tir_starred_for_loop():
     @T.prim_func(private=True)
     def non_starred(a: T.handle, b: T.handle):
         A = T.match_buffer(a, [128, 128, 128], "int32")
-        B = T.match_buffer(a, [128, 128], "int32")
+        B = T.match_buffer(b, [128, 128], "int32")
         for i, j, k in T.grid(128, 128, 128):
             with T.block("reduce"):
                 with T.init():
@@ -338,6 +338,152 @@ def test_thread_binding_dtype():
     assert loop_i.thread_binding.var.dtype == "int64"
     assert loop_j.loop_var.dtype == "int32"
     assert loop_j.thread_binding.var.dtype == "int32"
+
+
+def test_inferred_sinfo_with_prim_args():
+    """A PrimFunc may have inferred StructInfo"""
+
+    @T.prim_func
+    def func(M: T.int32, N: T.int32) -> T.int32:
+        T.ret(M * N)
+
+    expected = tvm.relax.FuncStructInfo(
+        [
+            tvm.relax.PrimStructInfo("int32"),
+            tvm.relax.PrimStructInfo("int32"),
+        ],
+        tvm.relax.PrimStructInfo("int32"),
+        purity=True,
+    )
+    tvm.ir.assert_structural_equal(func.struct_info, expected)
+
+
+def test_inferred_sinfo_with_buffer_args():
+    """PrimFunc buffer arguments are inferred as R.Tensor"""
+
+    @T.prim_func
+    def func(A: T.Buffer([16, 16], "float32"), B: T.Buffer([256], "int32")) -> T.float32:
+        T.ret(T.float32(42.0))
+
+    expected = tvm.relax.FuncStructInfo(
+        [
+            tvm.relax.TensorStructInfo([16, 16], "float32"),
+            tvm.relax.TensorStructInfo([256], "int32"),
+        ],
+        tvm.relax.PrimStructInfo("float32"),
+        purity=True,
+    )
+    tvm.ir.assert_structural_equal(func.struct_info, expected)
+
+
+def test_inferred_sinfo_with_internal_allocation():
+    """A pure function may still write to internal allocations.
+
+    Whether a function writes to internal allocations is not a visible
+    effect, and does not impact the purity of a function.
+    """
+
+    @T.prim_func
+    def func(A: T.Buffer([16, 16], "float32")) -> T.float32:
+        Sum = T.decl_buffer([], "float32")
+        Sum[()] = 0.0
+        for i, j in T.grid(16, 16):
+            Sum[()] = Sum[()] + A[i, j]
+
+        T.ret(Sum[()])
+
+    expected = tvm.relax.FuncStructInfo(
+        [
+            tvm.relax.TensorStructInfo([16, 16], "float32"),
+        ],
+        tvm.relax.PrimStructInfo("float32"),
+        purity=True,
+    )
+    tvm.ir.assert_structural_equal(func.struct_info, expected)
+
+
+def test_inferred_sinfo_with_output_buffer():
+    """A pure function may not write to an argument buffer
+
+    If an argument buffer is written to, the function must be impure.
+    """
+
+    @T.prim_func
+    def func(A: T.Buffer(16, "float32"), B: T.Buffer(16, "float32")):
+        for i in range(16):
+            B[i] = A[i]
+
+    expected = tvm.relax.FuncStructInfo(
+        [
+            tvm.relax.TensorStructInfo([16], "float32"),
+            tvm.relax.TensorStructInfo([16], "float32"),
+        ],
+        tvm.relax.TupleStructInfo([]),
+        purity=False,
+    )
+    tvm.ir.assert_structural_equal(func.struct_info, expected)
+
+
+def test_inferred_sinfo_with_dynamic_buffer():
+    """The inferred StructInfo may contain dynamic shapes"""
+
+    @T.prim_func
+    def func(a_handle: T.handle, b_handle: T.handle):
+        M = T.int64()
+        N = T.int64()
+        A = T.match_buffer(a_handle, [M, N], "float32")
+        B = T.match_buffer(b_handle, [M * N], "float32")
+        for i, j in T.grid(M, N):
+            B[i * N + j] = A[i, j]
+
+    M = tvm.tir.Var("M", "int64")
+    N = tvm.tir.Var("N", "int64")
+    expected = tvm.relax.FuncStructInfo(
+        [
+            tvm.relax.TensorStructInfo([M, N], "float32"),
+            tvm.relax.TensorStructInfo([M * N], "float32"),
+        ],
+        tvm.relax.TupleStructInfo([]),
+        purity=False,
+    )
+    tvm.ir.assert_structural_equal(func.struct_info, expected)
+
+
+def test_reinterpret_nop():
+    """Test builtin reinterpret op"""
+
+    @T.prim_func
+    def func(A: T.Buffer((32,), "float32"), B: T.Buffer((32,), "float32")) -> None:
+        T.func_attr({"global_symbol": "main"})
+        for i in T.serial(0, 32):
+            with T.block():
+                vi = T.axis.remap("S", [i])
+                B[vi] = T.reinterpret("float32", A[vi])
+
+    @T.prim_func
+    def expected(A: T.Buffer((32,), "float32"), B: T.Buffer((32,), "float32")) -> None:
+        T.func_attr({"global_symbol": "main"})
+        for i in T.serial(0, 32):
+            with T.block():
+                vi = T.axis.remap("S", [i])
+                B[vi] = A[vi]
+
+    tvm.ir.assert_structural_equal(func, expected)
+
+
+def test_launch_thread_i64():
+    """Test launching thread with int64"""
+
+    @T.prim_func
+    def func() -> None:
+        blockIdx_x = T.launch_thread("blockIdx.x", T.int64(1))
+        if blockIdx_x == T.int64(0):
+            T.evaluate(T.int64(0))
+        else:
+            T.evaluate(T.int64(1))
+
+    assert func.body.node.dom.min.dtype == "int64"
+    assert func.body.node.dom.extent.dtype == "int64"
 
 
 if __name__ == "__main__":

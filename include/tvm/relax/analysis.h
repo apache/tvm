@@ -250,6 +250,28 @@ TVM_DLL bool IsBaseOf(const StructInfo& base, const StructInfo& derived,
                       arith::Analyzer* ana = nullptr);
 
 /*!
+ * \brief Return the condition for which base is a superset of derived
+ *
+ * This function returns finer-grained conditions for kFailL2 than StructInfoBaseCheck
+ *
+ * If the returned expression is true, or simplifies to true, then
+ * base is a superset of derived.  If the returned expression is
+ * false, or simplifies to false, then base is not a superset of
+ * derived.
+ *
+ * If the returned expression is neither true nor false, it is an
+ * expression in terms of the symbolic variables available in `base`
+ * and `derived`.
+ *
+ * \param base The base struct info.
+ * \param derived The derived struct info.
+ * \return Whether base is a base of derived.
+ *
+ * \sa BaseCheckResult
+ */
+TVM_DLL PrimExpr StructInfoBaseCheckPrecondition(const StructInfo& base, const StructInfo& derived);
+
+/*!
  * \brief Unify the two struct info to their least common ancestor.
  *
  * \param lhs The left operand.
@@ -499,6 +521,21 @@ TVM_DLL bool HasReshapePattern(const tir::PrimFunc& func);
  * \param own_name (Optional.) If we are checking a recursive function body,
  *   the caller can pass the function's name so recursive calls
  *   can be ignored in the check (must be a Var or GlobalVar).
+ * \return The impure expression, if one exists within the given
+ *   expression.  Otherwise, NullOpt.
+ * \note Relies on StructInfo annotations, so ensure that the module has been normalized first.
+ *   Also, an impure call in a *nested* function does *not* mean that the outer expression contains
+ *   an impure call--it only does if the nested function is *later called*.
+ */
+TVM_DLL Optional<Expr> FindImpureCall(const Expr& expr,
+                                      const Optional<Expr>& own_name = Optional<Expr>(nullptr));
+
+/*!
+ * \brief Check if the given expression (likely a function body) contains any impure calls.
+ * \param expr The expression to be examined. If expr is a function, we check the body.
+ * \param own_name (Optional.) If we are checking a recursive function body,
+ *   the caller can pass the function's name so recursive calls
+ *   can be ignored in the check (must be a Var or GlobalVar).
  * \return A boolean indicating if the expression contains any impure calls.
  * \note Relies on StructInfo annotations, so ensure that the module has been normalized first.
  *   Also, an impure call in a *nested* function does *not* mean that the outer expression contains
@@ -510,15 +547,15 @@ TVM_DLL bool ContainsImpureCall(const Expr& expr,
 /*!
  * \brief Check if the IRModule is well formed.
  *
- * \param m the IRModule to check.
+ * \param obj The IRModule or relax::Function to check.
  * \param check_struct_info A boolean flag indicating if the property "every Expr
  * must have defined structure info" will be checked.
- * \return true if the IRModule is well formed, false if not.
+ * \return true if the object is well formed, false if not.
  * \note By default the structure info is always checked. It is only in test cases
  * where `check_struct_info` might be false, so that other well-formed requirements
  * will be well tested and will not be blocked by not having structure info.
  */
-TVM_DLL bool WellFormed(IRModule m, bool check_struct_info = true);
+TVM_DLL bool WellFormed(Variant<IRModule, Function> obj, bool check_struct_info = true);
 
 /*!
  * \brief Using the layout transforms on the outputs, suggest layout transformation on the blocks

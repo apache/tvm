@@ -25,6 +25,7 @@
 #include <tvm/ir/transform.h>
 #include <tvm/node/repr_printer.h>
 #include <tvm/node/structural_hash.h>
+#include <tvm/relax/expr.h>
 #include <tvm/relax/tuning_api.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/registry.h>
@@ -35,6 +36,7 @@
 #include <unordered_set>
 
 #include "../runtime/object_internal.h"
+#include "../runtime/regex.h"
 
 namespace tvm {
 namespace transform {

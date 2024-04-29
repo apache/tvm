@@ -40,8 +40,6 @@ from .utils import apply_and_build, fast_tune, fast_tune_with_dynamic_range
 def _is_scheduled(func: tir.PrimFunc) -> bool:
     if not isinstance(func, tir.PrimFunc):
         return False
-    if not func.attrs:
-        return False
     if "tir.is_scheduled" not in func.attrs:
         return False
     return func.attrs["tir.is_scheduled"] == 1

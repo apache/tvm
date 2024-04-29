@@ -1789,7 +1789,7 @@ def infinity(dtype: str, span: Optional[Span] = None) -> Any:
     return _ffi_api.infinity(dtype, span)  # type: ignore
 
 
-def reinterpret(dtype, value) -> Any:
+def reinterpret(dtype, value, span: Optional[Span] = None) -> Any:
     """infinity value of dtype
 
     Parameters
@@ -1808,7 +1808,7 @@ def reinterpret(dtype, value) -> Any:
     value : tvm.Expr
         The reinterpret cast value of dtype.
     """
-    return call_intrin(dtype, "tir.reinterpret", value)
+    return _ffi_api.reinterpret(dtype, value, span)  # type: ignore
 
 
 def exp(x):
@@ -3336,6 +3336,17 @@ def anylist_setitem_call_cpacked(list_handle, index, func_name, *args):
     return call_intrin(
         "int", "tir.anylist_setitem_call_cpacked", list_handle, index, func_name, *args
     )
+
+
+def vscale():
+    """Get the target's vscale value. It will be lowered to llvm.vscale intrinsic
+    (https://llvm.org/docs/LangRef.html#llvm-vscale-intrinsic)
+    Returns
+    -------
+    call : PrimExpr
+        Call to the vscale intrinsic
+    """
+    return call_intrin("int32", "tir.vscale")
 
 
 # pylint: disable=unnecessary-lambda

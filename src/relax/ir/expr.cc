@@ -137,9 +137,25 @@ TVM_REGISTER_GLOBAL("relax.If")
     });
 
 Tuple::Tuple(tvm::Array<relay::Expr> fields, Span span) {
+  Optional<StructInfo> tuple_sinfo = [&]() -> Optional<StructInfo> {
+    Array<StructInfo> field_sinfo;
+    for (const auto& field : fields) {
+      if (field->struct_info_.defined()) {
+        field_sinfo.push_back(GetStructInfo(field));
+      } else {
+        return NullOpt;
+      }
+    }
+    return TupleStructInfo(field_sinfo);
+  }();
+
   ObjectPtr<TupleNode> n = make_object<TupleNode>();
   n->fields = std::move(fields);
   n->span = std::move(span);
+  if (tuple_sinfo) {
+    n->checked_type_ = GetStaticType(tuple_sinfo.value());
+  }
+  n->struct_info_ = tuple_sinfo;
   data_ = std::move(n);
 }
 
@@ -384,6 +400,33 @@ TVM_REGISTER_GLOBAL("relax.MatchCast")
       return MatchCast(var, value, struct_info, span);
     });
 
+bool MatchCastNode::SEqualReduce(const MatchCastNode* other, SEqualReducer equal) const {
+  if (value->IsInstance<FunctionNode>()) {
+    // Recursive function definitions may reference the bound variable
+    // within the value being bound.  In these cases, the
+    // `DefEqual(var, other->var)` must occur first, to ensure it is
+    // defined at point of use.
+    return equal.DefEqual(var, other->var) && equal.DefEqual(struct_info, other->struct_info) &&
+           equal(value, other->value);
+  } else {
+    // In all other cases, visit the bound value before the variable
+    // it is bound to, in order to provide better error messages.
+    return equal(value, other->value) && equal.DefEqual(struct_info, other->struct_info) &&
+           equal.DefEqual(var, other->var);
+  }
+}
+void MatchCastNode::SHashReduce(SHashReducer hash_reduce) const {
+  if (value->IsInstance<FunctionNode>()) {
+    hash_reduce.DefHash(var);
+    hash_reduce.DefHash(struct_info);
+    hash_reduce(value);
+  } else {
+    hash_reduce(value);
+    hash_reduce.DefHash(struct_info);
+    hash_reduce.DefHash(var);
+  }
+}
+
 TVM_REGISTER_NODE_TYPE(VarBindingNode);
 
 VarBinding::VarBinding(Var var, Expr value, Span span) {
@@ -397,6 +440,29 @@ VarBinding::VarBinding(Var var, Expr value, Span span) {
 TVM_REGISTER_GLOBAL("relax.VarBinding").set_body_typed([](Var var, Expr value, Span span) {
   return VarBinding(var, value, span);
 });
+
+bool VarBindingNode::SEqualReduce(const VarBindingNode* other, SEqualReducer equal) const {
+  if (value->IsInstance<FunctionNode>()) {
+    // Recursive function definitions may reference the bound variable
+    // within the value being bound.  In these cases, the
+    // `DefEqual(var, other->var)` must occur first, to ensure it is
+    // defined at point of use.
+    return equal.DefEqual(var, other->var) && equal(value, other->value);
+  } else {
+    // In all other cases, visit the bound value before the variable
+    // it is bound to, in order to provide better error messages.
+    return equal(value, other->value) && equal.DefEqual(var, other->var);
+  }
+}
+void VarBindingNode::SHashReduce(SHashReducer hash_reduce) const {
+  if (value->IsInstance<FunctionNode>()) {
+    hash_reduce.DefHash(var);
+    hash_reduce(value);
+  } else {
+    hash_reduce(value);
+    hash_reduce.DefHash(var);
+  }
+}
 
 TVM_REGISTER_NODE_TYPE(BindingBlockNode);
 
@@ -426,6 +492,14 @@ TVM_REGISTER_GLOBAL("relax.DataflowBlock").set_body_typed([](Array<Binding> bind
 
 TVM_REGISTER_NODE_TYPE(SeqExprNode);
 
+SeqExpr::SeqExpr(Expr body) {
+  if (auto seq = body.as<SeqExpr>()) {
+    *this = seq.value();
+  } else {
+    *this = SeqExpr(Array<BindingBlock>{}, body);
+  }
+}
+
 SeqExpr::SeqExpr(Array<BindingBlock> blocks, Expr body, Span span) {
   ObjectPtr<SeqExprNode> n = make_object<SeqExprNode>();
   n->blocks = std::move(blocks);
@@ -443,6 +517,10 @@ TVM_REGISTER_NODE_TYPE(FunctionNode);
 
 Function::Function(Array<Var> params, Expr body, Optional<StructInfo> ret_struct_info, bool is_pure,
                    DictAttrs attrs, Span span) {
+  if (!attrs.defined()) {
+    attrs = DictAttrs();
+  }
+
   // Set the function type.
   // For function, we take a conservative approach and require the function type
   // to be known at construction time.
@@ -505,10 +583,18 @@ Function Function::CreateEmpty(Array<Var> params, StructInfo ret_struct_info, bo
 
   FuncStructInfo finfo(param_sinfo, ret_struct_info, is_pure);
 
+  // A dummy body, to ensure that the empty function is still well-formed.
+  Expr body = [&]() -> Expr {
+    Var output("output", ret_struct_info);
+    Call expr(ExternFunc("_dummy_function", FuncStructInfo({}, ret_struct_info)), {});
+
+    return SeqExpr({BindingBlock({VarBinding(output, expr)})}, output);
+  }();
+
   // set the fields
   ObjectPtr<FunctionNode> n = make_object<FunctionNode>();
   n->params = std::move(params);
-  n->body = Expr();
+  n->body = std::move(body);
   n->is_pure = is_pure;
   n->checked_type_ = GetStaticType(finfo);
   n->struct_info_ = std::move(finfo);
@@ -548,13 +634,19 @@ FuncStructInfo GetExternFuncStructInfo() {
 
 TVM_REGISTER_NODE_TYPE(ExternFuncNode);
 
-ExternFunc::ExternFunc(String global_symbol, Span span) {
+ExternFunc::ExternFunc(String global_symbol, Span span)
+    : ExternFunc(global_symbol, GetExternFuncStructInfo(), span) {}
+
+ExternFunc::ExternFunc(String global_symbol, StructInfo struct_info, Span span) {
+  CHECK(struct_info.as<FuncStructInfoNode>())
+      << "ExternFunc must have FuncStructInfo, "
+      << "but declaration of '" << global_symbol << "' received " << struct_info;
+
   ObjectPtr<ExternFuncNode> n = make_object<ExternFuncNode>();
   n->global_symbol = std::move(global_symbol);
   n->span = span;
-  static auto sinfo = GetExternFuncStructInfo();
-  n->struct_info_ = sinfo;
-  n->checked_type_ = GetStaticType(sinfo);
+  n->struct_info_ = struct_info;
+  n->checked_type_ = GetStaticType(struct_info);
   data_ = std::move(n);
 }
 

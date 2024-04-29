@@ -1069,6 +1069,8 @@ def test_cuda_save_kernels_for_profiling():
     check_cuda(64, 2)
 
 
+@tvm.testing.requires_gpu
+@tvm.testing.requires_cuda
 def test_cuda_thread_sync_inside_condition():
     @T.prim_func
     def func1(A: T.Buffer((4, 4), "float32")) -> None:
@@ -1112,6 +1114,16 @@ def test_cuda_thread_sync_inside_condition():
 
     mod = tvm.IRModule({"main": func3})
     tvm.build(mod, target="cuda")
+
+
+def test_invalid_reinterpret():
+    @T.prim_func
+    def func(A: T.Buffer((4,), "uint32"), B: T.Buffer((4,), "uint8")) -> None:
+        for tx in T.thread_binding(4, "threadIdx.x"):
+            B[tx] = T.call_intrin("uint8", "tir.reinterpret", A[tx])
+
+    with pytest.raises(tvm.error.TVMError):
+        tvm.build(func, target="cuda")
 
 
 if __name__ == "__main__":

@@ -26,10 +26,12 @@
 #include <tvm/tir/expr_functor.h>
 
 #include <algorithm>
+#include <optional>
 
 #include "constraint_extract.h"
 #include "int_operator.h"
 #include "pattern_match.h"
+#include "scalable_expression.h"
 
 namespace tvm {
 namespace arith {
@@ -80,6 +82,16 @@ struct ConstIntBoundAnalyzer::Entry {
 
   bool operator==(const Entry& other) const {
     return min_value == other.min_value && max_value == other.max_value;
+  }
+
+  friend std::ostream& operator<<(std::ostream& os, const Entry& entry) {
+    os << "Entry[";
+    PrintBoundValue(os, entry.min_value);
+    os << ", ";
+    PrintBoundValue(os, entry.max_value);
+    os << "]";
+
+    return os;
   }
 };
 
@@ -228,6 +240,7 @@ class ConstIntBoundAnalyzer::Impl
     Entry ret;
     ret.min_value = InfAwareAdd(a.min_value, b.min_value);
     ret.max_value = InfAwareAdd(a.max_value, b.max_value);
+
     return ret;
   }
 
@@ -237,6 +250,7 @@ class ConstIntBoundAnalyzer::Impl
     Entry ret;
     ret.min_value = InfAwareAdd(a.min_value, -b.max_value);
     ret.max_value = InfAwareAdd(a.max_value, -b.min_value);
+
     return ret;
   }
 
@@ -356,6 +370,8 @@ class ConstIntBoundAnalyzer::Impl
       return VisitLeftShift(op);
     } else if (op->op.same_as(tir::builtin::bitwise_and())) {
       return VisitBitwiseAnd(op);
+    } else if (op->op.same_as(tir::builtin::vscale()) && TargetHasSVE()) {
+      return MakeBound(1, 16);
     } else {
       return Everything(op->dtype);
     }
@@ -626,6 +642,25 @@ class ConstIntBoundAnalyzer::Impl
     Entry ret;
     ret.min_value = std::max(a.min_value, b.min_value);
     ret.max_value = std::min(a.max_value, b.max_value);
+    return ret;
+  }
+  /*!
+   * \brief Flip the sign of a set.
+   * \param entry The set of values
+   */
+  static Entry Negative(Entry entry) {
+    Entry ret;
+    if (entry.max_value == kPosInf) {
+      ret.min_value = kNegInf;
+    } else {
+      ret.min_value = -entry.max_value;
+    }
+    if (entry.min_value == kNegInf) {
+      ret.max_value = kPosInf;
+    } else {
+      ret.max_value = -entry.min_value;
+    }
+
     return ret;
   }
   /*!

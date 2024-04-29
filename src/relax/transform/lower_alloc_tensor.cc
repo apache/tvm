@@ -35,14 +35,14 @@ class Mutator : public ExprMutator {
     static const Op& mem_alloc_tensor_op = Op::Get("relax.memory.alloc_tensor");
 
     if (op->op.same_as(alloc_tensor_op)) {
-      CHECK_EQ(op->args.size(), 3) << "Op " << op->op << " should have three arguments, "
-                                   << "[shape, dtype, runtime_device_index].  "
+      CHECK_EQ(op->args.size(), 4) << "Op " << op->op << " should have three arguments, "
+                                   << "[shape, dtype, runtime_device_index, storage_scope].  "
                                    << "However, received " << GetRef<Call>(op);
 
       auto shape_arg = op->args[0];
       auto dtype = Downcast<DataTypeImm>(op->args[1]);
       PrimValue runtime_device_index = Downcast<PrimValue>(op->args[2]);
-      std::string storage_scope = "global";
+      StringImm storage_scope = Downcast<StringImm>(op->args[3]);
 
       auto shape = [&]() -> Array<PrimExpr> {
         if (auto ptr = shape_arg.as<ShapeExprNode>()) {
@@ -71,9 +71,9 @@ class Mutator : public ExprMutator {
 
       auto offset = PrimValue::Int64(0);
 
-      Expr storage = relax::Call(mem_alloc_storage_op,
-                                 {ShapeExpr({nbytes}), runtime_device_index,
-                                  StringImm(storage_scope), DataTypeImm(DataType::UInt(8))});
+      Expr storage =
+          relax::Call(mem_alloc_storage_op, {ShapeExpr({nbytes}), runtime_device_index,
+                                             storage_scope, DataTypeImm(DataType::UInt(8))});
       storage = builder_->Emit(storage, "storage");
       Expr tensor = relax::Call(mem_alloc_tensor_op, {storage, offset, shape_arg, dtype});
       return tensor;

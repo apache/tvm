@@ -32,21 +32,21 @@
 namespace tvm {
 namespace tir {
 
-class CollectUnmanagedAllocations : public StmtExprVisitor {
+class CollectManagedAllocations : public StmtExprVisitor {
  public:
-  void VisitStmt_(const AllocateNode* op) final {
-    unmanaged_allocations.insert(op->buffer_var.get());
-    StmtExprVisitor::VisitStmt_(op);
-  }
-
-  void VisitStmt_(const AllocateConstNode* op) final {
-    unmanaged_allocations.insert(op->buffer_var.get());
+  void VisitStmt_(const BlockNode* op) final {
+    for (const auto& buf : op->alloc_buffers) {
+      managed_allocations.insert(buf->data.get());
+    }
+    for (const auto& buf : op->match_buffers) {
+      managed_allocations.insert(buf->buffer->data.get());
+    }
     StmtExprVisitor::VisitStmt_(op);
   }
 
   /*! \brief Buffers that are allocated outside of the BlockNode, and should not be moved by
    * BufferAllocationLocator. */
-  std::unordered_set<const VarNode*> unmanaged_allocations;
+  std::unordered_set<const VarNode*> managed_allocations;
 };
 
 /*! \brief Collect the allocate buffer order. */
@@ -108,15 +108,9 @@ class BufferAllocationLocator : public StmtExprMutator {
     // since the buffer_lca Map is unordered.
     Array<Buffer> buffer_alloc_recorder = BufferAllocateOrderCollector::Collect(func);
     std::unordered_set<const VarNode*> arg_buffer_vars;
-    CollectUnmanagedAllocations collector;
+    CollectManagedAllocations collector;
     collector(func->body);
-    unmanaged_allocations_ = collector.unmanaged_allocations;
-
-    for (const Var& param : func->params) {
-      if (param->type_annotation.defined() && param->type_annotation.as<PointerTypeNode>()) {
-        unmanaged_allocations_.insert(param.get());
-      }
-    }
+    managed_allocations_ = collector.managed_allocations;
 
     for (const auto& kv : func->buffer_map) {
       const Buffer& buffer = kv.second;
@@ -131,7 +125,7 @@ class BufferAllocationLocator : public StmtExprMutator {
         if (arg_buffer_vars.count(buffer->data.get())) {
           continue;
         }
-        if (!unmanaged_allocations_.count(buffer->data.get())) {
+        if (managed_allocations_.count(buffer->data.get())) {
           alloc_buffers_[stmt].push_back(buffer);
         }
         buffer_data_to_buffer_.Set(buffer->data, buffer);
@@ -152,7 +146,7 @@ class BufferAllocationLocator : public StmtExprMutator {
 
     Array<Buffer> new_block_alloc_bufs;
     for (const Buffer& buf : it->second) {
-      if (!unmanaged_allocations_.count(buf->data.get())) {
+      if (managed_allocations_.count(buf->data.get())) {
         buffer_data_to_buffer_.erase(buf->data);
         new_block_alloc_bufs.push_back(buf);
       }
@@ -243,8 +237,8 @@ class BufferAllocationLocator : public StmtExprMutator {
   std::unordered_map<const StmtNode*, Array<Buffer>> alloc_buffers_;
   /*! \brief The buffer already allocated during recursive visiting. */
   Map<Var, Buffer> buffer_data_to_buffer_;
-  /*! \brief Buffers that are allocated outside of the BlockNode, and should not be moved. */
-  std::unordered_set<const VarNode*> unmanaged_allocations_;
+  /*! \brief Buffers that are allocated within a BlockNode, and may be moved. */
+  std::unordered_set<const VarNode*> managed_allocations_;
 };
 
 PrimFunc PlanAndUpdateBufferAllocationLocation(PrimFunc func) {

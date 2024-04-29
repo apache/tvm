@@ -67,7 +67,9 @@ TVM_DLL Optional<Map<DFPattern, Var>> MatchGraph(const PatternContext& ctx,
  * \param f The function to rewrite
  * \return The rewritten or the input function, depending on the pattern matching result.
  */
-TVM_DLL Function RewriteBindings(const PatternContext& ctx, PackedFunc rewriter, Function f);
+TVM_DLL Function RewriteBindings(
+    const PatternContext& ctx,
+    TypedPackedFunc<Map<Var, Expr>(Map<DFPattern, Var>, Map<Var, Expr>)> rewriter, Function f);
 
 /**
  * \brief Rewrite a function with the given pattern and the rewriter function.

@@ -482,9 +482,9 @@ Stmt InsertCacheStage(const Stmt& stmt, int pos, const Stmt& stage) {
     seq.insert(seq.begin() + pos, stage);
     body = SeqStmt(seq);
   } else if (pos == 0) {
-    body = SeqStmt({stage, stmt});
+    body = SeqStmt({stage, body});
   } else if (pos == 1) {
-    body = SeqStmt({stmt, stage});
+    body = SeqStmt({body, stage});
   } else {
     LOG(FATAL) << "Cannot insert at position " << pos
                << ".  When inserting adjacent to non-SeqStmt, "
@@ -957,9 +957,10 @@ class CacheReadRewriter : public StmtExprMutator {
       // Otherwise, update read regions and match_buffers
       // Only make this change if the block is one of the specified consumers.
       if (is_consumer) {
-        Array<BufferRegion> reads = update_access_regions(block->reads);
-        Array<MatchBufferRegion> match_buffers = update_match_buffers(block->match_buffers);
-        if (!reads.same_as(block->reads) || !match_buffers.same_as(block->match_buffers)) {
+        // Use the updated block stmt
+        Array<BufferRegion> reads = update_access_regions(stmt->reads);
+        Array<MatchBufferRegion> match_buffers = update_match_buffers(stmt->match_buffers);
+        if (!reads.same_as(stmt->reads) || !match_buffers.same_as(stmt->match_buffers)) {
           ObjectPtr<BlockNode> n = make_object<BlockNode>(*stmt.as<BlockNode>());
           n->reads = std::move(reads);
           n->match_buffers = std::move(match_buffers);

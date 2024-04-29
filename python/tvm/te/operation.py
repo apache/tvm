@@ -333,15 +333,15 @@ def extern(
             )
         types.add(t.dtype)
 
-    if dtype is None:
-        if len(types) != 1:
-            raise ValueError("Cannot infer output type, please provide dtype argument")
-        infered_type = types.pop()
-        dtype = [infered_type for _ in shape]
-    if isinstance(dtype, str):
-        dtype = [dtype]
-
     if out_buffers is None:
+        if dtype is None:
+            if len(types) != 1:
+                raise ValueError("Cannot infer output type, please provide dtype argument")
+            infered_type = types.pop()
+            dtype = [infered_type for _ in shape]
+        if isinstance(dtype, str):
+            dtype = [dtype]
+
         for shp, dt in zip(shape, dtype):
             output_placeholders.append(
                 tvm.tir.decl_buffer(shp, dt, name, elem_offset=tvm.tir.Var("elem_offset", "int32"))

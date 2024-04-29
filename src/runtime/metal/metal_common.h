@@ -38,6 +38,7 @@
 #include <memory>
 #include <mutex>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "../workspace_pool.h"
@@ -106,25 +107,35 @@ class AutoReleasePoolWrapper {
  */
 class Stream {
  public:
-  explicit Stream(id<MTLDevice> device) : error_happened_(false) {
-    queue_ = [device newCommandQueue];
-  }
+  explicit Stream(id<MTLDevice> device) { queue_ = [device newCommandQueue]; }
   ~Stream() { [queue_ release]; }
-  id<MTLCommandBuffer> GetCommandBuffer() {
+  id<MTLCommandBuffer> GetCommandBuffer(bool attach_error_callback = true) {
     id<MTLCommandBuffer> cb = [queue_ commandBuffer];
     [cb addCompletedHandler:^(id<MTLCommandBuffer> buffer) {
-      if (buffer.status == MTLCommandBufferStatusError) SetErrorStatus();
+      if (buffer.status == MTLCommandBufferStatusError) {
+        ICHECK(buffer.error != nil);
+        this->SetError(buffer.error.localizedDescription.UTF8String);
+      }
     }];
     return cb;
   }
-  bool HasErrorHappened() { return error_happened_; }
+
+  void SetError(std::string error_description) {
+    error_happened_ = true;
+    error_description_ = std::move(error_description);
+  }
+
+  bool HasErrorHappened() const { return error_happened_; }
+
+  const std::string& ErrorDescription() const { return error_description_; }
 
  private:
-  void SetErrorStatus() { error_happened_ = true; }
   // Queue
   id<MTLCommandQueue> queue_;
   // Check if error happened in one previous run
-  bool error_happened_;
+  bool error_happened_{false};
+  // error description
+  std::string error_description_;
 };
 
 /*!
@@ -136,10 +147,7 @@ class MetalWorkspace final : public DeviceAPI {
   std::vector<id<MTLDevice>> devices;
   // Warp size constant
   std::vector<int> warp_size;
-  // Whether it is initialized.
-  bool initialized_{false};
-  // the mutex for initialization
-  std::mutex mutex;
+  MetalWorkspace();
   // Destructor
   ~MetalWorkspace();
   // Get device for given device
@@ -149,9 +157,6 @@ class MetalWorkspace final : public DeviceAPI {
         << "Invalid Metal device_id=" << dev.device_id;
     return devices[dev.device_id];
   }
-  // Initialize workspace
-  // Return false if already initialized, otherwise return true.
-  void Init();
   // override device API
   void SetDevice(Device dev) final;
   void GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) final;
@@ -161,9 +166,19 @@ class MetalWorkspace final : public DeviceAPI {
   void FreeStream(Device dev, TVMStreamHandle stream) final;
   void StreamSync(Device dev, TVMStreamHandle stream) final;
   void SetStream(Device dev, TVMStreamHandle stream) final;
+  TVMStreamHandle GetCurrentStream(Device dev) final;
   void* AllocWorkspace(Device dev, size_t size, DLDataType type_hint) final;
   void FreeWorkspace(Device dev, void* data) final;
-  void ReinitializeStreams();
+  void ReinitializeDefaultStreams();
+
+  /**
+   * Cast stream to the right metal stream data structure
+   * if stream is nullptr , return the default stream of device_id
+   * \param stream the input stream handle
+   * \param device_id The device id of interest
+   * \returns The stream used in this function.
+   */
+  Stream* CastStreamOrGetDefault(TVMStreamHandle stream, int device_id);
 
   // get the global workspace
   static MetalWorkspace* Global();
@@ -184,7 +199,7 @@ class MetalThreadEntry {
   /*! \brief The current device */
   Device device;
   /*! \brief The current stream */
-  std::vector<Stream*> stream;
+  std::vector<TVMStreamHandle> stream;
   /*! \brief The shared buffer used for copy. */
   std::vector<id<MTLBuffer>> temp_buffer_;
   /*! \brief workspace pool */
@@ -193,6 +208,10 @@ class MetalThreadEntry {
   MetalThreadEntry() : pool(static_cast<DLDeviceType>(kDLMetal), MetalWorkspace::Global()) {
     device.device_id = 0;
     device.device_type = static_cast<DLDeviceType>(kDLMetal);
+    MetalWorkspace* global_ws = MetalWorkspace::Global();
+    // by default, set the stream to nullptr, which indicate
+    // that we are using default stream
+    this->stream.resize(global_ws->devices.size(), nullptr);
   }
   ~MetalThreadEntry();
   // Get temp buffer with at least size under dev.

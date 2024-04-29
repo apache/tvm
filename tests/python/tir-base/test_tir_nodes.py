@@ -353,7 +353,7 @@ def test_prim_func():
     assert len(func.buffer_map) == 1
     f2 = func.with_attr({"calling_conv": 1, "tir.noalias": True})
     assert f2.attrs["calling_conv"].value == 1
-    assert func.attrs is None
+    assert not func.attrs
 
 
 def test_vars():
@@ -409,6 +409,83 @@ def test_intimm_cond():
     assert x < 10 and y < 10
     assert not tvm.runtime.convert(x != 1)
     assert x == 1
+
+
+def _create_ramp(lanes):
+    return tvm.tir.Ramp(0, 1, lanes)
+
+
+def _create_broadcast(lanes):
+    return tvm.tir.Broadcast(0, lanes)
+
+
+@pytest.mark.parametrize("lanes", [(tvm.tir.IntImm(dtype="int64", value=11))])
+@pytest.mark.parametrize("node_func", [_create_ramp, _create_broadcast])
+def test_lane_types(lanes, node_func):
+    def _check_dtype(node):
+        assert node.lanes.dtype == "int32"
+        assert node.lanes == 11
+
+    _check_dtype(node_func(lanes))
+
+
+@pytest.mark.parametrize("lanes", [(11 * tvm.tir.vscale()), (tvm.tir.vscale() * 11)])
+@pytest.mark.parametrize("node_func", [_create_ramp, _create_broadcast])
+def test_scalable_vec(lanes, node_func):
+    def _check_dtype(node):
+        assert node.lanes.a.equal(tvm.tir.vscale())
+        assert node.lanes.b == 11
+
+    _check_dtype(node_func(lanes))
+
+
+@pytest.mark.parametrize(
+    "lanes", [(tvm.tir.vscale()), (tvm.tir.vscale() + 3), (tvm.tir.vscale() * 2 + 5)]
+)
+@pytest.mark.parametrize("node_func", [_create_ramp, _create_broadcast])
+def test_scalable_vec_error(lanes, node_func):
+
+    with pytest.raises(tvm.error.TVMError):
+        node_func(lanes)
+
+
+def test_broadcast_to_scalable_vec():
+    vec = tvm.tir.expr.Ramp(0, 1, 4 * tvm.tir.vscale()) + 3
+    broadcast = vec.b
+
+    assert isinstance(broadcast, tvm.tir.expr.Broadcast)
+    assert broadcast.value == 3
+    assert broadcast.lanes.a.equal(tvm.tir.vscale())
+    assert broadcast.lanes.b == 4
+
+
+def test_buffer_load_scalable_vec():
+    buf = tvm.tir.decl_buffer((24,), "float32")
+    index = tvm.tir.expr.Ramp(1, 1, 8 * tvm.tir.vscale())
+    load = tvm.tir.BufferLoad(buf, [index])
+
+    assert isinstance(load, tvm.tir.BufferLoad)
+    assert load.dtype == "float32xvscalex8"
+
+
+def test_buffer_store_scalable_vec():
+    b = tvm.tir.decl_buffer((24,), "int32")
+    value = tvm.tir.expr.Broadcast(1, 4 * tvm.tir.vscale())
+    index = tvm.tir.expr.Ramp(0, 1, 4 * tvm.tir.vscale())
+    store = tvm.tir.BufferStore(b, value, [index])
+
+    assert isinstance(store, tvm.tir.BufferStore)
+    assert store.value.dtype == "int32xvscalex4"
+
+
+def test_scalable_vec_cast():
+    b = tvm.tir.decl_buffer((24,), "float32")
+    value = tvm.tir.expr.Broadcast(1, 12 * tvm.tir.vscale()).astype("float32xvscalex12")
+    index = tvm.tir.expr.Ramp(0, 1, 12 * tvm.tir.vscale())
+
+    store = tvm.tir.BufferStore(b, value, [index])
+
+    assert isinstance(store.value.value, tvm.tir.expr.FloatImm)
 
 
 if __name__ == "__main__":

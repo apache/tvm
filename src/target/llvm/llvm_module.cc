@@ -30,7 +30,10 @@
 #include <llvm/ADT/StringRef.h>
 #include <llvm/Bitcode/BitcodeWriter.h>
 #include <llvm/ExecutionEngine/ExecutionEngine.h>
-#include <llvm/ExecutionEngine/MCJIT.h>  // Force linking of MCJIT
+#include <llvm/ExecutionEngine/MCJIT.h>
+#include <llvm/ExecutionEngine/Orc/LLJIT.h>
+#include <llvm/ExecutionEngine/Orc/ObjectLinkingLayer.h>
+#include <llvm/ExecutionEngine/Orc/RTDyldObjectLinkingLayer.h>
 #include <llvm/IR/DataLayout.h>
 #include <llvm/IR/Function.h>
 #include <llvm/IR/Intrinsics.h>
@@ -113,8 +116,11 @@ class LLVMModuleNode final : public runtime::ModuleNode {
 
   bool ImplementsFunction(const String& name, bool query_imports) final;
 
+  void SetJITEngine(const std::string& jit_engine) { jit_engine_ = jit_engine; }
+
  private:
-  void LazyInitJIT();
+  void InitMCJIT();
+  void InitORCJIT();
   bool IsCompatibleWithHost(const llvm::TargetMachine* tm) const;
   void* GetGlobalAddr(const std::string& name, const LLVMTarget& llvm_target) const;
   void* GetFunctionAddr(const std::string& name, const LLVMTarget& llvm_target) const;
@@ -123,8 +129,9 @@ class LLVMModuleNode final : public runtime::ModuleNode {
   std::unique_ptr<LLVMInstance> llvm_instance_;
   // JIT lock
   std::mutex mutex_;
-  // execution engine
-  llvm::ExecutionEngine* ee_{nullptr};
+  // jit execution engines
+  llvm::ExecutionEngine* mcjit_ee_{nullptr};
+  std::unique_ptr<llvm::orc::LLJIT> orcjit_ee_{nullptr};
   // The raw pointer to the module.
   llvm::Module* module_{nullptr};
   // The unique_ptr owning the module. This becomes empty once JIT has been initialized
@@ -132,12 +139,21 @@ class LLVMModuleNode final : public runtime::ModuleNode {
   std::unique_ptr<llvm::Module> module_owning_ptr_;
   /* \brief names of the external functions declared in this module */
   Array<String> function_names_;
+  std::string jit_engine_;
 };
 
 LLVMModuleNode::~LLVMModuleNode() {
-  if (ee_ != nullptr) {
-    ee_->runStaticConstructorsDestructors(true);
-    delete ee_;
+  if (mcjit_ee_ != nullptr) {
+    mcjit_ee_->runStaticConstructorsDestructors(true);
+    delete mcjit_ee_;
+  }
+  if (orcjit_ee_ != nullptr) {
+    auto dtors = llvm::orc::getDestructors(*module_);
+    auto dtorRunner = std::make_unique<llvm::orc::CtorDtorRunner>(orcjit_ee_->getMainJITDylib());
+    dtorRunner->add(dtors);
+    auto err = dtorRunner->run();
+    ICHECK(!err) << llvm::toString(std::move(err));
+    orcjit_ee_.reset();
   }
   module_owning_ptr_.reset();
 }
@@ -166,7 +182,9 @@ PackedFunc LLVMModuleNode::GetFunction(const String& name, const ObjectPtr<Objec
     std::string target_string = LLVMTarget::GetTargetMetadata(*module_);
     return PackedFunc([target_string](TVMArgs args, TVMRetValue* rv) { *rv = target_string; });
   }
-  if (ee_ == nullptr) LazyInitJIT();
+  ICHECK(jit_engine_.size()) << "JIT engine type is missing";
+  if ((jit_engine_ == "mcjit") && (mcjit_ee_ == nullptr)) InitMCJIT();
+  if ((jit_engine_ == "orcjit") && (orcjit_ee_ == nullptr)) InitORCJIT();
 
   std::lock_guard<std::mutex> lock(mutex_);
 
@@ -353,6 +371,7 @@ void LLVMModuleNode::Init(const IRModule& mod, const Target& target) {
 
   module_owning_ptr_ = cg->Finish();
   module_ = module_owning_ptr_.get();
+  jit_engine_ = llvm_target->GetJITEngine();
   llvm_target->SetTargetMetadata(module_);
   module_->addModuleFlag(llvm::Module::Override, "Debug Info Version",
                          llvm::DEBUG_METADATA_VERSION);
@@ -363,9 +382,8 @@ void LLVMModuleNode::Init(const IRModule& mod, const Target& target) {
                            llvm::MDString::get(*(llvm_target->GetContext()), str_val));
   }
 
-  if (tm->getTargetTriple().isOSDarwin()) {
-    module_->addModuleFlag(llvm::Module::Override, "Dwarf Version", 2);
-  }
+  module_->addModuleFlag(llvm::Module::Override, "Dwarf Version",
+                         tm->getTargetTriple().isOSDarwin() ? 2 : 4);
 }
 
 void LLVMModuleNode::Init(std::unique_ptr<llvm::Module> module,
@@ -385,13 +403,16 @@ bool LLVMModuleNode::ImplementsFunction(const String& name, bool query_imports) 
   return std::find(function_names_.begin(), function_names_.end(), name) != function_names_.end();
 }
 
-void LLVMModuleNode::LazyInitJIT() {
+void LLVMModuleNode::InitMCJIT() {
   std::lock_guard<std::mutex> lock(mutex_);
-  if (ee_) {
+  if (mcjit_ee_) {
     return;
   }
+  // MCJIT builder
   With<LLVMTarget> llvm_target(*llvm_instance_, LLVMTarget::GetTargetMetadata(*module_));
   llvm::EngineBuilder builder(std::move(module_owning_ptr_));
+
+  // set options
   builder.setEngineKind(llvm::EngineKind::JIT);
 #if TVM_LLVM_VERSION <= 170
   builder.setOptLevel(llvm::CodeGenOpt::Aggressive);
@@ -401,18 +422,31 @@ void LLVMModuleNode::LazyInitJIT() {
   builder.setMCPU(llvm_target->GetCPU());
   builder.setMAttrs(llvm_target->GetTargetFeatures());
   builder.setTargetOptions(llvm_target->GetTargetOptions());
+
+  // create the taget machine
   auto tm = std::unique_ptr<llvm::TargetMachine>(builder.selectTarget());
   if (!IsCompatibleWithHost(tm.get())) {
     LOG(FATAL) << "Cannot run module, architecture mismatch";
   }
+
+  // data layout
   llvm::DataLayout layout(tm->createDataLayout());
   ICHECK(layout == module_->getDataLayout())
       << "Data layout mismatch between module("
       << module_->getDataLayout().getStringRepresentation() << ")"
       << " and ExecutionEngine (" << layout.getStringRepresentation() << ")";
-  ee_ = builder.create(tm.release());
-  ICHECK(ee_ != nullptr) << "Failed to initialize jit engine for " << module_->getTargetTriple();
-  ee_->runStaticConstructorsDestructors(false);
+
+  // create MCJIT
+  mcjit_ee_ = builder.create(tm.release());
+  ICHECK(mcjit_ee_ != nullptr) << "Failed to initialize LLVM MCJIT engine for "
+                               << module_->getTargetTriple();
+
+  VLOG(2) << "LLVM MCJIT execute " << module_->getModuleIdentifier() << " for triple `"
+          << llvm_target->GetTargetTriple() << "`"
+          << " on cpu `" << llvm_target->GetCPU() << "`";
+
+  // run ctors
+  mcjit_ee_->runStaticConstructorsDestructors(false);
 
   if (void** ctx_addr =
           reinterpret_cast<void**>(GetGlobalAddr(runtime::symbol::tvm_module_ctx, *llvm_target))) {
@@ -425,7 +459,104 @@ void LLVMModuleNode::LazyInitJIT() {
   // lead to a runtime crash.
   // Do name lookup on a symbol that doesn't exist. This will force MCJIT to finalize
   // all loaded objects, which will resolve symbols in JITed code.
-  ee_->getFunctionAddress("__some_name_that_hopefully_doesnt_exist__b49f8aaade5877eaba7583b91");
+  mcjit_ee_->getFunctionAddress(
+      "__some_name_that_hopefully_doesnt_exist__b49f8aaade5877eaba7583b91");
+}
+
+void LLVMModuleNode::InitORCJIT() {
+  std::lock_guard<std::mutex> lock(mutex_);
+  if (orcjit_ee_) {
+    return;
+  }
+  // ORCJIT builder
+  With<LLVMTarget> llvm_target(*llvm_instance_, LLVMTarget::GetTargetMetadata(*module_));
+  llvm::orc::JITTargetMachineBuilder tm_builder(llvm::Triple(llvm_target->GetTargetTriple()));
+
+  // set options
+  tm_builder.setCPU(llvm_target->GetCPU());
+  tm_builder.setFeatures(llvm_target->GetTargetFeatureString());
+  tm_builder.setOptions(llvm_target->GetTargetOptions());
+#if TVM_LLVM_VERSION <= 170
+  tm_builder.setCodeGenOptLevel(llvm::CodeGenOpt::Aggressive);
+#else
+  tm_builder.setCodeGenOptLevel(llvm::CodeGenOptLevel::Aggressive);
+#endif
+
+  // create the taget machine
+  std::unique_ptr<llvm::TargetMachine> tm = llvm::cantFail(tm_builder.createTargetMachine());
+  if (!IsCompatibleWithHost(tm.get())) {
+    LOG(FATAL) << "Cannot run module, architecture mismatch";
+  }
+
+  // data layout
+  String module_name = module_->getModuleIdentifier();
+  llvm::DataLayout layout(tm->createDataLayout());
+  ICHECK(layout == module_->getDataLayout())
+      << "Data layout mismatch between module("
+      << module_->getDataLayout().getStringRepresentation() << ")"
+      << " and ExecutionEngine (" << layout.getStringRepresentation() << ")";
+
+  // compiler
+  const auto compilerBuilder = [&](const llvm::orc::JITTargetMachineBuilder&)
+      -> llvm::Expected<std::unique_ptr<llvm::orc::IRCompileLayer::IRCompiler>> {
+    return std::make_unique<llvm::orc::TMOwningSimpleCompiler>(std::move(tm));
+  };
+
+#if TVM_LLVM_VERSION >= 130
+  // linker
+  const auto linkerBuilder = [&](llvm::orc::ExecutionSession& session, const llvm::Triple&) {
+    return std::make_unique<llvm::orc::ObjectLinkingLayer>(session);
+  };
+#endif
+
+  // create LLJIT
+  orcjit_ee_ = llvm::cantFail(llvm::orc::LLJITBuilder()
+#if TVM_LLVM_VERSION >= 110
+                                  .setDataLayout(layout)
+#endif
+                                  .setCompileFunctionCreator(compilerBuilder)
+#if TVM_LLVM_VERSION >= 130
+                                  .setObjectLinkingLayerCreator(linkerBuilder)
+#endif
+                                  .create());
+
+  ICHECK(orcjit_ee_ != nullptr) << "Failed to initialize LLVM ORCJIT engine for "
+                                << module_->getTargetTriple();
+
+  // store ctors
+  auto ctors = llvm::orc::getConstructors(*module_);
+  llvm::orc::CtorDtorRunner ctorRunner(orcjit_ee_->getMainJITDylib());
+  ctorRunner.add(ctors);
+
+  // resolve system symbols (like pthread, dl, m, etc.)
+  auto gen =
+      llvm::orc::DynamicLibrarySearchGenerator::GetForCurrentProcess(layout.getGlobalPrefix());
+  ICHECK(gen) << llvm::toString(gen.takeError()) << "\n";
+  orcjit_ee_->getMainJITDylib().addGenerator(std::move(gen.get()));
+
+  // transfer module to a clone
+  auto uctx = std::make_unique<llvm::LLVMContext>();
+  auto umod = llvm::CloneModule(*(std::move(module_owning_ptr_)));
+
+  // add the llvm module to run
+  llvm::orc::ThreadSafeModule tsm(std::move(umod), std::move(uctx));
+  auto err = orcjit_ee_->addIRModule(std::move(tsm));
+  ICHECK(!err) << llvm::toString(std::move(err));
+
+  VLOG(2) << "LLVM ORCJIT execute " << module_->getModuleIdentifier() << " for triple `"
+          << llvm_target->GetTargetTriple() << "`"
+          << " on cpu `" << llvm_target->GetCPU() << "`";
+
+  // run ctors
+  err = ctorRunner.run();
+  ICHECK(!err) << llvm::toString(std::move(err));
+
+  if (void** ctx_addr =
+          reinterpret_cast<void**>(GetGlobalAddr(runtime::symbol::tvm_module_ctx, *llvm_target))) {
+    *ctx_addr = this;
+  }
+  runtime::InitContextFunctions(
+      [this, &llvm_target](const char* name) { return GetGlobalAddr(name, *llvm_target); });
 }
 
 bool LLVMModuleNode::IsCompatibleWithHost(const llvm::TargetMachine* tm) const {
@@ -443,20 +574,40 @@ bool LLVMModuleNode::IsCompatibleWithHost(const llvm::TargetMachine* tm) const {
 void* LLVMModuleNode::GetGlobalAddr(const std::string& name, const LLVMTarget& llvm_target) const {
   // first verifies if GV exists.
   if (module_->getGlobalVariable(name) != nullptr) {
-    return reinterpret_cast<void*>(ee_->getGlobalValueAddress(name));
-  } else {
-    return nullptr;
+    if (jit_engine_ == "mcjit") {
+      return reinterpret_cast<void*>(mcjit_ee_->getGlobalValueAddress(name));
+    } else if (jit_engine_ == "orcjit") {
+#if TVM_LLVM_VERSION >= 150
+      auto addr = llvm::cantFail(orcjit_ee_->lookup(name)).getValue();
+#else
+      auto addr = llvm::cantFail(orcjit_ee_->lookup(name)).getAddress();
+#endif
+      return reinterpret_cast<void*>(addr);
+    } else {
+      LOG(FATAL) << "Either `mcjit` or `orcjit` are not initialized.";
+    }
   }
+  return nullptr;
 }
 
 void* LLVMModuleNode::GetFunctionAddr(const std::string& name,
                                       const LLVMTarget& llvm_target) const {
   // first verifies if GV exists.
   if (module_->getFunction(name) != nullptr) {
-    return reinterpret_cast<void*>(ee_->getFunctionAddress(name));
-  } else {
-    return nullptr;
+    if (jit_engine_ == "mcjit") {
+      return reinterpret_cast<void*>(mcjit_ee_->getFunctionAddress(name));
+    } else if (jit_engine_ == "orcjit") {
+#if TVM_LLVM_VERSION >= 150
+      auto addr = llvm::cantFail(orcjit_ee_->lookup(name)).getValue();
+#else
+      auto addr = llvm::cantFail(orcjit_ee_->lookup(name)).getAddress();
+#endif
+      return reinterpret_cast<void*>(addr);
+    } else {
+      LOG(FATAL) << "Either `mcjit` or `orcjit` are not initialized.";
+    }
   }
+  return nullptr;
 }
 
 TVM_REGISTER_GLOBAL("target.build.llvm")
@@ -477,6 +628,7 @@ TVM_REGISTER_GLOBAL("codegen.LLVMModuleCreate")
       module->setTargetTriple(llvm_target->GetTargetTriple());
       module->setDataLayout(llvm_target->GetOrCreateTargetMachine()->createDataLayout());
       n->Init(std::move(module), std::move(llvm_instance));
+      n->SetJITEngine(llvm_target->GetJITEngine());
       return runtime::Module(n);
     });
 
@@ -545,12 +697,12 @@ TVM_REGISTER_GLOBAL("target.llvm_get_cpu_archlist")
     });
 
 TVM_REGISTER_GLOBAL("target.llvm_get_cpu_features")
-    .set_body_typed([](const Target& target) -> Array<String> {
+    .set_body_typed([](const Target& target) -> Map<String, String> {
       auto use_target = target.defined() ? target : Target::Current(false);
       // ignore non "llvm" target
       if (target.defined()) {
         if (target->kind->name != "llvm") {
-          return Array<String>{};
+          return {};
         }
       }
       auto llvm_instance = std::make_unique<LLVMInstance>();
@@ -570,8 +722,7 @@ TVM_REGISTER_GLOBAL("target.llvm_cpu_has_feature")
       auto llvm_instance = std::make_unique<LLVMInstance>();
       LLVMTargetInfo llvm_backend(*llvm_instance, use_target);
       auto cpu_features = llvm_backend.GetAllLLVMCpuFeatures();
-      bool has_feature = std::any_of(cpu_features.begin(), cpu_features.end(),
-                                     [&](auto& var) { return var == feature; });
+      bool has_feature = cpu_features.find(feature) != cpu_features.end();
       return has_feature;
     });
 
@@ -596,6 +747,7 @@ TVM_REGISTER_GLOBAL("target.llvm_version_major").set_body_typed([]() -> int {
 TVM_REGISTER_GLOBAL("runtime.module.loadfile_ll")
     .set_body_typed([](std::string filename, std::string fmt) -> runtime::Module {
       auto n = make_object<LLVMModuleNode>();
+      n->SetJITEngine("mcjit");
       n->LoadIR(filename);
       return runtime::Module(n);
     });
@@ -617,6 +769,7 @@ TVM_REGISTER_GLOBAL("codegen.codegen_blob")
       std::unique_ptr<llvm::Module> blob =
           CodeGenBlob(data, system_lib, llvm_target.get(), c_symbol_prefix);
       n->Init(std::move(blob), std::move(llvm_instance));
+      n->SetJITEngine(llvm_target->GetJITEngine());
       return runtime::Module(n);
     });
 
@@ -640,12 +793,13 @@ runtime::Module CreateLLVMCppMetadataModule(runtime::metadata::Metadata metadata
   llvm_target->SetTargetMetadata(mod.get());
   mod->addModuleFlag(llvm::Module::Override, "Debug Info Version", llvm::DEBUG_METADATA_VERSION);
 
-  if (llvm_target->GetOrCreateTargetMachine()->getTargetTriple().isOSDarwin()) {
-    mod->addModuleFlag(llvm::Module::Override, "Dwarf Version", 2);
-  }
+  mod->addModuleFlag(
+      llvm::Module::Override, "Dwarf Version",
+      llvm_target->GetOrCreateTargetMachine()->getTargetTriple().isOSDarwin() ? 2 : 4);
 
   auto n = make_object<LLVMModuleNode>();
   n->Init(std::move(mod), std::move(llvm_instance));
+  n->SetJITEngine(llvm_target->GetJITEngine());
 
   auto meta_mod = MetadataModuleCreate(metadata);
   meta_mod->Import(runtime::Module(n));
@@ -686,12 +840,13 @@ runtime::Module CreateLLVMCrtMetadataModule(const Array<runtime::Module>& module
   llvm_target->SetTargetMetadata(mod.get());
   mod->addModuleFlag(llvm::Module::Override, "Debug Info Version", llvm::DEBUG_METADATA_VERSION);
 
-  if (llvm_target->GetOrCreateTargetMachine()->getTargetTriple().isOSDarwin()) {
-    mod->addModuleFlag(llvm::Module::Override, "Dwarf Version", 2);
-  }
+  mod->addModuleFlag(
+      llvm::Module::Override, "Dwarf Version",
+      llvm_target->GetOrCreateTargetMachine()->getTargetTriple().isOSDarwin() ? 2 : 4);
 
   auto n = make_object<LLVMModuleNode>();
   n->Init(std::move(mod), std::move(llvm_instance));
+  n->SetJITEngine(llvm_target->GetJITEngine());
   for (auto m : modules) {
     n->Import(m);
   }

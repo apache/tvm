@@ -23,7 +23,9 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, TypeVar
 
 import numpy as np
 
+from tvm import te
 from tvm import tir as _tir
+from tvm.script import tir as T
 
 from ... import expr as rx
 from ... import op as _op
@@ -369,6 +371,7 @@ def conv2d(
     padding: Optional[Union[int, Tuple, str]] = 0,
     dilation: Optional[Union[int, Tuple]] = 1,
     groups: Optional[int] = 1,
+    data_layout: Optional[str] = "NCHW",
     name: str = "conv2d",
 ) -> Tensor:
     """Applies a 2D convolution over an input image composed of sevaral input planes
@@ -397,6 +400,9 @@ def conv2d(
     groups : Optional[int]
         Split input into a number of groups.
 
+    data_layout : Optional[str]
+        Layout of input and output data.
+
     name : str
         Name hint.
 
@@ -411,10 +417,84 @@ def conv2d(
         strides=stride,
         padding=padding,
         dilation=dilation,
+        data_layout=data_layout,
         groups=groups,
     )
     if bias is not None:
-        conv_out = _op.add(conv_out, _op.reshape(bias._expr, [1, -1, 1, 1]))
+        if data_layout == "NCHW":
+            conv_out = _op.add(conv_out, _op.reshape(bias._expr, [1, -1, 1, 1]))
+        elif data_layout == "NHWC":
+            conv_out = _op.add(conv_out, _op.reshape(bias._expr, [1, 1, 1, -1]))
+        else:
+            raise NotImplementedError(f"Dont know how to handle layout {data_layout}.")
+
+    return wrap_nested(conv_out, name)
+
+
+def conv3d(
+    x: Tensor,
+    weight: Tensor,
+    bias: Optional[Tensor] = None,
+    stride: Optional[Union[int, Tuple]] = 1,
+    padding: Optional[Union[int, Tuple, str]] = 0,
+    dilation: Optional[Union[int, Tuple]] = 1,
+    groups: Optional[int] = 1,
+    data_layout: Optional[str] = "NCDHW",
+    name: str = "conv3d",
+) -> Tensor:
+    """Applies a 3D convolution over an input image composed of sevaral input planes
+
+    Parameters
+    ----------
+    x : Tensor
+        Input tensor of shape [B, N, D, H, W]
+
+    weight : Tensor
+        Filters of shape [O, N/groups, kD, kH, kW]
+
+    bias : Optional[Tensor]
+        Optional bias tensor of shape [O].
+
+    stride : Optional[Union[int, Tuple]]
+        The stride of the convolving kernel. Can be a single number
+        or tuple of (sD, sH, sW).
+
+    padding : Optional[[Union[int, Tuple]]]
+        Implicit paddings on both sides of the input.
+
+    dilation : Optional[Union[int, Tuple]]
+        The spacing between kernel elements. Can be a single number of tuple (dD, dH, dW).
+
+    groups : Optional[int]
+        Split input into a number of groups.
+
+    data_layout : Optional[str]
+        Optional layout of the input and output data.
+
+    name : str
+        Name hint.
+
+    Returns
+    -------
+    result : Tensor
+        The computed result with shape [B, O, oD, oH, oW].
+    """
+    conv_out = _op.nn.conv3d(
+        data=x._expr,
+        weight=weight._expr,
+        strides=stride,
+        padding=padding,
+        dilation=dilation,
+        groups=groups,
+        data_layout=data_layout,
+    )
+    if bias is not None:
+        if data_layout == "NCDHW":
+            conv_out = _op.add(conv_out, _op.reshape(bias._expr, [1, -1, 1, 1, 1]))
+        elif data_layout == "NDHWC":
+            conv_out = _op.add(conv_out, _op.reshape(bias._expr, [1, 1, 1, 1, -1]))
+        else:
+            raise NotImplementedError(f"Dont know how to handle layout {data_layout}.")
 
     return wrap_nested(conv_out, name)
 
@@ -843,6 +923,31 @@ def gelu(x: Tensor, approximate: Optional[str] = None, name: str = "gelu") -> Te
     return wrap_nested(gelu_out, name)
 
 
+def sigmoid(x: Tensor, name: str = "sigmoid") -> Tensor:
+    r"""Computes sigmoid.
+
+    .. math:: \text{sigmoid}(x) = \frac{1}{1 + \exp(-x)}
+
+    Parameters
+    ----------
+    data: Tensor
+        The input data to the operator.
+
+    name : str
+        Name hint.
+
+    Returns
+    -------
+    result : Tensor
+        The computed result.
+
+    Note
+    ----
+    The input tensor is required to have float dtype
+    """
+    return wrap_nested(_op.sigmoid(x._expr), name)
+
+
 def softmax(x: Tensor, axis: int = -1, name: str = "softmax") -> Tensor:
     r"""Computes softmax.
 
@@ -871,6 +976,100 @@ def softmax(x: Tensor, axis: int = -1, name: str = "softmax") -> Tensor:
     The input tensor is required to have float dtype
     """
     return wrap_nested(_op.nn.softmax(x._expr, axis), name)
+
+
+def tanh(x: Tensor, name: str = "tanh") -> Tensor:
+    r"""Applies the hyperbolic tangent function.
+
+    .. math::
+        \text{Tanh}(x) = \frac{e^x - e^{-x}}{e^x + e^{-x}}
+
+    Parameters
+    ----------
+    x : Tensor
+        The input data to the operator.
+
+    name : str
+        Name hint.
+
+    Returns
+    -------
+    result : Tensor
+        The computed result.
+
+    Note
+    ----
+    The input tensor is required to have float dtype
+    """
+    return wrap_nested(_op.tanh(x._expr), name)
+
+
+def exp(x: Tensor, name: str = "exp") -> Tensor:
+    r"""Applies the exponential function.
+
+    .. math::
+        \text{Exp}(x) = e^x
+
+    Parameters
+    ----------
+    x : Tensor
+        The input data to the operator.
+
+    name : str
+        Name hint.
+
+    Returns
+    -------
+    result : Tensor
+        The computed result.
+
+    Note
+    ----
+    The input tensor is required to have float dtype
+    """
+    return wrap_nested(_op.exp(x._expr), name)
+
+
+def permute(x: Tensor, axes: Optional[List[int]], name: str = "permute") -> Tensor:
+    """Permutes the dimensions of the input tensor.
+
+    Parameters
+    ----------
+    x : Tensor
+        The input data to the operator.
+
+    axes : Optional[List[int]]
+        The target axes order.
+
+    name : str
+        Name hint.
+
+    Returns
+    -------
+    result : Tensor
+        The transposed result.
+    """
+
+    return wrap_nested(_op.permute_dims(x._expr, axes=axes), name)
+
+
+def negative(x: Tensor, name: str = "neg") -> Tensor:
+    """Numerical negative of the input tensor.
+
+    Parameters
+    ----------
+    x : Tensor
+        The input data to the operator.
+
+    name : str
+        Name hint.
+
+    Returns
+    -------
+    result : Tensor
+        The computed result.
+    """
+    return wrap_nested(_op.negative(x._expr), name)
 
 
 def layer_norm(
@@ -1268,6 +1467,25 @@ def pad(
     return wrap_nested(_op.nn.pad(x._expr, pad_width=pad, pad_value=value, pad_mode=mode), name)
 
 
+def square(x: Tensor, name: str = "square") -> Tensor:
+    """Computes the element-wise square of the input tensor.
+
+    Parameters
+    ----------
+    x : Tensor
+        The input tensor.
+
+    name : str
+        Name hint.
+
+    Returns
+    -------
+    result : Tensor
+        The computed result.
+    """
+    return wrap_nested(_op.square(x._expr), name)
+
+
 def get_timestep_embedding(
     x: Tensor,
     embedding_dim: int,
@@ -1381,6 +1599,7 @@ def interpolate(
     align_corners: Optional[bool] = None,
     recompute_scale_factor: Optional[bool] = None,
     antialias: Optional[bool] = None,
+    data_layout: Optional[str] = "NCHW",
     name: str = "interpolate",
 ):
     """Resize a tensor using the specified mode.
@@ -1402,6 +1621,8 @@ def interpolate(
         Recompute the scale_factor for use in interpolation.
     antialias : Optional[bool]
         Apply antialiasing to output.
+    data_layout : Optional[str]
+        Layout of the input and output data.
     name : str
         Name hint for this operation.
 
@@ -1414,11 +1635,14 @@ def interpolate(
     assert antialias is None, "antialias is not supported."
 
     if size is None:
-        shape = x.shape
-        if isinstance(scale_factor, (list, tuple)):
-            size = tuple(int(shape[i] * scale_factor[i]) for i in range(2, len(shape)))
-        else:
-            size = tuple(int(shape[i] * scale_factor) for i in range(2, len(shape)))
+        size = []
+        for i, dim in enumerate(data_layout):
+            # Only upscale spatial dimensions.
+            if dim not in ["N", "C"]:
+                if isinstance(scale_factor, (list, tuple)):
+                    size.append(int(x.shape[i] * scale_factor[len(size)]))
+                else:
+                    size.append(int(x.shape[i] * scale_factor))
 
     if mode.startswith("nearest"):
         mode = "nearest_neighbor"
@@ -1434,7 +1658,11 @@ def interpolate(
 
     return wrap_nested(
         _op.image.resize2d(
-            x._expr, size, layout="NCHW", method=mode, coordinate_transformation_mode=coord_trans
+            x._expr,
+            size,
+            layout=data_layout,
+            method=mode,
+            coordinate_transformation_mode=coord_trans,
         ),
         name,
     )
@@ -1579,8 +1807,80 @@ def tensor_ir_op(
     bb = BlockBuilder.current()
     global_var = bb.add_func(func, name_hint)
 
+    if len(tir_vars) == 0:
+        tir_vars = None
+
     return wrap_nested(
         bb.emit(rx.call_tir(global_var, call_tir_args, out_sinfo, tir_vars=tir_vars)),
+        name=name_hint,
+    )
+
+
+def tensor_ir_inplace_op(
+    func: _tir.PrimFunc,
+    name_hint: str,
+    args: Union[Tensor, Sequence[Union[Tensor, rx.ShapeExpr, _tir.PrimExpr]]],
+    inplace_indices: Union[int, List[int]],
+    out: OutType,
+) -> OutType:
+    """Create a `call_tir_inplace` binding with given PrimFunc
+
+    Parameters
+    ----------
+    func : _tir.PrimFunc
+        The PrimFunc to call.
+
+    name_hint : str
+        Name hint.
+
+    args : Union[Tensor, Sequence[Union[Tensor, rx.ShapeExpr, _tir.PrimExpr]]]
+        The arguments to pass to the PrimFunc.
+
+    inplace_indices : Union[int, List[int]]
+        Specify which arguments should be used for in-place computations.
+        If `inplace_indices` is a single integer, it will be made into a singleton list.
+        Suppose `inplace_indices[i] = j`, where `j >= 0`. Then the `i`th output
+        will be an alias of `args[j]`.
+        If `inplace_indices[i] = -1`, then the `i`th output will be a freshly allocated tensor.
+        At least one member of `inplace_indices` must not be -1.
+
+    out : Union[Tensor, List[Tensor]]
+        The output tensors.
+
+    Returns
+    -------
+    result : Tensor
+        The result tensor
+    """
+    from tvm import relax as rx  # pylint: disable=import-outside-toplevel
+
+    call_tir_args, tir_vars = [], []
+    if not isinstance(args, (tuple, list)):
+        args = [args]
+
+    for arg in args:
+        if isinstance(arg, Tensor):
+            call_tir_args.append(arg._expr)
+        elif isinstance(arg, (rx.ShapeExpr, _tir.PrimExpr)):
+            tir_vars.append(arg)
+        else:
+            raise TypeError(
+                "Unsupported type: tensor_ir_inplace_op args expect Tensor or ShapeExpr or"
+                f" PrimExpr, but got {type(arg)}"
+            )
+
+    if isinstance(out, Tensor):
+        out_sinfo = [out._expr.struct_info]
+    else:
+        out_sinfo = [x._expr.struct_info for x in out]
+
+    bb = BlockBuilder.current()
+    global_var = bb.add_func(func, name_hint)
+
+    return wrap_nested(
+        bb.emit(
+            rx.call_tir_inplace(global_var, call_tir_args, inplace_indices, out_sinfo, tir_vars)
+        ),
         name=name_hint,
     )
 
@@ -1709,3 +2009,686 @@ def print_(tensor: Tensor):
     filename, line_number = inspect.getframeinfo(inspect.currentframe().f_back)[:2]
     line_info = f"{filename}:{line_number}"
     debug_func("vm.builtin.debug_print", tensor, _line_info=line_info)
+
+
+def less(a: Tensor, b: Tensor, name: str = "less") -> Tensor:
+    """Broadcasted element-wise comparison for (lhs < rhs).
+
+    Parameters
+    ----------
+    a : Tensor
+        The first input tensor.
+
+    b : Tensor
+        The second input tensor.
+
+    name : str
+        Name hint.
+
+    Returns
+    -------
+    result : Tensor
+        The computed result.
+    """
+    return wrap_nested(_op.less(a._expr, b._expr), name)
+
+
+def less_equal(a: Tensor, b: Tensor, name: str = "less_equal") -> Tensor:
+    """Broadcasted element-wise comparison for (lhs <= rhs).
+
+    Parameters
+    ----------
+    a : Tensor
+        The first input tensor.
+
+    b : Tensor
+        The second input tensor.
+
+    name : str
+        Name hint.
+
+    Returns
+    -------
+    result : Tensor
+        The computed result.
+    """
+    return wrap_nested(_op.less_equal(a._expr, b._expr), name)
+
+
+def greater(a: Tensor, b: Tensor, name: str = "greater") -> Tensor:
+    """Broadcasted element-wise comparison for (lhs > rhs).
+
+    Parameters
+    ----------
+    a : Tensor
+        The first input tensor.
+
+    b : Tensor
+        The second input tensor.
+
+    name : str
+        Name hint.
+
+    Returns
+    -------
+    result : Tensor
+        The computed result.
+    """
+    return wrap_nested(_op.greater(a._expr, b._expr), name)
+
+
+def greater_equal(a: Tensor, b: Tensor, name: str = "greater_equal") -> Tensor:
+    """Broadcasted element-wise comparison for (lhs >= rhs).
+
+    Parameters
+    ----------
+    a : Tensor
+        The first input tensor.
+
+    b : Tensor
+        The second input tensor.
+
+    name : str
+        Name hint.
+
+    Returns
+    -------
+    result : Tensor
+        The computed result.
+    """
+    return wrap_nested(_op.greater_equal(a._expr, b._expr), name)
+
+
+def equal(a: Tensor, b: Tensor, name: str = "equal") -> Tensor:
+    """Broadcasted element-wise comparison for (lhs == rhs).
+
+    Parameters
+    ----------
+    a : Tensor
+        The first input tensor.
+
+    b : Tensor
+        The second input tensor.
+
+    name : str
+        Name hint.
+
+    Returns
+    -------
+    result : Tensor
+        The computed result.
+    """
+    return wrap_nested(_op.equal(a._expr, b._expr), name)
+
+
+def not_equal(a: Tensor, b: Tensor, name: str = "not_equal") -> Tensor:
+    """Broadcasted element-wise comparison for (lhs != rhs).
+
+    Parameters
+    ----------
+    a : Tensor
+        The first input tensor.
+
+    b : Tensor
+        The second input tensor.
+
+    name : str
+        Name hint.
+
+    Returns
+    -------
+    result : Tensor
+        The computed result.
+    """
+    return wrap_nested(_op.not_equal(a._expr, b._expr), name)
+
+
+def where(condition: Tensor, x1: Tensor, x2: Tensor, name: str = "where") -> Tensor:
+    """Selecting elements from either the input tensors depending on the value of the
+    condition.
+
+    For a given position, return the corresponding value in `x1` if `condition` is True,
+    and return the corresponding value in `x2` otherwise.
+
+    Parameters
+    ----------
+    condition : Tensor
+        When True, yield `x1`; otherwise, yield `x2`.
+        Must be broadcasting compatible with `x1` and `x2`.
+        Must have boolean dtype.
+
+    x1 : Tensor
+        The first input tensor.
+        Must be broadcasting compatible with `condition` and `x2`.
+
+    x2 : Tensor
+        The second input tensor.
+        Must be broadcasting compatible with `condition` and `x1`.
+
+    name : str
+        Name hint.
+
+    Returns
+    -------
+    result : Tensor
+        The result tensor.
+    """
+    # Cast condition to boolean.
+    condition = astype(condition, "bool")
+    return wrap_nested(_op.where(condition._expr, x1._expr, x2._expr), name)
+
+
+def cumsum(
+    data: Tensor,
+    axis: Optional[int] = None,
+    dtype: Optional[str] = None,
+    exclusive: Optional[bool] = None,
+    name: str = "cumsum",
+) -> Tensor:
+    """Numpy style cumsum op. Return the cumulative inclusive sum of the elements along
+    a given axis.
+
+    Parameters
+    ----------
+    data : Tensor
+        The input data to the operator.
+
+    axis : Optional[int]
+        Axis along which the cumulative sum is computed. The default (None) is to compute
+        the cumsum over the flattened array.
+
+    dtype : Optional[str]
+        Type of the returned array and of the accumulator in which the elements are summed.
+        If dtype is not specified, it defaults to the dtype of data.
+
+    exclusive : Optional[bool]
+        If true will return exclusive sum in which the first element is not
+        included.
+
+    name : str
+        Name hint.
+
+    Returns
+    -------
+    result : Tensor
+        The result has the same size as data, and the same shape as data if axis is not None.
+        If axis is None, the result is a 1-d array.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        a = [[1, 2, 3], [4, 5, 6]]
+
+        cumsum(a)  # if axis is not provided, cumsum is done over the flattened input.
+        -> [ 1,  3,  6, 10, 15, 21]
+
+        cumsum(a, dtype="float32")
+        -> [  1.,   3.,   6.,  10.,  15.,  21.]
+
+        cumsum(a, axis=0)  # sum over rows for each of the 3 columns
+        -> [[1, 2, 3],
+            [5, 7, 9]]
+
+        cumsum(a, axis=1)
+        -> [[ 1,  3,  6],
+            [ 4,  9, 15]]
+
+        a = [1, 0, 1, 0, 1, 1, 0]  # a is a boolean array
+        cumsum(a, dtype=int32)  # dtype should be provided to get the expected results
+        -> [1, 1, 2, 2, 3, 4, 4]
+    """
+    return wrap_nested(_op.cumsum(data._expr, axis, dtype, exclusive), name)
+
+
+def sort(x: Tensor, axis: int = -1, descending: bool = False, name="sort"):
+    """Performs sorting along the given axis and returns an array
+    in sorted order.
+
+    Parameters
+    ----------
+    x : Tensor
+        The input tensor.
+
+    axis : int
+        Axis along which to sort the input tensor.
+        By default the last axis of the input is used.
+
+    descending : bool
+        Whether to sort in descending order, the default is False
+
+    name : str
+        Name hint.
+
+    Returns
+    -------
+    out : Tensor
+        The sorted tensor.
+    """
+    return wrap_nested(_op.sort(x._expr, axis, descending), name=name)
+
+
+def argsort(
+    data: Tensor, axis: int = -1, descending: bool = False, dtype: str = "int32", name="argsort"
+):
+    """Performs sorting along the given axis and returns an array of indices
+    having same shape as an input array that index data in sorted order.
+
+    Parameters
+    ----------
+    data : Tensor
+        The input data tensor.
+
+    axis : int
+        Axis long which to sort the input tensor.
+
+    descending : bool
+        Whether to sort in descending order, the default is False
+
+    dtype : str
+        The data type of the output indices.
+
+    name : str
+        Name hint.
+
+    Returns
+    -------
+    out : Tensor
+        The indices of the sorted tensor.
+    """
+    return wrap_nested(_op.argsort(data._expr, axis, descending, dtype), name=name)
+
+
+def topk(
+    data: Tensor,
+    k: int = 1,
+    axis: int = -1,
+    ret_type: str = "both",
+    largest: bool = True,
+    dtype: str = "int32",
+    name: str = "topk",
+):
+    """Get the top k elements in an input tensor along the given axis.
+
+    ret_type specifies the return type, can be one of ("both", "values", "indices").
+
+    Parameters
+    ----------
+    data : Tensor
+        The input data tensor.
+
+    k : int
+        Number of top elements to select. Return all elements if k < 1.
+
+    axis : int
+        Axis long which to sort the input tensor.
+
+    ret_type: str
+        The return type [both, values, indices].
+        "both": return both top k data and indices.
+        "values": return top k data only.
+        "indices": return top k indices only.
+
+    largest : bool
+        Whether to return largest or smallest elements.
+        The k smallest elements are returned if largest is False.
+
+    dtype : str
+        The data type of the indices output.
+
+    name : str
+        Name hint.
+
+    Returns
+    -------
+    out : Tensor or Tuple[Tensor, Tensor]
+        The computed result.
+    """
+    return wrap_nested(_op.topk(data._expr, k, axis, ret_type, largest, dtype), name=name)
+
+
+def multinomial_from_uniform(
+    prob: Tensor,
+    uniform_sample: Tensor,
+    sample_indices: Optional[Tensor] = None,
+    dtype: str = "int64",
+):
+    """Returns a tensor where each row contains the index sampled from the multinomial
+    probability distribution located in the corresponding row of tensor prob.
+
+    Notes
+    -----
+    For better cpu performance, use 'vm.builtin.multinomial_from_uniform'.
+    For accurate results, ensure probabilities are between 0 and 1 and sum to 1.
+
+    Parameters
+    ----------
+    prob : Tensor
+        A 2-D tensor of shape (batch, vocab_size) representing probability distributions.
+        Each row is a distribution across vocabulary for a batch, where:
+        Values range from [0, 1], indicating the probability of each vocabulary item.
+        The sum of values in each row is 1, forming a valid distribution.
+
+    uniform_sample : Tensor
+        The uniformly sampled 2-D tensor with the shape (n, 1).
+        Values range from 0 to 1, indicating probabilities sampled uniformly.
+
+    sample_indices : Optional[Tensor]
+        The 2-D tensor with the shape [n, 1], which indicates the specific
+        probability distribution to sample from. The value of sample_indices[i]
+        determines that the ith token should be sampled from the sample_indices[i]th
+        probability distribution. For instance, if there are 3 distinct probability
+        distributions and the requirement is to sample 2, 3, and 4 tokens from each,
+        then sample_indices would be [0, 0, 1, 1, 1, 2, 2, 2, 2].
+
+    dtype : str
+        The data type of output tensor.
+
+
+    Returns
+    -------
+    result : Tensor
+        The computed tensor with shape (n, 1).
+
+    Examples
+    --------
+    .. code-block:: python
+
+        prob = [[0.2, 0.3, 0.5], [0.3, 0.4, 0.3]]
+        usample = [[0.4], [0.9]]
+        sample_indices = [[0], [1]]
+
+        multinomial_from_uniform(prob, usample)
+        -> [[1], [2]]
+        multinomial_from_uniform(prob, usample, sample_indices)
+        -> [[1], [2]]
+    """
+    prob_dtype = prob.dtype
+    sample_dtype = uniform_sample.dtype
+    out_batch = uniform_sample.shape[0]
+
+    if sample_indices is not None:
+        assert (
+            sample_indices.shape == uniform_sample.shape
+        ), "The shape of sample_indices must match the shape of uniform_sample."
+    else:
+        assert (
+            prob.shape[0] == uniform_sample.shape[0]
+        ), "Number of samples must match the number of probability distributions."
+        sample_indices = Tensor.from_const(np.arange(out_batch).reshape(out_batch, 1))
+
+    sample_indices_dtype = sample_indices.dtype
+
+    @T.prim_func(private=True)
+    def _get_sample_index(A: T.handle, B: T.handle, C: T.handle, D: T.handle):
+        batch, vocab_size = T.int64(), T.int64()
+        prob = T.match_buffer(A, (batch, vocab_size), prob_dtype)
+        out_batch = T.int64()
+        usample = T.match_buffer(B, (out_batch, 1), sample_dtype)
+        sample_indices = T.match_buffer(C, (out_batch, 1), sample_indices_dtype)
+        output_index = T.match_buffer(D, (out_batch, 1), dtype)
+
+        for ax0, ax1 in T.grid(out_batch, vocab_size):
+            with T.block("T_get_sample_index"):
+                v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+                T.writes(output_index[v_ax0, 0])
+                if (
+                    usample[v_ax0, T.int64(0)] < prob[sample_indices[v_ax0, T.int64(0)], v_ax1]
+                    or v_ax1 + 1 == vocab_size
+                ):
+                    if v_ax1 == 0:
+                        output_index[v_ax0, 0] = 0
+                    elif (
+                        usample[v_ax0, T.int64(0)]
+                        >= prob[sample_indices[v_ax0, T.int64(0)], v_ax1 - 1]
+                    ):
+                        output_index[v_ax0, 0] = v_ax1
+
+    cumsum_prob = cumsum(prob, axis=1, exclusive=False)
+
+    return tensor_ir_op(
+        _get_sample_index,
+        "get_sample_index",
+        args=[cumsum_prob, uniform_sample, sample_indices],
+        out=Tensor.placeholder([out_batch, 1], dtype),
+    )
+
+
+def sample_top_p_top_k_from_sorted_prob(
+    sorted_prob: Tensor,
+    sorted_index: Tensor,
+    top_p: Tensor,
+    top_k: Tensor,
+    uniform_sample: Tensor,
+    sample_indices: Optional[Tensor] = None,
+):
+    """Samples indices from a sorted probability tensor based on top_p and top_k criteria.
+
+    Notes
+    -----
+    For accurate results, ensure probabilities are between 0 and 1 and sum to 1.
+
+    Parameters
+    ----------
+    sorted_prob : Tensor
+        A 2-D tensor, with shape (batch, vocab_size), contains probabilities
+        sorted in descending order.
+
+    sorted_index: Tensor
+        The indices tensor with shape (batch, vocab_size), corresponding to the
+        sorted_prob. Potentially from applying argsort on the original probability
+        tensor in descending order.
+
+    top_p : Tensor
+        The cumulative probability threshold with shape (batch, 1) for nucleus sampling.
+
+    top_k :Tensor
+        A tensor with shape (batch, 1), representing the number of top probabilities
+        to consider for top-k sampling.
+
+    uniform_sample : Tensor
+        Uniformly sampled values with shape (n, 1) are used to select the output indices.
+
+    sample_indices : Optional[Tensor]
+        The 2-D tensor with the shape [n, 1], which indicates the specific
+        probability distribution to sample from. The value of sample_indices[i]
+        determines that the ith token should be sampled from the sample_indices[i]th
+        probability distribution. For instance, if there are 3 distinct probability
+        distributions and the requirement is to sample 2, 3, and 4 tokens from each,
+        then sample_indices would be [0, 0, 1, 1, 1, 2, 2, 2, 2].
+
+    Returns
+    -------
+    result : Tensor
+        The selected indices with shape (n, 1).
+
+    Examples
+    --------
+    .. code-block:: python
+
+        prob = [[0.1 , 0.4, 0.5],
+                [0.3, 0.3, 0.4]]
+        sorted_prob = [[0.5, 0.4, 0.1],
+                       [0.4, 0.3, 0.3]]
+        sorted_index = [[2, 1, 0],
+                        [2, 0, 1]]
+        top_p = [[0.6],[0.9]]
+        top_k = [[3],[2]]
+        uniform_sample = [[0.5], [0.6]]
+        sample_indices = [[0], [1]]
+
+        sample_top_p_top_k_from_sorted_prob(
+            sorted_prob, sorted_index,top_p, top_k, uniform_sample, sample_indices)
+        -> [2, 0]
+
+    """
+    prob_dtype = sorted_prob.dtype
+    index_dtype = sorted_index.dtype
+    prob_batch = sorted_prob.shape[0]
+    out_batch = uniform_sample.shape[0]
+
+    if sample_indices is not None:
+        assert (
+            sample_indices.shape == uniform_sample.shape
+        ), "The shape of sample_indices must match the shape of uniform_sample."
+    else:
+        assert (
+            sorted_prob.shape[0] == uniform_sample.shape[0]
+        ), "Number of samples must match the number of probability distributions."
+        sample_indices = Tensor.from_const(
+            np.arange(out_batch).reshape(out_batch, 1).astype(np.int64)
+        )
+        print("sample_indices: ", sample_indices)
+    sample_indices_dtype = sample_indices.dtype
+
+    def _cumsum_mask(cumsum_sorted, top_p, top_k, i, j):
+        return _tir.all(cumsum_sorted[i, j] < top_p[i, 0], j + 1 < top_k[i, 0])
+
+    @T.prim_func(private=True)
+    def _get_renorm_prob(A: T.handle, B: T.handle, C: T.handle, D: T.handle):
+        batch, vocab_size = T.int64(), T.int64()
+        cumsum_sorted = T.match_buffer(A, (batch, vocab_size), prob_dtype)
+        top_p = T.match_buffer(B, (batch, 1), prob_dtype)
+        top_k = T.match_buffer(C, (batch, 1), index_dtype)
+        renorm_prob = T.match_buffer(D, (batch, 1), prob_dtype)
+        for ax0, ax1 in T.grid(batch, vocab_size):
+            with T.block("T_get_renorm_prob"):
+                v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+                if _cumsum_mask(cumsum_sorted, top_p, top_k, v_ax0, 0) == 0:
+                    renorm_prob[v_ax0, 0] = cumsum_sorted[v_ax0, 0]
+                elif _cumsum_mask(cumsum_sorted, top_p, top_k, v_ax0, v_ax1) == 1:
+                    if v_ax1 + 1 == vocab_size:
+                        renorm_prob[v_ax0, 0] = cumsum_sorted[v_ax0, v_ax1]
+                    elif _cumsum_mask(cumsum_sorted, top_p, top_k, v_ax0, v_ax1 + 1) == 0:
+                        renorm_prob[v_ax0, 0] = cumsum_sorted[v_ax0, v_ax1 + 1]
+
+    @T.prim_func(private=True)
+    def _get_index_from_sorted(
+        A: T.handle, B: T.handle, C: T.handle, D: T.handle, E: T.handle, F: T.handle
+    ):
+        batch, vocab_size = T.int64(), T.int64()
+        out_batch = T.int64()
+        cumsum_sorted = T.match_buffer(A, (batch, vocab_size), prob_dtype)
+        indices = T.match_buffer(B, (batch, vocab_size), index_dtype)
+        renorm_prob = T.match_buffer(C, (batch, 1), prob_dtype)
+        usample = T.match_buffer(D, (out_batch, 1), prob_dtype)
+        sample_indices = T.match_buffer(E, (out_batch, 1), sample_indices_dtype)
+        output_index = T.match_buffer(F, (out_batch, 1), index_dtype)
+
+        for ax0, ax1 in T.grid(out_batch, vocab_size):
+            with T.block("T_get_index_from_sorted"):
+                v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+                T.writes(output_index[v_ax0, 0])
+                if (
+                    usample[v_ax0, T.int64(0)]
+                    < cumsum_sorted[sample_indices[v_ax0, T.int64(0)], v_ax1]
+                    / renorm_prob[sample_indices[v_ax0, T.int64(0)], 0]
+                    or v_ax1 + 1 == vocab_size
+                ):
+                    if v_ax1 == 0:
+                        output_index[v_ax0, 0] = indices[sample_indices[v_ax0, T.int64(0)], 0]
+                    elif (
+                        usample[v_ax0, T.int64(0)]
+                        >= cumsum_sorted[sample_indices[v_ax0, T.int64(0)], v_ax1 - 1]
+                        / renorm_prob[sample_indices[v_ax0, T.int64(0)], 0]
+                    ):
+                        output_index[v_ax0, 0] = indices[sample_indices[v_ax0, T.int64(0)], v_ax1]
+
+    cumsum_sorted = cumsum(sorted_prob, axis=1)
+
+    renorm_prob = tensor_ir_op(
+        _get_renorm_prob,
+        "get_renorm_prob",
+        args=[cumsum_sorted, top_p, top_k],
+        out=Tensor.placeholder(
+            [prob_batch, 1],
+            prob_dtype,
+        ),
+    )
+
+    out_index_in_sorted = tensor_ir_op(
+        _get_index_from_sorted,
+        "get_index_from_sorted",
+        args=[cumsum_sorted, sorted_index, renorm_prob, uniform_sample, sample_indices],
+        out=Tensor.placeholder([out_batch, 1], index_dtype),
+    )
+    return out_index_in_sorted
+
+
+def renormalize_top_p_top_k_prob(prob, sorted_prob, top_p, top_k):
+    """Renormalizes probabilities after filtering with top_p and top_k, ensuring
+    they sum up to 1.
+
+    Notes
+    -----
+    For accurate results, ensure probabilities are between 0 and 1 and sum to 1.
+
+    Parameters
+    ----------
+    prob : Tensor
+        A 2-D tensor of shape (batch, vocab_size) representing probability distributions.
+
+    sorted_prob : Tensor
+        Probabilities sorted in descending order.
+
+    top_p : Tensor
+        The cumulative probability threshold with shape (batch, 1) for nucleus sampling.
+
+    top_k :Tensor
+        A tensor with shape (batch, 1), representing the number of top probabilities
+        to consider for top-k sampling.
+
+    Returns
+    -------
+    result : Tensor
+        The filtered and nomalized tensor with the sampe shape as input prob.
+    """
+    prob_dtype = prob.dtype
+    top_k_dtype = top_k.dtype
+    batch = sorted_prob.shape[0]
+
+    def _cumsum_mask(cumsum_sorted, top_p, top_k, i, j):
+        return _tir.all(cumsum_sorted[i, j] < top_p[i, 0], j + 1 < top_k[i, 0])
+
+    @T.prim_func(private=True)
+    def _get_renorm_cutoff(A: T.handle, B: T.handle, C: T.handle, D: T.handle, E: T.handle):
+        batch, vocab_size = T.int64(), T.int64()
+        sorted_prob = T.match_buffer(A, (batch, vocab_size), prob_dtype)
+        cumsum_sorted = T.match_buffer(B, (batch, vocab_size), prob_dtype)
+        top_p = T.match_buffer(C, (batch, 1), prob_dtype)
+        top_k = T.match_buffer(D, (batch, 1), top_k_dtype)
+        cutoff = T.match_buffer(E, (batch, 1), prob_dtype)
+        for ax0, ax1 in T.grid(batch, vocab_size):
+            with T.block("T_get_renorm_cutoff"):
+                v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+                if _cumsum_mask(cumsum_sorted, top_p, top_k, v_ax0, 0) == 0:
+                    cutoff[v_ax0, 0] = sorted_prob[v_ax0, 0]
+                elif _cumsum_mask(cumsum_sorted, top_p, top_k, v_ax0, v_ax1) == 1:
+                    if v_ax1 + 1 == vocab_size:
+                        cutoff[v_ax0, 0] = sorted_prob[v_ax0, v_ax1]
+                    elif _cumsum_mask(cumsum_sorted, top_p, top_k, v_ax0, v_ax1 + 1) == 0:
+                        cutoff[v_ax0, 0] = sorted_prob[v_ax0, v_ax1 + 1]
+
+    cumsum_sorted = cumsum(sorted_prob, axis=1)
+
+    renorm_cutoff = tensor_ir_op(
+        _get_renorm_cutoff,
+        "get_renorm_cutoff",
+        args=[sorted_prob, cumsum_sorted, top_p, top_k],
+        out=Tensor.placeholder(
+            [batch, 1],
+            prob_dtype,
+        ),
+    )
+
+    filtered_prob = tensor_expr_op(
+        lambda prob, renorm_cutoff: te.compute(
+            prob.shape,
+            lambda i, j: _tir.Select(prob[i, j] >= renorm_cutoff[i, 0], prob[i, j], 0.0),
+            name="filter_with_top_p_top_k",
+        ),
+        "filter_with_top_p_top_k",
+        args=[prob, renorm_cutoff],
+    )
+    renorm_prob = filtered_prob / sum(filtered_prob, axis=1, keepdims=True)
+    return renorm_prob

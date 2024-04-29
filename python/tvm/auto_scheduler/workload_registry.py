@@ -77,7 +77,7 @@ def register_workload(func_name, f=None, override=False):
           A = te.placeholder((N, K), name='A')
           B = te.placeholder((K, M), name='B')
           k = te.reduce_axis((0, K), name='k')
-          C = te.compute((N, M), lambda i, j: tvm.sum(A[i][k] * B[k][j], axis=[k]), name='C')
+          C = te.compute((N, M), lambda i, j: te.sum(A[i][k] * B[k][j], axis=[k]), name='C')
           return [A, B, C]
     """
     global WORKLOAD_FUNC_REGISTRY

@@ -48,12 +48,24 @@ CuBlasThreadEntry* CuBlasThreadEntry::ThreadLocal() {
   return retval;
 }
 
-CuBlasLtThreadEntry::CuBlasLtThreadEntry() { CHECK_CUBLAS_ERROR(cublasLtCreate(&handle)); }
+CuBlasLtThreadEntry::CuBlasLtThreadEntry() {
+  CHECK_CUBLAS_ERROR(cublasLtCreate(&handle));
+  CHECK_CUBLAS_ERROR(cublasLtMatmulPreferenceCreate(&matmul_pref_desc));
+  CUDA_CALL(cudaMalloc(&workspace_ptr, workspace_size));
+}
 
 CuBlasLtThreadEntry::~CuBlasLtThreadEntry() {
   if (handle) {
     cublasLtDestroy(handle);
     handle = nullptr;
+  }
+  if (matmul_pref_desc) {
+    cublasLtMatmulPreferenceDestroy(matmul_pref_desc);
+    matmul_pref_desc = nullptr;
+  }
+  if (workspace_ptr != nullptr) {
+    cudaFree(workspace_ptr);
+    workspace_ptr = nullptr;
   }
 }
 

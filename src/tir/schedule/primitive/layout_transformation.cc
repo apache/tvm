@@ -1207,17 +1207,20 @@ void TransformLayout(ScheduleState self, const StmtSRef& block_sref, int buffer_
   // Step 4: Rewrite buffer_map of the PrimFunc if necessary.
   if (!defining_site_sref.defined()) {
     GlobalVar g_var;
-    GetRootPrimFunc(self->mod, scope_block, &g_var);
+    const auto* old_func = GetRootPrimFunc(self->mod, scope_block, &g_var);
     IRModuleNode* new_mod = self->mod.CopyOnWrite();
     MapNode* new_map = new_mod->functions.CopyOnWrite();
-    PrimFunc ref_new_func = Downcast<PrimFunc>(std::move(new_map->at(g_var)));
-    PrimFuncNode* new_func = ref_new_func.CopyOnWrite();
-    MapNode* new_buffer_map = new_func->buffer_map.CopyOnWrite();
-    for (auto it = new_buffer_map->begin(); it != new_buffer_map->end(); ++it) {
-      if ((*it).second.same_as(old_buffer)) {
-        (*it).second = new_buffer;
+
+    Map<Var, Buffer> new_buffer_map;
+    for (auto [var, buffer] : old_func->buffer_map) {
+      if (buffer.same_as(old_buffer)) {
+        buffer = new_buffer;
       }
+      new_buffer_map.Set(var, buffer);
     }
+
+    PrimFunc ref_new_func(old_func->params, old_func->body, old_func->ret_type, new_buffer_map,
+                          old_func->attrs, old_func->span);
     new_map->at(g_var) = std::move(ref_new_func);
   }
 

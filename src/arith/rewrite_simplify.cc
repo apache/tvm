@@ -37,6 +37,7 @@
 #include "const_fold.h"
 #include "constraint_extract.h"
 #include "pattern_match.h"
+#include "scalable_expression.h"
 
 namespace tvm {
 namespace arith {
@@ -155,10 +156,12 @@ CompareResult RewriteSimplifier::Impl::TryCompare(const PrimExpr& x, const PrimE
   };
 
   output = CompareResult(output & TryCompareUsingConstIntBounds(x, y));
-
   if (is_finished()) return output;
 
   output = CompareResult(output & TryCompareUsingKnownInequalities(x, y));
+  if (is_finished()) return output;
+
+  output = CompareResult(output & TryComparisonOfProductAndSum(x, y));
 
   return output;
 }
@@ -172,6 +175,149 @@ CompareResult RewriteSimplifier::Impl::TryCompareUsingKnownInequalities(const Pr
                                                                         const PrimExpr& y) {
   bool propagate_inequalities = enabled_extensions_ & kTransitivelyProveInequalities;
   return analyzer_->transitive_comparisons.TryCompare(x, y, propagate_inequalities);
+}
+
+CompareResult RewriteSimplifier::Impl::TryComparisonOfProductAndSum(const PrimExpr& x,
+                                                                    const PrimExpr& y) {
+  bool check_comparison_of_product_and_sum = enabled_extensions_ & kComparisonOfProductAndSum;
+  if (!check_comparison_of_product_and_sum) {
+    return CompareResult::kUnknown;
+  }
+
+  auto opt_special_case =
+      [&]() -> std::optional<std::tuple<PrimExpr, PrimExpr, PrimExpr, PrimExpr>> {
+    // Match expressions of the form `(A+B)*C - (A*B)*D`.  Depending on
+    // previous simplifications, the exact form of the expression may vary.
+    PVar<PrimExpr> A, B, C, D;
+
+    // diff is `(A+B)*C - (A*B)*D`.
+    PrimExpr diff = this->VisitExpr(x - y);
+
+    if (PMatchesOneOf{
+            (A + B) * C + (A * B) * D,
+            (A + B) * C + (B * A) * D,
+            (A * B) * D + (A + B) * C,
+            (B * A) * D + (A + B) * C,
+        }
+            .Match(diff)) {
+      return std::tuple{A.Eval(), B.Eval(), C.Eval(), -D.Eval()};
+    } else if (PMatchesOneOf{
+                   (A + B) * C + (A * B),
+                   (A + B) * C + (B * A),
+                   (A * B) + (A + B) * C,
+                   (B * A) + (A + B) * C,
+               }
+                   .Match(diff)) {
+      return std::tuple{A.Eval(), B.Eval(), C.Eval(), Integer(-1)};
+    } else {
+      return std::nullopt;
+    }
+  }();
+
+  if (!opt_special_case.has_value()) {
+    return CompareResult::kUnknown;
+  }
+  auto [A, B, C, D] = *opt_special_case;
+
+  auto A_bound = analyzer_->const_int_bound(A);
+  auto B_bound = analyzer_->const_int_bound(B);
+  auto C_bound = analyzer_->const_int_bound(C);
+  auto D_bound = analyzer_->const_int_bound(D);
+
+  auto negate = [](ConstIntBound bound) {
+    return ConstIntBound(-bound->max_value, -bound->min_value);
+  };
+  auto is_negative = [](const ConstIntBound& bound) { return bound->max_value < 0; };
+  auto is_positive = [](const ConstIntBound& bound) { return bound->min_value > 0; };
+
+  // If D is negative, then we'll be providing an upper bound for
+  // `(A*B)*D`, rather than a lower bound.  To avoid code duplication,
+  // flip all the signs here, find a lower bound, then flip the sign
+  // to produce the upper bound of the original expression.
+  //
+  // Before: (A+B)*C < (A*B)*D
+  // After:  (A*B)*(-D) < (A + B)*(-C)
+  bool is_upper_bound = is_negative(D_bound);
+  if (is_upper_bound) {
+    C_bound = negate(C_bound);
+    D_bound = negate(D_bound);
+  }
+
+  // Before: (A+B)*C < (A*B)*D
+  // After:  ((-A) + (-B))*(-C) < ((-A)*(-B))*D
+  if (is_negative(C_bound)) {
+    A_bound = negate(A_bound);
+    B_bound = negate(B_bound);
+    C_bound = negate(C_bound);
+  }
+
+  bool all_terms_positive = (is_positive(A_bound) && is_positive(B_bound) && is_positive(C_bound) &&
+                             is_positive(D_bound));
+  if (!all_terms_positive) {
+    return CompareResult::kUnknown;
+  }
+
+  // (A + B) * C < (A * B) * D
+  // (A + B) * C / (A*B*C*D) < (A * B) * D / (A*B*C*D)
+  // 1/(A*D) + 1/(B*D) < 1/C
+  // (A*B*C*D) * ( (A+B)/(A*B*D) - 1/C )
+  // (A*B*C*D) * ( (1/A + 1/B)/D - 1/C )
+  // (A*B*C*D) * (1/(A*D) + 1/(B*D) - 1/C)
+  //
+  // The constant (A*B*C*D) is positive, and its minimum value is the
+  // product of the minimum values of A, B, C, and D.  If the reciprocal
+  // term (1/(A*D) + 1/(B*D) - 1/C) is positive, then this constant can
+  // be used to provide a lower bound on the expression.
+
+  bool reciprocal_term_is_positive = [&]() {
+    if (D_bound->max_value == ConstIntBound::kPosInf) {
+      // If D can grow without bound, the `1/(A*D)` and `1/(B*D)`
+      // terms will approach zero, at which point the `-1/C` term
+      // will determine the sign the sign.
+      return false;
+    }
+
+    if (std::min(A_bound->max_value, B_bound->max_value) * D_bound->max_value <=
+        C_bound->min_value) {
+      // 1/(A*D) + 1/(B*D) - 1/C is positive if 1/C < 1/(A*D) + 1/(B*D).
+      // Since each term is positive, this condition can hold if either
+      // A*D <= C or B*D <= C.
+      return true;
+    }
+    if (A_bound->max_value != ConstIntBound::kPosInf &&
+        B_bound->max_value != ConstIntBound::kPosInf) {
+      // Even if neither term is sufficient on its own, if both A and B
+      // have known upper bounds, the inequality 1/C < 1/(A*D) + 1/(B*D)
+      // may still be provable.
+      //
+      // The maximum value of the LHS is found when C is minimized.  The
+      // minimum value of the RHS is found when A, B, and D are
+      // maximized.  If the condition holds in this case, then it holds
+      // in all cases.
+      //
+      // 1/C_min < 1/(A_max * D_max) + 1/(B_max*D_max)
+      // A_max*B_max*D_max < C_min*B_max + C_min*A_max
+      // A_max*B_max*D_max < C_min*(A_max + B_max)
+      //
+      if (A_bound->max_value * B_bound->max_value * D_bound->max_value <
+          C_bound->min_value * (A_bound->max_value + B_bound->max_value)) {
+        return true;
+      }
+    }
+    return false;
+  }();
+
+  if (!reciprocal_term_is_positive) {
+    return CompareResult::kUnknown;
+  }
+
+  if (is_upper_bound) {
+    // If we flipped the sign of the original expression, flip the sign of
+    // the resulting set of possible values.
+    return CompareResult::kLT;
+  } else {
+    return CompareResult::kGT;
+  }
 }
 
 // try to prove x equals val
@@ -247,9 +393,9 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const AddNode* op) {
   // Pattern var match FloatImm
   PVar<FloatImm> c4;
   // Pattern var for lanes in broadcast and ramp
-  PVar<int> lanes;
+  PVar<PrimExpr> lanes;
   // Vector rules
-  if (op->dtype.lanes() != 1) {
+  if (op->dtype.is_scalable_or_fixed_length_vector()) {
     TVM_TRY_REWRITE(ramp(b1, s1, lanes) + ramp(b2, s2, lanes), ramp(b1 + b2, s1 + s2, lanes));
     TVM_TRY_REWRITE(ramp(b1, s1, lanes) + broadcast(x, lanes), ramp(b1 + x, s1, lanes));
     TVM_TRY_REWRITE(broadcast(x, lanes) + ramp(b1, s1, lanes), ramp(x + b1, s1, lanes));
@@ -396,9 +542,9 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const SubNode* op) {
   // Pattern var match IntImm
   PVar<IntImm> c1, c2, c3;
   // Pattern var for lanes in broadcast and ramp
-  PVar<int> lanes;
+  PVar<PrimExpr> lanes;
   // Vector rules
-  if (op->dtype.lanes() != 1) {
+  if (op->dtype.is_scalable_or_fixed_length_vector()) {
     TVM_TRY_REWRITE(ramp(b1, s1, lanes) - ramp(b2, s2, lanes), ramp(b1 - b2, s1 - s2, lanes));
     TVM_TRY_REWRITE(ramp(b1, s1, lanes) - broadcast(x, lanes), ramp(b1 - x, s1, lanes));
     TVM_TRY_REWRITE(broadcast(x, lanes) - ramp(b1, s1, lanes), ramp(x - b1, 0 - s1, lanes));
@@ -580,9 +726,9 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const MulNode* op) {
   // Pattern var match FloatImm
   PVar<FloatImm> c3;
   // Pattern var for lanes in broadcast and ramp
-  PVar<int> lanes;
+  PVar<PrimExpr> lanes;
   // Vector rules
-  if (op->dtype.lanes() != 1) {
+  if (op->dtype.is_scalable_or_fixed_length_vector()) {
     TVM_TRY_REWRITE(broadcast(x, lanes) * broadcast(y, lanes), broadcast(x * y, lanes));
     TVM_TRY_REWRITE(matches_one_of(ramp(b1, s1, lanes) * broadcast(x, lanes),
                                    broadcast(x, lanes) * ramp(b1, s1, lanes)),
@@ -617,7 +763,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const DivNode* op) {
   // Pattern var match IntImm
   PVar<IntImm> c1, c2, c3;
   // Pattern var for lanes in broadcast and ramp
-  PVar<int> lanes;
+  PVar<PrimExpr> lanes;
 
   // x / 2.0 = x * 0.5
   if (const FloatImmNode* ptr = op->b.as<FloatImmNode>()) {
@@ -627,7 +773,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const DivNode* op) {
   }
 
   // Vector rules
-  if (op->dtype.lanes() != 1) {
+  if (op->dtype.is_scalable_or_fixed_length_vector()) {
     // NOTE: use div as the pattern also works for float.
     TVM_TRY_REWRITE(div(broadcast(x, lanes), broadcast(y, lanes)), broadcast(div(x, y), lanes));
     // ramp / bcast
@@ -639,10 +785,11 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const DivNode* op) {
         return ramp(div(b1, c2), div(c1, c2), lanes).Eval();
       }
       // If all possible indices in ramp are the same.
-      if (CanProveGreaterEqual(b1.Eval(), 0)) {
+      if (CanProveGreaterEqual(b1.Eval(), 0) && !arith::ExtractVscaleFactor(lanes.Eval())) {
         ModularSet bmod = analyzer_->modular_set(b1.Eval());
         int64_t ramp_min = bmod->base / c2val;
-        int64_t ramp_max = (bmod->base + (lanes.Eval() - 1) * c1val) / c2val;
+        auto lanes_int = lanes.Eval().as<IntImmNode>()->value;
+        int64_t ramp_max = (bmod->base + (lanes_int - 1) * c1val) / c2val;
         if (bmod->coeff % c2val == 0 && ramp_min == ramp_max) {
           return broadcast(div(b1, c2), lanes).Eval();
         }
@@ -777,10 +924,10 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const ModNode* op) {
   // Pattern var match IntImm
   PVar<IntImm> c1, c2;
   // Pattern var for lanes in broadcast and ramp
-  PVar<int> lanes;
+  PVar<PrimExpr> lanes;
 
   // Vector rules
-  if (op->dtype.lanes() != 1) {
+  if (op->dtype.is_scalable_or_fixed_length_vector()) {
     TVM_TRY_REWRITE(truncmod(broadcast(x, lanes), broadcast(y, lanes)),
                     broadcast(truncmod(x, y), lanes));
 
@@ -795,12 +942,21 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const ModNode* op) {
       // If all possible indices in ramp are the same.
       if (CanProveGreaterEqual(b1.Eval(), 0)) {
         ModularSet bmod = analyzer_->modular_set(b1.Eval());
-        int64_t ramp_min = bmod->base / c2val;
-        int64_t ramp_max = (bmod->base + (lanes.Eval() - 1) * c1val) / c2val;
-        if (bmod->coeff % c2val == 0) {
-          if (ramp_min == ramp_max) {
-            return ramp(truncmod(bmod->base, c2), c1, lanes).Eval();
-          } else {
+        if (!arith::ExtractVscaleFactor(lanes.Eval())) {
+          auto lanes_int = lanes.Eval().as<IntImmNode>()->value;
+          int64_t ramp_min = bmod->base / c2val;
+          int64_t ramp_max = (bmod->base + (lanes_int - 1) * c1val) / c2val;
+          if (bmod->coeff % c2val == 0) {
+            if (ramp_min == ramp_max) {
+              return ramp(truncmod(bmod->base, c2), c1, lanes).Eval();
+            } else {
+              return truncmod(ramp(truncmod(bmod->base, c2), c1, lanes), broadcast(c2, lanes))
+                  .Eval();
+            }
+          }
+        } else { /* Special case for scalable vectors */
+          ModularSet bmod = analyzer_->modular_set(b1.Eval());
+          if (bmod->coeff % c2val == 0) {
             return truncmod(ramp(truncmod(bmod->base, c2), c1, lanes), broadcast(c2, lanes)).Eval();
           }
         }
@@ -857,10 +1013,10 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorDivNode* op) {
   // Pattern var match IntImm
   PVar<IntImm> c1, c2, c3;
   // Pattern var for lanes in broadcast and ramp
-  PVar<int> lanes;
+  PVar<PrimExpr> lanes;
 
   // Vector rules
-  if (op->dtype.lanes() != 1) {
+  if (op->dtype.is_scalable_or_fixed_length_vector()) {
     TVM_TRY_REWRITE(floordiv(broadcast(x, lanes), broadcast(y, lanes)),
                     broadcast(floordiv(x, y), lanes));
     // ramp // bcast
@@ -872,17 +1028,20 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorDivNode* op) {
         return ramp(floordiv(b1, c2), floordiv(c1, c2), lanes).Eval();
       }
       // If all possible indices in ramp are the same.
-      ModularSet bmod = analyzer_->modular_set(b1.Eval());
-      int64_t ramp_min = floordiv(bmod->base, c2val);
-      int64_t ramp_max = floordiv(bmod->base + (lanes.Eval() - 1) * c1val, c2val);
-      if (ramp_min == ramp_max) {
-        // If b1 can devide c2
-        if (bmod->coeff % c2val == 0) {
-          return broadcast(floordiv(b1, c2), lanes).Eval();
-        }
-        // If all indices can be guaranteed to settle inside a coeff range
-        if (c2val % bmod->coeff == 0 && bmod->base + (lanes.Eval() - 1) * c1val < bmod->coeff) {
-          return broadcast(floordiv(b1, c2), lanes).Eval();
+      if (!arith::ExtractVscaleFactor(lanes.Eval())) {
+        ModularSet bmod = analyzer_->modular_set(b1.Eval());
+        int64_t ramp_min = floordiv(bmod->base, c2val);
+        auto lanes_int = lanes.Eval().as<IntImmNode>()->value;
+        int64_t ramp_max = floordiv(bmod->base + (lanes_int - 1) * c1val, c2val);
+        if (ramp_min == ramp_max) {
+          // If b1 can divide c2
+          if (bmod->coeff % c2val == 0) {
+            return broadcast(floordiv(b1, c2), lanes).Eval();
+          }
+          // If all indices can be guaranteed to settle inside a coeff range
+          if (c2val % bmod->coeff == 0 && bmod->base + (lanes_int - 1) * c1val < bmod->coeff) {
+            return broadcast(floordiv(b1, c2), lanes).Eval();
+          }
         }
       }
     }
@@ -993,10 +1152,10 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorModNode* op) {
   // Pattern var match IntImm
   PVar<IntImm> c1, c2;
   // Pattern var for lanes in broadcast and ramp
-  PVar<int> lanes;
+  PVar<PrimExpr> lanes;
 
   // Vector rules
-  if (op->dtype.lanes() != 1) {
+  if (op->dtype.is_scalable_or_fixed_length_vector()) {
     TVM_TRY_REWRITE(floormod(broadcast(x, lanes), broadcast(y, lanes)),
                     broadcast(floormod(x, y), lanes));
 
@@ -1010,20 +1169,28 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorModNode* op) {
       }
       // If all possible indices in ramp are the same.
       ModularSet bmod = analyzer_->modular_set(b1.Eval());
-      int64_t ramp_min = floordiv(bmod->base, c2val);
-      int64_t ramp_max = floordiv(bmod->base + (lanes.Eval() - 1) * c1val, c2val);
-      if (ramp_min == ramp_max) {
-        // If b1 can devide c2
+      if (!arith::ExtractVscaleFactor(lanes.Eval())) {
+        int64_t ramp_min = floordiv(bmod->base, c2val);
+        auto lanes_int = lanes.Eval().as<IntImmNode>()->value;
+        int64_t ramp_max = floordiv(bmod->base + (lanes_int - 1) * c1val, c2val);
+        if (ramp_min == ramp_max) {
+          // If b1 can divide c2
+          if (bmod->coeff % c2val == 0) {
+            return ramp(floormod(bmod->base, c2), c1, lanes).Eval();
+          }
+          // If all indices can be guaranteed to settle inside a coeff range
+          if (c2val % bmod->coeff == 0 && bmod->base + (lanes_int - 1) * c1val < bmod->coeff) {
+            return ramp(floormod(b1, c2), c1, lanes).Eval();
+          }
+        }
+        // If b1 can divide c2
         if (bmod->coeff % c2val == 0) {
-          return ramp(floormod(bmod->base, c2), c1, lanes).Eval();
+          return floormod(ramp(floormod(bmod->base, c2), c1, lanes), broadcast(c2, lanes)).Eval();
         }
-        // If all indices can be guaranteed to settle inside a coeff range
-        if (c2val % bmod->coeff == 0 && bmod->base + (lanes.Eval() - 1) * c1val < bmod->coeff) {
-          return ramp(floormod(b1, c2), c1, lanes).Eval();
+      } else { /* scalable vectors */
+        if (bmod->coeff % c2val == 0) {
+          return floormod(ramp(floormod(bmod->base, c2), c1, lanes), broadcast(c2, lanes)).Eval();
         }
-      }
-      if (bmod->coeff % c2val == 0) {
-        return floormod(ramp(floormod(bmod->base, c2), c1, lanes), broadcast(c2, lanes)).Eval();
       }
     }
   }
@@ -1093,10 +1260,10 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const MinNode* op) {
   PVar<PrimExpr> x, y, z, s1, s2;
   // Pattern var match IntImm
   PVar<IntImm> c1, c2;
-  PVar<int> lanes;
+  PVar<PrimExpr> lanes;
 
   // vector rule
-  if (op->dtype.lanes() != 1) {
+  if (op->dtype.is_scalable_or_fixed_length_vector()) {
     TVM_TRY_REWRITE(min(broadcast(x, lanes), broadcast(y, lanes)), broadcast(min(x, y), lanes));
     TVM_TRY_REWRITE(min(min(x, broadcast(y, lanes)), broadcast(z, lanes)),
                     min(x, broadcast(min(y, z), lanes)));
@@ -1248,6 +1415,16 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const MinNode* op) {
       }
     }
 
+    // vscale expression comparison
+    if (ContainsVscaleCall(op->a) || ContainsVscaleCall(op->b)) {
+      if (analyzer_->CanProve(op->a <= op->b)) {
+        return op->a;
+      }
+      if (analyzer_->CanProve(op->b <= op->a)) {
+        return op->b;
+      }
+    }
+
     // canonicalization
     TVM_TRY_RECURSIVE_REWRITE(min(min(x, c1), y), min(min(x, y), c1));
     TVM_TRY_RECURSIVE_REWRITE_IF(min(c1 - x, c2), c1 - max(x, c1 - c2), c2.Eval()->value != 0);
@@ -1267,10 +1444,10 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const MaxNode* op) {
   PVar<PrimExpr> x, y, z, s1, s2;
   // Pattern var match IntImm
   PVar<IntImm> c1, c2;
-  PVar<int> lanes;
+  PVar<PrimExpr> lanes;
 
   // vector rule
-  if (op->dtype.lanes() != 1) {
+  if (op->dtype.is_scalable_or_fixed_length_vector()) {
     TVM_TRY_REWRITE(max(broadcast(x, lanes), broadcast(y, lanes)), broadcast(max(x, y), lanes));
     TVM_TRY_REWRITE(max(max(x, broadcast(y, lanes)), broadcast(z, lanes)),
                     max(x, broadcast(max(y, z), lanes)));
@@ -1431,6 +1608,16 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const MaxNode* op) {
       }
     }
 
+    // vscale expression comparison
+    if (ContainsVscaleCall(op->a) || ContainsVscaleCall(op->b)) {
+      if (analyzer_->CanProve(op->a >= op->b)) {
+        return op->a;
+      }
+      if (analyzer_->CanProve(op->b >= op->a)) {
+        return op->b;
+      }
+    }
+
     // canonicalization
     TVM_TRY_RECURSIVE_REWRITE(max(max(x, c1), y), max(max(x, y), c1));
     TVM_TRY_RECURSIVE_REWRITE_IF(max(c1 - x, c2), c1 - min(x, c1 - c2), c2.Eval()->value != 0);
@@ -1475,10 +1662,10 @@ PrimExpr RewriteSimplifier::Impl::ApplyRewriteRules(EQ ret) {
   PVar<PrimExpr> x, y;
   // Pattern var match IntImm
   PVar<IntImm> c1, c2;
-  PVar<int> lanes;
+  PVar<PrimExpr> lanes;
 
   // vector rule
-  if (ret->dtype.lanes() != 1) {
+  if (ret->dtype.is_scalable_or_fixed_length_vector()) {
     TVM_TRY_REWRITE(broadcast(x, lanes) == broadcast(y, lanes), broadcast(x == y, lanes));
   }
 
@@ -1603,10 +1790,10 @@ PrimExpr RewriteSimplifier::Impl::ApplyRewriteRules(LT ret) {
   PVar<PrimExpr> x, y, z, s1, s2;
   // Pattern var match IntImm
   PVar<IntImm> c1, c2;
-  PVar<int> lanes;
+  PVar<PrimExpr> lanes;
 
   // vector rule
-  if (ret->dtype.lanes() != 1) {
+  if (ret->dtype.is_scalable_or_fixed_length_vector()) {
     TVM_TRY_REWRITE(broadcast(x, lanes) < broadcast(y, lanes), broadcast(x < y, lanes));
     TVM_TRY_REWRITE(ramp(x, s1, lanes) < ramp(y, s1, lanes), broadcast(x < y, lanes));
   }
@@ -1746,6 +1933,17 @@ PrimExpr RewriteSimplifier::Impl::ApplyRewriteRules(LT ret) {
     if (merge_constants) {
       return RecursiveRewrite(merge_constants.value());
     }
+
+    auto common_factor = [&]() -> int64_t {
+      auto modular_a = analyzer_->modular_set(ret->a);
+      auto modular_b = analyzer_->modular_set(ret->b);
+      auto gcd_lhs = ZeroAwareGCD(modular_a->base, modular_a->coeff);
+      auto gcd_rhs = ZeroAwareGCD(modular_b->base, modular_b->coeff);
+      return ZeroAwareGCD(gcd_lhs, gcd_rhs);
+    }();
+    if (common_factor > 1) {
+      return RecursiveRewrite(floordiv(ret->a, common_factor) < floordiv(ret->b, common_factor));
+    }
   }
   return std::move(ret);
 }
@@ -1761,8 +1959,8 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const NotNode* op) {
 PrimExpr RewriteSimplifier::Impl::ApplyRewriteRules(Not ret) {
   // Pattern var to match any expression
   PVar<PrimExpr> x, y;
-  PVar<int> lanes;
-  if (ret->dtype.lanes() != 1) {
+  PVar<PrimExpr> lanes;
+  if (ret->dtype.is_scalable_or_fixed_length_vector()) {
     TVM_TRY_REWRITE(!broadcast(x, lanes), broadcast(!x, lanes));
   }
 
@@ -1836,9 +2034,9 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const AndNode* op) {
   PVar<PrimExpr> x, y, z;
   // Pattern var match IntImm
   PVar<IntImm> c1, c2, c3;
-  PVar<int> lanes;
+  PVar<PrimExpr> lanes;
 
-  if (op->dtype.lanes() != 1) {
+  if (op->dtype.is_scalable_or_fixed_length_vector()) {
     TVM_TRY_REWRITE(broadcast(x, lanes) && broadcast(y, lanes), broadcast(x && y, lanes));
   }
 
@@ -1984,9 +2182,9 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const OrNode* op) {
   PVar<PrimExpr> x, y, z;
   // Pattern var match IntImm
   PVar<IntImm> c1, c2;
-  PVar<int> lanes;
+  PVar<PrimExpr> lanes;
 
-  if (op->dtype.lanes() != 1) {
+  if (op->dtype.is_scalable_or_fixed_length_vector()) {
     TVM_TRY_REWRITE(broadcast(x, lanes) || broadcast(y, lanes), broadcast(x || y, lanes));
   }
 
@@ -2071,6 +2269,17 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const CallNode* op) {
           return FloatImm(op->dtype, std::ceil(std::log2(as_float->value)));
         }
       }
+    }
+  } else if (op->op.same_as(Op::Get("tir.clz"))) {
+    if (const auto* arg_int = op->args[0].as<IntImmNode>()) {
+      int bits = arg_int->dtype.bits();
+      if (arg_int->value == 0) return make_const(op->dtype, bits);
+      for (int i = bits - 1; i >= 0; --i) {
+        if ((int64_t(1) << i) & arg_int->value) {
+          return IntImm(op->dtype, bits - i - 1);
+        }
+      }
+      LOG(FATAL) << "Should not reach here";
     }
   }
 

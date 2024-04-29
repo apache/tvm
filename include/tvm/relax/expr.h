@@ -169,13 +169,11 @@ class CallNode : public ExprNode {
 
   bool SEqualReduce(const CallNode* other, SEqualReducer equal) const {
     // skip sinfo_args check for primitive ops.
-    equal->MarkGraphNode();
     return equal(op, other->op) && equal(args, other->args) && equal(attrs, other->attrs) &&
            equal(sinfo_args, other->sinfo_args) && equal(struct_info_, other->struct_info_);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce->MarkGraphNode();
     hash_reduce(op);
     hash_reduce(args);
     hash_reduce(attrs);
@@ -215,78 +213,6 @@ Call WithFields(Call call, Optional<Expr> opt_op = Optional<Expr>(),
                 Optional<Array<StructInfo>> opt_sinfo_args = Optional<Array<StructInfo>>(),
                 Optional<Span> opt_span = Optional<Span>());
 
-/*!
- * \brief Condition expression
- *
- * Unlike traditional statement `if`s, the if evalutes
- * to the result of the branch taken.
- *
- * x = if (true) { 1 } else { 0 }; // x is 1
- * y = if (false) { 1 } else { 0 }; // y is 0
- *
- * \note This is similar to C's ternary operator.
- */
-class IfNode : public ExprNode {
- public:
-  /*! \brief The condition. */
-  Expr cond;
-  /*! \brief The expression evaluated when condition is true. */
-  Expr true_branch;
-  /*! \brief The expression evaluated when condition is false */
-  Expr false_branch;
-
-  void VisitAttrs(tvm::AttrVisitor* v) {
-    v->Visit("cond", &cond);
-    v->Visit("true_branch", &true_branch);
-    v->Visit("false_branch", &false_branch);
-    v->Visit("_checked_type_", &checked_type_);
-    v->Visit("struct_info_", &struct_info_);
-    v->Visit("span", &span);
-  }
-
-  bool SEqualReduce(const IfNode* other, SEqualReducer equal) const {
-    equal->MarkGraphNode();
-    return equal(cond, other->cond) && equal(true_branch, other->true_branch) &&
-           equal(false_branch, other->false_branch) && equal(struct_info_, other->struct_info_);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce->MarkGraphNode();
-    hash_reduce(cond);
-    hash_reduce(true_branch);
-    hash_reduce(false_branch);
-    hash_reduce(struct_info_);
-  }
-
-  static constexpr const char* _type_key = "relax.expr.If";
-  TVM_DECLARE_FINAL_OBJECT_INFO(IfNode, ExprNode);
-};
-
-class If : public Expr {
- public:
-  /*!
-   * \brief The constructor
-   * \param cond The condition of a if node.
-   * \param true_branch The fall through branch
-   * \param false_branch The branch for execution when condition is false.
-   * \param span The source span of the expression.
-   */
-  TVM_DLL If(Expr cond, Expr true_branch, Expr false_branch, Span span = Span());
-
-  TVM_DEFINE_OBJECT_REF_METHODS(If, Expr, IfNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(IfNode);
-};
-
-/*!
- * \brief Returns \p if_expr with the given properties. A null property denotes 'no change'.
- * Returns \p if_expr if all properties are unchanged. Otherwise, returns a copy with the new
- * fields.
- */
-If WithFields(If if_expr, Optional<Expr> opt_cond = Optional<Expr>(),
-              Optional<Expr> opt_true_branch = Optional<Expr>(),
-              Optional<Expr> opt_false_branch = Optional<Expr>(),
-              Optional<Span> opt_span = Optional<Span>());
-
 /*! \brief Tuple container */
 class TupleNode : public ExprNode {
  public:
@@ -319,6 +245,24 @@ class Tuple : public Expr {
    * \param span The source span of the expression.
    */
   TVM_DLL explicit Tuple(tvm::Array<Expr> fields, Span span = Span());
+
+  /*!
+   * \brief Utility constructor to handle conversion to relax::Expr
+   *
+   * If the calling scope already has an array of a specific type of
+   * relax expression (e.g. `Array<relax::Var>`), it must be converted
+   * into an array of base type.  This constructor handles the
+   * conversion to the base `Array<relax::Expr>`.
+   *
+   * \tparam RelaxExpr The type of relax expression passed in as an argument.
+   *
+   * \param fields The fields of a tuple.
+   *
+   * \param span The source span of the expression.
+   */
+  template <typename RelaxExpr, typename = std::enable_if_t<std::is_base_of_v<Expr, RelaxExpr>>>
+  TVM_DLL explicit Tuple(tvm::Array<RelaxExpr> fields, Span span = Span())
+      : Tuple(fields.Map([](const RelaxExpr& expr) -> Expr { return expr; }), span) {}
 
   TVM_DEFINE_OBJECT_REF_METHODS(Tuple, Expr, TupleNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(TupleNode);
@@ -764,18 +708,8 @@ class MatchCastNode : public BindingNode {
     v->Visit("span", &span);
   }
 
-  bool SEqualReduce(const MatchCastNode* other, SEqualReducer equal) const {
-    // NOTE: pattern can contain ShapeExpr which defines the vars
-    return equal.DefEqual(var, other->var) && equal.DefEqual(struct_info, other->struct_info) &&
-           equal(value, other->value);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {
-    // NOTE: pattern can contain ShapeExpr which defines the vars
-    hash_reduce.DefHash(var);
-    hash_reduce.DefHash(struct_info);
-    hash_reduce(value);
-  }
+  bool SEqualReduce(const MatchCastNode* other, SEqualReducer equal) const;
+  void SHashReduce(SHashReducer hash_reduce) const;
 
   static constexpr const char* _type_key = "relax.expr.MatchCast";
   static constexpr const bool _type_has_method_sequal_reduce = true;
@@ -806,13 +740,9 @@ class VarBindingNode : public BindingNode {
     v->Visit("span", &span);
   }
 
-  bool SEqualReduce(const VarBindingNode* other, SEqualReducer equal) const {
-    return equal.DefEqual(var, other->var) && equal(value, other->value);
-  }
-  void SHashReduce(SHashReducer hash_reduce) const {
-    hash_reduce.DefHash(var);
-    hash_reduce(value);
-  }
+  bool SEqualReduce(const VarBindingNode* other, SEqualReducer equal) const;
+  void SHashReduce(SHashReducer hash_reduce) const;
+
   static constexpr const char* _type_key = "relax.expr.VarBinding";
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
@@ -913,10 +843,105 @@ class SeqExprNode : public ExprNode {
 
 class SeqExpr : public Expr {
  public:
+  /* \brief Implicit conversion constructor
+   *
+   * Relax nodes that introduce a new scope (e.g. `relax::Function`)
+   * are required to be held as SeqExpr.  This implicit conversion
+   * provides allows callsites to use these member variables when the
+   * C++ compile-time type is a `relax::Expr`.  For example,
+   * a transform may use `func.CopyOnWrite()->body = expr;`.
+   *
+   * If the expression is already a `relax::SeqExpr`, the same
+   * underlying `relax::SeqExprNode` is used, and no copies are made.
+   */
+  TVM_DLL SeqExpr(Expr body);  // NOLINT(*)
+
   TVM_DLL explicit SeqExpr(Array<BindingBlock> blocks, Expr body, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(SeqExpr, Expr, SeqExprNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(SeqExprNode);
 };
+
+/*!
+ * \brief Condition expression
+ *
+ * Unlike traditional statement `if`s, the if evalutes
+ * to the result of the branch taken.
+ *
+ * x = if (true) { 1 } else { 0 }; // x is 1
+ * y = if (false) { 1 } else { 0 }; // y is 0
+ *
+ * \note This is similar to C's ternary operator.
+ */
+class IfNode : public ExprNode {
+ public:
+  /*! \brief The condition. */
+  Expr cond;
+  /*! \brief The expression evaluated when condition is true. */
+  SeqExpr true_branch;
+  /*! \brief The expression evaluated when condition is false */
+  SeqExpr false_branch;
+
+  void VisitAttrs(tvm::AttrVisitor* v) {
+    v->Visit("cond", &cond);
+    v->Visit("true_branch", &true_branch);
+    v->Visit("false_branch", &false_branch);
+    v->Visit("_checked_type_", &checked_type_);
+    v->Visit("struct_info_", &struct_info_);
+    v->Visit("span", &span);
+  }
+
+  bool SEqualReduce(const IfNode* other, SEqualReducer equal) const {
+    equal->MarkGraphNode();
+    return equal(cond, other->cond) && equal(true_branch, other->true_branch) &&
+           equal(false_branch, other->false_branch) && equal(struct_info_, other->struct_info_);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    hash_reduce->MarkGraphNode();
+    hash_reduce(cond);
+    hash_reduce(true_branch);
+    hash_reduce(false_branch);
+    hash_reduce(struct_info_);
+  }
+
+  static constexpr const char* _type_key = "relax.expr.If";
+  TVM_DECLARE_FINAL_OBJECT_INFO(IfNode, ExprNode);
+};
+
+class If : public Expr {
+ public:
+  /*!
+   * \brief The constructor
+   *
+   * \param cond The condition of a if node.
+   *
+   * \param true_branch The fall through branch.  If this is not a
+   *     SeqExpr, it will be wrapped in a SeqExpr, to satisfy the
+   *     Relax IR requirement that all scopes be contained in a
+   *     SeqExpr.
+   *
+   * \param false_branch The branch for execution when condition is
+   *     false.  If this is not a SeqExpr, it will be wrapped in a
+   *     SeqExpr, to satisfy the Relax IR requirement that all scopes
+   *     be contained in a SeqExpr.
+   *
+   * \param span The source span of the expression.
+   */
+  TVM_DLL If(Expr cond, Expr true_branch, Expr false_branch, Span span = Span());
+
+  TVM_DEFINE_OBJECT_REF_METHODS(If, Expr, IfNode);
+  TVM_DEFINE_OBJECT_REF_COW_METHOD(IfNode);
+};
+
+/*!
+ * \brief Returns \p if_expr with the given properties. A null property denotes 'no change'.
+ * Returns \p if_expr if all properties are unchanged. Otherwise, returns a copy with the new
+ * fields.
+ */
+If WithFields(If if_expr, Optional<Expr> opt_cond = Optional<Expr>(),
+              Optional<Expr> opt_true_branch = Optional<Expr>(),
+              Optional<Expr> opt_false_branch = Optional<Expr>(),
+              Optional<Span> opt_span = Optional<Span>());
 
 /*! \brief A Relax function. */
 class FunctionNode : public BaseFuncNode {
@@ -924,7 +949,7 @@ class FunctionNode : public BaseFuncNode {
   /*! \brief The parameters to the function. */
   Array<Var> params;
   /*! \brief The body of the function. */
-  Expr body;
+  SeqExpr body;
   /*! \brief The return type of the function. */
   StructInfo ret_struct_info;
   /*! \brief Whether the function is annotated as pure or not. */
@@ -966,16 +991,36 @@ class FunctionNode : public BaseFuncNode {
 
 class Function : public BaseFunc {
  public:
+  /*!
+   * \brief Construct a Relax Function
+   *
+   * \param params The parameters accepted by the function
+   *
+   * \param body The body of the function.  If this is not a
+   *     SeqExpr, it will be wrapped in a SeqExpr, to satisfy the
+   *     Relax IR requirement that all scopes be contained in a
+   *     SeqExpr.
+   *
+   * \param ret_struct_info The StructInfo returned by the function.
+   *     If NullOpt, will be inferred from the StructInfo of the
+   *     function's body.
+   *
+   * \param is_pure The purity of the function.
+   *
+   * \param attrs Any attributes associated with the function.
+   *     Defaults to an empty dictionary.
+   *
+   * \param span The source span of the expression.
+   */
   TVM_DLL explicit Function(Array<Var> params, Expr body, Optional<StructInfo> ret_struct_info,
-                            bool is_pure = true, DictAttrs attrs = NullValue<DictAttrs>(),
-                            Span span = Span());
+                            bool is_pure = true, DictAttrs attrs = DictAttrs(), Span span = Span());
 
   /*!
    * \brief Mimics the constructor but without body Expr.
    * \note ret_struct_info is required, since it can not deduced by the body.
    */
   TVM_DLL static Function CreateEmpty(Array<Var> params, StructInfo ret_struct_info,
-                                      bool is_pure = true, DictAttrs attrs = NullValue<DictAttrs>(),
+                                      bool is_pure = true, DictAttrs attrs = DictAttrs(),
                                       Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(Function, BaseFunc, FunctionNode);
@@ -1044,6 +1089,8 @@ class ExternFuncNode : public BaseFuncNode {
 class ExternFunc : public BaseFunc {
  public:
   TVM_DLL ExternFunc(String global_symbol, Span span = Span());
+  TVM_DLL ExternFunc(String global_symbol, StructInfo struct_info, Span span = Span());
+
   TVM_DEFINE_OBJECT_REF_METHODS(ExternFunc, BaseFunc, ExternFuncNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ExternFuncNode);
 };

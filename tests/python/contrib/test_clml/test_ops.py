@@ -809,13 +809,16 @@ def test_unary_ops(remote, dtype, target, executor_type):
 
 
 @pytest.mark.parametrize("dtype", ["float32", "float16"])
+@pytest.mark.parametrize("input_shape", [(1, 64, 8, 8), (1, 64, 8, 8), (1, 512, 8, 8)])
+@pytest.mark.parametrize("block_size", [4, 8])
+@pytest.mark.parametrize("mode", ["DCR", "CRD"])
 @tvm.testing.requires_openclml
 @tvm.testing.parametrize_targets("opencl -device=adreno")
-def test_depth_to_space(remote, dtype, target, executor_type):
-    def _get_model(a_shape, block_size):
+def test_depth_to_space(remote, dtype, target, executor_type, input_shape, block_size, mode):
+    def _get_model(a_shape, block_size, mode):
         np.random.seed(0)
         a = relay.var("a", shape=(a_shape), dtype=dtype)
-        out = relay.nn.depth_to_space(a, block_size)
+        out = relay.nn.depth_to_space(a, block_size, mode=mode)
         inputs = {"a": tvm.nd.array(np.random.uniform(-1, 1, a_shape).astype(dtype))}
         params = {}
         return out, params, inputs
@@ -841,7 +844,7 @@ def test_depth_to_space(remote, dtype, target, executor_type):
                 "attrs": {
                     "block_size": [[str(int(out.attrs.block_size))]],
                     "layout": [["NCHW"]],
-                    "mode": [["DCR"]],
+                    "mode": [[out.attrs.mode]],
                     "dtype": [[dtype]],
                     "num_inputs": "1",
                     "num_outputs": "1",
@@ -852,11 +855,22 @@ def test_depth_to_space(remote, dtype, target, executor_type):
                 "op": "kernel",
             },
         ]
-        verify_codegen(remote, mod, params, exp_codegen, target)
+        num_clml_modules = 1
+        tvm_ops = 0
+        if out.attrs.mode != "DCR":
+            num_clml_modules = 0
+            tvm_ops = 1
+        verify_codegen(
+            remote,
+            mod,
+            params,
+            exp_codegen,
+            target,
+            num_clml_modules=num_clml_modules,
+            tvm_ops=tvm_ops,
+        )
 
-    _verify(*(_get_model((1, 64, 8, 8), 4)))
-    _verify(*(_get_model((1, 64, 8, 8), 8)))
-    _verify(*(_get_model((1, 512, 8, 8), 8)))
+    _verify(*(_get_model(input_shape, block_size, mode)))
 
 
 @pytest.mark.parametrize("dtype", ["float32", "float16"])

@@ -802,11 +802,17 @@ def test_conv2d(target, dev, c2d_shape1, c2d_shape2, c2d_kwargs):
     ),
     (
         (3, 3),
-        {"strides": (2, 2), "padding": (1, 2), "dilation": (1, 1)},
+        {"strides": (2, 2), "padding": (1, 2), "dilation": (1, 1), "count_include_pad": True},
     ),
     (
         (5, 5),
-        {"strides": (2, 2), "padding": (2, 1), "dilation": (1, 1), "ceil_mode": True},
+        {
+            "strides": (2, 2),
+            "padding": (2, 1),
+            "dilation": (1, 1),
+            "ceil_mode": True,
+            "count_include_pad": True,
+        },
     ),
 )
 

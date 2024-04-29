@@ -43,6 +43,7 @@ class TVMTrackerFactory(object):
             The tracker class.
         """
 
+        @msc_utils.register_tool
         class Tracker(base_cls):
             """Adaptive tracker for tvm"""
 
@@ -101,6 +102,9 @@ class TVMTrackerFactory(object):
                 for data, name in zip(outputs[output_num:], self._track_names):
                     consumer = self._track_tensors[name]["consumer"]
                     strategys = self._get_tensor_strategys(name, consumer)
+                    producer = self.find_producer(name)
+                    if producer == "nn.batch_norm":
+                        data = data[0]
                     self._track_tensor(data, name, consumer, strategys)
                 if output_num == 1:
                     return super()._execute_after_forward(outputs[0])
@@ -136,7 +140,7 @@ class TVMTrackerFactory(object):
                 """
 
                 if self.is_weight(name):
-                    return self._track_tensor(self.get_data(name), name, consumer, strategys)
+                    self._track_tensor(self.get_data(name), name, consumer, strategys)
                 if name not in self._track_tensors:
                     self._track_tensors[name] = {"consumer": consumer, "tensor": tensor}
                     self._track_names.append(name)
@@ -150,6 +154,6 @@ class TVMTrackerFactory(object):
 
 
 factory = TVMTrackerFactory()
-tools = msc_utils.get_registered_tool_cls(MSCFramework.MSC, ToolType.TRACKER, tool_style="all")
+tools = msc_utils.get_registered_tool(MSCFramework.MSC, ToolType.TRACKER, tool_style="all")
 for tool in tools.values():
-    msc_utils.register_tool_cls(factory.create(tool))
+    factory.create(tool)

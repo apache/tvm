@@ -21,6 +21,7 @@ from typing import Dict, Union, List, Tuple, Optional, Callable
 import tvm
 import tvm.runtime
 from tvm.runtime.object import Object
+from tvm.runtime import ObjectGeneric
 
 from . import _ffi_api
 from ..expr import Expr, StringImm, ShapeExpr, Call, ExternFunc, GlobalVar, Var
@@ -198,13 +199,13 @@ def call_tir_inplace(
     args : Expr
         The input arguments.
 
-    input_indices : Union[int, List[int]]
+    inplace_indices : Union[int, List[int]]
         Specify which arguments should be used for in-place computations.
-        If `input_indices` is a single integer, it will be made into a singleton list.
-        Suppose `input_indices[i] = j`, where `j >= 0`. Then the `i`th output
+        If `inplace_indices` is a single integer, it will be made into a singleton list.
+        Suppose `inplace_indices[i] = j`, where `j >= 0`. Then the `i`th output
         will be an alias of `args[j]`.
-        If `input_indices[i] = -1`, then the `i`th output will be a freshly allocated tensor.
-        At least one member of `input_indices` must not be -1.
+        If `inplace_indices[i] = -1`, then the `i`th output will be a freshly allocated tensor.
+        At least one member of `inplace_indices` must not be -1.
 
     out_sinfo : Union[TensorStructInfo, List[TensorStructInfo]]
         The structure info of the call_tir_inplace output.
@@ -502,19 +503,26 @@ def relax_assert_op(condition: tvm.Object, format_str: str, *format_args: tvm.Ob
             f"The format string argument to assert must be a string, given {type(format_str)})"
         )
 
-    # should be guaranteed by the type system
-    if not isinstance(condition, tvm.nd.NDArray):
-        raise ValueError(f"The condition must be an NDArray, but given a {type(condition)}.")
+    if isinstance(condition, (bool, int)):
+        val = condition
+    elif isinstance(condition, tvm.nd.NDArray):
+        # may happen if the original program had unknown shape or dtype for the tensor's type
+        dtype = condition.dtype
+        if dtype != "bool":
+            raise ValueError(f"The condition must be a bool scalar, but given a {dtype} tensor")
+        shape = condition.shape
+        if len(shape) != 0:
+            raise ValueError(f"The condition must be a scalar, but it has a shape of {shape}")
 
-    # may happen if the original program had unknown shape or dtype for the tensor's type
-    dtype = condition.dtype
-    if dtype != "bool":
-        raise ValueError(f"The condition must be a bool scalar, but given a {dtype} tensor")
-    shape = condition.shape
-    if len(shape) != 0:
-        raise ValueError(f"The condition must be a scalar, but it has a shape of {shape}")
+        val = condition.numpy()
 
-    val = condition.numpy()
+    else:
+        # should be guaranteed by the type system
+        raise ValueError(
+            f"The condition for relax assert must be a bool, int, or NDArray, "
+            f"but received a {type(condition)}."
+        )
+
     if not val:
         error_message = "Assertion Failed"
         if format_args or format_str != "":
@@ -527,7 +535,7 @@ def relax_assert_op(condition: tvm.Object, format_str: str, *format_args: tvm.Ob
 
 
 def assert_op(
-    condition: Expr,
+    condition: Union[Expr, PrimExpr],
     format_args: Optional[Union[Expr, List[Expr]]] = None,
     format: Union[str, Expr] = "",
 ) -> Expr:
@@ -537,7 +545,7 @@ def assert_op(
 
     Parameters
     ----------
-    condition: Expr
+    condition: Union[Expr, PrimExpr]
         The assertion condition.
 
     format_args: Optional[Union[Expr, List[Expr]]]
@@ -551,12 +559,17 @@ def assert_op(
     result : Expr
         A Call to the Relax assert operation.
     """
+    if not isinstance(condition, Expr):
+        condition = tvm.relax.PrimValue(condition)
+
     if format_args is None:
         format_args = []
-    if isinstance(format_args, Expr):  # type: ignore
+    elif isinstance(format_args, Expr):
         format_args = [format_args]
+
     if isinstance(format, str):
         format = StringImm(format)
+
     return _ffi_api.assert_op(condition, format_args, format)  # type: ignore
 
 
@@ -637,13 +650,13 @@ def call_inplace_packed(
     args: Expr
       The arguments for the PackedFunc.
 
-    input_indices : Union[int, List[int]]
+    inplace_indices : Union[int, List[int]]
       Specify which arguments should be used for in-place computations.
-      If `input_indices` is a single integer, it will be made into a singleton list.
-      Suppose `input_indices[i] = j`, where `j >= 0`. Then the `i`th output
+      If `inplace_indices` is a single integer, it will be made into a singleton list.
+      Suppose `inplace_indices[i] = j`, where `j >= 0`. Then the `i`th output
       will be an alias of `args[j]`.
-      If `input_indices[i] = -1`, then the `i`th output will be a freshly allocated tensor.
-      At least one member of `input_indices` must not be -1.
+      If `inplace_indices[i] = -1`, then the `i`th output will be a freshly allocated tensor.
+      At least one member of `inplace_indices` must not be -1.
 
     sinfo_args: Union[StructInfo, List[StructInfo]]
         The list of structure info arguments (giving the structural info for the returned value).
@@ -709,12 +722,24 @@ def call_pure_packed(
         func = func.global_symbol
 
     op = ExternFunc(func)
+
     if sinfo_args is None:
         raise ValueError("R.call_pure_packed is required to have type_args")
+
     if isinstance(sinfo_args, tuple):  # type: ignore
         sinfo_args = list(sinfo_args)
     elif not isinstance(sinfo_args, list):
         sinfo_args = [sinfo_args]
+
+    sinfo_args = [
+        sinfo()
+        if callable(sinfo)
+        else sinfo.asobject()
+        if isinstance(sinfo, ObjectGeneric)
+        else sinfo
+        for sinfo in sinfo_args
+    ]
+
     # note: if we need attributes, we can also take them here
 
     return _ffi_api.call_pure_packed(op, args, None, sinfo_args)  # type: ignore # pylint: disable=no-member

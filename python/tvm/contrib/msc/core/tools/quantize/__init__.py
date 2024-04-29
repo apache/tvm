@@ -18,3 +18,4 @@
 
 from .quantizer import *
 from .method import *
+from .configer import *

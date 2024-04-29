@@ -197,10 +197,17 @@ PackedFunc GraphExecutorDebug::GetFunction(const String& name,
   // return member functions during query.
   if (name == "debug_get_output") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      int args0 = -1;
       if (String::CanConvertFrom(args[0])) {
-        this->DebugGetNodeOutput(this->GetNodeIndex(args[0]), args[1]);
+        args0 = this->GetNodeIndex(args[0]);
       } else {
-        this->DebugGetNodeOutput(args[0], args[1]);
+        args0 = args[0];
+      }
+
+      if (args.num_args == 2) {
+        this->DebugGetNodeOutput(args0, args[1]);
+      } else {
+        *rv = this->DebugGetNodeOutput(args0);
       }
     });
   } else if (name == "execute_node") {
@@ -323,6 +330,18 @@ void GraphExecutorDebug::DebugGetNodeOutput(int index, DLTensor* data_out) {
   }
 
   data_entry_[eid].CopyTo(data_out);
+}
+
+NDArray GraphExecutorDebug::DebugGetNodeOutput(int index) {
+  ICHECK_LT(static_cast<size_t>(index), op_execs_.size());
+  uint32_t eid = index;
+
+  for (size_t i = 0; i < op_execs_.size(); ++i) {
+    if (op_execs_[i]) op_execs_[i]();
+    if (static_cast<int>(i) == index) break;
+  }
+
+  return data_entry_[eid];
 }
 
 NDArray GraphExecutorDebug::GetNodeOutput(int node, int out_ind) {

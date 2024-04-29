@@ -417,3 +417,13 @@ def get_vtcm_compaction_passes() -> List[tvm.transform.Pass]:
         returns list of passes
     """
     return _ffi_api.get_vtcm_compaction_passes()  # type: ignore # pylint: disable=no-member
+
+
+def is_pure_function(func: PrimFunc) -> bool:
+    """Checks if the function is a pure function"""
+    return _ffi_api.is_pure_function(func, False)  # type: ignore # pylint: disable=no-member
+
+
+def assert_pure_function(func: PrimFunc) -> bool:
+    """Asserts that the function is a pure function"""
+    return _ffi_api.is_pure_function(func, True)  # type: ignore # pylint: disable=no-member

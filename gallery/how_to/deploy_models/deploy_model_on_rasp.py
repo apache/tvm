@@ -95,16 +95,22 @@ from tvm.contrib.download import download_testdata
 # -----------------------------
 # Back to the host machine, which should have a full TVM installed (with LLVM).
 #
-# We will use pre-trained model from
-# `MXNet Gluon model zoo <https://mxnet.apache.org/api/python/gluon/model_zoo.html>`_.
-# You can found more details about this part at tutorial :ref:`tutorial-from-mxnet`.
+# We will use pre-trained model from torchvision
 
-from mxnet.gluon.model_zoo.vision import get_model
+import torch
+import torchvision
 from PIL import Image
 import numpy as np
 
 # one line to get the model
-block = get_model("resnet18_v1", pretrained=True)
+model_name = "resnet18"
+model = getattr(torchvision.models, model_name)(pretrained=True)
+model = model.eval()
+
+# We grab the TorchScripted model via tracing
+input_shape = [1, 3, 224, 224]
+input_data = torch.randn(input_shape)
+scripted_model = torch.jit.trace(model, input_data).eval()
 
 ######################################################################
 # In order to test our model, here we download an image of cat and
@@ -142,12 +148,12 @@ with open(synset_path) as f:
     synset = eval(f.read())
 
 ######################################################################
-# Now we would like to port the Gluon model to a portable computational graph.
+# Now we would like to port the PyTorch model to a portable computational graph.
 # It's as easy as several lines.
 
-# We support MXNet static graph(symbol) and HybridBlock in mxnet.gluon
-shape_dict = {"data": x.shape}
-mod, params = relay.frontend.from_mxnet(block, shape_dict)
+input_name = "input0"
+shape_list = [(input_name, x.shape)]
+mod, params = relay.frontend.from_pytorch(scripted_model, shape_list)
 # we want a probability so add a softmax operator
 func = mod["main"]
 func = relay.Function(func.params, relay.nn.softmax(func.body), None, func.type_params, func.attrs)
@@ -220,7 +226,7 @@ rlib = remote.load_module("net.tar")
 dev = remote.cpu(0)
 module = runtime.GraphModule(rlib["default"](dev))
 # set input data
-module.set_input("data", tvm.nd.array(x.astype("float32")))
+module.set_input(input_name, tvm.nd.array(x.astype("float32")))
 # run
 module.run()
 # get output

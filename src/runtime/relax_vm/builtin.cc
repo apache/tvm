@@ -343,13 +343,12 @@ Storage VMAllocStorage(void* ctx_ptr, ShapeTuple buffer_shape, Index device_inde
     device_index = vm->devices.size() - 1;
   }
 
-  auto storage_obj = runtime::SimpleObjAllocator().make_object<StorageObj>();
   auto* alloc = vm->allocators[device_index];
   ICHECK(alloc) << "Did you forget to init the VirtualMachine with devices?";
 
-  storage_obj->buffer = alloc->Alloc(buffer_shape, dtype_hint, mem_scope);
-  Storage storage(storage_obj);
-  return storage;
+  auto buffer = alloc->Alloc(vm->devices[device_index], buffer_shape, dtype_hint, mem_scope);
+
+  return Storage(buffer, alloc);
 }
 
 TVM_REGISTER_GLOBAL("vm.builtin.alloc_storage").set_body_typed(VMAllocStorage);
@@ -498,6 +497,11 @@ TVM_REGISTER_GLOBAL("vm.builtin.invoke_debug_func")
 //-------------------------------------
 TVM_REGISTER_GLOBAL("vm.builtin.tuple_getitem")
     .set_body_typed([](runtime::Array<ObjectRef> arr, int64_t index) { return arr[index]; });
+
+TVM_REGISTER_GLOBAL("vm.builtin.tuple_reset_item")
+    .set_body_typed([](runtime::Array<ObjectRef> arr, int64_t index) {
+      arr.Set(index, ObjectRef(nullptr));
+    });
 
 TVM_REGISTER_GLOBAL("vm.builtin.make_tuple").set_body([](TVMArgs args, TVMRetValue* rv) {
   runtime::Array<ObjectRef> arr;

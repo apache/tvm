@@ -25,8 +25,8 @@ from tvm.relay import testing
 from tvm.relay.expr_functor import ExprVisitor
 from tvm.relay.build_module import bind_params_by_name
 
-from tvm.contrib.msc.core import _ffi_api
 from tvm.contrib.msc.core import transform as msc_transform
+from tvm.contrib.msc.core import utils as msc_utils
 
 
 def test_relax_layout():
@@ -56,14 +56,12 @@ def test_relax_layout():
 
         def visit_var_binding_(self, binding) -> None:
             super().visit_var_binding_(binding)
-            layout = _ffi_api.SpanGetAttr(binding.value.span, "layout")
-            if not layout:
+            if not msc_utils.get_expr_layout(binding.value):
                 self._missing_exprs.append(binding.value)
 
         def visit_constant_(self, op) -> None:
             super().visit_constant_(op)
-            layout = _ffi_api.SpanGetAttr(op.span, "layout")
-            if not layout:
+            if not msc_utils.get_expr_layout(op):
                 self._missing_exprs.append(op)
 
     torch_model = torchvision.models.resnet50()
@@ -90,14 +88,12 @@ def test_relay_name():
 
         def visit_constant(self, expr):
             super().visit_constant(expr)
-            name = _ffi_api.SpanGetAttr(expr.span, "name")
-            if not name:
+            if not msc_utils.get_expr_name(expr):
                 self._missing_exprs.append(expr)
 
         def visit_call(self, expr):
             super().visit_call(expr)
-            name = _ffi_api.SpanGetAttr(expr.span, "name")
-            if not name:
+            if not msc_utils.get_expr_name(expr):
                 self._missing_exprs.append(expr)
 
     mod, params = testing.resnet.get_workload(num_layers=50, batch_size=1, dtype="float32")
@@ -133,14 +129,12 @@ def test_relax():
 
         def visit_var_binding_(self, binding) -> None:
             super().visit_var_binding_(binding)
-            name = _ffi_api.SpanGetAttr(binding.value.span, "name")
-            if not name:
+            if not msc_utils.get_expr_name(binding.value):
                 self._missing_exprs.append(binding.value)
 
         def visit_constant_(self, op) -> None:
             super().visit_constant_(op)
-            name = _ffi_api.SpanGetAttr(op.span, "name")
-            if not name:
+            if not msc_utils.get_expr_name(op):
                 self._missing_exprs.append(op)
 
     torch_model = torchvision.models.resnet50()

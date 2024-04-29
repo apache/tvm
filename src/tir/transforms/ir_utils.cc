@@ -358,6 +358,7 @@ class IRConvertSSA final : public StmtExprMutator {
       }
 
       Var var = iter_var->var;
+      bool delayed_define = false;
       if (auto it = function_scope_var_remap_.find(var.get());
           it != function_scope_var_remap_.end()) {
         var = it->second;
@@ -373,8 +374,23 @@ class IRConvertSSA final : public StmtExprMutator {
         function_scope_var_remap_.insert({var.get(), new_var});
         var = new_var;
       } else {
-        function_scope_var_remap_.insert({var.get(), var});
-        defined_.insert(var.get());
+        // The AttrStmt refers to an undefined variable.  This is
+        // allowed for some attributes, such as
+        // "pragma_parallel_launch_point", which annotates a variable
+        // that is about to occur in a ForNode.  In these cases, the
+        // ForNode and the AttrStmt must continue using the same
+        // variable defintion.
+        //
+        // However, other AttrStmt, such as "thread_extent", act as
+        // points of definition for the variable they annotate.  If
+        // the variable has not been defined after visiting the body,
+        // we should mark it as defined before exiting.  This ensures
+        // correct de-duplication between multiple functions.
+        //
+        // This implementation may be simplified in the future by
+        // moving "pragma_parallel_launch_point" to be an annotation
+        // on the `ForNode`, rather than an `AttrStmt`.
+        delayed_define = true;
       }
 
       IterVar new_iter_var;
@@ -387,11 +403,21 @@ class IRConvertSSA final : public StmtExprMutator {
       auto value = VisitExpr(op->value);
       auto body = VisitStmt(op->body);
 
+      Stmt output;
       if (new_iter_var.get() == iter_var && body.same_as(op->body) && value.same_as(op->value)) {
-        return GetRef<Stmt>(op);
+        output = GetRef<Stmt>(op);
       } else {
-        return AttrStmt(new_iter_var, op->attr_key, value, body, iter_var->span);
+        output = AttrStmt(new_iter_var, op->attr_key, value, body, iter_var->span);
       }
+
+      if (delayed_define) {
+        if (!defined_.count(var.get())) {
+          function_scope_var_remap_.insert({var.get(), var});
+          defined_.insert(var.get());
+        }
+      }
+
+      return output;
 
     } else if (const VarNode* v = op->node.as<VarNode>()) {
       Stmt stmt = StmtExprMutator::VisitStmt_(op);
@@ -409,10 +435,19 @@ class IRConvertSSA final : public StmtExprMutator {
  private:
   struct ScopedRedefine {
     ScopedRedefine(IRConvertSSA* parent, Var old_var) : parent(parent), old_var(old_var) {
+      bool is_size_var = old_var->IsInstance<SizeVarNode>();
       if (old_var->type_annotation.defined()) {
-        new_var = Var(old_var->name_hint, old_var->type_annotation);
+        if (is_size_var) {
+          new_var = SizeVar(old_var->name_hint, old_var->type_annotation);
+        } else {
+          new_var = Var(old_var->name_hint, old_var->type_annotation);
+        }
       } else {
-        new_var = Var(old_var->name_hint, old_var->dtype);
+        if (is_size_var) {
+          new_var = SizeVar(old_var->name_hint, old_var->dtype);
+        } else {
+          new_var = Var(old_var->name_hint, old_var->dtype);
+        }
       }
       parent->scope_[old_var.get()].push_back(new_var);
     }

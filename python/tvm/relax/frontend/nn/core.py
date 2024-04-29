@@ -48,7 +48,7 @@ from tvm.runtime import ndarray
 from tvm.runtime.relax_vm import VirtualMachine
 from tvm.target import Target
 
-from ... import expr as rx
+from .... import relax as rx
 from ...block_builder import BlockBuilder
 from ...struct_info import (
     ObjectStructInfo,
@@ -125,6 +125,16 @@ class Tensor(_TensorOp):
     def from_scalar(data: Union[int, float], dtype: str) -> "Tensor":
         """Construct a tensor from a scalar with dtype specified."""
         return Tensor(_expr=rx.const(data, dtype=dtype))
+
+    @staticmethod
+    def from_struct_info(struct_info: rx.TensorStructInfo, name: str = "tensor") -> "Tensor":
+        """Construct a nn.Tensor from relax TensorStructInfo"""
+        return Tensor(
+            _expr=rx.Var(
+                name_hint=name,
+                struct_info=struct_info,
+            )
+        )
 
     @staticmethod
     def placeholder(
@@ -465,10 +475,10 @@ class Module(SubroutineMixin):
         -------
         irmodule : tvm.ir.IRModule
             The converted tvm IR representation of the model.
-        params : Dict[str, tvm.nd.array]
-            A dictionary of parameters corresponding to the weights of
-            the model.
+        params : List[Tuple[str, Parameter]]
+            A list of Parameters corresponding to the weights of the model.
         ext_mods : List[nn.ExternModule]
+            A list of ExternModules that are used in the model.
         """
         # pylint: disable=import-outside-toplevel
         from . import spec as _spec

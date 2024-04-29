@@ -513,7 +513,8 @@ inline void CloneRules(const SpaceGeneratorNode* src, SpaceGeneratorNode* dst) {
 
 /*! \brief Returns true if the given target is one of the supported gpu targets. */
 inline bool IsGPUTarget(const std::string& target_name) {
-  static const std::unordered_set<std::string> gpu_targets{"cuda", "rocm", "vulkan", "metal"};
+  static const std::unordered_set<std::string> gpu_targets{"cuda", "rocm", "vulkan", "metal",
+                                                           "opencl"};
   return gpu_targets.count(target_name);
 }
 

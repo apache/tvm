@@ -1,0 +1,47 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+# prebuild ci-cpu image
+FROM tlcpack/ci-cpu:20230604-060130-0af9ff90e
+
+# Cloning TVM's main repo
+RUN echo "Cloning TVM source & submodules"
+ENV TVM_PAR_DIR="/usr"
+RUN mkdir -p TVM_PAR_DIR && \
+        cd ${TVM_PAR_DIR} && \
+        git clone --depth=1 https://github.com/apache/tvm tvm --recursive
+
+# Building TVM
+RUN echo "Building TVM"
+ENV TVM_HOME="/usr/tvm"
+ENV TVM_BUILD_DIR="${TVM_HOME}/build"
+RUN mkdir -p ${TVM_BUILD_DIR} && \
+	cd ${TVM_HOME} && \
+	./tests/scripts/task_config_build_mrvl.sh build && \
+        cd ${TVM_BUILD_DIR} && \
+        cmake .. && \
+        make -j$(nproc)
+
+RUN echo "Building Python package"
+ENV PYTHONPATH=${TVM_HOME}/python:${PYTHONPATH}
+RUN cd ${TVM_HOME}/python && python3 setup.py install --user
+
+# Fetching Marvell binaries
+RUN cd /opt && \
+        git clone https://github.com/MarvellEmbeddedProcessors/MarvellMLTools.git
+
+ENV PATH="/opt/MarvellMLTools/bin:$PATH"

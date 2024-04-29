@@ -26,9 +26,8 @@ cp ../cmake/config.cmake .
 echo set\(USE_OPENCL_GTEST /googletest\) >> config.cmake
 if [ -f "${ADRENO_OPENCL}/CL/cl_qcom_ml_ops.h" ] ; then
 echo set\(USE_CLML ${ADRENO_OPENCL}\) >> config.cmake
-else
-echo set\(USE_OPENCL ON\) >> config.cmake
 fi
+echo set\(USE_OPENCL ON\) >> config.cmake
 echo set\(USE_RPC ON\) >> config.cmake
 echo set\(USE_GRAPH_EXECUTOR ON\) >> config.cmake
 echo set\(USE_LIBBACKTRACE AUTO\) >> config.cmake

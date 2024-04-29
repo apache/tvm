@@ -18,9 +18,11 @@
 import pytest
 
 import tvm
-from tvm import relax
-from tvm.script import tir as T, relax as R, ir as I
 import tvm.testing
+from tvm import relax
+from tvm.script import ir as I
+from tvm.script import relax as R
+from tvm.script import tir as T
 
 
 class BaseCompare(tvm.testing.CompareBeforeAfter):
@@ -105,7 +107,7 @@ def test_rewrite_cuda_graph():
             return gv
 
         @R.function(private=True)
-        def cuda_graph_capture(alloc: R.Tensor((2, 4), dtype="float32"), alloc1: R.Tensor((2, 4), dtype="float32"), storage: R.Object, storage2: R.Object) -> R.Tuple(R.Tensor((2, 4), dtype="float32")):
+        def main_cuda_graph_capture(alloc: R.Tensor((2, 4), dtype="float32"), alloc1: R.Tensor((2, 4), dtype="float32"), storage: R.Object, storage2: R.Object) -> R.Tuple(R.Tensor((2, 4), dtype="float32")):
             R.func_attr({"relax.force_pure": True})
             cls = Expected
             _2: R.Tuple = cls.exp(alloc, alloc1)
@@ -131,7 +133,7 @@ def test_rewrite_cuda_graph():
             storage1: R.Object = gv[1]
             alloc1: R.Tensor((2, 4), dtype="float32") = R.memory.alloc_tensor(storage1, R.prim_value(0), R.shape([2, 4]), R.dtype("float32"))
             storage2: R.Object = gv[2]
-            gv1: R.Tuple(R.Tensor((2, 4), dtype="float32")) = R.call_builtin_with_ctx("vm.builtin.cuda_graph.run_or_capture", (cls.cuda_graph_capture, (alloc, alloc1, storage, storage2), R.prim_value(0)), sinfo_args=(R.Tuple(R.Tensor((2, 4), dtype="float32")),))
+            gv1: R.Tuple(R.Tensor((2, 4), dtype="float32")) = R.call_builtin_with_ctx("vm.builtin.cuda_graph.run_or_capture", (cls.main_cuda_graph_capture, (alloc, alloc1, storage, storage2), R.prim_value(0)), sinfo_args=(R.Tuple(R.Tensor((2, 4), dtype="float32")),))
             alloc3: R.Tensor((2, 4), dtype="float32") = gv1[0]
             alloc4: R.Tensor((2, 4), dtype="float32") = R.builtin.alloc_tensor(R.shape([2, 4]), R.dtype("float32"), R.prim_value(0))
             _6: R.Tuple = cls.exp(alloc3, alloc4)
@@ -189,7 +191,7 @@ def test_tuple():
             _5: R.Tuple = R.memory.kill_tensor(alloc2)
             _6: R.Tuple = R.memory.kill_storage(storage)
             _7: R.Tuple = R.memory.kill_storage(storage1)
-            return alloc2
+            return alloc3
 
     @I.ir_module
     class Expected:
@@ -215,7 +217,7 @@ def test_tuple():
             return gv
 
         @R.function(private=True)
-        def cuda_graph_capture(alloc: R.Tensor((2, 4), dtype="float32"), alloc1: R.Tensor((2, 4), dtype="float32"), storage: R.Object) -> R.Tuple(R.Tensor((2, 4), dtype="float32")):
+        def main_cuda_graph_capture(alloc: R.Tensor((2, 4), dtype="float32"), alloc1: R.Tensor((2, 4), dtype="float32"), storage: R.Object) -> R.Tuple(R.Tensor((2, 4), dtype="float32")):
             R.func_attr({"relax.force_pure": True})
             cls = Expected
             _: R.Tuple = cls.exp(alloc, alloc1)
@@ -240,14 +242,14 @@ def test_tuple():
             _: R.Tuple = cls.exp(x, alloc)
             storage1: R.Object = gv[1]
             alloc1: R.Tensor((2, 4), dtype="float32") = R.memory.alloc_tensor(storage1, R.prim_value(0), R.shape([2, 4]), R.dtype("float32"))
-            gv1: R.Tuple(R.Tensor((2, 4), dtype="float32")) = R.call_builtin_with_ctx("vm.builtin.cuda_graph.run_or_capture", (cls.cuda_graph_capture, (alloc, alloc1, storage), R.prim_value(0)), sinfo_args=(R.Tuple(R.Tensor((2, 4), dtype="float32")),))
+            gv1: R.Tuple(R.Tensor((2, 4), dtype="float32")) = R.call_builtin_with_ctx("vm.builtin.cuda_graph.run_or_capture", (cls.main_cuda_graph_capture, (alloc, alloc1, storage), R.prim_value(0)), sinfo_args=(R.Tuple(R.Tensor((2, 4), dtype="float32")),))
             alloc2: R.Tensor((2, 4), dtype="float32") = gv1[0]
             alloc3: R.Tensor((2, 4), dtype="float32") = R.builtin.alloc_tensor(R.shape([2, 4]), R.dtype("float32"), R.prim_value(0))
             _4: R.Tuple = cls.exp(alloc2, alloc3)
             _5: R.Tuple = R.memory.kill_tensor(alloc2)
             _6: R.Tuple = R.memory.kill_storage(storage)
             _7: R.Tuple = R.memory.kill_storage(storage1)
-            return alloc2
+            return alloc3
     # fmt: on
 
     after = relax.transform.RewriteCUDAGraph()(Before)
@@ -316,7 +318,7 @@ def test_vm_builtin():
             return gv
 
         @R.function(private=True)
-        def cuda_graph_capture(alloc: R.Tensor((2, 4), dtype="float32"), alloc1: R.Tensor((2, 4), dtype="float32"), storage: R.Object) -> R.Tuple(R.Tensor((2, 4), dtype="float32"), R.Tensor((2, 4), dtype="float32")):
+        def main_cuda_graph_capture(alloc: R.Tensor((2, 4), dtype="float32"), alloc1: R.Tensor((2, 4), dtype="float32"), storage: R.Object) -> R.Tuple(R.Tensor((2, 4), dtype="float32"), R.Tensor((2, 4), dtype="float32")):
             R.func_attr({"relax.force_pure": True})
             cls = Expected
             _2: R.Tuple = cls.exp(alloc, alloc1)
@@ -336,7 +338,7 @@ def test_vm_builtin():
             _1: R.Tuple = cls.exp(x, alloc)
             storage1: R.Object = gv[1]
             alloc1: R.Tensor((2, 4), dtype="float32") = R.memory.alloc_tensor(storage1, R.prim_value(0), R.shape([2, 4]), R.dtype("float32"))
-            gv1: R.Tuple(R.Tensor((2, 4), dtype="float32"), R.Tensor((2, 4), dtype="float32")) = R.call_builtin_with_ctx("vm.builtin.cuda_graph.run_or_capture", (cls.cuda_graph_capture, (alloc, alloc1, storage), R.prim_value(0)), sinfo_args=(R.Tuple(R.Tensor((2, 4), dtype="float32"), R.Tensor((2, 4), dtype="float32")),))
+            gv1: R.Tuple(R.Tensor((2, 4), dtype="float32"), R.Tensor((2, 4), dtype="float32")) = R.call_builtin_with_ctx("vm.builtin.cuda_graph.run_or_capture", (cls.main_cuda_graph_capture, (alloc, alloc1, storage), R.prim_value(0)), sinfo_args=(R.Tuple(R.Tensor((2, 4), dtype="float32"), R.Tensor((2, 4), dtype="float32")),))
             alloc2: R.Tensor((2, 4), dtype="float32") = gv1[1]
             lv: R.Tensor((2, 4), dtype="float32") = gv1[0]
             _4: R.Tuple = R.call_packed("vm.builtin.dummy", (x, lv), sinfo_args=(R.Tuple,))
@@ -526,7 +528,7 @@ def test_capture_fixed_inputs():
             return gv
 
         @R.function(private=True)
-        def cuda_graph_capture(
+        def main_cuda_graph_capture(
             lv: R.Tensor((16, 32, 32, 16), dtype="float16"),
             lv1: R.Tensor((16, 3, 3, 16), dtype="float16"),
             alloc1: R.Tensor((16, 32, 32, 16), dtype="float16"),
@@ -633,7 +635,7 @@ def test_capture_fixed_inputs():
             ) = R.call_builtin_with_ctx(
                 "vm.builtin.cuda_graph.run_or_capture",
                 (
-                    cls.cuda_graph_capture,
+                    cls.main_cuda_graph_capture,
                     (lv_1, lv1, alloc1, alloc, params, storage),
                     R.prim_value(0),
                 ),
@@ -702,6 +704,476 @@ def test_transform_is_no_op_when_disabled():
 
     assert not tvm.ir.structural_equal(Before, AfterWhenEnabled)
     tvm.ir.assert_structural_equal(Before, AfterWhenDisabled)
+
+
+def test_static_args():
+    @I.ir_module
+    class Before:
+        @R.function(pure=False)
+        def main():
+            storage0 = R.memory.alloc_storage(R.shape([8]), 0, "global", "float32")
+            alloc0 = R.memory.alloc_tensor(storage0, 0, R.shape([8]), "float32")
+            _ = R.call_packed("dummy_func", alloc0, R.dtype("float32"), R.str("string"))
+            return R.tuple()
+
+    @I.ir_module
+    class Expected:
+        @R.function(private=True)
+        def cuda_graph_alloc() -> R.Tuple(R.Object):
+            R.func_attr({"relax.force_pure": True})
+            storage0: R.Object = R.memory.alloc_storage(
+                R.shape([8]), R.prim_value(0), R.str("global"), R.dtype("float32")
+            )
+            gv: R.Tuple(R.Object) = (storage0,)
+            return gv
+
+        @R.function(private=True)
+        def main_cuda_graph_capture(alloc0: R.Tensor((8,), dtype="float32")) -> R.Tuple:
+            R.func_attr({"relax.force_pure": True})
+            _: R.Object = R.call_packed("dummy_func", alloc0, R.dtype("float32"), R.str("string"))
+            gv: R.Tuple = R.tuple()
+            return gv
+
+        @R.function(pure=False)
+        def main() -> R.Tuple:
+            cls = Expected
+            gv: R.Tuple(R.Object) = R.call_builtin_with_ctx(
+                "vm.builtin.cuda_graph.get_cached_alloc",
+                (cls.cuda_graph_alloc, R.prim_value(0)),
+                sinfo_args=(R.Tuple(R.Object),),
+            )
+            storage0: R.Object = gv[0]
+            alloc0: R.Tensor((8,), dtype="float32") = R.memory.alloc_tensor(
+                storage0, R.prim_value(0), R.shape([8]), R.dtype("float32")
+            )
+            gv1: R.Tuple = R.call_builtin_with_ctx(
+                "vm.builtin.cuda_graph.run_or_capture",
+                (cls.main_cuda_graph_capture, (alloc0,), R.prim_value(0)),
+                sinfo_args=(R.Tuple,),
+            )
+            return R.tuple()
+
+    mod = relax.transform.RewriteCUDAGraph()(Before)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_dynamic_capture():
+    @I.ir_module
+    class Before:
+        @T.prim_func
+        def add_one(x_handle: T.handle, y_handle: T.handle):
+            m = T.int64()
+            x = T.match_buffer(x_handle, (m,), "float32")
+            y = T.match_buffer(y_handle, (m,), "float32")
+            for i in range(m):
+                with T.block("add"):
+                    vi = T.axis.remap("S", [i])
+                    y[vi] = x[vi] + T.float32(1)
+
+        @R.function
+        def main(x: R.Tensor(("m",), "float32")) -> R.Tensor(("m",), "float32"):
+            R.func_attr(
+                {"relax.rewrite_cuda_graph.capture_symbolic_vars": ["m"], "relax.force_pure": True}
+            )
+            m = T.int64()
+            storage: R.Object = R.memory.alloc_storage(
+                R.shape([16]), 0, "global", "float32"
+            )  # assume m is upper-bounded
+            alloc1: R.Tensor((m,), "float32") = R.memory.alloc_tensor(
+                storage, 0, R.shape([m]), "float32"
+            )
+            _ = Before.add_one(x, alloc1)
+            storage1: R.Object = R.memory.alloc_storage(R.shape([16]), 0, "global", "float32")
+            alloc2: R.Tensor((m,), "float32") = R.memory.alloc_tensor(
+                storage1, 0, R.shape([m]), "float32"
+            )
+            _ = Before.add_one(alloc1, alloc2)
+            alloc3: R.Tensor((m,), "float32") = R.builtin.alloc_tensor(
+                R.shape([m]), "float32", 0, "global"
+            )
+            _ = Before.add_one(alloc2, alloc3)
+            return alloc3
+
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def add_one(x_handle: T.handle, y_handle: T.handle):
+            m = T.int64()
+            x = T.match_buffer(x_handle, (m,))
+            y = T.match_buffer(y_handle, (m,))
+            # with T.block("root"):
+            for i in range(m):
+                with T.block("add"):
+                    vi = T.axis.spatial(m, i)
+                    T.reads(x[vi])
+                    T.writes(y[vi])
+                    y[vi] = x[vi] + T.float32(1)
+
+        @R.function(private=True)
+        def cuda_graph_alloc() -> R.Tuple(R.Object, R.Object):
+            R.func_attr({"relax.force_pure": True})
+            storage: R.Object = R.memory.alloc_storage(
+                R.shape([16]), R.prim_value(0), R.str("global"), R.dtype("float32")
+            )
+            storage1: R.Object = R.memory.alloc_storage(
+                R.shape([16]), R.prim_value(0), R.str("global"), R.dtype("float32")
+            )
+            gv: R.Tuple(R.Object, R.Object) = storage, storage1
+            return gv
+
+        @R.function(private=True)
+        def main_cuda_graph_capture(
+            alloc1: R.Tensor(("m",), dtype="float32"),
+            alloc2: R.Tensor(("m",), dtype="float32"),
+            shape_expr: R.Shape(["m"]),
+        ):
+            m = T.int64()
+            R.func_attr({"relax.force_pure": True})
+            cls = Expected
+            cls.add_one(alloc1, alloc2)
+            gv = R.tuple()
+            return R.tuple()
+
+        @R.function
+        def main(x: R.Tensor(("m",), dtype="float32")) -> R.Tensor(("m",), dtype="float32"):
+            m = T.int64()
+            R.func_attr(
+                {"relax.force_pure": True, "relax.rewrite_cuda_graph.capture_symbolic_vars": ["m"]}
+            )
+            cls = Expected
+            gv: R.Tuple(R.Object, R.Object) = R.call_builtin_with_ctx(
+                "vm.builtin.cuda_graph.get_cached_alloc",
+                (cls.cuda_graph_alloc, R.prim_value(0)),
+                sinfo_args=(R.Tuple(R.Object, R.Object),),
+            )
+            storage: R.Object = gv[0]
+            alloc1: R.Tensor((m,), dtype="float32") = R.memory.alloc_tensor(
+                storage, R.prim_value(0), R.shape([m]), R.dtype("float32")
+            )
+            cls.add_one(x, alloc1)
+            storage1: R.Object = gv[1]
+            alloc2: R.Tensor((m,), dtype="float32") = R.memory.alloc_tensor(
+                storage1, R.prim_value(0), R.shape([m]), R.dtype("float32")
+            )
+            R.call_builtin_with_ctx(
+                "vm.builtin.cuda_graph.run_or_capture",
+                (
+                    cls.main_cuda_graph_capture,
+                    (alloc1, alloc2, R.shape([m])),
+                    R.prim_value(0),
+                    R.shape([m]),
+                ),
+                sinfo_args=(R.Tuple,),
+            )
+            alloc3: R.Tensor((m,), dtype="float32") = R.builtin.alloc_tensor(
+                R.shape([m]), R.dtype("float32"), R.prim_value(0), R.str("global")
+            )
+            cls.add_one(alloc2, alloc3)
+            return alloc3
+
+    mod = relax.transform.RewriteCUDAGraph()(Before)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+class TestMergeAllocFuncs(BaseCompare):
+    @I.ir_module
+    class Before:
+        @R.function
+        def func1():
+            R.func_attr({"relax.force_pure": True})
+            storage1 = R.memory.alloc_storage(R.shape([128]), 0, "global", "float32")
+            storage2 = R.memory.alloc_storage(R.shape([256]), 0, "global", "float32")
+            storage3 = R.memory.alloc_storage(R.shape([512]), 0, "ipc_memory", "float32")
+            alloc1 = R.memory.alloc_tensor(storage1, 0, R.shape([128]), "float32")
+            alloc2 = R.memory.alloc_tensor(storage2, 0, R.shape([256]), "float32")
+            alloc3 = R.memory.alloc_tensor(storage3, 0, R.shape([512]), "float32")
+            R.call_packed("dummy", alloc1, alloc2, alloc3, sinfo_args=(R.Tuple,))
+            return R.tuple()
+
+        @R.function
+        def func2():
+            R.func_attr({"relax.force_pure": True})
+            storage1 = R.memory.alloc_storage(R.shape([192]), 0, "global", "float32")
+            storage2 = R.memory.alloc_storage(R.shape([64]), 0, "global", "float32")
+            storage3 = R.memory.alloc_storage(R.shape([1024]), 0, "ipc_memory", "float32")
+            storage4 = R.memory.alloc_storage(R.shape([512]), 0, "global", "float32")
+            alloc1 = R.memory.alloc_tensor(storage1, 0, R.shape([192]), "float32")
+            alloc2 = R.memory.alloc_tensor(storage2, 0, R.shape([64]), "float32")
+            alloc3 = R.memory.alloc_tensor(storage3, 0, R.shape([1024]), "float32")
+            alloc4 = R.memory.alloc_tensor(storage4, 0, R.shape([512]), "float32")
+            R.call_packed("dummy", alloc1, alloc2, alloc3, alloc4, sinfo_args=(R.Tuple,))
+            return R.tuple()
+
+    @I.ir_module
+    class Expected:
+        @R.function(private=True)
+        def cuda_graph_alloc() -> R.Tuple(R.Object, R.Object, R.Object, R.Object):
+            R.func_attr({"relax.force_pure": True})
+            storage4: R.Object = R.memory.alloc_storage(
+                R.shape([512]), R.prim_value(0), R.str("global"), R.dtype("float32")
+            )
+            storage1: R.Object = R.memory.alloc_storage(
+                R.shape([192]), R.prim_value(0), R.str("global"), R.dtype("float32")
+            )
+            storage2: R.Object = R.memory.alloc_storage(
+                R.shape([64]), R.prim_value(0), R.str("global"), R.dtype("float32")
+            )
+            storage3: R.Object = R.memory.alloc_storage(
+                R.shape([1024]), R.prim_value(0), R.str("ipc_memory"), R.dtype("float32")
+            )
+            gv: R.Tuple(R.Object, R.Object, R.Object, R.Object) = (
+                storage4,
+                storage1,
+                storage2,
+                storage3,
+            )
+            return gv
+
+        @R.function
+        def func1() -> R.Tuple:
+            R.func_attr({"relax.force_pure": True})
+            cls = Expected
+            gv: R.Tuple(R.Object, R.Object, R.Object, R.Object) = R.call_builtin_with_ctx(
+                "vm.builtin.cuda_graph.get_cached_alloc",
+                (cls.cuda_graph_alloc, R.prim_value(0)),
+                sinfo_args=(R.Tuple(R.Object, R.Object, R.Object, R.Object),),
+            )
+            storage1: R.Object = gv[1]
+            storage2: R.Object = gv[0]
+            storage3: R.Object = gv[3]
+            alloc1: R.Tensor((128,), dtype="float32") = R.memory.alloc_tensor(
+                storage1, R.prim_value(0), R.shape([128]), R.dtype("float32")
+            )
+            alloc2: R.Tensor((256,), dtype="float32") = R.memory.alloc_tensor(
+                storage2, R.prim_value(0), R.shape([256]), R.dtype("float32")
+            )
+            alloc3: R.Tensor((512,), dtype="float32") = R.memory.alloc_tensor(
+                storage3, R.prim_value(0), R.shape([512]), R.dtype("float32")
+            )
+            R.call_builtin_with_ctx(
+                "vm.builtin.cuda_graph.run_or_capture",
+                (cls.func1_cuda_graph_capture, (alloc1, alloc2, alloc3), R.prim_value(0)),
+                sinfo_args=(R.Tuple,),
+            )
+            return R.tuple()
+
+        @R.function(private=True)
+        def func1_cuda_graph_capture(
+            alloc1: R.Tensor((128,), dtype="float32"),
+            alloc2: R.Tensor((256,), dtype="float32"),
+            alloc3: R.Tensor((512,), dtype="float32"),
+        ) -> R.Tuple:
+            R.func_attr({"relax.force_pure": True})
+            R.call_packed("dummy", alloc1, alloc2, alloc3, sinfo_args=(R.Tuple,))
+            R.tuple()
+            return R.tuple()
+
+        @R.function
+        def func2() -> R.Tuple:
+            R.func_attr({"relax.force_pure": True})
+            cls = Expected
+            gv2: R.Tuple(R.Object, R.Object, R.Object, R.Object) = R.call_builtin_with_ctx(
+                "vm.builtin.cuda_graph.get_cached_alloc",
+                (cls.cuda_graph_alloc, R.prim_value(0)),
+                sinfo_args=(R.Tuple(R.Object, R.Object, R.Object, R.Object),),
+            )
+            storage11: R.Object = gv2[1]
+            storage21: R.Object = gv2[2]
+            storage31: R.Object = gv2[3]
+            storage4: R.Object = gv2[0]
+            alloc1: R.Tensor((192,), dtype="float32") = R.memory.alloc_tensor(
+                storage11, R.prim_value(0), R.shape([192]), R.dtype("float32")
+            )
+            alloc2: R.Tensor((64,), dtype="float32") = R.memory.alloc_tensor(
+                storage21, R.prim_value(0), R.shape([64]), R.dtype("float32")
+            )
+            alloc3: R.Tensor((1024,), dtype="float32") = R.memory.alloc_tensor(
+                storage31, R.prim_value(0), R.shape([1024]), R.dtype("float32")
+            )
+            alloc4: R.Tensor((512,), dtype="float32") = R.memory.alloc_tensor(
+                storage4, R.prim_value(0), R.shape([512]), R.dtype("float32")
+            )
+            R.call_builtin_with_ctx(
+                "vm.builtin.cuda_graph.run_or_capture",
+                (cls.func2_cuda_graph_capture, (alloc1, alloc2, alloc3, alloc4), R.prim_value(1)),
+                sinfo_args=(R.Tuple,),
+            )
+            return R.tuple()
+
+        @R.function(private=True)
+        def func2_cuda_graph_capture(
+            alloc1: R.Tensor((192,), dtype="float32"),
+            alloc2: R.Tensor((64,), dtype="float32"),
+            alloc3: R.Tensor((1024,), dtype="float32"),
+            alloc4: R.Tensor((512,), dtype="float32"),
+        ) -> R.Tuple:
+            R.func_attr({"relax.force_pure": True})
+            R.call_packed("dummy", alloc1, alloc2, alloc3, alloc4, sinfo_args=(R.Tuple,))
+            R.tuple()
+            return R.tuple()
+
+
+class TestDisableCaptureOutput(BaseCompare):
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(x: R.Tensor((8,), "float32")) -> R.Tuple(R.Tensor((8,), "float32")):
+            R.func_attr({"relax.force_pure": True})
+            storage1 = R.memory.alloc_storage(R.shape([8]), 0, "global", "float32")
+            alloc1 = R.memory.alloc_tensor(storage1, 0, R.shape([8]), "float32")
+            _ = R.call_packed("dummy", x, alloc1, sinfo_args=(R.Tuple,))
+            storage2 = R.memory.alloc_storage(R.shape([8]), 0, "global", "float32")
+            alloc2 = R.memory.alloc_tensor(storage2, 0, R.shape([8]), "float32")
+            _1 = R.call_packed("dummy", alloc1, alloc2, sinfo_args=(R.Tuple,))
+            storage3 = R.memory.alloc_storage(R.shape([8]), 0, "global", "float32")
+            alloc3 = R.memory.alloc_tensor(storage3, 0, R.shape([8]), "float32")
+            _2 = R.call_packed("dummy", alloc2, alloc3, sinfo_args=(R.Tuple,))
+            gv = (alloc3,)
+            return gv
+
+    @I.ir_module
+    class Expected:
+        @R.function(private=True)
+        def cuda_graph_alloc() -> R.Tuple(R.Object, R.Object):
+            R.func_attr({"relax.force_pure": True})
+            storage1: R.Object = R.memory.alloc_storage(
+                R.shape([8]), R.prim_value(0), R.str("global"), R.dtype("float32")
+            )
+            storage2: R.Object = R.memory.alloc_storage(
+                R.shape([8]), R.prim_value(0), R.str("global"), R.dtype("float32")
+            )
+            gv: R.Tuple(R.Object, R.Object) = storage1, storage2
+            return gv
+
+        @R.function(private=True)
+        def main_cuda_graph_capture(
+            alloc1: R.Tensor((8,), dtype="float32"), alloc2: R.Tensor((8,), dtype="float32")
+        ) -> R.Tuple:
+            R.func_attr({"relax.force_pure": True})
+            R.call_packed("dummy", alloc1, alloc2, sinfo_args=(R.Tuple,))
+            R.tuple()
+            return R.tuple()
+
+        @R.function
+        def main(x: R.Tensor((8,), dtype="float32")) -> R.Tuple(R.Tensor((8,), dtype="float32")):
+            R.func_attr({"relax.force_pure": True})
+            cls = Expected
+            gv: R.Tuple(R.Object, R.Object) = R.call_builtin_with_ctx(
+                "vm.builtin.cuda_graph.get_cached_alloc",
+                (cls.cuda_graph_alloc, R.prim_value(0)),
+                sinfo_args=(R.Tuple(R.Object, R.Object),),
+            )
+            storage1: R.Object = gv[0]
+            alloc1: R.Tensor((8,), dtype="float32") = R.memory.alloc_tensor(
+                storage1, R.prim_value(0), R.shape([8]), R.dtype("float32")
+            )
+            R.call_packed("dummy", x, alloc1, sinfo_args=(R.Tuple,))
+            storage2: R.Object = gv[1]
+            alloc2: R.Tensor((8,), dtype="float32") = R.memory.alloc_tensor(
+                storage2, R.prim_value(0), R.shape([8]), R.dtype("float32")
+            )
+            R.call_builtin_with_ctx(
+                "vm.builtin.cuda_graph.run_or_capture",
+                (cls.main_cuda_graph_capture, (alloc1, alloc2), R.prim_value(0)),
+                sinfo_args=(R.Tuple,),
+            )
+            storage3: R.Object = R.memory.alloc_storage(
+                R.shape([8]), R.prim_value(0), R.str("global"), R.dtype("float32")
+            )
+            alloc3: R.Tensor((8,), dtype="float32") = R.memory.alloc_tensor(
+                storage3, R.prim_value(0), R.shape([8]), R.dtype("float32")
+            )
+            R.call_packed("dummy", alloc2, alloc3, sinfo_args=(R.Tuple,))
+            gv = (alloc3,)
+            return gv
+
+
+class TestStaticInputWithSymbolicShape(BaseCompare):
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(x: R.Tensor((8,), "float16"), w: R.Tensor(("m",))):
+            m = T.int64()
+            R.func_attr({"relax.force_pure": True, "num_input": 1})
+            storage1 = R.memory.alloc_storage(R.shape([8]), 0, "global", "float16")
+            alloc1 = R.memory.alloc_tensor(storage1, 0, R.shape([8]), "float16")
+            _ = R.call_packed("dummy", x, w, alloc1, sinfo_args=(R.Tuple,))
+            storage2 = R.memory.alloc_storage(R.shape([8]), 0, "global", "float16")
+            alloc2 = R.memory.alloc_tensor(storage2, 0, R.shape([8]), "float16")
+            _1 = R.call_packed("dummy", alloc1, w, alloc2, sinfo_args=(R.Tuple,))
+            storage3 = R.memory.alloc_storage(R.shape([8]), 0, "global", "float16")
+            alloc3 = R.memory.alloc_tensor(storage3, 0, R.shape([8]), "float16")
+            _2 = R.call_packed("dummy", alloc2, w, alloc3, sinfo_args=(R.Tuple,))
+            gv = (alloc3,)
+            return gv
+
+    @I.ir_module
+    class Expected:
+        @R.function(private=True)
+        def cuda_graph_alloc() -> R.Tuple(R.Object, R.Object):
+            R.func_attr({"relax.force_pure": True})
+            storage1: R.Object = R.memory.alloc_storage(
+                R.shape([8]), R.prim_value(0), R.str("global"), R.dtype("float16")
+            )
+            storage2: R.Object = R.memory.alloc_storage(
+                R.shape([8]), R.prim_value(0), R.str("global"), R.dtype("float16")
+            )
+            gv: R.Tuple(R.Object, R.Object) = storage1, storage2
+            return gv
+
+        @R.function(private=True)
+        def main_cuda_graph_capture(
+            alloc1: R.Tensor((8,), dtype="float16"),
+            w: R.Tensor(("m",)),
+            alloc2: R.Tensor((8,), dtype="float16"),
+            shape_expr: R.Shape(["m"]),
+        ) -> R.Tuple:
+            m = T.int64()
+            R.func_attr({"relax.force_pure": True})
+            R.call_packed("dummy", alloc1, w, alloc2, sinfo_args=(R.Tuple,))
+            R.tuple()
+            return R.tuple()
+
+        @R.function
+        def main(
+            x: R.Tensor((8,), dtype="float16"), w: R.Tensor(("m",))
+        ) -> R.Tuple(R.Tensor((8,), dtype="float16")):
+            m = T.int64()
+            R.func_attr({"num_input": 1, "relax.force_pure": True})
+            cls = Expected
+            gv: R.Tuple(R.Object, R.Object) = R.call_builtin_with_ctx(
+                "vm.builtin.cuda_graph.get_cached_alloc",
+                (cls.cuda_graph_alloc, R.prim_value(0)),
+                sinfo_args=(R.Tuple(R.Object, R.Object),),
+            )
+            storage1: R.Object = gv[0]
+            alloc1: R.Tensor((8,), dtype="float16") = R.memory.alloc_tensor(
+                storage1, R.prim_value(0), R.shape([8]), R.dtype("float16")
+            )
+            R.call_packed("dummy", x, w, alloc1, sinfo_args=(R.Tuple,))
+            storage2: R.Object = gv[1]
+            alloc2: R.Tensor((8,), dtype="float16") = R.memory.alloc_tensor(
+                storage2, R.prim_value(0), R.shape([8]), R.dtype("float16")
+            )
+            R.call_builtin_with_ctx(
+                "vm.builtin.cuda_graph.run_or_capture",
+                (
+                    cls.main_cuda_graph_capture,
+                    (alloc1, w, alloc2, R.shape([m])),
+                    R.prim_value(0),
+                    R.shape([m]),
+                ),
+                sinfo_args=(R.Tuple,),
+            )
+            storage3: R.Object = R.memory.alloc_storage(
+                R.shape([8]), R.prim_value(0), R.str("global"), R.dtype("float16")
+            )
+            alloc3: R.Tensor((8,), dtype="float16") = R.memory.alloc_tensor(
+                storage3, R.prim_value(0), R.shape([8]), R.dtype("float16")
+            )
+            R.call_packed("dummy", alloc2, w, alloc3, sinfo_args=(R.Tuple,))
+            gv_1: R.Tuple(R.Tensor((8,), dtype="float16")) = (alloc3,)
+            return gv_1
 
 
 if __name__ == "__main__":

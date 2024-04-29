@@ -28,6 +28,7 @@
 
 #include <iostream>
 
+#include "../../support/ordered_set.h"
 #include "utils.h"
 
 namespace tvm {
@@ -39,12 +40,39 @@ class CodeGenRunner : ExprMutator {
 
   explicit CodeGenRunner(IRModule mod) : ExprMutator(mod) {}
 
-  IRModule Run(Optional<Map<String, OptionMap>> target_options, Array<String> entry_functions) {
+  IRModule Run(Optional<Map<String, OptionMap>> target_options,
+               Array<String> entry_function_names) {
     IRModule mod = builder_->GetContextIRModule();
-    for (const String& entry_func_name : entry_functions) {
-      auto entry_func = mod->Lookup(entry_func_name);
-      auto gvar = mod->GetGlobalVar(entry_func_name);
-      builder_->UpdateFunction(gvar, Downcast<BaseFunc>(VisitExpr(entry_func)));
+
+    support::OrderedSet<GlobalVar> entry_functions;
+    // Any user-provided functions are treated as entry functions.
+    for (const auto& name : entry_function_names) {
+      entry_functions.insert(mod->GetGlobalVar(name));
+    }
+
+    // In addtion, any externally-exposed function that does not
+    // belong to a specific codegen may be an entry function.  These
+    // are added in alphabetical order, to ensure consistent order of
+    // evaluation for debug/test purposes.
+    {
+      std::vector<GlobalVar> attr_entry_functions;
+      for (const auto& [gv, func] : mod->functions) {
+        if (func->GetLinkageType() == LinkageType::kExternal &&
+            !func->GetAttr<String>(attr::kCodegen) && func->IsInstance<relax::FunctionNode>()) {
+          attr_entry_functions.push_back(gv);
+        }
+      }
+      std::sort(attr_entry_functions.begin(), attr_entry_functions.end(),
+                [](const auto& gvar_a, const auto& gvar_b) {
+                  return gvar_a->name_hint > gvar_b->name_hint;
+                });
+      for (const auto& gvar : attr_entry_functions) {
+        entry_functions.insert(gvar);
+      }
+    }
+
+    for (const auto& gvar : entry_functions) {
+      builder_->UpdateFunction(gvar, Downcast<BaseFunc>(VisitExpr(mod->Lookup(gvar))));
     }
 
     auto ext_mods = InvokeCodegen(mod, target_options.value_or({}));
@@ -65,7 +93,7 @@ class CodeGenRunner : ExprMutator {
     }
 
     // TODO(@tvm-team): Implicit pass dependency. Revisit when we have a better way to handle this.
-    return DeadCodeElimination(out_mod, entry_functions);
+    return DeadCodeElimination(out_mod, entry_function_names);
   }
 
   using ExprMutator::VisitExpr_;
@@ -88,9 +116,9 @@ class CodeGenRunner : ExprMutator {
       auto ret_sinfo = GetStructInfo(call);
       if (auto it = extern_funcs_.find(gvar_node); it != extern_funcs_.end()) {
         return create_call_dps_packed(it->second, ret_sinfo);
-      } else {
+      } else if (auto opt_func = builder_->GetContextIRModule()->Lookup(gvar).as<Function>()) {
         // TODO(@sunggg): Is there any better way to get this func?
-        Function func = Downcast<Function>(builder_->GetContextIRModule()->Lookup(gvar));
+        Function func = opt_func.value();
         Expr new_func = VisitExpr(func);
 
         if (new_func->IsInstance<ExternFuncNode>()) {

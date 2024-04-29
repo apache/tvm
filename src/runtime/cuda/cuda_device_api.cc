@@ -41,11 +41,12 @@ class CUDADeviceAPI final : public DeviceAPI {
   void GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) final {
     int value = 0;
     switch (kind) {
-      case kExist:
+      case kExist: {
         int count;
-        CUDA_CALL(cudaGetDeviceCount(&count));
-        value = static_cast<int>(dev.device_id < count);
+        auto err = cudaGetDeviceCount(&count);
+        value = (err == cudaSuccess && static_cast<int>(dev.device_id < count));
         break;
+      }
       case kMaxThreadsPerBlock: {
         CUDA_CALL(cudaDeviceGetAttribute(&value, cudaDevAttrMaxThreadsPerBlock, dev.device_id));
         break;
@@ -195,7 +196,7 @@ class CUDADeviceAPI final : public DeviceAPI {
   TVMStreamHandle CreateStream(Device dev) {
     CUDA_CALL(cudaSetDevice(dev.device_id));
     cudaStream_t retval;
-    CUDA_CALL(cudaStreamCreate(&retval));
+    CUDA_CALL(cudaStreamCreateWithFlags(&retval, cudaStreamNonBlocking));
     return static_cast<TVMStreamHandle>(retval);
   }
 
@@ -225,6 +226,10 @@ class CUDADeviceAPI final : public DeviceAPI {
     CUDAThreadEntry::ThreadLocal()->stream = static_cast<cudaStream_t>(stream);
   }
 
+  TVMStreamHandle GetCurrentStream(Device dev) final {
+    return static_cast<TVMStreamHandle>(CUDAThreadEntry::ThreadLocal()->stream);
+  }
+
   void* AllocWorkspace(Device dev, size_t size, DLDataType type_hint) final {
     return CUDAThreadEntry::ThreadLocal()->pool.AllocWorkspace(dev, size);
   }
@@ -243,11 +248,7 @@ class CUDADeviceAPI final : public DeviceAPI {
  private:
   static void GPUCopy(const void* from, void* to, size_t size, cudaMemcpyKind kind,
                       cudaStream_t stream) {
-    if (stream != nullptr) {
-      CUDA_CALL(cudaMemcpyAsync(to, from, size, kind, stream));
-    } else {
-      CUDA_CALL(cudaMemcpy(to, from, size, kind));
-    }
+    CUDA_CALL(cudaMemcpyAsync(to, from, size, kind, stream));
   }
 };
 

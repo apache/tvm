@@ -14,13 +14,20 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+
 # pylint: disable=invalid-name,too-many-locals
+
 """Utility functions for Relax"""
+
 import functools
 import inspect
+import itertools
+import string
+
 from typing import Tuple as typing_Tuple
 from typing import Any, Callable, List, Dict, Optional, TypeVar
 
+import tvm
 from .. import tir
 from ..tir import PrimExpr
 from ..runtime import String, convert_to_object
@@ -302,9 +309,23 @@ def gen_call_tir_inputs(
         out_sinfo, and tir_vars.
     """
 
-    def _convert_te_arg(
-        te_args: Any, tir_var_map: Dict[tir.Var, tir.PrimExpr]
-    ) -> typing_Tuple[Any, List[te_Tensor]]:
+    tir_var_map: Dict[tir.Var, tir.PrimExpr] = {}
+
+    call_tir_args = []
+    create_primfunc_args = []
+    # extra list of tir expression arguments
+    # that are not covered by Tensor
+    extra_tir_args_list = []
+
+    def _copy_undefined_var(expr: tir.PrimExpr):
+        def _visit_expr(e: tir.PrimExpr):
+            if isinstance(e, tir.Var) and e not in tir_var_map:
+                new_var = tir.Var(e.name, e.dtype)
+                tir_var_map[e] = new_var
+
+        tir.stmt_functor.post_order_visit(expr, _visit_expr)
+
+    def _convert_te_arg(te_args: Any) -> Any:
         """Helper function used to convert Relax expressions to TE tensor.
 
         In the common case, the type of te_args is a Relax expression and is converted
@@ -335,23 +356,8 @@ def gen_call_tir_inputs(
             A tuple of the converted te_args, and a list of te tensors for each converted
             Relax expression
         """
-        te_args_list = []
-        # extra list of tir expression arguments
-        # that are not covered by Tensor
-        extra_tir_args_list = []
-
-        def _copy_undefined_var(expr: tir.PrimExpr):
-            def _visit_expr(e: tir.PrimExpr):
-                if isinstance(e, tir.Var) and e not in tir_var_map:
-                    new_var = tir.Var(e.name, e.dtype)
-                    tir_var_map[e] = new_var
-
-            tir.stmt_functor.post_order_visit(expr, _visit_expr)
-
-        n_tensor = 0
 
         def _convert_te_arg_helper(arg):
-            nonlocal n_tensor
             if isinstance(arg, Expr):  # type: ignore
                 if isinstance(arg.struct_info, TensorStructInfo):
                     assert isinstance(
@@ -360,18 +366,46 @@ def gen_call_tir_inputs(
                     for shape_value in arg.struct_info.shape.values:
                         _copy_undefined_var(shape_value)
 
-                    name = chr(ord("A") + n_tensor) if n_tensor < 26 else f"input{n_tensor}"
-                    arg = te_tensor(arg, tir_var_map, name)
-                    n_tensor += 1
-                    te_args_list.append(arg)
-                    return arg
+                    n_args = len(create_primfunc_args)
+                    if isinstance(arg, tvm.relax.Var):
+                        name = arg.name_hint
+                    elif n_args < len(string.ascii_uppercase):
+                        name = string.ascii_uppercase[n_args]
+                    else:
+                        name = f"tensor_input_{n_args}"
+
+                    te_arg = te_tensor(arg, tir_var_map, name)
+
+                    call_tir_args.append(arg)
+                    create_primfunc_args.append(te_arg)
+
+                    return te_arg
+
                 if isinstance(arg.struct_info, ShapeStructInfo):
                     assert isinstance(
                         arg, ShapeExpr
                     ), "For Expr having ShapeStructInfo, emit_te now only supports ShapeExpr"
                     return [_convert_te_arg_helper(val) for val in arg.values]
+
                 if isinstance(arg.struct_info, PrimStructInfo):
-                    return arg.value
+                    if arg.struct_info.value is None:
+                        n_args = len(create_primfunc_args)
+                        if isinstance(arg, tvm.relax.Var):
+                            name = arg.name_hint
+                        elif n_args < len(string.ascii_lowercase):
+                            name = string.ascii_lowercase[n_args]
+                        else:
+                            name = f"scalar_input_{n_args}"
+
+                        tir_param = tir.Var(name, arg.struct_info.dtype)
+
+                        call_tir_args.append(arg)
+                        create_primfunc_args.append(tir_param)
+
+                        return tir_param
+                    else:
+                        return _convert_te_arg_helper(arg.struct_info.value)
+
             elif isinstance(arg, (list, Array)):
                 return [_convert_te_arg_helper(x) for x in arg]
             elif isinstance(arg, tuple):
@@ -392,28 +426,36 @@ def gen_call_tir_inputs(
             raise TypeError("not supported type in emit_te: {}".format(type(arg)))
 
         new_arg = _convert_te_arg_helper(te_args)
-        return new_arg, te_args_list, extra_tir_args_list
+        return new_arg
 
     def _get_unbound_tir_vars(
         args: List[te_Tensor], extra_tir_args: List[PrimExpr]
     ) -> List[tir.Var]:
         """get unbound TIR vars (i.e TIR vars used in the shape but is not
         itself a dimension of a shape)"""
+
         bound_vars = set()
         used_vars = set()
 
+        def _populate_bound_vars(expr):
+            if isinstance(expr, te_Tensor):
+                for dim in expr.shape:
+                    _populate_bound_vars(dim)
+            elif isinstance(expr, tir.Var):
+                bound_vars.add(expr)
+
         def _populate_used_vars(expr):
-            if isinstance(expr, tir.Var):
-                used_vars.add(expr)
+            if isinstance(expr, te_Tensor):
+                for dim in expr.shape:
+                    _populate_used_vars(dim)
+            elif isinstance(expr, tir.PrimExpr):
+                used_vars.update(tir.analysis.undefined_vars(expr))
 
-        for val in extra_tir_args:
-            tir.stmt_functor.post_order_visit(val, _populate_used_vars)
+        for arg in itertools.chain(args, extra_tir_args):
+            _populate_used_vars(arg)
 
-        for x in args:
-            for s in x.shape:
-                tir.stmt_functor.post_order_visit(s, _populate_used_vars)
-                if isinstance(s, tir.Var):
-                    bound_vars.add(s)
+        for arg in args:
+            _populate_bound_vars(arg)
 
         diff = used_vars - bound_vars
         return list(diff)
@@ -445,29 +487,24 @@ def gen_call_tir_inputs(
 
     primfunc_attrs = kwargs.pop("primfunc_attrs", None)
 
-    tir_var_map: Dict[tir.Var, tir.PrimExpr] = {}
-    new_args, te_arg_list, tir_arg_list = _convert_te_arg(args, tir_var_map)
-    new_kwargs, te_kwarg_list, tir_kwarg_list = _convert_te_arg(kwargs, tir_var_map)
+    te_args = _convert_te_arg(args)
+    te_kwargs = _convert_te_arg(kwargs)
 
-    te_args = te_arg_list + te_kwarg_list
-
-    te_out = func(*new_args, **new_kwargs)
+    te_out = func(*te_args, **te_kwargs)
     assert isinstance(te_out, te_Tensor) or (
         isinstance(te_out, (tuple, list, Array)) and all(isinstance(t, te_Tensor) for t in te_out)
     ), "only support te.tensor or tuple/list/Array of te.tensor as function output"
 
     outs = [te_out] if isinstance(te_out, te_Tensor) else list(te_out)
-    unbound_tir_vars = _get_unbound_tir_vars(te_args + outs, tir_arg_list + tir_kwarg_list)
+    unbound_tir_vars = _get_unbound_tir_vars([*create_primfunc_args, *outs], extra_tir_args_list)
 
-    inputs = [*te_args] + outs + unbound_tir_vars
+    inputs = [*create_primfunc_args] + outs + unbound_tir_vars
     tir_func = create_prim_func(inputs, "int64")
 
     if primfunc_attrs:
         tir_func = tir_func.with_attrs(primfunc_attrs)
 
     tir_func = tir_func.without_attr("global_symbol")
-
-    call_tir_args = [x.op.value for x in te_args]
 
     # Invert the TIR variable mapping, to convert the output shape back
     # with old set of variables.

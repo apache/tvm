@@ -295,13 +295,16 @@ class RPCObjectRefObj : public Object {
   /*!
    * \brief constructor
    * \param object_handle handle that points to the remote object
-   * \param sess The remote session
+   *
+   * \param sess The remote session, when session is nullptr
+   * it indicate the object is a temp object during rpc transmission
+   * and we don't have to free it
    */
   RPCObjectRefObj(void* object_handle, std::shared_ptr<RPCSession> sess)
       : object_handle_(object_handle), sess_(sess) {}
 
   ~RPCObjectRefObj() {
-    if (object_handle_ != nullptr) {
+    if (object_handle_ != nullptr && sess_ != nullptr) {
       try {
         sess_->FreeHandle(object_handle_, kTVMObjectHandle);
       } catch (const Error& e) {

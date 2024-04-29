@@ -1459,6 +1459,17 @@ class TorchFXImporter:
             "scaled_dot_product_attention": self._scaled_dot_product_attention,
         }
 
+    def update_convert_map(self, custom_convert_map: dict):
+        """Update self.convert_map with custom convert map
+
+        Parameters
+        ----------
+        custom_convert_map : Dictionary of str to Relax op
+            A custom op conversion map in the same format as self.convert_map
+        """
+
+        self.convert_map.update(custom_convert_map)
+
     def from_fx(
         self,
         model,
@@ -1466,10 +1477,16 @@ class TorchFXImporter:
         keep_params_as_input: bool,
         unwrap_unit_return_tuple: bool,
         no_bind_return_tuple: bool,
+        custom_convert_map: dict = None,
     ) -> tvm.IRModule:
         """Convert a PyTorch FX GraphModule to a Relax program."""
         from torch import fx
 
+        if custom_convert_map:
+            custom_ops = set(custom_convert_map.keys())
+            self.update_convert_map(custom_convert_map)
+        else:
+            custom_ops = set()
         self.named_modules = dict(model.named_modules())
 
         graph: fx.Graph = model.graph
@@ -1544,11 +1561,14 @@ class TorchFXImporter:
                         ), f"Unsupported module type {type(module)}"
                         self.env[node] = self.convert_map[type(module)](node)
                     elif node.op == "call_function":
-                        func_name = node.name.rstrip("0123456789_")
+                        func_name = node.target.__name__
                         assert (
                             func_name in self.convert_map
                         ), f"Unsupported function type {func_name}"
-                        self.env[node] = self.convert_map[func_name](node)
+                        if func_name in custom_ops:
+                            self.env[node] = self.convert_map[func_name](node, self)
+                        else:
+                            self.env[node] = self.convert_map[func_name](node)
                     elif node.op == "call_method":
                         assert (
                             node.target in self.convert_map
@@ -1572,6 +1592,7 @@ def from_fx(
     keep_params_as_input: bool = False,
     unwrap_unit_return_tuple: bool = False,
     no_bind_return_tuple: bool = False,
+    custom_convert_map: dict = None,
 ) -> tvm.IRModule:
     """Convert a PyTorch FX GraphModule to a Relax program
 
@@ -1593,6 +1614,9 @@ def from_fx(
     no_bind_return_tuple : bool
         A boolean flag indicating whether to bind the return tuple as a relax var.
         If the flag is true and the return value is a tuple, it will not bind it to a var.
+
+    custom_convert_map : Dictionary of str to Relax op
+        A custom op conversion map in the same format as TorchFXImporter.convert_map
 
     Returns
     -------
@@ -1662,5 +1686,10 @@ def from_fx(
     check the placeholder rows in the beginning of the tabular.
     """
     return TorchFXImporter().from_fx(
-        model, input_info, keep_params_as_input, unwrap_unit_return_tuple, no_bind_return_tuple
+        model,
+        input_info,
+        keep_params_as_input,
+        unwrap_unit_return_tuple,
+        no_bind_return_tuple,
+        custom_convert_map=custom_convert_map,
     )

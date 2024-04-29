@@ -404,9 +404,11 @@ class BaseJointNode : public Object {
   bool GetAttr(const String& key, int64_t* val) const;
   bool GetAttr(const String& key, float* val) const;
   bool GetAttr(const String& key, bool* val) const;
+  bool GetAttr(const String& key, std::vector<std::string>* val) const;
   bool GetAttr(const String& key, std::vector<int>* val) const;
   bool GetAttr(const String& key, std::vector<int64_t>* val) const;
   bool GetAttr(const String& key, std::vector<float>* val) const;
+  bool GetAttr(const String& key, std::vector<bool>* val) const;
   /*! \brief Check and get the attribute by type. */
   template <typename T>
   const T GetTypeAttr(const String& key) const {

@@ -41,8 +41,8 @@ const Array<PrimExpr> GetShape(const Expr& var) {
 }
 
 Var EmitCall(BlockBuilder builder, const Expr& expr, const Span& src_span, const String& suffix) {
-  const auto& name = SpanUtils::GetAttr(src_span, "name") + "_" + suffix;
-  expr->span = SpanUtils::SetAttr(expr->span, "name", name);
+  const auto& name = SpanUtils::GetAttr(src_span, msc_attr::kName) + "_" + suffix;
+  expr->span = SpanUtils::SetAttr(expr->span, msc_attr::kName, name);
   return builder->Emit(expr, name);
 }
 
@@ -54,7 +54,7 @@ Var MakeCall(BlockBuilder builder, const Span& src_span, const String& suffix, E
 
 Expr MakeConstant(double value, const DataType& dtype, const String& name) {
   const auto& data = support::FloatImmToNDArray(FloatImm(dtype, value));
-  const auto& span = SpanUtils::SetAttr(Span(), "name", name);
+  const auto& span = SpanUtils::SetAttr(Span(), msc_attr::kName, name);
   return Constant(data, NullOpt, span);
 }
 
@@ -228,14 +228,15 @@ Expr RewriteAttention(BlockBuilder builder, const Var& var, const Call& src_call
   Expr p_scale;
   if (src_attrs->scale.defined()) {
     const auto& scale = MakeConstant(static_cast<double>(src_attrs->scale.value()->value), in_dtype,
-                                     SpanUtils::GetAttr(call->span, "name") + "_scale");
+                                     SpanUtils::GetAttr(call->span, msc_attr::kName) + "_scale");
     Array<PrimExpr> exp_shape(3, Integer(1));
     const auto& exp_scale =
         MakeCall(builder, call->span, "exp_scale", reshape_op, {scale, ShapeExpr(exp_shape)});
     p_scale = MakeCall(builder, call->span, "p_scale", multiply_op, {qk_prod, exp_scale});
   } else {
-    const auto& scale = MakeConstant(static_cast<double>(Downcast<Integer>(head_dim)->value),
-                                     in_dtype, SpanUtils::GetAttr(call->span, "name") + "_scale");
+    const auto& scale =
+        MakeConstant(static_cast<double>(Downcast<Integer>(head_dim)->value), in_dtype,
+                     SpanUtils::GetAttr(call->span, msc_attr::kName) + "_scale");
     Array<PrimExpr> exp_shape(3, Integer(1));
     const auto& exp_scale =
         MakeCall(builder, call->span, "exp_scale", reshape_op, {scale, ShapeExpr(exp_shape)});
@@ -305,8 +306,8 @@ Expr RewriteBatchNorm(BlockBuilder builder, const Var& var, const Call& src_call
   exp_shape.Set(src_attrs->axis, input_shape[src_attrs->axis]);
 
   // create eps constant
-  const auto& eps =
-      MakeConstant(src_attrs->epsilon, in_dtype, SpanUtils::GetAttr(call->span, "name") + "_eps");
+  const auto& eps = MakeConstant(src_attrs->epsilon, in_dtype,
+                                 SpanUtils::GetAttr(call->span, msc_attr::kName) + "_eps");
 
   // create ops
   static const Op& add_op = Op::Get("relax.add");
@@ -419,8 +420,8 @@ Expr RewriteGroupNorm(BlockBuilder builder, const Var& var, const Call& src_call
   exp_shape.Set(axis, Integer(src_attrs->num_groups));
 
   // create eps constant
-  const auto& eps =
-      MakeConstant(src_attrs->epsilon, in_dtype, SpanUtils::GetAttr(call->span, "name") + "_eps");
+  const auto& eps = MakeConstant(src_attrs->epsilon, in_dtype,
+                                 SpanUtils::GetAttr(call->span, msc_attr::kName) + "_eps");
 
   // create ops
   static const Op& add_op = Op::Get("relax.add");
@@ -487,8 +488,8 @@ Expr RewriteLayerNorm(BlockBuilder builder, const Var& var, const Call& src_call
     exp_shape.Set(index, input_shape[index]);
   }
   // create eps constant
-  const auto& eps =
-      MakeConstant(src_attrs->epsilon, in_dtype, SpanUtils::GetAttr(call->span, "name") + "_eps");
+  const auto& eps = MakeConstant(src_attrs->epsilon, in_dtype,
+                                 SpanUtils::GetAttr(call->span, msc_attr::kName) + "_eps");
 
   // create ops
   static const Op& add_op = Op::Get("relax.add");
@@ -578,7 +579,8 @@ Expr RewriteRsqrt(BlockBuilder builder, const Var& var, const Call& src_call,
   const auto& in_dtype = Downcast<TensorStructInfo>(GetStructInfo(call->args[0]))->dtype;
   Array<PrimExpr> exp_shape(input_shape.size(), Integer(1));
   // create 1 constant
-  const auto& one = MakeConstant(1, in_dtype, SpanUtils::GetAttr(call->span, "name") + "_one");
+  const auto& one =
+      MakeConstant(1, in_dtype, SpanUtils::GetAttr(call->span, msc_attr::kName) + "_one");
 
   // create ops
   static const Op& reshape_op = Op::Get("relax.reshape");

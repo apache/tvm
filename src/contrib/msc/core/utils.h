@@ -28,6 +28,7 @@
 #include <tvm/relax/expr.h>
 #include <tvm/relay/expr.h>
 
+#include <string>
 #include <tuple>
 #include <vector>
 
@@ -38,6 +39,26 @@ namespace msc {
 using Expr = tvm::RelayExpr;
 using RelaxCall = tvm::relax::Call;
 using RelayCall = tvm::relay::Call;
+
+namespace msc_attr {
+/*! \brief Mark the name for the expr. */
+constexpr const char* kName = "Name";
+/*! \brief Mark the optype for the expr. */
+constexpr const char* kOptype = "Optype";
+/*! \brief Mark the optype for the expr. */
+constexpr const char* kOpattrs = "Opattrs";
+/*! \brief Mark the layout for the expr. */
+constexpr const char* kLayout = "Layout";
+/*! \brief Mark the share reference for the expr. */
+constexpr const char* kSharedRef = "SharedRef";
+
+/*! \brief Mark the unique name for the func. */
+constexpr const char* kUnique = "Unique";
+/*! \brief Mark the input layout for the func. */
+constexpr const char* kInputLayouts = "InputLayouts";
+/*! \brief Mark the consumer type for the func. */
+constexpr const char* kConsumerType = "ConsumerType";
+}  // namespace msc_attr
 
 /*!
  * \brief Utils for Common.
@@ -64,6 +85,11 @@ class CommonUtils {
                                     const std::vector<size_t>& target_version);
   TVM_DLL static int CompareVersion(const Array<Integer>& given_version,
                                     const Array<Integer>& target_version);
+  /*!
+   * \brief Get attr key.
+   * \return The attr key.
+   */
+  TVM_DLL static const String ToAttrKey(const String& key);
 };
 
 /*!
@@ -100,6 +126,8 @@ class StringUtils {
    * \return The String.
    */
   TVM_DLL static const String Join(const Array<String>& sub_strings, const String& joint);
+  TVM_DLL static const String Join(const std::vector<std::string>& sub_strings,
+                                   const std::string& joint);
 
   /*!
    * \brief Replace the substring old to new in String.

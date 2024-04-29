@@ -826,6 +826,15 @@ class Conv(OnnxOpConverter):
         return out
 
 
+def is_ort_version_greater_than(ver):
+    import onnxruntime as ort
+
+    v11, v12, v13 = tuple(int(v) for v in ort.__version__.split("."))
+    v21, v22, v23 = tuple(int(v) for v in ver.split("."))
+
+    return (v11 > v21) or (v11 == v21 and v12 > v22) or ((v11, v12) == (v21, v22) and v13 > v23)
+
+
 class ConvTranspose(OnnxOpConverter):
     """Operator converter for ConvTranspose."""
 
@@ -963,12 +972,15 @@ class ConvTranspose(OnnxOpConverter):
                         )
                 left = [p // 2 for p in total_pad]
                 right = [total_pad[i] - left[i] for i in range(kndim)]
+
                 if "output_shape" in attr and "auto_pad" not in attr:
                     pad = right + left
-                elif "LOWER" in attr["auto_pad"]:
-                    pad = left + right
-                else:
+                elif ("LOWER" in attr["auto_pad"] and is_ort_version_greater_than("1.12.1")) or (
+                    ("UPPER" in attr["auto_pad"] and not is_ort_version_greater_than("1.12.1"))
+                ):
                     pad = right + left
+                else:
+                    pad = left + right
                 attr["pads"] = pad
             elif attr["auto_pad"] == "VALID":
                 attr["pads"] = tuple([0 for i in range(ndim - 2)])
@@ -2392,7 +2404,7 @@ class Upsample(OnnxOpConverter):
         if not isinstance(scales, _expr.Expr):
             assert scales[0] == 1.0 and scales[1] == 1.0
 
-        mode = attr.get("mode")
+        mode = attr.get("mode", b"nearest")
         if mode == b"nearest":
             method = "nearest_neighbor"
         elif mode == b"linear":
@@ -3932,7 +3944,7 @@ class Resize(OnnxOpConverter):
 
     @classmethod
     def _impl_v10(cls, inputs, attr, params):
-        mode = attr.get("mode").decode("ascii")
+        mode = attr.get("mode", b"nearest").decode("ascii")
         if mode == "nearest":
             method = "nearest_neighbor"
         elif mode == "linear":
@@ -4007,7 +4019,7 @@ class Resize(OnnxOpConverter):
         if roi is not None and infer_shape(roi)[0] == 0:
             roi = None
         ndims = len(infer_shape(inputs[0]))
-        mode = attr.get("mode").decode("ascii")
+        mode = attr.get("mode", b"nearest").decode("ascii")
         if mode == "nearest":
             method = "nearest_neighbor"
         elif mode == "linear":
@@ -4809,9 +4821,9 @@ class DFT(OnnxOpConverter):
     @classmethod
     def _impl_v17(cls, inputs, attr, params):
         # ************************* Read attrs *************************
-        axis = attr.get("axis")
-        inverse = attr.get("inverse")
-        onesided = attr.get("onesided")
+        axis = attr.get("axis", 1)
+        inverse = attr.get("inverse", 0)
+        onesided = attr.get("onesided", 0)
 
         # ************************* Read inputs ************************
         input_tensor = inputs[0]
@@ -6021,7 +6033,7 @@ class Multinomial(OnnxOpConverter):
 
     @classmethod
     def _impl_v7(cls, inputs, attr, params):
-        dtype = attr.get("dtype", "int64")
+        dtype = attr.get("dtype", "int32")
         sample_size = attr.get("sample_size", 1)
         seed = attr.get("seed", None)
         if seed is None:

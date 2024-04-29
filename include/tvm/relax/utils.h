@@ -51,6 +51,13 @@ TVM_DLL Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& binds,
                   const tvm::Map<tir::Var, PrimExpr>& symbolic_var_map = {});
 
 /*!
+ * \brief Bind the symbolic variables to a StructInfo. This is a helper function usually called by
+ * other pass functions to help optimizations.
+ */
+TVM_DLL StructInfo Bind(const StructInfo& sinfo,
+                        const tvm::Map<tir::Var, PrimExpr>& symbolic_var_map);
+
+/*!
  * \brief Infer a binding map for symbolic variables
  *
  * If a set of relax variables are replaced within an expression, this

@@ -193,5 +193,45 @@ def test_variable_names():
         assert binding.var.name_hint == expected_binding.var.name_hint
 
 
+def test_bundled_param_name():
+    """The tuple parameter can have an explicit name"""
+
+    @tvm.script.ir_module
+    class Before:
+        @R.function
+        def main(
+            a: R.Tensor([16], "float32"),
+            b: R.Tensor([16], "float32"),
+            c: R.Tensor([16], "float32"),
+        ) -> R.Tensor([16], "float32"):
+            R.func_attr({"num_input": 1})
+            expr = a
+            expr = R.add(expr, b)
+            expr = R.add(expr, c)
+            return expr
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            a: R.Tensor([16], "float32"),
+            custom_tuple_name: R.Tuple(R.Tensor([16], "float32"), R.Tensor([16], "float32")),
+        ) -> R.Tensor([16], "float32"):
+            R.func_attr({"num_input": 1})
+            expr = a
+            b = custom_tuple_name[0]
+            expr = R.add(expr, b)
+            c = custom_tuple_name[1]
+            expr = R.add(expr, c)
+            return expr
+
+    mod = Before
+    after = relax.transform.BundleModelParams("custom_tuple_name")(mod)
+    tvm.ir.assert_structural_equal(after, Expected)
+
+    for param, expected_param in zip(after["main"].params, Expected["main"].params):
+        assert param.name_hint == expected_param.name_hint
+
+
 if __name__ == "__main__":
     tvm.testing.main()

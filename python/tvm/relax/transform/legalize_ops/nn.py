@@ -241,6 +241,29 @@ def _nn_pad(bb: BlockBuilder, call: Call) -> Expr:
     )
 
 
+@register_legalize("relax.nn.max_pool1d")
+def _nn_max_pool1d(bb: BlockBuilder, call: Call) -> Expr:
+    if call.attrs.out_layout != call.attrs.layout:
+        logging.info(
+            "TOPI max_pool1d does not support different input-output "
+            "layouts, and thus cannot be legalized by TOPI"
+        )
+        return call
+
+    return bb.call_te(
+        topi.nn.pool1d,
+        call.args[0],
+        kernel=call.attrs.pool_size,
+        stride=call.attrs.strides,
+        dilation=call.attrs.dilation,
+        padding=call.attrs.padding,
+        pool_type="max",
+        ceil_mode=call.attrs.ceil_mode,
+        layout=call.attrs.layout,
+        primfunc_name_hint="max_pool1d",
+    )
+
+
 @register_legalize("relax.nn.max_pool2d")
 def _nn_max_pool2d(bb: BlockBuilder, call: Call) -> Expr:
     if call.attrs.out_layout != call.attrs.layout:
@@ -264,6 +287,53 @@ def _nn_max_pool2d(bb: BlockBuilder, call: Call) -> Expr:
     )
 
 
+@register_legalize("relax.nn.max_pool3d")
+def _nn_max_pool3d(bb: BlockBuilder, call: Call) -> Expr:
+    if call.attrs.out_layout != call.attrs.layout:
+        logging.info(
+            "TOPI max_pool3d does not support different input-output "
+            "layouts, and thus cannot be legalized by TOPI"
+        )
+        return call
+
+    return bb.call_te(
+        topi.nn.pool3d,
+        call.args[0],
+        kernel=call.attrs.pool_size,
+        stride=call.attrs.strides,
+        dilation=call.attrs.dilation,
+        padding=call.attrs.padding,
+        pool_type="max",
+        ceil_mode=call.attrs.ceil_mode,
+        layout=call.attrs.layout,
+        primfunc_name_hint="max_pool3d",
+    )
+
+
+@register_legalize("relax.nn.avg_pool1d")
+def _nn_avg_pool1d(bb: BlockBuilder, call: Call) -> Expr:
+    if call.attrs.out_layout != call.attrs.layout:
+        logging.info(
+            "TOPI avg_pool1d does not support different input-output "
+            "layouts, and thus cannot be legalized by TOPI"
+        )
+        return call
+
+    return bb.call_te(
+        topi.nn.pool1d,
+        call.args[0],
+        kernel=call.attrs.pool_size,
+        stride=call.attrs.strides,
+        dilation=call.attrs.dilation,
+        padding=call.attrs.padding,
+        pool_type="avg",
+        ceil_mode=call.attrs.ceil_mode,
+        layout=call.attrs.layout,
+        count_include_pad=call.attrs.count_include_pad,
+        primfunc_name_hint="avg_pool1d",
+    )
+
+
 @register_legalize("relax.nn.avg_pool2d")
 def _nn_avg_pool2d(bb: BlockBuilder, call: Call) -> Expr:
     if call.attrs.out_layout != call.attrs.layout:
@@ -283,7 +353,59 @@ def _nn_avg_pool2d(bb: BlockBuilder, call: Call) -> Expr:
         pool_type="avg",
         ceil_mode=call.attrs.ceil_mode,
         layout=call.attrs.layout,
+        count_include_pad=call.attrs.count_include_pad,
         primfunc_name_hint="avg_pool2d",
+    )
+
+
+@register_legalize("relax.nn.avg_pool3d")
+def _nn_avg_pool3d(bb: BlockBuilder, call: Call) -> Expr:
+    if call.attrs.out_layout != call.attrs.layout:
+        logging.info(
+            "TOPI avg_pool3d does not support different input-output "
+            "layouts, and thus cannot be legalized by TOPI"
+        )
+        return call
+
+    return bb.call_te(
+        topi.nn.pool3d,
+        call.args[0],
+        kernel=call.attrs.pool_size,
+        stride=call.attrs.strides,
+        dilation=call.attrs.dilation,
+        padding=call.attrs.padding,
+        pool_type="avg",
+        ceil_mode=call.attrs.ceil_mode,
+        layout=call.attrs.layout,
+        count_include_pad=call.attrs.count_include_pad,
+        primfunc_name_hint="avg_pool3d",
+    )
+
+
+@register_legalize("relax.nn.adaptive_avg_pool1d")
+def _nn_adaptive_avg_pool1d(bb: BlockBuilder, call: Call) -> Expr:
+    if call.attrs.out_layout != call.attrs.layout:
+        logging.info(
+            "TOPI adaptive_avg_pool1d does not support different input-output "
+            "layouts, and thus cannot be legalized by TOPI"
+        )
+        return call
+
+    def te_adaptive_avg_pool1d(data, output_size, layout_str):
+        if output_size is None:
+            layout = tir.layout(layout_str)
+            idx_W = layout.index_of("W")
+            assert idx_W != -1
+            output_size = data.shape[idx_W]
+
+        return topi.nn.adaptive_pool1d(data, output_size, "avg", layout_str)
+
+    return bb.call_te(
+        te_adaptive_avg_pool1d,
+        call.args[0],
+        call.attrs.output_size,
+        call.attrs.layout,
+        primfunc_name_hint="adaptive_avg_pool1d",
     )
 
 
@@ -312,6 +434,35 @@ def _nn_adaptive_avg_pool2d(bb: BlockBuilder, call: Call) -> Expr:
         call.attrs.output_size,
         call.attrs.layout,
         primfunc_name_hint="adaptive_avg_pool2d",
+    )
+
+
+@register_legalize("relax.nn.adaptive_avg_pool3d")
+def _nn_adaptive_avg_pool3d(bb: BlockBuilder, call: Call) -> Expr:
+    if call.attrs.out_layout != call.attrs.layout:
+        logging.info(
+            "TOPI adaptive_avg_pool3d does not support different input-output "
+            "layouts, and thus cannot be legalized by TOPI"
+        )
+        return call
+
+    def te_adaptive_avg_pool3d(data, output_size, layout_str):
+        if output_size is None:
+            layout = tir.layout(layout_str)
+            idx_D = layout.index_of("D")
+            idx_H = layout.index_of("H")
+            idx_W = layout.index_of("W")
+            assert idx_D != -1 and idx_H != -1 and idx_W != -1
+            output_size = (data.shape[idx_D], data.shape[idx_H], data.shape[idx_W])
+
+        return topi.nn.adaptive_pool3d(data, output_size, "avg", layout_str)
+
+    return bb.call_te(
+        te_adaptive_avg_pool3d,
+        call.args[0],
+        call.attrs.output_size,
+        call.attrs.layout,
+        primfunc_name_hint="adaptive_avg_pool3d",
     )
 
 
@@ -350,7 +501,8 @@ def _nn_gelu_tanh(bb: BlockBuilder, call: Call) -> Expr:
                 tir.const(1.0, dtype)
                 + topi.tanh(
                     tir.const(math.sqrt(2.0 / math.pi), dtype)
-                    * (x + tir.const(0.044715, dtype) * topi.power(x, 3))
+                    * x
+                    * (1 + tir.const(0.044715, dtype) * x * x)
                 )
             )
         )
@@ -485,7 +637,7 @@ def _te_attention(
         if causal_mask == "TopLeft":
             offset = tir.IntImm("int32", 0)
         elif causal_mask == "BottomRight":
-            offset = tir.IntImm("int32", abs(seq_len - seq_len_kv))
+            offset = tir.abs(seq_len - seq_len_kv).astype("int32")
         else:
             raise NotImplementedError()
         p_masked = topi.trilu(p, k=offset, upper=False)

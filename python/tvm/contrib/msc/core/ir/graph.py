@@ -278,6 +278,25 @@ class MSCJoint(BaseJoint):
 
         return _ffi_api.MSCJointWeightAt(self, wtype)
 
+    def weight_type(self, name: str) -> str:
+        """Get the weight type of weight
+
+        Parameters
+        ----------
+        name: str
+            The name of weight.
+
+        Returns
+        -------
+        wtype: str
+            The type of weight.
+        """
+
+        for w_type, weight in self.get_weights().items():
+            if weight.name == name:
+                return w_type
+        raise Exception("Can not find weight type for " + name)
+
     def get_inputs(self) -> List[MSCTensor]:
         """Get all the inputs.
 
@@ -660,6 +679,19 @@ class MSCGraph(BaseGraph):
         for n in self.node_names:
             yield self.find_node(n)
 
+    def get_weights(self) -> Iterable[MSCTensor]:
+        """Get all the weights in the graph.
+
+        Returns
+        -------
+        weights: generator<MSCTensor>
+            The generator of weights.
+        """
+
+        for node in self.get_nodes():
+            for weight in node.get_weights().values():
+                yield weight
+
     def input_at(self, idx: int) -> MSCTensor:
         """Get input at idx.
 
@@ -713,6 +745,23 @@ class MSCGraph(BaseGraph):
         """
 
         return _ffi_api.MSCGraphGetOutputs(self)
+
+    def get_tensors(self) -> List[MSCTensor]:
+        """Get all the tensors.
+
+        Returns
+        -------
+        tensors: list<MSCJoint>
+            The Tensors.
+        """
+
+        for node in self.get_nodes():
+            for t_input in node.get_inputs():
+                yield t_input
+            for weight in node.get_weights().values():
+                yield weight
+        for t_output in self.get_outputs():
+            yield t_output
 
     def to_json(self) -> str:
         """Dump the graph to json.

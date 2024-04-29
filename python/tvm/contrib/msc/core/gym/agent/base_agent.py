@@ -19,6 +19,7 @@
 import copy
 import logging
 from typing import Dict, Any, List, Tuple
+from tvm.contrib.msc.core.gym.namespace import GYMObject
 from tvm.contrib.msc.core import utils as msc_utils
 
 
@@ -37,8 +38,6 @@ class BaseAgent(object):
         The extra options for the agent.
     debug_level: int
         The debug level.
-    verbose: str
-        The verbose level.
     logger: logging.Logger
         The logger
     """
@@ -50,7 +49,6 @@ class BaseAgent(object):
         executors: dict,
         options: dict = None,
         debug_level: int = 0,
-        verbose: str = None,
         logger: logging.Logger = None,
     ):
         self._name = name
@@ -58,15 +56,8 @@ class BaseAgent(object):
         self._executors = self._parse_executors(msc_utils.copy_dict(executors))
         self._options = options or {}
         self._debug_level = debug_level
-        if logger:
-            self._logger = logger
-        else:
-            if not verbose:
-                verbose = "debug" if debug_level > 0 else "info"
-            self._logger = msc_utils.create_file_logger(verbose, workspace.relpath("AGENT_LOG"))
-        self._logger.info(
-            msc_utils.msg_block("AGENT.SETUP({})".format(self.agent_type()), self.setup())
-        )
+        self._logger = logger or msc_utils.get_global_logger()
+        self._logger.info(msc_utils.msg_block(self.agent_mark("SETUP"), self.setup()))
 
     def _parse_executors(self, executors_dict: dict) -> Dict[str, Tuple[callable, dict]]:
         """Parse the executors
@@ -85,9 +76,12 @@ class BaseAgent(object):
         executors = {}
         for name, raw_config in executors_dict.items():
             method_type = (
-                raw_config.pop("method_type") if "method_type" in raw_config else "agent.default"
+                raw_config.pop("method_type") if "method_type" in raw_config else "default"
             )
-            method_cls = msc_utils.get_registered_gym_method(method_type)
+            method_cls = msc_utils.get_registered_gym_method(GYMObject.AGENT, method_type)
+            assert method_cls, "Can not find method cls for {}:{}".format(
+                GYMObject.AGENT, method_type
+            )
             assert "method" in raw_config, "method should be given to find agent method"
             method_name, method = raw_config.pop("method"), None
             if hasattr(method_cls, method_name):
@@ -244,7 +238,7 @@ class BaseAgent(object):
             The learned rewards.
         """
 
-        self._logger.debug(msc_utils.msg_block("AGENT.LEARN", self._knowledge))
+        self._logger.debug(msc_utils.msg_block(self.agent_mark("KNOWLEDEG"), self._knowledge))
         return self._learn()
 
     def _learn(self):
@@ -306,9 +300,26 @@ class BaseAgent(object):
 
         return self._execute("evaluate", self._baseline, reward)
 
+    def agent_mark(self, msg: Any) -> str:
+        """Mark the message with agent info
+
+        Parameters
+        -------
+        msg: str
+            The message
+
+        Returns
+        -------
+        msg: str
+            The message with mark.
+        """
+
+        return "AGENT({}) {}".format(self.role_type(), msg)
+
     @classmethod
-    def agent_type(cls):
+    def role(cls):
+        return GYMObject.AGENT
+
+    @classmethod
+    def role_type(cls):
         return "base"
-
-
-msc_utils.register_gym_agent(BaseAgent)

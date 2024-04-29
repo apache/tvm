@@ -20,6 +20,7 @@ import operator
 from functools import reduce
 
 import tvm
+from tvm import DataType
 from tvm.relax import transform
 from tvm.relax.transform import PatternCheckContext
 
@@ -28,8 +29,11 @@ from ..patterns import make_matmul_pattern
 from ..utils import has_leaking_intermediate_variables
 
 
-def _is_supported_dtype(lhs_dtype, rhs_dtype):
+def _is_supported_dtype(lhs_dtype, rhs_dtype, out_dtype):
     """Check if dtypes in the given workload are supported by cuBLAS BYOC."""
+    if lhs_dtype == "e4m3_float8" and rhs_dtype == "e4m3_float8":
+        # The output cannot be 'e5m2_float8' if inputs are 'e4m3_float8'
+        return out_dtype != "e5m2_float8"
     return (
         (lhs_dtype == "float16" and rhs_dtype == "float16")
         or (lhs_dtype == "float32" and rhs_dtype == "float32")
@@ -42,10 +46,12 @@ def _check_matmul(context: PatternCheckContext) -> bool:
         return False
     lhs = context.annotated_expr["lhs"]
     rhs = context.annotated_expr["rhs"]
+    matmul_call = context.annotated_expr["root"]
 
     lhs_dtype = lhs.struct_info.dtype
     rhs_dtype = rhs.struct_info.dtype
-    if not _is_supported_dtype(lhs_dtype, rhs_dtype):
+    out_dtype = matmul_call.struct_info.dtype
+    if not _is_supported_dtype(lhs_dtype, rhs_dtype, out_dtype):
         return False
 
     lhs_shape = lhs.struct_info.shape.values
@@ -61,6 +67,32 @@ def _check_matmul(context: PatternCheckContext) -> bool:
             return False
         if not isinstance(rhs_shape[-1], (tvm.tir.expr.IntImm, int)) or rhs_shape[-1] % 4 != 0:
             # Rows number must be multiples of 4 for IGEMM
+            return False
+    elif lhs_dtype == "e4m3_float8" and rhs_dtype == "e4m3_float8":
+        matmul_rhs_var = matmul_call.args[1]
+        rhs_transposed = False
+        if matmul_rhs_var in context.matched_bindings:
+            matmul_rhs_call = context.matched_bindings[matmul_rhs_var]
+            assert (
+                isinstance(matmul_rhs_call, tvm.relax.Call)
+                and matmul_rhs_call.op.name == "relax.permute_dims"
+            )
+            rhs_transposed = True
+
+        if not rhs_transposed:
+            # cuBLAS FP8 operations require rhs being transposed
+            return False
+
+        # cuBLAS FP8 operations require all tensors being aligned to 16 bytes.
+        if (
+            not isinstance(rhs_shape[-1], (tvm.tir.expr.IntImm, int))
+            or rhs_shape[-1] % (16 // DataType(lhs_dtype).itemsize()) != 0
+        ):
+            return False
+        if (
+            not isinstance(rhs_shape[-2], (tvm.tir.expr.IntImm, int))
+            or rhs_shape[-2] % (16 // DataType(out_dtype).itemsize()) != 0
+        ):
             return False
 
     lhs_batches = reduce(operator.mul, lhs_shape[:-2], 1)

@@ -26,6 +26,7 @@
 #include <tvm/node/structural_equal.h>
 #include <tvm/runtime/registry.h>
 
+#include <algorithm>
 #include <fstream>
 #include <sstream>
 #include <unordered_set>
@@ -183,6 +184,9 @@ tvm::Array<GlobalVar> IRModuleNode::GetGlobalVars() const {
   for (const auto& pair : global_var_map_) {
     global_vars.push_back(pair.second);
   }
+  std::sort(global_vars.begin(), global_vars.end(), [](const GlobalVar& lhs, const GlobalVar& rhs) {
+    return lhs->name_hint < rhs->name_hint;
+  });
   return tvm::Array<GlobalVar>(global_vars);
 }
 
@@ -413,6 +417,12 @@ TVM_REGISTER_GLOBAL("ir.IRModule")
       return IRModule(funcs, types, {}, {}, dict_attrs, global_infos);
     });
 
+TVM_REGISTER_GLOBAL("ir.Module_Clone").set_body_typed([](IRModule mod) -> IRModule {
+  IRModule clone = mod;
+  clone.CopyOnWrite();
+  return clone;
+});
+
 TVM_REGISTER_GLOBAL("ir.Module_Add")
     .set_body_typed([](IRModule mod, GlobalVar var, ObjectRef val, bool update) -> IRModule {
       ICHECK(val->IsInstance<RelayExprNode>());
@@ -421,6 +431,34 @@ TVM_REGISTER_GLOBAL("ir.Module_Add")
       }
       mod->Add(var, Downcast<BaseFunc>(val), update);
       return mod;
+    });
+
+TVM_REGISTER_GLOBAL("ir.Module_Remove")
+    .set_body_typed([](IRModule mod, Variant<String, GlobalVar> var) -> IRModule {
+      GlobalVar gvar = [&]() {
+        if (auto opt = var.as<GlobalVar>()) {
+          return opt.value();
+        } else if (auto opt = var.as<String>()) {
+          return mod->GetGlobalVar(opt.value());
+        } else {
+          LOG(FATAL) << "InternalError: "
+                     << "Variant didn't contain any of the allowed types";
+        }
+      }();
+      mod->Remove(gvar);
+      return mod;
+    });
+
+TVM_REGISTER_GLOBAL("ir.Module_Contains")
+    .set_body_typed([](IRModule mod, Variant<String, GlobalVar> var) -> bool {
+      if (auto opt = var.as<GlobalVar>()) {
+        return mod->functions.count(opt.value());
+      } else if (auto opt = var.as<String>()) {
+        return mod->global_var_map_.count(opt.value());
+      } else {
+        LOG(FATAL) << "InternalError: "
+                   << "Variant didn't contain any of the allowed types";
+      }
     });
 
 TVM_REGISTER_GLOBAL("ir.Module_AddDef").set_body_method<IRModule>(&IRModuleNode::AddTypeDef);

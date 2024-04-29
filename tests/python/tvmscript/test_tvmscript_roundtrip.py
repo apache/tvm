@@ -21,14 +21,15 @@ import pytest
 import tvm
 import tvm.testing
 from tvm import tir
-from tvm.script import tir as T, ir as I
+from tvm.script import tir as T, ir as I, relax as R
 
 import numpy as np
 
 
 def opt_gemm_normalize():
-    @tvm.script.ir_module
+    @tvm.script.ir_module(check_well_formed=False)
     class Module:
+        # packedB is treated as undefined
         @T.prim_func
         def mmult(A: T.handle, B: T.handle, C: T.handle) -> None:
             # function attr dict
@@ -113,9 +114,7 @@ def opt_gemm_lower():
                                 T.ramp((x_c * 32), 1, 32)
                             ] + (
                                 T.broadcast(
-                                    A_1[
-                                        (((x_outer * 32768) + (x_c * 1024)) + (k_outer * 4)),
-                                    ],
+                                    A_1[(((x_outer * 32768) + (x_c * 1024)) + (k_outer * 4))],
                                     32,
                                 )
                                 * packedB[T.ramp(((y_outer * 32768) + (k_outer * 128)), 1, 32)]
@@ -182,8 +181,9 @@ def launch_env_thread():
 
 
 def opt_gemm_mod_host():
-    @tvm.script.ir_module
+    @tvm.script.ir_module(check_well_formed=False)
     class Module:
+        # packedB is treated as undefined
         @T.prim_func
         def mmult(
             args: T.handle,
@@ -480,7 +480,7 @@ def opt_gemm_mod_host():
 
 
 def opt_conv_tensorcore_normalize():
-    @T.prim_func
+    @T.prim_func(check_well_formed=False)
     def func(A: T.handle, W: T.handle, Conv: T.handle) -> None:
         # function attr dict
         T.func_attr({"global_symbol": "default_function", "tir.noalias": True})
@@ -1600,7 +1600,7 @@ def opt_conv_tensorcore_lower():
                             (
                                 (
                                     (
-                                        (1 <= (T.floordiv(bz, 14) + kh))
+                                        1 <= (T.floordiv(bz, 14) + kh)
                                         and ((T.floordiv(bz, 14) + kh) < 15)
                                     )
                                     and (1 <= (ax2 + T.floormod(bz, 14)))
@@ -2911,7 +2911,8 @@ def constant_folding():
 
 
 def simplify_bracket():
-    @T.prim_func
+    # uninitialized variables
+    @T.prim_func(check_well_formed=False)
     def simplify_bracket() -> None:
         a = T.int32()
         b = T.int32()
@@ -3037,7 +3038,8 @@ def comm_reducer_multiple_reduce_groups():
 
 
 def multiple_commreducer():
-    @T.prim_func
+    # normal_reduce_temp0 is treated as uninitialized value
+    @T.prim_func(check_well_formed=False)
     def multiple_commreducer() -> None:
         normal_reduce_temp0 = T.Buffer([1], dtype="float32", strides=[1], scope="local")
         normal_reduce_temp1 = T.Buffer([1], dtype="float32", strides=[1], scope="local")
@@ -3057,7 +3059,8 @@ def multiple_commreducer():
 
 
 def func_div_mod():
-    @T.prim_func
+    # not well-formed: free variables
+    @T.prim_func(check_well_formed=False)
     def func_div_mod():
         a = T.int32()
         b = T.int32()
@@ -3070,7 +3073,7 @@ def func_div_mod():
 
 def test_div_mod():
     func = func_div_mod()
-    rt_func = tvm.script.from_source(func.script())
+    rt_func = tvm.script.from_source(func.script(), check_well_formed=False)
     tvm.ir.assert_structural_equal(func, rt_func, True)
 
     assert isinstance(func.body[0].value, tvm.tir.FloorDiv)
@@ -3233,7 +3236,8 @@ def llvm_intrin_call():
 
 
 def parse_bufferslice_as_range_bound():
-    @T.prim_func
+    # apparently the use of i in the "outer" block when it is defined outside of a block is wrong
+    @T.prim_func(check_well_formed=False)
     def segment_sum(
         A_ptr: T.handle, B_ptr: T.handle, indptr_ptr: T.handle, n: T.int32, m: T.int32
     ) -> None:
@@ -3346,6 +3350,15 @@ def ramp_int64():
     @T.prim_func
     def func() -> None:
         T.evaluate(T.Ramp(T.int64(0), 1, 3))
+
+    return func
+
+
+def scalable_vectors():
+    @T.prim_func
+    def func(a: T.handle):
+        A = T.match_buffer(a, (200,), "float32")
+        A[T.Ramp(11, 2, 4 * tir.vscale())] = T.Broadcast(125, 4 * tir.vscale())
 
     return func
 
@@ -3489,7 +3502,8 @@ def bool_primitive():
 
 
 def bool_cast():
-    @T.prim_func
+    # uninitialized var
+    @T.prim_func(check_well_formed=False)
     def func() -> None:
         a = T.bool()
         T.evaluate(T.bool(T.int32(0)))
@@ -3612,7 +3626,8 @@ def let_stmt_var():
 
 
 def let_stmt_value():
-    @T.prim_func
+    # uninitialized var
+    @T.prim_func(check_well_formed=False)
     def func():
         y = T.int32()
         with T.LetStmt(y) as x:
@@ -3658,7 +3673,8 @@ def string_stride_int64():
 
 
 def merge_shape_var_def():
-    @T.prim_func
+    # uninitialized vars
+    @T.prim_func(check_well_formed=False)
     def main(A: T.handle, B: T.handle):
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
         m, n = T.int32(), T.int32()
@@ -3876,8 +3892,8 @@ def undefined_data_ptr_in_decl_buffer():
     Allocate/DeclBuffer pair, performing a round-trip through
     TVMScript should not introduce an Allocate node.
     """
-
-    @T.prim_func
+    # uninitialized var
+    @T.prim_func(check_well_formed=False)
     def func():
         data_ptr = T.handle("float32")
         buf = T.decl_buffer(shape=[1], dtype="float32", data=data_ptr)
@@ -3887,7 +3903,8 @@ def undefined_data_ptr_in_decl_buffer():
 
 
 def undefined_shape_in_decl_buffer():
-    @T.prim_func
+    # uninitialized var
+    @T.prim_func(check_well_formed=False)
     def func():
         size = T.int32()
         buf = T.decl_buffer(shape=[size], dtype="float32")
@@ -3897,7 +3914,8 @@ def undefined_shape_in_decl_buffer():
 
 
 def undefined_stride_in_decl_buffer():
-    @T.prim_func
+    # uninitialized var
+    @T.prim_func(check_well_formed=False)
     def func():
         stride = T.int32()
         buf = T.decl_buffer(shape=[1], dtype="float32", strides=[stride])
@@ -3907,7 +3925,8 @@ def undefined_stride_in_decl_buffer():
 
 
 def undefined_elem_offset_in_decl_buffer():
-    @T.prim_func
+    # uninitialized var
+    @T.prim_func(check_well_formed=False)
     def func():
         elem_offset = T.int32()
         buf = T.decl_buffer(shape=[1], dtype="float32", elem_offset=elem_offset)
@@ -4007,6 +4026,65 @@ def op_of_literal():
         yield make_ir_generator(op, arg)
 
 
+def relax_extern_func():
+    @R.function
+    def func(A: R.Tensor([10, 20], "float32")):
+        func = R.ExternFunc("dummy_func")
+
+        B: R.Tensor([10, 20], "float32") = R.call_dps_packed(
+            func, [A], out_sinfo=R.Tensor([10, 20], "float32")
+        )
+
+        C: R.Tensor(ndim=2, dtype="float32") = R.call_dps_packed(
+            func, [B], out_sinfo=R.Tensor([10, 20], "float32")
+        )
+
+        return C
+
+    return func
+
+
+def relax_match_cast_struct_info_proxy():
+    """StructInfoProxy subclasses may be used as expressions
+
+    This is a regression test.  The TVMScript parser allows StructInfo
+    to be specified using a default-constructible class
+    (e.g. `R.Tensor` or `R.Shape`) rather than an instance of that
+    class (e.g. `R.Tensor()` or `R.Shape()`).  In previous
+    implementations, this was only handled when the `StructInfo` was
+    used in an annotation context.  However, a `StructInfo` may also
+    appear as an argument, which is passed to `R.match_cast`.  Use of
+    a default-constructible class must be handled in this context as
+    well.
+    """
+
+    def make_ir_generator(proxy_subclass):
+        def inner():
+            @R.function
+            def func(A: R.Object):
+                B = R.match_cast(A, proxy_subclass)
+                return B
+
+            return func
+
+        inner.__name__ = subclass.__name__
+        return inner
+
+    # Not all subclasses of StructInfoProxy are default-constructible.
+    # This list is a subset of `StructInfoProxy.__subclasses__()`,
+    # excluding `PrimProxy` and `DTensorProxy`.
+    subclasses = [
+        tvm.script.parser.relax.entry.ObjectProxy,
+        tvm.script.parser.relax.entry.TensorProxy,
+        tvm.script.parser.relax.entry.CallableProxy,
+        tvm.script.parser.relax.entry.TupleProxy,
+        tvm.script.parser.relax.entry.ShapeProxy,
+    ]
+
+    for subclass in subclasses:
+        yield make_ir_generator(subclass)
+
+
 ir_generator = tvm.testing.parameter(
     launch_env_thread,
     opt_gemm_normalize,
@@ -4091,12 +4169,37 @@ ir_generator = tvm.testing.parameter(
     return_zero_private,
     return_zero_private_with_attr,
     *op_of_literal(),
+    *relax_match_cast_struct_info_proxy(),
+)
+
+relax_ir_generator = tvm.testing.parameter(
+    relax_extern_func,
+)
+
+show_all_relax_struct_info = tvm.testing.parameter(
+    by_dict={
+        "show_all_struct_info": True,
+        "hide_inferable_struct_info": False,
+    }
 )
 
 
 def test_roundtrip(ir_generator):
     original = ir_generator()
-    after_roundtrip = tvm.script.from_source(original.script(show_meta=True))
+    after_roundtrip = tvm.script.from_source(
+        original.script(show_meta=True), check_well_formed=False
+    )
+    tvm.ir.assert_structural_equal(original, after_roundtrip, True)
+
+
+def test_relax_roundtrip(relax_ir_generator, show_all_relax_struct_info):
+    original = relax_ir_generator()
+    after_roundtrip = tvm.script.from_source(
+        original.script(
+            show_meta=True,
+            show_all_struct_info=show_all_relax_struct_info,
+        )
+    )
     tvm.ir.assert_structural_equal(original, after_roundtrip, True)
 
 

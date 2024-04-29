@@ -41,9 +41,10 @@ RelaxFrameNode* GetRelaxFrame(IRDocsifier d) {
 }
 
 Doc PrintTIRVar(tir::Var n, ObjectPath n_p, IRDocsifier d) {
-  ICHECK(n->dtype.is_int() && n->dtype.is_scalar()) << "TypeError: Relax only uses "
-                                                       "scalar integer TIR variables, but gets: "
-                                                    << n;
+  ICHECK(n->dtype.is_scalar()) << "TypeError: "
+                               << "Relax only uses scalar TIR variables,"
+                               << "but received TIR variable " << n << " with dtype " << n->dtype;
+
   if (!d->IsVarDefined(n)) {
     RelaxFrameNode* f = GetRelaxFrame(d);
     // There should be at least one Relax frame

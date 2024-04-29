@@ -67,16 +67,18 @@ class LegalizeMutator : public ExprMutator {
   }
 
   IRModule Transform() {
-    for (const auto& [gv, func] : mod_->functions) {
+    for (const auto& gv : mod_->GetGlobalVars()) {
+      const auto& func = mod_->Lookup(gv);
       if (func->IsInstance<FunctionNode>()) {
         auto updated_func = Downcast<Function>(this->VisitExpr(func));
         builder_->UpdateFunction(gv, Downcast<BaseFunc>(updated_func));
       }
     }
     // Fill the "kTarget" attribute of PrimFunc
-    for (const auto& [gv, func] : builder_->GetContextIRModule()->functions) {
+    const auto& mod = builder_->GetContextIRModule();
+    for (const auto& gv : mod->GetGlobalVars()) {
       const tir::PrimFuncNode* prim_func;
-      if (tmap_.count(gv) && (prim_func = func.as<tir::PrimFuncNode>())) {
+      if (tmap_.count(gv) && (prim_func = mod->Lookup(gv).as<tir::PrimFuncNode>())) {
         auto f = WithAttr(GetRef<tir::PrimFunc>(prim_func), tvm::attr::kTarget, tmap_[gv]);
         builder_->UpdateFunction(gv, f);
       }
@@ -90,23 +92,32 @@ class LegalizeMutator : public ExprMutator {
   bool WrapPureCondition(const Op& op, const Expr& legalized) {
     static const auto& purity_map = Op::GetAttrMap<Bool>("FPurity");
 
-    // unlikely for this condition not to be met
-    if (const CallNode* call = legalized.as<CallNode>()) {
-      // if the original op is not pure, don't wrap
-      if (!(purity_map.count(op) && purity_map[op]->value)) {
+    const CallNode* call = legalized.as<CallNode>();
+
+    if (!call) {
+      // Unlikely for this condition to be met, but it is possible.
+      // For example, an operation could produce a Tuple output, and
+      // be legalized into separate calls for each item in the Tuple.
+      return false;
+    }
+
+    bool pure_original_op = purity_map.get(op, Bool(false))->value;
+    bool pure_legalized_op = [&]() -> bool {
+      if (auto legalized_op = call->op.as<Op>()) {
+        return purity_map.get(legalized_op.value(), Bool(false))->value;
+      } else if (auto func_sinfo = call->op->struct_info_.as<FuncStructInfoNode>()) {
+        return func_sinfo->purity;
+      } else {
         return false;
       }
-      if (const OpNode* call_op = call->op.as<OpNode>()) {
-        auto res_op = GetRef<Op>(call_op);
-        if (purity_map.count(res_op)) {
-          // if the legalized op is already pure, we *don't* need a wrapper
-          return !purity_map[res_op]->value;
-        }
-      }
-      // simplest case: wrap if the original op was pure and the result is somehow not
-      return true;
-    }
-    return false;
+    }();
+
+    // If the original op was pure, but the legalized op was not,
+    // the legalized op may occur in a context that requires pure
+    // functions, such as a `relax::DataflowBlock`.  In this case,
+    // we should wrap the legalized operation to indicate that it is
+    // still pure.
+    return pure_original_op && !pure_legalized_op;
   }
 
   Call WrapPureCall(const Call& ret) {
@@ -148,6 +159,7 @@ class LegalizeMutator : public ExprMutator {
   Expr VisitExpr_(const CallNode* call) final {
     Call visited_call = Downcast<Call>(this->VisitExprPostOrder_(call));
     static const auto& legalize_map = Op::GetAttrMap<FLegalize>("FLegalize");
+    static const auto& requires_arg_shapes_map = Op::GetAttrMap<Bool>("RequiresArgumentShapes");
     static const Op& call_pure_packed_op = Op::Get("relax.call_pure_packed");
     static const Op& call_tir_op = Op::Get("relax.call_tir");
     static const Op& call_dps_packed_op = Op::Get("relax.call_dps_packed");
@@ -157,17 +169,72 @@ class LegalizeMutator : public ExprMutator {
     if (op_node == nullptr) {
       return visited_call;
     }
-
     auto op = GetRef<Op>(op_node);
-    std::string op_name(op->name);
-    bool is_data_dependent_op = (op_name.find("dynamic") != std::string::npos);
-    // Not all shape values are known
-    // Data-dependent ops are exception since their output shape will be identified at runtime.
-    // Legalizer will insert their shape functions, which are manually registered, and match cast
-    // to define symbolic output shape at compile time.
-    if (!std::all_of(visited_call->args.begin(), visited_call->args.end(),
-                     [](Expr arg) { return KnowAllShapeValues(GetStructInfo(arg)); }) ||
-        (!is_data_dependent_op && !KnowAllShapeValues(GetStructInfo(visited_call)))) {
+
+    bool can_legalize = [&]() -> bool {
+      bool requires_arg_shapes = requires_arg_shapes_map.get(op, Bool(true))->value;
+      if (!requires_arg_shapes) {
+        // This operator does not require its arguments to have a
+        // known shape/dtype.  For example, the "relax.tensor_ndim"
+        // operator can output the dimensionality of a tensor at
+        // runtime, and does not require the dimensionality to be
+        // known at compile-time.
+        return true;
+      }
+
+      bool arg_shapes_defined =
+          std::all_of(visited_call->args.begin(), visited_call->args.end(),
+                      [](Expr arg) { return KnowAllShapeValues(GetStructInfo(arg)); });
+      if (!arg_shapes_defined) {
+        // This operator cannot be legalized, because legalization
+        // requires the argument shapes to be known.
+        //
+        // TODO(Lunderberg):
+        //
+        //     Improve this fallback case, as failure to legalize can
+        //     produce unexpected errors during CodeGenVM.  This could
+        //     be done by having `R.Tensor(ndim=2)` be syntactic sugar
+        //     for `R.Tensor(shape=[m, n])`, where `m` and `n` are new
+        //     shape variables.  This would allow legalization into
+        //     dynamic TIR PrimFuncs.
+        //
+        //     This fallback would only be applicable for cases where
+        //     both the dtype and the dimensionality are known.  While
+        //     Relax can express a tensor with unknown dtype and
+        //     dimensionality as `TensorStructInfo(DataType::Void(),
+        //     kUnknownNDim)`, TIR cannot express unknown dtype or
+        //     unknown dimensionality.
+        return false;
+      }
+
+      std::string op_name(op->name);
+      bool is_data_dependent_op = (op_name.find("dynamic") != std::string::npos);
+      bool ret_shape_defined = KnowAllShapeValues(GetStructInfo(visited_call));
+      if (!is_data_dependent_op && !ret_shape_defined) {
+        // This operator cannot be legalized, because legalization by
+        // default requires the output shape.  The exception is
+        // data-dependent operators (e.g. `R.dynamic_strided_slice`),
+        // where the shape of the output depends on the runtime values
+        // stored in a tensor.
+        //
+        // For data-dependent ops, the output shape will be identified
+        // at runtime.  The Legalizer will insert their shape
+        // functions, which are manually registered for each
+        // data-dependent op, and match cast to define symbolic output
+        // shapes.  These symbolic output shapes at compile time can
+        // be by later operations to refer to the runtime shape.
+        //
+        // TODO(Lunderberg): Make a new operator attribute
+        // `.set_attr<Bool>("DataDependent")`, rather than relying on
+        // the name of the operator.
+        return false;
+      }
+
+      // All checks pass, this operator can be legalized.
+      return true;
+    }();
+
+    if (!can_legalize) {
       return visited_call;
     }
 

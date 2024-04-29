@@ -1930,5 +1930,389 @@ def test_gather():
     _check(Before, After)
 
 
+def test_inplace_simple():
+    @I.ir_module
+    class Module:
+        I.module_attrs({"foo": "bar"})
+
+        @T.prim_func(private=True)
+        def add_inplace(
+            A: T.Buffer((T.int64(10), T.int64(20)), "float32"), B: T.Buffer((), "float32")
+        ):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            for ax0, ax1 in T.grid(T.int64(10), T.int64(20)):
+                with T.block("T_add"):
+                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+                    # T.reads(A[v_ax0, v_ax1], B[()])
+                    # T.writes(A[v_ax0, v_ax1])
+                    A[v_ax0, v_ax1] = A[v_ax0, v_ax1] + B[()]
+
+        @T.prim_func(private=True)
+        def exp_inplace(A: T.Buffer((T.int64(10), T.int64(20)), "float32")):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            for i0, i1 in T.grid(T.int64(10), T.int64(20)):
+                with T.block("compute"):
+                    v_i0, v_i1 = T.axis.remap("SS", [i0, i1])
+                    # T.reads(A[v_i0, v_i1])
+                    # T.writes(A[v_i0, v_i1])
+                    A[v_i0, v_i1] = T.exp(A[v_i0, v_i1])
+
+        @T.prim_func(private=True)
+        def squeeze_inplace(A: T.Buffer((T.int64(10), T.int64(20)), "float32")):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            for ax0, ax1 in T.grid(T.int64(10), T.int64(20)):
+                with T.block("T_squeeze"):
+                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+                    # T.reads(A[v_ax0, v_ax1])
+                    # T.writes(A[v_ax0, v_ax1])
+                    A[v_ax0, v_ax1] = A[v_ax0, v_ax1]
+
+        @R.function(private=True)
+        def fused_add_exp_squeeze(
+            x: R.Tensor((10, 20), dtype="float32"), p0: R.Tensor((), dtype="float32")
+        ) -> R.Tensor((10, 20), dtype="float32"):
+            R.func_attr({"Primitive": 1})
+            cls = Module
+            with R.dataflow():
+                # This overwrites x and is actually evil because the function is marked as pure
+                # but we are doing it just to test the pass. The automatic DataflowUseInplaceCalls
+                # transformation will not produce code like this, but it may make sense to do it
+                # if ownership of x is fully and truly transferred.
+                # Users should apply with caution!
+                lv = R.call_tir_inplace(
+                    cls.add_inplace,
+                    (x, p0),
+                    inplace_indices=[0],
+                    out_sinfo=R.Tensor((10, 20), dtype="float32"),
+                )
+                lv1 = R.call_tir_inplace(
+                    cls.exp_inplace,
+                    (lv,),
+                    inplace_indices=[0],
+                    out_sinfo=R.Tensor((10, 20), dtype="float32"),
+                )
+                gv = R.call_tir_inplace(
+                    cls.squeeze_inplace,
+                    (lv1,),
+                    inplace_indices=[0],
+                    out_sinfo=R.Tensor((10, 20), dtype="float32"),
+                )
+                R.output(gv)
+            return gv
+
+        @R.function
+        def main(
+            x: R.Tensor((10, 20), dtype="float32"), p0: R.Tensor((), dtype="float32")
+        ) -> R.Tensor((10, 20), dtype="float32"):
+            cls = Module
+            with R.dataflow():
+                gv1: R.Tensor((10, 20), dtype="float32") = cls.fused_add_exp_squeeze(x, p0)
+                R.output(gv1)
+            return gv1
+
+    @I.ir_module
+    class Expected:
+        I.module_attrs({"foo": "bar"})
+
+        @T.prim_func(private=True)
+        def fused_add_exp_squeeze(
+            x: T.Buffer((T.int64(10), T.int64(20)), "float32"), p0: T.Buffer((), "float32")
+        ):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            for ax0, ax1 in T.grid(T.int64(10), T.int64(20)):
+                with T.block("T_add"):
+                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+                    x[v_ax0, v_ax1] = x[v_ax0, v_ax1] + p0[()]
+            for i0, i1 in T.grid(T.int64(10), T.int64(20)):
+                with T.block("compute"):
+                    v_i0, v_i1 = T.axis.remap("SS", [i0, i1])
+                    x[v_i0, v_i1] = T.exp(x[v_i0, v_i1])
+            for ax0, ax1 in T.grid(T.int64(10), T.int64(20)):
+                with T.block("T_squeeze"):
+                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+                    x[v_ax0, v_ax1] = x[v_ax0, v_ax1]
+
+        # note that this will clobber x! Use with caution
+        @R.function
+        def main(
+            x: R.Tensor((10, 20), dtype="float32"), p0: R.Tensor((), dtype="float32")
+        ) -> R.Tensor((10, 20), dtype="float32"):
+            cls = Expected
+            with R.dataflow():
+                gv1: R.Tensor((10, 20), dtype="float32") = R.call_tir_inplace(
+                    cls.fused_add_exp_squeeze,
+                    (x, p0),
+                    out_sinfo=R.Tensor((10, 20), dtype="float32"),
+                    inplace_indices=[0],
+                )
+                R.output(gv1)
+            return gv1
+
+    _check(Module, Expected)
+
+
+def test_fuse_inplace_and_non_inplace():
+    @I.ir_module
+    class Module:
+        I.module_attrs({"foo": "bar"})
+
+        @T.prim_func(private=True)
+        def add(
+            A: T.Buffer((T.int64(10), T.int64(20)), "float32"),
+            B: T.Buffer((), "float32"),
+            Out: T.Buffer((T.int64(10), T.int64(20)), "float32"),
+        ):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            for ax0, ax1 in T.grid(T.int64(10), T.int64(20)):
+                with T.block("T_add"):
+                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+                    Out[v_ax0, v_ax1] = A[v_ax0, v_ax1] + B[()]
+
+        @T.prim_func(private=True)
+        def exp_inplace(A: T.Buffer((T.int64(10), T.int64(20)), "float32")):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            for i0, i1 in T.grid(T.int64(10), T.int64(20)):
+                with T.block("compute"):
+                    v_i0, v_i1 = T.axis.remap("SS", [i0, i1])
+                    A[v_i0, v_i1] = T.exp(A[v_i0, v_i1])
+
+        @T.prim_func(private=True)
+        def squeeze_inplace(A: T.Buffer((T.int64(10), T.int64(20)), "float32")):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            for ax0, ax1 in T.grid(T.int64(10), T.int64(20)):
+                with T.block("T_squeeze"):
+                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+                    A[v_ax0, v_ax1] = A[v_ax0, v_ax1]
+
+        @R.function(private=True)
+        def fused_add_exp_squeeze(
+            x: R.Tensor((10, 20), dtype="float32"), p0: R.Tensor((), dtype="float32")
+        ) -> R.Tensor((10, 20), dtype="float32"):
+            R.func_attr({"Primitive": 1})
+            cls = Module
+            with R.dataflow():
+                lv = R.call_tir(
+                    cls.add,
+                    (x, p0),
+                    out_sinfo=R.Tensor((10, 20), dtype="float32"),
+                )
+                lv1 = R.call_tir_inplace(
+                    cls.exp_inplace,
+                    (lv,),
+                    inplace_indices=[0],
+                    out_sinfo=R.Tensor((10, 20), dtype="float32"),
+                )
+                gv = R.call_tir_inplace(
+                    cls.squeeze_inplace,
+                    (lv1,),
+                    inplace_indices=[0],
+                    out_sinfo=R.Tensor((10, 20), dtype="float32"),
+                )
+                R.output(gv)
+            return gv
+
+        @R.function
+        def main(
+            x: R.Tensor((10, 20), dtype="float32"), p0: R.Tensor((), dtype="float32")
+        ) -> R.Tensor((10, 20), dtype="float32"):
+            cls = Module
+            with R.dataflow():
+                gv1: R.Tensor((10, 20), dtype="float32") = cls.fused_add_exp_squeeze(x, p0)
+                R.output(gv1)
+            return gv1
+
+    @I.ir_module
+    class Expected:
+        I.module_attrs({"foo": "bar"})
+
+        @T.prim_func(private=True)
+        def fused_add_exp_squeeze(
+            x: T.Buffer((T.int64(10), T.int64(20)), "float32"),
+            p0: T.Buffer((), "float32"),
+            p_output0: T.Buffer((T.int64(10), T.int64(20)), "float32"),
+        ):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            for ax0, ax1 in T.grid(T.int64(10), T.int64(20)):
+                with T.block("T_add"):
+                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+                    p_output0[v_ax0, v_ax1] = x[v_ax0, v_ax1] + p0[()]
+            for i0, i1 in T.grid(T.int64(10), T.int64(20)):
+                with T.block("compute"):
+                    v_i0, v_i1 = T.axis.remap("SS", [i0, i1])
+                    p_output0[v_i0, v_i1] = T.exp(p_output0[v_i0, v_i1])
+            for ax0, ax1 in T.grid(T.int64(10), T.int64(20)):
+                with T.block("T_squeeze"):
+                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+                    p_output0[v_ax0, v_ax1] = p_output0[v_ax0, v_ax1]
+
+        @R.function
+        def main(
+            x: R.Tensor((10, 20), dtype="float32"), p0: R.Tensor((), dtype="float32")
+        ) -> R.Tensor((10, 20), dtype="float32"):
+            cls = Expected
+            with R.dataflow():
+                gv1: R.Tensor((10, 20), dtype="float32") = R.call_tir(
+                    cls.fused_add_exp_squeeze,
+                    (x, p0),
+                    out_sinfo=R.Tensor((10, 20), dtype="float32"),
+                )
+                R.output(gv1)
+            return gv1
+
+    _check(Module, Expected)
+
+
+def test_use_as_inplace_and_dps():
+    @I.ir_module
+    class Module:
+        # we will use it both in-place and normally (DPS)
+        @T.prim_func(private=True)
+        def add(
+            A: T.Buffer((T.int64(10), T.int64(20)), "float32"),
+            B: T.Buffer((), "float32"),
+            Out: T.Buffer((T.int64(10), T.int64(20)), "float32"),
+        ):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            for ax0, ax1 in T.grid(T.int64(10), T.int64(20)):
+                with T.block("T_add"):
+                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+                    Out[v_ax0, v_ax1] = A[v_ax0, v_ax1] + B[()]
+
+        @R.function(private=True)
+        def fused_sums(
+            x: R.Tensor((10, 20), dtype="float32"), p0: R.Tensor((), dtype="float32")
+        ) -> R.Tensor((10, 20), dtype="float32"):
+            R.func_attr({"Primitive": 1})
+            cls = Module
+            with R.dataflow():
+                lv = R.call_tir(
+                    cls.add,
+                    (x, p0),
+                    out_sinfo=R.Tensor((10, 20), dtype="float32"),
+                )
+                lv1 = R.call_tir_inplace(
+                    cls.add,
+                    (x, p0, lv),
+                    inplace_indices=[2],
+                    out_sinfo=R.Tensor((10, 20), dtype="float32"),
+                )
+                lv2 = R.call_tir_inplace(
+                    cls.add,
+                    (x, p0, lv1),
+                    inplace_indices=[2],
+                    out_sinfo=R.Tensor((10, 20), dtype="float32"),
+                )
+                R.output(lv2)
+            return lv2
+
+        @R.function
+        def main(
+            x: R.Tensor((10, 20), dtype="float32"), p0: R.Tensor((), dtype="float32")
+        ) -> R.Tensor((10, 20), dtype="float32"):
+            cls = Module
+            with R.dataflow():
+                gv1: R.Tensor((10, 20), dtype="float32") = cls.fused_sums(x, p0)
+                R.output(gv1)
+            return gv1
+
+    @I.ir_module
+    class Expected:
+        @T.prim_func(private=True)
+        def fused_sums(
+            x: T.Buffer((T.int64(10), T.int64(20)), "float32"),
+            p0: T.Buffer((), "float32"),
+            p_output0: T.Buffer((T.int64(10), T.int64(20)), "float32"),
+        ):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            for ax0, ax1 in T.grid(T.int64(10), T.int64(20)):
+                with T.block("T_add"):
+                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+                    p_output0[v_ax0, v_ax1] = x[v_ax0, v_ax1] + p0[()]
+            for ax0, ax1 in T.grid(T.int64(10), T.int64(20)):
+                with T.block("T_add"):
+                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+                    p_output0[v_ax0, v_ax1] = x[v_ax0, v_ax1] + p0[()]
+            for ax0, ax1 in T.grid(T.int64(10), T.int64(20)):
+                with T.block("T_add"):
+                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+                    p_output0[v_ax0, v_ax1] = x[v_ax0, v_ax1] + p0[()]
+
+        @R.function
+        def main(
+            x: R.Tensor((10, 20), dtype="float32"), p0: R.Tensor((), dtype="float32")
+        ) -> R.Tensor((10, 20), dtype="float32"):
+            cls = Expected
+            with R.dataflow():
+                gv1: R.Tensor((10, 20), dtype="float32") = R.call_tir(
+                    cls.fused_sums,
+                    (x, p0),
+                    out_sinfo=R.Tensor((10, 20), dtype="float32"),
+                )
+                R.output(gv1)
+            return gv1
+
+    _check(Module, Expected)
+
+
+def test_private_nonprimitive_func():
+    """Input IRModule may contain calls to non-primitive functions
+
+    This is a regression test.  Prior implementations did not preserve
+    relax-to-relax function calls.
+    """
+
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(
+            input_ids: R.Tensor((1,), dtype="int32"),
+            input_embeds: R.Tensor((4096, 4096), dtype="float16"),
+        ) -> R.Tensor((1, 4096), dtype="float16"):
+            cls = Before
+            with R.dataflow():
+                gv = cls.fused_func(input_ids, input_embeds)
+                R.output(gv)
+            return gv
+
+        @R.function(private=True)
+        def fused_func(
+            input_ids: R.Tensor((1,), dtype="int32"),
+            input_embeds: R.Tensor((4096, 4096), dtype="float16"),
+        ) -> R.Tensor((1, 4096), dtype="float16"):
+            cls = Before
+            with R.dataflow():
+                lv = R.call_tir(
+                    cls.add, (input_embeds,), out_sinfo=R.Tensor((4096, 4096), dtype="float16")
+                )
+                gv = R.call_tir(
+                    cls.take, (lv, input_ids), out_sinfo=R.Tensor((1, 4096), dtype="float16")
+                )
+                R.output(gv)
+            return gv
+
+        @T.prim_func(private=True)
+        def add(
+            A: T.Buffer((T.int64(4096), T.int64(4096)), "float16"),
+            Out: T.Buffer((T.int64(4096), T.int64(4096)), "float16"),
+        ):
+            for i, j in T.grid(T.int64(4096), T.int64(4096)):
+                with T.block("add"):
+                    vi, vj = T.axis.remap("SS", [i, j])
+                    Out[vi, vj] = A[vi, vj] + T.float16(1.0)
+
+        @T.prim_func(private=True)
+        def take(
+            A: T.Buffer((T.int64(4096), T.int64(4096)), "float16"),
+            B: T.Buffer((T.int64(1),), "int32"),
+            T_take: T.Buffer((T.int64(1), T.int64(4096)), "float16"),
+        ):
+            for ax0, ax1 in T.grid(T.int64(1), T.int64(4096)):
+                with T.block("T_take"):
+                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+                    T_take[v_ax0, v_ax1] = A[B[v_ax0], v_ax1]
+
+    _check(Before, Before)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

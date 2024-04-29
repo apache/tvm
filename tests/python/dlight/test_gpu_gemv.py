@@ -120,13 +120,13 @@ class TestGEMV(BaseBeforeAfter):
                                 T.writes(var_NT_matmul_intermediate_rf_local[vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused, 0, v0, 0, v1])
                                 var_NT_matmul_intermediate_rf_local[vax2_fused_u_fused_1_ax2_fused_u_fused_3_fused, 0, v0, 0, v1] = T.float16(0)
                     for ax2_fused_u_fused_0 in T.serial(1, annotations={"pragma_auto_unroll_max_step": 256, "pragma_unroll_explicit": 1}):
-                        for ax0, ax1, ax2_0, ax3 in T.grid(1, 1, 1, 2):
-                            for ax2_1 in T.vectorized(1):
+                        for ax0, ax1, ax2_ax3_fused_0 in T.grid(1, 1, 1):
+                            for ax2_ax3_fused_1 in T.vectorized(2):
                                 with T.block("lv1638_local"):
                                     v0 = T.axis.spatial(1, ax0)
                                     v1 = T.axis.spatial(32, ax0_fused_ax1_fused_fused_0 // n + ax1)
-                                    v2 = T.axis.spatial(n, ax0_fused_ax1_fused_fused_0 % n + ax2_0 + ax2_1)
-                                    v3 = T.axis.spatial(128, ax2_fused_u_fused_1_ax2_fused_u_fused_3_fused_0 * 2 + ax3)
+                                    v2 = T.axis.spatial(n, ax0_fused_ax1_fused_fused_0 % n)
+                                    v3 = T.axis.spatial(128, ax2_fused_u_fused_1_ax2_fused_u_fused_3_fused_0 * 2 + ax2_ax3_fused_0 * 2 + ax2_ax3_fused_1)
                                     T.reads(lv1638[v0, v1, v2, v3])
                                     T.writes(lv1638_local[v0, v1, v2, v3])
                                     lv1638_local[v0, v1, v2, v3] = lv1638[v0, v1, v2, v3]
@@ -224,11 +224,11 @@ def test_decode_gemv_256_threads():
                                 T.writes(var_NT_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused, 0, 0, v0])
                                 var_NT_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused, 0, 0, v0] = T.float16(0)
                     for ax1_0_fused_ax1_1_fused_0 in T.serial(32, annotations={"pragma_auto_unroll_max_step": 256, "pragma_unroll_explicit": 1}):
-                        for ax0_0, ax1 in T.grid(1, 1):
+                        for ax0_ax1_fused in T.serial(1):
                             for ax0_1 in T.vectorized(1):
                                 with T.block("lv571_local"):
-                                    v0 = T.axis.spatial(22016, u_fused_ax0_fused_fused_0 * 4 + u_fused_ax0_fused_fused_1 + ax0_0 + ax0_1)
-                                    v1 = T.axis.spatial(512, ax1_0_fused_ax1_1_fused_0 * 16 + ax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused_0 + ax1)
+                                    v0 = T.axis.spatial(22016, u_fused_ax0_fused_fused_0 * 4 + u_fused_ax0_fused_fused_1)
+                                    v1 = T.axis.spatial(512, ax1_0_fused_ax1_1_fused_0 * 16 + ax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused_0)
                                     T.reads(lv571[v0, v1])
                                     T.writes(lv571_local[v0, v1])
                                     lv571_local[v0, v1] = lv571[v0, v1]
@@ -332,11 +332,11 @@ def test_decode_gemv1():
                                 T.writes(var_NT_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused, 0, 0, v0])
                                 var_NT_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused, 0, 0, v0] = T.float16(0)
                     for ax1_0_fused_ax1_1_fused_0 in T.serial(8, annotations={"pragma_auto_unroll_max_step": 256, "pragma_unroll_explicit": 1}):
-                        for ax0_0, ax1 in T.grid(1, 1):
-                            for ax0_1 in T.vectorized(1):
+                        for ax0_ax1_fused_0 in range(1):
+                            for ax0_ax1_fused_1 in T.vectorized(1):
                                 with T.block("lv571_local"):
-                                    v0 = T.axis.spatial(22016, u_fused_ax0_fused_fused_0 * 4 + u_fused_ax0_fused_fused_1 + ax0_0 + ax0_1)
-                                    v1 = T.axis.spatial(512, ax1_0_fused_ax1_1_fused_0 * 64 + ax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused_0 + ax1)
+                                    v0 = T.axis.spatial(22016, u_fused_ax0_fused_fused_0 * 4 + u_fused_ax0_fused_fused_1)
+                                    v1 = T.axis.spatial(512, ax1_0_fused_ax1_1_fused_0 * 64 + ax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused_0)
                                     T.reads(lv571[v0, v1])
                                     T.writes(lv571_local[v0, v1])
                                     lv571_local[v0, v1] = lv571[v0, v1]
@@ -448,11 +448,11 @@ def test_decode_gemv2():
                                 T.writes(var_NT_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused, 0, 0, v0])
                                 var_NT_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused, 0, 0, v0] = T.float16(0)
                     for ax1_0_fused_ax1_1_fused_0 in T.serial(8, annotations={"pragma_auto_unroll_max_step": 256, "pragma_unroll_explicit": 1}):
-                        for ax0_0, ax1 in T.grid(1, 1):
-                            for ax0_1 in T.vectorized(1):
+                        for ax0_ax1_fused_0 in range(1):
+                            for ax0_ax1_fused_1 in T.vectorized(1):
                                 with T.block("lv771_local"):
-                                    v0 = T.axis.spatial(32000, u_fused_ax0_fused_fused_0 * 4 + u_fused_ax0_fused_fused_1 + ax0_0 + ax0_1)
-                                    v1 = T.axis.spatial(512, ax1_0_fused_ax1_1_fused_0 * 64 + ax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused_0 + ax1)
+                                    v0 = T.axis.spatial(32000, u_fused_ax0_fused_fused_0 * 4 + u_fused_ax0_fused_fused_1)
+                                    v1 = T.axis.spatial(512, ax1_0_fused_ax1_1_fused_0 * 64 + ax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused_0)
                                     T.reads(lv771[v0, v1])
                                     T.writes(lv771_local[v0, v1])
                                     lv771_local[v0, v1] = lv771[v0, v1]
@@ -572,11 +572,11 @@ def test_decode_gemv3():
                                 T.writes(var_NT_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused, T.int64(0), T.int64(0), v0])
                                 var_NT_matmul_intermediate_rf_local[vax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused, T.int64(0), T.int64(0), v0] = T.float16(0)
                     for ax1_0_fused_ax1_1_fused_0 in T.serial(T.int64(43), annotations={"pragma_auto_unroll_max_step": 256, "pragma_unroll_explicit": 1}):
-                        for ax0_0, ax1 in T.grid(T.int64(1), T.int64(1)):
-                            for ax0_1 in T.vectorized(T.int64(1)):
+                        for ax0_ax1_fused_0 in range(T.int64(1)):
+                            for ax0_ax1_fused_1 in T.vectorized(T.int64(1)):
                                 with T.block("lv575_local"):
-                                    v0 = T.axis.spatial(T.int64(4096), u_fused_ax0_fused_fused_0 * T.int64(16) + u_fused_ax0_fused_fused_1 + ax0_0 + ax0_1)
-                                    v1 = T.axis.spatial(T.int64(1376), ax1_0_fused_ax1_1_fused_0 * T.int64(32) + ax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused_0 + ax1)
+                                    v0 = T.axis.spatial(T.int64(4096), u_fused_ax0_fused_fused_0 * T.int64(16) + u_fused_ax0_fused_fused_1)
+                                    v1 = T.axis.spatial(T.int64(1376), ax1_0_fused_ax1_1_fused_0 * T.int64(32) + ax1_0_fused_ax1_1_fused_1_ax1_0_fused_ax1_1_fused_3_fused_0)
                                     T.reads(lv575[v0, v1])
                                     T.writes(lv575_local[v0, v1])
                                     lv575_local[v0, v1] = lv575[v0, v1]
@@ -942,15 +942,16 @@ def test_blockized_gemv():
                                         T.writes(o_rf_local[vax1_fused_u_fused_1_ax1_fused_u_fused_3_fused, v_expert_id_o, v0])
                                         o_rf_local[vax1_fused_u_fused_1_ax1_fused_u_fused_3_fused, v_expert_id_o, v0] = T.float16(0)
                             for ax1_fused_u_fused_0 in T.serial(32, annotations={"pragma_auto_unroll_max_step": 256, "pragma_unroll_explicit": 1}):
-                                for ax0, ax1_0, ax2 in T.grid(1, 1, 8):
-                                    for ax1_1 in T.vectorized(1):
-                                        with T.block("w_local"):
-                                            v0 = T.axis.spatial(1, ax0)
-                                            v1 = T.axis.spatial(16384, u_fused_ax0_fused_fused_0 * 4 + u_fused_ax0_fused_fused_1 + ax1_0 + ax1_1)
-                                            v2 = T.axis.spatial(4096, ax1_fused_u_fused_0 * 128 + ax1_fused_u_fused_1_ax1_fused_u_fused_3_fused_0 * 8 + ax2)
-                                            T.reads(w[indptr[v_expert_id_o] + v0, v1, v2])
-                                            T.writes(w_local[v0, v1, v2])
-                                            w_local[v0, v1, v2] = w[indptr[v_expert_id_o] + v0, v1, v2]
+                                for ax0 in range(1):
+                                    for ax1_ax2_fused_0 in range(8):
+                                        for ax1_ax2_fused_1 in T.vectorized(1):
+                                            with T.block("w_local"):
+                                                v0 = T.axis.spatial(1, ax0)
+                                                v1 = T.axis.spatial(16384, u_fused_ax0_fused_fused_0 * 4 + u_fused_ax0_fused_fused_1)
+                                                v2 = T.axis.spatial(4096, ax1_fused_u_fused_0 * 128 + ax1_fused_u_fused_1_ax1_fused_u_fused_3_fused_0 * 8 + ax1_ax2_fused_0 + ax1_ax2_fused_1)
+                                                T.reads(w[indptr[v_expert_id_o] + v0, v1, v2])
+                                                T.writes(w_local[v0, v1, v2])
+                                                w_local[v0, v1, v2] = w[indptr[v_expert_id_o] + v0, v1, v2]
                                 for u_fused_ax0_fused_fused_2, ax1_fused_u_fused_2 in T.grid(1, 8):
                                     for ax1_fused_u_fused_1_ax1_fused_u_fused_3_fused_1 in T.vectorized(1):
                                         with T.block("gemv_rf_update"):
@@ -994,6 +995,39 @@ def test_blockized_gemv():
     with Target("metal"):
         mod = dl.ApplyDefaultSchedule(dl.gpu.GEMV())(mod)
         tvm.ir.assert_structural_equal(mod["main"], expected)
+
+
+def test_func_to_skip():
+    @T.prim_func
+    def before(var_A: T.handle, var_exclusive_scan_thrust: T.handle, seq_len: T.int64):
+        data_buf = T.match_buffer(var_A, (seq_len * T.int64(8),), "int32", align=8)
+        output_buf = T.match_buffer(
+            var_exclusive_scan_thrust, (seq_len * T.int64(8),), "int32", align=8
+        )
+        with T.block("exclusive_scan_thrust"):
+            T.reads()
+            T.writes()
+            T.call_packed(
+                "tvm.contrib.thrust.sum_scan",
+                T.tvm_stack_make_array(
+                    data_buf.data, T.tvm_stack_make_shape(seq_len * T.int64(8)), 0, 1, 0, T.int64(0)
+                ),
+                T.tvm_stack_make_array(
+                    output_buf.data,
+                    T.tvm_stack_make_shape(seq_len * T.int64(8)),
+                    0,
+                    1,
+                    0,
+                    T.int64(0),
+                ),
+                T.bool(False),
+            )
+
+    # This function should be skipped.
+    mod = tvm.IRModule({"main": before})
+    with Target("metal"):
+        mod = dl.ApplyDefaultSchedule(dl.gpu.GEMV())(mod)
+        tvm.ir.assert_structural_equal(mod["main"], before)
 
 
 if __name__ == "__main__":

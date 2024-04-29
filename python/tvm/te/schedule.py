@@ -201,7 +201,7 @@ class Schedule(Object):
 class Stage(Object):
     """A Stage represents schedule for one operation."""
 
-    def split(self, parent, factor=None, nparts=None):
+    def split(self, parent, factor=None, nparts=None, disable_predication=False):
         """Split the stage either by factor providing outer scope, or both
 
         Parameters
@@ -215,6 +215,14 @@ class Stage(Object):
         nparts : Expr, optional
              The number of outer parts.
 
+        disable_predication : bool, optional
+            If enabled, don't create a predicate for guarding the loop. This can
+            be useful when splitting with scalable factors that the schedule writer
+            knows are divisible by the loop bound.
+
+            Warning: enabling this feature may result in incorrect code generation
+            if not used carefully.
+
         Returns
         -------
         outer : IterVar
@@ -226,11 +234,11 @@ class Stage(Object):
         if nparts is not None:
             if factor is not None:
                 raise ValueError("Do not need to provide both outer and nparts")
-            outer, inner = _ffi_api.StageSplitByNParts(self, parent, nparts)
+            outer, inner = _ffi_api.StageSplitByNParts(self, parent, nparts, disable_predication)
         else:
             if factor is None:
                 raise ValueError("Either nparts or factor need to be provided")
-            outer, inner = _ffi_api.StageSplitByFactor(self, parent, factor)
+            outer, inner = _ffi_api.StageSplitByFactor(self, parent, factor, disable_predication)
         return outer, inner
 
     def fuse(self, *args):

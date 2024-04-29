@@ -57,15 +57,17 @@ LayoutDecision LayoutUtils::InferLayoutDecisionAt(const Expr& expr,
 }
 
 bool LayoutUtils::LayoutInfered(const Expr& expr) {
-  const String& layout = SpanUtils::GetAttr(expr->span, "layout");
+  const String& layout = SpanUtils::GetAttr(expr->span, msc_attr::kLayout);
   return layout.size() > 0;
 }
 
 bool LayoutUtils::SetLayout(const Expr& expr, const NLayout& layout) {
-  const String& saved_layout = SpanUtils::GetAttr(expr->span, "layout");
+  const String& saved_layout = SpanUtils::GetAttr(expr->span, msc_attr::kLayout);
   const auto& sinfo = GetStructInfo(expr);
   if (sinfo->IsInstance<TensorStructInfoNode>() || sinfo->IsInstance<ShapeStructInfoNode>()) {
-    ICHECK(layout.IsLeaf()) << "Expr has tensor struct, but find nested layout " << expr;
+    if (!layout.IsLeaf()) {
+      return false;
+    }
     const auto& l_layout = layout.LeafValue()->layout;
     if (!l_layout.defined()) {
       return false;
@@ -73,14 +75,17 @@ bool LayoutUtils::SetLayout(const Expr& expr, const NLayout& layout) {
     if (saved_layout == l_layout.name()) {
       return false;
     }
-    expr->span = SpanUtils::SetAttr(expr->span, "layout", l_layout.name());
+    expr->span = SpanUtils::SetAttr(expr->span, msc_attr::kLayout, l_layout.name());
   } else if (sinfo->IsInstance<TupleStructInfoNode>()) {
-    ICHECK(!layout.IsLeaf()) << "Expr has tuple struct, but find non-nested layout " << expr;
+    if (layout.IsLeaf()) {
+      return false;
+    }
     String layout_str;
     Array<NLayout> nested_layouts = layout.NestedArray();
     for (size_t i = 0; i < nested_layouts.size(); i++) {
-      ICHECK(nested_layouts[i].IsLeaf())
-          << "Expr input[" << i << "] has tensor struct, but find nested layout " << expr;
+      if (!nested_layouts[i].IsLeaf()) {
+        return false;
+      }
       const auto& l_layout = nested_layouts[i].LeafValue()->layout;
       if (!l_layout.defined()) {
         return false;
@@ -90,7 +95,7 @@ bool LayoutUtils::SetLayout(const Expr& expr, const NLayout& layout) {
     if (saved_layout == layout_str) {
       return false;
     }
-    expr->span = SpanUtils::SetAttr(expr->span, "layout", layout_str);
+    expr->span = SpanUtils::SetAttr(expr->span, msc_attr::kLayout, layout_str);
   }
   return true;
 }
@@ -101,10 +106,10 @@ const NLayout LayoutUtils::GetNLayout(const Expr& expr) {
   }
   auto sinfo = GetStructInfo(expr);
   if (sinfo->IsInstance<TensorStructInfoNode>()) {
-    return LayoutDecision(SpanUtils::GetAttr(expr->span, "layout"));
+    return LayoutDecision(SpanUtils::GetAttr(expr->span, msc_attr::kLayout));
   }
   if (sinfo->IsInstance<TupleStructInfoNode>()) {
-    String layout_str = SpanUtils::GetAttr(expr->span, "layout");
+    String layout_str = SpanUtils::GetAttr(expr->span, msc_attr::kLayout);
     std::vector<NLayout> output_layout;
     for (const auto& l : StringUtils::Split(layout_str, ",")) {
       output_layout.push_back(LayoutDecision(l));

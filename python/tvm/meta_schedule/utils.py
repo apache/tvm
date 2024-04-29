@@ -128,11 +128,15 @@ def derived_object(cls: type) -> type:
             self._inst._outer = weakref.ref(self)
 
         def __getattr__(self, name):
-            # fall back to instance attribute if there is not any
-            # return self._inst.__getattribute__(name)
             import inspect  # pylint: disable=import-outside-toplevel
 
-            result = self._inst.__getattribute__(name)
+            try:
+                # fall back to instance attribute if there is not any
+                # return self._inst.__getattribute__(name)
+                result = self._inst.__getattribute__(name)
+            except AttributeError:
+                result = super(TVMDerivedObject, self).__getattr__(name)
+
             if inspect.ismethod(result):
 
                 def method(*args, **kwargs):

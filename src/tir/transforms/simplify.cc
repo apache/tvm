@@ -21,7 +21,8 @@
  * \file simplify.cc
  * \brief Statement simplifier based on analyzer
  */
-#include "simplify.h"
+
+#include "../../tir/transforms/simplify.h"
 
 #include <tvm/arith/analyzer.h>
 #include <tvm/runtime/registry.h>

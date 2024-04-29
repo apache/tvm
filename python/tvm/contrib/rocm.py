@@ -53,6 +53,7 @@ def find_lld(required=True):
         lld_list += [f"ld.lld-{major}.0"]
         lld_list += [f"ld.lld-{major}"]
     lld_list += ["ld.lld"]
+    lld_list += [f"/opt/rocm/llvm/bin/{x}" for x in lld_list]
     valid_list = [utils.which(x) for x in lld_list]
     valid_list = [x for x in valid_list if x]
     if not valid_list and required:

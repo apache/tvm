@@ -31,6 +31,7 @@ from .. import expr as _expr
 from .. import function as _function
 from .. import ty as _ty
 from .. import op as _op
+from .. import qnn as _qnn
 from .common import (
     autopad,
     fold_constant,
@@ -203,12 +204,23 @@ def convert_batch_norm(g, op, block):
     mean_name = op.input("Mean")[0]
     variance_name = op.input("Variance")[0]
     epsilon = op.attr("epsilon")
+    data_layout = op.attr("data_layout")
+
+    if data_layout == "NCHW":
+        axis = 1
+    elif data_layout == "NHWC":
+        axis = 3
+    else:
+        msg = f'Value {data_layout} in attribute "batch_norm" of operator Conv is not "valid."'
+        raise tvm.error.OpAttributeInvalid(msg)
+
     out = _op.nn.batch_norm(
-        g.get_node(ipt_name),
-        g.get_node(scale_name),
-        g.get_node(bias_name),
-        g.get_node(mean_name),
-        g.get_node(variance_name),
+        g.get_node(ipt_name),  # data
+        g.get_node(scale_name),  # gamma
+        g.get_node(bias_name),  # beta
+        g.get_node(mean_name),  # moving_mean
+        g.get_node(variance_name),  # moving_var
+        axis=axis,
         epsilon=epsilon,
     )
     g.add_node(op.output("Y")[0], out[0])
@@ -305,6 +317,7 @@ def convert_conv2d(g, op, block):
     kernel = g.get_node(op.input("Filter")[0])
     input_x = g.get_node(op.input("Input")[0])
     data_layout = op.attr("data_format")
+    kernel_layout = "OIHW" if data_layout == "NCHW" else "HWIO"
     out_channels, _, k_h, k_w = infer_shape(kernel)
     if padding_algorithm == "VALID":
         paddings = [0, 0]
@@ -324,6 +337,22 @@ def convert_conv2d(g, op, block):
         msg = f'Value {padding_algorithm} in attribute "padding" of operator Conv is not "valid."'
         raise tvm.error.OpAttributeInvalid(msg)
 
+    is_quantized = op.has_attr("quantization_type")
+    # PaddlePaddle wieght layout is "OIHW", tvm need "HWIO" when op data_format is "NHWC".
+    # There are two situations when converting the data format of weights:
+    # 1 Conv_2d is not a quantified OP, its weight information is the weights themselves.
+    #   We directly convert the weight information when processing conv_2d.
+    # 2 Conv_2d is a quantified OP, and its weight information is the output of
+    #   the quantize_linear operator. Therefore, the weight information needs to be
+    #   transformed when processing the quantize_linear operator.
+    if (not is_quantized) and (data_layout == "NHWC"):
+        kernel_data = g.get_params(op.input("Filter")[0])
+        kernel_data = kernel_data.asnumpy()
+        kernel_data = kernel_data.transpose((2, 3, 1, 0))
+        kernel_data = _nd.array(kernel_data)
+        g.modify_node(op.input("Filter")[0], kernel_data)
+        kernel = g.get_node(op.input("Filter")[0])
+
     out = _op.nn.conv2d(
         input_x,
         kernel,
@@ -334,6 +363,7 @@ def convert_conv2d(g, op, block):
         channels=out_channels,
         kernel_size=[k_h, k_w],
         data_layout=data_layout,
+        kernel_layout=kernel_layout,
     )
     g.add_node(op.output("Output")[0], out)
 
@@ -464,7 +494,7 @@ def convert_dist(g, op, block):
     p = op.attr("p")
     if p == np.inf:
         out = _op.reduce.max(z)
-    elif p == np.NINF:
+    elif p == -np.inf:
         out = _op.reduce.min(z)
     elif p == 0.0:
         out = _op.reduce.sum(_op.sign(z))
@@ -1208,12 +1238,12 @@ def convert_matmul(g, op, block):
 
     # This implemention almost keeps same with ONNX
     # Need to check input shape as batch matmul must be supported.
-    a_shape = shape_of(inputs[0], dtype="int32")
-    a_rank = infer_shape(a_shape)[0]
-    b_shape = shape_of(inputs[1], dtype="int32")
-    b_rank = infer_shape(b_shape)[0]
+    a_rank = len(a_shape)
+    b_rank = len(b_shape)
     # When performing a batch matmul, we need to properly handle N-dim shapes.
     if a_rank > 2 or b_rank > 2:
+        a_shape = shape_of(inputs[0], dtype="int32")
+        b_shape = shape_of(inputs[1], dtype="int32")
 
         def flatten_to_nd(x, x_shape, nd=3):
             ndims = infer_shape(x_shape)[0]
@@ -1524,10 +1554,16 @@ def convert_pool2d(g, op, block):
                 padding=paddings,
                 ceil_mode=ceil_mode,
                 count_include_pad=not exclusive,
+                layout=data_format,
             )
         else:
             out = getattr(_op.nn, op_map[pooling_type])(
-                input_x, pool_size=ksize, strides=strides, padding=paddings, ceil_mode=ceil_mode
+                input_x,
+                pool_size=ksize,
+                strides=strides,
+                padding=paddings,
+                ceil_mode=ceil_mode,
+                layout=data_format,
             )
     else:
         out = getattr(_op.nn, "adaptive_" + op_map[pooling_type])(
@@ -1597,7 +1633,7 @@ def convert_pool3d(g, op, block):
         raise tvm.error.OpAttributeInvalid(msg.format(padding_algorithm))
 
     # handle with special case
-    # while kernel size less than input size
+    # while kernel size more than input size
     # shrink kernel size to input size
     if (
         not isinstance(in_h, _op.Expr)
@@ -1781,6 +1817,59 @@ def convert_roi_align(g, op, block):
         mode="avg",
     )
     g.add_node(op.output("Out")[0], out)
+
+
+def convert_dequantize_linear(g, op, block):
+    """Operator converter for dequantize_linear."""
+
+    data_node_name = op.input("X")[0]
+    data_node = g.get_node(data_node_name)
+
+    # paddle_scale = tvm_scale * 127
+    paddle_quantize_scale = g.get_params(op.input("Scale")[0]).asnumpy()
+    tvm_quantize_scale = paddle_quantize_scale / 127.0
+
+    tvm_quantize_zp = g.get_params(op.input("ZeroPoint")[0]).asnumpy()
+
+    tvm_quantize_axis = op.attr("quant_axis")
+    if tvm_quantize_axis == -1:
+        tvm_quantize_axis = 0
+
+    if len(infer_shape(data_node)) < 2:
+        tvm_quantize_axis = 0
+
+    out = _qnn.op.dequantize(
+        data=data_node,
+        input_scale=_op.const(tvm_quantize_scale, "float32"),
+        input_zero_point=_op.const(tvm_quantize_zp, "int32"),
+        axis=tvm_quantize_axis,
+    )
+    g.add_node(op.output("Y")[0], out)
+
+
+def convert_quantize_linear(g, op, block):
+    """Operator converter for dequantize_linear."""
+
+    data_node_name = op.input("X")[0]
+    data_node = g.get_node(data_node_name)
+
+    # paddle_scale = tvm_scale * 127
+    paddle_quantize_scale = g.get_params(op.input("Scale")[0]).asnumpy()
+    tvm_quantize_scale = paddle_quantize_scale / 127.0
+
+    tvm_quantize_zp = g.get_params(op.input("ZeroPoint")[0]).asnumpy()
+    tvm_quantize_axis = op.attr("quant_axis")
+
+    if tvm_quantize_axis == -1:
+        tvm_quantize_axis = 0
+
+    out = _qnn.op.quantize(
+        data=data_node,
+        output_scale=_op.const(tvm_quantize_scale, "float32"),
+        output_zero_point=_op.const(tvm_quantize_zp, "int32"),
+        axis=tvm_quantize_axis,
+    )
+    g.add_node(op.output("Y")[0], out)
 
 
 def convert_rnn(g, op, block):
@@ -2357,11 +2446,11 @@ def convert_slice(g, op, block):
 def convert_softmax(g, op, block):
     """Operator converter for softmax."""
 
+    x = g.get_node(op.input("X")[0])
     axis = op.attr("axis")
     input_shape = block.var(op.input("X")[0]).shape
     if axis < 0:
         axis = len(input_shape) + axis
-    x = g.get_node(op.input("X")[0])
     m = _op.max(x, axis, keepdims=True)
     e = _op.exp(x - m)
     out = e / _op.sum(e, axis, keepdims=True)
@@ -2876,6 +2965,9 @@ _convert_map = {
     "unstack": convert_unstack,
     "where": convert_where,
     "where_index": convert_where_index,
+    # Quantized
+    "dequantize_linear": convert_dequantize_linear,
+    "quantize_linear": convert_quantize_linear,
 }
 
 
@@ -2898,12 +2990,18 @@ class GraphProto:
 
         self.nodes[name] = fold_constant(node)
 
+    def modify_node(self, name, params):
+        """modify node from graph"""
+
+        self.params[name] = params
+        self.nodes[name] = new_var(name, shape=params.shape, dtype=params.dtype)
+
     def get_params(self, name=None):
         """Get params from graph."""
 
         if name is None:
             return self.params
-        assert name in self.params
+        assert name in self.params, f"The name({name}) is not in params"
         return self.params[name]
 
     def extract_parameters(self, program, scope=None):
@@ -2912,9 +3010,12 @@ class GraphProto:
         self.params = {}
         variables = program.global_block().vars
         for name in variables:
-            var = program.global_block().var(name)
             if name.endswith("feed") or name.endswith("fetch"):
                 continue
+            # This judgment will cause the PaddleInference model
+            # exported by PaddleSlim to skip some operators
+            # that need to be read in NHWC format.
+            var = program.global_block().var(name)
             if not var.persistable:
                 continue
             if isinstance(scope, dict):
@@ -2973,7 +3074,7 @@ class GraphProto:
         if scope is None:
             import paddle
 
-            scope = paddle.fluid.global_scope()
+            scope = paddle.static.global_scope()
         self.check_unsupported_ops(program)
         self.extract_parameters(program, scope)
         self.ops_to_relay(program)
@@ -2983,7 +3084,6 @@ class GraphProto:
             for op in block.ops:
                 if op.type == "fetch":
                     output_names.append(op.input("X")[0])
-
         outputs = [self.nodes[name] for name in output_names]
         outputs = outputs[0] if len(outputs) == 1 else _expr.Tuple(outputs)
 

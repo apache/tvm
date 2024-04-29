@@ -20,11 +20,13 @@
 from typing import Any, List
 import numpy as np
 
+from tvm.contrib.msc.core.gym.namespace import GYMObject
 from tvm.contrib.msc.core.runtime import BaseRunner
 from tvm.contrib.msc.core.tools import BaseTool
 from tvm.contrib.msc.core import utils as msc_utils
 
 
+@msc_utils.register_gym_method
 class EnvMethod(object):
     """Default prune method"""
 
@@ -103,7 +105,7 @@ class EnvMethod(object):
             outputs = runner.run(inputs)
             baseline = loader[idx]
             for name, data in outputs.items():
-                loss += _get_loss(baseline[name], data)
+                loss += _get_loss(baseline[name], msc_utils.cast_array(data))
         return {"loss": loss / len(loader)}
 
     @classmethod
@@ -189,14 +191,16 @@ class EnvMethod(object):
         """
 
         task = env.get_task(task_id)
+        plan = env.tool.plan[task["tensor_ids"][0]]
         return [
-            {"scale": task["scale"] * a}
+            {"scale": plan["scale"] * a}
             for a in cls.action_linear_space(env, task_id, start, end, step)
         ]
 
     @classmethod
+    def role(cls):
+        return GYMObject.ENV
+
+    @classmethod
     def method_type(cls):
-        return "env.default"
-
-
-msc_utils.register_gym_method(EnvMethod)
+        return "default"

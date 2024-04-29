@@ -43,13 +43,22 @@ class Conv2dResidualBlock:
 
 
 has_tensorrt = tvm.get_global_func("relax.ext.tensorrt", True)
+env_checker_runtime = tvm.get_global_func("relax.is_tensorrt_runtime_enabled", True)
 
-tensorrt_enabled = pytest.mark.skipif(
+requires_tensorrt_codegen = pytest.mark.skipif(
     not has_tensorrt,
     reason="TENSORRT not enabled.",
 )
 
-pytestmark = [tensorrt_enabled]
+requires_tensorrt_runtime = pytest.mark.skipif(
+    not env_checker_runtime or not env_checker_runtime(),
+    reason="TensorRT runtime not available",
+)
+
+pytestmark = [
+    requires_tensorrt_codegen,
+    requires_tensorrt_runtime,
+] + tvm.testing.requires_cuda.marks()
 
 
 def build_and_run(mod, inputs_np, target, legalize=False):

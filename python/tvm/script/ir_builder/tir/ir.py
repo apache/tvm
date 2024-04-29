@@ -1241,7 +1241,7 @@ def launch_thread(
     return _ffi_api.LaunchThread(thread, extent)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def env_thread(thread_tag: str) -> IterVar:
+def env_thread(thread_tag: str, dtype: str = "int32") -> IterVar:
     """Bind a var to thread env
 
     Parameters
@@ -1249,13 +1249,16 @@ def env_thread(thread_tag: str) -> IterVar:
     thread_tag : str
         The thread type tag.
 
+    dtype : str
+        The data type of the thread env.
+
     Returns
     -------
     res : IterVar
         The result iteration variable gets bound to the thread env.
 
     """
-    return _ffi_api.EnvThread(thread_tag)  # type: ignore[attr-defined] # pylint: disable=no-member
+    return _ffi_api.EnvThread(thread_tag, dtype)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 def buffer_store(
@@ -1289,7 +1292,7 @@ def buffer_store(
             if lanes == 1:
                 expr_indices.append(index.start)
             else:
-                expr_indices.append(ramp(index.start, step, int(lanes)))
+                expr_indices.append(ramp(index.start, step, lanes))
         else:
             expr_indices.append(index)
     if isinstance(value, bool) and buffer.dtype == "bool":
@@ -1408,30 +1411,39 @@ uint16x64 = func_gen(("UInt16x64"))
 uint32x64 = func_gen(("UInt32x64"))
 uint64x64 = func_gen(("UInt64x64"))
 
-float8 = func_gen(("Float8"))
 float16 = func_gen(("Float16"))
 float32 = func_gen(("Float32"))
 float64 = func_gen(("Float64"))
-float8x4 = func_gen(("Float8x4"))
 float16x4 = func_gen(("Float16x4"))
 float32x4 = func_gen(("Float32x4"))
 float64x4 = func_gen(("Float64x4"))
-float8x8 = func_gen(("Float8x8"))
 float16x8 = func_gen(("Float16x8"))
 float32x8 = func_gen(("Float32x8"))
 float64x8 = func_gen(("Float64x8"))
-float8x16 = func_gen(("Float8x16"))
 float16x16 = func_gen(("Float16x16"))
 float32x16 = func_gen(("Float32x16"))
 float64x16 = func_gen(("Float64x16"))
-float8x32 = func_gen(("Float8x32"))
 float16x32 = func_gen(("Float16x32"))
 float32x32 = func_gen(("Float32x32"))
 float64x32 = func_gen(("Float64x32"))
-float8x64 = func_gen(("Float8x64"))
 float16x64 = func_gen(("Float16x64"))
 float32x64 = func_gen(("Float32x64"))
 float64x64 = func_gen(("Float64x64"))
+
+e4m3_float8 = func_gen(("E4M3Float8"))
+e4m3_float8x4 = func_gen(("E4M3Float8x4"))
+e4m3_float8x8 = func_gen(("E4M3Float8x8"))
+e4m3_float8x16 = func_gen(("E4M3Float8x16"))
+e4m3_float8x32 = func_gen(("E4M3Float8x32"))
+e4m3_float8x64 = func_gen(("E4M3Float8x64"))
+
+e5m2_float8 = func_gen(("E5M2Float8"))
+e5m2_float8x4 = func_gen(("E5M2Float8x4"))
+e5m2_float8x8 = func_gen(("E5M2Float8x8"))
+e5m2_float8x16 = func_gen(("E5M2Float8x16"))
+e5m2_float8x32 = func_gen(("E5M2Float8x32"))
+e5m2_float8x64 = func_gen(("E5M2Float8x64"))
+
 # pylint: enable=invalid-name
 
 
@@ -1862,6 +1874,7 @@ anylist_getitem = _op_wrapper(_tir_op.anylist_getitem)
 anylist_resetitem = _op_wrapper(_tir_op.anylist_resetitem)
 anylist_setitem_call_packed = _op_wrapper(_tir_op.anylist_setitem_call_packed)
 anylist_setitem_call_cpacked = _op_wrapper(_tir_op.anylist_setitem_call_cpacked)
+vscale = _op_wrapper(_tir_op.vscale)
 
 
 def _dtype_forward(func):
@@ -1953,27 +1966,33 @@ __all__ = [
     "uint16x64",
     "uint32x64",
     "uint64x64",
-    "float8",
+    "e4m3_float8",
+    "e5m2_float8",
     "float16",
     "float32",
     "float64",
-    "float8x4",
+    "e4m3_float8x4",
+    "e5m2_float8x4",
     "float16x4",
     "float32x4",
     "float64x4",
-    "float8x8",
+    "e4m3_float8x8",
+    "e5m2_float8x8",
     "float16x8",
     "float32x8",
     "float64x8",
-    "float8x16",
+    "e4m3_float8x16",
+    "e5m2_float8x16",
     "float16x16",
     "float32x16",
     "float64x16",
-    "float8x32",
+    "e4m3_float8x32",
+    "e5m2_float8x32",
     "float16x32",
     "float32x32",
     "float64x32",
-    "float8x64",
+    "e4m3_float8x64",
+    "e5m2_float8x64",
     "float16x64",
     "float32x64",
     "float64x64",
@@ -2199,4 +2218,5 @@ __all__ = [
     "IterVar",
     "CommReducer",
     "Range",
+    "vscale",
 ]

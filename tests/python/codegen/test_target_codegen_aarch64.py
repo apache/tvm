@@ -14,13 +14,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+
+import re
+
+import pytest
+
 import tvm
 from tvm import te
-from tvm.script import tir as TIR
-import re
-import os
-import ctypes
-import pytest
+from tvm.script import tir as T
+from tvm.topi.arm_cpu.pstate_attributes import SMEAttributes
 
 from tvm.target.codegen import llvm_version_major
 
@@ -474,6 +476,208 @@ def test_memcpy(dtype):
         assert len(loads) > 0
 
     check_correct_assembly(type=dtype)
+
+
+@pytest.mark.skipif(
+    llvm_version_major() < 11, reason="Vscale is not supported in earlier versions of LLVM"
+)
+def test_codegen_vscale():
+    target = "llvm -mtriple=aarch64-linux-gnu -mattr=+sve"
+    vscale = tvm.tir.vscale()
+
+    @T.prim_func
+    def main(A: T.Buffer((5,), "int32")):
+        for i in range(5):
+            A[i] = 2 * vscale
+
+    build_mod = tvm.build(main, target=target)
+    llvm = build_mod.get_source()
+
+    assert re.findall(r"llvm.vscale.i32", llvm), "No vscale in generated LLVM."
+
+
+@pytest.mark.skipif(
+    llvm_version_major() < 11, reason="Vscale is not supported in earlier versions of LLVM"
+)
+def test_scalable_buffer_load_store():
+    target = "llvm -mtriple=aarch64-linux-gnu -mattr=+sve"
+
+    @T.prim_func
+    def my_func(a: T.handle, b: T.handle):
+        A = T.match_buffer(a, (128,), "float32")
+        B = T.match_buffer(b, (128,), "float32")
+        T.func_attr({"global_symbol": "my_module", "tir.noalias": True})
+        B[T.ramp(0, 1, 4 * T.vscale())] = A[T.ramp(0, 1, 4 * T.vscale())]
+
+    mod = tvm.build(my_func, target=target)
+    llvm = mod.get_source("ll")
+
+    assert re.findall(r"load <vscale x 4 x float>", llvm), "No scalable load in generated LLVM."
+    assert re.findall(r" store <vscale x 4 x float>", llvm), "No scalable store in generated LLVM."
+
+
+@pytest.mark.skipif(
+    llvm_version_major() < 11, reason="Vscale is not supported in earlier versions of LLVM"
+)
+def test_scalable_broadcast():
+    target = "llvm -mtriple=aarch64-linux-gnu -mattr=+sve"
+
+    @T.prim_func
+    def my_func(a: T.handle):
+        A = T.match_buffer(a, (128,), "float32")
+        T.func_attr({"global_symbol": "my_module", "tir.noalias": True})
+        A[T.ramp(0, 1, 4 * T.vscale())] = T.broadcast(1, 4 * T.vscale())
+
+    mod = tvm.build(my_func, target=target)
+    llvm = mod.get_source("ll")
+
+    assert re.findall(
+        r"shufflevector \(<vscale x 4 x float> insertelement \(<vscale x 4 x float>", llvm
+    ), "No scalable broadcast in generated LLVM."
+    assert re.findall(r" store <vscale x 4 x float>", llvm), "No scalable store in generated LLVM."
+
+
+@pytest.mark.skipif(
+    llvm_version_major() < 16, reason="Test requires an LLVM version of at least 16 to target SME"
+)
+@pytest.mark.parametrize(
+    "attr_key,attr_value,expected",
+    [
+        (
+            SMEAttributes.STREAMING_MODE,
+            SMEAttributes.StreamingModeValues.ENABLED,
+            "aarch64_pstate_sm_enabled",
+        ),
+        (
+            SMEAttributes.STREAMING_MODE,
+            SMEAttributes.StreamingModeValues.COMPATIBLE,
+            "aarch64_pstate_sm_compatible",
+        ),
+        (SMEAttributes.ZA_STORAGE, SMEAttributes.ZAStorageValues.NEW, "aarch64_pstate_za_new"),
+        (
+            SMEAttributes.ZA_STORAGE,
+            SMEAttributes.ZAStorageValues.SHARED,
+            "aarch64_pstate_za_shared",
+        ),
+    ],
+)
+def test_function_attributes(attr_key, attr_value, expected):
+    target = "llvm -mtriple=aarch64-linux-gnu -mattr=+sme"
+
+    @T.prim_func
+    def prim_func(a: T.handle, c: T.handle):
+        T.func_attr({"global_symbol": "main", "tir.noalias": T.bool(True)})
+        A = T.match_buffer(a, (16,), "float32")
+        C = T.match_buffer(c, (1,), "float32")
+
+        with T.block("extern"):
+            T.block_attr({attr_key: attr_value})
+            for i in range(16):
+                C[0] += A[i]
+
+    func = tvm.build(prim_func, target=target)
+    ll = func.get_source("ll")
+
+    # Check that the attribute exists
+    attr = re.findall(rf".*{expected}*.", ll)
+    assert attr, f"Function attribute {expected} was not found in generated LLVM IR"
+
+    # Check this attribute is used on the "compute" function
+    func_attr_label = attr[0].split(" ")[1]
+    found_compute_func = False
+    for match in re.findall(rf".*{func_attr_label}*.", ll):
+        if "_compute_" in match:
+            found_compute_func = True
+
+    assert found_compute_func, (
+        f"The attribute {expected} was found to be under the label {func_attr_label}, "
+        "but it was not used by the 'compute' scope function."
+    )
+
+
+def test_unsupported_function_attribute_type():
+    target = "llvm -mtriple=aarch64-linux-gnu -mattr=+sme"
+
+    @T.prim_func
+    def prim_func(a: T.handle, c: T.handle):
+        T.func_attr({"global_symbol": "main", "tir.noalias": T.bool(True)})
+        A = T.match_buffer(a, (16,), "float32")
+        C = T.match_buffer(c, (1,), "float32")
+
+        with T.block("extern"):
+            T.block_attr({SMEAttributes.STREAMING_MODE: True})
+            with T.block("root"):
+                for i in range(16):
+                    C[0] += A[i]
+
+    err_msg = f"Expect {SMEAttributes.STREAMING_MODE} to have a String value but was IntImm"
+    with pytest.raises(tvm.error.TVMError, match=err_msg):
+        tvm.build(prim_func, target=target)
+
+
+@pytest.mark.parametrize(
+    "attr_key,attr_value",
+    [
+        (SMEAttributes.STREAMING_MODE, SMEAttributes.StreamingModeValues.ENABLED),
+        (SMEAttributes.ZA_STORAGE, SMEAttributes.ZAStorageValues.NEW),
+    ],
+)
+def test_unsupported_multiple_function_attributes(attr_key, attr_value):
+    target = "llvm -mtriple=aarch64-linux-gnu -mattr=+sme"
+
+    @T.prim_func
+    def prim_func(a: T.handle, c: T.handle):
+        A = T.match_buffer(a, (16,), "float32")
+        C = T.match_buffer(c, (1,), "float32")
+
+        with T.block("root"):
+            with T.block("extern"):
+                T.block_attr({attr_key: attr_value})
+                for i in range(16):
+                    C[0] += A[i] * 2
+            with T.block("extern2"):
+                T.block_attr({attr_key: attr_value})
+                for i in range(16):
+                    C[0] += A[i] * 3
+
+    err_msg = f"Multiple definitions of {attr_key} attribute found in the function default_function_compute_"
+    with pytest.raises(tvm.error.TVMError, match=err_msg):
+        tvm.build(prim_func, target=target)
+
+
+@pytest.mark.skipif(
+    llvm_version_major() < 15, reason="Test requires an LLVM version of at least 15 to target SVE"
+)
+@pytest.mark.parametrize("dtype", ["float16", "float32"])
+def test_conv2d_sve(dtype):
+    target = "llvm -mtriple=aarch64-linux-gnu -mattr=+sve"
+
+    def check_correct_assembly(dtype):
+        A = te.placeholder((1, 32, 32, 3), dtype=dtype, name="A")
+        W = te.placeholder((3, 3, 3, 8), dtype=dtype, name="B")
+        stride = padding = dilation = 1
+
+        compute = tvm.topi.arm_cpu.compute_conv2d_NHWC_hybrid_SVE
+        schedule = tvm.topi.arm_cpu.schedule_conv2d_NHWC_hybrid_SVE
+        B = compute(A, W, stride, padding, dilation, dtype)
+        s = schedule([B])
+
+        f = tvm.build(s, [A, W, B], target)
+        assembly = f.get_source("asm")
+
+        loads = re.findall(r"ld1[r]?[q]?[whdb]\t{\s?z", assembly)
+        compute_ops = re.findall(
+            r"fm(la|ad)\tz\d+.[shdb], (p\d+\/[zm], )?z\d+.[shdb], z\d+.[shdb]",
+            assembly,
+        )
+        stores = re.findall(r"st1[whdb]\t{\s?z", assembly)
+
+        assert len(loads) > 0
+        assert len(compute_ops) > 0
+        assert len(stores) > 0
+
+    with tvm.target.Target(target):
+        check_correct_assembly(dtype=dtype)
 
 
 if __name__ == "__main__":

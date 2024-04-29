@@ -36,30 +36,57 @@
 namespace tvm {
 namespace runtime {
 
-class DiscoPipeMessageQueue : private ::tvm::support::Pipe,
-                              private DiscoProtocol<DiscoPipeMessageQueue> {
+class DiscoPipeMessageQueue : private dmlc::Stream, private DiscoProtocol<DiscoPipeMessageQueue> {
  public:
-  explicit DiscoPipeMessageQueue(int64_t handle) : ::tvm::support::Pipe(handle) {}
+  explicit DiscoPipeMessageQueue(int64_t handle) : pipe_(handle) {}
 
   ~DiscoPipeMessageQueue() = default;
 
   void Send(const TVMArgs& args) {
     RPCReference::ReturnPackedSeq(args.values, args.type_codes, args.num_args, this);
+    CommitSendAndNotifyEnqueue();
   }
 
   TVMArgs Recv() {
-    {
-      this->RecycleAll();
-      uint64_t packet_nbytes = 0;
-      RPCCode code = RPCCode::kReturn;
-      this->Read(&packet_nbytes);
-      this->Read(&code);
-    }
+    DequeueNextPacket();
     TVMValue* values = nullptr;
     int* type_codes = nullptr;
     int num_args = 0;
     RPCReference::RecvPackedSeq(&values, &type_codes, &num_args, this);
     return TVMArgs(values, type_codes, num_args);
+  }
+
+ protected:
+  void CommitSendAndNotifyEnqueue() {
+    pipe_.Write(write_buffer_.data(), write_buffer_.size());
+    write_buffer_.clear();
+  }
+
+  void DequeueNextPacket() {
+    uint64_t packet_nbytes = 0;
+    int read_size = pipe_.Read(&packet_nbytes, sizeof(packet_nbytes));
+    ICHECK_EQ(read_size, sizeof(packet_nbytes))
+        << "Pipe closed without proper shutdown. Please make sure to explicitly call "
+           "`Session::Shutdown`";
+    read_buffer_.resize(packet_nbytes);
+    pipe_.Read(read_buffer_.data(), packet_nbytes);
+    read_offset_ = 0;
+    this->RecycleAll();
+    RPCCode code = RPCCode::kReturn;
+    this->Read(&code);
+  }
+
+  size_t Read(void* data, size_t size) final {
+    std::memcpy(data, read_buffer_.data() + read_offset_, size);
+    read_offset_ += size;
+    ICHECK_LE(read_offset_, read_buffer_.size());
+    return size;
+  }
+
+  void Write(const void* data, size_t size) final {
+    size_t cur_size = write_buffer_.size();
+    write_buffer_.resize(cur_size + size);
+    std::memcpy(write_buffer_.data() + cur_size, data, size);
   }
 
   using dmlc::Stream::Read;
@@ -68,6 +95,12 @@ class DiscoPipeMessageQueue : private ::tvm::support::Pipe,
   using dmlc::Stream::WriteArray;
   friend struct RPCReference;
   friend struct DiscoProtocol<DiscoPipeMessageQueue>;
+
+  // The read/write buffer will only be accessed by the producer thread.
+  std::string write_buffer_;
+  std::string read_buffer_;
+  size_t read_offset_ = 0;
+  support::Pipe pipe_;
 };
 
 class DiscoProcessChannel final : public DiscoChannel {

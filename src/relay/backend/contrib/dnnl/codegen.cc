@@ -31,7 +31,6 @@
 
 #include <fstream>
 #include <numeric>
-#include <regex>
 #include <sstream>
 
 #include "../../utils.h"

@@ -71,7 +71,16 @@ struct Patterns {
   WildcardPattern input;
   std::vector<WildcardPattern> rhs;
   std::vector<WildcardPattern> bias;
-  std::vector<CallPattern> matmul, bias_add, activation;
+  std::vector<CallPattern> matmul;
+  std::vector<CallPattern> bias_add;
+  std::vector<CallPattern> activation;
+};
+
+struct SplitInfo {
+  Var rhs;
+  Optional<Var> bias;
+  PrimExpr split_size;
+  DFPattern pattern_to_replace;
 };
 
 Patterns CreatePatterns(const BranchInfo& branch_info) {
@@ -140,40 +149,68 @@ runtime::TypedPackedFunc<Map<Var, Expr>(Map<DFPattern, Var>, Map<Var, Expr>)> Ge
     for (const auto& [rhs_dim, indices] : GroupShapes(rhs_shapes)) {
       if (indices.size() == 1 || !batch_dims_compatible(rhs_dim, indices, rhs_shapes)) continue;
 
-      auto inp = matchings[patterns.input];
+      auto lhs = matchings[patterns.input];
 
-      Array<Var> rhs, bias;
-      for (auto ind : indices) {
-        rhs.push_back(matchings[patterns.rhs[ind]]);
-        if (branch_info.bias_dim) {
-          ICHECK(matchings.count(patterns.bias[ind]));
-          bias.push_back(matchings[patterns.bias[ind]]);
-        }
-      }
-
-      if (!check(inp, rhs, bias, bindings)) {
-        continue;
-      }
-
-      auto make_tuple = [](const Array<Var>& var_array) {
-        Array<Expr> exp_array;
-        for (auto v : var_array) exp_array.push_back(v);
-        return Tuple(exp_array);
-      };
-
-      auto concat_rhs = concat(make_tuple(rhs), Integer(rhs_dim - 1));
-      auto out_dtype = GetTensorSInfo(matchings[patterns.matmul[indices[0]]])->dtype;
-      auto matmul_combined = matmul(inp, concat_rhs, out_dtype);
-
-      const auto& pattern_to_replace = [&patterns, &branch_info]() {
+      const auto& patterns_to_replace = [&patterns, &branch_info]() {
         if (branch_info.activation) return patterns.activation;
         if (branch_info.bias_dim) return patterns.bias_add;
         return patterns.matmul;
       }();
 
+      std::vector<SplitInfo> splits;
+      for (auto index : indices) {
+        Var rhs = matchings[patterns.rhs[index]];
+        Optional<Var> bias = NullOpt;
+        if (branch_info.bias_dim.has_value()) {
+          bias = matchings[patterns.bias[index]];
+        }
+        PrimExpr split_size = GetTensorSInfo(rhs)->GetShape().value()[rhs_dim - 1];
+        DFPattern pattern_to_replace = patterns_to_replace[index];
+        splits.push_back(SplitInfo{rhs, bias, split_size, pattern_to_replace});
+      }
+      // At most one dynamic output shape can be part of the combined
+      // matmul, and it must be the last item in the split.  Use
+      // `std::stable_sort` instead of `std::sort` to maintain a
+      // consistent order for all static shapes, and to consistently
+      // select the same dynamic weight to participate.
+      auto is_dynamic_split = [](const SplitInfo& split) -> bool {
+        return !split.split_size->IsInstance<IntImmNode>();
+      };
+      std::stable_sort(splits.begin(), splits.end(),
+                       [&is_dynamic_split](const auto& a, const auto& b) {
+                         return is_dynamic_split(a) < is_dynamic_split(b);
+                       });
+      // Remove anything after the first dynamic shape participating
+      // in the combined matmul.
+      if (auto it = std::find_if(splits.begin(), splits.end(), is_dynamic_split);
+          it != splits.end()) {
+        splits.erase(it + 1, splits.end());
+      }
+
+      if (splits.size() == 1) {
+        continue;
+      }
+
+      Array<Var> rhs;
+      Array<Var> bias;
+      for (const auto& split : splits) {
+        rhs.push_back(split.rhs);
+        if (split.bias) {
+          bias.push_back(split.bias.value());
+        }
+      }
+
+      if (!check(lhs, rhs, bias, bindings)) {
+        continue;
+      }
+
+      auto concat_rhs = concat(Tuple(rhs), Integer(rhs_dim - 1));
+      auto out_dtype = GetTensorSInfo(matchings[patterns.matmul[indices[0]]])->dtype;
+      auto matmul_combined = matmul(lhs, concat_rhs, out_dtype);
+
       if (branch_info.bias_dim) {
         auto bias_dim = GetTensorSInfo(bias[0])->ndim;
-        auto concat_bias = concat(make_tuple(bias), Integer(bias_dim - 1));
+        auto concat_bias = concat(Tuple(bias), Integer(bias_dim - 1));
         matmul_combined = add(matmul_combined, concat_bias);
       }
 
@@ -191,20 +228,23 @@ runtime::TypedPackedFunc<Map<Var, Expr>(Map<DFPattern, Var>, Map<Var, Expr>)> Ge
         }
       }
 
-      int ind = 0;
+      int split_index = 0;
       Array<IntImm> sections;
-      for (int i = 0; i < static_cast<int>(indices.size()) - 1; ++i) {
-        auto width = GetTensorSInfo(rhs[i])->GetShape().value()[rhs_dim - 1].as<IntImmNode>();
-        ind += width->value;
-        sections.push_back(IntImm(DataType::Int(64), ind));
+      for (size_t i = 0; i + 1 < splits.size(); i++) {
+        auto width = splits[i].split_size.as<IntImmNode>();
+        ICHECK(width) << "InternalError: "
+                      << "All splits except the last one must have a static shape";
+        split_index += width->value;
+        sections.push_back(IntImm(DataType::Int(64), split_index));
       }
 
-      int lhs_dim = GetTensorSInfo(inp)->ndim;
+      int lhs_dim = GetTensorSInfo(lhs)->ndim;
       int split_axis = std::max<int>(lhs_dim, rhs_dim) - 1;
       auto chunks = split(matmul_combined, sections, split_axis);
 
-      for (size_t i = 0; i < indices.size(); ++i) {
-        auto bound_var = matchings[pattern_to_replace[indices[i]]];
+      for (size_t i = 0; i < splits.size(); i++) {
+        const auto& split = splits[i];
+        auto bound_var = matchings[split.pattern_to_replace];
         replacements.Set(bound_var, TupleGetItem(chunks, i));
       }
     }
@@ -244,43 +284,43 @@ std::vector<BranchInfo> GetBranchInfo(Function f) {
 
     PostOrderVisit(f, [&](const Expr& e) {
       if (!e->IsInstance<CallNode>()) return;
-      if (auto match = ExtractMatchedExpr(pat, e, bindings)) {
-        auto matmul_call = Downcast<Call>(match.value()[matmul_pat]);
-        auto matmul_lhs = Downcast<Var>(matmul_call->args[0]);
 
-        auto it = groups.find(matmul_lhs.get());
-        BranchInfo* branch = it != groups.end() ? &it->second : nullptr;
-        std::optional<int> bias_dim = std::nullopt;
-        std::optional<std::string> activation = std::nullopt;
+      auto match = ExtractMatchedExpr(pat, e, bindings);
+      if (!match) return;
 
-        if (match.value().count(bias_pat)) {
-          bias_dim = GetTensorSInfo(match.value()[bias_pat])->ndim;
+      auto matmul_call = Downcast<Call>(match.value()[matmul_pat]);
+      auto matmul_lhs = Downcast<Var>(matmul_call->args[0]);
+
+      std::optional<int> bias_dim = std::nullopt;
+      std::optional<std::string> activation = std::nullopt;
+
+      if (match.value().count(bias_pat)) {
+        bias_dim = GetTensorSInfo(match.value()[bias_pat])->ndim;
+      }
+
+      for (size_t i = 0; i < activations.size(); ++i) {
+        if (match.value().count(activation_pat[i]) || match.value().count(bias_activation_pat[i])) {
+          activation = activations[i];
+        }
+      }
+
+      if (auto it = groups.find(matmul_lhs.get()); it != groups.end()) {
+        // Create a new branch in the existing parallel matmul subtree, and
+        // invalidate bias and activation information when needed.
+        BranchInfo* branch = &it->second;
+
+        branch->num_branches += 1;
+
+        if (!bias_dim || (branch->bias_dim && *branch->bias_dim != *bias_dim)) {
+          branch->bias_dim = std::nullopt;
         }
 
-        for (size_t i = 0; i < activations.size(); ++i) {
-          if (match.value().count(activation_pat[i]) ||
-              match.value().count(bias_activation_pat[i])) {
-            activation = activations[i];
-          }
+        if (!activation || (branch->activation && *branch->activation != *activation)) {
+          branch->activation = std::nullopt;
         }
-
-        if (!branch) {
-          // Create a new subgraph with one matmul
-          groups[matmul_lhs.get()] = {1, bias_dim, activation};
-        } else {
-          // Create a new branch in the existing parallel matmul subtree, and
-          // invalidate bias and activation information when needed.
-          branch->num_branches += 1;
-
-          if (!bias_dim || (branch->bias_dim && *branch->bias_dim != *bias_dim)) {
-            branch->bias_dim = std::nullopt;
-          }
-
-          if (!activation || (branch->activation && *branch->activation != *activation)) {
-            branch->activation = std::nullopt;
-          }
-        }
-        return;
+      } else {
+        // Create a new subgraph with one matmul
+        groups[matmul_lhs.get()] = {1, bias_dim, activation};
       }
     });
 

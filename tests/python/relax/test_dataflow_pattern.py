@@ -56,14 +56,27 @@ class Module:
                 vi, vj = T.axis.remap("SS", [i, j])
                 B[vi, vj] = T.max(A[vi, vj], 0.0)
 
+    @T.prim_func
+    def tir_zeros(x: T.handle, n: T.int64):
+        T.func_attr({"global_symbol": "tir_zeros"})
+        A = T.match_buffer(x, [n])
+        for i in range(n):
+            with T.block():
+                vi = T.axis.remap("S", [i])
+                A[vi] = 1.0
+
     @R.function
-    def main(x: R.Tensor((32, 32), "float32"), w: R.Tensor((32, 32), "float32")) -> R.Tensor:
+    def main(x: R.Tensor((32, 32), "float32"), w: R.Tensor((32, 32), "float32")) -> R.Tuple:
         cls = Module
         with R.dataflow():
             lv0 = R.call_tir(cls.tir_matmul, (x, w), R.Tensor((32, 32), dtype="float32"))
             lv1 = R.call_tir(cls.tir_relu, (lv0), R.Tensor((32, 32), dtype="float32"))
-            R.output(lv1)
-        return lv1
+            lv2 = R.call_tir(
+                cls.tir_zeros, (lv1), R.Tensor((32,), dtype="float32"), tir_vars=R.ShapeExpr([32])
+            )
+            gv = (lv1, lv2)
+            R.output(gv)
+        return gv
 
 
 main_fn = Module["main"]
@@ -293,13 +306,15 @@ def test_match_call_attr():
 
 def test_is_call_tir():
     lv1_val = bindings[1].value
+    lv2_val = bindings[2].value
     var2val = get_var2val(Module["main"])
     assert is_call_tir("tir_relu").match(lv1_val)
     assert is_call_tir("tir_relu", [is_call_tir("tir_matmul")]).match(lv1_val, var2val=var2val)
     assert not is_call_tir("tir_relu", [is_call_tir("tir_relu")]).match(lv1_val, var2val=var2val)
+    assert is_call_tir("tir_zeros", wildcard(), wildcard()).match(lv2_val, var2val=var2val)
 
 
-@R.function
+@R.function(pure=False)
 def simple_call_packed(
     x: R.Tensor((32, 32), "float32"), w: R.Tensor((32, 32), "float32")
 ) -> R.Tensor:
@@ -1226,29 +1241,27 @@ def test_combine_transposed_matmul_twice():
             lv1: R.Tensor((640, 1280), dtype="float32") = R.permute_dims(lv, axes=None)
             lv2: R.Tensor((2, 1024, 1280), dtype="float32") = R.matmul(x1, lv1, out_dtype="void")
             lv3: R.Tuple(
-                R.Tensor((2, 640, 1280), dtype="float32"),
-                R.Tensor((2, 384, 1280), dtype="float32"),
-                R.Tensor((2, 0, 1280), dtype="float32"),
-            ) = R.split(lv2, indices_or_sections=[640, 1280], axis=1)
-            lv0: R.Tensor((2, 640, 1280), dtype="float32") = lv3[0]
-            lv1_1: R.Tensor((2, 384, 1280), dtype="float32") = lv3[1]
+                R.Tensor((2, 1024, 640), dtype="float32"),
+                R.Tensor((2, 1024, 640), dtype="float32"),
+            ) = R.split(lv2, indices_or_sections=[640], axis=-1)
+            lv0: R.Tensor((2, 1024, 640), dtype="float32") = lv3[0]
+            lv1_1: R.Tensor((2, 1024, 640), dtype="float32") = lv3[1]
             lv_1: R.Tensor((1280, 640), dtype="float32") = R.concat((w2, w3), axis=0)
             lv1_2: R.Tensor((640, 1280), dtype="float32") = R.permute_dims(lv_1, axes=None)
             lv2_1: R.Tensor((2, 1024, 1280), dtype="float32") = R.matmul(
                 x2, lv1_2, out_dtype="void"
             )
             lv3_1: R.Tuple(
-                R.Tensor((2, 640, 1280), dtype="float32"),
-                R.Tensor((2, 384, 1280), dtype="float32"),
-                R.Tensor((2, 0, 1280), dtype="float32"),
-            ) = R.split(lv2_1, indices_or_sections=[640, 1280], axis=1)
-            lv2_1_1: R.Tensor((2, 640, 1280), dtype="float32") = lv3_1[0]
-            lv3_1_1: R.Tensor((2, 384, 1280), dtype="float32") = lv3_1[1]
+                R.Tensor((2, 1024, 640), dtype="float32"),
+                R.Tensor((2, 1024, 640), dtype="float32"),
+            ) = R.split(lv2_1, indices_or_sections=[640], axis=-1)
+            lv2_1_1: R.Tensor((2, 1024, 640), dtype="float32") = lv3_1[0]
+            lv3_1_1: R.Tensor((2, 1024, 640), dtype="float32") = lv3_1[1]
             out: R.Tuple(
-                R.Tensor((2, 640, 1280), dtype="float32"),
-                R.Tensor((2, 384, 1280), dtype="float32"),
-                R.Tensor((2, 640, 1280), dtype="float32"),
-                R.Tensor((2, 384, 1280), dtype="float32"),
+                R.Tensor((2, 1024, 640), dtype="float32"),
+                R.Tensor((2, 1024, 640), dtype="float32"),
+                R.Tensor((2, 1024, 640), dtype="float32"),
+                R.Tensor((2, 1024, 640), dtype="float32"),
             ) = (lv0, lv1_1, lv2_1_1, lv3_1_1)
             R.output(out)
         return out
@@ -1267,9 +1280,9 @@ def test_combine_transposed_matmul_twice():
 
             concat = R.concat([w1, w2], axis=0)
             matmul = R.matmul(inp, R.permute_dims(concat))
-            sections = [w1.struct_info.shape[0], w1.struct_info.shape[0] + w2.struct_info.shape[0]]
+            sections = [w1.struct_info.shape[0]]
 
-            chunks = R.split(matmul, sections, 1)
+            chunks = R.split(matmul, sections, -1)
 
             return {
                 matchings[matmul1]: chunks[0],
@@ -1282,6 +1295,7 @@ def test_combine_transposed_matmul_twice():
         # make sure it builds
         mod = tvm.IRModule()
         mod["main"] = rewritten
+        print(mod)
 
         rx.build(mod, target="llvm")
 
@@ -1703,6 +1717,271 @@ def test_iterative_rewrite_with_removed_intermediates():
         return expr
 
     after = rewrite_call(pattern, rewriter, before)
+    tvm.ir.assert_structural_equal(expected, after)
+
+
+def test_wildcard_with_struct_info_updates_when_matching():
+    """A DFPattern may be restricted to a specific StructInfo"""
+
+    pat_lhs = wildcard().has_struct_info(R.Tensor([2, 3]))
+    pat_rhs = wildcard().has_struct_info(R.Tensor([2, 3]))
+    pat = is_op("relax.add")(pat_lhs, pat_rhs)
+
+    def rewriter(expr, matches):
+        lhs = matches[pat_lhs]
+        rhs = matches[pat_rhs]
+        return rx.op.multiply(lhs, rhs)
+
+    @R.function(private=True)
+    def before():
+        with R.dataflow():
+            A = R.zeros([2, 3], "int32")
+            B = R.ones([2, 3], "int32")
+            C = R.add(A, B)
+
+            R.output(C)
+        return C
+
+    @R.function(private=True)
+    def expected():
+        with R.dataflow():
+            A = R.zeros([2, 3], "int32")
+            B = R.ones([2, 3], "int32")
+            C = R.multiply(A, B)
+
+            R.output(C)
+        return C
+
+    after = rewrite_call(pat, rewriter, before)
+    tvm.ir.assert_structural_equal(expected, after)
+
+
+def test_wildcard_with_struct_info_is_no_op_when_not_matching():
+    """StructInfoPattern requires the StructInfo provided
+
+    Here, the pattern would match, expect that the function has
+    `R.Tensor([16,32])`, and the pattern requires `R.Tensor([2,3])`.
+    """
+
+    pat_lhs = wildcard().has_struct_info(R.Tensor([2, 3]))
+    pat_rhs = wildcard().has_struct_info(R.Tensor([2, 3]))
+    pat = is_op("relax.add")(pat_lhs, pat_rhs)
+
+    def rewriter(expr, matches):
+        lhs = matches[pat_lhs]
+        rhs = matches[pat_rhs]
+        return rx.op.multiply(lhs, rhs)
+
+    @R.function(private=True)
+    def before():
+        with R.dataflow():
+            # This R.add has the same shape as the pattern, and will
+            # be updated.
+            A = R.zeros([16, 32], "int32")
+            B = R.ones([16, 32], "int32")
+            C = R.add(A, B)
+
+            R.output(C)
+        return C
+
+    expected = before
+
+    after = rewrite_call(pat, rewriter, before)
+    tvm.ir.assert_structural_equal(expected, after)
+
+
+def test_wildcard_struct_info_for_unknown_dtype():
+    """TensorStructInfo with unknown dtype allows any dtype"""
+
+    pat_lhs = wildcard().has_struct_info(R.Tensor([2, 3]))
+    pat_rhs = wildcard().has_struct_info(R.Tensor([2, 3]))
+    pat = is_op("relax.add")(pat_lhs, pat_rhs)
+
+    def rewriter(expr, matches):
+        lhs = matches[pat_lhs]
+        rhs = matches[pat_rhs]
+        return rx.op.multiply(lhs, rhs)
+
+    @R.function(private=True)
+    def before():
+        with R.dataflow():
+            A = R.zeros([2, 3], "int32")
+            B = R.ones([2, 3], "int32")
+            C = R.add(A, B)
+
+            D = R.zeros([2, 3], "float32")
+            E = R.ones([2, 3], "float32")
+            F = R.add(D, E)
+
+            output = (C, F)
+            R.output(output)
+        return output
+
+    @R.function(private=True)
+    def expected():
+        with R.dataflow():
+            A = R.zeros([2, 3], "int32")
+            B = R.ones([2, 3], "int32")
+            C = R.multiply(A, B)
+
+            D = R.zeros([2, 3], "float32")
+            E = R.ones([2, 3], "float32")
+            F = R.multiply(D, E)
+
+            output = (C, F)
+            R.output(output)
+        return output
+
+    after = rewrite_call(pat, rewriter, before)
+    tvm.ir.assert_structural_equal(expected, after)
+
+
+def test_wildcard_struct_info_with_symbolic_vars():
+    """StructInfoPattern may define symbolic vars
+
+    This test finds an elementwise `R.add`, while ignoring a
+    broadcasted `R.add`.
+    """
+
+    m = tir.Var("m", "int64")
+    n = tir.Var("n", "int64")
+
+    pat_lhs = wildcard().has_struct_info(R.Tensor([m, n]))
+    pat_rhs = wildcard().has_struct_info(R.Tensor([m, n]))
+    pat = is_op("relax.add")(pat_lhs, pat_rhs)
+
+    def rewriter(expr, matches):
+        lhs = matches[pat_lhs]
+        rhs = matches[pat_rhs]
+        return rx.op.multiply(lhs, rhs)
+
+    @R.function(private=True)
+    def before():
+        with R.dataflow():
+            A = R.zeros([64, 128], "int32")
+            B = R.ones([64, 128], "int32")
+            C = R.add(A, B)
+
+            D = R.zeros([64, 128], "float32")
+            E = R.ones([1, 128], "float32")
+            F = R.add(D, E)
+
+            output = (C, F)
+            R.output(output)
+        return output
+
+    @R.function(private=True)
+    def expected():
+        with R.dataflow():
+            A = R.zeros([64, 128], "int32")
+            B = R.ones([64, 128], "int32")
+            C = R.multiply(A, B)
+
+            D = R.zeros([64, 128], "float32")
+            E = R.ones([1, 128], "float32")
+            F = R.add(D, E)
+
+            output = (C, F)
+            R.output(output)
+        return output
+
+    after = rewrite_call(pat, rewriter, before)
+    tvm.ir.assert_structural_equal(expected, after)
+
+
+def test_backtrack_if_rewriter_returns_no_op():
+    """Rewriter participates in the pattern matching
+
+    Sometimes, the pattern-matching syntax is insufficient to check if
+    a replacement may be performed.  In this case, the `rewriter`
+    function may perform additional validation.  If this validation
+    fails, the `rewriter` function can return the original expression,
+    and no replacement is performed.
+
+    In addition, when the `rewriter` returns the original expression,
+    the pattern match should backtrack to determine if another branch
+    of the match may have produced a replacement.
+
+    This functionality allows pattern replacements to be composed.
+    """
+
+    pat_match_no_rewrite = is_op("relax.add")(wildcard(), wildcard())
+
+    pat_arg = wildcard()
+    pat_zeros = is_op("relax.zeros")(wildcard())
+    pat_add = is_op("relax.add")(pat_arg, pat_zeros)
+
+    # OR conditions are checked in the order that they occur.  Because
+    # `pat_match_no_rewrite` is a superset of `pat_add`, it will
+    # always match first.
+    pat = pat_match_no_rewrite | pat_add
+
+    def rewriter(expr, matches):
+        if pat_match_no_rewrite in matches:
+            # This branch simulates a rewrite whose precondition has
+            # failed.  If the pattern-matching treats this as a
+            # successful match with no replacemen required, then no
+            # rewrite would be performed.  On the other hand, if the
+            # pattern-matching treats this as an unsuccessful match,
+            # then it can backtrack and attempt `pat_add` instead.
+            return expr
+        elif pat_add in matches:
+            return matches[pat_arg]
+        else:
+            raise RuntimeError("Pattern matched, but neither branch matched")
+
+    @R.function(private=True)
+    def before():
+        with R.dataflow():
+            A = R.ones([64, 128], "int32")
+            B = R.zeros([64, 128], "int32")
+            C = R.add(A, B)
+
+            R.output(C)
+        return C
+
+    @R.function(private=True)
+    def expected():
+        with R.dataflow():
+            C = R.ones([64, 128], "int32")
+
+            R.output(C)
+        return C
+
+    after = rewrite_call(pat, rewriter, before)
+    tvm.ir.assert_structural_equal(expected, after)
+
+
+def test_backtrack_for_no_op_rewriter_does_not_match_on_var():
+    """The matches should always contain the bound value
+
+    This is a regression test.  In versions from
+    https://github.com/apache/tvm/pull/16732 to
+    https://github.com/apache/tvm/pull/16828, the `rewrite_call`
+    function could erroneously call the rewriter with `expr` and
+    `matches[pat]` set to a variable (`C`) instead of the value to
+    which it is bound (`R.add(A,B)`).
+    """
+    pat_a = is_op("relax.add")(wildcard(), wildcard())
+    pat_b = is_op("relax.add")(wildcard(), wildcard())
+    pat = pat_a | pat_b
+
+    def rewriter(expr, matches):
+        assert isinstance(matches[pat], rx.Call)
+        return expr
+
+    @R.function(private=True)
+    def before():
+        with R.dataflow():
+            A = R.ones([64, 128], "int32")
+            B = R.zeros([64, 128], "int32")
+            C = R.add(A, B)
+
+            R.output(C)
+        return C
+
+    expected = before
+    after = rewrite_call(pat, rewriter, before)
     tvm.ir.assert_structural_equal(expected, after)
 
 

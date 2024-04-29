@@ -109,6 +109,7 @@ class OperatorConverter(object):
             "GATHER_ND": self.convert_gather_nd,
             "GREATER_EQUAL": self.convert_greater_equal,
             "GREATER": self.convert_greater,
+            "GELU": self.convert_gelu,
             "HARD_SWISH": self.convert_hard_swish,
             "L2_NORMALIZATION": self.convert_l2_normalization,
             "L2_POOL_2D": self.convert_l2_pool2d,
@@ -1286,6 +1287,26 @@ class OperatorConverter(object):
         ) + _op.nn.relu(in_expr)
 
         return out
+
+    def convert_gelu(self, op):
+        """Convert TFLite GELU"""
+        if self.is_quantized(op):
+            raise tvm.error.OpNotImplemented(
+                "The TFLite to Relay converter does not support quantized GELU operator yet."
+            )
+
+        input_tensors = self.get_input_tensors(op)
+        assert len(input_tensors) == 1, "input tensors length should be 1"
+
+        input_tensor = input_tensors[0]
+        in_expr = self.get_expr(input_tensor.tensor_idx)
+        in_type = self.get_tensor_type_str(input_tensor.tensor.Type())
+
+        return in_expr * (
+            _expr.const(0.5, dtype=in_type)
+            + _op.erf(in_expr * _expr.const(0.5**0.5, dtype=in_type))
+            * _expr.const(0.5, dtype=in_type)
+        )
 
     def convert_square(self, op):
         """Convert TFLite SQUARE"""

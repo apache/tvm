@@ -28,6 +28,7 @@ from .transform import (
     CallTIRRewrite,
     CanonicalizeBindings,
     CombineParallelMatmul,
+    ComputePrimValue,
     ConvertLayout,
     ConvertToDataflow,
     DataflowBlockPass,
@@ -36,6 +37,7 @@ from .transform import (
     DecomposeOpsForInference,
     DecomposeOpsForTraining,
     EliminateCommonSubexpr,
+    ExpandMatmulOfSum,
     ExpandTupleArguments,
     FewShotTuning,
     FoldConstant,
@@ -48,6 +50,8 @@ from .transform import (
     InlinePrivateFunctions,
     KillAfterLastUse,
     LambdaLift,
+    LazyGetInput,
+    LazySetOutput,
     LegalizeOps,
     LiftTransformParams,
     LowerAllocTensor,
@@ -62,6 +66,8 @@ from .transform import (
     RemovePurityChecking,
     RemoveUnusedParameters,
     RemoveUnusedOutputs,
+    ReorderPermuteDimsAfterConcat,
+    ReorderTakeAfterMatmul,
     RewriteCUDAGraph,
     RewriteDataflowReshape,
     RunCodegen,
@@ -69,6 +75,7 @@ from .transform import (
     StaticPlanBlockMemory,
     ToMixedPrecision,
     ToNonDataflow,
+    TopologicalSort,
     UpdateParamStructInfo,
     UpdateVDevice,
     VMBuiltinLower,
@@ -77,7 +84,9 @@ from .transform import (
     function_pass,
 )
 
+from .ipc_allreduce_rewrite import IPCAllReduceRewrite
 from .lazy_transform_params import LazyTransformParams
+from .lower_gpu_ipc_alloc_storage import LowerGPUIPCAllocStorage
 from .optimize_layout_transform import OptimizeLayoutTransform
 from .remove_redundant_reshape import RemoveRedundantReshape
 from .fast_math import FastMathTransform

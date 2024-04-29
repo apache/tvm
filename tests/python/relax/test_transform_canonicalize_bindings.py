@@ -289,33 +289,6 @@ def test_fold_match_cast():
     verify(Input, Expected)
 
 
-def test_unable_to_fold():
-    @I.ir_module
-    class MultipleUse:
-        @R.function
-        def main() -> R.Tensor((), "int32"):
-            with R.dataflow():
-                n = R.const(1)
-                # multiple uses -> cannot coalesce
-                m = R.add(n, n)
-                R.output(n)
-            return n
-
-    @I.ir_module
-    class ComplexExpr:
-        @R.function
-        def main() -> R.Tensor((), "int32"):
-            with R.dataflow():
-                y = R.const(1)
-                # y does not appear by itself -> cannot coalesce
-                n = R.add(y, y)
-                R.output(n)
-            return n
-
-    verify(MultipleUse, MultipleUse)
-    verify(ComplexExpr, ComplexExpr)
-
-
 def test_multiple_outputs():
     @I.ir_module
     class Input:
@@ -380,10 +353,9 @@ def test_single_output_multiple_nondataflow():
     verify(Input, Expected)
 
 
-def test_multiply_used_in_outputs():
-    # cannot fold output in this case
+def test_fold_const_to_output():
     @I.ir_module
-    class UsedInMultipleOutputs:
+    class Before:
         @R.function
         def main() -> R.Tensor((), "int32"):
             with R.dataflow():
@@ -391,7 +363,16 @@ def test_multiply_used_in_outputs():
                 R.output(n)
             return n
 
-    verify(UsedInMultipleOutputs, UsedInMultipleOutputs)
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main() -> R.Tensor((), "int32"):
+            with R.dataflow():
+                n = R.const(1)
+                R.output(n)
+            return R.const(1)
+
+    verify(Before, Expected)
 
 
 def test_canonicalize_var_to_dataflow_var_if_legal():
@@ -970,6 +951,64 @@ def test_canonicalization_causes_struct_info_update():
 
     after = relax.transform.CanonicalizeBindings()(Before)
     assert_structural_equal(Expected, after)
+
+
+def test_unwrap_tuple_of_constant():
+    @I.ir_module
+    class TestChainAssignments:
+        @R.function
+        def main():
+            tup = (R.const(0, "int64"), R.const(1, "int64"))
+            x = tup[0]
+            y = tup[1]
+            z = R.add(x, y)
+            return z
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main():
+            tup = (R.const(0, "int64"), R.const(1, "int64"))
+            x = tup[0]
+            y = tup[1]
+            z = R.add(R.const(0, "int64"), R.const(1, "int64"))
+            return z
+
+    verify(TestChainAssignments, Expected)
+
+
+def test_trivial_binding_of_replaced_non_dataflow_var():
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(param_tuple: R.Tuple([R.Tensor])):
+            with R.dataflow():
+                A = param_tuple[0]
+                B = A
+                C = R.add(A, B)
+                R.output(A, B, C)
+            return C
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(param_tuple: R.Tuple([R.Tensor])):
+            with R.dataflow():
+                A = param_tuple[0]
+                C = R.add(A, A)
+                R.output(C)
+            return C
+
+    After = CanonicalizeBindings()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
+
+    def _get_binding_names(mod):
+        return [binding.var.name_hint for binding in mod["main"].body.blocks[0].bindings]
+
+    expected_names = _get_binding_names(Expected)
+    after_names = _get_binding_names(After)
+
+    assert after_names == expected_names
 
 
 if __name__ == "__main__":

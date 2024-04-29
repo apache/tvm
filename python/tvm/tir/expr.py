@@ -1146,10 +1146,10 @@ class Ramp(PrimExprWithOp):
     base : PrimExpr
         The base expression.
 
-    stride : ramp stride
+    stride : PrimExpr
         The stride of the ramp.
 
-    lanes : int
+    lanes : PrimExpr
         The lanes of the expression.
 
     span : Optional[Span]
@@ -1158,10 +1158,10 @@ class Ramp(PrimExprWithOp):
 
     base: PrimExpr
     stride: PrimExpr
-    lanes: int
+    lanes: PrimExpr
 
     def __init__(
-        self, base: PrimExpr, stride: PrimExpr, lanes: int, span: Optional[Span] = None
+        self, base: PrimExpr, stride: PrimExpr, lanes: PrimExpr, span: Optional[Span] = None
     ) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.Ramp, base, stride, lanes, span  # type: ignore
@@ -1177,7 +1177,7 @@ class Broadcast(PrimExprWithOp):
     value : PrimExpr
         The value of the expression.
 
-    lanes : int
+    lanes : PrimExpr
         The lanes of the expression.
 
     span : Optional[Span]
@@ -1185,9 +1185,9 @@ class Broadcast(PrimExprWithOp):
     """
 
     value: PrimExpr
-    lanes: int
+    lanes: PrimExpr
 
-    def __init__(self, value: PrimExpr, lanes: int, span: Optional[Span] = None) -> None:
+    def __init__(self, value: PrimExpr, lanes: PrimExpr, span: Optional[Span] = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.Broadcast, value, lanes, span)  # type: ignore
 
 

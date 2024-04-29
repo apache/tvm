@@ -3923,5 +3923,50 @@ def test_tflite_matmul():
     verify(mod["tvmgen_default_ethos_u_main_0"])
 
 
+@pytest.mark.parametrize(
+    "ifm_shape,fract_size",
+    [[(1, 2, 8, 4), 15], [(1, 8), 12], [(1, 1, 4, 8), 10]],
+)
+def test_relay_tanh_fixed_point_legalize(ifm_shape, fract_size):
+    dtype = "int16"
+
+    def create_model():
+        ifm = relay.var("ifm", shape=ifm_shape, dtype=dtype)
+        ifm_fixed_point = relay.cast(ifm, "int32")
+        ifm_fixed_point = relay.fixed_point_multiply(ifm_fixed_point, 2**31 - 1, 0)
+        tanh = relay.tanh(ifm_fixed_point)
+        tanh = relay.fixed_point_multiply(tanh, 1, 31 - fract_size)
+        tanh = relay.cast(tanh, dtype)
+        return tvm.IRModule.from_expr(relay.Function([ifm], tanh))
+
+    mod = create_model()
+
+    tanh_pattern_table = [
+        (
+            ethosu.TanhFixedPointParams.composite_name,
+            ethosu.tanh_fixed_point_pattern(),
+            lambda pat: ethosu.TanhFixedPointParams(pat).is_valid(),
+        ),
+    ]
+
+    mod = partition_ethosu_by_table(mod, tanh_pattern_table)
+    mod["tvmgen_default_ethos_u_main_0"] = dataflow_pattern.rewrite(
+        legalize.TanhFixedPointRewriter(), mod["tvmgen_default_ethos_u_main_0"]
+    )
+    mod = relay.transform.InferType()(mod)
+
+    func = mod["tvmgen_default_ethos_u_main_0"]
+
+    identity = func.body
+    assert identity.op.name == "contrib.ethosu.identity"
+    assert identity.attrs.activation == "TANH"
+    assert identity.args[0].checked_type.dtype == dtype
+    assert tuple(identity.args[0].checked_type.shape) == ifm_shape
+    # check LUT size
+    assert tuple(identity.args[1].checked_type.shape) == (512,)
+    assert identity.attrs.ifm_scale == 1 / 2**fract_size
+    assert identity.attrs.ifm_scale == identity.attrs.ofm_scale
+
+
 if __name__ == "__main__":
     tvm.testing.main()

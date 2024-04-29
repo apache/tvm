@@ -177,6 +177,20 @@ struct VMFrame {
 
   VMFrame(Index pc, Index register_file_size)
       : return_pc(pc), register_file(register_file_size), caller_return_register(0) {}
+
+  void Clear() {
+    this->caller_return_register = 0;
+    this->call_arg_values.clear();
+    this->call_arg_tcodes.clear();
+    for (RegType& reg : register_file) {
+      reg = nullptr;
+    }
+  }
+
+  void ResetForRecycle(Index pc, Index register_file_size) {
+    this->return_pc = pc;
+    this->register_file.resize(register_file_size);
+  }
 };
 
 class VirtualMachineImpl : public VirtualMachine {
@@ -322,6 +336,8 @@ class VirtualMachineImpl : public VirtualMachine {
     ~FrameGuard() {
       ICHECK_GT(vm->frames_.size(), 0);
       vm->pc_ = vm->frames_.back()->return_pc;
+      vm->frames_.back()->Clear();
+      vm->frame_free_list_.emplace_back(std::move(vm->frames_.back()));
       vm->frames_.pop_back();
     }
   };
@@ -335,7 +351,15 @@ class VirtualMachineImpl : public VirtualMachine {
    * \return A RAII wrapper that pops the frame when going out of scope.
    */
   FrameGuard PushFrame(Index ret_pc, const VMFuncInfo& vm_func) {
-    return FrameGuard(this, std::make_unique<VMFrame>(ret_pc, vm_func.register_file_size));
+    std::unique_ptr<VMFrame> new_frame;
+    if (!frame_free_list_.empty()) {
+      new_frame = std::move(frame_free_list_.back());
+      frame_free_list_.pop_back();
+      new_frame->ResetForRecycle(ret_pc, vm_func.register_file_size);
+    } else {
+      new_frame = std::make_unique<VMFrame>(ret_pc, vm_func.register_file_size);
+    }
+    return FrameGuard(this, std::move(new_frame));
   }
   /*!
    * \brief Write to a VM register.
@@ -343,7 +367,7 @@ class VirtualMachineImpl : public VirtualMachine {
    * \param reg The register to write to.
    * \param obj The object to write to.
    */
-  void WriteRegister(VMFrame* frame, RegName reg, const RegType& obj) {
+  TVM_ALWAYS_INLINE void WriteRegister(VMFrame* frame, RegName reg, const RegType& obj) {
     ICHECK_LT(reg, frame->register_file.size());
     frame->register_file[reg] = obj;
   }
@@ -353,7 +377,7 @@ class VirtualMachineImpl : public VirtualMachine {
    * \param reg The register to read from.
    * \return The value of the register.
    */
-  RegType ReadRegister(VMFrame* frame, RegName reg) {
+  TVM_ALWAYS_INLINE RegType ReadRegister(VMFrame* frame, RegName reg) {
     if (reg < Instruction::kBeginSpecialReg) {
       return frame->register_file[reg];
     }
@@ -425,6 +449,11 @@ class VirtualMachineImpl : public VirtualMachine {
    * \note: Use unique ptr to avoid re-allocation and copy when frames_ get resized.
    */
   std::vector<std::unique_ptr<VMFrame>> frames_;
+  /*!
+   * \brief A free list of frame
+   */
+  std::vector<std::unique_ptr<VMFrame>> frame_free_list_;
+
   /*! \brief The virtual machine PC. */
   Index pc_{0};
   /*! \brief The special return register. */

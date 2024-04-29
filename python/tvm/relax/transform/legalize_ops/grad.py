@@ -125,6 +125,7 @@ def _grad_max_pool2d_backward(bb: BlockBuilder, call: Call) -> Expr:
         padding=call.attrs.padding,
         pool_type="max",
         ceil_mode=call.attrs.ceil_mode,
+        count_include_pad=call.attrs.count_include_pad,
         layout=call.attrs.layout,
         primfunc_name_hint="max_pool2d_backward",
     )
@@ -144,6 +145,7 @@ def _grad_avg_pool2d_backward(bb: BlockBuilder, call: Call) -> Expr:
         padding=call.attrs.padding,
         pool_type="avg",
         ceil_mode=call.attrs.ceil_mode,
+        count_include_pad=call.attrs.count_include_pad,
         layout=call.attrs.layout,
         primfunc_name_hint="avg_pool2d_backward",
     )

@@ -24,9 +24,11 @@
 
 #include "aprofile.h"
 
+#include <memory>
 #include <string>
 
 #include "../../support/utils.h"
+#include "../llvm/llvm_instance.h"
 
 namespace tvm {
 namespace target {
@@ -52,33 +54,6 @@ double GetArchVersion(Optional<Array<String>> attr) {
   return GetArchVersion(attr.value());
 }
 
-static inline bool HasFlag(String attr, std::string flag) {
-  std::string attr_str = attr;
-  return attr_str.find(flag) != std::string::npos;
-}
-
-static inline bool HasFlag(Optional<String> attr, std::string flag) {
-  if (!attr) {
-    return false;
-  }
-  return HasFlag(attr.value(), flag);
-}
-
-static inline bool HasFlag(Optional<Array<String>> attr, std::string flag) {
-  if (!attr) {
-    return false;
-  }
-  Array<String> attr_array = attr.value();
-
-  auto matching_attr = std::find_if(attr_array.begin(), attr_array.end(),
-                                    [flag](String attr_str) { return HasFlag(attr_str, flag); });
-  return matching_attr != attr_array.end();
-}
-
-static bool HasFlag(Optional<String> mcpu, Optional<Array<String>> mattr, std::string flag) {
-  return HasFlag(mcpu, flag) || HasFlag(mattr, flag);
-}
-
 bool IsAArch32(Optional<String> mtriple, Optional<String> mcpu) {
   if (mtriple) {
     bool is_mprofile = mcpu && support::StartsWith(mcpu.value(), "cortex-m");
@@ -101,39 +76,48 @@ bool IsArch(TargetJSON attrs) {
   return IsAArch32(mtriple, mcpu) || IsAArch64(mtriple);
 }
 
+bool CheckContains(Array<String> array, String predicate) {
+  return std::any_of(array.begin(), array.end(), [&](String var) { return var == predicate; });
+}
+
 static TargetFeatures GetFeatures(TargetJSON target) {
-  Optional<String> mcpu = Downcast<Optional<String>>(target.Get("mcpu"));
+#ifdef TVM_LLVM_VERSION
+  String kind = Downcast<String>(target.Get("kind"));
+  ICHECK_EQ(kind, "llvm") << "Expected target kind 'llvm', but got '" << kind << "'";
+
   Optional<String> mtriple = Downcast<Optional<String>>(target.Get("mtriple"));
-  Optional<Array<String>> mattr = Downcast<Optional<Array<String>>>(target.Get("mattr"));
+  Optional<String> mcpu = Downcast<Optional<String>>(target.Get("mcpu"));
 
-  const double arch_version = GetArchVersion(mattr);
+  // Check that LLVM has been compiled with the correct target support
+  auto llvm_instance = std::make_unique<codegen::LLVMInstance>();
+  codegen::LLVMTargetInfo llvm_backend(*llvm_instance, {{"kind", String("llvm")}});
+  Array<String> targets = llvm_backend.GetAllLLVMTargets();
+  if ((IsAArch64(mtriple) && !CheckContains(targets, "aarch64")) ||
+      (IsAArch32(mtriple, mcpu) && !CheckContains(targets, "arm"))) {
+    LOG(WARNING) << "Cannot parse target features for target: " << target
+                 << ". LLVM was not compiled with support for Arm(R)-based targets.";
+    return {};
+  }
 
-  const bool is_aarch64 = IsAArch64(mtriple);
+  codegen::LLVMTargetInfo llvm_target(*llvm_instance, target);
+  Map<String, String> features = llvm_target.GetAllLLVMCpuFeatures();
 
-  const bool simd_flag = HasFlag(mcpu, mattr, "+neon") || HasFlag(mcpu, mattr, "+simd");
-  const bool has_asimd = is_aarch64 || simd_flag;
-  const bool has_sve = HasFlag(mcpu, mattr, "+sve");
+  auto has_feature = [features](const String& feature) {
+    return features.find(feature) != features.end();
+  };
 
-  const bool i8mm_flag = HasFlag(mcpu, mattr, "+i8mm");
-  const bool i8mm_disable = HasFlag(mcpu, mattr, "+noi8mm");
-  const bool i8mm_default = arch_version >= 8.6;
-  const bool i8mm_support = arch_version >= 8.2 && arch_version <= 8.5;
-  const bool has_i8mm = (i8mm_default && !i8mm_disable) || (i8mm_support && i8mm_flag);
+  return {{"is_aarch64", Bool(IsAArch64(mtriple))},
+          {"has_asimd", Bool(has_feature("neon"))},
+          {"has_sve", Bool(has_feature("sve"))},
+          {"has_dotprod", Bool(has_feature("dotprod"))},
+          {"has_matmul_i8", Bool(has_feature("i8mm"))},
+          {"has_fp16_simd", Bool(has_feature("fullfp16"))},
+          {"has_sme", Bool(has_feature("sme"))}};
+#endif
 
-  const bool dotprod_flag = HasFlag(mcpu, mattr, "+dotprod");
-  const bool dotprod_disable = HasFlag(mcpu, mattr, "+nodotprod");
-  const bool dotprod_default = arch_version >= 8.4;
-  const bool dotprod_support = arch_version >= 8.2 && arch_version <= 8.3;
-  const bool has_dotprod =
-      (dotprod_default && !dotprod_disable) || (dotprod_support && dotprod_flag);
-
-  const bool fp16_flag = HasFlag(mcpu, mattr, "+fullfp16");
-  const bool fp16_support = arch_version >= 8.2;
-  const bool has_fp16_simd = fp16_support && (fp16_flag || has_sve);
-
-  return {{"is_aarch64", Bool(is_aarch64)},  {"has_asimd", Bool(has_asimd)},
-          {"has_sve", Bool(has_sve)},        {"has_dotprod", Bool(has_dotprod)},
-          {"has_matmul_i8", Bool(has_i8mm)}, {"has_fp16_simd", Bool(has_fp16_simd)}};
+  LOG(WARNING) << "Cannot parse Arm(R)-based target features for target " << target
+               << " without LLVM support.";
+  return {};
 }
 
 static Array<String> MergeKeys(Optional<Array<String>> existing_keys) {

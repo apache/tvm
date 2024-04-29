@@ -150,7 +150,9 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
                 pt, pl, pb, pr = topi.nn.get_pad_tuple(padding, (kh, kw))
                 is_winograd_applicable = (
                     "float" in data.dtype
+                    and "custom" not in data.dtype
                     and "float" in kernel.dtype
+                    and "custom" not in kernel.dtype
                     and kh == 3
                     and kw == 3
                     and stride_h == 1
@@ -250,6 +252,18 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
                         )
                 # Non-quantized cases
                 if is_aarch64 and data.dtype in ["float32", "float16"]:
+                    if target.features.has_sve:
+                        # This strategy is currently suboptimal because of LLVM's limited support
+                        # for scalable vector alias analysis, which causes redundant loads / stores
+                        # to remain after LLVM's optimisation passes, unlike the non-scalable case.
+                        # Hence, it is given a lower priority level until these issues are resolved.
+                        # Last checked manually using: LLVM 18.1.0
+                        strategy.add_implementation(
+                            wrap_compute_conv2d(topi.arm_cpu.compute_conv2d_NHWC_hybrid_SVE),
+                            wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_NHWC_hybrid_SVE),
+                            name="conv2d_NHWC_hybrid_SVE.arm_cpu",
+                            plevel=5,
+                        )
                     strategy.add_implementation(
                         wrap_compute_conv2d(topi.arm_cpu.compute_conv2d_NHWC_hybrid),
                         wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_NHWC_hybrid),
@@ -315,8 +329,20 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
                     name="depthwise_conv2d_nchw.x86",
                 )
         elif layout == "NHWC":
-            assert kernel_layout == "HWOI"
-            if target.features.is_aarch64 and target.features.has_asimd:
+            if kernel_layout != "HWOI":
+                logger.warning(
+                    """
+                    depthwise_conv2d with layout NHWC and HWOI
+                    kernel layout is not optimized for arm_cpu target.
+                    """
+                )
+                strategy.add_implementation(
+                    wrap_compute_conv2d(topi.nn.depthwise_conv2d_nhwc, need_kernel_layout=True),
+                    wrap_topi_schedule(conv2d_generic.schedule_depthwise_conv2d_nhwc),
+                    name="depthwise_conv2d_nhwc.generic",
+                )
+
+            elif target.features.is_aarch64 and target.features.has_asimd:
                 strategy.add_implementation(
                     wrap_compute_conv2d(topi.arm_cpu.compute_depthwise_conv2d_nhwc),
                     wrap_topi_schedule(topi.arm_cpu.schedule_depthwise_conv2d_nhwc),
