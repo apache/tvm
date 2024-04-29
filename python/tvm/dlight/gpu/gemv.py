@@ -209,14 +209,16 @@ class GEMV(GPUScheduleRule):
             self.sch_inner_reduction(sch, target, block, vector_input_buffers, epilogue)
             return sch
         elif target.kind.name == "opencl":
-            ret = self.sch_outer_reduction(
-                sch, target, block, vector_input_buffers, epilogue
-            )
+            ret = self.sch_outer_reduction(sch, target, block, vector_input_buffers, epilogue)
             if ret is None:
-                return self.sch_outer_reduction_fallback(sch, target, block, vector_input_buffers, epilogue)
+                return self.sch_outer_reduction_fallback(
+                    sch, target, block, vector_input_buffers, epilogue
+                )
             return sch
         else:
-            return self.sch_outer_reduction_fallback(sch, target, block, vector_input_buffers, epilogue)
+            return self.sch_outer_reduction_fallback(
+                sch, target, block, vector_input_buffers, epilogue
+            )
 
     def sch_inner_reduction(  # pylint: disable=too-many-arguments, invalid-name, unused-argument
         self,
