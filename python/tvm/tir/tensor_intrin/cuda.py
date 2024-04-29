@@ -162,9 +162,11 @@ def get_ldmatrix_intrin(
         assert (
             matrix_name == "B" or not transposed
         ), "Now only B matrix can be transposed for int8 matmul"
-        assert k_dim == 32 and (
-            dtype == "int8" or dtype == "e4m3_float8" or dtype == "e5m2_float8"
-        ), "Only k_dim == 16 (float16) or k_dim == 32 (int8) supported for now"
+        assert k_dim == 32 and dtype in [
+            "int8",
+            "e4m3_float8",
+            "e5m2_float8",
+        ], "Only k_dim == 16 (float16) or k_dim == 32 (int8) supported for now"
 
         if matrix_name == "B" and not transposed:
             if propagate_layout:
@@ -335,27 +337,6 @@ TensorIntrin.register(LDMATRIX_i8_B_INTRIN, *get_ldmatrix_intrin(32, "int8", "B"
 LDMATRIX_i8_B_TRANS_INTRIN = "mma_ldmatrix_i8_b_trans"
 TensorIntrin.register(LDMATRIX_i8_B_TRANS_INTRIN, *get_ldmatrix_intrin(32, "int8", "B", True))
 
-LDMATRIX_e4m3_A_INTRIN = "mma_ldmatrix_e4m3_a"
-TensorIntrin.register(LDMATRIX_e4m3_A_INTRIN, *get_ldmatrix_intrin(32, "e4m3_float8", "A", False))
-
-LDMATRIX_e4m3_B_INTRIN = "mma_ldmatrix_e4m3_b"
-TensorIntrin.register(LDMATRIX_e4m3_B_INTRIN, *get_ldmatrix_intrin(32, "e4m3_float8", "B", False))
-
-LDMATRIX_e4m3_B_TRANS_INTRIN = "mma_ldmatrix_e4m3_b_trans"
-TensorIntrin.register(
-    LDMATRIX_e4m3_B_TRANS_INTRIN, *get_ldmatrix_intrin(32, "e4m3_float8", "B", True)
-)
-
-LDMATRIX_e5m2_A_INTRIN = "mma_ldmatrix_e5m2_a"
-TensorIntrin.register(LDMATRIX_e5m2_A_INTRIN, *get_ldmatrix_intrin(32, "e5m2_float8", "A", False))
-
-LDMATRIX_e5m2_B_INTRIN = "mma_ldmatrix_e5m2_b"
-TensorIntrin.register(LDMATRIX_e5m2_B_INTRIN, *get_ldmatrix_intrin(32, "e5m2_float8", "B", False))
-
-LDMATRIX_e5m2_B_TRANS_INTRIN = "mma_ldmatrix_e5m2_b_trans"
-TensorIntrin.register(
-    LDMATRIX_e5m2_B_TRANS_INTRIN, *get_ldmatrix_intrin(32, "e5m2_float8", "B", True)
-)
 
 LDMATRIX_i8_A_SMOOTH_INTRIN = "mma_ldmatrix_i8_a_smooth"
 TensorIntrin.register(
@@ -406,6 +387,65 @@ TensorIntrin.register(
     *get_ldmatrix_intrin(32, "int8", "B", True, "shared.dyn", True),
 )
 
+LDMATRIX_e4m3_A_INTRIN = "mma_ldmatrix_e4m3_a"
+TensorIntrin.register(LDMATRIX_e4m3_A_INTRIN, *get_ldmatrix_intrin(32, "e4m3_float8", "A", False))
+
+LDMATRIX_e4m3_B_INTRIN = "mma_ldmatrix_e4m3_b"
+TensorIntrin.register(LDMATRIX_e4m3_B_INTRIN, *get_ldmatrix_intrin(32, "e4m3_float8", "B", False))
+
+LDMATRIX_e4m3_B_TRANS_INTRIN = "mma_ldmatrix_e4m3_b_trans"
+TensorIntrin.register(
+    LDMATRIX_e4m3_B_TRANS_INTRIN, *get_ldmatrix_intrin(32, "e4m3_float8", "B", True)
+)
+
+LDMATRIX_e5m2_A_INTRIN = "mma_ldmatrix_e5m2_a"
+TensorIntrin.register(LDMATRIX_e5m2_A_INTRIN, *get_ldmatrix_intrin(32, "e5m2_float8", "A", False))
+
+LDMATRIX_e5m2_B_INTRIN = "mma_ldmatrix_e5m2_b"
+TensorIntrin.register(LDMATRIX_e5m2_B_INTRIN, *get_ldmatrix_intrin(32, "e5m2_float8", "B", False))
+
+LDMATRIX_e5m2_B_TRANS_INTRIN = "mma_ldmatrix_e5m2_b_trans"
+TensorIntrin.register(
+    LDMATRIX_e5m2_B_TRANS_INTRIN, *get_ldmatrix_intrin(32, "e5m2_float8", "B", True)
+)
+
+LDMATRIX_e4m3_A_SMOOTH_INTRIN = "mma_ldmatrix_e4m3_a_smooth"
+TensorIntrin.register(
+    LDMATRIX_e4m3_A_SMOOTH_INTRIN,
+    *get_ldmatrix_intrin(32, "e4m3_float8", "A", False, "shared", True),
+)
+
+LDMATRIX_e4m3_B_SMOOTH_INTRIN = "mma_ldmatrix_e4m3_b_smooth"
+TensorIntrin.register(
+    LDMATRIX_e4m3_B_SMOOTH_INTRIN,
+    *get_ldmatrix_intrin(32, "e4m3_float8", "B", False, "shared", True),
+)
+
+LDMATRIX_e4e3_B_TRANS_SMOOTH_INTRIN = "mma_ldmatrix_e4m3_b_trans_smooth"
+TensorIntrin.register(
+    LDMATRIX_e4e3_B_TRANS_SMOOTH_INTRIN,
+    *get_ldmatrix_intrin(32, "e4m3_float8", "B", True, "shared", True),
+)
+
+LDMATRIX_e5m2_A_SMOOTH_INTRIN = "mma_ldmatrix_e5m2_a_smooth"
+TensorIntrin.register(
+    LDMATRIX_e5m2_A_SMOOTH_INTRIN,
+    *get_ldmatrix_intrin(32, "e5m2_float8", "A", False, "shared", True),
+)
+
+LDMATRIX_e5m2_B_SMOOTH_INTRIN = "mma_ldmatrix_e5m2_b_smooth"
+TensorIntrin.register(
+    LDMATRIX_e5m2_B_SMOOTH_INTRIN,
+    *get_ldmatrix_intrin(32, "e5m2_float8", "B", False, "shared", True),
+)
+
+LDMATRIX_e5m2_B_TRANS_SMOOTH_INTRIN = "mma_ldmatrix_e5m2_b_trans_smooth"
+TensorIntrin.register(
+    LDMATRIX_e5m2_B_TRANS_SMOOTH_INTRIN,
+    *get_ldmatrix_intrin(32, "e5m2_float8", "B", True, "shared", True),
+)
+
+
 def get_mma_intrin(
     k_dim,
     a_dtype="float16",
@@ -413,6 +453,8 @@ def get_mma_intrin(
     out_dtype="float16",
     a_transposed=False,
     b_transposed=False,
+    smooth_a=False,
+    smooth_b=False,
 ):
     local_size = (M_DIM * k_dim) // WARP_SIZE
     local_size_out = (M_DIM * N_DIM) // 32
@@ -634,15 +676,16 @@ TensorIntrin.register(
     MMA_f16f16f16_TRANS_B_INTRIN, *get_mma_intrin(16, "float16", "float16", "float16", False, True)
 )
 
-MMA_f16f16f16_TRANS_SMOOTH_B_INTRIN = "mma_f16f16f16_trans_b_smooth_b"
+MMA_f16f16f16_TRANS_B_SMOOTH_B_INTRIN = "mma_f16f16f16_trans_b_smooth_b"
 TensorIntrin.register(
-    MMA_f16f16f16_TRANS_SMOOTH_B_INTRIN, *get_mma_intrin(16, "float16", False, True, False, True)
+    MMA_f16f16f16_TRANS_B_SMOOTH_B_INTRIN,
+    *get_mma_intrin(16, "float16", "float16", "float16", False, True, False, True),
 )
 
 MMA_f16f16f16_SMOOTH_A_TRANS_SMOOTH_B_INTRIN = "mma_f16f16f16_smooth_a_trans_b_smooth_b"
 TensorIntrin.register(
     MMA_f16f16f16_SMOOTH_A_TRANS_SMOOTH_B_INTRIN,
-    *get_mma_intrin(16, "float16", False, True, True, True),
+    *get_mma_intrin(16, "float16", "float16", "float16", False, True, True, True),
 )
 
 MMA_f16f16f16_TRANS_A_INTRIN = "mma_f16f16f16_trans_a"
@@ -666,16 +709,16 @@ TensorIntrin.register(
     MMA_i8i8i32_TRANS_B_INTRIN, *get_mma_intrin(32, "int8", "int8", "int32", False, True)
 )
 
-MMA_e5m2e5m2f32_INTRIN = "mma_e5m2e5m2f32"
+MMA_i8i8i32_TRANS_B_SMOOTH_B_INTRIN = "mma_i8i8i32_trans_b_smooth_b"
 TensorIntrin.register(
-    MMA_e5m2e5m2f32_INTRIN,
-    *get_mma_intrin(32, "e5m2_float8", "e5m2_float8", "float32", False, False),
+    MMA_i8i8i32_TRANS_B_SMOOTH_B_INTRIN,
+    *get_mma_intrin(32, "int8", "int8", "int32", False, True, False, True),
 )
 
-MMA_e5m2e5m2f32_TRANS_B_INTRIN = "mma_e5m2e5m2f32_trans_b"
+MMA_i8i8i32_SMOOTH_A_TRANS_B_SMOOTH_B_INTRIN = "mma_i8i8i32_smooth_a_trans_b_smooth_b"
 TensorIntrin.register(
-    MMA_e5m2e5m2f32_TRANS_B_INTRIN,
-    *get_mma_intrin(32, "e5m2_float8", "e5m2_float8", "float32", False, True),
+    MMA_i8i8i32_SMOOTH_A_TRANS_B_SMOOTH_B_INTRIN,
+    *get_mma_intrin(32, "int8", "int8", "int32", False, True, True, True),
 )
 
 MMA_e4m3e4m3f32_INTRIN = "mma_e4m3e4m3f32"
@@ -690,15 +733,52 @@ TensorIntrin.register(
     *get_mma_intrin(32, "e4m3_float8", "e4m3_float8", "float32", False, True),
 )
 
-MMA_i8i8i32_TRANS_B_SMOOTH_B_INTRIN = "mma_i8i8i32_trans_b_smooth_b"
+MMA_e4m3e4m3f32_SMOOTH_B_INTRIN = "mma_e4m3e4m3f32_smooth_b"
 TensorIntrin.register(
-    MMA_i8i8i32_TRANS_B_SMOOTH_B_INTRIN, *get_mma_intrin(32, "int32", False, True, False, True)
+    MMA_e4m3e4m3f32_SMOOTH_B_INTRIN,
+    *get_mma_intrin(32, "e4m3_float8", "e4m3_float8", "float32", False, False, False, True),
 )
 
-MMA_i8i8i32_SMOOTH_A_TRANS_B_SMOOTH_B_INTRIN = "mma_i8i8i32_smooth_a_trans_b_smooth_b"
+MMA_e4m3e4m3f32_TRANS_B_SMOOTH_B_INTRIN = "mma_e4m3e4m3f32_trans_b_smooth_b"
 TensorIntrin.register(
-    MMA_i8i8i32_SMOOTH_A_TRANS_B_SMOOTH_B_INTRIN,
-    *get_mma_intrin(32, "int32", False, True, True, True),
+    MMA_e4m3e4m3f32_TRANS_B_SMOOTH_B_INTRIN,
+    *get_mma_intrin(32, "e4m3_float8", "e4m3_float8", "float32", False, True, False, True),
+)
+
+MMA_e4m3e4m3f32_SMOOTH_A_TRANS_B_SMOOTH_B_INTRIN = "mma_e4m3e4m3f32_smooth_a_trans_b_smooth_b"
+TensorIntrin.register(
+    MMA_e4m3e4m3f32_SMOOTH_A_TRANS_B_SMOOTH_B_INTRIN,
+    *get_mma_intrin(32, "e4m3_float8", "e4m3_float8", "float32", False, True, True, True),
+)
+
+MMA_e5m2e5m2f32_INTRIN = "mma_e5m2e5m2f32"
+TensorIntrin.register(
+    MMA_e5m2e5m2f32_INTRIN,
+    *get_mma_intrin(32, "e5m2_float8", "e5m2_float8", "float32", False, False),
+)
+
+MMA_e5m2e5m2f32_TRANS_B_INTRIN = "mma_e5m2e5m2f32_trans_b"
+TensorIntrin.register(
+    MMA_e5m2e5m2f32_TRANS_B_INTRIN,
+    *get_mma_intrin(32, "e5m2_float8", "e5m2_float8", "float32", False, True),
+)
+
+MMA_e5m2e5m2f32_SMOOTH_B_INTRIN = "mma_e5m2e5m2f32_smooth_b"
+TensorIntrin.register(
+    MMA_e5m2e5m2f32_SMOOTH_B_INTRIN,
+    *get_mma_intrin(32, "e5m2_float8", "e5m2_float8", "float32", False, False, False, True),
+)
+
+MMA_e5m2e5m2f32_TRANS_B_SMOOTH_B_INTRIN = "mma_e5m2e5m2f32_trans_b_smooth_b"
+TensorIntrin.register(
+    MMA_e5m2e5m2f32_TRANS_B_SMOOTH_B_INTRIN,
+    *get_mma_intrin(32, "e5m2_float8", "e5m2_float8", "float32", False, True, False, True),
+)
+
+MMA_e5m2e5m2f32_SMOOTH_A_TRANS_B_SMOOTH_B_INTRIN = "mma_e5m2e5m2f32_smooth_a_trans_b_smooth_b"
+TensorIntrin.register(
+    MMA_e5m2e5m2f32_SMOOTH_A_TRANS_B_SMOOTH_B_INTRIN,
+    *get_mma_intrin(32, "e5m2_float8", "e5m2_float8", "float32", False, True, True, True),
 )
 
 
@@ -832,6 +912,11 @@ TensorIntrin.register(
     MMA_store_16x16_f32_global_INTRIN, *get_mma_store_intrin("float32", 8, "global", True)
 )
 
+MMA_store_16x16_f32_shared_INTRIN = "mma_store_16x16_f32_shared_"
+TensorIntrin.register(
+    MMA_store_16x16_f32_shared_INTRIN, *get_mma_store_intrin("float32", 8, "shared", True)
+)
+
 MMA_store_16x16_f32_shared_dyn_INTRIN = "mma_store_16x16_f32_shared_dyn_"
 TensorIntrin.register(
     MMA_store_16x16_f32_shared_dyn_INTRIN, *get_mma_store_intrin("float32", 8, "shared.dyn", True)
@@ -894,13 +979,13 @@ TensorIntrin.register(
 
 
 def get_mma_intrin_group(
-    load_scope: Literal["shared", "shared.dyn"],
-    store_scope: Literal["global", "shared", "shared.dyn"],
-    a_dtype: Literal["float16", "int8", "e4m3_float8", "e5m2_float8"],
-    b_dtype: Literal["float16", "int8", "e4m3_float8", "e5m2_float8"],
-    out_dtype: Literal["float16", "float32", "int32"],
-    trans_a: bool,
-    trans_b: bool,
+    load_scope: Literal["shared", "shared.dyn"] = "shared",
+    store_scope: Literal["global", "shared", "shared.dyn"] = "global",
+    a_dtype: Literal["float16", "int8", "e4m3_float8", "e5m2_float8"] = "float16",
+    b_dtype: Literal["float16", "int8", "e4m3_float8", "e5m2_float8"] = "float16",
+    out_dtype: Literal["float16", "float32", "int32"] = "float16",
+    trans_a: bool = False,
+    trans_b: bool = False,
     smooth_a: bool = False,
     smooth_b: bool = False,
     not_use_mma_store_intrinic: bool = True,
@@ -916,8 +1001,11 @@ def get_mma_intrin_group(
     store_scope : Literal["global", "shared", "shared.dyn"]
         The memory scope of the result buffer.
 
-    in_dtype : str
-        The input data type.
+    a_dtype : str
+        The dtype of the input matrix A.
+
+    b_dtype : str
+        The dtype of the input matrix B.
 
     out_dtype : str
         The output data dtype.
@@ -979,8 +1067,8 @@ def get_mma_intrin_group(
     smooth_a = "_smooth" if smooth_a else ""
     smooth_b = "_smooth" if smooth_b else ""
     load_scope = "_dyn" if load_scope == "shared.dyn" else ""
-    load_a_intrin = f"mma_ldmatrix_{a_dtype}_a{trans_a}{load_scope}"
-    load_b_intrin = f"mma_ldmatrix_{b_dtype}_b{trans_b}{load_scope}"
+    load_a_intrin = f"mma_ldmatrix_{a_dtype}_a{trans_a}{smooth_a}{load_scope}"
+    load_b_intrin = f"mma_ldmatrix_{b_dtype}_b{trans_b}{smooth_b}{load_scope}"
 
     # e.g. mma_f16f16f32_trans_a_trans_b
     trans_a_str = trans_a + "_a" if trans_a != "" else ""
@@ -1019,7 +1107,7 @@ def get_mma_intrin_group(
     micro_kernel: List[int]
     if a_dtype == "f16":
         micro_kernel = [16, 16, 16]
-    elif a_dtype == "i8":
+    elif a_dtype in ["i8", "e4m3", "e5m2"]:
         micro_kernel = [16, 16, 32]
     else:
         raise ValueError(f"Unsupported in_dtype: {a_dtype}")
