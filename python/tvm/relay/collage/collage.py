@@ -41,6 +41,7 @@ WARMUP_MIN_REPEAT_MS = 10
 class CostEstimator(Object):
     """CostEstimator class"""
 
+    # RPC tracker paramerters for cost function
     TRACKER_HOST = None
     TRACKER_PORT = None
     DEVICE_KEY = None
