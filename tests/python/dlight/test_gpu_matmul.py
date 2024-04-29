@@ -634,18 +634,18 @@ class TestMatmulAndroid(AndroidBeforeAfter):
         inp0 = T.match_buffer(var_inp0, (T.int64(1), m, T.int64(4096)))
         matmul = T.match_buffer(var_matmul, (T.int64(1), m, T.int64(4096)))
         # with T.block("root"):
-        matmul_reindex_pad_local = T.alloc_buffer((T.int64(1), (m + T.int64(15)) // T.int64(16) * T.int64(16), T.int64(4096)), scope="local")
-        for ax0_ax1_0_fused in T.thread_binding((m + T.int64(15)) // T.int64(16), thread="blockIdx.y"):
+        matmul_reindex_pad_local = T.alloc_buffer((T.int64(1), (m + T.int64(31)) // T.int64(32) * T.int64(32), T.int64(4096)), scope="local")
+        for ax0_ax1_0_fused in T.thread_binding((m + T.int64(31)) // T.int64(32), thread="blockIdx.y"):
             for ax2_0 in T.thread_binding(T.int64(64), thread="blockIdx.x"):
                 for ax1_1 in T.thread_binding(T.int64(1), thread="vthread.y"):
                     for ax2_1 in T.thread_binding(T.int64(1), thread="vthread.x"):
-                        for ax1_2 in T.thread_binding(T.int64(8), thread="threadIdx.y"):
+                        for ax1_2 in T.thread_binding(T.int64(16), thread="threadIdx.y"):
                             for ax2_2 in T.thread_binding(T.int64(8), thread="threadIdx.x", annotations={"pragma_auto_unroll_max_step": 64, "pragma_unroll_explicit": 1}):
                                 for ax1_3_init, ax2_3_0_init in T.grid(T.int64(2), T.int64(1)):
                                     for ax2_3_1_init in T.vectorized(T.int64(8)):
                                         with T.block("matmul_init"):
                                             v0 = T.axis.spatial(T.int64(1), T.int64(0))
-                                            v1 = T.axis.spatial((m + T.int64(15)) // T.int64(16) * T.int64(16), ax0_ax1_0_fused * T.int64(16) + ax1_1 * T.int64(16) + ax1_2 * T.int64(2) + ax1_3_init)
+                                            v1 = T.axis.spatial((m + T.int64(31)) // T.int64(32) * T.int64(32), ax0_ax1_0_fused * T.int64(32) + ax1_1 * T.int64(32) + ax1_2 * T.int64(2) + ax1_3_init)
                                             v2 = T.axis.spatial(T.int64(4096), ax2_0 * T.int64(64) + ax2_1 * T.int64(64) + ax2_2 * T.int64(8) + ax2_3_0_init * T.int64(8) + ax2_3_1_init)
                                             T.reads()
                                             T.writes(matmul_reindex_pad_local[T.int64(0), v1, v2])
@@ -654,7 +654,7 @@ class TestMatmulAndroid(AndroidBeforeAfter):
                                     for ax2_3_1 in T.vectorized(T.int64(8)):
                                         with T.block("matmul_update"):
                                             v0 = T.axis.spatial(T.int64(1), T.int64(0))
-                                            v1 = T.axis.spatial((m + T.int64(15)) // T.int64(16) * T.int64(16), ax0_ax1_0_fused * T.int64(16) + ax1_1 * T.int64(16) + ax1_2 * T.int64(2) + ax1_3)
+                                            v1 = T.axis.spatial((m + T.int64(31)) // T.int64(32) * T.int64(32), ax0_ax1_0_fused * T.int64(32) + ax1_1 * T.int64(32) + ax1_2 * T.int64(2) + ax1_3)
                                             v2 = T.axis.spatial(T.int64(4096), ax2_0 * T.int64(64) + ax2_1 * T.int64(64) + ax2_2 * T.int64(8) + ax2_3_0 * T.int64(8) + ax2_3_1)
                                             v3 = T.axis.reduce(T.int64(4096), ax3_0 * T.int64(16) + ax3_1)
                                             T.reads(matmul_reindex_pad_local[T.int64(0), v1, v2], inp0[T.int64(0), v1, v3], inp1[v3, v2])
@@ -664,7 +664,7 @@ class TestMatmulAndroid(AndroidBeforeAfter):
                                     for ax2_1_1 in T.vectorized(T.int64(8)):
                                         with T.block("matmul_reindex_pad_local"):
                                             v0 = T.axis.spatial(T.int64(1), ax0)
-                                            v1 = T.axis.spatial((m + T.int64(15)) // T.int64(16) * T.int64(16), ax0_ax1_0_fused * T.int64(16) + ax1_2 * T.int64(2) + ax1)
+                                            v1 = T.axis.spatial((m + T.int64(31)) // T.int64(32) * T.int64(32), ax0_ax1_0_fused * T.int64(32) + ax1_2 * T.int64(2) + ax1)
                                             v2 = T.axis.spatial(T.int64(4096), ax2_0 * T.int64(64) + ax2_2 * T.int64(8) + ax2_0_1 * T.int64(8) + ax2_1_1)
                                             T.reads(matmul_reindex_pad_local[v0, v1, v2])
                                             T.writes(matmul[T.int64(0), v1, v2])
