@@ -453,6 +453,4 @@ def test_e5m2e5m2f32_m16n16k32():
 
 
 if __name__ == "__main__":
-    # tvm.testing.main()
-    # test_e5m2e5m2f32_m16n16k32()
-    test_e4m3e4m3f32_m16n16k32()
+    tvm.testing.main()
