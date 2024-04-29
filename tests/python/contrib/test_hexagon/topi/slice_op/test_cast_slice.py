@@ -77,7 +77,7 @@ class TestCastF16F32Slice2d:
         Top level testing function for cast fp16 to fp32
         """
         if hexagon_session.is_simulator():
-            pytest.skip(msg="Due to https://github.com/apache/tvm/issues/11957")
+            pytest.skip("Due to https://github.com/apache/tvm/issues/11957")
 
         cast_input = te.placeholder(input_shape, name="A", dtype=dtype)
         cast_output = sl.cast_f16_f32_compute(cast_input)
@@ -163,7 +163,7 @@ class TestCastF32F16Slice2d:
         Top level testing function for cast fp32 to fp16
         """
         if hexagon_session.is_simulator():
-            pytest.skip(msg="Due to https://github.com/apache/tvm/issues/11957")
+            pytest.skip("Due to https://github.com/apache/tvm/issues/11957")
 
         cast_input = te.placeholder(input_shape, name="A", dtype=dtype)
         cast_output = sl.cast_f32_f16_compute(cast_input)

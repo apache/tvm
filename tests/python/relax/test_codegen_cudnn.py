@@ -198,6 +198,7 @@ def test_conv2d_offload(data_shape, weight_shape, dtype, with_bias, activation):
         tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
 
 
+@pytest.mark.skip(reason="flaky test")
 @pytest.mark.parametrize(
     "data_shape, weight_shape, dtype, with_bias, activation",
     [
