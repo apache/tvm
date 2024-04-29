@@ -81,6 +81,7 @@ batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation = tvm.
     (1, 7, 4, 16, 3, 1, "SAME", 1),
     # Pad N
     (1, 2, 4, 15, 4, 1, "SAME", 1),
+    (1, 2, 4, 20, 1, 1, "SAME", 1),
     # Large workloads
     (1, 256, 32, 256, 3, 1, "SAME", 1),
     (4, 128, 16, 128, 5, 2, "SAME", 1),
