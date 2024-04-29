@@ -813,21 +813,37 @@ def test_const(dtype):
     mod = tvm.IRModule({"main": func})
     tvm.build(mod, target="cuda")
 
+
 @tvm.testing.requires_cuda_compute_version(8, 9)
 @pytest.mark.parametrize("dtype", ["e5m2_float8", "e4m3_float8"])
 @pytest.mark.parametrize("vec_length", [2, 4, 8, 16])
-
 def test_copy(dtype, vec_len=4):
     @T.prim_func
-    def func(A: T.Buffer((4, vec_len,), dtype), B: T.Buffer((4, vec_len,), dtype)) -> None:
+    def func(
+        A: T.Buffer(
+            (
+                4,
+                vec_len,
+            ),
+            dtype,
+        ),
+        B: T.Buffer(
+            (
+                4,
+                vec_len,
+            ),
+            dtype,
+        ),
+    ) -> None:
         for tx in T.thread_binding(0, 4, "threadIdx.x"):
             for i in T.vectorized(vec_len):
-                B[tx, i]  = A[tx, i]
+                B[tx, i] = A[tx, i]
 
     mod = tvm.IRModule({"main": func})
     rtmod = tvm.build(mod, target="cuda")
-    
+
     print(rtmod.imported_modules[0].get_source())
+
 
 if __name__ == "__main__":
     tvm.testing.main()
