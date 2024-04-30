@@ -28,6 +28,7 @@
 #include <tvm/relax/op_attr_types.h>
 #include <tvm/relax/struct_info.h>
 #include <tvm/relax/transform.h>
+#include <tvm/tir/transform.h>
 
 namespace tvm {
 namespace relax {
@@ -83,7 +84,12 @@ class LegalizeMutator : public ExprMutator {
         builder_->UpdateFunction(gv, f);
       }
     }
-    return builder_->GetContextIRModule();
+    IRModule output = builder_->GetContextIRModule();
+    if (requires_tir_convert_ssa_) {
+      output = tir::transform::ConvertSSA()(output);
+    }
+
+    return output;
   }
 
  private:
@@ -129,7 +135,7 @@ class LegalizeMutator : public ExprMutator {
     return Call(call_pure_packed_op, ret_args, ret->attrs, ret->sinfo_args);
   }
 
-  Target GetTarget(const Array<StructInfo>& sinfos) {
+  Optional<Target> GetTarget(const Array<StructInfo>& sinfos) {
     for (auto sinfo : sinfos) {
       if (const auto* tinfo = sinfo.as<TensorStructInfoNode>()) {
         if (tinfo->vdevice.defined()) {
@@ -142,18 +148,88 @@ class LegalizeMutator : public ExprMutator {
         return GetTarget(tup_sinfo->fields);
       }
     }
-    return Target();
+    return NullOpt;
   }
 
   void SaveTarget(const Expr& expr) {
     if (expr->IsInstance<CallNode>()) {
       auto call = Downcast<Call>(expr);
-      auto target = GetTarget(call->sinfo_args);
-      const GlobalVarNode* gvar_node;
-      if (target.defined() && (gvar_node = call->args[0].as<GlobalVarNode>())) {
-        this->tmap_.Set(GetRef<GlobalVar>(gvar_node), target);
+
+      if (auto target = GetTarget(call->sinfo_args)) {
+        if (auto gvar = call->args[0].as<GlobalVar>()) {
+          this->tmap_.Set(gvar.value(), target.value());
+        }
       }
     }
+  }
+
+  Expr BindTarget(Expr expr) {
+    if (!expr->IsInstance<CallNode>()) {
+      // FLegalize returned something other than a relax::Call.  This
+      // post-processing only handles cases where legalization
+      // produces a lowered call node.  In principle, this
+      // post-processing isn't necessary, and FLegalize should already
+      // have generated vdevice-aware kernels, so hopefully the
+      // FLegalize implementation did so.
+      return expr;
+    }
+
+    auto call = Downcast<Call>(expr);
+
+    auto vdevice_target = GetTarget(call->sinfo_args);
+    if (!vdevice_target.defined()) {
+      // No vdevice annotation is present, so we don't need to apply
+      // any updates.
+      return expr;
+    }
+
+    if (call->args.empty()) {
+      return expr;
+    }
+
+    auto gvar = call->args[0].as<GlobalVar>();
+    if (!gvar.defined()) {
+      // This is not a call into a legalized function within the
+      // current IRModule, so no post-processing is required.
+      return expr;
+    }
+
+    auto base_func = builder_->GetContextIRModule()->Lookup(gvar.value());
+    auto opt_prim_func = base_func.as<tir::PrimFunc>();
+    if (!opt_prim_func) {
+      // The call is to something other than a PrimFunc.  It may be
+      // another Relax function, in which case the legalization of its
+      // body will handle any additional target annotations.
+      return expr;
+    }
+    auto prim_func = opt_prim_func.value();
+
+    auto func_target = prim_func->GetAttr<Target>(tvm::attr::kTarget);
+    if (func_target && func_target.value()->kind == vdevice_target.value()->kind) {
+      // The function already has compatible annotations for the
+      // target, so no modifications are required.
+      return expr;
+    }
+
+    // The FLegalize function generated a PrimFunc, but that PrimFunc
+    // doesn't have annotations compatible with the vdevice required
+    // by the Relax StructInfo.  Update the call to instead call a
+    // `PrimFunc` with the appropriate target annotation.  In the
+    // future, this may be treated as a bug in the FLegalize
+    // implementation, rather than expected output from it.
+    auto new_prim_func = WithAttr(prim_func, tvm::attr::kTarget, vdevice_target.value());
+    auto new_gvar_name = [&]() -> std::string {
+      std::stringstream ss;
+      ss << gvar.value()->name_hint;
+      ss << "_";
+      ss << vdevice_target.value()->kind->name;
+      return ss.str();
+    }();
+    auto new_gvar = builder_->AddFunction(new_prim_func, new_gvar_name);
+    requires_tir_convert_ssa_ = true;
+
+    call.CopyOnWrite()->args.Set(0, new_gvar);
+    return call;
   }
 
   Expr VisitExpr_(const CallNode* call) final {
@@ -268,8 +344,10 @@ class LegalizeMutator : public ExprMutator {
     }
     Expr legalized = legalization_func(builder_, visited_call);
 
+    legalized = BindTarget(legalized);
+
     // Save the expected target info. into tmap_
-    SaveTarget(legalized);
+    // SaveTarget(legalized);
 
     legalized = builder_->Normalize(legalized);
 
@@ -305,6 +383,7 @@ class LegalizeMutator : public ExprMutator {
   Map<String, PackedFunc> cmap_;
   /*! \brief The map from GlobalVar of PrimFunc to compilation Target. */
   Map<GlobalVar, Target> tmap_;
+  bool requires_tir_convert_ssa_{false};
   /*!
    * \brief A boolean value indicating if to print warnings for CallNode whose op's
    * legalization function is not registered.
