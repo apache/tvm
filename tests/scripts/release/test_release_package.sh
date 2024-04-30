@@ -1,17 +1,21 @@
-set -ex
-
-######################################################
-# This script is used test release (cancdidate)
-# packages uploading to apache.org, github.com
-# before release vote starts or release.
+#!/usr/bin/env bash
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
 #
-# The release (candidate) package contains files
-# below:
-#    1. apache-tvm-src-${version_rc}.tar.gz.asc
-#    2. apache-tvm-src-${version_rc}.tar.gz.sha512
-#    3. apache-tvm-src-${version_rc}.tar.gz
-######################################################
-
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+set -exu
 
 ######################################################
 # Write current test version and rc number here
@@ -23,9 +27,16 @@ set -ex
 version="v0.16.0"
 rc="rc0"
 
-
 ######################################################
-# Test start
+# This script is used test release (cancdidate)
+# packages uploading to apache.org, github.com
+# before release vote starts or release.
+#
+# The release (candidate) package contains files
+# below:
+#    1. apache-tvm-src-${version_rc}.tar.gz.asc
+#    2. apache-tvm-src-${version_rc}.tar.gz.sha512
+#    3. apache-tvm-src-${version_rc}.tar.gz
 ######################################################
 version_rc="${version}"
 apache_prefix="${version}"
