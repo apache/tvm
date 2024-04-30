@@ -15,18 +15,19 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import numpy as np
 import pytest
 
 import tvm
-from tvm import topi, relax, tir, dlight
 import tvm.script
 import tvm.testing
-from tvm.script import relax as R, tir as T, ir as I
+from tvm import dlight, relax, tir, topi
 from tvm.contrib.thrust import can_use_thrust
-
-
-from tvm.relax.backend import DispatchSortScan
 from tvm.ir.base import assert_structural_equal
+from tvm.relax.backend import DispatchSortScan
+from tvm.script import ir as I
+from tvm.script import relax as R
+from tvm.script import tir as T
 
 
 def test_dispatch_scanop():
@@ -397,6 +398,33 @@ def test_dispatch_topk_gpu():
         expected_mod = dlight.ApplyDefaultSchedule(dlight.gpu.Fallback())(expected_mod)
 
     assert_structural_equal(mod, expected_mod)
+
+
+@tvm.testing.requires_cuda
+def test_dispatch_cumsum_gpu():
+    """Test cumsum kernel dispatch and numerical correctness"""
+
+    @I.ir_module
+    class Module:
+        @R.function
+        def main(x: R.Tensor(("m", "n"), "int32")):
+            with R.dataflow():
+                gv = R.cumsum(x, axis=-1, exclusive=False)
+                R.output(gv)
+            return gv
+
+    size = (8, 2000)
+    np_data = np.random.randint(0, 10, size).astype("int32")
+    np_cumsum = np.cumsum(np_data, axis=-1)
+    for target in ["cuda", "vulkan -supports_int64=1"]:
+        with tvm.target.Target(target):
+            mod = DispatchSortScan()(Module)
+            ex = tvm.relax.build(mod, target)
+            device = tvm.device(target, 0)
+            vm = tvm.relax.VirtualMachine(ex, device)
+            tvm_data = tvm.nd.array(np_data, device)
+            cumsum = vm["main"](tvm_data)
+            tvm.testing.assert_allclose(cumsum.numpy(), np_cumsum)
 
 
 if __name__ == "__main__":

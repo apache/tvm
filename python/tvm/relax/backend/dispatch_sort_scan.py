@@ -154,7 +154,48 @@ class SortScanDispatcher(PyExprMutator):
         if call.op.name in ("relax.cumprod", "relax.cumsum"):
             tgt = self._get_target(call.struct_info)
             axis = int(call.attrs.axis) if call.attrs.axis is not None else call.attrs.axis
+            shape = call.struct_info.shape
             kwargs = {}
+            if (
+                (axis == -1 or axis == len(shape) - 1)
+                and is_gpu_target(tgt)
+                and not can_use_thrust(tgt, "tvm.contrib.thrust.sum_scan")
+                and call.op.name == "relax.cumsum"
+                and call.attrs.exclusive == 0
+            ):
+                from tvm.relax.backend_tir import (  # pylint: disable=import-outside-toplevel
+                    gpu_2d_continuous_cumsum,
+                )
+
+                dim = 1
+                for i in range(len(shape) - 1):
+                    dim *= shape[i]
+                in_dtype = call.args[0].struct_info.dtype
+                out_dtype = call.attrs.dtype
+                out_dtype = out_dtype or in_dtype
+                cumsum_2d_shape = relax.ShapeExpr([dim, shape[-1]])
+                reshape = relax.call_pure_packed(
+                    "vm.builtin.reshape",
+                    call.args[0],
+                    cumsum_2d_shape,
+                    sinfo_args=relax.TensorStructInfo(cumsum_2d_shape, out_dtype),
+                )
+                gv = self.builder_.add_func(
+                    gpu_2d_continuous_cumsum(in_dtype=in_dtype, out_dtype=out_dtype),
+                    "gpu_2d_continuous_cumsum",
+                )
+                cumsum = relax.call_tir(
+                    gv,
+                    reshape,
+                    out_sinfo=relax.TensorStructInfo(cumsum_2d_shape, out_dtype),
+                )
+                return relax.call_pure_packed(
+                    "vm.builtin.reshape",
+                    cumsum,
+                    shape,
+                    sinfo_args=call.struct_info,
+                )
+
             with tgt:
                 if call.op.name == "relax.cumsum":
                     te_func = topi.cuda.cumsum if is_gpu_target(tgt) else topi.cumsum
@@ -186,13 +227,13 @@ class SortScanDispatcher(PyExprMutator):
         int32_byte_per_elem = DataType("int32").bits // 8
         num_elem = reduce(mul, input_shape, 1)
         input_size = num_elem * input_byte_per_elem
-        # Most GPU algorithms take O(n) space or less, we choose 8N + 4MB as a safe estimation
+        # Most GPU algorithms take O(n) space or less, we choose 8N + 8MB as a safe estimation
         # for algorithm workspace.
         # The current thrust sort implementation may need extra int64 and int32 arrays
         # for temporary data, so we further add this part to the workspace.
         return (
             8 * input_size
-            + 4 * 1024 * 1024
+            + 8 * 1024 * 1024
             + num_elem * (int64_byte_per_elem + int32_byte_per_elem)
         )
 

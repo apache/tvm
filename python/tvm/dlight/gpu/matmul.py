@@ -777,7 +777,7 @@ class Matmul(GPUScheduleRule):
         elif target.kind.name == "opencl" and "android" in str(target.host):
             return Matmul.Config(
                 block_size_x=8,
-                block_size_y=8,
+                block_size_y=16,
                 vthread_x=1,
                 vthread_y=1,
                 micro_size_x=8,

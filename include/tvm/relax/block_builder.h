@@ -116,7 +116,7 @@ class BlockBuilderNode : public Object {
    * \brief Report an error during transformation construction.
    * \param diagnostic The diagnostic information.
    */
-  virtual void ReportFatal(const Diagnostic& diagnostic) = 0;
+  [[noreturn]] virtual void ReportFatal(const Diagnostic& diagnostic) = 0;
 
   //-------------------------------
   // Scope management
