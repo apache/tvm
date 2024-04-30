@@ -233,7 +233,7 @@ class TVMCModel(object):
         input_meta = {}
         input_meta["shape_dict"] = {}
         input_meta["dtype_dict"] = {}
-        mod = tvm.relay.transform.InferType()(mod)
+        self.mod = tvm.relay.transform.InferType()(self.mod)
         for p in self.mod["main"].params:
             input_meta["shape_dict"][p.name_hint] = str(p.checked_type.shape)
             input_meta["dtype_dict"][p.name_hint] = str(p.checked_type.dtype)
