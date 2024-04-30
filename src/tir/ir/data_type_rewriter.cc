@@ -238,10 +238,12 @@ PrimExpr DataTypeLegalizer::VisitExpr_(const CallNode* op) {
   } else if (op->op.same_as(Op::Get("tir.clz"))) {
     DataType before_dtype = before->args[0]->dtype;
     DataType after_dtype = op->args[0]->dtype;
-    CHECK(before_dtype.is_int() && (before_dtype.bits() == 32 || before_dtype.bits() == 64))
+    CHECK((before_dtype.is_int() || before_dtype.is_uint()) &&
+          (before_dtype.bits() == 32 || before_dtype.bits() == 64))
         << "clz only supports 32 or 64 bit integer types, but get type before legalizing: "
         << before_dtype;
-    CHECK(after_dtype.is_int() && (after_dtype.bits() == 32 || after_dtype.bits() == 64))
+    CHECK((after_dtype.is_int() || after_dtype.is_uint()) &&
+          (after_dtype.bits() == 32 || after_dtype.bits() == 64))
         << "clz only supports 32 or 64 bit integer types, but get type after legalizing: "
         << after_dtype;
     return e - after_dtype.bits() + before_dtype.bits();
