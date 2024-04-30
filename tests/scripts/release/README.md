@@ -17,7 +17,7 @@
 
 These scripts can be helpful when creating release notes and testing release packages.
 
-# Create release note
+# Create release notes
 
 ```bash
 # example: create a csv file of all PRs since the v0.8 and v0.9.0 releases
