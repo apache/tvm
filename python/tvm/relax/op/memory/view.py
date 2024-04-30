@@ -18,10 +18,11 @@
 """Operations that act on the DLTensor container """
 from typing import Optional, Sequence, Union
 
-from tvm.ir.expr import PrimExpr
+from tvm.tir import PrimExpr
+from tvm.relax import Expr, ShapeExpr, DataTypeImm, PrimValue
 
 from . import _ffi_api
-from ..expr import Expr, PrimValue, ShapeExpr, DataTypeImm
+
 
 PrimExprLike = Union[int, PrimExpr]
 

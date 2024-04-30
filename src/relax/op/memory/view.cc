@@ -19,7 +19,7 @@
 
 /*!
  * \file view.cc
- * \brief Manipulation operators.
+ * \brief Operator to view an existing tensor.
  */
 
 #include "view.h"
@@ -27,11 +27,11 @@
 namespace tvm {
 namespace relax {
 
-/* relax.broadcast_to */
+/* relax.op.memory.view */
 Expr view(Expr x, Optional<Expr> shape, Optional<Expr> dtype, Optional<Expr> relative_byte_offset) {
   Tuple void_expr(Array<Expr>{});
 
-  static const Op& op = Op::Get("relax.view");
+  static const Op& op = Op::Get("relax.memory.view");
   return Call(op, {
                       x,
                       shape.value_or(void_expr),
@@ -40,7 +40,7 @@ Expr view(Expr x, Optional<Expr> shape, Optional<Expr> dtype, Optional<Expr> rel
                   });
 }
 
-TVM_REGISTER_GLOBAL("relax.op.view").set_body_typed(view);
+TVM_REGISTER_GLOBAL("relax.op.memory.view").set_body_typed(view);
 
 StructInfo InferStructInfoView(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 4) {
@@ -343,7 +343,7 @@ Expr LegalizeView(const BlockBuilder& bb, const Call& call) {
   return Call(runtime_view_func, {data, shape, dtype, relative_byte_offset});
 }
 
-TVM_REGISTER_OP("relax.view")
+TVM_REGISTER_OP("relax.memory.view")
     .set_num_inputs(4)
     .add_argument("x", "Tensor", "The input tensor.")
     .add_argument("shape", "Shape", "The view's shape.")

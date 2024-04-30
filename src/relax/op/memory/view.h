@@ -21,8 +21,8 @@
  * \file view.h
  * \brief The functions to make Relax tensor view calls.
  */
-#ifndef TVM_RELAX_OP_TENSOR_VIEW_H_
-#define TVM_RELAX_OP_TENSOR_VIEW_H_
+#ifndef TVM_RELAX_OP_MEMORY_VIEW_H_
+#define TVM_RELAX_OP_MEMORY_VIEW_H_
 
 #include "../op_common.h"
 
@@ -35,4 +35,4 @@ Expr view(Expr x, Optional<Expr> shape, Optional<Expr> dtype, Optional<Expr> rel
 }  // namespace relax
 }  // namespace tvm
 
-#endif  // TVM_RELAX_OP_TENSOR_VIEW_H_
+#endif  // TVM_RELAX_OP_MEMORY_VIEW_H_

@@ -135,7 +135,6 @@ from .unary import (
     tan,
     tanh,
 )
-from .view import view
 
 
 def _register_op_make():
