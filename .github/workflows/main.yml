@@ -77,6 +77,8 @@ jobs:
       - name: Minimal Metal Compile-and-Run
         shell: bash -l {0}
         run: >-
+          python -m pytest -v -s 'tests/python/codegen/test_target_codegen_metal.py'
+          python -m pytest -v -s 'tests/python/codegen/test_target_codegen_gpu_common.py'
           python -m pytest -v -s 'tests/python/codegen/test_gpu_codegen_allreduce.py::test_allreduce_sum[dims0-metal]'
 #      - name: Test iOS RPC
 #        shell: bash -l {0}

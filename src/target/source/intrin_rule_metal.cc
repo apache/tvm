@@ -52,6 +52,9 @@ static PrimExpr DispatchMetalShuffle(const PrimExpr& e) {
   return Call(call->dtype, T()(call->dtype, Downcast<Op>(call->op)), metal_args);
 }
 
+TVM_REGISTER_OP("tir.clz").set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic",
+                                                     DispatchPureExtern<Direct>);
+
 TVM_REGISTER_OP("tir.floor")
     .set_attr<FLowerIntrinsic>("metal.FLowerIntrinsic", DispatchPureExtern<Direct>);
 
