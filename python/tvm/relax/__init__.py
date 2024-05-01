@@ -19,6 +19,8 @@
 from tvm.runtime import relax_vm as vm
 from tvm.runtime.relax_vm import VirtualMachine, VMInstrumentReturnKind
 
+from .type_converter import args_converter
+
 # Expr
 from .expr import (
     Expr,
@@ -92,6 +94,9 @@ from .struct_info import (
 from .pipeline import get_pipeline
 from .pipeline import register_pipeline
 
+# utils
+from .utils import convert_to_expr
+
 # Import submodules in the last to avoid dependency
 from . import exec_builder
 from . import expr
@@ -105,6 +110,7 @@ from . import backend
 from . import training
 from . import distributed
 from . import frontend
+from . import utils
 
 # VM
 from .vm_build import build, Executable

@@ -1563,23 +1563,37 @@ def test_iterative_rewrite_without_trivial_binding():
         return c
 
     pattern_arg = wildcard()
-    pattern = is_op("relax.strided_slice")(pattern_arg).has_attr(
-        {
-            "axes": [0],
-            "strides": [T.int64(1)],
-        }
+    pattern_axes = wildcard()
+    pattern_begin = wildcard()
+    pattern_end = wildcard()
+    pattern_strides = wildcard()
+    pattern = is_op("relax.strided_slice")(
+        pattern_arg, pattern_axes, pattern_begin, pattern_end, pattern_strides
     )
 
     def rewriter(expr, matches):
         arg = matches[pattern_arg]
+        axes = matches[pattern_axes]
+        begin = matches[pattern_begin]
+        end = matches[pattern_end]
+        strides = matches[pattern_strides]
         strided_slice = matches[pattern]
 
         if arg.struct_info.shape is None:
             return expr
 
+        if len(axes) != 1:
+            return expr
+
+        axis = axes[0].value
+        begin = begin[0].value
+        end = end[0].value
+        stride = strides[0].value
+
+        if stride != 1:
+            return expr
+
         size = arg.struct_info.shape[0]
-        begin = strided_slice.attrs.begin[0]
-        end = strided_slice.attrs.end[0]
         if (
             isinstance(size, tir.IntImm)
             and isinstance(begin, tir.IntImm)

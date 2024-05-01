@@ -54,11 +54,7 @@ Expr take(Expr x, Expr indices, Optional<Integer> axis);
  * \param assume_inbound Whether to assume the indices are in bound.
  * \return The sliced result
  */
-Expr strided_slice(Expr x,                             //
-                   Array<Integer> axes,                //
-                   Array<PrimExpr> begin,              //
-                   Array<PrimExpr> end,                //
-                   Optional<Array<PrimExpr>> strides,  //
+Expr strided_slice(Expr x, Expr axes, Expr begin, Expr end, Optional<Expr> strides = NullOpt,
                    bool assume_inbound = false);
 
 }  // namespace relax
