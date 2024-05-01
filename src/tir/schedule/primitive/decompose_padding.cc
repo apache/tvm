@@ -393,15 +393,6 @@ class DecomposePaddingBlockReplacer : public StmtMutator {
     return std::move(new_loop);
   }
 
-  Stmt VisitStmt_(const SeqStmtNode* seq) final {
-    Array<Stmt> new_stmts;
-    new_stmts.reserve(seq->seq.size());
-    for (const Stmt& old_stmt : seq->seq) {
-      new_stmts.push_back(VisitStmt(old_stmt));
-    }
-    return SeqStmt::Flatten(new_stmts);
-  }
-
  private:
   const ReplaceDesc& desc_;
 };

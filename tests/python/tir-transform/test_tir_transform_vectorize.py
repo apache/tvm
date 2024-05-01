@@ -22,8 +22,12 @@ from tvm.script import tir as T
 import pytest
 
 
-@pytest.mark.parametrize("extent", (4, T.vscale() * 4))
-def test_vectorize_loop(extent):
+simple_target = tvm.target.Target("llvm -mtriple=x86_64-linux-gnu")
+sve_target = tvm.target.Target("llvm -device=arm_cpu -mtriple=aarch64-linux-gnu -mattr=+v8.2a,+sve")
+
+
+@pytest.mark.parametrize("extent, target", [(4, simple_target), (T.vscale() * 4, sve_target)])
+def test_vectorize_loop(extent, target):
     @I.ir_module
     class Before:
         @T.prim_func
@@ -37,8 +41,9 @@ def test_vectorize_loop(extent):
         def main(A: T.Buffer((16,), "float32")):
             A[T.Ramp(0, 1, extent)] = T.Broadcast(1, extent)
 
-    mod = tvm.tir.transform.VectorizeLoop()(Before)
-    tvm.ir.assert_structural_equal(mod, After)
+    with tvm.target.Target(target):
+        mod = tvm.tir.transform.VectorizeLoop()(Before)
+        tvm.ir.assert_structural_equal(mod, After)
 
 
 def test_vectorize_vector():
@@ -70,8 +75,9 @@ def test_vectorize_vector_scalable_error():
                 A[j * 4 : j * 4 + 4] = T.Broadcast(T.float32(1), 4)
 
     error_msg = f"Creating scalable vectors from existing vectors is not supported."
-    with pytest.raises(tvm.error.InternalError, match=error_msg):
-        tvm.tir.transform.VectorizeLoop()(Module)
+    with tvm.target.Target(sve_target):
+        with pytest.raises(tvm.error.InternalError, match=error_msg):
+            tvm.tir.transform.VectorizeLoop()(Module)
 
 
 def test_vectorize_vector_scalable_error2():
@@ -99,7 +105,8 @@ def test_vectorize_vector_scalable_error3():
 
     error_msg = f"Vectorizing over existing scalable vectors is not supported."
     with pytest.raises(tvm.error.InternalError, match=error_msg):
-        tvm.tir.transform.VectorizeLoop()(Module)
+        with tvm.target.Target(sve_target):
+            tvm.tir.transform.VectorizeLoop()(Module)
 
 
 def test_vectorize_vector_scalable_error4():
@@ -114,11 +121,12 @@ def test_vectorize_vector_scalable_error4():
 
     error_msg = f"Creating scalable vectors from existing vectors is not supported."
     with pytest.raises(tvm.error.InternalError, match=error_msg):
-        tvm.tir.transform.VectorizeLoop()(Module)
+        with tvm.target.Target(sve_target):
+            tvm.tir.transform.VectorizeLoop()(Module)
 
 
-@pytest.mark.parametrize("extent", (4, T.vscale() * 4))
-def test_vectorize_with_if(extent):
+@pytest.mark.parametrize("extent, target", [(4, simple_target), (T.vscale() * 4, sve_target)])
+def test_vectorize_with_if(extent, target):
     @I.ir_module
     class Before:
         @T.prim_func
@@ -143,8 +151,9 @@ def test_vectorize_with_if(extent):
                     if i_s < n:
                         A[i_s] = T.float32(2)
 
-    mod = tvm.tir.transform.VectorizeLoop()(Before)
-    tvm.ir.assert_structural_equal(mod, After)
+    with tvm.target.Target(target):
+        mod = tvm.tir.transform.VectorizeLoop()(Before)
+        tvm.ir.assert_structural_equal(mod, After)
 
 
 def test_vectorize_with_if_cond_int64():
@@ -157,8 +166,8 @@ def test_vectorize_with_if_cond_int64():
     f = tvm.build(s, [A, B], "llvm")
 
 
-@pytest.mark.parametrize("extent", (4, T.vscale() * 4))
-def test_vectorize_let(extent):
+@pytest.mark.parametrize("extent, target", [(4, simple_target), (T.vscale() * 4, sve_target)])
+def test_vectorize_let(extent, target):
     @I.ir_module
     class Before:
         @T.prim_func
@@ -174,12 +183,13 @@ def test_vectorize_let(extent):
             v = A[T.Ramp(0, 1, extent)] + T.Broadcast(T.float32(1), extent)
             A[T.Ramp(0, 1, extent)] = v + T.Broadcast(T.float32(2), extent)
 
-    mod = tvm.tir.transform.VectorizeLoop()(Before)
-    tvm.ir.assert_structural_equal(mod, After)
+    with tvm.target.Target(target):
+        mod = tvm.tir.transform.VectorizeLoop()(Before)
+        tvm.ir.assert_structural_equal(mod, After)
 
 
-@pytest.mark.parametrize("extent", (4, tvm.tir.vscale() * 4))
-def test_vectorize_with_le_cond(extent):
+@pytest.mark.parametrize("extent, target", [(4, simple_target), (tvm.tir.vscale() * 4, sve_target)])
+def test_vectorize_with_le_cond(extent, target):
     n = te.var("n")
     ib = tvm.tir.ir_builder.create()
     A = ib.pointer("float32", name="A")
@@ -189,14 +199,16 @@ def test_vectorize_with_le_cond(extent):
     stmt = ib.get()
 
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([A, n], stmt))
-    stmt = tvm.tir.transform.VectorizeLoop()(mod)["main"].body
 
-    # Check that the loop was't vectorised
-    assert isinstance(stmt, tvm.tir.For)
+    with tvm.target.Target(target):
+        stmt = tvm.tir.transform.VectorizeLoop()(mod)["main"].body
+
+        # Check that the loop was't vectorised
+        assert isinstance(stmt, tvm.tir.For)
 
 
-@pytest.mark.parametrize("extent", (4, tvm.tir.vscale() * 4))
-def test_vectorize_with_ge_cond(extent):
+@pytest.mark.parametrize("extent, target", [(4, simple_target), (tvm.tir.vscale() * 4, sve_target)])
+def test_vectorize_with_ge_cond(extent, target):
     n = te.var("n")
     ib = tvm.tir.ir_builder.create()
     A = ib.pointer("float32", name="A")
@@ -206,14 +218,16 @@ def test_vectorize_with_ge_cond(extent):
     stmt = ib.get()
 
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([A, n], stmt))
-    stmt = tvm.tir.transform.VectorizeLoop()(mod)["main"].body
 
-    # Check that the loop wasn't vectorised
-    assert isinstance(stmt, tvm.tir.For)
+    with tvm.target.Target(target):
+        stmt = tvm.tir.transform.VectorizeLoop()(mod)["main"].body
+
+        # Check that the loop wasn't vectorised
+        assert isinstance(stmt, tvm.tir.For)
 
 
-@pytest.mark.parametrize("extent", (4, T.vscale() * 4))
-def test_vectorize_if_then_else_scalarize(extent):
+@pytest.mark.parametrize("extent, target", [(4, simple_target), (T.vscale() * 4, sve_target)])
+def test_vectorize_if_then_else_scalarize(extent, target):
     @I.ir_module
     class Before:
         @T.prim_func
@@ -228,12 +242,13 @@ def test_vectorize_if_then_else_scalarize(extent):
             for i_s in range(extent):
                 A[i_s] = T.if_then_else(i_s > 0, A[i_s] + T.float32(1), A[i_s])
 
-    mod = tvm.tir.transform.VectorizeLoop()(Before)
-    tvm.ir.assert_structural_equal(mod, After)
+    with tvm.target.Target(target):
+        mod = tvm.tir.transform.VectorizeLoop()(Before)
+        tvm.ir.assert_structural_equal(mod, After)
 
 
-@pytest.mark.parametrize("extent", (4, T.vscale() * 4))
-def test_vectorize_if_then_else_vector(extent):
+@pytest.mark.parametrize("extent, target", [(4, simple_target), (T.vscale() * 4, sve_target)])
+def test_vectorize_if_then_else_vector(extent, target):
     @I.ir_module
     class Before:
         @T.prim_func
@@ -251,8 +266,9 @@ def test_vectorize_if_then_else_vector(extent):
                     i > 0, A[T.Ramp(i * extent, 1, extent)], T.Broadcast(0, extent)
                 )
 
-    mod = tvm.tir.transform.VectorizeLoop()(Before)
-    tvm.ir.assert_structural_equal(mod, After)
+    with tvm.target.Target(target):
+        mod = tvm.tir.transform.VectorizeLoop()(Before)
+        tvm.ir.assert_structural_equal(mod, After)
 
 
 def test_vectorize_while_fail():
@@ -311,9 +327,10 @@ def test_vectorize_dtype_mismatch():
 
 
 @pytest.mark.parametrize(
-    "extent, vec_str", [(16, "float32x16"), (T.vscale() * 8, "float32xvscalex8")]
+    "extent, vec_str, target",
+    [(16, "float32x16", simple_target), (T.vscale() * 8, "float32xvscalex8", sve_target)],
 )
-def test_vectorize_with_reinterpret(extent, vec_str):
+def test_vectorize_with_reinterpret(extent, vec_str, target):
     @I.ir_module
     class Before:
         @T.prim_func
@@ -327,11 +344,12 @@ def test_vectorize_with_reinterpret(extent, vec_str):
         def main(A: T.Buffer((16,), "int32"), B: T.Buffer((16,), "float32")):
             B[T.Ramp(0, 1, extent)] = T.reinterpret(vec_str, A[T.Ramp(0, 1, extent)])
 
-    mod = tvm.tir.transform.VectorizeLoop()(Before)
-    tvm.ir.assert_structural_equal(mod, After)
+    with tvm.target.Target(target):
+        mod = tvm.tir.transform.VectorizeLoop()(Before)
+        tvm.ir.assert_structural_equal(mod, After)
 
 
-@pytest.mark.parametrize("extent", (4, T.vscale() * 4))
+@pytest.mark.parametrize("extent, target", [(4, simple_target), (T.vscale() * 4, sve_target)])
 @pytest.mark.parametrize(
     "op",
     (
@@ -352,7 +370,7 @@ def test_vectorize_with_reinterpret(extent, vec_str):
         T.NE,
     ),
 )
-def test_vectorize_binary(op, extent):
+def test_vectorize_binary(op, extent, target):
     @I.ir_module
     class Before:
         @T.prim_func
@@ -366,13 +384,14 @@ def test_vectorize_binary(op, extent):
         def main(A: T.Buffer((25,), "float32"), B: T.Buffer((25,), "float32")):
             A[T.Ramp(0, 1, extent)] = op(T.Broadcast(T.float32(3), extent), B[T.Ramp(0, 1, extent)])
 
-    mod = tvm.tir.transform.VectorizeLoop()(Before)
-    tvm.ir.assert_structural_equal(mod, After)
+    with tvm.target.Target(target):
+        mod = tvm.tir.transform.VectorizeLoop()(Before)
+        tvm.ir.assert_structural_equal(mod, After)
 
 
-@pytest.mark.parametrize("extent", (4, T.vscale() * 4))
+@pytest.mark.parametrize("extent, target", [(4, simple_target), (T.vscale() * 4, sve_target)])
 @pytest.mark.parametrize("op", (T.And, T.Or))
-def test_vectorize_logical(op, extent):
+def test_vectorize_logical(op, extent, target):
     @I.ir_module
     class Before:
         @T.prim_func
@@ -386,12 +405,13 @@ def test_vectorize_logical(op, extent):
         def main(A: T.Buffer((25,), "bool"), B: T.Buffer((25,), "bool")):
             A[T.Ramp(0, 1, extent)] = op(T.Broadcast(T.bool(1), extent), B[T.Ramp(0, 1, extent)])
 
-    mod = tvm.tir.transform.VectorizeLoop()(Before)
-    tvm.ir.assert_structural_equal(mod, After)
+    with tvm.target.Target(target):
+        mod = tvm.tir.transform.VectorizeLoop()(Before)
+        tvm.ir.assert_structural_equal(mod, After)
 
 
-@pytest.mark.parametrize("extent", (4, T.vscale() * 4))
-def test_vectorize_select(extent):
+@pytest.mark.parametrize("extent, target", [(4, simple_target), (T.vscale() * 4, sve_target)])
+def test_vectorize_select(extent, target):
     @I.ir_module
     class Before:
         @T.prim_func
@@ -409,12 +429,16 @@ def test_vectorize_select(extent):
                 B[T.Ramp(0, 1, extent)],
             )
 
-    mod = tvm.tir.transform.VectorizeLoop()(Before)
-    tvm.ir.assert_structural_equal(mod, After)
+    with tvm.target.Target(target):
+        mod = tvm.tir.transform.VectorizeLoop()(Before)
+        tvm.ir.assert_structural_equal(mod, After)
 
 
-@pytest.mark.parametrize("extent, vec_str", [(4, "int32x4"), (T.vscale() * 4, "int32xvscalex4")])
-def test_vectorize_cast(extent, vec_str):
+@pytest.mark.parametrize(
+    "extent, vec_str, target",
+    [(4, "int32x4", simple_target), (T.vscale() * 4, "int32xvscalex4", sve_target)],
+)
+def test_vectorize_cast(extent, vec_str, target):
     @I.ir_module
     class Before:
         @T.prim_func
@@ -428,8 +452,9 @@ def test_vectorize_cast(extent, vec_str):
         def main(A: T.Buffer((25,), "int32"), B: T.Buffer((25,), "float32")):
             A[T.Ramp(0, 1, extent)] = T.Cast(vec_str, B[T.Ramp(0, 1, extent)])
 
-    mod = tvm.tir.transform.VectorizeLoop()(Before)
-    tvm.ir.assert_structural_equal(mod, After)
+    with tvm.target.Target(target):
+        mod = tvm.tir.transform.VectorizeLoop()(Before)
+        tvm.ir.assert_structural_equal(mod, After)
 
 
 def test_illegal_extent():
@@ -441,9 +466,26 @@ def test_illegal_extent():
             for j in T.vectorized(n):
                 A[j] = 3
 
-    error_msg = f"Invalid expression for scalable lanes n"
+    error_msg = f"Failed to vectorize loop with extent n for target \\(nullptr\\)"
     with pytest.raises(tvm.error.InternalError, match=error_msg):
         tvm.tir.transform.VectorizeLoop()(Mod)
+
+
+def test_illegal_vscale_in_non_sve_compilation():
+    @I.ir_module
+    class Mod:
+        @T.prim_func
+        def main(A: T.Buffer((16,), "float32")):
+            for j in T.vectorized(0, 4 * T.vscale()):
+                A[j] = 13
+
+    msg = (
+        f"Failed to vectorize loop with extent T.vscale\\(\\) \\* 4 for target "
+        f"llvm -keys=cpu -mtriple=x86_64-linux-gnu"
+    )
+    with tvm.target.Target(simple_target):
+        with pytest.raises(tvm.error.InternalError, match=msg):
+            tvm.tir.transform.VectorizeLoop()(Mod)
 
 
 if __name__ == "__main__":

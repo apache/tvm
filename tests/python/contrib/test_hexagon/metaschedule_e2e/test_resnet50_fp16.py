@@ -47,7 +47,7 @@ def test_resnet50(hexagon_launcher):
     model_params = "resnet50_fp16.params"
 
     if not os.path.exists(model_json):
-        pytest.skip(msg="Run python export_models.py first.")
+        pytest.skip("Run python export_models.py first.")
 
     with open(model_json, "r") as file:
         mod = tvm.ir.load_json(file.read())

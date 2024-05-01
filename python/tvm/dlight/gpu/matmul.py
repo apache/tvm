@@ -777,7 +777,7 @@ class Matmul(GPUScheduleRule):
         elif target.kind.name == "opencl" and "android" in str(target.host):
             return Matmul.Config(
                 block_size_x=8,
-                block_size_y=8,
+                block_size_y=16,
                 vthread_x=1,
                 vthread_y=1,
                 micro_size_x=8,
@@ -841,9 +841,10 @@ class Matmul(GPUScheduleRule):
             if apply_tensorization:
                 # Analyze read/write buffers and choose correct tensorizer: int8 or fp16.
                 in_dtype, out_dtype = get_in_out_dtypes(block_stmt)
+                tensorize_sch = None
                 if in_dtype == "int8" and out_dtype == "int32":
                     tensorize_sch = MatmulInt8Tensorization().apply(func, target, _)
-                else:
+                elif in_dtype == "float16" and out_dtype in ["float16", "float32"]:
                     tensorize_sch = MatmulTensorization().apply(func, target, _)
                 if tensorize_sch is not None:
                     return tensorize_sch
@@ -873,7 +874,10 @@ class Matmul(GPUScheduleRule):
             x, [None, config.vthread_x, config.block_size_x, config.micro_size_x]
         )
         ko, ki = sch.split(k, factors=[None, config.micro_size_k])
-        sch.reorder(by, bx, vy, vx, ty, tx, ko, ki, yi, xi)
+        reordered_loops = [by, bx, vy, vx, ty, tx, ko, ki] + (
+            [yi, xi] if config.inner_x else [xi, yi]
+        )
+        sch.reorder(*reordered_loops)
         by = sch.fuse(batch, by)
         sch.bind(bx, "blockIdx.x")
         sch.bind(by, "blockIdx.y")
@@ -883,7 +887,7 @@ class Matmul(GPUScheduleRule):
         sch.bind(tx, "threadIdx.x")
         inner_loop = config.micro_size_x if config.inner_x else config.micro_size_y
         if inner_loop % config.vector_size == 0:
-            _, v = sch.split(xi, [None, config.vector_size])
+            _, v = sch.split(reordered_loops[-1], [None, config.vector_size])
             sch.vectorize(v)
 
         if config.unroll > 0:

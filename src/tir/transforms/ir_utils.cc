@@ -435,10 +435,19 @@ class IRConvertSSA final : public StmtExprMutator {
  private:
   struct ScopedRedefine {
     ScopedRedefine(IRConvertSSA* parent, Var old_var) : parent(parent), old_var(old_var) {
+      bool is_size_var = old_var->IsInstance<SizeVarNode>();
       if (old_var->type_annotation.defined()) {
-        new_var = Var(old_var->name_hint, old_var->type_annotation);
+        if (is_size_var) {
+          new_var = SizeVar(old_var->name_hint, old_var->type_annotation);
+        } else {
+          new_var = Var(old_var->name_hint, old_var->type_annotation);
+        }
       } else {
-        new_var = Var(old_var->name_hint, old_var->dtype);
+        if (is_size_var) {
+          new_var = SizeVar(old_var->name_hint, old_var->dtype);
+        } else {
+          new_var = Var(old_var->name_hint, old_var->dtype);
+        }
       }
       parent->scope_[old_var.get()].push_back(new_var);
     }

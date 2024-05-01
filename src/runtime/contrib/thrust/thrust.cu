@@ -65,6 +65,8 @@ class WorkspaceMemoryResource : public thrust::mr::memory_resource<void*> {
       void* result = std::align(alignment, bytes, workspace, workspace_size);
       CHECK(result) << "Failed to allocate " << bytes << " bytes with alignment " << alignment
                     << " bytes.";
+      workspace = static_cast<char*>(workspace) + bytes;
+      workspace_size -= bytes;
       return result;
     }
     return thrust_pool_->do_allocate(bytes, alignment).get();
@@ -120,14 +122,15 @@ void thrust_sort(DLTensor* input, DLTensor* out_values, DLTensor* out_indices, b
     // segmented sort by key
     // Follow the back-to-back stable_sort_by_key strategy explained below
     // https://groups.google.com/g/thrust-users/c/BoLsxO6b4FY
-    thrust::device_vector<int64_t> argsort_order(size);
-    thrust::sequence(argsort_order.begin(), argsort_order.end());
+    thrust::device_ptr<int64_t> argsort_order(
+        static_cast<int64_t*>(mr.do_allocate(sizeof(int64_t) * size, sizeof(int64_t))));
+    thrust::sequence(argsort_order, argsort_order + size);
 
     // First, sort values and store the sorted order in argsort_order.
     if (is_ascend) {
-      thrust::stable_sort_by_key(policy, values_ptr, values_ptr + size, argsort_order.begin());
+      thrust::stable_sort_by_key(policy, values_ptr, values_ptr + size, argsort_order);
     } else {
-      thrust::stable_sort_by_key(policy, values_ptr, values_ptr + size, argsort_order.begin(),
+      thrust::stable_sort_by_key(policy, values_ptr, values_ptr + size, argsort_order,
                                  thrust::greater<DataType>());
     }
 
@@ -141,15 +144,15 @@ void thrust_sort(DLTensor* input, DLTensor* out_values, DLTensor* out_indices, b
         thrust::make_transform_iterator(counting_iter, linear_index_to_sort_axis_index);
 
     // This will reorder indices 0, 1, 2 ... in the sorted order of values_ptr
-    thrust::gather(policy, argsort_order.begin(), argsort_order.end(), init_indices_iter,
-                   indices_ptr);
+    thrust::gather(policy, argsort_order, argsort_order + size, init_indices_iter, indices_ptr);
 
-    thrust::device_vector<int> segment_ids(size);
+    thrust::device_ptr<int> segment_ids(
+        static_cast<int*>(mr.do_allocate(sizeof(int) * size, sizeof(int))));
     auto linear_index_to_segment_id = [n_values] __host__ __device__(int64_t i) {
       return i / n_values;
     };  // NOLINT(*)
     // We also reorder segment indices 0, 0, 0, 1, 1, 1 ... in the order of values_ptr
-    thrust::transform(policy, argsort_order.begin(), argsort_order.end(), segment_ids.begin(),
+    thrust::transform(policy, argsort_order, argsort_order + size, segment_ids,
                       linear_index_to_segment_id);
 
     // The second sort key-ed by segment_ids would bring segment_ids back to 0, 0, 0, 1, 1, 1 ...
@@ -157,14 +160,26 @@ void thrust_sort(DLTensor* input, DLTensor* out_values, DLTensor* out_indices, b
     // Since sorting has been done in a stable way, relative orderings of values and indices
     // in the segment do not change and hence they remain sorted.
     auto key_val_zip = thrust::make_zip_iterator(thrust::make_tuple(values_ptr, indices_ptr));
-    thrust::stable_sort_by_key(policy, segment_ids.begin(), segment_ids.end(), key_val_zip);
+    thrust::stable_sort_by_key(policy, segment_ids, segment_ids + size, key_val_zip);
   }
 }
 
 void thrust_sort_common(DLTensor* input, DLTensor* values_out, DLTensor* indices_out,
                         bool is_ascend, int sort_len, std::string data_dtype, std::string out_dtype,
                         DLTensor* workspace) {
-  if (data_dtype == "float32") {
+  if (data_dtype == "float16") {
+    if (out_dtype == "int32") {
+      thrust_sort<half, int32_t>(input, values_out, indices_out, is_ascend, sort_len, workspace);
+    } else if (out_dtype == "int64") {
+      thrust_sort<half, int64_t>(input, values_out, indices_out, is_ascend, sort_len, workspace);
+    } else if (out_dtype == "float32") {
+      thrust_sort<half, float>(input, values_out, indices_out, is_ascend, sort_len, workspace);
+    } else if (out_dtype == "float64") {
+      thrust_sort<half, double>(input, values_out, indices_out, is_ascend, sort_len, workspace);
+    } else {
+      LOG(FATAL) << "Unsupported output dtype: " << out_dtype;
+    }
+  } else if (data_dtype == "float32") {
     if (out_dtype == "int32") {
       thrust_sort<float, int32_t>(input, values_out, indices_out, is_ascend, sort_len, workspace);
     } else if (out_dtype == "int64") {

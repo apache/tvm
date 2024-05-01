@@ -32,7 +32,7 @@ compiles supported operations for accelerated execution on MLIP, or LLVM
 for general compute.
 
 For runtime, the library supports native execution on MLIP hardware
-as well as Marvell's ML simulator (mlModel).
+as well as Marvell's ML simulator (mrvl-mlsim).
 
 The library supports Marvell's Octeon family of processors with ML accelarators.
 
@@ -54,21 +54,10 @@ https://tvm.apache.org/docs/install/from_source.html
 
 .. code:: bash
 
-    ./docker/build.sh demo_mrvl bash                              # Build the docker container
-    ./docker/bash.sh tvm.demo_mrvl --env PYTHONPATH=$PWD/python   # Load the docker image
+    ./docker/build.sh demo_mrvl bash  # Build the docker container
+    ./docker/bash.sh tvm.demo_mrvl    # Load the docker image
 
-
-3. Build TVM inside the docker container with mrvl (inside tvm directory)
--------------------------------------------------------------------------
-
-.. code:: bash
-
-      ./tests/scripts/task_config_build_mrvl.sh build
-      cd build
-      cmake ..
-      make -j$(nproc)   # nproc = 4/8/..  (Number of Parallel jobs)
-
-4. Compiling a model using TVMC command line
+3. Compiling a model using TVMC command line
 --------------------------------------------
 Models can be compiled and run for mrvl target using TVMC
 which is optimized for performance.
@@ -79,14 +68,14 @@ https://tvm.apache.org/docs/tutorial/tvmc_command_line_driver.html
 Additional mrvl-specific options may be added as attributes if
 necessary. The advanced usage is described in this document below.
 
-4.1 TVMC Compilation Flow for a model
+3.1 TVMC Compilation Flow for a model
 -------------------------------------
 
 Refer to the following TVM documentation, for compilation flow
 https://tvm.apache.org/docs/arch/index.html#example-compilation-flow
 
 
-4.2. TVMC - Command line option(s): Syntax for mrvl target
+3.2. TVMC - Command line option(s): Syntax for mrvl target
 ----------------------------------------------------------
 
 Compiling an ONNX model using the tvmc for mrvl target.
@@ -115,8 +104,9 @@ integrated MLIP cn10ka processor, using only 4 tiles in the block.
         --output model.tar \
         mnist-12.onnx
 
+The runtime support for hardware acceleration is a WIP, it will be added in future PR.
 
-4.3. TVMC Compiler: mrvl specific Command Line Options
+3.3. TVMC Compiler: mrvl specific Command Line Options
 ------------------------------------------------------
 
 .. code:: python
@@ -151,30 +141,35 @@ integrated MLIP cn10ka processor, using only 4 tiles in the block.
     Optimize runtime by preloading a model's weights and bias into
     the on chip memory. Possible values = {0, 1}. Default is 0 (no preload)
 
-5. Compilation - Generating model partitions
---------------------------------------------
+4. Compile ONNX model for Simulator + LLVM / x86_64 target
+----------------------------------------------------------
 
 In the TVMC mrvl flow, the model is partitioned into Marvell and LLVM regions.
 Building each partitioned Marvell subgraph generates serialized nodes.json and
 const.json. Partitioned nodes.json is the representation of the model graph which is
-suitable for the Marvell mmlc compiler. It is distributed separately via CDK
+suitable for the Marvell compiler (mrvl-tmlc). The compiler compiles the model graph to
+generate the model binary with MLIP instructions.
 
-**Model Partition**
+**Model Compilation for Simulator + LLVM / x86_64 target**
 
-.. code:: bash
+.. code:: python
 
-    python3 -m tvm.driver.tvmc compile --target="mrvl, llvm \
-    -mtriple=aarch64-linux-gnu -mcpu=neoverse-n2" \
-    --cross-compiler aarch64-linux-gnu-gcc \
-    --target-mrvl-num_tiles=4 --output model.tar model.onnx
+    python3 -m tvm.driver.tvmc compile --target="mrvl, llvm" \
+        --target-mrvl-num_tiles=4 --output model.tar model.onnx
 
+**Run TVM models on x86_64 host using MLIP Simulator**
 
-6. Compiling a model using Python APIs
+Generated model binary is simulated using Marvell's MLIP Simulator(mrvl-mlsim).
+
+.. code:: python
+
+    python3 -m tvm.driver.tvmc run --inputs infer.npz --outputs predict.npz model.tar --number=0
+
+5. Compiling a model using Python APIs
 --------------------------------------
 
 In addition to using TVMC, models can also be compiled and run using
-TVM Python API. Below is an example to compile the MNIST model. Support
-to run the model will be part of next PR by mrvl
+TVM Python API. Below is an example to compile and run the MNIST model.
 
 **Download MNIST model from the web**
 
@@ -187,9 +182,10 @@ to run the model will be part of next PR by mrvl
 
 .. code:: python
 
-    import tvm, onnx, os
+    import tvm, onnx
     import numpy as np
     import tvm.relay as relay
+    from tvm.contrib import graph_executor
     from tvm.relay.op.contrib.mrvl import partition_for_mrvl
     from tvm.relay.build_module import build
     from keras.datasets import mnist
@@ -224,12 +220,33 @@ operations will go through the regular LLVM compilation and code generation for 
 **Build the Relay Graph**
 
 Build the Relay graph, using the new module returned by partition_for_mrvl.
-The target must always be a LLVM (ARM) target. ``partition_for_mrvl`` will
-pass the options from dictionary into the config parameters needed by the
-compiler backend, so there is no need to modify it - just pass it along
-to the PassContext so the values can be read during compilation.
 
 .. code:: python
 
     with tvm.transform.PassContext(opt_level=3, config={"relay.ext.mrvl.options" : option_dict}):
-            model_lib = relay.build(mod, tvm_target, params=params)
+        model_lib = relay.build(mod, tvm_target, params=params)
+
+**Generate runtime graph of the model library**
+
+.. code:: python
+
+    dev = tvm.cpu()
+    model_rt_graph = graph_executor.GraphModule(model_lib["default"](dev))
+
+**Get test data and initialize model input**
+
+.. code:: python
+
+    (train_X, train_y), (test_X, test_y) = mnist.load_data()
+    image = tvm.nd.array(test_X[0].reshape(1, 1, 28, 28).astype("float32") / 255)
+    inputs_dict = {}
+    inputs_dict["Input3"] = image
+    model_rt_graph.set_input(**inputs_dict)
+
+**Run Inference and print the output**
+
+.. code:: python
+
+    model_rt_graph.run()
+    output_tensor = model_rt_graph.get_output(0).numpy()
+    print (output_tensor)

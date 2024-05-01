@@ -15,7 +15,9 @@
 <!--- specific language governing permissions and limitations -->
 <!--- under the License. -->
 
-These scripts can be helpful when creating release notes.
+These scripts can be helpful when creating release notes and testing release packages.
+
+# Create release notes
 
 ```bash
 # example: create a csv file of all PRs since the v0.8 and v0.9.0 releases
@@ -52,3 +54,11 @@ python list_rfcs.py --since-commit <hash> --rfcs-repo ./tvm-rfcs > rfc.md
 ```
 
 Finally, combine `rfc.md` and `out.md` along with some prose to create the final release notes.
+
+# Test release packages
+
+After uploading release (candidate) packages to apache.org or github release page, you can validate packages step-by-step from downloading, verification and compiling use script below, but don't forget edit the `version` and `rc` number in script.
+
+```bash
+test_release_package.sh
+```

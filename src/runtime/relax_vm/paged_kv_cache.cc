@@ -31,6 +31,9 @@
 #include <vector>
 
 #include "kv_state.h"
+#if defined(OPENCL_ENABLE_HOST_PTR)
+#include "../opencl/opencl_common.h"
+#endif
 
 namespace tvm {
 namespace runtime {
@@ -384,6 +387,22 @@ class PlainPagedKVCacheAuxDataManager : public PagedKVCacheAuxDataManager {
       return;
     }
     DLTensor copy_dst = *array.operator->();
+#if defined(OPENCL_ENABLE_HOST_PTR)
+    tvm::runtime::cl::OpenCLWorkspace* workspace = tvm::runtime::cl::OpenCLWorkspace::Global();
+    if (workspace->IsOpenCLDevice(copy_dst.device)) {
+      void* nptr = workspace->GetNativePtr(array);
+      uint64_t copy_size;
+      if (shape.defined()) {
+        ICHECK_EQ(shape.value().size(), 1);
+        copy_size = shape.value()->data[0] * sizeof(int32_t);
+      } else {
+        copy_size = DeviceAPI::Get(array->device)->GetDataSize(*array.operator->());
+      }
+      memcpy(static_cast<char*>(nptr) + dst_elem_offset * sizeof(int32_t), vec_data, copy_size);
+      return;
+    }
+#endif
+
     if (shape.defined()) {
       ICHECK_EQ(shape.value().size(), 1);
       copy_dst.ndim = 1;
@@ -1021,7 +1040,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
 
     Block& block = global_block_pool_[it->second.last_block_idx];
     CHECK_GE(n, 0) << "The length of popping " << n << " cannot be negative.";
-    CHECK_LT(n, block.seq_length) << "The sequence only has length " << block.seq_length
+    CHECK_LE(n, block.seq_length) << "The sequence only has length " << block.seq_length
                                   << " in the last block, while the length of pop is " << n
                                   << " which exceeds the last-block sequence length.";
 
