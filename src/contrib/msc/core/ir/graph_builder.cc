@@ -166,12 +166,9 @@ const MSCGraph RelaxGraphBuilder::Build(const relax::Function& func) {
     }
   }
   VisitExpr(func);
-  if (const auto* b_node = func->body.as<relax::SeqExprNode>()) {
-    ICHECK(expr_tensor_map_.count(b_node->body)) << "Can not find seqexpr body " << b_node->body;
-    output_names = expr_tensor_map_[b_node->body];
-  } else {
-    LOG(FATAL) << "Function body should be SeqExpr, get " << func->body;
-  }
+  ICHECK(expr_tensor_map_.count(func->body->body))
+      << "Can not find seqexpr body " << func->body->body;
+  output_names = expr_tensor_map_[func->body->body];
   // remove const nodes as weights
   Array<MSCJoint> valid_nodes;
   std::set<String> ignore_inputs;

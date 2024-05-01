@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 """A rule for low-batch GEMM / decode-GEMM using GEMV schedule."""
-import re
 from functools import reduce
 from typing import List, Optional, Set, Union
 
@@ -55,10 +54,9 @@ def get_extent(sch: tir.Schedule, loop_rv: tir.schedule.LoopRV):
 
 
 def get_bytes(dtype: Union[DataType, str]) -> int:
-    num = re.findall(r"\d+", dtype)
-    if len(num) != 1:
-        raise ValueError(f"Cannot get bytes from {dtype}")
-    return int(num[0]) // 8
+    if isinstance(dtype, str):
+        dtype = DataType(dtype)
+    return dtype.itemsize()
 
 
 def is_gemv(sch: tir.Schedule, block_info: BlockInfo) -> Optional[List[tir.Buffer]]:

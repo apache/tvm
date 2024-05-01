@@ -22,11 +22,11 @@ import tvm
 import tvm.script
 import tvm.testing
 from tvm import relax
-from tvm.script import relax as R
+from tvm.script import relax as R, ir as I
 
 
 def test_multinomial_from_uniform():
-    @tvm.script.ir_module
+    @I.ir_module
     class CallSample:
         @R.function
         def foo(x: R.Tensor((3, 5), "float32"), y: R.Tensor((3, 1), "float32")):
@@ -51,6 +51,33 @@ def test_multinomial_from_uniform():
     vm = relax.VirtualMachine(ex, tvm.cpu())
     res = vm["foo"](nd_prob, nd_sample)
     tvm.testing.assert_allclose(res.numpy(), np.array([[4], [0], [4]]).astype(np.int64))
+
+
+@tvm.testing.parametrize_targets("cuda")
+def test_alloc_tensor_raises_out_of_memory(target, dev):
+    """Out-of-memory exceptions may be raised from VM
+
+    This is a regression test.  In previous implementations, the Relax
+    VM would segfault if the built-in function
+    "vm.builtin.alloc_storage" was unable to allocate the requested
+    buffer.
+    """
+
+    @I.ir_module
+    class Module:
+        @R.function
+        def main():
+            # Allocate a 1-petabyte tensor to trigger OOM.  If the CI
+            # ever runs on a device with more than 1 petabyte of GPU
+            # memory, this test will need to be updated.
+            output = R.builtin.alloc_tensor(R.shape([1024, 1024, 1024, 1024, 1024]), "uint8", 0)
+            return output
+
+    built = relax.build(Module, target=target)
+    vm = relax.VirtualMachine(built, dev)
+
+    with pytest.raises(Exception, match="CUDA: out of memory"):
+        vm["main"]()
 
 
 if __name__ == "__main__":

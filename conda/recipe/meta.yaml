@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-{% set version = '0.16.dev0' %}
+{% set version = '0.17.dev0' %}
 {% set pkg_name = 'tvm' %}
 {% set cuda_tag = cuda_version | replace('.', '') %} # [cuda]
 {% set pkg_name = pkg_name + '-cu' + cuda_tag %} # [cuda]
@@ -85,6 +85,11 @@ outputs:
         - decorator
         - psutil
         - scipy
+        - typing_extensions
+        - attrs
+        - ml_dtypes
+        - tornado
+        - cloudpickle
         - {{ pin_compatible('numpy') }}
         - {{ pin_subpackage(pkg_name + '-libs', exact=True) }}
 

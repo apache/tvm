@@ -453,5 +453,154 @@ def test_group_norm():
     _check(Before, After)
 
 
+def test_logsumexp():
+    @I.ir_module
+    class Before:
+        @T.prim_func
+        def compute_lse(var_A: T.handle, var_blocked_lse: T.handle):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            batch_size = T.int64(is_size_var=True)
+            vocab_size = T.int64(is_size_var=True)
+            num_chunks = T.int64(is_size_var=True)
+            A = T.match_buffer(var_A, (batch_size, vocab_size), dtype="float32")
+            blocked_lse = T.match_buffer(var_blocked_lse, (batch_size, num_chunks), dtype="float32")
+            A_pad = T.alloc_buffer((batch_size, num_chunks, T.int64(4096)), dtype="float32")
+            temp_max = T.alloc_buffer((batch_size, num_chunks), dtype="float32")
+            temp_sum = T.alloc_buffer((batch_size, num_chunks), dtype="float32")
+
+            for l0, l1, l2 in T.grid(batch_size, num_chunks, T.int64(4096)):
+                with T.block("pad"):
+                    v0, v1, v2 = T.axis.remap("SSS", [l0, l1, l2])
+                    A_pad[v0, v1, v2] = T.if_then_else(
+                        v1 * T.int64(4096) + v2 < vocab_size,
+                        A[v0, v1 * T.int64(4096) + v2],
+                        T.min_value("float32"),
+                    )
+
+            for l0, l1, l2 in T.grid(batch_size, num_chunks, T.int64(4096)):
+                with T.block("max"):
+                    v0, v1, v2 = T.axis.remap("SSR", [l0, l1, l2])
+                    with T.init():
+                        temp_max[v0, v1] = T.min_value("float32")
+                    temp_max[v0, v1] = T.max(temp_max[v0, v1], A_pad[v0, v1, v2])
+
+            for l0, l1, l2 in T.grid(batch_size, num_chunks, T.int64(4096)):
+                with T.block("sum_exp"):
+                    v0, v1, v2 = T.axis.remap("SSR", [l0, l1, l2])
+                    with T.init():
+                        temp_sum[v0, v1] = T.float32(0)
+                    temp_sum[v0, v1] += T.if_then_else(
+                        v1 * T.int64(4096) + v2 < vocab_size,
+                        T.exp(A_pad[v0, v1, v2] - temp_max[v0, v1]),
+                        T.float32(0),
+                    )
+
+            for l0, l1, l2 in T.grid(batch_size, num_chunks, T.int64(1)):
+                with T.block("log"):
+                    v0, v1, v2 = T.axis.remap("SSS", [l0, l1, l2])
+                    blocked_lse[v0, v1] = T.log(temp_sum[v0, v1]) + temp_max[v0, v1]
+
+    @I.ir_module
+    class After:
+        @T.prim_func
+        def compute_lse(var_A: T.handle, var_blocked_lse: T.handle):
+            T.func_attr({"tir.is_scheduled": 1, "tir.noalias": T.bool(True)})
+            batch_size, vocab_size = T.int64(is_size_var=True), T.int64(is_size_var=True)
+            A = T.match_buffer(var_A, (batch_size, vocab_size))
+            num_chunks = T.int64(is_size_var=True)
+            blocked_lse = T.match_buffer(var_blocked_lse, (batch_size, num_chunks))
+            temp_max_shared = T.alloc_buffer((batch_size, num_chunks), scope="shared")
+            temp_sum_shared = T.alloc_buffer((batch_size, num_chunks), scope="shared")
+            for ax0_ax1_fused in T.thread_binding(batch_size * num_chunks, thread="blockIdx.x"):
+                for ax0, ax1 in T.grid(T.int64(1), T.int64(1)):
+                    for ax2_fused_1 in T.thread_binding(T.int64(256), thread="threadIdx.x"):
+                        for ax2_fused_0 in T.serial(
+                            T.int64(16),
+                            annotations={
+                                "pragma_auto_unroll_max_step": 256,
+                                "pragma_unroll_explicit": 1,
+                            },
+                        ):
+                            with T.block("max"):
+                                v0 = T.axis.spatial(
+                                    batch_size,
+                                    ax0_ax1_fused % (num_chunks * batch_size) // num_chunks + ax0,
+                                )
+                                v1 = T.axis.spatial(num_chunks, ax0_ax1_fused % num_chunks + ax1)
+                                v2 = T.axis.reduce(
+                                    T.int64(4096), ax2_fused_0 * T.int64(256) + ax2_fused_1
+                                )
+                                T.reads(A[v0, v1 * T.int64(4096) + v2])
+                                T.writes(temp_max_shared[v0, v1])
+                                with T.init():
+                                    temp_max_shared[v0, v1] = T.min_value("float32")
+                                temp_max_shared[v0, v1] = T.max(
+                                    temp_max_shared[v0, v1],
+                                    T.if_then_else(
+                                        v1 * T.int64(4096) + v2 < vocab_size,
+                                        A[v0, v1 * T.int64(4096) + v2],
+                                        T.min_value("float32"),
+                                    ),
+                                )
+                for ax0, ax1 in T.grid(T.int64(1), T.int64(1)):
+                    for ax2_fused_1 in T.thread_binding(T.int64(256), thread="threadIdx.x"):
+                        for ax2_fused_0 in T.serial(
+                            T.int64(16),
+                            annotations={
+                                "pragma_auto_unroll_max_step": 256,
+                                "pragma_unroll_explicit": 1,
+                            },
+                        ):
+                            with T.block("sum_exp"):
+                                v0 = T.axis.spatial(
+                                    batch_size,
+                                    ax0_ax1_fused % (num_chunks * batch_size) // num_chunks + ax0,
+                                )
+                                v1 = T.axis.spatial(num_chunks, ax0_ax1_fused % num_chunks + ax1)
+                                v2 = T.axis.reduce(
+                                    T.int64(4096), ax2_fused_0 * T.int64(256) + ax2_fused_1
+                                )
+                                T.reads(A[v0, v1 * T.int64(4096) + v2], temp_max_shared[v0, v1])
+                                T.writes(temp_sum_shared[v0, v1])
+                                with T.init():
+                                    temp_sum_shared[v0, v1] = T.float32(0)
+                                temp_sum_shared[v0, v1] = temp_sum_shared[v0, v1] + T.if_then_else(
+                                    v1 * T.int64(4096) + v2 < vocab_size,
+                                    T.exp(
+                                        (
+                                            T.if_then_else(
+                                                v1 * T.int64(4096) + v2 < vocab_size,
+                                                A[v0, v1 * T.int64(4096) + v2],
+                                                T.min_value("float32"),
+                                            )
+                                            - temp_max_shared[v0, v1]
+                                        )
+                                    ),
+                                    T.float32(0),
+                                )
+                for ax2_1 in T.thread_binding(T.int64(256), thread="threadIdx.x"):
+                    for ax2_0 in T.serial(
+                        T.int64(1),
+                        annotations={
+                            "pragma_auto_unroll_max_step": 256,
+                            "pragma_unroll_explicit": 1,
+                        },
+                    ):
+                        with T.block("log"):
+                            v0 = T.axis.spatial(
+                                batch_size, ax0_ax1_fused % (num_chunks * batch_size) // num_chunks
+                            )
+                            v1 = T.axis.spatial(num_chunks, ax0_ax1_fused % num_chunks)
+                            v2 = T.axis.spatial(T.int64(1), ax2_0 * T.int64(256) + ax2_1)
+                            T.where(ax2_0 * T.int64(256) + ax2_1 < T.int64(1))
+                            T.reads(temp_sum_shared[v0, v1], temp_max_shared[v0, v1])
+                            T.writes(blocked_lse[v0, v1])
+                            blocked_lse[v0, v1] = (
+                                T.log(temp_sum_shared[v0, v1]) + temp_max_shared[v0, v1]
+                            )
+
+    _check(Before, After)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

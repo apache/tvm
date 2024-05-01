@@ -401,9 +401,10 @@ LaunchThreadFrame LaunchThread(String thread_tag, PrimExpr extent);
 /*!
  * \brief Bind a var to thread env.
  * \param thread_tag The thread type tag.
+ * \param dtype The data type of the variable.
  * \return The result variable which gets bound to the thread env.
  */
-Var EnvThread(String thread_tag);
+Var EnvThread(String thread_tag, DataType dtype = DataType::Int(32));
 
 /*!
  * \brief Store data in a buffer.

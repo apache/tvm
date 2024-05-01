@@ -126,6 +126,9 @@ class DataType {
             code() == DataType::kE5M2Float) &&
            bits() == 8;
   }
+  bool is_e4m3_float8() const { return (code() == DataType::kE4M3Float && bits() == 8); }
+
+  bool is_e5m2_float8() const { return (code() == DataType::kE5M2Float && bits() == 8); }
   /*! \return whether type is a float16 type. */
   bool is_float16() const { return is_float() && bits() == 16; }
   /*! \return whether type is a bfloat16 type. */

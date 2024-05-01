@@ -449,5 +449,42 @@ def test_inferred_sinfo_with_dynamic_buffer():
     tvm.ir.assert_structural_equal(func.struct_info, expected)
 
 
+def test_reinterpret_nop():
+    """Test builtin reinterpret op"""
+
+    @T.prim_func
+    def func(A: T.Buffer((32,), "float32"), B: T.Buffer((32,), "float32")) -> None:
+        T.func_attr({"global_symbol": "main"})
+        for i in T.serial(0, 32):
+            with T.block():
+                vi = T.axis.remap("S", [i])
+                B[vi] = T.reinterpret("float32", A[vi])
+
+    @T.prim_func
+    def expected(A: T.Buffer((32,), "float32"), B: T.Buffer((32,), "float32")) -> None:
+        T.func_attr({"global_symbol": "main"})
+        for i in T.serial(0, 32):
+            with T.block():
+                vi = T.axis.remap("S", [i])
+                B[vi] = A[vi]
+
+    tvm.ir.assert_structural_equal(func, expected)
+
+
+def test_launch_thread_i64():
+    """Test launching thread with int64"""
+
+    @T.prim_func
+    def func() -> None:
+        blockIdx_x = T.launch_thread("blockIdx.x", T.int64(1))
+        if blockIdx_x == T.int64(0):
+            T.evaluate(T.int64(0))
+        else:
+            T.evaluate(T.int64(1))
+
+    assert func.body.node.dom.min.dtype == "int64"
+    assert func.body.node.dom.extent.dtype == "int64"
+
+
 if __name__ == "__main__":
     tvm.testing.main()

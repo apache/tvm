@@ -69,7 +69,7 @@ class MatmulModule:
 def test_builder_runner(hexagon_launcher):
     """Test builder and runner."""
     if hexagon_launcher.is_simulator():
-        pytest.skip(msg="Tuning on simulator not supported.")
+        pytest.skip("Tuning on simulator not supported.")
 
     mod = MatmulModule
 
@@ -191,7 +191,7 @@ def verify_dense(sch, target, m_size, n_size, k_size, hexagon_session):
 def test_vrmpy_dense(hexagon_launcher):
     """Test vector reduce muliply dense."""
     if hexagon_launcher.is_simulator():
-        pytest.skip(msg="Tuning on simulator not supported.")
+        pytest.skip("Tuning on simulator not supported.")
 
     do_tune = True
 
@@ -302,7 +302,7 @@ class ModuleVRMPYAutoTensorize:
 def test_vrmpy_dense_auto_tensorize(hexagon_launcher):
     """Test VRMPY dense operator."""
     if hexagon_launcher.is_simulator():
-        pytest.skip(msg="Tuning on simulator not supported.")
+        pytest.skip("Tuning on simulator not supported.")
 
     m_size, n_size, k_size = 128, 768, 768
     workload = te.create_prim_func(dense_compute(m_size, n_size, k_size))
@@ -367,7 +367,7 @@ def test_vrmpy_dense_auto_tensorize(hexagon_launcher):
 def test_conv2d_relay_auto_schedule(hexagon_launcher):
     """Test conv2d using auto schedule."""
     if hexagon_launcher.is_simulator():
-        pytest.skip(msg="Tuning on simulator not supported.")
+        pytest.skip("Tuning on simulator not supported.")
 
     i_size, o_size, h_size, w_size = 64, 64, 56, 56
     k_height_size = k_width_size = 3
@@ -447,7 +447,7 @@ def test_dense_relay_auto_schedule(hexagon_launcher):
     dense on Hexagon is extremely slow.
     """
     if hexagon_launcher.is_simulator():
-        pytest.skip(msg="Tuning on simulator not supported.")
+        pytest.skip("Tuning on simulator not supported.")
 
     target_hexagon = tvm.target.hexagon("v69")
     target = tvm.target.Target(target_hexagon, host=target_hexagon)

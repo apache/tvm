@@ -18,11 +18,14 @@
 
 """Infrastructure to Test Marvell Code Generation"""
 import json
-import os
 
 import tvm
 from tvm import relay
 from tvm.relay.op.contrib import mrvl
+import numpy as np
+from tvm.contrib import graph_executor
+from tvm.relay.build_module import build
+from tvm.relay.op.contrib.mrvl import partition_for_mrvl
 
 
 def get_cpu_op_count(mod):
@@ -103,3 +106,48 @@ def verify_codegen(
     if contains is not None:
         actual_str = json.dumps(json.loads(mrvl_modules[0].get_source()))
         assert actual_str.find(contains)
+
+
+def run_and_verify_func(config, data_type="float32"):
+
+    np.random.seed(0)
+    tvm_target = "llvm"
+
+    func, input_shapes, is_param, option_dict = config
+    params = {
+        x: np.random.uniform(-1, 1, input_shapes[x]).astype(dtype=data_type) for x in is_param
+    }
+    inputs_dict = {
+        k: np.random.uniform(-1, 1, v).astype(dtype=data_type)
+        for k, v in input_shapes.items()
+        if k not in is_param
+    }
+
+    dev = tvm.cpu()
+    for use_mrvl in [True, False]:
+        mod = tvm.IRModule()
+        mod["main"] = func
+        if use_mrvl:
+            mod = partition_for_mrvl(mod, params, **option_dict)
+            with tvm.transform.PassContext(
+                opt_level=3, config={"relay.ext.mrvl.options": option_dict}
+            ):
+                model_lib = relay.build(mod, tvm_target, params=params)
+
+            model_rt_graph = graph_executor.GraphModule(model_lib["default"](dev))
+            model_rt_graph.set_input(**inputs_dict)
+            model_rt_graph.run()
+            output_tensor1 = model_rt_graph.get_output(0).numpy()
+
+        else:
+            with tvm.transform.PassContext(
+                opt_level=3, config={"relay.ext.mrvl.options": option_dict}
+            ):
+                model_lib = relay.build(mod, tvm_target, params=params)
+
+            model_rt_graph = graph_executor.GraphModule(model_lib["default"](dev))
+            model_rt_graph.set_input(**inputs_dict)
+            model_rt_graph.run()
+            output_tensor2 = model_rt_graph.get_output(0).numpy()
+
+    tvm.testing.assert_allclose(output_tensor1, output_tensor2, rtol=1e-2, atol=1e-2)

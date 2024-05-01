@@ -517,14 +517,35 @@ def schedule_conv2d_nhwc_dsp(cfg, outs):
     return conv2d_nhwc_dsp_schedule(cfg, outs)
 
 
-def compute_conv2d_NHWC(cfg, data, kernel, strides, padding, dilation, out_dtype, interleave_A):
+def compute_conv2d_NHWC(
+    cfg,
+    data,
+    kernel,
+    strides,
+    padding,
+    dilation,
+    out_dtype,
+    interleave_A,
+    use_scalable_vectors=False,
+):
+    """Compute definition for conv2d NHWC"""
     N, IH, IW, IC = get_const_tuple(data.shape)
     KH, KW, _, OC = get_const_tuple(kernel.shape)
-    tile_N, tile_K = get_tiling_B_transformed(interleave_A, data.dtype)
+    tile_N, tile_K = get_tiling_B_transformed(interleave_A, data.dtype, use_scalable_vectors)
 
-    kernel = nn.conv2d_gemm_weight_transform(kernel, tile_N, tile_K)
+    kernel = nn.conv2d_gemm_weight_transform(kernel, tile_N, tile_K, use_scalable_vectors)
     return compute_conv2d_gemm_without_weight_transform(
-        cfg, data, kernel, strides, padding, dilation, out_dtype, (KH, KW), OC, interleave_A
+        cfg,
+        data,
+        kernel,
+        strides,
+        padding,
+        dilation,
+        out_dtype,
+        (KH, KW),
+        OC,
+        interleave_A,
+        use_scalable_vectors,
     )
 
 
@@ -619,4 +640,18 @@ def schedule_conv2d_NHWC_hybrid(cfg, outs):
 @autotvm.register_topi_schedule("conv2d_NHWC_hybrid_without_transform.arm_cpu")
 def schedule_conv2d_NHWC_hybrid_without_transform(cfg, outs):
     """Interface for hybrid schedule_conv2d_NHWC_hybrid"""
+    return schedule_conv2d_NHWC(cfg, outs, False)
+
+
+@autotvm.register_topi_compute("conv2d_NHWC_hybrid_SVE.arm_cpu")
+def compute_conv2d_NHWC_hybrid_SVE(cfg, data, kernel, strides, padding, dilation, out_dtype):
+    """Interface for hybrid compute_conv2d_NHWC_hybrid_SVE"""
+    return compute_conv2d_NHWC(
+        cfg, data, kernel, strides, padding, dilation, out_dtype, False, True
+    )
+
+
+@autotvm.register_topi_schedule("conv2d_NHWC_hybrid_SVE.arm_cpu")
+def schedule_conv2d_NHWC_hybrid_SVE(cfg, outs):
+    """Interface for hybrid schedule_conv2d_NHWC_hybrid_SVE"""
     return schedule_conv2d_NHWC(cfg, outs, False)

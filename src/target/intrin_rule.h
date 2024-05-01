@@ -53,8 +53,13 @@ struct Direct {
   std::string operator()(DataType t, std::string name) const { return name; }
 };
 
-// Call pure extern function.
-template <typename T>
+/*!
+ * \brief Dispatch pure extern function.
+ * \param e The call expression.
+ * \tparam T The function to dispatch.
+ * \tparam dtype_from_arg Whether the dtype is from the first argument or the call node
+ */
+template <typename T, bool dtype_from_arg = false>
 inline PrimExpr DispatchPureExtern(const PrimExpr& e) {
   const CallNode* call = e.as<CallNode>();
   ICHECK(call != nullptr);
@@ -64,7 +69,14 @@ inline PrimExpr DispatchPureExtern(const PrimExpr& e) {
   ICHECK(op != nullptr);
   std::string name = op->name;
   ICHECK_EQ(name.substr(0, 4), "tir.");
-  name = T()(call->dtype, name.substr(4));
+  DataType dtype;
+  if (dtype_from_arg) {
+    ICHECK_EQ(call->args.size(), 1U);
+    dtype = call->args[0].dtype();
+  } else {
+    dtype = call->dtype;
+  }
+  name = T()(dtype, name.substr(4));
 
   if (name.length() != 0) {
     Array<PrimExpr> new_args = {StringImm(name)};

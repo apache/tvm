@@ -190,7 +190,7 @@ class TestMatmulTensorizeTooSmall(BaseBeforeAfter):
 
     @T.prim_func
     def expected(var_X: T.handle, W: T.Buffer((15, 256), "float16"), var_compute: T.handle):
-        T.func_attr({"global_symbol": "main", "tir.is_scheduled": 1, "tir.noalias": T.bool(True)})
+        T.func_attr({"tir.is_scheduled": 1, "tir.noalias": T.bool(True)})
         m = T.int32()
         X = T.match_buffer(var_X, (m, 256), "float16")
         compute = T.match_buffer(var_compute, (m, 15))
@@ -204,12 +204,12 @@ class TestMatmulTensorizeTooSmall(BaseBeforeAfter):
                     for ax1_1 in T.thread_binding(1, thread="vthread.x"):
                         for ax2_2 in T.thread_binding(16, thread="threadIdx.y"):
                             for ax1_2 in T.thread_binding(8, thread="threadIdx.x", annotations={"pragma_auto_unroll_max_step": 256, "pragma_unroll_explicit": 1}):
-                                for ax2_3_init, ax1_3_0_init in T.grid(4, 2):
-                                    for ax1_3_1_init in T.vectorized(2):
+                                for ax1_3_init, ax2_3_0_init in T.grid(4, 2):
+                                    for ax2_3_1_init in T.vectorized(2):
                                         with T.block("compute_init"):
                                             v0 = T.axis.spatial(1, 0)
-                                            v1 = T.axis.spatial((m + 31) // 32 * 32, ax1_0 * 32 + ax1_1 * 32 + ax1_2 * 4 + ax1_3_0_init * 2 + ax1_3_1_init)
-                                            v2 = T.axis.spatial(64, ax2_1 * 64 + ax2_2 * 4 + ax2_3_init)
+                                            v1 = T.axis.spatial((m + 31) // 32 * 32, ax1_0 * 32 + ax1_1 * 32 + ax1_2 * 4 + ax1_3_init)
+                                            v2 = T.axis.spatial(64, ax2_1 * 64 + ax2_2 * 4 + ax2_3_0_init * 2 + ax2_3_1_init)
                                             T.reads()
                                             T.writes(compute_reindex_pad_local[0, v1, v2])
                                             compute_reindex_pad_local[0, v1, v2] = T.float32(0)
@@ -238,12 +238,12 @@ class TestMatmulTensorizeTooSmall(BaseBeforeAfter):
                                                         T.writes(W_reindex_pad_shared[v0, v1, v2])
                                                         T.block_attr({"buffer_dim_align": [[0, 1, 8, 2]]})
                                                         W_reindex_pad_shared[v0, v1, v2] = T.if_then_else(v1 < 15, W[v1, v2], T.float16(0))
-                                    for ax3_1, ax2_3, ax1_3_0 in T.grid(16, 4, 2):
-                                        for ax1_3_1 in T.vectorized(2):
+                                    for ax3_1, ax1_3, ax2_3_0 in T.grid(16, 4, 2):
+                                        for ax2_3_1 in T.vectorized(2):
                                             with T.block("compute_update"):
                                                 v0 = T.axis.spatial(1, 0)
-                                                v1 = T.axis.spatial((m + 31) // 32 * 32, ax1_0 * 32 + ax1_1 * 32 + ax1_2 * 4 + ax1_3_0 * 2 + ax1_3_1)
-                                                v2 = T.axis.spatial(64, ax2_1 * 64 + ax2_2 * 4 + ax2_3)
+                                                v1 = T.axis.spatial((m + 31) // 32 * 32, ax1_0 * 32 + ax1_1 * 32 + ax1_2 * 4 + ax1_3)
+                                                v2 = T.axis.spatial(64, ax2_1 * 64 + ax2_2 * 4 + ax2_3_0 * 2 + ax2_3_1)
                                                 v3 = T.axis.reduce(256, ax3_0 * 16 + ax3_1)
                                                 T.reads(compute_reindex_pad_local[0, v1, v2], X_reindex_pad_shared[0, v1, v3], W_reindex_pad_shared[0, v2, v3])
                                                 T.writes(compute_reindex_pad_local[0, v1, v2])

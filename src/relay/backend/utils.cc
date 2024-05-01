@@ -30,6 +30,7 @@
 #include <tvm/runtime/ndarray.h>
 #include <tvm/tir/stmt_functor.h>
 
+#include "../../arith/scalable_expression.h"
 #include "../../te/operation/create_primfunc.h"
 
 namespace tvm {
@@ -421,7 +422,8 @@ Optional<tir::PrimFunc> DefaultTIRConverterImpl(const Array<te::Tensor>& args,
   bool dynamic_loop_extent = false;
   tir::PostOrderVisit(func->body, [&dynamic_loop_extent](const ObjectRef& obj) -> void {
     if (const auto* loop = obj.as<tir::ForNode>()) {
-      if (!loop->extent->IsInstance<IntImmNode>()) {
+      if (!loop->extent->IsInstance<IntImmNode>() &&
+          !tvm::arith::ContainsVscaleCall(loop->extent)) {
         dynamic_loop_extent = true;
       }
     }

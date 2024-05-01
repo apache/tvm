@@ -343,15 +343,12 @@ Storage VMAllocStorage(void* ctx_ptr, ShapeTuple buffer_shape, Index device_inde
     device_index = vm->devices.size() - 1;
   }
 
-  auto storage_obj = runtime::SimpleObjAllocator().make_object<StorageObj>();
   auto* alloc = vm->allocators[device_index];
   ICHECK(alloc) << "Did you forget to init the VirtualMachine with devices?";
 
-  storage_obj->buffer =
-      alloc->Alloc(vm->devices[device_index], buffer_shape, dtype_hint, mem_scope);
-  storage_obj->allocator = alloc;
-  Storage storage(storage_obj);
-  return storage;
+  auto buffer = alloc->Alloc(vm->devices[device_index], buffer_shape, dtype_hint, mem_scope);
+
+  return Storage(buffer, alloc);
 }
 
 TVM_REGISTER_GLOBAL("vm.builtin.alloc_storage").set_body_typed(VMAllocStorage);

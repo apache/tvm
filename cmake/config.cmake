@@ -54,6 +54,11 @@ set(USE_CUDA OFF)
 # - /path/to/nccl: use specific path to nccl
 set(USE_NCCL OFF)
 
+# Whether to enable MSCCL support:
+# - ON: enable MSCCL
+# - OFF: disable MSCCL
+set(USE_MSCCL OFF)
+
 # Whether to enable NVTX support (must have USE_CUDA enabled):
 # - ON: enable NCCL with cmake's auto search
 # - OFF: disable NCCL

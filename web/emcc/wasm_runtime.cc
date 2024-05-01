@@ -156,5 +156,22 @@ void ArrayDecodeStorage(NDArray cpu_arr, std::string bytes, std::string format, 
 }
 
 TVM_REGISTER_GLOBAL("tvmjs.array.decode_storage").set_body_typed(ArrayDecodeStorage);
+
+// Concatenate n TVMArrays
+TVM_REGISTER_GLOBAL("tvmjs.runtime.ArrayConcat").set_body([](TVMArgs args, TVMRetValue* ret) {
+  std::vector<ObjectRef> data;
+  for (int i = 0; i < args.size(); ++i) {
+    // Get i-th TVMArray
+    ICHECK_EQ(args[i].type_code(), kTVMObjectHandle);
+    Object* ptr = static_cast<Object*>(args[i].value().v_handle);
+    ICHECK(ptr->IsInstance<ArrayNode>());
+    auto* arr_i = static_cast<const ArrayNode*>(ptr);
+    for (size_t j = 0; j < arr_i->size(); ++j) {
+      // Push back each j-th element of the i-th array
+      data.push_back(arr_i->at(j));
+    }
+  }
+  *ret = Array<ObjectRef>(data);
+});
 }  // namespace runtime
 }  // namespace tvm
