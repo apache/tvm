@@ -509,14 +509,15 @@ def test_matmul_sme(dtype):
         A = te.placeholder((32, 32), dtype=dtype, name="A")
         B = te.placeholder((32, 32), dtype=dtype, name="B")
 
-        C = tvm.topi.arm_cpu.matmul.compute_matmul_sme(A, B, None, dtype, False, False)
-        prim_func = te.create_prim_func([A, B, C])
+        with tvm.target.Target(target):
+            C = tvm.topi.arm_cpu.matmul.compute_matmul_sme(A, B, None, dtype, False, False)
+            prim_func = te.create_prim_func([A, B, C])
 
-        sch = tvm.tir.Schedule(prim_func)
-        tvm.topi.arm_cpu.matmul.tir_schedule_matmul_sme(sch)
-        prim_func = sch.mod
+            sch = tvm.tir.Schedule(prim_func)
+            tvm.topi.arm_cpu.matmul.tir_schedule_matmul_sme(sch)
+            prim_func = sch.mod
 
-        f = tvm.build(prim_func, target=target)
+            f = tvm.build(prim_func, target=target)
 
         assembly = f.get_source("asm")
         smstart = re.findall(r"smstart\t(sm|za)", assembly)
