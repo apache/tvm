@@ -538,6 +538,44 @@ def test_scalable_broadcast():
 
 
 @pytest.mark.skipif(
+    llvm_version_major() < 13,
+    reason="Function attribute vscale_range() is not supported in earlier versions of LLVM",
+)
+@pytest.mark.parametrize(
+    "mattr,expect_attr",
+    [
+        ("+neon", False),
+        ("+sve", True),
+        ("+v9a", True),
+        ("+sme", True),
+    ],
+)
+def test_vscale_range_function_attribute(mattr, expect_attr):
+    target = f"llvm -mtriple=aarch64-linux-gnu -mattr={mattr}"
+
+    m = te.var("m")
+    A = te.placeholder(m, dtype="float32", name="A")
+    C = te.compute((m), lambda i: A[i] + 1, name="C")
+    s = te.create_schedule([C.op])
+
+    with tvm.target.Target(target) as target:
+        f = tvm.build(s, [A, C], target)
+
+    # Check if the vscale_range() attribute exists
+    ll = f.get_source("ll")
+    attr = re.findall(rf".*vscale_range\(\d+,\d+\)*.", ll)
+
+    if expect_attr:
+        assert (
+            len(attr) > 0
+        ), f"Function attribute vscale_range() was not found in generated LLVM IR"
+    else:
+        assert (
+            len(attr) == 0
+        ), f"Unexpected function attribute vscale_range() was found in generated LLVM IR"
+
+
+@pytest.mark.skipif(
     llvm_version_major() < 16, reason="Test requires an LLVM version of at least 16 to target SME"
 )
 @pytest.mark.parametrize(

@@ -427,7 +427,7 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
                                    llvm::ArrayRef<llvm::Type*> arg_types);
   /*!
    * \brief Set target-related attributes on the LLVM function \p func. This
-   *        includes "target-cpu" and "target-features" if present.
+   *        includes "target-cpu", "target-features" and "vscale_range()" if present.
    *
    * \param func The function to set attributes on.
    */
