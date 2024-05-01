@@ -3352,6 +3352,18 @@ def scalable_vectors():
     return func
 
 
+def predicated_buffer_load_store():
+    @T.prim_func
+    def func(a: T.handle, b: T.handle):
+        A = T.match_buffer(a, (4,), "float32")
+        B = T.match_buffer(b, (8,), "float32")
+        for i_0 in range(4):
+            load_a = T.meta_var(A.load([T.Ramp(i_0, 1, 4)], predicate=T.Broadcast(1.0, 4)))
+            B.store(load_a, [T.Ramp(0, 2, 4)], predicate=T.Broadcast(1.0, 4))
+
+    return func
+
+
 def let_expression():
     @T.prim_func
     def func():
@@ -4116,6 +4128,8 @@ ir_generator = tvm.testing.parameter(
     buffer_axis_separator,
     buffer_ramp_access_as_slice_index,
     ramp_int64,
+    scalable_vectors,
+    predicated_buffer_load_store,
     let_expression,
     void_ptr,
     decl_buffer,

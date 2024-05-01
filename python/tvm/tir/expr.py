@@ -1093,20 +1093,27 @@ class BufferLoad(PrimExprWithOp):
         The buffer to be loaded.
 
     indices : List[PrimExpr]
-        The buffer indices.
+        The buffer indices to load values from.
 
     span : Optional[Span]
         The location of this expression in the source code.
+
+    predicate : Optional[PrimExpr]
+        A vector mask of int1 values indicating which lanes of a vector are to be loaded.
     """
 
     buffer: Buffer
     indices: List[PrimExpr]
 
     def __init__(
-        self, buffer: Buffer, indices: List[PrimExpr], span: Optional[Span] = None
+        self,
+        buffer: Buffer,
+        indices: List[PrimExpr],
+        predicate: Optional[PrimExpr] = None,
+        span: Optional[Span] = None,
     ) -> None:
         self.__init_handle_by_constructor__(
-            _ffi_api.BufferLoad, buffer, indices, span  # type: ignore
+            _ffi_api.BufferLoad, buffer, indices, predicate, span  # type: ignore
         )
 
 

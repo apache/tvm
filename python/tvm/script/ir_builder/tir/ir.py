@@ -1265,6 +1265,7 @@ def buffer_store(
     buffer: Buffer,  # pylint: disable=redefined-outer-name
     value: PrimExpr,
     indices: List[Union[PrimExpr, slice]],
+    predicate: Optional[PrimExpr] = None,
 ) -> None:
     """Buffer store node.
 
@@ -1278,6 +1279,9 @@ def buffer_store(
 
     indices : List[Union[PrimExpr, slice]]
         The indices location to be stored.
+
+    predicate : Optional[PrimExpr]
+        A vector mask of int1 values indicating which lanes of a vector are to be stored.
     """
     from tvm.arith import Analyzer  # pylint: disable=import-outside-toplevel
 
@@ -1298,7 +1302,7 @@ def buffer_store(
     if isinstance(value, bool) and buffer.dtype == "bool":
         value = IntImm("bool", value)
     return _ffi_api.BufferStore(  # type: ignore[attr-defined] # pylint: disable=no-member
-        buffer, value, expr_indices
+        buffer, value, expr_indices, predicate
     )
 
 

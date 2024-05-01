@@ -411,8 +411,10 @@ Var EnvThread(String thread_tag, DataType dtype = DataType::Int(32));
  * \param buffer The buffer.
  * \param value The value to be stored.
  * \param indices The indices location to be stored.
+ * \param predicate A vector mask of int1 values indicating which lanes of a vector are to be
+ * stored.
  */
-void BufferStore(Buffer buffer, PrimExpr value, Array<PrimExpr> indices);
+void BufferStore(Buffer buffer, PrimExpr value, Array<PrimExpr> indices, PrimExpr predicate);
 
 /*!
  * \brief The prefetch hint for a buffer

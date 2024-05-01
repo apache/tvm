@@ -257,7 +257,9 @@ class RollingBufferInjector : public StmtExprMutator {
           indices.push_back(index);
         }
       }
-      Stmt buffer_store = BufferStore(op->buffer, op->value, indices, op->span);
+      ICHECK(!op->predicate.defined())
+          << "Predicated buffer store is not current supported in the inject rolling buffer pass.";
+      Stmt buffer_store = BufferStore(op->buffer, op->value, indices, op->predicate, op->span);
       // Then wrap the BufferStores in some Ifs to avoid recomputing elements
       for (size_t i{0}; i < rolling_buffer_info.axis_iter_vars.size(); ++i) {
         auto iter_var{rolling_buffer_info.axis_iter_vars[i]};
@@ -293,7 +295,9 @@ class RollingBufferInjector : public StmtExprMutator {
           indices.push_back(index);
         }
       }
-      return BufferLoad(op->buffer, indices, op->span);
+      ICHECK(!op->predicate.defined())
+          << "Predicated buffer load is not currently supported in inject rolling buffer pass.";
+      return BufferLoad(op->buffer, indices, op->predicate, op->span);
     } else {
       return expr;
     }

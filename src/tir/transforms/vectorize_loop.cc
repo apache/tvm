@@ -72,6 +72,126 @@ inline PrimExpr BroadcastTo(PrimExpr e, int lanes, bool is_scalable) {
   return Broadcast(e, CreateNewLanes(is_scalable, lanes));
 }
 
+bool EnableBufferLevelPredication() {
+  transform::PassContext pass_ctx = transform::PassContext::Current();
+  Optional<Bool> enable_buffer_predication =
+      pass_ctx->GetConfig<Bool>("tir.enable_buffer_level_predication");
+  if (enable_buffer_predication.defined()) {
+    return enable_buffer_predication.value();
+  }
+
+  // Use buffer-level predication by default for AArch64 SVE targets
+  return arith::TargetHasSVE();
+}
+
+/*!
+ * \brief A pass that tries to rewrite buffer accesses (loads and stores) with a
+ * predicate expression where possible.
+ *
+ * \note For now we start with a minimalized case targeting block-level predicates
+ * produced by the split schedule primitive, with the potential for predicating
+ * more complex terms in the future if needed.
+ *
+ * \example
+ * Before:
+ * for i_0 in T.serial(4):
+ *     for i_1 in T.vectorized(4):
+ *         if i_0 * 4 + i_1 < 14:
+ *             B[i_0 * 4 + i_1] = A[i_0 * 4 + i_1] + 1.0
+ *
+ * After:
+ * for i_0 in T.serial(4):
+ *  predicate = T.get_active_lane_mask("int1x4", i_0 * 4, 14)
+ *  A_load = T.meta_var(A.load([T.Ramp(i_0 * 4, 1, 4)], predicate=predicate))
+ *  B.store(A_load, [T.Ramp(i_0 * 4, 1, 4)], predicate=predicate)
+ */
+class TryPredicateBufferAccesses : public StmtExprMutator {
+ public:
+  TryPredicateBufferAccesses() {}
+
+  /*!
+   * \brief Run the pass to try to exact predicates.
+   * \param stmt - The statement containing buffer accesses (loads and stores)
+   * we want to attempt to predicate.
+   * \param condition - The conditional expression (block-level predicate)
+   * that we will try to remove.
+   * \return pair<success, stmt> - Boolean value for success/failure, the rewritten
+   * stmt if successful.
+   */
+  std::pair<bool, Stmt> Run(Stmt stmt, PrimExpr condition) {
+    // Check that the condition provided is of the form a < b, for now.
+    if (!condition->IsInstance<LTNode>()) {
+      return {false, stmt};
+    }
+
+    LT lt = Downcast<LT>(condition);
+
+    // Check the form of the vectorized condition, we're expecting
+    // Ramp(...) < Broadcast(...)
+    if (!lt->a->IsInstance<RampNode>() || !lt->b->IsInstance<BroadcastNode>()) {
+      return {false, stmt};
+    }
+
+    base_ = Downcast<Ramp>(lt->a)->base;
+    limit_ = Downcast<Broadcast>(lt->b)->value;
+
+    // Now we can try to predicate
+    Stmt predicated_stmt = StmtExprMutator::operator()(std::move(stmt));
+    if (num_accesses_analyzed_ > 0 && num_accesses_analyzed_ == num_accesses_rewritten_) {
+      return {true, predicated_stmt};
+    }
+    return {false, stmt};
+  }
+
+ private:
+  PrimExpr VisitExpr_(const BufferLoadNode* op) final {
+    auto load = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(op));
+    return TryPredicateBufferAccess(load);
+  }
+
+  Stmt VisitStmt_(const BufferStoreNode* op) final {
+    auto store = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(op));
+    return TryPredicateBufferAccess(store);
+  }
+
+  template <typename AccessNode>
+  AccessNode TryPredicateBufferAccess(AccessNode node) {
+    num_accesses_analyzed_ += 1;
+
+    // Do not try to predicate non-vectorized accesses
+    Array<PrimExpr> indices = node->indices;
+    if (!indices.size() || !indices[0]->IsInstance<RampNode>()) {
+      return node;
+    }
+    Ramp ramp = Downcast<Ramp>(node->indices[0]);
+
+    // The vectorized access pattern must match the base of the predicate
+    if (!tvm::StructuralEqual()(ramp->base, base_)) {
+      return node;
+    }
+
+    DataType buf_predicate_dtype =
+        DataType(DataType::kInt, 1, ramp->dtype.get_lanes_or_vscale_factor(),
+                 ramp->dtype.is_scalable_vector());
+    Call lane_mask = Call(buf_predicate_dtype, builtin::get_active_lane_mask(), {base_, limit_});
+
+    num_accesses_rewritten_ += 1;
+    auto writer = node.CopyOnWrite();
+    writer->predicate = lane_mask;
+    return node;
+  }
+
+  /*! \brief The variable base expr of the predicate. */
+  PrimExpr base_;
+  /*! \brief The limit of the predicate. The expr specifies the upper bound of the base's
+   * evaluated value. */
+  PrimExpr limit_;
+  /*! \brief The number of buffer accesses in the stmt we will analyze. */
+  size_t num_accesses_analyzed_ = 0;
+  /*! \brief The number of buffer accesses rewritten with predicates. */
+  size_t num_accesses_rewritten_ = 0;
+};
+
 // Rewrite vectorized allocation access
 // This is necessary for making each vector component containing its own workspace.
 // Originates from Halide's loop vectorizer
@@ -555,13 +675,25 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
   Stmt VisitStmt_(const IfThenElseNode* op) final {
     ICHECK(!op->condition.dtype().is_scalable_or_fixed_length_vector());
     PrimExpr condition = this->VisitExpr(op->condition);
-    if (condition.dtype().is_scalable_or_fixed_length_vector()) {
-      return Scalarize(GetRef<Stmt>(op));
-    }
     Stmt then_case = this->VisitStmt(op->then_case);
     Optional<Stmt> else_case = NullOpt;
     if (op->else_case) {
       else_case = this->VisitStmt(op->else_case.value());
+    }
+
+    // Check if we can rewrite the condition with predicated buffers
+    if (EnableBufferLevelPredication() && condition.dtype().is_scalable_or_fixed_length_vector() &&
+        !else_case.defined()) {
+      std::pair<bool, Stmt> success_stmt_pair =
+          TryPredicateBufferAccesses().Run(then_case, condition);
+      bool can_remove_if_then_else = success_stmt_pair.first;
+      if (can_remove_if_then_else) {
+        return success_stmt_pair.second;
+      }
+    }
+
+    if (condition.dtype().is_scalable_or_fixed_length_vector()) {
+      return Scalarize(GetRef<Stmt>(op));
     }
     if (condition.same_as(op->condition) && then_case.same_as(op->then_case) &&
         else_case.same_as(op->else_case)) {

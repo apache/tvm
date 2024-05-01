@@ -141,6 +141,57 @@ class Buffer(Object, Scriptable):
         begin = (begin,) if isinstance(begin, (int, PrimExpr)) else begin
         return _ffi_api.BufferVStore(self, begin, value)  # type: ignore
 
+    def load(self, indices, predicate=None):
+        """
+        Load values at specified indices from buffer.
+
+        Longhand notation that can be used for complex buffer load
+        expressions. For example, when the load involves predication.
+
+        Parameters
+        ----------
+        indices : List[PrimExpr]
+            The buffer indices to load values from.
+
+        predicate : Optional[PrimExpr]
+            A vector mask of int1 values indicating which lanes of a vector are to be loaded.
+
+        Returns
+        -------
+        BufferLoad
+            A buffer load Expr.
+        """
+        from .expr import BufferLoad  # pylint: disable=import-outside-toplevel
+
+        return BufferLoad(self, indices, predicate)
+
+    def store(self, value, indices, predicate=None):
+        """
+        Store given value at the specified indices in the buffer.
+
+        Longhand notation that can be used for complex buffer store
+        statements. For example, when the store involves predication.
+
+        Parameters
+        ----------
+        value : PrimExpr
+            The value to be stored.
+
+        indices : List[PrimExpr]
+            The buffer indices to store values to.
+
+        predicate : Optional[PrimExpr]
+            A vector mask of int1 values indicating which lanes of a vector are to be stored.
+
+        Returns
+        -------
+        BufferStore
+            A buffer store Stmt.
+        """
+        from .stmt import BufferStore  # pylint: disable=import-outside-toplevel
+
+        return BufferStore(self, value, indices, predicate)
+
     def scope(self):
         """Return the storage scope associated with this buffer.
         Returns

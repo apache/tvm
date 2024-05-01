@@ -524,7 +524,8 @@ Var EnvThread(String thread_tag, DataType dtype) {
   return var;
 }
 
-void BufferStore(Buffer buffer, PrimExpr value, Array<PrimExpr> indices) {
+void BufferStore(Buffer buffer, PrimExpr value, Array<PrimExpr> indices,
+                 PrimExpr predicate = PrimExpr()) {
   runtime::DataType buffer_dtype = buffer->dtype;
   bool is_index_scalable = indices.empty() ? false : indices.back().dtype().is_scalable_vector();
   bool is_buffer_dtype_scalable = buffer_dtype.is_scalable_vector();
@@ -586,7 +587,7 @@ void BufferStore(Buffer buffer, PrimExpr value, Array<PrimExpr> indices) {
     }
     value = tvm::cast(lhs_dtype, value);
   }
-  AddToParent(tvm::tir::BufferStore(buffer, value, indices));
+  AddToParent(tvm::tir::BufferStore(buffer, value, indices, predicate));
 }
 
 void Prefetch(Buffer buffer, Array<Range> bounds) {

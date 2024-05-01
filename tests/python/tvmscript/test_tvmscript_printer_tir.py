@@ -948,5 +948,83 @@ def func():
     _assert_print(func, expected_output)
 
 
+def test_predicated_load_store():
+    from tvm.script import tir as T
+
+    @T.prim_func
+    def main(a: T.handle, b: T.handle):
+        A = T.match_buffer(a, (128, 128), "float32")
+        B = T.match_buffer(b, (256, 256), "float32")
+        T.func_attr({"global_symbol": "func"})
+        a_load = T.meta_var(A.load([0, T.Ramp(0, 4, 4)], predicate=T.Broadcast(0, 4)))
+        A.store(a_load, [0, T.Ramp(0, 2, 4)], predicate=T.Broadcast(0, 4))
+
+    expected_output = """
+# from tvm.script import tir as T
+
+@T.prim_func
+def func(A: T.Buffer((128, 128), "float32"), B: T.Buffer((256, 256), "float32")):
+    A.store(A.load([0, T.Ramp(0, 4, 4)], predicate=T.Broadcast(0, 4)), [0, T.Ramp(0, 2, 4)], predicate=T.Broadcast(0, 4))
+    """
+    _assert_print(main, expected_output)
+
+
+def test_predicated_buffer_load_store():
+    a = tir.Var("a", "handle")
+    b = tir.Var("b", "handle")
+    buffer_map = {
+        a: tir.decl_buffer(shape=[128, 128], dtype="float32", name="A"),
+        b: tir.decl_buffer(shape=[256, 256], dtype="float32", name="B"),
+    }
+    buffer_load = tir.BufferLoad(
+        buffer=buffer_map[b], indices=[0, tir.Ramp(0, 4, 4)], predicate=tir.Broadcast(0, 4)
+    )
+    body = tir.BufferStore(
+        buffer=buffer_map[a],
+        value=buffer_load,
+        indices=[0, tir.Ramp(0, 2, 4)],
+        predicate=tir.Broadcast(0, 4),
+    )
+    func = tir.PrimFunc(
+        params=[a, b],
+        ret_type=None,
+        buffer_map=buffer_map,
+        body=body,
+    )
+
+    expected_output = """
+# from tvm.script import tir as T
+
+@T.prim_func(private=True)
+def main(A: T.Buffer((128, 128), "float32"), B: T.Buffer((256, 256), "float32")):
+    A.store(B.load([0, T.Ramp(0, 4, 4)], predicate=T.Broadcast(0, 4)), [0, T.Ramp(0, 2, 4)], predicate=T.Broadcast(0, 4))
+    """
+    _assert_print(func, expected_output)
+
+
+def test_predicated_scalable_load_store():
+    from tvm.script import tir as T
+
+    @T.prim_func
+    def main(a: T.handle, b: T.handle):
+        A = T.match_buffer(a, (128, 128), "float32")
+        B = T.match_buffer(b, (256, 256), "float32")
+        T.func_attr({"global_symbol": "func"})
+        mask = T.meta_var(T.get_active_lane_mask("int1xvscalex4", 0, 13))
+        a_load = T.meta_var(A.load([0, T.Ramp(0, 4, T.vscale() * 4)], predicate=mask))
+        A.store(a_load, [0, T.Ramp(0, 2, T.vscale() * 4)], predicate=mask)
+
+    expected_output = """
+# from tvm.script import tir as T
+
+@T.prim_func
+def func(A: T.Buffer((128, 128), "float32"), B: T.Buffer((256, 256), "float32")):
+    A.store(\
+A.load([0, T.Ramp(0, 4, T.vscale() * 4)], predicate=T.get_active_lane_mask("int1xvscalex4", 0, 13)), \
+[0, T.Ramp(0, 2, T.vscale() * 4)], predicate=T.get_active_lane_mask("int1xvscalex4", 0, 13))
+    """
+    _assert_print(main, expected_output)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

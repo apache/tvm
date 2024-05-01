@@ -273,14 +273,33 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::BufferStore>(  //
         "", [](tir::BufferStore store, ObjectPath p, IRDocsifier d) -> Doc {
           ExprDoc buffer = d->AsDoc<ExprDoc>(store->buffer, p->Attr("buffer"));
-          return AssignDoc(/*lhs=*/buffer[BufferIndices(store->indices, p->Attr("indices"), d)],
-                           /*rhs=*/d->AsDoc<ExprDoc>(store->value, p->Attr("value")), NullOpt);
+          ExprDoc value = d->AsDoc<ExprDoc>(store->value, p->Attr("value"));
+
+          // Use .store(...) syntax when there is a predicate
+          if (store->predicate.defined()) {
+            ExprDoc indices = d->AsDoc<ExprDoc>(store->indices, p->Attr("indices"));
+            ExprDoc predicate = d->AsDoc<ExprDoc>(store->predicate, p->Attr("predicate"));
+            return ExprStmtDoc(
+                buffer->Attr("store")->Call({value, indices}, {"predicate"}, {predicate}));
+          }
+
+          return AssignDoc(
+              /*lhs=*/buffer[BufferIndices(store->indices, p->Attr("indices"), d)],
+              /*rhs=*/value, NullOpt);
         });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::BufferLoad>(  //
         "", [](tir::BufferLoad load, ObjectPath p, IRDocsifier d) -> Doc {
           ExprDoc buffer = d->AsDoc<ExprDoc>(load->buffer, p->Attr("buffer"));
+
+          // Use .load(...) syntax when there is a predicate
+          if (load->predicate.defined()) {
+            ExprDoc indices = d->AsDoc<ExprDoc>(load->indices, p->Attr("indices"));
+            ExprDoc predicate = d->AsDoc<ExprDoc>(load->predicate, p->Attr("predicate"));
+            return buffer->Attr("load")->Call({indices}, {"predicate"}, {predicate});
+          }
+
           return buffer[BufferIndices(load->indices, p->Attr("indices"), d)];
         });
 

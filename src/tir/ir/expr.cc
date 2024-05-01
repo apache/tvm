@@ -772,7 +772,7 @@ void BufferLoadNode::LegalizeDType() {
   }
 }
 
-BufferLoad::BufferLoad(Buffer buffer, Array<PrimExpr> indices, Span span) {
+BufferLoad::BufferLoad(Buffer buffer, Array<PrimExpr> indices, PrimExpr predicate, Span span) {
   ICHECK_EQ(buffer->shape.size(), indices.size())
       << "Buffer " << buffer->name << " is " << buffer->shape.size()
       << "-dimensional, cannot be indexed with the " << indices.size()
@@ -781,14 +781,15 @@ BufferLoad::BufferLoad(Buffer buffer, Array<PrimExpr> indices, Span span) {
   ObjectPtr<BufferLoadNode> node = make_object<BufferLoadNode>();
   node->buffer = std::move(buffer);
   node->indices = std::move(indices);
+  node->predicate = std::move(predicate);
   node->span = std::move(span);
   node->LegalizeDType();
   data_ = std::move(node);
 }
 
 TVM_REGISTER_GLOBAL("tir.BufferLoad")
-    .set_body_typed([](Buffer buffer, Array<PrimExpr> indices, Span span) {
-      return BufferLoad(buffer, indices, span);
+    .set_body_typed([](Buffer buffer, Array<PrimExpr> indices, PrimExpr predicate, Span span) {
+      return BufferLoad(buffer, indices, predicate, span);
     });
 
 TVM_REGISTER_NODE_TYPE(BufferLoadNode);
