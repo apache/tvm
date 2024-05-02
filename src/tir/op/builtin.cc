@@ -397,6 +397,13 @@ TIR_DEFINE_BUILTIN_FUNC(anylist_setitem_call_cpacked)
 
 TIR_DEFINE_BUILTIN_FUNC(vscale).set_attr<TCallEffectKind>("TCallEffectKind",
                                                           Integer(CallEffectKind::kPure));
+
+TIR_DEFINE_BUILTIN_FUNC(get_active_lane_mask)
+    .set_num_inputs(2)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kPure))
+    .set_attr<TScriptDtypePrintLocation>("TScriptDtypePrintLocation",
+                                         Integer(ScriptDtypePrintLocation::kFirst));
+
 }  // namespace builtin
 }  // namespace tir
 }  // namespace tvm

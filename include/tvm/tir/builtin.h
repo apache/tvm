@@ -915,6 +915,14 @@ TVM_DLL const Op& anylist_setitem_call_cpacked();
  */
 TVM_DLL const Op& vscale();
 
+/*!
+ * \brief Calculate a predicate mask given an upper bound (limit) and a current value (base).
+ *
+ * It will be lowered to the llvm.get.active.lane.mask intrinsic.
+ * (https://llvm.org/docs/LangRef.html#llvm-get-active-lane-mask-intrinsics)
+ */
+TVM_DLL const Op& get_active_lane_mask();
+
 /*! \brief The kind of structure field info used in intrinsic */
 enum TVMStructFieldKind : int {
   // array head address
