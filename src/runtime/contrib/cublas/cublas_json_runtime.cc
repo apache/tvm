@@ -129,9 +129,15 @@ class CublasJSONRuntime : public JSONRuntimeBase {
 
         auto [a_ptr, b_ptr, bias_ptr] = get_inputs(node, epilogue != CUBLASLT_EPILOGUE_DEFAULT);
 
+        std::optional<float> dq_scale = std::nullopt;
+        if (op_name.find("dequantize") != std::string::npos) {
+          dq_scale = std::stof(node.GetAttr<std::vector<std::string>>("dq_scale")[0]);
+        }
+
         tvm::contrib::CallCublasLt(entry_ptr->handle, stream, entry_ptr->matmul_pref_desc, a_ptr,
                                    b_ptr, bias_ptr, out_ptr, transa, transb,
-                                   entry_ptr->workspace_ptr, entry_ptr->workspace_size, epilogue);
+                                   entry_ptr->workspace_ptr, entry_ptr->workspace_size, epilogue,
+                                   dq_scale);
       }
     }
   }

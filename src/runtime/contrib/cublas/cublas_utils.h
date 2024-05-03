@@ -34,6 +34,7 @@
 #if CUDART_VERSION >= 10010
 #include <cublasLt.h>
 #endif  // CUDART_VERSION >= 10010
+#include <optional>
 
 namespace tvm {
 namespace contrib {
@@ -124,7 +125,8 @@ void CallCublasLt(cublasLtHandle_t hdl, cudaStream_t stream,
                   cublasLtMatmulPreference_t matmul_pref_desc, const DLTensor* A, const DLTensor* B,
                   const DLTensor* bias, const DLTensor* C, bool transa, bool transb,
                   void* workspace_ptr, size_t workspace_size,
-                  cublasLtEpilogue_t epilogue = CUBLASLT_EPILOGUE_DEFAULT);
+                  cublasLtEpilogue_t epilogue = CUBLASLT_EPILOGUE_DEFAULT,
+                  std::optional<float> dq_scale = std::nullopt);
 
 }  // namespace contrib
 }  // namespace tvm
