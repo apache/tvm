@@ -47,18 +47,19 @@ FVP_PATH="/opt/arm/FVP_Corstone_SSE-300_Ethos-U55"
 CMAKE_PATH="/opt/arm/cmake/bin/cmake"
 FREERTOS_PATH="/opt/freertos/FreeRTOSv202112.00"
 
-timeout 5m ./run_demo.sh --fvp_path $FVP_PATH --cmake_path $CMAKE_PATH > $TMP_LOG_FILE
-cat $TMP_LOG_FILE
-if ! grep -q "The image has been classified as 'tabby'" $TMP_LOG_FILE; then
-    echo "The demo returned the wrong result"
-    exit 1
-fi
+# Temporarily disable due to difficulty downloading the model (see https://github.com/apache/tvm/issues/16963)
+# timeout 5m ./run_demo.sh --fvp_path $FVP_PATH --cmake_path $CMAKE_PATH > $TMP_LOG_FILE
+# cat $TMP_LOG_FILE
+# if ! grep -q "The image has been classified as 'tabby'" $TMP_LOG_FILE; then
+#     echo "The demo returned the wrong result"
+#     exit 1
+# fi
 
-timeout 5m ./run_demo.sh --fvp_path $FVP_PATH --cmake_path $CMAKE_PATH --freertos_path $FREERTOS_PATH > $TMP_LOG_FILE
-cat $TMP_LOG_FILE
-if ! grep -q "The image has been classified as 'tabby'" $TMP_LOG_FILE; then
-    echo "The demo returned the wrong result"
-    exit 1
-fi
+# timeout 5m ./run_demo.sh --fvp_path $FVP_PATH --cmake_path $CMAKE_PATH --freertos_path $FREERTOS_PATH > $TMP_LOG_FILE
+# cat $TMP_LOG_FILE
+# if ! grep -q "The image has been classified as 'tabby'" $TMP_LOG_FILE; then
+#     echo "The demo returned the wrong result"
+#     exit 1
+# fi
 
 popd
