@@ -782,7 +782,7 @@ def test_get_active_lane_mask():
 
 @pytest.mark.skipif(
     llvm_version_major() < 11,
-    reason="Vscale and get.active.lane.mask are not supported in earlier versions of LLVM"
+    reason="Vscale and get.active.lane.mask are not supported in earlier versions of LLVM",
 )
 def test_predicated_scalable_buffer():
     target = "llvm -mtriple=aarch64-linux-gnu -mattr=+sve"

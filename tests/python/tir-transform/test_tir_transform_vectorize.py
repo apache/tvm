@@ -622,7 +622,7 @@ def test_vectorize_and_predicate_multiple_access_statements():
             )
 
     before_mod = tvm.IRModule.from_expr(before)
-    with tvm.transform.PassContext(config={"tir.enable_buffer_predication": True}):
+    with tvm.transform.PassContext(config={"tir.enable_buffer_level_predication": True}):
         after = tvm.tir.transform.VectorizeLoop()(before_mod)["main"]
     tvm.ir.assert_structural_equal(after, expected)
 
