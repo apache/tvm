@@ -680,5 +680,25 @@ def test_conv2d_sve(dtype):
         check_correct_assembly(dtype=dtype)
 
 
+@pytest.mark.skipif(
+    llvm_version_major() < 11,
+    reason="Vscale and get.active.lane.mask are not supported in earlier versions of LLVM",
+)
+def test_get_active_lane_mask():
+    target = "llvm -mtriple=aarch64-linux-gnu -mattr=+sve"
+
+    @T.prim_func
+    def before(a: T.handle):
+        A = T.match_buffer(a, (30,), "int1")
+        for i in range(T.ceildiv(30, T.vscale() * 4)):
+            A[i : i + T.vscale() * 4] = T.get_active_lane_mask("int1xvscalex4", i, 30)
+
+    with tvm.target.Target(target):
+        out = tvm.build(before)
+
+    ll = out.get_source("ll")
+    assert "get.active.lane.mask" in ll
+
+
 if __name__ == "__main__":
     tvm.testing.main()
