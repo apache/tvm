@@ -1493,6 +1493,8 @@ def test_batch_matmul(target, dev):
     verify_batch_matmul((2, 4, 3), (3, 4), (2, 4, 4))
     verify_batch_matmul((2, 3, 4, 3), (3, 4), (2, 3, 4, 4))
     # Test implicit broadcasting.
+    verify_batch_matmul((5,), (5, 5, 4), (5, 4))
+    verify_batch_matmul((5, 4, 5), (5,), (5, 4))
     verify_batch_matmul((4, 3), (2, 3, 4), (2, 4, 4))
     verify_batch_matmul((2, 4, 3), (1, 3, 4), (2, 4, 4))
     verify_batch_matmul((1, 4, 3), (2, 3, 4), (2, 4, 4))
