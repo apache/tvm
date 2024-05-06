@@ -307,6 +307,21 @@ def matmul_out_dtype(inputs, out_dtype):
             a = flatten_to_nd(inputs[0], a_shape, 2)
             b = _op.transpose(inputs[1])
             output = _op.nn.dense(a, b, out_dtype=out_dtype)
+        elif a_rank == 1 or b_rank == 1:
+            a, b = inputs
+            _a_shape = tuple(a_shape.data.numpy())
+            _b_shape = tuple(b_shape.data.numpy())
+            if a_rank == 1:
+                axis = -2
+                a = _op.expand_dims(a, axis=0)
+                batches = _b_shape[:-2]
+                a = _op.broadcast_to(a, (*batches, 1, _a_shape[0]))
+            else:
+                axis = -1
+                b = _op.expand_dims(b, axis=-1)
+                batches = _a_shape[:-2]
+                b = _op.broadcast_to(b, (*batches, _b_shape[0], 1))
+            return _op.squeeze(_op.nn.batch_matmul(a, b, transpose_b=False), axis=axis)
         else:
             a = inputs[0]
             b = inputs[1]

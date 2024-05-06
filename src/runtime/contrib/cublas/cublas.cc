@@ -138,7 +138,8 @@ int roundoff(int v, int d) { return (v + d - 1) / d * d; }
 void CallCublasLt(cublasLtHandle_t hdl, cudaStream_t stream,
                   cublasLtMatmulPreference_t matmul_pref_desc, const DLTensor* A, const DLTensor* B,
                   const DLTensor* bias, const DLTensor* C, bool transa, bool transb,
-                  void* workspace_ptr, size_t workspace_size, cublasLtEpilogue_t epilogue) {
+                  void* workspace_ptr, size_t workspace_size, cublasLtEpilogue_t epilogue,
+                  std::optional<float> dq_scale) {
   ICHECK(TypeEqual(A->dtype, B->dtype));
   // Reversed strides indicates an in-place transpose operation.
   transa = IsInPlaceTransposed(A) ? !transa : transa;
@@ -152,7 +153,10 @@ void CallCublasLt(cublasLtHandle_t hdl, cudaStream_t stream,
   float zero_fp32 = 0.0;
   int32_t one_i32 = 1;
   int32_t zero_i32 = 0;
-  void* alpha = &one_fp32;
+  // Pass dequantization scale through the "alpha" parameter. If there is no dequantization after
+  // matmul, then alpha == 1.0
+  float alpha_value = dq_scale.value_or(one_fp32);
+  void* alpha = &alpha_value;
   void* beta = &zero_fp32;
 
   if (TypeMatch(A->dtype, kDLFloat, 16)) {

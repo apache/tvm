@@ -1478,6 +1478,11 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
     llvm::Intrinsic::ID id = llvm::Intrinsic::vscale;
     llvm::Function* f = GetIntrinsicDecl(id, builder_->getInt32Ty(), {});
     return builder_->CreateCall(f);
+  } else if (op->op.same_as(builtin::get_active_lane_mask())) {
+    llvm::Intrinsic::ID id = llvm::Intrinsic::get_active_lane_mask;
+    llvm::Function* f = GetIntrinsicDecl(id, DTypeToLLVMType(op->dtype),
+                                         {builder_->getInt32Ty(), builder_->getInt32Ty()});
+    return builder_->CreateCall(f, {MakeValue(op->args[0]), MakeValue(op->args[1])});
 #endif
   } else {
     LOG(FATAL) << "unknown intrinsic " << op->op;
