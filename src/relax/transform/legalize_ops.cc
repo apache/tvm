@@ -75,17 +75,18 @@ class LegalizeMutator : public ExprMutator {
         builder_->UpdateFunction(gv, Downcast<BaseFunc>(updated_func));
       }
     }
-    // Fill the "kTarget" attribute of PrimFunc
-    const auto& mod = builder_->GetContextIRModule();
-    for (const auto& gv : mod->GetGlobalVars()) {
-      const tir::PrimFuncNode* prim_func;
-      if (tmap_.count(gv) && (prim_func = mod->Lookup(gv).as<tir::PrimFuncNode>())) {
-        auto f = WithAttr(GetRef<tir::PrimFunc>(prim_func), tvm::attr::kTarget, tmap_[gv]);
-        builder_->UpdateFunction(gv, f);
-      }
-    }
+
     IRModule output = builder_->GetContextIRModule();
-    if (requires_tir_convert_ssa_) {
+    if (generated_tir_with_target_attr_) {
+      // It is possible that every call to a legalized PrimFunc
+      // contains VDevice annotations.  In that case, the PrimFunc
+      // without a target annotation no longer has any callers, and
+      // should be removed.
+      output = relax::transform::DeadCodeElimination()(output);
+
+      // Avoid accidental sharing of TIR variables in the legalized
+      // PrimFuncs, when kernels for multiple devices are generated
+      // from the same PrimFunc.
       output = tir::transform::ConvertSSA()(output);
     }
 
@@ -151,18 +152,6 @@ class LegalizeMutator : public ExprMutator {
     return NullOpt;
   }
 
-  void SaveTarget(const Expr& expr) {
-    if (expr->IsInstance<CallNode>()) {
-      auto call = Downcast<Call>(expr);
-
-      if (auto target = GetTarget(call->sinfo_args)) {
-        if (auto gvar = call->args[0].as<GlobalVar>()) {
-          this->tmap_.Set(gvar.value(), target.value());
-        }
-      }
-    }
-  }
-
   Expr BindTarget(Expr expr) {
     if (!expr->IsInstance<CallNode>()) {
       // FLegalize returned something other than a relax::Call.  This
@@ -226,7 +215,7 @@ class LegalizeMutator : public ExprMutator {
       return ss.str();
     }();
     auto new_gvar = builder_->AddFunction(new_prim_func, new_gvar_name);
-    requires_tir_convert_ssa_ = true;
+    generated_tir_with_target_attr_ = true;
 
     call.CopyOnWrite()->args.Set(0, new_gvar);
     return call;
@@ -344,10 +333,9 @@ class LegalizeMutator : public ExprMutator {
     }
     Expr legalized = legalization_func(builder_, visited_call);
 
+    // Append the target attribute to any PrimFunc generated in
+    // legalization.
     legalized = BindTarget(legalized);
-
-    // Save the expected target info. into tmap_
-    // SaveTarget(legalized);
 
     legalized = builder_->Normalize(legalized);
 
@@ -381,9 +369,8 @@ class LegalizeMutator : public ExprMutator {
   IRModule mod_;
   /*! \brief The customized legalization function map. */
   Map<String, PackedFunc> cmap_;
-  /*! \brief The map from GlobalVar of PrimFunc to compilation Target. */
-  Map<GlobalVar, Target> tmap_;
-  bool requires_tir_convert_ssa_{false};
+  /*! \brief If VDevice annotations produced at least one PrimFunc with a Target attr*/
+  bool generated_tir_with_target_attr_{false};
   /*!
    * \brief A boolean value indicating if to print warnings for CallNode whose op's
    * legalization function is not registered.
