@@ -916,7 +916,11 @@ std::string LLVMTarget::GetTargetMetadata(const llvm::Module& module) {
   if (llvm::Metadata* tvm_target = module.getModuleFlag("tvm_target")) {
     auto* mdstr = llvm::cast<llvm::MDString>(tvm_target);
     llvm::StringRef meta = mdstr->getString();
+#if TVM_LLVM_VERSION >= 180
+    if (meta.starts_with("llvm")) {
+#else
     if (meta.startswith("llvm")) {
+#endif
       return meta.str();
     }
   }

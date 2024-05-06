@@ -372,7 +372,11 @@ std::unique_ptr<llvm::Module> CodeGenLLVM::Finish() {
 void CodeGenLLVM::HandleImport(const std::string& code) {
   llvm::StringRef code_str(code);
   std::unique_ptr<llvm::Module> mlib;
+#if TVM_LLVM_VERSION >= 180
+  if (code_str.ends_with(".ll") || code_str.ends_with(".bc")) {
+#else
   if (code_str.endswith(".ll") || code_str.endswith(".bc")) {
+#endif
     mlib = llvm_target_->GetInstance().LoadIR(code);
   } else {
     mlib = llvm_target_->GetInstance().ParseIR(code);
