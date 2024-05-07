@@ -104,7 +104,6 @@
 #include <vector>
 
 #include "../../arith/pattern_match.h"
-#include "../../arith/scalable_expression.h"
 #include "../build_common.h"
 #include "../func_registry_generator.h"
 #include "codegen_params.h"
@@ -1128,13 +1127,6 @@ void CodeGenLLVM::SetTargetAttributes(llvm::Function* func) {
   if (!features.empty()) {
     func->addFnAttr("target-features", features);
   }
-#if TVM_LLVM_VERSION >= 130
-  // Add vscale_range() function attribute when appropriate.
-  if (llvm_target_->TargetHasCPUFeature("sve") || llvm_target_->TargetHasCPUFeature("sme")) {
-    func->addFnAttr(llvm::Attribute::getWithVScaleRangeArgs(
-        *llvm_target_->GetContext(), 1, tvm::arith::kAArch64VScaleValues.size()));
-  }
-#endif
 }
 
 void CodeGenLLVM::EmitFloat16ConversionBuiltins(bool use_float16_abi) {
