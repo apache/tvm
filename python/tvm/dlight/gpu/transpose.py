@@ -57,6 +57,10 @@ class Transpose(GPUScheduleRule):
             len_tx = 16
             len_ty = 8
             unroll_depth = 256
+        if target.kind.name == "opencl":
+            len_tx = 16
+            len_ty = 8
+            unroll_depth = 64
         else:
             len_tx = 8
             len_ty = 4

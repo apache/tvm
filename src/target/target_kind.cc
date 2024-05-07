@@ -340,9 +340,9 @@ TVM_REGISTER_TARGET_KIND("rocm", kDLROCM)
     .set_target_parser(UpdateROCmAttrs);
 
 TVM_REGISTER_TARGET_KIND("opencl", kDLOpenCL)
-    .add_attr_option<Integer>("max_threads_per_block", Integer(256))
+    .add_attr_option<Integer>("max_threads_per_block", Integer(1024))
     .add_attr_option<Integer>("max_shared_memory_per_block", Integer(16384))
-    .add_attr_option<Integer>("max_num_threads", Integer(256))
+    .add_attr_option<Integer>("max_num_threads", Integer(1024))
     .add_attr_option<Integer>("thread_warp_size", Integer(1))
     .add_attr_option<Integer>("texture_spatial_limit", Integer(16384))
     // Faced that Qualcomm OpenCL runtime crashed without any error message in
