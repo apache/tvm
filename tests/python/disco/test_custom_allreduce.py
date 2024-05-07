@@ -44,7 +44,13 @@ _strategies = [
     AllReduceStrategyType.AUTO,
 ]
 
-_ccl = [ccl for ccl in tvm.get_global_func("runtime.disco.compiled_ccl")() if ccl == "nccl"]
+_ccl = [
+    pytest.param(
+        ccl,
+        marks=tvm.testing.Feature._all_features[ccl].marks(),
+    )
+    for ccl in ["nccl"]
+]
 
 
 @pytest.mark.parametrize("shape", _shapes)
