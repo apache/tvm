@@ -495,7 +495,7 @@ class GEMV(GPUScheduleRule):
             LOAD_V_SHARED = False
             LOAD_V_VEC = -1
             UNROLL = 8
-            TS, TR = 2, 64
+            TS, TR = 2, 32
         elif target.kind.name == "vulkan":
             VEC_C = 4
             LOAD_V_SHARED = True
@@ -709,7 +709,10 @@ class GEMV(GPUScheduleRule):
         if not isinstance(len_r, int):
             return None
 
-        if isinstance(len_s, int) and len_s > 32000:
+        if not isinstance(len_s, int):
+            return None
+
+        if isinstance(len_s, int) and len_s > 96000:
             return None
 
         _, TILE_R = (
@@ -754,7 +757,8 @@ class GEMV(GPUScheduleRule):
         len_s = get_extent(sch, s)
 
         # The config is designed for Adreno
-        tx_len = 64
+        LOAD_V_SHARED = 1
+        tx_len = 128
         vec_len = (4 if len_s > 4096 else 2) if isinstance(len_s, int) else 1
         inner_r = 4
 
@@ -768,16 +772,25 @@ class GEMV(GPUScheduleRule):
         sch.annotate(tx, ann_key="pragma_auto_unroll_max_step", ann_val=8)
         sch.annotate(tx, ann_key="pragma_unroll_explicit", ann_val=1)
 
-        cache_v = sch.cache_read(block, vector_input_buffers[0], "local")
-        sch.compute_at(cache_v, r1, preserve_unit_loops=True)
-        sch.vectorize(sch.get_loops(cache_v)[-1])
+        if LOAD_V_SHARED:
+            V_shared = sch.cache_read(block, vector_input_buffers[0], storage_scope="shared")
+            sch.compute_at(V_shared, bx, preserve_unit_loops=True)
+            l = sch.get_loops(block=V_shared)[-1]
+            _, tx, vec_r = sch.split(
+                l, factors=[None, tx_len, 8], preserve_unit_iters=True
+            )
+            sch.bind(tx, "threadIdx.x")
+            sch.vectorize(vec_r)
 
         sch.vectorize(vec)
 
         # Schedule epilogue
         if epilogue_info is not None:
-            sch.reverse_compute_at(epilogue_info.block_rv, tx)
-
+            sch.reverse_compute_at(epilogue_info.block_rv, bx, preserve_unit_loops=True)
+            ts_tile_s = sch.get_loops(epilogue_info.block_rv)[-1]
+            ts, vec = sch.split(ts_tile_s, factors=[tx_len, vec_len], preserve_unit_iters=True)
+            sch.bind(ts, "threadIdx.x")
+            sch.vectorize(vec)
             sch.set_scope(block, 0, "local")
 
         sch.decompose_reduction(block, r0)
