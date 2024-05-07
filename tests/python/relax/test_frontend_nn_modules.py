@@ -700,5 +700,20 @@ def test_nn_module_list_input():
     assert_structural_equal(tvm_mod["forward"], forward)
 
 
+def test_module_list():
+    class Module(nn.Module):
+        def __init__(self):
+            self.layers = nn.ModuleList(
+                [nn.ModuleList([nn.Linear(4, 4, bias=False) for _ in range(2)]) for _ in range(1)]
+            )
+
+        def forward(self, x: nn.Tensor):
+            return self.layers(x)
+
+    mod = Module()
+    named_params = dict(mod.named_parameters())
+    assert ["layers.0.0.weight", "layers.0.1.weight"] == sorted(list(named_params.keys()))
+
+
 if __name__ == "__main__":
     tvm.testing.main()
