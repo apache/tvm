@@ -776,9 +776,7 @@ class GEMV(GPUScheduleRule):
             V_shared = sch.cache_read(block, vector_input_buffers[0], storage_scope="shared")
             sch.compute_at(V_shared, bx, preserve_unit_loops=True)
             l = sch.get_loops(block=V_shared)[-1]
-            _, tx, vec_r = sch.split(
-                l, factors=[None, tx_len, 8], preserve_unit_iters=True
-            )
+            _, tx, vec_r = sch.split(l, factors=[None, tx_len, 8], preserve_unit_iters=True)
             sch.bind(tx, "threadIdx.x")
             sch.vectorize(vec_r)
 
