@@ -25,7 +25,11 @@ from tvm.relax import transform
 from tvm.relax.transform import PatternCheckContext
 
 from ..pattern_registry import get_patterns_with_prefix, register_patterns
-from ..patterns import make_matmul_pattern, make_matmul_dequantize_pattern
+from ..patterns import (
+    make_matmul_pattern,
+    make_matmul_dequantize_pattern,
+    make_matmul_multiply_pattern,
+)
 from ..utils import has_leaking_intermediate_variables
 
 
@@ -200,6 +204,11 @@ register_patterns(
         (
             "cublas.matmul_transposed_dequantize",
             *make_matmul_dequantize_pattern(transposed_rhs=True),
+            _check_matmul,
+        ),
+        (
+            "cublas.matmul_transposed_multiply",
+            *make_matmul_multiply_pattern(transposed_rhs=True),
             _check_matmul,
         ),
     ]

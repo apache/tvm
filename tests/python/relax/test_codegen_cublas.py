@@ -134,6 +134,40 @@ def get_relax_matmul_dequantize_module(
     return tvm.IRModule({"main": func})
 
 
+def get_relax_matmul_multiply_module(
+    x_shape,
+    y_shape,
+    z_shape,
+    in_dtype,
+    acc_dtype,
+    out_dtype,
+    transposed_y=False,
+):
+    """Create a matmul op followd by multiply operations."""
+    with IRBuilder() as builder:
+        with relax_builder.function():
+            R.func_name("main")
+            x = R.arg("x", R.Tensor(x_shape, in_dtype))
+            y = R.arg("y", R.Tensor(y_shape, in_dtype))
+            scaleA = R.arg("scaleA", R.Tensor(z_shape, acc_dtype))
+            scaleB = R.arg("scaleB", R.Tensor(z_shape, acc_dtype))
+
+            with R.dataflow() as frame:
+                if transposed_y:
+                    axes = list(range(len(y_shape) - 2)) + [-1, -2]
+                    y = R.emit(R.permute_dims(y, axes=axes))
+                result = R.emit(R.matmul(x, y, out_dtype=acc_dtype))
+                z = R.emit(R.multiply(scaleA, scaleB))
+                result = R.emit(R.multiply(result, z))
+                if acc_dtype != out_dtype:
+                    result = R.emit(R.astype(result, out_dtype))
+                R.output(result)
+            R.func_ret_value(frame.output_vars[0])
+
+    func = builder.get()
+    return tvm.IRModule({"main": func})
+
+
 @pytest.mark.parametrize(
     "x_shape, y_shape, transpose_y, epilogue",
     [
@@ -327,6 +361,36 @@ def test_matmul_fp8_dequantize_offload():
     tvm.testing.assert_allclose(out, ref, rtol=1e-3, atol=1e-3)
 
 
+@tvm.testing.requires_cuda_compute_version(9)
+@pytest.mark.skipif(ml_dtypes is None, reason="requires ml_dtypes to be installed")
+def test_matmul_fp8_multiply_offload():
+    x_shape = (10, 32)
+    y_shape = (64, 32)
+    z_shape = (1,)
+    in_dtype, acc_dtype = ("e4m3_float8", "float32")
+
+    mod = get_relax_matmul_multiply_module(
+        x_shape,
+        y_shape,
+        z_shape,
+        in_dtype,
+        acc_dtype,
+        "float16",
+        transposed_y=True,
+    )
+
+    numpytype = "float8_e4m3fn"
+    x = np.random.uniform(low=0, high=5, size=x_shape).astype(numpytype)
+    y = np.random.uniform(low=0, high=5, size=y_shape).astype(numpytype)
+    scaleA = np.random.uniform(low=0, high=5, size=z_shape).astype(acc_dtype)
+    scaleB = np.random.uniform(low=0, high=5, size=z_shape).astype(acc_dtype)
+    args = (x, y, scaleA, scaleB)
+
+    out = get_result_with_relax_cublas_offload(mod, args)
+    ref = build_and_run(mod, args, "llvm", legalize=True)
+    tvm.testing.assert_allclose(out, ref, rtol=1e-3, atol=1e-3)
+
+
 @pytest.mark.parametrize(
     "M, N, K, out_dtype, transposed_y, partition_done",
     [
@@ -369,6 +433,21 @@ def test_cublas_partition_fp8_matmul_dequantize(M, N, K, scale, zp, num_bindings
     mod = partition_for_cublas(mod)
     # Check whether R.dequantize is still in main function or not
     assert len(mod["main"].body.blocks[0].bindings) == num_bindings
+
+
+def test_cublas_partition_fp8_matmul_multiply():
+    M, N, K = (32, 64, 128)
+    mod = get_relax_matmul_multiply_module(
+        (M, K),
+        (N, K),
+        (1,),
+        "e4m3_float8",
+        "float32",
+        "float16",
+        transposed_y=True,
+    )
+    mod = partition_for_cublas(mod)
+    assert len(mod["main"].body.blocks[0].bindings) == 1
 
 
 def test_cublas_partition_matmul_without_bias():
