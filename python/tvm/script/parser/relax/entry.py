@@ -299,7 +299,11 @@ class CallableProxy(StructInfoProxy):
         Whether the callable is pure.
 
     derive_func: Optional[Union[str, tvm.ir.EnvFunc]]
-        The derivation function for the outputq
+        The derivation function to determine the output StructInfo,
+        based on the arguments provided to the function.  The
+        specified function should be accessible using
+        `tvm.get_global_func`, and should have a signature
+        `Callable[[relax.Call, relax.BlockBuilder], relax.StructInfo]`.
 
     """
 
