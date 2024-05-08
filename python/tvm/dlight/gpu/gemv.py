@@ -463,6 +463,8 @@ class GEMV(GPUScheduleRule):
                     TS, TR = 4, 64
                 else:
                     TS, TR = 16, 32
+            else:
+                TS, TR = 1, 64
         elif target.kind.name == "metal":
             # Note that the following tile size is tuned on M2 Ultra for 7B
             TAG_S, TAG_R = "threadIdx.x", "threadIdx.y"
@@ -476,6 +478,8 @@ class GEMV(GPUScheduleRule):
                     TS, TR = 4, 16
                 else:
                     TS, TR = 2, 64
+            else:
+                TS, TR = 1, 64
         elif target.kind.name == "rocm":
             VEC_C = 4
             # TODO: set LOAD_V_SHARED = False for now
@@ -489,6 +493,8 @@ class GEMV(GPUScheduleRule):
                     TS, TR = 1, 128
                 else:
                     TS, TR = 8, 64
+            else:
+                TS, TR = 1, 64
         elif target.kind.name == "opencl" and "android" in str(target.host):
             TAG_S, TAG_R = "threadIdx.x", "threadIdx.y"
             VEC_C = 8
@@ -506,6 +512,8 @@ class GEMV(GPUScheduleRule):
                     TS, TR = 4, 32
                 else:
                     TS, TR = 16, 32
+            else:
+                TS, TR = 1, 64
         elif target.kind.name == "opencl" and "mali" in str(target.attrs):
             VEC_C = 8
             LOAD_V_SHARED = False
@@ -517,9 +525,6 @@ class GEMV(GPUScheduleRule):
             LOAD_V_SHARED = False
             LOAD_V_VEC = -1
             UNROLL = 64
-            TS, TR = 1, 64
-
-        if not isinstance(len_S, int):
             TS, TR = 1, 64
 
         while TS * TR > target.max_num_threads:
@@ -710,7 +715,8 @@ class GEMV(GPUScheduleRule):
             return None
 
         if not isinstance(len_s, int):
-            return None
+            TS, TR = 256, 1
+            LOAD_V_SHARED = True
 
         if isinstance(len_s, int) and len_s > 96000:
             return None
