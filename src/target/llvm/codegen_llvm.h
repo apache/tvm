@@ -431,7 +431,7 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
    *
    * \param func The function to set attributes on.
    */
-  void SetTargetAttributes(llvm::Function* func);
+  virtual void SetTargetAttributes(llvm::Function* func);
   /*!
    * \brief Emit LLVM IR for conversion functions __extendhfsf2 and __truncsfhf2
    *        into the current llvm::Module.
