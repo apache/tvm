@@ -131,6 +131,10 @@ class DeviceRegionAnnotater : public StmtExprMutator {
         op->op.same_as(builtin::tvm_call_packed()) || op->op.same_as(builtin::tvm_call_cpacked()) ||
         op->op.same_as(builtin::tvm_call_packed_lowered()) ||
         op->op.same_as(builtin::tvm_call_cpacked_lowered()) ||
+        op->op.same_as(builtin::anylist_getitem()) ||
+        op->op.same_as(builtin::anylist_resetitem()) ||
+        op->op.same_as(builtin::anylist_setitem_call_packed()) ||
+        op->op.same_as(builtin::anylist_setitem_call_cpacked()) ||
         op->op.same_as(builtin::tvm_struct_get()) || op->op.same_as(builtin::tvm_struct_set()) ||
         op->op.same_as(builtin::tvm_throw_last_error()) ||
         op->op.same_as(builtin::tvm_stack_alloca()) ||
