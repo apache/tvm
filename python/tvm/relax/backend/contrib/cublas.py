@@ -119,7 +119,7 @@ def _check_matmul(context: PatternCheckContext) -> bool:
         if not isinstance(bias_batches, (tvm.tir.expr.IntImm, int)) or int(bias_batches) > 1:
             # cuBLAS only supports bias vector
             return False
-        
+
     analyzer = Analyzer()
 
     # cuBLASLt does not seem to support batched GEMM with one of matrices having
