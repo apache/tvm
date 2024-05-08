@@ -142,6 +142,11 @@ class Session(Object):
         func = self._get_cached_method("runtime.disco.empty")
         return func(ShapeTuple(shape), dtype, device)
 
+    @property
+    def num_workers(self) -> int:
+        """Return the number of workers in the session"""
+        return _ffi_api.SessionGetNumWorkers(self)  # type: ignore # pylint: disable=no-member
+
     def get_global_func(self, name: str) -> DRef:
         """Get a global function on workers.
 

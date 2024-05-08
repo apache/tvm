@@ -37,6 +37,8 @@ TVM_REGISTER_GLOBAL("runtime.disco.DRefDebugGetFromRemote")
     .set_body_method<DRef>(&DRefObj::DebugGetFromRemote);
 TVM_REGISTER_GLOBAL("runtime.disco.DRefDebugCopyFrom")
     .set_body_method<DRef>(&DRefObj::DebugCopyFrom);
+TVM_REGISTER_GLOBAL("runtime.disco.SessionGetNumWorkers")
+    .set_body_method<Session>(&SessionObj::GetNumWorkers);
 TVM_REGISTER_GLOBAL("runtime.disco.SessionGetGlobalFunc")
     .set_body_method<Session>(&SessionObj::GetGlobalFunc);
 TVM_REGISTER_GLOBAL("runtime.disco.SessionCopyFromWorker0")
