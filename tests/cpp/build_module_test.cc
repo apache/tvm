@@ -63,7 +63,7 @@ TEST(BuildModule, Basic) {
   ICHECK_EQ(mali_target->keys[2], "gpu");
   ICHECK_EQ(mali_target->GetAttr<String>("device").value(), "mali");
   ICHECK_EQ(mali_target->GetAttr<String>("model").value(), "Mali-T860MP4@800Mhz");
-  ICHECK_EQ(mali_target->GetAttr<Integer>("max_num_threads").value(), 256);
+  ICHECK_EQ(mali_target->GetAttr<Integer>("max_num_threads").value(), 1024);
 }
 
 TEST(BuildModule, Heterogeneous) {
