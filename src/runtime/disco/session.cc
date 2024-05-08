@@ -52,6 +52,8 @@ TVM_REGISTER_GLOBAL("runtime.disco.SessionCallPacked").set_body([](TVMArgs args,
   *rv = SessionObj::FFI::CallWithPacked(
       self, TVMArgs(args.values + 1, args.type_codes + 1, args.num_args - 1));
 });
+TVM_REGISTER_GLOBAL("runtime.disco.SessionShutdown")
+    .set_body_method<Session>(&SessionObj::Shutdown);
 
 }  // namespace runtime
 }  // namespace tvm
