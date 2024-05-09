@@ -183,6 +183,8 @@ def get_relax_matmul_multiply_module(
         ((_vars["a"], 32, 8), (_vars["a"], 8, 10), True, "gelu"),
         # ND x ND
         ((5, 3, 32, 8), (5, 3, 8, 10), True, "relu"),
+        ((_vars["a"], 3, 32, 8), (_vars["a"], 3, 8, 10), True, "relu"),
+        ((_vars["a"], _vars["b"], 32, 8), (_vars["a"], _vars["b"], 8, 10), True, "relu"),
         # ND x 2D
         ((5, 3, 32, 8), (8, 10), False, "none"),
     ],
