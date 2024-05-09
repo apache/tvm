@@ -410,19 +410,6 @@ void CodeGenWebGPU::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLIN
       this->EndScope(else_scope);
     }
     os << result;
-  } else if (op->op.same_as(builtin::call_pure_extern())) {
-    ICHECK_GE(op->args.size(), 1U);
-    const std::string& func_name = op->args[0].as<StringImmNode>()->value;
-    if (func_name == "__dp4a") {
-      if (op->args.size() != 3) {
-        LOG(FATAL) << "__dp4a can only accept 2 parameters (now: " << op->args.size() - 1 << ")";
-      } else {
-        os << "dot4I8Packed(" << PrintExpr(op->args[1]) << ", " << PrintExpr(op->args[2]) << ")";
-      }
-    } else {
-      LOG(FATAL) << "WGSL shader cannot make extern calls.  Graph contains extern \""
-                 << Downcast<StringImm>(op->args[0]) << "\"";
-    }
   } else {
     CodeGenC::VisitExpr_(op, os);
   }
