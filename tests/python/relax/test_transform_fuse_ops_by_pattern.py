@@ -1217,5 +1217,31 @@ def test_matmul_symbolic_var():
     tvm.ir.assert_structural_equal(Expected, After)
 
 
+def test_match_maximal_subgraph():
+    @R.function
+    def func(
+        x: R.Tensor((32, 8), dtype="int32"),
+        y: R.Tensor((8, 8), dtype="int32"),
+        bias: R.Tensor((8,), dtype="int32"),
+    ) -> R.Tensor((32, 8), dtype="int32"):
+        R.func_attr({"global_symbol": "main"})
+        with R.dataflow():
+            lv0 = R.matmul(x, y, out_dtype="int32")
+            lv1 = R.add(lv0, bias)
+            lv2 = R.clip(lv1, -128, 127)
+            R.output(lv2)
+        return lv2
+
+    mod = tvm.IRModule({"main": func})
+
+    matmul = is_op("relax.matmul")(wildcard(), wildcard())
+    matmul_add = is_op("relax.add")(matmul, wildcard())
+    pattern = matmul_add | is_op("relax.clip")(matmul_add, wildcard(), wildcard())
+
+    partitioned = relax.transform.FuseOpsByPattern([("orclip", pattern)])(mod)
+    func_names = [name.name_hint for (name, _) in partitioned.functions.items()]
+    assert "fused_relax_matmul_relax_add_relax_clip" in func_names
+
+
 if __name__ == "__main__":
     pytest.main([__file__])
