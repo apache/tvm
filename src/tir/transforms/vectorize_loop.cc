@@ -429,7 +429,28 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
       }
     } else {
       int lane = 0;
-      Array<PrimExpr> new_args = MutateArray(op->args, &lane);
+      Array<PrimExpr> new_args;
+      if (op->op.same_as(builtin::call_llvm_pure_intrin())) {
+        // op->args[1], will give us total number of arguments to intrinsic
+        int num_signature = Downcast<IntImm>(op->args[1])->value;
+        Array<PrimExpr> op_expr_args;
+        for (int i = 0; i < num_signature; i++) {
+          // Collect all intrinsic arguments
+          op_expr_args.push_back(op->args[i + 2]);
+        }
+        // Generate RAMP nodes for intrinsic arguments
+        Array<PrimExpr> updated_args = MutateArray(op_expr_args, &lane);
+        // Collect Intrinsic ID and no. of argument
+        for (int i = 0; i < 2; i++) {
+          new_args.push_back(op->args[i]);
+        }
+        // Collect updated intrinsic arguments
+        for (int i = 0; i < num_signature; i++) {
+          new_args.push_back(updated_args[i]);
+        }
+      } else {
+        new_args = MutateArray(op->args, &lane);
+      }
       // normal code path.
       if (op->args.same_as(new_args)) {
         return GetRef<PrimExpr>(op);
