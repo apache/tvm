@@ -29,8 +29,8 @@
 namespace tvm {
 namespace tl {
 
-constexpr const char* tvm_tensormap_create = "__tvm_tensormap_create";
-
+constexpr const char* tvm_tensormap_create_tiled = "__tvm_tensormap_create_tiled";
+constexpr const char* tvm_tensormap_create_im2col = "__tvm_tensormap_create_im2col";
 }  // namespace tl
 }  // namespace tvm
 

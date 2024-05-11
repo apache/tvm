@@ -171,6 +171,30 @@ def copy(
     return tir.call_intrin("handle", tir.op.Op.get("tl.copy"), src, dst)
 
 
+def c2d_im2col(
+    img: tir.Buffer,
+    col: tir.Buffer,
+    nhw_step: tir.PrimExpr,
+    c_step: tir.PrimExpr,
+    kernel: int,
+    stride: int,
+    dilation: int,
+    pad: int,
+):
+    return tir.call_intrin(
+        "handle",
+        tir.op.Op.get("tl.c2d_im2col"),
+        img.access_ptr("r"),
+        col.access_ptr("w"),
+        nhw_step,
+        c_step,
+        kernel,
+        stride,
+        dilation,
+        pad,
+    )
+
+
 class GemmWarpPolicy:
     Square = 0
     FullRow = 1

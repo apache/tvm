@@ -76,6 +76,23 @@ TL_DEVICE void tma_load(const CUtensorMap& descriptor, uint64_t& smem_mbar,
       : "memory");
 }
 
+TL_DEVICE void tma_load_im2col(const CUtensorMap& descriptor, uint64_t& smem_mbar,
+                               void const* const smem_ptr, int32_t const& coord_c,
+                               int32_t const& coord_w, int32_t const& coord_h,
+                               int32_t const& coord_n, uint16_t const& offset_w,
+                               uint16_t const& offset_h) {
+  uint64_t gmem_int_desc = reinterpret_cast<uint64_t>(&descriptor);
+  uint32_t smem_int_mbar = smem_ptr_to_uint(&smem_mbar);
+  uint32_t smem_int_ptr = smem_ptr_to_uint(smem_ptr);
+  asm volatile(
+      "cp.async.bulk.tensor.4d.shared::cluster.global.im2col.mbarrier::complete_tx::bytes"
+      " [%0], [%1, {%3, %4, %5, %6}], [%2], {%7, %8};"
+      :
+      : "r"(smem_int_ptr), "l"(gmem_int_desc), "r"(smem_int_mbar), "r"(coord_c), "r"(coord_w),
+        "r"(coord_h), "r"(coord_n), "h"(offset_w), "h"(offset_h)
+      : "memory");
+}
+
 TL_DEVICE void tma_store(const CUtensorMap& descriptor, void const* const smem_ptr,
                          int32_t const& crd0) {
   uint64_t gmem_int_desc = reinterpret_cast<uint64_t>(&descriptor);
@@ -179,6 +196,8 @@ TL_DEVICE void mbarrier_cp_async_arrive(uint64_t& smem_barrier) {
   uint32_t smem_int_ptr = smem_ptr_to_uint(&smem_barrier);
   asm volatile("cp.async.mbarrier.arrive.shared.b64 [%0];" : : "r"(smem_int_ptr));
 }
+
+TL_DEVICE void fence_proxy_async() { asm volatile("fence.proxy.async.shared::cta;" : :); }
 
 TL_DEVICE void syncthreads_partial(uint64_t& smem_barrier) {
   uint32_t smem_int_ptr = smem_ptr_to_uint(&smem_barrier);

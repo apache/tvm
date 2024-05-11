@@ -25,7 +25,9 @@
 
 #include "bulk_copy.h"
 
+#include <tvm/tir/builtin.h>
 #include <tvm/tir/op.h>
+#include <tvm/tir/op_attr_types.h>
 
 #include "../target/utils.h"
 #include "builtin.h"
@@ -225,6 +227,13 @@ Stmt Copy::LowerBulkCopy(const LowerArgs& T, arith::Analyzer* analyzer) const {
     tma_copy = Evaluate(Call(DataType::Handle(), op, args));
   }
   tma_copy = IfThenElse(EQ(T.thread_var, 0), tma_copy);
+
+  if (!is_load) {
+    // TODO: Add this async proxy fence with a seperate pass
+    auto fence_stmt = Evaluate(Call(DataType::Handle(), FenceProxyAsyncOp(), {}));
+    tma_copy = SeqStmt({fence_stmt, tma_copy});
+  }
+
   return tma_copy;
 }
 
@@ -248,6 +257,137 @@ Array<PrimExpr> TMADesc::EncodeCallArgs() const {
 }
 
 DataType cuTensorMapType() { return DataType::UInt(8, 128); }
+
+Conv2DIm2ColOp::Conv2DIm2ColOp(Array<PrimExpr> args, BufferMap vmap) {
+  src = vmap[GetVarFromAccessPtr(args[0])];
+  dst = vmap[GetVarFromAccessPtr(args[1])];
+  nhw_step = args[2];
+  c_step = args[3];
+  kernel = args[4].as<IntImm>().value()->value;
+  stride = args[5].as<IntImm>().value()->value;
+  dilation = args[6].as<IntImm>().value()->value;
+  padding = args[7].as<IntImm>().value()->value;
+}
+
+Stmt Conv2DIm2ColOp::Lower(const LowerArgs& T, arith::Analyzer* analyzer) const {
+  ICHECK(TargetIsHopper(T.target));
+  ICHECK(src.scope() == "global" && (dst.scope() == "shared.dyn" || dst.scope() == "shared"));
+  ICHECK(src->shape.size() == 4);
+  ICHECK(dst->shape.size() == 2);
+  ICHECK(src->dtype == dst->dtype);
+  Layout shared_layout;
+  if (T.layout_map.count(dst)) {
+    shared_layout = T.layout_map[dst];
+  }
+
+  TMAIm2ColDesc desc;
+  desc.rank = src->shape.size();
+  desc.data_type = to_CUtensorMapDataType(src->dtype);
+  desc.global_addr = src->data;
+  desc.global_shape = ReverseArray(src->shape);
+  if (!src->strides.empty()) {
+    desc.global_stride = ReverseArray(src->strides);
+  } else {
+    // Create stride from shape
+    PrimExpr stride = 1;
+    desc.global_stride.reserve(desc.rank);
+    for (size_t i = 0; i < desc.rank; i++) {
+      desc.global_stride.push_back(stride);
+      stride *= desc.global_shape[i];
+    }
+  }
+  // The first stride element should be 1
+  ICHECK(is_one(desc.global_stride[0])) << desc.global_stride;
+  // Make global stride in bytes
+  desc.global_stride = desc.global_stride.Map([&](PrimExpr e) { return e * src->dtype.bytes(); });
+  desc.elem_stride = {1, stride, stride, 1};
+  desc.lower_corner = {-padding, -padding};
+  desc.upper_corner = {-padding, -padding};
+  desc.smem_box_pixel = Downcast<IntImm>(dst->shape[0])->value;
+  desc.smem_box_channel = Downcast<IntImm>(dst->shape[1])->value;
+  desc.l2_promotion = static_cast<int>(CU_TENSOR_MAP_L2_PROMOTION_L2_128B);
+  desc.oob_fill = static_cast<int>(CU_TENSOR_MAP_FLOAT_OOB_FILL_NONE);
+  desc.interleave = static_cast<int>(CU_TENSOR_MAP_INTERLEAVE_NONE);
+  if (!shared_layout.defined()) {
+    desc.swizzle = static_cast<int>(CU_TENSOR_MAP_SWIZZLE_NONE);
+  } else {
+    ICHECK(shared_layout->InputDim() == 2) << "Cannot detect TMA layout.";
+    auto stride = as_const_int(shared_layout->InputShape()[0]);
+    auto continuous = as_const_int(shared_layout->InputShape()[1]);
+    ICHECK(stride != nullptr && continuous != nullptr);
+    if (StructuralEqual()(shared_layout,
+                          makeHalfBankSwizzleLayout(*stride, *continuous, dst->dtype.bits()))) {
+      desc.swizzle = static_cast<int>(CU_TENSOR_MAP_SWIZZLE_64B);
+    } else if (StructuralEqual()(shared_layout, makeFullBankSwizzleLayout(*stride, *continuous,
+                                                                          dst->dtype.bits()))) {
+      desc.swizzle = static_cast<int>(CU_TENSOR_MAP_SWIZZLE_128B);
+    } else {
+      ICHECK(0) << "Cannot detect TMA layout.";
+    }
+  }
+
+  Call create_desc = Call(DataType::Handle(), CreateTMAIm2ColDescriptorOp(), desc.EncodeCallArgs());
+
+  Array<PrimExpr> global_coords;  // c, w, h, n
+  Array<PrimExpr> image_offset;   // w, h
+  global_coords.reserve(desc.rank);
+
+  ICHECK(analyzer->CanProveEqual(FloorMod(desc.global_shape[0], desc.smem_box_channel), 0))
+      << "Currently can only support divisible channel case";
+
+  global_coords.push_back(FloorMod(c_step * desc.smem_box_channel, desc.global_shape[0]));
+  image_offset.push_back(
+      dilation * FloorMod(FloorDiv(c_step * desc.smem_box_channel, desc.global_shape[0]), kernel));
+  image_offset.push_back(dilation *
+                         FloorDiv(c_step * desc.smem_box_channel, desc.global_shape[0] * kernel));
+
+  PrimExpr h_dim = FloorDiv(src->shape[1] + 2 * padding - (kernel - 1) * dilation - 1, stride) + 1;
+  PrimExpr w_dim = FloorDiv(src->shape[2] + 2 * padding - (kernel - 1) * dilation - 1, stride) + 1;
+  global_coords.push_back(stride * FloorMod(nhw_step * desc.smem_box_pixel, w_dim) - padding);
+  global_coords.push_back(
+      stride * FloorMod(FloorDiv(nhw_step * desc.smem_box_pixel, w_dim), h_dim) - padding);
+  global_coords.push_back(FloorDiv(nhw_step * desc.smem_box_pixel, w_dim * h_dim));
+
+  Array<PrimExpr> args;
+  args.reserve(desc.rank * 2 + 1);
+  args.push_back(create_desc);
+  args.push_back(0);  // mbar placeholder
+  auto dst_buffer = T.buffer_remap.count(dst) ? T.buffer_remap[dst] : dst;
+  auto shared_addr = dst_buffer.access_ptr(2);
+  args.push_back(shared_addr);
+  for (auto coord : global_coords) args.push_back(coord);
+  for (auto offset : image_offset) args.push_back(offset);
+
+  Stmt tma_copy =
+      IfThenElse(EQ(T.thread_var, 0), Evaluate(Call(DataType::Handle(), TMALoadIm2ColOp(), args)));
+  return tma_copy;
+}
+
+Array<PrimExpr> TMAIm2ColDesc::EncodeCallArgs() const {
+  Array<PrimExpr> args;
+  args.reserve(rank * 5 + 5);
+
+  args.push_back(data_type);
+  args.push_back(static_cast<int>(rank));
+  args.push_back(global_addr);
+  for (auto e : global_shape) args.push_back(e);
+  for (auto e : global_stride) args.push_back(e);
+  for (auto e : elem_stride) args.push_back(e);
+  for (auto e : lower_corner) args.push_back(e);
+  for (auto e : upper_corner) args.push_back(e);
+  args.push_back(smem_box_pixel);
+  args.push_back(smem_box_channel);
+  args.push_back(interleave);
+  args.push_back(swizzle);
+  args.push_back(l2_promotion);
+  args.push_back(oob_fill);
+
+  return args;
+}
+
+TIR_REGISTER_TL_OP(Conv2DIm2ColOp, c2d_im2col)
+    .set_num_inputs(8)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
 
 }  // namespace tl
 }  // namespace tvm

@@ -46,7 +46,15 @@ class LowerHopperIntrin : public StmtExprMutator {
       // Should allocate 128 bytes for TensorMap on stack
       Call alloc_desc =
           Call(DataType::Handle(), builtin::tvm_stack_alloca(), {StringImm("arg_value"), 16});
-      Array<PrimExpr> init_desc_args = {StringImm(tvm_tensormap_create), var};
+      Array<PrimExpr> init_desc_args;
+      if (call->op.same_as(CreateTMADescriptorOp())) {
+        init_desc_args.push_back(StringImm(tvm_tensormap_create_tiled));
+      } else if (call->op.same_as(CreateTMAIm2ColDescriptorOp())) {
+        init_desc_args.push_back(StringImm(tvm_tensormap_create_im2col));
+      } else {
+        CHECK(0) << call->op;
+      }
+      init_desc_args.push_back(var);
       init_desc_args.insert(init_desc_args.end(), call->args.begin(), call->args.end());
       Call init_desc = Call(DataType::Handle(), builtin::tvm_call_packed(), init_desc_args);
       fptr->body = LetStmt(var, alloc_desc, SeqStmt({Evaluate(init_desc), fptr->body}));
@@ -83,8 +91,7 @@ class LowerHopperIntrin : public StmtExprMutator {
 
           prefetch_calls_.clear();
           init_mbarrier_calls_.clear();
-          return AttrStmt(op->node, op->attr_key, op->value,
-                          SeqStmt(stmt_seq));
+          return AttrStmt(op->node, op->attr_key, op->value, SeqStmt(stmt_seq));
         }
       }
     }
@@ -92,7 +99,8 @@ class LowerHopperIntrin : public StmtExprMutator {
   }
 
   PrimExpr VisitExpr_(const CallNode* call) final {
-    if (call->op.same_as(CreateTMADescriptorOp())) {
+    if (call->op.same_as(CreateTMADescriptorOp()) ||
+        call->op.same_as(CreateTMAIm2ColDescriptorOp())) {
       Var var;
       auto iter = desc_map_.find(GetRef<Call>(call));
       if (iter != desc_map_.end()) {

@@ -53,7 +53,7 @@ class WarpSpecializedRoleMarker : public StmtVisitor {
   void VisitStmt_(const EvaluateNode* op) final {
     Role role = Role::kConsumer;
     if (auto call = op->value.as<CallNode>()) {
-      if (call->op.same_as(TMALoadOp())) {
+      if (call->op.same_as(TMALoadOp()) || call->op.same_as(TMALoadIm2ColOp())) {
         role = Role::kProducer;
         has_bulk_copy_ = true;
       }
@@ -160,7 +160,7 @@ static Stmt makeParityWait(PrimExpr barrier_id, PrimExpr parity) {
   return Evaluate(call);
 }
 
-class ProducerTraitsCollector : public StmtExprMutator {
+class ProducerTraitsCollector : public StmtExprVisitor {
  public:
   ProducerTraitsCollector() { Clear(); }
 
@@ -170,44 +170,59 @@ class ProducerTraitsCollector : public StmtExprMutator {
     has_simt_copy = false;
   }
 
-  Stmt Rewrite(Stmt stmt, PrimExpr producer_barrier_idx) {
-    producer_barrier_idx_ = producer_barrier_idx;
-    return VisitStmt(stmt);
-  }
+  void Collect(Stmt stmt) { VisitStmt(stmt); }
 
   bool HasSimtCopy() { return has_simt_copy; }
 
   PrimExpr BulkCopyBytes() { return bulk_copy_bytes; }
 
  private:
-  PrimExpr VisitExpr_(const CallNode* op) final {
-    auto call = Downcast<Call>(StmtExprMutator::VisitExpr_(op));
-    if (call->op == TMALoadOp()) {
+  void VisitExpr_(const CallNode* call) final {
+    if (call->op.same_as(TMALoadOp()) || call->op.same_as(TMALoadIm2ColOp())) {
       Call access_ptr = Downcast<Call>(call->args[2]);
       ICHECK(access_ptr->op.same_as(builtin::tvm_access_ptr()));
       int type_bytes = access_ptr->args[0]->dtype.bytes();
       bulk_copy_bytes += access_ptr->args[3] * loop_extents * type_bytes;
-      call.CopyOnWrite()->args.Set(1, makeGetBarrier(producer_barrier_idx_));
     }
-    return call;
+    StmtExprVisitor::VisitExpr_(call);
   }
 
-  Stmt VisitStmt_(const ForNode* op) final {
+  void VisitStmt_(const ForNode* op) final {
     PrimExpr old_loop_evtents = loop_extents;
     loop_extents *= op->extent;
-    auto stmt = StmtExprMutator::VisitStmt_(op);
+    StmtExprVisitor::VisitStmt_(op);
     loop_extents = old_loop_evtents;
-    return stmt;
   }
 
-  PrimExpr VisitExpr_(const BufferLoadNode* op) final {
+  void VisitExpr_(const BufferLoadNode* op) final {
     has_simt_copy = true;
-    return StmtExprMutator::VisitExpr_(op);
+    StmtExprVisitor::VisitExpr_(op);
   }
 
   bool has_simt_copy;
   PrimExpr bulk_copy_bytes;
   PrimExpr loop_extents;
+};
+
+// Rewrite the producer Stmt to use the correct barrier index
+class MbarrierRewriter : public StmtExprMutator {
+ public:
+  static Stmt Rewrite(Stmt stmt, PrimExpr barrier_id) {
+    MbarrierRewriter rewriter;
+    rewriter.producer_barrier_idx_ = barrier_id;
+    return rewriter(stmt);
+  }
+
+ private:
+  PrimExpr VisitExpr_(const CallNode* op) final {
+    auto call = Downcast<Call>(StmtExprMutator::VisitExpr_(op));
+    if (call->op.same_as(TMALoadOp()) || call->op.same_as(TMALoadIm2ColOp())) {
+      Call access_ptr = Downcast<Call>(call->args[2]);
+      ICHECK(access_ptr->op.same_as(builtin::tvm_access_ptr()));
+      call.CopyOnWrite()->args.Set(1, makeGetBarrier(producer_barrier_idx_));
+    }
+    return call;
+  }
   PrimExpr producer_barrier_idx_;
 };
 
@@ -268,26 +283,21 @@ class MultiVersionBufferRewriter : public StmtExprMutator {
     return Buffer(new_buffer);
   }
 
-  Stmt VisitStmt_(const AttrStmtNode* op) final {
-    AttrStmt attr_node = Downcast<AttrStmt>(StmtExprMutator::VisitStmt_(op));
-    if (attr_node->attr_key == tir::attr::thread_extent &&
-        Downcast<IterVar>(attr_node->node)->thread_tag == "threadIdx.x") {
-      auto block = Downcast<BlockRealize>(attr_node->body)->block;
-      auto thread_iv = Downcast<IterVar>(attr_node->node);
-      Array<Buffer> alloc_buffers;
-      for (auto buffer : block->alloc_buffers) {
-        if (buffer_remap_.count(buffer)) {
-          Buffer new_buffer = buffer_remap_[buffer];
-          alloc_buffers.push_back(new_buffer);
-        } else {
-          alloc_buffers.push_back(buffer);
-        }
+  Stmt VisitStmt_(const BlockRealizeNode* op) final {
+    BlockRealize block_realize = Downcast<BlockRealize>(StmtExprMutator::VisitStmt_(op));
+    Block block = block_realize->block;
+    Array<Buffer> alloc_buffers;
+    for (auto buffer : block->alloc_buffers) {
+      if (buffer_remap_.count(buffer)) {
+        Buffer new_buffer = buffer_remap_[buffer];
+        alloc_buffers.push_back(new_buffer);
+      } else {
+        alloc_buffers.push_back(buffer);
       }
-      block.CopyOnWrite()->alloc_buffers = std::move(alloc_buffers);
-      return AttrStmt(attr_node->node, attr_node->attr_key, attr_node->value,
-                      BlockRealize({}, Bool(true), block));
     }
-    return attr_node;
+    block.CopyOnWrite()->alloc_buffers = std::move(alloc_buffers);
+    block_realize.CopyOnWrite()->block = block;
+    return block_realize;
   }
 
   Stmt VisitStmt_(const ForNode* op) final {
@@ -457,12 +467,14 @@ class WSCodeEmitter : public StmtMutator {
         }
         if (map.acquire[i] != -1) {
           PrimExpr acquire_barrier_id = stage_ + num_barriers_ + num_stages_ * map.acquire[i];
-          PrimExpr parity = map.is_loop_dependency(map.acquire[i]) ? bitwise_xor(parity_, 1) : parity_; 
+          PrimExpr parity =
+              map.is_loop_dependency(map.acquire[i]) ? bitwise_xor(parity_, 1) : parity_;
           new_body.push_back(makeParityWait(acquire_barrier_id, parity));
         }
         ICHECK(map.release[i] >= 0);
         PrimExpr release_barrier_id = stage_ + num_barriers_ + num_stages_ * map.release[i];
-        auto stmt = collector.Rewrite(seq_transformed[i], release_barrier_id);
+        auto stmt = MbarrierRewriter::Rewrite(seq_transformed[i], release_barrier_id);
+        collector.Collect(stmt);
         if (!is_zero(collector.BulkCopyBytes())) {
           auto expect_tx = IfThenElse(EQ(thread_var_, 0),
                                       makeExpectTX(release_barrier_id, collector.BulkCopyBytes()));
@@ -485,7 +497,8 @@ class WSCodeEmitter : public StmtMutator {
         if (marker_.GetRole(op->seq[i]) == Role::kProducer) continue;
         if (map.acquire[i] != -1) {
           PrimExpr acquire_barrier_id = stage_ + num_barriers_ + num_stages_ * map.acquire[i];
-          PrimExpr parity = map.is_loop_dependency(map.acquire[i]) ? bitwise_xor(parity_, 1) : parity_; 
+          PrimExpr parity =
+              map.is_loop_dependency(map.acquire[i]) ? bitwise_xor(parity_, 1) : parity_;
           new_body.push_back(makeParityWait(acquire_barrier_id, parity));
         }
         new_body.push_back(seq_transformed[i]);
@@ -569,46 +582,12 @@ class WSCodeEmitter : public StmtMutator {
     }
   };
 
-  static SyncPatternMap SyncPatternToMap(const std::vector<SyncPattern>& sync_patterns,
-                                         const std::vector<bool>& is_producer) {
-    size_t num_stmts = is_producer.size();
-    SyncPatternMap map;
-    map.patterns = sync_patterns;
-    map.acquire.resize(num_stmts, -1);
-    map.release.resize(num_stmts, -1);
-    map.release_after.resize(num_stmts, false);
-    for (size_t i = 0; i < sync_patterns.size(); i++) {
-      map.acquire[sync_patterns[i].acquire_idx] = i;
-      map.release[sync_patterns[i].release_idx] = i;
-      map.release_after[sync_patterns[i].release_idx] = true;
-    }
-
-    int cur_consumer_barrier = -1, cur_producer_barrier = -1;
-    for (int i = num_stmts - 1; i >= 0; i--) {
-      if (is_producer[i]) {
-        if (map.release[i] == -1) {
-          map.release[i] = cur_producer_barrier;
-        } else {
-          cur_producer_barrier = map.release[i];
-        }
-      } else {
-        if (map.release[i] == -1) {
-          map.release[i] = cur_consumer_barrier;
-        } else {
-          cur_consumer_barrier = map.release[i];
-        }
-      }
-    }
-    return map;
-  }
-
-  SyncPatternMap ExtractSyncPattern(Array<Stmt> seq_stmt) {
+  std::vector<SyncPattern> CreateBaseSyncPairs(Array<Stmt> seq_stmt,
+                                               const std::vector<bool>& is_producer) {
+    const int n = seq_stmt.size();
     std::vector<std::set<const BufferNode*>> reads, writes;
-    std::vector<bool> is_producer;
-    int n = seq_stmt.size();
     reads.reserve(n);
     writes.reserve(n);
-    is_producer.reserve(n);
     for (int i = 0; i < n; i++) {
       Block block(/*iter_vars=*/{}, /*reads=*/{}, /*writes=*/{}, /*name_hint=*/"",
                   /*body*/ seq_stmt[i]);
@@ -618,7 +597,6 @@ class WSCodeEmitter : public StmtMutator {
       for (auto region : access[1]) write_set.insert(region->buffer.get());
       reads.push_back(std::move(read_set));
       writes.push_back(std::move(write_set));
-      is_producer.push_back(marker_.GetRole(seq_stmt[i]) == Role::kProducer);
     }
 
     auto intersect_fn = [](const std::set<const BufferNode*>& lhs,
@@ -657,6 +635,11 @@ class WSCodeEmitter : public StmtMutator {
       }
     }
 
+    return sync_patterns;
+  }
+
+  static std::vector<SyncPattern> RemoveUnusedSyncPatterns(
+      const std::vector<SyncPattern>& sync_patterns, const std::vector<bool>& is_producer) {
     /*
       Simplify multiple release-acquire pairs into one
       ------------------
@@ -691,11 +674,52 @@ class WSCodeEmitter : public StmtMutator {
     for (int i = 0; i < M; i++)
       if (!removed[i]) sync_pattern_cleaned.push_back(sync_patterns[i]);
 
-    // for (auto pattern : sync_pattern_cleaned) {
+    return sync_pattern_cleaned;
+  }
+
+  SyncPatternMap ExtractSyncPattern(Array<Stmt> seq_stmt) {
+    size_t num_stmts = seq_stmt.size();
+    std::vector<bool> is_producer;
+    is_producer.reserve(num_stmts);
+    for (auto stmt : seq_stmt) {
+      is_producer.push_back(marker_.GetRole(stmt) == Role::kProducer);
+    }
+
+    auto sync_patterns_base = CreateBaseSyncPairs(seq_stmt, is_producer);
+    auto sync_patterns = RemoveUnusedSyncPatterns(sync_patterns_base, is_producer);
+
+    // for (auto pattern : sync_patterns) {
     //   std::cout << pattern.release_idx << " " << pattern.acquire_idx << std::endl;
     // }
 
-    return SyncPatternToMap(sync_pattern_cleaned, is_producer);
+    SyncPatternMap map;
+    map.patterns = sync_patterns;
+    map.acquire.resize(num_stmts, -1);
+    map.release.resize(num_stmts, -1);
+    map.release_after.resize(num_stmts, false);
+    for (size_t i = 0; i < sync_patterns.size(); i++) {
+      map.acquire[sync_patterns[i].acquire_idx] = i;
+      map.release[sync_patterns[i].release_idx] = i;
+      map.release_after[sync_patterns[i].release_idx] = true;
+    }
+
+    int cur_consumer_barrier = -1, cur_producer_barrier = -1;
+    for (int i = num_stmts - 1; i >= 0; i--) {
+      if (is_producer[i]) {
+        if (map.release[i] == -1) {
+          map.release[i] = cur_producer_barrier;
+        } else {
+          cur_producer_barrier = map.release[i];
+        }
+      } else {
+        if (map.release[i] == -1) {
+          map.release[i] = cur_consumer_barrier;
+        } else {
+          cur_consumer_barrier = map.release[i];
+        }
+      }
+    }
+    return map;
   }
 
   const bool is_emitting_producer_;
@@ -724,59 +748,74 @@ class WarpSpecializedPipeline : public StmtExprMutator {
 
  private:
   Stmt VisitStmt_(const AttrStmtNode* op) final {
-    AttrStmt attr_node = Downcast<AttrStmt>(StmtExprMutator::VisitStmt_(op));
-    if (attr_node->attr_key == tir::attr::thread_extent &&
-        Downcast<IterVar>(attr_node->node)->thread_tag == "threadIdx.x") {
-      auto block = Downcast<BlockRealize>(attr_node->body)->block;
-      WarpSpecializedRoleMarker marker(buffer_data_to_buffer_);
-      marker(block);
-      if (!marker.HasProducer()) {
-        // Cannot detect any producer here, directly return.
-        return attr_node;
+    if (op->attr_key == tir::attr::thread_extent &&
+        Downcast<IterVar>(op->node)->thread_tag == "threadIdx.x") {
+      thread_iv_ = Downcast<IterVar>(op->node);
+      AttrStmt attr_stmt = Downcast<AttrStmt>(StmtExprMutator::VisitStmt_(op));
+      if (updated_thread_extent_.defined()) {
+        thread_iv_.CopyOnWrite()->dom = {0, updated_thread_extent_.value()};
+        attr_stmt.CopyOnWrite()->node = thread_iv_;
+        attr_stmt.CopyOnWrite()->value = updated_thread_extent_.value();
       }
-
-      auto thread_iv = Downcast<IterVar>(attr_node->node);
-      WSCodeEmitter producer(true, thread_iv, buffer_data_to_buffer_, marker);
-      WSCodeEmitter consumer(false, thread_iv, buffer_data_to_buffer_, marker);
-      Stmt producer_code = producer(block->body);
-      Stmt consumer_code = consumer(block->body);
-
-      PrimExpr consumer_thread_extent = thread_iv->dom->extent;
-      PrimExpr producer_thread_extent = thread_iv->dom->extent;
-      // Only need one thread for bulk-copy only case
-      if (!marker.HasSimtCopy()) producer_thread_extent = 1;
-
-      producer_code = ThreadIdxRewriter::Rewrite(producer_code, thread_iv->var,
-                                                 thread_iv->var - consumer_thread_extent);
-      PrimExpr new_thread_extent = consumer_thread_extent + producer_thread_extent;
-      thread_iv.CopyOnWrite()->dom = {0, new_thread_extent};
-
-      ICHECK(producer.num_barriers_ == consumer.num_barriers_)
-          << producer.num_barriers_ << " " << consumer.num_barriers_;
-      int num_barriers = consumer.num_barriers_;
-      Array<PrimExpr> barrier_num_threads;
-      barrier_num_threads.reserve(num_barriers);
-      for (int i = 0; i < num_barriers; i++) {
-        PrimExpr arrive_thread_count =
-            producer.released_barrier_.count(i) ? producer_thread_extent : consumer_thread_extent;
-        barrier_num_threads.push_back(arrive_thread_count);
-      }
-
-      Stmt init_barrier =
-          Evaluate(Call(DataType::Handle(), CreateListofMBarrierOp(), barrier_num_threads));
-      Stmt body =
-          IfThenElse(GE(thread_iv->var, consumer_thread_extent), producer_code, consumer_code);
-      // Add an attr here to handle the partial thread count in THreadSync pass.
-      Array<IntImm> ws_partition = {Downcast<IntImm>(producer_thread_extent),
-                                    Downcast<IntImm>(consumer_thread_extent)};
-      body = AttrStmt(ws_partition, "kWarpSpecializationScope", 0, body);
-
-      block.CopyOnWrite()->body = SeqStmt({init_barrier, body});
-
-      return AttrStmt(thread_iv, attr_node->attr_key, new_thread_extent,
-                      BlockRealize({}, Bool(true), block));
+      thread_iv_ = {};
+      return attr_stmt;
+    } else {
+      return StmtExprMutator::VisitStmt_(op);
     }
-    return attr_node;
+  }
+
+  Stmt VisitStmt_(const BlockRealizeNode* op) final {
+    BlockRealize block_realize = Downcast<BlockRealize>(StmtExprMutator::VisitStmt_(op));
+    if (!thread_iv_.defined()) {
+      return block_realize;
+    }
+    ICHECK(!updated_thread_extent_.defined());
+
+    Block block = block_realize->block;
+    WarpSpecializedRoleMarker marker(buffer_data_to_buffer_);
+    marker(block);
+    if (!marker.HasProducer()) {
+      // Cannot detect any producer here, directly return.
+      return block_realize;
+    }
+
+    WSCodeEmitter producer(true, thread_iv_, buffer_data_to_buffer_, marker);
+    WSCodeEmitter consumer(false, thread_iv_, buffer_data_to_buffer_, marker);
+    Stmt producer_code = producer(block->body);
+    Stmt consumer_code = consumer(block->body);
+
+    PrimExpr consumer_thread_extent = thread_iv_->dom->extent;
+    PrimExpr producer_thread_extent = thread_iv_->dom->extent;
+    // Only need one thread for bulk-copy only case
+    if (!marker.HasSimtCopy()) producer_thread_extent = 1;
+
+    producer_code = ThreadIdxRewriter::Rewrite(producer_code, thread_iv_->var,
+                                               thread_iv_->var - consumer_thread_extent);
+    updated_thread_extent_ = consumer_thread_extent + producer_thread_extent;
+
+    ICHECK(producer.num_barriers_ == consumer.num_barriers_)
+        << producer.num_barriers_ << " " << consumer.num_barriers_;
+    int num_barriers = consumer.num_barriers_;
+    Array<PrimExpr> barrier_num_threads;
+    barrier_num_threads.reserve(num_barriers);
+    for (int i = 0; i < num_barriers; i++) {
+      PrimExpr arrive_thread_count =
+          producer.released_barrier_.count(i) ? producer_thread_extent : consumer_thread_extent;
+      barrier_num_threads.push_back(arrive_thread_count);
+    }
+
+    Stmt init_barrier =
+        Evaluate(Call(DataType::Handle(), CreateListofMBarrierOp(), barrier_num_threads));
+    Stmt body =
+        IfThenElse(GE(thread_iv_->var, consumer_thread_extent), producer_code, consumer_code);
+    // Add an attr here to handle the partial thread count in THreadSync pass.
+    Array<IntImm> ws_partition = {Downcast<IntImm>(producer_thread_extent),
+                                  Downcast<IntImm>(consumer_thread_extent)};
+    body = AttrStmt(ws_partition, "kWarpSpecializationScope", 0, body);
+
+    block.CopyOnWrite()->body = SeqStmt({init_barrier, body});
+    block_realize.CopyOnWrite()->block = block;
+    return block_realize;
   }
 
   WarpSpecializedPipeline() = default;
@@ -784,6 +823,8 @@ class WarpSpecializedPipeline : public StmtExprMutator {
   Map<Var, Buffer> buffer_data_to_buffer_;
   Map<Buffer, Optional<Stmt>> buffer_lca_;
   Map<Buffer, Buffer> buffer_remap_;
+  IterVar thread_iv_;
+  Optional<PrimExpr> updated_thread_extent_;
 };
 
 using namespace tir::transform;

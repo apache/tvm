@@ -32,13 +32,23 @@ namespace tvm {
 namespace tl {
 
 /*!
- * \brief tvm intrinsics for TMADescriptor creation
+ * \brief tvm intrinsics for TMADescriptor creation for tiled load
  *
  * CuTensorMap* CreateTMADescriptorOp(data_type, rank, global_addr, global_shape...,
  * global_stride..., smem_box..., smem_stride..., interleave, swizzle, l2_promotion, oob_fill)
  *
  */
 const Op& CreateTMADescriptorOp();
+
+/*!
+ * \brief tvm intrinsics for TMADescriptor creation for image to column load
+ *
+ * CuTensorMap* CreateTMAIm2ColDescriptorOp(data_type, rank, global_addr, global_shape...,
+ * global_stride..., elem_stride..., lower_corner..., upper_corner..., smme_box_pixel, smem_box_channel,
+ * interleave, swizzle, l2_promotion, oob_fill)
+ *
+ */
+const Op& CreateTMAIm2ColDescriptorOp();
 
 /*!
  * \brief Create a list of mbarrier with num_threads
@@ -63,6 +73,14 @@ const Op& GetMBarrierOp();
  *
  */
 const Op& TMALoadOp();
+
+/*!
+ * \brief tvm intrinsics for loading image from global tensor to columns in shared memory
+ *
+ * TMALoadOp(descriptor, mbarrier, smem_data, coord_0, coord_1, ..., image_offset, ...)
+ *
+ */
+const Op& TMALoadIm2ColOp();
 
 /*!
  * \brief tvm intrinsics for storing data from shared memory to global tensor descriptor
@@ -119,6 +137,14 @@ const Op& PackB16Op();
  *
  */
 const Op& SyncThreadsPartialOp();
+
+/*!
+ * \brief Issue a shared memory fence for async operations
+ *
+ * FenceProxyAsync()
+ *
+ */
+const Op& FenceProxyAsyncOp();
 
 }  // namespace tl
 }  // namespace tvm

@@ -667,6 +667,8 @@ void CodeGenTL::VisitExpr_(const CallNode* op, std::ostream& os) {
     print_extern_call_stmt("tl::syncthreads_partial");
   } else if (op->op.same_as(tl::TMALoadOp())) {
     print_extern_call_stmt("tl::tma_load");
+  } else if (op->op.same_as(tl::TMALoadIm2ColOp())) {
+    print_extern_call_stmt("tl::tma_load_im2col");
   } else if (op->op.same_as(tl::TMAStoreOp())) {
     print_extern_call_stmt("tl::tma_store");
   } else if (op->op.same_as(tl::LDMatrixOp())) {
@@ -681,6 +683,8 @@ void CodeGenTL::VisitExpr_(const CallNode* op, std::ostream& os) {
     std::string func_name = "tl::ptx_stmatrix_x" + std::to_string(num);
     if (trans == 1) func_name += "_trans";
     print_extern_call_stmt(func_name, 2);
+  } else if (op->op.same_as(tl::FenceProxyAsyncOp())) {
+    print_extern_call_stmt("tl::fence_proxy_async");
   } else if (op->op.same_as(tl::PackB16Op())) {
     os << "__pack_half2(" << this->PrintExpr(op->args[0]) << ", " << this->PrintExpr(op->args[1])
        << ")";
