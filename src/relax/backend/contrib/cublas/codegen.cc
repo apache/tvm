@@ -62,7 +62,7 @@ class CublasJSONSerializer : public JSONSerializer {
       inputs_tmp.insert(inputs_tmp.end(), res.begin(), res.end());
     }
 
-    ICHECK(inputs_tmp.size() <= 3);
+    ICHECK(inputs_tmp.size() <= 4);
     NodeEntries inputs(inputs_tmp.size());
 
     auto arg_idx = backend::ExtractArgIdx(composite_name, fn);
@@ -70,6 +70,9 @@ class CublasJSONSerializer : public JSONSerializer {
     inputs[1] = inputs_tmp[arg_idx["rhs"]->value];
     if (inputs_tmp.size() == 3) {
       inputs[2] = inputs_tmp[arg_idx["bias"]->value];
+    } else if (inputs_tmp.size() == 4) {
+      inputs[2] = inputs_tmp[arg_idx["scaleA"]->value];
+      inputs[3] = inputs_tmp[arg_idx["scaleB"]->value];
     }
 
     auto node = std::make_shared<JSONGraphNode>(composite_name, /* name_ */

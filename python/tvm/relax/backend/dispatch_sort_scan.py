@@ -155,9 +155,13 @@ class SortScanDispatcher(PyExprMutator):
             tgt = self._get_target(call.struct_info)
             axis = int(call.attrs.axis) if call.attrs.axis is not None else call.attrs.axis
             shape = call.struct_info.shape
+            # TODO(tvm-team): Support fully dynamic case with `shape=None`
+            if shape is None:
+                raise ValueError("non-symbolic shape is not supported for now")
             kwargs = {}
             if (
-                (axis == -1 or axis == len(shape) - 1)
+                shape is not None
+                and (axis == -1 or axis == len(shape) - 1)
                 and is_gpu_target(tgt)
                 and not can_use_thrust(tgt, "tvm.contrib.thrust.sum_scan")
                 and call.op.name == "relax.cumsum"
