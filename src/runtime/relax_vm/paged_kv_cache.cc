@@ -1709,24 +1709,28 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     // - Reset the copy.
     aux_data_manager_->ResetCopy();
 
-    // 1. qo_indptr_on_depths
+    // 1. q_rope_position_map
+    // q_rope_position_map has to be synced first so that it has a 0 byte offset
+    ICHECK_EQ(q_rope_position_map_host_.size(), total_append_length);
+    q_rope_position_map_view_ = aux_data_manager_->CopyQRoPEPosMapAsync(&q_rope_position_map_host_);
+    // 2. qo_indptr_on_depths
     for (int d = 0; d < num_depths_; ++d) {
       qo_indptr_on_depths_view_[d] =
           aux_data_manager_->CopyQOIndptrOnDepthAsync(&qo_indptr_on_depths_host_[d], d);
     }
-    // 2. page_indptr_on_depths
+    // 3. page_indptr_on_depths
     for (int d = 0; d < num_depths_; ++d) {
       ICHECK_EQ(page_indptr_on_depths_host_[d].size(), qo_indptr_on_depths_host_[d].size());
       page_indptr_on_depths_view_[d] =
           aux_data_manager_->CopyPageIndptrOnDepthAsync(&page_indptr_on_depths_host_[d], d);
     }
-    // 3. page_indices_on_depths
+    // 4. page_indices_on_depths
     for (int d = 0; d < num_depths_; ++d) {
       ICHECK_EQ(page_indices_on_depths_host_[d].size(), page_indptr_on_depths_host_[d].back());
       page_indices_on_depths_view_[d] =
           aux_data_manager_->CopyPageIndicesOnDepthAsync(&page_indices_on_depths_host_[d], d);
     }
-    // 4. length_info_on_depths
+    // 5. length_info_on_depths
     // last_page_len_on_depths_host_;
     // sliding_window_offset_on_depths_host_;
     // sink_size_on_depths_host_;
@@ -1746,23 +1750,20 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
             &sink_size_on_depths_host_[d], d);
       }
     }
-    // 5. k_rope_pos_offset_on_depths
+    // 6. k_rope_pos_offset_on_depths
     for (int d = 0; d < num_depths_; ++d) {
       ICHECK_EQ(k_rope_pos_offset_on_depths_host_[d].size() + 1,
                 qo_indptr_on_depths_host_[d].size());
       k_rope_pos_offset_view_[d] = aux_data_manager_->CopyKRoPEPosOffsetOnDepthAsync(
           &k_rope_pos_offset_on_depths_host_[d], d);
     }
-    // 6. cur_append_lengths_indptr
+    // 7. cur_append_lengths_indptr
     cur_append_length_indptr_view_ =
         aux_data_manager_->CopyCurAppendLengthIndptrAsync(&cur_append_lengths_indptr_host_);
-    // 7. k_ragged_rope_pos_offset
+    // 8. k_ragged_rope_pos_offset
     ICHECK_EQ(k_ragged_rope_pos_offset_host_.size(), num_sequences);
     k_ragged_rope_pos_offset_view_ =
         aux_data_manager_->CopyKRaggedRoPEPosOffsetAsync(&k_ragged_rope_pos_offset_host_);
-    // 8. q_rope_position_map
-    ICHECK_EQ(q_rope_position_map_host_.size(), total_append_length);
-    q_rope_position_map_view_ = aux_data_manager_->CopyQRoPEPosMapAsync(&q_rope_position_map_host_);
     // 9. append_position_map
     append_position_map_view_ =
         aux_data_manager_->CopyAppendPositionMapAsync(&append_position_map_host_);
