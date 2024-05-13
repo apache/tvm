@@ -546,13 +546,13 @@ class Device(ctypes.Structure):
 
     @property
     def available_global_memory(self):
-        """Return size of the total global memory.
+        """Return size of the available global memory.
 
-        Supported devices include CUDA/ROCm/Metal/OpenCL.
+        Supported devices include CUDA.
 
         Returns
         -------
-        total_global_memory : int or None
+        available_global_memory : int or None
             Return the amount of unallocated global memory on device in bytes.
             Return None if the device does not support this feature.
         """
