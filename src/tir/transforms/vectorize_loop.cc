@@ -656,7 +656,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
   // flag to mark requirment of scalarization.
   bool need_scalarize_{false};
   // Let binding
-  std::unordered_map<Var, PrimExpr, ObjectPtrHash, ObjectPtrEqual> let_binding_;
+  std::unordered_map<Var, PrimExpr> let_binding_;
   // vectorizable property
   OpAttrMap<TVectorizable> op_vectorizable_ = Op::GetAttrMap<TVectorizable>("TVectorizable");
 

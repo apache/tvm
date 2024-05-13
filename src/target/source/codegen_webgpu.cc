@@ -47,7 +47,7 @@ struct WebGPUWorkGroupInfo {
   // whether we have ref to block index z is used.
   bool has_block_index_z{false};
   // set of handles that have write access
-  std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> write_access_set;
+  std::unordered_set<Var> write_access_set;
 };
 
 class WebGPUWorkgroupInfoCollector : public StmtExprVisitor {
