@@ -712,8 +712,8 @@ std::pair<PrimExpr, PrimExpr> GetAsyncWaitAttributes(const AttrStmtNode* op) {
 /*! \brief Collect storage alignment information from annotations. */
 class StorageAlignCollector : public StmtVisitor {
  private:
-  friend std::unordered_map<Var, StorageAlignAnnotation, ObjectPtrHash, ObjectPtrEqual>
-  CollectStorageAlignAnnotation(const Stmt& body);
+  friend std::unordered_map<Var, StorageAlignAnnotation> CollectStorageAlignAnnotation(
+      const Stmt& body);
 
   /*! \brief For s-stir, the alignment annotations reside in block annotations. */
   void VisitStmt_(const BlockNode* op) final {
@@ -746,11 +746,10 @@ class StorageAlignCollector : public StmtVisitor {
   }
 
   /*! \brief The map from buffer var to its storage alignment information. */
-  std::unordered_map<Var, StorageAlignAnnotation, ObjectPtrHash, ObjectPtrEqual> storage_align_;
+  std::unordered_map<Var, StorageAlignAnnotation> storage_align_;
 };
 
-std::unordered_map<Var, StorageAlignAnnotation, ObjectPtrHash, ObjectPtrEqual>
-CollectStorageAlignAnnotation(const Stmt& body) {
+std::unordered_map<Var, StorageAlignAnnotation> CollectStorageAlignAnnotation(const Stmt& body) {
   StorageAlignCollector collector;
   collector(body);
   return std::move(collector.storage_align_);

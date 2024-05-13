@@ -788,7 +788,7 @@ class ThreadScopePropagate : public StmtExprMutator {
     }
   }
 
-  std::unordered_map<Var, Buffer, ObjectPtrHash, ObjectPtrEqual> buf_remap_;
+  std::unordered_map<Var, Buffer> buf_remap_;
   std::unordered_set<Buffer, ObjectPtrHash, ObjectPtrEqual> external_buffers_;
 
   // The current thread scope.

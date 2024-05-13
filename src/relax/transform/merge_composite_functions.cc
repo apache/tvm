@@ -376,7 +376,7 @@ class CompositeFunctionAnnotator : public ExprMutator {
  private:
   IRModule mod_;
   CompositeInliner inliner;
-  std::unordered_map<GlobalVar, GlobalVar, ObjectPtrHash, ObjectPtrEqual> var_map_;
+  std::unordered_map<GlobalVar, GlobalVar> var_map_;
 };
 
 }  // namespace

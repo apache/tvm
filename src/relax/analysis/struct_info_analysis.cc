@@ -1411,9 +1411,9 @@ class SymbolicVarCollector : public relax::ExprVisitor,
   /*! \brief The current visit mode. */
   VisitMode mode_ = VisitMode::kRequireDefinition;
   /*! \brief The set of defined symbolic vars. */
-  std::unordered_set<tir::Var, ObjectPtrHash, ObjectPtrEqual> defined_symbolic_var_;
+  std::unordered_set<tir::Var> defined_symbolic_var_;
   /*! \brief The set of free/undefined symbolic vars. */
-  std::unordered_set<tir::Var, ObjectPtrHash, ObjectPtrEqual> free_symbolic_var_;
+  std::unordered_set<tir::Var> free_symbolic_var_;
 };
 
 Array<tir::Var> DefinedSymbolicVars(const Expr& expr) {

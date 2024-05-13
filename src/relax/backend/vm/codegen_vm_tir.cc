@@ -511,7 +511,7 @@ class CodeGenVMTIR : public ExprFunctor<Optional<PrimExpr>(const Expr&)> {
   /*! \brief Stack to build up statements */
   std::vector<std::vector<tir::Stmt>> stmt_stack_;
   /*! \brief Map from var to Expr. */
-  std::unordered_map<Var, Optional<PrimExpr>, ObjectPtrHash, ObjectPtrEqual> var_map_;
+  std::unordered_map<Var, Optional<PrimExpr>> var_map_;
   /*! \brief the context module. */
   IRModule ctx_mod_;
   /*! \brief system lib prefix */
