@@ -246,6 +246,42 @@ class IRConvertSSA final : public StmtExprMutator {
     return std::move(decl);
   }
 
+  Stmt VisitStmt_(const BlockNode* op) final {
+    Block block = GetRef<Block>(op);
+
+    // The BlockNode is the point of definition for the IterVar
+    // instances.  These re-defines must be present before visiting
+    // the body of the BlockNode.
+    std::vector<ScopedRedefine> redefines;
+    Array<IterVar> iter_vars = op->iter_vars.Map([&](IterVar iter_var) {
+      if (defined_.count(iter_var->var.get())) {
+        redefines.emplace_back(this, iter_var->var);
+        iter_var.CopyOnWrite()->var = redefines.back().new_var;
+      } else {
+        defined_.insert(iter_var->var.get());
+      }
+      return iter_var;
+    });
+    Array<BufferRegion> reads =
+        block->reads.Map([&](const auto& region) { return VisitBufferAccess(region); });
+    Array<BufferRegion> writes =
+        block->writes.Map([&](const auto& region) { return VisitBufferAccess(region); });
+
+    if (!reads.same_as(block->reads) || !writes.same_as(block->writes) ||
+        !iter_vars.same_as(op->iter_vars)) {
+      auto write_ptr = block.CopyOnWrite();
+      write_ptr->reads = reads;
+      write_ptr->writes = writes;
+      write_ptr->iter_vars = iter_vars;
+    }
+
+    Stmt output = Downcast<Block>(StmtExprMutator::VisitStmt_(block.get()));
+
+    while (redefines.size()) redefines.pop_back();
+
+    return output;
+  }
+
   template <typename Node>
   Node VisitBufferAccess(Node node) {
     Buffer new_buf = GetRemappedBuffer(node->buffer);
