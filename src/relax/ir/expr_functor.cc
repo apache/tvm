@@ -779,7 +779,18 @@ Var ExprMutator::VisitVarDef(const Var& var) {
 Expr ExprMutator::VisitWithNewScope(const Expr& expr, Optional<Array<Var>> params) {
   ICHECK(expr->IsInstance<SeqExprNode>())
       << "Normal form requires all new scope is stored as SeqExpr";
+
+  PrimExpr constraint = Bool(true);
+  if (params.defined()) {
+    auto non_negative_expressions =
+        CollectNonNegativeExpressions(TupleStructInfo(params.value().Map(GetStructInfo)));
+    for (const auto& expr : non_negative_expressions) {
+      constraint = constraint && (expr >= 0);
+    }
+  }
+
   builder_->BeginScope(params);
+  With<arith::ConstraintContext> context(builder_->GetAnalyzer(), constraint);
   Expr ret = this->VisitExpr(expr);
   builder_->EndScope();
   return ret;
