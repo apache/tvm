@@ -142,6 +142,10 @@ class Session(Object):
         func = self._get_cached_method("runtime.disco.empty")
         return func(ShapeTuple(shape), dtype, device)
 
+    def shutdown(self):
+        """Shut down the Disco session"""
+        _ffi_api.SessionShutdown(self)  # type: ignore # pylint: disable=no-member
+
     def get_global_func(self, name: str) -> DRef:
         """Get a global function on workers.
 
