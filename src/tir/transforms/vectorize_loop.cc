@@ -863,7 +863,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
 
 class LoopVectorizer : public StmtMutator {
  public:
-  LoopVectorizer(DictAttrs attrs) {
+  explicit LoopVectorizer(DictAttrs attrs) {
     if (auto opt_target = attrs.GetAttr<Target>(tvm::attr::kTarget)) {
       target_ = opt_target.value();
     }
