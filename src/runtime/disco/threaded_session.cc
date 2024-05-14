@@ -96,10 +96,11 @@ class DiscoThreadedMessageQueue : private dmlc::Stream,
     return size;
   }
 
-  void Write(const void* data, size_t size) final {
+  size_t Write(const void* data, size_t size) final {
     size_t cur_size = write_buffer_.size();
     write_buffer_.resize(cur_size + size);
     std::memcpy(write_buffer_.data() + cur_size, data, size);
+    return size;
   }
 
   using dmlc::Stream::Read;

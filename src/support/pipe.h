@@ -108,8 +108,8 @@ class Pipe : public dmlc::Stream {
    * \param size block size
    * \return the size of data read
    */
-  void Write(const void* ptr, size_t size) final {
-    if (size == 0) return;
+  size_t Write(const void* ptr, size_t size) final {
+    if (size == 0) return 0;
 #ifdef _WIN32
     auto fwrite = [&]() -> ssize_t {
       DWORD nwrite;
@@ -120,18 +120,16 @@ class Pipe : public dmlc::Stream {
     DWORD nwrite = static_cast<DWORD>(RetryCallOnEINTR(fwrite, GetLastErrorCode));
     ICHECK_EQ(static_cast<size_t>(nwrite), size) << "Write Error: " << GetLastError();
 #else
-    while (size) {
-      ssize_t nwrite =
-          RetryCallOnEINTR([&]() { return write(handle_, ptr, size); }, GetLastErrorCode);
-      ICHECK_NE(nwrite, -1) << "Write Error: " << strerror(errno);
+    ssize_t nwrite =
+        RetryCallOnEINTR([&]() { return write(handle_, ptr, size); }, GetLastErrorCode);
+    ICHECK_NE(nwrite, -1) << "Write Error: " << strerror(errno);
 
-      ICHECK_GT(nwrite, 0) << "Was unable to write any data to pipe";
-      ICHECK_LE(nwrite, size) << "Wrote " << nwrite << " bytes, "
-                              << "but only expected to write " << size << " bytes";
-      size -= nwrite;
-      ptr = static_cast<const char*>(ptr) + nwrite;
-    }
+    ICHECK_LE(nwrite, size) << "Wrote " << nwrite << " bytes, "
+                            << "but only expected to write " << size << " bytes";
+
 #endif
+
+    return nwrite;
   }
   /*!
    * \brief Flush the pipe;
