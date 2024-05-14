@@ -472,7 +472,7 @@ def test_ir_builder_tir_buffer_store_predicate():
     buffer_a = T.Buffer((30,), "float32")
     value = T.broadcast(0.11, T.vscale() * 4)
     index = T.ramp(0, 1, T.vscale() * 4)
-    predicate = T.broadcast(1, T.vscale() * 4)
+    predicate = T.broadcast(T.bool(True), T.vscale() * 4)
 
     with IRBuilder() as ib:
         T.buffer_store(buffer_a, value, [index], predicate)

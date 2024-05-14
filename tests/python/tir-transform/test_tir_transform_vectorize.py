@@ -186,10 +186,10 @@ def test_vectorize_if_scalable_extent():
                     T.float32(1), extent
                 )
             else:
-                A.store(
-                    T.Broadcast(T.float32(2), T.vscale() * 4),
+                A.vstore(
                     [T.Ramp(0, 1, T.vscale() * 4)],
-                    predicate=T.get_active_lane_mask("int1xvscalex4", 0, n),
+                    T.Broadcast(T.float32(2), T.vscale() * 4),
+                    predicate=T.get_active_lane_mask("uint1xvscalex4", 0, n),
                 )
 
     with tvm.target.Target(target):

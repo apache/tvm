@@ -275,7 +275,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           ExprDoc buffer = d->AsDoc<ExprDoc>(store->buffer, p->Attr("buffer"));
           ExprDoc value = d->AsDoc<ExprDoc>(store->value, p->Attr("value"));
 
-          // Use .store(...) syntax when there is a predicate
+          // Use .vstore(...) syntax when there is a predicate
           if (store->predicate.defined()) {
             ExprDoc indices = d->AsDoc<ExprDoc>(store->indices, p->Attr("indices"));
             ExprDoc predicate = d->AsDoc<ExprDoc>(store->predicate, p->Attr("predicate"));
@@ -293,7 +293,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         "", [](tir::BufferLoad load, ObjectPath p, IRDocsifier d) -> Doc {
           ExprDoc buffer = d->AsDoc<ExprDoc>(load->buffer, p->Attr("buffer"));
 
-          // Use .load(...) syntax when there is a predicate
+          // Use .vload(...) syntax when there is a predicate
           if (load->predicate.defined()) {
             ExprDoc indices = d->AsDoc<ExprDoc>(load->indices, p->Attr("indices"));
             ExprDoc predicate = d->AsDoc<ExprDoc>(load->predicate, p->Attr("predicate"));
