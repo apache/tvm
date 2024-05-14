@@ -154,6 +154,11 @@ class Session(Object):
         """Shut down the Disco session"""
         _ffi_api.SessionShutdown(self)  # type: ignore # pylint: disable=no-member
 
+    @property
+    def num_workers(self) -> int:
+        """Return the number of workers in the session"""
+        return _ffi_api.SessionGetNumWorkers(self)  # type: ignore # pylint: disable=no-member
+
     def get_global_func(self, name: str) -> DRef:
         """Get a global function on workers.
 

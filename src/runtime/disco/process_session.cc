@@ -183,6 +183,8 @@ class ProcessSessionObj final : public BcastSessionObj {
 
   ~ProcessSessionObj() { Kill(); }
 
+  int64_t GetNumWorkers() { return workers_.size() + 1; }
+
   TVMRetValue DebugGetFromRemote(int64_t reg_id, int worker_id) {
     if (worker_id == 0) {
       this->SyncWorker(worker_id);
