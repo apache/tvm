@@ -86,8 +86,19 @@ class Pipe : public dmlc::Stream {
     DWORD nread = static_cast<DWORD>(RetryCallOnEINTR(fread, GetLastErrorCode));
     ICHECK_EQ(static_cast<size_t>(nread), size) << "Read Error: " << GetLastError();
 #else
-    ssize_t nread = RetryCallOnEINTR([&]() { return read(handle_, ptr, size); }, GetLastErrorCode);
-    ICHECK_GE(nread, 0) << "Write Error: " << strerror(errno);
+    size_t nread = 0;
+    while (size) {
+      ssize_t nread_chunk =
+          RetryCallOnEINTR([&]() { return read(handle_, ptr, size); }, GetLastErrorCode);
+      ICHECK_NE(nread_chunk, -1) << "Write Error: " << strerror(errno);
+
+      ICHECK_GT(nread_chunk, 0) << "Was unable to read any data from pipe";
+      ICHECK_LE(nread_chunk, size) << "Read " << nread_chunk << " bytes, "
+                                   << "but only expected to read " << size << " bytes";
+      size -= nread_chunk;
+      ptr = static_cast<char*>(ptr) + nread_chunk;
+      nread += nread_chunk;
+    }
 #endif
     return static_cast<size_t>(nread);
   }
@@ -109,9 +120,17 @@ class Pipe : public dmlc::Stream {
     DWORD nwrite = static_cast<DWORD>(RetryCallOnEINTR(fwrite, GetLastErrorCode));
     ICHECK_EQ(static_cast<size_t>(nwrite), size) << "Write Error: " << GetLastError();
 #else
-    ssize_t nwrite =
-        RetryCallOnEINTR([&]() { return write(handle_, ptr, size); }, GetLastErrorCode);
-    ICHECK_EQ(static_cast<size_t>(nwrite), size) << "Write Error: " << strerror(errno);
+    while (size) {
+      ssize_t nwrite =
+          RetryCallOnEINTR([&]() { return write(handle_, ptr, size); }, GetLastErrorCode);
+      ICHECK_NE(nwrite, -1) << "Write Error: " << strerror(errno);
+
+      ICHECK_GT(nwrite, 0) << "Was unable to write any data to pipe";
+      ICHECK_LE(nwrite, size) << "Wrote " << nwrite << " bytes, "
+                              << "but only expected to write " << size << " bytes";
+      size -= nwrite;
+      ptr = static_cast<const char*>(ptr) + nwrite;
+    }
 #endif
   }
   /*!
