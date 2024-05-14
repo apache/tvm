@@ -85,7 +85,7 @@ struct Block {
   int32_t start_pos = 0;
   /*!
    * \brief The current attention sink length of the block.
-   * It means the the **first** sink size elements will be pinned
+   * It means the **first** sink size elements will be pinned
    * in the KV cache even when sliding window is enabled.
    */
   int32_t sink_length = 0;
@@ -247,7 +247,7 @@ class PagedKVCacheAuxDataManager {
   /*!
    * \brief Copy the append length indptr array on device.
    * \note Since the Q/K/V data may have raggedness in terms of lengths,
-   * we represent the the append lengths in CSR format.
+   * we represent the append lengths in CSR format.
    */
   virtual NDArray CopyCurAppendLengthIndptrAsync(std::vector<int32_t>* data) = 0;
   /*! \brief Copy the k position offset of applying RoPE for each sequence. */
