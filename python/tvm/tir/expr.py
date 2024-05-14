@@ -1099,7 +1099,9 @@ class BufferLoad(PrimExprWithOp):
         The location of this expression in the source code.
 
     predicate : Optional[PrimExpr]
-        A vector mask of int1 values indicating which lanes of a vector are to be loaded.
+        A vector mask of boolean values indicating which lanes of a vector are to be
+        stored. The number lanes of the mask must be equal to the number of lanes in
+        value.
     """
 
     buffer: Buffer

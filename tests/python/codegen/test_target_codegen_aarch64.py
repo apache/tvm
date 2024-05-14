@@ -771,7 +771,7 @@ def test_get_active_lane_mask():
     def before(a: T.handle):
         A = T.match_buffer(a, (30,), "int1")
         for i in range(T.ceildiv(30, T.vscale() * 4)):
-            A[i : i + T.vscale() * 4] = T.get_active_lane_mask("int1xvscalex4", i, 30)
+            A[i : i + T.vscale() * 4] = T.get_active_lane_mask("uint1xvscalex4", i, 30)
 
     with tvm.target.Target(target):
         out = tvm.build(before)

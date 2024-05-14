@@ -370,7 +370,7 @@ class ConstIntBoundAnalyzer::Impl
       return VisitLeftShift(op);
     } else if (op->op.same_as(tir::builtin::bitwise_and())) {
       return VisitBitwiseAnd(op);
-    } else if (op->op.same_as(tir::builtin::vscale()) && TargetHasSVE()) {
+    } else if (op->op.same_as(tir::builtin::vscale()) && TargetHasSVE(Target::Current())) {
       unsigned int max_val =
           *std::max_element(kAArch64VScaleValues.begin(), kAArch64VScaleValues.end());
       return MakeBound(1, max_val);

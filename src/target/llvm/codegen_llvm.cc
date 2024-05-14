@@ -1668,7 +1668,7 @@ bool CodeGenLLVM::HasAlignmentPadding(DataType dtype) {
 }
 
 void CodeGenLLVM::BufferAccessHelper(
-    Buffer buffer, Array<PrimExpr> indices, PrimExpr predicate, DataType value_dtype,
+    Buffer buffer, Array<PrimExpr> indices, Optional<PrimExpr> predicate, DataType value_dtype,
     std::function<llvm::Instruction*(TypedPointer buffer_ptr, int subelement_i,
                                      llvm::Value* predicate, int alignment, bool is_volatile)>
         make_instruction) {
@@ -1752,7 +1752,7 @@ void CodeGenLLVM::BufferAccessHelper(
 
     llvm::Value* predicate_value = nullptr;
     if (predicate.defined()) {
-      predicate_value = MakeValue(predicate);
+      predicate_value = MakeValue(predicate.value());
     }
 
     TypedPointer buffer_ptr =
@@ -1776,21 +1776,28 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const BufferLoadNode* op) {
 
   auto make_load = [this, &loads](TypedPointer buffer_ptr, int /* subelement_i */,
                                   llvm::Value* predicate, int alignment, bool is_volatile) {
-#if TVM_LLVM_VERSION >= 110
     llvm::Instruction* load = nullptr;
     if (predicate != NULL) {
+      ICHECK(!is_volatile)
+          << "The masked load intrinsic does not support declaring load as volatile.";
+#if TVM_LLVM_VERSION >= 130
       load = builder_->CreateMaskedLoad(buffer_ptr.type, buffer_ptr.addr, llvm::Align(alignment),
                                         predicate);
+#elif TVM_LLVM_VERSION >= 110
+      load = builder_->CreateMaskedLoad(buffer_ptr.addr, llvm::Align(alignment), predicate);
+#else
+      load = builder_->CreateMaskedLoad(buffer_ptr.addr, alignment, predicate);
+#endif
     } else {
+#if TVM_LLVM_VERSION >= 110
       load = builder_->CreateAlignedLoad(buffer_ptr.type, buffer_ptr.addr, llvm::Align(alignment),
                                          is_volatile);
-    }
 #elif TVM_LLVM_VERSION >= 80
-    auto load =
-        builder_->CreateAlignedLoad(buffer_ptr.type, buffer_ptr.addr, alignment, is_volatile);
+      load = builder_->CreateAlignedLoad(buffer_ptr.type, buffer_ptr.addr, alignment, is_volatile);
 #else
-    auto load = builder_->CreateAlignedLoad(buffer_ptr.addr, alignment, is_volatile);
+      load = builder_->CreateAlignedLoad(buffer_ptr.addr, alignment, is_volatile);
 #endif
+    }
 
     loads.push_back(load);
     return load;
@@ -1922,17 +1929,24 @@ void CodeGenLLVM::VisitStmt_(const BufferStoreNode* op) {
     if (subelement_i != -1) {
       to_store = builder_->CreateExtractElement(value, subelement_i);
     }
-#if TVM_LLVM_VERSION >= 110
+
     if (predicate != NULL) {
+      ICHECK(!is_volatile)
+          << "The masked store intrinsic does not support declaring store as volatile.";
+#if TVM_LLVM_VERSION >= 110
       store =
           builder_->CreateMaskedStore(to_store, buffer_ptr.addr, llvm::Align(alignment), predicate);
+#else
+      store = builder_->CreateMaskedStore(to_store, buffer_ptr.addr, alignment, predicate);
+#endif
     } else {
+#if TVM_LLVM_VERSION >= 110
       store = builder_->CreateAlignedStore(to_store, buffer_ptr.addr, llvm::Align(alignment),
                                            is_volatile);
-    }
 #else
-    store = builder_->CreateAlignedStore(to_store, buffer_ptr.addr, alignment, is_volatile);
+      store = builder_->CreateAlignedStore(to_store, buffer_ptr.addr, alignment, is_volatile);
 #endif
+    }
     return store;
   };
 

@@ -772,11 +772,19 @@ void BufferLoadNode::LegalizeDType() {
   }
 }
 
-BufferLoad::BufferLoad(Buffer buffer, Array<PrimExpr> indices, PrimExpr predicate, Span span) {
+BufferLoad::BufferLoad(Buffer buffer, Array<PrimExpr> indices, Optional<PrimExpr> predicate,
+                       Span span) {
   ICHECK_EQ(buffer->shape.size(), indices.size())
       << "Buffer " << buffer->name << " is " << buffer->shape.size()
       << "-dimensional, cannot be indexed with the " << indices.size()
       << "-dimensional indices provided.";
+
+  if (predicate.defined()) {
+    DataType predicate_element_dtype = predicate.value().dtype().element_of();
+    ICHECK(predicate_element_dtype.is_bool())
+        << "Predicate mask elements must be boolean values, but got " << predicate_element_dtype
+        << ".";
+  }
 
   ObjectPtr<BufferLoadNode> node = make_object<BufferLoadNode>();
   node->buffer = std::move(buffer);
@@ -788,9 +796,8 @@ BufferLoad::BufferLoad(Buffer buffer, Array<PrimExpr> indices, PrimExpr predicat
 }
 
 TVM_REGISTER_GLOBAL("tir.BufferLoad")
-    .set_body_typed([](Buffer buffer, Array<PrimExpr> indices, PrimExpr predicate, Span span) {
-      return BufferLoad(buffer, indices, predicate, span);
-    });
+    .set_body_typed([](Buffer buffer, Array<PrimExpr> indices, Optional<PrimExpr> predicate,
+                       Span span) { return BufferLoad(buffer, indices, predicate, span); });
 
 TVM_REGISTER_NODE_TYPE(BufferLoadNode);
 

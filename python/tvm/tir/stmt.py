@@ -225,7 +225,9 @@ class BufferStore(Stmt):
         The indices location to be stored.
 
     predicate : Optional[PrimExpr]
-        A vector mask of int1 values indicating which lanes of a vector are to be stored.
+        A vector mask of boolean values indicating which lanes of a vector are to be
+        stored. The number lanes of the mask must be equal to the number of lanes in
+        value.
 
     span : Optional[Span]
         The location of the stmt in the source code.

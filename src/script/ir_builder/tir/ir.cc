@@ -525,7 +525,7 @@ Var EnvThread(String thread_tag, DataType dtype) {
 }
 
 void BufferStore(Buffer buffer, PrimExpr value, Array<PrimExpr> indices,
-                 PrimExpr predicate = PrimExpr()) {
+                 Optional<PrimExpr> predicate = NullOpt) {
   runtime::DataType buffer_dtype = buffer->dtype;
   bool is_index_scalable = indices.empty() ? false : indices.back().dtype().is_scalable_vector();
   bool is_buffer_dtype_scalable = buffer_dtype.is_scalable_vector();

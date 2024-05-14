@@ -631,7 +631,7 @@ class BufferLoadNode : public PrimExprNode {
   /*! \brief The indices location to be loaded. */
   Array<PrimExpr> indices;
   /*! \brief The predicate mask for loading values. */
-  PrimExpr predicate;
+  Optional<PrimExpr> predicate;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("dtype", &(this->dtype));
@@ -680,7 +680,7 @@ class BufferLoadNode : public PrimExprNode {
 class BufferLoad : public PrimExpr {
  public:
   TVM_DLL explicit BufferLoad(Buffer buffer, Array<PrimExpr> indices,
-                              PrimExpr predicate = PrimExpr(), Span span = Span());
+                              Optional<PrimExpr> predicate = NullOpt, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(BufferLoad, PrimExpr, BufferLoadNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(BufferLoadNode);
 };

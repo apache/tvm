@@ -232,7 +232,7 @@ class BufferStoreNode : public StmtNode {
   /*! \brief The indices location to be stored. */
   Array<PrimExpr> indices;
   /*! \brief The predicate mask for storing values. */
-  PrimExpr predicate;
+  Optional<PrimExpr> predicate;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("buffer", &buffer);
@@ -265,7 +265,7 @@ class BufferStoreNode : public StmtNode {
 class BufferStore : public Stmt {
  public:
   TVM_DLL explicit BufferStore(Buffer buffer, PrimExpr value, Array<PrimExpr> indices,
-                               PrimExpr predicate = PrimExpr(), Span span = Span());
+                               Optional<PrimExpr> predicate = NullOpt, Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(BufferStore, Stmt, BufferStoreNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(BufferStoreNode);

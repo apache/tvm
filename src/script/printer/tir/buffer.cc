@@ -280,7 +280,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
             ExprDoc indices = d->AsDoc<ExprDoc>(store->indices, p->Attr("indices"));
             ExprDoc predicate = d->AsDoc<ExprDoc>(store->predicate, p->Attr("predicate"));
             return ExprStmtDoc(
-                buffer->Attr("store")->Call({value, indices}, {"predicate"}, {predicate}));
+                buffer->Attr("vstore")->Call({indices, value}, {"predicate"}, {predicate}));
           }
 
           return AssignDoc(
@@ -297,7 +297,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           if (load->predicate.defined()) {
             ExprDoc indices = d->AsDoc<ExprDoc>(load->indices, p->Attr("indices"));
             ExprDoc predicate = d->AsDoc<ExprDoc>(load->predicate, p->Attr("predicate"));
-            return buffer->Attr("load")->Call({indices}, {"predicate"}, {predicate});
+            return buffer->Attr("vload")->Call({indices}, {"predicate"}, {predicate});
           }
 
           return buffer[BufferIndices(load->indices, p->Attr("indices"), d)];

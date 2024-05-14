@@ -547,15 +547,16 @@ def test_vectorize_and_predicate_all_buffer_loads_stores():
         T.func_attr({"global_symbol": "main", "tir.noalias": T.bool(True)})
         for i_0 in range(4):
             load_a = T.meta_var(
-                A.load(
-                    [T.Ramp(i_0 * 4, 1, 4)], predicate=T.get_active_lane_mask("int1x4", i_0 * 4, 14)
+                A.vload(
+                    [T.Ramp(i_0 * 4, 1, 4)],
+                    predicate=T.get_active_lane_mask("uint1x4", i_0 * 4, 14),
                 )
             )
             add_1 = T.meta_var(load_a + T.Broadcast(T.float32(1), 4))
-            B.store(
-                add_1,
+            B.vstore(
                 [T.Ramp(i_0 * 4, 1, 4)],
-                predicate=T.get_active_lane_mask("int1x4", i_0 * 4, 14),
+                add_1,
+                predicate=T.get_active_lane_mask("uint1x4", i_0 * 4, 14),
             )
 
     mod = tvm.IRModule.from_expr(before)
@@ -610,15 +611,15 @@ def test_vectorize_and_predicate_multiple_access_statements():
         B = T.match_buffer(b, (16,), "float32")
         T.func_attr({"global_symbol": "main", "tir.noalias": T.bool(True)})
         for i_0 in range(4):
-            A.store(
+            A.vstore(
+                [T.Ramp(i_0 * 4, 1, 4)],
                 T.Broadcast(T.float32(2), 4),
-                [T.Ramp(i_0 * 4, 1, 4)],
-                predicate=T.get_active_lane_mask("int1x4", i_0 * 4, 14),
+                predicate=T.get_active_lane_mask("uint1x4", i_0 * 4, 14),
             )
-            B.store(
-                T.Broadcast(T.float32(1), 4),
+            B.vstore(
                 [T.Ramp(i_0 * 4, 1, 4)],
-                predicate=T.get_active_lane_mask("int1x4", i_0 * 4, 14),
+                T.Broadcast(T.float32(1), 4),
+                predicate=T.get_active_lane_mask("uint1x4", i_0 * 4, 14),
             )
 
     before_mod = tvm.IRModule.from_expr(before)
@@ -665,8 +666,8 @@ def test_vectorize_and_predicate_invalid_conditions():
 
 
 def test_vectorize_with_explicitly_disabled_buffer_level_predication():
-    # Since the target is has the SVe feature, buffer level predication is enabled
-    # by default. However, it has been explicitely disabled by the pass context
+    # Since the target has the SVE feature, buffer level predication is enabled
+    # by default. However, it has been explicitly disabled by the pass context
     # option, so no buffer-level predicates should be added.
     @T.prim_func
     def before(a: T.handle, b: T.handle):
@@ -689,8 +690,80 @@ def test_vectorize_with_explicitly_disabled_buffer_level_predication():
 
     mod = tvm.IRModule.from_expr(before)
     with tvm.transform.PassContext(config={"tir.enable_buffer_level_predication": False}):
-        with tvm.target.Target("llvm -mtriple=aarch64-linux-gnu -mattr=+sve"):
+        with tvm.target.Target(sve_target):
             after = tvm.tir.transform.VectorizeLoop()(mod)["main"]
+    tvm.ir.assert_structural_equal(after, expected)
+
+
+def test_vectorize_and_predicate_buffer_load_stores_with_sve_func_attr_target():
+    @T.prim_func
+    def before(a: T.handle, b: T.handle):
+        A = T.match_buffer(a, (16,), "float32")
+        B = T.match_buffer(b, (16,), "float32")
+        T.func_attr({"global_symbol": "main", "tir.noalias": True, "target": sve_target})
+        for i_0 in T.serial(T.ceildiv(14, 4)):
+            for i_1 in T.vectorized(4):
+                if i_0 * 4 + i_1 < 14:
+                    B[i_0 * 4 + i_1] = A[i_0 * 4 + i_1] + 1.0
+
+    @T.prim_func
+    def expected(a: T.handle, b: T.handle):
+        A = T.match_buffer(a, (16,), "float32")
+        B = T.match_buffer(b, (16,), "float32")
+        T.func_attr({"global_symbol": "main", "tir.noalias": T.bool(True), "target": sve_target})
+        for i_0 in range(4):
+            load_a = T.meta_var(
+                A.vload(
+                    [T.Ramp(i_0 * 4, 1, 4)],
+                    predicate=T.get_active_lane_mask("uint1x4", i_0 * 4, 14),
+                )
+            )
+            add_1 = T.meta_var(load_a + T.Broadcast(T.float32(1), 4))
+            B.vstore(
+                [T.Ramp(i_0 * 4, 1, 4)],
+                add_1,
+                predicate=T.get_active_lane_mask("uint1x4", i_0 * 4, 14),
+            )
+
+    mod = tvm.IRModule.from_expr(before)
+    after = tvm.tir.transform.VectorizeLoop()(mod)["main"]
+    tvm.ir.assert_structural_equal(after, expected)
+
+
+def test_vectorize_and_predicate_buffer_load_stores_with_sve_attr_scope_target():
+    @T.prim_func
+    def before(a: T.handle, b: T.handle):
+        A = T.match_buffer(a, (16,), "float32")
+        B = T.match_buffer(b, (16,), "float32")
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        with T.attr(sve_target, "target", 0):
+            for i_0 in T.serial(T.ceildiv(14, 4)):
+                for i_1 in T.vectorized(4):
+                    if i_0 * 4 + i_1 < 14:
+                        B[i_0 * 4 + i_1] = A[i_0 * 4 + i_1] + 1.0
+
+    @T.prim_func
+    def expected(a: T.handle, b: T.handle):
+        A = T.match_buffer(a, (16,), "float32")
+        B = T.match_buffer(b, (16,), "float32")
+        T.func_attr({"global_symbol": "main", "tir.noalias": T.bool(True)})
+        with T.attr(sve_target, "target", 0):
+            for i_0 in range(4):
+                load_a = T.meta_var(
+                    A.vload(
+                        [T.Ramp(i_0 * 4, 1, 4)],
+                        predicate=T.get_active_lane_mask("uint1x4", i_0 * 4, 14),
+                    )
+                )
+                add_1 = T.meta_var(load_a + T.Broadcast(T.float32(1), 4))
+                B.vstore(
+                    [T.Ramp(i_0 * 4, 1, 4)],
+                    add_1,
+                    predicate=T.get_active_lane_mask("uint1x4", i_0 * 4, 14),
+                )
+
+    mod = tvm.IRModule.from_expr(before)
+    after = tvm.tir.transform.VectorizeLoop()(mod)["main"]
     tvm.ir.assert_structural_equal(after, expected)
 
 

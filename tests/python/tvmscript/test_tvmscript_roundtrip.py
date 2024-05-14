@@ -3358,8 +3358,10 @@ def predicated_buffer_load_store():
         A = T.match_buffer(a, (4,), "float32")
         B = T.match_buffer(b, (8,), "float32")
         for i_0 in range(4):
-            load_a = T.meta_var(A.load([T.Ramp(i_0, 1, 4)], predicate=T.Broadcast(1.0, 4)))
-            B.store(load_a, [T.Ramp(0, 2, 4)], predicate=T.Broadcast(1.0, 4))
+            load_a = T.meta_var(
+                A.vload([T.Ramp(i_0, 1, 4)], predicate=T.Broadcast(T.bool(True), 4))
+            )
+            B.vstore([T.Ramp(0, 2, 4)], load_a, predicate=T.Broadcast(T.bool(True), 4))
 
     return func
 

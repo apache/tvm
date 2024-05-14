@@ -330,8 +330,9 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
    *
    * \param indices The indices at which the buffer is being accessed.
    *
-   * \param predicate A vector mask of int1 values indicating which lanes of a vector are to be
-   * stored.
+   * \param predicate A vector mask of boolean values indicating which lanes of a
+   * vector are to be stored. The number lanes of the mask must be equal to the
+   * number of lanes in value.
    *
    * \param value_dtype The datatype to be read from (BufferLoad) or
    * written to (BufferStore) the buffer.
@@ -354,7 +355,7 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
    *       - Should return the generated expression.
    */
   void BufferAccessHelper(
-      Buffer buffer, Array<PrimExpr> indices, PrimExpr predicate, DataType value_dtype,
+      Buffer buffer, Array<PrimExpr> indices, Optional<PrimExpr> predicate, DataType value_dtype,
       std::function<llvm::Instruction*(TypedPointer buffer_ptr, int subelement_i,
                                        llvm::Value* predicate, int alignment, bool is_volatile)>
           make_instruction);

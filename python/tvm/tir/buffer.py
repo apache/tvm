@@ -101,7 +101,7 @@ class Buffer(Object, Scriptable):
             self, access_mask, ptr_type, content_lanes, offset, extent  # type: ignore
         )
 
-    def vload(self, begin, dtype=None):
+    def vload(self, begin, dtype=None, predicate=None):
         """Generate an Expr that loads dtype from begin index.
 
         Parameters
@@ -113,6 +113,11 @@ class Buffer(Object, Scriptable):
             The data type to be loaded,
             can be vector type which have lanes that is multiple of Buffer.dtype
 
+        predicate : Optional[PrimExpr]
+            A vector mask of boolean values indicating which lanes of a vector are to be
+            stored. The number lanes of the mask must be equal to the number of lanes in
+            value.
+
         Returns
         -------
         load : Expr
@@ -120,9 +125,9 @@ class Buffer(Object, Scriptable):
         """
         begin = (begin,) if isinstance(begin, (int, PrimExpr)) else begin
         dtype = dtype if dtype else self.dtype
-        return _ffi_api.BufferVLoad(self, begin, dtype)  # type: ignore
+        return _ffi_api.BufferVLoad(self, begin, dtype, predicate)  # type: ignore
 
-    def vstore(self, begin, value):
+    def vstore(self, begin, value, predicate=None):
         """Generate a Stmt that store value into begin index.
 
         Parameters
@@ -133,64 +138,18 @@ class Buffer(Object, Scriptable):
         value : Expr
             The value to be stored.
 
+        predicate : Optional[PrimExpr]
+            A vector mask of boolean values indicating which lanes of a vector are to be
+            stored. The number lanes of the mask must be equal to the number of lanes in
+            value.
+
         Returns
         -------
         store : Stmt
             The corresponding store stmt.
         """
         begin = (begin,) if isinstance(begin, (int, PrimExpr)) else begin
-        return _ffi_api.BufferVStore(self, begin, value)  # type: ignore
-
-    def load(self, indices, predicate=None):
-        """
-        Load values at specified indices from buffer.
-
-        Longhand notation that can be used for complex buffer load
-        expressions. For example, when the load involves predication.
-
-        Parameters
-        ----------
-        indices : List[PrimExpr]
-            The buffer indices to load values from.
-
-        predicate : Optional[PrimExpr]
-            A vector mask of int1 values indicating which lanes of a vector are to be loaded.
-
-        Returns
-        -------
-        BufferLoad
-            A buffer load Expr.
-        """
-        from .expr import BufferLoad  # pylint: disable=import-outside-toplevel
-
-        return BufferLoad(self, indices, predicate)
-
-    def store(self, value, indices, predicate=None):
-        """
-        Store given value at the specified indices in the buffer.
-
-        Longhand notation that can be used for complex buffer store
-        statements. For example, when the store involves predication.
-
-        Parameters
-        ----------
-        value : PrimExpr
-            The value to be stored.
-
-        indices : List[PrimExpr]
-            The buffer indices to store values to.
-
-        predicate : Optional[PrimExpr]
-            A vector mask of int1 values indicating which lanes of a vector are to be stored.
-
-        Returns
-        -------
-        BufferStore
-            A buffer store Stmt.
-        """
-        from .stmt import BufferStore  # pylint: disable=import-outside-toplevel
-
-        return BufferStore(self, value, indices, predicate)
+        return _ffi_api.BufferVStore(self, begin, value, predicate)  # type: ignore
 
     def scope(self):
         """Return the storage scope associated with this buffer.
