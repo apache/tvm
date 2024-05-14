@@ -106,14 +106,24 @@ void AllGather(NDArray send, NDArray recv) {
                           /*datatype=*/AsNCCLDataType(DataType(send->dtype)), ctx->comm, stream));
 }
 
-void BroadcastFromWorker0(NDArray send, NDArray recv) {
+void BroadcastFromWorker0(Optional<NDArray> send, NDArray recv) {
   CCLThreadLocalContext* ctx = CCLThreadLocalContext::Get();
-  ICHECK(send.Shape()->Product() == recv.Shape()->Product());
-  ShapeTuple shape = send.Shape();
-  int64_t numel = shape->Product();
+
+  const void* send_data = [&]() -> const void* {
+    int worker_id = ctx->worker->worker_id;
+    if (worker_id == 0) {
+      CHECK(send.defined());
+      CHECK(send.value().Shape()->Product() == recv.Shape()->Product());
+      return send.value()->data;
+    } else {
+      return nullptr;
+    }
+  }();
+  int64_t numel = recv.Shape()->Product();
+
   deviceStream_t stream = ctx->GetDefaultStream();
-  NCCL_CALL(ncclBroadcast(send->data, recv->data, numel,
-                          /*datatype=*/AsNCCLDataType(DataType(send->dtype)),
+  NCCL_CALL(ncclBroadcast(send_data, recv->data, numel,
+                          /*datatype=*/AsNCCLDataType(DataType(recv->dtype)),
                           /*root=*/0, ctx->comm, stream));
 }
 
