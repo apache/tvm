@@ -18,6 +18,8 @@
  */
 #include "./ir_comparator.h"
 
+#include "../../arith/scalable_expression.h"
+
 namespace tvm {
 
 namespace tir {
@@ -74,7 +76,9 @@ bool TensorizeComparator::VisitStmt(const Stmt& n, const Stmt& other) {
 bool TensorizeComparator::VisitExpr(const PrimExpr& n, const PrimExpr& other) {
   bool equal = n.same_as(other) ||
                ((n->type_index() == other->type_index()) &&
-                n.dtype().code() == other.dtype().code() && ExprComparator::VisitExpr(n, other));
+                n.dtype().code() == other.dtype().code() && ExprComparator::VisitExpr(n, other)) ||
+               (tvm::arith::ContainsVscaleCall(n) && analyzer_.CanProveEqual(n, other));
+
   if (!equal && assert_mode_) {
     std::ostringstream os;
     os << "Expression mismatch: " << n << " vs " << other;

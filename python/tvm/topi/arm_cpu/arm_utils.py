@@ -19,6 +19,7 @@
 
 import tvm
 from tvm.target import Target
+from tvm.tir.expr import PrimExpr
 
 
 def get_tiling_A(interleave_A, in_dtype):
@@ -184,6 +185,31 @@ def get_conv2d_im2col_padding(M, K, tile_M, tile_K):
         pad_K = tile_K - (K % tile_K)
 
     return pad_M, pad_K
+
+
+def pad_dim_to_multiple(dim: PrimExpr, multiple: PrimExpr):
+    """
+    Compute the padding required to reach specified multiple.
+
+    Parameters
+    ----------
+    dim : PrimExpr
+        Current size of the dim.
+    multiple : PrimExpr
+        Multiple to pad up to.
+
+    Returns
+    -------
+    padded_dim : PrimExpr
+        The new dim size.
+    pad_value : PrimExpr
+        The padding required.
+    """
+    pad_value = 0
+    if dim % multiple != 0:
+        pad_value = multiple - (dim % multiple)
+    padded_dim = dim + pad_value
+    return padded_dim, pad_value
 
 
 def get_conv2d_weights_padding(N, K, tile_N, tile_K):

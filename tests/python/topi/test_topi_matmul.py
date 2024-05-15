@@ -14,12 +14,16 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+
+import pytest
 import numpy as np
+
 import tvm
 import tvm.testing
 from tvm import te
 from tvm import topi
 from tvm.topi.utils import get_const_tuple
+from tvm.topi.arm_cpu.matmul import compute_matmul_sme
 
 
 def with_tvm(lam, *args):
@@ -148,7 +152,17 @@ def test_tensordot():
     verify_tensordot((4, 3, 2, 2), (2, 4, 3, 5), ((1, 2, 0), (2, 0, 1)))
 
 
+@pytest.mark.parametrize("transpose_a,transpose_b", [(True, False), (False, True)])
+def test_unsupported_sme_matmul_compute_transpose(transpose_a, transpose_b):
+    """
+    SME matmul compute does not support transposed inputs for now.
+    """
+    err_msg = "Compute definition currently does not support transposed inputs."
+    with pytest.raises(AssertionError, match=err_msg) as e:
+        compute_matmul_sme(
+            te.placeholder((32, 32)), te.placeholder((32, 32)), None, None, transpose_a, transpose_b
+        )
+
+
 if __name__ == "__main__":
-    test_nn_matmul()
-    test_matmul()
-    test_tensordot()
+    tvm.testing.main()

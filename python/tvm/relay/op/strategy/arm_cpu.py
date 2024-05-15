@@ -21,7 +21,9 @@ import logging
 # pylint: disable=invalid-name,unused-argument,wildcard-import,unused-wildcard-import
 import re
 
+import tvm
 from tvm import relay, topi, tir
+from tvm.tir.schedule.analysis import has_block
 
 from ....auto_scheduler import is_auto_scheduler_enabled
 from ....meta_schedule import is_meta_schedule_enabled
@@ -639,7 +641,7 @@ def schedule_bitserial_dense_arm_cpu(attrs, inputs, out_type, target):
 def schedule_dense_arm_cpu(attrs, inputs, out_type, target):
     """dense arm cpu strategy"""
     strategy = _op.OpStrategy()
-    data, _ = inputs
+    data, weight = inputs
 
     if target.features.has_dsp and data.dtype in ["int8", "int16"]:
         strategy.add_implementation(
@@ -680,6 +682,23 @@ def schedule_dense_arm_cpu(attrs, inputs, out_type, target):
             plevel=11,
         )
 
+    if (
+        target.features.has_sme
+        and data.dtype in ["float32"]
+        and weight.dtype in ["float32"]
+        and out_type.dtype in ["float32"]
+        # The schedule uses tensorization which does not work when the
+        # reduction axis has unit iters. See
+        # https://github.com/apache/tvm/issues/16566
+        and data.shape[1] > 1
+    ):
+        strategy.add_implementation(
+            wrap_compute_dense(topi.arm_cpu.compute_matmul_sme),
+            lambda: None,
+            name="matmul.arm_cpu.sme",
+            plevel=12,
+        )
+
     # Fallback to x86 schedules as there is currently no arm_cpu schedule for dense
     strategy.add_implementation(
         wrap_compute_dense(topi.x86.dense_nopack),
@@ -694,6 +713,40 @@ def schedule_dense_arm_cpu(attrs, inputs, out_type, target):
         plevel=10,
     )
 
+    return strategy
+
+
+@matmul_strategy.register("arm_cpu")
+def matmul_strategy_arm_cpu(attrs, inputs, out_type, target):
+    """matmul arm cpu strategy"""
+    strategy = _op.OpStrategy()
+    data, weight = inputs
+
+    if (
+        target.features.has_sme
+        and data.dtype in ["float32"]
+        and weight.dtype in ["float32"]
+        and out_type.dtype in ["float32"]
+        and not (attrs.transpose_a or attrs.transpose_b)
+        and len(data.shape) == 2
+        # The schedule uses tensorization which does not work when the
+        # reduction axis has unit iters. See
+        # https://github.com/apache/tvm/issues/16566
+        and data.shape[1] > 1
+    ):
+        # Ideally we should check that weight is a Relay constant, but strategy functions
+        # don't have access to the data needed to check this.
+        strategy.add_implementation(
+            wrap_compute_matmul(topi.arm_cpu.compute_matmul_sme),
+            lambda: None,
+            name="matmul.arm_cpu.sme",
+        )
+        return strategy
+
+    logger.warning("matmul is not optimized for arm cpu.")
+    strategy.add_implementation(
+        wrap_compute_matmul(topi.nn.matmul), naive_schedule, name="matmul.generic"
+    )
     return strategy
 
 
@@ -737,3 +790,17 @@ def conv1d_strategy_arm_cpu(attrs, inputs, out_type, target):
             f"Unsupported kernel layout {kernel_layout} for conv1d {layout} for arm cpu."
         )
     return strategy
+
+
+def arm_cpu_tir_strategy(sch: tir.Schedule) -> bool:
+    """
+    Strategy for arm_cpu STIR schedules.
+    """
+    current_target = tvm.target.Target.current()
+
+    if current_target.features.has_sme and has_block(sch, "matmul_sme_gemm"):
+        topi.arm_cpu.matmul.tir_schedule_matmul_sme(sch)
+        return True
+
+    # Fallback to TE schedule for operators we have not written a special TIR schedule for
+    return False
