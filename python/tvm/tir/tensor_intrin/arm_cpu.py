@@ -173,7 +173,7 @@ def _create_ptrue_mask(dtype):
     """
     Creates a mask that enables all lanes of a scalable vector.
     """
-    return T.broadcast(T.IntImm("int1", 1), tir.get_vscale_factor(dtype))
+    return T.broadcast(T.bool(True), tir.get_vscale_factor(dtype))
 
 
 def get_sme_transpose_interleave_2svlx2svl_fp32_intrin():
