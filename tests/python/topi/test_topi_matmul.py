@@ -152,15 +152,30 @@ def test_tensordot():
     verify_tensordot((4, 3, 2, 2), (2, 4, 3, 5), ((1, 2, 0), (2, 0, 1)))
 
 
-@pytest.mark.parametrize("transpose_a,transpose_b", [(True, False), (False, True)])
-def test_unsupported_sme_matmul_compute_transpose(transpose_a, transpose_b):
-    """
-    SME matmul compute does not support transposed inputs for now.
-    """
-    err_msg = "Compute definition currently does not support transposed inputs."
-    with pytest.raises(AssertionError, match=err_msg) as e:
+@pytest.mark.parametrize("in_dtype", ["float32", "float16"])
+def test_unsupported_sme_matmul_compute_transpose_a(in_dtype):
+    err_msg = "Transposed lhs not currently supported."
+    with pytest.raises(AssertionError, match=err_msg):
         compute_matmul_sme(
-            te.placeholder((32, 32)), te.placeholder((32, 32)), None, None, transpose_a, transpose_b
+            te.placeholder((32, 32), dtype=in_dtype),
+            te.placeholder((32, 32), dtype=in_dtype),
+            None,
+            None,
+            True,
+            False,
+        )
+
+
+def test_unsupported_sme_matmul_compute_transpose_b():
+    err_msg = "Rhs must be transposed when dtype is float16."
+    with pytest.raises(AssertionError, match=err_msg):
+        compute_matmul_sme(
+            te.placeholder((32, 32), dtype="float16"),
+            te.placeholder((32, 32), dtype="float16"),
+            None,
+            None,
+            False,
+            False,
         )
 
 

@@ -139,7 +139,7 @@ def test_sme_dense(data_shape, weight_shape, in_dtype):
 
     with tvm.transform.PassContext(
         opt_level=3, config=AOT_APROFILE_AEM_RUNNER.pass_config
-    ), meta_schedule.database.ScheduleFnDatabase(arm_cpu_tir_strategy):
+    ), target, meta_schedule.database.ScheduleFnDatabase(arm_cpu_tir_strategy):
         executor_factory = tvm.relay.build(
             ir_mod,
             target=target,
