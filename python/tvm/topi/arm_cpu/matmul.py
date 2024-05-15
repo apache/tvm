@@ -33,9 +33,9 @@ def compute_matmul_sme(cfg, data_a, data_b, _, out_dtype, transpose_a=False, tra
     """
     SME Matmul compute definition.
     """
-    assert transpose_a is False, "Transposed lhs not currently supported."
+    assert bool(transpose_a) is False, "Transposed lhs not currently supported."
     if data_b.dtype == "float16":
-        assert transpose_b is True, "Rhs must be transposed when dtype is float16."
+        assert bool(transpose_b) is True, "Rhs must be transposed when dtype is float16."
 
     M, K = get_const_tuple(data_a.shape)
     if transpose_b:
