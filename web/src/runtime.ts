@@ -1014,6 +1014,7 @@ export class Instance implements Disposable {
   private asyncifyHandler: AsyncifyHandler;
   private initProgressCallback: Array<InitProgressCallback> = [];
   private rng: LinearCongruentialGenerator;
+  private deviceLostIsError = true;  // whether device.lost is due to actual error or dispose()
 
   /**
    * Internal function(registered by the runtime)
@@ -1107,11 +1108,14 @@ export class Instance implements Disposable {
   }
 
   dispose(): void {
+    this.deviceLostIsError = false;  // prevent dispose to trigger device.lost error
     // order matters
     // ctx release goes back into lib.
     this.ctx.dispose();
     this.lib.dispose();
+    this.deviceLostIsError = true;
   }
+
   /**
    * Obtain the runtime information in readable format.
    */
@@ -2094,6 +2098,17 @@ export class Instance implements Disposable {
    * @param device The given GPU device.
    */
   initWebGPU(device: GPUDevice): void {
+    device.addEventListener("uncapturederror", (event) => {
+      console.error("A WebGPU error was not captured: ", event);
+    });
+
+    device.lost.then((info: any) => {
+      if (this.deviceLostIsError) {
+        console.error("Device lost, calling Instance.dispose(). Please initialize again. ", info);
+        this.dispose();
+      }
+    });
+
     const webGPUContext = new WebGPUContext(
       this.memory, device
     );
