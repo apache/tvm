@@ -2352,6 +2352,7 @@ def multinomial_from_uniform(
     uniform_sample: Tensor,
     sample_indices: Optional[Tensor] = None,
     dtype: str = "int64",
+    name: str = "multinomial_from_uniform",
 ):
     """Returns a tensor where each row contains the index sampled from the multinomial
     probability distribution located in the corresponding row of tensor prob.
@@ -2403,8 +2404,6 @@ def multinomial_from_uniform(
         multinomial_from_uniform(prob, usample, sample_indices)
         -> [[1], [2]]
     """
-    prob_dtype = prob.dtype
-    sample_dtype = uniform_sample.dtype
     out_batch = uniform_sample.shape[0]
 
     if sample_indices is not None:
@@ -2417,40 +2416,9 @@ def multinomial_from_uniform(
         ), "Number of samples must match the number of probability distributions."
         sample_indices = Tensor.from_const(np.arange(out_batch).reshape(out_batch, 1))
 
-    sample_indices_dtype = sample_indices.dtype
-
-    @T.prim_func(private=True)
-    def _get_sample_index(A: T.handle, B: T.handle, C: T.handle, D: T.handle):
-        batch, vocab_size = T.int64(), T.int64()
-        prob = T.match_buffer(A, (batch, vocab_size), prob_dtype)
-        out_batch = T.int64()
-        usample = T.match_buffer(B, (out_batch, 1), sample_dtype)
-        sample_indices = T.match_buffer(C, (out_batch, 1), sample_indices_dtype)
-        output_index = T.match_buffer(D, (out_batch, 1), dtype)
-
-        for ax0, ax1 in T.grid(out_batch, vocab_size):
-            with T.block("T_get_sample_index"):
-                v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                T.writes(output_index[v_ax0, 0])
-                if (
-                    usample[v_ax0, T.int64(0)] < prob[sample_indices[v_ax0, T.int64(0)], v_ax1]
-                    or v_ax1 + 1 == vocab_size
-                ):
-                    if v_ax1 == 0:
-                        output_index[v_ax0, 0] = 0
-                    elif (
-                        usample[v_ax0, T.int64(0)]
-                        >= prob[sample_indices[v_ax0, T.int64(0)], v_ax1 - 1]
-                    ):
-                        output_index[v_ax0, 0] = v_ax1
-
-    cumsum_prob = cumsum(prob, axis=1, exclusive=False)
-
-    return tensor_ir_op(
-        _get_sample_index,
-        "get_sample_index",
-        args=[cumsum_prob, uniform_sample, sample_indices],
-        out=Tensor.placeholder([out_batch, 1], dtype),
+    return wrap_nested(
+        _op.multinomial_from_uniform(prob._expr, uniform_sample._expr, sample_indices._expr, dtype),
+        name,
     )
 
 
@@ -2554,12 +2522,12 @@ def sample_top_p_top_k_from_sorted_prob(
         for ax0, ax1 in T.grid(batch, vocab_size):
             with T.block("T_get_renorm_prob"):
                 v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                if _cumsum_mask(cumsum_sorted, top_p, top_k, v_ax0, 0) == 0:
+                if not _cumsum_mask(cumsum_sorted, top_p, top_k, v_ax0, 0):
                     renorm_prob[v_ax0, 0] = cumsum_sorted[v_ax0, 0]
-                elif _cumsum_mask(cumsum_sorted, top_p, top_k, v_ax0, v_ax1) == 1:
+                elif _cumsum_mask(cumsum_sorted, top_p, top_k, v_ax0, v_ax1):
                     if v_ax1 + 1 == vocab_size:
                         renorm_prob[v_ax0, 0] = cumsum_sorted[v_ax0, v_ax1]
-                    elif _cumsum_mask(cumsum_sorted, top_p, top_k, v_ax0, v_ax1 + 1) == 0:
+                    elif not _cumsum_mask(cumsum_sorted, top_p, top_k, v_ax0, v_ax1 + 1):
                         renorm_prob[v_ax0, 0] = cumsum_sorted[v_ax0, v_ax1 + 1]
 
     @T.prim_func(private=True)
