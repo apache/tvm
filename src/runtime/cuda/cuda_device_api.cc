@@ -121,6 +121,12 @@ class CUDADeviceAPI final : public DeviceAPI {
         *rv = total_global_memory;
         return;
       }
+      case kAvailableGlobalMemory: {
+        size_t free_mem, total_mem;
+        CUDA_CALL(cudaMemGetInfo(&free_mem, &total_mem));
+        *rv = static_cast<int64_t>(free_mem);
+        return;
+      }
     }
     *rv = value;
   }
