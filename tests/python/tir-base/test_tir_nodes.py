@@ -514,6 +514,29 @@ def test_buffer_load_predicate_elements_invalid_type():
         tvm.tir.BufferLoad(b, [index], predicate)
 
 
+def test_buffer_store_predicate_invalid_scalability():
+    b = tvm.tir.decl_buffer((24,), "int32")
+    index = tvm.tir.expr.Ramp(0, 1, 4 * tvm.tir.vscale())
+    predicate = tvm.tir.expr.Broadcast(tvm.tir.IntImm("int1", 1), 4)
+
+    err_msg = "Predicate mask dtype and load indices must both be scalable."
+    with pytest.raises(tvm.TVMError, match=err_msg):
+        tvm.tir.BufferLoad(b, [index], predicate)
+
+
+def test_buffer_store_predicate_invalid_lanes():
+    b = tvm.tir.decl_buffer((24,), "int32")
+    index = tvm.tir.expr.Ramp(0, 1, 4 * tvm.tir.vscale())
+    predicate = tvm.tir.expr.Broadcast(tvm.tir.IntImm("int1", 1), 8 * tvm.tir.vscale())
+
+    err_msg = (
+        "Got a predicate mask with 8 lanes, but trying to load a "
+        "vector with 4 lanes. The number of lanes must match."
+    )
+    with pytest.raises(tvm.TVMError, match=err_msg):
+        tvm.tir.BufferLoad(b, [index], predicate)
+
+
 def test_scalable_vec_cast():
     b = tvm.tir.decl_buffer((24,), "float32")
     value = tvm.tir.expr.Broadcast(1, 12 * tvm.tir.vscale()).astype("float32xvscalex12")

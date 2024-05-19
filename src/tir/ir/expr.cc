@@ -780,7 +780,21 @@ BufferLoad::BufferLoad(Buffer buffer, Array<PrimExpr> indices, Optional<PrimExpr
       << "-dimensional indices provided.";
 
   if (predicate.defined()) {
-    DataType predicate_element_dtype = predicate.value().dtype().element_of();
+    DataType predicate_dtype = predicate.value().dtype();
+
+    bool is_index_scalable = indices.empty() ? false : indices.back().dtype().is_scalable_vector();
+    bool is_predicate_scalable = predicate_dtype.is_scalable_vector();
+    ICHECK_EQ(is_index_scalable, is_predicate_scalable)
+        << "Predicate mask dtype and load indices must both be scalable.";
+
+    int index_lanes = indices.empty() ? 1 : indices.back().dtype().get_lanes_or_vscale_factor();
+    int predicate_lanes = predicate_dtype.get_lanes_or_vscale_factor();
+    ICHECK_EQ(index_lanes, predicate_lanes)
+        << "Got a predicate mask with " << predicate_lanes
+        << " lanes, but trying to load a vector with " << index_lanes
+        << " lanes. The number of lanes must match.";
+
+    DataType predicate_element_dtype = predicate_dtype.element_of();
     ICHECK(predicate_element_dtype.is_bool())
         << "Predicate mask elements must be boolean values, but got " << predicate_element_dtype
         << ".";
