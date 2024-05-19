@@ -118,6 +118,9 @@ def _reconstruct_codegen_args(args, codegen_name):
                     option_value = getattr(args, var_name)
                     if option_value is not None:
                         codegen_options[target_option] = option_value
+
+    if codegen_name is "cmsis-nn"
+        print ("Args of CMSIS-NN", codegen_options)
     return codegen_options
 
 
