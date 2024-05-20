@@ -120,6 +120,29 @@ export async function detectGPUDevice(): Promise<GPUDeviceDetectOutput | undefin
   }
 }
 
+/**
+ * Create GPU buffer with `createBuffer()` but with error catching; destroy if error caught.
+ * @param device The GPUDevice used to create a buffer.
+ * @param descriptor The GPUBufferDescriptor passed to `createBuffer()`.
+ * @returns The buffer created by `createBuffer()`.
+ *
+ * @note We treat any error occurred at `createBuffer()` fatal and expect the user to handle
+ *   `device.destroy()` with `device.lost.then()`.
+ */
+function tryCreateBuffer(device: GPUDevice, descriptor: GPUBufferDescriptor) {
+  device.pushErrorScope("out-of-memory");
+  device.pushErrorScope("validation");
+  device.pushErrorScope("internal");
+
+  const buffer = device.createBuffer(descriptor);
+
+  device.popErrorScope().then((error) => {if (error) {device.destroy(); console.error(error);}});
+  device.popErrorScope().then((error) => {if (error) {device.destroy(); console.error(error);}});
+  device.popErrorScope().then((error) => {if (error) {device.destroy(); console.error(error);}});
+
+  return buffer;
+}
+
 const canvasRenderWGSL = `
 @group(0) @binding(0) var my_sampler : sampler;
 @group(0) @binding(1) var my_texture : texture_2d<f32>;
@@ -504,7 +527,7 @@ export class WebGPUContext {
 
     if (buffer == undefined) {
       // create uniform buffer
-      buffer = this.device.createBuffer({
+      buffer = tryCreateBuffer(this.device, {
         size: allocSize,
         usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
       });
@@ -779,7 +802,7 @@ export class WebGPUContext {
     if (nbytes == 0) {
       nbytes = 1;
     }
-    const buffer = this.device.createBuffer({
+    const buffer = tryCreateBuffer(this.device, {
       size: nbytes,
       usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST,
     });
@@ -833,7 +856,7 @@ export class WebGPUContext {
     nbytes: number
   ): void {
     // Perhaps it would be more useful to resuse a staging buffer?
-    const gpuTemp = this.device.createBuffer({
+    const gpuTemp = tryCreateBuffer(this.device, {
       size: nbytes,
       usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST,
     });

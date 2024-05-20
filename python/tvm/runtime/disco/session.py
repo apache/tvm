@@ -120,6 +120,7 @@ class Session(Object):
         shape: Sequence[int],
         dtype: str,
         device: Optional[Device] = None,
+        worker0_only: bool = False,
     ) -> DRef:
         """Create an empty NDArray on all workers and attach them to a DRef.
 
@@ -127,20 +128,36 @@ class Session(Object):
         ----------
         shape : tuple of int
             The shape of the NDArray.
+
         dtype : str
             The data type of the NDArray.
+
         device : Optional[Device] = None
             The device of the NDArray.
+
+        worker0_only: bool
+            If False (default), allocate an array on each worker.  If
+            True, only allocate an array on worker0.
 
         Returns
         -------
         array : DRef
             The created NDArray.
+
         """
         if device is None:
             device = Device(device_type=0, device_id=0)
         func = self._get_cached_method("runtime.disco.empty")
-        return func(ShapeTuple(shape), dtype, device)
+        return func(ShapeTuple(shape), dtype, device, worker0_only)
+
+    def shutdown(self):
+        """Shut down the Disco session"""
+        _ffi_api.SessionShutdown(self)  # type: ignore # pylint: disable=no-member
+
+    @property
+    def num_workers(self) -> int:
+        """Return the number of workers in the session"""
+        return _ffi_api.SessionGetNumWorkers(self)  # type: ignore # pylint: disable=no-member
 
     def get_global_func(self, name: str) -> DRef:
         """Get a global function on workers.

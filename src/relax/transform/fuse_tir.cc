@@ -447,7 +447,7 @@ class FusedTIRConstructor : public ExprVisitor {
 
     // map of input buffers to indices (helpful for detecting in-place inputs)
     std::unordered_map<tir::Buffer, size_t, ObjectPtrHash, ObjectPtrEqual> buffer_to_idx;
-    std::unordered_map<tir::Var, size_t, ObjectPtrHash, ObjectPtrEqual> input_to_idx;
+    std::unordered_map<tir::Var, size_t> input_to_idx;
     for (size_t i = 0; i < func_info_.params.size(); i++) {
       input_to_idx[func_info_.params[i]] = i;
     }
@@ -979,7 +979,7 @@ class TIRFuseMutator : public ExprMutator {
     mod.CopyOnWrite();
 
     IRModule updates;
-    std::unordered_map<GlobalVar, Replacement, ObjectPtrHash, ObjectPtrEqual> replacements;
+    std::unordered_map<GlobalVar, Replacement> replacements;
 
     // Since TIRFuseMutator will delete bunch of PrimFunc, we create an empty block builder.
 
@@ -1024,8 +1024,7 @@ class TIRFuseMutator : public ExprMutator {
     Array<Integer> inplace_indices;
   };
 
-  explicit TIRFuseMutator(
-      std::unordered_map<GlobalVar, Replacement, ObjectPtrHash, ObjectPtrEqual> replacements)
+  explicit TIRFuseMutator(std::unordered_map<GlobalVar, Replacement> replacements)
       : replacements_(replacements) {}
 
   using ExprMutator::VisitExpr_;
@@ -1129,7 +1128,7 @@ class TIRFuseMutator : public ExprMutator {
    *
    * Has one entry for each primitive relax function in the IRModule.
    */
-  std::unordered_map<GlobalVar, Replacement, ObjectPtrHash, ObjectPtrEqual> replacements_;
+  std::unordered_map<GlobalVar, Replacement> replacements_;
 };
 
 IRModule FuseTIR(IRModule mod) {

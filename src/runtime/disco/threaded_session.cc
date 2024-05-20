@@ -154,6 +154,8 @@ class ThreadedSessionObj final : public BcastSessionObj {
     workers_.clear();
   }
 
+  int64_t GetNumWorkers() { return workers_.size(); }
+
   TVMRetValue DebugGetFromRemote(int64_t reg_id, int worker_id) {
     this->SyncWorker(worker_id);
     return this->workers_.at(worker_id).worker->register_file.at(reg_id);

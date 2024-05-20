@@ -147,7 +147,7 @@ class RewriteSimplifier::Impl : public IRMutatorWithAnalyzer {
   // counter to record recursive rewrite depth.
   int64_t recur_depth_{0};
   // internal variable map
-  std::unordered_map<Var, PrimExpr, ObjectPtrHash, ObjectPtrEqual> var_map_;
+  std::unordered_map<Var, PrimExpr> var_map_;
 
   std::vector<PrimExpr> literal_constraints_;
 

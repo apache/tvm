@@ -342,8 +342,7 @@ using StorageAlignAnnotation = Array<StorageAlignTuple>;
  * \param body The stmt to collect.
  * \return The result dict from buffer var to storage align annotations.
  */
-std::unordered_map<Var, StorageAlignAnnotation, ObjectPtrHash, ObjectPtrEqual>
-CollectStorageAlignAnnotation(const Stmt& body);
+std::unordered_map<Var, StorageAlignAnnotation> CollectStorageAlignAnnotation(const Stmt& body);
 /*!
  * \brief Split string separated by "," to get wmma fragment dimension size.
  * \param  shape_str The string to split.

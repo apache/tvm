@@ -15,15 +15,17 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import re
+"""
+Codegen tests for AArch64
+"""
 
+import re
 import pytest
 
 import tvm
 from tvm import te
 from tvm.script import tir as T
 from tvm.topi.arm_cpu.pstate_attributes import SMEAttributes
-
 from tvm.target.codegen import llvm_version_major
 
 
@@ -494,6 +496,46 @@ def test_codegen_vscale():
     llvm = build_mod.get_source()
 
     assert re.findall(r"llvm.vscale.i32", llvm), "No vscale in generated LLVM."
+
+
+@pytest.mark.skipif(
+    llvm_version_major() < 16, reason="SME is not supported in earlier versions of LLVM"
+)
+@pytest.mark.parametrize("dtype", ["float32"])
+def test_matmul_sme(dtype):
+    target = "llvm -mtriple=aarch64-linux-gnu -mattr=+v9a,+sme"
+
+    def check_correct_assembly(dtype):
+        A = te.placeholder((32, 32), dtype=dtype, name="A")
+        B = te.placeholder((32, 32), dtype=dtype, name="B")
+
+        with tvm.target.Target(target):
+            C = tvm.topi.arm_cpu.matmul.compute_matmul_sme(A, B, None, dtype, False, False)
+            prim_func = te.create_prim_func([A, B, C])
+
+            sch = tvm.tir.Schedule(prim_func)
+            tvm.topi.arm_cpu.matmul.tir_schedule_matmul_sme(sch)
+            prim_func = sch.mod
+
+            f = tvm.build(prim_func, target=target)
+
+        assembly = f.get_source("asm")
+        smstart = re.findall(r"smstart\t(sm|za)", assembly)
+        loads = re.findall(r"ld1[whdb]\t{\s?za", assembly)
+        mopa = re.findall(
+            r"fmopa\tza[0-9].[shdb],( p[0-9]/[zm],)?( p[0-9]/[zm],)? z[0-9].[shdb], z[0-9].[shdb]",
+            assembly,
+        )
+        stores = re.findall(r"st1[whdb]\t{\s?za", assembly)
+        smstop = re.findall(r"smstop\t(sm|za)", assembly)
+
+        assert len(smstart) > 0
+        assert len(loads) > 0
+        assert len(mopa) > 0
+        assert len(stores) > 0
+        assert len(smstop) > 0
+
+    check_correct_assembly(dtype=dtype)
 
 
 @pytest.mark.skipif(

@@ -1023,6 +1023,19 @@ requires_corstone300 = Feature(
     parent_features="cmsisnn",
 )
 
+
+def _aprofile_aem_fvp_compile_time_check():
+    if shutil.which("FVP_Base_RevC-2xAEMvA") is None:
+        return "AProfile AEM is not available"
+    return True
+
+
+requires_aprofile_aem_fvp = Feature(
+    "aprofile-aem-fvp",
+    "AProfile AEM FVP",
+    compile_time_check=_aprofile_aem_fvp_compile_time_check,
+)
+
 # Mark a test as requiring Vitis AI to run
 requires_vitis_ai = Feature("vitis_ai", "Vitis AI", cmake_flag="USE_VITIS_AI")
 
@@ -1203,6 +1216,10 @@ def skip_if_32bit(reason):
         return _compose(args, [])
 
     return decorator
+
+
+def skip_if_no_reference_system(func):
+    return skip_if_32bit(reason="Reference system unavailable in i386 container")(func)
 
 
 def requires_package(*packages):
@@ -1447,7 +1464,7 @@ def parameter(*values, ids=None, by_dict=None):
 
     # Optional cls parameter in case a parameter is defined inside a
     # class scope.
-    @pytest.fixture(params=values, ids=ids)
+    @pytest.fixture(params=values, ids=ids, scope="session")
     def as_fixture(*_cls, request):
         return request.param
 

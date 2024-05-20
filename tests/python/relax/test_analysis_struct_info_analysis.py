@@ -24,6 +24,7 @@ import tvm.testing
 from tvm import TVMError
 from tvm import relax as rx
 from tvm import tir, ir
+from tvm.script import relax as R
 
 
 def test_get_static_type_basic():
@@ -716,6 +717,48 @@ def test_collect_symbolic_var_from_non_tensor_params(param_type, param_order):
     free_vars = set(rx.analysis.free_symbolic_vars(func))
     assert defined_vars == {tir_n, tir_m}
     assert free_vars == set()
+
+
+def test_collect_nonnegative_expressions():
+    @R.function
+    def func(
+        A: R.Tensor([1024, "M", "N-2"]),
+        B: R.Tensor([128, "N", "M+2"]),
+        C: R.Shape(["M", "N"]),
+        D: R.Prim(value="N"),
+    ):
+        return R.tuple()
+
+    M, N = list(func.params[2].struct_info.values)
+
+    # Expressions are de-duplicated, in order of their first appearance
+    tvm.ir.assert_structural_equal(
+        rx.analysis.collect_non_negative_expressions(func.struct_info),
+        [M, N - 2, N, M + 2],
+    )
+
+    # Tensor shapes can imply that their shapes are non-negative
+    tvm.ir.assert_structural_equal(
+        rx.analysis.collect_non_negative_expressions(func.params[0].struct_info),
+        [M, N - 2],
+    )
+    tvm.ir.assert_structural_equal(
+        rx.analysis.collect_non_negative_expressions(func.params[1].struct_info),
+        [N, M + 2],
+    )
+
+    # ShapeExpr values can imply that their contents are non-negative
+    tvm.ir.assert_structural_equal(
+        rx.analysis.collect_non_negative_expressions(func.params[2].struct_info),
+        [M, N],
+    )
+
+    # PrimValue instances may contain negative values, and do not
+    # imply that their contents are non-negative.
+    tvm.ir.assert_structural_equal(
+        rx.analysis.collect_non_negative_expressions(func.params[3].struct_info),
+        [],
+    )
 
 
 if __name__ == "__main__":

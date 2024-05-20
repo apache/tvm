@@ -83,7 +83,7 @@ class PurityChecker : TIRVisitorWithPath {
 
   bool assert_on_error_{false};
   bool is_pure_{true};
-  std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> internal_allocations_;
+  std::unordered_set<Var> internal_allocations_;
 };
 }  // namespace
 
