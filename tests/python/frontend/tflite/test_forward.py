@@ -4297,7 +4297,7 @@ def _test_reverse_sequence(shape, dtype, seq_lengths, batch_axis, seq_axis, quan
 
 
 def test_forward_reverse_sequence():
-    """Tests the reverse_sequence function with different input shapes, data types, and sequence lengths."""
+    """Tests the reverse_sequence function with different input shapes, data types."""
     if package_version.parse(tf.VERSION) >= package_version.parse("1.14.0"):
         _test_reverse_sequence([4, 3], "float32", [3, 2, 1], 1, 0)
         _test_reverse_sequence([4, 3], "float32", [3, 2, 1, 3], 0, 1)
