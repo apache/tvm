@@ -371,7 +371,9 @@ class ConstIntBoundAnalyzer::Impl
     } else if (op->op.same_as(tir::builtin::bitwise_and())) {
       return VisitBitwiseAnd(op);
     } else if (op->op.same_as(tir::builtin::vscale()) && TargetHasSVE()) {
-      return MakeBound(1, kAArch64VScaleValues.size());
+      unsigned int max_val =
+          *std::max_element(kAArch64VScaleValues.begin(), kAArch64VScaleValues.end());
+      return MakeBound(1, max_val);
     } else {
       return Everything(op->dtype);
     }

@@ -57,8 +57,10 @@ void CodeGenAArch64::SetTargetAttributes(llvm::Function* func) {
 #if TVM_LLVM_VERSION >= 130
   // Add vscale_range() function attribute when appropriate.
   if (llvm_target_->TargetHasCPUFeature("sve") || llvm_target_->TargetHasCPUFeature("sme")) {
-    func->addFnAttr(llvm::Attribute::getWithVScaleRangeArgs(
-        *llvm_target_->GetContext(), 1, tvm::arith::kAArch64VScaleValues.size()));
+    unsigned int max_val =
+        *std::max_element(arith::kAArch64VScaleValues.begin(), arith::kAArch64VScaleValues.end());
+    func->addFnAttr(
+        llvm::Attribute::getWithVScaleRangeArgs(*llvm_target_->GetContext(), 1, max_val));
   }
 #endif
   CodeGenCPU::SetTargetAttributes(func);
