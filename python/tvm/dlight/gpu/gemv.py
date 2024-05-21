@@ -711,7 +711,7 @@ class GEMV(GPUScheduleRule):
         if LOAD_V_SHARED is False:
             LOAD_V_TILE = 1
 
-        if not isinstance(len_r, int):
+        if not isinstance(len_r, int) or len_r < LOAD_V_TILE * TR * SCALE_PACK * DEC_PACK:
             return None
 
         if not isinstance(len_s, int):
