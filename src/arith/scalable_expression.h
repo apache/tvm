@@ -35,8 +35,7 @@ namespace tvm {
 namespace arith {
 
 /*! \brief A list of known vscale values to try for an AArch64 SVE target. */
-static const std::vector<unsigned int> kAArch64VScaleValues = {1, 2,  3,  4,  5,  6,  7,  8,
-                                                               9, 10, 11, 12, 13, 14, 15, 16};
+static const std::vector<unsigned int> kAArch64VScaleValues = {1, 2, 4, 8, 16};
 
 /*!
  * \brief Check if an expr is a call to the vscale intrinsic.
