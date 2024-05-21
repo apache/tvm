@@ -152,8 +152,14 @@ def test_conv2d_nhwc_gemm(device, ref_data, dtype, stride, padding, dilation):
 
         # Run only on AArch64 devices
         # Do not run SVE schedules on non-SVE devices
-        build_only = platform.machine() != "aarch64" or (
-            target.features.has_sve and not tvm.testing.requires_aarch64_sve.run_time_check()
+        build_only = (
+            platform.machine() != "aarch64"
+            or (target.features.has_sve and not tvm.testing.requires_aarch64_sve.run_time_check())
+            or (
+                dtype == "float16"
+                and target.features.has_fp16_simd
+                and not tvm.testing.requires_arm_fp16.run_time_check()
+            )
         )
         if build_only:
             return
