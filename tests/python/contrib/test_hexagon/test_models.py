@@ -30,7 +30,7 @@ def get_mobilenet():
     """Download and import mobilenet model with ONNX"""
     onnx = pytest.importorskip("onnx")
 
-    model_url = "https://github.com/onnx/models/raw/main/vision/classification/mobilenet/model/mobilenetv2-7.onnx"  # pylint: disable=line-too-long
+    model_url = "https://github.com/onnx/models/raw/main/validated/vision/classification/mobilenet/model/mobilenetv2-7.onnx"  # pylint: disable=line-too-long
     model_path = tvm.contrib.download.download_testdata(
         model_url, "mobilenetv2-7.onnx", module="onnx"
     )

@@ -88,7 +88,7 @@ from tvm.contrib import graph_executor
 
 model_url = (
     "https://github.com/onnx/models/raw/main/"
-    "vision/classification/resnet/model/"
+    "validated/vision/classification/resnet/model/"
     "resnet50-v2-7.onnx"
 )
 
