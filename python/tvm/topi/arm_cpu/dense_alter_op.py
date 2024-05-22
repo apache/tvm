@@ -55,7 +55,15 @@ def _alter_dense(attrs, inputs, tinfos, out_type):
 
         weight_dtype = tinfos[1].dtype
         encoded_weight = inputs[1]
+
+        # For dense the weights (rhs) are provided in transposed format,
+        # i.e. they are of the shape (n, k).
         transpose_b = True
+
+        # The SME schedule expects the rhs to be in the format (k, n). We can do this
+        # transformation at compile time in the case of float32. Note: For the
+        # float16->float32 schedule the transformation currently happens at runtime
+        # with the ARM_SME_BLOCK2_2SVLx1SVL_FP16_TRANSPOSE_INTERLEAVE intrinsic.
         if weight_dtype == "float32":
             encoded_weight = relay.const(encoded_weight.data.numpy().transpose(), weight_dtype)
             transpose_b = False

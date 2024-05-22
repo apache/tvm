@@ -46,11 +46,11 @@ def compute_matmul_sme(cfg, data_a, data_b, _, out_dtype, transpose_a=False, tra
     if not out_dtype:
         out_dtype = data_a.dtype
 
-    tile_m = 2 * tvm.tir.get_vscale_factor(data_a.dtype)
-    tile_k = tvm.tir.get_vscale_factor(data_a.dtype)
+    tile_m = 2 * tvm.tir.get_vscale_expr(data_a.dtype)
+    tile_k = tvm.tir.get_vscale_expr(data_a.dtype)
     if data_a.dtype == "float32":
         tile_k *= 2
-    tile_n = 2 * tvm.tir.get_vscale_factor(data_a.dtype)
+    tile_n = 2 * tvm.tir.get_vscale_expr(data_a.dtype)
 
     M_padded, pad_M = pad_dim_to_multiple(M, tile_m)
     _, pad_K = pad_dim_to_multiple(K, tile_k)
@@ -140,13 +140,13 @@ def tir_schedule_matmul_sme(sch):
     extent_n = sch.get(n).extent
 
     if in_dtype == "float16":
-        tile_m = T.cast(2 * tvm.tir.get_vscale_factor(in_dtype), extent_m.dtype)
-        tile_k = T.cast(tvm.tir.get_vscale_factor(in_dtype), extent_k.dtype)
-        tile_n = T.cast(2 * tvm.tir.get_vscale_factor(in_dtype), extent_n.dtype)
+        tile_m = T.cast(2 * tvm.tir.get_vscale_expr(in_dtype), extent_m.dtype)
+        tile_k = T.cast(tvm.tir.get_vscale_expr(in_dtype), extent_k.dtype)
+        tile_n = T.cast(2 * tvm.tir.get_vscale_expr(in_dtype), extent_n.dtype)
     else:
-        tile_m = T.cast(2 * tvm.tir.get_vscale_factor(in_dtype), extent_m.dtype)
-        tile_k = T.cast(2 * tvm.tir.get_vscale_factor(in_dtype), extent_k.dtype)
-        tile_n = T.cast(2 * tvm.tir.get_vscale_factor(in_dtype), extent_n.dtype)
+        tile_m = T.cast(2 * tvm.tir.get_vscale_expr(in_dtype), extent_m.dtype)
+        tile_k = T.cast(2 * tvm.tir.get_vscale_expr(in_dtype), extent_k.dtype)
+        tile_n = T.cast(2 * tvm.tir.get_vscale_expr(in_dtype), extent_n.dtype)
 
     # Interleave the input utilizing the matrix tile
     interleave_a_block = sch.cache_read(gemm_block, 0, "global")
@@ -170,8 +170,8 @@ def tir_schedule_matmul_sme(sch):
         sch.tensorize(inner_k, transpose_interleave_intrin_name)
 
     # Split and reorder the loops of the GeMM for tensorization
-    tile_m = T.cast(2 * tvm.tir.get_vscale_factor(out_dtype), extent_m.dtype)
-    tile_n = T.cast(2 * tvm.tir.get_vscale_factor(out_dtype), extent_n.dtype)
+    tile_m = T.cast(2 * tvm.tir.get_vscale_expr(out_dtype), extent_m.dtype)
+    tile_n = T.cast(2 * tvm.tir.get_vscale_expr(out_dtype), extent_n.dtype)
     m, n, k = sch.get_loops(gemm_block)
     outer_m, inner_m = sch.split(m, factors=(None, tile_m), disable_predication=True)
     outer_n, inner_n = sch.split(n, factors=(None, tile_n), disable_predication=True)

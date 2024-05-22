@@ -173,7 +173,7 @@ def _create_ptrue_mask(dtype):
     """
     Creates a mask that enables all lanes of a scalable vector.
     """
-    return T.broadcast(T.bool(True), tir.get_vscale_factor(dtype))
+    return T.broadcast(T.bool(True), tir.get_vscale_expr(dtype))
 
 
 def get_sme_transpose_interleave_2svlx2svl_fp32_intrin():
@@ -213,7 +213,7 @@ def get_sme_transpose_interleave_2svlx2svl_fp32_intrin():
         The SME TensorIntrin that can be used in tensorizing a schedule.
 
     """
-    SVF = tir.get_vscale_factor("float32")
+    SVF = tir.get_vscale_expr("float32")
     SVF2 = 2 * SVF
 
     @T.prim_func
@@ -347,7 +347,7 @@ def get_sme_transpose_interleave_block2_2svl_fp16_intrin():
 
     """
     # pylint: enable=line-too-long
-    SVF = tir.get_vscale_factor("float16")
+    SVF = tir.get_vscale_expr("float16")
     SVF2 = 2 * SVF
 
     @T.prim_func
@@ -532,7 +532,7 @@ def get_sme_gemm_interleaved_mopa_2svlx2svl_intrin(K, in_dtype):
         The SME TensorIntrin that can be used in tensorizing a schedule.
 
     """
-    SVF = tir.get_vscale_factor("float32")
+    SVF = tir.get_vscale_expr("float32")
     SVF2 = 2 * SVF
     fmopa_intrin = (
         "llvm.aarch64.sme.mopa" if in_dtype == "float32" else "llvm.aarch64.sme.mopa.wide"
@@ -577,7 +577,7 @@ def get_sme_gemm_interleaved_mopa_2svlx2svl_intrin(K, in_dtype):
                     rows_per_iter = 1 if in_dtype == "float32" else 2
                     with T.serial(T.ceildiv(K, rows_per_iter)) as k:
                         k_row = k * rows_per_iter
-                        in_dtype_svf = tir.get_vscale_factor(in_dtype)
+                        in_dtype_svf = tir.get_vscale_expr(in_dtype)
 
                         a_low = T.BufferLoad(A, [k_row, T.Ramp(0, 1, in_dtype_svf)])
                         b_low = T.BufferLoad(B, [k_row, T.Ramp(0, 1, in_dtype_svf)])

@@ -3370,16 +3370,16 @@ def get_active_lane_mask(dtype, base, limit):
     return call_intrin(dtype, "tir.get_active_lane_mask", base, limit)
 
 
-def get_vscale_factor(dtype: Union[str, tvm.DataType], min_size: int = 128) -> PrimExpr:
+def get_vscale_expr(dtype: Union[str, tvm.DataType], min_size: int = 128) -> PrimExpr:
     """
     Create a datatype dependent scalable expression.
 
     Parameters
     ----------
-    dtype : tvm.DataType
+    dtype : Union[str, tvm.DataType]
         Element data type.
     min_size : int
-        The minimum size of the scalable vector.
+        The minimum size of the scalable vector in bits.
     """
     if isinstance(dtype, str):
         dtype = tvm.DataType(dtype)
