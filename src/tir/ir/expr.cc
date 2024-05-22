@@ -787,9 +787,10 @@ BufferLoad::BufferLoad(Buffer buffer, Array<PrimExpr> indices, Optional<PrimExpr
     ICHECK_EQ(is_index_scalable, is_predicate_scalable)
         << "Predicate mask dtype and load indices must both be scalable.";
 
+    int buffer_lanes = buffer->dtype.get_lanes_or_vscale_factor();
     int index_lanes = indices.empty() ? 1 : indices.back().dtype().get_lanes_or_vscale_factor();
     int predicate_lanes = predicate_dtype.get_lanes_or_vscale_factor();
-    ICHECK_EQ(index_lanes, predicate_lanes)
+    ICHECK_EQ(index_lanes * buffer_lanes, predicate_lanes)
         << "Got a predicate mask with " << predicate_lanes
         << " lanes, but trying to load a vector with " << index_lanes
         << " lanes. The number of lanes must match.";
