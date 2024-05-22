@@ -37,7 +37,12 @@ export async function detectGPUDevice(): Promise<GPUDeviceDetectOutput | undefin
   if (typeof navigator !== "undefined" && navigator.gpu !== undefined) {
     const adapter = await navigator.gpu.requestAdapter({ "powerPreference": "high-performance" });
     if (adapter == null) {
-      throw Error("Cannot find adapter that matches the request");
+      throw Error(
+        "Unable to find a compatible GPU. This issue might be because your computer doesn't have a GPU, or your system settings are not configured properly. " +
+          "Please check if your device has a GPU properly set up and if your your browser supports WebGPU. " +
+          "You can also consult your browser's compatibility chart to see if it supports WebGPU. " +
+          "For more information about WebGPU support in your browser, visit https://webgpureport.org/"
+      );
     }
     const computeMB = (value: number) => {
       return Math.ceil(value / (1 << 20)) + "MB";
