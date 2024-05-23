@@ -108,9 +108,16 @@ class GraphCreator : public ExprVisitor {
   static IndexedForwardGraph Create(IRModule mod, support::Arena* arena) {
     GraphCreator creator(mod, arena);
     for (const auto& it : mod->functions) {
-      // Only visit Relax function without attr kPrimitive.
+      // Only visit Relax functions with neither attr::kPrimitive nor
+      // attr::kCodegen.  Relax functions with `attr::kPrimitive` are
+      // previously fused functions, potentially from a previous use
+      // of `FuseOps` or `FuseOpsByPattern`.  Relax functions with
+      // `attr::kCodegen` are previously fused functions from
+      // `FuseOpsByPattern`, when the `annotate_codegen` option is
+      // true.
       const auto* func = it.second.as<FunctionNode>();
-      if (func == nullptr || func->HasNonzeroAttr(attr::kPrimitive)) {
+      if (func == nullptr || func->HasNonzeroAttr(attr::kPrimitive) ||
+          func->GetAttr<String>(attr::kCodegen).defined()) {
         continue;
       }
       creator(GetRef<Function>(func));
@@ -140,13 +147,6 @@ class GraphCreator : public ExprVisitor {
       AddToPostDFSOrder(param_node, param.get());
     }
     ExprVisitor::VisitExpr_(func);
-  }
-
-  void VisitBindingBlock(const BindingBlock& block) final {
-    if (const auto* df_block = block.as<DataflowBlockNode>()) {
-      VisitBindingBlock_(df_block);
-    }
-    // We skip ordinary binding blocks since they might be impure (with side effect or control flow)
   }
 
   void VisitBinding_(const MatchCastNode* binding) final {
@@ -262,16 +262,11 @@ class GraphCreator : public ExprVisitor {
     IndexedForwardGraph::Node* leaf_node = nullptr;
     if (it != graph_.node_map.end()) {
       leaf_node = it->second;
-    } else if (leaf_expr->IsInstance<ConstantNode>() || leaf_expr->IsInstance<ShapeExprNode>() ||
-               leaf_expr->IsInstance<PrimValueNode>() || leaf_expr->IsInstance<StringImmNode>() ||
-               leaf_expr->IsInstance<DataTypeImmNode>()) {
+    } else {
       leaf_node = CreateNode(leaf_expr.get());
       // Since we never fuse constants, the pattern of the constant is set to `kOpaque`.
       SetNodePattern(leaf_node, OpPatternKind::kOpaque);
       AddToPostDFSOrder(leaf_node, leaf_expr.get());
-    } else {
-      LOG(FATAL) << "The leaf Expr is supposed to be defined before, but got: " << leaf_expr
-                 << " used before definition.";
     }
     AddEdge(leaf_node, binding_var_node, pattern);
   }
@@ -701,8 +696,10 @@ class OperatorFusor : public ExprMutator {
     }
     for (const auto& gv : entry_functions) {
       const auto& func = mod_->Lookup(gv);
-      // Only visit Relax function without attr kPrimitive.
-      if (func->IsInstance<relax::FunctionNode>() && !func->HasNonzeroAttr(attr::kPrimitive)) {
+      // Only visit Relax functions with neither attr::kPrimitive nor
+      // attr::kCodegen.
+      if (func->IsInstance<relax::FunctionNode>() && !func->HasNonzeroAttr(attr::kPrimitive) &&
+          !func->GetAttr<String>(attr::kCodegen).defined()) {
         auto updated_func = Downcast<Function>(VisitExpr(func));
         builder_->UpdateFunction(gv, updated_func);
       }
@@ -737,14 +734,6 @@ class OperatorFusor : public ExprMutator {
       if (field->IsInstance<TupleStructInfoNode>()) return true;
     }
     return false;
-  }
-
-  BindingBlock VisitBindingBlock(const BindingBlock& block) final {
-    if (const auto* df_block = block.as<DataflowBlockNode>()) {
-      return VisitBindingBlock_(df_block);
-    }
-    // We skip ordinary binding blocks since they might be impure (with side effect or control flow)
-    return block;
   }
 
   BindingBlock VisitBindingBlock_(const DataflowBlockNode* block) final {
