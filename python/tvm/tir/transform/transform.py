@@ -488,6 +488,22 @@ def MakeUnpackedAPI():
     return _ffi_api.MakeUnpackedAPI()  # type: ignore
 
 
+def GenerateFunctionSignatureMetadata():
+    """Generate metadata describing the function signatures
+
+    Generate a metadata function that returns a JSON-formatted string,
+    describing the functions available within the IRModule and their
+    signatures.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+
+    """
+    return _ffi_api.GenerateFunctionSignatureMetadata()  # type: ignore
+
+
 def AnnotateDeviceRegions():
     """Annotate locations that should be run on the device
 

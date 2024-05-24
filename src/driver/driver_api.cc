@@ -569,8 +569,22 @@ transform::Sequential MixedModulePassManager(IRModule mixed_mod, Target target) 
 
   Array<Pass> mixed_pass_list;
 
-  // FPComputeLegalize uses the target attrs added by BindTarget, so it must come first
+  // AnnotateEntryFunc inspects user-defined functions to provide a
+  // default function to call.  Therefore, it should appear before any
+  // passes that would generate additional PrimFuncs.
+  mixed_pass_list.push_back(tir::transform::AnnotateEntryFunc());
+
+  // GenerateFunctionSignatureMetadata produces a function with
+  // `tir.is_host_func`, relying on `BindTarget` to generate the
+  // correct target annotation.  Therefore, it must come before
+  // BindTarget.
+  mixed_pass_list.push_back(tir::transform::GenerateFunctionSignatureMetadata());
+
+  // Many later passes, such as FP8ComputeLegalize, use the target
+  // attrs added by BindTarget.  Therefore, BindTarget should occur as
+  // early as possible.
   mixed_pass_list.push_back(tir::transform::BindTarget(target));
+
   mixed_pass_list.push_back(tir::transform::FP8ComputeLegalize());
 
   // VerifyVTCMLimit must occur before LowerVtcmAlloc
@@ -579,8 +593,6 @@ transform::Sequential MixedModulePassManager(IRModule mixed_mod, Target target) 
   mixed_pass_list.push_back(tir::transform::LowerVtcmAlloc());
 
   mixed_pass_list.push_back(tir::transform::VerifyMemory());
-
-  mixed_pass_list.push_back(tir::transform::AnnotateEntryFunc());
 
   bool detect_global_barrier =
       pass_ctx->GetConfig<Bool>("tir.detect_global_barrier", Bool(false)).value();

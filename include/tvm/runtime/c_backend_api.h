@@ -166,6 +166,18 @@ TVM_DLL int TVMBackendParallelBarrier(int task_id, TVMParallelGroupEnv* penv);
  */
 TVM_DLL int TVMBackendRunOnce(void** handle, int (*f)(void*), void* cdata, int nbytes);
 
+/*! \brief Generate a pointer usable as kTVMStr in a TVMRetValue
+ *
+ * While TVMArgValue uses `const char*` to represent string arguments,
+ * TVMRetValue represents string return values as a heap-allocated C++
+ * `std::string` objects.
+ *
+ * \param c_str A null-terminated C-style string
+ *
+ * \return A pointer to the heap-allocated C++ `std::string`.
+ */
+void* TVMBackendStringRetValue(const char* c_str);
+
 #ifdef __cplusplus
 }  // TVM_EXTERN_C
 #endif

@@ -974,7 +974,8 @@ class TVMRetValue : public TVMPODValue_ {
    */
   static TVMRetValue MoveFromCHost(TVMValue value, int type_code) {
     // Can move POD and everything under the object system.
-    ICHECK(type_code <= kTVMPackedFuncHandle || type_code == kTVMNDArrayHandle);
+    ICHECK(type_code <= kTVMPackedFuncHandle || type_code == kTVMNDArrayHandle ||
+           type_code == kTVMStr);
     TVMRetValue ret;
     ret.value_ = value;
     ret.type_code_ = type_code;

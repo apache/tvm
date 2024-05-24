@@ -17,10 +17,15 @@
 
 # pylint: disable=invalid-name, unused-import, import-outside-toplevel, inconsistent-return-statements
 """Runtime Module namespace."""
-import os
+
 import ctypes
+import difflib
+import json
+import os
 import struct
-from typing import Sequence
+
+from typing import Sequence, Iterable, Iterator, Optional
+
 import numpy as np
 
 from tvm._ffi.base import _LIB, check_call, c_str, string_types, _RUNTIME_ONLY
@@ -100,7 +105,20 @@ class ModulePropertyMask(object):
 class Module(object):
     """Runtime Module."""
 
-    __slots__ = ["handle", "_entry", "entry_name"]
+    __slots__ = ["handle", "_entry", "entry_name", "_cached_metadata"]
+
+    _GET_TIR_FUNCTION_METADATA = "__tvm_get_tir_function_metadata__"
+    """The function to retrieve TIR metadata, if any
+
+    This is for internal use only.  If present in the module, this
+    should be a function that returns a JSON string describing the
+    functions provided by the module, along with the signatures of
+    those functions.
+
+    This parameter corresponds to the C++ value
+    `tvm::runtime::symbol::tvm_get_tir_function_metadata`, located in
+    `#include <tvm/runtime/module.h>`.
+    """
 
     def __init__(self, handle):
         self.handle = handle
@@ -163,8 +181,42 @@ class Module(object):
 
         Returns
         -------
-        f : tvm.runtime.PackedFunc
+        func : tvm.runtime.PackedFunc
             The result function.
+        """
+        func = self._get_function(name, query_imports=query_imports)
+        if func is None:
+            nearby_names = difflib.get_close_matches(name, self.keys())
+            if nearby_names:
+                message = (
+                    f"Module has no function '{name}'.  "
+                    f"The module does contain functions with similar names: "
+                    f"{nearby_names}."
+                )
+            else:
+                message = (
+                    f"Module has no function '{name}'.  "
+                    f"The module does not contain any function with a similar name."
+                )
+            raise KeyError(message)
+
+        return func
+
+    def _get_function(self, name, query_imports=False) -> Optional[PackedFunc]:
+        """Get function from the module.
+
+        Parameters
+        ----------
+        name : str
+            The name of the function
+
+        query_imports : bool
+            Whether also query modules imported by this module.
+
+        Returns
+        -------
+        func : Optional[tvm.runtime.PackedFunc]
+            The result function, or None if it cannot be found
         """
         ret_handle = PackedFuncHandle()
         check_call(
@@ -172,9 +224,11 @@ class Module(object):
                 self.handle, c_str(name), ctypes.c_int(query_imports), ctypes.byref(ret_handle)
             )
         )
-        if not ret_handle.value:
-            raise AttributeError(f"Module has no function '{name}'")
-        return PackedFunc(ret_handle, False)
+        # pylint: disable=using-constant-test
+        if ret_handle.value:
+            return PackedFunc(ret_handle, False)
+        else:
+            return None
 
     def import_module(self, module):
         """Add module to the import list of current one.
@@ -186,10 +240,58 @@ class Module(object):
         """
         check_call(_LIB.TVMModImport(self.handle, module.handle))
 
-    def __getitem__(self, name):
+    def __getitem__(self, name: str) -> PackedFunc:
+        """Return the PackedFunc associated with the gven name
+
+        Parameters
+        ----------
+        name: str
+            The name of the function to be returned
+
+        Returns
+        -------
+        PackedFunc
+
+        """
+
         if not isinstance(name, string_types):
-            raise ValueError("Can only take string as function name")
+            raise TypeError(f"Module.__getitem__ expects a string, but received {type(name)}")
         return self.get_function(name)
+
+    def __contains__(self, key: str) -> bool:
+        return key in self.keys()
+
+    @property
+    def _metadata(self):
+        if hasattr(self, "_cached_metadata"):
+            # pylint: disable=access-member-before-definition
+            return self._cached_metadata
+
+        metadata_func = self._get_function(Module._GET_TIR_FUNCTION_METADATA)
+        if metadata_func is None:
+            raise RuntimeError("Cannot find function metadata in runtime.Module")
+
+        self._cached_metadata = json.loads(metadata_func())
+        return self._cached_metadata
+
+    def keys(self) -> Sequence[str]:
+        """Return a list of functions in the module
+
+        Returns
+        -------
+        Sequence[str]
+           The functions in the module
+        """
+        for function in self._metadata["functions"]:
+            yield function
+
+    def values(self) -> Iterator[PackedFunc]:
+        for key in self.keys():
+            yield self[key]
+
+    def items(self) -> Iterator[PackedFunc]:
+        for key in self.keys():
+            yield key, self[key]
 
     def __eq__(self, other):
         return self.handle.value == other.handle.value
