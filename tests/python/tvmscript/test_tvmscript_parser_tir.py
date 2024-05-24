@@ -486,5 +486,29 @@ def test_launch_thread_i64():
     assert func.body.node.dom.extent.dtype == "int64"
 
 
+def test_deterministic_branch():
+    """Test deterministic branch"""
+
+    def create_func(predicate: bool):
+        @T.prim_func(private=True)
+        def func() -> None:
+            if predicate:
+                T.evaluate(0)
+            else:
+                T.evaluate(1)
+
+        return func
+
+    def create_expected(value):
+        @T.prim_func(private=True)
+        def expected() -> None:
+            T.evaluate(value)
+
+        return expected
+
+    tvm.ir.assert_structural_equal(create_func(True), create_expected(0))
+    tvm.ir.assert_structural_equal(create_func(False), create_expected(1))
+
+
 if __name__ == "__main__":
     tvm.testing.main()
