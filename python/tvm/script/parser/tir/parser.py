@@ -479,14 +479,27 @@ def visit_if(self: Parser, node: doc.If) -> None:
         The doc AST if node.
     """
     with self.var_table.with_frame():
-        with T.If(self.eval_expr(node.test)):
-            with T.Then():
+        predicate = self.eval_expr(node.test)
+        if isinstance(predicate, (PrimExpr, tvm.tir.expr.ExprOp)):
+            with T.If(self.eval_expr(node.test)):
+                with T.Then():
+                    with self.var_table.with_frame():
+                        self.visit_body(node.body)
+                if node.orelse:
+                    with T.Else():
+                        with self.var_table.with_frame():
+                            self.visit_body(node.orelse)
+        elif isinstance(predicate, bool):
+            if predicate:
                 with self.var_table.with_frame():
                     self.visit_body(node.body)
-            if node.orelse:
-                with T.Else():
-                    with self.var_table.with_frame():
-                        self.visit_body(node.orelse)
+            elif node.orelse:
+                with self.var_table.with_frame():
+                    self.visit_body(node.orelse)
+        else:
+            self.report_error(
+                node.test, f"If condition must be a boolean expression, but got {predicate}"
+            )
 
 
 @dispatch.register(token="tir", type_name="Assert")
