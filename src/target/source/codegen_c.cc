@@ -932,7 +932,9 @@ void CodeGenC::VisitExpr_(const ShuffleNode* op, std::ostream& os) {  // NOLINT(
   }
   if (op->indices.size() == 1) {
     // This is an extract element
-    os << concat_vec[Downcast<IntImm>(op->indices[0])->value];
+    int64_t idx = Downcast<IntImm>(op->indices[0])->value;
+    ICHECK_LT(idx, concat_vec.size());
+    os << concat_vec[idx];
   } else {
     // Print the shuffle as vector constructor
     // vec(e0, e1, e2, .. en)
