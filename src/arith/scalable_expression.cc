@@ -71,15 +71,8 @@ std::optional<int> ExtractVscaleFactor(const PrimExpr& lanes) {
   }
 }
 
-bool IsComparison(const PrimExpr& expr) {
-  return expr->IsInstance<tir::LENode>() || expr->IsInstance<tir::LTNode>() ||
-         expr->IsInstance<tir::GENode>() || expr->IsInstance<tir::GTNode>() ||
-         expr->IsInstance<tir::EQNode>() || expr->IsInstance<tir::NENode>();
-}
-
 bool CanProveVscaleExpressionFromKnownValues(arith::Analyzer* analyzer, const PrimExpr& expr,
                                              const std::vector<unsigned int>& vscale_values) {
-  ICHECK(IsComparison(expr)) << "Expected comparison but got: " << expr;
   bool can_prove_expr = true;
   for (const unsigned int vscale_value : vscale_values) {
     PrimExpr result = SubstituteVScaleWithKnownValue(expr, vscale_value);
