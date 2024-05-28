@@ -173,6 +173,9 @@ def test_conv2d_nhwc_gemm(device, ref_data, dtype, stride, padding, dilation):
     if target.features.has_sme and llvm_version_major() < 16:
         pytest.skip(f"LLVM {llvm_version_major()} does not support targetting SME.")
 
+    if target.features.has_sme and dtype == "float16":
+        pytest.skip(f"Conv2d fp16 targetting SME not implemented.")
+
     with target:
         a = tvm.nd.array(a_np, dev)
         w = tvm.nd.array(w_np, dev)
