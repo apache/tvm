@@ -501,7 +501,7 @@ def test_codegen_vscale():
 @pytest.mark.skipif(
     llvm_version_major() < 16, reason="SME is not supported in earlier versions of LLVM"
 )
-@pytest.mark.parametrize("dtype", ["float32"])
+@pytest.mark.parametrize("dtype", ["float32", "float16"])
 def test_matmul_sme(dtype):
     target = "llvm -mtriple=aarch64-linux-gnu -mattr=+v9a,+sme"
 
@@ -510,7 +510,9 @@ def test_matmul_sme(dtype):
         B = te.placeholder((32, 32), dtype=dtype, name="B")
 
         with tvm.target.Target(target):
-            C = tvm.topi.arm_cpu.matmul.compute_matmul_sme(A, B, None, dtype, False, False)
+            C = tvm.topi.arm_cpu.matmul.compute_matmul_sme(
+                A, B, None, "float32", False, dtype == "float16"
+            )
             prim_func = te.create_prim_func([A, B, C])
 
             sch = tvm.tir.Schedule(prim_func)
