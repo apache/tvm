@@ -1668,9 +1668,9 @@ bool CodeGenLLVM::HasAlignmentPadding(DataType dtype) {
 }
 
 void CodeGenLLVM::BufferAccessHelper(
-    Buffer buffer, Array<PrimExpr> indices, DataType value_dtype,
-    std::function<llvm::Instruction*(TypedPointer buffer_ptr, int subelement_i, int alignment,
-                                     bool is_volatile)>
+    Buffer buffer, Array<PrimExpr> indices, Optional<PrimExpr> predicate, DataType value_dtype,
+    std::function<llvm::Instruction*(TypedPointer buffer_ptr, int subelement_i,
+                                     llvm::Value* predicate, int alignment, bool is_volatile)>
         make_instruction) {
   DataType buffer_element_dtype = buffer->dtype;
 
@@ -1750,6 +1750,11 @@ void CodeGenLLVM::BufferAccessHelper(
     std::vector<llvm::Value*> all_index_values = earlier_index_values;
     all_index_values.push_back(last_index_value);
 
+    llvm::Value* predicate_value = nullptr;
+    if (predicate.defined()) {
+      predicate_value = MakeValue(predicate.value());
+    }
+
     TypedPointer buffer_ptr =
         value_dtype.is_scalable_vector()
             ? CreateBufferPtr(MakeValue(buffer->data), buffer_element_dtype, all_index_values,
@@ -1758,7 +1763,8 @@ void CodeGenLLVM::BufferAccessHelper(
             : CreateBufferPtr(
                   MakeValue(buffer->data), buffer_element_dtype, all_index_values,
                   value_dtype.with_lanes(value_dtype.lanes() / last_index.dtype().lanes()));
-    auto instruction = make_instruction(buffer_ptr, subelement_i, alignment, is_volatile);
+    auto instruction =
+        make_instruction(buffer_ptr, subelement_i, predicate_value, alignment, is_volatile);
     AddAliasInfo(instruction, buffer->data.get(), last_index_origin, buffer_element_dtype_origin);
   }
 }
@@ -1768,17 +1774,30 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const BufferLoadNode* op) {
 
   std::vector<llvm::Value*> loads;
 
-  auto make_load = [this, &loads](TypedPointer buffer_ptr, int /* subelement_i */, int alignment,
-                                  bool is_volatile) {
-#if TVM_LLVM_VERSION >= 110
-    auto load = builder_->CreateAlignedLoad(buffer_ptr.type, buffer_ptr.addr,
-                                            llvm::Align(alignment), is_volatile);
-#elif TVM_LLVM_VERSION >= 80
-    auto load =
-        builder_->CreateAlignedLoad(buffer_ptr.type, buffer_ptr.addr, alignment, is_volatile);
+  auto make_load = [this, &loads](TypedPointer buffer_ptr, int /* subelement_i */,
+                                  llvm::Value* predicate, int alignment, bool is_volatile) {
+    llvm::Instruction* load = nullptr;
+    if (predicate != NULL) {
+      ICHECK(!is_volatile)
+          << "The masked load intrinsic does not support declaring load as volatile.";
+#if TVM_LLVM_VERSION >= 130
+      load = builder_->CreateMaskedLoad(buffer_ptr.type, buffer_ptr.addr, llvm::Align(alignment),
+                                        predicate);
+#elif TVM_LLVM_VERSION >= 110
+      load = builder_->CreateMaskedLoad(buffer_ptr.addr, llvm::Align(alignment), predicate);
 #else
-    auto load = builder_->CreateAlignedLoad(buffer_ptr.addr, alignment, is_volatile);
+      load = builder_->CreateMaskedLoad(buffer_ptr.addr, alignment, predicate);
 #endif
+    } else {
+#if TVM_LLVM_VERSION >= 110
+      load = builder_->CreateAlignedLoad(buffer_ptr.type, buffer_ptr.addr, llvm::Align(alignment),
+                                         is_volatile);
+#elif TVM_LLVM_VERSION >= 80
+      load = builder_->CreateAlignedLoad(buffer_ptr.type, buffer_ptr.addr, alignment, is_volatile);
+#else
+      load = builder_->CreateAlignedLoad(buffer_ptr.addr, alignment, is_volatile);
+#endif
+    }
 
     loads.push_back(load);
     return load;
@@ -1787,7 +1806,7 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const BufferLoadNode* op) {
   // Pass all indices into BufferAccessHelper.  In CodeGenLLVM,
   // non-flat indices will result in an error in CreateBufferPtr, but
   // a subclass may override CreateBufferPtr.
-  BufferAccessHelper(op->buffer, op->indices, value_dtype, make_load);
+  BufferAccessHelper(op->buffer, op->indices, op->predicate, value_dtype, make_load);
 
   if (loads.size() == 1) {
     return loads[0];
@@ -1902,24 +1921,39 @@ void CodeGenLLVM::VisitStmt_(const BufferStoreNode* op) {
 
   llvm::Value* value = MakeValue(op->value);
 
-  auto make_store = [this, value](TypedPointer buffer_ptr, int subelement_i, int alignment,
-                                  bool is_volatile) {
+  auto make_store = [this, value](TypedPointer buffer_ptr, int subelement_i, llvm::Value* predicate,
+                                  int alignment, bool is_volatile) {
     llvm::Value* to_store = value;
+    llvm::Instruction* store;
+
     if (subelement_i != -1) {
       to_store = builder_->CreateExtractElement(value, subelement_i);
     }
+
+    if (predicate != NULL) {
+      ICHECK(!is_volatile)
+          << "The masked store intrinsic does not support declaring store as volatile.";
 #if TVM_LLVM_VERSION >= 110
-    return builder_->CreateAlignedStore(to_store, buffer_ptr.addr, llvm::Align(alignment),
-                                        is_volatile);
+      store =
+          builder_->CreateMaskedStore(to_store, buffer_ptr.addr, llvm::Align(alignment), predicate);
 #else
-    return builder_->CreateAlignedStore(to_store, buffer_ptr.addr, alignment, is_volatile);
+      store = builder_->CreateMaskedStore(to_store, buffer_ptr.addr, alignment, predicate);
 #endif
+    } else {
+#if TVM_LLVM_VERSION >= 110
+      store = builder_->CreateAlignedStore(to_store, buffer_ptr.addr, llvm::Align(alignment),
+                                           is_volatile);
+#else
+      store = builder_->CreateAlignedStore(to_store, buffer_ptr.addr, alignment, is_volatile);
+#endif
+    }
+    return store;
   };
 
   // Pass all indices into BufferAccessHelper.  In CodeGenLLVM,
   // non-flat indices will result in an error in CreateBufferPtr, but
   // a subclass may override CreateBufferPtr.
-  BufferAccessHelper(op->buffer, op->indices, value_dtype, make_store);
+  BufferAccessHelper(op->buffer, op->indices, op->predicate, value_dtype, make_store);
 }
 
 void CodeGenLLVM::VisitStmt_(const ForNode* op) {
