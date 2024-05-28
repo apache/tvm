@@ -375,8 +375,9 @@ export class CachedCallStack implements Disposable {
    * @param data The string content.
    */
   allocThenSetArgString(offset: PtrOffset, data: string): void {
-    const strOffset = this.allocRawBytes(data.length + 1);
-    this.storeRawBytes(strOffset, StringToUint8Array(data));
+    const dataUint8: Uint8Array = StringToUint8Array(data);
+    const strOffset = this.allocRawBytes(dataUint8.length);
+    this.storeRawBytes(strOffset, dataUint8);
     this.addressToSetTargetValue.push([offset, strOffset]);
   }
   /**
