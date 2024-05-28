@@ -253,18 +253,6 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
                         )
                 # Non-quantized cases
                 if is_aarch64 and data.dtype in ["float32", "float16"]:
-                    if (
-                        target.features.has_sme
-                        and data.dtype in ["float32"]
-                        and kernel.dtype in ["float32"]
-                        and out_type.dtype in ["float32"]
-                    ):
-                        strategy.add_implementation(
-                            wrap_compute_conv2d(topi.arm_cpu.compute_conv2d_NHWC_hybrid_SME),
-                            lambda: None,
-                            name="conv2d_NHWC_hybrid_SME.arm_cpu",
-                            plevel=12,
-                        )
                     if target.features.has_sve:
                         # This strategy is currently suboptimal because of LLVM's limited support
                         # for scalable vector alias analysis, which causes redundant loads / stores
@@ -817,9 +805,6 @@ def arm_cpu_tir_strategy(sch: tir.Schedule) -> bool:
 
     if matmul_block and sch.get(matmul_block).annotations.get("schedule_type", "") == "sme":
         topi.arm_cpu.matmul.tir_schedule_matmul_sme(sch)
-        return True
-    elif has_block(sch, "conv2d_gemm_output"):
-        topi.arm_cpu.schedule_conv2d_NHWC_hybrid_TIR(sch)
         return True
 
     # Fallback to TE schedule for operators we have not written a special TIR schedule for

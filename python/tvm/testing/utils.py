@@ -1071,13 +1071,6 @@ requires_aarch64_sve = Feature(
 )
 
 
-requires_aarch64_sme = Feature(
-    "arm_sme",
-    "AArch64 SME",
-    run_time_check=lambda: _has_cpu_feat("sme"),
-)
-
-
 requires_x86_vnni = Feature(
     "x86_vnni",
     "x86 VNNI Extensions",

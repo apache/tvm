@@ -22,7 +22,7 @@ from tvm.target import Target
 from tvm.tir.expr import PrimExpr
 
 
-def get_tiling_A(interleave_A, in_dtype, use_sme=False):
+def get_tiling_A(interleave_A, in_dtype):
     """Compute the tiling information for matrix A in C=A*B,
     which corresponds to the im2col-transformed input matrix.
 
@@ -42,8 +42,6 @@ def get_tiling_A(interleave_A, in_dtype, use_sme=False):
         determines if A is expected to be interleaved
     in_dtype : str
         input datatype
-    use_sme : bool
-        determines if SME operations on scalable vectors are expected
 
     Returns
     ----------
@@ -67,11 +65,8 @@ def get_tiling_A(interleave_A, in_dtype, use_sme=False):
             # tile size should be 4x16
             tile_M = 4
             tile_K = 16
-    elif use_sme:
-        tile_M = 2 * 4 * tvm.tir.vscale()
-        tile_K = 2 * 4 * tvm.tir.vscale()
     else:
-        # In non-SME, non-quantized cases, A is not interleaved.
+        # In non-quantized cases, A is not interleaved.
         # We are loading 4 rows from A.
         # Each row will contain 4 elements, along the dimension of reduction
         tile_M = 4
@@ -80,7 +75,7 @@ def get_tiling_A(interleave_A, in_dtype, use_sme=False):
     return tile_M, tile_K
 
 
-def get_tiling_B_transformed(interleave_A, in_dtype, use_scalable_vectors=False, use_sme=False):
+def get_tiling_B_transformed(interleave_A, in_dtype, use_scalable_vectors=False):
     """Compute the tiling information for matrix B', where B'
     is the tiled, interleaved (and transposed) version of matrix B in C=A*B.
 
@@ -102,8 +97,6 @@ def get_tiling_B_transformed(interleave_A, in_dtype, use_scalable_vectors=False,
         input datatype
     use_scalable_vectors : bool
         determines if operations on scalable vectors are expected
-    use_sme : bool
-        determines if SME operations on scalable vectors are expected
 
 
     Returns
@@ -138,10 +131,7 @@ def get_tiling_B_transformed(interleave_A, in_dtype, use_scalable_vectors=False,
             # we load 4 rows of B' (i.e., 4 columns of B). Each of them will contain 16 elements
             tile_N = 4
             tile_K = 16
-    elif use_sme:
-        tile_N = 2 * 4 * tvm.tir.vscale()
-        tile_K = 2 * 4 * tvm.tir.vscale()
-    # In non-SME, non-quantized cases, A is not interleaved.
+    # In non-quantized cases, A is not interleaved.
     elif use_scalable_vectors:
         if in_dtype == "float16":
             # Each load from B' contains 32 * vscale elements (i.e. 32 * vscale columns from B)

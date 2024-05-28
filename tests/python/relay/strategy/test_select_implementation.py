@@ -161,10 +161,6 @@ def test_int8_conv2d(target, expected_impl):
             "llvm --device=arm_cpu --mtriple=aarch64-linux-gnu -mattr=+v9a",
             "conv2d_NHWC_hybrid_without_transform.arm_cpu",
         ),
-        (
-            "llvm --device=arm_cpu --mtriple=aarch64-linux-gnu -mattr=+v9.2a,+sme",
-            "conv2d_NHWC_hybrid_SME.arm_cpu",
-        ),
     ],
 )
 def test_fp32_conv2d(target, expected_impl):
@@ -199,10 +195,6 @@ def test_fp32_conv2d(target, expected_impl):
         ),
         (
             "llvm -device=arm_cpu -mtriple=aarch64-linux-gnu -mattr=+v9a",
-            "conv2d_NHWC_hybrid_without_transform.arm_cpu",
-        ),
-        (
-            "llvm --device=arm_cpu --mtriple=aarch64-linux-gnu -mattr=+v9.2a,+sme",
             "conv2d_NHWC_hybrid_without_transform.arm_cpu",
         ),
     ],
