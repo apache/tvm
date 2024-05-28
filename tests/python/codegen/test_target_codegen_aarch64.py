@@ -771,13 +771,39 @@ def test_get_active_lane_mask():
     def before(a: T.handle):
         A = T.match_buffer(a, (30,), "int1")
         for i in range(T.ceildiv(30, T.vscale() * 4)):
-            A[i : i + T.vscale() * 4] = T.get_active_lane_mask("int1xvscalex4", i, 30)
+            A[i : i + T.vscale() * 4] = T.get_active_lane_mask("uint1xvscalex4", i, 30)
 
     with tvm.target.Target(target):
         out = tvm.build(before)
 
     ll = out.get_source("ll")
     assert "get.active.lane.mask" in ll
+
+
+@pytest.mark.skipif(
+    llvm_version_major() < 11,
+    reason="Vscale and get.active.lane.mask are not supported in earlier versions of LLVM",
+)
+def test_predicated_scalable_buffer():
+    target = "llvm -mtriple=aarch64-linux-gnu -mattr=+sve"
+
+    @T.prim_func
+    def before(a: T.handle, b: T.handle):
+        A = T.match_buffer(a, (16,), "float32")
+        B = T.match_buffer(b, (16,), "float32")
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        for i_0 in T.serial(T.ceildiv(16, 4 * T.vscale())):
+            for i_1 in T.vectorized(4 * T.vscale()):
+                if i_0 * 4 * T.vscale() + i_1 < 14:
+                    B[i_0 * 4 * T.vscale() + i_1] = A[i_0 * 4 * T.vscale() + i_1] + 1.0
+
+    with tvm.target.Target(target):
+        out = tvm.build(before)
+
+    ll = out.get_source("ll")
+    assert "get.active.lane.mask" in ll
+    assert "llvm.masked.load" in ll
+    assert "llvm.masked.store" in ll
 
 
 if __name__ == "__main__":

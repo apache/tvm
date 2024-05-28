@@ -27,6 +27,7 @@
 
 #include <tvm/arith/analyzer.h>
 #include <tvm/ir/expr.h>
+#include <tvm/target/target.h>
 
 #include <optional>
 #include <vector>
@@ -79,9 +80,10 @@ bool CanProveVscaleExpressionFromKnownValues(arith::Analyzer* analyzer, const Pr
 
 /*!
  * \brief Check whether the compilation target supports SVE
+ * \param target The target to check.
  * \return Whether SVE is supported
  */
-bool TargetHasSVE();
+bool TargetHasSVE(Target target);
 
 }  // namespace arith
 }  // namespace tvm
