@@ -51,16 +51,37 @@ device = tvm.testing.parameter(
         "llvm --device arm_cpu --mtriple aarch64-linux-gnu",
         topi.arm_cpu.conv2d_nhwc_spatial_pack,
         topi.arm_cpu.schedule_conv2d_nhwc_spatial_pack,
+        False,
     ),
     (
         "llvm --device arm_cpu --mtriple aarch64-linux-gnu -mattr=+v8.2a,+fullfp16",
         topi.arm_cpu.compute_conv2d_NHWC_hybrid,
         topi.arm_cpu.schedule_conv2d_NHWC_hybrid,
+        False,
     ),
     (
         "llvm --device arm_cpu --mtriple aarch64-linux-gnu -mattr=+v8.6a,+sve",
         topi.arm_cpu.compute_conv2d_NHWC_hybrid_SVE,
         topi.arm_cpu.schedule_conv2d_NHWC_hybrid_SVE,
+        False,
+    ),
+    (
+        "llvm --device arm_cpu --mtriple aarch64-linux-gnu -mattr=+v8.2a",
+        topi.arm_cpu.compute_conv2d_NHWC_hybrid,
+        topi.arm_cpu.schedule_conv2d_NHWC_hybrid_TIR,
+        True,
+    ),
+    (
+        "llvm --device arm_cpu --mtriple aarch64-linux-gnu -mattr=+v8.6a,+sve",
+        topi.arm_cpu.compute_conv2d_NHWC_hybrid_SVE,
+        topi.arm_cpu.schedule_conv2d_NHWC_hybrid_TIR,
+        True,
+    ),
+    (
+        "llvm --device arm_cpu --mtriple aarch64-linux-gnu -mattr=+v9a,+sme",
+        topi.arm_cpu.compute_conv2d_NHWC_hybrid_SME,
+        topi.arm_cpu.schedule_conv2d_NHWC_hybrid_TIR,
+        True,
     ),
 )
 
@@ -68,6 +89,7 @@ dtype = tvm.testing.parameter("float16", "float32")
 
 batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation = tvm.testing.parameters(
     # Pad M, N, K
+    (1, 1, 1, 1, 1, 1, "SAME", 1),
     (1, 1, 3, 15, 1, 1, "SAME", 1),
     # Pad M, K
     (1, 3, 9, 16, 3, 1, "SAME", 1),
@@ -139,16 +161,21 @@ def test_conv2d_nhwc_gemm(device, ref_data, dtype, stride, padding, dilation):
     A = te.placeholder(a_np.shape, name="A", dtype=dtype)
     W = te.placeholder(w_np.shape, name="W", dtype=dtype)
 
-    target, compute, schedule = device
+    target, compute, schedule, use_tir_schedule = device
     dev = tvm.device(target, 0)
 
     with tvm.target.Target(target) as target:
-        B = compute(A, W, stride, padding, dilation, dtype)
-        s = schedule([B])
         a = tvm.nd.array(a_np, dev)
         w = tvm.nd.array(w_np, dev)
+        B = compute(A, W, stride, padding, dilation, dtype)
         b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), dev)
-        func = tvm.build(s, [A, W, B], target)
+        if use_tir_schedule:
+            primfunc = te.create_prim_func([A, W, B], index_dtype_override="int64")
+            sch = schedule(tvm.tir.Schedule(primfunc))
+            func = tvm.build(sch.mod["main"], target)
+        else:
+            s = schedule([B])
+            func = tvm.build(s, [A, W, B], target)
 
         # Run only on AArch64 devices
         # Do not run SVE schedules on non-SVE devices
@@ -160,6 +187,7 @@ def test_conv2d_nhwc_gemm(device, ref_data, dtype, stride, padding, dilation):
                 and target.features.has_fp16_simd
                 and not tvm.testing.requires_arm_fp16.run_time_check()
             )
+            or target.features.has_sme
         )
         if build_only:
             return

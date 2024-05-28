@@ -729,20 +729,36 @@ def test_unsupported_multiple_function_attributes(attr_key, attr_value):
     llvm_version_major() < 15, reason="Test requires an LLVM version of at least 15 to target SVE"
 )
 @pytest.mark.parametrize("dtype", ["float16", "float32"])
-def test_conv2d_sve(dtype):
+@pytest.mark.parametrize(
+    "conv2d_impl",
+    [
+        (
+            tvm.topi.arm_cpu.compute_conv2d_NHWC_hybrid_SVE,
+            tvm.topi.arm_cpu.schedule_conv2d_NHWC_hybrid_SVE,
+            False,
+        ),
+        (
+            tvm.topi.arm_cpu.compute_conv2d_NHWC_hybrid_SVE,
+            tvm.topi.arm_cpu.schedule_conv2d_NHWC_hybrid_TIR,
+            True,
+        ),
+    ],
+)
+def test_conv2d_sve(dtype, conv2d_impl):
     target = "llvm -mtriple=aarch64-linux-gnu -mattr=+sve"
 
-    def check_correct_assembly(dtype):
+    def check_correct_assembly(dtype, compute, schedule, use_tir_schedule):
         A = te.placeholder((1, 32, 32, 3), dtype=dtype, name="A")
         W = te.placeholder((3, 3, 3, 8), dtype=dtype, name="B")
         stride = padding = dilation = 1
-
-        compute = tvm.topi.arm_cpu.compute_conv2d_NHWC_hybrid_SVE
-        schedule = tvm.topi.arm_cpu.schedule_conv2d_NHWC_hybrid_SVE
         B = compute(A, W, stride, padding, dilation, dtype)
-        s = schedule([B])
-
-        f = tvm.build(s, [A, W, B], target)
+        if use_tir_schedule:
+            func = te.create_prim_func([A, W, B])
+            sch = schedule(tvm.tir.Schedule(func))
+            f = tvm.build(sch.mod["main"], target)
+        else:
+            s = schedule([B])
+            f = tvm.build(s, [A, W, B], target)
         assembly = f.get_source("asm")
 
         loads = re.findall(r"ld1[r]?[q]?[whdb]\t{\s?z", assembly)
@@ -755,6 +771,43 @@ def test_conv2d_sve(dtype):
         assert len(loads) > 0
         assert len(compute_ops) > 0
         assert len(stores) > 0
+
+    with tvm.target.Target(target):
+        check_correct_assembly(dtype, *conv2d_impl)
+
+
+@pytest.mark.skipif(
+    llvm_version_major() < 16, reason="Test requires an LLVM version of at least 16 to target SVE"
+)
+@pytest.mark.parametrize("dtype", ["float32"])
+def test_conv2d_sme(dtype):
+    target = "llvm -mtriple=aarch64-linux-gnu -mattr=+v9a,+sme"
+
+    def check_correct_assembly(dtype):
+        A = te.placeholder((1, 32, 32, 3), dtype=dtype, name="A")
+        W = te.placeholder((3, 3, 3, 8), dtype=dtype, name="B")
+        stride = padding = dilation = 1
+
+        B = tvm.topi.arm_cpu.compute_conv2d_NHWC_hybrid_SME(A, W, stride, padding, dilation, dtype)
+        func = te.create_prim_func([A, W, B])
+        sch = tvm.topi.arm_cpu.schedule_conv2d_NHWC_hybrid_TIR(tvm.tir.Schedule(func))
+        f = tvm.build(sch.mod["main"], target)
+
+        assembly = f.get_source("asm")
+        smstart = re.findall(r"smstart\t(sm|za)", assembly)
+        loads = re.findall(r"ld1[whdb]\t{\s?za", assembly)
+        mopa = re.findall(
+            r"fmopa\tza[0-9].[shdb],( p[0-9]/[zm],)?( p[0-9]/[zm],)? z[0-9].[shdb], z[0-9].[shdb]",
+            assembly,
+        )
+        stores = re.findall(r"st1[whdb]\t{\s?za", assembly)
+        smstop = re.findall(r"smstop\t(sm|za)", assembly)
+
+        assert len(smstart) > 0
+        assert len(loads) > 0
+        assert len(mopa) > 0
+        assert len(stores) > 0
+        assert len(smstop) > 0
 
     with tvm.target.Target(target):
         check_correct_assembly(dtype=dtype)

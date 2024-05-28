@@ -68,6 +68,7 @@ def compute_conv2d_gemm_without_weight_transform(
     output_channels,
     interleave_A,
     use_scalable_vectors=False,
+    use_sme=False,
 ):
     """Compute conv2d by transforming the input,
     executing GEMM and transforming the output back"""
@@ -123,9 +124,12 @@ def compute_conv2d_gemm_without_weight_transform(
         )
 
     # Select the tiling strategy for A and B
-    tile_M, tile_K_A = arm_utils.get_tiling_A(interleave_A, in_dtype)
+    tile_M, tile_K_A = arm_utils.get_tiling_A(interleave_A, in_dtype, use_sme)
     tile_N, tile_K_B = arm_utils.get_tiling_B_transformed(
-        interleave_A, in_dtype, use_scalable_vectors
+        interleave_A,
+        in_dtype,
+        use_scalable_vectors,
+        use_sme,
     )
 
     # Pad to tiles (if necessary)
@@ -285,7 +289,7 @@ def compute_conv2d_gemm_without_weight_transform(
                 tvm.tir.const(1, C.dtype) * C[0, M_padded - 1, N_padded - 1]
                 - tvm.tir.const(1, C.dtype) * C[0, M_padded - 1, N_padded - 1]
             )
-    elif use_scalable_vectors:
+    elif use_scalable_vectors or use_sme:
         assert len(B_interleaved_t.shape) == 2
         C = te.compute(
             (batches, M_padded, N_padded),
@@ -333,7 +337,7 @@ def compute_conv2d_gemm_without_weight_transform(
         out_shape,
         lambda b, x, y, z: (C(b, y + OW * x, z) + zero).astype(out_dtype),
         name="conv2d_gemm_output",
-        attrs={"use_scalable_vectors": use_scalable_vectors},
+        attrs={"use_scalable_vectors": use_scalable_vectors, "use_sme": use_sme},
     )
     return out
 

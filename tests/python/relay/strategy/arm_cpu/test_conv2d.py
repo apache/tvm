@@ -16,8 +16,22 @@
 # under the License.
 """Tests for arm_cpu schedules for regular conv2d."""
 
+from tests.python.relay.strategy.arm_cpu.scalable_utils import (
+    calculate_extra_workspace_size_from_scalable_extents,
+)
+import tvm
+import pytest
+import numpy as np
 from test_generalized_conv2d import GeneralizedConv2dTests
+from tvm.target.codegen import llvm_version_major
 from tvm.testing import fixture, main, parameter, parameters
+from tvm import relay
+import tvm.topi.testing
+from tvm.topi.nn.utils import get_pad_tuple
+from tvm.topi.utils import get_const_tuple
+from tvm.testing.aot import AOTTestModel, AOTCompiledTestModel, run_and_check, generate_ref_data
+from tvm.micro.testing.aot_test_utils import AOT_APROFILE_AEM_RUNNER
+from tvm.relay.op.strategy.arm_cpu import arm_cpu_tir_strategy
 
 
 class Conv2dTests(GeneralizedConv2dTests):
@@ -107,5 +121,127 @@ class TestConv2d_NCHW_Spatial_Pack(Conv2dTests):
     schedule_name = parameter("conv2d_nchw_spatial_pack.arm_cpu")
 
 
+dtype = tvm.testing.parameter("float32")
+
+batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation = tvm.testing.parameters(
+    # Pad M, N, K
+    (1, 1, 1, 1, 1, 1, "SAME", 1),
+    (1, 1, 3, 15, 1, 1, "SAME", 1),
+    # Pad M, K
+    (1, 3, 9, 16, 3, 1, "SAME", 1),
+    # Pad M, N
+    (1, 2, 9, 15, 4, 1, "SAME", 1),
+    # Pad K, N
+    (1, 7, 4, 15, 3, 1, "SAME", 1),
+    # Pad M
+    (1, 2, 9, 16, 4, 1, "SAME", 1),
+    # Pad K
+    (1, 7, 4, 16, 3, 1, "SAME", 1),
+    # Pad N
+    (1, 2, 4, 15, 4, 1, "SAME", 1),
+    (1, 2, 4, 20, 1, 1, "SAME", 1),
+    # Large workloads
+    (1, 128, 32, 128, 3, 1, "SAME", 1),
+    (4, 64, 16, 64, 5, 2, "SAME", 1),
+    (1, 128, 32, 128, 3, 1, "VALID", 1),
+    (4, 64, 16, 64, 5, 2, "VALID", 1),
+    (1, 64, 16, 64, 3, 2, (0, 0, 1, 1), 1),
+    (1, 64, 16, 64, 3, 2, (1, 1, 2, 2), 1),
+    (1, 64, 16, 64, 5, 2, (3, 3, 2, 2), 1),
+    (1, 64, 16, 64, 3, 2, (0, 1, 2, 3), 1),
+    (1, 64, 32, 64, 3, 1, "SAME", 2),
+    (1, 64, 32, 64, 3, 1, (1, 1, 2, 2), 2),
+)
+
+
+@tvm.testing.fixture(cache_return_value=True)
+def ref_data(dtype, batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation):
+    in_height = in_width = in_size
+    a_shape = (batch, in_height, in_width, in_channel)
+    w_shape = (kernel, kernel, in_channel, num_filter)
+
+    a_np = np.random.uniform(size=a_shape).astype(dtype)
+    w_np = np.random.uniform(size=w_shape).astype(dtype)
+    return a_np, w_np
+
+
+@pytest.mark.skipif(
+    llvm_version_major() < 16, reason="SME is not supported in earlier versions of LLVM"
+)
+@tvm.testing.requires_aprofile_aem_fvp
+def test_conv2d_fp32(target, ref_data, dtype, stride, padding, dilation):
+    a_np, w_np = ref_data
+    dw_np = tvm.topi.testing.dilate_python(w_np, (dilation, dilation, 1, 1))
+
+    kernel_size = get_const_tuple(w_np.shape[:2])
+    out_channels = w_np.shape[3]
+
+    x = relay.var("data", shape=a_np.shape, dtype=dtype)
+    weight = relay.const(w_np, dtype=dtype)
+    conv2d = relay.nn.conv2d(
+        x,
+        weight,
+        channels=out_channels,
+        kernel_size=kernel_size,
+        strides=stride,
+        dilation=dilation,
+        padding=get_pad_tuple(padding, dw_np.shape[:2]),
+        data_layout="NHWC",
+        kernel_layout="HWIO",
+        out_dtype=dtype,
+    )
+
+    func = relay.Function(relay.analysis.free_vars(conv2d), conv2d)
+
+    ir_mod = tvm.IRModule.from_expr(func)
+    ir_mod = tvm.relay.transform.InferType()(ir_mod)
+
+    inputs = {"data": a_np}
+    params = {}
+    ref_outputs = generate_ref_data(ir_mod, inputs, params)
+
+    target = tvm.target.Target("llvm -mtriple=aarch64-none-elf -mattr=+v9.2a,+sme")
+    runtime = tvm.relay.backend.Runtime("crt", {"system-lib": True})
+    executor = tvm.relay.backend.Executor(
+        "aot",
+        {
+            "interface-api": "packed",
+            "unpacked-api": False,
+        },
+    )
+
+    with tvm.transform.PassContext(
+        opt_level=3, config=AOT_APROFILE_AEM_RUNNER.pass_config
+    ), tvm.meta_schedule.database.ScheduleFnDatabase(arm_cpu_tir_strategy):
+        executor_factory = tvm.relay.build(
+            ir_mod,
+            target=target,
+            executor=executor,
+            runtime=runtime,
+            params=params,
+        )
+    generated_func = executor_factory.lowered_ir_mods.items()[0][1][
+        "tvmgen_default_fused_nn_conv2d"
+    ]
+    extra_memory_in_bytes = calculate_extra_workspace_size_from_scalable_extents(generated_func, 4)
+
+    test_model = AOTTestModel(
+        ir_mod, inputs, ref_outputs, params=params, extra_memory_in_bytes=extra_memory_in_bytes
+    )
+    compiled = AOTCompiledTestModel(test_model, executor_factory)
+
+    assembly = (
+        compiled.executor_factory.module.imported_modules[0].imported_modules[0].get_source("asm")
+    )
+    assert "fmopa" in assembly
+
+    assert run_and_check(
+        models=[compiled],
+        interface_api="packed",
+        runner=AOT_APROFILE_AEM_RUNNER,
+        print_output_on_mismatch=True,
+    )
+
+
 if __name__ == "__main__":
-    main()
+    tvm.testing.main()
