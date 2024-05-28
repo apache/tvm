@@ -25,6 +25,7 @@
 #define TVM_TIR_BUFFER_H_
 
 #include <tvm/ir/expr.h>
+#include <tvm/node/script_printer.h>
 #include <tvm/runtime/container/array.h>
 #include <tvm/runtime/container/string.h>
 #include <tvm/tir/var.h>
@@ -162,6 +163,7 @@ class BufferNode : public Object {
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
   TVM_DECLARE_FINAL_OBJECT_INFO(BufferNode, Object);
+  TVM_OBJECT_ENABLE_SCRIPT_PRINTER();
 };
 
 /*!
@@ -207,14 +209,20 @@ class Buffer : public ObjectRef {
    * \brief Create an Expr that does a vector load at begin index.
    * \param begin The beginning index
    * \param dtype The data type to be loaded.
+   * \param predicate A vector mask of boolean values indicating which lanes of a vector are to be
+   * loaded. The number lanes of the mask must be equal to the number of lanes in being loaded.
    */
-  TVM_DLL PrimExpr vload(Array<PrimExpr> begin, DataType dtype) const;
+  TVM_DLL PrimExpr vload(Array<PrimExpr> begin, DataType dtype,
+                         Optional<PrimExpr> predicate = NullOpt) const;
   /*!
    * \brief Create a Stmt that does a vector store at begin index.
    * \param begin The beginning index
    * \param value The value to be stored.
+   * \param predicate A vector mask of boolean values indicating which lanes of a vector are to be
+   * stored. The number lanes of the mask must be equal to the number of lanes in value.
    */
-  TVM_DLL Stmt vstore(Array<PrimExpr> begin, PrimExpr value) const;
+  TVM_DLL Stmt vstore(Array<PrimExpr> begin, PrimExpr value,
+                      Optional<PrimExpr> predicate = NullOpt) const;
 
   /*!
    * \brief Get a flattened version of the buffer

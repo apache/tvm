@@ -330,6 +330,8 @@ class ComputeLegalizer : public StmtExprMutator {
         ICHECK(MatchDType(value->dtype));
         value = cast(new_buf->dtype.with_lanes(value.dtype().lanes()), value);
       }
+      ICHECK(!op->predicate.defined()) << "Predicated buffer store is not currently supported in "
+                                          "data type legalizer pass.";
       return BufferStore(new_buf, value, indices);
     }
   }
@@ -401,6 +403,8 @@ class ComputeLegalizer : public StmtExprMutator {
     if (new_buf.same_as(op->buffer)) {
       return ret;
     } else {
+      ICHECK(!op->predicate.defined()) << "Predicated buffer load is not currently supported in "
+                                          "data type legalizer pass.";
       return BufferLoad(new_buf, op->indices);
     }
   }
@@ -562,6 +566,8 @@ class StorageLegalizer : public StmtExprMutator {
       if (MatchDType(op->value.dtype())) {
         ICHECK(new_buf->dtype.is_uint());
       }
+      ICHECK(!op->predicate.defined()) << "Predicated buffer store is not currently supported in "
+                                          "data type legalizer pass.";
       return BufferStore(new_buf, value, indices);
     }
   }
@@ -595,6 +601,8 @@ class StorageLegalizer : public StmtExprMutator {
     if (new_buf.same_as(op->buffer)) {
       return ret;
     } else {
+      ICHECK(!op->predicate.defined()) << "Predicated buffer load is not currently supported in "
+                                          "data type legalizer pass.";
       return BufferLoad(new_buf, op->indices);
     }
   }
