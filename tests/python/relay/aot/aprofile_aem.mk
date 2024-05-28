@@ -72,6 +72,7 @@ run: $(build_dir)/aot_test_runner
     -C SVE.ScalableVectorExtension.has_sme=1 \
     -C SVE.ScalableVectorExtension.has_sve2=1 \
     -C SVE.ScalableVectorExtension.enable_at_reset=1 \
+    -C cluster0.has_arm_v9-2=1 \
     -C bp.secure_memory=false \
     -C bp.terminal_0.start_telnet=0 \
     -C bp.terminal_1.start_telnet=0 \
