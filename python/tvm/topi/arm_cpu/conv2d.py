@@ -741,6 +741,7 @@ def schedule_conv2d_NHWC_hybrid_TIR(sch: tvm.tir.Schedule):
         b, m, k = sch.get_loops(interleave_t_A_block)
         mo, mi = sch.split(m, factors=(None, tile_M), disable_predication=True)
         ko, ki = sch.split(k, factors=(None, tile_K), disable_predication=True)
+        sch.parallel(b)
         sch.reorder(b, ko, mo, ki, mi)
         sch.tensorize(ki, ARM_SME_2SVLx2SVL_TRANSPOSE_INTERLEAVE)
 
@@ -878,7 +879,7 @@ def schedule_conv2d_NHWC_hybrid_TIR(sch: tvm.tir.Schedule):
         sch.compute_inline(weight_flatten_block)
 
     # Conv2d output block
-    output_block = sch.get_block("conv2d_gemm_output")
+    output_block = func_blocks["conv2d_gemm_output"]
     n, h, w, c = sch.get_loops(output_block)
     n_h_fused = sch.fuse(n, h)
     _, inner = sch.split(c, [None, 4])

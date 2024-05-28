@@ -777,7 +777,7 @@ def test_conv2d_sve(dtype, conv2d_impl):
 
 
 @pytest.mark.skipif(
-    llvm_version_major() < 16, reason="Test requires an LLVM version of at least 16 to target SVE"
+    llvm_version_major() < 16, reason="Test requires an LLVM version of at least 16 to target SME"
 )
 @pytest.mark.parametrize("dtype", ["float32"])
 def test_conv2d_sme(dtype):

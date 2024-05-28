@@ -16,22 +16,21 @@
 # under the License.
 """Tests for arm_cpu schedules for regular conv2d."""
 
-from tests.python.relay.strategy.arm_cpu.scalable_utils import (
-    calculate_extra_workspace_size_from_scalable_extents,
-)
-import tvm
 import pytest
 import numpy as np
-from test_generalized_conv2d import GeneralizedConv2dTests
-from tvm.target.codegen import llvm_version_major
-from tvm.testing import fixture, main, parameter, parameters
-from tvm import relay
+
+import tvm
 import tvm.topi.testing
+from tvm import relay
+from test_generalized_conv2d import GeneralizedConv2dTests
+from tvm.testing import fixture, main, parameter, parameters
 from tvm.topi.nn.utils import get_pad_tuple
 from tvm.topi.utils import get_const_tuple
+from tvm.target.codegen import llvm_version_major
 from tvm.testing.aot import AOTTestModel, AOTCompiledTestModel, run_and_check, generate_ref_data
 from tvm.micro.testing.aot_test_utils import AOT_APROFILE_AEM_RUNNER
 from tvm.relay.op.strategy.arm_cpu import arm_cpu_tir_strategy
+from scalable_utils import calculate_extra_workspace_size_from_scalable_extents
 
 
 class Conv2dTests(GeneralizedConv2dTests):
@@ -154,8 +153,9 @@ batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation = tvm.
 )
 
 
-@tvm.testing.fixture(cache_return_value=True)
+@tvm.testing.fixture()
 def ref_data(dtype, batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation):
+    np.random.seed(0)
     in_height = in_width = in_size
     a_shape = (batch, in_height, in_width, in_channel)
     w_shape = (kernel, kernel, in_channel, num_filter)
@@ -212,7 +212,7 @@ def test_conv2d_fp32(target, ref_data, dtype, stride, padding, dilation):
 
     with tvm.transform.PassContext(
         opt_level=3, config=AOT_APROFILE_AEM_RUNNER.pass_config
-    ), tvm.meta_schedule.database.ScheduleFnDatabase(arm_cpu_tir_strategy):
+    ), target, tvm.meta_schedule.database.ScheduleFnDatabase(arm_cpu_tir_strategy):
         executor_factory = tvm.relay.build(
             ir_mod,
             target=target,

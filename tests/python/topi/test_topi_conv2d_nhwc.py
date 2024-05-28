@@ -17,6 +17,7 @@
 """Example code to do convolution."""
 import os
 import platform
+import pytest
 import numpy as np
 import tvm
 from tvm import te
@@ -166,10 +167,11 @@ def test_conv2d_nhwc_gemm(device, ref_data, dtype, stride, padding, dilation):
     dev = tvm.device(target_string, 0)
     target = tvm.target.Target(target_string)
 
-    if (target.features.has_sve and llvm_version_major() < 15) or (
-        target.features.has_sme and llvm_version_major() < 16
-    ):
-        return
+    if target.features.has_sve and llvm_version_major() < 15:
+        pytest.skip(f"LLVM {llvm_version_major()} does not support targetting SVE.")
+
+    if target.features.has_sme and llvm_version_major() < 16:
+        pytest.skip(f"LLVM {llvm_version_major()} does not support targetting SME.")
 
     with target:
         a = tvm.nd.array(a_np, dev)
@@ -177,7 +179,7 @@ def test_conv2d_nhwc_gemm(device, ref_data, dtype, stride, padding, dilation):
         B = compute(A, W, stride, padding, dilation, dtype)
         b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), dev)
         if use_tir_schedule:
-            primfunc = te.create_prim_func([A, W, B], index_dtype_override="int64")
+            primfunc = te.create_prim_func([A, W, B])
             sch = schedule(tvm.tir.Schedule(primfunc))
             func = tvm.build(sch.mod["main"], target)
         else:
@@ -194,7 +196,7 @@ def test_conv2d_nhwc_gemm(device, ref_data, dtype, stride, padding, dilation):
                 and target.features.has_fp16_simd
                 and not tvm.testing.requires_arm_fp16.run_time_check()
             )
-            or target.features.has_sme
+            or (target.features.has_sme and not tvm.testing.requires_aarch64_sme.run_time_check())
         )
         if build_only:
             return
