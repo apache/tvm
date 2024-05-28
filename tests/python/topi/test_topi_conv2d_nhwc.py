@@ -21,6 +21,7 @@ import numpy as np
 import tvm
 from tvm import te
 from tvm import topi
+from tvm.target.codegen import llvm_version_major
 import tvm.topi.testing
 from tvm.contrib.pickle_memoize import memoize
 from tvm.topi.utils import get_const_tuple
@@ -161,10 +162,16 @@ def test_conv2d_nhwc_gemm(device, ref_data, dtype, stride, padding, dilation):
     A = te.placeholder(a_np.shape, name="A", dtype=dtype)
     W = te.placeholder(w_np.shape, name="W", dtype=dtype)
 
-    target, compute, schedule, use_tir_schedule = device
-    dev = tvm.device(target, 0)
+    target_string, compute, schedule, use_tir_schedule = device
+    dev = tvm.device(target_string, 0)
+    target = tvm.target.Target(target_string)
 
-    with tvm.target.Target(target) as target:
+    if (target.features.has_sve and llvm_version_major() < 15) or (
+        target.features.has_sme and llvm_version_major() < 16
+    ):
+        return
+
+    with target:
         a = tvm.nd.array(a_np, dev)
         w = tvm.nd.array(w_np, dev)
         B = compute(A, W, stride, padding, dilation, dtype)
