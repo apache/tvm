@@ -29,7 +29,7 @@ from ..._ffi import get_global_func, register_func, register_object
 from ..._ffi.runtime_ctypes import Device
 from ..container import ShapeTuple
 from ..ndarray import NDArray
-from ..ndarray import array as _as_NDArray, from_dlpack as _tvm_array_from_dlpack
+from ..ndarray import array as _as_NDArray
 from ..object import Object
 from . import _ffi_api, process_pool  # pylint: disable=unused-import
 
@@ -84,8 +84,6 @@ class DPackedFunc(DRef):
 
     def __call__(self, *args) -> DRef:
         return self.session.call_packed(self, *args)
-
-
 
 
 class DModule(DRef):
