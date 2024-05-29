@@ -206,7 +206,7 @@ class Base64InStream : public dmlc::Stream {
     }
     return size - tlen;
   }
-  virtual size_t Write(const void* ptr, size_t size) final {
+  size_t Write(const void* ptr, size_t size) final {
     LOG(FATAL) << "Base64InStream do not support write";
   }
 
