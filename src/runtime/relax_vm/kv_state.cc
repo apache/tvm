@@ -47,6 +47,8 @@ TVM_REGISTER_GLOBAL("vm.builtin.kv_state_end_forward")
 // Attention KV Cache methods
 TVM_REGISTER_GLOBAL("vm.builtin.attention_kv_cache_enable_sliding_window_for_seq")
     .set_body_method<AttentionKVCache>(&AttentionKVCacheObj::EnableSlidingWindowForSeq);
+TVM_REGISTER_GLOBAL("vm.builtin.attention_kv_cache_empty")
+    .set_body_method<AttentionKVCache>(&AttentionKVCacheObj::Empty);
 TVM_REGISTER_GLOBAL("vm.builtin.attention_kv_cache_get_num_available_pages")
     .set_body_method<AttentionKVCache>(&AttentionKVCacheObj::GetNumAvailablePages);
 TVM_REGISTER_GLOBAL("vm.builtin.attention_kv_cache_get_total_sequence_length")

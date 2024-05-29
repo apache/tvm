@@ -117,6 +117,8 @@ class AttentionKVCacheObj : public KVStateObj {
  public:
   /************** Raw Info Query **************/
 
+  /*! \brief Check if the KV cache is empty. */
+  virtual bool Empty() const = 0;
   /*!
    * \brief Get the number of available pages in the KV cache.
    * When the underlying KV cache implementation is not
