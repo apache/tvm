@@ -247,7 +247,6 @@ def test_load_shard_in_relax():
         def main(
             loader: R.Object,
         ) -> R.Tuple(R.Tensor((64, 64), "float32"), R.Tensor((16, 128), "float32"),):
-            R.func_attr({"global_symbol": "main"})
             with R.dataflow():
                 lv0: R.Tensor((64, 64), "float32") = R.call_pure_packed(
                     "runtime.disco.ShardLoaderLoad",

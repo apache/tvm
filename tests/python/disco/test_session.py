@@ -28,7 +28,7 @@ from tvm.runtime import disco as di
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tir as T
-from tvm.testing import disco as _
+from tvm.exec import disco_worker as _
 
 
 def _numpy_to_worker_0(sess: di.Session, np_array: np.array, device):
@@ -183,7 +183,6 @@ def test_vm_multi_func(session_kind):
         def transpose_1(
             A: R.Tensor((8, 16), dtype="float32")
         ) -> R.Tensor((16, 8), dtype="float32"):
-            R.func_attr({"global_symbol": "main"})
             cls = TestMod
             with R.dataflow():
                 B = R.call_tir(cls.t1, (A,), out_sinfo=R.Tensor((16, 8), dtype="float32"))
@@ -194,7 +193,6 @@ def test_vm_multi_func(session_kind):
         def transpose_2(
             A: R.Tensor((16, 8), dtype="float32")
         ) -> R.Tensor((8, 16), dtype="float32"):
-            R.func_attr({"global_symbol": "main"})
             cls = TestMod
             with R.dataflow():
                 B = R.call_tir(cls.t2, (A,), out_sinfo=R.Tensor((8, 16), dtype="float32"))
