@@ -1914,7 +1914,7 @@ class AutoTensorizeMappingProposer {
                                         arith::Analyzer* analyzer)
       : extractor_(extractor), analyzer_(analyzer) {}
 
-  using VarSet = std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual>;
+  using VarSet = std::unordered_set<Var>;
 
   void CollectFeasibleSet() {
     // Collect the set of potential iter var mapping between the workload and the tensor intrin.
@@ -2076,7 +2076,7 @@ class AutoTensorizeMappingProposer {
   // The arithmetic analyzer.
   arith::Analyzer* analyzer_;
   /*! \brief Potential mappings on RHS for each variable on LHS */
-  std::unordered_map<Var, VarSet, ObjectPtrHash, ObjectPtrEqual> lhs_feasible_vars_;
+  std::unordered_map<Var, VarSet> lhs_feasible_vars_;
 };
 
 bool CheckAutoTensorizeApplicable(const ScheduleState& state, const tir::StmtSRef& block_sref,

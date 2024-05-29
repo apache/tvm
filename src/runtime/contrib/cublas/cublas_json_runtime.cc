@@ -97,12 +97,15 @@ class CublasJSONRuntime : public JSONRuntimeBase {
       return dl_tensors[eid];
     };
 
-    auto get_inputs = [=](const JSONGraphNode& node, bool has_bias) {
-      const DLTensor* bias = nullptr;
+    auto get_inputs = [=](const JSONGraphNode& node, bool has_bias, bool has_scale) {
+      const DLTensor *bias = nullptr, *scaleA = nullptr, *scaleB = nullptr;
       if (has_bias) {
         bias = get_input(node, 2);
+      } else if (has_scale) {
+        scaleA = get_input(node, 2);
+        scaleB = get_input(node, 3);
       }
-      return std::make_tuple(get_input(node, 0), get_input(node, 1), bias);
+      return std::make_tuple(get_input(node, 0), get_input(node, 1), bias, scaleA, scaleB);
     };
 
     for (size_t i = 0; i < nodes_.size(); ++i) {
@@ -127,7 +130,9 @@ class CublasJSONRuntime : public JSONRuntimeBase {
           epilogue = CUBLASLT_EPILOGUE_BIAS;
         }
 
-        auto [a_ptr, b_ptr, bias_ptr] = get_inputs(node, epilogue != CUBLASLT_EPILOGUE_DEFAULT);
+        bool has_scale = op_name.find("multiply") != std::string::npos;
+        auto [a_ptr, b_ptr, bias_ptr, scaleA_ptr, scaleB_ptr] =
+            get_inputs(node, epilogue != CUBLASLT_EPILOGUE_DEFAULT, has_scale);
 
         std::optional<float> dq_scale = std::nullopt;
         if (op_name.find("dequantize") != std::string::npos) {
@@ -135,7 +140,7 @@ class CublasJSONRuntime : public JSONRuntimeBase {
         }
 
         tvm::contrib::CallCublasLt(entry_ptr->handle, stream, entry_ptr->matmul_pref_desc, a_ptr,
-                                   b_ptr, bias_ptr, out_ptr, transa, transb,
+                                   b_ptr, bias_ptr, scaleA_ptr, scaleB_ptr, out_ptr, transa, transb,
                                    entry_ptr->workspace_ptr, entry_ptr->workspace_size, epilogue,
                                    dq_scale);
       }

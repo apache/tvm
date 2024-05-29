@@ -75,14 +75,13 @@ TVM_REGISTER_PASS_CONFIG_OPTION("tir.UnrollLoop", UnrollLoopConfig);
 
 class VarLocalAccessMarker : public ExprVisitor {
  public:
-  explicit VarLocalAccessMarker(
-      std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual>* var_touched_local)
+  explicit VarLocalAccessMarker(std::unordered_set<Var>* var_touched_local)
       : var_touched_local_(var_touched_local) {}
 
   void VisitExpr_(const VarNode* op) final { var_touched_local_->insert(GetRef<Var>(op)); }
 
  private:
-  std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual>* var_touched_local_;
+  std::unordered_set<Var>* var_touched_local_;
 };
 
 // The Visitor is used to check whether var is used as write index in a local memory
@@ -259,7 +258,7 @@ class LoopUnroller : public StmtExprMutator {
   // Number of total steps unrolled
   int step_count_{0};
   // set of indices touched during visit local memory
-  std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> var_touched_local_;
+  std::unordered_set<Var> var_touched_local_;
   // analyzer
   arith::Analyzer analyzer_;
 };

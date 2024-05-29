@@ -37,6 +37,7 @@ We do encourage everyone to work anything they are interested in.
 - [Wei Chen](https://github.com/wweic): @wweic - runtime, relay, vm
 - [Zhi Chen](https://github.com/zhiics) (PMC): @zhiics - relay, quantization, pass manager
 - [Egor Churaev](https://github.com/echuraev): @echuraev - metal, opencl, adreno
+- [Balint Cristian](https://github.com/cbalint13): @cbalint13
 - [Siyuan Feng](https://github.com/Hzfengsy) (PMC): @Hzfengsy - tir
 - [Josh Fromm](https://github.com/jwfromm) (PMC): @jwfromm - frontends, quantization, topi
 - [Mehrdad Hessar](https://github.com/mehrdadh): @mehrdadh - microTVM, hexagon

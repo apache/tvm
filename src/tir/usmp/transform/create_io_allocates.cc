@@ -64,14 +64,14 @@ class IOAllocateCreator : public StmtExprVisitor {
   /*! \brief The main function that calls into operator subgraphs */
   PrimFunc main_func_;
   /*! \brief The input Vars of the main function */
-  std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> inputs_;
+  std::unordered_set<Var> inputs_;
   /*! \brief The output Vars of the main function */
-  std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> outputs_;
+  std::unordered_set<Var> outputs_;
   /*! \brief The buffer vars associated with the I/O Vars */
-  std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> io_buffer_vars_;
+  std::unordered_set<Var> io_buffer_vars_;
   /*! \brief The aliases that buffer vars inside the primfunc refer
    * to in terms call arguments */
-  std::unordered_map<Var, Var, ObjectPtrHash, ObjectPtrEqual> aliases_;
+  std::unordered_map<Var, Var> aliases_;
   /*!
    * \brief The TIR main function calls by name to PrimFuncs to be able to
    * support BYOC. Therefore, this Map records functions that are present

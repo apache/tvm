@@ -37,7 +37,7 @@ void TIRVisitorWithPath::Visit(const IRModule& mod, ObjectPath path) {
   // To ensure deterministic order of visits, sort the GlobalVar first
   // by visibility (public then private), then alphabetically by name.
   std::vector<GlobalVar> gvars;
-  std::unordered_set<GlobalVar, ObjectPtrHash, ObjectPtrEqual> externally_exposed;
+  std::unordered_set<GlobalVar> externally_exposed;
   for (const auto& [gvar, func] : mod->functions) {
     gvars.push_back(gvar);
     if (func->GetAttr<String>(tvm::attr::kGlobalSymbol).defined()) {

@@ -288,7 +288,7 @@ Pass SimplifyForFeatureExtraction() {
       }
     }
 
-    std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> unit_vars_;
+    std::unordered_set<Var> unit_vars_;
   };
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
     PrimFuncNode* n = f.CopyOnWrite();

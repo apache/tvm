@@ -48,7 +48,7 @@ using relax::TIRPattern;
 /*! \brief helper to match a for stmt to a pattern*/
 class ForMatcher : public TensorizeComparator {
  public:
-  using SymbolMap = std::unordered_map<Var, PrimExpr, ObjectPtrHash, ObjectPtrEqual>;
+  using SymbolMap = std::unordered_map<Var, PrimExpr>;
   explicit ForMatcher(const tir::PrimFunc& pattern, const Array<Var>& pattern_vars)
       : TensorizeComparator(IRModule({{GlobalVar(""), pattern}}), false), pattern_(pattern) {
     for (const auto& pattern_var : pattern_vars) {

@@ -44,6 +44,7 @@ class TestPrimValueInAssertCondition(BaseCompare):
 
         @T.prim_func(private=True)
         def compute_symbolic_expr(N: T.int64) -> T.bool:
+            T.func_attr({"tir.is_host_func": True})
             T.ret(N % 16 == 0)
 
 
@@ -73,6 +74,7 @@ class TestPrimValueInBranchCondition(BaseCompare):
 
         @T.prim_func(private=True)
         def compute_symbolic_expr(N: T.int64) -> T.bool:
+            T.func_attr({"tir.is_host_func": True})
             T.ret(N % 16 == 0)
 
 
@@ -97,6 +99,7 @@ class TestPrimValueInPureFunction(BaseCompare):
 
         @T.prim_func(private=True)
         def compute_symbolic_expr(N: T.int64, M: T.int64) -> T.int64:
+            T.func_attr({"tir.is_host_func": True})
             T.ret(N * M)
 
 

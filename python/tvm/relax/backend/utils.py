@@ -17,8 +17,61 @@
 # pylint: disable=invalid-name
 """Utils for BYOC pattern matching"""
 
-from tvm.relax import DataflowVar
+from typing import Tuple
+from tvm import relax
+from tvm.relax import DataflowVar, PyExprMutator
 from tvm.relax.transform import PatternCheckContext
+from tvm.target import Target
+
+
+class BackendDispatcher(PyExprMutator):
+    """Base class for backend dispatcher"""
+
+    def __init__(self, mod):
+        super().__init__(mod)
+
+    @staticmethod
+    def is_gpu_target(target: Target) -> bool:
+        """Check if the target is a GPU target."""
+        return "gpu" in target.keys
+
+    @staticmethod
+    def get_shape_dtype(expr: relax.Expr) -> Tuple[relax.ShapeExpr, str]:
+        """Get shape and dtype from an expression.
+        If the shape and dtype is unknown, raise an error."""
+        sinfo = expr.struct_info
+        if not isinstance(expr.struct_info, relax.TensorStructInfo):
+            raise ValueError(
+                f"Expecting a expr with TensorStructInfo, but got {expr} with {expr.struct_info}"
+            )
+
+        shape, dtype = sinfo.shape, sinfo.dtype
+        if shape is None:
+            raise ValueError(
+                f"Expecting a expr with known shape, but got {expr} with unknown shape"
+            )
+
+        return shape, dtype
+
+    def _get_target(self, sinfo: relax.StructInfo) -> Target:
+        # Get target information from TensorStructInfo
+        if isinstance(sinfo, relax.TensorStructInfo):
+            vdevice = sinfo.vdevice
+            if vdevice is not None:
+                return vdevice.target
+        elif isinstance(sinfo, relax.TupleStructInfo):
+            for f in sinfo.fields:
+                tgt = self._get_target(f)
+                if tgt != Target.current():
+                    return tgt
+        # Return the target in current context
+        target = Target.current()
+        if target is None:
+            raise ValueError(
+                "Target not found. Please ensure that the target is annotated within the module, "
+                "or alternatively, execute this within a specified target context."
+            )
+        return target
 
 
 def has_leaking_intermediate_variables(context: PatternCheckContext) -> bool:

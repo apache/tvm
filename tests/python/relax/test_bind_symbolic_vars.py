@@ -286,5 +286,27 @@ def test_bind_strided_slice():
     tvm.ir.assert_structural_equal(expected, after)
 
 
+def test_bind_inside_match_cast():
+    """Symbolic variables may occur within R.match_cast"""
+
+    @R.function(private=True)
+    def before(A: R.Tensor(["M", "N"]), B: R.Tensor(ndim=2)):
+        M = T.int64()
+        N = T.int64()
+        C = R.match_cast(B, R.Tensor([M, N]))
+        D = R.add(A, C)
+        return D
+
+    @R.function(private=True)
+    def expected(A: R.Tensor(["M", 32]), B: R.Tensor(ndim=2)):
+        M = T.int64()
+        C = R.match_cast(B, R.Tensor([M, 32]))
+        D = R.add(A, C)
+        return D
+
+    after = before.bind_symbolic_vars({"N": 32})
+    tvm.ir.assert_structural_equal(expected, after)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

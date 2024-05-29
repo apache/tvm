@@ -41,10 +41,10 @@ def gpu_2d_continuous_cumsum(
     Parameters
     ----------
     ty_len : int
-        The length of thread.y
+        The length of `threadIdx.y`
 
     tx_len : int
-        The length of thread.x
+        The length of `threadIdx.x`
 
     thread_elem : int
         The number of elements processed by single thread
@@ -64,8 +64,8 @@ def gpu_2d_continuous_cumsum(
     out_dtype = out_dtype or in_dtype
 
     # Configuration for GPU kernel
-    TX = T.int64(tx_len)  # thread.x
-    TY = T.int64(ty_len)  # thread.y
+    TX = T.int64(tx_len)  # threadIdx.x
+    TY = T.int64(ty_len)  # threadIdx.y
     N = T.int64(thread_elem)  # number of elements in single thread
 
     if not _is_power_of_two(TX) or not _is_power_of_two(TY) or not _is_power_of_two(N):

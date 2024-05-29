@@ -356,5 +356,86 @@ def test_recursive_legalization(custom_op):
     tvm.ir.assert_structural_equal(AfterFirstIter, AfterSecondIter)
 
 
+def test_legalize_with_vdevice():
+    """Legalization may generate kernels for multiple targets
+
+    This is a regression test.  In previous implementations, Relax
+    expressions whose argument types differed only by their `vdevice`
+    would be legalized to use the same `PrimFunc`.
+
+    """
+
+    @I.ir_module
+    class Before:
+        I.module_global_infos({"vdevice": [I.vdevice("llvm")]})
+
+        @R.function
+        def func_cuda(A: R.Tensor([32, 32], "float32"), B: R.Tensor([32, 32], "float32")):
+            C = R.add(A, B)
+            return C
+
+        @R.function
+        def func_llvm(
+            A: R.Tensor([32, 32], "float32", "llvm"), B: R.Tensor([32, 32], "float32", "llvm")
+        ):
+            C = R.add(A, B)
+            return C
+
+    @I.ir_module
+    class Expected:
+        I.module_global_infos({"vdevice": [I.vdevice("llvm")]})
+
+        @R.function
+        def func_cuda(
+            A: R.Tensor((32, 32), dtype="float32"),
+            B: R.Tensor((32, 32), dtype="float32"),
+        ):
+            cls = Expected
+            C = R.call_tir(cls.add, (A, B), out_sinfo=R.Tensor((32, 32), dtype="float32"))
+            return C
+
+        @T.prim_func(private=True)
+        def add(
+            A: T.Buffer((T.int64(32), T.int64(32)), "float32"),
+            B: T.Buffer((T.int64(32), T.int64(32)), "float32"),
+            C: T.Buffer((T.int64(32), T.int64(32)), "float32"),
+        ):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            for iters in T.grid(T.int64(32), T.int64(32)):
+                with T.block("T_add"):
+                    ax0, ax1 = T.axis.remap("SS", iters)
+                    C[ax0, ax1] = A[ax0, ax1] + B[ax0, ax1]
+
+        @R.function
+        def func_llvm(
+            A: R.Tensor((32, 32), dtype="float32", vdevice="llvm"),
+            B: R.Tensor((32, 32), dtype="float32", vdevice="llvm"),
+        ):
+            cls = Expected
+            C = R.call_tir(
+                cls.add_llvm,
+                (A, B),
+                out_sinfo=R.Tensor((32, 32), dtype="float32", vdevice="llvm"),
+            )
+            return C
+
+        @T.prim_func(private=True)
+        def add_llvm(
+            A: T.Buffer((T.int64(32), T.int64(32)), "float32"),
+            B: T.Buffer((T.int64(32), T.int64(32)), "float32"),
+            C: T.Buffer((T.int64(32), T.int64(32)), "float32"),
+        ):
+            T.func_attr({"target": T.target("llvm"), "tir.noalias": T.bool(True)})
+            for iters in T.grid(T.int64(32), T.int64(32)):
+                with T.block("T_add"):
+                    ax0, ax1 = T.axis.remap("SS", iters)
+                    C[ax0, ax1] = A[ax0, ax1] + B[ax0, ax1]
+
+    with tvm.target.Target("cuda"):
+        After = tvm.relax.transform.LegalizeOps()(Before)
+
+    tvm.ir.assert_structural_equal(Expected, After)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

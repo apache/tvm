@@ -39,7 +39,7 @@ def check_int8_applicable(x, y, allow_padding=False):
     )
 
 
-@dense_alter_layout.register(["cpu", "arm_cpu"])
+@dense_alter_layout.register(["cpu"])
 def _alter_dense_layout(attrs, inputs, tinfos, out_type):
     target = tvm.target.Target.current(allow_none=False)
     dispatch_ctx = autotvm.task.DispatchContext.current

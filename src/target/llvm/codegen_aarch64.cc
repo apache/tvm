@@ -27,6 +27,7 @@
 #include <llvm/Target/TargetMachine.h>
 #include <tvm/runtime/registry.h>
 
+#include "../../arith/scalable_expression.h"
 #include "codegen_cpu.h"
 #include "llvm_instance.h"
 
@@ -40,6 +41,7 @@ class CodeGenAArch64 final : public CodeGenCPU {
 
   void VisitStmt_(const AttrStmtNode* op);
   void AddFunction(const GlobalVar& gvar, const PrimFunc& f);
+  void SetTargetAttributes(llvm::Function* func);
 
   bool func_has_pstate_sm = false;
   bool func_has_pstate_za = false;
@@ -49,6 +51,19 @@ void CodeGenAArch64::AddFunction(const GlobalVar& gvar, const PrimFunc& f) {
   func_has_pstate_sm = false;
   func_has_pstate_za = false;
   CodeGenCPU::AddFunction(gvar, f);
+}
+
+void CodeGenAArch64::SetTargetAttributes(llvm::Function* func) {
+#if TVM_LLVM_VERSION >= 130
+  // Add vscale_range() function attribute when appropriate.
+  if (llvm_target_->TargetHasCPUFeature("sve") || llvm_target_->TargetHasCPUFeature("sme")) {
+    unsigned int max_val =
+        *std::max_element(arith::kAArch64VScaleValues.begin(), arith::kAArch64VScaleValues.end());
+    func->addFnAttr(
+        llvm::Attribute::getWithVScaleRangeArgs(*llvm_target_->GetContext(), 1, max_val));
+  }
+#endif
+  CodeGenCPU::SetTargetAttributes(func);
 }
 
 /*!

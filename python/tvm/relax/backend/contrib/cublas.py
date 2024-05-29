@@ -21,11 +21,16 @@ from functools import reduce
 
 import tvm
 from tvm import DataType
+from tvm.arith import Analyzer
 from tvm.relax import transform
 from tvm.relax.transform import PatternCheckContext
 
 from ..pattern_registry import get_patterns_with_prefix, register_patterns
-from ..patterns import make_matmul_pattern, make_matmul_dequantize_pattern
+from ..patterns import (
+    make_matmul_pattern,
+    make_matmul_dequantize_pattern,
+    make_matmul_multiply_pattern,
+)
 from ..utils import has_leaking_intermediate_variables
 
 
@@ -119,6 +124,8 @@ def _check_matmul(context: PatternCheckContext) -> bool:
             # cuBLAS only supports bias vector
             return False
 
+    analyzer = Analyzer()
+
     # cuBLASLt does not seem to support batched GEMM with one of matrices having
     # one batch (with batch_stride 0). So for batched GEMM, the two batch counts
     # must be equal. If lhs is batched but rhs is not, we can use the regular GEMM by
@@ -126,7 +133,7 @@ def _check_matmul(context: PatternCheckContext) -> bool:
     return (
         isinstance(lhs_batches, tvm.tir.Var)
         or isinstance(rhs_batches, tvm.tir.Var)
-        or (int(lhs_batches) == int(rhs_batches))
+        or (analyzer.can_prove_equal(lhs_batches, rhs_batches))
         or (lhs_batches >= 1 and rhs_batches == 1)
     )
 
@@ -200,6 +207,11 @@ register_patterns(
         (
             "cublas.matmul_transposed_dequantize",
             *make_matmul_dequantize_pattern(transposed_rhs=True),
+            _check_matmul,
+        ),
+        (
+            "cublas.matmul_transposed_multiply",
+            *make_matmul_multiply_pattern(transposed_rhs=True),
             _check_matmul,
         ),
     ]

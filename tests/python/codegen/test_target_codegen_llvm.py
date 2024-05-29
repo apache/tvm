@@ -1109,5 +1109,34 @@ def test_call_extern_returning_void():
     built = tvm.build(func, target="llvm")
 
 
+def test_invalid_volatile_masked_buffer_load():
+    @T.prim_func
+    def func(b: T.handle):
+        B = T.match_buffer(b, [4])
+        a = T.allocate([4], "float32", scope="global")
+        T.attr(a, "volatile_scope", 1)
+        A = T.Buffer([4], data=a)
+        B[0:4] = A.vload([T.Ramp(0, 1, 4)], predicate=T.Broadcast(T.bool(True), 4))
+
+    err_msg = "The masked load intrinsic does not support declaring load as volatile."
+    with pytest.raises(tvm.TVMError, match=err_msg):
+        with tvm.target.Target("llvm"):
+            tvm.build(func)
+
+
+def test_invalid_volatile_masked_buffer_store():
+    @T.prim_func
+    def func():
+        a = T.allocate([4], "float32", scope="global")
+        T.attr(a, "volatile_scope", 1)
+        A = T.Buffer([4], data=a)
+        A.vstore([T.Ramp(0, 1, 4)], T.Broadcast(0.0, 4), predicate=T.Broadcast(T.bool(True), 4))
+
+    err_msg = "The masked store intrinsic does not support declaring store as volatile."
+    with pytest.raises(tvm.TVMError, match=err_msg):
+        with tvm.target.Target("llvm"):
+            tvm.build(func)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

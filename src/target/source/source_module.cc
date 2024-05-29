@@ -337,7 +337,7 @@ class CSourceCrtMetadataModuleNode : public runtime::ModuleNode {
       // Pool is RO, form an initialized struct
       code_ << "__attribute__((section(\".rodata.tvm\"), ";
       code_ << "))\n";
-      code_ << "static struct " << pool_info->pool_name << " {\n";
+      code_ << "static const struct " << pool_info->pool_name << " {\n";
       // emit struct field names
       std::vector<ConstantInfo> const_info_vec(pool_info->constant_info_array.begin(),
                                                pool_info->constant_info_array.end());

@@ -108,7 +108,7 @@ def eval_struct_info(self: Parser, node: doc.expr, eval_str: bool = False) -> St
         struct_info = self.eval_expr(node)
         return _normalize_struct_info(struct_info, var_table)
     except Exception as err:
-        self.report_error(node, str(err))
+        self.report_error(node, err)
         raise err
 
 

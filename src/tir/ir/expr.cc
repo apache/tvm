@@ -772,24 +772,47 @@ void BufferLoadNode::LegalizeDType() {
   }
 }
 
-BufferLoad::BufferLoad(Buffer buffer, Array<PrimExpr> indices, Span span) {
+BufferLoad::BufferLoad(Buffer buffer, Array<PrimExpr> indices, Optional<PrimExpr> predicate,
+                       Span span) {
   ICHECK_EQ(buffer->shape.size(), indices.size())
       << "Buffer " << buffer->name << " is " << buffer->shape.size()
       << "-dimensional, cannot be indexed with the " << indices.size()
       << "-dimensional indices provided.";
 
+  if (predicate.defined()) {
+    DataType predicate_dtype = predicate.value().dtype();
+
+    bool is_index_scalable = indices.empty() ? false : indices.back().dtype().is_scalable_vector();
+    bool is_predicate_scalable = predicate_dtype.is_scalable_vector();
+    ICHECK_EQ(is_index_scalable, is_predicate_scalable)
+        << "Predicate mask dtype and load indices must both be scalable.";
+
+    int buffer_lanes = buffer->dtype.get_lanes_or_vscale_factor();
+    int index_lanes = indices.empty() ? 1 : indices.back().dtype().get_lanes_or_vscale_factor();
+    int predicate_lanes = predicate_dtype.get_lanes_or_vscale_factor();
+    ICHECK_EQ(index_lanes * buffer_lanes, predicate_lanes)
+        << "Got a predicate mask with " << predicate_lanes
+        << " lanes, but trying to load a vector with " << index_lanes
+        << " lanes. The number of lanes must match.";
+
+    DataType predicate_element_dtype = predicate_dtype.element_of();
+    ICHECK(predicate_element_dtype.is_bool())
+        << "Predicate mask elements must be boolean values, but got " << predicate_element_dtype
+        << ".";
+  }
+
   ObjectPtr<BufferLoadNode> node = make_object<BufferLoadNode>();
   node->buffer = std::move(buffer);
   node->indices = std::move(indices);
+  node->predicate = std::move(predicate);
   node->span = std::move(span);
   node->LegalizeDType();
   data_ = std::move(node);
 }
 
 TVM_REGISTER_GLOBAL("tir.BufferLoad")
-    .set_body_typed([](Buffer buffer, Array<PrimExpr> indices, Span span) {
-      return BufferLoad(buffer, indices, span);
-    });
+    .set_body_typed([](Buffer buffer, Array<PrimExpr> indices, Optional<PrimExpr> predicate,
+                       Span span) { return BufferLoad(buffer, indices, predicate, span); });
 
 TVM_REGISTER_NODE_TYPE(BufferLoadNode);
 

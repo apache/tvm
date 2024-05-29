@@ -476,12 +476,10 @@ class ScheduleBuilder : public ExprVisitor {
         mod_eq_structural_(meta_schedule::ModuleEquality::Create("ignore-ndarray")) {
     // Whether to use auto_scheduler schedule.
     use_auto_scheduler_ = backend::IsAutoSchedulerEnabled();
+    database_ = meta_schedule::Database::Current();
     if (backend::IsMetaScheduleEnabled()) {
-      database_ = meta_schedule::Database::Current();
       CHECK(database_.defined()) << "ValueError: `use_meta_schedule` is enabled in Relay "
                                     "build, but no `meta_schedule.Database` context is provided. ";
-    } else {
-      database_ = NullOpt;
     }
   }
 

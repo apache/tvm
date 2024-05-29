@@ -36,6 +36,14 @@ def _is_scheduled(func: tir.PrimFunc) -> bool:
     return func.attrs["tir.is_scheduled"] == 1
 
 
+def _get_target(func: tir.PrimFunc) -> Target:
+    target = func.attrs.get("target")
+    if target is None:
+        return Target.current(allow_none=False)
+    else:
+        return target
+
+
 @module_pass(opt_level=0, name="ApplyDefaultSchedule")
 class ApplyDefaultSchedule:  # pylint: disable=too-few-public-methods
     """A IRModule pass that applies a list of ScheduleRules to all PrimFuncs in the module."""
@@ -55,10 +63,11 @@ class ApplyDefaultSchedule:  # pylint: disable=too-few-public-methods
         mod: IRModule,
         _: PassContext,
     ) -> IRModule:
-        target = Target.current(allow_none=False)
         updated_functions = {}
         for g_var, func in mod.functions_items():
             if isinstance(func, tir.PrimFunc) and not _is_scheduled(func):
+                target = _get_target(func)
+
                 sch = _apply_rules(func, target, self.rules, tunable=False)
                 if sch is not None:
                     assert len(sch) == 1

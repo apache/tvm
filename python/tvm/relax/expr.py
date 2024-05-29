@@ -1108,21 +1108,26 @@ class Function(BaseFunc, Scriptable):
 
 
 @tvm._ffi.register_object("relax.expr.ExternFunc")
-class ExternFunc(BaseFunc):
+class ExternFunc(BaseFunc, ExprWithOp):
     """extern function, which represents a PackedFunc."""
 
     global_symbol: String
     span: Optional[Span]
 
-    def __init__(self, global_symbol: String, span: Optional[Span] = None) -> None:
+    def __init__(
+        self,
+        global_symbol: String,
+        struct_info: Optional[StructInfo] = None,
+        span: Optional[Span] = None,
+    ) -> None:
         self.__init_handle_by_constructor__(
-            _ffi_api.ExternFunc, global_symbol, span  # type: ignore
+            _ffi_api.ExternFunc, global_symbol, struct_info, span  # type: ignore
         )
 
 
-def extern(name: str, span: Optional[Span] = None):
+def extern(name: str, struct_info: Optional[StructInfo] = None, span: Optional[Span] = None):
     """Create extern function."""
-    return ExternFunc(name, span)
+    return ExternFunc(name, struct_info, span)
 
 
 def const(

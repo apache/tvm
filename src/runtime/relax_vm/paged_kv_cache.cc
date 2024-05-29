@@ -85,7 +85,7 @@ struct Block {
   int32_t start_pos = 0;
   /*!
    * \brief The current attention sink length of the block.
-   * It means the the **first** sink size elements will be pinned
+   * It means the **first** sink size elements will be pinned
    * in the KV cache even when sliding window is enabled.
    */
   int32_t sink_length = 0;
@@ -247,7 +247,7 @@ class PagedKVCacheAuxDataManager {
   /*!
    * \brief Copy the append length indptr array on device.
    * \note Since the Q/K/V data may have raggedness in terms of lengths,
-   * we represent the the append lengths in CSR format.
+   * we represent the append lengths in CSR format.
    */
   virtual NDArray CopyCurAppendLengthIndptrAsync(std::vector<int32_t>* data) = 0;
   /*! \brief Copy the k position offset of applying RoPE for each sequence. */
@@ -925,10 +925,21 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     if (fork_pos == -1 || fork_pos == parent_it->second.seq_length) {
       // Fork at last by appending a new block directly
       int32_t parent_block_idx = parent_it->second.last_block_idx;
+      if (!global_block_pool_[parent_block_idx].seq_length) {
+        // If parent ends with empty block, fork from parent's parent block
+        parent_block_idx = global_block_pool_[parent_block_idx].parent_idx;
+      }
       ++global_block_pool_[parent_block_idx].external_ref_cnt;
       // Update child block start position and parent index
       global_block_pool_[child_block_idx].start_pos = parent_it->second.seq_length;
       global_block_pool_[child_block_idx].parent_idx = parent_block_idx;
+      if (global_block_pool_[parent_block_idx].seq_length) {
+        // If parent is not empty, append a new block
+        int32_t new_parent_block_idx = GetFreeBlock();
+        global_block_pool_[new_parent_block_idx].start_pos = parent_it->second.seq_length;
+        global_block_pool_[new_parent_block_idx].parent_idx = parent_block_idx;
+        parent_it->second.last_block_idx = new_parent_block_idx;
+      }
     } else {
       // Locate the block to fork from and calculate in-block offset
       std::vector<int32_t> trace = parent_it->second.GetBlockTrace(global_block_pool_);
@@ -1038,21 +1049,51 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     auto it = seq_map_.find(seq_id);
     CHECK(it != seq_map_.end()) << "The sequence \"" << seq_id << "\" cannot be found in KV cache.";
 
-    Block& block = global_block_pool_[it->second.last_block_idx];
     CHECK_GE(n, 0) << "The length of popping " << n << " cannot be negative.";
-    CHECK_LE(n, block.seq_length) << "The sequence only has length " << block.seq_length
-                                  << " in the last block, while the length of pop is " << n
-                                  << " which exceeds the last-block sequence length.";
-
-    int64_t cur_npage = block.page_ids.size();
-    int64_t tgt_npage = (block.seq_length - n + page_size_ - 1) / page_size_;
-    while (cur_npage > tgt_npage) {
-      free_page_ids_.push_back(block.page_ids.back());
-      block.page_ids.pop_back();
-      --cur_npage;
+    CHECK_LE(n, it->second.seq_length)
+        << "The sequence only has length " << it->second.seq_length
+        << ", while the length of pop is " << n << " which exceeds the whole sequence length.";
+    int32_t block_idx = it->second.last_block_idx;
+    while (block_idx != -1 && global_block_pool_[block_idx].external_ref_cnt == 0) {
+      if (n > global_block_pool_[block_idx].seq_length) {
+        n -= global_block_pool_[block_idx].seq_length;
+        it->second.seq_length -= global_block_pool_[block_idx].seq_length;
+        for (int32_t page_id : global_block_pool_[block_idx].page_ids) {
+          free_page_ids_.push_back(page_id);
+        }
+        free_block_idx_.push_back(block_idx);
+        block_idx = global_block_pool_[block_idx].parent_idx;
+        it->second.last_block_idx = block_idx;
+        continue;
+      }
+      if (n <= global_block_pool_[block_idx].seq_length) {
+        int64_t cur_npage = global_block_pool_[block_idx].page_ids.size();
+        int64_t tgt_npage =
+            (global_block_pool_[block_idx].seq_length - n + page_size_ - 1) / page_size_;
+        while (cur_npage > tgt_npage) {
+          free_page_ids_.push_back(global_block_pool_[block_idx].page_ids.back());
+          global_block_pool_[block_idx].page_ids.pop_back();
+          --cur_npage;
+        }
+        it->second.seq_length -= n;
+        global_block_pool_[block_idx].seq_length -= n;
+        n = 0;
+        break;
+      }
     }
-    it->second.seq_length -= n;
-    block.seq_length -= n;
+
+    if (n) {
+      int32_t temp_seq_id = -1 - seq_id;
+      CHECK(seq_map_.find(temp_seq_id) == seq_map_.end());
+      ForkSequence(seq_id, temp_seq_id, it->second.seq_length - n);
+      CHECK(seq_map_.find(temp_seq_id) != seq_map_.end());
+      RemoveSequence(seq_id);
+      CHECK(seq_map_.find(seq_id) == seq_map_.end());
+      auto it = seq_map_.find(temp_seq_id);
+      seq_map_.insert({seq_id, Sequence(global_block_pool_, it->second.last_block_idx)});
+      seq_map_.erase(temp_seq_id);
+    }
+
     dirty_aux_data_device_ = true;
   }
 
@@ -1709,24 +1750,28 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     // - Reset the copy.
     aux_data_manager_->ResetCopy();
 
-    // 1. qo_indptr_on_depths
+    // 1. q_rope_position_map
+    // q_rope_position_map has to be synced first so that it has a 0 byte offset
+    ICHECK_EQ(q_rope_position_map_host_.size(), total_append_length);
+    q_rope_position_map_view_ = aux_data_manager_->CopyQRoPEPosMapAsync(&q_rope_position_map_host_);
+    // 2. qo_indptr_on_depths
     for (int d = 0; d < num_depths_; ++d) {
       qo_indptr_on_depths_view_[d] =
           aux_data_manager_->CopyQOIndptrOnDepthAsync(&qo_indptr_on_depths_host_[d], d);
     }
-    // 2. page_indptr_on_depths
+    // 3. page_indptr_on_depths
     for (int d = 0; d < num_depths_; ++d) {
       ICHECK_EQ(page_indptr_on_depths_host_[d].size(), qo_indptr_on_depths_host_[d].size());
       page_indptr_on_depths_view_[d] =
           aux_data_manager_->CopyPageIndptrOnDepthAsync(&page_indptr_on_depths_host_[d], d);
     }
-    // 3. page_indices_on_depths
+    // 4. page_indices_on_depths
     for (int d = 0; d < num_depths_; ++d) {
       ICHECK_EQ(page_indices_on_depths_host_[d].size(), page_indptr_on_depths_host_[d].back());
       page_indices_on_depths_view_[d] =
           aux_data_manager_->CopyPageIndicesOnDepthAsync(&page_indices_on_depths_host_[d], d);
     }
-    // 4. length_info_on_depths
+    // 5. length_info_on_depths
     // last_page_len_on_depths_host_;
     // sliding_window_offset_on_depths_host_;
     // sink_size_on_depths_host_;
@@ -1746,23 +1791,20 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
             &sink_size_on_depths_host_[d], d);
       }
     }
-    // 5. k_rope_pos_offset_on_depths
+    // 6. k_rope_pos_offset_on_depths
     for (int d = 0; d < num_depths_; ++d) {
       ICHECK_EQ(k_rope_pos_offset_on_depths_host_[d].size() + 1,
                 qo_indptr_on_depths_host_[d].size());
       k_rope_pos_offset_view_[d] = aux_data_manager_->CopyKRoPEPosOffsetOnDepthAsync(
           &k_rope_pos_offset_on_depths_host_[d], d);
     }
-    // 6. cur_append_lengths_indptr
+    // 7. cur_append_lengths_indptr
     cur_append_length_indptr_view_ =
         aux_data_manager_->CopyCurAppendLengthIndptrAsync(&cur_append_lengths_indptr_host_);
-    // 7. k_ragged_rope_pos_offset
+    // 8. k_ragged_rope_pos_offset
     ICHECK_EQ(k_ragged_rope_pos_offset_host_.size(), num_sequences);
     k_ragged_rope_pos_offset_view_ =
         aux_data_manager_->CopyKRaggedRoPEPosOffsetAsync(&k_ragged_rope_pos_offset_host_);
-    // 8. q_rope_position_map
-    ICHECK_EQ(q_rope_position_map_host_.size(), total_append_length);
-    q_rope_position_map_view_ = aux_data_manager_->CopyQRoPEPosMapAsync(&q_rope_position_map_host_);
     // 9. append_position_map
     append_position_map_view_ =
         aux_data_manager_->CopyAppendPositionMapAsync(&append_position_map_host_);

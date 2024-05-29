@@ -16,4 +16,3 @@
 # under the License.
 # pylint: disable=unused-import
 """Intrinsics for tensorization."""
-from . import arm_cpu, cuda, rocm, x86, hexagon

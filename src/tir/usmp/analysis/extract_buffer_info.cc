@@ -125,7 +125,7 @@ class BufferInfoExtractor : public StmtExprVisitor {
    * \brief Maintains the mapping of buffer variable to their allocate nodes to ensure
    * that only one BufferInfo object is created.
    */
-  std::unordered_map<tir::Var, AllocateInfo, ObjectPtrHash, ObjectPtrEqual> allocate_infos;
+  std::unordered_map<tir::Var, AllocateInfo> allocate_infos;
   /*!
    * \brief Indicates a count of stmts visited so far to use as a metric of liveness
    */

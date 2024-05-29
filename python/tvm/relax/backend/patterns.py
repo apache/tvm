@@ -376,6 +376,44 @@ def make_matmul_dequantize_pattern(
     return out, annotations
 
 
+def make_matmul_multiply_pattern(
+    transposed_rhs: bool = False,
+) -> Tuple[DFPattern, Mapping[str, DFPattern]]:
+    """
+    Create pattern for matrix multiplication and multiply operation.
+
+    Parameters
+    ----------
+    transposed_rhs: bool
+        Whether the right hand side of multiplication is transposed.
+
+    Returns
+    -------
+    pattern: DFPattern
+        The resulting pattern describing a matrix multiplication.
+
+    annotations: Mapping[str, DFPattern]
+        A mapping from name to sub pattern. It can be used to extract important expressions from
+        match result, to power the partition check function and codegen.
+    """
+
+    lhs = wildcard()
+    rhs = wildcard()
+    scaleA = wildcard()
+    scaleB = wildcard()
+    annotations = {"lhs": lhs, "rhs": rhs, "scaleA": scaleA, "scaleB": scaleB}
+
+    if transposed_rhs:
+        rhs = is_op("relax.permute_dims")(rhs)
+    out = is_op("relax.matmul")(lhs, rhs)
+    annotations["root"] = out
+    scale = is_op("relax.multiply")(scaleA.has_shape((1,)), scaleB.has_shape((1,)))
+    out = is_op("relax.multiply")(out, scale)
+    out = is_op("relax.astype")(out)
+
+    return out, annotations
+
+
 def make_attention_rewrite_pattern(
     qkv_layout: str, out_layout: str, with_bias: bool, with_cast: bool, with_kv_repeat: bool = False
 ):

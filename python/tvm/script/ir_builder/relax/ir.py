@@ -20,32 +20,38 @@
 import builtins
 import functools
 import inspect
-from typing import Any, Dict, List, Optional, Tuple, Union, Callable
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import tvm
 from tvm import DataType, relax
 from tvm.ir import PrimExpr, VDevice
-from ..ir import decl_function, lookup_vdevice
-from tvm.relax import Call, Expr, ExternFunc, TupleGetItem, ShapeExpr, Var, VarBinding, const
-from tvm.relax.utils import gen_call_tir_inputs
-
+from tvm.relax import (
+    Call,
+    Expr,
+    ExternFunc,
+    ShapeExpr,
+    TupleGetItem,
+    Var,
+    VarBinding,
+    const,
+)
 
 ############################### Operators ###############################
 from tvm.relax.op import (
     abs,
     acos,
     acosh,
-    asin,
-    asinh,
-    atan,
-    atanh,
     add,
     arange,
     argmax,
     argmin,
     argsort,
+    asin,
+    asinh,
     assert_op,
     astype,
+    atan,
+    atanh,
     bitwise_and,
     bitwise_not,
     bitwise_or,
@@ -53,12 +59,13 @@ from tvm.relax.op import (
     broadcast_to,
     builtin,
     call_builtin_with_ctx,
+    call_dps_packed,
     call_inplace_packed,
     call_pure_packed,
     call_tir,
     call_tir_inplace,
     call_tir_with_grad,
-    call_dps_packed,
+    ccl,
     ceil,
     clip,
     collapse_sum_like,
@@ -68,10 +75,12 @@ from tvm.relax.op import (
     cosh,
     cumprod,
     cumsum,
-    einsum,
-    scatter_elements,
+    dequantize,
     divide,
+    dynamic_strided_slice,
+    einsum,
     equal,
+    erf,
     ewise_fma,
     exp,
     expand_dims,
@@ -108,8 +117,10 @@ from tvm.relax.op import (
     memory,
     min,
     minimum,
+    multinomial_from_uniform,
     multiply,
     negative,
+    nn,
     not_equal,
     null_value,
     ones,
@@ -119,75 +130,70 @@ from tvm.relax.op import (
     print,
     prod,
     quantize,
-    dequantize,
     repeat,
     reshape,
-    tensor_to_shape,
-    shape_to_tensor,
     round,
     rsqrt,
+    scatter_elements,
     shape_of,
-    std,
-    strided_slice,
-    dynamic_strided_slice,
-    sum,
-    take,
-    variance,
+    shape_to_tensor,
     sigmoid,
     sign,
     sin,
     sinh,
     sort,
     split,
+    sqrt,
     square,
     squeeze,
-    sqrt,
+    std,
+    strided_slice,
     subtract,
+    sum,
+    take,
     tan,
     tanh,
-    erf,
+    tensor_to_shape,
     tile,
     topk,
     tril,
     triu,
     unique,
+    variance,
     vm,
     where,
     wrap_param,
     zeros,
     zeros_like,
-    nn,
-    ccl,
 )
-
+from tvm.relax.op.builtin import stop_lift_params
+from tvm.relax.struct_info import StructInfo
+from tvm.relax.utils import args_converter, gen_call_tir_inputs
+from tvm.runtime import Object as tvm_Object
+from tvm.runtime import ObjectGeneric
 from tvm.runtime.ndarray import (
     cpu,
     cuda,
     device,
+    ext_dev,
     gpu,
-    rocm,
-    opencl,
+    hexagon,
     metal,
+    opencl,
+    rocm,
     vpi,
     vulkan,
-    ext_dev,
-    hexagon,
     webgpu,
 )
 
-from tvm.relax.op.builtin import stop_lift_params
-from tvm.relax.struct_info import StructInfo
-from tvm.relax.utils import args_converter
-from tvm.runtime import Object as tvm_Object
-from tvm.runtime import ObjectGeneric
-
+from ..ir import decl_function, lookup_vdevice
 from . import _ffi_api, frame
 
 ##################### Python Native Function Alias ######################
 
 py_print = builtins.print
-py_tuple = tuple
-py_str = str
+py_tuple = tuple  # pylint: disable=used-before-assignment
+py_str = str  # pylint: disable=used-before-assignment
 
 
 ################################ Device ################################
@@ -741,6 +747,7 @@ __all__ = [
     "metal",
     "min",
     "minimum",
+    "multinomial_from_uniform",
     "multiply",
     "negative",
     "not_equal",

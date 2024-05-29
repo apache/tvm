@@ -35,7 +35,7 @@
 namespace tvm {
 namespace tir {
 
-using VarMap = std::unordered_map<Var, PrimExpr, ObjectPtrHash, ObjectPtrEqual>;
+using VarMap = std::unordered_map<Var, PrimExpr>;
 
 /**************** Helper functions ****************/
 

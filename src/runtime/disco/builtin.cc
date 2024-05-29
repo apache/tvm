@@ -108,7 +108,17 @@ void SyncWorker() {
 }
 
 TVM_REGISTER_GLOBAL("runtime.disco.load_vm_module").set_body_typed(LoadVMModule);
-TVM_REGISTER_GLOBAL("runtime.disco.empty").set_body_typed(DiscoEmptyNDArray);
+
+TVM_REGISTER_GLOBAL("runtime.disco.empty")
+    .set_body_typed([](ShapeTuple shape, DataType dtype, Device device,
+                       bool worker0_only) -> Optional<NDArray> {
+      if (worker0_only && WorkerId()) {
+        return NullOpt;
+      } else {
+        return DiscoEmptyNDArray(shape, dtype, device);
+      }
+    });
+
 TVM_REGISTER_GLOBAL("runtime.disco.allreduce")
     .set_body_typed([](NDArray send, ShapeTuple reduce_kind, NDArray recv) {
       int kind = IntegerFromShapeTuple(reduce_kind);

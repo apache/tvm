@@ -424,7 +424,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
    */
   size_t registers_num_ = 0;
   /*! \brief Map from var to register number. */
-  std::unordered_map<Var, Instruction::Arg, ObjectPtrHash, ObjectPtrEqual> var_arg_map_;
+  std::unordered_map<Var, Instruction::Arg> var_arg_map_;
   /*! \brief the context module. */
   IRModule ctx_mod_;
   /*! \brief Cache ops that need to be frequently used later to reduce lookup overhead. */

@@ -296,7 +296,7 @@ class LayoutConvertMutator : public ExprMutator {
     }
   }
 
-  std::unordered_map<Var, NLayout, ObjectPtrHash, ObjectPtrEqual> var_layout_map_;
+  std::unordered_map<Var, NLayout> var_layout_map_;
   Map<String, Array<String>> desired_layouts_;
 };  // namespace relax
 

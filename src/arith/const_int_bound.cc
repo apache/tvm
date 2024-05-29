@@ -370,8 +370,10 @@ class ConstIntBoundAnalyzer::Impl
       return VisitLeftShift(op);
     } else if (op->op.same_as(tir::builtin::bitwise_and())) {
       return VisitBitwiseAnd(op);
-    } else if (op->op.same_as(tir::builtin::vscale()) && TargetHasSVE()) {
-      return MakeBound(1, 16);
+    } else if (op->op.same_as(tir::builtin::vscale()) && TargetHasSVE(Target::Current())) {
+      unsigned int max_val =
+          *std::max_element(kAArch64VScaleValues.begin(), kAArch64VScaleValues.end());
+      return MakeBound(1, max_val);
     } else {
       return Everything(op->dtype);
     }
@@ -450,7 +452,7 @@ class ConstIntBoundAnalyzer::Impl
  private:
   friend class ConstIntBoundAnalyzer;
   // internal variable map
-  std::unordered_map<Var, Entry, ObjectPtrHash, ObjectPtrEqual> var_map_;
+  std::unordered_map<Var, Entry> var_map_;
   // additional bound info
   std::vector<BoundInfo> additional_info_;
   // look up table for memorization

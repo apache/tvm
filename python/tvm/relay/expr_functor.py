@@ -251,7 +251,7 @@ class ExprMutator(ExprFunctor):
         new_tuple_value = self.visit(op.tuple_value)
         if new_tuple_value == op.tuple_value:
             return op
-        return TupleGetItem(new_tuple_value, op.index)
+        return TupleGetItem(new_tuple_value, op.index, span=op.span)
 
     def visit_global_var(self, gvar):
         return gvar

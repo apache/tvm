@@ -136,8 +136,7 @@ struct GlobalCollectInfo : public BaseCollectInfo {
   Array<tir::Var> GetPropagatedSymbolicVariables() const {
     auto vars_from_original_params =
         DefinableTIRVarsInStructInfo(TupleStructInfo(params.Map(GetStructInfo)));
-    auto vars_from_transformed_params =
-        [&]() -> std::unordered_set<tir::Var, ObjectPtrHash, ObjectPtrEqual> {
+    auto vars_from_transformed_params = [&]() -> std::unordered_set<tir::Var> {
       auto tir_vars =
           DefinableTIRVarsInStructInfo(TupleStructInfo(GetCompileTimeOutputs().Map(GetStructInfo)));
       return {tir_vars.begin(), tir_vars.end()};
@@ -179,15 +178,13 @@ struct LocalCollectInfo : public BaseCollectInfo {
     auto vars_from_any_param =
         DefinableTIRVarsInStructInfo(TupleStructInfo(orig_func->params.Map(GetStructInfo)));
 
-    auto vars_from_runtime_params =
-        [&]() -> std::unordered_set<tir::Var, ObjectPtrHash, ObjectPtrEqual> {
+    auto vars_from_runtime_params = [&]() -> std::unordered_set<tir::Var> {
       auto tir_var_vec =
           DefinableTIRVarsInStructInfo(TupleStructInfo(GetRuntimeInputs().Map(GetStructInfo)));
       return {tir_var_vec.begin(), tir_var_vec.end()};
     }();
 
-    auto vars_from_transformed_params =
-        [&]() -> std::unordered_set<tir::Var, ObjectPtrHash, ObjectPtrEqual> {
+    auto vars_from_transformed_params = [&]() -> std::unordered_set<tir::Var> {
       auto tir_var_vec =
           DefinableTIRVarsInStructInfo(TupleStructInfo(GetCompileTimeOutputs().Map(GetStructInfo)));
       return {tir_var_vec.begin(), tir_var_vec.end()};
@@ -287,7 +284,7 @@ struct LocalCollectInfo : public BaseCollectInfo {
 
     // Any binding that is computable at compile-time should be
     // suppressed at run-time.
-    std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> to_suppress;
+    std::unordered_set<Var> to_suppress;
     for (const auto& binding : computable_at_compile_time) {
       if (requires_compile_time_param.count(binding->var)) {
         to_suppress.insert(binding->var);
@@ -296,8 +293,7 @@ struct LocalCollectInfo : public BaseCollectInfo {
 
     class SuppressCompileTime : public ExprMutator {
      public:
-      explicit SuppressCompileTime(
-          const std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual>& to_suppress)
+      explicit SuppressCompileTime(const std::unordered_set<Var>& to_suppress)
           : to_suppress_(to_suppress) {}
 
       void VisitBinding(const Binding& binding) override {
@@ -317,7 +313,7 @@ struct LocalCollectInfo : public BaseCollectInfo {
       }
 
      private:
-      const std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual>& to_suppress_;
+      const std::unordered_set<Var>& to_suppress_;
     };
     Expr body = SuppressCompileTime(to_suppress)(orig_func->body);
     body = SeqExpr({DataflowBlock(bindings)}, body);
@@ -769,8 +765,7 @@ Pass PartitionTransformParams(Variant<Bool, Array<String>> shared_transform) {
       global_collect_info = MakeGlobalLiftPlan(mod, functions);
     }
 
-    std::unordered_map<GlobalVar, LocalCollectInfo, ObjectPtrHash, ObjectPtrEqual>
-        local_collect_info;
+    std::unordered_map<GlobalVar, LocalCollectInfo> local_collect_info;
     for (const auto& [gvar, func] : target_functions) {
       auto info = LocalLiftableBindingCollector::Collect(
           func, global_collect_info.has_value() ? &global_collect_info.value() : nullptr);
@@ -814,7 +809,7 @@ Pass LiftTransformParams(Variant<Bool, Array<String>> shared_transform) {
   // 3. Post-proc: Expose the compile-time and run-time functions for
   // external use, replacing the end-to-end functions.
   auto post_proc_func = [=](IRModule mod, PassContext pc) {
-    std::unordered_map<GlobalVar, Function, ObjectPtrHash, ObjectPtrEqual> to_add;
+    std::unordered_map<GlobalVar, Function> to_add;
     for (const auto& [gvar, base_func] : mod->functions) {
       if (auto opt = base_func.as<Function>()) {
         auto func = opt.value();

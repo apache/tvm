@@ -57,6 +57,31 @@ def create_updater(node_map, from_ver, to_ver):
     return _updater
 
 
+def create_updater_16_to_17():
+    """
+    Create an update to upgrade json from v0.16 to v0.17
+
+    Returns
+    -------
+    fupdater : function
+        The updater function
+    """
+
+    def _update_predicate_argument(item, nodes):
+        null_value_idx = 0
+        null_value = nodes[null_value_idx]
+        assert str(null_value) == "{'type_key': ''}", f"Expected a null value but got {null_value}"
+        item["attrs"]["predicate"] = str(null_value_idx)
+        return item
+
+    node_map = {
+        "tir.BufferLoad": _update_predicate_argument,
+        "tir.BufferStore": _update_predicate_argument,
+    }
+
+    return create_updater(node_map, "0.16", "0.17")
+
+
 def create_updater_15_to_16():
     """
     Create an update to upgrade json from v0.15 to v0.16
@@ -316,5 +341,7 @@ def upgrade_json(json_str):
         data = create_updater({}, "0.14", "0.15")(data)
     if _from_version(data).startswith("0.15"):
         data = create_updater_15_to_16()(data)
+    if _from_version(data).startswith("0.16"):
+        data = create_updater_16_to_17()(data)
 
     return json.dumps(data, indent=2)

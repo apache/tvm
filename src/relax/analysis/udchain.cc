@@ -55,7 +55,7 @@ class UDChain : relax::ExprVisitor {
 
  private:
   Map<Var, Expr> bound_values;
-  std::unordered_map<Var, support::OrderedSet<Var>, ObjectPtrHash, ObjectPtrEqual> usage_map;
+  std::unordered_map<Var, support::OrderedSet<Var>> usage_map;
   support::OrderedSet<Var> outputs;
 
   Optional<Var> cur_user_{nullptr};

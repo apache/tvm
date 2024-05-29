@@ -161,6 +161,10 @@ def test_int8_conv2d(target, expected_impl):
             "llvm --device=arm_cpu --mtriple=aarch64-linux-gnu -mattr=+v9a",
             "conv2d_NHWC_hybrid_without_transform.arm_cpu",
         ),
+        (
+            "llvm --device=arm_cpu --mtriple=aarch64-linux-gnu -mattr=+v9.2a,+sme",
+            "conv2d_NHWC_hybrid_SME.arm_cpu",
+        ),
     ],
 )
 def test_fp32_conv2d(target, expected_impl):
@@ -195,6 +199,10 @@ def test_fp32_conv2d(target, expected_impl):
         ),
         (
             "llvm -device=arm_cpu -mtriple=aarch64-linux-gnu -mattr=+v9a",
+            "conv2d_NHWC_hybrid_without_transform.arm_cpu",
+        ),
+        (
+            "llvm --device=arm_cpu --mtriple=aarch64-linux-gnu -mattr=+v9.2a,+sme",
             "conv2d_NHWC_hybrid_without_transform.arm_cpu",
         ),
     ],
@@ -258,18 +266,23 @@ def test_int8_depthwise_conv2d(target, expected_impl):
 
 @pytest.mark.parametrize(
     "target,expected_valid_impl,expected_impl",
-    [("llvm -device=arm_cpu", ["dense_pack.x86", "dense_nopack.x86"], "dense_pack.x86")],
+    [
+        (
+            "llvm -device=arm_cpu",
+            ["dense_pack.x86", "dense_nopack.x86"],
+            "dense_pack.x86",
+        ),
+    ],
 )
 def test_dense(target, expected_valid_impl, expected_impl):
     target = tvm.target.Target(target)
-
     data_shape = (30, 40)
     weight_shape = (30, 40)
     dtype = "float32"
 
     out = relay.nn.dense(
         relay.var("data", shape=data_shape, dtype=dtype),
-        relay.var("weight", shape=weight_shape, dtype=dtype),
+        relay.const(np.zeros((weight_shape)).astype(dtype)),
         out_dtype=dtype,
     )
     out = run_infer_type(out)
@@ -284,7 +297,51 @@ def test_dense(target, expected_valid_impl, expected_impl):
         ]
         valid_impl = relay.backend.te_compiler.get_valid_implementations(*args)
         selected_impl, _ = relay.backend.te_compiler.select_implementation(*args, use_autotvm=False)
+    assert len(valid_impl) == len(expected_valid_impl)
+    for impl in valid_impl:
+        assert impl.name in expected_valid_impl
+    assert selected_impl.name == expected_impl
 
+
+@pytest.mark.skipif(llvm_version_major() < 15, reason="Older versions of LLVM don't support SME.")
+@pytest.mark.parametrize(
+    "shape,expected_valid_impl,expected_impl",
+    [
+        (
+            (30, 40),
+            ["matmul.arm_cpu.sme", "dense_pack.x86", "dense_nopack.x86"],
+            "matmul.arm_cpu.sme",
+        ),
+        (
+            (5, 1),
+            ["dense_pack.x86", "dense_nopack.x86"],
+            "dense_pack.x86",
+        ),
+    ],
+)
+def test_dense_with_sme_target(shape, expected_valid_impl, expected_impl):
+    target = tvm.target.Target("llvm -mtriple=aarch64-linux-gnu -mattr=+v9.2a,+sme")
+    data_shape = shape
+    weight_shape = shape
+    dtype = "float32"
+
+    out = relay.nn.dense(
+        relay.var("data", shape=data_shape, dtype=dtype),
+        relay.const(np.zeros((weight_shape)).astype(dtype)),
+        out_dtype=dtype,
+    )
+    out = run_infer_type(out)
+
+    with target:
+        args = [
+            out.op,
+            out.attrs,
+            [te.placeholder(data_shape, dtype), te.placeholder(weight_shape, dtype)],
+            out.checked_type,
+            target,
+        ]
+        valid_impl = relay.backend.te_compiler.get_valid_implementations(*args)
+        selected_impl, _ = relay.backend.te_compiler.select_implementation(*args, use_autotvm=False)
     assert len(valid_impl) == len(expected_valid_impl)
     for impl in valid_impl:
         assert impl.name in expected_valid_impl

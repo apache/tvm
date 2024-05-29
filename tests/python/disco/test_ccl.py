@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=missing-docstring
 """Tests for NCCL/RCCL"""
+
 import tempfile
 
 import numpy as np
@@ -108,7 +109,7 @@ def test_broadcast_from_worker0(session_kind, ccl):
     sess.init_ccl(ccl, *devices)
 
     array = np.arange(12, dtype="float32").reshape(3, 4)
-    d_array = sess.empty((3, 4), "float32")
+    d_array = sess.empty((3, 4), "float32", worker0_only=True)
     d_array.debug_copy_from(0, array)
     dst_array = sess.empty((3, 4), "float32")
     sess.broadcast_from_worker0(d_array, dst_array)
@@ -118,16 +119,17 @@ def test_broadcast_from_worker0(session_kind, ccl):
 
 @pytest.mark.parametrize("session_kind", _all_session_kinds)
 @pytest.mark.parametrize("ccl", _ccl)
-def test_scatter(session_kind, ccl):
+def test_scatter(session_kind, ccl, capfd):
     devices = [0, 1]
     sess = session_kind(num_workers=len(devices))
     sess.init_ccl(ccl, *devices)
 
     array = np.arange(36, dtype="float32").reshape(3, 4, 3)
-    d_src = sess.empty((3, 4, 3), "float32")
+    d_src = sess.empty((3, 4, 3), "float32", worker0_only=True)
     d_dst = sess.empty((3, 3, 2), "float32")
 
     d_src.debug_copy_from(0, array)
+
     sess.scatter_from_worker0(d_src, d_dst)
 
     np.testing.assert_equal(
@@ -139,17 +141,22 @@ def test_scatter(session_kind, ccl):
         array.flat[18:].reshape(3, 3, 2),
     )
 
+    captured = capfd.readouterr()
+    assert (
+        not captured.err
+    ), "No warning messages should be generated from disco.Session.scatter_from_worker0"
+
 
 @pytest.mark.parametrize("session_kind", _all_session_kinds)
 @pytest.mark.parametrize("ccl", _ccl)
-def test_gather(session_kind, ccl):
+def test_gather(session_kind, ccl, capfd):
     devices = [0, 1]
     sess = session_kind(num_workers=len(devices))
     sess.init_ccl(ccl, *devices)
 
     array = np.arange(36, dtype="float32")
     d_src = sess.empty((3, 3, 2), "float32")
-    d_dst = sess.empty((3, 4, 3), "float32")
+    d_dst = sess.empty((3, 4, 3), "float32", worker0_only=True)
     d_src.debug_copy_from(0, array[:18])
     d_src.debug_copy_from(1, array[18:])
     sess.gather_to_worker0(d_src, d_dst)
@@ -157,6 +164,11 @@ def test_gather(session_kind, ccl):
         d_dst.debug_get_from_remote(0).numpy(),
         array.reshape(3, 4, 3),
     )
+
+    captured = capfd.readouterr()
+    assert (
+        not captured.err
+    ), "No warning messages should be generated from disco.Session.gather_to_worker0"
 
 
 @pytest.mark.parametrize("session_kind", _all_session_kinds)

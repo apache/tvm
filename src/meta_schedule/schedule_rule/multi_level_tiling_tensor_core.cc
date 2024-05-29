@@ -775,9 +775,9 @@ Optional<LoopRV> MultiLevelTilingTensorCoreNode::TransformWithTensorIntrin(
   const tir::IndexMap& index_map = mapping_info->mappings[0];
 
   // Find the correspondence between block iters and the iters in the index map.
-  std::unordered_map<tir::Var, tir::Var, ObjectPtrHash, ObjectPtrEqual> lhs_to_index_map_src;
-  std::unordered_map<tir::Var, PrimExpr, ObjectPtrHash, ObjectPtrEqual> rhs_to_index_map_tgt;
-  std::unordered_set<tir::Var, ObjectPtrHash, ObjectPtrEqual> unmapped_index_map_src;
+  std::unordered_map<tir::Var, tir::Var> lhs_to_index_map_src;
+  std::unordered_map<tir::Var, PrimExpr> rhs_to_index_map_tgt;
+  std::unordered_set<tir::Var> unmapped_index_map_src;
   ICHECK_EQ(mapping_info->lhs_iters.size(), index_map->initial_indices.size());
   for (int i = 0; i < static_cast<int>(mapping_info->lhs_iters.size()); ++i) {
     lhs_to_index_map_src[mapping_info->lhs_iters[i]->var] = index_map->initial_indices[i];

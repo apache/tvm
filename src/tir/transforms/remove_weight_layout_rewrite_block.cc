@@ -196,7 +196,7 @@ class AllocateConstRewrite : public StmtExprMutator {
                  op->buffer->elem_offset, it->second->name_hint, op->buffer->data_alignment,
                  op->buffer->offset_factor, op->buffer->buffer_type);
       new_load_buf_[op->buffer->data.get()] = new_buffer;
-      return BufferLoad(new_buffer, op->indices);
+      return BufferLoad(new_buffer, op->indices, op->predicate);
     }
     return ExprMutator::VisitExpr_(op);
   }

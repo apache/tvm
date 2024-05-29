@@ -35,12 +35,13 @@ export function isPromise(value: any): boolean {
  * @returns The corresponding Uint8Array.
  */
 export function StringToUint8Array(str: string): Uint8Array {
-  const arr = new Uint8Array(str.length + 1);
-  for (let i = 0; i < str.length; ++i) {
-    arr[i] = str.charCodeAt(i);
+  const arr: Uint8Array = new TextEncoder().encode(str);
+  const resArr = new Uint8Array(arr.length + 1);
+  for (let i = 0; i < arr.length; ++i) {
+    resArr[i] = arr[i];
   }
-  arr[str.length] = 0;
-  return arr;
+  resArr[arr.length] = 0;
+  return resArr;
 }
 
 /**

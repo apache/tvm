@@ -90,16 +90,6 @@ def test_simplify_vscale_comparison_without_sve_target(capfd):
     assert warning_msg in capture
 
 
-def test_simplify_vscale_non_comparison():
-    ana = tvm.arith.Analyzer()
-    vs = tvm.tir.vscale()
-
-    err_msg = r".*Expected comparison but got: T.vscale\(\) \* 4"
-    with pytest.raises(tvm.TVMError, match=err_msg):
-        with tvm.target.Target("llvm -mtriple=aarch64-linux-gnu -mattr=+sve"):
-            ana.can_prove(vs * 4)
-
-
 def test_regression_simplify_inf_recursion():
     ana = tvm.arith.Analyzer()
     cond = tir.Var("cond", "int32")

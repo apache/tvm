@@ -188,6 +188,31 @@ def test_ndarray_cache():
         np.testing.assert_allclose(v.numpy(), v_np, atol=1e-6, rtol=1e-6)
 
 
+def test_ndarray_cache_update():
+    fload = tvm.get_global_func("vm.builtin.ndarray_cache.load")
+    fget_params = tvm.get_global_func("vm.builtin.param_array_from_cache")
+
+    param_dict = {
+        "x_0": np.array([1, 2, 3], dtype="int32"),
+        "x_1": np.random.uniform(size=[10, 20]).astype("float32"),
+    }
+
+    temp = utils.tempdir()
+    tvmjs.dump_ndarray_cache(param_dict, temp.path, encode_format="f32-to-bf16")
+    param_dict["x_1"] = np.random.uniform(size=[10, 20]).astype("float32")
+    param_dict["x_2"] = np.random.uniform(size=[10]).astype("float32")
+    tvmjs.dump_ndarray_cache(
+        param_dict, temp.path, encode_format="f32-to-bf16", update_if_exists=True
+    )
+    fload(str(temp.path), tvm.cpu().device_type, 0)
+    res = fget_params("x", -1)
+    for i, v in enumerate(res):
+        v_np = param_dict[f"x_{i}"]
+        if v_np.dtype == "float32":
+            v_np = tvmjs._convert_bf16_to_f32(tvmjs._convert_f32_to_bf16(v_np))
+        np.testing.assert_allclose(v.numpy(), v_np, atol=1e-6, rtol=1e-6)
+
+
 def test_attention_kv_cache_window_override():
     fcreate = tvm.get_global_func("vm.builtin.attention_kv_cache_create")
     foverride = tvm.get_global_func("vm.builtin.attention_kv_cache_window_override")

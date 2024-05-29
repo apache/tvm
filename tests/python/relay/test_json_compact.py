@@ -348,5 +348,99 @@ def test_v0_16_ramp_broadcast_lanes():
     assert graph.value.lanes == 12
 
 
+def test_v0_17_load_store_predicate():
+    json_graph_v0_16 = {
+        "root": 1,
+        "nodes": [
+            {"type_key": ""},
+            {
+                "type_key": "tir.BufferStore",
+                "attrs": {
+                    "buffer": "2",
+                    "indices": "19",
+                    "predicate": "0",
+                    "span": "0",
+                    "value": "13",
+                },
+            },
+            {
+                "type_key": "tir.Buffer",
+                "attrs": {
+                    "axis_separators": "11",
+                    "buffer_type": "1",
+                    "data": "3",
+                    "data_alignment": "64",
+                    "dtype": "float32",
+                    "elem_offset": "12",
+                    "name": "4",
+                    "offset_factor": "1",
+                    "shape": "8",
+                    "span": "0",
+                    "strides": "10",
+                },
+            },
+            {
+                "type_key": "tir.Var",
+                "attrs": {"dtype": "handle", "name": "4", "span": "0", "type_annotation": "5"},
+            },
+            {"type_key": "runtime.String"},
+            {"type_key": "PointerType", "attrs": {"element_type": "6", "storage_scope": "7"}},
+            {"type_key": "PrimType", "attrs": {"dtype": "float32"}},
+            {"type_key": "runtime.String", "repr_str": "global"},
+            {"type_key": "Array", "data": [9]},
+            {"type_key": "IntImm", "attrs": {"dtype": "int32", "span": "0", "value": "8"}},
+            {"type_key": "Array"},
+            {"type_key": "Array"},
+            {"type_key": "IntImm", "attrs": {"dtype": "int32", "span": "0", "value": "0"}},
+            {
+                "type_key": "tir.BufferLoad",
+                "attrs": {
+                    "buffer": "2",
+                    "dtype": "float32x4",
+                    "indices": "14",
+                    "predicate": "0",
+                    "span": "0",
+                },
+            },
+            {"type_key": "Array", "data": [15]},
+            {
+                "type_key": "tir.Ramp",
+                "attrs": {
+                    "base": "16",
+                    "dtype": "int32x4",
+                    "lanes": "18",
+                    "span": "0",
+                    "stride": "17",
+                },
+            },
+            {"type_key": "IntImm", "attrs": {"dtype": "int32", "span": "0", "value": "0"}},
+            {"type_key": "IntImm", "attrs": {"dtype": "int32", "span": "0", "value": "1"}},
+            {"type_key": "IntImm", "attrs": {"dtype": "int32", "span": "0", "value": "4"}},
+            {"type_key": "Array", "data": [20]},
+            {
+                "type_key": "tir.Ramp",
+                "attrs": {
+                    "base": "21",
+                    "dtype": "int32x4",
+                    "lanes": "23",
+                    "span": "0",
+                    "stride": "22",
+                },
+            },
+            {"type_key": "IntImm", "attrs": {"dtype": "int32", "span": "0", "value": "4"}},
+            {"type_key": "IntImm", "attrs": {"dtype": "int32", "span": "0", "value": "1"}},
+            {"type_key": "IntImm", "attrs": {"dtype": "int32", "span": "0", "value": "4"}},
+        ],
+        "b64ndarrays": [],
+        "attrs": {"tvm_version": "0.16.0"},
+    }
+
+    expr = tvm.ir.load_json(json.dumps(json_graph_v0_16))
+    buffer_store = expr
+    buffer_load = buffer_store.value
+    assert not buffer_store.predicate
+    assert not buffer_load.predicate
+
+
 if __name__ == "__main__":
     tvm.testing.main()

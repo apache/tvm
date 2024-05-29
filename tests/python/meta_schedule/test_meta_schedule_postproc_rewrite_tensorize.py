@@ -18,7 +18,7 @@
 import tvm
 from tvm import meta_schedule as ms
 from tvm.script import tir as T
-from tvm.tir.tensor_intrin import arm_cpu, cuda, rocm, x86
+from tvm.tir.tensor_intrin import cuda, rocm, x86
 
 
 @tvm.script.ir_module

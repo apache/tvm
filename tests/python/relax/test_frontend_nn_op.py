@@ -849,7 +849,7 @@ def test_empty():
     vm["test"](*effects)
 
 
-@tvm.testing.requires_gpu
+@tvm.testing.requires_cuda
 def test_multinomial_from_uniform():
 
     prob_shape = (3, 5)
@@ -863,27 +863,6 @@ def test_multinomial_from_uniform():
     # fmt: off
     @I.ir_module
     class Expected:
-        @T.prim_func(private=True)
-        def get_sample_index(A: T.handle, B: T.handle, C: T.handle, D: T.handle):
-            batch, vocab_size = T.int64(), T.int64()
-            prob = T.match_buffer(A, (batch, vocab_size))
-            out_batch = T.int64()
-            usample = T.match_buffer(B, (out_batch, 1))
-            sample_indices = T.match_buffer(C, (out_batch, 1), "int64")
-            output_index = T.match_buffer(D, (out_batch, 1), "int64")
-            # with T.block("root"):
-            for ax0, ax1 in T.grid(out_batch, vocab_size):
-                with T.block("T_get_sample_index"):
-                    v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                    T.reads(usample[v_ax0, T.int64(0)], prob[sample_indices[v_ax0, T.int64(0)], v_ax1 - T.int64(1):v_ax1 - T.int64(1) + T.int64(2)], sample_indices[v_ax0, T.int64(0)])
-                    T.writes(output_index[v_ax0, 0])
-                    if usample[v_ax0, T.int64(0)] < prob[sample_indices[v_ax0, T.int64(0)], v_ax1] or v_ax1 + T.int64(1) == vocab_size:
-                        if v_ax1 == T.int64(0):
-                            output_index[v_ax0, 0] = T.int64(0)
-                        else:
-                            if usample[v_ax0, T.int64(0)] >= prob[sample_indices[v_ax0, T.int64(0)], v_ax1 - T.int64(1)]:
-                                output_index[v_ax0, 0] = v_ax1
-
         @R.function
         def _initialize_effect() -> R.Tuple(R.Object):
             with R.dataflow():
@@ -896,11 +875,9 @@ def test_multinomial_from_uniform():
         @R.function
         def foo(prob: R.Tensor((3, 5), dtype="float32"), uniform_sample: R.Tensor((6, 1), dtype="float32"), sample_indices: R.Tensor((6, 1), dtype="int64"), _io: R.Object) -> R.Tuple(R.Tensor((6, 1), dtype="int64"), R.Tuple(R.Object)):
             R.func_attr({"num_input": 4})
-            cls = Expected
             with R.dataflow():
-                cumsum: R.Tensor((3, 5), dtype="float32") = R.cumsum(prob, axis=1, dtype="void", exclusive=0)
-                lv1 = R.call_tir(cls.get_sample_index, (cumsum, uniform_sample, sample_indices), out_sinfo=R.Tensor((6, 1), dtype="int64"))
-                gv1: R.Tuple(R.Tensor((6, 1), dtype="int64"), R.Tuple(R.Object)) = lv1, (_io,)
+                multinomial_from_uniform: R.Tensor((6, 1), dtype="int64") = R.multinomial_from_uniform(prob, uniform_sample, sample_indices, dtype="int64")
+                gv1: R.Tuple(R.Tensor((6, 1), dtype="int64"), R.Tuple(R.Object)) = multinomial_from_uniform, (_io,)
                 R.output(gv1)
             return gv1
     # fmt: on
@@ -919,11 +896,12 @@ def test_multinomial_from_uniform():
 
     tvm.ir.assert_structural_equal(mod, Expected)
 
-    target = tvm.target.Target("cuda -libs=thrust", host="llvm")
+    target = tvm.target.Target("cuda", host="llvm")
     with target:
+        mod = relax.backend.DispatchSampling()(mod)
         mod = tir.transform.DefaultGPUSchedule()(mod)
     ex = relax.build(mod, target)
-    dev = tvm.cuda(0)
+    dev = tvm.device(str(target), 0)
     vm = relax.VirtualMachine(ex, dev)
 
     effects = vm["_initialize_effect"]()
@@ -1001,14 +979,14 @@ def test_sample_top_p_top_k_from_sorted_prob():
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
                     T.reads(cumsum_sorted[v_ax0, T.min(T.min(T.int64(0), v_ax1), v_ax1 + T.int64(1)):T.min(T.min(T.int64(0), v_ax1), v_ax1 + T.int64(1)) + (T.max(T.max(T.int64(0), v_ax1), v_ax1 + T.int64(1)) + T.int64(1) - T.min(T.min(T.int64(0), v_ax1), v_ax1 + T.int64(1)))], top_p[v_ax0, 0], top_k[v_ax0, 0])
                     T.writes(renorm_prob[v_ax0, 0])
-                    if (cumsum_sorted[v_ax0, 0] < top_p[v_ax0, 0] and top_k[v_ax0, 0] > T.int64(1)) == T.bool(False):
+                    if not (cumsum_sorted[v_ax0, 0] < top_p[v_ax0, 0] and top_k[v_ax0, 0] > T.int64(1)):
                         renorm_prob[v_ax0, 0] = cumsum_sorted[v_ax0, 0]
                     else:
-                        if (cumsum_sorted[v_ax0, v_ax1] < top_p[v_ax0, 0] and v_ax1 + T.int64(1) < top_k[v_ax0, 0]) == T.bool(True):
+                        if cumsum_sorted[v_ax0, v_ax1] < top_p[v_ax0, 0] and v_ax1 + T.int64(1) < top_k[v_ax0, 0]:
                             if v_ax1 + T.int64(1) == vocab_size:
                                 renorm_prob[v_ax0, 0] = cumsum_sorted[v_ax0, v_ax1]
                             else:
-                                if (cumsum_sorted[v_ax0, v_ax1 + T.int64(1)] < top_p[v_ax0, 0] and v_ax1 + T.int64(1) + T.int64(1) < top_k[v_ax0, 0]) == T.bool(False):
+                                if not (cumsum_sorted[v_ax0, v_ax1 + T.int64(1)] < top_p[v_ax0, 0] and v_ax1 + T.int64(1) + T.int64(1) < top_k[v_ax0, 0]):
                                     renorm_prob[v_ax0, 0] = cumsum_sorted[v_ax0, v_ax1 + T.int64(1)]
 
         @R.function

@@ -82,6 +82,8 @@ class RMSNorm(ScheduleRule):
     ) -> tir.Schedule:
         if target.kind.name == "cuda":
             num_tx = 512
+        elif target.kind.name == "opencl":
+            num_tx = 256
         else:
             num_tx = 64
 

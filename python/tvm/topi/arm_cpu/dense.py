@@ -14,16 +14,18 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, unused-variable, no-else-return, unused-argument, import-outside-toplevel
 """Dense schedule for ARM CPU"""
-
 from tvm import autotvm
-from .mprofile.dsp.dense import dense_dsp_schedule, dense_dsp_compute
+
+from .mprofile.dsp.dense import (
+    dense_dsp_schedule,
+    dense_dsp_compute,
+)
 
 
 @autotvm.register_topi_compute("dense_dsp.arm_cpu")
 def dense_dsp(cfg, data, weight, bias, out_dtype):
-    """Compute conv2d_nhwc with v7e-m DSP instructions."""
+    """Compute dense_dsp with v7e-m DSP instructions."""
     return dense_dsp_compute(cfg, data, weight, bias=bias, out_dtype=out_dtype)
 
 

@@ -69,7 +69,7 @@ NType NTypeFrom(const Expr& expr, DataType dtype = DataType::Void());
 NType NTypeMerge(const NType& a, const NType& b);
 
 // The map that notes the NType message of each var
-using VarDTypeMap = std::unordered_map<Var, NType, ObjectPtrHash, ObjectPtrEqual>;
+using VarDTypeMap = std::unordered_map<Var, NType>;
 
 // Call is a call node, out_dtype is the expected output_dtype
 using FInferMixedPrecision =

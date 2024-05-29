@@ -550,7 +550,7 @@ StructInfo InferStructInfoDynStridedSlice(const Call& call, const BlockBuilder& 
   // TODO(tvm-team): Currently, it is unable to express partially-static shape. Revisit when
   // PrimValue lands.
   return TensorStructInfo(data_sinfo->dtype, n_axis, data_sinfo->vdevice);
-}  // namespace relax
+}
 
 // TODO(tvm-team): Register FRelaxInferLayout, TMixedPrecisionPolicy
 TVM_REGISTER_OP("relax.dynamic_strided_slice")

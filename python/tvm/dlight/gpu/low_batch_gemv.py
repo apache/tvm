@@ -500,7 +500,7 @@ class LowBatchGEMV(GPUScheduleRule):
                     sch.set_scope(block, 0, "shared")
                     _, _, _, *s = sch.get_loops(epilogue)  # pylint: disable=invalid-name
                     _, tx = sch.split(sch.fuse(*s), factors=[None, TX])
-                    sch.bind(tx, "threadIdx.x")
+                    sch.bind(tx, TAG_S)
                 else:
                     sch.reverse_compute_at(epilogue, bx, preserve_unit_loops=True)
                     ts_tile_s = sch.fuse(*sch.get_loops(epilogue)[3:])
@@ -538,17 +538,16 @@ class LowBatchGEMV(GPUScheduleRule):
                 else:
                     TS, TR = 16, 32
         elif target.kind.name == "metal":
-            # Note that the following tile size is tuned on M2 Ultra for 7B
-            TAG_S, TAG_R = "threadIdx.x", "threadIdx.y"
-            VEC_C = 1
+            VEC_C = 4
             LOAD_V_SHARED = False
             LOAD_V_VEC = -1
-            UNROLL = 256
+            UNROLL = 8
             if isinstance(len_S, int):
                 if len_S > len_R:
-                    TS, TR = 2, 32
+                    TS, TR = 8, 32
                 else:
-                    TS, TR = 2, 64
+                    TAG_S, TAG_R = "threadIdx.x", "threadIdx.y"
+                    TS, TR = 8, 32
         elif target.kind.name == "rocm":
             VEC_C = 4
             LOAD_V_SHARED = True

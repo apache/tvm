@@ -162,7 +162,7 @@ with torch.no_grad():
 #
 # You would see operators specific to quantization such as
 # qnn.quantize, qnn.dequantize, qnn.requantize, and qnn.conv2d etc.
-input_name = "input"  # the input name can be be arbitrary for PyTorch frontend.
+input_name = "input"  # the input name can be arbitrary for PyTorch frontend.
 input_shapes = [(input_name, (1, 3, 224, 224))]
 mod, params = relay.frontend.from_pytorch(script_module, input_shapes)
 # print(mod) # comment in to see the QNN IR dump

@@ -65,6 +65,16 @@ AOT_USMP_CORSTONE300_RUNNER = AOTTestRunner(
     },
 )
 
+AOT_APROFILE_AEM_RUNNER = AOTTestRunner(
+    makefile="aprofile_aem",
+    includes=[],
+    pass_config={
+        "tir.usmp.enable": False,
+        # AOT test infra generates 'fake' tensor inputs which fails asserts
+        "tir.disable_assert": True,
+    },
+)
+
 
 def parametrize_aot_options(test):
     """Parametrize over valid option combinations"""

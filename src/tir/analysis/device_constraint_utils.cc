@@ -254,7 +254,8 @@ class ApplyDeviceConstraintsMutator : public StmtExprMutator {
         Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(buffer_load_node));
     Buffer new_buffer = Subst(new_buffer_load->buffer.get());
     if (!new_buffer.same_as(new_buffer_load->buffer)) {
-      return BufferLoad(new_buffer, new_buffer_load->indices, new_buffer_load->span);
+      return BufferLoad(new_buffer, new_buffer_load->indices, new_buffer_load->predicate,
+                        new_buffer_load->span);
     }
     return std::move(new_buffer_load);
   }
@@ -293,7 +294,7 @@ class ApplyDeviceConstraintsMutator : public StmtExprMutator {
     Buffer new_buffer = Subst(new_buffer_store->buffer.get());
     if (!new_buffer.same_as(new_buffer_store->buffer)) {
       return BufferStore(new_buffer, new_buffer_store->value, new_buffer_store->indices,
-                         new_buffer_store->span);
+                         new_buffer_store->predicate, new_buffer_store->span);
     }
     return std::move(new_buffer_store);
   }
