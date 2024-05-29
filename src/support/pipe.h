@@ -92,7 +92,11 @@ class Pipe : public dmlc::Stream {
           RetryCallOnEINTR([&]() { return read(handle_, ptr, size); }, GetLastErrorCode);
       ICHECK_NE(nread_chunk, -1) << "Write Error: " << strerror(errno);
 
-      ICHECK_GT(nread_chunk, 0) << "Was unable to read any data from pipe";
+      if (nread_chunk == 0) {
+        break;
+      }
+
+      ICHECK_GE(nread_chunk, 0);
       ICHECK_LE(nread_chunk, size) << "Read " << nread_chunk << " bytes, "
                                    << "but only expected to read " << size << " bytes";
       size -= nread_chunk;
