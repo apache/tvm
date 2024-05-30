@@ -54,6 +54,7 @@ fpopn = None
 fbegin_forward = None
 fend_forward = None
 fattention_with_fuse_qkv = None
+fis_empty = None
 fdebug_get_kv = None
 
 ftranspose_append = None
@@ -71,7 +72,7 @@ fcopy_single_page = None
 
 def set_global_func(head_dim, dtype):
     global fclear, fadd_sequence, fremove_sequence, ffork_sequence, fenable_sliding_window_for_seq
-    global fpopn, fbegin_forward, fend_forward, fattention_with_fuse_qkv, fdebug_get_kv
+    global fpopn, fbegin_forward, fend_forward, fattention_with_fuse_qkv, fis_empty, fdebug_get_kv
     global ftranspose_append, fcopy_cache, fattn_prefill, fattn_decode, fattn_prefill_ragged
     global fattn_prefill_sliding_window, fattn_decode_sliding_window
     global fmerge_state, fsplit_rotary, fattention_rotary, fcopy_single_page
@@ -89,6 +90,7 @@ def set_global_func(head_dim, dtype):
     fattention_with_fuse_qkv = tvm.get_global_func(
         "vm.builtin.attention_kv_cache_attention_with_fused_qkv"
     )
+    fis_empty = tvm.get_global_func("vm.builtin.attention_kv_cache_empty")
     fdebug_get_kv = tvm.get_global_func("vm.builtin.attention_kv_cache_debug_get_kv")
 
     target = tvm.target.Target("cuda")
@@ -489,11 +491,19 @@ def test_paged_attention_kv_cache_fork_sequence(kv_cache_and_config):
     for batch in operation_seq:
         apply_attention(kv_cache, rope_mode, batch, cached_k, cached_v)
 
-    for i in range(19, -1, -1):
+    num_sequence = 20
+    for i in range(num_sequence):
         fremove_sequence(kv_cache, i)
         cached_k.pop(i)
         cached_v.pop(i)
-        verify_cached_kv(kv_cache, seq_ids=list(range(i)), expected_k=cached_k, expected_v=cached_v)
+        verify_cached_kv(
+            kv_cache,
+            seq_ids=list(range(i + 1, num_sequence)),
+            expected_k=cached_k,
+            expected_v=cached_v,
+        )
+
+    assert fis_empty(kv_cache), "The KV cache is not empty after removing all sequences"
 
 
 @tvm.testing.requires_gpu
@@ -510,13 +520,25 @@ def test_paged_attention_kv_cache_popn(kv_cache_and_config):
     apply_attention(kv_cache, rope_mode, batch, cached_k, cached_v)
     apply_attention(kv_cache, rope_mode, [((4, 3, -1), 35)], cached_k, cached_v)
 
-    popn_operations = [(0, 17), (1, 57), (2, 16), (3, 0)]
+    popn_operations = [(0, 17), (1, 57), (2, 16), (3, 0), (4, 37)]
     for seq_id, pop_length in popn_operations:
         fpopn(kv_cache, seq_id, pop_length)
         if pop_length != 0:
             cached_k[seq_id] = cached_k[seq_id][:, :-pop_length, ...]
             cached_v[seq_id] = cached_v[seq_id][:, :-pop_length, ...]
         verify_cached_kv(kv_cache, seq_ids=list(range(4)), expected_k=cached_k, expected_v=cached_v)
+
+    num_sequence = 5
+    for seq_id in range(num_sequence):
+        fremove_sequence(kv_cache, seq_id)
+        verify_cached_kv(
+            kv_cache,
+            seq_ids=list(range(seq_id + 1, num_sequence)),
+            expected_k=cached_k,
+            expected_v=cached_v,
+        )
+
+    assert fis_empty(kv_cache), "The KV cache is not empty after removing all sequences"
 
 
 @tvm.testing.requires_gpu
