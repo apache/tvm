@@ -27,6 +27,8 @@ from ..nn import dense_alter_layout
 
 @dense_alter_layout.register("arm_cpu")
 def _alter_dense(attrs, inputs, tinfos, out_type):
+    from tvm.relay.op.nn import _make  # pylint: disable=import-outside-toplevel
+
     target = tvm.target.Target.current(allow_none=False)
     dispatch_ctx = autotvm.task.DispatchContext.current
 
@@ -52,23 +54,33 @@ def _alter_dense(attrs, inputs, tinfos, out_type):
         ), "matmul_sme.arm_cpu requires weights be a Relay Constant"
 
         weight_dtype = tinfos[1].dtype
-        weight_data = inputs[1].data.numpy()
-        interleaved = weight_data.transpose()
-        encoded_weight = relay.const(interleaved, weight_dtype)
+        encoded_weight = inputs[1]
 
-        new_weight = te.placeholder((weight_data.shape), dtype=weight_dtype)
+        # For dense the weights (rhs) are provided in transposed format,
+        # i.e. they are of the shape (n, k).
+        transpose_b = True
+
+        # The SME schedule expects the rhs to be in the format (k, n). We can do this
+        # transformation at compile time in the case of float32. Note: For the
+        # float16->float32 schedule the transformation currently happens at runtime
+        # with the ARM_SME_BLOCK2_2SVLx1SVL_FP16_TRANSPOSE_INTERLEAVE intrinsic.
+        if weight_dtype == "float32":
+            encoded_weight = relay.const(encoded_weight.data.numpy().transpose(), weight_dtype)
+            transpose_b = False
+
+        new_weight = te.placeholder((encoded_weight.data.shape), dtype=weight_dtype)
         new_workload = autotvm.task.args_to_workload(
-            [tinfos[0], new_weight, None, out_type.dtype], topi_impl
+            [tinfos[0], new_weight, None, out_type.dtype, False, transpose_b], topi_impl
         )
         dispatch_ctx.update(target, new_workload, cfg)
 
-        return relay.nn.matmul(
+        return _make.matmul(
             inputs[0],
             encoded_weight,
-            units=attrs.units,
-            out_dtype=attrs.out_dtype,
-            transpose_a=False,
-            transpose_b=False,
+            attrs.units,
+            attrs.out_dtype,
+            False,
+            transpose_b,
         )
 
     # x86 schedules are used as a fallback

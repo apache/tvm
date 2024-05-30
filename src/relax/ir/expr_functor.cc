@@ -257,6 +257,7 @@ RELAX_EXPR_VISITOR_VISIT_BINDING_IMPL(DataTypeImmNode);
 
 void ExprVisitor::VisitBinding_(const MatchCastNode* binding) {
   this->VisitExpr(binding->value);
+  this->VisitExprDepStructInfoField(binding->struct_info);
   this->VisitVarDef(binding->var);
 }
 
@@ -690,16 +691,25 @@ void ExprMutator::ReEmitBinding(const VarBindingNode* binding, Expr new_value) {
 }
 
 void ExprMutator::VisitBinding_(const MatchCastNode* binding) {
-  Var new_var = this->VisitVarDef(binding->var);
   Expr new_value = this->VisitExpr(binding->value);
+  StructInfo new_struct_info = this->VisitExprDepStructInfoField(binding->struct_info);
 
-  // re-emit old binding if nothing changes
-  if (new_var.same_as(binding->var) && new_value.same_as(binding->value)) {
+  Var new_var = this->VisitVarDef(binding->var);
+
+  if (new_var.same_as(binding->var) && new_value.same_as(binding->value) &&
+      new_struct_info.same_as(binding->struct_info)) {
+    // re-emit old binding if nothing changes
     builder_->EmitNormalized(GetRef<MatchCast>(binding));
-  } else {
-    new_value = builder_->NormalizeArgument(new_value);
-    builder_->EmitNormalized(MatchCast(new_var, new_value, binding->struct_info, binding->span));
+    return;
   }
+
+  new_value = builder_->NormalizeArgument(new_value);
+  new_var = WithStructInfo(new_var, new_struct_info);
+
+  var_remap_[binding->var->vid] = new_var;
+  var_remap_[new_var->vid] = new_var;
+
+  builder_->EmitNormalized(MatchCast(new_var, new_value, new_struct_info, binding->span));
 }
 
 BindingBlock ExprMutator::VisitBindingBlock_(const BindingBlockNode* block) {

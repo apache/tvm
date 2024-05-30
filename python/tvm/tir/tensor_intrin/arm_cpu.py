@@ -16,6 +16,8 @@
 # under the License.
 # pylint: disable=invalid-name,missing-function-docstring,unused-import
 """Intrinsics for ARM tensorization."""
+
+from tvm import tir
 from tvm.script import tir as T
 from tvm.script.ir_builder import IRBuilder
 from tvm.script.ir_builder.tir import prim_func as build_prim_func
@@ -167,7 +169,14 @@ def get_dotprod_intrin(in_dtype, out_dtype):
     return dot_prod_desc, dot_prod_impl
 
 
-def get_sme_transpose_interleave_2svlx2svl_intrin():
+def _create_ptrue_mask(dtype):
+    """
+    Creates a mask that enables all lanes of a scalable vector.
+    """
+    return T.broadcast(T.bool(True), tir.get_vscale_expr(dtype))
+
+
+def get_sme_transpose_interleave_2svlx2svl_fp32_intrin():
     """
     Transpose a matrix of size 2SVL x 2SVL (where 'SVL' is the Scalable Vector Length) using
     the Scalable Matrix Extension (SME).
@@ -175,8 +184,6 @@ def get_sme_transpose_interleave_2svlx2svl_intrin():
     This is completed by loading rows of the input matrix into the accumulator tile,
     then storing the columns. The SME accumulator tile is divided into a series of sub-tiles
     which must be loaded to / stored from independently.
-
-    Note: currently only supports the fp32 datatype.
 
     Example
     -------
@@ -206,7 +213,7 @@ def get_sme_transpose_interleave_2svlx2svl_intrin():
         The SME TensorIntrin that can be used in tensorizing a schedule.
 
     """
-    SVF = 4 * T.vscale()
+    SVF = tir.get_vscale_expr("float32")
     SVF2 = 2 * SVF
 
     @T.prim_func
@@ -222,7 +229,6 @@ def get_sme_transpose_interleave_2svlx2svl_intrin():
                     A_t[v_k, v_m] = A[v_m, v_k]
 
     def impl():
-        # Accumulation sub-tile count. For fp32 it is 4
         sub_tile_count = 4
 
         with IRBuilder() as ib:
@@ -242,7 +248,7 @@ def get_sme_transpose_interleave_2svlx2svl_intrin():
                 )
 
                 # Disable predication
-                ptrue = T.broadcast(T.IntImm("int1", 1), T.vscale() * 4)
+                ptrue = _create_ptrue_mask("float32")
 
                 with T.block("root"):
                     T.reads(A[0:SVF2, 0:SVF2])
@@ -295,7 +301,151 @@ def get_sme_transpose_interleave_2svlx2svl_intrin():
     return desc, impl()
 
 
-def get_sme_gemm_interleaved_mopa_2svlx2svl_intrin(K):
+def get_sme_transpose_interleave_block2_2svl_fp16_intrin():
+    # pylint: disable=line-too-long
+    """
+    Transpose and block pack a matrix of size 2SVL x 1SVL (where 'SVL' is the Scalable Vector
+    Length for the fp16 datatype) using the Scalable Matrix Extension (SME).
+
+    Rows of the fp16 input matrix are loaded into the accumulator tile and columns are stored
+    as fp32 SVL length vectors to the output matrix. When loading, the accumulator tile is
+    interpreted to be of shape 2 * 8 * vscale x 8 * vscale. When  storing, we interpret the
+    accumulator tile to be of shape 2 * 4 * vscale x 2 * 4 * vscale.
+
+    Example
+    -------
+    In the fp16 instance, the accumulator tile consists of two sub-tiles numbered 0-1. Rows
+    of A are loaded onto the accumulator tile by interleaving rows in the first half (0, SVL//2]
+    of the tile and rows in the second half (SVL//2, SVL]. Columns of fp32 values are stored
+    into the output buffer. The fp32 store is used to group pairs of consecutive values together,
+    resulting in the arrangement displayed below.
+
+    A:                                Accumulator tile:
+         +----------------+            +----------------+
+         |-------0a-------|            |-------0a-------|
+         |-------0b-------|            |-------0x-------|
+         |      ...       |            |-------0b-------|            A_t:
+         |-------0x-------|            |-------0y-------|             +------------------------------------------------+
+         |-------0y-------|            |      ...       |             |0a.0 0a.1 0b.0 0b.1    | 1a.0 1a.1 1b.0 1b.1    |
+         |      ...       | ld1h.horiz |                |  st1w.vert  |0x.0 0x.1 0y.0 0y.1    | 1x.0 1x.1 1y.0 1y.1    |
+         |================|   ====>    |================|    ====>    |0a.2 0a.3 0b.2 0b.3 ...| 1a.2 1a.3 1b.2 1b.3 ...|
+         |-------1a-------|            |-------1a-------|             |0x.2 0x.3 0y.2 0y.3    | 1x.2 1x.3 1y.2 1y.3    |
+         |-------1b-------|            |-------1x-------|             |...  ...  ...  ...     | ...  ...  ...  ...     |
+         |      ...       |            |-------1b-------|             +------------------------------------------------+
+         |-------1x-------|            |-------1y-------|
+         |-------1y-------|            |      ...       |
+         |      ...       |            |                |
+         +----------------+            +----------------+
+
+    In the A_t output matrix in the diagram above, .x is used to denote the offset into the
+    labelled row.
+
+    Returns
+    -------
+    intrin : TensorIntrin
+        The SME TensorIntrin that can be used in tensorizing a schedule.
+
+    """
+    # pylint: enable=line-too-long
+    SVF = tir.get_vscale_expr("float16")
+    SVF2 = 2 * SVF
+
+    @T.prim_func
+    def desc(a: T.handle, a_t: T.handle) -> None:
+        A = T.match_buffer(a, (SVF2, SVF), dtype="float16", offset_factor=1)
+        A_t = T.match_buffer(a_t, (SVF, SVF2), dtype="float16", offset_factor=1)
+        with T.block("root"):
+            T.reads(A[0:SVF2, 0:SVF])
+            T.writes(A_t[0:SVF, 0:SVF2])
+            for k, m in T.grid(SVF, SVF2):
+                with T.block("transpose"):
+                    v_m, v_k = T.axis.remap("SS", [m, k])
+                    A_t[v_k, v_m] = A[v_m, v_k]
+
+    def impl():
+        with IRBuilder() as ib:
+            with build_prim_func():
+                a = T.arg("a", T.handle())
+                a_t = T.arg("a_t", T.handle())
+
+                A = T.match_buffer(
+                    a, (SVF2, SVF), "float16", offset_factor=1, strides=[T.int32(), 1]
+                )
+                A_t = T.match_buffer(
+                    a_t, (SVF, SVF2), "float16", offset_factor=1, strides=[T.int32(), 1]
+                )
+
+                ptrue_fp16 = _create_ptrue_mask("float16")
+                ptrue_fp32 = _create_ptrue_mask("float32")
+
+                with T.block("root"):
+                    T.reads(A[0:SVF2, 0:SVF])
+                    T.writes(A_t[0:SVF, 0:SVF2])
+
+                    # Load rows of the input matrix
+                    with T.serial(SVF // 2) as slice_idx:
+                        for sub_tile_idx in range(2):
+                            offset = slice_idx * A.strides[0] + (SVF * A.strides[0] * sub_tile_idx)
+                            input_ptr = A.access_ptr("r", offset=offset)
+                            T.evaluate(
+                                T.call_llvm_intrin(
+                                    "void",
+                                    "llvm.aarch64.sme.ld1h.horiz",
+                                    T.uint32(4),
+                                    ptrue_fp16,
+                                    input_ptr,
+                                    sub_tile_idx,
+                                    slice_idx * 2,
+                                )
+                            )
+                            input_ptr = A.access_ptr("r", offset=offset + (SVF // 2) * A.strides[0])
+                            T.evaluate(
+                                T.call_llvm_intrin(
+                                    "void",
+                                    "llvm.aarch64.sme.ld1h.horiz",
+                                    T.uint32(4),
+                                    ptrue_fp16,
+                                    input_ptr,
+                                    sub_tile_idx,
+                                    slice_idx * 2 + 1,
+                                )
+                            )
+
+                    # Store columns to the output matrix
+                    with T.serial(SVF // 2) as slice_idx:
+                        for sub_tile_idx in range(2):
+                            offset = slice_idx * 2 * A_t.strides[0] + (SVF * sub_tile_idx)
+                            output_ptr = A_t.access_ptr("w", offset=offset)
+                            T.evaluate(
+                                T.call_llvm_intrin(
+                                    "void",
+                                    "llvm.aarch64.sme.st1w.vert",
+                                    T.uint32(4),
+                                    ptrue_fp32,
+                                    output_ptr,
+                                    sub_tile_idx,
+                                    slice_idx,
+                                )
+                            )
+                            output_ptr = A_t.access_ptr("w", offset=offset + A_t.strides[0])
+                            T.evaluate(
+                                T.call_llvm_intrin(
+                                    "void",
+                                    "llvm.aarch64.sme.st1w.vert",
+                                    T.uint32(4),
+                                    ptrue_fp32,
+                                    output_ptr,
+                                    sub_tile_idx + 2,
+                                    slice_idx,
+                                )
+                            )
+
+        return ib.get()
+
+    return desc, impl()
+
+
+def get_sme_gemm_interleaved_mopa_2svlx2svl_intrin(K, in_dtype):
     """
     Compute a GEMM of size 2SVL x 2SVL (where 'SVL' is the Scalable Vector Length using
     outer product operations from the Scalable Matrix Extension (SME).
@@ -312,7 +462,6 @@ def get_sme_gemm_interleaved_mopa_2svlx2svl_intrin(K):
     repeated K times. Finally, the results of the accumulation are stored.
 
     Note: The input tensor 'A' must be transpose-interleaved.
-    Note: Currently only supports the fp32 datatype.
 
     Example
     -------
@@ -383,13 +532,16 @@ def get_sme_gemm_interleaved_mopa_2svlx2svl_intrin(K):
         The SME TensorIntrin that can be used in tensorizing a schedule.
 
     """
-    SVF = 4 * T.vscale()
+    SVF = tir.get_vscale_expr("float32")
     SVF2 = 2 * SVF
+    fmopa_intrin = (
+        "llvm.aarch64.sme.mopa" if in_dtype == "float32" else "llvm.aarch64.sme.mopa.wide"
+    )
 
     @T.prim_func
     def desc(a: T.handle, b: T.handle, c: T.handle):
-        A = T.match_buffer(a, (K, SVF2), dtype="float32", offset_factor=1)
-        B = T.match_buffer(b, (K, SVF2), dtype="float32", offset_factor=1)
+        A = T.match_buffer(a, (K, SVF2), dtype=in_dtype, offset_factor=1)
+        B = T.match_buffer(b, (K, SVF2), dtype=in_dtype, offset_factor=1)
         C = T.match_buffer(c, (SVF2, SVF2), dtype="float32", offset_factor=1)
 
         with T.block("root"):
@@ -398,10 +550,9 @@ def get_sme_gemm_interleaved_mopa_2svlx2svl_intrin(K):
             for m, n, k in T.grid(SVF2, SVF2, K):
                 with T.block("gemm"):
                     v_m, v_n, v_k = T.axis.remap("SSR", [m, n, k])
-                    C[v_m, v_n] += A[v_k, v_m] * B[v_k, v_n]
+                    C[v_m, v_n] += T.Cast("float32", A[v_k, v_m]) * T.Cast("float32", B[v_k, v_n])
 
     def impl():
-        # Accumulation sub-tile count. For fp32 it is 4
         sub_tile_count = 4
 
         with IRBuilder() as ib:
@@ -410,24 +561,33 @@ def get_sme_gemm_interleaved_mopa_2svlx2svl_intrin(K):
                 b = T.arg("b", T.handle())
                 c = T.arg("c", T.handle())
 
-                A = T.match_buffer(a, (K, SVF2), "float32", offset_factor=1, strides=[T.int32(), 1])
-                B = T.match_buffer(b, (K, SVF2), "float32", offset_factor=1, strides=[T.int32(), 1])
+                A = T.match_buffer(a, (K, SVF2), in_dtype, offset_factor=1, strides=[T.int32(), 1])
+                B = T.match_buffer(b, (K, SVF2), in_dtype, offset_factor=1, strides=[T.int32(), 1])
                 C = T.match_buffer(
                     c, (SVF2, SVF2), "float32", offset_factor=1, strides=[T.int32(), 1]
                 )
 
-                ptrue = T.broadcast(T.IntImm("int1", 1), T.vscale() * 4)
+                ptrue = _create_ptrue_mask(in_dtype)
 
                 with T.block("root"):
                     T.reads(C[0:SVF2, 0:SVF2], A[0:K, 0:SVF2], B[0:K, 0:SVF2])
                     T.writes(C[0:SVF2, 0:SVF2])
 
                     # Iterate over the reduction axis applying outer product and accumulate
-                    with T.serial(K) as k:
-                        a_low = T.BufferLoad(A, [k, T.Ramp(0, 1, T.vscale() * 4)])
-                        a_high = T.BufferLoad(A, [k, T.Ramp(SVF, 1, T.vscale() * 4)])
-                        b_low = T.BufferLoad(B, [k, T.Ramp(0, 1, T.vscale() * 4)])
-                        b_high = T.BufferLoad(B, [k, T.Ramp(SVF, 1, T.vscale() * 4)])
+                    rows_per_iter = 1 if in_dtype == "float32" else 2
+                    with T.serial(T.ceildiv(K, rows_per_iter)) as k:
+                        k_row = k * rows_per_iter
+                        in_dtype_svf = tir.get_vscale_expr(in_dtype)
+
+                        a_low = T.BufferLoad(A, [k_row, T.Ramp(0, 1, in_dtype_svf)])
+                        b_low = T.BufferLoad(B, [k_row, T.Ramp(0, 1, in_dtype_svf)])
+
+                        if in_dtype == "float32":
+                            a_high = T.BufferLoad(A, [k_row, T.Ramp(in_dtype_svf, 1, in_dtype_svf)])
+                            b_high = T.BufferLoad(B, [k_row, T.Ramp(in_dtype_svf, 1, in_dtype_svf)])
+                        else:
+                            a_high = T.BufferLoad(A, [k_row + 1, T.Ramp(0, 1, in_dtype_svf)])
+                            b_high = T.BufferLoad(B, [k_row + 1, T.Ramp(0, 1, in_dtype_svf)])
 
                         input_combinations = [
                             (a_low, b_low),
@@ -443,7 +603,7 @@ def get_sme_gemm_interleaved_mopa_2svlx2svl_intrin(K):
                             T.evaluate(
                                 T.call_llvm_intrin(
                                     "void",
-                                    "llvm.aarch64.sme.mopa.nxv4f32",
+                                    fmopa_intrin,
                                     T.uint32(5),
                                     sub_tile,
                                     ptrue,
@@ -466,7 +626,7 @@ def get_sme_gemm_interleaved_mopa_2svlx2svl_intrin(K):
                                     "void",
                                     "llvm.aarch64.sme.st1w.horiz",
                                     T.uint32(4),
-                                    ptrue,
+                                    _create_ptrue_mask("float32"),
                                     output_ptr,
                                     T.int32(sub_tile_idx),
                                     T.int32(slice_idx),
@@ -520,14 +680,23 @@ TensorIntrin.register(ARM_DOT_4x4_u8_UDOT_INTRIN, *get_dotprod_intrin("uint8", "
 TensorIntrin.register(ARM_DOT_4x4_u8_HDOT_INTRIN, *get_dotprod_intrin("uint8", "int32"))
 
 ARM_SME_INIT = "sme_init"
-ARM_SME_2SVLx2SVL_TRANSPOSE_INTERLEAVE = "sme_2svlx2svl_transpose_interleave"
+ARM_SME_2SVLx2SVL_FP32_TRANSPOSE_INTERLEAVE = "sme_2svlx2svl_fp32_transpose_interleave"
+ARM_SME_BLOCK2_2SVLx1SVL_FP16_TRANSPOSE_INTERLEAVE = (
+    "sme_block2_2svlx1svl_fp16_transpose_interleave"
+)
 ARM_SME_2SVLx2SVL_GEMM_INTERLEAVED_MOPA = "sme_2svlx2svl_gemm_interleaved_mopa"
+
 
 # The following tensor intrinsics use LLVM intrinsics that are only available
 # in versions of LLVM >= 15. Installations with older versions of LLVM will
 # not be able to use them.
 if llvm_version_major() >= 15:
     TensorIntrin.register(
-        ARM_SME_2SVLx2SVL_TRANSPOSE_INTERLEAVE, *get_sme_transpose_interleave_2svlx2svl_intrin()
+        ARM_SME_2SVLx2SVL_FP32_TRANSPOSE_INTERLEAVE,
+        *get_sme_transpose_interleave_2svlx2svl_fp32_intrin(),
+    )
+    TensorIntrin.register(
+        ARM_SME_BLOCK2_2SVLx1SVL_FP16_TRANSPOSE_INTERLEAVE,
+        *get_sme_transpose_interleave_block2_2svl_fp16_intrin(),
     )
     TensorIntrin.register(ARM_SME_INIT, *get_sme_init_intrin())

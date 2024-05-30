@@ -21,7 +21,6 @@ import logging
 # pylint: disable=invalid-name,unused-argument,wildcard-import,unused-wildcard-import
 import re
 
-import tvm
 from tvm import relay, topi, tir
 from tvm.tir.schedule.analysis import has_block
 
@@ -254,6 +253,18 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
                         )
                 # Non-quantized cases
                 if is_aarch64 and data.dtype in ["float32", "float16"]:
+                    if (
+                        target.features.has_sme
+                        and data.dtype in ["float32"]
+                        and kernel.dtype in ["float32"]
+                        and out_type.dtype in ["float32"]
+                    ):
+                        strategy.add_implementation(
+                            wrap_compute_conv2d(topi.arm_cpu.compute_conv2d_NHWC_hybrid_SME),
+                            lambda: None,
+                            name="conv2d_NHWC_hybrid_SME.arm_cpu",
+                            plevel=12,
+                        )
                     if target.features.has_sve:
                         # This strategy is currently suboptimal because of LLVM's limited support
                         # for scalable vector alias analysis, which causes redundant loads / stores
@@ -684,9 +695,9 @@ def schedule_dense_arm_cpu(attrs, inputs, out_type, target):
 
     if (
         target.features.has_sme
-        and data.dtype in ["float32"]
-        and weight.dtype in ["float32"]
-        and out_type.dtype in ["float32"]
+        and data.dtype in ["float32", "float16"]
+        and weight.dtype == data.dtype
+        and out_type.dtype == "float32"
         # The schedule uses tensorization which does not work when the
         # reduction axis has unit iters. See
         # https://github.com/apache/tvm/issues/16566
@@ -724,10 +735,12 @@ def matmul_strategy_arm_cpu(attrs, inputs, out_type, target):
 
     if (
         target.features.has_sme
-        and data.dtype in ["float32"]
-        and weight.dtype in ["float32"]
-        and out_type.dtype in ["float32"]
-        and not (attrs.transpose_a or attrs.transpose_b)
+        and data.dtype in ["float32", "float16"]
+        and weight.dtype == data.dtype
+        and out_type.dtype == "float32"
+        and not attrs.transpose_a
+        and not (data.dtype == "float16" and not attrs.transpose_b)
+        and not (data.dtype == "float32" and attrs.transpose_b)
         and len(data.shape) == 2
         # The schedule uses tensorization which does not work when the
         # reduction axis has unit iters. See
@@ -796,10 +809,17 @@ def arm_cpu_tir_strategy(sch: tir.Schedule) -> bool:
     """
     Strategy for arm_cpu STIR schedules.
     """
-    current_target = tvm.target.Target.current()
+    matmul_block = None
+    if has_block(sch, "T_matmul_NN"):
+        matmul_block = sch.get_block("T_matmul_NN")
+    elif has_block(sch, "T_matmul_NT"):
+        matmul_block = sch.get_block("T_matmul_NT")
 
-    if current_target.features.has_sme and has_block(sch, "matmul_sme_gemm"):
+    if matmul_block and sch.get(matmul_block).annotations.get("schedule_type", "") == "sme":
         topi.arm_cpu.matmul.tir_schedule_matmul_sme(sch)
+        return True
+    elif has_block(sch, "conv2d_gemm_output"):
+        topi.arm_cpu.schedule_conv2d_NHWC_hybrid_TIR(sch)
         return True
 
     # Fallback to TE schedule for operators we have not written a special TIR schedule for

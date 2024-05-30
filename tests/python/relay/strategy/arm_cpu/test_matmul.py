@@ -38,33 +38,40 @@ from scalable_utils import calculate_extra_workspace_size_from_scalable_extents
 )
 @tvm.testing.requires_aprofile_aem_fvp
 @pytest.mark.parametrize(
-    "data_shape,weight_shape,transpose_a,transpose_b",
+    "data_shape,weight_shape,transpose_a,transpose_b,in_dtype",
     [
-        ((4, 63), (63, 10), False, False),
-        ((64, 32), (32, 32), False, True),
-        ((96, 64), (64, 32), False, False),
-        ((62, 3), (3, 3), False, False),
-        ((4, 5), (79, 5), False, True),
-        ((134, 36), (36, 111), False, False),
-        ((3, 10), (10, 72), False, False),
+        ((4, 63), (63, 10), False, False, "float32"),
+        ((64, 32), (32, 32), False, True, "float32"),
+        ((96, 64), (64, 32), False, False, "float32"),
+        ((62, 3), (3, 3), False, False, "float32"),
+        ((4, 5), (79, 5), False, True, "float32"),
+        ((134, 36), (36, 111), False, False, "float32"),
+        ((3, 10), (10, 72), False, False, "float32"),
+        ((4, 63), (10, 63), False, True, "float16"),
+        ((96, 64), (32, 64), False, True, "float16"),
+        ((62, 3), (3, 3), False, True, "float16"),
+        ((4, 5), (79, 5), False, True, "float16"),
+        ((134, 36), (111, 36), False, True, "float16"),
         # Tensorization does not work when the reduction axis has unit iters.
         # See https://github.com/apache/tvm/issues/16566
         # ((5, 1), (1, 5), False, False),
     ],
 )
-@pytest.mark.parametrize("dtype", ["float32"])
-def test_sme_matmul_with_const_b(data_shape, weight_shape, transpose_a, transpose_b, dtype):
+def test_sme_matmul_with_const_b(data_shape, weight_shape, transpose_a, transpose_b, in_dtype):
     """
     Execution tests for matmul Scalable Matrix Extension (SME) schedule.
     """
     np.random.seed(0)
+    out_dtype = "float32"
 
-    input_data = np.random.uniform(size=data_shape).astype(dtype)
-    inp = relay.var("data", shape=data_shape, dtype=dtype)
-    weight_data = np.random.uniform(size=weight_shape).astype(dtype)
-    weight = relay.const(weight_data, dtype=dtype)
+    input_data = np.random.uniform(size=data_shape).astype(in_dtype)
+    inp = relay.var("data", shape=data_shape, dtype=in_dtype)
+    weight_data = np.random.uniform(size=weight_shape).astype(in_dtype)
+    weight = relay.const(weight_data, dtype=in_dtype)
 
-    matmul = relay.nn.matmul(inp, weight, transpose_a=transpose_a, transpose_b=transpose_b)
+    matmul = relay.nn.matmul(
+        inp, weight, out_dtype=out_dtype, transpose_a=transpose_a, transpose_b=transpose_b
+    )
     func = relay.Function(relay.analysis.free_vars(matmul), matmul)
 
     ir_mod = tvm.IRModule.from_expr(func)
@@ -85,7 +92,7 @@ def test_sme_matmul_with_const_b(data_shape, weight_shape, transpose_a, transpos
     )
     with tvm.transform.PassContext(
         opt_level=3, config=AOT_APROFILE_AEM_RUNNER.pass_config
-    ), meta_schedule.database.ScheduleFnDatabase(arm_cpu_tir_strategy):
+    ), target, meta_schedule.database.ScheduleFnDatabase(arm_cpu_tir_strategy):
         executor_factory = tvm.relay.build(
             ir_mod,
             target=target,

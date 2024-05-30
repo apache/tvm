@@ -1057,10 +1057,24 @@ requires_arm_dot = Feature(
 )
 
 
+requires_arm_fp16 = Feature(
+    "arm_fp16",
+    "Arm(R) Neon(TM) instructions for FP16",
+    run_time_check=lambda: _has_cpu_feat("fullfp16"),
+)
+
+
 requires_aarch64_sve = Feature(
     "arm_sve",
     "AArch64 SVE",
     run_time_check=lambda: _has_cpu_feat("sve"),
+)
+
+
+requires_aarch64_sme = Feature(
+    "arm_sme",
+    "AArch64 SME",
+    run_time_check=lambda: _has_cpu_feat("sme"),
 )
 
 

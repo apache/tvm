@@ -107,16 +107,17 @@ class TestDense(BasicDenseTests):
         ((79, 65), (152, 65)),
     ],
 )
-@pytest.mark.parametrize("dtype", ["float32"])
-def test_sme_dense(data_shape, weight_shape, dtype):
+@pytest.mark.parametrize("in_dtype", ["float32", "float16"])
+def test_sme_dense(data_shape, weight_shape, in_dtype):
     np.random.seed(0)
+    out_dtype = "float32"
 
-    input_data = np.random.uniform(size=data_shape).astype(dtype)
-    inp = relay.var("data", shape=data_shape, dtype=dtype)
-    weight_data = np.random.uniform(size=weight_shape).astype(dtype)
-    weight = relay.const(weight_data, dtype=dtype)
+    input_data = np.random.uniform(size=data_shape).astype(in_dtype)
+    inp = relay.var("data", shape=data_shape, dtype=in_dtype)
+    weight_data = np.random.uniform(size=weight_shape).astype(in_dtype)
+    weight = relay.const(weight_data, dtype=in_dtype)
 
-    dense = relay.nn.dense(inp, weight)
+    dense = relay.nn.dense(inp, weight, out_dtype=out_dtype)
     func = relay.Function(relay.analysis.free_vars(dense), dense)
 
     ir_mod = tvm.IRModule.from_expr(func)
@@ -138,7 +139,7 @@ def test_sme_dense(data_shape, weight_shape, dtype):
 
     with tvm.transform.PassContext(
         opt_level=3, config=AOT_APROFILE_AEM_RUNNER.pass_config
-    ), meta_schedule.database.ScheduleFnDatabase(arm_cpu_tir_strategy):
+    ), target, meta_schedule.database.ScheduleFnDatabase(arm_cpu_tir_strategy):
         executor_factory = tvm.relay.build(
             ir_mod,
             target=target,

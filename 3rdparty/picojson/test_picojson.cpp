@@ -58,8 +58,21 @@ void test_modifier() {
   assert((obj.ordered_keys() == std::vector<std::string>{}));
 }
 
+void test_serializer() {
+  picojson::object obj;
+
+  obj["bar"] = picojson::value(static_cast<int64_t>(10));
+  obj["baz"] = picojson::value(10.5);
+  obj["foo"] = picojson::value(true);
+
+  picojson::value v(obj);
+
+  assert((v.serialize(false) == "{\"bar\":10,\"baz\":10.5,\"foo\":true}"));
+}
+
 int main() {
   test_constructor();
   test_modifier();
+  test_serializer();
   return 0;
 }
