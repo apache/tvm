@@ -773,6 +773,7 @@ def schedule_conv2d_NHWC_hybrid_TIR(sch: tvm.tir.Schedule):
             ARM_SME_2SVLx2SVL_GEMM_INTERLEAVED_MOPA,
             ARM_SME_INIT,
             get_sme_gemm_interleaved_mopa_2svlx2svl_intrin,
+            get_transpose_interleave_intrin_name,
         )
 
         transpose_interleave_intrin_name = _get_transpose_interleave_intrin_name(
@@ -787,7 +788,7 @@ def schedule_conv2d_NHWC_hybrid_TIR(sch: tvm.tir.Schedule):
         ko, ki = sch.split(k, factors=(None, tile_K), disable_predication=True)
         sch.parallel(b)
         sch.reorder(b, ko, mo, ki, mi)
-        sch.tensorize(ki, transpose_interleave_intrin_name)
+        sch.tensorize(ki, get_transpose_interleave_intrin_name(in_dtype, out_dtype, M_padded, K_padded))
 
         # Interleave the padded weights matrix utilizing the matrix tile
         if in_dtype == "float16":
@@ -797,7 +798,7 @@ def schedule_conv2d_NHWC_hybrid_TIR(sch: tvm.tir.Schedule):
             ko, ki = sch.split(k, factors=(None, tile_K), disable_predication=True)
             no, ni = sch.split(n, factors=(None, tile_N), disable_predication=True)
             sch.reorder(ko, no, ki, ni)
-            sch.tensorize(ki, transpose_interleave_intrin_name)
+            sch.tensorize(ki, get_transpose_interleave_intrin_name(in_dtype, out_dtype, M_padded, K_padded))
 
         # Split and reorder the loops of the GeMM for tensorization
         b, m, n, k = sch.get_loops(gemm_block)
@@ -816,7 +817,7 @@ def schedule_conv2d_NHWC_hybrid_TIR(sch: tvm.tir.Schedule):
 
         # Tensorize the GeMM update
         sme_gemm_interleaved_intrin_name = (
-            ARM_SME_2SVLx2SVL_GEMM_INTERLEAVED_MOPA + f"_{K_padded}_{in_dtype}"
+            ARM_SME_2SVLx2SVL_GEMM_INTERLEAVED_MOPA + f"_{M_padded}_{K_padded}_{in_dtype}"
         )
         tvm.tir.TensorIntrin.register(
             sme_gemm_interleaved_intrin_name,
@@ -922,16 +923,18 @@ def schedule_conv2d_NHWC_hybrid_TIR(sch: tvm.tir.Schedule):
         reshape_block = func_blocks["T_reshape"]
         A_pad_block = func_blocks["A_padded_K"] if func_blocks["A_padded_K"] else None
         A_pad_block = func_blocks["A_padded_M"] if func_blocks["A_padded_M"] else A_pad_block
-        if use_sme:
-            sch.compute_inline(reshape_block)
-        elif A_pad_block:
-            sch.compute_inline(reshape_block)
-            b, m, k = sch.get_loops(A_pad_block)
-            _, k_inner = sch.split(k, [None, tile_N])
-            sch.vectorize(k_inner)
-            sch.compute_at(A_pad_block, mi)
-        else:
-            sch.compute_at(reshape_block, mi)
+        use_explicit_predication = use_sme and in_dtype == "float32"
+        if not use_explicit_predication:
+            if use_sme:
+                sch.compute_inline(reshape_block)
+            elif A_pad_block:
+                sch.compute_inline(reshape_block)
+                b, m, k = sch.get_loops(A_pad_block)
+                _, k_inner = sch.split(k, [None, tile_N])
+                sch.vectorize(k_inner)
+                sch.compute_at(A_pad_block, mi)
+            else:
+                sch.compute_at(reshape_block, mi)
 
     # Weight flattening
     if func_blocks["weight_flatten"]:

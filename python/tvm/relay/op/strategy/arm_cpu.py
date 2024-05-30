@@ -110,6 +110,8 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
     """conv2d arm cpu strategy"""
     strategy = _op.OpStrategy()
     data, kernel = inputs
+    data_shape = data.shape
+    kernel_shape = kernel.shape
     dilation_h, dilation_w = attrs.get_int_tuple("dilation")
     stride_h, stride_w = attrs.get_int_tuple("strides")
     padding = attrs.get_int_tuple("padding")
@@ -258,6 +260,11 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
                         target.features.has_sme
                         and kernel.dtype == data.dtype
                         and out_type.dtype == "float32"
+                        and data_shape[0] == 1
+                        # The schedule uses tensorization which does not work when the
+                        # reduction axis of the gemm has unit iters. See
+                        # https://github.com/apache/tvm/issues/16566
+                        and (data_shape[3] * kernel_shape[0] * kernel_shape[1]) > 1
                     ):
                         strategy.add_implementation(
                             wrap_compute_conv2d(topi.arm_cpu.compute_conv2d_NHWC_hybrid_SME),

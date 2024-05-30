@@ -133,23 +133,25 @@ def compute_conv2d_gemm_without_weight_transform(
     )
 
     # Pad to tiles (if necessary)
-    pad_M, pad_K = arm_utils.get_conv2d_im2col_padding(M, K, tile_M, tile_K_A)
-    pad_N, _ = arm_utils.get_conv2d_weights_padding(N, K, tile_N, tile_K_B)
+    use_explicit_predication = use_sme and in_dtype == "float32"
+    if not use_explicit_predication:
+        pad_M, pad_K = arm_utils.get_conv2d_im2col_padding(M, K, tile_M, tile_K_A)
+        pad_N, _ = arm_utils.get_conv2d_weights_padding(N, K, tile_N, tile_K_B)
 
-    M_padded = M + pad_M
-    K_padded = K + pad_K
-    N_padded = N + pad_N
+        M_padded = M + pad_M
+        K_padded = K + pad_K
+        N_padded = N + pad_N
 
-    pad_before = (0, 0, 0)
-    pad_after = (0, pad_M, pad_K)
+        pad_before = (0, 0, 0)
+        pad_after = (0, 0, 0) if use_sme else (0, pad_M, pad_K)
 
-    if pad_K != 0:
-        A = nn.pad(A, pad_before=pad_before, pad_after=pad_after, name="A_padded_K")
-    elif pad_M != 0:
-        A = nn.pad(A, pad_before=pad_before, pad_after=pad_after, name="A_padded_M")
+        if pad_K != 0:
+            A = nn.pad(A, pad_before=pad_before, pad_after=pad_after, name="A_padded_K")
+        elif pad_M != 0:
+            A = nn.pad(A, pad_before=pad_before, pad_after=pad_after, name="A_padded_M")
 
     idxm = tvm.tir.indexmod
-    k = te.reduce_axis((0, K_padded), "k")
+    k = te.reduce_axis((0, K), "k")
 
     # Determine matrix multiplication compute definition
     target = Target.current(allow_none=False)
@@ -300,7 +302,18 @@ def compute_conv2d_gemm_without_weight_transform(
             name="C",
         )
         zero = tvm.tir.const(0)
-    elif use_scalable_vectors or use_sme:
+    elif use_explicit_predication:
+        assert len(B_interleaved_t.shape) == 2
+        C = te.compute(
+            (batches, M, N),
+            lambda b, x, y: te.sum(
+                A[b, x, k].astype(in_dtype) * B_interleaved_t[k, y].astype(in_dtype),
+                axis=k,
+            ),
+            name="C",
+        )
+        zero = tvm.tir.const(0)
+    elif use_scalable_vectors:
         assert len(B_interleaved_t.shape) == 2
         C = te.compute(
             (batches, M_padded, N_padded),

@@ -168,10 +168,13 @@ def test_conv2d_nhwc_gemm(device, ref_data, dtype, stride, padding, dilation):
     target = tvm.target.Target(target_string)
 
     if target.features.has_sve and llvm_version_major() < 15:
-        pytest.skip(f"LLVM {llvm_version_major()} does not support targetting SVE.")
+        pytest.skip(f"LLVM {llvm_version_major()} does not support targeting SVE.")
 
     if target.features.has_sme and llvm_version_major() < 16:
-        pytest.skip(f"LLVM {llvm_version_major()} does not support targetting SME.")
+        pytest.skip(f"LLVM {llvm_version_major()} does not support targeting SME.")
+
+    if target.features.has_sme and a_np.shape[0] > 1:
+        pytest.skip(f"Conv2d with batches > 1 targeting SME not implemented.")
 
     # SME schedule always outputs float32 results, regardless of input dtype.
     # Otherwise, output dtype is the same as input dtype.
