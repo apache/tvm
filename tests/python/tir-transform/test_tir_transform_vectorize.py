@@ -14,13 +14,13 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import pytest
+
 import tvm
 import tvm.testing
 from tvm import te
 from tvm.script import ir as I
 from tvm.script import tir as T
-import pytest
-
 
 simple_target = tvm.target.Target("llvm -mtriple=x86_64-linux-gnu")
 sve_target = tvm.target.Target("llvm -device=arm_cpu -mtriple=aarch64-linux-gnu -mattr=+v8.2a,+sve")
@@ -308,6 +308,29 @@ def test_vectorize_if_then_else_vector(extent, target):
                 )
 
     with tvm.target.Target(target):
+        mod = tvm.tir.transform.VectorizeLoop()(Before)
+        tvm.ir.assert_structural_equal(mod, After)
+
+
+def test_vectorize_let_if_then_else():
+    @I.ir_module
+    class Before:
+        @T.prim_func
+        def main():
+            for i in T.vectorized(4):
+                if i < 2:
+                    result: T.int32 = T.if_then_else(i < 1, 1, 2)
+
+    @I.ir_module
+    class After:
+        @T.prim_func
+        def main():
+            for i_s in range(4):
+                if i_s < 2:
+                    result: T.int32 = T.if_then_else(i_s < 1, 1, 2)
+                    T.evaluate(0)
+
+    with tvm.target.Target(simple_target):
         mod = tvm.tir.transform.VectorizeLoop()(Before)
         tvm.ir.assert_structural_equal(mod, After)
 
