@@ -676,12 +676,16 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
   Stmt VisitStmt_(const IfThenElseNode* op) final {
     ICHECK(!op->condition.dtype().is_scalable_or_fixed_length_vector());
     PrimExpr condition = this->VisitExpr(op->condition);
+    // need scalarize can be marked as true during visit of condition
+    bool cond_need_scalarize = false;
+    std::swap(cond_need_scalarize, need_scalarize_);
+    // temp clear need_scalarize flag, so VisitStmt
+    // won't trigger an ICHECK eror
     Stmt then_case = this->VisitStmt(op->then_case);
     Optional<Stmt> else_case = NullOpt;
     if (op->else_case) {
       else_case = this->VisitStmt(op->else_case.value());
     }
-
     // Check if we can rewrite the condition with predicated buffers
     if (EnableBufferLevelPredication(target_) &&
         condition.dtype().is_scalable_or_fixed_length_vector() && !else_case.defined()) {
@@ -693,7 +697,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
       }
     }
 
-    if (condition.dtype().is_scalable_or_fixed_length_vector()) {
+    if (cond_need_scalarize || condition.dtype().is_scalable_or_fixed_length_vector()) {
       return Scalarize(GetRef<Stmt>(op));
     }
     if (condition.same_as(op->condition) && then_case.same_as(op->then_case) &&
@@ -710,6 +714,12 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
   // LetStmt
   Stmt VisitStmt_(const LetStmtNode* op) final {
     PrimExpr value = this->VisitExpr(op->value);
+    // if visit of value triggers need scalarize
+    // we need to scalarize the let
+    if (need_scalarize_) {
+      need_scalarize_ = false;
+      Scalarize(GetRef<Stmt>(op));
+    }
     ICHECK(!let_binding_.count(op->var)) << "SSA violation, a single var is binded twice";
     let_binding_[op->var] = value;
 
