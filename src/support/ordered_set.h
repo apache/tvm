@@ -54,11 +54,28 @@ class OrderedSet {
  public:
   OrderedSet() = default;
 
+  /* \brief Explicit copy constructor
+   *
+   * The default copy constructor would copy both `elements_` and
+   * `elem_to_iter_`.  While this is the correct behavior for
+   * `elements_`, the copy of `elem_to_iter_` would contain references
+   * to the original's `element_`, rather than to its own
+   */
+  OrderedSet(const OrderedSet<T>& other) : elements_(other.elements_) { InitElementToIter(); }
+
+  /* \brief Explicit copy assignment
+   *
+   * Implemented in terms of the copy constructor, and the default
+   * move assignment.
+   */
+  OrderedSet& operator=(const OrderedSet<T>& other) { return *this = OrderedSet(other); }
+
+  OrderedSet(OrderedSet<T>&&) = default;
+  OrderedSet& operator=(OrderedSet<T>&&) = default;
+
   template <typename Iter>
-  OrderedSet(Iter begin, Iter end) {
-    for (auto it = begin; it != end; it++) {
-      push_back(*it);
-    }
+  OrderedSet(Iter begin, Iter end) : elements_(begin, end) {
+    InitElementToIter();
   }
 
   void push_back(const T& t) {
@@ -90,6 +107,12 @@ class OrderedSet {
   auto empty() const { return elements_.empty(); }
 
  private:
+  void InitElementToIter() {
+    for (auto it = elements_.begin(); it != elements_.end(); it++) {
+      elem_to_iter_[*it] = it;
+    }
+  }
+
   std::list<T> elements_;
   typename detail::OrderedSetLookupType<T>::MapType elem_to_iter_;
 };
