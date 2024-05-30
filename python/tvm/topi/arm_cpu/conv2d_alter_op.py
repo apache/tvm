@@ -162,6 +162,30 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
             inputs[0], new_kernel_expr, **new_attrs
         )
 
+    if (
+        topi_tmpl == "conv2d_NHWC_hybrid_SME.arm_cpu"
+        and data_dtype == "float16"
+        and kernel_dtype == "float16"
+        and out_dtype == "float32"
+    ):
+        assert data_layout == "NHWC" and kernel_layout == "HWIO"
+        KH, KW, IC, OC = get_const_tuple(kernel.shape)
+        K = KH * KW * IC
+        N = OC
+        transposed_kernel_expr = relay.transpose(inputs[1], axes=[3, 0, 1, 2])
+        transposed_flattened_kernel_expr = relay.reshape(transposed_kernel_expr, newshape=(N, K))
+        new_kernel_expr = transposed_flattened_kernel_expr
+        new_kernel = te.placeholder((N, K), kernel.dtype)
+        new_workload_name = "conv2d_NHWC_hybrid_SME_transposed_B.arm_cpu"
+        new_workload = autotvm.task.args_to_workload(
+            [data, new_kernel, strides, padding, dilation, out_dtype, (KH, KW), OC],
+            new_workload_name,
+        )
+        dispatch_ctx.update(target, new_workload, cfg)
+        return relay.nn.contrib_conv2d_gemm_without_weight_transform(
+            inputs[0], new_kernel_expr, **new_attrs
+        )
+
     # Only microTVM does layout alteration for NHWC layout with real data types
     if data_layout == "NHWC" and data_dtype not in ["uint8", "int8"]:
         return None
