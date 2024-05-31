@@ -32,7 +32,7 @@ from tvm.script import relax as R
 from tvm import get_global_func
 
 _all_session_kinds = [di.ThreadedSession, di.ProcessSession]
-_ccl = [pytest.param(ccl, marks=tvm.testing.Feature.require(ccl)) for ccl in ["nccl", "rccl"]]
+_ccl = [pytest.param(ccl, marks=tvm.testing.Feature.marks(ccl)) for ccl in ["nccl", "rccl"]]
 
 
 def create_device_target(ccl):

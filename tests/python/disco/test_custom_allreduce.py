@@ -44,7 +44,7 @@ _strategies = [
     AllReduceStrategyType.AUTO,
 ]
 
-_ccl = [pytest.param(ccl, marks=tvm.testing.Feature.require(ccl)) for ccl in ["nccl"]]
+_ccl = [pytest.param(ccl, marks=tvm.testing.Feature.marks(ccl)) for ccl in ["nccl"]]
 
 
 @pytest.mark.parametrize("shape", _shapes)
