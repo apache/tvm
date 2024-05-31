@@ -24,7 +24,6 @@ from tvm import autotvm
 from tvm.script import tir as T
 import tvm.contrib.nnpack
 from tvm.tir.schedule.analysis import has_block
-from tvm.topi.arm_cpu.matmul import _get_transpose_interleave_intrin_name
 
 from ..utils import traverse_inline, get_const_tuple
 from .. import nn
@@ -776,10 +775,6 @@ def schedule_conv2d_NHWC_hybrid_TIR(sch: tvm.tir.Schedule):
             get_transpose_interleave_intrin_name,
         )
 
-        transpose_interleave_intrin_name = _get_transpose_interleave_intrin_name(
-            in_dtype, out_dtype
-        )
-
         # Interleave the padded im2col matrix utilizing the matrix tile
         interleave_t_A_block = sch.cache_read(gemm_block, 0, "global")
         sch.transform_layout(interleave_t_A_block, ("write", 0), lambda b, m, k: (b, k, m))
@@ -788,7 +783,9 @@ def schedule_conv2d_NHWC_hybrid_TIR(sch: tvm.tir.Schedule):
         ko, ki = sch.split(k, factors=(None, tile_K), disable_predication=True)
         sch.parallel(b)
         sch.reorder(b, ko, mo, ki, mi)
-        sch.tensorize(ki, get_transpose_interleave_intrin_name(in_dtype, out_dtype, M_padded, K_padded))
+        sch.tensorize(
+            ki, get_transpose_interleave_intrin_name(in_dtype, out_dtype, M_padded, K_padded)
+        )
 
         # Interleave the padded weights matrix utilizing the matrix tile
         if in_dtype == "float16":
@@ -798,7 +795,9 @@ def schedule_conv2d_NHWC_hybrid_TIR(sch: tvm.tir.Schedule):
             ko, ki = sch.split(k, factors=(None, tile_K), disable_predication=True)
             no, ni = sch.split(n, factors=(None, tile_N), disable_predication=True)
             sch.reorder(ko, no, ki, ni)
-            sch.tensorize(ki, get_transpose_interleave_intrin_name(in_dtype, out_dtype, M_padded, K_padded))
+            sch.tensorize(
+                ki, get_transpose_interleave_intrin_name(in_dtype, out_dtype, M_padded, K_padded)
+            )
 
         # Split and reorder the loops of the GeMM for tensorization
         b, m, n, k = sch.get_loops(gemm_block)
@@ -821,7 +820,7 @@ def schedule_conv2d_NHWC_hybrid_TIR(sch: tvm.tir.Schedule):
         )
         tvm.tir.TensorIntrin.register(
             sme_gemm_interleaved_intrin_name,
-            *get_sme_gemm_interleaved_mopa_2svlx2svl_intrin(K_padded, in_dtype),
+            *get_sme_gemm_interleaved_mopa_2svlx2svl_intrin(M_padded, K_padded, in_dtype),
             override=True,
         )
         sch.tensorize(mi, sme_gemm_interleaved_intrin_name)

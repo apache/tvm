@@ -143,7 +143,7 @@ def compute_conv2d_gemm_without_weight_transform(
         N_padded = N + pad_N
 
         pad_before = (0, 0, 0)
-        pad_after = (0, 0, 0) if use_sme else (0, pad_M, pad_K)
+        pad_after = (0, pad_M, pad_K)
 
         if pad_K != 0:
             A = nn.pad(A, pad_before=pad_before, pad_after=pad_after, name="A_padded_K")
@@ -151,7 +151,7 @@ def compute_conv2d_gemm_without_weight_transform(
             A = nn.pad(A, pad_before=pad_before, pad_after=pad_after, name="A_padded_M")
 
     idxm = tvm.tir.indexmod
-    k = te.reduce_axis((0, K), "k")
+    k = te.reduce_axis((0, K if use_explicit_predication else K_padded), "k")
 
     # Determine matrix multiplication compute definition
     target = Target.current(allow_none=False)

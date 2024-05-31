@@ -176,6 +176,9 @@ def test_conv2d_nhwc_gemm(device, ref_data, dtype, stride, padding, dilation):
     if target.features.has_sme and a_np.shape[0] > 1:
         pytest.skip(f"Conv2d with batches > 1 targeting SME not implemented.")
 
+    if target.features.has_sme and (a_np.shape[3] * w_np.shape[0] * w_np.shape[1]) <= 1:
+        pytest.skip(f"Conv2d with unit reduction dimension targeting SME not supported.")
+
     # SME schedule always outputs float32 results, regardless of input dtype.
     # Otherwise, output dtype is the same as input dtype.
     out_dtype = "float32" if target.features.has_sme else dtype
