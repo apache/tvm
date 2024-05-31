@@ -1,0 +1,9 @@
+version 1.0;
+
+graph G( cond, input1, input2 ) -> ( output )
+{
+    cond = external<logical>(shape = [4,16,32,32]);
+    input1 = external<scalar>(shape = [4,16,32,32]);
+    input2 = external<scalar>(shape = [4,16,32,32]);
+    output = select(cond, input1, input2);
+}

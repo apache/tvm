@@ -1,0 +1,9 @@
+version 1.0;
+
+graph G( input1, input2, input3 ) -> ( output )
+{
+    input1 = external<scalar>(shape = [4,16]);
+    input2 = external<scalar>(shape = [4,16]);
+    input3 = external<scalar>(shape = [4,16]);
+    output = clamp(input1, input2, input3);
+}

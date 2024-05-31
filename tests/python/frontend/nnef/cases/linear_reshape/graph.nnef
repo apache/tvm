@@ -1,0 +1,10 @@
+version 1.0;
+
+graph G( input ) -> ( output )
+{
+	input = external(shape = [4,16,8,8]);
+	weights = variable(shape = [32,1024], label = 'weights');
+	bias = variable(shape = [1,32], label = 'bias');
+	flattened = reshape(input, shape = [0,-1]);
+	output = linear(flattened, weights, bias);
+}

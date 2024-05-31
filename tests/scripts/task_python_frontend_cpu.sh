@@ -39,3 +39,6 @@ run_pytest cython python-frontend-keras tests/python/frontend/keras
 
 echo "Running relay Caffe frontend test..."
 run_pytest cython python-frontend-caffe tests/python/frontend/caffe
+
+echo "Running relay NNEF frontend test..."
+run_pytest cython python-frontend-nnef tests/python/frontend/nnef

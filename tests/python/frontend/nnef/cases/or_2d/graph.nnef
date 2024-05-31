@@ -1,0 +1,8 @@
+version 1.0;
+
+graph G( input1, input2 ) -> ( output )
+{
+    input1 = external<logical>(shape = [4,16]);
+    input2 = external<logical>(shape = [4,16]);
+    output = or(input1, input2);
+}

@@ -96,6 +96,8 @@ ALLOW_EXTENSION = {
     "groovy",
     # Python-parseable config files
     "ini",
+    # NNEF graph file
+    "nnef",
 }
 
 # List of file names allowed

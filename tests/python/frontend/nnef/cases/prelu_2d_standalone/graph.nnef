@@ -1,0 +1,8 @@
+version 1.0;
+
+graph G( input1, input2 ) -> ( output )
+{
+	input1 = external(shape = [16,16]);
+	input2 = external(shape = [16]);
+	output = prelu(input1, input2);
+}

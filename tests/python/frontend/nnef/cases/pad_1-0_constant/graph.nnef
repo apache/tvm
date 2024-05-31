@@ -1,0 +1,7 @@
+version 1.0;
+
+graph G( input ) -> ( output )
+{
+	input = external(shape = [1,16,32,32]);
+	output = pad(input, padding = [(0,0), (0,0), (1,0), (1,0)], border = 'constant');
+}

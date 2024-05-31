@@ -1,0 +1,8 @@
+version 1.0;
+
+graph G( input ) -> ( output )
+{
+	input = external(shape = [4,8,32,32]);
+	filter = variable(shape = [16,8,3,3], label = 'filter');
+	output = conv(input, filter, 0.0);
+}

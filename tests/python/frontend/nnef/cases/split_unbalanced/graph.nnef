@@ -1,0 +1,7 @@
+version 1.0;
+
+graph G( input ) -> ( output1, output2, output3 )
+{
+	input = external(shape = [4,32,3]);
+	[output1, output2, output3] = split(input, axis = 1, ratios = [3,1,4]);
+}

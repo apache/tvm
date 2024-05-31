@@ -1,0 +1,7 @@
+version 1.0;
+
+graph G( input ) -> ( output )
+{
+	input = external(shape = [4,16,32,32]);
+    output = local_response_normalization(input, alpha = 1e-05, beta = 0.75, bias = 1.0, size = [1, 5, 1, 1]);
+}

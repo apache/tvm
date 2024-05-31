@@ -1,0 +1,7 @@
+version 1.0;
+
+graph G( input ) -> ( output )
+{
+	input = external(shape = [4,32,32,16]);
+	output = transpose(input, axes = [0,3,1,2]);
+}

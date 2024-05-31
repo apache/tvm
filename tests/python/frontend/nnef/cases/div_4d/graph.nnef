@@ -1,0 +1,8 @@
+version 1.0;
+
+graph G( input1, input2 ) -> ( output )
+{
+    input1 = external<scalar>(shape = [4,16,32,32]);
+    input2 = external<scalar>(shape = [4,16,32,32]);
+    output = div(input1, input2);
+}

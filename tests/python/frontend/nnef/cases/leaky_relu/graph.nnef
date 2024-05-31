@@ -1,0 +1,10 @@
+version 1.0;
+
+graph G( input ) -> ( output )
+{
+	input = external(shape = [16,16,32,32]);
+	filter = constant(shape = [16,1,1,1], value = [1.0]);
+	bias = constant(shape = [1,16], value = [0.0]);
+	conv = conv(input, filter, bias, groups = 0);
+	output = leaky_relu(conv, alpha = 0.5);
+}

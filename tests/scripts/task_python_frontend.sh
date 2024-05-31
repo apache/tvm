@@ -61,3 +61,6 @@ run_pytest cython python-frontend-coreml tests/python/frontend/coreml
 
 echo "Running relay OneFlow frontend test..."
 run_pytest cython python-frontend-oneflow tests/python/frontend/oneflow
+
+echo "Running relay NNEF frontend test..."
+run_pytest cython python-frontend-nnef tests/python/frontend/nnef

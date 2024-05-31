@@ -1,0 +1,7 @@
+version 1.0;
+
+graph G( input ) -> ( output )
+{
+	input = external(shape = [16,16]);
+	output = gelu(input);
+}

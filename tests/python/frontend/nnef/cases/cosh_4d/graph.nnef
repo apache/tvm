@@ -1,0 +1,7 @@
+version 1.0;
+
+graph G( input ) -> ( output )
+{
+    input = external<scalar>(shape = [4,16,32,32]);
+    output = cosh(input);
+}

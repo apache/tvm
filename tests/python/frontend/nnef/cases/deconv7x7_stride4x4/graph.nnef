@@ -1,0 +1,9 @@
+version 1.0;
+
+graph G( input ) -> ( output )
+{
+	input = external(shape = [4,16,32,32]);
+	filter = variable(shape = [16,8,7,7], label = 'filter');
+	bias = variable(shape = [1,8], label = 'bias');
+	output = deconv(input, filter, bias, stride = [4,4]);
+}

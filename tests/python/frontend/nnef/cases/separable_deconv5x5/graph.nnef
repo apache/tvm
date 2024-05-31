@@ -1,0 +1,10 @@
+version 1.0;
+
+graph G( input ) -> ( output )
+{
+	input = external(shape = [4,16,32,32]);
+	plane_filter = variable(shape = [8,1,5,5], label = 'plane_filter');
+	point_filter = variable(shape = [16,8,1,1], label = 'point_filter');
+	bias = variable(shape = [1,8], label = 'bias');
+	output = separable_deconv(input, plane_filter, point_filter, bias);
+}

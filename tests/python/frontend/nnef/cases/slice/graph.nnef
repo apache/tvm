@@ -1,0 +1,7 @@
+version 1.0;
+
+graph G( input ) -> ( output )
+{
+	input = external(shape = [4,16,32,32]);
+	output = slice(input, axes = [2,3], begin = [1,2], end = [-1,-2]);
+}

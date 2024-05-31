@@ -1,0 +1,7 @@
+version 1.0;
+
+graph G( input ) -> ( output )
+{
+    input = external<logical>(shape = [4,16,32,32]);
+    output = and(input, false);
+}
