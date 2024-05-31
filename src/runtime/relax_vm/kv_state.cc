@@ -48,7 +48,7 @@ TVM_REGISTER_GLOBAL("vm.builtin.kv_state_begin_forward")
       IntTuple append_lengths = args[2];
       Optional<IntTuple> token_tree_parent_ptr{nullptr};
       if (args.size() == 4) {
-        token_tree_parent_ptr = args[3];
+        token_tree_parent_ptr = args[3].operator Optional<IntTuple>();
       }
       kv_state->BeginForward(seq_ids, append_lengths, token_tree_parent_ptr);
     });
