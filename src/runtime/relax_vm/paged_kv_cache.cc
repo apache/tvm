@@ -26,6 +26,8 @@
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/registry.h>
 
+#include <algorithm>
+#include <numeric>
 #include <unordered_map>
 #include <utility>
 #include <vector>
@@ -52,6 +54,8 @@ namespace relax_vm {
  * prefixes) in paged KV cache.
  */
 constexpr const int kPagedKVCacheMaxBlockDepth = 5;
+/*! \brief The maximum tree size of a single sequence in tree attention. */
+constexpr const int kTreeAttnMaxTreeSize = 256;
 /*! \brief The 8MB workspace size for attention auxiliary data. */
 constexpr const int kAttnWorkspaceByte = 8 * 1024 * 1024;
 /*! \brief The id of the temporary logical page, which is useful for sliding window. */
@@ -250,14 +254,14 @@ class HostMemoryVector {
  * This class manages all the int32 auxiliary data on GPU device, such as
  * page table, position arrays, etc..
  *
- * The core functions of this class is `CopyXXXAsync` and `CommitCopy`.
+ * The core functions of this class is `CopyXXXAsync` and `CommitAttnAuxDataCopy`.
  * `CopyXXXAsync` takes the input data on CPU host, and copy the input data
  * to GPU in an asynchronous way, and returns the NDArray view of the data
  * on GPU device.
  *
  * Being asynchronous here means the `CopyXXXAsync` function may not perform
  * data copy from CPU to GPU at the time of being called. Therefore, the
- * returned NDArray view may have wrong result, until `CommitCopy` is
+ * returned NDArray view may have wrong result, until `CommitAttnAuxDataCopy` is
  * explicitly invoked and the data copy stream is synchronized.
  *
  * We design this manager class in order to reduce the data copy overhead.
@@ -274,8 +278,8 @@ class PagedKVCacheAuxDataManager {
   }
 
   virtual ~PagedKVCacheAuxDataManager() = default;
-  /*! \brief Reset the status of copy manager. */
-  virtual void ResetCopy() = 0;
+  /*! \brief Reset the attention auxiliary data status of copy manager. */
+  virtual void ResetAttnAuxDataCopy() = 0;
   /*! \brief Copy the indptr array of append lengths after coalescing. (see GetChunkedBlockIds) */
   virtual NDArray CopyQOIndptrOnDepthAsync(HostMemoryVector* data, int depth) = 0;
   /*! \brief Copy the indptr array of page table. */
@@ -315,8 +319,22 @@ class PagedKVCacheAuxDataManager {
    * appending new K/V data.
    */
   virtual NDArray CopyAppendPositionMapAsync(HostMemoryVector* data) = 0;
-  /*! \brief Commit all the copy operations since the last commit. */
-  virtual void CommitCopy() = 0;
+  /*! \brief Copy the tree attention mask. */
+  virtual NDArray CopyTreeAttnMaskAsync(HostMemoryVector* data) = 0;
+  /*! \brief Copy the mn indptr of the tree attention mask. */
+  virtual NDArray CopyTreeAttnMNIndptrAsync(HostMemoryVector* data) = 0;
+  /*! \brief Commit all the attention auxiliary data copy operations since the last commit. */
+  virtual void CommitAttnAuxDataCopy() = 0;
+
+  /*! \brief Reset the compact KV auxiliary data status of copy manager. */
+  virtual void ResetCompactKVAuxDataCopy() = 0;
+  /*! \brief Copy the length indptr array of KV data copy for each sequence. */
+  virtual NDArray CopyCommitLengthIndptrAsync(HostMemoryVector* data) = 0;
+  /*! \brief Copy the src/dst position arrays for each sequence. */
+  virtual NDArray CopyCommitSrcDstPosInPageTableAsync(HostMemoryVector* src_data,
+                                                      HostMemoryVector* dst_data) = 0;
+  /*! \brief Commit all the compact KV auxiliary data copy operations since the last commit. */
+  virtual void CommitCompactKVAuxDataCopy() = 0;
 
  protected:
   /*! \brief The dtype of the auxiliary data. It is expected to be int32. */
@@ -356,10 +374,18 @@ class PlainPagedKVCacheAuxDataManager : public PagedKVCacheAuxDataManager {
     k_ragged_rope_pos_offset_device_ = NDArray::Empty({reserved_num_seqs}, dtype_aux_, device);
     q_rope_position_map_device_ = NDArray::Empty({prefill_chunk_size}, dtype_aux_, device);
     append_position_map_device_ = NDArray::Empty({prefill_chunk_size}, dtype_aux_, device);
+    tree_attn_mask_device_ = NDArray::Empty(
+        {kTreeAttnMaxTreeSize * kTreeAttnMaxTreeSize * reserved_num_seqs}, dtype_aux_, device);
+    tree_attn_mn_indptr_device_ = NDArray::Empty({reserved_num_seqs + 1}, dtype_aux_, device);
+
+    commit_copy_length_indptr_device_ = NDArray::Empty({reserved_num_seqs + 1}, dtype_aux_, device);
+    commit_copy_src_dst_pos_in_page_table_device_ =
+        NDArray::Empty({2, std::min(kTreeAttnMaxTreeSize * reserved_num_seqs, prefill_chunk_size)},
+                       dtype_aux_, device);
   }
 
   // The reset of the plain auxiliary data manager is no-op.
-  void ResetCopy() final {}
+  void ResetAttnAuxDataCopy() final {}
   NDArray CopyQOIndptrOnDepthAsync(HostMemoryVector* data, int depth) final {
     NDArray view = qo_indptr_on_depths_device_[depth].CreateView(
         {static_cast<int64_t>(data->size())}, dtype_aux_);
@@ -414,6 +440,18 @@ class PlainPagedKVCacheAuxDataManager : public PagedKVCacheAuxDataManager {
     CopyVecDataToArray(view, data->data());
     return view;
   }
+  NDArray CopyTreeAttnMaskAsync(HostMemoryVector* data) final {
+    NDArray view =
+        tree_attn_mask_device_.CreateView({static_cast<int64_t>(data->size())}, dtype_aux_);
+    CopyVecDataToArray(view, data->data());
+    return view;
+  }
+  NDArray CopyTreeAttnMNIndptrAsync(HostMemoryVector* data) final {
+    NDArray view =
+        tree_attn_mn_indptr_device_.CreateView({static_cast<int64_t>(data->size())}, dtype_aux_);
+    CopyVecDataToArray(view, data->data());
+    return view;
+  }
 
   NDArray CopyLengthInfoOnDepthAsync(HostMemoryVector* last_page_len,
                                      HostMemoryVector* sliding_window_offset,
@@ -431,7 +469,32 @@ class PlainPagedKVCacheAuxDataManager : public PagedKVCacheAuxDataManager {
   }
 
   // The commit of the plain auxiliary data manager is no-op.
-  void CommitCopy() final {}
+  void CommitAttnAuxDataCopy() final {}
+
+  // The reset of the plain auxiliary data manager is no-op.
+  void ResetCompactKVAuxDataCopy() final {}
+
+  NDArray CopyCommitLengthIndptrAsync(HostMemoryVector* data) final {
+    NDArray view = commit_copy_length_indptr_device_.CreateView(
+        {static_cast<int64_t>(data->size())}, dtype_aux_);
+    CopyVecDataToArray(view, data->data());
+    return view;
+  }
+  NDArray CopyCommitSrcDstPosInPageTableAsync(HostMemoryVector* src_data,
+                                              HostMemoryVector* dst_data) final {
+    int n_elem = src_data->size();
+    ICHECK_GT(n_elem, 0);
+    NDArray view =
+        commit_copy_src_dst_pos_in_page_table_device_.CreateView({2, n_elem}, dtype_aux_);
+    ShapeTuple copy_shape{n_elem};
+    CopyVecDataToArray(view, src_data->data(), copy_shape);
+    CopyVecDataToArray(view, dst_data->data(), copy_shape,
+                       /*dst_elem_offset=*/n_elem);
+    return view;
+  }
+
+  // The commit of the plain auxiliary data manager is no-op.
+  void CommitCompactKVAuxDataCopy() final {}
 
  private:
   /*!
@@ -488,81 +551,101 @@ class PlainPagedKVCacheAuxDataManager : public PagedKVCacheAuxDataManager {
   NDArray k_ragged_rope_pos_offset_device_;
   NDArray q_rope_position_map_device_;
   NDArray append_position_map_device_;
+  NDArray tree_attn_mask_device_;
+  NDArray tree_attn_mn_indptr_device_;
+  NDArray commit_copy_length_indptr_device_;
+  NDArray commit_copy_src_dst_pos_in_page_table_device_;
 };
 
 /*!
  * \brief The cached auxiliary data manager class.
  * It allocates a large on-device array to store all the auxiliary data.
  * For each `CopyXXXAsync`, it copies the input data to a local cache on host.
- * In `CommitCopy`, it copies all the data in the local cache to the device
+ * In `CommitAttnAuxDataCopy`, it copies all the data in the local cache to the device
  * array for a single time, and thus reduce the number of host-to-device copies needed.
  */
 class CachedPagedKVCacheAuxDataManager : public PagedKVCacheAuxDataManager {
  public:
   explicit CachedPagedKVCacheAuxDataManager(int64_t reserved_num_seqs, int64_t num_total_pages,
                                             int64_t prefill_chunk_size, DLDataType dtype_aux,
-                                            DLDevice device, Device preferred_host_device,
+                                            Device device, Device preferred_host_device,
                                             TVMStreamHandle copy_stream)
       : PagedKVCacheAuxDataManager(dtype_aux, device, preferred_host_device, copy_stream),
         elem_byte_size_((dtype_aux.bits * dtype_aux.lanes + 7) / 8),
         offset_alignment_(cuda_byte_alignment_ / elem_byte_size_) {
-    // - Calculate cache size of all the auxiliary arrays in
+    // - Calculate cache size of all the attention auxiliary arrays in
     // local cache and the large on-device array.
-    int64_t cache_size = CalculateCacheSize(reserved_num_seqs, num_total_pages, prefill_chunk_size);
+    int64_t attn_aux_data_cache_size =
+        CalculateAttnAuxDataCacheSize(reserved_num_seqs, num_total_pages, prefill_chunk_size);
     // - Initialize the host auxiliary data buffer.
-    merged_aux_data_host_ = HostMemoryVector(cache_size, dtype_aux, preferred_host_device);
+    merged_attn_aux_data_host_ =
+        HostMemoryVector(attn_aux_data_cache_size, dtype_aux, preferred_host_device);
     // - Initialize the device auxiliary data buffer.
-    memory::Allocator* allocator =
-        memory::MemoryManager::GetOrCreateAllocator(device, memory::AllocatorType::kNaive);
-    ICHECK_NOTNULL(allocator);
-    merged_aux_data_device_ =
-        memory::Storage(allocator->Alloc(device, {cache_size}, dtype_aux), allocator);
+    merged_attn_aux_data_device_ = NDArray::Empty({attn_aux_data_cache_size}, dtype_aux, device);
+
+    // - Calculate cache size of all the compact KV auxiliary arrays in
+    // local cache and the large on-device array.
+    int64_t compact_kv_aux_data_cache_size =
+        CalculateCompactKVAuxDataCacheSize(reserved_num_seqs, prefill_chunk_size);
+    // - Initialize the host auxiliary data buffer.
+    merged_compact_kv_aux_data_host_ =
+        HostMemoryVector(compact_kv_aux_data_cache_size, dtype_aux, preferred_host_device);
+    merged_compact_kv_aux_data_device_ =
+        NDArray::Empty({compact_kv_aux_data_cache_size}, dtype_aux, device);
   }
 
-  void ResetCopy() final { copy_offset_ = 0; }
+  void ResetAttnAuxDataCopy() final { attn_aux_data_copy_offset_ = 0; }
   NDArray CopyQOIndptrOnDepthAsync(HostMemoryVector* data, int depth) final {
-    return CopyVecToCache(data);
+    return CopyAttnAuxVecToCache(data);
   }
   NDArray CopyPageIndptrOnDepthAsync(HostMemoryVector* data, int depth) final {
-    return CopyVecToCache(data);
+    return CopyAttnAuxVecToCache(data);
   }
   NDArray CopyPageIndicesOnDepthAsync(HostMemoryVector* data, int depth) final {
-    return CopyVecToCache(data);
+    return CopyAttnAuxVecToCache(data);
   }
   NDArray CopyLastPageLenOnDepthAsync(HostMemoryVector* data, int depth) final {
-    return CopyVecToCache(data);
+    return CopyAttnAuxVecToCache(data);
   }
   NDArray CopyKRoPEPosOffsetOnDepthAsync(HostMemoryVector* data, int depth) final {
-    return CopyVecToCache(data);
+    return CopyAttnAuxVecToCache(data);
   }
   NDArray CopyCurAppendLengthIndptrAsync(HostMemoryVector* data) final {
-    return CopyVecToCache(data);
+    return CopyAttnAuxVecToCache(data);
   }
   NDArray CopyKRaggedRoPEPosOffsetAsync(HostMemoryVector* data) final {
-    return CopyVecToCache(data);
+    return CopyAttnAuxVecToCache(data);
   }
-  NDArray CopyQRoPEPosMapAsync(HostMemoryVector* data) final { return CopyVecToCache(data); }
-  NDArray CopyAppendPositionMapAsync(HostMemoryVector* data) final { return CopyVecToCache(data); }
+  NDArray CopyQRoPEPosMapAsync(HostMemoryVector* data) final { return CopyAttnAuxVecToCache(data); }
+  NDArray CopyAppendPositionMapAsync(HostMemoryVector* data) final {
+    return CopyAttnAuxVecToCache(data);
+  }
+  NDArray CopyTreeAttnMaskAsync(HostMemoryVector* data) final {
+    return CopyAttnAuxVecToCache(data);
+  }
+  NDArray CopyTreeAttnMNIndptrAsync(HostMemoryVector* data) final {
+    return CopyAttnAuxVecToCache(data);
+  }
   NDArray CopyLengthInfoOnDepthAsync(HostMemoryVector* last_page_len,
                                      HostMemoryVector* sliding_window_offset,
                                      HostMemoryVector* sink_size, int depth) final {
     int64_t n_elem = last_page_len->size();
-    std::memcpy(merged_aux_data_host_.data() + copy_offset_, last_page_len->data(),
-                n_elem * elem_byte_size_);
-    std::memcpy(merged_aux_data_host_.data() + copy_offset_ + n_elem, sliding_window_offset->data(),
-                n_elem * elem_byte_size_);
-    std::memcpy(merged_aux_data_host_.data() + copy_offset_ + 2 * n_elem, sink_size->data(),
-                n_elem * elem_byte_size_);
-    NDArray view = merged_aux_data_device_->AllocNDArray(copy_offset_ * elem_byte_size_,
-                                                         {3, n_elem}, dtype_aux_);
-    copy_offset_ += CeilDivElemAlignment(3 * n_elem);
+    std::memcpy(merged_attn_aux_data_host_.data() + attn_aux_data_copy_offset_,
+                last_page_len->data(), n_elem * elem_byte_size_);
+    std::memcpy(merged_attn_aux_data_host_.data() + attn_aux_data_copy_offset_ + n_elem,
+                sliding_window_offset->data(), n_elem * elem_byte_size_);
+    std::memcpy(merged_attn_aux_data_host_.data() + attn_aux_data_copy_offset_ + 2 * n_elem,
+                sink_size->data(), n_elem * elem_byte_size_);
+    NDArray view = merged_attn_aux_data_device_.CreateView(
+        {3, n_elem}, dtype_aux_, attn_aux_data_copy_offset_ * elem_byte_size_);
+    attn_aux_data_copy_offset_ += CeilDivElemAlignment(3 * n_elem);
     return view;
   }
 
-  void CommitCopy() final {
-    std::vector<int64_t> copy_shape{copy_offset_};
+  void CommitAttnAuxDataCopy() final {
+    std::vector<int64_t> copy_shape{attn_aux_data_copy_offset_};
     DLTensor copy_dst;
-    copy_dst.data = merged_aux_data_device_->buffer.data;
+    copy_dst.data = merged_attn_aux_data_device_->data;
     copy_dst.device = device_;
     copy_dst.ndim = 1;
     copy_dst.dtype = dtype_aux_;
@@ -571,7 +654,42 @@ class CachedPagedKVCacheAuxDataManager : public PagedKVCacheAuxDataManager {
     copy_dst.byte_offset = 0;
 
     DLTensor copy_src = copy_dst;
-    copy_src.data = merged_aux_data_host_.data();
+    copy_src.data = merged_attn_aux_data_host_.data();
+    copy_src.device = Device{kDLCPU, 0};
+    NDArray::CopyFromTo(&copy_src, &copy_dst, copy_stream_);
+  }
+
+  void ResetCompactKVAuxDataCopy() final { compact_kv_aux_data_copy_offset_ = 0; }
+
+  NDArray CopyCommitLengthIndptrAsync(HostMemoryVector* data) final {
+    return CopyCompactKVAuxVecToCache(data);
+  }
+  NDArray CopyCommitSrcDstPosInPageTableAsync(HostMemoryVector* src_data,
+                                              HostMemoryVector* dst_data) final {
+    int64_t n_elem = src_data->size();
+    std::memcpy(merged_compact_kv_aux_data_host_.data() + compact_kv_aux_data_copy_offset_,
+                src_data->data(), n_elem * elem_byte_size_);
+    std::memcpy(merged_compact_kv_aux_data_host_.data() + compact_kv_aux_data_copy_offset_ + n_elem,
+                dst_data->data(), n_elem * elem_byte_size_);
+    NDArray view = merged_compact_kv_aux_data_device_.CreateView(
+        {2, n_elem}, dtype_aux_, compact_kv_aux_data_copy_offset_ * elem_byte_size_);
+    compact_kv_aux_data_copy_offset_ += CeilDivElemAlignment(2 * n_elem);
+    return view;
+  }
+
+  void CommitCompactKVAuxDataCopy() final {
+    std::vector<int64_t> copy_shape{compact_kv_aux_data_copy_offset_};
+    DLTensor copy_dst;
+    copy_dst.data = merged_compact_kv_aux_data_device_->data;
+    copy_dst.device = device_;
+    copy_dst.ndim = 1;
+    copy_dst.dtype = dtype_aux_;
+    copy_dst.shape = copy_shape.data();
+    copy_dst.strides = nullptr;
+    copy_dst.byte_offset = 0;
+
+    DLTensor copy_src = copy_dst;
+    copy_src.data = merged_compact_kv_aux_data_host_.data();
     copy_src.device = Device{kDLCPU, 0};
     NDArray::CopyFromTo(&copy_src, &copy_dst, copy_stream_);
   }
@@ -581,8 +699,8 @@ class CachedPagedKVCacheAuxDataManager : public PagedKVCacheAuxDataManager {
    * \brief Calculate the start element offsets of the auxiliary arrays in the local cache.
    * \return Return the local cache size (total number of elements in the local cache).
    */
-  int64_t CalculateCacheSize(int64_t reserved_num_seqs, int64_t num_total_pages,
-                             int64_t prefill_chunk_size) {
+  int64_t CalculateAttnAuxDataCacheSize(int64_t reserved_num_seqs, int64_t num_total_pages,
+                                        int64_t prefill_chunk_size) {
     int64_t cache_size = 0;
     // - Array size of the arrays that every depth has.
     // Corresponding to the following arrays respectively
@@ -604,10 +722,28 @@ class CachedPagedKVCacheAuxDataManager : public PagedKVCacheAuxDataManager {
     //  - k_ragged_rope_pos_offset
     //  - q_rope_position_map
     //  - append_position_map
+    //  - tree_attn_mask
+    //  - tree_attn_mn_indptr
     cache_size += CeilDivElemAlignment(reserved_num_seqs + 1);
     cache_size += CeilDivElemAlignment(reserved_num_seqs);
     cache_size += CeilDivElemAlignment(prefill_chunk_size);
     cache_size += CeilDivElemAlignment(prefill_chunk_size);
+    cache_size +=
+        CeilDivElemAlignment(kTreeAttnMaxTreeSize * kTreeAttnMaxTreeSize * reserved_num_seqs);
+    cache_size += CeilDivElemAlignment(reserved_num_seqs + 1);
+
+    return cache_size;
+  }
+
+  int64_t CalculateCompactKVAuxDataCacheSize(int64_t reserved_num_seqs,
+                                             int64_t prefill_chunk_size) {
+    int64_t cache_size = 0;
+    // Corresponding to the following arrays respectively
+    //  - commit_copy_length_indptr
+    //  - commit_copy_src_dst_pos_in_page_table
+    cache_size += CeilDivElemAlignment(reserved_num_seqs + 1);
+    cache_size += CeilDivElemAlignment(
+        2 * std::min(kTreeAttnMaxTreeSize * reserved_num_seqs, prefill_chunk_size));
 
     return cache_size;
   }
@@ -616,13 +752,23 @@ class CachedPagedKVCacheAuxDataManager : public PagedKVCacheAuxDataManager {
    * \brief Copy the input data to the cache at the given offset.
    * And return the NDArray view of the cache starting at the offset.
    */
-  NDArray CopyVecToCache(HostMemoryVector* data) {
+  NDArray CopyAttnAuxVecToCache(HostMemoryVector* data) {
     int64_t n_elem = data->size();
-    std::memcpy(merged_aux_data_host_.data() + copy_offset_, data->data(),
+    std::memcpy(merged_attn_aux_data_host_.data() + attn_aux_data_copy_offset_, data->data(),
                 n_elem * elem_byte_size_);
-    NDArray view =
-        merged_aux_data_device_->AllocNDArray(copy_offset_ * elem_byte_size_, {n_elem}, dtype_aux_);
-    copy_offset_ += CeilDivElemAlignment(n_elem);
+    NDArray view = merged_attn_aux_data_device_.CreateView(
+        {n_elem}, dtype_aux_, attn_aux_data_copy_offset_ * elem_byte_size_);
+    attn_aux_data_copy_offset_ += CeilDivElemAlignment(n_elem);
+    return view;
+  }
+
+  NDArray CopyCompactKVAuxVecToCache(HostMemoryVector* data) {
+    int64_t n_elem = data->size();
+    std::memcpy(merged_compact_kv_aux_data_host_.data() + compact_kv_aux_data_copy_offset_,
+                data->data(), n_elem * elem_byte_size_);
+    NDArray view = merged_compact_kv_aux_data_device_.CreateView(
+        {n_elem}, dtype_aux_, compact_kv_aux_data_copy_offset_ * elem_byte_size_);
+    compact_kv_aux_data_copy_offset_ += CeilDivElemAlignment(n_elem);
     return view;
   }
 
@@ -635,9 +781,12 @@ class CachedPagedKVCacheAuxDataManager : public PagedKVCacheAuxDataManager {
   const int64_t elem_byte_size_;
   const int64_t offset_alignment_;
 
-  int64_t copy_offset_ = 0;
-  HostMemoryVector merged_aux_data_host_;
-  memory::Storage merged_aux_data_device_;
+  int64_t attn_aux_data_copy_offset_ = 0;
+  int64_t compact_kv_aux_data_copy_offset_ = 0;
+  HostMemoryVector merged_attn_aux_data_host_;
+  HostMemoryVector merged_compact_kv_aux_data_host_;
+  NDArray merged_attn_aux_data_device_;
+  NDArray merged_compact_kv_aux_data_device_;
 };
 
 /*!
@@ -726,8 +875,24 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
   bool dirty_aux_data_device_ = false;
   /*! \brief The batch size of the current round of forwarding. */
   int64_t cur_batch_size_;
+  /*! \brief The ids of the sequences in the current round of forwarding. */
+  IntTuple cur_seq_ids_;
   /*! \brief The append lengths of the sequences in the current round of forwarding. */
   IntTuple cur_append_lengths_;
+  /*! \brief The token tree parent array of the sequences in the current round of forwarding. */
+  IntTuple cur_token_tree_parent_ptr_{nullptr};
+  /*! \brief The depth of each node in the token tree, for the sequences in the current batch. */
+  std::vector<std::vector<int32_t>> cur_token_tree_node_depths_;
+  /*! \brief Whether the current batch of sequences are token chains (not token trees). */
+  bool is_chain_;
+  /*! \brief Number of fork depth in the current round of forward. */
+  int num_depths_;
+  /*! \brief Whether to compute attention after appending KV into cache or not. */
+  bool append_before_attn_;
+  /*! \brief Whether to use decode kernel for each depth. (see GetChunkedBlockIds) */
+  std::vector<bool> use_decode_kernel_;
+  /*! \brief Whether the attention request is a decode request, set in BeginForwardFunction. */
+  bool is_decode_request_;
   /*! \brief The auxiliary data manager for attention. */
   std::unique_ptr<PagedKVCacheAuxDataManager> aux_data_manager_;
 
@@ -755,6 +920,11 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
   HostMemoryVector q_rope_position_map_host_;
   HostMemoryVector append_position_map_host_;
   HostMemoryVector cur_append_lengths_indptr_host_;
+  HostMemoryVector tree_attn_mask_host_;
+  HostMemoryVector tree_attn_mn_indptr_host_;
+  HostMemoryVector commit_copy_length_indptr_host_;
+  HostMemoryVector commit_copy_src_pos_in_page_table_host_;
+  HostMemoryVector commit_copy_dst_pos_in_page_table_host_;
 
   //-------------------------------------------
   // For efficient memory management, the actual sizes of the arrays
@@ -767,6 +937,8 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
   NDArray k_ragged_rope_pos_offset_view_;
   NDArray q_rope_position_map_view_;
   NDArray append_position_map_view_;
+  NDArray tree_attn_mask_view_;
+  NDArray tree_attn_mn_indptr_view_;
   NDArray temp_attn_output_view_;
   NDArray temp_attn_scores_view_;
   NDArray merged_attn_scores_view_;
@@ -777,11 +949,13 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
   std::vector<NDArray> k_rope_pos_offset_view_;
 
   PackedFunc f_transpose_append_;
+  PackedFunc f_compact_copy_;
   PackedFunc f_attention_prefill_;
   PackedFunc f_attention_decode_;
   PackedFunc f_attention_prefill_sliding_window_;
   PackedFunc f_attention_decode_sliding_window_;
   PackedFunc f_attention_prefill_ragged_;
+  PackedFunc f_attention_prefill_with_tree_mask_;
   Optional<PackedFunc> f_attention_prefill_ragged_begin_forward_;
   Optional<PackedFunc> f_attention_prefill_ragged_end_forward_;
   Optional<PackedFunc> f_attention_prefill_begin_forward_;
@@ -793,16 +967,8 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
   PackedFunc f_copy_single_page_;
   Optional<PackedFunc> f_debug_get_kv_;
 
-  /*! \brief Number of fork depth in the current round of forward. */
-  int num_depths_;
-  /*! \brief Whether to compute attention after appending KV into cache or not. */
-  bool append_before_attn_;
-  /*! \brief Whether to use decode kernel for each depth. (see GetChunkedBlockIds) */
-  std::vector<bool> use_decode_kernel_;
-  /*! \brief Whether the attention request is a decode request, set in BeginForwardFunction. */
-  bool is_decode_request_;
   /*! \brief The device this PagedKVCache runs on. */
-  DLDevice device_;
+  Device device_;
   /*! \brief The device stream for the default computation operations. */
   TVMStreamHandle compute_stream_ = nullptr;
   /*! \brief The device stream for copying auxiliary data structure to GPU. */
@@ -815,10 +981,10 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
       int64_t num_layers, int64_t num_qo_heads, int64_t num_kv_heads, int64_t head_dim,
       int64_t reserved_num_seqs, int64_t num_total_pages, int64_t prefill_chunk_size,
       bool support_sliding_window, RoPEMode rope_mode, double rotary_scale, double rotary_theta,
-      DLDataType dtype, DLDevice device, PackedFunc f_transpose_append,
+      DLDataType dtype, Device device, PackedFunc f_transpose_append, PackedFunc f_compact_copy,
       PackedFunc f_attention_prefill, PackedFunc f_attention_decode,
       PackedFunc f_attention_prefill_sliding_window, PackedFunc f_attention_decode_sliding_window,
-      PackedFunc f_attention_prefill_ragged,
+      PackedFunc f_attention_prefill_ragged, PackedFunc f_attention_prefill_with_tree_mask,
       Optional<PackedFunc> f_attention_prefill_ragged_begin_forward,
       Optional<PackedFunc> f_attention_prefill_ragged_end_forward,
       Optional<PackedFunc> f_attention_prefill_begin_forward,
@@ -839,11 +1005,13 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
         rotary_scale_(rotary_scale),
         rotary_theta_(rotary_theta),
         f_transpose_append_(std::move(f_transpose_append)),
+        f_compact_copy_(std::move(f_compact_copy)),
         f_attention_prefill_(std::move(f_attention_prefill)),
         f_attention_decode_(std::move(f_attention_decode)),
         f_attention_prefill_sliding_window_(std::move(f_attention_prefill_sliding_window)),
         f_attention_decode_sliding_window_(std::move(f_attention_decode_sliding_window)),
         f_attention_prefill_ragged_(std::move(f_attention_prefill_ragged)),
+        f_attention_prefill_with_tree_mask_(std::move(f_attention_prefill_with_tree_mask)),
         f_attention_prefill_ragged_begin_forward_(
             std::move(f_attention_prefill_ragged_begin_forward)),
         f_attention_prefill_ragged_end_forward_(std::move(f_attention_prefill_ragged_end_forward)),
@@ -887,6 +1055,19 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
         HostMemoryVector(prefill_chunk_size, dtype_aux_, preferred_host_device);
     cur_append_lengths_indptr_host_ =
         HostMemoryVector(reserved_num_seqs + 1, dtype_aux_, preferred_host_device);
+    tree_attn_mask_host_ =
+        HostMemoryVector(kTreeAttnMaxTreeSize * kTreeAttnMaxTreeSize * reserved_num_seqs,
+                         dtype_aux_, preferred_host_device);
+    tree_attn_mn_indptr_host_ =
+        HostMemoryVector(reserved_num_seqs + 1, dtype_aux_, preferred_host_device);
+    commit_copy_length_indptr_host_ =
+        HostMemoryVector(reserved_num_seqs + 1, dtype_aux_, preferred_host_device);
+    commit_copy_src_pos_in_page_table_host_ =
+        HostMemoryVector(std::min(kTreeAttnMaxTreeSize * reserved_num_seqs, prefill_chunk_size),
+                         dtype_aux_, preferred_host_device);
+    commit_copy_dst_pos_in_page_table_host_ =
+        HostMemoryVector(std::min(kTreeAttnMaxTreeSize * reserved_num_seqs, prefill_chunk_size),
+                         dtype_aux_, preferred_host_device);
 
     for (int d = 0; d < kPagedKVCacheMaxBlockDepth; ++d) {
       temp_attn_workspace_.push_back(
@@ -1108,6 +1289,42 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     }
   }
 
+  void CompactKVCopy() {
+    int total_copy_length = commit_copy_length_indptr_host_.back();
+    ICHECK_GE(total_copy_length, 0);
+    if (total_copy_length == 0) {
+      return;
+    }
+
+    // Copy indptr/src/dst arrays to GPU.
+    aux_data_manager_->ResetCompactKVAuxDataCopy();
+    NDArray commit_copy_length_indptr_view =
+        aux_data_manager_->CopyCommitLengthIndptrAsync(&commit_copy_length_indptr_host_);
+    NDArray commit_copy_src_dst_pos_in_page_table_view =
+        aux_data_manager_->CopyCommitSrcDstPosInPageTableAsync(
+            &commit_copy_src_pos_in_page_table_host_, &commit_copy_dst_pos_in_page_table_host_);
+    aux_data_manager_->CommitCompactKVAuxDataCopy();
+
+    // Invoke the copy kernel on copy stream.
+    if (copy_stream_ != compute_stream_) {
+      // Set the copy stream for copy.
+      DeviceAPI::Get(device_)->SetStream(device_, copy_stream_);
+    }
+    ICHECK(f_compact_copy_.defined()) << "Function \"f_compact_copy\" is not defined.";
+    for (int layer = 0; layer < num_layers_; ++layer) {
+      f_compact_copy_(pages_[layer], commit_copy_length_indptr_view,
+                      commit_copy_src_dst_pos_in_page_table_view, cur_batch_size_);
+    }
+    if (copy_stream_ != compute_stream_) {
+      // Set the compute stream back.
+      DeviceAPI::Get(device_)->SetStream(device_, compute_stream_);
+    }
+
+    // Note: We do not explicitly synchronize the copy stream here.
+    // The safety is guaranteed by the synchronization pushed by the next round
+    // of BeginForward, which also copies auxiliary data structure to GPU.
+  }
+
   void EnableSlidingWindowForSeq(int64_t seq_id, int32_t sliding_window_size,
                                  int32_t attn_sink_size) final {
     CHECK(support_sliding_window_) << "The KV cache does not support sliding window.";
@@ -1143,6 +1360,10 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     CHECK_LE(n, it->second.seq_length)
         << "The sequence only has length " << it->second.seq_length
         << ", while the length of pop is " << n << " which exceeds the whole sequence length.";
+    if (n == 0) {
+      return;
+    }
+
     int32_t block_idx = it->second.last_block_idx;
     // The block should have at least one reference, which comes from the sequence.
     ICHECK_GE(global_block_pool_[block_idx].external_ref_cnt, 1);
@@ -1211,12 +1432,26 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
 
   /************** Attention **************/
 
-  void BeginForward(const IntTuple& seq_ids, const IntTuple& append_lengths) final {
+  void BeginForward(const IntTuple& seq_ids, const IntTuple& append_lengths,
+                    const Optional<IntTuple>& opt_token_tree_parent_ptr) final {
+    CHECK(!cur_token_tree_parent_ptr_.defined())
+        << "The last round of forward which involves token tree has not been committed. Please "
+           "call \"CommitAcceptedTreeNodes\" to commit the accepted tokens.";
+
     CHECK_EQ(seq_ids.size(), append_lengths.size())
         << "The seq_ids size (" << seq_ids.size() << ") and append_lengths size ("
         << append_lengths.size() << ") mismatch.";
     cur_batch_size_ = seq_ids.size();
+    cur_seq_ids_ = seq_ids;
     cur_append_lengths_ = append_lengths;
+
+    // - Check token tree validity and process the token tree.
+    is_chain_ = true;
+    tree_attn_mask_host_.clear();
+    tree_attn_mn_indptr_host_.clear();
+    if (opt_token_tree_parent_ptr.defined()) {
+      is_chain_ = ConstructTokenTreeMask(opt_token_tree_parent_ptr.value());
+    }
 
     // - Collect sequence/block/page information for attention.
     std::vector<Sequence*> sequences;
@@ -1322,7 +1557,9 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
       int64_t append_length = append_lengths[i];
       const Block& block = global_block_pool_[sequences[i]->last_block_idx];
       for (int64_t pos = 0; pos < append_length; ++pos) {
-        q_rope_position_map_host_.push_back(k_ragged_rope_pos_offset_host_[i] + pos);
+        q_rope_position_map_host_.push_back(
+            k_ragged_rope_pos_offset_host_[i] +
+            (is_chain_ ? pos : cur_token_tree_node_depths_[i][pos]));
 
         int32_t pos_in_block = block.seq_length - append_length + pos;
         if (last_block_length_before_append[i] + pos < block.sink_length) {
@@ -1410,6 +1647,81 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     if (!append_before_attn_) {
       f_transpose_append_(pages_[layer_id], k_data, v_data, append_position_map_view_);
     }
+  }
+
+  void CommitAcceptedTokenTreeNodes(const IntTuple& leaf_indices) final {
+    CHECK_NE(cur_batch_size_, -1)
+        << "Cannot commit accepted token tree nodes since BeginForward is not invoked.";
+    CHECK_EQ(leaf_indices.size(), cur_batch_size_)
+        << "The number of input leaf indices does not equal to the current batch size.";
+
+    for (int i = 0; i < cur_batch_size_; ++i) {
+      CHECK_GE(leaf_indices[i], 0)
+          << "Invalid tree index " << leaf_indices[i] << " which is negative";
+      CHECK_LT(leaf_indices[i], cur_append_lengths_[i])
+          << "Invalid tree index " << leaf_indices[i]
+          << " which is larger than or equals to the append length " << cur_append_lengths_[i]
+          << " of the sequence";
+    }
+
+    if (!is_chain_) {
+      commit_copy_length_indptr_host_.clear();
+      commit_copy_src_pos_in_page_table_host_.clear();
+      commit_copy_dst_pos_in_page_table_host_.clear();
+      commit_copy_length_indptr_host_.push_back(0);
+
+      for (int i = 0; i < cur_batch_size_; ++i) {
+        // Get the accepted node path on the token tree.
+        std::vector<int32_t> path_on_tree;
+        path_on_tree.reserve(cur_token_tree_node_depths_[i][leaf_indices[i]] + 1);
+        int node = leaf_indices[i];
+        while (node != -1) {
+          path_on_tree.push_back(node);
+          node = cur_token_tree_parent_ptr_[cur_append_lengths_indptr_host_[i] + node];
+        }
+        ICHECK_EQ(path_on_tree.size(), cur_token_tree_node_depths_[i][leaf_indices[i]] + 1);
+        // Get the destination array (range [0, path_length - 1)) of KV cache copy.
+        std::vector<int32_t> copy_dst_pos_in_seq;
+        copy_dst_pos_in_seq.resize(path_on_tree.size());
+        std::iota(copy_dst_pos_in_seq.rbegin(), copy_dst_pos_in_seq.rend(), /*value=*/0);
+        // Remove the positions whose KV data do not need copy.
+        while (!path_on_tree.empty() && path_on_tree.back() == copy_dst_pos_in_seq.back()) {
+          path_on_tree.pop_back();
+          copy_dst_pos_in_seq.pop_back();
+        }
+        // Reverse the position arrays so that they are in ascending order.
+        std::reverse(path_on_tree.begin(), path_on_tree.end());
+        std::reverse(copy_dst_pos_in_seq.begin(), copy_dst_pos_in_seq.end());
+
+        // Convert the in-sequence src/dst positions to src/dst positions in page table
+        // by looking up "append_position_map".
+        for (int p = 0; p < static_cast<int>(path_on_tree.size()); ++p) {
+          commit_copy_src_pos_in_page_table_host_.push_back(
+              append_position_map_host_[cur_append_lengths_indptr_host_[i] + path_on_tree[p]]);
+          commit_copy_dst_pos_in_page_table_host_.push_back(
+              append_position_map_host_[cur_append_lengths_indptr_host_[i] +
+                                        copy_dst_pos_in_seq[p]]);
+        }
+        commit_copy_length_indptr_host_.push_back(commit_copy_length_indptr_host_.back() +
+                                                  path_on_tree.size());
+      }
+
+      // Compact the KV data for each sequence by copying KV data.
+      CompactKVCopy();
+    }
+
+    // - Update the KV cache page data structure.
+    //   Note: Function "PopN" only changes the page table structure and does not
+    //         change the KV cache data. Therefore, we can directly use it, since
+    //         we have already launched all copies.
+    for (int i = 0; i < cur_batch_size_; ++i) {
+      int64_t length_to_pop =
+          cur_append_lengths_[i] - cur_token_tree_node_depths_[i][leaf_indices[i]] - 1;
+      PopN(cur_seq_ids_[i], length_to_pop);
+    }
+
+    // Reset the token tree.
+    cur_token_tree_parent_ptr_ = IntTuple{nullptr};
   }
 
   NDArray GetQueryPositions() final {
@@ -1500,6 +1812,73 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     int32_t block_idx = global_block_pool_.size();
     global_block_pool_.push_back(Block(block_idx));
     return block_idx;
+  }
+
+  bool ConstructTokenTreeMask(const IntTuple& token_tree_parent_ptr) {
+    // We check if the token tree deteriorates to a chain,
+    // because chain cases can have simplified attention work flow.
+    bool is_chain = true;
+    cur_token_tree_parent_ptr_ = token_tree_parent_ptr;
+    cur_token_tree_node_depths_.clear();
+    cur_token_tree_node_depths_.reserve(cur_batch_size_);
+
+    int64_t sum_append_length = 0;
+    // - Construct the mn indptr array, which is the indptr of the mask size of each sequence.
+    tree_attn_mn_indptr_host_.push_back(0);
+    for (int64_t append_length : cur_append_lengths_) {
+      sum_append_length += append_length;
+      tree_attn_mn_indptr_host_.push_back(tree_attn_mn_indptr_host_.back() +
+                                          static_cast<int32_t>(append_length * append_length));
+    }
+    CHECK_EQ(token_tree_parent_ptr.size(), sum_append_length)
+        << "Invalid token tree size. The sum of \"append_lengths\" is " << sum_append_length
+        << " while there are " << token_tree_parent_ptr.size()
+        << " elements in \"token_tree_parent_ptr\".";
+
+    // - Construct the mask of each sequence.
+    int processed_pos = 0;
+    for (int i = 0; i < cur_batch_size_; ++i) {
+      int64_t append_length = cur_append_lengths_[i];
+      std::vector<std::vector<int32_t>> mask;
+      std::vector<int32_t> depth;
+      mask.reserve(append_length);
+      depth.reserve(append_length);
+      for (int64_t n = 0; n < append_length; ++n) {
+        CHECK_LT(token_tree_parent_ptr[processed_pos], n)
+            << "Invalid token tree. The parent of node " << n << " in tree " << i << " is "
+            << token_tree_parent_ptr[processed_pos] << ", which is not smaller than " << n;
+        CHECK_GE(token_tree_parent_ptr[processed_pos], -1)
+            << "Invalid token tree. The parent of node " << n << " in tree " << i << " is "
+            << token_tree_parent_ptr[processed_pos];
+        if (token_tree_parent_ptr[processed_pos] != n - 1) {
+          // The parent of the current node is not the last node.
+          // Therefore the tree is not a chain.
+          is_chain = false;
+        }
+
+        std::vector<int32_t> single_pos_mask;
+        if (token_tree_parent_ptr[processed_pos] != -1) {
+          // The current node has a parent in the token tree.
+          single_pos_mask = {mask[token_tree_parent_ptr[processed_pos]].begin(),
+                             mask[token_tree_parent_ptr[processed_pos]].end()};
+          depth.push_back(depth[token_tree_parent_ptr[processed_pos]] + 1);
+        } else {
+          // The current node is root in the token tree.
+          single_pos_mask.resize(append_length, /*value=*/0);
+          depth.push_back(0);
+        }
+        single_pos_mask[n] = 1;
+        mask.push_back(single_pos_mask);
+        for (int32_t mask_val : single_pos_mask) {
+          tree_attn_mask_host_.push_back(mask_val);
+        }
+
+        ++processed_pos;
+      }
+      cur_token_tree_node_depths_.push_back(std::move(depth));
+    }
+
+    return is_chain;
   }
 
   /*!
@@ -1766,12 +2145,27 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
           attn_score_scaling_factor);
     } else {
       // Compute appended text self-attention
-      f_attention_prefill_ragged_(q_data, cur_append_length_indptr_view_, k_data, v_data,
-                                  cur_append_length_indptr_view_, q_rope_position_map_view_,
-                                  k_ragged_rope_pos_offset_view_, output, merged_attn_scores_view_,
-                                  /*causal=*/1,
-                                  /*rotary_mode=*/rope_mode_ == RoPEMode::kInline, rotary_scale_,
-                                  rotary_theta_, attn_score_scaling_factor);
+      if (is_chain_) {
+        // If the batch does not form a tree, use raggedness prefill kernel.
+        f_attention_prefill_ragged_(q_data, cur_append_length_indptr_view_, k_data, v_data,
+                                    cur_append_length_indptr_view_, q_rope_position_map_view_,
+                                    k_ragged_rope_pos_offset_view_, output,
+                                    merged_attn_scores_view_,
+                                    /*causal=*/1,
+                                    /*rotary_mode=*/rope_mode_ == RoPEMode::kInline, rotary_scale_,
+                                    rotary_theta_, attn_score_scaling_factor);
+      } else {
+        // The batch requires tree attention.
+        ICHECK(tree_attn_mask_view_.defined());
+        ICHECK(tree_attn_mn_indptr_view_.defined());
+        ICHECK(f_attention_prefill_with_tree_mask_.defined())
+            << "Function \"f_attention_prefill_with_tree_mask_\" is not defined.";
+        f_attention_prefill_with_tree_mask_(
+            q_data, cur_append_length_indptr_view_, k_data, v_data, cur_append_length_indptr_view_,
+            q_rope_position_map_view_, tree_attn_mn_indptr_view_, tree_attn_mask_view_, output,
+            merged_attn_scores_view_, /*rotary_mode=*/rope_mode_ == RoPEMode::kInline,
+            rotary_scale_, rotary_theta_, attn_score_scaling_factor, cur_batch_size_);
+      }
 
       for (int d = 0; d < num_depths_; ++d) {
         if (page_indices_on_depths_view_[d]->shape[0] == 0) {
@@ -1840,7 +2234,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     ICHECK_EQ(total_append_length, append_position_map_host_.size());
 
     // - Reset the copy.
-    aux_data_manager_->ResetCopy();
+    aux_data_manager_->ResetAttnAuxDataCopy();
 
     // 1. q_rope_position_map
     // q_rope_position_map has to be synced first so that it has a 0 byte offset
@@ -1900,7 +2294,16 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     // 9. append_position_map
     append_position_map_view_ =
         aux_data_manager_->CopyAppendPositionMapAsync(&append_position_map_host_);
-    // 10. Create view for temporary arrays for attention computation.
+    // 10. tree_attn_mask and tree_attn_mn_indptr
+    if (!is_chain_) {
+      tree_attn_mask_view_ = aux_data_manager_->CopyTreeAttnMaskAsync(&tree_attn_mask_host_);
+      tree_attn_mn_indptr_view_ =
+          aux_data_manager_->CopyTreeAttnMNIndptrAsync(&tree_attn_mn_indptr_host_);
+    } else {
+      tree_attn_mask_view_ = NDArray{nullptr};
+      tree_attn_mn_indptr_view_ = NDArray{nullptr};
+    }
+    // 11. Create view for temporary arrays for attention computation.
     temp_attn_output_view_ = temp_attn_output_device_.CreateView(
         {total_append_length, num_qo_heads_, head_dim_}, temp_attn_output_device_->dtype);
     temp_attn_scores_view_ = temp_attn_scores_device_.CreateView(
@@ -1909,7 +2312,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
         {total_append_length, num_qo_heads_}, merged_attn_scores_device_->dtype);
 
     // - Commit the copy.
-    aux_data_manager_->CommitCopy();
+    aux_data_manager_->CommitAttnAuxDataCopy();
     // - Reset the dirty flag to false.
     dirty_aux_data_device_ = false;
   }
@@ -1922,21 +2325,44 @@ TVM_REGISTER_OBJECT_TYPE(PagedAttentionKVCacheObj);
 //-------------------------------------------------
 
 TVM_REGISTER_GLOBAL("vm.builtin.paged_attention_kv_cache_create")
-    .set_body_typed([](ShapeTuple cache_config, int64_t num_layers, int64_t num_qo_heads,
-                       int64_t num_kv_heads, int64_t head_dim, int rope_mode, double rotary_scale,
-                       double rotary_theta, NDArray init, PackedFunc f_transpose_append,
-                       PackedFunc f_attention_prefill, PackedFunc f_attention_decode,
-                       PackedFunc f_attention_prefill_sliding_window,  //
-                       PackedFunc f_attention_decode_sliding_window,
-                       PackedFunc f_attention_prefill_ragged,
-                       PackedFunc f_attention_prefill_ragged_begin_forward,
-                       PackedFunc f_attention_prefill_ragged_end_forward,
-                       PackedFunc f_attention_prefill_begin_forward,
-                       PackedFunc f_attention_prefill_end_forward,
-                       PackedFunc f_attention_decode_begin_forward,
-                       PackedFunc f_attention_decode_end_forward, PackedFunc f_merge_inplace,
-                       PackedFunc f_split_rotary, PackedFunc f_copy_single_page,
-                       Optional<PackedFunc> f_debug_get_kv) {
+    .set_body([](TVMArgs args, TVMRetValue* rv) {
+      CHECK(args.size() == 25 || args.size() == 26 || args.size() == 27)
+          << "Invalid number of KV cache constructor args.";
+      ShapeTuple cache_config = args[0];
+      int64_t num_layers = args[1];
+      int64_t num_qo_heads = args[2];
+      int64_t num_kv_heads = args[3];
+      int64_t head_dim = args[4];
+      int rope_mode = args[5];
+      double rotary_scale = args[6];
+      double rotary_theta = args[7];
+      NDArray init = args[8];
+      PackedFunc f_transpose_append = args[9];
+      PackedFunc f_attention_prefill = args[10];
+      PackedFunc f_attention_decode = args[11];
+      PackedFunc f_attention_prefill_sliding_window = args[12];
+      PackedFunc f_attention_decode_sliding_window = args[13];
+      PackedFunc f_attention_prefill_ragged = args[14];
+      PackedFunc f_attention_prefill_ragged_begin_forward = args[15];
+      PackedFunc f_attention_prefill_ragged_end_forward = args[16];
+      PackedFunc f_attention_prefill_begin_forward = args[17];
+      PackedFunc f_attention_prefill_end_forward = args[18];
+      PackedFunc f_attention_decode_begin_forward = args[19];
+      PackedFunc f_attention_decode_end_forward = args[20];
+      PackedFunc f_merge_inplace = args[21];
+      PackedFunc f_split_rotary = args[22];
+      PackedFunc f_copy_single_page = args[23];
+      Optional<PackedFunc> f_debug_get_kv = args[24];
+      PackedFunc f_compact_copy{nullptr};
+      PackedFunc f_attention_prefill_with_tree_mask{nullptr};
+
+      if (args.size() >= 26) {
+        f_compact_copy = args[25].AsObjectRef<PackedFunc>();
+      }
+      if (args.size() >= 27) {
+        f_attention_prefill_with_tree_mask = args[26].AsObjectRef<PackedFunc>();
+      }
+
       CHECK_EQ(cache_config.size(), 5);
       int64_t reserved_num_seqs = cache_config[0];
       int64_t total_token_capacity = cache_config[1];
@@ -1952,28 +2378,52 @@ TVM_REGISTER_GLOBAL("vm.builtin.paged_attention_kv_cache_create")
           page_size, num_layers, num_qo_heads, num_kv_heads, head_dim, reserved_num_seqs,
           num_total_pages, prefill_chunk_size, support_sliding_window, RoPEMode(rope_mode),
           rotary_scale, rotary_theta, init->dtype, init->device, std::move(f_transpose_append),
-          std::move(f_attention_prefill), std::move(f_attention_decode),
+          std::move(f_compact_copy), std::move(f_attention_prefill), std::move(f_attention_decode),
           std::move(f_attention_prefill_sliding_window),
           std::move(f_attention_decode_sliding_window), std::move(f_attention_prefill_ragged),
+          std::move(f_attention_prefill_with_tree_mask),
           std::move(f_attention_prefill_ragged_begin_forward),
           std::move(f_attention_prefill_ragged_end_forward),
           std::move(f_attention_prefill_begin_forward), std::move(f_attention_prefill_end_forward),
           std::move(f_attention_decode_begin_forward), std::move(f_attention_decode_end_forward),
           std::move(f_merge_inplace), std::move(f_split_rotary), std::move(f_copy_single_page),
           std::move(f_debug_get_kv));
-      return AttentionKVCache(std::move(n));
+      *rv = AttentionKVCache(std::move(n));
     });
 
 TVM_REGISTER_GLOBAL("vm.builtin.paged_attention_kv_cache_create_reduced")
-    .set_body_typed([](ShapeTuple cache_config, int64_t num_layers, int64_t num_qo_heads,
-                       int64_t num_kv_heads, int64_t head_dim, int rope_mode, double rotary_scale,
-                       double rotary_theta, NDArray init, PackedFunc f_transpose_append,
-                       PackedFunc f_attention_prefill, PackedFunc f_attention_decode,
-                       PackedFunc f_attention_prefill_sliding_window,
-                       PackedFunc f_attention_decode_sliding_window,
-                       PackedFunc f_attention_prefill_ragged, PackedFunc f_merge_inplace,
-                       PackedFunc f_split_rotary, PackedFunc f_copy_single_page,
-                       Optional<PackedFunc> f_debug_get_kv) {
+    .set_body([](TVMArgs args, TVMRetValue* rv) {
+      CHECK(args.size() == 19 || args.size() == 20 || args.size() == 21)
+          << "Invalid number of KV cache constructor args.";
+      ShapeTuple cache_config = args[0];
+      int64_t num_layers = args[1];
+      int64_t num_qo_heads = args[2];
+      int64_t num_kv_heads = args[3];
+      int64_t head_dim = args[4];
+      int rope_mode = args[5];
+      double rotary_scale = args[6];
+      double rotary_theta = args[7];
+      NDArray init = args[8];
+      PackedFunc f_transpose_append = args[9];
+      PackedFunc f_attention_prefill = args[10];
+      PackedFunc f_attention_decode = args[11];
+      PackedFunc f_attention_prefill_sliding_window = args[12];
+      PackedFunc f_attention_decode_sliding_window = args[13];
+      PackedFunc f_attention_prefill_ragged = args[14];
+      PackedFunc f_merge_inplace = args[15];
+      PackedFunc f_split_rotary = args[16];
+      PackedFunc f_copy_single_page = args[17];
+      Optional<PackedFunc> f_debug_get_kv = args[18];
+      PackedFunc f_compact_copy{nullptr};
+      PackedFunc f_attention_prefill_with_tree_mask{nullptr};
+
+      if (args.size() >= 20) {
+        f_compact_copy = args[19].AsObjectRef<PackedFunc>();
+      }
+      if (args.size() >= 21) {
+        f_attention_prefill_with_tree_mask = args[20].AsObjectRef<PackedFunc>();
+      }
+
       CHECK_EQ(cache_config.size(), 5);
       int64_t reserved_num_seqs = cache_config[0];
       int64_t total_token_capacity = cache_config[1];
@@ -1989,13 +2439,14 @@ TVM_REGISTER_GLOBAL("vm.builtin.paged_attention_kv_cache_create_reduced")
           page_size, num_layers, num_qo_heads, num_kv_heads, head_dim, reserved_num_seqs,
           num_total_pages, prefill_chunk_size, support_sliding_window, RoPEMode(rope_mode),
           rotary_scale, rotary_theta, init->dtype, init->device, std::move(f_transpose_append),
-          std::move(f_attention_prefill), std::move(f_attention_decode),
+          std::move(f_compact_copy), std::move(f_attention_prefill), std::move(f_attention_decode),
           std::move(f_attention_prefill_sliding_window),
-          std::move(f_attention_decode_sliding_window), std::move(f_attention_prefill_ragged),  //
-          NullOpt, NullOpt, NullOpt, NullOpt, NullOpt, NullOpt,                                 //
+          std::move(f_attention_decode_sliding_window), std::move(f_attention_prefill_ragged),
+          std::move(f_attention_prefill_with_tree_mask),         //
+          NullOpt, NullOpt, NullOpt, NullOpt, NullOpt, NullOpt,  //
           std::move(f_merge_inplace), std::move(f_split_rotary), std::move(f_copy_single_page),
           std::move(f_debug_get_kv));
-      return AttentionKVCache(std::move(n));
+      *rv = AttentionKVCache(std::move(n));
     });
 
 }  // namespace relax_vm

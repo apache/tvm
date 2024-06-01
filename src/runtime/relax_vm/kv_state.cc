@@ -40,13 +40,26 @@ TVM_REGISTER_GLOBAL("vm.builtin.kv_state_fork_sequence")
     .set_body_method<KVState>(&KVStateObj::ForkSequence);
 TVM_REGISTER_GLOBAL("vm.builtin.kv_state_popn").set_body_method<KVState>(&KVStateObj::PopN);
 TVM_REGISTER_GLOBAL("vm.builtin.kv_state_begin_forward")
-    .set_body_method<KVState>(&KVStateObj::BeginForward);
+    .set_body([](TVMArgs args, TVMRetValue* rv) {
+      CHECK(args.size() == 3 || args.size() == 4)
+          << "KVState BeginForward only accepts 3 or 4 arguments";
+      KVState kv_state = args[0];
+      IntTuple seq_ids = args[1];
+      IntTuple append_lengths = args[2];
+      Optional<IntTuple> token_tree_parent_ptr{nullptr};
+      if (args.size() == 4) {
+        token_tree_parent_ptr = args[3].operator Optional<IntTuple>();
+      }
+      kv_state->BeginForward(seq_ids, append_lengths, token_tree_parent_ptr);
+    });
 TVM_REGISTER_GLOBAL("vm.builtin.kv_state_end_forward")
     .set_body_method<KVState>(&KVStateObj::EndForward);
 
 // Attention KV Cache methods
 TVM_REGISTER_GLOBAL("vm.builtin.attention_kv_cache_enable_sliding_window_for_seq")
     .set_body_method<AttentionKVCache>(&AttentionKVCacheObj::EnableSlidingWindowForSeq);
+TVM_REGISTER_GLOBAL("vm.builtin.attention_kv_cache_commit_accepted_token_tree_nodes")
+    .set_body_method<AttentionKVCache>(&AttentionKVCacheObj::CommitAcceptedTokenTreeNodes);
 TVM_REGISTER_GLOBAL("vm.builtin.attention_kv_cache_empty")
     .set_body_method<AttentionKVCache>(&AttentionKVCacheObj::Empty);
 TVM_REGISTER_GLOBAL("vm.builtin.attention_kv_cache_get_num_available_pages")
