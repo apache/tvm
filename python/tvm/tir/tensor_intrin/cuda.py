@@ -688,6 +688,18 @@ TensorIntrin.register(
     *get_mma_intrin(16, "float16", "float16", "float16", False, True, True, True),
 )
 
+MMA_f16f16f32_TRANS_B_SMOOTH_B_INTRIN = "mma_f16f16f32_trans_b_smooth_b"
+TensorIntrin.register(
+    MMA_f16f16f32_TRANS_B_SMOOTH_B_INTRIN,
+    *get_mma_intrin(16, "float16", "float16", "float32", False, True, False, True),
+)
+
+MMA_f16f16f32_SMOOTH_A_TRANS_SMOOTH_B_INTRIN = "mma_f16f16f32_smooth_a_trans_b_smooth_b"
+TensorIntrin.register(
+    MMA_f16f16f32_SMOOTH_A_TRANS_SMOOTH_B_INTRIN,
+    *get_mma_intrin(16, "float16", "float16", "float32", False, True, True, True),
+)
+
 MMA_f16f16f16_TRANS_A_INTRIN = "mma_f16f16f16_trans_a"
 TensorIntrin.register(
     MMA_f16f16f16_TRANS_A_INTRIN, *get_mma_intrin(16, "float16", "float16", "float16", True, False)
