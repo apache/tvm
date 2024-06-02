@@ -438,7 +438,10 @@ def apply_attention(
     fend_forward(kv_cache)
 
     if accepted_leaf_indices is not None:
-        fcommit_accepted_token_tree_nodes(kv_cache, ShapeTuple(accepted_leaf_indices))
+        seq_ids = [seq_id for seq_id, _ in batch]
+        fcommit_accepted_token_tree_nodes(
+            kv_cache, ShapeTuple(seq_ids), ShapeTuple(accepted_leaf_indices)
+        )
         for i, (accepted_leaf_idx, (seq_id, append_length)) in enumerate(
             zip(accepted_leaf_indices, batch)
         ):
@@ -449,7 +452,7 @@ def apply_attention(
                 node = token_tree_parent_ptr_list[i][node]
             offset = cached_k[seq_id].shape[1] - append_length
             length_to_pop = append_length - len(tree_path)
-            assert 0 <= length_to_pop < append_length
+            assert 0 <= length_to_pop <= append_length
             for dst_pos, src_pos in enumerate(reversed(tree_path)):
                 if dst_pos == src_pos:
                     continue
@@ -773,7 +776,7 @@ def test_paged_attention_kv_cache_tree_attn(kv_cache_and_config):
             [-1, 0, 1, 2, 3, 4, 5, 6, 7, 8],  # chain of length 10
             [-1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],  # chain of length 14
         ],
-        accepted_leaf_indices=[2, 6, 6, 4],
+        accepted_leaf_indices=[2, 6, -1, 4],
     )
     # Do 5 rounds of decode.
     for _ in range(5):
