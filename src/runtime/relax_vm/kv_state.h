@@ -151,9 +151,11 @@ class AttentionKVCacheObj : public KVStateObj {
    * The commit will update the KV cache, by compacting the KV data and discard
    * the KV data of rejected tokens.
    * This is a mandatory step when the BeginForward is given with a token tree.
+   * \param seq_ids The ids of the sequences to commit.
    * \param leaf_indices The leaf token tree node index of each sequence.
    */
-  virtual void CommitAcceptedTokenTreeNodes(const IntTuple& leaf_indices) = 0;
+  virtual void CommitAcceptedTokenTreeNodes(const IntTuple& seq_ids,
+                                            const IntTuple& leaf_indices) = 0;
 
   /************** Attention **************/
 
