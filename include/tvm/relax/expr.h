@@ -29,6 +29,8 @@
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
 
+#include <functional>
+
 namespace tvm {
 namespace relax {
 
@@ -1110,5 +1112,33 @@ TVM_DLL Expr GetShapeOf(const Expr& expr);
 
 }  // namespace relax
 }  // namespace tvm
+
+/* \brief Allow relax.Var as key in STL tables
+ *
+ * For most Relax expressions, it would be ambiguous whether the
+ * expression should follow reference equality or structural equality.
+ * This is not the case for variables, which do not contain nested
+ * internal structure, and are frequently used as keys in lookup
+ * tables.
+ *
+ * Providing `std::hash` and `std::equal_to` specializations for
+ * `relax::Var` allows it to be used as a key in STL tables.  For
+ * `relax::Expr`, the user must specify the type of equality used
+ * (e.g. `std::unordered_set<T, StructuralHash, StructuralEqual>` or
+ * `std::unordered_set<T, ObjectPtrHash, ObjectPtrEqual>`).
+ */
+template <>
+struct std::hash<tvm::relax::Var> {
+  std::size_t operator()(const tvm::relax::Var& var) const {
+    return tvm::runtime::ObjectPtrHash()(var);
+  }
+};
+
+template <>
+struct std::equal_to<tvm::relax::Var> {
+  bool operator()(const tvm::relax::Var& var_a, const tvm::relax::Var& var_b) const {
+    return tvm::runtime::ObjectPtrEqual()(var_a, var_b);
+  }
+};
 
 #endif  // TVM_RELAX_EXPR_H_

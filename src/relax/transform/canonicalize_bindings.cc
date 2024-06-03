@@ -226,10 +226,10 @@ class CanonicalizePlanner : public ExprVisitor {
   Map<Var, Var> trivial_bindings_;
   Map<Var, Expr> known_bindings_;
   Map<Var, Constant> known_bound_to_constant_;
-  std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> defined_inside_dataflow_;
+  std::unordered_set<Var> defined_inside_dataflow_;
   // Set of vars either used outside a dataflow block altogether or outside their
   // home dataflow block (the one where they were defined)
-  std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> used_outside_home_dataflow_;
+  std::unordered_set<Var> used_outside_home_dataflow_;
 };
 
 /*! \brief The mutator class to apply a CanonicalizationPlan */

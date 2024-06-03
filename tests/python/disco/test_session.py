@@ -220,6 +220,13 @@ def test_vm_multi_func(session_kind):
         np.testing.assert_equal(z_nd, x_np)
 
 
+@pytest.mark.parametrize("session_kind", _all_session_kinds)
+@pytest.mark.parametrize("num_workers", [1, 2, 4])
+def test_num_workers(session_kind, num_workers):
+    sess = session_kind(num_workers=num_workers)
+    assert sess.num_workers == num_workers
+
+
 if __name__ == "__main__":
     test_int(di.ProcessSession)
     test_float(di.ProcessSession)

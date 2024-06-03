@@ -290,5 +290,16 @@ class TestCacheableTypes:
         pass
 
 
+class TestPytestCache:
+    param = tvm.testing.parameter(1, 2, 3)
+
+    @pytest.fixture(scope="class")
+    def cached_fixture(self, param):
+        return param * param
+
+    def test_uses_cached_fixture(self, param, cached_fixture):
+        assert cached_fixture == param * param
+
+
 if __name__ == "__main__":
     tvm.testing.main()

@@ -914,7 +914,7 @@ class ExternFuncPatternNode : public DFPatternNode {
  public:
   String global_symbol_; /*!< The global symbol name of the external function */
 
-  /*! \brief The the external function name */
+  /*! \brief The external function name */
   const String& global_symbol() const { return global_symbol_; }
   void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("global_symbol", &global_symbol_); }
 

@@ -1217,5 +1217,132 @@ def test_matmul_symbolic_var():
     tvm.ir.assert_structural_equal(Expected, After)
 
 
+def test_match_maximal_subgraph():
+    @R.function
+    def func(
+        x: R.Tensor((32, 8), dtype="int32"),
+        y: R.Tensor((8, 8), dtype="int32"),
+        bias: R.Tensor((8,), dtype="int32"),
+    ) -> R.Tensor((32, 8), dtype="int32"):
+        R.func_attr({"global_symbol": "main"})
+        with R.dataflow():
+            lv0 = R.matmul(x, y, out_dtype="int32")
+            lv1 = R.add(lv0, bias)
+            lv2 = R.clip(lv1, -128, 127)
+            R.output(lv2)
+        return lv2
+
+    mod = tvm.IRModule({"main": func})
+
+    matmul = is_op("relax.matmul")(wildcard(), wildcard())
+    matmul_add = is_op("relax.add")(matmul, wildcard())
+    pattern = matmul_add | is_op("relax.clip")(matmul_add, wildcard(), wildcard())
+
+    partitioned = relax.transform.FuseOpsByPattern([("orclip", pattern)])(mod)
+    func_names = [name.name_hint for (name, _) in partitioned.functions.items()]
+    assert "fused_relax_matmul_relax_add_relax_clip" in func_names
+
+
+def test_dataflow_inside_branch():
+    """Fusion may apply within internal dataflow
+
+    While relax::DataflowBlock instances may not contain flow control
+    or impure functions, they may be contained within flow control
+    structures.
+
+    """
+
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(
+            x: R.Tensor([1024, 1024], "float16"),
+            w: R.Tensor([1024, 1024], "float16"),
+            transpose_weights: R.Prim("bool"),
+        ):
+            if transpose_weights:
+                with R.dataflow():
+                    w_t = R.permute_dims(w)
+                    out = R.matmul(x, w_t)
+                    R.output(out)
+            else:
+                with R.dataflow():
+                    out = R.matmul(x, w)
+                    R.output(out)
+            return out
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            x: R.Tensor([1024, 1024], "float16"),
+            w: R.Tensor([1024, 1024], "float16"),
+            transpose_weights: R.Prim("bool"),
+        ):
+            cls = Expected
+            if transpose_weights:
+                with R.dataflow():
+                    out_then = cls.fused_relax_permute_dims_relax_matmul_cublas(w, x)
+                    R.output(out_then)
+                out = out_then
+            else:
+                with R.dataflow():
+                    out_else = cls.fused_relax_matmul_cublas(x, w)
+                    R.output(out_else)
+                out = out_else
+            return out
+
+        @R.function
+        def fused_relax_permute_dims_relax_matmul_cublas(
+            w: R.Tensor((1024, 1024), dtype="float16"),
+            x: R.Tensor((1024, 1024), dtype="float16"),
+        ) -> R.Tensor((1024, 1024), dtype="float16"):
+            R.func_attr({"Codegen": "cublas"})
+
+            @R.function
+            def local_func(
+                w_1: R.Tensor((1024, 1024), dtype="float16"),
+                x_1: R.Tensor((1024, 1024), dtype="float16"),
+            ) -> R.Tensor((1024, 1024), dtype="float16"):
+                R.func_attr({"Composite": "cublas.matmul_transposed"})
+                with R.dataflow():
+                    w_t = R.permute_dims(w_1)
+                    out = R.matmul(x_1, w_t)
+                    R.output(out)
+                return out
+
+            output = local_func(w, x)
+            return output
+
+        @R.function
+        def fused_relax_matmul_cublas(
+            x: R.Tensor((1024, 1024), dtype="float16"),
+            w: R.Tensor((1024, 1024), dtype="float16"),
+        ) -> R.Tensor((1024, 1024), dtype="float16"):
+            R.func_attr({"Codegen": "cublas"})
+
+            @R.function
+            def local_func(
+                x_1: R.Tensor((1024, 1024), dtype="float16"),
+                w_1: R.Tensor((1024, 1024), dtype="float16"),
+            ) -> R.Tensor((1024, 1024), dtype="float16"):
+                R.func_attr({"Composite": "cublas.matmul"})
+                with R.dataflow():
+                    out = R.matmul(x_1, w_1)
+                    R.output(out)
+                return out
+
+            output = local_func(x, w)
+            return output
+
+    patterns = relax.backend.pattern_registry.get_patterns_with_prefix("cublas.matmul")
+    After = relax.transform.FuseOpsByPattern(
+        patterns,
+        bind_constants=False,
+        annotate_codegen=True,
+    )(Before)
+    tvm.ir.assert_structural_equal(Expected, After)
+
+
 if __name__ == "__main__":
     pytest.main([__file__])

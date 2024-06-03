@@ -1493,7 +1493,7 @@ class VectorTypeRewriter : public StmtExprMutator {
       arith::ModularSet me = analyzer_.modular_set(last_dim_index);
       ICHECK(me->coeff == 0 || info.factor() % me->coeff == 0);
       PrimExpr new_index = last_dim_index / make_const(last_dim_index.dtype(), info.factor());
-      shuffle_index = me->base;
+      shuffle_index = me->base % info.factor();
       indices.Set(indices.size() - 1, new_index);
     }
 

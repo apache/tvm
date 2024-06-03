@@ -31,6 +31,7 @@
 #include <tvm/runtime/object.h>
 
 #include <algorithm>
+#include <functional>
 #include <limits>
 #include <string>
 #include <type_traits>
@@ -821,4 +822,32 @@ struct PackedFuncValueConverter<tvm::Bool> {
 
 }  // namespace runtime
 }  // namespace tvm
+
+/* \brief Allow tvm.GLobalVar as key in STL tables
+ *
+ * For most IR expressions, it would be ambiguous whether the
+ * expression should follow reference equality or structural equality.
+ * This is not the case for variables, which do not contain nested
+ * internal structure, and are frequently used as keys in lookup
+ * tables.
+ *
+ * Providing `std::hash` and `std::equal_to` specializations for
+ * `tvm::GlobalVar` allows it to be used as a key in STL tables.  For
+ * other IR expressions, the user must specify the type of equality
+ * used (e.g. `std::unordered_set<T, StructuralHash, StructuralEqual>`
+ * or `std::unordered_set<T, ObjectPtrHash, ObjectPtrEqual>`).
+ */
+template <>
+struct std::hash<tvm::GlobalVar> {
+  std::size_t operator()(const tvm::GlobalVar& var) const {
+    return tvm::runtime::ObjectPtrHash()(var);
+  }
+};
+
+template <>
+struct std::equal_to<tvm::GlobalVar> {
+  bool operator()(const tvm::GlobalVar& var_a, const tvm::GlobalVar& var_b) const {
+    return tvm::runtime::ObjectPtrEqual()(var_a, var_b);
+  }
+};
 #endif  // TVM_IR_EXPR_H_

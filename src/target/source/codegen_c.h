@@ -328,7 +328,7 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
   ExprDeepEqual deep_equal_;
 
   // binding of let variables. Enables duplicate var defs that map to same value
-  std::unordered_map<Var, const LetNode*, ObjectPtrHash, ObjectPtrEqual> let_binding_;
+  std::unordered_map<Var, const LetNode*> let_binding_;
 
   /* \brief Map of GlobalVar to their symbol.
    *
@@ -337,7 +337,7 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
    * functions, this is the name of the function's GlobalVar, possibly
    * altered to prevent duplicate names.
    */
-  std::unordered_map<GlobalVar, String, ObjectPtrHash, ObjectPtrEqual> internal_functions_;
+  std::unordered_map<GlobalVar, String> internal_functions_;
 
   /* \brief Name supply to generate unique function names */
   NameSupply func_name_supply_{""};

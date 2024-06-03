@@ -96,11 +96,12 @@ from .manipulate import (
     tile,
 )
 from .mask import masked_fill
-from .qdq import quantize, dequantize
+from .qdq import dequantize, quantize
+from .sampling import multinomial_from_uniform
 from .search import argmax, argmin, where
 from .set import unique
-from .sorting import sort, argsort, topk
-from .statistical import cumsum, cumprod, max, mean, min, prod, std, sum, variance
+from .sorting import argsort, sort, topk
+from .statistical import cumprod, cumsum, max, mean, min, prod, std, sum, variance
 from .ternary import ewise_fma
 from .unary import (
     abs,

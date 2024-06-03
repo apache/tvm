@@ -291,14 +291,14 @@ class UndefinedVarVerifier : public Verifier<UndefinedVarVerifier> {
   }
 
   // Variables that are defined in the currently-visited scope.
-  std::unordered_map<Var, ObjectPath, ObjectPtrHash, ObjectPtrEqual> currently_defined_;
+  std::unordered_map<Var, ObjectPath> currently_defined_;
 
   // Variables that were previously defined, and are now out of scope.
-  std::unordered_map<Var, ObjectPath, ObjectPtrHash, ObjectPtrEqual> previously_defined_;
+  std::unordered_map<Var, ObjectPath> previously_defined_;
 
   // Special variables that are allowed to be re-defined, so long as
   // that re-definition occurs within the same PrimFunc.  For example
-  std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> redefine_allowed_within_function_;
+  std::unordered_set<Var> redefine_allowed_within_function_;
 };
 
 /* \brief Verify unique tir::Var for each environment thread

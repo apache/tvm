@@ -47,7 +47,7 @@ struct WebGPUWorkGroupInfo {
   // whether we have ref to block index z is used.
   bool has_block_index_z{false};
   // set of handles that have write access
-  std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> write_access_set;
+  std::unordered_set<Var> write_access_set;
 };
 
 class WebGPUWorkgroupInfoCollector : public StmtExprVisitor {
@@ -459,6 +459,7 @@ void CodeGenWebGPU::VisitExpr_(const BufferLoadNode* op, std::ostream& os) {  //
   // to ensure correctness in the case of nested-expression
   // do not try to lift common printings from each case
   ICHECK_EQ(op->indices.size(), 1) << "Load from non-flat memory not supported.";
+  ICHECK(!op->predicate.defined()) << "Predicated buffer load is not supported.";
 
   DataType value_dtype = op->dtype;
   PrimExpr index = op->indices[0];
@@ -531,6 +532,8 @@ void CodeGenWebGPU::VisitStmt_(const LetStmtNode* op) {
 
 void CodeGenWebGPU::VisitStmt_(const BufferStoreNode* op) {
   CHECK_EQ(op->indices.size(), 1) << "Store to non-flat memory not supported.";
+  ICHECK(!op->predicate.defined()) << "Predicated buffer store is not supported.";
+
   DataType value_dtype = op->value.dtype();
   DataType element_dtype = op->buffer->dtype;
   PrimExpr index = op->indices[0];
