@@ -294,7 +294,11 @@ void CodeGenCUDA::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
     if (!fail) return;
   } else if (t.is_float8()) {
     enable_fp8_ = true;
-    os << GetFP8Type(t);
+    if (t.lanes() <= 4) {
+      os << GetFP8Type(t);
+    } else {
+      os << "uint" << t.lanes() / 4;
+    }
     return;
   } else if (t == DataType::Bool()) {
     os << "bool";
