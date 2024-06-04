@@ -1045,5 +1045,26 @@ def main(A: T.Buffer((128,), "float32"), B: T.Buffer((128,), "float32")):
     _assert_print(main, expected_output)
 
 
+def test_vectorize_llvm_pure_intrin():
+    from tvm.script import tir as T
+
+    @T.prim_func
+    def main(a: T.handle, b: T.handle):
+        A = T.match_buffer(a, (4,), "float32")
+        B = T.match_buffer(b, (4,), "float32")
+        A[T.Ramp(0, 1, 4)] = T.call_llvm_pure_intrin(
+            "float32x4", "llvm.sqrt", 1, B[T.Ramp(0, 1, 4)]
+        )
+
+    expected_output = """
+# from tvm.script import tir as T
+
+@T.prim_func
+def main(A: T.Buffer((4,), "float32"), B: T.Buffer((4,), "float32")):
+    A[0:4] = T.call_llvm_pure_intrin("float32x4", "llvm.sqrt", 1, B[0:4])
+    """
+    _assert_print(main, expected_output)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
