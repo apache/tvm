@@ -431,6 +431,26 @@ struct __align__(8) half4 {
         (static_cast<__uint32_t>(lo_part.__x) | (static_cast<__uint32_t>(hi_part.__x) << 16));
     return result;
   }
+  __device__ __nv_fp8x2_e5m2 make_fp8x2_e5m2(__nv_fp8_storage_t x, __nv_fp8_storage_t y) {
+      __nv_fp8x2_e5m2 result;
+      result.__x = (x) | (y << 8);
+      return result;
+  }
+  __device__ __nv_fp8x4_e5m2 make_fp8x4_e5m2(__nv_fp8_storage_t a, __nv_fp8_storage_t b, __nv_fp8_storage_t c, __nv_fp8_storage_t d) {
+      __nv_fp8x4_e5m2 result;
+      result.__x = (a) | (b << 8) | (c << 16) | (d << 24);
+      return result;
+  }
+  __device__ __nv_fp8x2_e4m3 make_fp8x2_e4m3(__nv_fp8_storage_t x, __nv_fp8_storage_t y) {
+      __nv_fp8x2_e4m3 result;
+      result.__x = (x) | (y << 8);
+      return result;
+  }
+  __device__ __nv_fp8x4_e4m3 make_fp8x4_e4m3(__nv_fp8_storage_t a, __nv_fp8_storage_t b, __nv_fp8_storage_t c, __nv_fp8_storage_t d) {
+      __nv_fp8x4_e4m3 result;
+      result.__x = (a) | (b << 8) | (c << 16) | (d << 24);
+      return result;
+  }
   )";
     }
     stream << R"(

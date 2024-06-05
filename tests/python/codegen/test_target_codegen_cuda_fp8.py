@@ -64,7 +64,7 @@ def test_e4m3_conversions():
     fadd = tvm.build(sch.mod, target=target)
 
     cuda_src = fadd.imported_modules[0].get_source()
-    assert "fp8_e4_t" in cuda_src, "FP8E4M3 (fp8_e4_t) datatype not found in generated CUDA"
+    assert "__nv_fp8_e4m3" in cuda_src, "FP8E4M3 (fp8_e4_t) datatype not found in generated CUDA"
 
     dev = tvm.device(target, 0)
 
