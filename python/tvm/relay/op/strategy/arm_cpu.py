@@ -582,8 +582,12 @@ def conv2d_gemm_without_weight_transform_strategy_arm_cpu(attrs, inputs, out_typ
                     wrap_topi_schedule(interleaved_schedule),
                     name="conv2d_NHWC_quantized_interleaved_without_transform.arm_cpu",
                 )
+        # Non-quantized cases
         elif data.dtype in ["float32", "float16"]:
-            # Non-quantized cases
+            # The SME schedule for float16->float32 prearranges the two matrices to be multiplied
+            # using the ARM_SME_BLOCK2_2SVLx1SVL_FP16_TRANSPOSE_INTERLEAVE intrinsic which expects
+            # the reduction axis K as the second dimension of the matrix (i.e. shape = (_, K)).
+            # This means that the flattened weights matrix B needs to be transposed to (N, K).
             if (
                 target.features.has_sme
                 and kernel.dtype == "float16"

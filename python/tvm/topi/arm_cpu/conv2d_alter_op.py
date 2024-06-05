@@ -172,6 +172,10 @@ def _alter_conv2d_layout(attrs, inputs, tinfos, out_type):
         KH, KW, IC, OC = get_const_tuple(kernel.shape)
         K = KH * KW * IC
         N = OC
+        # The SME schedule for float16->float32 prearranges the two matrices to be multiplied
+        # using the ARM_SME_BLOCK2_2SVLx1SVL_FP16_TRANSPOSE_INTERLEAVE intrinsic which expects
+        # the reduction axis K as the second dimension of the matrix (i.e. shape = (_, K)).
+        # This means that the flattened weights matrix B needs to be transposed to (N, K).
         transposed_kernel_expr = relay.transpose(inputs[1], axes=[3, 0, 1, 2])
         transposed_flattened_kernel_expr = relay.reshape(transposed_kernel_expr, newshape=(N, K))
         new_kernel_expr = transposed_flattened_kernel_expr
