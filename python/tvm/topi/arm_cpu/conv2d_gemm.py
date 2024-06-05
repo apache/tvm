@@ -289,6 +289,17 @@ def compute_conv2d_gemm_without_weight_transform(
                 tvm.tir.const(1, C.dtype) * C[0, M_padded - 1, N_padded - 1]
                 - tvm.tir.const(1, C.dtype) * C[0, M_padded - 1, N_padded - 1]
             )
+    elif use_sme and in_dtype == "float16" and out_dtype == "float32":
+        assert len(B_interleaved_t.shape) == 2
+        C = te.compute(
+            (batches, M_padded, N_padded),
+            lambda b, x, y: te.sum(
+                A[b, x, k].astype(out_dtype) * B_interleaved_t[y, k].astype(out_dtype),
+                axis=k,
+            ),
+            name="C",
+        )
+        zero = tvm.tir.const(0)
     elif use_scalable_vectors or use_sme:
         assert len(B_interleaved_t.shape) == 2
         C = te.compute(
