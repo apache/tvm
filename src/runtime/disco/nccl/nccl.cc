@@ -67,9 +67,21 @@ void InitCCLPerWorker(IntTuple device_ids, std::string unique_id_bytes) {
   CCLThreadLocalContext* ctx = CCLThreadLocalContext::Get();
   DiscoWorker* worker = DiscoWorker::ThreadLocal();
   ICHECK(worker != nullptr);
+
   CHECK_EQ(unique_id_bytes.size(), NCCL_UNIQUE_ID_BYTES)
       << "ValueError: The length of unique_id must be " << NCCL_UNIQUE_ID_BYTES << ", but got "
       << unique_id_bytes.size() << ".";
+
+  CHECK(!ctx->comm) << "Cannot initialize CCL, "
+                    << "the previous thread-global comm still exists, "
+                    << "and has not been destructed";
+  CHECK(!ctx->default_stream) << "Cannot initialize CCL, "
+                              << "the previous thread-global stream still exists, "
+                              << "and has not been destructed";
+  CHECK(!ctx->worker) << "Cannot initialize CCL, "
+                      << "the previous thread-global worker still exists, "
+                      << "and has not been destructed";
+
   // Step up local context of NCCL
   int device_id = device_ids[worker->worker_id];
   SetDevice(device_id);
