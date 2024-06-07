@@ -666,8 +666,12 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
     pending_request_bytes_ -= size;
     return size;
   }
-  // wriite the data to the channel.
-  void Write(const void* data, size_t size) final { writer_->Write(data, size); }
+  // write the data to the channel.
+  size_t Write(const void* data, size_t size) final {
+    writer_->Write(data, size);
+    return size;
+  }
+
   // Number of pending bytes requests
   size_t pending_request_bytes_{0};
   // The ring buffer to read data from.

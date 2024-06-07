@@ -24,6 +24,7 @@ from tvm import autotvm
 from tvm.script import tir as T
 import tvm.contrib.nnpack
 from tvm.tir.schedule.analysis import has_block
+from tvm.topi.arm_cpu.matmul import _get_transpose_interleave_intrin_name
 
 from ..utils import traverse_inline, get_const_tuple
 from .. import nn
@@ -680,6 +681,43 @@ def compute_conv2d_NHWC_hybrid_SME(cfg, data, kernel, strides, padding, dilation
     )
 
 
+@autotvm.register_topi_compute("conv2d_NHWC_hybrid_SME_transposed_B.arm_cpu")
+def compute_conv2d_NHWC_SME_transposed_B(
+    cfg,
+    data,
+    kernel,
+    strides,
+    padding,
+    dilation,
+    out_dtype,
+    kernel_size,
+    output_channels,
+):
+    """Compute conv2d NHWC hybrid SME transposed B"""
+    N, K = get_const_tuple(kernel.shape)
+    tile_N, tile_K = get_tiling_B_transformed(False, data.dtype, True, True)
+    pad_N, pad_K = tvm.topi.arm_cpu.arm_utils.get_conv2d_weights_padding(N, K, tile_N, tile_K)
+
+    kernel = tvm.topi.nn.pad(
+        kernel, pad_before=(0, 0), pad_after=(pad_N, pad_K), name="weight_padding"
+    )
+
+    return compute_conv2d_gemm_without_weight_transform(
+        cfg,
+        data,
+        kernel,
+        strides,
+        padding,
+        dilation,
+        out_dtype,
+        kernel_size,
+        output_channels,
+        interleave_A=False,
+        use_scalable_vectors=True,
+        use_sme=True,
+    )
+
+
 def schedule_conv2d_NHWC_hybrid_TIR(sch: tvm.tir.Schedule):
     """
     Perform TIR scheduling for conv2d NHWC.
@@ -688,7 +726,8 @@ def schedule_conv2d_NHWC_hybrid_TIR(sch: tvm.tir.Schedule):
     primfunc = sch.mod["main"]
     buffer_names = primfunc.params
     buffer_list = [primfunc.buffer_map[buf] for buf in buffer_names]
-    dtype = buffer_list[0].dtype
+    in_dtype = buffer_list[0].dtype
+    out_dtype = "float32"
 
     # Determine PrimFunc blocks
     block_list = [
@@ -698,6 +737,8 @@ def schedule_conv2d_NHWC_hybrid_TIR(sch: tvm.tir.Schedule):
         "A_padded_K",
         "A_padded_M",
         "weight_flatten",
+        "weight_padding",
+        "weight_transpose",
         "C",
         "conv2d_gemm_output",
     ]
@@ -716,8 +757,8 @@ def schedule_conv2d_NHWC_hybrid_TIR(sch: tvm.tir.Schedule):
     M_padded = sch.get(m).extent
     N_padded = sch.get(n).extent
     K_padded = sch.get(k).extent
-    tile_M, tile_K = get_tiling_A(False, dtype, use_sme)
-    tile_N, _ = get_tiling_B_transformed(False, dtype, use_scalable_vectors, use_sme)
+    tile_M, tile_K = get_tiling_A(False, in_dtype, use_sme)
+    tile_N, _ = get_tiling_B_transformed(False, in_dtype, use_scalable_vectors, use_sme)
     tile_M = T.cast(tile_M, M_padded.dtype)
     tile_N = T.cast(tile_N, N_padded.dtype)
     tile_K = T.cast(tile_K, K_padded.dtype)
@@ -729,10 +770,13 @@ def schedule_conv2d_NHWC_hybrid_TIR(sch: tvm.tir.Schedule):
         # pylint: disable=import-outside-toplevel
         from tvm.topi.arm_cpu.pstate_attributes import SMEAttributes
         from tvm.tir.tensor_intrin.arm_cpu import (
-            ARM_SME_2SVLx2SVL_FP32_TRANSPOSE_INTERLEAVE,
             ARM_SME_2SVLx2SVL_GEMM_INTERLEAVED_MOPA,
             ARM_SME_INIT,
             get_sme_gemm_interleaved_mopa_2svlx2svl_intrin,
+        )
+
+        transpose_interleave_intrin_name = _get_transpose_interleave_intrin_name(
+            in_dtype, out_dtype
         )
 
         # Interleave the padded im2col matrix utilizing the matrix tile
@@ -743,24 +787,40 @@ def schedule_conv2d_NHWC_hybrid_TIR(sch: tvm.tir.Schedule):
         ko, ki = sch.split(k, factors=(None, tile_K), disable_predication=True)
         sch.parallel(b)
         sch.reorder(b, ko, mo, ki, mi)
-        sch.tensorize(ki, ARM_SME_2SVLx2SVL_FP32_TRANSPOSE_INTERLEAVE)
+        sch.tensorize(ki, transpose_interleave_intrin_name)
+
+        # Interleave the padded weights matrix utilizing the matrix tile
+        if in_dtype == "float16":
+            interleave_b_block = sch.cache_read(gemm_block, 1, "global")
+            sch.transform_layout(interleave_b_block, ("write", 0), lambda n, k: (k, n))
+            n, k = sch.get_loops(interleave_b_block)
+            ko, ki = sch.split(k, factors=(None, tile_K), disable_predication=True)
+            no, ni = sch.split(n, factors=(None, tile_N), disable_predication=True)
+            sch.reorder(ko, no, ki, ni)
+            sch.tensorize(ki, transpose_interleave_intrin_name)
 
         # Split and reorder the loops of the GeMM for tensorization
         b, m, n, k = sch.get_loops(gemm_block)
+        tile_M, _ = get_tiling_A(False, out_dtype, True)
+        tile_N, _ = get_tiling_B_transformed(False, out_dtype, True, True)
+        tile_M = T.cast(tile_M, M_padded.dtype)
+        tile_N = T.cast(tile_N, N_padded.dtype)
         mo, mi = sch.split(m, factors=(None, tile_M), disable_predication=True)
         no, ni = sch.split(n, factors=(None, tile_N), disable_predication=True)
         sch.parallel(b)
         sch.reorder(b, mo, no, mi, ni, k)
 
-        # Tensorize the GeMM output matrix initialization to zero
+        # Tensorize the GeMM initialization
         init_block = sch.decompose_reduction(gemm_block, mi)
         sch.tensorize(sch.get_loops(init_block)[-2], ARM_SME_INIT)
 
         # Tensorize the GeMM update
-        sme_gemm_interleaved_intrin_name = ARM_SME_2SVLx2SVL_GEMM_INTERLEAVED_MOPA + f"_{K_padded}"
+        sme_gemm_interleaved_intrin_name = (
+            ARM_SME_2SVLx2SVL_GEMM_INTERLEAVED_MOPA + f"_{K_padded}_{in_dtype}"
+        )
         tvm.tir.TensorIntrin.register(
             sme_gemm_interleaved_intrin_name,
-            *get_sme_gemm_interleaved_mopa_2svlx2svl_intrin(K_padded, dtype),
+            *get_sme_gemm_interleaved_mopa_2svlx2svl_intrin(K_padded, in_dtype),
             override=True,
         )
         sch.tensorize(mi, sme_gemm_interleaved_intrin_name)
@@ -877,6 +937,11 @@ def schedule_conv2d_NHWC_hybrid_TIR(sch: tvm.tir.Schedule):
     if func_blocks["weight_flatten"]:
         weight_flatten_block = func_blocks["weight_flatten"]
         sch.compute_inline(weight_flatten_block)
+
+    # Weight transpose
+    if func_blocks["weight_transpose"] and func_blocks["weight_padding"]:
+        weight_padding_block = func_blocks["weight_padding"]
+        sch.compute_inline(weight_padding_block)
 
     # Conv2d output block
     output_block = func_blocks["conv2d_gemm_output"]

@@ -381,5 +381,151 @@ def test_small_spatial_axis():
     tvm.ir.assert_structural_equal(mod["main"], expected)
 
 
+def test_outer_reduction():
+    # fmt: off
+    @T.prim_func(private=True)
+    def before(
+        B0: T.Buffer((512, 6144), "uint32"),
+        B1: T.Buffer((128, 6144), "float16"),
+        var_A: T.handle,
+        var_C: T.handle
+    ):
+        batch_size = T.int32()
+        A = T.match_buffer(var_A, (batch_size, 1, 4096), "float16")
+        C = T.match_buffer(var_C, (batch_size, 1, 6144), "float16")
+        compute = T.alloc_buffer((4096, 6144), "float16")
+        B = T.alloc_buffer((4096, 6144), "float16")
+        for i0, i1 in T.grid(4096, 6144):
+            with T.block("compute"):
+                v_i0, v_i1 = T.axis.remap("SS", [i0, i1])
+                compute[v_i0, v_i1] = T.Cast("float16", T.bitwise_and(T.shift_right(B0[v_i0 // 8, v_i1], T.Cast("uint32", v_i0 % 8 * 4)), T.uint32(15)))
+        for i0, i1 in T.grid(4096, 6144):
+            with T.block("dequantize"):
+                v_i0, v_i1 = T.axis.remap("SS", [i0, i1])
+                B[v_i0, v_i1] = (compute[v_i0, v_i1] - T.float16(7)) * B1[v_i0 // 32, v_i1]
+        for i0, i1, i2, k in T.grid(batch_size, 1, 6144, 4096):
+            with T.block("matmul"):
+                v_i0, v_i1, v_i2, v_k = T.axis.remap("SSSR", [i0, i1, i2, k])
+                with T.init():
+                    C[v_i0, v_i1, v_i2] = T.float16(0)
+                C[v_i0, v_i1, v_i2] = C[v_i0, v_i1, v_i2] + A[v_i0, v_i1, v_k] * B[v_k, v_i2]
+
+    @T.prim_func(private=True)
+    def expected(B0: T.Buffer((512, 6144), "uint32"), B1: T.Buffer((128, 6144), "float16"), var_A: T.handle, var_C: T.handle):
+        T.func_attr({"tir.is_scheduled": 1})
+        batch_size = T.int32()
+        A = T.match_buffer(var_A, (batch_size, 1, 4096), "float16")
+        C = T.match_buffer(var_C, (batch_size, 1, 6144), "float16")
+        # with T.block("root"):
+        B_local = T.alloc_buffer((4096, 6144), "float16", scope="local")
+        A_pad_shared = T.alloc_buffer(((batch_size + 3) // 4 * 4, 1, 4096), "float16", scope="shared")
+        C_pad_local = T.alloc_buffer(((batch_size + 3) // 4 * 4, 1, 6144), "float16", scope="local")
+        C_pad_rf_local = T.alloc_buffer((32, (batch_size + 3) // 4 * 4, 1, 6144), "float16", scope="local")
+        C_pad_rf_local_1 = T.alloc_buffer((4, (batch_size + 3) // 4 * 4, 1, 6144), "float16", scope="local")
+        B0_local = T.alloc_buffer((512, 6144), "uint32", scope="local")
+        B1_local = T.alloc_buffer((128, 6144), "float16", scope="local")
+        for ax0_0 in T.thread_binding((batch_size + 3) // 4, thread="blockIdx.y"):
+            for ax1_fused_0 in T.thread_binding(96, thread="blockIdx.x"):
+                for ax1_fused_1 in T.thread_binding(64, thread="threadIdx.x"):
+                    for ax2_fused_1_ax2_fused_3_fused_0 in T.thread_binding(4, thread="threadIdx.y"):
+                        for ax0_1_init, ax2_fused_1_ax2_fused_3_fused_1_0_init in T.grid(4, 2):
+                            for ax2_fused_1_ax2_fused_3_fused_1_1_init in T.vectorized(4):
+                                with T.block("matmul_rf_init"):
+                                    vax2_fused_1_ax2_fused_3_fused = T.axis.spatial(32, ax2_fused_1_ax2_fused_3_fused_0 * 8 + ax2_fused_1_ax2_fused_3_fused_1_0_init * 4 + ax2_fused_1_ax2_fused_3_fused_1_1_init)
+                                    v0 = T.axis.spatial((batch_size + 3) // 4 * 4, ax0_0 * 4 + ax0_1_init)
+                                    v1 = T.axis.spatial(6144, ax1_fused_0 * 64 + ax1_fused_1)
+                                    T.reads()
+                                    T.writes(C_pad_rf_local[vax2_fused_1_ax2_fused_3_fused, v0, 0, v1])
+                                    C_pad_rf_local[vax2_fused_1_ax2_fused_3_fused, v0, 0, v1] = T.float16(0)
+                        for ax2_fused_0 in range(32):
+                            for ax0_ax1_fused in T.vectorized(4):
+                                with T.block("B0_local"):
+                                    v0 = T.axis.spatial(512, ax2_fused_0 * 16 + ax2_fused_1_ax2_fused_3_fused_0 * 4 + ax0_ax1_fused)
+                                    v1 = T.axis.spatial(6144, ax1_fused_0 * 64 + ax1_fused_1)
+                                    T.reads(B0[v0, v1])
+                                    T.writes(B0_local[v0, v1])
+                                    B0_local[v0, v1] = B0[v0, v1]
+                            for ax0_ax1_fused in T.vectorized(1):
+                                with T.block("B1_local"):
+                                    v0 = T.axis.spatial(128, ax2_fused_0 * 4 + ax2_fused_1_ax2_fused_3_fused_0)
+                                    v1 = T.axis.spatial(6144, ax1_fused_0 * 64 + ax1_fused_1)
+                                    T.reads(B1[v0, v1])
+                                    T.writes(B1_local[v0, v1])
+                                    B1_local[v0, v1] = B1[v0, v1]
+                            for ax0_ax1_fused_0 in T.thread_binding(4, thread="threadIdx.y"):
+                                for ax0_ax1_fused_1 in T.thread_binding(64, thread="threadIdx.x"):
+                                    for ax0_ax1_fused_2 in T.vectorized(2):
+                                        with T.block("A_pad"):
+                                            v0 = T.axis.spatial((batch_size + 3) // 4 * 4, ax0_0 * 4 + (ax0_ax1_fused_0 * 128 + ax0_ax1_fused_1 * 2 + ax0_ax1_fused_2) // 128)
+                                            v1 = T.axis.spatial(4096, ax2_fused_0 * 128 + (ax0_ax1_fused_0 * 128 + ax0_ax1_fused_1 * 2 + ax0_ax1_fused_2) % 128)
+                                            T.reads(A[v0, 0, v1])
+                                            T.writes(A_pad_shared[v0, 0, v1])
+                                            T.block_attr({"buffer_dim_align": [[0, 1, 8, 1]]})
+                                            A_pad_shared[v0, 0, v1] = T.if_then_else(v0 < batch_size, A[v0, 0, v1], T.float16(0))
+                            for ax2_fused_2 in range(4):
+                                for ax0_ax1_fused_0 in range(2):
+                                    for ax0_ax1_fused_1 in T.vectorized(4):
+                                        with T.block("dequantize"):
+                                            v0 = T.axis.spatial(4096, ax2_fused_0 * 128 + ax2_fused_1_ax2_fused_3_fused_0 * 32 + ax2_fused_2 * 8 + ax0_ax1_fused_0 * 4 + ax0_ax1_fused_1)
+                                            v1 = T.axis.spatial(6144, ax1_fused_0 * 64 + ax1_fused_1)
+                                            T.reads(B0_local[v0 // 8, v1], B1_local[v0 // 32, v1])
+                                            T.writes(B_local[v0, v1])
+                                            B_local[v0, v1] = (T.Cast("float16", T.bitwise_and(T.shift_right(B0_local[v0 // 8, v1], T.Cast("uint32", v0 % 8 * 4)), T.uint32(15))) - T.float16(7)) * B1_local[v0 // 32, v1]
+                                for ax0_1, ax2_fused_1_ax2_fused_3_fused_1_0 in T.grid(4, 2):
+                                    for ax2_fused_1_ax2_fused_3_fused_1_1 in T.vectorized(4):
+                                        with T.block("matmul_rf_update"):
+                                            vax2_fused_1_ax2_fused_3_fused = T.axis.spatial(32, ax2_fused_1_ax2_fused_3_fused_0 * 8 + ax2_fused_1_ax2_fused_3_fused_1_0 * 4 + ax2_fused_1_ax2_fused_3_fused_1_1)
+                                            v0 = T.axis.spatial((batch_size + 3) // 4 * 4, ax0_0 * 4 + ax0_1)
+                                            v1 = T.axis.spatial(6144, ax1_fused_0 * 64 + ax1_fused_1)
+                                            vax2_fused_0, vax2_fused_2 = T.axis.remap("RR", [ax2_fused_0, ax2_fused_2])
+                                            T.reads(C_pad_rf_local[vax2_fused_1_ax2_fused_3_fused, v0, 0, v1], A_pad_shared[v0, 0, vax2_fused_0 * 128 + vax2_fused_1_ax2_fused_3_fused // 8 * 32 + vax2_fused_2 * 8 + vax2_fused_1_ax2_fused_3_fused % 8], B_local[vax2_fused_0 * 128 + vax2_fused_1_ax2_fused_3_fused // 8 * 32 + vax2_fused_2 * 8 + vax2_fused_1_ax2_fused_3_fused % 8, v1])
+                                            T.writes(C_pad_rf_local[vax2_fused_1_ax2_fused_3_fused, v0, 0, v1])
+                                            C_pad_rf_local[vax2_fused_1_ax2_fused_3_fused, v0, 0, v1] = C_pad_rf_local[vax2_fused_1_ax2_fused_3_fused, v0, 0, v1] + A_pad_shared[v0, 0, vax2_fused_0 * 128 + vax2_fused_1_ax2_fused_3_fused // 8 * 32 + vax2_fused_2 * 8 + vax2_fused_1_ax2_fused_3_fused % 8] * B_local[vax2_fused_0 * 128 + vax2_fused_1_ax2_fused_3_fused // 8 * 32 + vax2_fused_2 * 8 + vax2_fused_1_ax2_fused_3_fused % 8, v1]
+                for ax3 in T.thread_binding(64, thread="threadIdx.x"):
+                    for ax0 in T.thread_binding(4, thread="threadIdx.y"):
+                        for ax2_init in range(4):
+                            with T.block("matmul_rf_init"):
+                                vax2_fused_1_ax2_fused_3_fused_0 = T.axis.spatial(4, ax0)
+                                v0 = T.axis.spatial((batch_size + 3) // 4 * 4, ax0_0 * 4 + ax2_init)
+                                v1 = T.axis.spatial(6144, ax1_fused_0 * 64 + ax3)
+                                T.reads()
+                                T.writes(C_pad_rf_local_1[vax2_fused_1_ax2_fused_3_fused_0, v0, 0, v1])
+                                C_pad_rf_local_1[vax2_fused_1_ax2_fused_3_fused_0, v0, 0, v1] = T.float16(0)
+                        for ax2, ax1 in T.grid(4, 8):
+                            with T.block("matmul_rf_update"):
+                                vax2_fused_1_ax2_fused_3_fused_0, vax2_fused_1_ax2_fused_3_fused_1 = T.axis.remap("SR", [ax0, ax1])
+                                v0 = T.axis.spatial((batch_size + 3) // 4 * 4, ax0_0 * 4 + ax2)
+                                v1 = T.axis.spatial(6144, ax1_fused_0 * 64 + ax3)
+                                T.reads(C_pad_rf_local_1[vax2_fused_1_ax2_fused_3_fused_0, v0, 0, v1], C_pad_rf_local[vax2_fused_1_ax2_fused_3_fused_0 * 8 + vax2_fused_1_ax2_fused_3_fused_1, v0, 0, v1])
+                                T.writes(C_pad_rf_local_1[vax2_fused_1_ax2_fused_3_fused_0, v0, 0, v1])
+                                C_pad_rf_local_1[vax2_fused_1_ax2_fused_3_fused_0, v0, 0, v1] = C_pad_rf_local_1[vax2_fused_1_ax2_fused_3_fused_0, v0, 0, v1] + C_pad_rf_local[vax2_fused_1_ax2_fused_3_fused_0 * 8 + vax2_fused_1_ax2_fused_3_fused_1, v0, 0, v1]
+                for ax1 in range(4):
+                    for ax2 in T.thread_binding(64, thread="threadIdx.x"):
+                        for ax0 in T.thread_binding(4, thread="threadIdx.y"):
+                            with T.block("matmul"):
+                                vax2_fused_1_ax2_fused_3_fused_0 = T.axis.reduce(4, ax0)
+                                v0 = T.axis.spatial((batch_size + 3) // 4 * 4, ax0_0 * 4 + ax1)
+                                v1 = T.axis.spatial(6144, ax1_fused_0 * 64 + ax2)
+                                T.reads(C_pad_rf_local_1[vax2_fused_1_ax2_fused_3_fused_0, v0, 0, v1])
+                                T.writes(C_pad_local[v0, 0, v1])
+                                with T.init():
+                                    C_pad_local[v0, 0, v1] = T.float16(0)
+                                C_pad_local[v0, 0, v1] = C_pad_local[v0, 0, v1] + C_pad_rf_local_1[vax2_fused_1_ax2_fused_3_fused_0, v0, 0, v1]
+                for ax0 in range(4):
+                    for ax1 in T.thread_binding(64, thread="threadIdx.x"):
+                        with T.block("C_pad"):
+                            v0 = T.axis.spatial(batch_size, ax0_0 * 4 + ax0)
+                            v1 = T.axis.spatial(6144, ax1_fused_0 * 64 + ax1)
+                            T.where((ax0_0 - (batch_size + 3) // 4 < 0 or ax0_0 == 0) and ax0_0 * 4 + ax0 < batch_size)
+                            T.reads(C_pad_local[v0, 0, v1])
+                            T.writes(C[v0, 0, v1])
+                            C[v0, 0, v1] = C_pad_local[v0, 0, v1]
+    # fmt: on
+    mod = tvm.IRModule({"main": before})
+    with Target("metal"):
+        mod = dl.ApplyDefaultSchedule(dl.gpu.LowBatchGEMV(4))(mod)  # pylint: disable=not-callable
+    tvm.ir.assert_structural_equal(mod["main"], expected)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

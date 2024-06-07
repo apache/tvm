@@ -120,7 +120,8 @@ class TestConv2d_NCHW_Spatial_Pack(Conv2dTests):
     schedule_name = parameter("conv2d_nchw_spatial_pack.arm_cpu")
 
 
-dtype = tvm.testing.parameter("float32")
+in_dtype = tvm.testing.parameter("float16", "float32")
+out_dtype = tvm.testing.parameter("float32")
 
 batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation = tvm.testing.parameters(
     # Pad M, N, K
@@ -154,30 +155,35 @@ batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation = tvm.
 
 
 @tvm.testing.fixture()
-def ref_data(dtype, batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation):
+def ref_data(
+    in_dtype, out_dtype, batch, in_channel, in_size, num_filter, kernel, stride, padding, dilation
+):
     np.random.seed(0)
     in_height = in_width = in_size
     a_shape = (batch, in_height, in_width, in_channel)
     w_shape = (kernel, kernel, in_channel, num_filter)
 
-    a_np = np.random.uniform(size=a_shape).astype(dtype)
-    w_np = np.random.uniform(size=w_shape).astype(dtype)
-    return a_np, w_np
+    a_np = np.random.uniform(size=a_shape).astype(in_dtype)
+    w_np = np.random.uniform(size=w_shape).astype(in_dtype)
+    dw_np = tvm.topi.testing.dilate_python(w_np, (dilation, dilation, 1, 1))
+    b_np = tvm.topi.testing.conv2d_nhwc_python(
+        a_np.astype(out_dtype), dw_np.astype(out_dtype), stride, padding
+    ).astype(out_dtype)
+    return a_np, w_np, dw_np, b_np
 
 
 @pytest.mark.skipif(
     llvm_version_major() < 16, reason="SME is not supported in earlier versions of LLVM"
 )
 @tvm.testing.requires_aprofile_aem_fvp
-def test_conv2d_fp32(target, ref_data, dtype, stride, padding, dilation):
-    a_np, w_np = ref_data
-    dw_np = tvm.topi.testing.dilate_python(w_np, (dilation, dilation, 1, 1))
+def test_conv2d_sme(target, ref_data, in_dtype, out_dtype, stride, padding, dilation):
+    a_np, w_np, dw_np, b_np = ref_data
 
     kernel_size = get_const_tuple(w_np.shape[:2])
     out_channels = w_np.shape[3]
 
-    x = relay.var("data", shape=a_np.shape, dtype=dtype)
-    weight = relay.const(w_np, dtype=dtype)
+    x = relay.var("data", shape=a_np.shape, dtype=in_dtype)
+    weight = relay.const(w_np, dtype=in_dtype)
     conv2d = relay.nn.conv2d(
         x,
         weight,
@@ -188,7 +194,7 @@ def test_conv2d_fp32(target, ref_data, dtype, stride, padding, dilation):
         padding=get_pad_tuple(padding, dw_np.shape[:2]),
         data_layout="NHWC",
         kernel_layout="HWIO",
-        out_dtype=dtype,
+        out_dtype=out_dtype,
     )
 
     func = relay.Function(relay.analysis.free_vars(conv2d), conv2d)
@@ -198,7 +204,7 @@ def test_conv2d_fp32(target, ref_data, dtype, stride, padding, dilation):
 
     inputs = {"data": a_np}
     params = {}
-    ref_outputs = generate_ref_data(ir_mod, inputs, params)
+    ref_outputs = {"output": b_np}
 
     target = tvm.target.Target("llvm -mtriple=aarch64-none-elf -mattr=+v9.2a,+sme")
     runtime = tvm.relay.backend.Runtime("crt", {"system-lib": True})
@@ -220,9 +226,12 @@ def test_conv2d_fp32(target, ref_data, dtype, stride, padding, dilation):
             runtime=runtime,
             params=params,
         )
-    generated_func = executor_factory.lowered_ir_mods.items()[0][1][
-        "tvmgen_default_fused_nn_conv2d"
-    ]
+
+    if in_dtype == "float16":
+        func_name = "tvmgen_default_fused_nn_contrib_conv2d_gemm_without_weight_transform"
+    else:
+        func_name = "tvmgen_default_fused_nn_conv2d"
+    generated_func = executor_factory.lowered_ir_mods.items()[0][1][func_name]
     extra_memory_in_bytes = calculate_extra_workspace_size_from_scalable_extents(generated_func, 4)
 
     test_model = AOTTestModel(

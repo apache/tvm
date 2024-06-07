@@ -75,10 +75,10 @@ TVM_REGISTER_OP("relax.clip")
 
 Expr clip(Expr x, Expr min, Expr max) {
   CHECK(min->IsInstance<PrimValueNode>())
-      << "The argument `min` of relax.clip is expected to be a PrimValue, but got"
+      << "The argument `min` of relax.clip is expected to be a PrimValue, but got "
       << min->GetTypeKey();
   CHECK(max->IsInstance<PrimValueNode>())
-      << "The argument `max` of relax.clip is expected to be a PrimValue, but got"
+      << "The argument `max` of relax.clip is expected to be a PrimValue, but got "
       << max->GetTypeKey();
   static const Op& op = Op::Get("relax.clip");
   return Call(op, {std::move(x), std::move(min), std::move(max)});

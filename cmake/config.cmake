@@ -444,6 +444,19 @@ set(USE_GTEST AUTO)
 # Need to have USE_CUDA=ON
 set(USE_CUTLASS OFF)
 
+# Whether to enable FlashInfer or not.
+set(USE_FLASHINFER OFF)
+# Options for FlashInfer kernel compilation.
+set(FLASHINFER_ENABLE_FP8 OFF)
+set(FLASHINFER_ENABLE_BF16 OFF)
+set(FLASHINFER_GEN_GROUP_SIZES 1 4 6 8)
+set(FLASHINFER_GEN_PAGE_SIZES 16)
+set(FLASHINFER_GEN_HEAD_DIMS 128)
+set(FLASHINFER_GEN_KV_LAYOUTS 0 1)
+set(FLASHINFER_GEN_POS_ENCODING_MODES 0 1)
+set(FLASHINFER_GEN_ALLOW_FP16_QK_REDUCTIONS "false")
+set(FLASHINFER_GEN_CASUALS "false" "true")
+
 # Enable to show a summary of TVM options
 set(SUMMARIZE OFF)
 

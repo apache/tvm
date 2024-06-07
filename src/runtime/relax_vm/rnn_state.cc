@@ -205,10 +205,24 @@ class RNNStateImpObj : public RNNStateObj {
 
   /************** Interaction **************/
 
-  void BeginForward(const IntTuple& seq_ids, const IntTuple& append_lengths) {
+  void BeginForward(const IntTuple& seq_ids, const IntTuple& append_lengths,
+                    const Optional<IntTuple>& opt_token_tree_parent_ptr) final {
     CHECK_EQ(seq_ids.size(), append_lengths.size())
         << "The seq_ids size (" << seq_ids.size() << ") and append_lengths size ("
         << append_lengths.size() << ") mismatch.";
+
+    if (opt_token_tree_parent_ptr.defined()) {
+      IntTuple token_tree_parent_ptr = opt_token_tree_parent_ptr.value();
+      int matched_pos = 0;
+      for (int64_t append_length : append_lengths) {
+        for (int64_t i = 0; i < append_length; ++i) {
+          CHECK_EQ(token_tree_parent_ptr[matched_pos], i - 1)
+              << "Unexpected token tree for RNN state. RNN state only supports chains as token "
+                 "trees.";
+          ++matched_pos;
+        }
+      }
+    }
     cur_batch_size_ = seq_ids.size();
     cur_append_lengths_ = append_lengths;
     cur_seq_ids_ = seq_ids;

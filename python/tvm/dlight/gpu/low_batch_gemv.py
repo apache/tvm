@@ -16,9 +16,9 @@
 # under the License.
 """A rule for low-batch GEMM / decode-GEMM using GEMV schedule."""
 from functools import reduce
-from typing import List, Optional, Set, Union
+from typing import List, Literal, Optional, Set, Union
 
-from tvm import DataType, arith, ir, tir
+from tvm import arith, ir, tir
 from tvm.target import Target
 
 from ..base import (
@@ -30,6 +30,7 @@ from ..base import (
     try_inline_contiguous_spatial,
 )
 from .base import GPUScheduleRule
+from .utils import auto_vectorize, get_bytes, get_extent
 
 
 def _get_reduction_expr(block: tir.Block) -> Optional[tir.PrimExpr]:
@@ -46,17 +47,6 @@ def _get_reduction_expr(block: tir.Block) -> Optional[tir.PrimExpr]:
     ):
         return None
     return buffer_store.value.b
-
-
-def get_extent(sch: tir.Schedule, loop_rv: tir.schedule.LoopRV):
-    loop: tir.For = sch.get(loop_rv)
-    return loop.extent.value if isinstance(loop.extent, tir.IntImm) else loop.extent
-
-
-def get_bytes(dtype: Union[DataType, str]) -> int:
-    if isinstance(dtype, str):
-        dtype = DataType(dtype)
-    return dtype.itemsize()
 
 
 def is_gemv(sch: tir.Schedule, block_info: BlockInfo) -> Optional[List[tir.Buffer]]:
@@ -170,7 +160,7 @@ def normalize(
     ):
         return None
     iter_to_info = {i.var: i for i in block_info.iters}
-    batch_loops, s_loops, r_loops, c_loops = [], [], [], []
+    batch_loops, s_loops, r_loops = [], [], []
     inner_axis = access.args[-1].source.source
     is_inner_reduction = iter_to_info[inner_axis].kind == "R"
 
@@ -179,14 +169,7 @@ def normalize(
         info = iter_to_info.get(var)
         loop = info.loop_rv
         is_reduction = info.kind == "R"
-        if split_expr.lower_factor > 1:
-            if c_loops:
-                return None
-            loop, c_loop = sch.split(loop, factors=[None, split_expr.lower_factor])
-            # we only support the reduction dim being grouped atm
-            if not is_reduction:
-                return None
-            c_loops.append(c_loop)
+        # No C loops as we do not compute_inline weights into main block
         if is_reduction:
             r_loops.append(loop)
         elif all([var in buf_vars for buf_vars in buffers_use_vars]):
@@ -196,14 +179,9 @@ def normalize(
 
     assert s_loops
     assert r_loops
-    if not c_loops:
-        c_loops = [sch.add_unit_loop(block_info.block_rv)]
     dynamic_loops = [iter_to_info[var].loop_rv for var in dynamic_iter_vars]
     assert len(dynamic_loops) == 1
-    if not batch_loops:
-        batch_loops = [sch.add_unit_loop(block_info.block_rv)]
-    sch.reorder(*dynamic_loops, *batch_loops, *s_loops, *r_loops, *c_loops)
-    sch.fuse(*batch_loops)
+    sch.reorder(*dynamic_loops, *s_loops, *r_loops)
     sch.fuse(*s_loops)
     sch.fuse(*r_loops)
     return is_inner_reduction
@@ -292,6 +270,18 @@ class LowBatchGEMV(GPUScheduleRule):
                 batch_pad,
             )
             return sch
+        elif self.bucket <= 4:
+            self.sch_outer_reduction(
+                sch,
+                target,
+                block,
+                dequantize_block,
+                pad_input_block,
+                vector_input_buffers,
+                epilogue,
+                batch_pad,
+            )
+            return sch
         else:
             return None
 
@@ -332,9 +322,7 @@ class LowBatchGEMV(GPUScheduleRule):
         ):
             # rfactor: reduce to tx * vec_c
 
-            _, b, s, r, c = sch.get_loops(block=gemv)
-            s = sch.fuse(b, s)
-            r = sch.fuse(r, c)
+            _, s, r = sch.get_loops(block=gemv)
             bx, ts, tile_s = sch.split(s, factors=[None, TS, TILE_S], preserve_unit_iters=True)
             r, tr, tile_r_vec_n, vec_c = sch.split(
                 r, factors=[None, TR, TILE_R // VEC_C, VEC_C], preserve_unit_iters=True
@@ -516,15 +504,8 @@ class LowBatchGEMV(GPUScheduleRule):
             return sch
 
         # Specify the `len_tx` and `len_ty` according to the loop extent
-        _, batch, s, r, c = sch.get_loops(block=block)
-        len_batch, len_s, len_r, len_c = (
-            get_extent(sch, batch),
-            get_extent(sch, s),
-            get_extent(sch, r),
-            get_extent(sch, c),
-        )
-        len_S = len_batch * len_s
-        len_R = len_r * len_c
+        _, s, r = sch.get_loops(block=block)
+        len_s, len_r = get_extent(sch, s), get_extent(sch, r)
 
         TAG_S, TAG_R = "threadIdx.y", "threadIdx.x"
         if target.kind.name == "cuda":
@@ -532,8 +513,8 @@ class LowBatchGEMV(GPUScheduleRule):
             LOAD_V_SHARED = True
             LOAD_V_VEC = 8
             UNROLL = 256
-            if isinstance(len_S, int):
-                if len_S > len_R:
+            if isinstance(len_s, int):
+                if len_s > len_r:
                     TS, TR = 4, 64
                 else:
                     TS, TR = 16, 32
@@ -542,8 +523,8 @@ class LowBatchGEMV(GPUScheduleRule):
             LOAD_V_SHARED = False
             LOAD_V_VEC = -1
             UNROLL = 8
-            if isinstance(len_S, int):
-                if len_S > len_R:
+            if isinstance(len_s, int):
+                if len_s > len_r:
                     TS, TR = 8, 32
                 else:
                     TAG_S, TAG_R = "threadIdx.x", "threadIdx.y"
@@ -553,8 +534,8 @@ class LowBatchGEMV(GPUScheduleRule):
             LOAD_V_SHARED = True
             LOAD_V_VEC = 8
             UNROLL = 256
-            if isinstance(len_S, int):
-                if len_S > len_R:
+            if isinstance(len_s, int):
+                if len_s > len_r:
                     TS, TR = 1, 128
                 else:
                     TS, TR = 8, 64
@@ -570,8 +551,8 @@ class LowBatchGEMV(GPUScheduleRule):
             LOAD_V_SHARED = True
             LOAD_V_VEC = 4
             UNROLL = 256
-            if isinstance(len_S, int):
-                if len_S > len_R:
+            if isinstance(len_s, int):
+                if len_s > len_r:
                     TS, TR = 4, 32
                 else:
                     TS, TR = 16, 32
@@ -588,7 +569,7 @@ class LowBatchGEMV(GPUScheduleRule):
             UNROLL = 64
             TS, TR = 1, 64
 
-        if not isinstance(len_S, int):
+        if not isinstance(len_s, int):
             TS, TR = 1, 64
 
         while TS * TR > target.max_num_threads:
@@ -597,12 +578,7 @@ class LowBatchGEMV(GPUScheduleRule):
             else:
                 TR //= 2
 
-        TILE_S, TILE_R = (
-            2,
-            len_c
-            if len_c > 1
-            else max(get_max_factor(len_r, [TR * 1, TR * 2, TR * 4, TR * 8]) // TR, 1),
-        )
+        TILE_S, TILE_R = 2, max(get_max_factor(len_r, [TR * 1, TR * 2, TR * 4, TR * 8]) // TR, 1)
         VEC_C = min(get_max_factor(TILE_R, [1, 2, 4, 8]), VEC_C)
         VEC_LOAD = 1
         return apply(
@@ -619,4 +595,145 @@ class LowBatchGEMV(GPUScheduleRule):
             LOAD_V_SHARED=LOAD_V_SHARED,
             LOAD_V_VEC=LOAD_V_VEC,
             UNROLL=UNROLL,
+        )
+
+    def sch_outer_reduction(  # pylint: disable=too-many-arguments, invalid-name, unused-argument
+        self,
+        sch: tir.Schedule,
+        target: Target,
+        block: tir.schedule.BlockRV,
+        dequantize_block: Optional[tir.schedule.BlockRV],
+        pad_input_block: Optional[tir.schedule.BlockRV],
+        vector_input_buffers: List[tir.Buffer],
+        epilogue_info: Optional[BlockInfo],
+        batch_pad: int,
+    ):
+        """Schedule the outer reduction block."""
+
+        # Need to detect from the block
+        DEC_PACK = 8
+        SCALE_PACK = 4
+
+        def apply(
+            sch: tir.Schedule,
+            main_block: tir.schedule.BlockRV,
+            TAG_S: Literal["threadIdx.x", "threadIdx.y"],
+            TAG_R: Literal["threadIdx.x", "threadIdx.y"],
+            TS: int,
+            TR: int,
+            VEC: int,
+            UNROLL: int,
+        ):
+            # rfactor: reduce to tx * vec_c
+            b, s, r = sch.get_loops(main_block)
+            by, batch = sch.split(b, [None, batch_pad], preserve_unit_iters=True)
+            bx, ts = sch.split(s, [None, TS], preserve_unit_iters=True)
+            r, tr, scale_c, vec_c = sch.split(
+                r, [None, TR, SCALE_PACK, DEC_PACK], preserve_unit_iters=True
+            )
+            sch.reorder(by, bx, ts, r, batch, scale_c, tr, vec_c)
+            tr_vec_c = sch.fuse(tr, vec_c)
+            rf = sch.rfactor(tr_vec_c, 0)
+
+            # rfactor: reduce to tx
+            by, bx, ts, batch, tr_vec_c = sch.get_loops(block=main_block)
+            tr, vec_c = sch.split(tr_vec_c, [TR, DEC_PACK], preserve_unit_iters=True)
+            rf2 = sch.rfactor(tr, 0)
+
+            # bind, vectorize compute
+            by, bx, ts, r, batch, scale_c, tr_vec_c = sch.get_loops(block=rf)
+            tr, vec_c = sch.split(tr_vec_c, [TR, DEC_PACK], preserve_unit_iters=True)
+            sch.reorder(by, bx, ts, tr, r, scale_c, batch, vec_c)
+            sch.bind(by, "blockIdx.y")
+            sch.bind(bx, "blockIdx.x")
+            sch.bind(ts, TAG_S)
+            sch.bind(tr, TAG_R)
+            auto_vectorize(sch, vec_c, VEC)
+
+            if dequantize_block is not None:
+                sch.compute_at(dequantize_block, scale_c, preserve_unit_loops=True)
+                sch.set_scope(dequantize_block, 0, "local")
+                auto_vectorize(sch, sch.fuse(*sch.get_loops(dequantize_block)[6:]), VEC)
+
+                B0_local = sch.cache_read(dequantize_block, 0, "local")
+                sch.compute_at(B0_local, r, preserve_unit_loops=True)
+                auto_vectorize(sch, sch.fuse(*sch.get_loops(B0_local)[5:]), VEC)
+
+                B1_local = sch.cache_read(dequantize_block, 1, "local")
+                sch.compute_at(B1_local, r, preserve_unit_loops=True)
+                auto_vectorize(sch, sch.fuse(*sch.get_loops(B1_local)[5:]), VEC)
+            else:
+                # Only support quantized workloads for now
+                sch = None
+                return
+
+            if LOAD_V_SHARED:
+                sch.set_scope(pad_input_block, 0, "shared")
+                sch.compute_at(pad_input_block, r, preserve_unit_loops=True)
+                sch.storage_align(pad_input_block, 0, axis=-2, factor=8, offset=1)
+                tr, ts, v = sch.split(sch.fuse(*sch.get_loops(pad_input_block)[5:]), [TR, TS, None])
+                sch.bind(tr, TAG_R)
+                sch.bind(ts, TAG_S)
+                auto_vectorize(sch, v, VEC)
+            else:
+                sch.compute_inline(pad_input_block)
+
+            # reduce tile_s * tr * vec to tile_s * tr
+            sch.reverse_compute_at(rf2, bx, preserve_unit_loops=True)
+            tr, vec_c, batch, ts = sch.get_loops(rf2)[2:]
+            sch.reorder(ts, tr, batch, vec_c)
+            sch.bind(ts, TAG_S)
+            sch.bind(tr, TAG_R)
+
+            # reduce tile_s * tr to tile_s
+            sch.reverse_compute_at(main_block, bx, preserve_unit_loops=True)
+            tr, batch, ts = sch.get_loops(main_block)[2:]
+            sch.reorder(batch, ts, tr)
+            sch.bind(ts, TAG_S)
+            sch.bind(tr, TAG_R)
+            # unroll(batch, 1)
+
+            sch.decompose_reduction(rf, loop=sch.get_loops(block=rf)[4])
+            sch.decompose_reduction(rf2, loop=sch.get_loops(block=rf2)[4])
+
+            sch.set_scope(rf, buffer_index=0, storage_scope="local")
+            sch.set_scope(rf2, buffer_index=0, storage_scope="local")
+
+            epilogue = sch.get_consumers(main_block)
+            # Schedule epilogue
+            if epilogue:
+                epilogue = epilogue[0]
+                if is_broadcast_epilogue(  # pylint: disable=no-else-raise
+                    sch, main_block, epilogue
+                ):
+                    raise NotImplementedError
+                else:
+                    sch.reverse_compute_at(epilogue, bx, preserve_unit_loops=True)
+                    batch, ts = sch.get_loops(epilogue)[2:]
+                    sch.bind(ts, TAG_S)
+                    sch.set_scope(main_block, 0, "local")
+
+        if target.kind.name == "metal":
+            TAG_S, TAG_R = "threadIdx.x", "threadIdx.y"
+            TS, TR = 64, 4
+            LOAD_V_SHARED = True
+            VEC = 4
+            UNROLL = 8
+        else:
+            # fallback configuration
+            TAG_S, TAG_R = "threadIdx.x", "threadIdx.y"
+            TS, TR = 32, 4
+            LOAD_V_SHARED = False
+            VEC = 1
+            UNROLL = 64
+
+        return apply(
+            sch,
+            block,
+            TAG_S,
+            TAG_R,
+            TS,
+            TR,
+            VEC,
+            UNROLL,
         )
