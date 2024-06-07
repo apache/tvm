@@ -229,6 +229,8 @@ class RewriteSimplifier::Impl : public IRMutatorWithAnalyzer {
     // TODO(tqchen) refer back to super-analyzer.
     return TryCompare(x, val) == CompareResult::kEQ;
   }
+  // Whether x is true
+  bool CanProve(const PrimExpr& x) { return analyzer_->CanProve(x); }
 
   // Recursive rewrite x
   // we limit maximum depth of recursive rewrite allowed to
