@@ -89,6 +89,8 @@ void MetalWorkspace::GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) {
         return;
       case kL2CacheSizeBytes:
         return;
+      case kAvailableGlobalMemory:
+        return;
       case kTotalGlobalMemory: {
         *rv = static_cast<int64_t>([devices[dev.device_id] recommendedMaxWorkingSetSize]);
         return;
@@ -225,7 +227,7 @@ void MetalWorkspace::CopyDataFromTo(const void* from, size_t from_offset, void* 
     if (s->HasErrorHappened()) {
       LOG(FATAL) << "GPUError: " << s->ErrorDescription();
     }
-    id<MTLCommandBuffer> cb = s->GetCommandBuffer();
+    id<MTLCommandBuffer> cb = s->GetCommandBuffer(/*label=*/"TVMCopyDataFromTo");
     int from_dev_type = static_cast<int>(dev_from.device_type);
     int to_dev_type = static_cast<int>(dev_to.device_type);
 
@@ -298,7 +300,7 @@ void MetalWorkspace::StreamSync(Device dev, TVMStreamHandle stream) {
   AUTORELEASEPOOL {
     Stream* s = CastStreamOrGetDefault(stream, dev.device_id);
     // commit an empty command buffer and wait until it completes.
-    id<MTLCommandBuffer> cb = s->GetCommandBuffer();
+    id<MTLCommandBuffer> cb = s->GetCommandBuffer(/*label=*/"TVMStreamSync");
     [cb commit];
     [cb waitUntilCompleted];
     if (s->HasErrorHappened()) {

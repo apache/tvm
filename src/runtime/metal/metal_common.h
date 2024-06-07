@@ -109,8 +109,11 @@ class Stream {
  public:
   explicit Stream(id<MTLDevice> device) { queue_ = [device newCommandQueue]; }
   ~Stream() { [queue_ release]; }
-  id<MTLCommandBuffer> GetCommandBuffer(bool attach_error_callback = true) {
+  id<MTLCommandBuffer> GetCommandBuffer(std::string label = "", bool attach_error_callback = true) {
     id<MTLCommandBuffer> cb = [queue_ commandBuffer];
+    if (!label.empty()) {
+      cb.label = [NSString stringWithUTF8String:label.c_str()];
+    }
     [cb addCompletedHandler:^(id<MTLCommandBuffer> buffer) {
       if (buffer.status == MTLCommandBufferStatusError) {
         ICHECK(buffer.error != nil);
