@@ -1,7 +1,0 @@
-version 1.0;
-
-graph G( input ) -> ( output )
-{
-	input = external(shape = [4,16]);
-	output = relu(input);
-}

@@ -1,7 +1,0 @@
-version 1.0;
-
-graph G( input ) -> ( output )
-{
-    input = external<logical>(shape = [4,16,32,32]);
-    output = all_reduce(input, axes = [1]);
-}

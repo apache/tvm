@@ -1,7 +1,0 @@
-version 1.0;
-
-graph G( input ) -> ( output )
-{
-	input = external(shape = [16,1]);
-	output = tile(input, repeats = [1,16]);
-}

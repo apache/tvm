@@ -1,9 +1,0 @@
-version 1.0;
-
-graph G( input ) -> ( output )
-{
-	input = external(shape = [4,16]);
-	weights = variable(shape = [32,16], label = 'weights');
-	bias = variable(shape = [1,32], label = 'bias');
-	output = linear(input, weights, bias);
-}

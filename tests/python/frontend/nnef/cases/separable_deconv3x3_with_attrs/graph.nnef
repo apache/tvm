@@ -1,9 +1,0 @@
-version 1.0;
-
-graph G( input ) -> ( output )
-{
-	input = external(shape = [4,16,32,32]);
-	plane_filter = variable(shape = [8,1,3,3], label = 'plane_filter');
-	point_filter = variable(shape = [16,8,1,1], label = 'point_filter');
-	output = separable_deconv(input, plane_filter, point_filter, padding = [(0,1), (0,1)], stride = [2,2]);
-}

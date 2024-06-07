@@ -1,7 +1,0 @@
-version 1.0;
-
-graph G( input ) -> ( output )
-{
-	input = external(shape = [4,16,32,32]);
-	output = avg_pool(input, size = [1,1,1,1], stride = [1,1,2,2], border = 'constant');
-}

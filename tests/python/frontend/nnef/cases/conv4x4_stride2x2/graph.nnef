@@ -1,9 +1,0 @@
-version 1.0;
-
-graph G( input ) -> ( output )
-{
-	input = external(shape = [4,8,32,32]);
-	filter = variable(shape = [16,8,4,4], label = 'filter');
-	bias = variable(shape = [1,16], label = 'bias');
-	output = conv(input, filter, bias, stride = [2,2]);
-}

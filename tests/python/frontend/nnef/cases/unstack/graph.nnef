@@ -1,7 +1,0 @@
-version 1.0;
-
-graph G( input ) -> ( output1, output2, output3 )
-{
-	input = external(shape = [4,3,16]);
-	[output1, output2, output3] = unstack(input, axis = 1);
-}

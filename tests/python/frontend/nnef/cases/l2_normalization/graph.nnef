@@ -1,7 +1,0 @@
-version 1.0;
-
-graph G( input ) -> ( output )
-{
-	input = external(shape = [4,16,32,32]);
-    output = l2_normalization(input, axes = [1], epsilon = 1e-3);
-}

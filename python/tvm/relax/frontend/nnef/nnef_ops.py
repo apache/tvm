@@ -1419,7 +1419,7 @@ def pad_converter(bbuilder, data, padding, border, value, **kwargs):
         return bbuilder.emit_te(tvm.topi.nn.mirror_pad, data, pad_before, pad_after, "REFLECT")
     if border == "edge":
         raise tvm.error.OpNotImplemented(
-            "Replicate - Edge mode is currently not supperted in TVM relax"
+            "Replicate - Edge mode is currently not supported in TVM relax"
         )
 
     # constant works with normal relax.nn.pad

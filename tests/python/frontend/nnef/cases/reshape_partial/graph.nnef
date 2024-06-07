@@ -1,7 +1,0 @@
-version 1.0;
-
-graph G( input ) -> ( output )
-{
-	input = external(shape = [2,3,3,3,2]);
-	output = reshape(input, shape = [0,-1], axis_start = 1, axis_count = 3);
-}

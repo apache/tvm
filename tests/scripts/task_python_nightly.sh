@@ -27,3 +27,6 @@ make cython3
 find . -type f -path "*.pyc" | xargs rm -f
 
 run_pytest cython python-topi-nightly tests/python/topi/nightly
+
+echo "Running relay NNEF frontend execution test..."
+run_pytest cython python-frontend-nnef tests/python/frontend/nnef

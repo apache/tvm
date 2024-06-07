@@ -17,7 +17,7 @@
 
 # CI docker GPU env
 # tag: v0.60
-FROM nvidia/cuda:11.8.0-cudnn8-devel-ubuntu22.04
+FROM nvidia/cuda:12.4.1-cudnn-devel-ubuntu22.04
 
 COPY utils/apt-install-and-clear.sh /usr/local/bin/apt-install-and-clear
 
