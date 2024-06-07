@@ -44,21 +44,6 @@ namespace relax_vm {
 
 using vm::VMFuncInfo;
 
-namespace {
-// Helper function to get the function name of the registered packed function implementation of
-// relax operator.
-FCallPacked GetPackedFuncName(const Call& call) {
-  static auto op_map = Op::GetAttrMap<FCallPacked>("FCallPacked");
-  if (call->op.as<OpNode>()) {
-    Op op = Downcast<Op>(call->op);
-    if (op_map.count(op)) {
-      return op_map[op];
-    }
-  }
-  return {};
-}
-}  // namespace
-
 /*!
  * \brief A class to generate VMTIR for Relax functions.
  *
