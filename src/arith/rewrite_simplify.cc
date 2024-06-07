@@ -1136,8 +1136,15 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorDivNode* op) {
                        x + floordiv(y, z), CanProveGreaterEqual(z.Eval(), 0));
     TVM_TRY_REWRITE_IF(matches_one_of(floordiv(y + x * z, z), floordiv(y + z * x, z)),
                        floordiv(y, z) + x, CanProveGreaterEqual(z.Eval(), 0));
+    TVM_TRY_REWRITE_IF(floordiv(x * z * c1 + y, z * c1), x + floordiv(y, z * c1),
+                       CanProveGreaterEqual(z.Eval() * c1.Eval(), 0));
 
     TVM_TRY_REWRITE_IF(floordiv(x - floormod(x, c1), c1), floordiv(x, c1), c1.Eval()->value != 0);
+
+    // Scalable divisor
+    TVM_TRY_REWRITE_IF(floordiv(x, y), ZeroWithTypeLike(x),
+                       ContainsVscaleCall(y.Eval()) && CanProveGreaterEqual(x.Eval(), 0) &&
+                           CanProveGreaterEqual(y.Eval(), 0) && CanProve(x.Eval() < y.Eval()));
   }
   return ret;
 }
@@ -1229,6 +1236,14 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorModNode* op) {
         matches_one_of(floormod(x - floormod(x, z), y), floormod(floormod(x, z) - x, y)),
         ZeroWithTypeLike(x),
         CanProveEqual(y.Eval() - z.Eval(), 0) || CanProveEqual(y.Eval() + z.Eval(), 0));
+
+    TVM_TRY_REWRITE_IF(floormod(x * z * c1 + y, z * c1), floormod(y, z * c1),
+                       CanProveGreaterEqual(z.Eval() * c1.Eval(), 0));
+
+    // Scalable divisor
+    TVM_TRY_REWRITE_IF(floormod(x, y), x,
+                       ContainsVscaleCall(y.Eval()) && CanProveGreaterEqual(x.Eval(), 0) &&
+                           CanProveGreaterEqual(y.Eval(), 0) && CanProve(x.Eval() < y.Eval()));
 
     if (floormod(x, c1).Match(ret)) {
       int64_t c1val = c1.Eval()->value;
