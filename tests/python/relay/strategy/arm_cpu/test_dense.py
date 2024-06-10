@@ -99,16 +99,16 @@ class TestDense(BasicDenseTests):
 )
 @tvm.testing.requires_aprofile_aem_fvp
 @pytest.mark.parametrize(
-    "data_shape,weight_shape",
+    "data_shape,weight_shape,enable_bias",
     [
-        ((32, 32), (32, 32)),
-        ((2, 35), (6, 35)),
-        ((3, 3), (68, 3)),
-        ((79, 65), (152, 65)),
+        ((32, 32), (32, 32), False),
+        ((2, 35), (6, 35), False),
+        ((3, 3), (68, 3), False),
+        ((79, 65), (152, 65), True),
     ],
 )
 @pytest.mark.parametrize("in_dtype", ["float32", "float16"])
-def test_sme_dense(data_shape, weight_shape, in_dtype):
+def test_sme_dense(data_shape, weight_shape, enable_bias, in_dtype):
     np.random.seed(0)
     out_dtype = "float32"
 
@@ -117,8 +117,14 @@ def test_sme_dense(data_shape, weight_shape, in_dtype):
     weight_data = np.random.uniform(size=weight_shape).astype(in_dtype)
     weight = relay.const(weight_data, dtype=in_dtype)
 
-    dense = relay.nn.dense(inp, weight, out_dtype=out_dtype)
-    func = relay.Function(relay.analysis.free_vars(dense), dense)
+    relay_op = relay.nn.dense(inp, weight, out_dtype=out_dtype)
+
+    if enable_bias:
+        bias_data = np.random.uniform(size=weight_shape[0]).astype(out_dtype)
+        bias = relay.const(bias_data, dtype=out_dtype)
+        relay_op = relay.nn.bias_add(relay_op, bias)
+
+    func = relay.Function(relay.analysis.free_vars(relay_op), relay_op)
 
     ir_mod = tvm.IRModule.from_expr(func)
     ir_mod = tvm.relay.transform.InferType()(ir_mod)
@@ -147,8 +153,10 @@ def test_sme_dense(data_shape, weight_shape, in_dtype):
             runtime=runtime,
             params=params,
         )
+
+    bias_postfix = "_add" if enable_bias else ""
     generated_func = executor_factory.lowered_ir_mods.items()[0][1][
-        "tvmgen_default_fused_nn_matmul"
+        f"tvmgen_default_fused_nn_matmul{bias_postfix}"
     ]
     extra_memory_in_bytes = calculate_extra_workspace_size_from_scalable_extents(generated_func, 4)
 
