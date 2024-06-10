@@ -91,6 +91,18 @@ def primfunc_local_allocates(placeholder_162: T.handle, placeholder_163: T.handl
 # fmt: on
 
 
+@T.prim_func
+def prim_func_decl_vector_type(a: T.handle, b: T.handle):
+    T.func_attr({"tir.noalias": True})
+    A = T.match_buffer(a, (4,), "float32x4")
+    B = T.match_buffer(b, (4,), "float32x4")
+    C = T.decl_buffer((4,), "float32x4")
+    for i in range(3):
+        with T.block("block"):
+            vi = T.axis.remap("S", [i])
+            B[vi] = A[vi] + C[vi]
+
+
 @pytest.mark.parametrize("alignment,size,consts", [(1, 663552, 0), (10, 663560, 0)])
 def test_global_allocates(alignment, size, consts):
     primfunc = primfunc_global_allocates
@@ -103,6 +115,11 @@ def test_local_allocates(alignment, size, consts):
     primfunc = primfunc_local_allocates
     assert tvm.tir.analysis.calculate_constant_bytes(primfunc, alignment) == consts
     assert tvm.tir.analysis.calculate_workspace_bytes(primfunc, alignment) == size
+
+
+def test_vector_type():
+    primfunc = prim_func_decl_vector_type
+    assert tvm.tir.analysis.calculate_workspace_bytes(primfunc, 1) == 64
 
 
 if __name__ == "__main__":
