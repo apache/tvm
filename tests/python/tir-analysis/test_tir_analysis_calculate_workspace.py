@@ -123,5 +123,4 @@ def test_vector_type():
 
 
 if __name__ == "__main__":
-    test_global_allocates()
-    test_local_allocates()
+    tvm.testing.main()
