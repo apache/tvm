@@ -114,7 +114,8 @@ class RequiredExpressionCollector : private StructInfoVisitor,
   }
 
  private:
-  RequiredExpressionCollector(const StructMap<PrimExpr, std::string>& inferable_expressions)
+  explicit RequiredExpressionCollector(
+      const StructMap<PrimExpr, std::string>& inferable_expressions)
       : inferable_expressions_(inferable_expressions) {}
 
   using relax::ExprVisitor::VisitExpr;
@@ -160,7 +161,7 @@ class SymbolicSubexprReplacer : public relax::ExprMutator,
   using tir::ExprMutator::operator();
   using tir::ExprMutator::VisitExpr;
 
-  SymbolicSubexprReplacer(StructMap<PrimExpr, tir::Var> replacements)
+  explicit SymbolicSubexprReplacer(StructMap<PrimExpr, tir::Var> replacements)
       : replacements_(replacements) {}
 
   StructInfo VisitExprDepStructInfoField(const StructInfo& struct_info) override {
