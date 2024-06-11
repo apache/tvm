@@ -342,7 +342,7 @@ def is_inline_json(target):
         json.loads(target)
         return True
     except json.decoder.JSONDecodeError:
-        return 
+        return False
 
 
 def _combine_target_options(target, additional_target_options=None):
