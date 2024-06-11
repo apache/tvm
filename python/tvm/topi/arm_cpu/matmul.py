@@ -26,6 +26,7 @@ from tvm.topi import nn
 from tvm.topi.utils import get_const_tuple
 from tvm.topi.arm_cpu.pstate_attributes import SMEAttributes
 from tvm.topi.arm_cpu.arm_utils import pad_dim_to_multiple
+from tvm.dlight.base.analysis import normalize_prim_func
 
 
 @autotvm.register_topi_compute("matmul.arm_cpu.sme")
@@ -126,9 +127,10 @@ def tir_schedule_matmul_sme(sch):
     in_dtype = main_func.buffer_map[data_handle].dtype
     out_dtype = "float32"
 
-    root_block = sch.get_block(main_func.body.block.name_hint)
-    gemm_block = sch.get_child_blocks(root_block)[-2]
-
+    block_infos = normalize_prim_func(sch)
+    reduction_block_infos = [block_info for block_info in block_infos if block_info.is_reduction()]
+    assert len(reduction_block_infos) == 1, "Expected a single gemm reduction block."
+    gemm_block = reduction_block_infos[0].block_rv
     gemm_block_name = sch.get(gemm_block).name_hint
     transpose = gemm_block_name.split("_")[-1]
     transpose_b = transpose[1] == "T"
