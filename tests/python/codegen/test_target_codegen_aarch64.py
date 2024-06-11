@@ -540,6 +540,21 @@ def test_matmul_sme(dtype):
     check_correct_assembly(dtype=dtype)
 
 
+def test_matmul_sme_no_reduction_block():
+    @T.prim_func
+    def prim_func(a: T.handle, b: T.handle):
+        A = T.match_buffer(a, (4,))
+        B = T.match_buffer(b, (4,))
+        for i in range(3):
+            with T.block("block"):
+                vi = T.axis.remap("S", [i])
+                B[vi] = A[vi]
+
+    sch = tvm.tir.Schedule(prim_func)
+    with pytest.raises(AssertionError, match="Expected a single gemm reduction block."):
+        tvm.topi.arm_cpu.matmul.tir_schedule_matmul_sme(sch)
+
+
 @pytest.mark.skipif(
     llvm_version_major() < 11, reason="Vscale is not supported in earlier versions of LLVM"
 )
