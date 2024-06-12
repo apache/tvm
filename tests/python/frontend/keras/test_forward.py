@@ -70,7 +70,7 @@ USING_CLASSIC_KERAS = ("keras", {"keras_mod": keras})
 USING_TENSORFLOW_KERAS = ("tf_keras", {"keras_mod": tf_keras})
 
 
-def verify_keras_frontend(keras_model, need_transpose=True, layout="NCHW"):
+def verify_keras_frontend(keras_model, need_transpose=True, layout="NCHW", batch_size=1):
     """Generic function to generate and compare Keras and TVM output"""
     # Keras frontend currently supports tensorflow backend only.
     assert keras.backend.backend() == "tensorflow"
@@ -81,10 +81,10 @@ def verify_keras_frontend(keras_model, need_transpose=True, layout="NCHW"):
     in_shapes = []
     for layer in keras_model._input_layers:
         if tf.executing_eagerly():
-            in_shapes.append(tuple(dim if dim is not None else 1 for dim in layer.input.shape))
+            in_shapes.append(tuple(dim if dim is not None else batch_size for dim in layer.input.shape))
         else:
             in_shapes.append(
-                tuple(dim.value if dim.value is not None else 1 for dim in layer.input.shape)
+                tuple(dim.value if dim.value is not None else batch_size for dim in layer.input.shape)
             )
 
     def get_keras_output(in_data):
@@ -567,6 +567,7 @@ class TestKeras:
             x = rnn_func(data)
             keras_model = keras_mod.models.Model(data, x)
             verify_keras_frontend(keras_model, need_transpose=False)
+            verify_keras_frontend(keras_model, need_transpose=False, batch_size=2)
 
     def test_forward_rnn(self, keras_mod):
         """test_forward_rnn"""
