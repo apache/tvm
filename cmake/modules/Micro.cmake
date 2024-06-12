@@ -64,6 +64,14 @@ if(USE_MICRO)
         "src/runtime/crt/host CMakeLists.txt.template -> crt"
         "src/runtime/crt/host **.cc -> crt/src"
       )
+    elseif("${platform}" STREQUAL "riscv")
+     list(
+       APPEND
+       PLATFORM_FILE_COPY_JOBS
+       "apps/microtvm/riscv/template_project microtvm_api_server.py -> riscv"
+       "apps/microtvm/riscv/template_project CMakeLists.txt.template -> riscv"
+       "apps/microtvm/riscv/template_project/src/ *.cc -> riscv/src/"
+     )
     else()
       message(FATAL_ERROR "${platform} not supported.")
     endif()
@@ -111,7 +119,7 @@ if(USE_MICRO)
     add_custom_target(${platform} DEPENDS ${platform_template_deps})
   endfunction()
 
-  set(PLATFORMS crt;zephyr;arduino)
+  set(PLATFORMS crt;zephyr;arduino;riscv)
   foreach(platform IN LISTS PLATFORMS)
     message(STATUS "Add ${platform} template project.")
     microtvm_add_platform_project_api(${platform})
