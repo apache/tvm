@@ -30,6 +30,15 @@ from .object import Object
 from . import _ffi_api, container
 from ..rpc.base import RPC_SESS_MASK
 
+def _gettype(arg):
+    if isinstance(arg, np.float16):
+        return "float16"
+    elif isinstance(arg, (_base.integer_types, bool)):
+        return "int32"
+    elif isinstance(arg, (float, np.float32)):
+        return "float32"
+    else:
+        raise TypeError("Unsupported type: %s" % (type(arg)))
 
 def _convert(arg, cargs):
     def _gettype(arg):
