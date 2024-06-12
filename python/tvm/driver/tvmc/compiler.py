@@ -404,6 +404,16 @@ def compile_model(
         transform_args = parse_graph_transform_args(locals())
         mod = apply_graph_transforms(mod, transform_args)
 
+        # Make each int8->int32 conv secure
+        mod = relay.transform.InferType()(mod)
+        mod = relay.qnn.transform.CanonicalizeOps()(mod)
+        mod = relay.transform.InferType()(mod)
+        mod = relay.transform.Extend2DConv()(mod)
+        mod = relay.transform.InferType()(mod)
+        mod = relay.transform.FoldConstant()(mod)
+        mod = relay.transform.InferType()(mod)
+        mod = relay.transform.EliminateCommonSubexpr()(mod)
+
         for partition_function, opts in zip(partition_functions, partition_opts):
             mod = partition_function(mod, params, mod_name=mod_name, **opts)
 
@@ -481,7 +491,7 @@ def compile_model(
 
         # Write dumps to file.
         if dumps:
-            save_dumps(package_path, dumps)
+            save_dumps(str(package_path), dumps)
 
         # Print compilation times per pass
         if print_pass_times:
