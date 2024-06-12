@@ -1440,7 +1440,9 @@ def test_hardswish():
             with R.dataflow():
                 lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.add(inp_0, R.const(3, "float32"))
                 lv1: R.Tensor((1, 3, 10, 10), dtype="float32") = R.clip(lv, 0, 6)
-                lv2: R.Tensor((1, 3, 10, 10), dtype="float32") = R.divide(lv1, R.const(6, "float32"))
+                lv2: R.Tensor((1, 3, 10, 10), dtype="float32") = R.divide(
+                    lv1, R.const(6, "float32")
+                )
                 lv3: R.Tensor((1, 3, 10, 10), dtype="float32") = R.multiply(inp_0, lv2)
                 gv: R.Tensor((1, 3, 10, 10), dtype="float32") = lv3
                 R.output(gv)
@@ -2633,9 +2635,7 @@ def test_split():
     @tvm.script.ir_module
     class expected1:
         @R.function
-        def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tuple(
+        def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tuple(
             R.Tensor((1, 1, 10, 10), dtype="float32"),
             R.Tensor((1, 1, 10, 10), dtype="float32"),
             R.Tensor((1, 1, 10, 10), dtype="float32"),
@@ -2691,9 +2691,7 @@ def test_chunk():
     @tvm.script.ir_module
     class Expected:
         @R.function
-        def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tuple(
+        def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tuple(
             R.Tensor((1, 1, 10, 10), dtype="float32"),
             R.Tensor((1, 1, 10, 10), dtype="float32"),
             R.Tensor((1, 1, 10, 10), dtype="float32"),
