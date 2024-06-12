@@ -37,6 +37,7 @@
 #include <nccl.h>
 
 #include "../../cuda/cuda_common.h"
+#include "msccl.h"
 #else
 #include <rccl/rccl.h>
 
@@ -53,6 +54,14 @@ namespace nccl {
     if (r != ncclSuccess) {                                                 \
       LOG(FATAL) << TVM_DISCO_CCL_NAME "Errror: " << ncclGetErrorString(r); \
     }                                                                       \
+  } while (0)
+
+#define MSCCL_CALL(cmd)                                                      \
+  do {                                                                       \
+    auto r = (cmd);                                                          \
+    if (r != mscclSuccess) {                                                 \
+      LOG(FATAL) << TVM_DISCO_CCL_NAME "Errror: " << mscclGetErrorString(r); \
+    }                                                                        \
   } while (0)
 
 #if TVM_NCCL_RCCL_SWITCH == 0
@@ -117,30 +126,96 @@ inline ncclDataType_t AsNCCLDataType(runtime::DataType dtype) {
   throw;
 }
 
+}  // namespace nccl
+
+template <typename CCLType>
+struct ccl;
+
+struct nccl_t {};
+template <>
+struct ccl<nccl_t> {
+  using Comm_t = ncclComm_t;
+  using UniqueId = ncclUniqueId;
+  using DataType_t = ncclDataType_t;
+  using RedOp_t = ncclRedOp_t;
+
+  static constexpr auto GetUniqueId = [](ncclUniqueId* id) { NCCL_CALL(ncclGetUniqueId(id)); };
+  static constexpr auto InitCommRank = [](void* comm, int num_workers, const ncclUniqueId& id,
+                                          int worker_id) {
+    NCCL_CALL(ncclCommInitRank(reinterpret_cast<ncclComm_t*>(comm), num_workers, id, worker_id));
+  };
+  static constexpr auto AllReduce = [](const void* sendbuff, void* recvbuff, size_t count,
+                                       ncclDataType_t datatype, ncclRedOp_t op, ncclComm_t comm,
+                                       cudaStream_t stream) {
+    NCCL_CALL(ncclAllReduce(sendbuff, recvbuff, count, datatype, op, comm, stream));
+  };
+  static void CommDestroy(ncclComm_t& comm) { NCCL_CALL(ncclCommDestroy(comm)); }
+  static constexpr size_t CCL_UNIQUE_ID_BYTES = NCCL_UNIQUE_ID_BYTES;
+  static constexpr char type[] = "nccl";
+};
+
+struct msccl_t {};
+template <>
+struct ccl<msccl_t> {
+  using Comm_t = mscclComm_t;
+  using UniqueId = mscclUniqueId;
+  using DataType_t = mscclDataType_t;
+  using RedOp_t = mscclRedOp_t;
+
+  static constexpr auto GetUniqueId = [](mscclUniqueId* id) { MSCCL_CALL(mscclGetUniqueId(id)); };
+  static constexpr auto InitCommRank = [](void* comm, int num_workers, const mscclUniqueId& id,
+                                          int worker_id) {
+    MSCCL_CALL(mscclCommInitRank(reinterpret_cast<mscclComm_t*>(comm), num_workers, id, worker_id));
+  };
+
+  static constexpr auto AllReduce = [](const void* sendbuff, void* recvbuff, size_t count,
+                                       mscclDataType_t datatype, mscclRedOp_t op, mscclComm_t comm,
+                                       cudaStream_t stream) {
+    CHECK(op == mscclSum) << "MSCCLPP AllReduce currently only supports mscclRedOp_t: [mscclSum]";
+    MSCCL_CALL(mscclAllReduce(sendbuff, recvbuff, count, datatype, op, comm, stream));
+  };
+  static void CommDestroy(mscclComm_t& comm) { MSCCL_CALL(mscclCommDestroy(comm)); }
+  static constexpr size_t CCL_UNIQUE_ID_BYTES = MSCCL_UNIQUE_ID_BYTES;
+  static constexpr char type[] = "msccl";
+};
+
+template <typename T>
 struct CCLThreadLocalContext {
   DiscoWorker* worker;
   int device_id;
-  deviceStream_t default_stream = nullptr;
-  ncclComm_t comm;
+  nccl::deviceStream_t default_stream = nullptr;
+  typename ccl<T>::Comm_t comm;
 
   void Clear() {
-    NCCL_CALL(ncclCommDestroy(comm));
+    ccl<T>::CommDestroy(comm);
     if (default_stream != nullptr) {
-      StreamDestroy(default_stream);
+      nccl::StreamDestroy(default_stream);
     }
   }
 
-  deviceStream_t GetDefaultStream() {
+  nccl::deviceStream_t GetDefaultStream() {
     const auto* func = tvm::runtime::Registry::Get("runtime.get_" TVM_DISCO_DEVICE_NAME "_stream");
     ICHECK(func != nullptr);
-    deviceStream_t stream = static_cast<deviceStream_t>((*func)().operator void*());
+    nccl::deviceStream_t stream = static_cast<nccl::deviceStream_t>((*func)().operator void*());
     return stream == nullptr ? default_stream : stream;
   }
 
   static CCLThreadLocalContext* Get();
 };
 
+template <typename T>
+CCLThreadLocalContext<T>* CCLThreadLocalContext<T>::Get() {
+  thread_local static CCLThreadLocalContext<T> ctx;
+  return &ctx;
+}
+
+namespace nccl {
+using CCLThreadLocalContext = CCLThreadLocalContext<nccl_t>;
 }  // namespace nccl
+namespace msccl {
+using CCLThreadLocalContext = CCLThreadLocalContext<msccl_t>;
+}  // namespace msccl
+
 }  // namespace runtime
 }  // namespace tvm
 
