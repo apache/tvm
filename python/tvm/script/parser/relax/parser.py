@@ -166,7 +166,8 @@ def collect_symbolic_var_from_prelude(
             except TypeError:
                 values = [values]
 
-            for target, value in zip(stmt.targets, values, strict=True):
+            assert len(stmt.targets) == len(values)
+            for target, value in zip(stmt.targets, values):
                 name = target.id
                 prelude_vars[name] = value
 
