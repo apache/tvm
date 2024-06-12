@@ -2635,7 +2635,9 @@ def test_split():
     @tvm.script.ir_module
     class expected1:
         @R.function
-        def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tuple(
+        def main(
+            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
+        ) -> R.Tuple(
             R.Tensor((1, 1, 10, 10), dtype="float32"),
             R.Tensor((1, 1, 10, 10), dtype="float32"),
             R.Tensor((1, 1, 10, 10), dtype="float32"),
@@ -2691,7 +2693,9 @@ def test_chunk():
     @tvm.script.ir_module
     class Expected:
         @R.function
-        def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tuple(
+        def main(
+            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
+        ) -> R.Tuple(
             R.Tensor((1, 1, 10, 10), dtype="float32"),
             R.Tensor((1, 1, 10, 10), dtype="float32"),
             R.Tensor((1, 1, 10, 10), dtype="float32"),
