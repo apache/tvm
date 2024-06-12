@@ -68,7 +68,7 @@ def bind_assign_value(
                     "Expected the same dtype for TIR vars "
                     f"but got {value.dtype} vs {prev_value.dtype}",
                 )
-            if type(prev_value) != type(value):
+            if not isinstance(value, type(prev_value)):
                 self.report_error(
                     node,
                     f"Expected the same IR type for TIR vars "
