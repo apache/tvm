@@ -2293,7 +2293,6 @@ def test_function_attributes_are_defined():
         assert func.attrs is not None
 
 
-@pytest.mark.xfail(reason="Bug: Implicit bounds not provided when parsing")
 def test_function_symbolic_variables_are_annotated():
     """Symbolic variables must be exposed for struct inference
 
@@ -2315,6 +2314,156 @@ def test_function_symbolic_variables_are_annotated():
         return output
 
     tvm.ir.assert_structural_equal(inferred_sinfo, expected)
+
+
+def test_symbolic_shape_variables_are_size_var():
+    """Symbolic variables inferred from shapes are SizeVar
+
+    The indices in `R.strided_slice` follow Python's conventions for
+    negative indices.  Absent any additional information, a slice
+    `arr[0:i]` would either have length `i` when `i >= 0`, or length
+    `len(arr) + i` when `i < 0`.
+
+    In this case, though, the dynamic `extent` variable is known to be
+    non-negative, because negative values may not be used as the
+    dimensions of `R.Tensor` or `R.Shape`.  Because Relax struct
+    inference is performed while TVMScript is being parsed, this
+    constraint must be exposed during TVMScript parsing in order to
+    correctly infer the resulting StructInfo.
+
+    """
+
+    @R.function(private=True)
+    def inferred_sinfo(A: R.Tensor(["extent"])):
+        extent = T.int64()
+        output = R.strided_slice(A, [0], [0], [extent])
+        return output
+
+    @R.function(private=True)
+    def expected(A: R.Tensor(["extent"])) -> R.Tensor(["extent"]):
+        extent = T.int64()
+        output: R.Tensor([extent]) = R.strided_slice(A, [0], [0], [extent])
+        return output
+
+    tvm.ir.assert_structural_equal(inferred_sinfo, expected)
+
+    assert isinstance(inferred_sinfo.params[0].struct_info.shape[0], tir.SizeVar)
+
+
+def test_symbolic_variables_from_prim_value_may_be_negative():
+    """Symbolic variables inferred from R.Prim are Var
+
+    Not all symbolic variables represent shapes.  While a
+    `relax::PrimValue` can be the source of definition for a TIR
+    variable, a `relax::PrimValue` may not represent a shape, and may
+    be negative.
+
+    This test is similar to
+    `test_symbolic_shape_variables_are_size_var`, except that the
+    `extent` variable is defined by a `R.Prim` argument, and not by a
+    `R.Tensor` argument.  As a result, we do not know whether `extent`
+    is negative, and cannot simplify expressions that depend on
+    `extent<0`.
+
+    """
+
+    @R.function(private=True)
+    def inferred_sinfo(A: R.Tensor([16]), _: R.Prim(value="extent")):
+        extent = T.int64()
+        output = R.strided_slice(A, [0], [0], [extent])
+        return output
+
+    @R.function(private=True)
+    def expected(A: R.Tensor([16]), _: R.Prim(value="extent")):
+        extent = T.int64()
+        output: R.Tensor(
+            [T.min(T.max(T.if_then_else(extent < 0, extent + 16, extent), 0), 16)]
+        ) = R.strided_slice(A, [0], [0], [extent])
+        return output
+
+    tvm.ir.assert_structural_equal(inferred_sinfo, expected)
+
+    assert not isinstance(inferred_sinfo.params[1].struct_info.value, tir.SizeVar)
+
+
+def test_other_arguments_may_cause_prim_value_to_define_size_var():
+    """Other arguments may cause R.Prim to hold SizeVar
+
+    This test is similar to
+    `test_symbolic_variables_from_prim_value_may_be_negative`, except
+    that `extent` also appears in a `R.Shape`.  While the
+    `R.Prim(value="extent")` occurs first in the parameter list, and
+    is the source of definition, the presence of `extent` in `R.Shape`
+    parameter shows that it is a `SizeVar`.
+
+    """
+
+    @R.function(private=True)
+    def inferred_sinfo(
+        A: R.Tensor([16]),
+        _prim: R.Prim(value="extent"),
+        _shape: R.Shape(
+            ["extent"],
+        ),
+    ):
+        extent = T.int64()
+        output = R.strided_slice(A, [0], [0], [extent])
+        return output
+
+    @R.function(private=True)
+    def expected(
+        A: R.Tensor([16]),
+        _prim: R.Prim(value="extent"),
+        _shape: R.Shape(["extent"]),
+    ):
+        extent = T.int64()
+        output: R.Tensor([T.min(extent, 16)]) = R.strided_slice(A, [0], [0], [extent])
+        return output
+
+    tvm.ir.assert_structural_equal(inferred_sinfo, expected)
+
+    assert isinstance(inferred_sinfo.params[1].struct_info.value, tir.SizeVar)
+
+
+@pytest.mark.xfail(reason="Bug: Implicit bounds not provided when parsing")
+def test_known_positive_expressions():
+    """Expressions may be known as non-negative
+
+    The variable `N` is not defined as a shape variable, and may be
+    either positive or negative.  However, the expression `N+16` is
+    used as the shape of a tensor, and is therefore known not to be
+    negative.  Later use of the expression `N+16 < 0` may therefore be
+    simplified.
+
+    This test is currently marked as failing.  When using
+    `relax::BlockBuilder::VisitWithNewScope` is provided with
+    parameters, it can mark shape expressions as non-negative, in
+    addition to individual variables.  However, this is not currently
+    used for TVMScript parsing.
+
+    """
+
+    @R.function(private=True)
+    def inferred_sinfo(
+        A: R.Tensor(["N + 16"]),
+        _: R.Prim(value="N"),
+    ):
+        N = T.int64()
+        output = R.strided_slice(A, [0], [0], [N + 16])
+        return output
+
+    @R.function(private=True)
+    def expected(
+        A: R.Tensor(["N + 16"]),
+        _: R.Prim(value="N"),
+    ):
+        N = T.int64()
+        output: R.Tensor([N + 16]) = R.strided_slice(A, [0], [0], [N + 16])
+        return output
+
+    tvm.ir.assert_structural_equal(inferred_sinfo, expected)
+
+    assert not isinstance(inferred_sinfo.params[1].struct_info.value, tir.SizeVar)
 
 
 if __name__ == "__main__":
