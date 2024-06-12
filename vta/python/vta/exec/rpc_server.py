@@ -102,7 +102,7 @@ def server_start():
         pkg = pkg_config(cfg)
         # check if the configuration is already the same
         if os.path.isfile(cfg_path):
-            old_cfg = json.loads(open(cfg_path, "r").read())
+            old_cfg = json.loads(env.pkg.cfg_json)
             if pkg.same_config(old_cfg):
                 logging.info("Skip reconfig_runtime due to same config.")
                 return
