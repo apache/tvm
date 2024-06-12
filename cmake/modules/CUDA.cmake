@@ -30,6 +30,26 @@ if(USE_CUDA)
   endif()
   message(STATUS "Build with CUDA ${CUDA_VERSION} support")
   enable_language(CUDA)
+
+  # Ensure that include directives to NVCC are in the
+  # `compile_commands.json`, as required by clangd.
+  #
+  # As of cmake 3.29.5 [0], if the NVCC version is 11 or higher, cmake
+  # will generate a "options-file.rsp" containing the -I flags for
+  # include directories, rather than providing them on the
+  # command-line.  This setting exists to work around the short
+  # command-line length limits on Windows, but is enabled on all
+  # platforms.  If set, because include directories are not part of
+  # the `compile_commands.json`, the clangd LSP cannot find the
+  # include files.
+  #
+  # Furthermore, this override cannot be specified in a user's
+  # `config.cmake` for TVM, because it must be set after CMake's
+  # built-in CUDA support.
+  #
+  # [0] https://github.com/Kitware/CMake/commit/6377a438
+  set(CMAKE_CUDA_USE_RESPONSE_FILE_FOR_INCLUDES 0)
+
   tvm_file_glob(GLOB RUNTIME_CUDA_SRCS src/runtime/cuda/*.cc)
   list(APPEND RUNTIME_SRCS ${RUNTIME_CUDA_SRCS})
   list(APPEND COMPILER_SRCS src/target/opt/build_cuda_on.cc)
