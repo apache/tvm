@@ -359,7 +359,7 @@ def gen_call_tir_inputs(
     outs = [te_out] if isinstance(te_out, te_Tensor) else list(te_out)
     unbound_tir_vars = _get_unbound_tir_vars([*create_primfunc_args, *outs], extra_tir_args_list)
 
-    inputs = [*create_primfunc_args] + outs + unbound_tir_vars
+    inputs = [*create_primfunc_args, *unbound_tir_vars, *outs]
     tir_func = create_prim_func(inputs, "int64")
 
     if primfunc_attrs:
@@ -380,8 +380,7 @@ def gen_call_tir_inputs(
         for out in outs
     ]
 
-    tir_vars = None
-    if len(unbound_tir_vars) > 0:
-        tir_vars = _shape_with_old_tir_var(unbound_tir_vars, tir_var_inverse_map)
+    for tir_var in unbound_tir_vars:
+        call_tir_args.append(PrimValue(tir.stmt_functor.substitute(tir_var, tir_var_inverse_map)))
 
-    return (tir_func, call_tir_args, output_sinfo, tir_vars)
+    return (tir_func, call_tir_args, output_sinfo, None)

@@ -61,9 +61,9 @@ def test_reshape_expand_dims():
                     expand_dims[i0_1, i1_1, i2_1, i3_1, i4_1] = rxplaceholder[i0_1, i2_1, i4_1]
 
         @R.function
-        def main(
-            x: R.Tensor((8, 3), dtype="float32")
-        ) -> R.Tensor((2, 1, 4, 1, 3), dtype="float32"):
+        def main(x: R.Tensor((8, 3), dtype="float32")) -> R.Tensor(
+            (2, 1, 4, 1, 3), dtype="float32"
+        ):
             cls = Module
             with R.dataflow():
                 y = R.call_tir(cls.reshape, (x,), out_sinfo=R.Tensor((2, 4, 3), dtype="float32"))
@@ -112,9 +112,9 @@ def test_reshape_expand_dims():
                     expand_dims[i0_1, i1_1, i2_1, i3_1, i4_1] = rxplaceholder[i0_1, i2_1, i4_1]
 
         @R.function
-        def main(
-            x: R.Tensor((8, 3), dtype="float32")
-        ) -> R.Tensor((2, 1, 4, 1, 3), dtype="float32"):
+        def main(x: R.Tensor((8, 3), dtype="float32")) -> R.Tensor(
+            (2, 1, 4, 1, 3), dtype="float32"
+        ):
             with R.dataflow():
                 cls = Expected
                 y: R.Tensor((2, 4, 3), "float32") = R.reshape(x, (2, 4, 3))
@@ -252,9 +252,9 @@ def test_reshape_dynamic_shape():
                         ]
 
         @R.function
-        def main(
-            x: R.Tensor((8, 16, 128), dtype="float16")
-        ) -> R.Tensor((1, 8, 16, 128), dtype="float16"):
+        def main(x: R.Tensor((8, 16, 128), dtype="float16")) -> R.Tensor(
+            (1, 8, 16, 128), dtype="float16"
+        ):
             cls = Module
             with R.dataflow():
                 y = R.call_tir(
@@ -294,9 +294,9 @@ def test_reshape_dynamic_shape():
                         ]
 
         @R.function
-        def main(
-            x: R.Tensor((8, 16, 128), dtype="float16")
-        ) -> R.Tensor((1, 8, 16, 128), dtype="float16"):
+        def main(x: R.Tensor((8, 16, 128), dtype="float16")) -> R.Tensor(
+            (1, 8, 16, 128), dtype="float16"
+        ):
             with R.dataflow():
                 y: R.Tensor((1, 8, 16, 128), dtype="float16") = R.reshape(
                     x, R.shape([1, 8, 16, 128])
@@ -641,71 +641,6 @@ def test_rewrite_static_reshape():
     tvm.ir.assert_structural_equal(Expected, After)
 
 
-# def test_rewrite_dynamic_reshape():
-#     @I.ir_module
-#     class Before:
-#         @R.function
-#         def main(x: R.Tensor(["N"], dtype="float32")):
-#             N = T.int64()
-#             with R.dataflow():
-#                 y = R.reshape(x, [N // 4, 4])
-#                 z = R.add(y, y)
-#                 R.output(z)
-#             return z
-
-#     @I.ir_module
-#     class Expected:
-#         @R.function
-#         def main(x: R.Tensor(["N"], dtype="float32")):
-#             N = T.int64()
-#             cls = Expected
-
-#             with R.dataflow():
-#                 y = R.reshape(x, R.shape([N // 4, 4]))
-#                 z = R.call_tir(
-#                     cls.add,
-#                     (y, y),
-#                     tir_vars=[N],
-#                     out_sinfo=R.Tensor((N // 4, 4), dtype="float32"),
-#                 )
-#                 R.output(z)
-#             return z
-
-#         @T.prim_func(private=True)
-#         def add(
-#             y1_handle: T.handle,
-#             y2_handle: T.handle,
-#             z_handle: T.handle,
-#             N: T.int64,
-#         ):
-
-#             y1 = T.match_buffer(y1_handle, [N // 4, 4], "float32")
-#             y2 = T.match_buffer(y2_handle, [N // 4, 4], "float32")
-#             z = T.match_buffer(z_handle, [N // 4, 4], "float32")
-
-#             T.func_attr({"tir.noalias": T.bool(True)})
-
-#             for iters in T.grid(T.int64(64), T.int64(4)):
-#                 with T.block("T_add"):
-#                     i, j = T.axis.remap("SS", iters)
-#                     z[i, j] = y1[i, j] + y2[i, j]
-
-#     After = tvm.ir.transform.Sequential(
-#         [
-#             # Lower both R.reshape and R.add from Relax to TIR
-#             relax.transform.LegalizeOps(),
-#             # Identify reshapes, raise calls to cls.reshape from TIR
-#             # to Relax
-#             relax.transform.RewriteDataflowReshape(),
-#             # Clean up afterwards, removing the no-longer-required
-#             # PrimFunc "reshape"
-#             relax.transform.DeadCodeElimination(),
-#         ]
-#     )(Before)
-#     After.show()
-#     tvm.ir.assert_structural_equal(Expected, After)
-
-
 def test_rewrite_dynamic_reshape():
     @I.ir_module
     class Before:
@@ -729,8 +664,7 @@ def test_rewrite_dynamic_reshape():
                 y = R.reshape(x, R.shape([N * 4, T.int64(4)]))
                 z = R.call_tir(
                     cls.add,
-                    (y, y),
-                    tir_vars=[N],
+                    (y, y, R.prim_value(N)),
                     out_sinfo=R.Tensor((N * 4, 4), dtype="float32"),
                 )
                 R.output(z)
@@ -740,8 +674,8 @@ def test_rewrite_dynamic_reshape():
         def add(
             y1_handle: T.handle,
             y2_handle: T.handle,
-            z_handle: T.handle,
             N: T.int64,
+            z_handle: T.handle,
         ):
             y1 = T.match_buffer(y1_handle, [N * 4, T.int64(4)], "float32")
             y2 = T.match_buffer(y2_handle, [N * 4, T.int64(4)], "float32")

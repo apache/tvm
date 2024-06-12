@@ -768,21 +768,25 @@ class FusedTIRConstructor : public ExprVisitor {
    */
   void MapInputBuffer(const tir::PrimFunc& func, const relax::Expr& args) {
     Array<Expr> arg_list;
-    Array<tir::Buffer> buffer_list;
     if (const auto* arg_tuple = args.as<TupleNode>()) {
       arg_list = arg_tuple->fields;
     } else {
       arg_list = {args};
     }
 
+    Array<Expr> relax_tensors;
+    Array<tir::Buffer> tir_buffers;
+
     ICHECK_GE(func->params.size(), arg_list.size());
     for (size_t i = 0; i < arg_list.size(); ++i) {
       const tir::Var& param = func->params[i];
-      const tir::Buffer& buffer = func->buffer_map.at(param);
-      buffer_list.push_back(buffer);
+      if (auto buffer = func->buffer_map.Get(param)) {
+        relax_tensors.push_back(arg_list[i]);
+        tir_buffers.push_back(buffer.value());
+      }
     }
 
-    MapArgsToBuffer(arg_list, buffer_list);
+    MapArgsToBuffer(relax_tensors, tir_buffers);
   }
 
   static Array<tir::Var> GetPrimFuncOutputParams(const tir::PrimFunc& func,
