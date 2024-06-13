@@ -15,14 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, unused-variable, too-many-locals
+# pylint: disable=unused-argument, redefined-builtin
 """GEMM Convolution schedule on AArch64"""
 import tvm
-from tvm.target import Target
 from tvm import te
 from tvm.topi import nn
 from tvm.topi.arm_cpu.arm_utils import get_tiling_A, get_tiling_B_transformed
 from ..utils import get_const_tuple, traverse_inline
-from ..nn.utils import get_pad_tuple
 from .. import tag
 
 # Compute function
