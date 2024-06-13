@@ -77,7 +77,7 @@ def test_order():
     expected_output = relay.Let(b, y, expected_output)
     expected_output = relay.Let(a, x, expected_output)
     expected_output = run_opt_pass(expected_output, transform.InferType())
-    assert tvm.ir.structural_equal(anf, expected_output)
+    tvm.ir.assert_structural_equal(anf, expected_output)
 
 
 def test_if():
@@ -94,7 +94,7 @@ def test_if():
     expected_output = relay.Let(d, expected_output, d)
     expected_output = relay.Let(c, cond, expected_output)
     expected_output = run_opt_pass(expected_output, transform.InferType())
-    assert tvm.ir.structural_equal(anf, expected_output)
+    tvm.ir.assert_structural_equal(anf, expected_output)
 
 
 def test_let_as_subexpr():

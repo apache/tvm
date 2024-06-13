@@ -211,7 +211,7 @@ def test_primary_operands_all_scalars():
     mod = relay.transform.InferType()(mod)
     mod = ScalarToTensorConstants()(mod)
     new_mod = relay.transform.InferType()(mod)
-    assert tvm.ir.structural_equal(mod[global_var].body, new_mod[global_var].body)
+    tvm.ir.assert_structural_equal(mod[global_var].body, new_mod[global_var].body)
 
 
 @tvm.testing.requires_cmsisnn
@@ -253,7 +253,7 @@ def test_all_primary_operands_tensor_constants():
     mod = relay.transform.InferType()(mod)
     mod = ScalarToTensorConstants()(mod)
     new_mod = relay.transform.InferType()(mod)
-    assert tvm.ir.structural_equal(mod[global_var].body, new_mod[global_var].body)
+    tvm.ir.assert_structural_equal(mod[global_var].body, new_mod[global_var].body)
 
 
 @tvm.testing.requires_cmsisnn
@@ -294,7 +294,7 @@ def test_duplicate_constant_arguments():
     mod = relay.transform.InferType()(mod)
     mod = ScalarToTensorConstants()(mod)
     new_mod = relay.transform.InferType()(mod)
-    assert tvm.ir.structural_equal(mod[global_var].body, new_mod[global_var].body)
+    tvm.ir.assert_structural_equal(mod[global_var].body, new_mod[global_var].body)
 
 
 @tvm.testing.requires_cmsisnn
@@ -329,7 +329,7 @@ def test_non_cmsisnn_ext_func():
 
     expected = get_mod()["external_function"].body
     actual = ScalarToTensorConstants()(get_mod())["external_function"].body
-    assert tvm.ir.structural_equal(expected, actual)
+    tvm.ir.assert_structural_equal(expected, actual)
 
 
 if __name__ == "__main__":

@@ -110,7 +110,7 @@ def get_rand(shape, dtype="float32"):
 def check_func(func, ref_func):
     func = run_infer_type(func)
     ref_func = run_infer_type(ref_func)
-    assert tvm.ir.structural_equal(func, ref_func)
+    tvm.ir.assert_structural_equal(func, ref_func)
 
 
 @tvm.testing.uses_gpu
@@ -216,7 +216,7 @@ def test_function_class_pass():
     # wrap in expr
     mod2 = tvm.IRModule.from_expr(f1)
     mod2 = tvm.relay.transform.InferType()(mod2)
-    assert tvm.ir.structural_equal(mod["main"], mod2["main"])
+    tvm.ir.assert_structural_equal(mod["main"], mod2["main"])
 
 
 @tvm.testing.uses_gpu
@@ -504,7 +504,7 @@ def test_sequential_with_scoping():
 
     zz = mod["main"]
     zexpected = run_infer_type(expected())
-    assert tvm.ir.structural_equal(zz, zexpected)
+    tvm.ir.assert_structural_equal(zz, zexpected)
 
 
 def test_nested_sequential_with_scoping():
@@ -532,7 +532,7 @@ def test_nested_sequential_with_scoping():
         zz = tvm.transform.Sequential(passes)(z)
 
     expected = relay.transform.InferType()(expected())
-    assert tvm.ir.structural_equal(zz, expected)
+    tvm.ir.assert_structural_equal(zz, expected)
 
 
 def test_print_ir(capfd):
