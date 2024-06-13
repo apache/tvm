@@ -283,46 +283,6 @@ def schedule_dense_pack(cfg, outs):
     return s
 
 
-@autotvm.register_topi_compute("dense_simple.x86")
-def dense_simple(cfg, data, weight, bias=None, out_dtype=None):
-    """Compute dense with transformed weight."""
-    if out_dtype is None:
-        out_dtype = data.dtype
-    M, K = get_const_tuple(data.shape)  # batch, in_dim
-    N, _ = get_const_tuple(weight.shape)  # out_dim
-    k = te.reduce_axis((0, K), name="k")
-    C = te.compute(
-        (M, N),
-        lambda i, j: te.sum(data[i, k] * weight[k, j]),
-        tag="dense_simple",
-    )
-    if bias is not None:
-        C = te.compute((M, N), lambda i, j: C[i, j] + bias[j].astype(out_dtype), tag=tag.BROADCAST)
-
-    target = "llvm -mtriple=aarch64-linux-gnu -mattr=+sve"
-    build_mod = tvm.build(C, target=target)
-    buffer_size = 128
-    np_ones = np.ones((buffer_size,)).astype("float32")
-    _test_accuracy(np_ones, np_ones, build_mod)
-    return C
-
-    # Linear transformation
-    linear_output = np.dot(data, weight.T) + bias
-
-
-@autotvm.register_topi_schedule("dense_simple.x86")
-def schedule_dense_pack(cfg, outs):
-    """Create the schedule for dense_simple"""
-    s = te.create_schedule([x.op for x in outs])
-
-    def _callback(op):
-        if "dense_simple" in op.tag:
-            _schedule_dense_simple_template(cfg, s, op.output(0), outs[0])
-
-    traverse_inline(s, outs[0].op, _callback)
-    return s
-
-
 @autotvm.register_topi_compute("dense_int8.x86")
 def dense_int8(cfg, data, weight, bias=None, out_dtype=None):
     """Compute for uint8 x int8 -> int32 dense"""
