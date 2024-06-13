@@ -1826,10 +1826,12 @@ def convert_dequantize_linear(g, op, block):
     data_node = g.get_node(data_node_name)
 
     # paddle_scale = tvm_scale * 127
-    paddle_quantize_scale = g.get_params(op.input("Scale")[0]).asnumpy()
-    tvm_quantize_scale = paddle_quantize_scale / 127.0
+    paddle_dequantize_scale = g.get_params(op.input("Scale")[0]).asnumpy()
+    tvm_dequantize_scale = paddle_dequantize_scale / 127.0
+    tvm_dequantize_scale = tvm_dequantize_scale.squeeze()
 
-    tvm_quantize_zp = g.get_params(op.input("ZeroPoint")[0]).asnumpy()
+    tvm_dequantize_zp = g.get_params(op.input("ZeroPoint")[0]).asnumpy()
+    tvm_dequantize_zp = tvm_dequantize_zp.squeeze()
 
     tvm_quantize_axis = op.attr("quant_axis")
     if tvm_quantize_axis == -1:
@@ -1840,8 +1842,8 @@ def convert_dequantize_linear(g, op, block):
 
     out = _qnn.op.dequantize(
         data=data_node,
-        input_scale=_op.const(tvm_quantize_scale, "float32"),
-        input_zero_point=_op.const(tvm_quantize_zp, "int32"),
+        input_scale=_expr.const(tvm_dequantize_scale, "float32"),
+        input_zero_point=_expr.const(tvm_dequantize_zp, "int32"),
         axis=tvm_quantize_axis,
     )
     g.add_node(op.output("Y")[0], out)
@@ -1856,8 +1858,10 @@ def convert_quantize_linear(g, op, block):
     # paddle_scale = tvm_scale * 127
     paddle_quantize_scale = g.get_params(op.input("Scale")[0]).asnumpy()
     tvm_quantize_scale = paddle_quantize_scale / 127.0
+    tvm_quantize_scale = tvm_quantize_scale.squeeze()
 
     tvm_quantize_zp = g.get_params(op.input("ZeroPoint")[0]).asnumpy()
+    tvm_quantize_zp = tvm_quantize_zp.squeeze()
     tvm_quantize_axis = op.attr("quant_axis")
 
     if tvm_quantize_axis == -1:
@@ -1865,8 +1869,8 @@ def convert_quantize_linear(g, op, block):
 
     out = _qnn.op.quantize(
         data=data_node,
-        output_scale=_op.const(tvm_quantize_scale, "float32"),
-        output_zero_point=_op.const(tvm_quantize_zp, "int32"),
+        output_scale=_expr.const(tvm_quantize_scale, "float32"),
+        output_zero_point=_expr.const(tvm_quantize_zp, "int32"),
         axis=tvm_quantize_axis,
     )
     g.add_node(op.output("Y")[0], out)
@@ -2446,14 +2450,12 @@ def convert_slice(g, op, block):
 def convert_softmax(g, op, block):
     """Operator converter for softmax."""
 
-    x = g.get_node(op.input("X")[0])
+    data = g.get_node(op.input("X")[0])
     axis = op.attr("axis")
     input_shape = block.var(op.input("X")[0]).shape
     if axis < 0:
         axis = len(input_shape) + axis
-    m = _op.max(x, axis, keepdims=True)
-    e = _op.exp(x - m)
-    out = e / _op.sum(e, axis, keepdims=True)
+    out = _op.nn.softmax(data, axis)
     g.add_node(op.output("Out")[0], out)
 
 
