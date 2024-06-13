@@ -75,7 +75,7 @@ def bind_assign_value(
                     f"but existing value {type(value)} is mismatched "
                     f"to previous {type(prev_value)}",
                 )
-            return prev_value
+            value = prev_value
         IRBuilder.name(var_name, value)
         return value
 
