@@ -4088,6 +4088,32 @@ def relax_match_cast_struct_info_proxy():
         yield make_ir_generator(subclass)
 
 
+def relax_symbolic_size_var():
+    """Relax symbolic variables may be SizeVar"""
+    N = tvm.tir.SizeVar("N", "int64")
+
+    @R.function
+    def func(A: R.Tensor([N], "float16")):
+        B: R.Tensor([N], "float16") = A
+        return B
+
+    return func
+
+
+def relax_float_symbolic_var():
+    """Relax symbolic variables may hold any dtype"""
+
+    @R.function
+    def func(A: R.Tensor(["N"], "float16"), _: R.Prim(value="threshold")):
+        N = T.int64()
+        threshold = T.float16()
+
+        B = A >= R.prim_value(threshold / T.cast(N, "float16"))
+        return B
+
+    return func
+
+
 ir_generator = tvm.testing.parameter(
     launch_env_thread,
     opt_gemm_normalize,
@@ -4174,6 +4200,8 @@ ir_generator = tvm.testing.parameter(
     return_zero_private_with_attr,
     *op_of_literal(),
     *relax_match_cast_struct_info_proxy(),
+    relax_symbolic_size_var,
+    relax_float_symbolic_var,
 )
 
 relax_ir_generator = tvm.testing.parameter(
