@@ -243,6 +243,14 @@ class TorchFXImporter:
         else:
             raise KeyError("Unregonized approximate algorithm for gelu: {}.".format(approximate))
 
+    def _hardsigmoid(self, node: fx.node.Node) -> relax.Var:
+        args = self.retrieve_args(node)
+        x = args[0]
+        dtype = x.struct_info.dtype
+        x0 = relax.op.add(x, relax.const(3, dtype))
+        x1 = relax.op.clip(x0, 0, 6)
+        return self.block_builder.emit(relax.op.divide(x1, relax.const(6, dtype)))
+
     def _hardswish(self, node: fx.node.Node) -> relax.Var:
         args = self.retrieve_args(node)
         x = args[0]
@@ -1367,6 +1375,7 @@ class TorchFXImporter:
             nn.Sigmoid: self._sigmoid,
             nn.Tanh: lambda node: self.block_builder.emit(relax.op.tanh(self.env[node.args[0]])),
             nn.SiLU: lambda node: self.block_builder.emit(relax.op.nn.silu(self.env[node.args[0]])),
+            nn.Hardsigmoid: self._hardsigmoid,
             nn.Hardswish: self._hardswish,
             nn.Flatten: self._flatten,
             nn.BatchNorm2d: self._batch_norm_2d,
@@ -1447,6 +1456,7 @@ class TorchFXImporter:
             "leaky_relu": self._leakyrelu,
             "gelu": self._gelu,
             "silu": lambda node: self.block_builder.emit(relax.op.nn.silu(self.env[node.args[0]])),
+            "hardsigmoid": self._hardsigmoid,
             "hardswish": self._hardswish,
             "interpolate": self._interpolate,
             "size": self._size,
