@@ -82,7 +82,7 @@ def test_combine_parallel_conv2d():
         y = run_opt_pass(y_before, transform.CombineParallelConv2D(min_num_branches=2))
         y_expected = expected(x, w1, w2, w3, w4, channels1, channels2, channels3, channels4)
         y_expected = run_opt_pass(y_expected, transform.InferType())
-        assert tvm.ir.structural_equal(y, y_expected, map_free_vars=True)
+        tvm.ir.assert_structural_equal(y, y_expected, map_free_vars=True)
 
     check((1, 4, 16, 16), 4, 4, 4, 4)
     check((1, 4, 16, 16), 4, 8, 4, 7)
@@ -132,7 +132,7 @@ def test_combine_parallel_conv2d_scale_relu():
         y = run_opt_pass(y_before, transform.CombineParallelConv2D(min_num_branches=2))
         y_expected = expected(x, w1, w2, scale1, scale2, bias, channels1, channels2)
         y_expected = run_opt_pass(y_expected, transform.InferType())
-        assert tvm.ir.structural_equal(y, y_expected, map_free_vars=True)
+        tvm.ir.assert_structural_equal(y, y_expected, map_free_vars=True)
 
     check((1, 4, 16, 16), 4, 8)
 
@@ -175,7 +175,7 @@ def test_combine_parallel_conv2d_scale():
         y = run_opt_pass(y_before, transform.CombineParallelConv2D(min_num_branches=2))
         y_expected = expected(x, w1, w2, scale1, scale2, channels1, channels2)
         y_expected = run_opt_pass(y_expected, transform.InferType())
-        assert tvm.ir.structural_equal(y, y_expected, map_free_vars=True)
+        tvm.ir.assert_structural_equal(y, y_expected, map_free_vars=True)
 
     check((1, 4, 16, 16), 4, 8)
 
@@ -214,7 +214,7 @@ def test_combine_parallel_conv2d_multiple_blocks():
         y = run_opt_pass(y_before, transform.CombineParallelConv2D(min_num_branches=2))
         y_expected = expected(x, w, out_c, repeat)
         y_expected = run_opt_pass(y_expected, transform.InferType())
-        assert tvm.ir.structural_equal(y, y_expected, map_free_vars=True)
+        tvm.ir.assert_structural_equal(y, y_expected, map_free_vars=True)
 
     check((1, 4, 16, 16), 4)
 

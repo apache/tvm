@@ -167,7 +167,7 @@ def run_tvm_graph(
             outputs=out_names,
             convert_config=convert_config,
         )
-    assert tvm.ir.structural_equal(mod["main"], mod_with_span["main"], map_free_vars=True)
+    tvm.ir.assert_structural_equal(mod["main"], mod_with_span["main"], map_free_vars=True)
 
     dev = tvm.device(target, 0)
     if mode == "debug":
@@ -1868,7 +1868,7 @@ def test_read_variable_op(target, dev):
                 mod_with_span, _ = relay.frontend.from_tensorflow(
                     final_graph_def, layout=None, shape=shape_dict, outputs=None
                 )
-            assert tvm.ir.structural_equal(mod["main"], mod_with_span["main"])
+            tvm.ir.assert_structural_equal(mod["main"], mod_with_span["main"])
 
         assert execinfo.value.args[0].startswith("Graph is not frozen. Provide a frozen graph")
 
@@ -4164,7 +4164,7 @@ def test_forward_ptb():
                     "Model/RNN/RNN/multi_rnn_cell/cell_0/lstm_cell/LSTMBlockCell_1:6",
                 ],
             )
-        assert tvm.ir.structural_equal(mod["main"], mod_with_span["main"])
+        tvm.ir.assert_structural_equal(mod["main"], mod_with_span["main"])
 
         target = "llvm"
         with tvm.transform.PassContext(opt_level=0):
@@ -5809,7 +5809,7 @@ def test_moments():
         mod, _ = from_tensorflow(g.as_graph_def(add_shapes=True))
     with tvm.testing.enable_span_filling():
         mod_with_span, _ = from_tensorflow(g.as_graph_def(add_shapes=True))
-    assert tvm.ir.structural_equal(mod["main"], mod_with_span["main"], map_free_vars=True)
+    tvm.ir.assert_structural_equal(mod["main"], mod_with_span["main"], map_free_vars=True)
 
     program = """
     def @main(%A: Tensor[(4, 176, 8, 8), float32]) {
@@ -5932,7 +5932,7 @@ class TestSetSpan:
             with_span = res_fptr()
         with tvm.testing.disable_span_filling():
             without_span = res_fptr()
-        assert tvm.ir.structural_equal(with_span, without_span)
+        tvm.ir.assert_structural_equal(with_span, without_span)
         _verify_structural_equal_with_span(with_span, golden_fptr())
 
     def test_conv2d_bias_add_span(self):

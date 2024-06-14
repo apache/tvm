@@ -69,7 +69,7 @@ def verify_fused_batch_norm(shape):
             mod, params = relay.frontend.from_tensorflow(constant_graph, outputs=["output"])
         with tvm.testing.enable_span_filling():
             mod_with_span, _ = relay.frontend.from_tensorflow(constant_graph, outputs=["output"])
-        assert tvm.ir.structural_equal(mod["main"], mod_with_span["main"])
+        tvm.ir.assert_structural_equal(mod["main"], mod_with_span["main"])
         with tvm.transform.PassContext(opt_level=3):
             graph, lib, params = relay.build(mod, target=device, params=params)
         from tvm.contrib import graph_executor

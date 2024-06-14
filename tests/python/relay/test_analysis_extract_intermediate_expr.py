@@ -108,22 +108,22 @@ def test_extract():
         tuple_out = relay.op.split(z, indices_or_sections=1, axis=0)
         return tvm.IRModule.from_expr(tuple_out[0])
 
-    assert tvm.ir.structural_equal(
+    tvm.ir.assert_structural_equal(
         relay.analysis.extract_intermdeiate_expr(before(), 0), expected_0()
     )
-    assert tvm.ir.structural_equal(
+    tvm.ir.assert_structural_equal(
         relay.analysis.extract_intermdeiate_expr(before(), 1), expected_1()
     )
-    assert tvm.ir.structural_equal(
+    tvm.ir.assert_structural_equal(
         relay.analysis.extract_intermdeiate_expr(before(), 2), expected_2()
     )
-    assert tvm.ir.structural_equal(
+    tvm.ir.assert_structural_equal(
         (relay.analysis.extract_intermdeiate_expr(before(), 3)), expected_3()
     )
-    assert tvm.ir.structural_equal(
+    tvm.ir.assert_structural_equal(
         relay.analysis.extract_intermdeiate_expr(before(), 4), expected_4()
     )
-    assert tvm.ir.structural_equal(relay.analysis.extract_intermdeiate_expr(before(), 5), before())
+    tvm.ir.assert_structural_equal(relay.analysis.extract_intermdeiate_expr(before(), 5), before())
 
 
 if __name__ == "__main__":

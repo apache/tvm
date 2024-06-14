@@ -42,7 +42,7 @@ def test_buffer_access_ptr():
     n = te.size_var("n")
     Ab = tvm.tir.decl_buffer((m, n), "float32", strides=[n + 1, 1])
     aptr = Ab.access_ptr("rw")
-    assert tvm.ir.structural_equal(aptr.args[3], Ab.strides[0] * m)
+    tvm.ir.assert_structural_equal(aptr.args[3], Ab.strides[0] * m)
     assert aptr.args[0].dtype == Ab.dtype
     assert aptr.args[4].value == Buffer.READ | Buffer.WRITE
     aptr = Ab.access_ptr("w")
@@ -72,18 +72,18 @@ def test_buffer_access_ptr_extent():
     n = te.size_var("n")
     Ab = tvm.tir.decl_buffer((m, n), "float32")
     aptr = Ab.access_ptr("rw")
-    assert tvm.ir.structural_equal(aptr.args[3], m * n)
+    tvm.ir.assert_structural_equal(aptr.args[3], m * n)
     aptr = Ab.access_ptr("rw", offset=100)
-    assert tvm.ir.structural_equal(aptr.args[3], m * n - 100)
+    tvm.ir.assert_structural_equal(aptr.args[3], m * n - 100)
     Ab = tvm.tir.decl_buffer((m, n), "float32", strides=[n + 1, 1])
     aptr = Ab.access_ptr("rw", offset=100)
-    assert tvm.ir.structural_equal(aptr.args[3], Ab.strides[0] * m - 100)
+    tvm.ir.assert_structural_equal(aptr.args[3], Ab.strides[0] * m - 100)
 
     # Test extent from input params
     aptr = Ab.access_ptr("rw", extent=200)
-    assert tvm.ir.structural_equal(aptr.args[3], T.int32(200))
+    tvm.ir.assert_structural_equal(aptr.args[3], T.int32(200))
     aptr = Ab.access_ptr("rw", offset=100, extent=100)
-    assert tvm.ir.structural_equal(aptr.args[3], T.int32(100))
+    tvm.ir.assert_structural_equal(aptr.args[3], T.int32(100))
 
 
 def test_buffer_vload():
@@ -112,7 +112,7 @@ def test_buffer_index_merge_mult_mod():
     A_stride = tvm.tir.decl_buffer((m, n), "float32", strides=(s, 1))
 
     def assert_simplified_equal(index_simplified, index_direct):
-        assert tvm.ir.structural_equal(
+        tvm.ir.assert_structural_equal(
             index_simplified, index_direct
         ), "index_simplified=%s, index_direct=%s" % (index_simplified, index_direct)
 

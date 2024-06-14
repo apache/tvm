@@ -49,15 +49,6 @@ def _optimize(func, optimize=True):
     return entry if isinstance(func, relay.Function) else entry.body
 
 
-def _assert_structural_equal(a, b):
-    """Check structural equality of two Relay expressions."""
-    reason = (
-        "Actual and expected relay functions are not equal. "
-        "LayoutOptimizer is not correctly converting layouts."
-    )
-    assert tvm.ir.structural_equal(a, b), reason
-
-
 def _compile_and_compare_model(tflite_graph, ifm_shape, dtype):
     """Compare running result of compilation against TFLite."""
     tflite_model = tflite.Model.Model.GetRootAsModel(tflite_graph, 0)
@@ -118,7 +109,7 @@ def test_single_convolution():
 
     a = _optimize(get_graph())
     b = _optimize(get_graph(), optimize=False)
-    _assert_structural_equal(a, b)
+    tvm.ir.assert_structural_equal(a, b)
 
 
 @pytest.mark.parametrize("dtype", ["int8", "int32"])
@@ -157,7 +148,7 @@ def test_add_reduce_sum(dtype):
 
     a = _optimize(get_graph())
     b = _optimize(get_graph(get_expected=True), optimize=False)
-    _assert_structural_equal(a, b)
+    tvm.ir.assert_structural_equal(a, b)
 
 
 def test_multiple_convolution():
@@ -190,7 +181,7 @@ def test_multiple_convolution():
 
     a = _optimize(get_graph())
     b = _optimize(get_graph(get_expected=True), optimize=False)
-    _assert_structural_equal(a, b)
+    tvm.ir.assert_structural_equal(a, b)
 
 
 def test_multiple_depthwise_convolution():
@@ -222,7 +213,7 @@ def test_multiple_depthwise_convolution():
 
     a = _optimize(get_graph())
     b = _optimize(get_graph(get_expected=True), optimize=False)
-    _assert_structural_equal(a, b)
+    tvm.ir.assert_structural_equal(a, b)
 
 
 def test_ignore_transform_operations():
@@ -268,7 +259,7 @@ def test_ignore_transform_operations():
 
     a = _optimize(get_graph())
     b = _optimize(get_graph(), optimize=False)
-    _assert_structural_equal(a, b)
+    tvm.ir.assert_structural_equal(a, b)
 
 
 def test_ignore_concatenate():
@@ -314,7 +305,7 @@ def test_ignore_concatenate():
 
     a = _optimize(get_graph())
     b = _optimize(get_graph(), optimize=False)
-    _assert_structural_equal(a, b)
+    tvm.ir.assert_structural_equal(a, b)
 
 
 def test_ignore_concatnate_with_layout_transform():
@@ -373,7 +364,7 @@ def test_ignore_concatnate_with_layout_transform():
 
     a = _optimize(get_graph())
     b = _optimize(get_graph(), optimize=False)
-    _assert_structural_equal(a, b)
+    tvm.ir.assert_structural_equal(a, b)
 
 
 def test_multiple_inputs():
@@ -422,7 +413,7 @@ def test_multiple_inputs():
 
     a = _optimize(get_graph())
     b = _optimize(get_graph(), optimize=False)
-    _assert_structural_equal(a, b)
+    tvm.ir.assert_structural_equal(a, b)
 
 
 def test_multiple_outputs():
@@ -471,7 +462,7 @@ def test_multiple_outputs():
 
     a = _optimize(get_graph())
     b = _optimize(get_graph(get_expected=True), optimize=False)
-    _assert_structural_equal(a, b)
+    tvm.ir.assert_structural_equal(a, b)
 
 
 def test_multiple_binary_elementwise():
@@ -525,7 +516,7 @@ def test_multiple_binary_elementwise():
 
     a = _optimize(get_graph())
     b = _optimize(get_graph(get_expected=True), optimize=False)
-    _assert_structural_equal(a, b)
+    tvm.ir.assert_structural_equal(a, b)
 
 
 def test_multiple_pooling():
@@ -561,7 +552,7 @@ def test_multiple_pooling():
 
     a = _optimize(get_graph())
     b = _optimize(get_graph(get_expected=True), optimize=False)
-    _assert_structural_equal(a, b)
+    tvm.ir.assert_structural_equal(a, b)
 
 
 def test_multiple_unary_elementwise():
@@ -591,7 +582,7 @@ def test_multiple_unary_elementwise():
 
     a = _optimize(get_graph())
     b = _optimize(get_graph(get_expected=True), optimize=False)
-    _assert_structural_equal(a, b)
+    tvm.ir.assert_structural_equal(a, b)
 
 
 def test_op_without_ethosu_consumer():
@@ -632,7 +623,7 @@ def test_op_without_ethosu_consumer():
 
     a = _optimize(get_graph())
     b = _optimize(get_graph(get_expected=True), optimize=False)
-    _assert_structural_equal(a, b)
+    tvm.ir.assert_structural_equal(a, b)
 
 
 def test_diamond_graph():
@@ -687,7 +678,7 @@ def test_diamond_graph():
 
     a = _optimize(get_graph())
     b = _optimize(get_graph(get_expected=True), optimize=False)
-    _assert_structural_equal(a, b)
+    tvm.ir.assert_structural_equal(a, b)
 
 
 def test_same_output_multiple_convolutions():

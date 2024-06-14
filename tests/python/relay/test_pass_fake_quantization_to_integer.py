@@ -890,7 +890,7 @@ def test_fq_hard_fail():
     mod = tvm.relay.transform.InferType()(mod)
 
     mod_int = tvm.relay.transform.FakeQuantizationToInteger(hard_fail=False)(mod)
-    assert tvm.ir.structural_equal(mod_int, mod)
+    tvm.ir.assert_structural_equal(mod_int, mod)
     # Catch a generic exception because the tvm FFI eats the python exception type
     with pytest.raises(Exception):
         mod_int = tvm.relay.transform.FakeQuantizationToInteger(hard_fail=True)(mod)
@@ -902,7 +902,7 @@ def compare_expected_fq_qat_to_int(expr, expected_expr, args, allow_rounding_err
     mod_int = tvm.relay.transform.FakeQuantizationToInteger(False, True)(mod_def)
     mod_exp = tvm.relay.transform.InferType()(tvm.IRModule.from_expr(expected_expr))
     assert not tvm.ir.structural_equal(mod, mod_int)
-    assert tvm.ir.structural_equal(mod_int, mod_exp)
+    tvm.ir.assert_structural_equal(mod_int, mod_exp)
     result_def = (
         relay.create_executor("vm", mod=mod_def, device=tvm.cpu(), target="llvm")
         .evaluate()(*args)

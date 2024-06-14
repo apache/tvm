@@ -100,7 +100,7 @@ def test_annotate():
     mod = transform.PartitionGraph()(mod)
 
     expected = _create_graph_annotated()
-    assert tvm.ir.structural_equal(mod, expected, map_free_vars=True)
+    tvm.ir.assert_structural_equal(mod, expected, map_free_vars=True)
 
 
 @pytest.mark.skipif(not _has_xcode(), reason="Xcode is not available")

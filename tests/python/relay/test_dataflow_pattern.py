@@ -119,7 +119,7 @@ def test_ShapePattern():
     shape = [T.int32(10), T.int32(10)]
     pattern = has_shape(shape)
     assert isinstance(pattern, ShapePattern)
-    assert tvm.ir.structural_equal(pattern.shape, shape)
+    tvm.ir.assert_structural_equal(pattern.shape, shape)
 
 
 def test_AttrPattern():
@@ -930,7 +930,7 @@ def test_nested_rewrite():
     pat = pattern()
     new_out = rewrite(PatternCallback(pat), out)
 
-    assert tvm.ir.structural_equal(out, new_out)
+    tvm.ir.assert_structural_equal(out, new_out)
 
 
 def test_not_fuse_multi_diamond():
@@ -986,7 +986,7 @@ def test_fuse_batchnorm():
     BN = gamma * (x - mean) / relay.op.sqrt(var + relay.const(1e-5)) + beta
 
     out = rewrite(BatchnormCallback(), BN)
-    assert tvm.ir.structural_equal(
+    tvm.ir.assert_structural_equal(
         out, relay.op.nn.batch_norm(x, gamma, beta, mean, var, epsilon=1e-5)[0]
     )
 
@@ -1001,7 +1001,7 @@ def test_no_fuse_batchnorm():
     fake_BN = gamma * (x - mean) / relay.op.sqrt(var + relay.const(1e-5)) - beta
 
     out = rewrite(BatchnormCallback(), fake_BN)
-    assert tvm.ir.structural_equal(out, fake_BN)
+    tvm.ir.assert_structural_equal(out, fake_BN)
 
 
 def test_fuse_double_batchnorm():
@@ -1019,7 +1019,7 @@ def test_fuse_double_batchnorm():
     bn = relay.op.nn.batch_norm(x, gamma, beta, mean, var, epsilon=1e-5)[0]
     bn2 = relay.op.nn.batch_norm(bn, gamma, beta, mean, var, epsilon=1e-5)[0]
 
-    assert tvm.ir.structural_equal(out, bn2)
+    tvm.ir.assert_structural_equal(out, bn2)
 
 
 def test_partial_fuse_double_batchnorm():
@@ -1036,7 +1036,7 @@ def test_partial_fuse_double_batchnorm():
 
     bn2 = relay.op.nn.batch_norm(BN, gamma, beta, mean, var, epsilon=1e-5)[0]
 
-    assert tvm.ir.structural_equal(out, bn2)
+    tvm.ir.assert_structural_equal(out, bn2)
 
 
 def test_fuse_batchnorm_commutation():
@@ -1049,21 +1049,21 @@ def test_fuse_batchnorm_commutation():
     # commute add
     BN = beta + gamma * (x - mean) / relay.op.sqrt(var + relay.const(1e-5))
     out = rewrite(BatchnormCallback(), BN)
-    assert tvm.ir.structural_equal(
+    tvm.ir.assert_structural_equal(
         out, relay.op.nn.batch_norm(x, gamma, beta, mean, var, epsilon=1e-5)[0]
     )
 
     # associate divide/multiply
     BN = (gamma * (x - mean)) / relay.op.sqrt(var + relay.const(1e-5)) + beta
     out = rewrite(BatchnormCallback(), BN)
-    assert tvm.ir.structural_equal(
+    tvm.ir.assert_structural_equal(
         out, relay.op.nn.batch_norm(x, gamma, beta, mean, var, epsilon=1e-5)[0]
     )
 
     # associate multiply/divide
     BN = gamma * ((x - mean) / relay.op.sqrt(var + relay.const(1e-5))) + beta
     out = rewrite(BatchnormCallback(), BN)
-    assert tvm.ir.structural_equal(
+    tvm.ir.assert_structural_equal(
         out, relay.op.nn.batch_norm(x, gamma, beta, mean, var, epsilon=1e-5)[0]
     )
 
@@ -1122,7 +1122,7 @@ def test_quadruple_rewrite_dominator():
     three = relay.op.nn.conv2d(two, weight)
     four = relay.op.nn.conv2d(three, weight)
 
-    assert tvm.ir.structural_equal(DominatorRemovalCallback().rewrite(out), four)
+    tvm.ir.assert_structural_equal(DominatorRemovalCallback().rewrite(out), four)
 
 
 def algebraic_simplify(expr):
@@ -1211,7 +1211,7 @@ def test_algebraic_simplify():
     assert algebraic_simplify(zero / x) == zero
     assert algebraic_simplify(zerof / x) == zerof
 
-    assert tvm.ir.structural_equal(
+    tvm.ir.assert_structural_equal(
         algebraic_simplify((x + zero * y) / one + (y * one) - zero / x), x + y
     )
 
@@ -1261,7 +1261,7 @@ def test_double_partition():
     )
 
     expected = func1(func0(x, w, b), w2, b2)
-    assert tvm.ir.structural_equal(partitioned, expected)
+    tvm.ir.assert_structural_equal(partitioned, expected)
 
 
 def test_partition_dominator():
@@ -1291,7 +1291,7 @@ def test_partition_dominator():
     f = relay.Function([i, w], generate_diamond(i, w)).with_attr(
         "PartitionedFromPattern", "nn.conv2d_nn.relu_nn.relu_nn.leaky_relu_add_"
     )
-    assert tvm.ir.structural_equal(partitioned, f(inp * inp, weight * weight))
+    tvm.ir.assert_structural_equal(partitioned, f(inp * inp, weight * weight))
 
 
 def test_quadruple_partition_dominator():
@@ -1365,7 +1365,7 @@ def test_quadruple_partition_dominator():
     reference = functions[3](
         functions[2](functions[1](functions[0](inp, weight), weight), weight), weight
     )
-    assert tvm.ir.structural_equal(partitioned, reference)
+    tvm.ir.assert_structural_equal(partitioned, reference)
 
 
 def get_BN(x, var, mean, beta, gamma, eps):
@@ -1393,7 +1393,7 @@ def test_partition_batchnorm():
 
     partitioned = BatchnormCallback().pattern.partition(BN)
     reference = f(gamma, x, mean, var, beta)
-    assert tvm.ir.structural_equal(partitioned, reference)
+    tvm.ir.assert_structural_equal(partitioned, reference)
 
 
 def test_partition_double_batchnorm():
@@ -1427,7 +1427,7 @@ def test_partition_double_batchnorm():
 
     partitioned = BatchnormCallback().pattern.partition(BN2)
     reference = f2(gamma, f1(gamma, x, mean, var, beta), mean, var, beta)
-    assert tvm.ir.structural_equal(partitioned, reference)
+    tvm.ir.assert_structural_equal(partitioned, reference)
 
 
 def test_overlappting_partitions():
@@ -1482,11 +1482,11 @@ def test_partition_fuzzy_tuple():
         return relay.op.concatenate(relay.expr.Tuple(args), axis=0)
 
     one = concat_pattern.partition(concat(x))
-    assert tvm.ir.structural_equal(one, create_func([xp], concat(xp))(x))
+    tvm.ir.assert_structural_equal(one, create_func([xp], concat(xp))(x))
     two = concat_pattern.partition(concat(x, y))
-    assert tvm.ir.structural_equal(two, create_func([xp, yp], concat(xp, yp))(x, y))
+    tvm.ir.assert_structural_equal(two, create_func([xp, yp], concat(xp, yp))(x, y))
     three = concat_pattern.partition(concat(x, y, z))
-    assert tvm.ir.structural_equal(three, create_func([xp, yp, zp], concat(xp, yp, zp))(x, y, z))
+    tvm.ir.assert_structural_equal(three, create_func([xp, yp, zp], concat(xp, yp, zp))(x, y, z))
 
 
 def test_partition_fuzzy_function_args():
@@ -1511,13 +1511,13 @@ def test_partition_fuzzy_function_args():
 
     f1 = relay.Function([xp], xp + xp)(x)
     one = func_pattern.partition(f1 + b)
-    assert tvm.ir.structural_equal(one, create_func(f1))
+    tvm.ir.assert_structural_equal(one, create_func(f1))
     f2 = relay.Function([xp, yp], xp + yp)(x, y)
     two = func_pattern.partition(f2 + b)
-    assert tvm.ir.structural_equal(two, create_func(f2))
+    tvm.ir.assert_structural_equal(two, create_func(f2))
     f3 = relay.Function([xp, yp, zp], xp + yp + zp)(x, y, z)
     three = func_pattern.partition(f3 + b)
-    assert tvm.ir.structural_equal(three, create_func(f3))
+    tvm.ir.assert_structural_equal(three, create_func(f3))
 
 
 def test_partition_check():
@@ -1539,7 +1539,7 @@ def test_partition_check():
 
     reference = func(x, w)
     partitioned = pattern.partition(relu, check=check)
-    assert tvm.ir.structural_equal(partitioned, reference)
+    tvm.ir.assert_structural_equal(partitioned, reference)
 
     conv2d = relay.op.nn.conv2d(x, w, data_layout="NHWC")
     relu = relay.op.nn.relu(conv2d)
@@ -1605,10 +1605,10 @@ def test_partition_option():
     )
 
     assert pattern1.match(relu)
-    assert tvm.ir.structural_equal(func(x, w, b), pattern1.partition(relu))
+    tvm.ir.assert_structural_equal(func(x, w, b), pattern1.partition(relu))
 
     assert pattern2.match(relu)
-    assert tvm.ir.structural_equal(func(x, w, b), pattern2.partition(relu))
+    tvm.ir.assert_structural_equal(func(x, w, b), pattern2.partition(relu))
 
 
 def test_partition_function():
@@ -1638,7 +1638,7 @@ def test_partition_function():
         "PartitionedFromPattern", "nn.conv2d_FunctionCall_add_"
     )
     expr2 = func2(x, w, b) + b
-    assert tvm.ir.structural_equal(pattern.partition(expr), expr2)
+    tvm.ir.assert_structural_equal(pattern.partition(expr), expr2)
 
 
 def test_partition_optional_function():
@@ -1671,7 +1671,7 @@ def test_partition_optional_function():
         "PartitionedFromPattern", "nn.conv2d_nn.relu_FunctionCall_"
     )
     expr2 = func2(x, w) + b
-    assert tvm.ir.structural_equal(pattern.partition(expr), expr2)
+    tvm.ir.assert_structural_equal(pattern.partition(expr), expr2)
 
 
 def test_rewrite_function_with_fuzzy_body():
@@ -1704,7 +1704,7 @@ def test_rewrite_function_with_fuzzy_body():
             return x + w
 
     out = rewrite(TestRewrite(), expr)
-    assert tvm.ir.structural_equal(out, x + w + b)
+    tvm.ir.assert_structural_equal(out, x + w + b)
 
 
 def test_partition_function_with_fuzzy_body():
@@ -1737,7 +1737,7 @@ def test_partition_function_with_fuzzy_body():
         "PartitionedFromPattern", "nn.conv2d_FunctionCall_add_"
     )
     expr2 = func2(x, w, b) + b
-    assert tvm.ir.structural_equal(pattern.partition(expr), expr2)
+    tvm.ir.assert_structural_equal(pattern.partition(expr), expr2)
 
 
 def test_match_match():
@@ -1755,7 +1755,7 @@ def test_match_match():
     tvm.relay.prelude.Prelude(mod)
     # Apply rewrite on IR including relay.Match
     out = rewrite(TestRewrite(), mod["tensor_concatenate_int64"])
-    assert tvm.ir.structural_equal(mod["tensor_concatenate_int64"], out)
+    tvm.ir.assert_structural_equal(mod["tensor_concatenate_int64"], out)
 
 
 def test_partition_constant_embedding():
@@ -1783,43 +1783,43 @@ def test_partition_constant_embedding():
     pattern = is_op("nn.relu")(
         is_op("nn.bias_add")(is_op("nn.conv2d")(wildcard(), wildcard()), wildcard())
     )
-    assert tvm.ir.structural_equal(lifted_func(x, w, b), pattern.partition(relu))
-    assert tvm.ir.structural_equal(lifted_func(x, wc, b), pattern.partition(reluc))
+    tvm.ir.assert_structural_equal(lifted_func(x, w, b), pattern.partition(relu))
+    tvm.ir.assert_structural_equal(lifted_func(x, wc, b), pattern.partition(reluc))
 
     # Check lifting of input matches
     pattern = is_op("nn.relu")(
         is_op("nn.bias_add")(is_op("nn.conv2d")(wildcard(), is_var()), wildcard())
     )
-    assert tvm.ir.structural_equal(lifted_func(x, w, b), pattern.partition(relu))
-    assert tvm.ir.structural_equal(reluc, pattern.partition(reluc))  # Constants are not Inputs
+    tvm.ir.assert_structural_equal(lifted_func(x, w, b), pattern.partition(relu))
+    tvm.ir.assert_structural_equal(reluc, pattern.partition(reluc))  # Constants are not Inputs
 
     # Check embedding of constant matches
     pattern = is_op("nn.relu")(
         is_op("nn.bias_add")(is_op("nn.conv2d")(wildcard(), is_constant()), wildcard())
     )
-    assert tvm.ir.structural_equal(relu, pattern.partition(relu))
-    assert tvm.ir.structural_equal(embeded_func(x, b), pattern.partition(reluc))
+    tvm.ir.assert_structural_equal(relu, pattern.partition(relu))
+    tvm.ir.assert_structural_equal(embeded_func(x, b), pattern.partition(reluc))
 
     # Check embedding of constant ExprPatterns
     pattern = is_op("nn.relu")(
         is_op("nn.bias_add")(is_op("nn.conv2d")(wildcard(), is_expr(wc)), wildcard())
     )
-    assert tvm.ir.structural_equal(relu, pattern.partition(relu))
-    assert tvm.ir.structural_equal(embeded_func(x, b), pattern.partition(reluc))
+    tvm.ir.assert_structural_equal(relu, pattern.partition(relu))
+    tvm.ir.assert_structural_equal(embeded_func(x, b), pattern.partition(reluc))
 
     # Check lifting/embedding of Alt matches
     pattern = is_op("nn.relu")(
         is_op("nn.bias_add")(is_op("nn.conv2d")(wildcard(), is_var() | is_constant()), wildcard())
     )
-    assert tvm.ir.structural_equal(lifted_func(x, w, b), pattern.partition(relu))
-    assert tvm.ir.structural_equal(embeded_func(x, b), pattern.partition(reluc))
+    tvm.ir.assert_structural_equal(lifted_func(x, w, b), pattern.partition(relu))
+    tvm.ir.assert_structural_equal(embeded_func(x, b), pattern.partition(reluc))
 
     # Check lifting/embedding of Alt matches with the other ordering
     pattern = is_op("nn.relu")(
         is_op("nn.bias_add")(is_op("nn.conv2d")(wildcard(), is_constant() | is_var()), wildcard())
     )
-    assert tvm.ir.structural_equal(lifted_func(x, w, b), pattern.partition(relu))
-    assert tvm.ir.structural_equal(embeded_func(x, b), pattern.partition(reluc))
+    tvm.ir.assert_structural_equal(lifted_func(x, w, b), pattern.partition(relu))
+    tvm.ir.assert_structural_equal(embeded_func(x, b), pattern.partition(reluc))
 
 
 def test_rewrite_once():
@@ -1847,12 +1847,12 @@ def test_rewrite_once():
         # Let the rewriter run recursively
         out = rewrite(ConcatRewriter(False), concat)
         expected = x
-        assert tvm.ir.structural_equal(out, expected)
+        tvm.ir.assert_structural_equal(out, expected)
 
         # Run the rewriter once
         out = rewrite(ConcatRewriter(True), concat)
         expected = relay.op.concatenate(relay.expr.Tuple([x, y]), axis=0)
-        assert tvm.ir.structural_equal(out, expected)
+        tvm.ir.assert_structural_equal(out, expected)
 
     def test_multi_callbacks():
         # This class recursively add a nn.relu operator after nn.softmax
@@ -1902,14 +1902,14 @@ def test_rewrite_once():
             [OneMoreReluRewriter(True), ConcatRewriter(True)],
             before(),
         )
-        assert tvm.ir.structural_equal(out, once_concat())
+        tvm.ir.assert_structural_equal(out, once_concat())
 
         # Run ConcatRewriter recursively, OneMoreReluRewriter once
         out = rewrite(
             [OneMoreReluRewriter(True), ConcatRewriter(False)],
             before(),
         )
-        assert tvm.ir.structural_equal(out, recursive_concat())
+        tvm.ir.assert_structural_equal(out, recursive_concat())
 
     test_one_callback()
     test_multi_callbacks()
@@ -1993,7 +1993,7 @@ def test_partition_parallel_branch_with_same_input():
 
     partitioned = pattern.partition(add)
     reference = f(l, conv2d, r)
-    assert tvm.ir.structural_equal(partitioned, reference)
+    tvm.ir.assert_structural_equal(partitioned, reference)
 
 
 def test_rewrite_with_pattern_recursion():

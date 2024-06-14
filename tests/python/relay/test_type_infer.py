@@ -245,7 +245,7 @@ def test_free_expr():
     x = relay.var("x", "float32")
     y = relay.add(x, x)
     yy = infer_expr(y)
-    assert tvm.ir.structural_equal(yy.args[0], x, map_free_vars=True)
+    tvm.ir.assert_structural_equal(yy.args[0], x, map_free_vars=True)
     assert yy.checked_type == relay.scalar_type("float32")
     assert x.vid.same_as(yy.args[0].vid)
 

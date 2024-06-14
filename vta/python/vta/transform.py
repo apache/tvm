@@ -1045,16 +1045,20 @@ def InjectALUIntrin():
                 assert len(src_coeff) > 1
                 assert len(dst_coeff) > 1
                 assert len(extents) != 0
-                assert analyzer.can_prove(idxm(src_coeff[-1], env.BATCH * env.BLOCK_OUT) == 0)
-                assert analyzer.can_prove(idxm(dst_coeff[-1], env.BATCH * env.BLOCK_OUT) == 0)
-                assert analyzer.can_prove(src_coeff[-2] == 1)
-                assert analyzer.can_prove(dst_coeff[-2] == 1)
+                tvm.ir.assert_structural_equal(
+                    analyzer.simplify(idxm(src_coeff[-1], env.BATCH * env.BLOCK_OUT)), T.int32(0)
+                )
+                tvm.ir.assert_structural_equal(
+                    analyzer.simplify(idxm(dst_coeff[-1], env.BATCH * env.BLOCK_OUT)), T.int32(0)
+                )
+                tvm.ir.assert_structural_equal(src_coeff[-2], T.int32(1))
+                tvm.ir.assert_structural_equal(dst_coeff[-2], T.int32(1))
                 if env.BATCH > 1:
                     assert len(src_coeff) > 2
                     assert len(dst_coeff) > 2
                     assert len(extents) > 1
-                    assert analyzer.can_prove(src_coeff[-3] == env.BLOCK_OUT)
-                    assert analyzer.can_prove(dst_coeff[-3] == env.BLOCK_OUT)
+                    tvm.ir.assert_structural_equal(src_coeff[-3], T.int32(env.BLOCK_OUT))
+                    tvm.ir.assert_structural_equal(dst_coeff[-3], T.int32(env.BLOCK_OUT))
 
                 # Apply tensorization of the loop coefficients
                 src_offset = src_coeff[-1]

@@ -67,7 +67,7 @@ def test_single_io():
     mod = create_graph()
     exp = create_graph()
     mod = preprocess.preprocess_ext_io()(mod)
-    assert tvm.ir.structural_equal(mod, exp, map_free_vars=True)
+    tvm.ir.assert_structural_equal(mod, exp, map_free_vars=True)
 
 
 def test_2ins_single_out():
@@ -140,7 +140,7 @@ def test_2ins_single_out():
     mod = create_graph()
     exp = expected()
     mod = preprocess.preprocess_ext_io()(mod)
-    assert tvm.ir.structural_equal(mod, exp, map_free_vars=True)
+    tvm.ir.assert_structural_equal(mod, exp, map_free_vars=True)
 
 
 def test_single_in_2outs():
@@ -219,7 +219,7 @@ def test_single_in_2outs():
     exp = expected()
     mod = relay.transform.InferType()(mod)
     mod = preprocess.preprocess_ext_io()(mod)
-    assert tvm.ir.structural_equal(mod, exp, map_free_vars=True)
+    tvm.ir.assert_structural_equal(mod, exp, map_free_vars=True)
 
 
 def test_4ins_2outs():
@@ -336,7 +336,7 @@ def test_4ins_2outs():
     mod = create_graph()
     exp = expected()
     mod = preprocess.preprocess_ext_io()(mod)
-    assert tvm.ir.structural_equal(mod, exp, map_free_vars=True)
+    tvm.ir.assert_structural_equal(mod, exp, map_free_vars=True)
 
 
 if __name__ == "__main__":
