@@ -76,7 +76,7 @@ class SplitRewriter(DFPatternCallback):
             # 0 is the beginning of the first section.
             return [0] + list(indices_or_sections)
         split_axis_len = input_shape[split_axis].value
-        section_length = split_axis_len // indices_or_sections.value
+        section_length = split_axis_len // indices_or_sections
         return list(range(0, split_axis_len, section_length))
 
     def callback(

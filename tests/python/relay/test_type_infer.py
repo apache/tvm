@@ -18,12 +18,13 @@
    for expressions.
 """
 import pytest
-import tvm
-from tvm import IRModule, parser, relay, te
-from tvm.relay import analysis, op, transform
-from tvm.relay.op import op as _op
-
 import numpy as np
+
+import tvm
+from tvm import IRModule, relay
+from tvm.relay import op, transform
+from tvm.relay.op import op as _op
+from tvm.script import tir as T
 
 
 def infer_mod(mod, annotate_spans=True):
@@ -554,40 +555,32 @@ def test_repeat_register():
         assert "Operator custom_log3 is registered before" in str(cm.execption)
 
 
-def test_argreduce_infer_return_type():
+@pytest.mark.parametrize("relay_op", [relay.op.argmax, relay.op.argmin])
+@pytest.mark.parametrize(
+    "shape_dtype",
+    [
+        ("int32", T.int32),
+        ("int64", T.int64),
+    ],
+    ids=["int32", "int64"],
+)
+def test_argreduce_infer_return_type(relay_op, shape_dtype):
     x_shape = (1, 1)
     broadcast_shape = [1, 1]
-    shape_dtypes = [("int32", lambda x: np.int32(x)), ("int64", lambda x: np.int64(x))]
+    (sdtype, conv) = shape_dtype
 
-    # Testing with argmax
-    for (sdtype, conv) in shape_dtypes:
-        x = relay.var("data", relay.TensorType(x_shape, "float32"))
-        broadcast_to = relay.op.broadcast_to(x, relay.const(broadcast_shape, dtype=sdtype))
-        argmax = relay.op.argmax(broadcast_to, axis=[1])
+    x = relay.var("data", relay.TensorType(x_shape, "float32"))
+    broadcast_to = relay.op.broadcast_to(x, relay.const(broadcast_shape, dtype=sdtype))
+    argmax = relay_op(broadcast_to, axis=[1])
 
-        f = relay.Function([x], argmax)
-        assert_has_type(
-            f,
-            relay.FuncType(
-                [relay.TensorType(broadcast_shape, "float32")],
-                relay.TensorType([conv(1)], dtype=sdtype),
-            ),
-        )
-
-    # Testing with argmin
-    for (sdtype, conv) in shape_dtypes:
-        x = relay.var("data", relay.TensorType(x_shape, "float32"))
-        broadcast_to = relay.op.broadcast_to(x, relay.const(broadcast_shape, dtype=sdtype))
-        argmin = relay.op.argmin(broadcast_to, axis=[1])
-
-        f = relay.Function([x], argmin)
-        assert_has_type(
-            f,
-            relay.FuncType(
-                [relay.TensorType(broadcast_shape, "float32")],
-                relay.TensorType([conv(1)], dtype=sdtype),
-            ),
-        )
+    f = relay.Function([x], argmax)
+    assert_has_type(
+        f,
+        relay.FuncType(
+            [relay.TensorType(broadcast_shape, "float32")],
+            relay.TensorType([conv(1)], dtype=sdtype),
+        ),
+    )
 
 
 if __name__ == "__main__":

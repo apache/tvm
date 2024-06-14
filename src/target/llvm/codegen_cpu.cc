@@ -347,18 +347,26 @@ CodeGenLLVM::TypedPointer CodeGenCPU::CreateStructRefPtr(DataType t, llvm::Value
     }
     case builtin::kTVMValueContent: {
       ICHECK_EQ(t.lanes(), 1);
-      ICHECK(t.is_handle() || t.bits() == 64);
-      if (t.is_int()) {
+      if (t.is_bool()) {
+        // The stride between adjacent entries is still
+        // `sizeof(TVMValue)==64`, even if the enum currently holds a
+        // boolean.
+        buf = builder_->CreatePointerCast(buf, t_int64_->getPointerTo());
+        buf = builder_->CreateInBoundsGEP(t_int64_, buf, index);
+        buf = builder_->CreatePointerCast(buf, DTypeToLLVMType(t)->getPointerTo());
+        return TypedPointer(t_int8_, buf);
+      } else if (t.is_int() && t.bits() == 64) {
         buf = builder_->CreatePointerCast(buf, t_int64_->getPointerTo());
         return TypedPointer(t_int64_, builder_->CreateInBoundsGEP(t_int64_, buf, index));
-      } else if (t.is_float()) {
+      } else if (t.is_float() && t.bits() == 64) {
         buf = builder_->CreatePointerCast(buf, t_float64_->getPointerTo());
         return TypedPointer(t_float64_, builder_->CreateInBoundsGEP(t_float64_, buf, index));
-      } else {
-        ICHECK(t.is_handle());
+      } else if (t.is_handle()) {
         buf = builder_->CreatePointerCast(buf, t_tvm_value_->getPointerTo());
         buf = builder_->CreateInBoundsGEP(t_tvm_value_, buf, index);
         return TypedPointer(t_void_p_, builder_->CreatePointerCast(buf, t_void_p_->getPointerTo()));
+      } else {
+        LOG(DEBUG) << "DataType " << t << " cannot be stored into a TVMValue";
       }
     }
     default:
@@ -1366,9 +1374,16 @@ llvm::Value* CodeGenCPU::CreateIntrinsic(const CallNode* op) {
         CreateStructRefPtr(op->dtype, MakeValue(op->args[0]), MakeValue(op->args[1]), kind);
     if (kind == builtin::kArrAddr) {
       return builder_->CreatePointerCast(ref.addr, t_void_p_);
-    } else {
-      return builder_->CreateLoad(ref.type, ref.addr);
     }
+
+    llvm::Value* struct_value = builder_->CreateLoad(ref.type, ref.addr);
+
+    if (op->dtype == DataType::Bool()) {
+      struct_value = CreateCast(DataType::Int(8), op->dtype, struct_value);
+    }
+
+    return struct_value;
+
   } else if (op->op.same_as(builtin::tvm_struct_set())) {
     ICHECK_EQ(op->args.size(), 4U);
     int kind = op->args[2].as<IntImmNode>()->value;

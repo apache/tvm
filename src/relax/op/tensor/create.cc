@@ -36,7 +36,7 @@ namespace relax {
 TVM_REGISTER_NODE_TYPE(InitAttrs);
 
 /* relax.full */
-Expr full(ObjectRef shape, Expr fill_value, DataType dtype) {
+Expr full(Variant<Expr, Array<PrimExpr>> shape, Expr fill_value, DataType dtype) {
   Expr shape_in_expr{nullptr};
   if (const auto* expr = shape.as<ExprNode>()) {
     shape_in_expr = GetRef<Expr>(expr);
