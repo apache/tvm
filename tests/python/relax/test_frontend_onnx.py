@@ -590,6 +590,10 @@ def test_elu():
     verify_unary("Elu", [32, 32])
 
 
+def test_hardswish():
+    verify_unary("HardSwish", [32, 32])
+
+
 def test_conv():
     def _verify_conv(input_shape, weight_shape, output_shape):
         bias_shape = [output_shape[1]]
