@@ -530,12 +530,14 @@ def test_matmul_sme(dtype):
         )
         stores = re.findall(r"st1[whdb]\t{\s?za", assembly)
         smstop = re.findall(r"smstop\t(sm|za)", assembly)
+        whilelo = re.findall(r"whilelo\tp[0-9].[shdb]", assembly)
 
         assert len(smstart) > 0
         assert len(loads) > 0
         assert len(mopa) > 0
         assert len(stores) > 0
         assert len(smstop) > 0
+        assert len(whilelo) > 0
 
     check_correct_assembly(dtype=dtype)
 
@@ -819,12 +821,14 @@ def test_conv2d_sme(dtype):
         )
         stores = re.findall(r"st1[whdb]\t{\s?za", assembly)
         smstop = re.findall(r"smstop\t(sm|za)", assembly)
+        whilelo = re.findall(r"whilelo\tp[0-9].[shdb]", assembly)
 
         assert len(smstart) > 0
         assert len(loads) > 0
         assert len(mopa) > 0
         assert len(stores) > 0
         assert len(smstop) > 0
+        assert len(whilelo) > 0
 
     with tvm.target.Target(target):
         check_correct_assembly(dtype=dtype)
