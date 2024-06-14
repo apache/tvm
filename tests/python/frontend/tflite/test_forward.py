@@ -224,7 +224,7 @@ def run_tvm_graph(
         mod_with_span, _ = relay.frontend.from_tflite(
             tflite_model, shape_dict=shape_dict, dtype_dict=dtype_dict, op_converter=op_converter
         )
-    assert tvm.ir.structural_equal(mod["main"], mod_with_span["main"])
+    tvm.ir.assert_structural_equal(mod["main"], mod_with_span["main"])
 
     if mode in ["debug", "vm"]:
         inputs = []
@@ -5548,7 +5548,7 @@ def test_structure_and_span():
             with_span = res_fptr()
         with tvm.testing.disable_span_filling():
             without_span = res_fptr()
-        assert tvm.ir.structural_equal(with_span, without_span)
+        tvm.ir.assert_structural_equal(with_span, without_span)
         _verify_structural_equal_with_span(with_span, golden_fptr())
 
     def _tf_to_tflite(

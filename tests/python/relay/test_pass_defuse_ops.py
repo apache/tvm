@@ -37,7 +37,7 @@ def test_defuse_simple():
     fused = run_opt_pass(x, transform.FuseOps())
     defused = run_opt_pass(fused, transform.DefuseOps())
 
-    assert tvm.ir.structural_equal(x, defused)
+    tvm.ir.assert_structural_equal(x, defused)
 
 
 def test_inception_like():
@@ -62,7 +62,7 @@ def test_inception_like():
     fused = run_opt_pass(x, transform.FuseOps())
     defused = run_opt_pass(fused, transform.DefuseOps())
 
-    assert tvm.ir.structural_equal(x, defused)
+    tvm.ir.assert_structural_equal(x, defused)
 
 
 def test_defuse_complex():
@@ -206,9 +206,7 @@ def test_defuse_complex():
     golden1 = golden_defused(conv_layer1_weight, conv_layer2_weight)
     golden1 = run_opt_pass(golden1, transform.InferType())
 
-    assert tvm.ir.structural_equal(defused, golden1), (
-        "Actual = \n" + str(defused) + "\nGolden = \n" + str(golden1)
-    )
+    tvm.ir.assert_structural_equal(defused, golden1)
 
 
 if __name__ == "__main__":

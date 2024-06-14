@@ -91,7 +91,7 @@ def test_split_concat(target_name, shape_type):
     limit = tvm.target.Target(target_name).max_function_args
     res = run_opt_pass(before(), transform.SplitArgs(limit))
     exp = run_opt_pass(expected(limit), transform.InferType())
-    assert tvm.ir.structural_equal(res, exp)
+    tvm.ir.assert_structural_equal(res, exp)
 
 
 if __name__ == "__main__":

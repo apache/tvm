@@ -136,7 +136,7 @@ def test_top_level_nested_if():
     }
     """
     expected_output = run_opt_pass(expected(), transform.InferType())
-    assert tvm.ir.structural_equal(bblock, expected_output, map_free_vars=True)
+    tvm.ir.assert_structural_equal(bblock, expected_output, map_free_vars=True)
 
 
 def test_nested_if():
@@ -205,7 +205,7 @@ def test_nested_if():
     }
     """
     expected_output = run_opt_pass(expected(), transform.InferType())
-    assert tvm.ir.structural_equal(bblock, expected_output, map_free_vars=True)
+    tvm.ir.assert_structural_equal(bblock, expected_output, map_free_vars=True)
     check_basic_block_normal_form(bblock)
 
 
@@ -294,7 +294,7 @@ def test_let():
         %x
         """
         opt_body = run_opt_pass(body, transform.ToBasicBlockNormalForm())
-        assert tvm.ir.structural_equal(body, opt_body)
+        tvm.ir.assert_structural_equal(body, opt_body)
         check_basic_block_normal_form(opt_body)
 
     def test_let1_1():
@@ -303,7 +303,7 @@ def test_let():
         body = relay.Let(x, d, relay.add(x, x))
         body = run_opt_pass(body, transform.InferType())
         opt_body = run_opt_pass(body, transform.ToBasicBlockNormalForm())
-        assert tvm.ir.structural_equal(body, opt_body)
+        tvm.ir.assert_structural_equal(body, opt_body)
         check_basic_block_normal_form(opt_body)
 
     def test_let2():
@@ -325,7 +325,7 @@ def test_let():
 
         opt_body = run_opt_pass(body, transform.ToBasicBlockNormalForm())
         expected_body = run_opt_pass(expected(), transform.InferType())
-        assert tvm.ir.structural_equal(opt_body, expected_body)
+        tvm.ir.assert_structural_equal(opt_body, expected_body)
         check_basic_block_normal_form(opt_body)
 
     def test_let3():
@@ -339,7 +339,7 @@ def test_let():
         body = relay.Let(y, c, body)
         body = run_opt_pass(body, transform.InferType())
         opt_body = run_opt_pass(body, transform.ToBasicBlockNormalForm())
-        assert tvm.ir.structural_equal(body, opt_body)
+        tvm.ir.assert_structural_equal(body, opt_body)
         check_basic_block_normal_form(opt_body)
 
     test_let1()
@@ -424,14 +424,14 @@ def test_if():
     expected_body = expected_if_expr(x)
     bblock = run_opt_pass(body, [transform.ToBasicBlockNormalForm(), transform.InferType()])
     expected_bblock = run_opt_pass(expected_body, transform.InferType())
-    assert tvm.ir.structural_equal(bblock, expected_bblock, map_free_vars=True)
+    tvm.ir.assert_structural_equal(bblock, expected_bblock, map_free_vars=True)
     check_basic_block_normal_form(bblock)
 
     func = relay.Function([x], body)
     expected_func = relay.Function([x], expected_body)
     bblock = run_opt_pass(func, [transform.ToBasicBlockNormalForm(), transform.InferType()])
     expected_bblock = run_opt_pass(expected_func, transform.InferType())
-    assert tvm.ir.structural_equal(bblock, expected_bblock)
+    tvm.ir.assert_structural_equal(bblock, expected_bblock)
     check_basic_block_normal_form(bblock)
 
 

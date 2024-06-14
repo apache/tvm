@@ -567,7 +567,7 @@ def test_explicit_partition_hint():
         mod = tvm.tir.transform.StorageFlatten(64)(mod)
         mod = tvm.tir.transform.LoopPartition()(mod)
         mod = tvm.tir.transform.Simplify()(mod)
-    assert tvm.ir.structural_equal(mod["main"], partitioned_concat)
+    tvm.ir.assert_structural_equal(mod["main"], partitioned_concat)
 
 
 def partition_from_scheduled_tir(prim_func, pass_cfg):
@@ -629,7 +629,7 @@ def test_condition_mutually_exclusive():
     mod = partition_from_scheduled_tir(
         concat_func_3, {"tir.LoopPartition": {"partition_const_loop": True}}
     )
-    assert tvm.ir.structural_equal(
+    tvm.ir.assert_structural_equal(
         mod["main"], partitioned_concat_3.with_attr("global_symbol", "main")
     )
 
@@ -681,7 +681,7 @@ def test_loop_partition_unroll_hint():
     mod = tvm.tir.transform.UnrollLoop()(mod)
     mod = tvm.tir.transform.RemoveNoOp()(mod)
     mod = tvm.tir.transform.Simplify()(mod)
-    assert tvm.ir.structural_equal(mod["main"], partitioned_main.with_attr("global_symbol", "main"))
+    tvm.ir.assert_structural_equal(mod["main"], partitioned_main.with_attr("global_symbol", "main"))
 
 
 def test_loop_partition_recursive_unroll_hint():
@@ -750,7 +750,7 @@ def test_loop_partition_recursive_unroll_hint():
             }
         },
     )
-    assert tvm.ir.structural_equal(mod["main"], partitioned_main.with_attr("global_symbol", "main"))
+    tvm.ir.assert_structural_equal(mod["main"], partitioned_main.with_attr("global_symbol", "main"))
 
 
 def test_loop_partition_keep_loop_annotations():
@@ -784,7 +784,7 @@ def test_loop_partition_keep_loop_annotations():
             }
         },
     )
-    assert tvm.ir.structural_equal(mod["main"], after.with_attr("global_symbol", "main"))
+    tvm.ir.assert_structural_equal(mod["main"], after.with_attr("global_symbol", "main"))
 
 
 def test_loop_partition_with_unit_loop_in_condition():
@@ -832,7 +832,7 @@ def test_loop_partition_with_unit_loop_in_condition():
             }
         },
     )
-    assert tvm.ir.structural_equal(mod["main"], after.with_attr("global_symbol", "main"))
+    tvm.ir.assert_structural_equal(mod["main"], after.with_attr("global_symbol", "main"))
 
 
 @T.prim_func
@@ -1059,7 +1059,7 @@ def test_single_point_partition(origin, expected):
             }
         },
     )
-    assert tvm.ir.structural_equal(mod["main"], expected)
+    tvm.ir.assert_structural_equal(mod["main"], expected)
 
 
 if __name__ == "__main__":
