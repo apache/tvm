@@ -53,19 +53,16 @@ def compute_matmul_sme(cfg, data_a, data_b, _, out_dtype, transpose_a=False, tra
         tile_k *= 2
     tile_n = 2 * tvm.tir.get_vscale_expr(data_a.dtype)
 
-    M_padded, pad_M = pad_dim_to_multiple(M, tile_m)
-    _, pad_K = pad_dim_to_multiple(K, tile_k)
-    N_padded, pad_N = pad_dim_to_multiple(N, tile_n)
-
-    m_pad_after = (pad_M, pad_K)
-    n_pad_after = (pad_K, pad_N)
-    if transpose_b:
-        n_pad_after = (pad_N, pad_K)
-
-    if pad_M != 0:
-        data_a = nn.pad(data_a, pad_before=(0, 0), pad_after=m_pad_after)
-    if pad_N != 0:
-        data_b = nn.pad(data_b, pad_before=(0, 0), pad_after=n_pad_after)
+    if data_a.dtype == "float16":
+        _, pad_M = pad_dim_to_multiple(M, tile_m)
+        _, pad_K = pad_dim_to_multiple(K, tile_k)
+        _, pad_N = pad_dim_to_multiple(N, tile_n)
+        m_pad_after = (pad_M, pad_K)
+        n_pad_after = (pad_N, pad_K) if transpose_b else (pad_K, pad_N)
+        if pad_M != 0:
+            data_a = nn.pad(data_a, pad_before=(0, 0), pad_after=m_pad_after)
+        if pad_N != 0:
+            data_b = nn.pad(data_b, pad_before=(0, 0), pad_after=n_pad_after)
 
     if out_dtype is None:
         out_dtype = data_a.dtype
@@ -87,28 +84,12 @@ def compute_matmul_sme(cfg, data_a, data_b, _, out_dtype, transpose_a=False, tra
         (False, False): "T_matmul_NN",
     }[(transpose_a, transpose_b)]
 
-    C = te.compute(
-        (M_padded, N_padded),
+    return te.compute(
+        (M, N),
         compute,
         name=compute_name,
         attrs={"schedule_type": "sme"},
     )
-    return te.compute((M, N), lambda m, n: C[m, n])
-
-
-def _get_transpose_interleave_intrin_name(in_dtype, out_dtype):
-    # pylint: disable=import-outside-toplevel
-    from tvm.tir.tensor_intrin.arm_cpu import (
-        ARM_SME_2SVLx2SVL_FP32_TRANSPOSE_INTERLEAVE,
-        ARM_SME_BLOCK2_2SVLx1SVL_FP16_TRANSPOSE_INTERLEAVE,
-    )
-
-    if in_dtype == "float32" and out_dtype == "float32":
-        return ARM_SME_2SVLx2SVL_FP32_TRANSPOSE_INTERLEAVE
-    elif in_dtype == "float16" and out_dtype == "float32":
-        return ARM_SME_BLOCK2_2SVLx1SVL_FP16_TRANSPOSE_INTERLEAVE
-    else:
-        raise ValueError("Input/output data type combination not supported.")
 
 
 def tir_schedule_matmul_sme(sch):
@@ -120,6 +101,7 @@ def tir_schedule_matmul_sme(sch):
         ARM_SME_2SVLx2SVL_GEMM_INTERLEAVED_MOPA,
         ARM_SME_INIT,
         get_sme_gemm_interleaved_mopa_2svlx2svl_intrin,
+        get_transpose_interleave_intrin_name,
     )
 
     main_func = sch.mod["main"]
@@ -157,9 +139,9 @@ def tir_schedule_matmul_sme(sch):
     outer_m, inner_m = sch.split(m, factors=(None, tile_m), disable_predication=True)
     outer_k, inner_k = sch.split(k, factors=(None, tile_k), disable_predication=True)
     sch.reorder(outer_k, outer_m, inner_k, inner_m)
-
-    transpose_interleave_intrin_name = _get_transpose_interleave_intrin_name(in_dtype, out_dtype)
-    sch.tensorize(inner_k, transpose_interleave_intrin_name)
+    sch.tensorize(
+        inner_k, get_transpose_interleave_intrin_name(in_dtype, out_dtype, extent_m, extent_k)
+    )
 
     # Interleave the weights utilizing the matrix tile
     if transpose_b:
@@ -169,7 +151,9 @@ def tir_schedule_matmul_sme(sch):
         outer_k, inner_k = sch.split(k, factors=(None, tile_k), disable_predication=True)
         outer_n, inner_n = sch.split(n, factors=(None, tile_n), disable_predication=True)
         sch.reorder(outer_k, outer_n, inner_k, inner_n)
-        sch.tensorize(inner_k, transpose_interleave_intrin_name)
+        sch.tensorize(
+            inner_k, get_transpose_interleave_intrin_name(in_dtype, out_dtype, extent_k, extent_n)
+        )
 
     # Split and reorder the loops of the GeMM for tensorization
     tile_m = T.cast(2 * tvm.tir.get_vscale_expr(out_dtype), extent_m.dtype)
@@ -185,11 +169,11 @@ def tir_schedule_matmul_sme(sch):
 
     # Tensorize the GeMM update
     sme_gemm_interleaved_intrin_name = (
-        ARM_SME_2SVLx2SVL_GEMM_INTERLEAVED_MOPA + f"_{extent_k}_{in_dtype}"
+        ARM_SME_2SVLx2SVL_GEMM_INTERLEAVED_MOPA + f"_{extent_m}_{extent_k}_{in_dtype}"
     )
     tvm.tir.TensorIntrin.register(
         sme_gemm_interleaved_intrin_name,
-        *get_sme_gemm_interleaved_mopa_2svlx2svl_intrin(extent_k, in_dtype),
+        *get_sme_gemm_interleaved_mopa_2svlx2svl_intrin(extent_m, extent_k, in_dtype),
         override=True,
     )
     sch.tensorize(inner_m, sme_gemm_interleaved_intrin_name)

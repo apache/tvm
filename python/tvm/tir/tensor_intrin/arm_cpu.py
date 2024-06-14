@@ -176,7 +176,51 @@ def _create_ptrue_mask(dtype):
     return T.broadcast(T.bool(True), tir.get_vscale_expr(dtype))
 
 
-def get_sme_transpose_interleave_2svlx2svl_fp32_intrin():
+def _create_active_lane_mask(tensor, relative_offsets, vertical_limit):
+    """
+    Get the active lane mask intrinsic call for predicated accesses.
+
+    Parameters
+    ----------
+    tensor : tvm.tir.Buffer
+        The tensor the buffer access will be performed on.
+    relative_offsets : Tuple[PrimExpr, PrimExpr]
+        The vertical and horizontal offsets into the accumulator tile.
+    vertical_limit : PrimExpr
+        An absolute offset specifying the limit at which rows should be stored.
+
+    Returns
+    -------
+    PrimExpr
+        The active lane mask intrinsic.
+    """
+    vertical_offset, horizontal_offset = relative_offsets
+    stride = tensor.strides[0]
+
+    # The base is the offset of the first value we wish to store
+    base = T.int32(tensor.offset_of([vertical_offset, horizontal_offset])[0])
+
+    # The limit is the maximum offset in the current row of 'base' that we wish to allow values
+    # to be stored. Calculating this limit is a bit tricky since we can only request offsets of
+    # elements in the tensorized tile of the output tensor. One way to calculate this is to find
+    # the offset of the first value in the row of the output tensor that 'base' is in and add
+    # 'stride' to it.
+    limit = (
+        base
+        - T.int32(horizontal_offset)
+        - T.int32((tensor.offset_of([0, 0])[0] % stride))
+        + T.int32(stride)
+    )
+    limit = T.Min(limit, T.Cast("int32", vertical_limit) * stride)
+
+    return T.get_active_lane_mask(
+        "uint1xvscalex4",
+        T.Cast("int32", base),
+        T.Cast("int32", limit),
+    )
+
+
+def get_sme_transpose_interleave_2svlx2svl_fp32_intrin(cols, rows):
     """
     Transpose a matrix of size 2SVL x 2SVL (where 'SVL' is the Scalable Vector Length) using
     the Scalable Matrix Extension (SME).
@@ -247,9 +291,6 @@ def get_sme_transpose_interleave_2svlx2svl_fp32_intrin():
                     strides=[T.int32(), 1],
                 )
 
-                # Disable predication
-                ptrue = _create_ptrue_mask("float32")
-
                 with T.block("root"):
                     T.reads(A[0:SVF2, 0:SVF2])
                     T.writes(A_t[0:SVF2, 0:SVF2])
@@ -263,19 +304,22 @@ def get_sme_transpose_interleave_2svlx2svl_fp32_intrin():
 
                             input_ptr = A.access_ptr("r", offset=offset)
                             sub_tile = T.int32(sub_tile_idx)
+                            predicate = _create_active_lane_mask(
+                                A, (row_offset + slice_idx, col_offset), cols
+                            )
                             T.evaluate(
                                 T.call_llvm_intrin(
                                     "void",
                                     "llvm.aarch64.sme.ld1w.horiz",
                                     T.uint32(4),
-                                    ptrue,
+                                    predicate,
                                     input_ptr,
                                     sub_tile,
                                     slice_idx,
                                 )
                             )
 
-                    # Store columns to the ouptut matrix
+                    # Store columns to the output matrix
                     with T.serial(0, SVF) as slice_idx:
                         for sub_tile_idx in range(0, sub_tile_count):
                             col_offset = SVF if sub_tile_idx >= (sub_tile_count // 2) else 0
@@ -284,12 +328,15 @@ def get_sme_transpose_interleave_2svlx2svl_fp32_intrin():
 
                             output_ptr = A_t.access_ptr("w", offset=offset)
                             sub_tile = T.int32(sub_tile_idx)
+                            predicate = _create_active_lane_mask(
+                                A_t, (row_offset + slice_idx, col_offset), rows
+                            )
                             T.evaluate(
                                 T.call_llvm_intrin(
                                     "void",
                                     "llvm.aarch64.sme.st1w.vert",
                                     T.uint32(4),
-                                    ptrue,
+                                    predicate,
                                     output_ptr,
                                     sub_tile,
                                     slice_idx,
@@ -445,7 +492,24 @@ def get_sme_transpose_interleave_block2_2svl_fp16_intrin():
     return desc, impl()
 
 
-def get_sme_gemm_interleaved_mopa_2svlx2svl_intrin(K, in_dtype):
+def get_transpose_interleave_intrin_name(in_dtype, out_dtype, extent_cols, extent_rows):
+    if in_dtype == "float32" and out_dtype == "float32":
+        sme_transpose_interleave_intrin_name = (
+            ARM_SME_2SVLx2SVL_FP32_TRANSPOSE_INTERLEAVE + f"_{extent_cols}_{extent_rows}"
+        )
+        tir.TensorIntrin.register(
+            sme_transpose_interleave_intrin_name,
+            *get_sme_transpose_interleave_2svlx2svl_fp32_intrin(extent_cols, extent_rows),
+            override=True,
+        )
+        return sme_transpose_interleave_intrin_name
+    elif in_dtype == "float16" and out_dtype == "float32":
+        return ARM_SME_BLOCK2_2SVLx1SVL_FP16_TRANSPOSE_INTERLEAVE
+    else:
+        raise ValueError("Input/output data type combination not supported.")
+
+
+def get_sme_gemm_interleaved_mopa_2svlx2svl_intrin(M, K, in_dtype):
     """
     Compute a GEMM of size 2SVL x 2SVL (where 'SVL' is the Scalable Vector Length using
     outer product operations from the Scalable Matrix Extension (SME).
@@ -579,15 +643,39 @@ def get_sme_gemm_interleaved_mopa_2svlx2svl_intrin(K, in_dtype):
                         k_row = k * rows_per_iter
                         in_dtype_svf = tir.get_vscale_expr(in_dtype)
 
-                        a_low = T.BufferLoad(A, [k_row, T.Ramp(0, 1, in_dtype_svf)])
-                        b_low = T.BufferLoad(B, [k_row, T.Ramp(0, 1, in_dtype_svf)])
-
+                        # Ideally we'd rely on predicating the loads and use the same predicate
+                        # for the outer product operation. However, support for predicated
+                        # buffers is not currently supported by multiple lowering passes such as
+                        # "LowerMatchBuffer", therefore the predicate is passed directly to the
+                        # outer product operation for now.
                         if in_dtype == "float32":
-                            a_high = T.BufferLoad(A, [k_row, T.Ramp(in_dtype_svf, 1, in_dtype_svf)])
-                            b_high = T.BufferLoad(B, [k_row, T.Ramp(in_dtype_svf, 1, in_dtype_svf)])
+                            a_low = (
+                                T.BufferLoad(A, [k_row, T.Ramp(0, 1, in_dtype_svf)]),
+                                _create_active_lane_mask(A, (k_row, 0), K),
+                            )
+                            b_low = (
+                                T.BufferLoad(B, [k_row, T.Ramp(0, 1, in_dtype_svf)]),
+                                _create_active_lane_mask(B, (k_row, 0), K),
+                            )
+                            a_high = (
+                                T.BufferLoad(A, [k_row, T.Ramp(in_dtype_svf, 1, in_dtype_svf)]),
+                                _create_active_lane_mask(A, (k_row, in_dtype_svf), K),
+                            )
+                            b_high = (
+                                T.BufferLoad(B, [k_row, T.Ramp(in_dtype_svf, 1, in_dtype_svf)]),
+                                _create_active_lane_mask(B, (k_row, in_dtype_svf), K),
+                            )
                         else:
-                            a_high = T.BufferLoad(A, [k_row + 1, T.Ramp(0, 1, in_dtype_svf)])
-                            b_high = T.BufferLoad(B, [k_row + 1, T.Ramp(0, 1, in_dtype_svf)])
+                            a_low = (T.BufferLoad(A, [k_row, T.Ramp(0, 1, in_dtype_svf)]), ptrue)
+                            b_low = (T.BufferLoad(B, [k_row, T.Ramp(0, 1, in_dtype_svf)]), ptrue)
+                            a_high = (
+                                T.BufferLoad(A, [k_row + 1, T.Ramp(0, 1, in_dtype_svf)]),
+                                ptrue,
+                            )
+                            b_high = (
+                                T.BufferLoad(B, [k_row + 1, T.Ramp(0, 1, in_dtype_svf)]),
+                                ptrue,
+                            )
 
                         input_combinations = [
                             (a_low, b_low),
@@ -606,10 +694,10 @@ def get_sme_gemm_interleaved_mopa_2svlx2svl_intrin(K, in_dtype):
                                     fmopa_intrin,
                                     T.uint32(5),
                                     sub_tile,
-                                    ptrue,
-                                    ptrue,
-                                    input_1,
-                                    input_2,
+                                    input_1[1],
+                                    input_2[1],
+                                    input_1[0],
+                                    input_2[0],
                                 )
                             )
 
@@ -626,7 +714,9 @@ def get_sme_gemm_interleaved_mopa_2svlx2svl_intrin(K, in_dtype):
                                     "void",
                                     "llvm.aarch64.sme.st1w.horiz",
                                     T.uint32(4),
-                                    _create_ptrue_mask("float32"),
+                                    _create_active_lane_mask(
+                                        C, (vert_offset + slice_idx, horiz_offset), M
+                                    ),
                                     output_ptr,
                                     T.int32(sub_tile_idx),
                                     T.int32(slice_idx),
@@ -691,10 +781,6 @@ ARM_SME_2SVLx2SVL_GEMM_INTERLEAVED_MOPA = "sme_2svlx2svl_gemm_interleaved_mopa"
 # in versions of LLVM >= 15. Installations with older versions of LLVM will
 # not be able to use them.
 if llvm_version_major() >= 15:
-    TensorIntrin.register(
-        ARM_SME_2SVLx2SVL_FP32_TRANSPOSE_INTERLEAVE,
-        *get_sme_transpose_interleave_2svlx2svl_fp32_intrin(),
-    )
     TensorIntrin.register(
         ARM_SME_BLOCK2_2SVLx1SVL_FP16_TRANSPOSE_INTERLEAVE,
         *get_sme_transpose_interleave_block2_2svl_fp16_intrin(),
