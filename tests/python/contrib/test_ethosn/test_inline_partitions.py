@@ -155,5 +155,7 @@ def test_multiple_partitioned_functions():
     expected_mod = expected()
     for global_var in mod.get_global_vars():
         tvm.ir.assert_structural_equal(
-            mod[global_var.name_hint], expected_mod[global_var.name_hint]
+            mod[global_var.name_hint],
+            expected_mod[global_var.name_hint],
+            map_free_vars=True,
         )

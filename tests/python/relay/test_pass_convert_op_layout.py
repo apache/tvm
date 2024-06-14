@@ -2792,7 +2792,7 @@ def test_resnet_convert_layout_nchwc(data_layout, kernel_layout):
     a = before()
     a = run_opt_pass(a, transform.ConvertLayout({"nn.conv2d": [data_layout, kernel_layout]}))
     b = run_opt_pass(expected(), transform.InferType())
-    tvm.ir.assert_structural_equal(a, b) + "\n Expect = \n" + str(b)
+    tvm.ir.assert_structural_equal(a, b)
 
 
 def test_conv_l2n_convert_layout():
