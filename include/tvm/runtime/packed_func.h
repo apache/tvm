@@ -585,6 +585,31 @@ class TVMPODValue_ {
     TVM_CHECK_TYPE_CODE(type_code_, kTVMOpaqueHandle);
     return value_.v_handle;
   }
+  operator std::string() const {
+    if (type_code_ == kTVMDataType) {
+      return DLDataType2String(operator DLDataType());
+    } else if (type_code_ == kTVMBytes) {
+      TVMByteArray* arr = static_cast<TVMByteArray*>(value_.v_handle);
+      return std::string(arr->data, arr->size);
+    } else if (type_code_ == kTVMStr) {
+      return std::string(value_.v_str);
+    } else {
+      return AsObjectRef<tvm::runtime::String>().operator std::string();
+    }
+  }
+  operator TVMByteArray() const {
+    if (type_code_ == kTVMBytes) {
+      return *static_cast<TVMByteArray*>(value_.v_handle);
+    } else {
+      LOG(FATAL) << "Expected "
+                 << "TVMByteArray but got " << ArgTypeCode2Str(type_code_);
+    }
+  }
+
+  inline operator DLDataType() const;
+
+  operator DataType() const { return DataType(operator DLDataType()); }
+
   operator DLTensor*() const {
     if (type_code_ == kTVMDLTensorHandle || type_code_ == kTVMNDArrayHandle) {
       return static_cast<DLTensor*>(value_.v_handle);
@@ -639,13 +664,16 @@ class TVMPODValue_ {
   friend class TVMArgsSetter;
   friend class TVMRetValue;
   friend class TVMMovableArgValue_;
-  TVMPODValue_() : type_code_(kTVMNullptr) {}
+  friend PackedFunc WrapPackedFunc(int (*)(TVMValue*, int*, int, TVMValue*, int*, void*),
+                                   const ObjectPtr<Object>&);
+
+  TVMPODValue_() : value_{0}, type_code_(kTVMNullptr) {}
   TVMPODValue_(TVMValue value, int type_code) : value_(value), type_code_(type_code) {}
 
   /*! \brief The value */
-  TVMValue value_;
+  TVMValue value_{0};
   /*! \brief the type code */
-  int type_code_;
+  int type_code_{kTVMNullptr};
 };
 
 /*!
@@ -671,6 +699,10 @@ class TVMArgValue : public TVMPODValue_ {
   using TVMPODValue_::operator int;
   using TVMPODValue_::operator bool;
   using TVMPODValue_::operator void*;
+  using TVMPODValue_::operator std::string;
+  using TVMPODValue_::operator TVMByteArray;
+  using TVMPODValue_::operator DLDataType;
+  using TVMPODValue_::operator DataType;
   using TVMPODValue_::operator DLTensor*;
   using TVMPODValue_::operator NDArray;
   using TVMPODValue_::operator Device;
@@ -680,18 +712,6 @@ class TVMArgValue : public TVMPODValue_ {
   using TVMPODValue_::IsObjectRef;
 
   // conversion operator.
-  operator std::string() const {
-    if (type_code_ == kTVMDataType) {
-      return DLDataType2String(operator DLDataType());
-    } else if (type_code_ == kTVMBytes) {
-      TVMByteArray* arr = static_cast<TVMByteArray*>(value_.v_handle);
-      return std::string(arr->data, arr->size);
-    } else if (type_code_ == kTVMStr) {
-      return std::string(value_.v_str);
-    } else {
-      return AsObjectRef<tvm::runtime::String>().operator std::string();
-    }
-  }
   template <typename FType>
   operator TypedPackedFunc<FType>() const {
     return TypedPackedFunc<FType>(operator PackedFunc());
@@ -700,8 +720,6 @@ class TVMArgValue : public TVMPODValue_ {
 
   template <typename T, typename = typename std::enable_if<std::is_class<T>::value>::type>
   inline operator T() const;
-  inline operator DLDataType() const;
-  inline operator DataType() const;
 };
 
 /*!
@@ -724,6 +742,10 @@ class TVMMovableArgValue_ : public TVMPODValue_ {
   using TVMPODValue_::operator int;
   using TVMPODValue_::operator bool;
   using TVMPODValue_::operator void*;
+  using TVMPODValue_::operator std::string;
+  using TVMPODValue_::operator TVMByteArray;
+  using TVMPODValue_::operator DLDataType;
+  using TVMPODValue_::operator DataType;
   using TVMPODValue_::operator DLTensor*;
   using TVMPODValue_::operator NDArray;
   using TVMPODValue_::operator Device;
@@ -735,8 +757,6 @@ class TVMMovableArgValue_ : public TVMPODValue_ {
   operator TypedPackedFunc<FType>() const {
     return TypedPackedFunc<FType>(operator PackedFunc());
   }
-  operator DLDataType() const { return AsArgValue().operator DLDataType(); }
-  operator DataType() const { return AsArgValue().operator DataType(); }
   operator TVMArgValue() const { return AsArgValue(); }
   /*!
    * \brief Helper converter function.
@@ -807,17 +827,19 @@ class TVMMovableArgValueWithContext_ {
 class TVMRetValue : public TVMPODValue_ {
  public:
   /*! \brief default constructor */
-  TVMRetValue() {}
+  TVMRetValue() : f_deleter_(nullptr), f_deleter_arg_(nullptr) {}
+
   /*!
    * \brief move constructor from another return value.
    * \param other The other return value.
    */
-  TVMRetValue(TVMRetValue&& other) : TVMPODValue_(other.value_, other.type_code_) {
-    other.value_.v_handle = nullptr;
-    other.type_code_ = kTVMNullptr;
-  }
+  TVMRetValue(TVMRetValue&& other) : TVMRetValue() { *this = std::move(other); }
+
+  TVMRetValue(const TVMRetValue& other) : TVMRetValue() { *this = other; }
+
   /*! \brief destructor */
   ~TVMRetValue() { this->Clear(); }
+
   // reuse converter from parent
   using TVMPODValue_::operator double;
   using TVMPODValue_::operator int64_t;
@@ -825,6 +847,10 @@ class TVMRetValue : public TVMPODValue_ {
   using TVMPODValue_::operator int;
   using TVMPODValue_::operator bool;
   using TVMPODValue_::operator void*;
+  using TVMPODValue_::operator std::string;
+  using TVMPODValue_::operator TVMByteArray;
+  using TVMPODValue_::operator DLDataType;
+  using TVMPODValue_::operator DataType;
   using TVMPODValue_::operator DLTensor*;
   using TVMPODValue_::operator Device;
   using TVMPODValue_::operator NDArray;
@@ -833,35 +859,17 @@ class TVMRetValue : public TVMPODValue_ {
   using TVMPODValue_::AsObjectRef;
   using TVMPODValue_::IsObjectRef;
 
-  TVMRetValue(const TVMRetValue& other) : TVMPODValue_() { this->Assign(other); }
   // conversion operators
-  operator std::string() const {
-    if (type_code_ == kTVMDataType) {
-      return DLDataType2String(operator DLDataType());
-    } else if (type_code_ == kTVMBytes) {
-      return *ptr<std::string>();
-    }
-    TVM_CHECK_TYPE_CODE(type_code_, kTVMStr);
-    return *ptr<std::string>();
-  }
-  operator DLDataType() const {
-    if (type_code_ == kTVMStr) {
-      return String2DLDataType(operator std::string());
-    }
-    TVM_CHECK_TYPE_CODE(type_code_, kTVMDataType);
-    return value_.v_type;
-  }
-  operator DataType() const { return DataType(operator DLDataType()); }
   template <typename FType>
   operator TypedPackedFunc<FType>() const {
     return TypedPackedFunc<FType>(operator PackedFunc());
   }
   // Assign operators
   TVMRetValue& operator=(TVMRetValue&& other) {
-    this->Clear();
-    value_ = other.value_;
-    type_code_ = other.type_code_;
-    other.type_code_ = kTVMNullptr;
+    std::swap(value_, other.value_);
+    std::swap(type_code_, other.type_code_);
+    std::swap(f_deleter_, other.f_deleter_);
+    std::swap(f_deleter_arg_, other.f_deleter_arg_);
     return *this;
   }
   TVMRetValue& operator=(double value) {
@@ -906,11 +914,49 @@ class TVMRetValue : public TVMPODValue_ {
     return *this;
   }
   TVMRetValue& operator=(std::string value) {
-    this->SwitchToClass(kTVMStr, value);
+    this->Clear();
+
+    std::string* container = new std::string(std::move(value));
+    f_deleter_ = [](void* arg) { delete static_cast<std::string*>(arg); };
+    f_deleter_arg_ = container;
+
+    type_code_ = kTVMStr;
+    value_.v_str = container->c_str();
+
     return *this;
   }
   TVMRetValue& operator=(TVMByteArray value) {
-    this->SwitchToClass(kTVMBytes, std::string(value.data, value.size));
+    this->Clear();
+
+    /* \brief Container for owned data
+     *
+     * For consistency with TVMArgValue, kTVMBytes should store a
+     * `TVMByteArray*` in `value_.v_handle`.  However, `TVMRetValue`
+     * must own its backing allocation, where `TVMByteArray` does not
+     * own the data to which it points.
+     *
+     * This struct provides both ownership over an allocation, and a
+     * `TVMByteArray` with a view into the owned allocation.
+     */
+    struct OwnedArray {
+      explicit OwnedArray(std::vector<char> arg)
+          : backing_vector(std::move(arg)), array{backing_vector.data(), backing_vector.size()} {}
+      OwnedArray(const OwnedArray&) = delete;
+
+      // The backing allocation
+      std::vector<char> backing_vector;
+
+      // The TVMByteArray, referencing the backing allocation
+      TVMByteArray array;
+    };
+
+    OwnedArray* container = new OwnedArray(std::vector<char>(value.data, value.data + value.size));
+    f_deleter_ = [](void* arg) { delete static_cast<OwnedArray*>(arg); };
+    f_deleter_arg_ = container;
+
+    type_code_ = kTVMBytes;
+    value_.v_handle = &container->array;
+
     return *this;
   }
   TVMRetValue& operator=(NDArray other) {
@@ -999,11 +1045,11 @@ class TVMRetValue : public TVMPODValue_ {
   void Assign(const T& other) {
     switch (other.type_code()) {
       case kTVMStr: {
-        SwitchToClass<std::string>(kTVMStr, other);
+        *this = other.operator std::string();
         break;
       }
       case kTVMBytes: {
-        SwitchToClass<std::string>(kTVMBytes, other);
+        *this = other.operator TVMByteArray();
         break;
       }
       case kTVMPackedFuncHandle: {
@@ -1042,16 +1088,6 @@ class TVMRetValue : public TVMPODValue_ {
       type_code_ = type_code;
     }
   }
-  template <typename T>
-  void SwitchToClass(int type_code, T v) {
-    if (type_code_ != type_code) {
-      this->Clear();
-      type_code_ = type_code;
-      value_.v_handle = new T(v);
-    } else {
-      *static_cast<T*>(value_.v_handle) = v;
-    }
-  }
   void SwitchToObject(int type_code, ObjectPtr<Object> other) {
     if (other.data_ != nullptr) {
       this->Clear();
@@ -1066,29 +1102,46 @@ class TVMRetValue : public TVMPODValue_ {
   }
   void Clear() {
     if (type_code_ == kTVMNullptr) return;
+
     switch (type_code_) {
       case kTVMStr:
-      case kTVMBytes:
-        delete ptr<std::string>();
+      case kTVMBytes: {
+        if (f_deleter_) {
+          (*f_deleter_)(f_deleter_arg_);
+        }
         break;
-      case kTVMPackedFuncHandle:
+      }
+
+      case kTVMPackedFuncHandle: {
         static_cast<Object*>(value_.v_handle)->DecRef();
         break;
+      }
+
       case kTVMNDArrayHandle: {
         NDArray::FFIDecRef(static_cast<TVMArrayHandle>(value_.v_handle));
         break;
       }
+
       case kTVMModuleHandle: {
         static_cast<Object*>(value_.v_handle)->DecRef();
         break;
       }
+
       case kTVMObjectHandle: {
         static_cast<Object*>(value_.v_handle)->DecRef();
         break;
       }
     }
     type_code_ = kTVMNullptr;
+    f_deleter_ = nullptr;
+    f_deleter_arg_ = nullptr;
   }
+
+  /* \brief The deleter function to call for owned values */
+  void (*f_deleter_)(void*) = nullptr;
+
+  /* \brief The argument to be provided to the deleter function */
+  void* f_deleter_arg_ = nullptr;
 };
 
 /*!
@@ -1740,14 +1793,8 @@ class TVMArgsSetter {
     operator()(i, value.packed());
   }
   void operator()(size_t i, const TVMRetValue& value) const {
-    if (value.type_code() == kTVMStr) {
-      values_[i].v_str = value.ptr<std::string>()->c_str();
-      type_codes_[i] = kTVMStr;
-    } else {
-      ICHECK_NE(value.type_code(), kTVMBytes) << "not handled.";
-      values_[i] = value.value_;
-      type_codes_[i] = value.type_code();
-    }
+    values_[i] = value.value_;
+    type_codes_[i] = value.type_code();
   }
   // ObjectRef handling
   template <typename TObjectRef,
@@ -2139,15 +2186,7 @@ inline PackedFunc Module::GetFunction(const String& name, bool query_imports) {
 // specializations of PackedFuncValueConverter
 template <>
 struct PackedFuncValueConverter<::tvm::runtime::String> {
-  static String From(const TVMArgValue& val) {
-    if (val.IsObjectRef<tvm::runtime::String>()) {
-      return val.AsObjectRef<tvm::runtime::String>();
-    } else {
-      return tvm::runtime::String(val.operator std::string());
-    }
-  }
-
-  static String From(const TVMRetValue& val) {
+  static String From(const TVMPODValue_& val) {
     if (val.IsObjectRef<tvm::runtime::String>()) {
       return val.AsObjectRef<tvm::runtime::String>();
     } else {
@@ -2222,8 +2261,8 @@ inline bool String::CanConvertFrom(const TVMArgValue& val) {
   return val.type_code() == kTVMStr || val.IsObjectRef<tvm::runtime::String>();
 }
 
-inline TVMArgValue::operator DLDataType() const {
-  if (String::CanConvertFrom(*this)) {
+inline TVMPODValue_::operator DLDataType() const {
+  if (type_code_ == kTVMStr || IsObjectRef<tvm::runtime::String>()) {
     return String2DLDataType(PackedFuncValueConverter<String>::From(*this).operator std::string());
   }
   // None type
@@ -2237,8 +2276,6 @@ inline TVMArgValue::operator DLDataType() const {
   TVM_CHECK_TYPE_CODE(type_code_, kTVMDataType);
   return value_.v_type;
 }
-
-inline TVMArgValue::operator DataType() const { return DataType(operator DLDataType()); }
 
 }  // namespace runtime // NOLINT(*)
 }  // namespace tvm // NOLINT(*)

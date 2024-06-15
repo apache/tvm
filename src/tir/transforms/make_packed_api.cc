@@ -90,6 +90,9 @@ class ReturnRewriter : public StmtMutator {
     } else if (dtype.is_void()) {
       info.tcode = kTVMNullptr;
       info.expr = val;
+    } else if (val->IsInstance<StringImmNode>()) {
+      info.tcode = kTVMStr;
+      info.expr = val;
     } else {
       LOG(FATAL) << "data type " << dtype << " not supported yet";
     }

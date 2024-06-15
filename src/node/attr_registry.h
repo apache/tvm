@@ -113,7 +113,7 @@ class AttrRegistry {
     ICHECK(value.type_code() != kTVMNullptr) << "Registered packed_func is Null for " << attr_name
                                              << " of operator " << key->AttrRegistryName();
     if (p.second < plevel && value.type_code() != kTVMNullptr) {
-      op_map->data_[index] = std::make_pair(value, plevel);
+      op_map->data_[index] = std::make_pair(std::move(value), plevel);
     }
   }
 

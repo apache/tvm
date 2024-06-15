@@ -1827,7 +1827,10 @@ def ret(val):
         The return expression
     """
 
-    val = convert(val)
+    if isinstance(val, str):
+        val = StringImm(val)
+    else:
+        val = convert(val)
     return call_intrin(val.dtype, "tir.ret", val)
 
 

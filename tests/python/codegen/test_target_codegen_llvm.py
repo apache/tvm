@@ -1138,5 +1138,16 @@ def test_invalid_volatile_masked_buffer_store():
             tvm.build(func)
 
 
+def test_return_string_from_tir():
+    @T.prim_func
+    def func():
+        return "hello!"
+
+    built = tvm.build(func, target="llvm")
+
+    out = built()
+    assert out == "hello!"
+
+
 if __name__ == "__main__":
     tvm.testing.main()
