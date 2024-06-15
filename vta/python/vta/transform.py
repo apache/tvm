@@ -19,6 +19,7 @@
 import tvm
 from tvm import te
 from tvm.topi import utils
+from tvm.script import tir as T
 
 from .environment import get_env
 
