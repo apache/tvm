@@ -563,8 +563,7 @@ def test_paged_attention_kv_cache_fork_sequence(kv_cache_and_config):
     apply_attention(kv_cache, rope_mode, [((5, 0, -1), 20)], cached_k, cached_v)
     apply_attention(kv_cache, rope_mode, [((6, 5, -1), 102)], cached_k, cached_v)
     apply_attention(kv_cache, rope_mode, [((7, 0, -1), 3)], cached_k, cached_v)
-    apply_attention(kv_cache, rope_mode, [((8, 5, -1), 71)], cached_k, cached_v)
-    apply_attention(kv_cache, rope_mode, [((9, 5, -1), 20)], cached_k, cached_v)
+    apply_attention(kv_cache, rope_mode, [((8, 5, -1), 71), ((9, 5, -1), 20)], cached_k, cached_v)
     # 0 <- 5 <- 6,8,9
     # 0 <- 7
     # 3 <- 4
@@ -579,15 +578,10 @@ def test_paged_attention_kv_cache_fork_sequence(kv_cache_and_config):
         apply_attention(kv_cache, rope_mode, batch, cached_k, cached_v)
 
     apply_attention(kv_cache, rope_mode, [((10, 1, 33), 11)], cached_k, cached_v)
-    apply_attention(kv_cache, rope_mode, [((11, 0, 60), 45)], cached_k, cached_v)
-    apply_attention(kv_cache, rope_mode, [((12, 0, 15), 14)], cached_k, cached_v)
-    apply_attention(kv_cache, rope_mode, [((13, 0, 16), 19)], cached_k, cached_v)
-    apply_attention(kv_cache, rope_mode, [((14, 0, 17), 19)], cached_k, cached_v)
-    apply_attention(kv_cache, rope_mode, [((15, 5, 60), 8)], cached_k, cached_v)
-    apply_attention(kv_cache, rope_mode, [((16, 5, 80), 10)], cached_k, cached_v)
-    apply_attention(kv_cache, rope_mode, [((17, 5, 75), 11)], cached_k, cached_v)
-    apply_attention(kv_cache, rope_mode, [((18, 5, 76), 45)], cached_k, cached_v)
-    apply_attention(kv_cache, rope_mode, [((19, 5, 77), 14)], cached_k, cached_v)
+    apply_attention(kv_cache, rope_mode, [((11, 0, 60), 45), ((12, 0, 15), 14)], cached_k, cached_v)
+    apply_attention(kv_cache, rope_mode, [((13, 0, 16), 19), ((14, 0, 17), 19)], cached_k, cached_v)
+    apply_attention(kv_cache, rope_mode, [((15, 5, 60), 8), ((16, 5, 80), 10)], cached_k, cached_v)
+    apply_attention(kv_cache, rope_mode, [((17, 5, 75), 11), ((18, 5, 76), 45), ((19, 5, 77), 14)], cached_k, cached_v)
 
     operation_seq = [
         [(6, 1), (11, 1), (13, 1), (9, 1)],

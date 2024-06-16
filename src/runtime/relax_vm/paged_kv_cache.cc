@@ -1199,44 +1199,38 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
         << "The parent sequence's token tree computed in the last round of forward has not been "
            "committed with accepted nodes.";
 
+    if (fork_pos == -1) {
+      fork_pos = parent_it->second.seq_length;
+    }
+
+    if (fork_pos == parent_it->second.seq_length && fork_pos % page_size_ == 0 &&
+        global_block_pool_[parent_it->second.last_block_idx].seq_length > 0) {
+      // To enable the parent sequence to continue decode after the fork,
+      // we add a new empty block at the end of the parent sequence.
+      // So the new decoded KV data will go into the new block.
+      int32_t new_block_idx = GetFreeBlock();
+      global_block_pool_[new_block_idx].start_pos = parent_it->second.seq_length;
+      global_block_pool_[new_block_idx].parent_idx = parent_it->second.last_block_idx;
+      global_block_pool_[new_block_idx].external_ref_cnt = 1;
+      parent_it->second.last_block_idx = new_block_idx;
+    }
+
     int32_t child_block_idx = GetFreeBlock();
-    if (fork_pos == -1 || fork_pos == parent_it->second.seq_length) {
-      // Fork at last by appending a new block directly
-      int32_t parent_block_idx = parent_it->second.last_block_idx;
-      if (!global_block_pool_[parent_block_idx].seq_length) {
-        // If parent ends with empty block, fork from parent's parent block
-        parent_block_idx = global_block_pool_[parent_block_idx].parent_idx;
-      }
-      ++global_block_pool_[parent_block_idx].external_ref_cnt;
-      // Update child block start position and parent index
-      global_block_pool_[child_block_idx].start_pos = parent_it->second.seq_length;
-      global_block_pool_[child_block_idx].parent_idx = parent_block_idx;
-      if (parent_block_idx == parent_it->second.last_block_idx &&
-          global_block_pool_[parent_block_idx].seq_length) {
-        // To enable the parent sequence to continue decode after the fork,
-        // we add a new empty block at the end of the parent sequence.
-        // So the new decoded KV data will go into the new block.
-        int32_t new_parent_block_idx = GetFreeBlock();
-        global_block_pool_[new_parent_block_idx].start_pos = parent_it->second.seq_length;
-        global_block_pool_[new_parent_block_idx].parent_idx = parent_block_idx;
-        global_block_pool_[new_parent_block_idx].external_ref_cnt = 1;
-        parent_it->second.last_block_idx = new_parent_block_idx;
-      }
-    } else {
-      // Locate the block to fork from and calculate in-block offset
-      std::vector<int32_t> trace = parent_it->second.GetBlockTrace(global_block_pool_);
-      int64_t in_block_offset = fork_pos;
-      int32_t forked_block_idx = -1;
-      for (int32_t block_idx : trace) {
-        if (in_block_offset < global_block_pool_[block_idx].seq_length) {
-          forked_block_idx = block_idx;
-          break;
+    std::vector<int32_t> trace = parent_it->second.GetBlockTrace(global_block_pool_);
+    int64_t in_block_offset = fork_pos;
+    for (int32_t forked_block_idx : trace) {
+      if (forked_block_idx != trace.back()) {
+        CHECK_GT(global_block_pool_[forked_block_idx].seq_length, 0);
+        CHECK_EQ(global_block_pool_[forked_block_idx].seq_length % page_size_, 0);
+        if (global_block_pool_[forked_block_idx].seq_length <= in_block_offset) {
+          in_block_offset -= global_block_pool_[forked_block_idx].seq_length;
+          continue;
         }
-        in_block_offset -= global_block_pool_[block_idx].seq_length;
       }
       int32_t in_page_offset = in_block_offset % page_size_;
       int32_t moved_offset = in_block_offset - in_page_offset;
-      if (moved_offset == 0) {
+      int32_t moved_pages = moved_offset / page_size_;
+      if (moved_pages == 0) {
         // Forked at the first page in block
         int32_t parent_block_idx = global_block_pool_[forked_block_idx].parent_idx;
         if (parent_block_idx != -1) {
@@ -1256,8 +1250,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
 
         // Move common leading pages to new parent block
         auto first_page = global_block_pool_[forked_block_idx].page_ids.begin();
-        auto last_page =
-            global_block_pool_[forked_block_idx].page_ids.begin() + moved_offset / page_size_;
+        auto last_page = global_block_pool_[forked_block_idx].page_ids.begin() + moved_pages;
         global_block_pool_[parent_block_idx].page_ids = {first_page, last_page};
         global_block_pool_[forked_block_idx].page_ids.erase(first_page, last_page);
 
@@ -1280,6 +1273,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
         global_block_pool_[child_block_idx].page_ids.push_back(tgt_page_id);
         CopySinglePage(src_page_id, tgt_page_id, in_page_offset);
       }
+      break;
     }
     // Create the child sequence with the child block.
     seq_map_.insert({child_seq_id, Sequence(&global_block_pool_, child_block_idx)});
