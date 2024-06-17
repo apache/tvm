@@ -276,6 +276,7 @@ def tune_relay(
     opt_level: int = 3,
     disabled_pass: Optional[Union[List[str], Set[str], Tuple[str]]] = None,
     instruments: Optional[Sequence[PassInstrument]] = None,
+    post_optimization: Optional[bool] = False,
 ) -> Database:
     """Tune a Relay program.
 
@@ -331,6 +332,8 @@ def tune_relay(
         The list of disabled passes during tasks extraction
     instruments : Optional[Sequence[PassInstrument]]
         The list of pass instrument implementations.
+    post_optimization : Optional[Bool]
+        Generate post-optimization using Droplet Search as exploitation space.
 
     Returns
     -------
@@ -367,6 +370,7 @@ def tune_relay(
         measure_callbacks=measure_callbacks,
         task_scheduler=task_scheduler,
         module_equality=module_equality,
+        post_optimization=post_optimization,
     )
 
 
