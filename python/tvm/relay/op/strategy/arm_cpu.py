@@ -730,7 +730,8 @@ def schedule_dense_arm_cpu(attrs, inputs, out_type, target):
         )
 
     if (
-        data.dtype in ["float16", "float32"]
+        target.features.is_aarch64
+        and data.dtype in ["float16", "float32"]
         and weight.dtype in ["float16", "float32"]
         and out_type.dtype in ["float16", "float32"]
     ):
@@ -785,7 +786,8 @@ def matmul_strategy_arm_cpu(attrs, inputs, out_type, target):
             name="matmul.arm_cpu.sme",
         )
     elif (
-        data.dtype in ["float16", "float32"]
+        target.features.is_aarch64
+        and data.dtype in ["float16", "float32"]
         and weight.dtype in ["float16", "float32"]
         and out_type.dtype in ["float16", "float32"]
         and not (attrs.transpose_a or attrs.transpose_b)

@@ -178,5 +178,49 @@ def test_sme_dense(data_shape, weight_shape, enable_bias, in_dtype):
     )
 
 
+class TestGemmDense:
+    """This test is for dense_gemm schedule."""
+
+
+@pytest.mark.parametrize(
+    "data_shape,weight_shape,enable_bias",
+    [
+        ((32, 32), (32, 32), False),
+        ((2, 35), (6, 35), False),
+        ((3, 3), (68, 3), False),
+        ((79, 65), (152, 65), True),
+    ],
+)
+@pytest.mark.parametrize("in_dtype", ["float32", "float16"])
+def test_gemm_dense(data_shape, weight_shape, enable_bias, in_dtype):
+    np.random.seed(0)
+    in_np = np.random.uniform(size=(data_shape)).astype(in_dtype)
+    w1 = np.random.uniform(size=(weight_shape)).astype(in_dtype)
+
+    w = relay.const(w1)
+    d = relay.var("data", shape=data_shape, dtype=in_dtype)
+    y = relay.nn.dense(d, w)
+
+    mod = tvm.IRModule()
+
+    mod["main"] = relay.Function([d], y)
+
+    target = "llvm -mtriple=aarch64-linux-gnu -device=arm_cpu -mattr=+v8.2a,+neon"
+
+    with tvm.transform.PassContext(opt_level=3):
+        lib = relay.build(mod, target=target, params=None)
+
+    out_np = np.array(np.matmul(in_np, w1.T))
+
+    dev = tvm.cpu(0)
+    input_buf = tvm.nd.array(in_np, device=dev)
+    rt = tvm.contrib.graph_executor.GraphModule(lib["default"](dev))
+    rt.set_input("data", input_buf)
+    rt.run()
+    out = rt.get_output(0)
+
+    tvm.testing.assert_allclose(out.numpy(), out_np, rtol=1e-2, atol=1e-2)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
