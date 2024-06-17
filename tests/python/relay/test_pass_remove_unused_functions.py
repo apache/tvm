@@ -117,7 +117,7 @@ def test_call_globalvar_without_args():
     mod = get_mod()
     ref_mod = get_mod()
     mod = relay.transform.RemoveUnusedFunctions()(mod)
-    assert tvm.ir.structural_equal(mod, ref_mod, map_free_vars=True)
+    tvm.ir.assert_structural_equal(mod, ref_mod, map_free_vars=True)
 
 
 if __name__ == "__main__":

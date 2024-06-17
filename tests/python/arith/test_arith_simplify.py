@@ -32,7 +32,7 @@ def test_simplify_reshape_flattened_index():
     ana.bind(i1, tvm.ir.Range(0, 3))
 
     i_flattened = i0 * 3 + i1
-    assert tvm.ir.structural_equal(
+    tvm.ir.assert_structural_equal(
         ana.simplify((i_flattened) // 12 * 12 + (i_flattened) % 12 // 4 * 4 + (i_flattened) % 4),
         i_flattened,
     )

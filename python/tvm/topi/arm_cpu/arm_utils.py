@@ -68,8 +68,11 @@ def get_tiling_A(interleave_A, in_dtype, use_sme=False):
             tile_M = 4
             tile_K = 16
     elif use_sme:
-        tile_M = 2 * 4 * tvm.tir.vscale()
-        tile_K = 2 * 4 * tvm.tir.vscale()
+        tile_M = 2 * tvm.tir.get_vscale_expr(in_dtype)
+        if in_dtype == "float16":
+            tile_K = tvm.tir.get_vscale_expr(in_dtype)
+        else:
+            tile_K = 2 * tvm.tir.get_vscale_expr(in_dtype)
     else:
         # In non-SME, non-quantized cases, A is not interleaved.
         # We are loading 4 rows from A.
@@ -139,17 +142,16 @@ def get_tiling_B_transformed(interleave_A, in_dtype, use_scalable_vectors=False,
             tile_N = 4
             tile_K = 16
     elif use_sme:
-        tile_N = 2 * 4 * tvm.tir.vscale()
-        tile_K = 2 * 4 * tvm.tir.vscale()
+        tile_N = 2 * tvm.tir.get_vscale_expr(in_dtype)
+        if in_dtype == "float16":
+            tile_K = tvm.tir.get_vscale_expr(in_dtype)
+        else:
+            tile_K = 2 * tvm.tir.get_vscale_expr(in_dtype)
     # In non-SME, non-quantized cases, A is not interleaved.
     elif use_scalable_vectors:
-        if in_dtype == "float16":
-            # Each load from B' contains 32 * vscale elements (i.e. 32 * vscale columns from B)
-            tile_N = 32 * tvm.tir.vscale()
-        else:
-            # Each load from B' contains 16 * vscale elements (i.e. 16 * vscale columns from B)
-            tile_N = 16 * tvm.tir.vscale()
+        # Each load from B' contains 4 * scalable vectors (i.e. 4 * SVL columns from B)
         # We are loading 4 rows from B', in the dimension of reduction (i.e. 4 rows from B)
+        tile_N = 4 * tvm.tir.get_vscale_expr(in_dtype)
         tile_K = 4
     elif in_dtype == "float16" and target.features.has_fp16_simd:
         # Each load from B' contains 32 elements (i.e. 32 columns from B)

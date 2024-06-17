@@ -373,7 +373,7 @@ def test_annotate(dpu_target):
 
     ref_mod = expected()
 
-    assert tvm.ir.structural_equal(partitioned_mod, ref_mod, map_free_vars=True)
+    tvm.ir.assert_structural_equal(partitioned_mod, ref_mod, map_free_vars=True)
 
 
 if __name__ == "__main__":

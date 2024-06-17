@@ -62,4 +62,4 @@ def test_invalid_avg_pool2d(count_include_pad, pool_shape, padding):
 
     mod = relay.transform.InferType()(get_graph())
     partitioned_mod = ethosu.partition_for_ethosu(mod)
-    assert tvm.ir.structural_equal(mod, partitioned_mod)
+    tvm.ir.assert_structural_equal(mod, partitioned_mod)

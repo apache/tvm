@@ -68,7 +68,7 @@ device = tvm.testing.parameter(
         False,
     ),
     (
-        "llvm --device arm_cpu --mtriple aarch64-linux-gnu -mattr=+v8.2a",
+        "llvm --device arm_cpu --mtriple aarch64-linux-gnu -mattr=+v8.2a,+fullfp16",
         topi.arm_cpu.compute_conv2d_NHWC_hybrid,
         topi.arm_cpu.schedule_conv2d_NHWC_hybrid_TIR,
         True,
@@ -168,18 +168,25 @@ def test_conv2d_nhwc_gemm(device, ref_data, dtype, stride, padding, dilation):
     target = tvm.target.Target(target_string)
 
     if target.features.has_sve and llvm_version_major() < 15:
-        pytest.skip(f"LLVM {llvm_version_major()} does not support targetting SVE.")
+        pytest.skip(f"LLVM {llvm_version_major()} does not support targeting SVE.")
 
     if target.features.has_sme and llvm_version_major() < 16:
-        pytest.skip(f"LLVM {llvm_version_major()} does not support targetting SME.")
+        pytest.skip(f"LLVM {llvm_version_major()} does not support targeting SME.")
 
-    if target.features.has_sme and dtype == "float16":
-        pytest.skip(f"Conv2d fp16 targetting SME not implemented.")
+    if target.features.has_sme and a_np.shape[0] > 1:
+        pytest.skip(f"Conv2d with batches > 1 targeting SME not implemented.")
+
+    if target.features.has_sme and (a_np.shape[3] * w_np.shape[0] * w_np.shape[1]) <= 1:
+        pytest.skip(f"Conv2d with unit reduction dimension targeting SME not supported.")
+
+    # SME schedule always outputs float32 results, regardless of input dtype.
+    # Otherwise, output dtype is the same as input dtype.
+    out_dtype = "float32" if target.features.has_sme else dtype
 
     with target:
         a = tvm.nd.array(a_np, dev)
         w = tvm.nd.array(w_np, dev)
-        B = compute(A, W, stride, padding, dilation, dtype)
+        B = compute(A, W, stride, padding, dilation, out_dtype)
         b = tvm.nd.array(np.zeros(get_const_tuple(B.shape), dtype=B.dtype), dev)
         if use_tir_schedule:
             primfunc = te.create_prim_func([A, W, B])
@@ -190,22 +197,22 @@ def test_conv2d_nhwc_gemm(device, ref_data, dtype, stride, padding, dilation):
             func = tvm.build(s, [A, W, B], target)
 
         # Run only on AArch64 devices
-        # Do not run SVE schedules on non-SVE devices
+        # Do not run SVE/SME schedules on non-SVE/SME devices
         build_only = (
             platform.machine() != "aarch64"
-            or (target.features.has_sve and not tvm.testing.requires_aarch64_sve.run_time_check())
             or (
                 dtype == "float16"
                 and target.features.has_fp16_simd
                 and not tvm.testing.requires_arm_fp16.run_time_check()
             )
+            or (target.features.has_sve and not tvm.testing.requires_aarch64_sve.run_time_check())
             or (target.features.has_sme and not tvm.testing.requires_aarch64_sme.run_time_check())
         )
         if build_only:
             return
 
         func(a, w, b)
-    tol = get_tolerance(dtype, w_np, b_np)
+    tol = get_tolerance(out_dtype, w_np, b_np)
     tvm.testing.assert_allclose(b.numpy(), b_np, rtol=tol["rtol"], atol=tol["atol"])
 
 

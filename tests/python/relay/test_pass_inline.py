@@ -113,7 +113,7 @@ def test_call_chain_inline_leaf():
 
     mod = get_mod()
     mod = relay.transform.Inline()(mod)
-    assert tvm.ir.structural_equal(mod, expected(), map_free_vars=True)
+    tvm.ir.assert_structural_equal(mod, expected(), map_free_vars=True)
 
 
 def test_call_chain_inline_multiple_levels():
@@ -186,7 +186,7 @@ def test_call_chain_inline_multiple_levels():
 
     mod = get_mod()
     mod = relay.transform.Inline()(mod)
-    assert tvm.ir.structural_equal(mod, expected(), map_free_vars=True)
+    tvm.ir.assert_structural_equal(mod, expected(), map_free_vars=True)
 
 
 def test_call_chain_inline_multiple_levels_extern_compiler():
@@ -264,7 +264,7 @@ def test_call_chain_inline_multiple_levels_extern_compiler():
 
     mod = get_mod()
     mod = relay.transform.Inline()(mod)
-    assert tvm.ir.structural_equal(mod, expected(), map_free_vars=True)
+    tvm.ir.assert_structural_equal(mod, expected(), map_free_vars=True)
 
 
 def test_recursive_call_with_global():
@@ -315,7 +315,7 @@ def test_recursive_call_with_global():
 
     mod = get_mod()
     mod = relay.transform.Inline()(mod)
-    assert tvm.ir.structural_equal(mod, expected(), map_free_vars=True)
+    tvm.ir.assert_structural_equal(mod, expected(), map_free_vars=True)
 
 
 def test_recursive_called():
@@ -324,7 +324,7 @@ def test_recursive_called():
     mod["main"] = relay.Function([iarg], sum_up(iarg))
     ref_mod = mod
     mod = relay.transform.Inline()(mod)
-    assert tvm.ir.structural_equal(mod, ref_mod, map_free_vars=True)
+    tvm.ir.assert_structural_equal(mod, ref_mod, map_free_vars=True)
 
 
 def test_recursive_not_called():
@@ -350,7 +350,7 @@ def test_recursive_not_called():
     mod = get_mod()
     mod = relay.transform.Inline()(mod)
     ref_mod = expected()
-    assert tvm.ir.structural_equal(mod, ref_mod, map_free_vars=True)
+    tvm.ir.assert_structural_equal(mod, ref_mod, map_free_vars=True)
 
 
 def test_recursive_not_called_extern_compiler():
@@ -381,7 +381,7 @@ def test_recursive_not_called_extern_compiler():
     mod = get_mod()
     mod = relay.transform.Inline()(mod)
     ref_mod = expected()
-    assert tvm.ir.structural_equal(mod, ref_mod, map_free_vars=True)
+    tvm.ir.assert_structural_equal(mod, ref_mod, map_free_vars=True)
 
 
 def test_globalvar_as_call_arg():
@@ -428,7 +428,7 @@ def test_globalvar_as_call_arg():
 
     mod = get_mod()
     mod = relay.transform.Inline()(mod)
-    assert tvm.ir.structural_equal(mod, expected(), map_free_vars=True)
+    tvm.ir.assert_structural_equal(mod, expected(), map_free_vars=True)
 
 
 def test_globalvar_as_call_arg_extern_compiler():
@@ -494,7 +494,7 @@ def test_globalvar_as_call_arg_extern_compiler():
 
     mod = get_mod()
     mod = relay.transform.Inline()(mod)
-    assert tvm.ir.structural_equal(mod, expected(), map_free_vars=True)
+    tvm.ir.assert_structural_equal(mod, expected(), map_free_vars=True)
 
 
 def test_inline_globalvar_without_args():
@@ -525,7 +525,7 @@ def test_inline_globalvar_without_args():
 
     mod = get_mod()
     mod = relay.transform.Inline()(mod)
-    assert tvm.ir.structural_equal(mod, expected(), map_free_vars=True)
+    tvm.ir.assert_structural_equal(mod, expected(), map_free_vars=True)
 
 
 def test_inline_globalvar_without_args_extern_compiler():
@@ -559,7 +559,7 @@ def test_inline_globalvar_without_args_extern_compiler():
 
     mod = get_mod()
     mod = relay.transform.Inline()(mod)
-    assert tvm.ir.structural_equal(mod, expected(), map_free_vars=True)
+    tvm.ir.assert_structural_equal(mod, expected(), map_free_vars=True)
 
 
 def test_globalvar_called_by_multiple_functions():
@@ -637,7 +637,7 @@ def test_globalvar_called_by_multiple_functions():
 
     mod = get_mod()
     mod = relay.transform.Inline()(mod)
-    assert tvm.ir.structural_equal(mod, expected(), map_free_vars=True)
+    tvm.ir.assert_structural_equal(mod, expected(), map_free_vars=True)
 
 
 def test_entry_with_inline():
@@ -667,7 +667,7 @@ def test_entry_with_inline():
 
     mod = get_mod()
     mod = relay.transform.Inline()(mod)
-    assert tvm.ir.structural_equal(mod, get_mod(), map_free_vars=True)
+    tvm.ir.assert_structural_equal(mod, get_mod(), map_free_vars=True)
 
 
 def test_callee_not_inline():
@@ -700,7 +700,7 @@ def test_callee_not_inline():
 
     mod = get_mod()
     mod = relay.transform.Inline()(mod)
-    assert tvm.ir.structural_equal(mod, get_mod(), map_free_vars=True)
+    tvm.ir.assert_structural_equal(mod, get_mod(), map_free_vars=True)
 
 
 def test_callee_not_inline_leaf_inline():
@@ -758,7 +758,7 @@ def test_callee_not_inline_leaf_inline():
 
     mod = get_mod()
     mod = relay.transform.Inline()(mod)
-    assert tvm.ir.structural_equal(mod, expected(), map_free_vars=True)
+    tvm.ir.assert_structural_equal(mod, expected(), map_free_vars=True)
 
 
 def test_callee_not_inline_leaf_inline_extern_compiler():
@@ -823,7 +823,7 @@ def test_callee_not_inline_leaf_inline_extern_compiler():
 
     mod = get_mod()
     mod = relay.transform.Inline()(mod)
-    assert tvm.ir.structural_equal(mod, expected(), map_free_vars=True)
+    tvm.ir.assert_structural_equal(mod, expected(), map_free_vars=True)
 
 
 if __name__ == "__main__":

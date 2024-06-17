@@ -175,9 +175,7 @@ def check_result(pattern_table, graph, expected_graph, import_prelude=False):
         str(result)
     )
     expected = run_opt_pass(expected_graph, relay.transform.InferType())
-    assert tvm.ir.structural_equal(
-        result, expected, map_free_vars=True
-    ), "Graph mismatch: output vs. expected\n{0}\n=====\n{1}".format(str(result), str(expected))
+    tvm.ir.assert_structural_equal(result, expected, map_free_vars=True)
 
 
 def test_simple_merge():

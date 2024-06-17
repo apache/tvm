@@ -71,7 +71,7 @@ def test_legalize():
         a = run_opt_pass(a, transform.Legalize())
         b = run_opt_pass(expected(), transform.InferType())
 
-    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+    tvm.ir.assert_structural_equal(a, b)
 
 
 def test_legalize_none():
@@ -94,7 +94,7 @@ def test_legalize_none():
         a = run_opt_pass(a, transform.Legalize())
         b = run_opt_pass(before(), transform.InferType())
 
-    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+    tvm.ir.assert_structural_equal(a, b)
     assert called[0]
 
 
@@ -140,7 +140,7 @@ def test_legalize_multiple_ops():
             a = run_opt_pass(a, transform.Legalize())
             b = run_opt_pass(expected(), transform.InferType())
 
-    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+    tvm.ir.assert_structural_equal(a, b)
 
 
 def test_legalize_multi_input():
@@ -176,7 +176,7 @@ def test_legalize_multi_input():
         a = run_opt_pass(a, transform.Legalize())
         b = run_opt_pass(expected(), transform.InferType())
 
-    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+    tvm.ir.assert_structural_equal(a, b)
 
 
 @pytest.mark.parametrize(

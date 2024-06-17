@@ -290,7 +290,7 @@ def test_get_producers(use_block_name):
     sch = tir.Schedule(mod=matmul_relu, debug_mask="all")
     block = "relu" if use_block_name else sch.get_block("relu")
     (producer,) = sch.get_producers(block)
-    assert tvm.ir.structural_equal(
+    tvm.ir.assert_structural_equal(
         sch.get_sref(producer).stmt,
         sch.get_sref(sch.get_block("matmul")).stmt,
     )
@@ -301,7 +301,7 @@ def test_get_producers_multiple_buffer_depdencies(use_block_name):
     sch = tir.Schedule(mod=tuple_reduction, debug_mask="all")
     block = "T_add" if use_block_name else sch.get_block("T_add")
     (producer,) = sch.get_producers(block)
-    assert tvm.ir.structural_equal(
+    tvm.ir.assert_structural_equal(
         sch.get_sref(producer).stmt,
         sch.get_sref(sch.get_block("data_red_temp")).stmt,
     )
@@ -311,7 +311,7 @@ def test_get_consumers(use_block_name):
     sch = tir.Schedule(mod=matmul_relu, debug_mask="all")
     block = "matmul" if use_block_name else sch.get_block("matmul")
     (consumer,) = sch.get_consumers(block)
-    assert tvm.ir.structural_equal(
+    tvm.ir.assert_structural_equal(
         sch.get_sref(consumer).stmt,
         sch.get_sref(sch.get_block("relu")).stmt,
     )
@@ -322,7 +322,7 @@ def test_get_consumers_multiple_buffer_depdencies(use_block_name):
     sch = tir.Schedule(mod=tuple_reduction, debug_mask="all")
     block = "data_red_temp" if use_block_name else sch.get_block("data_red_temp")
     (consumer,) = sch.get_consumers(block)
-    assert tvm.ir.structural_equal(
+    tvm.ir.assert_structural_equal(
         sch.get_sref(consumer).stmt,
         sch.get_sref(sch.get_block("T_add")).stmt,
     )

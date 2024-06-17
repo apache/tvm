@@ -23,6 +23,7 @@ import re
 
 from tvm import relay, topi, tir
 from tvm.tir.schedule.analysis import has_block
+from tvm.dlight.gpu.matmul import auto_inline_consumers
 
 from ....auto_scheduler import is_auto_scheduler_enabled
 from ....meta_schedule import is_meta_schedule_enabled
@@ -109,6 +110,8 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
     """conv2d arm cpu strategy"""
     strategy = _op.OpStrategy()
     data, kernel = inputs
+    data_shape = data.shape
+    kernel_shape = kernel.shape
     dilation_h, dilation_w = attrs.get_int_tuple("dilation")
     stride_h, stride_w = attrs.get_int_tuple("strides")
     padding = attrs.get_int_tuple("padding")
@@ -255,9 +258,13 @@ def conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
                 if is_aarch64 and data.dtype in ["float32", "float16"]:
                     if (
                         target.features.has_sme
-                        and data.dtype in ["float32"]
-                        and kernel.dtype in ["float32"]
-                        and out_type.dtype in ["float32"]
+                        and kernel.dtype == data.dtype
+                        and out_type.dtype == "float32"
+                        and data_shape[0] == 1
+                        # The schedule uses tensorization which does not work when the
+                        # reduction axis of the gemm has unit iters. See
+                        # https://github.com/apache/tvm/issues/16566
+                        and (data_shape[3] * kernel_shape[0] * kernel_shape[1]) > 1
                     ):
                         strategy.add_implementation(
                             wrap_compute_conv2d(topi.arm_cpu.compute_conv2d_NHWC_hybrid_SME),
@@ -536,6 +543,7 @@ def conv2d_gemm_without_weight_transform_strategy_arm_cpu(attrs, inputs, out_typ
     """conv2d_winograd_without_weight_transform arm cpu strategy"""
     layout = attrs.data_layout
     data = inputs[0]
+    kernel = inputs[1]
     strategy = _op.OpStrategy()
     is_aarch64 = target.features.is_aarch64
     has_dot_prod = target.features.has_dotprod
@@ -581,13 +589,31 @@ def conv2d_gemm_without_weight_transform_strategy_arm_cpu(attrs, inputs, out_typ
                     wrap_topi_schedule(interleaved_schedule),
                     name="conv2d_NHWC_quantized_interleaved_without_transform.arm_cpu",
                 )
+        # Non-quantized cases
         elif data.dtype in ["float32", "float16"]:
-            # Non-quantized cases
-            strategy.add_implementation(
-                wrap_compute_conv2d_gemm(topi.arm_cpu.compute_conv2d_NHWC_hybrid_without_transform),
-                wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_NHWC_hybrid_without_transform),
-                name="conv2d_NHWC_hybrid_without_transform.arm_cpu",
-            )
+            # The SME schedule for float16->float32 prearranges the two matrices to be multiplied
+            # using the ARM_SME_BLOCK2_2SVLx1SVL_FP16_TRANSPOSE_INTERLEAVE intrinsic which expects
+            # the reduction axis K as the second dimension of the matrix (i.e. shape = (_, K)).
+            # This means that the flattened weights matrix B needs to be transposed to (N, K).
+            if (
+                target.features.has_sme
+                and kernel.dtype == "float16"
+                and data.dtype == "float16"
+                and out_type.dtype == "float32"
+            ):
+                strategy.add_implementation(
+                    wrap_compute_conv2d_gemm(topi.arm_cpu.compute_conv2d_NHWC_SME_transposed_B),
+                    lambda: None,
+                    name="conv2d_NHWC_hybrid_SME_transposed_B.arm_cpu",
+                )
+            else:
+                strategy.add_implementation(
+                    wrap_compute_conv2d_gemm(
+                        topi.arm_cpu.compute_conv2d_NHWC_hybrid_without_transform
+                    ),
+                    wrap_topi_schedule(topi.arm_cpu.schedule_conv2d_NHWC_hybrid_without_transform),
+                    name="conv2d_NHWC_hybrid_without_transform.arm_cpu",
+                )
     else:
         raise RuntimeError(
             f"Unsupported conv2d_NHWC_without_transform layout {layout}"
@@ -819,6 +845,8 @@ def arm_cpu_tir_strategy(sch: tir.Schedule) -> bool:
         topi.arm_cpu.matmul.tir_schedule_matmul_sme(sch)
         return True
     elif has_block(sch, "conv2d_gemm_output"):
+        conv2d_block = sch.get_block("conv2d_gemm_output")
+        auto_inline_consumers(sch, conv2d_block)
         topi.arm_cpu.schedule_conv2d_NHWC_hybrid_TIR(sch)
         return True
 

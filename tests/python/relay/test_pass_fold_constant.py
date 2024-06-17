@@ -55,7 +55,7 @@ def test_concatenate_const():
 
     zz = run_opt_pass(before(), transform.FoldConstant())
     zexpected = run_opt_pass(expected(), transform.InferType())
-    assert tvm.ir.structural_equal(zz, zexpected)
+    tvm.ir.assert_structural_equal(zz, zexpected)
 
 
 def test_fold_const():
