@@ -353,6 +353,47 @@ def test_function_call_with_wrong_dimensionality():
         built(A, B)
 
 
+def test_zero_arg_function():
+    """Only check non-null args when num_args>0"""
+
+    @I.ir_module
+    class Before:
+        @T.prim_func
+        def func_without_arg() -> T.int64:
+            T.func_attr({"target": T.target("llvm", host="llvm")})
+            return T.int64(42)
+
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def func_without_arg(
+            args: T.handle,
+            arg_type_ids: T.handle("int32"),
+            num_args: T.int32,
+            out_ret_value: T.handle("void"),
+            out_ret_tcode: T.handle("int32"),
+            resource_handle: T.handle,
+        ) -> T.int32:
+            T.func_attr(
+                {
+                    "calling_conv": 1,
+                    "target": T.target("llvm"),
+                }
+            )
+            assert num_args == 0, "func_without_arg: num_args should be 0"
+            arg_type_ids_1 = T.decl_buffer((0,), "int32", data=arg_type_ids)
+            with T.attr(0, "compute_scope", "func_without_arg_compute_"):
+                out_ret_value_1 = T.Buffer((1,), "int64", data=out_ret_value, strides=(1,))
+                out_ret_value_1[0] = T.Cast("int64", T.int64(42))
+                out_ret_tcode_1 = T.Buffer((1,), "int32", data=out_ret_tcode, strides=(1,))
+                out_ret_tcode_1[0] = 0
+                return 0
+            return 0
+
+    After = tvm.tir.transform.MakePackedAPI()(Before)
+    tvm.ir.assert_structural_equal(Expected, After)
+
+
 def test_int_parameter():
     """Boolean may be passed to functions accepting int
 
