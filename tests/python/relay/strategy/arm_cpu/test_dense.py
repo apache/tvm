@@ -219,7 +219,12 @@ def test_gemm_dense(data_shape, weight_shape, enable_bias, in_dtype):
     rt.run()
     out = rt.get_output(0)
 
-    tvm.testing.assert_allclose(out.numpy(), out_np, rtol=1e-2, atol=1e-2)
+    if in_dtype == "float16":
+        tol = {"rtol": 1e-2, "atol": 1e-2}
+    else:
+        tol = {"rtol": 1e-7, "atol": 1e-7}
+
+    tvm.testing.assert_allclose(out.numpy(), out_np, rtol=tol["rtol"], atol=tol["atol"])
 
 
 if __name__ == "__main__":
