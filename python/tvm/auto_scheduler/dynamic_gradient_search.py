@@ -215,7 +215,6 @@ class DynamicGradientSearchTuner:
         states_2hop_record = self.get_n_hop_neighbors(record, 2)
         
         all_neighbors = states_1hop_record + states_2hop_record
-        print(">>>>  Total neighbors: ", len(all_neighbors), flush=True)
         
         candidate_inputs = [base_input]
         for record_str in all_neighbors:
@@ -243,7 +242,6 @@ class DynamicGradientSearchTuner:
             print(">>>>    NOW EXPLORING 3HOP     <<<<", flush=True)
             all_neighbors = self.get_n_hop_neighbors(record, 3)
             
-            print(">>>>  Total neighbors: ", len(all_neighbors), flush=True)
             candidate_inputs = [base_input]
             for record_str in all_neighbors:
                 # get all 3 hops and predict/sorted by scores
