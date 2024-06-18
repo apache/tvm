@@ -639,7 +639,13 @@ def test_paged_attention_kv_cache_fork_sequence(kv_cache_and_rope_mode):
     apply_attention(kv_cache, rope_mode, [((11, 0, 60), 45), ((12, 0, 15), 14)], cached_k, cached_v)
     apply_attention(kv_cache, rope_mode, [((13, 0, 16), 19), ((14, 0, 17), 19)], cached_k, cached_v)
     apply_attention(kv_cache, rope_mode, [((15, 5, 60), 8), ((16, 5, 80), 10)], cached_k, cached_v)
-    apply_attention(kv_cache, rope_mode, [((17, 5, 75), 11), ((18, 5, 76), 45), ((19, 5, 77), 14)], cached_k, cached_v)
+    apply_attention(
+        kv_cache,
+        rope_mode,
+        [((17, 5, 75), 11), ((18, 5, 76), 45), ((19, 5, 77), 14)],
+        cached_k,
+        cached_v,
+    )
 
     operation_seq = [
         [(6, 1), (11, 1), (13, 1), (9, 1)],
