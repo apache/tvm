@@ -1309,5 +1309,25 @@ def test_relax_module_with_multiple_targets(exec_mode):
     tvm.testing.assert_allclose(cuda_output.numpy(), np_C)
 
 
+@tvm.testing.requires_cuda(support_required="compile-only")
+def test_relax_default_gpu_scheduling():
+    """Legalization may produce operations that require scheduling
+
+    The default build pipeline legalizes any Relax operators that are
+    not already legalized.  This may produce TIR PrimFuncs that must
+    be scheduled for use on the GPU.
+
+    """
+
+    @I.ir_module
+    class Module:
+        @R.function
+        def main(A: R.Tensor([16, 16], "float32"), B: R.Tensor([16, 16], "float32")):
+            C = R.add(A, B)
+            return C
+
+    tvm.relax.build(Module, target="cuda")
+
+
 if __name__ == "__main__":
     tvm.testing.main()
