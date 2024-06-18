@@ -2583,7 +2583,6 @@ if __name__ == "__main__":
     for head_dim, dtype, rope_mode, support_sliding_window in itertools.product(
         HEAD_DIMS, DTYPES, ROPE_MODES, SUPPORT_SLIDING_WINDOW
     ):
-        print(head_dim, dtype, rope_mode, support_sliding_window)
         set_global_func(head_dim, dtype)
         cache = create_kv_cache(head_dim, dtype, rope_mode, support_sliding_window)
         cache_and_config = (cache, rope_mode, support_sliding_window)
