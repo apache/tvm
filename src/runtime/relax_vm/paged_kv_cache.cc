@@ -178,10 +178,6 @@ struct Sequence {
       }
       block_ptr = block.parent_idx;
     }
-    CHECK_LE(depth, kPagedKVCacheMaxBlockDepth)
-        << "Paged KV cache supports one sequence to reuse " << kPagedKVCacheMaxBlockDepth
-        << " prefixes (the fork depth) at most. However, the given sequence has fork depth "
-        << depth;
   }
 
   std::vector<int32_t> GetBlockTrace(const std::vector<Block>& global_block_pool) const {
@@ -1490,17 +1486,27 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
       is_chain_ = true;
     }
 
-    std::vector<std::vector<int32_t>> block_ids_on_depths = GetBlockIdsOnDepth(sequences);
-    num_depths_ = block_ids_on_depths.size();
+    auto [block_ids_on_depths, trailing_blocks] = GetBlockIdsOnDepth(sequences);
+    num_depths_ =
+        std::min(static_cast<int>(block_ids_on_depths.size()), kPagedKVCacheMaxBlockDepth);
     ICHECK_LE(num_depths_, kPagedKVCacheMaxBlockDepth);
 
     std::vector<std::vector<std::pair<int32_t, int32_t>>> chunked_block_ids_arr;
     chunked_block_ids_arr.reserve(num_depths_);
     use_decode_kernel_.clear();
     for (int d = 0; d < num_depths_; ++d) {
-      auto [chunked_block_ids, use_decode_kernel] = GetChunkedBlockIds(block_ids_on_depths[d]);
+      // We force the blocks at maximum depth not to coalesce, so that it can be concatenated with
+      // trailing exceeding blocks.
+      auto [chunked_block_ids, use_decode_kernel] = GetChunkedBlockIds(
+          block_ids_on_depths[d], /*enable_coalesce=*/d != kPagedKVCacheMaxBlockDepth - 1);
       chunked_block_ids_arr.push_back(chunked_block_ids);
       use_decode_kernel_.push_back(use_decode_kernel);
+    }
+
+    if (num_depths_ == kPagedKVCacheMaxBlockDepth) {
+      // Since we force the blocks at maximum depth not to coalesce, the output blocks at maximum
+      // depth must have the same size as current batch.
+      CHECK_EQ(chunked_block_ids_arr[num_depths_ - 1].size(), cur_batch_size_);
     }
 
     append_before_attn_ = !support_sliding_window_ && num_depths_ == 1 && use_decode_kernel_[0];
@@ -1530,7 +1536,8 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
       k_rope_pos_offset_h.clear();
       qo_indptr_h.push_back(0);
       page_indptr_h.push_back(0);
-      for (const auto& [block_id, chunk_append_length] : chunked_block_ids_arr[d]) {
+      for (int i = 0; i < static_cast<int>(chunked_block_ids_arr[d].size()); ++i) {
+        const auto& [block_id, chunk_append_length] = chunked_block_ids_arr[d][i];
         qo_indptr_h.push_back(qo_indptr_h.back() + chunk_append_length);
         if (block_id == -1) {
           page_indptr_h.push_back(page_indptr_h.back());
@@ -1539,19 +1546,53 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
           sink_size_h.push_back(0);
           k_rope_pos_offset_h.push_back(0);
         } else {
-          const Block& block = global_block_pool_[block_id];
-          page_indptr_h.push_back(page_indptr_h.back() + block.page_ids.size());
-          for (int32_t page_id : block.page_ids) {
-            page_indices_h.push_back(page_id);
+          if (d < kPagedKVCacheMaxBlockDepth - 1) {
+            // Blocks not at maximum depth
+            const Block& block = global_block_pool_[block_id];
+            page_indptr_h.push_back(page_indptr_h.back() + block.page_ids.size());
+            for (int32_t page_id : block.page_ids) {
+              page_indices_h.push_back(page_id);
+            }
+            last_page_len_h.push_back(
+                block.seq_length == 0
+                    ? 0
+                    : (block.seq_length - block.sink_length + block.sliding_window_offset - 1) %
+                              page_size_ +
+                          1);
+            sliding_window_offset_h.push_back(block.sliding_window_offset);
+            sink_size_h.push_back(block.sink_length);
+            k_rope_pos_offset_h.push_back(block.start_pos);
+          } else {
+            // Blocks at maximum depth
+            const Block& block = global_block_pool_[block_id];
+            int32_t num_pages = static_cast<int32_t>(block.page_ids.size());
+            int32_t total_seq_length = static_cast<int32_t>(block.seq_length);
+            int32_t last_block_id = block_id;
+            for (int32_t page_id : block.page_ids) {
+              page_indices_h.push_back(page_id);
+            }
+            for (int32_t id : trailing_blocks[i]) {
+              // Collect trailing blocks if available
+              const Block& block = global_block_pool_[id];
+              for (int32_t page_id : block.page_ids) {
+                page_indices_h.push_back(page_id);
+              }
+              num_pages += block.page_ids.size();
+              total_seq_length += block.seq_length;
+              last_block_id = id;
+            }
+            page_indptr_h.push_back(page_indptr_h.back() + num_pages);
+            const Block& last_block = global_block_pool_[last_block_id];
+            last_page_len_h.push_back(total_seq_length == 0
+                                          ? 0
+                                          : (total_seq_length - last_block.sink_length +
+                                             last_block.sliding_window_offset - 1) %
+                                                    page_size_ +
+                                                1);
+            sliding_window_offset_h.push_back(last_block.sliding_window_offset);
+            sink_size_h.push_back(last_block.sink_length);
+            k_rope_pos_offset_h.push_back(block.start_pos);
           }
-          last_page_len_h.push_back(block.seq_length == 0 ? 0
-                                                          : (block.seq_length - block.sink_length +
-                                                             block.sliding_window_offset - 1) %
-                                                                    page_size_ +
-                                                                1);
-          sliding_window_offset_h.push_back(block.sliding_window_offset);
-          sink_size_h.push_back(block.sink_length);
-          k_rope_pos_offset_h.push_back(block.start_pos);
         }
       }
     }
@@ -2035,22 +2076,34 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
   /*!
    * \brief For the given list of sequences, check the block trace of
    * each sequence, and return the blocks ids used by the sequences
-   * on each depth.
+   * on each depth. And if the depth is larger than the kPagedKVCacheMaxBlockDepth,
+   * the exceeding blocks will concatenate and output separately.
    * More precisely, the inner returned vector contains the block ids
    * used by the sequences on a certain depth (or "-1" if a sequence
    * has fewer depth). The outer returned vector contains the inner
    * vectors from the lowest depth to the highest depth.
    */
-  std::vector<std::vector<int32_t>> GetBlockIdsOnDepth(
-      const std::vector<Sequence*>& sequences) const {
+  std::pair<std::vector<std::vector<int32_t>>, std::vector<std::vector<int32_t>>>
+  GetBlockIdsOnDepth(const std::vector<Sequence*>& sequences) const {
     // - Get the trace of each sequence.
     int64_t num_depths = 0;
     std::vector<std::vector<int32_t>> seq_block_traces;
+    std::vector<std::vector<int32_t>> trailing_block_traces;
     seq_block_traces.reserve(cur_batch_size_);
+    trailing_block_traces.reserve(cur_batch_size_);
     for (int i = 0; i < cur_batch_size_; ++i) {
       std::vector<int32_t> trace = sequences[i]->GetBlockTrace(global_block_pool_);
-      num_depths = std::max(num_depths, static_cast<int64_t>(trace.size()));
-      seq_block_traces.push_back(std::move(trace));
+      if (static_cast<int>(trace.size()) <= kPagedKVCacheMaxBlockDepth) {
+        seq_block_traces.push_back(std::vector<int32_t>(trace.begin(), trace.end()));
+        trailing_block_traces.push_back({});
+        num_depths = std::max(num_depths, static_cast<int64_t>(trace.size()));
+      } else {
+        seq_block_traces.push_back(
+            std::vector<int32_t>(trace.begin(), trace.begin() + kPagedKVCacheMaxBlockDepth));
+        trailing_block_traces.push_back(
+            std::vector<int32_t>(trace.begin() + kPagedKVCacheMaxBlockDepth, trace.end()));
+        num_depths = std::max(num_depths, static_cast<int64_t>(kPagedKVCacheMaxBlockDepth));
+      }
     }
 
     // "Transpose" the traces, yielding the block ids used on each depth.
@@ -2065,7 +2118,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
       }
       block_ids_on_depths.push_back(std::move(block_ids));
     }
-    return block_ids_on_depths;
+    return {block_ids_on_depths, trailing_block_traces};
   }
 
   /*!
@@ -2081,7 +2134,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
    * input blocks.
    */
   std::pair<std::vector<std::pair<int32_t, int32_t>>, bool> GetChunkedBlockIds(
-      const std::vector<int32_t>& block_ids) const {
+      const std::vector<int32_t>& block_ids, bool enable_coalesce = true) const {
     std::vector<std::pair<int32_t, int32_t>> uncoalesced_block_ids;
     std::vector<std::pair<int32_t, int32_t>> coalesced_block_ids;
 
@@ -2115,8 +2168,8 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     double coalesce_ratio = 1.0 * page_counter_uncoalesced / page_counter_coalesced;
     // Do not coalesce and use batch decode kernel when coalesce ratio is small.
     bool use_decode_kernel = is_decode_request_ && coalesce_ratio < 1.1;
-
-    return {use_decode_kernel ? uncoalesced_block_ids : coalesced_block_ids, use_decode_kernel};
+    return {use_decode_kernel || !enable_coalesce ? uncoalesced_block_ids : coalesced_block_ids,
+            use_decode_kernel};
   }
 
   /*! \brief Invoke the "begin forward" functions of underlying kernels. */
