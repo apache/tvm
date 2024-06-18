@@ -399,6 +399,93 @@ llvm::Value* CodeGenCPU::CreateCallExtern(Type ret_type, String global_symbol,
   return builder_->CreateCall(ftype, callee, arg_values);
 }
 
+llvm::Value* CodeGenCPU::CreateStringObj(StringImm ir_string) {
+  auto t_deleter = llvm::FunctionType::get(t_void_, {t_void_p_}, false);
+
+  if (!t_tvm_base_object_) {
+    t_tvm_base_object_ = llvm::StructType::create(
+        {
+            t_int32_ /* type_index_ */,
+            t_int32_ /* ref_counter_ */,
+            t_deleter->getPointerTo() /* deleter_ */,
+        },
+        "tvm::runtime::Object", true);
+  }
+  if (!t_tvm_string_obj_) {
+    t_tvm_string_obj_ = llvm::StructType::create(
+        {
+            t_tvm_base_object_,
+            t_char_->getPointerTo() /* data */,
+            t_int64_ /* size */,
+        },
+        "tvm::runtime::StringObj");
+  }
+  if (!f_string_obj_deleter_) {
+    auto prev_insert_point = builder_->GetInsertBlock();
+
+    f_string_obj_deleter_ = llvm::Function::Create(t_deleter, llvm::Function::PrivateLinkage,
+                                                   "string_obj_deleter", module_.get());
+
+    llvm::LLVMContext* ctx = llvm_target_->GetContext();
+
+    auto* arg = f_string_obj_deleter_->getArg(0);
+    arg->setName("base_obj_ptr");
+
+    auto* entry = llvm::BasicBlock::Create(*ctx, "deleter_entry", f_string_obj_deleter_);
+
+    builder_->SetInsertPoint(entry);
+
+    // Currently, the only pointers stored in a generated StringObj
+    // are pointers to static allocations made using
+    // llvm::ConstantDataArray::getString.  These static allocations
+    // should not be deleted after use, so the only allocation that
+    // needs to be deleted is the `CreateMalloc` containing the
+    // `StringObj` itself.
+    llvm::Instruction* free_inst = llvm::CallInst::CreateFree(arg, builder_->GetInsertBlock());
+
+    builder_->Insert(free_inst);
+    builder_->CreateRetVoid();
+
+    builder_->SetInsertPoint(prev_insert_point);
+  }
+
+  llvm::Value* alloc_size =
+      llvm::ConstantInt::get(t_int64_, data_layout_->getTypeAllocSize(t_tvm_string_obj_));
+  llvm::Instruction* malloc_inst = llvm::CallInst::CreateMalloc(
+      builder_->GetInsertBlock(), t_int64_, t_tvm_string_obj_, alloc_size, nullptr, nullptr, "");
+
+  builder_->Insert(malloc_inst);
+
+  llvm::Value* out = builder_->CreatePointerCast(malloc_inst, t_tvm_string_obj_->getPointerTo());
+
+  llvm::Value* string_obj = builder_->CreateInBoundsGEP(t_tvm_string_obj_, out, ConstInt32(0));
+
+  builder_->CreateStore(ConstInt32(TypeIndex::kRuntimeString),
+                        builder_->CreateInBoundsGEP(t_tvm_string_obj_, string_obj,
+                                                    {ConstInt32(0), ConstInt32(0), ConstInt32(0)},
+                                                    "output->type_index_"));
+
+  builder_->CreateStore(ConstInt32(1),
+                        builder_->CreateInBoundsGEP(t_tvm_string_obj_, string_obj,
+                                                    {ConstInt32(0), ConstInt32(0), ConstInt32(1)},
+                                                    "output->ref_counter_"));
+
+  builder_->CreateStore(f_string_obj_deleter_,
+                        builder_->CreateInBoundsGEP(t_tvm_string_obj_, string_obj,
+                                                    {ConstInt32(0), ConstInt32(0), ConstInt32(2)},
+                                                    "output->deleter_"));
+  builder_->CreateStore(
+      GetConstString(ir_string->value),
+      builder_->CreateInBoundsGEP(t_tvm_string_obj_, string_obj, {ConstInt32(0), ConstInt32(1)},
+                                  "output->data"));
+  builder_->CreateStore(
+      llvm::ConstantInt::getSigned(t_int64_, ir_string->value.size()),
+      builder_->CreateInBoundsGEP(t_tvm_string_obj_, string_obj, {ConstInt32(0), ConstInt32(2)},
+                                  "output->size"));
+
+  return builder_->CreatePointerCast(out, t_void_p_);
+}
+
 llvm::GlobalVariable* CodeGenCPU::InitContextPtr(llvm::Type* p_type, std::string name) {
   llvm::GlobalVariable* gv = new llvm::GlobalVariable(
       *module_, p_type, false, llvm::GlobalValue::LinkOnceAnyLinkage, nullptr, name);
@@ -1381,6 +1468,10 @@ llvm::Value* CodeGenCPU::CreateIntrinsic(const CallNode* op) {
     }
     builder_->CreateStore(value, ref.addr);
     return ConstInt32(0);
+  } else if (op->op.same_as(builtin::tvm_string_obj())) {
+    ICHECK_EQ(op->args.size(), 1U);
+    ICHECK(op->args[0].dtype() == DataType::Handle());
+    return CreateStringObj(Downcast<StringImm>(op->args[0]));
   } else if (op->op.same_as(builtin::tvm_stack_alloca())) {
     ICHECK_EQ(op->args.size(), 2U);
     const std::string& type = op->args[0].as<StringImmNode>()->value;

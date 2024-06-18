@@ -69,19 +69,21 @@ class LibraryModuleNode final : public ModuleNode {
 
 PackedFunc WrapPackedFunc(TVMBackendPackedCFunc faddr, const ObjectPtr<Object>& sptr_to_self) {
   return PackedFunc([faddr, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
-    TVMRetValue ret_value;
-
+    TVMValue ret_value;
+    int ret_type_code = kTVMNullptr;
     auto arg_values = const_cast<TVMValue*>(args.values);
     auto arg_type_codes = const_cast<int*>(args.type_codes);
-    int ret = (*faddr)(arg_values, arg_type_codes, args.num_args, &ret_value.value_,
-                       &ret_value.type_code_, nullptr);
+    int ret =
+        (*faddr)(arg_values, arg_type_codes, args.num_args, &ret_value, &ret_type_code, nullptr);
     // NOTE: It is important to keep the original error message.
     // Using the `TVMThrowLastError()` function will also preserve the
     // full stack trace for debugging in pdb.
     if (ret != 0) {
       TVMThrowLastError();
     }
-    *rv = std::move(ret_value);
+    if (ret_type_code != kTVMNullptr) {
+      *rv = TVMRetValue::MoveFromCHost(ret_value, ret_type_code);
+    }
   });
 }
 

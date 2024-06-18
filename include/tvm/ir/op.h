@@ -466,7 +466,7 @@ inline OpRegEntry& OpRegEntry::set_attr(  // NOLINT(*)
   ICHECK_GT(plevel, 0) << "plevel in set_attr must be greater than 0";
   runtime::TVMRetValue rv;
   rv = value;
-  UpdateAttr(attr_name, std::move(rv), plevel);
+  UpdateAttr(attr_name, rv, plevel);
   return *this;
 }
 

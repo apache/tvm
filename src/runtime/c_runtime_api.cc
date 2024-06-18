@@ -575,7 +575,11 @@ int TVMFuncCall(TVMFunctionHandle func, TVMValue* args, int* arg_type_codes, int
   // handle return string.
   if (rv.type_code() == kTVMStr || rv.type_code() == kTVMDataType || rv.type_code() == kTVMBytes) {
     TVMRuntimeEntry* e = TVMAPIRuntimeStore::Get();
-    e->ret_str = rv.operator std::string();
+    if (rv.type_code() != kTVMDataType) {
+      e->ret_str = *rv.ptr<std::string>();
+    } else {
+      e->ret_str = rv.operator std::string();
+    }
     if (rv.type_code() == kTVMBytes) {
       e->ret_bytes.data = e->ret_str.c_str();
       e->ret_bytes.size = e->ret_str.length();

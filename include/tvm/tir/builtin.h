@@ -284,6 +284,15 @@ TVM_DLL const Op& tvm_struct_get();
 TVM_DLL const Op& tvm_struct_set();
 
 /*!
+ * \brief TIR constructor for tvm::runtime::StringObj
+ *
+ *  runtime::StringObj* tvm_string_obj(StringImm value) {
+ *     return new StringObj(value);
+ *  }
+ */
+TVM_DLL const Op& tvm_string_obj();
+
+/*!
  * \brief See pseudo code
  * Type lookup_param(String param_name) {
  *     return __tvm_param__param_name;

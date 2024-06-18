@@ -18,10 +18,13 @@ import collections
 import ctypes
 import json
 import math
-import numpy as np
-import pytest
+import os
 import re
 import sys
+import tempfile
+
+import numpy as np
+import pytest
 
 import tvm
 import tvm.testing
@@ -1138,12 +1141,19 @@ def test_invalid_volatile_masked_buffer_store():
             tvm.build(func)
 
 
-def test_return_string_from_tir():
+@pytest.mark.parametrize("save_and_reload", [True, False])
+def test_return_string_from_tir(save_and_reload):
     @T.prim_func
     def func():
         return "hello!"
 
     built = tvm.build(func, target="llvm")
+
+    if save_and_reload:
+        with tempfile.TemporaryDirectory(prefix="tvm_testing_") as temp_dir:
+            temp_file = os.path.join(temp_dir, "libbuilt.so")
+            built.export_library(temp_file)
+            built = tvm.runtime.load_module(temp_file)
 
     out = built()
     assert out == "hello!"
