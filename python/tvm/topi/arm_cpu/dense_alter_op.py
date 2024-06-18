@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
+# pylint: disable=invalid-name,unused-variable,unused-argument,no-member
 """Dense alter op definitions for the `arm_cpu` device key."""
 
 import tvm
