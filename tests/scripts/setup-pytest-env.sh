@@ -83,13 +83,17 @@ function run_pytest() {
         extra_args+=("-n=$DEFAULT_PARALLELISM")
     fi
 
+    if [ -f pytest_deselect_ids.txt ] ; then
+        DESELECT_LIST=`cat pytest_deselect_ids.txt`
+    fi
+
     exit_code=0
     set +e
     TVM_FFI=${ffi_type} python3 -m pytest \
            -o "junit_suite_name=${suite_name}" \
            "--junit-xml=${TVM_PYTEST_RESULT_DIR}/${suite_name}.xml" \
            "--junit-prefix=${ffi_type}" \
-           "${extra_args[@]}" || exit_code=$?
+           "${extra_args[@]}" ${DESELECT_LIST} || exit_code=$?
     # Pytest will return error code -5 if no test is collected.
     if [ "$exit_code" -ne "0" ] && [ "$exit_code" -ne "5" ]; then
         pytest_errors+=("${suite_name}: $@")

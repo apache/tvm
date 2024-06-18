@@ -1,0 +1,118 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+# GH actions.
+
+name: Adreno CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: CI-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: true
+
+jobs:
+  Config:
+    runs-on: self-hosted
+    outputs:
+      runner: ${{ steps.step1.outputs.runner }}
+    steps:
+      - name: Config Runner
+        id: step1
+        run: |
+         echo "::set-output name=runner::runner-"${{ github.actor }}
+  Setup:
+    needs: Config
+    runs-on: ${{ needs.config.outputs.runner }}
+    outputs:
+      defaultrunner: ${{ steps.step1.outputs.defaultrunner }}
+      adrenorunner: ${{ steps.step1.outputs.adrenorunner }}
+      gpurunner: ${{ steps.step1.outputs.gpurunner }}
+    steps:
+      - name: Schedule Runners
+        id: step1
+        run: |
+         if [ -f "/etc/tvm-ci-defaultrunner" ] ; then echo "::set-output name=defaultrunner::runner-"`cat /etc/tvm-ci-defaultrunner` ; else echo "::set-output name=defaultrunner::runner-"${{ github.actor }}; fi
+         if [ -f "/etc/tvm-ci-adrenorunner" ] ; then echo "::set-output name=adrenorunner::runner-"`cat /etc/tvm-ci-adrenorunner` ; else echo "::set-output name=adrenorunner::runner-"${{ github.actor }}; fi
+         if [ -f "/etc/tvm-ci-gpurunner" ] ; then echo "::set-output name=gpurunner::runner-"`cat /etc/tvm-ci-gpurunner` ; else echo "::set-output name=gpurunner::runner-"${{ github.actor }}; fi
+  Lint:
+    needs: Setup
+    if: ${{ github.repository == 'gpgpu/apache-tvm' }}
+    runs-on: ${{ needs.setup.outputs.defaultrunner }}
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: 'recursive'
+      - name: Run Lint
+        shell: bash -l {0}
+        run: |
+          SCCACHE_SERVER_PORT=8767 ./tests/scripts/ci.py lint -d tvm.ci_lint
+  Adreno-Tests:
+    needs: [Setup, Lint]
+    if: ${{ github.repository == 'gpgpu/apache-tvm' }}
+    runs-on: ${{ needs.setup.outputs.adrenorunner }}
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: 'recursive'
+      - name: Build and run tests
+        shell: bash -l {0}
+        run: |
+           if ! git remote -v | grep ^gpgpu ; then git remote add gpgpu git@github.qualcomm.com:gpgpu/apache-tvm.git ; fi
+           git fetch gpgpu
+           git checkout gpgpu/adreno_ci -- pytest_deselect_ids.txt
+           git restore --staged pytest_deselect_ids.txt
+           SCCACHE_SERVER_PORT=8767 ADRENO_OPENCL="/usr/local/workspace/CLML/clml-sdk-3.0" ANDROID_SERIAL=`cat /etc/tvm-ci-device` python ./tests/scripts/ci.py adreno -d tvm.ci_adreno --test
+  GPU-Tests:
+    needs: [Setup, Lint, Adreno-Tests]
+    if: ${{ github.repository == 'gpgpu/apache-tvm' }}
+    runs-on: ${{ needs.setup.outputs.gpurunner }}
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: 'recursive'
+      - name: Build and run topi tests
+        shell: bash -l {0}
+        run: |
+           if ! git remote -v | grep ^gpgpu ; then git remote add gpgpu git@github.qualcomm.com:gpgpu/apache-tvm.git ; fi
+           git fetch gpgpu
+           git checkout gpgpu/adreno_ci -- pytest_deselect_ids.txt
+           git restore --staged pytest_deselect_ids.txt
+           SCCACHE_SERVER_PORT=8767 python ./tests/scripts/ci.py gpu -d adreno_ci_gpu --topi
+      - name: Build cpptest
+        shell: bash -l {0}
+        run: |
+           ./docker/bash.sh adreno_ci_gpu --env SCCACHE_SERVER_PORT=8767 python3 ./tests/scripts/task_build.py --cmake-target cpptest --build-dir build-gpu
+      - name: Run cpp unit tests
+        shell: bash -l {0}
+        run: |
+           SCCACHE_SERVER_PORT=8767 ./tests/scripts/ci.py gpu -d adreno_ci_gpu -c
+      - name: Run unit tests
+        shell: bash -l {0}
+        run: |
+           SCCACHE_SERVER_PORT=8767 ./tests/scripts/ci.py gpu -d adreno_ci_gpu -u
+      - name: Run front end tests
+        shell: bash -l {0}
+        run: |
+           SCCACHE_SERVER_PORT=8767 ./tests/scripts/ci.py gpu -d adreno_ci_gpu -f
