@@ -539,7 +539,9 @@ class LowBatchGEMV(GPUScheduleRule):
                     TS, TR = 1, 128
                 else:
                     TS, TR = 8, 64
-        elif target.kind.name == "opencl" and "android" in str(target.host):
+        elif target.kind.name == "opencl" and (
+            ("android" in str(target.host)) or ("windows" in str(target.host))
+        ):
             TAG_S, TAG_R = "threadIdx.x", "threadIdx.y"
             VEC_C = 8
             LOAD_V_SHARED = False
