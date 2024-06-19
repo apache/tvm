@@ -16,20 +16,20 @@
 # under the License.
 
 # Checkout mainline commit on local repo and run tests.
-name: Adreno Mainline Test
+name: Adreno Rebase Mainline And Test
 
 on:
   schedule:
-    # 2:30 AM IST
-    - cron: "0 20 * * *"
+    # 6:30 AM IST
+    - cron: "0 1 * * *"
   workflow_dispatch:
 
 concurrency:
-  group: mainline-test
+  group: update-mainline-and-test
   cancel-in-progress: true
 
 jobs:
-  Mainline:
+  RebaseMainline:
     if: github.repository == 'gpgpu/apache-tvm'
     runs-on: blr-ubuntu-tvm01
     steps:
@@ -41,10 +41,21 @@ jobs:
         run: |
           if ! git remote -v | grep ^mainline ; then git remote add mainline git@github.com:apache/tvm.git ; fi
           git fetch mainline
+      - name: Checkout GPGPU
+        run: |
+          if ! git remote -v | grep ^gpgpu ; then git remote add gpgpu git@github.qualcomm.com:gpgpu/apache-tvm.git ; fi
+          git fetch gpgpu
       - name: Rebase with Mainline
         run: |
-          git checkout -b mainline-main mainline/main
+          git checkout -b rebase-main gpgpu/main
+          git rebase mainline/main
           git submodule update
+          echo "TVM Commit ID:" `git log --format="%H" -n 1`
+          for ii in `ls 3rdparty/` ; do cd 3rdparty/$ii; echo "$ii:" `git log --format="%H" -n 1`; cd - > /dev/null 2>&1 ; done
+      - name: Run Lint
+        shell: bash -l {0}
+        run: |
+          SCCACHE_SERVER_PORT=8767 ./tests/scripts/ci.py lint -d tvm.ci_lint
       - name: Build and run tests
         shell: bash -l {0}
         run: |
@@ -52,3 +63,6 @@ jobs:
           git checkout gpgpu/adreno_ci -- pytest_deselect_ids.txt
           git restore --staged pytest_deselect_ids.txt
           SCCACHE_SERVER_PORT=8767 ADRENO_OPENCL="/usr/local/workspace/CLML/clml-sdk-3.0" ANDROID_SERIAL=`cat /etc/tvm-ci-device` python ./tests/scripts/ci.py adreno -d tvm.ci_adreno --test
+      - name: Commit Stable Rebase Version
+        run: |
+          git push -u gpgpu rebase-main --force
