@@ -181,7 +181,7 @@ def test_sme_dense(data_shape, weight_shape, enable_bias, in_dtype):
 class TestGemmDense:
     """This test is for dense_gemm schedule."""
 
-
+@tvm.testing.requires_aarch64
 @pytest.mark.parametrize(
     "data_shape,weight_shape,enable_bias",
     [
