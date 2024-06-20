@@ -373,7 +373,7 @@ def _linux_compile(
 
 def _windows_compile(output, objects, options, cwd=None, ccache_env=None):
     cmd = ["clang"]
-    cmd += ["-O2"]
+    cmd += ["-O2 --target=x86_64"]
 
     if output.endswith(".so") or output.endswith(".dll"):
         cmd += ["-shared"]
