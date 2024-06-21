@@ -104,7 +104,9 @@ def build_cutlass(mod, assert_all_bindings_fused=True, num_final_bindings=1):
     mod = partition_for_cutlass(mod)
 
     if assert_all_bindings_fused:
-        assert len(mod["main"].body.blocks[0].bindings) == num_final_bindings
+        assert (
+            len(mod["main"].body.blocks[0].bindings) == num_final_bindings
+        ), "Not all bindings are fused. " + str(mod["main"])
 
     codegen_pass = relax.transform.RunCodegen({"cutlass": {"sm": 80, "find_first_valid": True}})
     mod = codegen_pass(mod)
@@ -714,7 +716,7 @@ def test_attention_offload(attention_size, attention_dtype):
     v_shape = (b, s_kv, n, h_v)
 
     mod = get_relax_attention_module(q_shape, k_shape, v_shape, dtype=attention_dtype)
-    out = get_result_with_relax_cutlass_offload(mod, q, k, v, num_final_bindings=3)
+    out = get_result_with_relax_cutlass_offload(mod, q, k, v, num_final_bindings=2)
 
     tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
 
@@ -751,7 +753,7 @@ def test_attention_bias_offload(attention_bias_size):
     mod = get_relax_attention_module(
         q_shape, k_shape, v_shape, bias_shape=bias_shape, dtype="float32"
     )
-    out = get_result_with_relax_cutlass_offload(mod, q, k, v, bias, num_final_bindings=3)
+    out = get_result_with_relax_cutlass_offload(mod, q, k, v, bias, num_final_bindings=2)
 
     tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
 
@@ -786,9 +788,9 @@ def test_attention_scale_offload(attention_scale_size, attention_scale):
         q_shape, k_shape, v_shape, dtype="float32", bias_shape=bias_shape, qk_scale=attention_scale
     )
     if bias is None:
-        out = get_result_with_relax_cutlass_offload(mod, q, k, v, num_final_bindings=3)
+        out = get_result_with_relax_cutlass_offload(mod, q, k, v, num_final_bindings=2)
     else:
-        out = get_result_with_relax_cutlass_offload(mod, q, k, v, bias, num_final_bindings=3)
+        out = get_result_with_relax_cutlass_offload(mod, q, k, v, bias, num_final_bindings=2)
     tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
 
 
@@ -829,9 +831,9 @@ def test_attention_causal_offload(attention_causal_size, attention_causal):
     )
 
     if bias is None:
-        out = get_result_with_relax_cutlass_offload(mod, q, k, v, num_final_bindings=3)
+        out = get_result_with_relax_cutlass_offload(mod, q, k, v, num_final_bindings=2)
     else:
-        out = get_result_with_relax_cutlass_offload(mod, q, k, v, bias, num_final_bindings=3)
+        out = get_result_with_relax_cutlass_offload(mod, q, k, v, bias, num_final_bindings=2)
     tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
 
 
@@ -932,9 +934,9 @@ def test_stacked_attention_split_offload(stacked_attention_size):
         )
 
     if bias is None:
-        out = get_result_with_relax_cutlass_offload(mod, qkv, num_final_bindings=3)
+        out = get_result_with_relax_cutlass_offload(mod, qkv, num_final_bindings=2)
     else:
-        out = get_result_with_relax_cutlass_offload(mod, qkv, bias, num_final_bindings=3)
+        out = get_result_with_relax_cutlass_offload(mod, qkv, bias, num_final_bindings=2)
     tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
 
 
@@ -950,9 +952,9 @@ def test_stacked_attention_strided_slice_offload(stacked_attention_size):
             qkv, b, s, n, h, h_v, "strided_slice", bias, scale, single_shape=single_shape
         )
     if bias is None:
-        out = get_result_with_relax_cutlass_offload(mod, qkv, num_final_bindings=3)
+        out = get_result_with_relax_cutlass_offload(mod, qkv, num_final_bindings=2)
     else:
-        out = get_result_with_relax_cutlass_offload(mod, qkv, bias, num_final_bindings=3)
+        out = get_result_with_relax_cutlass_offload(mod, qkv, bias, num_final_bindings=2)
     tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
 
 
@@ -1311,10 +1313,7 @@ def test_attention_rewrite_fp16():
             R.func_attr({"num_input": 4})
             cls = Expected
             with R.dataflow():
-                lv = R.vm.alloc_storage(R.shape([65536]), R.prim_value(0), R.dtype("uint8"))
-                workspace_main = R.vm.alloc_tensor(
-                    lv, R.prim_value(0), R.shape([65536]), R.dtype("uint8")
-                )
+                workspace_main = R.builtin.alloc_tensor(R.shape([65536]), R.dtype("uint8"), R.prim_value(0))
                 lv_1 = R.reshape(bias, R.shape([128, 16, 8]))
                 lv1 = R.reshape(lv_1, R.shape([4, 32, 16, 8]))
                 lv_2 = cls.fused_relax_nn_attention_bias_cutlass1(q, k, v, lv1, workspace_main)
@@ -2001,7 +2000,10 @@ def test_fp16A_int8B_gemm_batched():
     ex = relax.build(mod_transform, target="llvm")
     vm = relax.vm.VirtualMachine(ex, tvm.cpu(0))
 
-    (packed_weight, scales,) = vm[
+    (
+        packed_weight,
+        scales,
+    ) = vm[
         transform_func_name
     ]((tvm.nd.array(y),))
 
@@ -2158,7 +2160,10 @@ def test_fp16A_int8B_gemm_batched_finegrained():
     ex = relax.build(mod_transform, target="llvm")
     vm = relax.vm.VirtualMachine(ex, tvm.cpu(0))
 
-    (packed_weight, scales,) = vm[
+    (
+        packed_weight,
+        scales,
+    ) = vm[
         transform_func_name
     ]((tvm.nd.array(y),))
 
@@ -2419,7 +2424,7 @@ def test_sliding_window():
         1, 64, 64, 16, 8, 8, "none", "none", causal, "float16", window_size=window_size
     )
 
-    out = get_result_with_relax_cutlass_offload(mod, q, k, v, num_final_bindings=3)
+    out = get_result_with_relax_cutlass_offload(mod, q, k, v, num_final_bindings=2)
 
     tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
 

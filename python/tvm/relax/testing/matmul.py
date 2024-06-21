@@ -25,7 +25,7 @@ def get_relax_matmul_module(
     x_shape,
     y_shape,
     in_dtype,
-    out_dtype,
+    out_dtype=None,
     transposed_y=False,
     bias_shape=None,
     activation=None,
@@ -33,6 +33,7 @@ def get_relax_matmul_module(
     residual_activation=None,
 ):
     """Create a matmul op followd by epilogue operations."""
+    out_dtype = out_dtype if out_dtype is not None else in_dtype
     with IRBuilder() as builder:
         with relax_builder.function():
             R.func_name("main")
