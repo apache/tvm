@@ -3943,10 +3943,13 @@ def test_forward_unpack():
 # ----------------------------
 
 
-def _test_local_response_normalization(data, depth_radius, bias, alpha, beta):
+def _test_local_response_normalization(data, depth_radius, bias, alpha, beta, quantized=False):
     """One iteration of LOCAL_RESPONSE_NORMALIZATION"""
     with tf.Graph().as_default():
-        in_data = array_ops.placeholder(shape=data.shape, dtype="float32", name="in_0")
+        if quantized:
+            in_data = array_ops.placeholder(shape=data.shape, dtype=tf.qint8, name="in_0")
+        else:
+            in_data = array_ops.placeholder(shape=data.shape, dtype="float32", name="n_0")
         out = nn_ops.local_response_normalization(
             in_data, depth_radius=depth_radius, bias=bias, alpha=alpha, beta=beta
         )
@@ -3956,9 +3959,11 @@ def _test_local_response_normalization(data, depth_radius, bias, alpha, beta):
 def test_forward_local_response_normalization():
     """LOCAL_RESPONSE_NORMALIZATION"""
     data = np.random.uniform(size=(1, 6, 4, 3)).astype("float32")
+    data_quant = np.random.uniform(size=(1, 6, 4, 3)).astype("float32")
     # LOCAL_RESPONSE_NORMALIZATION come with TFLite >= 1.14.0 fbs schema
     if package_version.parse(tf.VERSION) >= package_version.parse("1.14.0"):
         _test_local_response_normalization(data, depth_radius=5, bias=1, alpha=1, beta=0.5)
+        _test_local_response_normalization(data_quant, depth_radius=5, bias=1, alpha=1, beta=0.5, quantized=True)
 
 
 #######################################################################

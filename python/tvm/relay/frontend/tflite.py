@@ -803,9 +803,6 @@ class OperatorConverter(object):
         except ImportError:
             raise ImportError("The tflite package must be installed")
 
-        if self.is_quantized(op):
-            raise tvm.error.OpNotImplemented("TFlite quantized LRN operator is not supported yet.")
-
         input_tensors = self.get_input_tensors(op)
         assert len(input_tensors) == 1, "input tensors length should be 1"
         input_tensor = input_tensors[0]
@@ -825,7 +822,12 @@ class OperatorConverter(object):
         size = (radius * 2) + 1
         alpha = alpha * size
         axis = 3  # NHWC format
+
+        if input_tensor.qnn_params:
+            in_expr = self.dequantize(in_expr, input_tensor)
         out = _op.nn.lrn(in_expr, size=size, axis=axis, bias=bias, alpha=alpha, beta=beta)
+        if output_tensors.qnn_params:
+            out = self.quantize(out, output_tensors)
 
         return out
 
