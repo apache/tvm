@@ -3959,11 +3959,13 @@ def _test_local_response_normalization(data, depth_radius, bias, alpha, beta, qu
 def test_forward_local_response_normalization():
     """LOCAL_RESPONSE_NORMALIZATION"""
     data = np.random.uniform(size=(1, 6, 4, 3)).astype("float32")
-    data_quant = np.random.uniform(size=(1, 6, 4, 3)).astype("float32")
+    data_quant = np.random.uniform(size=(1, 6, 4, 3)).astype(tf.qint8)
     # LOCAL_RESPONSE_NORMALIZATION come with TFLite >= 1.14.0 fbs schema
     if package_version.parse(tf.VERSION) >= package_version.parse("1.14.0"):
         _test_local_response_normalization(data, depth_radius=5, bias=1, alpha=1, beta=0.5)
-        _test_local_response_normalization(data_quant, depth_radius=5, bias=1, alpha=1, beta=0.5, quantized=True)
+        _test_local_response_normalization(
+            data_quant, depth_radius=5, bias=1, alpha=1, beta=0.5, quantized=True
+        )
 
 
 #######################################################################
