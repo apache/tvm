@@ -590,6 +590,12 @@ def test_elu():
     verify_unary("Elu", [32, 32])
 
 
+def test_hardsigmoid():
+    verify_unary("HardSigmoid", [32, 32])
+    verify_unary("HardSigmoid", [32, 32], attrs={"alpha": 0.3, "beta": 0.4})
+    verify_unary("HardSigmoid", [1, 3, 20, 20], attrs={"alpha": 0.5, "beta": 0.6})
+
+
 def test_hardswish():
     verify_unary("HardSwish", [32, 32])
 
