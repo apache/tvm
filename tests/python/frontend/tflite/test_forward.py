@@ -3949,7 +3949,7 @@ def _test_local_response_normalization(data, depth_radius, bias, alpha, beta, qu
         if quantized:
             in_data = array_ops.placeholder(shape=data.shape, dtype=tf.qint8, name="in_0")
         else:
-            in_data = array_ops.placeholder(shape=data.shape, dtype="float32", name="n_0")
+            in_data = array_ops.placeholder(shape=data.shape, dtype="float32", name="in_0")
         out = nn_ops.local_response_normalization(
             in_data, depth_radius=depth_radius, bias=bias, alpha=alpha, beta=beta
         )
