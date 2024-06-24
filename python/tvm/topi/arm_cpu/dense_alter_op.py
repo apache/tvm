@@ -64,15 +64,15 @@ def _alter_dense(attrs, inputs, tinfos, out_type):
         # float16->float32 schedule the transformation currently happens at runtime
         # with the ARM_SME_BLOCK2_2SVLx1SVL_FP16_TRANSPOSE_INTERLEAVE intrinsic.
         if weight_dtype == "float32":
-            encoded_weight = relay.transpose(encoded_weight, axes=[1, 0])
+            encoded_weight = relay.transpose(encoded_weight)
             transpose_b = False
 
         new_weight = te.placeholder(([K, N]), dtype=weight_dtype)
+
         new_workload = autotvm.task.args_to_workload(
             [tinfos[0], new_weight, None, out_type.dtype, False, transpose_b], topi_impl
         )
         dispatch_ctx.update(target, new_workload, cfg)
-
         return _make.matmul(
             inputs[0],
             encoded_weight,
@@ -82,22 +82,25 @@ def _alter_dense(attrs, inputs, tinfos, out_type):
             transpose_b,
         )
     elif topi_impl == "dense_gemm.arm_cpu":
+
         weight_dtype = tinfos[1].dtype
         N, K = tinfos[1].shape
-        encoded_weight = relay.transpose(inputs[1], axes=[1, 0])
+
+        encoded_weight = relay.transpose(inputs[1])
         new_weight = te.placeholder(([K, N]), dtype=weight_dtype)
+
         new_workload = autotvm.task.args_to_workload(
-            [tinfos[0], new_weight, None, out_type.dtype, False, True], topi_impl
+            [tinfos[0], new_weight, None, out_type.dtype, False, False], topi_impl
         )
         dispatch_ctx.update(target, new_workload, cfg)
 
-        return relay.nn.matmul(
+        return _make.matmul(
             inputs[0],
             encoded_weight,
-            units=attrs.units,
-            out_dtype=attrs.out_dtype,
-            transpose_a=False,
-            transpose_b=False,
+            attrs.units,
+            attrs.out_dtype,
+            False,
+            False,
         )
 
     # x86 schedules are used as a fallback

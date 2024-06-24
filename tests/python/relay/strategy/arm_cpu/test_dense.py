@@ -206,7 +206,7 @@ def test_gemm_dense(data_shape, weight_shape, enable_bias, in_dtype):
 
     mod["main"] = relay.Function([d], y)
 
-    target = "llvm -mtriple=aarch64-linux-gnu -device=arm_cpu -mattr=+v8.2a,+neon"
+    target = "llvm -mtriple=aarch64-linux-gnu -device=arm_cpu -mattr=+v8.6a,+neon"
 
     with tvm.transform.PassContext(opt_level=3):
         lib = relay.build(mod, target=target, params=None)
