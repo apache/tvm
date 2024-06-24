@@ -74,6 +74,12 @@ from .op import (
     ptx_wait_barrier,
     create_barriers,
 )
+from .op import (
+    make_filled_simdgroup_matrix,
+    simdgroup_load,
+    simdgroup_multiply_accumulate,
+    simdgroup_store,
+)
 from .op import vectorlow, vectorhigh, vectorcombine
 from .op import infinity, reinterpret
 from .op import exp, exp2, exp10, log, log2, log10, log1p, ldexp, clz
