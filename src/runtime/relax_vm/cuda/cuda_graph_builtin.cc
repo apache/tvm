@@ -32,6 +32,8 @@ namespace tvm {
 namespace runtime {
 namespace relax_vm {
 
+namespace {
+
 struct CUDAGraphCaptureKey {
   // The unique index of the capture function within the module
   int64_t index;
@@ -67,6 +69,18 @@ struct CUDAGraphCaptureKeyEqual {
 
 /*! \brief The captured state of a CUDA graph */
 struct CUDAGraphCapturedState {
+  CUDAGraphCapturedState() {}
+
+  CUDAGraphCapturedState(const CUDAGraphCapturedState&) = delete;
+  CUDAGraphCapturedState(CUDAGraphCapturedState&& other) { *this = std::move(other); }
+
+  CUDAGraphCapturedState& operator=(const CUDAGraphCapturedState&) = delete;
+  CUDAGraphCapturedState& operator=(CUDAGraphCapturedState&& other) {
+    std::swap(states, other.states);
+    std::swap(exec, other.exec);
+    return *this;
+  }
+
   ~CUDAGraphCapturedState() {
     if (exec) {
       CUDA_CALL(cudaGraphExecDestroy(exec));
@@ -81,6 +95,43 @@ struct CUDAGraphCapturedState {
   /*! \brief The instantiated cuda graph */
   cudaGraphExec_t exec = nullptr;
 };
+
+class ScopedCUDAStream {
+ public:
+  ScopedCUDAStream() { CUDA_CALL(cudaStreamCreate(&stream_)); }
+  ~ScopedCUDAStream() { cudaStreamDestroy(stream_); }
+  ScopedCUDAStream(const ScopedCUDAStream&) = delete;
+  ScopedCUDAStream(ScopedCUDAStream&&) = delete;
+  ScopedCUDAStream& operator=(const ScopedCUDAStream&) = delete;
+  ScopedCUDAStream& operator=(ScopedCUDAStream&&) = delete;
+
+  operator cudaStream_t() const { return stream_; }
+
+ private:
+  cudaStream_t stream_;
+};
+
+class CUDACaptureStream {
+ public:
+  CUDACaptureStream(cudaGraph_t* graph)
+      : prev_default_stream_(CUDAThreadEntry::ThreadLocal()->stream), output_graph_(graph) {
+    CUDAThreadEntry::ThreadLocal()->stream = capture_stream_;
+
+    CUDA_CALL(cudaStreamBeginCapture(capture_stream_, cudaStreamCaptureModeGlobal));
+  }
+  ~CUDACaptureStream() {
+    cudaStreamEndCapture(capture_stream_, output_graph_);
+    CUDAThreadEntry::ThreadLocal()->stream = prev_default_stream_;
+  }
+
+ private:
+  cudaStream_t prev_default_stream_;
+  ScopedCUDAStream capture_stream_;
+
+  cudaGraph_t* output_graph_;
+};
+
+}  // namespace
 
 /*! \brief The VM extension of CUDA graph. */
 class CUDAGraphExtensionNode : public VMExtensionNode {
@@ -107,10 +158,6 @@ class CUDAGraphExtensionNode : public VMExtensionNode {
       return states;
     }
 
-    cudaStream_t capture_stream;
-    CUDA_CALL(cudaStreamCreate(&capture_stream));
-    CUDAGraphCapturedState entry;
-
     // Set up arguments for the graph execution
     Array<ObjectRef> tuple_args = Downcast<Array<ObjectRef>>(args);
     int nargs = static_cast<int>(tuple_args.size());
@@ -130,20 +177,20 @@ class CUDAGraphExtensionNode : public VMExtensionNode {
 
     // Run the graph in capture mode
     cudaGraph_t graph;
-    std::swap(capture_stream, CUDAThreadEntry::ThreadLocal()->stream);
-    CUDA_CALL(cudaStreamBeginCapture(CUDAThreadEntry::ThreadLocal()->stream,
-                                     cudaStreamCaptureModeGlobal));
 
-    vm->InvokeClosurePacked(capture_func, TVMArgs(values.data(), tcodes.data(), nargs),
-                            &capture_func_rv);
+    {
+      CUDACaptureStream capture_stream(&graph);
+      vm->InvokeClosurePacked(capture_func, TVMArgs(values.data(), tcodes.data(), nargs),
+                              &capture_func_rv);
+    }
+
+    CUDAGraphCapturedState entry;
     entry.states = capture_func_rv;
-    CUDA_CALL(cudaStreamEndCapture(CUDAThreadEntry::ThreadLocal()->stream, &graph));
-    std::swap(capture_stream, CUDAThreadEntry::ThreadLocal()->stream);
-
-    capture_cache_[entry_key] = entry;
-    CUDA_CALL(cudaGraphInstantiate(&capture_cache_[entry_key].exec, graph, NULL, NULL, 0));
-    CUDA_CALL(cudaStreamDestroy(capture_stream));
+    CUDA_CALL(cudaGraphInstantiate(&entry.exec, graph, NULL, NULL, 0));
     CUDA_CALL(cudaGraphDestroy(graph));
+
+    capture_cache_[entry_key] = std::move(entry);
+
     return entry.states;
   }
 
