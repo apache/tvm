@@ -313,8 +313,8 @@ def test_int8_depthwise_conv2d(target, expected_impl):
     [
         (
             "llvm -device=arm_cpu",
-            ["dense_pack.x86", "dense_nopack.x86"],
-            "dense_pack.x86",
+            ["dense_gemm.arm_cpu", "dense_pack.x86", "dense_nopack.x86"],
+            "dense_gemm.arm_cpu",
         ),
     ],
 )

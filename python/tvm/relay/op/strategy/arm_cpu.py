@@ -731,6 +731,7 @@ def schedule_dense_arm_cpu(attrs, inputs, out_type, target):
 
     if (
         target.features.is_aarch64
+        and not target.features.has_sme
         and data.dtype in ["float16", "float32"]
         and weight.dtype in ["float16", "float32"]
         and out_type.dtype in ["float16", "float32"]
