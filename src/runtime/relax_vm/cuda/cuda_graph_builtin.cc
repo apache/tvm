@@ -113,7 +113,7 @@ class ScopedCUDAStream {
 
 class CUDACaptureStream {
  public:
-  CUDACaptureStream(cudaGraph_t* graph)
+  explicit CUDACaptureStream(cudaGraph_t* graph)
       : prev_default_stream_(CUDAThreadEntry::ThreadLocal()->stream), output_graph_(graph) {
     CUDAThreadEntry::ThreadLocal()->stream = capture_stream_;
 
