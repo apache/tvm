@@ -1313,7 +1313,9 @@ def test_attention_rewrite_fp16():
             R.func_attr({"num_input": 4})
             cls = Expected
             with R.dataflow():
-                workspace_main = R.builtin.alloc_tensor(R.shape([65536]), R.dtype("uint8"), R.prim_value(0))
+                workspace_main = R.builtin.alloc_tensor(
+                    R.shape([65536]), R.dtype("uint8"), R.prim_value(0)
+                )
                 lv_1 = R.reshape(bias, R.shape([128, 16, 8]))
                 lv1 = R.reshape(lv_1, R.shape([4, 32, 16, 8]))
                 lv_2 = cls.fused_relax_nn_attention_bias_cutlass1(q, k, v, lv1, workspace_main)
