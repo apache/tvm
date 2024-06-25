@@ -559,11 +559,13 @@ TVM_DLL Pass DecomposeOpsForTraining(Optional<String> func_name);
  * \param op_buffer_transforms Map from kOperatorName attr to layout transformations on each of the
  * PrimFunc i/o buffers.
  * \param axis_separators Map from kOperatorName attr to axis_separators of each buffer_transforms
+ * \param input_axis_separators Map from kOperatorName attr to axis_separator for input buffer
  * \return The Pass.
  */
 TVM_DLL Pass AlterOpImpl(const Map<String, tir::PrimFunc>& op_impl_map,
                          const Map<String, Array<tir::IndexMap>>& op_buffer_transforms,
-                         const Map<String, Array<Array<IntImm>>>& axis_separators);
+                         const Map<String, Array<Array<IntImm>>>& axis_separators,
+                         const Map<String, Array<Array<IntImm>>>& input_axis_separators);
 
 /*!
  * \brief Layout conversion pass.
