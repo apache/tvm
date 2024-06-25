@@ -189,9 +189,11 @@ class CUDAGraphExtensionNode : public VMExtensionNode {
     CUDA_CALL(cudaGraphInstantiate(&entry.exec, graph, NULL, NULL, 0));
     CUDA_CALL(cudaGraphDestroy(graph));
 
+    ObjectRef states = entry.states;
+
     capture_cache_[entry_key] = std::move(entry);
 
-    return entry.states;
+    return states;
   }
 
   /*!
