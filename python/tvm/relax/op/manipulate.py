@@ -162,7 +162,9 @@ def layout_transform(
     if input_axis_separators is None:
         input_axis_separators = []
 
-    return _ffi_api.layout_transform(x, index_map, pad_value, axis_separators, input_axis_separators)  # type: ignore
+    return _ffi_api.layout_transform(
+        x, index_map, pad_value, axis_separators, input_axis_separators
+    )
 
 
 def permute_dims(x: Expr, axes: Optional[List[int]] = None) -> Expr:
