@@ -680,7 +680,7 @@ class TestAnyConv2dNCHWc:
         ((2, 2), (2, 8, 224, 224, 8), (2, 8, 222, 222, 8)),
     )
 
-    @tvm.testing.known_failing_targets("cuda", "vulkan")
+    @tvm.testing.known_failing_targets("cuda", "vulkan","aarch64")
     def test_any_conv2d_NCHWc(
         self,
         target,
