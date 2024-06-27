@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""NNEF frontend converter helper funcs and ops"""
+"""NNEF frontend converter helper functions"""
 import math
 
 import itertools
@@ -28,9 +28,6 @@ from tvm import relay
 from tvm.relay import expr as tvm_expr
 from tvm.relay import op as tvm_op
 from tvm.relay.frontend.common import get_relay_op, infer_shape, infer_type
-
-
-# Base methods
 
 
 def dimension_picker(prefix, kernel_shape, suffix=""):
@@ -234,9 +231,6 @@ def __unexpected_attrs(op, kwargs):
     )
 
 
-# Conversion map, operator functions
-
-
 def _get_converter_map():
     return {  # Unary
         "copy": copy_converter,  # arithmetic
@@ -366,12 +360,9 @@ def _get_converter_map():
     }
 
 
-# not implemented ops
 def ndop(*args, **kwargs):
+    # not implemented ops
     raise Exception("Not supported operator was called, please check for compatibility")
-
-
-#   # Unary ops
 
 
 def copy_converter(data, **kwargs):
@@ -563,9 +554,6 @@ def round_converter(data, **kwargs):
     return get_relay_op("round")(data)
 
 
-#   # Binary ops
-
-
 def add_converter(lhs, rhs, **kwargs):
     """Add converter"""
     if kwargs:
@@ -670,18 +658,12 @@ def or_converter(lhs, rhs, **kwargs):
     return get_relay_op("logical_or")(lhs, rhs)
 
 
-#   # Select op
-
-
 def select_converter(condition, t_val, f_val, **kwargs):
     """Select converter"""
     if kwargs:
         __unexpected_attrs("select", kwargs)
 
     return get_relay_op("where")(condition, t_val, f_val)
-
-
-#   # Simplifier ops
 
 
 def sqr_converter(data, **kwargs):
@@ -760,9 +742,6 @@ def clamp_converter(x, a, b, **kwargs):
         return get_relay_op("clip")(x, float(a.data.numpy()), float(b.data.numpy()))
 
     return max_converter(min_converter(x, b), a)
-
-
-#   # Sliding-window ops
 
 
 def conv_converter(data, kernel, bias, border, stride, padding, dilation, groups, **kwargs):
@@ -1074,9 +1053,6 @@ def multilinear_upsample_converter(data, factor, method, border, **kwargs):
         )
 
 
-#   # Reduce ops
-
-
 def sum_reduce_converter(data, axes, normalize, keepdims=True, **kwargs):
     """Sum reduce converter"""
 
@@ -1143,9 +1119,6 @@ def mean_reduce_converter(data, axes, keepdims=True, **kwargs):
         __unexpected_attrs("mean_reduce", kwargs)
 
     return get_relay_op("mean")(data, axes, keepdims=keepdims)
-
-
-#   # Tensor shape ops
 
 
 def reshape_converter(data, shape, axis_start, axis_count, **kwargs):
@@ -1272,10 +1245,6 @@ def tile_converter(data, repeats, **kwargs):
     return get_relay_op("tile")(data, repeats)
 
 
-#   # Region-of-interest ops
-
-
-#   # Matrix multiplication
 def matmul_converter(a, b, **kwargs):
     """Matmul converter
     real signature: matmul_converter(a, b, transposeA, transposeB)"""
@@ -1322,10 +1291,6 @@ def matmul_converter(a, b, **kwargs):
         out = tvm_op.reshape(out, out_shape)
 
     return out
-
-
-#   # Variable updates
-#   # Compound ops
 
 
 def sigmoid_converter(data, **kwargs):
@@ -1444,9 +1409,6 @@ def softplus_converter(data, **kwargs):
         __unexpected_attrs("softplus", kwargs)
 
     return log_converter(add_converter(exp_converter(data), tvm_expr.const(1.0)))
-
-
-#   # linear ops
 
 
 def linear_converter(data, _filter, bias, **kwargs):
@@ -1605,9 +1567,6 @@ def rms_pool_converter(data, size, border, padding, stride, dilation, **kwargs):
     )
 
 
-#   # Normalization
-
-
 def local_response_normalization_converter(data, size, alpha, beta, bias):
     """LRN converter"""
     axis = [i for i in range(len(size)) if size[i] > 1]
@@ -1676,9 +1635,6 @@ def l2_normalization_converter(data, axes, bias, epsilon, **kwargs):
     return get_relay_op("l2_normalize")(data, epsilon, axes)
 
 
-# ok ish
-
-
 def batch_normalization_converter(data, mean, variance, offset, scale, epsilon, **kwargs):
     """Batch norm converter"""
     if kwargs:
@@ -1690,6 +1646,3 @@ def batch_normalization_converter(data, mean, variance, offset, scale, epsilon, 
     scale = squeeze_converter(scale, 0)
 
     return get_relay_op("batch_norm")(data, scale, offset, mean, variance, epsilon=epsilon)[0]
-
-
-#   # Misc ops

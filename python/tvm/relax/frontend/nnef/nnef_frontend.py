@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-"""NNEF: Neural Network Exchange Format frontend for TVM relay"""
+"""NNEF: Neural Network Exchange Format frontend for TVM Relax"""
 import os
 import typing
 import nnef
@@ -58,7 +58,7 @@ class NNEFConverter:
 
     keep_params_in_input : bool, optional
         If this parameter is true, the nnef variables will be converted to
-        constants, and be embedded into the relay model, allowing optimizations
+        constants, and be embedded into the relax model, allowing optimizations
         at compile time.
         If False the params will have to be added as inputs,
         the model can't load them automatically
@@ -77,7 +77,7 @@ class NNEFConverter:
 
     def from_nnef(self, graph: nnef.Graph) -> tvm.IRModule:
         """
-        Convert an NNEF model into an equivalent TVM Relay IRModule.
+        Convert an NNEF model into an equivalent TVM Relax IRModule.
 
         Parameters
         ----------
@@ -88,11 +88,7 @@ class NNEFConverter:
         Returns
         -------
         mod : tvm.IRModule
-            The relay module for compilation
-
-        params : dict of str to tvm.nd.NDArray
-            The parameter dictionary to be used
-
+            The relax module for compilation
         """
         with self._bb.function("main"):
             with self._bb.dataflow():
@@ -128,7 +124,7 @@ class NNEFConverter:
             self._inputs[inp] = self._nodes[inp]
 
     def _construct_nodes(self, graph):
-        """Construct TVM relay calls from every operation of the nnef graph"""
+        """Construct TVM relax calls from every operation of the nnef graph"""
         for op in graph.operations:
             if op.name == "external":
                 # externals are handled as input, not needed,
@@ -167,7 +163,7 @@ class NNEFConverter:
                     assert name in self._nodes, f"{name} has not been properly handled"
                     inputs.append(self._nodes[name])
 
-        converted = self._get_relay_op_call(node.name, inputs, node.attribs)
+        converted = self._get_relax_op_call(node.name, inputs, node.attribs)
         converted = self._bb.normalize(converted)
 
         if not isinstance(converted.struct_info, relax.TupleStructInfo):
@@ -187,7 +183,7 @@ class NNEFConverter:
                 self._nodes[out] = converted[i]
 
     def _set_const(self, node):
-        """Create a tvm.relay.Constant from a nnef constant tensor"""
+        """Create a tvm.relax.Constant from a nnef constant tensor"""
         name = node.outputs["output"]
         data = node.attribs["value"]
         shape = node.attribs["shape"]
@@ -199,7 +195,7 @@ class NNEFConverter:
         self._nodes[name] = self._consts[name]
 
     def _set_variable(self, tensor):
-        """Create a tvm.relay.Var (or Constant) from a nnef variable tensor"""
+        """Create a tvm.relax.Var (or Constant) from a nnef variable tensor"""
         tens_data = tensor.data
         if not self._keep_params_in_input:
             self._consts[tensor.name] = tvm_expr.const(tens_data)
@@ -210,7 +206,7 @@ class NNEFConverter:
             self._params[tensor.name] = (var, tvm.nd.array(tens_data))
 
     def _set_literal_inputs(self, node):
-        """Checks if node has literal inputs and saves them into a tvm.relay.Constant.
+        """Checks if node has literal inputs and saves them into a tvm.relax.Constant.
         naming as {node.name}_{input field name}"""
         for field_name, value in node.inputs.items():
             if isinstance(value, list):
@@ -222,7 +218,7 @@ class NNEFConverter:
                 if value not in self._nodes.keys():
                     self._nodes[f"{node.name}_{field_name}"] = tvm_expr.const(value)
 
-    def _get_relay_op_call(self, name, inputs, attrs):
+    def _get_relax_op_call(self, name, inputs, attrs):
         """Returns the tvm.Call equivalent to the nnef operator"""
         conv_map = _get_converter_map()
         if name in conv_map:
@@ -273,7 +269,7 @@ def from_nnef(
     keep_params_in_input: bool = False,
 ) -> IRModule:
     """
-    Convert an NNEF model into an equivalent TVM Relay IRModule.
+    Convert an NNEF model into an equivalent TVM Relax IRModule.
 
 
     Parameters
@@ -291,10 +287,7 @@ def from_nnef(
     Returns
     -------
     mod : tvm.IRModule
-        The relay module for compilation
-
-    params : dict of str to tvm.nd.NDArray
-        The parameter dictionary to be used
+        The relax module for compilation
     """
     conv_clss = NNEFConverter(keep_params_in_input)
 

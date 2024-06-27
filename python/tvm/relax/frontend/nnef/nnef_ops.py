@@ -30,9 +30,6 @@ from tvm.relax import op as tvm_op
 from tvm import topi
 
 
-# Base methods
-
-
 def dimension_picker(prefix, kernel_shape, suffix=""):
     """
     Returns the correct name for nth dimensional operator. Uses the "kernel_shape" attribute.\n
@@ -234,9 +231,6 @@ def __unexpected_attrs(op, kwargs):
     )
 
 
-# Conversion map, operator functions
-
-
 def _get_converter_map():
     return {  # Unary
         "copy": copy_converter,  # arithmetic
@@ -368,13 +362,10 @@ def _get_converter_map():
 
 # pylint: disable=unused-argument
 
-# not implemented ops
+
 def ndop(*args, **kwargs):
-    # print(args, kwargs)
+    # not implemented ops
     raise Exception("Not supported operator was called, please check for compatibility")
-
-
-#   # Unary ops
 
 
 def copy_converter(bbuilder, data, **kwargs):
@@ -566,9 +557,6 @@ def round_converter(bbuilder, data, **kwargs):
     return relax.op.unary.round(data)
 
 
-#   # Binary ops
-
-
 def add_converter(bbuilder, lhs, rhs, **kwargs):
     """Add converter"""
     if kwargs:
@@ -589,9 +577,6 @@ def mul_converter(bbuilder, lhs, rhs, **kwargs):
     """Mul converter"""
     if kwargs:
         __unexpected_attrs("mul", kwargs)
-
-    lhs = bbuilder.normalize(lhs)
-    rhs = bbuilder.normalize(rhs)
 
     l_ndim = len(lhs.struct_info.shape)
     r_ndim = len(rhs.struct_info.shape)
@@ -684,18 +669,12 @@ def or_converter(bbuilder, lhs, rhs, **kwargs):
     return relax.op.binary.logical_or(lhs, rhs)
 
 
-#   # Select op
-
-
 def select_converter(bbuilder, condition, t_val, f_val, **kwargs):
     """Select converter"""
     if kwargs:
         __unexpected_attrs("select", kwargs)
 
     return relax.op.where(condition, t_val, f_val)
-
-
-#   # Simplifier ops
 
 
 def sqr_converter(bbuilder, data, **kwargs):
@@ -777,9 +756,6 @@ def clamp_converter(bbuilder, x, a, b, **kwargs):
         )
 
     return max_converter(bbuilder, min_converter(bbuilder, x, b), a)
-
-
-#   # Sliding-window ops
 
 
 def conv_converter(
@@ -892,7 +868,7 @@ def deconv_converter(
     out_pad = (
         [(x - (y - t)) % s for x, y, t, s in zip(output_shape[2:], out_sh, total, stride)]
         if output_shape
-        else (0, 0)
+        else (0,) * (rank - 2)
     )
 
     if rank == 3:
@@ -900,7 +876,7 @@ def deconv_converter(
     elif rank == 4:
         op = relax.op.nn.conv2d_transpose
     else:
-        raise NotImplementedError("Ndim > 4 not supported for deconvolution. 3D WIP.")
+        raise NotImplementedError("Ndim > 4 (2D) not supported for deconvolution.")
 
     deconv_out = op(
         data=data,
@@ -1094,10 +1070,7 @@ def nearest_upsample_converter(bbuilder, data, factor, **kwargs):
     return bbuilder.emit_te(
         op,
         data,
-        [
-            0,
-        ]
-        * ndims,  # dummy value so typecheck goes through, roi is not used
+        [0, 0] * (ndims - 2),  # dummy value so typecheck goes through, roi is not used
         new_size,
         method="nearest_neighbor",
         rounding_method="round",
@@ -1126,10 +1099,7 @@ def multilinear_upsample_converter(bbuilder, data, factor, method, border, **kwa
         return bbuilder.emit_te(
             op,
             data,
-            [
-                0,
-            ]
-            * ndims,  # dummy value so typecheck goes through, roi is not used
+            [0, 0] * (ndims - 2),  # dummy value so typecheck goes through, roi is not used
             new_size,
             method="linear",
             coordinate_transformation_mode="align_corners",
@@ -1138,10 +1108,7 @@ def multilinear_upsample_converter(bbuilder, data, factor, method, border, **kwa
         return bbuilder.emit_te(
             op,
             data,
-            [
-                0,
-            ]
-            * ndims,  # dummy value so typecheck goes through, roi is not used
+            [0, 0] * (ndims - 2),  # dummy value so typecheck goes through, roi is not used
             new_size,
             method="linear",
             coordinate_transformation_mode="half_pixel",
@@ -1210,9 +1177,6 @@ def multilinear_upsample_converter(bbuilder, data, factor, method, border, **kwa
             groups=c,
             output_shape=output_shape,
         )
-
-
-#   # Reduce ops
 
 
 def sum_reduce_converter(bbuilder, data, axes, normalize, keepdims=True, **kwargs):
@@ -1285,9 +1249,6 @@ def mean_reduce_converter(bbuilder, data, axes, keepdims=True, **kwargs):
         __unexpected_attrs("mean_reduce", kwargs)
 
     return relax.op.mean(data, axes, keepdims=keepdims)
-
-
-#   # Tensor shape ops
 
 
 def reshape_converter(bbuilder, data, shape, axis_start, axis_count, **kwargs):
@@ -1434,10 +1395,6 @@ def tile_converter(bbuilder, data, repeats, **kwargs):
     return relax.op.tile(data, repeats)
 
 
-#   # Region-of-interest ops
-
-
-#   # Matrix multiplication
 def matmul_converter(bbuilder, a, b, **kwargs):
     """Matmul converter
     real signature: matmul_converter(a, b, transposeA, transposeB)"""
@@ -1455,7 +1412,7 @@ def matmul_converter(bbuilder, a, b, **kwargs):
         a = relax.op.permute_dims(a, axes)
 
     if transpose_b:
-        ndim = len(a.struct_info.shape.values)
+        ndim = len(b.struct_info.shape.values)
         axes = list(range(ndim - 2))
         axes.append(ndim - 1)
         axes.append(ndim - 2)
@@ -1465,10 +1422,6 @@ def matmul_converter(bbuilder, a, b, **kwargs):
     b = bbuilder.normalize(b)
 
     return relax.op.matmul(a, b)
-
-
-#   # Variable updates
-#   # Compound ops
 
 
 def sigmoid_converter(bbuilder, data, **kwargs):
@@ -1503,6 +1456,7 @@ def prelu_converter(bbuilder, data, alpha, **kwargs):
         0,
     ] + [a + 2 for a in range(data.struct_info.ndim - 2)]
     alpha = relax.op.expand_dims(alpha, axes)
+    alpha = bbuilder.normalize(alpha)
 
     # using select for prelu
     return select_converter(
@@ -1529,7 +1483,9 @@ def elu_converter(bbuilder, data, alpha, **kwargs):
         mul_converter(
             bbuilder,
             tvm_expr.const(alpha),
-            sub_converter(bbuilder, exp_converter(bbuilder, data), tvm_expr.const(1.0)),
+            bbuilder.normalize(
+                sub_converter(bbuilder, exp_converter(bbuilder, data), tvm_expr.const(1.0))
+            ),
         ),
         data,
     )
@@ -1546,15 +1502,19 @@ def selu_converter(bbuilder, data, alpha, **kwargs):
     return mul_converter(
         bbuilder,
         tvm_expr.const(lambda_var),
-        select_converter(
-            bbuilder,
-            data < tvm_expr.const(0.0),
-            mul_converter(
+        bbuilder.normalize(
+            select_converter(
                 bbuilder,
-                tvm_expr.const(alpha),
-                sub_converter(bbuilder, exp_converter(bbuilder, data), tvm_expr.const(1.0)),
-            ),
-            data,
+                data < tvm_expr.const(0.0),
+                mul_converter(
+                    bbuilder,
+                    tvm_expr.const(alpha),
+                    bbuilder.normalize(
+                        sub_converter(bbuilder, exp_converter(bbuilder, data), tvm_expr.const(1.0)),
+                    ),
+                ),
+                data,
+            )
         ),
     )
 
@@ -1581,7 +1541,7 @@ def silu_converter(bbuilder, data, **kwargs):
     if kwargs:
         __unexpected_attrs("silu", kwargs)
 
-    return mul_converter(bbuilder, data, sigmoid_converter(bbuilder, data))
+    return mul_converter(bbuilder, data, bbuilder.normalize(sigmoid_converter(bbuilder, data)))
 
 
 def softmax_converter(bbuilder, data, axes, **kwargs):
@@ -1604,9 +1564,6 @@ def softplus_converter(bbuilder, data, **kwargs):
     return log_converter(
         bbuilder, add_converter(bbuilder, exp_converter(bbuilder, data), tvm_expr.const(1.0))
     )
-
-
-#   # linear ops
 
 
 def linear_converter(bbuilder, data, _filter, bias, **kwargs):
@@ -1746,10 +1703,9 @@ def max_pool_converter(bbuilder, data, size, border, padding, stride, dilation, 
     pad = _padding_conv(padding, rank)
 
     if border == "constant":
-        padding = [(0, 0), (0, 0)] + padding
         data = pad_converter(bbuilder, data, padding, border, tvm_expr.const(0.0))
         data = bbuilder.normalize(data)
-        pad = (0, 0)
+        pad = (0,) * (rank - 2)
 
     if rank == 3:
         op = relax.op.nn.max_pool1d
@@ -1827,9 +1783,6 @@ def rms_pool_converter(bbuilder, data, size, border, padding, stride, dilation, 
             dilation=dilation,
         ),
     )
-
-
-#   # Normalization
 
 
 def local_response_normalization_converter(bbuilder, data, size, alpha, beta, bias, **kwargs):
@@ -1917,7 +1870,7 @@ def l2_normalization_converter(bbuilder, data, axes, bias, epsilon, **kwargs):
     if kwargs:
         __unexpected_attrs("l2_normalization", kwargs)
 
-    # relay style l2_norm not supported, used equation from NNEF
+    # relax style l2_norm not supported, used equation from NNEF
 
     sigma = sum_reduce_converter(
         bbuilder, sqr_converter(bbuilder, data), axes=axes, normalize=False
@@ -1952,6 +1905,3 @@ def batch_normalization_converter(bbuilder, data, mean, variance, offset, scale,
 
     res = bbuilder.emit_te(topi.nn.batch_norm, data, scale, offset, mean, variance, 1, epsilon)
     return res[0]
-
-
-#   # Misc ops
