@@ -144,6 +144,8 @@ class DynamicGradientSearchTuner:
         self.start_time = time.time()
         self.predict_score_threshold_ratio = predict_score_threshold_ratio
         self.measure_threshold_ratio = measure_threshold_ratio
+        self.Shared_Mem_view = True
+        self.coordinate_set = set()
         
         if tune_option is not None:
             self.runner = tune_option.runner
@@ -375,7 +377,7 @@ class DynamicGradientSearchTuner:
                     break
             
         return next_base, measured_inputs, measured_results
-
+    
     def get_n_hop_neighbors(self, record, n):
         """
         Generate n-hop neighbors for the given record.
@@ -384,13 +386,13 @@ class DynamicGradientSearchTuner:
         original_coordinates = processor.extract_coordinates()
         dimension = len(original_coordinates)
         neighbors = []
-        coordinate_set = set()
+        
+        self.coordinate_set.add(tuple(original_coordinates))
 
         # Generate all combinations of coordinates to change
         for indices in combinations(range(dimension), n):
             # Generate all possible changes for the selected coordinates
             for changes in product([-1, 1], repeat=n):
-                # input("Press Enter to continue...")
                 new_coordinates = original_coordinates[:]
                 coord_idx = 0
                 valid_change = True  # Add a flag to ensure changes are valid
@@ -405,10 +407,13 @@ class DynamicGradientSearchTuner:
                         factors = processor.get_factors(dim_len)
                         for i, change in enumerate(changes):
                             idx = indices[i]
-                            if coord_idx <= idx < coord_idx + length and idx - coord_idx == processor.IDX_TB and length == processor.LENGTH_PAR_DIM: # tb tile for parallel dimensions
+                            if self.Shared_Mem_view and coord_idx <= idx < coord_idx + length and idx - coord_idx == processor.IDX_TB and length == processor.LENGTH_PAR_DIM: # tb tile for parallel dimensions
                                 sm_factors = processor.get_sm_factors(dim_len)
                                 current_lengths = original_coordinates[coord_idx:coord_idx + length]
                                 sm_tile = np.prod(current_lengths)
+                                if sm_tile not in sm_factors:
+                                    valid_change = False
+                                    break
                                 reg_tile = int(sm_tile/new_coordinates[idx])
                                 factor_index = sm_factors.index(sm_tile)
                                 new_factor_index = factor_index + change
@@ -422,6 +427,11 @@ class DynamicGradientSearchTuner:
                                 else:
                                     valid_change = False
                                     break
+                                if valid_change:
+                                    if self.isCUDA and new_coordinates[coord_idx] != 1 and length >= 3:
+                                        # Force the cuda code has no vthread on parallel dimensions
+                                        valid_change = False
+                                        break
                             elif coord_idx <= idx < coord_idx + length:
                                 current_value = new_coordinates[idx]
                                 if current_value in factors:
@@ -441,11 +451,11 @@ class DynamicGradientSearchTuner:
                                     else:
                                         valid_change = False
                                         break
-                            if valid_change:
-                                if self.isCUDA and new_coordinates[coord_idx] != 1 and length >= 3:
-                                    # Force the cuda code has no vthread on parallel dimensions
-                                    valid_change = False
-                                    break
+                                if valid_change:
+                                    if self.isCUDA and new_coordinates[coord_idx] != 1 and length >= 3:
+                                        # Force the cuda code has no vthread on parallel dimensions
+                                        valid_change = False
+                                        break
                         if valid_change:
                             product_of_dims = np.prod(new_coordinates[coord_idx:coord_idx + length])
                             if product_of_dims > dim_len or dim_len % product_of_dims != 0:
@@ -453,13 +463,13 @@ class DynamicGradientSearchTuner:
                                 break
                         coord_idx += length
                         SP_count += 1
-                if valid_change and new_coordinates != original_coordinates and tuple(new_coordinates) not in coordinate_set:
+                if valid_change and new_coordinates != original_coordinates and tuple(new_coordinates) not in self.coordinate_set:
                     modified_processor = RecordProcessor(json.dumps(processor.json_str))
                     modified_processor.modify_sp_node(new_coordinates)
                     neighbors.append(modified_processor.record)
-                    coordinate_set.add(tuple(new_coordinates))
         
         return neighbors
+
 
     def dynamic_gradient_search(self):
         """
