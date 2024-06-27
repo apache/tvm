@@ -40,7 +40,7 @@ pub struct Array<T: IsObjectRef> {
 // the implementation.
 external! {
     #[name("runtime.ArrayGetItem")]
-    fn array_get_item(array: ObjectRef, index: isize) -> ObjectRef;
+    fn array_get_item(array: ObjectRef, index: isize) -> RetValue;
     #[name("runtime.ArraySize")]
     fn array_size(array: ObjectRef) -> i64;
 }
@@ -96,8 +96,8 @@ impl<T: IsObjectRef> Array<T> {
     where
         T: TryFrom<RetValue, Error = Error>,
     {
-        let oref: ObjectRef = array_get_item(self.object.clone(), index)?;
-        oref.downcast()
+        let oref = array_get_item(self.object.clone(), index)?;
+        oref.try_into()
     }
 
     pub fn len(&self) -> i64 {

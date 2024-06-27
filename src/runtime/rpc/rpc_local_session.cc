@@ -47,6 +47,10 @@ RPCSession::PackedFuncHandle LocalSession::GetFunction(const std::string& name) 
 }
 
 void LocalSession::EncodeReturn(TVMRetValue rv, const FEncodeReturn& encode_return) {
+  if (rv.type_code() == kTVMObjectHandle && rv.IsObjectRef<runtime::String>()) {
+    rv = std::string(rv.AsObjectRef<runtime::String>());
+  }
+
   int rv_tcode = rv.type_code();
 
   // return value encoding.

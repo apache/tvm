@@ -980,15 +980,6 @@ class TVMRetValue : public TVMPODValue_ {
     TVMRetValue ret;
     ret.value_ = value;
     ret.type_code_ = type_code;
-
-    if (ret.type_code_ == kTVMObjectHandle) {
-      // A C implementation may not have performed the same type
-      // normalization is performed through the C++ API.  For example,
-      // constructing a `tvm::runtime::String` rather than the
-      // implementation-dependent `std::string`.
-      ret = ret.operator ObjectRef();
-    }
-
     return ret;
   }
   /*! \return The value field, if the data is POD */
