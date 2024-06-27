@@ -451,7 +451,7 @@ def test_multiple():
     target = tvm.target.Target("nvidia/geforce-rtx-3070")
     with target, tvm.transform.PassContext(opt_level=3):
         After = DefaultGPUSchedule()(Before)
-    assert tvm.ir.structural_equal(After, Expected)
+    tvm.ir.assert_structural_equal(After, Expected)
 
 
 def test_add_on_metal():

@@ -45,7 +45,7 @@ def test_extract_constants_single():
 
     func, const = _get_func()
     new_func, const_dict = extract_constants(func)
-    assert tvm.ir.structural_equal(new_func, _expected())
+    tvm.ir.assert_structural_equal(new_func, _expected())
     assert 1 in const_dict
     assert (const_dict[1] == const.data.asnumpy()).all()
 
@@ -89,7 +89,7 @@ def test_extract_constants_multi():
 
     func, consts = _get_func()
     new_func, const_dict = extract_constants(func)
-    assert tvm.ir.structural_equal(new_func, _expected())
+    tvm.ir.assert_structural_equal(new_func, _expected())
     for i, const in enumerate(consts):
         assert i + 2 in const_dict
         assert (const_dict[i + 2] == consts[i].data.asnumpy()).all()

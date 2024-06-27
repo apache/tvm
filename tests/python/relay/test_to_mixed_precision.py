@@ -163,7 +163,7 @@ def test_convert_single_conv(target_precision):
     expected_mod = tvm.relay.transform.InferType()(expected_mod)
 
     assert not tvm.ir.structural_equal(amp_mod, mod)
-    assert tvm.ir.structural_equal(amp_mod, expected_mod)
+    tvm.ir.assert_structural_equal(amp_mod, expected_mod)
 
 
 def test_convert_single_conv_fp64():
@@ -198,7 +198,7 @@ def test_convert_single_conv_fp64():
     expected_mod = tvm.relay.transform.InferType()(expected_mod)
 
     assert not tvm.ir.structural_equal(amp_mod, mod)
-    assert tvm.ir.structural_equal(amp_mod, expected_mod)
+    tvm.ir.assert_structural_equal(amp_mod, expected_mod)
 
 
 def test_convert_conv_bn(target_precision):
@@ -245,7 +245,7 @@ def test_convert_conv_bn(target_precision):
     expected_mod = tvm.IRModule.from_expr(bn[0])
     expected_mod = tvm.relay.transform.InferType()(expected_mod)
     assert not tvm.ir.structural_equal(amp_mod, mod)
-    assert tvm.ir.structural_equal(amp_mod, expected_mod)
+    tvm.ir.assert_structural_equal(amp_mod, expected_mod)
 
 
 def test_do_not_convert_softmax(target_precision):
@@ -257,7 +257,7 @@ def test_do_not_convert_softmax(target_precision):
     mod = tvm.relay.transform.InferType()(mod)
     out_mod = ToMixedPrecision(target_precision)(mod)
     orig_mod = tvm.relay.transform.InferType()(mod)
-    assert tvm.ir.structural_equal(orig_mod, out_mod)
+    tvm.ir.assert_structural_equal(orig_mod, out_mod)
 
 
 def test_do_not_convert_arange(target_precision):
@@ -267,7 +267,7 @@ def test_do_not_convert_arange(target_precision):
     mod = tvm.IRModule.from_expr(arange)
     out_mod = ToMixedPrecision(target_precision)(mod)
     orig_mod = tvm.relay.transform.InferType()(mod)
-    assert tvm.ir.structural_equal(orig_mod, out_mod)
+    tvm.ir.assert_structural_equal(orig_mod, out_mod)
 
 
 def test_do_not_convert_summation(target_precision):
@@ -284,7 +284,7 @@ def test_do_not_convert_summation(target_precision):
         mod = tvm.IRModule.from_expr(op(a))
         out_mod = ToMixedPrecision(target_precision)(mod)
         orig_mod = tvm.relay.transform.InferType()(mod)
-        assert tvm.ir.structural_equal(orig_mod, out_mod)
+        tvm.ir.assert_structural_equal(orig_mod, out_mod)
 
 
 def test_green_gray_propagates_simple(target_precision):
@@ -320,7 +320,7 @@ def test_green_gray_propagates_simple(target_precision):
     expected_mod = tvm.relay.transform.InferType()(expected_mod)
 
     assert not tvm.ir.structural_equal(amp_mod, mod)
-    assert tvm.ir.structural_equal(amp_mod, expected_mod)
+    tvm.ir.assert_structural_equal(amp_mod, expected_mod)
 
 
 def test_green_red_not_use_extraneous_cast(target_precision):
@@ -382,7 +382,7 @@ def test_green_red_not_use_extraneous_cast(target_precision):
     expected_mod = tvm.IRModule.from_expr(result)
     expected_mod = InferType()(expected_mod)
 
-    assert tvm.ir.structural_equal(expected_mod, amp_mod)
+    tvm.ir.assert_structural_equal(expected_mod, amp_mod)
 
 
 def test_red_gray_propagates_simple(target_precision):
@@ -401,7 +401,7 @@ def test_red_gray_propagates_simple(target_precision):
         mod, mod_params, mixed_precision_dtype=target_precision, atol=0.0, rtol=0.0
     )
 
-    assert tvm.ir.structural_equal(mod, output_mod)
+    tvm.ir.assert_structural_equal(mod, output_mod)
 
 
 def test_let_statement_simple(target_precision):
@@ -450,7 +450,7 @@ def test_let_statement_simple(target_precision):
     expected_mod = tvm.IRModule.from_expr(let1)
     expected_mod = InferType()(expected_mod)
 
-    assert tvm.ir.structural_equal(expected_mod, output_mod)
+    tvm.ir.assert_structural_equal(expected_mod, output_mod)
 
 
 def test_where_simple(target_precision):
@@ -476,7 +476,7 @@ def test_where_simple(target_precision):
     expected_mod = tvm.IRModule.from_expr(b)
     expected_mod = InferType()(expected_mod)
 
-    assert tvm.ir.structural_equal(expected_mod, output_mod)
+    tvm.ir.assert_structural_equal(expected_mod, output_mod)
 
 
 def test_batch_matmul_simple(target_precision):
@@ -502,7 +502,7 @@ def test_batch_matmul_simple(target_precision):
     a = relay.nn.batch_matmul(data, weight, out_dtype=target_precision)
     expected_mod = tvm.IRModule.from_expr(a)
     expected_mod = InferType()(expected_mod)
-    assert tvm.ir.structural_equal(expected_mod, output_mod)
+    tvm.ir.assert_structural_equal(expected_mod, output_mod)
 
 
 def test_convert_follow_node_with_integer_arguments(target_precision):
@@ -533,7 +533,7 @@ def test_convert_follow_node_with_integer_arguments(target_precision):
     take = relay.take(data, indices, axis=0)
     expected_mod = tvm.IRModule.from_expr(take)
     expected_mod = InferType()(expected_mod)
-    assert tvm.ir.structural_equal(expected_mod, output_mod)
+    tvm.ir.assert_structural_equal(expected_mod, output_mod)
 
 
 def test_clip(target_precision):
@@ -555,7 +555,7 @@ def test_clip(target_precision):
     res = relay.clip(data, a_min=-128000, a_max=128000)
     expected_mod = tvm.IRModule.from_expr(res)
     expected_mod = InferType()(expected_mod)
-    assert tvm.ir.structural_equal(expected_mod, output_mod)
+    tvm.ir.assert_structural_equal(expected_mod, output_mod)
 
 
 def test_clip_with_pre_op(target_precision):
@@ -582,7 +582,7 @@ def test_clip_with_pre_op(target_precision):
     res = relay.clip(res, a_min=-128000, a_max=128000)
     expected_mod = tvm.IRModule.from_expr(res)
     expected_mod = InferType()(expected_mod)
-    assert tvm.ir.structural_equal(expected_mod, output_mod)
+    tvm.ir.assert_structural_equal(expected_mod, output_mod)
 
 
 def test_loop(target_precision):
@@ -616,7 +616,7 @@ def test_loop(target_precision):
 
     # Create expected module
     expected_mod = InferType()(mod)
-    assert tvm.ir.structural_equal(expected_mod, output_mod)
+    tvm.ir.assert_structural_equal(expected_mod, output_mod)
 
 
 if __name__ == "__main__":

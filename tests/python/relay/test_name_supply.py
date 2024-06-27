@@ -18,7 +18,7 @@ import tvm
 import tvm.testing
 
 from tvm import relay
-from tvm.ir import GlobalVar, structural_equal
+from tvm.ir import GlobalVar, structural_equal, assert_structural_equal
 from tvm.ir.supply import NameSupply
 from tvm.ir.supply import GlobalVarSupply
 
@@ -39,7 +39,7 @@ def test_global_var_supply_from_none():
     global_var = GlobalVar("test")
     var_supply.reserve_global(global_var)
 
-    assert structural_equal(var_supply.unique_global_for("test"), global_var)
+    assert_structural_equal(var_supply.unique_global_for("test"), global_var)
     assert not structural_equal(var_supply.fresh_global("test"), global_var)
 
 
@@ -49,7 +49,7 @@ def test_global_var_supply_from_name_supply():
     global_var = GlobalVar("test")
     var_supply.reserve_global(global_var)
 
-    assert structural_equal(var_supply.unique_global_for("test", False), global_var)
+    assert_structural_equal(var_supply.unique_global_for("test", False), global_var)
     assert not structural_equal(var_supply.unique_global_for("test"), global_var)
 
 
@@ -63,7 +63,7 @@ def test_global_var_supply_from_ir_mod():
 
     second_global_var = var_supply.fresh_global("test", False)
 
-    assert structural_equal(var_supply.unique_global_for("test", False), global_var)
+    assert_structural_equal(var_supply.unique_global_for("test", False), global_var)
     assert not structural_equal(var_supply.unique_global_for("test"), global_var)
     assert not structural_equal(second_global_var, global_var)
 

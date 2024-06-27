@@ -29,11 +29,11 @@ def test_bind_params():
     f = relay.Function([x, y], z)
     fbinded = relay.bind(f, {x: relay.const(1, "float32")})
     fexpected = relay.Function([y], relay.add(relay.const(1, "float32"), y))
-    assert tvm.ir.structural_equal(fbinded, fexpected)
+    tvm.ir.assert_structural_equal(fbinded, fexpected)
 
     zbinded = relay.bind(z, {y: x})
     zexpected = relay.add(x, x)
-    assert tvm.ir.structural_equal(zbinded, zexpected)
+    tvm.ir.assert_structural_equal(zbinded, zexpected)
 
 
 def test_bind_duplicated_params():

@@ -18,7 +18,7 @@
 import tvm
 import tvm.testing
 from tvm import relax
-from tvm.script import relax as R, tir as T
+from tvm.script import relax as R, tir as T, ir as I
 
 
 def test_reshape_expand_dims():
@@ -579,6 +579,187 @@ def test_reshape_scalar():
     mod = relax.transform.LegalizeOps()(mod)
     rewritten = relax.transform.RewriteDataflowReshape()(mod)
     tvm.ir.assert_structural_equal(rewritten, Expected)
+
+
+def test_rewrite_static_reshape():
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(x: R.Tensor([256], dtype="float32")):
+            with R.dataflow():
+                y = R.reshape(x, [64, 4])
+                z = R.add(y, y)
+                R.output(z)
+            return z
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((256,), dtype="float32")):
+            cls = Expected
+
+            with R.dataflow():
+                y = R.reshape(x, R.shape([64, 4]))
+                z = R.call_tir(cls.add, (y, y), out_sinfo=R.Tensor((64, 4), dtype="float32"))
+                R.output(z)
+            return z
+
+        @T.prim_func(private=True)
+        def add(
+            y1: T.Buffer((T.int64(64), T.int64(4)), "float32"),
+            y2: T.Buffer((T.int64(64), T.int64(4)), "float32"),
+            z: T.Buffer((T.int64(64), T.int64(4)), "float32"),
+        ):
+            T.func_attr({"tir.noalias": T.bool(True)})
+
+            for iters in T.grid(T.int64(64), T.int64(4)):
+                with T.block("T_add"):
+                    i, j = T.axis.remap("SS", iters)
+                    z[i, j] = y1[i, j] + y2[i, j]
+
+    After = tvm.ir.transform.Sequential(
+        [
+            # Lower both R.reshape and R.add from Relax to TIR
+            relax.transform.LegalizeOps(),
+            # Identify reshapes, raise calls to cls.reshape from TIR
+            # to Relax
+            relax.transform.RewriteDataflowReshape(),
+            # Clean up afterwards, removing the no-longer-required
+            # PrimFunc "reshape"
+            relax.transform.DeadCodeElimination(),
+        ]
+    )(Before)
+
+    tvm.ir.assert_structural_equal(Expected, After)
+
+
+# def test_rewrite_dynamic_reshape():
+#     @I.ir_module
+#     class Before:
+#         @R.function
+#         def main(x: R.Tensor(["N"], dtype="float32")):
+#             N = T.int64()
+#             with R.dataflow():
+#                 y = R.reshape(x, [N // 4, 4])
+#                 z = R.add(y, y)
+#                 R.output(z)
+#             return z
+
+#     @I.ir_module
+#     class Expected:
+#         @R.function
+#         def main(x: R.Tensor(["N"], dtype="float32")):
+#             N = T.int64()
+#             cls = Expected
+
+#             with R.dataflow():
+#                 y = R.reshape(x, R.shape([N // 4, 4]))
+#                 z = R.call_tir(
+#                     cls.add,
+#                     (y, y),
+#                     tir_vars=[N],
+#                     out_sinfo=R.Tensor((N // 4, 4), dtype="float32"),
+#                 )
+#                 R.output(z)
+#             return z
+
+#         @T.prim_func(private=True)
+#         def add(
+#             y1_handle: T.handle,
+#             y2_handle: T.handle,
+#             z_handle: T.handle,
+#             N: T.int64,
+#         ):
+
+#             y1 = T.match_buffer(y1_handle, [N // 4, 4], "float32")
+#             y2 = T.match_buffer(y2_handle, [N // 4, 4], "float32")
+#             z = T.match_buffer(z_handle, [N // 4, 4], "float32")
+
+#             T.func_attr({"tir.noalias": T.bool(True)})
+
+#             for iters in T.grid(T.int64(64), T.int64(4)):
+#                 with T.block("T_add"):
+#                     i, j = T.axis.remap("SS", iters)
+#                     z[i, j] = y1[i, j] + y2[i, j]
+
+#     After = tvm.ir.transform.Sequential(
+#         [
+#             # Lower both R.reshape and R.add from Relax to TIR
+#             relax.transform.LegalizeOps(),
+#             # Identify reshapes, raise calls to cls.reshape from TIR
+#             # to Relax
+#             relax.transform.RewriteDataflowReshape(),
+#             # Clean up afterwards, removing the no-longer-required
+#             # PrimFunc "reshape"
+#             relax.transform.DeadCodeElimination(),
+#         ]
+#     )(Before)
+#     After.show()
+#     tvm.ir.assert_structural_equal(Expected, After)
+
+
+def test_rewrite_dynamic_reshape():
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(x: R.Tensor(["N*16"], dtype="float32"), _: R.Prim(value="N")):
+            N = T.int64()
+            with R.dataflow():
+                y = R.reshape(x, [N * 4, T.int64(4)])
+                z = R.add(y, y)
+                R.output(z)
+            return z
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor(["N*16"], dtype="float32"), _: R.Prim(value="N")):
+            N = T.int64()
+            cls = Expected
+
+            with R.dataflow():
+                y = R.reshape(x, R.shape([N * 4, T.int64(4)]))
+                z = R.call_tir(
+                    cls.add,
+                    (y, y),
+                    tir_vars=[N],
+                    out_sinfo=R.Tensor((N * 4, 4), dtype="float32"),
+                )
+                R.output(z)
+            return z
+
+        @T.prim_func(private=True)
+        def add(
+            y1_handle: T.handle,
+            y2_handle: T.handle,
+            z_handle: T.handle,
+            N: T.int64,
+        ):
+
+            y1 = T.match_buffer(y1_handle, [N * 4, T.int64(4)], "float32")
+            y2 = T.match_buffer(y2_handle, [N * 4, T.int64(4)], "float32")
+            z = T.match_buffer(z_handle, [N * 4, T.int64(4)], "float32")
+
+            T.func_attr({"tir.noalias": T.bool(True)})
+
+            for iters in T.grid(N * 4, T.int64(4)):
+                with T.block("T_add"):
+                    i, j = T.axis.remap("SS", iters)
+                    z[i, j] = y1[i, j] + y2[i, j]
+
+    After = tvm.ir.transform.Sequential(
+        [
+            # Lower both R.reshape and R.add from Relax to TIR
+            relax.transform.LegalizeOps(),
+            # Identify reshapes, raise calls to cls.reshape from TIR
+            # to Relax
+            relax.transform.RewriteDataflowReshape(),
+            # Clean up afterwards, removing the no-longer-required
+            # PrimFunc "reshape"
+            relax.transform.DeadCodeElimination(),
+        ]
+    )(Before)
+    tvm.ir.assert_structural_equal(Expected, After)
 
 
 if __name__ == "__main__":

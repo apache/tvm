@@ -34,7 +34,7 @@ import tvm.relay as relay
 
 # This example uses resnet50-v2-7 model
 model_url = (
-    "https://github.com/onnx/models/raw/main/"
+    "https://github.com/onnx/models/raw/bd206494e8b6a27b25e5cf7199dbcdbfe9d05d1c/"
     "vision/classification/resnet/model/"
     "resnet50-v2-7.onnx"
 )

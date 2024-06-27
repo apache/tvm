@@ -530,14 +530,31 @@ def test_matmul_sme(dtype):
         )
         stores = re.findall(r"st1[whdb]\t{\s?za", assembly)
         smstop = re.findall(r"smstop\t(sm|za)", assembly)
+        whilelo = re.findall(r"whilelo\tp[0-9].[shdb]", assembly)
 
         assert len(smstart) > 0
         assert len(loads) > 0
         assert len(mopa) > 0
         assert len(stores) > 0
         assert len(smstop) > 0
+        assert len(whilelo) > 0
 
     check_correct_assembly(dtype=dtype)
+
+
+def test_matmul_sme_no_reduction_block():
+    @T.prim_func
+    def prim_func(a: T.handle, b: T.handle):
+        A = T.match_buffer(a, (4,))
+        B = T.match_buffer(b, (4,))
+        for i in range(3):
+            with T.block("block"):
+                vi = T.axis.remap("S", [i])
+                B[vi] = A[vi]
+
+    sch = tvm.tir.Schedule(prim_func)
+    with pytest.raises(AssertionError, match="Expected a single gemm reduction block."):
+        tvm.topi.arm_cpu.matmul.tir_schedule_matmul_sme(sch)
 
 
 @pytest.mark.skipif(
@@ -804,12 +821,14 @@ def test_conv2d_sme(dtype):
         )
         stores = re.findall(r"st1[whdb]\t{\s?za", assembly)
         smstop = re.findall(r"smstop\t(sm|za)", assembly)
+        whilelo = re.findall(r"whilelo\tp[0-9].[shdb]", assembly)
 
         assert len(smstart) > 0
         assert len(loads) > 0
         assert len(mopa) > 0
         assert len(stores) > 0
         assert len(smstop) > 0
+        assert len(whilelo) > 0
 
     with tvm.target.Target(target):
         check_correct_assembly(dtype=dtype)

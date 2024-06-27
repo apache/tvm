@@ -69,7 +69,7 @@ def test_merge_lut_into_conv():
     mod = LUTsOptimizer()(before())
     mod = relay.transform.InferType()(mod)
 
-    assert tvm.ir.structural_equal(mod, after())
+    tvm.ir.assert_structural_equal(mod, after())
 
 
 def test_merge_lut_into_binary_elementwise():
@@ -111,7 +111,7 @@ def test_merge_lut_into_binary_elementwise():
     mod = LUTsOptimizer()(before())
     mod = relay.transform.InferType()(mod)
 
-    assert tvm.ir.structural_equal(mod, after())
+    tvm.ir.assert_structural_equal(mod, after())
 
 
 def test_multiple_luts():
@@ -146,7 +146,7 @@ def test_multiple_luts():
     mod = LUTsOptimizer()(before())
     mod = relay.transform.InferType()(mod)
 
-    assert tvm.ir.structural_equal(mod, after())
+    tvm.ir.assert_structural_equal(mod, after())
 
 
 def test_lut_optimizer_runs_in_compilation_pipeline():

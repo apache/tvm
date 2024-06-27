@@ -53,7 +53,7 @@ def test_simple():
 
     z = before()
     z = run_opt_pass(z, transform.EliminateCommonSubexpr())
-    assert tvm.ir.structural_equal(z, expected())
+    tvm.ir.assert_structural_equal(z, expected())
 
 
 def test_callback():
@@ -83,7 +83,7 @@ def test_callback():
 
     z = before()
     z = run_opt_pass(z, transform.EliminateCommonSubexpr(fskip))
-    assert tvm.ir.structural_equal(z, expected())
+    tvm.ir.assert_structural_equal(z, expected())
 
 
 def test_tuple_get_time():
@@ -114,7 +114,7 @@ def test_tuple_get_time():
 
     z = before()
     z = run_opt_pass(z, transform.EliminateCommonSubexpr())
-    assert tvm.ir.structural_equal(z, expected())
+    tvm.ir.assert_structural_equal(z, expected())
 
 
 def test_tuple_arg():
@@ -143,7 +143,7 @@ def test_tuple_arg():
 
     z = before()
     z = run_opt_pass(z, transform.EliminateCommonSubexpr())
-    assert tvm.ir.structural_equal(z, expected())
+    tvm.ir.assert_structural_equal(z, expected())
 
 
 if __name__ == "__main__":
