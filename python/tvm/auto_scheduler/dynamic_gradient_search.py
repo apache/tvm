@@ -308,8 +308,6 @@ class DynamicGradientSearchTuner:
             else: # slide_window_size <= len(sorted_indices)
                 slide_window_indices = sorted_indices[index_slide:index_slide+slide_window_size]
             
-            # slide_window_scores = [candidate_scores[i] for i in slide_window_indices]
-            
             # get the slide window inputs
             slide_window_inputs = [candidate_inputs[i] for i in slide_window_indices]
             
@@ -358,7 +356,6 @@ class DynamicGradientSearchTuner:
             
             # early stop
             if 1/np.min(slide_window_costs) < measure_threshold and index_slide > 3*slide_window_size:
-                # print(f"Debug: early stop: best in slide_window = {1/np.min(slide_window_costs)} < measure_threshold={measure_threshold}", flush=True)
                 print(f">>>>       Early stop         <<<<", flush=True)
                 print("===================================", flush=True)
                 break
