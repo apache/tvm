@@ -24,6 +24,7 @@ from typing import Callable, Dict, List, Mapping, Optional, Sequence, Tuple, Uni
 import numpy as np  # type: ignore
 
 import tvm.ir
+from tvm.ir.container import Array
 from tvm.relax import Expr, Var, StructInfo
 from tvm.relax.dpl import DFPattern
 from tvm.runtime import NDArray, Object
@@ -1309,7 +1310,7 @@ def AlterOpImpl(
             # Extract the index_map
             if isinstance(transform, Callable):
                 transform = IndexMap.from_func_with_separators(transform)[0]
-            elif isinstance(transform, tuple) and isinstance(transform[0], IndexMap):
+            elif isinstance(transform, (Array, tuple)) and isinstance(transform[0], IndexMap):
                 transform = transform[0]
             l.append(transform)
         op_buffer_transforms[operator_name] = l

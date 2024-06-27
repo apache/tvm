@@ -128,7 +128,8 @@ class AlterOpImplMutator : public ExprMutator {
     const auto& replacement_func = op_impl_map_[op_kind];
 
     Array<IndexMap> buffer_transforms;
-    Optional<Array<Array<IntImm>>> axis_separators, input_axis_separators;
+    Optional<Array<Array<IntImm>>> axis_separators;
+    Optional<Array<Array<IntImm>>> input_axis_separators;
     if (op_buffer_transforms__.count(op_kind)) buffer_transforms = op_buffer_transforms__[op_kind];
     if (op_buffer_axis_separators__.count(op_kind))
       axis_separators = op_buffer_axis_separators__[op_kind];
@@ -293,7 +294,8 @@ class AlterOpImplMutator : public ExprMutator {
     Array<Expr> updated_inputs;
     int index = 0;
     for (const auto& input : inputs->fields) {
-      Array<IntImm> axis_separator, input_axis_separator;
+      Array<IntImm> axis_separator;
+      Array<IntImm> input_axis_separator;
       if (axis_separators.defined()) {
         Array<Array<IntImm>> axis_separators_value = axis_separators.value();
         axis_separator = axis_separators_value[index];

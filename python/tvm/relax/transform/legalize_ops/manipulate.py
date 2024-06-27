@@ -182,8 +182,7 @@ def _layout_transform(bb: BlockBuilder, call: Call) -> Expr:
         )
 
     def set_axis_sep(axis_sep: list, sch: tir.schedule, buffer_type: str):
-        if len(axis_sep) != 0:
-            sch.set_axis_separator(primfunc_name, (buffer_type, 0), axis_separators=axis_sep)
+        sch.set_axis_separator(primfunc_name, (buffer_type, 0), axis_separators=axis_sep)
 
     index_map: tvm.tir.IndexMap = call.attrs.index_map
     pad_value = call.attrs.pad_value
@@ -199,7 +198,7 @@ def _layout_transform(bb: BlockBuilder, call: Call) -> Expr:
     input_axis_separators: tvm.tir.IndexMap.AXIS_SEPARATOR = call.attrs.input_axis_separators
 
     # Convert to list from array
-    axis_separators = list(map(lambda x: x.value, axis_separators))
+    axis_separators = [int(sep) for sep in axis_separators]
     primfunc_name = "te_layout_transform"
     _, padding_predicate = index_map.non_surjective_inverse(call.args[0].struct_info.shape)
     if not isinstance(padding_predicate, tvm.tir.expr.IntImm):
@@ -214,7 +213,7 @@ def _layout_transform(bb: BlockBuilder, call: Call) -> Expr:
     sch.transform_layout(primfunc_name, ("write", 0), index_map, pad_value)
     set_axis_sep(axis_separators, sch, "write")
     if input_axis_separators is not None:
-        input_axis_separators = list(map(lambda x: x.value, input_axis_separators))
+        input_axis_separators = [int(sep) for sep in input_axis_separators]
         set_axis_sep(input_axis_separators, sch, "read")
     gvar = bb.add_func(sch.mod["main"], primfunc_name)
     output_shape = index_map.map_shape(list(call_args[0].struct_info.shape))

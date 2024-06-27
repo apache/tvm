@@ -72,7 +72,7 @@ Expr flatten(Expr x);
  */
 Expr layout_transform(Expr x, tir::IndexMap index_map, Optional<PrimValue> pad_value,
                       Optional<Array<IntImm>> axis_separators,
-                      Optional<Array<IntImm>> input_axis_separators);
+                      Optional<Array<IntImm>> input_axis_separators = NullOpt);
 
 /*!
  * \brief Permutes the dimensions of an array.

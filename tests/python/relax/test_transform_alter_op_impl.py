@@ -609,8 +609,6 @@ def test_input_axis_separator():
             for ax0, ax1 in T.grid(4, 4):
                 with T.block("T_add"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                    T.reads(arg0[v_ax0, v_ax1], arg1[v_ax0, v_ax1])
-                    T.writes(output0[v_ax0, v_ax1], output1[v_ax0, v_ax1])
                     output0[v_ax0, v_ax1] = arg0[v_ax0, v_ax1] + arg1[v_ax0, v_ax1]
                     output1[v_ax0, v_ax1] = arg0[v_ax0, v_ax1] - arg1[v_ax0, v_ax1]
 
@@ -633,8 +631,6 @@ def test_input_axis_separator():
         for ax0, ax1 in T.grid(4, 4):
             with T.block("T_add"):
                 v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
-                T.reads(arg0[v_ax0, v_ax1], arg1[v_ax0, v_ax1])
-                T.writes(output0[v_ax0, v_ax1], output1[v_ax0, v_ax1])
                 output0[v_ax0, v_ax1] = arg0[v_ax0, v_ax1] + arg1[v_ax0, v_ax1]
                 output1[v_ax0, v_ax1] = arg0[v_ax0, v_ax1] - arg1[v_ax0, v_ax1]
     # fmt: on
