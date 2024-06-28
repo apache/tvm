@@ -1812,6 +1812,7 @@ def vectorcombine(dtype, vec1, vec2):
     """
     return call_intrin(dtype, "tir.vectorcombine", vec1, vec2)
 
+
 def dp4a(vec1, vec2, acc = 0):
     """Dot product of two int8x4 vectors and add an optional accumulation
 
