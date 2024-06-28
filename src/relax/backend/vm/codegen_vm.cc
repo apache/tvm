@@ -45,6 +45,7 @@ using namespace relax;
 using namespace tvm::runtime;
 using namespace tvm::runtime::relax_vm;
 
+namespace {
 // Helper function to get the function name of the registered packed function implementation of
 // relax operator.
 FCallPacked GetPackedFuncName(const Call& call) {
@@ -57,6 +58,7 @@ FCallPacked GetPackedFuncName(const Call& call) {
   }
   return {};
 }
+}  // namespace
 
 /*!
  * \brief A class to generate VM executable for Relax functions.

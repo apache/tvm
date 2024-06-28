@@ -652,7 +652,7 @@ TVM_REGISTER_OP("relax.permute_dims")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.reshape */
-Expr ConvertNewShapeToExpr(const Expr& data, const ObjectRef& shape) {
+Expr ConvertNewShapeToExpr(const Expr& data, const Variant<Expr, Array<PrimExpr>>& shape) {
   const ArrayNode* array;
   // Treat shape expressions as constant arrays to handle special values.
   if (const auto* e = shape.as<ShapeExprNode>()) {
@@ -745,7 +745,7 @@ Expr ConvertNewShapeToExpr(const Expr& data, const ObjectRef& shape) {
   return ShapeExpr(array_ref);
 }
 
-Expr reshape(Expr x, ObjectRef shape) {
+Expr reshape(Expr x, Variant<Expr, Array<PrimExpr>> shape) {
   Expr shape_in_expr = ConvertNewShapeToExpr(x, shape);
   static const Op& op = Op::Get("relax.reshape");
   return Call(op, {std::move(x), std::move(shape_in_expr)}, Attrs(), {});
@@ -810,7 +810,7 @@ TVM_REGISTER_OP("relax.reshape")
 /* relax.split */
 TVM_REGISTER_NODE_TYPE(SplitAttrs);
 
-Expr split(Expr x, ObjectRef indices_or_sections, int axis) {
+Expr split(Expr x, Variant<IntImm, Array<IntImm>> indices_or_sections, int axis) {
   ObjectPtr<SplitAttrs> attrs = make_object<SplitAttrs>();
   if (const auto* indices = indices_or_sections.as<ArrayNode>()) {
     for (int i = 0; i < static_cast<int>(indices->size()); ++i) {

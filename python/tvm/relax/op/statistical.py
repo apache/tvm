@@ -195,7 +195,7 @@ def cumprod(
     data: Expr,
     axis: Optional[int] = None,
     dtype: Optional[Union[str, DataType]] = None,
-    exclusive: Optional[bool] = None,
+    exclusive: bool = False,
 ):
     """Numpy style cumprod op. Return the cumulative product of the elements along
     a given axis.
@@ -213,9 +213,9 @@ def cumprod(
         Type of the returned array and of the accumulator in which the elements are computed.
         If dtype is not specified, it defaults to the dtype of data.
 
-    exclusive : Optional[bool]
-        If true will return exclusive sum in which the first element is not
-        included.
+    exclusive : bool
+        If false (default), all elements are included in the product.  If
+        true, the first element is excluded from the product.
 
     Returns
     -------
@@ -247,6 +247,9 @@ def cumprod(
         cumprod(a, dtype=int32)  # dtype should be provided to get the expected results
         -> [1, 1, 1, 0, 0, 0, 0]
     """
+    if exclusive is None:
+        exclusive = False
+
     return _ffi_api.cumprod(data, axis, dtype, exclusive)  # type: ignore
 
 
@@ -254,7 +257,7 @@ def cumsum(
     data: Expr,
     axis: Optional[int] = None,
     dtype: Optional[Union[str, DataType]] = None,
-    exclusive: Optional[bool] = None,
+    exclusive: bool = False,
 ):
     """Numpy style cumsum op. Return the cumulative inclusive sum of the elements along
     a given axis.
@@ -272,9 +275,9 @@ def cumsum(
         Type of the returned array and of the accumulator in which the elements are summed.
         If dtype is not specified, it defaults to the dtype of data.
 
-    exclusive : Optional[bool]
-        If true will return exclusive sum in which the first element is not
-        included.
+    exclusive : bool
+        If false (default), all elements are included in the sum.  If
+        true, the first element is excluded from the sum.
 
     Returns
     -------
@@ -306,6 +309,9 @@ def cumsum(
         cumsum(a, dtype=int32)  # dtype should be provided to get the expected results
         -> [1, 1, 2, 2, 3, 4, 4]
     """
+    if exclusive is None:
+        exclusive = False
+
     return _ffi_api.cumsum(data, axis, dtype, exclusive)  # type: ignore
 
 

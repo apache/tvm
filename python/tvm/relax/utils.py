@@ -97,6 +97,9 @@ def convert_to_expr(value: Any) -> Expr:
     if isinstance(value, int):
         return PrimValue(tir.IntImm("int64", value))
 
+    if isinstance(value, float):
+        return PrimValue(tir.FloatImm("float64", value))
+
     tvm_value = convert_to_object(value)
     # Case 1
     if isinstance(tvm_value, Expr):  # type: ignore

@@ -44,6 +44,21 @@ namespace relax_vm {
 
 using vm::VMFuncInfo;
 
+namespace {
+// Helper function to get the function name of the registered packed function implementation of
+// relax operator.
+FCallPacked GetPackedFuncName(const Call& call) {
+  static auto op_map = Op::GetAttrMap<FCallPacked>("FCallPacked");
+  if (call->op.as<OpNode>()) {
+    Op op = Downcast<Op>(call->op);
+    if (op_map.count(op)) {
+      return op_map[op];
+    }
+  }
+  return {};
+}
+}  // namespace
+
 /*!
  * \brief A class to generate VMTIR for Relax functions.
  *
@@ -232,7 +247,14 @@ class CodeGenVMTIR : public ExprFunctor<Optional<PrimExpr>(const Expr&)> {
     }
     int64_t dst_reg = HasVoidStructInfo(call) ? -1 : NewRegister();
     if (call->op.as<OpNode>()) {
-      if (call_node->op == call_builtin_with_ctx_op_) {
+      // special case generate for the intrinsics whose attribute fields
+      // cannot be represented by args in the CallNode
+      FCallPacked name = GetPackedFuncName(call);
+      if (name.size()) {
+        // If the operator has a registered packed function implementation, emit call to that packed
+        // function.
+        EmitCallPacked(name, VisitArray(call->args), dst_reg);
+      } else if (call_node->op == call_builtin_with_ctx_op_) {
         EmitCallBuiltinWithCtx(call, dst_reg);
       } else if (call_node->op == alloc_storage_op_) {
         EmitAllocStorage(call, dst_reg);
@@ -260,10 +282,8 @@ class CodeGenVMTIR : public ExprFunctor<Optional<PrimExpr>(const Expr&)> {
     size_t merge_register = NewRegister();
     PrimExpr cond_value = this->VisitExpr(op->cond).value();
 
-    // turn ndarray cond value into scalar.
-    cond_value = tir::Cast(DataType::Bool(),
-                           tir::Call(DataType::Int(32), tir::builtin::tvm_call_packed(),
-                                     {tir::StringImm("vm.builtin.read_if_cond"), cond_value}));
+    cond_value = tir::Call(DataType::Bool(), tir::builtin::tvm_call_packed(),
+                           {tir::StringImm("vm.builtin.read_if_cond"), cond_value});
 
     tir::Stmt true_branch = WithNewScope([&]() {
       PrimExpr true_value = this->VisitExpr(op->true_branch).value();

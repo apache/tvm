@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name, unused-argument
 """Gradient definitions for Relay operators"""
+import tvm
 from tvm.topi.nn.utils import get_pad_tuple
 from tvm.topi.utils import get_const_tuple
 from tvm.error import OpError
@@ -383,6 +384,8 @@ def concatenate_grad(orig, grad):
     axis_dims = [ty.shape[orig.attrs.axis] for ty in t.checked_type.fields]
     splits, cumsum = [], 0
     for dim in axis_dims[:-1]:
+        if isinstance(dim, tvm.tir.IntImm):
+            dim = dim.value
         cumsum += dim
         splits.append(cumsum)
 

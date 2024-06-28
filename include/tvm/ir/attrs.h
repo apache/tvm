@@ -265,7 +265,16 @@ class DictAttrs : public Attrs {
 
     auto it = node->dict.find(attr_key);
     if (it != node->dict.end()) {
-      return Downcast<Optional<TObjectRef>>((*it).second);
+      // For backwards compatibility, return through TVMRetValue.
+      // This triggers any automatic conversions registered with
+      // PackedFuncValueConverter.  Importantly, this allows use of
+      // `GetAttr<Integer>` and `GetAttr<Bool>` for properties that
+      // are stored internally as `runtime::Box<int64_t>` and
+      // `runtime::Box<bool>`.
+      TVMRetValue ret;
+      ret = (*it).second;
+      Optional<TObjectRef> obj = ret;
+      return obj;
     } else {
       return default_value;
     }
@@ -316,6 +325,46 @@ inline TAttrs AttrsWithDefaultValues() {
 }
 
 /*!
+ * \brief Copy the DictAttrs, but overrides attributes with the
+ * entries from \p attrs.
+ *
+ * \param attrs The DictAttrs to update
+ *
+ * \param new_attrs Key/values attributes to add to \p attrs.
+ *
+ * \returns The new DictAttrs with updated attributes.
+ */
+DictAttrs WithAttrs(DictAttrs attrs, Map<String, ObjectRef> new_attrs);
+
+/*!
+ * \brief Copy the DictAttrs, but overrides a single attribute.
+ *
+ * \param attrs The DictAttrs to update
+ *
+ * \param key The update to insert or update.
+ *
+ * \param value The new value of the attribute
+ *
+ * \returns The new DictAttrs with updated attributes.
+ */
+DictAttrs WithAttr(DictAttrs attrs, String key, ObjectRef value);
+
+inline DictAttrs WithAttr(DictAttrs attrs, const std::string& key, ObjectRef value) {
+  return WithAttr(std::move(attrs), String(key), std::move(value));
+}
+
+/*!
+ * \brief Copy the DictAttrs, but without a specific attribute.
+ *
+ * \param attrs The DictAttrs to update
+ *
+ * \param key The key to remove
+ *
+ * \returns The new DictAttrs with updated attributes.
+ */
+DictAttrs WithoutAttr(DictAttrs attrs, const std::string& key);
+
+/*!
  * \brief Copy the function or module, but overrides
  *        the attribute value key with the value.
  *
@@ -347,12 +396,8 @@ inline TFunc WithAttr(TFunc input, const std::string& attr_key, ObjectRef attr_v
   using TNode = typename TFunc::ContainerType;
   static_assert(TNode::_type_final, "Can only operate on the leaf nodes");
   TNode* node = input.CopyOnWrite();
-  if (node->attrs.defined()) {
-    node->attrs.CopyOnWrite()->dict.Set(attr_key, attr_value);
-  } else {
-    Map<String, ObjectRef> dict = {{attr_key, attr_value}};
-    node->attrs = DictAttrs(dict);
-  }
+  node->attrs = WithAttr(std::move(node->attrs), attr_key, attr_value);
+
   return input;
 }
 
@@ -371,13 +416,9 @@ inline TFunc WithAttrs(TFunc input, Map<String, ObjectRef> attrs) {
   using TNode = typename TFunc::ContainerType;
   static_assert(TNode::_type_final, "Can only operate on the leaf nodes");
   TNode* node = input.CopyOnWrite();
-  if (node->attrs.defined()) {
-    for (const auto& pair : attrs) {
-      node->attrs.CopyOnWrite()->dict.Set(pair.first, pair.second);
-    }
-  } else {
-    node->attrs = DictAttrs(std::move(attrs));
-  }
+
+  node->attrs = WithAttrs(std::move(node->attrs), attrs);
+
   return input;
 }
 
@@ -412,10 +453,9 @@ inline TFunc WithoutAttr(TFunc input, const std::string& attr_key) {
   using TNode = typename TFunc::ContainerType;
   static_assert(TNode::_type_final, "Can only operate on the leaf nodes");
 
-  if (input->attrs.defined()) {
-    TNode* node = input.CopyOnWrite();
-    node->attrs.CopyOnWrite()->dict.erase(attr_key);
-  }
+  TNode* node = input.CopyOnWrite();
+  node->attrs = WithoutAttr(std::move(node->attrs), attr_key);
+
   return input;
 }
 

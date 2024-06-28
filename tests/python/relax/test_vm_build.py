@@ -566,7 +566,7 @@ def test_vm_relax_symbolic_prim_value(exec_mode):
 
     assert func(2) == 4
 
-    with pytest.raises(tvm.TVMError):
+    with pytest.raises(TypeError):
         func(ShapeTuple([2]))
 
 

@@ -226,6 +226,8 @@ class NDArray : public ObjectRef {
 
  protected:
   friend class TVMPODValue_;
+  template <typename Derived>
+  friend class TVMPODValue_CRTP_;
   friend class TVMRetValue;
   friend class TVMArgsSetter;
   /*!

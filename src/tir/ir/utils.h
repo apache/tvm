@@ -1,4 +1,3 @@
-
 /*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -18,31 +17,35 @@
  * under the License.
  */
 
-#include <tvm/relay/transform.h>
-#include <tvm/target/target.h>
+/*!
+ * \file tir/ir/utils.h
+ * \brief Utilities for manipulating TIR
+ */
+#ifndef TVM_TIR_IR_UTILS_H_
+#define TVM_TIR_IR_UTILS_H_
 
-#include "../../../../target/parsers/cpu.h"
-#include "compiler_attrs.h"
+#include <tvm/tir/expr.h>
 
 namespace tvm {
+namespace tir {
 
-namespace relay {
-namespace contrib {
-namespace cmsisnn {
+/* \brief Normalize an ObjectRef held
+ *
+ * Where possible, the IR should be normalized contain IR types.  For
+ * example, holding a `tir::IntImm` instead of a `runtime::Int`.  In
+ * attributes, this is not always possible, as attributes may refer to
+ * non-IR objects.
+ *
+ * This function normalizes any `runtime::Int`, `runtime::Bool`,
+ * `runtime::Float`, or containers of those types to the corresponding
+ * IR type.
+ *
+ * \param obj The attribute object to be normalized
+ *
+ * \returns The normalized attribute
+ */
+ObjectRef NormalizeAttributeObject(ObjectRef obj);
 
-tvm::transform::Pass RelayToTIR();
-runtime::Module TIRToRuntime(IRModule mod, Target target);
-using FTVMTIRToRuntime = tvm::runtime::TypedPackedFunc<runtime::Module(IRModule, Target)>;
-
-TVM_REGISTER_TARGET_KIND("cmsis-nn", kDLCPU)
-    .add_attr_option<Array<String>>("mattr")
-    .add_attr_option<String>("mcpu")
-    .add_attr_option<runtime::Bool>("debug_last_error")
-    .set_attr<relay::transform::FTVMRelayToTIR>(tvm::attr::kRelayToTIR, RelayToTIR())
-    .set_attr<FTVMTIRToRuntime>("TIRToRuntime", TIRToRuntime)
-    .set_target_parser(tvm::target::parsers::cpu::ParseTarget);
-
-}  // namespace cmsisnn
-}  // namespace contrib
-}  // namespace relay
+}  // namespace tir
 }  // namespace tvm
+#endif  // TVM_TIR_IR_UTILS_H_

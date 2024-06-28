@@ -404,7 +404,7 @@ def test_call_packed():
             "op": 'ExternFunc(global_symbol="contrib.tensor_array_stack")',
             "args": '[Var(name_hint="x"), Var(name_hint="y")]',
             "sinfo_args": "[ObjectStructInfo()]",
-            "attrs": '{"test_attr": 1}',
+            "attrs": '{"test_attr": True}',
         },
         extern_call_text,
     )

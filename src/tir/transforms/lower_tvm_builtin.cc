@@ -511,6 +511,8 @@ class BuiltinLower : public StmtExprMutator {
         arg_tcode = kTVMStr;
       } else if (IsArrayHandle(arg)) {
         arg_tcode = kTVMDLTensorHandle;
+      } else if (arg.dtype().is_bool()) {
+        arg_tcode = kTVMArgBool;
       }
       // opaque handle need to set the kind properly
       if (arg_tcode == kTVMOpaqueHandle) {
