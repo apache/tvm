@@ -122,6 +122,11 @@ class LoopHeightError : public ScheduleError {
         }
         // loop_var of a higher loop shouldn't contain loop var
         const Var& loop_var = higher_loop->StmtAs<ForNode>()->loop_var;
+        // if the loop_var is thread binded, we can skip the LoopHeightError check
+        // because the thread binded loop_var is not going to be code generated 
+        if (higher_loop->StmtAs<ForNode>()->thread_binding) {
+          continue;
+        }
         if (UsesVar(binding, [v = loop_var.get()](const VarNode* var) { return var == v; })) {
           const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
           throw LoopHeightError(mod, GetRef<For>(loop), GetRef<Block>(block));
