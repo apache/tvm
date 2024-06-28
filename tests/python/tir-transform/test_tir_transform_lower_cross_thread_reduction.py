@@ -1128,6 +1128,7 @@ def lowered_softmax(var_A: T.handle, var_T_softmax_norm: T.handle) -> None:
                     k = T.axis.reduce(256, ax0_0 * 32 + ax0_1)
                     T.reads([A[i0_1, k]])
                     T.writes([normal_reduce_temp0[0]])
+                    T.block_attr({"tir.cross_thread_reduction_applied": T.bool(True)})
                     normal_reduce_temp0[0] = T.max(normal_reduce_temp0[0], A[i0_1, k])
             with T.block("T_softmax_maxelem_cross_thread_reduction"):
                 T.reads([normal_reduce_temp0[0]])
@@ -1169,6 +1170,7 @@ def lowered_softmax(var_A: T.handle, var_T_softmax_norm: T.handle) -> None:
                         ]
                     )
                     T.writes([normal_reduce_temp1[0]])
+                    T.block_attr({"tir.cross_thread_reduction_applied": T.bool(True)})
                     normal_reduce_temp1[0] = normal_reduce_temp1[0] + T.exp(
                         A[i0_3, k] - T_softmax_maxelem_shared[i0_3], dtype="float32"
                     )
@@ -1268,6 +1270,7 @@ def lowered_argmax_split(
                     k = T.axis.reduce(128, i1_0 * 32 + i1_1)
                     T.reads(idx[i, k], val[i, k])
                     T.writes(in_thread_argmax_v0[0], in_thread_argmax_v1[0])
+                    T.block_attr({"tir.cross_thread_reduction_applied": T.bool(True)})
                     v_argmax_v0: T.int32 = T.Select(
                         in_thread_argmax_v1[0] >= val[i, k], in_thread_argmax_v0[0], idx[i, k]
                     )
@@ -1360,6 +1363,7 @@ def lowered_argmin_split_init_update_reordered(
                     k = T.axis.reduce(128, i1_0 * 32 + i1_1)
                     T.reads(idx[i, k], val[i, k])
                     T.writes(in_thread_argmin_v0[0], in_thread_argmin_v1[0])
+                    T.block_attr({"tir.cross_thread_reduction_applied": T.bool(True)})
                     v_argmin_v0: T.int32 = T.Select(
                         in_thread_argmin_v1[0] <= val[i, k], in_thread_argmin_v0[0], idx[i, k]
                     )
@@ -1485,6 +1489,7 @@ def lowered_layer_norm_tuple_sum(
                     k1 = T.axis.reduce(768, i1_0 * 32 + i1_1)
                     T.reads(data[ax0, k1])
                     T.writes(in_thread_data_red_temp_v0[0], in_thread_data_red_temp_v1[0])
+                    T.block_attr({"tir.cross_thread_reduction_applied": T.bool(True)})
                     v_data_red_temp_v0: T.float32 = in_thread_data_red_temp_v0[0] + data[ax0, k1]
                     v_data_red_temp_v1: T.float32 = (
                         in_thread_data_red_temp_v1[0] + data[ax0, k1] * data[ax0, k1]
@@ -1692,6 +1697,7 @@ def lowered_thread_broadcast_2(lv1605: T.Buffer((T.int64(1), T.int64(32), T.int6
                     T.where(T.int64(0) <= ax0_ax1_fused // n and ax0_ax1_fused // n < T.int64(32) and T.int64(0) <= ax0_ax1_fused % n and ax0_ax1_fused % n < n)
                     T.reads(var_NT_matmul_intermediate_rf_local[vax2_fused_1, T.int64(0), v0, T.int64(0), v1])
                     T.writes(in_thread_var_NT_matmul_intermediate_local[0])
+                    T.block_attr({"tir.cross_thread_reduction_applied": T.bool(True)})
                     in_thread_var_NT_matmul_intermediate_local[0] = in_thread_var_NT_matmul_intermediate_local[0] + var_NT_matmul_intermediate_rf_local[vax2_fused_1, T.int64(0), v0, T.int64(0), v1]
                 with T.block("NT_matmul_cross_thread"):
                     T.reads(in_thread_var_NT_matmul_intermediate_local[0])
