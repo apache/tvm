@@ -74,6 +74,7 @@ def lowered_loop_split(a: T.handle, b: T.handle) -> None:
                     vk = T.axis.R(128, ko * 32 + ki)
                     T.reads([A[vi, vk]])
                     T.writes([normal_reduce_temp0[0]])
+                    T.block_attr({"tir.cross_thread_reduction_applied": T.bool(True)})
                     normal_reduce_temp0[0] = normal_reduce_temp0[0] + A[vi, vk]
             with T.block("B_cross_thread_reduction"):
                 T.reads([normal_reduce_temp0[0]])
@@ -250,6 +251,7 @@ def lowered_multiple_blocks_under_reduction_loop(a: T.handle, b: T.handle) -> No
                     vi = T.axis.spatial(16, i)
                     T.reads([B_rf_local[vk0, vi]])
                     T.writes([normal_reduce_temp0[0]])
+                    T.block_attr({"tir.cross_thread_reduction_applied": T.bool(True)})
                     normal_reduce_temp0[0] = normal_reduce_temp0[0] + B_rf_local[vk0, vi]
             with T.block("B_cross_thread_reduction"):
                 T.reads([normal_reduce_temp0[0]])
@@ -313,6 +315,7 @@ def lowered_with_block_predicate(a: T.handle, b: T.handle) -> None:
                     T.where(ko * 32 + ki < 120)
                     T.reads([A[vi, vk]])
                     T.writes([normal_reduce_temp0[0]])
+                    T.block_attr({"tir.cross_thread_reduction_applied": T.bool(True)})
                     normal_reduce_temp0[0] = normal_reduce_temp0[0] + A[vi, vk]
             with T.block("B_cross_thread_reduction"):
                 T.reads([normal_reduce_temp0[0]])
@@ -414,6 +417,7 @@ def lowered_single_reduction_loop_with_block_predicate(
                         k = T.axis.reduce(256, ax1_0 * 512 + ax1_1)
                         T.reads(A[i0_1, k])
                         T.writes(in_thread_0[0])
+                        T.block_attr({"tir.cross_thread_reduction_applied": T.bool(True)})
                         in_thread_0[0] = T.max(in_thread_0[0], A[i0_1, k])
                 with T.block("T_softmax_maxelem_cross_thread"):
                     T.reads(in_thread_0[0])
@@ -454,6 +458,7 @@ def lowered_single_reduction_loop_with_block_predicate(
                         k = T.axis.reduce(256, ax1_0 * 512 + ax1_1)
                         T.reads(A[i0_3, k], T_softmax_maxelem_shared[i0_3])
                         T.writes(in_thread_1[0])
+                        T.block_attr({"tir.cross_thread_reduction_applied": T.bool(True)})
                         in_thread_1[0] = in_thread_1[0] + T.exp(
                             A[i0_3, k] - T_softmax_maxelem_shared[i0_3], dtype="float32"
                         )
@@ -683,6 +688,7 @@ def lowered_spatial_reduction_with_shared_prefetch(
                             v2 = T.axis.reduce(150528, ax2_0 * 384 + ax2_1_0 * 2 + ax2_1_1_fused)
                             T.reads(A_shared[v0, v2], B_shared[v1, v2])
                             T.writes(in_thread_C_local[0])
+                            T.block_attr({"tir.cross_thread_reduction_applied": T.bool(True)})
                             in_thread_C_local[0] = (
                                 in_thread_C_local[0] + A_shared[v0, v2] * B_shared[v1, v2]
                             )
@@ -754,6 +760,7 @@ def lowered_reduction_spatial_loop_predicate(
                         T.where(i_0 * 16 + i_1 < 2 and k_0 * 64 + k_1 < 32)
                         T.reads(A[vi, vk])
                         T.writes(in_thread_B[0])
+                        T.block_attr({"tir.cross_thread_reduction_applied": T.bool(True)})
                         in_thread_B[0] = in_thread_B[0] + A[vi, vk]
                 with T.block("block_cross_thread"):
                     T.reads(in_thread_B[0])
@@ -986,21 +993,6 @@ def multiple_bufferstore(a: T.handle, b: T.handle) -> None:
                     B[vi] = T.float32(0)
                 C[()] = A[vi, vk]
                 B[vi] = B[vi] + C[()]
-
-
-@T.prim_func
-def reduction_loop_not_deepest(a: T.handle, b: T.handle) -> None:
-    A = T.match_buffer(a, [128, 128], dtype="float32")
-    B = T.match_buffer(b, [128], dtype="float32")
-    for k in T.thread_binding(0, 128, thread="threadIdx.x"):
-        for i in T.serial(0, 128):
-            with T.block("B"):
-                vi, vk = T.axis.remap("SR", [i, k])
-                T.reads([A[vi, vk]])
-                T.writes([B[vi]])
-                with T.init():
-                    B[vi] = T.float32(0)
-                B[vi] = B[vi] + A[vi, vk]
 
 
 @T.prim_func
@@ -1855,10 +1847,6 @@ def test_zero_rank_buffer():
 
 def test_multiple_bufferstore():
     _check_fail(multiple_bufferstore)
-
-
-def test_reduction_block_not_deepest():
-    _check_fail(reduction_loop_not_deepest)
 
 
 def test_reduction_loop_bound_to_blockidx():
