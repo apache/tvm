@@ -45,6 +45,9 @@ class DFPatternMatcher : public DFPatternFunctor<bool(const DFPattern&, const Ex
   bool Match(const DFPattern& pattern, const Expr& expr);
   Map<DFPattern, Array<Expr>> GetMemo() { return Map<DFPattern, Array<Expr>>(memo_); }
 
+  /* \brief Unwrap trivial expressions/bindings */
+  static Expr UnwrapBindings(Expr expr, const Map<Var, Expr>& bindings);
+
  protected:
   bool VisitDFPattern(const DFPattern& pattern, const Expr& expr) override;
   bool VisitDFPattern_(const OrPatternNode* op, const Expr& expr) override;
