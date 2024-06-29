@@ -20,11 +20,11 @@
 import builtins
 import functools
 import inspect
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union, Type
 
 import tvm
 from tvm import DataType, relax
-from tvm.ir import PrimExpr, VDevice
+from tvm.ir import PrimExpr, VDevice, IRModule
 from tvm.relax import (
     Call,
     Expr,
@@ -35,6 +35,7 @@ from tvm.relax import (
     VarBinding,
     const,
 )
+from tvm.relax.dpl import ExprRewriter
 
 ############################### Operators ###############################
 from tvm.relax.op import (
@@ -304,6 +305,48 @@ def func_ret_value(value: Expr) -> None:
         The function return value.
     """
     return _ffi_api.FuncRetValue(value)  # type: ignore[attr-defined] # pylint: disable=no-member
+
+
+def rewriter(rewriter_mod: Union[IRModule, Type]) -> ExprRewriter:
+    """Define a pattern-rewrite rule
+
+    The IRModule must have two publicly-exposed functions, `pattern`
+    and `replacement`, where `pattern` and `replacement` have the same
+    function signature.
+
+    .. code-block:: python
+
+        @R.rewriter
+        class RewriteAddIntoMultiply:
+            @R.function
+            def pattern(A: R.Tensor):
+                B = A + A
+                return B
+
+            @R.function
+            def replacement(A: R.Tensor):
+                B = A * 2
+                return B
+
+    Parameters
+    ----------
+    rewriter_mod: Union[IRModule, Type]
+
+        Either an IRModule that defines a rewrite pattern, or a
+        TVMScript class that can be parsed into an IRModule.
+
+    Returns
+    -------
+    rewriter: ExprRewriter
+
+        A rewriter object, which can be applied either to a Relax
+        function or to an entire IRModule.
+
+    """
+    if not isinstance(rewriter_mod, IRModule):
+        rewriter_mod = tvm.script.ir_module(rewriter_mod)
+
+    return ExprRewriter.from_module(rewriter_mod)
 
 
 ############################# BindingBlock ##############################
@@ -765,6 +808,7 @@ __all__ = [
     "dequantize",
     "repeat",
     "reshape",
+    "rewriter",
     "tensor_to_shape",
     "shape_to_tensor",
     "rocm",

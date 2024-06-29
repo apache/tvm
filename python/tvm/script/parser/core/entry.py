@@ -83,7 +83,8 @@ def parse(
         The parsed TVMScript program.
     """
     if extra_vars is None:
-        extra_vars = _default_globals()
+        extra_vars = {}
+    extra_vars = {**extra_vars, **_default_globals()}
 
     ann = {}
     if inspect.isfunction(program):

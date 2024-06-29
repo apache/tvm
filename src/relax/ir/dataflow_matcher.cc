@@ -101,14 +101,13 @@ bool DFPatternMatcher::VisitDFPattern(const DFPattern& pattern, const Expr& expr
 
   auto expr = UnwrapBindings(expr0, var2val_);
   if (memoize_ && memo_.count(pattern)) {
-    ICHECK_EQ(memo_[pattern].size(), 1);
-    return expr.same_as(memo_[pattern][0]);
+    return expr.same_as(memo_[pattern]);
   } else {
     PrimExpr cached_condition = symbolic_expr_condition_;
     size_t watermark = matched_nodes_.size();
     bool out = DFPatternFunctor::VisitDFPattern(pattern, expr);
     if (out) {
-      memo_[pattern].push_back(expr);
+      memo_[pattern] = expr;
       matched_nodes_.push_back(pattern);
     } else {
       ClearMap(watermark);

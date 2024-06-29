@@ -15,16 +15,75 @@
 # specific language governing permissions and limitations
 # under the License.
 """APIs for pattern-based rewriting."""
-from typing import Dict, Callable
+
+from typing import Dict, Callable, Union
 from .pattern import DFPattern
 from .context import PatternContext
 
+from tvm.ir import IRModule
+from tvm.runtime import Object
+from tvm._ffi import register_object
 from ..expr import Expr, Function, Var
 from . import _ffi as ffi
 
 
+@register_object("relax.dpl.ExprRewriter")
+class ExprRewriter(Object):
+    @staticmethod
+    def from_pattern(
+        pattern: DFPattern,
+        func: Callable[[Expr, Dict[DFPattern, Expr]], Expr],
+    ) -> "ExprRewriter":
+        return ffi.ExprRewriterFromPattern(
+            pattern,
+            func,
+        )  # type: ignore
+
+    @staticmethod
+    def from_module(mod: IRModule) -> "ExprRewriter":
+        return ffi.ExprRewriterFromModule(mod)  # type: ignore
+
+    def __call__(self, obj: Union[Expr, IRModule]) -> Union[Expr, IRModule]:
+        return ffi.ExprRewriterApply(self, obj)
+
+    def __or__(self, other: "ExprRewriter") -> "ExprRewriter":
+        return OrRewriter(self, other)
+
+
+@register_object("relax.dpl.PatternRewriter")
+class PatternRewriter(ExprRewriter):
+    def __init__(self, pattern, func):
+        self.__init_handle_by_constructor__(
+            ffi.PatternRewriter,
+            pattern,
+            func,
+        )  # type: ignore
+
+
+@register_object("relax.dpl.OrRewriter")
+class OrRewriter(ExprRewriter):
+    def __init__(self, lhs, rhs):
+        self.__init_handle_by_constructor__(
+            ffi.OrRewriter,
+            lhs,
+            rhs,
+        )  # type: ignore
+
+
+@register_object("relax.dpl.TupleRewriter")
+class TupleRewriter(ExprRewriter):
+    def __init__(self, patterns, func):
+        self.__init_handle_by_constructor__(
+            ffi.TupleRewriter,
+            patterns,
+            func,
+        )  # type: ignore
+
+
 def rewrite_call(
-    pattern: DFPattern, rewriter: Callable[[Expr, Dict[DFPattern, Expr]], Expr], func: Function
+    pattern: DFPattern,
+    rewriter: Callable[[Expr, Dict[DFPattern, Expr]], Expr],
+    func: Function,
 ) -> Function:
     """
     Rewrite a function with the given pattern and the rewriter function.

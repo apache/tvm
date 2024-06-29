@@ -19,4 +19,4 @@
 
 from .pattern import *
 from .context import *
-from .rewrite import rewrite_call, rewrite_bindings
+from .rewrite import rewrite_call, rewrite_bindings, ExprRewriter, PatternRewriter, OrRewriter
