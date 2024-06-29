@@ -817,7 +817,7 @@ TVM_DLL const Op& vectorlow();
 TVM_DLL const Op& vectorcombine();
 
 /*!
- * \brief Dot product of two int8x4 vectors and add an optional accumulation
+ * \brief Dot product of two int8x4 vectors and add an optional accumulator
  */
 TVM_DLL const Op& dp4a();
 
