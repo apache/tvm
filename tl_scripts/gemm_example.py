@@ -1,3 +1,4 @@
+import argparse
 import torch
 from tvm import tl
 import tvm.tl.language as T
@@ -28,7 +29,15 @@ def ref_program(A, B):
 
 
 if __name__ == "__main__":
-    M, N, K, block_M, block_N, block_K = 8192, 8192, 8192, 128, 128, 32
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--m', type=int, default=8192, help='M')
+    parser.add_argument('--n', type=int, default=8192, help='N')
+    parser.add_argument('--k', type=int, default=8192, help='K')
+    parser.add_argument('--bm', type=int, default=128, help='blockM')
+    parser.add_argument('--bn', type=int, default=128, help='blockN')
+    parser.add_argument('--bk', type=int, default=32, help='blockK')
+    args = parser.parse_args()
+    M, N, K, block_M, block_N, block_K = args.m, args.n, args.k, args.bm, args.bn, args.bk
     total_flops = 2 * M * N * K
     program = matmul(M, N, K, block_M, block_N, block_K)
     mod, params = tl.lower(program)
@@ -37,8 +46,8 @@ if __name__ == "__main__":
     mod.assert_allclose(ref_program)
 
     latency = mod.do_bench(ref_program, warmup=500)
-    print("{:.2f} ms".format(latency))
-    print("{:.2f} TFlops".format(total_flops / latency * 1e-9))
-    latency = mod.do_bench(mod.func)
-    print("{:.2f} ms".format(latency))
-    print("{:.2f} TFlops".format(total_flops / latency * 1e-9))
+    print("torch: {:.2f} ms".format(latency))
+    print("torch: {:.2f} TFlops".format(total_flops / latency * 1e-9))
+    latency = mod.do_bench(mod.func, warmup=500)
+    print("tl: {:.2f} ms".format(latency))
+    print("tl: {:.2f} TFlops".format(total_flops / latency * 1e-9))

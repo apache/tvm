@@ -1,3 +1,4 @@
+import argparse
 import torch
 from tvm import tl
 import tvm.tl.language as T
@@ -266,8 +267,15 @@ def ref_program(Q, K, V, casual):
 
 
 if __name__ == "__main__":
-    BATCH, H, N_CTX, D_HEAD = 64, 12, 2048, 64
-    casual = False
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--batch', type=int, default=1, help='Batch size')
+    parser.add_argument('--h', type=int, default=16, help='Number of heads')
+    parser.add_argument('--n_ctx', type=int, default=1024, help='Context size')
+    parser.add_argument('--d_head', type=int, default=64, help='Head dimension')
+    parser.add_argument('--casual', type=bool, default=True, help='Casual flag')
+    args = parser.parse_args()
+    BATCH, H, N_CTX, D_HEAD = args.batch, args.h, args.n_ctx, args.d_head
+    casual = args.casual
     flops_per_matmul = 2.0 * BATCH * H * N_CTX * N_CTX * D_HEAD
     total_flops = 5 * flops_per_matmul
     if casual:
@@ -306,8 +314,8 @@ if __name__ == "__main__":
     from tvm.tl.utils import do_bench
 
     latency = do_bench(run, warmup=500)
-    print("{:.2f} ms".format(latency))
-    print("{:.2f} TFlops".format(total_flops / latency * 1e-9))
-    latency = do_bench(run1)
-    print("{:.2f} ms".format(latency))
-    print("{:.2f} TFlops".format(total_flops / latency * 1e-9))
+    print("torch: {:.2f} ms".format(latency))
+    print("torch: {:.2f} TFlops".format(total_flops / latency * 1e-9))
+    latency = do_bench(run1, warmup=500)
+    print("tl: {:.2f} ms".format(latency))
+    print("tl: {:.2f} TFlops".format(total_flops / latency * 1e-9))

@@ -147,14 +147,14 @@ class Profiler(ConvertTorch):
         ins = self._get_inputs()
         return self.__call__(*ins)
 
-    def do_bench(self, func: callable, warmup=25, rep=100):
+    def do_bench(self, func: callable, warmup=25, rep=100, n_warmup=0, n_repeat=0):
         ins = self._get_inputs()
         bench_func = partial(func, *ins)
-        return do_bench(bench_func, warmup=warmup, rep=rep)
+        return do_bench(bench_func, warmup=warmup, rep=rep, _n_warmup=n_warmup, _n_repeat=n_repeat)
 
 
 def do_bench(
-    fn, warmup=25, rep=100, grad_to_none=None, quantiles=None, fast_flush=True, return_mode="mean"
+    fn, warmup=25, rep=100, _n_warmup=0, _n_repeat=0, grad_to_none=None, quantiles=None, fast_flush=True, return_mode="mean"
 ):
     """
     Benchmark the runtime of the provided function. By default, return the median runtime of :code:`fn` along with
@@ -199,6 +199,10 @@ def do_bench(
     # compute number of warmup and repeat
     n_warmup = max(1, int(warmup / estimate_ms))
     n_repeat = max(1, int(rep / estimate_ms))
+    if (_n_warmup > 0):
+        n_warmup = _n_warmup
+    if (_n_repeat > 0):
+        n_repeat = _n_repeat
     start_event = [torch.cuda.Event(enable_timing=True) for i in range(n_repeat)]
     end_event = [torch.cuda.Event(enable_timing=True) for i in range(n_repeat)]
     # Warm-up
