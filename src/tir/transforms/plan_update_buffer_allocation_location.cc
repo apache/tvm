@@ -112,6 +112,12 @@ class BufferAllocationLocator : public StmtExprMutator {
     collector(func->body);
     managed_allocations_ = collector.managed_allocations;
 
+    for (Var param : func->params) {
+      if (param->type_annotation.defined() && param->type_annotation.as<PointerTypeNode>()) {
+        unmanaged_allocations_.insert(param.get());
+      }
+    }
+
     for (const auto& kv : func->buffer_map) {
       const Buffer& buffer = kv.second;
       arg_buffer_vars.emplace(buffer->data.get());
