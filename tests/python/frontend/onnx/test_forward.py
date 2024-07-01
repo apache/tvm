@@ -322,8 +322,8 @@ def make_constant_node(name, data_type, dims, vals):
 
 
 def is_version_greater_than(ver):
-    return "".join(re.findall(r"(\d+\.)(\d+\.)(\d)", onnx.__version__)[0]) > "".join(
-        re.findall(r"(\d+\.)(\d+\.)(\d)", ver)[0]
+    return tuple(map(int, re.match(r"(\d+)\.(\d+)\.(\d+)", onnx.__version__).groups())) > tuple(
+        map(int, re.match(r"(\d+)\.(\d+)\.(\d+)", ver).groups())
     )
 
 
