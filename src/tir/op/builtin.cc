@@ -355,6 +355,11 @@ TIR_DEFINE_BUILTIN_FUNC(vectorcombine)
     .set_attr<TScriptDtypePrintLocation>("TScriptDtypePrintLocation",
                                          Integer(ScriptDtypePrintLocation::kFirst));
 
+TIR_DEFINE_BUILTIN_FUNC(dp4a)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kPure))
+    .set_attr<TScriptDtypePrintLocation>("TScriptDtypePrintLocation",
+                                         Integer(ScriptDtypePrintLocation::kFirst));
+
 TIR_DEFINE_BUILTIN_FUNC(atomic_add)
     .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
 

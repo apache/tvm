@@ -95,6 +95,7 @@ from .op import q_multiply_shift, q_multiply_shift_per_axis, shift_left, shift_r
 from .op import TVMBackendAllocWorkspace, TVMBackendFreeWorkspace
 from .op import start_profile_intrinsic, end_profile_intrinsic
 from .op import vscale, get_active_lane_mask, get_vscale_expr
+from .op import dp4a
 from .generic import add, subtract, multiply
 
 from .schedule import StmtSRef, BlockScope, ScheduleState, Schedule, ScheduleError
