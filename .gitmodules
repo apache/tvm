@@ -28,3 +28,6 @@
 [submodule "3rdparty/libflash_attn"]
 	path = 3rdparty/libflash_attn
 	url = https://github.com/tlc-pack/libflash_attn
+[submodule "cutlass"]
+	path = cutlass
+	url = https://github.com/NVIDIA/cutlass.git
