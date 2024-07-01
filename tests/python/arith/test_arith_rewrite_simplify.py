@@ -559,6 +559,7 @@ class TestFloordivIndex(BaseCompare):
         TestCase(fld(x * y, y), x, y >= 0),
         TestCase(fld(y * x, y), x, y >= 0),
         TestCase(fld(x * z + y, z), x + fld(y, z), z >= 0),
+        TestCase(fld(x * z * 2 + y, z * 2), x + fld(y, z * 2), z * 2 >= 0),
         TestCase(fld(z * x + y, z), x + fld(y, z), z >= 0),
         TestCase(fld(y + x * z, z), fld(y, z) + x, z >= 0),
         TestCase(fld(y + z * x, z), fld(y, z) + x, z >= 0),
@@ -616,6 +617,7 @@ class TestFloormodIndex(BaseCompare):
         TestCase(flm(x + y * (-10), 2), flm(x, 2)),
         TestCase(flm(x * 32 + y, 64), flm(x, 2) * 32 + y, [y >= 0, y < 32]),
         TestCase(flm(x * 32 - y, 64), flm(x * 32 - y, 64), [y >= 0, y < 32]),
+        TestCase(flm(x * z * 2 + y, z * 2), flm(y, z * 2), z * 2 >= 0),
         # NOTE: the followng case is covered by canonical simplify
         # long range simplifcation in general can be covered by canonical simplify
         # TestCase(flm(x * 10 + 1 + y * 2 + 2, 2), 1),
@@ -832,6 +834,12 @@ class TestScalableIndex(BaseCompare):
             x + tir.vscale() * 4 - flm(4, tir.vscale() * 4),
         ),
         TestCase(tvm.te.max(tir.vscale() * x, tir.vscale() * y), tir.vscale() * x, x > y),
+        # FloorDiv
+        TestCase(fld(x * tir.vscale() * 4 + y, tir.vscale() * 4), x + fld(y, tir.vscale() * 4)),
+        TestCase(fld(x, tir.vscale() * 4), 0, [x >= 0, x < tir.vscale() * 4]),
+        # FloorMod
+        TestCase(flm(x * tir.vscale() * 4 + y, tir.vscale() * 4), flm(y, tir.vscale() * 4)),
+        TestCase(flm(x, tir.vscale() * 4), x, [x >= 0, x < tir.vscale() * 4]),
     )
 
     def test_simplify(self, test_case):

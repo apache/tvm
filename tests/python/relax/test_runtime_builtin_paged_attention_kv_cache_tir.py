@@ -563,8 +563,7 @@ def test_paged_attention_kv_cache_fork_sequence(kv_cache_and_config):
     apply_attention(kv_cache, rope_mode, [((5, 0, -1), 20)], cached_k, cached_v)
     apply_attention(kv_cache, rope_mode, [((6, 5, -1), 102)], cached_k, cached_v)
     apply_attention(kv_cache, rope_mode, [((7, 0, -1), 3)], cached_k, cached_v)
-    apply_attention(kv_cache, rope_mode, [((8, 5, -1), 71)], cached_k, cached_v)
-    apply_attention(kv_cache, rope_mode, [((9, 5, -1), 20)], cached_k, cached_v)
+    apply_attention(kv_cache, rope_mode, [((8, 5, -1), 71), ((9, 5, -1), 20)], cached_k, cached_v)
     # 0 <- 5 <- 6,8,9
     # 0 <- 7
     # 3 <- 4
@@ -579,15 +578,16 @@ def test_paged_attention_kv_cache_fork_sequence(kv_cache_and_config):
         apply_attention(kv_cache, rope_mode, batch, cached_k, cached_v)
 
     apply_attention(kv_cache, rope_mode, [((10, 1, 33), 11)], cached_k, cached_v)
-    apply_attention(kv_cache, rope_mode, [((11, 0, 60), 45)], cached_k, cached_v)
-    apply_attention(kv_cache, rope_mode, [((12, 0, 15), 14)], cached_k, cached_v)
-    apply_attention(kv_cache, rope_mode, [((13, 0, 16), 19)], cached_k, cached_v)
-    apply_attention(kv_cache, rope_mode, [((14, 0, 17), 19)], cached_k, cached_v)
-    apply_attention(kv_cache, rope_mode, [((15, 5, 60), 8)], cached_k, cached_v)
-    apply_attention(kv_cache, rope_mode, [((16, 5, 80), 10)], cached_k, cached_v)
-    apply_attention(kv_cache, rope_mode, [((17, 5, 75), 11)], cached_k, cached_v)
-    apply_attention(kv_cache, rope_mode, [((18, 5, 76), 45)], cached_k, cached_v)
-    apply_attention(kv_cache, rope_mode, [((19, 5, 77), 14)], cached_k, cached_v)
+    apply_attention(kv_cache, rope_mode, [((11, 0, 60), 45), ((12, 0, 15), 14)], cached_k, cached_v)
+    apply_attention(kv_cache, rope_mode, [((13, 0, 16), 19), ((14, 0, 17), 19)], cached_k, cached_v)
+    apply_attention(kv_cache, rope_mode, [((15, 5, 60), 8), ((16, 5, 80), 10)], cached_k, cached_v)
+    apply_attention(
+        kv_cache,
+        rope_mode,
+        [((17, 5, 75), 11), ((18, 5, 76), 45), ((19, 5, 77), 14)],
+        cached_k,
+        cached_v,
+    )
 
     operation_seq = [
         [(6, 1), (11, 1), (13, 1), (9, 1)],
@@ -599,6 +599,57 @@ def test_paged_attention_kv_cache_fork_sequence(kv_cache_and_config):
         apply_attention(kv_cache, rope_mode, batch, cached_k, cached_v)
 
     num_sequence = 20
+    for i in range(num_sequence):
+        fremove_sequence(kv_cache, i)
+        cached_k.pop(i)
+        cached_v.pop(i)
+        verify_cached_kv(
+            kv_cache,
+            seq_ids=list(range(i + 1, num_sequence)),
+            expected_k=cached_k,
+            expected_v=cached_v,
+        )
+
+    assert fis_empty(kv_cache), "The KV cache is not empty after removing all sequences"
+
+
+@tvm.testing.requires_gpu
+@tvm.testing.requires_cuda
+def test_paged_attention_kv_cache_unlimited_depth(kv_cache_and_config):
+    kv_cache, rope_mode, support_sliding_window = kv_cache_and_config
+    if support_sliding_window and rope_mode == RopeMode.NORMAL:
+        # Normal RoPE mode under sliding window settings is not supported.
+        return
+    fclear(kv_cache)
+
+    cached_k = {}
+    cached_v = {}
+    apply_attention(kv_cache, rope_mode, [(0, 30)], cached_k, cached_v)
+    # Fork existing sequences.
+    apply_attention(kv_cache, rope_mode, [((1, 0, -1), 15)], cached_k, cached_v)
+    apply_attention(kv_cache, rope_mode, [((2, 1, -1), 5)], cached_k, cached_v)
+    apply_attention(kv_cache, rope_mode, [((3, 2, -1), 20)], cached_k, cached_v)
+    apply_attention(kv_cache, rope_mode, [((4, 3, -1), 26)], cached_k, cached_v)
+    apply_attention(kv_cache, rope_mode, [((5, 3, -1), 18)], cached_k, cached_v)
+    apply_attention(kv_cache, rope_mode, [((6, 5, -1), 22)], cached_k, cached_v)
+    apply_attention(kv_cache, rope_mode, [((7, 5, -1), 12)], cached_k, cached_v)
+    apply_attention(kv_cache, rope_mode, [((8, 7, -1), 29)], cached_k, cached_v)
+    apply_attention(kv_cache, rope_mode, [((9, 7, -1), 9)], cached_k, cached_v)
+    apply_attention(kv_cache, rope_mode, [((10, 9, -1), 31)], cached_k, cached_v)
+    apply_attention(kv_cache, rope_mode, [((11, 9, -1), 4)], cached_k, cached_v)
+    # 0 <- 1 <- 2 <- 3 <- 5 <- 7 <- 9 <- 11
+    #                |    |    |    |
+    #                4    6    8    10
+    # Decode.
+    operation_seq = [
+        [(3, 1), (6, 1), (9, 1)],
+        [(4, 1), (8, 1), (10, 1)],
+        [(5, 1), (7, 1), (11, 1)],
+    ]
+    for batch in operation_seq:
+        apply_attention(kv_cache, rope_mode, batch, cached_k, cached_v)
+
+    num_sequence = 12
     for i in range(num_sequence):
         fremove_sequence(kv_cache, i)
         cached_k.pop(i)
@@ -1181,8 +1232,8 @@ def _attention_prefill(
 
                                 if T.tvm_thread_invariant(batch_idx[0] < batch_size):
                                     b_idx: T.int32 = batch_idx[0]
-                                    L_start: T.int32 = q_indptr[b_idx] + tile_id[0] * L_per_cta
-                                    H_qo_start: T.int32 = by * group_size
+                                    LH_start: T.int32 = tile_id[0] * tile_x
+                                    q_indptr_val: T.int32 = q_indptr[b_idx]
 
                                     cur_page_indptr_begin: T.int32 = page_indptr[b_idx]
                                     cur_page_indptr_end: T.int32 = page_indptr[b_idx + 1]
@@ -1212,8 +1263,8 @@ def _attention_prefill(
                                             i, j = T.axis.remap("SS", [li, lj])
                                             T.reads()
                                             T.writes()
-                                            cur_L = L_start + i // group_size
-                                            cur_H_qo = H_qo_start + i % group_size
+                                            cur_L = q_indptr_val + (LH_start + i) // group_size
+                                            cur_H_qo = by * group_size + (LH_start + i) % group_size
                                             if cur_L < q_indptr[b_idx + 1]:
                                                 Q_smem[i, j] = T.if_then_else(
                                                     rotary_mode == 1,
@@ -1282,9 +1333,10 @@ def _attention_prefill(
                                                     m_prev[i] = m_smem[row]
                                                     m_new[i] = m_smem[row]
                                                     # mask out of kv_chunk_len S
+                                                    row_: T.int32 = (LH_start + row) // group_size
                                                     for j in T.serial(tile_z):
                                                         if _causal_mask(causal,
-                                                                row=tile_id[0] * L_per_cta + row // group_size,
+                                                                row=row_,
                                                                 col=L_kv_start + j,
                                                                 kv_len=kv_chunk_len[0],
                                                                 qo_len=q_indptr[b_idx + 1] - q_indptr[b_idx]):
@@ -1297,8 +1349,9 @@ def _attention_prefill(
                                                 for j in T.serial(tile_z):
                                                     # this is to avoid sync inside condition branch
                                                     if row < tile_x:
+                                                        row_: T.int32 = (LH_start + row) // group_size
                                                         if _causal_mask(causal,
-                                                                row=tile_id[0] * L_per_cta + row // group_size,
+                                                                row=row_,
                                                                 col=L_kv_start + j,
                                                                 kv_len=kv_chunk_len[0],
                                                                 qo_len=q_indptr[b_idx + 1] - q_indptr[b_idx]):
@@ -1330,15 +1383,19 @@ def _attention_prefill(
                                     for li, lj in T.grid(tile_x, tile_y):
                                         with T.block("O_store"):
                                             i, j = T.axis.remap("SS", [li, lj])
-                                            if L_start + i // group_size < q_indptr[b_idx + 1]:
-                                                output[L_start + i // group_size, H_qo_start + i % group_size, j] = O_local[i, j] / d_smem[i]
+                                            cur_L: T.int32 = q_indptr[b_idx] + (LH_start + i) // group_size
+                                            cur_H_qo: T.int32 = by * group_size + (LH_start + i) % group_size
+                                            if cur_L < q_indptr[b_idx + 1]:
+                                                output[cur_L, cur_H_qo, j] = O_local[i, j] / d_smem[i]
 
                                     # Store LSE to gmem
                                     for li in T.grid(tile_x):
                                         with T.block("lse_store"):
                                             i = T.axis.remap("S", [li])
-                                            if L_start + i // group_size < q_indptr[b_idx + 1]:
-                                                lse[L_start + i // group_size, H_qo_start + i % group_size] = m_smem[i] + T.log2(d_smem[i])
+                                            cur_L: T.int32 = q_indptr[b_idx] + (LH_start + i) // group_size
+                                            cur_H_qo: T.int32 = by * group_size + (LH_start + i) % group_size
+                                            if cur_L < q_indptr[b_idx + 1]:
+                                                lse[cur_L, cur_H_qo] = m_smem[i] + T.log2(d_smem[i])
 
                                     # move to next tile
                                     tile_id[0] += NUM_BLKS
@@ -1688,7 +1745,6 @@ def _attention_prefill_ragged(
     bdx = 32
     num_warps = 4
     tile_x, tile_y, tile_z = 64 // ((DataType(dtype).bits + 7) // 8) // max(d // 128, 1), d, 16
-    L_per_cta = tile_x // group_size
 
     # Otherwise we would exceed maxComputeWorkgroupStorageSize
     if (
@@ -1784,8 +1840,8 @@ def _attention_prefill_ragged(
 
                                 if T.tvm_thread_invariant(batch_idx[0] < batch_size):
                                     b_idx: T.int32 = batch_idx[0]
-                                    L_start: T.int32 = q_indptr[b_idx] + tile_id[0] * L_per_cta
-                                    H_qo_start: T.int32 = by * group_size
+                                    LH_start: T.int32 = tile_id[0] * tile_x
+                                    q_indptr_val: T.int32 = q_indptr[b_idx]
 
                                     kv_chunk_len[0] = kv_indptr[b_idx + 1] - kv_indptr[b_idx]
                                     T.tvm_storage_sync("shared")
@@ -1809,8 +1865,8 @@ def _attention_prefill_ragged(
                                             i, j = T.axis.remap("SS", [li, lj])
                                             T.reads()
                                             T.writes()
-                                            cur_L = L_start + i // group_size
-                                            cur_H_qo = H_qo_start + i % group_size
+                                            cur_L = q_indptr_val + (LH_start + i) // group_size
+                                            cur_H_qo = by * group_size + (LH_start + i) % group_size
                                             if cur_L < q_indptr[b_idx + 1]:
                                                 Q_smem[i, j] = T.if_then_else(
                                                     rotary_mode == 1,
@@ -1874,9 +1930,10 @@ def _attention_prefill_ragged(
                                                     m_prev[i] = m_smem[row]
                                                     m_new[i] = m_smem[row]
                                                     # mask out of kv_chunk_len S
+                                                    row_: T.int32 = (LH_start + row) // group_size
                                                     for j in T.serial(tile_z):
                                                         if _causal_mask(causal,
-                                                                row=tile_id[0] * L_per_cta + row // group_size,
+                                                                row=row_,
                                                                 col=L_kv_start + j,
                                                                 kv_len=kv_chunk_len[0],
                                                                 qo_len=q_indptr[b_idx + 1] - q_indptr[b_idx]):
@@ -1889,8 +1946,9 @@ def _attention_prefill_ragged(
                                                 for j in T.serial(tile_z):
                                                     # this is to avoid sync inside condition branch
                                                     if row < tile_x:
+                                                        row_: T.int32 = (LH_start + row) // group_size
                                                         if _causal_mask(causal,
-                                                                row=tile_id[0] * L_per_cta + row // group_size,
+                                                                row=row_,
                                                                 col=L_kv_start + j,
                                                                 kv_len=kv_chunk_len[0],
                                                                 qo_len=q_indptr[b_idx + 1] - q_indptr[b_idx]):
@@ -1922,15 +1980,19 @@ def _attention_prefill_ragged(
                                     for li, lj in T.grid(tile_x, tile_y):
                                         with T.block("O_store"):
                                             i, j = T.axis.remap("SS", [li, lj])
-                                            if L_start + i // group_size < q_indptr[b_idx + 1]:
-                                                output[L_start + i // group_size, H_qo_start + i % group_size, j] = O_local[i, j] / d_smem[i]
+                                            cur_L: T.int32 = q_indptr[b_idx] + (LH_start + i) // group_size
+                                            cur_H_qo: T.int32 = by * group_size + (LH_start + i) % group_size
+                                            if cur_L < q_indptr[b_idx + 1]:
+                                                output[cur_L, cur_H_qo, j] = O_local[i, j] / d_smem[i]
 
                                     # Store LSE to gmem
                                     for li in T.grid(tile_x):
                                         with T.block("lse_store"):
                                             i = T.axis.remap("S", [li])
-                                            if L_start + i // group_size < q_indptr[b_idx + 1]:
-                                                lse[L_start + i // group_size, H_qo_start + i % group_size] = m_smem[i] + T.log2(d_smem[i])
+                                            cur_L: T.int32 = q_indptr[b_idx] + (LH_start + i) // group_size
+                                            cur_H_qo: T.int32 = by * group_size + (LH_start + i) % group_size
+                                            if cur_L < q_indptr[b_idx + 1]:
+                                                lse[cur_L, cur_H_qo] = m_smem[i] + T.log2(d_smem[i])
 
                                     # move to next tile
                                     tile_id[0] += NUM_BLKS
@@ -2122,8 +2184,8 @@ def _attention_prefill_with_tree_mask(
 
                                 if T.tvm_thread_invariant(batch_idx[0] < batch_size):
                                     b_idx: T.int32 = batch_idx[0]
-                                    L_start: T.int32 = q_indptr[b_idx] + tile_id[0] * L_per_cta
-                                    H_qo_start: T.int32 = by * group_size
+                                    LH_start: T.int32 = tile_id[0] * tile_x
+                                    q_indptr_val: T.int32 = q_indptr[b_idx]
 
                                     kv_chunk_len[0] = kv_indptr[b_idx + 1] - kv_indptr[b_idx]
                                     T.tvm_storage_sync("shared")
@@ -2147,8 +2209,8 @@ def _attention_prefill_with_tree_mask(
                                             i, j = T.axis.remap("SS", [li, lj])
                                             T.reads()
                                             T.writes()
-                                            cur_L = L_start + i // group_size
-                                            cur_H_qo = H_qo_start + i % group_size
+                                            cur_L = q_indptr_val + (LH_start + i) // group_size
+                                            cur_H_qo = by * group_size + (LH_start + i) % group_size
                                             if cur_L < q_indptr[b_idx + 1]:
                                                 Q_smem[i, j] = T.if_then_else(
                                                     rotary_mode == 1,
@@ -2203,13 +2265,15 @@ def _attention_prefill_with_tree_mask(
                                                     m_prev[i] = m_smem[row]
                                                     m_new[i] = m_smem[row]
                                                     # mask out of kv_chunk_len S
+                                                    row_: T.int32 = (LH_start + row) // group_size
                                                     for j in T.serial(tile_z):
-                                                        if _tree_mask(row=tile_id[0] * L_per_cta + row // group_size,
-                                                                col=L_kv_start + j,
-                                                                mask_ptr=mask,
-                                                                offset=mn_indptr[b_idx],
-                                                                stride=q_indptr[b_idx + 1] - q_indptr[b_idx],
-                                                                kv_len=kv_chunk_len[0]):
+                                                        if _tree_mask(
+                                                            row=row_,
+                                                            col=L_kv_start + j,
+                                                            mask_ptr=mask,
+                                                            offset=mn_indptr[b_idx],
+                                                            stride=q_indptr[b_idx + 1] - q_indptr[b_idx],
+                                                            kv_len=kv_chunk_len[0]):
                                                             m_new[i] = T.max(m_new[i], S_smem[row, j])
                                                     d_new[i] = d_smem[row] * T.exp2(m_prev[i] - m_new[i])
 
@@ -2219,12 +2283,14 @@ def _attention_prefill_with_tree_mask(
                                                 for j in T.serial(tile_z):
                                                     # this is to avoid sync inside condition branch
                                                     if row < tile_x:
-                                                        if _tree_mask(row=tile_id[0] * L_per_cta + row // group_size,
-                                                                col=L_kv_start + j,
-                                                                mask_ptr=mask,
-                                                                offset=mn_indptr[b_idx],
-                                                                stride=q_indptr[b_idx + 1] - q_indptr[b_idx],
-                                                                kv_len=kv_chunk_len[0]):
+                                                        row_: T.int32 = (LH_start + row) // group_size
+                                                        if _tree_mask(
+                                                            row=row_,
+                                                            col=L_kv_start + j,
+                                                            mask_ptr=mask,
+                                                            offset=mn_indptr[b_idx],
+                                                            stride=q_indptr[b_idx + 1] - q_indptr[b_idx],
+                                                            kv_len=kv_chunk_len[0]):
                                                             S_smem[row, j] = T.exp2(S_smem[row, j] - m_new[i])
                                                         else:
                                                             S_smem[row, j] = T.exp2(-5e4 - m_new[i])
@@ -2253,15 +2319,19 @@ def _attention_prefill_with_tree_mask(
                                     for li, lj in T.grid(tile_x, tile_y):
                                         with T.block("O_store"):
                                             i, j = T.axis.remap("SS", [li, lj])
-                                            if L_start + i // group_size < q_indptr[b_idx + 1]:
-                                                output[L_start + i // group_size, H_qo_start + i % group_size, j] = O_local[i, j] / d_smem[i]
+                                            cur_L: T.int32 = q_indptr[b_idx] + (LH_start + i) // group_size
+                                            cur_H_qo: T.int32 = by * group_size + (LH_start + i) % group_size
+                                            if cur_L < q_indptr[b_idx + 1]:
+                                                output[cur_L, cur_H_qo, j] = O_local[i, j] / d_smem[i]
 
                                     # Store LSE to gmem
                                     for li in T.grid(tile_x):
                                         with T.block("lse_store"):
                                             i = T.axis.remap("S", [li])
-                                            if L_start + i // group_size < q_indptr[b_idx + 1]:
-                                                lse[L_start + i // group_size, H_qo_start + i % group_size] = m_smem[i] + T.log2(d_smem[i])
+                                            cur_L: T.int32 = q_indptr[b_idx] + (LH_start + i) // group_size
+                                            cur_H_qo: T.int32 = by * group_size + (LH_start + i) % group_size
+                                            if cur_L < q_indptr[b_idx + 1]:
+                                                lse[cur_L, cur_H_qo] = m_smem[i] + T.log2(d_smem[i])
 
                                     # move to next tile
                                     tile_id[0] += NUM_BLKS
@@ -2522,3 +2592,4 @@ if __name__ == "__main__":
         test_paged_attention_kv_cache_popn(cache_and_config)
         test_paged_attention_kv_cache_sliding_window(cache_and_config)
         test_paged_attention_kv_cache_tree_attn(cache_and_config)
+        test_paged_attention_kv_cache_unlimited_depth(cache_and_config)

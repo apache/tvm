@@ -83,4 +83,4 @@ def test_outline_compiler_functions():
     global_vars = [str(gv) for gv in after.get_global_vars()]
     assert 'I.GlobalVar("ext_func")' in global_vars
     assert 'I.GlobalVar("ext_func_2")' not in global_vars
-    assert tvm.ir.structural_equal(after["ext_func"], exp["ext_func"])
+    tvm.ir.assert_structural_equal(after["ext_func"], exp["ext_func"])

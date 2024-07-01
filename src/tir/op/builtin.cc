@@ -139,7 +139,8 @@ TIR_DEFINE_BUILTIN_FUNC(call_llvm_intrin)
 TIR_DEFINE_BUILTIN_FUNC(call_llvm_pure_intrin)
     .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kPure))
     .set_attr<TScriptDtypePrintLocation>("TScriptDtypePrintLocation",
-                                         Integer(ScriptDtypePrintLocation::kFirst));
+                                         Integer(ScriptDtypePrintLocation::kFirst))
+    .set_attr<TVectorizable>("TVectorizable", true);
 
 TIR_DEFINE_BUILTIN_FUNC(call_spirv_pure_glsl450)
     .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kPure));
@@ -326,6 +327,18 @@ TIR_DEFINE_BUILTIN_FUNC(mma_fill)
     .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque))
     .set_attr<TScriptDtypePrintLocation>("TScriptDtypePrintLocation",
                                          Integer(ScriptDtypePrintLocation::kFirst));
+
+TIR_DEFINE_BUILTIN_FUNC(make_filled_simdgroup_matrix)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
+
+TIR_DEFINE_BUILTIN_FUNC(simdgroup_load)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
+
+TIR_DEFINE_BUILTIN_FUNC(simdgroup_store)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
+
+TIR_DEFINE_BUILTIN_FUNC(simdgroup_multiply_accumulate)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
 
 TIR_DEFINE_BUILTIN_FUNC(vectorhigh)
     .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kPure))

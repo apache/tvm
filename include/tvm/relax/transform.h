@@ -367,7 +367,7 @@ class FusionPatternNode : public Object {
    * \brief The function to get attributes for fused function
    *
    * It should have signature
-   * Map<String, String>(const Map<String, Expr>& context)
+   * Map<String, ObjectRef>(const Map<String, Expr>& context)
    */
   Optional<PackedFunc> attrs_getter;
 

@@ -61,7 +61,7 @@ def test_canonicalize_cast():
         mod[gv] = y_expected
         mod = _transform.InferType()(mod)
         y_expected = mod["expected"]
-        assert tvm.ir.structural_equal(y, y_expected)
+        tvm.ir.assert_structural_equal(y, y_expected)
 
     check((1, 16, 7, 7))
 

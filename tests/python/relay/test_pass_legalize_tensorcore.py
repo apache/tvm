@@ -97,7 +97,7 @@ def test_legalize_conv2d_NHWC():
             a = before()
             a = run_opt_pass(a, transform.Legalize())
             b = run_opt_pass(expected(), transform.InferType())
-        assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a) + "Expected = \n" + str(b)
+        tvm.ir.assert_structural_equal(a, b)
 
     for dtype in ["float16", "int8", "int4"]:
         # conv2d pad batch
@@ -177,7 +177,7 @@ def test_legalize_conv2d_HWNC():
             a = before()
             a = run_opt_pass(a, transform.Legalize())
             b = run_opt_pass(expected(), transform.InferType())
-        assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a) + "Expected = \n" + str(b)
+        tvm.ir.assert_structural_equal(a, b)
 
     # conv2d pad batch
     _test_legalize_conv2d((16, 16, 7, 64), (3, 3, 64, 64), (1, 0, 0), "int8")
@@ -250,7 +250,7 @@ def test_legalize_dense():
             a = run_opt_pass(a, transform.Legalize())
             b = run_opt_pass(expected(), transform.InferType())
 
-        assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a) + "Expected = \n" + str(b)
+        tvm.ir.assert_structural_equal(a, b)
 
     # dense
     for dtype in ["float16", "int8"]:
@@ -345,7 +345,7 @@ def test_legalize_batch_matmul():
             a = before()
             a = run_opt_pass(a, transform.Legalize())
             b = run_opt_pass(expected(), transform.InferType())
-        assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a) + "Expected = \n" + str(b)
+        tvm.ir.assert_structural_equal(a, b)
 
     for dtype in ["float16", "int8"]:
         _test_legalize_batch_matmul((16, 8, 16), (16, 32, 16), (0, 0, 0), dtype, False)

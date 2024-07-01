@@ -27,6 +27,7 @@
 #include <tvm/target/codegen.h>
 
 #include <string>
+#include <unordered_map>
 
 #include "codegen_c.h"
 
@@ -50,6 +51,7 @@ class CodeGenMetal final : public CodeGenC {
   // print store of single element.
   void PrintVecElemStore(const std::string& vec, DataType t, int i, const std::string& value) final;
   // overload visitor
+  void VisitStmt_(const AllocateNode* op) final;                     // NOLINT(*)
   void VisitExpr_(const SelectNode* op, std::ostream& os) final;     // NOLINT(*)
   void VisitExpr_(const BroadcastNode* op, std::ostream& os) final;  // NOLINT(*)
   void VisitExpr_(const CallNode* op, std::ostream& os) final;       // NOLINT(*)
@@ -59,6 +61,7 @@ class CodeGenMetal final : public CodeGenC {
   using CodeGenC::PrintType;
 
  private:
+  std::unordered_map<const VarNode*, std::string> simdgroup_dtype_;
   int thread_index_bits_{32};
   int thread_work_dim_{0};
   Target target_;

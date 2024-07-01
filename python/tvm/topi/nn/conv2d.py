@@ -654,7 +654,12 @@ def conv2d_gemm_weight_transform(kernel, tile_N, tile_K, use_scalable_vectors=Fa
             kernel_flat, pad_before=(0, 0), pad_after=(pad_K, pad_N), name="weight_padding"
         )
 
-    if use_sme or use_scalable_vectors:
+    if use_sme and kernel.dtype == "float16":
+        return te.compute(
+            (N_padded, K_padded), lambda x, y: kernel_flat[y, x], name="weight_transpose"
+        )
+
+    if use_scalable_vectors or use_sme:
         return kernel_flat
 
     if kernel.dtype in ["int8", "uint8"]:

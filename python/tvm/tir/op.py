@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=redefined-builtin, invalid-name
+# pylint: disable=redefined-builtin, invalid-name, too-many-arguments
 """Operators used in TIR expression."""
 from typing import Any, Optional, Union
 
@@ -1565,6 +1565,195 @@ def create_barriers(barrier_count):
         The call expression.
     """
     return call_intrin("", "tir.create_barriers", barrier_count)
+
+
+def make_filled_simdgroup_matrix(
+    d: Var,
+    index: PrimExpr,
+    value: PrimExpr,
+    col: int = 8,
+    row: int = 8,
+):
+    """Create a filled SIMDGroup matrix
+
+    Parameters
+    ----------
+    d : var
+        The simdgroup var
+
+    index : PrimExpr
+        The index of the matrix.
+
+    value : PrimExpr
+        The value to fill.
+
+    col : int
+        The number of columns.
+
+    row : int
+        The number of rows.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin("handle", "tir.make_filled_simdgroup_matrix", d, index, value, col, row)
+
+
+def simdgroup_load(
+    d: Var,
+    index: PrimExpr,
+    ptr: PrimExpr,
+    stride: PrimExpr,
+    col: int = 8,
+    row: int = 8,
+    transpose_matrix: bool = False,
+):
+    """Load data from device memory or threadgroup memory to simdgroup
+
+    Parameters
+    ----------
+    d : var
+        The simdgroup var
+
+    index : PrimExpr
+        The index of the matrix.
+
+    ptr : PrimExpr
+        The pointer.
+
+    stride : PrimExpr
+        The stride.
+
+    col : int
+        The number of columns.
+
+    row : int
+        The number of rows.
+
+    transpose_matrix : bool
+        Whether to transpose the matrix.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin(
+        "handle",
+        "tir.simdgroup_load",
+        d,
+        index,
+        ptr,
+        stride,
+        col,
+        row,
+        transpose_matrix,
+    )
+
+
+def simdgroup_store(
+    d: PrimExpr,
+    index: PrimExpr,
+    ptr: PrimExpr,
+    stride: PrimExpr,
+    col: int = 8,
+    row: int = 8,
+    transpose_matrix: bool = False,
+):
+    """Store data from simdgroup to device memory or threadgroup memory
+
+    Parameters
+    ----------
+    d : PrimExpr
+        The SIMDGroup.
+
+    index : PrimExpr
+        The index of the matrix.
+
+    ptr : PrimExpr
+        The pointer.
+
+    stride : PrimExpr
+        The stride.
+
+    col : int
+        The number of columns.
+
+    row : int
+        The number of rows.
+
+
+    transpose_matrix : bool
+        Whether to transpose the matrix.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin(
+        "handle", "tir.simdgroup_store", d, index, ptr, stride, col, row, transpose_matrix
+    )
+
+
+def simdgroup_multiply_accumulate(
+    d: Var,
+    index_d: PrimExpr,
+    a: Var,
+    index_a: PrimExpr,
+    b: Var,
+    index_b: PrimExpr,
+    c: Var,
+    index_c: PrimExpr,
+):
+    """Multiply and accumulate two matrices in simdgroup
+    i.e. d = a * b + c
+
+    Parameters
+    ----------
+    d : Var
+        The destination matrix.
+
+    index_d : PrimExpr
+        The index of the destination matrix.
+
+    a : Var
+        The first matrix.
+
+    index_a : PrimExpr
+        The index of the first matrix.
+
+    b : Var
+        The second matrix.
+
+    index_b : PrimExpr
+        The index of the second matrix.
+
+    c : Var
+        The third matrix.
+
+    index_c : PrimExpr
+        The index of the third matrix.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    return call_intrin(
+        "handle",
+        "tir.simdgroup_multiply_accumulate",
+        d,
+        index_d,
+        a,
+        index_a,
+        b,
+        index_b,
+        c,
+        index_c,
+    )
 
 
 def vectorlow(dtype, vec):
