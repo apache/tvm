@@ -44,12 +44,15 @@ def test_attr_check():
 
 
 def test_create_executor_not_found():
-    with pytest.raises(TVMError, match='Executor "woof" is not defined'):
+    with pytest.raises(TVMError, match='Executor "woof" is not defined.'):
         Executor("woof", {})
 
 
 def test_create_executor_attr_not_found():
-    with pytest.raises(TVMError, match='Attribute "woof" is not available on this Executor'):
+    with pytest.raises(
+        TVMError,
+        match='TVMError: Executor "aot": Attribute "woof" not in.*workspace-byte-alignment, link-params, interface-api, unpacked-api.*',
+    ):
         Executor("aot", {"woof": "bark"})
 
 
@@ -64,6 +67,7 @@ def test_create_executor_attr_type_incorrect():
 
 def test_list_executors():
     assert "aot" in Executor.list_registered()
+    assert "graph" in Executor.list_registered()
 
 
 @pytest.mark.parametrize("executor", [Executor("aot").name, "aot"])
