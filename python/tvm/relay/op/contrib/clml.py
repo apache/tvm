@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, unused-argument, pointless-exception-statement
+# pylint: disable=invalid-name, unused-argument, pointless-exception-statement.
 """CLML Library supported operators."""
 import json
 from string import Template
