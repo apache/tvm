@@ -24,6 +24,7 @@ from typing import Callable, Dict, List, Mapping, Optional, Sequence, Tuple, Uni
 import numpy as np  # type: ignore
 
 import tvm.ir
+from tvm.ir.container import Array
 from tvm.relax import Expr, Var, StructInfo
 from tvm.relax.dpl import DFPattern
 from tvm.runtime import NDArray, Object
@@ -1280,6 +1281,7 @@ def AlterOpImpl(
     op_impl_map: Dict[str, PrimFunc],
     op_buffer_transforms: Dict[str, List[Union[IndexMap, Callable]]],
     op_buffer_axis_separators: Dict[str, List[Union[IndexMap.AXIS_SEPARATOR, Callable]]],
+    op_buffer_input_axis_separators: Dict[str, List[Union[IndexMap.AXIS_SEPARATOR, Callable]]],
 ):
     """Replace all PrimFunc's which have matching 'operator_name' attribute, with replacement
     PrimFunc that could possibly have different layouts on i/o buffers. The layout
@@ -1295,6 +1297,8 @@ def AlterOpImpl(
         op_kind to layout transformation map for each of the buffers
     op_buffer_axis_separators: Dict[str, List[Union[IndexMap.AXIS_SEPARATOR, Callable]]]
         op_kind to axis_separator for each index_map
+    op_buffer_input_axis_separators: Dict[str, List[Union[IndexMap.AXIS_SEPARATOR, Callable]]]
+        op_kind to axis_separator for input index_map
 
     Returns
     -------
@@ -1303,13 +1307,19 @@ def AlterOpImpl(
     for operator_name, transform_list in op_buffer_transforms.items():
         l = []
         for transform in transform_list:
+            # Extract the index_map
             if isinstance(transform, Callable):
                 transform = IndexMap.from_func_with_separators(transform)[0]
+            elif isinstance(transform, (Array, tuple)) and isinstance(transform[0], IndexMap):
+                transform = transform[0]
             l.append(transform)
         op_buffer_transforms[operator_name] = l
 
     return _ffi_api.AlterOpImpl(
-        op_impl_map, op_buffer_transforms, op_buffer_axis_separators
+        op_impl_map,
+        op_buffer_transforms,
+        op_buffer_axis_separators,
+        op_buffer_input_axis_separators,
     )  # type: ignore
 
 
