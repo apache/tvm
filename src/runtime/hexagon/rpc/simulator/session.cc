@@ -458,6 +458,10 @@ std::string SimulatorRPCChannel::Cpu_::str() const {
     case HEX_CPU_V73:
       return "v73";
 #endif
+#ifdef HEX_CPU_ID_V75NA_1
+    case HEX_CPU_V75:
+      return "v75";
+#endif
     default:
       break;
   }
@@ -574,6 +578,9 @@ std::optional<HEXAPI_Cpu> SimulatorRPCChannel::GetCPU(const detail::MaybeString&
 #endif
 #ifdef HEX_CPU_ID_V73NA_1
       .Case("v73", HEX_CPU_V73)
+#endif
+#ifdef HEX_CPU_ID_V75NA_1
+      .Case("v75", HEX_CPU_V75)
 #endif
       .Default(std::nullopt);
 }
