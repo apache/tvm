@@ -1184,9 +1184,6 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
         << "The parent sequence \"" << parent_seq_id << "\" cannot be found in KV cache.";
     CHECK(seq_map_.find(child_seq_id) == seq_map_.end())
         << "The child sequence \"" << child_seq_id << "\" is already in the KV cache.";
-    CHECK_EQ(parent_it->second.sliding_window_size, -1)
-        << "The parent sequence \"" << parent_seq_id
-        << "\" is enabled with sliding window and thus cannot be forked.";
     CHECK_GE(fork_pos, -1)
         << "The forked position should be non-negative, or -1 for last position as default.";
     CHECK_LE(fork_pos, parent_it->second.seq_length)
@@ -1197,6 +1194,18 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
 
     if (fork_pos == -1) {
       fork_pos = parent_it->second.seq_length;
+    }
+
+    if (parent_it->second.sliding_window_size != -1) {
+      // If forked sequence has been enabled sliding window, check the forked position is within
+      // sliding window sink size.
+      const Sequence& seq = parent_it->second;
+      int32_t sink_size = seq.seq_length - global_block_pool_[seq.last_block_idx].seq_length +
+                          seq.last_block_attn_sink_size;
+      CHECK_LE(fork_pos, sink_size)
+          << "The parent sequence \"" << parent_seq_id
+          << "\" is enabled with sliding window and thus only can be forked within sink size = "
+          << sink_size << ". But the forked position = " << fork_pos << ".";
     }
 
     if (fork_pos == parent_it->second.seq_length && fork_pos % page_size_ == 0 &&
@@ -1258,6 +1267,14 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
         // Update in-block sequence length per blocks
         global_block_pool_[parent_block_idx].seq_length = moved_offset;
         global_block_pool_[forked_block_idx].seq_length -= moved_offset;
+
+        // Update sliding window sink size if sliding window is enabled and the forked block is the
+        // last block
+        if (parent_it->second.sliding_window_size != -1 &&
+            forked_block_idx == parent_it->second.last_block_idx) {
+          CHECK_LE(moved_offset, parent_it->second.last_block_attn_sink_size);
+          parent_it->second.last_block_attn_sink_size -= moved_offset;
+        }
       }
       global_block_pool_[child_block_idx].start_pos = fork_pos - in_page_offset;
       global_block_pool_[child_block_idx].seq_length = in_page_offset;
