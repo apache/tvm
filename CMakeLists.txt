@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.18)
 project(tvm C CXX)
-
+SET(CMAKE_CUDA_ARCHITECTURES "86")
 # Utility functions
 include(cmake/utils/Utils.cmake)
 include(cmake/utils/Summary.cmake)
