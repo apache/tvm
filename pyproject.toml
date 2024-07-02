@@ -49,3 +49,7 @@ exclude = '''
   )/
 )
 '''
+
+[tool.ruff]
+line-length = 100
+indent-width = 4
