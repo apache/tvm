@@ -60,6 +60,7 @@ def zero_pipeline(*, enable_warning: bool = False):
         seq = tvm.transform.Sequential(
             [
                 transform.LegalizeOps(enable_warning=enable_warning),
+                tvm.tir.transform.DefaultGPUSchedule(),
                 transform.AnnotateTIROpPattern(),
                 transform.FoldConstant(),
                 transform.FuseOps(),
@@ -84,6 +85,7 @@ def default_build_pipeline():
                 backend.DispatchSampling(),
                 backend.DispatchSortScan(),
                 transform.LegalizeOps(),
+                tvm.tir.transform.DefaultGPUSchedule(),
                 transform.RewriteDataflowReshape(),
                 transform.ToNonDataflow(),
                 transform.RemovePurityChecking(),
