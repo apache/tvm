@@ -40,6 +40,9 @@ class GeneralReduction(GPUScheduleRule):
         if target.kind.name == "cuda":
             len_tx = 256
             unroll_depth = 256
+        elif target.kind.name == "opencl":
+            len_tx = 256
+            unroll_depth = 64
         else:
             len_tx = 64
             unroll_depth = 64

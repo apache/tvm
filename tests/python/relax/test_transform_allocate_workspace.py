@@ -126,9 +126,8 @@ class Expected:
     ) -> R.Tensor((32, 8, 16, 8), dtype="float16"):
         cls = Expected
         with R.dataflow():
-            lv: R.Object = R.vm.alloc_storage(R.shape([65536]), R.prim_value(0), R.dtype("uint8"))
-            workspace_main: R.Tensor((65536,), dtype="uint8") = R.vm.alloc_tensor(
-                lv, R.prim_value(0), R.shape([65536]), R.dtype("uint8")
+            workspace_main: R.Tensor((65536,), dtype="uint8") = R.builtin.alloc_tensor(
+                R.shape([65536]), R.dtype("uint8"), R.prim_value(0)
             )
             gv: R.Tensor((32, 8, 16, 8), dtype="float16") = cls.fused_relax_nn_attention_cutlass1(
                 q, k, v, workspace_main
@@ -144,9 +143,8 @@ class Expected:
     ) -> R.Tensor((32, 8, 16, 8), dtype="float16"):
         cls = Expected
         with R.dataflow():
-            lv: R.Object = R.vm.alloc_storage(R.shape([65536]), R.prim_value(0), R.dtype("uint8"))
-            workspace_main: R.Tensor((65536,), dtype="uint8") = R.vm.alloc_tensor(
-                lv, R.prim_value(0), R.shape([65536]), R.dtype("uint8")
+            workspace_main: R.Tensor((65536,), dtype="uint8") = R.builtin.alloc_tensor(
+                R.shape([65536]), R.dtype("uint8"), R.prim_value(0)
             )
             gv: R.Tensor((32, 8, 16, 8), dtype="float16") = cls.fused_relax_nn_attention_cutlass1(
                 q, k, v, workspace_main

@@ -27,7 +27,7 @@ def test_callgraph_construct():
     mod["g1"] = relay.Function([x, y], x + y)
     call_graph = relay.analysis.CallGraph(mod)
     assert "g1" in str(call_graph)
-    assert tvm.ir.structural_equal(mod, call_graph.module)
+    tvm.ir.assert_structural_equal(mod, call_graph.module)
 
 
 def test_print_element():

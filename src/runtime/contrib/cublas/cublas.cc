@@ -137,8 +137,9 @@ int roundoff(int v, int d) { return (v + d - 1) / d * d; }
 
 void CallCublasLt(cublasLtHandle_t hdl, cudaStream_t stream,
                   cublasLtMatmulPreference_t matmul_pref_desc, const DLTensor* A, const DLTensor* B,
-                  const DLTensor* bias, const DLTensor* C, bool transa, bool transb,
-                  void* workspace_ptr, size_t workspace_size, cublasLtEpilogue_t epilogue,
+                  const DLTensor* bias, const DLTensor* scaleA, const DLTensor* scaleB,
+                  const DLTensor* C, bool transa, bool transb, void* workspace_ptr,
+                  size_t workspace_size, cublasLtEpilogue_t epilogue,
                   std::optional<float> dq_scale) {
   ICHECK(TypeEqual(A->dtype, B->dtype));
   // Reversed strides indicates an in-place transpose operation.
@@ -191,6 +192,15 @@ void CallCublasLt(cublasLtHandle_t hdl, cudaStream_t stream,
   if (bias != nullptr) {
     CHECK_CUBLAS_ERROR(cublasLtMatmulDescSetAttribute(op_desc, CUBLASLT_MATMUL_DESC_BIAS_POINTER,
                                                       &bias->data, sizeof(float*)));
+  }
+
+  if (scaleA != nullptr && scaleB != nullptr) {
+    auto scaleA_data = static_cast<char*>(scaleA->data) + scaleA->byte_offset;
+    auto scaleB_data = static_cast<char*>(scaleB->data) + scaleB->byte_offset;
+    CHECK_CUBLAS_ERROR(cublasLtMatmulDescSetAttribute(op_desc, CUBLASLT_MATMUL_DESC_A_SCALE_POINTER,
+                                                      &scaleA_data, sizeof(float*)));
+    CHECK_CUBLAS_ERROR(cublasLtMatmulDescSetAttribute(op_desc, CUBLASLT_MATMUL_DESC_B_SCALE_POINTER,
+                                                      &scaleB_data, sizeof(float*)));
   }
 
   if (epilogue != CUBLASLT_EPILOGUE_DEFAULT) {

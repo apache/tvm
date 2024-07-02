@@ -715,7 +715,7 @@ def hexagon(cpu_ver="v68", **kwargs):
         return int(m.group(1))
 
     # Check for valid codegen cpu
-    valid_hex = ["v65", "v66", "v67", "v67t", "v68", "v69", "v71", "v73"]
+    valid_hex = ["v65", "v66", "v67", "v67t", "v68", "v69", "v71", "v73", "v75"]
     try:
         cpu_ver = cpu_ver[cpu_ver.index("v") :].lower()
         assert cpu_ver in valid_hex
@@ -731,6 +731,7 @@ def hexagon(cpu_ver="v68", **kwargs):
             "v68": 4 * one_mb,
             "v69": 8 * one_mb,
             "v73": 8 * one_mb,
+            "v75": 8 * one_mb,
         }
         return default_vtcm_sizes.get(cpu_ver, 0)
 

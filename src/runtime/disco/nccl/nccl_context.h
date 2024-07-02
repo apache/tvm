@@ -118,16 +118,23 @@ inline ncclDataType_t AsNCCLDataType(runtime::DataType dtype) {
 }
 
 struct CCLThreadLocalContext {
-  DiscoWorker* worker;
+  DiscoWorker* worker = nullptr;
   int device_id;
   deviceStream_t default_stream = nullptr;
-  ncclComm_t comm;
+  ncclComm_t comm = nullptr;
+
+  ~CCLThreadLocalContext() { Clear(); }
 
   void Clear() {
-    NCCL_CALL(ncclCommDestroy(comm));
-    if (default_stream != nullptr) {
-      StreamDestroy(default_stream);
+    if (comm) {
+      NCCL_CALL(ncclCommDestroy(comm));
+      comm = nullptr;
     }
+    if (default_stream) {
+      StreamDestroy(default_stream);
+      default_stream = nullptr;
+    }
+    worker = nullptr;
   }
 
   deviceStream_t GetDefaultStream() {

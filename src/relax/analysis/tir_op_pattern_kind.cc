@@ -517,19 +517,23 @@ bool HasReshapePattern(const PrimFunc& func) {
     arith::Analyzer ana_;
   };
 
-  if (func->params.size() < 2) {
+  Array<Buffer> buffer_args;
+  for (const auto& param : func->params) {
+    if (auto buffer = func->buffer_map.Get(param)) {
+      buffer_args.push_back(buffer.value());
+    }
+  }
+
+  if (buffer_args.size() < 2) {
     return false;
   }
-  Optional<Buffer> src_buffer = func->buffer_map.Get(func->params.front());
-  Optional<Buffer> dst_buffer = func->buffer_map.Get(func->params.back());
-  if (!(src_buffer.defined() && dst_buffer.defined())) {
-    return false;
-  }
+  Buffer src_buffer = buffer_args.front();
+  Buffer dst_buffer = buffer_args.back();
 
   // To detect the reshape pattern, we require each For to have
   // either another For or a BlockRealize as body.
   ICHECK(func->body->IsInstance<BlockRealizeNode>());
-  return ReshapeDetector::Detect(src_buffer.value(), dst_buffer.value(), func->body);
+  return ReshapeDetector::Detect(src_buffer, dst_buffer, func->body);
 }
 
 TVM_REGISTER_GLOBAL("relax.analysis.has_reshape_pattern").set_body_typed(HasReshapePattern);

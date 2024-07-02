@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=missing-docstring
 """Tests for NCCL/RCCL"""
+
 import tempfile
 
 import numpy as np
@@ -102,31 +103,86 @@ def test_allgather(session_kind, ccl):
 
 @pytest.mark.parametrize("session_kind", _all_session_kinds)
 @pytest.mark.parametrize("ccl", _ccl)
-def test_broadcast_from_worker0(session_kind, ccl):
+@pytest.mark.parametrize("use_explicit_output", [True, False])
+def test_broadcast_from_worker0(session_kind, ccl, use_explicit_output):
     devices = [0, 1]
     sess = session_kind(num_workers=len(devices))
     sess.init_ccl(ccl, *devices)
 
     array = np.arange(12, dtype="float32").reshape(3, 4)
-    d_array = sess.empty((3, 4), "float32")
-    d_array.debug_copy_from(0, array)
-    dst_array = sess.empty((3, 4), "float32")
-    sess.broadcast_from_worker0(d_array, dst_array)
+
+    if use_explicit_output:
+        src_array = sess.empty((3, 4), "float32", worker0_only=True)
+        src_array.debug_copy_from(0, array)
+        dst_array = sess.empty((3, 4), "float32")
+        sess.broadcast_from_worker0(src_array, dst_array)
+    else:
+        dst_array = sess.broadcast(array)
+
     result = dst_array.debug_get_from_remote(1).numpy()
     np.testing.assert_equal(result, array)
 
 
 @pytest.mark.parametrize("session_kind", _all_session_kinds)
 @pytest.mark.parametrize("ccl", _ccl)
-def test_scatter(session_kind, ccl):
+@pytest.mark.parametrize("use_explicit_output", [True, False])
+def test_scatter(session_kind, ccl, use_explicit_output, capfd):
+    devices = [0, 1]
+    sess = session_kind(num_workers=len(devices))
+    sess.init_ccl(ccl, *devices)
+
+    array = np.arange(36, dtype="float32").reshape(2, 6, 3)
+
+    if use_explicit_output:
+        d_src = sess.empty((2, 6, 3), "float32", worker0_only=True)
+        d_dst = sess.empty((6, 3), "float32")
+        d_src.debug_copy_from(0, array)
+        sess.scatter_from_worker0(d_src, d_dst)
+    else:
+        d_dst = sess.scatter(array)
+
+    np.testing.assert_equal(
+        d_dst.debug_get_from_remote(0).numpy(),
+        array[0, :, :],
+    )
+    np.testing.assert_equal(
+        d_dst.debug_get_from_remote(1).numpy(),
+        array[1, :, :],
+    )
+
+    captured = capfd.readouterr()
+    assert (
+        not captured.err
+    ), "No warning messages should be generated from disco.Session.scatter_from_worker0"
+
+
+@pytest.mark.parametrize("session_kind", _all_session_kinds)
+@pytest.mark.parametrize("ccl", _ccl)
+def test_scatter_with_implicit_reshape(session_kind, ccl, capfd):
+    """Scatter may perform an implicit reshape
+
+    Scattering elements to the workers requires the total number of
+    elements to be divisible by the number of workers.  It does not
+    necessarily correspond to scattering across the outermost
+    dimension.  Here, the number of workers (2) and the outermost
+    dimension (3) are not divisible, but the scatter may still be
+    performed.
+
+    This is only allowed when the caller explicitly uses the
+    `sess.scatter_from_worker0` method, and is not allowed in
+    `sess.scatter` method.  Because the `sess.scatter` method may
+    perform an allocation on the disco workers, it requires that the
+    scatter occur across the outermost dimension.
+
+    """
     devices = [0, 1]
     sess = session_kind(num_workers=len(devices))
     sess.init_ccl(ccl, *devices)
 
     array = np.arange(36, dtype="float32").reshape(3, 4, 3)
-    d_src = sess.empty((3, 4, 3), "float32")
-    d_dst = sess.empty((3, 3, 2), "float32")
 
+    d_src = sess.empty((3, 4, 3), "float32", worker0_only=True)
+    d_dst = sess.empty((3, 3, 2), "float32")
     d_src.debug_copy_from(0, array)
     sess.scatter_from_worker0(d_src, d_dst)
 
@@ -139,17 +195,22 @@ def test_scatter(session_kind, ccl):
         array.flat[18:].reshape(3, 3, 2),
     )
 
+    captured = capfd.readouterr()
+    assert (
+        not captured.err
+    ), "No warning messages should be generated from disco.Session.scatter_from_worker0"
+
 
 @pytest.mark.parametrize("session_kind", _all_session_kinds)
 @pytest.mark.parametrize("ccl", _ccl)
-def test_gather(session_kind, ccl):
+def test_gather(session_kind, ccl, capfd):
     devices = [0, 1]
     sess = session_kind(num_workers=len(devices))
     sess.init_ccl(ccl, *devices)
 
     array = np.arange(36, dtype="float32")
     d_src = sess.empty((3, 3, 2), "float32")
-    d_dst = sess.empty((3, 4, 3), "float32")
+    d_dst = sess.empty((3, 4, 3), "float32", worker0_only=True)
     d_src.debug_copy_from(0, array[:18])
     d_src.debug_copy_from(1, array[18:])
     sess.gather_to_worker0(d_src, d_dst)
@@ -157,6 +218,11 @@ def test_gather(session_kind, ccl):
         d_dst.debug_get_from_remote(0).numpy(),
         array.reshape(3, 4, 3),
     )
+
+    captured = capfd.readouterr()
+    assert (
+        not captured.err
+    ), "No warning messages should be generated from disco.Session.gather_to_worker0"
 
 
 @pytest.mark.parametrize("session_kind", _all_session_kinds)

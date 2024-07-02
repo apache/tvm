@@ -149,10 +149,14 @@ struct SimpleBinaryFileStream : public dmlc::Stream {
     CHECK(fp_ != nullptr) << "File is closed";
     return std::fread(ptr, 1, size, fp_);
   }
-  virtual void Write(const void* ptr, size_t size) {
+  virtual size_t Write(const void* ptr, size_t size) {
     CHECK(!read_) << "File opened in read-mode, cannot write.";
     CHECK(fp_ != nullptr) << "File is closed";
-    CHECK(std::fwrite(ptr, 1, size, fp_) == size) << "SimpleBinaryFileStream.Write incomplete";
+    size_t nwrite = std::fwrite(ptr, 1, size, fp_);
+    int err = std::ferror(fp_);
+
+    CHECK_EQ(err, 0) << "SimpleBinaryFileStream.Write incomplete: " << std::strerror(err);
+    return nwrite;
   }
   inline void Close(void) {
     if (fp_ != nullptr) {

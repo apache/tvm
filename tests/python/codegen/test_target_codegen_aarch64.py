@@ -15,15 +15,17 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import re
+"""
+Codegen tests for AArch64
+"""
 
+import re
 import pytest
 
 import tvm
 from tvm import te
 from tvm.script import tir as T
 from tvm.topi.arm_cpu.pstate_attributes import SMEAttributes
-
 from tvm.target.codegen import llvm_version_major
 
 
@@ -497,6 +499,65 @@ def test_codegen_vscale():
 
 
 @pytest.mark.skipif(
+    llvm_version_major() < 16, reason="SME is not supported in earlier versions of LLVM"
+)
+@pytest.mark.parametrize("dtype", ["float32", "float16"])
+def test_matmul_sme(dtype):
+    target = "llvm -mtriple=aarch64-linux-gnu -mattr=+v9a,+sme"
+
+    def check_correct_assembly(dtype):
+        A = te.placeholder((32, 32), dtype=dtype, name="A")
+        B = te.placeholder((32, 32), dtype=dtype, name="B")
+
+        with tvm.target.Target(target):
+            C = tvm.topi.arm_cpu.matmul.compute_matmul_sme(
+                A, B, None, "float32", False, dtype == "float16"
+            )
+            prim_func = te.create_prim_func([A, B, C])
+
+            sch = tvm.tir.Schedule(prim_func)
+            tvm.topi.arm_cpu.matmul.tir_schedule_matmul_sme(sch)
+            prim_func = sch.mod
+
+            f = tvm.build(prim_func, target=target)
+
+        assembly = f.get_source("asm")
+        smstart = re.findall(r"smstart\t(sm|za)", assembly)
+        loads = re.findall(r"ld1[whdb]\t{\s?za", assembly)
+        mopa = re.findall(
+            r"fmopa\tza[0-9].[shdb],( p[0-9]/[zm],)?( p[0-9]/[zm],)? z[0-9].[shdb], z[0-9].[shdb]",
+            assembly,
+        )
+        stores = re.findall(r"st1[whdb]\t{\s?za", assembly)
+        smstop = re.findall(r"smstop\t(sm|za)", assembly)
+        whilelo = re.findall(r"whilelo\tp[0-9].[shdb]", assembly)
+
+        assert len(smstart) > 0
+        assert len(loads) > 0
+        assert len(mopa) > 0
+        assert len(stores) > 0
+        assert len(smstop) > 0
+        assert len(whilelo) > 0
+
+    check_correct_assembly(dtype=dtype)
+
+
+def test_matmul_sme_no_reduction_block():
+    @T.prim_func
+    def prim_func(a: T.handle, b: T.handle):
+        A = T.match_buffer(a, (4,))
+        B = T.match_buffer(b, (4,))
+        for i in range(3):
+            with T.block("block"):
+                vi = T.axis.remap("S", [i])
+                B[vi] = A[vi]
+
+    sch = tvm.tir.Schedule(prim_func)
+    with pytest.raises(AssertionError, match="Expected a single gemm reduction block."):
+        tvm.topi.arm_cpu.matmul.tir_schedule_matmul_sme(sch)
+
+
+@pytest.mark.skipif(
     llvm_version_major() < 11, reason="Vscale is not supported in earlier versions of LLVM"
 )
 def test_scalable_buffer_load_store():
@@ -535,6 +596,44 @@ def test_scalable_broadcast():
         r"shufflevector \(<vscale x 4 x float> insertelement \(<vscale x 4 x float>", llvm
     ), "No scalable broadcast in generated LLVM."
     assert re.findall(r" store <vscale x 4 x float>", llvm), "No scalable store in generated LLVM."
+
+
+@pytest.mark.skipif(
+    llvm_version_major() < 13,
+    reason="Function attribute vscale_range() is not supported in earlier versions of LLVM",
+)
+@pytest.mark.parametrize(
+    "mattr,expect_attr",
+    [
+        ("+neon", False),
+        ("+sve", True),
+        ("+v9a", True),
+        ("+sme", True),
+    ],
+)
+def test_vscale_range_function_attribute(mattr, expect_attr):
+    target = f"llvm -mtriple=aarch64-linux-gnu -mattr={mattr}"
+
+    m = te.var("m")
+    A = te.placeholder(m, dtype="float32", name="A")
+    C = te.compute((m), lambda i: A[i] + 1, name="C")
+    s = te.create_schedule([C.op])
+
+    with tvm.target.Target(target) as target:
+        f = tvm.build(s, [A, C], target)
+
+    # Check if the vscale_range() attribute exists
+    ll = f.get_source("ll")
+    attr = re.findall(rf".*vscale_range\(\d+,\d+\)*.", ll)
+
+    if expect_attr:
+        assert (
+            len(attr) > 0
+        ), f"Function attribute vscale_range() was not found in generated LLVM IR"
+    else:
+        assert (
+            len(attr) == 0
+        ), f"Unexpected function attribute vscale_range() was found in generated LLVM IR"
 
 
 @pytest.mark.skipif(
@@ -649,20 +748,36 @@ def test_unsupported_multiple_function_attributes(attr_key, attr_value):
     llvm_version_major() < 15, reason="Test requires an LLVM version of at least 15 to target SVE"
 )
 @pytest.mark.parametrize("dtype", ["float16", "float32"])
-def test_conv2d_sve(dtype):
+@pytest.mark.parametrize(
+    "conv2d_impl",
+    [
+        (
+            tvm.topi.arm_cpu.compute_conv2d_NHWC_hybrid_SVE,
+            tvm.topi.arm_cpu.schedule_conv2d_NHWC_hybrid_SVE,
+            False,
+        ),
+        (
+            tvm.topi.arm_cpu.compute_conv2d_NHWC_hybrid_SVE,
+            tvm.topi.arm_cpu.schedule_conv2d_NHWC_hybrid_TIR,
+            True,
+        ),
+    ],
+)
+def test_conv2d_sve(dtype, conv2d_impl):
     target = "llvm -mtriple=aarch64-linux-gnu -mattr=+sve"
 
-    def check_correct_assembly(dtype):
+    def check_correct_assembly(dtype, compute, schedule, use_tir_schedule):
         A = te.placeholder((1, 32, 32, 3), dtype=dtype, name="A")
         W = te.placeholder((3, 3, 3, 8), dtype=dtype, name="B")
         stride = padding = dilation = 1
-
-        compute = tvm.topi.arm_cpu.compute_conv2d_NHWC_hybrid_SVE
-        schedule = tvm.topi.arm_cpu.schedule_conv2d_NHWC_hybrid_SVE
         B = compute(A, W, stride, padding, dilation, dtype)
-        s = schedule([B])
-
-        f = tvm.build(s, [A, W, B], target)
+        if use_tir_schedule:
+            func = te.create_prim_func([A, W, B])
+            sch = schedule(tvm.tir.Schedule(func))
+            f = tvm.build(sch.mod["main"], target)
+        else:
+            s = schedule([B])
+            f = tvm.build(s, [A, W, B], target)
         assembly = f.get_source("asm")
 
         loads = re.findall(r"ld1[r]?[q]?[whdb]\t{\s?z", assembly)
@@ -675,6 +790,45 @@ def test_conv2d_sve(dtype):
         assert len(loads) > 0
         assert len(compute_ops) > 0
         assert len(stores) > 0
+
+    with tvm.target.Target(target):
+        check_correct_assembly(dtype, *conv2d_impl)
+
+
+@pytest.mark.skipif(
+    llvm_version_major() < 16, reason="Test requires an LLVM version of at least 16 to target SME"
+)
+@pytest.mark.parametrize("dtype", ["float32"])
+def test_conv2d_sme(dtype):
+    target = "llvm -mtriple=aarch64-linux-gnu -mattr=+v9a,+sme"
+
+    def check_correct_assembly(dtype):
+        A = te.placeholder((1, 32, 32, 3), dtype=dtype, name="A")
+        W = te.placeholder((3, 3, 3, 8), dtype=dtype, name="B")
+        stride = padding = dilation = 1
+
+        B = tvm.topi.arm_cpu.compute_conv2d_NHWC_hybrid_SME(A, W, stride, padding, dilation, dtype)
+        func = te.create_prim_func([A, W, B])
+        sch = tvm.topi.arm_cpu.schedule_conv2d_NHWC_hybrid_TIR(tvm.tir.Schedule(func))
+        f = tvm.build(sch.mod["main"], target)
+
+        assembly = f.get_source("asm")
+        smstart = re.findall(r"smstart\t(sm|za)", assembly)
+        loads = re.findall(r"ld1[whdb]\t{\s?za", assembly)
+        mopa = re.findall(
+            r"fmopa\tza[0-9].[shdb],( p[0-9]/[zm],)?( p[0-9]/[zm],)? z[0-9].[shdb], z[0-9].[shdb]",
+            assembly,
+        )
+        stores = re.findall(r"st1[whdb]\t{\s?za", assembly)
+        smstop = re.findall(r"smstop\t(sm|za)", assembly)
+        whilelo = re.findall(r"whilelo\tp[0-9].[shdb]", assembly)
+
+        assert len(smstart) > 0
+        assert len(loads) > 0
+        assert len(mopa) > 0
+        assert len(stores) > 0
+        assert len(smstop) > 0
+        assert len(whilelo) > 0
 
     with tvm.target.Target(target):
         check_correct_assembly(dtype=dtype)
@@ -691,13 +845,39 @@ def test_get_active_lane_mask():
     def before(a: T.handle):
         A = T.match_buffer(a, (30,), "int1")
         for i in range(T.ceildiv(30, T.vscale() * 4)):
-            A[i : i + T.vscale() * 4] = T.get_active_lane_mask("int1xvscalex4", i, 30)
+            A[i : i + T.vscale() * 4] = T.get_active_lane_mask("uint1xvscalex4", i, 30)
 
     with tvm.target.Target(target):
         out = tvm.build(before)
 
     ll = out.get_source("ll")
     assert "get.active.lane.mask" in ll
+
+
+@pytest.mark.skipif(
+    llvm_version_major() < 11,
+    reason="Vscale and get.active.lane.mask are not supported in earlier versions of LLVM",
+)
+def test_predicated_scalable_buffer():
+    target = "llvm -mtriple=aarch64-linux-gnu -mattr=+sve"
+
+    @T.prim_func
+    def before(a: T.handle, b: T.handle):
+        A = T.match_buffer(a, (16,), "float32")
+        B = T.match_buffer(b, (16,), "float32")
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
+        for i_0 in T.serial(T.ceildiv(16, 4 * T.vscale())):
+            for i_1 in T.vectorized(4 * T.vscale()):
+                if i_0 * 4 * T.vscale() + i_1 < 14:
+                    B[i_0 * 4 * T.vscale() + i_1] = A[i_0 * 4 * T.vscale() + i_1] + 1.0
+
+    with tvm.target.Target(target):
+        out = tvm.build(before)
+
+    ll = out.get_source("ll")
+    assert "get.active.lane.mask" in ll
+    assert "llvm.masked.load" in ll
+    assert "llvm.masked.store" in ll
 
 
 if __name__ == "__main__":

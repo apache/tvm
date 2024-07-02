@@ -746,7 +746,7 @@ TVM_DLL const Op& create_barriers();
 TVM_DLL const Op& mma_store();
 
 /*!
- * \brief tvm intrinsic for zero-initalizing an MMA accumulation registor.
+ * \brief tvm intrinsic for zero-initializing an MMA accumulation register.
  *        For example, if each thread in a warp of size 32 has 8 elements from the A matrix in
  *        m16xn8xk16 MMA in its registers, this intrinsic can be used to zero-initialize its
  *        4 accumulation registers.
@@ -757,6 +757,48 @@ TVM_DLL const Op& mma_store();
  * void mma_fill(IntImm local_size, Var local_ptr, Expr offset);
  */
 TVM_DLL const Op& mma_fill();
+
+// Metal SimdGroup matrix intrinsics
+
+/*!
+ * \brief tvm intrinsic for initializing and simdgroup with given value.
+ * \note only 8x8 shape is supported by Metal Spec and TVM, but we still keep shape as params,
+ *       keeping the similar interface with Metal Spec.
+ *
+ * void make_filled_simdgroup_matrix(Var d, PrimExpr index, PrimExpr value,
+ *                                   int col = 8, int row = 8);
+ */
+TVM_DLL const Op& make_filled_simdgroup_matrix();
+
+/*!
+ * \brief tvm intrinsic for loading data from device memory or threadgroup memory to simdgroup.
+ * \note only 8x8 shape is supported by Metal Spec and TVM, but we still keep shape as params,
+ *       keeping the similar interface with Metal Spec.
+ *
+ * void simdgroup_load(Var d, PrimExpr index, PrimExpr ptr, PrimExpr stride,
+                       int col = 8, int row = 8, bool transpose_matrix = false);
+ */
+TVM_DLL const Op& simdgroup_load();
+
+/*!
+ * \brief tvm intrinsic for storing data from simdgroup to device memory or threadgroup memory.
+ * \note only 8x8 shape is supported by Metal Spec and TVM, but we still keep shape as params,
+ *       keeping the similar interface with Metal Spec.
+ *
+ * void simdgroup_store(Var d, PrimExpr index, PrimExpr ptr, PrimExpr stride,
+ *                      int col = 8, int row = 8, bool transpose_matrix = false);
+ */
+TVM_DLL const Op& simdgroup_store();
+
+/*!
+ * \brief tvm intrinsic for multiply and accumulate two matrices in simdgroup
+ * \note only 8x8 shape is supported by Metal Spec and TVM, but we still keep shape as params,
+ *       keeping the similar interface with Metal Spec.
+ *
+ * void simdgroup_mma(Var d, PrimExpr index_d, Var a, PrimExpr index_a,
+ *                    Var b, PrimExpr index_b, Var c, PrimExpr index_c);
+ */
+TVM_DLL const Op& simdgroup_multiply_accumulate();
 
 // TODO(tvm-team) replace the usage of the vector operations by Shuffle.
 /*!
@@ -773,6 +815,11 @@ TVM_DLL const Op& vectorlow();
  * \brief Concat two vectors.
  */
 TVM_DLL const Op& vectorcombine();
+
+/*!
+ * \brief Dot product of two int8x4 vectors and add an optional accumulator
+ */
+TVM_DLL const Op& dp4a();
 
 /*!
  * \brief atomic add instruction, corresponding e.g. to atomicAdd in CUDA

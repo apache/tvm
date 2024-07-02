@@ -188,7 +188,7 @@ class TopologicalSorter : public ExprMutator {
     // A map from not-yet-defined variables to the binding that will
     // define the variable.  Items are removed from this map as they
     // are collected into `new_bindings`.
-    std::unordered_map<Var, Binding, ObjectPtrHash, ObjectPtrEqual> to_emit;
+    std::unordered_map<Var, Binding> to_emit;
     for (const auto& binding : block->bindings) {
       to_emit.insert({binding->var, binding});
     }

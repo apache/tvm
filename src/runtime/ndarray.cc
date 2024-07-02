@@ -316,7 +316,8 @@ void NDArray::CopyFromTo(const DLTensor* from, DLTensor* to, TVMStreamHandle str
 
   ICHECK(from->device.device_type == to->device.device_type || from->device.device_type == kDLCPU ||
          to->device.device_type == kDLCPU || from->device.device_type == kDLCUDAHost ||
-         to->device.device_type == kDLCUDAHost)
+         to->device.device_type == kDLCUDAHost || from->device.device_type == kDLROCMHost ||
+         to->device.device_type == kDLROCMHost)
       << "Can not copy across different device types directly. From device type: "
       << from->device.device_type << " to device type: " << to->device.device_type;
 

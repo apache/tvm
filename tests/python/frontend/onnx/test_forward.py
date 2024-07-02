@@ -117,7 +117,7 @@ def get_tvm_output_with_vm(
                 freeze_params=freeze_params,
                 convert_config=convert_config,
             )
-        assert tvm.ir.structural_equal(mod, mod_with_span)
+        tvm.ir.assert_structural_equal(mod, mod_with_span)
 
     result = relay.create_executor("vm", mod=mod, device=dev, target=target).evaluate()(
         *input_data, **params
@@ -8480,7 +8480,7 @@ class TestSetSpan:
             with_span = res_fptr()
         with tvm.testing.disable_span_filling():
             without_span = res_fptr()
-        assert tvm.ir.structural_equal(with_span, without_span)
+        tvm.ir.assert_structural_equal(with_span, without_span)
         _verify_structural_equal_with_span(with_span, golden_fptr())
 
     def test_conv2d_bias_add_span(self):

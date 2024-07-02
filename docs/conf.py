@@ -657,6 +657,8 @@ html_context = {
         "v0.12.0/",
         "v0.13.0/",
         "v0.14.0/",
+        "v0.15.0/",
+        "v0.16.0/",
     ],
     "display_github": True,
     "github_user": "apache",

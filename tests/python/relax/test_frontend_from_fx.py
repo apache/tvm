@@ -1416,6 +1416,77 @@ def test_silu():
     verify_model(SiLU2(), input_info, {}, expected1)
 
 
+def test_hardsigmoid():
+    input_info = [([1, 3, 10, 10], "float32")]
+
+    class Hardsigmoid(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.hs = torch.nn.Hardsigmoid()
+
+        def forward(self, input):
+            return self.hs(input)
+
+    class Hardsigmoid2(torch.nn.Module):
+        def forward(self, input):
+            return torch.nn.functional.hardsigmoid(input)
+
+    @tvm.script.ir_module
+    class expected1:
+        @R.function
+        def main(
+            inp_0: R.Tensor((1, 3, 10, 10), dtype="float32")
+        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.add(inp_0, R.const(3, "float32"))
+                lv1: R.Tensor((1, 3, 10, 10), dtype="float32") = R.clip(lv, 0, 6)
+                lv2: R.Tensor((1, 3, 10, 10), dtype="float32") = R.divide(
+                    lv1, R.const(6, "float32")
+                )
+                gv: R.Tensor((1, 3, 10, 10), dtype="float32") = lv2
+                R.output(gv)
+            return gv
+
+    verify_model(Hardsigmoid(), input_info, {}, expected1)
+    verify_model(Hardsigmoid2(), input_info, {}, expected1)
+
+
+def test_hardswish():
+    input_info = [([1, 3, 10, 10], "float32")]
+
+    class Hardswish(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.hs = torch.nn.Hardswish()
+
+        def forward(self, input):
+            return self.hs(input)
+
+    class Hardswish2(torch.nn.Module):
+        def forward(self, input):
+            return torch.nn.functional.hardswish(input)
+
+    @tvm.script.ir_module
+    class expected1:
+        @R.function
+        def main(
+            inp_0: R.Tensor((1, 3, 10, 10), dtype="float32")
+        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.add(inp_0, R.const(3, "float32"))
+                lv1: R.Tensor((1, 3, 10, 10), dtype="float32") = R.clip(lv, 0, 6)
+                lv2: R.Tensor((1, 3, 10, 10), dtype="float32") = R.divide(
+                    lv1, R.const(6, "float32")
+                )
+                lv3: R.Tensor((1, 3, 10, 10), dtype="float32") = R.multiply(inp_0, lv2)
+                gv: R.Tensor((1, 3, 10, 10), dtype="float32") = lv3
+                R.output(gv)
+            return gv
+
+    verify_model(Hardswish(), input_info, {}, expected1)
+    verify_model(Hardswish2(), input_info, {}, expected1)
+
+
 def test_groupnorm():
     import torch
     from torch.nn import Module

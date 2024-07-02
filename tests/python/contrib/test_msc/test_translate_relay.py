@@ -27,8 +27,11 @@ from torch.nn import Module
 import tvm.testing
 from tvm.relax.frontend.torch import from_fx
 from tvm.relay.frontend import from_pytorch
+from tvm import relay
+from tvm.ir.module import IRModule
 from tvm.contrib.msc.core.frontend import translate
 from tvm.contrib.msc.framework.tvm import codegen as tvm_codegen
+from tvm.contrib.msc.core import utils as msc_utils
 
 
 def _valid_target(target):
@@ -1055,6 +1058,39 @@ def test_max():
             return torch.max(x, y)
 
     verify_model(Max(), [([256, 256], "float32"), ([256, 256], "float32")])
+
+
+def test_name_string_with_colon():
+    """test name string with colons,
+    e.g., TFLite default input name 'serving_default_input:0'
+    """
+
+    dtype = "float32"
+    x_var = relay.var("input_0:0", shape=(3, 5), dtype=dtype)
+    y_var = relay.var("input_1:0", shape=(3, 5), dtype=dtype)
+    z_add = relay.add(x_var, y_var)
+    func = relay.Function([x_var, y_var], z_add)
+    mod = IRModule()
+    mod["main"] = func
+
+    try:
+        graph, _ = translate.from_relay(mod)
+    except Exception as err:
+        raise RuntimeError(f"Translation from relay to graph failed: {err}")
+    inspect = graph.inspect()
+
+    expected = {
+        "inputs": [
+            {"name": "input_0:0", "shape": [3, 5], "dtype": dtype, "layout": ""},
+            {"name": "input_1:0", "shape": [3, 5], "dtype": dtype, "layout": ""},
+        ],
+        "outputs": [{"name": "add", "shape": [3, 5], "dtype": dtype, "layout": ""}],
+        "nodes": {"total": 3, "input": 2, "add": 1},
+    }
+
+    assert msc_utils.dict_equal(inspect, expected), "Inspect {} mismatch with expected {}".format(
+        inspect, expected
+    )
 
 
 if __name__ == "__main__":

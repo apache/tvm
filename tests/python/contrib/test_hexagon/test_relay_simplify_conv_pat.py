@@ -157,7 +157,7 @@ def test_simplify_conv_pat(hexagon_session: Session):
         mod = simplify_conv_pat(mod)
         mod = tvm.relay.transform.InferType()(mod)
         exp_relay_mod = tvm.relay.transform.InferType()(exp_relay_mod)
-        assert tvm.ir.structural_equal(mod["main"], exp_relay_mod["main"], map_free_vars=True)
+        tvm.ir.assert_structural_equal(mod["main"], exp_relay_mod["main"], map_free_vars=True)
         mod = tvm.relay.transform.FoldConstant()(mod)
         hexagon_lowered_opt = build_module(
             mod, tvm.target.Target(HEXAGON_AOT_LLVM_TARGET, host=HEXAGON_AOT_LLVM_TARGET)
@@ -196,7 +196,7 @@ def test_negative():
         orig_mod = tvm.relay.transform.InferType()(orig_mod)
         opt_mod = simplify_conv_pat(orig_mod)
         opt_mod = tvm.relay.transform.InferType()(opt_mod)
-        assert tvm.ir.structural_equal(orig_mod["main"], opt_mod["main"], map_free_vars=True)
+        tvm.ir.assert_structural_equal(orig_mod["main"], opt_mod["main"], map_free_vars=True)
 
 
 if __name__ == "__main__":

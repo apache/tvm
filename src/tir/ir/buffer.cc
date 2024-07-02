@@ -399,37 +399,44 @@ Buffer Buffer::GetFlattenedBuffer() const {
   }
 }
 
-PrimExpr Buffer::vload(Array<PrimExpr> begin, DataType value_dtype) const {
+PrimExpr Buffer::vload(Array<PrimExpr> begin, DataType value_dtype,
+                       Optional<PrimExpr> predicate) const {
   // specially handle bool, stored as DataType::Int(8)
   const BufferNode* n = operator->();
   ICHECK(n != nullptr);
   ICHECK(value_dtype.element_of() == n->dtype.element_of() &&
-         value_dtype.lanes() % n->dtype.lanes() == 0)
+         value_dtype.get_lanes_or_vscale_factor() % n->dtype.lanes() == 0)
       << "Cannot load " << value_dtype << " from buffer of " << n->dtype;
 
   Array<PrimExpr> indices = begin;
-  int factor = value_dtype.lanes() / n->dtype.lanes();
-  if (factor > 1) {
-    indices.Set(indices.size() - 1, Ramp(indices[indices.size() - 1], 1, factor));
+  PrimExpr base = indices[indices.size() - 1];
+  if (value_dtype.is_fixed_length_vector()) {
+    int factor = value_dtype.lanes() / n->dtype.lanes();
+    if (factor > 1 && base.dtype().is_scalar()) {
+      indices.Set(indices.size() - 1, Ramp(base, 1, factor));
+    }
   }
-  return BufferLoad(*this, indices);
+  return BufferLoad(*this, indices, predicate);
 }
 
-Stmt Buffer::vstore(Array<PrimExpr> begin, PrimExpr value) const {
+Stmt Buffer::vstore(Array<PrimExpr> begin, PrimExpr value, Optional<PrimExpr> predicate) const {
   // specially handle bool, stored as DataType::Int(8)
   const BufferNode* n = operator->();
   ICHECK(n != nullptr);
   DataType value_dtype = value.dtype();
   ICHECK(value_dtype.element_of() == n->dtype.element_of() &&
-         value_dtype.lanes() % n->dtype.lanes() == 0)
+         value_dtype.get_lanes_or_vscale_factor() % n->dtype.lanes() == 0)
       << "Cannot store " << value_dtype << " to buffer of " << n->dtype;
 
   Array<PrimExpr> indices = begin;
-  int factor = value_dtype.lanes() / n->dtype.lanes();
-  if (factor > 1) {
-    indices.Set(indices.size() - 1, Ramp(indices[indices.size() - 1], 1, factor));
+  PrimExpr base = indices[indices.size() - 1];
+  if (value_dtype.is_fixed_length_vector()) {
+    int factor = value_dtype.lanes() / n->dtype.lanes();
+    if (factor > 1 && base.dtype().is_scalar()) {
+      indices.Set(indices.size() - 1, Ramp(base, 1, factor));
+    }
   }
-  return BufferStore(*this, value, indices);
+  return BufferStore(*this, value, indices, predicate);
 }
 
 String Buffer::scope() const {

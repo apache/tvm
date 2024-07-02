@@ -96,12 +96,12 @@ def test_qnn_legalize():
         # Check that Relay Legalize does not change the graph.
         a = run_opt_pass(a, relay.transform.Legalize())
         b = run_opt_pass(before(), transform.InferType())
-        assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+        tvm.ir.assert_structural_equal(a, b)
 
         # Check that QNN Legalize modifies the graph.
         a = run_opt_pass(a, relay.qnn.transform.Legalize())
         b = run_opt_pass(expected(), transform.InferType())
-        assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+        tvm.ir.assert_structural_equal(a, b)
 
 
 def test_qnn_legalize_qnn_conv2d():
@@ -152,7 +152,7 @@ def test_qnn_legalize_qnn_conv2d():
             "llvm -device=arm_cpu -mtriple=aarch64-linux-gnu -mattr=+v8.2a,+dotprod"
         ):
             legalized_mod = relay.qnn.transform.Legalize()(mod)
-            assert tvm.ir.structural_equal(mod, legalized_mod)
+            tvm.ir.assert_structural_equal(mod, legalized_mod)
 
         ################################################################
         # Check transformations for platforms without fast Int8 support.
@@ -176,7 +176,7 @@ def test_qnn_legalize_qnn_conv2d():
     with tvm.target.Target("llvm -mtriple=x86_64-linux-gnu -mcpu=skylake-avx512"):
         mod = relay.transform.InferType()(mod)
         legalized_mod = relay.qnn.transform.Legalize()(mod)
-        assert tvm.ir.structural_equal(mod, legalized_mod)
+        tvm.ir.assert_structural_equal(mod, legalized_mod)
 
     # ARM - so check that transformation has happened.
     with tvm.target.Target(
@@ -249,7 +249,7 @@ def test_qnn_legalize_qnn_dense():
             "llvm -device=arm_cpu -mtriple=aarch64-linux-gnu -mattr=+v8.2a,+dotprod"
         ):
             legalized_mod = relay.qnn.transform.Legalize()(mod)
-            assert tvm.ir.structural_equal(mod, legalized_mod)
+            tvm.ir.assert_structural_equal(mod, legalized_mod)
 
         ################################################################
         # Check transformations for platforms without fast Int8 support.
@@ -273,7 +273,7 @@ def test_qnn_legalize_qnn_dense():
     with tvm.target.Target("llvm -mtriple=x86_64-linux-gnu -mcpu=skylake-avx512"):
         mod = relay.transform.InferType()(mod)
         legalized_mod = relay.qnn.transform.Legalize()(mod)
-        assert tvm.ir.structural_equal(mod, legalized_mod)
+        tvm.ir.assert_structural_equal(mod, legalized_mod)
 
     # ARM - so check that transformation has happened.
     with tvm.target.Target(

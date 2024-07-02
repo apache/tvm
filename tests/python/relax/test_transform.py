@@ -18,7 +18,6 @@
 import pytest
 import tvm
 from tvm import relax
-from tvm.ir import structural_equal
 
 import tvm.script
 from tvm.script import tir as T, relax as R
@@ -117,7 +116,7 @@ def test_call_tir_rewrite():
     assert isinstance(s1, relax.Call)
     assert s1.op.name == "relax.builtin.alloc_tensor"
     assert isinstance(s1.args[0], relax.ShapeExpr)
-    assert structural_equal(s1.args[0], s0.sinfo_args[0].shape)
+    tvm.ir.assert_structural_equal(s1.args[0], s0.sinfo_args[0].shape)
     s2 = block.bindings[1].value
     tvm.ir.expr.GlobalVar
     assert s2.op.name_hint == "exp"
@@ -262,7 +261,7 @@ def test_call_dps_packed_rewrite():
     assert isinstance(s1, relax.Call)
     assert s1.op.name == "relax.builtin.alloc_tensor"
     assert isinstance(s1.args[0], relax.ShapeExpr)
-    assert structural_equal(s1.args[0], s0.sinfo_args[0].shape)
+    tvm.ir.assert_structural_equal(s1.args[0], s0.sinfo_args[0].shape)
     s2 = block.bindings[1].value
     assert s2.op.global_symbol == "test.op.identity"
 
