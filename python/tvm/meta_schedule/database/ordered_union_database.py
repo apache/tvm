@@ -96,6 +96,7 @@ class OrderedUnionDatabase(Database):
     )
     # returns the better one between r3 and r4
     merged_db.query_tuning_record(..., target_workload)
+
     """
 
     def __init__(self, *databases: Database) -> None:
