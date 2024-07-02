@@ -116,3 +116,28 @@ jobs:
         shell: bash -l {0}
         run: |
            SCCACHE_SERVER_PORT=8767 ./tests/scripts/ci.py gpu -d adreno_ci_gpu -f
+  Windows-Build:
+    if: ${{ github.repository == 'gpgpu/apache-tvm' }}
+    runs-on: tvm-windows
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: 'recursive'
+          ref: ''
+      - name: Compile
+        shell: powershell
+        run: |
+           Push-Location
+           New-Item -ItemType Directory -Force -Path "./build"
+           cd build
+           cp ../cmake/config.cmake .
+           Add-Content config.cmake "set(USE_OPENCL $ENV:OPENCL_SDK)"
+           Add-Content config.cmake "set(USE_LLVM $ENV:LLVM_CONFIG)"
+           cmake .. -G "Visual Studio 17 2022" -A x64
+           cmake --build . --config Release --parallel $env:NUMBER_OF_PROCESSORS
+           Pop-Location
+      - name: Check Build Status
+        shell: powershell
+        run: |
+           $env:PYTHONPATH = "$pwd\python"
+           python -c "import tvm; print(tvm.__path__)"
