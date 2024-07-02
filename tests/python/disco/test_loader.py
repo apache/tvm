@@ -119,6 +119,7 @@ def _simulate_presharded_weights(base_path, param_dict, num_shards, shard_info):
     )
 
 
+@tvm.testing.requires_nccl
 def test_load_shard():
     devices = [0, 1]
     num_shards = len(devices)
@@ -176,6 +177,7 @@ def _create_presharded_loader(sess, path):
     return loader
 
 
+@tvm.testing.requires_nccl
 def test_load_presharded():
     devices = [0, 1]
     param_dict = {
@@ -216,6 +218,7 @@ def test_load_presharded():
         )
 
 
+@tvm.testing.requires_nccl
 def test_load_shard_in_relax():
     devices = [0, 1]
     num_shards = len(devices)
@@ -247,7 +250,6 @@ def test_load_shard_in_relax():
         def main(
             loader: R.Object,
         ) -> R.Tuple(R.Tensor((64, 64), "float32"), R.Tensor((16, 128), "float32"),):
-            R.func_attr({"global_symbol": "main"})
             with R.dataflow():
                 lv0: R.Tensor((64, 64), "float32") = R.call_pure_packed(
                     "runtime.disco.ShardLoaderLoad",
@@ -308,6 +310,7 @@ def test_load_shard_in_relax():
         )
 
 
+@tvm.testing.requires_nccl
 def test_load_shard_all():
     devices = [0, 1]
     num_shards = len(devices)
@@ -345,6 +348,7 @@ def test_load_shard_all():
         np.testing.assert_equal(param_dict["param_1"][16:32, :], p_1[1].numpy())
 
 
+@tvm.testing.requires_nccl
 def test_load_all_presharded():
     devices = [0, 1]
     num_shards = len(devices)
@@ -374,6 +378,7 @@ def test_load_all_presharded():
         np.testing.assert_equal(param_dict["param_1"][:, 64:128], p_1[1].numpy())
 
 
+@tvm.testing.requires_nccl
 def test_load_shard_broadcast():
     devices = [0, 1]
     param_dict = {
@@ -395,6 +400,7 @@ def test_load_shard_broadcast():
         np.testing.assert_equal(param_dict["param_1"], p_1[1].numpy())
 
 
+@tvm.testing.requires_nccl
 def test_load_qkv_proj_shard():  # pylint: disable=too-many-locals
     devices = [0, 1]
     num_shards = len(devices)
