@@ -694,11 +694,12 @@ void CodeGenCUDA::VisitExpr_(const CastNode* op, std::ostream& os) {
   stream << ' ' << sret << ";\n";
   {
     std::string src = SSAGetID(PrintExpr(op->value), from_ty);
+    std::string lift_str = (target_ty.bits() == 8) && from_ty.is_float16()? "(__half2float)" : "";
     for (int i = 0, lanes = from_ty.lanes(); i < lanes; ++i) {
       std::ostringstream val;
       val << "(";
       PrintType(target_ty.element_of(), val);
-      val << ")(";
+      val << ")" << lift_str << "(";
       PrintVecElemLoad(src, from_ty, i, val);
       val << ")";
       PrintVecElemStore(sret, target_ty, i, val.str());
