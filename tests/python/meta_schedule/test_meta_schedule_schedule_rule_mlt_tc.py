@@ -856,11 +856,11 @@ def test_padded_matmul_relu():
                             v3 = T.axis.spatial(1, 0)
                             v4 = T.axis.spatial(16, ax0_ax1_ax3_ax4_ax5_fused % 256 // 16)
                             v5 = T.axis.spatial(16, ax0_ax1_ax3_ax4_ax5_fused % 16)
+                            T.where(ax0_0_0_ax1_0_0_fused // 2 * 32 + ax2 * 16 + ax0_ax1_ax3_ax4_ax5_fused % 256 // 16 < 127 and ax0_0_0_ax1_0_0_fused % 2 * 64 + ax0_0_1_ax1_0_1_fused * 32 + ax0_ax1_ax3_ax4_ax5_fused // 256 * 16 + ax0_ax1_ax3_ax4_ax5_fused % 16 < 127)
                             T.reads(C_reindex_shared[v0, v1, v2, v3, v4, v5])
                             T.writes(compute[v4 + v2 * 16 + v0 * 32, v5 + v1 * 16])
                             T.block_attr({"meta_schedule.cooperative_fetch": 4})
-                            if v0 * 32 + v2 * 16 + v4 < 127 and v1 * 16 + v5 < 127:
-                                compute[v4 + v2 * 16 + v0 * 32, v5 + v1 * 16] = T.max(C_reindex_shared[v0, v1, v2, v3, v4, v5], T.float32(0))
+                            compute[v4 + v2 * 16 + v0 * 32, v5 + v1 * 16] = T.max(C_reindex_shared[v0, v1, v2, v3, v4, v5], T.float32(0))
     # fmt: on
 
     decision_0 = [

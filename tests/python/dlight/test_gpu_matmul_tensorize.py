@@ -254,10 +254,10 @@ class TestMatmulTensorizeTooSmall(BaseBeforeAfter):
                                             v0 = T.axis.spatial(1, ax0)
                                             v1 = T.axis.spatial((m + 31) // 32 * 32, ax1_0 * 32 + ax1_2 * 4 + ax1)
                                             v2 = T.axis.spatial(64, ax2_2 * 4 + ax2_0 * 2 + ax2_1_1)
+                                            T.where(ax1_0 * 32 + ax1_2 * 4 + ax1 < m and ax2_2 * 4 + ax2_0 * 2 + ax2_1_1 < 15)
                                             T.reads(compute_reindex_pad_local[v0, v1, v2])
                                             T.writes(compute[v1, v2])
-                                            if v1 < m and v2 < 15:
-                                                compute[v1, v2] = compute_reindex_pad_local[v0, v1, v2]
+                                            compute[v1, v2] = compute_reindex_pad_local[v0, v1, v2]
     # fmt: on
 
 
@@ -417,11 +417,11 @@ class TestMatmulTensorizeEpilogue(BaseBeforeAfter):
                                         v0 = T.axis.spatial(1, 0)
                                         v1 = T.axis.spatial((n + 127) // 128 * 128, ax1_0_0_ax2_0_0_fused * 128 + ax2_0_2_ax1_0_2_fused % 4 * 32 + (ax0_ax1_fused_0 * 128 + ax0_ax1_fused_1 * 4 + ax0_ax1_fused_2) // 32)
                                         v2 = T.axis.spatial(4096, ax1_0_1_ax2_0_1_fused * 128 + ax2_0_2_ax1_0_2_fused // 4 * 32 + (ax0_ax1_fused_0 * 128 + ax0_ax1_fused_1 * 4 + ax0_ax1_fused_2) % 32)
+                                        T.where(ax1_0_0_ax2_0_0_fused * 128 + ax2_0_2_ax1_0_2_fused % 4 * 32 + ((ax0_ax1_fused_0 * 32 + ax0_ax1_fused_1) * 4 + ax0_ax1_fused_2) // 32 < n)
                                         T.reads(lv3[0, v1, v2], var_NT_matmul_intermediate_reindex_pad_shared_dyn[v0, v1, v2])
                                         T.writes(p_output0_intermediate[0, v1, v2])
                                         T.block_attr({"buffer_dim_align": [[0, 1, 16, 4]]})
-                                        if v1 < n:
-                                            p_output0_intermediate[0, v1, v2] = lv3[0, v1, v2] * T.float16(0.5) + var_NT_matmul_intermediate_reindex_pad_shared_dyn[v0, v1, v2]
+                                        p_output0_intermediate[0, v1, v2] = lv3[0, v1, v2] * T.float16(0.5) + var_NT_matmul_intermediate_reindex_pad_shared_dyn[v0, v1, v2]
     # fmt: on
 
 
@@ -690,11 +690,11 @@ class TestMatmulInt8Tensorize3d2dDyn(BaseBeforeAfter):
                                         v0 = T.axis.spatial(1, 0)
                                         v1 = T.axis.spatial((m + 127) // 128 * 128, ax1_0_0_ax2_0_0_fused * 128 + ax2_0_2_ax1_0_2_fused % 4 * 32 + (ax0_ax1_fused_0 * 128 + ax0_ax1_fused_1 * 4 + ax0_ax1_fused_2) // 32)
                                         v2 = T.axis.spatial(4096, ax1_0_1_ax2_0_1_fused * 128 + ax2_0_2_ax1_0_2_fused // 4 * 32 + (ax0_ax1_fused_0 * 128 + ax0_ax1_fused_1 * 4 + ax0_ax1_fused_2) % 32)
+                                        T.where(ax1_0_0_ax2_0_0_fused * 128 + ax2_0_2_ax1_0_2_fused % 4 * 32 + ((ax0_ax1_fused_0 * 32 + ax0_ax1_fused_1) * 4 + ax0_ax1_fused_2) // 32 < m)
                                         T.reads(matmul_1_reindex_pad_shared_dyn[v0, v1, v2])
                                         T.writes(matmul_1[0, v1, v2])
                                         T.block_attr({"buffer_dim_align": [[0, 1, 16, 4]]})
-                                        if v1 < m:
-                                            matmul_1[0, v1, v2] = matmul_1_reindex_pad_shared_dyn[v0, v1, v2]
+                                        matmul_1[0, v1, v2] = matmul_1_reindex_pad_shared_dyn[v0, v1, v2]
     # fmt: on
 
 
@@ -831,10 +831,10 @@ class TestMatmulMetal(MetalBeforeAfter):
                                             v0 = T.axis.spatial(1, ax0_1)
                                             v1 = T.axis.spatial((batch_size + 15) // 16 * 16, ax1_0 * 16 + (ax1_ax2_fused_0 * 512 + ax1_ax2_fused_1 * 128 + ax1_ax2_fused_2 * 128 + ax1_ax2_fused_3 * 4 + ax1_ax2_fused_4) // 64)
                                             v2 = T.axis.spatial(28672, ax2_0 * 64 + (ax1_ax2_fused_0 * 512 + ax1_ax2_fused_1 * 128 + ax1_ax2_fused_2 * 128 + ax1_ax2_fused_3 * 4 + ax1_ax2_fused_4) % 64)
+                                            T.where(ax1_0 * 16 + (((ax1_ax2_fused_0 * 4 + ax1_ax2_fused_1 + ax1_ax2_fused_2) * 32 + ax1_ax2_fused_3) * 4 + ax1_ax2_fused_4) // 64 < batch_size)
                                             T.reads(C_reindex_pad_shared[v0, v1, v2])
                                             T.writes(C[v1, 0, v2])
-                                            if v1 < batch_size:
-                                                C[v1, 0, v2] = C_reindex_pad_shared[v0, v1, v2]
+                                            C[v1, 0, v2] = C_reindex_pad_shared[v0, v1, v2]
     # fmt: on
 
 
@@ -971,10 +971,10 @@ class TestMatmulMetalInt4Quant(MetalBeforeAfter):
                                             v0 = T.axis.spatial(1, ax0_1)
                                             v1 = T.axis.spatial((batch_size + 15) // 16 * 16, ax1_0 * 16 + (ax1_ax2_fused_0 * 512 + ax1_ax2_fused_1 * 128 + ax1_ax2_fused_2 * 128 + ax1_ax2_fused_3 * 4 + ax1_ax2_fused_4) // 64)
                                             v2 = T.axis.spatial(28672, ax2_0 * 64 + (ax1_ax2_fused_0 * 512 + ax1_ax2_fused_1 * 128 + ax1_ax2_fused_2 * 128 + ax1_ax2_fused_3 * 4 + ax1_ax2_fused_4) % 64)
+                                            T.where(ax1_0 * 16 + (((ax1_ax2_fused_0 * 4 + ax1_ax2_fused_1 + ax1_ax2_fused_2) * 32 + ax1_ax2_fused_3) * 4 + ax1_ax2_fused_4) // 64 < batch_size)
                                             T.reads(C_reindex_pad_shared[v0, v1, v2])
                                             T.writes(C[v1, 0, v2])
-                                            if v1 < batch_size:
-                                                C[v1, 0, v2] = C_reindex_pad_shared[v0, v1, v2]
+                                            C[v1, 0, v2] = C_reindex_pad_shared[v0, v1, v2]
 
 
 if __name__ == "__main__":

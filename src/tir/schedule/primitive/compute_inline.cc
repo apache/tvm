@@ -682,11 +682,14 @@ class ReverseComputeInliner : public BaseInliner {
   using BaseInliner::VisitStmt_;
 
   /*! \brief Generate the predicate after inlining based on the consumer predicate */
-  Block BuildInlinedConsumerPredicate(const BlockNode* producer_block) {
+  BlockRealize BuildInlinedConsumerPredicate(BlockRealize producer_block_realize) {
     // Bind the producer block iter domains for simplification
     Map<Var, PrimExpr> subst_map;
+    Block producer_block = producer_block_realize->block;
     for (int i = 0, n = producer_block->iter_vars.size(); i < n; ++i) {
       const IterVar& iter = producer_block->iter_vars[i];
+      const PrimExpr& binding = producer_block_realize->iter_values[i];
+      subst_map.Set(iter->var, binding);
       analyzer_.Bind(iter->var, Range::FromMinExtent(iter->dom->min, iter->dom->extent));
     }
     if (producer_block->annotations.count(tir::attr::auto_copy) != 0) {
@@ -705,30 +708,33 @@ class ReverseComputeInliner : public BaseInliner {
     PrimExpr predicate = Substituter(this)(consumer_iter_in_bound_);
     // Simplify the predicate using the producer block iter domains
     predicate = analyzer_.Simplify(predicate);
-    ObjectPtr<BlockNode> block = make_object<BlockNode>(*producer_block);
     if (is_one(predicate)) {
-      return Block(block);
+      return producer_block_realize;
     }
-    if (const auto* if_ = producer_block->body.as<tir::IfThenElseNode>()) {
-      PrimExpr if_predicate = analyzer_.Simplify(if_->condition);
-      if (!StructuralEqual()(predicate, if_predicate)) {
-        predicate = analyzer_.Simplify(predicate && if_->condition);
+    if (const auto* if_ = producer_block->body.as<IfThenElseNode>()) {
+      if (!if_->else_case.defined()) {
+        PrimExpr if_predicate = analyzer_.Simplify(if_->condition);
+        if (!StructuralEqual()(predicate, if_predicate)) {
+          predicate = analyzer_.Simplify(predicate && if_->condition);
+          producer_block.CopyOnWrite()->body = if_->then_case;
+        }
       }
-      block->body = IfThenElse(predicate, if_->then_case);
-      return Block(block);
     }
-    block->body = IfThenElse(predicate, block->body);
-    return Block(block);
+    PrimExpr outer_predicate = Substitute(predicate, subst_map);
+    auto n = producer_block_realize.CopyOnWrite();
+    n->block = producer_block;
+    n->predicate = analyzer_.Simplify(outer_predicate);
+    return GetRef<BlockRealize>(n);
   }
 
-  Stmt VisitStmt_(const BlockNode* op) final {
-    Block src_block = GetRef<Block>(op);
-    Block tgt_block = Downcast<Block>(BaseInliner::VisitStmt_(op));
-    if (op == producer_block_) {
-      tgt_block = BuildInlinedConsumerPredicate(tgt_block.get());
-      block_reuse.Set(src_block, tgt_block);
+  Stmt VisitStmt_(const BlockRealizeNode* op) final {
+    Block src_block = op->block;
+    BlockRealize tgt_block_realize = Downcast<BlockRealize>(StmtMutator::VisitStmt_(op));
+    if (src_block.get() == producer_block_) {
+      tgt_block_realize = BuildInlinedConsumerPredicate(tgt_block_realize);
+      block_reuse.Set(src_block, tgt_block_realize->block);
     }
-    return std::move(tgt_block);
+    return std::move(tgt_block_realize);
   }
 
   Stmt VisitStmt_(const BufferStoreNode* _store) final {
