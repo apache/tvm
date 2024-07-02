@@ -298,6 +298,7 @@ void CodeGenWebGPU::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
 
   if (lanes != 1) {
     ICHECK(lanes >= 2 && lanes <= 4) << "CodeGenWebGPU: only allows vector with lanes in {2, 3, 4}";
+    // Currently WebGPU doesn't support `i8` and an `int8x4` is represented as a `u32`.
     if (t.is_int() && t.bits() == 8 && lanes == 4) {
       os << "u32";
       return;
