@@ -60,6 +60,7 @@ def tune_tir(  # pylint: disable=too-many-locals
     seed: Optional[int] = None,
     module_equality: str = "structural",
     special_space: Optional[Mapping[str, SpaceGenerator.SpaceGeneratorType]] = None,
+    post_optimization: Optional[bool] = False,
 ) -> Database:
     """Tune a TIR function or an IRModule of TIR functions.
 
@@ -156,6 +157,7 @@ def tune_tir(  # pylint: disable=too-many-locals
         measure_callbacks=measure_callbacks,
         task_scheduler=task_scheduler,
         module_equality=module_equality,
+        post_optimization=post_optimization,
     )
 
 
