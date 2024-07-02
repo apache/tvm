@@ -131,12 +131,10 @@ class String(str, PyNativeObject):
         return val
 
     # pylint: disable=no-self-argument
-    def __from_tvm_object__(cls, obj):
-        """Construct from a given tvm object."""
-        content = _ffi_api.GetFFIString(obj)
-        val = str.__new__(cls, content)
-        val.__tvm_object__ = obj
-        return val
+    def __from_tvm_object__(cls, obj: Object) -> str:
+        """Convert from runtime.String to native string"""
+
+        return _ffi_api.GetFFIString(obj)
 
 
 @tvm._ffi.register_object("runtime.ShapeTuple")

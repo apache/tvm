@@ -49,15 +49,18 @@ TVM_REGISTER_GLOBAL("runtime.Array").set_body([](TVMArgs args, TVMRetValue* ret)
   *ret = Array<ObjectRef>(data);
 });
 
-TVM_REGISTER_GLOBAL("runtime.ArrayGetItem").set_body([](TVMArgs args, TVMRetValue* ret) {
-  int64_t i = args[1];
-  ICHECK_EQ(args[0].type_code(), kTVMObjectHandle);
-  Object* ptr = static_cast<Object*>(args[0].value().v_handle);
-  ICHECK(ptr->IsInstance<ArrayNode>());
-  auto* n = static_cast<const ArrayNode*>(ptr);
-  ICHECK_LT(static_cast<size_t>(i), n->size()) << "out of bound of array";
-  *ret = n->at(i);
-});
+// TVM_REGISTER_GLOBAL("runtime.ArrayGetItem").set_body([](TVMArgs args, TVMRetValue* ret) {
+//   int64_t i = args[1];
+//   ICHECK_EQ(args[0].type_code(), kTVMObjectHandle);
+//   Object* ptr = static_cast<Object*>(args[0].value().v_handle);
+//   ICHECK(ptr->IsInstance<ArrayNode>());
+//   auto* n = static_cast<const ArrayNode*>(ptr);
+//   ICHECK_LT(static_cast<size_t>(i), n->size()) << "out of bound of array";
+//   *ret = n->at(i);
+// });
+
+TVM_REGISTER_GLOBAL("runtime.ArrayGetItem")
+    .set_body_typed([](Array<ObjectRef> arr, size_t index) -> ObjectRef { return arr[index]; });
 
 TVM_REGISTER_GLOBAL("runtime.ArraySize").set_body([](TVMArgs args, TVMRetValue* ret) {
   ICHECK_EQ(args[0].type_code(), kTVMObjectHandle);

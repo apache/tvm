@@ -277,18 +277,7 @@ class PatternContextNode : public Object {
  */
 class PatternContext : public ObjectRef {
  public:
-  TVM_DLL explicit PatternContext(ObjectPtr<Object> n) : ObjectRef(n) {}
   TVM_DLL explicit PatternContext(bool incremental = false);
-
-  const PatternContextNode* operator->() const {
-    ICHECK(get() != nullptr);
-    return static_cast<const PatternContextNode*>(get());
-  }
-
-  PatternContextNode* operator->() {
-    ICHECK(get() != nullptr);
-    return static_cast<PatternContextNode*>(get_mutable());
-  }
 
   /*!
    * \brief Build an edge constraint between two patterns (producer and consumer).
@@ -332,6 +321,8 @@ class PatternContext : public ObjectRef {
   TVM_DLL void EnterWithScope() const;
   /*! \brief The RAII-like exit of a constraint context scope */
   TVM_DLL void ExitWithScope() const;
+
+  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(PatternContext, ObjectRef, PatternContextNode);
 
  private:
   friend class With<PatternContext>;

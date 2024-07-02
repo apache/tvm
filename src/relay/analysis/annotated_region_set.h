@@ -210,13 +210,6 @@ class AnnotatedRegionSet : public ObjectRef {
     data_ = std::move(n);
   }
 
-  /*!
-   * \brief Construct from an object pointer.
-   *
-   * \param n The object pointer.
-   */
-  explicit AnnotatedRegionSet(ObjectPtr<Object> n) : ObjectRef(n) {}
-
   /*! \return The begin iterator. */
   iterator begin() {
     auto* n = operator->();
@@ -242,13 +235,6 @@ class AnnotatedRegionSet : public ObjectRef {
     return n->end();
   }
 
-  /*! \return mutable pointers to the node. */
-  AnnotatedRegionSetNode* operator->() const {
-    auto* ptr = get_mutable();
-    ICHECK(ptr != nullptr);
-    return static_cast<AnnotatedRegionSetNode*>(ptr);
-  }
-
   /*! \return The region an expression belongs to. */
   AnnotatedRegion operator[](const Expr& expr) {
     const auto* n = operator->();
@@ -267,6 +253,9 @@ class AnnotatedRegionSet : public ObjectRef {
    */
   static AnnotatedRegionSet Create(const Expr& expr, const Op& begin, const Op& end,
                                    const std::string& func_name = "default");
+
+  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(AnnotatedRegionSet, ObjectRef,
+                                                    AnnotatedRegionSetNode);
 
  private:
   /*! \brief Helper class to construct a RegionSet from an expr.*/

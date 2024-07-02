@@ -734,3 +734,25 @@ def test_compiled_function_with_zero_arguments(call_with_unused_argument):
         res = remote_mod["func_without_arg"]()
 
     assert res == 42
+
+
+def test_return_string_over_rpc():
+    @T.prim_func
+    def func(unused: T.int64) -> T.handle:
+        return T.StringImm("hello!")
+
+    built = tvm.build(func, target="llvm")
+
+    server = tvm.rpc.Server(key="x1")
+    client = tvm.rpc.connect("127.0.0.1", server.port, key="x1")
+
+    libname = "libbuilt.so"
+    with tempfile.TemporaryDirectory(prefix="tvm_rpc_testing_") as temp_dir:
+        local_path = os.path.join(temp_dir, libname)
+        built.export_library(local_path)
+        client.upload(local_path)
+
+    remote_mod = client.load_module(libname)
+
+    out = remote_mod(42)
+    assert out == "hello!"
