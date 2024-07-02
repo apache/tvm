@@ -1467,7 +1467,7 @@ def test_alter_op_dense_arm_cpu_sme_float32():
 
     def expected():
         x = relay.var("x", shape=(32, 32), dtype="float32")
-        y = relay.const(y_data.transpose(), dtype="float32")
+        y = relay.transpose(relay.const(y_data, dtype="float32"))
         matmul = relay.nn.matmul(x, y)
         return relay.Function(analysis.free_vars(matmul), matmul)
 
@@ -1476,6 +1476,29 @@ def test_alter_op_dense_arm_cpu_sme_float32():
             a = run_opt_pass(before(), transform.AlterOpLayout())
             b = run_opt_pass(expected(), transform.InferType())
             tvm.ir.assert_structural_equal(a, b)
+
+
+def test_alter_op_dense_arm_cpu_neon():
+    np.random.seed(0)
+    y_data = np.random.uniform(size=(64, 32)).astype("float32")
+
+    def before():
+        x = relay.var("x", shape=(32, 32), dtype="float32")
+        y = relay.const(y_data, dtype="float32")
+        dense = relay.nn.dense(x, y)
+        return relay.Function(analysis.free_vars(dense), dense)
+
+    def expected():
+        x = relay.var("x", shape=(32, 32), dtype="float32")
+        y = relay.transpose(relay.const(y_data, dtype="float32"))
+        matmul = relay.nn.matmul(x, y)
+        return relay.Function(analysis.free_vars(matmul), matmul)
+
+    with tvm.target.Target("llvm -mtriple=aarch64-linux-gnu -mattr=+v8.6a,+neon"):
+        with TempOpAttr("nn.dense", "FTVMAlterOpLayout", topi.arm_cpu.dense_alter_op._alter_dense):
+            a = run_opt_pass(before(), transform.AlterOpLayout())
+            b = run_opt_pass(expected(), transform.InferType())
+            assert tvm.ir.structural_equal(a, b)
 
 
 @pytest.mark.skipif(
@@ -1511,10 +1534,8 @@ def test_alter_op_dense_arm_cpu_sme_float16_float32():
 @pytest.mark.skipif(
     llvm_version_major() < 17, reason="SME is not supported in earlier versions of LLVM"
 )
-@pytest.mark.parametrize(
-    "transpose_b,transform_b", [(False, lambda x: x), (True, lambda x: x.transpose())]
-)
-def test_alter_op_matmul_arm_cpu_sme(transpose_b, transform_b):
+@pytest.mark.parametrize("transpose_b", [False, True])
+def test_alter_op_matmul_arm_cpu_sme(transpose_b):
     np.random.seed(0)
     y_data = np.random.uniform(size=(64, 32)).astype("float32")
 
@@ -1526,7 +1547,9 @@ def test_alter_op_matmul_arm_cpu_sme(transpose_b, transform_b):
 
     def expected():
         x = relay.var("x", shape=(96, 32), dtype="float32")
-        y = relay.const(transform_b(y_data), dtype="float32")
+        y = relay.const(y_data, dtype="float32")
+        if transpose_b:
+            y = relay.transpose(y)
         matmul = relay.nn.matmul(x, y)
         return relay.Function(analysis.free_vars(matmul), matmul)
 

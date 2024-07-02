@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
+# pylint: disable=invalid-name,unused-variable,unused-argument,no-member
 """Dense alter op definitions for the `arm_cpu` device key."""
 
 import tvm
@@ -47,13 +48,11 @@ def _alter_dense(attrs, inputs, tinfos, out_type):
 
     cfg = dispatch_ctx.query(target, workload)
     topi_impl = workload[0]
+
     if topi_impl == "matmul.arm_cpu.sme":
-        # Pre-compute transposed weights and convert to a matmul
-        assert isinstance(
-            inputs[1], relay.Constant
-        ), "matmul_sme.arm_cpu requires weights be a Relay Constant"
 
         weight_dtype = tinfos[1].dtype
+        N, K = tinfos[1].shape
         encoded_weight = inputs[1]
 
         # For dense the weights (rhs) are provided in transposed format,
@@ -65,12 +64,33 @@ def _alter_dense(attrs, inputs, tinfos, out_type):
         # float16->float32 schedule the transformation currently happens at runtime
         # with the ARM_SME_BLOCK2_2SVLx1SVL_FP16_TRANSPOSE_INTERLEAVE intrinsic.
         if weight_dtype == "float32":
-            encoded_weight = relay.const(encoded_weight.data.numpy().transpose(), weight_dtype)
+            encoded_weight = relay.transpose(encoded_weight)
             transpose_b = False
 
-        new_weight = te.placeholder((encoded_weight.data.shape), dtype=weight_dtype)
+        new_weight = te.placeholder(([K, N]), dtype=weight_dtype)
+
         new_workload = autotvm.task.args_to_workload(
             [tinfos[0], new_weight, None, out_type.dtype, False, transpose_b], topi_impl
+        )
+        dispatch_ctx.update(target, new_workload, cfg)
+        return _make.matmul(
+            inputs[0],
+            encoded_weight,
+            attrs.units,
+            attrs.out_dtype,
+            False,
+            transpose_b,
+        )
+    elif topi_impl == "dense_gemm.arm_cpu":
+
+        weight_dtype = tinfos[1].dtype
+        N, K = tinfos[1].shape
+
+        encoded_weight = relay.transpose(inputs[1])
+        new_weight = te.placeholder(([K, N]), dtype=weight_dtype)
+
+        new_workload = autotvm.task.args_to_workload(
+            [tinfos[0], new_weight, None, out_type.dtype, False, False], topi_impl
         )
         dispatch_ctx.update(target, new_workload, cfg)
 
@@ -80,7 +100,7 @@ def _alter_dense(attrs, inputs, tinfos, out_type):
             attrs.units,
             attrs.out_dtype,
             False,
-            transpose_b,
+            False,
         )
 
     # x86 schedules are used as a fallback

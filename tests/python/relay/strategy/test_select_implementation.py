@@ -312,9 +312,9 @@ def test_int8_depthwise_conv2d(target, expected_impl):
     "target,expected_valid_impl,expected_impl",
     [
         (
-            "llvm -device=arm_cpu",
-            ["dense_pack.x86", "dense_nopack.x86"],
-            "dense_pack.x86",
+            "llvm -mtriple=aarch64-linux-gnu -device=arm_cpu -mattr=+neon",
+            ["dense_gemm.arm_cpu", "dense_pack.x86", "dense_nopack.x86"],
+            "dense_gemm.arm_cpu",
         ),
     ],
 )
@@ -353,13 +353,13 @@ def test_dense(target, expected_valid_impl, expected_impl):
     [
         (
             (30, 40),
-            ["matmul.arm_cpu.sme", "dense_pack.x86", "dense_nopack.x86"],
+            ["matmul.arm_cpu.sme", "dense_gemm.arm_cpu", "dense_pack.x86", "dense_nopack.x86"],
             "matmul.arm_cpu.sme",
         ),
         (
             (5, 1),
-            ["dense_pack.x86", "dense_nopack.x86"],
-            "dense_pack.x86",
+            ["dense_gemm.arm_cpu", "dense_pack.x86", "dense_nopack.x86"],
+            "dense_gemm.arm_cpu",
         ),
     ],
 )

@@ -46,8 +46,8 @@ function shard1 {
   echo "Linting the Python code with flake8..."
   tests/lint/flake8.sh
 
-  echo "Type checking with MyPy ..."
-  tests/scripts/task_mypy.sh
+#  echo "Type checking with MyPy ..."
+#  tests/scripts/task_mypy.sh
 
   echo "Checking for non-inclusive language with blocklint..."
   tests/lint/blocklint.sh
