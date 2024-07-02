@@ -31,7 +31,6 @@ export TVM_TRACKER_PORT=$(((RANDOM % 100) + 9100))
 export RPC_DEVICE_KEY="android"
 export RPC_TARGET="adreno"
 export TVM_NDK_CC="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android28-clang"
-export CXX="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android28-clang"
 
 env PYTHONPATH=python python3 -m tvm.exec.rpc_tracker --host "${TVM_TRACKER_HOST}" --port "${TVM_TRACKER_PORT}" &
 TRACKER_PID=$!
@@ -79,7 +78,7 @@ CLML_TESTS=$(./ci/scripts/jenkins/pytest_ids.py --folder tests/python/contrib/te
 i=0
 for node_id in $CLML_TESTS; do
     echo "$node_id"
-    run_pytest ctypes "$TVM_INTEGRATION_TESTSUITE_NAME-openclml-$i" "$node_id" --reruns=0
+    CXX=${TVM_NDK_CC} run_pytest ctypes "$TVM_INTEGRATION_TESTSUITE_NAME-openclml-$i" "$node_id" --reruns=0
     i=$((i+1))
 done
 

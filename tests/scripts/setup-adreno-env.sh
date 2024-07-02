@@ -80,6 +80,7 @@ function def_environment() {
     export RPC_DEVICE_KEY="android"
     export RPC_TARGET="adreno"
     export TVM_NDK_CC="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android28-clang"
+    # Compiler definition for c-runtime while empty mod (llvm -mtriple ineffective here).
     export CXX="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android28-clang"
 }
 
