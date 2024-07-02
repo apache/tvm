@@ -26,6 +26,7 @@ from .modules import (
     ConvTranspose1D,
     Embedding,
     GroupNorm,
+    Identity,
     IOEffect,
     KVCache,
     LayerNorm,
@@ -37,3 +38,4 @@ from .modules import (
 from .op import *
 from .subroutine import SubroutineMixin
 from .visitor import Mutator
+from .replace_implementation import replace_implementation
