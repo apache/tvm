@@ -454,7 +454,7 @@ def test_unused_dfb2():
                 R.output(lv0)
 
             gv_x = R.astype(x, dtype="float16")
-            gv_w = R.astype(x, dtype="float16")
+            gv_w = R.astype(w, dtype="float16")
 
             with R.dataflow():
                 lv1: R.Tensor((2, 28, 28, 3), dtype="float16") = R.permute_dims(
@@ -481,7 +481,7 @@ def test_unused_dfb2():
             w: R.Tensor((4, 3, 3, 3), dtype="float32"),
         ):
             gv_x = R.astype(x, dtype="float16")
-            gv_w = R.astype(x, dtype="float16")
+            gv_w = R.astype(w, dtype="float16")
 
             with R.dataflow():
                 lv1: R.Tensor((2, 28, 28, 3), dtype="float16") = R.permute_dims(
