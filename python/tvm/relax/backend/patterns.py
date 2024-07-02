@@ -407,6 +407,8 @@ def make_matmul_multiply_pattern(
         rhs = is_op("relax.permute_dims")(rhs)
     out = is_op("relax.matmul")(lhs, rhs)
     annotations["root"] = out
+    scaleA = is_op("relax.astype")(scaleA)
+    scaleB = is_op("relax.astype")(scaleB)
     scale = is_op("relax.multiply")(scaleA.has_shape((1,)), scaleB.has_shape((1,)))
     out = is_op("relax.multiply")(out, scale)
     out = is_op("relax.astype")(out)
