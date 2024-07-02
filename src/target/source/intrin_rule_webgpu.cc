@@ -113,8 +113,6 @@ TVM_REGISTER_OP("tir.trunc")
 // extra dispatch
 TVM_REGISTER_OP("tir.erf").set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchFastErf);
 
-TVM_REGISTER_OP("tir.dot4I8Packed").set_attr<FLowerIntrinsic>("webgpu.FLowerIntrinsic", DispatchPureExtern<Direct>);
-
 }  // namespace intrin
 }  // namespace codegen
 }  // namespace tvm
