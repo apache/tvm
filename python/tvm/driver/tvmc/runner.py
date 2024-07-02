@@ -610,18 +610,22 @@ def run_module(
         if tvmc_package.type == "vm":
             assert inputs is not None, "vm runner requires inputs to be provided as a dict"
 
-            input_tensor = {}
-            for e, i in inputs.items():
-                input_tensor[e] = tvm.nd.array(i, dev)
-
+            input_tensor = make_inputs_dict(
+                tvmc_package.input_meta["shape_dict"],
+                tvmc_package.input_meta["dtype_dict"],
+                inputs,
+                fill_mode,
+            )
+            for key in input_tensor.keys():
+                input_tensor[key] = tvm.nd.array(input_tensor[key], dev)
             if profile:
                 logger.debug("Creating vm with profile enabled.")
-                exe = profiler_vm.VirtualMachineProfiler(lib, dev)
+                exe = profiler_vm.VirtualMachineProfiler(lib, dev, "naive")
                 res = exe.profile(**input_tensor, func_name="main")
                 # This print is intentional
                 print(res)
             else:
-                exe = vm.VirtualMachine(lib, dev)
+                exe = vm.VirtualMachine(lib, dev, "naive")
 
             exe_outputs = exe.invoke("main", **input_tensor)
 
