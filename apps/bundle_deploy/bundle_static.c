@@ -33,8 +33,10 @@
 
 #define CRT_MEMORY_NUM_PAGES 16384
 #define CRT_MEMORY_PAGE_SIZE_LOG2 10
+#define CRT_MEMORY_PAGE_SIZE_BYTES (1 << CRT_MEMORY_PAGE_SIZE_LOG2)
 
-static uint8_t g_crt_memory[CRT_MEMORY_NUM_PAGES * (1 << CRT_MEMORY_PAGE_SIZE_LOG2)];
+static uint8_t g_crt_memory[CRT_MEMORY_NUM_PAGES * CRT_MEMORY_PAGE_SIZE_BYTES]
+    __attribute__((aligned(CRT_MEMORY_PAGE_SIZE_BYTES)));
 static MemoryManagerInterface* g_memory_manager;
 
 /*! \brief macro to do C API call */

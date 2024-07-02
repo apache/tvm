@@ -23,6 +23,7 @@
 #include <sys/time.h>
 #include <tvm/runtime/c_runtime_api.h>
 
+#include <cstdlib>
 #include <iostream>
 #include <random>
 #include <vector>
@@ -52,7 +53,7 @@ char* read_all_or_die(const char* name, const char* file_path, size_t* out_size)
     *out_size = st.st_size;
   }
 
-  char* data = (char*)malloc(st.st_size);
+  char* data = (char*)std::aligned_alloc(64, st.st_size);
   FILE* fp = fopen(file_path, "rb");
   size_t bytes_to_read = st.st_size;
   size_t bytes_read = 0;
@@ -129,7 +130,7 @@ int main(int argc, char** argv) {
   ftvm_runtime_run(handle);
   gettimeofday(&t3, 0);
 
-  float output_storage[10 * 5];
+  float* output_storage = static_cast<float*>(std::aligned_alloc(64, 10 * 5 * sizeof(float)));
   std::vector<int64_t> output_shape = {10, 5};
   DLTensor output;
   output.data = output_storage;
@@ -162,6 +163,9 @@ int main(int argc, char** argv) {
       (t4.tv_sec - t3.tv_sec) * 1000.0f + (t4.tv_usec - t3.tv_usec) / 1000.f,
       (t5.tv_sec - t4.tv_sec) * 1000.0f + (t5.tv_usec - t4.tv_usec) / 1000.f);
 
+  free(output_storage);
+  free(result_storage);
+  free(input_storage);
   free(json_data);
   free(params_data);
   dlclose(bundle);

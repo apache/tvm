@@ -244,13 +244,25 @@ void BufferInfoExtractor::RecordAllocateNodeInfo(const AllocateNode* op) {
              "user-given arguments for memory pools, the default behaviour is a single size "
              "un-restricted pool is assigned";
       PrimFunc func = scope_stack_.top().func;
-      Optional<tvm::relay::Executor> executor_config =
-          module_->GetAttr<tvm::relay::Executor>(tvm::attr::kExecutor);
-      Integer workspace_alignment = 16;
-      if (executor_config) {
-        workspace_alignment =
-            executor_config.value()->GetAttr<Integer>("workspace-byte-alignment").value_or(16);
-      }
+      auto workspace_alignment = [&]() -> Integer {
+        if (const auto* decl_buffer = op->body.as<DeclBufferNode>()) {
+          ICHECK(decl_buffer->buffer->data.same_as(op->buffer_var))
+              << "DeclBuffer of Buffer " << decl_buffer->buffer << " has data ptr "
+              << decl_buffer->buffer->data
+              << ", which is mismatched from the parent Allocate's buffer_var of "
+              << op->buffer_var;
+          return decl_buffer->buffer->data_alignment;
+        }
+
+        if (auto executor_config = module_->GetAttr<tvm::relay::Executor>(tvm::attr::kExecutor)) {
+          if (auto config_alignment =
+                  executor_config.value()->GetAttr<Integer>("workspace-byte-alignment")) {
+            return config_alignment.value();
+          }
+        }
+
+        return tvm::runtime::kAllocAlignment;
+      }();
 
       BufferInfoKind bi_kind = BufferInfoKind::kIntermediate;
       String buffer_info_name = op->buffer_var->name_hint;

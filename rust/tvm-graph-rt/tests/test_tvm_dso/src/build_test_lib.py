@@ -22,20 +22,26 @@ from os import path as osp
 import sys
 
 import tvm
-from tvm import te
 from tvm.contrib import cc
+from tvm.script import tir as T
 
 
 def main():
-    n = te.var("n")
-    A = te.placeholder((n,), name="A")
-    B = te.placeholder((n,), name="B")
-    C = te.compute(A.shape, lambda *i: A(*i) + B(*i), name="C")
-    s = tvm.te.create_schedule(C.op)
-    s[C].parallel(s[C].op.axis[0])
-    print(tvm.lower(s, [A, B, C], simple_mode=True))
+    @T.prim_func
+    def func(var_A: T.handle, var_B: T.handle, var_C: T.handle):
+        T.func_attr({"global_symbol": "main", "tir.noalias": T.bool(True)})
+        n = T.int32()
+        A = T.match_buffer(var_A, (n,), align=1)
+        B = T.match_buffer(var_B, (n,), align=1)
+        C = T.match_buffer(var_C, (n,), align=1)
+        for i in T.parallel(n):
+            with T.block("C"):
+                vi = T.axis.spatial(n, i)
+                C[vi] = A[vi] + B[vi]
+
+    print(tvm.lower(func, simple_mode=True))
     obj_file = osp.join(sys.argv[1], "test.o")
-    tvm.build(s, [A, B, C], "llvm").save(obj_file)
+    tvm.build(func, "llvm").save(obj_file)
     cc.create_shared(osp.join(sys.argv[1], "test.so"), [obj_file])
 
 

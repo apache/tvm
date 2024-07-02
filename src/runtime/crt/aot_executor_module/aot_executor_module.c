@@ -154,7 +154,7 @@ int32_t TVMAotExecutorModule_GetInputName(TVMValue* args, int* tcodes, int nargs
     return kTvmErrorFunctionCallNumArguments;
   }
 
-  char* name;
+  const char* name;
   int ret = TVMAotExecutor_GetInputName(aot_executor.executor, args[0].v_int64, &name);
   if (ret < 0) {
     return kTvmErrorExecutorModuleNoSuchInput;

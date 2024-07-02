@@ -24,6 +24,7 @@
 #include <math.h>
 #include <stdarg.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -90,10 +91,26 @@ int TVMArrayFree(TVMArrayHandle handle) {
 
 int TVMDeviceAllocDataSpace(DLDevice dev, size_t nbytes, size_t alignment, DLDataType type_hint,
                             void** out_data) {
-  if (alignment != 1) {
-    nbytes = (nbytes + alignment - 1) / alignment * alignment;
-  }
-  return TVMPlatformMemoryAllocate(nbytes, dev, out_data);
+  // The TVMPlatformMemoryAllocate function does not guarantee the
+  // alignment of the allocation.  Therefore, deliberately
+  // overallocate by (alignment-1) and return an aligned region from
+  // it.
+  size_t total_bytes = nbytes + sizeof(void*) + (alignment - 1);
+  void* allocated_buf;
+  int err = TVMPlatformMemoryAllocate(total_bytes, dev, &allocated_buf);
+  if (err) return err;
+
+  void* first_allowed_data_ptr = ((uint8_t*)allocated_buf) + sizeof(void*);
+  uintptr_t offset = (alignment - ((uintptr_t)first_allowed_data_ptr) % alignment);
+  void* data_ptr = first_allowed_data_ptr + offset;
+
+  // Must keep a pointer to the original allocation, so that it can be
+  // passed to TVMPlatformMemoryFree.
+  ((void**)data_ptr)[-1] = allocated_buf;
+
+  *out_data = data_ptr;
+
+  return err;
 }
 
 int TVMDeviceAllocDataSpaceWithScope(DLDevice dev, int ndim, const int64_t* shape, DLDataType dtype,
@@ -110,7 +127,10 @@ int TVMDeviceAllocDataSpaceWithScope(DLDevice dev, int ndim, const int64_t* shap
   return TVMDeviceAllocDataSpace(dev, nbytes, align, dtype, out_data);
 }
 
-int TVMDeviceFreeDataSpace(DLDevice dev, void* ptr) { return TVMPlatformMemoryFree(ptr, dev); }
+int TVMDeviceFreeDataSpace(DLDevice dev, void* ptr) {
+  void* allocated_buf = ((void**)ptr)[-1];
+  return TVMPlatformMemoryFree(allocated_buf, dev);
+}
 
 TVM_ATTRIBUTE_UNUSED static bool IsContiguous(const DLTensor* arr) {
   if (arr->strides == NULL) return true;
