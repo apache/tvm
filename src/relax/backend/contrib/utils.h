@@ -137,6 +137,18 @@ inline const CallNode* GetOpInFunction(Function f, const std::string& op_name) {
  */
 Map<String, IntImm> ExtractArgIdx(String pattern_name, Function f);
 
+/*!
+ * \brief Converts a numeric value to std::string.
+ * \param value A numeric value to convert.
+ * \return String representation of a numeric value.
+ */
+template <typename Type>
+std::string to_str(const Type& value) {
+  std::ostringstream os;
+  os << std::setprecision(12) << value;
+  return os.str();
+}
+
 }  // namespace backend
 }  // namespace relax
 }  // namespace tvm

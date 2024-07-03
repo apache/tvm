@@ -21,6 +21,7 @@
  * \file metal_device_api.mm
  */
 #include <dmlc/thread_local.h>
+#include <tvm/runtime/profiling.h>
 #include <tvm/runtime/registry.h>
 #include "metal_common.h"
 
@@ -87,6 +88,8 @@ void MetalWorkspace::GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) {
       case kDriverVersion:
         return;
       case kL2CacheSizeBytes:
+        return;
+      case kAvailableGlobalMemory:
         return;
       case kTotalGlobalMemory: {
         *rv = static_cast<int64_t>([devices[dev.device_id] recommendedMaxWorkingSetSize]);
@@ -224,7 +227,7 @@ void MetalWorkspace::CopyDataFromTo(const void* from, size_t from_offset, void* 
     if (s->HasErrorHappened()) {
       LOG(FATAL) << "GPUError: " << s->ErrorDescription();
     }
-    id<MTLCommandBuffer> cb = s->GetCommandBuffer();
+    id<MTLCommandBuffer> cb = s->GetCommandBuffer(/*label=*/"TVMCopyDataFromTo");
     int from_dev_type = static_cast<int>(dev_from.device_type);
     int to_dev_type = static_cast<int>(dev_to.device_type);
 
@@ -297,7 +300,7 @@ void MetalWorkspace::StreamSync(Device dev, TVMStreamHandle stream) {
   AUTORELEASEPOOL {
     Stream* s = CastStreamOrGetDefault(stream, dev.device_id);
     // commit an empty command buffer and wait until it completes.
-    id<MTLCommandBuffer> cb = s->GetCommandBuffer();
+    id<MTLCommandBuffer> cb = s->GetCommandBuffer(/*label=*/"TVMStreamSync");
     [cb commit];
     [cb waitUntilCompleted];
     if (s->HasErrorHappened()) {
@@ -364,6 +367,42 @@ TVM_REGISTER_GLOBAL("device_api.metal").set_body([](TVMArgs args, TVMRetValue* r
 
 TVM_REGISTER_GLOBAL("metal.ResetGlobalState").set_body_typed([]() {
   MetalWorkspace::Global()->ReinitializeDefaultStreams();
+});
+
+class MetalTimerNode : public TimerNode {
+ public:
+  MetalTimerNode() {}
+  explicit MetalTimerNode(Device dev) : dev_(dev) {
+    mtl_dev_ = MetalWorkspace::Global()->GetDevice(dev_);
+  }
+
+  virtual void Start() {
+    [mtl_dev_ sampleTimestamps:&start_cpu_time_ gpuTimestamp:&start_gpu_time_];
+  }
+  virtual void Stop() {
+    auto ws = MetalWorkspace::Global();
+    ws->StreamSync(dev_, ws->GetCurrentStream(dev_));
+    [mtl_dev_ sampleTimestamps:&stop_cpu_time_ gpuTimestamp:&stop_gpu_time_];
+  }
+  virtual int64_t SyncAndGetElapsedNanos() { return stop_gpu_time_ - start_gpu_time_; }
+
+  static constexpr const char* _type_key = "MetalTimerNode";
+  TVM_DECLARE_FINAL_OBJECT_INFO(MetalTimerNode, TimerNode);
+
+ private:
+  Device dev_;
+  id<MTLDevice> mtl_dev_;
+
+  MTLTimestamp start_cpu_time_;
+  MTLTimestamp start_gpu_time_;
+  MTLTimestamp stop_cpu_time_;
+  MTLTimestamp stop_gpu_time_;
+};
+
+TVM_REGISTER_OBJECT_TYPE(MetalTimerNode);
+
+TVM_REGISTER_GLOBAL("profiling.timer.metal").set_body_typed([](Device dev) {
+  return Timer(make_object<MetalTimerNode>(dev));
 });
 
 }  // namespace metal

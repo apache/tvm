@@ -59,7 +59,7 @@ class LazyInputMutator : public ExprMutator {
 
     int64_t num_input_params = GetNumInputParams(func).value_or(0);
 
-    std::unordered_map<Var, size_t, ObjectPtrHash, ObjectPtrEqual> param_lookup;
+    std::unordered_map<Var, size_t> param_lookup;
     for (size_t i = num_input_params; i < func->params.size(); i++) {
       param_lookup.insert({func->params[i], i - num_input_params});
     }
@@ -73,8 +73,8 @@ class LazyInputMutator : public ExprMutator {
 
     auto array_externally_visible_vars =
         DefinableTIRVarsInStructInfo(TupleStructInfo(new_params.Map(GetStructInfo)));
-    std::unordered_set<tir::Var, ObjectPtrHash, ObjectPtrEqual> externally_visible_vars(
-        array_externally_visible_vars.begin(), array_externally_visible_vars.end());
+    std::unordered_set<tir::Var> externally_visible_vars(array_externally_visible_vars.begin(),
+                                                         array_externally_visible_vars.end());
     StructInfo new_ret_struct_info =
         EraseToWellDefined(func->ret_struct_info, [&](const tir::Var& var) -> Optional<PrimExpr> {
           if (externally_visible_vars.count(var)) {
@@ -115,7 +115,7 @@ class LazyInputMutator : public ExprMutator {
 
  private:
   struct FunctionPlan {
-    std::unordered_map<Var, size_t, ObjectPtrHash, ObjectPtrEqual> param_lookup;
+    std::unordered_map<Var, size_t> param_lookup;
     Expr fget_param;
   };
   std::optional<FunctionPlan> plan_;
@@ -128,7 +128,7 @@ class LazyOutputMutator : public ExprMutator {
       return ExprMutator::VisitExpr_(func);
     }
 
-    std::unordered_map<Var, std::vector<size_t>, ObjectPtrHash, ObjectPtrEqual> output_lookup;
+    std::unordered_map<Var, std::vector<size_t>> output_lookup;
     std::vector<std::tuple<size_t, Expr>> inline_outputs;
     auto define_lookup = [&](size_t output_index, Expr output_value) {
       if (auto var = output_value.as<Var>()) {
@@ -149,7 +149,7 @@ class LazyOutputMutator : public ExprMutator {
 
     Var fset_output("fset_output",
                     FuncStructInfo({PrimStructInfo(DataType::Int(64)), ObjectStructInfo()},
-                                   TupleStructInfo(Array<StructInfo>{})));
+                                   TupleStructInfo(Array<StructInfo>{}), /* purity = */ false));
     plan_ = FunctionPlan{std::move(output_lookup), fset_output};
 
     std::optional<int64_t> num_input_params = GetNumInputParams(func);
@@ -189,6 +189,7 @@ class LazyOutputMutator : public ExprMutator {
       auto write_ptr = node.CopyOnWrite();
       write_ptr->params = new_params;
       write_ptr->body = new_body;
+      write_ptr->is_pure = false;
     }
     if (num_input_params.has_value()) {
       node = WithAttr(node, attr::kNumInput, Integer(num_input_params.value() + 1));
@@ -220,7 +221,7 @@ class LazyOutputMutator : public ExprMutator {
   }
 
   struct FunctionPlan {
-    std::unordered_map<Var, std::vector<size_t>, ObjectPtrHash, ObjectPtrEqual> output_lookup;
+    std::unordered_map<Var, std::vector<size_t>> output_lookup;
     Expr fset_output;
   };
   std::optional<FunctionPlan> plan_;

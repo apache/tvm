@@ -45,6 +45,27 @@ namespace relax {
 /************ Op input struct info getter ************/
 
 /*!
+ * \brief Check that the operator has
+ *
+ * Verify that the number of arguments matches the expected number for
+ * the operator.
+ *
+ * \param call The context Call to the operator.
+ *
+ * \param ctx The error reporting context.
+ */
+void CheckNumArguments(const Call& call, const BlockBuilder& ctx);
+
+/*!
+ * \brief Get the tensor struct info of the operator input.
+ * \param call The context Call to the operator.
+ * \param i_arg The index of the argument to check
+ * \param ctx The error reporting context.
+ * \return The tensor struct info of the argument
+ */
+TensorStructInfo GetInputTensorStructInfo(const Call& call, size_t i_arg, const BlockBuilder& ctx);
+
+/*!
  * \brief Get the tensor struct info of the operator input.
  * \param call The context Call to the operator.
  * \param ctx The error reporting context.
@@ -536,6 +557,9 @@ inline Optional<ShapeExpr> CheckNdimPerLayoutAndGetShape(const Call& call, const
 Expr MakeVMAllocStorage(Expr size, PrimValue runtime_device_index, DataTypeImm dtype,
                         StringImm storage_scope = StringImm("global"));
 Expr MakeVMAllocTensor(Expr storage, PrimValue offset, Expr shape, DataTypeImm dtype);
+
+Expr MakeAllocTensor(Expr shape, DataTypeImm dtype, PrimValue runtime_device_index,
+                     StringImm storage_scope = StringImm("global"));
 
 /**
  * \brief Return the argument of the call.

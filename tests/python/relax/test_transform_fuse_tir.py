@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import pytest
+
 import tvm
 import tvm.testing
 from tvm import relax, topi
@@ -2312,6 +2314,132 @@ def test_private_nonprimitive_func():
                     T_take[v_ax0, v_ax1] = A[B[v_ax0], v_ax1]
 
     _check(Before, Before)
+
+
+def test_fuse_with_axis_separators():
+    @I.ir_module
+    class Before:
+        @T.prim_func(private=True)
+        def add(a: T.handle, b: T.handle, c: T.handle):
+            A = T.match_buffer(a, [T.int64(16), T.int64(32)], "float32", axis_separators=[1])
+            B = T.match_buffer(b, [T.int64(16), T.int64(32)], "float32", axis_separators=[1])
+            C = T.match_buffer(c, [T.int64(16), T.int64(32)], "float32", axis_separators=[1])
+
+            for iters in T.grid(T.int64(16), T.int64(32)):
+                with T.block("compute"):
+                    i, j = T.axis.remap("SS", iters)
+                    C[i, j] = A[i, j] + B[i, j]
+
+        @R.function(private=True)
+        def fused_function(
+            x: R.Tensor([T.int64(16), T.int64(32)], "float32"),
+            y: R.Tensor([T.int64(16), T.int64(32)], "float32"),
+            z: R.Tensor([T.int64(16), T.int64(32)], "float32"),
+        ) -> R.Tensor([T.int64(16), T.int64(32)], dtype="float32"):
+            R.func_attr({"Primitive": 1})
+            cls = Before
+            with R.dataflow():
+                w = R.call_tir(
+                    cls.add, [x, y], out_sinfo=R.Tensor([T.int64(16), T.int64(32)], "float32")
+                )
+                out = R.call_tir(
+                    cls.add, [w, z], out_sinfo=R.Tensor([T.int64(16), T.int64(32)], "float32")
+                )
+                R.output(out)
+            return out
+
+        @R.function
+        def main(
+            x: R.Tensor([T.int64(16), T.int64(32)], "float32"),
+            y: R.Tensor([T.int64(16), T.int64(32)], "float32"),
+            z: R.Tensor([T.int64(16), T.int64(32)], "float32"),
+        ) -> R.Tensor([T.int64(16), T.int64(32)], dtype="float32"):
+            cls = Before
+            with R.dataflow():
+                gv = cls.fused_function(x, y, z)
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class Expected:
+        @T.prim_func(private=True)
+        def fused_function(x: T.handle, y: T.handle, z: T.handle, c: T.handle):
+            T.func_attr({"tir.noalias": True})
+            X = T.match_buffer(x, [T.int64(16), T.int64(32)], "float32", axis_separators=[1])
+            Y = T.match_buffer(y, [T.int64(16), T.int64(32)], "float32", axis_separators=[1])
+            Z = T.match_buffer(z, [T.int64(16), T.int64(32)], "float32", axis_separators=[1])
+            C = T.match_buffer(c, [T.int64(16), T.int64(32)], "float32", axis_separators=[1])
+            Temp = T.alloc_buffer(X.shape, "float32", axis_separators=[1])
+            for iters in T.grid(*X.shape):
+                with T.block("compute_Y"):
+                    i, j = T.axis.remap("SS", iters)
+                    Temp[i, j] = X[i, j] + Y[i, j]
+
+            for iters in T.grid(*X.shape):
+                with T.block("compute_Z"):
+                    i, j = T.axis.remap("SS", iters)
+                    C[i, j] = Temp[i, j] + Z[i, j]
+
+        @R.function
+        def main(
+            x: R.Tensor([T.int64(16), T.int64(32)], "float32"),
+            y: R.Tensor([T.int64(16), T.int64(32)], "float32"),
+            z: R.Tensor([T.int64(16), T.int64(32)], "float32"),
+        ) -> R.Tensor([T.int64(16), T.int64(32)], dtype="float32"):
+            cls = Expected
+            with R.dataflow():
+                gv = R.call_tir(
+                    cls.fused_function,
+                    [x, y, z],
+                    out_sinfo=R.Tensor([T.int64(16), T.int64(32)], "float32"),
+                )
+                R.output(gv)
+            return gv
+
+    _check(Before, Expected)
+
+
+def test_fuse_with_axis_separators_inconsistent_buffer_mapping():
+    @I.ir_module
+    class Before:
+        @T.prim_func(private=True)
+        def mul(a: T.handle, b: T.handle, c: T.handle):
+            A = T.match_buffer(a, [T.int64(16), T.int64(32)], "float32", axis_separators=[1])
+            B = T.match_buffer(b, [T.int64(16), T.int64(32)], "float32", axis_separators=[])
+            C = T.match_buffer(c, [T.int64(16), T.int64(32)], "float32", axis_separators=[1])
+
+            for iters in T.grid(T.int64(16), T.int64(32)):
+                with T.block("compute"):
+                    i, j = T.axis.remap("SS", iters)
+                    C[i, j] = A[i, j] * B[i, j]
+
+        @R.function(private=True)
+        def fused_function(
+            x: R.Tensor([T.int64(16), T.int64(32)], "float32"),
+        ) -> R.Tensor([T.int64(16), T.int64(32)], dtype="float32"):
+            R.func_attr({"Primitive": 1})
+            cls = Before
+            with R.dataflow():
+                out = R.call_tir(
+                    cls.mul, [x, x], out_sinfo=R.Tensor([T.int64(16), T.int64(32)], "float32")
+                )
+                R.output(out)
+            return out
+
+        @R.function
+        def main(
+            x: R.Tensor([T.int64(16), T.int64(32)], "float32"),
+        ) -> R.Tensor([T.int64(16), T.int64(32)], dtype="float32"):
+            cls = Before
+            with R.dataflow():
+                gv = cls.fused_function(x)
+                R.output(gv)
+            return gv
+
+    with pytest.raises(
+        tvm.TVMError, match=r"Inconsistent buffers.*and.*mapped to the same relax var:.*"
+    ):
+        relax.transform.FuseTIR()(Before)
 
 
 if __name__ == "__main__":

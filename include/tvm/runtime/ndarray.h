@@ -126,13 +126,29 @@ class NDArray : public ObjectRef {
    * \param stream The output data stream
    */
   inline void Save(dmlc::Stream* stream) const;
+
   /*!
    * \brief Create a NDArray that shares the data memory with the current one.
+   *
    * \param shape The shape of the new array.
+   *
    * \param dtype The data type of the new array.
-   * \note The memory size of new array must be smaller than the current one.
+   *
+   * \param relative_byte_offset The offset of the output NDArray,
+   *     relative to the current byte offset.
+   *
+   *     By default, the offset of the view is the same as the offset
+   *     of the current array.
+   *
+   * \note The new array must not allow access of addresses which
+   *       would be out of bounds in the current array.  If the new
+   *       array is larger than the current array, or if the
+   *       `relative_byte_offset` would place the end of the new array
+   *       outside the bounds of the current array, this function will
+   *       raise an exception.
    */
-  TVM_DLL NDArray CreateView(ShapeTuple shape, DLDataType dtype);
+  TVM_DLL NDArray CreateView(ShapeTuple shape, DLDataType dtype, uint64_t relative_byte_offset = 0);
+
   /*!
    * \brief Create a reference view of NDArray that
    *  represents as DLManagedTensor.
@@ -516,6 +532,23 @@ inline bool NDArray::Load(dmlc::Stream* strm) {
   }
   *this = ret;
   return true;
+}
+
+/*!
+ * \brief Get the preferred host device from the input device.
+ * - For CUDA and ROCm, CUDAHost and ROCMHost will be returned for pinned memory,
+ * since pinned memory reduces copy overhead.
+ * - For other devices, CPU is returned as a fallback.
+ */
+inline Device GetPreferredHostDevice(Device device) {
+  if (device.device_type == DLDeviceType::kDLCUDA) {
+    return Device{DLDeviceType::kDLCUDAHost, 0};
+  } else if (device.device_type == DLDeviceType::kDLROCM) {
+    return Device{DLDeviceType::kDLROCMHost, 0};
+  } else {
+    // Fallback to CPU.
+    return Device{DLDeviceType::kDLCPU, 0};
+  }
 }
 
 }  // namespace runtime

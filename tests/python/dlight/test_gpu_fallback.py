@@ -179,5 +179,83 @@ def test_fallback_irregular_spatial():
     assert_structural_equal(mod["main"], expected)
 
 
+def test_gpu_fallback_ignores_non_gpu_functions():
+    @I.ir_module
+    class Before:
+        # This function has no "target" attribute, and is scheduled
+        # using the `Target.current`.
+        @T.prim_func
+        def gpu_func(
+            A: T.Buffer((1, 32, 1, 128), "float16"),
+            C: T.Buffer((1, 1, 4096), "float16"),
+        ):
+            B = T.alloc_buffer((1, 1, 32, 128), "float16")
+            for i, j, k, l in T.grid(1, 1, 32, 128):
+                with T.block("T_transpose"):
+                    vi, vj, vk, vl = T.axis.remap("SSSS", [i, j, k, l])
+                    B[vi, vj, vk, vl] = A[vi, vk, vj, vl]
+            for i, j, k in T.grid(1, 1, 4096):
+                with T.block("T_reshape"):
+                    vi, vj, vk = T.axis.remap("SSS", [i, j, k])
+                    C[vi, vj, vk] = B[0, 0, vk % 4096 // 128, vk % 128]
+
+        # This function is identical, except that it is explicitly
+        # annotated with the "target" attribute, and is scheduled
+        # based on the annotation's target.
+        @T.prim_func
+        def cpu_func(
+            A: T.Buffer((1, 32, 1, 128), "float16"),
+            C: T.Buffer((1, 1, 4096), "float16"),
+        ):
+            T.func_attr({"target": T.target("llvm")})
+            B = T.alloc_buffer((1, 1, 32, 128), "float16")
+            for i, j, k, l in T.grid(1, 1, 32, 128):
+                with T.block("T_transpose"):
+                    vi, vj, vk, vl = T.axis.remap("SSSS", [i, j, k, l])
+                    B[vi, vj, vk, vl] = A[vi, vk, vj, vl]
+            for i, j, k in T.grid(1, 1, 4096):
+                with T.block("T_reshape"):
+                    vi, vj, vk = T.axis.remap("SSS", [i, j, k])
+                    C[vi, vj, vk] = B[0, 0, vk % 4096 // 128, vk % 128]
+
+    @I.ir_module
+    class After:
+        @T.prim_func
+        def gpu_func(
+            A: T.Buffer((1, 32, 1, 128), "float16"),
+            C: T.Buffer((1, 1, 4096), "float16"),
+        ):
+            T.func_attr({"tir.is_scheduled": 1})
+            for ax0_fused_0 in T.thread_binding(4, thread="blockIdx.x"):
+                for ax0_fused_1 in T.thread_binding(1024, thread="threadIdx.x"):
+                    with T.block("T_reshape"):
+                        v0 = T.axis.spatial(4096, ax0_fused_0 * 1024 + ax0_fused_1)
+                        T.reads(A[0, v0 // 128, 0, v0 % 128])
+                        T.writes(C[0, 0, v0])
+                        C[0, 0, v0] = A[0, v0 // 128, 0, v0 % 128]
+
+        @T.prim_func
+        def cpu_func(
+            A: T.Buffer((1, 32, 1, 128), "float16"),
+            C: T.Buffer((1, 1, 4096), "float16"),
+        ):
+            T.func_attr({"target": T.target("llvm")})
+            B = T.alloc_buffer((1, 1, 32, 128), "float16")
+            for i, j, k, l in T.grid(1, 1, 32, 128):
+                with T.block("T_transpose"):
+                    vi, vj, vk, vl = T.axis.remap("SSSS", [i, j, k, l])
+                    B[vi, vj, vk, vl] = A[vi, vk, vj, vl]
+            for i, j, k in T.grid(1, 1, 4096):
+                with T.block("T_reshape"):
+                    vi, vj, vk = T.axis.remap("SSS", [i, j, k])
+                    C[vi, vj, vk] = B[0, 0, vk % 4096 // 128, vk % 128]
+
+    with Target("cuda"):
+        mod = dl.ApplyDefaultSchedule(  # pylint: disable=not-callable
+            dl.gpu.Fallback(),
+        )(Before)
+    assert_structural_equal(mod, After)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

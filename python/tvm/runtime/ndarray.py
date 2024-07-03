@@ -18,6 +18,7 @@
 """Runtime NDArray API"""
 import ctypes
 import warnings
+from typing import Optional
 
 import numpy as np
 
@@ -287,7 +288,7 @@ class NDArray(NDArrayBase):
             return self._copyto(res)
         raise ValueError(f"Unsupported target type {type(target)}")
 
-    def _create_view(self, shape):
+    def _create_view(self, shape, dtype: Optional[str] = None, relative_byte_offset: int = 0):
         """Create a view into an existing array.
 
         The view shares the same allocation and datatype as the
@@ -307,12 +308,32 @@ class NDArray(NDArrayBase):
         shape: Union[tvm.runtime.ShapeTuple, Sequence[typing.SupportsInt]]
 
             The shape of the view.
+
+        dtype: Optional[str]
+
+            The datatype of the view.  If None (default), the view
+            will be the same data type as the current array.
+
+        relative_byte_offset: int
+
+            The location of the view, relative to the location of the current
+            array.
+
+            Note: While the `DLTensor.byte_offset` field of the returned view
+            is usually the same as `relative_byte_offset`, this is not
+            guaranteed.  The `DLTensor.byte_offset` field is relative to the
+            start of the backing allocation, while the `relative_byte_offset`
+            is relative to the start of `self`.
+
         """
 
         if not isinstance(shape, tvm.runtime.ShapeTuple):
             shape = tvm.runtime.ShapeTuple([int(dim) for dim in shape])
 
-        return _ffi_api.TVMArrayCreateView(self, shape)
+        if dtype is None:
+            dtype = self.dtype
+
+        return _ffi_api.TVMArrayCreateView(self, shape, dtype, relative_byte_offset)
 
 
 def device(dev_type, dev_id=0):

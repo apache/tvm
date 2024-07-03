@@ -337,8 +337,8 @@ class DistributedBufferCompactor : StmtExprMutator {
     return new_loop;
   }
 
-  std::unordered_map<Var, int, ObjectPtrHash, ObjectPtrEqual> iter_var_shards_;
-  std::unordered_map<Var, int, ObjectPtrHash, ObjectPtrEqual> loop_var_shards_;
+  std::unordered_map<Var, int> iter_var_shards_;
+  std::unordered_map<Var, int> loop_var_shards_;
   Array<Buffer> allocated_buffer_under_root;
   BufferAxisGraphExtractor extractor_;
   std::vector<ShardingSpec> sharding_specs_;

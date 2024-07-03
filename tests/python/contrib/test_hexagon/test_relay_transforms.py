@@ -85,14 +85,14 @@ def test_rewrite_qdistilbert():
     ref_func = relay.Function(relay.analysis.free_vars(ref), ref)
     ref_mod = tvm.IRModule.from_expr(ref_func)
 
-    assert tvm.ir.structural_equal(mod["main"], ref_mod["main"])
+    tvm.ir.assert_structural_equal(mod["main"], ref_mod["main"])
 
     # If the pattern does not match, should return the original.
     func = relay.expr.Tuple(expand_dims)  # omitting concatenate
     mod = tvm.IRModule.from_expr(func)
     out_mod = rewrite_qdistilbert(mod)  # out does not return ref_mod but the original mod
 
-    assert tvm.ir.structural_equal(mod["main"], out_mod["main"])
+    tvm.ir.assert_structural_equal(mod["main"], out_mod["main"])
 
 
 def test_remove_empty_pad():
@@ -113,7 +113,7 @@ def test_remove_empty_pad():
     ref_func = relay.Function(relay.analysis.free_vars(ref), ref)
     ref_mod = tvm.IRModule.from_expr(ref_func)
 
-    assert tvm.ir.structural_equal(mod["main"], ref_mod["main"])
+    tvm.ir.assert_structural_equal(mod["main"], ref_mod["main"])
 
 
 if __name__ == "__main__":

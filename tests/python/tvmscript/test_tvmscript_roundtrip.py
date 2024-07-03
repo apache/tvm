@@ -3352,6 +3352,20 @@ def scalable_vectors():
     return func
 
 
+def predicated_buffer_load_store():
+    @T.prim_func
+    def func(a: T.handle, b: T.handle):
+        A = T.match_buffer(a, (4,), "float32")
+        B = T.match_buffer(b, (8,), "float32")
+        for i_0 in range(4):
+            load_a = T.meta_var(
+                A.vload([T.Ramp(i_0, 1, 4)], predicate=T.Broadcast(T.bool(True), 4))
+            )
+            B.vstore([T.Ramp(0, 2, 4)], load_a, predicate=T.Broadcast(T.bool(True), 4))
+
+    return func
+
+
 def let_expression():
     @T.prim_func
     def func():
@@ -4074,6 +4088,32 @@ def relax_match_cast_struct_info_proxy():
         yield make_ir_generator(subclass)
 
 
+def relax_symbolic_size_var():
+    """Relax symbolic variables may be SizeVar"""
+    N = tvm.tir.SizeVar("N", "int64")
+
+    @R.function
+    def func(A: R.Tensor([N], "float16")):
+        B: R.Tensor([N], "float16") = A
+        return B
+
+    return func
+
+
+def relax_float_symbolic_var():
+    """Relax symbolic variables may hold any dtype"""
+
+    @R.function
+    def func(A: R.Tensor(["N"], "float16"), _: R.Prim(value="threshold")):
+        N = T.int64()
+        threshold = T.float16()
+
+        B = A >= R.prim_value(threshold / T.cast(N, "float16"))
+        return B
+
+    return func
+
+
 ir_generator = tvm.testing.parameter(
     launch_env_thread,
     opt_gemm_normalize,
@@ -4116,6 +4156,8 @@ ir_generator = tvm.testing.parameter(
     buffer_axis_separator,
     buffer_ramp_access_as_slice_index,
     ramp_int64,
+    scalable_vectors,
+    predicated_buffer_load_store,
     let_expression,
     void_ptr,
     decl_buffer,
@@ -4158,6 +4200,8 @@ ir_generator = tvm.testing.parameter(
     return_zero_private_with_attr,
     *op_of_literal(),
     *relax_match_cast_struct_info_proxy(),
+    relax_symbolic_size_var,
+    relax_float_symbolic_var,
 )
 
 relax_ir_generator = tvm.testing.parameter(

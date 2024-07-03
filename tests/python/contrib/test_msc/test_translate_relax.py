@@ -17,6 +17,8 @@
 
 """ Test translate from relax. """
 
+import pytest
+
 import torch
 from torch import fx
 from torch.nn import Module
@@ -622,6 +624,7 @@ def test_getattr():
     _verify_model(GetAttr1(), input_info)
 
 
+@pytest.mark.xfail(reason="MSC does not support Tuple of PrimValue")
 def test_getitem():
     """test relax translator for getitem"""
 

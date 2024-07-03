@@ -86,8 +86,23 @@ class Pipe : public dmlc::Stream {
     DWORD nread = static_cast<DWORD>(RetryCallOnEINTR(fread, GetLastErrorCode));
     ICHECK_EQ(static_cast<size_t>(nread), size) << "Read Error: " << GetLastError();
 #else
-    ssize_t nread = RetryCallOnEINTR([&]() { return read(handle_, ptr, size); }, GetLastErrorCode);
-    ICHECK_GE(nread, 0) << "Write Error: " << strerror(errno);
+    size_t nread = 0;
+    while (size) {
+      ssize_t nread_chunk =
+          RetryCallOnEINTR([&]() { return read(handle_, ptr, size); }, GetLastErrorCode);
+      ICHECK_NE(nread_chunk, -1) << "Write Error: " << strerror(errno);
+
+      if (nread_chunk == 0) {
+        break;
+      }
+
+      ICHECK_GE(nread_chunk, 0);
+      ICHECK_LE(nread_chunk, size) << "Read " << nread_chunk << " bytes, "
+                                   << "but only expected to read " << size << " bytes";
+      size -= nread_chunk;
+      ptr = static_cast<char*>(ptr) + nread_chunk;
+      nread += nread_chunk;
+    }
 #endif
     return static_cast<size_t>(nread);
   }
@@ -97,8 +112,8 @@ class Pipe : public dmlc::Stream {
    * \param size block size
    * \return the size of data read
    */
-  void Write(const void* ptr, size_t size) final {
-    if (size == 0) return;
+  size_t Write(const void* ptr, size_t size) final {
+    if (size == 0) return 0;
 #ifdef _WIN32
     auto fwrite = [&]() -> ssize_t {
       DWORD nwrite;
@@ -111,8 +126,14 @@ class Pipe : public dmlc::Stream {
 #else
     ssize_t nwrite =
         RetryCallOnEINTR([&]() { return write(handle_, ptr, size); }, GetLastErrorCode);
-    ICHECK_EQ(static_cast<size_t>(nwrite), size) << "Write Error: " << strerror(errno);
+    ICHECK_NE(nwrite, -1) << "Write Error: " << strerror(errno);
+
+    ICHECK_LE(nwrite, size) << "Wrote " << nwrite << " bytes, "
+                            << "but only expected to write " << size << " bytes";
+
 #endif
+
+    return nwrite;
   }
   /*!
    * \brief Flush the pipe;

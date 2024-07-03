@@ -34,12 +34,15 @@
 namespace tvm {
 namespace relax {
 
-std::vector<size_t> GetUsedArgsIndices(const tir::PrimFunc& fn, size_t num_args) {
+std::vector<size_t> GetUsedTensorArgIndices(const tir::PrimFunc& fn, size_t num_args) {
   std::vector<size_t> indices;
   for (size_t i = 0; i < num_args; ++i) {
-    auto buffer_var = fn->buffer_map[fn->params[i]]->data;
-    if (tir::UsesVar(fn->body, [=](const tir::VarNode* var) { return var == buffer_var.get(); })) {
-      indices.push_back(i);
+    if (auto buffer = fn->buffer_map.Get(fn->params[i])) {
+      auto buffer_var = buffer.value()->data;
+      if (tir::UsesVar(fn->body,
+                       [=](const tir::VarNode* var) { return var == buffer_var.get(); })) {
+        indices.push_back(i);
+      }
     }
   }
   return indices;
@@ -83,17 +86,17 @@ class DataflowReshapeRewriter : public ExprMutator {
 
     auto prim_fn = Downcast<tir::PrimFunc>(mod_->Lookup(Downcast<GlobalVar>(call->args[0])));
     auto arg_tuple = Downcast<Tuple>(call->args[1])->fields;
-    auto used_arg_indices = GetUsedArgsIndices(prim_fn, arg_tuple.size());
+    auto used_tensor_arg_indices = GetUsedTensorArgIndices(prim_fn, arg_tuple.size());
 
     // The number of inputs to call_tir(reshape, (...)) might not be one, since FuseOps
     // can generate a fused TupleGetItem + reshape function whose input is a tuple. FuseTIR
     // then flattens the tuple input so that the fused TIR reshape function ends up having
     // multiple input buffers. But only one of them should be accessed and reshaped.
-    if (used_arg_indices.size() != 1) {
+    if (used_tensor_arg_indices.size() != 1) {
       return GetRef<Call>(call);
     }
 
-    auto arg = arg_tuple[used_arg_indices[0]];
+    auto arg = arg_tuple[used_tensor_arg_indices[0]];
 
     if (!IsCallingTIRReshape(call, arg)) {
       return GetRef<Call>(call);

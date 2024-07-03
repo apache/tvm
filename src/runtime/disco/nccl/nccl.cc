@@ -67,9 +67,21 @@ void InitCCLPerWorker(IntTuple device_ids, std::string unique_id_bytes) {
   CCLThreadLocalContext* ctx = CCLThreadLocalContext::Get();
   DiscoWorker* worker = DiscoWorker::ThreadLocal();
   ICHECK(worker != nullptr);
+
   CHECK_EQ(unique_id_bytes.size(), NCCL_UNIQUE_ID_BYTES)
       << "ValueError: The length of unique_id must be " << NCCL_UNIQUE_ID_BYTES << ", but got "
       << unique_id_bytes.size() << ".";
+
+  CHECK(!ctx->comm) << "Cannot initialize CCL, "
+                    << "the previous thread-global comm still exists, "
+                    << "and has not been destructed";
+  CHECK(!ctx->default_stream) << "Cannot initialize CCL, "
+                              << "the previous thread-global stream still exists, "
+                              << "and has not been destructed";
+  CHECK(!ctx->worker) << "Cannot initialize CCL, "
+                      << "the previous thread-global worker still exists, "
+                      << "and has not been destructed";
+
   // Step up local context of NCCL
   int device_id = device_ids[worker->worker_id];
   SetDevice(device_id);
@@ -106,14 +118,24 @@ void AllGather(NDArray send, NDArray recv) {
                           /*datatype=*/AsNCCLDataType(DataType(send->dtype)), ctx->comm, stream));
 }
 
-void BroadcastFromWorker0(NDArray send, NDArray recv) {
+void BroadcastFromWorker0(Optional<NDArray> send, NDArray recv) {
   CCLThreadLocalContext* ctx = CCLThreadLocalContext::Get();
-  ICHECK(send.Shape()->Product() == recv.Shape()->Product());
-  ShapeTuple shape = send.Shape();
-  int64_t numel = shape->Product();
+
+  const void* send_data = [&]() -> const void* {
+    int worker_id = ctx->worker->worker_id;
+    if (worker_id == 0) {
+      CHECK(send.defined());
+      CHECK(send.value().Shape()->Product() == recv.Shape()->Product());
+      return send.value()->data;
+    } else {
+      return nullptr;
+    }
+  }();
+  int64_t numel = recv.Shape()->Product();
+
   deviceStream_t stream = ctx->GetDefaultStream();
-  NCCL_CALL(ncclBroadcast(send->data, recv->data, numel,
-                          /*datatype=*/AsNCCLDataType(DataType(send->dtype)),
+  NCCL_CALL(ncclBroadcast(send_data, recv->data, numel,
+                          /*datatype=*/AsNCCLDataType(DataType(recv->dtype)),
                           /*root=*/0, ctx->comm, stream));
 }
 

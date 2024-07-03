@@ -197,6 +197,8 @@ class SessionObj : public Object {
    * The thirtd element is the function to be called.
    */
   TVM_DLL virtual DRef CallWithPacked(const TVMArgs& args) = 0;
+  /*! \brief Get the number of workers in the session. */
+  TVM_DLL virtual int64_t GetNumWorkers() = 0;
   /*! \brief Get a global functions on workers. */
   TVM_DLL virtual DRef GetGlobalFunc(const std::string& name) = 0;
   /*!

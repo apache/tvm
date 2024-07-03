@@ -45,8 +45,7 @@ class ComputeLegalizePlanner : public StmtExprVisitor {
  public:
   ComputeLegalizePlanner(
       std::unordered_map<Buffer, Buffer, ObjectPtrHash, ObjectPtrEqual>* buffer_remap,
-      std::unordered_map<Var, Var, ObjectPtrHash, ObjectPtrEqual>* var_remap,
-      DataType promote_dtype)
+      std::unordered_map<Var, Var>* var_remap, DataType promote_dtype)
       : buffer_remap_(buffer_remap), var_remap_(var_remap), promote_dtype_(promote_dtype) {}
 
   // run planning to populate buffer remap and var remap.
@@ -124,8 +123,8 @@ class ComputeLegalizePlanner : public StmtExprVisitor {
   }
 
   std::unordered_map<Buffer, Buffer, ObjectPtrHash, ObjectPtrEqual>* buffer_remap_;
-  std::unordered_map<Var, Var, ObjectPtrHash, ObjectPtrEqual>* var_remap_;
-  std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> opaque_var_access_;
+  std::unordered_map<Var, Var>* var_remap_;
+  std::unordered_set<Var> opaque_var_access_;
   DataType promote_dtype_;
 };
 
@@ -133,8 +132,7 @@ class BF16ComputeLegalizePlanner : public ComputeLegalizePlanner {
  public:
   explicit BF16ComputeLegalizePlanner(
       std::unordered_map<Buffer, Buffer, ObjectPtrHash, ObjectPtrEqual>* buffer_remap,
-      std::unordered_map<Var, Var, ObjectPtrHash, ObjectPtrEqual>* var_remap,
-      DataType promote_dtype)
+      std::unordered_map<Var, Var>* var_remap, DataType promote_dtype)
       : ComputeLegalizePlanner(buffer_remap, var_remap, promote_dtype) {}
   bool MatchDType(DataType dtype) const { return dtype.is_bfloat16(); }
 };
@@ -143,8 +141,7 @@ class FP8ComputeLegalizePlanner : public ComputeLegalizePlanner {
  public:
   explicit FP8ComputeLegalizePlanner(
       std::unordered_map<Buffer, Buffer, ObjectPtrHash, ObjectPtrEqual>* buffer_remap,
-      std::unordered_map<Var, Var, ObjectPtrHash, ObjectPtrEqual>* var_remap,
-      DataType promote_dtype)
+      std::unordered_map<Var, Var>* var_remap, DataType promote_dtype)
       : ComputeLegalizePlanner(buffer_remap, var_remap, promote_dtype) {}
   bool MatchDType(DataType dtype) const { return dtype.is_float8(); }
 };
@@ -333,6 +330,8 @@ class ComputeLegalizer : public StmtExprMutator {
         ICHECK(MatchDType(value->dtype));
         value = cast(new_buf->dtype.with_lanes(value.dtype().lanes()), value);
       }
+      ICHECK(!op->predicate.defined()) << "Predicated buffer store is not currently supported in "
+                                          "data type legalizer pass.";
       return BufferStore(new_buf, value, indices);
     }
   }
@@ -404,6 +403,8 @@ class ComputeLegalizer : public StmtExprMutator {
     if (new_buf.same_as(op->buffer)) {
       return ret;
     } else {
+      ICHECK(!op->predicate.defined()) << "Predicated buffer load is not currently supported in "
+                                          "data type legalizer pass.";
       return BufferLoad(new_buf, op->indices);
     }
   }
@@ -446,7 +447,7 @@ class ComputeLegalizer : public StmtExprMutator {
  protected:
   DataType promote_dtype_;
   std::unordered_map<Buffer, Buffer, ObjectPtrHash, ObjectPtrEqual> buffer_remap_;
-  std::unordered_map<Var, Var, ObjectPtrHash, ObjectPtrEqual> var_remap_;
+  std::unordered_map<Var, Var> var_remap_;
 };
 
 class BF16ComputeLegalizer : public ComputeLegalizer {
@@ -565,6 +566,8 @@ class StorageLegalizer : public StmtExprMutator {
       if (MatchDType(op->value.dtype())) {
         ICHECK(new_buf->dtype.is_uint());
       }
+      ICHECK(!op->predicate.defined()) << "Predicated buffer store is not currently supported in "
+                                          "data type legalizer pass.";
       return BufferStore(new_buf, value, indices);
     }
   }
@@ -598,6 +601,8 @@ class StorageLegalizer : public StmtExprMutator {
     if (new_buf.same_as(op->buffer)) {
       return ret;
     } else {
+      ICHECK(!op->predicate.defined()) << "Predicated buffer load is not currently supported in "
+                                          "data type legalizer pass.";
       return BufferLoad(new_buf, op->indices);
     }
   }
@@ -678,7 +683,7 @@ class StorageLegalizer : public StmtExprMutator {
   }
 
   std::unordered_map<Buffer, Buffer, ObjectPtrHash, ObjectPtrEqual> buffer_remap_;
-  std::unordered_map<Var, Var, ObjectPtrHash, ObjectPtrEqual> var_remap_;
+  std::unordered_map<Var, Var> var_remap_;
 };
 
 class BF16StorageLegalizer : public StorageLegalizer {

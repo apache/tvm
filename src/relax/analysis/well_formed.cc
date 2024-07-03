@@ -364,9 +364,8 @@ class WellFormedChecker : public relax::ExprVisitor,
       Malformed(Diagnostic::Error(op) << "The condition for an if node must be a leaf expression.");
     }
 
-    std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> previous_var_set = var_set_;
-    std::unordered_set<tir::Var, ObjectPtrHash, ObjectPtrEqual> previous_symbolic_var_set =
-        symbolic_var_set_;
+    std::unordered_set<Var> previous_var_set = var_set_;
+    std::unordered_set<tir::Var> previous_symbolic_var_set = symbolic_var_set_;
     this->VisitSeqExpr(op->true_branch.get());
     var_set_ = previous_var_set;
     symbolic_var_set_ = previous_symbolic_var_set;
@@ -567,13 +566,12 @@ class WellFormedChecker : public relax::ExprVisitor,
   // Current visit mode.
   VisitMode mode_ = VisitMode::kDefault;
   // set of context variables.
-  std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> var_set_;
-  std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> recur_vars_;
+  std::unordered_set<Var> var_set_;
+  std::unordered_set<Var> recur_vars_;
   std::unordered_set<DataflowVar, ObjectPtrHash, ObjectPtrEqual> dataflow_var_set_;
-  std::unordered_set<tir::Var, ObjectPtrHash, ObjectPtrEqual> symbolic_var_set_;
-  std::unordered_map<Var, const FunctionNode*, ObjectPtrHash, ObjectPtrEqual> param_var_func_map_;
-  std::unordered_map<tir::Var, const FunctionNode*, ObjectPtrHash, ObjectPtrEqual>
-      symbolic_var_func_map_;
+  std::unordered_set<tir::Var> symbolic_var_set_;
+  std::unordered_map<Var, const FunctionNode*> param_var_func_map_;
+  std::unordered_map<tir::Var, const FunctionNode*> symbolic_var_func_map_;
 
   tvm::OpAttrMap<FNormalize> op_map_normalize_ = Op::GetAttrMap<FNormalize>("FNormalize");
 };

@@ -45,6 +45,8 @@ NP_TYPE_TO_C = {
     "uint16": "uint16_t",
     "int32": "int32_t",
     "uint32": "uint32_t",
+    # See: https://gcc.gnu.org/onlinedocs/gcc/Half-Precision.html
+    "float16": "_Float16",
     "float32": "float",
 }
 

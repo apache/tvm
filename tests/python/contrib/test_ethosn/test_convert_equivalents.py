@@ -30,16 +30,6 @@ from . import infrastructure as tei
 from .test_addition import _get_addition_qnn_params
 
 
-def _assert_structural_equal(a, b):
-    """Check structural equality of two Relay expressions."""
-    reason = (
-        "Actual and expected relay functions are not equal. "
-        "ConvertEquivalents is not correctly transforming the input "
-        "graph."
-    )
-    assert tvm.ir.structural_equal(a, b), reason
-
-
 @requires_ethosn
 @pytest.mark.parametrize("dtype", ["uint8", "int8"])
 @pytest.mark.parametrize("shape,channels", [((1, 4, 4, 8), 8), ((1, 16, 12, 4), 4)])
@@ -114,7 +104,7 @@ def test_multiply_to_depthwise(dtype, shape, channels, reverse_inputs):
     mod = before()
     mod = ConvertEquivalents()(mod)
     expected_mod = expected()
-    _assert_structural_equal(mod["ethos-n_0"], expected_mod["ethos-n_0"])
+    tvm.ir.assert_structural_equal(mod["ethos-n_0"], expected_mod["ethos-n_0"])
 
 
 @requires_ethosn
@@ -221,7 +211,7 @@ def test_multiply_to_reinterpret_quantize(shape, constant_shape, reverse_inputs)
     mod = before()
     mod = ConvertEquivalents()(mod)
     expected_mod = expected()
-    _assert_structural_equal(mod["ethos-n_0"], expected_mod["ethos-n_0"])
+    tvm.ir.assert_structural_equal(mod["ethos-n_0"], expected_mod["ethos-n_0"])
 
 
 @requires_ethosn
@@ -438,7 +428,7 @@ def test_add_to_reinterpret_quantize(shape, constant_shape, reverse_inputs):
     mod = before()
     mod = ConvertEquivalents()(mod)
     expected_mod = expected()
-    _assert_structural_equal(mod["ethos-n_0"], expected_mod["ethos-n_0"])
+    tvm.ir.assert_structural_equal(mod["ethos-n_0"], expected_mod["ethos-n_0"])
 
 
 @requires_ethosn

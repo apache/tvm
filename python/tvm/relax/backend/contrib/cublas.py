@@ -21,11 +21,16 @@ from functools import reduce
 
 import tvm
 from tvm import DataType
+from tvm.arith import Analyzer
 from tvm.relax import transform
 from tvm.relax.transform import PatternCheckContext
 
 from ..pattern_registry import get_patterns_with_prefix, register_patterns
-from ..patterns import make_matmul_pattern
+from ..patterns import (
+    make_matmul_pattern,
+    make_matmul_dequantize_pattern,
+    make_matmul_multiply_pattern,
+)
 from ..utils import has_leaking_intermediate_variables
 
 
@@ -47,6 +52,16 @@ def _check_matmul(context: PatternCheckContext) -> bool:
     lhs = context.annotated_expr["lhs"]
     rhs = context.annotated_expr["rhs"]
     matmul_call = context.annotated_expr["root"]
+
+    if "scale" in context.annotated_expr and "zp" in context.annotated_expr:
+        scale = context.annotated_expr["scale"]
+        zero_point = context.annotated_expr["zp"]
+        # Only scalar values for scale and zero_point are supported.
+        if scale.struct_info.ndim != 0 or zero_point.struct_info.ndim != 0:
+            return False
+        # Only zero_point == 0.0 is supported.
+        if zero_point.data.numpy()[()].item() != 0.0:
+            return False
 
     lhs_dtype = lhs.struct_info.dtype
     rhs_dtype = rhs.struct_info.dtype
@@ -109,6 +124,8 @@ def _check_matmul(context: PatternCheckContext) -> bool:
             # cuBLAS only supports bias vector
             return False
 
+    analyzer = Analyzer()
+
     # cuBLASLt does not seem to support batched GEMM with one of matrices having
     # one batch (with batch_stride 0). So for batched GEMM, the two batch counts
     # must be equal. If lhs is batched but rhs is not, we can use the regular GEMM by
@@ -116,7 +133,7 @@ def _check_matmul(context: PatternCheckContext) -> bool:
     return (
         isinstance(lhs_batches, tvm.tir.Var)
         or isinstance(rhs_batches, tvm.tir.Var)
-        or (int(lhs_batches) == int(rhs_batches))
+        or (analyzer.can_prove_equal(lhs_batches, rhs_batches))
         or (lhs_batches >= 1 and rhs_batches == 1)
     )
 
@@ -187,11 +204,21 @@ register_patterns(
             ),
             _check_matmul,
         ),
+        (
+            "cublas.matmul_transposed_dequantize",
+            *make_matmul_dequantize_pattern(transposed_rhs=True),
+            _check_matmul,
+        ),
+        (
+            "cublas.matmul_transposed_multiply",
+            *make_matmul_multiply_pattern(transposed_rhs=True),
+            _check_matmul,
+        ),
     ]
 )
 
 
-def partition_for_cublas(mod):
+def partition_for_cublas(mod, bind_constants=False):
     """
     Partition the input module into cuBLAS-supported subgraphs.
 
@@ -199,6 +226,9 @@ def partition_for_cublas(mod):
     ----------
     mod: tvm.IRModule
         The IRModule to be partitioned.
+
+    bind_constants : bool
+        Whether or not to keep bound constants in the grouped function.
 
     Returns
     -------
@@ -208,4 +238,6 @@ def partition_for_cublas(mod):
     """
 
     patterns = get_patterns_with_prefix("cublas")
-    return transform.FuseOpsByPattern(patterns, bind_constants=False, annotate_codegen=True)(mod)
+    return transform.FuseOpsByPattern(
+        patterns, bind_constants=bind_constants, annotate_codegen=True
+    )(mod)

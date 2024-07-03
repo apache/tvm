@@ -68,6 +68,7 @@ def compute_conv2d_gemm_without_weight_transform(
     output_channels,
     interleave_A,
     use_scalable_vectors=False,
+    use_sme=False,
 ):
     """Compute conv2d by transforming the input,
     executing GEMM and transforming the output back"""
@@ -123,29 +124,34 @@ def compute_conv2d_gemm_without_weight_transform(
         )
 
     # Select the tiling strategy for A and B
-    tile_M, tile_K_A = arm_utils.get_tiling_A(interleave_A, in_dtype)
+    tile_M, tile_K_A = arm_utils.get_tiling_A(interleave_A, in_dtype, use_sme)
     tile_N, tile_K_B = arm_utils.get_tiling_B_transformed(
-        interleave_A, in_dtype, use_scalable_vectors
+        interleave_A,
+        in_dtype,
+        use_scalable_vectors,
+        use_sme,
     )
 
     # Pad to tiles (if necessary)
-    pad_M, pad_K = arm_utils.get_conv2d_im2col_padding(M, K, tile_M, tile_K_A)
-    pad_N, _ = arm_utils.get_conv2d_weights_padding(N, K, tile_N, tile_K_B)
+    use_explicit_predication = use_sme and in_dtype == "float32"
+    if not use_explicit_predication:
+        pad_M, pad_K = arm_utils.get_conv2d_im2col_padding(M, K, tile_M, tile_K_A)
+        pad_N, _ = arm_utils.get_conv2d_weights_padding(N, K, tile_N, tile_K_B)
 
-    M_padded = M + pad_M
-    K_padded = K + pad_K
-    N_padded = N + pad_N
+        M_padded = M + pad_M
+        K_padded = K + pad_K
+        N_padded = N + pad_N
 
-    pad_before = (0, 0, 0)
-    pad_after = (0, pad_M, pad_K)
+        pad_before = (0, 0, 0)
+        pad_after = (0, pad_M, pad_K)
 
-    if pad_K != 0:
-        A = nn.pad(A, pad_before=pad_before, pad_after=pad_after, name="A_padded_K")
-    elif pad_M != 0:
-        A = nn.pad(A, pad_before=pad_before, pad_after=pad_after, name="A_padded_M")
+        if pad_K != 0:
+            A = nn.pad(A, pad_before=pad_before, pad_after=pad_after, name="A_padded_K")
+        elif pad_M != 0:
+            A = nn.pad(A, pad_before=pad_before, pad_after=pad_after, name="A_padded_M")
 
     idxm = tvm.tir.indexmod
-    k = te.reduce_axis((0, K_padded), "k")
+    k = te.reduce_axis((0, K if use_explicit_predication else K_padded), "k")
 
     # Determine matrix multiplication compute definition
     target = Target.current(allow_none=False)
@@ -285,6 +291,28 @@ def compute_conv2d_gemm_without_weight_transform(
                 tvm.tir.const(1, C.dtype) * C[0, M_padded - 1, N_padded - 1]
                 - tvm.tir.const(1, C.dtype) * C[0, M_padded - 1, N_padded - 1]
             )
+    elif use_sme and in_dtype == "float16" and out_dtype == "float32":
+        assert len(B_interleaved_t.shape) == 2
+        C = te.compute(
+            (batches, M_padded, N_padded),
+            lambda b, x, y: te.sum(
+                A[b, x, k].astype(out_dtype) * B_interleaved_t[y, k].astype(out_dtype),
+                axis=k,
+            ),
+            name="C",
+        )
+        zero = tvm.tir.const(0)
+    elif use_explicit_predication:
+        assert len(B_interleaved_t.shape) == 2
+        C = te.compute(
+            (batches, M, N),
+            lambda b, x, y: te.sum(
+                A[b, x, k].astype(in_dtype) * B_interleaved_t[k, y].astype(in_dtype),
+                axis=k,
+            ),
+            name="C",
+        )
+        zero = tvm.tir.const(0)
     elif use_scalable_vectors:
         assert len(B_interleaved_t.shape) == 2
         C = te.compute(
@@ -333,7 +361,7 @@ def compute_conv2d_gemm_without_weight_transform(
         out_shape,
         lambda b, x, y, z: (C(b, y + OW * x, z) + zero).astype(out_dtype),
         name="conv2d_gemm_output",
-        attrs={"use_scalable_vectors": use_scalable_vectors},
+        attrs={"use_scalable_vectors": use_scalable_vectors, "use_sme": use_sme},
     )
     return out
 
@@ -456,7 +484,7 @@ def schedule_conv2d_gemm_native(cfg, s, out, final_out):
         s[C].unroll(x_inner)
         s[C].tensorize(y_inner, gemm_acc)
         s[C].parallel(x_outer)
-    else:
+    elif use_scalable_vectors:
         k_outer, k_inner = s[C].split(k, factor=tile_K)
         x_outer, x_inner = s[C].split(x, factor=tile_M)
         y_outer, y_inner = s[C].split(y, factor=tile_N, disable_predication=use_scalable_vectors)
@@ -472,6 +500,25 @@ def schedule_conv2d_gemm_native(cfg, s, out, final_out):
         )
         s[C].unroll(x_inner)
         s[C].vectorize(y_inner)
+    else:
+        k_outer, k_inner = s[C].split(k, factor=tile_K)
+        x_outer, x_inner = s[C].split(x, factor=tile_M)
+        y_outer, y_inner = s[C].split(y, factor=tile_N)
+        y_inner_outer, y_inner_inner = s[C].split(y_inner, nparts=4)
+        b_x_outer_fused = s[C].fuse(b, x_outer)
+        s[C].parallel(b_x_outer_fused)
+        s[C].reorder(
+            b_x_outer_fused,
+            y_outer,
+            k_outer,
+            k_inner,
+            y_inner_outer,
+            x_inner,
+            y_inner_inner,
+        )
+        s[C].unroll(y_inner_outer)
+        s[C].unroll(x_inner)
+        s[C].vectorize(y_inner_inner)
 
     # Input transform
     if A.op.name == "A_padded_K" or A.op.name == "A_padded_M":

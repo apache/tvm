@@ -362,6 +362,114 @@ class BlockNameDeduplicator : public tir::StmtMutator {
 
 namespace relax {
 
+static Array<Integer> GetInplaceOutputIndices(const Array<Integer>& inplace_indices,
+                                              int num_inputs) {
+  Array<Integer> ret;
+  int last_idx = num_inputs;
+  for (auto idx : inplace_indices) {
+    int i = idx.IntValue();
+    if (i >= 0) {
+      ret.push_back(Integer(i));
+    } else {
+      CHECK_EQ(i, -1) << "The only negative index expected in inplace_indices is -1, but got " << i;
+      ret.push_back(Integer(last_idx));
+      last_idx++;
+    }
+  }
+
+  return ret;
+}
+
+class RelaxToTIRVarMapCollector : public ExprVisitor {
+ public:
+  explicit RelaxToTIRVarMapCollector(const IRModule& mod) : mod_(mod) {}
+  static Map<Expr, tir::Buffer> Collect(const IRModule& mod, const Function& func) {
+    RelaxToTIRVarMapCollector visitor(mod);
+    visitor(func->body);
+    return visitor.relax_to_tir_var_map_;
+  }
+
+ private:
+  void VisitBinding_(const VarBindingNode* binding) final {
+    current_var_ = binding->var;
+    ExprVisitor::VisitBinding_(binding);
+  }
+
+  void VisitExpr_(const CallNode* call) {
+    static const Op& call_tir_op_ = Op::Get("relax.call_tir");
+    static const Op& call_tir_inplace_op_ = Op::Get("relax.call_tir_inplace");
+
+    ICHECK(call->op == call_tir_op_ || call->op == call_tir_inplace_op_)
+        << "Only call_tir and call_tir_inplace are supported in primitive function, but got: "
+        << GetRef<Expr>(call);
+    CollectVarMapping(call, current_var_, call->op == call_tir_inplace_op_);
+  }
+
+  void CollectVarMapping(const CallNode* call, const Expr& lhs_var, bool in_place) {
+    GlobalVar gv = Downcast<GlobalVar>(call->args[0]);
+    tir::PrimFunc prim_func_ = Downcast<tir::PrimFunc>(mod_->Lookup(gv));
+    const auto& buffer_map = prim_func_->buffer_map;
+    const auto& tir_args = prim_func_->params;
+
+    const auto& relax_args = Downcast<Tuple>(call->args[1])->fields;
+
+    Array<Expr> relax_results;
+    if (lhs_var->IsInstance<TupleNode>()) {
+      relax_results = Downcast<Tuple>(lhs_var)->fields;
+    } else {
+      CHECK(lhs_var->IsInstance<VarNode>()) << "The lhs_var is expected to be either tuple or var";
+      relax_results = {Downcast<Var>(lhs_var)};
+    }
+
+    size_t num_inputs = relax_args.size();
+    size_t num_outputs = relax_results.size();
+
+    Array<Integer> output_idxs;
+    if (in_place) {
+      const auto* attrs = call->attrs.as<CallTIRInplaceAttrs>();
+      CHECK(attrs) << "Must have CallTIRInplaceAttrs for an in-place call";
+      output_idxs = GetInplaceOutputIndices(attrs->inplace_indices, num_inputs);
+    } else {
+      for (size_t i = num_inputs; i < num_inputs + num_outputs; i++) {
+        output_idxs.push_back(i);
+      }
+    }
+
+    // If the `expr` is already seen (present in the map), validate whether the mapped buffer is
+    // structurally equal to the `new_buf` passed
+    auto ValidateBufferCompatibility = [this](tir::Buffer new_buf, Expr expr) {
+      if (auto it = relax_to_tir_var_map_.find(expr); it != relax_to_tir_var_map_.end()) {
+        ICHECK(StructuralEqual()((*it).second, new_buf))
+            << "Inconsistent buffers " << (*it).second << " and " << new_buf
+            << " mapped to the same relax var: " << expr;
+      }
+    };
+    for (size_t i = 0; i < tir_args.size(); ++i) {
+      const auto& tir_var = tir_args[i];
+      if (auto tir_buffer = buffer_map.Get(tir_var)) {
+        if (i < num_inputs) {
+          const auto& relax_var = relax_args[i];
+          ValidateBufferCompatibility(tir_buffer.value(), relax_var);
+          relax_to_tir_var_map_.Set(relax_var, tir_buffer.value());
+        }
+        if (auto it = std::find(output_idxs.begin(), output_idxs.end(), i);
+            it != output_idxs.end()) {
+          int result_idx = it - output_idxs.begin();
+          const auto& relax_var = relax_results[result_idx];
+          ValidateBufferCompatibility(tir_buffer.value(), relax_var);
+          relax_to_tir_var_map_.Set(relax_var, tir_buffer.value());
+        }
+      }
+    }
+  }
+
+ private:
+  /*! \brief The IRModule */
+  const IRModule& mod_;
+  Map<Expr, tir::Buffer> relax_to_tir_var_map_;
+  Var current_var_;
+};
+
 class FusedTIRConstructor : public ExprVisitor {
  public:
   /*!
@@ -391,10 +499,11 @@ class FusedTIRConstructor : public ExprVisitor {
       : mod_(mod), func_name_(func_name) {}
 
   void VisitExpr_(const FunctionNode* func) final {
+    auto relax_to_tir_var_map = RelaxToTIRVarMapCollector::Collect(mod_, GetRef<Function>(func));
     std::vector<Variant<tir::Var, tir::Buffer>> prim_func_params;
     for (const Var& relax_param : func->params) {
       size_t size_before = prim_func_params.size();
-      CollectPrimFuncParams(relax_param, &prim_func_params);
+      CollectPrimFuncParams(relax_param, &prim_func_params, relax_to_tir_var_map.Get(relax_param));
 
       auto param_buffers = [&]() -> Array<tir::Buffer> {
         Array<tir::Buffer> out;
@@ -447,7 +556,7 @@ class FusedTIRConstructor : public ExprVisitor {
 
     // map of input buffers to indices (helpful for detecting in-place inputs)
     std::unordered_map<tir::Buffer, size_t, ObjectPtrHash, ObjectPtrEqual> buffer_to_idx;
-    std::unordered_map<tir::Var, size_t, ObjectPtrHash, ObjectPtrEqual> input_to_idx;
+    std::unordered_map<tir::Var, size_t> input_to_idx;
     for (size_t i = 0; i < func_info_.params.size(); i++) {
       input_to_idx[func_info_.params[i]] = i;
     }
@@ -676,23 +785,6 @@ class FusedTIRConstructor : public ExprVisitor {
     MapArgsToBuffer(arg_list, buffer_list);
   }
 
-  static Array<Integer> GetInplaceOutputIndices(const Array<Integer>& inplace_indices,
-                                                int num_inputs) {
-    Array<Integer> ret;
-    int last_idx = num_inputs;
-    for (auto idx : inplace_indices) {
-      int i = idx.IntValue();
-      if (i >= 0) {
-        ret.push_back(Integer(i));
-      } else {
-        ret.push_back(Integer(last_idx));
-        last_idx++;
-      }
-    }
-
-    return ret;
-  }
-
   static Array<tir::Var> GetPrimFuncOutputParams(const tir::PrimFunc& func,
                                                  const Array<Integer>& output_indices) {
     size_t n = func->params.size();
@@ -799,7 +891,8 @@ class FusedTIRConstructor : public ExprVisitor {
    * \param out The vector into which to collect the params/buffers
    */
   static void CollectPrimFuncParams(const Var& relax_param,
-                                    std::vector<Variant<tir::Var, tir::Buffer>>* out) {
+                                    std::vector<Variant<tir::Var, tir::Buffer>>* out,
+                                    const tvm::runtime::Optional<tir::Buffer>& tir_buffer_param) {
     auto struct_info = GetStructInfo(relax_param);
 
     CHECK(!struct_info.as<TupleStructInfoNode>())
@@ -814,7 +907,14 @@ class FusedTIRConstructor : public ExprVisitor {
       const auto* shape_expr = tensor->shape.as<ShapeExprNode>();
       ICHECK(shape_expr) << "FuseTIR expects all Tensor parameters have a known shape.";
       DataType dtype = tensor->dtype;
-      tir::Buffer buffer = tir::decl_buffer(shape_expr->values, dtype, name_hint);
+      tir::Buffer buffer;
+      if (tir_buffer_param.defined()) {
+        buffer =
+            tir::decl_buffer(shape_expr->values, dtype, name_hint, tir_buffer_param.value().scope(),
+                             tir_buffer_param.value()->axis_separators);
+      } else {
+        buffer = tir::decl_buffer(shape_expr->values, dtype, name_hint);
+      }
       out->push_back(std::move(buffer));
 
     } else if (const auto* prim_value = struct_info.as<PrimStructInfoNode>()) {
@@ -979,7 +1079,7 @@ class TIRFuseMutator : public ExprMutator {
     mod.CopyOnWrite();
 
     IRModule updates;
-    std::unordered_map<GlobalVar, Replacement, ObjectPtrHash, ObjectPtrEqual> replacements;
+    std::unordered_map<GlobalVar, Replacement> replacements;
 
     // Since TIRFuseMutator will delete bunch of PrimFunc, we create an empty block builder.
 
@@ -1024,8 +1124,7 @@ class TIRFuseMutator : public ExprMutator {
     Array<Integer> inplace_indices;
   };
 
-  explicit TIRFuseMutator(
-      std::unordered_map<GlobalVar, Replacement, ObjectPtrHash, ObjectPtrEqual> replacements)
+  explicit TIRFuseMutator(std::unordered_map<GlobalVar, Replacement> replacements)
       : replacements_(replacements) {}
 
   using ExprMutator::VisitExpr_;
@@ -1129,7 +1228,7 @@ class TIRFuseMutator : public ExprMutator {
    *
    * Has one entry for each primitive relax function in the IRModule.
    */
-  std::unordered_map<GlobalVar, Replacement, ObjectPtrHash, ObjectPtrEqual> replacements_;
+  std::unordered_map<GlobalVar, Replacement> replacements_;
 };
 
 IRModule FuseTIR(IRModule mod) {

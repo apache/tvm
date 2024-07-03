@@ -792,7 +792,7 @@ def test_lets():
         sb.ret(a2)
         return relay.Function([p0, p1], sb.get())
 
-    assert tvm.ir.structural_equal(func1(), func2())
+    tvm.ir.assert_structural_equal(func1(), func2())
     assert not tvm.ir.structural_equal(func1(), func3())
 
 
