@@ -705,8 +705,7 @@ TensorIntrin.register(
 def get_mma_intrin_group(
     load_scope: Literal["shared", "shared.dyn"],
     store_scope: Literal["global", "shared", "shared.dyn"],
-    a_dtype: Literal["float16", "int8", "e4m3_float8", "e5m2_float8"],
-    b_dtype: Literal["float16", "int8", "e4m3_float8", "e5m2_float8"],
+    in_dtype: Literal["float16", "int8", "e4m3_float8", "e5m2_float8"],
     out_dtype: Literal["float16", "float32", "int32"],
     trans_a: bool,
     trans_b: bool,
@@ -723,11 +722,8 @@ def get_mma_intrin_group(
     store_scope : Literal["global", "shared", "shared.dyn"]
         The memory scope of the result buffer.
 
-    a_dtype : str
-        The dtype of the input matrix A.
-    
-    b_dtype : str
-        The dtype of the input matrix B.
+    in_dtype : str
+        The input data type.
 
     out_dtype : str
         The output data dtype.
@@ -756,8 +752,7 @@ def get_mma_intrin_group(
     """
     assert load_scope in ["shared", "shared.dyn"]
     assert store_scope in ["global", "shared", "shared.dyn"]
-    assert a_dtype in ["float16", "int8", "e4m3_float8", "e5m2_float8"]
-    assert b_dtype in ["float16", "int8", "e4m3_float8", "e5m2_float8"]
+    assert in_dtype in ["float16", "int8", "e4m3_float8", "e5m2_float8"]
     assert out_dtype in ["float16", "float32", "int32"]
 
     shape = "16x16"
@@ -770,8 +765,8 @@ def get_mma_intrin_group(
         "e5m2_float8": "e5m2",
         "int32": "i32",
     }
-    a_dtype = dtype_mapping[a_dtype]
-    b_dtype = dtype_mapping[b_dtype]
+    a_dtype = dtype_mapping[in_dtype]
+    b_dtype = dtype_mapping[in_dtype]
     out_dtype = dtype_mapping[out_dtype]
 
     # e.g. mma_fill_16x16_f32
