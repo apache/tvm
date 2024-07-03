@@ -1,0 +1,82 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+# Checkout mainline commit on local repo and run tests.
+name: Adreno Rebase Mainline on Windows
+
+on:
+  schedule:
+    # 6:30 AM IST
+    - cron: "0 1 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: update-mainline-on-windows
+  cancel-in-progress: true
+
+jobs:
+  RebaseMainlineWindows:
+    if: github.repository == 'gpgpu/apache-tvm'
+    runs-on: tvm-windows
+    steps:
+      - uses: actions/checkout@v3
+        with:
+            submodules: 'recursive'
+            fetch-depth: 0
+      - name: Checkout Mainline
+        shell: powershell
+        run: |
+          if (!(git remote -v | Select-String -Pattern '^mainline' -Quiet)) {
+             git remote add mainline git@github.com:apache/tvm.git
+          }
+          git fetch mainline
+      - name: Checkout GPGPU
+        shell: powershell
+        run: |
+          if (!(git remote -v | Select-String -Pattern '^gpgpu' -Quiet)) {
+            git remote add gpgpu git@github.qualcomm.com:gpgpu/apache-tvm.git
+          }
+          git fetch gpgpu
+      - name: Rebase with Mainline
+        shell: powershell
+        run: |
+          git checkout -b rebase-main gpgpu/main
+          git rebase mainline/main
+          git submodule update
+          $directories = Get-ChildItem -Path '3rdparty' -Directory
+          foreach ($directory in $directories) {
+            cd $directory.FullName
+            Write-Host "$($directory.Name):" $(git log --format="%H" -n 1)
+            cd ..
+          }
+      - name: Compile
+        shell: powershell
+        run: |
+           Push-Location
+           New-Item -ItemType Directory -Force -Path "./build"
+           cd build
+           cp ../cmake/config.cmake .
+           Add-Content config.cmake "set(USE_OPENCL $ENV:OPENCL_SDK)"
+           Add-Content config.cmake "set(USE_LLVM $ENV:LLVM_CONFIG)"
+           cmake .. -G "Visual Studio 17 2022" -A x64
+           cmake --build . --config Release --parallel $env:NUMBER_OF_PROCESSORS
+           Pop-Location
+      - name: Check Build Status
+        shell: powershell
+        run: |
+           $env:PYTHONPATH = "$pwd\python"
+           python -c "import tvm; print(tvm.__path__)"
