@@ -849,7 +849,7 @@ def test_copy(dtype, vec_len):
     mod = tvm.IRModule({"main": func})
     rtmod = tvm.build(mod, target="cuda")
 
-    print(rtmod.imported_modules[0].get_source())
+
 num_experts = 8
 reduce_size = 1792
 spatial_size = 4096
