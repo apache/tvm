@@ -479,7 +479,7 @@ class GEMV(GPUScheduleRule):
             else:
                 TS, TR = 1, 64
         elif target.kind.name == "opencl" and (
-            ("android" in str(target.host)) or ("windows" in str(target.host))
+            ("android" in str(target.host)) or ("adreno" in str(target.attrs))
         ):
             TAG_S, TAG_R = "threadIdx.x", "threadIdx.y"
             VEC_C = 8
@@ -689,7 +689,7 @@ class GEMV(GPUScheduleRule):
         SCALE_PACK = 4
 
         if target.kind.name == "opencl" and (
-            ("android" in str(target.host)) or ("windows" in str(target.host))
+            ("android" in str(target.host)) or ("adreno" in str(target.attrs))
         ):
             TAG_S, TAG_R = "threadIdx.x", "threadIdx.y"
             VEC_C = 8
@@ -762,7 +762,7 @@ class GEMV(GPUScheduleRule):
         # NOTE: Only Android is supported so far
         if not (
             target.kind.name == "opencl"
-            and (("android" in str(target.host)) or ("windows" in str(target.host)))
+            and (("android" in str(target.host)) or ("adreno" in str(target.attrs)))
         ):
             return None
         batch, s, r, c = sch.get_loops(block)
