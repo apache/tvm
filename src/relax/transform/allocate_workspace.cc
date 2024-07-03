@@ -37,7 +37,7 @@ class ExternFunctionRewriter : ExprMutator {
   using ExprMutator::VisitExpr_;
 
   ExternFunctionRewriter(IRModule mod, size_t max_workspace_size)
-      : ExprMutator(mod), name_sup_(""), max_workspace_size_(max_workspace_size) {}
+      : ExprMutator(mod), max_workspace_size_(max_workspace_size) {}
 
   std::unordered_map<const GlobalVarNode*, Function> Run() {
     std::unordered_map<const GlobalVarNode*, Function> ret;
