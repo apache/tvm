@@ -606,8 +606,8 @@ Expr ExprMutator::VisitExpr_(const FunctionNode* op) {
 
 Expr ExprMutator::VisitExpr_(const IfNode* op) {
   Expr guard = this->VisitExpr(op->cond);
-  Expr true_b = this->VisitWithNewScope(op->true_branch);
-  Expr false_b = this->VisitWithNewScope(op->false_branch);
+  Expr true_b = this->VisitWithInnerScope(op->true_branch);
+  Expr false_b = this->VisitWithInnerScope(op->false_branch);
   if (op->cond.same_as(guard) && op->true_branch.same_as(true_b) &&
       op->false_branch.same_as(false_b) &&
       VisitAndCheckStructInfoFieldUnchanged(op->struct_info_)) {
@@ -696,20 +696,24 @@ void ExprMutator::VisitBinding_(const MatchCastNode* binding) {
 
   Var new_var = this->VisitVarDef(binding->var);
 
-  if (new_var.same_as(binding->var) && new_value.same_as(binding->value) &&
-      new_struct_info.same_as(binding->struct_info)) {
-    // re-emit old binding if nothing changes
-    builder_->EmitNormalized(GetRef<MatchCast>(binding));
-    return;
-  }
+  MatchCast new_binding = [&]() -> MatchCast {
+    if (new_var.same_as(binding->var) && new_value.same_as(binding->value) &&
+        new_struct_info.same_as(binding->struct_info)) {
+      // re-emit old binding if nothing changes
+      return GetRef<MatchCast>(binding);
+    } else {
+      new_value = builder_->NormalizeArgument(new_value);
+      new_var = WithStructInfo(new_var, new_struct_info);
 
-  new_value = builder_->NormalizeArgument(new_value);
-  new_var = WithStructInfo(new_var, new_struct_info);
+      var_remap_[binding->var->vid] = new_var;
+      var_remap_[new_var->vid] = new_var;
 
-  var_remap_[binding->var->vid] = new_var;
-  var_remap_[new_var->vid] = new_var;
+      return MatchCast(new_var, new_value, new_struct_info, binding->span);
+    }
+  }();
 
-  builder_->EmitNormalized(MatchCast(new_var, new_value, new_struct_info, binding->span));
+  builder_->EmitNormalized(new_binding);
+  builder_->AddDefinitionToScope(new_binding->var);
 }
 
 BindingBlock ExprMutator::VisitBindingBlock_(const BindingBlockNode* block) {
@@ -800,7 +804,30 @@ Expr ExprMutator::VisitWithNewScope(const Expr& expr, Optional<Array<Var>> param
   }
 
   builder_->BeginScope(params);
+  // Outer scope only includes TIR variables that can be inferred from
+  // the function parameters.
   With<arith::ConstraintContext> context(builder_->GetAnalyzer(), constraint);
+  builder_->BeginInnerScope();
+  // Inner scope also includes any TIR variables that are defined by
+  // MatchCast nodes, and are internal to the scope.
+  Expr ret = ExprFunctor::VisitExpr(expr);
+  builder_->EndScope();
+
+  // Normalization (and the resulting StructInfo inference) of the
+  // expr occurs outside of the body's parameters, but inside the
+  // function signature's scope.  This keeps variables that are
+  // inferable based on the function signature, to allow callers to
+  // propagate StructInfo across the function.
+  ret = builder_->Normalize(ret);
+  builder_->EndScope();
+  return ret;
+}
+
+Expr ExprMutator::VisitWithInnerScope(const Expr& expr) {
+  ICHECK(expr->IsInstance<SeqExprNode>())
+      << "Normal form requires all new scope is stored as SeqExpr";
+
+  builder_->BeginInnerScope();
   Expr ret = this->VisitExpr(expr);
   builder_->EndScope();
   return ret;

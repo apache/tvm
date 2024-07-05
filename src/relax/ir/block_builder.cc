@@ -197,8 +197,10 @@ class BlockBuilderImpl : public BlockBuilderNode {
   }
 
   void AddDefinitionToScope(Var var) final {
-    ICHECK(scope_stack_.size()) << "Cannot add definition of " << var << " to current scope, "
-                                << "because there is no current scope.";
+    if (scope_stack_.empty()) {
+      return;
+    }
+
     auto& shape_var_map = CurrentScopeFrame()->shape_var_map;
 
     // The current implementation handles the collection of shape var
@@ -854,7 +856,9 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
   // erase to well defined within current scope.
   StructInfo EraseToWellDefinedInScope(StructInfo info) {
     if (scope_stack_.empty()) {
-      return EraseToWellDefined(info);
+      // If no scopes are active, then this fragment does not require
+      // any normalization.
+      return info;
     }
     auto* curr_scope = CurrentScopeFrame();
     auto f_shape_var_map = [curr_scope](tir::Var var) -> Optional<PrimExpr> {
