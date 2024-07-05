@@ -468,8 +468,11 @@ def apply_attention(
 
     for seq_id, _ in batch:
         if sliding_window_sizes is not None and len(sliding_window_sizes) > seq_id:
+            assert len(sliding_window_sizes) > seq_id and len(attn_sink_sizes) > seq_id
             sliding_window_size = sliding_window_sizes[seq_id]
             attn_sink_size = attn_sink_sizes[seq_id]
+            if sliding_window_size == 0:
+                continue
             if cached_k[seq_id].shape[1] > sliding_window_size:
                 # Apply sliding window and sink to cached kv.
                 length_to_slide = cached_k[seq_id].shape[1] - sliding_window_size
@@ -563,8 +566,7 @@ def test_paged_attention_kv_cache_fork_sequence(kv_cache_and_config):
     apply_attention(kv_cache, rope_mode, [((5, 0, -1), 20)], cached_k, cached_v)
     apply_attention(kv_cache, rope_mode, [((6, 5, -1), 102)], cached_k, cached_v)
     apply_attention(kv_cache, rope_mode, [((7, 0, -1), 3)], cached_k, cached_v)
-    apply_attention(kv_cache, rope_mode, [((8, 5, -1), 71)], cached_k, cached_v)
-    apply_attention(kv_cache, rope_mode, [((9, 5, -1), 20)], cached_k, cached_v)
+    apply_attention(kv_cache, rope_mode, [((8, 5, -1), 71), ((9, 5, -1), 20)], cached_k, cached_v)
     # 0 <- 5 <- 6,8,9
     # 0 <- 7
     # 3 <- 4
@@ -579,15 +581,16 @@ def test_paged_attention_kv_cache_fork_sequence(kv_cache_and_config):
         apply_attention(kv_cache, rope_mode, batch, cached_k, cached_v)
 
     apply_attention(kv_cache, rope_mode, [((10, 1, 33), 11)], cached_k, cached_v)
-    apply_attention(kv_cache, rope_mode, [((11, 0, 60), 45)], cached_k, cached_v)
-    apply_attention(kv_cache, rope_mode, [((12, 0, 15), 14)], cached_k, cached_v)
-    apply_attention(kv_cache, rope_mode, [((13, 0, 16), 19)], cached_k, cached_v)
-    apply_attention(kv_cache, rope_mode, [((14, 0, 17), 19)], cached_k, cached_v)
-    apply_attention(kv_cache, rope_mode, [((15, 5, 60), 8)], cached_k, cached_v)
-    apply_attention(kv_cache, rope_mode, [((16, 5, 80), 10)], cached_k, cached_v)
-    apply_attention(kv_cache, rope_mode, [((17, 5, 75), 11)], cached_k, cached_v)
-    apply_attention(kv_cache, rope_mode, [((18, 5, 76), 45)], cached_k, cached_v)
-    apply_attention(kv_cache, rope_mode, [((19, 5, 77), 14)], cached_k, cached_v)
+    apply_attention(kv_cache, rope_mode, [((11, 0, 60), 45), ((12, 0, 15), 14)], cached_k, cached_v)
+    apply_attention(kv_cache, rope_mode, [((13, 0, 16), 19), ((14, 0, 17), 19)], cached_k, cached_v)
+    apply_attention(kv_cache, rope_mode, [((15, 5, 60), 8), ((16, 5, 80), 10)], cached_k, cached_v)
+    apply_attention(
+        kv_cache,
+        rope_mode,
+        [((17, 5, 75), 11), ((18, 5, 76), 45), ((19, 5, 77), 14)],
+        cached_k,
+        cached_v,
+    )
 
     operation_seq = [
         [(6, 1), (11, 1), (13, 1), (9, 1)],
@@ -599,6 +602,57 @@ def test_paged_attention_kv_cache_fork_sequence(kv_cache_and_config):
         apply_attention(kv_cache, rope_mode, batch, cached_k, cached_v)
 
     num_sequence = 20
+    for i in range(num_sequence):
+        fremove_sequence(kv_cache, i)
+        cached_k.pop(i)
+        cached_v.pop(i)
+        verify_cached_kv(
+            kv_cache,
+            seq_ids=list(range(i + 1, num_sequence)),
+            expected_k=cached_k,
+            expected_v=cached_v,
+        )
+
+    assert fis_empty(kv_cache), "The KV cache is not empty after removing all sequences"
+
+
+@tvm.testing.requires_gpu
+@tvm.testing.requires_cuda
+def test_paged_attention_kv_cache_unlimited_depth(kv_cache_and_config):
+    kv_cache, rope_mode, support_sliding_window = kv_cache_and_config
+    if support_sliding_window and rope_mode == RopeMode.NORMAL:
+        # Normal RoPE mode under sliding window settings is not supported.
+        return
+    fclear(kv_cache)
+
+    cached_k = {}
+    cached_v = {}
+    apply_attention(kv_cache, rope_mode, [(0, 30)], cached_k, cached_v)
+    # Fork existing sequences.
+    apply_attention(kv_cache, rope_mode, [((1, 0, -1), 15)], cached_k, cached_v)
+    apply_attention(kv_cache, rope_mode, [((2, 1, -1), 5)], cached_k, cached_v)
+    apply_attention(kv_cache, rope_mode, [((3, 2, -1), 20)], cached_k, cached_v)
+    apply_attention(kv_cache, rope_mode, [((4, 3, -1), 26)], cached_k, cached_v)
+    apply_attention(kv_cache, rope_mode, [((5, 3, -1), 18)], cached_k, cached_v)
+    apply_attention(kv_cache, rope_mode, [((6, 5, -1), 22)], cached_k, cached_v)
+    apply_attention(kv_cache, rope_mode, [((7, 5, -1), 12)], cached_k, cached_v)
+    apply_attention(kv_cache, rope_mode, [((8, 7, -1), 29)], cached_k, cached_v)
+    apply_attention(kv_cache, rope_mode, [((9, 7, -1), 9)], cached_k, cached_v)
+    apply_attention(kv_cache, rope_mode, [((10, 9, -1), 31)], cached_k, cached_v)
+    apply_attention(kv_cache, rope_mode, [((11, 9, -1), 4)], cached_k, cached_v)
+    # 0 <- 1 <- 2 <- 3 <- 5 <- 7 <- 9 <- 11
+    #                |    |    |    |
+    #                4    6    8    10
+    # Decode.
+    operation_seq = [
+        [(3, 1), (6, 1), (9, 1)],
+        [(4, 1), (8, 1), (10, 1)],
+        [(5, 1), (7, 1), (11, 1)],
+    ]
+    for batch in operation_seq:
+        apply_attention(kv_cache, rope_mode, batch, cached_k, cached_v)
+
+    num_sequence = 12
     for i in range(num_sequence):
         fremove_sequence(kv_cache, i)
         cached_k.pop(i)
@@ -695,34 +749,74 @@ def test_paged_attention_kv_cache_sliding_window(kv_cache_and_config):
             attn_sink_sizes,
         )
 
-    # Sliding window with fork
-    sliding_window_sizes += [0, 18]
-    attn_sink_sizes += [0, 12]
-    apply_attention(kv_cache, rope_mode, [(5, 10)], cached_k, cached_v)
-    ffork_sequence(kv_cache, 5, 6, -1)
-    cached_k[6] = cached_k[5]
-    cached_v[6] = cached_v[5]
+
+@tvm.testing.requires_gpu
+@tvm.testing.requires_cuda
+def test_paged_attention_kv_cache_sliding_window_fork(kv_cache_and_config):
+    kv_cache, rope_mode, support_sliding_window = kv_cache_and_config
+    if not support_sliding_window or rope_mode == RopeMode.NORMAL:
+        return
+    fclear(kv_cache)
+
+    cached_k = {}
+    cached_v = {}
+    sliding_window_sizes = [30, 35, 40]
+    attn_sink_sizes = [15, 20, 25]
+    for seq_id, (sliding_window_size, attn_sink_size) in enumerate(
+        zip(sliding_window_sizes, attn_sink_sizes)
+    ):
+        fadd_sequence(kv_cache, seq_id)
+        fenable_sliding_window_for_seq(kv_cache, seq_id, sliding_window_size, attn_sink_size)
+        cached_k[seq_id] = np.zeros((num_layers, 0, num_kv_heads, head_dim), dtype)
+        cached_v[seq_id] = np.zeros((num_layers, 0, num_kv_heads, head_dim), dtype)
+    apply_attention(
+        kv_cache,
+        rope_mode,
+        [(0, 12), (1, 18), (2, 28)],
+        cached_k,
+        cached_v,
+        sliding_window_sizes,
+        attn_sink_sizes,
+    )
+    # seq_len: [12, 18, 25+3]
+    sliding_window_sizes += [0, 0, 0]
+    attn_sink_sizes += [0, 0, 0]
+    apply_attention(
+        kv_cache,
+        rope_mode,
+        [((3, 0, 10), 8), ((4, 1, -1), 20), ((5, 2, 18), 18)],
+        cached_k,
+        cached_v,
+        sliding_window_sizes,
+        attn_sink_sizes,
+    )
+    # seq_len: [12, 18, 25+3, 18, 38, 36]
+    apply_attention(
+        kv_cache,
+        rope_mode,
+        [(0, 9), (1, 15), (2, 4), (3, 10), (4, 3), (5, 7)],
+        cached_k,
+        cached_v,
+        sliding_window_sizes,
+        attn_sink_sizes,
+    )
+    # seq_len: [15+6, 20+13, 25+7, 28, 41, 43]
+    sliding_window_sizes += [25]
+    attn_sink_sizes += [24]
+    ffork_sequence(kv_cache, 3, 6, 18)
     fenable_sliding_window_for_seq(kv_cache, 6, sliding_window_sizes[-1], attn_sink_sizes[-1])
-    for _ in range(2):
-        apply_attention(
-            kv_cache,
-            rope_mode,
-            [(6, 10)],
-            cached_k,
-            cached_v,
-            sliding_window_sizes,
-            attn_sink_sizes,
-        )
-    for _ in range(16):
-        apply_attention(
-            kv_cache,
-            rope_mode,
-            [(6, 1)],
-            cached_k,
-            cached_v,
-            sliding_window_sizes,
-            attn_sink_sizes,
-        )
+    cached_k[6] = cached_k[3][::, :18]
+    cached_v[6] = cached_v[3][::, :18]
+    apply_attention(
+        kv_cache,
+        rope_mode,
+        [(3, 10), (6, 12)],
+        cached_k,
+        cached_v,
+        sliding_window_sizes,
+        attn_sink_sizes,
+    )
+    # seq_len: [15+6, 20+13, 25+7, 38, 41, 43, 24+6]
 
 
 @tvm.testing.requires_gpu
@@ -2541,3 +2635,4 @@ if __name__ == "__main__":
         test_paged_attention_kv_cache_popn(cache_and_config)
         test_paged_attention_kv_cache_sliding_window(cache_and_config)
         test_paged_attention_kv_cache_tree_attn(cache_and_config)
+        test_paged_attention_kv_cache_unlimited_depth(cache_and_config)

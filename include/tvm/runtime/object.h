@@ -823,14 +823,18 @@ struct ObjectPtrEqual {
  *
  * \endcode
  */
-#define TVM_DEFINE_OBJECT_REF_COW_METHOD(ObjectName)     \
-  ObjectName* CopyOnWrite() {                            \
-    ICHECK(data_ != nullptr);                            \
-    if (!data_.unique()) {                               \
-      auto n = make_object<ObjectName>(*(operator->())); \
-      ObjectPtr<Object>(std::move(n)).swap(data_);       \
-    }                                                    \
-    return static_cast<ObjectName*>(data_.get());        \
+#define TVM_DEFINE_OBJECT_REF_COW_METHOD(ObjectName)               \
+  static_assert(ObjectName::_type_final,                           \
+                "TVM's CopyOnWrite may only be used for "          \
+                "Object types that are declared as final, "        \
+                "using the TVM_DECLARE_FINAL_OBJECT_INFO macro."); \
+  ObjectName* CopyOnWrite() {                                      \
+    ICHECK(data_ != nullptr);                                      \
+    if (!data_.unique()) {                                         \
+      auto n = make_object<ObjectName>(*(operator->()));           \
+      ObjectPtr<Object>(std::move(n)).swap(data_);                 \
+    }                                                              \
+    return static_cast<ObjectName*>(data_.get());                  \
   }
 
 // Implementations details below

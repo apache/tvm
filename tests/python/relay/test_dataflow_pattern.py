@@ -28,7 +28,7 @@ from tvm.relay.testing import run_opt_pass
 # convention.
 K_ELEMWISE = 0
 K_BROADCAST = 1
-
+K_INJECTIVE = 2
 
 ## NODE TESTS
 def test_expr_pattern():
@@ -694,6 +694,28 @@ def test_match_dominator():
     out = tanh + leaky_relu
 
     assert diamond.match(out)
+
+
+def test_match_dominator2():
+    # Pattern
+    conv2d_pat = is_op("nn.conv2d")(wildcard(), wildcard())
+    eltwise_pat = (wildcard().has_attr({"TOpPattern": K_ELEMWISE}))(None)
+    broadcast_pat = (wildcard().has_attr({"TOpPattern": K_BROADCAST}))(None)
+    path_pat = eltwise_pat | broadcast_pat
+    injective_pat = (wildcard().has_attr({"TOpPattern": K_INJECTIVE}))(wildcard())
+    pattern = injective_pat.dominates(conv2d_pat, path_pat)
+
+    # Graph
+    inp = relay.var("input")
+    weight = relay.var("weight")
+    bias = relay.var("bias")
+    conv2d = relay.op.nn.conv2d(inp, weight)
+    bias_add = relay.op.nn.bias_add(conv2d, bias)
+    relu = relay.op.nn.relu(bias_add)
+    reshape = relay.op.reshape(relu, newshape=[-1, 2, 8])
+
+    # Check
+    assert pattern.match(reshape)
 
 
 def test_not_match_dominator():
