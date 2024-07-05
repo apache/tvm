@@ -1932,6 +1932,7 @@ vectorlow = _dtype_forward(_tir_op.vectorlow)
 vectorhigh = _dtype_forward(_tir_op.vectorhigh)
 vectorcombine = _dtype_forward(_tir_op.vectorcombine)
 get_active_lane_mask = _dtype_forward(_tir_op.get_active_lane_mask)
+dp4a = _dtype_forward(_tir_op.dp4a)
 
 
 broadcast = Broadcast
@@ -2191,6 +2192,7 @@ __all__ = [
     "vectorlow",
     "vectorhigh",
     "vectorcombine",
+    "dp4a",
     "assume",
     "undef",
     "tvm_call_packed",

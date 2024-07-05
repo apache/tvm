@@ -410,6 +410,14 @@ void CodeGenWebGPU::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLIN
       this->EndScope(else_scope);
     }
     os << result;
+  } else if (op->op.same_as(builtin::dp4a())) {
+    // generate `dot4I8Packed(vec1, vec2) + acc` for the builtin `dp4a`
+    os << "dot4I8Packed(";
+    this->PrintExpr(op->args[0], os);
+    os << ", ";
+    this->PrintExpr(op->args[1], os);
+    os << ") + ";
+    this->PrintExpr(op->args[2], os);
   } else {
     CodeGenC::VisitExpr_(op, os);
   }
