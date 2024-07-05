@@ -133,15 +133,46 @@ class BlockBuilderNode : public Object {
    * \brief Begin a new scope, with optional parameters that
    *        are visible within the scope.
    *
+   * Symbolic variables from the parent scope are not available.
+   *
    * \param params Parameters that are visible within the scope.
    *
    * \note This function should be called when new scope is introduced
-   *       (function, seq) to properly track the variable availability
-   *       and help the best effort deduction.
+   *       (e.g. function bodies) to properly track the variable
+   *       availability and help the best effort deduction.
    *
    * \sa EndScope
    */
   virtual void BeginScope(Optional<Array<Var>> params) = 0;
+
+  /*!
+   * \brief Begin a new scope, which inherits visible parameters from
+   * its parent scope.
+   *
+   * Symbolic variables from the parent scope are available.
+   *
+   * \note This function should be called when an inner scope is
+   *       introduced (e.g. conditional branches) to properly track
+   *       the variable availability and help the best effort
+   *       deduction.
+   *
+   * \sa EndScope
+   */
+  virtual void BeginInnerScope() = 0;
+
+  /*!
+   * \brief Append a definition to the cuurrent scope.
+   *
+   * \param Var A variable within the current scope.
+   *
+   * \note This function should be called when a new variable is
+   *       defined that may impact struct inference (e.g. MatchCast)
+   *       to properly track the variable availability and help the
+   *       best effort deduction.
+   *
+   * \sa EndScope
+   */
+  virtual void AddDefinitionToScope(Var var) = 0;
 
   /*! \brief End the previously defined scope. */
   virtual void EndScope() = 0;

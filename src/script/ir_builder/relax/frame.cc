@@ -46,6 +46,11 @@ void SeqExprFrameNode::EnterWithScope() {
   BindingBlock()->EnterWithScope();
 }
 
+void FunctionFrameNode::EnterWithScope() {
+  this->block_builder->BeginScope(params);
+  SeqExprFrameNode::EnterWithScope();
+}
+
 void FunctionFrameNode::ExitWithScope() {
   using ir::IRModuleFrame;
   using tvm::relax::Expr;
@@ -54,7 +59,7 @@ void FunctionFrameNode::ExitWithScope() {
   // Step 1: Create the function.
   CHECK(output.defined()) << "ValueError: A Relax function must have a return value. Please use "
                              "`return` to return an Expr";
-  this->block_builder->BeginScope(params);
+
   Expr body = this->block_builder->Normalize(tvm::relax::SeqExpr(binding_blocks, output.value()));
   // if the function is not private, add a global symbol to its attributes
   if (!is_private.value_or(Bool(false))->value && name.defined() &&
