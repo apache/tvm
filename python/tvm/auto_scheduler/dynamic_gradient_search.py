@@ -16,29 +16,48 @@
 # under the License.
 
 """
-A python implementation of Dynamic Gradient Descent Search algorithm from ICS'24: Accelerated Auto-Tuning of GPU Kernels for Tensor Computations
+A python implementation of Dynamic Gradient Descent Search algorithm
+from ICS'24: Accelerated Auto-Tuning of GPU Kernels for Tensor Computations
 """
 
-import numpy as np
-import tvm
-from tvm import te, auto_scheduler
-from tvm.auto_scheduler.measure_record import load_records
 import json
 from itertools import combinations, product
 from math import isqrt
-import os
 import random
 import time
+import numpy as np
+from tvm import auto_scheduler
 
 
 class RecordProcessor:
+    """
+    A class that processes records and provides methods to extract and modify coordinates.
+
+    Attributes:
+        IDX_NODE_NAME: Index of the node name in the record.
+        IDX_STAGE: Index of the stage in the record.
+        IDX_ITER: Index of the iteration in the record.
+        IDX_LOOP_EXTENT: Index of the loop extent in the record.
+        IDX_LENGTHS: Index of the lengths in the record.
+        IDX_INNER_TO_OUTER: Index of the inner to outer mapping in the record.
+        IDX_STATE: Index of the state in the record.
+        IDX_TB: Index of the thread block in the record.
+        LENGTH_PAR_DIM: Length of the parallel dimension.
+        LENGTH_REDUC: Length of the reduction dimension.
+
+    Methods:
+        get_factors(): Returns the factors of a given number n as a sorted list.
+        get_sm_factors(): Returns the shared memory factors of a given number n as a sorted list.
+        extract_coordinates(): Extracts coordinates from the SP nodes in the record.
+        modify_sp_node(): Modifies the SP nodes in the record to match the new coordinates.
+    """
+
     IDX_NODE_NAME = 0
     IDX_STAGE = 1
     IDX_ITER = 2
     IDX_LOOP_EXTENT = 3
     IDX_LENGTHS = 4
     IDX_INNER_TO_OUTER = 5
-    IDX_TASK = 0
     IDX_STATE = 1
     IDX_TB = 2
     LENGTH_PAR_DIM = 4
@@ -61,6 +80,9 @@ class RecordProcessor:
         return sorted(factors)
 
     def get_sm_factors(self, n):
+        """
+        Return the shared memory factors of a given number n as a sorted list.
+        """
         reg_tile_factors = self.get_factors(n)
         sm_ts = set()
         for i in range(len(reg_tile_factors)):
@@ -78,20 +100,20 @@ class RecordProcessor:
         Extract coordinates from the SP nodes in the record.
         """
         coordinates = []
-        SP_count = 0
+        sp_count = 0
 
         for each in self.json_str["i"][self.IDX_STATE][1]:
             if (
                 each[self.IDX_NODE_NAME] == "SP"
                 and len(each[self.IDX_LENGTHS]) == 1
                 and each[self.IDX_ITER] == 0
-                and SP_count != 0
+                and sp_count != 0
             ):
-                SP_count += 1
+                sp_count += 1
                 continue
             if each[self.IDX_NODE_NAME] == "SP":
                 coordinates.extend(each[self.IDX_LENGTHS])
-                SP_count += 1
+                sp_count += 1
 
         return coordinates
 
@@ -100,33 +122,37 @@ class RecordProcessor:
         Modify the SP nodes in the record to match the new coordinates.
         """
         coord_idx = 0
-        SP_count = 0
+        sp_count = 0
 
         for each in self.json_str["i"][self.IDX_STATE][1]:
             if (
                 each[self.IDX_NODE_NAME] == "SP"
                 and len(each[self.IDX_LENGTHS]) == 1
                 and each[self.IDX_ITER] == 0
-                and SP_count != 0
+                and sp_count != 0
             ):
                 # if loop extend is the multiple of 2, modify to [2]
                 # if each[self.IDX_LOOP_EXTENT] % 2 == 0:
                 #     each[self.IDX_LENGTHS] = [2]
-                SP_count += 1
+                sp_count += 1
                 continue
             if each[self.IDX_NODE_NAME] == "SP":
                 length = len(each[self.IDX_LENGTHS])
                 each[self.IDX_LENGTHS] = new_coordinates[coord_idx : coord_idx + length]
                 coord_idx += length
-                SP_count += 1
+                sp_count += 1
             if each[self.IDX_NODE_NAME] == "PR":
-                # aggresive unroll
+                # aggressive unroll
                 each[self.IDX_LOOP_EXTENT] = "auto_unroll_max_step$1024"
 
         self.record = json.dumps(self.json_str)
 
 
 class DynamicGradientSearchTuner:
+    """
+    A class that performs dynamic gradient search for auto-scheduling.
+    """
+
     def __init__(
         self,
         task,
@@ -164,40 +190,34 @@ class DynamicGradientSearchTuner:
         self.measured_throughputs_ = []
         self.count_total_measured = 0
         self.visited = set()
-        self.isCUDA = False
+        self.is_cuda = False
         self.max_trials = max_trials
         self.max_tuning_time = max_tuning_time
         self.start_time = time.time()
         self.predict_score_threshold_ratio = predict_score_threshold_ratio
         self.measure_threshold_ratio = measure_threshold_ratio
-        self.Shared_Mem_view = True
+        self.shared_mem_view = True
         self.coordinate_set = set()
 
         if tune_option is not None:
             self.runner = tune_option.runner
             self.builder = tune_option.builder
         else:
-            """
-            tune_option is None, create local runner and builder
-            """
             self.runner = auto_scheduler.LocalRunner(timeout=10)
             self.builder = auto_scheduler.LocalBuilder()
-
-        if not os.path.exists(log_file):
-            with open(log_file, "w") as fp:
-                pass
 
     def get_sample_records(self, log_file, number, task):
         """
         Generate a list of random MeasureInput and MeasureResult pairs.
 
         Args:
-            log_file (str): The path to the log file where the records will be saved.
-            number (int): The number of random MeasureInput and MeasureResult pairs to generate.
-            task (Task): The task for which the MeasureInput and MeasureResult pairs will be generated.
+            log_file: The path to the log file where the records will be saved.
+            number: The number of random MeasureInput and MeasureResult pairs to generate.
+            task: The task for which the MeasureInput and MeasureResult pairs will be generated.
 
         Returns:
-            tuple: A tuple containing the task, the list of MeasureInput objects, and the list of MeasureResult objects.
+            tuple: A tuple containing the task, the list of MeasureInput objects
+                   and the list of MeasureResult objects.
         """
         print("===================================", flush=True)
         print(">>>>  Sampling Init Population <<<<", flush=True)
@@ -212,16 +232,17 @@ class DynamicGradientSearchTuner:
         bress = self.builder.build(inputs)
         mress = self.runner.run(inputs, bress)
 
-        with open(log_file, "a") as fp:
-            auto_scheduler.save_records(fp.name, inputs, mress)
+        with open(log_file, "a") as file:
+            auto_scheduler.save_records(file.name, inputs, mress)
 
         self.count_total_measured += len(inputs)
 
         return inputs, mress
 
-    def DGD_Search(self, log_file, record, task, slide_window_size=3):
+    def dgd_search(self, log_file, record, task, slide_window_size=3):
         """
         Perform the Dynamic Gradient Descent (DGD) search algorithm.
+        Utilizes online measurements and proxy model to guide the search process.
 
         Args:
             log_file (str): The path to the log file.
@@ -255,7 +276,7 @@ class DynamicGradientSearchTuner:
         candidate_inputs = candidate_inputs[1:]
 
         # move to the next base
-        new_base, tmp_measured_inputs, tmp_measured_results = self.DGD_Move(
+        new_base, tmp_measured_inputs, tmp_measured_results = self.dgd_move(
             log_file,
             base_result,
             base_score,
@@ -290,7 +311,7 @@ class DynamicGradientSearchTuner:
             candidate_scores = candidate_scores[1:]
             candidate_inputs = candidate_inputs[1:]
 
-            new_base, tmp_measured_inputs, tmp_measured_results = self.DGD_Move(
+            new_base, tmp_measured_inputs, tmp_measured_results = self.dgd_move(
                 log_file,
                 base_result,
                 base_score,
@@ -310,7 +331,7 @@ class DynamicGradientSearchTuner:
 
         return new_base, measured_inputs, measured_results
 
-    def DGD_Move(
+    def dgd_move(
         self,
         log_file,
         base_result,
@@ -327,7 +348,7 @@ class DynamicGradientSearchTuner:
             base_result (auto_scheduler.MeasureResult): The base measurement result.
             base_score (float): The base score used for filtering candidates.
             candidate_inputs (List[auto_scheduler.MeasureInput]): The list of candidate inputs.
-            candidate_scores (List[float]): The list of scores corresponding to the candidate inputs.
+            candidate_scores (List[float]): The list of scores corresponding to the candidates.
             slide_window_size (int): The size of the sliding window used for measurements.
 
         Returns:
@@ -337,8 +358,7 @@ class DynamicGradientSearchTuner:
 
         score_threshold = base_score * self.predict_score_threshold_ratio
         base_cost = np.mean([v.value for v in base_result.costs])
-        global measured_throughputs_
-        measured_throughputs_.append(1 / base_cost)
+        self.measured_throughputs_.append(1 / base_cost)
 
         # sort from large to small
         sorted_indices = np.argsort(candidate_scores)[::-1]
@@ -350,7 +370,7 @@ class DynamicGradientSearchTuner:
         measured_inputs = []
         measured_results = []
 
-        # apply slide window to the sorted indices, and measure the slide window, until find a better cost neighbor,
+        # apply slide window to the sorted indices until find a better neighbor
         index_slide = 0
 
         while index_slide < len(sorted_indices) and not next_base:
@@ -380,11 +400,11 @@ class DynamicGradientSearchTuner:
                     len(slide_window_inputs),
                     self.max_trials - self.count_total_measured,
                 )
-                with open(log_file, "a") as fp:
+                with open(log_file, "a") as file:
                     tmp_inputs = slide_window_inputs[:tmp_size]
                     tmp_results = slide_window_results[:tmp_size]
 
-                    auto_scheduler.save_records(fp.name, tmp_inputs, tmp_results)
+                    auto_scheduler.save_records(file.name, tmp_inputs, tmp_results)
 
                 self.count_total_measured += tmp_size
 
@@ -394,20 +414,20 @@ class DynamicGradientSearchTuner:
             self.count_total_measured += len(slide_window_inputs)
 
             # need to save to the log_file
-            with open(log_file, "a") as fp:
-                auto_scheduler.save_records(fp.name, slide_window_inputs, slide_window_results)
+            with open(log_file, "a") as file:
+                auto_scheduler.save_records(file.name, slide_window_inputs, slide_window_results)
 
             index_slide += slide_window_size
             # used for updating the model
             measured_inputs.extend(slide_window_inputs)
             measured_results.extend(slide_window_results)
 
-            # add to measured_throughputs_
+            # add to self.measured_throughputs_
             for cost in slide_window_costs:
-                measured_throughputs_.append(1 / cost)
+                self.measured_throughputs_.append(1 / cost)
 
             # threshold
-            best_measured = np.max(measured_throughputs_)
+            best_measured = np.max(self.measured_throughputs_)
             measure_threshold = best_measured * self.measure_threshold_ratio
 
             # early stop
@@ -415,7 +435,7 @@ class DynamicGradientSearchTuner:
                 1 / np.min(slide_window_costs) < measure_threshold
                 and index_slide > 3 * slide_window_size
             ):
-                print(f">>>>       Early stop         <<<<", flush=True)
+                print(">>>>       Early stop         <<<<", flush=True)
                 print("===================================", flush=True)
                 break
 
@@ -457,15 +477,15 @@ class DynamicGradientSearchTuner:
                 new_coordinates = original_coordinates[:]
                 coord_idx = 0
                 valid_change = True  # Add a flag to ensure changes are valid
-                SP_count = 0
+                sp_count = 0
                 for each in processor.json_str["i"][processor.IDX_STATE][1]:
                     if (
                         each[processor.IDX_NODE_NAME] == "SP"
                         and len(each[processor.IDX_LENGTHS]) == 1
                         and each[processor.IDX_ITER] == 0
-                        and SP_count != 0
+                        and sp_count != 0
                     ):
-                        SP_count += 1
+                        sp_count += 1
                         continue
                     if each[processor.IDX_NODE_NAME] == "SP":
                         length = len(each[processor.IDX_LENGTHS])
@@ -474,7 +494,7 @@ class DynamicGradientSearchTuner:
                         for i, change in enumerate(changes):
                             idx = indices[i]
                             if (
-                                self.Shared_Mem_view
+                                self.shared_mem_view
                                 and coord_idx <= idx < coord_idx + length
                                 and idx - coord_idx == processor.IDX_TB
                                 and length == processor.LENGTH_PAR_DIM
@@ -502,7 +522,7 @@ class DynamicGradientSearchTuner:
                                     break
                                 if valid_change:
                                     if (
-                                        self.isCUDA
+                                        self.is_cuda
                                         and new_coordinates[coord_idx] != 1
                                         and length >= 3
                                     ):
@@ -520,7 +540,7 @@ class DynamicGradientSearchTuner:
                                         valid_change = False
                                         break
                                 else:
-                                    # random pick a factor, the init tiling might be a non-factor number
+                                    # random pick a factor
                                     random_idx = random.randint(0, len(factors) - 1)
                                     if 0 <= random_idx < len(factors):
                                         random_factor = factors[random_idx]
@@ -530,7 +550,7 @@ class DynamicGradientSearchTuner:
                                         break
                                 if valid_change:
                                     if (
-                                        self.isCUDA
+                                        self.is_cuda
                                         and new_coordinates[coord_idx] != 1
                                         and length >= 3
                                     ):
@@ -545,7 +565,7 @@ class DynamicGradientSearchTuner:
                                 valid_change = False
                                 break
                         coord_idx += length
-                        SP_count += 1
+                        sp_count += 1
                 if (
                     valid_change
                     and new_coordinates != original_coordinates
@@ -571,10 +591,8 @@ class DynamicGradientSearchTuner:
         slide_window_size = self.slide_window_size
 
         if "cuda" in str(task.target):
-            """
-            Start DGD_Search for CUDA, apply loop permutation view for CUDA
-            """
-            self.isCUDA = True
+            # start dgd_search for CUDA, apply loop permutation view for CUDA
+            self.is_cuda = True
             hardware_params = auto_scheduler.HardwareParams(
                 target=task.target, max_vthread_extent=1
             )
@@ -587,10 +605,6 @@ class DynamicGradientSearchTuner:
             )
             task = new_task
             self.task = task
-
-        # use 1/exe_time as the throughput
-        global measured_throughputs_
-        measured_throughputs_ = []
 
         inputs, results = self.get_sample_records(log_file, init_size, task)
 
@@ -605,7 +619,7 @@ class DynamicGradientSearchTuner:
             cost = np.mean(costs)
             list_costs.append(cost)
             records.append(record_str)
-            measured_throughputs_.append(1 / cost)
+            self.measured_throughputs_.append(1 / cost)
 
         topk_indices = np.argsort(list_costs)[:topk]
         topk_records = [records[i] for i in topk_indices]
@@ -613,11 +627,11 @@ class DynamicGradientSearchTuner:
         # use topk as budget now, later will add more options like ntrials budget
         for record in topk_records:
             while (
-                record != None
+                record is not None
                 and self.count_total_measured < self.max_trials
                 and time.time() - self.start_time < self.max_tuning_time
             ):
-                record, measured_inputs, measured_results = self.DGD_Search(
+                record, measured_inputs, measured_results = self.dgd_search(
                     log_file, record, task, slide_window_size
                 )
 
@@ -640,8 +654,8 @@ class DynamicGradientSearchTuner:
 
             self.model.update(inputs, results)
 
-            while record != None:
-                record, measured_inputs, measured_results = self.DGD_Search(
+            while record is not None:
+                record, measured_inputs, measured_results = self.dgd_search(
                     log_file, record, task, slide_window_size
                 )
 
@@ -651,4 +665,3 @@ class DynamicGradientSearchTuner:
         print("===================================", flush=True)
         print(">>>>          Done             <<<<", flush=True)
         print("===================================", flush=True)
-        return
