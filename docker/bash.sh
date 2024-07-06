@@ -247,6 +247,16 @@ while (( $# )); do
             shift 2
             ;;
 
+        -e)
+            DOCKER_ENV+=( --env "$2" )
+            shift 2
+            ;;
+
+        -v)
+            DOCKER_FLAGS+=( --volume "$2" )
+            shift 2
+            ;;
+
         --dry-run)
             DRY_RUN=true
             shift

@@ -24,6 +24,9 @@ cd "$BUILD_DIR"
 cp ../cmake/config.cmake .
 
 echo set\(USE_OPENCL_GTEST /googletest\) >> config.cmake
+if [ -f "${ADRENOACCL_SDK}/include/adrenoaccl.h" ] ; then
+echo set\(USE_ADRENO_ACCL ${ADRENOACCL_SDK}\) >> config.cmake
+fi
 if [ -f "${ADRENO_OPENCL}/CL/cl_qcom_ml_ops.h" ] ; then
 echo set\(USE_CLML ${ADRENO_OPENCL}\) >> config.cmake
 fi

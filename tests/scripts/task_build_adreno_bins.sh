@@ -28,6 +28,11 @@ cd ${output_directory}
 
 cp ../cmake/config.cmake .
 
+if [ -f "${ADRENOACCL_SDK}/include/adrenoaccl.h" ] ; then
+echo set\(USE_ADRENO_ACCL "${ADRENOACCL_SDK}"\) >> config.cmake
+echo set\(USE_ADRENO_ACCL_GRAPH_EXECUTOR "${ADRENOACCL_SDK}"\) >> config.cmake
+fi
+
 if [ -f "${ADRENO_OPENCL}/CL/cl_qcom_ml_ops.h" ] ; then
 echo set\(USE_CLML "${ADRENO_OPENCL}"\) >> config.cmake
 echo set\(USE_CLML_GRAPH_EXECUTOR "${ADRENO_OPENCL}"\) >> config.cmake

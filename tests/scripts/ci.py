@@ -721,6 +721,8 @@ generated = [
         additional_flags={
             "--volume": os.environ.get("ADRENO_OPENCL", "") + ":/adreno-opencl",
             "--env": "ADRENO_OPENCL=/adreno-opencl",
+            "-v": os.environ.get("ADRENOACCL_SDK", "/tmp/") + ":/AdrenoAcCL",
+            "-e": "ADRENOACCL_SDK=/AdrenoAcCL",
             "--net": "host",
         },
         options={
