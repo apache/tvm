@@ -113,10 +113,10 @@ class TestMatmul(BaseBeforeAfter):
                                             v0 = T.axis.spatial(T.int64(1), ax0)
                                             v1 = T.axis.spatial((m + T.int64(31)) // T.int64(32) * T.int64(32), ax1_0 * T.int64(32) + ax1_2 * T.int64(4) + ax1)
                                             v2 = T.axis.spatial(T.int64(4096), ax0_ax2_0_fused * T.int64(64) + ax2_2 * T.int64(4) + ax2_0 * T.int64(2) + ax2_1_1)
+                                            T.where(ax1_0 * T.int64(32) + ax1_2 * T.int64(4) + ax1 < m)
                                             T.reads(matmul_reindex_pad_local[v0, v1, v2])
                                             T.writes(matmul[T.int64(0), v1, v2])
-                                            if v1 < m:
-                                                matmul[T.int64(0), v1, v2] = matmul_reindex_pad_local[v0, v1, v2]
+                                            matmul[T.int64(0), v1, v2] = matmul_reindex_pad_local[v0, v1, v2]
     # fmt: on
 
 
@@ -200,10 +200,10 @@ def test_matmul_int32():
                                             v0 = T.axis.spatial(1, ax0)
                                             v1 = T.axis.spatial((m + 31) // 32 * 32, ax1_0 * 32 + ax1_2 * 4 + ax1)
                                             v2 = T.axis.spatial(4096, ax0_ax2_0_fused * 64 + ax2_2 * 4 + ax2_0 * 2 + ax2_1_1)
+                                            T.where(ax1_0 * 32 + ax1_2 * 4 + ax1 < m)
                                             T.reads(matmul_reindex_pad_local[v0, v1, v2])
                                             T.writes(matmul[0, v1, v2])
-                                            if v1 < m:
-                                                matmul[0, v1, v2] = matmul_reindex_pad_local[v0, v1, v2]
+                                            matmul[0, v1, v2] = matmul_reindex_pad_local[v0, v1, v2]
     # fmt: on
 
     mod = tvm.IRModule({"main": func})
@@ -466,10 +466,10 @@ class TestOutputFP32(BaseBeforeAfter):
                                             v0 = T.axis.spatial(T.int64(1), ax0)
                                             v1 = T.axis.spatial((n + T.int64(31)) // T.int64(32) * T.int64(32), ax1_0 * T.int64(32) + ax1_2 * T.int64(4) + ax1)
                                             v2 = T.axis.spatial(T.int64(4096), ax0_ax2_0_fused * T.int64(64) + ax2_2 * T.int64(4) + ax2_0 * T.int64(2) + ax2_1_1)
+                                            T.where(ax1_0 * T.int64(32) + ax1_2 * T.int64(4) + ax1 < n)
                                             T.reads(var_matmul_intermediate_reindex_pad_local[v0, v1, v2], lv13_1[v2], lv3[T.int64(0), v1, v2])
                                             T.writes(p_output0_intermediate[T.int64(0), v1, v2])
-                                            if v1 < n:
-                                                p_output0_intermediate[T.int64(0), v1, v2] = T.Cast("float16", var_matmul_intermediate_reindex_pad_local[v0, v1, v2] + T.Cast("float32", lv13_1[v2])) + lv3[T.int64(0), v1, v2]
+                                            p_output0_intermediate[T.int64(0), v1, v2] = T.Cast("float16", var_matmul_intermediate_reindex_pad_local[v0, v1, v2] + T.Cast("float32", lv13_1[v2])) + lv3[T.int64(0), v1, v2]
 
     # fmt: on
 
@@ -596,9 +596,9 @@ class TestInlineConsumerChain(BaseBeforeAfter):
                                             v1 = T.axis.spatial((n + T.int64(31)) // T.int64(32) * T.int64(32), ax1_0 * T.int64(32) + ax1_2 * T.int64(4) + ax1)
                                             v2 = T.axis.spatial(T.int64(2048), ax0_ax2_0_fused * T.int64(64) + ax2_2 * T.int64(4) + ax2_0 * T.int64(2) + ax2_1_1)
                                             T.reads(lv52[T.int64(0), v1, v2], var_NT_matmul_intermediate_reindex_pad_local[v0, v1, v2])
+                                            T.where(ax1_0 * T.int64(32) + ax1_2 * T.int64(4) + ax1 < n)
                                             T.writes(var_T_multiply_intermediate[v1, v2])
-                                            if v1 < n:
-                                                var_T_multiply_intermediate[v1, v2] = T.Cast("float16", lv52[T.int64(0), v1, v2]) * (var_NT_matmul_intermediate_reindex_pad_local[v0, v1, v2] * T.sigmoid(var_NT_matmul_intermediate_reindex_pad_local[v0, v1, v2]))
+                                            var_T_multiply_intermediate[v1, v2] = T.Cast("float16", lv52[T.int64(0), v1, v2]) * (var_NT_matmul_intermediate_reindex_pad_local[v0, v1, v2] * T.sigmoid(var_NT_matmul_intermediate_reindex_pad_local[v0, v1, v2]))
 
     # fmt: on
 
@@ -666,10 +666,10 @@ class TestMatmulAndroid(AndroidBeforeAfter):
                                             v0 = T.axis.spatial(T.int64(1), ax0)
                                             v1 = T.axis.spatial((m + T.int64(31)) // T.int64(32) * T.int64(32), ax0_ax1_0_fused * T.int64(32) + ax1_2 * T.int64(2) + ax1)
                                             v2 = T.axis.spatial(T.int64(4096), ax2_0 * T.int64(64) + ax2_2 * T.int64(8) + ax2_0_1 * T.int64(8) + ax2_1_1)
+                                            T.where(ax0_ax1_0_fused * T.int64(32) + ax1_2 * T.int64(2) + ax1 < m)
                                             T.reads(matmul_reindex_pad_local[v0, v1, v2])
                                             T.writes(matmul[T.int64(0), v1, v2])
-                                            if v1 < m:
-                                                matmul[T.int64(0), v1, v2] = matmul_reindex_pad_local[v0, v1, v2]
+                                            matmul[T.int64(0), v1, v2] = matmul_reindex_pad_local[v0, v1, v2]
     # fmt: on
 
 

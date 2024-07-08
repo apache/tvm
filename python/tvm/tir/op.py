@@ -1810,6 +1810,31 @@ def vectorcombine(dtype, vec1, vec2):
     return call_intrin(dtype, "tir.vectorcombine", vec1, vec2)
 
 
+def dp4a(vec1, vec2, acc=0):
+    """Dot product of two int8x4 vectors and add an optional accumulator
+
+    Parameters
+    ----------
+    vec1 : int8x4
+       The input vector.
+
+    vec2 : int8x4
+       The input vector.
+
+    acc : int32
+       The accumulator.
+
+    Returns
+    -------
+    call : PrimExpr
+        The call expression.
+    """
+    vec1 = convert(vec1)
+    vec2 = convert(vec2)
+    acc = convert(acc)
+    return call_intrin("int32", "tir.dp4a", vec1, vec2, acc)
+
+
 def ret(val, span=None):
     """Create a tir return expression
 

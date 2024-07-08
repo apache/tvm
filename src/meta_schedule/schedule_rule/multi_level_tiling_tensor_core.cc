@@ -251,7 +251,7 @@ std::vector<State> MultiLevelTilingTensorCoreNode::ApplySubRules(std::vector<Sta
   });
   states = SubRule(std::move(states), [&](State state) {
     TensorCoreState tc_state = Downcast<TensorCoreState>(state);
-    return tc_state->is_mma ? MMATileLoopNest(tc_state) : TileLoopNest(state);
+    return tc_state->is_mma ? MMATileLoopNest(tc_state) : TileLoopNest(state, 2);
   });
   states = SubRule(std::move(states), [&](State state) {
     return TransformIntermediateOutputLayout(Downcast<TensorCoreState>(state));
