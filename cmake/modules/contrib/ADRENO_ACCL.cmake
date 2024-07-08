@@ -53,7 +53,7 @@ if(USE_ADRENO_ACCL_GRAPH_EXECUTOR)
     set(ADRENO_ACCL_INCLUDE_DIRS ${ADRENO_ACCL_PATH}/include ${ADRENO_ACCL_PATH})
     include_directories(${ADRENO_ACCL_INCLUDE_DIRS})
     find_library(EXTERN_ADRENO_ACCL_COMPUTE_LIB
-         NAMES libadrenoaccl
+         NAMES adrenoaccl
          HINTS "${ADRENO_ACCL_PATH}" "${ADRENO_ACCL_PATH}/lib"
          )
     if(NOT EXTERN_ADRENO_ACCL_COMPUTE_LIB)
