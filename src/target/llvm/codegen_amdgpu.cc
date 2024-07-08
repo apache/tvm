@@ -45,6 +45,9 @@
 #if TVM_LLVM_VERSION < 170
 #include <llvm/Transforms/IPO/PassManagerBuilder.h>
 #endif
+#if TVM_LLVM_VERSION >= 190
+#include <llvm/IR/Module.h>
+#endif
 #include <llvm/Transforms/Utils/Cloning.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/device_api.h>
