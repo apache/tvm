@@ -279,3 +279,5 @@ gallery/how_to/work_with_microtvm/micro_tvmc.py
 .gdb_history
 
 cmake/config.cmake
+reports/*
+play.py
