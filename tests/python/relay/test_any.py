@@ -989,12 +989,12 @@ class TestAnyDense:
         static_weight_shape,
         ref_out_shape,
     ):
-        
+
         if platform.machine() == "aarch64":
             pytest.skip(
                 reason="Dynamic height and width not supported in arm_cpu. See https://github.com/apache/tvm/issues/16536"
-        )
-            
+            )
+
         mod = tvm.IRModule()
         dtype = "float32"
         data = relay.var("data", shape=data_shape, dtype=dtype)
