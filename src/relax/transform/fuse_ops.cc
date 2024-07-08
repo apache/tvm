@@ -1035,7 +1035,7 @@ class PatternBasedPartitioner : ExprVisitor {
   using PatternCheckContext = transform::PatternCheckContext;
   using ExprVisitor::VisitExpr_;
   using FCheckMatch = runtime::TypedPackedFunc<bool(const transform::PatternCheckContext&)>;
-  using FAttrsGetter = runtime::TypedPackedFunc<Map<String, String>(const Map<String, Expr>&)>;
+  using FAttrsGetter = runtime::TypedPackedFunc<Map<String, ObjectRef>(const Map<String, Expr>&)>;
 
   static GroupMap Run(String pattern_name, DFPattern pattern,
                       Map<String, DFPattern> annotation_patterns, FCheckMatch check, Expr expr,

@@ -144,8 +144,7 @@ class WorkspaceProvider : ExprMutator {
     if (!workspace_var_main_.defined()) {
       auto shape = ShapeExpr({Integer(max_workspace_size_)});
       auto ty = DataTypeImm(DataType::UInt(8));
-      auto storage = MakeVMAllocStorage(shape, PrimValue::Int64(0), ty);
-      auto workspace = MakeVMAllocTensor(storage, PrimValue::Int64(0), shape, ty);
+      auto workspace = MakeAllocTensor(shape, ty, PrimValue::Int64(0));
       workspace_var_main_ = builder_->Emit(workspace, "workspace_main");
     }
     for (const auto& binding : block_node->bindings) {

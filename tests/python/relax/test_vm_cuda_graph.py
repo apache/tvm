@@ -16,10 +16,13 @@
 # under the License.
 
 import tvm
-from tvm.script import tir as T, relax as R, ir as I
-from tvm import relax
 import tvm.testing
+
+from tvm import relax
+from tvm.script import tir as T, relax as R, ir as I
+
 import numpy as np
+import pytest
 
 
 # fmt: off
@@ -102,6 +105,76 @@ def test_vm_run():
     y = vm["main"](x)
     y_np = x_np + 1.0 + 1.0 + 1.0 + 1.0
     tvm.testing.assert_allclose(y.asnumpy(), y_np, rtol=1e-5, atol=1e-5)
+
+
+@tvm.testing.requires_cudagraph
+def test_capture_error_is_recoverable():
+    """Function calls while capturing cudagraph may throw exceptions
+
+    Calls to PackedFuncs may occur within a captured cudaGraph.  If a
+    call to that PackedFunc raises an exception while capturing the
+    cudaGraph, throwing exception should cleanly unwind the stack, and
+    the exception may be caught in the calling scope.
+
+    This is a regression test.  In previous implementations, an
+    exception thrown while capturing a cudaGraph would skip the call
+    to `cudaStreamEndCapture`, causing additional exceptions to be
+    thrown while freeing memory in TVM destructors.  Since C++ does
+    not support stack unwinding from multiple simultaneous exceptions,
+    this would result in immediate `std::terminate`, making it
+    difficult to debug the original error.
+
+    """
+
+    target = tvm.target.Target("cuda")
+    dev = tvm.cuda()
+
+    @tvm.register_func("test_vm_cuda_graph.invalid_impl_for_cudagraph", override=True)
+    def invalid_impl_for_cudagraph(arg_tensor):
+        # Memory allocation/deallocation may not be performed while
+        # capturing a cudaGraph.  This passes the warm-up run
+        # performed by "vm.builtin.cuda_graph.run_or_capture", but
+        # throws an exception when the cudaGraph is being captured.
+        _dummy_workspace = tvm.nd.empty([16], "float16", dev)
+        return arg_tensor
+
+    @I.ir_module
+    class Module:
+        @R.function
+        def main(A: R.Tensor([16], "float16")):
+            B = R.add(A, A)
+            C = R.call_pure_packed(
+                "test_vm_cuda_graph.invalid_impl_for_cudagraph",
+                B,
+                sinfo_args=R.Tensor([16], "float16"),
+            )
+            D = R.add(C, C)
+            return D
+
+    with target, tvm.ir.transform.PassContext(config={"relax.backend.use_cuda_graph": True}):
+        Module = tvm.ir.transform.Sequential(
+            [
+                tvm.relax.transform.LegalizeOps(),
+                tvm.tir.transform.DefaultGPUSchedule(),
+                tvm.relax.transform.RemovePurityChecking(),
+                tvm.relax.transform.CallTIRRewrite(),
+                tvm.relax.transform.StaticPlanBlockMemory(),
+                tvm.relax.transform.RewriteCUDAGraph(),
+            ]
+        )(Module)
+
+    assert "cuda_graph_alloc" in Module, (
+        "Validity of unit test requires the call to `invalid_impl_for_cudagraph` "
+        "to have been captured by RewriteCUDAGraph."
+    )
+
+    built = tvm.relax.build(Module, target=target)
+    vm = tvm.relax.VirtualMachine(built, dev)
+
+    arg = tvm.nd.array(np.arange(16).astype("float16"), dev)
+
+    with pytest.raises(tvm.TVMError):
+        vm["main"](arg)
 
 
 if __name__ == "__main__":

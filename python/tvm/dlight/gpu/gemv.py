@@ -445,10 +445,7 @@ class GEMV(GPUScheduleRule):
             UNROLL = 256
             SUPPORT_WARP_SHUFFLE = True
             if isinstance(len_S, int):
-                if len_S > len_R:
-                    TS, TR = 4, 64
-                else:
-                    TS, TR = 16, 32
+                TS, TR = 16, 32
             else:
                 TS, TR = 1, 64
         elif target.kind.name == "metal":

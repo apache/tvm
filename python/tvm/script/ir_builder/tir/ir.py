@@ -19,6 +19,7 @@
 import functools
 import inspect
 from numbers import Integral
+import sys
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 # isort: off
@@ -1764,14 +1765,31 @@ class meta_var:  # pylint: disable=invalid-name
 # pylint: disable=invalid-name
 
 
-def _op_wrapper(func):
-    @functools.wraps(func)
-    def wrapped(*args, **kwargs):
-        if "dtype" in kwargs:
-            kwargs.pop("dtype")
-        return func(*args, **kwargs)
+if sys.version_info >= (3, 10):
+    from typing import ParamSpec, TypeVar  # pylint: disable=import-error
 
-    return wrapped
+    T = TypeVar("T")
+    P = ParamSpec("P")
+
+    def _op_wrapper(func: Callable[P, T]) -> Callable[P, T]:
+        @functools.wraps(func)
+        def wrapped(*args, **kwargs) -> T:
+            if "dtype" in kwargs:
+                kwargs.pop("dtype")
+            return func(*args, **kwargs)
+
+        return wrapped
+
+else:
+
+    def _op_wrapper(func):
+        @functools.wraps(func)
+        def wrapped(*args, **kwargs):
+            if "dtype" in kwargs:
+                kwargs.pop("dtype")
+            return func(*args, **kwargs)
+
+        return wrapped
 
 
 abs = _op_wrapper(_tir_op.abs)  # pylint: disable=redefined-builtin
@@ -1869,6 +1887,10 @@ ptx_init_barrier_thread_count = _op_wrapper(_tir_op.ptx_init_barrier_thread_coun
 ptx_arrive_barrier = _op_wrapper(_tir_op.ptx_arrive_barrier)
 ptx_arrive_barrier_expect_tx = _op_wrapper(_tir_op.ptx_arrive_barrier_expect_tx)
 ptx_wait_barrier = _op_wrapper(_tir_op.ptx_wait_barrier)
+make_filled_simdgroup_matrix = _op_wrapper(_tir_op.make_filled_simdgroup_matrix)
+simdgroup_load = _op_wrapper(_tir_op.simdgroup_load)
+simdgroup_store = _op_wrapper(_tir_op.simdgroup_store)
+simdgroup_multiply_accumulate = _op_wrapper(_tir_op.simdgroup_multiply_accumulate)
 create_barriers = _op_wrapper(_tir_op.create_barriers)
 assume = _op_wrapper(_tir_op.assume)
 undef = _op_wrapper(_tir_op.undef)
@@ -1910,6 +1932,7 @@ vectorlow = _dtype_forward(_tir_op.vectorlow)
 vectorhigh = _dtype_forward(_tir_op.vectorhigh)
 vectorcombine = _dtype_forward(_tir_op.vectorcombine)
 get_active_lane_mask = _dtype_forward(_tir_op.get_active_lane_mask)
+dp4a = _dtype_forward(_tir_op.dp4a)
 
 
 broadcast = Broadcast
@@ -2159,12 +2182,17 @@ __all__ = [
     "ptx_arrive_barrier",
     "ptx_arrive_barrier_expect_tx",
     "ptx_wait_barrier",
+    "make_filled_simdgroup_matrix",
+    "simdgroup_load",
+    "simdgroup_store",
+    "simdgroup_multiply_accumulate",
     "create_barriers",
     "mma_store",
     "mma_fill",
     "vectorlow",
     "vectorhigh",
     "vectorcombine",
+    "dp4a",
     "assume",
     "undef",
     "tvm_call_packed",

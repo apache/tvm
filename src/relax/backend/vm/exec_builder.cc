@@ -113,6 +113,10 @@ void ExecBuilderNode::EmitFunction(const std::string& func_name, int64_t num_inp
   ICHECK_EQ(vmfunc.num_args, -2) << "Function " << func_name << " already defined";
   vmfunc.num_args = num_inputs;
   if (param_names.defined()) {
+    ICHECK_EQ(num_inputs, param_names.value().size())
+        << "Function " << func_name << " defined with " << num_inputs << " arguments, "
+        << "but the list of parameter names has " << param_names.value().size() << " names ("
+        << param_names << ")";
     std::vector<std::string> names;
     for (auto name : param_names.value()) {
       names.push_back(name);

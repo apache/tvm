@@ -25,10 +25,10 @@
 #include <tvm/tir/transform.h>
 
 #include <algorithm>
+#include <sstream>
 #include <string>
 #include <unordered_map>
 #include <utility>
-#include <vector>
 
 #include "../../runtime/metal/metal_module.h"
 #include "../../runtime/thread_storage_scope.h"
@@ -262,6 +262,9 @@ void CodeGenMetal::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
       os << lanes;
       return;
     }
+  } else if (t.is_bfloat16()) {
+    os << "bfloat";
+    return;
   }
   LOG(FATAL) << "Cannot convert type " << t << " to Metal type";
 }
@@ -296,9 +299,43 @@ void CodeGenMetal::PrintStorageScope(const std::string& scope, std::ostream& os)
     os << "device ";
   } else if (scope == "shared") {
     os << "threadgroup ";
-  } else {
+  } else if (scope == "local") {
     os << "thread ";
+  } else {
+    LOG(FATAL) << "Unknown storage scope `" << scope << "`";
   }
+}
+
+void CodeGenMetal::VisitStmt_(const AllocateNode* op) {
+  ICHECK(!is_zero(op->condition));
+  std::string vid = AllocVarID(op->buffer_var.get());
+
+  this->PrintIndent();
+  size_t constant_size = op->ConstantAllocationSize();
+  ICHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation for now";
+
+  auto scope = GetPtrStorageScope(op->buffer_var);
+  alloc_storage_scope_[op->buffer_var.get()] = scope;
+  if (scope == "metal.simdgroup") {
+    ICHECK(op->dtype == DataType::Float(16) || op->dtype == DataType::Float(32) ||
+           op->dtype == DataType::BFloat(16))
+        << "Only float16, float32, and bfloat16 are supported, but got " << op->dtype;
+    ICHECK(constant_size % 64 == 0)
+        << "Only 8x8 matrix is supported, but got " << constant_size << " bytes\n";
+
+    std::ostringstream dtype_os;
+    PrintType(op->dtype, dtype_os);
+    std::string dtype_str = dtype_os.str();
+    simdgroup_dtype_[op->buffer_var.get()] = dtype_str;
+    stream << "simdgroup_" << dtype_str << "8x8 " << vid << '[' << constant_size / 64 << "];\n";
+  } else {
+    PrintStorageScope(scope, stream);
+    PrintType(op->dtype, stream);
+    stream << ' ' << vid << '[' << constant_size << "];\n";
+  }
+
+  RegisterHandleType(op->buffer_var.get(), op->dtype);
+  this->PrintStmt(op->body);
 }
 
 void CodeGenMetal::VisitExpr_(const SelectNode* op, std::ostream& os) {  // NOLINT(*)
@@ -322,7 +359,46 @@ void CodeGenMetal::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT
   CHECK(!op->op.as<GlobalVarNode>())
       << "CodegenMetal does not support inter-function calls, "
       << "but expression " << GetRef<Call>(op) << " calls PrimFunc " << op->op;
-  if (op->op.same_as(builtin::reinterpret())) {
+  auto f_check_simdgroup_shape = [](PrimExpr col, PrimExpr row) {
+    ICHECK(col->IsInstance<IntImmNode>() && row->IsInstance<IntImmNode>())
+        << "Only constant shape is supported for simdgroup matrix, but got " << col << "x" << row;
+    int col_val = col.as<IntImmNode>()->value;
+    int row_val = row.as<IntImmNode>()->value;
+    ICHECK(col_val == 8 && row_val == 8)
+        << "Only 8x8 matrix is supported, but got " << col_val << "x" << row_val;
+  };
+  if (op->op.same_as(builtin::make_filled_simdgroup_matrix())) {
+    ICHECK_EQ(op->args.size(), 5);
+    Var var = runtime::Downcast<Var>(op->args[0]);
+    // Get the data type of the simdgroup matrix
+    auto it = simdgroup_dtype_.find(var.get());
+    ICHECK(it != simdgroup_dtype_.end())
+        << "Cannot find variable allocation for simdgroup: " << var;
+    const std::string& dtype_str = it->second;
+    f_check_simdgroup_shape(op->args[3], op->args[4]);
+    os << PrintExpr(var) << "[" << PrintExpr(op->args[1]) << "] = make_filled_simdgroup_matrix<"
+       << dtype_str << ", " << PrintExpr(op->args[3]) << ", " << PrintExpr(op->args[4]) << ">("
+       << PrintExpr(op->args[2]) << ")";
+  } else if (op->op.same_as(builtin::simdgroup_load())) {
+    ICHECK_EQ(op->args.size(), 7);
+    f_check_simdgroup_shape(op->args[4], op->args[5]);
+    os << "simdgroup_load(" << PrintExpr(op->args[0]) << "[" << PrintExpr(op->args[1]) << "], "
+       << PrintExpr(op->args[2]) << ", " << PrintExpr(op->args[3]) << ", 0, "
+       << PrintExpr(op->args[6]) << ")";
+  } else if (op->op.same_as(builtin::simdgroup_store())) {
+    ICHECK_EQ(op->args.size(), 7);
+    f_check_simdgroup_shape(op->args[4], op->args[5]);
+    os << "simdgroup_store(" << PrintExpr(op->args[0]) << "[" << PrintExpr(op->args[1]) << "], "
+       << PrintExpr(op->args[2]) << ", " << PrintExpr(op->args[3]) << ", 0, "
+       << PrintExpr(op->args[6]) << ")";
+  } else if (op->op.same_as(builtin::simdgroup_multiply_accumulate())) {
+    ICHECK_EQ(op->args.size(), 8);
+    os << "simdgroup_multiply_accumulate("                                  //
+       << PrintExpr(op->args[0]) << "[" << PrintExpr(op->args[1]) << "], "  //
+       << PrintExpr(op->args[2]) << "[" << PrintExpr(op->args[3]) << "], "  //
+       << PrintExpr(op->args[4]) << "[" << PrintExpr(op->args[5]) << "], "  //
+       << PrintExpr(op->args[6]) << "[" << PrintExpr(op->args[7]) << "])";
+  } else if (op->op.same_as(builtin::reinterpret())) {
     // generate as_type<TYPE>(ARG)
     os << "(as_type<";
     this->PrintType(op->dtype, os);

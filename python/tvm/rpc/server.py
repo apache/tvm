@@ -164,6 +164,11 @@ def _serving(sock, addr, opts, load_library):
             # package and maybe hard to be installed on some platforms.
             pass
         server_proc.terminate()
+    elif server_proc.exitcode != 0:
+        raise RuntimeError(
+            f"Child process {server_proc.pid} exited unsuccessfully "
+            f"with error code {server_proc.exitcode}"
+        )
 
     logger.info(f"finish serving {addr}")
     os.chdir(old_cwd)

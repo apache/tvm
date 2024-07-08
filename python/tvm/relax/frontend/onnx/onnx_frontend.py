@@ -1918,6 +1918,20 @@ class Elu(OnnxOpConverter):
         ) + relax.op.nn.relu(inputs[0])
 
 
+class HardSigmoid(OnnxOpConverter):
+    """Converts an onnx HardSigmoid node into an equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr, params):
+        x = inputs[0]
+        dtype = x.struct_info.dtype
+        alpha = float(attr.get("alpha", 0.2))
+        alpha = relax.const(alpha, dtype=dtype)
+        beta = float(attr.get("beta", 0.5))
+        beta = relax.const(beta, dtype=dtype)
+        return relax.op.clip(relax.op.add(relax.op.multiply(alpha, x), beta), 0, 1)
+
+
 class HardSwish(OnnxOpConverter):
     """Converts an onnx HardSwish node into an equivalent Relax expression."""
 
@@ -2014,6 +2028,7 @@ def _get_convert_map():
         "Reciprocal": Reciprocal,
         "OneHot": OneHot,
         "Elu": Elu,
+        "HardSigmoid": HardSigmoid,
         "HardSwish": HardSwish,
     }
 

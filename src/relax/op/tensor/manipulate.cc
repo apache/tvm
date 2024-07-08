@@ -472,11 +472,13 @@ TVM_REGISTER_OP("relax.flatten")
 TVM_REGISTER_NODE_TYPE(LayoutTransformAttrs);
 
 Expr layout_transform(Expr x, tir::IndexMap index_map, Optional<PrimValue> pad_value,
-                      Optional<Array<IntImm>> axis_separators) {
+                      Optional<Array<IntImm>> axis_separators,
+                      Optional<Array<IntImm>> input_axis_separators) {
   ObjectPtr<LayoutTransformAttrs> attrs = make_object<LayoutTransformAttrs>();
   attrs->index_map = std::move(index_map);
   attrs->pad_value = std::move(pad_value);
   attrs->axis_separators = std::move(axis_separators);
+  attrs->input_axis_separators = std::move(input_axis_separators);
 
   static const Op& op = Op::Get("relax.layout_transform");
   return Call(op, {std::move(x)}, Attrs{attrs}, {});

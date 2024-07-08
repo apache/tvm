@@ -295,6 +295,14 @@ def test_tir_op_vectorhigh():
     assert expr.op.name == "tir.vectorhigh"
 
 
+def test_tir_op_dp4a():
+    vec1 = tir.Var("vec1", dtype="int8x4")
+    vec2 = tir.Var("vec2", dtype="int8x4")
+    acc = tir.Var("acc", dtype="int32")
+    expr = tir.dp4a(vec1, vec2, acc)
+    assert expr.op.name == "tir.dp4a"
+
+
 def test_tir_op_vectorcombine():
     buffer = tir.decl_buffer((4, 4), "int8", offset_factor=1)
     vec = buffer.vload([0, 0], dtype="int8x16")

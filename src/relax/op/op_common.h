@@ -558,6 +558,9 @@ Expr MakeVMAllocStorage(Expr size, PrimValue runtime_device_index, DataTypeImm d
                         StringImm storage_scope = StringImm("global"));
 Expr MakeVMAllocTensor(Expr storage, PrimValue offset, Expr shape, DataTypeImm dtype);
 
+Expr MakeAllocTensor(Expr shape, DataTypeImm dtype, PrimValue runtime_device_index,
+                     StringImm storage_scope = StringImm("global"));
+
 /**
  * \brief Return the argument of the call.
  *        Note: If this is a call_tir, return the arguments passed to the TIR func

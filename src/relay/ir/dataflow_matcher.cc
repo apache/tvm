@@ -300,11 +300,17 @@ bool DFPatternMatcher::VisitDFPattern_(const CallPatternNode* op, const Expr& ex
 
 // Recursively find the Dominator parent along all inputs paths.
 bool DFPatternMatcher::MatchesPath(const DominatorPatternNode* op, const Expr& expr) {
+  // utilities
+  auto is_leaf_node = [](const Expr& expr) {
+    return expr.as<ConstantNode>() || expr.as<VarNode>();
+  };
+
+  // logic
   auto call_node = expr.as<CallNode>();
   auto index_node = expr_to_node(expr);
   size_t arg_counter{0};
   for (auto node : index_node->inputs_) {
-    if (!(call_node && node->ref() == call_node->op)) {
+    if (!(call_node && (node->ref() == call_node->op || is_leaf_node(node->ref())))) {
       arg_counter += 1;
       memoize_ = true;
       if (!VisitDFPattern(op->parent, node->ref())) {

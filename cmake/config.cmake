@@ -367,7 +367,7 @@ set(USE_HEXAGON_RPC OFF)
 # compiling _by_ TVM). This applies to components like the TVM runtime, but is
 # also used to select correct include/library paths from the Hexagon SDK when
 # building runtime for Android.
-# Valid values are v65, v66, v68, v69, v73.
+# Valid values are v65, v66, v68, v69, v73, v75.
 set(USE_HEXAGON_ARCH "v68")
 
 # Whether use MRVL codegen

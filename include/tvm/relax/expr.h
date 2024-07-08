@@ -427,7 +427,8 @@ class Var : public LeafExpr {
 
   TVM_DLL explicit Var(Id vid, Optional<StructInfo> struct_info_annotation, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(Var, LeafExpr, VarNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(VarNode);
+
+  VarNode* CopyOnWrite();
 };
 
 /*! \brief A sub-type of the variable node used to mark dataflow variables from
@@ -784,10 +785,10 @@ class BindingBlock : public ObjectRef {
  public:
   TVM_DLL explicit BindingBlock(Array<Binding> bindings, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(BindingBlock, ObjectRef, BindingBlockNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(BindingBlockNode);
+
+  BindingBlockNode* CopyOnWrite();
 };
 
-class DataflowBlock;
 class DataflowBlockNode : public BindingBlockNode {
  public:
   bool SEqualReduce(const DataflowBlockNode* other, SEqualReducer equal) const {

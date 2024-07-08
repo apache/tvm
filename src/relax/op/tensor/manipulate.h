@@ -67,10 +67,12 @@ Expr flatten(Expr x);
  * not specified, any value can be used.
  * \param axis_separators Array of values to differentiate between input axes
  * when generating flattened output axes.
+ * \param input axis_separators Array of values for input buffer.
  * \return The transformed result.
  */
 Expr layout_transform(Expr x, tir::IndexMap index_map, Optional<PrimValue> pad_value,
-                      Optional<Array<IntImm>> axis_separators);
+                      Optional<Array<IntImm>> axis_separators,
+                      Optional<Array<IntImm>> input_axis_separators = NullOpt);
 
 /*!
  * \brief Permutes the dimensions of an array.

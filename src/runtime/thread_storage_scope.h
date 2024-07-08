@@ -70,6 +70,8 @@ enum class StorageRank {
   kMMAMatrixB = 10,
   /*! \brief mma scope memory of accumulator */
   kMMAMatrixC = 11,
+  /*! \brief Metal SIMD group memory */
+  kMetalSimdGroup = 12,
 };
 
 /*!
@@ -126,6 +128,8 @@ struct StorageScope {
         return "m16n8k8.matrixB" + tag;
       case StorageRank::kMMAMatrixC:
         return "m16n8k8.matrixC" + tag;
+      case StorageRank::kMetalSimdGroup:
+        return "metal.simdgroup" + tag;
       default:
         LOG(FATAL) << "unknown storage scope";
     }
@@ -174,6 +178,9 @@ struct StorageScope {
       r.tag = s.substr(15, std::string::npos);
     } else if (s.compare(0, 15, "m16n8k8.matrixC") == 0) {
       r.rank = StorageRank::kMMAMatrixC;
+      r.tag = s.substr(15, std::string::npos);
+    } else if (s.compare(0, 15, "metal.simdgroup") == 0) {
+      r.rank = StorageRank::kMetalSimdGroup;
       r.tag = s.substr(15, std::string::npos);
     } else {
       LOG(FATAL) << "unknown storage scope " << s;

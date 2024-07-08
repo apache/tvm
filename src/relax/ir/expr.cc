@@ -265,6 +265,25 @@ Var::Var(Id vid, Optional<StructInfo> struct_info_annotation, Span span) {
   data_ = std::move(n);
 }
 
+VarNode* Var::CopyOnWrite() {
+  // The `TVM_DEFINE_OBJECT_REF_COW_METHOD` cannot be used for
+  // Var, because it is the base class for `DataflowBlock`.
+  // If the `TVM_DEFINE_OBJECT_REF_COW_METHOD` were used, the
+  // automatic implementation would erroneously convert from a
+  // `DataflowBlock` to a `Var`.
+  ICHECK(data_ != nullptr);
+  if (!data_.unique()) {
+    ObjectPtr<VarNode> node;
+    if (auto dataflow_var = as<DataflowVarNode>()) {
+      node = make_object<DataflowVarNode>(*dataflow_var);
+    } else {
+      node = make_object<VarNode>(*(operator->()));
+    }
+    ObjectPtr<Object>(std::move(node)).swap(data_);
+  }
+  return static_cast<VarNode*>(data_.get());
+}
+
 TVM_REGISTER_GLOBAL("relax.Var")
     .set_body_typed([](String name_hint, Optional<StructInfo> struct_info_annotation, Span span) {
       return Var(name_hint, struct_info_annotation, span);
@@ -471,6 +490,25 @@ BindingBlock::BindingBlock(Array<Binding> bindings, Span span) {
   n->bindings = std::move(bindings);
   n->span = span;
   data_ = std::move(n);
+}
+
+BindingBlockNode* BindingBlock::CopyOnWrite() {
+  // The `TVM_DEFINE_OBJECT_REF_COW_METHOD` cannot be used for
+  // BindingBlock, because it is the base class for `DataflowBlock`.
+  // If the `TVM_DEFINE_OBJECT_REF_COW_METHOD` were used, the
+  // automatic implementation would erroneously convert from a
+  // `DataflowBlock` to a `BindingBlock`.
+  ICHECK(data_ != nullptr);
+  if (!data_.unique()) {
+    ObjectPtr<BindingBlockNode> node;
+    if (auto dataflow_block = as<DataflowBlockNode>()) {
+      node = make_object<DataflowBlockNode>(*dataflow_block);
+    } else {
+      node = make_object<BindingBlockNode>(*(operator->()));
+    }
+    ObjectPtr<Object>(std::move(node)).swap(data_);
+  }
+  return static_cast<BindingBlockNode*>(data_.get());
 }
 
 TVM_REGISTER_GLOBAL("relax.BindingBlock").set_body_typed([](Array<Binding> bindings, Span span) {

@@ -115,6 +115,7 @@ def layout_transform(
     index_map: Union[Callable, IndexMap],
     pad_value: Optional[Union[int, float, PrimValue]] = None,
     axis_separators: Optional[Union[int, IndexMap.AXIS_SEPARATOR]] = None,
+    input_axis_separators: Optional[Union[int, IndexMap.AXIS_SEPARATOR]] = None,
 ):
     """Modifies the layout of a tensor.
 
@@ -158,7 +159,12 @@ def layout_transform(
     if axis_separators is None:
         axis_separators = []
 
-    return _ffi_api.layout_transform(x, index_map, pad_value, axis_separators)  # type: ignore
+    if input_axis_separators is None:
+        input_axis_separators = []
+
+    return _ffi_api.layout_transform(
+        x, index_map, pad_value, axis_separators, input_axis_separators
+    )
 
 
 def permute_dims(x: Expr, axes: Optional[List[int]] = None) -> Expr:

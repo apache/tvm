@@ -149,7 +149,7 @@ class LazyOutputMutator : public ExprMutator {
 
     Var fset_output("fset_output",
                     FuncStructInfo({PrimStructInfo(DataType::Int(64)), ObjectStructInfo()},
-                                   TupleStructInfo(Array<StructInfo>{})));
+                                   TupleStructInfo(Array<StructInfo>{}), /* purity = */ false));
     plan_ = FunctionPlan{std::move(output_lookup), fset_output};
 
     std::optional<int64_t> num_input_params = GetNumInputParams(func);
@@ -189,6 +189,7 @@ class LazyOutputMutator : public ExprMutator {
       auto write_ptr = node.CopyOnWrite();
       write_ptr->params = new_params;
       write_ptr->body = new_body;
+      write_ptr->is_pure = false;
     }
     if (num_input_params.has_value()) {
       node = WithAttr(node, attr::kNumInput, Integer(num_input_params.value() + 1));

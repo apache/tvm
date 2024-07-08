@@ -296,10 +296,12 @@ PrimFunc MakePackedAPI(PrimFunc func) {
     return error_message.str();
   }()));
 
-  seq_init.push_back(
-      MakeAssertNotNull(v_packed_args, name_hint + ": TVMValue* arg pointer was NULL"));
-  seq_init.push_back(
-      MakeAssertNotNull(buf_packed_arg_type_ids->data, name_hint + ": int* type_codes was NULL"));
+  if (num_args > 0) {
+    seq_init.push_back(
+        MakeAssertNotNull(v_packed_args, name_hint + ": TVMValue* arg pointer was NULL"));
+    seq_init.push_back(
+        MakeAssertNotNull(buf_packed_arg_type_ids->data, name_hint + ": int* type_codes was NULL"));
+  }
 
   seq_init.emplace_back(DeclBuffer(buf_packed_arg_type_ids, nop));
 
