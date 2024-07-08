@@ -680,7 +680,7 @@ class TestAnyConv2dNCHWc:
         ((2, 2), (2, 8, 224, 224, 8), (2, 8, 222, 222, 8)),
     )
 
-    @tvm.testing.known_failing_targets("cuda", "vulkan","aarch64")
+    @tvm.testing.known_failing_targets("cuda", "vulkan")
     def test_any_conv2d_NCHWc(
         self,
         target,
@@ -989,6 +989,12 @@ class TestAnyDense:
         static_weight_shape,
         ref_out_shape,
     ):
+        
+        if platform.machine() == "aarch64":
+            pytest.skip(
+                reason="Dynamic height and width not supported in arm_cpu. See https://github.com/apache/tvm/issues/16536"
+        )
+            
         mod = tvm.IRModule()
         dtype = "float32"
         data = relay.var("data", shape=data_shape, dtype=dtype)
