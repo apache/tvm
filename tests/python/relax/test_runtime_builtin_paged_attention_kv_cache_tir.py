@@ -33,7 +33,7 @@ from tvm.script import tir as T
 from tvm.target import Target
 
 reserved_nseq = 32
-maximum_total_seq_length = 1024
+maximum_total_seq_length = 2048
 prefill_chunk_size = 512
 page_size = 16
 num_layers = 4
@@ -614,6 +614,16 @@ def test_paged_attention_kv_cache_fork_sequence(kv_cache_and_config):
         )
 
     assert fis_empty(kv_cache), "The KV cache is not empty after removing all sequences"
+
+    # Test fork after page recycle
+    apply_attention(kv_cache, rope_mode, [(0, 7), (1, 24)], cached_k, cached_v)
+    apply_attention(kv_cache, rope_mode, [((2, 1, -1), 10)], cached_k, cached_v)
+    apply_attention(kv_cache, rope_mode, [((3, 0, -1), 20)], cached_k, cached_v)
+    apply_attention(kv_cache, rope_mode, [(2, 1), (3, 1)], cached_k, cached_v)
+
+    apply_attention(kv_cache, rope_mode, [(10, 7), (11, 24)], cached_k, cached_v)
+    apply_attention(kv_cache, rope_mode, [((12, 11, -1), 200)], cached_k, cached_v)
+    apply_attention(kv_cache, rope_mode, [(10, 1), (12, 1)], cached_k, cached_v)
 
 
 @tvm.testing.requires_gpu
@@ -2547,6 +2557,7 @@ def _copy_single_page(num_heads, page_size, head_dim, dtype, target: Target):
         ):
             for t in T.thread_binding(tx, thread="threadIdx.x"):
                 with T.block("copy"):
+                    T.where(b * tx + t < copy_length * num_heads * head_dim)
                     vh = T.axis.spatial(
                         num_heads,
                         T.Cast("int32", (b * tx + t) // (copy_length * head_dim)),
