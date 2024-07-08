@@ -64,6 +64,8 @@ class Cache(object):
 
     @property
     def cache(self):
+        """Return the cache, initializing on first use."""
+
         if self._cache is not None:
             return self._cache
 
