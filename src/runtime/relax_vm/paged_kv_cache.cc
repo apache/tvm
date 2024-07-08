@@ -168,11 +168,9 @@ struct Sequence {
     this->last_block_idx = last_block_idx;
     int32_t block_ptr = last_block_idx;
     // Go through each block in the sequence, sum up the length.
-    int depth = 0;
     while (true) {
       const Block& block = global_block_pool->at(block_ptr);
       this->seq_length += block.seq_length;
-      ++depth;
       if (block.parent_idx == -1) {
         break;
       }
@@ -2207,8 +2205,9 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
       }
     } else {
       f_attention_prefill_ragged_begin_forward_.value()(
-          temp_attn_workspace_[0], cur_append_lengths_indptr_host_.as_ndarray(), cur_batch_size_,
-          num_qo_heads_, num_kv_heads_, head_dim_, copy_stream_);
+          temp_attn_workspace_[0], cur_append_lengths_indptr_host_.as_ndarray(),
+          cur_append_lengths_indptr_host_.as_ndarray(), cur_batch_size_, num_qo_heads_,
+          num_kv_heads_, head_dim_, copy_stream_);
       if (support_sliding_window_) {
         return;
       }
@@ -2225,8 +2224,9 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
         } else {
           f_attention_prefill_begin_forward_.value()(
               /*depth=*/d, temp_attn_workspace_[d + 1], qo_indptr_on_depths_host_[d].as_ndarray(),
-              length_info_on_depths_view_[d]->shape[0], num_qo_heads_, num_kv_heads_, head_dim_,
-              copy_stream_);
+              page_indptr_on_depths_host_[d].as_ndarray(),
+              static_cast<int>(page_indptr_on_depths_host_[d].size()) - 1, num_qo_heads_,
+              num_kv_heads_, head_dim_, page_size_, copy_stream_);
         }
       }
     }
