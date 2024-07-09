@@ -47,6 +47,10 @@ class VMBuiltinLowerMutator : public ExprMutator {
       return Reshape(call);
     } else if (call->op == shape_of_op_) {
       return ShapeOf(call);
+    } else if (call->op == view_op_) {
+      return View(call);
+    } else if (call->op == ensure_aligned_op_) {
+      return EnsureAligned(call);
     } else if (call->op == to_vdevice_op_) {
       return ToDevice(call);
     } else if (call->op == make_closure_op_) {
@@ -124,6 +128,19 @@ class VMBuiltinLowerMutator : public ExprMutator {
     }
   }
 
+  Expr View(const Call& view_node) {
+    StructInfoDeriveFunc infer_sinfo_env_func;
+    infer_sinfo_env_func = EnvFunc::Get("tvm.relax.struct_info.infer_view_sinfo");
+    auto runtime_view_sinfo = FuncStructInfo::OpaqueFunc(infer_sinfo_env_func, true);
+    ExternFunc runtime_view_func("runtime.TVMArrayCreateView", runtime_view_sinfo);
+    return Call(runtime_view_func, view_node->args, view_node->attrs, {runtime_view_sinfo});
+  }
+
+  Expr EnsureAligned(const Call& call_node) {
+    ICHECK(call_node->args.size() == 1);
+    return Call(builtin_ensure_aligned_, call_node->args, Attrs(), {GetStructInfo(call_node)});
+  }
+
   Expr ShapeOf(const Call& call_node) {
     ICHECK(call_node->args.size() == 1);
     ICHECK(call_node->struct_info_.defined());
@@ -188,6 +205,8 @@ class VMBuiltinLowerMutator : public ExprMutator {
   const Op& call_tir_dyn_op_ = Op::Get("relax.vm.call_tir_dyn");
   const Op& reshape_op_ = Op::Get("relax.reshape");
   const Op& shape_of_op_ = Op::Get("relax.shape_of");
+  const Op& view_op_ = Op::Get("relax.memory.view");
+  const Op& ensure_aligned_op_ = Op::Get("relax.memory.ensure_aligned");
   const Op& to_vdevice_op_ = Op::Get("relax.to_vdevice");
   const Op& make_closure_op_ = Op::Get("relax.make_closure");
   const Op& invoke_closure_op_ = Op::Get("relax.invoke_closure");
@@ -208,6 +227,7 @@ class VMBuiltinLowerMutator : public ExprMutator {
   const ExternFunc builtin_to_device_{"vm.builtin.to_device"};
   const ExternFunc builtin_make_closure_{"vm.builtin.make_closure"};
   const ExternFunc builtin_invoke_closure_{"vm.builtin.invoke_closure"};
+  const ExternFunc builtin_ensure_aligned_{"vm.builtin.ensure_aligned"};
 };
 
 Expr VMBuiltinLower(const Expr& e) { return VMBuiltinLowerMutator().VisitExpr(e); }

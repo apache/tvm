@@ -334,13 +334,12 @@ Expr LegalizeView(const BlockBuilder& bb, const Call& call) {
     relative_byte_offset = relax::PrimValue::Int64(0);
   }
 
-  StructInfoDeriveFunc infer_sinfo_env_func;
-  infer_sinfo_env_func = EnvFunc::Get("tvm.relax.struct_info.infer_view_sinfo");
-  auto runtime_view_sinfo = FuncStructInfo::OpaqueFunc(infer_sinfo_env_func, true);
+  if (shape.same_as(call->args[1]) && dtype.same_as(call->args[2]) &&
+      relative_byte_offset.same_as(call->args[3])) {
+    return call;
+  }
 
-  ExternFunc runtime_view_func("runtime.TVMArrayCreateView", runtime_view_sinfo);
-
-  return Call(runtime_view_func, {data, shape, dtype, relative_byte_offset});
+  return Call(call->op, {data, shape, dtype, relative_byte_offset});
 }
 
 TVM_REGISTER_OP("relax.memory.view")
@@ -353,6 +352,29 @@ TVM_REGISTER_OP("relax.memory.view")
     .set_attr<Bool>("RequiresArgumentShapes", Bool(false))
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoView)
     .set_attr<FLegalize>("FLegalize", LegalizeView)
+    .set_attr<Bool>("FPurity", Bool(true));
+
+Expr ensure_aligned(const Expr& x) {
+  static const Op& op = Op::Get("relax.memory.ensure_aligned");
+  return Call(op, {x});
+}
+
+TVM_REGISTER_GLOBAL("relax.op.memory.ensure_aligned").set_body_typed(ensure_aligned);
+
+StructInfo InferStructInfoEnsureAligned(const Call& call, const BlockBuilder& ctx) {
+  if (call->args.size() != 1) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "Operator " << call->op << " should receive 1 argument, "
+                     << "but received " << call->args);
+  }
+  return GetStructInfo(call->args[0]);
+}
+
+TVM_REGISTER_OP("relax.memory.ensure_aligned")
+    .set_num_inputs(1)
+    .add_argument("x", "Tensor", "The input tensor.")
+    .set_attr<Bool>("RequiresArgumentShapes", Bool(false))
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoEnsureAligned)
     .set_attr<Bool>("FPurity", Bool(true));
 
 }  // namespace relax

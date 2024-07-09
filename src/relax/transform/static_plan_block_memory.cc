@@ -286,8 +286,13 @@ class TokenAllocator1D {
   std::vector<StorageToken> full_pool_;
 };
 
-/*! \brief Check if the input op is "relax.reshape". */
-bool IsReshape(const Expr& op) { return op.same_as(Op::Get("relax.reshape")); }
+/*! \brief Check if the input op is a memory op that return the same buffer as the input buffer. */
+bool IsInplaceMemoryOp(const Expr& op) {
+  static const Op& reshape_op = Op::Get("relax.reshape");
+  static const Op& view_op = Op::Get("relax.memory.view");
+  static const Op& ensure_aligned_op = Op::Get("relax.memory.ensure_aligned");
+  return op.same_as(reshape_op) || op.same_as(view_op) || op.same_as(ensure_aligned_op);
+}
 
 /*! \brief The base class for the storage allocation visitor. */
 class StorageAllocatorBaseVisitor : public ExprVisitor {
@@ -498,7 +503,7 @@ class StorageAllocatorInit : public StorageAllocatorBaseVisitor {
       // Create a storage token for builtin alloc_tensor.
       this->CreateToken(call);
       return;
-    } else if (IsReshape(call->op)) {
+    } else if (IsInplaceMemoryOp(call->op)) {
       // Reuse the input's token for builtin reshape.
       SetTokens(call, GetTokens(call->args[0]));
       return;
@@ -751,7 +756,7 @@ class StorageAllocator : public StorageAllocatorBaseVisitor {
         block_tokens.push_back(new_token.get());
       }
       return;
-    } else if (IsReshape(call->op)) {
+    } else if (IsInplaceMemoryOp(call->op)) {
       Tokens tokens = GetTokens(call->args[0]);
       ICHECK(!tokens.IsNested());
       if (tokens.IsLeaf()) {

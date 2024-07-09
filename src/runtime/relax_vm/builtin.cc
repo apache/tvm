@@ -545,6 +545,19 @@ TVM_REGISTER_GLOBAL("vm.builtin.tensor_to_shape").set_body_typed([](NDArray data
   return ShapeTuple(out_shape);
 });
 
+TVM_REGISTER_GLOBAL("vm.builtin.ensure_aligned").set_body_typed([](NDArray data) {
+  if (data->byte_offset == 0) {
+    return data;
+  }
+  DLManagedTensor* dl_tensor = data.ToDLPack();
+  dl_tensor->dl_tensor.data =
+      reinterpret_cast<char*>(dl_tensor->dl_tensor.data) + dl_tensor->dl_tensor.byte_offset;
+  dl_tensor->dl_tensor.byte_offset = 0;
+  // For platforms that does not support pointer arithmetic, we need to copy the data to a new
+  // buffer.
+  return NDArray::FromDLPack(dl_tensor);
+});
+
 }  // namespace relax_vm
 }  // namespace runtime
 }  // namespace tvm
