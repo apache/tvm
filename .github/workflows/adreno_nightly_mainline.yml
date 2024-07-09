@@ -38,16 +38,21 @@ jobs:
             submodules: 'recursive'
             fetch-depth: 0
       - name: Checkout Mainline
+        shell: bash -l {0}
         run: |
+          set -e
           if ! git remote -v | grep ^mainline ; then git remote add mainline git@github.com:apache/tvm.git ; fi
           git fetch mainline
       - name: Rebase with Mainline
+        shell: bash -l {0}
         run: |
+          set -e
           git checkout -b mainline-main mainline/main
           git submodule update
       - name: Build and run tests
         shell: bash -l {0}
         run: |
+          set -e
           git fetch gpgpu
           git checkout gpgpu/adreno_ci -- pytest_deselect_ids.txt
           git restore --staged pytest_deselect_ids.txt

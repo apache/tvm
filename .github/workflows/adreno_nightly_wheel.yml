@@ -1,0 +1,102 @@
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+
+# Checkout mainline commit on local repo and run tests.
+name: Adreno Package Generation
+
+on:
+  schedule:
+    # 2:30 AM IST
+    - cron: "1 20 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: tvmpkg
+  cancel-in-progress: true
+
+jobs:
+  BuildPackage:
+    if: github.repository == 'gpgpu/apache-tvm'
+    runs-on: blr-ubuntu-tvm01
+    steps:
+      - uses: actions/checkout@v2
+        with:
+            submodules: 'recursive'
+            fetch-depth: 0
+      - name: Build Host
+        shell: bash -l {0}
+        run: |
+           set -e
+           mkdir -p build-wheel
+           cd build-wheel
+           cp ../cmake/config.cmake . -f;
+           echo set\(USE_CLML "${ADRENO_OPENCL}"\) >> config.cmake
+           echo set\(USE_OPENCL ON\) >> config.cmake
+           echo set\(USE_RPC ON\) >> config.cmake
+           echo set\(USE_GRAPH_EXECUTOR ON\) >> config.cmake
+           echo set\(USE_LIBBACKTRACE AUTO\) >> config.cmake
+           echo set\(USE_LLVM ON\) >> config.cmake
+           cmake .. && cmake --build . --parallel $(nproc)
+           cd -
+      - name: Build Wheel
+        shell: bash -l {0}
+        run: |
+           set -e
+           export TVM_LIBRARY_PATH=$PWD/build-wheel/
+           cd python && python setup.py bdist_wheel
+           rm -rf ../wheels
+           auditwheel repair --plat linux_x86_64 -w repaired_wheels/ dist/*whl
+           mv repaired_wheels ../wheels
+           cd -
+      - name: Build Target
+        shell: bash -l {0}
+        run: |
+           set -e
+           mkdir -p build-adreno-target
+           cd build-adreno-target
+           cp ../cmake/config.cmake . -f
+           echo set\(USE_CLML "${ADRENO_OPENCL}"\)  >> config.cmake
+           echo set\(USE_CLML_GRAPH_EXECUTOR "${ADRENO_OPENCL}"\) >> config.cmake
+           echo set\(USE_RPC ON\) >> config.cmake
+           echo set\(USE_CPP_RPC ON\) >> config.cmake
+           echo set\(USE_CPP_RTVM ON\) >> config.cmake
+           echo set\(USE_GRAPH_EXECUTOR ON\) >> config.cmake
+           echo set\(USE_LIBBACKTRACE AUTO\) >> config.cmake
+           echo set\(USE_KALLOC_ALIGNMENT 32\) >> config.cmake
+           echo set\(ANDROID_ABI arm64-v8a\) >> config.cmake
+           echo set\(ANDROID_PLATFORM android-28\) >> config.cmake
+           echo set\(MACHINE_NAME aarch64-linux-gnu\) >> config.cmake
+           cmake -DCMAKE_TOOLCHAIN_FILE="${ANDROID_NDK}/build/cmake/android.toolchain.cmake" \
+                 -DANDROID_ABI=arm64-v8a \
+                 -DANDROID_PLATFORM=android-28 \
+                 -DCMAKE_SYSTEM_VERSION=1 \
+                 -DCMAKE_FIND_ROOT_PATH="${ADRENO_OPENCL}" \
+                 -DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=NEVER \
+                 -DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY \
+                 -DCMAKE_CXX_COMPILER="${ANDROID_NDK}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android28-clang++" \
+                 -DCMAKE_C_COMPILER="${ANDROID_NDK}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android28-clang" \
+                 -DMACHINE_NAME="aarch64-linux-gnu" ..
+            cmake --build . --parallel $(nproc)
+            cd -
+      - name: Build Adreno Utils
+        shell: bash -l {0}
+        run: |
+           set -e
+           cp build-adreno-target/tvm_rpc adreno-utils/ -rfa
+           cp build-adreno-target/rtvm adreno-utils/ -rfa
+           cp build-adreno-target/libtvm_runtime.so adreno-utils/ -rfa
+           tar jcvfp adreno-utils.tar.bz2 adreno-utils
