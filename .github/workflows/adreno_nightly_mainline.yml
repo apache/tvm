@@ -51,4 +51,4 @@ jobs:
           git fetch gpgpu
           git checkout gpgpu/adreno_ci -- pytest_deselect_ids.txt
           git restore --staged pytest_deselect_ids.txt
-          SCCACHE_SERVER_PORT=8767 ADRENO_OPENCL="/usr/local/workspace/CLML/clml-sdk-3.0" ANDROID_SERIAL=`cat /etc/tvm-ci-device` python ./tests/scripts/ci.py adreno -d tvm.ci_adreno --test
+          SCCACHE_SERVER_PORT=8767 ANDROID_SERIAL=`cat /etc/tvm-ci-device` python ./tests/scripts/ci.py adreno -d tvm.ci_adreno --test
