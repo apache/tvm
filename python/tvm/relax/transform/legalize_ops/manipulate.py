@@ -213,7 +213,6 @@ def _layout_transform(bb: BlockBuilder, call: Call) -> Expr:
     sch.transform_layout(primfunc_name, ("write", 0), index_map, pad_value)
     set_axis_sep(axis_separators, sch, "write")
     if input_axis_separators is not None:
-        input_axis_separators = [int(sep) for sep in input_axis_separators]
         set_axis_sep(input_axis_separators, sch, "read")
     gvar = bb.add_func(sch.mod["main"], primfunc_name)
     output_shape = index_map.map_shape(list(call_args[0].struct_info.shape))
