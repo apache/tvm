@@ -871,6 +871,11 @@ requires_x86 = Feature(
     "x86", "x86 Architecture", run_time_check=lambda: platform.machine() == "x86_64"
 )
 
+# Mark a test as requiring the aarch64 Architecture to run.
+requires_aarch64 = Feature(
+    "AArch64", "AArch64 Architecture", run_time_check=lambda: platform.machine() == "aarch64"
+)
+
 # Mark a test as requiring the CUDA runtime.
 requires_cuda = Feature(
     "cuda",
