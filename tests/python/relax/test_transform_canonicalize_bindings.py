@@ -352,9 +352,7 @@ def test_fold_variables_from_match_cast():
 
             # The symbolic shapes propagate downstream.
             lhs: R.Tensor([N1 + N2, M], "float32") = R.concat((lhs_A, lhs_B), axis=0)
-            proj_concat: R.Tensor([N1 + N2], "float32") = R.matmul(
-                lhs, rhs, out_dtype="void"
-            )
+            proj_concat: R.Tensor([N1 + N2], "float32") = R.matmul(lhs, rhs, out_dtype="void")
             proj_A = R.strided_slice(
                 proj_concat,
                 (R.prim_value(0),),
@@ -384,9 +382,7 @@ def test_fold_variables_from_match_cast():
             # statically-known shapes.
 
             lhs: R.Tensor([32, 16], dtype="float32") = R.concat((A, B), axis=0)
-            proj_concat: R.Tensor([32], dtype="float32") = R.matmul(
-                lhs, state, out_dtype="void"
-            )
+            proj_concat: R.Tensor([32], dtype="float32") = R.matmul(lhs, state, out_dtype="void")
             proj_A: R.Tensor([16], dtype="float32") = R.strided_slice(
                 proj_concat,
                 [R.prim_value(0)],
@@ -435,9 +431,7 @@ def test_inconsistent_match_cast_raises_error():
             rhs = R.match_cast(state, R.Tensor([M], dtype="float32"))
 
             lhs: R.Tensor([N1 + N2, M], "float32") = R.concat((lhs_A, lhs_B), axis=0)
-            proj_concat: R.Tensor([N1 + N2], "float32") = R.matmul(
-                lhs, rhs, out_dtype="void"
-            )
+            proj_concat: R.Tensor([N1 + N2], "float32") = R.matmul(lhs, rhs, out_dtype="void")
             proj_A = R.strided_slice(
                 proj_concat,
                 (R.prim_value(0),),

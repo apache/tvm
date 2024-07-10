@@ -257,12 +257,8 @@ def test_same_pattern_applied_multiple_times():
 
     @R.function(private=True)
     def expected(x: R.Tensor([16], "float32")):
-        y = R.call_pure_packed(
-            "my_optimized_add_impl", x, x, sinfo_args=R.Tensor([16], "float32")
-        )
-        z = R.call_pure_packed(
-            "my_optimized_add_impl", y, y, sinfo_args=R.Tensor([16], "float32")
-        )
+        y = R.call_pure_packed("my_optimized_add_impl", x, x, sinfo_args=R.Tensor([16], "float32"))
+        z = R.call_pure_packed("my_optimized_add_impl", y, y, sinfo_args=R.Tensor([16], "float32"))
         return z
 
     after = Rewriter(before)
@@ -316,12 +312,8 @@ def test_composition_of_rewrite_rules():
         B: R.Tensor([16], "float32"),
         C: R.Tensor([16], "float32"),
     ):
-        D = R.call_pure_packed(
-            "my_optimized_add_impl", A, B, sinfo_args=R.Tensor([16], "float32")
-        )
-        E = R.call_pure_packed(
-            "my_optimized_mul_impl", C, D, sinfo_args=R.Tensor([16], "float32")
-        )
+        D = R.call_pure_packed("my_optimized_add_impl", A, B, sinfo_args=R.Tensor([16], "float32"))
+        E = R.call_pure_packed("my_optimized_mul_impl", C, D, sinfo_args=R.Tensor([16], "float32"))
         return E
 
     rewriter = RewriteAdd | RewriteMultiply
@@ -457,9 +449,7 @@ def test_rewrite_only_introduces_private_subroutines_when_required():
 
         @R.function
         def replacement(A: R.Tensor([16], "float32")):
-            return R.call_tir(
-                RewriteMul.subroutine_mul, [A], out_sinfo=R.Tensor([16], "float32")
-            )
+            return R.call_tir(RewriteMul.subroutine_mul, [A], out_sinfo=R.Tensor([16], "float32"))
 
         @T.prim_func(private=True)
         def subroutine_mul(A: T.Buffer(16, "float32"), B: T.Buffer(16, "float32")):
@@ -537,9 +527,7 @@ def test_rewrite_branches_may_reuse_subroutine_name():
 
         @R.function
         def replacement(A: R.Tensor([16], "float32")):
-            return R.call_tir(
-                RewriteMul.subroutine, [A], out_sinfo=R.Tensor([16], "float32")
-            )
+            return R.call_tir(RewriteMul.subroutine, [A], out_sinfo=R.Tensor([16], "float32"))
 
         @T.prim_func(private=True)
         def subroutine(A: T.Buffer(16, "float32"), B: T.Buffer(16, "float32")):
@@ -559,9 +547,7 @@ def test_rewrite_branches_may_reuse_subroutine_name():
         @R.function
         def main(A: R.Tensor([16], "float32")):
             B = Expected.subroutine(A)
-            C = R.call_tir(
-                Expected.subroutine_1, [B], out_sinfo=R.Tensor([16], "float32")
-            )
+            C = R.call_tir(Expected.subroutine_1, [B], out_sinfo=R.Tensor([16], "float32"))
             return C
 
         @R.function(private=True)
@@ -1212,9 +1198,7 @@ def test_rewrite_may_apply_within_conditional():
             )
 
     @R.function(private=True)
-    def before(
-        A: R.Tensor([16], "float32"), B: R.Tensor([16], "float32"), cond: R.Prim("bool")
-    ):
+    def before(A: R.Tensor([16], "float32"), B: R.Tensor([16], "float32"), cond: R.Prim("bool")):
         if cond:
             out = A + B
         else:
@@ -1223,9 +1207,7 @@ def test_rewrite_may_apply_within_conditional():
         return out
 
     @R.function(private=True)
-    def expected(
-        A: R.Tensor([16], "float32"), B: R.Tensor([16], "float32"), cond: R.Prim("bool")
-    ):
+    def expected(A: R.Tensor([16], "float32"), B: R.Tensor([16], "float32"), cond: R.Prim("bool")):
         if cond:
             out = R.call_pure_packed(
                 "my_optimized_add_impl", A, B, sinfo_args=R.Tensor([16], "float32")
