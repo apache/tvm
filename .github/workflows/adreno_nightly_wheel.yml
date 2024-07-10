@@ -37,31 +37,81 @@ jobs:
         with:
             submodules: 'recursive'
             fetch-depth: 0
-      - name: Build Host
+      - name: Build CPU Host Wheel
         shell: bash -l {0}
         run: |
            set -e
-           mkdir -p build-wheel
-           cd build-wheel
-           cp ../cmake/config.cmake . -f;
-           echo set\(USE_CLML "${ADRENO_OPENCL}"\) >> config.cmake
-           echo set\(USE_OPENCL ON\) >> config.cmake
-           echo set\(USE_RPC ON\) >> config.cmake
-           echo set\(USE_GRAPH_EXECUTOR ON\) >> config.cmake
-           echo set\(USE_LIBBACKTRACE AUTO\) >> config.cmake
-           echo set\(USE_LLVM ON\) >> config.cmake
-           cmake .. && cmake --build . --parallel $(nproc)
-           cd -
-      - name: Build Wheel
+           docker run --rm --pid=host -w /workspace \
+               -v ${PWD}:/workspace \
+               -v ${ADRENOACCL_SDK}:/adrenoaccl_sdk \
+               -e ADRENOACCL_SDK=/adrenoaccl_sdk \
+               -v ${ADRENO_OPENCL}:/adreno_opencl \
+               -e ADRENO_OPENCL=/adreno_opencl \
+               -e ENV_USER_ID=`id -u` \
+               -e ENV_GROUP_ID=`id -g` \
+               mlcaidev/package-cu121 \
+               conda run -n py38 ./ci/adreno/build_lib.sh
+           docker run --rm --pid=host -w /workspace \
+               -v ${PWD}:/workspace \
+               -v ${ADRENOACCL_SDK}:/adrenoaccl_sdk \
+               -e ADRENOACCL_SDK=/adrenoaccl_sdk \
+               -v ${ADRENO_OPENCL}:/adreno_opencl \
+               -e ADRENO_OPENCL=/adreno_opencl \
+               -e ENV_USER_ID=`id -u` \
+               -e ENV_GROUP_ID=`id -g` \
+               -e WHEEL_EXT_NAME="_adreno_cpu" \
+               mlcaidev/package-cu121 \
+               conda run -n py38 ./ci/adreno/build_wheel.sh
+           mv wheels/*.whl ${BUILD_WHEEL_PATH}/
+           docker run --rm --pid=host -w /workspace \
+               -v ${PWD}:/workspace \
+               -v ${ADRENOACCL_SDK}:/adrenoaccl_sdk \
+               -e ADRENOACCL_SDK=/adrenoaccl_sdk \
+               -v ${ADRENO_OPENCL}:/adreno_opencl \
+               -e ADRENO_OPENCL=/adreno_opencl \
+               -e ENV_USER_ID=`id -u` \
+               -e ENV_GROUP_ID=`id -g` \
+               mlcaidev/package-cu121 \
+               conda run -n py38 ./ci/adreno/build_clean.sh
+      - name: Build CUDA Host Wheel
         shell: bash -l {0}
         run: |
            set -e
-           export TVM_LIBRARY_PATH=$PWD/build-wheel/
-           cd python && python setup.py bdist_wheel
-           rm -rf ../wheels
-           auditwheel repair --plat linux_x86_64 -w repaired_wheels/ dist/*whl
-           mv repaired_wheels ../wheels
-           cd -
+           docker run --rm --pid=host -w /workspace \
+               -v ${PWD}:/workspace \
+               -v ${ADRENOACCL_SDK}:/adrenoaccl_sdk \
+               -e ADRENOACCL_SDK=/adrenoaccl_sdk \
+               -v ${ADRENO_OPENCL}:/adreno_opencl \
+               -e ADRENO_OPENCL=/adreno_opencl \
+               -e ENV_USER_ID=`id -u` \
+               -e ENV_GROUP_ID=`id -g` \
+               -e GPU=cuda \
+               mlcaidev/package-cu121 \
+               conda run -n py38 ./ci/adreno/build_lib.sh
+           docker run --rm --pid=host -w /workspace \
+               -v ${PWD}:/workspace \
+               -v ${ADRENOACCL_SDK}:/adrenoaccl_sdk \
+               -e ADRENOACCL_SDK=/adrenoaccl_sdk \
+               -v ${ADRENO_OPENCL}:/adreno_opencl \
+               -e ADRENO_OPENCL=/adreno_opencl \
+               -e ENV_USER_ID=`id -u` \
+               -e ENV_GROUP_ID=`id -g` \
+               -e WHEEL_EXT_NAME="_adreno_cuda" \
+               -e GPU=cuda \
+               mlcaidev/package-cu121 \
+               conda run -n py38 ./ci/adreno/build_wheel.sh
+           mv wheels/*.whl ${BUILD_WHEEL_PATH}/
+           docker run --rm --pid=host -w /workspace \
+               -v ${PWD}:/workspace \
+               -v ${ADRENOACCL_SDK}:/adrenoaccl_sdk \
+               -e ADRENOACCL_SDK=/adrenoaccl_sdk \
+               -v ${ADRENO_OPENCL}:/adreno_opencl \
+               -e ADRENO_OPENCL=/adreno_opencl \
+               -e ENV_USER_ID=`id -u` \
+               -e ENV_GROUP_ID=`id -g` \
+               -e GPU=cuda \
+               mlcaidev/package-cu121 \
+               conda run -n py38 ./ci/adreno/build_clean.sh
       - name: Build Target
         shell: bash -l {0}
         run: |
@@ -100,3 +150,4 @@ jobs:
            cp build-adreno-target/rtvm adreno-utils/ -rfa
            cp build-adreno-target/libtvm_runtime.so adreno-utils/ -rfa
            tar jcvfp adreno-utils.tar.bz2 adreno-utils
+           mv adreno-utils.tar.bz2 ${BUILD_WHEEL_PATH}/

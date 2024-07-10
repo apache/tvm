@@ -133,6 +133,13 @@ def git_describe_version(original_version):
     return gd_version
 
 
+def git_extended_name(original_name):
+    """Get extended name."""
+    if os.environ.get('WHEEL_EXT_NAME'):
+        original_name = str(original_name) + os.environ.get("WHEEL_EXT_NAME")
+    return original_name
+
+
 def _remove_path(path):
     if os.path.exists(path):
         if os.path.isfile(path):
@@ -143,6 +150,8 @@ def _remove_path(path):
 
 LIB_LIST, __version__ = get_lib_path()
 __version__ = git_describe_version(__version__)
+__name__="tvm"
+__name__ = git_extended_name(__name__)
 
 
 def config_cython():
@@ -256,7 +265,7 @@ extras_require = {
 }
 
 setup(
-    name="tvm",
+    name=__name__,
     version=__version__,
     description="TVM: An End to End Tensor IR/DSL Stack for Deep Learning Systems",
     long_description=long_description_contents(),
