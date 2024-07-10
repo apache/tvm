@@ -1867,7 +1867,7 @@ def from_oneflow(graph, model_dir_path):
     OneFlow offers nn.Graph, so that users can use the eager-like programming style to build
     static graphs and train the models.
 
-    We utilize the intermediate representation of nn.Graph to convert the OneFlow model to Reley.
+    We utilize the intermediate representation of nn.Graph to convert the OneFlow model to Relay.
 
     Parameters
     ----------
