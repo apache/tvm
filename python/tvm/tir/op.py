@@ -1829,9 +1829,6 @@ def dp4a(vec1, vec2, acc=0):
     call : PrimExpr
         The call expression.
     """
-    vec1 = convert(vec1)
-    vec2 = convert(vec2)
-    acc = convert(acc)
     return call_intrin("int32", "tir.dp4a", vec1, vec2, acc)
 
 
