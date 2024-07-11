@@ -49,20 +49,31 @@ export async function detectGPUDevice(): Promise<GPUDeviceDetectOutput | undefin
     }
 
     // more detailed error message
-    const requiredMaxBufferSize = 1 << 30;
+    let requiredMaxBufferSize = 1 << 30;  // 1GB
     if (requiredMaxBufferSize > adapter.limits.maxBufferSize) {
-      throw Error(
-        `Cannot initialize runtime because of requested maxBufferSize ` +
-        `exceeds limit. requested=${computeMB(requiredMaxBufferSize)}, ` +
-        `limit=${computeMB(adapter.limits.maxBufferSize)}. ` +
-        `This error may be caused by an older version of the browser (e.g. Chrome 112). ` +
-        `You can try to upgrade your browser to Chrome 113 or later.`
+      // If 1GB is too large, try 256MB (default size stated in WebGPU doc)
+      const backupRequiredMaxBufferSize = 1 << 28;  // 256MB
+      console.log(
+        `Requested maxBufferSize exceeds limit. \n` +
+        `requested=${computeMB(requiredMaxBufferSize)}, \n` +
+        `limit=${computeMB(adapter.limits.maxBufferSize)}. \n` +
+        `WARNING: Falling back to ${computeMB(backupRequiredMaxBufferSize)}...`
       );
+      requiredMaxBufferSize = backupRequiredMaxBufferSize;
+      if (backupRequiredMaxBufferSize > adapter.limits.maxBufferSize) {
+        // Fail if 256MB is still too big
+        throw Error(
+          `Cannot initialize runtime because of requested maxBufferSize ` +
+          `exceeds limit. requested=${computeMB(backupRequiredMaxBufferSize)}, ` +
+          `limit=${computeMB(adapter.limits.maxBufferSize)}. ` +
+          `Consider upgrading your browser.`
+        );
+      }
     }
 
     let requiredMaxStorageBufferBindingSize = 1 << 30;  // 1GB
     if (requiredMaxStorageBufferBindingSize > adapter.limits.maxStorageBufferBindingSize) {
-      // If 1GB is too large, try 128MB (default size for Android)
+      // If 1GB is too large, try 128MB (default size stated in WebGPU doc)
       const backupRequiredMaxStorageBufferBindingSize = 1 << 27;  // 128MB
       console.log(
         `Requested maxStorageBufferBindingSize exceeds limit. \n` +
