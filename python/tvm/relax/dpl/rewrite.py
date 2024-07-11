@@ -17,12 +17,13 @@
 """APIs for pattern-based rewriting."""
 
 from typing import Dict, Callable, Union
-from .pattern import DFPattern
-from .context import PatternContext
 
 from tvm.ir import IRModule
 from tvm.runtime import Object
 from tvm._ffi import register_object
+
+from .pattern import DFPattern
+from .context import PatternContext
 from ..expr import Expr, Function, Var
 from . import _ffi as ffi
 
