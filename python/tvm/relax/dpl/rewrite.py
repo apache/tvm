@@ -30,11 +30,38 @@ from . import _ffi as ffi
 
 @register_object("relax.dpl.ExprRewriter")
 class ExprRewriter(Object):
+    """A pattern-matching rewriter for Relax"""
+
     @staticmethod
     def from_pattern(
         pattern: DFPattern,
         func: Callable[[Expr, Dict[DFPattern, Expr]], Expr],
     ) -> "ExprRewriter":
+        """Construct from a pattern and rewriter-function
+
+        The replacements performed by the rewriter will be equivalent
+        to using the `pattern` and `func` as arguments to
+        `rewrite_call`.
+
+        Parameters
+        ----------
+        pattern: DFPattern
+
+            The pattern to be matched against.
+
+        func: Callable[[Expr, Dict[DFPattern, Expr]], Expr]
+
+            A function that returns the rewritten expression.  See
+            `rewrite_call` for details and examples.
+
+
+        Returns
+        -------
+        rewriter_obj: ExprRewriter
+
+            The rewriter object
+
+        """
         return ffi.ExprRewriterFromPattern(
             pattern,
             func,
@@ -42,12 +69,63 @@ class ExprRewriter(Object):
 
     @staticmethod
     def from_module(mod: IRModule) -> "ExprRewriter":
+        """Construct a rewriter from an IRModule
+
+        Parameters
+        ----------
+        mod: IRModule
+
+            A module with `pattern` and `replacement` functions,
+            defining a rewrite rule.
+
+
+        Returns
+        -------
+        rewriter_obj: ExprRewriter
+
+            The rewriter object
+
+        """
         return ffi.ExprRewriterFromModule(mod)  # type: ignore
 
     def __call__(self, obj: Union[Expr, IRModule]) -> Union[Expr, IRModule]:
+        """Apply the rewriter
+
+        Parameters
+        ----------
+        obj: Union[Expr, IRModule])
+
+            The object to be rewritten.  May be applied to either a
+            relax expression, or an IRModule.
+
+        Returns
+        -------
+        updated: Union[Expr, IRModule]
+
+            The rewritten object
+
+        """
         return ffi.ExprRewriterApply(self, obj)
 
     def __or__(self, other: "ExprRewriter") -> "ExprRewriter":
+        """Compose two rewriters
+
+        Composing two rewrite rules together allows them to be applied
+        in a single Relax-level transformation.
+
+        Parameters
+        ----------
+        other: ExprRewriter
+
+            Another rewrite rule
+
+        Returns
+        -------
+        ExprRewriter
+
+            A rewriter that will apply either rewrite pattern
+
+        """
         return OrRewriter(self, other)
 
 
