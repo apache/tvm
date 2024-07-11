@@ -123,6 +123,16 @@ register_patterns(adreno_byoc_patterns)
 class PartitionForAdrenoACCL:
     """A compiler pass that partition BYOC adreno Matmul."""
 
+    def __init__(self, target: tvm.target.Target) -> None:
+        """Initializer.
+
+        Parameters
+        ----------
+        target : tvm.target.Target
+            Target device.
+        """
+        self.target = target
+
     def transform_module(
         self,
         mod: IRModule,
@@ -130,12 +140,13 @@ class PartitionForAdrenoACCL:
     ) -> IRModule:
         """Apply required passed to transform"""
 
-        mod = tvm.transform.Sequential(
-            [
-                transform.Normalize(),
-                transform.FuseOpsByPattern(adreno_byoc_patterns, annotate_codegen=True),
-                transform.RunCodegen(),
-            ]
-        )(mod)
+        if "adreno" in str(self.target.attrs):
+            mod = tvm.transform.Sequential(
+                [
+                    transform.Normalize(),
+                    transform.FuseOpsByPattern(adreno_byoc_patterns, annotate_codegen=True),
+                    transform.RunCodegen(),
+                ]
+            )(mod)
 
         return mod
