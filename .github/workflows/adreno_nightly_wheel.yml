@@ -62,6 +62,8 @@ jobs:
                -e WHEEL_EXT_NAME="_adreno_cpu" \
                mlcaidev/package-cu121 \
                conda run -n py38 ./ci/adreno/build_wheel.sh
+           mkdir -p nightly
+           cp wheels/*.whl ./nightly/ -rfa
            mv wheels/*.whl ${BUILD_WHEEL_PATH}/
            docker run --rm --pid=host -w /workspace \
                -v ${PWD}:/workspace \
@@ -100,6 +102,7 @@ jobs:
                -e GPU=cuda \
                mlcaidev/package-cu121 \
                conda run -n py38 ./ci/adreno/build_wheel.sh
+           cp wheels/*.whl ./nightly/ -rfa
            mv wheels/*.whl ${BUILD_WHEEL_PATH}/
            docker run --rm --pid=host -w /workspace \
                -v ${PWD}:/workspace \
@@ -150,4 +153,9 @@ jobs:
            cp build-adreno-target/rtvm adreno-utils/ -rfa
            cp build-adreno-target/libtvm_runtime.so adreno-utils/ -rfa
            tar jcvfp adreno-utils.tar.bz2 adreno-utils
+           cp adreno-utils.tar.bz2 ./nightly/ -rfa
+           gh release delete nightly --cleanup-tag --yes --repo "$GITHUB_REPOSITORY" || true
+           gh release create nightly --latest --title nightly --repo "$GITHUB_REPOSITORY" --notes "TVM Nightly builds"
+           gh release upload nightly ./nightly/* --clobber --repo "$GITHUB_REPOSITORY"
+           rm -rf nightly
            mv adreno-utils.tar.bz2 ${BUILD_WHEEL_PATH}/
