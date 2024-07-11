@@ -163,7 +163,7 @@ class BlockBuilderNode : public Object {
   /*!
    * \brief Append a definition to the cuurrent scope.
    *
-   * \param Var A variable within the current scope.
+   * \param var A variable within the current scope.
    *
    * \note This function should be called when a new variable is
    *       defined that may impact struct inference (e.g. MatchCast)
