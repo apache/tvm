@@ -16,7 +16,7 @@
 # under the License.
 """Runtime container structures."""
 import tvm._ffi
-from .object import Object, PyNativeObject
+from .object import Object
 from .object_generic import ObjectTypes
 from . import _ffi_api
 
@@ -112,29 +112,16 @@ def tuple_object(fields=None):
     return _ffi_api.Tuple(*fields)
 
 
-@tvm._ffi.register_object("runtime.String")
-class String(str, PyNativeObject):
-    """TVM runtime.String object, represented as a python str.
+String = str
+"""Backwards-compatibility alias
 
-    Parameters
-    ----------
-    content : str
-        The content string used to construct the object.
-    """
+In previous implementations, when the C++ type `tvm::runtime::String`
+was stored into a TVMRetValue, it used the type code kTVMObjectHandle.
+It is now converted on storage into a TVMRetValue with type code
+kTVMStr, removing the need for a separate `tvm.runtime.String` class.
+This alias is maintained for backwards compatibility.
 
-    __slots__ = ["__tvm_object__"]
-
-    def __new__(cls, content):
-        """Construct from string content."""
-        val = str.__new__(cls, content)
-        val.__init_tvm_object_by_constructor__(_ffi_api.String, content)
-        return val
-
-    # pylint: disable=no-self-argument
-    def __from_tvm_object__(cls, obj: Object) -> str:
-        """Convert from runtime.String to native string"""
-
-        return _ffi_api.GetFFIString(obj)
+"""
 
 
 @tvm._ffi.register_object("runtime.ShapeTuple")
