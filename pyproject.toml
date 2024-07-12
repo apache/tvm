@@ -18,7 +18,6 @@
 profile = "black"
 src_paths = ["python", "tests/python"]
 
-
 [tool.black]
 line-length = 100
 target-version = ['py36']
@@ -50,3 +49,7 @@ exclude = '''
   )/
 )
 '''
+
+[tool.ruff]
+line-length = 100
+indent-width = 4
