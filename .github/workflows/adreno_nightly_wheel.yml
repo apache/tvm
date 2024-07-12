@@ -157,5 +157,7 @@ jobs:
            gh release delete nightly --cleanup-tag --yes --repo "$GITHUB_REPOSITORY" || true
            gh release create nightly --latest --title nightly --repo "$GITHUB_REPOSITORY" --notes "TVM Nightly builds"
            gh release upload nightly ./nightly/* --clobber --repo "$GITHUB_REPOSITORY"
+           git tag -f -a nightly -m "Update nightly commit id"
+           git push origin -f --tags
            rm -rf nightly
            mv adreno-utils.tar.bz2 ${BUILD_WHEEL_PATH}/
