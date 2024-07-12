@@ -27,7 +27,7 @@
 using namespace tvm;
 
 NameSupply preambleNameSupply() {
-  NameSupply name_supply = NameSupply("prefix");
+  NameSupply name_supply("prefix");
   name_supply->FreshName("test");
   return name_supply;
 }
@@ -74,7 +74,7 @@ TEST(NameSupply, ReserveName) {
 }
 
 GlobalVarSupply preambleVarSupply() {
-  GlobalVarSupply global_var_supply = GlobalVarSupply(NameSupply(""));
+  GlobalVarSupply global_var_supply;
   global_var_supply->FreshGlobal("test");
   return global_var_supply;
 }

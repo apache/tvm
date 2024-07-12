@@ -75,7 +75,7 @@ Array<meta_schedule::ExtractedTask> ExtractTask(IRModule mod, Target target,
 
   std::vector<std::tuple<std::string, Function, IRModule>> lower_results;
 
-  NameSupply constant_name_supply("");
+  NameSupply constant_name_supply;
 
   PostOrderVisit(mod->Lookup("main"), [&](const Expr& exp) {
     if (exp->IsInstance<FunctionNode>()) {
@@ -129,7 +129,7 @@ Array<meta_schedule::ExtractedTask> ExtractTask(IRModule mod, Target target,
 
   // Tasks are extracted via post order visit, return the reversed list.
   std::reverse(tasks.begin(), tasks.end());
-  NameSupply name_supply = NameSupply("");
+  NameSupply name_supply;
   for (ExtractedTask task : tasks) {
     task->task_name = name_supply->FreshName(task->task_name);
   }
