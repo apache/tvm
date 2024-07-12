@@ -30,6 +30,9 @@
 #include <tvm/relax/expr.h>
 
 #include <optional>
+#include <tuple>
+#include <unordered_set>
+#include <vector>
 
 #include "dataflow_matcher.h"
 

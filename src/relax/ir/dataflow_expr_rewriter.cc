@@ -44,7 +44,7 @@ namespace relax {
 namespace {
 class GlobalVarReplacer : public ExprMutator {
  public:
-  GlobalVarReplacer(Map<GlobalVar, GlobalVar> gvar_map) : gvar_map_(gvar_map) {}
+  explicit GlobalVarReplacer(Map<GlobalVar, GlobalVar> gvar_map) : gvar_map_(gvar_map) {}
 
   using ExprMutator::VisitExpr_;
   Expr VisitExpr_(const GlobalVarNode* op) override {
