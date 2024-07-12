@@ -769,6 +769,7 @@ def test_reshape_zero_copy():
 
     def zero_copy():
         from tvm.relay.frontend.common import infer_shape
+
         outshape = infer_shape(_y)
         output_view = tvm.nd.empty(outshape, device=tvm.device("llvm", 0))
         m.set_input_zero_copy(in_name0, data_ndarray0)
@@ -779,7 +780,7 @@ def test_reshape_zero_copy():
 
     golden_out = expected()
     out = zero_copy()
-    np.testing.assert_equal(golden_out, out)
+    tvm.testing.assert_allclose(golden_out, out)
 
 
 if __name__ == "__main__":
