@@ -18,11 +18,11 @@
  */
 
 /*!
- * \file src/tvm/relax/dataflow_matcher_impl.h
+ * \file src/tvm/relax/dataflow_matcher.h
  * \brief The auxiliary data structure for dataflow matcher.
  */
-#ifndef TVM_RELAX_IR_DATAFLOW_MATCHER_IMPL_H_
-#define TVM_RELAX_IR_DATAFLOW_MATCHER_IMPL_H_
+#ifndef TVM_RELAX_IR_DATAFLOW_MATCHER_H_
+#define TVM_RELAX_IR_DATAFLOW_MATCHER_H_
 
 #include <tvm/arith/analyzer.h>
 #include <tvm/relax/dataflow_matcher.h>
@@ -102,4 +102,4 @@ class DFPatternMatcher : public DFPatternFunctor<bool(const DFPattern&, const Ex
 }  // namespace relax
 }  // namespace tvm
 
-#endif  // TVM_RELAX_IR_DATAFLOW_MATCHER_IMPL_H_
+#endif  // TVM_RELAX_IR_DATAFLOW_MATCHER_H_
