@@ -79,74 +79,149 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           return Relax(d, "shape")->Call({ListDoc(values_doc)});
         });
 
-Optional<ExprDoc> SpecialScalar(const runtime::NDArray& n, const ObjectPath& p) {
-  DataType dtype = n.DataType();
-  const void* data = n->data;
-  if (n->ndim != 0 || n->device.device_type != kDLCPU) {
+Optional<ExprDoc> InlineConstant(const runtime::NDArray& array, const ObjectPath& path) {
+  if (array->device.device_type != kDLCPU) {
     return NullOpt;
   }
 
+  DataType dtype = array.DataType();
+  std::function<ExprDoc(void*, const ObjectPath&)> element_printer;
   if (dtype == DataType::Int(8)) {
-    return LiteralDoc::Int(*reinterpret_cast<const int8_t*>(data), p);
+    element_printer = [](void* ptr, const ObjectPath& elem_path) {
+      return LiteralDoc::Int(*reinterpret_cast<const int8_t*>(ptr), elem_path);
+    };
   } else if (dtype == DataType::Int(16)) {
-    return LiteralDoc::Int(*reinterpret_cast<const int16_t*>(data), p);
+    element_printer = [](void* ptr, const ObjectPath& elem_path) {
+      return LiteralDoc::Int(*reinterpret_cast<const int16_t*>(ptr), elem_path);
+    };
   } else if (dtype == DataType::Int(32)) {
-    return LiteralDoc::Int(*reinterpret_cast<const int32_t*>(data), p);
+    element_printer = [](void* ptr, const ObjectPath& elem_path) {
+      return LiteralDoc::Int(*reinterpret_cast<const int32_t*>(ptr), elem_path);
+    };
   } else if (dtype == DataType::Int(64)) {
-    return LiteralDoc::Int(*reinterpret_cast<const int64_t*>(data), p);
+    element_printer = [](void* ptr, const ObjectPath& elem_path) {
+      return LiteralDoc::Int(*reinterpret_cast<const int64_t*>(ptr), elem_path);
+    };
   } else if (dtype == DataType::Float(16)) {
-    // From IEEE-754 float16 definition
-    //
-    // Ref: https://en.wikipedia.org/wiki/Half-precision_floating-point_format
-    uint16_t bits = *reinterpret_cast<const uint16_t*>(data);
-    uint16_t sign_bit = (bits & 0b1000'0000'0000'0000) >> 15;
-    uint16_t exponent = (bits & 0b0111'1100'0000'0000) >> 10;
-    uint16_t fraction = (bits & 0b0000'0011'1111'1111) >> 0;
+    element_printer = [](void* ptr, const ObjectPath& elem_path) {
+      // From IEEE-754 float16 definition
+      //
+      // Ref: https://en.wikipedia.org/wiki/Half-precision_floating-point_format
+      uint16_t bits = *reinterpret_cast<const uint16_t*>(ptr);
+      uint16_t sign_bit = (bits & 0b1000'0000'0000'0000) >> 15;
+      uint16_t exponent = (bits & 0b0111'1100'0000'0000) >> 10;
+      uint16_t fraction = (bits & 0b0000'0011'1111'1111) >> 0;
 
-    double value;
-    if (exponent == 0b1'1111 && fraction == 0) {
-      value = std::numeric_limits<double>::infinity();
-    } else if (exponent == 0b1'1111) {
-      value = std::numeric_limits<double>::quiet_NaN();
-    } else if (exponent == 0 && fraction == 0) {
-      value = 0.0;
-    } else if (exponent == 0) {
-      value = std::pow(2.0, -24) * static_cast<double>(fraction);
-    } else {
-      value = std::pow(2.0, static_cast<double>(exponent) - 25) *
-              static_cast<double>(fraction | (1 << 10));
-    }
-    if (sign_bit) {
-      value *= -1.0;
-    }
+      double value;
+      if (exponent == 0b1'1111 && fraction == 0) {
+        value = std::numeric_limits<double>::infinity();
+      } else if (exponent == 0b1'1111) {
+        value = std::numeric_limits<double>::quiet_NaN();
+      } else if (exponent == 0 && fraction == 0) {
+        value = 0.0;
+      } else if (exponent == 0) {
+        value = std::pow(2.0, -24) * static_cast<double>(fraction);
+      } else {
+        value = std::pow(2.0, static_cast<double>(exponent) - 25) *
+                static_cast<double>(fraction | (1 << 10));
+      }
+      if (sign_bit) {
+        value *= -1.0;
+      }
 
-    return LiteralDoc::Float(value, p);
+      return LiteralDoc::Float(value, elem_path);
+    };
   } else if (dtype == DataType::Float(32)) {
-    return LiteralDoc::Float(*reinterpret_cast<const float*>(data), p);
+    element_printer = [](void* ptr, const ObjectPath& elem_path) {
+      return LiteralDoc::Float(*reinterpret_cast<const float*>(ptr), elem_path);
+    };
   } else if (dtype == DataType::Float(64)) {
-    return LiteralDoc::Float(*reinterpret_cast<const double*>(data), p);
+    element_printer = [](void* ptr, const ObjectPath& elem_path) {
+      return LiteralDoc::Float(*reinterpret_cast<const double*>(ptr), elem_path);
+    };
   } else if (dtype == DataType::Bool()) {
-    return LiteralDoc::Boolean(*reinterpret_cast<const uint8_t*>(data), p);
+    element_printer = [](void* ptr, const ObjectPath& elem_path) {
+      return LiteralDoc::Boolean(*reinterpret_cast<const uint8_t*>(ptr), elem_path);
+    };
+
   } else {
+    return NullOpt;
+  }
+
+  size_t elem_nbytes = (array->dtype.bits * array->dtype.lanes + 7) / 8;
+  void* base_ptr = static_cast<char*>(array->data) + array->byte_offset;
+  auto get_ptr_to_element = [&](std::vector<size_t> indices) -> void* {
+    ICHECK_EQ(indices.size(), array->ndim);
+
+    size_t elem_offset = 0;
+    if (array->strides) {
+      for (int i = 0; i < array->ndim; i++) {
+        elem_offset += indices[i] * array->strides[i];
+      }
+    } else {
+      for (int i = 0; i < array->ndim; i++) {
+        elem_offset *= array->shape[i];
+        elem_offset += indices[i];
+      }
+    }
+
+    return static_cast<char*>(base_ptr) + elem_offset * elem_nbytes;
+  };
+
+  if (array->ndim == 0) {
+    return element_printer(get_ptr_to_element({}), path);
+  } else if (array->ndim == 1) {
+    Array<ExprDoc> elements;
+    for (size_t i = 0; i < array->shape[0]; i++) {
+      elements.push_back(element_printer(get_ptr_to_element({i}), path->ArrayIndex(i)));
+    }
+    return ListDoc(elements);
+  } else if (array->ndim == 2) {
+    Array<ExprDoc> elements;
+    for (size_t i = 0; i < array->shape[0]; i++) {
+      Array<ExprDoc> row;
+      for (size_t j = 0; j < array->shape[1]; j++) {
+        row.push_back(
+            element_printer(get_ptr_to_element({i, j}), path->ArrayIndex(i)->ArrayIndex(j)));
+      }
+      elements.push_back(ListDoc(row));
+    }
+    return ListDoc(elements);
+  } else {
+    // For now, only supporting inline constants with low
+    // dimensionality.  Can generalize later if necessary.
     return NullOpt;
   }
 }
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<relax::Constant>(  //
-        "", [](relax::Constant n, ObjectPath n_p, IRDocsifier d) -> Doc {
-          if (Optional<ExprDoc> s = SpecialScalar(n->data, n_p->Attr("data"))) {
-            if (n->struct_info_.as<relax::distributed::DTensorStructInfoNode>()) {
-              ExprDoc ann = d->AsDoc<ExprDoc>(n->struct_info_, n_p->Attr("struct_info_"));
-              return Relax(d, "dist.const")->Call({s.value(), ann});
+        "", [](relax::Constant node, ObjectPath path, IRDocsifier d) -> Doc {
+          ExprDoc value = [&]() {
+            if (node->data.Shape()->Product() <= 16) {
+              if (Optional<ExprDoc> opt = InlineConstant(node->data, path->Attr("data"))) {
+                return opt.value();
+              }
             }
-            return Relax(d, "const")
-                ->Call({
-                    s.value(),
-                    LiteralDoc::DataType(n->data.DataType(), n_p->Attr("data")->Attr("dtype")),
-                });
-          }
-          return d->AddMetadata(n);
+
+            return d->AddMetadata(node->data);
+          }();
+
+          ExprDoc ann = [&]() -> ExprDoc {
+            if (auto tensor_sinfo = node->struct_info_.as<relax::TensorStructInfoNode>()) {
+              if (tensor_sinfo->ndim == 0) {
+                return LiteralDoc::DataType(tensor_sinfo->dtype,
+                                            path->Attr("struct_info_")->Attr("dtype"));
+              }
+            }
+            return d->AsDoc<ExprDoc>(node->struct_info_, path->Attr("struct_info_"));
+          }();
+
+          auto type_name = (node->struct_info_.as<relax::distributed::DTensorStructInfoNode>())
+                               ? "dist.const"
+                               : "const";
+
+          return Relax(d, type_name)->Call({value, ann});
         });
 
 Doc PrintRelaxVar(relax::Var n, ObjectPath p, IRDocsifier d) {
