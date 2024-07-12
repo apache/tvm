@@ -150,7 +150,7 @@ Optional<ExprDoc> InlineConstant(const runtime::NDArray& array, const ObjectPath
 
   size_t elem_nbytes = (array->dtype.bits * array->dtype.lanes + 7) / 8;
   void* base_ptr = static_cast<char*>(array->data) + array->byte_offset;
-  auto get_ptr_to_element = [&](std::vector<size_t> indices) -> void* {
+  auto get_ptr_to_element = [&](std::vector<int> indices) -> void* {
     ICHECK_EQ(indices.size(), array->ndim);
 
     size_t elem_offset = 0;
@@ -172,15 +172,15 @@ Optional<ExprDoc> InlineConstant(const runtime::NDArray& array, const ObjectPath
     return element_printer(get_ptr_to_element({}), path);
   } else if (array->ndim == 1) {
     Array<ExprDoc> elements;
-    for (size_t i = 0; i < array->shape[0]; i++) {
+    for (int i = 0; i < array->shape[0]; i++) {
       elements.push_back(element_printer(get_ptr_to_element({i}), path->ArrayIndex(i)));
     }
     return ListDoc(elements);
   } else if (array->ndim == 2) {
     Array<ExprDoc> elements;
-    for (size_t i = 0; i < array->shape[0]; i++) {
+    for (int i = 0; i < array->shape[0]; i++) {
       Array<ExprDoc> row;
-      for (size_t j = 0; j < array->shape[1]; j++) {
+      for (int j = 0; j < array->shape[1]; j++) {
         row.push_back(
             element_printer(get_ptr_to_element({i, j}), path->ArrayIndex(i)->ArrayIndex(j)));
       }
