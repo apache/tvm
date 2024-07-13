@@ -33,4 +33,4 @@
 	url = https://github.com/flashinfer-ai/flashinfer.git
 [submodule "3rdparty/zlib"]
 	path = 3rdparty/zlib
-  url = https://github.com/madler/zlib.git
+	url = https://github.com/madler/zlib.git
