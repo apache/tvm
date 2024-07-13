@@ -29,7 +29,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  BuildPackage:
+  BuildPackageLinux:
     if: github.repository == 'gpgpu/apache-tvm'
     runs-on: blr-ubuntu-tvm01
     steps:
@@ -161,3 +161,41 @@ jobs:
            git push origin -f --tags
            rm -rf nightly
            mv adreno-utils.tar.bz2 ${BUILD_WHEEL_PATH}/
+  BuildPackageWindows:
+    if: ${{ github.repository == 'gpgpu/apache-tvm' }}
+    runs-on: tvm-windows
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: 'recursive'
+          ref: ''
+      - name: Compile
+        shell: powershell
+        run: |
+           Push-Location
+           New-Item -ItemType Directory -Force -Path "./build"
+           cd build
+           cp ../cmake/config.cmake .
+           Add-Content config.cmake "set(USE_OPENCL $ENV:OPENCL_SDK)"
+           Add-Content config.cmake "set(USE_LLVM $ENV:LLVM_CONFIG)"
+           Add-Content config.cmake "set(USE_ADRENO_ACCL $ENV:ADRENOACCL_SDK)"
+           Add-Content config.cmake "set(USE_ADRENO_ACCL_GRAPH_EXECUTOR $ENV:ADRENOACCL_SDK)"
+           cmake .. -G "Visual Studio 17 2022" -A x64
+           cmake --build . --config Release --parallel $env:NUMBER_OF_PROCESSORS
+           Pop-Location
+      - name: Check Build Status
+        shell: powershell
+        run: |
+           $env:PYTHONPATH = "$pwd\python"
+           python -c "import tvm; print(tvm.__path__)"
+      - name: Build Package and Publish
+        shell: powershell
+        run: |
+           cd python
+           $Env:WHEEL_EXT_NAME="_adreno_cpu"
+           python.exe .\setup.py bdist_wheel --plat-name win_amd64
+           try { gh release delete nightly-win --cleanup-tag --yes --repo $Env:GITHUB_REPOSITORY } catch { }
+           gh release create nightly-win --latest --title nightly-win --repo $Env:GITHUB_REPOSITORY --notes "Windows nightly builds"
+           foreach ($i in Get-ChildItem -Path dist) {gh release upload nightly-win .\dist\$i --clobber --repo $Env:GITHUB_REPOSITORY}
+        env:
+           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
