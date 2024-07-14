@@ -745,8 +745,8 @@ def instantiate_template(func_name, annotations, func_args):
             attrs["qkv"] = func_args[0]
             attrs["num_queries"] = s = annotations["num_queries"]
             attrs["num_keys"] = annotations["num_keys"]
-            if len(func_args) > 5 and not is_var_len:  # +1 for workspace, the last arg
-                attrs["bias"] = func_args[4]
+            if len(func_args) > 2 and not is_var_len:  # +1 for workspace, the last arg
+                attrs["bias"] = func_args[1]
         else:
             raise NotImplementedError()
 

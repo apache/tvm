@@ -1568,11 +1568,14 @@ def scaled_dot_product_attention(
     Parameters
     ----------
     query : Tensor
-        Tensor representing current attention lookup.
+        Tensor representing current attention lookup of shape
+        [batch, seq_len, num_heads, head_size].
     key : Tensor
-        Tensor representing cross attention mapping.
+        Tensor representing cross attention mapping of shape
+        [batch, seq_len_kv, num_heads_kv, head_size].
     value : Tensor
-        Tensor representing embedded attention values.
+        Tensor representing embedded attention values of shape
+        [batch, seq_len_kv, num_heads_kv, head_size_value].
     attn_mask : Optional[Tensor]
         Optional mask for attention, not yet supported.
     is_causal : Optional[bool]
