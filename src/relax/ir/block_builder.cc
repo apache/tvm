@@ -221,7 +221,8 @@ class BlockBuilderImpl : public BlockBuilderNode {
         analyzer_.MarkGlobalNonNegValue(shape_var);
       } else {
         const PrimExpr& old_shape_expr = (*it).second;
-        CHECK(analyzer_.CanProveEqual(old_shape_expr, shape_expr))
+        CHECK(old_shape_expr.same_as(shape_expr) ||
+              analyzer_.CanProveEqual(old_shape_expr, shape_expr))
             << "Inconsistent shape var " << shape_var << " in scope: " << old_shape_expr << " vs "
             << shape_expr;
       }
@@ -261,6 +262,8 @@ class BlockBuilderImpl : public BlockBuilderNode {
     cur_frame->bindings.push_back(match_cast);
     // NOTE match shape do not follow simple binding rule
     // as a result should not appear in binding table.
+
+    AddDefinitionToScope(var);
     return var;
   }
 
@@ -296,6 +299,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
       // NOTE match shape do not follow simple binding rule
       // as a result should not appear in binding table.
       cur_frame->bindings.push_back(binding);
+      AddDefinitionToScope(match_cast->var);
     } else {
       LOG(FATAL) << "Unsupported binding type: " << binding->GetTypeKey();
     }

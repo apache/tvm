@@ -810,7 +810,8 @@ Expr ExprMutator::VisitWithNewScope(const Expr& expr, Optional<Array<Var>> param
   builder_->BeginInnerScope();
   // Inner scope also includes any TIR variables that are defined by
   // MatchCast nodes, and are internal to the scope.
-  Expr ret = ExprFunctor::VisitExpr(expr);
+  Expr ret = this->VisitExpr(expr);
+
   builder_->EndScope();
 
   // Normalization (and the resulting StructInfo inference) of the

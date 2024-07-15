@@ -377,6 +377,148 @@ def test_recursive_rewrite_rules():
     tvm.ir.assert_structural_equal(expected, after)
 
 
+def test_rewrite_of_arbitrary_dtype():
+    """A pattern-match may apply to a tensor with unknown dtype
+
+    In this test case, a pattern identifies `R.strided_slice` usage
+    which returns the last slice of an array, and replaces it with a
+    view into the input array.
+
+    """
+
+    @R.rewriter
+    class Rewriter:
+        @R.function
+        def pattern(A: R.Tensor(["M", "N"])) -> R.Tensor(["N"]):
+            M = T.int64()
+            N = T.int64()
+            last_slice_2d: R.Tensor([1, N]) = R.strided_slice(A, axes=[0], begin=[M - 1], end=[M])
+            last_slice_1d: R.Tensor([N]) = R.squeeze(last_slice_2d, axis=0)
+            return last_slice_1d
+
+        @R.function
+        def replacement(A: R.Tensor(["M", "N"])) -> R.Tensor(["N"]):
+            M = T.int64()
+            N = T.int64()
+
+            # TODO(Lunderberg): Improve this syntax.  A Relax
+            # PrimValue (e.g. `A.dtype.bits`) should be usable in any
+            # Relax context that accepts a `PrimExpr`.  Currently,
+            # this requires `R.match_cast` to produce a TIR symbolic
+            # variable from the Relax PrimValue.
+            bits_per_element = T.uint8()
+            _ = R.match_cast(
+                A.dtype.bits,
+                R.Prim(value=bits_per_element),
+            )
+            lanes_per_element = T.uint16()
+            _ = R.match_cast(
+                A.dtype.lanes,
+                R.Prim(value=lanes_per_element),
+            )
+
+            last_slice = R.memory.view(
+                A,
+                [N],
+                relative_byte_offset=(M - 1)
+                * N
+                * T.ceildiv(
+                    bits_per_element.astype("int64") * lanes_per_element.astype("int64"), 8
+                ),
+            )
+            return last_slice
+
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(
+            A: R.Tensor([32, 16], "float16"),
+            B: R.Tensor(["P", "Q"], "int4x8"),
+            C: R.Tensor([16, 32]),
+        ):
+            P = T.int64()
+            Q = T.int64()
+
+            A_slice_2d = R.strided_slice(A, axes=[0], begin=[31], end=[32])
+            A_slice_1d = R.squeeze(A_slice_2d, axis=0)
+
+            B_slice_2d = R.strided_slice(B, axes=[0], begin=[P - 1], end=[P])
+            B_slice_1d = R.squeeze(B_slice_2d, axis=0)
+
+            C_slice_2d = R.strided_slice(C, axes=[0], begin=[15], end=[16])
+            C_slice_1d = R.squeeze(C_slice_2d, axis=0)
+
+            return (A_slice_1d, B_slice_1d, C_slice_1d)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            A: R.Tensor([32, 16], "float16"),
+            B: R.Tensor(["P", "Q"], "int4x8"),
+            C: R.Tensor([16, 32]),
+        ):
+            P = T.int64()
+            Q = T.int64()
+
+            # The pattern matches any 2-d tensor, with any data type.
+            # When the match's shape and dtype are both known,
+            # normalization and canonicalization produces a statically
+            # known value for `relative_byte_offset`.
+            #
+            # Relative offset is `(31 rows) *
+            #                     (16 elements/row) *
+            #                     (2 bytes/element)`
+            A_slice_1d = R.memory.view(A, shape=[16], relative_byte_offset=992)
+
+            # The pattern can also match a 2-d tensor with dynamic
+            # shape.  The `relative_byte_offset` uses the known
+            # datatype (4 bytes for each int4x8), but with dynamic
+            # shape variables substituted in where required.
+            #
+            # Relative offset is `((P-1) rows) *
+            #                     (Q elements/row) *
+            #                     (4 bytes/element)`
+            B_slice_1d = R.memory.view(B, shape=[Q], relative_byte_offset=(P - 1) * Q * 4)
+
+            # The pattern can also match a 2-d tensor with static
+            # shape, but unknown data type.  The
+            # `relative_byte_offset` is determined based on the known
+            # number of elements, and the dynamic size of each
+            # element.
+            #
+            # Relative offset is `(15 rows) *
+            #                     (32 elements/row) *
+            #                     (ceildiv(bits*lanes,8) bytes/element)`
+            C_bits_per_element = T.uint8()
+            C_bits_prim_value = C.dtype.bits
+            _ = R.match_cast(
+                C_bits_prim_value,
+                R.Prim(value=C_bits_per_element),
+            )
+            C_lanes_per_element = T.uint16()
+            C_lanes_prim_value = C.dtype.lanes
+            _ = R.match_cast(
+                C_lanes_prim_value,
+                R.Prim(value=C_lanes_per_element),
+            )
+
+            C_slice_1d = R.memory.view(
+                C,
+                shape=[32],
+                relative_byte_offset=(
+                    (C_bits_per_element.astype("int64") * C_lanes_per_element.astype("int64") + 7)
+                    // 8
+                )
+                * 480,
+            )
+
+            return (A_slice_1d, B_slice_1d, C_slice_1d)
+
+    after = Rewriter(Before)
+    tvm.ir.assert_structural_equal(Expected, after)
+
+
 def test_rewrite_may_introduce_private_relax_subroutines():
     """The replacement may contain subroutines"""
 

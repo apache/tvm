@@ -21,6 +21,8 @@
 #include <tvm/relax/struct_info.h>
 #include <tvm/relax/type.h>
 
+#include <unordered_set>
+
 namespace tvm {
 namespace relax {
 
@@ -588,6 +590,19 @@ Function::Function(Array<Var> params, Expr body, Optional<StructInfo> ret_struct
         << "Function do not have a return signature and body is not normalized";
     ret_struct_info = body_sinfo;
   }
+
+  auto f_shape_var_map = [&] {
+    auto tir_vars = DefinableTIRVarsInStructInfo(TupleStructInfo(params.Map(GetStructInfo)));
+    std::unordered_set<tir::Var> lookup(tir_vars.begin(), tir_vars.end());
+    return [lookup = std::move(lookup)](const tir::Var& var) -> Optional<PrimExpr> {
+      if (lookup.count(var)) {
+        return var;
+      } else {
+        return NullOpt;
+      }
+    };
+  }();
+  ret_struct_info = EraseToWellDefined(ret_struct_info.value(), f_shape_var_map);
 
   FuncStructInfo func_sinfo(param_sinfo, ret_struct_info.value(), is_pure);
 

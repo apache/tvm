@@ -727,6 +727,9 @@ ExprRewriter ExprRewriter::FromModule(IRModule mod) {
     } else if (auto func = expr.as<ExternFuncNode>()) {
       return ExternFuncPattern(func->global_symbol);
 
+    } else if (auto prim = expr.as<PrimValueNode>()) {
+      return StructInfoPattern(WildcardPattern(), PrimStructInfo(prim->value));
+
     } else {
       LOG(FATAL) << "TypeError: "
                  << "Cannot convert Relax expression of type " << expr->GetTypeKey()
