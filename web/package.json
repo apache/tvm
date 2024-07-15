@@ -2,7 +2,7 @@
   "name": "tvmjs",
   "displayName": "TVM Wasm JS runtime",
   "license": "Apache-2.0",
-  "version": "0.17.0-dev0",
+  "version": "0.17.0",
   "files": [
     "lib"
   ],
