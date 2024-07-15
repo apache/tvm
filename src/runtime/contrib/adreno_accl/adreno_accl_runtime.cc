@@ -119,7 +119,6 @@ class AdrenoACCLRuntime : public JSONRuntimeBase {
 #ifdef TVM_GRAPH_EXECUTOR_ADRENO_ACCL
 
   void InitAdrenoACCL() {
-    LOG(WARNING) << "InitAdrenoACCL Called";
     workspace = cl::OpenCLWorkspace::Global();
     workspace->Init();
     tentry = workspace->GetThreadEntry();
@@ -186,7 +185,7 @@ class AdrenoACCLRuntime : public JSONRuntimeBase {
         }
       } else if (node.GetOpType() == "const") {
       } else {
-        LOG(WARNING) << "Build Engine: Unknown Node:" << node.GetOpType();
+        LOG(FATAL) << "Build Engine: Unknown Node:" << node.GetOpType();
       }
     }
 
@@ -218,7 +217,8 @@ class AdrenoACCLRuntime : public JSONRuntimeBase {
     }
     DLDataType tvm_dtype = node.GetOpDataType()[0];
     if (tvm_dtype.code == DLDataTypeCode::kDLFloat && tvm_dtype.bits == 32) {
-      matmul_desc.props["out_dtype"] = "float32";
+      std::string out_dtype = "float32";
+      matmul_desc.props["out_dtype"] = out_dtype;
     }
     if (weight_shape[1] > 0) {
       unsigned int N = weight_shape[1];
