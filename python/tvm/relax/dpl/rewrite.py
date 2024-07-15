@@ -71,6 +71,48 @@ class ExprRewriter(Object):
     def from_module(mod: IRModule) -> "ExprRewriter":
         """Construct a rewriter from an IRModule
 
+        The IRModule must have two publicly-exposed functions,
+        `pattern` and `replacement`, where `pattern` and `replacement`
+        have the same function signature, as shown in the example
+        below.
+
+        .. code-block:: python
+
+            @I.ir_module
+            class RewriteAddIntoMultiply:
+                @R.function
+                def pattern(A: R.Tensor):
+                    B = A + A
+                    return B
+
+                @R.function
+                def replacement(A: R.Tensor):
+                    B = A * 2
+                    return B
+
+            rewriter = ExprRewriter.from_module(RewriteAddIntoMultiply)
+            rewritten_ir_module = rewriter(ir_module)
+
+        To support the common case of defining an IRModule with
+        TVMScript, then immediately turning it into a rewriter, the
+        `@R.rewriter` annotation can be used.
+
+        .. code-block:: python
+
+            @R.rewriter
+            class RewriteAddIntoMultiply:
+                @R.function
+                def pattern(A: R.Tensor):
+                    B = A + A
+                    return B
+
+                @R.function
+                def replacement(A: R.Tensor):
+                    B = A * 2
+                    return B
+
+            rewritten_ir_module = RewriteAddIntoMultiply(ir_module)
+
         Parameters
         ----------
         mod: IRModule

@@ -161,7 +161,7 @@ class BlockBuilderNode : public Object {
   virtual void BeginInnerScope() = 0;
 
   /*!
-   * \brief Append a definition to the cuurrent scope.
+   * \brief Append a definition to the current scope.
    *
    * \param var A variable within the current scope.
    *
