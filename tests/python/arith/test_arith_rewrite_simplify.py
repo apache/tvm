@@ -321,6 +321,42 @@ class TestSelect(BaseCompare):
     )
 
 
+class TestCancellation(BaseCompare):
+    var_int8 = tir.Var("var_int8", "int8")
+    var_int32 = tir.Var("var_int32", "int32")
+    var_int64 = tir.Var("var_int64", "int64")
+    var_uint8 = tir.Var("var_uint8", "uint8")
+    var_uint32 = tir.Var("var_uint32", "uint32")
+    var_uint64 = tir.Var("var_uint64", "uint64")
+
+    test_case = tvm.testing.parameter(
+        TestCase(tir.const(5, "int64") - tir.const(5, "int64"), tir.const(0, "int64")),
+        TestCase(tir.const(5, "uint8") - tir.const(5, "uint8"), tir.const(0, "uint8")),
+        TestCase(var_int8 - var_int8, tir.const(0, "int8")),
+        TestCase(var_int32 - var_int32, tir.const(0, "int32")),
+        TestCase(var_int64 - var_int64, tir.const(0, "int64")),
+        TestCase(var_uint8 - var_uint8, tir.const(0, "uint8")),
+        TestCase(var_uint32 - var_uint32, tir.const(0, "uint32")),
+        TestCase(var_uint64 - var_uint64, tir.const(0, "uint64")),
+        TestCase(tir.EQ(tir.const(5, "int64"), tir.const(5, "int64")), tir.const(True, "bool")),
+        TestCase(tir.EQ(tir.const(5, "uint8"), tir.const(5, "uint8")), tir.const(True, "bool")),
+        TestCase(tir.EQ(var_int8, var_int8), tir.const(True, "bool")),
+        TestCase(tir.EQ(var_int32, var_int32), tir.const(True, "bool")),
+        TestCase(tir.EQ(var_int64, var_int64), tir.const(True, "bool")),
+        TestCase(tir.EQ(var_uint8, var_uint8), tir.const(True, "bool")),
+        TestCase(tir.EQ(var_uint32, var_uint32), tir.const(True, "bool")),
+        TestCase(tir.EQ(var_uint64, var_uint64), tir.const(True, "bool")),
+        TestCase(tir.NE(tir.const(5, "int64"), tir.const(5, "int64")), tir.const(False, "bool")),
+        TestCase(tir.NE(tir.const(5, "uint8"), tir.const(5, "uint8")), tir.const(False, "bool")),
+        TestCase(tir.NE(var_int8, var_int8), tir.const(False, "bool")),
+        TestCase(tir.NE(var_int32, var_int32), tir.const(False, "bool")),
+        TestCase(tir.NE(var_int64, var_int64), tir.const(False, "bool")),
+        TestCase(tir.NE(var_uint8, var_uint8), tir.const(False, "bool")),
+        TestCase(tir.NE(var_uint32, var_uint32), tir.const(False, "bool")),
+        TestCase(tir.NE(var_uint64, var_uint64), tir.const(False, "bool")),
+    )
+
+
 class TestAddIndex(BaseCompare):
     x, y, z = te.var("x"), te.var("y"), te.var("z")
 
