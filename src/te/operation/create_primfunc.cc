@@ -79,7 +79,7 @@ class BufferSubstituter : public StmtExprMutator {
     auto load = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(op));
     auto it = buffer_map_.find(load->buffer.get());
     if (it != buffer_map_.end()) {
-      return BufferLoad(it->second, load->indices, load->span);
+      return BufferLoad(it->second, load->indices, load->predicate, load->span);
     }
     return load;
   }
@@ -88,7 +88,7 @@ class BufferSubstituter : public StmtExprMutator {
     auto store = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(op));
     auto it = buffer_map_.find(store->buffer.get());
     if (it != buffer_map_.end()) {
-      return BufferStore(it->second, store->value, store->indices, store->span);
+      return BufferStore(it->second, store->value, store->indices, store->predicate, store->span);
     }
     return store;
   }
@@ -109,7 +109,7 @@ struct CreateFuncInfo {
   /*! \brief The buffers should be allocated at function root. */
   Array<Buffer> root_alloc;
   /*! \brief The NameSupply to make block name unique. */
-  NameSupply name_supply = NameSupply("");
+  NameSupply name_supply;
 
   String FreshName(String base_name) { return name_supply->FreshName(base_name); }
 

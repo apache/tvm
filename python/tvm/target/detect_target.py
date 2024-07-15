@@ -81,7 +81,11 @@ def _detect_vulkan(dev: Device) -> Target:
             "supports_int8": f_get_target_property(dev, "supports_int8"),
             "supports_int16": f_get_target_property(dev, "supports_int16"),
             "supports_int64": f_get_target_property(dev, "supports_int64"),
+            "supports_8bit_buffer": f_get_target_property(dev, "supports_8bit_buffer"),
             "supports_16bit_buffer": f_get_target_property(dev, "supports_16bit_buffer"),
+            "supports_storage_buffer_storage_class": f_get_target_property(
+                dev, "supports_storage_buffer_storage_class"
+            ),
         }
     )
 

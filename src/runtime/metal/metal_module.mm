@@ -206,7 +206,8 @@ class MetalWrappedFunc {
       auto maxTotalThreadsPerThreadgroup = scache_[device_id].maxTotalThreadsPerThreadgroup;
       CHECK_LE(blockSize, maxTotalThreadsPerThreadgroup);
       // attach error message directly in this functio
-      id<MTLCommandBuffer> cb = stream->GetCommandBuffer(/* attach_error_callback= */ false);
+      id<MTLCommandBuffer> cb = stream->GetCommandBuffer(/*label=*/"TVMKernel:" + func_name_,
+                                                         /*attach_error_callback=*/false);
       id<MTLComputeCommandEncoder> encoder = [cb computeCommandEncoder];
       [encoder setComputePipelineState:scache_[device_id]];
       for (size_t i = 0; i < num_buffer_args_; ++i) {

@@ -40,7 +40,7 @@ def test_recast_simple():
     pre = before()
     post = recast(pre, "int8", "int32")
     expected = expected()
-    assert tvm.ir.structural_equal(expected, post)
+    tvm.ir.assert_structural_equal(expected, post)
 
 
 def test_recast_medium():
@@ -71,7 +71,7 @@ def test_recast_medium():
     pre = before()
     post = recast(pre, "int8", "int32")
     expected = expected()
-    assert tvm.ir.structural_equal(expected, post)
+    tvm.ir.assert_structural_equal(expected, post)
 
 
 def test_recast_skip():
@@ -99,7 +99,7 @@ def test_recast_skip():
     pre = before()
     post = recast(pre, "int8", "int32", skip_layers=[0])
     expected = expected()
-    assert tvm.ir.structural_equal(expected, post)
+    tvm.ir.assert_structural_equal(expected, post)
 
 
 def test_recast_concat():
@@ -123,7 +123,7 @@ def test_recast_concat():
     pre = before()
     post = recast(pre, "float16", "float32", ops=["concatenate"])
     expected = expected()
-    assert tvm.ir.structural_equal(expected, post)
+    tvm.ir.assert_structural_equal(expected, post)
 
 
 def test_recast_relu():
@@ -151,7 +151,7 @@ def test_recast_relu():
     pre = before()
     post = recast(pre, "float16", "float16", ops=["nn.conv2d", "nn.relu"])
     expected = expected()
-    assert tvm.ir.structural_equal(expected, post)
+    tvm.ir.assert_structural_equal(expected, post)
 
 
 if __name__ == "__main__":

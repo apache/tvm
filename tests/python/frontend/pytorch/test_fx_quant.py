@@ -44,7 +44,7 @@ def quantize_and_build(model, in_size):
             mod, _ = relay.frontend.from_pytorch(script_module, [(input_name, inp.shape)])
         with tvm.testing.enable_span_filling():
             mod_with_span, _ = relay.frontend.from_pytorch(script_module, [(input_name, inp.shape)])
-        assert tvm.ir.structural_equal(mod, mod_with_span, map_free_vars=True)
+        tvm.ir.assert_structural_equal(mod, mod_with_span, map_free_vars=True)
         mod = relay.transform.InferType()(mod)
 
         # Make sure that the model is quantized

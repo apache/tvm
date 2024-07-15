@@ -37,7 +37,7 @@ class ExternFunctionRewriter : ExprMutator {
   using ExprMutator::VisitExpr_;
 
   ExternFunctionRewriter(IRModule mod, size_t max_workspace_size)
-      : ExprMutator(mod), name_sup_(""), max_workspace_size_(max_workspace_size) {}
+      : ExprMutator(mod), max_workspace_size_(max_workspace_size) {}
 
   std::unordered_map<const GlobalVarNode*, Function> Run() {
     std::unordered_map<const GlobalVarNode*, Function> ret;
@@ -144,8 +144,7 @@ class WorkspaceProvider : ExprMutator {
     if (!workspace_var_main_.defined()) {
       auto shape = ShapeExpr({Integer(max_workspace_size_)});
       auto ty = DataTypeImm(DataType::UInt(8));
-      auto storage = MakeVMAllocStorage(shape, PrimValue::Int64(0), ty);
-      auto workspace = MakeVMAllocTensor(storage, PrimValue::Int64(0), shape, ty);
+      auto workspace = MakeAllocTensor(shape, ty, PrimValue::Int64(0));
       workspace_var_main_ = builder_->Emit(workspace, "workspace_main");
     }
     for (const auto& binding : block_node->bindings) {

@@ -106,14 +106,13 @@ class CallTracer : public ExprVisitor {
   bool all_callees_found_{true};
 
   // Record the names of all encountered functions.
-  std::unordered_set<GlobalVar, ObjectPtrHash, ObjectPtrEqual> called_funcs_;
+  std::unordered_set<GlobalVar> called_funcs_;
 
   // Record the expressions that are being visited.
   std::unordered_set<Expr, ObjectPtrHash, ObjectPtrEqual> visiting_;
 };
 
-IRModule RemoveUnusedFunctions(
-    IRModule mod, const std::unordered_set<GlobalVar, ObjectPtrHash, ObjectPtrEqual>& entry_funcs) {
+IRModule RemoveUnusedFunctions(IRModule mod, const std::unordered_set<GlobalVar>& entry_funcs) {
   CallTracer tracer(mod);
   for (const auto& gvar : entry_funcs) {
     tracer.VisitExpr(gvar);
@@ -144,7 +143,7 @@ IRModule DeadCodeElimination(const IRModule& arg_mod, Array<runtime::String> ent
 
   // S0: Make a list of all user-specified entry functions and
   // externally-visible entry functions.
-  std::unordered_set<GlobalVar, ObjectPtrHash, ObjectPtrEqual> entry_functions;
+  std::unordered_set<GlobalVar> entry_functions;
   for (const auto& name : entry_function_names) {
     entry_functions.insert(mod->GetGlobalVar(name));
   }

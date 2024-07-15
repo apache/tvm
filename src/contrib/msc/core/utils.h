@@ -142,7 +142,7 @@ class StringUtils {
    */
   TVM_DLL static const std::tuple<String, String> SplitOnce(const String& src_string,
                                                             const String& sep,
-                                                            bool from_left = true);
+                                                            bool from_left = false);
 
   /*!
    * \brief Get the tokens between left and right.

@@ -607,16 +607,19 @@ def wrap_nested(expr: rx.Expr, name: str) -> Union[Tensor, Sequence[Tensor]]:
 
 def _attribute_finder(root: Module, prefix: str, condition_yield: Callable[[Any], bool]):
     """Find attributes that satisfy the condition recursively"""
+    if isinstance(root, ModuleList):
+        for i, subitem in enumerate(root):
+            yield from _attribute_finder(subitem, prefix + f"{i}.", condition_yield)
+        return
     for name, item in root.__dict__.items():
         if condition_yield(item):
             yield prefix + name, item
         elif isinstance(item, ModuleList):
-            for i, subitem in enumerate(item):
-                yield from _attribute_finder(
-                    subitem,
-                    prefix + name + f".{i}.",
-                    condition_yield,
-                )
+            yield from _attribute_finder(
+                item,
+                prefix + name + ".",
+                condition_yield,
+            )
         elif isinstance(item, Module):
             yield from _attribute_finder(
                 item,

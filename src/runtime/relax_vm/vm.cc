@@ -678,9 +678,23 @@ RegType VirtualMachineImpl::InvokeBytecode(Index gf_idx, const std::vector<RegTy
   }
 
   // load arguments to the register file
-  ICHECK_EQ(static_cast<size_t>(gfunc.num_args), args.size())
-      << "ValueError: Invoking function " << gfunc.name << " requires " << gfunc.num_args
-      << " inputs but only " << args.size() << " inputs are provided.";
+  ICHECK_EQ(static_cast<size_t>(gfunc.num_args), args.size()) << "ValueError: Invoking function "
+                                                              << gfunc.name << " expects "
+                                                              << gfunc.num_args << " arguments" <<
+      [&]() {
+        std::stringstream ss;
+        if (gfunc.param_names.size()) {
+          ss << " (";
+          for (size_t i = 0; i < gfunc.param_names.size(); i++) {
+            if (i) {
+              ss << ", ";
+            }
+            ss << gfunc.param_names[i];
+          }
+          ss << ")";
+        }
+        return ss.str();
+      }() << ", but " << args.size() << " arguments were provided.";
   for (size_t i = 0; i < args.size(); ++i) {
     WriteRegister(frames_.back().get(), i, args[i]);
   }

@@ -727,6 +727,24 @@ void value::_serialize(Iter oi, int indent) const {
       if (indent != -1) {
         ++indent;
       }
+
+#if PICOJSON_USE_ORDERED_OBJECT
+      for (auto i = u_.object_->ordered_keys().begin(); i != u_.object_->ordered_keys().end();
+           ++i) {
+        if (i != u_.object_->ordered_keys().begin()) {
+          *oi++ = ',';
+        }
+        if (indent != -1) {
+          _indent(oi, indent);
+        }
+        serialize_str(*i, oi);
+        *oi++ = ':';
+        if (indent != -1) {
+          *oi++ = ' ';
+        }
+        u_.object_->at(*i)._serialize(oi, indent);
+      }
+#else
       for (object::const_iterator i = u_.object_->begin(); i != u_.object_->end(); ++i) {
         if (i != u_.object_->begin()) {
           *oi++ = ',';
@@ -741,6 +759,7 @@ void value::_serialize(Iter oi, int indent) const {
         }
         i->second._serialize(oi, indent);
       }
+#endif
       if (indent != -1) {
         --indent;
         if (!u_.object_->empty()) {

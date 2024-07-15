@@ -101,7 +101,7 @@ def test_cse():
     # And this is the name and value of this variable
     cse_var_1 = body.var  # Keep the variable accessible for later checking the replacements
     assert body.var.name == "cse_var_1"
-    assert tvm.ir.structural_equal(body.value, z1 + z2)
+    tvm.ir.assert_structural_equal(body.value, z1 + z2)
     assert isinstance(body.body, tvm.tir.SeqStmt)
 
     body = body.body
@@ -126,19 +126,19 @@ def test_cse():
     # And this is the name and value of this variable
     cse_var_2 = body.var  # Keep the variable accessible for later checking the replacements
     assert body.var.name == "cse_var_2"
-    assert tvm.ir.structural_equal(body.value, x + y)
+    tvm.ir.assert_structural_equal(body.value, x + y)
 
     body = body.body
 
     body.var.name == "a"
     # Check that the replacement has been done correctly!
-    assert tvm.ir.structural_equal(body.value, cse_var_2 + cse_var_1)
+    tvm.ir.assert_structural_equal(body.value, cse_var_2 + cse_var_1)
 
     body = body.body
 
     body.var.name == "b"
     # Check that the replacement has been done correctly!
-    assert tvm.ir.structural_equal(body.value, cse_var_2 + z3)
+    tvm.ir.assert_structural_equal(body.value, cse_var_2 + z3)
 
     assert isinstance(body.body, tvm.tir.BufferStore)
 
@@ -201,7 +201,7 @@ def test_cse_ifNode_1():
     # The let-in introduced by the CSE should appear now, inside the Then branch of the If node
     assert body.var.name == "cse_var_1"
     # and it should contain the expression (y+z) that was redundant
-    assert tvm.ir.structural_equal(body.value, y + z)
+    tvm.ir.assert_structural_equal(body.value, y + z)
 
 
 # Second test for if nodes : Some duplicated computations appear in both the Then and Else branch.
@@ -252,7 +252,7 @@ def test_cse_ifNode_2():
     # The let-in introduced by the CSE should appear now, at the toplevel (i.e. before the If)
     assert body.var.name == "cse_var_1"
     # and it should contain the expression (y+z) that was redundant
-    assert tvm.ir.structural_equal(body.value, y + z)
+    tvm.ir.assert_structural_equal(body.value, y + z)
 
 
 # -------------------------------------------------------------------------------------------------
@@ -294,7 +294,7 @@ def test_cse_cascade():
     cse_var_2 = body.var  # Keep the variable accessible for later checking the replacements
     assert body.var.name == "cse_var_2"
     # and it should contain the expression (x+y)
-    assert tvm.ir.structural_equal(body.value, (x + y))
+    tvm.ir.assert_structural_equal(body.value, (x + y))
 
     body = body.body
 
@@ -304,7 +304,7 @@ def test_cse_cascade():
     cse_var_1 = body.var  # Keep the variable accessible for later checking the replacements
     assert body.var.name == "cse_var_1"
     # and it should contain the expression cse_var_2+z
-    assert tvm.ir.structural_equal(body.value, cse_var_2 + z)
+    tvm.ir.assert_structural_equal(body.value, cse_var_2 + z)
 
     body = body.body
 
@@ -317,9 +317,9 @@ def test_cse_cascade():
     store2 = body[1]
     store3 = body[2]
 
-    assert tvm.ir.structural_equal(store1.value, cse_var_1)
-    assert tvm.ir.structural_equal(store2.value, cse_var_1)
-    assert tvm.ir.structural_equal(store3.value, cse_var_2)
+    tvm.ir.assert_structural_equal(store1.value, cse_var_1)
+    tvm.ir.assert_structural_equal(store2.value, cse_var_1)
+    tvm.ir.assert_structural_equal(store3.value, cse_var_2)
 
 
 # -----------------------------------------------------------------------------------------
@@ -342,7 +342,7 @@ def test_no_normalization_without_commoning():
     body = body["main"].body  # Gets the body of the main, i.e. the full statement
 
     assert body.var.name == "a"
-    assert tvm.ir.structural_equal(body.value, x + (y + z))
+    tvm.ir.assert_structural_equal(body.value, x + (y + z))
 
 
 # -------------------------------------------------

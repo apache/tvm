@@ -27,16 +27,6 @@ from tvm.relay.op.contrib.ethosn import InlineNonComputeIntensivePartitions
 from . import infrastructure as tei
 
 
-def _assert_structural_equal(a, b):
-    """Check structural equality of two Relay expressions."""
-    reason = (
-        "Actual and expected relay functions are not equal. "
-        "InlineNonComputeIntensiveSubgraphs is not correctly "
-        "transforming the input graph."
-    )
-    assert tvm.ir.structural_equal(a, b, map_free_vars=True), reason
-
-
 @requires_ethosn
 def test_single_reshape():
     """Check that a single reshape is inlined correctly."""
@@ -57,7 +47,7 @@ def test_single_reshape():
     mod = before()
     mod = InlineNonComputeIntensivePartitions()(mod)
     expected_mod = expected()
-    _assert_structural_equal(mod, expected_mod)
+    tvm.ir.assert_structural_equal(mod, expected_mod)
 
 
 @requires_ethosn
@@ -86,7 +76,7 @@ def test_multiple_non_compute_intensive_ops():
     mod = before()
     mod = InlineNonComputeIntensivePartitions()(mod)
     expected_mod = expected()
-    _assert_structural_equal(mod, expected_mod)
+    tvm.ir.assert_structural_equal(mod, expected_mod)
 
 
 @requires_ethosn
@@ -105,7 +95,7 @@ def test_compute_intensive_ops():
     mod = before()
     transformed_mod = InlineNonComputeIntensivePartitions()(mod)
     for global_var in mod.get_global_vars():
-        _assert_structural_equal(mod[global_var], transformed_mod[global_var])
+        tvm.ir.assert_structural_equal(mod[global_var], transformed_mod[global_var])
 
 
 @requires_ethosn
@@ -164,4 +154,8 @@ def test_multiple_partitioned_functions():
     mod = InlineNonComputeIntensivePartitions()(mod)
     expected_mod = expected()
     for global_var in mod.get_global_vars():
-        _assert_structural_equal(mod[global_var.name_hint], expected_mod[global_var.name_hint])
+        tvm.ir.assert_structural_equal(
+            mod[global_var.name_hint],
+            expected_mod[global_var.name_hint],
+            map_free_vars=True,
+        )

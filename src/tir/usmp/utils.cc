@@ -181,7 +181,11 @@ Map<String, PoolAllocation> GetIOPoolAllocations(
 }
 
 static Integer CalculateExtentsSize(const DataType& dtype, const Array<PrimExpr>& extents) {
-  size_t element_size_bytes = dtype.bytes();
+  if (dtype.is_scalable_vector()) {
+    // We cannot statically calculate workspace for scalable types
+    return Integer();
+  }
+  size_t element_size_bytes = dtype.bytes() * dtype.lanes();
   size_t num_elements = 1;
   for (const auto& ext : extents) {
     if (ext->IsInstance<IntImmNode>()) {

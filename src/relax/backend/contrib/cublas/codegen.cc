@@ -22,6 +22,7 @@
  * \brief Implementation of the CUBLAS JSON serializer.
  */
 #include <tvm/ir/module.h>
+#include <tvm/runtime/builtin_fp16.h>
 
 #include <string>
 
@@ -61,7 +62,7 @@ class CublasJSONSerializer : public JSONSerializer {
       inputs_tmp.insert(inputs_tmp.end(), res.begin(), res.end());
     }
 
-    ICHECK(inputs_tmp.size() <= 3);
+    ICHECK(inputs_tmp.size() <= 4);
     NodeEntries inputs(inputs_tmp.size());
 
     auto arg_idx = backend::ExtractArgIdx(composite_name, fn);
@@ -69,11 +70,33 @@ class CublasJSONSerializer : public JSONSerializer {
     inputs[1] = inputs_tmp[arg_idx["rhs"]->value];
     if (inputs_tmp.size() == 3) {
       inputs[2] = inputs_tmp[arg_idx["bias"]->value];
+    } else if (inputs_tmp.size() == 4) {
+      inputs[2] = inputs_tmp[arg_idx["scaleA"]->value];
+      inputs[3] = inputs_tmp[arg_idx["scaleB"]->value];
     }
 
     auto node = std::make_shared<JSONGraphNode>(composite_name, /* name_ */
                                                 "kernel",       /* op_type_ */
                                                 inputs, 1 /* num_outputs_ */);
+    if (composite_name.find("dequantize") != std::string::npos) {
+      const CallNode* dequantize_call = backend::GetOpInFunction(fn, "relax.dequantize");
+      if (dequantize_call->args[1]->IsInstance<ConstantNode>()) {
+        const auto* const_expr = dequantize_call->args[1].as<ConstantNode>();
+        auto sinfo = Downcast<TensorStructInfo>(const_expr->struct_info_);
+        float alpha = 1.0;
+        if (sinfo->dtype == DataType::Float(16)) {
+          alpha = __gnu_h2f_ieee(static_cast<uint16_t*>(const_expr->data->data)[0]);
+        } else {
+          ICHECK(sinfo->dtype == DataType::Float(32));
+          alpha = static_cast<float*>(const_expr->data->data)[0];
+        }
+
+        std::vector<std::string> dq_scale = {backend::to_str(alpha)};
+        std::vector<dmlc::any> dq_scale_attr;
+        dq_scale_attr.emplace_back(dq_scale);
+        node->SetAttr("dq_scale", dq_scale_attr);
+      }
+    }
 
     const CallNode* root_call = backend::GetOpInFunction(fn, "relax.matmul");
     SetCallNodeAttribute(node, root_call);

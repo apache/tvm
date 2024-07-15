@@ -65,9 +65,7 @@ NDIntSet NDIntSetEval(Region region, PrimExpr predicate,
 class Var2BufferCollector : public StmtExprVisitor {
  public:
   /*! \brief Map the buffer var to all aliased buffers. */
-  std::unordered_map<Var, std::unordered_set<Buffer, ObjectPtrHash, ObjectPtrEqual>, ObjectPtrHash,
-                     ObjectPtrEqual>
-      var2buffer_;
+  std::unordered_map<Var, std::unordered_set<Buffer, ObjectPtrHash, ObjectPtrEqual>> var2buffer_;
 
  private:
   void VisitStmt_(const BufferStoreNode* op) final {
@@ -465,12 +463,10 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
    * define point. ancestor_loops_[0: n_ancester_loop] should not be relaxed when
    * we evaluate this buffer's access regions.
    */
-  std::unordered_map<Var, size_t, ObjectPtrHash, ObjectPtrEqual> buffer_scope_depth_;
+  std::unordered_map<Var, size_t> buffer_scope_depth_;
 
   /*! \brief Map the buffer var to all aliased buffers. */
-  std::unordered_map<Var, std::unordered_set<Buffer, ObjectPtrHash, ObjectPtrEqual>, ObjectPtrHash,
-                     ObjectPtrEqual>
-      var2buffer_;
+  std::unordered_map<Var, std::unordered_set<Buffer, ObjectPtrHash, ObjectPtrEqual>> var2buffer_;
 
   /*! \brief The map from loop vars to their iter range. */
   std::unordered_map<const VarNode*, arith::IntSet> dom_map_;
@@ -518,8 +514,7 @@ struct BufferAllocInfo {
 /*! \brief Reallocate the buffers with minimal region. */
 class BufferCompactor : public StmtExprMutator {
  public:
-  explicit BufferCompactor(
-      std::unordered_map<Var, BufferAllocInfo, ObjectPtrHash, ObjectPtrEqual> buffer_info)
+  explicit BufferCompactor(std::unordered_map<Var, BufferAllocInfo> buffer_info)
       : buffer_info_(std::move(buffer_info)) {}
 
   Stmt VisitStmt_(const BufferStoreNode* _op) final {
@@ -649,7 +644,7 @@ class BufferCompactor : public StmtExprMutator {
   }
 
   /*! \brief Map buffer var to the allocation information about each buffer. */
-  std::unordered_map<Var, BufferAllocInfo, ObjectPtrHash, ObjectPtrEqual> buffer_info_;
+  std::unordered_map<Var, BufferAllocInfo> buffer_info_;
 };
 
 Array<PrimExpr> CalcStrides(const BufferAllocInfo& alloc_info, const Array<PrimExpr>& shape) {
@@ -678,10 +673,9 @@ Array<PrimExpr> CalcStrides(const BufferAllocInfo& alloc_info, const Array<PrimE
 Stmt BufferCompactorCompact(
     const PrimFunc& f,
     const std::unordered_map<Buffer, Region, ObjectPtrHash, ObjectPtrEqual>& regions,
-    const std::unordered_map<Var, StorageAlignAnnotation, ObjectPtrHash, ObjectPtrEqual>&
-        storage_align) {
+    const std::unordered_map<Var, StorageAlignAnnotation>& storage_align) {
   // collect buffer allocation info for no-alias buffers
-  std::unordered_map<Var, BufferAllocInfo, ObjectPtrHash, ObjectPtrEqual> buffer_info;
+  std::unordered_map<Var, BufferAllocInfo> buffer_info;
   for (const auto& kv : regions) {
     const Buffer& buffer = kv.first;
     // set dim alignment info

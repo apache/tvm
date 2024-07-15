@@ -15,12 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 """Indexing operators."""
-from typing import List, Optional, Union
+from typing import Optional, Union
 
 from tvm.ir.expr import PrimExpr
 
 from . import _ffi_api
 from ..expr import Expr
+from .. import args_converter
 
 PrimExprLike = Union[int, PrimExpr]
 
@@ -52,12 +53,13 @@ def take(x: Expr, indices: Expr, axis: Optional[int] = None) -> Expr:
     return _ffi_api.take(x, indices, axis)  # type: ignore
 
 
+@args_converter.auto
 def strided_slice(
     x: Expr,
-    axes: List[int],
-    begin: List[PrimExprLike],
-    end: List[PrimExprLike],
-    strides: Optional[List[PrimExprLike]] = None,
+    axes: Expr,
+    begin: Expr,
+    end: Expr,
+    strides: Optional[Expr] = None,
     assume_inbound: bool = False,
 ) -> Expr:
     """Strided slice of a tensor.

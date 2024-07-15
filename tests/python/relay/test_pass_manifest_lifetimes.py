@@ -35,7 +35,7 @@ def optimize_and_check(before_program, after_program, passes):
     print(optimized_program)
     print("Expected:")
     print(after_program)
-    assert tvm.ir.structural_equal(optimized_program, after_program, map_free_vars=True)
+    tvm.ir.assert_structural_equal(optimized_program, after_program, map_free_vars=True)
 
 
 def test_simple_linear():

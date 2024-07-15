@@ -120,6 +120,7 @@ class Session(Object):
         shape: Sequence[int],
         dtype: str,
         device: Optional[Device] = None,
+        worker0_only: bool = False,
     ) -> DRef:
         """Create an empty NDArray on all workers and attach them to a DRef.
 
@@ -127,20 +128,36 @@ class Session(Object):
         ----------
         shape : tuple of int
             The shape of the NDArray.
+
         dtype : str
             The data type of the NDArray.
+
         device : Optional[Device] = None
             The device of the NDArray.
+
+        worker0_only: bool
+            If False (default), allocate an array on each worker.  If
+            True, only allocate an array on worker0.
 
         Returns
         -------
         array : DRef
             The created NDArray.
+
         """
         if device is None:
             device = Device(device_type=0, device_id=0)
         func = self._get_cached_method("runtime.disco.empty")
-        return func(ShapeTuple(shape), dtype, device)
+        return func(ShapeTuple(shape), dtype, device, worker0_only)
+
+    def shutdown(self):
+        """Shut down the Disco session"""
+        _ffi_api.SessionShutdown(self)  # type: ignore # pylint: disable=no-member
+
+    @property
+    def num_workers(self) -> int:
+        """Return the number of workers in the session"""
+        return _ffi_api.SessionGetNumWorkers(self)  # type: ignore # pylint: disable=no-member
 
     def get_global_func(self, name: str) -> DRef:
         """Get a global function on workers.
@@ -232,17 +249,34 @@ class Session(Object):
         """
         return _ffi_api.SessionCopyFromWorker0(self, host_array, remote_array)  # type: ignore # pylint: disable=no-member
 
-    def copy_to_worker_0(self, host_array: NDArray, remote_array: DRef) -> None:
+    def copy_to_worker_0(self, host_array: NDArray, remote_array: Optional[DRef] = None) -> DRef:
         """Copy the controller-side NDArray to worker-0.
 
         Parameters
         ----------
-        host_array : numpy.ndarray
-            The array to be copied from worker-0.
-        remote_array : NDArray
-            The NDArray on worker-0.
+        host_array : NDArray
+
+            The array to be copied to worker-0.
+
+        remote_array : Optiona[DRef]
+
+            The destination NDArray on worker-0.
+
+        Returns
+        -------
+        output_array: DRef
+
+            The DRef containing the copied data on worker0, and
+            NullOpt on all other workers.  If `remote_array` was
+            provided, this return value is the same as `remote_array`.
+            Otherwise, it is the newly allocated space.
+
         """
-        return _ffi_api.SessionCopyToWorker0(self, host_array, remote_array)  # type: ignore # pylint: disable=no-member
+        if remote_array is None:
+            remote_array = self.empty(host_array.shape, host_array.dtype, worker0_only=True)
+
+        _ffi_api.SessionCopyToWorker0(self, host_array, remote_array)  # type: ignore # pylint: disable=no-member
+        return remote_array
 
     def load_vm_module(
         self,
@@ -285,6 +319,40 @@ class Session(Object):
         _ffi_api.SessionInitCCL(self, ccl, ShapeTuple(device_ids))  # type: ignore # pylint: disable=no-member
         self._clear_ipc_memory_pool()
 
+    def broadcast(self, src: Union[np.ndarray, NDArray], dst: Optional[DRef] = None) -> DRef:
+        """Broadcast an array to all workers
+
+        Parameters
+        ----------
+        src: Union[np.ndarray, NDArray]
+
+            The array to be broadcasted.
+
+        dst: Optional[DRef]
+
+            The output array.  If None, an array matching the shape
+            and dtype of `src` will be allocated on each worker.
+
+        Returns
+        -------
+        output_array: DRef
+
+            The DRef containing the broadcasted data on all workers.
+            If `dst` was provided, this return value is the same as
+            `dst`.  Otherwise, it is the newly allocated space.
+
+        """
+        if not isinstance(src, NDArray):
+            src = _as_NDArray(src)
+
+        if dst is None:
+            dst = self.empty(src.shape, src.dtype)
+
+        src_dref = self.copy_to_worker_0(src)
+        self.broadcast_from_worker0(src_dref, dst)
+
+        return dst
+
     def broadcast_from_worker0(self, src: DRef, dst: DRef) -> DRef:
         """Broadcast an array from worker-0 to all other workers.
 
@@ -295,6 +363,45 @@ class Session(Object):
         """
         func = self._get_cached_method("runtime.disco.broadcast_from_worker0")
         func(src, dst)
+
+    def scatter(self, src: Union[np.ndarray, NDArray], dst: Optional[DRef] = None) -> DRef:
+        """Scatter an array across all workers
+
+        Parameters
+        ----------
+        src: Union[np.ndarray, NDArray]
+
+            The array to be scattered.  The first dimension of this
+            array, `src.shape[0]`, must be equal to the number of
+            workers.
+
+        dst: Optional[DRef]
+
+            The output array.  If None, an array with compatible shape
+            and the same dtype as `src` will be allocated on each
+            worker.
+
+        Returns
+        -------
+        output_array: DRef
+
+            The DRef containing the scattered data on all workers.
+            If `dst` was provided, this return value is the same as
+            `dst`.  Otherwise, it is the newly allocated space.
+
+        """
+        assert src.shape[0] == self.num_workers
+
+        if not isinstance(src, NDArray):
+            src = _as_NDArray(src)
+
+        if dst is None:
+            dst = self.empty(src.shape[1:], src.dtype)
+
+        src_dref = self.copy_to_worker_0(src)
+        self.scatter_from_worker0(src_dref, dst)
+
+        return dst
 
     def scatter_from_worker0(self, from_array: DRef, to_array: DRef) -> None:
         """Scatter an array from worker-0 to all other workers.

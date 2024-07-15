@@ -230,7 +230,7 @@ def test_reduce_combiner_simplify():
 
         # Check that the remaining components are the expected ones.
         for lhs, rhs in zip(simplified.source, reference_simplified_sources[j]):
-            assert tvm.ir.structural_equal(lhs, rhs)
+            tvm.ir.assert_structural_equal(lhs, rhs)
 
     # Test that components with side effects are not removed
     dummy = tvm.ir.GlobalVar("dummy")

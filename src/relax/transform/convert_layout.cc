@@ -107,11 +107,22 @@ class LayoutConvertMutator : public ExprMutator {
   }
 
   Array<Expr> RewriteArgs(const Array<Expr>& args, const Array<NLayout>& to) {
-    ICHECK(args.size() == to.size());
+    // The `Array<Expr> args` array contains both tensor and
+    // non-tensor arguments, where the `Array<NLayout> to` array only
+    // contains tensor arguments.  The number of tensor arguments in
+    // `args` should match the full extent of `to`.
+
+    ICHECK_LE(to.size(), args.size());
+
     std::vector<Expr> new_args;
     for (size_t i = 0; i < args.size(); ++i) {
-      new_args.push_back(RewriteExpr(args[i], to[i]));
+      Expr arg = args[i];
+      if (i < to.size()) {
+        arg = RewriteExpr(arg, to[i]);
+      }
+      new_args.push_back(arg);
     }
+
     return std::move(new_args);
   }
 
@@ -189,7 +200,11 @@ class LayoutConvertMutator : public ExprMutator {
     } else {
       // Convert the layout according to the inferred layout output.
       Array<Expr> new_args = RewriteArgs(call_node->args, res.value()->input_layouts);
+      for (const auto& [i, arg] : res.value()->new_args) {
+        new_args.Set(i->value, arg);
+      }
       new_call->args = std::move(new_args);
+
       new_call->attrs = std::move(res.value()->new_attrs);
       Expr cur_call = builder_->Normalize(Call(new_call));
       if (binding->var->IsInstance<DataflowVarNode>()) {
@@ -281,7 +296,7 @@ class LayoutConvertMutator : public ExprMutator {
     }
   }
 
-  std::unordered_map<Var, NLayout, ObjectPtrHash, ObjectPtrEqual> var_layout_map_;
+  std::unordered_map<Var, NLayout> var_layout_map_;
   Map<String, Array<String>> desired_layouts_;
 };  // namespace relax
 

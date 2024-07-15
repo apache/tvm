@@ -230,6 +230,16 @@ void GraphExecutor::SetOutputZeroCopy(int index, DLTensor* data_ref) {
   // check the consistency of output
   CheckExternalDLTensor(data_ref, output_node_eid);
 
+  if (nodes_[output_node.node_id].op_type == "tvm_op" &&
+      nodes_[output_node.node_id].param.func_name == "__nop") {
+    const NodeEntry& input_node = nodes_[output_node.node_id].inputs[0];
+    output_node_eid = this->entry_id(input_node);
+    ICHECK_NE(node_output_dltensors_[output_node_eid].size(), 0);
+    for (DLTensor* t : node_output_dltensors_[output_node_eid]) {
+      t->data = static_cast<char*>(data_ref->data) + data_ref->byte_offset;
+    }
+  }
+
   // Update the data pointer for output op
   for (DLTensor* t : output_dltensors_[output_node_eid]) {
     t->data = static_cast<char*>(data_ref->data) + data_ref->byte_offset;
@@ -540,6 +550,13 @@ void GraphExecutor::SetupOpExecs() {
           input_dltensors_[input_eid].push_back(
               const_cast<DLTensor*>(data_entry_[eid].operator->()));
         }
+      } else {
+        const auto& arg_node = nodes_[inode.inputs[i].node_id];
+        if (arg_node.op_type == "tvm_op" && arg_node.param.func_name == "__nop") {
+          uint32_t arg_input_eid = this->entry_id(arg_node.inputs[0]);
+          input_dltensors_[arg_input_eid].push_back(
+              static_cast<DLTensor*>(op_args->arg_values[i].v_handle));
+        }
       }
       // check if any model output is the input of the op
       if (output_node_eids.count(input_eid) > 0) {
@@ -553,6 +570,11 @@ void GraphExecutor::SetupOpExecs() {
       // check if op output is model output
       if (output_node_eids.count(output_eid) > 0) {
         output_dltensors_[output_eid].push_back(
+            static_cast<DLTensor*>(op_args->arg_values[i].v_handle));
+      } else {
+        // If the node is not an output, keep its output for record and support set_output_zero_copy
+        // of reshape __nop nodes.
+        node_output_dltensors_[output_eid].push_back(
             static_cast<DLTensor*>(op_args->arg_values[i].v_handle));
       }
     }

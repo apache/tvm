@@ -106,7 +106,7 @@ def test_threefry_generate_infer():
     rand1 = tvm.relay.random.threefry_generate(key, oshape)
     f = tvm.relay.Function([], rand1)
     f = run_infer_type(f)
-    assert tvm.ir.structural_equal(f.ret_type, expected_type)
+    tvm.ir.assert_structural_equal(f.ret_type, expected_type)
 
 
 def test_threefry_split_infer():
@@ -117,7 +117,7 @@ def test_threefry_split_infer():
     out_keys = tvm.relay.random.threefry_split(key)
     f = tvm.relay.Function([], out_keys)
     f = run_infer_type(f)
-    assert tvm.ir.structural_equal(f.ret_type, expected_type)
+    tvm.ir.assert_structural_equal(f.ret_type, expected_type)
 
 
 def test_uniform_infer():
@@ -132,7 +132,7 @@ def test_uniform_infer():
         rand1 = tvm.relay.random.uniform(key, oshape, odtype)
         f = tvm.relay.Function([], rand1)
         f = run_infer_type(f)
-        assert tvm.ir.structural_equal(f.ret_type, expected_type)
+        tvm.ir.assert_structural_equal(f.ret_type, expected_type)
 
 
 @pytest.mark.xfail(raises=tvm.error.TVMError)

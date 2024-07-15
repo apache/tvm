@@ -70,6 +70,7 @@ def matmul(
     assert (
         len(tensor_a.shape) >= 2 and len(tensor_b.shape) >= 2
     ), "1-dim matmul is not supported yet."
+
     if bias is not None:
         assert len(bias.shape) == 1
     if out_dtype is None:
@@ -229,6 +230,7 @@ def dense(
     output : tvm.te.Tensor
         2-D with shape [batch, out_dim]
     """
+
     return matmul(
         data,
         weight,

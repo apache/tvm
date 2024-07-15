@@ -251,7 +251,7 @@ CachedFunc PrimFuncFor(const Function& source_func, const Target& target,
 /*! \brief A specialization of PrimFuncFor, meant to be used when the names of constants do not
  * matter. */
 inline CachedFunc PrimFuncFor(const Function& source_func, const Target& target) {
-  return PrimFuncFor(source_func, target, GlobalVarSupply(NameSupply("")), NameSupply(""));
+  return PrimFuncFor(source_func, target, GlobalVarSupply(), NameSupply());
 }
 
 CachedFunc ShapeFuncFor(const Function& prim_func, const Target& target,

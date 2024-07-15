@@ -17,5 +17,6 @@
 """Relax backends"""
 
 from . import contrib
-from .pattern_registry import get_pattern, get_patterns_with_prefix
+from .dispatch_sampling import DispatchSampling
 from .dispatch_sort_scan import DispatchSortScan
+from .pattern_registry import get_pattern, get_patterns_with_prefix

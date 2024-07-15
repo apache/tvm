@@ -1298,7 +1298,7 @@ class LayoutInfer : public ExprVisitor {
   bool infered_;
   Map<Var, Expr> var_map_;
   Array<Expr> ordered_exprs_;
-  std::unordered_map<Var, NLayout, ObjectPtrHash, ObjectPtrEqual> var_layout_map_;
+  std::unordered_map<Var, NLayout> var_layout_map_;
   Map<Expr, Function> local_funcs_;
 };  // class LayoutInfer
 

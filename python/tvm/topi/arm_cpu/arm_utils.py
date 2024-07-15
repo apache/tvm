@@ -19,9 +19,10 @@
 
 import tvm
 from tvm.target import Target
+from tvm.tir.expr import PrimExpr
 
 
-def get_tiling_A(interleave_A, in_dtype):
+def get_tiling_A(interleave_A, in_dtype, use_sme=False):
     """Compute the tiling information for matrix A in C=A*B,
     which corresponds to the im2col-transformed input matrix.
 
@@ -41,6 +42,8 @@ def get_tiling_A(interleave_A, in_dtype):
         determines if A is expected to be interleaved
     in_dtype : str
         input datatype
+    use_sme : bool
+        determines if SME operations on scalable vectors are expected
 
     Returns
     ----------
@@ -64,8 +67,14 @@ def get_tiling_A(interleave_A, in_dtype):
             # tile size should be 4x16
             tile_M = 4
             tile_K = 16
+    elif use_sme:
+        tile_M = 2 * tvm.tir.get_vscale_expr(in_dtype)
+        if in_dtype == "float16":
+            tile_K = tvm.tir.get_vscale_expr(in_dtype)
+        else:
+            tile_K = 2 * tvm.tir.get_vscale_expr(in_dtype)
     else:
-        # In non-quantized cases, A is not interleaved.
+        # In non-SME, non-quantized cases, A is not interleaved.
         # We are loading 4 rows from A.
         # Each row will contain 4 elements, along the dimension of reduction
         tile_M = 4
@@ -74,7 +83,7 @@ def get_tiling_A(interleave_A, in_dtype):
     return tile_M, tile_K
 
 
-def get_tiling_B_transformed(interleave_A, in_dtype, use_scalable_vectors=False):
+def get_tiling_B_transformed(interleave_A, in_dtype, use_scalable_vectors=False, use_sme=False):
     """Compute the tiling information for matrix B', where B'
     is the tiled, interleaved (and transposed) version of matrix B in C=A*B.
 
@@ -96,6 +105,8 @@ def get_tiling_B_transformed(interleave_A, in_dtype, use_scalable_vectors=False)
         input datatype
     use_scalable_vectors : bool
         determines if operations on scalable vectors are expected
+    use_sme : bool
+        determines if SME operations on scalable vectors are expected
 
 
     Returns
@@ -130,15 +141,17 @@ def get_tiling_B_transformed(interleave_A, in_dtype, use_scalable_vectors=False)
             # we load 4 rows of B' (i.e., 4 columns of B). Each of them will contain 16 elements
             tile_N = 4
             tile_K = 16
-    # In non-quantized cases, A is not interleaved.
-    elif use_scalable_vectors:
+    elif use_sme:
+        tile_N = 2 * tvm.tir.get_vscale_expr(in_dtype)
         if in_dtype == "float16":
-            # Each load from B' contains 32 * vscale elements (i.e. 32 * vscale columns from B)
-            tile_N = 32 * tvm.tir.vscale()
+            tile_K = tvm.tir.get_vscale_expr(in_dtype)
         else:
-            # Each load from B' contains 16 * vscale elements (i.e. 16 * vscale columns from B)
-            tile_N = 16 * tvm.tir.vscale()
+            tile_K = 2 * tvm.tir.get_vscale_expr(in_dtype)
+    # In non-SME, non-quantized cases, A is not interleaved.
+    elif use_scalable_vectors:
+        # Each load from B' contains 4 * scalable vectors (i.e. 4 * SVL columns from B)
         # We are loading 4 rows from B', in the dimension of reduction (i.e. 4 rows from B)
+        tile_N = 4 * tvm.tir.get_vscale_expr(in_dtype)
         tile_K = 4
     elif in_dtype == "float16" and target.features.has_fp16_simd:
         # Each load from B' contains 32 elements (i.e. 32 columns from B)
@@ -184,6 +197,31 @@ def get_conv2d_im2col_padding(M, K, tile_M, tile_K):
         pad_K = tile_K - (K % tile_K)
 
     return pad_M, pad_K
+
+
+def pad_dim_to_multiple(dim: PrimExpr, multiple: PrimExpr):
+    """
+    Compute the padding required to reach specified multiple.
+
+    Parameters
+    ----------
+    dim : PrimExpr
+        Current size of the dim.
+    multiple : PrimExpr
+        Multiple to pad up to.
+
+    Returns
+    -------
+    padded_dim : PrimExpr
+        The new dim size.
+    pad_value : PrimExpr
+        The padding required.
+    """
+    pad_value = 0
+    if dim % multiple != 0:
+        pad_value = multiple - (dim % multiple)
+    padded_dim = dim + pad_value
+    return padded_dim, pad_value
 
 
 def get_conv2d_weights_padding(N, K, tile_N, tile_K):
