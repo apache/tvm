@@ -731,7 +731,7 @@ def test_execute_view_with_new_byte_offset_ensure_aligned(target, dev):
                 shape=R.shape([16, 64]),
                 relative_byte_offset=32 * 64 * 4,
             )
-            C = R.memory.ensure_aligned(B)
+            C = R.memory.ensure_zero_offset(B)
             return C
 
     built = tvm.relax.build(Module, target=target)

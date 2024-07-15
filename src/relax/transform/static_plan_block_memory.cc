@@ -286,12 +286,12 @@ class TokenAllocator1D {
   std::vector<StorageToken> full_pool_;
 };
 
-/*! \brief Check if the input op is a memory op that return the same buffer as the input buffer. */
+/*! \brief Check if the input op is a memory op that may return the same buffer. */
 bool IsInplaceMemoryOp(const Expr& op) {
   static const Op& reshape_op = Op::Get("relax.reshape");
   static const Op& view_op = Op::Get("relax.memory.view");
-  static const Op& ensure_aligned_op = Op::Get("relax.memory.ensure_aligned");
-  return op.same_as(reshape_op) || op.same_as(view_op) || op.same_as(ensure_aligned_op);
+  static const Op& ensure_zero_offset_op = Op::Get("relax.memory.ensure_zero_offset");
+  return op.same_as(reshape_op) || op.same_as(view_op) || op.same_as(ensure_zero_offset_op);
 }
 
 /*! \brief The base class for the storage allocation visitor. */

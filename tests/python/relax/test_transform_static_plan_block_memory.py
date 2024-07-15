@@ -1461,7 +1461,7 @@ def test_view():
             cls = Before
             x = R.builtin.alloc_tensor(R.shape([16, 16]), dtype="float32", runtime_device_index=0)
             x1 = R.memory.view(x, [128], "float32", 0)
-            x2 = R.memory.ensure_aligned(x1)
+            x2 = R.memory.ensure_zero_offset(x1)
             y = R.builtin.alloc_tensor(R.shape([128]), dtype="float32", runtime_device_index=0)
             cls.tir_exp(x2, y)
             z = R.builtin.alloc_tensor(R.shape([128]), dtype="float32", runtime_device_index=0)
@@ -1486,7 +1486,7 @@ def test_view():
             x1: R.Tensor((128,), dtype="float32") = R.memory.view(
                 x, R.shape([128]), R.dtype("float32"), R.prim_value(0)
             )
-            x2: R.Tensor((128,), dtype="float32") = R.memory.ensure_aligned(x1)
+            x2: R.Tensor((128,), dtype="float32") = R.memory.ensure_zero_offset(x1)
             storage1: R.Object = R.memory.alloc_storage(
                 R.shape([512]), R.prim_value(0), R.str("global"), R.dtype("float32")
             )

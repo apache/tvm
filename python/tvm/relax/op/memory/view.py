@@ -94,7 +94,7 @@ def view(
     return _ffi_api.view(data, shape, dtype, relative_byte_offset)  # type: ignore
 
 
-def ensure_aligned(data: Expr) -> Expr:
+def ensure_zero_offset(data: Expr) -> Expr:
     """
     Ensure the tensor has elem_offset == 0. A copy will be made if necessary.
 
@@ -106,6 +106,6 @@ def ensure_aligned(data: Expr) -> Expr:
     Results
     -------
     result : relax.Expr
-        The aligned tensor
+        The tensor with elem_offset == 0
     """
-    return _ffi_api.ensure_aligned(data)  # type: ignore
+    return _ffi_api.ensure_zero_offset(data)  # type: ignore

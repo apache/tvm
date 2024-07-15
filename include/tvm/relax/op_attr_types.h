@@ -79,6 +79,15 @@ using FNormalize = runtime::TypedPackedFunc<Expr(const BlockBuilder& bb, Call ca
  */
 using FLegalize = runtime::TypedPackedFunc<Expr(const BlockBuilder& bb, const Call& call)>;
 
+/*! \brief The function type of a function to lower the runtime builtin.
+ *
+ * A builtin function may be lowered to a lowered form in `LowerRuntimeBuiltin`.
+ *
+* \param bb The BlockBuilder context.
+* \param call The call to be lowered.
+*/
+using FLowerBuiltin = runtime::TypedPackedFunc<Expr(const BlockBuilder& bb, const Call& call)>;
+
 /*!
  * \brief Gradient for a specific op.
  *

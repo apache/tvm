@@ -240,6 +240,10 @@ class TVM_DLL DeviceAPI {
     return device_type != kDLCPU && device_type != kDLMicroDev;
   }
 
+  static bool SupportsPointerArithmetics(int device_type) {
+    return device_type != kDLVulkan;
+  }
+
  protected:
   /*!
    * \brief copy data from one place to another
