@@ -154,10 +154,10 @@ jobs:
            cp build-adreno-target/libtvm_runtime.so adreno-utils/ -rfa
            tar jcvfp adreno-utils.tar.bz2 adreno-utils
            cp adreno-utils.tar.bz2 ./nightly/ -rfa
-           gh release delete nightly --cleanup-tag --yes --repo "$GITHUB_REPOSITORY" || true
-           gh release create nightly --latest --title nightly --repo "$GITHUB_REPOSITORY" --notes "TVM Nightly builds"
-           gh release upload nightly ./nightly/* --clobber --repo "$GITHUB_REPOSITORY"
-           git tag -f -a nightly -m "Update nightly commit id"
+           gh release delete TVM-Nightly-Linux --cleanup-tag --yes --repo "$RELEASE_REPO" || true
+           gh release create TVM-Nightly-Linux --latest --title TVM-Nightly-Linux --repo "$RELEASE_REPO" --notes "TVM Nightly builds"
+           gh release upload TVM-Nightly-Linux ./nightly/* --clobber --repo "$RELEASE_REPO"
+           git tag -f -a TVM-Nightly-Linux -m "Update nightly commit id"
            git push origin -f --tags
            rm -rf nightly
            mv adreno-utils.tar.bz2 ${BUILD_WHEEL_PATH}/
@@ -194,8 +194,8 @@ jobs:
            cd python
            $Env:WHEEL_EXT_NAME="_adreno_cpu"
            python.exe .\setup.py bdist_wheel --plat-name win_amd64
-           try { gh release delete nightly-win --cleanup-tag --yes --repo $Env:GITHUB_REPOSITORY } catch { }
-           gh release create nightly-win --latest --title nightly-win --repo $Env:GITHUB_REPOSITORY --notes "Windows nightly builds"
-           foreach ($i in Get-ChildItem -Path dist) {gh release upload nightly-win .\dist\$i --clobber --repo $Env:GITHUB_REPOSITORY}
+           try { gh release delete TVM-Nightly-Windows --cleanup-tag --yes --repo $Env:RELEASE_REPO } catch { }
+           gh release create TVM-Nightly-Windows --latest --title TVM-Nightly-Windows --repo $Env:RELEASE_REPO --notes "Windows nightly builds"
+           foreach ($i in Get-ChildItem -Path dist) {gh release upload TVM-Nightly-Windows .\dist\$i --clobber --repo $Env:RELEASE_REPO}
         env:
            GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
