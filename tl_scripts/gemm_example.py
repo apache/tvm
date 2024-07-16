@@ -59,8 +59,9 @@ if __name__ == "__main__":
     M, N, K, block_M, block_N, block_K = args.m, args.n, args.k, args.bm, args.bn, args.bk
     total_flops = 2 * M * N * K
     best_latency, best_config = matmul(M, N, K, block_M, block_N, block_K, 0)
-    print(f"best_latency: {best_latency}")
-    print(f"best_config: {best_config}")
+    print(f"Best latency: {best_latency}")
+    print(f"Best TFlops: {total_flops / best_latency * 1e-9}")
+    print(f"Best config: {best_config}")
     # program = matmul(M, N, K, block_M, block_N, block_K)
     # mod, params = tl.lower(program)
 
