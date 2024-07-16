@@ -191,20 +191,20 @@ void RewriteSpec::Append(RewriteSpec other) {
   }
 }
 
-TVM_REGISTER_NODE_TYPE(ExprRewriterNode);
+TVM_REGISTER_NODE_TYPE(PatternMatchingRewriterNode);
 
-TVM_REGISTER_GLOBAL("relax.dpl.ExprRewriterFromPattern")
+TVM_REGISTER_GLOBAL("relax.dpl.PatternMatchingRewriterFromPattern")
     .set_body_typed([](DFPattern pattern,
                        TypedPackedFunc<Optional<Expr>(Expr, Map<DFPattern, Expr>)> func) {
-      return ExprRewriter::FromPattern(pattern, func);
+      return PatternMatchingRewriter::FromPattern(pattern, func);
     });
 
-TVM_REGISTER_GLOBAL("relax.dpl.ExprRewriterFromModule").set_body_typed([](IRModule mod) {
-  return ExprRewriter::FromModule(mod);
+TVM_REGISTER_GLOBAL("relax.dpl.PatternMatchingRewriterFromModule").set_body_typed([](IRModule mod) {
+  return PatternMatchingRewriter::FromModule(mod);
 });
 
-TVM_REGISTER_GLOBAL("relax.dpl.ExprRewriterApply")
-    .set_body_typed([](ExprRewriter rewriter,
+TVM_REGISTER_GLOBAL("relax.dpl.PatternMatchingRewriterApply")
+    .set_body_typed([](PatternMatchingRewriter rewriter,
                        Variant<Expr, IRModule> obj) -> Variant<Expr, IRModule> {
       if (auto expr = obj.as<Expr>()) {
         return rewriter(expr.value());
@@ -215,9 +215,9 @@ TVM_REGISTER_GLOBAL("relax.dpl.ExprRewriterApply")
       }
     });
 
-TVM_REGISTER_NODE_TYPE(PatternRewriterNode);
+TVM_REGISTER_NODE_TYPE(ExprPatternRewriterNode);
 
-RewriteSpec PatternRewriterNode::RewriteBindings(const Array<Binding>& bindings) const {
+RewriteSpec ExprPatternRewriterNode::RewriteBindings(const Array<Binding>& bindings) const {
   Map<Var, Expr> variable_rewrites;
   Map<Var, Expr> binding_lookup;
   for (const auto& binding : bindings) {
@@ -235,8 +235,8 @@ RewriteSpec PatternRewriterNode::RewriteBindings(const Array<Binding>& bindings)
   }
 }
 
-Optional<Expr> PatternRewriterNode::RewriteExpr(const Expr& expr,
-                                                const Map<Var, Expr>& bindings) const {
+Optional<Expr> ExprPatternRewriterNode::RewriteExpr(const Expr& expr,
+                                                    const Map<Var, Expr>& bindings) const {
   if (auto opt_matches = ExtractMatchedExpr(pattern, expr, bindings)) {
     auto matches = opt_matches.value();
     if (additional_bindings) {
@@ -262,14 +262,13 @@ Optional<Expr> PatternRewriterNode::RewriteExpr(const Expr& expr,
 TVM_REGISTER_GLOBAL("relax.dpl.PatternRewriter")
     .set_body_typed([](DFPattern pattern,
                        TypedPackedFunc<Optional<Expr>(Expr, Map<DFPattern, Expr>)> func) {
-      return PatternRewriter(pattern, func);
+      return ExprPatternRewriter(pattern, func);
     });
 
-PatternRewriter::PatternRewriter(DFPattern pattern,
-                                 TypedPackedFunc<Optional<Expr>(Expr, Map<DFPattern, Expr>)> func,
-                                 Optional<Array<DFPattern>> additional_bindings,
-                                 Map<GlobalVar, BaseFunc> new_subroutines) {
-  auto node = make_object<PatternRewriterNode>();
+ExprPatternRewriter::ExprPatternRewriter(
+    DFPattern pattern, TypedPackedFunc<Optional<Expr>(Expr, Map<DFPattern, Expr>)> func,
+    Optional<Array<DFPattern>> additional_bindings, Map<GlobalVar, BaseFunc> new_subroutines) {
+  auto node = make_object<ExprPatternRewriterNode>();
   node->pattern = std::move(pattern);
   node->func = std::move(func);
   node->additional_bindings = std::move(additional_bindings);
@@ -309,11 +308,12 @@ RewriteSpec OrRewriterNode::RewriteBindings(const Array<Binding>& bindings) cons
   return lhs_match;
 }
 
-TVM_REGISTER_GLOBAL("relax.dpl.OrRewriter").set_body_typed([](ExprRewriter lhs, ExprRewriter rhs) {
-  return OrRewriter(lhs, rhs);
-});
+TVM_REGISTER_GLOBAL("relax.dpl.OrRewriter")
+    .set_body_typed([](PatternMatchingRewriter lhs, PatternMatchingRewriter rhs) {
+      return OrRewriter(lhs, rhs);
+    });
 
-OrRewriter::OrRewriter(ExprRewriter lhs, ExprRewriter rhs) {
+OrRewriter::OrRewriter(PatternMatchingRewriter lhs, PatternMatchingRewriter rhs) {
   auto node = make_object<OrRewriterNode>();
   node->lhs = std::move(lhs);
   node->rhs = std::move(rhs);
@@ -621,30 +621,30 @@ TupleRewriter::TupleRewriter(Array<DFPattern> patterns,
   data_ = std::move(node);
 }
 
-ExprRewriter ExprRewriter::FromPattern(
+PatternMatchingRewriter PatternMatchingRewriter::FromPattern(
     DFPattern pattern, TypedPackedFunc<Optional<Expr>(Expr, Map<DFPattern, Expr>)> func,
     Optional<Array<DFPattern>> additional_bindings, Map<GlobalVar, BaseFunc> new_subroutines) {
   if (auto or_pattern = pattern.as<OrPatternNode>()) {
     auto new_additional_bindings = additional_bindings.value_or({});
     new_additional_bindings.push_back(pattern);
-    return OrRewriter(
-        ExprRewriter::FromPattern(or_pattern->left, func, new_additional_bindings, new_subroutines),
-        ExprRewriter::FromPattern(or_pattern->right, func, new_additional_bindings,
-                                  new_subroutines));
+    return OrRewriter(PatternMatchingRewriter::FromPattern(
+                          or_pattern->left, func, new_additional_bindings, new_subroutines),
+                      PatternMatchingRewriter::FromPattern(
+                          or_pattern->right, func, new_additional_bindings, new_subroutines));
   } else if (auto tuple_pattern = pattern.as<TuplePatternNode>()) {
     auto new_additional_bindings = additional_bindings.value_or({});
     new_additional_bindings.push_back(pattern);
     // If the Tuple appears as a Relax binding, apply it first.  As a
     // fallback, also check for implicit tuples.
     return OrRewriter(
-        PatternRewriter(pattern, func, additional_bindings, new_subroutines),
+        ExprPatternRewriter(pattern, func, additional_bindings, new_subroutines),
         TupleRewriter(tuple_pattern->fields, func, new_additional_bindings, new_subroutines));
   } else {
-    return PatternRewriter(pattern, func, additional_bindings, new_subroutines);
+    return ExprPatternRewriter(pattern, func, additional_bindings, new_subroutines);
   }
 }
 
-ExprRewriter ExprRewriter::FromModule(IRModule mod) {
+PatternMatchingRewriter PatternMatchingRewriter::FromModule(IRModule mod) {
   Function func_pattern = [&]() {
     CHECK(mod->ContainGlobalVar("pattern"))
         << "KeyError: "
@@ -780,7 +780,7 @@ ExprRewriter ExprRewriter::FromModule(IRModule mod) {
     return SeqExpr(new_blocks, func_replacement->body->body);
   };
 
-  return ExprRewriter::FromPattern(top_pattern, rewriter_func, NullOpt, new_subroutines);
+  return PatternMatchingRewriter::FromPattern(top_pattern, rewriter_func, NullOpt, new_subroutines);
 }
 
 Optional<Map<DFPattern, Expr>> ExtractMatchedExpr(DFPattern pattern, Expr expr,
@@ -807,11 +807,11 @@ TVM_REGISTER_GLOBAL("relax.dpl.match_expr").set_body_typed(MatchExpr);
  * \brief Apply pattern matching to each expression, replacing
  * matches with the output of a user-provided rewriter function.
  */
-class ExprPatternRewriter : public ExprMutator {
+class PatternMatchingMutator : public ExprMutator {
  public:
   using ExprMutator::VisitExpr_;
 
-  ExprPatternRewriter(const ExprRewriterNode* rewriter) : rewriter_(rewriter) {}
+  PatternMatchingMutator(const PatternMatchingRewriterNode* rewriter) : rewriter_(rewriter) {}
 
   Map<GlobalVar, BaseFunc> GetNewSubroutines() const { return new_subroutines_; }
 
@@ -1018,18 +1018,18 @@ class ExprPatternRewriter : public ExprMutator {
   }
 
  private:
-  const ExprRewriterNode* rewriter_;
+  const PatternMatchingRewriterNode* rewriter_;
   Map<GlobalVar, BaseFunc> new_subroutines_;
 };
 
-Expr ExprRewriter::operator()(Expr expr) {
-  ExprPatternRewriter mutator(get());
+Expr PatternMatchingRewriter::operator()(Expr expr) {
+  PatternMatchingMutator mutator(get());
   auto new_expr = mutator(expr);
   auto new_subroutines = mutator.GetNewSubroutines();
   CHECK_EQ(new_subroutines.size(), 0)
-      << "If ExprRewriter provides subroutines, "
+      << "If PatternMatchingRewriter provides subroutines, "
       << "then it must be applied to an entire IRModule.  "
-      << "However, ExprRewriter produced subroutines " << [&]() -> Array<GlobalVar> {
+      << "However, PatternMatchingRewriter produced subroutines " << [&]() -> Array<GlobalVar> {
     std::vector<GlobalVar> vec;
     for (const auto& [gvar, func] : new_subroutines) {
       vec.push_back(gvar);
@@ -1042,9 +1042,9 @@ Expr ExprRewriter::operator()(Expr expr) {
   return new_expr;
 }
 
-IRModule ExprRewriterNode::operator()(IRModule mod,
-                                      const tvm::transform::PassContext& pass_ctx) const {
-  ExprPatternRewriter mutator(this);
+IRModule PatternMatchingRewriterNode::operator()(
+    IRModule mod, const tvm::transform::PassContext& pass_ctx) const {
+  PatternMatchingMutator mutator(this);
 
   IRModule updates;
   for (const auto& [gvar, base_func] : mod->functions) {
@@ -1064,13 +1064,13 @@ IRModule ExprRewriterNode::operator()(IRModule mod,
 
   return mod;
 }
-tvm::transform::PassInfo ExprRewriterNode::Info() const {
-  return tvm::transform::PassInfo(0, "ExprRewriter", {}, false);
+tvm::transform::PassInfo PatternMatchingRewriterNode::Info() const {
+  return tvm::transform::PassInfo(0, "PatternMatchingRewriter", {}, false);
 }
 
 Function RewriteCall(const DFPattern& pat,
                      TypedPackedFunc<Expr(Expr, Map<DFPattern, Expr>)> rewriter, Function func) {
-  return Downcast<Function>(ExprRewriter::FromPattern(pat, rewriter)(func));
+  return Downcast<Function>(PatternMatchingRewriter::FromPattern(pat, rewriter)(func));
 }
 
 TVM_REGISTER_GLOBAL("relax.dpl.rewrite_call").set_body_typed(RewriteCall);

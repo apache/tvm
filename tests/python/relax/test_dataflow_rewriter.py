@@ -17,7 +17,6 @@
 
 
 import tvm.testing
-from tvm.relax.dpl import ExprRewriter
 from tvm.script import ir as I, relax as R, tir as T
 
 import pytest
@@ -137,9 +136,10 @@ def test_mismatch_of_static_shapes_raises_error():
 def test_rewriter_may_be_applied_to_ir_module():
     """A rewriter may mutate an IRModule
 
-    The `ExprRewriter.__call__` implementation may accept either a
-    single Relax function, or an entire IRModule.  If it is passed an
-    IRModule, then all functions in the `IRModule` are updated.
+    The `PatternMatchingRewriter.__call__` implementation may accept
+    either a single Relax function, or an entire IRModule.  If it is
+    passed an IRModule, then all functions in the `IRModule` are
+    updated.
 
     """
 

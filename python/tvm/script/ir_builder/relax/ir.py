@@ -35,7 +35,7 @@ from tvm.relax import (
     VarBinding,
     const,
 )
-from tvm.relax.dpl import ExprRewriter
+from tvm.relax.dpl import PatternMatchingRewriter
 
 ############################### Operators ###############################
 from tvm.relax.op import (
@@ -307,7 +307,7 @@ def func_ret_value(value: Expr) -> None:
     return _ffi_api.FuncRetValue(value)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def rewriter(rewriter_mod: Union[IRModule, Type]) -> ExprRewriter:
+def rewriter(rewriter_mod: Union[IRModule, Type]) -> PatternMatchingRewriter:
     """Define a pattern-rewrite rule
 
     The IRModule must have two publicly-exposed functions, `pattern`
@@ -337,7 +337,7 @@ def rewriter(rewriter_mod: Union[IRModule, Type]) -> ExprRewriter:
 
     Returns
     -------
-    rewriter: ExprRewriter
+    rewriter: PatternMatchingRewriter
 
         A rewriter object, which can be applied either to a Relax
         function or to an entire IRModule.
@@ -346,7 +346,7 @@ def rewriter(rewriter_mod: Union[IRModule, Type]) -> ExprRewriter:
     if not isinstance(rewriter_mod, IRModule):
         rewriter_mod = tvm.script.ir_module(rewriter_mod)
 
-    return ExprRewriter.from_module(rewriter_mod)
+    return PatternMatchingRewriter.from_module(rewriter_mod)
 
 
 ############################# BindingBlock ##############################
@@ -438,7 +438,10 @@ def _sinfo_arg_wrapper(func):
             new_args = [_convert_tensor_type(x) for x in args]
             return type(args)(new_args)
         if isinstance(args, dict):
-            return {_convert_tensor_type(k): _convert_tensor_type(v) for k, v in args.items()}
+            return {
+                _convert_tensor_type(k): _convert_tensor_type(v)
+                for k, v in args.items()
+            }
         if inspect.isfunction(args):
             args = args()
         if isinstance(args, ObjectGeneric):
@@ -506,7 +509,9 @@ def emit_te(func: Callable, *args: Any, **kwargs: Any) -> Call:
         A newly created call that calls into a tir function.
     """
     primfunc_name_hint = kwargs.pop("primfunc_name_hint", None)
-    tir_func, call_args, out_sinfo, tir_vars = gen_call_tir_inputs(func, *args, **kwargs)
+    tir_func, call_args, out_sinfo, tir_vars = gen_call_tir_inputs(
+        func, *args, **kwargs
+    )
     if not primfunc_name_hint:
         primfunc_name_hint = func.__name__
     gvar = decl_function(primfunc_name_hint, tir_func)  # type: ignore

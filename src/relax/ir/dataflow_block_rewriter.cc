@@ -367,7 +367,7 @@ TVM_REGISTER_GLOBAL("relax.dpl.match_dfb")
       return MatchGraph(ctx, dfb);
     });
 
-class PatternContextRewriterNode : public ExprRewriterNode {
+class PatternContextRewriterNode : public PatternMatchingRewriterNode {
  public:
   PatternContext pattern;
   TypedPackedFunc<Map<Var, Expr>(Map<DFPattern, Var>, Map<Var, Expr>)> rewriter_func;
@@ -381,7 +381,7 @@ class PatternContextRewriterNode : public ExprRewriterNode {
   }
 
   static constexpr const char* _type_key = "relax.dpl.PatternContextRewriter";
-  TVM_DECLARE_FINAL_OBJECT_INFO(PatternContextRewriterNode, ExprRewriterNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(PatternContextRewriterNode, PatternMatchingRewriterNode);
 
  private:
   Optional<Map<Var, Expr>> MatchBindings(const Array<Binding>& bindings) const {
@@ -401,13 +401,14 @@ class PatternContextRewriterNode : public ExprRewriterNode {
   }
 };
 
-class PatternContextRewriter : public ExprRewriter {
+class PatternContextRewriter : public PatternMatchingRewriter {
  public:
   PatternContextRewriter(
       PatternContext pattern,
       TypedPackedFunc<Map<Var, Expr>(Map<DFPattern, Var>, Map<Var, Expr>)> rewriter_func);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(PatternContextRewriter, ExprRewriter, PatternContextRewriterNode);
+  TVM_DEFINE_OBJECT_REF_METHODS(PatternContextRewriter, PatternMatchingRewriter,
+                                PatternContextRewriterNode);
 };
 
 RewriteSpec PatternContextRewriterNode::RewriteBindings(const Array<Binding>& bindings) const {

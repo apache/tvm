@@ -48,7 +48,7 @@ struct RewriteSpec {
   void Append(RewriteSpec other);
 };
 
-class ExprRewriterNode : public tvm::transform::PassNode {
+class PatternMatchingRewriterNode : public tvm::transform::PassNode {
  public:
   virtual RewriteSpec RewriteBindings(const Array<Binding>& bindings) const {
     return RewriteSpec();
@@ -59,26 +59,26 @@ class ExprRewriterNode : public tvm::transform::PassNode {
   IRModule operator()(IRModule mod, const tvm::transform::PassContext& pass_ctx) const override;
   tvm::transform::PassInfo Info() const override;
 
-  static constexpr const char* _type_key = "relax.dpl.ExprRewriter";
-  TVM_DECLARE_BASE_OBJECT_INFO(ExprRewriterNode, PassNode);
+  static constexpr const char* _type_key = "relax.dpl.PatternMatchingRewriter";
+  TVM_DECLARE_BASE_OBJECT_INFO(PatternMatchingRewriterNode, PassNode);
 };
 
-class ExprRewriter : public tvm::transform::Pass {
+class PatternMatchingRewriter : public tvm::transform::Pass {
  public:
-  static ExprRewriter FromPattern(DFPattern pattern,
-                                  TypedPackedFunc<Optional<Expr>(Expr, Map<DFPattern, Expr>)> func,
-                                  Optional<Array<DFPattern>> additional_bindings = NullOpt,
-                                  Map<GlobalVar, BaseFunc> new_subroutines = {});
+  static PatternMatchingRewriter FromPattern(
+      DFPattern pattern, TypedPackedFunc<Optional<Expr>(Expr, Map<DFPattern, Expr>)> func,
+      Optional<Array<DFPattern>> additional_bindings = NullOpt,
+      Map<GlobalVar, BaseFunc> new_subroutines = {});
 
-  static ExprRewriter FromModule(IRModule mod);
+  static PatternMatchingRewriter FromModule(IRModule mod);
 
   Expr operator()(Expr expr);
   using Pass::operator();
 
-  TVM_DEFINE_OBJECT_REF_METHODS(ExprRewriter, Pass, ExprRewriterNode);
+  TVM_DEFINE_OBJECT_REF_METHODS(PatternMatchingRewriter, Pass, PatternMatchingRewriterNode);
 };
 
-class PatternRewriterNode : public ExprRewriterNode {
+class ExprPatternRewriterNode : public PatternMatchingRewriterNode {
  public:
   DFPattern pattern;
   TypedPackedFunc<Optional<Expr>(Expr, Map<DFPattern, Expr>)> func;
@@ -95,24 +95,25 @@ class PatternRewriterNode : public ExprRewriterNode {
     visitor->Visit("func", &untyped_func);
   }
 
-  static constexpr const char* _type_key = "relax.dpl.PatternRewriter";
-  TVM_DECLARE_BASE_OBJECT_INFO(PatternRewriterNode, ExprRewriterNode);
+  static constexpr const char* _type_key = "relax.dpl.ExprPatternRewriter";
+  TVM_DECLARE_BASE_OBJECT_INFO(ExprPatternRewriterNode, PatternMatchingRewriterNode);
 };
 
-class PatternRewriter : public ExprRewriter {
+class ExprPatternRewriter : public PatternMatchingRewriter {
  public:
-  PatternRewriter(DFPattern pattern,
-                  TypedPackedFunc<Optional<Expr>(Expr, Map<DFPattern, Expr>)> func,
-                  Optional<Array<DFPattern>> additional_bindings = NullOpt,
-                  Map<GlobalVar, BaseFunc> new_subroutines = {});
+  ExprPatternRewriter(DFPattern pattern,
+                      TypedPackedFunc<Optional<Expr>(Expr, Map<DFPattern, Expr>)> func,
+                      Optional<Array<DFPattern>> additional_bindings = NullOpt,
+                      Map<GlobalVar, BaseFunc> new_subroutines = {});
 
-  TVM_DEFINE_OBJECT_REF_METHODS(PatternRewriter, ExprRewriter, PatternRewriterNode);
+  TVM_DEFINE_OBJECT_REF_METHODS(ExprPatternRewriter, PatternMatchingRewriter,
+                                ExprPatternRewriterNode);
 };
 
-class OrRewriterNode : public ExprRewriterNode {
+class OrRewriterNode : public PatternMatchingRewriterNode {
  public:
-  ExprRewriter lhs;
-  ExprRewriter rhs;
+  PatternMatchingRewriter lhs;
+  PatternMatchingRewriter rhs;
 
   RewriteSpec RewriteBindings(const Array<Binding>& bindings) const override;
 
@@ -122,17 +123,17 @@ class OrRewriterNode : public ExprRewriterNode {
   }
 
   static constexpr const char* _type_key = "relax.dpl.OrRewriter";
-  TVM_DECLARE_BASE_OBJECT_INFO(OrRewriterNode, ExprRewriterNode);
+  TVM_DECLARE_BASE_OBJECT_INFO(OrRewriterNode, PatternMatchingRewriterNode);
 };
 
-class OrRewriter : public ExprRewriter {
+class OrRewriter : public PatternMatchingRewriter {
  public:
-  OrRewriter(ExprRewriter lhs, ExprRewriter rhs);
+  OrRewriter(PatternMatchingRewriter lhs, PatternMatchingRewriter rhs);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(OrRewriter, ExprRewriter, OrRewriterNode);
+  TVM_DEFINE_OBJECT_REF_METHODS(OrRewriter, PatternMatchingRewriter, OrRewriterNode);
 };
 
-class TupleRewriterNode : public ExprRewriterNode {
+class TupleRewriterNode : public PatternMatchingRewriterNode {
  public:
   Array<DFPattern> patterns;
   TypedPackedFunc<Optional<Expr>(Expr, Map<DFPattern, Expr>)> func;
@@ -148,7 +149,7 @@ class TupleRewriterNode : public ExprRewriterNode {
   }
 
   static constexpr const char* _type_key = "relax.dpl.TupleRewriter";
-  TVM_DECLARE_BASE_OBJECT_INFO(TupleRewriterNode, ExprRewriterNode);
+  TVM_DECLARE_BASE_OBJECT_INFO(TupleRewriterNode, PatternMatchingRewriterNode);
 
  private:
   struct VarInfo {
@@ -165,14 +166,14 @@ class TupleRewriterNode : public ExprRewriterNode {
                                                           const std::vector<size_t>& indices) const;
 };
 
-class TupleRewriter : public ExprRewriter {
+class TupleRewriter : public PatternMatchingRewriter {
  public:
   TupleRewriter(Array<DFPattern> patterns,
                 TypedPackedFunc<Optional<Expr>(Expr, Map<DFPattern, Expr>)> func,
                 Optional<Array<DFPattern>> additional_bindings = NullOpt,
                 Map<GlobalVar, BaseFunc> new_subroutines = {});
 
-  TVM_DEFINE_OBJECT_REF_METHODS(TupleRewriter, ExprRewriter, TupleRewriterNode);
+  TVM_DEFINE_OBJECT_REF_METHODS(TupleRewriter, PatternMatchingRewriter, TupleRewriterNode);
 };
 
 }  // namespace relax

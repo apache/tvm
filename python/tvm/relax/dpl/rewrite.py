@@ -28,15 +28,15 @@ from ..expr import Expr, Function, Var
 from . import _ffi as ffi
 
 
-@register_object("relax.dpl.ExprRewriter")
-class ExprRewriter(Object):
+@register_object("relax.dpl.PatternMatchingRewriter")
+class PatternMatchingRewriter(Object):
     """A pattern-matching rewriter for Relax"""
 
     @staticmethod
     def from_pattern(
         pattern: DFPattern,
         func: Callable[[Expr, Dict[DFPattern, Expr]], Expr],
-    ) -> "ExprRewriter":
+    ) -> "PatternMatchingRewriter":
         """Construct from a pattern and rewriter-function
 
         The replacements performed by the rewriter will be equivalent
@@ -57,18 +57,18 @@ class ExprRewriter(Object):
 
         Returns
         -------
-        rewriter_obj: ExprRewriter
+        rewriter_obj: PatternMatchingRewriter
 
             The rewriter object
 
         """
-        return ffi.ExprRewriterFromPattern(
+        return ffi.PatternMatchingRewriterFromPattern(
             pattern,
             func,
         )  # type: ignore
 
     @staticmethod
-    def from_module(mod: IRModule) -> "ExprRewriter":
+    def from_module(mod: IRModule) -> "PatternMatchingRewriter":
         """Construct a rewriter from an IRModule
 
         The IRModule must have two publicly-exposed functions,
@@ -90,7 +90,7 @@ class ExprRewriter(Object):
                     B = A * 2
                     return B
 
-            rewriter = ExprRewriter.from_module(RewriteAddIntoMultiply)
+            rewriter = PatternMatchingRewriter.from_module(RewriteAddIntoMultiply)
             rewritten_ir_module = rewriter(ir_module)
 
         To support the common case of defining an IRModule with
@@ -123,12 +123,12 @@ class ExprRewriter(Object):
 
         Returns
         -------
-        rewriter_obj: ExprRewriter
+        rewriter_obj: PatternMatchingRewriter
 
             The rewriter object
 
         """
-        return ffi.ExprRewriterFromModule(mod)  # type: ignore
+        return ffi.PatternMatchingRewriterFromModule(mod)  # type: ignore
 
     def __call__(self, obj: Union[Expr, IRModule]) -> Union[Expr, IRModule]:
         """Apply the rewriter
@@ -147,9 +147,9 @@ class ExprRewriter(Object):
             The rewritten object
 
         """
-        return ffi.ExprRewriterApply(self, obj)
+        return ffi.PatternMatchingRewriterApply(self, obj)
 
-    def __or__(self, other: "ExprRewriter") -> "ExprRewriter":
+    def __or__(self, other: "PatternMatchingRewriter") -> "PatternMatchingRewriter":
         """Compose two rewriters
 
         Composing two rewrite rules together allows them to be applied
@@ -157,13 +157,13 @@ class ExprRewriter(Object):
 
         Parameters
         ----------
-        other: ExprRewriter
+        other: PatternMatchingRewriter
 
             Another rewrite rule
 
         Returns
         -------
-        ExprRewriter
+        PatternMatchingRewriter
 
             A rewriter that will apply either rewrite pattern
 
@@ -171,8 +171,8 @@ class ExprRewriter(Object):
         return OrRewriter(self, other)
 
 
-@register_object("relax.dpl.PatternRewriter")
-class PatternRewriter(ExprRewriter):
+@register_object("relax.dpl.ExprPatternRewriter")
+class ExprPatternRewriter(PatternMatchingRewriter):
     def __init__(self, pattern, func):
         self.__init_handle_by_constructor__(
             ffi.PatternRewriter,
@@ -182,7 +182,7 @@ class PatternRewriter(ExprRewriter):
 
 
 @register_object("relax.dpl.OrRewriter")
-class OrRewriter(ExprRewriter):
+class OrRewriter(PatternMatchingRewriter):
     def __init__(self, lhs, rhs):
         self.__init_handle_by_constructor__(
             ffi.OrRewriter,
@@ -192,7 +192,7 @@ class OrRewriter(ExprRewriter):
 
 
 @register_object("relax.dpl.TupleRewriter")
-class TupleRewriter(ExprRewriter):
+class TupleRewriter(PatternMatchingRewriter):
     def __init__(self, patterns, func):
         self.__init_handle_by_constructor__(
             ffi.TupleRewriter,
