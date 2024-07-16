@@ -438,10 +438,7 @@ def _sinfo_arg_wrapper(func):
             new_args = [_convert_tensor_type(x) for x in args]
             return type(args)(new_args)
         if isinstance(args, dict):
-            return {
-                _convert_tensor_type(k): _convert_tensor_type(v)
-                for k, v in args.items()
-            }
+            return {_convert_tensor_type(k): _convert_tensor_type(v) for k, v in args.items()}
         if inspect.isfunction(args):
             args = args()
         if isinstance(args, ObjectGeneric):
@@ -509,9 +506,7 @@ def emit_te(func: Callable, *args: Any, **kwargs: Any) -> Call:
         A newly created call that calls into a tir function.
     """
     primfunc_name_hint = kwargs.pop("primfunc_name_hint", None)
-    tir_func, call_args, out_sinfo, tir_vars = gen_call_tir_inputs(
-        func, *args, **kwargs
-    )
+    tir_func, call_args, out_sinfo, tir_vars = gen_call_tir_inputs(func, *args, **kwargs)
     if not primfunc_name_hint:
         primfunc_name_hint = func.__name__
     gvar = decl_function(primfunc_name_hint, tir_func)  # type: ignore
