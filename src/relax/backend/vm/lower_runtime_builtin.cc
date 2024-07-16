@@ -39,7 +39,7 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
   using ExprMutator::VisitExpr_;
 
   Expr VisitExpr_(const CallNode* call_node) final {
-  static const auto& lower_builtin_fmap = Op::GetAttrMap<FLowerBuiltin>("FLowerBuiltin");
+    static const auto& lower_builtin_fmap = Op::GetAttrMap<FLowerBuiltin>("FLowerBuiltin");
     // post-order mutation
     Call call = Downcast<Call>(VisitExprPostOrder_(call_node));
 
@@ -214,7 +214,6 @@ class LowerRuntimeBuiltinMutator : public ExprMutator {
   const ExternFunc builtin_to_device_{"vm.builtin.to_device"};
   const ExternFunc builtin_make_closure_{"vm.builtin.make_closure"};
   const ExternFunc builtin_invoke_closure_{"vm.builtin.invoke_closure"};
-
 };
 
 Expr LowerRuntimeBuiltin(const Expr& e) { return LowerRuntimeBuiltinMutator().VisitExpr(e); }
@@ -223,7 +222,9 @@ namespace transform {
 
 Pass LowerRuntimeBuiltin() {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
-      [=](Function f, IRModule m, PassContext pc) { return Downcast<Function>(LowerRuntimeBuiltin(f)); };
+      [=](Function f, IRModule m, PassContext pc) {
+        return Downcast<Function>(LowerRuntimeBuiltin(f));
+      };
   return CreateFunctionPass(pass_func, 0, "LowerRuntimeBuiltin", {});
 }
 
