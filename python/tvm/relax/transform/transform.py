@@ -19,6 +19,7 @@
 import functools
 import inspect
 import types
+import warnings
 from typing import Callable, Dict, List, Mapping, Optional, Sequence, Tuple, Union
 
 import numpy as np  # type: ignore
@@ -593,6 +594,20 @@ def LowerRuntimeBuiltin() -> tvm.ir.transform.Pass:
     -------
     ret: tvm.ir.transform.Pass
     """
+    return _ffi_api.LowerRuntimeBuiltin()  # type: ignore
+
+
+def VMBuiltinLower() -> tvm.ir.transform.Pass:
+    """Lowering generic intrinsic to VM intrinsics.
+
+    Returns
+    -------
+    ret: tvm.ir.transform.Pass
+    """
+    warnings.warn(
+        "tvm.relax.transform.VMBuiltinLower has been renamed to 'LowerRuntimeBuiltin'.  "
+        "This wrapper is for backwards compatibility, and will be removed in a later update."
+    )
     return _ffi_api.LowerRuntimeBuiltin()  # type: ignore
 
 
