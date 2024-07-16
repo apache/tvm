@@ -29,6 +29,7 @@
 #include <tvm/runtime/registry.h>
 
 #include <memory>
+#include <string>
 
 #define CUDNN_FRONTEND_CALL(func)                    \
   do {                                               \
