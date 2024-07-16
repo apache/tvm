@@ -58,9 +58,9 @@ StructInfo InferStructInfoView(const Call& call, const BlockBuilder& ctx) {
     if (auto opt = sinfo.as<TensorStructInfo>()) {
       return opt.value();
     } else {
-      LOG(FATAL) << "TypeError: " << "Operator " << call->op
-                 << " expects first argument to be a tensor, " << "but received " << arg_data
-                 << " with type " << sinfo;
+      LOG(FATAL) << "TypeError: "
+                 << "Operator " << call->op << " expects first argument to be a tensor, "
+                 << "but received " << arg_data << " with type " << sinfo;
     }
   }();
   auto view_shape_sinfo = [&]() -> const ShapeStructInfoNode* {
@@ -73,10 +73,10 @@ StructInfo InferStructInfoView(const Call& call, const BlockBuilder& ctx) {
       // The `R.view` operation returns a different shape.
       return ptr;
     } else {
-      LOG(FATAL) << "TypeError: " << "Operator " << call->op
-                 << " expects second argument to be a ShapeExpr, "
-                 << "or a void-type (empty relax tuple), " << "but received " << arg_shape
-                 << " with type " << sinfo;
+      LOG(FATAL) << "TypeError: "
+                 << "Operator " << call->op << " expects second argument to be a ShapeExpr, "
+                 << "or a void-type (empty relax tuple), "
+                 << "but received " << arg_shape << " with type " << sinfo;
     }
   }();
 
@@ -111,9 +111,10 @@ StructInfo InferStructInfoView(const Call& call, const BlockBuilder& ctx) {
       // being changed into.
       return DataType::Void();
     } else {
-      LOG(FATAL) << "TypeError: " << "Operator " << call->op
-                 << " expects the dtype argument to be a relax::DataTypeImm, " << "but received "
-                 << arg_dtype << " with type " << sinfo;
+      LOG(FATAL) << "TypeError: "
+                 << "Operator " << call->op
+                 << " expects the dtype argument to be a relax::DataTypeImm, "
+                 << "but received " << arg_dtype << " with type " << sinfo;
     }
   }();
 
@@ -125,7 +126,8 @@ StructInfo InferStructInfoView(const Call& call, const BlockBuilder& ctx) {
       return IntImm(DataType::Int(64), 0);
     } else if (auto prim_sinfo = sinfo.as<PrimStructInfoNode>()) {
       CHECK_EQ(prim_sinfo->dtype, DataType::Int(64))
-          << "TypeError: " << "Operator " << call->op
+          << "TypeError: "
+          << "Operator " << call->op
           << " expects the relative_byte_offset to be a 64-bit integer, but received "
           << arg_relative_byte_offset << ", which has type " << sinfo;
       if (prim_sinfo->value.defined()) {
@@ -137,8 +139,9 @@ StructInfo InferStructInfoView(const Call& call, const BlockBuilder& ctx) {
         return NullOpt;
       }
     } else {
-      LOG(FATAL) << "TypeError: " << "Operator " << call->op
-                 << " expects the relative_byte_offset argument " << "to be a Relax PrimValue.  "
+      LOG(FATAL) << "TypeError: "
+                 << "Operator " << call->op << " expects the relative_byte_offset argument "
+                 << "to be a Relax PrimValue.  "
                  << "However, expression " << call << " provides relative_byte_offset of "
                  << arg_relative_byte_offset << ", which has type " << sinfo;
     }
@@ -243,7 +246,8 @@ StructInfo InferStructInfoView(const Call& call, const BlockBuilder& ctx) {
     // view to be larger than the original array.
 
     CHECK_GE(input_element_size.value()->value, output_element_size.value()->value)
-        << "ValueError: " << "Operator " << call->op
+        << "ValueError: "
+        << "Operator " << call->op
         << " may not produce a view that exceeds the bounds of the original array.  "
         << "In expression " << call << " the data type is changed from " << data_sinfo->dtype
         << " to " << view_dtype.value() << ", increasing the size per element from "
@@ -309,9 +313,9 @@ Expr LegalizeView(const BlockBuilder& bb, const Call& call) {
     CHECK(data_shape.defined())
         << "Legalization of " << call->op
         << " requires that either the output shape be explicitly specified, "
-        << "or the input shape is known.  " << "However, in expression " << call
-        << ", no output shape is specified, " << "and the input " << data << " of type "
-        << data->struct_info_ << " has unknown shape.";
+        << "or the input shape is known.  "
+        << "However, in expression " << call << ", no output shape is specified, "
+        << "and the input " << data << " of type " << data->struct_info_ << " has unknown shape.";
     shape = ShapeExpr(data_shape.value());
   }
 
@@ -320,9 +324,9 @@ Expr LegalizeView(const BlockBuilder& bb, const Call& call) {
     CHECK(!data_dtype.is_void())
         << "Legalization of " << call->op
         << " requires that either the output dtype be explicitly specified, "
-        << "or the input dtype is known.  " << "However, in expression " << call
-        << ", no output dtype is specified, " << "and the input " << data << " of type "
-        << data->struct_info_ << " has unknown dtype.";
+        << "or the input dtype is known.  "
+        << "However, in expression " << call << ", no output dtype is specified, "
+        << "and the input " << data << " of type " << data->struct_info_ << " has unknown dtype.";
     dtype = relax::DataTypeImm(data_dtype);
   }
 
@@ -340,7 +344,7 @@ Expr LegalizeView(const BlockBuilder& bb, const Call& call) {
 
 Expr LowerBuiltinView(const BlockBuilder& bb, const Call& call) {
   StructInfoDeriveFunc infer_sinfo_env_func;
-     infer_sinfo_env_func= EnvFunc::Get("tvm.relax.struct_info.infer_view_sinfo");
+  infer_sinfo_env_func = EnvFunc::Get("tvm.relax.struct_info.infer_view_sinfo");
   auto runtime_view_sinfo = FuncStructInfo::OpaqueFunc(infer_sinfo_env_func, true);
   ExternFunc runtime_view_func("runtime.TVMArrayCreateView", runtime_view_sinfo);
   return Call(runtime_view_func, call->args, call->attrs, {runtime_view_sinfo});
@@ -369,8 +373,8 @@ TVM_REGISTER_GLOBAL("relax.op.memory.ensure_zero_offset").set_body_typed(ensure_
 StructInfo InferStructInfoEnsureZeroOffset(const Call& call, const BlockBuilder& ctx) {
   if (call->args.size() != 1) {
     ctx->ReportFatal(Diagnostic::Error(call)
-                     << "Operator " << call->op << " should receive 1 argument, " << "but received "
-                     << call->args);
+                     << "Operator " << call->op << " should receive 1 argument, "
+                     << "but received " << call->args);
   }
   return GetStructInfo(call->args[0]);
 }
