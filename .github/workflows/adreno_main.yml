@@ -126,22 +126,47 @@ jobs:
         with:
           submodules: 'recursive'
           ref: ''
-      - name: Compile
+      - name: Compile x86
         shell: powershell
         run: |
            Push-Location
            New-Item -ItemType Directory -Force -Path "./build"
            cd build
            cp ../cmake/config.cmake .
-           Add-Content config.cmake "set(USE_OPENCL $ENV:OPENCL_SDK)"
+           Add-Content config.cmake "set(USE_OPENCL $ENV:OPENCL_SDK_ADRENO_X86)"
            Add-Content config.cmake "set(USE_LLVM $ENV:LLVM_CONFIG)"
-           Add-Content config.cmake "set(USE_ADRENO_ACCL $ENV:ADRENOACCL_SDK)"
-           Add-Content config.cmake "set(USE_ADRENO_ACCL_GRAPH_EXECUTOR $ENV:ADRENOACCL_SDK)"
+           Add-Content config.cmake "set(USE_ADRENO_ACCL $ENV:ADRENOACCL_SDK_X86)"
+           Add-Content config.cmake "set(USE_ADRENO_ACCL_GRAPH_EXECUTOR $ENV:ADRENOACCL_SDK_X86)"
+           #Add-Content config.cmake "set(USE_CLML $ENV:OPENCL_SDK_ADRENO_X86)"
+           #Add-Content config.cmake "set(USE_CLML_GRAPH_EXECUTOR $ENV:OPENCL_SDK_ADRENO_X86)"
+           Add-Content config.cmake "set(USE_CPP_RTVM ON)"
+           Add-Content config.cmake "set(USE_GRAPH_EXECUTOR ON)"
+           Add-Content config.cmake "set(USE_KALLOC_ALIGNMENT 32)"
+           Add-Content config.cmake "set(USE_OPENCL_EXTN_QCOM ON)"
            cmake .. -G "Visual Studio 17 2022" -A x64
            cmake --build . --config Release --parallel $env:NUMBER_OF_PROCESSORS
            Pop-Location
-      - name: Check Build Status
+      - name: Check x86 Build Status
         shell: powershell
         run: |
            $env:PYTHONPATH = "$pwd\python"
            python -c "import tvm; print(tvm.__path__)"
+      - name: Compile Arm64
+        shell: powershell
+        run: |
+           Push-Location
+           New-Item -ItemType Directory -Force -Path "./build-arm64"
+           cd build-arm64
+           cp ../cmake/config.cmake .
+           Add-Content config.cmake "set(USE_OPENCL $ENV:OPENCL_SDK_ADRENO_ARM64)"
+           Add-Content config.cmake "set(USE_ADRENO_ACCL $ENV:ADRENOACCL_SDK_ARM64)"
+           Add-Content config.cmake "set(USE_ADRENO_ACCL_GRAPH_EXECUTOR $ENV:ADRENOACCL_SDK_ARM64)"
+           #Add-Content config.cmake "set(USE_CLML $ENV:OPENCL_SDK_ADRENO_ARM64)"
+           #Add-Content config.cmake "set(USE_CLML_GRAPH_EXECUTOR $ENV:OPENCL_SDK_ADRENO_ARM64)"
+           Add-Content config.cmake "set(USE_CPP_RTVM ON)"
+           Add-Content config.cmake "set(USE_GRAPH_EXECUTOR ON)"
+           Add-Content config.cmake "set(USE_KALLOC_ALIGNMENT 32)"
+           Add-Content config.cmake "set(USE_OPENCL_EXTN_QCOM ON)"
+           cmake .. -G "Visual Studio 17 2022" -A ARM64
+           cmake --build . --config Release --parallel $env:NUMBER_OF_PROCESSORS --target rtvm tvm_rpc
+           Pop-Location
