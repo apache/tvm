@@ -786,8 +786,15 @@ class WarpSpecializedPipeline : public StmtExprMutator {
 
     PrimExpr consumer_thread_extent = thread_iv_->dom->extent;
     PrimExpr producer_thread_extent = thread_iv_->dom->extent;
-    // Only need one thread for bulk-copy only case
-    if (!marker.HasSimtCopy()) producer_thread_extent = 1;
+    // Need one warp-group for bulk-copy only case
+    if (!marker.HasSimtCopy()) producer_thread_extent = 128;
+
+    // TODO: estimate the correct reg usage.
+    auto inc_reg_stmt = Evaluate(Call(DataType::Handle(), SetMaxNReg(), {240, 1}));
+    auto dec_reg_stmt = Evaluate(Call(DataType::Handle(), SetMaxNReg(), {24, 0}));
+
+    producer_code = SeqStmt({dec_reg_stmt, producer_code});
+    consumer_code = SeqStmt({inc_reg_stmt, consumer_code});
 
     producer_code = ThreadIdxRewriter::Rewrite(producer_code, thread_iv_->var,
                                                thread_iv_->var - consumer_thread_extent);

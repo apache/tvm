@@ -143,9 +143,20 @@ class Profiler(ConvertTorch):
             for lhs, rhs in zip(lib_outs, ref_outs):
                 assert torch.allclose(lhs, rhs), ["result is not consistent", lhs, rhs]
 
-    def run_once(self):
+    def run_once(self, func=None):
+        import ctypes
+        libcuda = ctypes.CDLL("libcuda.so")
+        
         ins = self._get_inputs()
-        return self.__call__(*ins)
+        if not func:
+            func = self.__call__
+
+        libcuda.cuProfilerStart()
+        res = func(*ins)
+        libcuda.cuProfilerStop()
+        return res
+
+        
 
     def do_bench(self, func: callable, warmup=25, rep=100):
         ins = self._get_inputs()
