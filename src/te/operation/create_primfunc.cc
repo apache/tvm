@@ -109,7 +109,7 @@ struct CreateFuncInfo {
   /*! \brief The buffers should be allocated at function root. */
   Array<Buffer> root_alloc;
   /*! \brief The NameSupply to make block name unique. */
-  NameSupply name_supply = NameSupply("");
+  NameSupply name_supply;
 
   String FreshName(String base_name) { return name_supply->FreshName(base_name); }
 

@@ -58,8 +58,7 @@ namespace relax {
 //---------------------------------------
 class BlockBuilderImpl : public BlockBuilderNode {
  public:
-  explicit BlockBuilderImpl(IRModule context_mod)
-      : name_supply_(""), context_mod_(std::move(context_mod)) {}
+  explicit BlockBuilderImpl(IRModule context_mod) : context_mod_(std::move(context_mod)) {}
 
   ~BlockBuilderImpl() {
     if (!block_stack_.empty()) {

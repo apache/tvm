@@ -178,7 +178,7 @@ class GlobalVarNormalizer : private ExprMutator {
   }
 
  private:
-  explicit GlobalVarNormalizer(const IRModule& m) : ExprMutator(), module_(m), name_supply_("") {}
+  explicit GlobalVarNormalizer(const IRModule& m) : ExprMutator(), module_(m) {}
 
   using ExprMutator::VisitExpr_;
 
