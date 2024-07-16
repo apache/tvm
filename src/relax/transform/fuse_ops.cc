@@ -1222,7 +1222,12 @@ class CompositeFunctionAnnotator : public ExprMutator {
   IRModule Run() {
     auto mod = builder_->GetContextIRModule();
     for (const auto& gv : mod->GetGlobalVars()) {
-      const auto& base_func = mod->Lookup(gv);
+      auto it = mod->functions.find(gv);
+      // Note that the fusion pass may have already removed the function.
+      if (it == mod->functions.end()) {
+        continue;
+      }
+      const auto& base_func = (*it).second;
       if (const auto* func = base_func.as<FunctionNode>()) {
         if (func->GetAttr<String>(attr::kComposite).defined() ||
             func->GetAttr<String>(attr::kCodegen).defined()) {
@@ -1399,7 +1404,7 @@ Pass FuseOps(int fuse_opt_level) {
       };
   return CreateModulePass(/*pass_function=*/pass_func,  //
                           /*opt_level=*/0,              //
-                          /*pass_name=*/"FuseOps",      //
+                          /*name=*/"FuseOps",           //
                           /*required=*/{});
 }
 
@@ -1412,9 +1417,9 @@ Pass FuseOpsByPattern(const tvm::Array<FusionPattern>& patterns, bool bind_const
         return relax::FuseOpsByPattern(patterns, m, bind_constants, annotate_codegen,
                                        entry_function_names);
       };
-  return CreateModulePass(/*pass_function=*/pass_func,       //
-                          /*opt_level=*/0,                   //
-                          /*pass_name=*/"FuseOpsByPattern",  //
+  return CreateModulePass(/*pass_function=*/pass_func,  //
+                          /*opt_level=*/0,              //
+                          /*name=*/"FuseOpsByPattern",  //
                           /*required=*/{});
 }
 
