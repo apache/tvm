@@ -88,7 +88,7 @@ class cuDNNJSONRuntime : public JSONRuntimeBase {
 
   bool attr_in_name(const std::string& op_name, const std::string& attr_name) {
     return op_name.find(attr_name) != std::string::npos;
-  };
+  }
 
   std::vector<int> vstr2vint(const JSONGraphNode& node, const std::string& attrStr) {
     auto string_to_int = [](const std::string& str) { return std::stoi(str); };
@@ -96,7 +96,7 @@ class cuDNNJSONRuntime : public JSONRuntimeBase {
     std::vector<int> int_vec(string_vec.size());
     std::transform(string_vec.begin(), string_vec.end(), int_vec.begin(), string_to_int);
     return int_vec;
-  };
+  }
 
   std::function<void()> GetConv2DExec(const JSONGraphNode& node) {
     auto* entry_ptr = tvm::contrib::CuDNNThreadEntry::ThreadLocal();
@@ -126,11 +126,11 @@ class cuDNNJSONRuntime : public JSONRuntimeBase {
     int dims = layout.size() - 2;  // remove O and I dims
 
     int format = CUDNN_TENSOR_NHWC;
-    if (layout == "NCHW")
+    if (layout == "NCHW") {
       format = CUDNN_TENSOR_NCHW;
-    else if (layout == "NHWC")
+    } else if (layout == "NHWC") {
       format = CUDNN_TENSOR_NHWC;
-    else {
+    } else {
       LOG(FATAL) << "Unsupported layout: " << layout;
     }
 
