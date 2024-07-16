@@ -31,7 +31,7 @@ concurrency:
 jobs:
   RebaseMainline:
     if: github.repository == 'gpgpu/apache-tvm'
-    runs-on: blr-ubuntu-tvm01
+    runs-on: tvm-linux-ci
     steps:
       - uses: actions/checkout@v2
         with:
