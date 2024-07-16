@@ -549,7 +549,8 @@ TVM_REGISTER_GLOBAL("vm.builtin.ensure_zero_offset").set_body_typed([](NDArray d
   if (data->byte_offset == 0) {
     return data;
   }
-  if (DeviceAPI::SupportsPointerArithmetics(data->device.device_type)) {
+  if (DeviceAPI::SupportsPointerArithmetics(data->device.device_type) &&
+      data->byte_offset % tvm::runtime::kAllocAlignment == 0) {
     DLManagedTensor* dl_tensor = data.ToDLPack();
     dl_tensor->dl_tensor.data =
         reinterpret_cast<char*>(dl_tensor->dl_tensor.data) + dl_tensor->dl_tensor.byte_offset;
