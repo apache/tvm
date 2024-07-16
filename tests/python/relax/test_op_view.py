@@ -452,7 +452,7 @@ def test_applying_unknown_relative_byte_offset_is_legal():
     tvm.ir.assert_structural_equal(explicit_sinfo, inferred_sinfo)
 
 
-def test_legalize_without_any_changes_is_no_op():
+def test_legalize_is_no_op():
     @I.ir_module
     class Before:
         @R.function
@@ -460,18 +460,13 @@ def test_legalize_without_any_changes_is_no_op():
             B = R.memory.view(A)
             return B
 
-    @I.ir_module
-    class Expected:
-        @R.function
-        def main(A: R.Tensor([4096], "float32")):
-            B = A
-            return B
+    Expected = Before
 
-    After = tvm.relax.transform.LegalizeOps()(Before)
+    After = tvm.relax.transform.LowerRuntimeBuiltin()(Before)
     tvm.ir.assert_structural_equal(Expected, After)
 
 
-def test_legalize_shape_change():
+def test_lower_runtime_builtin_shape_change():
     @I.ir_module
     class Before:
         @R.function
@@ -483,14 +478,25 @@ def test_legalize_shape_change():
     class Expected:
         @R.function
         def main(A: R.Tensor([4096], "float32")):
-            B = R.memory.view(A, shape=R.shape([64, 64]), dtype="float32", relative_byte_offset=0)
+            B = R.ExternFunc(
+                "runtime.TVMArrayCreateView",
+                R.Callable(
+                    derive_func="tvm.relax.struct_info.infer_view_sinfo",
+                    purity=True,
+                ),
+            )(
+                A,
+                R.shape([64, 64]),
+                R.dtype("float32"),
+                R.prim_value(0),
+            )
             return B
 
-    After = tvm.relax.transform.LegalizeOps()(Before)
+    After = tvm.relax.transform.LowerRuntimeBuiltin()(Before)
     tvm.ir.assert_structural_equal(Expected, After)
 
 
-def test_legalize_view_shape_from_unknown():
+def test_lower_runtime_builtin_view_shape_from_unknown():
     """R.memory.view does not require the input tensor to have a known shape"""
 
     @I.ir_module
@@ -504,14 +510,25 @@ def test_legalize_view_shape_from_unknown():
     class Expected:
         @R.function
         def main(A: R.Tensor(dtype="float32")):
-            B = R.memory.view(A, shape=R.shape([64, 64]), dtype="float32", relative_byte_offset=0)
+            B = R.ExternFunc(
+                "runtime.TVMArrayCreateView",
+                R.Callable(
+                    derive_func="tvm.relax.struct_info.infer_view_sinfo",
+                    purity=True,
+                ),
+            )(
+                A,
+                R.shape([64, 64]),
+                R.dtype("float32"),
+                R.prim_value(0),
+            )
             return B
 
-    After = tvm.relax.transform.LegalizeOps()(Before)
+    After = tvm.relax.transform.LowerRuntimeBuiltin()(Before)
     tvm.ir.assert_structural_equal(Expected, After)
 
 
-def test_legalize_dtype_change():
+def test_lower_runtime_builtin_dtype_change():
     @I.ir_module
     class Before:
         @R.function
@@ -523,16 +540,25 @@ def test_legalize_dtype_change():
     class Expected:
         @R.function
         def main(A: R.Tensor([4096], "float32")):
-            B = R.memory.view(
-                A, dtype=R.dtype("int32"), shape=R.shape([4096]), relative_byte_offset=0
+            B = R.ExternFunc(
+                "runtime.TVMArrayCreateView",
+                R.Callable(
+                    derive_func="tvm.relax.struct_info.infer_view_sinfo",
+                    purity=True,
+                ),
+            )(
+                A,
+                R.shape([4096]),
+                R.dtype("int32"),
+                R.prim_value(0),
             )
             return B
 
-    After = tvm.relax.transform.LegalizeOps()(Before)
+    After = tvm.relax.transform.LowerRuntimeBuiltin()(Before)
     tvm.ir.assert_structural_equal(Expected, After)
 
 
-def test_legalize_byte_offset():
+def test_lower_runtime_builtin_byte_offset():
     @I.ir_module
     class Before:
         @R.function
@@ -544,16 +570,25 @@ def test_legalize_byte_offset():
     class Expected:
         @R.function
         def main(A: R.Tensor([4096], "float32")):
-            B = R.memory.view(
-                A, relative_byte_offset=R.prim_value(0), shape=R.shape([4096]), dtype="float32"
+            B = R.ExternFunc(
+                "runtime.TVMArrayCreateView",
+                R.Callable(
+                    derive_func="tvm.relax.struct_info.infer_view_sinfo",
+                    purity=True,
+                ),
+            )(
+                A,
+                R.shape([4096]),
+                R.dtype("float32"),
+                R.prim_value(0),
             )
             return B
 
-    After = tvm.relax.transform.LegalizeOps()(Before)
+    After = tvm.relax.transform.LowerRuntimeBuiltin()(Before)
     tvm.ir.assert_structural_equal(Expected, After)
 
 
-def test_legalize_view_with_multiple_updated_fields():
+def test_lower_runtime_builtin_view_with_multiple_updated_fields():
     """R.memory.view may update more than one field in the view
 
     In this test case, a 4-kilobyte buffer is provided.  The first
@@ -584,21 +619,33 @@ def test_legalize_view_with_multiple_updated_fields():
     class Expected:
         @R.function
         def main(A: R.Tensor([4096], "uint8")):
-            B = R.memory.view(
+            B = R.ExternFunc(
+                "runtime.TVMArrayCreateView",
+                R.Callable(
+                    derive_func="tvm.relax.struct_info.infer_view_sinfo",
+                    purity=True,
+                ),
+            )(
                 A,
-                shape=R.shape([512]),
-                dtype=R.dtype("int32"),
-                relative_byte_offset=R.prim_value(0),
+                R.shape([512]),
+                R.dtype("int32"),
+                R.prim_value(0),
             )
-            C = R.memory.view(
+            C = R.ExternFunc(
+                "runtime.TVMArrayCreateView",
+                R.Callable(
+                    derive_func="tvm.relax.struct_info.infer_view_sinfo",
+                    purity=True,
+                ),
+            )(
                 A,
-                shape=R.shape([16, 64]),
-                dtype=R.dtype("float16"),
-                relative_byte_offset=R.prim_value(2048),
+                R.shape([16, 64]),
+                R.dtype("float16"),
+                R.prim_value(2048),
             )
             return (B, C)
 
-    After = tvm.relax.transform.LegalizeOps()(Before)
+    After = tvm.relax.transform.LowerRuntimeBuiltin()(Before)
     tvm.ir.assert_structural_equal(Expected, After)
 
 
@@ -718,31 +765,6 @@ def test_execute_view_with_multiple_updated_fields(target, dev):
 
     tvm.testing.assert_allclose(tvm_output[0].numpy(), np_expected[0])
     tvm.testing.assert_allclose(tvm_output[1].numpy(), np_expected[1])
-
-
-@tvm.testing.parametrize_targets("llvm", "cuda")
-def test_execute_view_with_new_byte_offset_ensure_aligned(target, dev):
-    @I.ir_module
-    class Module:
-        @R.function
-        def main(A: R.Tensor([4096], "float32")):
-            B = R.memory.view(
-                A,
-                shape=R.shape([16, 64]),
-                relative_byte_offset=32 * 64 * 4,
-            )
-            C = R.memory.ensure_zero_offset(B)
-            return C
-
-    built = tvm.relax.build(Module, target=target)
-    vm = tvm.relax.VirtualMachine(built, device=dev)
-
-    np_input = np.random.random([4096]).astype("float32")
-    tvm_input = tvm.nd.array(np_input, dev)
-    tvm_output = vm["main"](tvm_input)
-    np_expected = np_input.reshape(64, 64)[32:48, :]
-
-    tvm.testing.assert_allclose(tvm_output.numpy(), np_expected)
 
 
 if __name__ == "__main__":

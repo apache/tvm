@@ -292,6 +292,11 @@ StructInfo InferStructInfoView(const Call& call, const BlockBuilder& ctx) {
 TVM_REGISTER_GLOBAL("tvm.relax.struct_info.infer_view_sinfo").set_body_typed(InferStructInfoView);
 
 Expr LegalizeView(const BlockBuilder& bb, const Call& call) {
+  // No-op. View is lowered during the LowerBuiltinView pass.
+  return call;
+}
+
+Expr LowerBuiltinView(const BlockBuilder& bb, const Call& call) {
   Expr data = call->args[0];
   Expr shape = call->args[1];
   Expr dtype = call->args[2];
@@ -334,20 +339,13 @@ Expr LegalizeView(const BlockBuilder& bb, const Call& call) {
     relative_byte_offset = relax::PrimValue::Int64(0);
   }
 
-  if (shape.same_as(call->args[1]) && dtype.same_as(call->args[2]) &&
-      relative_byte_offset.same_as(call->args[3])) {
-    return call;
-  }
-
-  return Call(call->op, {data, shape, dtype, relative_byte_offset});
-}
-
-Expr LowerBuiltinView(const BlockBuilder& bb, const Call& call) {
   StructInfoDeriveFunc infer_sinfo_env_func;
   infer_sinfo_env_func = EnvFunc::Get("tvm.relax.struct_info.infer_view_sinfo");
   auto runtime_view_sinfo = FuncStructInfo::OpaqueFunc(infer_sinfo_env_func, true);
+
   ExternFunc runtime_view_func("runtime.TVMArrayCreateView", runtime_view_sinfo);
-  return Call(runtime_view_func, call->args, call->attrs, {runtime_view_sinfo});
+
+  return Call(runtime_view_func, {data, shape, dtype, relative_byte_offset});
 }
 
 TVM_REGISTER_OP("relax.memory.view")
