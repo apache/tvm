@@ -262,6 +262,8 @@ class CUDADeviceAPI final : public DeviceAPI {
     CUDAThreadEntry::ThreadLocal()->pool.FreeWorkspace(dev, data);
   }
 
+  bool SupportsDevicePointerArithmeticsOnHost() final { return true; }
+
   static CUDADeviceAPI* Global() {
     // NOTE: explicitly use new to avoid exit-time destruction of global state
     // Global state will be recycled by OS as the process exits.
