@@ -634,9 +634,10 @@ def bench_flash_attention(BATCH, H, N_CTX, HEAD_DIM, causal, mode, provider, dev
     rep = 100
     dtype = torch.float16
     if "triton" in provider:
-        q = torch.randn((BATCH, H, N_CTX, HEAD_DIM), dtype=dtype, device=device, requires_grad=True)
-        k = torch.randn((BATCH, H, N_CTX, HEAD_DIM), dtype=dtype, device=device, requires_grad=True)
-        v = torch.randn((BATCH, H, N_CTX, HEAD_DIM), dtype=dtype, device=device, requires_grad=True)
+        q = torch.empty((BATCH, H, N_CTX, HEAD_DIM), dtype=dtype, device=device).normal_(-1.0, 1.0)
+        k = torch.empty((BATCH, H, N_CTX, HEAD_DIM), dtype=dtype, device=device).normal_(-1.0, 1.0)
+        v = torch.empty((BATCH, H, N_CTX, HEAD_DIM), dtype=dtype, device=device).normal_(-1.0, 1.0)
+        q.requires_grad = k.requires_grad = v.requires_grad = True
         if mode == "fwd" and "fp8" in provider:
             q = q.to(torch.float8_e5m2)
             k = k.to(torch.float8_e5m2)

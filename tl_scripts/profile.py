@@ -16,9 +16,6 @@ for config in configurations:
         '--m', str(config['m']),
         '--n', str(config['n']),
         '--k', str(config['k']),
-        '--bm', str(config['bm']),
-        '--bn', str(config['bn']),
-        '--bk', str(config['bk'])
     ]
     print(f"M:{config['m']}, N:{config['n']}, K:{config['k']}", flush=True)
     try:
@@ -27,38 +24,38 @@ for config in configurations:
         print("Failed.")
     print('-'*100)
 
-# batches = [1]
-# configurations = [
-#     {'model': 'GPT2', 'h': 12, 'n_ctx': 1024, 'd_head': 64},
-#     # {'model': 'BERT-small', 'h': 8, 'n_ctx': 512, 'd_head': 64},
-#     # {'model': 'BERT-base', 'h': 12, 'n_ctx': 512, 'd_head': 64},
-#     # {'model': 'BERT-large', 'h': 16, 'n_ctx': 512, 'd_head': 64},
-#     # {'model': 'Llamma2-7B', 'h': 32, 'n_ctx': 4096, 'd_head': 128},
-#     # {'model': 'Llamma2-13B', 'h': 40, 'n_ctx': 4096, 'd_head': 128},
-#     # {'model': 'Llamma2-70B', 'h': 64, 'n_ctx': 4096, 'd_head': 128},
-#     # {'model': 'OPT-350M', 'h': 16, 'n_ctx': 2048, 'd_head': 64},
-#     # {'model': 'OPT-13B', 'h': 40, 'n_ctx': 2048, 'd_head': 128},
-#     # {'model': 'OPT-175B', 'h': 96, 'n_ctx': 2048, 'd_head': 128},
-#     # {'model': 'DiT-S-2', 'h': 6, 'n_ctx': 1024, 'd_head': 64},
-#     # {'model': 'DiT-B-2', 'h': 12, 'n_ctx': 1024, 'd_head': 64},
-#     # {'model': 'DiT-L-2', 'h': 16, 'n_ctx': 1024, 'd_head': 64},
-# ]
+batches = [1, 64]
+configurations = [
+    {'model': 'GPT2', 'h': 12, 'n_ctx': 1024, 'd_head': 64},
+    {'model': 'BERT-small', 'h': 8, 'n_ctx': 512, 'd_head': 64},
+    {'model': 'BERT-base', 'h': 12, 'n_ctx': 512, 'd_head': 64},
+    {'model': 'BERT-large', 'h': 16, 'n_ctx': 512, 'd_head': 64},
+    {'model': 'Llamma2-7B', 'h': 32, 'n_ctx': 4096, 'd_head': 128},
+    {'model': 'Llamma2-13B', 'h': 40, 'n_ctx': 4096, 'd_head': 128},
+    {'model': 'Llamma2-70B', 'h': 64, 'n_ctx': 4096, 'd_head': 128},
+    {'model': 'OPT-350M', 'h': 16, 'n_ctx': 2048, 'd_head': 64},
+    {'model': 'OPT-13B', 'h': 40, 'n_ctx': 2048, 'd_head': 128},
+    {'model': 'OPT-175B', 'h': 96, 'n_ctx': 2048, 'd_head': 128},
+    {'model': 'DiT-S-2', 'h': 6, 'n_ctx': 1024, 'd_head': 64},
+    {'model': 'DiT-B-2', 'h': 12, 'n_ctx': 1024, 'd_head': 64},
+    {'model': 'DiT-L-2', 'h': 16, 'n_ctx': 1024, 'd_head': 64},
+]
 
-# for batch in batches:
-#     for config in configurations:
-#         cmd = [
-#             'python', '/home/t-yucheng/tvm.tl/tl_scripts/mha_example.py',
-#             '--batch', str(batch),
-#             '--h', str(config['h']),
-#             '--n_ctx', str(config['n_ctx']),
-#             '--d_head', str(config['d_head'])
-#         ]
-#         print(config['model'], flush=True)
-#         try:
-#             subprocess.run(cmd)
-#         except:
-#             print("Failed.")
-#         print('-'*100)
+for batch in batches:
+    for config in configurations:
+        cmd = [
+                'python', '/home/t-yucheng/tvm.tl/tl_scripts/mha_example.py',
+                '--batch', str(batch),
+                '--h', str(config['h']),
+                '--n_ctx', str(config['n_ctx']),
+                '--d_head', str(config['d_head'])
+            ]
+        print(config['model'], flush=True)
+        try:
+            subprocess.run(cmd)
+        except:
+            print("Failed.")
+        print('-'*100)
 
 # ncu profile:
 # sudo -E env PATH=$PATH PYTHONPATH=$PYTHONPATH TMPDIR=~/ncu_tmp ncu --set full -k regex:"main_kernel" --launch-count 1 --launch-skip 500 -f -o reports/gemm_main_kernel_only /home/cy/miniconda3/envs/tl/bin/python tl_scripts/gemm_example.py

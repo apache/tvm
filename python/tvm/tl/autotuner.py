@@ -55,14 +55,14 @@ class Autotuner:
             new_args = tuple(new_args)
             # print("auto-tunner new_args:", new_args)
             try:
-                latency = self.fn(*new_args, **kwds)
-            except:
-                print("Fail on config ", config)
+                latency, ref_latency = self.fn(*new_args, **kwds)
+            except Exception as e:
+                print("Fail on config ", config, " with error: ", e)
                 latency = 1e8
             if latency < best_latency:
                 best_latency = latency
                 best_config = config
-        return best_latency, best_config
+        return best_latency, best_config, ref_latency
 
     def __call__(self, *args: Any, **kwds: Any) -> Any:
         return self.run(*args, **kwds)
@@ -75,11 +75,25 @@ def autotune(configs: Any, keys: List[str], warmup: int = 25, rep: int = 100) ->
         return Autotuner(fn, configs=configs, keys=keys, warmup=warmup, rep=rep)
     return decorator
 
-def jit(fn: Callable):
-    @wraps(fn)
-    def decorator(*args, **kwargs) -> float:
-        mod, params = tl.lower(fn(*args, **kwargs))
-        mod = tl.Profiler(mod, params, [2], tl.TensorSupplyType.Integer)
-        latency = mod.do_bench(mod.func, n_warmup=10, n_repeat=5)
-        return latency
-    return decorator
+def jit(
+    out_idx: List[int], 
+    supply_type: tl.TensorSupplyType = tl.TensorSupplyType.Normal, 
+    ref_prog: Callable = None,
+    rtol: float = 1e-5,
+    atol: float = 1e-5
+    ) -> Callable:
+    
+    def wrapper(fn: Callable):
+        ref_latency_cache = None
+        @wraps(fn)
+        def decorator(*args, **kwargs) -> float:
+            nonlocal ref_latency_cache
+            mod, params = tl.lower(fn(*args, **kwargs))
+            mod = tl.Profiler(mod, params, out_idx, supply_type)
+            mod.assert_allclose(ref_prog, rtol=rtol, atol=atol)
+            latency = mod.do_bench(mod.func, warmup = 25)
+            if ref_latency_cache is None and ref_prog is not None:
+                ref_latency_cache = mod.do_bench(ref_prog, warmup = 25)
+            return latency, ref_latency_cache
+        return decorator
+    return wrapper
