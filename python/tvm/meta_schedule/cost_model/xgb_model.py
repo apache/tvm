@@ -755,7 +755,12 @@ def _get_custom_call_back(
                     raise ValueError("wrong metric value", value)
 
             import xgboost as xgb
-            from xgboost import collective  # type: ignore
+
+            # make it compatible with xgboost<1.7
+            try:
+                from xgboost import rabit as collective  # type: ignore
+            except ImportError:
+                from xgboost import collective  # type: ignore
 
             try:
                 from xgboost.training import aggcv  # type: ignore
