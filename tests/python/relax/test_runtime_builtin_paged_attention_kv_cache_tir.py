@@ -36,6 +36,7 @@ from tvm.relax.frontend.nn.llm.kv_cache import (
     _merge_state_inplace,
     llama_rope_with_position_map,
     tree_attn,
+    tree_attn_with_paged_kv_cache,
 )
 from tvm.runtime import ShapeTuple
 
@@ -74,6 +75,7 @@ fattn_prefill_sliding_window = None
 fattn_decode_sliding_window = None
 fattn_prefill_ragged = None
 fattn_prefill_with_tree_mask = None
+fattn_prefill_with_tree_mask_paged_kv_cache = None
 fmerge_state = None
 fsplit_rotary = None
 fattention_rotary = None
@@ -86,7 +88,7 @@ def set_global_func(head_dim, dtype):
     global fpopn, fbegin_forward, fend_forward, fcommit_accepted_token_tree_nodes
     global fattention_with_fuse_qkv, fis_empty, fdebug_get_kv
     global ftranspose_append, fcopy_cache, fattn_prefill, fattn_decode
-    global fattn_prefill_ragged, fattn_prefill_with_tree_mask
+    global fattn_prefill_ragged, fattn_prefill_with_tree_mask, fattn_prefill_with_tree_mask_paged_kv_cache
     global fattn_prefill_sliding_window, fattn_decode_sliding_window
     global fmerge_state, fsplit_rotary, fattention_rotary, fcopy_single_page, fcompact_copy
 
@@ -124,6 +126,9 @@ def set_global_func(head_dim, dtype):
             num_kv_heads, num_qo_heads, head_dim, dtype, rope_scaling, target
         ),
         tree_attn(num_kv_heads, num_qo_heads, head_dim, dtype, rope_scaling, target),
+        tree_attn_with_paged_kv_cache(
+            num_kv_heads, num_qo_heads, head_dim, dtype, rope_scaling, target
+        ),
         _merge_state_inplace(num_qo_heads, head_dim, dtype, target),
         llama_rope_with_position_map(
             rope_theta, rope_scale, head_dim, num_qo_heads, num_kv_heads, dtype, rope_scaling
@@ -146,6 +151,7 @@ def set_global_func(head_dim, dtype):
         fattn_decode_sliding_window,
         fattn_prefill_ragged,
         fattn_prefill_with_tree_mask,
+        fattn_prefill_with_tree_mask_paged_kv_cache,
         fmerge_state,
         fsplit_rotary,
         fcopy_single_page,
@@ -185,6 +191,7 @@ def create_kv_cache(head_dim, dtype, rope_mode, support_sliding_window):
         fcopy_cache,
         fcompact_copy,
         fattn_prefill_with_tree_mask,
+        fattn_prefill_with_tree_mask_paged_kv_cache,
         None,
     )
     return cache
@@ -206,7 +213,7 @@ class RopeMode(enum.IntEnum):
     params=itertools.chain(
         itertools.product(
             [64, 128],
-            ["float16", "float32"],
+            ["float32", "float16"],
             [RopeMode.NORMAL],
             [False],
         ),
@@ -296,23 +303,26 @@ def apply_attention(
             cached_k[seq_id] = np.zeros((num_layers, 0, num_kv_heads, head_dim), dtype)
             cached_v[seq_id] = np.zeros((num_layers, 0, num_kv_heads, head_dim), dtype)
 
-    assert (token_tree_parent_ptr_list is None) == (accepted_leaf_indices is None)
     flattened_token_tree_parent_ptr = None
     token_tree_node_depths_list: List[Optional[List[int]]] = [None for _ in batch]
     if token_tree_parent_ptr_list:
         assert len(token_tree_node_depths_list) == len(seq_ids)
-        assert len(accepted_leaf_indices) == len(seq_ids)
+        if accepted_leaf_indices is not None:
+            assert len(accepted_leaf_indices) == len(seq_ids)
         flattened_token_tree_parent_ptr = []
         for i, (token_tree_parent_ptr, append_length) in enumerate(
             zip(token_tree_parent_ptr_list, append_lengths)
         ):
-            assert len(token_tree_parent_ptr) == append_length
-            flattened_token_tree_parent_ptr += token_tree_parent_ptr
+            assert len(token_tree_parent_ptr) >= append_length
+            # parent pointer for the last `append_length` nodes (the new tokens)
+            append_token_tree_parent_ptr = token_tree_parent_ptr[-append_length:]
+            flattened_token_tree_parent_ptr += append_token_tree_parent_ptr
             token_tree_node_depths = []
             for parent in token_tree_parent_ptr:
                 token_tree_node_depths.append(
                     0 if parent == -1 else token_tree_node_depths[parent] + 1
                 )
+            # depth of each node in the tree (this contains more than the last `append_length` nodes)
             token_tree_node_depths_list[i] = token_tree_node_depths
 
     fbegin_forward(
@@ -337,6 +347,11 @@ def apply_attention(
         new_v = np.random.rand(num_layers, append_length, num_kv_heads, head_dim).astype(dtype)
         q_array.append(new_q)
 
+        rope_offset = cached_k[seq_id].shape[1]
+        if token_tree_parent_ptr_list is not None:
+            prev_tree_size = len(token_tree_parent_ptr_list[i]) - append_length
+            assert prev_tree_size >= 0
+            rope_offset -= prev_tree_size
         cached_k[seq_id] = np.concatenate(
             [
                 cached_k[seq_id],
@@ -347,10 +362,12 @@ def apply_attention(
                             if rope_mode != RopeMode.NORMAL
                             else f_apply_rotary(
                                 new_k[l],
-                                cached_k[seq_id].shape[1],
+                                rope_offset,
                                 rope_scale,
                                 rope_theta,
-                                token_tree_node_depths_list[i],
+                                token_tree_node_depths_list[i][-append_length:]
+                                if token_tree_node_depths_list[i] is not None
+                                else None,
                             )
                         )
                         for l in range(num_layers)
@@ -379,7 +396,11 @@ def apply_attention(
         for i, (seq_id, append_length) in enumerate(batch):
             assert cached_k[seq_id].shape[1] == cached_v[seq_id].shape[1] >= append_length
 
-            rope_offset = cached_k[seq_id].shape[1] - append_length
+            rope_offset = cached_k[seq_id].shape[1]
+            if token_tree_parent_ptr_list is not None:
+                rope_offset -= len(token_tree_parent_ptr_list[i])
+            else:
+                rope_offset -= append_length
             q_seq = (
                 q_array[i][layer_id]
                 if rope_mode == RopeMode.NONE
@@ -388,7 +409,9 @@ def apply_attention(
                     rope_offset,
                     rope_scale,
                     rope_theta,
-                    token_tree_node_depths_list[i],
+                    token_tree_node_depths_list[i][-append_length:]
+                    if token_tree_node_depths_list[i] is not None
+                    else None,
                 )
             ).transpose(1, 0, 2)
             k_seq = (
@@ -422,15 +445,16 @@ def apply_attention(
                 np.full_like(softmax_input, np.finfo("float32").max), k=length_diff
             ) + np.triu(np.full_like(softmax_input, np.finfo("float32").min), k=length_diff + 1)
             if token_tree_parent_ptr_list is not None:
+                tree_size = len(token_tree_parent_ptr_list[i])
                 tree_mask = np.full(
-                    (append_length, append_length), np.finfo("float32").min, dtype="float32"
+                    (tree_size, tree_size), np.finfo("float32").min, dtype="float32"
                 )
                 for i, parent in enumerate(token_tree_parent_ptr_list[i]):
                     if parent != -1:
                         tree_mask[i] = tree_mask[parent]
                     tree_mask[i, i] = np.finfo("float32").max
                 tree_mask = np.broadcast_to(tree_mask, (num_qo_heads, *tree_mask.shape))
-                mask[:, :, length_diff:] = tree_mask
+                mask[:, :, -tree_size:] = tree_mask[:, -append_length:, :]
 
             softmax_input = np.minimum(softmax_input, mask)
 
@@ -846,8 +870,11 @@ def test_paged_attention_kv_cache_sliding_window_fork(kv_cache_and_config):
 @tvm.testing.requires_cuda
 def test_paged_attention_kv_cache_tree_attn(kv_cache_and_config):
     kv_cache, rope_mode, support_sliding_window = kv_cache_and_config
-    if support_sliding_window and rope_mode == RopeMode.NORMAL:
+    if support_sliding_window:
         # Normal RoPE mode under sliding window settings is not supported.
+        return
+    if rope_mode == RopeMode.INLINE:
+        # Inline RoPE mode is not supported for tree attention.
         return
     fclear(kv_cache)
 
@@ -898,6 +925,29 @@ def test_paged_attention_kv_cache_tree_attn(kv_cache_and_config):
     # Do 5 rounds of decode.
     for _ in range(5):
         apply_attention(kv_cache, rope_mode, [(0, 1), (1, 1), (2, 1), (3, 1)], cached_k, cached_v)
+
+    # Test the cases of tree attn with cached kv.
+    fclear(kv_cache)
+    cached_k = {}
+    cached_v = {}
+    # Prefill 4 sequences
+    apply_attention(kv_cache, rope_mode, [(0, 10), (1, 20), (2, 30), (3, 40)], cached_k, cached_v)
+    # Do 5 rounds of tree decode.
+    num_seq = 4
+    for i in range(5):
+        num_leaf_nodes = 2**i
+        parent_ptr = [(k - 1) // 2 for k in range(0, 2 * num_leaf_nodes - 1)]
+        apply_attention(
+            kv_cache,
+            rope_mode,
+            [(seq_id, num_leaf_nodes) for seq_id in range(num_seq)],
+            cached_k,
+            cached_v,
+            token_tree_parent_ptr_list=[parent_ptr for _ in range(num_seq)],
+            accepted_leaf_indices=(
+                None if i != 4 else [2, 6, -1, 4]
+            ),  # Leaf nodes are committed all at once at the end.
+        )
 
 
 if __name__ == "__main__":

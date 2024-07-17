@@ -30,7 +30,7 @@ from tvm.script import tir as T
 from tvm.target import Target
 
 from .position_embedding import llama_rope_with_position_map, switch_rope_freq_func
-from .tree_attn import tree_attn
+from .tree_attn import tree_attn, tree_attn_with_paged_kv_cache
 
 
 def get_max_num_threads_per_block(target: Target) -> int:
@@ -257,6 +257,7 @@ class FlashInferPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-me
             bb.add_func(_kv_cache_debug_get_kv(num_hidden_layers, num_key_value_heads, head_dim, dtype), "kv_cache_debug_get_kv"),
             bb.add_func(_compact_kv_copy(num_key_value_heads, head_dim, dtype, target), "kv_cache_compact_kv_copy"),
             bb.add_func(tree_attn(num_key_value_heads, num_attention_heads, head_dim, dtype, rope_scaling, target), "tir_attention_prefill_with_tree_mask"),
+            bb.add_func(tree_attn_with_paged_kv_cache(num_key_value_heads, num_attention_heads, head_dim, dtype, rope_scaling, target), "tir_attention_prefill_with_tree_mask_with_paged_kv_cache"),
             rope_ext_factors,
             # fmt: on
             # pylint: enable=line-too-long
