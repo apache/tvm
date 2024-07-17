@@ -755,7 +755,7 @@ def _get_custom_call_back(
                     raise ValueError("wrong metric value", value)
 
             import xgboost as xgb
-            from xgboost import rabit  # type: ignore
+            from xgboost import collective  # type: ignore
 
             try:
                 from xgboost.training import aggcv  # type: ignore
@@ -841,7 +841,7 @@ def _get_custom_call_back(
             elif epoch - best_iteration >= self.early_stopping_rounds:
                 best_msg = self.state["best_msg"]
 
-                if self.verbose_eval and rabit.get_rank() == 0:
+                if self.verbose_eval and collective.get_rank() == 0:
                     logger.debug("XGB stopped. Best iteration: %s ", best_msg)
                 # instead of raising EarlyStopException, returning True to end the training
                 return True
