@@ -28,6 +28,7 @@ export CCACHE_DIR=/ccache-tvm
 source /multibuild/manylinux_utils.sh
 source /opt/rh/gcc-toolset-11/enable # GCC-11 is the hightest GCC version compatible with NVCC < 12
 
+rm -rf $WORKSPACE_CWD/build/
 mkdir -p $WORKSPACE_CWD/build/ && cd $WORKSPACE_CWD/build/
 cp $WORKSPACE_CWD/cmake/config.cmake $WORKSPACE_CWD/build/ -f
 
