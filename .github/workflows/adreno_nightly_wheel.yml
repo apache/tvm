@@ -224,7 +224,7 @@ jobs:
            Compress-Archive -Path ".\\build-arm64\Release\*" -CompressionLevel Optimal -DestinationPath Adreno-Utils-win-Arm64.zip -Force
            try { gh release delete TVM-Nightly-Windows --cleanup-tag --yes --repo $Env:RELEASE_REPO } catch { }
            gh release create TVM-Nightly-Windows --latest --title TVM-Nightly-Windows --repo $Env:RELEASE_REPO --notes "Windows nightly builds"
-           foreach ($i in Get-ChildItem -Path dist) {gh release upload TVM-Nightly-Windows .\dist\$i --clobber --repo $Env:RELEASE_REPO}
+           foreach ($i in Get-ChildItem -Path python\dist) {gh release upload TVM-Nightly-Windows .\python\dist\$i --clobber --repo $Env:RELEASE_REPO}
            gh release upload TVM-Nightly-Windows Adreno-Utils-win-Arm64.zip --clobber --repo $Env:RELEASE_REPO
         env:
            GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
