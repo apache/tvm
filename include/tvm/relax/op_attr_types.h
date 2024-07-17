@@ -83,9 +83,9 @@ using FLegalize = runtime::TypedPackedFunc<Expr(const BlockBuilder& bb, const Ca
  *
  * A builtin function may be lowered to a lowered form in `LowerRuntimeBuiltin`.
  *
-* \param bb The BlockBuilder context.
-* \param call The call to be lowered.
-*/
+ * \param bb The BlockBuilder context.
+ * \param call The call to be lowered.
+ */
 using FLowerBuiltin = runtime::TypedPackedFunc<Expr(const BlockBuilder& bb, const Call& call)>;
 
 /*!
