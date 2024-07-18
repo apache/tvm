@@ -1054,6 +1054,7 @@ def test_conv_1x1():
         expected_decisions=[decision_0],
     )
     
+    
 def test_padded_conv():
     # fmt: off
     @T.prim_func
@@ -1176,7 +1177,7 @@ def test_padded_conv():
         ("SampleCategorical", 2),
         ("SampleCategorical", 1),
     ]
-
+    
     mod = te.create_prim_func(
         te_workload.conv2d_nhwc(
             1,
