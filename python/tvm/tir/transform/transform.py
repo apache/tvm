@@ -1202,8 +1202,9 @@ def DefaultGPUSchedule():
 
 
 def UseAssumeToReduceBranches():
-    """This pass attempts to eliminates layout specific pad branch by overcomputing the values for padded region.
-    Eliminating the branch will help to vectorize the code and improve element wise ops performance.
+    """This pass attempts to eliminates layout specific pad branch by overcomputing the values
+    for padded region. Eliminating the branch will help to vectorize code,
+    and improve element wise ops performance.
 
     Returns
     -------
