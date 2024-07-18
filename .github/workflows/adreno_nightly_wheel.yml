@@ -152,16 +152,15 @@ jobs:
            cp build-adreno-target/tvm_rpc adreno-utils/ -rfa
            cp build-adreno-target/rtvm adreno-utils/ -rfa
            cp build-adreno-target/libtvm_runtime.so adreno-utils/ -rfa
-           tar jcvfp adreno-utils.tar.bz2 adreno-utils
-           cp adreno-utils.tar.bz2 ./nightly/ -rfa
-           gh release delete TVM-Nightly-Linux --cleanup-tag --yes --repo "$RELEASE_REPO" || true
-           gh release create TVM-Nightly-Linux --latest --title TVM-Nightly-Linux --repo "$RELEASE_REPO" --notes "TVM Nightly builds"
-           gh release upload TVM-Nightly-Linux ./nightly/* --clobber --repo "$RELEASE_REPO"
-           git tag -f -a TVM-Nightly-Linux -m "Update nightly commit id"
-           git push origin -f --tags
+           tar jcvfp adreno-utils-linux-arm64.tar.bz2 adreno-utils
+           cp adreno-utils-linux-arm64.tar.bz2 ./nightly/ -rfa
+           gh release delete tvm-nightly --cleanup-tag --yes --repo "$RELEASE_REPO" || true
+           gh release create tvm-nightly --latest --title tvm-nightly --repo "$RELEASE_REPO" --notes "TVM Nightly builds"
+           gh release upload tvm-nightly ./nightly/* --clobber --repo "$RELEASE_REPO"
            rm -rf nightly
-           mv adreno-utils.tar.bz2 ${BUILD_WHEEL_PATH}/
+           mv adreno-utils-linux-arm64.tar.bz2 ${BUILD_WHEEL_PATH}/
   BuildPackageWindows:
+    needs: [BuildPackageLinux]
     if: ${{ github.repository == 'gpgpu/apache-tvm' }}
     runs-on: tvm-windows
     steps:
@@ -221,10 +220,10 @@ jobs:
            $Env:WHEEL_EXT_NAME="_adreno_cpu_x86"
            python.exe .\setup.py bdist_wheel --plat-name win_amd64
            Pop-Location
-           Compress-Archive -Path ".\\build-arm64\Release\*" -CompressionLevel Optimal -DestinationPath Adreno-Utils-win-Arm64.zip -Force
-           try { gh release delete TVM-Nightly-Windows --cleanup-tag --yes --repo $Env:RELEASE_REPO } catch { }
-           gh release create TVM-Nightly-Windows --latest --title TVM-Nightly-Windows --repo $Env:RELEASE_REPO --notes "Windows nightly builds"
-           foreach ($i in Get-ChildItem -Path python\dist) {gh release upload TVM-Nightly-Windows .\python\dist\$i --clobber --repo $Env:RELEASE_REPO}
-           gh release upload TVM-Nightly-Windows Adreno-Utils-win-Arm64.zip --clobber --repo $Env:RELEASE_REPO
+           Compress-Archive -Path ".\\build-arm64\Release\*" -CompressionLevel Optimal -DestinationPath adreno-utils-win-arm64.zip -Force
+           #try { gh release delete tvm-nightly --cleanup-tag --yes --repo $Env:RELEASE_REPO } catch { }
+           #gh release create tvm-nightly --latest --title tvm-nightly --repo $Env:RELEASE_REPO --notes "Nightly builds"
+           foreach ($i in Get-ChildItem -Path python\dist) {gh release upload tvm-nightly .\python\dist\$i --clobber --repo $Env:RELEASE_REPO}
+           gh release upload tvm-nightly adreno-utils-win-arm64.zip --clobber --repo $Env:RELEASE_REPO
         env:
            GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
