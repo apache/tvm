@@ -701,6 +701,12 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const SubNode* op) {
   } else {
     // Cancellation rules.  Deliberately off of the integer path, to
     // avoid introducing checks on the side effects for the fast path.
+    //
+    // These simplifications do not preserve NaN/Inf that may occur in
+    // the inputs.  For IEEE floats, `NaN - NaN` is `NaN`, and does
+    // not cancel out.  However, since models should not encounter NaN
+    // in the first place, this allows better simplification for the
+    // supported path.
     TVM_TRY_REWRITE_IF(x - x, ZeroWithTypeLike(x),
                        SideEffect(x.Eval()) <= CallEffectKind::kReadState);
     TVM_TRY_REWRITE_IF((x + y) - y, x, SideEffect(y.Eval()) <= CallEffectKind::kReadState);
@@ -1704,6 +1710,12 @@ PrimExpr RewriteSimplifier::Impl::ApplyRewriteRules(EQ ret) {
   } else {
     // Mimic the cancellation rules for SubNode.  For Index datatypes,
     // we skip the check for side effects.
+    //
+    // These simplifications do not preserve NaN/Inf that may occur in
+    // the inputs.  For IEEE floats, `NaN - NaN` is `NaN`, and does
+    // not cancel out.  However, since models should not encounter NaN
+    // in the first place, this allows better simplification for the
+    // supported path.
     TVM_TRY_REWRITE_IF(x == x, ctrue, SideEffect(x.Eval()) <= CallEffectKind::kReadState);
   }
   return std::move(ret);
