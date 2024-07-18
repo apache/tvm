@@ -25,9 +25,9 @@
  * oriented for layout specific padding related branches.
  *
  * \note
- *    1. This pass works if the buffer assumption variable is in the branch statement. 
- *       In case, the buffer assumption is not present in the branch statement and 
- *       there are intermediate buffers then, inline the code. 
+ *    1. This pass works if the buffer assumption variable is in the branch statement.
+ *       In case, the buffer assumption is not present in the branch statement and
+ *       there are intermediate buffers then, inline the code.
  *    2. The assumptions leveraged here should be of the form T.assume(condition_on_indices or
  *       buffer_equals_to_some_value)
  *    3. Some part of the code are reused from the control_flow_graph.cc file which also
@@ -76,10 +76,10 @@ class AssumeChecker : public StmtExprVisitor {
 
 class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
   /* This class analyzes the complete primfunc.
-  It parses the buffer assumptions and eliminates the redundant branch 
-  introduced due to layout specific padding by leveraging from buffer assumptions. 
+  It parses the buffer assumptions and eliminates the redundant branch
+  introduced due to layout specific padding by leveraging from buffer assumptions.
   On eliminating the branch there are more opportunities to vectorize the code and improve performance.
-  
+
   Example:
   -------------
   Prim Func Before :
@@ -87,7 +87,7 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
     T.assume( assume_condition or A[i] == 0 )
   for (...)
     out = T.if_then_else(if_then_else_condition, 0, function(A)) # here function(A) is some function on Var A
-  
+
   Prim Func After :
     for (...)
     T.assume( assume_condition or A[i] == 0 )
@@ -100,7 +100,7 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
     It checks if the context of the assume statement (for condition indices and
     assume_condition) is same as the context of the if_then_else statement (for condition indices and
     if_then_else condition). If context is same and the expression inside if_then_else statement is a function of the
-    buffer assumption (eg A in above example), then the pass substitutes the value from the buffer assumption and 
+    buffer assumption (eg A in above example), then the pass substitutes the value from the buffer assumption and
     simplifies the expression .
     3. The pass then checks if then_clause and else_clause evaluate to same value.
     If yes, then return the else_clause if we are in the then_condition_context (since then_clause
