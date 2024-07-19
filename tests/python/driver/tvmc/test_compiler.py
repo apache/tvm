@@ -506,11 +506,12 @@ def test_code_dumps(tflite_mobilenet_v1_1_quant):
             assert len(f.read()) > 0
 
 
+@pytest.mark.parametrize("use_vm", [True, False])
 # This test will be skipped if the AArch64 cross-compilation toolchain is not installed.
 @pytest.mark.skipif(
     not shutil.which("aarch64-linux-gnu-gcc"), reason="cross-compilation toolchain not installed"
 )
-def test_cross_compile_aarch64_tflite_module(tflite_mobilenet_v1_1_quant):
+def test_cross_compile_aarch64_tflite_module(use_vm, tflite_mobilenet_v1_1_quant):
     pytest.importorskip("tflite")
 
     tvmc_model = tvmc.load(tflite_mobilenet_v1_1_quant)
@@ -519,6 +520,7 @@ def test_cross_compile_aarch64_tflite_module(tflite_mobilenet_v1_1_quant):
         target="llvm -device=arm_cpu -mtriple=aarch64-linux-gnu -mattr='+neon'",
         dump_code="asm",
         cross="aarch64-linux-gnu-gcc",
+        use_vm=use_vm,
     )
     dumps_path = tvmc_package.package_path + ".asm"
 
@@ -780,8 +782,9 @@ def test_cross_compile_options_aarch64_paddle_module(paddle_resnet50):
     assert os.path.exists(dumps_path)
 
 
+@pytest.mark.parametrize("use_vm", [True, False])
 @tvm.testing.requires_opencl
-def test_compile_opencl(tflite_mobilenet_v1_0_25_128):
+def test_compile_opencl(use_vm, tflite_mobilenet_v1_0_25_128):
     pytest.importorskip("tflite")
     tvmc_model = tvmc.load(tflite_mobilenet_v1_0_25_128)
     tvmc_package = tvmc.compile(
@@ -789,14 +792,19 @@ def test_compile_opencl(tflite_mobilenet_v1_0_25_128):
         target="opencl -host=llvm",
         desired_layout="NCHW",
         dump_code="asm",
+        use_vm=use_vm,
     )
     dumps_path = tvmc_package.package_path + ".asm"
 
     # check for output types
     assert type(tvmc_package) is TVMCPackage
-    assert type(tvmc_package.graph) is str
     assert type(tvmc_package.lib_path) is str
-    assert type(tvmc_package.params) is bytearray
+    if use_vm:
+        assert tvmc_package.graph is None
+        assert tvmc_package.params is None
+    else:
+        assert type(tvmc_package.graph) is str
+        assert type(tvmc_package.params) is bytearray
     assert os.path.exists(dumps_path)
     assert path.exists("{}.{}".format(tvmc_package.package_path, "opencl"))
 
