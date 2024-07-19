@@ -65,3 +65,20 @@ This will:
 - Build a `bundle_static.o` object containing the runtime functions
 - Build a `demo_static` executable which has static link to `bundle_static.o` and
   `model.o`, functions on a cat image, then prints the output results.
+
+
+### Cross compilation
+
+Example for dynamic linking for RISC-V qemu.
+
+```bash
+CC=riscv64-unknown-linux-gnu-gcc \
+CXX=riscv64-unknown-linux-gnu-g++ \
+TVM_TARGET="llvm -device=riscv_cpu -mtriple=riscv64-unknown-linux-gnu" \
+RUNNER=qemu-riscv64 \
+make demo_dynamic
+```
+
+This will:
+- Compile and build using provided build tools
+- Run compiled binary with difined runner and print the output results.
