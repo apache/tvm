@@ -344,6 +344,9 @@ def set_global_func():
 
 def create_kv_cache(rope_mode):
     support_sliding_window = 0
+    num_storage = head_dim
+    kv_storage_dtype = dtype
+
     cache = fcreate(
         tvm.runtime.ShapeTuple(
             [
@@ -361,7 +364,9 @@ def create_kv_cache(rope_mode):
         rope_mode,
         rope_scale,
         rope_theta,
+        num_storage,
         tvm.nd.empty((), dtype, device=device),
+        tvm.nd.empty((), kv_storage_dtype, device=device),
         ftranspose_append,
         fattention_prefill,
         fattention_decode,

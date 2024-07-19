@@ -142,6 +142,9 @@ def set_global_func(head_dim, dtype):
 
 
 def create_kv_cache(head_dim, dtype, rope_mode, support_sliding_window):
+    num_storage = head_dim
+    kv_storage_dtype = dtype
+
     fcreate = tvm.get_global_func("vm.builtin.paged_attention_kv_cache_create_reduced")
     cache = fcreate(
         tvm.runtime.ShapeTuple(
@@ -160,7 +163,9 @@ def create_kv_cache(head_dim, dtype, rope_mode, support_sliding_window):
         rope_mode,
         rope_scale,
         rope_theta,
+        num_storage,
         tvm.nd.empty((), dtype, device=device),
+        tvm.nd.empty((), kv_storage_dtype, device=device),
         ftranspose_append,
         fattn_prefill,
         fattn_decode,
