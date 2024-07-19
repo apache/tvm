@@ -137,4 +137,5 @@ pub struct StridedSliceAttrsNode {
     pub end: Array<IntImm>,
     pub strides: Array<IntImm>,
     pub slice_mode: TString,
+    pub axes: Array<IntImm>,
 }
