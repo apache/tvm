@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Common utilities for creating TFLite models"""
-from distutils.version import LooseVersion
+from packaging.version import parse
 import numpy as np
 import pytest
 import tflite.Model  # pylint: disable=wrong-import-position
@@ -134,7 +134,7 @@ class TFLiteModel:
         assert self.serial_model is not None, "TFLite model was not created."
 
         output_tolerance = None
-        if tf.__version__ < LooseVersion("2.5.0"):
+        if parse(tf.__version__) < parse("2.5.0"):
             output_tolerance = 1
             interpreter = tf.lite.Interpreter(model_content=self.serial_model)
         else:
