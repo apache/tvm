@@ -573,19 +573,30 @@ void TransitiveComparisonAnalyzer::Impl::Bind(const tir::Var& var, const Range& 
     }
   }
 
-  prev_bindings_.Set(var, range);
+  Optional<PrimExpr> maybe_min = tir::try_reset_expr_dtype(var.dtype(), range->min);
+  Optional<PrimExpr> maybe_extent = tir::try_reset_expr_dtype(var.dtype(), range->extent);
 
-  if (is_const_int(range->extent, 1)) {
-    AddKnown(var == range->min, &knowns_);
+  CHECK(maybe_min && maybe_extent)
+      << "Incompatible types when binding a variable " << var << ':' << var.dtype()
+      << " to a range min=" << range->min << ':' << range->min.dtype()
+      << ", extent=" << range->extent << ':' << range->extent.dtype();
+
+  auto new_range = Range::FromMinExtent(maybe_min.value(), maybe_extent.value());
+  prev_bindings_.Set(var, new_range);
+
+  if (is_const_int(new_range->extent, 1)) {
+    AddKnown(var == new_range->min, &knowns_);
   } else {
-    AddKnown(var >= range->min, &knowns_);
-    AddKnown(var < range->min + range->extent, &knowns_);
+    AddKnown(var >= new_range->min, &knowns_);
+    AddKnown(var < new_range->min + new_range->extent, &knowns_);
   }
 }
 
 void TransitiveComparisonAnalyzer::Impl::Bind(const tir::Var& var, const PrimExpr& expr,
                                               bool allow_override) {
-  Bind(var, Range::FromMinExtent(expr, 1), allow_override);
+  if (expr.dtype().is_integer_type()) {
+    Bind(var, Range::FromMinExtent(expr, 1), allow_override);
+  }
 }
 
 std::function<void()> TransitiveComparisonAnalyzer::Impl::EnterConstraint(const PrimExpr& expr) {
