@@ -40,29 +40,30 @@ jobs:
       - name: Checkout Mainline
         shell: powershell
         run: |
-          if (!(git remote -v | Select-String -Pattern '^mainline' -Quiet)) {
-             git remote add mainline git@github.com:apache/tvm.git
-          }
-          git fetch mainline
+           $Env:GIT_SSH_COMMAND="ssh -vvv"
+           if (!(git remote -v | Select-String -Pattern '^mainline' -Quiet)) {
+              git remote add mainline git@github.com:apache/tvm.git
+           }
+           git fetch mainline
       - name: Checkout GPGPU
         shell: powershell
         run: |
-          if (!(git remote -v | Select-String -Pattern '^gpgpu' -Quiet)) {
-            git remote add gpgpu git@github.qualcomm.com:gpgpu/apache-tvm.git
-          }
-          git fetch gpgpu
+           if (!(git remote -v | Select-String -Pattern '^gpgpu' -Quiet)) {
+             git remote add gpgpu git@github.qualcomm.com:gpgpu/apache-tvm.git
+           }
+           git fetch gpgpu
       - name: Rebase with Mainline
         shell: powershell
         run: |
-          git checkout -b rebase-main gpgpu/main
-          git rebase mainline/main
-          git submodule update
-          $directories = Get-ChildItem -Path '3rdparty' -Directory
-          foreach ($directory in $directories) {
-            cd $directory.FullName
-            Write-Host "$($directory.Name):" $(git log --format="%H" -n 1)
-            cd ..
-          }
+           git checkout -b rebase-main gpgpu/main
+           git rebase mainline/main
+           git submodule update
+           $directories = Get-ChildItem -Path '3rdparty' -Directory
+           foreach ($directory in $directories) {
+             cd $directory.FullName
+             Write-Host "$($directory.Name):" $(git log --format="%H" -n 1)
+             cd ..
+           }
       - name: Compile x86
         shell: powershell
         run: |
