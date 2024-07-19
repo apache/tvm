@@ -45,7 +45,15 @@ from tvm.relay.expr import Call, GlobalVar, TupleGetItem, const
 from tvm.relay.expr_functor import ExprMutator, ExprVisitor
 
 from ... import _ffi_api
-from ...dataflow_pattern import DFPatternCallback, is_constant, is_expr, is_op, rewrite, wildcard
+from ...dataflow_pattern import (
+    DFPatternCallback,
+    is_constant,
+    is_expr,
+    is_op,
+    rewrite,
+    wildcard,
+    AltPattern,
+)
 from .register import register_pattern_table
 
 logger = logging.getLogger("DNNL")
@@ -1177,19 +1185,19 @@ class LegalizeQnnOpForDnnl(DFPatternCallback):
       OP = qnn.dense | qnn.conv2d
       %1 = OP<int>(SRC, WGH) - OP<int>(src_zp, WGH)   // qnn.conv2d
       %2 = %1 + orig_bias                             // bias
-      %2 = (%1 - rq_in_zp) * rq_in_scl / rq_out_scl + rq_out_zp  // qnn.requantize
-      %3 = act(%2)                                               // activation == clip
-      %4 = ((%3 - sum_lh_zp) * sum_lh_scl + (SRC2 - sum_rh_zp) * sum_rh_scl)  // qnn.add
+      %3 = (%2 - rq_in_zp) * rq_in_scl / rq_out_scl + rq_out_zp  // qnn.requantize
+      %4 = act(%3)                                               // activation == clip
+      %5 = ((%4 - sum_lh_zp) * sum_lh_scl + (SRC2 - sum_rh_zp) * sum_rh_scl)  // qnn.add
            / sum_out_scl + sum_out_zp
 
     transform to DNNL compatible:
       %1 = OP<int>(SRC, WGH)
       %2 = cast(%1, dtype="float")
-      %2 = (%1 + bias) * o_scl
-      %3 = act(%2) * act_scl
-      %4 = %3 + SRC2 * sum_scl
-      %5 = %4 + dst_zp
-      %6 = cast(%5, dtype="float")
+      %3 = (%2 + bias) * o_scl
+      %4 = act(%3) * act_scl
+      %5 = %4 + SRC2 * sum_scl
+      %6 = %5 + dst_zp
+      %7 = cast(%6, dtype="int")
 
     where:
       o_scl = rq_in_scl / rq_out_scl
@@ -1243,8 +1251,9 @@ class LegalizeQnnOpForDnnl(DFPatternCallback):
             self.sum_out_scl,
             self.sum_out_zp,
         )
-        pat = is_op("clip")(pat)
-        self.pattern = pat | cast
+        pat_with_clip = is_op("clip")(pat)
+        self.pattern = AltPattern(pat_with_clip, pat)
+        self.pattern = AltPattern(self.pattern, cast)
 
     def callback(self, pre, post, node_map):
         root = node_map[self.root][0]
