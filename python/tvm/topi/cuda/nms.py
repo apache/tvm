@@ -38,6 +38,8 @@ from ..vision.nms_util import (
 
 
 def cuda_atomic_add_rule(op):
+    if op.dtype == "float16":
+        return tvm.tir.call_pure_extern("float16", "atomicAdd", op.args[0], op.args[1])
     if op.dtype == "float32":
         return tvm.tir.call_pure_extern("float32", "atomicAdd", op.args[0], op.args[1])
     if op.dtype == "float64":
