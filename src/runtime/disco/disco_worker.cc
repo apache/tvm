@@ -129,7 +129,7 @@ struct DiscoWorker::Impl {
   }
 
   static void CopyFromWorker0(DiscoWorker* self, int reg_id) {
-    if (self->worker_zero_data != nullptr) {
+    if (self->worker_id == 0) {
       NDArray tgt = GetNDArrayFromHost(self);
       NDArray src = GetReg(self, reg_id);
       tgt.CopyFrom(src);
@@ -137,7 +137,7 @@ struct DiscoWorker::Impl {
   }
 
   static void CopyToWorker0(DiscoWorker* self, int reg_id) {
-    if (self->worker_zero_data != nullptr) {
+    if (self->worker_id == 0) {
       NDArray src = GetNDArrayFromHost(self);
       NDArray tgt = GetReg(self, reg_id);
       tgt.CopyFrom(src);
@@ -205,6 +205,12 @@ struct DiscoWorker::Impl {
 };
 
 void DiscoWorker::MainLoop() { DiscoWorker::Impl::MainLoop(this); }
+
+TVM_REGISTER_GLOBAL("runtime.disco.set_worker_id").set_body_typed([](IntTuple worker_ids) {
+  DiscoWorker* worker = DiscoWorker::ThreadLocal();
+  ICHECK_EQ(worker->num_workers, worker_ids.size());
+  worker->worker_id = worker_ids[worker->local_worker_id];
+});
 
 }  // namespace runtime
 }  // namespace tvm

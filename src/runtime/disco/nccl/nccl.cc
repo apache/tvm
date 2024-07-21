@@ -86,7 +86,7 @@ void InitCCLPerWorker(IntTuple device_ids, std::string unique_id_bytes) {
                       << "and has not been destructed";
 
   // Step up local context of NCCL
-  int device_id = device_ids[worker->worker_id];
+  int device_id = device_ids[worker->local_worker_id];
   SetDevice(device_id);
 #if TVM_NCCL_RCCL_SWITCH == 0
   StreamCreate(&ctx->default_stream);

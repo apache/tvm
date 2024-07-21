@@ -574,6 +574,26 @@ class ProcessSession(Session):
         func(config, os.getpid())
 
 
+@register_func("runtime.disco.create_socket_session_local_workers")
+def _create_socket_session_local_workers(num_workers) -> Session:
+    """Create the local session for each distributed node over socket session."""
+    return ProcessSession(num_workers)
+
+
+@register_object("runtime.disco.SocketSession")
+class SocketSession(Session):
+    """A Disco session backed by socket-based multi-node communication."""
+
+    def __init__(self, num_nodes: int, num_workers_per_node: int, host: str, port: int) -> None:
+        self.__init_handle_by_constructor__(
+            _ffi_api.SocketSession,  # type: ignore # pylint: disable=no-member
+            num_nodes,
+            num_workers_per_node,
+            host,
+            port,
+        )
+
+
 @register_func("runtime.disco._configure_structlog")
 def _configure_structlog(pickled_config: bytes, parent_pid: int) -> None:
     """Configure structlog for all disco workers

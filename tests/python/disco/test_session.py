@@ -20,6 +20,9 @@ import tempfile
 
 import numpy as np
 import pytest
+import subprocess
+import threading
+import sys
 
 import tvm
 import tvm.testing
@@ -29,7 +32,7 @@ from tvm.runtime import disco as di
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tir as T
-from tvm.exec import disco_worker as _
+from tvm.exec import disco_worker as _  # pylint: disable=unused-import
 
 
 def _numpy_to_worker_0(sess: di.Session, np_array: np.array, device):
@@ -46,7 +49,65 @@ def _numpy_from_worker_0(sess: di.Session, remote_array, shape, dtype):
     return host_array.numpy()
 
 
-_all_session_kinds = [di.ThreadedSession, di.ProcessSession]
+_SOCKET_SESSION_TESTER = None
+
+
+def get_free_port():
+    import socket
+
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.bind(("", 0))
+    port = s.getsockname()[1]
+    s.close()
+    return port
+
+
+class SocketSessionTester:
+    def __init__(self, num_workers):
+        num_nodes = 2
+        assert num_workers % num_nodes == 0
+        num_workers_per_node = num_workers // num_nodes
+        server_host = "localhost"
+        server_port = get_free_port()
+        self.sess = None
+
+        def start_server():
+            self.sess = di.SocketSession(num_nodes, num_workers_per_node, server_host, server_port)
+
+        thread = threading.Thread(target=start_server)
+        thread.start()
+
+        cmd = "tvm.exec.disco_remote_socket_session"
+        self.remote_nodes = []
+        for _ in range(num_nodes - 1):
+            self.remote_nodes.append(
+                subprocess.Popen(
+                    ["python3", "-m", cmd, server_host, str(server_port)],
+                    stdout=sys.stdout,
+                    stderr=sys.stderr,
+                )
+            )
+
+        thread.join()
+
+    def __del__(self):
+        for node in self.remote_nodes:
+            node.kill()
+        if self.sess is not None:
+            self.sess.shutdown()
+            del self.sess
+
+
+def create_socket_session(num_workers):
+    global _SOCKET_SESSION_TESTER
+    if _SOCKET_SESSION_TESTER is not None:
+        del _SOCKET_SESSION_TESTER
+    _SOCKET_SESSION_TESTER = SocketSessionTester(num_workers)
+    assert _SOCKET_SESSION_TESTER.sess is not None
+    return _SOCKET_SESSION_TESTER.sess
+
+
+_all_session_kinds = [di.ThreadedSession, di.ProcessSession, create_socket_session]
 
 
 @pytest.mark.parametrize("session_kind", _all_session_kinds)
@@ -157,6 +218,11 @@ def test_vm_module(session_kind):
         y_nd = _numpy_from_worker_0(sess, y_disc, shape=y_np.shape, dtype=y_np.dtype)
         np.testing.assert_equal(y_nd, y_np)
 
+        # sync all workers to make sure the temporary files are cleaned up after all workers
+        # finish the execution
+        for i in range(num_workers):
+            sess._sync_worker(i)
+
 
 @pytest.mark.parametrize("session_kind", _all_session_kinds)
 def test_vm_multi_func(session_kind):
@@ -220,10 +286,17 @@ def test_vm_multi_func(session_kind):
         np.testing.assert_equal(y_nd, y_np)
         np.testing.assert_equal(z_nd, x_np)
 
+        # sync all workers to make sure the temporary files are cleaned up after all workers
+        # finish the execution
+        for i in range(num_workers):
+            sess._sync_worker(i)
+
 
 @pytest.mark.parametrize("session_kind", _all_session_kinds)
 @pytest.mark.parametrize("num_workers", [1, 2, 4])
 def test_num_workers(session_kind, num_workers):
+    if session_kind == create_socket_session and num_workers < 2:
+        return
     sess = session_kind(num_workers=num_workers)
     assert sess.num_workers == num_workers
 

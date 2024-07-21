@@ -14,13 +14,18 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""TVM distributed runtime API."""
-from .session import (
-    DModule,
-    DPackedFunc,
-    DRef,
-    ProcessSession,
-    Session,
-    ThreadedSession,
-    SocketSession,
-)
+# pylint: disable=invalid-name
+import sys
+import tvm
+from . import disco_worker as _  # pylint: disable=unused-import
+
+
+if __name__ == "__main__":
+    if len(sys.argv) != 3:
+        print("Usage: <server_host> <server_port>")
+        sys.exit(1)
+
+    server_host = sys.argv[1]
+    server_port = int(sys.argv[2])
+    func = tvm.get_global_func("runtime.disco.RemoteSocketSession")
+    func(server_host, server_port)

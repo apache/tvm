@@ -54,6 +54,7 @@ class DiscoWorker {
       : worker_id(worker_id),
         num_workers(num_workers),
         num_groups(num_groups),
+        local_worker_id(worker_id),
         default_device(Device{DLDeviceType::kDLCPU, 0}),
         worker_zero_data(worker_zero_data),
         channel(channel),
@@ -72,6 +73,10 @@ class DiscoWorker {
   int num_workers;
   /*! \brief Total number of workers */
   int num_groups;
+  /*! \brief The local worker id. This can be different from `worker_id` if the session is
+   * consisted of multiple distritributed sub-sessions.
+   */
+  int local_worker_id;
   /*! \brief The default device to allocate data if not specified */
   Device default_device;
   /*! \brief The name of the underlying collective communication library. */
