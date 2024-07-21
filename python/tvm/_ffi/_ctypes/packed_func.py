@@ -195,6 +195,7 @@ class PackedFuncBase(object):
     """Function base."""
 
     __slots__ = ["handle", "is_global"]
+
     # pylint: disable=no-member
     def __init__(self, handle, is_global):
         """Initialize the function with handle
@@ -342,6 +343,7 @@ def _init_pythonapi_inc_def_ref():
     register_func(c_str("Py_DecRef"), ctypes.pythonapi.Py_DecRef)
     register_func(c_str("PyGILState_Ensure"), ctypes.pythonapi.PyGILState_Ensure)
     register_func(c_str("PyGILState_Release"), ctypes.pythonapi.PyGILState_Release)
+    register_func(c_str("PyErr_CheckSignals"), ctypes.pythonapi.PyErr_CheckSignals)
 
 
 _init_pythonapi_inc_def_ref()
