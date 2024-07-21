@@ -22,6 +22,7 @@ import tempfile
 import numpy as np
 
 import tvm
+import tvm.testing
 from tvm import dlight as dl
 from tvm import relax as rx
 from tvm._ffi import register_func
@@ -246,7 +247,10 @@ def test_load_shard_in_relax():
         @R.function
         def main(
             loader: R.Object,
-        ) -> R.Tuple(R.Tensor((64, 64), "float32"), R.Tensor((16, 128), "float32"),):
+        ) -> R.Tuple(
+            R.Tensor((64, 64), "float32"),
+            R.Tensor((16, 128), "float32"),
+        ):
             R.func_attr({"global_symbol": "main"})
             with R.dataflow():
                 lv0: R.Tensor((64, 64), "float32") = R.call_pure_packed(

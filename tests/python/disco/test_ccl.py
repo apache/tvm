@@ -80,6 +80,42 @@ def test_allreduce(session_kind, ccl):
 
 @pytest.mark.parametrize("session_kind", _all_session_kinds)
 @pytest.mark.parametrize("ccl", _ccl)
+def test_group_allreduce(session_kind, ccl):
+    devices = [0, 1, 2, 3]
+    sess = session_kind(num_workers=len(devices), num_groups=2)
+    sess.init_ccl(ccl, *devices)
+
+    array_1 = np.arange(12, dtype="float32").reshape(3, 4)
+    array_2 = np.arange(start=1, stop=-11, step=-1, dtype="float32").reshape(3, 4)
+    array_3 = np.arange(30, dtype="float32").reshape(5, 6)
+    array_4 = np.arange(start=1, stop=-29, step=-1, dtype="float32").reshape(5, 6)
+    d_array_1 = sess.empty((3, 4), "float32")
+    d_array_2 = sess.empty((5, 6), "float32")
+    d_array_1.debug_copy_from(0, array_1)
+    d_array_1.debug_copy_from(1, array_2)
+    d_array_2.debug_copy_from(2, array_3)
+    d_array_2.debug_copy_from(3, array_4)
+    for op, np_op in [  # pylint: disable=invalid-name
+        ("sum", np.add),
+        ("prod", np.multiply),
+        ("min", np.minimum),
+        ("max", np.maximum),
+        ("avg", lambda a, b: (a + b) * 0.5),
+    ]:
+        dst_array_1 = sess.empty((3, 4), "float32")
+        dst_array_2 = sess.empty((5, 6), "float32")
+        sess.allreduce(d_array_1, dst_array_1, op=op)
+        sess.allreduce(d_array_2, dst_array_2, op=op)
+        result_1 = dst_array_1.debug_get_from_remote(0).numpy()
+        result_2 = dst_array_2.debug_get_from_remote(2).numpy()
+        expected_1 = np_op(array_1, array_2)
+        expected_2 = np_op(array_3, array_4)
+        np.testing.assert_equal(result_1, expected_1)
+        np.testing.assert_equal(result_2, expected_2)
+
+
+@pytest.mark.parametrize("session_kind", _all_session_kinds)
+@pytest.mark.parametrize("ccl", _ccl)
 def test_allgather(session_kind, ccl):
     devices = [0, 1]
     sess = session_kind(num_workers=len(devices))
@@ -103,10 +139,48 @@ def test_allgather(session_kind, ccl):
 
 @pytest.mark.parametrize("session_kind", _all_session_kinds)
 @pytest.mark.parametrize("ccl", _ccl)
+def test_group_allgather(session_kind, ccl):
+    devices = [0, 1, 2, 3]
+    sess = session_kind(num_workers=len(devices), num_groups=2)
+    sess.init_ccl(ccl, *devices)
+
+    array_1 = np.arange(36, dtype="float32")
+    array_2 = np.arange(48, dtype="float32")
+    d_src_1 = sess.empty((3, 3, 2), "float32")
+    d_dst_1 = sess.empty((3, 4, 3), "float32")
+    d_src_2 = sess.empty((2, 4, 3), "float32")
+    d_dst_2 = sess.empty((2, 6, 4), "float32")
+    d_src_1.debug_copy_from(0, array_1[:18])
+    d_src_1.debug_copy_from(1, array_1[18:])
+    d_src_2.debug_copy_from(2, array_2[:24])
+    d_src_2.debug_copy_from(3, array_2[24:])
+    sess.allgather(d_src_1, d_dst_1)
+    sess.allgather(d_src_2, d_dst_2)
+    np.testing.assert_equal(
+        d_dst_1.debug_get_from_remote(0).numpy(),
+        array_1.reshape(3, 4, 3),
+    )
+    np.testing.assert_equal(
+        d_dst_1.debug_get_from_remote(1).numpy(),
+        array_1.reshape(3, 4, 3),
+    )
+    np.testing.assert_equal(
+        d_dst_2.debug_get_from_remote(2).numpy(),
+        array_2.reshape(2, 6, 4),
+    )
+    np.testing.assert_equal(
+        d_dst_2.debug_get_from_remote(3).numpy(),
+        array_2.reshape(2, 6, 4),
+    )
+
+
+@pytest.mark.parametrize("session_kind", _all_session_kinds)
+@pytest.mark.parametrize("ccl", _ccl)
 @pytest.mark.parametrize("use_explicit_output", [True, False])
-def test_broadcast_from_worker0(session_kind, ccl, use_explicit_output):
+@pytest.mark.parametrize("num_groups", [1, 2])
+def test_broadcast(session_kind, ccl, use_explicit_output, num_groups):
     devices = [0, 1]
-    sess = session_kind(num_workers=len(devices))
+    sess = session_kind(num_workers=len(devices), num_groups=num_groups)
     sess.init_ccl(ccl, *devices)
 
     array = np.arange(12, dtype="float32").reshape(3, 4)
@@ -126,9 +200,10 @@ def test_broadcast_from_worker0(session_kind, ccl, use_explicit_output):
 @pytest.mark.parametrize("session_kind", _all_session_kinds)
 @pytest.mark.parametrize("ccl", _ccl)
 @pytest.mark.parametrize("use_explicit_output", [True, False])
-def test_scatter(session_kind, ccl, use_explicit_output, capfd):
+@pytest.mark.parametrize("num_groups", [1, 2])
+def test_scatter(session_kind, ccl, use_explicit_output, num_groups, capfd):
     devices = [0, 1]
-    sess = session_kind(num_workers=len(devices))
+    sess = session_kind(num_workers=len(devices), num_groups=num_groups)
     sess.init_ccl(ccl, *devices)
 
     array = np.arange(36, dtype="float32").reshape(2, 6, 3)
@@ -158,7 +233,8 @@ def test_scatter(session_kind, ccl, use_explicit_output, capfd):
 
 @pytest.mark.parametrize("session_kind", _all_session_kinds)
 @pytest.mark.parametrize("ccl", _ccl)
-def test_scatter_with_implicit_reshape(session_kind, ccl, capfd):
+@pytest.mark.parametrize("num_groups", [1, 2])
+def test_scatter_with_implicit_reshape(session_kind, ccl, num_groups, capfd):
     """Scatter may perform an implicit reshape
 
     Scattering elements to the workers requires the total number of
@@ -176,7 +252,7 @@ def test_scatter_with_implicit_reshape(session_kind, ccl, capfd):
 
     """
     devices = [0, 1]
-    sess = session_kind(num_workers=len(devices))
+    sess = session_kind(num_workers=len(devices), num_groups=num_groups)
     sess.init_ccl(ccl, *devices)
 
     array = np.arange(36, dtype="float32").reshape(3, 4, 3)
@@ -203,9 +279,10 @@ def test_scatter_with_implicit_reshape(session_kind, ccl, capfd):
 
 @pytest.mark.parametrize("session_kind", _all_session_kinds)
 @pytest.mark.parametrize("ccl", _ccl)
-def test_gather(session_kind, ccl, capfd):
+@pytest.mark.parametrize("num_groups", [1, 2])
+def test_gather(session_kind, ccl, num_groups, capfd):
     devices = [0, 1]
-    sess = session_kind(num_workers=len(devices))
+    sess = session_kind(num_workers=len(devices), num_groups=num_groups)
     sess.init_ccl(ccl, *devices)
 
     array = np.arange(36, dtype="float32")

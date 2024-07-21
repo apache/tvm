@@ -483,11 +483,12 @@ class Session(Object):
 class ThreadedSession(Session):
     """A Disco session backed by multi-threading."""
 
-    def __init__(self, num_workers: int) -> None:
+    def __init__(self, num_workers: int, num_groups: int = 1) -> None:
         """Create a disco session backed by multiple threads in the same process."""
         self.__init_handle_by_constructor__(
             _ffi_api.SessionThreaded,  # type: ignore # pylint: disable=no-member
             num_workers,
+            num_groups,
         )
 
 
@@ -495,10 +496,13 @@ class ThreadedSession(Session):
 class ProcessSession(Session):
     """A Disco session backed by pipe-based multi-processing."""
 
-    def __init__(self, num_workers: int, entrypoint: str = "tvm.exec.disco_worker") -> None:
+    def __init__(
+        self, num_workers: int, num_groups: int = 1, entrypoint: str = "tvm.exec.disco_worker"
+    ) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.SessionProcess,  # type: ignore # pylint: disable=no-member
             num_workers,
+            num_groups,
             "runtime.disco.create_process_pool",
             entrypoint,
         )

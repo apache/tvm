@@ -72,9 +72,12 @@ void InitCCLPerWorker(IntTuple device_ids, std::string unique_id_bytes) {
       << "ValueError: The length of unique_id must be " << NCCL_UNIQUE_ID_BYTES << ", but got "
       << unique_id_bytes.size() << ".";
 
-  CHECK(!ctx->comm) << "Cannot initialize CCL, "
-                    << "the previous thread-global comm still exists, "
-                    << "and has not been destructed";
+  CHECK(!ctx->global_comm) << "Cannot initialize CCL, "
+                           << "the previous thread-global comm still exists, "
+                           << "and has not been destructed";
+  CHECK(!ctx->group_comm) << "Cannot initialize CCL, "
+                          << "the previous thread-group comm still exists, "
+                          << "and has not been destructed";
   CHECK(!ctx->default_stream) << "Cannot initialize CCL, "
                               << "the previous thread-global stream still exists, "
                               << "and has not been destructed";
@@ -96,7 +99,10 @@ void InitCCLPerWorker(IntTuple device_ids, std::string unique_id_bytes) {
   // Initialize the communicator
   ncclUniqueId id;
   std::memcpy(id.internal, unique_id_bytes.data(), NCCL_UNIQUE_ID_BYTES);
-  NCCL_CALL(ncclCommInitRank(&ctx->comm, worker->num_workers, id, worker->worker_id));
+  int group_size = worker->num_workers / worker->num_groups;
+  NCCL_CALL(ncclCommInitRank(&ctx->global_comm, worker->num_workers, id, worker->worker_id));
+  NCCL_CALL(ncclCommSplit(ctx->global_comm, worker->worker_id / group_size,
+                          worker->worker_id % group_size, &ctx->group_comm, NULL));
 }
 
 void AllReduce(NDArray send, ReduceKind reduce_kind, NDArray recv) {
@@ -106,7 +112,7 @@ void AllReduce(NDArray send, ReduceKind reduce_kind, NDArray recv) {
   deviceStream_t stream = ctx->GetDefaultStream();
   NCCL_CALL(ncclAllReduce(send->data, recv->data, numel,
                           /*datatype=*/AsNCCLDataType(DataType(send->dtype)),
-                          /*op=*/AsNCCLRedOp(reduce_kind), ctx->comm, stream));
+                          /*op=*/AsNCCLRedOp(reduce_kind), ctx->group_comm, stream));
 }
 
 void AllGather(NDArray send, NDArray recv) {
@@ -115,7 +121,8 @@ void AllGather(NDArray send, NDArray recv) {
   int64_t numel = shape->Product();
   deviceStream_t stream = ctx->GetDefaultStream();
   NCCL_CALL(ncclAllGather(send->data, recv->data, numel,
-                          /*datatype=*/AsNCCLDataType(DataType(send->dtype)), ctx->comm, stream));
+                          /*datatype=*/AsNCCLDataType(DataType(send->dtype)), ctx->group_comm,
+                          stream));
 }
 
 void BroadcastFromWorker0(Optional<NDArray> send, NDArray recv) {
@@ -136,7 +143,7 @@ void BroadcastFromWorker0(Optional<NDArray> send, NDArray recv) {
   deviceStream_t stream = ctx->GetDefaultStream();
   NCCL_CALL(ncclBroadcast(send_data, recv->data, numel,
                           /*datatype=*/AsNCCLDataType(DataType(recv->dtype)),
-                          /*root=*/0, ctx->comm, stream));
+                          /*root=*/0, ctx->global_comm, stream));
 }
 
 void ScatterFromWorker0(Optional<NDArray> send, NDArray recv) {
@@ -164,7 +171,8 @@ void ScatterFromWorker0(Optional<NDArray> send, NDArray recv) {
     NCCL_CALL(ncclGroupStart());
     uint8_t* data = static_cast<uint8_t*>(buffer->data);
     for (int i = 0; i < num_workers; ++i) {
-      NCCL_CALL(ncclSend(data, numel_per_shard, AsNCCLDataType(dtype), i, ctx->comm, stream));
+      NCCL_CALL(
+          ncclSend(data, numel_per_shard, AsNCCLDataType(dtype), i, ctx->global_comm, stream));
       data += bytes_per_shard;
     }
   } else {
@@ -177,7 +185,7 @@ void ScatterFromWorker0(Optional<NDArray> send, NDArray recv) {
   }
   int64_t numel = recv.Shape()->Product();
   DataType dtype(recv->dtype);
-  NCCL_CALL(ncclRecv(recv->data, numel, AsNCCLDataType(dtype), 0, ctx->comm, stream));
+  NCCL_CALL(ncclRecv(recv->data, numel, AsNCCLDataType(dtype), 0, ctx->global_comm, stream));
   NCCL_CALL(ncclGroupEnd());
 }
 
@@ -206,7 +214,8 @@ void GatherToWorker0(NDArray send, Optional<NDArray> recv) {
     NCCL_CALL(ncclGroupStart());
     uint8_t* data = static_cast<uint8_t*>(buffer->data);
     for (int i = 0; i < num_workers; ++i) {
-      NCCL_CALL(ncclRecv(data, numel_per_shard, AsNCCLDataType(dtype), i, ctx->comm, stream));
+      NCCL_CALL(
+          ncclRecv(data, numel_per_shard, AsNCCLDataType(dtype), i, ctx->global_comm, stream));
       data += bytes_per_shard;
     }
   } else {
@@ -219,7 +228,7 @@ void GatherToWorker0(NDArray send, Optional<NDArray> recv) {
   }
   int64_t numel = send.Shape()->Product();
   DataType dtype(send->dtype);
-  NCCL_CALL(ncclSend(send->data, numel, AsNCCLDataType(dtype), 0, ctx->comm, stream));
+  NCCL_CALL(ncclSend(send->data, numel, AsNCCLDataType(dtype), 0, ctx->global_comm, stream));
   NCCL_CALL(ncclGroupEnd());
 }
 
@@ -230,7 +239,7 @@ void RecvFromWorker0(NDArray buffer) {
       << "ValueError: Worker 0 is not allowed to call RecvFromWorker0.";
   NCCL_CALL(ncclGroupStart());
   NCCL_CALL(ncclRecv(buffer->data, buffer.Shape()->Product(), AsNCCLDataType(buffer.DataType()), 0,
-                     ctx->comm, stream));
+                     ctx->global_comm, stream));
   NCCL_CALL(ncclGroupEnd());
 }
 

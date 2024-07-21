@@ -79,7 +79,7 @@ void CustomAllReduce(DLTensor* send, int strategy, DLTensor* recv) {
     deviceStream_t stream = ctx->GetDefaultStream();
     NCCL_CALL(ncclAllReduce(send->data, recv->data, num_elements,
                             /*datatype=*/nccl::AsNCCLDataType(DataType(send->dtype)),
-                            /*op=*/ncclSum, ctx->comm, stream));
+                            /*op=*/ncclSum, ctx->group_comm, stream));
     return;
   }
 
