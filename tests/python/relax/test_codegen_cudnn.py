@@ -271,7 +271,7 @@ def get_numpy_stacked_attention_ref(b, s, n, h, h_v, bias_shape, qk_scale, dtype
 
 @pytest.fixture(
     params=[
-        # B, S, N, H, bias_shape, scale, single_shape, layout
+        # B, S, N, H, bias_shape scale, single_shape, layout
         (4, 8, 32, (64, 32), "none", 1.0, False, "BS3NH"),
         (4, 8, 32, (64, 64), "none", "none", True, "BS3NH"),
         (4, 8, 32, (64, 32), "none", 1.0, False, "SBN3H"),
@@ -282,6 +282,7 @@ def stacked_attention_size(request):
     return request.param
 
 
+@pytest.mark.skip(reason="require cudnn frontend")
 def test_stacked_attention_split_offload(stacked_attention_size):
     b, s, n, (h, h_v), bias_shape, scale, single_shape, layout = stacked_attention_size
     qkv, bias, ref = get_numpy_stacked_attention_ref(
