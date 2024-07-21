@@ -41,7 +41,7 @@ def _allreduce(_bb: BlockBuilder, call: Call) -> Expr:
         )
     return call_dps_packed(
         "runtime.disco.allreduce",
-        [call.args[0], ShapeExpr([op_type_map[op_type_str]])],
+        [call.args[0], ShapeExpr([op_type_map[op_type_str]]), False],
         out_sinfo=call.args[0].struct_info,
     )
 
@@ -62,7 +62,7 @@ def _allgather(_bb: BlockBuilder, call: Call) -> Expr:
             output_shape.append(shape_value)
     return call_dps_packed(
         "runtime.disco.allgather",
-        call.args[0],
+        [call.args[0], False],
         out_sinfo=TensorStructInfo(
             shape=output_shape,
             dtype=arg_sinfo.dtype,

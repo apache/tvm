@@ -105,24 +105,25 @@ void InitCCLPerWorker(IntTuple device_ids, std::string unique_id_bytes) {
                           worker->worker_id % group_size, &ctx->group_comm, NULL));
 }
 
-void AllReduce(NDArray send, ReduceKind reduce_kind, NDArray recv) {
+void AllReduce(NDArray send, ReduceKind reduce_kind, bool in_group, NDArray recv) {
   CCLThreadLocalContext* ctx = CCLThreadLocalContext::Get();
   ShapeTuple shape = send.Shape();
   int64_t numel = shape->Product();
   deviceStream_t stream = ctx->GetDefaultStream();
   NCCL_CALL(ncclAllReduce(send->data, recv->data, numel,
                           /*datatype=*/AsNCCLDataType(DataType(send->dtype)),
-                          /*op=*/AsNCCLRedOp(reduce_kind), ctx->group_comm, stream));
+                          /*op=*/AsNCCLRedOp(reduce_kind),
+                          in_group ? ctx->group_comm : ctx->global_comm, stream));
 }
 
-void AllGather(NDArray send, NDArray recv) {
+void AllGather(NDArray send, bool in_group, NDArray recv) {
   CCLThreadLocalContext* ctx = CCLThreadLocalContext::Get();
   ShapeTuple shape = send.Shape();
   int64_t numel = shape->Product();
   deviceStream_t stream = ctx->GetDefaultStream();
   NCCL_CALL(ncclAllGather(send->data, recv->data, numel,
-                          /*datatype=*/AsNCCLDataType(DataType(send->dtype)), ctx->group_comm,
-                          stream));
+                          /*datatype=*/AsNCCLDataType(DataType(send->dtype)),
+                          in_group ? ctx->group_comm : ctx->global_comm, stream));
 }
 
 void BroadcastFromWorker0(Optional<NDArray> send, NDArray recv) {
@@ -257,12 +258,14 @@ TVM_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".init_ccl").set_body_ty
 TVM_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".init_ccl_per_worker")
     .set_body_typed(InitCCLPerWorker);
 TVM_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".allreduce")
-    .set_body_typed([](NDArray send, int kind, NDArray recv) {
+    .set_body_typed([](NDArray send, int kind, bool in_group, NDArray recv) {
       CHECK(0 <= kind && kind <= 4) << "ValueError: Unknown ReduceKind: " << kind;
-      nccl::AllReduce(send, static_cast<ReduceKind>(kind), recv);
+      nccl::AllReduce(send, static_cast<ReduceKind>(kind), in_group, recv);
     });
 TVM_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".allgather")
-    .set_body_typed([](NDArray send, NDArray recv) { nccl::AllGather(send, recv); });
+    .set_body_typed([](NDArray send, bool in_group, NDArray recv) {
+      nccl::AllGather(send, in_group, recv);
+    });
 TVM_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".broadcast_from_worker0")
     .set_body_typed(BroadcastFromWorker0);
 TVM_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".scatter_from_worker0")

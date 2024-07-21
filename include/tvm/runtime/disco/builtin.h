@@ -75,15 +75,17 @@ TVM_DLL NDArray DiscoEmptyNDArray(ShapeTuple shape, DataType dtype, Device devic
  * \brief Perform an allreduce operation using the underlying communication library
  * \param send The array send to perform allreduce on
  * \param reduce_kind The kind of reduction operation (e.g. sum, avg, min, max)
+ * \param in_group Whether the allreduce operation performs in group or globally as default.
  * \param recv The array receives the outcome of allreduce
  */
-TVM_DLL void AllReduce(NDArray send, ReduceKind reduce_kind, NDArray recv);
+TVM_DLL void AllReduce(NDArray send, ReduceKind reduce_kind, bool in_group, NDArray recv);
 /*!
  * \brief Perform an allgather operation using the underlying communication library
  * \param send The array send to perform allgather on
+ * \param in_group Whether the allgather operation performs in group or globally as default.
  * \param recv The array receives the outcome of allgather
  */
-TVM_DLL void AllGather(NDArray send, NDArray recv);
+TVM_DLL void AllGather(NDArray send, bool in_group, NDArray recv);
 /*!
  * \brief Perform a broadcast operation from worker-0
  * \param send The buffer to be broadcasted

@@ -79,11 +79,13 @@ const PackedFunc& GetCCLFunc(const char* name) {
   return *pf;
 }
 
-void AllReduce(NDArray send, ReduceKind reduce_kind, NDArray recv) {
-  GetCCLFunc("allreduce")(send, static_cast<int>(reduce_kind), recv);
+void AllReduce(NDArray send, ReduceKind reduce_kind, bool in_group, NDArray recv) {
+  GetCCLFunc("allreduce")(send, static_cast<int>(reduce_kind), in_group, recv);
 }
 
-void AllGather(NDArray send, NDArray recv) { GetCCLFunc("allgather")(send, recv); }
+void AllGather(NDArray send, bool in_group, NDArray recv) {
+  GetCCLFunc("allgather")(send, in_group, recv);
+}
 
 TVM_DLL void BroadcastFromWorker0(NDArray send, NDArray recv) {
   GetCCLFunc("broadcast_from_worker0")(send, recv);
@@ -120,10 +122,10 @@ TVM_REGISTER_GLOBAL("runtime.disco.empty")
     });
 
 TVM_REGISTER_GLOBAL("runtime.disco.allreduce")
-    .set_body_typed([](NDArray send, ShapeTuple reduce_kind, NDArray recv) {
+    .set_body_typed([](NDArray send, ShapeTuple reduce_kind, bool in_group, NDArray recv) {
       int kind = IntegerFromShapeTuple(reduce_kind);
       CHECK(0 <= kind && kind <= 4) << "ValueError: Unknown ReduceKind: " << kind;
-      AllReduce(send, static_cast<ReduceKind>(kind), recv);
+      AllReduce(send, static_cast<ReduceKind>(kind), in_group, recv);
     });
 TVM_REGISTER_GLOBAL("runtime.disco.allgather").set_body_typed(AllGather);
 TVM_REGISTER_GLOBAL("runtime.disco.broadcast_from_worker0").set_body_typed(BroadcastFromWorker0);

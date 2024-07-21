@@ -434,6 +434,7 @@ class Session(Object):
         src: DRef,
         dst: DRef,
         op: str = "sum",  # pylint: disable=invalid-name
+        in_group: bool = False,
     ) -> DRef:
         """Perform an allreduce operation on an array.
 
@@ -448,17 +449,20 @@ class Session(Object):
             - "min"
             - "max"
             - "avg"
+        in_group : bool
+            Whether the reduce operation performs in group or globally as default.
         """
         if op not in REDUCE_OPS:
             raise ValueError(f"Unsupported reduce op: {op}. Available ops are: {REDUCE_OPS.keys()}")
         op = ShapeTuple([REDUCE_OPS[op]])
         func = self._get_cached_method("runtime.disco.allreduce")
-        func(src, op, dst)
+        func(src, op, in_group, dst)
 
     def allgather(
         self,
         src: DRef,
         dst: DRef,
+        in_group: bool = False,
     ) -> DRef:
         """Perform an allgather operation on an array.
 
@@ -468,9 +472,11 @@ class Session(Object):
             The array to be gathered from.
         dst : DRef
             The array to be gathered to.
+        in_group : bool
+            Whether the reduce operation performs in group or globally as default.
         """
         func = self._get_cached_method("runtime.disco.allgather")
-        func(src, dst)
+        func(src, in_group, dst)
 
     def _clear_ipc_memory_pool(self):
         # Clear the IPC memory allocator when the allocator exists.

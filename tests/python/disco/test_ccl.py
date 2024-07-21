@@ -104,8 +104,8 @@ def test_group_allreduce(session_kind, ccl):
     ]:
         dst_array_1 = sess.empty((3, 4), "float32")
         dst_array_2 = sess.empty((5, 6), "float32")
-        sess.allreduce(d_array_1, dst_array_1, op=op)
-        sess.allreduce(d_array_2, dst_array_2, op=op)
+        sess.allreduce(d_array_1, dst_array_1, op=op, in_group=True)
+        sess.allreduce(d_array_2, dst_array_2, op=op, in_group=True)
         result_1 = dst_array_1.debug_get_from_remote(0).numpy()
         result_2 = dst_array_2.debug_get_from_remote(2).numpy()
         expected_1 = np_op(array_1, array_2)
@@ -154,8 +154,8 @@ def test_group_allgather(session_kind, ccl):
     d_src_1.debug_copy_from(1, array_1[18:])
     d_src_2.debug_copy_from(2, array_2[:24])
     d_src_2.debug_copy_from(3, array_2[24:])
-    sess.allgather(d_src_1, d_dst_1)
-    sess.allgather(d_src_2, d_dst_2)
+    sess.allgather(d_src_1, d_dst_1, in_group=True)
+    sess.allgather(d_src_2, d_dst_2, in_group=True)
     np.testing.assert_equal(
         d_dst_1.debug_get_from_remote(0).numpy(),
         array_1.reshape(3, 4, 3),
