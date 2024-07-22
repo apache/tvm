@@ -87,16 +87,16 @@ void AllGather(NDArray send, bool in_group, NDArray recv) {
   GetCCLFunc("allgather")(send, in_group, recv);
 }
 
-TVM_DLL void BroadcastFromWorker0(NDArray send, NDArray recv) {
-  GetCCLFunc("broadcast_from_worker0")(send, recv);
+TVM_DLL void BroadcastFromWorker0(NDArray send, bool in_group, NDArray recv) {
+  GetCCLFunc("broadcast_from_worker0")(send, in_group, recv);
 }
 
-TVM_DLL void ScatterFromWorker0(Optional<NDArray> send, NDArray recv) {
-  GetCCLFunc("scatter_from_worker0")(send, recv);
+TVM_DLL void ScatterFromWorker0(Optional<NDArray> send, bool in_group, NDArray recv) {
+  GetCCLFunc("scatter_from_worker0")(send, in_group, recv);
 }
 
-void GatherToWorker0(NDArray send, Optional<NDArray> recv) {
-  GetCCLFunc("gather_to_worker0")(send, recv);
+void GatherToWorker0(NDArray send, bool in_group, Optional<NDArray> recv) {
+  GetCCLFunc("gather_to_worker0")(send, in_group, recv);
 }
 
 void RecvFromWorker0(NDArray buffer) { GetCCLFunc("recv_from_worker0")(buffer); }

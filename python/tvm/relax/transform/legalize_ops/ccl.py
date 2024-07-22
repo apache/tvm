@@ -75,7 +75,7 @@ def _allgather(_bb: BlockBuilder, call: Call) -> Expr:
 def _broadcast_from_worker0(_bb: BlockBuilder, call: Call) -> Expr:
     return call_dps_packed(
         "runtime.disco.broadcast_from_worker0",
-        call.args[0],
+        [call.args[0], False],
         out_sinfo=call.args[0].struct_info,
     )
 
@@ -116,7 +116,7 @@ def _scatter_from_worker0(_bb: BlockBuilder, call: Call) -> Expr:
     output_shape = output_shape[1:]
     return call_dps_packed(
         "runtime.disco.scatter_from_worker0",
-        transpose_var,
+        [transpose_var, False],
         out_sinfo=TensorStructInfo(
             shape=output_shape,
             dtype=call.args[0].struct_info.dtype,

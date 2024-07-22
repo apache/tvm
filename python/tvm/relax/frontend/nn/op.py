@@ -1681,7 +1681,7 @@ def ccl_allreduce(x: Tensor, op_type: str = "sum", in_group: bool = True, name="
       Now "sum", "prod", "min", "max" and "avg" are supported.
 
     in_group : bool
-      Whether the reduction operation performs in group or globally as default.
+      Whether the reduction operation performs globally or in group as default.
 
     name : str
         Name hint for this operation.

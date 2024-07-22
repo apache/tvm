@@ -126,12 +126,14 @@ void AllGather(NDArray send, bool in_group, NDArray recv) {
                           in_group ? ctx->group_comm : ctx->global_comm, stream));
 }
 
-void BroadcastFromWorker0(Optional<NDArray> send, NDArray recv) {
+void BroadcastFromWorker0(Optional<NDArray> send, bool in_group, NDArray recv) {
   CCLThreadLocalContext* ctx = CCLThreadLocalContext::Get();
+  int worker_id = ctx->worker->worker_id;
+  int group_size = ctx->worker->num_workers / ctx->worker->num_groups;
+  bool is_sender = (worker_id == 0 && !in_group) || (in_group && worker_id % group_size == 0);
 
   const void* send_data = [&]() -> const void* {
-    int worker_id = ctx->worker->worker_id;
-    if (worker_id == 0) {
+    if (is_sender) {
       CHECK(send.defined());
       CHECK(send.value().Shape()->Product() == recv.Shape()->Product());
       return send.value()->data;
@@ -144,25 +146,28 @@ void BroadcastFromWorker0(Optional<NDArray> send, NDArray recv) {
   deviceStream_t stream = ctx->GetDefaultStream();
   NCCL_CALL(ncclBroadcast(send_data, recv->data, numel,
                           /*datatype=*/AsNCCLDataType(DataType(recv->dtype)),
-                          /*root=*/0, ctx->global_comm, stream));
+                          /*root=*/0, in_group ? ctx->group_comm : ctx->global_comm, stream));
 }
 
-void ScatterFromWorker0(Optional<NDArray> send, NDArray recv) {
+void ScatterFromWorker0(Optional<NDArray> send, bool in_group, NDArray recv) {
   CHECK(recv.defined()) << "ValueError: buffer `recv` must not be None";
   CCLThreadLocalContext* ctx = CCLThreadLocalContext::Get();
   int worker_id = ctx->worker->worker_id;
   int num_workers = ctx->worker->num_workers;
+  int group_size = num_workers / ctx->worker->num_groups;
+  bool is_sender = (worker_id == 0 && !in_group) || (in_group && worker_id % group_size == 0);
+  int num_receiver = in_group ? group_size : num_workers;
   deviceStream_t stream = ctx->GetDefaultStream();
-  if (worker_id == 0) {
+  if (is_sender) {
     CHECK(send.defined()) << "ValueError: buffer `send` must be provided when worker_id == 0.";
     NDArray buffer = send.value();
     int64_t numel = buffer.Shape()->Product();
-    CHECK_EQ(numel % num_workers, 0) << "ValueError: Scattering evenly requires that the number "
-                                        "of elements in the buffer to be "
-                                        "divisible by the number of workers, but got numel = "
-                                     << numel << " and " << num_workers << " workers.";
+    CHECK_EQ(numel % num_receiver, 0) << "ValueError: Scattering evenly requires that the number "
+                                         "of elements in the buffer to be "
+                                         "divisible by the number of workers, but got numel = "
+                                      << numel << " and " << num_receiver << " workers.";
     DataType dtype(buffer->dtype);
-    int64_t numel_per_shard = numel / num_workers;
+    int64_t numel_per_shard = numel / num_receiver;
     int64_t bytes_per_shard = numel_per_shard * dtype.bytes();
     CHECK_EQ(numel_per_shard, recv.Shape()->Product())
         << "ValueError: The number of elements in buffer `recv` must be the same as each shard "
@@ -171,41 +176,40 @@ void ScatterFromWorker0(Optional<NDArray> send, NDArray recv) {
         << numel << ", but `recv.size` is " << recv.Shape()->Product() << ".";
     NCCL_CALL(ncclGroupStart());
     uint8_t* data = static_cast<uint8_t*>(buffer->data);
-    for (int i = 0; i < num_workers; ++i) {
-      NCCL_CALL(
-          ncclSend(data, numel_per_shard, AsNCCLDataType(dtype), i, ctx->global_comm, stream));
+    for (int i = 0; i < num_receiver; ++i) {
+      NCCL_CALL(ncclSend(data, numel_per_shard, AsNCCLDataType(dtype), i,
+                         in_group ? ctx->group_comm : ctx->global_comm, stream));
       data += bytes_per_shard;
     }
   } else {
-    if (send.defined()) {
-      LOG(WARNING) << "Buffer `send` must be None when worker_id != 0, but got "
-                      "send = "
-                   << send.get() << ". This will be ignored.";
-    }
     NCCL_CALL(ncclGroupStart());
   }
   int64_t numel = recv.Shape()->Product();
   DataType dtype(recv->dtype);
-  NCCL_CALL(ncclRecv(recv->data, numel, AsNCCLDataType(dtype), 0, ctx->global_comm, stream));
+  NCCL_CALL(ncclRecv(recv->data, numel, AsNCCLDataType(dtype), 0,
+                     in_group ? ctx->group_comm : ctx->global_comm, stream));
   NCCL_CALL(ncclGroupEnd());
 }
 
-void GatherToWorker0(NDArray send, Optional<NDArray> recv) {
+void GatherToWorker0(NDArray send, bool in_group, Optional<NDArray> recv) {
   CHECK(send.defined()) << "ValueError: buffer `send` must not be None";
   CCLThreadLocalContext* ctx = CCLThreadLocalContext::Get();
   int worker_id = ctx->worker->worker_id;
   int num_workers = ctx->worker->num_workers;
+  int group_size = num_workers / ctx->worker->num_groups;
+  bool is_sender = (worker_id == 0 && !in_group) || (in_group && worker_id % group_size == 0);
+  int num_receiver = in_group ? group_size : num_workers;
   deviceStream_t stream = ctx->GetDefaultStream();
-  if (worker_id == 0) {
+  if (is_sender) {
     CHECK(recv.defined()) << "ValueError: buffer `recv` must be provided when worker_id == 0.";
     NDArray buffer = recv.value();
     int64_t numel = buffer.Shape()->Product();
-    CHECK_EQ(numel % num_workers, 0) << "ValueError: Gathering evenly requires that the number "
-                                        "of elements in the buffer to be "
-                                        "divisible by the number of workers, but got numel = "
-                                     << numel << " and " << num_workers << " workers.";
+    CHECK_EQ(numel % num_receiver, 0) << "ValueError: Gathering evenly requires that the number "
+                                         "of elements in the buffer to be "
+                                         "divisible by the number of workers, but got numel = "
+                                      << numel << " and " << num_receiver << " workers.";
     DataType dtype(buffer->dtype);
-    int64_t numel_per_shard = numel / num_workers;
+    int64_t numel_per_shard = numel / num_receiver;
     int64_t bytes_per_shard = numel_per_shard * dtype.bytes();
     CHECK_EQ(numel_per_shard, send.Shape()->Product())
         << "ValueError: The number of elements in buffer `send` must be the same as each shard "
@@ -214,22 +218,18 @@ void GatherToWorker0(NDArray send, Optional<NDArray> recv) {
         << numel << ", but `send.size` is " << send.Shape()->Product() << ".";
     NCCL_CALL(ncclGroupStart());
     uint8_t* data = static_cast<uint8_t*>(buffer->data);
-    for (int i = 0; i < num_workers; ++i) {
-      NCCL_CALL(
-          ncclRecv(data, numel_per_shard, AsNCCLDataType(dtype), i, ctx->global_comm, stream));
+    for (int i = 0; i < num_receiver; ++i) {
+      NCCL_CALL(ncclRecv(data, numel_per_shard, AsNCCLDataType(dtype), i,
+                         in_group ? ctx->group_comm : ctx->global_comm, stream));
       data += bytes_per_shard;
     }
   } else {
-    if (recv.defined()) {
-      LOG(WARNING) << "ValueError: buffer `recv` must be None when worker_id != 0. However, got "
-                      "recv = "
-                   << recv.get() << ". This will be ignored.";
-    }
     NCCL_CALL(ncclGroupStart());
   }
   int64_t numel = send.Shape()->Product();
   DataType dtype(send->dtype);
-  NCCL_CALL(ncclSend(send->data, numel, AsNCCLDataType(dtype), 0, ctx->global_comm, stream));
+  NCCL_CALL(ncclSend(send->data, numel, AsNCCLDataType(dtype), 0,
+                     in_group ? ctx->group_comm : ctx->global_comm, stream));
   NCCL_CALL(ncclGroupEnd());
 }
 

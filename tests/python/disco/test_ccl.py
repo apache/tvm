@@ -177,10 +177,9 @@ def test_group_allgather(session_kind, ccl):
 @pytest.mark.parametrize("session_kind", _all_session_kinds)
 @pytest.mark.parametrize("ccl", _ccl)
 @pytest.mark.parametrize("use_explicit_output", [True, False])
-@pytest.mark.parametrize("num_groups", [1, 2])
-def test_broadcast(session_kind, ccl, use_explicit_output, num_groups):
+def test_broadcast(session_kind, ccl, use_explicit_output):
     devices = [0, 1]
-    sess = session_kind(num_workers=len(devices), num_groups=num_groups)
+    sess = session_kind(num_workers=len(devices))
     sess.init_ccl(ccl, *devices)
 
     array = np.arange(12, dtype="float32").reshape(3, 4)
@@ -199,11 +198,33 @@ def test_broadcast(session_kind, ccl, use_explicit_output, num_groups):
 
 @pytest.mark.parametrize("session_kind", _all_session_kinds)
 @pytest.mark.parametrize("ccl", _ccl)
+def test_group_broadcast(session_kind, ccl):
+    devices = [0, 1, 2, 3]
+    sess = session_kind(num_workers=len(devices), num_groups=2)
+    sess.init_ccl(ccl, *devices)
+
+    array_1 = np.arange(12, dtype="float32").reshape(3, 4)
+    array_2 = np.multiply(array_1, -1)
+
+    src_array = sess.empty((3, 4), "float32")
+    src_array.debug_copy_from(0, array_1)
+    src_array.debug_copy_from(2, array_2)
+    dst_array = sess.empty((3, 4), "float32")
+    sess.broadcast_from_worker0(src_array, dst_array)
+
+    result_1 = dst_array.debug_get_from_remote(1).numpy()
+    np.testing.assert_equal(result_1, array_1)
+
+    result_3 = dst_array.debug_get_from_remote(3).numpy()
+    np.testing.assert_equal(result_3, array_2)
+
+
+@pytest.mark.parametrize("session_kind", _all_session_kinds)
+@pytest.mark.parametrize("ccl", _ccl)
 @pytest.mark.parametrize("use_explicit_output", [True, False])
-@pytest.mark.parametrize("num_groups", [1, 2])
-def test_scatter(session_kind, ccl, use_explicit_output, num_groups, capfd):
+def test_scatter(session_kind, ccl, use_explicit_output, capfd):
     devices = [0, 1]
-    sess = session_kind(num_workers=len(devices), num_groups=num_groups)
+    sess = session_kind(num_workers=len(devices))
     sess.init_ccl(ccl, *devices)
 
     array = np.arange(36, dtype="float32").reshape(2, 6, 3)
@@ -233,8 +254,46 @@ def test_scatter(session_kind, ccl, use_explicit_output, num_groups, capfd):
 
 @pytest.mark.parametrize("session_kind", _all_session_kinds)
 @pytest.mark.parametrize("ccl", _ccl)
-@pytest.mark.parametrize("num_groups", [1, 2])
-def test_scatter_with_implicit_reshape(session_kind, ccl, num_groups, capfd):
+def test_group_scatter(session_kind, ccl, capfd):
+    devices = [0, 1, 2, 3]
+    sess = session_kind(num_workers=len(devices), num_groups=2)
+    sess.init_ccl(ccl, *devices)
+
+    array_1 = np.arange(36, dtype="float32").reshape(2, 6, 3)
+    array_2 = np.multiply(array_1, -1)
+
+    d_src = sess.empty((2, 6, 3), "float32")
+    d_src.debug_copy_from(0, array_1)
+    d_src.debug_copy_from(2, array_2)
+    d_dst = sess.empty((6, 3), "float32")
+    sess.scatter_from_worker0(d_src, d_dst)
+
+    np.testing.assert_equal(
+        d_dst.debug_get_from_remote(0).numpy(),
+        array_1[0, :, :],
+    )
+    np.testing.assert_equal(
+        d_dst.debug_get_from_remote(1).numpy(),
+        array_1[1, :, :],
+    )
+    np.testing.assert_equal(
+        d_dst.debug_get_from_remote(2).numpy(),
+        array_2[0, :, :],
+    )
+    np.testing.assert_equal(
+        d_dst.debug_get_from_remote(3).numpy(),
+        array_2[1, :, :],
+    )
+
+    captured = capfd.readouterr()
+    assert (
+        not captured.err
+    ), "No warning messages should be generated from disco.Session.scatter_from_worker0"
+
+
+@pytest.mark.parametrize("session_kind", _all_session_kinds)
+@pytest.mark.parametrize("ccl", _ccl)
+def test_scatter_with_implicit_reshape(session_kind, ccl, capfd):
     """Scatter may perform an implicit reshape
 
     Scattering elements to the workers requires the total number of
@@ -252,7 +311,7 @@ def test_scatter_with_implicit_reshape(session_kind, ccl, num_groups, capfd):
 
     """
     devices = [0, 1]
-    sess = session_kind(num_workers=len(devices), num_groups=num_groups)
+    sess = session_kind(num_workers=len(devices))
     sess.init_ccl(ccl, *devices)
 
     array = np.arange(36, dtype="float32").reshape(3, 4, 3)
@@ -279,10 +338,9 @@ def test_scatter_with_implicit_reshape(session_kind, ccl, num_groups, capfd):
 
 @pytest.mark.parametrize("session_kind", _all_session_kinds)
 @pytest.mark.parametrize("ccl", _ccl)
-@pytest.mark.parametrize("num_groups", [1, 2])
-def test_gather(session_kind, ccl, num_groups, capfd):
+def test_gather(session_kind, ccl, capfd):
     devices = [0, 1]
-    sess = session_kind(num_workers=len(devices), num_groups=num_groups)
+    sess = session_kind(num_workers=len(devices))
     sess.init_ccl(ccl, *devices)
 
     array = np.arange(36, dtype="float32")
@@ -294,6 +352,37 @@ def test_gather(session_kind, ccl, num_groups, capfd):
     np.testing.assert_equal(
         d_dst.debug_get_from_remote(0).numpy(),
         array.reshape(3, 4, 3),
+    )
+
+    captured = capfd.readouterr()
+    assert (
+        not captured.err
+    ), "No warning messages should be generated from disco.Session.gather_to_worker0"
+
+
+@pytest.mark.parametrize("session_kind", _all_session_kinds)
+@pytest.mark.parametrize("ccl", _ccl)
+def test_group_gather(session_kind, ccl, capfd):
+    devices = [0, 1, 2, 3]
+    sess = session_kind(num_workers=len(devices), num_groups=2)
+    sess.init_ccl(ccl, *devices)
+
+    array_1 = np.arange(36, dtype="float32")
+    array_2 = np.multiply(array_1, -1)
+    d_src = sess.empty((3, 3, 2), "float32")
+    d_dst = sess.empty((3, 4, 3), "float32")
+    d_src.debug_copy_from(0, array_1[:18])
+    d_src.debug_copy_from(1, array_1[18:])
+    d_src.debug_copy_from(2, array_2[:18])
+    d_src.debug_copy_from(3, array_2[18:])
+    sess.gather_to_worker0(d_src, d_dst)
+    np.testing.assert_equal(
+        d_dst.debug_get_from_remote(0).numpy(),
+        array_1.reshape(3, 4, 3),
+    )
+    np.testing.assert_equal(
+        d_dst.debug_get_from_remote(2).numpy(),
+        array_2.reshape(3, 4, 3),
     )
 
     captured = capfd.readouterr()

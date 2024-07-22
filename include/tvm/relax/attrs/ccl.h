@@ -39,7 +39,7 @@ struct AllReduceAttrs : public tvm::AttrsNode<AllReduceAttrs> {
         "The type of reduction operation to be applied to the input data. Now only sum is "
         "supported.");
     TVM_ATTR_FIELD(in_group).describe(
-        "Whether the reduction operation performs in group or globally as default.");
+        "Whether the reduction operation performs in group or globally or in group as default.");
   }
 };  // struct AllReduceAttrs
 
@@ -54,7 +54,7 @@ struct AllGatherAttrs : public tvm::AttrsNode<AllGatherAttrs> {
             "The number of workers, also the number of parts the given buffer should be chunked "
             "into.");
     TVM_ATTR_FIELD(in_group).describe(
-        "Whether the allgather operation performs in group or globally as default.");
+        "Whether the allgather operation performs in group or globally or in group as default.");
   }
 };  // struct AllGatherAttrs
 

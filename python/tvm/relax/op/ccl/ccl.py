@@ -33,7 +33,7 @@ def allreduce(x, op_type: str = "sum", in_group: bool = True):  # pylint: disabl
       Now "sum", "prod", "min", "max" and "avg" are supported.
 
     in_group : bool
-      Whether the reduction operation performs in group or globally as default.
+      Whether the reduction operation performs globally or in group as default.
 
     Returns
     -------
@@ -60,7 +60,7 @@ def allgather(x, num_workers: int, in_group: bool = True):  # pylint: disable=in
       The number of workers to gather data from.
 
     in_group : bool
-      Whether the gather operation performs in group or globally as default.
+      Whether the gather operation performs globally or in group as default.
 
     Returns
     -------
