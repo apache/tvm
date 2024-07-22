@@ -15,12 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 """Relax Collective Communications Library (CCL) operators"""
-from typing import Union
-from tvm.relax import PrimValue
 
 from . import _ffi_api
 from ...expr import Expr
-from ....ir import PrimExpr
 
 
 def allreduce(x, op_type: str = "sum", in_group: bool = True):  # pylint: disable=invalid-name
