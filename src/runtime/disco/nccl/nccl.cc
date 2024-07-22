@@ -183,8 +183,8 @@ void ScatterFromWorker0(Optional<NDArray> send, bool in_group, NDArray recv) {
     }
   } else {
     if (send.defined()) {
-      LOG(WARNING) << "Buffer `send` must be None when worker_id != 0, but got "
-                      "send = "
+      LOG(WARNING) << "ValueError: buffer `send` must be None when (worker_id != 0 && !in_group) "
+                      "or (worker_id % group_size != 0 && in_group). However, got send = "
                    << send.get() << ". This will be ignored.";
     }
     NCCL_CALL(ncclGroupStart());
@@ -230,8 +230,8 @@ void GatherToWorker0(NDArray send, bool in_group, Optional<NDArray> recv) {
     }
   } else {
     if (recv.defined()) {
-      LOG(WARNING) << "ValueError: buffer `recv` must be None when worker_id != 0. However, got "
-                      "recv = "
+      LOG(WARNING) << "ValueError: buffer `recv` must be None when (worker_id != 0 && !in_group) "
+                      "or (worker_id % group_size != 0 && in_group). However, got recv = "
                    << recv.get() << ". This will be ignored.";
     }
     NCCL_CALL(ncclGroupStart());
