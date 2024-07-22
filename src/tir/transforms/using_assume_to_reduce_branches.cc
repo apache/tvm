@@ -35,6 +35,7 @@
  *    4. This pass currently works for op_pattern kElemWise and kBroadcast.
  */
 
+#include <tvm/node/attr_registry_map.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relay/op_attr_types.h>
 #include <tvm/tir/builtin.h>
@@ -42,7 +43,7 @@
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
-#include <tvm/node/attr_registry_map.h>
+
 #include <optional>
 
 #include "../../arith/constraint_extract.h"
@@ -78,7 +79,8 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
   /* This class analyzes the complete primfunc.
   It parses the buffer assumptions and eliminates the redundant branch
   introduced due to layout specific padding by leveraging from buffer assumptions.
-  On eliminating the branch there are more opportunities to vectorize the code and improve performance.
+  On eliminating the branch there are more opportunities to vectorize the code
+  and improve performance.
 
   Example:
   -------------
@@ -86,7 +88,8 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
   for (...)
     T.assume( assume_condition or A[i] == 0 )
   for (...)
-    out = T.if_then_else(if_then_else_condition, 0, function(A)) # here function(A) is some function on Var A
+    out = T.if_then_else(if_then_else_condition, 0, function(A)) 
+    # here function(A) is some function on Var A
 
   Prim Func After :
     for (...)
@@ -96,12 +99,13 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
   --------------
   # High-level implementation details :
     1. The pass parses the assume statement and stores the relevant information.
-    2. The pass tries to evaluate the then_clause and else_clause in then_condition_context and else_condition_context.
+    2. The pass tries to evaluate the then_clause and else_clause in then_condition_context
+    and else_condition_context.
     It checks if the context of the assume statement (for condition indices and
-    assume_condition) is same as the context of the if_then_else statement (for condition indices and
-    if_then_else condition). If context is same and the expression inside if_then_else statement is a function of the
-    buffer assumption (eg A in above example), then the pass substitutes the value from the buffer assumption and
-    simplifies the expression .
+    assume_condition) is same as the context of the if_then_else statement (for condition indices
+    and if_then_else condition). If context is same and the expression inside if_then_else statement
+    is a function of the buffer assumption (eg A in above example),
+    then the pass substitutes the value from the buffer assumption and simplifies the expression.
     3. The pass then checks if then_clause and else_clause evaluate to same value.
     If yes, then return the else_clause if we are in the then_condition_context (since then_clause
     will be true in this context and if else_clause is also evaluating to true then we can directly
