@@ -118,7 +118,7 @@ TVM_REGISTER_GLOBAL("runtime.disco.empty")
       int group_size =
           DiscoWorker::ThreadLocal()->num_workers / DiscoWorker::ThreadLocal()->num_groups;
       bool is_worker0 = (worker_id == 0 && !in_group) || (in_group && worker_id % group_size == 0);
-      if (is_worker0) {
+      if (worker0_only && !is_worker0) {
         return NullOpt;
       } else {
         return DiscoEmptyNDArray(shape, dtype, device);
