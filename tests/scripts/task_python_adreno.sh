@@ -69,7 +69,7 @@ i=0
 IFS=$'\n'
 for node_id in $TEXTURE_TESTS; do
     echo "$node_id"
-    CXX=${TVM_NDK_CC} run_pytest ctypes "$TVM_INTEGRATION_TESTSUITE_NAME-opencl-texture-$i" "$node_id" --reruns=0
+    run_pytest ctypes "$TVM_INTEGRATION_TESTSUITE_NAME-opencl-texture-$i" "$node_id" --reruns=0
     i=$((i+1))
 done
 
