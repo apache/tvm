@@ -1948,6 +1948,22 @@ class HardSwish(OnnxOpConverter):
         )
 
 
+class Sign(OnnxOpConverter):
+    """Converts an onnx Sign node into an equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v9(cls, bb, inputs, attr, params):
+        return relax.op.sign(inputs[0])
+
+
+class Not(OnnxOpConverter):
+    """Converts an onnx Not node into an equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr, params):
+        return relax.op.logical_not(inputs[0])
+
+
 def _get_convert_map():
     return {
         "MatMul": MatMul,
@@ -2030,6 +2046,8 @@ def _get_convert_map():
         "Elu": Elu,
         "HardSigmoid": HardSigmoid,
         "HardSwish": HardSwish,
+        "Sign": Sign,
+        "Not": Not,
     }
 
 

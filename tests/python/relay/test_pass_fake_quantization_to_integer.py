@@ -814,6 +814,20 @@ def test_fake_quantize_pad():
     compare_fq_to_int(op, [x_np])
 
 
+def test_fake_quantize_pad_with_float_min():
+    in_shape = [1, 383, 128]
+    x = relay.var("x", shape=in_shape, dtype="float32")
+    op = relay.qnn.quantize(x, relay.const(1.0), relay.const(0), out_dtype="uint8")
+    op = relay.qnn.dequantize(op, relay.const(1.0), relay.const(0), out_dtype="float32")
+    op = relay.op.nn.pad(
+        op, pad_width=[[0, 0], [0, 1], [0, 0]], pad_value=relay.const(-3.40282e38, dtype="float32")
+    )
+    op = relay.qnn.op.quantize(op, relay.const(1.0), relay.const(0), out_dtype="uint8")
+    x_np = np.random.randint(0, 256, size=in_shape)
+    x_as_float = x_np.astype("float32")
+    compare_fq_to_int(op, [x_as_float], True)
+
+
 def test_fake_quantize_depth_to_space():
     x = relay.var("x", shape=[1, 3, 224, 224], dtype="int8")
 

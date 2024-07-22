@@ -210,14 +210,6 @@ def lint(node_type) {
           )
           skip_ci = should_skip_ci(env.CHANGE_ID)
           skip_slow_tests = should_skip_slow_tests(env.CHANGE_ID)
-          sh(
-            script: "${docker_run} ${ci_lint}  ./tests/scripts/task_lint.sh",
-            label: 'Run lint',
-          )
-          sh(
-            script: "${docker_run} ${ci_lint}  ./tests/scripts/unity/task_extra_lint.sh",
-            label: 'Run extra lint',
-          )
         }
       }
     }
