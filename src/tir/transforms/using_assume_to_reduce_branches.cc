@@ -354,7 +354,7 @@ Pass UseAssumeToReduceBranches() {
     auto* n = f.CopyOnWrite();
     arith::Analyzer analyzer;
 
-    // The pass runs & eliminates pad branch with overcompute only if, 
+    // The pass runs & eliminates pad branch with overcompute only if,
     // the primfunc has op_pattern defined and is an elementwise op.
     // AnnotateTIROpPattern pass will set op_pattern in op attributes of the primfunc.
     if (n->attrs.GetAttr<Integer>("op_pattern").defined()) {
