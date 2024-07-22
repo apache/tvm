@@ -135,7 +135,7 @@ class DeviceInfoCollector : public StmtVisitor {
       for (const auto& extent : op->extents) {
         dyn_size *= extent;
       }
-      dyn_size *= op->dtype.bytes();
+      dyn_size *= op->dtype.bytes() * op->dtype.lanes();
 
       dyn_shmem_size = dyn_size;
     }

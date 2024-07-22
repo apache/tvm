@@ -214,6 +214,10 @@ class SharedMemLinearAccessPatternFinder final : public StmtExprVisitor {
       VisitNewScope(op);
     } else if (op->attr_key == attr::virtual_thread) {
       VisitNewScope(op);
+    } else if (op->attr_key == "kWarpSpecializationScope") {
+      IfThenElse body = Downcast<IfThenElse>(op->body);
+      this->VisitStmt(body->then_case);
+      this->VisitStmt(body->else_case.value());
     } else {
       StmtExprVisitor::VisitStmt_(op);
     }
@@ -290,8 +294,8 @@ class SharedMemoryRewriter : public StmtExprMutator {
       for (const StorageEntry* e : all_entry) {
         for (int i = 0; i < static_cast<int>(e->allocs.size()); i++) {
           for (const VarNode* buffer : e->allocs[i]) {
-            const AllocateNode* alloc = shmem_allocs_[buffer];
-            align[i] = std::max(align[i], alloc->dtype.bytes());
+            const AllocateNode* alloc = dyn_shmem_allocs_[buffer];
+            align[i] = std::max(align[i], alloc->dtype.bytes() * alloc->dtype.lanes());
           }
         }
       }
@@ -303,7 +307,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
           for (const VarNode* buffer : e->allocs[i]) {
             const AllocateNode* alloc = shmem_allocs_[buffer];
             buffer_byte_offsets_[buffer] = merged_alloc_size_ + inner_offset;
-            inner_offset += alloc->extents[0] * alloc->dtype.bytes();
+            inner_offset += alloc->extents[0] * alloc->dtype.bytes() * alloc->dtype.lanes();
             inner_offset += indexmod(align[i] - indexmod(inner_offset, align[i]), align[i]);
           }
           max_inner_offset = max(max_inner_offset, inner_offset);
@@ -426,7 +430,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
   PrimExpr GetBufferOffset(Var buffer_var, DataType dtype) {
     auto it = buffer_byte_offsets_.find(buffer_var.get());
     ICHECK(it != buffer_byte_offsets_.end());
-    return indexdiv(it->second, dtype.bytes());
+    return indexdiv(it->second, dtype.bytes() * dtype.lanes());
   }
 
   // Wrapper function to determine if the shared memory allocation for a variable is appropriate.

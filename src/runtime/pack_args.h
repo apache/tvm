@@ -130,7 +130,8 @@ enum ArgConvertCode {
   INT64_TO_UINT32,
   FLOAT64_TO_FLOAT32,
   FLOAT64_TO_FLOAT64,
-  HANDLE_TO_HANDLE
+  HANDLE_TO_HANDLE,
+  HANDLE_TO_REFERENCE,
 };
 
 inline ArgConvertCode GetArgConvertCode(DLDataType t) {
@@ -145,6 +146,8 @@ inline ArgConvertCode GetArgConvertCode(DLDataType t) {
     if (t.bits == 32U) return FLOAT64_TO_FLOAT32;
   } else if (t.code == kTVMOpaqueHandle) {
     return HANDLE_TO_HANDLE;
+  } else if (t.code == kTVMGridConstant) {
+    return HANDLE_TO_REFERENCE;
   }
   LOG(FATAL) << "Cannot handle " << t << " as device function argument";
 }
@@ -179,6 +182,9 @@ inline PackedFunc PackFuncVoidAddr_(F f, const std::vector<ArgConvertCode>& code
           holder[i].v_float32 = static_cast<float>(args.values[i].v_float64);
           addr[i] = &(holder[i]);
           break;
+        }
+        case HANDLE_TO_REFERENCE: {
+          addr[i] = args.values[i].v_handle;
         }
       }
     }
@@ -215,6 +221,7 @@ inline PackedFunc PackFuncNonBufferArg_(F f, int base, const std::vector<ArgConv
           holder[i].v_float32[0] = static_cast<float>(args.values[base + i].v_float64);
           break;
         }
+        case HANDLE_TO_REFERENCE:
         case HANDLE_TO_HANDLE: {
           LOG(FATAL) << "not reached";
           break;
@@ -277,6 +284,7 @@ inline PackedFunc PackFuncPackedArgAligned_(F f, const std::vector<ArgConvertCod
           ++ptr;
           break;
         }
+        case HANDLE_TO_REFERENCE:
         default: {
           LOG(FATAL) << "not reached";
           break;
