@@ -37,7 +37,8 @@ enum class DiscoSocketAction {
 
 class DiscoSocketChannel : public DiscoChannel {
  public:
-  DiscoSocketChannel(const TCPSocket& socket) : socket_(socket), message_queue_(&socket_) {}
+  explicit DiscoSocketChannel(const TCPSocket& socket)
+      : socket_(socket), message_queue_(&socket_) {}
 
   DiscoSocketChannel(DiscoSocketChannel&& other) = delete;
   DiscoSocketChannel(const DiscoSocketChannel& other) = delete;
@@ -133,7 +134,7 @@ class SocketSessionObj : public BcastSessionObj {
     }
   }
 
-  virtual void BroadcastPacked(const TVMArgs& args) final {
+  void BroadcastPacked(const TVMArgs& args) final {
     local_session_->BroadcastPacked(args);
     std::vector<TVMValue> values(args.size() + 2);
     std::vector<int> type_codes(args.size() + 2);
@@ -145,7 +146,7 @@ class SocketSessionObj : public BcastSessionObj {
     }
   }
 
-  virtual void SendPacked(int worker_id, const TVMArgs& args) final {
+  void SendPacked(int worker_id, const TVMArgs& args) final {
     int node_id = worker_id / num_workers_per_node_;
     if (node_id == 0) {
       local_session_->SendPacked(worker_id, args);
@@ -160,7 +161,7 @@ class SocketSessionObj : public BcastSessionObj {
     remote_channels_[node_id - 1]->Send(TVMArgs(values.data(), type_codes.data(), values.size()));
   }
 
-  virtual TVMArgs RecvReplyPacked(int worker_id) final {
+  TVMArgs RecvReplyPacked(int worker_id) final {
     int node_id = worker_id / num_workers_per_node_;
     if (node_id == 0) {
       return local_session_->RecvReplyPacked(worker_id);
@@ -172,11 +173,11 @@ class SocketSessionObj : public BcastSessionObj {
     return remote_channels_[node_id - 1]->Recv();
   }
 
-  virtual void AppendHostNDArray(const NDArray& host_array) final {
+  void AppendHostNDArray(const NDArray& host_array) final {
     local_session_->AppendHostNDArray(host_array);
   }
 
-  virtual void Shutdown() final {
+  void Shutdown() final {
     // local session will be implicitly shutdown by its destructor
     TVMValue values[2];
     int type_codes[2];

@@ -21,6 +21,8 @@
 
 #include <dmlc/io.h>
 
+#include <string>
+
 #include "./protocol.h"
 
 namespace tvm {
