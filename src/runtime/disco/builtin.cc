@@ -112,9 +112,13 @@ void SyncWorker() {
 TVM_REGISTER_GLOBAL("runtime.disco.load_vm_module").set_body_typed(LoadVMModule);
 
 TVM_REGISTER_GLOBAL("runtime.disco.empty")
-    .set_body_typed([](ShapeTuple shape, DataType dtype, Device device,
-                       bool worker0_only) -> Optional<NDArray> {
-      if (worker0_only && WorkerId()) {
+    .set_body_typed([](ShapeTuple shape, DataType dtype, Device device, bool worker0_only,
+                       bool in_group) -> Optional<NDArray> {
+      int worker_id = WorkerId();
+      int group_size =
+          DiscoWorker::ThreadLocal()->num_workers / DiscoWorker::ThreadLocal()->num_groups;
+      bool is_worker0 = (worker_id == 0 && !in_group) || (in_group && worker_id % group_size == 0);
+      if (is_worker0) {
         return NullOpt;
       } else {
         return DiscoEmptyNDArray(shape, dtype, device);

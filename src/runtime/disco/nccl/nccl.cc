@@ -182,6 +182,11 @@ void ScatterFromWorker0(Optional<NDArray> send, bool in_group, NDArray recv) {
       data += bytes_per_shard;
     }
   } else {
+    if (send.defined()) {
+      LOG(WARNING) << "Buffer `send` must be None when worker_id != 0, but got "
+                      "send = "
+                   << send.get() << ". This will be ignored.";
+    }
     NCCL_CALL(ncclGroupStart());
   }
   int64_t numel = recv.Shape()->Product();
@@ -224,6 +229,11 @@ void GatherToWorker0(NDArray send, bool in_group, Optional<NDArray> recv) {
       data += bytes_per_shard;
     }
   } else {
+    if (recv.defined()) {
+      LOG(WARNING) << "ValueError: buffer `recv` must be None when worker_id != 0. However, got "
+                      "recv = "
+                   << recv.get() << ". This will be ignored.";
+    }
     NCCL_CALL(ncclGroupStart());
   }
   int64_t numel = send.Shape()->Product();

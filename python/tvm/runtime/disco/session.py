@@ -122,6 +122,7 @@ class Session(Object):
         dtype: str,
         device: Optional[Device] = None,
         worker0_only: bool = False,
+        in_group: bool = True,
     ) -> DRef:
         """Create an empty NDArray on all workers and attach them to a DRef.
 
@@ -140,6 +141,11 @@ class Session(Object):
             If False (default), allocate an array on each worker.  If
             True, only allocate an array on worker0.
 
+        in_group: bool
+            Take effective when `worker0_only` is True. If True (default),
+            allocate an array on each first worker in each group. If
+            False, only allocate an array on worker0 globally.
+
         Returns
         -------
         array : DRef
@@ -149,7 +155,7 @@ class Session(Object):
         if device is None:
             device = Device(device_type=0, device_id=0)
         func = self._get_cached_method("runtime.disco.empty")
-        return func(ShapeTuple(shape), dtype, device, worker0_only)
+        return func(ShapeTuple(shape), dtype, device, worker0_only, in_group)
 
     def shutdown(self):
         """Shut down the Disco session"""

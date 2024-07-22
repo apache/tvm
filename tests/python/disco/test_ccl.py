@@ -206,7 +206,7 @@ def test_group_broadcast(session_kind, ccl):
     array_1 = np.arange(12, dtype="float32").reshape(3, 4)
     array_2 = np.multiply(array_1, -1)
 
-    src_array = sess.empty((3, 4), "float32")
+    src_array = sess.empty((3, 4), "float32", worker0_only=True, in_group=True)
     src_array.debug_copy_from(0, array_1)
     src_array.debug_copy_from(2, array_2)
     dst_array = sess.empty((3, 4), "float32")
@@ -262,7 +262,7 @@ def test_group_scatter(session_kind, ccl, capfd):
     array_1 = np.arange(36, dtype="float32").reshape(2, 6, 3)
     array_2 = np.multiply(array_1, -1)
 
-    d_src = sess.empty((2, 6, 3), "float32")
+    d_src = sess.empty((2, 6, 3), "float32", worker0_only=True, in_group=True)
     d_src.debug_copy_from(0, array_1)
     d_src.debug_copy_from(2, array_2)
     d_dst = sess.empty((6, 3), "float32")
@@ -370,7 +370,7 @@ def test_group_gather(session_kind, ccl, capfd):
     array_1 = np.arange(36, dtype="float32")
     array_2 = np.multiply(array_1, -1)
     d_src = sess.empty((3, 3, 2), "float32")
-    d_dst = sess.empty((3, 4, 3), "float32")
+    d_dst = sess.empty((3, 4, 3), "float32", worker0_only=True, in_group=True)
     d_src.debug_copy_from(0, array_1[:18])
     d_src.debug_copy_from(1, array_1[18:])
     d_src.debug_copy_from(2, array_2[:18])
