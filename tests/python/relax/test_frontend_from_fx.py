@@ -663,14 +663,12 @@ def test_einsum():
             super().__init__()
 
         def forward(self, x, y):
-            return torch.einsum('i,j->ij', x, y)
+            return torch.einsum("i,j->ij", x, y)
 
     @tvm.script.ir_module
     class Expected1:
         @R.function
-        def main(
-                inp_0: R.Tensor((4, 4), dtype="float32")
-            ) -> R.Tensor((), dtype="float32"):
+        def main(inp_0: R.Tensor((4, 4), dtype="float32")) -> R.Tensor((), dtype="float32"):
             with R.dataflow():
                 lv: R.Tensor((), dtype="float32") = R.einsum((inp_0,), subscripts="ii")
                 gv: R.Tensor((), dtype="float32") = lv
@@ -681,11 +679,12 @@ def test_einsum():
     class Expected2:
         @R.function
         def main(
-            inp_0: R.Tensor((5,), dtype="float32"),
-            inp_1: R.Tensor((4,), dtype="float32")
-            ) -> R.Tensor((5, 4), dtype="float32"):
+            inp_0: R.Tensor((5,), dtype="float32"), inp_1: R.Tensor((4,), dtype="float32")
+        ) -> R.Tensor((5, 4), dtype="float32"):
             with R.dataflow():
-                lv: R.Tensor((5, 4), dtype="float32") = R.einsum((inp_0, inp_1), subscripts="i,j->ij")
+                lv: R.Tensor((5, 4), dtype="float32") = R.einsum(
+                    (inp_0, inp_1), subscripts="i,j->ij"
+                )
                 gv: R.Tensor((5, 4), dtype="float32") = lv
                 R.output(gv)
             return gv
