@@ -85,7 +85,7 @@ class StorageAccessVisitor : public StmtExprVisitor {
   void VisitStmt_(const BufferStoreNode* op) final;
   void VisitStmt_(const EvaluateNode* op) final;
   void VisitStmt_(const LetStmtNode* op) final;
-  void VisitStmt_(const AttrStmtNode* op) final;
+  void VisitStmt_(const AttrStmtNode* op) override;
   void VisitStmt_(const ForNode* op) final;
   void VisitStmt_(const IfThenElseNode* op) final;
   void VisitStmt_(const WhileNode* op) final;

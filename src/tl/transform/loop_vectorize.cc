@@ -222,11 +222,12 @@ class VectorizeChecker : public ExprMutator {
   PrimExpr VisitExpr_(const RampNode* op) final {
     PrimExpr base = this->VisitExpr(op->base);
     PrimExpr stride = this->VisitExpr(op->stride);
+    int op_lanes = static_cast<int>(Downcast<IntImm>(op->lanes)->value);
     if (base.dtype().lanes() > 1 && stride.dtype().lanes() == 1) {
       const RampNode* base_ramp = base.as<RampNode>();
       if (analyzer_->CanProve(base_ramp->stride ==
-                              stride * make_const(stride.dtype(), op->lanes))) {
-        return Ramp(base_ramp->base, stride, op->lanes * base_ramp->lanes);
+                              stride * make_const(stride.dtype(), op_lanes))) {
+        return Ramp(base_ramp->base, stride, op_lanes * base_ramp->lanes);
       }
     }
     int lanes = std::max(base.dtype().lanes(), stride.dtype().lanes());
@@ -235,7 +236,7 @@ class VectorizeChecker : public ExprMutator {
     Array<PrimExpr> elems;
     for (int i = 0; i < lanes; ++i) {
       elems.push_back(
-          Ramp(Shuffle::ExtractElement(base, i), Shuffle::ExtractElement(stride, i), op->lanes));
+          Ramp(Shuffle::ExtractElement(base, i), Shuffle::ExtractElement(stride, i), lanes));
     }
     return Shuffle::Concat(elems);
   }
@@ -339,7 +340,8 @@ class VectorizeChecker : public ExprMutator {
   static inline PrimExpr BroadcastTo(PrimExpr e, int lanes) {
     if (e.dtype().lanes() == lanes) return e;
     if (const BroadcastNode* op = e.as<BroadcastNode>()) {
-      if (lanes % op->lanes == 0) {
+      int op_lanes = static_cast<int>(Downcast<IntImm>(op->lanes)->value);
+      if (lanes % op_lanes == 0) {
         return Broadcast(op->value, lanes);
       }
     }

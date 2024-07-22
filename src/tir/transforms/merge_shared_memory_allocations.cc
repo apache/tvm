@@ -294,7 +294,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
       for (const StorageEntry* e : all_entry) {
         for (int i = 0; i < static_cast<int>(e->allocs.size()); i++) {
           for (const VarNode* buffer : e->allocs[i]) {
-            const AllocateNode* alloc = dyn_shmem_allocs_[buffer];
+            const AllocateNode* alloc = shmem_allocs_[buffer];
             align[i] = std::max(align[i], alloc->dtype.bytes() * alloc->dtype.lanes());
           }
         }
