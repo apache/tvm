@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name
+"""Launch disco session in the remote node and connect to the server."""
 import sys
 import tvm
 from . import disco_worker as _  # pylint: disable=unused-import
