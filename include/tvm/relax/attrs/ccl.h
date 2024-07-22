@@ -32,13 +32,31 @@ namespace relax {
 /*! \brief Attributes used in allreduce operators */
 struct AllReduceAttrs : public tvm::AttrsNode<AllReduceAttrs> {
   String op_type;
+  bool in_group;
 
   TVM_DECLARE_ATTRS(AllReduceAttrs, "relax.attrs.AllReduceAttrs") {
     TVM_ATTR_FIELD(op_type).describe(
         "The type of reduction operation to be applied to the input data. Now only sum is "
         "supported.");
+    TVM_ATTR_FIELD(in_group).describe(
+        "Whether the reduction operation performs in group or globally as default.");
   }
 };  // struct AllReduceAttrs
+
+/*! \brief Attributes used in allgather operators */
+struct AllGatherAttrs : public tvm::AttrsNode<AllGatherAttrs> {
+  int num_workers;
+  bool in_group;
+
+  TVM_DECLARE_ATTRS(AllGatherAttrs, "relax.attrs.AllGatherAttrs") {
+    TVM_ATTR_FIELD(num_workers)
+        .describe(
+            "The number of workers, also the number of parts the given buffer should be chunked "
+            "into.");
+    TVM_ATTR_FIELD(in_group).describe(
+        "Whether the allgather operation performs in group or globally as default.");
+  }
+};  // struct AllGatherAttrs
 
 /*! \brief Attributes used in scatter operators */
 struct ScatterCollectiveAttrs : public tvm::AttrsNode<ScatterCollectiveAttrs> {
