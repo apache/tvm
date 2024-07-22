@@ -84,3 +84,4 @@ from .dense import dense
 from .searchsorted import searchsorted_ref
 from .conv2d_backcward_weight_python import conv2d_backward_weight_python
 from .lstm_python import lstm_python
+from .attention_python import attention_python

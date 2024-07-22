@@ -245,6 +245,13 @@ set(USE_EDGETPU OFF)
 # - /path/to/cudnn: use specific path to cuDNN path
 set(USE_CUDNN OFF)
 
+# Whether use cuDNN frontend
+# Possible values:
+# - ON: enable cuDNN frontend
+# - /path/to/cudnn_frontend: use specific path to cuDNN frontend
+# - OFF: disable cuDNN frontend
+set(USE_CUDNN_FRONTEND OFF)
+
 # Whether use cuBLAS
 set(USE_CUBLAS OFF)
 
