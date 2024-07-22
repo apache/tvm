@@ -3029,9 +3029,13 @@ def test_datatype():
 def test_permute():
     input_info = [([1, 2, 3, 4], "float32")]
 
-    class Permute(Module):
+    class Permute1(Module):
         def forward(self, x):
             return x.permute(0, 3, 2, 1)
+
+    class Permute2(Module):
+        def forward(self, x):
+            return torch.permute(x, (0, 3, 2, 1))
 
     @tvm.script.ir_module
     class expected1:
@@ -3046,7 +3050,8 @@ def test_permute():
                 R.output(gv)
             return gv
 
-    verify_model(Permute(), input_info, {}, expected1)
+    verify_model(Permute1(), input_info, {}, expected1)
+    verify_model(Permute2(), input_info, {}, expected1)
 
 
 def test_reshape():
