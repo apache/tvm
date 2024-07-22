@@ -191,7 +191,7 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
   }
 
   PrimExpr VisitExpr_(const BufferLoadNode* op) override {
-    if(map_buffer_assumption.find(op->buffer) != map_buffer_assumption.end()){
+    if (map_buffer_assumption.find(op->buffer) != map_buffer_assumption.end()) {
       PrimExpr buf_value;
       /* If the cuurent context where the buffer load is present is same as
       the context of the buffer assumption then, return the buffer value present in the assumption.
@@ -354,14 +354,16 @@ Pass UseAssumeToReduceBranches() {
     auto* n = f.CopyOnWrite();
     arith::Analyzer analyzer;
 
-    // The pass runs & eliminates pad branch with overcompute only if, the primfunc has op_pattern defined and is an elementwise op.
-    // AnnotateTIROpPattern pass will help to set the op_pattern in the op attributes of the primfunc.
+    // The pass runs & eliminates pad branch with overcompute only if, 
+    // the primfunc has op_pattern defined and is an elementwise op.
+    // AnnotateTIROpPattern pass will set op_pattern in op attributes of the primfunc.
     if (n->attrs.GetAttr<Integer>("op_pattern").defined()) {
       Optional<Integer> opt_pattern = f->GetAttr<Integer>("op_pattern");
       if (opt_pattern.defined()) {
-        relay::OpPatternKind pattern = static_cast<relay::OpPatternKind>(Downcast<IntImm>(opt_pattern)->value);
+        relay::OpPatternKind pattern;
+        pattern = static_cast<relay::OpPatternKind>(Downcast<IntImm>(opt_pattern)->value);
 
-        if (pattern == relay::OpPatternKind::kElemWise or
+        if (pattern == relay::OpPatternKind::kElemWise ||
             pattern == relay::OpPatternKind::kBroadcast) {
           // If the primfunc contains assume statement then, run the mutator pass.
           AssumeChecker assume_checker;
