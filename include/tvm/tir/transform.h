@@ -835,7 +835,7 @@ TVM_DLL Pass InstrumentProfileIntrinsics();
 TVM_DLL Pass DefaultGPUSchedule();
 
 /*!
- * \brief This pass analyzes primfunc and eliminates branch introdued due to layout specific padding.
+ * \brief This pass analyzes primfunc & eliminates branch introdued due to layout specific padding.
  *  It leverages from the buffer assumptions and use the information to eliminate the branch.
  * \note This creates more opportunity to vectorize the code.
  * \return The Pass.

@@ -88,7 +88,7 @@ class ParseAssumeAndOvercompute : public IRMutatorWithAnalyzer {
   for (...)
     T.assume( assume_condition or A[i] == 0 )
   for (...)
-    out = T.if_then_else(if_then_else_condition, 0, function(A)) 
+    out = T.if_then_else(if_then_else_condition, 0, function(A))
     # here function(A) is some function on Var A
 
   Prim Func After :

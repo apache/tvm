@@ -14,27 +14,27 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=missing-docstring, unused-variable
 
-# This test runs the reduce_pad_branch_through_over_compute test to check if we are able to eliminate the redundant pad branch and overcompute the value.
+# The test attempts to eliminate redundant pad branch and overcompute the value for elementwise ops.
 # This helps to expose more opportunities to vectorize the code.
 
 import tvm
 import tvm.testing
-from tvm import relax
 
 import tvm.script
 from tvm.script import tir as T, relax as R
 
 
 @tvm.script.ir_module
-class Add_PrimFunc_Before:
+class AddBefore:
     @T.prim_func(private=True)
     def add(
-        A: T.Buffer(
+        a: T.Buffer(
             (T.int64(1), T.int64(4), T.int64(4), T.int64(16), T.int64(8), T.int64(8), T.int64(32)),
             "uint8",
         ),
-        B: T.Buffer(
+        b: T.Buffer(
             (T.int64(1), T.int64(4), T.int64(4), T.int64(16), T.int64(8), T.int64(8), T.int64(32)),
             "uint8",
         ),
@@ -59,7 +59,7 @@ class Add_PrimFunc_Before:
                 v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6 = T.axis.remap(
                     "SSSSSSS", [axis0, axis1, axis2, axis3, axis4, axis5, axis6]
                 )
-                T.reads(A[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6])
+                T.reads(a[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6])
                 T.writes()
                 T.assume(
                     not (
@@ -68,7 +68,7 @@ class Add_PrimFunc_Before:
                         or v_axis2 == T.int64(3)
                         and T.int64(4) <= v_axis5
                     )
-                    or A[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6]
+                    or a[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6]
                     == T.uint8(0)
                 )
 
@@ -79,7 +79,7 @@ class Add_PrimFunc_Before:
                 v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6 = T.axis.remap(
                     "SSSSSSS", [axis0, axis1, axis2, axis3, axis4, axis5, axis6]
                 )
-                T.reads(B[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6])
+                T.reads(b[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6])
                 T.writes()
                 T.assume(
                     not (
@@ -88,7 +88,7 @@ class Add_PrimFunc_Before:
                         or v_axis2 == T.int64(3)
                         and T.int64(4) <= v_axis5
                     )
-                    or B[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6]
+                    or b[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6]
                     == T.uint8(0)
                 )
 
@@ -100,8 +100,8 @@ class Add_PrimFunc_Before:
                     "SSSSSSS", [axis0, axis1, axis2, axis3, axis4, axis5, axis6]
                 )
                 T.reads(
-                    A[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6],
-                    B[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6],
+                    a[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6],
+                    b[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6],
                 )
                 T.writes(compute[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6])
                 compute[
@@ -112,32 +112,32 @@ class Add_PrimFunc_Before:
                     or v_axis2 == T.int64(3)
                     and T.int64(4) <= v_axis5,
                     T.uint8(0),
-                    A[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6]
-                    + B[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6],
+                    a[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6]
+                    + b[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6],
                 )
 
     @R.function
     def main(
-        A: R.Tensor((1, 4, 4, 16, 8, 8, 32), "uint8"),
-        B: R.Tensor((1, 4, 4, 16, 8, 8, 32), "uint8"),
+        a: R.Tensor((1, 4, 4, 16, 8, 8, 32), "uint8"),
+        b: R.Tensor((1, 4, 4, 16, 8, 8, 32), "uint8"),
     ) -> R.Tensor((1, 4, 4, 16, 8, 8, 32), "uint8"):
         out = R.call_tir(
-            Add_PrimFunc_Before.add,
-            (A, B),
+            AddBefore.add,
+            (a, b),
             out_sinfo=R.Tensor((1, 4, 4, 16, 8, 8, 32), dtype="uint8"),
         )
         return out
 
 
 @tvm.script.ir_module
-class Add_PrimFunc_Expected:
+class AddExpected:
     @T.prim_func(private=True)
     def add(
-        A: T.Buffer(
+        a: T.Buffer(
             (T.int64(1), T.int64(4), T.int64(4), T.int64(16), T.int64(8), T.int64(8), T.int64(32)),
             "uint8",
         ),
-        B: T.Buffer(
+        b: T.Buffer(
             (T.int64(1), T.int64(4), T.int64(4), T.int64(16), T.int64(8), T.int64(8), T.int64(32)),
             "uint8",
         ),
@@ -163,12 +163,12 @@ class Add_PrimFunc_Expected:
                 v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6 = T.axis.remap(
                     "SSSSSS", [axis1, axis2, axis3, axis4, axis5, axis6]
                 )
-                T.reads(A[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6])
+                T.reads(a[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6])
                 T.writes()
                 T.assume(
                     (v_axis1 < T.int64(3) or v_axis4 < T.int64(4))
                     and (v_axis2 < T.int64(3) or v_axis5 < T.int64(4))
-                    or A[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6]
+                    or a[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6]
                     == T.uint8(0)
                 )
 
@@ -180,12 +180,12 @@ class Add_PrimFunc_Expected:
                 v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6 = T.axis.remap(
                     "SSSSSS", [axis1, axis2, axis3, axis4, axis5, axis6]
                 )
-                T.reads(B[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6])
+                T.reads(b[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6])
                 T.writes()
                 T.assume(
                     (v_axis1 < T.int64(3) or v_axis4 < T.int64(4))
                     and (v_axis2 < T.int64(3) or v_axis5 < T.int64(4))
-                    or B[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6]
+                    or b[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6]
                     == T.uint8(0)
                 )
 
@@ -203,39 +203,39 @@ class Add_PrimFunc_Expected:
                     )
                     v_axis6 = T.axis.spatial(T.int64(32), axis5_1_axis6_fused % T.int64(32))
                     T.reads(
-                        A[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6],
-                        B[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6],
+                        a[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6],
+                        b[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6],
                     )
                     T.writes(
                         compute[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6]
                     )
                     compute[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6] = (
-                        A[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6]
-                        + B[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6]
+                        a[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6]
+                        + b[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6]
                     )
 
     @R.function
     def main(
-        A: R.Tensor((1, 4, 4, 16, 8, 8, 32), "uint8"),
-        B: R.Tensor((1, 4, 4, 16, 8, 8, 32), "uint8"),
+        a: R.Tensor((1, 4, 4, 16, 8, 8, 32), "uint8"),
+        b: R.Tensor((1, 4, 4, 16, 8, 8, 32), "uint8"),
     ) -> R.Tensor((1, 4, 4, 16, 8, 8, 32), "uint8"):
         out = R.call_tir(
-            Add_PrimFunc_Expected.add,
-            (A, B),
+            AddExpected.add,
+            (a, b),
             out_sinfo=R.Tensor((1, 4, 4, 16, 8, 8, 32), dtype="uint8"),
         )
         return out
 
 
 @tvm.script.ir_module
-class Sub_PrimFunc_Before:
+class SubBefore:
     @T.prim_func(private=True)
     def sub(
-        A: T.Buffer(
+        a: T.Buffer(
             (T.int64(1), T.int64(4), T.int64(4), T.int64(16), T.int64(8), T.int64(8), T.int64(32)),
             "uint8",
         ),
-        B: T.Buffer(
+        b: T.Buffer(
             (T.int64(1), T.int64(4), T.int64(4), T.int64(16), T.int64(8), T.int64(8), T.int64(32)),
             "uint8",
         ),
@@ -260,7 +260,7 @@ class Sub_PrimFunc_Before:
                 v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6 = T.axis.remap(
                     "SSSSSSS", [axis0, axis1, axis2, axis3, axis4, axis5, axis6]
                 )
-                T.reads(A[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6])
+                T.reads(a[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6])
                 T.writes()
                 T.assume(
                     not (
@@ -269,7 +269,7 @@ class Sub_PrimFunc_Before:
                         or v_axis2 == T.int64(3)
                         and T.int64(4) <= v_axis5
                     )
-                    or A[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6]
+                    or a[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6]
                     == T.uint8(0)
                 )
 
@@ -280,7 +280,7 @@ class Sub_PrimFunc_Before:
                 v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6 = T.axis.remap(
                     "SSSSSSS", [axis0, axis1, axis2, axis3, axis4, axis5, axis6]
                 )
-                T.reads(B[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6])
+                T.reads(b[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6])
                 T.writes()
                 T.assume(
                     not (
@@ -289,7 +289,7 @@ class Sub_PrimFunc_Before:
                         or v_axis2 == T.int64(3)
                         and T.int64(4) <= v_axis5
                     )
-                    or B[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6]
+                    or b[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6]
                     == T.uint8(0)
                 )
 
@@ -301,8 +301,8 @@ class Sub_PrimFunc_Before:
                     "SSSSSSS", [axis0, axis1, axis2, axis3, axis4, axis5, axis6]
                 )
                 T.reads(
-                    A[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6],
-                    B[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6],
+                    a[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6],
+                    b[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6],
                 )
                 T.writes(compute[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6])
                 compute[
@@ -313,32 +313,32 @@ class Sub_PrimFunc_Before:
                     or v_axis2 == T.int64(3)
                     and T.int64(4) <= v_axis5,
                     T.uint8(0),
-                    A[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6]
-                    - B[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6],
+                    a[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6]
+                    - b[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6],
                 )
 
     @R.function
     def main(
-        A: R.Tensor((1, 4, 4, 16, 8, 8, 32), "uint8"),
-        B: R.Tensor((1, 4, 4, 16, 8, 8, 32), "uint8"),
+        a: R.Tensor((1, 4, 4, 16, 8, 8, 32), "uint8"),
+        b: R.Tensor((1, 4, 4, 16, 8, 8, 32), "uint8"),
     ) -> R.Tensor((1, 4, 4, 16, 8, 8, 32), "uint8"):
         out = R.call_tir(
-            Sub_PrimFunc_Before.sub,
-            (A, B),
+            SubBefore.sub,
+            (a, b),
             out_sinfo=R.Tensor((1, 4, 4, 16, 8, 8, 32), dtype="uint8"),
         )
         return out
 
 
 @tvm.script.ir_module
-class Sub_PrimFunc_Expected:
+class SubExpected:
     @T.prim_func(private=True)
     def sub(
-        A: T.Buffer(
+        a: T.Buffer(
             (T.int64(1), T.int64(4), T.int64(4), T.int64(16), T.int64(8), T.int64(8), T.int64(32)),
             "uint8",
         ),
-        B: T.Buffer(
+        b: T.Buffer(
             (T.int64(1), T.int64(4), T.int64(4), T.int64(16), T.int64(8), T.int64(8), T.int64(32)),
             "uint8",
         ),
@@ -364,12 +364,12 @@ class Sub_PrimFunc_Expected:
                 v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6 = T.axis.remap(
                     "SSSSSS", [axis1, axis2, axis3, axis4, axis5, axis6]
                 )
-                T.reads(A[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6])
+                T.reads(a[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6])
                 T.writes()
                 T.assume(
                     (v_axis1 < T.int64(3) or v_axis4 < T.int64(4))
                     and (v_axis2 < T.int64(3) or v_axis5 < T.int64(4))
-                    or A[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6]
+                    or a[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6]
                     == T.uint8(0)
                 )
 
@@ -381,12 +381,12 @@ class Sub_PrimFunc_Expected:
                 v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6 = T.axis.remap(
                     "SSSSSS", [axis1, axis2, axis3, axis4, axis5, axis6]
                 )
-                T.reads(B[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6])
+                T.reads(b[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6])
                 T.writes()
                 T.assume(
                     (v_axis1 < T.int64(3) or v_axis4 < T.int64(4))
                     and (v_axis2 < T.int64(3) or v_axis5 < T.int64(4))
-                    or B[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6]
+                    or b[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6]
                     == T.uint8(0)
                 )
 
@@ -404,39 +404,39 @@ class Sub_PrimFunc_Expected:
                     )
                     v_axis6 = T.axis.spatial(T.int64(32), axis5_1_axis6_fused % T.int64(32))
                     T.reads(
-                        A[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6],
-                        B[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6],
+                        a[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6],
+                        b[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6],
                     )
                     T.writes(
                         compute[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6]
                     )
                     compute[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6] = (
-                        A[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6]
-                        - B[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6]
+                        a[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6]
+                        - b[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6]
                     )
 
     @R.function
     def main(
-        A: R.Tensor((1, 4, 4, 16, 8, 8, 32), "uint8"),
-        B: R.Tensor((1, 4, 4, 16, 8, 8, 32), "uint8"),
+        a: R.Tensor((1, 4, 4, 16, 8, 8, 32), "uint8"),
+        b: R.Tensor((1, 4, 4, 16, 8, 8, 32), "uint8"),
     ) -> R.Tensor((1, 4, 4, 16, 8, 8, 32), "uint8"):
         out = R.call_tir(
-            Sub_PrimFunc_Expected.sub,
-            (A, B),
+            SubExpected.sub,
+            (a, b),
             out_sinfo=R.Tensor((1, 4, 4, 16, 8, 8, 32), dtype="uint8"),
         )
         return out
 
 
 @tvm.script.ir_module
-class Mul_PrimFunc_Before:
+class MulBefore:
     @T.prim_func(private=True)
     def mul(
-        A: T.Buffer(
+        a: T.Buffer(
             (T.int64(1), T.int64(4), T.int64(4), T.int64(16), T.int64(8), T.int64(8), T.int64(32)),
             "uint8",
         ),
-        B: T.Buffer(
+        b: T.Buffer(
             (T.int64(1), T.int64(4), T.int64(4), T.int64(16), T.int64(8), T.int64(8), T.int64(32)),
             "uint8",
         ),
@@ -461,7 +461,7 @@ class Mul_PrimFunc_Before:
                 v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6 = T.axis.remap(
                     "SSSSSSS", [axis0, axis1, axis2, axis3, axis4, axis5, axis6]
                 )
-                T.reads(A[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6])
+                T.reads(a[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6])
                 T.writes()
                 T.assume(
                     not (
@@ -470,7 +470,7 @@ class Mul_PrimFunc_Before:
                         or v_axis2 == T.int64(3)
                         and T.int64(4) <= v_axis5
                     )
-                    or A[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6]
+                    or a[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6]
                     == T.uint8(0)
                 )
 
@@ -481,7 +481,7 @@ class Mul_PrimFunc_Before:
                 v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6 = T.axis.remap(
                     "SSSSSSS", [axis0, axis1, axis2, axis3, axis4, axis5, axis6]
                 )
-                T.reads(B[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6])
+                T.reads(b[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6])
                 T.writes()
                 T.assume(
                     not (
@@ -490,7 +490,7 @@ class Mul_PrimFunc_Before:
                         or v_axis2 == T.int64(3)
                         and T.int64(4) <= v_axis5
                     )
-                    or B[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6]
+                    or b[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6]
                     == T.uint8(0)
                 )
 
@@ -502,8 +502,8 @@ class Mul_PrimFunc_Before:
                     "SSSSSSS", [axis0, axis1, axis2, axis3, axis4, axis5, axis6]
                 )
                 T.reads(
-                    A[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6],
-                    B[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6],
+                    a[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6],
+                    b[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6],
                 )
                 T.writes(compute[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6])
                 compute[
@@ -514,32 +514,32 @@ class Mul_PrimFunc_Before:
                     or v_axis2 == T.int64(3)
                     and T.int64(4) <= v_axis5,
                     T.uint8(0),
-                    A[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6]
-                    * B[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6],
+                    a[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6]
+                    * b[v_axis0, v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6],
                 )
 
     @R.function
     def main(
-        A: R.Tensor((1, 4, 4, 16, 8, 8, 32), "uint8"),
-        B: R.Tensor((1, 4, 4, 16, 8, 8, 32), "uint8"),
+        a: R.Tensor((1, 4, 4, 16, 8, 8, 32), "uint8"),
+        b: R.Tensor((1, 4, 4, 16, 8, 8, 32), "uint8"),
     ) -> R.Tensor((1, 4, 4, 16, 8, 8, 32), "uint8"):
         out = R.call_tir(
-            Mul_PrimFunc_Before.mul,
-            (A, B),
+            MulBefore.mul,
+            (a, b),
             out_sinfo=R.Tensor((1, 4, 4, 16, 8, 8, 32), dtype="uint8"),
         )
         return out
 
 
 @tvm.script.ir_module
-class Mul_PrimFunc_Expected:
+class MulExpected:
     @T.prim_func(private=True)
     def mul(
-        A: T.Buffer(
+        a: T.Buffer(
             (T.int64(1), T.int64(4), T.int64(4), T.int64(16), T.int64(8), T.int64(8), T.int64(32)),
             "uint8",
         ),
-        B: T.Buffer(
+        b: T.Buffer(
             (T.int64(1), T.int64(4), T.int64(4), T.int64(16), T.int64(8), T.int64(8), T.int64(32)),
             "uint8",
         ),
@@ -565,12 +565,12 @@ class Mul_PrimFunc_Expected:
                 v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6 = T.axis.remap(
                     "SSSSSS", [axis1, axis2, axis3, axis4, axis5, axis6]
                 )
-                T.reads(A[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6])
+                T.reads(a[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6])
                 T.writes()
                 T.assume(
                     (v_axis1 < T.int64(3) or v_axis4 < T.int64(4))
                     and (v_axis2 < T.int64(3) or v_axis5 < T.int64(4))
-                    or A[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6]
+                    or a[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6]
                     == T.uint8(0)
                 )
 
@@ -582,12 +582,12 @@ class Mul_PrimFunc_Expected:
                 v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6 = T.axis.remap(
                     "SSSSSS", [axis1, axis2, axis3, axis4, axis5, axis6]
                 )
-                T.reads(B[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6])
+                T.reads(b[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6])
                 T.writes()
                 T.assume(
                     (v_axis1 < T.int64(3) or v_axis4 < T.int64(4))
                     and (v_axis2 < T.int64(3) or v_axis5 < T.int64(4))
-                    or B[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6]
+                    or b[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6]
                     == T.uint8(0)
                 )
 
@@ -605,48 +605,48 @@ class Mul_PrimFunc_Expected:
                     )
                     v_axis6 = T.axis.spatial(T.int64(32), axis5_1_axis6_fused % T.int64(32))
                     T.reads(
-                        A[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6],
-                        B[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6],
+                        a[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6],
+                        b[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6],
                     )
                     T.writes(
                         compute[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6]
                     )
                     compute[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6] = (
-                        A[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6]
-                        * B[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6]
+                        a[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6]
+                        * b[T.int64(0), v_axis1, v_axis2, v_axis3, v_axis4, v_axis5, v_axis6]
                     )
 
     @R.function
     def main(
-        A: R.Tensor((1, 4, 4, 16, 8, 8, 32), "uint8"),
-        B: R.Tensor((1, 4, 4, 16, 8, 8, 32), "uint8"),
+        a: R.Tensor((1, 4, 4, 16, 8, 8, 32), "uint8"),
+        b: R.Tensor((1, 4, 4, 16, 8, 8, 32), "uint8"),
     ) -> R.Tensor((1, 4, 4, 16, 8, 8, 32), "uint8"):
         out = R.call_tir(
-            Mul_PrimFunc_Expected.mul,
-            (A, B),
+            MulExpected.mul,
+            (a, b),
             out_sinfo=R.Tensor((1, 4, 4, 16, 8, 8, 32), dtype="uint8"),
         )
         return out
 
 
 def test_add_primfunc_overcompute():
-    Add_PrimFunc_After = tvm.tir.transform.UseAssumeToReduceBranches()(Add_PrimFunc_Before)
+    add_after = tvm.tir.transform.UseAssumeToReduceBranches()(AddBefore)
     tvm.ir.structural_equal(
-        Add_PrimFunc_After["add"], Add_PrimFunc_Expected["add"], map_free_vars=True
+        add_after["add"], AddExpected["add"], map_free_vars=True
     )
 
 
 def test_sub_primfunc_overcompute():
-    Sub_PrimFunc_After = tvm.tir.transform.UseAssumeToReduceBranches()(Sub_PrimFunc_Before)
+    sub_after = tvm.tir.transform.UseAssumeToReduceBranches()(SubBefore)
     tvm.ir.structural_equal(
-        Sub_PrimFunc_After["sub"], Sub_PrimFunc_Expected["sub"], map_free_vars=True
+        sub_after["sub"], SubExpected["sub"], map_free_vars=True
     )
 
 
 def test_mul_primfunc_overcompute():
-    Mul_PrimFunc_After = tvm.tir.transform.UseAssumeToReduceBranches()(Mul_PrimFunc_Before)
+    mul_after = tvm.tir.transform.UseAssumeToReduceBranches()(MulBefore)
     tvm.ir.structural_equal(
-        Mul_PrimFunc_After["mul"], Mul_PrimFunc_Expected["mul"], map_free_vars=True
+        mul_after["mul"], MulExpected["mul"], map_free_vars=True
     )
 
 
