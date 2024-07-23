@@ -154,9 +154,10 @@ class DiscoProcessChannel final : public DiscoChannel {
 
 class ProcessSessionObj final : public BcastSessionObj {
  public:
-  explicit ProcessSessionObj(int num_workers, PackedFunc process_pool)
+  explicit ProcessSessionObj(int num_workers, int num_groups, PackedFunc process_pool)
       : process_pool_(process_pool),
-        worker_0_(std::make_unique<DiscoWorkerThread>(0, num_workers, &worker_zero_data_)) {
+        worker_0_(
+            std::make_unique<DiscoWorkerThread>(0, num_workers, num_groups, &worker_zero_data_)) {
     std::vector<int64_t> read_fds;
     std::vector<int64_t> write_fds;
     read_fds.reserve(num_workers - 1);
@@ -258,18 +259,24 @@ class ProcessSessionObj final : public BcastSessionObj {
 TVM_REGISTER_OBJECT_TYPE(DiscoDebugObject);
 TVM_REGISTER_OBJECT_TYPE(ProcessSessionObj);
 
-Session Session::ProcessSession(int num_workers, String process_pool_creator, String entrypoint) {
+Session Session::ProcessSession(int num_workers, int num_group, String process_pool_creator,
+                                String entrypoint) {
+  CHECK_EQ(num_workers % num_group, 0)
+      << "The number of workers should be divisible by the number of worker group.";
   const PackedFunc* pf = Registry::Get(process_pool_creator);
   CHECK(pf) << "ValueError: Cannot find function " << process_pool_creator
             << " in the registry. Please check if it is registered.";
-  PackedFunc process_pool = (*pf)(num_workers, entrypoint);
-  auto n = make_object<ProcessSessionObj>(num_workers, process_pool);
+  PackedFunc process_pool = (*pf)(num_workers, num_group, entrypoint);
+  auto n = make_object<ProcessSessionObj>(num_workers, num_group, process_pool);
   return Session(n);
 }
 
-void WorkerProcess(int worker_id, int num_workers, int64_t read_fd, int64_t write_fd) {
+void WorkerProcess(int worker_id, int num_workers, int num_group, int64_t read_fd,
+                   int64_t write_fd) {
+  CHECK_EQ(num_workers % num_group, 0)
+      << "The number of workers should be divisible by the number of worker group.";
   DiscoProcessChannel channel(read_fd, write_fd);
-  DiscoWorker worker(worker_id, num_workers, nullptr, &channel);
+  DiscoWorker worker(worker_id, num_workers, num_group, nullptr, &channel);
   worker.MainLoop();
 }
 

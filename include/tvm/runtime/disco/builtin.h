@@ -75,35 +75,40 @@ TVM_DLL NDArray DiscoEmptyNDArray(ShapeTuple shape, DataType dtype, Device devic
  * \brief Perform an allreduce operation using the underlying communication library
  * \param send The array send to perform allreduce on
  * \param reduce_kind The kind of reduction operation (e.g. sum, avg, min, max)
+ * \param in_group Whether the allreduce operation performs globally or in group as default.
  * \param recv The array receives the outcome of allreduce
  */
-TVM_DLL void AllReduce(NDArray send, ReduceKind reduce_kind, NDArray recv);
+TVM_DLL void AllReduce(NDArray send, ReduceKind reduce_kind, bool in_group, NDArray recv);
 /*!
  * \brief Perform an allgather operation using the underlying communication library
  * \param send The array send to perform allgather on
+ * \param in_group Whether the allgather operation performs globally or in group as default.
  * \param recv The array receives the outcome of allgather
  */
-TVM_DLL void AllGather(NDArray send, NDArray recv);
+TVM_DLL void AllGather(NDArray send, bool in_group, NDArray recv);
 /*!
  * \brief Perform a broadcast operation from worker-0
  * \param send The buffer to be broadcasted
+ * \param in_group Whether the broadcast operation performs globally or in group as default.
  * \param recv The buffer receives the broadcasted array
  */
-TVM_DLL void BroadcastFromWorker0(NDArray send, NDArray recv);
+TVM_DLL void BroadcastFromWorker0(NDArray send, bool in_group, NDArray recv);
 /*!
  * \brief Perform a scatter operation from worker-0, chunking the given buffer into equal parts.
  * \param send For worker-0, it must be provided, and otherwise, the buffer must be None.
  * The buffer will be divided into equal parts and sent to each worker accordingly.
+ * \param in_group Whether the scatter operation performs globally or in group as default.
  * \param recv The receiving buffer, which must not be None.
  */
-TVM_DLL void ScatterFromWorker0(Optional<NDArray> send, NDArray recv);
+TVM_DLL void ScatterFromWorker0(Optional<NDArray> send, bool in_group, NDArray recv);
 /*!
  * \brief Perform a gather operation to worker-0.
  * \param send The sending buffer, which must not be None.
+ * \param in_group Whether the gather operation performs globally or in group as default.
  * \param recv For worker-0, it must be provided, and otherwise, the buffer must be None. The
  * receiving buffer will be divided into equal parts and receive from each worker accordingly.
  */
-TVM_DLL void GatherToWorker0(NDArray send, Optional<NDArray> recv);
+TVM_DLL void GatherToWorker0(NDArray send, bool in_group, Optional<NDArray> recv);
 /*!
  * \brief Receive a buffer from worker-0. No-op if the current worker is worker-0.
  * \param buffer The buffer to be received

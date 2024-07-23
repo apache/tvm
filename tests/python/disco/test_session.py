@@ -22,13 +22,14 @@ import numpy as np
 import pytest
 
 import tvm
+import tvm.testing
 from tvm import relax as rx
 from tvm.runtime import ShapeTuple, String
 from tvm.runtime import disco as di
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tir as T
-from tvm.testing import disco as _
+from tvm.exec import disco_worker as _
 
 
 def _numpy_to_worker_0(sess: di.Session, np_array: np.array, device):
@@ -168,14 +169,14 @@ def test_vm_multi_func(session_kind):
         @T.prim_func
         def t1(A: T.Buffer((8, 16), "float32"), B: T.Buffer((16, 8), "float32")):
             for i, j in T.grid(16, 8):
-                with T.block("transpose"):
+                with T.block("t1"):
                     vi, vj = T.axis.remap("SS", [i, j])
                     B[vi, vj] = A[vj, vi]
 
         @T.prim_func
         def t2(A: T.Buffer((16, 8), "float32"), B: T.Buffer((8, 16), "float32")):
             for i, j in T.grid(8, 16):
-                with T.block("transpose"):
+                with T.block("t2"):
                     vi, vj = T.axis.remap("SS", [i, j])
                     B[vi, vj] = A[vj, vi]
 
@@ -183,7 +184,7 @@ def test_vm_multi_func(session_kind):
         def transpose_1(
             A: R.Tensor((8, 16), dtype="float32")
         ) -> R.Tensor((16, 8), dtype="float32"):
-            R.func_attr({"global_symbol": "main"})
+            R.func_attr({"global_symbol": "transpose_1"})
             cls = TestMod
             with R.dataflow():
                 B = R.call_tir(cls.t1, (A,), out_sinfo=R.Tensor((16, 8), dtype="float32"))
@@ -194,7 +195,7 @@ def test_vm_multi_func(session_kind):
         def transpose_2(
             A: R.Tensor((16, 8), dtype="float32")
         ) -> R.Tensor((8, 16), dtype="float32"):
-            R.func_attr({"global_symbol": "main"})
+            R.func_attr({"global_symbol": "transpose_2"})
             cls = TestMod
             with R.dataflow():
                 B = R.call_tir(cls.t2, (A,), out_sinfo=R.Tensor((8, 16), dtype="float32"))
@@ -228,11 +229,4 @@ def test_num_workers(session_kind, num_workers):
 
 
 if __name__ == "__main__":
-    test_int(di.ProcessSession)
-    test_float(di.ProcessSession)
-    test_string(di.ProcessSession)
-    test_string_obj(di.ProcessSession)
-    test_shape_tuple(di.ProcessSession)
-    test_ndarray(di.ProcessSession)
-    test_vm_module(di.ProcessSession)
-    test_vm_multi_func(di.ProcessSession)
+    tvm.testing.main()

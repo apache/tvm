@@ -72,9 +72,12 @@ void InitCCLPerWorker(IntTuple device_ids, std::string unique_id_bytes) {
       << "ValueError: The length of unique_id must be " << NCCL_UNIQUE_ID_BYTES << ", but got "
       << unique_id_bytes.size() << ".";
 
-  CHECK(!ctx->comm) << "Cannot initialize CCL, "
-                    << "the previous thread-global comm still exists, "
-                    << "and has not been destructed";
+  CHECK(!ctx->global_comm) << "Cannot initialize CCL, "
+                           << "the previous thread-global comm still exists, "
+                           << "and has not been destructed";
+  CHECK(!ctx->group_comm) << "Cannot initialize CCL, "
+                          << "the previous thread-group comm still exists, "
+                          << "and has not been destructed";
   CHECK(!ctx->default_stream) << "Cannot initialize CCL, "
                               << "the previous thread-global stream still exists, "
                               << "and has not been destructed";
@@ -96,34 +99,41 @@ void InitCCLPerWorker(IntTuple device_ids, std::string unique_id_bytes) {
   // Initialize the communicator
   ncclUniqueId id;
   std::memcpy(id.internal, unique_id_bytes.data(), NCCL_UNIQUE_ID_BYTES);
-  NCCL_CALL(ncclCommInitRank(&ctx->comm, worker->num_workers, id, worker->worker_id));
+  int group_size = worker->num_workers / worker->num_groups;
+  NCCL_CALL(ncclCommInitRank(&ctx->global_comm, worker->num_workers, id, worker->worker_id));
+  NCCL_CALL(ncclCommSplit(ctx->global_comm, worker->worker_id / group_size,
+                          worker->worker_id % group_size, &ctx->group_comm, NULL));
 }
 
-void AllReduce(NDArray send, ReduceKind reduce_kind, NDArray recv) {
+void AllReduce(NDArray send, ReduceKind reduce_kind, bool in_group, NDArray recv) {
   CCLThreadLocalContext* ctx = CCLThreadLocalContext::Get();
   ShapeTuple shape = send.Shape();
   int64_t numel = shape->Product();
   deviceStream_t stream = ctx->GetDefaultStream();
   NCCL_CALL(ncclAllReduce(send->data, recv->data, numel,
                           /*datatype=*/AsNCCLDataType(DataType(send->dtype)),
-                          /*op=*/AsNCCLRedOp(reduce_kind), ctx->comm, stream));
+                          /*op=*/AsNCCLRedOp(reduce_kind),
+                          in_group ? ctx->group_comm : ctx->global_comm, stream));
 }
 
-void AllGather(NDArray send, NDArray recv) {
+void AllGather(NDArray send, bool in_group, NDArray recv) {
   CCLThreadLocalContext* ctx = CCLThreadLocalContext::Get();
   ShapeTuple shape = send.Shape();
   int64_t numel = shape->Product();
   deviceStream_t stream = ctx->GetDefaultStream();
   NCCL_CALL(ncclAllGather(send->data, recv->data, numel,
-                          /*datatype=*/AsNCCLDataType(DataType(send->dtype)), ctx->comm, stream));
+                          /*datatype=*/AsNCCLDataType(DataType(send->dtype)),
+                          in_group ? ctx->group_comm : ctx->global_comm, stream));
 }
 
-void BroadcastFromWorker0(Optional<NDArray> send, NDArray recv) {
+void BroadcastFromWorker0(Optional<NDArray> send, bool in_group, NDArray recv) {
   CCLThreadLocalContext* ctx = CCLThreadLocalContext::Get();
+  int worker_id = ctx->worker->worker_id;
+  int group_size = ctx->worker->num_workers / ctx->worker->num_groups;
+  bool is_sender = (worker_id == 0 && !in_group) || (in_group && worker_id % group_size == 0);
 
   const void* send_data = [&]() -> const void* {
-    int worker_id = ctx->worker->worker_id;
-    if (worker_id == 0) {
+    if (is_sender) {
       CHECK(send.defined());
       CHECK(send.value().Shape()->Product() == recv.Shape()->Product());
       return send.value()->data;
@@ -136,25 +146,28 @@ void BroadcastFromWorker0(Optional<NDArray> send, NDArray recv) {
   deviceStream_t stream = ctx->GetDefaultStream();
   NCCL_CALL(ncclBroadcast(send_data, recv->data, numel,
                           /*datatype=*/AsNCCLDataType(DataType(recv->dtype)),
-                          /*root=*/0, ctx->comm, stream));
+                          /*root=*/0, in_group ? ctx->group_comm : ctx->global_comm, stream));
 }
 
-void ScatterFromWorker0(Optional<NDArray> send, NDArray recv) {
+void ScatterFromWorker0(Optional<NDArray> send, bool in_group, NDArray recv) {
   CHECK(recv.defined()) << "ValueError: buffer `recv` must not be None";
   CCLThreadLocalContext* ctx = CCLThreadLocalContext::Get();
   int worker_id = ctx->worker->worker_id;
   int num_workers = ctx->worker->num_workers;
+  int group_size = num_workers / ctx->worker->num_groups;
+  bool is_sender = (worker_id == 0 && !in_group) || (in_group && worker_id % group_size == 0);
+  int num_receiver = in_group ? group_size : num_workers;
   deviceStream_t stream = ctx->GetDefaultStream();
-  if (worker_id == 0) {
+  if (is_sender) {
     CHECK(send.defined()) << "ValueError: buffer `send` must be provided when worker_id == 0.";
     NDArray buffer = send.value();
     int64_t numel = buffer.Shape()->Product();
-    CHECK_EQ(numel % num_workers, 0) << "ValueError: Scattering evenly requires that the number "
-                                        "of elements in the buffer to be "
-                                        "divisible by the number of workers, but got numel = "
-                                     << numel << " and " << num_workers << " workers.";
+    CHECK_EQ(numel % num_receiver, 0) << "ValueError: Scattering evenly requires that the number "
+                                         "of elements in the buffer to be "
+                                         "divisible by the number of workers, but got numel = "
+                                      << numel << " and " << num_receiver << " workers.";
     DataType dtype(buffer->dtype);
-    int64_t numel_per_shard = numel / num_workers;
+    int64_t numel_per_shard = numel / num_receiver;
     int64_t bytes_per_shard = numel_per_shard * dtype.bytes();
     CHECK_EQ(numel_per_shard, recv.Shape()->Product())
         << "ValueError: The number of elements in buffer `recv` must be the same as each shard "
@@ -163,40 +176,45 @@ void ScatterFromWorker0(Optional<NDArray> send, NDArray recv) {
         << numel << ", but `recv.size` is " << recv.Shape()->Product() << ".";
     NCCL_CALL(ncclGroupStart());
     uint8_t* data = static_cast<uint8_t*>(buffer->data);
-    for (int i = 0; i < num_workers; ++i) {
-      NCCL_CALL(ncclSend(data, numel_per_shard, AsNCCLDataType(dtype), i, ctx->comm, stream));
+    for (int i = 0; i < num_receiver; ++i) {
+      NCCL_CALL(ncclSend(data, numel_per_shard, AsNCCLDataType(dtype), i,
+                         in_group ? ctx->group_comm : ctx->global_comm, stream));
       data += bytes_per_shard;
     }
   } else {
     if (send.defined()) {
-      LOG(WARNING) << "Buffer `send` must be None when worker_id != 0, but got "
-                      "send = "
+      LOG(WARNING) << "ValueError: buffer `send` must be None when (worker_id != 0 && !in_group) "
+                      "or (worker_id % group_size != 0 && in_group). However, got send = "
                    << send.get() << ". This will be ignored.";
     }
     NCCL_CALL(ncclGroupStart());
   }
   int64_t numel = recv.Shape()->Product();
   DataType dtype(recv->dtype);
-  NCCL_CALL(ncclRecv(recv->data, numel, AsNCCLDataType(dtype), 0, ctx->comm, stream));
+  NCCL_CALL(ncclRecv(recv->data, numel, AsNCCLDataType(dtype), 0,
+                     in_group ? ctx->group_comm : ctx->global_comm, stream));
   NCCL_CALL(ncclGroupEnd());
 }
 
-void GatherToWorker0(NDArray send, Optional<NDArray> recv) {
+void GatherToWorker0(NDArray send, bool in_group, Optional<NDArray> recv) {
   CHECK(send.defined()) << "ValueError: buffer `send` must not be None";
   CCLThreadLocalContext* ctx = CCLThreadLocalContext::Get();
   int worker_id = ctx->worker->worker_id;
   int num_workers = ctx->worker->num_workers;
+  int group_size = num_workers / ctx->worker->num_groups;
+  bool is_sender = (worker_id == 0 && !in_group) || (in_group && worker_id % group_size == 0);
+  int num_receiver = in_group ? group_size : num_workers;
   deviceStream_t stream = ctx->GetDefaultStream();
-  if (worker_id == 0) {
+  if (is_sender) {
     CHECK(recv.defined()) << "ValueError: buffer `recv` must be provided when worker_id == 0.";
     NDArray buffer = recv.value();
     int64_t numel = buffer.Shape()->Product();
-    CHECK_EQ(numel % num_workers, 0) << "ValueError: Gathering evenly requires that the number "
-                                        "of elements in the buffer to be "
-                                        "divisible by the number of workers, but got numel = "
-                                     << numel << " and " << num_workers << " workers.";
+    CHECK_EQ(numel % num_receiver, 0) << "ValueError: Gathering evenly requires that the number "
+                                         "of elements in the buffer to be "
+                                         "divisible by the number of workers, but got numel = "
+                                      << numel << " and " << num_receiver << " workers.";
     DataType dtype(buffer->dtype);
-    int64_t numel_per_shard = numel / num_workers;
+    int64_t numel_per_shard = numel / num_receiver;
     int64_t bytes_per_shard = numel_per_shard * dtype.bytes();
     CHECK_EQ(numel_per_shard, send.Shape()->Product())
         << "ValueError: The number of elements in buffer `send` must be the same as each shard "
@@ -205,21 +223,23 @@ void GatherToWorker0(NDArray send, Optional<NDArray> recv) {
         << numel << ", but `send.size` is " << send.Shape()->Product() << ".";
     NCCL_CALL(ncclGroupStart());
     uint8_t* data = static_cast<uint8_t*>(buffer->data);
-    for (int i = 0; i < num_workers; ++i) {
-      NCCL_CALL(ncclRecv(data, numel_per_shard, AsNCCLDataType(dtype), i, ctx->comm, stream));
+    for (int i = 0; i < num_receiver; ++i) {
+      NCCL_CALL(ncclRecv(data, numel_per_shard, AsNCCLDataType(dtype), i,
+                         in_group ? ctx->group_comm : ctx->global_comm, stream));
       data += bytes_per_shard;
     }
   } else {
     if (recv.defined()) {
-      LOG(WARNING) << "ValueError: buffer `recv` must be None when worker_id != 0. However, got "
-                      "recv = "
+      LOG(WARNING) << "ValueError: buffer `recv` must be None when (worker_id != 0 && !in_group) "
+                      "or (worker_id % group_size != 0 && in_group). However, got recv = "
                    << recv.get() << ". This will be ignored.";
     }
     NCCL_CALL(ncclGroupStart());
   }
   int64_t numel = send.Shape()->Product();
   DataType dtype(send->dtype);
-  NCCL_CALL(ncclSend(send->data, numel, AsNCCLDataType(dtype), 0, ctx->comm, stream));
+  NCCL_CALL(ncclSend(send->data, numel, AsNCCLDataType(dtype), 0,
+                     in_group ? ctx->group_comm : ctx->global_comm, stream));
   NCCL_CALL(ncclGroupEnd());
 }
 
@@ -230,7 +250,7 @@ void RecvFromWorker0(NDArray buffer) {
       << "ValueError: Worker 0 is not allowed to call RecvFromWorker0.";
   NCCL_CALL(ncclGroupStart());
   NCCL_CALL(ncclRecv(buffer->data, buffer.Shape()->Product(), AsNCCLDataType(buffer.DataType()), 0,
-                     ctx->comm, stream));
+                     ctx->global_comm, stream));
   NCCL_CALL(ncclGroupEnd());
 }
 
@@ -248,12 +268,14 @@ TVM_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".init_ccl").set_body_ty
 TVM_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".init_ccl_per_worker")
     .set_body_typed(InitCCLPerWorker);
 TVM_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".allreduce")
-    .set_body_typed([](NDArray send, int kind, NDArray recv) {
+    .set_body_typed([](NDArray send, int kind, bool in_group, NDArray recv) {
       CHECK(0 <= kind && kind <= 4) << "ValueError: Unknown ReduceKind: " << kind;
-      nccl::AllReduce(send, static_cast<ReduceKind>(kind), recv);
+      nccl::AllReduce(send, static_cast<ReduceKind>(kind), in_group, recv);
     });
 TVM_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".allgather")
-    .set_body_typed([](NDArray send, NDArray recv) { nccl::AllGather(send, recv); });
+    .set_body_typed([](NDArray send, bool in_group, NDArray recv) {
+      nccl::AllGather(send, in_group, recv);
+    });
 TVM_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".broadcast_from_worker0")
     .set_body_typed(BroadcastFromWorker0);
 TVM_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".scatter_from_worker0")
