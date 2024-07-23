@@ -631,23 +631,17 @@ class MulExpected:
 
 def test_add_primfunc_overcompute():
     add_after = tvm.tir.transform.UseAssumeToReduceBranches()(AddBefore)
-    tvm.ir.structural_equal(
-        add_after["add"], AddExpected["add"], map_free_vars=True
-    )
+    tvm.ir.structural_equal(add_after["add"], AddExpected["add"], map_free_vars=True)
 
 
 def test_sub_primfunc_overcompute():
     sub_after = tvm.tir.transform.UseAssumeToReduceBranches()(SubBefore)
-    tvm.ir.structural_equal(
-        sub_after["sub"], SubExpected["sub"], map_free_vars=True
-    )
+    tvm.ir.structural_equal(sub_after["sub"], SubExpected["sub"], map_free_vars=True)
 
 
 def test_mul_primfunc_overcompute():
     mul_after = tvm.tir.transform.UseAssumeToReduceBranches()(MulBefore)
-    tvm.ir.structural_equal(
-        mul_after["mul"], MulExpected["mul"], map_free_vars=True
-    )
+    tvm.ir.structural_equal(mul_after["mul"], MulExpected["mul"], map_free_vars=True)
 
 
 if __name__ == "__main__":
