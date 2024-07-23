@@ -93,6 +93,21 @@ class DiscoWorker {
   struct Impl;
   friend struct DiscoWorker::Impl;
 };
+/*!
+ * \brief A threadlocal wrapper of DiscoWorker.
+ */
+struct ThreadLocalDiscoWorker {
+  /*! \brief The Disco worker */
+  DiscoWorker* worker;
+
+  /*!
+   * \brief Get the threadlocal Disco worker.
+   */
+  static ThreadLocalDiscoWorker* Get() {
+    thread_local static ThreadLocalDiscoWorker worker;
+    return &worker;
+  }
+};
 
 }  // namespace runtime
 }  // namespace tvm
