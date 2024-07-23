@@ -72,6 +72,10 @@ cdef class NDArrayBase:
         def __set__(self, value):
             self._set_handle(value)
 
+        def __del__(self):
+            if self.chandle != NULL:
+                CHECK_CALL(TVMFuncFree(self.chandle))
+
     property is_view:
         def __get__(self):
             return self.c_is_view != 0

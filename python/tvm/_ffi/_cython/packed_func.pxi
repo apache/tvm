@@ -308,14 +308,22 @@ cdef class PackedFuncBase:
         def __set__(self, value):
             self.c_is_global = value
 
+        def __del__(self):
+            self.c_is_global = 0
+
     property handle:
         def __get__(self):
             if self.chandle == NULL:
                 return None
             else:
                 return ctypes.cast(<unsigned long long>self.chandle, ctypes.c_void_p)
+
         def __set__(self, value):
             self._set_handle(value)
+
+        def __del__(self):
+            if self.chandle != NULL:
+                CHECK_CALL(TVMFuncFree(self.chandle))
 
     def __init__(self, handle, is_global):
         self._set_handle(handle)
