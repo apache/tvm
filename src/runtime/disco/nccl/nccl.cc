@@ -86,7 +86,8 @@ void InitCCLPerWorker(IntTuple device_ids, std::string unique_id_bytes) {
                       << "and has not been destructed";
 
   // Step up local context of NCCL
-  int device_id = device_ids[worker->local_worker_id];
+  int group_size = worker->num_workers / worker->num_groups;
+  int device_id = device_ids[worker->worker_id % group_size];
   SetDevice(device_id);
 #if TVM_NCCL_RCCL_SWITCH == 0
   StreamCreate(&ctx->default_stream);
@@ -99,7 +100,6 @@ void InitCCLPerWorker(IntTuple device_ids, std::string unique_id_bytes) {
   // Initialize the communicator
   ncclUniqueId id;
   std::memcpy(id.internal, unique_id_bytes.data(), NCCL_UNIQUE_ID_BYTES);
-  int group_size = worker->num_workers / worker->num_groups;
   NCCL_CALL(ncclCommInitRank(&ctx->global_comm, worker->num_workers, id, worker->worker_id));
   NCCL_CALL(ncclCommSplit(ctx->global_comm, worker->worker_id / group_size,
                           worker->worker_id % group_size, &ctx->group_comm, NULL));

@@ -206,11 +206,5 @@ struct DiscoWorker::Impl {
 
 void DiscoWorker::MainLoop() { DiscoWorker::Impl::MainLoop(this); }
 
-TVM_REGISTER_GLOBAL("runtime.disco.set_worker_id").set_body_typed([](IntTuple worker_ids) {
-  DiscoWorker* worker = DiscoWorker::ThreadLocal();
-  ICHECK_EQ(worker->num_workers, worker_ids.size());
-  worker->worker_id = worker_ids[worker->local_worker_id];
-});
-
 }  // namespace runtime
 }  // namespace tvm

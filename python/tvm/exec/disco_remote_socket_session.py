@@ -22,11 +22,12 @@ from . import disco_worker as _  # pylint: disable=unused-import
 
 
 if __name__ == "__main__":
-    if len(sys.argv) != 3:
-        print("Usage: <server_host> <server_port>")
+    if len(sys.argv) != 4:
+        print("Usage: <server_host> <server_port> <num_workers>")
         sys.exit(1)
 
     server_host = sys.argv[1]
     server_port = int(sys.argv[2])
+    num_workers = int(sys.argv[3])
     func = tvm.get_global_func("runtime.disco.RemoteSocketSession")
-    func(server_host, server_port)
+    func(server_host, server_port, num_workers)

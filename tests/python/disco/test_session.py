@@ -82,7 +82,7 @@ class SocketSessionTester:
         for _ in range(num_nodes - 1):
             self.remote_nodes.append(
                 subprocess.Popen(
-                    ["python3", "-m", cmd, server_host, str(server_port)],
+                    ["python3", "-m", cmd, server_host, str(server_port), str(num_workers_per_node)],
                     stdout=sys.stdout,
                     stderr=sys.stderr,
                 )
