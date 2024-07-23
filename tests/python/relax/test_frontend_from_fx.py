@@ -796,6 +796,13 @@ def test_maxpool2d():
         def forward(self, input):
             return self.pool(input)
 
+    class MaxPool2d_functional(Module):
+        def __init__(self):
+            super().__init__()
+
+        def forward(self, input):
+            return torch.nn.functional.max_pool2d(input, kernel_size=[1, 1])
+
     @tvm.script.ir_module
     class expected1:
         @R.function
@@ -876,6 +883,7 @@ def test_maxpool2d():
             return gv
 
     verify_model(MaxPool2d(), input_info, {}, expected1)
+    verify_model(MaxPool2d_functional(), input_info, {}, expected1)
     verify_model(MaxPool2d2(), input_info, {}, expected2)
     verify_model(MaxPool2d3(), input_info, {}, expected3)
 
