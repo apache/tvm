@@ -101,6 +101,18 @@ void GatherToWorker0(NDArray send, bool in_group, Optional<NDArray> recv) {
 
 void RecvFromWorker0(NDArray buffer) { GetCCLFunc("recv_from_worker0")(buffer); }
 
+void SendToNextGroup(NDArray buffer) { GetCCLFunc("send_to_next_group")(buffer); }
+
+void RecvFromPrevGroup(NDArray buffer) { GetCCLFunc("recv_from_prev_group")(buffer); }
+
+void SendToWorker(NDArray buffer, int receiver_id) {
+  GetCCLFunc("send_to_worker")(buffer, receiver_id);
+}
+
+void RecvFromWorker(NDArray buffer, int sender_id) {
+  GetCCLFunc("recv_from_worker")(buffer, sender_id);
+}
+
 int WorkerId() { return DiscoWorker::ThreadLocal()->worker_id; }
 
 void SyncWorker() {
@@ -136,6 +148,10 @@ TVM_REGISTER_GLOBAL("runtime.disco.broadcast_from_worker0").set_body_typed(Broad
 TVM_REGISTER_GLOBAL("runtime.disco.scatter_from_worker0").set_body_typed(ScatterFromWorker0);
 TVM_REGISTER_GLOBAL("runtime.disco.gather_to_worker0").set_body_typed(GatherToWorker0);
 TVM_REGISTER_GLOBAL("runtime.disco.recv_from_worker0").set_body_typed(RecvFromWorker0);
+TVM_REGISTER_GLOBAL("runtime.disco.send_to_next_group").set_body_typed(SendToNextGroup);
+TVM_REGISTER_GLOBAL("runtime.disco.recv_from_prev_group").set_body_typed(RecvFromPrevGroup);
+TVM_REGISTER_GLOBAL("runtime.disco.send_to_worker").set_body_typed(SendToWorker);
+TVM_REGISTER_GLOBAL("runtime.disco.recv_from_worker").set_body_typed(RecvFromWorker);
 TVM_REGISTER_GLOBAL("runtime.disco.worker_id").set_body_typed([]() -> ShapeTuple {
   return ShapeTuple({WorkerId()});
 });

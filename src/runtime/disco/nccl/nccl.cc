@@ -254,6 +254,57 @@ void RecvFromWorker0(NDArray buffer) {
   NCCL_CALL(ncclGroupEnd());
 }
 
+void SendToNextGroup(NDArray buffer) {
+  CCLThreadLocalContext* ctx = CCLThreadLocalContext::Get();
+  deviceStream_t stream = ctx->GetDefaultStream();
+  int worker_id = ctx->worker->worker_id;
+  int group_size = ctx->worker->num_workers / ctx->worker->num_groups;
+  int receiver_id = worker_id + group_size;
+  CHECK_LT(receiver_id, ctx->worker->num_workers)
+      << "The current group is already the last group and there is no such a next group.";
+  NCCL_CALL(ncclGroupStart());
+  NCCL_CALL(ncclSend(buffer->data, buffer.Shape()->Product(), AsNCCLDataType(buffer.DataType()),
+                     receiver_id, ctx->global_comm, stream));
+  NCCL_CALL(ncclGroupEnd());
+}
+
+void RecvFromPrevGroup(NDArray buffer) {
+  CCLThreadLocalContext* ctx = CCLThreadLocalContext::Get();
+  deviceStream_t stream = ctx->GetDefaultStream();
+  int worker_id = ctx->worker->worker_id;
+  int group_size = ctx->worker->num_workers / ctx->worker->num_groups;
+  int sender_id = worker_id - group_size;
+  CHECK_GE(sender_id, 0)
+      << "The current group is already the first group and there is no such a previous group.";
+  NCCL_CALL(ncclGroupStart());
+  NCCL_CALL(ncclRecv(buffer->data, buffer.Shape()->Product(), AsNCCLDataType(buffer.DataType()),
+                     sender_id, ctx->global_comm, stream));
+  NCCL_CALL(ncclGroupEnd());
+}
+
+void SendToWorker(NDArray buffer, int receiver_id) {
+  CCLThreadLocalContext* ctx = CCLThreadLocalContext::Get();
+  deviceStream_t stream = ctx->GetDefaultStream();
+  int worker_id = ctx->worker->worker_id;
+  CHECK(receiver_id >= 0 && receiver_id < ctx->worker->num_workers)
+      << "Invalid receiver id " << receiver_id << ". The world size is "
+      << ctx->worker->num_workers;
+  CHECK_NE(worker_id, receiver_id) << "Cannot send to worker itself.";
+  NCCL_CALL(ncclSend(buffer->data, buffer.Shape()->Product(), AsNCCLDataType(buffer.DataType()),
+                     receiver_id, ctx->global_comm, stream));
+}
+
+void RecvFromWorker(NDArray buffer, int sender_id) {
+  CCLThreadLocalContext* ctx = CCLThreadLocalContext::Get();
+  deviceStream_t stream = ctx->GetDefaultStream();
+  int worker_id = ctx->worker->worker_id;
+  CHECK(sender_id >= 0 && sender_id < ctx->worker->num_workers)
+      << "Invalid sender id " << sender_id << ". The world size is " << ctx->worker->num_workers;
+  CHECK_NE(worker_id, sender_id) << "Cannot receive from the worker itself.";
+  NCCL_CALL(ncclRecv(buffer->data, buffer.Shape()->Product(), AsNCCLDataType(buffer.DataType()),
+                     sender_id, ctx->global_comm, stream));
+}
+
 void SyncWorker() {
   CCLThreadLocalContext* ctx = CCLThreadLocalContext::Get();
   ICHECK(ctx->worker != nullptr);
@@ -284,7 +335,42 @@ TVM_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".gather_to_worker0")
     .set_body_typed(GatherToWorker0);
 TVM_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".recv_from_worker0")
     .set_body_typed(RecvFromWorker0);
+TVM_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".send_to_next_group")
+    .set_body_typed(SendToNextGroup);
+TVM_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".recv_from_prev_group")
+    .set_body_typed(RecvFromPrevGroup);
+TVM_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".send_to_worker")
+    .set_body_typed(SendToWorker);
+TVM_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".recv_from_worker")
+    .set_body_typed(RecvFromWorker);
 TVM_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".sync_worker").set_body_typed(SyncWorker);
+
+TVM_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME
+                    ".test_send_to_next_group_recv_from_prev_group")
+    .set_body_typed([](NDArray buffer) {
+      CCLThreadLocalContext* ctx = CCLThreadLocalContext::Get();
+      CHECK_EQ(ctx->worker->num_workers, 4) << "The test requires the world size to be 4.";
+      CHECK_EQ(ctx->worker->num_groups, 2) << "The test requires the group size to be 2.";
+      int group_size = ctx->worker->num_workers / ctx->worker->num_groups;
+      int group_id = ctx->worker->worker_id / group_size;
+      if (group_id == 0) {
+        tvm::runtime::nccl::SendToNextGroup(buffer);
+      } else {
+        tvm::runtime::nccl::RecvFromPrevGroup(buffer);
+      }
+    });
+
+TVM_REGISTER_GLOBAL("runtime.disco." TVM_DISCO_CCL_NAME ".test_worker2_sends_to_worker0")
+    .set_body_typed([](NDArray buffer) {
+      CCLThreadLocalContext* ctx = CCLThreadLocalContext::Get();
+      CHECK_EQ(ctx->worker->num_workers, 4) << "The test requires the world size to be 4.";
+      CHECK_EQ(ctx->worker->num_groups, 2) << "The test requires the group size to be 2.";
+      if (ctx->worker->worker_id == 2) {
+        tvm::runtime::nccl::SendToWorker(buffer, 0);
+      } else if (ctx->worker->worker_id == 0) {
+        tvm::runtime::nccl::RecvFromWorker(buffer, 2);
+      }
+    });
 
 }  // namespace nccl
 }  // namespace runtime
