@@ -2317,5 +2317,36 @@ def test_function_symbolic_variables_are_annotated():
     tvm.ir.assert_structural_equal(inferred_sinfo, expected)
 
 
+def test_return_from_dataflow_block():
+    """Return statements imply
+
+    The `R.output` statement in a `R.dataflow()` block marks a
+    variable that should be a `relax.Var` instead of a
+    `relax.DataflowVar`, allowing it to be used outside of the
+    `DataflowBlock` that defined it.  A relax function's output is not
+    part of any binding, and must not contain any `DataflowVar`, so
+    these are exposed implicitly.
+
+    """
+
+    @R.function(private=True)
+    def output_then_return(A: R.Tensor([16], "float16")):
+        with R.dataflow():
+            B = R.add(A, A)
+            C = R.multiply(B, B)
+            R.output(C)
+
+        return C
+
+    @R.function(private=True)
+    def return_inside_dataflow(A: R.Tensor([16], "float16")):
+        with R.dataflow():
+            B = R.add(A, A)
+            C = R.multiply(B, B)
+            return C
+
+    tvm.ir.assert_structural_equal(output_then_return, return_inside_dataflow)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
