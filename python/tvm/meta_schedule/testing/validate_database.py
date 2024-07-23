@@ -20,7 +20,6 @@ import logging
 import warnings
 import itertools
 from statistics import mean
-from distutils.util import strtobool
 from typing import Callable, Tuple, Union, List, Any
 import numpy as np  # type: ignore
 
@@ -35,6 +34,7 @@ from tvm.tir.schedule import Trace
 from tvm.meta_schedule.utils import remove_build_dir
 from tvm.meta_schedule.testing.tune_utils import generate_input_data
 from tvm.tir.tensor_intrin import *  # type: ignore # pylint: disable=wildcard-import,unused-wildcard-import
+from tvm.testing.utils import strtobool
 
 DELIMITOR = "\n" + "-" * 30 + "\n"
 
