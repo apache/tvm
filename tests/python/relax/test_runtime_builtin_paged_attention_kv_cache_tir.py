@@ -153,7 +153,7 @@ def create_kv_cache(head_dim, dtype, rope_mode, support_sliding_window):
                 int(support_sliding_window),
             ]
         ),
-        num_layers,
+        tvm.runtime.ShapeTuple([0, num_layers]),
         num_qo_heads,
         num_kv_heads,
         head_dim,
