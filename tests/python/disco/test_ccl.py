@@ -25,11 +25,11 @@ import pytest
 import tvm
 import tvm.testing
 from tvm import dlight as dl
+from tvm import get_global_func
 from tvm import relax as rx
 from tvm.runtime import disco as di
 from tvm.runtime.relax_vm import VirtualMachine
 from tvm.script import relax as R
-from tvm import get_global_func
 
 _all_session_kinds = [di.ThreadedSession, di.ProcessSession]
 _ccl = [get_global_func("runtime.disco.compiled_ccl")()]
@@ -389,6 +389,44 @@ def test_group_gather(session_kind, ccl, capfd):
     assert (
         not captured.err
     ), "No warning messages should be generated from disco.Session.gather_to_worker0"
+
+
+@pytest.mark.parametrize("session_kind", _all_session_kinds)
+@pytest.mark.parametrize("ccl", _ccl)
+def test_send_to_next_group_receive_from_prev_group(session_kind, ccl):
+    devices = [0, 1, 2, 3]
+    sess = session_kind(num_workers=len(devices), num_groups=2)
+    sess.init_ccl(ccl, *devices)
+
+    array_1 = np.arange(12, dtype="float32").reshape(3, 4)
+    array_2 = np.arange(start=1, stop=-11, step=-1, dtype="float32").reshape(3, 4)
+    d_array = sess.empty((3, 4), "float32")
+    d_array.debug_copy_from(0, array_1)
+    d_array.debug_copy_from(1, array_2)
+    sess.get_global_func("runtime.disco." + ccl + ".test_send_to_next_group_recv_from_prev_group")(
+        d_array
+    )
+
+    result_1 = d_array.debug_get_from_remote(2).numpy()
+    result_2 = d_array.debug_get_from_remote(3).numpy()
+    np.testing.assert_equal(result_1, array_1)
+    np.testing.assert_equal(result_2, array_2)
+
+
+@pytest.mark.parametrize("session_kind", _all_session_kinds)
+@pytest.mark.parametrize("ccl", _ccl)
+def test_worker2_send_to_worker0(session_kind, ccl):
+    devices = [0, 1, 2, 3]
+    sess = session_kind(num_workers=len(devices), num_groups=2)
+    sess.init_ccl(ccl, *devices)
+
+    array = np.arange(start=1, stop=-11, step=-1, dtype="float32").reshape(3, 4)
+    d_array = sess.empty((3, 4), "float32")
+    d_array.debug_copy_from(2, array)
+    sess.get_global_func("runtime.disco." + ccl + ".test_worker2_sends_to_worker0")(d_array)
+
+    result = d_array.debug_get_from_remote(0).numpy()
+    np.testing.assert_equal(result, array)
 
 
 @pytest.mark.parametrize("session_kind", _all_session_kinds)

@@ -114,6 +114,30 @@ TVM_DLL void GatherToWorker0(NDArray send, bool in_group, Optional<NDArray> recv
  * \param buffer The buffer to be received
  */
 TVM_DLL void RecvFromWorker0(NDArray buffer);
+/*!
+ * \brief Send a buffer to the corresponding worker in the next group.
+ * An error is thrown if the worker is already in the last group.
+ * \param buffer The sending buffer.
+ */
+TVM_DLL void SendToNextGroup(NDArray buffer);
+/*!
+ * \brief Receive a buffer from the corresponding worker in the previous group.
+ * An error is thrown if the worker is already in the first group.
+ * \param buffer The receiving buffer.
+ */
+TVM_DLL void RecvFromPrevGroup(NDArray buffer);
+/*!
+ * \brief Send a buffer to the target receiver worker (globally across all groups).
+ * \param buffer The sending buffer.
+ * \param receiver_id The global receiver worker id.
+ */
+TVM_DLL void SendToWorker(NDArray buffer, int receiver_id);
+/*!
+ * \brief Receive a buffer from the target sender worker (globally across all groups).
+ * \param buffer The receiving buffer.
+ * \param sender_id The global sender worker id.
+ */
+TVM_DLL void RecvFromWorker(NDArray buffer, int sender_id);
 /*! \brief Get the local worker id */
 TVM_DLL int WorkerId();
 /*!
