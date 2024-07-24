@@ -290,8 +290,8 @@ class Session : public ObjectRef {
    * \param host The host name of the controler.
    * \param port The port number of the controler.
    */
-  TVM_DLL static Session SocketSession(int num_nodes, int num_workers_per_node, int num_groups, const String& host,
-                                       int port);
+  TVM_DLL static Session SocketSession(int num_nodes, int num_workers_per_node, int num_groups,
+                                       const String& host, int port);
 
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(Session, ObjectRef, SessionObj);
 };
