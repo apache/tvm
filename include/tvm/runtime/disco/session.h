@@ -286,10 +286,11 @@ class Session : public ObjectRef {
    * \brief Create a session backed by TCP sockets
    * \param num_nodes The number of nodes in the cluster connected by TCP sockets.
    * \param num_workers_per_node The number of workers on each node.
+   * \param num_groups The number of worker groups.
    * \param host The host name of the controler.
    * \param port The port number of the controler.
    */
-  TVM_DLL static Session SocketSession(int num_nodes, int num_workers_per_node, const String& host,
+  TVM_DLL static Session SocketSession(int num_nodes, int num_workers_per_node, int num_groups, const String& host,
                                        int port);
 
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(Session, ObjectRef, SessionObj);

@@ -54,7 +54,8 @@ class DiscoSocketChannel : public DiscoChannel {
 
 class SocketSessionObj : public BcastSessionObj {
  public:
-  explicit SocketSessionObj(int num_nodes, int num_workers_per_node, const String& host, int port)
+  explicit SocketSessionObj(int num_nodes, int num_workers_per_node, int num_groups,
+                            const String& host, int port)
       : num_nodes_(num_nodes), num_workers_per_node_(num_workers_per_node) {
     const PackedFunc* f_create_local_session =
         Registry::Get("runtime.disco.create_socket_session_local_workers");
@@ -63,7 +64,8 @@ class SocketSessionObj : public BcastSessionObj {
     local_session_ = ((*f_create_local_session)(num_workers_per_node)).AsObjectRef<BcastSession>();
     DRef f_init_workers =
         local_session_->GetGlobalFunc("runtime.disco.socket_session_init_workers");
-    local_session_->CallPacked(f_init_workers, num_nodes_, /*node_id=*/0, num_workers_per_node_);
+    local_session_->CallPacked(f_init_workers, num_nodes_, /*node_id=*/0, num_groups,
+                               num_workers_per_node_);
 
     Socket::Startup();
     socket_.Create();
@@ -72,21 +74,24 @@ class SocketSessionObj : public BcastSessionObj {
     socket_.Listen();
     LOG(INFO) << "SocketSession controller listening on " << host << ":" << port;
 
-    TVMValue values[3];
-    int type_codes[3];
+    TVMValue values[4];
+    int type_codes[4];
     TVMArgsSetter setter(values, type_codes);
     setter(0, num_nodes);
     setter(1, num_workers_per_node);
+    setter(2, num_groups);
+
     for (int i = 0; i + 1 < num_nodes; ++i) {
       SockAddr addr;
       remote_sockets_.push_back(socket_.Accept(&addr));
       remote_channels_.emplace_back(std::make_unique<DiscoSocketChannel>(remote_sockets_.back()));
-      setter(2, i + 1);
+      setter(3, i + 1);
       // Send metadata to each remote node:
       //  - num_nodes
       //  - num_workers_per_node
+      //  - num_groups
       //  - node_id
-      remote_channels_.back()->Send(TVMArgs(values, type_codes, 3));
+      remote_channels_.back()->Send(TVMArgs(values, type_codes, 4));
       LOG(INFO) << "Remote node " << addr.AsString() << " connected";
     }
   }
@@ -229,10 +234,11 @@ class RemoteSocketSession {
     }
     channel_ = std::make_unique<DiscoSocketChannel>(socket_);
     TVMArgs metadata = channel_->Recv();
-    ICHECK_EQ(metadata.size(), 3);
+    ICHECK_EQ(metadata.size(), 4);
     num_nodes_ = metadata[0].operator int();
     num_workers_per_node_ = metadata[1].operator int();
-    node_id_ = metadata[2].operator int();
+    num_groups_ = metadata[2].operator int();
+    node_id_ = metadata[3].operator int();
     CHECK_GE(num_local_workers, num_workers_per_node_);
     InitLocalSession();
   }
@@ -282,7 +288,8 @@ class RemoteSocketSession {
 
     DRef f_init_workers =
         local_session_->GetGlobalFunc("runtime.disco.socket_session_init_workers");
-    local_session_->CallPacked(f_init_workers, num_nodes_, node_id_, num_workers_per_node_);
+    local_session_->CallPacked(f_init_workers, num_nodes_, node_id_, num_groups_,
+                               num_workers_per_node_);
   }
 
   TCPSocket socket_;
@@ -290,6 +297,7 @@ class RemoteSocketSession {
   std::unique_ptr<DiscoSocketChannel> channel_;
   int num_nodes_{-1};
   int node_id_{-1};
+  int num_groups_{-1};
   int num_workers_per_node_{-1};
 };
 
@@ -302,18 +310,20 @@ void RemoteSocketSessionEntryPoint(const String& server_host, int server_port,
 TVM_REGISTER_GLOBAL("runtime.disco.RemoteSocketSession")
     .set_body_typed(RemoteSocketSessionEntryPoint);
 
-Session Session::SocketSession(int num_nodes, int num_workers_per_node, const String& host,
-                               int port) {
-  auto n = make_object<SocketSessionObj>(num_nodes, num_workers_per_node, host, port);
+Session Session::SocketSession(int num_nodes, int num_workers_per_node, int num_groups,
+                               const String& host, int port) {
+  auto n = make_object<SocketSessionObj>(num_nodes, num_workers_per_node, num_groups, host, port);
   return Session(n);
 }
 
 TVM_REGISTER_GLOBAL("runtime.disco.SocketSession").set_body_typed(Session::SocketSession);
 
 TVM_REGISTER_GLOBAL("runtime.disco.socket_session_init_workers")
-    .set_body_typed([](int num_nodes, int node_id, int num_workers_per_node) {
+    .set_body_typed([](int num_nodes, int node_id, int num_groups, int num_workers_per_node) {
+      LOG(INFO) << "Initializing worker group with " << num_nodes << " nodes, "
+                << num_workers_per_node << " workers per node, and " << num_groups << " groups.";
       DiscoWorker* worker = DiscoWorker::ThreadLocal();
-      worker->num_groups = num_nodes;
+      worker->num_groups = num_groups;
       worker->worker_id = worker->worker_id + node_id * num_workers_per_node;
       worker->num_workers = num_nodes * num_workers_per_node;
     });

@@ -65,6 +65,7 @@ def get_free_port():
 class SocketSessionTester:
     def __init__(self, num_workers):
         num_nodes = 2
+        num_groups = 1
         assert num_workers % num_nodes == 0
         num_workers_per_node = num_workers // num_nodes
         server_host = "localhost"
@@ -72,7 +73,9 @@ class SocketSessionTester:
         self.sess = None
 
         def start_server():
-            self.sess = di.SocketSession(num_nodes, num_workers_per_node, server_host, server_port)
+            self.sess = di.SocketSession(
+                num_nodes, num_workers_per_node, num_groups, server_host, server_port
+            )
 
         thread = threading.Thread(target=start_server)
         thread.start()

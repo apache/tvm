@@ -584,11 +584,12 @@ def _create_socket_session_local_workers(num_workers) -> Session:
 class SocketSession(Session):
     """A Disco session backed by socket-based multi-node communication."""
 
-    def __init__(self, num_nodes: int, num_workers_per_node: int, host: str, port: int) -> None:
+    def __init__(self, num_nodes: int, num_workers_per_node: int, num_groups: int, host: str, port: int) -> None:
         self.__init_handle_by_constructor__(
             _ffi_api.SocketSession,  # type: ignore # pylint: disable=no-member
             num_nodes,
             num_workers_per_node,
+            num_groups,
             host,
             port,
         )

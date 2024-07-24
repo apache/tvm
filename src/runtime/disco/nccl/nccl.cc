@@ -87,7 +87,7 @@ void InitCCLPerWorker(IntTuple device_ids, std::string unique_id_bytes) {
 
   // Step up local context of NCCL
   int group_size = worker->num_workers / worker->num_groups;
-  int device_id = device_ids[worker->worker_id % group_size];
+  int device_id = device_ids[worker->local_worker_id];
   SetDevice(device_id);
 #if TVM_NCCL_RCCL_SWITCH == 0
   StreamCreate(&ctx->default_stream);
