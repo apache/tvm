@@ -720,7 +720,7 @@ def test_data_dependent_reshape():
                     T_reshape[v_ax0] = rxplaceholder[v_ax0 % T.int64(3)]
 
         @R.function
-        def main(x: R.Tensor((3,), dtype="int64")) -> R.Tensor((3,), dtype="int64"):
+        def main(x: R.Tensor((3,), dtype="int64")) -> R.Tensor(ndim=1, dtype="int64"):
             x_1 = T.int64()
             gv: R.Shape([3]) = R.call_pure_packed("vm.builtin.tensor_to_shape", x, sinfo_args=(R.Shape([3]),))
             y: R.Shape([x_1]) = R.match_cast(gv, R.Shape([x_1]))

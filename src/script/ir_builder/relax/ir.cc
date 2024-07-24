@@ -70,15 +70,7 @@ tvm::relax::Var Arg(const String& name, const tvm::relax::StructInfo& struct_inf
   FunctionFrame frame = FindFunctionFrame("R.Arg");
   tvm::relax::Var var(name, struct_info);
   frame->params.push_back(var);
-
-  // This constraint would normally be provided as part of
-  // `BlockBuilder::BeginScope`.  However, because the frame and its
-  // scope are initialized before the arguments are known, the scope
-  // doesn't have access to these constraints.
-  auto* analyzer = frame->block_builder->GetAnalyzer();
-  for (const auto& tir_var : DefinableTIRVarsInStructInfo(struct_info)) {
-    analyzer->MarkGlobalNonNegValue(tir_var);
-  }
+  frame->block_builder->AddDefinitionToScope(var);
 
   return var;
 }

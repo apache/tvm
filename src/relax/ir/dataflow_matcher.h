@@ -18,11 +18,11 @@
  */
 
 /*!
- * \file src/tvm/relax/dataflow_matcher_impl.h
+ * \file src/tvm/relax/dataflow_matcher.h
  * \brief The auxiliary data structure for dataflow matcher.
  */
-#ifndef TVM_RELAX_IR_DATAFLOW_MATCHER_IMPL_H_
-#define TVM_RELAX_IR_DATAFLOW_MATCHER_IMPL_H_
+#ifndef TVM_RELAX_IR_DATAFLOW_MATCHER_H_
+#define TVM_RELAX_IR_DATAFLOW_MATCHER_H_
 
 #include <tvm/arith/analyzer.h>
 #include <tvm/relax/dataflow_matcher.h>
@@ -43,7 +43,10 @@ class DFPatternMatcher : public DFPatternFunctor<bool(const DFPattern&, const Ex
   explicit DFPatternMatcher() {}
   explicit DFPatternMatcher(var2val_t var2val) : var2val_(std::move(var2val)) {}
   bool Match(const DFPattern& pattern, const Expr& expr);
-  Map<DFPattern, Array<Expr>> GetMemo() { return Map<DFPattern, Array<Expr>>(memo_); }
+  Map<DFPattern, Expr> GetMemo() { return memo_; }
+
+  /* \brief Unwrap trivial expressions/bindings */
+  static Expr UnwrapBindings(Expr expr, const Map<Var, Expr>& bindings);
 
  protected:
   bool VisitDFPattern(const DFPattern& pattern, const Expr& expr) override;
@@ -88,7 +91,7 @@ class DFPatternMatcher : public DFPatternFunctor<bool(const DFPattern&, const Ex
    */
   PrimExpr SimplifyCondition(PrimExpr condition);
 
-  std::unordered_map<DFPattern, Array<Expr>, ObjectPtrHash, ObjectPtrEqual> memo_;
+  std::unordered_map<DFPattern, Expr, ObjectPtrHash, ObjectPtrEqual> memo_;
   var2val_t var2val_;
   std::vector<DFPattern> matched_nodes_;
   PrimExpr symbolic_expr_condition_{Bool(true)};
@@ -99,4 +102,4 @@ class DFPatternMatcher : public DFPatternFunctor<bool(const DFPattern&, const Ex
 }  // namespace relax
 }  // namespace tvm
 
-#endif  // TVM_RELAX_IR_DATAFLOW_MATCHER_IMPL_H_
+#endif  // TVM_RELAX_IR_DATAFLOW_MATCHER_H_

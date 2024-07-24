@@ -2317,5 +2317,51 @@ def test_function_symbolic_variables_are_annotated():
     tvm.ir.assert_structural_equal(inferred_sinfo, expected)
 
 
+def test_conditional_may_use_symbolic_variables_from_function_scope():
+    """Symbolic variables from function scope may be used in branch
+
+    This is a regression test.  In earlier implementations, the
+    branches of `relax::If` were normalized with
+    `EraseToWellDefinedInScope`, using a fresh variable scope.  While
+    this had the intended behavior of preventing variables defined in
+    a single branch from being usable outside of the conditional, it
+    also caused the conditional's branches to treat function-scope
+    symbolic variables as if they were undefined.
+
+    """
+
+    @R.function(private=True)
+    def explicit_sinfo(
+        A: R.Tensor(["N"], "float32"),
+        B: R.Tensor(["N"], "float32"),
+        cond: R.Prim("bool"),
+    ) -> R.Tensor(["N"], "float32"):
+
+        N = T.int64()
+
+        if cond:
+            out: R.Tensor([N], "float32") = A + B
+        else:
+            out: R.Tensor([N], "float32") = A * B
+
+        return out
+
+    @R.function(private=True)
+    def inferred_sinfo(
+        A: R.Tensor(["N"], "float32"),
+        B: R.Tensor(["N"], "float32"),
+        cond: R.Prim("bool"),
+    ):
+        N = T.int64()
+        if cond:
+            out = A + B
+        else:
+            out = A * B
+
+        return out
+
+    tvm.ir.assert_structural_equal(explicit_sinfo, inferred_sinfo)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

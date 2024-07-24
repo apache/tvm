@@ -420,7 +420,7 @@ Expr EliminateCommonSubexpr(const Expr& expr, bool call_only = false);
  *
  * \ret The canonicalized expression
  */
-Expr CanonicalizeBindings(const Expr& expr);
+Expr CanonicalizeBindings(Expr expr);
 
 /* \brief Remove use of trivial bindings
  *
