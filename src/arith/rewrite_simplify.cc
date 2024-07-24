@@ -543,6 +543,7 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const SubNode* op) {
   PVar<IntImm> c1, c2, c3;
   // Pattern var for lanes in broadcast and ramp
   PVar<PrimExpr> lanes;
+
   // Vector rules
   if (op->dtype.is_scalable_or_fixed_length_vector()) {
     TVM_TRY_REWRITE(ramp(b1, s1, lanes) - ramp(b2, s2, lanes), ramp(b1 - b2, s1 - s2, lanes));
@@ -697,9 +698,15 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const SubNode* op) {
     TVM_TRY_RECURSIVE_REWRITE(x - (y + c1), (x - y) + (0 - c1));
     TVM_TRY_RECURSIVE_REWRITE(x - (y - z), (x + z) - y);
     TVM_TRY_RECURSIVE_REWRITE(x - y * c1, x + y * (0 - c1));
-  } else if (op->dtype.is_float()) {
+  } else {
     // Cancellation rules.  Deliberately off of the integer path, to
     // avoid introducing checks on the side effects for the fast path.
+    //
+    // These simplifications do not preserve NaN/Inf that may occur in
+    // the inputs.  For IEEE floats, `NaN - NaN` is `NaN`, and does
+    // not cancel out.  However, since models should not encounter NaN
+    // in the first place, this allows better simplification for the
+    // supported path.
     TVM_TRY_REWRITE_IF(x - x, ZeroWithTypeLike(x),
                        SideEffect(x.Eval()) <= CallEffectKind::kReadState);
     TVM_TRY_REWRITE_IF((x + y) - y, x, SideEffect(y.Eval()) <= CallEffectKind::kReadState);
@@ -1678,6 +1685,7 @@ PrimExpr RewriteSimplifier::Impl::ApplyRewriteRules(EQ ret) {
   // Pattern var match IntImm
   PVar<IntImm> c1, c2;
   PVar<PrimExpr> lanes;
+  PConst<PrimExpr> ctrue(make_const(ret->dtype, true));
 
   // vector rule
   if (ret->dtype.is_scalable_or_fixed_length_vector()) {
@@ -1698,6 +1706,17 @@ PrimExpr RewriteSimplifier::Impl::ApplyRewriteRules(EQ ret) {
     TVM_TRY_REWRITE(c1 - x == c2, x == c1 - c2);
     TVM_TRY_REWRITE(x + c1 == c2, x == c2 - c1);
     TVM_TRY_RECURSIVE_REWRITE(x * y == 0, x == 0 || y == 0);
+    TVM_TRY_REWRITE(x == x, ctrue);
+  } else {
+    // Mimic the cancellation rules for SubNode.  For Index datatypes,
+    // we skip the check for side effects.
+    //
+    // These simplifications do not preserve NaN/Inf that may occur in
+    // the inputs.  For IEEE floats, `NaN - NaN` is `NaN`, and does
+    // not cancel out.  However, since models should not encounter NaN
+    // in the first place, this allows better simplification for the
+    // supported path.
+    TVM_TRY_REWRITE_IF(x == x, ctrue, SideEffect(x.Eval()) <= CallEffectKind::kReadState);
   }
   return std::move(ret);
 }
