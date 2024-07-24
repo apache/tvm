@@ -107,8 +107,7 @@ cdef class ObjectBase:
             self._set_handle(value)
 
         def __del__(self):
-            if self.chandle != NULL:
-                CHECK_CALL(TVMFuncFree(self.chandle))
+            self.chandle = NULL
 
     def __dealloc__(self):
         CHECK_CALL(TVMObjectFree(self.chandle))
