@@ -1199,3 +1199,16 @@ def DefaultGPUSchedule():
     ret: tvm.transform.Pass
     """
     return _ffi_api.DefaultGPUSchedule()  # type: ignore
+
+
+def UseAssumeToReduceBranches():
+    """This pass attempts to eliminates layout specific pad branch by overcomputing the values
+    for padded region. Eliminating the branch will help to vectorize code,
+    and improve element wise ops performance.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.UseAssumeToReduceBranches()  # type: ignore
