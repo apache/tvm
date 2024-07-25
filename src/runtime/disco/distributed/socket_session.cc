@@ -310,13 +310,13 @@ void RemoteSocketSessionEntryPoint(const String& server_host, int server_port,
 TVM_REGISTER_GLOBAL("runtime.disco.RemoteSocketSession")
     .set_body_typed(RemoteSocketSessionEntryPoint);
 
-Session Session::SocketSession(int num_nodes, int num_workers_per_node, int num_groups,
-                               const String& host, int port) {
+Session SocketSession(int num_nodes, int num_workers_per_node, int num_groups, const String& host,
+                      int port) {
   auto n = make_object<SocketSessionObj>(num_nodes, num_workers_per_node, num_groups, host, port);
   return Session(n);
 }
 
-TVM_REGISTER_GLOBAL("runtime.disco.SocketSession").set_body_typed(Session::SocketSession);
+TVM_REGISTER_GLOBAL("runtime.disco.SocketSession").set_body_typed(SocketSession);
 
 TVM_REGISTER_GLOBAL("runtime.disco.socket_session_init_workers")
     .set_body_typed([](int num_nodes, int node_id, int num_groups, int num_workers_per_node) {
