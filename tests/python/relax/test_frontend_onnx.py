@@ -600,6 +600,14 @@ def test_hardswish():
     verify_unary("HardSwish", [32, 32])
 
 
+def test_sign():
+    verify_unary("Sign", [32, 32])
+
+
+def test_not():
+    verify_unary("Not", [32, 32], dtype=TensorProto.BOOL)
+
+
 def test_conv():
     def _verify_conv(input_shape, weight_shape, output_shape):
         bias_shape = [output_shape[1]]

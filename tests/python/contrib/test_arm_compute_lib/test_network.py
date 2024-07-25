@@ -16,7 +16,7 @@
 # under the License.
 """Arm Compute Library network tests."""
 
-from distutils.version import LooseVersion
+from packaging.version import parse
 
 import numpy as np
 import pytest
@@ -137,7 +137,7 @@ def test_mobilenet():
         mod, params = _get_keras_model(mobilenet, inputs)
         return mod, params, inputs
 
-    if keras.__version__ < LooseVersion("2.9"):
+    if parse(keras.__version__) < parse("2.9"):
         # This can be removed after we migrate to TF/Keras >= 2.9
         expected_tvm_ops = 56
         expected_acl_partitions = 31

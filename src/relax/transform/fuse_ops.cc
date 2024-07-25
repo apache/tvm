@@ -33,6 +33,7 @@
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/struct_info.h>
 #include <tvm/relax/transform.h>
+#include <tvm/tir/analysis.h>
 #include <tvm/tir/expr_functor.h>
 #include <tvm/tir/function.h>
 
@@ -595,8 +596,7 @@ class FunctionCreator : public ExprMutator {
       }
 
       StructInfo param_sinfo = GetStructInfo(expr);
-      // Exclude PrimValues from arg/params to make composite functions contain PrimValues.
-      if (!expr->IsInstance<PrimValueNode>()) {
+      if (!IsInlinableConstants(expr)) {
         Var param(std::move(name), GetStructInfo(expr));
         arguments_.push_back(expr);
         params_.push_back(param);
@@ -619,6 +619,21 @@ class FunctionCreator : public ExprMutator {
     }
     // Otherwise, recurse into this expression.
     return ExprMutator::VisitExpr(expr);
+  }
+
+  // Check if the expression is constant PrimValue or ShapeExpr or tuple of them that can be
+  // inlined in the composite functions and excluded from args/params.
+  bool IsInlinableConstants(const Expr& expr) {
+    if (const auto* tuple = expr.as<TupleNode>()) {
+      return std::all_of(tuple->fields.begin(), tuple->fields.end(),
+                         [this](const Expr& e) { return IsInlinableConstants(e); });
+    } else if (const auto* prim_value = expr.as<PrimValueNode>()) {
+      return tvm::tir::UndefinedVars(prim_value->value).empty();
+    } else if (const auto* shape_expr = expr.as<ShapeExprNode>()) {
+      return std::all_of(shape_expr->values.begin(), shape_expr->values.end(),
+                         [this](const PrimExpr& e) { return tvm::tir::UndefinedVars(e).empty(); });
+    }
+    return false;
   }
 
  private:
@@ -1222,7 +1237,12 @@ class CompositeFunctionAnnotator : public ExprMutator {
   IRModule Run() {
     auto mod = builder_->GetContextIRModule();
     for (const auto& gv : mod->GetGlobalVars()) {
-      const auto& base_func = mod->Lookup(gv);
+      auto it = mod->functions.find(gv);
+      // Note that the fusion pass may have already removed the function.
+      if (it == mod->functions.end()) {
+        continue;
+      }
+      const auto& base_func = (*it).second;
       if (const auto* func = base_func.as<FunctionNode>()) {
         if (func->GetAttr<String>(attr::kComposite).defined() ||
             func->GetAttr<String>(attr::kCodegen).defined()) {
@@ -1399,7 +1419,7 @@ Pass FuseOps(int fuse_opt_level) {
       };
   return CreateModulePass(/*pass_function=*/pass_func,  //
                           /*opt_level=*/0,              //
-                          /*pass_name=*/"FuseOps",      //
+                          /*name=*/"FuseOps",           //
                           /*required=*/{});
 }
 
@@ -1412,9 +1432,9 @@ Pass FuseOpsByPattern(const tvm::Array<FusionPattern>& patterns, bool bind_const
         return relax::FuseOpsByPattern(patterns, m, bind_constants, annotate_codegen,
                                        entry_function_names);
       };
-  return CreateModulePass(/*pass_function=*/pass_func,       //
-                          /*opt_level=*/0,                   //
-                          /*pass_name=*/"FuseOpsByPattern",  //
+  return CreateModulePass(/*pass_function=*/pass_func,  //
+                          /*opt_level=*/0,              //
+                          /*name=*/"FuseOpsByPattern",  //
                           /*required=*/{});
 }
 

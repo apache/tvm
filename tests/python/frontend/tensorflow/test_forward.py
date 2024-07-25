@@ -21,7 +21,6 @@ Tensorflow testcases
 This article is a test script to test tensorflow operator with Relay.
 """
 from __future__ import print_function
-from distutils.version import LooseVersion
 
 import threading
 import platform
@@ -1755,7 +1754,7 @@ def _test_concat_v2(shape1, shape2, dim):
 
 
 def test_forward_concat_v2():
-    if tf.__version__ < LooseVersion("1.4.1"):
+    if package_version.parse(tf.__version__) < package_version.parse("1.4.1"):
         return
 
     _test_concat_v2([2, 3], [2, 3], 0)
@@ -3128,7 +3127,7 @@ def _test_forward_clip_by_value(ip_shape, clip_value_min, clip_value_max, dtype)
 
 def test_forward_clip_by_value():
     """test ClipByValue op"""
-    if tf.__version__ < LooseVersion("1.9"):
+    if package_version.parse(tf.__version__) < package_version.parse("1.9"):
         _test_forward_clip_by_value((4,), 0.1, 5.0, "float32")
         _test_forward_clip_by_value((4, 4), 1, 5, "int32")
 
@@ -4482,7 +4481,7 @@ def _test_forward_zeros_like(in_shape, dtype):
 
 
 def test_forward_zeros_like():
-    if tf.__version__ < LooseVersion("1.2"):
+    if package_version.parse(tf.__version__) < package_version.parse("1.2"):
         _test_forward_zeros_like((2, 3), "int32")
         _test_forward_zeros_like((2, 3, 5), "int8")
         _test_forward_zeros_like((2, 3, 5, 7), "uint16")
@@ -5566,7 +5565,7 @@ def test_forward_spop():
     # This test is expected to fail in TF version >= 2.6
     # as the generated graph will be considered frozen, hence
     # not passing the criteria for the test below.
-    if tf.__version__ < LooseVersion("2.6.1"):
+    if package_version.parse(tf.__version__) < package_version.parse("2.6.1"):
         _test_spop_resource_variables()
 
     # Placeholder test cases

@@ -28,15 +28,6 @@
 namespace tvm {
 namespace runtime {
 
-struct ThreadLocalDiscoWorker {
-  DiscoWorker* worker;
-
-  static ThreadLocalDiscoWorker* Get() {
-    thread_local static ThreadLocalDiscoWorker worker;
-    return &worker;
-  }
-};
-
 TVM_DLL DiscoWorker* DiscoWorker::ThreadLocal() {
   DiscoWorker* ret = ThreadLocalDiscoWorker::Get()->worker;
   CHECK(ret) << "ValueError: The current thread is not a DiscoWorker thread";

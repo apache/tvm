@@ -47,12 +47,14 @@ class DiscoWorkerThread {
    * \brief Construct a worker thread.
    * \param worker_id The id of the worker.
    * \param num_workers The total number of workers.
+   * \param num_groups The total number of worker groups.
    * \param worker_zero_data_ The data shared between worker-0 and the controler. It's a nullptr if
    * the worker is not worker-0.
    * \note This method is implemented in threaded worker, because it depends on creation of a
    * sub-class of DiscoChannel, DiscoThreadChannel, which is hidden from the public interface.
    */
-  explicit DiscoWorkerThread(int worker_id, int num_workers, WorkerZeroData* worker_zero_data_);
+  explicit DiscoWorkerThread(int worker_id, int num_workers, int num_groups,
+                             WorkerZeroData* worker_zero_data_);
 
   /*! \brief Move constructor. */
   explicit DiscoWorkerThread(DiscoWorkerThread&& other)

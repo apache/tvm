@@ -549,16 +549,16 @@ class ModuleList(Module):
     def __iter__(self):
         return iter(self.modules)
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx: int) -> Module:
         return self.modules[idx]
 
-    def __setitem__(self, idx, module):
+    def __setitem__(self, idx: int, module: Module) -> None:
         self.modules[idx] = module
 
     def __len__(self):
         return len(self.modules)
 
-    def append(self, module):
+    def append(self, module: Module):
         """Add a module to the end of the ModuleList"""
         self.modules.append(module)
 

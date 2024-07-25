@@ -1053,7 +1053,6 @@ def test_reshape():
         @R.function
         def fused_relax_reshape_relax_matmul_tensorrt(
             inp_0: R.Tensor((1, 1, 28, 28), dtype="float32"),
-            param_0: R.Shape([1, 784]),
             lv1: R.Tensor((784, 512), dtype="float32"),
         ) -> R.Tensor((1, 512), dtype="float32"):
             R.func_attr({"Codegen": "tensorrt"})
@@ -1069,7 +1068,7 @@ def test_reshape():
                     R.output(gv)
                 return gv
 
-            lv_1: R.Tensor((1, 784), dtype="float32") = lv_1(inp_0, param_0)
+            lv_1: R.Tensor((1, 784), dtype="float32") = lv_1(inp_0, R.shape([1, 784]))
 
             @R.function
             def lv1_1_1(
@@ -1100,7 +1099,7 @@ def test_reshape():
                 )
                 gv: R.Tensor(
                     (1, 512), dtype="float32"
-                ) = cls.fused_relax_reshape_relax_matmul_tensorrt(inp_0, R.shape([1, 784]), lv1)
+                ) = cls.fused_relax_reshape_relax_matmul_tensorrt(inp_0, lv1)
                 R.output(gv)
             return gv
 

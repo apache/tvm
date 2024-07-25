@@ -19,7 +19,6 @@ import argparse
 import json
 import os
 import warnings
-from distutils.util import strtobool
 
 import tvm
 from tvm import autotvm
@@ -31,6 +30,7 @@ from tvm.meta_schedule.testing.custom_builder_runner import run_module_via_rpc
 from tvm.meta_schedule.testing.relay_workload import get_network
 from tvm.meta_schedule.testing.tune_utils import create_timer, generate_input_data
 from tvm.support import describe
+from tvm.testing.utils import strtobool
 
 
 def _parse_args():

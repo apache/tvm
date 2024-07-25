@@ -260,7 +260,7 @@ def make_attention_pattern(with_bias: bool = False, var_len: bool = False):
     return out, annotations
 
 
-def make_stacked_attention_pattern(start_op: str, with_bias: bool = False):
+def make_stacked_attention_pattern(start_op: str, with_bias: bool = False, layout="BS3NH"):
     """
     Create pattern for fused multi head attention with stacked input.
 
@@ -271,6 +271,9 @@ def make_stacked_attention_pattern(start_op: str, with_bias: bool = False):
 
     with_bias: bool
         Whether or not to include bias addition
+
+    layout: str
+        The layout of the stacked input tensor.
 
     Returns
     -------
@@ -290,17 +293,28 @@ def make_stacked_attention_pattern(start_op: str, with_bias: bool = False):
         key_raw = is_tuple_get_item(qkv_tuple, 1)
         value_raw = is_tuple_get_item(qkv_tuple, 2)
     elif start_op == "strided_slice":
-        ops["strided_slice_query"] = query_raw = is_op("relax.strided_slice")(stacked_qkv)
-        ops["strided_slice_key"] = key_raw = is_op("relax.strided_slice")(stacked_qkv)
-        ops["strided_slice_value"] = value_raw = is_op("relax.strided_slice")(stacked_qkv)
+        ops["strided_slice_query"] = query_raw = is_op("relax.strided_slice")(
+            stacked_qkv, varg_default_wildcard=True
+        )
+        ops["strided_slice_key"] = key_raw = is_op("relax.strided_slice")(
+            stacked_qkv, varg_default_wildcard=True
+        )
+        ops["strided_slice_value"] = value_raw = is_op("relax.strided_slice")(
+            stacked_qkv, varg_default_wildcard=True
+        )
     else:
         raise NotImplementedError()
     query_reshape_list = wildcard()
     key_reshape_list = wildcard()
     value_reshape_list = wildcard()
-    query = is_op("relax.reshape")(query_raw, query_reshape_list)
-    key = is_op("relax.reshape")(key_raw, key_reshape_list)
-    value = is_op("relax.reshape")(value_raw, value_reshape_list)
+    if layout == "BS3NH":
+        query = is_op("relax.reshape")(query_raw, query_reshape_list)
+        key = is_op("relax.reshape")(key_raw, key_reshape_list)
+        value = is_op("relax.reshape")(value_raw, value_reshape_list)
+    elif layout == "SBN3H":
+        ops["q_transpose"] = query = is_op("relax.permute_dims")(query_raw)
+        ops["k_transpose"] = key = is_op("relax.permute_dims")(key_raw)
+        ops["v_transpose"] = value = is_op("relax.permute_dims")(value_raw)
     annotations = {
         "stacked_qkv": stacked_qkv,
         "query_reshape_list": query_reshape_list,
@@ -314,6 +328,10 @@ def make_stacked_attention_pattern(start_op: str, with_bias: bool = False):
         out = is_op("relax.nn.attention_bias")(query, key, value, bias)
     else:
         out = is_op("relax.nn.attention")(query, key, value)
+
+    if layout == "SBN3H":
+        out = is_op("relax.permute_dims")(out)
+
     return out, annotations
 
 

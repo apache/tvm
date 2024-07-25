@@ -15,24 +15,25 @@
 # specific language governing permissions and limitations
 # under the License.
 """Relax Collective Communications Library (CCL) operators"""
-from typing import Union
-from tvm.relax import PrimValue
 
 from . import _ffi_api
 from ...expr import Expr
-from ....ir import PrimExpr
 
 
-def allreduce(x, op_type: str = "sum"):  # pylint: disable=invalid-name
+def allreduce(x, op_type: str = "sum", in_group: bool = True):  # pylint: disable=invalid-name
     """Allreduce operator
 
     Parameters
     ----------
     x : relax.Expr
       The input tensor.
-    op_type: str
+
+    op_type : str
       The type of reduction operation to be applied to the input data.
       Now "sum", "prod", "min", "max" and "avg" are supported.
+
+    in_group : bool
+      Whether the reduction operation performs globally or in group as default.
 
     Returns
     -------
@@ -44,10 +45,10 @@ def allreduce(x, op_type: str = "sum"):  # pylint: disable=invalid-name
         "Allreduce only supports limited reduction operations, "
         f"including {supported_op_types}, but got {op_type}."
     )
-    return _ffi_api.allreduce(x, op_type)  # type: ignore # pylint: disable=no-member
+    return _ffi_api.allreduce(x, op_type, in_group)  # type: ignore # pylint: disable=no-member
 
 
-def allgather(x, num_workers: Union[int, PrimExpr, PrimValue]):  # pylint: disable=invalid-name
+def allgather(x, num_workers: int, in_group: bool = True):  # pylint: disable=invalid-name
     """AllGather operator
 
     Parameters
@@ -55,17 +56,18 @@ def allgather(x, num_workers: Union[int, PrimExpr, PrimValue]):  # pylint: disab
     x : relax.Expr
       The input tensor.
 
-    num_worker : Union[int, PrimExpr, PrimValue]
+    num_worker : int
       The number of workers to gather data from.
+
+    in_group : bool
+      Whether the gather operation performs globally or in group as default.
 
     Returns
     -------
     result : relax.Expr
       The result of allgather.
     """
-    if not isinstance(num_workers, PrimValue):
-        num_workers = PrimValue(num_workers)
-    return _ffi_api.allgather(x, num_workers)  # type: ignore # pylint: disable=no-member
+    return _ffi_api.allgather(x, num_workers, in_group)  # type: ignore # pylint: disable=no-member
 
 
 def broadcast_from_worker0(x: Expr) -> Expr:

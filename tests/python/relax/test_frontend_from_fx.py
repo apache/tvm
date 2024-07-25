@@ -650,6 +650,49 @@ def test_baddbmm():
     )
 
 
+def test_einsum():
+    class Einsum1(Module):
+        def __init__(self):
+            super().__init__()
+
+        def forward(self, x):
+            return torch.einsum("ii", x)
+
+    class Einsum2(Module):
+        def __init__(self):
+            super().__init__()
+
+        def forward(self, x, y):
+            return torch.einsum("i,j->ij", x, y)
+
+    @tvm.script.ir_module
+    class Expected1:
+        @R.function
+        def main(inp_0: R.Tensor((4, 4), dtype="float32")) -> R.Tensor((), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((), dtype="float32") = R.einsum((inp_0,), subscripts="ii")
+                gv: R.Tensor((), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    @tvm.script.ir_module
+    class Expected2:
+        @R.function
+        def main(
+            inp_0: R.Tensor((5,), dtype="float32"), inp_1: R.Tensor((4,), dtype="float32")
+        ) -> R.Tensor((5, 4), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((5, 4), dtype="float32") = R.einsum(
+                    (inp_0, inp_1), subscripts="i,j->ij"
+                )
+                gv: R.Tensor((5, 4), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    verify_model(Einsum1(), [([4, 4], "float32")], {}, Expected1)
+    verify_model(Einsum2(), [([5], "float32"), ([4], "float32")], {}, Expected2)
+
+
 def test_relu():
     class ReLU0(Module):
         def __init__(self):
@@ -753,6 +796,13 @@ def test_maxpool2d():
         def forward(self, input):
             return self.pool(input)
 
+    class MaxPool2d_functional(Module):
+        def __init__(self):
+            super().__init__()
+
+        def forward(self, input):
+            return torch.nn.functional.max_pool2d(input, kernel_size=[1, 1])
+
     @tvm.script.ir_module
     class expected1:
         @R.function
@@ -833,6 +883,7 @@ def test_maxpool2d():
             return gv
 
     verify_model(MaxPool2d(), input_info, {}, expected1)
+    verify_model(MaxPool2d_functional(), input_info, {}, expected1)
     verify_model(MaxPool2d2(), input_info, {}, expected2)
     verify_model(MaxPool2d3(), input_info, {}, expected3)
 
@@ -3029,9 +3080,13 @@ def test_datatype():
 def test_permute():
     input_info = [([1, 2, 3, 4], "float32")]
 
-    class Permute(Module):
+    class Permute1(Module):
         def forward(self, x):
             return x.permute(0, 3, 2, 1)
+
+    class Permute2(Module):
+        def forward(self, x):
+            return torch.permute(x, (0, 3, 2, 1))
 
     @tvm.script.ir_module
     class expected1:
@@ -3046,7 +3101,8 @@ def test_permute():
                 R.output(gv)
             return gv
 
-    verify_model(Permute(), input_info, {}, expected1)
+    verify_model(Permute1(), input_info, {}, expected1)
+    verify_model(Permute2(), input_info, {}, expected1)
 
 
 def test_reshape():

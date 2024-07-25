@@ -65,6 +65,8 @@ inline bool CanApplyTwoShotAllReduce(int64_t num_elements, DLDataType dtype, int
 void CustomAllReduce(DLTensor* send, int strategy, DLTensor* recv) {
   int64_t num_elements = TensorSize(send);
   nccl::CCLThreadLocalContext* ctx = nccl::CCLThreadLocalContext::Get();
+  CHECK_EQ(ctx->worker->num_groups, 1)
+      << "Custom AllReduce for multiple group is not yet implemented.";
 
   tensorrt_llm::AllReduceStrategyType strategy_ =
       static_cast<tensorrt_llm::AllReduceStrategyType>(strategy);
@@ -79,7 +81,7 @@ void CustomAllReduce(DLTensor* send, int strategy, DLTensor* recv) {
     deviceStream_t stream = ctx->GetDefaultStream();
     NCCL_CALL(ncclAllReduce(send->data, recv->data, num_elements,
                             /*datatype=*/nccl::AsNCCLDataType(DataType(send->dtype)),
-                            /*op=*/ncclSum, ctx->comm, stream));
+                            /*op=*/ncclSum, ctx->global_comm, stream));
     return;
   }
 

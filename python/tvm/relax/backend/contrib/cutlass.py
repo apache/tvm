@@ -383,19 +383,25 @@ def _check_stacked_attention(context: PatternCheckContext) -> bool:
         if not split_op.attrs.axis == 2:
             return False
     else:
+        get_const_int_list = lambda tup: [int(e.value) for e in tup]
         last_end = 0
         for name in ["query", "key", "value"]:
             assert f"strided_slice_{name}" in context.annotated_expr
             strided_slice_op = context.annotated_expr[f"strided_slice_{name}"]
-            if list(strided_slice_op.attrs.axes) != [2]:
+            axes = get_const_int_list(strided_slice_op.args[1])
+            begins = get_const_int_list(strided_slice_op.args[2])
+            ends = get_const_int_list(strided_slice_op.args[3])
+            strides = get_const_int_list(strided_slice_op.args[4])
+
+            if axes != [2]:
                 return False
-            if list(strided_slice_op.attrs.begin) != [last_end]:
+            if begins != [last_end]:
                 return False
-            if not len(strided_slice_op.attrs.end) == 1:
+            if not len(ends) == 1:
                 return False
-            last_end = strided_slice_op.attrs.end[0]
-            if list(strided_slice_op.attrs.strides) != [1]:
+            if strides != [1]:
                 return False
+            last_end = ends[0]
     return True
 
 
@@ -537,7 +543,7 @@ class WorkspaceAnnotator(PyExprMutator):
 
             return new_f
 
-        if "attention" in f.attrs["Composite"]:
+        if "attention" in f.attrs["Composite"] and "cutlass" in f.attrs["Composite"]:
             # Workspace is needed only for larger head sizes, but for simplicity we always allocate.
             out_dtype = f.ret_struct_info.dtype
             out_size_1d = _shape_1d(f.ret_struct_info.shape)

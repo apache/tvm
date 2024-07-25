@@ -18,7 +18,6 @@
 import argparse
 import json
 import logging
-from distutils.util import strtobool
 
 import onnx  # type: ignore
 import tvm
@@ -26,6 +25,7 @@ from tvm import meta_schedule as ms
 from tvm.meta_schedule.testing.custom_builder_runner import run_module_via_rpc
 from tvm.relay.frontend import from_onnx
 from tvm.support import describe
+from tvm.testing.utils import strtobool
 
 from .tune_utils import create_timer, generate_input_data
 

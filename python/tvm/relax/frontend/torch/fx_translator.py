@@ -518,6 +518,14 @@ class TorchFXImporter:
             res = bias if res is None else self.block_builder.emit(relax.op.add(res, bias))
         return res
 
+    def _einsum(self, node: fx.node.Node) -> relax.Var:
+        import torch  # type: ignore
+
+        args = self.retrieve_args(node)
+        if isinstance(args[1], (torch.Size, tuple, list)):
+            return self.block_builder.emit(relax.op.einsum(tuple(args[1]), args[0]))
+        return self.block_builder.emit(relax.op.einsum(args[1:], args[0]))
+
     ########## Manipulation ##########
 
     def _cat(self, node: fx.node.Node) -> relax.Var:
@@ -550,7 +558,11 @@ class TorchFXImporter:
         return self.block_builder.emit(relax.op.reshape(x, new_shape))
 
     def _permute(self, node: fx.node.Node) -> relax.Var:
+        import torch  # type: ignore
+
         args = self.retrieve_args(node)
+        if isinstance(args[1], (torch.Size, tuple, list)):
+            return self.block_builder.emit(relax.op.permute_dims(args[0], tuple(args[1])))
         return self.block_builder.emit(relax.op.permute_dims(args[0], args[1:]))
 
     def _reshape(self, node: fx.node.Node) -> relax.Var:
@@ -1464,6 +1476,7 @@ class TorchFXImporter:
             "getitem": self._getitem,
             "contiguous": lambda node: self.env[node.args[0]],
             "to": self._to,
+            "max_pool2d": self._max_pool2d,
             "avg_pool2d": self._avg_pool2d,
             "adaptive_avg_pool2d": self._adaptive_avg_pool2d(is_module=False),
             "layer_norm": self._layer_norm,
@@ -1478,6 +1491,7 @@ class TorchFXImporter:
             "max": self._max,
             "cross_entropy": self._cross_entropy,
             "scaled_dot_product_attention": self._scaled_dot_product_attention,
+            "einsum": self._einsum,
         }
 
     def update_convert_map(self, custom_convert_map: dict):

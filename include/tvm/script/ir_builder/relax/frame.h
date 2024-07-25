@@ -122,6 +122,7 @@ class FunctionFrameNode : public SeqExprFrameNode {
   TVM_DECLARE_FINAL_OBJECT_INFO(FunctionFrameNode, SeqExprFrameNode);
 
  public:
+  void EnterWithScope() final;
   void ExitWithScope() final;
 };
 
