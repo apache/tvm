@@ -107,6 +107,9 @@ case ${ENVIRONMENT} in
     if [ -f ${CPP_LIB} ] ; then
         adb push ${CPP_LIB} ${TARGET_FOLDER}
     fi
+    if [ -f ${ADRENOACCL_SDK}/lib/libadrenoaccl.so ] ; then
+        adb push ${ADRENOACCL_SDK}/lib/libadrenoaccl.so ${TARGET_FOLDER}
+    fi
 
     adb reverse tcp:${TVM_TRACKER_PORT} tcp:${TVM_TRACKER_PORT}
     adb forward tcp:${LISTEN_PORT} tcp:${LISTEN_PORT}
