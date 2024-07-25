@@ -92,7 +92,7 @@ class DModule(DRef):
 
     def __init__(self, dref: DRef, session: "Session") -> None:
         self.handle = dref.handle
-        del dref.handle
+        dref.handle = None
         self.session = session
 
     def __getitem__(self, name: str) -> DPackedFunc:
