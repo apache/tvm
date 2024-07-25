@@ -43,14 +43,17 @@ def test_mod(remote, target, executor_type, dtype):
     else:
         build_run_compare_vm(remote, mod, {}, {"data": input_shape}, {"data": dtype}, target)
 
+
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl -device=adreno")
 def test_scatter_nd_add(remote, target, executor_type, dtype):
     # NCHW
-    
+
     A = relay.var("data", shape=(6, 30, 30, 256), dtype=dtype)
     indices = relay.const(tvm.nd.array(np.random.randint(0, 1, (2, 6, 30, 30))), dtype="int64")
-    update = relay.const(tvm.nd.array(np.random.uniform(-1, 1, size=(50, 50, 256)).astype(dtype)), dtype=dtype)
+    update = relay.const(
+        tvm.nd.array(np.random.uniform(-1, 1, size=(50, 50, 256)).astype(dtype)), dtype=dtype
+    )
     op = relay.scatter_nd(update, indices, A, mode="add")
     mod = relay.Function([A], op)
     shape_dict = {
