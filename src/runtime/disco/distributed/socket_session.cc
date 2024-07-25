@@ -20,9 +20,9 @@
 
 #include <numeric>
 
-#include "../../support/socket.h"
-#include "./bcast_session.h"
-#include "./message_queue.h"
+#include "../../../support/socket.h"
+#include "../bcast_session.h"
+#include "../message_queue.h"
 
 namespace tvm {
 namespace runtime {
@@ -327,5 +327,6 @@ TVM_REGISTER_GLOBAL("runtime.disco.socket_session_init_workers")
       worker->worker_id = worker->worker_id + node_id * num_workers_per_node;
       worker->num_workers = num_nodes * num_workers_per_node;
     });
+
 }  // namespace runtime
 }  // namespace tvm
