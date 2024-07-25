@@ -556,7 +556,7 @@ def clml_pattern_table():
             return False
         return True
 
-    pass_context = tvm.get_global_func("transform.GetCurrentPassContext")()    
+    pass_context = tvm.get_global_func("transform.GetCurrentPassContext")()
     target_version = (
         pass_context.config["relay.ext.clml.target_version"]
         if "relay.ext.clml.target_version" in pass_context.config
