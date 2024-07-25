@@ -55,18 +55,18 @@ class ThreadSyncPlanner : public StorageAccessVisitor {
     // Redirect all "shared.dyn" buffer access to the same buffer var
     // so that the accesses can be planned together.
     Var shared_dyn_buf;
-    for (StmtEntry& entry : seq) {
-      for (AccessEntry& access : entry.access) {
-        if (access.scope.rank == StorageRank::kShared && access.scope.tag == ".dyn" &&
-            access.buffer.defined()) {
-          if (!shared_dyn_buf.defined()) {
-            shared_dyn_buf = access.buffer;
-          } else {
-            access.buffer = shared_dyn_buf;
-          }
-        }
-      }
-    }
+    // for (StmtEntry& entry : seq) {
+    //   for (AccessEntry& access : entry.access) {
+    //     if (access.scope.rank == StorageRank::kShared && access.scope.tag == ".dyn" &&
+    //         access.buffer.defined()) {
+    //       if (!shared_dyn_buf.defined()) {
+    //         shared_dyn_buf = access.buffer;
+    //       } else {
+    //         access.buffer = shared_dyn_buf;
+    //       }
+    //     }
+    //   }
+    // }
 
     // Unsynced reads and writes
     std::vector<AccessEntry> reads;
