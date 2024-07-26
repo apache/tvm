@@ -23,6 +23,12 @@
  */
 #ifndef TVM_RUNTIME_CONTRIB_CLML_CLML_RUNTIME_H_
 #define TVM_RUNTIME_CONTRIB_CLML_CLML_RUNTIME_H_
+
+#define CL_USE_DEPRECATED_OPENCL_1_2_APIS
+#if !defined(CL_TARGET_OPENCL_VERSION)
+#define CL_TARGET_OPENCL_VERSION 120
+#endif
+
 #include <CL/cl.h>
 #include <CL/opencl.h>
 #include <stdlib.h>
@@ -48,8 +54,110 @@
 
 #define CAT_I(a, b) a##b
 #define CAT(a, b) CAT_I(a, b)
-#define GET_ML_INTERFACE CAT(CAT(clGetMLInterfaceV, CL_QCOM_ML_OPS_H_MAJOR_VERSION), QCOM)
-#define GET_ML_API_INTERFACE CAT(CAT(CLMLInterfaceV, CL_QCOM_ML_OPS_H_MAJOR_VERSION), QCOM)
+
+#define CLML_CHECK_ERROR(e, API) \
+  { ICHECK(e == CL_SUCCESS) << "CLML Error:" #API " code=" << e; }
+
+#if CL_QCOM_ML_OPS_H_MAJOR_VERSION > 3
+#define V4_API(API, ...)                                                            \
+  e = (reinterpret_cast<CLMLInterfaceV4QCOM*>(CLMLWorkspace::Global()->h_ClmlIntf)) \
+          ->API(__VA_ARGS__);                                                       \
+  CLML_CHECK_ERROR(e, API);
+#else
+#define V4_API(API, ...) LOG(FATAL) << "CLML Error:" #API " - Incompatible V4 API call\n";
+#endif
+
+#if CL_QCOM_ML_OPS_H_MAJOR_VERSION > 2
+#define V3_API(API, ...)                                                            \
+  e = (reinterpret_cast<CLMLInterfaceV3QCOM*>(CLMLWorkspace::Global()->h_ClmlIntf)) \
+          ->API(__VA_ARGS__);                                                       \
+  CLML_CHECK_ERROR(e, API);
+#else
+#define V3_API(API, ...) LOG(FATAL) << "CLML Error:" #API " - Incompatible V3 API call\n";
+#endif
+
+#if CL_QCOM_ML_OPS_H_MAJOR_VERSION > 1
+#define V2_API(API, ...)                                                            \
+  e = (reinterpret_cast<CLMLInterfaceV2QCOM*>(CLMLWorkspace::Global()->h_ClmlIntf)) \
+          ->API(__VA_ARGS__);                                                       \
+  CLML_CHECK_ERROR(e, API);
+#else
+#define V2_API(API, ...) LOG(FATAL) << "CLML Error:" #API " - Incompatible V2 API call\n";
+#endif
+
+#define V1_API(API, ...)                                                            \
+  e = (reinterpret_cast<CLMLInterfaceV1QCOM*>(CLMLWorkspace::Global()->h_ClmlIntf)) \
+          ->API(__VA_ARGS__);                                                       \
+  CLML_CHECK_ERROR(e, API);
+
+#define CLML_CALL(API, ...)                                                  \
+  {                                                                          \
+    cl_int e;                                                                \
+    switch (CLMLWorkspace::Global()->target_major) {                         \
+      case 1:                                                                \
+        V1_API(API, __VA_ARGS__);                                            \
+        break;                                                               \
+      case 2:                                                                \
+        V2_API(API, __VA_ARGS__);                                            \
+        break;                                                               \
+      case 3:                                                                \
+        V3_API(API, __VA_ARGS__);                                            \
+        break;                                                               \
+      case 4:                                                                \
+        V4_API(API, __VA_ARGS__);                                            \
+        break;                                                               \
+      default:                                                               \
+        LOG(FATAL) << "CLML Error:" #API " - Unsupported target version \n"; \
+    }                                                                        \
+  }
+
+#define CLML_CALL_VERSIONED(APICALL, VERSION, ...) CAT(CAT(V, VERSION), _API)(APICALL, __VA_ARGS__)
+
+#define CALL_CASE(VERSION, API, ...)                \
+  case VERSION:                                     \
+    CLML_CALL_VERSIONED(API, VERSION, __VA_ARGS__); \
+    break;
+
+// clCreateMLOpClipQCOM
+#define CLML_CALL_clCreateMLOpClipQCOM(...)                        \
+  cl_int e;                                                        \
+  switch (CLMLWorkspace::Global()->target_major) {                 \
+    CALL_CASE(2, clCreateMLOpClipQCOM, __VA_ARGS__)                \
+    CALL_CASE(3, clCreateMLOpClipQCOM, __VA_ARGS__)                \
+    CALL_CASE(4, clCreateMLOpClipQCOM, __VA_ARGS__)                \
+    default:                                                       \
+      LOG(FATAL) << "CLML Error: - Unsupported target version \n"; \
+  }
+
+// clCreateMLTensorQCOM and clCreateMLTensorWithUsageQCOM
+#define CALL_clCreateMLTensorQCOM(VERSION, CONTEXT, TENSORPROPS, TENSORDESC, USAGE, TENSOR) \
+  CALL_CASE(VERSION, clCreateMLTensorQCOM, CONTEXT, TENSORPROPS, TENSORDESC, TENSOR)
+
+#define CALL_clCreateMLTensorWithUsageQCOM(VERSION, CONTEXT, TENSORPROPS, TENSORDESC, USAGE, \
+                                           TENSOR)                                           \
+  CALL_CASE(VERSION, clCreateMLTensorWithUsageQCOM, CONTEXT, TENSORPROPS, TENSORDESC, USAGE, TENSOR)
+
+#define CLML_CALL_clCreateMLTensorQCOM(...)                        \
+  cl_int e;                                                        \
+  switch (CLMLWorkspace::Global()->target_major) {                 \
+    CALL_clCreateMLTensorQCOM(1, __VA_ARGS__);                     \
+    CALL_clCreateMLTensorQCOM(2, __VA_ARGS__);                     \
+    CALL_clCreateMLTensorQCOM(3, __VA_ARGS__);                     \
+    CALL_clCreateMLTensorWithUsageQCOM(4, __VA_ARGS__);            \
+    default:                                                       \
+      LOG(FATAL) << "CLML Error: - Unsupported target version \n"; \
+  }
+
+/* Version compatibility for CLML Tensor creation */
+#if CL_QCOM_ML_OPS_H_MAJOR_VERSION < 4
+typedef enum _cl_ml_tensor_usage_qcom {
+  CL_TENSOR_USAGE_INVALID_QCOM = 0,
+  CL_TENSOR_USAGE_UNUSED_QCOM = 1,
+  CL_TENSOR_USAGE_PARAMETER_QCOM = 2,
+  CL_TENSOR_USAGE_CNN_QCOM = 3,
+  CL_TENSOR_USAGE_TNN_QCOM = 4,
+} cl_ml_tensor_usage_qcom;
+#endif
 
 /*! \brief Magic number for CLML Tuning cache entry */
 static const uint64_t kTVMCLMLTuningCacheMagic = 0x434C4D4C54554E45;
@@ -81,7 +189,7 @@ class CLMLWorkspace {
   virtual CLMLThreadEntry* GetThreadEntry();
 
   /* CLML Context */
-  GET_ML_API_INTERFACE* h_ClmlIntf = nullptr;
+  void* h_ClmlIntf = nullptr;
   cl::OpenCLWorkspace* workspace = nullptr;
   cl::OpenCLThreadEntry* tentry = nullptr;
   cl_device_id device_id;
@@ -107,6 +215,10 @@ class CLMLWorkspace {
 
   /* DDR memory management */
   std::map<cl_mem, std::pair<int, int>> ddr_global_pool;  // buf, size and ref count
+
+  /* Device API version information */
+  int target_major;
+  int target_minor;
 };
 
 /*! \brief Thread local workspace */
@@ -172,7 +284,6 @@ struct tensor_dims_t {
   uint32_t n, c, h, w;
 };
 
-#define CLML_INTF CLMLWorkspace::Global()->h_ClmlIntf
 #define CLML_QUEUE \
   CLMLWorkspace::Global()->workspace->GetQueue(CLMLWorkspace::Global()->tentry->device)
 #define CLML_CTX CLMLWorkspace::Global()->workspace->contexts[CLMLWorkspace::Global()->platform_id]
