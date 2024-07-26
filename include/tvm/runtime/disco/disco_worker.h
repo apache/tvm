@@ -52,6 +52,7 @@ class DiscoWorker {
   explicit DiscoWorker(int worker_id, int num_workers, int num_groups,
                        WorkerZeroData* worker_zero_data, DiscoChannel* channel)
       : worker_id(worker_id),
+        local_worker_id(worker_id),
         num_workers(num_workers),
         num_groups(num_groups),
         default_device(Device{DLDeviceType::kDLCPU, 0}),
@@ -68,6 +69,9 @@ class DiscoWorker {
 
   /*! \brief The id of the worker.*/
   int worker_id;
+  /*! \brief The local id of the worker. This can be different from worker_id if the session is
+   * consisted with multiple sub-sessions. */
+  int local_worker_id;
   /*! \brief Total number of workers */
   int num_workers;
   /*! \brief Total number of workers */

@@ -173,6 +173,10 @@ class ThreadedSessionObj final : public BcastSessionObj {
     }
   }
 
+  void SendPacked(int worker_id, const TVMArgs& args) final {
+    this->workers_.at(worker_id).channel->Send(args);
+  }
+
   TVMArgs RecvReplyPacked(int worker_id) final {
     return this->workers_.at(worker_id).channel->RecvReply();
   }

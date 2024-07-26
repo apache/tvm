@@ -370,7 +370,7 @@ class Socket {
 /*!
  * \brief a wrapper of TCP socket that hopefully be cross platform
  */
-class TCPSocket : public Socket {
+class TCPSocket : public Socket, public dmlc::Stream {
  public:
   TCPSocket() : Socket(INVALID_SOCKET) {}
   /*!
@@ -552,6 +552,10 @@ class TCPSocket : public Socket {
     ICHECK_EQ(RecvAll(&data[0], datalen), datalen);
     return data;
   }
+
+  size_t Read(void* data, size_t size) final { return Recv(data, size); }
+
+  size_t Write(const void* data, size_t size) final { return Send(data, size); }
 };
 
 /*! \brief helper data structure to perform poll */
