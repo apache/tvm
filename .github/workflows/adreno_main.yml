@@ -72,7 +72,7 @@ jobs:
            python ./tests/scripts/ci.py adreno -d tvm.ci_adreno --test
 
   Adreno-Tests-V4:
-    needs: [Lint]
+    needs: [Lint, Adreno-Tests-V3]
     if: ${{ github.repository == 'gpgpu/apache-tvm' }}
     runs-on: adreno-runner
     steps:
