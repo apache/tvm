@@ -67,6 +67,9 @@ runtime::Module BuildTL(IRModule mod, Target target) {
   }
 
   std::string code = cg.Finish();
+  if (const auto* f = Registry::Get("tvm_callback_cuda_postproc")) {
+    code = (*f)(code, target).operator std::string();
+  }
   std::string fmt = "ptx";
   std::string ptx;
   if (const auto* f = Registry::Get("tvm_tl_cuda_compile")) {
@@ -93,7 +96,9 @@ String BuildTLDebug(IRModule mod, Target target) {
   }
 
   std::string code = cg.Finish();
-
+  if (const auto* f = Registry::Get("tvm_callback_cuda_postproc")) {
+    code = (*f)(code, target).operator std::string();
+  }
   return String(code);
 }
 
