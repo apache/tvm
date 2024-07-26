@@ -33,33 +33,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  Config:
-    runs-on: self-hosted
-    outputs:
-      runner: ${{ steps.step1.outputs.runner }}
-    steps:
-      - name: Config Runner
-        id: step1
-        run: |
-         echo "::set-output name=runner::runner-"${{ github.actor }}
-  Setup:
-    needs: Config
-    runs-on: ${{ needs.config.outputs.runner }}
-    outputs:
-      defaultrunner: ${{ steps.step1.outputs.defaultrunner }}
-      adrenorunner: ${{ steps.step1.outputs.adrenorunner }}
-      gpurunner: ${{ steps.step1.outputs.gpurunner }}
-    steps:
-      - name: Schedule Runners
-        id: step1
-        run: |
-         if [ -f "/etc/tvm-ci-defaultrunner" ] ; then echo "::set-output name=defaultrunner::runner-"`cat /etc/tvm-ci-defaultrunner` ; else echo "::set-output name=defaultrunner::runner-"${{ github.actor }}; fi
-         if [ -f "/etc/tvm-ci-adrenorunner" ] ; then echo "::set-output name=adrenorunner::runner-"`cat /etc/tvm-ci-adrenorunner` ; else echo "::set-output name=adrenorunner::runner-"${{ github.actor }}; fi
-         if [ -f "/etc/tvm-ci-gpurunner" ] ; then echo "::set-output name=gpurunner::runner-"`cat /etc/tvm-ci-gpurunner` ; else echo "::set-output name=gpurunner::runner-"${{ github.actor }}; fi
   Lint:
-    needs: Setup
     if: ${{ github.repository == 'gpgpu/apache-tvm' }}
-    runs-on: ${{ needs.setup.outputs.defaultrunner }}
+    runs-on: tvm-linux-ci
     steps:
       - uses: actions/checkout@v2
         with:
@@ -68,10 +44,10 @@ jobs:
         shell: bash -l {0}
         run: |
           SCCACHE_SERVER_PORT=8767 ./tests/scripts/ci.py lint -d tvm.ci_lint
-  Adreno-Tests:
-    needs: [Setup, Lint]
+  Adreno-Tests-V3:
+    needs: [Lint]
     if: ${{ github.repository == 'gpgpu/apache-tvm' }}
-    runs-on: ${{ needs.setup.outputs.adrenorunner }}
+    runs-on: adreno-runner
     steps:
       - uses: actions/checkout@v2
         with:
@@ -84,11 +60,47 @@ jobs:
            git fetch gpgpu
            git checkout gpgpu/adreno_ci -- pytest_deselect_ids.txt
            git restore --staged pytest_deselect_ids.txt
-           SCCACHE_SERVER_PORT=8767 ANDROID_SERIAL=`cat /etc/tvm-ci-device` python ./tests/scripts/ci.py adreno -d tvm.ci_adreno --test
-  GPU-Tests:
-    needs: [Setup, Lint, Adreno-Tests]
+           # Test V4 device with V3 CLML SDK
+           ADRENO_OPENCL=${ADRENO_OPENCL_V3} \
+           SCCACHE_SERVER_PORT=8767 \
+           ANDROID_SERIAL=`cat /etc/tvm-ci-device-v4` \
+           python ./tests/scripts/ci.py adreno -d tvm.ci_adreno --test
+           # Test V3 device with V3 CLML SDK
+           ADRENO_OPENCL=${ADRENO_OPENCL_V3} \
+           SCCACHE_SERVER_PORT=8767 \
+           ANDROID_SERIAL=`cat /etc/tvm-ci-device` \
+           python ./tests/scripts/ci.py adreno -d tvm.ci_adreno --test
+
+  Adreno-Tests-V4:
+    needs: [Lint]
     if: ${{ github.repository == 'gpgpu/apache-tvm' }}
-    runs-on: ${{ needs.setup.outputs.gpurunner }}
+    runs-on: adreno-runner
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: 'recursive'
+      - name: Build and run tests
+        shell: bash -l {0}
+        run: |
+           set -e
+           if ! git remote -v | grep ^gpgpu ; then git remote add gpgpu git@github.qualcomm.com:gpgpu/apache-tvm.git ; fi
+           git fetch gpgpu
+           git checkout gpgpu/adreno_ci -- pytest_deselect_ids.txt
+           git restore --staged pytest_deselect_ids.txt
+           # Test V4 device with V4 CLML SDK
+           ADRENO_OPENCL=${ADRENO_OPENCL_V4} \
+           SCCACHE_SERVER_PORT=8767 \
+           ANDROID_SERIAL=`cat /etc/tvm-ci-device-v4` \
+           python ./tests/scripts/ci.py adreno -d tvm.ci_adreno --test
+           # Test V3 device with V4 CLML SDK
+           ADRENO_OPENCL=${ADRENO_OPENCL_V4} \
+           SCCACHE_SERVER_PORT=8767 \
+           ANDROID_SERIAL=`cat /etc/tvm-ci-device` \
+           python ./tests/scripts/ci.py adreno -d tvm.ci_adreno --test
+  GPU-Tests:
+    needs: [Lint, Adreno-Tests-V3, Adreno-Tests-V4]
+    if: ${{ github.repository == 'gpgpu/apache-tvm' }}
+    runs-on: gpu-runner
     steps:
       - uses: actions/checkout@v2
         with:
