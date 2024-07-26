@@ -146,6 +146,12 @@ class GraphCreator : public ExprVisitor {
       SetNodePattern(param_node, OpPatternKind::kOpaque);
       AddToPostDFSOrder(param_node, param.get());
     }
+    if (auto opt_num_input = func->GetAttr<Integer>(attr::kNumInput)) {
+      for (int i = static_cast<int>(opt_num_input.value()->value);
+           i < static_cast<int>(func->params.size()); ++i) {
+        input_params_.insert(func->params[i].get());
+      }
+    }
     ExprVisitor::VisitExpr_(func);
   }
 
@@ -223,8 +229,15 @@ class GraphCreator : public ExprVisitor {
                          IndexedForwardGraph::Node* binding_var_node) {
     ICHECK_NOTNULL(binding_var_node);
 
-    SetNodePattern(binding_var_node, OpPatternKind::kInjective);
-    VisitLeaf(tuple_item->tuple, binding_var_node, OpPatternKind::kInjective);
+    auto pattern = OpPatternKind::kInjective;
+    if (input_params_.count(tuple_item->tuple.as<VarNode>())) {
+      // TupleGetItem for fetching the parameter from the packed param tuple is treated as opaque
+      // and won't be fused. This prevents the usage of packed param tuple changes the order of the
+      // fusion result as the function usually begins with fetching the parameters.
+      pattern = OpPatternKind::kOpaque;
+    }
+    SetNodePattern(binding_var_node, pattern);
+    VisitLeaf(tuple_item->tuple, binding_var_node, pattern);
   }
 
   void VisitUnsupportedNode(const Expr& expr, IndexedForwardGraph::Node* binding_var_node) {
@@ -353,6 +366,8 @@ class GraphCreator : public ExprVisitor {
   IndexedForwardGraph graph_;
   /*! \brief The graph nodes whose patterns are set */
   std::unordered_set<IndexedForwardGraph::Node*> initialized_nodes_;
+  /*! \brief The model params in the function input */
+  std::unordered_set<const VarNode*> input_params_;
 };
 
 /*!
