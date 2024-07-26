@@ -387,6 +387,12 @@ if(BUILD_FOR_HEXAGON)
   add_definitions(-DDMLC_CXX11_THREAD_LOCAL=0)
 endif()
 
+# distributed disco runtime are disabled for hexagon
+if (NOT BUILD_FOR_HEXAGON)
+  tvm_file_glob(GLOB RUNTIME_DISCO_DISTRIBUTED_SRCS src/runtime/disco/distributed/*.cc)
+  list(APPEND RUNTIME_SRCS ${RUNTIME_DISCO_DISTRIBUTED_SRCS})
+endif()
+
 # Package runtime rules
 if(NOT USE_RTTI)
   add_definitions(-DDMLC_ENABLE_RTTI=0)
