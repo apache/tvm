@@ -98,7 +98,7 @@ class _Visitor(PyExprVisitor):  # pylint: disable=abstract-method
             return
 
         assert len(call.args) == 4
-        allreduce_input, strategy, in_group, allreduce_output = call.args
+        allreduce_input, _strategy, _in_group, allreduce_output = call.args
         alloc_tensor = self.alloc_map.get(allreduce_input, None)
         if alloc_tensor is None or alloc_tensor.args[3].value != "global":
             # Return if the allocation of all-reduce input is not recorded,
