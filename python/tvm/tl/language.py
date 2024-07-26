@@ -100,12 +100,12 @@ def use_swizzle(panel_size: int):
     return T.attr(None, "threadblock_swizzle_pattern", f"tl::rasterization2DRow<{panel_size}>")
 
 
-def alloc_shared(shape, dtype):
-    return T.alloc_buffer(shape, dtype, scope="shared.dyn")
+def alloc_shared(shape, dtype, scope="shared.dyn"):
+    return T.alloc_buffer(shape, dtype, scope=scope)
 
 
-def alloc_fragment(shape, dtype):
-    return T.alloc_buffer(shape, dtype, scope="local.fragment")
+def alloc_fragment(shape, dtype, scope="local.fragment"):
+    return T.alloc_buffer(shape, dtype, scope=scope)
 
 
 def annotate_layout(layout_map):
