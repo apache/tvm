@@ -106,3 +106,13 @@ def WarpSpecializedPipeline():
         The result pass
     """
     return _ffi_api.WarpSpecializedPipeline()  # type: ignore
+
+def InjectFenceProxy():
+    """InjectFenceProxy
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.InjectFenceProxy()  # type: ignore

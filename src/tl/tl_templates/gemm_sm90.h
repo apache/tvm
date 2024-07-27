@@ -98,6 +98,8 @@ class GemmTensorOp {
   }
 
   static CUTE_DEVICE void body_rs(A_type_raw* pA, B_type_raw* pB, C_type_raw* pC) {
+    // TODO: Move bar.sync out of body_rs
+    asm volatile("bar.sync %0, %1;" : : "r"(1), "r"(num_warp_m * num_warp_n * 32));
     const int tid = threadIdx.x;
     Tensor sB = make_tensor(make_smem_ptr(reinterpret_cast<B_type*>(pB)), SmemLayoutB{});
     auto tiled_mma =

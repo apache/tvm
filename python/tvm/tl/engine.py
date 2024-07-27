@@ -70,6 +70,11 @@ def extrac_params(func: tir.PrimFunc):
     tensor_types = [relay.TensorType(buffer.shape, buffer.dtype) for buffer in buffers]
     return tensor_types
 
+@tvm.register_func(func_name="tvm_callback_cuda_postproc", override=True)
+def tvm_callback_cuda_postproc(code, _):
+    code = code.replace("""original code""", 
+"""modified code""")
+    return code
 
 def lower(func):
     params = extrac_params(func)
@@ -79,14 +84,45 @@ def lower(func):
     target = tvm.target.Target("cuda", target_host)
     mod = tir.transform.BindTarget(target)(mod)
 
+    # print('-'*100 + '\n' + 'after BindTarget\n' + '-'*100)
+    # print(mod)
+
     mod = tl.transform.FrontendLegalize()(mod)
+
+    # print('-'*100 + '\n' + 'after FrontendLegalize\n' + '-'*100)
+    # print(mod)
+
     mod = tir.transform.Simplify()(mod)
+
+    # print('-'*100 + '\n' + 'after Simplify\n' + '-'*100)
+    # print(mod)
+
     mod = tl.transform.LayoutInference()(mod)
+ 
+    # print('-'*100 + '\n' + 'after LayoutInference\n' + '-'*100)
+    # print(mod)
+
     mod = tl.transform.LowerTileOp()(mod)
+
+    # print('-'*100 + '\n' + 'after LowerTileOp\n' + '-'*100)
+    # print(mod)
+
     mod = tir.transform.Simplify()(mod)
+
+    # print('-'*100 + '\n' + 'after Simplify\n' + '-'*100)
+    # print(mod)
 
     if target.arch == "sm_90":
         mod = tl.transform.WarpSpecializedPipeline()(mod)
+
+        # print('-'*100 + '\n' + 'after WarpSpecializedPipeline\n' + '-'*100)
+        # print(mod)
+        
+        mod = tl.transform.InjectFenceProxy()(mod)
+    
+        # print('-'*100 + '\n' + 'after InjectFenceProxy\n' + '-'*100)
+        # print(mod)
+
     else:
         mod = tir.transform.PlanAndUpdateBufferAllocationLocation()(mod)
         mod = tl.transform.PipelinePlanning()(mod)
@@ -128,14 +164,22 @@ def lower(func):
     host_mod = tir.transform.LowerIntrin()(host_mod)
     host_mod = tir.transform.LowerDeviceStorageAccessInfo()(host_mod)
     host_mod = tir.transform.CombineContextCall()(host_mod)
+    # host_code = tvm._ffi.get_global_func("target.build.c")(host_mod, target_host).get_source()
+    # print("=" * 100)
+    # print("host code:")
+    # print("=" * 100)
+    # print(host_code)
     host_mod = tvm._ffi.get_global_func("target.build.llvm")(host_mod, target)
 
     device_mod = tir.transform.Filter(is_device_call)(mod)
     device_mod = tir.transform.LowerDeviceStorageAccessInfo()(device_mod)
     device_mod = tir.transform.LowerIntrin()(device_mod)
     device_mod = tir.transform.Simplify()(device_mod)
-    # code = tvm._ffi.get_global_func("target.build.tl_debug_codegen")(device_mod, target)
-    # print(code)
+    # device_code = tvm._ffi.get_global_func("target.build.tl_debug_codegen")(device_mod, target)
+    # print("=" * 100)
+    # print("device code:")
+    # print("=" * 100)
+    # print(device_code)
     device_mod = tvm._ffi.get_global_func("target.build.tl")(device_mod, target)
 
     host_mod.import_module(device_mod)

@@ -14,11 +14,11 @@ def ref_program(A, B):
     return A @ B
 
 def get_configs():
-    block_M = [128]
-    block_N = [128, 256]
+    block_M = [64]
+    block_N = [64]
     block_K = [64]
-    num_stages = [2]
-    thread_num = [256]
+    num_stages = [1]
+    thread_num = [128]
     _configs = list(itertools.product(block_M, block_N, block_K, num_stages, thread_num))
 
     configs = [
@@ -37,36 +37,22 @@ def matmul(M, N, K):
 
         @T.prim_func
         def main(A: T.Buffer((M, K), dtype), B: T.Buffer((K, N), dtype), C: T.Buffer((M, N), dtype)): # type: ignore
-            with T.Kernel(T.ceildiv(M, swizzle_M) * T.ceildiv(N, swizzle_N), T.ceildiv(swizzle_N, block_N), T.ceildiv(swizzle_M, block_M), threads=thread_num) as (bx, by, bz):
-                A_shared = T.alloc_shared((block_M, block_K), dtype)
-                B_shared = T.alloc_shared((block_K, block_N), dtype)
-                C_local = T.alloc_fragment((block_M, block_N), accum_dtype)
-                T.clear(C_local)
-                for k in T.Pipelined(T.ceildiv(K, block_K), num_stages=num_stages):
-                    T.copy(A[(bx % T.ceildiv(M, swizzle_M)) * swizzle_M + bz * block_M, k * block_K], A_shared)
-                    T.copy(B[k * block_K, T.floordiv(bx, T.ceildiv(N, swizzle_N)) * swizzle_N + by * block_N], B_shared)
-                    T.gemm(A_shared, B_shared, C_local)
-                T.copy(C_local, C[(bx % T.ceildiv(M, swizzle_M)) * swizzle_M + bz * block_M, T.floordiv(bx, T.ceildiv(N, swizzle_N)) * swizzle_N + by * block_N])
-
-        @T.prim_func
-        def main_hopper(A: T.Buffer((M, K), dtype), B: T.Buffer((K, N), dtype), C: T.Buffer((M, N), dtype)): # type: ignore
-            with T.Kernel(T.ceildiv(M, swizzle_M) * T.ceildiv(N, swizzle_N), T.ceildiv(swizzle_N, block_N), T.ceildiv(swizzle_M, block_M), threads=thread_num) as (bx, by, bz):
+            with T.Kernel(T.ceildiv(N, block_N), T.ceildiv(M, block_M), threads=thread_num) as (bx, by):
                 A_shared = T.alloc_shared((block_M, block_K), dtype)
                 B_shared = T.alloc_shared((block_K, block_N), dtype)
                 C_shared = T.alloc_shared((block_M, block_N), dtype)
+                A_local = T.alloc_fragment((block_M, block_K), dtype)
                 C_local = T.alloc_fragment((block_M, block_N), accum_dtype)
                 T.clear(C_local)
                 for k in T.Pipelined(T.ceildiv(K, block_K), num_stages=num_stages):
-                    T.copy(A[(bx % T.ceildiv(M, swizzle_M)) * swizzle_M + bz * block_M, k * block_K], A_shared)
-                    T.copy(B[k * block_K, T.floordiv(bx, T.ceildiv(N, swizzle_N)) * swizzle_N + by * block_N], B_shared)
-                    T.gemm(A_shared, B_shared, C_local)
+                    T.copy(A[by * block_M, k * block_K], A_shared)
+                    T.copy(B[k * block_K, bx * block_N], B_shared)
+                    T.copy(A_shared, A_local)
+                    T.gemm(A_local, B_shared, C_local)
                 T.copy(C_local, C_shared)
-                T.copy(C_shared, C[(bx % T.ceildiv(M, swizzle_M)) * swizzle_M + bz * block_M, T.floordiv(bx, T.ceildiv(N, swizzle_N)) * swizzle_N + by * block_N])
+                T.copy(C_shared, C[by * block_M, bx * block_N])
 
-        if targetHopper:
-            return main_hopper
-        else:
-            return main
+        return main
     return kernel()
 
 

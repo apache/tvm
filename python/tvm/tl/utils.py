@@ -130,6 +130,7 @@ class Profiler(ConvertTorch):
         if isinstance(ref_outs, torch.Tensor):
             ref_outs = [ref_outs]
         assert len(lib_outs) == len(ref_outs)
+        # torch.set_printoptions(edgeitems=torch.inf)
         for lhs, rhs in zip(lib_outs, ref_outs):
             assert torch.allclose(lhs, rhs, rtol=rtol, atol=atol), (lhs, rhs)
 
