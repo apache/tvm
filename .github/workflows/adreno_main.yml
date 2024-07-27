@@ -117,7 +117,7 @@ jobs:
       - name: Build cpptest
         shell: bash -l {0}
         run: |
-           ./docker/bash.sh adreno_ci_gpu --env SCCACHE_SERVER_PORT=8767 python3 ./tests/scripts/task_build.py --cmake-target cpptest --build-dir build-gpu
+           ./docker/bash.sh adreno_ci_gpu --env SCCACHE_SERVER_PORT=8768 python3 ./tests/scripts/task_build.py --cmake-target cpptest --build-dir build-gpu
       - name: Run cpp unit tests
         shell: bash -l {0}
         run: |
