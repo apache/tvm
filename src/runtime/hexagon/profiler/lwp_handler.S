@@ -50,12 +50,17 @@ handler itself.
   .falign
   .type  lwp_handler,@function
 lwp_handler:
-  { allocframe(#24)                            // Allocate 24 bytes on the stack to save R0-R5 registers
+  {
+    allocframe(#32)                            // Allocate 32 bytes on the stack to save R0-R5 registers (6*4bytes) and P0-P3 (4*1byte) + 4 unused bytes as the stack has to be 8-bytes aligned
     memd(r29+#-16) = r5:4                      // Save R5,R4
+    r5 = p3:0                                  // We will save P3:0 but we need an intermediate usual register (R5) that has already been saved
   }
   {
-    memd(r29+#8) = r3:2                        // Save R3,R2
-    memd(r29+#0) = r1:0                        // Save R1, R0
+    memd(r29+#16) = r3:2                       // Save R3,R2
+    memd(r29+#8) = r1:0                        // Save R1, R0
+  }
+  {
+    memw(r29+#0) = r5                          // Save P3:0 (via R5)
     r2 = add(pc,##_GLOBAL_OFFSET_TABLE_@PCREL) // Get GOT address
   }
   {
@@ -102,14 +107,18 @@ lwp_handler:
     memw(r5+#8) = r0                          // Save lower 32 bits
   }
   .falign
-.LBB0_3:
+.LBB0_3:                                      // Restore the registers from the stack
   {
-    r5:4 = memd(r29+#16)                     // Restore the registers from the stack
-    r3:2 = memd(r29+#8)
+    r1 = memw(r29+#0)                         // We will restore P3:0 but need an intermediate usual register (R1) that hasn't already been restored
+    r5:4 = memd(r29+#24)                      // Restore R5:4
   }
   {
-    r1:0 = memd(r29+#0)
-    dealloc_return                          // Deallocate the stack and return
+    r3:2 = memd(r29+#16)                      // Restore R3:2
+    p3:0 = r1                                 // Restore P3:0 (via R1, not yet restored)
+  }
+  {
+    r1:0 = memd(r29+#8)                       // Restore R1:0
+    dealloc_return                            // Deallocate the stack and return
   }
 .Lfunc_end0:
   .size  lwp_handler, .Lfunc_end0-lwp_handler
