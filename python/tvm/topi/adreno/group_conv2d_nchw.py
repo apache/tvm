@@ -130,10 +130,11 @@ def group_conv2d_nchwc(cfg, Input, Filter, stride, padding, dilation, out_dtype)
     else:
         out_channel_chunks, in_filter_channels, kernel_h, kernel_w, out_channel_block = Filter.shape
         out_channles = out_channel_chunks * out_channel_block
-    
+
     assert in_channels % in_filter_channels == 0
     groups = in_channels // in_filter_channels
     in_group_channels = in_filter_channels
+    assert out_channles % groups == 0
     out_group_channels = out_channles // groups
 
     out_height_orig, out_height, out_width_orig, out_width = expand_spatial_dimensions(
@@ -157,6 +158,7 @@ def group_conv2d_nchwc(cfg, Input, Filter, stride, padding, dilation, out_dtype)
     in_group_channel_chunks = in_channel_chunks // groups
     in_group_channel_block = in_channel_block
     out_group_channel_chunks = out_channel_chunks // groups
+    out_group_channel_block = out_channel_block
     rcc = te.reduce_axis((0, in_group_channel_chunks), name="rcc")
     rcb = te.reduce_axis((0, in_group_channel_block), name="rcb")
     ry = te.reduce_axis((0, kernel_h), name="ry")
@@ -181,23 +183,34 @@ def group_conv2d_nchwc(cfg, Input, Filter, stride, padding, dilation, out_dtype)
             tag="conv2d_nchwc_group",
         )
     else:
+        rgc = te.reduce_axis((0, in_group_channels), name="rgc")
         conv = te.compute(
-        (batch, out_channel_chunks, out_height, out_width, out_channel_block),
-        lambda nn, occ, yy, xx, obb: te.sum(
-            (
-                temp[
-                    nn,
-                    ((((occ)*out_channel_block+obb) // out_group_channels) * in_group_channels + rcc) // 4,
-                    yy * stride_h + ry * dilation_h,
-                    xx * stride_w + rx * dilation_w,
-                    ((((occ)*out_channel_block+obb) // out_group_channels) * in_group_channels + rcc) % 4,
-                ]
-                * Filter[occ, rcc, ry, rx, obb]
-            ).astype(out_dtype),
-            axis=[rcc, ry, rx],
-        ),
-        tag="conv2d_nchwc_group",
-    )
+            (batch, out_channel_chunks, out_height, out_width, out_channel_block),
+            lambda nn, occ, yy, xx, obb: te.sum(
+                (
+                    temp[
+                        nn,
+                        (
+                            (((occ) * out_channel_block + obb) // out_group_channels)
+                            * in_group_channels
+                            + rgc
+                        )
+                        // 4,
+                        yy * stride_h + ry * dilation_h,
+                        xx * stride_w + rx * dilation_w,
+                        (
+                            (((occ) * out_channel_block + obb) // out_group_channels)
+                            * in_group_channels
+                            + rgc
+                        )
+                        % 4,
+                    ]
+                    * Filter[occ, rgc, ry, rx, obb]
+                ).astype(out_dtype),
+                axis=[rgc, ry, rx],
+            ),
+            tag="conv2d_nchwc_group",
+        )
 
     if convert_from4d and not autotvm.GLOBAL_SCOPE.in_tuning:
         dummy_cast = te.compute(
@@ -265,7 +278,11 @@ def schedule_group_conv2d_NCHWc_KCRSk(cfg, s, output):
 
     ##### space definition begin #####
     n, fc, y, x, fb = s[conv].op.axis
-    rcc, rcb, ry, rx = s[conv].op.reduce_axis
+    reduce_axis = s[conv].op.reduce_axis
+    if len(reduce_axis) == 4:
+        rcc, rcb, ry, rx = s[conv].op.reduce_axis
+    else:
+        rcc, ry, rx = s[conv].op.reduce_axis
 
     if conv.shape[1] % 2 == 0:
         min_threads_div = 2
@@ -379,9 +396,9 @@ def schedule_group_conv2d_NCHWc_KCRSk(cfg, s, output):
 
     reduce_axis = s[conv].op.reduce_axis
     if len(reduce_axis) == 4:
-        rcc, rcb, ry, rx = s[conv].op.reduce_axis
+        rcc, rcb, ry, rx = reduce_axis
     elif len(reduce_axis) == 3:
-        rcc, ry, rx = s[conv].op.reduce_axis
+        rcc, ry, rx = reduce_axis
         rcb = None
 
     rco, rci = cfg["tile_rcc"].apply(s, conv, rcc)

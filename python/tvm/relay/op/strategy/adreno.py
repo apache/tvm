@@ -185,12 +185,12 @@ def conv2d_strategy_adreno(attrs, inputs, out_type, target):
         elif (data_layout == "NCHW4c" or data_layout == "NCHW") and (
             kernel_layout == "OIHW" or kernel_layout == "OIHW4o"
         ):
-                strategy.add_implementation(
-                    wrap_compute_conv2d(topi.adreno.group_conv2d_nchwc),
-                    wrap_topi_schedule(topi.adreno.schedule_group_conv2d_nchwc),
-                    name="group_conv2d_nchwc.image2d",
-                    plevel=10,
-                )
+            strategy.add_implementation(
+                wrap_compute_conv2d(topi.adreno.group_conv2d_nchwc),
+                wrap_topi_schedule(topi.adreno.schedule_group_conv2d_nchwc),
+                name="group_conv2d_nchwc.image2d",
+                plevel=10,
+            )
         else:
             raise RuntimeError(
                 "General group convolution is not currently supported for non NCHW(4c)/OIHW(4o)..."
