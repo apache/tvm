@@ -219,7 +219,8 @@ class CompositeGroupsBuilder : public MemoizedExprTranslator<Group*> {
     std::unordered_set<Group*> dependencies;
 
     for (const auto& arg : args) {
-      for (auto dep : group_deps_[memo_[arg]->FindRoot()]) {
+      Group* group = VisitExpr(arg);
+      for (auto dep : group_deps_[group->FindRoot()]) {
         dependencies.insert(dep);
       }
     }
@@ -231,7 +232,7 @@ class CompositeGroupsBuilder : public MemoizedExprTranslator<Group*> {
     Group* group_root = group->FindRoot();
 
     for (const auto& arg : args) {
-      auto arg_group_root = memo_[arg]->FindRoot();
+      auto arg_group_root = VisitExpr(arg)->FindRoot();
       if (arg_group_root == group_root) {
         // If arg and the current node are in the same group,
         // there is nothing to update.
@@ -256,7 +257,7 @@ class CompositeGroupsBuilder : public MemoizedExprTranslator<Group*> {
     std::unordered_set<Group*> parent_dependencies = GetParentGroupDependencies(call->args);
 
     for (const auto& arg : call->args) {
-      auto arg_group = memo_[arg];
+      auto arg_group = VisitExpr(arg);
       Optional<String> arg_codegen_name = GetCodegenName(arg_group);
       if (arg_codegen_name == codegen_name && !parent_dependencies.count(arg_group->FindRoot())) {
         // If there is a parent group with the same target, which none of the parent dependency
