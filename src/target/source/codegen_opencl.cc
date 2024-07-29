@@ -129,7 +129,7 @@ std::string CodeGenOpenCL::Finish() {
   if (enable_atomics_) {
     decl_stream << "#pragma OPENCL EXTENSION cl_khr_global_int32_base_atomics : enable\n"
                    "#pragma OPENCL EXTENSION cl_khr_global_int32_extended_atomics : enable\n\n";
-    decl_stream << "__inline float atomic_add_float_emu1(volatile __global float* sum, const float "
+    decl_stream << "__inline float atomic_add_float_emu(volatile __global float* sum, const float "
                    "toAdd) {\n"
                    "float next_value = 0;"
                    "float prev_value = 0;"
