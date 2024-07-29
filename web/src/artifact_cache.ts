@@ -58,13 +58,14 @@ export interface ArtifactCacheTemplate {
    *
    * @param url: The url to the data to be cached.
    * @param storetype: Only applies to `ArtifactIndexedDBCache`. Since `indexedDB` stores the actual
+   * @param signal: An optional AbortSignal to abort data retrival
    * data rather than a request, we specify `storagetype`. There are two options:
    * 1. "json": IndexedDB stores `fetch(url).json()`
    * 2. "arraybuffer": IndexedDB stores `fetch(url).arrayBuffer()`
    *
    * @note This is an async function.
    */
-  addToCache(url: string, storetype?: string): Promise<void>;
+  addToCache(url: string, storetype?: string, signal?: AbortSignal): Promise<void>;
 
   /**
    * check if cache has all keys in Cache
@@ -126,8 +127,8 @@ export class ArtifactCache implements ArtifactCacheTemplate {
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  async addToCache(url: string, storetype?: string) {
-    const request = new Request(url);
+  async addToCache(url: string, storetype?: string, signal?: AbortSignal) {
+    const request = new Request(url, signal ? { signal } : undefined);
     if (this.cache === undefined) {
       this.cache = await caches.open(this.scope);
     }
@@ -282,7 +283,7 @@ export class ArtifactIndexedDBCache implements ArtifactCacheTemplate {
     });
   }
 
-  async addToCache(url: string, storetype?: string): Promise<void> {
+  async addToCache(url: string, storetype?: string, signal?: AbortSignal): Promise<void> {
     await this.initDB(); // await the initDB process
     // If already cached, nothing to do
     const isInDB = await this.isUrlInDB(url);
@@ -290,7 +291,7 @@ export class ArtifactIndexedDBCache implements ArtifactCacheTemplate {
       return;
     }
     try {
-      const response = await fetch(url);
+      const response = await fetch(url, signal ? { signal } : undefined);
       if (!response.ok) {
         throw new Error('Network response was not ok');
       }
