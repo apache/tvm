@@ -85,16 +85,6 @@ class CompositeGroupsBuilder : public MemoizedExprTranslator<Group*> {
       memo_[param] = arena_->make<Group>();
     }
 
-    PostOrderVisit(func, [this](Expr e) {
-      // Make default groups for dataflow nodes other than CallNode.
-      // Groups for CallNode are created in its visitor.
-      if (e->IsInstance<ConstantNode>() || e->IsInstance<ShapeExprNode>() ||
-          e->IsInstance<TupleNode>() || e->IsInstance<TupleGetItemNode>() ||
-          e->IsInstance<PrimValueNode>()) {
-        memo_[e] = arena_->make<Group>();
-      }
-    });
-
     VisitExpr(func->body);
 
     GroupMap group_map;
@@ -165,6 +155,12 @@ class CompositeGroupsBuilder : public MemoizedExprTranslator<Group*> {
     UpdateGroupDependencies(group, call->args);
     return group;
   }
+
+  Group* VisitExpr_(const ConstantNode* node) { return arena_->make<Group>(); }
+  Group* VisitExpr_(const ShapeExprNode* node) { return arena_->make<Group>(); }
+  Group* VisitExpr_(const TupleNode* node) { return arena_->make<Group>(); }
+  Group* VisitExpr_(const TupleGetItemNode* node) { return arena_->make<Group>(); }
+  Group* VisitExpr_(const PrimValueNode* node) { return arena_->make<Group>(); }
 
  private:
   Optional<String> GetCodegenName(const Expr& callee) {
@@ -386,23 +382,28 @@ class CompositeFunctionAnnotator : public ExprMutator {
 IRModule MergeCompositeFunctions(IRModule mod) {
   support::Arena arena;
 
-  Array<String> entry_function_names;
+  std::vector<String> vec_entry_function_names;
   for (const auto& [gvar, func] : mod->functions) {
     if (func.as<FunctionNode>() && !func->GetAttr<String>(attr::kCodegen).defined() &&
         !func->GetAttr<Bool>(attr::kPrimitive).defined()) {
-      entry_function_names.push_back(gvar->name_hint);
+      vec_entry_function_names.push_back(gvar->name_hint);
     }
   }
+  std::sort(vec_entry_function_names.begin(), vec_entry_function_names.end());
+
+  Array<String> entry_function_names(vec_entry_function_names);
 
   std::unordered_map<const Object*, Group*> group_map;
-  CompositeGroupsBuilder group_builder(mod, &arena);
 
   for (const auto& name : entry_function_names) {
     auto func = Downcast<Function>(mod->Lookup(name));
-    auto new_group_map = group_builder.Run(func);
+    auto new_group_map = CompositeGroupsBuilder(mod, &arena).Run(func);
 
     for (const auto& [obj, group] : new_group_map) {
-      ICHECK(!group_map.count(obj));
+      ICHECK(!group_map.count(obj))
+          << "Function " << name << " was analyzed and produced group containing "
+          << GetRef<ObjectRef>(obj) << " of type " << obj->GetTypeKey()
+          << ", but this object was already assigned to a different group";
       group_map[obj] = group;
     }
   }
