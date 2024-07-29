@@ -19,7 +19,7 @@
 
 /*!
  *
- * \file src/relax/analysis/collect_call_map.cc
+ * \file src/tir/analysis/collect_call_map.cc
  *
  * \brief Collect cross-IR call graph
  */
@@ -35,7 +35,7 @@ namespace {
 using ir::CalleeCollector;
 
 struct Visitor : StmtExprVisitor {
-  Visitor(CalleeCollector* collector) : collector(collector) {}
+  explicit Visitor(CalleeCollector* collector) : collector(collector) {}
   CalleeCollector* collector;
   void VisitExpr_(const CallNode* node) override {
     StmtExprVisitor::VisitExpr_(node);

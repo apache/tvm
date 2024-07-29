@@ -36,7 +36,7 @@ using tvm::transform::GlobalVarReplacer;
 
 struct Mutator : StmtExprMutator {
   Map<GlobalVar, GlobalVar> replacements;
-  Mutator(Map<GlobalVar, GlobalVar> replacements) : replacements(replacements) {}
+  explicit Mutator(Map<GlobalVar, GlobalVar> replacements) : replacements(replacements) {}
 
   PrimExpr VisitExpr_(const CallNode* node) override {
     auto call = Downcast<Call>(StmtExprMutator::VisitExpr_(node));

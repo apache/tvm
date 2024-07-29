@@ -38,7 +38,7 @@ using tvm::transform::GlobalVarReplacer;
 
 struct Mutator : ExprMutator {
   Map<GlobalVar, GlobalVar> replacements;
-  Mutator(Map<GlobalVar, GlobalVar> replacements) : replacements(replacements) {}
+  explicit Mutator(Map<GlobalVar, GlobalVar> replacements) : replacements(replacements) {}
 
   using ExprMutator::VisitExpr_;
   Expr VisitExpr_(const GlobalVarNode* node) override {

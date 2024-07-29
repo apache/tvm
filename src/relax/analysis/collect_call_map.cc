@@ -36,7 +36,7 @@ namespace {
 using ir::CalleeCollector;
 
 struct Visitor : ExprVisitor {
-  Visitor(CalleeCollector* collector) : collector(collector) {}
+  explicit Visitor(CalleeCollector* collector) : collector(collector) {}
   CalleeCollector* collector;
   void VisitExpr_(const GlobalVarNode* node) override { collector->Mark(GetRef<GlobalVar>(node)); }
 };
