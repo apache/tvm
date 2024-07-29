@@ -111,7 +111,12 @@ RPCEnv::RPCEnv(const std::string& wd) {
       // Tmp directory is always writable for 'shell' user.
       android_base_ = "/data/local/tmp";
     }
-    base_ = android_base_ + "/rpc";
+    char* user_defined;
+    if (user_defined = getenv("TARGET_RPC_TMP")) {
+      base_ = user_defined;
+    } else {
+      base_ = android_base_ + "/rpc";
+    }
 
 #elif !defined(_WIN32)
     char cwd[PATH_MAX];

@@ -51,6 +51,12 @@ import json
 from tvm.relay.collage.collage import *
 
 
+def get_unique_dso_lib():
+    rpc_tracker_port = os.getenv("TVM_TRACKER_PORT", "")
+    device_port = os.getenv("DEVICE_LISTEN_PORT", "")
+    return "dev_lib_cl-" + rpc_tracker_port + "-" + device_port + ".so"
+
+
 def get_cpu_op_count(mod):
     """Traverse graph counting ops offloaded to TVM."""
 
@@ -120,7 +126,7 @@ def build_and_run(
         m = graph_runtime.create(graph, lib, ctx)
     else:
         temp = utils.tempdir()
-        dso_binary = "dev_lib_cl.so"
+        dso_binary = get_unique_dso_lib()
         dso_binary_path = temp.relpath(dso_binary)
         ctx = remote.cl(0)
         lib.export_library(dso_binary_path, fcompile=ndk.create_shared)
@@ -168,7 +174,7 @@ def build_and_run_vm(
         vm = VirtualMachine(vmc, dev, "naive")
     else:
         temp = utils.tempdir()
-        dso_binary = "dev_lib_cl.so"
+        dso_binary = get_unique_dso_lib()
         dso_binary_path = temp.relpath(dso_binary)
         dev = remote.cl(0)
         ndk_cc = os.getenv("TVM_NDK_CC", "aarch64-linux-android-g++")
@@ -260,7 +266,7 @@ def compile_and_run(remote, label, model, targets, inputs):
     exe = tvm.relay.vm.compile(mod, target=targets, params=model["params"])
     lib = exe.mod
     temp = utils.tempdir()
-    dso_binary = "dev_lib_cl.so"
+    dso_binary = get_unique_dso_lib
     dso_binary_path = temp.relpath(dso_binary)
     logging.info(f"Exporting library to {dso_binary_path}...")
     ndk_cc = os.getenv("TVM_NDK_CC", "aarch64-linux-android-g++")

@@ -26,8 +26,31 @@ export PYTHONPATH=${PYTHONPATH}:${TVM_PATH}/apps/extension/python
 export LD_LIBRARY_PATH="build:${LD_LIBRARY_PATH:-}"
 export TVM_INTEGRATION_TESTSUITE_NAME=python-integration-adreno
 
+sudo apt install net-tools -y
+
+find_free_port () {
+    port=$1
+    RANGE=$2
+    isfree=0
+    while [ 0 -eq "$isfree" ]; do
+        for ii in `seq 0 $RANGE` ; do
+            sport=$((port+ii))
+            netstat -taln | grep LISTEN | grep $sport > /dev/null
+            isfree=$?
+            if [ 0 -eq "$isfree" ] ; then
+                port=$((port+1))
+                break
+            fi
+        done
+        sleep 1
+    done
+    echo $port
+    return 0
+}
+
 export TVM_TRACKER_HOST=127.0.0.1
-export TVM_TRACKER_PORT=$(((RANDOM % 100) + 9100))
+FREE_PORT=`find_free_port 9000 1`
+export TVM_TRACKER_PORT=$FREE_PORT
 export RPC_DEVICE_KEY="android"
 export RPC_TARGET="adreno"
 export TVM_NDK_CC="${ANDROID_NDK_HOME}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android28-clang"
@@ -38,9 +61,9 @@ sleep 5   # Wait for tracker to bind
 
 export ANDROID_SERIAL=$1
 
-TARGET_FOLDER=/data/local/tmp/tvm_ci-${USER}
+TARGET_FOLDER=/data/local/tmp/tvm_ci-${USER}-${TVM_TRACKER_PORT}
 adb shell "mkdir -p ${TARGET_FOLDER}"
-adb push build-adreno-target/tvm_rpc ${TARGET_FOLDER}/tvm_rpc-${USER}
+adb push build-adreno-target/tvm_rpc ${TARGET_FOLDER}/tvm_rpc-${USER}-${TVM_TRACKER_PORT}
 adb push build-adreno-target/libtvm_runtime.so ${TARGET_FOLDER}
 CPP_LIB=`find ${ANDROID_NDK_HOME} -name libc++_shared.so | grep aarch64`
 if [ -f ${CPP_LIB} ] ; then
@@ -51,13 +74,21 @@ if [ -f "${ADRENOACCL_SDK}/include/adrenoaccl.h" ] ; then
 fi
 
 adb reverse tcp:${TVM_TRACKER_PORT} tcp:${TVM_TRACKER_PORT}
-adb forward tcp:5000 tcp:5000
-adb forward tcp:5001 tcp:5001
-adb forward tcp:5002 tcp:5002
-env adb shell "cd ${TARGET_FOLDER}; killall -9 tvm_rpc-${USER}; sleep 2; LD_LIBRARY_PATH=${TARGET_FOLDER}/ ./tvm_rpc-${USER} server --host=0.0.0.0 --port=5000 --port-end=5010 --tracker=127.0.0.1:${TVM_TRACKER_PORT} --key=${RPC_DEVICE_KEY}" &
+ADB_PORTS_RANGE=4
+RPC_LISTEN_PORT=`find_free_port 6000 ${ADB_PORTS_RANGE}`
+export DEVICE_LISTEN_PORT=${RPC_LISTEN_PORT}
+for ii in `seq 0 ${ADB_PORTS_RANGE}` ; do
+  adb forward tcp:$((RPC_LISTEN_PORT+ii)) tcp:$((RPC_LISTEN_PORT+ii))
+done
+env adb shell "cd ${TARGET_FOLDER}; killall -9 tvm_rpc-${USER}-${TVM_TRACKER_PORT}; sleep 2; TARGET_RPC_TMP=${TARGET_FOLDER}/rpc_tmp LD_LIBRARY_PATH=${TARGET_FOLDER}/ ./tvm_rpc-${USER}-${TVM_TRACKER_PORT} server --host=0.0.0.0 --port=${RPC_LISTEN_PORT} --port-end=$((RPC_LISTEN_PORT+${ADB_PORTS_RANGE})) --tracker=127.0.0.1:${TVM_TRACKER_PORT} --key=${RPC_DEVICE_KEY}" &
 DEVICE_PID=$!
 sleep 5 # Wait for the device connections
-trap "{ kill ${TRACKER_PID}; kill ${DEVICE_PID}; cleanup; }" 0
+clean_ports() {
+    for ii in `seq 0 ${ADB_PORTS_RANGE}` ; do
+        adb forward --remove tcp:$((RPC_LISTEN_PORT+${ii})) || true
+    done;
+}
+trap "{ kill ${TRACKER_PID} || true; kill ${DEVICE_PID} || true; clean_ports; cleanup;}" 0
 
 # cleanup pycache
 find . -type f -path "*.pyc" | xargs rm -f
@@ -85,5 +116,6 @@ for node_id in $CLML_TESTS; do
     i=$((i+1))
 done
 
-kill ${TRACKER_PID}
-kill ${DEVICE_PID}
+kill ${TRACKER_PID} || true
+kill ${DEVICE_PID} || true
+clean_ports
