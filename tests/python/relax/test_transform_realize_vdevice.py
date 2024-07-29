@@ -220,12 +220,7 @@ def test_tuple_func_ret():
             x: R.Tensor((2, 3), "float32"),
             y: R.Tensor((2, 3), "float32"),
             z: R.Tensor((2, 3), "float32"),
-        ) -> R.Tuple(
-            [
-                R.Tensor((2, 3), "float32", "cuda"),
-                R.Tensor((2, 3), "float32", "cuda"),
-            ]
-        ):
+        ) -> R.Tuple([R.Tensor((2, 3), "float32", "cuda"), R.Tensor((2, 3), "float32", "cuda")]):
             with R.dataflow():
                 lv0 = R.add(x, y)
                 gv = R.multiply(lv0, z)
@@ -248,12 +243,7 @@ def test_tuple_func_ret():
             x: R.Tensor((2, 3), "float32", "cuda"),
             y: R.Tensor((2, 3), "float32", "cuda"),
             z: R.Tensor((2, 3), "float32", "cuda"),
-        ) -> R.Tuple(
-            [
-                R.Tensor((2, 3), "float32", "cuda"),
-                R.Tensor((2, 3), "float32", "cuda"),
-            ]
-        ):
+        ) -> R.Tuple([R.Tensor((2, 3), "float32", "cuda"), R.Tensor((2, 3), "float32", "cuda")]):
             with R.dataflow():
                 lv0: R.Tensor((2, 3), "float32", "cuda") = R.add(x, y)
                 gv: R.Tensor((2, 3), "float32", "cuda") = R.multiply(lv0, z)
