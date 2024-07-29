@@ -129,6 +129,16 @@ std::string CodeGenOpenCL::Finish() {
   if (enable_atomics_) {
     decl_stream << "#pragma OPENCL EXTENSION cl_khr_global_int32_base_atomics : enable\n"
                    "#pragma OPENCL EXTENSION cl_khr_global_int32_extended_atomics : enable\n\n";
+    decl_stream << "__inline float atomic_add_float_emu(volatile __global float* sum, const float "
+                   "toAdd) {\n"
+                   "float next_value = 0;"
+                   "float prev_value = 0;"
+                   "do {\n"
+                   "prev_value =*(sum);\n"
+                   "next_value =prev_value + toAdd;\n"
+                   "} while(atomic_cmpxchg((volatile global int *)(sum), *((int*)&prev_value), "
+                   "*((int*)&next_value)) != *((int*)&prev_value));\n"
+                   "return next_value;\n}\n";
   }
 
   // Enable OpenCL 1.2 sampler-less texture reads, but utilize
@@ -458,13 +468,21 @@ void CodeGenOpenCL::VisitExpr_(const CallNode* op, std::ostream& os) {
       this->PrintExpr(op->args.back(), os);
       os << "]";
     }
-  } else if (op->op.same_as(builtin_call_extern_)) {
+  } else if (op->op.same_as(builtin_call_extern_) || op->op.same_as(builtin_call_pure_extern_)) {
     auto func = Downcast<StringImm>(op->args[0]);
     // Enable atomics extension if used.
-    if (func->value == "atomic_add") {
+    if (func->value == "atomic_add" && op->dtype.is_float()) {
       enable_atomics_ = true;
+      this->PrintCallExtern(GetType(GetRef<PrimExpr>(op)), "atomic_add_float_emu", op->args, true,
+                            os);
+    } else if (func->value == "nearbyint") {
+      this->PrintCallExtern(GetType(GetRef<PrimExpr>(op)), "round", op->args, true, os);
+    } else {
+      if (func->value == "atomic_add") {
+        enable_atomics_ = true;
+      }
+      CodeGenC::VisitExpr_(op, os);
     }
-    CodeGenC::VisitExpr_(op, os);
   } else {
     CodeGenC::VisitExpr_(op, os);
   }
@@ -532,6 +550,34 @@ void CodeGenOpenCL::VisitExpr_(const MinNode* op, std::ostream& os) {
 
 void CodeGenOpenCL::VisitExpr_(const MaxNode* op, std::ostream& os) {
   PrintBinaryExpr(op, "max", os, this);
+}
+
+void CodeGenOpenCL::VisitExpr_(const ModNode* op, std::ostream& os) {  // NOLINT(*)
+  std::string opstr;
+  if (op->dtype.is_int() || op->dtype.is_uint()) {
+    opstr = "%";
+  } else {
+    ICHECK(op->dtype.is_float()) << "Expected floating point or integer dtype in Mod, but got "
+                                 << op->dtype;
+    opstr = "fmod";
+  }
+  if (op->dtype.lanes() == 1) {
+    if (isalpha(opstr.c_str()[0])) {
+      os << opstr.c_str() << '(';
+      this->PrintExpr(op->a, os);
+      os << ", ";
+      this->PrintExpr(op->b, os);
+      os << ')';
+    } else {
+      os << '(';
+      this->PrintExpr(op->a, os);
+      os << ' ' << opstr.c_str() << ' ';
+      this->PrintExpr(op->b, os);
+      os << ')';
+    }
+  } else {
+    this->PrintVecBinaryOp(opstr.c_str(), op->dtype, op->a, op->b, os);
+  }
 }
 
 void CodeGenOpenCL::VisitExpr_(const AndNode* op, std::ostream& os) {

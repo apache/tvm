@@ -50,7 +50,9 @@ def cuda_atomic_add_rule(op):
 def opencl_atomic_add_rule(op):
     if op.dtype == "int32":
         return tvm.tir.call_pure_extern("int32", "atomic_add", op.args[0], op.args[1])
-    raise RuntimeError("only support int32")
+    elif op.dtype == "float32":
+        return tvm.tir.call_pure_extern("float32", "atomic_add", op.args[0], op.args[1])
+    raise RuntimeError("only support int32, float32")
 
 
 register_intrin_lowering("tir.atomic_add", target="cuda", f=cuda_atomic_add_rule, level=99)
