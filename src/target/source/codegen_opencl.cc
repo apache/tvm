@@ -473,7 +473,7 @@ void CodeGenOpenCL::VisitExpr_(const CallNode* op, std::ostream& os) {
     // Enable atomics extension if used.
     if (func->value == "atomic_add" && op->dtype.is_float()) {
       enable_atomics_ = true;
-      this->PrintCallExtern(GetType(GetRef<PrimExpr>(op)), "atomic_add_float_emu1", op->args, true,
+      this->PrintCallExtern(GetType(GetRef<PrimExpr>(op)), "atomic_add_float_emu", op->args, true,
                             os);
     } else if (func->value == "nearbyint") {
       this->PrintCallExtern(GetType(GetRef<PrimExpr>(op)), "round", op->args, true, os);
