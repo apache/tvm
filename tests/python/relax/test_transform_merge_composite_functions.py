@@ -431,7 +431,7 @@ class Diamond_cyclic_dep_merged:
 
     @R.function
     def fused_relax_nn_gelu1_compiler_B(
-        lv2: R.Tensor((1, 64, 54, 54), dtype="float32")
+        lv2: R.Tensor((1, 64, 54, 54), dtype="float32"),
     ) -> R.Tensor((1, 64, 54, 54), dtype="float32"):
         R.func_attr({"Codegen": "compiler_B"})
 
@@ -1104,6 +1104,54 @@ def test_reshape():
             return gv
 
     check(Module, Expected)
+
+
+def test_relax_is_not_required_to_be_named_main():
+    """Functions inside IRModule may have arbitrary names
+
+    This is a regression test.  Earlier implementations of
+    MergeCompositeFunctions required the public-facing Relax function
+    of an IRModule to be named "main".
+
+    """
+
+    Before = Conv2dReLUx2.clone()
+    Before["main_with_another_name"] = Before["main"].with_attr(
+        "global_symbol", "main_with_another_name"
+    )
+    del Before["main"]
+
+    Expected = Conv2dReLUx2_merged.clone()
+    Expected["main_with_another_name"] = Expected["main"].with_attr(
+        "global_symbol", "main_with_another_name"
+    )
+    del Expected["main"]
+
+    check(Before, Expected)
+
+
+def test_multiple_relax_functions_may_be_present():
+    """IRModule may contain multiple Relax functions.
+
+    This is a regression test.  Earlier implementations of
+    MergeCompositeFunctions required the IRModule to have only a
+    single Relax function.
+
+    """
+
+    Before = Conv2dReLUx2.clone()
+    Before["main2"] = relax.utils.copy_with_new_vars(Before["main"]).with_attr(
+        "global_symbol", "main2"
+    )
+    del Before["main"]
+
+    Expected = Conv2dReLUx2_merged.clone()
+    Expected["main2"] = relax.utils.copy_with_new_vars(Expected["main"]).with_attr(
+        "global_symbol", "main2"
+    )
+    del Expected["main"]
+
+    check(Before, Expected)
 
 
 if __name__ == "__main__":
