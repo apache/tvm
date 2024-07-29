@@ -432,7 +432,7 @@ class Diamond_cyclic_dep_merged:
 
     @R.function
     def fused_relax_nn_gelu1_compiler_B(
-        lv2: R.Tensor((1, 64, 54, 54), dtype="float32")
+        lv2: R.Tensor((1, 64, 54, 54), dtype="float32"),
     ) -> R.Tensor((1, 64, 54, 54), dtype="float32"):
         R.func_attr({"Codegen": "compiler_B"})
 
@@ -1223,6 +1223,160 @@ def test_handle_existence_of_call_tir():
 
     After = relax.transform.MergeCompositeFunctions()(Before)
     tvm.ir.assert_structural_equal(Expected, After)
+
+
+def test_relax_is_not_required_to_be_named_main():
+    """Functions inside IRModule may have arbitrary names
+
+    This is a regression test.  Earlier implementations of
+    MergeCompositeFunctions required the public-facing Relax function
+    of an IRModule to be named "main".
+
+    """
+
+    Before = Conv2dReLUx2.clone()
+    Before["main_with_another_name"] = Before["main"].with_attr(
+        "global_symbol", "main_with_another_name"
+    )
+    del Before["main"]
+
+    Expected = Conv2dReLUx2_merged.clone()
+    Expected["main_with_another_name"] = Expected["main"].with_attr(
+        "global_symbol", "main_with_another_name"
+    )
+    del Expected["main"]
+
+    check(Before, Expected)
+
+
+def test_multiple_relax_functions_may_be_present():
+    """IRModule may contain multiple Relax functions.
+
+    This is a regression test.  Earlier implementations of
+    MergeCompositeFunctions required the IRModule to have only a
+    single Relax function.
+
+    """
+
+    Before = Conv2dReLUx2.clone()
+    Before["main2"] = relax.utils.copy_with_new_vars(Before["main"]).with_attr(
+        "global_symbol", "main2"
+    )
+    del Before["main"]
+
+    Expected = Conv2dReLUx2_merged.clone()
+    Expected["main2"] = relax.utils.copy_with_new_vars(Expected["main"]).with_attr(
+        "global_symbol", "main2"
+    )
+    del Expected["main"]
+
+    check(Before, Expected)
+
+
+def test_same_leaf_node_in_multiple_functions():
+    """Leaf nodes may occur in multiple functions
+
+    While each `relax.Var` must be unique across an IRModule, there is
+    no guarantee that a `relax::ExprNode*` will appear unique in a
+    single location across an IRModule.  Expressions that do not
+    depend on any variables, such as static shapes, may occur in
+    multiple functions.  In this test case, the same ShapeExpr is used
+    as the inferred shape returned by
+    `fused_relax_nn_conv2d_relax_nn_relu` in both `main` and `main2`.
+
+    This is a regression test.  In previous implementations of
+    `MergeCompositeFunctions`, the use of `PostOrderVisit` to populate
+    the group of leaf nodes resulted in inconsistent groups for
+    ShapeExpr instances used in inferred shapes.
+
+    """
+
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(
+            data: R.Tensor((1, 64, 56, 56), dtype="float32"),
+            weight: R.Tensor((64, 64, 3, 3), dtype="float32"),
+        ):
+            with R.dataflow():
+                gv = Before.fused_relax_nn_conv2d_relax_nn_relu(data, weight)
+                R.output(gv)
+            return gv
+
+        @R.function
+        def main2(
+            data: R.Tensor((1, 64, 56, 56), dtype="float32"),
+            weight: R.Tensor((64, 64, 3, 3), dtype="float32"),
+        ):
+            with R.dataflow():
+                gv = Before.fused_relax_nn_conv2d_relax_nn_relu(data, weight)
+                R.output(gv)
+            return gv
+
+        @R.function(private=True)
+        def fused_relax_nn_conv2d_relax_nn_relu(
+            data: R.Tensor((1, 64, 56, 56), dtype="float32"),
+            weight: R.Tensor((64, 64, 3, 3), dtype="float32"),
+        ) -> R.Tensor((1, 64, 54, 54), dtype="float32"):
+            R.func_attr({"Composite": "dnnl.conv2d_relu", "Primitive": 1})
+            with R.dataflow():
+                conv = R.nn.conv2d(data, weight)
+                output = R.nn.relu(conv)
+                R.output(output)
+            return output
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            data: R.Tensor((1, 64, 56, 56), dtype="float32"),
+            weight: R.Tensor((64, 64, 3, 3), dtype="float32"),
+        ):
+            with R.dataflow():
+                gv = Expected.fused_relax_nn_conv2d_relax_nn_relu1_dnnl(data, weight)
+                R.output(gv)
+            return gv
+
+        @R.function
+        def main2(
+            data: R.Tensor((1, 64, 56, 56), dtype="float32"),
+            weight: R.Tensor((64, 64, 3, 3), dtype="float32"),
+        ):
+            with R.dataflow():
+                gv = Expected.fused_relax_nn_conv2d_relax_nn_relu1_dnnl(data, weight)
+                R.output(gv)
+            return gv
+
+        @R.function
+        def fused_relax_nn_conv2d_relax_nn_relu1_dnnl(
+            data: R.Tensor((1, 64, 56, 56), dtype="float32"),
+            weight: R.Tensor((64, 64, 3, 3), dtype="float32"),
+        ) -> R.Tensor((1, 64, 54, 54), dtype="float32"):
+            R.func_attr({"Codegen": "dnnl"})
+
+            @R.function
+            def composite_lambda(
+                data_inner: R.Tensor((1, 64, 56, 56), dtype="float32"),
+                weight_inner: R.Tensor((64, 64, 3, 3), dtype="float32"),
+            ) -> R.Tensor((1, 64, 54, 54), dtype="float32"):
+                R.func_attr({"Composite": "dnnl.conv2d_relu"})
+                with R.dataflow():
+                    conv = R.nn.conv2d(data_inner, weight_inner)
+                    output = R.nn.relu(conv)
+                    R.output(output)
+                return output
+
+            gv = composite_lambda(data, weight)
+            return gv
+
+    main_shape_expr = Before["main"].body.blocks[0].bindings[0].var.struct_info.shape
+    main2_shape_expr = Before["main2"].body.blocks[0].bindings[0].var.struct_info.shape
+    assert main_shape_expr.handle.value == main2_shape_expr.handle.value, (
+        "Setup failed for this test.  "
+        "Inferring the shape of `gv ` in both `main` and `main2` "
+        "should result in the same ShapeExpr."
+    )
+    check(Before, Expected)
 
 
 if __name__ == "__main__":

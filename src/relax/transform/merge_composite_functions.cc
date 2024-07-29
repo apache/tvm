@@ -85,16 +85,6 @@ class CompositeGroupsBuilder : public MemoizedExprTranslator<Group*> {
       memo_[param] = arena_->make<Group>();
     }
 
-    PostOrderVisit(func, [this](Expr e) {
-      // Make default groups for dataflow nodes other than CallNode.
-      // Groups for CallNode are created in its visitor.
-      if (e->IsInstance<ConstantNode>() || e->IsInstance<ShapeExprNode>() ||
-          e->IsInstance<TupleNode>() || e->IsInstance<TupleGetItemNode>() ||
-          e->IsInstance<PrimValueNode>()) {
-        memo_[e] = arena_->make<Group>();
-      }
-    });
-
     VisitExpr(func->body);
 
     GroupMap group_map;
@@ -166,6 +156,12 @@ class CompositeGroupsBuilder : public MemoizedExprTranslator<Group*> {
     return group;
   }
 
+  Group* VisitExpr_(const ConstantNode* node) { return arena_->make<Group>(); }
+  Group* VisitExpr_(const ShapeExprNode* node) { return arena_->make<Group>(); }
+  Group* VisitExpr_(const TupleNode* node) { return arena_->make<Group>(); }
+  Group* VisitExpr_(const TupleGetItemNode* node) { return arena_->make<Group>(); }
+  Group* VisitExpr_(const PrimValueNode* node) { return arena_->make<Group>(); }
+
  private:
   Optional<String> GetCodegenName(const Expr& callee) {
     auto const* gvar = callee.as<GlobalVarNode>();
@@ -223,7 +219,8 @@ class CompositeGroupsBuilder : public MemoizedExprTranslator<Group*> {
     std::unordered_set<Group*> dependencies;
 
     for (const auto& arg : args) {
-      for (auto dep : group_deps_[memo_[arg]->FindRoot()]) {
+      Group* group = VisitExpr(arg);
+      for (auto dep : group_deps_[group->FindRoot()]) {
         dependencies.insert(dep);
       }
     }
@@ -245,8 +242,8 @@ class CompositeGroupsBuilder : public MemoizedExprTranslator<Group*> {
 
       ICHECK(memo_.count(expr)) << "Could not find memo-ized group for expression of type "
                                 << expr->GetTypeKey();
-      auto arg_group_root = memo_[expr]->FindRoot();
 
+      auto arg_group_root = VisitExpr(expr)->FindRoot();
       if (arg_group_root == group_root) {
         // If arg and the current node are in the same group,
         // there is nothing to update.
@@ -276,7 +273,7 @@ class CompositeGroupsBuilder : public MemoizedExprTranslator<Group*> {
     std::unordered_set<Group*> parent_dependencies = GetParentGroupDependencies(call->args);
 
     for (const auto& arg : call->args) {
-      auto arg_group = memo_[arg];
+      auto arg_group = VisitExpr(arg);
       Optional<String> arg_codegen_name = GetCodegenName(arg_group);
       if (arg_codegen_name == codegen_name && !parent_dependencies.count(arg_group->FindRoot())) {
         // If there is a parent group with the same target, which none of the parent dependency
@@ -348,10 +345,12 @@ class CompositeFunctionAnnotator : public ExprMutator {
   }
   using ExprMutator::VisitExpr_;
 
-  IRModule update() {
-    auto gvar = mod_->GetGlobalVar("main");
-    auto func = Downcast<Function>(mod_->Lookup(gvar));
-    builder_->UpdateFunction(gvar, Downcast<Function>(VisitExpr(func)));
+  IRModule update(const Array<String>& entry_function_names) {
+    for (const auto& name : entry_function_names) {
+      auto gvar = mod_->GetGlobalVar(name);
+      auto func = Downcast<Function>(mod_->Lookup(gvar));
+      builder_->UpdateFunction(gvar, Downcast<Function>(VisitExpr(func)));
+    }
     return builder_->GetContextIRModule();
   }
 
@@ -398,15 +397,39 @@ class CompositeFunctionAnnotator : public ExprMutator {
 }  // namespace
 
 IRModule MergeCompositeFunctions(IRModule mod) {
-  auto gvar = mod->GetGlobalVar("main");
-  auto func = Downcast<Function>(mod->Lookup(gvar));
   support::Arena arena;
-  auto group_map = CompositeGroupsBuilder(mod, &arena).Run(func);
-  auto new_mod = MakeGroupedFunctions(mod, group_map);
-  new_mod = CompositeFunctionAnnotator(mod, new_mod).update();
+
+  std::vector<String> vec_entry_function_names;
+  for (const auto& [gvar, func] : mod->functions) {
+    if (func.as<FunctionNode>() && !func->GetAttr<String>(attr::kCodegen).defined() &&
+        !func->GetAttr<Bool>(attr::kPrimitive).defined()) {
+      vec_entry_function_names.push_back(gvar->name_hint);
+    }
+  }
+  std::sort(vec_entry_function_names.begin(), vec_entry_function_names.end());
+
+  Array<String> entry_function_names(vec_entry_function_names);
+
+  std::unordered_map<const Object*, Group*> group_map;
+
+  for (const auto& name : entry_function_names) {
+    auto func = Downcast<Function>(mod->Lookup(name));
+    auto new_group_map = CompositeGroupsBuilder(mod, &arena).Run(func);
+
+    for (const auto& [obj, group] : new_group_map) {
+      ICHECK(!group_map.count(obj))
+          << "Function " << name << " was analyzed and produced group containing "
+          << GetRef<ObjectRef>(obj) << " of type " << obj->GetTypeKey()
+          << ", but this object was already assigned to a different group";
+      group_map[obj] = group;
+    }
+  }
+
+  auto new_mod = MakeGroupedFunctions(mod, group_map, true, entry_function_names);
+  new_mod = CompositeFunctionAnnotator(mod, new_mod).update(entry_function_names);
 
   // TODO(@tvm-team): Implicit pass dependency. Revisit when we have a better way to handle this.
-  return DeadCodeElimination(new_mod, {"main"});
+  return DeadCodeElimination(new_mod, {});
 }
 
 namespace transform {
