@@ -192,7 +192,6 @@ def test_prim_value_scalar_computed_in_relax(exec_mode, dtype):
     np.testing.assert_equal(expected, output)
 
 
-@pytest.mark.xfail(reason="Not yet implemented")
 def test_omit_out_sinfo(exec_mode):
     """The out_sinfo may be inferred from the PrimFunc signature"""
 
@@ -222,7 +221,6 @@ def test_omit_out_sinfo(exec_mode):
     np.testing.assert_equal(expected, output)
 
 
-@pytest.mark.xfail(reason="Not yet implemented")
 def test_omit_out_sinfo_with_tir_var_scalar(exec_mode):
     """The out_sinfo may be inferred when tir_vars are present.
 
@@ -263,6 +261,49 @@ def test_omit_out_sinfo_with_tir_var_scalar(exec_mode):
     output = vm["main"](tvm.nd.array(arg), 4).numpy()
 
     np.testing.assert_equal(expected, output)
+
+
+@pytest.mark.xfail(reason="Known limitation in TVMScript.")
+def test_inferred_out_sinfo_with_dynamic_shapes():
+    """The out_sinfo may contain dynamic shapes
+
+    Currently, this test fails due to limitations in the TVMScript
+    parsing.  When parsing an IRModule, function signatures are parsed
+    without inspecting the body, to be used for StructInfo inference
+    when calling a subroutine.  However, while Relax dynamic shapes
+    can be fully expressed in the function signature
+    (e.g. `R.Tensor(["dynamic_var"])`), TIR dynamic shapes are
+    expressed in `T.match_buffer` statements that appear inside the
+    function body.
+
+    Resolving this limitation will require either (1) fully parsing
+    TIR functions prior to Relax functions, or (2) inspecting the
+    prelude of a TIR function for `T.match_buffer` as part of the
+    signature parsing.
+
+    """
+
+    @I.ir_module
+    class Module:
+        @R.function
+        def main(A: R.Tensor([16], "int32"), B: R.Tensor([32], "int32")):
+            C = R.call_tir(Module.concat, [A, B])
+            return C
+
+        @T.prim_func
+        def concat(A_handle: T.handle, B_handle: T.handle, C_handle: T.handle):
+            A_len = T.int64()
+            B_len = T.int64()
+
+            A = T.match_buffer(A_handle, A_len, "int32")
+            B = T.match_buffer(B_handle, B_len, "int32")
+            C = T.match_buffer(C_handle, A_len + B_len, "int32")
+            for i in range(A_len):
+                C[i] = A[i]
+            for i in range(B_len):
+                C[A_len + i] = B[i]
+
+    assert Module["main"].struct_info.ret.shape == [48]
 
 
 if __name__ == "__main__":

@@ -331,8 +331,133 @@ RELAY_REGISTER_OP("relax.call_tir")
     .set_attr<FNormalize>("FNormalize", NormalizeCallTIR)
     .set_attr<Bool>("FPurity", Bool(true));
 
-Expr MakeCallTIR(Expr func, Tuple args, Array<TensorStructInfo> out_sinfo_list,
+static Array<TensorStructInfo> InferCallTIROutputStructInfo(Expr func, Tuple args,
+                                                            Optional<Expr> packed_ints) {
+  auto opt_callee_sinfo = func->struct_info_.as<FuncStructInfo>();
+  CHECK(opt_callee_sinfo) << "ValueError: "
+                          << "If the `out_sinfo` argument to `R.call_tir` is omitted, "
+                          << "then the callee must be annotated with FuncStructInfo, "
+                          << "from which the return tensor shapes will be inferred.";
+  auto callee_sinfo = opt_callee_sinfo.value();
+
+  CHECK(callee_sinfo->params.defined())
+      << "ValueError: "
+      << "If the `out_sinfo` argument to `R.call_tir` is omitted, "
+      << "then the callee's FuncStructInfo must have known signature, "
+      << "but the callee instead has StructInfo " << callee_sinfo;
+  auto callee_params = callee_sinfo->params.value();
+
+  // R.call_tir expects the PrimFunc to have three groups of arguments.
+  //
+  // 1. Input arguments that are explicitly provided as Relax arguments.
+  // 2. Output tensor arguments.
+  // 3. Shape arguments, represented as `T.int64` in the PrimFunc, and
+  //    as an optional ShapeExpr argument in the `relax::Call` node.
+  //
+  // In order to determine the return type of `R.call_tir`, we must
+  // identify the PrimFunc arguments that will be in group (2).
+  size_t num_input_arguments = args->fields.size();
+  size_t num_trailing_int_arguments = 0;
+  const ShapeStructInfoNode* packed_tuple_sinfo = nullptr;
+  if (packed_ints) {
+    auto packed_sinfo = packed_ints.value()->struct_info_;
+    packed_tuple_sinfo = packed_sinfo.as<ShapeStructInfoNode>();
+    CHECK(packed_tuple_sinfo && !packed_tuple_sinfo->IsUnknownNdim())
+        << "ValueError: "
+        << "If the `out_sinfo` argument to `R.call_tir` is omitted, "
+        << "and the `tir_vars` argument is present, "
+        << "then it must be annotated with ShapeStructInfo "
+        << "using a known number of dimensions.  "
+        << "However, struct info " << packed_sinfo
+        << " does not have a known number of dimensions.";
+    num_trailing_int_arguments = packed_tuple_sinfo->ndim;
+  } else {
+    num_trailing_int_arguments = 0;
+  }
+
+  CHECK_LE(num_input_arguments + num_trailing_int_arguments, callee_params.size())
+      << "ValueError: "
+      << "R.call_tir attempted to call " << func << " using " << num_input_arguments
+      << " input arguments and " << num_trailing_int_arguments << " trailing integer arguments.  "
+      << "However, the callee only accepts " << callee_params.size() << " arguments in total.";
+
+  // At this point, the return types are known.  However, the shapes
+  // in `callee_params` may contain dynamic shape parameters that are
+  // not present in the caller's scope.  The `DeriveCallRetStructInfo`
+  // utility can infer the value of dynamic parameters in
+  // `FuncStructInfoNode::ret` based on definitions in
+  // `FuncStructInfoNode::params`, inferring the correct values in the
+  // caller's scope.
+  //
+  // Since the callee of `R.call_tir` is provided with output
+  // arguments, where `DeriveCallRetStructInfo` requires a callee that
+  // produces its own outputs, a dummy function signature and
+  // arguments are used.
+
+  auto dummy_callee_sinfo = [&]() -> FuncStructInfo {
+    Array<StructInfo> dummy_params(callee_params.begin(),
+                                   callee_params.begin() + num_input_arguments);
+
+    for (size_t i = callee_params.size() - num_trailing_int_arguments; i < callee_params.size();
+         i++) {
+      dummy_params.push_back(callee_params[i]);
+    }
+
+    Array<StructInfo> dummy_ret(callee_params.begin() + num_input_arguments,
+                                callee_params.end() - num_trailing_int_arguments);
+
+    return FuncStructInfo(dummy_params, TupleStructInfo(dummy_ret));
+  }();
+
+  auto dummy_args = [&]() -> Array<Expr> {
+    Array<Expr> dummy_args = args->fields;
+
+    for (size_t i = 0; i < num_trailing_int_arguments; i++) {
+      ICHECK(packed_tuple_sinfo);
+      PrimStructInfo dummy_arg_sinfo = [&]() {
+        if (packed_tuple_sinfo->values) {
+          return PrimStructInfo(packed_tuple_sinfo->values.value()[i]);
+        } else {
+          return PrimStructInfo(DataType::Int(64));
+        }
+      }();
+      dummy_args.push_back(Var("dummy_arg", dummy_arg_sinfo));
+    }
+
+    return dummy_args;
+  }();
+
+  auto derived_ret_sinfo = DeriveCallRetStructInfo(
+      dummy_callee_sinfo, Call(Var("dummy_callee", dummy_callee_sinfo), dummy_args),
+      BlockBuilder::Create(NullOpt));
+
+  Array<TensorStructInfo> out_sinfo_list;
+  auto out_fields = Downcast<TupleStructInfo>(derived_ret_sinfo)->fields;
+  for (size_t i = 0; i < out_fields.size(); i++) {
+    auto field_sinfo = out_fields[i];
+    auto tensor_sinfo = field_sinfo.as<TensorStructInfo>();
+    CHECK(tensor_sinfo)
+        << "TypeError: "
+        << "If the `out_sinfo` argument to `R.call_tir` is omitted, "
+        << "output tensor arguments are inferred from the number of input arguments.  "
+        << "However, output " << i << " (corresponding to function parameter "
+        << (i + num_input_arguments) << ") has struct info " << field_sinfo
+        << ", and is not a tensor.";
+    out_sinfo_list.push_back(tensor_sinfo.value());
+  }
+  return out_sinfo_list;
+}
+
+Expr MakeCallTIR(Expr func, Tuple args, Optional<Array<TensorStructInfo>> opt_out_sinfo_list,
                  Optional<Expr> packed_ints) {
+  auto out_sinfo_list = [&]() -> Array<TensorStructInfo> {
+    if (opt_out_sinfo_list) {
+      return opt_out_sinfo_list.value();
+    } else {
+      return InferCallTIROutputStructInfo(func, args, packed_ints);
+    }
+  }();
+
   for (const TensorStructInfo& sinfo : out_sinfo_list) {
     const auto* shape = sinfo->shape.as<ShapeExprNode>();
     CHECK(shape != nullptr) << "out_sinfo of call_tir should have defined ShapeExpr as shape. "
