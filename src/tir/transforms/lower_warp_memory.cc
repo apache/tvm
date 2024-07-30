@@ -124,8 +124,8 @@ class WarpStoreCoeffFinder : private StmtExprVisitor {
       auto* ext_name = op->args[0].as<StringImmNode>();
       std::string ext_name_str = std::string(ext_name->value.c_str());
       if (ext_name_str.find("decode_") == 0) {
-        auto* local_size = op->args[3].as<IntImmNode>();
-        ICHECK(local_size) << "Integer expected for the first argument of mma_fill";
+        auto* local_size = op->args[op->args.size() - 1].as<IntImmNode>();
+        ICHECK(local_size) << "Integer expected for the first argument of dequantize unit";
         warp_coeff_ = local_size->value;
       }
     }
