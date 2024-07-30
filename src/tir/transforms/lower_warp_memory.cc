@@ -120,8 +120,15 @@ class WarpStoreCoeffFinder : private StmtExprVisitor {
       auto* local_size = op->args[0].as<IntImmNode>();
       ICHECK(local_size) << "Integer expected for the first argument of mma_fill";
       warp_coeff_ = local_size->value;
+    } else if (op->op.same_as(builtin::call_extern()) && warp_coeff_ == 0) {
+      auto* ext_name = op->args[0].as<StringImmNode>();
+      std::string ext_name_str = std::string(ext_name->value.c_str());
+      if (ext_name_str.find("decode_") == 0) {
+        auto* local_size = op->args[3].as<IntImmNode>();
+        ICHECK(local_size) << "Integer expected for the first argument of mma_fill";
+        warp_coeff_ = local_size->value;
+      }
     }
-
     StmtExprVisitor::VisitExpr_(op);
   }
 
@@ -138,12 +145,22 @@ class WarpStoreCoeffFinder : private StmtExprVisitor {
     PrimExpr index = op->indices[0];
     if (op->value.dtype().lanes() != 1) {
       arith::PVar<PrimExpr> base;
-      ICHECK(arith::ramp(base, 1, op->value.dtype().lanes()).Match(index))
-          << "LowerWarpMemory failed due to store index=" << index
-          << ", can only handle continuous store";
-      UpdatePattern(base.Eval());
-
-      index = base.Eval();
+      auto lanes = op->buffer->dtype.lanes();
+      if (lanes != 1) {
+        auto ramped_index = analyzer_->canonical_simplify(
+            Ramp(Mul(index, lanes), make_const(op->indices[0].dtype(), 1), lanes));
+        ICHECK(arith::ramp(base, 1, op->value.dtype().lanes()).Match(ramped_index))
+            << "LowerWarpMemory failed due to store index=" << index
+            << ", can only handle continuous store";
+        UpdatePattern(base.Eval());
+        index = base.Eval();
+      } else {
+        ICHECK(arith::ramp(base, 1, op->value.dtype().lanes()).Match(index))
+            << "LowerWarpMemory failed due to store index=" << index
+            << ", can only handle continuous store";
+        UpdatePattern(base.Eval());
+        index = base.Eval();
+      }
     }
 
     UpdatePattern(index);
@@ -151,6 +168,7 @@ class WarpStoreCoeffFinder : private StmtExprVisitor {
 
   void UpdatePattern(const PrimExpr& index) {
     Array<PrimExpr> m = arith::DetectLinearEquation(index, {warp_index_});
+
     ICHECK_EQ(m.size(), 2U)
         << "LowerWarpMemory failed. Could not simplify the store index `" << index
         << "` into the form ax + by + cz + ... Warp memory is approximated by storing values in "
@@ -158,6 +176,7 @@ class WarpStoreCoeffFinder : private StmtExprVisitor {
            "linear equation indices are supported.";
     PrimExpr mcoeff = analyzer_->canonical_simplify(m[0]);
     const auto* mcoeff_as_int = mcoeff.as<IntImmNode>();
+
     ICHECK(mcoeff_as_int && mcoeff_as_int->value > 0)
         << "LowerWarpMemory failed due to store index=" << index
         << ", require positive constant coefficient on warp index " << warp_index_ << " but get "
@@ -240,14 +259,12 @@ class WarpAccessRewriter : protected StmtExprMutator {
     alloc_size *= op->dtype.lanes();
     std::tie(warp_index_, width_) = WarpIndexFinder(warp_size_).Find(op->body);
     warp_coeff_ = WarpStoreCoeffFinder(buffer_, warp_index_, analyzer_).Find(op->body);
-
     // Align the local memory size. The number of elements may not
     // be a multiple of width_ * warp_coeff_; round it up.
     int factor = width_ * warp_coeff_;
     ICHECK_NE(factor, 0) << "Divide by zero";
     warp_group_ = (alloc_size + (factor - 1)) / factor;
     alloc_size = warp_group_ * factor;
-
     return Allocate(op->buffer_var, op->dtype, {make_const(DataType::Int(32), alloc_size / width_)},
                     op->condition, this->VisitStmt(op->body), op->annotations);
   }
@@ -259,6 +276,28 @@ class WarpAccessRewriter : protected StmtExprMutator {
       if (op->args[i].get() == buffer_) {
         PrimExpr local_index = SplitIndexByGroup(op->args[i + 1]).first;
         new_args.Set(i + 1, local_index);
+      }
+    }
+    return Call(op->dtype, op->op, new_args);
+  }
+
+  PrimExpr RewriteAccessPtr(const CallNode* op, const std::vector<int>& indices) {
+    Array<PrimExpr> new_args = op->args;
+    for (int i : indices) {
+      if (auto access = op->args[i].as<tir::CallNode>()) {
+        if (access->op.same_as(builtin::tvm_access_ptr())) {
+          if (Downcast<Var>(access->args[1])->name_hint != buffer_->name_hint) {
+            continue;
+          }
+          ICHECK(access->args.size()) << "Builtin tvm_access_ptr() may not have empty arguments";
+          auto new_access_args = access->args;
+          auto address = Downcast<PrimExpr>(access->args[2]);
+          auto local_coef = Downcast<IntImm>(access->args[3]);
+          auto split_address = analyzer_->canonical_simplify(Mul(
+              Div(address, Mul(IntImm(local_coef->dtype, warp_size_), local_coef)), local_coef));
+          new_access_args.Set(2, split_address);
+          new_args.Set(i, Call(access->dtype, access->op, new_access_args));
+        }
       }
     }
     return Call(op->dtype, op->op, new_args);
@@ -281,6 +320,14 @@ class WarpAccessRewriter : protected StmtExprMutator {
       return RewriteIndicesAt(op, {1});
     }
 
+    if (op->op.same_as(builtin::call_extern())) {
+      auto* ext_name = op->args[0].as<StringImmNode>();
+      std::string ext_name_str = std::string(ext_name->value.c_str());
+      if (ext_name_str.find("decode_") == 0) {
+        return RewriteAccessPtr(op, {1, 2});
+      }
+    }
+
     return StmtExprMutator::VisitExpr_(op);
   }
 
@@ -291,17 +338,29 @@ class WarpAccessRewriter : protected StmtExprMutator {
 
   Stmt VisitStmt_(const BufferStoreNode* op) override {
     auto store = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(op));
-
     if (store->buffer->data.get() == buffer_) {
       ICHECK_EQ(store->indices.size(), 1) << "Expected flat memory to use as warp memory.  "
                                           << "Has StorageFlatten (TE-based schedule) or "
                                           << "FlattenBuffer (TIR-based schedules) been run?";
+      auto lanes = store->buffer->dtype.lanes();
+      if (lanes != 1) {
+        // handle warp memory with vectorized data, which is not supported by the current
+        // implementation
+        auto ramped_indices = analyzer_->canonical_simplify(
+            Ramp(Mul(store->indices[0], lanes), make_const(store->indices[0].dtype(), 1), lanes));
 
-      auto [local_index, group] = SplitIndexByGroup(store->indices[0]);
-      (void)group;  // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=81767
-
-      auto writer = store.CopyOnWrite();
-      writer->indices = {local_index};
+        // deduce local_index by ramped_indices
+        auto [local_index, group] = SplitIndexByGroup(ramped_indices);
+        (void)group;  // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=81767
+        auto writer = store.CopyOnWrite();
+        Ramp local_index_ramp = Downcast<Ramp>(local_index);
+        writer->indices = {analyzer_->canonical_simplify(Div(local_index_ramp->base, lanes))};
+      } else {
+        auto [local_index, group] = SplitIndexByGroup(store->indices[0]);
+        (void)group;  // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=81767
+        auto writer = store.CopyOnWrite();
+        writer->indices = {local_index};
+      }
     }
 
     return std::move(store);
@@ -360,6 +419,7 @@ class WarpAccessRewriter : protected StmtExprMutator {
       PrimExpr x = analyzer_->canonical_simplify(indexmod(index, m));
       PrimExpr y = index / make_const(index.dtype(), warp_coeff_ * width_);
       y = y * m + x;
+
       PrimExpr z = indexdiv(indexmod(index, make_const(index.dtype(), warp_coeff_ * width_)), m);
       return std::make_pair(analyzer_->canonical_simplify(y), analyzer_->canonical_simplify(z));
     }
