@@ -109,9 +109,10 @@ def test_buffer_index_merge_mult_mod():
     A_stride = tvm.tir.decl_buffer((m, n), "float32", strides=(s, 1))
 
     def assert_simplified_equal(index_simplified, index_direct):
-        tvm.ir.assert_structural_equal(
-            index_simplified, index_direct
-        ), "index_simplified=%s, index_direct=%s" % (index_simplified, index_direct)
+        (
+            tvm.ir.assert_structural_equal(index_simplified, index_direct),
+            "index_simplified=%s, index_direct=%s" % (index_simplified, index_direct),
+        )
 
     idxd = tvm.tir.indexdiv
     idxm = tvm.tir.indexmod
@@ -274,6 +275,11 @@ def test_buffer_flatten_uses_axis_separators():
     flat = buf.get_flattened_buffer()
     tvm.ir.assert_structural_equal(flat.axis_separators, [1])
     tvm.ir.assert_structural_equal(flat.shape, [4 * 16, 32])
+
+
+def test_invalid_axis_separators_raises_exception():
+    with pytest.raises(ValueError):
+        tvm.tir.decl_buffer([1], axis_separators=[1])
 
 
 if __name__ == "__main__":
