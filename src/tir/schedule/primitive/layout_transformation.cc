@@ -1485,7 +1485,6 @@ class BufferAxisSeparatorMutator : private ReplaceBufferMutator {
     if (it != buffer_var_map_.end()) {
       const Buffer& new_source_buffer = it->second;
       Buffer new_target_buffer = match_buffer->buffer;
-      new_target_buffer.CopyOnWrite()->axis_separators = new_source_buffer->axis_separators;
       if (new_target_buffer->shape.size() != new_source_buffer->shape.size()) {
         LOG(WARNING)
             << "Target buffer in match_buffer doesn't have the same dimensionality as its source "
