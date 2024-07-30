@@ -234,19 +234,35 @@ class CompositeGroupsBuilder : public MemoizedExprTranslator<Group*> {
   void UpdateGroupDependencies(Group* group, const Array<Expr>& args) {
     Group* group_root = group->FindRoot();
 
-    for (const auto& arg : args) {
-      auto arg_group_root = memo_[arg]->FindRoot();
+    std::function<void(Expr)> visit_expr = [&](Expr expr) {
+      if (expr.as<GlobalVarNode>()) return;
+      if (auto tuple = expr.as<TupleNode>()) {
+        for (const auto& field : tuple->fields) {
+          visit_expr(field);
+        }
+        return;
+      }
+
+      ICHECK(memo_.count(expr)) << "Could not find memo-ized group for expression of type "
+                                << expr->GetTypeKey();
+      auto arg_group_root = memo_[expr]->FindRoot();
+
       if (arg_group_root == group_root) {
         // If arg and the current node are in the same group,
         // there is nothing to update.
-        continue;
+        return;
       }
+
       // Add the group of arg as dependency
       group_deps_[group_root].insert(arg_group_root);
       // Propagate dependencies of arg
       for (auto dep : group_deps_[arg_group_root]) {
         group_deps_[group_root].insert(dep);
       }
+    };
+
+    for (const auto& arg : args) {
+      visit_expr(arg);
     }
   }
 
