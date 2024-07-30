@@ -71,7 +71,7 @@ def LUT_generation(inp_scale, inp_zp, out_scale, out_zp, op_name) -> None:
             op_val = np.log(dequant)
         elif "abs" in op_name:
             op_val = np.abs(dequant)
-        else :
+        else:
             logger.error("Error op is other than unary op")
 
         # Quantizing the value generated and appending in the Look Up Table)
