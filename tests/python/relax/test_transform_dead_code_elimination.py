@@ -657,6 +657,7 @@ def test_well_formed_output_with_restricted_scope():
     assert tvm.relax.analysis.well_formed(After)
     tvm.ir.assert_structural_equal(Expected, After)
 
+
 def test_recursively_defined_lambda():
     """DCE may be applied to recursively-defined functions
 
@@ -698,6 +699,7 @@ def test_recursively_defined_lambda():
 
     verify(Before, Expected)
 
+
 def test_recursively_defined_closure():
     """DCE may be applied to recursively-defined closures
 
@@ -735,6 +737,7 @@ def test_recursively_defined_closure():
     Expected = Before
 
     verify(Before, Expected)
+
 
 if __name__ == "__main__":
     tvm.testing.main()
