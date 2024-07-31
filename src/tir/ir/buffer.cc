@@ -340,25 +340,24 @@ static void ValidateAxisSeparators(const Array<IntImm>& axis_separators, size_t 
   for (size_t i = 0; (i + 1) < axis_separators.size(); i++) {
     auto sep = axis_separators[i]->value;
     auto next_sep = axis_separators[i + 1]->value;
-    CHECK_LT(sep, next_sep) << "ValueError: "
-                            << "Axis separators must be in strictly increasing order, "
+    CHECK_LE(sep, next_sep) << "ValueError: "
+                            << "Axis separators must be in increasing order, "
                             << "but axis_separators[" << i << "] = " << sep
                             << " is greater than or equal to axis_separators[" << (i + 1)
                             << "] = " << next_sep << ".";
   }
   if (axis_separators.size()) {
     auto first_sep = axis_separators[0]->value;
-    CHECK_GT(first_sep, 0) << "ValueError: "
-                           << "First axis separator must be strictly greater than 0, "
-                           << "so that first output axis contains at least one input axis.  "
+    CHECK_GE(first_sep, 0) << "ValueError: "
+                           << "All axis separators must be non-negative.  "
                            << "However, the axis_separators[0] = " << first_sep;
     auto last_sep = axis_separators[axis_separators.size() - 1]->value;
-    CHECK_LT(last_sep, buffer_dim)
+    CHECK_LE(last_sep, buffer_dim)
         << "ValueError: "
-        << "Last output axis must contain at least one input axis.  "
-        << "However, the axis_separators[" << (axis_separators.size() - 1) << "] = " << last_sep
-        << " does not leave any input axes between it and the buffer's dimensionality "
-        << buffer_dim;
+        << "All axis separators must be within the range "
+        << "0 <= sep <= buffer_dim.  "
+        << "However, the last axis_separators[" << (axis_separators.size() - 1)
+        << "] = " << last_sep << " is greater than the buffer's dimensionality of " << buffer_dim;
   }
 }
 

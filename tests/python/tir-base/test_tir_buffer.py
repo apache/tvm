@@ -279,7 +279,7 @@ def test_buffer_flatten_uses_axis_separators():
 
 def test_invalid_axis_separators_raises_exception():
     with pytest.raises(ValueError):
-        tvm.tir.decl_buffer([1], axis_separators=[1])
+        tvm.tir.decl_buffer([1], axis_separators=[1, 2])
 
 
 if __name__ == "__main__":

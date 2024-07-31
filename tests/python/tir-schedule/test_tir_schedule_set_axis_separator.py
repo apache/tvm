@@ -89,31 +89,17 @@ def element_wise_subregion_match(A: T.Buffer((128, 128), "float32"), C: T.Buffer
 
 @T.prim_func
 def element_wise_subregion_match_set_axis_separator(A: T.Buffer((128, 128), "float32"), C: T.Buffer((128, 128), "float32")) -> None:
-    # The `set_axis_separator` scheduling primitive updates the
-    # backing allocation.
     B = T.alloc_buffer([128, 128], dtype="float32", axis_separators=[1])
 
     for i, j in T.grid(128, 128):
         with T.block("B"):
             vi, vj = T.axis.remap("SS", [i, j])
-            # Buffer views do *NOT* receive any `axis_separator`
-            # annotations.  Since the dimensions (and even
-            # dimensionality) of a view may be different than that of
-            # the backing allocation, only the backing allocation can
-            # define how logical dimensions are mapped into physical
-            # dimensions.
-            #
-            # When lowering, buffer views are resolved prior to buffer
-            # flattening.  Since the view no longer exists when the
-            # buffer is flattened, this ensures that all flattening of
-            # a buffer uses the `axis_separator` field of the backing
-            # allocation.
-            B_subregion0 = T.match_buffer(B[vi, vj], [], dtype="float32", offset_factor=1)
+            B_subregion0 = T.match_buffer(B[vi, vj], [], dtype="float32", offset_factor=1, axis_separators=[0])
             B_subregion0[()] = A[vi, vj] * T.float32(2)
     for i, j in T.grid(128, 128):
         with T.block("C"):
             vi, vj = T.axis.remap("SS", [i, j])
-            B_subregion1 = T.match_buffer(B[vi, vj], [], dtype="float32", offset_factor=1)
+            B_subregion1 = T.match_buffer(B[vi, vj], [], dtype="float32", offset_factor=1, axis_separators=[0])
             C[vi, vj] = B_subregion1[()] + T.float32(1)
 
 
