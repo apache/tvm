@@ -37,7 +37,9 @@ def test_ipc_allreduce_rewrite():
             alloc1: R.Tensor((m, n), dtype="float16") = R.builtin.alloc_tensor(  # type: ignore
                 R.shape([m, n]), R.dtype("float16"), R.prim_value(0), R.str("global")
             )
-            _: R.Object = R.call_packed("runtime.disco.allreduce", lv1, R.shape([0]), alloc1)
+            _: R.Object = R.call_packed(
+                "runtime.disco.allreduce", lv1, R.shape([0]), R.prim_value(True), alloc1
+            )
             return alloc1
 
     @I.ir_module
@@ -85,7 +87,9 @@ def test_ipc_allreduce_spread_along_reshape():
             alloc1: R.Tensor((m * n,), dtype="float16") = R.builtin.alloc_tensor(  # type: ignore
                 R.shape([m * n]), R.dtype("float16"), R.prim_value(0), R.str("global")
             )
-            _: R.Object = R.call_packed("runtime.disco.allreduce", lv1, R.shape([0]), alloc1)
+            _: R.Object = R.call_packed(
+                "runtime.disco.allreduce", lv1, R.shape([0]), R.prim_value(False), alloc1
+            )
             return alloc1
 
     @I.ir_module
@@ -137,7 +141,9 @@ def test_ipc_allreduce_skip_reducer_other_than_sum():
             alloc1: R.Tensor((m, n), dtype="float16") = R.builtin.alloc_tensor(  # type: ignore
                 R.shape([m, n]), R.dtype("float16"), R.prim_value(0), R.str("global")
             )
-            _: R.Object = R.call_packed("runtime.disco.allreduce", lv1, R.shape([1]), alloc1)
+            _: R.Object = R.call_packed(
+                "runtime.disco.allreduce", lv1, R.shape([1]), R.prim_value(True), alloc1
+            )
             return alloc1
 
     allreduce_strategy = 1
@@ -146,6 +152,4 @@ def test_ipc_allreduce_skip_reducer_other_than_sum():
 
 
 if __name__ == "__main__":
-    test_ipc_allreduce_rewrite()
-    test_ipc_allreduce_spread_along_reshape()
-    test_ipc_allreduce_skip_reducer_other_than_sum()
+    tvm.testing.main()
