@@ -263,25 +263,25 @@ def test_omit_out_sinfo_with_tir_var_scalar(exec_mode):
     np.testing.assert_equal(expected, output)
 
 
-@pytest.mark.xfail(reason="Known limitation in TVMScript.")
 def test_inferred_out_sinfo_with_dynamic_shapes():
-    """The out_sinfo may contain dynamic shapes
+    """The out_sinfo may contain dynamic shapes"""
 
-    Currently, this test fails due to limitations in the TVMScript
-    parsing.  When parsing an IRModule, function signatures are parsed
-    without inspecting the body, to be used for StructInfo inference
-    when calling a subroutine.  However, while Relax dynamic shapes
-    can be fully expressed in the function signature
-    (e.g. `R.Tensor(["dynamic_var"])`), TIR dynamic shapes are
-    expressed in `T.match_buffer` statements that appear inside the
-    function body.
-
-    Resolving this limitation will require either (1) fully parsing
-    TIR functions prior to Relax functions, or (2) inspecting the
-    prelude of a TIR function for `T.match_buffer` as part of the
-    signature parsing.
-
-    """
+    # The dynamic shapes for the TIR function are specified externally
+    # rather than as part of a `T.match_buffer` statement, due to a
+    # limitation in the TVMScript parsing.  When parsing an IRModule,
+    # function signatures are parsed without inspecting the body, to
+    # be used for StructInfo inference when calling a subroutine.
+    # However, while Relax dynamic shapes can be fully expressed in
+    # the function signature (e.g. `R.Tensor(["dynamic_var"])`), TIR
+    # dynamic shapes are expressed in `T.match_buffer` statements that
+    # appear inside the function body.
+    #
+    # Resolving this limitation will require either (1) fully parsing
+    # TIR functions prior to Relax functions, or (2) inspecting the
+    # prelude of a TIR function for `T.match_buffer` as part of the
+    # signature parsing.
+    A_len = T.var("int64", "A_len")
+    B_len = T.var("int64", "B_len")
 
     @I.ir_module
     class Module:
@@ -291,19 +291,73 @@ def test_inferred_out_sinfo_with_dynamic_shapes():
             return C
 
         @T.prim_func
-        def concat(A_handle: T.handle, B_handle: T.handle, C_handle: T.handle):
-            A_len = T.int64()
-            B_len = T.int64()
-
-            A = T.match_buffer(A_handle, A_len, "int32")
-            B = T.match_buffer(B_handle, B_len, "int32")
-            C = T.match_buffer(C_handle, A_len + B_len, "int32")
+        def concat(
+            A: T.Buffer(A_len, "int32"),
+            B: T.Buffer(B_len, "int32"),
+            C: T.Buffer(A_len + B_len, "int32"),
+        ):
             for i in range(A_len):
                 C[i] = A[i]
             for i in range(B_len):
                 C[A_len + i] = B[i]
 
-    assert Module["main"].struct_info.ret.shape == [48]
+    assert list(Module["main"].struct_info.ret.shape) == [48]
+
+
+@pytest.mark.parametrize("provide_explicit_out_sinfo", [True, False])
+def test_exception_raised_if_shape_inference_requires_output(provide_explicit_out_sinfo, capfd):
+    """Shape inference may not be possible for all PrimFuncs
+
+    For some PrimFuncs, the shape of the output tensor may be the only
+    place where dynamic shape parameters are defined.  If this occurs,
+    then the output shape cannot be inferred.
+
+    If the `out_sinfo` argument is omitted when calling such a
+    PrimFunc, then the attempted inference should fail.  The error
+    message provided to the user should indicate that the problem can
+    be avoided by provided the `out_sinfo` argument.
+
+    """
+
+    def define_function():
+        if provide_explicit_out_sinfo:
+            out_sinfo = R.Tensor([1, 8], "float32")
+        else:
+            out_sinfo = None
+
+        @I.ir_module
+        class Module:
+            @R.function
+            def main(A: R.Tensor((2, 4), "float32")):
+                out = R.call_tir(
+                    Module.reshape,
+                    [A],
+                    out_sinfo=out_sinfo,
+                )
+                return out
+
+            @T.prim_func
+            def reshape(
+                A: T.Buffer([T.int64(2), T.int64(4)], "float32"),
+                B: T.Buffer([T.var("int64", "n"), T.var("int64", "m")], "float32"),
+            ):
+                n = T.meta_var(B.shape[0])
+                m = T.meta_var(B.shape[1])
+                for i, j in T.grid(n, m):
+                    index = i * m + j
+                    B[i, j] = A[index // 4, index % 4]
+
+    if provide_explicit_out_sinfo:
+        define_function()
+    else:
+        with pytest.raises(TVMError):
+            define_function()
+
+        # The diagnostic render for TVMScript prints the original
+        # exception to stderr, so verifying the error message cannot
+        # be done with the `match` argument to `pytest.raises`.
+        _stdout, stderr = capfd.readouterr()
+        assert "Please update the `R.call_tir` call with an explicit `out_sinfo` argument" in stderr
 
 
 if __name__ == "__main__":

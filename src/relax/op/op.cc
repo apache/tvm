@@ -435,15 +435,26 @@ static Array<TensorStructInfo> InferCallTIROutputStructInfo(Expr func, Tuple arg
   auto out_fields = Downcast<TupleStructInfo>(derived_ret_sinfo)->fields;
   for (size_t i = 0; i < out_fields.size(); i++) {
     auto field_sinfo = out_fields[i];
-    auto tensor_sinfo = field_sinfo.as<TensorStructInfo>();
-    CHECK(tensor_sinfo)
+    auto opt_tensor_sinfo = field_sinfo.as<TensorStructInfo>();
+    CHECK(opt_tensor_sinfo)
         << "TypeError: "
         << "If the `out_sinfo` argument to `R.call_tir` is omitted, "
         << "output tensor arguments are inferred from the number of input arguments.  "
         << "However, output " << i << " (corresponding to function parameter "
         << (i + num_input_arguments) << ") has struct info " << field_sinfo
         << ", and is not a tensor.";
-    out_sinfo_list.push_back(tensor_sinfo.value());
+    auto tensor_sinfo = opt_tensor_sinfo.value();
+
+    CHECK(tensor_sinfo->shape.defined())
+        << "If the `out_sinfo` argument to `R.call_tir` is omitted, "
+        << "output tensor arguments are inferred from the number of input arguments.  "
+        << "If a TIR function determines a dynamic shape parameter "
+        << "based on the shape of an output tensor, "
+        << "then this shape inference is impossible.  "
+        << "Since TIR functions accept dynamic TIR variables may be define"
+        << "Please update the `R.call_tir` call with an explicit `out_sinfo` argument.";
+
+    out_sinfo_list.push_back(tensor_sinfo);
   }
   return out_sinfo_list;
 }
