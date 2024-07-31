@@ -125,7 +125,7 @@ class WarpStoreCoeffFinder : private StmtExprVisitor {
       std::string ext_name_str = std::string(ext_name->value.c_str());
       if (ext_name_str.find("decode_") == 0) {
         auto* local_size = op->args[op->args.size() - 1].as<IntImmNode>();
-        ICHECK(local_size) << "Integer expected for the first argument of dequantize unit";
+        ICHECK(local_size) << "Integer expected for the last argument of dequantize unit";
         warp_coeff_ = local_size->value;
       }
     }
@@ -168,7 +168,6 @@ class WarpStoreCoeffFinder : private StmtExprVisitor {
 
   void UpdatePattern(const PrimExpr& index) {
     Array<PrimExpr> m = arith::DetectLinearEquation(index, {warp_index_});
-
     ICHECK_EQ(m.size(), 2U)
         << "LowerWarpMemory failed. Could not simplify the store index `" << index
         << "` into the form ax + by + cz + ... Warp memory is approximated by storing values in "
@@ -183,8 +182,9 @@ class WarpStoreCoeffFinder : private StmtExprVisitor {
         << mcoeff;
 
     if (warp_coeff_ != 0) {
-      ICHECK_EQ(warp_coeff_, mcoeff_as_int->value)
-          << "LowerWarpMemory failed due to two different store coefficient to warp index";
+      // ICHECK_EQ(warp_coeff_, mcoeff_as_int->value)
+      //     << "LowerWarpMemory failed due to two different store coefficient to warp index";
+      warp_coeff_ = mcoeff_as_int->value;
     } else {
       warp_coeff_ = mcoeff_as_int->value;
     }
@@ -248,8 +248,12 @@ class WarpIndexFinder : private StmtVisitor {
 // Mutator to change the read pattern
 class WarpAccessRewriter : protected StmtExprMutator {
  public:
-  explicit WarpAccessRewriter(int warp_size, arith::Analyzer* analyzer)
-      : warp_size_(warp_size), analyzer_(analyzer) {}
+  // Visited Buffer for AccessPtr
+  std::unordered_set<const CallNode*> visited_call_;
+
+  explicit WarpAccessRewriter(int warp_size, arith::Analyzer* analyzer,
+                              std::unordered_set<const CallNode*> visited_call = {})
+      : visited_call_(visited_call), warp_size_(warp_size), analyzer_(analyzer) {}
   // Rewrite the allocate statement which transforms
   // warp memory to local memory.
   Stmt Rewrite(const AllocateNode* op) {
@@ -283,12 +287,14 @@ class WarpAccessRewriter : protected StmtExprMutator {
 
   PrimExpr RewriteAccessPtr(const CallNode* op, const std::vector<int>& indices) {
     Array<PrimExpr> new_args = op->args;
+    if (visited_call_.count(op)) {
+      auto new_call = Call(op->dtype, op->op, new_args);
+      visited_call_.insert(new_call.get());
+      return new_call;
+    }
     for (int i : indices) {
       if (auto access = op->args[i].as<tir::CallNode>()) {
         if (access->op.same_as(builtin::tvm_access_ptr())) {
-          if (Downcast<Var>(access->args[1])->name_hint != buffer_->name_hint) {
-            continue;
-          }
           ICHECK(access->args.size()) << "Builtin tvm_access_ptr() may not have empty arguments";
           auto new_access_args = access->args;
           auto address = Downcast<PrimExpr>(access->args[2]);
@@ -300,7 +306,9 @@ class WarpAccessRewriter : protected StmtExprMutator {
         }
       }
     }
-    return Call(op->dtype, op->op, new_args);
+    auto new_call = Call(op->dtype, op->op, new_args);
+    visited_call_.insert(new_call.get());
+    return new_call;
   }
 
   PrimExpr VisitExpr_(const CallNode* op) override {
@@ -496,8 +504,9 @@ class WarpMemoryRewriter : private StmtMutator {
     op = ret.as<AllocateNode>();
     if (GetPtrStorageScope(op->buffer_var) == "warp") {
       new_storage_scopes_[op->buffer_var.get()] = "local";
-      WarpAccessRewriter rewriter(warp_size_, &analyzer_);
+      WarpAccessRewriter rewriter(warp_size_, &analyzer_, visited_call_);
       ret = rewriter.Rewrite(op);
+      visited_call_ = rewriter.visited_call_;
     }
     return ret;
   }
@@ -506,6 +515,8 @@ class WarpMemoryRewriter : private StmtMutator {
   arith::Analyzer analyzer_;
   // variable domain
   std::unordered_map<const VarNode*, Range> var_dom_;
+  // Visited Buffer for AccessPtr
+  std::unordered_set<const CallNode*> visited_call_;
 };
 
 namespace transform {
