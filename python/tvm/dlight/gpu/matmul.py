@@ -87,10 +87,7 @@ def auto_inline_consumers(
             return
 
 
-def auto_inline_consumer_chain(
-    sch: tir.Schedule,
-    block: tir.schedule.BlockRV,
-):
+def auto_inline_consumer_chain(sch: tir.Schedule, block: tir.schedule.BlockRV):
     auto_inline_consumers(sch, block)
     remaining_consumers = sch.get_consumers(block)
 
