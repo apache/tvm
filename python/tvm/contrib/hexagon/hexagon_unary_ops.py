@@ -74,7 +74,7 @@ def LUT_generation(inp_scale, inp_zp, out_scale, out_zp, op_name) -> None:
         else:
             logger.error("Error op is other than unary op")
 
-        # Quantizing the value generated and appending in the Look Up Table)
+        # Quantizing the value generated and appending in the Look Up Table
         quant = np.round((op_val) / o_scale) + o_zp
         val = np.maximum(0, np.minimum(quant, 255)).astype(np.uint8)
         LUT.append(val)
