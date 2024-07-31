@@ -133,9 +133,8 @@ def group_conv2d_nchwc(cfg, Input, Filter, stride, padding, dilation, out_dtype)
 
     assert in_channels % in_filter_channels == 0
     groups = in_channels // in_filter_channels
-    in_group_channels = in_filter_channels
-    assert out_channles % groups == 0
-    out_group_channels = out_channles // groups
+    assert out_channel_chunks % groups == 0
+    assert in_channel_chunks % groups == 0
 
     out_height_orig, out_height, out_width_orig, out_width = expand_spatial_dimensions(
         in_height, in_width, kernel_h, kernel_w, dilation_h, dilation_w, padding, stride_h, stride_w
@@ -158,59 +157,28 @@ def group_conv2d_nchwc(cfg, Input, Filter, stride, padding, dilation, out_dtype)
     in_group_channel_chunks = in_channel_chunks // groups
     in_group_channel_block = in_channel_block
     out_group_channel_chunks = out_channel_chunks // groups
-    out_group_channel_block = out_channel_block
     rcc = te.reduce_axis((0, in_group_channel_chunks), name="rcc")
     rcb = te.reduce_axis((0, in_group_channel_block), name="rcb")
     ry = te.reduce_axis((0, kernel_h), name="ry")
     rx = te.reduce_axis((0, kernel_w), name="rx")
 
-    if in_channel_chunks % groups == 0 and out_channel_chunks % groups == 0:
-        conv = te.compute(
-            (batch, out_channel_chunks, out_height, out_width, out_channel_block),
-            lambda nn, occ, yy, xx, obb: te.sum(
-                (
-                    temp[
-                        nn,
-                        occ // out_group_channel_chunks * in_group_channel_chunks + rcc,
-                        yy * stride_h + ry * dilation_h,
-                        xx * stride_w + rx * dilation_w,
-                        rcb,
-                    ]
-                    * Filter[occ, rcc * in_group_channel_block + rcb, ry, rx, obb]
-                ).astype(out_dtype),
-                axis=[rcc, rcb, ry, rx],
-            ),
-            tag="conv2d_nchwc_group",
-        )
-    else:
-        rgc = te.reduce_axis((0, in_group_channels), name="rgc")
-        conv = te.compute(
-            (batch, out_channel_chunks, out_height, out_width, out_channel_block),
-            lambda nn, occ, yy, xx, obb: te.sum(
-                (
-                    temp[
-                        nn,
-                        (
-                            (((occ) * out_channel_block + obb) // out_group_channels)
-                            * in_group_channels
-                            + rgc
-                        )
-                        // 4,
-                        yy * stride_h + ry * dilation_h,
-                        xx * stride_w + rx * dilation_w,
-                        (
-                            (((occ) * out_channel_block + obb) // out_group_channels)
-                            * in_group_channels
-                            + rgc
-                        )
-                        % 4,
-                    ]
-                    * Filter[occ, rgc, ry, rx, obb]
-                ).astype(out_dtype),
-                axis=[rgc, ry, rx],
-            ),
-            tag="conv2d_nchwc_group",
-        )
+    conv = te.compute(
+        (batch, out_channel_chunks, out_height, out_width, out_channel_block),
+        lambda nn, occ, yy, xx, obb: te.sum(
+            (
+                temp[
+                    nn,
+                    occ // out_group_channel_chunks * in_group_channel_chunks + rcc,
+                    yy * stride_h + ry * dilation_h,
+                    xx * stride_w + rx * dilation_w,
+                    rcb,
+                ]
+                * Filter[occ, rcc * in_group_channel_block + rcb, ry, rx, obb]
+            ).astype(out_dtype),
+            axis=[rcc, rcb, ry, rx],
+        ),
+        tag="conv2d_nchwc_group",
+    )
 
     if convert_from4d and not autotvm.GLOBAL_SCOPE.in_tuning:
         dummy_cast = te.compute(

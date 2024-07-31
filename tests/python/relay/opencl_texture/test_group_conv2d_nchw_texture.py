@@ -29,7 +29,7 @@ dtype = tvm.testing.parameter("float32")
 
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl -device=adreno")
-def test_group_conv2d_nchwc_without_mod(remote, target, executor_type, dtype):
+def test_group_conv2d_nchwc_adreno_encoder1(remote, target, executor_type, dtype):
     input_shape = (1, 512, 56, 100)
     filter_shape = (512, 64, 3, 3)
     bias_shape = (1, 512, 1, 1)
@@ -73,10 +73,10 @@ def test_group_conv2d_nchwc_without_mod(remote, target, executor_type, dtype):
 
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl -device=adreno")
-def test_group_conv2d_nchwc_with_mod(remote, target, executor_type, dtype):
-    input_shape = (1, 128, 112, 112)
-    filter_shape = (256, 64, 5, 5)
-    bias_shape = (1, 256, 1, 1)
+def test_group_conv2d_nchwc_adreno_encoder2(remote, target, executor_type, dtype):
+    input_shape = (1, 1024, 56, 100)
+    filter_shape = (512, 128, 3, 3)
+    bias_shape = (1, 512, 1, 1)
     A = relay.var("data", shape=input_shape, dtype=dtype)
     B = relay.var("weight", shape=filter_shape, dtype=dtype)
     bias = relay.var("bias", shape=bias_shape, dtype=dtype)
@@ -89,10 +89,10 @@ def test_group_conv2d_nchwc_with_mod(remote, target, executor_type, dtype):
         padding=[3, 3, 3, 3],
         strides=[2, 2],
         out_dtype=dtype,
-        channels=256,
-        groups=2,
+        channels=512,
+        groups=8,
         dilation=2,
-        kernel_size=(5, 5),
+        kernel_size=(3, 3),
     )
     D = relay.op.add(conv, bias)
     D = relay.op.nn.relu(D)
@@ -117,10 +117,10 @@ def test_group_conv2d_nchwc_with_mod(remote, target, executor_type, dtype):
 
 @tvm.testing.requires_opencl
 @tvm.testing.parametrize_targets("opencl -device=adreno")
-def test_group_conv2d_nchwc_with_mod_nontrivial(remote, target, executor_type, dtype):
-    input_shape = (1, 469, 112, 112)
-    filter_shape = (119, 67, 5, 5)
-    bias_shape = (1, 119, 1, 1)
+def test_group_conv2d_nchwc_adreno_nontrivial(remote, target, executor_type, dtype):
+    input_shape = (1, 56, 56, 100)
+    filter_shape = (112, 8, 7, 3)
+    bias_shape = (1, 112, 1, 1)
     A = relay.var("data", shape=input_shape, dtype=dtype)
     B = relay.var("weight", shape=filter_shape, dtype=dtype)
     bias = relay.var("bias", shape=bias_shape, dtype=dtype)
@@ -131,12 +131,57 @@ def test_group_conv2d_nchwc_with_mod_nontrivial(remote, target, executor_type, d
         data_layout="NCHW",
         kernel_layout="OIHW",
         padding=[3, 3, 3, 3],
-        strides=[3, 3],
+        strides=[1, 2],
         out_dtype=dtype,
-        channels=119,
+        channels=112,
         groups=7,
-        dilation=3,
-        kernel_size=(5, 5),
+        dilation=2,
+        kernel_size=(7, 3),
+    )
+    D = relay.op.add(conv, bias)
+    D = relay.op.nn.relu(D)
+
+    mod = relay.Function([A, B, bias], D)
+    np.random.seed(1)
+    initializer = relay.testing.init.Xavier()
+    filter_data = np.zeros(filter_shape).astype(dtype)
+    bias_data = np.zeros(bias_shape).astype(dtype)
+    initializer("weight", filter_data)
+    initializer("bias", bias_data)
+    params1 = {
+        "weight": tvm.nd.array(filter_data),
+        "bias": tvm.nd.array(bias_data),
+    }
+
+    if executor_type == "ge":
+        build_run_compare(remote, mod, params1, {"data": input_shape}, {"data": dtype}, target)
+    else:
+        build_run_compare_vm(remote, mod, params1, {"data": input_shape}, {"data": dtype}, target)
+
+
+@tvm.testing.requires_opencl
+@tvm.testing.parametrize_targets("opencl -device=adreno")
+def test_group_conv2d_nchwc_default(remote, target, executor_type, dtype):
+    input_shape = (1, 49, 56, 100)
+    filter_shape = (343, 7, 3, 3)
+    bias_shape = (1, 343, 1, 1)
+    A = relay.var("data", shape=input_shape, dtype=dtype)
+    B = relay.var("weight", shape=filter_shape, dtype=dtype)
+    bias = relay.var("bias", shape=bias_shape, dtype=dtype)
+
+    # C = relay.nn.relu(A)
+    conv = relay.nn.conv2d(
+        A,
+        B,
+        data_layout="NCHW",
+        kernel_layout="OIHW",
+        padding=[1, 1, 1, 1],
+        strides=[1, 1],
+        out_dtype=dtype,
+        channels=343,
+        groups=7,
+        dilation=1,
+        kernel_size=(3, 3),
     )
     D = relay.op.add(conv, bias)
     D = relay.op.nn.relu(D)

@@ -185,15 +185,33 @@ def conv2d_strategy_adreno(attrs, inputs, out_type, target):
         elif (data_layout == "NCHW4c" or data_layout == "NCHW") and (
             kernel_layout == "OIHW" or kernel_layout == "OIHW4o"
         ):
-            strategy.add_implementation(
-                wrap_compute_conv2d(topi.adreno.group_conv2d_nchwc),
-                wrap_topi_schedule(topi.adreno.schedule_group_conv2d_nchwc),
-                name="group_conv2d_nchwc.image2d",
-                plevel=10,
+            pad_in_chunks = (len(data.shape) == 5 and data.shape[1] % groups != 0) or (
+                len(data.shape) == 4 and data.shape[1] % (groups * 4) != 0
             )
+            pad_out_chunks = (len(kernel.shape) == 5 and kernel.shape[0] % groups != 0) or (
+                len(kernel.shape) == 4 and kernel.shape[0] % (groups * 4) != 0
+            )
+
+            if not (pad_in_chunks or pad_out_chunks):
+                strategy.add_implementation(
+                    wrap_compute_conv2d(topi.adreno.group_conv2d_nchwc),
+                    wrap_topi_schedule(topi.adreno.schedule_group_conv2d_nchwc),
+                    name="group_conv2d_nchwc.image2d",
+                    plevel=10,
+                )
+            elif len(data.shape) == 4 and len(kernel.shape) == 4:
+                strategy.add_implementation(
+                    wrap_compute_conv2d(topi.cuda.group_conv2d_nchw, has_groups=True),
+                    wrap_topi_schedule(topi.cuda.schedule_group_conv2d_nchw),
+                    name="group_conv2d_nchw.cuda",
+                )
+            else:
+                raise RuntimeError(
+                    "General group convolution is not currently supported for NCHWc layouts"
+                )
         else:
             raise RuntimeError(
-                "General group convolution is not currently supported for non NCHW(4c)/OIHW(4o)..."
+                "General group convolution has limited support for NCHW(4c) layouts..."
             )
     return strategy
 
