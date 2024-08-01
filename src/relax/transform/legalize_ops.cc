@@ -224,6 +224,7 @@ class LegalizeMutator : public ExprMutator {
   Expr VisitExpr_(const CallNode* call) final {
     Call visited_call = Downcast<Call>(this->VisitExprPostOrder_(call));
     static const auto& legalize_map = Op::GetAttrMap<FLegalize>("FLegalize");
+    static const auto& call_packed_map = Op::GetAttrMap<FCallPacked>("FCallPacked");
     static const auto& requires_arg_shapes_map = Op::GetAttrMap<Bool>("RequiresArgumentShapes");
     static const Op& call_pure_packed_op = Op::Get("relax.call_pure_packed");
     static const Op& call_tir_op = Op::Get("relax.call_tir");
@@ -236,7 +237,7 @@ class LegalizeMutator : public ExprMutator {
     }
     auto op = GetRef<Op>(op_node);
 
-    bool can_legalize = [&]() -> bool {
+    bool shapes_are_known_if_required = [&]() -> bool {
       bool requires_arg_shapes = requires_arg_shapes_map.get(op, Bool(true))->value;
       if (!requires_arg_shapes) {
         // This operator does not require its arguments to have a
@@ -299,23 +300,31 @@ class LegalizeMutator : public ExprMutator {
       return true;
     }();
 
-    if (!can_legalize) {
-      return visited_call;
-    }
-
     FLegalize legalization_func;
 
-    if (auto opt_custom_legalize = cmap_.Get(op->name)) {
+    if (auto opt_custom_legalize = cmap_.Get(op->name);
+        opt_custom_legalize && shapes_are_known_if_required) {
       // First choice, use a custom legalization function
       legalization_func = opt_custom_legalize.value();
-    } else if (legalize_map.count(op)) {
+    } else if (legalize_map.count(op) && shapes_are_known_if_required) {
       // Second choice, use a default legalization
       legalization_func = legalize_map[op];
+    } else if (call_packed_map.count(op)) {
+      // Third choice, use an explicit FCallPacked replacement.  This does not require the shape
+      String packed_func_name = call_packed_map[op];
+      legalization_func = [packed_func_name](const BlockBuilder& bb, const Call& call) -> Expr {
+        return Call(ExternFunc(packed_func_name), call->args, Attrs(), {GetStructInfo(call)});
+      };
     } else {
       // No legalization.
       if (enable_warning_ && op != call_tir_op && op != call_dps_packed_op &&
           op != call_pure_packed_op) {
-        LOG(WARNING) << "No legalization func for " << op->name << " is found.";
+        if (shapes_are_known_if_required) {
+          LOG(WARNING) << "No legalization func for " << op->name << " is found.";
+        } else {
+          LOG(WARNING) << "Cannot legalize " << visited_call
+                       << ", missing known shapes for arguments and return value";
+        }
       }
       return visited_call;
     }
