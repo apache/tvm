@@ -136,8 +136,8 @@ inline DataType DTypeFromString(const std::string str) {
  */
 inline std::string CUDADTypeFromDType(DataType dtype) {
     switch (dtype) {
-        case DataType::kInt8: return "int8";
-        case DataType::kUInt8: return "uint8";
+        case DataType::kInt8: return "signed char";
+        case DataType::kUInt8: return "unsigned char";
         case DataType::kInt16: return "int16";
         case DataType::kUInt16: return "uint16";
         case DataType::kInt32: return "int32";
