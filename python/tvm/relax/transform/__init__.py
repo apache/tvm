@@ -79,6 +79,7 @@ from .transform import (
     TopologicalSort,
     UpdateParamStructInfo,
     UpdateVDevice,
+    VMBuiltinLower,
     VMShapeLower,
     dataflowblock_pass,
     function_pass,

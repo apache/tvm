@@ -453,6 +453,8 @@ def test_applying_unknown_relative_byte_offset_is_legal():
 
 
 def test_legalize_is_no_op():
+    """R.memory.view is not legalized until LowerRuntimeBuiltin"""
+
     @I.ir_module
     class Before:
         @R.function
@@ -462,7 +464,7 @@ def test_legalize_is_no_op():
 
     Expected = Before
 
-    After = tvm.relax.transform.LowerRuntimeBuiltin()(Before)
+    After = tvm.relax.transform.LegalizeOps()(Before)
     tvm.ir.assert_structural_equal(Expected, After)
 
 

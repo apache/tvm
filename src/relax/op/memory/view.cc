@@ -291,11 +291,6 @@ StructInfo InferStructInfoView(const Call& call, const BlockBuilder& ctx) {
 
 TVM_REGISTER_GLOBAL("tvm.relax.struct_info.infer_view_sinfo").set_body_typed(InferStructInfoView);
 
-Expr LegalizeView(const BlockBuilder& bb, const Call& call) {
-  // No-op. View is lowered during the LowerBuiltinView pass.
-  return call;
-}
-
 Expr LowerBuiltinView(const BlockBuilder& bb, const Call& call) {
   Expr data = call->args[0];
   Expr shape = call->args[1];
@@ -357,7 +352,6 @@ TVM_REGISTER_OP("relax.memory.view")
                   "The view's byte offset, relative to the input tensor's byte offset.")
     .set_attr<Bool>("RequiresArgumentShapes", Bool(false))
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoView)
-    .set_attr<FLegalize>("FLegalize", LegalizeView)
     .set_attr<Bool>("FPurity", Bool(true))
     .set_attr<FLowerBuiltin>("FLowerBuiltin", LowerBuiltinView);
 

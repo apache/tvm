@@ -185,7 +185,7 @@ def test_basic():
     tvm.ir.assert_structural_equal(mod, Expected)
     mod = relax.transform.LowerAllocTensor()(mod)
     mod = relax.transform.KillAfterLastUse()(mod)
-    mod = relax.transform.VMBuiltinLower()(mod)
+    mod = relax.transform.LowerRuntimeBuiltin()(mod)
     tvm.ir.assert_structural_equal(mod, ExpectedLowered)
 
 
