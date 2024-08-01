@@ -27,6 +27,7 @@
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/container/array.h>
 #include <tvm/runtime/container/map.h>
+#include <tvm/runtime/container/string.h>
 #include <tvm/runtime/container/variant.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/logging.h>
@@ -975,6 +976,7 @@ class TVMRetValue : public TVMPODValue_ {
   static TVMRetValue MoveFromCHost(TVMValue value, int type_code) {
     // Can move POD and everything under the object system.
     ICHECK(type_code <= kTVMPackedFuncHandle || type_code == kTVMNDArrayHandle);
+
     TVMRetValue ret;
     ret.value_ = value;
     ret.type_code_ = type_code;
@@ -2076,10 +2078,14 @@ inline TObjectRef TVMPODValue_::AsObjectRef() const {
              type_code_ == kTVMPackedFuncHandle) {
     // Casting to a base class that PackedFunc can sub-class
     return TObjectRef(GetObjectPtr<Object>(static_cast<Object*>(value_.v_handle)));
-  } else {
-    TVM_CHECK_TYPE_CODE(type_code_, kTVMObjectHandle);
-    return TObjectRef(ObjectPtr<Object>(nullptr));
+  } else if constexpr (std::is_base_of<ContainerType, StringObj>::value) {
+    if (type_code_ == kTVMStr) {
+      return runtime::String(value_.v_str);
+    }
   }
+
+  TVM_CHECK_TYPE_CODE(type_code_, kTVMObjectHandle);
+  return TObjectRef(ObjectPtr<Object>(nullptr));
 }
 
 template <typename TObjectRef, typename>
@@ -2102,6 +2108,13 @@ inline TVMRetValue& TVMRetValue::operator=(TObjectRef other) {
          ptr->IsInstance<PackedFunc::ContainerType>())) {
       return operator=(PackedFunc(std::move(other.data_)));
     }
+    if (std::is_base_of<runtime::String::ContainerType, ContainerType>::value ||
+        (std::is_base_of<ContainerType, runtime::String::ContainerType>::value &&
+         ptr->IsInstance<runtime::String::ContainerType>())) {
+      const auto* string_obj = other.template as<runtime::String::ContainerType>();
+      return operator=(std::string(string_obj->data, string_obj->size));
+    }
+
     SwitchToObject(kTVMObjectHandle, std::move(other.data_));
   } else {
     SwitchToPOD(kTVMNullptr);

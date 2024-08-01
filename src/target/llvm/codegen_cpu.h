@@ -76,6 +76,7 @@ class CodeGenCPU : public CodeGenLLVM {
   llvm::Value* CreateIntrinsic(const CallNode* op) override;
   llvm::Value* CreateCallExtern(Type ret_type, String global_symbol, const Array<PrimExpr>& args,
                                 bool skip_first_arg) override;
+  llvm::Value* CreateStringObj(StringImm ir_string);
 
   /*!
    * \brief A CPU-specific function to create the FuncRegistry.
@@ -101,6 +102,10 @@ class CodeGenCPU : public CodeGenLLVM {
   llvm::StructType* t_tvm_array_{nullptr};
   llvm::StructType* t_tvm_value_{nullptr};
   llvm::StructType* t_tvm_parallel_group_env_{nullptr};
+
+  llvm::StructType* t_tvm_base_object_{nullptr};
+  llvm::StructType* t_tvm_string_obj_{nullptr};
+  llvm::Function* f_string_obj_deleter_{nullptr};
 
   llvm::FunctionType* ftype_tvm_backend_packed_c_func_{nullptr};
   llvm::StructType* t_tvm_crt_func_registry_{nullptr};

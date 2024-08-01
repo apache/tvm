@@ -207,12 +207,6 @@ class CallGraph : public ObjectRef {
    */
   explicit CallGraph(IRModule module);
 
-  /*!
-   * \brief Construct from an object pointer.
-   * \param n The object pointer.
-   */
-  explicit CallGraph(ObjectPtr<Object> n) : ObjectRef(n) {}
-
   /*! \return The begin iterator. */
   iterator begin() {
     auto* n = operator->();
@@ -287,12 +281,7 @@ class CallGraph : public ObjectRef {
     return (*n)[gvar_name];
   }
 
-  /*! \return mutable pointers to the node. */
-  CallGraphNode* operator->() const {
-    auto* ptr = get_mutable();
-    ICHECK(ptr != nullptr);
-    return static_cast<CallGraphNode*>(ptr);
-  }
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(CallGraph, ObjectRef, CallGraphNode);
 
  private:
   /*! \brief Overload the << operator to print a call graph. */

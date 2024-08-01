@@ -34,6 +34,14 @@ class Object;
 constexpr const char* kRPCProtocolVer = "0.8.0";
 
 /*!
+ * \brief type index of kRuntimeString
+ * \note this needs to be kept consistent with runtime/object.h
+ * but we explicitly declare it here because minrpc needs to be minimum dep
+ * only c C API
+ */
+constexpr const int kRuntimeString = 3;
+
+/*!
  * \brief type index of kRuntimeRPCObjectRefTypeIndex
  * \note this needs to be kept consistent with runtime/object.h
  * but we explicitly declare it here because minrpc needs to be minimum dep

@@ -4114,6 +4114,21 @@ def relax_float_symbolic_var():
     return func
 
 
+def tir_return_string_imm():
+    """TIR StringImm must round-trip
+
+    The conversion from Python str to TIR StringImm occurs at the
+    callee.
+
+    """
+
+    @T.prim_func
+    def func():
+        return T.StringImm("hello")
+
+    return func
+
+
 ir_generator = tvm.testing.parameter(
     launch_env_thread,
     opt_gemm_normalize,
@@ -4202,6 +4217,7 @@ ir_generator = tvm.testing.parameter(
     *relax_match_cast_struct_info_proxy(),
     relax_symbolic_size_var,
     relax_float_symbolic_var,
+    tir_return_string_imm,
 )
 
 relax_ir_generator = tvm.testing.parameter(

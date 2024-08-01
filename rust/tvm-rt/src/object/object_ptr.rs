@@ -17,7 +17,7 @@
  * under the License.
  */
 
-use std::convert::TryFrom;
+use std::convert::{TryFrom, TryInto};
 use std::ffi::CString;
 use std::fmt;
 use std::os::raw::c_char;
@@ -31,6 +31,8 @@ use tvm_sys::ffi::{
 use tvm_sys::{ArgValue, RetValue};
 
 use crate::errors::Error;
+use crate::IsObjectRef;
+use crate::String as TVMString;
 
 type Deleter = unsafe extern "C" fn(object: *mut Object) -> ();
 
@@ -319,6 +321,19 @@ impl<'a, T: IsObject> TryFrom<RetValue> for ObjectPtr<T> {
                     NDArrayContainer::from_raw(handle as *mut DLTensor).ok_or(Error::Null)?;
                 debug_assert!(optr.count() >= 1);
                 optr.upcast::<Object>().downcast()
+            }
+            RetValue::String(_) | RetValue::Str(_) => {
+                let string: String = ret_value.try_into().expect("Known to contain a string");
+
+                let string: TVMString = string.into();
+
+                let string = string
+                    .into_ptr()
+                    .expect("Known to contain a non-nullptr string");
+
+                debug_assert!(string.count() >= 1);
+
+                string.upcast::<Object>().downcast()
             }
             _ => Err(Error::downcast(format!("{:?}", ret_value), T::TYPE_KEY)),
         }
