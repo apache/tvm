@@ -55,6 +55,7 @@ class UDChain : relax::ExprVisitor {
 
  private:
   Map<Var, Expr> bound_values;
+  std::unordered_set<Var> forward_declarations;
   std::unordered_map<Var, support::OrderedSet<Var>> usage_map;
   support::OrderedSet<Var> outputs;
 
@@ -71,9 +72,20 @@ class UDChain : relax::ExprVisitor {
     cur_user_ = cache;
   }
 
+  void VisitBinding_(const VarBindingNode* binding, const FunctionNode* func) override {
+    // A local Relax function may be recursively defined.  References to
+    // `binding->var` that appear within `func` are valid.
+    DefineVar(binding->var);
+    forward_declarations.insert(binding->var);
+    ExprVisitor::VisitBinding_(binding, func);
+  }
+
   void VisitVarDef(const Var& var) override {
-    CHECK(!usage_map.count(var)) << "Variable " << var << " was used before its definition";
-    usage_map[var] = {};
+    if (forward_declarations.count(var)) {
+      forward_declarations.erase(var);
+    } else {
+      DefineVar(var);
+    }
   }
   void VisitExpr_(const VarNode* op) override {
     auto var = GetRef<Var>(op);
@@ -88,6 +100,11 @@ class UDChain : relax::ExprVisitor {
   void VisitExpr_(const FunctionNode* op) override {
     cur_user_ = nullptr;
     ExprVisitor::VisitExpr_(op);
+  }
+
+  void DefineVar(const Var& var) {
+    CHECK(!usage_map.count(var)) << "Variable " << var << " was used before its definition";
+    usage_map[var] = {};
   }
 };
 

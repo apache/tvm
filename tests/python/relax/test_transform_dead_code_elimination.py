@@ -658,5 +658,86 @@ def test_well_formed_output_with_restricted_scope():
     tvm.ir.assert_structural_equal(Expected, After)
 
 
+def test_recursively_defined_lambda():
+    """DCE may be applied to recursively-defined functions
+
+    While most expressions may only contain references to
+    previously-defined variables, local Relax function definitions may
+    contain references to themselves.
+
+    This is a regression test.  In previous implementations, the
+    recursive use of `while_loop` resulted in an error, as
+    `while_loop` was not considered in-scope by the `CollectVarUsage`
+    utility until after the body of `while_loop` had been visited.
+
+    """
+
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor:
+            @R.function
+            def while_loop(
+                i: R.Tensor((), "int32"), s: R.Tensor((2, 3), "float32")
+            ) -> R.Tensor((2, 3), "float32"):
+                cond = R.call_pure_packed(
+                    "test.vm.less", i, R.const(10), sinfo_args=R.Tensor((), dtype="bool")
+                )
+                c = R.const(1, dtype="int32")
+                if cond:
+                    new_i = R.add(i, c)
+                    new_s = R.add(s, x)
+                    r = while_loop(new_i, new_s)
+                else:
+                    r = s
+                return r
+
+            gv = while_loop(R.const(0), x)
+            return gv
+
+    Expected = Before
+
+    verify(Before, Expected)
+
+
+def test_recursively_defined_closure():
+    """DCE may be applied to recursively-defined closures
+
+    This test is identical to `test_recursively_defined_lambda`,
+    except that the threshold for recursion is defined in an enclosed
+    variable outside of the recursive function.
+
+    """
+
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(x: R.Tensor((2, 3), "float32")) -> R.Tensor:
+            threshold = R.const(10)
+
+            @R.function
+            def while_loop(
+                i: R.Tensor((), "int32"), s: R.Tensor((2, 3), "float32")
+            ) -> R.Tensor((2, 3), "float32"):
+                cond = R.call_pure_packed(
+                    "test.vm.less", i, threshold, sinfo_args=R.Tensor((), dtype="bool")
+                )
+                c = R.const(1, dtype="int32")
+                if cond:
+                    new_i = R.add(i, c)
+                    new_s = R.add(s, x)
+                    r = while_loop(new_i, new_s)
+                else:
+                    r = s
+                return r
+
+            gv = while_loop(R.const(0), x)
+            return gv
+
+    Expected = Before
+
+    verify(Before, Expected)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
