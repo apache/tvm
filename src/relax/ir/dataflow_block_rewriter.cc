@@ -49,7 +49,7 @@ class MatcherUseDefAnalysis : public relax::ExprVisitor {
   // caller -> callee table.
   std::map<const VarNode*, std::vector<const VarNode*>> caller2callees;
 
-  const VarNode* cur_user_;
+  const VarNode* cur_user_ = nullptr;
 
   void VisitBinding_(const VarBindingNode* binding) override {
     // init
