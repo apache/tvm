@@ -114,10 +114,11 @@ export class ArtifactCache implements ArtifactCacheTemplate {
    * fetch the corresponding url object in response or stored object format
    * @param url url
    * @param storetype the storage type for indexedDB
+   * @param signal an optional abort signal to abort fetching
    * @returns response in json, arraybuffer or pure response format
    */
-  async fetchWithCache(url: string, storetype?: string): Promise<any> {
-    await this.addToCache(url, storetype);
+  async fetchWithCache(url: string, storetype?: string, signal?: AbortSignal): Promise<any> {
+    await this.addToCache(url, storetype, signal);
     const result = await this.cache.match(new Request(url));
     if (result === undefined) {
       // Already called `addToCache()`, should expect the request in cache.
@@ -242,8 +243,8 @@ export class ArtifactIndexedDBCache implements ArtifactCacheTemplate {
     })
   }
 
-  async fetchWithCache(url: string, storetype?: string): Promise<any> {
-    await this.addToCache(url, storetype);
+  async fetchWithCache(url: string, storetype?: string, signal?: AbortSignal): Promise<any> {
+    await this.addToCache(url, storetype, signal);
     let result = await this.asyncGetHelper(url);
     if (result === null) {
       // previously null data in cache or somehow failed to add to cache, delete and retry
