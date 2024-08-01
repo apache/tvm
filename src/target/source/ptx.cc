@@ -132,6 +132,31 @@ inline DataType DTypeFromString(const std::string str) {
 }
 
 /*!
+ * \brief Create CUDD Datatype from enum.
+ */
+inline std::string CUDADTypeFromDType(DataType dtype) {
+    switch (dtype) {
+        case DataType::kInt8: return "int8";
+        case DataType::kUInt8: return "uint8";
+        case DataType::kInt16: return "int16";
+        case DataType::kUInt16: return "uint16";
+        case DataType::kInt32: return "int32";
+        case DataType::kUInt32: return "uint32";
+        case DataType::kInt64: return "int64";
+        case DataType::kUInt64: return "uint64";
+        case DataType::kFloat8_e4m3: return "__nv_fp8_e4m3";
+        case DataType::kFloat8_e5m2: return "__nv_fp8_e5m2";
+        case DataType::kFloat16: return "half";
+        case DataType::kBFloat16: return "__nv_bfloat162";
+        case DataType::kFloat16x2: return "half2";
+        case DataType::kFloat32: return "float32";
+        case DataType::kFloat64: return "float64";
+        default: 
+            throw std::runtime_error("Unrecognized DataType");
+    }
+}
+
+/*!
  * \brief Get the string representation of given PTX data type.
  */
 inline std::string DTypeToString(DataType dtype) { return dtype_str[static_cast<int>(dtype)]; }
@@ -584,8 +609,8 @@ std::string PrintMMAAssembly(const std::string& shape, const std::string& A_layo
   replacer.register_rule("{inputs}", inputs_str);
   asm_code = replacer.rewrite(asm_code);
   replacer.empty_rules();
-  replacer.register_rule("A", a_ptr + " + " + a_elem_offset);
-  replacer.register_rule("B", b_ptr + " + " + b_elem_offset);
+  replacer.register_rule("A", "(" + CUDADTypeFromDType(dtype_a) + "*)" + a_ptr + " + " + a_elem_offset);
+  replacer.register_rule("B", "(" + CUDADTypeFromDType(dtype_b) + "*)" + b_ptr + " + " + b_elem_offset);
   replacer.register_rule("C", c_ptr + " + " + c_elem_offset);
   replacer.register_rule("D", c_ptr + " + " + c_elem_offset);
   replacer.register_rule("E", metadata + " + " + metadata_offset);
