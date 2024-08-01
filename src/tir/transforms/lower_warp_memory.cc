@@ -387,6 +387,8 @@ class WarpAccessRewriter : protected StmtExprMutator {
 
     auto [local_index, group] = SplitIndexByGroup(op->indices[0]);
     // invariance: local index must do not contain warp id
+
+    analyzer_->Bind(warp_index_, Range::FromMinExtent(0, warp_size_));    
     ICHECK(!UsesVar(local_index, [this](const VarNode* var) { return var == warp_index_.get(); }))
         << "LowerWarpMemory failed to rewrite load to shuffle for index " << op->indices[0]
         << " local_index=" << local_index;
@@ -461,6 +463,14 @@ class BindVarBoundInfo : public StmtVisitor {
     const Var& loop_var = op->loop_var;
     analyzer_->Bind(loop_var, Range::FromMinExtent(op->min, op->extent));
     StmtVisitor::VisitStmt_(op);
+  }
+
+
+  void VisitStmt_(const LetStmtNode* op) final {
+    this->VisitExpr(op->value);
+    analyzer_->Bind(op->var, Range::FromMinExtent(IntImm(op->value.dtype(), analyzer_->const_int_bound(op->value)->min_value),
+    IntImm(op->value.dtype(), analyzer_->const_int_bound(op->value)->max_value)));
+    this->VisitStmt(op->body);
   }
 
   void VisitStmt_(const AttrStmtNode* op) {
