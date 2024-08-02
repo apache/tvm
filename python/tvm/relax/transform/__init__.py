@@ -90,6 +90,7 @@ from .lower_gpu_ipc_alloc_storage import LowerGPUIPCAllocStorage
 from .optimize_layout_transform import OptimizeLayoutTransform
 from .remove_redundant_reshape import RemoveRedundantReshape
 from .fast_math import FastMathTransform
+from .fuse_transpose_matmul import FuseTransposeMatmul
 from .attach_external_modules import AttachExternModules
 
 # Import to register the legalization functions.
