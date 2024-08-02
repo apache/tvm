@@ -1501,6 +1501,9 @@ def sqrt(x: Tensor, name: str = "sqrt") -> Tensor:
     -------
     result : Tensor
         The computed result.
+    Note
+    ----
+    The input tensor is required to have float dtype
     """
     return wrap_nested(_op.sqrt(x._expr), name)
 
