@@ -47,11 +47,12 @@ export interface ArtifactCacheTemplate {
    * return the actual data object rather than the request. There are two options:
    * 1. "json": returns equivalent to `fetch(url).json()`
    * 2. "arraybuffer": returns equivalent to `fetch(url).arraybuffer()`
+   * @param signal: An optional AbortSignal allowing user to abort the fetching before its completion.
    * @return The data object (i.e. users do not need to call `.json()` or `.arraybuffer()`).
    *
    * @note This is an async function.
    */
-  fetchWithCache(url: string, storetype?: string): Promise<any>;
+  fetchWithCache(url: string, storetype?: string, signal?: AbortSignal): Promise<any>;
 
   /**
    * Fetch data from url and add into cache. If already exists in cache, should return instantly.
