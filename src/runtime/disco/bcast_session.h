@@ -65,6 +65,16 @@ class BcastSessionObj : public SessionObj {
    * \param TVMArgs The input arguments in TVM's PackedFunc calling convention
    */
   virtual void BroadcastPacked(const TVMArgs& args) = 0;
+
+  /*!
+   * \brief Send a packed sequence to a worker. This function is usually called by the controler to
+   * communicate with worker-0, because the worker-0 is assumed to be always collocated with the
+   * controler. Sending to other workers may not be supported.
+   * \param worker_id The worker id to send the packed sequence to.
+   * \param args The packed sequence to send.
+   */
+  virtual void SendPacked(int worker_id, const TVMArgs& args) = 0;
+
   /*!
    * \brief Receive a packed sequence from a worker. This function is usually called by the
    * controler to communicate with worker-0, because the worker-0 is assumed to be always
@@ -83,6 +93,16 @@ class BcastSessionObj : public SessionObj {
 
   struct Internal;
   friend struct Internal;
+  friend class SocketSessionObj;
+  friend class RemoteSocketSession;
+};
+
+/*!
+ * \brief Managed reference to BcastSessionObj.
+ */
+class BcastSession : public Session {
+ public:
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(BcastSession, Session, BcastSessionObj);
 };
 
 }  // namespace runtime

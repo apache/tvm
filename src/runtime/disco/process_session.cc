@@ -31,114 +31,19 @@
 #include "../minrpc/rpc_reference.h"
 #include "./bcast_session.h"
 #include "./disco_worker_thread.h"
+#include "./message_queue.h"
 #include "./protocol.h"
 
 namespace tvm {
 namespace runtime {
 
-class DiscoPipeMessageQueue : private dmlc::Stream, private DiscoProtocol<DiscoPipeMessageQueue> {
- public:
-  explicit DiscoPipeMessageQueue(int64_t handle) : pipe_(handle) {}
-
-  ~DiscoPipeMessageQueue() = default;
-
-  void Send(const TVMArgs& args) {
-    RPCReference::ReturnPackedSeq(args.values, args.type_codes, args.num_args, this);
-    CommitSendAndNotifyEnqueue();
-  }
-
-  TVMArgs Recv() {
-    bool is_implicit_shutdown = DequeueNextPacket();
-    TVMValue* values = nullptr;
-    int* type_codes = nullptr;
-    int num_args = 0;
-
-    if (is_implicit_shutdown) {
-      num_args = 2;
-      values = ArenaAlloc<TVMValue>(num_args);
-      type_codes = ArenaAlloc<int>(num_args);
-      TVMArgsSetter setter(values, type_codes);
-      setter(0, static_cast<int>(DiscoAction::kShutDown));
-      setter(1, 0);
-    } else {
-      RPCReference::RecvPackedSeq(&values, &type_codes, &num_args, this);
-    }
-    return TVMArgs(values, type_codes, num_args);
-  }
-
- protected:
-  void CommitSendAndNotifyEnqueue() {
-    pipe_.Write(write_buffer_.data(), write_buffer_.size());
-    write_buffer_.clear();
-  }
-
-  /* \brief Read next packet and reset unpacker
-   *
-   * Read the next packet into `read_buffer_`, releasing all arena
-   * allocations performed by the unpacker and resetting the unpacker
-   * to its initial state.
-   *
-   * \return A boolean value.  If true, this packet should be treated
-   *    equivalently to a `DiscoAction::kShutdown` event.  If false,
-   *    this packet should be unpacked.
-   */
-  bool DequeueNextPacket() {
-    uint64_t packet_nbytes = 0;
-    int read_size = pipe_.Read(&packet_nbytes, sizeof(packet_nbytes));
-    if (read_size == 0) {
-      // Special case, connection dropped between packets.  Treat as a
-      // request to shutdown.
-      return true;
-    }
-
-    ICHECK_EQ(read_size, sizeof(packet_nbytes))
-        << "Pipe closed without proper shutdown. Please make sure to explicitly call "
-           "`Session::Shutdown`";
-    read_buffer_.resize(packet_nbytes);
-    read_size = pipe_.Read(read_buffer_.data(), packet_nbytes);
-    ICHECK_EQ(read_size, packet_nbytes)
-        << "Pipe closed without proper shutdown. Please make sure to explicitly call "
-           "`Session::Shutdown`";
-    read_offset_ = 0;
-    this->RecycleAll();
-    RPCCode code = RPCCode::kReturn;
-    this->Read(&code);
-    return false;
-  }
-
-  size_t Read(void* data, size_t size) final {
-    std::memcpy(data, read_buffer_.data() + read_offset_, size);
-    read_offset_ += size;
-    ICHECK_LE(read_offset_, read_buffer_.size());
-    return size;
-  }
-
-  size_t Write(const void* data, size_t size) final {
-    size_t cur_size = write_buffer_.size();
-    write_buffer_.resize(cur_size + size);
-    std::memcpy(write_buffer_.data() + cur_size, data, size);
-    return size;
-  }
-
-  using dmlc::Stream::Read;
-  using dmlc::Stream::ReadArray;
-  using dmlc::Stream::Write;
-  using dmlc::Stream::WriteArray;
-  friend struct RPCReference;
-  friend struct DiscoProtocol<DiscoPipeMessageQueue>;
-
-  // The read/write buffer will only be accessed by the producer thread.
-  std::string write_buffer_;
-  std::string read_buffer_;
-  size_t read_offset_ = 0;
-  support::Pipe pipe_;
-};
-
 class DiscoProcessChannel final : public DiscoChannel {
  public:
   DiscoProcessChannel(int64_t controler_to_worker_fd, int64_t worker_to_controler_fd)
-      : controler_to_worker_(controler_to_worker_fd),
-        worker_to_controler_(worker_to_controler_fd) {}
+      : controller_to_worker_pipe_(controler_to_worker_fd),
+        worker_to_controller_pipe_(worker_to_controler_fd),
+        controler_to_worker_(&controller_to_worker_pipe_),
+        worker_to_controler_(&worker_to_controller_pipe_) {}
 
   DiscoProcessChannel(DiscoProcessChannel&& other) = delete;
   DiscoProcessChannel(const DiscoProcessChannel& other) = delete;
@@ -148,8 +53,10 @@ class DiscoProcessChannel final : public DiscoChannel {
   void Reply(const TVMArgs& args) { worker_to_controler_.Send(args); }
   TVMArgs RecvReply() { return worker_to_controler_.Recv(); }
 
-  DiscoPipeMessageQueue controler_to_worker_;
-  DiscoPipeMessageQueue worker_to_controler_;
+  support::Pipe controller_to_worker_pipe_;
+  support::Pipe worker_to_controller_pipe_;
+  DiscoStreamMessageQueue controler_to_worker_;
+  DiscoStreamMessageQueue worker_to_controler_;
 };
 
 class ProcessSessionObj final : public BcastSessionObj {
@@ -226,7 +133,7 @@ class ProcessSessionObj final : public BcastSessionObj {
       int type_codes[4];
       PackArgs(values, type_codes, static_cast<int>(DiscoAction::kDebugSetRegister), reg_id,
                worker_id, value);
-      workers_[worker_id - 1]->Send(TVMArgs(values, type_codes, 4));
+      SendPacked(worker_id, TVMArgs(values, type_codes, 4));
     }
     TVMRetValue result;
     TVMArgs args = this->RecvReplyPacked(worker_id);
@@ -241,11 +148,26 @@ class ProcessSessionObj final : public BcastSessionObj {
     }
   }
 
+  void SendPacked(int worker_id, const TVMArgs& args) final {
+    if (worker_id == 0) {
+      worker_0_->channel->Send(args);
+    } else {
+      workers_.at(worker_id - 1)->Send(args);
+    }
+  }
+
   TVMArgs RecvReplyPacked(int worker_id) final {
     if (worker_id == 0) {
       return worker_0_->channel->RecvReply();
     }
     return this->workers_.at(worker_id - 1)->RecvReply();
+  }
+
+  DiscoChannel* GetWorkerChannel(int worker_id) {
+    if (worker_id == 0) {
+      return worker_0_->channel.get();
+    }
+    return workers_.at(worker_id - 1).get();
   }
 
   PackedFunc process_pool_;

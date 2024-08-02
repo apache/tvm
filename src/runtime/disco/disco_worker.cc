@@ -120,7 +120,7 @@ struct DiscoWorker::Impl {
   }
 
   static void CopyFromWorker0(DiscoWorker* self, int reg_id) {
-    if (self->worker_zero_data != nullptr) {
+    if (self->worker_id == 0) {
       NDArray tgt = GetNDArrayFromHost(self);
       NDArray src = GetReg(self, reg_id);
       tgt.CopyFrom(src);
@@ -128,7 +128,7 @@ struct DiscoWorker::Impl {
   }
 
   static void CopyToWorker0(DiscoWorker* self, int reg_id) {
-    if (self->worker_zero_data != nullptr) {
+    if (self->worker_id == 0) {
       NDArray src = GetNDArrayFromHost(self);
       NDArray tgt = GetReg(self, reg_id);
       tgt.CopyFrom(src);
