@@ -935,7 +935,7 @@ class Matmul(GPUScheduleRule):
                 inner_x=False,
             )
         elif target.kind.name == "opencl" and (
-            ("android" in str(target.host)) or ("windows" in str(target.host))
+            ("android" in str(target.host)) or ("adreno" in str(target.host))
         ):
             return Matmul.Config(
                 block_size_x=32,
