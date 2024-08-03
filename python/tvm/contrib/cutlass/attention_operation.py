@@ -111,7 +111,7 @@ def instantiate_attention_template(attrs):
     if (accumulator_buf_size <= ${workspace}->shape[0]) {
         p.output_accum_ptr = static_cast<float*>(${workspace}->data);
     } else {
-        accumulator_buf_size = true;
+        accumulator_buf_allocated = true;
         cudaMalloc(
           &p.output_accum_ptr,
           accumulator_buf_size
