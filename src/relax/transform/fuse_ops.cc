@@ -646,7 +646,7 @@ class FunctionCreator : public ExprMutator {
       return tvm::tir::UndefinedVars(prim_value->value).empty();
     } else if (const auto* shape_expr = expr.as<ShapeExprNode>()) {
       return std::all_of(shape_expr->values.begin(), shape_expr->values.end(),
-                         [this](const PrimExpr& e) { return tvm::tir::UndefinedVars(e).empty(); });
+                         [](const PrimExpr& e) { return tvm::tir::UndefinedVars(e).empty(); });
     }
     return false;
   }
