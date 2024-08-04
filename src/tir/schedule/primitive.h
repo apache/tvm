@@ -728,6 +728,8 @@ TVM_DLL void UnsafeHideBufferAccess(ScheduleState self, const StmtSRef& block_sr
 TVM_DLL void UnsafeRewriteBufferAccess(ScheduleState self, const StmtSRef& block_sref, int buffer_index,
                                        BufferIndexType buffer_index_type, const Array<PrimExpr>& indices);
 
+TVM_DLL void UnsafeInjectCallArgument(ScheduleState self, const StmtSRef& block_sref, int idx, const PrimExpr& argument);
+
 }  // namespace tir
 }  // namespace tvm
 

@@ -759,8 +759,7 @@ void Tensorize(ScheduleState self, const StmtSRef& sref, const TensorIntrin& int
   }
 
   arith::Analyzer analyzer;
-  // PrimFunc intrin_desc = Simplify(intrin->desc, &analyzer);
-  PrimFunc intrin_desc = DeepCopy(intrin->desc);
+  PrimFunc intrin_desc = Simplify(intrin->desc, &analyzer);
   PrimFunc intrin_impl = DeepCopy(intrin->impl);
 
   int index_dtype_bits = -1;

@@ -1057,5 +1057,12 @@ void ConcreteScheduleNode::UnsafeRewriteBufferAccess(const BlockRV& block, int b
   TVM_TIR_SCHEDULE_END("rewrite-buffer-indices", this->error_render_level_);
   this->state_->DebugVerify();
 }
+
+void ConcreteScheduleNode::UnsafeInjectCallArgument(const BlockRV& block, int idx, const PrimExpr& argument) {
+  TVM_TIR_SCHEDULE_BEGIN();
+  tir::UnsafeInjectCallArgument(state_, this->GetSRef(block), idx, argument);
+  TVM_TIR_SCHEDULE_END("inject-call-argument", this->error_render_level_);
+  this->state_->DebugVerify();
+}
 }  // namespace tir
 }  // namespace tvm

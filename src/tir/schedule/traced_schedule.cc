@@ -779,5 +779,15 @@ void TracedScheduleNode::UnsafeRewriteBufferAccess(const BlockRV& block, int buf
       /*outputs=*/{}));
 }
 
+void TracedScheduleNode::UnsafeInjectCallArgument(const BlockRV& block, int idx, const PrimExpr& argument) {
+  ConcreteScheduleNode::UnsafeInjectCallArgument(block, idx, argument);
+  static const InstructionKind& kind = InstructionKind::Get("UnsafeInjectCallArgument");
+  trace_->Append(/*inst=*/Instruction(
+      /*kind=*/kind,
+      /*inputs=*/{block, argument},
+      /*attrs=*/{Integer(idx)},
+      /*outputs=*/{}));
+}
+
 }  // namespace tir
 }  // namespace tvm

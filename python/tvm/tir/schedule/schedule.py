@@ -3932,3 +3932,19 @@ class Schedule(Object):
             buffer_index_type_enum,
             indices,
         )
+
+    @type_checked
+    def unsafe_inject_call_argument(
+        self,
+        block: Union[BlockRV, str],
+        idx: int,
+        argument: Union[PrimExpr],
+    ) -> None:
+
+        block = self._normalize_block_arg(block)
+        _ffi_api.ScheduleUnsafeInjectCallArgument(  # type: ignore # pylint: disable=no-member
+            self,
+            block,
+            idx,
+            argument
+        )

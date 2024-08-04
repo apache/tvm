@@ -316,6 +316,9 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleUnsafeRewriteBufferAccess")
                                    static_cast<BufferIndexType>(buffer_index_type), indices
                                    );
     });
-
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleUnsafeInjectCallArgument")
+    .set_body_typed([](Schedule self, const BlockRV& block, int idx, const PrimExpr& arguments) {
+      return self->UnsafeInjectCallArgument(block, idx, arguments);
+    });
 }  // namespace tir
 }  // namespace tvm

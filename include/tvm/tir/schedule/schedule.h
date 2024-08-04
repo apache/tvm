@@ -847,7 +847,8 @@ class ScheduleNode : public runtime::Object {
                                       const Array<IntImm>& buf_index_array) = 0;
 
   virtual void UnsafeRewriteBufferAccess(const BlockRV& block, int buffer_index, BufferIndexType buffer_index_type, const Array<PrimExpr>& indices) = 0;
-  
+
+  virtual void UnsafeInjectCallArgument(const BlockRV& block, int idx, const PrimExpr& argument) = 0;
 };
 
 /*!
