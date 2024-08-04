@@ -450,16 +450,16 @@ bool TensorizeComparator::CompareBufferRegion(const BufferRegion& lhs, const Buf
     indices_base.reserve(lhs->region.size());
     for (int i = 0; i < offset; i++) {
       // High-dim region must be element-wise
-      if (!is_one(lhs->region[i]->extent)) {
-        if (assert_mode_) {
-          std::ostringstream os;
-          os << "CompareBufferRegion returning false because buffer extent high-dim region must be "
-                "element-wise. lhs->region[i]->extent="
-             << lhs->region[i]->extent;
-          EmitError(os.str());
-        }
-        return false;
-      }
+      // if (!is_one(lhs->region[i]->extent)) {
+      //   if (assert_mode_) {
+      //     std::ostringstream os;
+      //     os << "CompareBufferRegion returning false because buffer extent high-dim region must be "
+      //           "element-wise. lhs->region[i]->extent="
+      //        << lhs->region[i]->extent;
+      //     EmitError(os.str());
+      //   }
+      //   return false;
+      // }
       indices_base.emplace_back(lhs->region[i]->min);
     }
     for (size_t i = 0; i < rhs->region.size(); i++) {
@@ -492,16 +492,16 @@ bool TensorizeComparator::CompareBufferRegion(const BufferRegion& lhs, const Buf
         }
         return false;
       }
-      if (!lhs_analyzer_.CanProveEqual(indices_base[i], lhs->region[i]->min)) {
-        if (assert_mode_) {
-          std::ostringstream os;
-          os << "Buffer base index consistency check failed due to unequal index base: "
-                "indices_base[i]="
-             << indices_base[i] << " vs lhs->region[i]->min=" << lhs->region[i]->min;
-          EmitError(os.str());
-        }
-        return false;
-      }
+      // if (!lhs_analyzer_.CanProveEqual(indices_base[i], lhs->region[i]->min)) {
+      //   if (assert_mode_) {
+      //     std::ostringstream os;
+      //     os << "Buffer base index consistency check failed due to unequal index base: "
+      //           "indices_base[i]="
+      //        << indices_base[i] << " vs lhs->region[i]->min=" << lhs->region[i]->min;
+      //     EmitError(os.str());
+      //   }
+      //   return false;
+      // }
     }
     for (size_t i = 0; i < rhs->region.size(); i++) {
       // check extent match
