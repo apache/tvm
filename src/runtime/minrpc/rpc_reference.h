@@ -326,7 +326,7 @@ struct RPCReference {
           break;
         }
         case kTVMArgBool: {
-          channel->template Write<bool>(value.v_bool);
+          channel->template Write<int64_t>(value.v_int64);
           break;
         }
         case kTVMDataType: {
@@ -437,7 +437,7 @@ struct RPCReference {
           break;
         }
         case kTVMArgBool: {
-          channel->template Read<bool>(&(value.v_bool));
+          channel->template Read<int64_t>(&(value.v_int64));
           break;
         }
         case kTVMDataType: {

@@ -362,10 +362,8 @@ int ModuleGetFunction(TVMValue* args, int* type_codes, int num_args, TVMValue* r
     return kTvmErrorFunctionCallWrongArgType;
   }
 
-  if (type_codes[2] == kDLInt) {
+  if (type_codes[2] == kDLInt || type_codes[2] == kTVMArgBool) {
     query_imports = args[2].v_int64 != 0;
-  } else if (type_codes[2] == kTVMArgBool) {
-    query_imports = args[2].v_bool;
   } else {
     TVMAPISetLastError("ModuleGetFunction expects third argument to be an integer");
     return kTvmErrorFunctionCallWrongArgType;

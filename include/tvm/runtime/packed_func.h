@@ -669,7 +669,7 @@ class TVMPODValue_ {
     // conversions.  This is publicly exposed, as it can be useful in
     // specializations of PackedFuncValueConverter.
     if (type_code_ == kTVMArgBool) {
-      return value_.v_bool;
+      return static_cast<bool>(value_.v_int64);
     } else {
       return std::nullopt;
     }
@@ -1041,7 +1041,7 @@ class TVMRetValue : public TVMPODValue_CRTP_<TVMRetValue> {
   TVMRetValue& operator=(const DataType& other) { return operator=(other.operator DLDataType()); }
   TVMRetValue& operator=(bool value) {
     this->SwitchToPOD(kTVMArgBool);
-    value_.v_bool = value;
+    value_.v_int64 = value;
     return *this;
   }
   TVMRetValue& operator=(std::string value) {
@@ -1831,7 +1831,7 @@ class TVMArgsSetter {
     type_codes_[i] = kDLInt;
   }
   TVM_ALWAYS_INLINE void operator()(size_t i, bool value) const {
-    values_[i].v_bool = value;
+    values_[i].v_int64 = value;
     type_codes_[i] = kTVMArgBool;
   }
   TVM_ALWAYS_INLINE void operator()(size_t i, uint64_t value) const {
@@ -2142,7 +2142,7 @@ inline void TVMArgsSetter::SetObject(size_t i, T&& value) const {
                 std::is_base_of_v<ContainerType, Bool::ContainerType>) {
     if (std::is_base_of_v<Bool::ContainerType, ContainerType> ||
         ptr->IsInstance<Bool::ContainerType>()) {
-      values_[i].v_bool = static_cast<Bool::ContainerType*>(ptr)->value;
+      values_[i].v_int64 = static_cast<Bool::ContainerType*>(ptr)->value;
       type_codes_[i] = kTVMArgBool;
       return;
     }
@@ -2327,7 +2327,7 @@ inline TObjectRef TVMPODValue_CRTP_<Derived>::AsObjectRef() const {
 
   if constexpr (std::is_base_of_v<TObjectRef, Bool>) {
     if (type_code_ == kTVMArgBool) {
-      return Bool(value_.v_bool);
+      return Bool(value_.v_int64);
     }
   }
 
