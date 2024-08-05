@@ -65,7 +65,6 @@ const PrimExpr& argument) {
   /* Step 1: Replace old block with the new block */
   auto n = make_object<BlockNode>(*block);
   Block new_block = Block(n);
-  LOG(INFO) << "Injecting argument " << argument << " at index " << idx;
   ArgumentInjector injector(idx, argument);
   Stmt stmt = injector(new_block);
   new_block = Downcast<Block>(stmt);
