@@ -1486,6 +1486,28 @@ def square(x: Tensor, name: str = "square") -> Tensor:
     return wrap_nested(_op.square(x._expr), name)
 
 
+def sqrt(x: Tensor, name: str = "sqrt") -> Tensor:
+    """Computes the element-wise sqrt of the input tensor.
+
+    Parameters
+    ----------
+    x : Tensor
+        The input tensor.
+
+    name : str
+        Name hint.
+
+    Returns
+    -------
+    result : Tensor
+        The computed result.
+    Note
+    ----
+    The input tensor is required to have float dtype
+    """
+    return wrap_nested(_op.sqrt(x._expr), name)
+
+
 def get_timestep_embedding(
     x: Tensor,
     embedding_dim: int,

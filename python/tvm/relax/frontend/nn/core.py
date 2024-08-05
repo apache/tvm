@@ -17,7 +17,7 @@
 """The core infra for nn.Module, which includes the following pieces:
 - Tensor, a wrapper on top of relax.Expr whose struct_info is a TensorStructInfo,
   providing more convenient access shape and dtype information.
-  Tensor is always symbolc and not bound to any concrete values.
+  Tensor is always symbolic and not bound to any concrete values.
 - Parameter, a special tensor which could be bound or not bound to concrete values.
 - Module, a container of nn.Parameters and sub nn.Modules.
 - Effect, a non-user-facing class that encloses potential side effects, for example, IO,

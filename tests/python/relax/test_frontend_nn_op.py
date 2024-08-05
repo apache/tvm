@@ -31,7 +31,8 @@ def test_unary():
     class Model(Module):
         def test(self, x: Tensor):
             z0 = op.square(x)
-            return (x,)
+            z1 = op.sqrt(x)
+            return (z0, z1)
 
     # fmt: off
     @R.function
@@ -39,7 +40,8 @@ def test_unary():
         R.func_attr({"num_input": 2})
         with R.dataflow():
             square: R.Tensor((1, 10), dtype="float32") = R.square(x)
-            gv1 = (x,), (_io,)
+            sqrt: R.Tensor((1, 10), dtype="float32") = R.sqrt(x)
+            gv1 = (square, sqrt), (_io,)
             R.output(gv1)
         return gv1
     # fmt: on
