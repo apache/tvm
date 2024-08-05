@@ -1043,6 +1043,46 @@ def test_call_tir_inplace():
 
     _check(Module)
 
+def test_call_tir_inplace_with_tuple_var_raises_error():
+
+
+    with pytest.raises(tvm.error.DiagnosticError):
+
+        @tvm.script.ir_module
+        class Module:
+            @R.function
+            def main(
+                x: R.Tensor((2, 3), "int32"), y: R.Tensor((2, 3), "int32")
+            ) :
+                cls = Module
+                args = (x, y)
+                res = R.call_tir_inplace(
+                    cls.copy,
+                    # The `args` tuple must be an in-line tuple, not a
+                    # reference to a tuple.  This error should be
+                    # caught and raised during parsing.
+                    args,
+                    inplace_indices = [0, -1],
+                    out_sinfo=[R.Tensor((2, 3), "int32"), R.Tensor((2, 3), "int32")],
+                )
+                return res
+
+            @T.prim_func
+            def copy(
+                A: T.Buffer((2, 3), "int32"),
+                B: T.Buffer((2, 3), "int32"),
+                out1: T.Buffer((2, 3), "int32"),
+            ):
+                # copies the contents of B into A and out1
+                T.func_attr({"tir.noalias": True})
+                for iters in T.grid(T.int64(2), T.int64(3)):
+                    with T.block("T_zeros"):
+                        i, j = T.axis.remap("SS", iters)
+                        A[i, j] = B[i, j]
+                        out1[i, j] = B[i, j]
+
+
+
 
 def test_local_function():
     @R.function
