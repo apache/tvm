@@ -229,8 +229,11 @@ void BinaryOpMatchTypes(PrimExpr& lhs, PrimExpr& rhs, Span span) {  // NOLINT(*)
 }
 
 PrimExpr ret(PrimExpr value, Span span) {
+  CHECK(value.defined());
   return tir::Call(value.dtype(), tir::builtin::ret(), {value}, span);
 }
+
+TVM_REGISTER_GLOBAL("tir.ret").set_body_typed(ret);
 
 // maximum and min limits
 PrimExpr max_value(const DataType& dtype, Span span) {
@@ -1048,12 +1051,15 @@ TVM_TIR_REGISTER_OP("TVMBackendFreeWorkspace")
 
 // expose basic functions to node namespace
 TVM_REGISTER_GLOBAL("node._const").set_body([](TVMArgs args, TVMRetValue* ret) {
-  if (args[0].type_code() == kDLInt) {
-    *ret = tir::make_const(args[1], args[0].operator int64_t(), args[2]);
-  } else if (args[0].type_code() == kDLFloat) {
-    *ret = tir::make_const(args[1], args[0].operator double(), args[2]);
+  if (auto opt = args[0].TryAsInt()) {
+    *ret = tir::make_const(args[1], opt.value(), args[2]);
+  } else if (auto opt = args[0].TryAsBool()) {
+    *ret = tir::make_const(args[1], opt.value(), args[2]);
+  } else if (auto opt = args[0].TryAsFloat()) {
+    *ret = tir::make_const(args[1], opt.value(), args[2]);
   } else {
-    LOG(FATAL) << "only accept int or float";  // FIXME
+    LOG(FATAL) << "First argument to tvm.tir.const must be int, float, or bool, "
+               << "but instead received argument with type code " << args[0].type_code();  // FIXME
   }
 });
 

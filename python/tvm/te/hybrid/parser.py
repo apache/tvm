@@ -279,7 +279,7 @@ class HybridParser(ast.NodeVisitor):
         return tvm.runtime.const(node.n, dtype)
 
     def visit_NameConstant(self, node):
-        return tvm.runtime.convert(node.value)
+        return tvm.tir.const(node.value)
 
     def visit_AugAssign(self, node):
         buf = self.visit(node.target)
@@ -376,7 +376,7 @@ class HybridParser(ast.NodeVisitor):
                 args = [args]
 
         arr = self.visit(node.value)
-        if isinstance(arr, Array):
+        if isinstance(arr, (Array, list, tuple)):
             for i in args:
                 if isinstance(i, numbers.Integral):
                     arr = arr[i]

@@ -1630,10 +1630,10 @@ class SplitParams:
     def convert_indices_or_sections(self, indices_or_sections):
         # split_v
         if isinstance(indices_or_sections, tvm.ir.container.Array):
-            values = [i.value for i in indices_or_sections]
+            values = [int(i) for i in indices_or_sections]
         # split
         else:
-            values = indices_or_sections.value
+            values = int(indices_or_sections)
         return values
 
     def is_valid(self):

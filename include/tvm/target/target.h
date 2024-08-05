@@ -113,7 +113,15 @@ class TargetNode : public Object {
                   "Can only call GetAttr with ObjectRef types.");
     auto it = attrs.find(attr_key);
     if (it != attrs.end()) {
-      return Downcast<Optional<TObjectRef>>((*it).second);
+      // For backwards compatibility, return through TVMRetValue.
+      // This triggers any automatic conversions registered with
+      // PackedFuncValueConverter.  Importantly, this allows use of
+      // `GetAttr<Integer>` and `GetAttr<Bool>` for properties that
+      // are stored internally as `runtime::Box<int64_t>` and
+      // `runtime::Box<bool>`.
+      TVMRetValue ret;
+      ret = (*it).second;
+      return ret;
     } else {
       return default_value;
     }
