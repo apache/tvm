@@ -81,7 +81,11 @@ class ReturnRewriter : public StmtMutator {
 
     // convert val's data type to FFI data type, return type code
     DataType dtype = val.dtype();
-    if (dtype.is_int() || dtype.is_uint()) {
+    if (dtype.is_bool()) {
+      info.tcode = kTVMArgBool;
+      info.expr = Cast(DataType::Int(64), val);
+
+    } else if (dtype.is_int() || dtype.is_uint()) {
       info.tcode = kTVMArgInt;
       info.expr = Cast(DataType::Int(64), val);
     } else if (dtype.is_float()) {
