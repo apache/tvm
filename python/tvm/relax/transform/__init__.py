@@ -87,6 +87,7 @@ from .transform import (
 
 from .attach_external_modules import AttachExternModules
 from .fast_math import FastMathTransform
+from .fuse_transpose_matmul import FuseTransposeMatmul
 from .ipc_allreduce_rewrite import IPCAllReduceRewrite
 from .lazy_transform_params import LazyTransformParams
 from .lower_gpu_ipc_alloc_storage import LowerGPUIPCAllocStorage
