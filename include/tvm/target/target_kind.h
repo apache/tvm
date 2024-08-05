@@ -49,7 +49,7 @@ using TargetFeatures = Map<String, ObjectRef>;
  * \return The transformed Target JSON object.
  */
 using TargetJSON = Map<String, ObjectRef>;
-using FTVMTargetParser = tvm::runtime::TypedPackedFunc<TargetJSON(TargetJSON)>;
+using FTVMTargetParser = runtime::TypedPackedFunc<TargetJSON(TargetJSON)>;
 
 namespace detail {
 template <typename, typename, typename>
@@ -130,10 +130,10 @@ class TargetKind : public ObjectRef {
    */
   TVM_DLL static Optional<TargetKind> Get(const String& target_kind_name);
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(TargetKind, ObjectRef, TargetKindNode);
-
- private:
   /*! \brief Mutable access to the container class  */
   TargetKindNode* operator->() { return static_cast<TargetKindNode*>(data_.get()); }
+
+ private:
   TVM_DLL static const AttrRegistryMapContainerMap<TargetKind>& GetAttrMapContainer(
       const String& attr_name);
   friend class TargetKindRegEntry;
@@ -445,8 +445,8 @@ constexpr const char* kRelayToTIR = "RelayToTIR";
           .add_attr_option<String>("model")                       \
           .add_attr_option<Array<String>>("libs")                 \
           .add_attr_option<Target>("host")                        \
-          .add_attr_option<Integer>("from_device")                \
-          .add_attr_option<Integer>("target_device_type")
+          .add_attr_option<runtime::Int>("from_device")           \
+          .add_attr_option<runtime::Int>("target_device_type")
 
 }  // namespace tvm
 

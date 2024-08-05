@@ -769,7 +769,7 @@ def test_cuda_vectorize_load_permute_pad():
             (n // lanes, l + 2 * padding, lanes),
             lambda i, j, k: tvm.te.if_then_else(
                 tvm.te.any(j < padding, j >= l + padding),
-                tvm.runtime.convert(0).astype(dtype),
+                tvm.tir.const(0, dtype),
                 A[i * lanes + k, j - padding],
             ),
             name="B",
