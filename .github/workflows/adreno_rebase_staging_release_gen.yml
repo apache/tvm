@@ -15,27 +15,185 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# Checkout mainline commit on local repo and run tests.
-name: Adreno Package Generation
+# GH actions.
+
+name: Adreno Mainline Rebase Staging
 
 on:
-  schedule:
-    # 2:30 AM IST
-    - cron: "1 20 * * *"
   workflow_dispatch:
 
 concurrency:
-  group: tvmpkg
+  group: CI-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: true
 
 jobs:
+  Lint:
+    if: ${{ github.repository == 'gpgpu/apache-tvm' }}
+    runs-on: tvm-linux-ci
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: 'recursive'
+          ref: 'rebase_staging'
+      - name: Run Lint
+        shell: bash -l {0}
+        run: |
+          SCCACHE_SERVER_PORT=8766 ./tests/scripts/ci.py lint -d tvm.ci_lint
+  Adreno-Tests-V3:
+    needs: [Lint]
+    if: ${{ github.repository == 'gpgpu/apache-tvm' }}
+    runs-on: adreno-runner
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: 'recursive'
+          ref: 'rebase_staging'
+      - name: Build and run tests
+        shell: bash -l {0}
+        run: |
+           set -e
+           if ! git remote -v | grep ^gpgpu ; then git remote add gpgpu git@github.qualcomm.com:gpgpu/apache-tvm.git ; fi
+           git fetch gpgpu
+           git checkout gpgpu/adreno_ci -- pytest_deselect_ids.txt
+           git restore --staged pytest_deselect_ids.txt
+           # Test V4 device with V3 CLML SDK
+           ADRENO_OPENCL=${ADRENO_OPENCL_V3} \
+           SCCACHE_SERVER_PORT=8769 \
+           ANDROID_SERIAL=`cat /etc/tvm-ci-device-v4` \
+           python ./tests/scripts/ci.py adreno -d tvm.ci_adreno --test
+           # Test V3 device with V3 CLML SDK
+           ADRENO_OPENCL=${ADRENO_OPENCL_V3} \
+           SCCACHE_SERVER_PORT=8769 \
+           ANDROID_SERIAL=`cat /etc/tvm-ci-device` \
+           python ./tests/scripts/ci.py adreno -d tvm.ci_adreno --test
+
+  Adreno-Tests-V4:
+    needs: [Adreno-Tests-V3]
+    if: ${{ github.repository == 'gpgpu/apache-tvm' }}
+    runs-on: adreno-runner
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: 'recursive'
+          ref: 'rebase_staging'
+      - name: Build and run tests
+        shell: bash -l {0}
+        run: |
+           set -e
+           if ! git remote -v | grep ^gpgpu ; then git remote add gpgpu git@github.qualcomm.com:gpgpu/apache-tvm.git ; fi
+           git fetch gpgpu
+           git checkout gpgpu/adreno_ci -- pytest_deselect_ids.txt
+           git restore --staged pytest_deselect_ids.txt
+           # Test V4 device with V4 CLML SDK
+           ADRENO_OPENCL=${ADRENO_OPENCL_V4} \
+           SCCACHE_SERVER_PORT=8767 \
+           ANDROID_SERIAL=`cat /etc/tvm-ci-device-v4` \
+           python ./tests/scripts/ci.py adreno -d tvm.ci_adreno --test
+           # Test V3 device with V4 CLML SDK
+           ADRENO_OPENCL=${ADRENO_OPENCL_V4} \
+           SCCACHE_SERVER_PORT=8767 \
+           ANDROID_SERIAL=`cat /etc/tvm-ci-device` \
+           python ./tests/scripts/ci.py adreno -d tvm.ci_adreno --test
+  GPU-Tests:
+    needs: [Adreno-Tests-V4]
+    if: ${{ github.repository == 'gpgpu/apache-tvm' }}
+    runs-on: gpu-runner
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          submodules: 'recursive'
+          ref: 'rebase_staging'
+      - name: Build and run topi tests
+        shell: bash -l {0}
+        run: |
+           set -e
+           if ! git remote -v | grep ^gpgpu ; then git remote add gpgpu git@github.qualcomm.com:gpgpu/apache-tvm.git ; fi
+           git fetch gpgpu
+           git checkout gpgpu/adreno_ci -- pytest_deselect_ids.txt
+           git restore --staged pytest_deselect_ids.txt
+           SCCACHE_SERVER_PORT=8768 python ./tests/scripts/ci.py gpu -d adreno_ci_gpu --topi
+      - name: Build cpptest
+        shell: bash -l {0}
+        run: |
+           ./docker/bash.sh adreno_ci_gpu --env SCCACHE_SERVER_PORT=8768 python3 ./tests/scripts/task_build.py --cmake-target cpptest --build-dir build-gpu
+      - name: Run cpp unit tests
+        shell: bash -l {0}
+        run: |
+           SCCACHE_SERVER_PORT=8768 ./tests/scripts/ci.py gpu -d adreno_ci_gpu -c
+      - name: Run unit tests
+        shell: bash -l {0}
+        run: |
+           SCCACHE_SERVER_PORT=8768 ./tests/scripts/ci.py gpu -d adreno_ci_gpu -u
+      - name: Run front end tests
+        shell: bash -l {0}
+        run: |
+           SCCACHE_SERVER_PORT=8768 ./tests/scripts/ci.py gpu -d adreno_ci_gpu -f
+  Windows-Build:
+    needs: [GPU-Tests]
+    if: ${{ github.repository == 'gpgpu/apache-tvm' }}
+    runs-on: tvm-windows
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: 'recursive'
+          ref: 'rebase_staging'
+      - name: Compile x86
+        shell: powershell
+        run: |
+           Push-Location
+           New-Item -ItemType Directory -Force -Path "./build"
+           cd build
+           cp ../cmake/config.cmake .
+           Add-Content config.cmake "set(USE_OPENCL $ENV:OPENCL_SDK_ADRENO_X86)"
+           Add-Content config.cmake "set(USE_LLVM $ENV:LLVM_CONFIG)"
+           Add-Content config.cmake "set(USE_ADRENO_ACCL $ENV:ADRENOACCL_SDK_X86)"
+           Add-Content config.cmake "set(USE_ADRENO_ACCL_GRAPH_EXECUTOR $ENV:ADRENOACCL_SDK_X86)"
+           #Add-Content config.cmake "set(USE_CLML $ENV:OPENCL_SDK_ADRENO_X86)"
+           #Add-Content config.cmake "set(USE_CLML_GRAPH_EXECUTOR $ENV:OPENCL_SDK_ADRENO_X86)"
+           Add-Content config.cmake "set(USE_CPP_RTVM ON)"
+           Add-Content config.cmake "set(USE_RPC ON)"
+           Add-Content config.cmake "set(USE_CPP_RPC ON)"
+           Add-Content config.cmake "set(USE_GRAPH_EXECUTOR ON)"
+           Add-Content config.cmake "set(USE_KALLOC_ALIGNMENT 32)"
+           Add-Content config.cmake "set(USE_OPENCL_EXTN_QCOM ON)"
+           cmake .. -G "Visual Studio 17 2022" -A x64
+           cmake --build . --config Release --parallel $env:NUMBER_OF_PROCESSORS
+           Pop-Location
+      - name: Check x86 Build Status
+        shell: powershell
+        run: |
+           $env:PYTHONPATH = "$pwd\python"
+           python -c "import tvm; print(tvm.__path__)"
+      - name: Compile Arm64
+        shell: powershell
+        run: |
+           Push-Location
+           New-Item -ItemType Directory -Force -Path "./build-arm64"
+           cd build-arm64
+           cp ../cmake/config.cmake .
+           Add-Content config.cmake "set(USE_OPENCL $ENV:OPENCL_SDK_ADRENO_ARM64)"
+           Add-Content config.cmake "set(USE_ADRENO_ACCL $ENV:ADRENOACCL_SDK_ARM64)"
+           Add-Content config.cmake "set(USE_ADRENO_ACCL_GRAPH_EXECUTOR $ENV:ADRENOACCL_SDK_ARM64)"
+           #Add-Content config.cmake "set(USE_CLML $ENV:OPENCL_SDK_ADRENO_ARM64)"
+           #Add-Content config.cmake "set(USE_CLML_GRAPH_EXECUTOR $ENV:OPENCL_SDK_ADRENO_ARM64)"
+           Add-Content config.cmake "set(USE_CPP_RTVM ON)"
+           Add-Content config.cmake "set(USE_RPC ON)"
+           Add-Content config.cmake "set(USE_CPP_RPC ON)"
+           Add-Content config.cmake "set(USE_GRAPH_EXECUTOR ON)"
+           Add-Content config.cmake "set(USE_KALLOC_ALIGNMENT 32)"
+           Add-Content config.cmake "set(USE_OPENCL_EXTN_QCOM ON)"
+           cmake .. -G "Visual Studio 17 2022" -A ARM64
+           cmake --build . --config Release --parallel $env:NUMBER_OF_PROCESSORS --target rtvm tvm_rpc
+           Pop-Location
   BuildPackageLinux:
+    needs: [Windows-Build]
     if: github.repository == 'gpgpu/apache-tvm'
     runs-on: tvm-linux-ci
     steps:
       - uses: actions/checkout@v2
         with:
             submodules: 'recursive'
+            ref: 'rebase_staging'
             fetch-depth: 0
       - name: Build CPU Host Wheel
         shell: bash -l {0}
@@ -62,9 +220,9 @@ jobs:
                -e WHEEL_EXT_NAME="_adreno_cpu" \
                mlcaidev/package-cu121 \
                conda run -n py38 ./ci/adreno/build_wheel.sh
-           mkdir -p nightly
-           cp wheels/*.whl ./nightly/ -rfa
-           mv wheels/*.whl ${CI_PACKAGE_REPO_NIGHTLY}/
+           mkdir -p staging
+           cp wheels/*.whl ./staging/ -rfa
+           mv wheels/*.whl ${CI_PACKAGE_REPO_STAGING}/
            docker run --rm --pid=host -w /workspace \
                -v ${PWD}:/workspace \
                -v ${ADRENOACCL_SDK}:/adrenoaccl_sdk \
@@ -102,8 +260,8 @@ jobs:
                -e GPU=cuda \
                mlcaidev/package-cu121 \
                conda run -n py38 ./ci/adreno/build_wheel.sh
-           cp wheels/*.whl ./nightly/ -rfa
-           mv wheels/*.whl ${CI_PACKAGE_REPO_NIGHTLY}/
+           cp wheels/*.whl ./staging/ -rfa
+           mv wheels/*.whl ${CI_PACKAGE_REPO_STAGING}/
            docker run --rm --pid=host -w /workspace \
                -v ${PWD}:/workspace \
                -v ${ADRENOACCL_SDK}:/adrenoaccl_sdk \
@@ -153,12 +311,12 @@ jobs:
            cp build-adreno-target/rtvm adreno-utils/ -rfa
            cp build-adreno-target/libtvm_runtime.so adreno-utils/ -rfa
            tar jcvfp adreno-utils-linux-arm64.tar.bz2 adreno-utils
-           cp adreno-utils-linux-arm64.tar.bz2 ./nightly/ -rfa
-           gh release delete tvm-nightly --cleanup-tag --yes --repo "$RELEASE_REPO" || true
-           gh release create tvm-nightly --latest --title tvm-nightly --repo "$RELEASE_REPO" --notes "TVM Nightly builds"
-           gh release upload tvm-nightly ./nightly/* --clobber --repo "$RELEASE_REPO"
-           rm -rf nightly
-           mv adreno-utils-linux-arm64.tar.bz2 ${CI_PACKAGE_REPO_NIGHTLY}/
+           cp adreno-utils-linux-arm64.tar.bz2 ./staging/ -rfa
+           gh release delete tvm-staging --cleanup-tag --yes --repo "$STAGING_RELEASE_REPO_TVM" || true
+           gh release create tvm-staging --latest --title tvm-staging --repo "$STAGING_RELEASE_REPO_TVM" --notes "TVM Nightly builds"
+           gh release upload tvm-staging ./staging/* --clobber --repo "$STAGING_RELEASE_REPO_TVM"
+           rm -rf staging
+           mv adreno-utils-linux-arm64.tar.bz2 ${CI_PACKAGE_REPO_STAGING}/
   BuildPackageWindows:
     needs: [BuildPackageLinux]
     if: ${{ github.repository == 'gpgpu/apache-tvm' }}
@@ -167,6 +325,7 @@ jobs:
       - uses: actions/checkout@v3
         with:
           submodules: 'recursive'
+          ref: 'rebase_staging'
           ref: ''
       - name: Compile X86
         shell: powershell
@@ -221,9 +380,9 @@ jobs:
            python.exe .\setup.py bdist_wheel --plat-name win_amd64
            Pop-Location
            Compress-Archive -Path ".\\build-arm64\Release\*" -CompressionLevel Optimal -DestinationPath adreno-utils-win-arm64.zip -Force
-           #try { gh release delete tvm-nightly --cleanup-tag --yes --repo $Env:RELEASE_REPO } catch { }
-           #gh release create tvm-nightly --latest --title tvm-nightly --repo $Env:RELEASE_REPO --notes "Nightly builds"
-           foreach ($i in Get-ChildItem -Path python\dist) {gh release upload tvm-nightly .\python\dist\$i --clobber --repo $Env:RELEASE_REPO}
-           gh release upload tvm-nightly adreno-utils-win-arm64.zip --clobber --repo $Env:RELEASE_REPO
+           #try { gh release delete tvm-staging --cleanup-tag --yes --repo $Env:STAGING_RELEASE_REPO_TVM } catch { }
+           #gh release create tvm-staging --latest --title tvm-staging --repo $Env:STAGING_RELEASE_REPO_TVM --notes "Nightly builds"
+           foreach ($i in Get-ChildItem -Path python\dist) {gh release upload tvm-staging .\python\dist\$i --clobber --repo $Env:STAGING_RELEASE_REPO_TVM}
+           gh release upload tvm-staging adreno-utils-win-arm64.zip --clobber --repo $Env:STAGING_RELEASE_REPO_TVM
         env:
            GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
