@@ -106,8 +106,8 @@ def group_conv2d_nchwc(cfg, Input, Filter, stride, padding, dilation, out_dtype)
         in_channels = in_channel_chunks * in_channel_block
 
     if len(Filter.shape) == 4:
-        out_channles, in_filter_channels, kernel_h, kernel_w = Filter.shape
-        out_channel_chunks, out_channel_block, out_channel_tail = split_to_chunks(out_channles, 4)
+        out_channels, in_filter_channels, kernel_h, kernel_w = Filter.shape
+        out_channel_chunks, out_channel_block, out_channel_tail = split_to_chunks(out_channels, 4)
 
         if autotvm.GLOBAL_SCOPE.in_tuning:
             kshape = (out_channel_chunks, in_filter_channels, kernel_h, kernel_w, out_channel_block)
@@ -129,10 +129,12 @@ def group_conv2d_nchwc(cfg, Input, Filter, stride, padding, dilation, out_dtype)
             )
     else:
         out_channel_chunks, in_filter_channels, kernel_h, kernel_w, out_channel_block = Filter.shape
-        out_channles = out_channel_chunks * out_channel_block
+        out_channels = out_channel_chunks * out_channel_block
 
     assert in_channels % in_filter_channels == 0
     groups = in_channels // in_filter_channels
+
+    # Compute Constraints...
     assert out_channel_chunks % groups == 0
     assert in_channel_chunks % groups == 0
 
@@ -187,7 +189,7 @@ def group_conv2d_nchwc(cfg, Input, Filter, stride, padding, dilation, out_dtype)
             tag="dummy_cast",
         )
         return te.compute(
-            (batch, out_channles, out_height_orig, out_width_orig),
+            (batch, out_channels, out_height_orig, out_width_orig),
             lambda n, c, y, x: dummy_cast[n, c // out_channel_block, y, x, c % out_channel_block],
             tag="adreno_group_conv2d_latest_op",
         )
@@ -246,11 +248,7 @@ def schedule_group_conv2d_NCHWc_KCRSk(cfg, s, output):
 
     ##### space definition begin #####
     n, fc, y, x, fb = s[conv].op.axis
-    reduce_axis = s[conv].op.reduce_axis
-    if len(reduce_axis) == 4:
-        rcc, rcb, ry, rx = s[conv].op.reduce_axis
-    else:
-        rcc, ry, rx = s[conv].op.reduce_axis
+    rcc, rcb, ry, rx = s[conv].op.reduce_axis
 
     if conv.shape[1] % 2 == 0:
         min_threads_div = 2
@@ -361,22 +359,13 @@ def schedule_group_conv2d_NCHWc_KCRSk(cfg, s, output):
 
     # tile reduction axes
     n, fc, y, x, fb = s[conv].op.axis
-
-    reduce_axis = s[conv].op.reduce_axis
-    if len(reduce_axis) == 4:
-        rcc, rcb, ry, rx = reduce_axis
-    elif len(reduce_axis) == 3:
-        rcc, ry, rx = reduce_axis
-        rcb = None
+    rcc, rcb, ry, rx = s[conv].op.reduce_axis
 
     rco, rci = cfg["tile_rcc"].apply(s, conv, rcc)
     ryo, ryi = cfg["tile_ry"].apply(s, conv, ry)
     rxo, rxi = cfg["tile_rx"].apply(s, conv, rx)
-    if rcb is not None:
-        s[conv].reorder(rco, ryo, rxo, rci, ryi, rxi, rcb, n, fc, y, x, fb)
-        s[conv].unroll(rcb)
-    else:
-        s[conv].reorder(rco, ryo, rxo, rci, ryi, rxi, n, fc, y, x, fb)
+    s[conv].reorder(rco, ryo, rxo, rci, ryi, rxi, rcb, n, fc, y, x, fb)
+    s[conv].unroll(rcb)
     s[conv].vectorize(fb)
 
     # unroll
