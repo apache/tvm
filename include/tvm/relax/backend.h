@@ -35,7 +35,7 @@ namespace transform {
  *
  * \return The Pass.
  */
-TVM_DLL Pass VMBuiltinLower();
+TVM_DLL Pass LowerRuntimeBuiltin();
 
 /*!
  * \brief Lower the shape expression in relax to VM shape heap and TIR functions.

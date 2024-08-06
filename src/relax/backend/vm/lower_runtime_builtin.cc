@@ -17,13 +17,14 @@
  * under the License.
  */
 /*!
- * \file src/relax/backend/vm/vm_builtin_lower.cc
+ * \file src/relax/backend/vm/lower_runtime_builtin.cc
  * \brief Lowers most builtin functions and packed calls.
  */
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/attrs/op.h>
 #include <tvm/relax/backend.h>
 #include <tvm/relax/expr_functor.h>
+#include <tvm/relax/op_attr_types.h>
 #include <tvm/relax/type.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/tir/op.h>
@@ -33,11 +34,12 @@ namespace relax {
 
 // This pass lowers most ops to VM specific builtins.
 // TODO(relax-team): revisit after PrimValue.
-class VMBuiltinLowerMutator : public ExprMutator {
+class LowerRuntimeBuiltinMutator : public ExprMutator {
  public:
   using ExprMutator::VisitExpr_;
 
   Expr VisitExpr_(const CallNode* call_node) final {
+    static const auto& lower_builtin_fmap = Op::GetAttrMap<FLowerBuiltin>("FLowerBuiltin");
     // post-order mutation
     Call call = Downcast<Call>(VisitExprPostOrder_(call_node));
 
@@ -64,9 +66,13 @@ class VMBuiltinLowerMutator : public ExprMutator {
       return MakeMemAllocTensor(call);
     } else if (call->op == mem_kill_storage_op_ || call->op == mem_kill_tensor_op_) {
       return MakeMemKillObject(call);
-    } else {
-      return call;
+    } else if (const auto* op_node = call->op.as<OpNode>()) {
+      Op op = GetRef<Op>(op_node);
+      if (lower_builtin_fmap.count(op)) {
+        return lower_builtin_fmap[op](builder_, call);
+      }
     }
+    return call;
   }
 
   Expr MakeMemAllocStorage(const Call& call) {
@@ -210,17 +216,19 @@ class VMBuiltinLowerMutator : public ExprMutator {
   const ExternFunc builtin_invoke_closure_{"vm.builtin.invoke_closure"};
 };
 
-Expr VMBuiltinLower(const Expr& e) { return VMBuiltinLowerMutator().VisitExpr(e); }
+Expr LowerRuntimeBuiltin(const Expr& e) { return LowerRuntimeBuiltinMutator().VisitExpr(e); }
 
 namespace transform {
 
-Pass VMBuiltinLower() {
+Pass LowerRuntimeBuiltin() {
   runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
-      [=](Function f, IRModule m, PassContext pc) { return Downcast<Function>(VMBuiltinLower(f)); };
-  return CreateFunctionPass(pass_func, 0, "VMBuiltinLower", {});
+      [=](Function f, IRModule m, PassContext pc) {
+        return Downcast<Function>(LowerRuntimeBuiltin(f));
+      };
+  return CreateFunctionPass(pass_func, 0, "LowerRuntimeBuiltin", {});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.VMBuiltinLower").set_body_typed(VMBuiltinLower);
+TVM_REGISTER_GLOBAL("relax.transform.LowerRuntimeBuiltin").set_body_typed(LowerRuntimeBuiltin);
 
 }  // namespace transform
 }  // namespace relax

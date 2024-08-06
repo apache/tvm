@@ -19,6 +19,7 @@
 import functools
 import inspect
 import types
+import warnings
 from typing import Callable, Dict, List, Mapping, Optional, Sequence, Tuple, Union
 
 import numpy as np  # type: ignore
@@ -586,6 +587,16 @@ def ComputePrimValue() -> tvm.ir.transform.Pass:
     return _ffi_api.ComputePrimValue()  # type: ignore
 
 
+def LowerRuntimeBuiltin() -> tvm.ir.transform.Pass:
+    """Lowering generic intrinsic to VM intrinsics.
+
+    Returns
+    -------
+    ret: tvm.ir.transform.Pass
+    """
+    return _ffi_api.LowerRuntimeBuiltin()  # type: ignore
+
+
 def VMBuiltinLower() -> tvm.ir.transform.Pass:
     """Lowering generic intrinsic to VM intrinsics.
 
@@ -593,7 +604,11 @@ def VMBuiltinLower() -> tvm.ir.transform.Pass:
     -------
     ret: tvm.ir.transform.Pass
     """
-    return _ffi_api.VMBuiltinLower()  # type: ignore
+    warnings.warn(
+        "tvm.relax.transform.VMBuiltinLower has been renamed to 'LowerRuntimeBuiltin'.  "
+        "This wrapper is for backwards compatibility, and will be removed in a later update."
+    )
+    return _ffi_api.LowerRuntimeBuiltin()  # type: ignore
 
 
 def VMShapeLower(*, emit_err_ctx: bool = True) -> tvm.ir.transform.Pass:

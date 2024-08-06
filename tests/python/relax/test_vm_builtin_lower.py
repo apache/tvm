@@ -57,7 +57,7 @@ def test_vm_builtin_lower_mem_alloc_storage():
             gv0 = alloc
             return gv0
 
-    After = relax.transform.VMBuiltinLower()(Before)
+    After = relax.transform.LowerRuntimeBuiltin()(Before)
     tvm.ir.assert_structural_equal(Expected, After)
 
 
@@ -79,7 +79,7 @@ def test_vm_builtin_alloc_tensor_raises_error():
             return gv0
 
     with pytest.raises(tvm.TVMError):
-        relax.transform.VMBuiltinLower()(Before)
+        relax.transform.LowerRuntimeBuiltin()(Before)
 
 
 if __name__ == "__main__":

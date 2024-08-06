@@ -551,6 +551,25 @@ TVM_REGISTER_GLOBAL("vm.builtin.tensor_to_shape").set_body_typed([](NDArray data
   return ShapeTuple(out_shape);
 });
 
+TVM_REGISTER_GLOBAL("vm.builtin.ensure_zero_offset").set_body_typed([](NDArray data) {
+  if (data->byte_offset == 0) {
+    return data;
+  }
+  auto* device_api = DeviceAPI::Get(data->device);
+  if (device_api->SupportsDevicePointerArithmeticsOnHost() &&
+      data->byte_offset % tvm::runtime::kAllocAlignment == 0) {
+    DLManagedTensor* dl_tensor = data.ToDLPack();
+    dl_tensor->dl_tensor.data =
+        reinterpret_cast<char*>(dl_tensor->dl_tensor.data) + dl_tensor->dl_tensor.byte_offset;
+    dl_tensor->dl_tensor.byte_offset = 0;
+    return NDArray::FromDLPack(dl_tensor);
+  } else {
+    auto new_array = NDArray::Empty(data.Shape(), data->dtype, data->device);
+    new_array.CopyFrom(data);
+    return new_array;
+  }
+});
+
 }  // namespace relax_vm
 }  // namespace runtime
 }  // namespace tvm

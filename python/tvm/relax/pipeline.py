@@ -92,7 +92,7 @@ def default_build_pipeline():
                 transform.RewriteCUDAGraph(),
                 transform.LowerAllocTensor(),
                 transform.KillAfterLastUse(),
-                transform.VMBuiltinLower(),
+                transform.LowerRuntimeBuiltin(),
                 transform.ComputePrimValue(),
                 transform.VMShapeLower(),
                 transform.AttachGlobalSymbol(),
