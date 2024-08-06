@@ -326,7 +326,6 @@ jobs:
         with:
           submodules: 'recursive'
           ref: 'rebase_staging'
-          ref: ''
       - name: Compile X86
         shell: powershell
         run: |
