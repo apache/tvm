@@ -51,7 +51,7 @@ extern "C" {
 #endif
 
 #ifdef __cplusplus
-enum class TVMFFITypeIndex : int32_t {
+enum TVMFFITypeIndex : int32_t {
 #else
 typedef enum {
 #endif
@@ -77,7 +77,10 @@ typedef enum {
   kTVMFFIFunc = 68,
   kTVMFFIStr = 69,
   // [Section] Dynamic Boxed: [kTVMFFIDynObjectBegin, +oo)
-  kTVMFFIDynObjectBegin = 128,
+  // kTVMFFIDynObject is used to indicate that the type index
+  // is dynamic and needs to be looked up at runtime
+  kTVMFFIDynObject = 128,
+  kTVMFFIDynObjectBegin = 129
 #ifdef __cplusplus
 };
 #else

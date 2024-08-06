@@ -29,22 +29,89 @@
 namespace tvm {
 namespace ffi {
 
+using TypeIndex = TVMFFITypeIndex;
+
 namespace details {
 // forward declare object internal
 struct ObjectInternal;
 }  // namespace details
 
-class Object : protected TVMFFIObject {
+/*!
+ * \brief base class of all object containers.
+ *
+ * Sub-class of objects should declare the following static constexpr fields:
+ *
+ * - _type_index:
+ *      Static type index of the object, if assigned to TypeIndex::kTVMFFIDynObject
+ *      the type index will be assigned during runtime.
+ *      Runtime type index can be accessed by ObjectType::TypeIndex();
+ * - _type_key:
+ *       The unique string identifier of the type.
+ * - _type_final:
+ *       Whether the type is terminal type(there is no subclass of the type in the object system).
+ *       This field is automatically set by macro TVM_DECLARE_FINAL_OBJECT_INFO
+ *       It is still OK to sub-class a terminal object type T and construct it using make_object.
+ *       But IsInstance check will only show that the object type is T(instead of the sub-class).
+ *
+ * The following two fields are necessary for base classes that can be sub-classed.
+ *
+ * - _type_child_slots:
+ *       Number of reserved type index slots for child classes.
+ *       Used for runtime optimization for type checking in IsInstance.
+ *       If an object's type_index is within range of [type_index, type_index + _type_child_slots]
+ *       Then the object can be quickly decided as sub-class of the current object class.
+ *       If not, a fallback mechanism is used to check the global type table.
+ *       Recommendation: set to estimate number of children needed.
+ *
+ * - _type_child_slots_can_overflow:
+ *       Whether we can add additional child classes even if the number of child classes
+ *       exceeds the _type_child_slots. A fallback mechanism to check global type table will be
+ * used. Recommendation: set to false for optimal runtime speed if we know exact number of children.
+ *
+ * Two macros are used to declare helper functions in the object:
+ * - Use TVM_FFI_DECLARE_BASE_OBJECT_INFO for object classes that can be sub-classed.
+ * - Use TVM_FFI_DECLARE_FINAL_OBJECT_INFO for object classes that cannot be sub-classed.
+ *
+ * New objects can be created using make_object function.
+ * Which will automatically populate the type_index and deleter of the object.
+ */
+class Object : private TVMFFIObject {
  public:
   Object() {
     TVMFFIObject::ref_counter = 0;
     TVMFFIObject::deleter = nullptr;
   }
 
+  // Information about the object
+  static constexpr const char* _type_key = "runtime.Object";
+
+  // Default object type properties for sub-classes
+  static constexpr bool _type_final = false;
+  static constexpr uint32_t _type_child_slots = 0;
+  static constexpr bool _type_child_slots_can_overflow = true;
+  // NOTE: the following field is not type index of Object
+  // but was intended to be used by sub-classes as default value.
+  // The type index of Object is TypeIndex::kRoot
+  static constexpr int32_t _type_index = TypeIndex::kTVMFFIDynObject;
+
+  // The following functions are provided by macro
+  // TVM_FFI_DECLARE_BASE_OBJECT_INFO and TVM_DECLARE_FINAL_OBJECT_INFO
+  /*!
+   * \brief Get the runtime allocated type index of the type
+   * \note Getting this information may need dynamic calls into a global table.
+   */
+  static int32_t RuntimeTypeIndex() { return TypeIndex::kTVMFFIObject; }
+  /*!
+   * \brief Internal function to get or allocate a runtime index.
+   * \note
+   */
+  static int32_t _GetOrAllocRuntimeTypeIndex() { return TypeIndex::kTVMFFIObject; }
+
  private:
-  /*! \brief decreas*/
+  /*! \brief increase reference count */
   void IncRef() { details::AtomicIncrementRelaxed(&(this->ref_counter)); }
 
+  /*! \brief decrease reference count and delete the object */
   void DecRef() {
     if (details::AtomicDecrementRelAcq(&(this->ref_counter)) == 1) {
       if (this->deleter != nullptr) {
@@ -177,9 +244,9 @@ class ObjectPtr {
   /*! \return Whether two ObjectPtr equals each other */
   bool operator!=(const ObjectPtr<T>& other) const { return data_ != other.data_; }
   /*! \return Whether the pointer is nullptr */
-  bool operator==(std::nullptr_t null) const { return data_ == nullptr; }
+  bool operator==(std::nullptr_t) const { return data_ == nullptr; }
   /*! \return Whether the pointer is not nullptr */
-  bool operator!=(std::nullptr_t null) const { return data_ != nullptr; }
+  bool operator!=(std::nullptr_t) const { return data_ != nullptr; }
 
  private:
   /*! \brief internal pointer field */
@@ -207,6 +274,9 @@ class ObjectPtr {
   // friend classes
   friend class Object;
   friend class ObjectRef;
+  friend struct ObjectPtrHash;
+  template <typename>
+  friend class ObjectPtr;
   friend class tvm::ffi::details::ObjectInternal;
   template <typename RelayRefType, typename ObjType>
   friend RelayRefType GetRef(const ObjType* ptr);
@@ -215,8 +285,24 @@ class ObjectPtr {
 };
 
 namespace details {
-/*! \brief Namespace to internally manipulate object class. */
-struct ObjectInternal {};
+/*!
+ * \brief Namespace to internally manipulate object class.
+ * \note These functions are only supposed to be used by internal
+ * implementations and not external users of the tvm::ffi
+ */
+struct ObjectInternal {
+  // NOTE: these helper to perform static cast
+  // that also allows conversion from/to FFI values
+  template <typename T, typename U>
+  static TVM_FFI_INLINE T StaticCast(U src) {
+    return static_cast<T>(src);
+  }
+
+  template <typename T>
+  static TVM_FFI_INLINE ObjectPtr<T> ObjectPtr(Object* raw_ptr) {
+    return tvm::ffi::ObjectPtr<T>(raw_ptr);
+  }
+};
 }  // namespace details
 }  // namespace ffi
 }  // namespace tvm
