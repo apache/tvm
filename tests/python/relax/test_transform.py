@@ -20,7 +20,7 @@ import tvm
 from tvm import relax
 
 import tvm.script
-from tvm.script import tir as T, relax as R
+from tvm.script import ir as I, tir as T, relax as R
 
 
 def test_to_non_dataflow():
@@ -446,45 +446,174 @@ def test_call_tir_inplace_some_new():
     tvm.ir.assert_structural_equal(Expected["foo"], new_mod["foo"], map_free_vars=True)
 
 
-@pytest.mark.xfail()
 def test_call_tir_inplace_repeated_input():
-    @tvm.script.ir_module
-    class Input:
-        @T.prim_func
-        def func(
-            A: T.Buffer((2, 3), "int32"), B: T.Buffer((2, 3), "int32"), C: T.Buffer((2, 3), "int32")
-        ):
-            T.evaluate(0)
+    with pytest.raises(tvm.error.DiagnosticError):
 
-        @R.function
-        def foo(
-            x: R.Tensor((2, 3), "int32"), y: R.Tensor((2, 3), "int32"), z: R.Tensor((2, 3), "int32")
-        ) -> R.Tuple(R.Tensor((2, 3), "int32"), R.Tensor((2, 3), "int32")):
-            R.func_attr({"relax.force_pure": True})
-            gv0 = R.call_tir_inplace(
-                Input.func,
-                (x, y, z),
-                # repeated 0 -> that's an error
-                [0, 0],
-                [R.Tensor((2, 3), dtype="int32"), R.Tensor((2, 3), dtype="int32")],
-            )
-            return gv0
+        @tvm.script.ir_module
+        class Input:
+            @T.prim_func
+            def func(
+                A: T.Buffer((2, 3), "int32"),
+                B: T.Buffer((2, 3), "int32"),
+                C: T.Buffer((2, 3), "int32"),
+            ):
+                T.evaluate(0)
+
+            @R.function
+            def foo(
+                x: R.Tensor((2, 3), "int32"),
+                y: R.Tensor((2, 3), "int32"),
+                z: R.Tensor((2, 3), "int32"),
+            ) -> R.Tuple(R.Tensor((2, 3), "int32"), R.Tensor((2, 3), "int32")):
+                R.func_attr({"relax.force_pure": True})
+                gv0 = R.call_tir_inplace(
+                    Input.func,
+                    (x, y, z),
+                    # repeated 0 -> that's an error
+                    [0, 0],
+                    [R.Tensor((2, 3), dtype="int32"), R.Tensor((2, 3), dtype="int32")],
+                )
+                return gv0
 
 
-@pytest.mark.xfail()
 def test_call_tir_inplace_all_new():
-    @tvm.script.ir_module
-    class Input:
-        @T.prim_func
-        def func(A: T.Buffer((2, 3), "int32")):
-            T.evaluate(0)
+    with pytest.raises(tvm.error.DiagnosticError):
 
-        @R.function
-        def foo(x: R.Tensor((2, 3), "int32")) -> R.Tensor((2, 3), "int32"):
-            R.func_attr({"relax.force_pure": True})
-            # cannot make the only output a fresh one
-            gv0 = R.call_tir_inplace(Input.func, x, -1, R.Tensor((2, 3), dtype="int32"))
-            return gv0
+        @tvm.script.ir_module
+        class Input:
+            @T.prim_func
+            def func(A: T.Buffer((2, 3), "int32")):
+                T.evaluate(0)
+
+            @R.function
+            def foo(x: R.Tensor((2, 3), "int32")) -> R.Tensor((2, 3), "int32"):
+                R.func_attr({"relax.force_pure": True})
+                # cannot make the only output a fresh one
+                gv0 = R.call_tir_inplace(Input.func, x, -1, R.Tensor((2, 3), dtype="int32"))
+                return gv0
+
+
+def test_inplace_mutation_with_tuple_argument_raises_error():
+    """TIR PrimFuncs do not support Tuple arguments
+
+    The `R.call_tir_inplace` operator must receive an in-line tuple of
+    arguments, where each argument in the tuple may be expressed in
+    TIR.  Here, `[[A]]` specifies a tuple of arguments, where the
+    first argument is itself a tuple.  Since PrimFuncs do not support
+    Tuple arguments, this is invalid.
+
+    This is a regression test.  In previous implementations, this
+    triggered a segfault rather than raising an exception.
+
+    """
+    with pytest.raises(tvm.error.DiagnosticError):
+
+        @I.ir_module
+        class Module:
+            @R.function
+            def main(A: R.Tensor((16,), dtype="float32")) -> R.Tensor((16,), dtype="float32"):
+                cls = Module
+                gv1 = R.call_tir_inplace(
+                    cls.multiply_by_two,
+                    [[A]],
+                    out_sinfo=R.Tensor((16,), dtype="float32"),
+                    inplace_indices=[0],
+                )
+                return gv1
+
+            @T.prim_func(private=True)
+            def multiply_by_two(A: T.Buffer((16,), "float32")):
+                for i in range(16):
+                    A[i] = A[i] * T.float32(2)
+
+
+def test_inplace_mutation_with_non_tensor_argument_raises_error():
+    """In-place argument must be a tensor
+
+    The `R.call_tir_inplace` operator must receive an in-line tuple of
+    arguments, where each argument in the tuple may be expressed in
+    TIR.  Here, the argument `A` is not a tensor.
+
+    This is a regression test.  In previous implementations, this
+    triggered a segfault rather than raising an exception.
+
+    """
+    with pytest.raises(tvm.error.DiagnosticError):
+
+        @I.ir_module
+        class Module:
+            @R.function
+            def main(A: R.Object):
+                gv1 = R.call_tir_inplace(
+                    Module.multiply_by_two,
+                    [A],
+                    out_sinfo=R.Tensor((16,), dtype="float32"),
+                    inplace_indices=[0],
+                )
+                return gv1
+
+            @T.prim_func(private=True)
+            def multiply_by_two(A: T.Buffer((16,), "float32")):
+                for i in range(16):
+                    A[i] = A[i] * T.float32(2)
+
+
+def test_inplace_mutation_with_incompatible_tensor_shape_raises_error():
+    """In-place argument must have compatible shape
+
+    The `R.call_tir_inplace` operator must receive an in-line tuple of
+    arguments, where the shape of each in-place argument is compatible
+    with the corresponding output.  Here, the shape of argument `A` is
+    different than the output's shape (`[32]` as opposed to `[16]`).
+
+    """
+    with pytest.raises(tvm.error.DiagnosticError):
+
+        @I.ir_module
+        class Module:
+            @R.function
+            def main(A: R.Tensor([32], dtype="float32")):
+                gv1 = R.call_tir_inplace(
+                    Module.multiply_by_two,
+                    [A],
+                    out_sinfo=R.Tensor((16,), dtype="float32"),
+                    inplace_indices=[0],
+                )
+                return gv1
+
+            @T.prim_func(private=True)
+            def multiply_by_two(A: T.Buffer((16,), "float32")):
+                for i in range(16):
+                    A[i] = A[i] * T.float32(2)
+
+
+def test_inplace_mutation_with_incompatible_tensor_dtype_raises_error():
+    """In-place argument must have compatible dtype
+
+    The `R.call_tir_inplace` operator must receive an in-line tuple of
+    arguments, where the shape of each in-place argument is compatible
+    with the corresponding output.  Here, the dtype of argument `A` is
+    different than the output's dtype (`int32` as opposed to `float32`).
+
+    """
+    with pytest.raises(tvm.error.DiagnosticError):
+
+        @I.ir_module
+        class Module:
+            @R.function
+            def main(A: R.Tensor([16], dtype="int32")):
+                gv1 = R.call_tir_inplace(
+                    Module.multiply_by_two,
+                    [A],
+                    out_sinfo=R.Tensor((16,), dtype="float32"),
+                    inplace_indices=[0],
+                )
+                return gv1
+
+            @T.prim_func(private=True)
+            def multiply_by_two(A: T.Buffer((16,), "float32")):
+                for i in range(16):
+                    A[i] = A[i] * T.float32(2)
 
 
 if __name__ == "__main__":
