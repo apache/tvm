@@ -36,8 +36,6 @@
 namespace tvm {
 namespace relay {
 
-using namespace runtime;
-
 enum class TokenType {
   kCommentStart,
   kCommentEnd,
