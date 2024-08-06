@@ -51,7 +51,8 @@ namespace tvm {
 namespace relay {
 namespace vm {
 
-using namespace tvm::runtime;
+using tvm::runtime::ModulePropertyMask;
+using tvm::runtime::NDArray;
 using namespace tvm::runtime::vm;
 using namespace relay::transform;
 

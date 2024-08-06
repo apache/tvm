@@ -41,8 +41,6 @@
 namespace tvm {
 namespace relay {
 
-using namespace runtime;
-
 // trim from start (in place)
 static inline void ltrim(std::string& s) {  // NOLINT(*)
   s.erase(s.begin(), std::find_if(s.begin(), s.end(), [](int ch) { return !std::isspace(ch); }));
