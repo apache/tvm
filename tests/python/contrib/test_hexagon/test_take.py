@@ -59,7 +59,7 @@ class Module_tanh:
         rxplaceholder_4: T.Buffer((), "int32"),
         compute: T.Buffer((T.int64(1), T.int64(2), T.int64(2), T.int64(2)), "uint8"),
     ):
-        T.func_attr({"tir.noalias": True})
+        T.func_attr({"tir.noalias": True, "op_attrs": {"op_name": "qnn.tanh"}})
 
 
 @tvm.script.ir_module
@@ -90,7 +90,7 @@ class Module_sqrt:
         rxplaceholder_4: T.Buffer((), "int32"),
         compute: T.Buffer((T.int64(1), T.int64(2), T.int64(2), T.int64(2)), "uint8"),
     ):
-        T.func_attr({"tir.noalias": True})
+        T.func_attr({"tir.noalias": True, "op_attrs": {"op_name": "qnn.sqrt"}})
 
 
 @tvm.script.ir_module
@@ -121,7 +121,7 @@ class Module_rsqrt:
         rxplaceholder_4: T.Buffer((), "int32"),
         compute: T.Buffer((T.int64(1), T.int64(2), T.int64(2), T.int64(2)), "uint8"),
     ):
-        T.func_attr({"tir.noalias": True})
+        T.func_attr({"tir.noalias": True, "op_attrs": {"op_name": "qnn.rsqrt"}})
 
 
 @tvm.script.ir_module
@@ -152,7 +152,7 @@ class Module_exp:
         rxplaceholder_4: T.Buffer((), "int32"),
         compute: T.Buffer((T.int64(1), T.int64(2), T.int64(2), T.int64(2)), "uint8"),
     ):
-        T.func_attr({"tir.noalias": True})
+        T.func_attr({"tir.noalias": True, "op_attrs": {"op_name": "qnn.exp"}})
 
 
 @tvm.script.ir_module
@@ -183,7 +183,7 @@ class Module_erf:
         rxplaceholder_4: T.Buffer((), "int32"),
         compute: T.Buffer((T.int64(1), T.int64(2), T.int64(2), T.int64(2)), "uint8"),
     ):
-        T.func_attr({"tir.noalias": True})
+        T.func_attr({"tir.noalias": True, "op_attrs": {"op_name": "qnn.erf"}})
 
 
 @tvm.script.ir_module
@@ -214,7 +214,7 @@ class Module_sigmoid:
         rxplaceholder_4: T.Buffer((), "int32"),
         compute: T.Buffer((T.int64(1), T.int64(2), T.int64(2), T.int64(2)), "uint8"),
     ):
-        T.func_attr({"tir.noalias": True})
+        T.func_attr({"tir.noalias": True, "op_attrs": {"op_name": "qnn.sigmoid"}})
 
 
 @tvm.script.ir_module
@@ -245,7 +245,7 @@ class Module_hardswish:
         rxplaceholder_4: T.Buffer((), "int32"),
         compute: T.Buffer((T.int64(1), T.int64(2), T.int64(2), T.int64(2)), "uint8"),
     ):
-        T.func_attr({"tir.noalias": True})
+        T.func_attr({"tir.noalias": True, "op_attrs": {"op_name": "qnn.hardswish"}})
 
 
 @tvm.script.ir_module
@@ -276,7 +276,7 @@ class Module_log:
         rxplaceholder_4: T.Buffer((), "int32"),
         compute: T.Buffer((T.int64(1), T.int64(2), T.int64(2), T.int64(2)), "uint8"),
     ):
-        T.func_attr({"tir.noalias": True})
+        T.func_attr({"tir.noalias": True, "op_attrs": {"op_name": "qnn.log"}})
 
 
 @tvm.script.ir_module
@@ -307,7 +307,7 @@ class Module_abs:
         rxplaceholder_4: T.Buffer((), "int32"),
         compute: T.Buffer((T.int64(1), T.int64(2), T.int64(2), T.int64(2)), "uint8"),
     ):
-        T.func_attr({"tir.noalias": True})
+        T.func_attr({"tir.noalias": True, "op_attrs": {"op_name": "qnn.abs"}})
 
 
 # data = np.random.random([1, 2, 2, 2]).astype("float32") : Need to hadcode the data

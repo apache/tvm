@@ -22,20 +22,25 @@ from tvm import relax
 from tvm.contrib.hexagon import hexagon_unary_ops
 
 
-def op_replace(call_node):
-    def is_op(op_name: str, call_node: relax.Call) -> bool:
-        if not isinstance(call_node, relax.Call):
-            return False
-        call_tir_op = tvm.ir.Op.get("relax.call_tir")
-        if call_node.op != call_tir_op:
-            return False
-        global_var = call_node.args[0]
-        return op_name in global_var.name_hint
-
-    ops = ["tanh", "sqrt", "rsqrt", "exp", "erf", "sigmoid", "hardswish", "log", "abs"]
-    for op in ops:
-        if is_op(op, call_node):
-            return True
+def op_replace(call_node, func) -> bool:
+    if not isinstance(call_node, relax.Call):
+        return False
+    call_tir_op = tvm.ir.Op.get("relax.call_tir")
+    if call_node.op != call_tir_op:
+        return False
+    ops = [
+        "qnn.tanh",
+        "qnn.sqrt",
+        "qnn.rsqrt",
+        "qnn.exp",
+        "qnn.erf",
+        "qnn.sigmoid",
+        "qnn.hardswish",
+        "qnn.log",
+        "qnn.abs",
+    ]
+    if func.attrs["op_attrs"]["op_name"] in ops:
+        return True
     return False
 
 
@@ -58,8 +63,15 @@ class Tanh2TakeReplace(tvm.relax.PyExprMutator):
         return self.builder_.get()
 
     def visit_call_(self, call_node: relax.Call) -> relax.Call:
+        call_tir_op = tvm.ir.Op.get("relax.call_tir")
+        if call_node.op != call_tir_op:
+            return call_node
+
+        var = call_node.args[0]
+        func = self.mod_[var]
+
         if call_node.args[1][0].struct_info.dtype == "uint8":
-            if op_replace(call_node):
+            if op_replace(call_node, func):
                 inp, inp_scale, inp_zp, out_scale, out_zp = [x for x in call_node.args[1]]
                 # LUT node creation
                 LUT = hexagon_unary_ops.LUT_generation(
