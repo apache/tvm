@@ -240,6 +240,11 @@ class TVM_DLL DeviceAPI {
     return device_type != kDLCPU && device_type != kDLMicroDev;
   }
 
+  /*!
+   * \brief Whether pointer arithmetics on a device owned pointer may be performed on the host.
+   */
+  virtual bool SupportsDevicePointerArithmeticsOnHost() { return false; }
+
  protected:
   /*!
    * \brief copy data from one place to another
