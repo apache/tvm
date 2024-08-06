@@ -31,11 +31,11 @@ class AutoBindNode : public ScheduleRuleNode {
   // Inherited from ScheduleRuleNode
   void InitializeWithTuneContext(const TuneContext& context) final {
     CHECK(context->target.defined()) << "ValueError: target is not defined";
-    Optional<Integer> max_threads_per_block =
-        context->target.value()->GetAttr<Integer>("max_threads_per_block");
+    Optional<runtime::Int> max_threads_per_block =
+        context->target.value()->GetAttr<runtime::Int>("max_threads_per_block");
     CHECK(max_threads_per_block.defined())
         << "ValueError: missing attribute `max_threads_per_block` in the target";
-    this->max_threads_per_block_ = max_threads_per_block.value().IntValue();
+    this->max_threads_per_block_ = max_threads_per_block.value();
   }
 
   // Inherited from ScheduleRuleNode
@@ -53,7 +53,7 @@ class AutoBindNode : public ScheduleRuleNode {
   /*! \brief The max number of threadblocks in the cuda device */
   int64_t max_threadblocks_ = -1;
   /*! \brief thread_extents Candidates of thread axis extent. */
-  Array<Integer> thread_extents_;
+  Array<runtime::Int> thread_extents_;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     // `max_threads_per_block_` is not visited
@@ -72,7 +72,7 @@ Array<tir::Schedule> AutoBindNode::Apply(const tir::Schedule& sch, const tir::Bl
   return {sch};
 }
 
-ScheduleRule ScheduleRule::AutoBind(int max_threadblocks, Array<Integer> thread_extents,
+ScheduleRule ScheduleRule::AutoBind(int max_threadblocks, Array<runtime::Int> thread_extents,
                                     int max_threads_per_block) {
   ObjectPtr<AutoBindNode> n = make_object<AutoBindNode>();
   n->max_threadblocks_ = max_threadblocks;
