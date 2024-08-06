@@ -23,6 +23,7 @@ if(ROCM_FOUND)
   # avoid global retrigger of cmake
   include_directories(SYSTEM ${ROCM_INCLUDE_DIRS})
   add_definitions(-D__HIP_PLATFORM_HCC__=1)
+  add_definitions(-D__HIP_PLATFORM_AMD__=1)
 endif(ROCM_FOUND)
 
 
