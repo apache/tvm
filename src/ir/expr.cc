@@ -47,12 +47,6 @@ PrimExpr PrimExpr::FromObject_(ObjectRef ref) {
   if (auto opt = ref.as<runtime::String>()) {
     return tir::StringImm(opt.value());
   }
-  if (auto opt = ref.as<runtime::Bool>()) {
-    return Bool(opt.value());
-  }
-  if (auto opt = ref.as<runtime::Int>()) {
-    return Integer(opt.value());
-  }
   if (const auto* buffer_region = ref.as<tir::BufferRegionNode>()) {
     Array<PrimExpr> indices;
     indices.reserve(buffer_region->region.size());
@@ -161,14 +155,9 @@ Range Range::FromMinExtent(PrimExpr min, PrimExpr extent, Span span) {
 
 TVM_REGISTER_GLOBAL("ir.Range_from_min_extent").set_body_typed(Range::FromMinExtent);
 
-TVM_REGISTER_GLOBAL("ir.Range")
-    .set_body_typed([](PrimExpr begin, Optional<PrimExpr> end, Span span) -> Range {
-      if (end.defined()) {
-        return Range(begin, end.value(), span);
-      } else {
-        return Range(IntImm(begin->dtype, 0), begin, span);
-      }
-    });
+TVM_REGISTER_GLOBAL("ir.Range").set_body([](TVMArgs args, TVMRetValue* ret) {
+  *ret = Range(args[0], args[1], args[2]);
+});
 
 TVM_REGISTER_NODE_TYPE(RangeNode);
 

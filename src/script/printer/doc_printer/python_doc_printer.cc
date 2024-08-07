@@ -323,33 +323,12 @@ void PythonDocPrinter::PrintTypedDoc(const LiteralDoc& doc) {
     }
   } else if (const auto* float_imm = value.as<FloatImmNode>()) {
     // TODO(yelite): Make float number printing roundtrippable
+    output_.precision(17);
     if (std::isinf(float_imm->value) || std::isnan(float_imm->value)) {
       output_ << '"' << float_imm->value << '"';
-    } else if (std::nearbyint(float_imm->value) == float_imm->value) {
-      // Special case for floating-point values which would be
-      // formatted using %g, are not displayed in scientific
-      // notation, and whose fractional part is zero.
-      //
-      // By default, using `operator<<(std::ostream&, double)`
-      // delegates to the %g printf formatter.  This strips off any
-      // trailing zeros, and also strips the decimal point if no
-      // trailing zeros are found.  When parsed in python, due to the
-      // missing decimal point, this would incorrectly convert a float
-      // to an integer.  Providing the `std::showpoint` modifier
-      // instead delegates to the %#g printf formatter.  On its own,
-      // this resolves the round-trip errors, but also prevents the
-      // trailing zeros from being stripped off.
-      std::showpoint(output_);
-      std::fixed(output_);
-      output_.precision(1);
-      output_ << float_imm->value;
     } else {
-      std::defaultfloat(output_);
-      std::noshowpoint(output_);
-      output_.precision(17);
       output_ << float_imm->value;
     }
-
   } else if (const auto* string_obj = value.as<StringObj>()) {
     output_ << "\"" << support::StrEscape(string_obj->data, string_obj->size) << "\"";
   } else {
