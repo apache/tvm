@@ -2473,6 +2473,7 @@ export class Instance implements Disposable {
     switch (tcode) {
       case ArgTypeCode.Int:
       case ArgTypeCode.UInt:
+      case ArgTypeCode.TVMArgBool:
         return this.memory.loadI64(rvaluePtr);
       case ArgTypeCode.Float:
         return this.memory.loadF64(rvaluePtr);
