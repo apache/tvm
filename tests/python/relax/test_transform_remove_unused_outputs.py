@@ -119,5 +119,25 @@ class TestMultipleCallSites(BaseCompare):
             return (A, C)
 
 
+class TestReturnTuple(BaseCompare):
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(A: R.Tensor([16, 16], "int32")):
+            B = R.add(A, A)
+            out_tuple = Before.func(B)
+            return out_tuple
+
+        @R.function(private=True)
+        def func(B: R.Tensor([16, 16], "int32")) -> R.Tuple(
+            R.Tensor([16, 16], "int32"), R.Tensor([16, 16], "int32")
+        ):
+            C = R.multiply(B, B)
+            D = R.add(B, B)
+            return (C, D)
+
+    Expected = Before
+
+
 if __name__ == "__main__":
     tvm.testing.main()
