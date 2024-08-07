@@ -20,7 +20,7 @@ from typing import Callable, Optional
 
 import tvm._ffi
 
-from ..runtime import Object, Scriptable
+from ..runtime import Object, Scriptable, const, convert
 from . import _ffi_api
 from .base import Node, Span
 from .type import Type
@@ -184,6 +184,9 @@ class Range(Node, Scriptable):
     def __init__(
         self, begin: PrimExpr, end: Optional[PrimExpr] = None, span: Optional[Span] = None
     ) -> None:
+        if end is None:
+            end = convert(begin)
+            begin = const(0, dtype=end.dtype, span=span)
         self.__init_handle_by_constructor__(_ffi_api.Range, begin, end, span)
 
     @staticmethod

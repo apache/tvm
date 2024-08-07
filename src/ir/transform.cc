@@ -107,42 +107,43 @@ bool PassContext::PassEnabled(const PassInfo& info) const {
 
 class PassConfigManager {
  public:
-  void Register(std::string key, uint32_t value_type_index,
-                std::function<ObjectRef(ObjectRef)> legalization) {
+  void Register(std::string key, uint32_t value_type_index) {
     ICHECK_EQ(key2vtype_.count(key), 0U);
     ValueTypeInfo info;
     info.type_index = value_type_index;
     info.type_key = runtime::Object::TypeIndex2Key(value_type_index);
-    info.legalization = legalization;
     key2vtype_[key] = info;
   }
 
   // Trying to validate and legalize a config.
   void Legalize(Map<String, ObjectRef>* config) {
     std::vector<std::pair<std::string, ObjectRef>> update;
-    for (auto [key, obj] : *config) {
-      auto it = key2vtype_.find(key);
+    auto* reflection = ReflectionVTable::Global();
+
+    for (auto kv : *config) {
+      auto it = key2vtype_.find(kv.first);
       if (it == key2vtype_.end()) {
         std::ostringstream os;
-        os << "AttributeError: Invalid config option \'" << key << "\' candidates are:";
+        os << "AttributeError: Invalid config option \'" << kv.first << "\' candidates are:";
         int counter = 0;
-        for (const auto& [key, obj] : key2vtype_) {
+        for (const auto& kv : key2vtype_) {
           os << ' ';
           if (counter++ != 0) os << ',';
-          os << key;
+          os << kv.first;
         }
         LOG(FATAL) << os.str();
       }
       const auto& info = it->second;
-
-      ICHECK(obj.defined()) << "AttributeError: " << key << " is None";
-
-      ICHECK(info.legalization) << "AttributeError: "
-                                << "Config option \'" << key
-                                << "\' was defined without a legalization function.";
-      auto legalized = info.legalization(obj);
-      if (!legalized.same_as(obj)) {
-        update.emplace_back(key, legalized);
+      ICHECK(kv.second.defined()) << "AttributeError: " << kv.first << " is None";
+      if (kv.second->IsInstance<Map<String, ObjectRef>::ContainerType>()) {
+        ObjectRef converted =
+            reflection->CreateObject(info.type_key, Downcast<Map<String, ObjectRef>>(kv.second));
+        update.emplace_back(kv.first, converted);
+      } else {
+        if (!runtime::ObjectInternal::DerivedFrom(kv.second.get(), info.type_index)) {
+          LOG(FATAL) << "AttributeError: expect config " << kv.first << " to have type "
+                     << info.type_key << " but get " << kv.second->GetTypeKey();
+        }
       }
     }
     for (auto&& kv : update) {
@@ -169,15 +170,13 @@ class PassConfigManager {
   struct ValueTypeInfo {
     std::string type_key;
     uint32_t type_index;
-    std::function<ObjectRef(ObjectRef)> legalization;
   };
 
   std::unordered_map<std::string, ValueTypeInfo> key2vtype_;
 };
 
-void PassContext::RegisterConfigOption(const char* key, uint32_t value_type_index,
-                                       std::function<ObjectRef(ObjectRef)> legalization) {
-  PassConfigManager::Global()->Register(key, value_type_index, legalization);
+void PassContext::RegisterConfigOption(const char* key, uint32_t value_type_index) {
+  PassConfigManager::Global()->Register(key, value_type_index);
 }
 
 Map<String, Map<String, String>> PassContext::ListConfigs() {

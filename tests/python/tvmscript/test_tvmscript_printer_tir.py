@@ -230,7 +230,7 @@ def test_buffer_store():
         obj,
         """
 A = T.Buffer((128, 128), "float16")
-A[128, 128] = A[128, 128] + T.float16(1.0)
+A[128, 128] = A[128, 128] + T.float16(1)
 """,
     )
 
@@ -259,7 +259,7 @@ def test_let_stmt():
     _assert_print(
         obj,
         """
-with T.LetStmt(T.float32(10.0)) as v:
+with T.LetStmt(T.float32(10)) as v:
     T.evaluate(0)
 """,
     )
@@ -672,7 +672,7 @@ def test_call():
     _assert_print(
         obj,
         """
-T.atan(T.float32(1.0))
+T.atan(T.float32(1))
 """,
     )
 
@@ -682,7 +682,7 @@ def test_comm_reducer():
     _assert_print(
         obj,
         """
-T.comm_reducer(lambda x, y: x + y, [T.float32(0.0)])
+T.comm_reducer(lambda x, y: x + y, [T.float32(0)])
 """,
     )
 
@@ -712,7 +712,7 @@ def test_float_imm():
     _assert_print(
         obj,
         """
-T.float16(1.0)
+T.float16(1)
 """,
     )
 
@@ -942,7 +942,7 @@ def test_float8(dtype):
 
 @T.prim_func
 def func():
-    T.evaluate(T.{dtype}(0.0))
+    T.evaluate(T.{dtype}(0))
     """
     func = get_func(dtype)
     _assert_print(func, expected_output)

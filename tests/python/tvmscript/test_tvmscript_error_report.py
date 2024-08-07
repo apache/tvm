@@ -332,35 +332,26 @@ def test_convert_slice_to_bufferload():
     check_error(convert_slice_to_bufferload, 6)
 
 
-def test_tvm_exception_catch_from_special_stmt():
+def test_tvm_exception_catch():
     def special_stmt_except() -> None:
         A = T.alloc_buffer("(128, 128)", "float32")  # error
         T.evaluate(1.0)
 
-    check_error(special_stmt_except, 2)
-
-
-def test_tvm_exception_catch_from_scope_handler():
     def scope_handler_except() -> None:
         for i in T.serial("1", "1"):  # error
             T.evaluate(1)
 
-    check_error(scope_handler_except, 2)
-
-
-def test_tvm_exception_catch_from_bare_intrin():
     def intrin_except_unassign(a: T.handle) -> None:
         A = T.match_buffer(a, (16, 16), "float32")
         T.evaluate(A)  # error
 
-    check_error(intrin_except_unassign, 3)
-
-
-def test_tvm_exception_catch_from_assigned_intrin():
     def intrin_except_assign(a: T.handle) -> None:
         A = T.match_buffer(a, (16, 16), "float32")
         A[0, 0] = A[A]  # error
 
+    check_error(special_stmt_except, 2)
+    check_error(scope_handler_except, 2)
+    check_error(intrin_except_unassign, 3)
     check_error(intrin_except_assign, 3)
 
 

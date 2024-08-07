@@ -38,61 +38,64 @@ class ObjectGeneric(object):
 ObjectTypes = (ObjectBase, NDArrayBase, Module, ObjectRValueRef, PackedFuncBase, PyNativeObject)
 
 
-def convert_to_object(value):
+def convert_to_object(value, span=None):
     """Convert a Python value to corresponding object type.
-
-    Type conversions performed by this function must *only* produce
-    types that are supported by `libtvm_runtime.so`.  This function
-    must be usable in environments where only TVM runtime support is
-    present.  Automatic conversions to compile-time representations
-    (e.g. `tir.IntImm` or `relax.PrimValue`) should not be done as
-    part of this conversion, as these types are not available in
-    `libtvm_runtime.so`.
 
     Parameters
     ----------
     value : str
         The value to be inspected.
 
+    span : Optional[Span]
+        The location of this itervar in the source code.
+
     Returns
     -------
     obj : Object
         The corresponding object value.
-
     """
-
     if isinstance(value, ObjectTypes):
         return value
-    elif isinstance(value, (bool, int, float)):
-        return value
-    elif isinstance(value, string_types):
+    if isinstance(value, bool):
+        return const(value, "uint1x1", span=span)
+    if isinstance(value, Number):
+        return const(value, span=span)
+    if isinstance(value, string_types):
         return _ffi_api.String(value)
-    elif isinstance(value, (list, tuple)):
-        # The call to _ffi_api.Array will convert its own arguments,
-        # so we don't need to apply any explicit conversions here.
+    if isinstance(value, (list, tuple)):
+        value = [convert_to_object(x) for x in value]
         return _ffi_api.Array(*value)
-    elif isinstance(value, dict):
-        if any(not isinstance(key, (ObjectTypes, string_types, Number)) for key in value):
-            raise ValueError("key of map must already been a container type")
-
-        vlist = [kv for item in value.items() for kv in item]
+    if isinstance(value, dict):
+        vlist = []
+        for item in value.items():
+            if (
+                not isinstance(item[0], ObjectTypes)
+                and not isinstance(item[0], string_types)
+                and not isinstance(item[0], Number)
+            ):
+                raise ValueError("key of map must already been a container type")
+            vlist.append(convert_to_object(item[0]))
+            vlist.append(convert_to_object(item[1]))
         return _ffi_api.Map(*vlist)
-    elif isinstance(value, ObjectGeneric):
+    if isinstance(value, ObjectGeneric):
         return value.asobject()
-    elif callable(value):
+    if callable(value):
         return convert_to_tvm_func(value)
-    elif value is None:
+    if value is None:
         return None
-    else:
-        raise TypeError(f"don't know how to convert type {type(value)} to object")
+
+    raise ValueError(f"don't know how to convert type {type(value)} to object")
 
 
-def convert(value):
+def convert(value, span=None):
     """Convert value to TVM object or function.
 
     Parameters
     ----------
     value : python value
+
+    span : Optional[Span]
+        The location of this statement in the source code.
 
     Returns
     -------
@@ -104,29 +107,29 @@ def convert(value):
     This function is redirected to `convert_to_object` as it is widely used in
     the codebase. We can choose one to keep and discard the other one later.
     """
-
-    return convert_to_object(value)
+    return convert_to_object(value, span=span)
 
 
 def _scalar_type_inference(value):
     if hasattr(value, "dtype"):
-        return str(value.dtype)
+        dtype = str(value.dtype)
     elif isinstance(value, bool):
-        return "bool"
+        dtype = "bool"
     elif isinstance(value, float):
         # We intentionally prefer convert the float to float32 since it's more common in DL.
         if -3.40282347e38 <= value <= 3.40282347e38:
-            return "float32"
+            dtype = "float32"
         else:
-            return "float64"
+            dtype = "float64"
     elif isinstance(value, int):
         # We intentionally prefer convert the python int to int32 since it's more common in DL.
         if -2147483648 <= value <= 2147483647:
-            return "int32"
+            dtype = "int32"
         else:
-            return "int64"
+            dtype = "int64"
     else:
         raise NotImplementedError(f"Cannot automatically inference the type. value={value}")
+    return dtype
 
 
 def const(value, dtype=None, span=None):
