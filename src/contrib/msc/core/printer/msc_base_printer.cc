@@ -100,17 +100,8 @@ void MSCBasePrinter::PrintTypedDoc(const LiteralDoc& doc) {
   const ObjectRef& value = doc->value;
   if (!value.defined()) {
     output_ << "\"\"";
-  } else if (const auto* runtime_int = value.as<runtime::Int::ContainerType>()) {
-    output_ << runtime_int->value;
   } else if (const auto* int_imm = value.as<IntImmNode>()) {
     output_ << int_imm->value;
-  } else if (const auto* runtime_float = value.as<runtime::Float::ContainerType>()) {
-    output_.precision(config_.float_precision);
-    if (std::isinf(runtime_float->value) || std::isnan(runtime_float->value)) {
-      output_ << '"' << runtime_float->value << '"';
-    } else {
-      output_ << runtime_float->value;
-    }
   } else if (const auto* float_imm = value.as<FloatImmNode>()) {
     output_.precision(config_.float_precision);
     if (std::isinf(float_imm->value) || std::isnan(float_imm->value)) {

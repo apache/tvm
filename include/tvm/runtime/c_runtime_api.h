@@ -81,7 +81,6 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -187,12 +186,11 @@ typedef enum {
   kTVMBytes = 12U,
   kTVMNDArrayHandle = 13U,
   kTVMObjectRValueRefArg = 14U,
-  kTVMArgBool = 15U,
   // Extension codes for other frameworks to integrate TVM PackedFunc.
   // To make sure each framework's id do not conflict, use first and
   // last sections to mark ranges.
   // Open an issue at the repo if you need a section of code.
-  kTVMExtBegin = 16U,
+  kTVMExtBegin = 15U,
   kTVMNNVMFirst = 16U,
   kTVMNNVMLast = 20U,
   // The following section of code is used for non-reserved types.
@@ -209,7 +207,6 @@ typedef DLTensor* TVMArrayHandle;
  */
 typedef union {
   int64_t v_int64;
-  bool v_bool;
   double v_float64;
   void* v_handle;
   const char* v_str;

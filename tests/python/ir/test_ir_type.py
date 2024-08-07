@@ -16,7 +16,6 @@
 # under the License.
 """Test type nodes in the IR"""
 import tvm
-from tvm.script import tir as T
 
 
 def check_json_roundtrip(node):
@@ -39,9 +38,11 @@ def test_tensor_type_bad_constructor():
 
 
 def test_tensor_type():
-    tt = tvm.ir.TensorType([1, 2, 3], "float32")
-    assert tt.dtype == "float32"
-    assert list(tt.shape) == [T.int32(1), T.int32(2), T.int32(3)]
+    shape = tvm.runtime.convert([1, 2, 3])
+    dtype = "float32"
+    tt = tvm.ir.TensorType(shape, dtype)
+    assert tt.dtype == dtype
+    assert tt.shape == shape
     assert tt.span == None
     str(tt)
     check_json_roundtrip(tt)

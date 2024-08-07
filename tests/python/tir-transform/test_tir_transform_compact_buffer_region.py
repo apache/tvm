@@ -1029,45 +1029,38 @@ class TestTileAwareCompaction(BaseCompactTest):
     # it is not an opaque block case intentionally
     is_lower_order_free = False
 
-    @property
-    def before(self):
-        @T.prim_func
-        def main(
-            A: T.Buffer((128, 128), "float32"),
-            B: T.Buffer((128, 128), "float32"),
-            C: T.Buffer((128, 128), "float32"),
-        ):
-            for i_0 in range(5, annotations={"pragma_loop_partition_hint": 1}):
-                for j_0 in range(5, annotations={"pragma_loop_partition_hint": 1}):
-                    A_local = T.decl_buffer((26, 128), scope="local")
-                    B_local = T.decl_buffer((128, 26), scope="local")
-                    C_local = T.decl_buffer((26, 26), scope="local")
-                    for ax0, ax1 in T.grid(26, 128):
-                        if i_0 * 26 + ax0 < 128:
-                            A_local[ax0, ax1] = A[i_0 * 26 + ax0, ax1]
-                    for ax0, ax1 in T.grid(128, 26):
-                        if j_0 * 26 + ax1 < 128:
-                            B_local[ax0, ax1] = B[ax0, j_0 * 26 + ax1]
-                    for i_1, j_1, k in T.grid(26, 26, 128):
-                        if i_0 * 26 + i_1 < 128 and j_0 * 26 + j_1 < 128:
-                            if k == 0:
-                                C_local[i_1, j_1] = T.float32(0)
-                            C_local[i_1, j_1] = (
-                                C_local[i_1, j_1] + A_local[i_1, k] * B_local[k, j_1]
-                            )
-                    for ax0, ax1 in T.grid(26, 26):
-                        if i_0 * 26 + ax0 < 128 and j_0 * 26 + ax1 < 128:
-                            C[i_0 * 26 + ax0, j_0 * 26 + ax1] = C_local[ax0, ax1]
+    @T.prim_func
+    def before(
+        A: T.Buffer((128, 128), "float32"),
+        B: T.Buffer((128, 128), "float32"),
+        C: T.Buffer((128, 128), "float32"),
+    ):
+        for i_0 in range(5, annotations={"pragma_loop_partition_hint": 1}):
+            for j_0 in range(5, annotations={"pragma_loop_partition_hint": 1}):
+                A_local = T.decl_buffer((26, 128), scope="local")
+                B_local = T.decl_buffer((128, 26), scope="local")
+                C_local = T.decl_buffer((26, 26), scope="local")
+                for ax0, ax1 in T.grid(26, 128):
+                    if i_0 * 26 + ax0 < 128:
+                        A_local[ax0, ax1] = A[i_0 * 26 + ax0, ax1]
+                for ax0, ax1 in T.grid(128, 26):
+                    if j_0 * 26 + ax1 < 128:
+                        B_local[ax0, ax1] = B[ax0, j_0 * 26 + ax1]
+                for i_1, j_1, k in T.grid(26, 26, 128):
+                    if i_0 * 26 + i_1 < 128 and j_0 * 26 + j_1 < 128:
+                        if k == 0:
+                            C_local[i_1, j_1] = T.float32(0)
+                        C_local[i_1, j_1] = C_local[i_1, j_1] + A_local[i_1, k] * B_local[k, j_1]
+                for ax0, ax1 in T.grid(26, 26):
+                    if i_0 * 26 + ax0 < 128 and j_0 * 26 + ax1 < 128:
+                        C[i_0 * 26 + ax0, j_0 * 26 + ax1] = C_local[ax0, ax1]
 
-        # Get partitioned workload to compact
-        mod = tvm.IRModule.from_expr(main)
-        with tvm.transform.PassContext(
-            config={"tir.LoopPartition": {"partition_const_loop": True}}
-        ):
-            mod = tvm.tir.transform.LowerOpaqueBlock()(mod)
-            mod = tvm.tir.transform.LoopPartition()(mod)
-
-        return mod["main"]
+    # Get partitioned workload to compact
+    before_mod = tvm.IRModule.from_expr(before.with_attr("global_symbol", "main"))
+    with tvm.transform.PassContext(config={"tir.LoopPartition": {"partition_const_loop": True}}):
+        before_mod = tvm.tir.transform.LowerOpaqueBlock()(before_mod)
+        before_mod = tvm.tir.transform.LoopPartition()(before_mod)
+    before = before_mod["main"]
 
     @T.prim_func
     def expected(

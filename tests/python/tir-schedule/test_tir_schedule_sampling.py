@@ -146,7 +146,7 @@ def test_sample_categorical_serialize():
         decisions.append(rv)
     new_sch = verify_trace_roundtrip(sch, mod=elementwise)
     for i, new_inst in enumerate(new_sch.trace.insts):
-        assert decisions[i] == candidates[new_sch.trace.decisions[new_inst]]
+        assert decisions[i] == candidates[new_sch.trace.decisions[new_inst].value]
 
 
 def test_sample_perfect_tile_power_of_two():

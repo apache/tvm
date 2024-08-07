@@ -482,8 +482,7 @@ std::vector<std::pair<State, int>> RuleCustomSketch::Apply(const SketchPolicyNod
   std::vector<std::pair<State, int>> ret;
   for (const auto& item : apply_ret) {
     CHECK_EQ(item.size(), 2);
-    auto next = item[1].as<runtime::Int::ContainerType>();
-    ICHECK(next);
+    auto next = item[1].as<IntImmNode>();
     ret.emplace_back(Downcast<State>(item[0]), next->value);
   }
   return ret;

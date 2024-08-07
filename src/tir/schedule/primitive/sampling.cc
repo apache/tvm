@@ -163,18 +163,19 @@ std::vector<int32_t> SampleWithoutReplacement(
 }
 
 int64_t SampleCategorical(support::LinearCongruentialEngine::TRandState* rand_state,
-                          const Array<runtime::Int>& candidates, const Array<runtime::Float>& probs,
-                          Optional<runtime::Int>* decision) {
+                          const Array<Integer>& candidates, const Array<FloatImm>& probs,
+                          Optional<Integer>* decision) {
   CHECK(candidates.size() == probs.size())
       << "ValueError: number of candidates does not match number of probabilities.";
   int32_t i = -1;
   int32_t n = candidates.size();
   if (decision->defined()) {
-    i = decision->value()->value;
+    const auto* int_imm = decision->as<IntImmNode>();
+    i = int_imm->value;
     CHECK(0 <= i && i < n) << "ValueError: Wrong decision value, where n = " << n
                            << ", but decision is: " << i;
   } else {
-    std::vector<double> weights = support::AsVector<runtime::Float, double>(probs);
+    std::vector<double> weights = support::AsVector<FloatImm, double>(probs);
     std::discrete_distribution<int32_t> dist(weights.begin(), weights.end());
     support::LinearCongruentialEngine rand_(rand_state);
     i = dist(rand_);
@@ -182,8 +183,8 @@ int64_t SampleCategorical(support::LinearCongruentialEngine::TRandState* rand_st
                             << ", but decision is: " << i;
   }
 
-  *decision = runtime::Int(i);  // decision is guaranteed not to be nullptr.
-  return candidates[i]->value;
+  *decision = Integer(i);  // decision is guaranteed not to be nullptr.
+  return candidates[i].IntValue();
 }
 
 std::function<int32_t()> MakeMultinomialSampler(
@@ -460,11 +461,24 @@ struct SampleCategoricalTraits : public UnpackedInstTraits<SampleCategoricalTrai
   static constexpr size_t kNumAttrs = 2;
   static constexpr size_t kNumDecisions = 1;
 
-  static ExprRV UnpackedApplyToSchedule(Schedule sch,                    //
-                                        Array<runtime::Int> candidates,  //
-                                        Array<runtime::Float> probs,     //
-                                        Optional<runtime::Int> decision) {
-    return sch->SampleCategorical(candidates, probs, decision);
+  static ExprRV UnpackedApplyToSchedule(Schedule sch,               //
+                                        Array<Integer> candidates,  //
+                                        Array<ObjectRef> probs,     //
+                                        Optional<Integer> decision) {
+    Array<FloatImm> probs_float = probs.Map([](const ObjectRef& prob) {
+      const auto* prob_float = prob.as<FloatImmNode>();
+      if (prob_float != nullptr) {
+        return GetRef<FloatImm>(prob_float);
+      }
+      const auto* prob_int = prob.as<IntImmNode>();
+      if (prob_int != nullptr) {
+        return FloatImm(DataType::Float(32), static_cast<double>(prob_int->value));
+      }
+      LOG(FATAL)
+          << "SampleCategorical does not accept probability with type other than float or int.";
+      throw;
+    });
+    return sch->SampleCategorical(candidates, probs_float, decision);
   }
 
   static String UnpackedAsPython(Array<String> outputs,      //

@@ -57,7 +57,7 @@ def test_create_executor_attr_type_incorrect():
     with pytest.raises(
         TVMError,
         match='Attribute "interface-api" should have type "runtime.String"'
-        ' but instead found "runtime.BoxBool"',
+        ' but instead found "IntImm"',
     ):
         Executor("aot", {"interface-api": True})
 

@@ -937,8 +937,8 @@ def test_vulkan_smem_reuse():
             "kind": "vulkan",
             "max_num_threads": 256,
             "max_threads_per_block": 256,
-            "supports_float32": True,
-            "supports_int32": True,
+            "supports_float32": T.bool(True),
+            "supports_int32": T.bool(True),
             "tag": "",
             "thread_warp_size": 1,
         }

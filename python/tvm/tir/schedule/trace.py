@@ -39,20 +39,17 @@ JSON_TYPE = Any
 def _json_from_tvm(obj):
     if obj is None:
         return None
-    elif isinstance(obj, (bool, int, float, str)):
-        return obj
-    elif isinstance(obj, Array):
+    if isinstance(obj, Array):
         return [_json_from_tvm(i) for i in obj]
-    elif isinstance(obj, Map):
+    if isinstance(obj, Map):
         return {_json_from_tvm(k): _json_from_tvm(v) for k, v in obj.items()}
-    elif isinstance(obj, String):
+    if isinstance(obj, String):
         return str(obj)
-    elif isinstance(obj, (IntImm, FloatImm)):
+    if isinstance(obj, (IntImm, FloatImm)):
         return obj.value
-    elif isinstance(obj, IndexMap):
+    if isinstance(obj, IndexMap):
         return save_json(obj)
-    else:
-        raise TypeError("Not supported type: " + str(type(obj)))
+    raise TypeError("Not supported type: " + str(type(obj)))
 
 
 @_register_object("tir.Trace")

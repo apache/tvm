@@ -23,19 +23,16 @@ import numpy as np
 def test_array():
     a = tvm.runtime.convert([1, 2, 3])
     assert len(a) == 3
-    assert a[-1] == 3
+    assert a[-1].value == 3
     a_slice = a[-3:-1]
-    assert (a_slice[0], a_slice[1]) == (1, 2)
+    assert (a_slice[0].value, a_slice[1].value) == (1, 2)
 
 
 def test_array_save_load_json():
-    a = tvm.runtime.convert([1, 2, 3.5, True])
+    a = tvm.runtime.convert([1, 2, 3])
     json_str = tvm.ir.save_json(a)
     a_loaded = tvm.ir.load_json(json_str)
-    assert a_loaded[1] == 2
-    assert a_loaded[2] == 3.5
-    assert a_loaded[3] == True
-    assert isinstance(a_loaded[3], bool)
+    assert a_loaded[1].value == 2
 
 
 def test_dir_array():
@@ -69,7 +66,7 @@ def test_str_map():
     assert "a" in amap
     assert len(amap) == 2
     dd = dict(amap.items())
-    assert amap["a"] == 2
+    assert amap["a"].value == 2
     assert "a" in dd
     assert "b" in dd
 
@@ -81,7 +78,7 @@ def test_map_save_load_json():
     json_str = tvm.ir.save_json(amap)
     amap = tvm.ir.load_json(json_str)
     assert len(amap) == 2
-    dd = {kv[0].name: kv[1] for kv in amap.items()}
+    dd = {kv[0].name: kv[1].value for kv in amap.items()}
     assert dd == {"a": 2, "b": 3}
 
 

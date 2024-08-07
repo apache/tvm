@@ -19,7 +19,6 @@ import sys
 import pytest
 import tvm
 from tvm import te, arith, ir, tir, testing
-from tvm.script import tir as T
 
 
 @pytest.mark.skip(reason="See https://github.com/apache/tvm/issues/11458")
@@ -114,10 +113,10 @@ def test_dual_variable():
     [x_new, y_new] = solution.dst.variables
     [rel] = solution.dst.relations
     assert ir.structural_equal(rel, (y_new * 2) + x_new <= 10)
-    assert ir.structural_equal(solution.dst.ranges[x_new].min, T.int32(0))
-    assert ir.structural_equal(solution.dst.ranges[x_new].extent, T.int32(11))
-    assert ir.structural_equal(solution.dst.ranges[y_new].min, T.int32(0))
-    assert ir.structural_equal(solution.dst.ranges[y_new].extent, T.int32(6))
+    assert ir.structural_equal(solution.dst.ranges[x_new].min, 0)
+    assert ir.structural_equal(solution.dst.ranges[x_new].extent, 11)
+    assert ir.structural_equal(solution.dst.ranges[y_new].min, 0)
+    assert ir.structural_equal(solution.dst.ranges[y_new].extent, 6)
     assert ir.structural_equal(solution.src_to_dst[x], x_new + (y_new + 10))
     assert ir.structural_equal(solution.src_to_dst[y], y_new)
     assert ir.structural_equal(solution.dst_to_src[x_new], x - y - 10)
@@ -186,7 +185,7 @@ def test_no_solution():
     solution = arith.solve_linear_inequalities(problem, [x], vranges, deskew_range=True)
     assert list(solution.dst.variables) == []
     [rel] = solution.dst.relations
-    ir.assert_structural_equal(rel, tir.const(False))
+    assert ir.structural_equal(rel, False)
     assert len(solution.src_to_dst) == 0
     assert len(solution.dst_to_src) == 0
 

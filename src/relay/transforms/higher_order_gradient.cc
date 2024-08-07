@@ -36,6 +36,8 @@
 namespace tvm {
 namespace relay {
 
+using namespace tvm::runtime;
+
 /*! What is automatic differentiation(AD) and why is it important?
  * By AD, we roughly mean, given a term which denotes some mathematical function,
  * derive a term which denotes the derivative of that mathematical function.

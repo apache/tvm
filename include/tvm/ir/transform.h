@@ -271,36 +271,7 @@ class PassContext : public ObjectRef {
     using ValueNodeType = typename ValueType::ContainerType;
     // NOTE: we could further update the function later.
     uint32_t tindex = ValueNodeType::_GetOrAllocRuntimeTypeIndex();
-    auto type_key = runtime::Object::TypeIndex2Key(tindex);
-
-    auto* reflection = ReflectionVTable::Global();
-
-    auto legalization = [=](ObjectRef obj) -> ObjectRef {
-      if (obj->IsInstance<Map<String, ObjectRef>::ContainerType>()) {
-        return reflection->CreateObject(type_key, Downcast<Map<String, ObjectRef>>(obj));
-      } else {
-        // Backwards compatibility for config options defined prior to
-        // https://github.com/apache/tvm/pull/16183.  This commit
-        // changed the default FFI conversion of python integers from
-        // `tvm::IntImm` to `runtime::Int`.
-        //
-        // This backwards compatibility fix can be removed when all
-        // options registered with TVM_REGISTER_PASS_CONFIG_OPTION are
-        // updated to use `runtime::Int` and `runtime::Bool`.
-        TVMRetValue ret;
-        ret = obj;
-        try {
-          ValueType legalized = ret;
-          return legalized;
-        } catch (Error& err) {
-          LOG(FATAL) << "AttributeError: expect config " << key << " to have type " << type_key
-                     << ", but received error when converting to this type.\n"
-                     << err.what();
-        }
-      }
-    };
-
-    RegisterConfigOption(key, tindex, legalization);
+    RegisterConfigOption(key, tindex);
     return tindex;
   }
 
@@ -314,8 +285,7 @@ class PassContext : public ObjectRef {
   // The exit of a pass context scope.
   TVM_DLL void ExitWithScope();
   // Register configuration key value type.
-  TVM_DLL static void RegisterConfigOption(const char* key, uint32_t value_type_index,
-                                           std::function<ObjectRef(ObjectRef)> legalization);
+  TVM_DLL static void RegisterConfigOption(const char* key, uint32_t value_type_index);
 
   // Classes to get the Python `with` like syntax.
   friend class Internal;
