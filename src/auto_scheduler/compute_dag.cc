@@ -554,19 +554,9 @@ class FlopEstimator : public ExprFunctor<double(const PrimExpr& n)> {
       if (auto pop = op.as<te::ComputeOpNode>()) {
         if (pop->attrs.count("FLOP")) {
           // Use user-provided FLOP
-          ObjectRef annotation = pop->attrs["FLOP"];
-          auto value = [&]() -> int64_t {
-            if (auto runtime_int = annotation.as<runtime::Int::ContainerType>()) {
-              return runtime_int->value;
-            } else if (auto int_imm = annotation.as<IntImmNode>()) {
-              return int_imm->value;
-            } else {
-              LOG(FATAL) << "FLOP annotation must be an integer, "
-                         << "but was an object of type " << annotation->GetTypeKey();
-            }
-          }();
-
-          ret += value;
+          auto pint = pop->attrs["FLOP"].as<IntImmNode>();
+          ICHECK(pint != nullptr);
+          ret += pint->value;
         } else {
           // Estimate by parsing the compute body
           double num_element = AxisLengthProd(pop->axis);

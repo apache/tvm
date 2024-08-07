@@ -56,20 +56,20 @@ def get_first_mismatch_ensure_symmetry(a, b):
         (
             [1, 2, 3],
             [1, 4, 3],
-            ObjectPath.root().array_index(1),
-            ObjectPath.root().array_index(1),
+            ObjectPath.root().array_index(1).attr("value"),
+            ObjectPath.root().array_index(1).attr("value"),
         ),
         (
             [1, 2, 3],
             [10, 2, 30],
-            ObjectPath.root().array_index(0),
-            ObjectPath.root().array_index(0),
+            ObjectPath.root().array_index(0).attr("value"),
+            ObjectPath.root().array_index(0).attr("value"),
         ),
         (
             [1, 3, 4],
             [1, 2, 3, 4],
-            ObjectPath.root().array_index(1),
-            ObjectPath.root().array_index(1),
+            ObjectPath.root().array_index(1).attr("value"),
+            ObjectPath.root().array_index(1).attr("value"),
         ),
         (
             [1, 2, 3],
@@ -122,27 +122,13 @@ def test_shape_tuple_structural_equal_to_self(contents):
 
 
 @pytest.mark.parametrize(
-    "contents",
-    [
-        {},
-        {"a": 1, "b": 2},
-        {"a": True, "b": False},
-    ],
-)
-def test_string_map_structural_equal_to_self(contents):
-    a = tvm.runtime.convert({**contents})
-    b = tvm.runtime.convert({**contents})
-    assert get_first_mismatch_ensure_symmetry(a, b) is None
-
-
-@pytest.mark.parametrize(
     "a, b, expected_a_path, expected_b_path",
     [
         (
             dict(a=3, b=4),
             dict(a=3, b=5),
-            ObjectPath.root().map_value("b"),
-            ObjectPath.root().map_value("b"),
+            ObjectPath.root().map_value("b").attr("value"),
+            ObjectPath.root().map_value("b").attr("value"),
         ),
         (
             dict(a=3, b=4),

@@ -17,7 +17,7 @@
 """Developer API of IR node builder make function."""
 import tvm
 from tvm._ffi.base import string_types
-from tvm.runtime import ObjectGeneric, const
+from tvm.runtime import ObjectGeneric, convert, const
 from tvm.ir import container as _container
 
 from . import stmt as _stmt
@@ -107,9 +107,7 @@ class BufferVar(ObjectGeneric):
     def __setitem__(self, index, value):
         index = self._normalize_index(index)
 
-        if isinstance(value, (int, bool, float)):
-            value = tvm.tir.const(value)
-
+        value = convert(value)
         value_element = value.dtype.split("x", maxsplit=1)[0]
         content_element = self._content_type.split("x", maxsplit=1)[0]
         if value_element != content_element:

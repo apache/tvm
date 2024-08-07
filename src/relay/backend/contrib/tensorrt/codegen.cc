@@ -177,12 +177,12 @@ class CollectFromCompositeFunctionBody : public ExprVisitor {
     std::vector<std::string> indices_or_sections;
     std::vector<std::string> mode;
     std::vector<std::string> axis = {std::to_string(split_attr->axis)};
-    if (const auto* sections = split_attr->indices_or_sections.as<runtime::Int::ContainerType>()) {
+    if (const auto* sections = split_attr->indices_or_sections.as<IntImmNode>()) {
       mode.emplace_back("sections");
       indices_or_sections.emplace_back(std::to_string(sections->value));
     } else {
       mode.emplace_back("indices");
-      auto indices = Downcast<tvm::Array<runtime::Int>>(split_attr->indices_or_sections);
+      auto indices = Downcast<tvm::Array<Integer>>(split_attr->indices_or_sections);
       for (const auto& i : indices) {
         indices_or_sections.emplace_back(std::to_string(i->value));
       }

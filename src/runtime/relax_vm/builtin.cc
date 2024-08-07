@@ -279,11 +279,7 @@ TVM_REGISTER_GLOBAL("vm.builtin.check_shape_info").set_body_typed(CheckShapeInfo
  * \param err_ctx Additional context if error occurs.
  */
 void CheckPrimValueInfo(TVMArgValue arg, DataType dtype, Optional<String> err_ctx) {
-  if (arg.IsObjectRef<ObjectRef>()) {
-    ObjectRef obj = arg.AsObjectRef<ObjectRef>();
-    LOG(FATAL) << "TypeError: " << err_ctx.value_or("") << ", expected dtype " << dtype
-               << ", but received ObjectRef of type " << obj->GetTypeKey();
-  } else if (dtype.is_bool()) {
+  if (dtype.is_bool()) {
     arg.operator bool();
   } else if (dtype.is_int()) {
     arg.operator int64_t();
@@ -430,9 +426,7 @@ TVM_REGISTER_GLOBAL("vm.builtin.to_device")
  * \return Bool
  */
 bool ReadIfCond(TVMArgValue cond) {
-  if (cond.type_code() == kDLInt || cond.type_code() == kTVMArgBool) {
-    return cond.operator bool();
-  }
+  if (cond.type_code() == kDLInt) return cond.operator bool();
   NDArray arr = cond.operator tvm::runtime::NDArray();
   if (arr->device.device_type != kDLCPU) {
     arr = arr.CopyTo(DLDevice{kDLCPU, 0});

@@ -64,7 +64,16 @@ class Tensor(DataProducer, _expr.ExprOp):
                 f"Need to provide {ndim} index in tensor but {len(indices)} was provided"
             )
         indices = convert_to_object(indices)
-        return _expr.ProducerLoad(self, indices)
+        args = []
+        for x in indices:
+            if isinstance(x, _expr.PrimExpr):
+                args.append(x)
+            elif isinstance(x, _expr.IterVar):
+                args.append(x.var)
+            else:
+                raise ValueError("The indices must be expression")
+
+        return _expr.ProducerLoad(self, args)
 
     def __getitem__(self, indices):
         return TensorSlice(self, indices)

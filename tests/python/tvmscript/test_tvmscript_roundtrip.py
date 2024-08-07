@@ -2689,14 +2689,14 @@ def test_match_buffer_region():
     outer_block = root.body.body.body.block
     assert len(outer_block.match_buffers) == 1
     buffer_C = outer_block.match_buffers[0].buffer
-    tvm.ir.assert_structural_equal(buffer_C.shape, [T.int32(16), T.int32(1), T.int32(4)])
+    tvm.ir.assert_structural_equal(buffer_C.shape, [16, 1, 4])
 
     assert isinstance(outer_block.body, tir.stmt.For)
     assert isinstance(outer_block.body.body, tir.stmt.BlockRealize)
     inner_block = outer_block.body.body.block
     assert len(inner_block.match_buffers) == 1
     buffer_D = inner_block.match_buffers[0].buffer
-    tvm.ir.assert_structural_equal(buffer_D.shape, [T.int32(4), T.int32(1), T.int32(4)])
+    tvm.ir.assert_structural_equal(buffer_D.shape, [4, 1, 4])
 
 
 def block_elements():
@@ -3981,32 +3981,6 @@ def return_zero_private_with_attr():
     return func
 
 
-def func_attr_with_list():
-    @T.prim_func
-    def func(
-        A: T.Buffer((128, 128), "float32"),
-        B: T.Buffer((128, 128), "float32"),
-        D: T.Buffer((128, 128), "float32"),
-    ) -> None:
-        T.func_attr(
-            {"global_symbol": "main", "tir.noalias": True, "layout_free_buffers": [T.int32(1)]}
-        )
-        C = T.alloc_buffer([128, 128], dtype="float32")
-        for i0, i1, i2 in T.grid(128, 128, 128):
-            with T.block("C"):
-                x, y, k = T.axis.remap("SSR", [i0, i1, i2])
-                with T.init():
-                    C[x, y] = T.float32(0)
-                C[x, y] = C[x, y] + A[x, k] * B[y, k]
-        for i0, i1 in T.grid(128, 128):
-            with T.block("D"):
-                T.block_attr({"layout_free_placeholders": [C]})
-                x, y = T.axis.remap("SS", [i0, i1])
-                D[x, y] = C[x, y] + T.float32(1)
-
-    return func
-
-
 def op_of_literal():
     op_list = [
         (T.exp, 0),
@@ -4224,7 +4198,6 @@ ir_generator = tvm.testing.parameter(
     return_zero,
     return_zero_private,
     return_zero_private_with_attr,
-    func_attr_with_list,
     *op_of_literal(),
     *relax_match_cast_struct_info_proxy(),
     relax_symbolic_size_var,

@@ -16,7 +16,6 @@
 # under the License.
 import tvm
 from tvm import te
-from tvm.script import tir as T
 
 
 def intrin_vadd(xo, m, n):
@@ -101,7 +100,6 @@ def test_tensorize_vadd():
 
     def check(m, factor):
         x, y, z = add(m)
-        factor = T.int32(factor)
         s = te.create_schedule(z.op)
         xo, xi = s[z].split(z.op.axis[0], factor=factor)
         vadd = intrin_vadd(xo, m, factor)
@@ -135,7 +133,7 @@ def test_tensorize_vadd():
         finfer = tvm.get_global_func("test.op.InferTensorizeRegion")
         out_dom, in_dom = finfer(s[z_global], dom_map)
         # outer loop var will be rebased, so min value is the new loop var and extent is 1
-        tvm.ir.assert_structural_equal(out_dom[xo].extent, T.int32(1))
+        tvm.ir.assert_structural_equal(out_dom[xo].extent, 1)
         assert isinstance(out_dom[xo].min, tvm.tir.Var)
         assert xo.var.name == out_dom[xo].min.name
 
@@ -185,7 +183,7 @@ def test_tensorize_matmul():
         dom_map = tvm.te.schedule.InferBound(s)
         finfer = tvm.get_global_func("test.op.InferTensorizeRegion")
         out_dom, in_dom = finfer(s[C], dom_map)
-        tvm.ir.assert_structural_equal(out_dom[x].extent, T.int32(1))
+        tvm.ir.assert_structural_equal(out_dom[x].extent, 1)
         tvm.ir.assert_structural_equal(out_dom[y].extent, factor)
         tvm.ir.assert_structural_equal(out_dom[y].min, yo * factor)
         fmatch = tvm.get_global_func("test.op.MatchTensorizeBody")
@@ -209,7 +207,7 @@ def test_tensorize_matmul():
         dom_map = tvm.te.schedule.InferBound(s)
         finfer = tvm.get_global_func("test.op.InferTensorizeRegion")
         out_dom, in_dom = finfer(s[C], dom_map)
-        tvm.ir.assert_structural_equal(out_dom[x].extent, T.int32(1))
+        tvm.ir.assert_structural_equal(out_dom[x].extent, 1)
         tvm.ir.assert_structural_equal(out_dom[y].extent, factor)
         tvm.ir.assert_structural_equal(out_dom[y].min, yo * factor)
         fmatch = tvm.get_global_func("test.op.MatchTensorizeBody")
@@ -232,7 +230,7 @@ def test_tensorize_matmul():
         dom_map = tvm.te.schedule.InferBound(s)
         finfer = tvm.get_global_func("test.op.InferTensorizeRegion")
         out_dom, in_dom = finfer(s[C], dom_map)
-        tvm.ir.assert_structural_equal(out_dom[x].extent, T.int32(1))
+        tvm.ir.assert_structural_equal(out_dom[x].extent, 1)
         tvm.ir.assert_structural_equal(out_dom[y].extent, factor)
         tvm.ir.assert_structural_equal(out_dom[y].min, yo * factor)
         fmatch = tvm.get_global_func("test.op.MatchTensorizeBody")
@@ -256,7 +254,7 @@ def test_tensorize_matmul():
         dom_map = tvm.te.schedule.InferBound(s)
         finfer = tvm.get_global_func("test.op.InferTensorizeRegion")
         out_dom, in_dom = finfer(s[C], dom_map)
-        tvm.ir.assert_structural_equal(out_dom[x].extent, T.int32(1))
+        tvm.ir.assert_structural_equal(out_dom[x].extent, 1)
         tvm.ir.assert_structural_equal(out_dom[y].extent, factor)
         tvm.ir.assert_structural_equal(out_dom[y].min, yo * factor)
         fmatch = tvm.get_global_func("test.op.MatchTensorizeBody")
@@ -266,10 +264,10 @@ def test_tensorize_matmul():
         stmt = tvm.te.schedule.ScheduleOps(s, dom_map)
         tvm.lower(s, [A, B, C])
 
-    check(T.int32(16))
-    check_rfactor(T.int32(16), T.int32(16))
-    check_rfactor_no_reset(T.int32(16), T.int32(16))
-    check_rfactor_no_reset_multi_reduction(T.int32(16), T.int32(16))
+    check(16)
+    check_rfactor(16, 16)
+    check_rfactor_no_reset(16, 16)
+    check_rfactor_no_reset_multi_reduction(16, 16)
 
 
 # This tests whether algorithm and intrinsics expressions are simplified

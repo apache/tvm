@@ -139,14 +139,14 @@ class SetupTrainer:
 
         # Check function attrs
         if not self.PARAM_NUM_ATTR_KEY in mod.attrs or not isinstance(
-            mod.attrs[self.PARAM_NUM_ATTR_KEY], (IntImm, int)
+            mod.attrs[self.PARAM_NUM_ATTR_KEY], IntImm
         ):
             raise ValueError(
                 f"SetupTrainer: The backbone module should has an integer attribute named "
                 f"{self.PARAM_NUM_ATTR_KEY}"
             )
         if not self.STATE_NUM_ATTR_KEY in mod.attrs or not isinstance(
-            mod.attrs[self.STATE_NUM_ATTR_KEY], (IntImm, int)
+            mod.attrs[self.STATE_NUM_ATTR_KEY], IntImm
         ):
             raise ValueError(
                 f"SetupTrainer: The backbone module should has an integer attribute named "

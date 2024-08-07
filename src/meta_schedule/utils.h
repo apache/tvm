@@ -424,22 +424,13 @@ inline Array<FloatImm> AsFloatArray(const ObjectRef& obj) {
   Array<FloatImm> results;
   results.reserve(arr->size());
   for (const ObjectRef& elem : *arr) {
-    auto float_value = [&]() -> double {
-      if (const auto* int_imm = elem.as<IntImmNode>()) {
-        return int_imm->value;
-      } else if (const auto* runtime_int = elem.as<runtime::Int::ContainerType>()) {
-        return runtime_int->value;
-      } else if (const auto* float_imm = elem.as<FloatImmNode>()) {
-        return float_imm->value;
-      } else if (const auto* runtime_float = elem.as<runtime::Float::ContainerType>()) {
-        return runtime_float->value;
-      } else {
-        LOG(FATAL) << "TypeError: Expect an array of float or int, but gets: "
-                   << elem->GetTypeKey();
-      }
-    }();
-
-    results.push_back(FloatImm(DataType::Float(32), float_value));
+    if (const auto* int_imm = elem.as<IntImmNode>()) {
+      results.push_back(FloatImm(DataType::Float(32), int_imm->value));
+    } else if (const auto* float_imm = elem.as<FloatImmNode>()) {
+      results.push_back(FloatImm(DataType::Float(32), float_imm->value));
+    } else {
+      LOG(FATAL) << "TypeError: Expect an array of float or int, but gets: " << elem->GetTypeKey();
+    }
   }
   return results;
 }
@@ -455,16 +446,11 @@ inline Array<Integer> AsIntArray(const ObjectRef& obj) {
   Array<Integer> results;
   results.reserve(arr->size());
   for (const ObjectRef& elem : *arr) {
-    auto int_value = [&]() -> int64_t {
-      if (const auto* int_imm = elem.as<IntImmNode>()) {
-        return int_imm->value;
-      } else if (const auto* runtime_int = elem.as<runtime::Int::ContainerType>()) {
-        return runtime_int->value;
-      } else {
-        LOG(FATAL) << "TypeError: Expect an array of integers, but gets: " << elem->GetTypeKey();
-      }
-    }();
-    results.push_back(Integer(int_value));
+    if (const auto* int_imm = elem.as<IntImmNode>()) {
+      results.push_back(Integer(int_imm->value));
+    } else {
+      LOG(FATAL) << "TypeError: Expect an array of integers, but gets: " << elem->GetTypeKey();
+    }
   }
   return results;
 }

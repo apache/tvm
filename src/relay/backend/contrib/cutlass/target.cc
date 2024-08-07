@@ -39,32 +39,32 @@ namespace cutlass {
  *                     src/relay/backend/contrib/cutlass/codegen.cc
  */
 TVM_REGISTER_TARGET_KIND("cutlass", kDLCUDA)
-    .set_attr<runtime::Bool>(tvm::attr::kIsExternalCodegen, runtime::Bool(true))
+    .set_attr<Bool>(tvm::attr::kIsExternalCodegen, Bool(true))
     .set_attr<tvm::transform::Pass>("RelayToTIR", CompileForCutlass())
     // An integer specifying the compute capability. For example, 75 for Turing and
     // 80 or 86 for Ampere.
-    .add_attr_option<runtime::Int>("sm", runtime::Int(80))
+    .add_attr_option<Integer>("sm", Integer(80))
     // Whether to use slower but very accurate (compared to tf32) 3xtf32 mode for
     // fp32 inputs on tensorcore.
-    .add_attr_option<runtime::Bool>("use_3xtf32", runtime::Bool(true))
+    .add_attr_option<Bool>("use_3xtf32", Bool(true))
     // Split factor candidates for split-K GEMM. If split-K > 1, the GEMM K-loop is computed in
     // parallel across split-K blocks, and a separate global reduction kernel is launched to
     // accumulate partial reductions. The profiler will pick the best split-k factor from the
     // given candidate list. Note that the larger split-K factor requires a larger workspace.
     // Currently, parallel split-k has been tested only for wgrad. For GEMM and other conv2d
     // kinds, split_k_slices is ignored.
-    .add_attr_option<Array<runtime::Int>>("split_k_slices", Array<runtime::Int>{runtime::Int(1)})
+    .add_attr_option<Array<Integer>>("split_k_slices", Array<Integer>({1}))
     // When True, profile all kernel variants with smaller alignments than the largest possible.
-    .add_attr_option<runtime::Bool>("profile_all_alignments", runtime::Bool(false))
+    .add_attr_option<Bool>("profile_all_alignments", Bool(false))
     // Whether to profile all candidate kernels, or stop profiling after the first applicable kernel
     // is found.
-    .add_attr_option<runtime::Bool>("find_first_valid", runtime::Bool(false))
+    .add_attr_option<Bool>("find_first_valid", Bool(false))
     // Whether to compile profiler executables for different kernels in parallel.
-    .add_attr_option<runtime::Bool>("use_multiprocessing", runtime::Bool(false))
+    .add_attr_option<Bool>("use_multiprocessing", Bool(false))
     // Number of threads to use during compilation, or -1 to use number of cpus.
-    .add_attr_option<runtime::Int>("threads", runtime::Int(-1))
+    .add_attr_option<Integer>("threads", Integer(-1))
     // Whether to replace sigmoid with tanh.
-    .add_attr_option<runtime::Bool>("use_fast_math", runtime::Bool(false))
+    .add_attr_option<Bool>("use_fast_math", Bool(false))
     // A temporary directory where intermediate compiled artifacts will be stored.
     .add_attr_option<String>("tmp_dir", String("./tmp"));
 

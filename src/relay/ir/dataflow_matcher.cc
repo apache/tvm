@@ -73,42 +73,6 @@ bool DFPatternMatcher::VisitDFPattern_(const AltPatternNode* op, const Expr& exp
 }
 
 bool MatchRetValue(const ObjectRef& lhs, const TVMRetValue& rhs) {
-  // Unwrapping arrays may find user-provided FFI types in the
-  // attributes (e.g. Defining pad_value as ((0,0), (0,0)) will result
-  // in runtime::Int.  These need to be converted to compile-time IR
-  // types when encountered.
-  if (lhs->IsInstance<runtime::Bool::ContainerType>() ||
-      lhs->IsInstance<runtime::Int::ContainerType>() ||
-      lhs->IsInstance<runtime::Float::ContainerType>()) {
-    TVMRetValue lhs_convert;
-    lhs_convert = lhs;
-    PrimExpr lhs_expr = lhs_convert;
-    return MatchRetValue(lhs_expr, rhs);
-  }
-
-  // StructuralEqual doesn't check for conversions between FFI types
-  // and IR types, but the pattern-matcher should.  Therefore,
-  // explicitly recurse into the array.
-  if (auto opt_lhs_array = lhs.as<Array<ObjectRef>>()) {
-    if (Optional<Array<ObjectRef>> opt_rhs_array = rhs) {
-      Array<ObjectRef> lhs_array = opt_lhs_array.value();
-      Array<ObjectRef> rhs_array = opt_rhs_array.value();
-      if (lhs_array.size() != rhs_array.size()) {
-        return false;
-      }
-      for (size_t i = 0; i < lhs_array.size(); i++) {
-        TVMRetValue rhs_item;
-        rhs_item = rhs_array[i];
-        if (!MatchRetValue(lhs_array[i], rhs_item)) {
-          return false;
-        }
-      }
-      return true;
-    } else {
-      return false;
-    }
-  }
-
   switch (rhs.type_code()) {
     case kDLInt:
       if (auto* val = lhs.as<IntImmNode>()) {

@@ -57,12 +57,12 @@ def test_with():
     assert C.op.tag == "gemm"
     assert "hello" in C.op.attrs
     assert "xx" not in C.op.attrs
-    assert C.op.attrs["hello"] == 1
+    assert C.op.attrs["hello"].value == 1
     CC = tvm.ir.load_json(tvm.ir.save_json(C))
-    assert CC.op.attrs["hello"] == 1
-    assert len(CC.op.attrs["arr"]) == 2
-    assert CC.op.attrs["arr"][0] == 10
-    assert CC.op.attrs["arr"][1] == 12
+    assert CC.op.attrs["hello"].value == 1
+    assert CC.op.attrs["arr"][0].value == 10
+    # str format happened to be json compatible
+    assert json.loads(str(CC.op.attrs))["arr"][1] == 12
 
 
 def test_decorator():

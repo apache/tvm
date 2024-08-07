@@ -32,7 +32,7 @@ def test_te_const():
     assert isinstance(x, tvm.tir.IntImm)
 
 
-def test_tir_const_dtype_inference():
+def test_scalar_dtype_inference():
     for data in [
         True,
         bool(1),
@@ -49,10 +49,27 @@ def test_tir_const_dtype_inference():
         np.float64(1),
     ]:
         assert tvm.tir.const(data).dtype == str(np.array(data).dtype)
-
-    assert tvm.tir.const(True).dtype == "bool"
     assert tvm.tir.const(1).dtype == "int32"
     assert tvm.tir.const(1.0).dtype == "float32"
+
+    for data in [
+        True,
+        bool(1),
+        np.uint8(1),
+        np.uint16(1),
+        np.uint32(1),
+        np.uint64(1),
+        np.int8(1),
+        np.int16(1),
+        np.int32(1),
+        np.int64(1),
+        np.float16(1),
+        np.float32(1),
+        np.float64(1),
+    ]:
+        assert tvm.runtime.convert(data).dtype == str(np.array(data).dtype)
+    assert tvm.runtime.convert(1).dtype == "int32"
+    assert tvm.runtime.convert(1.0).dtype == "float32"
 
 
 def test_make():
@@ -116,7 +133,7 @@ def test_attr():
     assert stmt.node == y
 
     a = tvm.runtime.convert(1)
-    assert a == 1
+    assert a.value == 1
     try:
         a.no_field
         assert False
@@ -333,7 +350,7 @@ def test_prim_func():
 
     assert len(func.buffer_map) == 1
     f2 = func.with_attr({"calling_conv": 1, "tir.noalias": True})
-    assert f2.attrs["calling_conv"] == 1
+    assert f2.attrs["calling_conv"].value == 1
     assert not func.attrs
 
 

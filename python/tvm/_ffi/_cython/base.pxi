@@ -16,7 +16,6 @@
 # under the License.
 
 from ..base import raise_last_ffi_error
-from libcpp cimport bool as bool_t
 from libcpp.vector cimport vector
 from cpython.version cimport PY_MAJOR_VERSION
 from cpython cimport pycapsule
@@ -39,8 +38,7 @@ cdef enum TVMArgTypeCode:
     kTVMBytes = 12
     kTVMNDArrayHandle = 13
     kTVMObjectRefArg = 14
-    kTVMArgBool = 15
-    kTVMExtBegin = 16
+    kTVMExtBegin = 15
 
 cdef extern from "tvm/runtime/c_runtime_api.h":
     ctypedef struct DLDataType:
@@ -68,7 +66,6 @@ cdef extern from "tvm/runtime/c_runtime_api.h":
 
     ctypedef struct TVMValue:
         int64_t v_int64
-        bool_t v_bool
         double v_float64
         void* v_handle
         const char* v_str

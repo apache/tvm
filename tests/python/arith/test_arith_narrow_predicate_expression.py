@@ -20,7 +20,6 @@ import tvm.testing
 
 from tvm import tir
 from tvm.runtime import convert
-from tvm.script import tir as T
 
 
 i = tir.Var("i", "int32")
@@ -43,18 +42,18 @@ before, expected = tvm.testing.parameters(
     [i < n, i < 0],
     [i <= n, i <= 0],
     [i >= n, i >= 7],
-    [n > i, T.int32(0) > i],
-    [n < i, T.int32(7) < i],
-    [n <= i, T.int32(7) <= i],
-    [n >= i, T.int32(0) >= i],
-    [i == n, tir.all(i <= 0, T.int32(7) <= i)],
-    [n == i, tir.all(T.int32(7) <= i, i <= 0)],
-    [i != n, tir.any(i < 0, T.int32(7) < i)],
-    [n != i, tir.any(T.int32(7) < i, i < 0)],
+    [n > i, convert(0) > i],
+    [n < i, convert(7) < i],
+    [n <= i, convert(7) <= i],
+    [n >= i, convert(0) >= i],
+    [i == n, tir.all(i <= 0, convert(7) <= i)],
+    [n == i, tir.all(convert(7) <= i, i <= 0)],
+    [i != n, tir.any(i < 0, convert(7) < i)],
+    [n != i, tir.any(convert(7) < i, i < 0)],
     [i // 4 > n, i // 4 > 7],
-    [n < i // 4, T.int32(7) < i // 4],
+    [n < i // 4, convert(7) < i // 4],
     [(i + n) // 4 > 0, tir.Add(i, 0) // 4 > 0],
-    [(i + n) // 4 == 0, tir.all(tir.Add(i, 7) // 4 <= 0, T.int32(0) <= tir.Add(i, 0) // 4)],
+    [(i + n) // 4 == 0, tir.all(tir.Add(i, 7) // 4 <= 0, convert(0) <= tir.Add(i, 0) // 4)],
     [i + n < 10, i + 7 < 10],
     [i - n < 10, tir.Sub(i, 0) < 10],
     [tir.Not(i < n), tir.Not(i < 7)],

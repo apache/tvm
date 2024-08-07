@@ -18,7 +18,6 @@
 import numpy as np
 
 import tvm
-from tvm.script import tir as T
 from tvm import relay
 from tvm.relay.build_module import bind_params_by_name
 from tvm.relay.dataflow_pattern import *
@@ -116,7 +115,7 @@ def test_DataTypePattern():
 
 
 def test_ShapePattern():
-    shape = [T.int32(10), T.int32(10)]
+    shape = [10, 10]
     pattern = has_shape(shape)
     assert isinstance(pattern, ShapePattern)
     tvm.ir.assert_structural_equal(pattern.shape, shape)

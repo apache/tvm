@@ -395,7 +395,7 @@ def test_call_tir_with_grad():
         """
 v0: R.Tensor((54, 96), dtype="float32")
 x = T.int64()
-R.call_tir_with_grad(tir_func, (v0,), out_sinfo=R.Tensor((54, 96), dtype="float32"), te_grad_name="grad_func", te_grad_kwargs={"k": 1.0, "x": x})
+R.call_tir_with_grad(tir_func, (v0,), out_sinfo=R.Tensor((54, 96), dtype="float32"), te_grad_name="grad_func", te_grad_kwargs={"k": T.float32(1), "x": x})
 """,
     )
 
@@ -758,7 +758,7 @@ class Module:
 
     @R.function
     def baz(x: R.Tensor((), dtype="int32")) -> R.Tensor((), dtype="int32"):
-        R.func_attr({"relax.force_pure": True})
+        R.func_attr({"relax.force_pure": 1})
         R.print(format=R.str("Hi there!"))
         z: R.Tensor((), dtype="int32") = R.add(x, x)
         return z
@@ -770,7 +770,7 @@ class Module:
 
     @R.function(private=True)
     def quux(x: R.Tensor((), dtype="int32")) -> R.Tensor((), dtype="int32"):
-        R.func_attr({"relax.force_pure": True})
+        R.func_attr({"relax.force_pure": 1})
         R.print(format=R.str("Lol"))
         z: R.Tensor((), dtype="int32") = R.multiply(x, x)
         return z

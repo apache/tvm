@@ -53,9 +53,9 @@ Schedule TracedScheduleNode::Copy() {
 
 /******** Schedule: Sampling ********/
 
-ExprRV TracedScheduleNode::SampleCategorical(const Array<runtime::Int>& candidates,
-                                             const Array<runtime::Float>& probs,
-                                             Optional<runtime::Int> decision) {
+ExprRV TracedScheduleNode::SampleCategorical(const Array<Integer>& candidates,
+                                             const Array<FloatImm>& probs,
+                                             Optional<Integer> decision) {
   ExprRV result =
       CreateRV(tir::SampleCategorical(&this->rand_state_, candidates, probs, &decision));
   static const InstructionKind& kind = InstructionKind::Get("SampleCategorical");
