@@ -935,7 +935,7 @@ class Matmul(GPUScheduleRule):
                 inner_x=False,
             )
         elif target.kind.name == "opencl" and (
-            ("android" in str(target.host)) or ("adreno" in str(target.host))
+            ("android" in str(target.host)) or ("adreno" in str(target.attrs))
         ):
             return Matmul.Config(
                 block_size_x=32,
@@ -985,7 +985,10 @@ class Matmul(GPUScheduleRule):
             end_it = block_stmt.reads[-1].region[-1].min
             return {it.var: it.kind for it in iter_infos}.get(end_it, "O") == "R"
 
-        if target.kind.name == "opencl" and not is_inner_reduction(block_stmt, iter_infos):
+        if (
+            target.kind.name == "opencl"
+            and (("android" in str(target.host)) or ("adreno" in str(target.attrs)))
+        ) and not is_inner_reduction(block_stmt, iter_infos):
             ret = self.sch_outer_reduction(sch, config, main_block, blocks)
             if ret is not None:
                 return ret
