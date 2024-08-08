@@ -47,7 +47,7 @@ def tvm_callback_cuda_compile(code, target):
         format = "cubin"
     else:
         arch = [f"-arch=sm_{compute_version}"]
-        format = "ptx"
+        format = "cubin"
 
     ptx = nvcc.compile_cuda(
         code,
