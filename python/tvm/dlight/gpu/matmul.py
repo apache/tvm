@@ -1116,6 +1116,16 @@ class Matmul(GPUScheduleRule):
         reduction_block: tir.schedule.BlockRV,
         blocks: List[tir.schedule.BlockRV],
     ) -> Optional[tir.Schedule]:
+
+        """Get vectorization factor"""
+
+        def get_max_factor(n, factors):
+            factors = sorted(factors, reverse=True)
+            for factor in factors:
+                if n % factor == 0:
+                    return factor
+            return 1
+
         reduction_loops = sch.get_loops(reduction_block)
         if not len(reduction_loops) == 4:
             return None
@@ -1134,13 +1144,17 @@ class Matmul(GPUScheduleRule):
             config.vector_size,
             config.unroll,
         )
-
-        is_dequant_block = len(blocks) > 1
-        if is_dequant_block:
-            compute_block, dequant_block, matmul_block = blocks
-            sch.compute_inline(compute_block)
-        else:
-            (matmul_block,) = blocks
+        VecSize = min(get_max_factor(sch.get(n).extent // Threads_X, [1, 2, 4, 8]), VecSize)
+        dequant_block = None
+        matmul_block = reduction_block
+        epilogue_block = None
+        if blocks[-1] is not matmul_block:
+            epilogue_block = blocks[-1]
+        for blk in blocks[:-1]:
+            if "dequantize" in sch.get(blk).name_hint:
+                dequant_block = blk
+            elif blk is not matmul_block:
+                sch.compute_inline(blk)
 
         m = sch.fuse(mb, ms)
 
@@ -1156,12 +1170,13 @@ class Matmul(GPUScheduleRule):
         sch.reorder(no, mo, ni, mi, k0, k1, k2, k3, mu, nv)
 
         sch.compute_at(rmat_block, k0)
-        if is_dequant_block:
+        if dequant_block is not None:
             sch.compute_at(dequant_block, k3)
         sch.reverse_compute_at(wmat_block, mi)
         sch.set_scope(rmat_block, 0, "shared")
         sch.set_scope(matmul_block, 0, "local")
-        if is_dequant_block:
+
+        if dequant_block is not None:
             sch.set_scope(dequant_block, 0, "local")
 
         sch.bind(mo, "blockIdx.y")
@@ -1169,7 +1184,7 @@ class Matmul(GPUScheduleRule):
         sch.bind(mi, "threadIdx.y")
         sch.bind(ni, "threadIdx.x")
         sch.vectorize(sch.get_loops(matmul_block)[-1])
-        if is_dequant_block:
+        if dequant_block is not None:
             sch.vectorize(sch.get_loops(dequant_block)[-1])
 
         # Co-operative Memory Fetch
@@ -1181,7 +1196,7 @@ class Matmul(GPUScheduleRule):
         sch.vectorize(wv)
 
         # Scale and Quant Cache
-        if is_dequant_block:
+        if dequant_block is not None:
             qb = sch.cache_read(dequant_block, 0, "local")
             sb = sch.cache_read(dequant_block, 1, "local")
             sch.compute_at(sb, k1)
@@ -1190,6 +1205,12 @@ class Matmul(GPUScheduleRule):
             sch.set_scope(qb, 0, "local")
             sch.vectorize(sch.get_loops(qb)[-1])
             sch.vectorize(sch.get_loops(sb)[-1])
+
+        if epilogue_block is not None:
+            sch.reverse_compute_at(epilogue_block, mi, preserve_unit_loops=True)
+            sch.set_scope(wmat_block, 0, "local")
+            sch.compute_inline(wmat_block)
+            sch.vectorize(sch.get_loops(epilogue_block)[-1])
 
         sch.decompose_reduction(matmul_block, k0)
         return sch
