@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # pylint: disable=redefined-builtin
 """The base Relax operators."""
+
 from typing import Dict, Union, List, Tuple, Optional, Callable
 
 
@@ -71,11 +72,10 @@ def null_value() -> Call:
 def call_tir(
     gvar: GlobalVar,
     args: Expr,
-    out_sinfo: Union[TensorStructInfo, List[TensorStructInfo]],
+    out_sinfo: Optional[Union[TensorStructInfo, List[TensorStructInfo]]] = None,
     tir_vars: Optional[Union[ShapeExpr, Tuple[PrimExpr], List[PrimExpr]]] = None,
 ) -> Call:
-    """
-    Call a tir.prim_func and return the output.
+    """Call a tir.PrimFunc and return the output.
 
     Parameters
     ----------
@@ -85,10 +85,15 @@ def call_tir(
     args : Expr
         The input arguments.
 
-    out_sinfo : Union[TensorStructInfo, List[TensorStructInfo]]
-        The structure info of the call_tir output.
-        It should be a single or a list of TensorStructInfo. Each one denotes the
+    out_sinfo : Optional[Union[TensorStructInfo, List[TensorStructInfo]]]
+        The structure info of the call_tir output.  It should be a
+        single or a list of TensorStructInfo. Each one denotes the
         structure info of a returned tensor.
+
+        If `None`, the `out_sinfo` will be inferred from the signature
+        of `gvar`.  Arguments that are accepted by `gvar`, after
+        `args` and before `tir_vars`, are inferred to be output tensor
+        arguments.
 
     tir_vars : Optional[Union[ShapeExpr, Tuple[PrimExpr], List[PrimExpr]]]
         ShapeExpr representing a tuple of integers to unpack when calling func. Is null if not used
@@ -97,11 +102,12 @@ def call_tir(
     -------
     ret: Call
         A call node for the call_tir operator.
+
     """
     if isinstance(args, Expr) and not isinstance(args, RxTuple):  # type: ignore
         args = RxTuple((args,))
 
-    if not isinstance(out_sinfo, list):
+    if out_sinfo is not None and not isinstance(out_sinfo, list):
         out_sinfo = [out_sinfo]
 
     if isinstance(tir_vars, (list, tuple)):
