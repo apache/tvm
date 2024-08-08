@@ -89,7 +89,7 @@ def test_system_lib_prefix():
     class Before:
         I.module_attrs({"system_lib_prefix": "hello_"})
 
-        @T.prim_func
+        @T.prim_func(private=True)
         def tir_zeros(x: T.Buffer((2), "float32")) -> None:
             x[0] = T.float32(0)
 
@@ -103,13 +103,13 @@ def test_system_lib_prefix():
         I.module_attrs({"system_lib_prefix": "hello_"})
 
         @T.prim_func
-        def tir_zeros(x: T.Buffer((2), "float32")) -> None:
+        def hello_tir_zeros(x: T.Buffer((2), "float32")) -> None:
             T.func_attr({"global_symbol": "hello_tir_zeros"})
             x[0] = T.float32(0)
 
         @R.function
         def main() -> R.Tensor:
-            gv0 = R.call_tir(Expected.tir_zeros, (), R.Tensor((2,), dtype="float32"))
+            gv0 = R.call_tir(Expected.hello_tir_zeros, (), R.Tensor((2,), dtype="float32"))
             return gv0
 
     before = Before

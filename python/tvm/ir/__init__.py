@@ -16,6 +16,7 @@
 # under the License.
 # pylint: disable=unused-import
 """Common data structures across all IR variants."""
+
 from . import diagnostics, instrument, transform
 from .adt import Constructor, TypeData
 from .affine_type import TensorAffineType, TupleAffineType
@@ -61,3 +62,5 @@ from .type import (
     TypeVar,
 )
 from .type_relation import TypeCall, TypeRelation
+
+from . import analysis
