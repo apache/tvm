@@ -1057,10 +1057,10 @@ def split_shape_func(attrs, inputs, _):
     return [
         _split_shape_func(
             inputs[0],
-            convert(i),
-            convert(indices_or_sections),
-            convert(param_is_indices),
-            convert(axis),
+            i,
+            indices_or_sections,
+            param_is_indices,
+            axis,
         )
         for i in range(num_out)
     ]

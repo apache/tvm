@@ -56,10 +56,25 @@ TVM_REGISTER_NODE_TYPE(ComputeOpNode);
 /// Verify if ComputeOp is valid with respect to Reduce operations.
 static void VerifyComputeOp(const ComputeOpNode* op);
 
-inline bool ReduceEqual(const tir::ReduceNode* a, const tir::ReduceNode* b) {
-  return (a->combiner.same_as(b->combiner)) && (a->source.same_as(b->source)) &&
-         (a->axis.same_as(b->axis)) && StructuralEqual()(a->condition, b->condition) &&
-         ((a->init.empty() && b->init.empty()) || (a->init.same_as(b->init)));
+static inline void AssertReduceEqual(const tir::ReduceNode* a, const tir::ReduceNode* b) {
+  const char* shared_text =
+      "When a TE compute node produces multiple outputs, "
+      "each of which is a reduction, "
+      "each reduction must be structurally identical, "
+      "except for the ReduceNode::value_index.  ";
+
+  StructuralEqual eq;
+
+  ICHECK(a->combiner.same_as(b->combiner)) << shared_text << "However, the reduction operation "
+                                           << a->combiner << " does not match " << b->combiner;
+  ICHECK(a->source.same_as(b->source))
+      << shared_text << "However, the input " << a->source << " does not match " << b->source;
+  ICHECK(eq(a->axis, b->axis)) << shared_text << "However, the reduction axis " << a->axis
+                               << " does not match " << b->axis;
+  ICHECK(eq(a->condition, b->condition)) << shared_text << "However, the predicate " << a->condition
+                                         << " does not match " << b->condition;
+  ICHECK(eq(a->init, b->init)) << shared_text << "However, the initial value " << a->init
+                               << " does not match " << b->init;
 }
 
 int ComputeOpNode::num_outputs() const { return body.size(); }
@@ -529,8 +544,7 @@ class ComputeVerifier final : protected tir::ExprVisitor {
                                                            << "with being Reduce operation or not.";
 
       if (reduce && reduce_) {
-        ICHECK(ReduceEqual(reduce, reduce_)) << "The Reduce inputs of ComputeOp should "
-                                             << "have the same attribute except value_index";
+        AssertReduceEqual(reduce, reduce_);
       }
 
       level_ = 0;
