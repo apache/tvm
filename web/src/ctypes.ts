@@ -171,7 +171,7 @@ export type FTVMBackendPackedCFunc = (
 /**
  * int TVMObjectFree(TVMObjectHandle obj);
  */
- export type FTVMObjectFree = (obj: Pointer) => number;
+export type FTVMObjectFree = (obj: Pointer) => number;
 
 /**
  * int TVMObjectGetTypeIndex(TVMObjectHandle obj, unsigned* out_tindex);
@@ -252,5 +252,6 @@ export const enum ArgTypeCode {
   TVMStr = 11,
   TVMBytes = 12,
   TVMNDArrayHandle = 13,
-  TVMObjectRValueRefArg = 14
+  TVMObjectRValueRefArg = 14,
+  TVMArgBool = 15,
 }
