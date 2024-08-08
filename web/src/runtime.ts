@@ -1122,7 +1122,7 @@ export class Instance implements Disposable {
     // ctx release goes back into lib.
     this.ctx.dispose();
     this.lib.dispose();
-    this.deviceLostIsError = true;
+    // Cannot set deviceLostIsError back to true here because GPUDevice.destroy() is asynchronous.
   }
 
   /**
@@ -2122,6 +2122,7 @@ export class Instance implements Disposable {
         this.dispose();
       }
     });
+    this.deviceLostIsError = true;
 
     const webGPUContext = new WebGPUContext(
       this.memory, device
