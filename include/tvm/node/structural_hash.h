@@ -29,6 +29,7 @@
 
 #include <cmath>
 #include <functional>
+#include <limits>
 #include <string>
 
 namespace tvm {
