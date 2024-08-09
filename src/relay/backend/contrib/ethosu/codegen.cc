@@ -307,8 +307,7 @@ runtime::Module TIRToRuntime(IRModule mod, Target target) {
   Array<CompilationArtifact> compile_artifacts;
   for (const auto& kv : mod->functions) {
     const tir::PrimFunc& prim_func = Downcast<tir::PrimFunc>(kv.second);
-    Optional<Map<Integer, runtime::NDArray>> params =
-        prim_func->GetAttr<Map<Integer, runtime::NDArray>>("ethos-u.constants");
+    auto params = prim_func->GetAttr<Map<ObjectRef, runtime::NDArray>>("ethos-u.constants");
     ICHECK(params) << "microNPU params should be present";
     auto primfunc_to_artifact_pf =
         tvm::runtime::Registry::Get("relay.ext.ethos-u.primfunc_to_artifact");

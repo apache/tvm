@@ -325,7 +325,7 @@ struct SqueezeAttrs : public tvm::AttrsNode<SqueezeAttrs> {
 };  // struct SqueezeAttrs
 
 struct SplitAttrs : public tvm::AttrsNode<SplitAttrs> {
-  ObjectRef indices_or_sections;
+  Variant<runtime::Int, Array<runtime::Int>> indices_or_sections;
   int axis;
 
   TVM_DECLARE_ATTRS(SplitAttrs, "relay.attrs.SplitAttrs") {

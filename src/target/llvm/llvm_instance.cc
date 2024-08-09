@@ -294,10 +294,10 @@ LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance, const TargetJSON& target)
     target_options_.MCOptions.ABIName = Downcast<String>(target.Get("mabi"));
   }
 
-  auto maybe_level = Downcast<Integer>(target.Get("opt-level"));
+  auto maybe_level = target.Get("opt-level").as<runtime::Int>();
 #if TVM_LLVM_VERSION <= 170
   if (maybe_level.defined()) {
-    int level = maybe_level->value;
+    int level = maybe_level.value()->value;
     if (level <= 0) {
       opt_level_ = llvm::CodeGenOpt::None;
     } else if (level == 1) {
@@ -313,7 +313,7 @@ LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance, const TargetJSON& target)
   }
 #else
   if (maybe_level.defined()) {
-    int level = maybe_level->value;
+    int level = maybe_level.value()->value;
     if (level <= 0) {
       opt_level_ = llvm::CodeGenOptLevel::None;
     } else if (level == 1) {
@@ -333,8 +333,12 @@ LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance, const TargetJSON& target)
 
   // Fast math options
 
-  auto GetBoolFlag = [&target](llvm::StringRef flag) -> bool {
-    return Downcast<Bool>(target.Get(flag.str()).value_or(Bool(false)));
+  auto GetBoolFlag = [&target](llvm::StringRef name) -> bool {
+    if (auto flag = target.Get(name.str())) {
+      return Downcast<runtime::Bool>(flag);
+    } else {
+      return false;
+    }
   };
   if (GetBoolFlag("fast-math")) {
 #if TVM_LLVM_VERSION >= 60

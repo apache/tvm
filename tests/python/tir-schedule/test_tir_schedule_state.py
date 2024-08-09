@@ -155,10 +155,10 @@ def test_replace_direct_write0():
     old_hash = s.mod["main"].__hash__()
     sref = s.get_sref(s.mod["main"].body.block.body[1])
     s.replace(sref, target)
-    # There is no other reference so the AST node can be written directly
-    assert old_hash == s.mod["main"].__hash__()
     # Check the replaced part is equal to the target
     tvm.ir.assert_structural_equal(s.mod["main"].body.block.body[1], target)
+    # There is no other reference so the AST node can be written directly
+    assert old_hash == s.mod["main"].__hash__()
     # The target reuse the stmt of the sref, so the sref won't be None
     assert sref.stmt is not None
 

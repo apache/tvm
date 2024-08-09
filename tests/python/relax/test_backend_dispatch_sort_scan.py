@@ -63,6 +63,13 @@ def test_dispatch_scanop():
 
 
 def test_dispatch_scanop_cuda():
+    """R.cumsum and R.cumprod may be lowered with TOPI for GPU
+
+    For the purpose of testing, this test case intentionally uses the
+    `exclusive=True` argument to prevent the `R.cumsum` from being
+    lowered to the packed func `"gpu_2d_continuous_cumsum"`.
+    """
+
     @I.ir_module
     class Before:
         I.module_global_infos({"vdevice": [I.vdevice("cuda", 0)]})
@@ -70,7 +77,7 @@ def test_dispatch_scanop_cuda():
         @R.function
         def main(x: R.Tensor(("m", 3), "float32", "cuda")):
             with R.dataflow():
-                lv0 = R.cumsum(x, axis=1)
+                lv0 = R.cumsum(x, axis=1, exclusive=True)
                 lv1 = R.cumprod(lv0, axis=1)
                 gv = lv1
                 R.output(gv)
@@ -89,6 +96,7 @@ def test_dispatch_scanop_cuda():
                     topi.cuda.cumsum,
                     x,
                     axis=1,
+                    exclusive=True,
                 )
                 out = bb.emit_te(
                     topi.cuda.cumprod,

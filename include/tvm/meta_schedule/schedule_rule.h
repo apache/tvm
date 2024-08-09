@@ -241,7 +241,7 @@ class ScheduleRule : public runtime::ObjectRef {
    * \param thread_extents Candidates of thread axis extent (values are required to be positive).
    * \return The schedule rule created
    */
-  TVM_DLL static ScheduleRule CrossThreadReduction(Array<Integer> thread_extents);
+  TVM_DLL static ScheduleRule CrossThreadReduction(Array<runtime::Int> thread_extents);
   /*!
    * \brief A rule that randomly select a compute-at location for a free block
    * \return The schedule rule created
@@ -260,9 +260,9 @@ class ScheduleRule : public runtime::ObjectRef {
    * \param unroll_explicit Whether to explicitly unroll the loop, or just add an "unroll" pragma.
    * \return The schedule rule created
    */
-  TVM_DLL static ScheduleRule ParallelizeVectorizeUnroll(int max_jobs_per_core,            //
-                                                         int max_vectorize_extent,         //
-                                                         Array<Integer> unroll_max_steps,  //
+  TVM_DLL static ScheduleRule ParallelizeVectorizeUnroll(int max_jobs_per_core,                 //
+                                                         int max_vectorize_extent,              //
+                                                         Array<runtime::Int> unroll_max_steps,  //
                                                          bool unroll_explicit);
   /*!
    * \brief Auto bind loops around the block to BlockIdx and ThreadIdx

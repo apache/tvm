@@ -122,7 +122,7 @@ def test_lower_build_tir_func():
 
 def test_lower_build_tir_module():
     func = matmul.with_attr("global_symbol", "main")
-    func = func.with_attr("tir.noalias", True)
+    func = func.with_attr("tir.noalias", T.bool(True))
     ir_mod = IRModule({"main": func})
     # check lowering with the CSE pass disabled as otherwise it would do some commoning
     with tvm.transform.PassContext(opt_level=3, disabled_pass=["tir.CommonSubexprElimTIR"]):

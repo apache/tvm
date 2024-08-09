@@ -468,7 +468,7 @@ def schedule_conv2d_gemm_native(cfg, s, out, final_out):
     C = out.op.input_tensors[0]
     A = C.op.input_tensors[0]
     in_type = A.dtype
-    use_scalable_vectors = out.op.attrs["use_scalable_vectors"].value
+    use_scalable_vectors = bool(out.op.attrs["use_scalable_vectors"])
     tile_M, tile_K = arm_utils.get_tiling_A(False, in_type)
     tile_N, _ = arm_utils.get_tiling_B_transformed(False, in_type, use_scalable_vectors)
 

@@ -97,7 +97,7 @@ class ExternalFuncIOHandler : public ExprRewriter {
   Expr CreateSplitReshapedTensors(const Expr& input, const Array<Expr>& original_args) {
     Array<Array<Integer>> shapes;
     Array<Integer> flatten_tensor_sizes;
-    Array<IndexExpr> split_indices;
+    Array<runtime::Int> split_indices;
     Array<Expr> rets;
 
     int total_size = 0;
@@ -132,7 +132,7 @@ class ExternalFuncIOHandler : public ExprRewriter {
     if (func->params.size() > 1) {
       Array<Array<Integer>> shapes;
       Array<Integer> flatten_tensor_sizes;
-      Array<IndexExpr> split_indices;
+      Array<runtime::Int> split_indices;
 
       auto func_name = gv->name_hint;
       int total_size = 0;

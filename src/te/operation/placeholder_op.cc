@@ -63,7 +63,17 @@ Tensor placeholder(Array<PrimExpr> shape, DataType dtype, std::string name) {
 }
 
 TVM_REGISTER_GLOBAL("te.Placeholder")
-    .set_body_typed([](Array<PrimExpr> shape, DataType dtype, std::string name) {
+    .set_body_typed([](Variant<PrimExpr, Array<PrimExpr>> shape_arg, DataType dtype,
+                       std::string name) {
+      auto shape = [&]() -> Array<PrimExpr> {
+        if (auto arg_expr = shape_arg.as<PrimExpr>()) {
+          return {arg_expr.value()};
+        } else if (auto arg_array = shape_arg.as<Array<PrimExpr>>()) {
+          return arg_array.value();
+        } else {
+          LOG(FATAL) << "Variant did not contain either allowed type";
+        }
+      }();
       return placeholder(shape, dtype, name);
     });
 

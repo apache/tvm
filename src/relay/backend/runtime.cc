@@ -88,9 +88,9 @@ RuntimeRegEntry& RuntimeRegEntry::RegisterOrGet(const String& name) {
 
 /**********  Register Runtimes and options  **********/
 
-TVM_REGISTER_RUNTIME(kTvmRuntimeCrt).add_attr_option<Bool>("system-lib");
+TVM_REGISTER_RUNTIME(kTvmRuntimeCrt).add_attr_option<runtime::Bool>("system-lib");
 
-TVM_REGISTER_RUNTIME(kTvmRuntimeCpp).add_attr_option<Bool>("system-lib");
+TVM_REGISTER_RUNTIME(kTvmRuntimeCpp).add_attr_option<runtime::Bool>("system-lib");
 
 /**********  Registry  **********/
 

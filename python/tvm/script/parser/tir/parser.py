@@ -536,6 +536,8 @@ def visit_return(self: Parser, node: doc.Return) -> None:
         The doc AST return node.
     """
     value = self.eval_expr(node.value)
+    if value is None:
+        self.report_error(node, "Expression to be returned must be a PrimExpr")
     T.evaluate(tvm.tir.ret(value))
 
 

@@ -22,6 +22,7 @@ import tvm.testing
 from tvm.ir import assert_structural_equal
 from tvm.runtime import const
 from tvm.tir import IndexMap, IntImm, floordiv, floormod
+from tvm.script import tir as T
 
 
 def assert_equal_index_map(map1: IndexMap, map2: IndexMap) -> None:
@@ -37,28 +38,22 @@ def assert_equal_index_map(map1: IndexMap, map2: IndexMap) -> None:
 def test_index_mapping():
     index_map = IndexMap.from_func(lambda i: [i // 4, i % 4], index_dtype="int32")
 
-    assert_structural_equal(index_map.map_indices([0]), [0, 0])
-    assert_structural_equal(index_map.map_indices([3]), [0, 3])
-    assert_structural_equal(index_map.map_indices([4]), [1, 0])
-    assert_structural_equal(index_map.map_indices([42]), [10, 2])
-    assert_structural_equal(
-        index_map.map_indices([const(42, "int64")]), [const(10, "int64"), const(2, "int64")]
-    )
+    assert_structural_equal(index_map.map_indices([0]), [T.int32(0), T.int32(0)])
+    assert_structural_equal(index_map.map_indices([3]), [T.int32(0), T.int32(3)])
+    assert_structural_equal(index_map.map_indices([4]), [T.int32(1), T.int32(0)])
+    assert_structural_equal(index_map.map_indices([42]), [T.int32(10), T.int32(2)])
+    assert_structural_equal(index_map.map_indices([T.int64(42)]), [T.int64(10), T.int64(2)])
 
 
 def test_shape_mapping():
     index_map = IndexMap.from_func(lambda i: [i // 4, i % 4], index_dtype="int32")
 
-    assert_structural_equal(index_map.map_shape([4]), [1, 4])
-    assert_structural_equal(index_map.map_shape([16]), [4, 4])
+    assert_structural_equal(index_map.map_shape([4]), [T.int32(1), T.int32(4)])
+    assert_structural_equal(index_map.map_shape([16]), [T.int32(4), T.int32(4)])
 
-    assert_structural_equal(index_map.map_shape([14]), [4, 4])
-    assert_structural_equal(
-        index_map.map_shape([const(16, "int64")]), [const(4, "int64"), const(4, "int64")]
-    )
-    assert_structural_equal(
-        index_map.map_shape([const(14, "int64")]), [const(4, "int64"), const(4, "int64")]
-    )
+    assert_structural_equal(index_map.map_shape([14]), [T.int32(4), T.int32(4)])
+    assert_structural_equal(index_map.map_shape([T.int64(16)]), [T.int64(4), T.int64(4)])
+    assert_structural_equal(index_map.map_shape([T.int64(14)]), [T.int64(4), T.int64(4)])
 
 
 def test_inverse():
@@ -82,28 +77,28 @@ padding_test_case = tvm.testing.parameter(
             forward=lambda i: [i // 4, i % 4],
             inverse=lambda i, j: [4 * i + j],
             pre_shape=[16],
-            post_shape=[4, 4],
+            post_shape=[T.int32(4), T.int32(4)],
             padding=lambda i, j: tvm.runtime.convert(False),
         ),
         "right_padding": dict(
             forward=lambda i: [i // 4, i % 4],
             inverse=lambda i, j: [4 * i + j],
             pre_shape=[15],
-            post_shape=[4, 4],
+            post_shape=[T.int32(4), T.int32(4)],
             padding=lambda i, j: tvm.tir.And(i == 3, tvm.runtime.convert(3) == j),
         ),
         "left_padding": dict(
             forward=lambda i: [(i + 1) // 4, (i + 1) % 4],
             inverse=lambda i, j: [4 * i + j - 1],
             pre_shape=[15],
-            post_shape=[4, 4],
+            post_shape=[T.int32(4), T.int32(4)],
             padding=lambda i, j: tvm.tir.And(i == 0, j < 1),
         ),
         "left_and_right_padding": dict(
             forward=lambda i: [(i + 1) // 4, (i + 1) % 4],
             inverse=lambda i, j: [4 * i + j - 1],
             pre_shape=[14],
-            post_shape=[4, 4],
+            post_shape=[T.int32(4), T.int32(4)],
             padding=lambda i, j: tvm.tir.Or(
                 tvm.tir.And(i == 0, j < 1),
                 tvm.tir.And(i == 3, tvm.runtime.convert(3) == j),
@@ -113,7 +108,7 @@ padding_test_case = tvm.testing.parameter(
             forward=lambda i: [i // 4, i % 4],
             inverse=lambda i, j: [4 * i + j],
             pre_shape=[dynamic_N],
-            post_shape=[(dynamic_N - dynamic_N % (-4)) // 4, 4],
+            post_shape=[(dynamic_N - dynamic_N % (-4)) // 4, T.int32(4)],
             padding=lambda i, j: tvm.tir.And(
                 dynamic_N % (-4) != 0,
                 tvm.tir.And(i == dynamic_N // 4, j >= dynamic_N % 4),
@@ -127,10 +122,10 @@ padding_test_case = tvm.testing.parameter(
             ],
             pre_shape=[14, 31],
             post_shape=[
-                4,  # ceildiv(left_pad + i.extent, 4) = ceildiv(1 + 14, 4) = 4
-                5,  # ceildiv(left_pad + j.extent, 8) = ceildiv(5 + 31, 8) = 5
-                4,  # Range of iter%4
-                8,  # Range of iter%8
+                T.int32(4),  # ceildiv(left_pad + i.extent, 4) = ceildiv(1 + 14, 4) = 4
+                T.int32(5),  # ceildiv(left_pad + j.extent, 8) = ceildiv(5 + 31, 8) = 5
+                T.int32(4),  # Range of iter%4
+                T.int32(8),  # Range of iter%8
             ],
             padding=lambda i_outer, j_outer, i_inner, j_inner: tvm.tir.Or(
                 tvm.tir.Or(
@@ -147,35 +142,35 @@ padding_test_case = tvm.testing.parameter(
             forward=lambda i: [i // 32, (i // 4) % 8, i % 4],
             inverse=lambda i, j, k: [32 * i + 4 * j + k],
             pre_shape=[116],
-            post_shape=[4, 8, 4],
+            post_shape=[T.int32(4), T.int32(8), T.int32(4)],
             padding=lambda i, j, k: tvm.tir.And(i == 3, 4 * j + k >= 20),
         ),
         "multiple_right_padding_transpose": dict(
             forward=lambda i: [(i // 4) % 8, i // 32, i % 4],
             inverse=lambda j, i, k: [32 * i + 4 * j + k],
             pre_shape=[116],
-            post_shape=[8, 4, 4],
+            post_shape=[T.int32(8), T.int32(4), T.int32(4)],
             padding=lambda j, i, k: tvm.tir.And(i == 3, 4 * j + k >= 20),
         ),
         "multiple_left_padding": dict(
             forward=lambda i: [(i + 5) // 32, ((i + 5) // 4) % 8, (i + 5) % 4],
             inverse=lambda i, j, k: [32 * i + 4 * j + k - 5],
             pre_shape=[123],
-            post_shape=[4, 8, 4],
+            post_shape=[T.int32(4), T.int32(8), T.int32(4)],
             padding=lambda i, j, k: tvm.tir.And(i == 0, j * 4 + k < 5),
         ),
         "multiple_left_padding_with_transpose": dict(
             forward=lambda i: [((i + 5) // 4) % 8, (i + 5) // 32, (i + 5) % 4],
             inverse=lambda j, i, k: [32 * i + 4 * j + k - 5],
             pre_shape=[123],
-            post_shape=[8, 4, 4],
+            post_shape=[T.int32(8), T.int32(4), T.int32(4)],
             padding=lambda j, i, k: tvm.tir.And(i == 0, j * 4 + k < 5),
         ),
         "outer_loop_extent_one": dict(
             forward=lambda i: [i // 4, i % 4],
             inverse=lambda i, j: [i * 4 + j],
             pre_shape=[3],
-            post_shape=[1, 4],
+            post_shape=[T.int32(1), T.int32(4)],
             padding=lambda i, j: tvm.runtime.convert(3) == j,
         ),
     }
