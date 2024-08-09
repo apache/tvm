@@ -419,5 +419,48 @@ def test_ir_module_equal():
     assert '<root>.functions[I.GlobalVar("func")].body.extent.value' in err.value.args[0]
 
 
+def test_nan_values_are_equivalent():
+    """Structural equality treats two NaN values as equivalent.
+
+    By IEEE, a check of `NaN == NaN` returns false, as does
+    `abs(NaN - NaN) < tolerance`.  However, for the purpose of
+    comparing IR representations, both NaN values are equivalent.
+
+    """
+
+    @T.prim_func(private=True)
+    def func_1():
+        return T.float32("nan")
+
+    @T.prim_func(private=True)
+    def func_2():
+        return T.float32("nan")
+
+    tvm.ir.assert_structural_equal(func_1, func_2)
+    assert tvm.ir.structural_hash(func_1) == tvm.ir.structural_hash(func_2)
+
+
+def test_all_nan_values_are_equivalent():
+    """Structural equality treats two NaN values as equivalent.
+
+    IEEE defines NaN as any value that has all exponent bits set,
+    and has a non-zero mantissa.  For the purposes of comparing IR
+    representations, all NaN values are considered equivalent.
+
+    """
+
+    # A NaN with the first payload bit set.
+    nan_all_zeros = np.int32(0x7FC00000).view("float32")
+
+    # A NaN with the last payload bit set.
+    nan_with_payload = np.int32(0x7F800001).view("float32")
+
+    float_1 = T.float32(nan_all_zeros)
+    float_2 = T.float32(nan_with_payload)
+
+    tvm.ir.assert_structural_equal(float_1, float_2)
+    assert tvm.ir.structural_hash(float_1) == tvm.ir.structural_hash(float_2)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
