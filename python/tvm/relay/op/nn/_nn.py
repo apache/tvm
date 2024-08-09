@@ -47,6 +47,37 @@ reg.register_strategy("nn.fast_softmax", strategy.fast_softmax_strategy)
 # log_softmax
 reg.register_strategy("nn.log_softmax", strategy.log_softmax_strategy)
 
+# upsampling_transpose
+@reg.register_convert_op_layout("nn.upsampling")
+def convert_upsampling(attrs, inputs, tinfos, desired_layouts):
+    """Convert Layout pass registration for upsampling op.
+
+    Parameters
+    ----------
+    attrs : tvm.ir.Attrs
+        Attributes of current convolution
+    inputs : list of tvm.relay.Expr
+        The args of the Relay expr to be legalized
+    tinfos : list of types
+        List of input and output types
+    desired_layouts : list of layout strings
+        List of layouts defining our desired
+        layout for the data and kernel inputs respectively.
+
+    Returns
+    -------
+    result : tvm.relay.Expr
+        The transformed expr
+    """
+    data = inputs[0]
+    new_attrs = dict(attrs)
+    assert len(desired_layouts) == 1, "A desired layout is expected for upsampling inputs"
+    desired_data_layout = desired_layouts[0]
+    assert desired_data_layout != "default", "Data layout cannot be default"
+    new_attrs["layout"] = desired_data_layout
+
+    return relay.nn.upsampling(data, **new_attrs)
+
 
 @reg.register_legalize("nn.matmul")
 def legalize_matmul(attrs, inputs, types):
