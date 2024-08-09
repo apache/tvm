@@ -1073,7 +1073,7 @@ Stmt InjectReductionBlock(const BlockRealizeNode* realize,                    //
   for (auto rit = reduction_loops.rbegin(); rit != reduction_loops.rend(); ++rit) {
     const ForNode* loop = *rit;
     if (loop->thread_binding.defined()) {
-      // Colelct Loop vars between the reduction lops
+      // Colelct Loop vars between the reduction loops
       std::vector<LoopVar> chain_loop_vars =
           LoopVarCollector::Collect(loop->body, GetRef<Block>(block));
       std::vector<LoopVar> used_chain_loop_vars_array;
@@ -1441,7 +1441,7 @@ Stmt InjectWarpEvaluateReductionBlock(const BlockRealizeNode* realize,          
   for (auto rit = reduction_loops.rbegin(); rit != reduction_loops.rend(); ++rit) {
     const ForNode* loop = *rit;
     if (loop->thread_binding.defined()) {
-      // Colelct Loop vars between the reduction lops
+      // Colelct Loop vars between the reduction loops
       std::vector<LoopVar> chain_loop_vars =
           LoopVarCollector::Collect(loop->body, GetRef<Block>(block));
       std::vector<LoopVar> used_chain_loop_vars_array;
