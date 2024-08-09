@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-function-docstring,missing-module-docstring
-import sys
 
 import pytest
 import tvm
@@ -42,7 +41,9 @@ def _check_fail(original):
 
 def _check_matmul(original):
     import numpy as np
-    from tvm.tir.tensor_intrin.cuda import get_mma_intrin  # pylint: disable=unused-import
+    from tvm.tir.tensor_intrin.cuda import (
+        get_mma_intrin,
+    )  # pylint: disable=unused-import
 
     mod = tvm.IRModule.from_expr(original)
     target = tvm.target.Target("cuda")
@@ -164,7 +165,12 @@ def lowered_no_normal_reduction(a: T.handle, b: T.handle) -> None:
                 )
                 T.evaluate(
                     T.tvm_thread_allreduce(
-                        T.uint32(1), A[vi, vk], True, reduce_temp0[0], k, dtype="handle"
+                        T.uint32(1),
+                        A[vi, vk],
+                        True,
+                        reduce_temp0[0],
+                        k,
+                        dtype="handle",
                     )
                 )
             with T.block("B_write_back"):
@@ -213,7 +219,13 @@ def lowered_two_bound_loops(a: T.handle, b: T.handle) -> None:
                     )
                     T.evaluate(
                         T.tvm_thread_allreduce(
-                            T.uint32(1), A[vi, vk], True, reduce_temp0[0], ko, ki, dtype="handle"
+                            T.uint32(1),
+                            A[vi, vk],
+                            True,
+                            reduce_temp0[0],
+                            ko,
+                            ki,
+                            dtype="handle",
                         )
                     )
                 with T.block("B_write_back"):
@@ -373,7 +385,8 @@ def lowered_with_block_predicate(a: T.handle, b: T.handle) -> None:
 
 @T.prim_func
 def single_reduction_loop_with_block_predicate(
-    A: T.Buffer((256, 256), "float32"), T_softmax_norm: T.Buffer((256, 256), "float32")
+    A: T.Buffer((256, 256), "float32"),
+    T_softmax_norm: T.Buffer((256, 256), "float32"),
 ) -> None:
     T_softmax_maxelem_shared = T.alloc_buffer([256], dtype="float32", scope="shared")
     T_softmax_expsum_shared = T.alloc_buffer([256], dtype="float32", scope="shared")
@@ -402,7 +415,8 @@ def single_reduction_loop_with_block_predicate(
                     with T.init():
                         T_softmax_expsum_shared[i0_2] = T.float32(0)
                     T_softmax_expsum_shared[i0_2] = T_softmax_expsum_shared[i0_2] + T.exp(
-                        A[i0_2, k] - T_softmax_maxelem_shared[i0_2], dtype="float32"
+                        A[i0_2, k] - T_softmax_maxelem_shared[i0_2],
+                        dtype="float32",
                     )
         for i1_0 in T.serial(1):
             for i1_1 in T.thread_binding(512, thread="threadIdx.x"):
@@ -411,19 +425,25 @@ def single_reduction_loop_with_block_predicate(
                     i1 = T.axis.spatial(256, i1_0 * 512 + i1_1)
                     T.where(i1_0 * 512 + i1_1 < 256)
                     T.reads(
-                        A[i0_3, i1], T_softmax_maxelem_shared[i0_3], T_softmax_expsum_shared[i0_3]
+                        A[i0_3, i1],
+                        T_softmax_maxelem_shared[i0_3],
+                        T_softmax_expsum_shared[i0_3],
                     )
                     T.writes(T_softmax_norm[i0_3, i1])
                     T.block_attr({"axis": 1})
                     T_softmax_norm[i0_3, i1] = (
-                        T.exp(A[i0_3, i1] - T_softmax_maxelem_shared[i0_3], dtype="float32")
+                        T.exp(
+                            A[i0_3, i1] - T_softmax_maxelem_shared[i0_3],
+                            dtype="float32",
+                        )
                         / T_softmax_expsum_shared[i0_3]
                     )
 
 
 @T.prim_func
 def lowered_single_reduction_loop_with_block_predicate(
-    A: T.Buffer((256, 256), "float32"), T_softmax_norm: T.Buffer((256, 256), "float32")
+    A: T.Buffer((256, 256), "float32"),
+    T_softmax_norm: T.Buffer((256, 256), "float32"),
 ) -> None:
     T_softmax_maxelem_shared = T.alloc_buffer([256], dtype="float32", scope="shared")
     T_softmax_expsum_shared = T.alloc_buffer([256], dtype="float32", scope="shared")
@@ -452,7 +472,8 @@ def lowered_single_reduction_loop_with_block_predicate(
                     T.writes(cross_thread_0[0])
                     T.attr(
                         T.comm_reducer(
-                            lambda x, y: T.max(x, y), [T.float32(-3.4028234663852886e38)]
+                            lambda x, y: T.max(x, y),
+                            [T.float32(-3.4028234663852886e38)],
                         ),
                         "reduce_scope",
                         T.reinterpret(T.uint64(0), dtype="handle"),
@@ -488,7 +509,8 @@ def lowered_single_reduction_loop_with_block_predicate(
                         T.writes(in_thread_1[0])
                         T.block_attr({"tir.cross_thread_reduction_applied": T.bool(True)})
                         in_thread_1[0] = in_thread_1[0] + T.exp(
-                            A[i0_3, k] - T_softmax_maxelem_shared[i0_3], dtype="float32"
+                            A[i0_3, k] - T_softmax_maxelem_shared[i0_3],
+                            dtype="float32",
                         )
                 with T.block("T_softmax_expsum_cross_thread"):
                     T.reads(in_thread_1[0])
@@ -521,12 +543,17 @@ def lowered_single_reduction_loop_with_block_predicate(
                     i1 = T.axis.spatial(256, i1_0 * 512 + i1_1)
                     T.where(i1_0 * 512 + i1_1 < 256)
                     T.reads(
-                        A[i0_5, i1], T_softmax_maxelem_shared[i0_5], T_softmax_expsum_shared[i0_5]
+                        A[i0_5, i1],
+                        T_softmax_maxelem_shared[i0_5],
+                        T_softmax_expsum_shared[i0_5],
                     )
                     T.writes(T_softmax_norm[i0_5, i1])
                     T.block_attr({"axis": 1})
                     T_softmax_norm[i0_5, i1] = (
-                        T.exp(A[i0_5, i1] - T_softmax_maxelem_shared[i0_5], dtype="float32")
+                        T.exp(
+                            A[i0_5, i1] - T_softmax_maxelem_shared[i0_5],
+                            dtype="float32",
+                        )
                         / T_softmax_expsum_shared[i0_5]
                     )
 
@@ -607,12 +634,17 @@ def spatial_reduction_with_shared_prefetch(
                     for ax2_1_0 in range(192):
                         with T.block("B"):
                             v0 = T.axis.spatial(
-                                128, ax0_0_ax1_0_fused // 16 * 8 + ax0_1_ax1_1_fused // 8
+                                128,
+                                ax0_0_ax1_0_fused // 16 * 8 + ax0_1_ax1_1_fused // 8,
                             )
                             v1 = T.axis.spatial(
-                                128, ax0_0_ax1_0_fused % 16 * 8 + ax0_1_ax1_1_fused % 8
+                                128,
+                                ax0_0_ax1_0_fused % 16 * 8 + ax0_1_ax1_1_fused % 8,
                             )
-                            v2 = T.axis.reduce(150528, ax2_0 * 384 + ax2_1_0 * 2 + ax2_1_1_fused)
+                            v2 = T.axis.reduce(
+                                150528,
+                                ax2_0 * 384 + ax2_1_0 * 2 + ax2_1_1_fused,
+                            )
                             T.reads(A_shared[v0, v2], B_shared[v1, v2])
                             T.writes(C_local[v0, v1])
                             with T.init():
@@ -708,12 +740,17 @@ def lowered_spatial_reduction_with_shared_prefetch(
                     for ax2_1_0 in range(192):
                         with T.block("B_in_thread"):
                             v0 = T.axis.spatial(
-                                128, ax0_0_ax1_0_fused // 16 * 8 + ax0_1_ax1_1_fused // 8
+                                128,
+                                ax0_0_ax1_0_fused // 16 * 8 + ax0_1_ax1_1_fused // 8,
                             )
                             v1 = T.axis.spatial(
-                                128, ax0_0_ax1_0_fused % 16 * 8 + ax0_1_ax1_1_fused % 8
+                                128,
+                                ax0_0_ax1_0_fused % 16 * 8 + ax0_1_ax1_1_fused % 8,
                             )
-                            v2 = T.axis.reduce(150528, ax2_0 * 384 + ax2_1_0 * 2 + ax2_1_1_fused)
+                            v2 = T.axis.reduce(
+                                150528,
+                                ax2_0 * 384 + ax2_1_0 * 2 + ax2_1_1_fused,
+                            )
                             T.reads(A_shared[v0, v2], B_shared[v1, v2])
                             T.writes(in_thread_C_local[0])
                             T.block_attr({"tir.cross_thread_reduction_applied": T.bool(True)})
@@ -736,14 +773,20 @@ def lowered_spatial_reduction_with_shared_prefetch(
                         ax2_1_1_fused,
                     )
                 with T.block("B_write_back"):
-                    v0 = T.axis.spatial(128, ax0_0_ax1_0_fused // 16 * 8 + ax0_1_ax1_1_fused // 8)
+                    v0 = T.axis.spatial(
+                        128,
+                        ax0_0_ax1_0_fused // 16 * 8 + ax0_1_ax1_1_fused // 8,
+                    )
                     v1 = T.axis.spatial(128, ax0_0_ax1_0_fused % 16 * 8 + ax0_1_ax1_1_fused % 8)
                     T.reads(cross_thread_C_local[0])
                     T.writes(C_local[v0, v1])
                     C_local[v0, v1] = cross_thread_C_local[0]
             for tx in T.thread_binding(2, thread="threadIdx.x"):
                 with T.block("C_local"):
-                    v0 = T.axis.spatial(128, ax0_0_ax1_0_fused // 16 * 8 + ax0_1_ax1_1_fused // 8)
+                    v0 = T.axis.spatial(
+                        128,
+                        ax0_0_ax1_0_fused // 16 * 8 + ax0_1_ax1_1_fused // 8,
+                    )
                     v1 = T.axis.spatial(128, ax0_0_ax1_0_fused % 16 * 8 + ax0_1_ax1_1_fused % 8)
                     T.where(tx == 0)
                     T.reads(C_local[v0, v1])
@@ -799,7 +842,11 @@ def lowered_reduction_spatial_loop_predicate(
                         T.reinterpret("handle", T.uint64(0)),
                     )
                     T.tvm_thread_allreduce(
-                        T.uint32(1), in_thread_B[0], T.bool(True), cross_thread_B[0], k_1
+                        T.uint32(1),
+                        in_thread_B[0],
+                        T.bool(True),
+                        cross_thread_B[0],
+                        k_1,
                     )
                 k_0 = T.int32()
                 with T.block("block_write_back"):
@@ -829,7 +876,13 @@ def single_reduction_loop_with_tensorize(
             ic_outer = T.axis.reduce(64, (i2 * 6272 + i3 * 64 + i4 * 32 + i5) % 512 // 8)
             ic_f_inner = T.axis.reduce(8, (i2 * 6272 + i3 * 64 + i4 * 32 + i5) % 8)
             T.reads(
-                input_A[n, ic_outer, oh + kh, ow + kw, ic_f_inner * 4 : ic_f_inner * 4 + 4],
+                input_A[
+                    n,
+                    ic_outer,
+                    oh + kh,
+                    ow + kw,
+                    ic_f_inner * 4 : ic_f_inner * 4 + 4,
+                ],
                 input_B[oc_chunk, ic_outer, kh, kw, ic_f_inner, 0:32, 0:4],
             )
             T.writes(output[n, oc_chunk, oh, ow, 0:32])
@@ -843,12 +896,24 @@ def single_reduction_loop_with_tensorize(
             with T.block("compute_o"):
                 T.reads(
                     output[n, oc_chunk, oh, ow, 0:32],
-                    input_A[n, ic_outer, oh + kh, ow + kw, ic_f_inner * 4 : ic_f_inner * 4 + 4],
+                    input_A[
+                        n,
+                        ic_outer,
+                        oh + kh,
+                        ow + kw,
+                        ic_f_inner * 4 : ic_f_inner * 4 + 4,
+                    ],
                     input_B[oc_chunk, ic_outer, kh, kw, ic_f_inner, 0:32, 0:4],
                 )
                 T.writes(output[n, oc_chunk, oh, ow, 0:32])
                 A = T.match_buffer(
-                    input_A[n, ic_outer, oh + kh, ow + kw, ic_f_inner * 4 : ic_f_inner * 4 + 4],
+                    input_A[
+                        n,
+                        ic_outer,
+                        oh + kh,
+                        ow + kw,
+                        ic_f_inner * 4 : ic_f_inner * 4 + 4,
+                    ],
                     [4],
                     dtype="uint8",
                     offset_factor=1,
@@ -860,14 +925,22 @@ def single_reduction_loop_with_tensorize(
                     offset_factor=1,
                 )
                 C = T.match_buffer(
-                    output[n, oc_chunk, oh, ow, 0:32], [32], dtype="int32", offset_factor=1
+                    output[n, oc_chunk, oh, ow, 0:32],
+                    [32],
+                    dtype="int32",
+                    offset_factor=1,
                 )
                 A_u8x4: T.uint8x4 = A[0:4]
                 A_i32: T.int32 = T.reinterpret(A_u8x4, dtype="int32")
                 B_i8x128 = B[0, 0:128]
                 B_i32x32: T.int32x32 = T.reinterpret(B_i8x128, dtype="int32x32")
                 C[0:32] = T.call_llvm_pure_intrin(
-                    4217, T.uint32(3), C[0:32], T.broadcast(A_i32, 32), B_i32x32, dtype="int32x32"
+                    4217,
+                    T.uint32(3),
+                    C[0:32],
+                    T.broadcast(A_i32, 32),
+                    B_i32x32,
+                    dtype="int32x32",
                 )
 
 
@@ -955,7 +1028,12 @@ def lowered_reducer_max(a: T.handle, b: T.handle) -> None:
                 )
                 T.evaluate(
                     T.tvm_thread_allreduce(
-                        T.uint32(1), A[vi, vk], True, reduce_temp0[0], k, dtype="handle"
+                        T.uint32(1),
+                        A[vi, vk],
+                        True,
+                        reduce_temp0[0],
+                        k,
+                        dtype="handle",
                     )
                 )
             with T.block("B_write_back"):
@@ -1109,7 +1187,8 @@ def softmax(var_A: T.handle, var_T_softmax_norm: T.handle) -> None:
                     with T.init():
                         T_softmax_expsum_shared[i0_2] = T.float32(0)
                     T_softmax_expsum_shared[i0_2] = T_softmax_expsum_shared[i0_2] + T.exp(
-                        A[i0_2, k] - T_softmax_maxelem_shared[i0_2], dtype="float32"
+                        A[i0_2, k] - T_softmax_maxelem_shared[i0_2],
+                        dtype="float32",
                     )
         for i1_0 in T.serial(0, 8):
             for i1_1 in T.thread_binding(0, 32, thread="threadIdx.x"):
@@ -1200,7 +1279,8 @@ def lowered_softmax(var_A: T.handle, var_T_softmax_norm: T.handle) -> None:
                     T.writes([normal_reduce_temp1[0]])
                     T.block_attr({"tir.cross_thread_reduction_applied": T.bool(True)})
                     normal_reduce_temp1[0] = normal_reduce_temp1[0] + T.exp(
-                        A[i0_3, k] - T_softmax_maxelem_shared[i0_3], dtype="float32"
+                        A[i0_3, k] - T_softmax_maxelem_shared[i0_3],
+                        dtype="float32",
                     )
             with T.block("T_softmax_expsum_cross_thread_reduction"):
                 T.reads([normal_reduce_temp1[0]])
@@ -1300,10 +1380,14 @@ def lowered_argmax_split(
                     T.writes(in_thread_argmax_v0[0], in_thread_argmax_v1[0])
                     T.block_attr({"tir.cross_thread_reduction_applied": T.bool(True)})
                     v_argmax_v0: T.int32 = T.Select(
-                        in_thread_argmax_v1[0] >= val[i, k], in_thread_argmax_v0[0], idx[i, k]
+                        in_thread_argmax_v1[0] >= val[i, k],
+                        in_thread_argmax_v0[0],
+                        idx[i, k],
                     )
                     v_argmax_v1: T.float32 = T.Select(
-                        in_thread_argmax_v1[0] >= val[i, k], in_thread_argmax_v1[0], val[i, k]
+                        in_thread_argmax_v1[0] >= val[i, k],
+                        in_thread_argmax_v1[0],
+                        val[i, k],
                     )
                     in_thread_argmax_v0[0] = v_argmax_v0
                     in_thread_argmax_v1[0] = v_argmax_v1
@@ -1393,10 +1477,14 @@ def lowered_argmin_split_init_update_reordered(
                     T.writes(in_thread_argmin_v0[0], in_thread_argmin_v1[0])
                     T.block_attr({"tir.cross_thread_reduction_applied": T.bool(True)})
                     v_argmin_v0: T.int32 = T.Select(
-                        in_thread_argmin_v1[0] <= val[i, k], in_thread_argmin_v0[0], idx[i, k]
+                        in_thread_argmin_v1[0] <= val[i, k],
+                        in_thread_argmin_v0[0],
+                        idx[i, k],
                     )
                     v_argmin_v1: T.float32 = T.Select(
-                        in_thread_argmin_v1[0] <= val[i, k], in_thread_argmin_v1[0], val[i, k]
+                        in_thread_argmin_v1[0] <= val[i, k],
+                        in_thread_argmin_v1[0],
+                        val[i, k],
                     )
                     in_thread_argmin_v1[0] = v_argmin_v1
                     in_thread_argmin_v0[0] = v_argmin_v0
@@ -1516,7 +1604,10 @@ def lowered_layer_norm_tuple_sum(
                     ax0 = T.axis.spatial(128, i0_fused)
                     k1 = T.axis.reduce(768, i1_0 * 32 + i1_1)
                     T.reads(data[ax0, k1])
-                    T.writes(in_thread_data_red_temp_v0[0], in_thread_data_red_temp_v1[0])
+                    T.writes(
+                        in_thread_data_red_temp_v0[0],
+                        in_thread_data_red_temp_v1[0],
+                    )
                     T.block_attr({"tir.cross_thread_reduction_applied": T.bool(True)})
                     v_data_red_temp_v0: T.float32 = in_thread_data_red_temp_v0[0] + data[ax0, k1]
                     v_data_red_temp_v1: T.float32 = (
@@ -1526,10 +1617,14 @@ def lowered_layer_norm_tuple_sum(
                     in_thread_data_red_temp_v1[0] = v_data_red_temp_v1
             with T.block("data_red_temp_cross_thread"):
                 T.reads(in_thread_data_red_temp_v0[0], in_thread_data_red_temp_v1[0])
-                T.writes(cross_thread_data_red_temp_v0[0], cross_thread_data_red_temp_v1[0])
+                T.writes(
+                    cross_thread_data_red_temp_v0[0],
+                    cross_thread_data_red_temp_v1[0],
+                )
                 T.attr(
                     T.comm_reducer(
-                        lambda x0, x1, y0, y1: (x0 + y0, x1 + y1), [T.float32(0), T.float32(0)]
+                        lambda x0, x1, y0, y1: (x0 + y0, x1 + y1),
+                        [T.float32(0), T.float32(0)],
                     ),
                     "reduce_scope",
                     T.reinterpret(T.uint64(0), dtype="handle"),
@@ -1549,7 +1644,10 @@ def lowered_layer_norm_tuple_sum(
             with T.block("data_red_temp_write_back"):
                 ax0 = T.axis.spatial(128, i0_fused)
                 T.where(i1_1 == 0)
-                T.reads(cross_thread_data_red_temp_v0[0], cross_thread_data_red_temp_v1[0])
+                T.reads(
+                    cross_thread_data_red_temp_v0[0],
+                    cross_thread_data_red_temp_v1[0],
+                )
                 T.writes(data_red_temp_v0[ax0], data_red_temp_v1[ax0])
                 data_red_temp_v0[ax0] = cross_thread_data_red_temp_v0[0]
                 data_red_temp_v1[ax0] = cross_thread_data_red_temp_v1[0]
@@ -1618,7 +1716,11 @@ def lowered_thread_broadcast_1(A: T.Buffer((256, 256), "float32"), B: T.Buffer((
                     T.reinterpret("handle", T.uint64(0)),
                 )
                 T.tvm_thread_allreduce(
-                    T.uint32(1), A[vi, vk], T.bool(True), cross_thread_temp_local[0], k
+                    T.uint32(1),
+                    A[vi, vk],
+                    T.bool(True),
+                    cross_thread_temp_local[0],
+                    k,
                 )
             with T.block("sum_write_back"):
                 vi = T.axis.spatial(256, i)
@@ -1796,7 +1898,11 @@ def lowered_no_thread_broadcast(
                     T.reinterpret("handle", T.uint64(0)),
                 )
                 T.tvm_thread_allreduce(
-                    T.uint32(1), A[vi, vk], T.bool(True), cross_thread_temp_1_local[0], k
+                    T.uint32(1),
+                    A[vi, vk],
+                    T.bool(True),
+                    cross_thread_temp_1_local[0],
+                    k,
                 )
             with T.block("sum_write_back"):
                 vi = T.axis.spatial(256, i)
@@ -1822,7 +1928,12 @@ def cross_thread_matmul_simt(
     B: T.Buffer((256, 1024), "float16"),
     C: T.Buffer((16, 256), "float16"),
 ):
-    T.func_attr({"dlight.tensorcore_prenormlized": T.bool(True), "tir.noalias": T.bool(True)})
+    T.func_attr(
+        {
+            "dlight.tensorcore_prenormlized": T.bool(True),
+            "tir.noalias": T.bool(True),
+        }
+    )
     # with T.block("root"):
     A_reindex_shared = T.alloc_buffer((1, 16, 1024), "float16", scope="shared")
     B_reindex_shared = T.alloc_buffer((1, 256, 1024), "float16", scope="shared")
@@ -1838,7 +1949,8 @@ def cross_thread_matmul_simt(
                             with T.block("C_o_init"):
                                 v0_o, v1_o = T.axis.remap("SS", [ax0, ax1_0_3])
                                 v2_o = T.axis.spatial(
-                                    16, ax1_0_1_ax2_0_1_fused * 2 + ax1_0_2_ax2_0_2_fused + ax2_0_3
+                                    16,
+                                    ax1_0_1_ax2_0_1_fused * 2 + ax1_0_2_ax2_0_2_fused + ax2_0_3,
                                 )
                                 T.reads()
                                 T.writes(C_reindex_local[0, 0:16, v2_o * 16 : v2_o * 16 + 16])
@@ -1847,11 +1959,15 @@ def cross_thread_matmul_simt(
                                         v1_i_init, v2_i_init = T.axis.remap("SS", [ax1_1, ax2_1])
                                         T.reads()
                                         T.writes(
-                                            C_reindex_local[0, v1_i_init, v2_o * 16 + v2_i_init]
+                                            C_reindex_local[
+                                                0,
+                                                v1_i_init,
+                                                v2_o * 16 + v2_i_init,
+                                            ]
                                         )
-                                        C_reindex_local[0, v1_i_init, v2_o * 16 + v2_i_init] = (
-                                            T.float16(0)
-                                        )
+                                        C_reindex_local[
+                                            0, v1_i_init, v2_o * 16 + v2_i_init
+                                        ] = T.float16(0)
                             for ax3_0_0_0 in range(16):
                                 for (
                                     ax0_ax1_ax2_fused_0_ax0_ax1_ax2_fused_1_fused
@@ -1976,12 +2092,19 @@ def cross_thread_matmul_simt(
                                             + ax2_0_3,
                                         )
                                         v3_o = T.axis.reduce(
-                                            64, ax3_0_0_0 * 4 + ax3_0_0_1 * 2 + ax3_0_1
+                                            64,
+                                            ax3_0_0_0 * 4 + ax3_0_0_1 * 2 + ax3_0_1,
                                         )
                                         T.reads(
-                                            C_reindex_local[0, 0:16, v2_o * 16 : v2_o * 16 + 16],
+                                            C_reindex_local[
+                                                0,
+                                                0:16,
+                                                v2_o * 16 : v2_o * 16 + 16,
+                                            ],
                                             A_reindex_shared_local[
-                                                0, 0:16, v3_o * 16 : v3_o * 16 + 16
+                                                0,
+                                                0:16,
+                                                v3_o * 16 : v3_o * 16 + 16,
                                             ],
                                             B_reindex_shared_local[
                                                 0,
@@ -1990,7 +2113,11 @@ def cross_thread_matmul_simt(
                                             ],
                                         )
                                         T.writes(
-                                            C_reindex_local[0, 0:16, v2_o * 16 : v2_o * 16 + 16]
+                                            C_reindex_local[
+                                                0,
+                                                0:16,
+                                                v2_o * 16 : v2_o * 16 + 16,
+                                            ]
                                         )
                                         for ax1_1, ax2_1, ax3_1 in T.grid(16, 16, 16):
                                             with T.block("C"):
@@ -1998,22 +2125,44 @@ def cross_thread_matmul_simt(
                                                     "SSR", [ax1_1, ax2_1, ax3_1]
                                                 )
                                                 T.reads(
-                                                    C_reindex_local[0, v1_i, v2_o * 16 + v2_i],
+                                                    C_reindex_local[
+                                                        0,
+                                                        v1_i,
+                                                        v2_o * 16 + v2_i,
+                                                    ],
                                                     A_reindex_shared_local[
-                                                        0, v1_i, v3_o * 16 + v3_i
+                                                        0,
+                                                        v1_i,
+                                                        v3_o * 16 + v3_i,
                                                     ],
                                                     B_reindex_shared_local[
-                                                        0, v2_o * 16 + v2_i, v3_o * 16 + v3_i
+                                                        0,
+                                                        v2_o * 16 + v2_i,
+                                                        v3_o * 16 + v3_i,
                                                     ],
                                                 )
-                                                T.writes(C_reindex_local[0, v1_i, v2_o * 16 + v2_i])
+                                                T.writes(
+                                                    C_reindex_local[
+                                                        0,
+                                                        v1_i,
+                                                        v2_o * 16 + v2_i,
+                                                    ]
+                                                )
                                                 C_reindex_local[0, v1_i, v2_o * 16 + v2_i] = (
-                                                    C_reindex_local[0, v1_i, v2_o * 16 + v2_i]
+                                                    C_reindex_local[
+                                                        0,
+                                                        v1_i,
+                                                        v2_o * 16 + v2_i,
+                                                    ]
                                                     + A_reindex_shared_local[
-                                                        0, v1_i, v3_o * 16 + v3_i
+                                                        0,
+                                                        v1_i,
+                                                        v3_o * 16 + v3_i,
                                                     ]
                                                     * B_reindex_shared_local[
-                                                        0, v2_o * 16 + v2_i, v3_o * 16 + v3_i
+                                                        0,
+                                                        v2_o * 16 + v2_i,
+                                                        v3_o * 16 + v3_i,
                                                     ]
                                                 )
                     for ax0_0, ax1_0, ax0_1, ax1_1_0, ax1_1_1 in T.grid(1, 1, 16, 4, 4):
@@ -2034,7 +2183,12 @@ def cross_thread_matmul_simt(
 
 @T.prim_func(check_well_formed=False)
 def lowered_cross_thread_matmul_simt(A_handle: T.handle, B_handle: T.handle, C_handle: T.handle):
-    T.func_attr({"dlight.tensorcore_prenormlized": T.bool(True), "tir.noalias": T.bool(True)})
+    T.func_attr(
+        {
+            "dlight.tensorcore_prenormlized": T.bool(True),
+            "tir.noalias": T.bool(True),
+        }
+    )
     A = T.match_buffer(A_handle, (16, 1024), "float16")
     B = T.match_buffer(B_handle, (256, 1024), "float16")
     C = T.match_buffer(C_handle, (16, 256), "float16")
@@ -2066,7 +2220,11 @@ def lowered_cross_thread_matmul_simt(A_handle: T.handle, B_handle: T.handle, C_h
                                         )
                                         T.reads()
                                         T.writes(
-                                            C_reindex_local[0, 0:16, v2_o * 16 : v2_o * 16 + 16]
+                                            C_reindex_local[
+                                                0,
+                                                0:16,
+                                                v2_o * 16 : v2_o * 16 + 16,
+                                            ]
                                         )
                                         for ax1_1 in range(16):
                                             for ax2_1 in range(16):
@@ -2076,11 +2234,15 @@ def lowered_cross_thread_matmul_simt(A_handle: T.handle, B_handle: T.handle, C_h
                                                     T.reads()
                                                     T.writes(
                                                         C_reindex_local[
-                                                            0, v1_i_init, v2_o * 16 + v2_i_init
+                                                            0,
+                                                            v1_i_init,
+                                                            v2_o * 16 + v2_i_init,
                                                         ]
                                                     )
                                                     C_reindex_local[
-                                                        0, v1_i_init, v2_o * 16 + v2_i_init
+                                                        0,
+                                                        v1_i_init,
+                                                        v2_o * 16 + v2_i_init,
                                                     ] = T.float16(0)
                                     for ax3_0_0_0 in range(16):
                                         for (
@@ -2164,7 +2326,8 @@ def lowered_cross_thread_matmul_simt(A_handle: T.handle, B_handle: T.handle, C_h
                                                             with T.block("A_reindex_shared_local"):
                                                                 v0 = T.axis.spatial(1, 0)
                                                                 v1 = T.axis.spatial(
-                                                                    16, ax0_0 * 16 + ax0_1
+                                                                    16,
+                                                                    ax0_0 * 16 + ax0_1,
                                                                 )
                                                                 v2 = T.axis.spatial(
                                                                     1024,
@@ -2175,11 +2338,17 @@ def lowered_cross_thread_matmul_simt(A_handle: T.handle, B_handle: T.handle, C_h
                                                                     + ax1_1,
                                                                 )
                                                                 T.reads(
-                                                                    A_reindex_shared[v0, v1, v2]
+                                                                    A_reindex_shared[
+                                                                        v0,
+                                                                        v1,
+                                                                        v2,
+                                                                    ]
                                                                 )
                                                                 T.writes(
                                                                     A_reindex_shared_local[
-                                                                        v0, v1, v2
+                                                                        v0,
+                                                                        v1,
+                                                                        v2,
                                                                     ]
                                                                 )
                                                                 A_reindex_shared_local[
@@ -2207,11 +2376,17 @@ def lowered_cross_thread_matmul_simt(A_handle: T.handle, B_handle: T.handle, C_h
                                                                     + ax1_1,
                                                                 )
                                                                 T.reads(
-                                                                    B_reindex_shared[v0, v1, v2]
+                                                                    B_reindex_shared[
+                                                                        v0,
+                                                                        v1,
+                                                                        v2,
+                                                                    ]
                                                                 )
                                                                 T.writes(
                                                                     B_reindex_shared_local[
-                                                                        v0, v1, v2
+                                                                        v0,
+                                                                        v1,
+                                                                        v2,
                                                                     ]
                                                                 )
                                                                 B_reindex_shared_local[
@@ -2227,14 +2402,19 @@ def lowered_cross_thread_matmul_simt(A_handle: T.handle, B_handle: T.handle, C_h
                                                     + ax2_0_3,
                                                 )
                                                 v3_o = T.axis.reduce(
-                                                    64, ax3_0_0_0 * 4 + ax3_0_0_1 * 2 + ax3_0_1
+                                                    64,
+                                                    ax3_0_0_0 * 4 + ax3_0_0_1 * 2 + ax3_0_1,
                                                 )
                                                 T.reads(
                                                     C_reindex_local[
-                                                        0, 0:16, v2_o * 16 : v2_o * 16 + 16
+                                                        0,
+                                                        0:16,
+                                                        v2_o * 16 : v2_o * 16 + 16,
                                                     ],
                                                     A_reindex_shared_local[
-                                                        0, 0:16, v3_o * 16 : v3_o * 16 + 16
+                                                        0,
+                                                        0:16,
+                                                        v3_o * 16 : v3_o * 16 + 16,
                                                     ],
                                                     B_reindex_shared_local[
                                                         0,
@@ -2244,7 +2424,9 @@ def lowered_cross_thread_matmul_simt(A_handle: T.handle, B_handle: T.handle, C_h
                                                 )
                                                 T.writes(
                                                     C_reindex_local[
-                                                        0, 0:16, v2_o * 16 : v2_o * 16 + 16
+                                                        0,
+                                                        0:16,
+                                                        v2_o * 16 : v2_o * 16 + 16,
                                                     ]
                                                 )
                                                 for ax1_1 in range(16):
@@ -2256,10 +2438,14 @@ def lowered_cross_thread_matmul_simt(A_handle: T.handle, B_handle: T.handle, C_h
                                                                 v3_i = T.axis.reduce(16, ax3_1)
                                                                 T.reads(
                                                                     C_reindex_local[
-                                                                        0, v1_i, v2_o * 16 + v2_i
+                                                                        0,
+                                                                        v1_i,
+                                                                        v2_o * 16 + v2_i,
                                                                     ],
                                                                     A_reindex_shared_local[
-                                                                        0, v1_i, v3_o * 16 + v3_i
+                                                                        0,
+                                                                        v1_i,
+                                                                        v3_o * 16 + v3_i,
                                                                     ],
                                                                     B_reindex_shared_local[
                                                                         0,
@@ -2269,17 +2455,25 @@ def lowered_cross_thread_matmul_simt(A_handle: T.handle, B_handle: T.handle, C_h
                                                                 )
                                                                 T.writes(
                                                                     C_reindex_local[
-                                                                        0, v1_i, v2_o * 16 + v2_i
+                                                                        0,
+                                                                        v1_i,
+                                                                        v2_o * 16 + v2_i,
                                                                     ]
                                                                 )
                                                                 C_reindex_local[
-                                                                    0, v1_i, v2_o * 16 + v2_i
+                                                                    0,
+                                                                    v1_i,
+                                                                    v2_o * 16 + v2_i,
                                                                 ] = (
                                                                     C_reindex_local[
-                                                                        0, v1_i, v2_o * 16 + v2_i
+                                                                        0,
+                                                                        v1_i,
+                                                                        v2_o * 16 + v2_i,
                                                                     ]
                                                                     + A_reindex_shared_local[
-                                                                        0, v1_i, v3_o * 16 + v3_i
+                                                                        0,
+                                                                        v1_i,
+                                                                        v3_o * 16 + v3_i,
                                                                     ]
                                                                     * B_reindex_shared_local[
                                                                         0,
@@ -2303,7 +2497,8 @@ def lowered_cross_thread_matmul_simt(A_handle: T.handle, B_handle: T.handle, C_h
                                             T.writes(cross_thread_C_reindex_local[0])
                                             T.attr(
                                                 T.comm_reducer(
-                                                    lambda x0, y0: x0 + y0, [T.float16(0)]
+                                                    lambda x0, y0: x0 + y0,
+                                                    [T.float16(0)],
                                                 ),
                                                 "reduce_scope",
                                                 T.reinterpret("handle", T.uint64(0)),
@@ -2326,9 +2521,9 @@ def lowered_cross_thread_matmul_simt(A_handle: T.handle, B_handle: T.handle, C_h
                                             v2_i = T.axis.spatial(16, ax2_1)
                                             T.reads(cross_thread_C_reindex_local[0])
                                             T.writes(C_reindex_local[0, v1_i, v2_o * 16 + v2_i])
-                                            C_reindex_local[0, v1_i, v2_o * 16 + v2_i] = (
-                                                cross_thread_C_reindex_local[0]
-                                            )
+                                            C_reindex_local[
+                                                0, v1_i, v2_o * 16 + v2_i
+                                            ] = cross_thread_C_reindex_local[0]
                         for ax0_0 in range(1):
                             for ax1_0 in range(1):
                                 for ax0_1 in range(16):
@@ -2357,7 +2552,12 @@ def cross_thread_matmul_mma(
     B: T.Buffer((256, 1024), "float16"),
     C: T.Buffer((16, 256), "float16"),
 ):
-    T.func_attr({"dlight.tensorcore_prenormlized": T.bool(True), "tir.noalias": T.bool(True)})
+    T.func_attr(
+        {
+            "dlight.tensorcore_prenormlized": T.bool(True),
+            "tir.noalias": T.bool(True),
+        }
+    )
     # with T.block("root"):
     A_reindex_shared = T.alloc_buffer((1, 16, 1024), "float16", scope="shared")
     B_reindex_shared = T.alloc_buffer((1, 256, 1024), "float16", scope="shared")
@@ -2373,7 +2573,8 @@ def cross_thread_matmul_mma(
                             with T.block("C_o_init"):
                                 v0_o, v1_o = T.axis.remap("SS", [ax0, ax1_0_3])
                                 v2_o = T.axis.spatial(
-                                    16, ax1_0_1_ax2_0_1_fused * 2 + ax1_0_2_ax2_0_2_fused + ax2_0_3
+                                    16,
+                                    ax1_0_1_ax2_0_1_fused * 2 + ax1_0_2_ax2_0_2_fused + ax2_0_3,
                                 )
                                 T.reads()
                                 T.writes(C_reindex_warp[0, 0, v2_o, 0:32, 0:8])
@@ -2390,7 +2591,12 @@ def cross_thread_matmul_mma(
                                         offset_factor=1,
                                     )
                                     for tx in T.thread_binding(32, thread="threadIdx.x"):
-                                        T.mma_fill("float16", 8, C_warp.data, C_warp.elem_offset)
+                                        T.mma_fill(
+                                            "float16",
+                                            8,
+                                            C_warp.data,
+                                            C_warp.elem_offset,
+                                        )
                             for ax3_0_0_0 in range(16):
                                 for (
                                     ax0_ax1_ax2_fused_0_ax0_ax1_ax2_fused_1_fused
@@ -2471,11 +2677,14 @@ def cross_thread_matmul_mma(
                                             v0_o = T.axis.spatial(1, 0)
                                             v1_o = T.axis.spatial(1, ax0_0)
                                             v2_o = T.axis.spatial(
-                                                64, ax3_0_0_0 * 4 + ax3_0_0_1 * 2 + ax3_0_1 + ax1_0
+                                                64,
+                                                ax3_0_0_0 * 4 + ax3_0_0_1 * 2 + ax3_0_1 + ax1_0,
                                             )
                                             T.reads(
                                                 A_reindex_shared[
-                                                    v0_o, 0:16, v2_o * 16 : v2_o * 16 + 16
+                                                    v0_o,
+                                                    0:16,
+                                                    v2_o * 16 : v2_o * 16 + 16,
                                                 ]
                                             )
                                             T.writes(
@@ -2490,11 +2699,16 @@ def cross_thread_matmul_mma(
                                             )
                                             shared = T.match_buffer(
                                                 A_reindex_shared[
-                                                    v0_o, 0:16, v2_o * 16 : v2_o * 16 + 16
+                                                    v0_o,
+                                                    0:16,
+                                                    v2_o * 16 : v2_o * 16 + 16,
                                                 ],
                                                 (16, 16),
                                                 "float16",
-                                                strides=("shared_s0", "shared_s1"),
+                                                strides=(
+                                                    "shared_s0",
+                                                    "shared_s1",
+                                                ),
                                                 scope="shared",
                                                 offset_factor=16,
                                             )
@@ -2525,7 +2739,8 @@ def cross_thread_matmul_mma(
                                                 + ax0_0,
                                             )
                                             v2_o = T.axis.spatial(
-                                                64, ax3_0_0_0 * 4 + ax3_0_0_1 * 2 + ax3_0_1 + ax1_0
+                                                64,
+                                                ax3_0_0_0 * 4 + ax3_0_0_1 * 2 + ax3_0_1 + ax1_0,
                                             )
                                             T.reads(
                                                 B_reindex_shared[
@@ -2552,7 +2767,10 @@ def cross_thread_matmul_mma(
                                                 ],
                                                 (16, 16),
                                                 "float16",
-                                                strides=("shared_s0", "shared_s1"),
+                                                strides=(
+                                                    "shared_s0",
+                                                    "shared_s1",
+                                                ),
                                                 scope="shared",
                                                 offset_factor=16,
                                             )
@@ -2584,7 +2802,8 @@ def cross_thread_matmul_mma(
                                             + ax2_0_3,
                                         )
                                         v3_o = T.axis.reduce(
-                                            64, ax3_0_0_0 * 4 + ax3_0_0_1 * 2 + ax3_0_1
+                                            64,
+                                            ax3_0_0_0 * 4 + ax3_0_0_1 * 2 + ax3_0_1,
                                         )
                                         T.reads(
                                             C_reindex_warp[0, 0, v2_o, 0:32, 0:8],
@@ -2661,7 +2880,8 @@ def cross_thread_matmul_mma(
                             v0_o = T.axis.spatial(1, 0)
                             v1_o = T.axis.spatial(1, 0)
                             v2_o = T.axis.spatial(
-                                16, ax1_0_1_ax2_0_1_fused * 2 + ax1_0_2_ax2_0_2_fused
+                                16,
+                                ax1_0_1_ax2_0_1_fused * 2 + ax1_0_2_ax2_0_2_fused,
                             )
                             v3_o = T.axis.spatial(1, 0)
                             v4_o = T.axis.spatial(1, 0)
@@ -2715,7 +2935,10 @@ def test_two_bound_loops():
 
 
 def test_multiple_blocks_under_reduction_loop():
-    _check(multiple_blocks_under_reduction_loop, lowered_multiple_blocks_under_reduction_loop)
+    _check(
+        multiple_blocks_under_reduction_loop,
+        lowered_multiple_blocks_under_reduction_loop,
+    )
 
 
 def test_with_block_predicate():
@@ -2737,7 +2960,10 @@ def test_single_reduction_loop_with_block_predicate():
 
 
 def test_spatial_reduction_loop_predicate():
-    _check(spatial_reduction_loop_predicate, lowered_reduction_spatial_loop_predicate)
+    _check(
+        spatial_reduction_loop_predicate,
+        lowered_reduction_spatial_loop_predicate,
+    )
 
 
 def test_single_reduction_loop_with_tensorize():
@@ -2787,7 +3013,10 @@ def test_argmax_split():
 
 
 def test_argmin_split_init_update_reordered():
-    _check(argmin_split_init_update_reordered, lowered_argmin_split_init_update_reordered)
+    _check(
+        argmin_split_init_update_reordered,
+        lowered_argmin_split_init_update_reordered,
+    )
 
 
 def test_thread_broadcast_rewrite_1():
