@@ -43,7 +43,6 @@ namespace tvm {
 namespace runtime {
 namespace contrib {
 
-using namespace tvm::runtime;
 using namespace tvm::runtime::contrib;
 using namespace tvm::runtime::json;
 

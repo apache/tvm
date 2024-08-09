@@ -30,7 +30,6 @@
 
 namespace tvm {
 namespace contrib {
-using namespace runtime;
 
 struct NNPackThreadLocalEntry {
   pthreadpool_t threadpool{nullptr};

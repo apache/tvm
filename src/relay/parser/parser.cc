@@ -48,6 +48,8 @@ namespace relay {
 /*! \brief The meta table maps from type key to a sequence of objects. */
 using MetaTable = Map<String, Array<ObjectRef>>;
 
+using tvm::runtime::NDArray;
+using tvm::runtime::String2DLDataType;
 using tvm::transform::CreateModulePass;
 using tvm::transform::PassContext;
 

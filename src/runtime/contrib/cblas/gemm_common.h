@@ -34,7 +34,10 @@
 namespace tvm {
 namespace contrib {
 
-using namespace runtime;
+using runtime::TVMArgs;
+using runtime::TVMRetValue;
+using runtime::TypeMatch;
+
 inline int ColumnStride(const DLTensor* tensor) {
   // If the tensor itself is transposed then it will have strides
   // backward from what we expect.  Regardless, the max of the strides
