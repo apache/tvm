@@ -37,10 +37,7 @@ def get_resnet50():
 
 def get_cat_image():
     """Get cat image"""
-    url = (
-        "https://gist.githubusercontent.com/zhreshold/"
-        + "bcda4716699ac97ea44f791c24310193/raw/fa7ef0e9c9a5daea686d6473a62aacd1a5885849/cat.png"
-    )
+    url = "https://github.com/tlc-pack/web-data/blob/main/testdata/cat.png"
     dst = "cat.png"
     real_dst = download_testdata(url, dst, module="data")
     img = Image.open(real_dst).resize((224, 224))
