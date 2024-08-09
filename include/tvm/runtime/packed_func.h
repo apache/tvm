@@ -2604,7 +2604,7 @@ struct PackedFuncValueConverter<Map<T, U>> {
         }
       }();
       U new_value = [&]() {
-        if constexpr (std::is_same_v<T, ObjectRef>) {
+        if constexpr (std::is_same_v<U, ObjectRef>) {
           return kv.second;
         } else {
           TVMRetValue pod;
