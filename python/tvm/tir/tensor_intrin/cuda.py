@@ -122,8 +122,8 @@ def get_ldmatrix_intrin(
         assert (
             matrix_name == "B" or not transposed
         ), "Now only B matrix can be transposed for int8 matmul"
-        assert (
-            k_dim == 32 and dtype == "int8"
+        assert k_dim == 32 and (
+            dtype == "int8" or dtype == "e4m3_float8" or dtype == "e5m2_float8"
         ), "Only k_dim == 16 (float16) or k_dim == 32 (int8) supported for now"
 
         if matrix_name == "B" and not transposed:
@@ -260,8 +260,37 @@ TensorIntrin.register(LDMATRIX_i8_B_INTRIN, *get_ldmatrix_intrin(32, "int8", "B"
 LDMATRIX_i8_B_TRANS_INTRIN = "mma_ldmatrix_i8_b_trans"
 TensorIntrin.register(LDMATRIX_i8_B_TRANS_INTRIN, *get_ldmatrix_intrin(32, "int8", "B", True))
 
+LDMATRIX_e4m3_A_INTRIN = "mma_ldmatrix_e4m3_a"
+TensorIntrin.register(LDMATRIX_e4m3_A_INTRIN, *get_ldmatrix_intrin(32, "e4m3_float8", "A", False))
 
-def get_mma_intrin(k_dim, out_dtype, a_transposed, b_transposed):
+LDMATRIX_e4m3_B_INTRIN = "mma_ldmatrix_e4m3_b"
+TensorIntrin.register(LDMATRIX_e4m3_B_INTRIN, *get_ldmatrix_intrin(32, "e4m3_float8", "B", False))
+
+LDMATRIX_e4m3_B_TRANS_INTRIN = "mma_ldmatrix_e4m3_b_trans"
+TensorIntrin.register(
+    LDMATRIX_e4m3_B_TRANS_INTRIN, *get_ldmatrix_intrin(32, "e4m3_float8", "B", True)
+)
+
+LDMATRIX_e5m2_A_INTRIN = "mma_ldmatrix_e5m2_a"
+TensorIntrin.register(LDMATRIX_e5m2_A_INTRIN, *get_ldmatrix_intrin(32, "e5m2_float8", "A", False))
+
+LDMATRIX_e5m2_B_INTRIN = "mma_ldmatrix_e5m2_b"
+TensorIntrin.register(LDMATRIX_e5m2_B_INTRIN, *get_ldmatrix_intrin(32, "e5m2_float8", "B", False))
+
+LDMATRIX_e5m2_B_TRANS_INTRIN = "mma_ldmatrix_e5m2_b_trans"
+TensorIntrin.register(
+    LDMATRIX_e5m2_B_TRANS_INTRIN, *get_ldmatrix_intrin(32, "e5m2_float8", "B", True)
+)
+
+
+def get_mma_intrin(
+    k_dim,
+    a_dtype="float16",
+    b_dtype="float16",
+    out_dtype="float16",
+    a_transposed=False,
+    b_transposed=False,
+):
     local_size = (M_DIM * k_dim) // WARP_SIZE
     local_size_out = (M_DIM * N_DIM) // 32
 
@@ -281,14 +310,17 @@ def get_mma_intrin(k_dim, out_dtype, a_transposed, b_transposed):
     else:
         assert False
 
-    out_dtype_abbrv = {"float16": "fp16", "float32": "fp32", "int32": "int32"}[out_dtype]
-
-    if out_dtype in ["float16", "float32"]:
-        in_dtype = "float16"
-        in_dtype_abbrv = "fp16"
-    else:
-        in_dtype = "int8"
-        in_dtype_abbrv = "int8"
+    dtype_abbrv = {
+        "float16": "fp16",
+        "float32": "fp32",
+        "int8": "int8",
+        "int32": "int32",
+        "e4m3_float8": "e4m3",
+        "e5m2_float8": "e5m2",
+    }
+    a_dtype_abbrv = dtype_abbrv[a_dtype]
+    b_dtype_abbrv = dtype_abbrv[b_dtype]
+    out_dtype_abbrv = dtype_abbrv[out_dtype]
 
     def cast_to_out_dtype(v):
         if out_dtype in ["float32", "int32"]:
@@ -307,7 +339,7 @@ def get_mma_intrin(k_dim, out_dtype, a_transposed, b_transposed):
         A = T.match_buffer(
             a,
             (WARP_SIZE, local_size),
-            in_dtype,
+            a_dtype,
             align=64,
             offset_factor=A_offset_factor,
             scope="warp",
@@ -315,7 +347,7 @@ def get_mma_intrin(k_dim, out_dtype, a_transposed, b_transposed):
         B = T.match_buffer(
             b,
             (WARP_SIZE, local_size),
-            in_dtype,
+            b_dtype,
             align=64,
             offset_factor=B_offset_factor,
             scope="warp",
@@ -363,7 +395,7 @@ def get_mma_intrin(k_dim, out_dtype, a_transposed, b_transposed):
         A = T.match_buffer(
             a,
             (WARP_SIZE, local_size),
-            in_dtype,
+            a_dtype,
             align=64,
             offset_factor=A_offset_factor,
             scope="warp",
@@ -371,7 +403,7 @@ def get_mma_intrin(k_dim, out_dtype, a_transposed, b_transposed):
         B = T.match_buffer(
             b,
             (WARP_SIZE, local_size),
-            in_dtype,
+            b_dtype,
             align=64,
             offset_factor=B_offset_factor,
             scope="warp",
@@ -399,8 +431,8 @@ def get_mma_intrin(k_dim, out_dtype, a_transposed, b_transposed):
                         mma_prefix,
                         "row",
                         "col",
-                        in_dtype_abbrv,
-                        in_dtype_abbrv,
+                        a_dtype_abbrv,
+                        b_dtype_abbrv,
                         out_dtype_abbrv,
                         A.data,
                         A.elem_offset + tx * lift(local_size),
@@ -418,8 +450,8 @@ def get_mma_intrin(k_dim, out_dtype, a_transposed, b_transposed):
                         mma_prefix,
                         "row",
                         "col",
-                        in_dtype_abbrv,
-                        in_dtype_abbrv,
+                        a_dtype_abbrv,
+                        b_dtype_abbrv,
                         out_dtype_abbrv,
                         A.data,
                         A.elem_offset + tx * lift(local_size),
@@ -436,38 +468,80 @@ def get_mma_intrin(k_dim, out_dtype, a_transposed, b_transposed):
 
 
 MMA_f16f16f32_INTRIN = "mma_f16f16f32"
-TensorIntrin.register(MMA_f16f16f32_INTRIN, *get_mma_intrin(16, "float32", False, False))
+TensorIntrin.register(
+    MMA_f16f16f32_INTRIN, *get_mma_intrin(16, "float16", "float16", "float32", False, False)
+)
 
 MMA_f16f16f32_TRANS_B_INTRIN = "mma_f16f16f32_trans_b"
-TensorIntrin.register(MMA_f16f16f32_TRANS_B_INTRIN, *get_mma_intrin(16, "float32", False, True))
+TensorIntrin.register(
+    MMA_f16f16f32_TRANS_B_INTRIN, *get_mma_intrin(16, "float16", "float16", "float32", False, True)
+)
 
 MMA_f16f16f32_TRANS_A_INTRIN = "mma_f16f16f32_trans_a"
-TensorIntrin.register(MMA_f16f16f32_TRANS_A_INTRIN, *get_mma_intrin(16, "float32", True, False))
+TensorIntrin.register(
+    MMA_f16f16f32_TRANS_A_INTRIN, *get_mma_intrin(16, "float16", "float16", "float32", True, False)
+)
 
 MMA_f16f16f32_TRANS_A_TRANS_B_INTRIN = "mma_f16f16f32_trans_a_trans_b"
 TensorIntrin.register(
-    MMA_f16f16f32_TRANS_A_TRANS_B_INTRIN, *get_mma_intrin(16, "float32", True, True)
+    MMA_f16f16f32_TRANS_A_TRANS_B_INTRIN,
+    *get_mma_intrin(16, "float16", "float16", "float32", True, True),
 )
 
 MMA_f16f16f16_INTRIN = "mma_f16f16f16"
-TensorIntrin.register(MMA_f16f16f16_INTRIN, *get_mma_intrin(16, "float16", False, False))
+TensorIntrin.register(
+    MMA_f16f16f16_INTRIN, *get_mma_intrin(16, "float16", "float16", "float16", False, False)
+)
 
 MMA_f16f16f16_TRANS_B_INTRIN = "mma_f16f16f16_trans_b"
-TensorIntrin.register(MMA_f16f16f16_TRANS_B_INTRIN, *get_mma_intrin(16, "float16", False, True))
+TensorIntrin.register(
+    MMA_f16f16f16_TRANS_B_INTRIN, *get_mma_intrin(16, "float16", "float16", "float16", False, True)
+)
 
 MMA_f16f16f16_TRANS_A_INTRIN = "mma_f16f16f16_trans_a"
-TensorIntrin.register(MMA_f16f16f16_TRANS_A_INTRIN, *get_mma_intrin(16, "float16", True, False))
+TensorIntrin.register(
+    MMA_f16f16f16_TRANS_A_INTRIN, *get_mma_intrin(16, "float16", "float16", "float16", True, False)
+)
 
 MMA_f16f16f16_TRANS_A_TRANS_B_INTRIN = "mma_f16f16f16_trans_a_trans_b"
 TensorIntrin.register(
-    MMA_f16f16f16_TRANS_A_TRANS_B_INTRIN, *get_mma_intrin(16, "float16", True, True)
+    MMA_f16f16f16_TRANS_A_TRANS_B_INTRIN,
+    *get_mma_intrin(16, "float16", "float16", "float16", True, True),
 )
 
 MMA_i8i8i32_INTRIN = "mma_i8i8i32"
-TensorIntrin.register(MMA_i8i8i32_INTRIN, *get_mma_intrin(32, "int32", False, False))
+TensorIntrin.register(
+    MMA_i8i8i32_INTRIN, *get_mma_intrin(32, "int8", "int8", "int32", False, False)
+)
 
 MMA_i8i8i32_TRANS_B_INTRIN = "mma_i8i8i32_trans_b"
-TensorIntrin.register(MMA_i8i8i32_TRANS_B_INTRIN, *get_mma_intrin(32, "int32", False, True))
+TensorIntrin.register(
+    MMA_i8i8i32_TRANS_B_INTRIN, *get_mma_intrin(32, "int8", "int8", "int32", False, True)
+)
+
+MMA_e5m2e5m2f32_INTRIN = "mma_e5m2e5m2f32"
+TensorIntrin.register(
+    MMA_e5m2e5m2f32_INTRIN,
+    *get_mma_intrin(32, "e5m2_float8", "e5m2_float8", "float32", False, False),
+)
+
+MMA_e5m2e5m2f32_TRANS_B_INTRIN = "mma_e5m2e5m2f32_trans_b"
+TensorIntrin.register(
+    MMA_e5m2e5m2f32_TRANS_B_INTRIN,
+    *get_mma_intrin(32, "e5m2_float8", "e5m2_float8", "float32", False, True),
+)
+
+MMA_e4m3e4m3f32_INTRIN = "mma_e4m3e4m3f32"
+TensorIntrin.register(
+    MMA_e4m3e4m3f32_INTRIN,
+    *get_mma_intrin(32, "e4m3_float8", "e4m3_float8", "float32", False, False),
+)
+
+MMA_e4m3e4m3f32_TRANS_B_INTRIN = "mma_e4m3e4m3f32_trans_b"
+TensorIntrin.register(
+    MMA_e4m3e4m3f32_TRANS_B_INTRIN,
+    *get_mma_intrin(32, "e4m3_float8", "e4m3_float8", "float32", False, True),
+)
 
 
 def get_mma_fill_intrin(dtype, local_size):
@@ -631,7 +705,7 @@ TensorIntrin.register(
 def get_mma_intrin_group(
     load_scope: Literal["shared", "shared.dyn"],
     store_scope: Literal["global", "shared", "shared.dyn"],
-    in_dtype: Literal["float16", "int8"],
+    in_dtype: Literal["float16", "int8", "e4m3_float8", "e5m2_float8"],
     out_dtype: Literal["float16", "float32", "int32"],
     trans_a: bool,
     trans_b: bool,
@@ -678,13 +752,21 @@ def get_mma_intrin_group(
     """
     assert load_scope in ["shared", "shared.dyn"]
     assert store_scope in ["global", "shared", "shared.dyn"]
-    assert in_dtype in ["float16", "int8"]
+    assert in_dtype in ["float16", "int8", "e4m3_float8", "e5m2_float8"]
     assert out_dtype in ["float16", "float32", "int32"]
 
     shape = "16x16"
 
-    dtype_mapping = {"float16": "f16", "float32": "f32", "int8": "i8", "int32": "i32"}
-    in_dtype = dtype_mapping[in_dtype]
+    dtype_mapping = {
+        "float16": "f16",
+        "float32": "f32",
+        "int8": "i8",
+        "e4m3_float8": "e4m3",
+        "e5m2_float8": "e5m2",
+        "int32": "i32",
+    }
+    a_dtype = dtype_mapping[in_dtype]
+    b_dtype = dtype_mapping[in_dtype]
     out_dtype = dtype_mapping[out_dtype]
 
     # e.g. mma_fill_16x16_f32
@@ -694,13 +776,13 @@ def get_mma_intrin_group(
     trans_a = "_trans" if trans_a else ""
     trans_b = "_trans" if trans_b else ""
     load_scope = "_dyn" if load_scope == "shared.dyn" else ""
-    load_a_intrin = f"mma_ldmatrix_{in_dtype}_a{trans_a}{load_scope}"
-    load_b_intrin = f"mma_ldmatrix_{in_dtype}_b{trans_b}{load_scope}"
+    load_a_intrin = f"mma_ldmatrix_{a_dtype}_a{trans_a}{load_scope}"
+    load_b_intrin = f"mma_ldmatrix_{b_dtype}_b{trans_b}{load_scope}"
 
     # e.g. mma_f16f16f32_trans_a_trans_b
     trans_a_str = trans_a + "_a" if trans_a != "" else ""
     trans_b_str = trans_b + "_b" if trans_b != "" else ""
-    compute_intrin = f"mma_{in_dtype}{in_dtype}{out_dtype}{trans_a_str}{trans_b_str}"
+    compute_intrin = f"mma_{a_dtype}{b_dtype}{out_dtype}{trans_a_str}{trans_b_str}"
 
     # e.g. mma_store_16x16_f32_shared_dyn_simple_
     store_scope = store_scope.replace(".", "_")
