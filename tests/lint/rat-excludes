@@ -40,6 +40,9 @@ dist
 .node_repl_history
 node_modules
 
+# NNEF graphs
+.*\.nnef
+
 # Specific files
 package-list
 MANIFEST
