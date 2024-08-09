@@ -303,11 +303,7 @@ class ToMixedPrecisionRewriter : public ExprMutator {
   }
 
   Array<Expr> RemapArgs(const Array<Expr>& args) {
-    Array<Expr> new_args;
-    for (const auto& arg : args) {
-      new_args.push_back(VarReplacer::Replace(arg, var_remap_));
-    }
-    return new_args;
+    return args.Map([this](Expr arg) { return VarReplacer::Replace(arg, var_remap_); });
   }
 
   // Util function to rewrite the expr to the given dtype
@@ -475,37 +471,60 @@ class ToMixedPrecisionRewriter : public ExprMutator {
       ReEmitBinding(binding, call_node->args[0]);
       return;
     }
-    DataType to;
-    ObjectPtr<CallNode> new_call = make_object<CallNode>(*call_node);
+
+    Call new_call = GetRef<Call>(call_node);
+
     // We first to remap the args to the current vars according to the var_remap_
-    new_call->args = std::move(RemapArgs(call_node->args));
+    new_call.CopyOnWrite()->args = RemapArgs(new_call->args);
+
     // Then we rewrite the args according to the policy
+    std::optional<DataType> opt_new_dtype = std::nullopt;
+
     if (policy == kAlways) {
-      to = fp16_;
+      opt_new_dtype = fp16_;
       auto attr_map = Op::GetAttrMap<FInferMixedPrecision>("FInferMixedPrecision");
       ICHECK(attr_map.count(op));
-      auto f = attr_map[op];
-      new_call = make_object<CallNode>(*(f(Call(new_call), output_dtype_).get()));
+      new_call = attr_map[op](new_call, output_dtype_);
     } else if (policy == kFollow) {
-      to = AllFP16Castable(new_call->args) ? fp16_ : fp32_;
+      opt_new_dtype = AllFP16Castable(new_call->args) ? fp16_ : fp32_;
     } else if (policy == kNever) {
-      to = fp32_;
+      // An upstream operation may have changed the datatype of the
+      // arguments.  Because this operation must be provided with
+      // exactly the same dtype as it previously had, it may require a
+      // cast back to the original datatype.
+
+      if (!new_call->args.same_as(call_node->args)) {
+        Array<Expr> new_typed_args;
+        for (size_t i = 0; i < call_node->args.size(); i++) {
+          auto arg = new_call->args[i];
+          auto old_ntype = NTypeFrom(call_node->args[i]);
+          new_typed_args.push_back(RewriteExpr(arg, old_ntype));
+        }
+        new_call.CopyOnWrite()->args = new_typed_args;
+      }
+
     } else {
       LOG(FATAL) << "Unsupported TMixedPrecisionPolicy: " << policy;
     }
-    new_call->args = std::move(RewriteArgs(new_call->args, to));
-    new_call->struct_info_ = NullOpt;
-    Expr new_value = builder_->Normalize(Call(new_call));
-    if (policy == kAlways && binding->var->IsInstance<DataflowVarNode>()) {
-      // kAlways: store the tensors to fp16
-      // But global vars will be stored to the original dtype anyway (see below)
-      new_value = RewriteExpr(new_value, NTypeFrom(new_value, fp16_));
+
+    Expr new_value = new_call;
+    if (opt_new_dtype) {
+      auto new_dtype = opt_new_dtype.value();
+      new_call.CopyOnWrite()->args = RewriteArgs(new_call->args, new_dtype);
+      new_call.CopyOnWrite()->struct_info_ = NullOpt;
+
+      new_value = builder_->Normalize(Call(new_call));
+
+      if (!binding->var->IsInstance<DataflowVarNode>()) {
+        // Non-Dataflow var: store the tensors to the original dtype
+        new_value = RewriteExpr(new_value, NTypeFrom(binding->var));
+      } else if (policy == kAlways && binding->var->IsInstance<DataflowVarNode>()) {
+        // kAlways: store the tensors to fp16
+        // But non-dataflow vars will be stored to the original dtype anyway (see above)
+        new_value = RewriteExpr(new_value, NTypeFrom(new_value, new_dtype));
+      }
     }
-    if (!binding->var->IsInstance<DataflowVarNode>()) {
-      // Global var: store the tensors to the original dtype
-      NType to = NTypeFrom(binding->var);
-      new_value = RewriteExpr(new_value, to);
-    }
+
     ReEmitBinding(binding, builder_->Normalize(new_value));
   }
 
