@@ -113,7 +113,7 @@ class ROCMDeviceAPI final : public DeviceAPI {
       case kGcnArch: {
         hipDeviceProp_t prop;
         ROCM_CALL(hipGetDeviceProperties(&prop, device.device_id));
-        *rv = prop.gcnArch;
+        *rv = prop.gcnArchName;
         return;
       }
       case kApiVersion: {
