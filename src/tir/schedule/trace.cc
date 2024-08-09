@@ -448,8 +448,7 @@ void Trace::ApplyJSONToSchedule(ObjectRef json, Schedule sch) {
 
 Trace TraceNode::WithDecision(Instruction inst, ObjectRef decision, bool remove_postproc) const {
   int n_insts = GetNumValidInstructions(this->insts, remove_postproc);
-  Array<Instruction> new_insts =
-      Array<Instruction>{this->insts.begin(), this->insts.begin() + n_insts};
+  auto new_insts = Array{this->insts.begin(), this->insts.begin() + n_insts};
   Map<Instruction, ObjectRef> new_decisions{this->decisions.begin(), this->decisions.end()};
   new_decisions.Set(std::move(inst), std::move(decision));
   return Trace(new_insts, new_decisions);
