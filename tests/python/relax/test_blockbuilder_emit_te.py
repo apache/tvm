@@ -45,8 +45,8 @@ def test_emit_te_with_symbolic_arg():
         @T.prim_func(private=True)
         def te_func(
             A: T.Buffer((T.int64(10),), "float32"),
-            B: T.Buffer((T.int64(10),), "float32"),
             m: T.int64,
+            B: T.Buffer((T.int64(10),), "float32"),
         ):
             T.func_attr({"tir.noalias": T.bool(True)})
             for i in range(T.int64(10)):
@@ -63,9 +63,8 @@ def test_emit_te_with_symbolic_arg():
             cls = Expected
             gv = R.call_tir(
                 cls.te_func,
-                (x,),
+                [x, R.prim_value(m)],
                 out_sinfo=R.Tensor((10,), dtype="float32"),
-                tir_vars=R.shape([m]),
             )
             return gv
 
@@ -95,8 +94,8 @@ def test_symbolic_shape_in_prim_value():
         @T.prim_func(private=True)
         def te_slice(
             A: T.Buffer([T.int64(16), T.int64(16)], "float32"),
-            Output: T.Buffer(T.int64(16), "float32"),
             row_index: T.int64,
+            Output: T.Buffer(T.int64(16), "float32"),
         ):
             T.func_attr({"tir.noalias": T.bool(True)})
 
@@ -116,8 +115,7 @@ def test_symbolic_shape_in_prim_value():
 
             gv = R.call_tir(
                 cls.te_slice,
-                A,
-                tir_vars=[row_index],
+                [A, R.prim_value(row_index)],
                 out_sinfo=R.Tensor([16], "float32"),
             )
             return gv

@@ -826,52 +826,82 @@ def test_split_by_indices_n_section_divisible():
 
 
 def test_split_by_indices_n_section_divisible_symbolic():
-    # fmt: off
     @tvm.script.ir_module
     class Split:
         @R.function
-        def main(dumb_param: R.Tensor(("n",)), x: R.Tensor(("m", "n * 3"), "float32")) -> R.Tuple([R.Tensor(("m", "n"), "float32"), R.Tensor(("m", "n"), "float32"), R.Tensor(("m", "n"), "float32")]):
+        def main(
+            dumb_param: R.Tensor(("n",)), x: R.Tensor(("m", "n * 3"), "float32")
+        ) -> R.Tuple(
+            [
+                R.Tensor(("m", "n"), "float32"),
+                R.Tensor(("m", "n"), "float32"),
+                R.Tensor(("m", "n"), "float32"),
+            ]
+        ):
             m = T.int64()
             n = T.int64()
-            gv: R.Tuple([R.Tensor((m, n), "float32"), R.Tensor((m, n), "float32"), R.Tensor((m, n), "float32")]) = R.split(x, 3, axis=1)
+            gv: R.Tuple(
+                [
+                    R.Tensor((m, n), "float32"),
+                    R.Tensor((m, n), "float32"),
+                    R.Tensor((m, n), "float32"),
+                ]
+            ) = R.split(x, 3, axis=1)
             return gv
 
     @tvm.script.ir_module
     class Expected:
         @R.function
-        def main(dumb_param: R.Tensor(("n",)), x: R.Tensor(("m", "(n * 3)"), "float32")) -> R.Tuple(R.Tensor(("m", "((n * 3) // 3)"), "float32"), R.Tensor(("m", "((((n * 3) // 3) * 2) - ((n * 3) // 3))"), "float32"), R.Tensor(("m", "((n * 3) - (((n * 3) // 3) * 2))"), "float32")):
+        def main(dumb_param: R.Tensor(("n",)), x: R.Tensor(("m", "(n * 3)"), "float32")):
             m = T.int64()
             n = T.int64()
-            gv = R.call_tir(Expected.split, (x,), [R.Tensor((m, ((n * 3) // 3)), "float32"), R.Tensor((m, ((((n * 3) // 3) * 2) - ((n * 3) // 3))), "float32"), R.Tensor((m, ((n * 3) - (((n * 3) // 3) * 2))), "float32")], tir_vars=(n,))
+            gv = R.call_tir(
+                Expected.split,
+                (x, R.prim_value(n)),
+                [
+                    R.Tensor((m, ((n * 3) // 3)), "float32"),
+                    R.Tensor((m, ((((n * 3) // 3) * 2) - ((n * 3) // 3))), "float32"),
+                    R.Tensor((m, ((n * 3) - (((n * 3) // 3) * 2))), "float32"),
+                ],
+            )
             return gv
 
         @T.prim_func(private=True)
-        def split(var_rxplaceholder: T.handle, var_T_split_sections: T.handle, var_T_split_sections_1: T.handle, var_T_split_sections_2: T.handle, n: T.int64):
+        def split(
+            var_rxplaceholder: T.handle,
+            n: T.int64,
+            var_T_split_sections: T.handle,
+            var_T_split_sections_1: T.handle,
+            var_T_split_sections_2: T.handle,
+        ):
             T.func_attr({"tir.noalias": True})
             m = T.int64()
             rxplaceholder = T.match_buffer(var_rxplaceholder, [m, n * T.int64(3)], dtype="float32")
-            T_split_sections = T.match_buffer(var_T_split_sections, [m, n * T.int64(3) // T.int64(3)], dtype="float32")
-            T_split_sections_1 = T.match_buffer(var_T_split_sections_1, [m, n * T.int64(3) // T.int64(3) * T.int64(2) - n * T.int64(3) // T.int64(3)], dtype="float32")
-            T_split_sections_2 = T.match_buffer(var_T_split_sections_2, [m, n * T.int64(3) - n * T.int64(3) // T.int64(3) * T.int64(2)], dtype="float32")
+            T_split_sections = T.match_buffer(
+                var_T_split_sections, [m, n * T.int64(3) // T.int64(3)], dtype="float32"
+            )
+            T_split_sections_1 = T.match_buffer(
+                var_T_split_sections_1,
+                [m, n * T.int64(3) // T.int64(3) * T.int64(2) - n * T.int64(3) // T.int64(3)],
+                dtype="float32",
+            )
+            T_split_sections_2 = T.match_buffer(
+                var_T_split_sections_2,
+                [m, n * T.int64(3) - n * T.int64(3) // T.int64(3) * T.int64(2)],
+                dtype="float32",
+            )
             for i0, i1 in T.grid(m, n):
                 with T.block("T_split_sections"):
                     ax0, ax1 = T.axis.remap("SS", [i0, i1])
-                    T.reads(rxplaceholder[ax0, ax1])
-                    T.writes(T_split_sections[ax0, ax1])
                     T_split_sections[ax0, ax1] = rxplaceholder[ax0, ax1]
             for i0, i1 in T.grid(m, n):
                 with T.block("T_split_sections_1"):
                     ax0, ax1 = T.axis.remap("SS", [i0, i1])
-                    T.reads(rxplaceholder[ax0, n + ax1])
-                    T.writes(T_split_sections_1[ax0, ax1])
                     T_split_sections_1[ax0, ax1] = rxplaceholder[ax0, n + ax1]
             for i0, i1 in T.grid(m, n):
                 with T.block("T_split_sections_2"):
                     ax0, ax1 = T.axis.remap("SS", [i0, i1])
-                    T.reads(rxplaceholder[ax0, n * T.int64(2) + ax1])
-                    T.writes(T_split_sections_2[ax0, ax1])
                     T_split_sections_2[ax0, ax1] = rxplaceholder[ax0, n * T.int64(2) + ax1]
-    # fmt: on
 
     mod = LegalizeOps()(Split)
     tvm.ir.assert_structural_equal(mod, Expected)

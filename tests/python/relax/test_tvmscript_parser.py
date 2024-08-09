@@ -956,7 +956,7 @@ def test_call_tir_empty_tuple_arg():
     _check(bb.get())
 
 
-def test_call_tir_with_tir_var():
+def test_call_tir_with_prim_value():
     @I.ir_module
     class Module:
         @R.function
