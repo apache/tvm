@@ -839,16 +839,14 @@ Stmt InjectReductionBlock(const BlockRealizeNode* realize,                    //
   Array<BufferRegion> ct_buffer_regions = f_create_buffer_regions(ct_buffers);
   Optional<Array<BufferRegion>> it_buffer_regions = NullOpt;
   // In total, the block is transformed into at most 4 statements
-  // - Stmt 1: initialize the buffer for in-thread reduction
-  // - Stmt 2: do in-thread reduction
-  // - Stmt 3: do cross-thread reduction
-  // - Stmt 4: write cross-thread reduction result to the original buffer
+  // - Stmt 1: do cross-thread reduction
+  // - Stmt 2: write cross-thread reduction result to the original buffer
   Array<Stmt> stmts;
   stmts.reserve(4);
 
-  // Stmt 3: do cross-thread reduction
+  // Stmt 1: do cross-thread reduction
   {
-    // Step 3.1. Create the parameters to the intrinsic
+    // Step 1.1. Create the parameters to the intrinsic
     Array<PrimExpr> parameters;
     parameters.reserve(reduction_loops.size() + 4);
     // 1-st argument: number of buffers
@@ -867,7 +865,7 @@ Stmt InjectReductionBlock(const BlockRealizeNode* realize,                    //
         parameters.push_back(reduction_loop->loop_var);
       }
     }
-    // Step 3.2. Create the block and the block-realize.
+    // Step 1.2. Create the block and the block-realize.
     Array<IterVar> iter_vars = block->iter_vars;
     Array<PrimExpr> bindings = realize->iter_values;
     Array<BufferRegion> reads = block->writes;
@@ -938,7 +936,7 @@ Stmt InjectReductionBlock(const BlockRealizeNode* realize,                    //
         /*predicate=*/const_true(),
         /*block=*/cross_thread_block));
   }
-  // Stmt 4: write cross-thread reduction result to the original buffer
+  // Stmt 2: write cross-thread reduction result to the original buffer
   {
     ICHECK_EQ(block->iter_vars.size(), realize->iter_values.size());
     int n_iter = static_cast<int>(block->iter_vars.size());
@@ -1184,19 +1182,17 @@ Stmt InjectWarpEvaluateReductionBlock(const BlockRealizeNode* realize,          
   Array<BufferRegion> ct_buffer_regions = f_create_buffer_regions(ct_buffers);
   Optional<Array<BufferRegion>> it_buffer_regions = NullOpt;
   // In total, the block is transformed into at most 4 statements
-  // - Stmt 1: initialize the buffer for in-thread reduction
-  // - Stmt 2: do in-thread reduction
-  // - Stmt 3: do cross-thread reduction
-  // - Stmt 4: write cross-thread reduction result to the original buffer
+  // - Stmt 1: do cross-thread reduction
+  // - Stmt 2: write cross-thread reduction result to the original buffer
   Array<Stmt> stmts;
   stmts.reserve(4);
 
-  // Stmt 3: do cross-thread reduction
+  // Stmt 1: do cross-thread reduction
   {
-    // Step 3.1. Create the parameters to the intrinsic
+    // Step 1.1. Create the parameters to the intrinsic
     Array<PrimExpr> parameters;
 
-    // Step 3.2. Create the block and the block-realize.
+    // Step 1.2. Create the block and the block-realize.
     Array<IterVar> iter_vars = block->iter_vars;
     Array<PrimExpr> bindings = realize->iter_values;
     Array<BufferRegion> reads = block->writes;
@@ -1308,7 +1304,7 @@ Stmt InjectWarpEvaluateReductionBlock(const BlockRealizeNode* realize,          
         /*predicate=*/const_true(),
         /*block=*/cross_thread_block));
   }
-  // Stmt 4: write cross-thread reduction result to the original buffer
+  // Stmt 2: write cross-thread reduction result to the original buffer
   {
     ICHECK_EQ(block->iter_vars.size(), realize->iter_values.size());
     int n_iter = static_cast<int>(block->iter_vars.size());
