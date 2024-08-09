@@ -29,259 +29,385 @@
 namespace tvm {
 namespace relax {
 
-void UpdateTensorStructInfo(Expr expr, StructInfo struct_info) {
-  if (auto* tensor_sinfo = expr->struct_info_.as<TensorStructInfoNode>()) {
-    auto* new_tensor_sinfo = struct_info.as<TensorStructInfoNode>();
-    if (new_tensor_sinfo != nullptr && new_tensor_sinfo->vdevice.defined() &&
-        !tensor_sinfo->vdevice.defined()) {
-      expr->struct_info_ = struct_info;
-      expr->checked_type_ = GetStaticType(struct_info);
-    }
-  }
-}
+namespace {
 
-void AddVDeviceToStuctInfo(Expr expr, VDevice vdevice) {
-  auto* tinfo = GetStructInfoAs<TensorStructInfoNode>(expr);
-  if (tinfo != nullptr) {
-    if (tinfo->shape.defined()) {
-      UpdateTensorStructInfo(
-          expr, TensorStructInfo(tinfo->shape.value(), tinfo->dtype, vdevice, tinfo->span));
-    } else {
-      UpdateTensorStructInfo(expr,
-                             TensorStructInfo(tinfo->dtype, tinfo->ndim, vdevice, tinfo->span));
-    }
-  }
-}
-
-class VDeviceRealizer : public ExprMutator {
+class VDeviceLookup {
  public:
-  explicit VDeviceRealizer(const IRModule& mod) : ExprMutator(mod), mod_(std::move(mod)) {}
+  explicit VDeviceLookup(IRModule mod) {
+    auto opt_global_info = mod->global_infos.Get("vdevice");
+    if (!opt_global_info) return;
 
-  IRModule Run() {
-    for (const auto& [gv, func] : mod_->functions) {
-      if (func->IsInstance<FunctionNode>()) {
-        auto updated_func = Downcast<Function>(this->VisitExpr(func));
-        builder_->UpdateFunction(gv, Downcast<BaseFunc>(updated_func));
+    auto downcast_vdevice = [](GlobalInfo info) -> VDevice {
+      if (auto vdevice = info.as<VDevice>()) {
+        return vdevice.value();
+      } else {
+        LOG(FATAL) << "TypeError: "
+                   << "Each item in an IRModule's \"vdevice\" annotation must be a VDevice, "
+                   << "but instead found item of type " << info->GetTypeKey();
       }
-    }
-    return builder_->GetContextIRModule();
+    };
+
+    opt_vdevices_ = opt_global_info.value().Map(downcast_vdevice);
   }
 
- private:
-  using ExprMutator::VisitExpr_;
+  VDevice operator()(Attrs hint_on_device_attrs) {
+    auto attrs = hint_on_device_attrs.as<HintOnDeviceAttrs>();
+    ICHECK(attrs);
+    int32_t device_type = attrs->dev_type;
+    int32_t device_id = attrs->dev_id;
 
-  void AddToVDeviceMap(Expr expr, VDevice vdevice) {
-    ICHECK((vdevice_map_.count(expr) == 0) || (vdevice_map_[expr] == vdevice))
-        << "Conflicted vdevice found.";
-    vdevice_map_.Set(expr, vdevice);
-  }
+    CHECK(opt_vdevices_.defined())
+        << "ValueError: The target VDevice in the GlobalInfos was not found.";
 
-  Expr VisitExpr(const Expr& expr) {
-    auto visited_expr = ExprMutator::VisitExpr(expr);
-    if (vdevice_map_.count(visited_expr)) {
-      AddVDeviceToStuctInfo(visited_expr, vdevice_map_[visited_expr]);
-    }
-    return visited_expr;
-  }
+    auto vdevices = opt_vdevices_.value();
+    CHECK_GE(device_id, 0) << "ValueError: "
+                           << "The device id in R.hint_on_device must not be negative";
 
-  Expr VisitExpr_(const FunctionNode* op) final {
-    Function func = GetRef<Function>(op);
-    auto* finfo = GetStructInfoAs<FuncStructInfoNode>(func);
-    if (finfo != nullptr) {
-      StructInfo ret = finfo->ret;
-      auto* tinfo = finfo->ret.as<TensorStructInfoNode>();
-      if (tinfo != nullptr && tinfo->vdevice.defined()) {
-        AddToVDeviceMap(op->body, tinfo->vdevice.value());
-      }
-    }
-    Function visited_func = Downcast<Function>(this->VisitExprPostOrder_(op));
-    return visited_func;
-  }
-
-  Expr VisitExpr_(const SeqExprNode* op) final {
-    SeqExpr seq_expr = GetRef<SeqExpr>(op);
-    if (vdevice_map_.count(seq_expr)) {
-      AddToVDeviceMap(seq_expr->body, vdevice_map_[seq_expr]);
-    }
-    SeqExpr visited_seqexpr = Downcast<SeqExpr>(this->VisitExprPostOrder_(op));
-    return visited_seqexpr;
-  }
-
-  BindingBlock VisitBindingBlock_(const BindingBlockNode* block) {
-    builder_->BeginBindingBlock();
-    for (size_t i = block->bindings.size(); i > 0; --i) {
-      this->VisitBinding(block->bindings[i - 1]);
-    }
-    for (size_t i = bindings_.size(); i > 0; --i) {
-      builder_->EmitNormalized(bindings_[i - 1]);
-    }
-    bindings_.clear();
-    return builder_->EndBlock();
-  }
-
-  BindingBlock VisitBindingBlock_(const DataflowBlockNode* block) {
-    builder_->BeginDataflowBlock();
-    for (size_t i = block->bindings.size(); i > 0; --i) {
-      this->VisitBinding(block->bindings[i - 1]);
-    }
-    for (size_t i = bindings_.size(); i > 0; --i) {
-      builder_->EmitNormalized(bindings_[i - 1]);
-    }
-    bindings_.clear();
-    return builder_->EndBlock();
-  }
-
-  void VisitBinding_(const VarBindingNode* binding) {
-    if (vdevice_map_.count(binding->var)) {
-      AddToVDeviceMap(binding->value, vdevice_map_[binding->var]);
-      AddVDeviceToStuctInfo(binding->var, vdevice_map_[binding->var]);
-    }
-    auto* tinfo = GetStructInfoAs<TensorStructInfoNode>(binding->var);
-    if (tinfo != nullptr && tinfo->vdevice.defined()) {
-      AddToVDeviceMap(binding->value, tinfo->vdevice.value());
-    }
-    UpdateTensorStructInfo(binding->value, GetStructInfo(binding->var));
-    Expr new_value = this->VisitExpr(binding->value);
-    if (!binding->var->struct_info_.defined()) {
-      UpdateTensorStructInfo(binding->var, GetStructInfo(new_value));
-    }
-
-    if (new_value.same_as(binding->value)) {
-      bindings_.push_back(GetRef<VarBinding>(binding));
-    } else {
-      bindings_.push_back(VarBinding(binding->var, new_value));
-    }
-  }
-
-  Expr VisitExpr_(const CallNode* call) final {
-    // Record the vdevice information of each arguments of call
-    if (auto* sinfo = call->struct_info_.as<TensorStructInfoNode>()) {
-      if (sinfo->vdevice.defined() && call->op != to_vdevice_op_) {
-        Array<Expr> call_args;
-        for (Expr arg : call->args) {
-          AddToVDeviceMap(arg, sinfo->vdevice.value());
-        }
-      }
-    }
-    return Downcast<Call>(ExprMutator::VisitExpr_(call));
-  }
-
-  /*! \brief The context IRModule. */
-  IRModule mod_;
-  /*! \brief The bindings in reverse ordering. */
-  Array<Binding> bindings_;
-  /*! \brief The virtual device map. */
-  Map<Expr, VDevice> vdevice_map_;
-
-  const Op& to_vdevice_op_ = Op::Get("relax.to_vdevice");
-};
-
-class HintOnDeviceRemover : public ExprMutator {
- public:
-  explicit HintOnDeviceRemover(const IRModule& mod) : ExprMutator(mod), mod_(std::move(mod)) {}
-
-  IRModule Run() {
-    for (const auto& [gv, func] : mod_->functions) {
-      if (func->IsInstance<FunctionNode>()) {
-        auto updated_func = Downcast<Function>(this->VisitExpr(func));
-        builder_->UpdateFunction(gv, Downcast<BaseFunc>(updated_func));
-      }
-    }
-    return builder_->GetContextIRModule();
-  }
-
- private:
-  using ExprMutator::VisitExpr_;
-
-  void AddToVDeviceMap(Expr expr, VDevice vdevice) {
-    ICHECK((vdevice_map_.count(expr) == 0) || (vdevice_map_[expr] == vdevice))
-        << "Conflicted vdevice found.";
-    vdevice_map_.Set(expr, vdevice);
-  }
-
-  VDevice LookupVDevice(int32_t device_type, int32_t device_id) {
-    Array<GlobalInfo> vdevices = mod_->global_infos["vdevice"];
-    if (vdevices.empty() || device_id < 0 || static_cast<size_t>(device_id) >= vdevices.size()) {
-      LOG(FATAL) << "ValueError: The target VDevice in the GlobalInfos was not found.";
-    }
-    for (auto vdev : vdevices) {
-      auto vdevice = Downcast<VDevice>(vdev);
+    for (auto vdevice : vdevices) {
       int dev_type = vdevice->target->GetTargetDeviceType();
       if (dev_type == device_type && vdevice->vdevice_id == device_id) {
         return vdevice;
       }
     }
-    LOG(WARNING) << "The specified device was not found in the global_infos";
-    return VDevice();
+    LOG(FATAL) << "ValueError: "
+               << "Expected to find device with type " << device_id << " and id " << device_id
+               << ", but no such device was found in the IRModule's \"vdevice\" annotation";
   }
 
-  Expr VisitExpr(const Expr& expr) {
-    auto visited_expr = ExprMutator::VisitExpr(expr);
-    if (vdevice_map_.count(visited_expr)) {
-      AddVDeviceToStuctInfo(visited_expr, vdevice_map_[visited_expr]);
-    }
-    return visited_expr;
-  }
+ private:
+  Optional<Array<VDevice>> opt_vdevices_ = NullOpt;
+};
 
-  void VisitBinding_(const VarBindingNode* binding) {
-    Expr new_value = this->VisitExpr(binding->value);
-    UpdateTensorStructInfo(binding->var, GetStructInfo(new_value));
-    if (new_value.same_as(binding->value)) {
-      builder_->EmitNormalized(GetRef<VarBinding>(binding));
-    } else {
-      builder_->EmitNormalized(VarBinding(binding->var, new_value));
-    }
-  }
+class DeviceHintCollector : ExprVisitor {
+ public:
+  static std::tuple<Map<Var, VDevice>, Map<Var, VDevice>> Collect(IRModule mod) {
+    DeviceHintCollector visitor{VDeviceLookup(mod)};
 
-  Expr VisitExpr_(const CallNode* call) final {
-    // Replace hint_on_device with to_vdevice
-    if (call->op == hint_on_device_op_) {
-      // Find out the vdevice from global_infos
-      Expr data = call->args[0];
-      auto attrs = call->attrs.as<HintOnDeviceAttrs>();
-      int32_t device_type = attrs->dev_type;
-      int32_t device_id = attrs->dev_id;
-      VDevice dst_vdev = LookupVDevice(device_type, device_id);
-      // Insert to_vdevice if input are on different device
-      auto* tinfo = GetStructInfoAs<TensorStructInfoNode>(data);
-      if (tinfo != nullptr) {
-        if (!tinfo->vdevice.defined()) {
-          // Remove hint_on_device
-          AddVDeviceToStuctInfo(data, dst_vdev);
-          AddToVDeviceMap(data, dst_vdev);
-          return data;
-        } else if (tinfo->vdevice.value() != dst_vdev) {
-          // Call to_vdevice
-          ObjectPtr<ToVDeviceAttrs> attrs = make_object<ToVDeviceAttrs>();
-          attrs->dst_vdevice = dst_vdev;
-          auto new_call = Call(to_vdevice_op_, {data}, Attrs(attrs), {});
-          AddToVDeviceMap(new_call, dst_vdev);
-          return new_call;
-        }
+    for (const auto& [gvar, base_func] : mod->functions) {
+      if (auto func = base_func.as<Function>()) {
+        visitor(func.value());
       }
     }
 
-    auto visited_call = ExprMutator::VisitExpr_(call);
-    visited_call->struct_info_ = NullOpt;
-    return builder_->Normalize(visited_call);
+    return {visitor.known_vdevice_, visitor.hint_on_device_inputs_};
   }
 
-  /*! \brief The context IRModule. */
-  IRModule mod_;
-  /*! \brief The virtual device map. */
-  Map<Expr, VDevice> vdevice_map_;
+ private:
+  explicit DeviceHintCollector(VDeviceLookup vdevice_lookup) : vdevice_lookup_(vdevice_lookup) {}
+
+  void VisitExpr_(const FunctionNode* func) override {
+    ExprVisitor::VisitExpr_(func);
+
+    std::function<void(Expr, StructInfo)> check_ret_sinfo = [this, &check_ret_sinfo](
+                                                                Expr expr, StructInfo sinfo) {
+      // If the function is annotated as returning a tensor on a
+      // specific device, then that annotation may be propagated into
+      // the returned variable.
+      if (auto tensor_info = sinfo.as<TensorStructInfoNode>();
+          tensor_info && tensor_info->vdevice.defined()) {
+        if (auto opt_var = expr.as<Var>()) {
+          auto var = opt_var.value();
+          if (!known_vdevice_.count(var)) {
+            known_vdevice_.Set(var, tensor_info->vdevice.value());
+          }
+        }
+      }
+
+      // If the function is annotated as returning a tuple of tensors,
+      // where some elements of the tuple are tensors that exist on a
+      // specific device, then those annotations may be propagated
+      // into the corresponding tensor annotations.
+      if (auto tuple_info = sinfo.as<TupleStructInfoNode>()) {
+        // The returned tuple is not necessarily an in-line tuple.  In
+        // order to find the variables that are bound to the
+        // individual tuple elements, we may need to unwrap the
+        // variable bindings in order to find the tuple itself.  This
+        // unwrapping is not required for the tensor case, as it would
+        // already be handled when propagating VDevice across variable
+        // definitions.
+        while (auto bound_value = LookupBinding(expr)) {
+          expr = bound_value.value();
+        }
+
+        // Even after unwrapping variable bindings, the resulting
+        // expression is not required to be a tuple literal.  For
+        // example, the function may return one of its arguments as an
+        // output, or may return the result of a `relax::Call` that
+        // produces a tuple of outputs.
+        if (auto tuple = expr.as<TupleNode>()) {
+          CHECK_EQ(tuple_info->fields.size(), tuple->fields.size())
+              << "ValueError: "
+              << "Function returns a tuple with " << tuple->fields.size() << " elements, "
+              << "but is annotated as returning a tuple with " << tuple_info->fields.size()
+              << " elements";
+          for (size_t i = 0; i < tuple->fields.size(); i++) {
+            check_ret_sinfo(tuple->fields[i], tuple_info->fields[i]);
+          }
+        }
+      }
+    };
+
+    check_ret_sinfo(func->body->body, func->ret_struct_info);
+  }
+
+  void VisitVarDef(const Var& var) override {
+    if (auto tinfo = var->struct_info_.as<TensorStructInfoNode>();
+        tinfo && tinfo->vdevice.defined()) {
+      known_vdevice_.Set(var, tinfo->vdevice.value());
+    }
+    ExprVisitor::VisitVarDef(var);
+  }
+
+  void VisitBinding(const Binding& binding) override {
+    ExprVisitor::VisitBinding(binding);
+    binding_lookup_.Set(binding->var, GetBoundValue(binding));
+  }
+
+  void VisitBinding_(const VarBindingNode* binding, const CallNode* call) override {
+    ExprVisitor::VisitBinding_(binding, call);
+    if (call->op == hint_on_device_op_) {
+      auto vdevice = vdevice_lookup_(call->attrs);
+      known_vdevice_.Set(binding->var, vdevice);
+
+      ICHECK_EQ(call->args.size(), 1);
+      if (auto arg_var = call->args[0].as<Var>()) {
+        hint_on_device_inputs_.Set(arg_var.value(), vdevice);
+      }
+    }
+  }
+
+  Optional<Expr> LookupBinding(const Expr& expr) const {
+    if (auto var = expr.as<Var>()) {
+      if (auto bound = binding_lookup_.Get(var.value())) {
+        return bound.value();
+      }
+    }
+    return NullOpt;
+  }
+
+  // A lookup to identify the VDevice from the IRModule attributes,
+  // given the device type and device id from the R.hint_on_device
+  // attributes.
+  VDeviceLookup vdevice_lookup_;
+
+  // A lookup of variable bindings, used to unwrap the variable
+  // bindings in functions that return a tuple.
+  Map<Var, Expr> binding_lookup_;
+
+  // A map from Var to the VDevice they are known to occur on.  This
+  // only contains variables whose location is explicitly known
+  // (e.g. output of `R.hint_on_device`, variables with explicit
+  // `VDevice` in their struct info), and does not include variables
+  // whose location is (e.g. input of `R.hint_on_device`).
+  Map<Var, VDevice> known_vdevice_;
+
+  // A map from Var to the VDevice they are expected to occur on.  If
+  // a variable appears in both `known_vdevice_` and
+  // `hint_on_device_inputs_`, then `known_vdevice_` takes priority.
+  //
+  // For example, `B = R.hint_on_device(A, tvm.cuda(0))` implies that
+  // `B` must be located on "cuda:0".  However, `A` may already have a
+  // `VDevice` annotation, or may be the output of `R.to_device`.
+  // Therefore, we only determine that `A` is located on "cuda:0" if
+  // no other annotation has already provided a known location for
+  // `A`.
+  Map<Var, VDevice> hint_on_device_inputs_;
+
+  // The `R.hint_on_device` operator.
+  const Op& hint_on_device_op_ = Op::Get("relax.hint_on_device");
+};
+
+// Utility to determine which Var instances must be located on the
+// same VDevice.
+class VDeviceSetCollector : ExprVisitor {
+ public:
+  static Map<Var, Array<Var>> Collect(IRModule mod) {
+    VDeviceSetCollector visitor;
+    for (const auto& [gvar, base_func] : mod->functions) {
+      if (auto func = base_func.as<Function>()) {
+        visitor(func.value());
+      }
+    }
+    return visitor.var_to_co_located_vars_;
+  }
+
+ private:
+  void VisitBinding(const Binding& binding) override {
+    auto cached = current_binding_;
+    current_binding_ = binding->var;
+    ExprVisitor::VisitBinding(binding);
+    current_binding_ = cached;
+  }
+
+  void VisitExpr_(const CallNode* call) override {
+    if (call->op != to_vdevice_op_ && call->op != hint_on_device_op_) {
+      ExprVisitor::VisitExpr_(call);
+    }
+  }
+
+  void VisitExpr_(const VarNode* op) override {
+    if (current_binding_) {
+      auto var = GetRef<Var>(op);
+      var_to_co_located_vars_[current_binding_.value()].push_back(var);
+      var_to_co_located_vars_[var].push_back(current_binding_.value());
+    }
+  }
+
+  Optional<Var> current_binding_ = NullOpt;
+
+  // Lookup from relax variable to the set of relax variables which
+  // must be located on the same device.  For example, a trivial
+  // binding `B = A` implies that both `B` and `A` are on the same
+  // device.  Similarly, `C = R.add(A,B)` implies that `A`, `B`, and
+  // `C` are all on the same device.
+  //
+  // In general, variables that are used as part of the same
+  // `relax::Call` operation must be located on the same device, with
+  // the exception of `R.hint_on_device` and `R.to_vdevice`, which may
+  // introduce a transfer across devices.
+  std::unordered_map<Var, Array<Var>> var_to_co_located_vars_;
 
   const Op& hint_on_device_op_ = Op::Get("relax.hint_on_device");
   const Op& to_vdevice_op_ = Op::Get("relax.to_vdevice");
 };
+
+Map<Var, VDevice> InferVDevice(IRModule mod) {
+  auto [explicit_annotations, hint_on_device_args] = DeviceHintCollector::Collect(mod);
+
+  auto co_located_var_lookup = VDeviceSetCollector::Collect(mod);
+
+  Map<Var, VDevice> known_vdevice;
+  std::vector<Var> to_visit;
+
+  // A helper function to propagate all `known_vdevice` entries based
+  // on the connections in `co_located_var_lookup`.
+  auto propagate = [&]() {
+    while (to_visit.size()) {
+      Var visiting = to_visit.back();
+      to_visit.pop_back();
+
+      if (auto upstream_vars = co_located_var_lookup.Get(visiting)) {
+        auto vdevice = known_vdevice.at(visiting);
+        for (Var upstream_var : upstream_vars.value()) {
+          if (!known_vdevice.count(upstream_var)) {
+            known_vdevice.Set(upstream_var, vdevice);
+            to_visit.push_back(upstream_var);
+          }
+        }
+      }
+    }
+  };
+
+  // First round, mark variables whose vdevice is explicitly known
+  // (e.g. the output of R.hint_on_device), and propagate.
+  for (const auto& [var, vdevice] : explicit_annotations) {
+    to_visit.push_back(var);
+    known_vdevice.Set(var, vdevice);
+  }
+  propagate();
+
+  // Second round, mark variables whose vdevice is hinted at (e.g. the
+  // input of R.hint_on_device), and propagate.
+  for (const auto& [var, vdevice] : hint_on_device_args) {
+    if (!known_vdevice.count(var)) {
+      to_visit.push_back(var);
+      known_vdevice.Set(var, vdevice);
+    }
+  }
+  propagate();
+
+  return known_vdevice;
+}
+
+// Update the module to include the inferred VDevice annotations.
+class VDeviceStructInfoUpdater : ExprMutator {
+ public:
+  static IRModule Apply(IRModule mod, Map<Var, VDevice> vdevice_map) {
+    VDeviceStructInfoUpdater mutator(VDeviceLookup(mod), vdevice_map);
+
+    IRModule updates;
+
+    for (const auto& [gvar, base_func] : mod->functions) {
+      if (auto func = base_func.as<Function>()) {
+        auto updated = Downcast<Function>(mutator(func.value()));
+        if (!updated.same_as(base_func)) {
+          updates->Add(gvar, updated);
+        }
+      }
+    }
+
+    if (updates->functions.size()) {
+      mod.CopyOnWrite()->Update(updates);
+    }
+
+    return mod;
+  }
+
+ private:
+  VDeviceStructInfoUpdater(VDeviceLookup vdevice_lookup, Map<Var, VDevice> vdevice_map)
+      : vdevice_lookup_(vdevice_lookup), vdevice_map_(vdevice_map) {}
+
+  Var VisitVarDef(const Var& old_var) override {
+    auto var = ExprMutator::VisitVarDef(old_var);
+    if (auto tinfo = var->struct_info_.as<TensorStructInfoNode>()) {
+      if (auto opt = vdevice_map_.Get(old_var)) {
+        auto vdevice = opt.value();
+        TensorStructInfo new_sinfo = [&]() {
+          if (tinfo->shape.defined()) {
+            return TensorStructInfo(tinfo->shape.value(), tinfo->dtype, vdevice, tinfo->span);
+          } else {
+            return TensorStructInfo(tinfo->dtype, tinfo->ndim, vdevice, tinfo->span);
+          }
+        }();
+
+        if (var->IsInstance<DataflowVarNode>()) {
+          var = DataflowVar(var->vid, new_sinfo, var->span);
+        } else {
+          var = Var(var->vid, new_sinfo, var->span);
+        }
+      }
+    }
+
+    return var;
+  }
+
+  using ExprMutator::VisitExpr_;
+
+  Expr VisitExpr_(const CallNode* op) override {
+    auto call = Downcast<Call>(ExprMutator::VisitExpr_(op));
+
+    if (call->op != hint_on_device_op_) {
+      return call;
+    }
+
+    ICHECK_EQ(call->args.size(), 1);
+    auto arg = call->args[0];
+    auto input_vdevice = Downcast<TensorStructInfo>(arg->struct_info_)->vdevice;
+    auto output_vdevice = vdevice_lookup_(call->attrs);
+
+    if (input_vdevice.defined() && input_vdevice.value() == output_vdevice) {
+      return arg;
+    } else {
+      ObjectPtr<ToVDeviceAttrs> attrs = make_object<ToVDeviceAttrs>();
+      attrs->dst_vdevice = output_vdevice;
+      return Call(to_vdevice_op_, {arg}, Attrs(attrs), {});
+    }
+  }
+
+  VDeviceLookup vdevice_lookup_;
+  Map<Var, VDevice> vdevice_map_;
+  const Op& hint_on_device_op_ = Op::Get("relax.hint_on_device");
+  const Op& to_vdevice_op_ = Op::Get("relax.to_vdevice");
+};
+}  // namespace
 
 namespace transform {
 
 Pass RealizeVDevice() {
   runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func = [=](IRModule mod,
                                                                             PassContext pc) {
-    IRModule new_mod = HintOnDeviceRemover(mod).Run();
-    return VDeviceRealizer(new_mod).Run();
+    auto known_vdevices = InferVDevice(mod);
+    return VDeviceStructInfoUpdater::Apply(mod, known_vdevices);
   };
   return CreateModulePass(/*pass_function=*/pass_func,
                           /*opt_level=*/0,
