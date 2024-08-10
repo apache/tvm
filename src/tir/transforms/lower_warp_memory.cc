@@ -258,6 +258,7 @@ class WarpAccessRewriter : protected StmtExprMutator {
   // warp memory to local memory.
   Stmt Rewrite(const AllocateNode* op) {
     buffer_ = op->buffer_var.get();
+    auto dtype = op->dtype;
     int alloc_size = op->ConstantAllocationSize();
     ICHECK_GT(alloc_size, 0) << "warp memory only support constant alloc size";
     alloc_size *= op->dtype.lanes();
@@ -268,7 +269,7 @@ class WarpAccessRewriter : protected StmtExprMutator {
     int factor = width_ * warp_coeff_;
     ICHECK_NE(factor, 0) << "Divide by zero";
     warp_group_ = (alloc_size + (factor - 1)) / factor;
-    alloc_size = warp_group_ * factor;
+    alloc_size = warp_group_ * factor / dtype.lanes();
     return Allocate(op->buffer_var, op->dtype, {make_const(DataType::Int(32), alloc_size / width_)},
                     op->condition, this->VisitStmt(op->body), op->annotations);
   }

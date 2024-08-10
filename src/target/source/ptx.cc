@@ -54,24 +54,27 @@ enum class DataType : int {
   kUInt32 = 7,
   kInt64 = 8,
   kUInt64 = 9,
-  kFloat16 = 10,
-  kBFloat16 = 11,
-  kFloat16x2 = 12,
-  kFloat32 = 13,
-  kTensorFloat32 = 14,
-  kFloat64 = 15,
-  kBit1 = 16,
-  kBit8 = 17,
-  kBit16 = 18,
-  kBit32 = 19,
-  kBit64 = 20,
+  kFloat8_e4m3 = 10,
+  kFloat8_e5m2 = 11,
+  kFloat16 = 12,
+  kBFloat16 = 13,
+  kFloat16x2 = 14,
+  kFloat32 = 15,
+  kTensorFloat32 = 16,
+  kFloat64 = 17,
+  kBit1 = 18,
+  kBit8 = 19,
+  kBit16 = 20,
+  kBit32 = 21,
+  kBit64 = 22
 };
 
-static const char* dtype_str[] = {".s4",   ".u4",  ".s8",  ".u8",  ".s16",  ".u16",   ".s32",
-                                  ".u32",  ".s64", ".u64", ".f16", ".bf16", ".f16x2", ".f32",
-                                  ".tf32", ".f64", ".b1",  ".b8",  ".b16",  ".b32",   ".b64"};
-static const uint32_t num_bits[] = {4,  4,  8,  8,  16, 16, 32, 32, 64, 64, 16,
-                                    16, 32, 32, 32, 64, 1,  8,  16, 32, 64};
+static const char* dtype_str[] = {".s4",  ".u4",   ".s8",    ".u8",  ".s16",  ".u16",
+                                  ".s32", ".u32",  ".s64",   ".u64", ".e4m3", ".e5m2",
+                                  ".f16", ".bf16", ".f16x2", ".f32", ".tf32", ".f64",
+                                  ".b1",  ".b8",   ".b16",   ".b32", ".b64"};
+static const uint32_t num_bits[] = {4,  4,  8,  8,  16, 16, 32, 32, 64, 64, 8, 8,
+                                    16, 16, 32, 32, 32, 64, 1,  8,  16, 32, 64};
 
 /*!
  * \brief Create PTX data type from string.
@@ -97,6 +100,10 @@ inline DataType DTypeFromString(const std::string str) {
     return DataType::kInt64;
   } else if (str == "uint64" || str == ".u64") {
     return DataType::kUInt64;
+  } else if (str == "e4m3" || str == ".e4m3") {
+    return DataType::kFloat8_e4m3;
+  } else if (str == "e5m2" || str == ".e5m2") {
+    return DataType::kFloat8_e5m2;
   } else if (str == "float16" || str == "fp16" || str == ".f16") {
     return DataType::kFloat16;
   } else if (str == "bfloat16" || str == "bf16") {
@@ -122,6 +129,31 @@ inline DataType DTypeFromString(const std::string str) {
   } else {
     LOG(FATAL) << "Unrecognized PTX data type " << str;
   }
+}
+
+/*!
+ * \brief Create CUDD Datatype from enum.
+ */
+inline std::string CUDADTypeFromDType(DataType dtype) {
+    switch (dtype) {
+        case DataType::kInt8: return "signed char";
+        case DataType::kUInt8: return "unsigned char";
+        case DataType::kInt16: return "int16";
+        case DataType::kUInt16: return "uint16";
+        case DataType::kInt32: return "int32";
+        case DataType::kUInt32: return "uint32";
+        case DataType::kInt64: return "int64";
+        case DataType::kUInt64: return "uint64";
+        case DataType::kFloat8_e4m3: return "__nv_fp8_e4m3";
+        case DataType::kFloat8_e5m2: return "__nv_fp8_e5m2";
+        case DataType::kFloat16: return "half";
+        case DataType::kBFloat16: return "__nv_bfloat162";
+        case DataType::kFloat16x2: return "half2";
+        case DataType::kFloat32: return "float32";
+        case DataType::kFloat64: return "float64";
+        default: 
+            throw std::runtime_error("Unrecognized DataType");
+    }
 }
 
 /*!
@@ -232,6 +264,10 @@ const MMAConfig valid_mma_configs[] = {
     MMAConfig(16, 8, 128, DataType::kInt4, false, true),
     MMAConfig(16, 8, 64, DataType::kUInt4, false, true),
     MMAConfig(16, 8, 128, DataType::kUInt4, false, true),
+    MMAConfig(16, 8, 32, DataType::kFloat8_e4m3, false, false),
+    MMAConfig(16, 8, 64, DataType::kFloat8_e4m3, false, true),
+    MMAConfig(16, 8, 32, DataType::kFloat8_e5m2, false, false),
+    MMAConfig(16, 8, 64, DataType::kFloat8_e5m2, false, true),
 };
 
 /*!
@@ -263,6 +299,11 @@ void CheckMMADTypeCompatible(DataType dtype_a, DataType dtype_b, DataType dtype_
     case DataType::kUInt8:
       CHECK(dtype_b == DataType::kInt8 || dtype_b == DataType::kUInt8) << ab_not_match_err_str;
       break;
+    case DataType::kFloat8_e4m3:
+    case DataType::kFloat8_e5m2:
+      CHECK(dtype_b == DataType::kFloat8_e4m3 || dtype_b == DataType::kFloat8_e5m2)
+          << ab_not_match_err_str;
+      break;
     default:
       CHECK(false) << "Invalid multiplicand data types: " << DTypeToString(dtype_a)
                    << DTypeToString(dtype_b);
@@ -290,6 +331,11 @@ void CheckMMADTypeCompatible(DataType dtype_a, DataType dtype_b, DataType dtype_
     case DataType::kFloat64:
       CHECK(dtype_c == DataType::kFloat64)
           << "For multiplicand data type f64, accumulator data type can only be f64.";
+      break;
+    case DataType::kFloat8_e4m3:
+    case DataType::kFloat8_e5m2:
+      CHECK(dtype_c == DataType::kFloat32)
+          << "For multiplicand data type e4m3/e5m2, accumulator data type can only be f32.";
       break;
     default:
       CHECK(false) << "Invalid multiplicand/accumulator data types: " << DTypeToString(dtype_a)
@@ -371,6 +417,8 @@ inline FragAttrs GetFragAttrs(DataType dtype) {
     case DataType::kUInt4:
     case DataType::kInt8:
     case DataType::kUInt8:
+    case DataType::kFloat8_e4m3:
+    case DataType::kFloat8_e5m2:
     case DataType::kBit16:
     case DataType::kFloat16:  // .f16x2 register
     case DataType::kBFloat16:
@@ -561,8 +609,8 @@ std::string PrintMMAAssembly(const std::string& shape, const std::string& A_layo
   replacer.register_rule("{inputs}", inputs_str);
   asm_code = replacer.rewrite(asm_code);
   replacer.empty_rules();
-  replacer.register_rule("A", a_ptr + " + " + a_elem_offset);
-  replacer.register_rule("B", b_ptr + " + " + b_elem_offset);
+  replacer.register_rule("A", "(" + CUDADTypeFromDType(dtype_a) + "*)" + a_ptr + " + " + a_elem_offset);
+  replacer.register_rule("B", "(" + CUDADTypeFromDType(dtype_b) + "*)" + b_ptr + " + " + b_elem_offset);
   replacer.register_rule("C", c_ptr + " + " + c_elem_offset);
   replacer.register_rule("D", c_ptr + " + " + c_elem_offset);
   replacer.register_rule("E", metadata + " + " + metadata_offset);
