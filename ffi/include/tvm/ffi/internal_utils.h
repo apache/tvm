@@ -39,6 +39,34 @@
 #define TVM_FFI_UNREACHABLE() __builtin_unreachable()
 #endif
 
+/*! \brief helper macro to suppress unused warning */
+#if defined(__GNUC__)
+#define TVM_FFI_ATTRIBUTE_UNUSED __attribute__((unused))
+#else
+#define TVM_FFI_ATTRIBUTE_UNUSED
+#endif
+
+#define TVM_FFI_STR_CONCAT_(__x, __y) __x##__y
+#define TVM_FFI_STR_CONCAT(__x, __y) TVM_FFI_STR_CONCAT_(__x, __y)
+
+#if defined(__GNUC__) || defined(__clang__)
+#define TVM_FFI_FUNC_SIG __PRETTY_FUNCTION__
+#elif defined(_MSC_VER)
+#define TVM_FFI_FUNC_SIG __FUNCSIG__
+#else
+#define TVM_FFI_FUNC_SIG __func__
+#endif
+
+/*
+ * \brief Define the default copy/move constructor and assign operator
+ * \param TypeName The class typename.
+ */
+#define TVM_FFI_DEFINE_DEFAULT_COPY_MOVE_AND_ASSIGN(TypeName) \
+  TypeName(const TypeName& other) = default;              \
+  TypeName(TypeName&& other) = default;                   \
+  TypeName& operator=(const TypeName& other) = default;   \
+  TypeName& operator=(TypeName&& other) = default;
+
 namespace tvm {
 namespace ffi {
 

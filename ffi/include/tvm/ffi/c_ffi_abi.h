@@ -19,7 +19,13 @@
 
 /*
  * \file tvm/ffi/c_ffi_abi.h
- * \brief This file defines
+ * \brief This file defines the ABI convention of the FFI convention
+ *
+ * \note This file only include data structures that can be used in
+ *  a header only way. The APIs are defined in c_ffi_api.h
+ *  and requires linking to tvm_ffi library.
+ *
+ *  Only use the APIs when TVM_FFI_ALLOW_DYN_TYPE is set to true
  */
 #ifndef TVM_FFI_C_FFI_ABI_H_
 #define TVM_FFI_C_FFI_ABI_H_
@@ -27,23 +33,11 @@
 #include <dlpack/dlpack.h>
 #include <stdint.h>
 
-#if !defined(TVM_FFI_DLL) && defined(__EMSCRIPTEN__)
-#include <emscripten/emscripten.h>
-#define TVM_FFI_API EMSCRIPTEN_KEEPALIVE
-#endif
-#if !defined(TVM_FFI_DLL) && defined(_MSC_VER)
-#ifdef TVM_FFI_EXPORTS
-#define TVM_FFI_DLL __declspec(dllexport)
-#else
-#define TVM_FFI_DLL __declspec(dllimport)
-#endif
-#endif
-#ifndef TVM_FFI_DLL
-#define TVM_FFI_DLL __attribute__((visibility("default")))
-#endif
-
+/*!
+ * \brief Macro defines whether we enable dynamic runtime features.
+ */
 #ifndef TVM_FFI_ALLOW_DYN_TYPE
-#define TVM_FFI_ALLOW_DYN_TYPE 0
+#define TVM_FFI_ALLOW_DYN_TYPE 1
 #endif
 
 #ifdef __cplusplus
@@ -100,7 +94,7 @@ typedef struct TVMFFIObject {
   /*! \brief Reference counter of the object. */
   int32_t ref_counter;
   /*! \brief Deleter to be invoked when reference counter goes to zero. */
-  void (*deleter)(struct TVMFFIObject* self);
+  void (*deleter)(void* self);
 } TVMFFIObject;
 
 /*!
@@ -130,8 +124,22 @@ typedef struct TVMFFIAny {
   };
 } TVMFFIAny;
 
+/*! \brief Safe byte array */
+typedef struct {
+  int64_t num_bytes;
+  const char* bytes;
+} TVMFFIByteArray;
+
+/*! \brief The error type. */
+typedef struct {
+  /*! \brief header */
+  TVMFFIObject header_;
+
+
+} TVMFFIError;
+
+
 #ifdef __cplusplus
 }  // TVM_FFI_EXTERN_C
 #endif
-
 #endif  // TVM_FFI_C_FFI_ABI_H_
