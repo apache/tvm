@@ -33,7 +33,7 @@ namespace tvm {
 namespace ffi {
 
 /*! \brief Deleter function for obeject */
-typedef void (*FObjectDeleter)(TVMFFIObject* obj);
+typedef void (*FObjectDeleter)(void* obj);
 
 /*!
  * \brief Allocate an object using default allocator.
@@ -74,11 +74,11 @@ class ObjAllocatorBase {
     using Handler = typename Derived::template Handler<T>;
     static_assert(std::is_base_of<Object, T>::value, "make can only be used to create Object");
     T* ptr = Handler::New(static_cast<Derived*>(this), std::forward<Args>(args)...);
-    TVMFFIObject* ffi_ptr = details::ObjectInternal::StaticCast<TVMFFIObject*>(ptr);
+    TVMFFIObject* ffi_ptr = details::ObjectInternal::GetHeader(ptr);
     // NOTE: ref_counter is initialized in object constructor
     ffi_ptr->type_index = T::RuntimeTypeIndex();
     ffi_ptr->deleter = Handler::Deleter();
-    return details::ObjectInternal::ObjectPtr<T>(ptr);
+    return details::ObjectInternal::ObjectPtrFromUnowned<T>(ptr);
   }
 
   /*!
@@ -132,11 +132,11 @@ class SimpleObjAllocator : public ObjAllocatorBase<SimpleObjAllocator> {
     static FObjectDeleter Deleter() { return Deleter_; }
 
    private:
-    static void Deleter_(TVMFFIObject* objptr) {
+    static void Deleter_(void* objptr) {
       // NOTE: this is important to cast back to T*
       // because objptr and tptr may not be the same
       // depending on how sub-class allocates the space.
-      T* tptr = details::ObjectInternal::StaticCast<T*>(objptr);
+      T* tptr = static_cast<T*>(objptr);
       // It is important to do tptr->T::~T(),
       // so that we explicitly call the specific destructor
       // instead of tptr->~T(), which could mean the intention

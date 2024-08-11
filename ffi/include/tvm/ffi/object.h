@@ -75,11 +75,15 @@ struct ObjectInternal;
  * New objects can be created using make_object function.
  * Which will automatically populate the type_index and deleter of the object.
  */
-class Object : private TVMFFIObject {
+class Object {
+ private:
+  /*! \brief header field that is the common prefix of all objects */
+  TVMFFIObject header_;
+
  public:
   Object() {
-    TVMFFIObject::ref_counter = 0;
-    TVMFFIObject::deleter = nullptr;
+    header_.ref_counter = 0;
+    header_.deleter = nullptr;
   }
 
   // Information about the object
@@ -109,13 +113,13 @@ class Object : private TVMFFIObject {
 
  private:
   /*! \brief increase reference count */
-  void IncRef() { details::AtomicIncrementRelaxed(&(this->ref_counter)); }
+  void IncRef() { details::AtomicIncrementRelaxed(&(header_.ref_counter)); }
 
   /*! \brief decrease reference count and delete the object */
   void DecRef() {
-    if (details::AtomicDecrementRelAcq(&(this->ref_counter)) == 1) {
-      if (this->deleter != nullptr) {
-        this->deleter(this);
+    if (details::AtomicDecrementRelAcq(&(header_.ref_counter)) == 1) {
+      if (header_.deleter != nullptr) {
+        header_.deleter(this);
       }
     }
   }
@@ -124,7 +128,7 @@ class Object : private TVMFFIObject {
    * \return The usage count of the cell.
    * \note We use stl style naming to be consistent with known API in shared_ptr.
    */
-  int32_t use_count() const { return details::AtomicLoadRelaxed(&(this->ref_counter)); }
+  int32_t use_count() const { return details::AtomicLoadRelaxed(&(header_.ref_counter)); }
 
   // friend classes
   template <typename>
@@ -284,6 +288,178 @@ class ObjectPtr {
   friend ObjectPtr<BaseType> GetObjectPtr(ObjType* ptr);
 };
 
+
+// Forward declaration, to prevent circular includes.
+template <typename T>
+class Optional;
+
+/*! \brief Base class of all object reference */
+class ObjectRef {
+ public:
+  /*! \brief default constructor */
+  ObjectRef() = default;
+  /*! \brief Constructor from existing object ptr */
+  explicit ObjectRef(ObjectPtr<Object> data) : data_(data) {}
+  /*!
+   * \brief Comparator
+   * \param other Another object ref.
+   * \return the compare result.
+   */
+  bool same_as(const ObjectRef& other) const { return data_ == other.data_; }
+  /*!
+   * \brief Comparator
+   * \param other Another object ref.
+   * \return the compare result.
+   */
+  bool operator==(const ObjectRef& other) const { return data_ == other.data_; }
+  /*!
+   * \brief Comparator
+   * \param other Another object ref.
+   * \return the compare result.
+   */
+  bool operator!=(const ObjectRef& other) const { return data_ != other.data_; }
+  /*!
+   * \brief Comparator
+   * \param other Another object ref by address.
+   * \return the compare result.
+   */
+  bool operator<(const ObjectRef& other) const { return data_.get() < other.data_.get(); }
+  /*!
+   * \return whether the object is defined(not null).
+   */
+  bool defined() const { return data_ != nullptr; }
+  /*! \return the internal object pointer */
+  const Object* get() const { return data_.get(); }
+  /*! \return the internal object pointer */
+  const Object* operator->() const { return get(); }
+  /*! \return whether the reference is unique */
+  bool unique() const { return data_.unique(); }
+  /*! \return The use count of the ptr, for debug purposes */
+  int use_count() const { return data_.use_count(); }
+
+  /*!
+   * \brief Try to downcast the internal Object to a
+   *  raw pointer of a corresponding type.
+   *
+   *  The function will return a nullptr if the cast failed.
+   *
+   *      if (const AddNode *ptr = node_ref.as<AddNode>()) {
+   *        // This is an add node
+   *      }
+   *
+   * \tparam ObjectType the target type, must be a subtype of Object
+   */
+  template <typename ObjectType, typename = std::enable_if_t<std::is_base_of_v<Object, ObjectType>>>
+  inline const ObjectType* as() const;
+
+  /*! \brief type indicate the container type. */
+  using ContainerType = Object;
+  // Default type properties for the reference class.
+  static constexpr bool _type_is_nullable = true;
+
+ protected:
+  /*! \brief Internal pointer that backs the reference. */
+  ObjectPtr<Object> data_;
+  /*! \return return a mutable internal ptr, can be used by sub-classes. */
+  Object* get_mutable() const { return data_.get(); }
+  // friend classes.
+  friend struct ObjectPtrHash;
+  friend class tvm::ffi::details::ObjectInternal;
+  template <typename SubRef, typename BaseRef>
+  friend SubRef Downcast(BaseRef ref);
+};
+
+/*!
+ * \brief Get an object ptr type from a raw object ptr.
+ *
+ * \param ptr The object pointer
+ * \tparam BaseType The reference type
+ * \tparam ObjectType The object type
+ * \return The corresponding RefType
+ */
+template <typename BaseType, typename ObjectType>
+inline ObjectPtr<BaseType> GetObjectPtr(ObjectType* ptr);
+
+/*! \brief ObjectRef hash functor */
+struct ObjectPtrHash {
+  size_t operator()(const ObjectRef& a) const { return operator()(a.data_); }
+
+  template <typename T>
+  size_t operator()(const ObjectPtr<T>& a) const {
+    return std::hash<Object*>()(a.get());
+  }
+};
+
+/*! \brief ObjectRef equal functor */
+struct ObjectPtrEqual {
+  bool operator()(const ObjectRef& a, const ObjectRef& b) const { return a.same_as(b); }
+
+  template <typename T>
+  size_t operator()(const ObjectPtr<T>& a, const ObjectPtr<T>& b) const {
+    return a == b;
+  }
+};
+
+/*!
+ * \brief helper macro to declare a base object type that can be inherited.
+ * \param TypeName The name of the current type.
+ * \param ParentType The name of the ParentType
+ */
+#define TVM_FFI_DECLARE_STATIC_OBJECT_INFO(TypeName, ParentType)                            \
+  static_assert(!ParentType::_type_final, "ParentObj marked as final");                     \
+  static int32_t RuntimeTypeIndex() {                                                       \
+    static_assert(TypeName::_type_child_slots == 0 || ParentType::_type_child_slots == 0 || \
+                      TypeName::_type_child_slots < ParentType::_type_child_slots,          \
+                  "Need to set _type_child_slots when parent specifies it.");               \
+    static_assert(TypeName::_type_child_slots == 0 || ParentType::_type_child_slots == 0 || \
+                      TypeName::_type_child_slots < ParentType::_type_child_slots,          \
+                  "Need to set _type_child_slots when parent specifies it.");               \
+    static_assert(TypeName::_type_index != TypeIndex::kTVMFFIDynObject,                     \
+                  "Static object cannot have dynamic type index.");                         \
+    return TypeName::_type_index;                                                           \
+  }
+
+#define TVM_FFI_OBJECT_REG_VAR_DEF static TVM_ATTRIBUTE_UNUSED uint32_t __make_Object_tid
+
+/*!
+ * \brief Helper macro to register the object type to runtime.
+ *  Makes sure that the runtime type table is correctly populated.
+ *
+ *  Use this macro in the cc file for each terminal class.
+ */
+#define TVM_FFI_REGISTER_OBJECT_TYPE(TypeName)                  \
+  TVM_FFI_STR_CONCAT(TVM_FFI_OBJECT_REG_VAR_DEF, __COUNTER__) = \
+      TypeName::_GetOrAllocRuntimeTypeIndex()
+
+/*
+ * \brief Define object reference methods.
+ * \param TypeName The object type name
+ * \param ParentType The parent type of the objectref
+ * \param ObjectName The type name of the object.
+ */
+#define TVM_FFI_DEFINE_NULLABLE_OBJECT_REF_METHODS(TypeName, ParentType, ObjectName)           \
+  TypeName() = default;                                                                        \
+  explicit TypeName(::tvm::ffi::ObjectPtr<::tvm::ffi::Object> n) : ParentType(n) {}            \
+  TVM_FFI_DEFINE_DEFAULT_COPY_MOVE_AND_ASSIGN(TypeName)                                        \
+  const ObjectName* operator->() const { return static_cast<const ObjectName*>(data_.get()); } \
+  const ObjectName* get() const { return operator->(); }                                       \
+  using ContainerType = ObjectName;
+
+/*
+ * \brief Define object reference methods that is not nullable.
+ *
+ * \param TypeName The object type name
+ * \param ParentType The parent type of the objectref
+ * \param ObjectName The type name of the object.
+ */
+#define TVM_FFI_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(TypeName, ParentType, ObjectName)        \
+  explicit TypeName(::tvm::ffi::ObjectPtr<::tvm::ffi::Object> n) : ParentType(n) {}            \
+  TVM_FFI_DEFINE_DEFAULT_COPY_MOVE_AND_ASSIGN(TypeName)                                        \
+  const ObjectName* operator->() const { return static_cast<const ObjectName*>(data_.get()); } \
+  const ObjectName* get() const { return operator->(); }                                       \
+  static constexpr bool _type_is_nullable = false;                                             \
+  using ContainerType = ObjectName;
+
 namespace details {
 /*!
  * \brief Namespace to internally manipulate object class.
@@ -291,15 +467,14 @@ namespace details {
  * implementations and not external users of the tvm::ffi
  */
 struct ObjectInternal {
-  // NOTE: these helper to perform static cast
-  // that also allows conversion from/to FFI values
-  template <typename T, typename U>
-  static TVM_FFI_INLINE T StaticCast(U src) {
-    return static_cast<T>(src);
+  // NOTE: get ffi header from an object
+  static TVM_FFI_INLINE TVMFFIObject* GetHeader(Object* src) {
+    return &(src->header_);
   }
 
+  // create ObjectPtr from unknowned ptr
   template <typename T>
-  static TVM_FFI_INLINE ObjectPtr<T> ObjectPtr(Object* raw_ptr) {
+  static TVM_FFI_INLINE ObjectPtr<T> ObjectPtrFromUnowned(Object* raw_ptr) {
     return tvm::ffi::ObjectPtr<T>(raw_ptr);
   }
 };
