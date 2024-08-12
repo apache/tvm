@@ -157,7 +157,7 @@ class PointerTypeNode : public TypeNode {
   /*!
    * \brief The storage scope of the pointer
    */
-  String storage_scope;
+  mutable String storage_scope;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("element_type", &element_type);

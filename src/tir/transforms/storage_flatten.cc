@@ -1518,8 +1518,12 @@ class StorageFlattener : public StmtExprMutator {
       StorageScope skey = StorageScope::Create(GetPtrStorageScope(op->buffer->data));
 
       // use small alignment for small arrays
+      auto* ptr_type = op->buffer->data->type_annotation.as<PointerTypeNode>();
       auto dtype = op->buffer->dtype;
       size_t const_size = AllocateNode::ConstantAllocationSize(op->buffer->shape);
+      if (const_size > 41984) {
+        ptr_type->storage_scope = tvm::runtime::String("global");
+      }
       int align = GetTempAllocaAlignment(dtype, const_size);
       if (skey.tag.length() != 0) {
         MemoryInfo info = GetMemoryInfo(skey.to_string());

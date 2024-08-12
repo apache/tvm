@@ -642,12 +642,14 @@ void CodeGenCUDA::PrintStorageSync(const CallNode* op) {
 }
 
 void CodeGenCUDA::PrintStorageScope(const std::string& scope, std::ostream& os) {  // NOLINT(*)
-  ICHECK_NE(scope, "global") << "Cannot allocate global memory when targeting CUDA. You must pass "
-                                "all global arrays as input instead";
+  // ICHECK_NE(scope, "global") << "Cannot allocate global memory when targeting CUDA."
+  //                               " You must pass all global arrays as input instead";
   if (scope == "shared") {
     os << "__shared__ ";
   } else if (scope == "shared.dyn") {
     os << "extern __shared__ ";
+  } else if (scope == "global") {
+    os << "__device__ static ";
   }
 }
 
