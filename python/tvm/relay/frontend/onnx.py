@@ -850,6 +850,70 @@ def is_ort_version_greater_than(ver):
     return (v11 > v21) or (v11 == v21 and v12 > v22) or ((v11, v12) == (v21, v22) and v13 > v23)
 
 
+class DeformConv2d(OnnxOpConverter):
+    """Operator converter for DeformConv2d."""
+
+
+    @classmethod
+    def _impl_v1(cls, inputs, attr, params):
+        data = inputs[0]
+        offset = inputs[1]
+        kernel = inputs[3]
+        input_shape = infer_shape(data)
+
+        ndim = len(input_shape)
+
+        kernel_type = infer_type(kernel)
+        kernel_shapes = [get_const_tuple(kernel_type.checked_type.shape)]
+
+        if "kernel_shape" not in attr:
+            attr["kernel_shape"] = kernel_shapes[0][2:]
+
+        if "auto_pad" in attr:
+            attr["auto_pad"] = attr["auto_pad"].decode("utf-8")
+            if attr["auto_pad"] in ("SAME_UPPER", "SAME_LOWER"):
+                # Warning: Convolution does not yet support dynamic shapes,
+                # one will need to run dynamic_to_static on this model after import
+                data = autopad(
+                    data,
+                    attr.get("strides", [1] * (ndim - 2)),
+                    attr["kernel_shape"],
+                    attr.get("dilations", [1] * (ndim - 2)),
+                    mode=attr["auto_pad"],
+                )
+            elif attr["auto_pad"] == "VALID":
+                attr["pads"] = [0 for i in range(ndim - 2)]
+            elif attr["auto_pad"] == "NOTSET":
+                pass
+            else:
+                msg = (
+                    f'Value {attr["auto_pad"]} in attribute "auto_pad" of operator Conv '
+                    f"is invalid."
+                )
+                raise tvm.error.OpAttributeInvalid(msg)
+            attr.pop("auto_pad")
+
+        attr["channels"] = kernel_shapes[0][0]
+
+        out = AttrCvt(
+            op_name="deformable"+ "_conv2d",
+            transforms={
+                "stride": "strides",
+                "pads": ("padding", 0),
+                "dilations": ("dilation", 1),
+                "deform_groups": 'deformable_groups',
+                "group": ("groups", 1),
+                "kernel_shape": "kernel_size",
+            },
+            custom_check=dimension_constraint(),
+        )([data, offset, kernel], attr, params)
+
+        use_bias = len(inputs) == 3
+        if use_bias:
+            out = _op.nn.bias_add(out, inputs[2])
+        return out
+
+
 class ConvTranspose(OnnxOpConverter):
     """Operator converter for ConvTranspose."""
 
@@ -6647,6 +6711,7 @@ def _get_convert_map(opset):
         "MaxUnpool": MaxUnpool.get_converter(opset),
         "Conv": Conv.get_converter(opset),
         "ConvTranspose": ConvTranspose.get_converter(opset),
+        "DeformConv2d": DeformConv2d.get_converter(opset),
         "GlobalAveragePool": GlobalAveragePool.get_converter(opset),
         "GlobalMaxPool": GlobalMaxPool.get_converter(opset),
         "BatchNormalization": BatchNorm.get_converter(opset),
