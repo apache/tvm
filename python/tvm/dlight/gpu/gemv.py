@@ -688,9 +688,8 @@ class GEMV(GPUScheduleRule):
         DEC_PACK = 8
         SCALE_PACK = 4
 
-        if (
-            target.kind.name == "opencl"
-            and (("android" in str(target.host)) or ("adreno" in str(target.attrs)))
+        if target.kind.name == "opencl" and (
+            ("android" in str(target.host)) or ("adreno" in str(target.attrs))
         ):
             TAG_S, TAG_R = "threadIdx.x", "threadIdx.y"
             VEC_C = 8
