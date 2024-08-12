@@ -17,6 +17,7 @@
 import tvm
 import tvm.testing
 from tvm.tir import floordiv, floormod
+from tvm.script import tir as T
 
 
 def ifuse(inputs, pred_extent=None):
@@ -537,7 +538,7 @@ def test_subspace_division():
     tvm.ir.assert_structural_equal(res[0][0], z * 4 + y)
     tvm.ir.assert_structural_equal(res[0][1], x + c)
     tvm.ir.assert_structural_equal(res[1][0], z * 4 + y < 18)
-    tvm.ir.assert_structural_equal(res[1][1], True)
+    tvm.ir.assert_structural_equal(res[1][1], T.bool(True))
 
     # compound 1
     i0 = create_iter("i0", 4)
@@ -553,7 +554,7 @@ def test_subspace_division():
     res = convert_division(res)
     assert len(res) == 3
     tvm.ir.assert_structural_equal(res[0][0], (i0[0] * 2) + floordiv(j0[0], 4))
-    tvm.ir.assert_structural_equal(res[0][1], 0)
+    tvm.ir.assert_structural_equal(res[0][1], T.int32(0))
     tvm.ir.assert_structural_equal(res[1][0], floormod(j0[0], 4))
     tvm.ir.assert_structural_equal(res[1][1], i3[0])
 
@@ -569,7 +570,7 @@ def test_subspace_division():
     assert len(res) == 3
     tvm.ir.assert_structural_equal(res[0][0], i0[0])
     tvm.ir.assert_structural_equal(res[0][1], floordiv(j0[0], 4))
-    tvm.ir.assert_structural_equal(res[1][0], 0)
+    tvm.ir.assert_structural_equal(res[1][0], T.int32(0))
     tvm.ir.assert_structural_equal(res[1][1], (floormod(j0[0], 4) * 2) + i3[0])
 
     res1 = tvm.arith.detect_iter_map([res[0][1], res[1][1]], var_dom([j0, i3])).indices
@@ -587,11 +588,11 @@ def test_subspace_division():
     res = convert_division(res)
     assert len(res) == 3
     tvm.ir.assert_structural_equal(res[0][0], (i0[0] * 2) + floordiv(j0[0], 4))
-    tvm.ir.assert_structural_equal(res[0][1], 0)
+    tvm.ir.assert_structural_equal(res[0][1], T.int32(0))
     tvm.ir.assert_structural_equal(res[1][0], floormod(j0[0], 4))
     tvm.ir.assert_structural_equal(res[1][1], i3[0])
     tvm.ir.assert_structural_equal(res[2][0], (i0[0] * 2) + floordiv(j0[0], 4) < 7)
-    tvm.ir.assert_structural_equal(res[2][1], True)
+    tvm.ir.assert_structural_equal(res[2][1], T.bool(True))
 
     res1 = tvm.arith.detect_iter_map([res[0][1], res[1][1]], var_dom([i3])).indices
     assert len(res1) == 2
@@ -606,9 +607,9 @@ def test_subspace_division():
     assert len(res) == 3
     tvm.ir.assert_structural_equal(res[0][0], i0[0])
     tvm.ir.assert_structural_equal(res[0][1], floordiv(j0[0], 4))
-    tvm.ir.assert_structural_equal(res[1][0], 0)
+    tvm.ir.assert_structural_equal(res[1][0], T.int32(0))
     tvm.ir.assert_structural_equal(res[1][1], (floormod(j0[0], 4) * 2) + i3[0])
-    tvm.ir.assert_structural_equal(res[2][0], True)
+    tvm.ir.assert_structural_equal(res[2][0], T.bool(True))
     tvm.ir.assert_structural_equal(res[2][1], (floormod(j0[0], 4) * 2) + i3[0] < 7)
 
     res1 = tvm.arith.detect_iter_map([res[0][1], res[1][1]], var_dom([j0, i3])).indices
@@ -642,10 +643,10 @@ def test_subspace_division():
     res = convert_division(res)
     assert len(res) == 4
     tvm.ir.assert_structural_equal(res[0][0], (j0[0] * 2) + l0[0])
-    tvm.ir.assert_structural_equal(res[0][1], 0)
-    tvm.ir.assert_structural_equal(res[1][0], 0)
+    tvm.ir.assert_structural_equal(res[0][1], T.int32(0))
+    tvm.ir.assert_structural_equal(res[1][0], T.int32(0))
     tvm.ir.assert_structural_equal(res[1][1], floordiv(l1[0], 3))
-    tvm.ir.assert_structural_equal(res[2][0], 0)
+    tvm.ir.assert_structural_equal(res[2][0], T.int32(0))
     tvm.ir.assert_structural_equal(res[2][1], (floormod(l1[0], 3) * 3) + j3[0])
 
     res1 = tvm.arith.detect_iter_map([res[0][1], res[1][1], res[2][1]], var_dom([l1, j3])).indices
@@ -661,9 +662,9 @@ def test_subspace_division():
     assert len(res) == 4
     tvm.ir.assert_structural_equal(res[0][0], j0[0])
     tvm.ir.assert_structural_equal(res[0][1], floordiv(l0[0] * 6 + l1[0], 6))
-    tvm.ir.assert_structural_equal(res[1][0], 0)
+    tvm.ir.assert_structural_equal(res[1][0], T.int32(0))
     tvm.ir.assert_structural_equal(res[1][1], floordiv(floormod(l0[0] * 6 + l1[0], 6), 3))
-    tvm.ir.assert_structural_equal(res[2][0], 0)
+    tvm.ir.assert_structural_equal(res[2][0], T.int32(0))
     tvm.ir.assert_structural_equal(res[2][1], (floormod(l0[0] * 6 + l1[0], 3) * 3) + j3[0])
 
     res1 = tvm.arith.detect_iter_map(
@@ -690,10 +691,10 @@ def test_subspace_division():
     res = convert_division(res)
     assert len(res) == 4
     tvm.ir.assert_structural_equal(res[0][0], (j0[0] * 2) + l0[0])
-    tvm.ir.assert_structural_equal(res[0][1], 0)
-    tvm.ir.assert_structural_equal(res[1][0], 0)
+    tvm.ir.assert_structural_equal(res[0][1], T.int32(0))
+    tvm.ir.assert_structural_equal(res[1][0], T.int32(0))
     tvm.ir.assert_structural_equal(res[1][1], floordiv(l1[0], 3))
-    tvm.ir.assert_structural_equal(res[2][0], 0)
+    tvm.ir.assert_structural_equal(res[2][0], T.int32(0))
     tvm.ir.assert_structural_equal(res[2][1], (floormod(l1[0], 3) * 3) + j3[0])
     tvm.ir.assert_structural_equal(res[3][0], (j0[0] * 2) + l0[0] < 7)
     tvm.ir.assert_structural_equal(res[3][1], (floormod(l1[0], 3) * 3) + j3[0] < 8)
@@ -735,8 +736,8 @@ def test_subspace_divide_trivial_iters():
     res = convert_division(res)
     assert len(res) == 3
     tvm.ir.assert_structural_equal(res[0][0], x)
-    tvm.ir.assert_structural_equal(res[0][1], 0)
-    tvm.ir.assert_structural_equal(res[1][0], 0)
+    tvm.ir.assert_structural_equal(res[0][1], T.int32(0))
+    tvm.ir.assert_structural_equal(res[1][0], T.int32(0))
     tvm.ir.assert_structural_equal(res[1][1], y)
 
 

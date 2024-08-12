@@ -41,6 +41,10 @@ from . import generic as _generic
 from .buffer import Buffer, DataProducer
 
 
+def convert(expr) -> PrimExpr:
+    return _ffi_api.convert(expr)
+
+
 def div_ambiguity_error() -> RuntimeError:
     return RuntimeError(
         "TVM supports multiple types of integer divisions, "
