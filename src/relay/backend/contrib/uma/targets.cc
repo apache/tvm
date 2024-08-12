@@ -58,7 +58,7 @@ TVM_REGISTER_GLOBAL("relay.backend.contrib.uma.RegisterTarget")
               .add_attr_option<String>("model")
               .add_attr_option<Array<String>>("libs")
               .add_attr_option<Target>("host")
-              .add_attr_option<runtime::Int>("from_device")
+              .add_attr_option<Integer>("from_device")
               .set_attr<relay::transform::FTVMRelayToTIR>(
                   attr::kRelayToTIR, relay::contrib::uma::RelayToTIR(target_name))
               .set_attr<FTVMTIRToRuntime>("TIRToRuntime", relay::contrib::uma::TIRToRuntime);
@@ -75,9 +75,8 @@ TVM_REGISTER_GLOBAL("relay.backend.contrib.uma.RegisterTarget")
         }
         if (default_value->IsInstance<StringObj>()) {
           target_kind.add_attr_option<String>(option_name, Downcast<String>(default_value));
-        } else if (default_value->IsInstance<runtime::Int::ContainerType>()) {
-          target_kind.add_attr_option<runtime::Int>(option_name,
-                                                    Downcast<runtime::Int>(default_value));
+        } else if (default_value->IsInstance<IntImmNode>()) {
+          target_kind.add_attr_option<Integer>(option_name, Downcast<Integer>(default_value));
         } else {
           LOG(FATAL) << "TypeError: Only String, Integer, or Bool are supported. "
                      << "Given attribute option type: " << attr_option.second->GetTypeKey();

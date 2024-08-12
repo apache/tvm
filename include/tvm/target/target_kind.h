@@ -445,8 +445,8 @@ constexpr const char* kRelayToTIR = "RelayToTIR";
           .add_attr_option<String>("model")                       \
           .add_attr_option<Array<String>>("libs")                 \
           .add_attr_option<Target>("host")                        \
-          .add_attr_option<runtime::Int>("from_device")           \
-          .add_attr_option<runtime::Int>("target_device_type")
+          .add_attr_option<Integer>("from_device")                \
+          .add_attr_option<Integer>("target_device_type")
 
 }  // namespace tvm
 

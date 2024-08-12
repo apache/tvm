@@ -1138,46 +1138,5 @@ def test_invalid_volatile_masked_buffer_store():
             tvm.build(func)
 
 
-def test_int_parameter():
-    """Boolean may be passed to functions accepting int"""
-
-    @T.prim_func
-    def func(arg: T.int32) -> T.int32:
-        T.func_attr({"target": T.target("llvm")})
-        if arg > 0:
-            return 10
-        else:
-            return 20
-
-    built = tvm.build(func)
-    output = built(True)
-    assert output == 10
-
-    output = built(False)
-    assert output == 20
-
-
-def test_bool_parameter():
-    """Integers may be passed to functions accepting bool"""
-
-    @T.prim_func
-    def func(arg: T.bool) -> T.int32:
-        T.func_attr({"target": T.target("llvm")})
-        if arg:
-            return 10
-        else:
-            return 20
-
-    built = tvm.build(func)
-    output = built(1)
-    assert output == 10
-
-    output = built(2)
-    assert output == 10
-
-    output = built(0)
-    assert output == 20
-
-
 if __name__ == "__main__":
     tvm.testing.main()

@@ -2984,10 +2984,10 @@ InferCorrectLayoutOutput SplitInferCorrectLayout(const Attrs& attrs,
 
   Layout ret = Layout::Undef();
   size_t size = 0;
-  if (const auto* sections = param->indices_or_sections.as<runtime::Int::ContainerType>()) {
+  if (const IntImmNode* sections = param->indices_or_sections.as<IntImmNode>()) {
     size = sections->value;
   } else {
-    size = Downcast<Array<runtime::Int>>(param->indices_or_sections).size() + 1;
+    size = Downcast<Array<Integer>>(param->indices_or_sections).size() + 1;
   }
 
   // If new_in_layouts are defined, this code tries to modify the layout.
@@ -2998,12 +2998,13 @@ InferCorrectLayoutOutput SplitInferCorrectLayout(const Attrs& attrs,
     param->axis = new_index;
     int factor = new_in_layouts[0].FactorOf(sp_dim);
     if (factor > 1) {
-      if (!param->indices_or_sections.as<runtime::Int>()) {
-        auto ios = Downcast<Array<runtime::Int>>(param->indices_or_sections);
-        Array<runtime::Int> new_ios;
+      if (!param->indices_or_sections.as<IntImmNode>()) {
+        auto ios = Downcast<Array<Integer>>(param->indices_or_sections);
+        Array<Integer> new_ios;
         for (const auto& v : ios) {
-          new_ios.push_back(runtime::Int(v->value / factor));
-          if (v->value % factor) {
+          const IntImmNode* vint = v.as<IntImmNode>();
+          new_ios.push_back(vint->value / factor);
+          if (vint->value % factor) {
             divisible = false;
           }
         }
@@ -3040,7 +3041,7 @@ bool SplitRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   ICHECK_LT(axis, data->shape.size()) << "axis should be within the input dimension range.";
   ICHECK_GE(axis, 0) << "axis should be within the input dimension range.";
 
-  if (const auto* sections = param->indices_or_sections.as<runtime::Int::ContainerType>()) {
+  if (const IntImmNode* sections = param->indices_or_sections.as<IntImmNode>()) {
     if (!data->shape[axis].as<AnyNode>()) {
       ICHECK(reporter->Assert(indexmod(data->shape[axis], sections->value) ==
                               tir::make_zero(DataType::Int(64))))
@@ -3060,8 +3061,8 @@ bool SplitRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
     reporter->Assign(types[1], TupleType(Array<Type>(fields)));
   } else {
     Array<IndexExpr> indices;
-    for (auto index : Downcast<Array<runtime::Int>>(param->indices_or_sections)) {
-      indices.push_back(IntImm(DataType::Int(32), index->value));
+    for (auto i : Downcast<Array<Integer>>(param->indices_or_sections)) {
+      indices.push_back(IntImm(DataType::Int(32), i.as<IntImmNode>()->value));
     }
     auto begin = IndexExpr(tir::make_zero(DataType::Int(32)));
     std::vector<Type> fields;
@@ -3096,20 +3097,19 @@ Array<te::Tensor> SplitCompute(const Attrs& attrs, const Array<te::Tensor>& inpu
   const auto param = attrs.as<SplitAttrs>();
   ICHECK(param != nullptr);
 
-  if (const auto* sections = param->indices_or_sections.as<runtime::Int::ContainerType>()) {
+  if (const IntImmNode* sections = param->indices_or_sections.as<IntImmNode>()) {
     int64_t num_sections = sections->value;
     return Array<te::Tensor>{topi::split_sections(inputs[0], num_sections, param->axis)};
   } else {
     Array<PrimExpr> indices;
-    for (auto index : Downcast<Array<runtime::Int>>(param->indices_or_sections)) {
-      indices.push_back(IntImm(DataType::Int(32), index->value));
+    for (auto i : Downcast<Array<Integer>>(param->indices_or_sections)) {
+      indices.push_back(IntImm(DataType::Int(32), i.as<IntImmNode>()->value));
     }
     return Array<te::Tensor>{topi::split(inputs[0], indices, param->axis)};
   }
 }
 
-Expr MakeSplit(Expr data, Variant<runtime::Int, Array<runtime::Int>> indices_or_sections,
-               int axis) {
+Expr MakeSplit(Expr data, ObjectRef indices_or_sections, int axis) {
   auto attrs = make_object<SplitAttrs>();
   attrs->axis = axis;
   attrs->indices_or_sections = std::move(indices_or_sections);
@@ -3117,7 +3117,17 @@ Expr MakeSplit(Expr data, Variant<runtime::Int, Array<runtime::Int>> indices_or_
   return Call(op, {data}, Attrs(attrs), {});
 }
 
-TVM_REGISTER_GLOBAL("relay.op._make.split").set_body_typed(MakeSplit);
+TVM_REGISTER_GLOBAL("relay.op._make.split").set_body([](const TVMArgs& args, TVMRetValue* rv) {
+  if (args.type_codes[1] == kDLInt) {
+    // Note: we change it from Int(64) to Int(32) for now as
+    // combine_parallel_dense will transform the graph with Int(32).
+    // More invetigation is needs to check which one we should use.
+    *rv =
+        MakeSplit(args[0], tir::make_const(DataType::Int(32), static_cast<int>(args[1])), args[2]);
+  } else {
+    *rv = MakeSplit(args[0], args[1], args[2]);
+  }
+});
 
 RELAY_REGISTER_OP("split")
     .describe(R"code(Splits an array along a particular axis into multiple sub-arrays.
@@ -4147,13 +4157,11 @@ bool ScanopRel(const Array<Type>& types, int num_inputs, const Attrs& attrs,
   return true;
 }
 
-Expr MakeCumsum(Expr data, Integer axis, DataType dtype, Optional<Bool> exclusive) {
+Expr MakeCumsum(Expr data, Integer axis, DataType dtype, Bool exclusive) {
   auto attrs = make_object<ScanopAttrs>();
   attrs->dtype = dtype;
   attrs->axis = axis;
-  if (exclusive.defined()) {
-    attrs->exclusive = exclusive.value();
-  }
+  attrs->exclusive = exclusive;
   static const Op& op = Op::Get("cumsum");
   return Call(op, {data}, Attrs(attrs), {});
 }

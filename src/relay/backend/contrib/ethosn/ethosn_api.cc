@@ -687,14 +687,14 @@ EthosnError EthosnAPI::Split(const Expr& expr, SplitParams* params) {
       sl::TensorInfo(input_tensor_shape, input_data_type, params->input_info.m_DataFormat,
                      params->input_info.m_QuantizationInfo);
   params->split_info.m_Axis = attrs->axis;
-  if (const auto* sections_ptr = attrs->indices_or_sections.as<runtime::Int::ContainerType>()) {
-    auto sections = sections_ptr->value;
+  if (attrs->indices_or_sections->IsInstance<IntImmNode>()) {
+    auto sections = Downcast<IntImm>(attrs->indices_or_sections)->value;
     int size = input_tensor_shape[attrs->axis] / sections;
     for (int i = 0; i < sections; i++) {
       params->split_info.m_Sizes.push_back(size);
     }
   } else {
-    auto indices = Downcast<tvm::Array<runtime::Int>>(attrs->indices_or_sections);
+    auto indices = Downcast<tvm::Array<Integer>>(attrs->indices_or_sections);
     int last_index = 0;
     for (const auto& i : indices) {
       params->split_info.m_Sizes.push_back(i->value - last_index);

@@ -118,10 +118,9 @@ def test_if_cond():
         @T.prim_func
         def __vmtir__ife(ctx_ptr: T.handle, r: T.handle, c: T.handle, f: T.handle):
             T.func_attr({"global_symbol": "__vmtir__ife"})
-            if T.Call(
+            if T.cast(
+                T.tvm_call_packed("vm.builtin.read_if_cond", T.anylist_getitem(r, T.int32(0))),
                 "bool",
-                tvm.ir.Op.get("tir.tvm_call_packed"),
-                ["vm.builtin.read_if_cond", T.anylist_getitem(r, T.int32(0))],
             ):
                 T.anylist_setitem_call_packed(
                     r,

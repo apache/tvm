@@ -355,12 +355,11 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
   Array<Stmt> seq_stmt;
   if (compute_op->body[0]->IsInstance<ReduceNode>()) {
     auto f_reducer_equal = [](const ReduceNode* a, const ReduceNode* b) -> bool {
-      StructuralEqual eq;
-      return eq(a->combiner, b->combiner) &&    //
-             eq(a->source, b->source) &&        //
-             eq(a->axis, b->axis) &&            //
-             eq(a->condition, b->condition) &&  //
-             eq(a->init, b->init);
+      return a->combiner.same_as(b->combiner) &&    //
+             a->source.same_as(b->source) &&        //
+             a->axis.same_as(b->axis) &&            //
+             a->condition.same_as(b->condition) &&  //
+             ((a->init.empty() && b->init.empty()) || a->init.same_as(b->init));
     };
 
     PrimExpr expr_body = compute_op->body[0];
@@ -371,9 +370,7 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
       const tir::ReduceNode* reduce_ = compute_op->body[k].as<tir::ReduceNode>();
       ICHECK(reduce_);
       ICHECK(f_reducer_equal(reduce_, reduce))
-          << "The Reduce inputs of ComputeOp should have the same attribute except value_index, "
-          << "but the first argument has body " << GetRef<PrimExpr>(reduce_) << ", while the " << k
-          << "-th argument has body " << GetRef<PrimExpr>(reduce);
+          << "The Reduce inputs of ComputeOp should have the same attribute except value_index";
       tensors.push_back(compute_op.output(k));
     }
 

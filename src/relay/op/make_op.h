@@ -79,7 +79,7 @@ Expr MakeReshape(Expr data, Array<Integer> newshape, bool allowzero = false);
 Expr MakeReshapeLike(Expr lhs, Expr rhs, int lhs_begin, Integer lhs_end, int rhs_begin,
                      Integer rhs_end);
 
-Expr MakeSplit(Expr data, Variant<runtime::Int, Array<runtime::Int>> indices_or_sections, int axis);
+Expr MakeSplit(Expr data, ObjectRef indices_or_sections, int axis);
 
 Expr MakeSqueeze(Expr data, Array<Integer> axis);
 

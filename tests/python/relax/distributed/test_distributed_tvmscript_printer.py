@@ -40,7 +40,7 @@ def test_constant():
     )
     assert (
         constant.__str__()
-        == """R.dist.const(1.0, R.DTensor((), "float32", R.device_mesh((2, 2), R.Range(0, 4)), "R, R"))"""
+        == """R.dist.const(1, R.DTensor((), "float32", R.device_mesh((2, 2), R.Range(0, 4)), "R, R"))"""
     )
 
 
@@ -144,7 +144,7 @@ class Module:
                 vi, vj = T.axis.remap("SS", [i, j])
                 T.reads(x[vi, vj])
                 T.writes(y[vi, vj])
-                y[vi, vj] = x[vi, vj] + T.float32(1.0)
+                y[vi, vj] = x[vi, vj] + T.float32(1)
 
     @R.function
     def foo(x: R.DTensor((128, 128), "float32", "mesh[0]", "S[0], R")) -> R.DTensor((128, 128), "float32", "mesh[0]", "S[0], R"):

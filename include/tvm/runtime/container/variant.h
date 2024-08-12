@@ -82,7 +82,7 @@ class Variant : public ObjectRef {
  public:
   /* \brief Helper utility to check if the type is part of the variant */
   template <typename T>
-  static constexpr bool is_variant = (std::is_base_of_v<V, T> || ...);
+  static constexpr bool is_variant = (std::is_same_v<T, V> || ...);
 
   /* \brief Helper utility for SFINAE if the type is part of the variant */
   template <typename T>

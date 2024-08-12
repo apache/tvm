@@ -66,7 +66,7 @@ using CachedCastNodes = std::unordered_map<std::pair<const ExprNode*, DataType>,
 // Return array is of type : [MixedTypeConversionCategory (int), String, String]
 // The fields are          : [ConversionCategory, accumulation_datatype, output_datatype]
 // Call is a call node, DataType is the mixed precision type
-using FTVMMixedPrecisionConversionType = runtime::TypedPackedFunc<Array<Variant<Integer, String>>(
+using FTVMMixedPrecisionConversionType = runtime::TypedPackedFunc<Array<ObjectRef>(
     const Call& call_node, const std::string& target_dtype_str)>;
 
 /*! \brief This class transforms the given relay module into a version where
@@ -372,7 +372,7 @@ class MixedPrecisionPass : public MixedModeMutator {
       if (attr_map.count(op)) {
         // Calculate the conversion category and dtypes from registered attribute.
         FTVMMixedPrecisionConversionType func = attr_map[op];
-        Array<Variant<Integer, String>> op_descriptor =
+        Array<ObjectRef> op_descriptor =
             func(GetRef<Call>(pre_call_node), DLDataType2String(mixed_precision_type_));
         ICHECK(op_descriptor.size() == 3)
             << "got the wrong number of returned arguments (expected 3 got " << op_descriptor.size()

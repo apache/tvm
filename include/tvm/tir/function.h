@@ -264,7 +264,7 @@ class TensorIntrin : public ObjectRef {
  *              B[vi, vj] = A[vi, vj]
  * \endcode
  */
-PrimFunc Specialize(PrimFunc func, const Map<Var, Variant<Buffer, PrimExpr>>& param_map);
+PrimFunc Specialize(PrimFunc func, const Map<Var, ObjectRef>& param_map);
 
 /*!
  * \brief PrimFunc specific attribute names.

@@ -33,9 +33,9 @@ from tvm.te.tensor import Tensor
 
 
 # pylint: disable=invalid-name
-np_arg_types = (numpy.ndarray, *numeric_types)
-tvm_arg_types = (Tensor, Array, _expr.Var, _expr.ConstExpr, *numeric_types, list, tuple, str)
-halide_imm_types = (_expr.IntImm, _expr.FloatImm, *numeric_types)
+np_arg_types = tuple(list(numeric_types) + [numpy.ndarray])
+tvm_arg_types = (Tensor, Array, _expr.Var, _expr.ConstExpr)
+halide_imm_types = (_expr.IntImm, _expr.FloatImm)
 
 
 def _internal_assert(cond, err):
@@ -91,13 +91,19 @@ def replace_io(body, rmap):
 def _is_tvm_arg_types(args):
     """Determine a list of element is either a list of tvm arguments of a list of numpy arguments.
     If neither is true, raise a value error."""
-    if all(isinstance(elem, tvm_arg_types) for elem in args):
+    if isinstance(args[0], tvm_arg_types):
+        for elem in args[1:]:
+            _internal_assert(
+                isinstance(elem, tvm_arg_types),
+                f"Expecting a Var, Tensor or ConstExpr instance but {type(elem)} get!",
+            )
         return True
-    elif all(isinstance(elem, np_arg_types) for elem in args):
-        return False
-    else:
-        raise ValueError(
-            f"Expected arguments to be entirely TVM types, "
-            f"or entirely numpy types, "
-            f"but received {[type(elem) for elem in args]}"
+
+    _internal_assert(
+        isinstance(args[0], np_arg_types), f"Expect a numpy type but {type(args[0])} get!"
+    )
+    for elem in args[1:]:
+        _internal_assert(
+            isinstance(elem, np_arg_types), f"Expect a numpy type but {type(elem)} get!"
         )
+    return False

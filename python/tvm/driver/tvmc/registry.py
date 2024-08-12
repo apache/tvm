@@ -20,23 +20,11 @@ This file contains functions for processing registry based inputs for the TVMC C
 
 from tvm.driver.tvmc import TVMCException
 
-# We can't tell the type inside an Array but all current options are
-# strings so it can default to that. runtime.BoxBool is used to
-# distinguish from runtime.BoxInt.
-INTERNAL_TO_NATIVE_TYPE = {
-    "runtime.String": str,
-    "runtime.BoxBool": bool,
-    "runtime.BoxFloat": float,
-    "runtime.BoxInt": int,
-    "Array": str,
-}
-INTERNAL_TO_HELP = {
-    "runtime.String": " string",
-    "runtime.BoxBool": " bool",
-    "runtime.BoxInt": " int",
-    "runtime.BoxFloat": " float",
-    "Array": " options",
-}
+# We can't tell the type inside an Array but all current options are strings so
+# it can default to that. Bool is used alongside Integer but aren't distinguished
+# between as both are represented by IntImm
+INTERNAL_TO_NATIVE_TYPE = {"runtime.String": str, "IntImm": int, "Array": str}
+INTERNAL_TO_HELP = {"runtime.String": " string", "IntImm": "", "Array": " options"}
 
 
 def _generate_registry_option_args(parser, registry, name):

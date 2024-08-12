@@ -171,10 +171,9 @@ Array<tvm::transform::Pass> CreatePassList(bool disable_loop_partition) {
   // phase passes is of the form
   // [[phase_number, pass], [phase_number, pass]... ]
   for (Array<ObjectRef> phase_pass : add_lower_pass) {
-    auto phase_num = phase_pass[0].as<runtime::Int::ContainerType>();
+    const IntImmNode* phase_num = phase_pass[0].as<IntImmNode>();
     ICHECK(phase_num)
-        << "Expected the first entry in the inner Array of tir.add_lower_pass to be an integer, "
-        << "but instead received " << phase_pass[0] << " with type " << phase_pass[0]->GetTypeKey();
+        << "Expected the first entry in the inner Array of tir.add_lower_pass to be an integer";
     int phase_num_val = phase_num->value;
 
     CHECK_GE(phase_num_val, 0);

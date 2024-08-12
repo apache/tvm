@@ -51,7 +51,7 @@ def test_create_runtime_attr_not_found():
 def test_create_runtime_attr_type_incorrect():
     with pytest.raises(
         TVMError,
-        match='Attribute "system-lib" should have type "runtime.BoxBool"'
+        match='Attribute "system-lib" should have type "IntImm"'
         ' but instead found "runtime.String"',
     ):
         Runtime("crt", {"system-lib": "woof"})
@@ -65,7 +65,7 @@ def test_list_runtimes():
 def test_list_runtime_options(runtime):
     aot_options = Runtime.list_registered_options(runtime)
     assert "system-lib" in aot_options
-    assert aot_options["system-lib"] == "runtime.BoxBool"
+    assert aot_options["system-lib"] == "IntImm"
 
 
 def test_list_runtime_options_not_found():
