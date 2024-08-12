@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include "../../ir/utils.h"
 #include "../utils.h"
 
 namespace tvm {
@@ -97,6 +98,8 @@ struct AnnotateTraits : public UnpackedInstTraits<AnnotateTraits> {
 
   static void UnpackedApplyToSchedule(Schedule sch, ObjectRef block_or_loop_rv, ObjectRef ann_val,
                                       String ann_key) {
+    ann_val = NormalizeAttributeObject(ann_val);
+
     if (auto block = block_or_loop_rv.as<BlockRV>()) {
       return sch->Annotate(block.value(), ann_key, ann_val);
     }

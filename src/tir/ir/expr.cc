@@ -35,6 +35,18 @@
 namespace tvm {
 namespace tir {
 
+/* \brief Convert an object to a PrimExpr
+ *
+ * All conversions to a PrimExpr are performed as part of the FFI,
+ * when calling a function that accepts a PrimExpr as an argument.  If
+ * a function must normalize to a PrimExpr (e.g. before accessing the
+ * `expr.dtype` field), this function allows the FFI conversions to be
+ * explicitly invoked.
+ */
+TVM_REGISTER_GLOBAL("tir.convert").set_body_typed([](Variant<PrimExpr, Array<PrimExpr>> expr) {
+  return expr;
+});
+
 #define TVM_DEFINE_BINOP_CONSTRUCTOR(Name)                                                   \
   Name::Name(PrimExpr a, PrimExpr b, Span span) {                                            \
     using T = Name::ContainerType;                                                           \
@@ -546,7 +558,9 @@ Call::Call(DataType dtype, RelayExpr op, Array<PrimExpr> args, Span span) {
 }
 
 TVM_REGISTER_GLOBAL("tir.Call")
-    .set_body_typed([](DataType type, RelayExpr op, Array<ObjectRef> args, Span span) {
+    .set_body_typed([](DataType type, RelayExpr op,
+                       Array<Variant<runtime::String, IterVar, BufferRegion, PrimExpr>> args,
+                       Span span) {
       Array<PrimExpr> prim_expr_args;
       for (const auto& it : args) {
         ICHECK(it->IsInstance<runtime::StringObj>() || it->IsInstance<PrimExprNode>() ||
@@ -707,9 +721,11 @@ Reduce::Reduce(CommReducer combiner, Array<PrimExpr> source, Array<IterVar> axis
   if (!init.empty()) {
     ICHECK_EQ(init.size(), source.size()) << "Number of inits should match number of exprs";
     for (size_t i = 0; i < init.size(); i++) {
+      ICHECK(init[i].defined()) << "Init value must be defined";
       ICHECK(init[i]->IsInstance<ProducerLoadNode>() || init[i]->IsInstance<IntImmNode>() ||
              init[i]->IsInstance<FloatImmNode>())
-          << "init can only be a IntImm, FloatImm or ProducerLoad";
+          << "init can only be a IntImm, FloatImm or ProducerLoad, "
+          << "but received " << init[i] << " of type " << init[i]->GetTypeKey();
     }
   }
   n->dtype = source[value_index].dtype();

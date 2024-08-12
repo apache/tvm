@@ -76,61 +76,61 @@ TVM_REGISTER_TARGET_TAG("raspberry-pi/4b-aarch64")
                  {"mtriple", String("aarch64-linux-gnu")},
                  {"mcpu", String("cortex-a72")},
                  {"mattr", Array<String>{"+neon"}},
-                 {"num-cores", Integer(4)},
+                 {"num-cores", runtime::Int(4)},
                  {"host", Map<String, ObjectRef>{{"kind", String("llvm")},
                                                  {"mtriple", String("aarch64-linux-gnu")},
                                                  {"mcpu", String("cortex-a72")},
                                                  {"mattr", Array<String>{"+neon"}},
-                                                 {"num-cores", Integer(4)}}}});
+                                                 {"num-cores", runtime::Int(4)}}}});
 
 #if TVM_LLVM_VERSION >= 110
 TVM_REGISTER_TARGET_TAG("nvidia/jetson-agx-xavier")
     .set_config({{"kind", String("cuda")},
                  {"arch", String("sm_72")},
-                 {"max_shared_memory_per_block", Integer(49152)},
-                 {"max_threads_per_block", Integer(1024)},
-                 {"thread_warp_size", Integer(32)},
-                 {"registers_per_block", Integer(65536)},
+                 {"max_shared_memory_per_block", runtime::Int(49152)},
+                 {"max_threads_per_block", runtime::Int(1024)},
+                 {"thread_warp_size", runtime::Int(32)},
+                 {"registers_per_block", runtime::Int(65536)},
                  {"host", Map<String, ObjectRef>{{"kind", String("llvm")},
                                                  {"mtriple", String("aarch64-linux-gnu")},
                                                  {"mcpu", String("carmel")},
-                                                 {"num-cores", Integer(8)}}}});
+                                                 {"num-cores", runtime::Int(8)}}}});
 
 TVM_REGISTER_TARGET_TAG("nvidia/jetson-orin-nano")
     .set_config({{"kind", String("cuda")},
                  {"arch", String("sm_87")},
-                 {"max_shared_memory_per_block", Integer(49152)},
-                 {"max_threads_per_block", Integer(1024)},
-                 {"thread_warp_size", Integer(32)},
-                 {"registers_per_block", Integer(65536)},
+                 {"max_shared_memory_per_block", runtime::Int(49152)},
+                 {"max_threads_per_block", runtime::Int(1024)},
+                 {"thread_warp_size", runtime::Int(32)},
+                 {"registers_per_block", runtime::Int(65536)},
                  {"host", Map<String, ObjectRef>{{"kind", String("llvm")},
                                                  {"mtriple", String("aarch64-linux-gnu")},
                                                  {"mcpu", String("carmel")},
-                                                 {"num-cores", Integer(6)}}}});
+                                                 {"num-cores", runtime::Int(6)}}}});
 
 TVM_REGISTER_TARGET_TAG("nvidia/jetson-agx-orin-32gb")
     .set_config({{"kind", String("cuda")},
                  {"arch", String("sm_87")},
-                 {"max_shared_memory_per_block", Integer(49152)},
-                 {"max_threads_per_block", Integer(1024)},
-                 {"thread_warp_size", Integer(32)},
-                 {"registers_per_block", Integer(65536)},
+                 {"max_shared_memory_per_block", runtime::Int(49152)},
+                 {"max_threads_per_block", runtime::Int(1024)},
+                 {"thread_warp_size", runtime::Int(32)},
+                 {"registers_per_block", runtime::Int(65536)},
                  {"host", Map<String, ObjectRef>{{"kind", String("llvm")},
                                                  {"mtriple", String("aarch64-linux-gnu")},
                                                  {"mcpu", String("cortex-a78")},
-                                                 {"num-cores", Integer(8)}}}});
+                                                 {"num-cores", runtime::Int(8)}}}});
 
 TVM_REGISTER_TARGET_TAG("nvidia/jetson-agx-orin-64gb")
     .set_config({{"kind", String("cuda")},
                  {"arch", String("sm_87")},
-                 {"max_shared_memory_per_block", Integer(49152)},
-                 {"max_threads_per_block", Integer(1024)},
-                 {"thread_warp_size", Integer(32)},
-                 {"registers_per_block", Integer(65536)},
+                 {"max_shared_memory_per_block", runtime::Int(49152)},
+                 {"max_threads_per_block", runtime::Int(1024)},
+                 {"thread_warp_size", runtime::Int(32)},
+                 {"registers_per_block", runtime::Int(65536)},
                  {"host", Map<String, ObjectRef>{{"kind", String("llvm")},
                                                  {"mtriple", String("aarch64-linux-gnu")},
                                                  {"mcpu", String("cortex-a78")},
-                                                 {"num-cores", Integer(12)}}}});
+                                                 {"num-cores", runtime::Int(12)}}}});
 #endif  // TVM_LLVM_VERSION >= 110
 #endif  // TVM_LLVM_HAS_AARCH64_TARGET
 
@@ -139,10 +139,10 @@ TVM_REGISTER_TARGET_TAG("nvidia/jetson-agx-orin-64gb")
       {"kind", String("cuda")},                                   \
       {"keys", Array<String>{"cuda", "gpu"}},                     \
       {"arch", String(Arch)},                                     \
-      {"max_shared_memory_per_block", Integer(SharedMem)},        \
-      {"max_threads_per_block", Integer(1024)},                   \
-      {"thread_warp_size", Integer(32)},                          \
-      {"registers_per_block", Integer(RegPerBlock)},              \
+      {"max_shared_memory_per_block", runtime::Int(SharedMem)},   \
+      {"max_threads_per_block", runtime::Int(1024)},              \
+      {"thread_warp_size", runtime::Int(32)},                     \
+      {"registers_per_block", runtime::Int(RegPerBlock)},         \
   })
 
 // Naming convention for CUDA tags see https://developer.nvidia.com/cuda-gpus
@@ -158,9 +158,9 @@ TVM_REGISTER_CUDA_TAG("nvidia/tesla-c2075", "sm_20", 49152, 32768);
 TVM_REGISTER_CUDA_TAG("nvidia/tesla-c2050", "sm_20", 49152, 32768);
 TVM_REGISTER_CUDA_TAG("nvidia/tesla-c2070", "sm_20", 49152, 32768);
 TVM_REGISTER_CUDA_TAG("nvidia/nvidia-a100", "sm_80", 49152, 65536)
-    .with_config("l2_cache_size_bytes", Integer(41943040));
+    .with_config("l2_cache_size_bytes", runtime::Int(41943040));
 TVM_REGISTER_CUDA_TAG("nvidia/nvidia-h100", "sm_90a", 49152, 65536)
-    .with_config("l2_cache_size_bytes", Integer(52428800));
+    .with_config("l2_cache_size_bytes", runtime::Int(52428800));
 TVM_REGISTER_CUDA_TAG("nvidia/nvidia-a40", "sm_86", 49152, 65536);
 TVM_REGISTER_CUDA_TAG("nvidia/nvidia-a30", "sm_80", 49152, 65536);
 TVM_REGISTER_CUDA_TAG("nvidia/nvidia-a10", "sm_86", 49152, 65536);
@@ -263,7 +263,7 @@ TVM_REGISTER_CUDA_TAG("nvidia/nvs-5400m", "sm_21", 49152, 32768);
 TVM_REGISTER_CUDA_TAG("nvidia/nvs-5200m", "sm_21", 49152, 32768);
 TVM_REGISTER_CUDA_TAG("nvidia/nvs-4200m", "sm_21", 49152, 32768);
 TVM_REGISTER_CUDA_TAG("nvidia/geforce-rtx-4090", "sm_89", 49152, 65536)
-    .with_config("l2_cache_size_bytes", Integer(75497472));
+    .with_config("l2_cache_size_bytes", runtime::Int(75497472));
 TVM_REGISTER_CUDA_TAG("nvidia/geforce-rtx-3090-ti", "sm_86", 49152, 65536);
 TVM_REGISTER_CUDA_TAG("nvidia/geforce-rtx-3090", "sm_86", 49152, 65536);
 TVM_REGISTER_CUDA_TAG("nvidia/geforce-rtx-3080-ti", "sm_86", 49152, 65536);
@@ -416,7 +416,7 @@ TVM_REGISTER_CUDA_TAG("nvidia/tegra-x1", "sm_53", 49152, 32768);
   TVM_REGISTER_TARGET_TAG(Name).set_config({{"kind", String("llvm")},              \
                                             {"keys", Array<String>{"x86", "cpu"}}, \
                                             {"mcpu", String(Arch)},                \
-                                            {"num-cores", Integer(Cores)}});
+                                            {"num-cores", runtime::Int(Cores)}});
 
 TVM_REGISTER_TAG_AWS_C5("aws/cpu/c5.large", 1, "skylake-avx512");
 TVM_REGISTER_TAG_AWS_C5("aws/cpu/c5.xlarge", 2, "skylake-avx512");
@@ -432,9 +432,9 @@ TVM_REGISTER_TAG_AWS_C5("aws/cpu/c5.24xlarge", 48, "cascadelake");
 #define TVM_REGISTER_METAL_GPU_TAG(Name, ThreadsPerBlock, SharedMem, WarpSize)   \
   TVM_REGISTER_TARGET_TAG(Name).set_config(                                      \
       {{"kind", String("metal")},                                                \
-       {"max_threads_per_block", Integer(ThreadsPerBlock)},                      \
-       {"max_shared_memory_per_block", Integer(SharedMem)},                      \
-       {"thread_warp_size", Integer(WarpSize)},                                  \
+       {"max_threads_per_block", runtime::Int(ThreadsPerBlock)},                 \
+       {"max_shared_memory_per_block", runtime::Int(SharedMem)},                 \
+       {"thread_warp_size", runtime::Int(WarpSize)},                             \
        {"host", Map<String, ObjectRef>{{"kind", String("llvm")},                 \
                                        {"mtriple", String("arm64-apple-macos")}, \
                                        {"mcpu", String("apple-latest")}}}});
