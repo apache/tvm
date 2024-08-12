@@ -33,3 +33,5 @@ runs:
     run: |
       conda info
       conda list
+      conda info --envs
+      conda list --name base
