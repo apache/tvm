@@ -15,6 +15,7 @@ runs:
       channel-priority: strict
       environment-file: conda/build-environment.yaml
       auto-activate-base: false
+      auto-update-conda: true
       use-only-tar-bz2: true
       python-version: 3.9
       condarc-file: conda/condarc
@@ -25,6 +26,7 @@ runs:
       channel-priority: strict
       environment-file: conda/build-environment.yaml
       auto-activate-base: false
+      auto-update-conda: true
       use-only-tar-bz2: true
       python-version: 3.9
       condarc-file: conda/condarc
