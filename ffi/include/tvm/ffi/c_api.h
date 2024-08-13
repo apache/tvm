@@ -18,26 +18,38 @@
  */
 
 /*
- * \file tvm/ffi/c_ffi_abi.h
- * \brief This file defines the ABI convention of the FFI convention
- *
- * \note This file only include data structures that can be used in
- *  a header only way. The APIs are defined in c_ffi_api.h
- *  and requires linking to tvm_ffi library.
+ * \file tvm/ffi/c_api.h
+ * \brief This file defines the C convention of the FFI convention
  *
  *  Only use the APIs when TVM_FFI_ALLOW_DYN_TYPE is set to true
  */
-#ifndef TVM_FFI_C_FFI_ABI_H_
-#define TVM_FFI_C_FFI_ABI_H_
+#ifndef TVM_FFI_C_API_H_
+#define TVM_FFI_C_API_H_
 
 #include <dlpack/dlpack.h>
 #include <stdint.h>
 
 /*!
  * \brief Macro defines whether we enable dynamic runtime features.
+ * \note Turning this one would mean that we need to link tvm_ffi_registry_shared
  */
 #ifndef TVM_FFI_ALLOW_DYN_TYPE
 #define TVM_FFI_ALLOW_DYN_TYPE 1
+#endif
+
+#if !defined(TVM_FFI_DLL) && defined(__EMSCRIPTEN__)
+#include <emscripten/emscripten.h>
+#define TVM_FFI_DLL EMSCRIPTEN_KEEPALIVE
+#endif
+#if !defined(TVM_FFI_DLL) && defined(_MSC_VER)
+#ifdef TVM_FFI_EXPORTS
+#define TVM_FFI_DLL __declspec(dllexport)
+#else
+#define TVM_FFI_DLL __declspec(dllimport)
+#endif
+#endif
+#ifndef TVM_FFI_DLL
+#define TVM_FFI_DLL __attribute__((visibility("default")))
 #endif
 
 #ifdef __cplusplus
@@ -130,16 +142,7 @@ typedef struct {
   const char* bytes;
 } TVMFFIByteArray;
 
-/*! \brief The error type. */
-typedef struct {
-  /*! \brief header */
-  TVMFFIObject header_;
-
-
-} TVMFFIError;
-
-
 #ifdef __cplusplus
 }  // TVM_FFI_EXTERN_C
 #endif
-#endif  // TVM_FFI_C_FFI_ABI_H_
+#endif  // TVM_FFI_C_API_H_
