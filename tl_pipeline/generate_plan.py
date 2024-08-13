@@ -107,6 +107,13 @@ def get_plan(graph: 'nx.DiGraph', updated_graph: 'nx.DiGraph', ordered_nodes: Li
                 if instr >= wait_instr:
                     flag = False
                     break
+                # Example: 
+                # mma.wait(0)
+                # ...
+                # mma.wait(1)
+                # Then mma.wait(0) can be removed because this wait is done in the previous iteration
+                if instr < wait_instr:
+                    instrs.remove(instr)
             if flag:
                 instrs.append(wait_instr)
         instrs.append(Issue(node, iteration))

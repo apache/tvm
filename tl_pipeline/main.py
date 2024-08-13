@@ -12,7 +12,6 @@ if __name__ == "__main__":
 
     results = []
     add_backward_edges(graph, graph.copy(), list(reversed(topo_ordered_nodes)), stream=2, cur_id=0, dst_id=0, result=results)
-    plan_id = 0
     plans = []
     for i, g in enumerate(results):
         print(f"Graph {i + 1}:")
