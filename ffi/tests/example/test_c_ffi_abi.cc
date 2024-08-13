@@ -1,5 +1,5 @@
 #include <gtest/gtest.h>
-#include <tvm/ffi/c_ffi_abi.h>
+#include <tvm/ffi/c_api.h>
 
 namespace {
 

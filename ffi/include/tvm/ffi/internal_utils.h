@@ -18,12 +18,12 @@
  */
 /*!
  * \file tvm/ffi/internal_utils.h
- * \brief Utility functions and macros for internal use, not meant for
+ * \brief Utility functions and macros for internal use
  */
 #ifndef TVM_FFI_INTERNAL_UTILS_H_
 #define TVM_FFI_INTERNAL_UTILS_H_
 
-#include <tvm/ffi/c_ffi_abi.h>
+#include <tvm/ffi/c_api.h>
 
 #include <cstddef>
 
@@ -31,6 +31,17 @@
 #define TVM_FFI_INLINE __forceinline
 #else
 #define TVM_FFI_INLINE inline __attribute__((always_inline))
+#endif
+
+/*!
+ * \brief Macro helper to force a function not to be inlined.
+ * It is only used in places that we know not inlining is good,
+ * e.g. some logging functions.
+ */
+#if defined(_MSC_VER)
+#define TVM_FFI_NO_INLINE __declspec(noinline)
+#else
+#define TVM_FFI_NO_INLINE __attribute__((noinline))
 #endif
 
 #if defined(_MSC_VER)
