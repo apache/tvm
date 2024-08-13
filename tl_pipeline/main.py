@@ -10,8 +10,8 @@ if __name__ == "__main__":
     topo_ordered_nodes = list(nx.topological_sort(graph))
     print("topo_ordered_nodes:", topo_ordered_nodes)
 
-    results = []
-    add_backward_edges(graph, graph.copy(), list(reversed(topo_ordered_nodes)), stream=2, cur_id=0, dst_id=0, result=results)
+    results = transform(graph, graph.copy(), topo_ordered_nodes, stream=2)
+
     plans = []
     for i, g in enumerate(results):
         print(f"Graph {i + 1}:")
