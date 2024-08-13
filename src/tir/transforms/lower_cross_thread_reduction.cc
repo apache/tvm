@@ -217,7 +217,7 @@ class InitUpdateValueFinder : public StmtExprVisitor {
       has_mma_ = Bool(true);
     } else if (op->op.same_as(tir::builtin::mma_fill())) {
       has_mma_ = Bool(true);
-      init_value_ = make_const(DataType::Float(16), 0);
+      init_value_ = make_const(op->dtype, 0);
     }
     return StmtExprVisitor::VisitExpr_(op);
   }
