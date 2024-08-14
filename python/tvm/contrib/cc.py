@@ -377,6 +377,7 @@ def _windows_compile(output, objects, options, cwd=None, ccache_env=None):
     cmd = [compiler]
     cmd += ["-O2"]
     cmd += ["--target=" + win_target]
+
     if output.endswith(".so") or output.endswith(".dll"):
         cmd += ["-shared"]
     elif output.endswith(".obj"):
