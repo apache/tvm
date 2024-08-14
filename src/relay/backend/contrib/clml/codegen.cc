@@ -35,11 +35,6 @@
 #include "../codegen_json/codegen_json.h"
 
 namespace tvm {
-
-constexpr const char* kCLMLTargetVersion =
-    "relay.ext.clml.target_version";
-TVM_REGISTER_PASS_CONFIG_OPTION(kCLMLTargetVersion, Integer);
-
 namespace relay {
 namespace contrib {
 
