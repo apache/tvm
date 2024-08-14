@@ -23,6 +23,7 @@
 #include <tvm/ffi/c_api.h>
 #include <tvm/ffi/error.h>
 
+#include <memory>
 #include <string>
 #include <unordered_map>
 #include <utility>
@@ -30,26 +31,6 @@
 
 namespace tvm {
 namespace ffi {
-
-/*! \brief Type information */
-struct TypeInfo {
-  /*! \brief The current index. */
-  int32_t index{0};
-  /*! \brief Index of the parent in the type hierarchy */
-  int32_t parent_index{0};
-  // NOTE: the indices in [index, index + num_reserved_slots) are
-  // reserved for the child-class of this type.
-  /*! \brief Total number of slots reserved for the type and its children. */
-  int32_t num_slots{0};
-  /*! \brief number of allocated child slots. */
-  int32_t allocated_slots{0};
-  /*! \brief Whether child can overflow. */
-  bool child_slots_can_overflow{true};
-  /*! \brief name of the type. */
-  std::string name;
-  /*! \brief hash of the name */
-  size_t name_hash{0};
-};
 
 /*!
  * \brief Type context that manages the type hierarchy information.
@@ -61,150 +42,196 @@ struct TypeInfo {
  *
  * Then the followup code will leverage the information
  */
-class TypeContext {
+class TypeTable {
  public:
-  // NOTE: this is a relatively slow path for child checking
-  // Most types are already checked by the fast-path via reserved slot checking.
-  bool DerivedFrom(int32_t child_tindex, int32_t parent_tindex) {
-    // invariance: child's type index is always bigger than its parent.
-    if (child_tindex < parent_tindex) return false;
-    if (child_tindex == parent_tindex) return true;
-    TVM_FFI_ICHECK_LT(child_tindex, type_table_.size());
-    while (child_tindex > parent_tindex) {
-      child_tindex = type_table_[child_tindex].parent_index;
-    }
-    return child_tindex == parent_tindex;
-  }
+  /*! \brief Type information */
+  struct Entry : public TypeInfo {
+    /*! \brief stored type key */
+    std::string type_key_data;
+    /*! \brief acenstor information */
+    std::vector<int32_t> type_acenstors_data;
+    // NOTE: the indices in [index, index + num_reserved_slots) are
+    // reserved for the child-class of this type.
+    /*! \brief Total number of slots reserved for the type and its children. */
+    int32_t num_slots;
+    /*! \brief number of allocated child slots. */
+    int32_t allocated_slots;
+    /*! \brief Whether child can overflow. */
+    bool child_slots_can_overflow{true};
 
-  int32_t GetOrAllocRuntimeTypeIndex(const std::string& skey, int32_t static_tindex,
-                                     int32_t parent_tindex, int32_t num_child_slots,
-                                     bool child_slots_can_overflow) {
-    auto it = type_key2index_.find(skey);
+    Entry(int32_t type_index, int32_t type_depth, std::string type_key, int32_t num_slots,
+          bool child_slots_can_overflow, const Entry* parent) {
+      // setup fields in the class
+      this->type_key_data = std::move(type_key);
+      this->num_slots = num_slots;
+      this->allocated_slots = 1;
+      this->child_slots_can_overflow = child_slots_can_overflow;
+      // set up type acenstors information
+      if (type_depth != 0) {
+        TVM_FFI_ICHECK_NOTNULL(parent);
+        TVM_FFI_ICHECK_EQ(type_depth, parent->type_depth + 1);
+        type_acenstors_data.resize(type_depth);
+        // copy over parent's type information
+        for (int32_t i = 0; i < parent->type_depth; ++i) {
+          type_acenstors_data[i] = parent->type_acenstors[i];
+        }
+        // set last type information to be parent
+        type_acenstors_data[parent->type_depth] = parent->type_index;
+      }
+      // initialize type info: no change to type_key and type_acenstors fields
+      // after this line
+      this->type_index = type_index;
+      this->type_depth = type_depth;
+      this->type_key = this->type_key_data.c_str();
+      this->type_key_hash = std::hash<std::string>()(this->type_key_data);
+      this->type_acenstors = type_acenstors_data.data();
+    }
+  };
+
+  int32_t GetOrAllocTypeIndex(std::string type_key, int32_t static_type_index, int32_t type_depth,
+                              int32_t num_child_slots, bool child_slots_can_overflow,
+                              int32_t parent_type_index) {
+    auto it = type_key2index_.find(type_key);
     if (it != type_key2index_.end()) {
-      return it->second;
-    }
-    // try to allocate from parent's type table.
-    TVM_FFI_ICHECK_LT(parent_tindex, type_table_.size())
-        << " skey=" << skey << ", static_index=" << static_tindex;
-
-    TypeInfo& pinfo = type_table_[parent_tindex];
-    TVM_FFI_ICHECK_EQ(pinfo.index, parent_tindex);
-
-    // if parent cannot overflow, then this class cannot.
-    if (!pinfo.child_slots_can_overflow) {
-      child_slots_can_overflow = false;
+      return type_table_[it->second]->type_index;
     }
 
-    // total number of slots include the type itself.
-    int32_t num_slots = num_child_slots + 1;
-    int32_t allocated_tindex;
+    // get parent's entry
+    Entry* parent = [&]() -> Entry* {
+      if (parent_type_index < 0) return nullptr;
+      // try to allocate from parent's type table.
+      TVM_FFI_ICHECK_LT(parent_type_index, type_table_.size())
+          << " type_key=" << type_key << ", static_index=" << static_type_index;
+      return type_table_[parent_type_index].get();
+    }();
 
-    if (static_tindex > 0) {
-      // statically assigned type
-      allocated_tindex = static_tindex;
-      TVM_FFI_ICHECK_LT(static_tindex, type_table_.size());
-      TVM_FFI_ICHECK_EQ(type_table_[allocated_tindex].allocated_slots, 0U)
-          << "Conflicting static index " << static_tindex << " between "
-          << type_table_[allocated_tindex].name << " and " << skey;
-    } else if (pinfo.allocated_slots + num_slots <= pinfo.num_slots) {
-      // allocate the slot from parent's reserved pool
-      allocated_tindex = parent_tindex + pinfo.allocated_slots;
-      // update parent's state
-      pinfo.allocated_slots += num_slots;
-    } else {
-      TVM_FFI_ICHECK(pinfo.child_slots_can_overflow)
-          << "Reach maximum number of sub-classes for " << pinfo.name;
+    // get allocated index
+    int32_t allocated_tindex = [&]() {
+      // Step 0: static allocation
+      if (static_type_index >= 0) {
+        TVM_FFI_ICHECK_LT(static_type_index, type_table_.size());
+        TVM_FFI_ICHECK(type_table_[static_type_index] == nullptr)
+            << "Conflicting static index " << static_type_index << " between "
+            << type_table_[static_type_index]->type_key << " and " << type_key;
+        return static_type_index;
+      }
+      TVM_FFI_ICHECK_NOTNULL(parent);
+      int num_slots = num_child_slots + 1;
+      if (parent->allocated_slots + num_slots <= parent->num_slots) {
+        // allocate the slot from parent's reserved pool
+        int32_t allocated_tindex = parent->type_index + parent->allocated_slots;
+        // update parent's state
+        parent->allocated_slots += num_slots;
+        return allocated_tindex;
+      }
+      // Step 2: allocate from overflow
+      TVM_FFI_ICHECK(parent->child_slots_can_overflow)
+          << "Reach maximum number of sub-classes for " << parent->type_key;
       // allocate new entries.
-      allocated_tindex = type_counter_;
+      int32_t allocated_tindex = type_counter_;
       type_counter_ += num_slots;
       TVM_FFI_ICHECK_LE(type_table_.size(), type_counter_);
-      type_table_.resize(type_counter_, TypeInfo());
+      type_table_.reserve(type_counter_);
+      // resize type table
+      while (static_cast<int32_t>(type_table_.size()) < type_counter_) {
+        type_table_.emplace_back(nullptr);
+      }
+      return allocated_tindex;
+    }();
+
+    // if parent cannot overflow, then this class cannot.
+    if (parent != nullptr && !(parent->child_slots_can_overflow)) {
+      child_slots_can_overflow = false;
     }
-    TVM_FFI_ICHECK_GT(allocated_tindex, parent_tindex);
-    // initialize the slot.
-    type_table_[allocated_tindex].index = allocated_tindex;
-    type_table_[allocated_tindex].parent_index = parent_tindex;
-    type_table_[allocated_tindex].num_slots = num_slots;
-    type_table_[allocated_tindex].allocated_slots = 1;
-    type_table_[allocated_tindex].child_slots_can_overflow = child_slots_can_overflow;
-    type_table_[allocated_tindex].name = skey;
-    type_table_[allocated_tindex].name_hash = std::hash<std::string>()(skey);
+    // total number of slots include the type itself.
+
+    if (parent != nullptr) {
+      TVM_FFI_ICHECK_GT(allocated_tindex, parent->type_index);
+    }
+
+    type_table_[allocated_tindex] =
+        std::make_unique<Entry>(allocated_tindex, type_depth, type_key, num_child_slots + 1,
+                                child_slots_can_overflow, parent);
     // update the key2index mapping.
-    type_key2index_[skey] = allocated_tindex;
+    type_key2index_[type_key] = allocated_tindex;
     return allocated_tindex;
   }
 
-  const std::string& TypeIndex2Key(int32_t tindex) {
-    if (tindex != 0) {
-      // always return the right type key for root
-      // for non-root type nodes, allocated slots should not equal 0
-      TVM_FFI_ICHECK(tindex < static_cast<int32_t>(type_table_.size()) &&
-                     type_table_[tindex].allocated_slots != 0)
-          << "Unknown type index " << tindex;
-    }
-    return type_table_[tindex].name;
-  }
-
-  size_t TypeIndex2KeyHash(int32_t tindex) {
-    TVM_FFI_ICHECK(tindex < static_cast<int32_t>(type_table_.size()) &&
-                   type_table_[tindex].allocated_slots != 0)
-        << "Unknown type index " << tindex;
-    return type_table_[tindex].name_hash;
-  }
-
-  int32_t TypeKey2Index(const std::string& skey) {
-    auto it = type_key2index_.find(skey);
-    TVM_FFI_ICHECK(it != type_key2index_.end()) << "Cannot find type " << skey;
+  int32_t TypeKey2Index(const std::string& type_key) {
+    auto it = type_key2index_.find(type_key);
+    TVM_FFI_ICHECK(it != type_key2index_.end()) << "Cannot find type " << type_key;
     return it->second;
+  }
+
+  const TypeInfo* GetTypeInfo(int32_t type_index) {
+    const TypeInfo* info = nullptr;
+    if (type_index >= 0 && static_cast<size_t>(type_index) < type_table_.size()) {
+      info = type_table_[type_index].get();
+    }
+    TVM_FFI_ICHECK(info != nullptr) << "Cannot find type info for type_index=" << type_index;
+    return info;
   }
 
   void Dump(int min_children_count) {
     std::vector<int> num_children(type_table_.size(), 0);
     // reverse accumulation so we can get total counts in a bottom-up manner.
     for (auto it = type_table_.rbegin(); it != type_table_.rend(); ++it) {
-      if (it->index != 0) {
-        num_children[it->parent_index] += num_children[it->index] + 1;
+      const Entry* ptr = it->get();
+      if (ptr != nullptr && ptr->type_depth != 0) {
+        int parent_index = ptr->type_acenstors[ptr->type_depth - 1];
+        num_children[parent_index] += num_children[ptr->type_index] + 1;
       }
     }
 
-    for (const auto& info : type_table_) {
-      if (info.index != 0 && num_children[info.index] >= min_children_count) {
-        std::cerr << '[' << info.index << "] " << info.name
-                  << "\tparent=" << type_table_[info.parent_index].name
-                  << "\tnum_child_slots=" << info.num_slots - 1
-                  << "\tnum_children=" << num_children[info.index] << std::endl;
+    for (const auto& ptr : type_table_) {
+      if (ptr != nullptr && num_children[ptr->type_index] >= min_children_count) {
+        std::cerr << '[' << ptr->type_index << "]\t" << ptr->type_key;
+        if (ptr->type_depth != 0) {
+          int32_t parent_index = ptr->type_acenstors[ptr->type_depth - 1];
+          std::cerr << "\tparent=" << type_table_[parent_index]->type_key;
+        } else {
+          std::cerr << "\tparent=root";
+        }
+        std::cerr << "\tnum_child_slots=" << ptr->num_slots - 1
+                  << "\tnum_children=" << num_children[ptr->type_index] << std::endl;
       }
     }
   }
 
-  static TypeContext* Global() {
-    static TypeContext inst;
+  static TypeTable* Global() {
+    static TypeTable inst;
     return &inst;
   }
 
  private:
-  TypeContext() {
-    type_table_.resize(TypeIndex::kTVMFFIDynObjectBegin, TypeInfo());
-    type_table_[0].name = "runtime.Object";
+  TypeTable() {
+    type_table_.reserve(TypeIndex::kTVMFFIDynObjectBegin);
+    for (int32_t i = 0; i < TypeIndex::kTVMFFIDynObjectBegin; ++i) {
+      type_table_.emplace_back(nullptr);
+    }
+    // initialize the entry for object
+    this->GetOrAllocTypeIndex(Object::_type_key, Object::_type_index, Object::_type_depth,
+                              Object::_type_child_slots, Object::_type_child_slots_can_overflow,
+                              -1);
   }
 
   int32_t type_counter_{TypeIndex::kTVMFFIDynObjectBegin};
-  std::vector<TypeInfo> type_table_;
+  std::vector<std::unique_ptr<Entry>> type_table_;
   std::unordered_map<std::string, int32_t> type_key2index_;
 };
 
 namespace details {
 
-int32_t ObjectGetOrAllocTypeIndex(const char* type_key, int32_t static_tindex,
-                                  int32_t parent_tindex, int32_t type_child_slots,
-                                  bool type_child_slots_can_overflow) {
-  return tvm::ffi::TypeContext::Global()->GetOrAllocRuntimeTypeIndex(
-      type_key, static_tindex, parent_tindex, type_child_slots, type_child_slots_can_overflow != 0);
+int32_t ObjectGetOrAllocTypeIndex(const char* type_key, int32_t static_type_index,
+                                  int32_t type_depth, int32_t num_child_slots,
+                                  bool child_slots_can_overflow, int32_t parent_index) {
+  return tvm::ffi::TypeTable::Global()->GetOrAllocTypeIndex(type_key, static_type_index, type_depth,
+                                                            num_child_slots,
+                                                            child_slots_can_overflow, parent_index);
 }
 
-bool ObjectDerivedFrom(int32_t child_type_index, int32_t parent_type_index) {
-  return static_cast<int>(
-      tvm::ffi::TypeContext::Global()->DerivedFrom(child_type_index, parent_type_index));
+const TypeInfo* ObjectGetTypeInfo(int32_t type_index) {
+  return tvm::ffi::TypeTable::Global()->GetTypeInfo(type_index);
 }
 }  // namespace details
 }  // namespace ffi

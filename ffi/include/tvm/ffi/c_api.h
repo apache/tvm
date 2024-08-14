@@ -85,8 +85,7 @@ typedef enum {
   // [Section] Dynamic Boxed: [kTVMFFIDynObjectBegin, +oo)
   // kTVMFFIDynObject is used to indicate that the type index
   // is dynamic and needs to be looked up at runtime
-  kTVMFFIDynObject = 128,
-  kTVMFFIDynObjectBegin = 129
+  kTVMFFIDynObjectBegin = 128
 #ifdef __cplusplus
 };
 #else
@@ -141,6 +140,29 @@ typedef struct {
   int64_t num_bytes;
   const char* bytes;
 } TVMFFIByteArray;
+
+/*!
+ * \brief Runtime type information for object type checking.
+ */
+typedef struct {
+  /*!
+   *\brief The runtime type index,
+   * It can be allocated during runtime if the type is dynamic.
+   */
+  int32_t type_index;
+  /*! \brief number of parent types in the type hierachy. */
+  int32_t type_depth;
+  /*! \brief the unique type key to identify the type. */
+  const char* type_key;
+  /*! \brief Cached hash value of the type key, used for consistent structural hashing. */
+  uint64_t type_key_hash;
+  /*!
+   * \brief type_acenstors[depth] stores the type_index of the acenstors at depth level
+   * \note To keep things simple, we do not allow multiple inheritance so the
+   *       hieracy stays as a tree
+   */
+  const int32_t* type_acenstors;
+} TVMFFITypeInfo;
 
 #ifdef __cplusplus
 }  // TVM_FFI_EXTERN_C

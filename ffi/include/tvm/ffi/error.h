@@ -95,7 +95,7 @@ class Error :
     return get()->what_str.c_str();
   }
 
-  TVM_FFI_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(Error, ObjectRef, ErrorObj)
+  TVM_FFI_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(Error, ObjectRef, ErrorObj);
 };
 
 namespace details {
