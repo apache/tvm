@@ -556,14 +556,6 @@ def clml_pattern_table():
             return False
         return True
 
-    pass_context = tvm.get_global_func("transform.GetCurrentPassContext")()
-    target_version = (
-        pass_context.config["relay.ext.clml.target_version"]
-        if "relay.ext.clml.target_version" in pass_context.config
-        else 3
-    )
-    print("CLML Target Version: ", target_version)
-
     return [
         ("clml.pad_conv2d", pad_conv_pattern(), check_conv),
         ("clml.conv2d", conv_pattern(), check_conv),
