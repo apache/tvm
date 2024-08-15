@@ -111,7 +111,7 @@ def set_global_func(head_dim, dtype):
     fis_empty = tvm.get_global_func("vm.builtin.attention_kv_cache_empty")
     fdebug_get_kv = tvm.get_global_func("vm.builtin.attention_kv_cache_debug_get_kv")
 
-    target = tvm.target.Target("cuda")
+    target = tvm.target.Target.from_device(device)
     builts = []
     for tir_func in [
         _kv_cache_transpose_append(num_kv_heads, head_dim, dtype),
