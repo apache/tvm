@@ -15,7 +15,7 @@
 :: specific language governing permissions and limitations
 :: under the License.
 
-cmake --build build --config Release --target install
+cmake --build build --config Release --target install || exit /b
 
 :: Copy files into library bin so that they can be found
 cp %LIBRARY_LIB%\tvm.dll %LIBRARY_BIN%\tvm.dll
