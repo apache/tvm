@@ -129,6 +129,9 @@ struct CCLThreadLocalContext {
   void Clear() {
     if (group_comm) {
       NCCL_CALL(ncclCommDestroy(group_comm));
+      if (global_comm == group_comm) {
+        global_comm = nullptr;
+      }
       group_comm = nullptr;
     }
     if (global_comm) {
