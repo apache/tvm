@@ -4022,6 +4022,16 @@ class PyTorchOpConverter:
             attn_weight = _op.reshape(attn_weight, newshape=[-4, batch_size, -1, -2])
         return attn_weight
 
+    def tile(self, inputs, input_types):
+        data = inputs[0]
+        reps = []
+        for r in inputs[1]:
+            if isinstance(r, int):
+                reps.append(r)
+            else:
+                reps.append(int(_infer_value(r, {}).numpy()))
+        return _op.tile(data, reps)
+
     # Operator mappings
     def create_convert_map(self):
         self.convert_map = {
@@ -4302,6 +4312,7 @@ class PyTorchOpConverter:
             "aten::swapaxes": self.transpose,
             "aten::linalg_vector_norm": self.linalg_vector_norm,
             "aten::scaled_dot_product_attention": self.scaled_dot_product_attention,
+            "aten::tile": self.tile,
         }
 
     def update_convert_map(self, custom_map):
