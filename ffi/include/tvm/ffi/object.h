@@ -71,6 +71,19 @@ TVM_FFI_DLL int32_t ObjectGetOrAllocTypeIndex(const char* type_key, int32_t stat
  */
 TVM_FFI_DLL const TypeInfo* ObjectGetTypeInfo(int32_t type_index);
 #endif  // TVM_FFI_ALLOW_DYN_TYPE
+
+/*!
+ * Check if the type_index is an instance of TargetObjectType.
+ *
+ * \tparam TargetType The target object type to be checked.
+ *
+ * \param object_type_index The type index to be checked, caller
+ *        ensures that the index is already within the object index range.
+ *
+ * \return Whether the target type is true.
+ */
+template <typename TargetType>
+TVM_FFI_INLINE bool IsObjectInstance(int32_t object_type_index);
 }  // namespace details
 
 /*!
@@ -130,38 +143,7 @@ class Object {
    */
   template <typename TargetType>
   bool IsInstance() const {
-    // Everything is a subclass of object.
-    if constexpr (std::is_same<TargetType, Object>::value) return true;
-
-    if constexpr (TargetType::_type_final) {
-      // if the target type is a final type
-      // then we only need to check the equivalence.
-      return header_.type_index == TargetType::RuntimeTypeIndex();
-    }
-
-    // if target type is a non-leaf type
-    // Check if type index falls into the range of reserved slots.
-    int32_t target_type_index = TargetType::RuntimeTypeIndex();
-    int32_t begin = target_type_index;
-    // The condition will be optimized by constant-folding.
-    if constexpr (TargetType::_type_child_slots != 0) {
-      int32_t end = begin + TargetType::_type_child_slots;
-      if (header_.type_index >= begin && header_.type_index < end) return true;
-    } else {
-      if (header_.type_index == begin) return true;
-    }
-    if (!TargetType::_type_child_slots_can_overflow) return false;
-    // Invariance: parent index is always smaller than the child.
-    if (header_.type_index < target_type_index) return false;
-      // Do a runtime lookup of type information
-#if TVM_FFI_ALLOW_DYN_TYPE
-    // the function checks that the info exists
-    const TypeInfo* type_info = details::ObjectGetTypeInfo(header_.type_index);
-    return (type_info->type_depth > TargetType::_type_depth &&
-            type_info->type_acenstors[TargetType::_type_depth] == target_type_index);
-#else
-    return false;
-#endif
+    return details::IsObjectInstance<TargetType>(header_.type_index);
   }
 
   // Information about the object
@@ -551,21 +533,42 @@ inline ObjectPtr<BaseType> GetObjectPtr(ObjectType* ptr);
 
 namespace details {
 
-// auxiliary class to enable static type info table at depth
-template <int depth>
-struct TypeInfoAtDepth : public TypeInfo {
-  /*! \brief extra type acenstors fields */
-  int32_t _type_acenstors[depth];
+template <typename TargetType>
+TVM_FFI_INLINE bool IsObjectInstance(int32_t object_type_index) {
+  static_assert(std::is_base_of_v<Object, TargetType>);
+  // Everything is a subclass of object.
+  if constexpr (std::is_same<TargetType, Object>::value) return true;
 
-  TypeInfoAtDepth(const char* type_key, int32_t static_type_index) {
-    this->type_key = type_key;
-    this->type_key_hash = 0;
-    this->type_index = static_type_index;
-    this->type_depth = depth;
-    this->type_acenstors = _type_acenstors;
+  if constexpr (TargetType::_type_final) {
+    // if the target type is a final type
+    // then we only need to check the equivalence.
+    return object_type_index == TargetType::RuntimeTypeIndex();
   }
-};
 
+  // if target type is a non-leaf type
+  // Check if type index falls into the range of reserved slots.
+  int32_t target_type_index = TargetType::RuntimeTypeIndex();
+  int32_t begin = target_type_index;
+  // The condition will be optimized by constant-folding.
+  if constexpr (TargetType::_type_child_slots != 0) {
+    int32_t end = begin + TargetType::_type_child_slots;
+    if (object_type_index >= begin && object_type_index < end) return true;
+  } else {
+    if (object_type_index == begin) return true;
+  }
+  if (!TargetType::_type_child_slots_can_overflow) return false;
+  // Invariance: parent index is always smaller than the child.
+  if (object_type_index < target_type_index) return false;
+    // Do a runtime lookup of type information
+#if TVM_FFI_ALLOW_DYN_TYPE
+  // the function checks that the info exists
+  const TypeInfo* type_info = details::ObjectGetTypeInfo(object_type_index);
+  return (type_info->type_depth > TargetType::_type_depth &&
+          type_info->type_acenstors[TargetType::_type_depth] == target_type_index);
+#else
+  return false;
+#endif
+}
 /*!
  * \brief Namespace to internally manipulate object class.
  * \note These functions are only supposed to be used by internal
@@ -582,6 +585,31 @@ struct ObjectInternal {
   static TVM_FFI_INLINE ObjectPtr<T> ObjectPtrFromUnowned(Object* raw_ptr) {
     return tvm::ffi::ObjectPtr<T>(raw_ptr);
   }
+
+  template <typename T>
+  static TVM_FFI_INLINE ObjectPtr<T> ObjectPtrFromUnowned(TVMFFIObject* obj_ptr) {
+    return tvm::ffi::ObjectPtr<T>(reinterpret_cast<Object*>(obj_ptr));
+  }
+
+  // Interactions with Any system
+  static TVM_FFI_INLINE void DecRefObjectInAny(TVMFFIAny* src) {
+    reinterpret_cast<Object*>(src->v_obj)->DecRef();
+  }
+
+  static TVM_FFI_INLINE void IncRefObjectInAny(TVMFFIAny* src) {
+    reinterpret_cast<Object*>(src->v_obj)->IncRef();
+  }
+
+  static TVM_FFI_INLINE TVMFFIObject* GetTVMFFIObjectPtrFromObjectRef(const ObjectRef& src) {
+    return GetHeader(src.data_.data_);
+  }
+
+  static TVM_FFI_INLINE TVMFFIObject* MoveTVMFFIObjectPtrFromObjectRef(ObjectRef* src) {
+    Object* obj_ptr = src->data_.data_;
+    src->data_.data_ = nullptr;
+    return GetHeader(obj_ptr);
+  }
+
   // Create objectptr by moving from an existing address of object and setting its
   // address to nullptr
   template <typename T>
@@ -592,7 +620,6 @@ struct ObjectInternal {
     return ptr;
   }
 };
-
 }  // namespace details
 }  // namespace ffi
 }  // namespace tvm
