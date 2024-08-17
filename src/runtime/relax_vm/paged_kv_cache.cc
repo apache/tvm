@@ -1727,7 +1727,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
                                                     qkv_data->dtype);
     // Part 2. Split fused qkv and apply rotary embedding to q/k data.
     f_split_rotary_(qkv_data, q_rope_position_map_view_, q_data, k_data, v_data,
-                    rope_mode_ == RoPEMode::kNormal);
+                    static_cast<int>(rope_mode_ == RoPEMode::kNormal));
 
     // Part 3. Append k/v data to kv-cache if flag "append_before_attn" is set.
     if (append_before_attn_) {
@@ -2202,7 +2202,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     }
     double coalesce_ratio = 1.0 * page_counter_uncoalesced / page_counter_coalesced;
     // Do not coalesce and use batch decode kernel when coalesce ratio is small.
-    bool use_decode_kernel = is_decode_request_ && coalesce_ratio < 1.1;
+    bool use_decode_kernel = is_decode_request_ && coalesce_ratio < 32;
     return {use_decode_kernel || !enable_coalesce ? uncoalesced_block_ids : coalesced_block_ids,
             use_decode_kernel};
   }
