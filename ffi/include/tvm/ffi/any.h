@@ -55,6 +55,10 @@ class AnyView {
   void swap(AnyView& other) {  // NOLINT(*)
     std::swap(data_, other.data_);
   }
+  /*! \return the internal type index */
+  int32_t type_index() const {
+    return data_.type_index;
+  }
   // default constructors
   AnyView() { data_.type_index = TypeIndex::kTVMFFINone; }
   ~AnyView() = default;
@@ -88,7 +92,7 @@ class AnyView {
   operator T() const {
     std::optional<T> opt = TypeTraits<T>::TryConvertFromAnyView(&data_);
     if (opt.has_value()) {
-      return std::move(opt.value());
+      return std::move(*opt);
     }
     TVM_FFI_THROW(TypeError) << "Cannot convert from type `" << TypeIndex2TypeKey(data_.type_index)
                              << "` to `" << TypeTraits<T>::TypeStr() << "`";
@@ -109,9 +113,6 @@ class AnyView {
     return view;
   }
 };
-
-// layout assert to ensure we can freely cast between the two types
-static_assert(sizeof(AnyView) == sizeof(TVMFFIAny));
 
 namespace details {
 /*!
@@ -155,7 +156,10 @@ class Any {
   void swap(Any& other) {  // NOLINT(*)
     std::swap(data_, other.data_);
   }
-
+  /*! \return the internal type index */
+  int32_t type_index() const {
+    return data_.type_index;
+  }
   // default constructors
   Any() { data_.type_index = TypeIndex::kTVMFFINone; }
   ~Any() { this->reset(); }
@@ -205,12 +209,26 @@ class Any {
   operator T() const {
     std::optional<T> opt = TypeTraits<T>::TryConvertFromAnyView(&data_);
     if (opt.has_value()) {
-      return std::move(opt.value());
+      return std::move(*opt);
     }
     TVM_FFI_THROW(TypeError) << "Cannot convert from type `" << TypeIndex2TypeKey(data_.type_index)
                              << "` to `" << TypeTraits<T>::TypeStr() << "`";
   }
+
+  // FFI related operations
+  /*!
+   * Move the current data to FFI any
+   * \parma result the output to nmove to
+   */
+  void MoveToTVMFFIAny(TVMFFIAny* result) {
+    *result = data_;
+    data_.type_index = TypeIndex::kTVMFFINone;
+  }
 };
+
+// layout assert to ensure we can freely cast between the two types
+static_assert(sizeof(AnyView) == sizeof(TVMFFIAny));
+static_assert(sizeof(Any) == sizeof(TVMFFIAny));
 
 }  // namespace ffi
 }  // namespace tvm

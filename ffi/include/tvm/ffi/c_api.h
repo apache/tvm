@@ -164,6 +164,22 @@ typedef struct {
   const int32_t* type_acenstors;
 } TVMFFITypeInfo;
 
+/*!
+ * \brief Type that defines C-style safe call convention
+ *
+ * Safe call explicitly catches exception on function boundary.
+ *
+ * \param func The function handle
+ * \param num_args Number if input arguments
+ * \param args The input arguments to the call.
+ * \param result Store output result
+ *
+ * \return The call return 0 if call is successful.
+ *  It returns non-zero value if there is an error.
+ *  When error happens, the exception object will be stored in result.
+ */
+typedef int (*TVMFFISafeCallType)(void* func, int32_t num_args, const TVMFFIAny* args, TVMFFIAny* result);
+
 #ifdef __cplusplus
 }  // TVM_FFI_EXTERN_C
 #endif

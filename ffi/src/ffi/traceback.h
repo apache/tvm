@@ -57,6 +57,12 @@ inline bool ShouldExcludeFrame(const char* filename, const char* symbol) {
     if (strstr(filename, "include/tvm/ffi/error.h")) {
       return true;
     }
+    if (strstr(filename, "include/tvm/ffi/function_details.h")) {
+      return true;
+    }
+    if (strstr(filename, "include/tvm/ffi/function.h")) {
+      return true;
+    }
     if (strstr(filename, "src/ffi/traceback.cc")) {
       return true;
     }

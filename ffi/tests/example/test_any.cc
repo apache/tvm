@@ -122,7 +122,6 @@ TEST(Any, Object) {
         } catch (const Error& error) {
           EXPECT_EQ(error->kind, "TypeError");
           std::string what = error.what();
-          std::cout << what;
           EXPECT_NE(what.find("Cannot convert from type `test.Int` to `test.Float`"),
                     std::string::npos);
           throw;
