@@ -17,8 +17,8 @@
  * under the License.
  */
 /*!
- * \file tvm/ffi/internal_utils.h
- * \brief Utility functions and macros for internal use
+ * \file tvm/ffi/base_details.h
+ * \brief Internal use utilities
  */
 #ifndef TVM_FFI_INTERNAL_UTILS_H_
 #define TVM_FFI_INTERNAL_UTILS_H_
@@ -26,6 +26,7 @@
 #include <tvm/ffi/c_api.h>
 
 #include <cstddef>
+#include <utility>
 
 #if defined(_MSC_VER)
 #define TVM_FFI_INLINE __forceinline
@@ -110,6 +111,27 @@ TVM_FFI_INLINE int32_t AtomicLoadRelaxed(const int32_t* ptr) {
   return __atomic_load_n(raw_ptr, __ATOMIC_RELAXED);
 #endif
 }
+
+// for each iterator
+template <bool stop, std::size_t I, typename F>
+struct for_each_dispatcher {
+  template <typename T, typename... Args>
+  static void run(const F& f, T&& value, Args&&... args) {  // NOLINT(*)
+    f(I, std::forward<T>(value));
+    for_each_dispatcher<sizeof...(Args) == 0, (I + 1), F>::run(f, std::forward<Args>(args)...);
+  }
+};
+
+template <std::size_t I, typename F>
+struct for_each_dispatcher<true, I, F> {
+  static void run(const F&) {}  // NOLINT(*)
+};
+
+template <typename F, typename... Args>
+void for_each(const F& f, Args&&... args) {  // NOLINT(*)
+  for_each_dispatcher<sizeof...(Args) == 0, 0, F>::run(f, std::forward<Args>(args)...);
+}
+
 }  // namespace details
 }  // namespace ffi
 }  // namespace tvm

@@ -52,6 +52,13 @@ struct TypeTraits {
   static constexpr bool enabled = false;
 };
 
+/*!
+ * \brief TypeTraits that removes const and reference keywords.
+ * \tparam T the original type
+ */
+template <typename T>
+using TypeTraitsNoCR = TypeTraits<std::remove_const_t<std::remove_reference_t<T>>>;
+
 // Integer POD values
 template <typename Int>
 struct TypeTraits<Int, std::enable_if_t<std::is_integral_v<Int>>> {
@@ -153,7 +160,7 @@ inline std::string TypeIndex2TypeKey(int32_t type_index) {
     case TypeIndex::kTVMFFIInt:
       return "int";
     case TypeIndex::kTVMFFIFloat:
-      return "double";
+      return "float";
     case TypeIndex::kTVMFFIOpaquePtr:
       return "void*";
     case TypeIndex::kTVMFFIDataType:
