@@ -120,7 +120,12 @@ KernelLaunchFrame KernelLaunch(Array<PrimExpr> grid_size, PrimExpr extent) {
   if (grid_size.size() > 0) n->frames.push_back(LaunchThread("blockIdx.x", grid_size[0]));
   if (grid_size.size() > 1) n->frames.push_back(LaunchThread("blockIdx.y", grid_size[1]));
   if (grid_size.size() > 2) n->frames.push_back(LaunchThread("blockIdx.z", grid_size[2]));
-  n->frames.push_back(LaunchThread("threadIdx.x", extent));
+  if (extent.defined() && extent.as<IntImmNode>()->value > 1){
+    n->frames.push_back(LaunchThread("threadIdx.x", extent));
+  }else{
+    n->frames.push_back(Block(""));
+  }
+    
   n->frames.push_back(Block(""));
   return KernelLaunchFrame(n);
 }

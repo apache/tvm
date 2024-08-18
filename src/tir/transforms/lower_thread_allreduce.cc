@@ -117,7 +117,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {
     if (auto it = load_remap_.find(op->buffer->data.get()); it != load_remap_.end()) {
       for (const auto& index : op->indices) {
-        ICHECK(is_zero(index));
+        ICHECK(is_zero(index)) << "The index of buffer "<< op->buffer <<" is " << index;
       }
       return it->second;
     }

@@ -110,6 +110,7 @@ def lower(func):
     mod = tir.transform.AnnotateEntryFunc()(mod)
     mod = tir.transform.ThreadSync("shared")(mod)
     mod = tir.transform.ThreadSync("shared.dyn")(mod)
+    mod = tir.transform.LowerThreadAllreduce()(mod)
     mod = tir.transform.MergeSharedMemoryAllocations()(mod)
     mod = tl.transform.LowerHopperIntrin()(mod)
     mod = tir.transform.InjectPTXAsyncCopy()(mod)

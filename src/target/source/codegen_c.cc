@@ -214,7 +214,9 @@ std::string CodeGenC::GetBufferRef(DataType t, const BufferNode* buffer, PrimExp
   if (alloc_storage_scope_.count(buffer_var)) {
     scope = alloc_storage_scope_.at(buffer_var);
   }
-  bool is_vol = IsVolatile(buffer_var);
+  // bool is_vol = IsVolatile(buffer_var);
+  // always false for tl cutlass backend.
+  bool is_vol = false;
 
   auto ptr_cast = [this, is_vol, scope](DataType pointed_to) {
     std::ostringstream ptr_os;

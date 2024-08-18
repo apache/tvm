@@ -88,6 +88,7 @@ def Kernel(*blocks: List[tir.PrimExpr], threads: int = 128):
         A list of extent, can be 1-3 dimension, representing gridDim.(x|y|z)
     threads : int
         A integer representing blockDim.x
+        if the value is -1, we skip the threadIdx.x binding.
     Returns
     -------
     res : Tuple[frame.LaunchThreadFrame]
