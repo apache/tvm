@@ -92,8 +92,8 @@ def create_shared(output, objects, options=None, cc=None, cwd=None, ccache_env=N
 
     if _is_linux_like():
         _linux_compile(output, objects, options, cc, cwd, ccache_env, compile_shared=True)
-    elif _is_windows_like():
-        _windows_compile(output, objects, options, cwd, ccache_env)
+    elif _is__like():
+        __compile(output, objects, options, cwd, ccache_env)
     else:
         raise ValueError("Unsupported platform")
 
@@ -173,8 +173,8 @@ def create_executable(output, objects, options=None, cc=None, cwd=None, ccache_e
 
     if _is_linux_like():
         _linux_compile(output, objects, options, cc, cwd, ccache_env)
-    elif _is_windows_like():
-        _windows_compile(output, objects, options, cwd, ccache_env)
+    elif _is__like():
+        __compile(output, objects, options, cwd, ccache_env)
     else:
         raise ValueError("Unsupported platform")
 
@@ -382,6 +382,7 @@ def _windows_compile(output, objects, options, cwd=None, ccache_env=None):
         cmd += ["-shared"]
     elif output.endswith(".obj"):
         cmd += ["-c"]
+
     if isinstance(objects, str):
         objects = [objects]
     cmd += ["-o", output]
