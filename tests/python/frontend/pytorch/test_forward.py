@@ -5658,6 +5658,30 @@ def test_parameterlist():
     verify_model(ParamListModel().float().eval(), input_data=input_data)
 
 
+@tvm.testing.uses_gpu
+def test_forward_tile():
+    """test_forward_repeat"""
+    torch.set_grad_enabled(False)
+    input_shape = [1, 3]
+
+    class Tile1(Module):
+        def forward(self, *args):
+            return args[0].tile(1, 1)
+
+    class Tile2(Module):
+        def forward(self, *args):
+            return args[0].tile(4, 2)
+
+    class Tile3(Module):
+        def forward(self, *args):
+            return args[0].tile(4, 2, 1)
+
+    input_data = torch.rand(input_shape).float()
+    verify_model(Tile1().float().eval(), input_data=input_data)
+    verify_model(Tile2().float().eval(), input_data=input_data)
+    verify_model(Tile3().float().eval(), input_data=input_data)
+
+
 class TestSetSpan:
     """test structural equal between translated / hand-crafted relay IR with span tagged."""
 
