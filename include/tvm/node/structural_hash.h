@@ -27,7 +27,9 @@
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/ndarray.h>
 
+#include <cmath>
 #include <functional>
+#include <limits>
 #include <string>
 
 namespace tvm {
@@ -52,7 +54,16 @@ class BaseValueHash {
 
  public:
   uint64_t operator()(const float& key) const { return Reinterpret<float, uint32_t>(key); }
-  uint64_t operator()(const double& key) const { return Reinterpret<double, uint64_t>(key); }
+  uint64_t operator()(const double& key) const {
+    if (std::isnan(key)) {
+      // The IEEE format defines more than one bit-pattern that
+      // represents NaN.  For the purpose of comparing IR
+      // representations, all NaN values are considered equivalent.
+      return Reinterpret<double, uint64_t>(std::numeric_limits<double>::quiet_NaN());
+    } else {
+      return Reinterpret<double, uint64_t>(key);
+    }
+  }
   uint64_t operator()(const int64_t& key) const { return Reinterpret<int64_t, uint64_t>(key); }
   uint64_t operator()(const uint64_t& key) const { return key; }
   uint64_t operator()(const int& key) const { return Reinterpret<int, uint32_t>(key); }
