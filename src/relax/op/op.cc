@@ -242,15 +242,157 @@ TVM_REGISTER_GLOBAL("relax.op.call_inplace_packed").set_body_typed(MakeCallInpla
 
 // call_tir
 
+/* If possible, infer a legal value of `arg_sinfo`
+ *
+ * The `R.call_tir` operator and its variants accept an `arg_sinfo`
+ * parameter, which specifies the shape of the tensor or tensors
+ * returned by a PrimFunc.  This output shape must be compatible with
+ * the shape defined by the PrimFunc's signature.
+ *
+ * For dynamic shapes, it is not always possible to infer the output
+ * of a TIR PrimFunc from its inputs.  For example, a PrimFunc that
+ * accepts input buffer `T.Buffer([16], "float32")` and output buffer
+ * `T.Buffer([M, N], "float32")` infers the values of `M` and `N` from
+ * the shape of the provided output buffer.
+ *
+ * If the arguments provided are not compatible with the PrimFunc's
+ * signature, an error will be raised.  If the arguments are
+ * compatible with the PrimFunc's signature, but are not sufficient to
+ * determine the output's StructInfo, then `NullOpt` will be returned.
+ *
+ * \param func_sinfo The StructInfo of the TIR callee.
+ * \param arg_sinfo The StructInfo of the argument tuple.
+ * \param packed_ints_sinfo The StructInfo of the ShapeTuple argument,
+ *     if present.
+ *
+ * \return The `arg_sinfo`, if it can be inferred from the arguments.
+ *     Otherwise, NullOpt.
+ */
+static Optional<StructInfo> InferCallTIROutputStructInfoFromArguments(
+    StructInfo func_sinfo, StructInfo arg_sinfo, Optional<StructInfo> packed_ints_sinfo) {
+  auto opt_callee_sinfo = func_sinfo.as<FuncStructInfo>();
+  CHECK(opt_callee_sinfo) << "TypeError: "
+                          << "The first argument to `R.call_tir` must be a function, "
+                          << "but instead received argument of type " << func_sinfo;
+  auto callee_sinfo = opt_callee_sinfo.value();
+
+  CHECK(callee_sinfo->params.defined())
+      << "ValueError: "
+      << "The first argument to `R.call_tir` must be a function "
+      << "with known argument types.  "
+      << "However, the first argument was of type " << callee_sinfo;
+  auto callee_params = callee_sinfo->params.value();
+
+  const TupleStructInfoNode* args = arg_sinfo.as<TupleStructInfoNode>();
+  CHECK(args) << "TypeError: "
+              << "The second argument to `R.call_tir` must be a tuple, "
+              << "but instead received expression of type " << arg_sinfo;
+
+  // R.call_tir expects the PrimFunc to have three groups of arguments.
+  //
+  // 1. Input arguments that are explicitly provided as Relax arguments.
+  // 2. Output tensor arguments.
+  // 3. Shape arguments, represented as `T.int64` in the PrimFunc, and
+  //    as an optional ShapeExpr argument in the `relax::Call` node.
+  //
+  // In order to determine the return type of `R.call_tir`, we must
+  // identify the PrimFunc arguments that will be in group (2).
+  size_t num_input_arguments = args->fields.size();
+  size_t num_trailing_int_arguments = 0;
+  const ShapeStructInfoNode* packed_tuple_sinfo = nullptr;
+  if (packed_ints_sinfo) {
+    auto packed_sinfo = packed_ints_sinfo.value();
+    packed_tuple_sinfo = packed_sinfo.as<ShapeStructInfoNode>();
+    CHECK(packed_tuple_sinfo && !packed_tuple_sinfo->IsUnknownNdim())
+        << "TypeError: "
+        << "The third argument to `R.call_tir`, if present, "
+        << "must be a ShapeTuple with known dimensionality.  "
+        << "However, the argument received was of type " << packed_sinfo;
+    num_trailing_int_arguments = packed_tuple_sinfo->ndim;
+  } else {
+    num_trailing_int_arguments = 0;
+  }
+
+  CHECK_LE(num_input_arguments + num_trailing_int_arguments, callee_params.size())
+      << "ValueError: "
+      << "R.call_tir attempted to call a function using " << num_input_arguments
+      << " input arguments and " << num_trailing_int_arguments << " trailing integer arguments.  "
+      << "However, the callee only accepts " << callee_params.size() << " arguments in total.";
+
+  // At this point, the return types are known.  However, the shapes
+  // in `callee_params` may contain dynamic shape parameters that are
+  // not present in the caller's scope.  The `DeriveCallRetStructInfo`
+  // utility can infer the value of dynamic parameters in
+  // `FuncStructInfoNode::ret` based on definitions in
+  // `FuncStructInfoNode::params`, inferring the correct values in the
+  // caller's scope.
+  //
+  // Since the callee of `R.call_tir` is provided with output
+  // arguments, where `DeriveCallRetStructInfo` requires a callee that
+  // produces its own outputs, a dummy function signature and
+  // arguments are used.
+
+  auto dummy_callee_sinfo = [&]() -> FuncStructInfo {
+    Array<StructInfo> dummy_params(callee_params.begin(),
+                                   callee_params.begin() + num_input_arguments);
+
+    for (size_t i = callee_params.size() - num_trailing_int_arguments; i < callee_params.size();
+         i++) {
+      dummy_params.push_back(callee_params[i]);
+    }
+
+    Array<StructInfo> dummy_ret(callee_params.begin() + num_input_arguments,
+                                callee_params.end() - num_trailing_int_arguments);
+    auto dummy_out_sinfo = [&]() -> StructInfo {
+      if (dummy_ret.size() == 1) {
+        return dummy_ret[0];
+      } else {
+        return TupleStructInfo(dummy_ret);
+      }
+    }();
+
+    return FuncStructInfo(dummy_params, dummy_out_sinfo);
+  }();
+
+  auto dummy_args = [&]() -> Array<Expr> {
+    Array<Expr> dummy_args = args->fields.Map(
+        [](const StructInfo& sinfo) -> Expr { return Var("dummy_leading_arg", sinfo); });
+
+    for (size_t i = 0; i < num_trailing_int_arguments; i++) {
+      ICHECK(packed_tuple_sinfo);
+      PrimStructInfo dummy_arg_sinfo = [&]() {
+        if (packed_tuple_sinfo->values) {
+          return PrimStructInfo(packed_tuple_sinfo->values.value()[i]);
+        } else {
+          return PrimStructInfo(DataType::Int(64));
+        }
+      }();
+      dummy_args.push_back(Var("dummy_trailing_arg", dummy_arg_sinfo));
+    }
+
+    return dummy_args;
+  }();
+
+  auto derived_ret_sinfo = DeriveCallRetStructInfo(
+      dummy_callee_sinfo, Call(Var("dummy_callee", dummy_callee_sinfo), dummy_args),
+      BlockBuilder::Create(NullOpt));
+
+  return derived_ret_sinfo;
+}
+
 StructInfo InferStructInfoCallTIR(const Call& call, const BlockBuilder& ctx) {
   if (call->sinfo_args.size() != 1) {
     ctx->ReportFatal(Diagnostic::Error(call)
                      << "sinfo_args should have exactly 1 output struct info.");
   }
   CHECK(call->args[0]->IsInstance<GlobalVarNode>())
-      << "call_tir expects the first argument to be a GlobalVar referring to a TIR PrimFunc. "
-      << "However, gets " << call->args[0];
-  return call->sinfo_args[0];
+      << "R.call_tir expects the first argument to be a GlobalVar referring to a TIR PrimFunc. "
+      << "However, the argument " << call->args[0] << " instead has type "
+      << call->args[0]->GetTypeKey();
+
+  StructInfo explicit_sinfo = call->sinfo_args[0];
+
+  return explicit_sinfo;
 }
 
 Expr NormalizeCallTIR(const BlockBuilder& ctx, Call call) {
@@ -264,22 +406,50 @@ Expr NormalizeCallTIR(const BlockBuilder& ctx, Call call) {
       << "or three arguments [callee, arg_tuple, tir_args], "
       << "but " << call << " has " << call->args.size() << " arguments.";
 
-  Expr arg_expr = call->args[1];
+  auto callee = call->args[0];
+  CHECK(callee->struct_info_.as<FuncStructInfoNode>())
+      << "Operation " << call->op << " expects the first argument to be a TIR callee.  "
+      << "However, the first argument " << callee << " has struct info " << callee->struct_info_;
 
-  CHECK(arg_expr->struct_info_.as<TupleStructInfoNode>())
+  Expr arg_tuple = call->args[1];
+
+  CHECK(arg_tuple->struct_info_.as<TupleStructInfoNode>())
       << "Operation " << call->op << " expects the second argument to be a tuple of relax Expr.  "
-      << "However, the second argument " << arg_expr << " has struct info "
-      << arg_expr->struct_info_ << ".";
+      << "However, the second argument " << arg_tuple << " has struct info "
+      << arg_tuple->struct_info_ << ".";
 
-  if (arg_expr.as<TupleNode>()) {
-    return std::move(call);
-  }
-
-  CHECK(arg_expr.as<VarNode>())
+  CHECK(arg_tuple.as<TupleNode>() || arg_tuple.as<VarNode>())
       << "Operation " << call->op << " must hold its arguments as an in-line tuple.  "
-      << "However, " << call << " has arguments " << arg_expr
+      << "However, " << call << " has arguments " << arg_tuple
       << ", which is neither an in-line tuple, "
       << "nor a variable binding that may be normalized to an in-line tuple.";
+
+  auto packed_int_sinfo = [&]() -> Optional<StructInfo> {
+    if (call->args.size() <= 2) {
+      return NullOpt;
+    }
+
+    Expr packed_ints = call->args[2];
+    CHECK(packed_ints->struct_info_.as<ShapeStructInfoNode>())
+        << "Operation " << call->op << " expects the optional third argument, "
+        << "if present, to be a ShapeTuple.  "
+        << "However, the third argument " << packed_ints << " has struct info "
+        << packed_ints->struct_info_;
+    return GetStructInfo(packed_ints);
+  }();
+
+  CHECK_EQ(call->sinfo_args.size(), 1)
+      << "R.call_tir should have exactly one `sinfo_args` parameter, "
+      << "which defines the output of the PrimFunc.";
+  StructInfo explicit_sinfo = call->sinfo_args[0];
+  if (auto inferred_sinfo = InferCallTIROutputStructInfoFromArguments(
+          GetStructInfo(callee), GetStructInfo(arg_tuple), packed_int_sinfo)) {
+    CHECK(IsBaseOf(inferred_sinfo.value(), explicit_sinfo))
+        << "TypeError: "
+        << "The `out_sinfo` argument for R.call_tir must be compatible with the PrimFunc.  "
+        << "However, the PrimFunc's signature implies that the output should be " << inferred_sinfo
+        << ", but the `out_sinfo` argument was " << explicit_sinfo;
+  }
 
   auto unwrap_binding = [&ctx](Expr expr) -> Optional<Expr> {
     if (auto var = expr.as<Var>()) {
@@ -290,14 +460,20 @@ Expr NormalizeCallTIR(const BlockBuilder& ctx, Call call) {
     return NullOpt;
   };
 
-  while (auto unwrapped = unwrap_binding(arg_expr)) {
-    arg_expr = unwrapped.value();
-  }
+  Tuple new_arg_tuple = [&]() {
+    // No replacement required.  The argument tuple is already
+    // provided as an in-line tuple.
+    if (auto opt = arg_tuple.as<Tuple>()) {
+      return opt.value();
+    }
 
-  Tuple new_arg_expr = [&]() {
+    while (auto unwrapped = unwrap_binding(arg_tuple)) {
+      arg_tuple = unwrapped.value();
+    }
+
     // Preferred replacement.  The argument tuple is provided as a
     // variable, but we know the value bound to that variable.
-    if (auto opt = arg_expr.as<Tuple>()) {
+    if (auto opt = arg_tuple.as<Tuple>()) {
       return opt.value();
     }
 
@@ -306,16 +482,18 @@ Expr NormalizeCallTIR(const BlockBuilder& ctx, Call call) {
     // example, if a relax function accepted a tuple as an parameter,
     // then provided that same tuple as an argument to call_tir.
     Array<Expr> tuple_elements;
-    size_t num_fields = Downcast<TupleStructInfo>(arg_expr->struct_info_)->fields.size();
+    size_t num_fields = Downcast<TupleStructInfo>(arg_tuple->struct_info_)->fields.size();
     for (size_t i = 0; i < num_fields; i++) {
-      tuple_elements.push_back(TupleGetItem(arg_expr, i));
+      tuple_elements.push_back(TupleGetItem(arg_tuple, i));
     }
     return Tuple(tuple_elements);
   }();
 
-  auto new_args = call->args;
-  new_args.Set(1, new_arg_expr);
-  call.CopyOnWrite()->args = new_args;
+  if (!new_arg_tuple.same_as(arg_tuple)) {
+    auto new_args = call->args;
+    new_args.Set(1, new_arg_tuple);
+    call.CopyOnWrite()->args = new_args;
+  }
 
   return std::move(call);
 }
