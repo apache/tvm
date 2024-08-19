@@ -47,6 +47,7 @@ from .transform import (
     FuseTIR,
     FusionPattern,
     Gradient,
+    InjectDebugCallback,
     InlinePrivateFunctions,
     KillAfterLastUse,
     LambdaLift,
