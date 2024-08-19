@@ -69,25 +69,34 @@ def test_memory_usage(target, dev, dtype):
     assert dev.available_global_memory == available_memory_before
 
 
-def test_fp16_conversion():
+@pytest.mark.parametrize("src_dst", [("float32", "float16"), ("float16", "float32")])
+@tvm.testing.parametrize_targets("llvm", "llvm -opt-level=0")
+def test_fp16_conversion(src_dst, target, dev):
+    src, dst = src_dst
     n = 100
 
-    for src, dst in [("float32", "float16"), ("float16", "float32")]:
-        A = te.placeholder((n,), dtype=src)
-        B = te.compute((n,), lambda i: A[i].astype(dst))
+    A = te.placeholder((n,), dtype=src)
+    B = te.compute((n,), lambda i: A[i].astype(dst))
 
-        s = te.create_schedule([B.op])
-        func = tvm.build(s, [A, B], "llvm")
+    s = te.create_schedule([B.op])
 
-        x_tvm = tvm.nd.array(100 * np.random.randn(n).astype(src) - 50)
-        y_tvm = tvm.nd.array(100 * np.random.randn(n).astype(dst) - 50)
+    # DEBUG PRINT, REMOVE BEFORE MERGE
+    tvm.lower(s, [A, B]).show()
 
-        func(x_tvm, y_tvm)
+    func = tvm.build(s, [A, B], target)
 
-        expected = x_tvm.numpy().astype(dst)
-        real = y_tvm.numpy()
+    # DEBUG PRINT, REMOVE BEFORE MERGE
+    print(func.get_source(), flush=True)
 
-        tvm.testing.assert_allclose(expected, real)
+    x_tvm = tvm.nd.array(100 * np.random.randn(n).astype(src) - 50, dev)
+    y_tvm = tvm.nd.array(100 * np.random.randn(n).astype(dst) - 50, dev)
+
+    func(x_tvm, y_tvm)
+
+    expected = x_tvm.numpy().astype(dst)
+    real = y_tvm.numpy()
+
+    tvm.testing.assert_allclose(expected, real)
 
 
 def test_dtype():
