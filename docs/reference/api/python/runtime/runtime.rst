@@ -15,36 +15,9 @@
     specific language governing permissions and limitations
     under the License.
 
-.. _api-python-tir:
-
-tvm.tir
--------
-.. automodule:: tvm.tir
+tvm.runtime
+-----------
+.. automodule:: tvm.runtime
    :members:
    :imported-members:
-   :exclude-members: PrimExpr, const
-   :autosummary:
-
-
-tvm.tir.transform
------------------
-.. automodule:: tvm.tir.transform
-   :members:
-   :imported-members:
-   :autosummary:
-
-
-tvm.tir.analysis
-----------------
-.. automodule:: tvm.tir.analysis
-   :members:
-   :imported-members:
-   :noindex: Buffer, Stmt
-   :autosummary:
-
-
-tvm.tir.stmt_functor
---------------------
-.. automodule:: tvm.tir.stmt_functor
-   :members:
-   :autosummary:
+   :exclude-members: NDArray
