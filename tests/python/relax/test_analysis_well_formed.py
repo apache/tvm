@@ -708,7 +708,7 @@ def test_call_tir_with_matching_arguments():
     @I.ir_module
     class Module:
         @R.function
-        def main(A: R.Tensor([16], "float16")) -> R.Prim("bool"):
+        def main(A: R.Tensor([16], "float16")):
             B = R.call_tir(Module.add_one, A, out_sinfo=R.Tensor([16], "float16"))
             return B
 
@@ -733,7 +733,7 @@ def test_call_tir_input_ndim():
     @I.ir_module(check_well_formed=False)
     class Module:
         @R.function
-        def main(A: R.Tensor([4, 4], "float16")) -> R.Prim("bool"):
+        def main(A: R.Tensor([4, 4], "float16")):
             B = R.call_tir(Module.add_one, A, out_sinfo=R.Tensor([16], "float16"))
             return B
 
@@ -757,7 +757,7 @@ def test_call_tir_output_ndim():
     @I.ir_module(check_well_formed=False)
     class Module:
         @R.function
-        def main(A: R.Tensor([16], "float16")) -> R.Prim("bool"):
+        def main(A: R.Tensor([16], "float16")):
             B = R.call_tir(Module.add_one, A, out_sinfo=R.Tensor([4, 4], "float16"))
             return B
 
@@ -782,7 +782,7 @@ def test_call_tir_input_shape():
     @I.ir_module(check_well_formed=False)
     class Module:
         @R.function
-        def main(A: R.Tensor([32], "float16")) -> R.Prim("bool"):
+        def main(A: R.Tensor([32], "float16")):
             B = R.call_tir(Module.add_one, A, out_sinfo=R.Tensor([16], "float16"))
             return B
 
@@ -806,7 +806,7 @@ def test_call_tir_output_shape():
     @I.ir_module(check_well_formed=False)
     class Module:
         @R.function
-        def main(A: R.Tensor([16], "float16")) -> R.Prim("bool"):
+        def main(A: R.Tensor([16], "float16")):
             B = R.call_tir(Module.add_one, A, out_sinfo=R.Tensor([32], "float16"))
             return B
 
@@ -832,7 +832,7 @@ def test_call_tir_input_dtype():
     @I.ir_module(check_well_formed=False)
     class Module:
         @R.function
-        def main(A: R.Tensor([16], "float32")) -> R.Prim("bool"):
+        def main(A: R.Tensor([16], "float32")):
             B = R.call_tir(Module.add_one, A, out_sinfo=R.Tensor([16], "float16"))
             return B
 
@@ -858,7 +858,7 @@ def test_call_tir_output_dtype():
     @I.ir_module(check_well_formed=False)
     class Module:
         @R.function
-        def main(A: R.Tensor([16], "float16")) -> R.Prim("bool"):
+        def main(A: R.Tensor([16], "float16")):
             B = R.call_tir(Module.add_one, A, out_sinfo=R.Tensor([16], "float32"))
             return B
 
@@ -887,7 +887,7 @@ def test_call_tir_with_correct_dynamic_output_shape():
     @I.ir_module
     class Module:
         @R.function
-        def main(A: R.Tensor([16], "float16")) -> R.Prim("bool"):
+        def main(A: R.Tensor([16], "float16")):
             B = R.call_tir(Module.reshape, A, out_sinfo=R.Tensor([2, 8], "float16"))
             return B
 
@@ -920,7 +920,7 @@ def test_call_tir_with_incorrect_dynamic_output_shape():
     @I.ir_module(check_well_formed=False)
     class Module:
         @R.function
-        def main(A: R.Tensor([16], "float16")) -> R.Prim("bool"):
+        def main(A: R.Tensor([16], "float16")):
             B = R.call_tir(Module.reshape, A, out_sinfo=R.Tensor([16, 16], "float16"))
             return B
 
@@ -955,7 +955,7 @@ def test_call_tir_incorrect_dimensionality_of_output_shape():
     @I.ir_module(check_well_formed=False)
     class Module:
         @R.function
-        def main(A: R.Tensor([16], "float16")) -> R.Prim("bool"):
+        def main(A: R.Tensor([16], "float16")):
             B = R.call_tir(Module.reshape, A, out_sinfo=R.Tensor([2, 4, 2], "float16"))
             return B
 
@@ -993,7 +993,7 @@ def test_call_tir_output_shape_with_mixed_static_and_dynamic():
     @I.ir_module(check_well_formed=False)
     class Module:
         @R.function
-        def main(A: R.Tensor([256], "float16")) -> R.Prim("bool"):
+        def main(A: R.Tensor([256], "float16")):
             B = R.call_tir(Module.reshape, A, out_sinfo=R.Tensor([8, 16, 2], "float16"))
             return B
 
@@ -1025,7 +1025,7 @@ def test_call_tir_with_correct_inferred_dynamic_output_shape():
     @I.ir_module
     class Module:
         @R.function
-        def main(A: R.Tensor([8, 4], "float16")) -> R.Prim("bool"):
+        def main(A: R.Tensor([8, 4], "float16")):
             B = R.call_tir(Module.flatten, A, out_sinfo=R.Tensor([32], "float16"))
             return B
 
@@ -1063,7 +1063,7 @@ def test_call_tir_with_incorrect_inferred_dynamic_output_shape():
     @I.ir_module(check_well_formed=False)
     class Module:
         @R.function
-        def main(A: R.Tensor([8, 4], "float16")) -> R.Prim("bool"):
+        def main(A: R.Tensor([8, 4], "float16")):
             B = R.call_tir(Module.flatten, A, out_sinfo=R.Tensor([64], "float16"))
             return B
 
@@ -1080,6 +1080,45 @@ def test_call_tir_with_incorrect_inferred_dynamic_output_shape():
                     B[vi] = A[vi // N, vi % N]
 
     assert not rx.analysis.well_formed(Module)
+
+
+def test_call_tir_with_dtensor_arguments():
+    """R.call_tir and R.dist.call_tir share the same operation
+
+    Both `R.call_tir` and `R.dist.call_tir` produce the same
+    "relax.call_tir" operation, differing only in the StructInfo of
+    their arguments.  Normalization of "relax.call_tir" must handle
+    `R.DTensor` arguments.
+
+    """
+
+    # from tvm.script.parser import relax as R
+
+    @I.ir_module
+    class Module:
+        I.module_attrs({"device_num": 4})
+        I.module_global_infos({"mesh": [R.dist.device_mesh([4], I.Range(0, 4))]})
+
+        @R.function
+        def main(A: R.dist.DTensor([8, 4], "float16", "mesh[0]", "S[0]")):
+            B = R.dist.call_tir(
+                Module.flatten, A, out_sinfo=R.dist.DTensor([64], "float16", "mesh[0]", "S[0]")
+            )
+            return B
+
+        @T.prim_func
+        def flatten(A_handle: T.handle, B_handle: T.handle):
+            M = T.int64()
+            N = T.int64()
+            A = T.match_buffer(A_handle, [M, N], dtype="float16")
+            B = T.match_buffer(B_handle, [M * N], dtype="float16")
+
+            for i in T.grid(M * N):
+                with T.block("compute"):
+                    vi = T.axis.remap("S", [i])
+                    B[vi] = A[vi // N, vi % N]
+
+    assert rx.analysis.well_formed(Module)
 
 
 if __name__ == "__main__":

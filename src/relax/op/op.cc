@@ -18,6 +18,7 @@
  */
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/attrs/op.h>
+#include <tvm/relax/distributed/struct_info.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/utils.h>
 #include <tvm/relay/op.h>
@@ -318,6 +319,23 @@ static Optional<StructInfo> InferCallTIROutputStructInfoFromArguments(
       << "R.call_tir attempted to call a function using " << num_input_arguments
       << " input arguments and " << num_trailing_int_arguments << " trailing integer arguments.  "
       << "However, the callee only accepts " << callee_params.size() << " arguments in total.";
+
+  // While Relax can specify a distributed tensor, TIR cannot.  The
+  // current implementation does not support determining the output
+  // shape for `R.dist.call_tir` calls, as it depends on the lowering
+  // of DistIR into regular Relax.
+  std::function<bool(StructInfo)> contains_dtensor = [&contains_dtensor](StructInfo sinfo) -> bool {
+    if (sinfo.as<distributed::DTensorStructInfoNode>()) {
+      return true;
+    } else if (auto tuple = sinfo.as<TupleStructInfoNode>()) {
+      return std::any_of(tuple->fields.begin(), tuple->fields.end(), contains_dtensor);
+    } else {
+      return false;
+    }
+  };
+  if (contains_dtensor(arg_sinfo)) {
+    return NullOpt;
+  }
 
   // At this point, the return types are known.  However, the shapes
   // in `callee_params` may contain dynamic shape parameters that are
