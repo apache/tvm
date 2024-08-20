@@ -106,7 +106,7 @@ jobs:
       - name: Test
         shell: cmd /C call {0}
         run: >-
-          python -m pytest -v tests/python/all-platform-minimal-test
+          python -m pytest -v -s tests/python/all-platform-minimal-test
 
   # Disabled due to https://github.com/apache/tvm/issues/13950
   # Windows-Static-Runtime:
