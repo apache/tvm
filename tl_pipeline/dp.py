@@ -15,36 +15,51 @@ class Schedule:
 
     def __repr__(self) -> str:
         nodes_str = [repr(node) for node in self.order]
-        s = ", ".join(nodes_str)
+        s = f"len={len(nodes_str)}, "
+        s += ", ".join(nodes_str)
         s += "\n"
-        s += f"Time:{self.time}"
+        s += f"Time:{self.time}, "
+        s += f"tensor_core:{self.hw_time['tensor_core']}, "
+        s += f"cuda_core:{self.hw_time['cuda_core']}, "
+        s += f"tma:{self.hw_time['tma']}, "
+        s += "\n"
         return s
     
 dp_dict = {}    
+i = 0
+issue_latency = 0.001
 
-def get_schedule(nodes: List[Node], in_node: Node, in_node_dsts: List[Node]) -> Schedule:
+def get_schedule(nodes: List[Node], in_node: Node, in_node_dsts: List[Node], graph: Graph) -> Schedule:
     schedule = dp_dict[frozenset(nodes)]
     new_order = [in_node] + schedule.order
-    end_time = schedule.hw_time[in_node.hw_usage]
-    for dst_node in in_node_dsts:
-        if schedule.hw_time[dst_node.hw_usage] > end_time:
-            end_time = schedule.hw_time[dst_node.hw_usage]
-    if in_node._sync_type == "sync":
-        end_time = schedule.time
-    start_time = end_time + in_node.time
-    # start time can not be later than any node in nodes
-    if start_time < schedule.time:
-        start_time = schedule.time
-    
-    new_hw_time = (schedule.hw_time).copy()
-    new_hw_time[in_node.hw_usage] = start_time
+    new_hw_time = {"tensor_core":0, "cuda_core":0, "tma":0}
+    # node: (start_time, end_time)
+    issue_dict = {} 
+    last_start_time = 0
+    for cur_node in new_order:
+        start_time = max(new_hw_time[cur_node.hw_usage], last_start_time + issue_latency)
+        for pred_node in new_order:
+            # Need to issue after previous sync node done
+            if pred_node in issue_dict and pred_node._sync_type == "sync":
+                start_time = max(start_time, issue_dict[pred_node][1] + issue_latency)
+            if graph.has_edge(pred_node, cur_node):
+                edge = graph.get_edge_data(pred_node, cur_node)
+                if edge['type'] == "data":
+                    assert pred_node in issue_dict, "error: pred_node not in issue_dict"
+                    # Data denpendency
+                    start_time = max(start_time, issue_dict[pred_node][1] + issue_latency)
+        issue_dict[cur_node] = [start_time, start_time + cur_node.time]
+        new_hw_time[cur_node.hw_usage] = start_time + cur_node.time
+        last_start_time = start_time
     return Schedule(new_order, new_hw_time)
+
 
 def dp(graph: Graph, nodes: List[Node]):
     global dp_dict
+    global i
     pred_nodes = {}
     
-    subgraph = graph.subgraph(nodes)
+    subgraph = graph.subgraph(nodes.copy())
     for node in subgraph.nodes:
         for pred in graph.predecessors(node):
             valid = True
@@ -58,9 +73,10 @@ def dp(graph: Graph, nodes: List[Node]):
     # for node in pred_nodes:
     #     print(node)
     for in_node, in_node_dsts in pred_nodes.items():
-        schedule = get_schedule(nodes, in_node, in_node_dsts)
+        print(f"iter {i}")
+        i += 1
+        schedule = get_schedule(nodes, in_node, in_node_dsts, graph)
         new_nodes = nodes + [in_node]
-        new_nodes.append(in_node)
         if frozenset(new_nodes) in dp_dict and dp_dict[frozenset(new_nodes)].time < schedule.time:
             continue
         dp_dict[frozenset(new_nodes)] = schedule
@@ -99,5 +115,7 @@ if __name__ == "__main__":
     dp_dict[frozenset([output_node])] = Schedule([output_node], {"tensor_core":0, "cuda_core":0, "tma":0})
     dp(duplicate_graph, [output_node])
 
-    print("dp_dict", dp_dict)
+    # for k, v in dp_dict.items():
+    #     print(k)
+    #     print(v)
     print("results", dp_dict[frozenset(list(duplicate_graph.nodes))])
