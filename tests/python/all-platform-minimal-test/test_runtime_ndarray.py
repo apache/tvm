@@ -69,8 +69,13 @@ def test_memory_usage(target, dev, dtype):
     assert dev.available_global_memory == available_memory_before
 
 
-@pytest.mark.parametrize("src_dst", [("float32", "float16"), ("float16", "float32")])
-@tvm.testing.parametrize_targets("llvm", "llvm -opt-level=0")
+@pytest.mark.parametrize(
+    "src_dst", [("float32", "float16"), ("float16", "float32")], ids=["f32-to-f16", "f16-to-f32"]
+)
+@tvm.testing.parametrize_targets(
+    # "llvm",
+    "llvm -opt-level=0",
+)
 def test_fp16_conversion(src_dst, target, dev):
     src, dst = src_dst
     n = 100
