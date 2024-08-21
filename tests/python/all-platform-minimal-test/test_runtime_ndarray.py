@@ -77,6 +77,9 @@ def test_memory_usage(target, dev, dtype):
     "llvm -opt-level=0",
 )
 def test_fp16_conversion(src_dst, target, dev):
+    # DEBUG PRINT, REMOVE BEFORE MERGE
+    print("LLVM version:", tvm.support.libinfo()["LLVM_VERSION"])
+
     src, dst = src_dst
     n = 100
 
