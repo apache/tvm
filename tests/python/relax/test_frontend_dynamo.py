@@ -114,9 +114,10 @@ def test_relax_dynamo():
     with db:
         opt_model = torch.compile(model, backend=relax_dynamo())
     inp = torch.randn(10, 100)
-    tvm.testing.assert_allclose(
-        opt_model(inp).detach().numpy(), model(inp).detach().numpy(), rtol=1e-5, atol=1e-5
-    )
+
+    default_output = model(inp).detach().numpy()
+    optimized_output = opt_model(inp).detach().numpy()
+    tvm.testing.assert_allclose(optimized_output, default_output, rtol=1e-5, atol=1e-5)
 
 
 def test_relax_dynamo_dynamic():
@@ -313,9 +314,9 @@ def test_ones():
     @I.ir_module
     class Expected1:
         @R.function
-        def main(
-            inp_0: R.Tensor((256, 256), dtype="float32")
-        ) -> R.Tensor((10, 10), dtype="float32"):
+        def main(inp_0: R.Tensor((256, 256), dtype="float32")) -> R.Tensor(
+            (10, 10), dtype="float32"
+        ):
             with R.dataflow():
                 lv: R.Tensor((10, 10), dtype="float32") = R.full(
                     R.shape([10, 10]), R.const(1, "float32"), dtype="float32"
@@ -344,9 +345,9 @@ def test_full():
     @I.ir_module
     class Expected1:
         @R.function
-        def main(
-            inp_0: R.Tensor((256, 256), dtype="float32")
-        ) -> R.Tensor((10, 10), dtype="float32"):
+        def main(inp_0: R.Tensor((256, 256), dtype="float32")) -> R.Tensor(
+            (10, 10), dtype="float32"
+        ):
             with R.dataflow():
                 lv: R.Tensor((10, 10), dtype="float32") = R.full(
                     R.shape([10, 10]), R.const(1, "float32"), dtype="float32"
@@ -379,9 +380,9 @@ def test_gelu():
     @I.ir_module
     class ExpectedGeLU:
         @R.function
-        def main(
-            inp_0: R.Tensor((128, 256), dtype="float32")
-        ) -> R.Tensor((128, 256), dtype="float32"):
+        def main(inp_0: R.Tensor((128, 256), dtype="float32")) -> R.Tensor(
+            (128, 256), dtype="float32"
+        ):
             with R.dataflow():
                 lv: R.Tensor((128, 256), dtype="float32") = R.nn.gelu(inp_0)
                 gv: R.Tensor((128, 256), dtype="float32") = lv
@@ -391,9 +392,9 @@ def test_gelu():
     @I.ir_module
     class ExpectedGeLUTanh:
         @R.function
-        def main(
-            inp_0: R.Tensor((128, 256), dtype="float32")
-        ) -> R.Tensor((128, 256), dtype="float32"):
+        def main(inp_0: R.Tensor((128, 256), dtype="float32")) -> R.Tensor(
+            (128, 256), dtype="float32"
+        ):
             with R.dataflow():
                 lv: R.Tensor((128, 256), dtype="float32") = R.nn.gelu_tanh(inp_0)
                 gv: R.Tensor((128, 256), dtype="float32") = lv
@@ -488,9 +489,9 @@ def test_getitem():
     @I.ir_module
     class Expected2:
         @R.function
-        def main(
-            inp_0: R.Tensor((1, 77, 1280), dtype="float32")
-        ) -> R.Tensor((1, 77, 1280), dtype="float32"):
+        def main(inp_0: R.Tensor((1, 77, 1280), dtype="float32")) -> R.Tensor(
+            (1, 77, 1280), dtype="float32"
+        ):
             with R.dataflow():
                 lv: R.Tensor((1,), dtype="int64") = R.arange(
                     R.prim_value(0), R.prim_value(1), R.prim_value(1), dtype="int64"
@@ -513,9 +514,7 @@ def test_getitem():
 
     class Select2(Module):
         def forward(self, input1):
-            result = input1[
-                torch.arange(1),
-            ]
+            result = input1[torch.arange(1),]
             return result
 
     verify_dynamo_model(

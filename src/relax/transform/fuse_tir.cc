@@ -1088,8 +1088,7 @@ class TIRFuseMutator : public ExprMutator {
       const auto& [prim_func, indices] = FusedTIRConstructor::GetFusedTIR(mod, old_gvar);
 
       GlobalVar new_gvar(old_gvar->name_hint);
-      UpdateStructInfo(new_gvar,
-                       FuncStructInfo::OpaqueFunc(StructInfoFromType(prim_func->ret_type)));
+      UpdateStructInfo(new_gvar, GetStructInfo(prim_func));
 
       mod->Remove(old_gvar);
       updates->Add(new_gvar, prim_func);

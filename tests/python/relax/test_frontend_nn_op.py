@@ -570,10 +570,18 @@ def test_tensor_ir_op():
     @T.prim_func(private=True)
     def fused_rope(  # pylint: disable=too-many-locals
         var_qkv: T.handle,
-        offset: T.int64,
         var_q: T.handle,
         var_k: T.handle,
         var_v: T.handle,
+        # Scalar arguments must be specified after tensor arguments,
+        # including the output tensor arguments
+        #
+        # TODO(Lunderberg): Update
+        # `tvm.relax.frontend.nn.op.tensor_ir_op` to use `PrimValue`
+        # instead of `tir_vars`, so that the order can be consistent
+        # between the function definition and the arguments in
+        # `op.tensor_ir_op`.
+        offset: T.int64,
     ):
         batch_size = T.int64()
         seq_len = T.int64()
@@ -601,7 +609,7 @@ def test_tensor_ir_op():
     @I.ir_module
     class Expected:
         @T.prim_func(private=True)
-        def llama_fused_rope(var_qkv: T.handle, offset: T.int64, var_q: T.handle, var_k: T.handle, var_v: T.handle):
+        def llama_fused_rope(var_qkv: T.handle, var_q: T.handle, var_k: T.handle, var_v: T.handle, offset: T.int64):
             batch_size, seq_len = T.int64(), T.int64()
             qkv = T.match_buffer(var_qkv, (batch_size, seq_len, 24, 16), "float16")
             q = T.match_buffer(var_q, (batch_size, seq_len, 8, 16), "float16")
@@ -669,10 +677,11 @@ def test_tensor_ir_inplace_op():
         def test(
             self, embedding_table: Tensor, input_ids: Tensor, embedding_dst: Tensor, offset: int
         ):
-            tensor_expr_op_out = op.tensor_ir_op(
+            tensor_expr_op_out = op.tensor_ir_inplace_op(
                 inplace_take,
                 "inplace_take",
                 args=[embedding_table, input_ids, embedding_dst, offset],
+                inplace_indices=[2],
                 out=Tensor.placeholder(embedding_dst.shape, embedding_dst.dtype),
             )
             return tensor_expr_op_out
@@ -719,10 +728,11 @@ def test_tensor_ir_inplace_op():
             R.func_attr({"num_input": 4})
             cls = Expected
             with R.dataflow():
-                lv1 = R.call_tir(
+                lv1 = R.call_tir_inplace(
                     cls.inplace_take,
                     (embedding_table, input_ids, embedding_dst),
                     out_sinfo=R.Tensor((total_seq_len, hidden_size), dtype),
+                    inplace_indices=[2],
                     tir_vars=R.shape([offset_1]),
                 )
                 gv1: R.Tensor((total_seq_len, hidden_size), dtype) = lv1

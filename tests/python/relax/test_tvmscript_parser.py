@@ -77,7 +77,7 @@ def test_mismatch_cast_dims_and_ndim():
 
         @R.function
         def f(
-            x: R.Tensor((2, 3), "float32", ndim=3)
+            x: R.Tensor((2, 3), "float32", ndim=3),
         ):  # error: ndim and the shape dims are mismatch
             return x
 
@@ -961,11 +961,11 @@ def test_call_tir_with_tir_var():
     class Module:
         @R.function
         def main(
-            dumb_param: R.Tensor(("n",), "float32"), x: R.Tensor(("n * 2", "float32"))
+            dumb_param: R.Tensor(("n",), "float32"), x: R.Tensor(("n * 2",), "float32")
         ) -> R.Tensor(("n * 2",), "float32"):
             n = T.int64()
             cls = Module
-            y = R.call_tir(cls.copy, (x,), R.Tensor(((n * 2,)), dtype="float32"), tir_vars=(n,))
+            y = R.call_tir(cls.copy, x, R.Tensor((n * 2,), dtype="float32"), tir_vars=(n,))
             return y
 
         @T.prim_func
@@ -1028,9 +1028,7 @@ def test_call_tir_inplace():
                     out1[ax0, ax1] = B[ax0, ax1]
 
         @R.function
-        def main(
-            x: R.Tensor((2, 3), "int32"), y: R.Tensor((2, 3), "int32")
-        ) -> R.Tuple(
+        def main(x: R.Tensor((2, 3), "int32"), y: R.Tensor((2, 3), "int32")) -> R.Tuple(
             R.Tensor((2, 3), "int32"), R.Tensor((2, 3), "int32"), R.Tensor((2, 3), "int32")
         ):
             res = R.call_tir_inplace(
@@ -1046,13 +1044,13 @@ def test_call_tir_inplace():
 
 def test_local_function():
     @R.function
-    def main(
-        x: R.Tensor((2, 3), "float32"), y: R.Tensor((2, 3), "float32")
-    ) -> R.Tensor((2, 3), "float32"):
+    def main(x: R.Tensor((2, 3), "float32"), y: R.Tensor((2, 3), "float32")) -> R.Tensor(
+        (2, 3), "float32"
+    ):
         @R.function
-        def outer_func(
-            c1: R.Tensor((2, 3), "float32")
-        ) -> R.Callable((R.Tensor(None, "float32", ndim=2),), R.Tensor(None, "float32", ndim=2)):
+        def outer_func(c1: R.Tensor((2, 3), "float32")) -> R.Callable(
+            (R.Tensor(None, "float32", ndim=2),), R.Tensor(None, "float32", ndim=2)
+        ):
             @R.function
             def inner_func(x1: R.Tensor((2, 3), "float32")):
                 s: R.Tensor((2, 3), "float32") = R.add(x1, c1)
@@ -1487,9 +1485,9 @@ def test_erase_to_well_defined_infers_from_prim_value():
     class Module:
         # The subroutine's symbolic variables are only in-scope for the subroutine.
         @R.function
-        def subroutine(
-            x: R.Tensor, _m: R.Prim(value="m"), _n: R.Prim(value="n")
-        ) -> R.Tensor(["m", "n"]):
+        def subroutine(x: R.Tensor, _m: R.Prim(value="m"), _n: R.Prim(value="n")) -> R.Tensor(
+            ["m", "n"]
+        ):
             q = x
             m, n = T.int64(), T.int64()
             z = R.match_cast(q, R.Tensor((m, n)))
@@ -1547,9 +1545,9 @@ def test_symbolic_vars_in_tensor_shape_with_definition_first():
     """Second param may use symbolic variable defined in first param"""
 
     @R.function
-    def bar(
-        x: R.Tensor(("m",), "float32"), y: R.Tensor(("T.max(m, 20)",), "float32")
-    ) -> R.Tensor(("T.max(m, 20) + 1",), "float32"):
+    def bar(x: R.Tensor(("m",), "float32"), y: R.Tensor(("T.max(m, 20)",), "float32")) -> R.Tensor(
+        ("T.max(m, 20) + 1",), "float32"
+    ):
         m = T.int64()
         z = R.call_dps_packed("test_intrin", (x, y), R.Tensor((T.max(m, 20) + 1,), dtype="float32"))
         return z
@@ -2014,9 +2012,9 @@ def test_function_with_void_return_type_in_if_else():
     @I.ir_module
     class Unsugared:
         @R.function(pure=False)
-        def conditional(
-            x: R.Tensor((), "int32"), condition: R.Tensor((), "bool")
-        ) -> R.Tensor((), "int32"):
+        def conditional(x: R.Tensor((), "int32"), condition: R.Tensor((), "bool")) -> R.Tensor(
+            (), "int32"
+        ):
             if condition:
                 y = R.print(x, format="True condition: {}")
             else:
@@ -2026,9 +2024,9 @@ def test_function_with_void_return_type_in_if_else():
     @I.ir_module
     class Sugared:
         @R.function(pure=False)
-        def conditional(
-            x: R.Tensor((), "int32"), condition: R.Tensor((), "bool")
-        ) -> R.Tensor((), "int32"):
+        def conditional(x: R.Tensor((), "int32"), condition: R.Tensor((), "bool")) -> R.Tensor(
+            (), "int32"
+        ):
             if condition:
                 R.print(x, format="True condition: {}")
             else:
@@ -2135,7 +2133,9 @@ def test_macro_hygienic():
     @R.function(private=True)
     def expect(z: R.Tensor((4, 4), dtype="float32")) -> R.Shape([4, 4]):
         alloc: R.Tensor((4, 4), dtype="float32") = R.builtin.alloc_tensor(
-            R.shape([4, 4]), R.dtype("float32"), R.prim_value(2)  # Make sure prim_value is 2
+            R.shape([4, 4]),
+            R.dtype("float32"),
+            R.prim_value(2),  # Make sure prim_value is 2
         )
         shape: R.Shape([4, 4]) = R.shape_of(alloc)
         shape_1: R.Shape([4, 4]) = shape
@@ -2167,7 +2167,9 @@ def test_macro_non_hygienic():
     @R.function(private=True)
     def expect(z: R.Tensor((4, 4), dtype="float32")) -> R.Shape([4, 4]):
         alloc: R.Tensor((4, 4), dtype="float32") = R.builtin.alloc_tensor(
-            R.shape([4, 4]), R.dtype("float32"), R.prim_value(1)  # Make sure prim_value is 1
+            R.shape([4, 4]),
+            R.dtype("float32"),
+            R.prim_value(1),  # Make sure prim_value is 1
         )
         shape: R.Shape([4, 4]) = R.shape_of(alloc)
         shape_1: R.Shape([4, 4]) = shape
@@ -2336,7 +2338,6 @@ def test_conditional_may_use_symbolic_variables_from_function_scope():
         B: R.Tensor(["N"], "float32"),
         cond: R.Prim("bool"),
     ) -> R.Tensor(["N"], "float32"):
-
         N = T.int64()
 
         if cond:

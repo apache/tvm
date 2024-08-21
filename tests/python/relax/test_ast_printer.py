@@ -43,6 +43,7 @@ def normalize(func: rx.Function) -> rx.Function:
     """
     Normalize the expr to fill in the checked_type_ and struct_info fields everywhere
     """
+
     # using a default mutator to use the BlockBuilder's normalizer,
     # which oddly differs from the Normalize pass
     @rx.expr_functor.mutator
@@ -435,9 +436,13 @@ def test_call_tir():
     @tvm.script.ir_module
     class TestCallTIR:
         @T.prim_func
-        def addone(A: T.Buffer((16, 16), "int32"), B: T.Buffer((16, 16), "int32")) -> None:
+        def addone(A_handle: T.handle, B_handle: T.handle) -> None:
+            m = T.int64()
+            n = T.int64()
+            A = T.match_buffer(A_handle, (m, n), "float32")
+            B = T.match_buffer(B_handle, (m, n), "float32")
             T.func_attr(({"global_symbol": "addone"}))
-            for i, j in T.grid(16, 16):
+            for i, j in T.grid(m, n):
                 with T.block("addone"):
                     vi, vj = T.axis.remap("SS", [i, j])
                     B[vi, vj] = A[vi, vj] + T.int32(1)

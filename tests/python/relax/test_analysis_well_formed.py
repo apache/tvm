@@ -1121,5 +1121,92 @@ def test_call_tir_with_dtensor_arguments():
     assert rx.analysis.well_formed(Module)
 
 
+def test_call_tir_inplace_with_correct_shapes():
+    """R.call_tir_inplace is well-formed when called with matching arguments"""
+
+    @I.ir_module
+    class Module:
+        @R.function
+        def main(A: R.Tensor([16], "float16")):
+            B = R.call_tir_inplace(
+                Module.add_one,
+                A,
+                inplace_indices=[0],
+                out_sinfo=R.Tensor([16], "float16"),
+            )
+            return B
+
+        @T.prim_func
+        def add_one(A: T.Buffer(16, "float16")):
+            for i in range(16):
+                with T.block("compute"):
+                    vi = T.axis.remap("S", [i])
+                    A[vi] = A[vi] + T.float16(1.0)
+
+    assert rx.analysis.well_formed(Module)
+
+
+def test_call_tir_inplace_with_incorrect_shapes():
+    """R.call_tir_inplace is ill-formed when output shape does not match input"""
+
+    @I.ir_module(check_well_formed=False)
+    class Module:
+        @R.function
+        def main(A: R.Tensor([16], "float16")):
+            B = R.call_tir_inplace(
+                Module.add_one,
+                A,
+                inplace_indices=[0],
+                out_sinfo=R.Tensor([32], "float16"),
+            )
+            return B
+
+        @T.prim_func
+        def add_one(A: T.Buffer(16, "float16")):
+            for i in range(16):
+                with T.block("compute"):
+                    vi = T.axis.remap("S", [i])
+                    A[vi] = A[vi] + T.float16(1.0)
+
+    assert not rx.analysis.well_formed(Module)
+
+
+def test_call_tir_inplace_with_some_allocated_outputs():
+    """R.call_tir_inplace may contain some non-inplace outputs"""
+
+    @I.ir_module
+    class Module:
+        @R.function
+        def main(A: R.Tensor([16], "float16"), B: R.Tensor([32], "float16")):
+            out = R.call_tir_inplace(
+                Module.add_one,
+                (A, B),
+                inplace_indices=[-1, 1],
+                out_sinfo=[
+                    R.Tensor([16], "float16"),
+                    R.Tensor([32], "float16"),
+                ],
+            )
+            return out
+
+        @T.prim_func
+        def add_one(
+            A: T.Buffer(16, "float16"),
+            B: T.Buffer(32, "float16"),
+            C: T.Buffer(16, "float16"),
+        ):
+            for i in range(32):
+                with T.block("inplace_B"):
+                    vi = T.axis.remap("S", [i])
+                    B[vi] = B[vi] + T.float16(1.0)
+
+            for i in range(16):
+                with T.block("output_C"):
+                    vi = T.axis.remap("S", [i])
+                    C[vi] = A[vi] + T.float16(1.0)
+
+    assert rx.analysis.well_formed(Module)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

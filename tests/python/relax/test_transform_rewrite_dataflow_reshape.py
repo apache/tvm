@@ -61,9 +61,9 @@ def test_reshape_expand_dims():
                     expand_dims[i0_1, i1_1, i2_1, i3_1, i4_1] = rxplaceholder[i0_1, i2_1, i4_1]
 
         @R.function
-        def main(
-            x: R.Tensor((8, 3), dtype="float32")
-        ) -> R.Tensor((2, 1, 4, 1, 3), dtype="float32"):
+        def main(x: R.Tensor((8, 3), dtype="float32")) -> R.Tensor(
+            (2, 1, 4, 1, 3), dtype="float32"
+        ):
             cls = Module
             with R.dataflow():
                 y = R.call_tir(cls.reshape, (x,), out_sinfo=R.Tensor((2, 4, 3), dtype="float32"))
@@ -112,9 +112,9 @@ def test_reshape_expand_dims():
                     expand_dims[i0_1, i1_1, i2_1, i3_1, i4_1] = rxplaceholder[i0_1, i2_1, i4_1]
 
         @R.function
-        def main(
-            x: R.Tensor((8, 3), dtype="float32")
-        ) -> R.Tensor((2, 1, 4, 1, 3), dtype="float32"):
+        def main(x: R.Tensor((8, 3), dtype="float32")) -> R.Tensor(
+            (2, 1, 4, 1, 3), dtype="float32"
+        ):
             with R.dataflow():
                 cls = Expected
                 y: R.Tensor((2, 4, 3), "float32") = R.reshape(x, (2, 4, 3))
@@ -252,11 +252,15 @@ def test_reshape_dynamic_shape():
                         ]
 
         @R.function
-        def main(x: R.Tensor((8, 3), dtype="float32")) -> R.Tensor((2, 4, 3), dtype="float32"):
+        def main(x: R.Tensor((8, 16, 128), dtype="float16")) -> R.Tensor(
+            (1, 8, 16, 128), dtype="float16"
+        ):
             cls = Module
             with R.dataflow():
-                y = R.call_tir(cls.reshape, (x,), out_sinfo=R.Tensor((2, 4, 3), dtype="float32"))
-                z = R.add(y, R.const(1, "float32"))
+                y = R.call_tir(
+                    cls.reshape, (x,), out_sinfo=R.Tensor((1, 8, 16, 128), dtype="float16")
+                )
+                z = R.add(y, R.const(1, "float16"))
                 R.output(z)
             return z
 
@@ -290,10 +294,14 @@ def test_reshape_dynamic_shape():
                         ]
 
         @R.function
-        def main(x: R.Tensor((8, 3), dtype="float32")) -> R.Tensor((2, 4, 3), dtype="float32"):
+        def main(x: R.Tensor((8, 16, 128), dtype="float16")) -> R.Tensor(
+            (1, 8, 16, 128), dtype="float16"
+        ):
             with R.dataflow():
-                y: R.Tensor((2, 4, 3), dtype="float32") = R.reshape(x, R.shape([2, 4, 3]))
-                z: R.Tensor((2, 4, 3), dtype="float32") = R.add(y, R.const(1, "float32"))
+                y: R.Tensor((1, 8, 16, 128), dtype="float16") = R.reshape(
+                    x, R.shape([1, 8, 16, 128])
+                )
+                z: R.Tensor((1, 8, 16, 128), dtype="float16") = R.add(y, R.const(1, "float16"))
                 R.output(z)
             return z
 
@@ -383,7 +391,7 @@ def test_tuple_get_reshape():
                 R.Tensor((2, 4096, 320), dtype="float16"),
                 R.Tensor((2, 4096, 320), dtype="float16"),
                 R.Tensor((2, 4096, 320), dtype="float16"),
-            )
+            ),
         ) -> R.Tensor((2, 4096, 8, 40), dtype="float16"):
             cls = Module
             with R.dataflow():
@@ -444,7 +452,7 @@ def test_tuple_get_reshape():
                 R.Tensor((2, 4096, 320), dtype="float16"),
                 R.Tensor((2, 4096, 320), dtype="float16"),
                 R.Tensor((2, 4096, 320), dtype="float16"),
-            )
+            ),
         ) -> R.Tensor((2, 4096, 8, 40), dtype="float16"):
             with R.dataflow():
                 lv: R.Tensor((2, 4096, 320), dtype="float16") = lv41_1[0]
@@ -735,7 +743,6 @@ def test_rewrite_dynamic_reshape():
             z_handle: T.handle,
             N: T.int64,
         ):
-
             y1 = T.match_buffer(y1_handle, [N * 4, T.int64(4)], "float32")
             y2 = T.match_buffer(y2_handle, [N * 4, T.int64(4)], "float32")
             z = T.match_buffer(z_handle, [N * 4, T.int64(4)], "float32")

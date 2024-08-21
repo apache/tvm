@@ -265,12 +265,17 @@ TVM_REGISTER_GLOBAL("relax.op.call_inplace_packed").set_body_typed(MakeCallInpla
  * \param arg_sinfo The StructInfo of the argument tuple.
  * \param packed_ints_sinfo The StructInfo of the ShapeTuple argument,
  *     if present.
+ * \param opt_inplace_indices For `R.call_tir_inplace`, an array of
+ *     indices indicating which outputs are constructed from in-place
+ *     mutation of the inputs.  See
+ *     `CallTIRInplaceAttrs::inplace_indices` for more details.
  *
  * \return The `arg_sinfo`, if it can be inferred from the arguments.
  *     Otherwise, NullOpt.
  */
 static Optional<StructInfo> InferCallTIROutputStructInfoFromArguments(
-    StructInfo func_sinfo, StructInfo arg_sinfo, Optional<StructInfo> packed_ints_sinfo) {
+    StructInfo func_sinfo, StructInfo arg_sinfo, Optional<StructInfo> packed_ints_sinfo,
+    Optional<Array<Integer>> opt_inplace_indices) {
   auto opt_callee_sinfo = func_sinfo.as<FuncStructInfo>();
   CHECK(opt_callee_sinfo) << "TypeError: "
                           << "The first argument to `R.call_tir` must be a function, "
@@ -361,6 +366,22 @@ static Optional<StructInfo> InferCallTIROutputStructInfoFromArguments(
 
     Array<StructInfo> dummy_ret(callee_params.begin() + num_input_arguments,
                                 callee_params.end() - num_trailing_int_arguments);
+
+    if (opt_inplace_indices) {
+      // For R.call_tir_inplace, the `inplace_indices` are used to
+      // indicate which elements of the `out_sinfo` will be generated
+      // as in-place mutation from an input.  For any in-place
+      // mutation, the parameter's StructInfo must be inserted into
+      // `out_sinfo`.
+      auto inplace_indices = opt_inplace_indices.value();
+      for (size_t i = 0; i < inplace_indices.size(); i++) {
+        auto inplace_input_index = inplace_indices[i]->value;
+        if (inplace_input_index >= 0) {
+          dummy_ret.insert(dummy_ret.begin() + i, callee_params[inplace_input_index]);
+        }
+      }
+    }
+
     auto dummy_out_sinfo = [&]() -> StructInfo {
       if (dummy_ret.size() == 1) {
         return dummy_ret[0];
@@ -456,12 +477,21 @@ Expr NormalizeCallTIR(const BlockBuilder& ctx, Call call) {
     return GetStructInfo(packed_ints);
   }();
 
+  auto opt_inplace_indices = [&]() -> Optional<Array<Integer>> {
+    if (const auto* attrs = call->attrs.as<CallTIRInplaceAttrs>()) {
+      return attrs->inplace_indices;
+    } else {
+      return NullOpt;
+    }
+  }();
+
   CHECK_EQ(call->sinfo_args.size(), 1)
       << "R.call_tir should have exactly one `sinfo_args` parameter, "
       << "which defines the output of the PrimFunc.";
   StructInfo explicit_sinfo = call->sinfo_args[0];
-  if (auto inferred_sinfo = InferCallTIROutputStructInfoFromArguments(
-          GetStructInfo(callee), GetStructInfo(arg_tuple), packed_int_sinfo)) {
+  auto inferred_sinfo = InferCallTIROutputStructInfoFromArguments(
+      GetStructInfo(callee), GetStructInfo(arg_tuple), packed_int_sinfo, opt_inplace_indices);
+  if (inferred_sinfo.defined()) {
     CHECK(IsBaseOf(inferred_sinfo.value(), explicit_sinfo))
         << "TypeError: "
         << "The `out_sinfo` argument for R.call_tir must be compatible with the PrimFunc.  "
@@ -485,13 +515,14 @@ Expr NormalizeCallTIR(const BlockBuilder& ctx, Call call) {
       return opt.value();
     }
 
-    while (auto unwrapped = unwrap_binding(arg_tuple)) {
-      arg_tuple = unwrapped.value();
+    Expr unwrapped_tuple = arg_tuple;
+    while (auto unwrapped = unwrap_binding(unwrapped_tuple)) {
+      unwrapped_tuple = unwrapped.value();
     }
 
     // Preferred replacement.  The argument tuple is provided as a
     // variable, but we know the value bound to that variable.
-    if (auto opt = arg_tuple.as<Tuple>()) {
+    if (auto opt = unwrapped_tuple.as<Tuple>()) {
       return opt.value();
     }
 

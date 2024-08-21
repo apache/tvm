@@ -172,8 +172,8 @@ def test_alias_call_tir():
             T.func_attr({"global_symbol": "tir_id"})
             m = T.int32()
             n = T.int32()
-            A = T.match_buffer(x, (m, n))
-            B = T.match_buffer(y, (m, n))
+            A = T.match_buffer(x, (m, n), "int32")
+            B = T.match_buffer(y, (m, n), "int32")
 
             for i, j in T.grid(m, n):
                 with T.block("id"):
@@ -185,9 +185,9 @@ def test_alias_call_tir():
             T.func_attr({"global_symbol": "tir_id"})
             m = T.int32()
             n = T.int32()
-            A = T.match_buffer(x, (m, n))
-            B = T.match_buffer(y, (m, n))
-            C = T.match_buffer(z, (m, n))
+            A = T.match_buffer(x, (m, n), "int32")
+            B = T.match_buffer(y, (m, n), "int32")
+            C = T.match_buffer(z, (m, n), "int32")
 
             for i, j in T.grid(m, n):
                 with T.block("id"):
@@ -323,9 +323,9 @@ def test_inplace_simple_case():
     @I.ir_module
     class InplaceBasic:
         @R.function
-        def main(
-            x: R.Tensor((2, 3), "int32"), y: R.Tensor((2, 3), "int32")
-        ) -> R.Tensor((2, 3), "int32"):
+        def main(x: R.Tensor((2, 3), "int32"), y: R.Tensor((2, 3), "int32")) -> R.Tensor(
+            (2, 3), "int32"
+        ):
             with R.dataflow():
                 z = R.add(x, y)  # cannot be done inplace: x and y are live later
                 p = R.add(z, z)  # can be done inplace: z is not used later

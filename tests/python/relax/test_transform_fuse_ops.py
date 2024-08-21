@@ -875,7 +875,7 @@ def test_layer_norm_silu():
         def main(x: R.Tensor((1, 512, 64, 64), "float32"), mean: R.Tensor((64, 64), "float32"), var: R.Tensor((64, 64), "float32")):
             cls = Module
             with R.dataflow():
-                gv0 = R.call_tir(cls.layer_norm, (x, mean, var), out_sinfo=R.Tensor((1, 512, 64, 64)))
+                gv0 = R.call_tir(cls.layer_norm, (x, mean, var), out_sinfo=R.Tensor((1, 512, 64, 64), 'float32'))
                 gv1 = R.call_tir(cls.relu, gv0, out_sinfo=R.Tensor((1, 512, 64, 64), "float32"))
                 R.output(gv1)
             return gv1
@@ -955,7 +955,7 @@ def test_layer_norm_silu():
             R.func_attr({"Primitive": 1})
             cls = Expected
             with R.dataflow():
-                gv0 = R.call_tir(cls.layer_norm, (x, mean, var), out_sinfo=R.Tensor((1, 512, 64, 64)))
+                gv0 = R.call_tir(cls.layer_norm, (x, mean, var), out_sinfo=R.Tensor((1, 512, 64, 64), 'float32'))
                 gv = R.call_tir(cls.relu, (gv0,), out_sinfo=R.Tensor((1, 512, 64, 64), dtype="float32"))
                 R.output(gv)
             return gv
@@ -1452,7 +1452,7 @@ def test_partially_used_tuple_param():
                 R.Tensor((2,), "float32"),
                 R.Tensor((2,), "float32"),
                 R.Tensor((2,), "float32"),
-            )
+            ),
         ):
             with R.dataflow():
                 x0 = x[0]
@@ -1486,7 +1486,7 @@ def test_partially_used_tuple_param():
                 R.Tensor((2,), dtype="float32"),
                 R.Tensor((2,), dtype="float32"),
                 R.Tensor((2,), dtype="float32"),
-            )
+            ),
         ) -> R.Tensor((2,), dtype="float32"):
             cls = Expected
             with R.dataflow():
@@ -1633,9 +1633,9 @@ def test_call_tir_inplace():
         ) -> R.Tensor((10, 20), dtype="float32"):
             cls = Expected
             with R.dataflow():
-                gv1: R.Tensor(
-                    (10, 20), dtype="float32"
-                ) = cls.fused_add_exp_inplace_squeeze_inplace(x, p0)
+                gv1: R.Tensor((10, 20), dtype="float32") = (
+                    cls.fused_add_exp_inplace_squeeze_inplace(x, p0)
+                )
                 R.output(gv1)
             return gv1
 
