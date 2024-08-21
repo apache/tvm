@@ -2544,7 +2544,7 @@ def sample_top_p_top_k_from_sorted_prob(
 
     @T.prim_func(private=True)
     def _get_renorm_prob(A: T.handle, B: T.handle, C: T.handle, D: T.handle):
-        batch, vocab_size = T.int64(), T.int64()
+        batch, vocab_size = T.int64(is_size_var=True), T.int64(is_size_var=True)
         cumsum_sorted = T.match_buffer(A, (batch, vocab_size), prob_dtype)
         top_p = T.match_buffer(B, (batch, 1), prob_dtype)
         top_k = T.match_buffer(C, (batch, 1), index_dtype)
@@ -2564,8 +2564,8 @@ def sample_top_p_top_k_from_sorted_prob(
     def _get_index_from_sorted(
         A: T.handle, B: T.handle, C: T.handle, D: T.handle, E: T.handle, F: T.handle
     ):
-        batch, vocab_size = T.int64(), T.int64()
-        out_batch = T.int64()
+        batch, vocab_size = T.int64(is_size_var=True), T.int64(is_size_var=True)
+        out_batch = T.int64(is_size_var=True)
         cumsum_sorted = T.match_buffer(A, (batch, vocab_size), prob_dtype)
         indices = T.match_buffer(B, (batch, vocab_size), index_dtype)
         renorm_prob = T.match_buffer(C, (batch, 1), prob_dtype)
