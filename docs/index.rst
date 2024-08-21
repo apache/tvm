@@ -70,3 +70,10 @@ driving its costs down.
    :caption: About
 
    reference/publications
+   reference/security
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Index
+
+   genindex

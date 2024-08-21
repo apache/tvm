@@ -459,7 +459,7 @@ def var(name="tindex", dtype="int32", span=None):
 
     Returns
     -------
-    var : Var
+    var : tir.Var
         The result symbolic variable.
     """
     return tvm.tir.Var(name, dtype, span)

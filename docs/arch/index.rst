@@ -408,15 +408,6 @@ Frontends ingest models from different frameworks into the TVM stack.
 
    frontend/tensorflow
 
-
-Security
----------
-.. toctree::
-   :maxdepth: 1
-
-   security
-
-
 microTVM
 --------
 .. toctree::

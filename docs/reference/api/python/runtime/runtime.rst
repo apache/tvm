@@ -19,5 +19,4 @@ tvm.runtime
 -----------
 .. automodule:: tvm.runtime
    :members:
-   :imported-members:
    :exclude-members: NDArray
