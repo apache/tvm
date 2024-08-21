@@ -408,6 +408,7 @@ intersphinx_mapping = {
 from sphinx_gallery.sorting import ExplicitOrder
 
 examples_dirs = [
+    # legacy tutorial structure under gallery folder
     tvm_path.joinpath("gallery", "tutorial"),
     tvm_path.joinpath("gallery", "how_to", "compile_models"),
     tvm_path.joinpath("gallery", "how_to", "deploy_models"),
@@ -419,9 +420,12 @@ examples_dirs = [
     tvm_path.joinpath("gallery", "how_to", "work_with_microtvm"),
     tvm_path.joinpath("gallery", "how_to", "extend_tvm"),
     tvm_path.joinpath("vta", "tutorials"),
+    # New tutorial structure under docs folder
+    tvm_path.joinpath("docs", "get_started", "tutorials"),
 ]
 
 gallery_dirs = [
+    # legacy tutorial structure under gallery folder
     "tutorial",
     "how_to/compile_models",
     "how_to/deploy_models",
@@ -433,6 +437,8 @@ gallery_dirs = [
     "how_to/work_with_microtvm",
     "how_to/extend_tvm",
     "topic/vta/tutorials",
+    # New tutorial structure under docs folder
+    "get_started/tutorials/",
 ]
 
 
