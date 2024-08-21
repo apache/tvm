@@ -286,6 +286,7 @@ We use `Google Test <https://github.com/google/googletest>`_ to drive the C++
 tests in TVM. The easiest way to install GTest is from source.
 
 .. code:: bash
+
     git clone https://github.com/google/googletest
     cd googletest
     mkdir build
