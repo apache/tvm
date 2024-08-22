@@ -147,7 +147,7 @@ inline std::string CUDADTypeFromDType(DataType dtype) {
         case DataType::kFloat8_e4m3: return "__nv_fp8_e4m3";
         case DataType::kFloat8_e5m2: return "__nv_fp8_e5m2";
         case DataType::kFloat16: return "half";
-        case DataType::kBFloat16: return "__nv_bfloat162";
+        case DataType::kBFloat16: return "__nv_bfloat16";
         case DataType::kFloat16x2: return "half2";
         case DataType::kFloat32: return "float32";
         case DataType::kFloat64: return "float64";

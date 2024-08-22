@@ -82,7 +82,7 @@ def mma_32x8_to_shared_16x16_layout(thread_id, local_id):
     return row, col
 
 
-@register_func("tir.index_map.shared_16x16_to_mma_32x8_layout")
+@register_func("tir.index_map.shared_16x16_to_mma_32x8_layout", override=True)
 def index_map_shared_16x16_to_mma_32x8_layout(ind):
     i, j = ind[0], ind[1]
     thread_id, local_id = shared_16x16_to_mma_32x8_layout(i, j)
@@ -140,7 +140,7 @@ def get_ldmatrix_intrin(
         smem_tile_row, smem_tile_col = (k_dim, N_DIM) if not transposed else (N_DIM, k_dim)
 
     if k_dim == 16:
-        assert dtype == "float16"
+        assert dtype in ["float16", "bfloat16"]
 
         index_map = shared_16x16_to_mma_32x8_layout
         if propagate_layout:
@@ -266,7 +266,7 @@ def get_ldmatrix_intrin(
                         warp.elem_offset + lift(local_size) * tx,
                         shared.access_ptr("r"),
                         smem_offset(tx, s0),
-                        dtype=dtype,
+                        dtype="float16" if dtype == "bfloat16" else dtype,
                     )
                 )
 
@@ -326,6 +326,76 @@ LDMATRIX_f16_B_TRANS_SMOOTH_DYN_INTRIN = "mma_ldmatrix_f16_b_trans_smooth_dyn"
 TensorIntrin.register(
     LDMATRIX_f16_B_TRANS_SMOOTH_DYN_INTRIN,
     *get_ldmatrix_intrin(16, "float16", "B", True, "shared.dyn", True),
+)
+
+LDMATRIX_bf16_A_INTRIN = "mma_ldmatrix_bf16_a"
+TensorIntrin.register(
+    LDMATRIX_bf16_A_INTRIN, *get_ldmatrix_intrin(16, "bfloat16", "A", False)
+)
+
+LDMATRIX_bf16_A_SMOOTH_INTRIN = "mma_ldmatrix_bf16_a_smooth"
+TensorIntrin.register(
+    LDMATRIX_bf16_A_SMOOTH_INTRIN,
+    *get_ldmatrix_intrin(16, "bfloat16", "A", False, "shared", True),
+)
+
+LDMATRIX_bf16_B_INTRIN = "mma_ldmatrix_bf16_b"
+TensorIntrin.register(
+    LDMATRIX_bf16_B_INTRIN, *get_ldmatrix_intrin(16, "bfloat16", "B", False)
+)
+
+LDMATRIX_bf16_A_TRANS_INTRIN = "mma_ldmatrix_bf16_a_trans"
+TensorIntrin.register(
+    LDMATRIX_bf16_A_TRANS_INTRIN,
+    *get_ldmatrix_intrin(16, "bfloat16", "A", True),
+)
+
+LDMATRIX_bf16_B_TRANS_INTRIN = "mma_ldmatrix_bf16_b_trans"
+TensorIntrin.register(
+    LDMATRIX_bf16_B_TRANS_INTRIN,
+    *get_ldmatrix_intrin(16, "bfloat16", "B", True),
+)
+
+LDMATRIX_bf16_B_TRANS_SMOOTH_INTRIN = "mma_ldmatrix_bf16_b_trans_smooth"
+TensorIntrin.register(
+    LDMATRIX_bf16_B_TRANS_SMOOTH_INTRIN,
+    *get_ldmatrix_intrin(16, "bfloat16", "B", True, "shared", True),
+)
+
+LDMATRIX_bf16_A_DYN_INTRIN = "mma_ldmatrix_bf16_a_dyn"
+TensorIntrin.register(
+    LDMATRIX_bf16_A_DYN_INTRIN,
+    *get_ldmatrix_intrin(16, "bfloat16", "A", False, "shared.dyn"),
+)
+
+LDMATRIX_bf16_A_DYN_SMOOTH_INTRIN = "mma_ldmatrix_bf16_a_smooth_dyn"
+TensorIntrin.register(
+    LDMATRIX_bf16_A_DYN_SMOOTH_INTRIN,
+    *get_ldmatrix_intrin(16, "bfloat16", "A", False, "shared.dyn", True),
+)
+
+LDMATRIX_bf16_B_DYN_INTRIN = "mma_ldmatrix_bf16_b_dyn"
+TensorIntrin.register(
+    LDMATRIX_bf16_B_DYN_INTRIN,
+    *get_ldmatrix_intrin(16, "bfloat16", "B", False, "shared.dyn"),
+)
+
+LDMATRIX_bf16_A_TRANS_DYN_INTRIN = "mma_ldmatrix_bf16_a_trans_dyn"
+TensorIntrin.register(
+    LDMATRIX_bf16_A_TRANS_DYN_INTRIN,
+    *get_ldmatrix_intrin(16, "bfloat16", "A", True, "shared.dyn"),
+)
+
+LDMATRIX_bf16_B_TRANS_DYN_INTRIN = "mma_ldmatrix_bf16_b_trans_dyn"
+TensorIntrin.register(
+    LDMATRIX_bf16_B_TRANS_DYN_INTRIN,
+    *get_ldmatrix_intrin(16, "bfloat16", "B", True, "shared.dyn"),
+)
+
+LDMATRIX_bf16_B_TRANS_SMOOTH_DYN_INTRIN = "mma_ldmatrix_bf16_b_trans_smooth_dyn"
+TensorIntrin.register(
+    LDMATRIX_bf16_B_TRANS_SMOOTH_DYN_INTRIN,
+    *get_ldmatrix_intrin(16, "bfloat16", "B", True, "shared.dyn", True),
 )
 
 LDMATRIX_i8_A_INTRIN = "mma_ldmatrix_i8_a"
@@ -490,6 +560,7 @@ def get_mma_intrin(
 
     dtype_abbrv = {
         "float16": "fp16",
+        "bfloat16": "bf16",
         "float32": "fp32",
         "int8": "int8",
         "int32": "int32",
@@ -709,6 +780,40 @@ MMA_f16f16f16_TRANS_A_TRANS_B_INTRIN = "mma_f16f16f16_trans_a_trans_b"
 TensorIntrin.register(
     MMA_f16f16f16_TRANS_A_TRANS_B_INTRIN,
     *get_mma_intrin(16, "float16", "float16", "float16", True, True),
+)
+
+
+MMA_bf16bf16f32_INTRIN = "mma_bf16bf16f32"
+TensorIntrin.register(
+    MMA_bf16bf16f32_INTRIN, *get_mma_intrin(16, "bfloat16", "bfloat16", "float32", False, False)
+)
+
+MMA_bf16bf16f32_TRANS_B_INTRIN = "mma_bf16bf16f32_trans_b"
+TensorIntrin.register(
+    MMA_bf16bf16f32_TRANS_B_INTRIN, *get_mma_intrin(16, "bfloat16", "bfloat16", "float32", False, True)
+)
+
+MMA_bf16bf16f32_TRANS_A_INTRIN = "mma_bf16bf16f32_trans_a"
+TensorIntrin.register(
+    MMA_bf16bf16f32_TRANS_A_INTRIN, *get_mma_intrin(16, "bfloat16", "bfloat16", "float32", True, False)
+)
+
+MMA_bf16bf16f32_TRANS_A_TRANS_B_INTRIN = "mma_bf16bf16f32_trans_a_trans_b"
+TensorIntrin.register(
+    MMA_bf16bf16f32_TRANS_A_TRANS_B_INTRIN,
+    *get_mma_intrin(16, "bfloat16", "bfloat16", "float32", True, True),
+)
+
+MMA_bf16bf16f32_TRANS_B_SMOOTH_B_INTRIN = "mma_bf16bf16f32_trans_b_smooth_b"
+TensorIntrin.register(
+    MMA_bf16bf16f32_TRANS_B_SMOOTH_B_INTRIN,
+    *get_mma_intrin(16, "bfloat16", "bfloat16", "float32", False, True, False, True),
+)
+
+MMA_bf16bf16f32_SMOOTH_A_TRANS_SMOOTH_B_INTRIN = "mma_bf16bf16f32_smooth_a_trans_b_smooth_b"
+TensorIntrin.register(
+    MMA_bf16bf16f32_SMOOTH_A_TRANS_SMOOTH_B_INTRIN,
+    *get_mma_intrin(16, "bfloat16", "bfloat16", "float32", False, True, True, True),
 )
 
 MMA_i8i8i32_INTRIN = "mma_i8i8i32"
@@ -993,8 +1098,8 @@ TensorIntrin.register(
 def get_mma_intrin_group(
     load_scope: Literal["shared", "shared.dyn"] = "shared",
     store_scope: Literal["global", "shared", "shared.dyn"] = "global",
-    a_dtype: Literal["float16", "int8", "e4m3_float8", "e5m2_float8"] = "float16",
-    b_dtype: Literal["float16", "int8", "e4m3_float8", "e5m2_float8"] = "float16",
+    a_dtype: Literal["float16", "int8", "bfloat16", "e4m3_float8", "e5m2_float8"] = "float16",
+    b_dtype: Literal["float16", "int8", "bfloat16", "e4m3_float8", "e5m2_float8"] = "float16",
     out_dtype: Literal["float16", "float32", "int32"] = "float16",
     trans_a: bool = False,
     trans_b: bool = False,
@@ -1052,14 +1157,15 @@ def get_mma_intrin_group(
     """
     assert load_scope in ["shared", "shared.dyn"]
     assert store_scope in ["global", "shared", "shared.dyn"]
-    assert a_dtype in ["float16", "int8", "e4m3_float8", "e5m2_float8"]
-    assert b_dtype in ["float16", "int8", "e4m3_float8", "e5m2_float8"]
+    assert a_dtype in ["float16", "bfloat16", "int8", "e4m3_float8", "e5m2_float8"]
+    assert b_dtype in ["float16", "bfloat16", "int8", "e4m3_float8", "e5m2_float8"]
     assert out_dtype in ["float16", "float32", "int32"]
 
     shape = "16x16"
 
     dtype_mapping = {
         "float16": "f16",
+        "bfloat16": "bf16",
         "float32": "f32",
         "int8": "i8",
         "e4m3_float8": "e4m3",
@@ -1098,7 +1204,7 @@ def get_mma_intrin_group(
     store_intrin = f"mma_store_{shape}_{store_to_smem_dtype}_{store_scope}_{suffix}"
 
     index_map_c = shared_16x16_to_mma_32x8_layout
-    if a_dtype == "f16":
+    if a_dtype in ["f16", "bf16"]:
         index_map_a = (
             shared_16x16_to_mma_32x8_smoothlayout if smooth_a else shared_16x16_to_mma_32x8_layout
         )
@@ -1117,7 +1223,7 @@ def get_mma_intrin_group(
 
     # micro kernel size, the order is [m, n, k]
     micro_kernel: List[int]
-    if a_dtype == "f16":
+    if a_dtype in ["f16", "bf16"]:
         micro_kernel = [16, 16, 16]
     elif a_dtype in ["i8", "e4m3", "e5m2"]:
         micro_kernel = [16, 16, 32]

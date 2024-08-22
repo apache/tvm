@@ -720,6 +720,14 @@ TVM_REGISTER_GLOBAL("tir.transform.BF16ComputeLegalize").set_body_typed(BF16Comp
 Pass BF16StorageLegalize() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
     // TODO(tvm-team): skip if the target supports bf16
+    bool apply_storage_legalize = true;
+    Optional<tvm::Target> func_target = f->attrs.GetAttr<tvm::Target>(tvm::attr::kTarget);
+    if (func_target.defined()) {
+      apply_storage_legalize = !CheckDataTypeSupport(func_target.value(), "tvm.contrib.nvcc.supports_bf16");
+    }
+    if (!apply_storage_legalize) {
+      return f;
+    }
     return BF16StorageLegalizer().Legalize(f);
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.BF16StorageLegalize", {});
