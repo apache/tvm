@@ -731,12 +731,17 @@ def test_addmm():
 def test_split():
     """test relay to relax for split"""
 
-    class Split(Module):
+    class Split1(Module):
         def forward(self, data):
             return torch.split(data, 1, dim=1)
 
+    class Split2(Module):
+        def forward(self, data):
+            return torch.split(data, [1, 2], dim=1)
+
     input_info = [([1, 3, 10, 10], "float32")]
-    verify_model(Split(), input_info, build_target="llvm")
+    verify_model(Split1(), input_info, build_target="llvm")
+    verify_model(Split2(), input_info, build_target="llvm")
 
 
 def test_unbind():
@@ -875,12 +880,17 @@ def test_new_ones():
 def test_expand():
     """test relay to relax for expand"""
 
-    class Expand(Module):
+    class Expand1(Module):
         def forward(self, x):
             return x.expand(4, 2, 3, 4)
 
+    class Expand2(Module):
+        def forward(self, x):
+            return x.expand(4, -1, -1, 4)
+
     input_info = [([1, 2, 3, 4], "float32")]
-    verify_model(Expand(), input_info, build_target="llvm")
+    verify_model(Expand1(), input_info, build_target="llvm")
+    verify_model(Expand2(), input_info, build_target="llvm")
 
 
 def test_reduce():

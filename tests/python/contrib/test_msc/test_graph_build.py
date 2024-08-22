@@ -1345,11 +1345,15 @@ def test_addmm():
 def test_split():
     """test graph builder for split"""
 
-    class Split(Module):
+    class Split1(Module):
         def forward(self, data):
             return torch.split(data, 1, dim=1)
 
-    expected = {
+    class Split2(Module):
+        def forward(self, data):
+            return torch.split(data, [1, 2], dim=1)
+
+    expected1 = {
         "inputs": [
             {"name": "inp_0", "shape": [1, 3, 10, 10], "dtype": "float32", "layout": "ABCD"}
         ],
@@ -1361,8 +1365,20 @@ def test_split():
         "nodes": {"total": 2, "input": 1, "split": 1},
     }
 
+    expected2 = {
+        "inputs": [
+            {"name": "inp_0", "shape": [1, 3, 10, 10], "dtype": "float32", "layout": "ABCD"}
+        ],
+        "outputs": [
+            {"name": "split_0", "shape": [1, 1, 10, 10], "dtype": "float32", "layout": "ABCD"},
+            {"name": "split_1", "shape": [1, 2, 10, 10], "dtype": "float32", "layout": "ABCD"},
+        ],
+        "nodes": {"total": 2, "input": 1, "split": 1},
+    }
+
     input_info = [([1, 3, 10, 10], "float32")]
-    verify_model(Split(), input_info, expected)
+    verify_model(Split1(), input_info, expected1)
+    verify_model(Split2(), input_info, expected2)
 
 
 def test_unbind():
@@ -1570,9 +1586,13 @@ def test_new_ones():
 def test_expand():
     """test graph builder for expand"""
 
-    class Expand(Module):
+    class Expand1(Module):
         def forward(self, x):
             return x.expand(4, 2, 3, 4)
+
+    class Expand2(Module):
+        def forward(self, x):
+            return x.expand(4, -1, -1, 4)
 
     expected = {
         "inputs": [{"name": "inp_0", "shape": [1, 2, 3, 4], "dtype": "float32", "layout": ""}],
@@ -1583,7 +1603,8 @@ def test_expand():
     }
 
     input_info = [([1, 2, 3, 4], "float32")]
-    verify_model(Expand(), input_info, expected)
+    verify_model(Expand1(), input_info, expected)
+    verify_model(Expand2(), input_info, expected)
 
 
 def test_reduce():

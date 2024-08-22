@@ -604,7 +604,7 @@ class TorchFXImporter:
             dim = 0
         if isinstance(split_size, (list, tuple)):
             n_section = []
-            for s in split_size:
+            for s in split_size[:-1]:
                 cum_sum = 0 if not n_section else n_section[-1]
                 n_section.append(s + cum_sum)
         else:

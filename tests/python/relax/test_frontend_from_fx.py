@@ -2714,16 +2714,18 @@ def test_addmm():
 def test_split():
     input_info = [([1, 3, 10, 10], "float32")]
 
-    class Split(Module):
+    class Split1(Module):
         def forward(self, input):
             return torch.split(input, 1, dim=1)
+
+    class Split2(Module):
+        def forward(self, input):
+            return torch.split(input, [1, 2], dim=1)
 
     @tvm.script.ir_module
     class expected1:
         @R.function
-        def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tuple(
+        def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tuple(
             R.Tensor((1, 1, 10, 10), dtype="float32"),
             R.Tensor((1, 1, 10, 10), dtype="float32"),
             R.Tensor((1, 1, 10, 10), dtype="float32"),
@@ -2743,7 +2745,114 @@ def test_split():
                 R.output(gv)
             return gv
 
-    verify_model(Split(), input_info, {}, expected1)
+    @tvm.script.ir_module
+    class expected2:
+        @R.function
+        def main(
+            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
+        ) -> R.Tuple(
+            R.Tensor((1, 1, 10, 10), dtype="float32"), R.Tensor((1, 2, 10, 10), dtype="float32")
+        ):
+            # block 0
+            with R.dataflow():
+                lv: R.Tuple(
+                    R.Tensor((1, 1, 10, 10), dtype="float32"),
+                    R.Tensor((1, 2, 10, 10), dtype="float32"),
+                ) = R.split(input_1, indices_or_sections=[1], axis=1)
+                gv: R.Tuple(
+                    R.Tensor((1, 1, 10, 10), dtype="float32"),
+                    R.Tensor((1, 2, 10, 10), dtype="float32"),
+                ) = lv
+                R.output(gv)
+            return gv
+
+    verify_model(Split1(), input_info, {}, expected1)
+    verify_model(Split2(), input_info, {}, expected2)
+
+
+def test_unbind():
+    input_info = [([3, 3, 10, 10], "float32")]
+
+    class Unbind1(Module):
+        def forward(self, data):
+            return torch.unbind(data)
+
+    class Unbind2(Module):
+        def forward(self, data):
+            return torch.unbind(data, dim=1)
+
+    @tvm.script.ir_module
+    class expected1:
+        @R.function
+        def main(input_1: R.Tensor((3, 3, 10, 10), dtype="float32")) -> R.Tuple(
+            R.Tensor((3, 10, 10), dtype="float32"),
+            R.Tensor((3, 10, 10), dtype="float32"),
+            R.Tensor((3, 10, 10), dtype="float32"),
+        ):
+            # block 0
+            with R.dataflow():
+                lv: R.Tuple(
+                    R.Tensor((1, 3, 10, 10), dtype="float32"),
+                    R.Tensor((1, 3, 10, 10), dtype="float32"),
+                    R.Tensor((1, 3, 10, 10), dtype="float32"),
+                    R.Tensor((0, 3, 10, 10), dtype="float32"),
+                ) = R.split(input_1, indices_or_sections=[1, 2, 3], axis=0)
+                lv1: R.Tensor((1, 3, 10, 10), dtype="float32") = lv[0]
+                lv2: R.Tensor((3, 10, 10), dtype="float32") = R.squeeze(lv1, axis=[0])
+                lv3: R.Tensor((1, 3, 10, 10), dtype="float32") = lv[1]
+                lv4: R.Tensor((3, 10, 10), dtype="float32") = R.squeeze(lv3, axis=[0])
+                lv5: R.Tensor((1, 3, 10, 10), dtype="float32") = lv[2]
+                lv6: R.Tensor((3, 10, 10), dtype="float32") = R.squeeze(lv5, axis=[0])
+                lv7: R.Tuple(
+                    R.Tensor((3, 10, 10), dtype="float32"),
+                    R.Tensor((3, 10, 10), dtype="float32"),
+                    R.Tensor((3, 10, 10), dtype="float32"),
+                ) = (lv2, lv4, lv6)
+                gv: R.Tuple(
+                    R.Tensor((3, 10, 10), dtype="float32"),
+                    R.Tensor((3, 10, 10), dtype="float32"),
+                    R.Tensor((3, 10, 10), dtype="float32"),
+                ) = lv7
+                R.output(gv)
+            return gv
+
+    @tvm.script.ir_module
+    class expected2:
+        @R.function
+        def main(input_1: R.Tensor((3, 3, 10, 10), dtype="float32")) -> R.Tuple(
+            R.Tensor((3, 10, 10), dtype="float32"),
+            R.Tensor((3, 10, 10), dtype="float32"),
+            R.Tensor((3, 10, 10), dtype="float32"),
+        ):
+            # block 0
+            with R.dataflow():
+                lv: R.Tuple(
+                    R.Tensor((3, 1, 10, 10), dtype="float32"),
+                    R.Tensor((3, 1, 10, 10), dtype="float32"),
+                    R.Tensor((3, 1, 10, 10), dtype="float32"),
+                    R.Tensor((3, 0, 10, 10), dtype="float32"),
+                ) = R.split(input_1, indices_or_sections=[1, 2, 3], axis=1)
+                lv1: R.Tensor((3, 1, 10, 10), dtype="float32") = lv[0]
+                lv2: R.Tensor((3, 10, 10), dtype="float32") = R.squeeze(lv1, axis=[1])
+                lv3: R.Tensor((3, 1, 10, 10), dtype="float32") = lv[1]
+                lv4: R.Tensor((3, 10, 10), dtype="float32") = R.squeeze(lv3, axis=[1])
+                lv5: R.Tensor((3, 1, 10, 10), dtype="float32") = lv[2]
+                lv6: R.Tensor((3, 10, 10), dtype="float32") = R.squeeze(lv5, axis=[1])
+                lv7: R.Tuple(
+                    R.Tensor((3, 10, 10), dtype="float32"),
+                    R.Tensor((3, 10, 10), dtype="float32"),
+                    R.Tensor((3, 10, 10), dtype="float32"),
+                ) = (lv2, lv4, lv6)
+                gv: R.Tuple(
+                    R.Tensor((3, 10, 10), dtype="float32"),
+                    R.Tensor((3, 10, 10), dtype="float32"),
+                    R.Tensor((3, 10, 10), dtype="float32"),
+                ) = lv7
+                R.output(gv)
+            return gv
+
+    verify_model(Unbind1(), input_info, {}, expected1)
+    verify_model(Unbind2(), input_info, {}, expected2)
 
 
 def test_cumsum():
@@ -2779,9 +2888,7 @@ def test_chunk():
     @tvm.script.ir_module
     class Expected:
         @R.function
-        def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tuple(
+        def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tuple(
             R.Tensor((1, 1, 10, 10), dtype="float32"),
             R.Tensor((1, 1, 10, 10), dtype="float32"),
             R.Tensor((1, 1, 10, 10), dtype="float32"),
@@ -2970,9 +3077,13 @@ def test_new_ones():
 def test_expand():
     input_info = [([1, 2, 3, 4], "float32")]
 
-    class Expand(Module):
+    class Expand1(Module):
         def forward(self, x):
             return x.expand(4, 2, 3, 4)
+
+    class Expand2(Module):
+        def forward(self, x):
+            return x.expand(4, -1, -1, 4)
 
     @tvm.script.ir_module
     class expected1:
@@ -2987,7 +3098,8 @@ def test_expand():
                 R.output(gv)
             return gv
 
-    verify_model(Expand(), input_info, {}, expected1)
+    verify_model(Expand1(), input_info, {}, expected1)
+    verify_model(Expand2(), input_info, {}, expected1)
 
 
 def test_reduce():
