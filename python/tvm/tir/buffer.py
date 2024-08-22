@@ -262,7 +262,7 @@ def decl_buffer(
     name : str, optional
         The name of the buffer.
 
-    data : Var, optional
+    data : tir.Var, optional
         The data pointer in the buffer.
 
     strides: array of Expr
