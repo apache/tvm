@@ -51,7 +51,8 @@ namespace msc {
 using Expr = tvm::RelayExpr;
 using RelaxExprVisitor = tvm::relax::ExprVisitor;
 using RelayExprVisitor = tvm::relay::ExprVisitor;
-using namespace tvm::runtime;
+
+using tvm::runtime::NDArray;
 
 /*!
  * \brief Config for building MSCGraph.
