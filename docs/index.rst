@@ -33,6 +33,7 @@ driving its costs down.
    :caption: Getting Started
 
    install/index
+   get_started/tutorials/quick_start
    contribute/index
 
 .. toctree::
