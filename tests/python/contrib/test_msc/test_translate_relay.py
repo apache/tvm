@@ -739,6 +739,22 @@ def test_split():
     verify_model(Split(), input_info, build_target="llvm")
 
 
+def test_unbind():
+    """test relay to relax for unbind"""
+
+    class Unbind1(Module):
+        def forward(self, data):
+            return torch.unbind(data)
+
+    class Unbind2(Module):
+        def forward(self, data):
+            return torch.unbind(data, dim=1)
+
+    input_info = [([3, 3, 10, 10], "float32")]
+    verify_model(Unbind1(), input_info, build_target="llvm")
+    verify_model(Unbind2(), input_info, build_target="llvm")
+
+
 def test_cumsum():
     """test relay to relax for cumsum"""
 

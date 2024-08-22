@@ -682,6 +682,23 @@ def test_split():
 
 
 @requires_tensorrt
+def test_unbind():
+    """test tensorrt to relax for unbind"""
+
+    class Unbind1(Module):
+        def forward(self, data):
+            return torch.unbind(data)
+
+    class Unbind2(Module):
+        def forward(self, data):
+            return torch.unbind(data, dim=1)
+
+    input_info = [([3, 3, 10, 10], "float32")]
+    verify_model(Unbind1(), input_info)
+    verify_model(Unbind2(), input_info)
+
+
+@requires_tensorrt
 def test_chunk():
     """test tensorrt translator for chunk"""
 

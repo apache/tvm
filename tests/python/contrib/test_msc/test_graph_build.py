@@ -1365,6 +1365,29 @@ def test_split():
     verify_model(Split(), input_info, expected)
 
 
+def test_unbind():
+    """test graph builder for unbind"""
+
+    class Unbind(Module):
+        def forward(self, data):
+            return torch.unbind(data, dim=1)
+
+    expected = {
+        "inputs": [
+            {"name": "inp_0", "shape": [1, 3, 10, 10], "dtype": "float32", "layout": "ABCD"}
+        ],
+        "outputs": [
+            {"name": "tuple_0", "shape": [1, 10, 10], "dtype": "float32", "layout": "ACD"},
+            {"name": "tuple_1", "shape": [1, 10, 10], "dtype": "float32", "layout": "ACD"},
+            {"name": "tuple_2", "shape": [1, 10, 10], "dtype": "float32", "layout": "ACD"},
+        ],
+        "nodes": {"total": 9, "input": 1, "split": 1, "get_item": 3, "squeeze": 3, "tuple": 1},
+    }
+
+    input_info = [([1, 3, 10, 10], "float32")]
+    verify_model(Unbind(), input_info, expected)
+
+
 def test_cumsum():
     """test graph builder for cumsum"""
 

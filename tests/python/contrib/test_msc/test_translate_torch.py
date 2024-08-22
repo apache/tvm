@@ -737,6 +737,23 @@ def test_split():
         verify_model(Split(), input_info, via_relax)
 
 
+def test_unbind():
+    """test torch translator for unbind"""
+
+    class Unbind1(Module):
+        def forward(self, data):
+            return torch.unbind(data)
+
+    class Unbind2(Module):
+        def forward(self, data):
+            return torch.unbind(data, dim=1)
+
+    input_info = [([3, 3, 10, 10], "float32")]
+    for via_relax in [True, False]:
+        verify_model(Unbind1(), input_info, via_relax)
+        verify_model(Unbind2(), input_info, via_relax)
+
+
 def test_cumsum():
     """test torch translator for cumsum"""
 
