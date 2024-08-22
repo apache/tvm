@@ -391,8 +391,8 @@ def ConvertToDataflow(min_size: int = 2) -> tvm.ir.transform.Pass:
 
     Note: ConvertToDataflow may need to be called first.
 
-    Params
-    ------
+    Parameters
+    ----------
     min_size: int
         The minimum number of consecutive dataflow bindings
         the pass needs to extract a new block.
@@ -647,13 +647,8 @@ def BindParams(
     func_name: str
         The function name to be bound
 
-    params : Dict[
-                Union[str,relax.Var],
-                Union[tvm.runtime.NDArray, np.ndarray],
-             ]
-
-        The map from parameter or parameter name to constant
-        tensors.
+    params: Dict[Union[str,relax.Var], Union[tvm.runtime.NDArray, np.ndarray]]
+        The map from parameter or parameter name to constant tensors.
 
     Returns
     -------
@@ -994,16 +989,16 @@ def LiftTransformParams(shared_transform: Union[bool, List[str]] = False) -> tvm
         Indicates how the parameter transformation function will be produced
 
         - `False` (default): A separate parameter transformation function will be
-        produced for each function with the `"num_input"` attribute.
+          produced for each function with the `"num_input"` attribute.
 
         - `True`: A single parameter transformation function will be produced,
-        containing the preprocessing steps common across all functions with
-        the `"num_input"` attribute.
+          containing the preprocessing steps common across all functions with
+          the `"num_input"` attribute.
 
         - List[str]: A single parameter transformation function will be produced,
-        containing the preprocessing steps common across each function whose
-        name is in the list.  Passing a list of all functions with the `"num_input"`
-        attribute or an empty list is equivalent to passing `True`.
+          containing the preprocessing steps common across each function whose
+          name is in the list.  Passing a list of all functions with the `"num_input"`
+          attribute or an empty list is equivalent to passing `True`.
 
     Returns
     -------
@@ -1219,7 +1214,7 @@ def MetaScheduleTuneIRMod(
        maximum number of trials per task
     op_names: Optional[List[str]]
        A list of operator names to specify which op to tune. When it is None, all operators
-        are tuned.
+       are tuned.
 
     Returns
     -------

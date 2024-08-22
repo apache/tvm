@@ -15,9 +15,9 @@
     specific language governing permissions and limitations
     under the License.
 
-tvm.ir
-------
-.. automodule:: tvm.ir
+tvm.tir
+-------
+.. automodule:: tvm.tir
    :members:
    :imported-members:
-   :autosummary:
+   :exclude-members: PrimExpr, const, StmtSRef, BlockScope, ScheduleState, Schedule, ScheduleError

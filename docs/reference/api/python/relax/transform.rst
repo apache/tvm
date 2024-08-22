@@ -15,9 +15,10 @@
     specific language governing permissions and limitations
     under the License.
 
-tvm.ir
-------
-.. automodule:: tvm.ir
+.. _api-relax-transformation:
+
+tvm.relax.transform
+-------------------
+.. automodule:: tvm.relax.transform
    :members:
    :imported-members:
-   :autosummary:

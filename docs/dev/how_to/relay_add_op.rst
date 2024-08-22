@@ -196,14 +196,12 @@ on how to do this, we recommend looking up the tutorials on :ref:`tensor
 expressions <tutorial-tensor-expr-get-started>`, :ref:`TVM's operator inventory
 (topi) <tutorial-topi>` and looking at the example cumulative sum and product
 implementations found in `python/tvm/topi/scan.py`_ and the gpu versions in
-`python/tvm/topi/cuda/scan.py`_. In the case of our cumulative sum and product
-operations we write things directly in :ref:`TIR <api-python-tir>` which is the
-representation where tensor expressions and topi will lower into.
+`python/tvm/topi/cuda/scan.py`_.
 
 .. _python/tvm/topi/scan.py: https://github.com/apache/tvm/blob/main/python/tvm/topi/scan.py
 .. _python/tvm/topi/cuda/scan.py: https://github.com/apache/tvm/blob/main/python/tvm/topi/cuda/scan.py
 
-5. Hooking up Compute and Strategy with Relay
+1. Hooking up Compute and Strategy with Relay
 ---------------------------------------------
 
 After you have implemented your compute function we now need to glue it to our

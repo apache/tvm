@@ -39,6 +39,7 @@ from pathlib import Path
 import re
 import sys
 from textwrap import dedent, indent
+from typing import List
 from unittest.mock import patch
 
 # If extensions (or modules to document with autodoc) are in another directory,
@@ -718,10 +719,50 @@ def update_alias_docstring(name, obj, lines):
             lines.append(".. rubric:: Alias of %s:`%s.%s`" % (obj_type, amod, target_name))
 
 
+tvm_class_name_rewrite_map = {
+    "tvm.tir": ["Var", "Call"],
+    "tvm.relax": ["Var", "Call"],
+    "tvm.relax.frontend.nn": ["Module"],
+}
+
+
+def distinguish_class_name(name: str, lines: List[str]):
+    """Distinguish the docstring of type annotations.
+
+    In the whole TVM, there are many classes with the same name but in different modules,
+    e.g. ``tir.Var``, ``relax.Var``. This function is used to distinguish them in the docstring,
+    by adding the module name as prefix.
+
+    To be specific, this function will check the current object name, and if it in the specific
+    module with specific name, it will add the module name as prefix to the class name to prevent
+    the confusion. Further, we only add the prefix to those standalone class name, but skip
+    the pattern of `xx.Var`, `Var.xx` and `xx.Var.xx`.
+
+    Parameters
+    ----------
+    name : str
+        The full name of the object in the doc.
+
+    lines : list
+        The docstring lines, need to be modified inplace.
+    """
+    remap = {}
+    for module_name in tvm_class_name_rewrite_map:
+        if name.startswith(module_name):
+            short_name = module_name[4:] if module_name.startswith("tvm.") else module_name
+            for class_name in tvm_class_name_rewrite_map[module_name]:
+                remap.update({class_name: f"{short_name}.{class_name}"})
+
+    for k, v in remap.items():
+        for i in range(len(lines)):
+            lines[i] = re.sub(rf"(?<!\.)\b{k}\b(?!\.)", v, lines[i])
+
+
 def process_docstring(app, what, name, obj, options, lines):
     """Sphinx callback to process docstring"""
     if callable(obj) or inspect.isclass(obj):
         update_alias_docstring(name, obj, lines)
+        distinguish_class_name(name, lines)
 
 
 from legacy_redirect import build_legacy_redirect

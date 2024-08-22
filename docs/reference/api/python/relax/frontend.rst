@@ -15,9 +15,34 @@
     specific language governing permissions and limitations
     under the License.
 
-tvm.ir
-------
-.. automodule:: tvm.ir
+tvm.relax.frontend
+------------------
+.. automodule:: tvm.relax.frontend
    :members:
    :imported-members:
-   :autosummary:
+
+tvm.relax.frontend.nn
+*********************
+.. automodule:: tvm.relax.frontend.nn
+   :members:
+   :imported-members:
+   :exclude-members: BlockBuilder
+   :noindex:
+
+tvm.relax.frontend.onnx
+***********************
+.. automodule:: tvm.relax.frontend.onnx
+   :members:
+   :imported-members:
+
+tvm.relax.frontend.stablehlo
+****************************
+.. automodule:: tvm.relax.frontend.stablehlo
+   :members:
+   :imported-members:
+
+tvm.relax.frontend.torch
+************************
+.. automodule:: tvm.relax.frontend.torch
+   :members:
+   :imported-members:

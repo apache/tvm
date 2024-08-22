@@ -15,9 +15,9 @@
     specific language governing permissions and limitations
     under the License.
 
-tvm.ir
-------
-.. automodule:: tvm.ir
-   :members:
-   :imported-members:
-   :autosummary:
+tvm.relax
+---------
+.. automodule:: tvm.relax
+    :members:
+    :imported-members:
+    :exclude-members: BlockBuilder, Span, GlobalVar, SourceName, TupleType, Type, FuncType

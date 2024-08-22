@@ -15,9 +15,8 @@
     specific language governing permissions and limitations
     under the License.
 
-tvm.ir
-------
-.. automodule:: tvm.ir
+tvm.runtime
+-----------
+.. automodule:: tvm.runtime
    :members:
-   :imported-members:
-   :autosummary:
+   :exclude-members: NDArray

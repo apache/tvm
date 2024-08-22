@@ -15,9 +15,7 @@
     specific language governing permissions and limitations
     under the License.
 
-tvm.ir
-------
-.. automodule:: tvm.ir
-   :members:
-   :imported-members:
-   :autosummary:
+tvm.runtime.relax_vm
+--------------------
+.. automodule:: tvm.runtime.relax_vm
+    :members:

@@ -15,11 +15,7 @@
     specific language governing permissions and limitations
     under the License.
 
-tvm.runtime
------------
-
-.. automodule:: tvm.runtime
+tvm.tir.stmt_functor
+--------------------
+.. automodule:: tvm.tir.stmt_functor
    :members:
-   :imported-members:
-   :exclude-members: NDArray
-   :autosummary:

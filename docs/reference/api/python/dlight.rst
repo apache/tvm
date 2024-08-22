@@ -15,13 +15,8 @@
     specific language governing permissions and limitations
     under the License.
 
-tvm.runtime.ndarray
--------------------
-.. automodule:: tvm.runtime.ndarray
-
-.. autoclass:: tvm.nd.NDArray
-    :members:
-    :inherited-members:
-
-.. autofunction:: tvm.nd.array
-.. autofunction:: tvm.nd.empty
+tvm.dlight
+----------
+.. automodule:: tvm.dlight
+   :members:
+   :imported-members:

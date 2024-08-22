@@ -15,9 +15,7 @@
     specific language governing permissions and limitations
     under the License.
 
-tvm.ir
-------
-.. automodule:: tvm.ir
+tvm.relax.block_builder
+-----------------------
+.. automodule:: tvm.relax.block_builder
    :members:
-   :imported-members:
-   :autosummary:
