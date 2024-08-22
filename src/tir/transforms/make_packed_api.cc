@@ -81,7 +81,11 @@ class ReturnRewriter : public StmtMutator {
 
     // convert val's data type to FFI data type, return type code
     DataType dtype = val.dtype();
-    if (dtype.is_int() || dtype.is_uint()) {
+    if (dtype.is_bool()) {
+      info.tcode = kTVMArgBool;
+      info.expr = Cast(DataType::Int(64), val);
+
+    } else if (dtype.is_int() || dtype.is_uint()) {
       info.tcode = kTVMArgInt;
       info.expr = Cast(DataType::Int(64), val);
     } else if (dtype.is_float()) {
@@ -340,12 +344,7 @@ PrimFunc MakePackedAPI(PrimFunc func) {
       seq_init.emplace_back(
           AssertStmt(tcode == kTVMArgBool || tcode == kDLInt, tvm::tir::StringImm(msg.str()), nop));
 
-      arg_value = Call(t, builtin::if_then_else(),
-                       {
-                           tcode == kTVMArgBool,
-                           f_arg_value(DataType::Bool(), i),
-                           cast(DataType::Bool(), f_arg_value(DataType::Int(64), i)),
-                       });
+      arg_value = cast(DataType::Bool(), f_arg_value(DataType::Int(64), i));
 
     } else if (t.is_int() || t.is_uint()) {
       std::ostringstream msg;
@@ -353,12 +352,7 @@ PrimFunc MakePackedAPI(PrimFunc func) {
       seq_init.emplace_back(
           AssertStmt(tcode == kDLInt || tcode == kTVMArgBool, tvm::tir::StringImm(msg.str()), nop));
 
-      arg_value = Call(t, builtin::if_then_else(),
-                       {
-                           tcode == kTVMArgInt,
-                           f_arg_value(t, i),
-                           cast(t, f_arg_value(DataType::Bool(), i)),
-                       });
+      arg_value = f_arg_value(t, i);
     } else {
       ICHECK(t.is_float());
       std::ostringstream msg;
