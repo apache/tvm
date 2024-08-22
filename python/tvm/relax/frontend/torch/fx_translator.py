@@ -612,6 +612,14 @@ class TorchFXImporter:
             dim = None
         return self.block_builder.emit(relax.op.squeeze(x, dim))
 
+    def _tile(self, node: fx.node.Node) -> relax.Var:
+        import torch  # type: ignore
+
+        args = self.retrieve_args(node)
+        if isinstance(args[1], (torch.Size, tuple, list)):
+            return self.block_builder.emit(relax.op.tile(args[0], tuple(args[1])))
+        return self.block_builder.emit(relax.op.tile(args[0], args[1:]))
+
     def _cumsum(self, node: fx.node.Node) -> relax.Var:
         x = self.env[node.args[0]]
 
@@ -1450,6 +1458,7 @@ class TorchFXImporter:
             "permute": self._permute,
             "reshape": self._reshape,
             "split": self._split,
+            "tile": self._tile,
             "cumsum": self._cumsum,
             "chunk": self._chunk,
             "transpose": self._transpose,
