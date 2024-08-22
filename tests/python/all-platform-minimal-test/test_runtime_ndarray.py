@@ -83,21 +83,70 @@ def test_fp16_conversion(src_dst, target, dev):
     src, dst = src_dst
     n = 100
 
-    A = te.placeholder((n,), dtype=src)
-    B = te.compute((n,), lambda i: A[i].astype(dst))
+    from tvm.script import ir as I, tir as T
 
-    s = te.create_schedule([B.op])
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def main(
+            output_handle: T.handle,
+            input_handle: T.handle,
+        ):
+            Input = T.match_buffer(output_handle, 100, src)
+            Output = T.match_buffer(input_handle, 100, dst)
 
-    # DEBUG PRINT, REMOVE BEFORE MERGE
-    tvm.lower(s, [A, B]).show()
+            T.func_attr({"from_legacy_te_schedule": T.bool(True), "tir.noalias": T.bool(True)})
 
-    func = tvm.build(s, [A, B], target)
+            T.call_extern("void", "printf", "Start of function\n")
+            T.call_extern("void", "fflush", T.int64(0))
+
+            for i in range(100):
+                T.call_extern("void", "printf", "Start of iteration %d\n", i)
+                T.call_extern("void", "fflush", T.int64(0))
+
+                input_value = Input[i]
+
+                T.call_extern("void", "printf", "Read value in iteration %d\n", i)
+                T.call_extern("void", "fflush", T.int64(0))
+
+                output_value = T.Cast(dst, input_value)
+
+                T.call_extern(
+                    "void", "printf", "Converted value to output type in iteration %d\n", i
+                )
+                T.call_extern("void", "fflush", T.int64(0))
+
+                Output[i] = output_value
+
+                T.call_extern("void", "printf", "Wrote value to output array in iteration %d\n", i)
+                T.call_extern("void", "fflush", T.int64(0))
+
+                T.call_extern("void", "printf", "End of iteration %d\n", i)
+                T.call_extern("void", "fflush", T.int64(0))
+
+            T.call_extern("void", "printf", "End of function\n")
+            T.call_extern("void", "fflush", T.int64(0))
+
+    # A = te.placeholder((n,), dtype=src)
+    # B = te.compute((n,), lambda i: A[i].astype(dst))
+
+    # s = te.create_schedule([B.op])
+
+    # # DEBUG PRINT, REMOVE BEFORE MERGE
+    # tvm.lower(s, [A, B]).show()
+
+    # func = tvm.build(s, [A, B], target)
+
+    func = tvm.build(Module, target=target)
 
     # DEBUG PRINT, REMOVE BEFORE MERGE
     print(func.get_source(), flush=True)
 
     x_tvm = tvm.nd.array(100 * np.random.randn(n).astype(src) - 50, dev)
     y_tvm = tvm.nd.array(100 * np.random.randn(n).astype(dst) - 50, dev)
+
+    print(f"Input shape: {x_tvm.shape}, input dtype: {x_tvm.dtype}")
+    print(f"Output shape: {y_tvm.shape}, output dtype: {y_tvm.dtype}")
 
     func(x_tvm, y_tvm)
 
