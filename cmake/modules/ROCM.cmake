@@ -53,6 +53,18 @@ if(USE_ROCM)
     list(APPEND TVM_RUNTIME_LINKER_LIBS ${ROCM_ROCBLAS_LIBRARY})
   endif(USE_ROCBLAS)
 
+  if(USE_HIPBLAS)
+    message(STATUS "Build with HIPBLAS support")
+    tvm_file_glob(GLOB HIPBLAS_CONTRIB_SRC src/relax/backend/contrib/hipblas/*.cc)
+    list(APPEND COMPILER_SRCS ${HIPBLAS_CONTRIB_SRC})
+    tvm_file_glob(GLOB HIPBLAS_CONTRIB_SRCS src/runtime/contrib/hipblas/*.cc)
+    list(APPEND RUNTIME_SRCS ${HIPBLAS_CONTRIB_SRCS})
+    list(APPEND TVM_RUNTIME_LINKER_LIBS ${ROCM_HIPBLAS_LIBRARY})
+    if(NOT ROCM_HIPBLASLT_LIBRARY STREQUAL "ROCM_HIPBLASLT_LIBRARY-NOTFOUND")
+      list(APPEND TVM_RUNTIME_LINKER_LIBS ${ROCM_HIPBLASLT_LIBRARY})
+    endif()
+  endif(USE_HIPBLAS)
+
   if(USE_THRUST)
     message(STATUS "Build with rocThrust support")
     # We need to override CXX to hipcc. This is required by rocthrust
