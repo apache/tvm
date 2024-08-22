@@ -203,6 +203,8 @@ void CodeGenLLVM::InitTarget() {
   // reside in a separate section (ELF).
   llvm::Triple::ArchType arch_type = tm->getTargetTriple().getArch();
   if (arch_type == llvm::Triple::x86 || arch_type == llvm::Triple::x86_64) {
+    LOG(DEBUG) << "Inspecting availability of SSE2 on architecture " << arch_type << " ("
+               << std::string(tm->getTargetTriple().getArchName()) << ")";
     // Detect if SSE2 is enabled. This determines whether float16 ABI is used.
     std::stringstream os;
     const char fname[] = "test_sse2";
@@ -217,12 +219,23 @@ void CodeGenLLVM::InitTarget() {
     auto* test_sse2 = mod->getFunction(fname);
     ICHECK(test_sse2 != nullptr) << "Module creation error";
     use_float16_abi = tm->getSubtargetImpl(*test_sse2)->checkFeatures("+sse2");
+
+    LOG(DEBUG) << "SSE2 is available on target: " << (use_float16_abi ? "true" : "false");
+  } else {
+    LOG(DEBUG) << "Inspection for availability of SSE2 skipped for architecture " << arch_type
+               << " (" << std::string(tm->getTargetTriple().getArchName()) << ")";
   }
 #endif  // TVM_LLVM_VERSION >= 150
 
+  LOG(DEBUG) << "Using LLVM version " << TVM_LLVM_VERSION
+             << ", emitting Float16 builtins with ABI: "
+             << (use_float16_abi ? "float16" : "uint16");
+
   // Call this function only with LLVM >= 6.0. The code it emits uses "dso_local"
   // which was introduced in LLVM 6.
-  EmitFloat16ConversionBuiltins(use_float16_abi);
+  LOG(DEBUG) << "Commenting out the EmitFloat16ConversionBuiltins, "
+             << "to see if there's an incompatibility in Windows CI";
+  // EmitFloat16ConversionBuiltins(use_float16_abi);
 #endif  // TVM_LLVM_VERSION >= 60
 }
 
