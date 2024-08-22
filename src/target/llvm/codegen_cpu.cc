@@ -1379,7 +1379,7 @@ llvm::Value* CodeGenCPU::CreateIntrinsic(const CallNode* op) {
     llvm::Value* struct_value = builder_->CreateLoad(ref.type, ref.addr);
 
     if (op->dtype == DataType::Bool()) {
-      struct_value = CreateCast(DataType::Int(8), op->dtype, struct_value);
+      struct_value = CreateCast(DataType::Int(64), op->dtype, struct_value);
     }
 
     return struct_value;
