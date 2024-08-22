@@ -298,9 +298,9 @@ def test_call_tir_inplace_e2e_rw(exec_mode):
                     A[ax0, ax1] = A[ax0, ax1] + B[ax0, ax1]
 
         @R.function
-        def main(x: R.Tensor((2, 3), "int32"), y: R.Tensor((2, 3), "int32")) -> R.Tensor(
-            (2, 3), "int32"
-        ):
+        def main(
+            x: R.Tensor((2, 3), "int32"), y: R.Tensor((2, 3), "int32")
+        ) -> R.Tensor((2, 3), "int32"):
             res = R.call_tir_inplace(
                 TestCallTIRInplaceE2ERW.inplace_add, (x, y), [0], R.Tensor((2, 3), "int32")
             )
@@ -955,14 +955,16 @@ class TestVMSetInput:
 
     # test returning a tuple
     @R.function
-    def test_vm_tuple(x: R.Tensor((), "int32")) -> R.Tuple(
-        R.Tensor((), "int32"), R.Tensor((), "int32")
-    ):
+    def test_vm_tuple(
+        x: R.Tensor((), "int32")
+    ) -> R.Tuple(R.Tensor((), "int32"), R.Tensor((), "int32")):
         return (x, x)
 
     # nested tuple too
     @R.function
-    def test_vm_nested_tuple(x: R.Tensor((), "int32")) -> R.Tuple(
+    def test_vm_nested_tuple(
+        x: R.Tensor((), "int32")
+    ) -> R.Tuple(
         R.Tuple(
             R.Tensor((), "int32"),
             R.Tuple(

@@ -61,9 +61,9 @@ def test_reshape_expand_dims():
                     expand_dims[i0_1, i1_1, i2_1, i3_1, i4_1] = rxplaceholder[i0_1, i2_1, i4_1]
 
         @R.function
-        def main(x: R.Tensor((8, 3), dtype="float32")) -> R.Tensor(
-            (2, 1, 4, 1, 3), dtype="float32"
-        ):
+        def main(
+            x: R.Tensor((8, 3), dtype="float32")
+        ) -> R.Tensor((2, 1, 4, 1, 3), dtype="float32"):
             cls = Module
             with R.dataflow():
                 y = R.call_tir(cls.reshape, (x,), out_sinfo=R.Tensor((2, 4, 3), dtype="float32"))
@@ -112,9 +112,9 @@ def test_reshape_expand_dims():
                     expand_dims[i0_1, i1_1, i2_1, i3_1, i4_1] = rxplaceholder[i0_1, i2_1, i4_1]
 
         @R.function
-        def main(x: R.Tensor((8, 3), dtype="float32")) -> R.Tensor(
-            (2, 1, 4, 1, 3), dtype="float32"
-        ):
+        def main(
+            x: R.Tensor((8, 3), dtype="float32")
+        ) -> R.Tensor((2, 1, 4, 1, 3), dtype="float32"):
             with R.dataflow():
                 cls = Expected
                 y: R.Tensor((2, 4, 3), "float32") = R.reshape(x, (2, 4, 3))
@@ -252,9 +252,9 @@ def test_reshape_dynamic_shape():
                         ]
 
         @R.function
-        def main(x: R.Tensor((8, 16, 128), dtype="float16")) -> R.Tensor(
-            (1, 8, 16, 128), dtype="float16"
-        ):
+        def main(
+            x: R.Tensor((8, 16, 128), dtype="float16")
+        ) -> R.Tensor((1, 8, 16, 128), dtype="float16"):
             cls = Module
             with R.dataflow():
                 y = R.call_tir(
@@ -294,9 +294,9 @@ def test_reshape_dynamic_shape():
                         ]
 
         @R.function
-        def main(x: R.Tensor((8, 16, 128), dtype="float16")) -> R.Tensor(
-            (1, 8, 16, 128), dtype="float16"
-        ):
+        def main(
+            x: R.Tensor((8, 16, 128), dtype="float16")
+        ) -> R.Tensor((1, 8, 16, 128), dtype="float16"):
             with R.dataflow():
                 y: R.Tensor((1, 8, 16, 128), dtype="float16") = R.reshape(
                     x, R.shape([1, 8, 16, 128])

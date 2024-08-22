@@ -323,9 +323,9 @@ def test_inplace_simple_case():
     @I.ir_module
     class InplaceBasic:
         @R.function
-        def main(x: R.Tensor((2, 3), "int32"), y: R.Tensor((2, 3), "int32")) -> R.Tensor(
-            (2, 3), "int32"
-        ):
+        def main(
+            x: R.Tensor((2, 3), "int32"), y: R.Tensor((2, 3), "int32")
+        ) -> R.Tensor((2, 3), "int32"):
             with R.dataflow():
                 z = R.add(x, y)  # cannot be done inplace: x and y are live later
                 p = R.add(z, z)  # can be done inplace: z is not used later

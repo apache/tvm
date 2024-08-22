@@ -1633,9 +1633,9 @@ def test_call_tir_inplace():
         ) -> R.Tensor((10, 20), dtype="float32"):
             cls = Expected
             with R.dataflow():
-                gv1: R.Tensor((10, 20), dtype="float32") = (
-                    cls.fused_add_exp_inplace_squeeze_inplace(x, p0)
-                )
+                gv1: R.Tensor(
+                    (10, 20), dtype="float32"
+                ) = cls.fused_add_exp_inplace_squeeze_inplace(x, p0)
                 R.output(gv1)
             return gv1
 

@@ -176,9 +176,9 @@ def test_unused_relax_func():
             return gv0
 
         @R.function
-        def main(x: R.Tensor((16, 16), "float32"), w: R.Tensor((16, 16), "float32")) -> R.Tensor(
-            (16, 16), "float32"
-        ):
+        def main(
+            x: R.Tensor((16, 16), "float32"), w: R.Tensor((16, 16), "float32")
+        ) -> R.Tensor((16, 16), "float32"):
             gv0 = R.call_tir(InputModule.tir_add, (x, w), R.Tensor((16, 16), dtype="float32"))
             return gv0
 
@@ -213,9 +213,9 @@ def test_unused_relax_func_custom_entry_func(provide_entry_func_name):
             return gv0
 
         @R.function
-        def foo(x: R.Tensor((16, 16), "float32"), w: R.Tensor((16, 16), "float32")) -> R.Tensor(
-            (16, 16), "float32"
-        ):
+        def foo(
+            x: R.Tensor((16, 16), "float32"), w: R.Tensor((16, 16), "float32")
+        ) -> R.Tensor((16, 16), "float32"):
             gv0 = R.call_tir(InputModule.tir_add, (x, w), R.Tensor((16, 16), dtype="float32"))
             return gv0
 
@@ -254,9 +254,9 @@ def test_tracking_through_externally_exposed_func(provide_entry_func_name):
             return gv0
 
         @R.function
-        def foo(x: R.Tensor((16, 16), "float32"), w: R.Tensor((16, 16), "float32")) -> R.Tensor(
-            (16, 16), "float32"
-        ):
+        def foo(
+            x: R.Tensor((16, 16), "float32"), w: R.Tensor((16, 16), "float32")
+        ) -> R.Tensor((16, 16), "float32"):
             gv0 = R.call_tir(InputModule.tir_add, (x, w), R.Tensor((16, 16), dtype="float32"))
             return gv0
 
@@ -339,9 +339,9 @@ def test_unused_prim_func():
             return gv0
 
         @R.function
-        def main(x: R.Tensor((16, 16), "float32"), w: R.Tensor((16, 16), "float32")) -> R.Tensor(
-            (16, 16), "float32"
-        ):
+        def main(
+            x: R.Tensor((16, 16), "float32"), w: R.Tensor((16, 16), "float32")
+        ) -> R.Tensor((16, 16), "float32"):
             gv0 = InputModule.relax_add(x, w)
             return gv0
 
@@ -375,9 +375,9 @@ def test_multiple_unused_funcs():
             return gv0
 
         @R.function
-        def main(x: R.Tensor((16, 16), "float32"), w: R.Tensor((16, 16), "float32")) -> R.Tensor(
-            (16, 16), "float32"
-        ):
+        def main(
+            x: R.Tensor((16, 16), "float32"), w: R.Tensor((16, 16), "float32")
+        ) -> R.Tensor((16, 16), "float32"):
             gv0 = R.add(x, w)
             return gv0
 

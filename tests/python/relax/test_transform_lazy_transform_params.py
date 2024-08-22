@@ -587,9 +587,9 @@ def test_output_with_use_site():
                 y[()] = x[()]
 
         @R.function
-        def main_transform_params(params: R.Tuple(R.Tensor((), dtype="float32"))) -> R.Tuple(
-            R.Tensor((), dtype="float32"), R.Tensor((), dtype="float32")
-        ):
+        def main_transform_params(
+            params: R.Tuple(R.Tensor((), dtype="float32"))
+        ) -> R.Tuple(R.Tensor((), dtype="float32"), R.Tensor((), dtype="float32")):
             # we expect ToNonDataflow and RemovePurityTracking to be invoked first
             R.func_attr({"relax.force_pure": True})
             cls = Module
