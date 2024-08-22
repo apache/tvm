@@ -217,7 +217,6 @@ Array<tvm::transform::Pass> CreatePassList(bool disable_loop_partition) {
   pass_list.push_back(tir::transform::TransformMmaBufferLayout());
   pass_list.push_back(tir::transform::LowerOpaqueBlock());
   pass_list.push_back(tir::transform::FlattenBuffer());
-  pass_list.push_back(tir::transform::BF16ComputeLegalize());
   pass_list.push_back(tir::transform::NarrowDataType(32));
   pass_list.push_back(tir::transform::Simplify());
 
@@ -511,7 +510,7 @@ runtime::Module TIRToRuntime(const Map<Target, IRModule>& inputs_arg,
       } else {
         mhost_all->Update(host_mod);
       }
-
+      LOG(INFO) << "codegen::Build " << device_mod;
       if (device_mod->functions.size() != 0) {
         device_modules.push_back(codegen::Build(device_mod, it.first));
       }
@@ -573,6 +572,7 @@ transform::Sequential MixedModulePassManager(IRModule mixed_mod, Target target) 
 
   // FPComputeLegalize uses the target attrs added by BindTarget, so it must come first
   mixed_pass_list.push_back(tir::transform::BindTarget(target));
+  mixed_pass_list.push_back(tir::transform::BF16ComputeLegalize());
   mixed_pass_list.push_back(tir::transform::FP8ComputeLegalize());
 
   // VerifyVTCMLimit must occur before LowerVtcmAlloc

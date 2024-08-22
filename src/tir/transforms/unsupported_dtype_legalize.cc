@@ -710,6 +710,15 @@ bool CheckDataTypeSupport(const Target& target, const std::string& support_func_
 Pass BF16ComputeLegalize() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
     // TODO(tvm-team): skip if the target supports bf16
+    LOG(INFO) << "Before BF16ComputeLegalize " << f;
+    bool apply_compute_legalize = true;
+    Optional<tvm::Target> func_target = f->attrs.GetAttr<tvm::Target>(tvm::attr::kTarget);
+    if (func_target.defined()) {
+      apply_compute_legalize = !CheckDataTypeSupport(func_target.value(), "tvm.contrib.nvcc.supports_bf16");
+    }
+    if (!apply_compute_legalize) {
+      return f;
+    }
     return BF16ComputeLegalizer().Legalize(f);
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.BF16ComputeLegalize", {});

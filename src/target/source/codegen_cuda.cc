@@ -134,7 +134,9 @@ std::string CodeGenCUDA::Finish() {
   }
 
   if (enable_bf16_) {
-    decl_stream << "#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 800)\n";
+    decl_stream << "#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ < 800)\n";
+    decl_stream << "assert(false && \"bfloat16 is only supported on architectures >= 800\");\n";
+    decl_stream << "#else\n";
     decl_stream << "#include <cuda_bf16.h>\n";
     decl_stream << "__device__ nv_bfloat16 max"
                 << "(nv_bfloat16 a, nv_bfloat16 b)\n"
