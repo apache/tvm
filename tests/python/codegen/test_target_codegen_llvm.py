@@ -1179,5 +1179,21 @@ def test_bool_parameter():
     assert output == 20
 
 
+def test_bool_return_value():
+    """Booleans may be returned from a PrimFunc"""
+
+    @T.prim_func
+    def func(value: T.int32) -> T.bool:
+        T.func_attr({"target": T.target("llvm")})
+        return value < 10
+
+    built = tvm.build(func)
+    assert isinstance(built(0), bool)
+    assert built(0)
+
+    assert isinstance(built(15), bool)
+    assert not built(15)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

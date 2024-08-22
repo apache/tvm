@@ -121,7 +121,7 @@ cdef inline int make_arg(object arg,
     elif isinstance(arg, bool):
         # A python `bool` is a subclass of `int`, so this check
         # must occur before `Integral`.
-        value[0].v_bool = arg
+        value[0].v_int64 = arg
         tcode[0] = kTVMArgBool
     elif isinstance(arg, Integral):
         value[0].v_int64 = arg
@@ -215,7 +215,7 @@ cdef inline object make_ret(TVMValue value, int tcode):
     elif tcode == kTVMNullptr:
         return None
     elif tcode == kTVMArgBool:
-        return value.v_bool
+        return bool(value.v_int64)
     elif tcode == kInt:
         return value.v_int64
     elif tcode == kFloat:

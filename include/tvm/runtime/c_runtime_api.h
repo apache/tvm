@@ -209,7 +209,6 @@ typedef DLTensor* TVMArrayHandle;
  */
 typedef union {
   int64_t v_int64;
-  bool v_bool;
   double v_float64;
   void* v_handle;
   const char* v_str;

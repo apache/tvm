@@ -444,11 +444,7 @@ def test_int_parameter():
             arg_type_ids_1 = T.decl_buffer((1,), "int32", data=arg_type_ids)
             arg_code: T.int32 = arg_type_ids_1[0]
             assert arg_code == 0 or arg_code == 15, "main: Expect arg[0] to be int"
-            arg: T.int32 = T.if_then_else(
-                arg_code == 0,
-                T.Cast("int32", T.tvm_struct_get(args, 0, 12, "int64")),
-                T.Cast("int32", T.tvm_struct_get(args, 0, 12, "bool")),
-            )
+            arg: T.int32 = T.Cast("int32", T.tvm_struct_get(args, 0, 12, "int64"))
             with T.attr(0, "compute_scope", "main_compute_"):
                 out_ret_value_1 = T.Buffer((1,), "int64", data=out_ret_value, strides=(1,))
                 out_ret_tcode_1 = T.Buffer((1,), "int32", data=out_ret_tcode, strides=(1,))
@@ -510,11 +506,7 @@ def test_bool_parameter():
             arg_type_ids_1 = T.decl_buffer((1,), "int32", data=arg_type_ids)
             arg_code: T.int32 = arg_type_ids_1[0]
             assert arg_code == 15 or arg_code == 0, "main: Expect arg[0] to be boolean"
-            arg: T.bool = T.if_then_else(
-                arg_code == 15,
-                T.tvm_struct_get(args, 0, 12, "bool"),
-                T.Cast("bool", T.tvm_struct_get(args, 0, 12, "int64")),
-            )
+            arg: T.bool = T.Cast("bool", T.tvm_struct_get(args, 0, 12, "int64"))
             with T.attr(0, "compute_scope", "main_compute_"):
                 out_ret_value_1 = T.Buffer((1,), "int64", data=out_ret_value, strides=(1,))
                 out_ret_tcode_1 = T.Buffer((1,), "int32", data=out_ret_tcode, strides=(1,))
