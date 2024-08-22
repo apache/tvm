@@ -510,7 +510,6 @@ runtime::Module TIRToRuntime(const Map<Target, IRModule>& inputs_arg,
       } else {
         mhost_all->Update(host_mod);
       }
-      LOG(INFO) << "codegen::Build " << device_mod;
       if (device_mod->functions.size() != 0) {
         device_modules.push_back(codegen::Build(device_mod, it.first));
       }
