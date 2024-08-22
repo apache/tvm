@@ -949,6 +949,9 @@ requires_matrixcore = Feature(
     parent_features="rocm",
 )
 
+# Mark a test as requiring the hipBLAS library.
+requires_hipblas = Feature("hipblas", "hipBLAS", cmake_flag="USE_HIPBLAS", parent_features="rocm")
+
 # Mark a test as requiring the metal runtime
 requires_metal = Feature(
     "metal",
