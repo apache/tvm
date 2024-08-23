@@ -1509,6 +1509,7 @@ class TorchFXImporter:
             "softmax": self._softmax,
             "log_softmax": self._log_softmax,
             "dropout": lambda node: self.env[node.args[0]],
+            "stochastic_depth": lambda node: self.env[node.args[0]],
             "clamp": self._clamp,
             "relu": lambda node: self.block_builder.emit(relax.op.nn.relu(self.env[node.args[0]])),
             "leaky_relu": self._leakyrelu,
