@@ -38,7 +38,7 @@ def _get_config(model_type, compile_type, inputs, outputs, dynamic=False, atol=1
     path = "test_pipe_{}_{}_{}".format(model_type, compile_type, "dynamic" if dynamic else "static")
     return {
         "workspace": msc_utils.msc_dir(path),
-        "verbose": "info",
+        "verbose": "critical",
         "model_type": model_type,
         "inputs": inputs,
         "outputs": outputs,
