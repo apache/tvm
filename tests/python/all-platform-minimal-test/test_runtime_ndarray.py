@@ -145,8 +145,8 @@ def test_fp16_conversion(src_dst, target, dev):
     x_tvm = tvm.nd.array(100 * np.random.randn(n).astype(src) - 50, dev)
     y_tvm = tvm.nd.array(100 * np.random.randn(n).astype(dst) - 50, dev)
 
-    print(f"Input shape: {x_tvm.shape}, input dtype: {x_tvm.dtype}")
-    print(f"Output shape: {y_tvm.shape}, output dtype: {y_tvm.dtype}")
+    print(f"Input shape: {x_tvm.shape}, input dtype: {x_tvm.dtype}", flush=True)
+    print(f"Output shape: {y_tvm.shape}, output dtype: {y_tvm.dtype}", flush=True)
 
     func(x_tvm, y_tvm)
 
