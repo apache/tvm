@@ -228,6 +228,10 @@ BlockRealize GenerateBlockFromTensors(const te::ComputeOp& compute_op,
   }
 
   // Step 4. Create block body.
+  // helper to transform the expr and remap iters to the block domain
+  auto f_transform_and_remap = [&](const PrimExpr& e) {
+    return Substitute(info->transformer(e), var_map);
+  };
   String block_name{nullptr};
   Optional<Stmt> init = NullOpt;
   Stmt body;
@@ -246,8 +250,7 @@ BlockRealize GenerateBlockFromTensors(const te::ComputeOp& compute_op,
     //  - A RHS operand is the value to be reduced.
     for (int i = 0; i < n_buffers; ++i) {
       const PrimExpr& left = BufferLoad(buffers[i], indices);
-      const PrimExpr& right =
-          analyzer->Simplify(Substitute(info->transformer(reduce->source[i]), var_map));
+      const PrimExpr& right = analyzer->Simplify(f_transform_and_remap(reduce->source[i]));
       lhs.push_back(left);
       rhs.push_back(right);
       ICHECK_EQ(left->dtype, right->dtype);
@@ -267,13 +270,15 @@ BlockRealize GenerateBlockFromTensors(const te::ComputeOp& compute_op,
     //   then store the value of the variables into the target buffer positions.
     for (int i = 0; i < n_buffers; ++i) {
       const Buffer& buffer = buffers[i];
-      init_stmts.push_back(BufferStore(buffer, reduce->combiner->identity_element[i], indices));
+      PrimExpr identity = f_transform_and_remap(reduce->combiner->identity_element[i]);
+      init_stmts.push_back(BufferStore(buffer, identity, indices));
       PrimExpr value{nullptr};
       if (n_buffers > 1) {
         temp_vars.push_back(Var("v_" + buffer->name, PrimType(lhs[i].dtype())));
         value = temp_vars.back();
       } else {
-        value = reduce->combiner.get()->operator()(lhs, rhs)[i];
+        PrimExpr combined = reduce->combiner.get()->operator()(lhs, rhs)[i];
+        value = f_transform_and_remap(combined);
       }
       body_stmts.push_back(BufferStore(buffer, value, indices));
     }
@@ -283,7 +288,7 @@ BlockRealize GenerateBlockFromTensors(const te::ComputeOp& compute_op,
     if (n_buffers > 1) {
       // When there are multiple buffers, we wrap the body with LetStmts.
       for (int i = n_buffers - 1; i >= 0; --i) {
-        PrimExpr value = reduce->combiner.get()->operator()(lhs, rhs)[i];
+        PrimExpr value = f_transform_and_remap(reduce->combiner.get()->operator()(lhs, rhs)[i]);
         body = LetStmt(temp_vars[i], std::move(value), std::move(body));
       }
     }
@@ -291,7 +296,7 @@ BlockRealize GenerateBlockFromTensors(const te::ComputeOp& compute_op,
     // Case 2. Data parallel compute
     ICHECK_EQ(tensors.size(), 1);
     block_name = info->FreshName(tensors[0]->GetNameHint());
-    const PrimExpr& compute_body = Substitute(info->transformer(expr_body), var_map);
+    const PrimExpr& compute_body = f_transform_and_remap(expr_body);
     body = BufferStore(info->tensor2buffers[tensors[0]], analyzer->Simplify(compute_body), indices);
   }
 
