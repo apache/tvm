@@ -32,6 +32,7 @@ driving its costs down.
    :maxdepth: 1
    :caption: Getting Started
 
+   get_started/overview
    install/index
    get_started/tutorials/quick_start
    contribute/index
