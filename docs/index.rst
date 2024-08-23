@@ -34,6 +34,7 @@ driving its costs down.
 
    install/index
    get_started/tutorials/quick_start
+   get_started/tutorials/ir_module
    contribute/index
 
 .. toctree::
