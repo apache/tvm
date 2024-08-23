@@ -242,11 +242,14 @@ def get_rocm_arch(rocm_path=None):
         The AMD GPU architecture
     """
     if rocm_path is None:
-        rocm_path = find_rocm_path()
+        try:
+            rocm_path = find_rocm_path()
+        except RuntimeError:
+            rocm_path = None
 
     gpu_arch = "gfx900"
     # check if rocm is installed
-    if not os.path.exists(rocm_path):
+    if rocm_path is None or not os.path.exists(rocm_path):
         print("ROCm not detected, using default gfx900")
         return gpu_arch
     try:
