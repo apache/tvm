@@ -136,8 +136,10 @@ def callback_rocm_bitcode_path(rocdl_dir=None):
     # seems link order matters.
 
     if rocdl_dir is None:
-        if exists("/opt/rocm/amdgcn/bitcode/"):
-            rocdl_dir = "/opt/rocm/amdgcn/bitcode/"  # starting with rocm 3.9
+        rocm_path = find_rocm_path()
+        amdgcn_path = f"{rocm_path}/amdgcn/bitcode/"
+        if exists(amdgcn_path):
+            rocdl_dir = amdgcn_path  # starting with rocm 3.9
         else:
             rocdl_dir = "/opt/rocm/lib/"  # until rocm 3.8
 
@@ -226,7 +228,7 @@ def have_matrixcore(compute_version=None):
 
 
 @tvm._ffi.register_func("tvm_callback_rocm_get_arch")
-def get_rocm_arch(rocm_path="/opt/rocm"):
+def get_rocm_arch(rocm_path=None):
     """Utility function to get the AMD GPU architecture
 
     Parameters
@@ -239,6 +241,9 @@ def get_rocm_arch(rocm_path="/opt/rocm"):
     gpu_arch : str
         The AMD GPU architecture
     """
+    if rocm_path is None:
+        rocm_path = find_rocm_path()
+
     gpu_arch = "gfx900"
     # check if rocm is installed
     if not os.path.exists(rocm_path):
