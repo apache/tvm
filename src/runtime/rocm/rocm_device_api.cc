@@ -139,7 +139,8 @@ class ROCMDeviceAPI final : public DeviceAPI {
 
       case kAvailableGlobalMemory:
         // Not currently implemented.
-        break;
+        *rv = nullptr;
+        return;
     }
     *rv = value;
   }
