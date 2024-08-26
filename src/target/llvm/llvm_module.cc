@@ -195,6 +195,10 @@ PackedFunc LLVMModuleNode::GetFunction(const String& name, const ObjectPtr<Objec
         GetGlobalAddr(runtime::symbol::tvm_module_main, *llvm_target));
     ICHECK(entry_name != nullptr) << "Symbol " << runtime::symbol::tvm_module_main
                                   << " is not presented";
+
+    LOG(DEBUG) << "PackedFunc for '" << name << "' uses default entry point, "
+               << "defined in module to be '" << entry_name << "'";
+
     faddr = reinterpret_cast<TVMBackendPackedCFunc>(GetFunctionAddr(entry_name, *llvm_target));
   } else {
     faddr = reinterpret_cast<TVMBackendPackedCFunc>(GetFunctionAddr(name, *llvm_target));
@@ -207,7 +211,7 @@ PackedFunc LLVMModuleNode::GetFunction(const String& name, const ObjectPtr<Objec
     auto arg_values = const_cast<TVMValue*>(args.values);
     auto arg_type_codes = const_cast<int*>(args.type_codes);
 
-    LOG(DEBUG) << "About to call LLVM function " << name;
+    LOG(DEBUG) << "About to call LLVM function " << name << ", located at address " << faddr;
 
     int ret =
         (*faddr)(arg_values, arg_type_codes, args.num_args, &ret_value, &ret_type_code, nullptr);
@@ -617,8 +621,12 @@ void* LLVMModuleNode::GetFunctionAddr(const std::string& name,
   // first verifies if GV exists.
   if (module_->getFunction(name) != nullptr) {
     if (jit_engine_ == "mcjit") {
+      LOG(DEBUG) << "Loading function " << name << " through mcjit (llvm::ExecutionEngine)";
+      ICHECK(mcjit_ee_);
       return reinterpret_cast<void*>(mcjit_ee_->getFunctionAddress(name));
     } else if (jit_engine_ == "orcjit") {
+      LOG(DEBUG) << "Loading function " << name << " through orjit (llvm::orc::LLJIT)";
+      ICHECK(orcjit_ee_);
 #if TVM_LLVM_VERSION >= 150
       auto addr = llvm::cantFail(orcjit_ee_->lookup(name)).getValue();
 #else
