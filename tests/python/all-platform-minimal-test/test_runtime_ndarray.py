@@ -70,7 +70,17 @@ def test_memory_usage(target, dev, dtype):
 
 
 @pytest.mark.parametrize(
-    "src_dst", [("float32", "float16"), ("float16", "float32")], ids=["f32-to-f16", "f16-to-f32"]
+    "src_dst",
+    [
+        ("float32", "float32"),
+        ("float32", "float16"),
+        ("float16", "float32"),
+    ],
+    ids=[
+        "f32-to-f32",
+        "f32-to-f16",
+        "f16-to-f32",
+    ],
 )
 @tvm.testing.parametrize_targets(
     # "llvm",
