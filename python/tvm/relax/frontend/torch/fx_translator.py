@@ -616,7 +616,6 @@ class TorchFXImporter:
         import torch  # type: ignore
 
         args = self.retrieve_args(node)
-        print(args)
         if isinstance(args[1], (torch.Size, tuple, list)):
             return self.block_builder.emit(relax.op.tile(args[0], tuple(args[1])))
         return self.block_builder.emit(relax.op.tile(args[0], args[1:]))
