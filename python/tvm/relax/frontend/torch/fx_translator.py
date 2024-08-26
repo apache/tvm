@@ -526,6 +526,22 @@ class TorchFXImporter:
             return self.block_builder.emit(relax.op.einsum(tuple(args[1]), args[0]))
         return self.block_builder.emit(relax.op.einsum(args[1:], args[0]))
 
+    def _unbind(self, node: fx.node.Node) -> relax.Var:
+        if len(node.args) == 2:
+            assert isinstance(node.args[1], int), "Expected 2nd argument of unbind as int"
+            dim = node.args[1]
+        elif "dim" in node.kwargs:
+            dim = node.kwargs["dim"]
+        else:
+            dim = 0
+        x = self.env[node.args[0]]
+        selections = self.shape_of(x)[dim].value
+        n_section = list(range(1, selections + 1))
+        ret, split = [], self.block_builder.emit(relax.op.split(x, n_section, dim))
+        for i in range(selections):
+            ret.append(self.block_builder.emit(relax.op.squeeze(split[i], axis=dim)))
+        return self.block_builder.emit(relax.Tuple(ret))
+
     ########## Manipulation ##########
 
     def _cat(self, node: fx.node.Node) -> relax.Var:
@@ -535,7 +551,13 @@ class TorchFXImporter:
 
     def _expand(self, node: fx.node.Node) -> relax.Var:
         args = self.retrieve_args(node)
-        return self.block_builder.emit(relax.op.broadcast_to(args[0], args[1:]))
+        broadcast_shape, in_shape = [], self.shape_of(args[0])
+        for idx, i in enumerate(args[1:]):
+            if isinstance(i, int) and i == -1:
+                broadcast_shape.append(in_shape[idx])
+            else:
+                broadcast_shape.append(i)
+        return self.block_builder.emit(relax.op.broadcast_to(args[0], broadcast_shape))
 
     def _flatten(self, node: fx.node.Node) -> relax.Var:
         x = self.env[node.args[0]]
@@ -580,7 +602,13 @@ class TorchFXImporter:
             dim = node.kwargs["dim"]
         else:
             dim = 0
-        n_section = (self.shape_of(x)[dim].value + split_size - 1) // split_size
+        if isinstance(split_size, (list, tuple)):
+            n_section = []
+            for s in split_size[:-1]:
+                cum_sum = 0 if not n_section else n_section[-1]
+                n_section.append(s + cum_sum)
+        else:
+            n_section = (self.shape_of(x)[dim].value + split_size - 1) // split_size
         return self.block_builder.emit(relax.op.split(x, n_section, dim))
 
     def _chunk(self, node: fx.node.Node) -> relax.Var:
@@ -1501,6 +1529,7 @@ class TorchFXImporter:
             "cross_entropy": self._cross_entropy,
             "scaled_dot_product_attention": self._scaled_dot_product_attention,
             "einsum": self._einsum,
+            "unbind": self._unbind,
         }
 
     def update_convert_map(self, custom_convert_map: dict):

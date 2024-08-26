@@ -119,6 +119,7 @@ def from_relax(
         )(mod)
     patterns = get_patterns_with_prefix("msc.")
     passes = [
+        tvm.relax.transform.ExpandTupleArguments(),
         msc_transform.SetExprName(),
         msc_transform.SetExprLayout(trans_config.get("allow_layout_missing", True)),
         tvm.relax.transform.FuseOpsByPattern(
@@ -310,6 +311,7 @@ def byoc_partition(
     def _partition_mod(mod, as_msc=True):
         patterns = get_patterns_with_prefix(target)
         passes = [
+            tvm.relax.transform.ExpandTupleArguments(),
             msc_transform.SetExprName(),
             msc_transform.SetExprLayout(trans_config.get("allow_layout_missing", True)),
             tvm.relax.transform.FuseOpsByPattern(patterns, bind_constants=not as_msc),

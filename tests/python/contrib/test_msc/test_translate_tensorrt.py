@@ -673,12 +673,34 @@ def test_addmm():
 def test_split():
     """test tensorrt translator for split"""
 
-    class Split(Module):
+    class Split1(Module):
         def forward(self, data):
             return torch.split(data, 1, dim=1)
 
+    class Split2(Module):
+        def forward(self, data):
+            return torch.split(data, [1, 2], dim=1)
+
     input_info = [([1, 3, 10, 10], "float32")]
-    verify_model(Split(), input_info)
+    verify_model(Split1(), input_info)
+    verify_model(Split2(), input_info)
+
+
+@requires_tensorrt
+def test_unbind():
+    """test tensorrt to relax for unbind"""
+
+    class Unbind1(Module):
+        def forward(self, data):
+            return torch.unbind(data)
+
+    class Unbind2(Module):
+        def forward(self, data):
+            return torch.unbind(data, dim=1)
+
+    input_info = [([3, 3, 10, 10], "float32")]
+    verify_model(Unbind1(), input_info)
+    verify_model(Unbind2(), input_info)
 
 
 @requires_tensorrt
@@ -697,13 +719,19 @@ def test_chunk():
 def test_expand():
     """test tensorrt translator for expand"""
 
-    class Expand(Module):
+    class Expand1(Module):
         def forward(self, x):
             x = x + 1.0
             return x.expand(4, 2, 3, 4)
 
+    class Expand2(Module):
+        def forward(self, x):
+            x = x + 1.0
+            return x.expand(4, -1, -1, 4)
+
     input_info = [([1, 2, 3, 4], "float32")]
-    verify_model(Expand(), input_info)
+    verify_model(Expand1(), input_info)
+    verify_model(Expand2(), input_info)
 
 
 @requires_tensorrt
