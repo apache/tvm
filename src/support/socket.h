@@ -553,9 +553,9 @@ class TCPSocket : public Socket, public dmlc::Stream {
     return data;
   }
 
-  size_t Read(void* data, size_t size) final { return Recv(data, size); }
+  size_t Read(void* data, size_t size) final { return RecvAll(data, size); }
 
-  size_t Write(const void* data, size_t size) final { return Send(data, size); }
+  size_t Write(const void* data, size_t size) final { return SendAll(data, size); }
 };
 
 /*! \brief helper data structure to perform poll */
