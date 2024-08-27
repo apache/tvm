@@ -3311,6 +3311,42 @@ def test_transpose():
     verify_model(Transpose(), input_info, {}, expected1)
 
 
+def test_repeat():
+    class Tile1(Module):
+        def forward(self, x: torch.Tensor):
+            return x.repeat(2)
+
+    class Tile2(Module):
+        def forward(self, x: torch.Tensor):
+            return x.repeat(4, 2)
+
+    @tvm.script.ir_module
+    class expected1:
+        @R.function
+        def main(x: R.Tensor((3,), dtype="float32")) -> R.Tensor((6,), dtype="float32"):
+            # block 0
+            with R.dataflow():
+                lv: R.Tensor((6,), dtype="float32") = R.tile(x, 2)
+                gv: R.Tensor((6,), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    @tvm.script.ir_module
+    class expected2:
+        @R.function
+        def main(x: R.Tensor((1, 3), dtype="float32")) -> R.Tensor((4, 6), dtype="float32"):
+            # block 0
+            with R.dataflow():
+                lv: R.Tensor((4, 6), dtype="float32") = R.tile(x, [4, 2])
+                gv: R.Tensor((4, 6), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    verify_model(Tile1(), [([3], "float32")], {}, expected1)
+    verify_model(Tile2(), [([1, 3], "float32")], {}, expected2)
+    verify_model(Tile2(), [(torch.Size([1, 3]), "float32")], {}, expected2)
+
+
 def test_view():
     input_info = [([1, 2, 3, 4], "float32")]
 
