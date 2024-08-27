@@ -49,6 +49,7 @@ num_kv_heads = 4
 head_dim = None
 rope_scale = 1.0
 rope_theta = 1e4
+rope_scaling = {}
 dtype = None
 device = tvm.cuda()
 
@@ -113,15 +114,19 @@ def set_global_func(head_dim, dtype):
     for tir_func in [
         _kv_cache_transpose_append(num_kv_heads, head_dim, dtype),
         _kv_cache_debug_get_kv(num_layers, num_kv_heads, head_dim, dtype),
-        _attention_prefill(num_kv_heads, num_qo_heads, head_dim, dtype, False, target),
-        _attention_decode(num_kv_heads, num_qo_heads, head_dim, dtype, False, target),
-        _attention_prefill(num_kv_heads, num_qo_heads, head_dim, dtype, True, target),
-        _attention_decode(num_kv_heads, num_qo_heads, head_dim, dtype, True, target),
-        _attention_prefill_ragged(num_kv_heads, num_qo_heads, head_dim, dtype, target),
-        tree_attn(num_kv_heads, num_qo_heads, head_dim, dtype, target),
+        _attention_prefill(
+            num_kv_heads, num_qo_heads, head_dim, dtype, False, rope_scaling, target
+        ),
+        _attention_decode(num_kv_heads, num_qo_heads, head_dim, dtype, False, rope_scaling, target),
+        _attention_prefill(num_kv_heads, num_qo_heads, head_dim, dtype, True, rope_scaling, target),
+        _attention_decode(num_kv_heads, num_qo_heads, head_dim, dtype, True, rope_scaling, target),
+        _attention_prefill_ragged(
+            num_kv_heads, num_qo_heads, head_dim, dtype, rope_scaling, target
+        ),
+        tree_attn(num_kv_heads, num_qo_heads, head_dim, dtype, rope_scaling, target),
         _merge_state_inplace(num_qo_heads, head_dim, dtype, target),
         llama_rope_with_position_map(
-            rope_theta, rope_scale, head_dim, num_qo_heads, num_kv_heads, dtype
+            rope_theta, rope_scale, head_dim, num_qo_heads, num_kv_heads, dtype, rope_scaling
         ),
         _copy_single_page(num_kv_heads, page_size, head_dim, dtype, target),
         _compact_kv_copy(num_kv_heads, head_dim, dtype, target),
