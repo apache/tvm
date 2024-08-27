@@ -36,21 +36,12 @@ driving its costs down.
    install/index
    get_started/tutorials/quick_start
    get_started/tutorials/ir_module
-   contribute/index
 
 .. toctree::
    :maxdepth: 1
-   :caption: User Guide
+   :caption: How To
 
-   tutorial/index
    how_to/index
-
-.. toctree::
-   :maxdepth: 1
-   :caption: Developer Guide
-
-   dev/tutorial/index
-   dev/how_to/how_to.rst
 
 .. toctree::
    :maxdepth: 1
@@ -63,6 +54,10 @@ driving its costs down.
    :maxdepth: 1
    :caption: Legacy
 
+   tutorial/index
+   how_to/legacy_index
+   dev/tutorial/index
+   dev/how_to/how_to.rst
    reference/langref/index
    arch/index
    topic/microtvm/index
@@ -72,6 +67,7 @@ driving its costs down.
    :maxdepth: 1
    :caption: About
 
+   contribute/index
    reference/publications
    reference/security
 

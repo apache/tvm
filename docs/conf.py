@@ -423,6 +423,7 @@ examples_dirs = [
     tvm_path.joinpath("vta", "tutorials"),
     # New tutorial structure under docs folder
     tvm_path.joinpath("docs", "get_started", "tutorials"),
+    tvm_path.joinpath("docs", "how_to", "tutorials"),
 ]
 
 gallery_dirs = [
@@ -440,6 +441,7 @@ gallery_dirs = [
     "topic/vta/tutorials",
     # New tutorial structure under docs folder
     "get_started/tutorials/",
+    "how_to/tutorials/",
 ]
 
 
