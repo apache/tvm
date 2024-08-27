@@ -379,6 +379,9 @@ def create_kv_cache(rope_mode):
         fsplit_rotary,
         fcopy_single_page,
         fcopy_cache,
+        None,
+        None,
+        None,
     )
     return cache
 

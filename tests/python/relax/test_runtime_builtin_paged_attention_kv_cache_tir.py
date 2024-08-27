@@ -180,6 +180,7 @@ def create_kv_cache(head_dim, dtype, rope_mode, support_sliding_window):
         fcopy_cache,
         fcompact_copy,
         fattn_prefill_with_tree_mask,
+        None,
     )
     return cache
 
