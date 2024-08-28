@@ -253,6 +253,40 @@ def test_replace_symbolic_variable_and_remove_match_cast():
     verify(TestChangeShape, Expected)
 
 
+def test_replace_symbolic_variable_and_remove_match_cast_of_tuple():
+    """Symbolic variables may be defined in R.match_cast of tuple
+
+    This test is similar to
+    `test_replace_symbolic_variable_and_remove_match_cast`, except
+    that the MatchCast is performed on a Relax tuple.
+
+    This is a regression test.  Earlier implementations only inferred
+    TIR variables from `R.match_cast` of tensors, shapes, and prim
+    values, but omitted tuples.
+
+    """
+
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(x: R.Tuple(R.Tensor(("m", "n")))):
+            y = x
+            o, p = T.int64(), T.int64()
+            z = R.match_cast(x, R.Tuple(R.Tensor((o, p))))
+            w = z
+            q = R.add(w[0], y[0])
+            return R.add(q, w[0])
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tuple(R.Tensor(("m", "n")))):
+            q = R.add(x[0], x[0])
+            return R.add(q, x[0])
+
+    verify(Before, Expected)
+
+
 def test_unwrap_tuple():
     @I.ir_module
     class Before:
