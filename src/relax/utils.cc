@@ -159,13 +159,32 @@ tvm::Map<tir::Var, PrimExpr> InferSymbolicVarMap(
                     GetStructInfo(expr_tensor->shape.value()));
   };
 
+  std::function<void(const StructInfo&, const StructInfo&)> bind_from_struct_info = nullptr;
+  auto bind_from_tuple = [&bind_from_struct_info](const StructInfo& var, const StructInfo& expr) {
+    auto var_tuple = var.as<TupleStructInfoNode>();
+    if (!var_tuple) return;
+
+    auto expr_tuple = expr.as<TupleStructInfoNode>();
+    if (!expr_tuple) return;
+
+    if (var_tuple->fields.size() != expr_tuple->fields.size()) return;
+
+    for (size_t i = 0; i < var_tuple->fields.size(); i++) {
+      bind_from_struct_info(var_tuple->fields[i], expr_tuple->fields[i]);
+    }
+  };
+
+  bind_from_struct_info = [&](const StructInfo& var, const StructInfo& expr) {
+    bind_from_tensor(var, expr);
+    bind_from_shape(var, expr);
+    bind_from_prim_value(var, expr);
+    bind_from_tuple(var, expr);
+  };
+
   for (const auto& [relax_var, relax_expr] : relax_var_remap) {
     auto var_sinfo = GetStructInfo(relax_var);
     auto expr_sinfo = GetStructInfo(relax_expr);
-
-    bind_from_tensor(var_sinfo, expr_sinfo);
-    bind_from_shape(var_sinfo, expr_sinfo);
-    bind_from_prim_value(var_sinfo, expr_sinfo);
+    bind_from_struct_info(var_sinfo, expr_sinfo);
   }
 
   return tir_var_remap;
