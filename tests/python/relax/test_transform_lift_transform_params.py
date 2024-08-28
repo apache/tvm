@@ -112,7 +112,7 @@ def test_basic(consume_params):
         def main_transform_params(
             params: R.Tuple(
                 R.Tensor((3, 16, 3, 3), dtype="float32"), R.Tensor((16, 16, 3, 3), dtype="float32")
-            )
+            ),
         ) -> R.Tuple(
             R.Tensor((16, 16, 3, 3), dtype="float32"), R.Tensor((16, 3, 3, 3), dtype="float32")
         ):
@@ -185,7 +185,7 @@ def test_basic(consume_params):
         def main_transform_params(
             params: R.Tuple(
                 R.Tensor((3, 16, 3, 3), dtype="float32"), R.Tensor((16, 16, 3, 3), dtype="float32")
-            )
+            ),
         ) -> R.Tuple(
             R.Tensor((16, 16, 3, 3), dtype="float32"), R.Tensor((16, 3, 3, 3), dtype="float32")
         ):
@@ -290,18 +290,15 @@ def test_tuple():
 
         @R.function
         def main_transform_params(
-            params: R.Tuple(R.Tensor((16, 16, 3, 3), dtype="float32"))
+            params: R.Tuple(R.Tensor((16, 16, 3, 3), dtype="float32")),
         ) -> R.Tuple(
             R.Tensor((16, 16, 3, 3), dtype="float32"), R.Tensor((16, 16, 3, 3), dtype="float32")
         ):
             R.func_attr({"num_input": 0})
             with R.dataflow():
-                lv = params[0]
-                lv0 = (lv,)
-                lv1 = (lv0,)
-                lv2 = params[0]
-                lv3 = params[0]
-                gv = (lv2, lv3)
+                l3 = params[0]
+                w1 = params[0]
+                gv = (w1, l3)
                 R.output(gv)
             return gv
 
@@ -340,24 +337,14 @@ def test_condition():
                 R.Tensor((16, 16, 3, 3), dtype="float32"),
                 R.Tensor((16, 16, 3, 3), dtype="float32"),
                 R.Tensor((), dtype="bool"),
-            )
+            ),
         ) -> R.Tuple(
             R.Tensor((16, 16, 3, 3), dtype="float32"),
             R.Tensor((16, 16, 3, 3), dtype="float32"),
             R.Tensor((), dtype="bool"),
         ):
             R.func_attr({"num_input": 0})
-            with R.dataflow():
-                lv: R.Tensor((16, 16, 3, 3), dtype="float32") = params[0]
-                lv1: R.Tensor((16, 16, 3, 3), dtype="float32") = params[1]
-                lv2: R.Tensor((), dtype="bool") = params[2]
-                gv: R.Tuple(
-                    R.Tensor((16, 16, 3, 3), dtype="float32"),
-                    R.Tensor((16, 16, 3, 3), dtype="float32"),
-                    R.Tensor((), dtype="bool"),
-                ) = (lv, lv1, lv2)
-                R.output(gv)
-            return gv
+            return params
 
         @R.function
         def main(
@@ -434,7 +421,7 @@ def test_multiple_functions():
 
         @R.function
         def func1_transform_params(
-            params: R.Tuple(R.Tensor((256, 256), dtype="float32"))
+            params: R.Tuple(R.Tensor((256, 256), dtype="float32")),
         ) -> R.Tuple(R.Tensor((256, 256), dtype="float32")):
             R.func_attr({"num_input": 0})
             with R.dataflow():
@@ -457,7 +444,7 @@ def test_multiple_functions():
 
         @R.function
         def func2_transform_params(
-            params: R.Tuple(R.Tensor((128, 256), dtype="float32"))
+            params: R.Tuple(R.Tensor((128, 256), dtype="float32")),
         ) -> R.Tuple(R.Tensor((256, 128), dtype="float32")):
             R.func_attr({"num_input": 0})
             with R.dataflow():
@@ -531,7 +518,7 @@ def test_share_identical_transform_across_multiple_functions():
             params: R.Tuple(
                 R.Tensor((256, 256), dtype="float32"),
                 R.Tensor((256, 256), dtype="float32"),
-            )
+            ),
         ):
             R.func_attr({"num_input": 0})
             with R.dataflow():
@@ -769,7 +756,7 @@ def test_share_transform_across_multiple_functions_has_intersection_of_transform
             params: R.Tuple(
                 R.Tensor((256, 256), dtype="float32"),
                 R.Tensor((256, 256), dtype="float32"),
-            )
+            ),
         ):
             R.func_attr({"num_input": 0})
             with R.dataflow():
@@ -884,7 +871,7 @@ def test_share_transforms_with_different_binding_order():
             params: R.Tuple(
                 R.Tensor((256, 256), dtype="float32"),
                 R.Tensor((256, 256), dtype="float32"),
-            )
+            ),
         ):
             R.func_attr({"num_input": 0})
             with R.dataflow():
@@ -979,7 +966,7 @@ def test_share_transforms_resulting_in_identical_functions():
             params: R.Tuple(
                 R.Tensor((256, 256), dtype="float32"),
                 R.Tensor((256, 256), dtype="float32"),
-            )
+            ),
         ):
             R.func_attr({"num_input": 0})
             with R.dataflow():
@@ -1103,7 +1090,7 @@ def test_share_transform_across_specified_functions():
             params: R.Tuple(
                 R.Tensor((256, 256), dtype="float32"),
                 R.Tensor((256, 256), dtype="float32"),
-            )
+            ),
         ):
             R.func_attr({"num_input": 0})
             with R.dataflow():
@@ -1226,7 +1213,7 @@ def test_share_transform_with_unused_parameter():
             params: R.Tuple(
                 R.Tensor((256, 256), dtype="float32"),
                 R.Tensor((256, 256), dtype="float32"),
-            )
+            ),
         ):
             R.func_attr({"num_input": 0})
             with R.dataflow():
@@ -1322,7 +1309,7 @@ def test_share_transform_with_no_shared_preprocessing():
             params: R.Tuple(
                 R.Tensor((256, 256), dtype="float32"),
                 R.Tensor((256, 256), dtype="float32"),
-            )
+            ),
         ):
             R.func_attr({"num_input": 0})
             with R.dataflow():
@@ -1395,7 +1382,7 @@ def test_stop_lifting():
 
         @R.function
         def func1_transform_params(
-            params: R.Tuple(R.Tensor((256, 256), dtype="float32"))
+            params: R.Tuple(R.Tensor((256, 256), dtype="float32")),
         ) -> R.Tuple(R.Tensor((256, 256), dtype="float32")):
             R.func_attr({"num_input": 0})
             with R.dataflow():
@@ -1426,9 +1413,6 @@ def test_symbolic_var_1():
         @R.function
         def main_transform_params(params: R.Tuple) -> R.Tuple:
             R.func_attr({"num_input": 0})
-            with R.dataflow():
-                gv: R.Tuple = R.tuple()
-                R.output()
             # All instance of the empty tuple are normalized to be
             # in-line.
             return R.tuple()
@@ -1492,9 +1476,6 @@ def test_symbolic_var_2():
         @R.function
         def main_transform_params(params: R.Tuple) -> R.Tuple:
             R.func_attr({"num_input": 0})
-            with R.dataflow():
-                gv: R.Tuple = R.tuple()
-                R.output()
             return R.tuple()
 
         @R.function
@@ -1579,7 +1560,7 @@ def test_symbolic_var_from_shape():
 
         @R.function
         def main_transform_params(
-            params: R.Tuple(R.Tensor([16, 16], "int32"), R.Shape(["slice_index"]))
+            params: R.Tuple(R.Tensor([16, 16], "int32"), R.Shape(["slice_index"])),
         ):
             R.func_attr({"num_input": 0})
             slice_index = T.int64()
@@ -1643,7 +1624,7 @@ def test_symbolic_var_in_param_shape():
             params: R.Tuple(
                 R.Tensor((16, "m", 3, 3), dtype="float32"),
                 R.Tensor((16, "m", 3, 3), dtype="float32"),
-            )
+            ),
         ) -> R.Tuple(
             R.Tensor((16, "m", 3, 3), dtype="float32"), R.Tensor((16, "m", 3, 3), dtype="float32")
         ):
@@ -1736,9 +1717,9 @@ def test_symbolic_var_defined_in_params_but_used_in_weights():
     @tvm.script.ir_module
     class Expected:
         @R.function
-        def main_transform_params(
-            params: R.Tuple(R.Tensor(("k",), dtype="float32"))
-        ) -> R.Tuple(R.Tensor(dtype="float32", ndim=1)):
+        def main_transform_params(params: R.Tuple(R.Tensor(("k",), dtype="float32"))) -> R.Tuple(
+            R.Tensor(dtype="float32", ndim=1)
+        ):
             R.func_attr({"num_input": 0})
             k = T.int64()
             with R.dataflow():
@@ -1819,6 +1800,76 @@ def test_only_lift_when_variable_uses_constants():
     mod = Before
     after = relax.transform.LiftTransformParams()(mod)
     tvm.ir.assert_structural_equal(after, Expected)
+
+
+@pytest.mark.parametrize("shared_transform", [True, False])
+def test_lift_transform_is_idempotent(shared_transform):
+    """Multiple applicates of LiftTransformParams are allowed"""
+
+    @I.ir_module
+    class Module:
+        @R.function
+        def main(
+            state: R.Tensor(["batch_size", 4096], "float16"),
+            base_weights: R.Tensor([4096, 4096], "float16"),
+            lora_A: R.Tensor([4096, "lora_rank"], "float16"),
+            lora_B: R.Tensor(["lora_rank", 4096], "float16"),
+        ):
+            R.func_attr({"num_input": 1})
+            folded_weights = base_weights + R.matmul(lora_A, lora_B)
+            output = R.matmul(state, folded_weights)
+            return output
+
+    transform = relax.transform.LiftTransformParams(shared_transform=shared_transform)
+
+    AfterOneRound = transform(Module)
+    assert len(AfterOneRound.functions) == 2
+
+    AfterTwoRounds = transform(AfterOneRound)
+    assert len(AfterTwoRounds.functions) == 2
+
+    tvm.ir.assert_structural_equal(AfterOneRound, AfterTwoRounds)
+
+
+def test_lift_transform_when_one_already_exists():
+    """If the module already contains `transform_params`, the
+    functions are composed together"""
+
+    @I.ir_module
+    class Module:
+        @R.function
+        def main(
+            state: R.Tensor(["batch_size", 4096], "float16"),
+            base_weights: R.Tensor([4096, 4096], "float16"),
+            lora_A: R.Tensor([4096, "lora_rank"], "float16"),
+            lora_B: R.Tensor(["lora_rank", 4096], "float16"),
+        ):
+            R.func_attr({"num_input": 1})
+            folded_weights = base_weights + R.matmul(lora_A, lora_B)
+            output = R.matmul(state, folded_weights)
+            return output
+
+        @R.function
+        def main_transform_params(
+            model_params: R.Tuple(
+                R.Tensor([4096, 4096], "float16"),
+                R.Tensor([4096, "lora_rank"], "float16"),
+                R.Tensor(["lora_rank", 4096], "float16"),
+            ),
+        ):
+            R.func_attr({"num_input": 0})
+            return model_params
+
+    transform = relax.transform.LiftTransformParams(shared_transform=False)
+    after_lift_with_previous_identity_function = transform(Module)
+
+    del Module["main_transform_params"]
+    after_lift_without_previous_identity_function = transform(Module)
+
+    tvm.ir.assert_structural_equal(
+        after_lift_without_previous_identity_function,
+        after_lift_with_previous_identity_function,
+    )
 
 
 if __name__ == "__main__":
