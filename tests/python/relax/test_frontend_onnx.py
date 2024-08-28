@@ -1118,6 +1118,12 @@ def test_expand(dynamic):
     ref_data = np.tile(data, 4)
     _test_expand("expand_with_dim_unchanged_test", data, shape, ref_data)
 
+    in_shape = (3, 1)
+    shape = (1, 3, 4)
+    data = np.random.uniform(size=in_shape).astype(np.float32)
+    ref_data = np.tile(data, (1, 1, 4))
+    _test_expand("expand_with_diff_dim", data, shape, ref_data)
+
 
 # TODO(jwfromm) Current approach to dynamic expand is technically not well formed. Reenable once fixed.
 @pytest.mark.skip("Produces ill-formed IR")
