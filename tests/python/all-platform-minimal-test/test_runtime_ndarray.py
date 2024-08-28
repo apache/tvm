@@ -70,27 +70,27 @@ def test_memory_usage(target, dev, dtype):
 
 
 @pytest.mark.parametrize(
-    "src_dst",
+    "src",
     [
-        ("float32", "float32"),
-        # ("float32", "float16"),
-        # ("float16", "float32"),
+        # "float32",
+        "float16",
     ],
-    ids=[
-        "f32-to-f32",
-        # "f32-to-f16",
-        # "f16-to-f32",
+)
+@pytest.mark.parametrize(
+    "dst",
+    [
+        # "float32",
+        "float16",
     ],
 )
 @tvm.testing.parametrize_targets(
     # "llvm",
     "llvm -opt-level=0",
 )
-def test_fp16_conversion(src_dst, target, dev):
+def test_fp16_conversion(src, dst, target, dev):
     # DEBUG PRINT, REMOVE BEFORE MERGE
     print("LLVM version:", tvm.support.libinfo()["LLVM_VERSION"])
 
-    src, dst = src_dst
     n = 100
 
     from tvm.script import ir as I, tir as T
