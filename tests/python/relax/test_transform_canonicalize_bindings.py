@@ -1294,5 +1294,56 @@ def test_trivial_binding_of_replaced_non_dataflow_var():
     assert after_names == expected_names
 
 
+def test_trace_tuple_through_round_trip():
+    """Canonicalize to the orignal tuple, without unwrap/rewrap."""
+
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(param_tuple: R.Tuple([R.Tensor, R.Tensor, R.Tensor])):
+            with R.dataflow():
+                A = param_tuple[0]
+                B = param_tuple[1]
+                C = param_tuple[2]
+                output = (A, B, C)
+                R.output(output)
+            return output
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(param_tuple: R.Tuple([R.Tensor, R.Tensor, R.Tensor])):
+            with R.dataflow():
+                A = param_tuple[0]
+                B = param_tuple[1]
+                C = param_tuple[2]
+                R.output()
+
+            return param_tuple
+
+    After = CanonicalizeBindings()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
+
+
+def test_trace_partial_tuple_through_round_trip():
+    """Canonicalize to the orignal tuple, without unwrap/rewrap."""
+
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(param_tuple: R.Tuple([R.Tensor, R.Tensor, R.Tensor])):
+            with R.dataflow():
+                A = param_tuple[0]
+                B = param_tuple[1]
+                output = (A, B)
+                R.output(output)
+            return output
+
+    Expected = Before
+
+    After = CanonicalizeBindings()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
