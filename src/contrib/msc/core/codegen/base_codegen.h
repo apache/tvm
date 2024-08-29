@@ -179,17 +179,17 @@ class BaseCodeGen {
       return 1;
     }
     if (node->scope.size() == scopes_.top().size()) {
-      ICHECK(StringUtils::CompareArrays(node->scope, scopes_.top()))
+      ICHECK(ArrayUtils::CompareArrays(node->scope, scopes_.top()))
           << "Scope mismatch, node " << node->scope << " compare to current " << scopes_.top();
       return 0;
     } else if (node->scope.size() == scopes_.top().size() + 1) {
-      ICHECK(StringUtils::CompareArrays(node->scope, scopes_.top(), scopes_.top().size()))
+      ICHECK(ArrayUtils::CompareArrays(node->scope, scopes_.top(), scopes_.top().size()))
           << "Scope increase mismatch, node " << node->scope << " compare to current "
           << scopes_.top();
       scopes_.push(node->scope);
       return 1;
     } else if (node->scope.size() == scopes_.top().size() - 1) {
-      ICHECK(StringUtils::CompareArrays(node->scope, scopes_.top(), node->scope.size()))
+      ICHECK(ArrayUtils::CompareArrays(node->scope, scopes_.top(), node->scope.size()))
           << "Scope decrease mismatch, node " << node->scope << " compare to current "
           << scopes_.top();
       scopes_.pop();
