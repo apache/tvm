@@ -188,6 +188,7 @@ jobject tvmRetValueToJava(JNIEnv* env, TVMValue value, int tcode) {
   switch (tcode) {
     case kDLUInt:
     case kDLInt:
+    case kTVMArgBool:
       return newTVMValueLong(env, static_cast<jlong>(value.v_int64));
     case kDLFloat:
       return newTVMValueDouble(env, static_cast<jdouble>(value.v_float64));
