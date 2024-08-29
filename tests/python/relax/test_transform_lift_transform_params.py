@@ -1717,9 +1717,9 @@ def test_symbolic_var_defined_in_params_but_used_in_weights():
     @tvm.script.ir_module
     class Expected:
         @R.function
-        def main_transform_params(params: R.Tuple(R.Tensor(("k",), dtype="float32"))) -> R.Tuple(
-            R.Tensor(dtype="float32", ndim=1)
-        ):
+        def main_transform_params(
+            params: R.Tuple(R.Tensor(("k",), dtype="float32"))
+        ) -> R.Tuple(R.Tensor(dtype="float32", ndim=1)):
             R.func_attr({"num_input": 0})
             k = T.int64()
             with R.dataflow():
