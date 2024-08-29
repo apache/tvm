@@ -463,41 +463,18 @@ Expr NormalizeCallTIR(const BlockBuilder& ctx, Call call) {
       << ", which is neither an in-line tuple, "
       << "nor a variable binding that may be normalized to an in-line tuple.";
 
-  auto packed_int_sinfo = [&]() -> Optional<StructInfo> {
-    if (call->args.size() <= 2) {
-      return NullOpt;
-    }
-
+  if (call->args.size() > 2) {
     Expr packed_ints = call->args[2];
     CHECK(packed_ints->struct_info_.as<ShapeStructInfoNode>())
         << "Operation " << call->op << " expects the optional third argument, "
         << "if present, to be a ShapeTuple.  "
         << "However, the third argument " << packed_ints << " has struct info "
         << packed_ints->struct_info_;
-    return GetStructInfo(packed_ints);
-  }();
-
-  auto opt_inplace_indices = [&]() -> Optional<Array<Integer>> {
-    if (const auto* attrs = call->attrs.as<CallTIRInplaceAttrs>()) {
-      return attrs->inplace_indices;
-    } else {
-      return NullOpt;
-    }
-  }();
+  }
 
   CHECK_EQ(call->sinfo_args.size(), 1)
       << "R.call_tir should have exactly one `sinfo_args` parameter, "
       << "which defines the output of the PrimFunc.";
-  StructInfo explicit_sinfo = call->sinfo_args[0];
-  auto inferred_sinfo = InferCallTIROutputStructInfoFromArguments(
-      GetStructInfo(callee), GetStructInfo(arg_tuple), packed_int_sinfo, opt_inplace_indices);
-  if (inferred_sinfo.defined()) {
-    CHECK(IsBaseOf(inferred_sinfo.value(), explicit_sinfo))
-        << "TypeError: "
-        << "The `out_sinfo` argument for R.call_tir must be compatible with the PrimFunc.  "
-        << "However, the PrimFunc's signature implies that the output should be " << inferred_sinfo
-        << ", but the `out_sinfo` argument was " << explicit_sinfo;
-  }
 
   auto unwrap_binding = [&ctx](Expr expr) -> Optional<Expr> {
     if (auto var = expr.as<Var>()) {
@@ -547,6 +524,44 @@ Expr NormalizeCallTIR(const BlockBuilder& ctx, Call call) {
   return std::move(call);
 }
 
+void ValidateCallTIR(Call call) {
+  // This function is used for validation of `relax.call_tir`,
+  // along with the variants `relax.call_tir_with_grad` and
+  // `relax.call_tir_inplace`.  Therefore, all error messages should
+  // be written in terms of `call->op`, and should not explicitly
+  // reference the `relax.call_tir` operator.`
+
+  auto callee = call->args[0];
+  Expr arg_tuple = call->args[1];
+
+  auto packed_int_sinfo = [&]() -> Optional<StructInfo> {
+    if (call->args.size() <= 2) {
+      return NullOpt;
+    } else {
+      return GetStructInfo(call->args[2]);
+    }
+  }();
+
+  auto opt_inplace_indices = [&]() -> Optional<Array<Integer>> {
+    if (const auto* attrs = call->attrs.as<CallTIRInplaceAttrs>()) {
+      return attrs->inplace_indices;
+    } else {
+      return NullOpt;
+    }
+  }();
+
+  StructInfo explicit_sinfo = call->sinfo_args[0];
+  auto inferred_sinfo = InferCallTIROutputStructInfoFromArguments(
+      GetStructInfo(callee), GetStructInfo(arg_tuple), packed_int_sinfo, opt_inplace_indices);
+  if (inferred_sinfo.defined()) {
+    CHECK(IsBaseOf(inferred_sinfo.value(), explicit_sinfo))
+        << "TypeError: "
+        << "The `out_sinfo` argument for R.call_tir must be compatible with the PrimFunc.  "
+        << "However, the PrimFunc's signature implies that the output should be " << inferred_sinfo
+        << ", but the `out_sinfo` argument was " << explicit_sinfo;
+  }
+}
+
 RELAY_REGISTER_OP("relax.call_tir")
     .set_num_inputs(3)
     .add_argument("func", "Expr", "The destination-passing-style function.")
@@ -556,6 +571,7 @@ RELAY_REGISTER_OP("relax.call_tir")
                   "args if unused")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCallTIR)
     .set_attr<FNormalize>("FNormalize", NormalizeCallTIR)
+    .set_attr<FValidate>("FValidate", ValidateCallTIR)
     .set_attr<Bool>("FPurity", Bool(true));
 
 Expr MakeCallTIR(Expr func, Tuple args, Array<TensorStructInfo> out_sinfo_list,
@@ -601,6 +617,7 @@ RELAY_REGISTER_OP("relax.call_tir_with_grad")
                   "args if unused")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCallTIR)
     .set_attr<FNormalize>("FNormalize", NormalizeCallTIR)
+    .set_attr<FValidate>("FValidate", ValidateCallTIR)
     .set_attr<Bool>("FPurity", Bool(true));
 
 Expr MakeCallTIRWithGrad(Expr func, Tuple args, Array<TensorStructInfo> out_sinfo_list,
@@ -741,6 +758,7 @@ RELAY_REGISTER_OP("relax.call_tir_inplace")
                   "args if unused")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoCallTIR)
     .set_attr<FNormalize>("FNormalize", NormalizeCallTIRInPlace)
+    .set_attr<FValidate>("FValidate", ValidateCallTIR)
     // Warning: considered pure, but it has the potential to create visible effects!
     // This should only be used if it has been *checked* that it is safe (no aliases, in-place
     // arguments will no longer be live)
