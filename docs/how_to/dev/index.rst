@@ -15,9 +15,14 @@
     specific language governing permissions and limitations
     under the License.
 
+Develope Apache TVM
+===================
+This section contains a collection of tips about how to work on
+various areas of the TVM stack.
+
 .. toctree::
    :maxdepth: 1
 
-   tutorials/e2e_opt_model
-   tutorials/cross_compilation_and_rpc
-   dev/index
+   pytest_target_parametrization
+   setup_rpc_system
+   ../../errors

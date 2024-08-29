@@ -76,7 +76,7 @@ In our community, there is multiple RPC server implementations, e.g., ``apps/and
 
 RPC server need to be run on device machine, and it usually will depend on xPU driver, the enhanced TVM runtime with xPU support, and other libraries, so please setup the dependent components first, e.g., install the KMD driver, ensure the required dynamic libraries can be found from environment variable ``LD_LIBRARY_PATH``.
 
-If the required compilation environment can be setup on your device machine, i.e., you needn't to do the cross compilation, then just follow the instruction of `<https://tvm.apache.org/docs/install/from_source.html>`_ to compile the TVM runtime and directly jump to the step :ref:`luanch-rpc-server`.
+If the required compilation environment can be setup on your device machine, i.e., you needn't to do the cross compilation, then just follow the instruction of `<https://tvm.apache.org/docs/install/from_source.html>`_ to compile the TVM runtime and directly jump to the step :ref:`launch-rpc-server`.
 
 1. Cross Compile TVM Runtime
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -134,9 +134,9 @@ Then copy the compress package ``tvm_runtime.tar.gz`` to your concrete device ma
   $ export PYTHONPATH=`pwd`/python:${PYTHONPATH}
 
 
-.. _luanch-rpc-server:
+.. _launch-rpc-server:
 
-3. Luanch RPC Server
+3. Launch RPC Server
 ^^^^^^^^^^^^^^^^^^^^
 
 The RPC server can be launched on your device machine through the commands like something below, please modify the *RPC_TRACKER_IP*, *RPC_TRACKER_PORT*, *RPC_PROXY_IP*, *RPC_PROXY_PORT*, and *RPC_KEY* according to your concrete environment.
