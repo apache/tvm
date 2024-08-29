@@ -702,7 +702,28 @@ class Handler(server.ProjectAPIHandler):
         # Populate extra_files
         if extra_files_tar:
             with tarfile.open(extra_files_tar, mode="r:*") as tf:
-                tf.extractall(project_dir)
+
+                def is_within_directory(directory, member, path="."):
+
+                    abs_directory = os.path.abspath(directory)
+                    target = os.path.join(path, member.name)
+                    abs_target = os.path.abspath(target)
+
+                    prefix = os.path.commonprefix([abs_directory, abs_target])
+
+                    return prefix == abs_directory
+
+                def safe_extract(tar, path=".", members=None, *, numeric_owner=False):
+
+                    for member in tar.getmembers():
+                        if not is_within_directory(path, member):
+                            raise Exception(
+                                "Attempted Path Traversal in Tar File attack. See CVE-2007-4559."
+                            )
+
+                    tar.extractall(path, members, numeric_owner)
+
+                safe_extract(tf, project_dir)
 
     def build(self, options):
         if BUILD_DIR.exists():

@@ -177,11 +177,28 @@ class Handler(server.ProjectAPIHandler):
         for component in unused_components:
             shutil.rmtree(source_dir / "standalone_crt" / component)
 
+    def _safe_extract(tar, path=".", members=None, *, numeric_owner=False):
+        def is_within_directory(directory, member):
+
+            abs_directory = os.path.abspath(directory)
+            target = os.path.join(directory, member.name)
+            abs_target = os.path.abspath(target)
+
+            prefix = os.path.commonprefix([abs_directory, abs_target])
+
+            return prefix == abs_directory
+
+        for member in tar.getmembers():
+            if not is_within_directory(path, member):
+                raise Exception("Attempted Path Traversal in Tar File attack. See CVE-2007-4559.")
+
+        tar.extractall(path, members, numeric_owner)
+
     def _disassemble_mlf(self, mlf_tar_path, source_dir):
         with tempfile.TemporaryDirectory() as mlf_unpacking_dir_str:
             mlf_unpacking_dir = pathlib.Path(mlf_unpacking_dir_str)
             with tarfile.open(mlf_tar_path, "r:") as tar:
-                tar.extractall(mlf_unpacking_dir)
+                self._safe_extract(tar, mlf_unpacking_dir)
 
             model_dir = source_dir / "model"
             model_dir.mkdir()
@@ -430,7 +447,7 @@ class Handler(server.ProjectAPIHandler):
         # Populate extra_files
         if extra_files_tar:
             with tarfile.open(extra_files_tar, mode="r:*") as tf:
-                tf.extractall(project_dir)
+                self._safe_extract(tf, project_dir)
 
         build_extra_flags = '"build.extra_flags='
         if extra_files_tar:
