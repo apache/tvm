@@ -1135,6 +1135,8 @@ class Expand(OnnxOpConverter):
             # For some reason, onnx allows target shapes to be smaller than input shapes.
             # We need to go correct it.
             data_shape = [dim.value for dim in data.struct_info.shape]
+            # Dimensions are right alignment.
+            data_shape = [1] * (len(new_shape) - len(data_shape)) + data_shape
             # Fix small target shapes.
             for i, s in enumerate(new_shape):
                 if i < len(data_shape) and s < data_shape[i]:
