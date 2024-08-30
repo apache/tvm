@@ -214,15 +214,15 @@ class InitUpdateValueFinder : public StmtExprVisitor {
   void VisitExpr_(const CallNode* op) {
     // TODO: Should append more test case for wmma
     if (op->op.same_as(tir::builtin::ptx_mma())) {
-      has_mma_ = Bool(true);
+      has_mma_ = true;
     } else if (op->op.same_as(tir::builtin::mma_fill())) {
-      has_mma_ = Bool(true);
+      has_mma_ = true;
       init_value_ = make_const(DataType::Float(16), 0);
     }
     return StmtExprVisitor::VisitExpr_(op);
   }
 
-  Bool has_mma_{false};
+  bool has_mma_{false};
   PrimExpr init_value_{nullptr};
   BufferStore update_value_{nullptr};
 };
@@ -353,12 +353,7 @@ class LoopVar {
  */
 class LoopVarCollector : public StmtVisitor {
  public:
-  /*!
-   * \brief Collect the loop variables between stmt1 and stmt2
-   * \param stmt1 The first statement
-   * \param stmt2 The second statement
-   * \return The loop variables between stmt1 and stmt2
-   */
+
   static std::vector<LoopVar> Collect(const Stmt& stmt1, const Block& stmt2) {
     LoopVarCollector collector(stmt2);
     collector(stmt1);
@@ -816,13 +811,13 @@ Stmt TransformReductionBlock(const BlockRealizeNode* realize,            //
  * \param combiner_lhs The LHS values of the combiner
  * \param reduction_loops The reduction loops
  */
-Stmt InjectReductionBlock(const BlockRealizeNode* realize,                    //
-                          const Array<Buffer>& ct_buffers,                    //
-                          const Array<Buffer>& wb_buffers,                    //
-                          const Array<PrimExpr>& old_wb_indices,              //
-                          const CommReducer& reducer,                         //
-                          const Array<PrimExpr>& combiner_lhs,                //
-                          const std::vector<const ForNode*>& reduction_loops  //
+Stmt InjectReductionBlock(const BlockRealizeNode* realize,
+                          const Array<Buffer>& ct_buffers,
+                          const Array<Buffer>& wb_buffers,
+                          const Array<PrimExpr>& old_wb_indices,
+                          const CommReducer& reducer,
+                          const Array<PrimExpr>& combiner_lhs,
+                          const std::vector<const ForNode*>& reduction_loops
 ) {
   int n_buffers = wb_buffers.size();
   const BlockNode* block = realize->block.get();
@@ -1866,7 +1861,7 @@ class CrossThreadReductionTransformer : public StmtMutator {
     Array<Buffer> ct_buffers = MakeScratchpads(reduction_buffers, /*is_cross_thread_buffer=*/true);
     new_buffers.insert(new_buffers.end(), ct_buffers.begin(), ct_buffers.end());
     Optional<Array<Buffer>> it_buffers = NullOpt;
-    if (need_in_thread_reduction && need_in_thread_init_block) {
+    if (need_in_thread_reduction) {
       it_buffers = MakeScratchpads(reduction_buffers, /*is_cross_thread_buffer=*/false);
       CHECK(it_buffers.defined())
           << "ValueError: Cross-thread reduction requires the block to have "
