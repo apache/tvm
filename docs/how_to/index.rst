@@ -19,5 +19,6 @@
    :maxdepth: 1
 
    tutorials/e2e_opt_model
+   tutorials/customize_opt
    tutorials/cross_compilation_and_rpc
    dev/index
