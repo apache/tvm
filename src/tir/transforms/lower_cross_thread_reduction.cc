@@ -109,7 +109,7 @@ bool IsDominantBlock(const Block& scope_block, const Block& block) {
 bool IsReductionBlock(const BlockRealize& realize, const Map<Var, Range>& loop_range_map,
                       const Block& scope_block, arith::Analyzer* analyzer) {
   const auto* block = realize->block.as<BlockNode>();
-  
+
   // Cond 1. as some reduction block didn't have init statement.
   // Thus, we detect the reduction block by checking the iter vars.
   // If the block has no reduce iter vars, it is not a reduction block, then return false.
@@ -165,7 +165,7 @@ Array<Buffer> MakeScratchpads(const Array<Buffer>& reduction_buffers, bool is_cr
  * \brief Get init value from BufferStore Node
  * \param block The block to be checked
  * \return The init value
-*/
+ */
 class InitUpdateValueFinder : public StmtExprVisitor {
  public:
   /*!
@@ -194,9 +194,9 @@ class InitUpdateValueFinder : public StmtExprVisitor {
 
   /*!
    * \brief Check whether the input block has MMA operation
-    * \param realize The block to be checked
-    * \return A boolean indicating whether the input block has MMA operation.
-  */
+   * \param realize The block to be checked
+   * \return A boolean indicating whether the input block has MMA operation.
+   */
   static bool CheckHasMMA(const Block& block) {
     InitUpdateValueFinder checker;
     checker(block->body);
@@ -214,24 +214,24 @@ class InitUpdateValueFinder : public StmtExprVisitor {
   void VisitExpr_(const CallNode* op) {
     // TODO: Should append more test case for wmma
     if (op->op.same_as(tir::builtin::ptx_mma())) {
-      has_mma_ = Bool(true);
+      has_mma_ = true;
     } else if (op->op.same_as(tir::builtin::mma_fill())) {
-      has_mma_ = Bool(true);
-      init_value_ = make_const(op->dtype, 0);
+      has_mma_ = true;
+      init_value_ = make_const(DataType::Float(16), 0);
     }
     return StmtExprVisitor::VisitExpr_(op);
   }
 
-  Bool has_mma_{false};
+  bool has_mma_{false};
   PrimExpr init_value_{nullptr};
   BufferStore update_value_{nullptr};
 };
 
 /*!
  * \brief Check whether the input block has child blocks.
-  * \param realize The block to be checked
-  * \return A boolean indicating whether the input block has child blocks.
-  * \note A similar check has been implemented in "src/tir/schedule/analysis.h", but that check is
+ * \param realize The block to be checked
+ * \return A boolean indicating whether the input block has child blocks.
+ * \note A similar check has been implemented in "src/tir/schedule/analysis.h", but that check is
  * based on `tir.Schedule`. Here we have no schedule information, and thus we must implement the
  * check again.
  */
@@ -249,10 +249,10 @@ class HasChildBlocksChecker : public StmtVisitor {
   }
 
   /*!
-    * \brief Get child blocks of the given block realize
-    * \param realize The block to be checked
-    * \return The child blocks of the given block realize
-    */
+   * \brief Get child blocks of the given block realize
+   * \param realize The block to be checked
+   * \return The child blocks of the given block realize
+   */
   static Array<BlockRealize> GetChildBlockRealizes(const Block& block) {
     HasChildBlocksChecker checker;
     checker(block->body);
@@ -274,8 +274,8 @@ class HasChildBlocksChecker : public StmtVisitor {
   Array<BlockRealize> child_blocks_;
 };
 /*!
-* \brief Visit Block Stmt and Find blocks that write the specific buffer
-*/
+ * \brief Visit Block Stmt and Find blocks that write the specific buffer
+ */
 
 class BufferInitBlockFinder : public StmtVisitor {
  public:
@@ -347,18 +347,12 @@ class LoopVar {
 
 /*!
  * \brief Collect the loop variables between stmt1 and stmt2
-  * \param stmt1 The first statement
-  * \param stmt2 The second statement
-  * \return The loop variables between stmt1 and stmt2
+ * \param stmt1 The first statement
+ * \param stmt2 The second statement
+ * \return The loop variables between stmt1 and stmt2
  */
 class LoopVarCollector : public StmtVisitor {
  public:
-  /*!
-  * \brief Collect the loop variables between stmt1 and stmt2
-  * \param stmt1 The first statement
-  * \param stmt2 The second statement
-  * \return The loop variables between stmt1 and stmt2
-  */
   static std::vector<LoopVar> Collect(const Stmt& stmt1, const Block& stmt2) {
     LoopVarCollector collector(stmt2);
     collector(stmt1);
@@ -823,7 +817,7 @@ Stmt InjectReductionBlock(const BlockRealizeNode* realize,                    //
                           const CommReducer& reducer,                         //
                           const Array<PrimExpr>& combiner_lhs,                //
                           const std::vector<const ForNode*>& reduction_loops  //
-                          ) {
+) {
   int n_buffers = wb_buffers.size();
   const BlockNode* block = realize->block.get();
 
@@ -839,16 +833,14 @@ Stmt InjectReductionBlock(const BlockRealizeNode* realize,                    //
   Array<BufferRegion> ct_buffer_regions = f_create_buffer_regions(ct_buffers);
   Optional<Array<BufferRegion>> it_buffer_regions = NullOpt;
   // In total, the block is transformed into at most 4 statements
-  // - Stmt 1: initialize the buffer for in-thread reduction
-  // - Stmt 2: do in-thread reduction
-  // - Stmt 3: do cross-thread reduction
-  // - Stmt 4: write cross-thread reduction result to the original buffer
+  // - Stmt 1: do cross-thread reduction
+  // - Stmt 2: write cross-thread reduction result to the original buffer
   Array<Stmt> stmts;
   stmts.reserve(4);
 
-  // Stmt 3: do cross-thread reduction
+  // Stmt 1: do cross-thread reduction
   {
-    // Step 3.1. Create the parameters to the intrinsic
+    // Step 1.1. Create the parameters to the intrinsic
     Array<PrimExpr> parameters;
     parameters.reserve(reduction_loops.size() + 4);
     // 1-st argument: number of buffers
@@ -867,7 +859,7 @@ Stmt InjectReductionBlock(const BlockRealizeNode* realize,                    //
         parameters.push_back(reduction_loop->loop_var);
       }
     }
-    // Step 3.2. Create the block and the block-realize.
+    // Step 1.2. Create the block and the block-realize.
     Array<IterVar> iter_vars = block->iter_vars;
     Array<PrimExpr> bindings = realize->iter_values;
     Array<BufferRegion> reads = block->writes;
@@ -932,13 +924,13 @@ Stmt InjectReductionBlock(const BlockRealizeNode* realize,                    //
                                      /*args=*/std::move(parameters)))));
     ObjectPtr<BlockNode> cross_thread_block_node =
         make_object<BlockNode>(*cross_thread_block.operator->());
-    cross_thread_block_node->annotations.Set(kIsCrossThreadReductionApplied, Bool(true));
+    cross_thread_block_node->annotations.Set(kIsCrossThreadReductionApplied, tir::const_true());
     stmts.push_back(BlockRealize(
         /*iter_values=*/std::move(bindings_used),
         /*predicate=*/const_true(),
         /*block=*/cross_thread_block));
   }
-  // Stmt 4: write cross-thread reduction result to the original buffer
+  // Stmt 2: write cross-thread reduction result to the original buffer
   {
     ICHECK_EQ(block->iter_vars.size(), realize->iter_values.size());
     int n_iter = static_cast<int>(block->iter_vars.size());
@@ -1075,7 +1067,7 @@ Stmt InjectReductionBlock(const BlockRealizeNode* realize,                    //
   for (auto rit = reduction_loops.rbegin(); rit != reduction_loops.rend(); ++rit) {
     const ForNode* loop = *rit;
     if (loop->thread_binding.defined()) {
-      // Colelct Loop vars between the reduction lops
+      // Colelct Loop vars between the reduction loops
       std::vector<LoopVar> chain_loop_vars =
           LoopVarCollector::Collect(loop->body, GetRef<Block>(block));
       std::vector<LoopVar> used_chain_loop_vars_array;
@@ -1156,7 +1148,7 @@ Stmt InjectWarpEvaluateReductionBlock(const BlockRealizeNode* realize,          
                                       const CommReducer& reducer,                         //
                                       const Array<PrimExpr>& combiner_evaluate,           //
                                       const std::vector<const ForNode*>& reduction_loops  //
-                                      ) {
+) {
   int n_buffers = wb_buffers.size();
   const BlockNode* block = realize->block.get();
   Buffer write_buffer = (*block->writes.begin())->buffer;
@@ -1184,19 +1176,17 @@ Stmt InjectWarpEvaluateReductionBlock(const BlockRealizeNode* realize,          
   Array<BufferRegion> ct_buffer_regions = f_create_buffer_regions(ct_buffers);
   Optional<Array<BufferRegion>> it_buffer_regions = NullOpt;
   // In total, the block is transformed into at most 4 statements
-  // - Stmt 1: initialize the buffer for in-thread reduction
-  // - Stmt 2: do in-thread reduction
-  // - Stmt 3: do cross-thread reduction
-  // - Stmt 4: write cross-thread reduction result to the original buffer
+  // - Stmt 1: do cross-thread reduction
+  // - Stmt 2: write cross-thread reduction result to the original buffer
   Array<Stmt> stmts;
   stmts.reserve(4);
 
-  // Stmt 3: do cross-thread reduction
+  // Stmt 1: do cross-thread reduction
   {
-    // Step 3.1. Create the parameters to the intrinsic
+    // Step 1.1. Create the parameters to the intrinsic
     Array<PrimExpr> parameters;
 
-    // Step 3.2. Create the block and the block-realize.
+    // Step 1.2. Create the block and the block-realize.
     Array<IterVar> iter_vars = block->iter_vars;
     Array<PrimExpr> bindings = realize->iter_values;
     Array<BufferRegion> reads = block->writes;
@@ -1302,13 +1292,13 @@ Stmt InjectWarpEvaluateReductionBlock(const BlockRealizeNode* realize,          
 
     ObjectPtr<BlockNode> cross_thread_block_node =
         make_object<BlockNode>(*cross_thread_block.operator->());
-    cross_thread_block_node->annotations.Set(kIsCrossThreadReductionApplied, Bool(true));
+    cross_thread_block_node->annotations.Set(kIsCrossThreadReductionApplied, tir::const_true());
     stmts.push_back(BlockRealize(
         /*iter_values=*/std::move(bindings_used),
         /*predicate=*/const_true(),
         /*block=*/cross_thread_block));
   }
-  // Stmt 4: write cross-thread reduction result to the original buffer
+  // Stmt 2: write cross-thread reduction result to the original buffer
   {
     ICHECK_EQ(block->iter_vars.size(), realize->iter_values.size());
     int n_iter = static_cast<int>(block->iter_vars.size());
@@ -1445,7 +1435,7 @@ Stmt InjectWarpEvaluateReductionBlock(const BlockRealizeNode* realize,          
   for (auto rit = reduction_loops.rbegin(); rit != reduction_loops.rend(); ++rit) {
     const ForNode* loop = *rit;
     if (loop->thread_binding.defined()) {
-      // Colelct Loop vars between the reduction lops
+      // Colelct Loop vars between the reduction loops
       std::vector<LoopVar> chain_loop_vars =
           LoopVarCollector::Collect(loop->body, GetRef<Block>(block));
       std::vector<LoopVar> used_chain_loop_vars_array;
@@ -1582,7 +1572,7 @@ class CrossThreadReductionTransformer : public StmtMutator {
       if (buf_it == crt_buf2threads_.end()) {
         continue;
       }
-      for (auto[scope, range] : buf_it->second) {
+      for (auto [scope, range] : buf_it->second) {
         thread2range[scope] = range;
       }
     }
@@ -1595,7 +1585,7 @@ class CrossThreadReductionTransformer : public StmtMutator {
       }
     }
     std::vector<std::pair<ThreadScope, Range>> unbound_thread2range_list;
-    for (auto[scope, range] : thread2range) {
+    for (auto [scope, range] : thread2range) {
       unbound_thread2range_list.emplace_back(scope, range);
     }
     return unbound_thread2range_list;
@@ -1899,7 +1889,7 @@ class CrossThreadReductionTransformer : public StmtMutator {
 
       // Step 4.1. Mark the block as a cross-thread reduction block.
       ObjectPtr<BlockNode> p_block = make_object<BlockNode>(*block);
-      p_block->annotations.Set(kIsCrossThreadReductionApplied, Bool(true));
+      p_block->annotations.Set(kIsCrossThreadReductionApplied, tir::const_true());
     }
 
     // Step 5. Record the reduction thread dims for the write-back buffers.
@@ -1926,7 +1916,7 @@ class CrossThreadReductionTransformer : public StmtMutator {
     PrimExpr predicate = realize->predicate;
     Array<Var> loop_vars;
     loop_vars.reserve(unbound_thread2range.size());
-    for (auto[scope, range] : unbound_thread2range) {
+    for (auto [scope, range] : unbound_thread2range) {
       std::string dim_index(1, static_cast<char>(scope.dim_index + 'x'));
       Var loop_var("t" + dim_index, range->min->dtype);
       loop_vars.push_back(loop_var);
