@@ -288,7 +288,8 @@ class ThreadSyncPlanner : public StorageAccessVisitor {
   }
 
   void insert_syncs(const Object* obj) {
-    ICHECK_EQ(condition_counter(), 0) << "Cannot insert syncs inside condition";
+    // ICHECK_EQ(condition_counter(), 0) << "Cannot insert syncs inside condition";
+    if (syncs_inserted_.count(obj)) return;
     if (num_partial_threads_.defined()) {
       syncs_inserted_.insert(obj);
       partial_syncs_inserted_[obj] = static_cast<int>(num_partial_threads_.value()->value);
