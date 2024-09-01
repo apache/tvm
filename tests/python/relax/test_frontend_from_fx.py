@@ -140,6 +140,15 @@ def test_conv1d_transpose():
         def forward(self, input):
             return self.conv(input)
 
+    class ConvTranspose1d1Func(Module):
+        def __init__(self):
+            super().__init__()
+            self.weight = torch.randn(size=[6, 6, 3])
+            self.bias = torch.randn(size=[6])
+
+        def forward(self, input):
+            return torch.nn.functional.conv_transpose1d(input, self.weight, self.bias)
+
     @tvm.script.ir_module
     class expected1:
         @R.function
@@ -203,6 +212,10 @@ def test_conv1d_transpose():
 
     model = ConvTranspose1d1()
     binding = {"w1": model.conv.weight.detach().numpy(), "w2": model.conv.bias.detach().numpy()}
+    verify_model(model, input_info, binding, expected1)
+
+    model = ConvTranspose1d1Func()
+    binding = {"w1": model.weight.detach().numpy(), "w2": model.bias.detach().numpy()}
     verify_model(model, input_info, binding, expected1)
 
     model = ConvTranspose1d2()
