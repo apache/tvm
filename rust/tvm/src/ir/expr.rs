@@ -94,9 +94,9 @@ external! {
     fn _as_text(object: ObjectRef, show_meta_data: i32, annotate: runtime::Function) -> TString;
 }
 
-pub fn as_text<T: IsObjectRef>(object: T) -> String {
+pub fn as_text<T: IsObjectRef>(object: T, show_meta_data: i32) -> String {
     let no_func = unsafe { runtime::Function::null() };
-    _as_text(object.upcast(), 0, no_func)
+    _as_text(object.upcast(), show_meta_data, no_func)
         .unwrap()
         .as_str()
         .unwrap()

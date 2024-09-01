@@ -83,6 +83,6 @@ ndarray = "0.12"
 enumn = "^0.1"
 
 [build-dependencies]
-bindgen = { version="0.57", default-features = false, features = ["runtime"] }
+bindgen = { version="0.66", default-features = false, features = ["runtime"] }
 anyhow = "^1.0"
 tvm-build = "0.2.4"
