@@ -788,64 +788,6 @@ class TorchFXImporter:
             groups=module.groups,
         )
 
-    def _conv3d(self, node: fx.node.Node) -> relax.Var:
-        x = self.env[node.args[0]]
-        module = self.named_modules[node.target]
-        weight = self.params[module.weight]
-
-        conv3d = self.block_builder.emit(
-            relax.op.nn.conv3d(
-                x,
-                weight,
-                strides=module.stride,
-                padding=module.padding,
-                dilation=module.dilation,
-                groups=module.groups,
-                data_layout="NCDHW",
-                kernel_layout="OIDHW",
-                out_dtype="float32",
-            )
-        )
-
-        if module.bias is None:
-            return conv3d
-
-        bias = self.params[module.bias]
-        assert len(self.shape_of(bias)) == 1
-        bias = relax.op.reshape(bias, (1, -1, 1, 1, 1))
-
-        return self.block_builder.emit(relax.op.add(conv3d, bias))
-
-    def _conv2d_impl(
-        self,
-        x: relax.Expr,
-        weight: relax.Expr,
-        bias: Optional[relax.Expr],
-        strides: Optional[Tuple],
-        padding: Optional[Tuple],
-        dilation: Optional[Tuple],
-        groups: Optional[Tuple],
-    ):
-        conv2d = self.block_builder.emit(
-            relax.op.nn.conv2d(
-                x,
-                weight,
-                strides=strides,
-                padding=padding,
-                dilation=dilation,
-                groups=groups,
-                data_layout="NCHW",
-                kernel_layout="OIHW",
-                out_dtype="float32",
-            )
-        )
-
-        if bias is None:
-            return conv2d
-        assert len(self.shape_of(bias)) == 1
-        bias = relax.op.reshape(bias, (1, -1, 1, 1))
-        return self.block_builder.emit(relax.op.add(conv2d, bias))
-
     def _conv1d_functional(self, node: fx.node.Node) -> relax.Var:
         args = self.retrieve_args(node)
         x = args[0]
@@ -893,33 +835,35 @@ class TorchFXImporter:
 
         return self.block_builder.emit(relax.op.add(conv1d_transpose, bias))
 
-    def _conv2d_transpose(self, node: fx.node.Node) -> relax.Var:
-        x = self.env[node.args[0]]
-        module = self.named_modules[node.target]
-        weight = self.params[module.weight]
-
-        conv2d_transpose = self.block_builder.emit(
-            relax.op.nn.conv2d_transpose(
+    def _conv2d_impl(
+        self,
+        x: relax.Expr,
+        weight: relax.Expr,
+        bias: Optional[relax.Expr],
+        strides: Optional[Tuple],
+        padding: Optional[Tuple],
+        dilation: Optional[Tuple],
+        groups: Optional[Tuple],
+    ):
+        conv2d = self.block_builder.emit(
+            relax.op.nn.conv2d(
                 x,
                 weight,
-                strides=module.stride,
-                padding=module.padding,
-                dilation=module.dilation,
-                groups=module.groups,
+                strides=strides,
+                padding=padding,
+                dilation=dilation,
+                groups=groups,
                 data_layout="NCHW",
                 kernel_layout="OIHW",
                 out_dtype="float32",
             )
         )
 
-        if module.bias is None:
-            return conv2d_transpose
-
-        bias = self.params[module.bias]
+        if bias is None:
+            return conv2d
         assert len(self.shape_of(bias)) == 1
         bias = relax.op.reshape(bias, (1, -1, 1, 1))
-
-        return self.block_builder.emit(relax.op.add(conv2d_transpose, bias))
+        return self.block_builder.emit(relax.op.add(conv2d, bias))
 
     def _conv2d(self, node: fx.node.Node) -> relax.Var:
         x = self.env[node.args[0]]
@@ -957,6 +901,62 @@ class TorchFXImporter:
             dilation=dilation,
             groups=groups,
         )
+
+    def _conv2d_transpose(self, node: fx.node.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        module = self.named_modules[node.target]
+        weight = self.params[module.weight]
+
+        conv2d_transpose = self.block_builder.emit(
+            relax.op.nn.conv2d_transpose(
+                x,
+                weight,
+                strides=module.stride,
+                padding=module.padding,
+                dilation=module.dilation,
+                groups=module.groups,
+                data_layout="NCHW",
+                kernel_layout="OIHW",
+                out_dtype="float32",
+            )
+        )
+
+        if module.bias is None:
+            return conv2d_transpose
+
+        bias = self.params[module.bias]
+        assert len(self.shape_of(bias)) == 1
+        bias = relax.op.reshape(bias, (1, -1, 1, 1))
+
+        return self.block_builder.emit(relax.op.add(conv2d_transpose, bias))
+
+    def _conv3d(self, node: fx.node.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        module = self.named_modules[node.target]
+        weight = self.params[module.weight]
+
+        conv3d = self.block_builder.emit(
+            relax.op.nn.conv3d(
+                x,
+                weight,
+                strides=module.stride,
+                padding=module.padding,
+                dilation=module.dilation,
+                groups=module.groups,
+                data_layout="NCDHW",
+                kernel_layout="OIDHW",
+                out_dtype="float32",
+            )
+        )
+
+        if module.bias is None:
+            return conv3d
+
+        bias = self.params[module.bias]
+        assert len(self.shape_of(bias)) == 1
+        bias = relax.op.reshape(bias, (1, -1, 1, 1, 1))
+
+        return self.block_builder.emit(relax.op.add(conv3d, bias))
 
     def _max_pool2d(self, node: fx.node.Node) -> relax.Var:
         x = self.env[node.args[0]]
