@@ -275,6 +275,10 @@
 #define TVM_INFO_USE_CCACHE "NOT-FOUND"
 #endif
 
+#ifndef TVM_INFO_USE_NVSHMEM
+#define TVM_INFO_USE_NVSHMEM "NOT-FOUND"
+#endif
+
 namespace tvm {
 
 /*!
@@ -387,6 +391,7 @@ TVM_DLL Map<String, String> GetLibInfo() {
       {"USE_VERILATOR", TVM_INFO_USE_VERILATOR},
       {"USE_MSC", TVM_INFO_USE_MSC},
       {"USE_CCACHE", TVM_INFO_USE_CCACHE},
+      {"USE_NVSHMEM", TVM_INFO_USE_NVSHMEM},
       {"BACKTRACE_ON_SEGFAULT", TVM_INFO_BACKTRACE_ON_SEGFAULT},
   };
   return result;
