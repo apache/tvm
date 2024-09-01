@@ -22,7 +22,7 @@
  */
 
 #include "codegen.h"
-
+#include <tvm/tir/index_map.h>
 #include <tvm/arith/analyzer.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/op.h>
@@ -34,6 +34,7 @@
 
 #include "../op/builtin.h"
 #include "../op/bulk_copy.h"
+#include "../../target/source/ptx.h"
 
 namespace tvm {
 namespace codegen {
@@ -80,6 +81,9 @@ void CodeGenTL::PrintExtraAttrs(const PrimFunc& f, std::ostream& os) {
 }
 
 std::string CodeGenTL::Finish() {
+  if (need_mma_h_) {
+    decl_stream << "#include <mma.h>\n";
+  }
   decl_stream << "#include <tl_templates/gemm.h>\n";
   decl_stream << "#include <tl_templates/copy.h>\n";
   decl_stream << "#include <tl_templates/reduce.h>\n";
@@ -688,6 +692,342 @@ void CodeGenTL::VisitExpr_(const CallNode* op, std::ostream& os) {
   } else if (op->op.same_as(tl::PackB16Op())) {
     os << "__pack_half2(" << this->PrintExpr(op->args[0]) << ", " << this->PrintExpr(op->args[1])
        << ")";
+  } else if (op->op.same_as(builtin::tvm_fill_fragment())) {
+    need_mma_h_ = true;
+    ICHECK_EQ(op->args.size(), 6U);
+    os << "nvcuda::wmma::fill_fragment(";
+    this->PrintExpr(op->args[0], os);
+    os << "[";
+    this->PrintExpr(op->args[4], os);
+    os << "], ";
+    this->PrintExpr(op->args[5], os);
+    os << ")";
+  } else if (op->op.same_as(builtin::tvm_load_matrix_sync())) {
+    need_mma_h_ = true;
+    ICHECK_EQ(op->args.size(), 8U);
+    os << "nvcuda::wmma::load_matrix_sync(";
+    this->PrintExpr(op->args[0], os);
+    os << "[";
+    this->PrintExpr(op->args[4], os);
+    os << "], ";
+    this->PrintExpr(op->args[5], os);
+    os << ", ";
+    this->PrintExpr(op->args[6], os);
+    os << ")";
+  } else if (op->op.same_as(builtin::tvm_store_matrix_sync())) {
+    need_mma_h_ = true;
+    ICHECK_EQ(op->args.size(), 8U);
+    os << "nvcuda::wmma::store_matrix_sync(";
+    this->PrintExpr(op->args[5], os);
+    os << ", ";
+    this->PrintExpr(op->args[0], os);
+    os << "[";
+    this->PrintExpr(op->args[4], os);
+    os << "], ";
+    this->PrintExpr(op->args[6], os);
+    if (const StringImmNode* str = op->args[7].as<StringImmNode>()) {
+      os << ", nvcuda::wmma::mem_" << str->value;
+    } else {
+      LOG(FATAL) << "Invalid parameters";
+    }
+    os << ")";
+  } else if (op->op.same_as(builtin::tvm_mma_sync())) {
+    need_mma_h_ = true;
+    ICHECK_EQ(op->args.size(), 8U);
+    os << "nvcuda::wmma::mma_sync(";
+    for (int i = 0; i < 4; ++i) {
+      this->PrintExpr(op->args[i * 2], os);
+      os << "[";
+      this->PrintExpr(op->args[i * 2 + 1], os);
+      os << "]" << ((i < 3) ? ", " : ")");
+    }
+  } else if (op->op.same_as(builtin::tvm_bmma_sync())) {
+    need_mma_h_ = true;
+    ICHECK_EQ(op->args.size(), 8U);
+    os << "nvcuda::wmma::bmma_sync(";
+    for (int i = 0; i < 4; ++i) {
+      this->PrintExpr(op->args[i * 2], os);
+      os << "[";
+      this->PrintExpr(op->args[i * 2 + 1], os);
+      os << "]" << ((i < 3) ? ", " : ")");
+    }
+  } else if (op->op.same_as(builtin::ptx_mma())) {
+    // arg 0: shape: mXnXkX
+    // arg 1: A layout: row/col
+    // arg 2: B layout: row/col
+    // arg 3: A precision: fp16, fp64, ...
+    // arg 4: B precision: fp16, fp64, ...
+    // arg 5: C precision: fp32, fp64, ...
+    // arg 6: A multiplicand
+    // arg 7: A multiplicand index
+    // arg 8: B multiplicand
+    // arg 9: B multiplicand index
+    // arg 10: C accumulator
+    // arg 11: C accumulator index
+    // arg 12: saturate
+    // arg 13: (optional) 1-bit operator (xor or and)
+    ICHECK(op->args.size() == 13U || op->args.size() == 14U);
+    std::string shape = Downcast<StringImm>(op->args[0])->value;
+    std::string A_layout = Downcast<StringImm>(op->args[1])->value;
+    std::string B_layout = Downcast<StringImm>(op->args[2])->value;
+    std::string A_dtype = Downcast<StringImm>(op->args[3])->value;
+    std::string B_dtype = Downcast<StringImm>(op->args[4])->value;
+    std::string C_dtype = Downcast<StringImm>(op->args[5])->value;
+    std::string a_ref = this->PrintExpr(op->args[6]);
+    std::string a_bias = this->PrintExpr(op->args[7]);
+    std::string b_ref = this->PrintExpr(op->args[8]);
+    std::string b_bias = this->PrintExpr(op->args[9]);
+    std::string c_ref = this->PrintExpr(op->args[10]);
+    std::string c_bias = this->PrintExpr(op->args[11]);
+    bool saturate = Downcast<Bool>(op->args[12])->value;
+    std::string bit_op = op->args.size() > 13 ? Downcast<StringImm>(op->args[13])->value : "";
+    std::string asm_code =
+        PrintMMAAssembly(shape, A_layout, B_layout, A_dtype, B_dtype, C_dtype, a_ref, a_bias, b_ref,
+                         b_bias, c_ref, c_bias, "", "", "", bit_op, false, saturate);
+
+    this->stream << asm_code;
+  } else if (op->op.same_as(builtin::ptx_mma_sp())) {
+    // arg 0: shape: mXnXkX
+    // arg 1: A layout: row/col
+    // arg 2: B layout: row/col
+    // arg 3: A precision: fp16, fp32, ...
+    // arg 4: B precision: fp16, fp32, ...
+    // arg 5: C precision: fp16, fp32, ...
+    // arg 6: A multiplicand pointer
+    // arg 7: A multiplicand index
+    // arg 8: B multiplicand pointer
+    // arg 9: B multiplicand index
+    // arg 10: C accumulator pointer
+    // arg 11: C accumulator index
+    // arg 12: metadata
+    // arg 13: metadata index
+    // arg 14: sparse_selector
+    // arg 15: saturate
+    ICHECK_EQ(op->args.size(), 16U);
+    std::string shape = Downcast<StringImm>(op->args[0])->value;
+    std::string A_layout = Downcast<StringImm>(op->args[1])->value;
+    std::string B_layout = Downcast<StringImm>(op->args[2])->value;
+    std::string A_dtype = Downcast<StringImm>(op->args[3])->value;
+    std::string B_dtype = Downcast<StringImm>(op->args[4])->value;
+    std::string C_dtype = Downcast<StringImm>(op->args[5])->value;
+    std::string a_ref = this->PrintExpr(op->args[6]);
+    std::string a_offset = this->PrintExpr(op->args[7]);
+    std::string b_ref = this->PrintExpr(op->args[8]);
+    std::string b_offset = this->PrintExpr(op->args[9]);
+    std::string c_ref = this->PrintExpr(op->args[10]);
+    std::string c_offset = this->PrintExpr(op->args[11]);
+    std::string metadata = this->PrintExpr(op->args[12]);
+    std::string metadata_offset = this->PrintExpr(op->args[13]);
+    std::string sparse_selector = this->PrintExpr(op->args[14]);
+    bool saturate = Downcast<Bool>(op->args[15])->value;
+    std::string asm_code = PrintMMAAssembly(
+        shape, A_layout, B_layout, A_dtype, B_dtype, C_dtype, a_ref, a_offset, b_ref, b_offset,
+        c_ref, c_offset, metadata, metadata_offset, sparse_selector, "", true, saturate);
+    this->stream << asm_code;
+  } else if (op->op.same_as(builtin::ptx_ldmatrix())) {
+    // arg 0: whether the matrix is loaded in column major format or not.
+    // arg 1: number of matrices to load.
+    // arg 2: The data type in the matrix, .b16 is the only accepted data type.
+    // arg 3: pointer to local buffer.
+    // arg 4: The offset of the element to store in the local buffer.
+    // arg 5: pointer to the shared memory buffer to load.
+    // arg 6: The offset of the start element of the row to load in shared memory.
+    ICHECK_EQ(op->args.size(), 7U);
+    bool trans = Downcast<Bool>(op->args[0])->value;
+    int num = Downcast<Integer>(op->args[1])->value;
+    std::string type = Downcast<StringImm>(op->args[2])->value;
+    std::string local_ptr = this->PrintExpr(op->args[3]);
+    std::string local_elem_offset = this->PrintExpr(op->args[4]);
+    std::string smem_ptr = this->PrintExpr(op->args[5]);
+    if (trans && op->dtype.bits() == 8) {
+      // Since ldmatrix assumes that a matrix element is 16 bit, it cannot properly transpose an
+      // int8 matrix.
+      std::string smem_stride = this->PrintExpr(op->args[6]);
+      ICHECK(num == 4);
+      os << "for (int i = 0; i < 16; ++i) {\n";
+      os << local_ptr << "[" + local_elem_offset + " + i] = " << smem_ptr
+         << "[(i % 8) / 4 * " + smem_stride + " * 16 + (threadIdx.x % 4) * 4 * " + smem_stride +
+                "+ (i % 4) * " + smem_stride + " + threadIdx.x / 4 +  (i / 8) * 8];\n";
+      os << "}\n";
+    } else {
+      std::string smem_elem_offset = this->PrintExpr(op->args[6]);
+      need_cast_smem_ptr_to_int_ = true;
+      this->stream << PrintLoadMatrixAssembly(trans, num, type, local_ptr, local_elem_offset,
+                                              smem_ptr, smem_elem_offset);
+    }
+  } else if (op->op.same_as(builtin::mma_store())) {
+    int m = Downcast<Integer>(op->args[0])->value;
+    int n = Downcast<Integer>(op->args[1])->value;
+    std::string dst = this->PrintExpr(op->args[2]);
+    std::string src = this->PrintExpr(op->args[3]);
+    std::string src_offset = this->PrintExpr(op->args[4]);
+    PrimExpr stride = op->args[5];
+
+    ICHECK(m == 16 && n == 16) << "Only m == 16 && n == 16 case supported for now";
+
+    // Each thread in a warp holds a certain number of elements of an MMA output.
+    // For example, if we compute a 16x16 tile using MMA, each thread holds 8 elements
+    // in its registers. So conceptually, a warp memory is organized as a 32x8 block.
+    // A map from a 16x16 tile to a 32x8 block of memory is specified by the index map below.
+
+    // To store the 32x8 output back to a 16x16 tile in shared or global memory, we invert this map
+    // to determine the output location for each 8 element.
+
+    const auto* index_map_func =
+        runtime::Registry::Get("tir.index_map.shared_16x16_to_mma_32x8_layout");
+    ICHECK(index_map_func);
+
+    arith::Analyzer analyzer;
+    auto inverse_index_map =
+        IndexMap::FromFunc(2, *index_map_func).Inverse({Range(0, m), Range(0, n)}, &analyzer);
+    auto indices_16x16 = inverse_index_map->final_indices;
+
+    // "//" and "%" in the index map are translated to FloorDiv/Mod, but the plain Div/Mod are fine.
+    // FloorDiv/Mod are supposed to be lowered before they reach codegen, so manually replace them
+    // to the plain ones here.
+    class LowerFloorDivMod : public ExprMutator {
+     public:
+      PrimExpr VisitExpr_(const FloorDivNode* op) {
+        return tir::Div(this->VisitExpr(op->a), this->VisitExpr(op->b));
+      }
+      PrimExpr VisitExpr_(const FloorModNode* op) {
+        return tir::Mod(this->VisitExpr(op->a), this->VisitExpr(op->b));
+      }
+    };
+
+    auto dst_ind = LowerFloorDivMod()(indices_16x16[0] * stride + indices_16x16[1]);
+
+    var_idmap_[inverse_index_map->initial_indices[0].get()] = "threadIdx.x";
+    var_idmap_[inverse_index_map->initial_indices[1].get()] = "local_id";
+    if (op->dtype.bits() == 16) {
+      os << "for (int local_id = 0; local_id < 8; local_id+=2) {\n";
+      os << "*((uint *)&" << dst << "[" + this->PrintExpr(dst_ind) + "])"
+         << " = "
+         << "*((uint *)&" << src << "[" << src_offset << " + local_id]);\n";
+      os << "}\n";
+    }
+    else {
+      os << "for (int local_id = 0; local_id < 8; ++local_id) {\n";
+      os << dst << "[" + this->PrintExpr(dst_ind) + "]"
+         << " = " << src << "[" << src_offset << " + local_id];\n";
+      os << "}\n";
+    }
+
+  } else if (op->op.same_as(builtin::mma_fill())) {
+    std::string num_elem = this->PrintExpr(op->args[0]);
+    std::string dst = this->PrintExpr(op->args[1]);
+    std::string dst_offset = this->PrintExpr(op->args[2]);
+
+    os << "for (int i = 0; i < " << num_elem << "; ++i) {\n";
+    os << dst << "[" << dst_offset << " + i] = 0.0;";
+    os << "}\n";
+  } else if (op->op.same_as(builtin::ptx_cp_async())) {
+    std::string dst = this->PrintExpr(op->args[0]);
+    std::string dst_offset = this->PrintExpr(op->args[1]);
+    std::string src = this->PrintExpr(op->args[2]);
+    std::string src_offset = this->PrintExpr(op->args[3]);
+    std::string size = this->PrintExpr(op->args[4]);
+    need_cast_smem_ptr_to_int_ = true;
+    // use size of argument list to indicate whether or not to use predicated cp.async
+    if (op->args.size() == 5) {
+      this->stream << PrintCpAsyncAssembly(dst, dst_offset, src, src_offset, size);
+    } else {
+      this->stream << PrintPredicatedCpAsyncAssembly(dst, dst_offset, src, src_offset, size,
+                                                     this->PrintExpr(op->args[5]));
+    }
+  } else if (op->op.same_as(builtin::ptx_cp_async_bulk())) {
+    need_cast_smem_ptr_to_int_ = true;
+    std::string dst = this->PrintExpr(op->args[0]);
+    std::string dst_offset = this->PrintExpr(op->args[1]);
+    std::string src = this->PrintExpr(op->args[2]);
+    std::string src_offset = this->PrintExpr(op->args[3]);
+    std::string size = this->PrintExpr(op->args[4]);
+    int barrier_id = Downcast<IntImm>(op->args[5])->value;
+    CHECK(barrier_id < barrier_count_);
+    std::string barrier = barrier_name_ + "[" + std::to_string(barrier_id) + "]";
+    this->stream << PrintCpAsyncBulkAsm(dst, dst_offset, src, src_offset, size, barrier);
+  } else if (op->op.same_as(builtin::ptx_commit_group())) {
+    this->stream << "__asm__ __volatile__(\"cp.async.commit_group;\");\n\n";
+  } else if (op->op.same_as(builtin::ptx_wait_group())) {
+    int n = Downcast<IntImm>(op->args[0])->value;
+    this->stream << "__asm__ __volatile__(\"cp.async.wait_group " << n << ";\");\n\n";
+  } else if (op->op.same_as(builtin::ptx_cp_async_barrier())) {
+    need_cast_smem_ptr_to_int_ = true;
+    int barrier_id = Downcast<IntImm>(op->args[0])->value;
+    CHECK(barrier_id < barrier_count_);
+    std::string barrier = barrier_name_ + "[" + std::to_string(barrier_id) + "]";
+    this->stream << PrintCpAsyncBarrierAsm(barrier);
+  } else if (op->op.same_as(builtin::ptx_init_barrier_thread_count())) {
+    need_cast_smem_ptr_to_int_ = true;
+    int barrier_id = Downcast<IntImm>(op->args[0])->value;
+    CHECK(barrier_id < barrier_count_);
+    std::string barrier = barrier_name_ + "[" + std::to_string(barrier_id) + "]";
+    std::string thread_count = this->PrintExpr(op->args[1]);
+    this->stream << PrintInitBarrierThreadCountAsm(barrier, thread_count);
+  } else if (op->op.same_as(builtin::ptx_arrive_barrier())) {
+    need_cast_smem_ptr_to_int_ = true;
+    int barrier_id = Downcast<IntImm>(op->args[0])->value;
+    CHECK(barrier_id < barrier_count_);
+    std::string barrier = barrier_name_ + "[" + std::to_string(barrier_id) + "]";
+    this->stream << PrintArriveBarrierAsm(barrier);
+  } else if (op->op.same_as(builtin::ptx_arrive_barrier_expect_tx())) {
+    need_cast_smem_ptr_to_int_ = true;
+    int barrier_id = Downcast<IntImm>(op->args[0])->value;
+    CHECK(barrier_id < barrier_count_);
+    std::string barrier = barrier_name_ + "[" + std::to_string(barrier_id) + "]";
+    std::string byte_count = this->PrintExpr(op->args[1]);
+    this->stream << PrintArriveBarrierExpectTxAsm(barrier, byte_count);
+  } else if (op->op.same_as(builtin::ptx_wait_barrier())) {
+    need_cast_smem_ptr_to_int_ = true;
+    int barrier_id = Downcast<IntImm>(op->args[0])->value;
+    CHECK(barrier_id < barrier_count_);
+    std::string barrier = barrier_name_ + "[" + std::to_string(barrier_id) + "]";
+    this->stream << PrintWaitBarrierAsm(barrier);
+  } else if (op->op.same_as(builtin::create_barriers())) {
+    CHECK_EQ(barrier_count_, -1);
+    int barrier_count = Downcast<IntImm>(op->args[0])->value;
+    // pad barrier alignment to avoid runtime alignment errors
+    CHECK_EQ(barrier_alignment_bytes_ % sizeof(uint64_t), 0);
+    int barrier_alignment_count = barrier_alignment_bytes_ / sizeof(uint64_t);
+    if (barrier_count % barrier_alignment_count != 0) {
+      barrier_count = ((barrier_count / barrier_alignment_count) + 1) * barrier_alignment_count;
+    }
+    barrier_count_ = barrier_count;
+    this->stream << "__shared__ __align__(" << barrier_alignment_bytes_ << ") uint64_t "
+                 << barrier_name_ << "[" << barrier_count << "];\n";
+    this->stream << "for (int i = 0; i < " << barrier_count << "; ++i) { " << barrier_name_
+                 << "[i] = 0; }\n";
+  } else if (op->op.same_as(builtin::ptx_ldg32())) {
+    /*
+    asm volatile (
+        "{.reg .pred p;\n"
+        " setp.ne.b32 p, %2, 0;\n"
+        // " @p ld.global.nc.f32 %0, [%1];}\n"t
+        " @p ld.global.nc.L2::128B.f32 %0, [%1];}\n"
+        : "=f"(reg)
+        : "l"(addr), "r"((int)guard)
+    );
+    */
+
+    // get local
+    std::string reg = this->PrintExpr(op->args[0]);
+    // get guard
+    std::string guard = this->PrintExpr(op->args[1]);
+    const BufferLoadNode* addr_buffer = op->args[2].as<BufferLoadNode>();
+    std::string global_addr = this->PrintExpr(addr_buffer->indices[0]);
+    std::string global_buffer = this->PrintExpr(addr_buffer->buffer->data);
+    std::string local_addr = this->PrintExpr(op->args[3]);
+    this->stream << "asm volatile (\n";
+    this->stream << "\"{.reg .pred p;\\n\"\n";
+    this->stream << "\" setp.ne.b32 p, %2, 0;\\n\"\n";
+    this->stream << "\" @!p mov.b32 %0, 0;\\n\"\n";
+    this->stream << "\" @p ld.global.nc.f32 %0, [%1];}\\n\"\n";
+    // stream << "\" @p ld.global.nc.L2::128B.f32 %0, [%1];}\\n\"\n" ;
+    stream << ": \"=f\"(" << reg << "[" << local_addr << "]"
+           << ")\n";
+    stream << ": \"l\"((void*)(" << global_buffer << "+" << global_addr << ")), \"r\"((int)"
+           << guard << ")\n";
+    stream << ");\n";
   } else {
     CodeGenC::VisitExpr_(op, os);
   }

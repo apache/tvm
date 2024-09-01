@@ -466,14 +466,6 @@ class BindVarBoundInfo : public StmtVisitor {
     StmtVisitor::VisitStmt_(op);
   }
 
-
-  void VisitStmt_(const LetStmtNode* op) final {
-    this->VisitExpr(op->value);
-    analyzer_->Bind(op->var, Range::FromMinExtent(IntImm(op->value.dtype(), analyzer_->const_int_bound(op->value)->min_value),
-    IntImm(op->value.dtype(), analyzer_->const_int_bound(op->value)->max_value)));
-    this->VisitStmt(op->body);
-  }
-
   void VisitStmt_(const AttrStmtNode* op) {
     if (op->attr_key == attr::thread_extent || op->attr_key == attr::virtual_thread) {
       IterVar iv = Downcast<IterVar>(op->node);

@@ -39,3 +39,14 @@ TL_DEVICE unsigned __pack_half2(const bfloat16_t x, const bfloat16_t y) {
 TL_DEVICE uint32_t smem_ptr_to_uint(void const* const ptr) {
   return static_cast<uint32_t>(__cvta_generic_to_shared(ptr));
 }
+
+// AtomicAdd Functions for FP16
+TL_DEVICE half_t atomicAdd(half_t* address, half_t val) {
+  // Use atomicCAS with built-in cuda_fp16 support
+  atomicAdd(reinterpret_cast<half*>(address), static_cast<half>(val));
+}
+
+TL_DEVICE half_t atomicAdd(half_t* address, float val) {
+  // Use atomicCAS with built-in cuda_fp16 support
+  atomicAdd(reinterpret_cast<half*>(address), __float2half(val));
+}
