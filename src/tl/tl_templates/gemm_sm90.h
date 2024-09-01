@@ -50,7 +50,7 @@ template <int M, int N, int K, int num_warp_m, int num_warp_n, bool trans_A, boo
 class GemmTensorOp {
  public:
   using A_type = conditional_t<std::is_same<A_type_raw, float>::value, tfloat32_t, A_type_raw>;
-  using B_type = conditional_t<std::is_same<B_type_raw, float>::value, tfloat32_t, A_type_raw>;
+  using B_type = conditional_t<std::is_same<B_type_raw, float>::value, tfloat32_t, B_type_raw>;
   using C_type = C_type_raw;
 
   static constexpr GMMA::Major GmmaMajorA = trans_A ? GMMA::Major::MN : GMMA::Major::K;
@@ -115,6 +115,22 @@ class GemmTensorOp {
                               partition_shape_A(tiled_mma, Shape<Int<M>, Int<K>>{}));
     Tensor acc = make_tensor(make_rmem_ptr(reinterpret_cast<C_type*>(pC)),
                              partition_shape_C(tiled_mma, Shape<Int<M>, Int<N>>{}));
+
+    // warpgroup_fence_operand(tCrA);
+    // warpgroup_fence_operand(acc);
+    // for (int k_block = 0; k_block < size<2>(tCrA); ++k_block) {
+    //   warpgroup_arrive();
+    //   // (V,M) x (V,N) => (V,M,N)
+    //   gemm(tiled_mma, tCrA(_, _, k_block), tCrB(_, _, k_block), acc);
+    //   if(k_block == 0) {
+    //     tiled_mma.accumulate_ = GMMA::ScaleOut::One;
+    //   }
+    //   warpgroup_commit_batch();
+    // }
+    // warpgroup_wait<0>();
+    // warpgroup_fence_operand(acc);
+    // warpgroup_fence_operand(tCrA);
+
     warpgroup_fence_operand(acc);
     warpgroup_arrive();
 
