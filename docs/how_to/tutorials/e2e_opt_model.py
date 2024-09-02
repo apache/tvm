@@ -32,7 +32,6 @@ Please note that default end-to-end optimization may not suit complex models.
 # PyTorch.
 
 import os
-import sys
 import numpy as np
 import torch
 from torch import fx
@@ -101,39 +100,39 @@ work_dir = "tuning_logs"
 
 # Skip running in CI environment
 IS_IN_CI = os.getenv("CI", "") == "true"
-if IS_IN_CI:
-    sys.exit(0)
+if not IS_IN_CI:
+    with target:
+        mod = tvm.ir.transform.Sequential(
+            [
+                # Convert BatchNorm into a sequence of simpler ops for fusion
+                relax.transform.DecomposeOpsForInference(),
+                # Canonicalize the bindings
+                relax.transform.CanonicalizeBindings(),
+                # Run default optimization pipeline
+                relax.get_pipeline("zero"),
+                # Tune the model and store the log to database
+                relax.transform.MetaScheduleTuneIRMod({}, work_dir, TOTAL_TRIALS),
+                # Apply the database
+                relax.transform.MetaScheduleApplyDatabase(work_dir),
+            ]
+        )(mod)
 
-with target:
-    mod = tvm.ir.transform.Sequential(
-        [
-            # Convert BatchNorm into a sequence of simpler ops for fusion
-            relax.transform.DecomposeOpsForInference(),
-            # Canonicalize the bindings
-            relax.transform.CanonicalizeBindings(),
-            # Run default optimization pipeline
-            relax.get_pipeline("zero"),
-            # Tune the model and store the log to database
-            relax.transform.MetaScheduleTuneIRMod({}, work_dir, TOTAL_TRIALS),
-            # Apply the database
-            relax.transform.MetaScheduleApplyDatabase(work_dir),
-        ]
-    )(mod)
-
-# Only show the main function
-mod["main"].show()
+    # Only show the main function
+    mod["main"].show()
 
 ######################################################################
 # Build and Deploy
 # ----------------
 # Finally, we build the optimized model and deploy it to the target device.
+# We skip this step in the CI environment.
 
-ex = relax.build(mod, target="cuda")
-dev = tvm.device("cuda", 0)
-vm = relax.VirtualMachine(ex, dev)
-# Need to allocate data and params on GPU device
-gpu_data = tvm.nd.array(np.random.rand(1, 3, 224, 224).astype("float32"), dev)
-gpu_params = [tvm.nd.array(p, dev) for p in params["main"]]
-gpu_out = vm["main"](gpu_data, *gpu_params).numpy()
+if not IS_IN_CI:
+    ex = relax.build(mod, target="cuda")
+    dev = tvm.device("cuda", 0)
+    vm = relax.VirtualMachine(ex, dev)
+    # Need to allocate data and params on GPU device
+    gpu_data = tvm.nd.array(np.random.rand(1, 3, 224, 224).astype("float32"), dev)
+    gpu_params = [tvm.nd.array(p, dev) for p in params["main"]]
+    gpu_out = vm["main"](gpu_data, *gpu_params).numpy()
 
-print(gpu_out.shape)
+    print(gpu_out.shape)
