@@ -41,12 +41,12 @@ TL_DEVICE uint32_t smem_ptr_to_uint(void const* const ptr) {
 }
 
 // AtomicAdd Functions for FP16
-TL_DEVICE half_t atomicAdd(half_t* address, half_t val) {
+TL_DEVICE void atomicAdd(half_t* address, half_t val) {
   // Use atomicCAS with built-in cuda_fp16 support
   atomicAdd(reinterpret_cast<half*>(address), static_cast<half>(val));
 }
 
-TL_DEVICE half_t atomicAdd(half_t* address, float val) {
+TL_DEVICE void atomicAdd(half_t* address, float val) {
   // Use atomicCAS with built-in cuda_fp16 support
   atomicAdd(reinterpret_cast<half*>(address), __float2half(val));
 }
