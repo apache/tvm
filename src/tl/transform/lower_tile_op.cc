@@ -62,6 +62,8 @@ class LowerTileOpPass : arith::IRMutatorWithAnalyzer {
   static PrimFunc Substitute(PrimFunc f) {
     arith::Analyzer analyzer;
     LowerTileOpPass substituter(&analyzer);
+    // Trace the buffer map for tvm_access_ptr
+    substituter.buffer_map_.insert(f->buffer_map.begin(), f->buffer_map.end());
     for (const auto& [_, buffer] : f->buffer_map) {
       substituter.buffer_data_to_buffer_.Set(buffer->data, buffer);
     }
@@ -77,6 +79,13 @@ class LowerTileOpPass : arith::IRMutatorWithAnalyzer {
   using arith::IRMutatorWithAnalyzer::IRMutatorWithAnalyzer;
 
   Stmt VisitStmt_(const BlockNode* op) final {
+    // Record the mapping from buffer data var to buffer for later lookup
+    for (auto buffer : op->alloc_buffers) {
+      buffer_map_.insert({buffer->data, buffer});
+    }
+    for (auto match_buffer : op->match_buffers) {
+      buffer_map_.insert({match_buffer->buffer->data, match_buffer->buffer});
+    }
     for (auto buffer : op->alloc_buffers) {
       buffer_data_to_buffer_.Set(buffer->data, buffer);
     }
@@ -102,8 +111,152 @@ class LowerTileOpPass : arith::IRMutatorWithAnalyzer {
     return block;
   }
 
+  bool CheckBufferShapeIsPermutable(Buffer buffer) {
+    if (buffer->shape.size() < 2) {
+      LOG(WARNING) << "The dimension of Buffer \"" << buffer->name << "\" with shape "
+                   << buffer->shape << " should be at least 2";
+      return false;
+    }
+
+    auto dim = buffer->shape.size();
+    auto bits = buffer->dtype.bits();
+    auto buffer_row_size = buffer->shape[dim - 1].as<IntImmNode>()->value;
+    auto buffer_col_size = buffer->shape[dim - 2].as<IntImmNode>()->value;
+
+    if (buffer_row_size % 64 != 0) {
+      if (buffer_row_size % 32 != 0 || buffer_col_size % 2 != 0) {
+        LOG(WARNING) << "Permuted Layout for Buffer \"" << buffer->name << "\" with shape "
+                     << buffer->shape
+                     << " is not supported since its second dimension is not divisible by 32 or "
+                        "first dimension is not divisible by 2 and second dimension is not "
+                        "divisible by 64"
+                     << " buffer row size: " << buffer_row_size
+                     << " buffer col size: " << buffer_col_size;
+        return false;
+      }
+    }
+
+    CHECK(buffer_row_size * bits == 512)
+        << "Permuted Layout for Buffer \"" << buffer->name << "\" with shape " << buffer->shape
+        << " is not supported as we only support 512 bits buffer col size for now";
+    return true;
+  }
+
+  int CheckAndGetBufferRowSize(Buffer buffer) {
+    CHECK(buffer->shape.size() >= 2)
+        << "The dimension of Buffer \"" << buffer->name << "\" with shape " << buffer->shape
+        << " should be at least 2";
+
+    auto dim = buffer->shape.size();
+    auto buffer_row_size = buffer->shape[dim - 1].as<IntImmNode>()->value;
+    auto buffer_col_size = buffer->shape[dim - 2].as<IntImmNode>()->value;
+
+    if (buffer_row_size % 64 != 0) {
+      CHECK(buffer_row_size % 32 == 0)
+          << "Permuted Layout for Buffer \"" << buffer->name << "\" with shape " << buffer->shape
+          << " is not supported since its second dimension is not divisible by 32";
+      CHECK(buffer_col_size % 2 == 0)
+          << "Permuted Layout for Buffer \"" << buffer->name << "\" with shape " << buffer->shape
+          << " is not supported since its first dimension is not divisible by 2 and second "
+             "dimension is not divisible by 64";
+    }
+
+    return buffer_row_size;
+  }
+
+  PrimExpr HandleAccessPtrAndOffset(PrimExpr access_ptr, Optional<PrimExpr> offset = NullOpt,
+                                    DataType dtype = DataType::Int(32)) {
+    // The 2th arg of T.tvm_access_ptr call is offset, we set it to 0 and accumulate it to
+    // smem_offset
+    CHECK(access_ptr->IsInstance<CallNode>())
+        << "Invalid access ptr for permuted layout: " << access_ptr;
+    auto access_ptr_call = Downcast<Call>(access_ptr);
+    if (access_ptr_call->op.same_as(builtin::tvm_access_ptr())) {
+      LOG(FATAL) << "Transformation for tvm_access_ptr is not implemented yet";
+    } else if (access_ptr_call->op.same_as(builtin::address_of())) {
+      BufferLoad load = Downcast<BufferLoad>(access_ptr_call->args[0]);
+      Array<PrimExpr> indices = load->indices;
+      Array<PrimExpr> shape = load->buffer->shape;
+      // TODO(lei): Can improve this by using a more general way to handle multi-dimension buffer
+      CHECK_EQ(indices.size(), 2) << "Currently only support 2D buffer";
+      CHECK_EQ(shape.size(), 2) << "Currently only support 2D buffer";
+
+      PrimExpr elem_offset = indices[0] * shape[1] + indices[1];
+      PrimExpr smem_offset = elem_offset + (offset.defined() ? offset.value() : 0);
+
+      auto new_buffer = buffer_remap_[load->buffer];
+
+      auto buffer_map_iter = buffer_map_.find(Downcast<Var>(load->buffer->data));
+      CHECK(buffer_map_iter != buffer_map_.end())
+          << "The buffer corresponding to data Var " << access_ptr_call->args[0] << " is not found";
+      if (!CheckBufferShapeIsPermutable(buffer_map_iter->second)) {
+        return access_ptr_call;
+      }
+      int buffer_row_size = CheckAndGetBufferRowSize(buffer_map_iter->second);
+
+      // Convert offset to 2-dimension, reindex it and convert it back
+      PrimExpr row_idx = floordiv(smem_offset, buffer_row_size);
+      PrimExpr col_idx = floormod(smem_offset, buffer_row_size);
+      auto forward_indices = layout_map_[load->buffer]->Forward({row_idx, col_idx});
+      auto new_offset =
+          analyzer_->Simplify(forward_indices[0] * buffer_row_size + forward_indices[1]);
+      Array<PrimExpr> new_indices = {PrimExpr(Div(new_offset, shape[1])),
+                                     PrimExpr(Mod(new_offset, shape[1]))};
+
+      auto new_access_ptr = access_ptr_call.CopyOnWrite();
+      new_access_ptr->args.Set(0, BufferLoad(new_buffer, new_indices));
+    } else {
+      LOG(FATAL) << "Invalid access op for permuted layout: " << access_ptr;
+    }
+
+    return access_ptr_call;
+  }
+
+  PrimExpr VisitExpr_(const tir::CallNode* op) final {
+    if (!op->op.same_as(builtin::ptx_ldmatrix()) && !op->op.same_as(builtin::mma_store())) {
+      return Downcast<Call>(IRMutatorWithAnalyzer::VisitExpr_(op));
+    } else {
+      is_ptx_ = true;
+    }
+    // Rewrite from/to shared or shared.dyn to/from local
+    auto call = Downcast<Call>(IRMutatorWithAnalyzer::VisitExpr_(op));
+    if (call->op.same_as(builtin::ptx_ldmatrix())) {
+      // form: T.ptx_ldmatrix(..., smem_ptr, smem_offset)
+      // smem_ptr: T.tvm_access_ptr(ptype, data, offset, extent, rw_mask)
+      // or T.address_of(buffer, offset)
+      auto access_ptr = call->args[5];
+      PrimExpr smem_offset = call->args[6];
+      Call address_of_call = Downcast<Call>(access_ptr);
+      if (!address_of_call->op.same_as(builtin::address_of())) {
+        LOG(FATAL) << "Invalid access ptr for permuted layout: " << access_ptr;
+      }
+      BufferLoad load = Downcast<BufferLoad>(address_of_call->args[0]);
+
+      if (buffer_remap_.count(load->buffer)) {
+        auto new_access_ptr = HandleAccessPtrAndOffset(access_ptr, smem_offset, call->dtype);
+        auto new_call = call.CopyOnWrite();
+        new_call->args.Set(5, new_access_ptr);
+        new_call->args.Set(6, IntImm(smem_offset->dtype, 0));
+      }
+    } else if (call->op.same_as(builtin::mma_store())) {
+      // TODO(yixin): mma_store is not fully tested yet
+      // because we will directly store result to Buffer instead of calling mma_store now
+      auto access_ptr = call->args[2];
+      auto new_access_ptr = HandleAccessPtrAndOffset(access_ptr, NullOpt, call->dtype);
+      auto new_call = call.CopyOnWrite();
+      new_call->args.Set(2, new_access_ptr);
+    } else {
+      LOG(FATAL) << "Invalid call node: " << call;
+    }
+    is_ptx_ = false;
+    return call;
+  }
+
   PrimExpr VisitExpr_(const BufferLoadNode* op) final {
     auto load = Downcast<BufferLoad>(IRMutatorWithAnalyzer::VisitExpr_(op));
+    if (is_ptx_) {
+      return load;
+    }
     if (buffer_remap_.count(load->buffer)) {
       auto new_indices = layout_map_[load->buffer]->Forward(load->indices);
       auto new_buffer = buffer_remap_[load->buffer];
@@ -114,6 +267,7 @@ class LowerTileOpPass : arith::IRMutatorWithAnalyzer {
 
   Stmt VisitStmt_(const BufferStoreNode* op) final {
     auto store = Downcast<BufferStore>(IRMutatorWithAnalyzer::VisitStmt_(op));
+
     if (buffer_remap_.count(store->buffer)) {
       auto new_indices = layout_map_[store->buffer]->Forward(store->indices);
       auto new_buffer = buffer_remap_[store->buffer];
@@ -165,6 +319,11 @@ class LowerTileOpPass : arith::IRMutatorWithAnalyzer {
   Var thread_var_;
   size_t thread_block_size_ = 0;
   Array<Buffer> workspaces_;
+  // For ptx Node, we need to remap the buffer and indices
+  // By access CallNode instead of BufferLoad Node.
+  bool is_ptx_{false};
+  // Mapping from data Var of a Buffer to Buffer, for lookup
+  std::unordered_map<Var, Buffer, ObjectPtrHash, ObjectPtrEqual> buffer_map_;
 };
 
 namespace transform {
@@ -173,6 +332,8 @@ using namespace tir::transform;
 
 tvm::transform::Pass LowerTileOp() {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
+    auto _f = LowerTileOpPass::Substitute(std::move(f));
+    return _f;
     return LowerTileOpPass::Substitute(std::move(f));
   };
   return CreatePrimFuncPass(pass_func, 0, "tl.LowerTileOp", {});
