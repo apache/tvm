@@ -204,7 +204,11 @@ class LowerTileOpPass : arith::IRMutatorWithAnalyzer {
                                      PrimExpr(Mod(new_offset, shape[1]))};
 
       auto new_access_ptr = access_ptr_call.CopyOnWrite();
-      new_access_ptr->args.Set(0, BufferLoad(new_buffer, new_indices));
+      if (new_buffer->shape.size() == 2) {
+        new_access_ptr->args.Set(0, BufferLoad(new_buffer, new_indices));
+      } else {
+        LOG(FATAL) << "Invalid buffer shape for permuted layout: " << new_buffer->shape;
+      }
     } else {
       LOG(FATAL) << "Invalid access op for permuted layout: " << access_ptr;
     }
@@ -332,8 +336,6 @@ using namespace tir::transform;
 
 tvm::transform::Pass LowerTileOp() {
   auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
-    auto _f = LowerTileOpPass::Substitute(std::move(f));
-    return _f;
     return LowerTileOpPass::Substitute(std::move(f));
   };
   return CreatePrimFuncPass(pass_func, 0, "tl.LowerTileOp", {});
