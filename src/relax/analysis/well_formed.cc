@@ -429,6 +429,18 @@ class WellFormedChecker : public relax::ExprVisitor,
     }
 
     this->VisitVarDef(binding->var);
+
+    if (check_struct_info_ && binding->var->struct_info_.defined() &&
+        binding->value->struct_info_.defined()) {
+      auto expr_sinfo = GetStructInfo(binding->value);
+      auto var_sinfo = GetStructInfo(binding->var);
+      if (!IsBaseOf(var_sinfo, expr_sinfo)) {
+        Malformed(Diagnostic::Error(binding->var)
+                  << "Expression of type " << expr_sinfo
+                  << " cannot be assigned to a variable of type " << var_sinfo);
+      }
+    }
+
     if (is_lambda) {
       recur_vars_.erase(binding->var);
     }
