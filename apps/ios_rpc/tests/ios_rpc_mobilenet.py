@@ -51,7 +51,7 @@ def compile_metal(src, target):
 
 
 def prepare_input():
-    img_url = "https://github.com/dmlc/mxnet.js/blob/main/data/cat.png?raw=true"
+    img_url = "https://github.com/tlc-pack/web-data/blob/main/testdata/cat.png?raw=true"
     img_name = "cat.png"
     synset_url = "".join(
         [
