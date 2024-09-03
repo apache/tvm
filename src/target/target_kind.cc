@@ -35,7 +35,20 @@
 
 namespace tvm {
 
-TVM_REGISTER_NODE_TYPE(TargetKindNode);
+// helper to get internal dev function in objectref.
+struct TargetKind2ObjectPtr : public ObjectRef {
+  static ObjectPtr<Object> Get(const TargetKind& kind) { return GetDataPtr<Object>(kind); }
+};
+
+TVM_REGISTER_NODE_TYPE(TargetKindNode)
+    .set_creator([](const std::string& name) {
+      auto kind = TargetKind::Get(name);
+      ICHECK(kind.defined()) << "Cannot find target kind \'" << name << '\'';
+      return TargetKind2ObjectPtr::Get(kind.value());
+    })
+    .set_repr_bytes([](const Object* n) -> std::string {
+      return static_cast<const TargetKindNode*>(n)->name;
+    });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<TargetKindNode>([](const ObjectRef& obj, ReprPrinter* p) {
