@@ -559,5 +559,21 @@ def test_target_from_device_opencl(input_device):
     assert target.thread_warp_size == dev.warp_size
 
 
+def test_module_dict_from_deserialized_targets():
+    target = Target("llvm")
+
+    from tvm.script import tir as T
+
+    @T.prim_func
+    def func():
+        T.evaluate(0)
+
+    func = func.with_attr("Target", target)
+    target2 = tvm.ir.load_json(tvm.ir.save_json(target))
+    mod = tvm.IRModule({"main": func})
+    lib = tvm.build({target2: mod}, target_host=target)
+    lib["func"]()
+
+
 if __name__ == "__main__":
     tvm.testing.main()
