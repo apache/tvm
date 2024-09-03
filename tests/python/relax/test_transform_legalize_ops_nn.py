@@ -33,7 +33,7 @@ def test_conv1d():
     class Conv1d:
         @R.function
         def main(x: R.Tensor((2, 128, 28), "float32"), w: R.Tensor((64, 16, 3), "float32")) -> R.Tensor((2, 64, 13), "float32"):
-            gv: R.Tensor((2, 4, 13), "float32") = R.nn.conv1d(x, w, strides=(2,), padding=(1,), dilation=(2,), groups=8)
+            gv: R.Tensor((2, 64, 13), "float32") = R.nn.conv1d(x, w, strides=(2,), padding=(1,), dilation=(2,), groups=8)
             return gv
 
     @tvm.script.ir_module
@@ -210,7 +210,7 @@ def test_conv2d():
     class Conv2d:
         @R.function
         def main(x: R.Tensor((2, 128, 28, 28), "float32"), w: R.Tensor((64, 16, 3, 3), "float32")) -> R.Tensor((2, 64, 13, 13), "float32"):
-            gv: R.Tensor((2, 4, 13, 13), "float32") = R.nn.conv2d(x, w, strides=(2, 2), padding=(1, 1), dilation=(2, 2), groups=8)
+            gv: R.Tensor((2, 64, 13, 13), "float32") = R.nn.conv2d(x, w, strides=(2, 2), padding=(1, 1), dilation=(2, 2), groups=8)
             return gv
 
     @tvm.script.ir_module
@@ -3298,20 +3298,32 @@ def test_nll_loss():
     @tvm.script.ir_module
     class NLLLoss:
         @R.function
-        def main(predictions: R.Tensor((2, 3, 4, 5), "float32"), targets: R.Tensor((2, 4, 5), "int64"), weights: R.Tensor((4,), "float32")) -> R.Tensor((), "float32"):
-            gv: R.Tensor((), "float32") = R.nn.nll_loss(predictions, targets, weights, reduction="mean", ignore_index=-1)
+        def main(
+                predictions: R.Tensor((2, 3, 4, 5), "float32"),
+                targets: R.Tensor((2, 4, 5), "int64"),
+                weights: R.Tensor((3,), "float32"),
+        ) -> R.Tensor((), "float32"):
+            gv = R.nn.nll_loss(predictions, targets, weights, reduction="mean", ignore_index=-1)
             return gv
 
     @tvm.script.ir_module
     class Expected:
         @R.function
-        def main(predictions: R.Tensor((2, 3, 4, 5), dtype="float32"), targets: R.Tensor((2, 4, 5), dtype="int64"), weights: R.Tensor((4,), dtype="float32"),) -> R.Tensor((), dtype="float32"):
-            # block 0
+        def main(
+                predictions: R.Tensor((2, 3, 4, 5), dtype="float32"),
+                targets: R.Tensor((2, 4, 5), dtype="int64"),
+                weights: R.Tensor((3,), dtype="float32"),
+        ) -> R.Tensor((), dtype="float32"):
             gv = R.call_tir(Expected.nll_loss, (predictions, targets, weights), R.Tensor((), dtype="float32"))
             return gv
 
         @T.prim_func(private=True)
-        def nll_loss(rxplaceholder: T.Buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float32"), rxplaceholder_1: T.Buffer((T.int64(2), T.int64(4), T.int64(5)), "int64"), rxplaceholder_2: T.Buffer(T.int64(4), "float32"), T_divide: T.Buffer((), "float32"),):
+        def nll_loss(
+                predictions: T.Buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float32"),
+                targets: T.Buffer((T.int64(2), T.int64(4), T.int64(5)), "int64"),
+                weights: T.Buffer(T.int64(3), "float32"),
+                output: T.Buffer((), "float32"),
+        ):
             # function attr dict
             T.func_attr({"tir.noalias": True})
             # body
@@ -3323,9 +3335,9 @@ def test_nll_loss():
             for ax0, ax1, ax2 in T.grid(T.int64(2), T.int64(4), T.int64(5)):
                 with T.block("nll_loss"):
                     v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
-                    T.reads(rxplaceholder_1[v_ax0, v_ax1, v_ax2], rxplaceholder[v_ax0, rxplaceholder_1[v_ax0, v_ax1, v_ax2], v_ax1, v_ax2], rxplaceholder_2[rxplaceholder_1[v_ax0, v_ax1, v_ax2]])
+                    T.reads(targets[v_ax0, v_ax1, v_ax2], predictions[v_ax0, targets[v_ax0, v_ax1, v_ax2], v_ax1, v_ax2], weights[targets[v_ax0, v_ax1, v_ax2]])
                     T.writes(nll_loss[v_ax0, v_ax1, v_ax2])
-                    nll_loss[v_ax0, v_ax1, v_ax2] = T.Select(rxplaceholder_1[v_ax0, v_ax1, v_ax2] != T.int64(-1), (T.float32(0) - rxplaceholder[v_ax0, rxplaceholder_1[v_ax0, v_ax1, v_ax2], v_ax1, v_ax2]) * rxplaceholder_2[rxplaceholder_1[v_ax0, v_ax1, v_ax2]], T.float32(0))
+                    nll_loss[v_ax0, v_ax1, v_ax2] = T.Select(targets[v_ax0, v_ax1, v_ax2] != T.int64(-1), (T.float32(0) - predictions[v_ax0, targets[v_ax0, v_ax1, v_ax2], v_ax1, v_ax2]) * weights[targets[v_ax0, v_ax1, v_ax2]], T.float32(0))
             for k0, k1, k2 in T.grid(T.int64(2), T.int64(4), T.int64(5)):
                 with T.block("nll_loss_red"):
                     v_k0, v_k1, v_k2 = T.axis.remap("RRR", [k0, k1, k2])
@@ -3337,9 +3349,9 @@ def test_nll_loss():
             for ax0, ax1, ax2 in T.grid(T.int64(2), T.int64(4), T.int64(5)):
                 with T.block("nll_loss_1"):
                     v_ax0, v_ax1, v_ax2 = T.axis.remap("SSS", [ax0, ax1, ax2])
-                    T.reads(rxplaceholder_1[v_ax0, v_ax1, v_ax2], rxplaceholder_2[rxplaceholder_1[v_ax0, v_ax1, v_ax2]])
+                    T.reads(targets[v_ax0, v_ax1, v_ax2], weights[targets[v_ax0, v_ax1, v_ax2]])
                     T.writes(nll_loss_1[v_ax0, v_ax1, v_ax2])
-                    nll_loss_1[v_ax0, v_ax1, v_ax2] = T.Select(rxplaceholder_1[v_ax0, v_ax1, v_ax2] != T.int64(-1), rxplaceholder_2[rxplaceholder_1[v_ax0, v_ax1, v_ax2]], T.float32(0))
+                    nll_loss_1[v_ax0, v_ax1, v_ax2] = T.Select(targets[v_ax0, v_ax1, v_ax2] != T.int64(-1), weights[targets[v_ax0, v_ax1, v_ax2]], T.float32(0))
             for k0, k1, k2 in T.grid(T.int64(2), T.int64(4), T.int64(5)):
                 with T.block("nll_loss_red_1"):
                     v_k0, v_k1, v_k2 = T.axis.remap("RRR", [k0, k1, k2])
@@ -3351,8 +3363,8 @@ def test_nll_loss():
             with T.block("T_divide"):
                 vi = T.axis.spatial(1, T.int64(0))
                 T.reads(nll_loss_red[()], nll_loss_red_1[()])
-                T.writes(T_divide[()])
-                T_divide[()] = nll_loss_red[()] / nll_loss_red_1[()]
+                T.writes(output[()])
+                output[()] = nll_loss_red[()] / nll_loss_red_1[()]
     # fmt: on
     mod = LegalizeOps()(NLLLoss)
     tvm.ir.assert_structural_equal(mod, Expected)

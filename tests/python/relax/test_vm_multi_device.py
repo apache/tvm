@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Test eliminate common subexpr pass"""
+
 from typing import List
 import tvm
 from tvm import relax
@@ -61,11 +62,10 @@ def test_multi_cpu():
             z: R.Tensor((4, 5), "float32"),
         ) -> R.Tensor((2, 5), "float32"):
             with R.dataflow():
-                lv0: R.Tensor((2, 4), "float32", "llvm:0") = R.matmul(x, y)  # noqa: F722
-                lv1: R.Tensor((2, 4), "float32", "llvm:1") = R.to_vdevice(  # noqa: F722
-                    lv0, "llvm:1"  # noqa: F722
-                )
-                gv = R.matmul(lv1, z)  # noqa: F722
+                lv0 = R.matmul(x, y)
+                lv0 = R.hint_on_device(lv0, tvm.cpu(0))
+                lv1: R.Tensor((2, 4), "float32", "llvm:1") = R.to_vdevice(lv0, "llvm:1")  # noqa: F722
+                gv = R.matmul(lv1, z)
                 R.output(gv)
             return gv
 
@@ -109,11 +109,13 @@ def test_multi_gpu():
             with R.dataflow():
                 lv0: R.Tensor((2, 4), "float32", "cuda:0") = R.matmul(a, b)  # noqa: F722
                 lv1: R.Tensor((2, 4), "float32", "cuda:1") = R.to_vdevice(  # noqa: F722
-                    lv0, "cuda:1"  # noqa: F722
+                    lv0,
+                    "cuda:1",  # noqa: F722
                 )
                 lv2: R.Tensor((2, 5), "float32", "cuda:1") = R.matmul(lv1, c)  # noqa: F722
                 lv3: R.Tensor((2, 5), "float32", "cuda:2") = R.to_vdevice(  # noqa: F722
-                    lv2, "cuda:2"  # noqa: F722
+                    lv2,
+                    "cuda:2",  # noqa: F722
                 )
                 gv: R.Tensor((2, 6), "float32", "cuda:2") = R.matmul(lv3, d)  # noqa: F722
                 R.output(gv)

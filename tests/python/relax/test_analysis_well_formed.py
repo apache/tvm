@@ -1295,5 +1295,90 @@ def test_var_binding_with_incomplete_struct_info_must_be_consistent():
     assert not rx.analysis.well_formed(main)
 
 
+def test_incomplete_struct_info_must_be_consistent():
+    """StructInfo annotations must be accurate
+
+    Even though StructInfo annotation may be less specific, the
+    information that they do contain must be correct.
+
+    """
+
+    @I.ir_module(check_well_formed=False)
+    class Module:
+        @R.function
+        def main(
+            A: R.Tensor(shape=[128, 32], dtype="float32"),
+            B: R.Tensor(shape=[128, 32], dtype="float32"),
+        ):
+            C: R.Tensor(ndim=3) = R.add(A, B)
+            return C
+
+    assert not rx.analysis.well_formed(Module)
+
+
+def test_struct_info_annotations_must_be_correct():
+    """StructInfo annotations must be correct
+
+    To be well-formed, the inferred struct info must not conflict with
+    the StructInfo annotations.
+
+    """
+
+    @I.ir_module(check_well_formed=False)
+    class Module:
+        @R.function
+        def main(
+            A: R.Tensor(shape=[128, 32], dtype="float32"),
+            B: R.Tensor(shape=[128, 32], dtype="float32"),
+        ):
+            C: R.Tensor(shape=[128, 32], dtype="int32") = R.add(A, B)
+            return C
+
+    assert not rx.analysis.well_formed(Module)
+
+
+def test_struct_info_may_be_incomplete():
+    """StructInfo annotations may be less specific
+
+    The StructInfo annotations are not required to be an exact match
+    to the inferred StructInfo, and may provide less specific
+    information than the inference would provide.
+
+    """
+
+    @I.ir_module
+    class Module:
+        @R.function
+        def main(
+            A: R.Tensor(shape=[128, 32], dtype="float32"),
+            B: R.Tensor(shape=[128, 32], dtype="float32"),
+        ):
+            C: R.Object = R.add(A, B)
+            return C
+
+    assert rx.analysis.well_formed(Module)
+
+
+def test_incomplete_struct_info_must_be_consistent():
+    """StructInfo annotations must be accurate
+
+    Even though StructInfo annotation may be less specific, the
+    information that they do contain must be correct.
+
+    """
+
+    @I.ir_module(check_well_formed=False)
+    class Module:
+        @R.function
+        def main(
+            A: R.Tensor(shape=[128, 32], dtype="float32"),
+            B: R.Tensor(shape=[128, 32], dtype="float32"),
+        ):
+            C: R.Tensor(ndim=3) = R.add(A, B)
+            return C
+
+    assert not rx.analysis.well_formed(Module)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

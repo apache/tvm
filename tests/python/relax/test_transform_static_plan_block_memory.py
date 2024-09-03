@@ -1386,11 +1386,11 @@ def test_add():
             )
             cls.cumsum(probs, lv1, alloc1)
             cumsum: R.Tensor((batch_size, vocab_size), dtype="float32") = alloc1
-            lv1_1: R.Tensor((batch_size, vocab_size), dtype="int32") = R.call_packed(
+            lv1_1: R.Tensor((batch_size, vocab_size), dtype="float32") = R.call_packed(
                 "vm.builtin.reshape",
                 cumsum,
                 R.shape([batch_size, vocab_size]),
-                sinfo_args=(R.Tensor((batch_size, vocab_size), dtype="float"),),
+                sinfo_args=(R.Tensor((batch_size, vocab_size), dtype="float32"),),
             )
             return lv1_1
 
@@ -1403,7 +1403,7 @@ def test_add():
         @R.function
         def main(
             probs: R.Tensor(("batch_size", "vocab_size"), dtype="float32")
-        ) -> R.Tensor(("batch_size", "vocab_size"), dtype="int32"):
+        ) -> R.Tensor(("batch_size", "vocab_size"), dtype="float32"):
             batch_size = T.int64()
             vocab_size = T.int64()
             R.func_attr(
@@ -1437,7 +1437,7 @@ def test_add():
             )
             cls.cumsum(probs, lv1, alloc1)
             cumsum: R.Tensor((batch_size, vocab_size), dtype="float32") = alloc1
-            lv1_1: R.Tensor((batch_size, vocab_size), dtype="int32") = R.call_packed(
+            lv1_1: R.Tensor((batch_size, vocab_size), dtype="float32") = R.call_packed(
                 "vm.builtin.reshape",
                 cumsum,
                 R.shape([batch_size, vocab_size]),
