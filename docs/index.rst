@@ -43,6 +43,15 @@ driving its costs down.
 
    how_to/index
 
+.. The Deep Dive content is comprehensive
+.. we maintain a ``maxdepth`` of 2 to display more information on the main page.
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Deep Dive
+
+   deep_dive/tensor_ir/index
+
 .. toctree::
    :maxdepth: 1
    :caption: API Reference
