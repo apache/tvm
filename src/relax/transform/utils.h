@@ -437,6 +437,20 @@ Expr CanonicalizeBindings(Expr expr);
  */
 Function BundleModelParams(const Function& func, Optional<String> param_tuple_name = NullOpt);
 
+/*! \brief Compose two functions
+ *
+ * Given two functions `func_a` and `func_b`, produce `func_c` such
+ * that `func_c(x)` is equivalent to `func_b(func_a(x))`.
+ *
+ * If the output if `func_a` is not usable as the input of `func_b`,
+ * an error will be raised.
+ *
+ * \param func_a The first function to be composed.
+ * \param func_b The second function to be composed.
+ * \return The composed function
+ */
+TVM_DLL Function ComposeFunctions(Function func_a, Function func_b);
+
 }  // namespace relax
 }  // namespace tvm
 
