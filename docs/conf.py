@@ -424,6 +424,7 @@ examples_dirs = [
     # New tutorial structure under docs folder
     tvm_path.joinpath("docs", "get_started", "tutorials"),
     tvm_path.joinpath("docs", "how_to", "tutorials"),
+    tvm_path.joinpath("docs", "deep_dive", "tensor_ir", "tutorials"),
 ]
 
 gallery_dirs = [
@@ -442,6 +443,7 @@ gallery_dirs = [
     # New tutorial structure under docs folder
     "get_started/tutorials/",
     "how_to/tutorials/",
+    "deep_dive/tensor_ir/tutorials/",
 ]
 
 
