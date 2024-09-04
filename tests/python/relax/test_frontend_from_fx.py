@@ -19,6 +19,7 @@ import torch
 import torch.nn.functional as F
 from torch import fx
 from torch.nn import Module
+import torchvision
 
 import tvm
 from tvm import relax
@@ -1210,6 +1211,37 @@ def test_dropout():
 
     verify_model(Dropout1(), input_info, {}, expected1)
     verify_model(Dropout2(), input_info, {}, expected1)
+
+
+def test_stochastic_depth():
+    input_info = [([1, 3, 10, 10], "float32")]
+
+    class StochasticDepth1(Module):
+        def __init__(self):
+            super().__init__()
+            self.stochastic_depth = torchvision.ops.StochasticDepth(0.5, mode="row")
+
+        def forward(self, x):
+            return self.stochastic_depth(x)
+
+    class StochasticDepth2(Module):
+        def forward(self, x):
+            return torchvision.ops.stochastic_depth(x, 0.5, mode="row", training=False)
+
+    @tvm.script.ir_module
+    class expected1:
+        @R.function
+        def main(
+            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
+        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
+            # block 0
+            with R.dataflow():
+                gv: R.Tensor((1, 3, 10, 10), dtype="float32") = input_1
+                R.output(gv)
+            return gv
+
+    verify_model(StochasticDepth1(), input_info, {}, expected1)
+    verify_model(StochasticDepth2(), input_info, {}, expected1)
 
 
 def test_layernorm():
