@@ -206,7 +206,6 @@ legacy_redirects = [
         "../../how_to/work_with_relay/using_external_lib.html",
     ],
     ["tutorials/language/extern_op.html", "../../how_to/work_with_schedules/extern_op.html"],
-    ["tutorials/language/intrin_math.html", "../../how_to/work_with_schedules/intrin_math.html"],
     ["tutorials/language/reduction.html", "../../how_to/work_with_schedules/reduction.html"],
     ["tutorials/language/scan.html", "../../how_to/work_with_schedules/scan.html"],
     [

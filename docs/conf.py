@@ -488,7 +488,6 @@ within_subsection_order = {
     "work_with_schedules": [
         "schedule_primitives.py",
         "reduction.py",
-        "intrin_math.py",
         "scan.py",
         "extern_op.py",
         "tensorize.py",
