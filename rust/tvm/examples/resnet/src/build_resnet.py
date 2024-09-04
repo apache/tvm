@@ -17,22 +17,18 @@
 # under the License.
 
 import argparse
-import csv
 import logging
-from os import path as osp
-import sys
 import shutil
+from os import path as osp
 
 import numpy as np
-
+import torch
+import torchvision
 import tvm
-from tvm import te
-from tvm import relay, runtime
-from tvm.relay import testing
-from tvm.contrib import graph_executor, cc
 from PIL import Image
+from tvm import relay, runtime
+from tvm.contrib import cc, graph_executor
 from tvm.contrib.download import download_testdata
-from mxnet.gluon.model_zoo.vision import get_model
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
@@ -64,11 +60,16 @@ data_shape = (batch_size,) + image_shape
 
 def build(target_dir):
     """Compiles resnet18 with TVM"""
-    # Download the pretrained model in MxNet's format.
-    block = get_model("resnet18_v1", pretrained=True)
+    # Download the pretrained model from Torchvision.
+    weights = torchvision.models.ResNet18_Weights.IMAGENET1K_V1
+    torch_model = torchvision.models.resnet18(weights=weights).eval()
 
-    shape_dict = {"data": (1, 3, 224, 224)}
-    mod, params = relay.frontend.from_mxnet(block, shape_dict)
+    input_shape = [1, 3, 224, 224]
+    input_data = torch.randn(input_shape)
+    scripted_model = torch.jit.trace(torch_model, input_data)
+    input_infos = [("data", input_data.shape)]
+    mod, params = relay.frontend.from_pytorch(scripted_model, input_infos)
+
     # Add softmax to do classification in last layer.
     func = mod["main"]
     func = relay.Function(
@@ -93,7 +94,6 @@ def build(target_dir):
 
 def download_img_labels():
     """Download an image and imagenet1k class labels for test"""
-    from mxnet.gluon.utils import download
 
     synset_url = "".join(
         [
