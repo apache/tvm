@@ -82,5 +82,70 @@ def test_vm_builtin_alloc_tensor_raises_error():
         relax.transform.LowerRuntimeBuiltin()(Before)
 
 
+def test_vm_reshape_may_be_var():
+    """R.reshape does not require an in-line R.shape"""
+
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(A: R.Tensor([16], "float32"), shape: R.Shape):
+            R.func_attr({"relax.force_pure": True})
+            reshape = R.reshape(A, shape)
+            return reshape
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(A: R.Tensor([16], "float32"), shape: R.Shape):
+            R.func_attr({"relax.force_pure": True})
+            reshape = R.call_packed(
+                "vm.builtin.reshape",
+                A,
+                shape,
+                sinfo_args=R.Tensor(shape, dtype="float32"),
+            )
+            return reshape
+
+    After = relax.transform.VMBuiltinLower()(Before)
+
+    tvm.ir.assert_structural_equal(Expected, After)
+
+
+def test_vm_reshape_using_tensor_to_shape():
+    """Shape argument of R.reshape may come from tensor_to_shape"""
+
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(A: R.Tensor([16], "float32"), shape_tensor: R.Tensor([2], "int64")):
+            R.func_attr({"relax.force_pure": True})
+            shape = R.tensor_to_shape(shape_tensor)
+            reshape = R.reshape(A, shape)
+            return reshape
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(A: R.Tensor([16], "float32"), shape_tensor: R.Tensor([2], "int64")):
+            R.func_attr({"relax.force_pure": True})
+
+            shape = R.call_packed(
+                "vm.builtin.tensor_to_shape",
+                shape_tensor,
+                sinfo_args=R.Shape(ndim=2),
+            )
+            reshape = R.call_packed(
+                "vm.builtin.reshape",
+                A,
+                shape,
+                sinfo_args=R.Tensor(shape, dtype="float32"),
+            )
+            return reshape
+
+    After = relax.transform.VMBuiltinLower()(Before)
+
+    tvm.ir.assert_structural_equal(Expected, After)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
