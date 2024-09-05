@@ -132,9 +132,11 @@ InferCorrectLayoutOutput QnnAvgPoolInferCorrectLayout(const Attrs& attrs,
   auto avgpool_new_layouts =
       PoolInferCorrectLayout<AvgPool2DAttrs>(attrs, new_in_layouts, old_in_layouts, old_in_types);
 
-  // Scales and zero points are scalars, use the "undef" layout for them.
-  Array<Layout> input_layouts = {avgpool_new_layouts->input_layouts[0], Layout::Undef(),
-                                 Layout::Undef(), Layout::Undef(), Layout::Undef()};
+  // Scales and zero points are scalars, the layouts of these tensors can be treated as channel
+  // layout.
+  Layout channel_layout = Layout("C");
+  Array<Layout> input_layouts = {avgpool_new_layouts->input_layouts[0], channel_layout,
+                                 channel_layout, channel_layout, channel_layout};
   Array<Layout> output_layouts = avgpool_new_layouts->output_layouts;
   return InferCorrectLayoutOutput(input_layouts, output_layouts, attrs);
 }

@@ -1542,6 +1542,85 @@ def test_conv_convert_kernel_layout():
     tvm.ir.assert_structural_equal(a, b)
 
 
+def test_qnn_conv_avgpool_2d_convert_layout():
+    def before():
+        x = relay.var("x", shape=(1, 56, 56, 64), dtype="int8")
+        weight = relay.var("weight", shape=(3, 3, 64, 64), dtype="int8")
+        y = relay.qnn.op.conv2d(
+            x,
+            weight,
+            relay.const(1, "int32"),
+            relay.const(1, "int32"),
+            relay.const(1, "float32"),
+            relay.const(1, "float32"),
+            channels=64,
+            kernel_size=(3, 3),
+            padding=(1, 1),
+            data_layout="NHWC",
+            kernel_layout="HWIO",
+        )
+        y = relay.cast(y, "int8")
+        y = relay.qnn.op.avg_pool2d(
+            y,
+            relay.const(1, "float32"),
+            relay.const(1, "int32"),
+            relay.const(1, "float32"),
+            relay.const(1, "int32"),
+            layout="NHWC",
+            out_layout="NHWC",
+            pool_size=(3, 3),
+            padding=(0, 0),
+            strides=(1, 1),
+            dilation=(1, 1),
+        )
+        y = relay.Function([x, weight], y)
+        return y
+
+    def expected():
+        x = relay.var("x", shape=(1, 56, 56, 64), dtype="int8")
+        weight = relay.var("weight", shape=(3, 3, 64, 64), dtype="int8")
+        x = relay.layout_transform(x, "NHWC", "NCHW")
+        weight = relay.layout_transform(weight, "HWIO", "OIHW")
+        y = relay.qnn.op.conv2d(
+            x,
+            weight,
+            relay.const(1, "int32"),
+            relay.const(1, "int32"),
+            relay.const(1, "float32"),
+            relay.const(1, "float32"),
+            channels=64,
+            kernel_size=(3, 3),
+            padding=(1, 1),
+            data_layout="NCHW",
+            kernel_layout="OIHW",
+        )
+        y = relay.cast(y, "int8")
+        y = relay.qnn.op.avg_pool2d(
+            y,
+            relay.const(1, "float32"),
+            relay.const(1, "int32"),
+            relay.const(1, "float32"),
+            relay.const(1, "int32"),
+            layout="NCHW",
+            out_layout="NCHW",
+            pool_size=(3, 3),
+            padding=(0, 0),
+            strides=(1, 1),
+            dilation=(1, 1),
+        )
+        y = relay.layout_transform(y, "NCHW", "NHWC")
+        y = relay.Function(relay.analysis.free_vars(y), y)
+        return y
+
+    a = before()
+    a = run_opt_pass(
+        a, transform.ConvertLayout({"qnn.conv2d": ["NCHW", "default"], "qnn.avg_pool2d": ["NCHW"]})
+    )
+    b = run_opt_pass(expected(), transform.InferType())
+
+    tvm.ir.assert_structural_equal(a, b)
+
+
 def test_conv_roi_align_convert_layout():
     def before():
         x = relay.var("x", shape=(1, 64, 56, 56))
