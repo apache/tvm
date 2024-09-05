@@ -15,18 +15,16 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import logging
-import pathlib
-from pathlib import Path
-from typing import Union
+import json
 import os
 from os import environ
-import json
+from pathlib import Path
+from typing import Union
 
 import tvm
 import tvm.relay as relay
-from tvm.contrib import utils, ndk, graph_executor as runtime
-from tvm.contrib.download import download_testdata, download
+from tvm.contrib import ndk
+from tvm.contrib.download import download, download_testdata
 
 target = "llvm -mtriple=arm64-linux-android"
 target_host = None
