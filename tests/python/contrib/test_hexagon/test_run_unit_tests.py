@@ -15,6 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
+# pylint: disable=redefined-outer-name
+
 """capture gtest output and return over FFI"""
 
 import tvm
