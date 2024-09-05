@@ -232,14 +232,7 @@ class CodeGenVMTIR : public ExprFunctor<Optional<PrimExpr>(const Expr&)> {
     }
     int64_t dst_reg = HasVoidStructInfo(call) ? -1 : NewRegister();
     if (call->op.as<OpNode>()) {
-      // special case generate for the intrinsics whose attribute fields
-      // cannot be represented by args in the CallNode
-      FCallPacked name = GetPackedFuncName(call);
-      if (name.size()) {
-        // If the operator has a registered packed function implementation, emit call to that packed
-        // function.
-        EmitCallPacked(name, VisitArray(call->args), dst_reg);
-      } else if (call_node->op == call_builtin_with_ctx_op_) {
+      if (call_node->op == call_builtin_with_ctx_op_) {
         EmitCallBuiltinWithCtx(call, dst_reg);
       } else if (call_node->op == alloc_storage_op_) {
         EmitAllocStorage(call, dst_reg);
