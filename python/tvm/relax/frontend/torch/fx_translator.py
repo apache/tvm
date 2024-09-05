@@ -62,7 +62,7 @@ class TorchFXImporter:
         return attr_itr
 
     @staticmethod
-    def _convert_data_type(input_type, env: Optional[Dict] = None):
+    def _convert_data_type(input_type: Union[str, torch.dtype], env: Optional[Dict] = None):
         """converts the PyTorch scalar type input_type to a TVM dtype."""
         import torch  # type: ignore
 
