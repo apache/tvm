@@ -1206,9 +1206,8 @@ class TorchFXImporter:
         module = self.named_modules[node.target]
         weight = self.params[module.weight]
         bias = self.params[module.bias]
-        dtype = TorchFXImporter._convert_data_type(str(module.running_mean.dtype))
-        running_mean = relax.const(module.running_mean.cpu().detach().numpy(), dtype)
-        running_var = relax.const(module.running_var.cpu().detach().numpy(), dtype)
+        running_mean = self._convert_torch_tensor_to_relax(module.running_mean)
+        running_var = self._convert_torch_tensor_to_relax(module.running_var)
         eps = module.eps
 
         res_tuple = self.block_builder.emit(
@@ -1769,7 +1768,7 @@ class TorchFXImporter:
                     dtype = self._convert_data_type(str(param.data.dtype))
                     if dtype in ("float32", "float16"):
                         if not keep_params_as_input:
-                            self.params[param] = relax.const(param.data.cpu().numpy(), dtype)
+                            self.params[param] = self._convert_torch_tensor_to_relax(param)
                     else:
                         raise ValueError("Unsupported data type for model parameters: %s" % dtype)
                 # Translate the model.
