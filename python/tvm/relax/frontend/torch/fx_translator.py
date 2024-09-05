@@ -1465,6 +1465,12 @@ class TorchFXImporter:
 
     ########## Others ##########
 
+    def _sym_size_int(self, node: fx.node.Node) -> relax.Expr:
+        x = self.env[node.args[0]]
+        shape = self.shape_of(x)
+        idx = node.args[1]
+        return self.block_builder.emit(relax.const(shape[idx].value, "int32"))
+
     def _size(self, node: fx.node.Node) -> relax.Expr:
         x = self.env[node.args[0]]
         shape = self.shape_of(x)
@@ -1681,6 +1687,7 @@ class TorchFXImporter:
             "hardsigmoid": self._hardsigmoid,
             "hardswish": self._hardswish,
             "interpolate": self._interpolate,
+            "sym_size.int": self._sym_size_int,
             "size": self._size,
             "getattr": self._getattr,
             "getitem": self._getitem,
