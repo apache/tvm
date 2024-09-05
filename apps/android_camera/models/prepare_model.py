@@ -50,15 +50,18 @@ def del_dir(target: Union[Path, str], only_if_empty: bool = False):
 
 def get_model(model_name, batch_size=1):
     if model_name == "resnet18_v1":
-        import mxnet as mx
-        from mxnet import gluon
-        from mxnet.gluon.model_zoo import vision
+        import torch
+        import torchvision
 
-        gluon_model = vision.get_model(model_name, pretrained=True)
-        img_size = 224
-        data_shape = (batch_size, 3, img_size, img_size)
-        net, params = relay.frontend.from_mxnet(gluon_model, {"data": data_shape})
-        return (net, params)
+        weights = torchvision.models.ResNet18_Weights.IMAGENET1K_V1
+        torch_model = torchvision.models.resnet18(weights=weights).eval()
+        input_shape = [1, 3, 224, 224]
+        input_data = torch.randn(input_shape)
+        scripted_model = torch.jit.trace(torch_model, input_data)
+
+        input_infos = [("data", input_data.shape)]
+        mod, params = relay.frontend.from_pytorch(scripted_model, input_infos)
+        return (mod, params)
     elif model_name == "mobilenet_v2":
         import keras
         from keras.applications.mobilenet_v2 import MobileNetV2
