@@ -23,6 +23,7 @@
 
 #include "graph_builder.h"
 
+#include <algorithm>
 #include <set>
 
 namespace tvm {
@@ -71,6 +72,13 @@ void RelaxFuncValueGetter::VisitExpr_(const relax::CallNode* op) {
   for (const auto& arg : op->args) {
     if (const auto* s_node = arg.as<relax::PrimValueNode>()) {
       values_.push_back(StringUtils::ToString(s_node->value));
+    } else if (const auto* s_node = arg.as<relax::TupleNode>()) {
+      bool all_values =
+          std::all_of(s_node->fields.begin(), s_node->fields.end(),
+                      [](const relax::Expr& e) { return e->IsInstance<relax::PrimValueNode>(); });
+      if (all_values) {
+        values_.push_back(StringUtils::ToString(s_node->fields));
+      }
     }
   }
 }
@@ -337,6 +345,8 @@ const MSCJoint RelaxGraphBuilder::AddNode(const Expr& expr, const Optional<Expr>
         ICHECK(input_types[i] != "input") << i << " th PrimValue of " << optype
                                           << " should has special type, get " << input_types;
         attrs.Set(input_types[i], StringUtils::ToString(s_node->value));
+      } else if (input_types[i] != "input" && arg->IsInstance<relax::TupleNode>()) {
+        attrs.Set(input_types[i], StringUtils::ToString(arg));
       }
     }
     for (size_t i = call->args.size(); i < input_types.size(); i++) {
@@ -371,7 +381,8 @@ const MSCJoint RelaxGraphBuilder::AddNode(const Expr& expr, const Optional<Expr>
       Array<String> arg_names;
       if (expr_tensor_map_.count(arg)) {
         arg_names = expr_tensor_map_[arg];
-      } else if (const auto* tuple_node = arg.as<relax::TupleNode>()) {
+      } else if (input_types[i] == "input" && arg->IsInstance<relax::TupleNode>()) {
+        const auto* tuple_node = arg.as<relax::TupleNode>();
         for (const auto& f : tuple_node->fields) {
           ICHECK(expr_tensor_map_.count(f)) << "Can not find tuple field " << f;
           for (const auto& in_name : expr_tensor_map_[f]) {

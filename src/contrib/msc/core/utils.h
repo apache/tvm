@@ -26,6 +26,7 @@
 
 #include <tvm/ir/source_map.h>
 #include <tvm/relax/expr.h>
+#include <tvm/relax/struct_info.h>
 #include <tvm/relay/expr.h>
 
 #include <string>
@@ -175,13 +176,6 @@ class StringUtils {
    * \return The String.
    */
   TVM_DLL static const String ToString(const runtime::ObjectRef& obj);
-
-  /*!
-   * \brief Compare String arrays.
-   * \return Whether two array are same.
-   */
-  TVM_DLL static bool CompareArrays(const Array<String>& left, const Array<String>& right,
-                                    int size = -1);
 };
 
 /*!
@@ -238,6 +232,10 @@ class ArrayUtils {
     return new_array;
   }
 
+  /*!
+   * \brief Product elements in the arrays.
+   * \return The producted array
+   */
   template <typename T>
   TVM_DLL static const Array<Array<T>> Product(const Array<Array<T>>& arrays) {
     Array<Array<T>> p_arrays;
@@ -260,6 +258,24 @@ class ArrayUtils {
     }
     return p_arrays;
   }
+
+  /*!
+   * \brief Compare String arrays.
+   * \return Whether two array are same.
+   */
+  TVM_DLL static bool CompareArrays(const Array<String>& left, const Array<String>& right,
+                                    int size = -1);
+  /*!
+   * \brief Accumulate array.
+   * \return The accumulate result
+   */
+  TVM_DLL static PrimExpr Accumulate(const Array<PrimExpr>& array, int pos = -1);
+
+  /*!
+   * \brief Check if lhs array is broadcastable to rhs.
+   * \return broadcastable
+   */
+  TVM_DLL static bool Broadcastable(const Array<PrimExpr>& lhs, const Array<PrimExpr>& rhs);
 };
 
 /*!
@@ -284,6 +300,12 @@ class SpanUtils {
    * \return The Attrs Map.
    */
   TVM_DLL static const Map<String, String> GetAttrs(const Span& span);
+
+  /*!
+   * \brief Create a span with <key>value</key>.
+   * \return The created Span.
+   */
+  TVM_DLL static const Span CreateWithAttr(const String& key, const String& value);
 };
 
 /*!
@@ -365,6 +387,24 @@ class ExprUtils {
   TVM_DLL static const T GetScalar(const relay::Constant& constant, size_t i = 0) {
     return GetScalar<T>(constant->data, i);
   }
+
+  /*!
+   * \brief Get name in span.
+   * \return The name.
+   */
+  TVM_DLL static const String GetSpanName(const Expr& expr, const String& suffix = "");
+
+  /*!
+   * \brief Get shape of expr.
+   * \return The shape.
+   */
+  TVM_DLL static const Array<PrimExpr> GetShape(const Expr& expr);
+
+  /*!
+   * \brief Get dtype of expr.
+   * \return The shape.
+   */
+  TVM_DLL static const DataType GetDataType(const Expr& expr);
 };
 
 }  // namespace msc

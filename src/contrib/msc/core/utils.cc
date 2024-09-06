@@ -280,6 +280,8 @@ const String StringUtils::ToString(const runtime::ObjectRef& obj) {
     }
   } else if (const auto* n = obj.as<relax::PrimValueNode>()) {
     obj_string = ToString(n->value);
+  } else if (const auto* n = obj.as<relax::TupleNode>()) {
+    obj_string = ToString(n->fields);
   } else {
     std::ostringstream obj_des;
     obj_des << obj;
@@ -288,7 +290,7 @@ const String StringUtils::ToString(const runtime::ObjectRef& obj) {
   return obj_string;
 }
 
-bool StringUtils::CompareArrays(const Array<String>& left, const Array<String>& right, int size) {
+bool ArrayUtils::CompareArrays(const Array<String>& left, const Array<String>& right, int size) {
   if (left.size() == right.size() && left.size() == 0) {
     return true;
   }
@@ -307,6 +309,37 @@ bool StringUtils::CompareArrays(const Array<String>& left, const Array<String>& 
     if (left[i] != right[i]) {
       return false;
     }
+  }
+  return true;
+}
+
+PrimExpr ArrayUtils::Accumulate(const Array<PrimExpr>& array, int pos) {
+  size_t t_pos = pos < 0 ? array.size() + pos + 1 : pos;
+  PrimExpr accumulate = Integer(1);
+  for (size_t i = 0; i < t_pos; i++) {
+    accumulate = accumulate * array[i];
+  }
+  return accumulate;
+}
+
+bool ArrayUtils::Broadcastable(const Array<PrimExpr>& lhs, const Array<PrimExpr>& rhs) {
+  if (lhs.size() != rhs.size()) {
+    return false;
+  }
+  for (size_t i = 0; i < lhs.size(); i++) {
+    const auto& lp = lhs[i];
+    const auto& rp = rhs[i];
+    if (lp->IsInstance<tvm::tir::VarNode>() && rp->IsInstance<tvm::tir::VarNode>()) {
+      continue;
+    }
+    if (lp->IsInstance<IntImmNode>() && rp->IsInstance<IntImmNode>() &&
+        Downcast<Integer>(lp)->value == Downcast<Integer>(rp)->value) {
+      continue;
+    }
+    if (lp->IsInstance<IntImmNode>() && Downcast<Integer>(lp)->value == 1) {
+      continue;
+    }
+    return false;
   }
   return true;
 }
@@ -353,6 +386,10 @@ const Map<String, String> SpanUtils::GetAttrs(const Span& span) {
   return attrs;
 }
 
+const Span SpanUtils::CreateWithAttr(const String& key, const String& value) {
+  return SetAttr(Span(), key, value);
+}
+
 const Array<String> ExprUtils::GetInputTypes(const String& optype, size_t inputs_num,
                                              bool as_relax) {
   Array<String> input_types;
@@ -370,6 +407,14 @@ const Array<String> ExprUtils::GetInputTypes(const String& optype, size_t inputs
   } else if (optype == "full" && as_relax) {
     input_types.push_back("shape");
     input_types.push_back("input");
+  } else if (optype == "strided_slice") {
+    input_types.push_back("input");
+    if (inputs_num > 1) {
+      input_types.push_back("axes");
+      input_types.push_back("begin");
+      input_types.push_back("end");
+      input_types.push_back("strides");
+    }
   } else if (optype == "triu") {
     input_types.push_back("input");
     input_types.push_back("k");
@@ -454,13 +499,31 @@ const Array<String> ExprUtils::GetInputTypes(const RelayCall& call) {
   return GetInputTypes(optype, call->args.size(), false);
 }
 
+const String ExprUtils::GetSpanName(const Expr& expr, const String& suffix) {
+  const auto& name = SpanUtils::GetAttr(expr->span, msc_attr::kName);
+  if (suffix.size() > 0) {
+    return name + "_" + suffix;
+  }
+  return name;
+}
+
+const Array<PrimExpr> ExprUtils::GetShape(const Expr& expr) {
+  const auto& shape_opt = Downcast<relax::TensorStructInfo>(relax::GetStructInfo(expr))->GetShape();
+  ICHECK(shape_opt.defined()) << "Shape is not defined for " << expr;
+  return shape_opt.value();
+}
+
+const DataType ExprUtils::GetDataType(const Expr& expr) {
+  return Downcast<relax::TensorStructInfo>(relax::GetStructInfo(expr))->dtype;
+}
+
 TVM_REGISTER_GLOBAL("msc.core.SpanGetAttr").set_body_typed(SpanUtils::GetAttr);
 
 TVM_REGISTER_GLOBAL("msc.core.SpanGetAttrs").set_body_typed(SpanUtils::GetAttrs);
 
 TVM_REGISTER_GLOBAL("msc.core.SpanCreateWithAttr")
     .set_body_typed([](const String& key, const String& value) -> Span {
-      return SpanUtils::SetAttr(Span(), key, value);
+      return SpanUtils::CreateWithAttr(key, value);
     });
 
 TVM_REGISTER_GLOBAL("msc.core.SpanSetAttr")

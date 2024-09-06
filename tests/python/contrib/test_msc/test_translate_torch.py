@@ -17,8 +17,6 @@
 
 """ Test translate from torch. """
 
-import pytest
-
 import numpy as np
 
 import torch
@@ -589,7 +587,6 @@ def test_getattr():
     verify_model(GetAttr1(), input_info)
 
 
-@pytest.mark.xfail(reason="MSC does not support Tuple of PrimValue")
 def test_getitem():
     """test torch translator for getitem"""
 
