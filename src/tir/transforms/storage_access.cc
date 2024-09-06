@@ -54,7 +54,6 @@ void StorageAccessVisitor::VisitExpr_(const BufferLoadNode* op) {
 }
 
 void StorageAccessVisitor::VisitStmt_(const BufferStoreNode* op) {
-  LOG(INFO) << "VisitStmt_ BufferStoreNode " << op->buffer;
   allow_append_ = true;
   ICHECK_EQ(curr_stmt_.access.size(), 0U);
   curr_stmt_.stmt = op;
@@ -62,7 +61,6 @@ void StorageAccessVisitor::VisitStmt_(const BufferStoreNode* op) {
   Var buf = op->buffer->data;
   StorageScope scope = GetScope(buf);
   if (Enabled(buf.get(), scope)) {
-    LOG(INFO) << "Enabled " << buf.get() << " " << scope.to_string();
     AccessEntry e;
     e.threads = env_threads();
     e.buffer = buf;
@@ -243,7 +241,6 @@ void StorageAccessVisitor::VisitStmt_(const WhileNode* op) {
 
 void StorageAccessVisitor::VisitExpr_(const CallNode* op) {
   if (op->op.same_as(builtin::address_of())) {
-    LOG(INFO) << "StorageAccessVisitor VisitCall";
     ICHECK_EQ(op->args.size(), 1U);
     const BufferLoadNode* load = op->args[0].as<BufferLoadNode>();
     Buffer buffer = load->buffer;
