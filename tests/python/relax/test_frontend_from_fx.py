@@ -3929,5 +3929,30 @@ def test_attention():
     )
 
 
+def test_sym_size_int():
+    class SymSizeInt1(Module):
+        def __init__(self, dim):
+            super().__init__()
+            self.dim = dim
+
+        def forward(self, x):
+            return torch.ops.aten.sym_size.int(x, self.dim)
+
+    @I.ir_module
+    class Expected1:
+        @R.function
+        def main(
+            inp_0: R.Tensor((1, 3, 4), dtype="float32"),
+        ) -> R.Tensor((), dtype="int32"):
+            with R.dataflow():
+                lv: R.Tensor((), dtype="int32") = R.const(3, "int32")
+                gv: R.Tensor((), dtype="int32") = lv
+                R.output(gv)
+            return gv
+
+    verify_model(SymSizeInt1(dim=1), [([1, 3, 4], "float32")], {}, Expected1)
+    verify_model(SymSizeInt1(dim=-2), [([1, 3, 4], "float32")], {}, Expected1)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
