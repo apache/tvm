@@ -46,7 +46,8 @@ class VectorizePlanner : public arith::IRVisitorWithAnalyzer {
 
   int Plan(const For& node) {
     this->operator()(node);
-    if (!has_nonlocal_memory_access_) return 1;
+    // Always Enable vectorization
+    // if (!has_nonlocal_memory_access_) return 1;
     return vector_size_;
   }
 
