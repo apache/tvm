@@ -54,6 +54,7 @@ void StorageAccessVisitor::VisitExpr_(const BufferLoadNode* op) {
 }
 
 void StorageAccessVisitor::VisitStmt_(const BufferStoreNode* op) {
+  LOG(INFO) << "VisitStmt_ BufferStoreNode " << op->buffer;
   allow_append_ = true;
   ICHECK_EQ(curr_stmt_.access.size(), 0U);
   curr_stmt_.stmt = op;
@@ -61,6 +62,7 @@ void StorageAccessVisitor::VisitStmt_(const BufferStoreNode* op) {
   Var buf = op->buffer->data;
   StorageScope scope = GetScope(buf);
   if (Enabled(buf.get(), scope)) {
+    LOG(INFO) << "Enabled " << buf.get() << " " << scope.to_string();
     AccessEntry e;
     e.threads = env_threads();
     e.buffer = buf;
@@ -241,7 +243,26 @@ void StorageAccessVisitor::VisitStmt_(const WhileNode* op) {
 
 void StorageAccessVisitor::VisitExpr_(const CallNode* op) {
   if (op->op.same_as(builtin::address_of())) {
+    LOG(INFO) << "StorageAccessVisitor VisitCall";
+    ICHECK_EQ(op->args.size(), 1U);
     const BufferLoadNode* load = op->args[0].as<BufferLoadNode>();
+    Buffer buffer = load->buffer;
+    DataType dtype = buffer->dtype;
+    const VarNode* buffer_var = buffer->data.as<VarNode>();
+    StorageScope scope = GetScope(GetRef<Var>(buffer_var));
+    if (Enabled(buffer_var, scope)) {
+      ICHECK(allow_append_);
+      AccessEntry e;
+      e.threads = env_threads();
+      e.dtype = dtype;
+      e.buffer = Downcast<Var>(buffer->data);
+      for (const auto& index : load->indices) {
+        e.touched.push_back(arith::IntSet::Vector(index));
+      }
+      e.type = kRead;
+      e.scope = scope;
+      curr_stmt_.access.emplace_back(e);
+    }
     StmtExprVisitor::VisitExpr_(load);
   } else if (op->op.same_as(builtin::tvm_access_ptr())) {
     ICHECK_EQ(op->args.size(), 5U);
