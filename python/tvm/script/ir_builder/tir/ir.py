@@ -2043,6 +2043,7 @@ __all__ = [
     "env_thread",
     "buffer_store",
     "prefetch",
+    "customized_code",
     "evaluate",
     "boolean",
     "handle",

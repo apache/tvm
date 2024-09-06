@@ -219,10 +219,20 @@ void Writes(Array<ObjectRef> buffer_slices) {
 
 void BlockAttrs(Map<String, ObjectRef> attrs) {
   BlockFrame frame = FindBlockFrame("T.block_attr");
+
   if (frame->annotations.defined()) {
-    LOG(FATAL) << "ValueError: Duplicate block annotations, previous one is " << frame->annotations;
+    Map<String, ObjectRef> annotations = Downcast<Map<String, ObjectRef>>(frame->annotations);
+    for (const auto& kv : attrs) {
+      if (annotations.count(kv.first)) {
+        LOG(FATAL) << "ValueError: Duplicate block annotations, previous one is " << frame->annotations;
+      } else {
+        annotations.Set(kv.first, kv.second);
+      }
+    }
+    frame->annotations = annotations;
+  } else {
+    frame->annotations = attrs;
   }
-  frame->annotations = attrs;
 }
 
 Buffer AllocBuffer(Array<PrimExpr> shape, DataType dtype, Optional<Var> data,
@@ -593,6 +603,10 @@ void Prefetch(Buffer buffer, Array<Range> bounds) {
   AddToParent(tvm::tir::Prefetch(buffer, bounds));
 }
 
+void CustomizedCode(String code) { 
+  AddToParent(tvm::tir::Evaluate(tvm::tir::StringImm(code))); 
+}
+
 DeclBufferFrame DeclBuffer(Array<PrimExpr> shape, DataType dtype, String buffer_name,
                            Optional<Var> data, Optional<Array<PrimExpr>> strides,
                            Optional<PrimExpr> elem_offset, String storage_scope, int align,
@@ -718,6 +732,7 @@ TVM_REGISTER_GLOBAL("script.ir_builder.tir.EnvThread").set_body_typed(EnvThread)
 
 TVM_REGISTER_GLOBAL("script.ir_builder.tir.BufferStore").set_body_typed(BufferStore);
 TVM_REGISTER_GLOBAL("script.ir_builder.tir.Prefetch").set_body_typed(Prefetch);
+TVM_REGISTER_GLOBAL("script.ir_builder.tir.CustomizedCode").set_body_typed(CustomizedCode);
 TVM_REGISTER_GLOBAL("script.ir_builder.tir.Evaluate").set_body_typed(Evaluate);
 
 TVM_REGISTER_GLOBAL("script.ir_builder.tir.Ptr").set_body_typed(Ptr);

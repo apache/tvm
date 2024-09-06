@@ -114,7 +114,8 @@ class KernelLaunchFrame : public TIRFrame {
                                                     KernelLaunchFrameNode);
 };
 
-KernelLaunchFrame KernelLaunch(Array<PrimExpr> grid_size, PrimExpr extent) {
+KernelLaunchFrame KernelLaunch(Array<PrimExpr> grid_size, PrimExpr extent,
+                               Map<String, ObjectRef> attrs) {
   ObjectPtr<KernelLaunchFrameNode> n = make_object<KernelLaunchFrameNode>();
   ICHECK(grid_size.size() <= 3);
   if (grid_size.size() > 0) n->frames.push_back(LaunchThread("blockIdx.x", grid_size[0]));
@@ -125,8 +126,14 @@ KernelLaunchFrame KernelLaunch(Array<PrimExpr> grid_size, PrimExpr extent) {
   }else{
     n->frames.push_back(Block(""));
   }
-    
-  n->frames.push_back(Block(""));
+  if (attrs.defined()) {
+    auto empty_block = Block("");
+    empty_block->annotations = attrs;
+    n->frames.push_back(empty_block);
+  } else {
+    n->frames.push_back(Block(""));
+  }
+
   return KernelLaunchFrame(n);
 }
 

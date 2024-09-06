@@ -16,7 +16,7 @@
 # under the License.
 """The language interface for tl programs."""
 
-from typing import Union, List
+from typing import Union, List, Optional
 from tvm import tir
 from tvm.script import tir as T
 from tvm.script.parser.tir import *
@@ -79,7 +79,8 @@ class KernelLaunchFrame(TIRFrame):
         return [frame.iter_var.var for frame in self.frames[0:-2]]
 
 
-def Kernel(*blocks: List[tir.PrimExpr], threads: int = 128):
+def Kernel(*blocks: List[tir.PrimExpr], threads: int = 128, 
+           prelude:Optional[str]=None):
     """Tools to quickly construct a GPU kernel launch frame.
 
     Parameters
@@ -89,12 +90,22 @@ def Kernel(*blocks: List[tir.PrimExpr], threads: int = 128):
     threads : int
         A integer representing blockDim.x
         if the value is -1, we skip the threadIdx.x binding.
+    prelude : str
+        The import c code of the kernel, 
+        will be injected before the generated kernel code.
+    layout_annotation: Optional[Map[tir.Buffer, tir.IndexMap]]
+        The layout annotation map, used to annotate the layout of the buffers.
+
     Returns
     -------
     res : Tuple[frame.LaunchThreadFrame]
         The result LaunchThreadFrame.
     """
-    return _ffi_api.KernelLaunch(blocks, threads)
+    attrs:dict = {}
+    if prelude is not None:
+        attrs["pragma_import_c"] = prelude
+
+    return _ffi_api.KernelLaunch(blocks, threads, attrs)
 
 
 def use_swizzle(panel_size: int, order: str = "row"):
@@ -117,6 +128,10 @@ def alloc_fragment(shape, dtype, scope="local.fragment"):
 def annotate_layout(layout_map):
     layout_map = {buffer.data: layout for buffer, layout in layout_map.items()}
     return T.block_attr({"layout_map": layout_map})
+
+
+def import_source(source:str):
+    return T.block_attr({"pragma_import_c": source})
 
 
 def region(buffer: tir.BufferLoad, access_type: str, *args: tir.PrimExpr):
