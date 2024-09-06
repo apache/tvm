@@ -220,7 +220,10 @@ def create_updater_06_to_07():
         "relay.Module": _rename("IRModule"),
         "relay.SourceName": _rename("SourceName"),
         "relay.Span": _rename("Span"),
-        "relay.GlobalVar": [_rename("GlobalVar"), _update_from_std_str("name_hint")],
+        "relay.GlobalVar": [
+            _rename("GlobalVar"),
+            _update_from_std_str("name_hint"),
+        ],
         "GlobalVar": _update_from_std_str("name_hint"),
         "relay.Pass": _rename("transform.Pass"),
         "relay.PassInfo": _rename("transform.PassInfo"),
@@ -230,7 +233,10 @@ def create_updater_06_to_07():
         "StrMap": _rename("Map"),
         # TIR
         "Variable": [_update_tir_var("tir.Var"), _update_from_std_str("name")],
-        "SizeVar": [_update_tir_var("tir.SizeVar"), _update_from_std_str("name")],
+        "SizeVar": [
+            _update_tir_var("tir.SizeVar"),
+            _update_from_std_str("name"),
+        ],
         "StringImm": [_rename("tir.StringImm"), _update_from_std_str("value")],
         "Cast": _rename("tir.Cast"),
         "Add": _rename("tir.Add"),
@@ -267,6 +273,7 @@ def create_updater_06_to_07():
         "IfThenElse": _rename("tir.IfThenElse"),
         "Evaluate": _rename("tir.Evaluate"),
         "Prefetch": _rename("tir.Prefetch"),
+        "CustomizedCode": _rename("tir.CustomizedCode"),
         "AttrStmt": [_rename("tir.AttrStmt"), _update_from_std_str("attr_key")],
         "Layout": [_rename("tir.Layout"), _update_from_std_str("name")],
         "Buffer": [

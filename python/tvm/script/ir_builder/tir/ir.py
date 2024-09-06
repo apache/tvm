@@ -1318,6 +1318,17 @@ def prefetch(
     return _ffi_api.Prefetch(buffer, bounds)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
+def customized_code(code: str):
+    """Add a customized code block.
+
+    Parameters
+    ----------
+    code : str
+        The code block to be added.
+    """
+    return _ffi_api.CustomizedCode(code)  # type: ignore[attr-defined] # pylint: disable=no-member
+
+
 def evaluate(value: PrimExpr) -> None:
     """Evaluate the input expression.
 
