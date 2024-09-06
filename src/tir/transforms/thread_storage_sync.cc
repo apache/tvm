@@ -262,7 +262,6 @@ class ThreadSyncPlanner : public StorageAccessVisitor {
 
   void VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == "kWarpSpecializationScope") {
-      LOG(INFO) << "kWarpSpecializationScope ";
       IfThenElse body = Downcast<IfThenElse>(op->body);
       auto partitions = Downcast<Array<IntImm>>(op->node);
       ICHECK(partitions.size() == 2);
@@ -354,7 +353,6 @@ class ThreadSyncInserter : public StmtExprMutator {
       : sync_scope_(sync_scope), syncs_(syncs), partial_syncs_(partial_syncs) {}
 
   Stmt VisitStmt(const Stmt& stmt) final {
-    LOG(INFO) << "Visiting " << stmt << " with syncs " << syncs_.size();
     if (syncs_.size() == 0) return stmt;
     if (syncs_.count(stmt.get())) {
       Stmt barrier;
