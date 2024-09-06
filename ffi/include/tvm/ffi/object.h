@@ -36,8 +36,9 @@ using TypeIndex = TVMFFITypeIndex;
 using TypeInfo = TVMFFITypeInfo;
 
 namespace details {
-// forward declare object internal
-struct ObjectInternal;
+// Helper to perform
+// unsafe operations related to object
+struct ObjectUnsafe;
 
 // Code section that depends on dynamic components
 #if TVM_FFI_ALLOW_DYN_TYPE
@@ -191,7 +192,7 @@ class Object {
   // friend classes
   template <typename>
   friend class ObjectPtr;
-  friend class tvm::ffi::details::ObjectInternal;
+  friend class tvm::ffi::details::ObjectUnsafe;
 };
 
 /*!
@@ -328,7 +329,7 @@ class ObjectPtr {
   friend struct ObjectPtrHash;
   template <typename>
   friend class ObjectPtr;
-  friend class tvm::ffi::details::ObjectInternal;
+  friend class tvm::ffi::details::ObjectUnsafe;
   template <typename RelayRefType, typename ObjType>
   friend RelayRefType GetRef(const ObjType* ptr);
   template <typename BaseType, typename ObjType>
@@ -417,7 +418,7 @@ class ObjectRef {
   Object* get_mutable() const { return data_.get(); }
   // friend classes.
   friend struct ObjectPtrHash;
-  friend class tvm::ffi::details::ObjectInternal;
+  friend class tvm::ffi::details::ObjectUnsafe;
   template <typename SubRef, typename BaseRef>
   friend SubRef Downcast(BaseRef ref);
 };
@@ -574,10 +575,10 @@ TVM_FFI_INLINE bool IsObjectInstance(int32_t object_type_index) {
  * \note These functions are only supposed to be used by internal
  * implementations and not external users of the tvm::ffi
  */
-struct ObjectInternal {
+struct ObjectUnsafe {
   // NOTE: get ffi header from an object
-  static TVM_FFI_INLINE TVMFFIObject* GetHeader(Object* src) {
-    return &(src->header_);
+  static TVM_FFI_INLINE TVMFFIObject* GetHeader(const Object* src) {
+    return const_cast<TVMFFIObject*>(&(src->header_));
   }
 
   // Create ObjectPtr from unknowned ptr
@@ -607,6 +608,18 @@ struct ObjectInternal {
   static TVM_FFI_INLINE TVMFFIObject* MoveTVMFFIObjectPtrFromObjectRef(ObjectRef* src) {
     Object* obj_ptr = src->data_.data_;
     src->data_.data_ = nullptr;
+    return GetHeader(obj_ptr);
+  }
+
+  template <typename T>
+  static TVM_FFI_INLINE TVMFFIObject* GetTVMFFIObjectPtrFromObjectPtr(const ObjectPtr<T>& src) {
+    return GetHeader(src.data_);
+  }
+
+  template <typename T>
+  static TVM_FFI_INLINE TVMFFIObject* MoveTVMFFIObjectPtrFromObjectPtr(ObjectPtr<T>* src) {
+    Object* obj_ptr = src->data_;
+    src->data_ = nullptr;
     return GetHeader(obj_ptr);
   }
 

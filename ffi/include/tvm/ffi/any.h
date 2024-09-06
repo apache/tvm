@@ -96,6 +96,7 @@ class AnyView {
     }
     TVM_FFI_THROW(TypeError) << "Cannot convert from type `" << TypeIndex2TypeKey(data_.type_index)
                              << "` to `" << TypeTraits<T>::TypeStr() << "`";
+    TVM_FFI_UNREACHABLE();
   }
   // The following functions are only used for testing purposes
   /*!
@@ -126,7 +127,7 @@ TVM_FFI_INLINE void InplaceConvertAnyViewToAny(TVMFFIAny* data,
                                                [[maybe_unused]] size_t extra_any_bytes = 0) {
   // TODO: string conversion.
   if (data->type_index >= TVMFFITypeIndex::kTVMFFIStaticObjectBegin) {
-    details::ObjectInternal::IncRefObjectInAny(data);
+    details::ObjectUnsafe::IncRefObjectInAny(data);
   }
 }
 }  // namespace details
@@ -145,7 +146,7 @@ class Any {
    */
   void reset() {
     if (data_.type_index >= TVMFFITypeIndex::kTVMFFIStaticObjectBegin) {
-      details::ObjectInternal::DecRefObjectInAny(&data_);
+      details::ObjectUnsafe::DecRefObjectInAny(&data_);
     }
     data_.type_index = TVMFFITypeIndex::kTVMFFINone;
   }
@@ -166,7 +167,7 @@ class Any {
   // constructors from Any
   Any(const Any& other) : data_(other.data_) {
     if (data_.type_index >= TypeIndex::kTVMFFIStaticObjectBegin) {
-      details::ObjectInternal::IncRefObjectInAny(&data_);
+      details::ObjectUnsafe::IncRefObjectInAny(&data_);
     }
   }
   Any(Any&& other) : data_(other.data_) { other.data_.type_index = TypeIndex::kTVMFFINone; }
@@ -192,7 +193,7 @@ class Any {
   // constructor from general types
   template <typename T, typename = std::enable_if_t<TypeTraits<T>::enabled>>
   Any(T other) {  // NOLINT(*)
-    TypeTraits<T>::MoveToManagedAny(std::move(other), &data_);
+    TypeTraits<T>::MoveToAny(std::move(other), &data_);
   }
   template <typename T, typename = std::enable_if_t<TypeTraits<T>::enabled>>
   Any& operator=(T other) {  // NOLINT(*)
@@ -213,6 +214,7 @@ class Any {
     }
     TVM_FFI_THROW(TypeError) << "Cannot convert from type `" << TypeIndex2TypeKey(data_.type_index)
                              << "` to `" << TypeTraits<T>::TypeStr() << "`";
+    TVM_FFI_UNREACHABLE();
   }
 
   // FFI related operations
