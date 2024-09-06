@@ -114,6 +114,28 @@ TEST(Any, Object) {
   AnyView view2 = any1;
   EXPECT_EQ(v1.use_count(), 2);
 
+  // convert to weak raw object ptr
+  const TIntObj* v1_ptr = view2;
+  EXPECT_EQ(v1.use_count(), 2);
+  EXPECT_EQ(v1_ptr->value, 11);
+  Any any2 = v1_ptr;
+  EXPECT_EQ(v1.use_count(), 3);
+  EXPECT_TRUE(any2.TryAs<TInt>().has_value());
+
+  // convert to raw opaque ptr
+  void* raw_v1_ptr = const_cast<TIntObj*>(v1_ptr);
+  any2 = raw_v1_ptr;
+  EXPECT_TRUE(any2.TryAs<void*>().value() == v1_ptr);
+
+  // convert to ObjectPtr
+  ObjectPtr<TNumberObj> v1_obj_ptr = view2;
+  EXPECT_EQ(v1.use_count(), 3);
+  any2 = v1_obj_ptr;
+  EXPECT_EQ(v1.use_count(), 4);
+  EXPECT_TRUE(any2.TryAs<TInt>().has_value());
+  any2.reset();
+  v1_obj_ptr.reset();
+
   // convert that triggers error
   EXPECT_THROW(
       {

@@ -74,11 +74,11 @@ class ObjAllocatorBase {
     using Handler = typename Derived::template Handler<T>;
     static_assert(std::is_base_of<Object, T>::value, "make can only be used to create Object");
     T* ptr = Handler::New(static_cast<Derived*>(this), std::forward<Args>(args)...);
-    TVMFFIObject* ffi_ptr = details::ObjectInternal::GetHeader(ptr);
+    TVMFFIObject* ffi_ptr = details::ObjectUnsafe::GetHeader(ptr);
     // NOTE: ref_counter is initialized in object constructor
     ffi_ptr->type_index = T::RuntimeTypeIndex();
     ffi_ptr->deleter = Handler::Deleter();
-    return details::ObjectInternal::ObjectPtrFromUnowned<T>(ptr);
+    return details::ObjectUnsafe::ObjectPtrFromUnowned<T>(ptr);
   }
 
   /*!
