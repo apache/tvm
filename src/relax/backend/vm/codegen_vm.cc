@@ -45,21 +45,6 @@ using namespace relax;
 using namespace tvm::runtime;
 using namespace tvm::runtime::relax_vm;
 
-namespace {
-// Helper function to get the function name of the registered packed function implementation of
-// relax operator.
-FCallPacked GetPackedFuncName(const Call& call) {
-  static auto op_map = Op::GetAttrMap<FCallPacked>("FCallPacked");
-  if (call->op.as<OpNode>()) {
-    Op op = Downcast<Op>(call->op);
-    if (op_map.count(op)) {
-      return op_map[op];
-    }
-  }
-  return {};
-}
-}  // namespace
-
 /*!
  * \brief A class to generate VM executable for Relax functions.
  */
@@ -156,14 +141,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     // allocate dst register.
     RegName dst_reg = HasVoidStructInfo(call) ? Instruction::kVoidRegister : NewRegister();
     if (call->op.as<OpNode>()) {
-      // special case generate for the intrinsics whose attribute fields
-      // cannot be represented by args in the CallNode
-      FCallPacked name = GetPackedFuncName(call);
-      if (!name.empty()) {
-        // If the operator has a registered packed function implementation, emit call to that packed
-        // function.
-        EmitPackedFuncCall(call, name, dst_reg);
-      } else if (call_node->op == call_builtin_with_ctx_op_) {
+      if (call_node->op == call_builtin_with_ctx_op_) {
         // TODO(relax-team) migrate most handling of op to
         // directly map to call_builtin_with_ctx before codegen and simplify vm codegen.
         EmitCallBuiltinWithCtx(call, dst_reg);
