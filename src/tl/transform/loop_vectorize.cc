@@ -104,7 +104,6 @@ class VectorizePlanner : public arith::IRVisitorWithAnalyzer {
     max_vector_size = arith::ZeroAwareGCD(max_vector_size, mod_set->coeff);
     max_vector_size = arith::ZeroAwareGCD(max_vector_size, mod_set->base);
     vector_size_ = arith::ZeroAwareGCD(max_vector_size, vector_size_);
-
     while (!IndiceCanVectorize(buffer.OffsetOf(indices).back(), inner_for_->loop_var,
                                inner_for_->extent, vector_size_, &analyzer_)) {
       vector_size_ /= 2;
