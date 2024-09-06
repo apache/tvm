@@ -77,7 +77,7 @@ def test_mismatch_cast_dims_and_ndim():
 
         @R.function
         def f(
-            x: R.Tensor((2, 3), "float32", ndim=3)
+            x: R.Tensor((2, 3), "float32", ndim=3),
         ):  # error: ndim and the shape dims are mismatch
             return x
 
@@ -961,11 +961,11 @@ def test_call_tir_with_tir_var():
     class Module:
         @R.function
         def main(
-            dumb_param: R.Tensor(("n",), "float32"), x: R.Tensor(("n * 2", "float32"))
+            dumb_param: R.Tensor(("n",), "float32"), x: R.Tensor(("n * 2",), "float32")
         ) -> R.Tensor(("n * 2",), "float32"):
             n = T.int64()
             cls = Module
-            y = R.call_tir(cls.copy, (x,), R.Tensor(((n * 2,)), dtype="float32"), tir_vars=(n,))
+            y = R.call_tir(cls.copy, x, R.Tensor((n * 2,), dtype="float32"), tir_vars=(n,))
             return y
 
         @T.prim_func
@@ -2171,7 +2171,9 @@ def test_macro_hygienic():
     @R.function(private=True)
     def expect(z: R.Tensor((4, 4), dtype="float32")) -> R.Shape([4, 4]):
         alloc: R.Tensor((4, 4), dtype="float32") = R.builtin.alloc_tensor(
-            R.shape([4, 4]), R.dtype("float32"), R.prim_value(2)  # Make sure prim_value is 2
+            R.shape([4, 4]),
+            R.dtype("float32"),
+            R.prim_value(2),  # Make sure prim_value is 2
         )
         shape: R.Shape([4, 4]) = R.shape_of(alloc)
         shape_1: R.Shape([4, 4]) = shape
@@ -2203,7 +2205,9 @@ def test_macro_non_hygienic():
     @R.function(private=True)
     def expect(z: R.Tensor((4, 4), dtype="float32")) -> R.Shape([4, 4]):
         alloc: R.Tensor((4, 4), dtype="float32") = R.builtin.alloc_tensor(
-            R.shape([4, 4]), R.dtype("float32"), R.prim_value(1)  # Make sure prim_value is 1
+            R.shape([4, 4]),
+            R.dtype("float32"),
+            R.prim_value(1),  # Make sure prim_value is 1
         )
         shape: R.Shape([4, 4]) = R.shape_of(alloc)
         shape_1: R.Shape([4, 4]) = shape
@@ -2372,7 +2376,6 @@ def test_conditional_may_use_symbolic_variables_from_function_scope():
         B: R.Tensor(["N"], "float32"),
         cond: R.Prim("bool"),
     ) -> R.Tensor(["N"], "float32"):
-
         N = T.int64()
 
         if cond:

@@ -352,6 +352,16 @@ class WellFormedChecker : public relax::ExprVisitor,
             << after_normalize);
       }
     }
+
+    if (auto func_validate = op_map_validate_.get(call->op, nullptr); func_validate != nullptr) {
+      try {
+        func_validate(GetRef<Call>(call));
+      } catch (std::exception& err) {
+        Malformed(Diagnostic::Error(call) << "Operator-specific validation (FValidate) for "
+                                          << call->op << " identified error: \n"
+                                          << err.what());
+      }
+    }
   }
 
   void VisitExpr_(const IfNode* op) final {
@@ -574,6 +584,7 @@ class WellFormedChecker : public relax::ExprVisitor,
   std::unordered_map<tir::Var, const FunctionNode*> symbolic_var_func_map_;
 
   tvm::OpAttrMap<FNormalize> op_map_normalize_ = Op::GetAttrMap<FNormalize>("FNormalize");
+  tvm::OpAttrMap<FValidate> op_map_validate_ = Op::GetAttrMap<FValidate>("FValidate");
 };
 
 bool WellFormed(Variant<IRModule, Function> obj, bool check_struct_info) {

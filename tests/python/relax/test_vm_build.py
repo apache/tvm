@@ -988,8 +988,10 @@ def test_multi_systemlib(exec_mode):
         I.module_attrs({"system_lib_prefix": "libA_"})
 
         @T.prim_func
-        def tir_init(x: T.Buffer((2), "float32")) -> None:
-            for i in range(2):
+        def tir_init(x_handle: T.handle):
+            N = T.int64()
+            x = T.match_buffer(x_handle, [N], "float32")
+            for i in range(N):
                 x[i] = T.float32(0)
 
         @R.function
@@ -1003,8 +1005,10 @@ def test_multi_systemlib(exec_mode):
         I.module_attrs({"system_lib_prefix": "libB_"})
 
         @T.prim_func
-        def tir_init(x: T.Buffer((2), "float32")) -> None:
-            for i in range(2):
+        def tir_init(x_handle: T.handle):
+            N = T.int64()
+            x = T.match_buffer(x_handle, [N], "float32")
+            for i in range(N):
                 x[i] = T.float32(1)
 
         @R.function
