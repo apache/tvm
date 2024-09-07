@@ -87,7 +87,7 @@ def check_names(mod):
         NameChecker().check(func)
 
 
-def verify_model(torch_model, input_info, allow_incomplete=False):
+def verify_model(torch_model, input_info, **trans_config):
     """Build model and verify results"""
 
     graph_model = fx.symbolic_trace(torch_model)
@@ -100,9 +100,7 @@ def verify_model(torch_model, input_info, allow_incomplete=False):
         golden = [golden]
     golden = [g.detach().cpu().numpy() for g in golden]
     # partition module for tensorrt
-    mod, graphs, weights = translate.partition_for_tensorrt(
-        mod, trans_config={"allow_incomplete": allow_incomplete}
-    )
+    mod, graphs, weights = translate.partition_for_tensorrt(mod, trans_config=trans_config)
     check_names(mod)
     output_folder = msc_utils.msc_dir()
     # tranalte to tensorrt
@@ -191,6 +189,8 @@ def test_linear():
     input_info = [([1, 3, 10, 10], "float32")]
     verify_model(Dense1(), input_info)
     verify_model(Dense2(), input_info)
+    verify_model(Dense1(), input_info, linear_to_conv=True)
+    verify_model(Dense2(), input_info, linear_to_conv=True)
     verify_model(MatMul1(), [([10, 10], "float32"), ([10, 10], "float32")])
 
 
@@ -368,10 +368,10 @@ def test_embedding():
             self.embedding = torch.nn.Embedding(10, 3)
 
         def forward(self, data):
-            return self.embedding(data)
+            return self.embedding(data.to(torch.int64))
 
-    verify_model(Embedding(), [([4], "int64")], allow_incomplete=True)
-    verify_model(Embedding(), [([4, 5], "int64")], allow_incomplete=True)
+    verify_model(Embedding(), [([4], "int32")])
+    verify_model(Embedding(), [([4, 5], "int32")])
 
 
 @requires_tensorrt
@@ -801,14 +801,14 @@ def test_argmax():
 
     class Argmax1(Module):
         def forward(self, data):
-            return torch.argmax(data, dim=-1)
+            return torch.argmax(data, dim=-1).to(torch.int32)
 
     class Argmax2(Module):
         def forward(self, data):
-            return torch.argmax(data, dim=-1, keepdim=True)
+            return torch.argmax(data, dim=-1, keepdim=True).to(torch.int32)
 
-    verify_model(Argmax1(), [([256, 256], "float32")], allow_incomplete=True)
-    verify_model(Argmax2(), [([256, 256], "float32")], allow_incomplete=True)
+    verify_model(Argmax1(), [([256, 256], "float32")])
+    verify_model(Argmax2(), [([256, 256], "float32")])
 
 
 @requires_tensorrt
@@ -817,14 +817,14 @@ def test_argmin():
 
     class Argmin1(Module):
         def forward(self, data):
-            return torch.argmin(data, dim=-1)
+            return torch.argmin(data, dim=-1).to(torch.int32)
 
     class Argmin2(Module):
         def forward(self, data):
-            return torch.argmin(data, dim=-1, keepdim=True)
+            return torch.argmin(data, dim=-1, keepdim=True).to(torch.int32)
 
-    verify_model(Argmin1(), [([256, 256], "float32")], allow_incomplete=True)
-    verify_model(Argmin2(), [([256, 256], "float32")], allow_incomplete=True)
+    verify_model(Argmin1(), [([256, 256], "float32")])
+    verify_model(Argmin2(), [([256, 256], "float32")])
 
 
 @requires_tensorrt
@@ -874,6 +874,23 @@ def test_max():
             return torch.max(x, y)
 
     verify_model(Max(), [([256, 256], "float32"), ([256, 256], "float32")])
+
+
+@requires_tensorrt
+def test_gelu():
+    """test tensorrt translator for gelu"""
+
+    class Gelu1(Module):
+        def forward(self, data):
+            return torch.nn.functional.gelu(data)
+
+    class Gelu2(Module):
+        def forward(self, data):
+            return torch.nn.functional.gelu(data, approximate="tanh")
+
+    input_info = [([1, 3, 10, 10], "float32")]
+    verify_model(Gelu1(), input_info)
+    verify_model(Gelu2(), input_info)
 
 
 if __name__ == "__main__":

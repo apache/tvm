@@ -330,7 +330,7 @@ def byoc_partition(
     msc_mod = _partition_mod(mod)
     func_names = [var.name_hint for var, func in msc_mod.functions.items() if _is_target_func(func)]
 
-    if not trans_config.get("allow_incomplete", False):
+    if trans_config.get("as_complete", True):
         assert len(func_names) == 1, "More than 1 target func is found: " + str(msc_mod)
         BYOCChecker().check(func_names, msc_mod[entry])
 
