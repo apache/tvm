@@ -35,236 +35,6 @@ namespace tvm {
 namespace ffi {
 
 /*!
- * \brief TypeTraits that specifies the conversion behavior from/to FFI Any.
- *
- * We need to implement the following conversion functions
- *
- * - void ConvertToAnyView(const T& src, TVMFFIAny* result);
- *
- *   Convert a value to AnyView
- *
- * - std::optional<T> TryConvertFromAnyView(const TVMFFIAny* src);
- *
- *   Try convert AnyView to a value type.
- */
-template <typename, typename = void>
-struct TypeTraits {
-  static constexpr bool enabled = false;
-};
-
-/*!
- * \brief TypeTraits that removes const and reference keywords.
- * \tparam T the original type
- */
-template <typename T>
-using TypeTraitsNoCR = TypeTraits<std::remove_const_t<std::remove_reference_t<T>>>;
-
-// None
-template <>
-struct TypeTraits<std::nullptr_t> {
-  static constexpr bool enabled = true;
-
-  static TVM_FFI_INLINE void ConvertToAnyView(const std::nullptr_t&, TVMFFIAny* result) {
-    result->type_index = TypeIndex::kTVMFFINone;
-  }
-
-  static TVM_FFI_INLINE void MoveToAny(std::nullptr_t, TVMFFIAny* result) {
-    result->type_index = TypeIndex::kTVMFFINone;
-  }
-
-  static TVM_FFI_INLINE std::optional<std::nullptr_t> TryConvertFromAnyView(const TVMFFIAny* src) {
-    if (src->type_index == TypeIndex::kTVMFFINone) {
-      return nullptr;
-    }
-    return std::nullopt;
-  }
-
-  static TVM_FFI_INLINE std::string TypeStr() { return "None"; }
-};
-
-// Integer POD values
-template <typename Int>
-struct TypeTraits<Int, std::enable_if_t<std::is_integral_v<Int>>> {
-  static constexpr bool enabled = true;
-
-  static TVM_FFI_INLINE void ConvertToAnyView(const Int& src, TVMFFIAny* result) {
-    result->type_index = TypeIndex::kTVMFFIInt;
-    result->v_int64 = static_cast<int64_t>(src);
-  }
-
-  static TVM_FFI_INLINE void MoveToAny(Int src, TVMFFIAny* result) {
-    ConvertToAnyView(src, result);
-  }
-
-  static TVM_FFI_INLINE std::optional<Int> TryConvertFromAnyView(const TVMFFIAny* src) {
-    if (src->type_index == TypeIndex::kTVMFFIInt) {
-      return std::make_optional<Int>(src->v_int64);
-    }
-    return std::nullopt;
-  }
-
-  static TVM_FFI_INLINE std::string TypeStr() { return "int"; }
-};
-
-// Float POD values
-template <typename Float>
-struct TypeTraits<Float, std::enable_if_t<std::is_floating_point_v<Float>>> {
-  static constexpr bool enabled = true;
-
-  static TVM_FFI_INLINE void ConvertToAnyView(const Float& src, TVMFFIAny* result) {
-    result->type_index = TypeIndex::kTVMFFIFloat;
-    result->v_float64 = static_cast<double>(src);
-  }
-
-  static TVM_FFI_INLINE void MoveToAny(Float src, TVMFFIAny* result) {
-    ConvertToAnyView(src, result);
-  }
-
-  static TVM_FFI_INLINE std::optional<Float> TryConvertFromAnyView(const TVMFFIAny* src) {
-    if (src->type_index == TypeIndex::kTVMFFIFloat) {
-      return std::make_optional<Float>(src->v_float64);
-    } else if (src->type_index == TypeIndex::kTVMFFIInt) {
-      return std::make_optional<Float>(src->v_int64);
-    }
-    return std::nullopt;
-  }
-
-  static TVM_FFI_INLINE std::string TypeStr() { return "float"; }
-};
-
-// void*
-template <>
-struct TypeTraits<void*> {
-  static constexpr bool enabled = true;
-
-  static TVM_FFI_INLINE void ConvertToAnyView(void* src, TVMFFIAny* result) {
-    result->type_index = TypeIndex::kTVMFFIOpaquePtr;
-    result->v_ptr = src;
-  }
-
-  static TVM_FFI_INLINE void MoveToAny(void* src, TVMFFIAny* result) {
-    ConvertToAnyView(src, result);
-  }
-
-  static TVM_FFI_INLINE std::optional<void*> TryConvertFromAnyView(const TVMFFIAny* src) {
-    if (src->type_index == TypeIndex::kTVMFFIOpaquePtr) {
-      return std::make_optional<void*>(src->v_ptr);
-    }
-    return std::nullopt;
-  }
-
-  static TVM_FFI_INLINE std::string TypeStr() { return "void*"; }
-};
-
-// Traits for object
-template <typename TObjRef>
-struct TypeTraits<TObjRef, std::enable_if_t<std::is_base_of_v<ObjectRef, TObjRef>>> {
-  using ContainerType = typename TObjRef::ContainerType;
-
-  static constexpr bool enabled = true;
-
-  static TVM_FFI_INLINE void ConvertToAnyView(const TObjRef& src, TVMFFIAny* result) {
-    TVMFFIObject* obj_ptr = details::ObjectUnsafe::GetTVMFFIObjectPtrFromObjectRef(src);
-    result->type_index = obj_ptr->type_index;
-    result->v_obj = obj_ptr;
-  }
-
-  static TVM_FFI_INLINE void MoveToAny(TObjRef src, TVMFFIAny* result) {
-    TVMFFIObject* obj_ptr = details::ObjectUnsafe::MoveTVMFFIObjectPtrFromObjectRef(&src);
-    result->type_index = obj_ptr->type_index;
-    result->v_obj = obj_ptr;
-  }
-
-  static TVM_FFI_INLINE std::optional<TObjRef> TryConvertFromAnyView(const TVMFFIAny* src) {
-    if (src->type_index >= TypeIndex::kTVMFFIStaticObjectBegin) {
-#if TVM_FFI_ALLOW_DYN_TYPE
-      if (details::IsObjectInstance<ContainerType>(src->type_index)) {
-        return TObjRef(details::ObjectUnsafe::ObjectPtrFromUnowned<Object>(src->v_obj));
-      }
-#else
-      TVM_FFI_THROW(RuntimeError)
-          << "Converting to object requires `TVM_FFI_ALLOW_DYN_TYPE` to be on".
-#endif
-    } else if (src->type_index == kTVMFFINone) {
-      if (!TObjRef::_type_is_nullable) return std::nullopt;
-      return TObjRef(ObjectPtr<Object>());
-    }
-    return std::nullopt;
-  }
-
-  static TVM_FFI_INLINE std::string TypeStr() { return ContainerType::_type_key; }
-};
-
-// Traits for object
-template <typename T>
-struct TypeTraits<ObjectPtr<T>> {
-  static constexpr bool enabled = true;
-
-  static TVM_FFI_INLINE void ConvertToAnyView(const ObjectPtr<T>& src, TVMFFIAny* result) {
-    TVMFFIObject* obj_ptr = details::ObjectUnsafe::GetTVMFFIObjectPtrFromObjectPtr(src);
-    result->type_index = obj_ptr->type_index;
-    result->v_obj = obj_ptr;
-  }
-
-  static TVM_FFI_INLINE void MoveToAny(ObjectPtr<T> src, TVMFFIAny* result) {
-    TVMFFIObject* obj_ptr = details::ObjectUnsafe::MoveTVMFFIObjectPtrFromObjectPtr(&src);
-    result->type_index = obj_ptr->type_index;
-    result->v_obj = obj_ptr;
-  }
-
-  static TVM_FFI_INLINE std::optional<ObjectPtr<T>> TryConvertFromAnyView(const TVMFFIAny* src) {
-    if (src->type_index >= TypeIndex::kTVMFFIStaticObjectBegin) {
-#if TVM_FFI_ALLOW_DYN_TYPE
-      if (details::IsObjectInstance<T>(src->type_index)) {
-        return details::ObjectUnsafe::ObjectPtrFromUnowned<T>(src->v_obj);
-      }
-#else
-      TVM_FFI_THROW(RuntimeError)
-          << "Converting to object requires `TVM_FFI_ALLOW_DYN_TYPE` to be on".
-#endif
-    }
-    return std::nullopt;
-  }
-
-  static TVM_FFI_INLINE std::string TypeStr() { return T::_type_key; }
-};
-
-// Traits for object
-template <typename TObject>
-struct TypeTraits<const TObject*, std::enable_if_t<std::is_base_of_v<Object, TObject>>> {
-  static constexpr bool enabled = true;
-
-  static TVM_FFI_INLINE void ConvertToAnyView(const TObject* src, TVMFFIAny* result) {
-    TVMFFIObject* obj_ptr = details::ObjectUnsafe::GetHeader(src);
-    result->type_index = obj_ptr->type_index;
-    result->v_obj = obj_ptr;
-  }
-
-  static TVM_FFI_INLINE void MoveToAny(const TObject* src, TVMFFIAny* result) {
-    TVMFFIObject* obj_ptr = details::ObjectUnsafe::GetHeader(src);
-    result->type_index = obj_ptr->type_index;
-    result->v_obj = obj_ptr;
-    details::ObjectUnsafe::IncRefObjectInAny(result);
-  }
-
-  static TVM_FFI_INLINE std::optional<const TObject*> TryConvertFromAnyView(const TVMFFIAny* src) {
-    if (src->type_index >= TypeIndex::kTVMFFIStaticObjectBegin) {
-#if TVM_FFI_ALLOW_DYN_TYPE
-      if (details::IsObjectInstance<TObject>(src->type_index)) {
-        return reinterpret_cast<const TObject*>(src->v_obj);
-      }
-#else
-      TVM_FFI_THROW(RuntimeError)
-          << "Converting to object requires `TVM_FFI_ALLOW_DYN_TYPE` to be on".
-#endif
-    }
-    return std::nullopt;
-  }
-
-  static TVM_FFI_INLINE std::string TypeStr() { return TObject::_type_key; }
-};
-
-/*!
  * \brief Get type key from type index
  * \param type_index The input type index
  * \return the type key
@@ -297,6 +67,296 @@ inline std::string TypeIndex2TypeKey(int32_t type_index) {
     }
   }
 }
+/*!
+ * \brief TypeTraits that specifies the conversion behavior from/to FFI Any.
+ *
+ * We need to implement the following conversion functions
+ *
+ * - void ConvertToAnyView(const T& src, TVMFFIAny* result);
+ *
+ *   Convert a value to AnyView
+ *
+ * - std::optional<T> TryConvertFromAnyView(const TVMFFIAny* src);
+ *
+ *   Try convert AnyView to a value type.
+ */
+template <typename, typename = void>
+struct TypeTraits {
+  static constexpr bool enabled = false;
+};
+
+/*!
+ * \brief TypeTraits that removes const and reference keywords.
+ * \tparam T the original type
+ */
+template <typename T>
+using TypeTraitsNoCR = TypeTraits<std::remove_const_t<std::remove_reference_t<T>>>;
+
+template <typename T>
+inline constexpr bool use_default_type_traits_v = true;
+
+struct TypeTraitsBase {
+  static constexpr bool enabled = true;
+
+  // get mismatched type when result mismatches the trait.
+  // this function is called after TryConvertFromAnyView fails
+  // to get more detailed type information in runtime
+  // especially when the error involves nested container type
+  static TVM_FFI_INLINE std::string GetMismatchTypeInfo(const TVMFFIAny* source) {
+    return TypeIndex2TypeKey(source->type_index);
+  }
+};
+
+// None
+template <>
+struct TypeTraits<std::nullptr_t> : public TypeTraitsBase {
+  static TVM_FFI_INLINE void ConvertToAnyView(const std::nullptr_t&, TVMFFIAny* result) {
+    result->type_index = TypeIndex::kTVMFFINone;
+    // invariant: the pointer field also equals nullptr
+    // this will simplify the recovery of nullable object from the any
+    result->v_int64 = 0;
+  }
+
+  static TVM_FFI_INLINE void MoveToAny(std::nullptr_t, TVMFFIAny* result) {
+    result->type_index = TypeIndex::kTVMFFINone;
+    // invariant: the pointer field also equals nullptr
+    // this will simplify the recovery of nullable object from the any
+    result->v_int64 = 0;
+  }
+
+  static TVM_FFI_INLINE std::optional<std::nullptr_t> TryConvertFromAnyView(const TVMFFIAny* src) {
+    if (src->type_index == TypeIndex::kTVMFFINone) {
+      return nullptr;
+    }
+    return std::nullopt;
+  }
+
+  static TVM_FFI_INLINE bool CheckAnyView(const TVMFFIAny* src) {
+    return src->type_index == TypeIndex::kTVMFFINone;
+  }
+
+  static TVM_FFI_INLINE std::nullptr_t ConvertFromAnyViewAfterCheck(const TVMFFIAny*) {
+    return nullptr;
+  }
+
+  static TVM_FFI_INLINE std::string TypeStr() { return "None"; }
+};
+
+// Integer POD values
+template <typename Int>
+struct TypeTraits<Int, std::enable_if_t<std::is_integral_v<Int>>> : public TypeTraitsBase {
+  static TVM_FFI_INLINE void ConvertToAnyView(const Int& src, TVMFFIAny* result) {
+    result->type_index = TypeIndex::kTVMFFIInt;
+    result->v_int64 = static_cast<int64_t>(src);
+  }
+
+  static TVM_FFI_INLINE void MoveToAny(Int src, TVMFFIAny* result) {
+    ConvertToAnyView(src, result);
+  }
+
+  static TVM_FFI_INLINE std::optional<Int> TryConvertFromAnyView(const TVMFFIAny* src) {
+    if (src->type_index == TypeIndex::kTVMFFIInt) {
+      return std::make_optional<Int>(src->v_int64);
+    }
+    return std::nullopt;
+  }
+
+  static TVM_FFI_INLINE bool CheckAnyView(const TVMFFIAny* src) {
+    return src->type_index == TypeIndex::kTVMFFIInt;
+  }
+
+  static TVM_FFI_INLINE int ConvertFromAnyViewAfterCheck(const TVMFFIAny* src) {
+    return static_cast<Int>(src->v_int64);
+  }
+
+  static TVM_FFI_INLINE std::string TypeStr() { return "int"; }
+};
+
+// Float POD values
+template <typename Float>
+struct TypeTraits<Float, std::enable_if_t<std::is_floating_point_v<Float>>>
+    : public TypeTraitsBase {
+  static TVM_FFI_INLINE void ConvertToAnyView(const Float& src, TVMFFIAny* result) {
+    result->type_index = TypeIndex::kTVMFFIFloat;
+    result->v_float64 = static_cast<double>(src);
+  }
+
+  static TVM_FFI_INLINE void MoveToAny(Float src, TVMFFIAny* result) {
+    ConvertToAnyView(src, result);
+  }
+
+  static TVM_FFI_INLINE std::optional<Float> TryConvertFromAnyView(const TVMFFIAny* src) {
+    if (src->type_index == TypeIndex::kTVMFFIFloat) {
+      return std::make_optional<Float>(src->v_float64);
+    } else if (src->type_index == TypeIndex::kTVMFFIInt) {
+      return std::make_optional<Float>(src->v_int64);
+    }
+    return std::nullopt;
+  }
+
+  static TVM_FFI_INLINE bool CheckAnyView(const TVMFFIAny* src) {
+    return src->type_index == TypeIndex::kTVMFFIFloat || src->type_index == TypeIndex::kTVMFFIInt;
+  }
+
+  static TVM_FFI_INLINE Float ConvertFromAnyViewAfterCheck(const TVMFFIAny* src) {
+    if (src->type_index == TypeIndex::kTVMFFIFloat) {
+      return static_cast<Float>(src->v_float64);
+    } else {
+      return static_cast<Float>(src->v_int64);
+    }
+  }
+
+  static TVM_FFI_INLINE std::string TypeStr() { return "float"; }
+};
+
+// void*
+template <>
+struct TypeTraits<void*> : public TypeTraitsBase {
+  static TVM_FFI_INLINE void ConvertToAnyView(void* src, TVMFFIAny* result) {
+    result->type_index = TypeIndex::kTVMFFIOpaquePtr;
+    result->v_ptr = src;
+  }
+
+  static TVM_FFI_INLINE void MoveToAny(void* src, TVMFFIAny* result) {
+    ConvertToAnyView(src, result);
+  }
+
+  static TVM_FFI_INLINE std::optional<void*> TryConvertFromAnyView(const TVMFFIAny* src) {
+    if (src->type_index == TypeIndex::kTVMFFIOpaquePtr) {
+      return std::make_optional<void*>(src->v_ptr);
+    }
+    if (src->type_index == TypeIndex::kTVMFFINone) {
+      return std::make_optional<void*>(nullptr);
+    }
+    return std::nullopt;
+  }
+
+  static TVM_FFI_INLINE bool CheckAnyView(const TVMFFIAny* src) {
+    return src->type_index == TypeIndex::kTVMFFIOpaquePtr ||
+           src->type_index == TypeIndex::kTVMFFINone;
+  }
+
+  static TVM_FFI_INLINE void* ConvertFromAnyViewAfterCheck(const TVMFFIAny* src) {
+    return src->v_ptr;
+  }
+
+  static TVM_FFI_INLINE std::string TypeStr() { return "void*"; }
+};
+
+// Traits for ObjectRef
+template <typename TObjRef>
+struct TypeTraits<TObjRef, std::enable_if_t<std::is_base_of_v<ObjectRef, TObjRef> &&
+                                            use_default_type_traits_v<TObjRef>>>
+    : public TypeTraitsBase {
+  using ContainerType = typename TObjRef::ContainerType;
+
+  static TVM_FFI_INLINE void ConvertToAnyView(const TObjRef& src, TVMFFIAny* result) {
+    TVMFFIObject* obj_ptr = details::ObjectUnsafe::GetTVMFFIObjectPtrFromObjectRef(src);
+    result->type_index = obj_ptr->type_index;
+    result->v_obj = obj_ptr;
+  }
+
+  static TVM_FFI_INLINE void MoveToAny(TObjRef src, TVMFFIAny* result) {
+    TVMFFIObject* obj_ptr = details::ObjectUnsafe::MoveTVMFFIObjectPtrFromObjectRef(&src);
+    result->type_index = obj_ptr->type_index;
+    result->v_obj = obj_ptr;
+  }
+
+  static TVM_FFI_INLINE bool CheckAnyView(const TVMFFIAny* src) {
+    return (src->type_index >= TypeIndex::kTVMFFIStaticObjectBegin &&
+            details::IsObjectInstance<ContainerType>(src->type_index)) ||
+           (src->type_index == kTVMFFINone && TObjRef::_type_is_nullable);
+  }
+
+  static TVM_FFI_INLINE TObjRef ConvertFromAnyViewAfterCheck(const TVMFFIAny* src) {
+    if constexpr (TObjRef::_type_is_nullable) {
+      if (src->type_index == kTVMFFINone) return TObjRef(nullptr);
+    }
+    return TObjRef(details::ObjectUnsafe::ObjectPtrFromUnowned<Object>(src->v_obj));
+  }
+
+  static TVM_FFI_INLINE std::optional<TObjRef> TryConvertFromAnyView(const TVMFFIAny* src) {
+    if (src->type_index >= TypeIndex::kTVMFFIStaticObjectBegin) {
+      if (details::IsObjectInstance<ContainerType>(src->type_index)) {
+        return TObjRef(details::ObjectUnsafe::ObjectPtrFromUnowned<Object>(src->v_obj));
+      }
+    }
+    if constexpr (TObjRef::_type_is_nullable) {
+      if (src->type_index == kTVMFFINone) return TObjRef(nullptr);
+    }
+    return std::nullopt;
+  }
+
+  static TVM_FFI_INLINE std::string TypeStr() { return ContainerType::_type_key; }
+};
+
+// Traits for ObjectPtr
+template <typename T>
+struct TypeTraits<ObjectPtr<T>> : public TypeTraitsBase {
+  static TVM_FFI_INLINE void ConvertToAnyView(const ObjectPtr<T>& src, TVMFFIAny* result) {
+    TVMFFIObject* obj_ptr = details::ObjectUnsafe::GetTVMFFIObjectPtrFromObjectPtr(src);
+    result->type_index = obj_ptr->type_index;
+    result->v_obj = obj_ptr;
+  }
+
+  static TVM_FFI_INLINE void MoveToAny(ObjectPtr<T> src, TVMFFIAny* result) {
+    TVMFFIObject* obj_ptr = details::ObjectUnsafe::MoveTVMFFIObjectPtrFromObjectPtr(&src);
+    result->type_index = obj_ptr->type_index;
+    result->v_obj = obj_ptr;
+  }
+
+  static TVM_FFI_INLINE bool CheckAnyView(const TVMFFIAny* src) {
+    return src->type_index >= TypeIndex::kTVMFFIStaticObjectBegin &&
+           details::IsObjectInstance<T>(src->type_index);
+  }
+
+  static TVM_FFI_INLINE ObjectPtr<T> ConvertFromAnyViewAfterCheck(const TVMFFIAny* src) {
+    return details::ObjectUnsafe::ObjectPtrFromUnowned<T>(src->v_obj);
+  }
+
+  static TVM_FFI_INLINE std::optional<ObjectPtr<T>> TryConvertFromAnyView(const TVMFFIAny* src) {
+    if (CheckAnyView(src)) return ConvertFromAnyViewAfterCheck(src);
+    return std::nullopt;
+  }
+
+  static TVM_FFI_INLINE std::string TypeStr() { return T::_type_key; }
+};
+
+// Traits for weak pointer of object
+template <typename TObject>
+struct TypeTraits<const TObject*, std::enable_if_t<std::is_base_of_v<Object, TObject>>>
+    : public TypeTraitsBase {
+  static TVM_FFI_INLINE void ConvertToAnyView(const TObject* src, TVMFFIAny* result) {
+    TVMFFIObject* obj_ptr = details::ObjectUnsafe::GetHeader(src);
+    result->type_index = obj_ptr->type_index;
+    result->v_obj = obj_ptr;
+  }
+
+  static TVM_FFI_INLINE void MoveToAny(const TObject* src, TVMFFIAny* result) {
+    TVMFFIObject* obj_ptr = details::ObjectUnsafe::GetHeader(src);
+    result->type_index = obj_ptr->type_index;
+    result->v_obj = obj_ptr;
+    // needs to increase ref because original weak ptr do not own the code
+    details::ObjectUnsafe::IncRefObjectInAny(result);
+  }
+
+  static TVM_FFI_INLINE bool CheckAnyView(const TVMFFIAny* src) {
+    return src->type_index >= TypeIndex::kTVMFFIStaticObjectBegin &&
+           details::IsObjectInstance<TObject>(src->type_index);
+  }
+
+  static TVM_FFI_INLINE const TObject* ConvertFromAnyViewAfterCheck(const TVMFFIAny* src) {
+    return reinterpret_cast<const TObject*>(src->v_obj);
+  }
+
+  static TVM_FFI_INLINE std::optional<const TObject*> TryConvertFromAnyView(const TVMFFIAny* src) {
+    if (CheckAnyView(src)) return ConvertFromAnyViewAfterCheck(src);
+    return std::nullopt;
+  }
+
+  static TVM_FFI_INLINE std::string TypeStr() { return TObject::_type_key; }
+};
+
 }  // namespace ffi
 }  // namespace tvm
 #endif  // TVM_FFI_TYPE_TRAITS_H_

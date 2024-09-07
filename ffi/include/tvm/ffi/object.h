@@ -319,7 +319,7 @@ class ObjectPtr {
    * \param data The data pointer
    */
   explicit ObjectPtr(Object* data) : data_(data) {
-    if (data != nullptr) {
+    if (data_ != nullptr) {
       data_->IncRef();
     }
   }

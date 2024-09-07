@@ -77,7 +77,7 @@ typedef enum {
   // [Section] Static Boxed: [kTVMFFIStaticObjectBegin, kTVMFFIDynObjectBegin)
   kTVMFFIStaticObjectBegin = 64,
   kTVMFFIObject = 64,
-  kTVMFFIList = 65,
+  kTVMFFIArray = 65,
   kTVMFFIDict = 66,
   kTVMFFIError = 67,
   kTVMFFIFunc = 68,

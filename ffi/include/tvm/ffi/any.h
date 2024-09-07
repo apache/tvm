@@ -31,6 +31,12 @@ namespace ffi {
 
 class Any;
 
+namespace details {
+// Helper to perform
+// unsafe operations related to object
+struct AnyUnsafe;
+}  // namespace details
+
 /*!
  * \brief AnyView allows us to take un-managed reference view of any value.
  */
@@ -94,8 +100,9 @@ class AnyView {
     if (opt.has_value()) {
       return std::move(*opt);
     }
-    TVM_FFI_THROW(TypeError) << "Cannot convert from type `" << TypeIndex2TypeKey(data_.type_index)
-                             << "` to `" << TypeTraits<T>::TypeStr() << "`";
+    TVM_FFI_THROW(TypeError) << "Cannot convert from type `"
+                             << TypeTraits<T>::GetMismatchTypeInfo(&data_) << "` to `"
+                             << TypeTraits<T>::TypeStr() << "`";
     TVM_FFI_UNREACHABLE();
   }
   // The following functions are only used for testing purposes
@@ -212,8 +219,9 @@ class Any {
     if (opt.has_value()) {
       return std::move(*opt);
     }
-    TVM_FFI_THROW(TypeError) << "Cannot convert from type `" << TypeIndex2TypeKey(data_.type_index)
-                             << "` to `" << TypeTraits<T>::TypeStr() << "`";
+    TVM_FFI_THROW(TypeError) << "Cannot convert from type `"
+                             << TypeTraits<T>::GetMismatchTypeInfo(&data_) << "` to `"
+                             << TypeTraits<T>::TypeStr() << "`";
     TVM_FFI_UNREACHABLE();
   }
 
@@ -226,12 +234,42 @@ class Any {
     *result = data_;
     data_.type_index = TypeIndex::kTVMFFINone;
   }
+
+  friend class details::AnyUnsafe;
 };
 
 // layout assert to ensure we can freely cast between the two types
 static_assert(sizeof(AnyView) == sizeof(TVMFFIAny));
 static_assert(sizeof(Any) == sizeof(TVMFFIAny));
 
+namespace details {
+// Extra unsafe method to help any manipulation
+struct AnyUnsafe : public ObjectUnsafe {
+  /*!
+   * \brief Internal helper function downcast a any that already passes check.
+   * \note Only used for internal dev purposes.
+   * \tparam T The target reference type.
+   * \return The casted result.
+   */
+  template <typename T>
+  static TVM_FFI_INLINE T ConvertAfterCheck(const Any& ref) {
+    if constexpr (!std::is_same_v<T, Any>) {
+      return TypeTraits<T>::ConvertFromAnyViewAfterCheck(&(ref.data_));
+    } else {
+      return ref;
+    }
+  }
+  template <typename T>
+  static TVM_FFI_INLINE bool CheckAny(const Any& ref) {
+    return TypeTraits<T>::CheckAnyView(&(ref.data_));
+  }
+
+  template <typename T>
+  static TVM_FFI_INLINE std::string GetMismatchTypeInfo(const Any& ref) {
+    return TypeTraits<T>::GetMismatchTypeInfo(&(ref.data_));
+  }
+};
+}  // namespace details
 }  // namespace ffi
 }  // namespace tvm
 #endif  // TVM_FFI_ANY_H_
