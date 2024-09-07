@@ -90,7 +90,7 @@ const Array<PrimExpr> BroadcastShape(const Array<PrimExpr>& src_shape,
   ICHECK(ArrayUtils::Broadcastable(leading_shape, out_shape))
       << "Only support elemwise ops with leading or tailing expand";
   return leading_shape;
-};
+}
 
 Expr RewriteElemwise(BlockBuilder builder, const Var& var, const Call& src_call,
                      const Map<Expr, Call>& new_calls, const String& config) {

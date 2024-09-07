@@ -507,10 +507,23 @@ const String ExprUtils::GetSpanName(const Expr& expr, const String& suffix) {
   return name;
 }
 
-const Array<PrimExpr> ExprUtils::GetShape(const Expr& expr) {
-  const auto& shape_opt = Downcast<relax::TensorStructInfo>(relax::GetStructInfo(expr))->GetShape();
-  ICHECK(shape_opt.defined()) << "Shape is not defined for " << expr;
+const Array<PrimExpr> ExprUtils::GetShape(const relax::TensorStructInfo& sinfo, bool as_int) {
+  const auto& shape_opt = sinfo->GetShape();
+  if (!shape_opt.defined()) {
+    return Array<PrimExpr>();
+  }
+  if (as_int) {
+    Array<PrimExpr> shape;
+    for (const auto& s : shape_opt.value()) {
+      shape.push_back(s->IsInstance<IntImmNode>() ? s : Integer(-1));
+    }
+    return shape;
+  }
   return shape_opt.value();
+}
+
+const Array<PrimExpr> ExprUtils::GetShape(const Expr& expr, bool as_int) {
+  return GetShape(Downcast<relax::TensorStructInfo>(relax::GetStructInfo(expr)), as_int);
 }
 
 const DataType ExprUtils::GetDataType(const Expr& expr) {
