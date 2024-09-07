@@ -95,9 +95,10 @@ class ObjAllocatorBase {
                   "make_inplace_array can only be used to create Object");
     ArrayType* ptr =
         Handler::New(static_cast<Derived*>(this), num_elems, std::forward<Args>(args)...);
-    ptr->type_index_ = ArrayType::RuntimeTypeIndex();
-    ptr->deleter_ = Handler::Deleter();
-    return ObjectPtr<ArrayType>(ptr);
+    TVMFFIObject* ffi_ptr = details::ObjectUnsafe::GetHeader(ptr);
+    ffi_ptr->type_index = ArrayType::RuntimeTypeIndex();
+    ffi_ptr->deleter = Handler::Deleter();
+    return details::ObjectUnsafe::ObjectPtrFromUnowned<ArrayType>(ptr);
   }
 };
 
@@ -181,7 +182,7 @@ class SimpleObjAllocator : public ObjAllocatorBase<SimpleObjAllocator> {
     static FObjectDeleter Deleter() { return Deleter_; }
 
    private:
-    static void Deleter_(Object* objptr) {
+    static void Deleter_(void* objptr) {
       // NOTE: this is important to cast back to ArrayType*
       // because objptr and tptr may not be the same
       // depending on how sub-class allocates the space.
