@@ -15,8 +15,8 @@
     specific language governing permissions and limitations
     under the License.
 
-Develope Apache TVM
-===================
+Development Guides
+==================
 This section contains a collection of tips about how to work on
 various areas of the TVM stack.
 
