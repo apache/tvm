@@ -18,21 +18,21 @@
  */
 
 /*!
- * \file tvm/ffi/container/base.h
- * \brief Base utilities for common POD(plain old data) container types.
+ * \file tvm/ffi/container/container_details.h
+ * \brief Common utilities for container types.
  */
-#ifndef TVM_FFI_CONTAINER_BASE_H_
-#define TVM_FFI_CONTAINER_BASE_H_
+#ifndef TVM_FFI_CONTAINER_CONTAINER_DETAILS_H_
+#define TVM_FFI_CONTAINER_CONTAINER_DETAILS_H_
 
 #include <tvm/ffi/memory.h>
 #include <tvm/ffi/object.h>
 
-#include <algorithm>
-#include <initializer_list>
+#include <type_traits>
 #include <utility>
 
 namespace tvm {
 namespace ffi {
+namespace details {
 /*!
  * \brief Base template for classes with array like memory layout.
  *
@@ -46,7 +46,7 @@ namespace ffi {
  *
  * \code
  * // Example usage of the template to define a simple array wrapper
- * class ArrayNode : public InplaceArrayBase<ArrayNode, Elem> {
+ * class ArrayNode : public tvm::ffi::details::InplaceArrayBase<ArrayNode, Elem> {
  * public:
  *  // Wrap EmplaceInit to initialize the elements
  *  template <typename Iterator>
@@ -263,6 +263,7 @@ class ReverseIterAdapter {
  private:
   TIter iter_;
 };
+}  // namespace details
 }  // namespace ffi
 }  // namespace tvm
-#endif  // TVM_FFI_CONTAINER_BASE_H_
+#endif  // TVM_FFI_CONTAINER_CONTAINER_DETAILS_H_

@@ -178,7 +178,8 @@ typedef struct {
  *  It returns non-zero value if there is an error.
  *  When error happens, the exception object will be stored in result.
  */
-typedef int (*TVMFFISafeCallType)(void* func, int32_t num_args, const TVMFFIAny* args, TVMFFIAny* result);
+typedef int (*TVMFFISafeCallType)(void* func, int32_t num_args, const TVMFFIAny* args,
+                                  TVMFFIAny* result);
 
 #ifdef __cplusplus
 }  // TVM_FFI_EXTERN_C

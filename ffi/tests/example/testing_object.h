@@ -51,9 +51,7 @@ class TIntObj : public TNumberObj {
 
 class TInt : public TNumber {
  public:
-  explicit TInt(int64_t value) {
-    data_ = make_object<TIntObj>(value);
-  }
+  explicit TInt(int64_t value) { data_ = make_object<TIntObj>(value); }
 
   TVM_FFI_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(TInt, TNumber, TIntObj);
 };
@@ -70,9 +68,7 @@ class TFloatObj : public TNumberObj {
 
 class TFloat : public TNumber {
  public:
-  explicit TFloat(double value) {
-    data_ = make_object<TFloatObj>(value);
-  }
+  explicit TFloat(double value) { data_ = make_object<TFloatObj>(value); }
 
   TVM_FFI_DEFINE_NULLABLE_OBJECT_REF_METHODS(TFloat, TNumber, TFloatObj);
 };

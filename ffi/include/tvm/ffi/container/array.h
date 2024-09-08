@@ -27,12 +27,12 @@
 #define TVM_FFI_CONTAINER_ARRAY_H_
 
 #include <tvm/ffi/any.h>
-#include <tvm/ffi/container/base.h>
+#include <tvm/ffi/container/container_details.h>
 #include <tvm/ffi/memory.h>
 #include <tvm/ffi/object.h>
 
 #include <algorithm>
-#include <memory>
+#include <string>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -41,7 +41,7 @@ namespace tvm {
 namespace ffi {
 
 /*! \brief array node content in array */
-class ArrayNode : public Object, public InplaceArrayBase<ArrayNode, Any> {
+class ArrayNode : public Object, public details::InplaceArrayBase<ArrayNode, Any> {
  public:
   /*! \return The size of the array */
   size_t size() const { return this->size_; }
@@ -391,8 +391,8 @@ class Array : public ObjectRef {
     static T convert(const Any& n) { return details::AnyUnsafe::ConvertAfterCheck<T>(n); }
   };
 
-  using iterator = IterAdapter<ValueConverter, const Any*>;
-  using reverse_iterator = ReverseIterAdapter<ValueConverter, const Any*>;
+  using iterator = details::IterAdapter<ValueConverter, const Any*>;
+  using reverse_iterator = details::ReverseIterAdapter<ValueConverter, const Any*>;
 
   /*! \return begin iterator */
   iterator begin() const { return iterator(GetArrayNode()->begin()); }
@@ -946,7 +946,7 @@ inline constexpr bool use_default_type_traits_v<Array<T>> = false;
 
 template <typename T>
 struct TypeTraits<Array<T>> : public TypeTraitsBase {
-  static TVM_FFI_INLINE void ConvertToAnyView(const Array<T>& src, TVMFFIAny* result) {
+  static TVM_FFI_INLINE void CopyToAnyView(const Array<T>& src, TVMFFIAny* result) {
     TVMFFIObject* obj_ptr = details::ObjectUnsafe::GetTVMFFIObjectPtrFromObjectRef(src);
     result->type_index = obj_ptr->type_index;
     result->v_obj = obj_ptr;
@@ -992,13 +992,13 @@ struct TypeTraits<Array<T>> : public TypeTraitsBase {
     }
   }
 
-  static TVM_FFI_INLINE Array<T> ConvertFromAnyViewAfterCheck(const TVMFFIAny* src) {
+  static TVM_FFI_INLINE Array<T> CopyFromAnyViewAfterCheck(const TVMFFIAny* src) {
     if (src->type_index == TypeIndex::kTVMFFINone) return Array<T>(nullptr);
     return Array<T>(details::ObjectUnsafe::ObjectPtrFromUnowned<Object>(src->v_obj));
   }
 
-  static TVM_FFI_INLINE std::optional<Array<T>> TryConvertFromAnyView(const TVMFFIAny* src) {
-    if (CheckAnyView(src)) return ConvertFromAnyViewAfterCheck(src);
+  static TVM_FFI_INLINE std::optional<Array<T>> TryCopyFromAnyView(const TVMFFIAny* src) {
+    if (CheckAnyView(src)) return CopyFromAnyViewAfterCheck(src);
     return std::nullopt;
   }
 

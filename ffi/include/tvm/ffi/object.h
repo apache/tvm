@@ -23,8 +23,8 @@
 #ifndef TVM_FFI_OBJECT_H_
 #define TVM_FFI_OBJECT_H_
 
+#include <tvm/ffi/base_details.h>
 #include <tvm/ffi/c_api.h>
-#include <tvm/ffi/internal_utils.h>
 
 #include <type_traits>
 #include <utility>
@@ -336,7 +336,6 @@ class ObjectPtr {
   friend ObjectPtr<BaseType> GetObjectPtr(ObjType* ptr);
 };
 
-
 // Forward declaration, to prevent circular includes.
 template <typename T>
 class Optional;
@@ -469,9 +468,9 @@ inline ObjectPtr<BaseType> GetObjectPtr(ObjectType* ptr);
  * \param TypeName The name of the current type.
  * \param ParentType The name of the ParentType
  */
-#define TVM_FFI_DECLARE_STATIC_OBJECT_INFO(TypeName, ParentType) \
-  TVM_FFI_REGISTER_STATIC_TYPE_INFO(TypeName, ParentType);        \
-  static int32_t RuntimeTypeIndex() { return TypeName::_type_index; }\
+#define TVM_FFI_DECLARE_STATIC_OBJECT_INFO(TypeName, ParentType)      \
+  TVM_FFI_REGISTER_STATIC_TYPE_INFO(TypeName, ParentType);            \
+  static int32_t RuntimeTypeIndex() { return TypeName::_type_index; } \
   TVM_FFI_OBJECT_STATIC_DEFS(TypeName, ParentType)
 
 /*!
@@ -499,9 +498,8 @@ inline ObjectPtr<BaseType> GetObjectPtr(ObjectType* ptr);
  */
 #define TVM_FFI_DECLARE_FINAL_OBJECT_INFO(TypeName, ParentType) \
   static const constexpr int _type_child_slots = 0;             \
-  static const constexpr bool _type_final = true;                \
+  static const constexpr bool _type_final = true;               \
   TVM_FFI_DECLARE_BASE_OBJECT_INFO(TypeName, ParentType)
-
 
 /*
  * \brief Define object reference methods.
