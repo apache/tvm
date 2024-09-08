@@ -43,7 +43,7 @@ def Parallel(*extents: tir.PrimExpr):
     return _ffi_api.Parallel(extents)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def Pipelined(start: tir.PrimExpr, stop: tir.PrimExpr = None, num_stages: int = 0):
+def Pipelined(start: tir.PrimExpr, stop: tir.PrimExpr = None, num_stages: int = 0, order: List[int] = [], stage: List[int] = [], group: List[List[int]] = []):
     """Tools to construct pipelined for loop.
 
     Parameters
@@ -67,7 +67,7 @@ def Pipelined(start: tir.PrimExpr, stop: tir.PrimExpr = None, num_stages: int = 
         else:
             start = 0
     # type: ignore[attr-defined] # pylint: disable=no-member
-    return _ffi_api.Pipelined(start, stop, num_stages)
+    return _ffi_api.Pipelined(start, stop, num_stages, order, stage, group)
 
 
 @register_object("tl.KernelLaunchFrame")

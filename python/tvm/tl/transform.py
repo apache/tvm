@@ -107,6 +107,29 @@ def WarpSpecializedPipeline():
     """
     return _ffi_api.WarpSpecializedPipeline()  # type: ignore
 
+
+def MultiVersionBuffer():
+    """WarpSpecializedPipeline
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.MultiVersionBuffer()  # type: ignore
+
+
+def WarpSpecialized():
+    """WarpSpecializedPipeline
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.WarpSpecialized()  # type: ignore
+
+
 def InjectFenceProxy():
     """InjectFenceProxy
 

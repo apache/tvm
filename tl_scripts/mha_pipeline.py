@@ -102,7 +102,7 @@ def flashattn(batch, heads, seq_len, dim, is_casual, block_M, block_N):
         V: T.Buffer(shape, dtype),
         Output: T.Buffer(shape, dtype),
     ):
-        with T.Kernel(T.ceildiv(seq_len, block_M), heads, batch, threads=128) as (bx, by, bz):
+        with T.Kernel(T.ceildiv(seq_len, block_M), heads, batch, threads=128 * 2) as (bx, by, bz):
             Q_shared = T.alloc_shared([block_M, dim], dtype)
             K_shared = T.alloc_shared([block_N, dim], dtype)
             V_shared = T.alloc_shared([block_N, dim], dtype)
@@ -121,21 +121,14 @@ def flashattn(batch, heads, seq_len, dim, is_casual, block_M, block_N):
             T.fill(logsum, 0)
             T.fill(scores_max, -T.infinity(accum_dtype))
 
-            MMA0(K, Q_shared, K_shared, acc_s, 0, by, bz)
-            Softmax(acc_s, acc_s_cast, acc_o, scores_max, scores_max_prev, scores_scale, scores_sum, logsum)
-
             loop_range = (
                 T.ceildiv((bx + 1) * block_M, block_N) if is_casual else T.ceildiv(seq_len, block_N)
             )
-            for k in T.Pipelined(loop_range, num_stages=1):
-                if k < loop_range - 1:
-                    MMA0(K, Q_shared, K_shared, acc_s, k + 1, by, bz)
-
+            # Body
+            for k in T.Pipelined(loop_range, num_stages=2, order=[0,2,1], stage=[0,0,1], group=[[0,1], [2,3,4,5,6,7,8,9,10,11], [12]]):
+                MMA0(K, Q_shared, K_shared, acc_s, k, by, bz)
+                Softmax(acc_s, acc_s_cast, acc_o, scores_max, scores_max_prev, scores_scale, scores_sum, logsum)
                 MMA1(V, V_shared, acc_s_cast, acc_o, k, by, bz)
-                
-                if k < loop_range - 1:
-                    Softmax(acc_s, acc_s_cast, acc_o, scores_max, scores_max_prev, scores_scale, scores_sum, logsum)
-                
             for i, j in T.Parallel(block_M, dim):
                 acc_o[i, j] /= logsum[i]
             T.copy(acc_o, Output[bz, bx * block_M : (bx + 1) * block_M, by, :])
@@ -150,14 +143,14 @@ def ref_program(Q, K, V, casual):
 
 
 if __name__ == "__main__":
-    BATCH, H, N_CTX, D_HEAD = 64, 16, 4096, 64
+    BATCH, H, N_CTX, D_HEAD = 8, 8, 2048, 256
     casual = False
     flops_per_matmul = 2.0 * BATCH * H * N_CTX * N_CTX * D_HEAD
     total_flops = 2 * flops_per_matmul
     if casual:
         total_flops *= 0.5
-    BLOCK_M = 64
-    BLOCK_N = 64 if D_HEAD <= 128 else 32
+    BLOCK_M = 128
+    BLOCK_N = 80 # if D_HEAD <= 128 else 32
     program = flashattn(BATCH, H, N_CTX, D_HEAD, casual, BLOCK_M, BLOCK_N)
     ref_program = partial(ref_program, casual=casual)
     mod, params = tl.lower(program)
@@ -167,6 +160,6 @@ if __name__ == "__main__":
     latency = mod.do_bench(ref_program, warmup=500)
     print("{:.2f} ms".format(latency))
     print("{:.2f} TFlops".format(total_flops / latency * 1e-9))
-    latency = mod.do_bench(mod)
+    latency = mod.do_bench(mod, n_warmup=10, n_repeat=10)
     print("{:.2f} ms".format(latency))
     print("{:.2f} TFlops".format(total_flops / latency * 1e-9))

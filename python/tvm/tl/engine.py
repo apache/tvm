@@ -113,7 +113,27 @@ def lower(func):
     # print(mod)
 
     if target.arch == "sm_90":
-        mod = tl.transform.WarpSpecializedPipeline()(mod)
+        mod = tl.transform.MultiVersionBuffer()(mod)
+        
+        # print('-'*100 + '\n' + 'after MultiVersionBuffer\n' + '-'*100)
+        # print(mod)
+
+        mod = tl.transform.WarpSpecialized()(mod)
+        
+        # print('-'*100 + '\n' + 'after WarpSpecialized\n' + '-'*100)
+        # print(mod)
+
+        mod = tl.transform.InjectSoftwarePipeline()(mod)
+        
+        # print('-'*100 + '\n' + 'after InjectSoftwarePipeline\n' + '-'*100)
+        # print(mod)
+        
+        mod = tir.transform.LowerOpaqueBlock()(mod)
+        
+        # print('-'*100 + '\n' + 'after LowerOpaqueBlock\n' + '-'*100)
+        # print(mod)
+
+        # mod = tl.transform.WarpSpecializedPipeline()(mod)
 
         # print('-'*100 + '\n' + 'after WarpSpecializedPipeline\n' + '-'*100)
         # print(mod)
