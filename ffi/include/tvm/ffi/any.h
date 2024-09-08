@@ -26,6 +26,9 @@
 #include <tvm/ffi/c_api.h>
 #include <tvm/ffi/type_traits.h>
 
+#include <string>
+#include <utility>
+
 namespace tvm {
 namespace ffi {
 
@@ -62,9 +65,7 @@ class AnyView {
     std::swap(data_, other.data_);
   }
   /*! \return the internal type index */
-  int32_t type_index() const {
-    return data_.type_index;
-  }
+  int32_t type_index() const { return data_.type_index; }
   // default constructors
   AnyView() { data_.type_index = TypeIndex::kTVMFFINone; }
   ~AnyView() = default;
@@ -80,7 +81,7 @@ class AnyView {
   // constructor from general types
   template <typename T, typename = std::enable_if_t<TypeTraits<T>::enabled>>
   AnyView(const T& other) {  // NOLINT(*)
-    TypeTraits<T>::ConvertToAnyView(other, &data_);
+    TypeTraits<T>::CopyToAnyView(other, &data_);
   }
   template <typename T, typename = std::enable_if_t<TypeTraits<T>::enabled>>
   AnyView& operator=(const T& other) {  // NOLINT(*)
@@ -91,12 +92,12 @@ class AnyView {
 
   template <typename T, typename = std::enable_if_t<TypeTraits<T>::enabled>>
   std::optional<T> TryAs() const {
-    return TypeTraits<T>::TryConvertFromAnyView(&data_);
+    return TypeTraits<T>::TryCopyFromAnyView(&data_);
   }
 
   template <typename T, typename = std::enable_if_t<TypeTraits<T>::enabled>>
   operator T() const {
-    std::optional<T> opt = TypeTraits<T>::TryConvertFromAnyView(&data_);
+    std::optional<T> opt = TypeTraits<T>::TryCopyFromAnyView(&data_);
     if (opt.has_value()) {
       return std::move(*opt);
     }
@@ -132,7 +133,7 @@ namespace details {
  */
 TVM_FFI_INLINE void InplaceConvertAnyViewToAny(TVMFFIAny* data,
                                                [[maybe_unused]] size_t extra_any_bytes = 0) {
-  // TODO: string conversion.
+  // TODO(tqchen): string conversion.
   if (data->type_index >= TVMFFITypeIndex::kTVMFFIStaticObjectBegin) {
     details::ObjectUnsafe::IncRefObjectInAny(data);
   }
@@ -165,9 +166,7 @@ class Any {
     std::swap(data_, other.data_);
   }
   /*! \return the internal type index */
-  int32_t type_index() const {
-    return data_.type_index;
-  }
+  int32_t type_index() const { return data_.type_index; }
   // default constructors
   Any() { data_.type_index = TypeIndex::kTVMFFINone; }
   ~Any() { this->reset(); }
@@ -189,7 +188,9 @@ class Any {
     return *this;
   }
   // convert from/to AnyView
-  Any(const AnyView& other) : data_(other.data_) { details::InplaceConvertAnyViewToAny(&data_); }
+  explicit Any(const AnyView& other) : data_(other.data_) {
+    details::InplaceConvertAnyViewToAny(&data_);
+  }
   Any& operator=(const AnyView& other) {
     // copy-and-swap idiom
     Any(other).swap(*this);  // NOLINT(*)
@@ -210,12 +211,12 @@ class Any {
   }
   template <typename T, typename = std::enable_if_t<TypeTraits<T>::enabled>>
   std::optional<T> TryAs() const {
-    return TypeTraits<T>::TryConvertFromAnyView(&data_);
+    return TypeTraits<T>::TryCopyFromAnyView(&data_);
   }
 
   template <typename T, typename = std::enable_if_t<TypeTraits<T>::enabled>>
   operator T() const {
-    std::optional<T> opt = TypeTraits<T>::TryConvertFromAnyView(&data_);
+    std::optional<T> opt = TypeTraits<T>::TryCopyFromAnyView(&data_);
     if (opt.has_value()) {
       return std::move(*opt);
     }
@@ -254,7 +255,7 @@ struct AnyUnsafe : public ObjectUnsafe {
   template <typename T>
   static TVM_FFI_INLINE T ConvertAfterCheck(const Any& ref) {
     if constexpr (!std::is_same_v<T, Any>) {
-      return TypeTraits<T>::ConvertFromAnyViewAfterCheck(&(ref.data_));
+      return TypeTraits<T>::CopyFromAnyViewAfterCheck(&(ref.data_));
     } else {
       return ref;
     }

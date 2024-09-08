@@ -24,8 +24,8 @@
 #ifndef TVM_FFI_ERROR_H_
 #define TVM_FFI_ERROR_H_
 
+#include <tvm/ffi/base_details.h>
 #include <tvm/ffi/c_api.h>
-#include <tvm/ffi/internal_utils.h>
 #include <tvm/ffi/memory.h>
 #include <tvm/ffi/object.h>
 
@@ -33,6 +33,7 @@
 #include <memory>
 #include <sstream>
 #include <string>
+#include <utility>
 
 /*!
  * \brief Macro defines whether we enable libbacktrace
@@ -55,7 +56,7 @@ namespace ffi {
 /*!
  * \brief Error object class.
  */
-class ErrorObj: public Object {
+class ErrorObj : public Object {
  public:
   /*! \brief The error kind */
   std::string kind;
@@ -76,9 +77,7 @@ class ErrorObj: public Object {
  * \brief Managed reference to ErrorObj
  * \sa Error Object
  */
-class Error :
-  public ObjectRef,
-  public std::exception  {
+class Error : public ObjectRef, public std::exception {
  public:
   Error(std::string kind, std::string message, std::string backtrace) {
     std::ostringstream what;
@@ -91,9 +90,7 @@ class Error :
     data_ = std::move(n);
   }
 
-  const char* what() const noexcept(true) override {
-    return get()->what_str.c_str();
-  }
+  const char* what() const noexcept(true) override { return get()->what_str.c_str(); }
 
   TVM_FFI_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(Error, ObjectRef, ErrorObj);
 };

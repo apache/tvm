@@ -1,11 +1,11 @@
 #!/bin/bash
 set -euxo pipefail
 
-HEADER_ONLY=OFF
-BUILD_TYPE=RelWithDebInfo
+TVM_FFI_ALLOW_DYN_TYPE=ON
+BUILD_TYPE=Release
 
 rm -rf build/CMakeFiles build/CMakeCache.txt
-cmake -G Ninja -S . -B build -DTVM_FFI_ALLOW_DYN_TYPE=${HEADER_ONLY} -DTVM_FFI_BUILD_TESTS=ON -DCMAKE_BUILD_TYPE=${BUILD_TYPE} \
+cmake -G Ninja -S . -B build -DTVM_FFI_ALLOW_DYN_TYPE=${TVM_FFI_ALLOW_DYN_TYPE} -DTVM_FFI_BUILD_TESTS=ON -DCMAKE_BUILD_TYPE=${BUILD_TYPE} \
   -DTVM_FFI_BUILD_REGISTRY=ON \
   -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
 cmake --build build --parallel 16 --clean-first --config ${BUILD_TYPE} --target tvm_ffi_tests

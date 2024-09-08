@@ -18,10 +18,12 @@
  */
 /*!
  * \file tvm/ffi/base_details.h
- * \brief Internal use utilities
+ * \brief Internal detail utils that can be used by files in tvm/ffi.
+ * \note details header are for internal use only
+ *       and not to be directly used by user.
  */
-#ifndef TVM_FFI_INTERNAL_UTILS_H_
-#define TVM_FFI_INTERNAL_UTILS_H_
+#ifndef TVM_FFI_BASE_DETAILS_H_
+#define TVM_FFI_BASE_DETAILS_H_
 
 #include <tvm/ffi/c_api.h>
 
@@ -74,21 +76,20 @@
  * \param TypeName The class typename.
  */
 #define TVM_FFI_DEFINE_DEFAULT_COPY_MOVE_AND_ASSIGN(TypeName) \
-  TypeName(const TypeName& other) = default;              \
-  TypeName(TypeName&& other) = default;                   \
-  TypeName& operator=(const TypeName& other) = default;   \
+  TypeName(const TypeName& other) = default;                  \
+  TypeName(TypeName&& other) = default;                       \
+  TypeName& operator=(const TypeName& other) = default;       \
   TypeName& operator=(TypeName&& other) = default;
 
 namespace tvm {
 namespace ffi {
-
 namespace details {
 
 /********** Atomic Operations *********/
 
 TVM_FFI_INLINE int32_t AtomicIncrementRelaxed(int32_t* ptr) {
 #ifdef _MSC_VER
-  return _InterlockedIncrement(reinterpret_cast<volatile long*>(ptr)) - 1;
+  return _InterlockedIncrement(reinterpret_cast<volatile long*>(ptr)) - 1;  // NOLINT(*)
 #else
   return __atomic_fetch_add(ptr, 1, __ATOMIC_RELAXED);
 #endif
@@ -96,7 +97,7 @@ TVM_FFI_INLINE int32_t AtomicIncrementRelaxed(int32_t* ptr) {
 
 TVM_FFI_INLINE int32_t AtomicDecrementRelAcq(int32_t* ptr) {
 #ifdef _MSC_VER
-  return _InterlockedDecrement(reinterpret_cast<volatile long*>(ptr)) + 1;
+  return _InterlockedDecrement(reinterpret_cast<volatile long*>(ptr)) + 1;  // NOLINT(*)
 #else
   return __atomic_fetch_sub(ptr, 1, __ATOMIC_ACQ_REL);
 #endif
@@ -106,7 +107,7 @@ TVM_FFI_INLINE int32_t AtomicLoadRelaxed(const int32_t* ptr) {
   int32_t* raw_ptr = const_cast<int32_t*>(ptr);
 #ifdef _MSC_VER
   // simply load the variable ptr out
-  return (reinterpret_cast<const volatile long*>(raw_ptr))[0];
+  return (reinterpret_cast<const volatile long*>(raw_ptr))[0];  // NOLINT(*)
 #else
   return __atomic_load_n(raw_ptr, __ATOMIC_RELAXED);
 #endif
@@ -135,4 +136,4 @@ void for_each(const F& f, Args&&... args) {  // NOLINT(*)
 }  // namespace details
 }  // namespace ffi
 }  // namespace tvm
-#endif  // TVM_FFI_INTERNAL_UTILS_H_
+#endif  // TVM_FFI_BASE_DETAILS_H_

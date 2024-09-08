@@ -39,7 +39,7 @@ target_link_libraries(tvm_ffi INTERFACE dlpack_header)
 target_compile_features(tvm_ffi INTERFACE cxx_std_17)
 target_include_directories(tvm_ffi INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/include")
 
-if (TVM_FFI_USE_LIBBRACKTRACE)
+if (TVM_FFI_ALLOW_DYN_TYPE)
   message(STATUS "Setting C++ macro TVM_FFI_ALLOW_DYN_TYPE - 1")
   target_compile_definitions(tvm_ffi INTERFACE TVM_FFI_ALLOW_DYN_TYPE=1)
 else()
