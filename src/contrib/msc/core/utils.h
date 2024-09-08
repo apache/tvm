@@ -398,7 +398,9 @@ class ExprUtils {
    * \brief Get shape of expr.
    * \return The shape.
    */
-  TVM_DLL static const Array<PrimExpr> GetShape(const Expr& expr);
+  TVM_DLL static const Array<PrimExpr> GetShape(const relax::TensorStructInfo& sinfo,
+                                                bool as_int = true);
+  TVM_DLL static const Array<PrimExpr> GetShape(const Expr& expr, bool as_int = true);
 
   /*!
    * \brief Get dtype of expr.

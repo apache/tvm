@@ -92,6 +92,8 @@ const String TensorRTOpCode::DType(const DataType& dtype) {
     dtype_enum = "DataType::kINT8";
   } else if (dtype_name == "int32") {
     dtype_enum = "DataType::kINT32";
+  } else if (dtype_name == "int64") {
+    dtype_enum = "DataType::kINT32";
   } else if (dtype_name == "float16") {
     dtype_enum = "DataType::kHALF";
   } else if (dtype_name == "float32") {
@@ -267,7 +269,7 @@ class TensorRTAstypeCodeGen : public TensorRTOpCode {
   void CodeGenBuild() final {
     stack_.op_call()
         .op_input_arg()
-        .func_call("setOutput", NullOpt, DocUtils::ToPtr(IdxNode()))
+        .func_call("setOutputType", NullOpt, DocUtils::ToPtr(IdxNode()))
         .call_arg(0)
         .op_dtype_arg(node()->OutputAt(0)->dtype);
   }
@@ -661,7 +663,7 @@ class TensorRTTopkCodeGen : public TensorRTOpCode {
 
  protected:
   void CodeGenBuild() final {
-    const String& symbol = node()->GetTypeAttr<bool>("is_asend") ? "MIN" : "MAX";
+    const String& symbol = node()->GetTypeAttr<bool>("largest") ? "MAX" : "MIN";
     stack_.op_call()
         .op_input_arg()
         .call_arg("TopKOperation::k" + symbol)
