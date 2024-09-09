@@ -1,6 +1,6 @@
 import torch
 import fa_test
-# from flash_attn.flash_attn_interface import flash_attn_func
+from flash_attn.flash_attn_interface import flash_attn_func
 import random
 import numpy as np
 
@@ -51,19 +51,41 @@ def ref_program(Q, K, V, casual):
     return acc_o.to(torch.float16)
 
 set_seed(42)
-batch, seq_len, heads, dim = 1, 256, 1, 64
+causal = False
+batch, seq_len, heads, dim = 64, 512, 16, 64
 shape = [batch, seq_len, heads, dim]
 # q = torch.empty(*shape, device='cuda', dtype=torch.float16).normal_(-1.0, 1.0)
 # k = torch.empty(*shape, device='cuda', dtype=torch.float16).normal_(-1.0, 1.0)
-q = torch.ones(*shape, device='cuda', dtype=torch.float16)
-k = torch.ones(*shape, device='cuda', dtype=torch.float16)
+q = torch.ones(*shape, device='cuda', dtype=torch.float16).normal_(-1.0, 1.0)
+k = torch.ones(*shape, device='cuda', dtype=torch.float16).normal_(-1.0, 1.0)
 v = torch.empty(*shape, device='cuda', dtype=torch.float16).normal_(-1.0, 1.0)
 
-# output = fa_test.kernel_function(q, k, v)
-output = fa_test.kernel_function_no_tma(q, k, v)
-# ref_output = flash_attn_func(q, k, v, causal=False)
-ref_output = ref_program(q, k, v, False)
-print(output)
-print(ref_output)
-# print(ref_output)
-# assert torch.allclose(output, ref_output, atol=1e-2, rtol=1e-2)
+output = fa_test.kernel_function(q, k, v, causal)
+ref_output = flash_attn_func(q, k, v, causal=False)
+# ref_output = ref_program(q, k, v, causal)
+assert torch.allclose(output, ref_output, atol=1e-2, rtol=1e-2)
+print("Check: PASSED")
+
+warmups = 10
+runs = 10
+for _ in range(warmups):
+    out = fa_test.kernel_function(q, k, v, causal)
+
+start_event = torch.cuda.Event(enable_timing=True)
+end_event = torch.cuda.Event(enable_timing=True)
+
+start_event.record()
+
+for _ in range(runs):
+    out = fa_test.kernel_function(q, k, v, causal)
+
+end_event.record()
+torch.cuda.synchronize()
+
+latency = start_event.elapsed_time(end_event)
+
+flops_per_matmul = 2.0 * batch * heads * seq_len * seq_len * dim
+total_flops = 2 * flops_per_matmul
+print(f"total_flops: {total_flops}")
+print(f"TFLOPS: {total_flops / latency * runs * 1e-9}")
+print(f"Latency: {latency / runs:.2f} ms")

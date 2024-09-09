@@ -18,6 +18,7 @@ struct Flash_fwd_params
     index_t dim;
     index_t block_M;
     index_t block_N;
+    index_t threads;
 };
 
 void host_function(Flash_fwd_params params);
