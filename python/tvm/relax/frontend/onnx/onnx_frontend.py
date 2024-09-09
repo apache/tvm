@@ -91,7 +91,7 @@ def get_constant(
     # Convert if possible
     if isinstance(var, relax.Var) and var.name_hint in params:
         # When converting a parameter to a constant, update references to it as well.
-        _, value = params.pop(var.name_hint)
+        _, value = params[var.name_hint]
         const_value = relax.const(value)
         graph_nodes[var.name_hint] = const_value
         return const_value
@@ -2152,7 +2152,7 @@ class ONNXGraphImporter:
                 init_var = self._new_var(var_name, shape=array.shape, dtype=array.dtype)
                 self._nodes[init_tensor.name] = init_var
                 # We need to keep track of both the real value and variable for this variable.
-                self._params[init_tensor.name] = (init_var, array)
+                self._params[var_name] = (init_var, array)
             # Otherwise we can use the weight as a constant.
             else:
                 self._nodes[init_tensor.name] = relax.const(array)
