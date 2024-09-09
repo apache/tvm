@@ -79,6 +79,10 @@ class CodeGenRunner : ExprMutator {
     auto out_mod = builder_->GetContextIRModule();
 
     if (ext_mods.size()) {
+      if (auto opt_old_ext_mods = mod->GetAttr<Array<runtime::Module>>(tvm::attr::kExternalMods)) {
+        auto old_ext_mods = opt_old_ext_mods.value();
+        ext_mods.insert(ext_mods.begin(), old_ext_mods.begin(), old_ext_mods.end());
+      }
       out_mod = WithAttr(out_mod, tvm::attr::kExternalMods, std::move(ext_mods));
     }
 
