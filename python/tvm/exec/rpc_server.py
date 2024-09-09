@@ -22,7 +22,6 @@ import socket
 from .. import rpc
 
 
-
 def get_local_ip():
     """
     Attempt to get the local IP address of the machine.
