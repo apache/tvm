@@ -18,11 +18,20 @@
 """Start an RPC server"""
 import argparse
 import logging
-from .. import rpc
 import socket
+from .. import rpc
+
 
 
 def get_local_ip():
+    """
+    Attempt to get the local IP address of the machine.
+
+    Returns:
+    --------
+    str or None
+        The IP address of the machine as a string if successful; None if failed.
+    """
     try:
         # create UDP socket
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -32,7 +41,7 @@ def get_local_ip():
         local_ip = s.getsockname()[0]
         s.close()
         return local_ip
-    except Exception:
+    except (socket.error, OSError):
         return None
 
 
