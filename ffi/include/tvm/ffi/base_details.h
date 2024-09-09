@@ -26,6 +26,7 @@
 #define TVM_FFI_BASE_DETAILS_H_
 
 #include <tvm/ffi/c_api.h>
+#include <tvm/ffi/endian.h>
 
 #include <cstddef>
 #include <utility>
@@ -133,6 +134,77 @@ void for_each(const F& f, Args&&... args) {  // NOLINT(*)
   for_each_dispatcher<sizeof...(Args) == 0, 0, F>::run(f, std::forward<Args>(args)...);
 }
 
+/*!
+ * \brief Hash the binary bytes
+ * \param data The data pointer
+ * \param size The size of the bytes.
+ * \return the hash value.
+ */
+TVM_FFI_INLINE uint64_t StableHashBytes(const char* data, size_t size) {
+  const constexpr uint64_t kMultiplier = 1099511628211ULL;
+  const constexpr uint64_t kMod = 2147483647ULL;
+  union Union {
+    uint8_t a[8];
+    uint64_t b;
+  } u;
+  static_assert(sizeof(Union) == sizeof(uint64_t), "sizeof(Union) != sizeof(uint64_t)");
+  const char* it = data;
+  const char* end = it + size;
+  uint64_t result = 0;
+  for (; it + 8 <= end; it += 8) {
+    if (TVM_FFI_IO_NO_ENDIAN_SWAP) {
+      u.a[0] = it[0];
+      u.a[1] = it[1];
+      u.a[2] = it[2];
+      u.a[3] = it[3];
+      u.a[4] = it[4];
+      u.a[5] = it[5];
+      u.a[6] = it[6];
+      u.a[7] = it[7];
+    } else {
+      u.a[0] = it[7];
+      u.a[1] = it[6];
+      u.a[2] = it[5];
+      u.a[3] = it[4];
+      u.a[4] = it[3];
+      u.a[5] = it[2];
+      u.a[6] = it[1];
+      u.a[7] = it[0];
+    }
+    result = (result * kMultiplier + u.b) % kMod;
+  }
+  if (it < end) {
+    u.b = 0;
+    uint8_t* a = u.a;
+    if (it + 4 <= end) {
+      a[0] = it[0];
+      a[1] = it[1];
+      a[2] = it[2];
+      a[3] = it[3];
+      it += 4;
+      a += 4;
+    }
+    if (it + 2 <= end) {
+      a[0] = it[0];
+      a[1] = it[1];
+      it += 2;
+      a += 2;
+    }
+    if (it + 1 <= end) {
+      a[0] = it[0];
+      it += 1;
+      a += 1;
+    }
+    if (!TVM_FFI_IO_NO_ENDIAN_SWAP) {
+      std::swap(u.a[0], u.a[7]);
+      std::swap(u.a[1], u.a[6]);
+      std::swap(u.a[2], u.a[5]);
+      std::swap(u.a[3], u.a[4]);
+    }
+    result = (result * kMultiplier + u.b) % kMod;
+  }
+  return result;
+}
 }  // namespace details
 }  // namespace ffi
 }  // namespace tvm

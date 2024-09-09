@@ -26,6 +26,7 @@
 #include <tvm/ffi/base_details.h>
 #include <tvm/ffi/c_api.h>
 
+#include <string>
 #include <type_traits>
 #include <utility>
 
@@ -147,8 +148,22 @@ class Object {
     return details::IsObjectInstance<TargetType>(header_.type_index);
   }
 
+  /*!
+   * \return the type key of the object.
+   * \note this operation is expensive, can be used for error reporting.
+   */
+  std::string GetTypeKey() const {
+#if TVM_FFI_ALLOW_DYN_TYPE
+    // the function checks that the info exists
+    const TypeInfo* type_info = details::ObjectGetTypeInfo(header_.type_index);
+    return type_info->type_key;
+#else
+    return "<unknown>";
+#endif
+  }
+
   // Information about the object
-  static constexpr const char* _type_key = "runtime.Object";
+  static constexpr const char* _type_key = "object.Object";
 
   // Default object type properties for sub-classes
   static constexpr bool _type_final = false;
@@ -418,8 +433,6 @@ class ObjectRef {
   // friend classes.
   friend struct ObjectPtrHash;
   friend class tvm::ffi::details::ObjectUnsafe;
-  template <typename SubRef, typename BaseRef>
-  friend SubRef Downcast(BaseRef ref);
 };
 
 /*!
@@ -619,6 +632,11 @@ struct ObjectUnsafe {
     Object* obj_ptr = src->data_;
     src->data_ = nullptr;
     return GetHeader(obj_ptr);
+  }
+
+  template <typename SubRef, typename BaseRef>
+  static TVM_FFI_INLINE SubRef DowncastRefNoCheck(BaseRef&& base) {
+    return SubRef(std::move(base.data_));
   }
 
   // Create objectptr by moving from an existing address of object and setting its
