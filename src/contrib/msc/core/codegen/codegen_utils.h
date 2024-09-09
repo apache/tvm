@@ -76,12 +76,23 @@ using namespace tvm::script::printer;
     LOG(FATAL) << "Do not support key " << key; \
   }
 
+#define DESCRIBE_PRIM_BINARY(OpType, Symbol, AsFunc)                                   \
+  if (prim->optype == OpType) {                                                        \
+    if (AsFunc) {                                                                      \
+      return std::string(Symbol) + "(" + this->DescribePrim(prim->ParentAt(0)) + "," + \
+             this->DescribePrim(prim->ParentAt(1)) + ")";                              \
+    }                                                                                  \
+    return "(" + this->DescribePrim(prim->ParentAt(0)) + Symbol +                      \
+           this->DescribePrim(prim->ParentAt(1)) + ")";                                \
+  }
+
 #define CODEGEN_MEMBERS                                                                           \
  public:                                                                                          \
   virtual const String DType(const DataType& dtype) { return runtime::DLDataType2String(dtype); } \
                                                                                                   \
  protected:                                                                                       \
   const std::shared_ptr<ConfigType> config() { return config_; }                                  \
+  const Map<String, String> prims() { return prims_; }                                            \
   const String IdxNodeBase(const MSCJoint& node) {                                                \
     return helper_.IdxNodeBase(node, config()->prefix, "");                                       \
   }                                                                                               \
@@ -95,13 +106,19 @@ using namespace tvm::script::printer;
   const String IdxWeightBase(const MSCJoint& node, const String& wtype, bool process = true) {    \
     return helper_.IdxWeightBase(node, wtype, "", process && config()->use_tools);                \
   }                                                                                               \
-  const String Comment(const MSCJoint& node) { return helper_.Comment(node, config()->prefix); }  \
+  const Array<String> GetPrims(const MSCTensor& tensor) {                                         \
+    return CodeGenUtils::GetPrims(tensor, prims_);                                                \
+  }                                                                                               \
+  const String Comment(const MSCJoint& node) {                                                    \
+    return helper_.Comment(node, config()->prefix, prims_);                                       \
+  }                                                                                               \
   int CompareVersion(size_t major, size_t minor, size_t patch) {                                  \
     return CommonUtils::CompareVersion(config()->version, {major, minor, patch});                 \
   }                                                                                               \
                                                                                                   \
  private:                                                                                         \
   std::shared_ptr<ConfigType> config_;                                                            \
+  Map<String, String> prims_;                                                                     \
   HelperType helper_;
 
 /*!
@@ -138,10 +155,17 @@ class CodeGenUtils {
                                         const String& suffix = "");
 
   /*!
+   * \brief Infer prims of tensor.
+   * \return The prims.
+   */
+  TVM_DLL static const Array<String> GetPrims(const MSCTensor& tensor,
+                                              const Map<String, String>& prims);
+  /*!
    * \brief Get comment of a node.
    * \return The String.
    */
-  TVM_DLL static const String CommentNode(const MSCJoint& node, const String& prefix);
+  TVM_DLL static const String CommentNode(const MSCJoint& node, const String& prefix,
+                                          const Map<String, String>& prims);
 };
 
 /*!
@@ -180,8 +204,9 @@ class BaseCodeGenHelper {
                                      const String& suffix = "", bool process = false) {
     return CodeGenUtils::IdxWeight(node, wtype, suffix + GetSuffix(node, process));
   }
-  virtual const String Comment(const MSCJoint& node, const String& prefix = "") {
-    return CodeGenUtils::CommentNode(node, prefix);
+  virtual const String Comment(const MSCJoint& node, const String& prefix = "",
+                               const Map<String, String>& prims = Map<String, String>()) {
+    return CodeGenUtils::CommentNode(node, prefix, prims);
   }
 };
 

@@ -562,12 +562,8 @@ class RelaxReshapeCodeGen : public RelaxOpCode {
 
  protected:
   void CodeGenBuild() final {
-    stack_.op_call().op_input_arg();
-    if (config()->from_relay) {
-      stack_.op_list_arg<int>("newshape", "shape");
-    } else {
-      stack_.op_list_arg<int>("shape");
-    }
+    const auto& out_shape = GetPrims(node()->OutputAt(0));
+    stack_.op_call().op_input_arg().call_arg(DocUtils::ToList(out_shape), "shape");
   }
 };
 
