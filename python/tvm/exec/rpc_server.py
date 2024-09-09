@@ -53,8 +53,8 @@ def main(args):
     else:
         tracker_addr = None
     external_ip = get_local_ip()
-    
-    # 
+
+    #
     if external_ip and not args.custom_addr:
         custom_addr = f"{external_ip}"
     else:
