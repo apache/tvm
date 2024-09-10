@@ -35,7 +35,7 @@ class TorchFXImporter:
         import torch  # type: ignore
         from torch import fx
 
-        self.env: Dict[fx.node.Node, relax.Expr] = {}
+        self.env: Dict[fx.Node, relax.Expr] = {}
         self.params: Dict[torch.Tensor, relax.Expr] = {}
         self.named_modules: Dict[str, torch.Module] = None
         self.block_builder: relax.BlockBuilder = None
@@ -108,7 +108,7 @@ class TorchFXImporter:
     def _retrieve_args(self, node):
         from torch import fx
 
-        if isinstance(node, fx.node.Node):
+        if isinstance(node, fx.Node):
             return self.env[node]
         elif isinstance(node, tuple):
             return tuple(self._retrieve_args(x) for x in node)
@@ -242,7 +242,7 @@ class TorchFXImporter:
 
     ########## Arithmetic ##########
 
-    def _add(self, node: fx.node.Node) -> relax.Expr:
+    def _add(self, node: fx.Node) -> relax.Expr:
         lhs, rhs = self.retrieve_args(node)
         if isinstance(lhs, relax.Var) or isinstance(rhs, relax.Var):
             return self._call_binary_op(relax.op.add, lhs, rhs)
@@ -256,36 +256,36 @@ class TorchFXImporter:
             )
         return lhs + rhs
 
-    def _max(self, node: fx.node.Node) -> relax.Expr:
+    def _max(self, node: fx.Node) -> relax.Expr:
         lhs, rhs = self.retrieve_args(node)
         if isinstance(lhs, relax.Var) or isinstance(rhs, relax.Var):
             return self._call_binary_op(relax.op.maximum, lhs, rhs)
 
-    def _floordiv(self, node: fx.node.Node) -> relax.Expr:
+    def _floordiv(self, node: fx.Node) -> relax.Expr:
         lhs, rhs = self.retrieve_args(node)
         if isinstance(lhs, relax.Var) or isinstance(rhs, relax.Var):
             return self._call_binary_op(relax.op.floor_divide, lhs, rhs)
         return lhs // rhs
 
-    def _mul(self, node: fx.node.Node) -> relax.Expr:
+    def _mul(self, node: fx.Node) -> relax.Expr:
         lhs, rhs = self.retrieve_args(node)
         if isinstance(lhs, relax.Var) or isinstance(rhs, relax.Var):
             return self._call_binary_op(relax.op.multiply, lhs, rhs)
         return lhs * rhs
 
-    def _pow(self, node: fx.node.Node) -> relax.Expr:
+    def _pow(self, node: fx.Node) -> relax.Expr:
         lhs, rhs = self.retrieve_args(node)
         if isinstance(lhs, relax.Var) or isinstance(rhs, relax.Var):
             return self._call_binary_op(relax.op.power, lhs, rhs)
         return lhs**rhs
 
-    def _sub(self, node: fx.node.Node) -> relax.Expr:
+    def _sub(self, node: fx.Node) -> relax.Expr:
         lhs, rhs = self.retrieve_args(node)
         if isinstance(lhs, relax.Var) or isinstance(rhs, relax.Var):
             return self._call_binary_op(relax.op.subtract, lhs, rhs)
         return lhs - rhs
 
-    def _truediv(self, node: fx.node.Node) -> relax.Expr:
+    def _truediv(self, node: fx.Node) -> relax.Expr:
         lhs, rhs = self.retrieve_args(node)
         if isinstance(lhs, relax.Var) or isinstance(rhs, relax.Var):
             return self._call_binary_op(relax.op.divide, lhs, rhs)
@@ -293,17 +293,17 @@ class TorchFXImporter:
 
     ########## Compare ##########
 
-    def _lt(self, node: fx.node.Node) -> relax.Expr:
+    def _lt(self, node: fx.Node) -> relax.Expr:
         lhs, rhs = self.retrieve_args(node)
         return self._call_binary_op(relax.op.less, lhs, rhs)
 
-    def _eq(self, node: fx.node.Node) -> relax.Expr:
+    def _eq(self, node: fx.Node) -> relax.Expr:
         lhs, rhs = self.retrieve_args(node)
         return self._call_binary_op(relax.op.equal, lhs, rhs)
 
     ########## Creation ##########
 
-    def _arange(self, node: fx.node.Node) -> relax.Var:
+    def _arange(self, node: fx.Node) -> relax.Var:
         import torch
 
         start_end_step = [None, None, None]
@@ -342,15 +342,15 @@ class TorchFXImporter:
         else:
             dtype = "int64"
         start_end_step = [
-            self.env[x] if isinstance(x, torch.fx.node.Node) else x for x in start_end_step
+            self.env[x] if isinstance(x, torch.fx.Node) else x for x in start_end_step
         ]
         return self.block_builder.emit(relax.op.arange(*start_end_step, dtype=dtype))
 
-    def _empty(self, node: fx.node.Node) -> relax.Var:
+    def _empty(self, node: fx.Node) -> relax.Var:
         dtype = TorchFXImporter._convert_data_type(str(node.kwargs["dtype"]), self.env)
         return self.block_builder.emit(relax.op.zeros(node.args, dtype))
 
-    def _inplace_fill(self, node: fx.node.Node) -> relax.Var:
+    def _inplace_fill(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
         x = args[0]
         dtype = x.struct_info.dtype
@@ -359,7 +359,7 @@ class TorchFXImporter:
         self.env[node.args[0]] = filled
         return filled
 
-    def _tensor(self, node: fx.node.Node) -> relax.Var:
+    def _tensor(self, node: fx.Node) -> relax.Var:
         dtype = node.kwargs["dtype"] if "dtype" in node.kwargs else None
         if isinstance(node.args[0], float):
             return relax.const(node.args[0], dtype if dtype is not None else "float32")
@@ -370,7 +370,7 @@ class TorchFXImporter:
     def _inplace_tril_triu(self, op: Callable) -> Callable:
         from torch import fx
 
-        def convert(node: fx.node.Node) -> relax.Var:
+        def convert(node: fx.Node) -> relax.Var:
             x = self.env[node.args[0]]
             k = node.args[1] if len(node.args) > 1 else 0
             assert isinstance(k, int)
@@ -381,7 +381,7 @@ class TorchFXImporter:
 
         return convert
 
-    def _new_ones(self, node: fx.node.Node) -> relax.Var:
+    def _new_ones(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
         self_var = args[0]
         size = args[1:]
@@ -396,7 +396,7 @@ class TorchFXImporter:
             )
         )
 
-    def _ones(self, node: fx.node.Node) -> relax.Var:
+    def _ones(self, node: fx.Node) -> relax.Var:
         import torch
 
         args = self.retrieve_args(node)
@@ -417,7 +417,7 @@ class TorchFXImporter:
             )
         )
 
-    def _full(self, node: fx.node.Node) -> relax.Var:
+    def _full(self, node: fx.Node) -> relax.Var:
         import torch
 
         args = self.retrieve_args(node)
@@ -441,14 +441,14 @@ class TorchFXImporter:
 
     ########## Statistical ##########
 
-    def _sum(self, node: fx.node.Node) -> relax.Var:
+    def _sum(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
         keepdim = node.kwargs["keepdim"] if "keepdim" in node.kwargs else False
         if len(args) == 1:
             return self.block_builder.emit(relax.op.sum(args[0], keepdims=keepdim))
         return self.block_builder.emit(relax.op.sum(args[0], args[1]))
 
-    def _mean(self, node: fx.node.Node) -> relax.Var:
+    def _mean(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
         keepdim = node.kwargs["keepdim"] if "keepdim" in node.kwargs else False
         if len(args) == 1:
@@ -457,18 +457,18 @@ class TorchFXImporter:
 
     ########## DataType ##########
 
-    def _float(self, node: fx.node.Node) -> relax.Var:
+    def _float(self, node: fx.Node) -> relax.Var:
         return self.block_builder.emit(relax.op.astype(self.env[node.args[0]], "float32"))
 
-    def _half(self, node: fx.node.Node) -> relax.Var:
+    def _half(self, node: fx.Node) -> relax.Var:
         return self.block_builder.emit(relax.op.astype(self.env[node.args[0]], "float16"))
 
-    def _type(self, node: fx.node.Node) -> relax.Var:
+    def _type(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         dtype = TorchFXImporter._convert_data_type(node.args[1], self.env)
         return self.block_builder.emit(relax.op.astype(x, dtype))
 
-    def _to(self, node: fx.node.Node) -> relax.Var:
+    def _to(self, node: fx.Node) -> relax.Var:
         import torch
 
         x = self.env[node.args[0]]
@@ -486,7 +486,7 @@ class TorchFXImporter:
     def _matmul_impl(self, a: relax.Expr, b: relax.Expr):
         return self.block_builder.emit(relax.op.linear_algebra.matmul(a, b, out_dtype="float32"))
 
-    def _matmul(self, node: fx.node.Node) -> relax.Var:
+    def _matmul(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
         res = self._matmul_impl(
             args[0],
@@ -494,7 +494,7 @@ class TorchFXImporter:
         )
         return res
 
-    def _addmm(self, node: fx.node.Node) -> relax.Var:
+    def _addmm(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         y = self.env[node.args[1]]
         z = self.env[node.args[2]]
@@ -516,7 +516,7 @@ class TorchFXImporter:
             res = bias if res is None else self.block_builder.emit(relax.op.add(bias, res))
         return res
 
-    def _baddbmm(self, node: fx.node.Node) -> relax.Var:
+    def _baddbmm(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         a = self.env[node.args[1]]
         b = self.env[node.args[2]]
@@ -538,7 +538,7 @@ class TorchFXImporter:
             res = bias if res is None else self.block_builder.emit(relax.op.add(res, bias))
         return res
 
-    def _einsum(self, node: fx.node.Node) -> relax.Var:
+    def _einsum(self, node: fx.Node) -> relax.Var:
         import torch  # type: ignore
 
         args = self.retrieve_args(node)
@@ -546,7 +546,7 @@ class TorchFXImporter:
             return self.block_builder.emit(relax.op.einsum(tuple(args[1]), args[0]))
         return self.block_builder.emit(relax.op.einsum(args[1:], args[0]))
 
-    def _unbind(self, node: fx.node.Node) -> relax.Var:
+    def _unbind(self, node: fx.Node) -> relax.Var:
         if len(node.args) == 2:
             assert isinstance(node.args[1], int), "Expected 2nd argument of unbind as int"
             dim = node.args[1]
@@ -564,12 +564,12 @@ class TorchFXImporter:
 
     ########## Manipulation ##########
 
-    def _cat(self, node: fx.node.Node) -> relax.Var:
+    def _cat(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
         axis = args[1] if len(node.args) > 1 else node.kwargs.get("dim", 0)
         return self.block_builder.emit(relax.op.concat(args[0], axis=axis))
 
-    def _expand(self, node: fx.node.Node) -> relax.Var:
+    def _expand(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
         broadcast_shape, in_shape = [], self.shape_of(args[0])
         for idx, i in enumerate(args[1:]):
@@ -579,7 +579,7 @@ class TorchFXImporter:
                 broadcast_shape.append(i)
         return self.block_builder.emit(relax.op.broadcast_to(args[0], broadcast_shape))
 
-    def _flatten(self, node: fx.node.Node) -> relax.Var:
+    def _flatten(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         if node.target in self.named_modules:
             module = self.named_modules[node.target]
@@ -599,7 +599,7 @@ class TorchFXImporter:
         )
         return self.block_builder.emit(relax.op.reshape(x, new_shape))
 
-    def _permute(self, node: fx.node.Node) -> relax.Var:
+    def _permute(self, node: fx.Node) -> relax.Var:
         import torch  # type: ignore
 
         args = self.retrieve_args(node)
@@ -607,7 +607,7 @@ class TorchFXImporter:
             return self.block_builder.emit(relax.op.permute_dims(args[0], tuple(args[1])))
         return self.block_builder.emit(relax.op.permute_dims(args[0], args[1:]))
 
-    def _reshape(self, node: fx.node.Node) -> relax.Var:
+    def _reshape(self, node: fx.Node) -> relax.Var:
         import torch  # type: ignore
 
         args = self.retrieve_args(node)
@@ -615,7 +615,7 @@ class TorchFXImporter:
             return self.block_builder.emit(relax.op.reshape(args[0], tuple(args[1])))
         return self.block_builder.emit(relax.op.reshape(args[0], args[1:]))
 
-    def _split(self, node: fx.node.Node) -> relax.Var:
+    def _split(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         split_size = node.args[1]
         if "dim" in node.kwargs:
@@ -631,7 +631,7 @@ class TorchFXImporter:
             n_section = (self.shape_of(x)[dim].value + split_size - 1) // split_size
         return self.block_builder.emit(relax.op.split(x, n_section, dim))
 
-    def _chunk(self, node: fx.node.Node) -> relax.Var:
+    def _chunk(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         chunks = node.args[1]
 
@@ -643,13 +643,13 @@ class TorchFXImporter:
             dim = 0
         return self.block_builder.emit(relax.op.split(x, chunks, dim))
 
-    def _transpose(self, node: fx.node.Node) -> relax.Var:
+    def _transpose(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
         full_idx = list(range(len(self.shape_of(args[0]))))
         full_idx[args[1]], full_idx[args[2]] = full_idx[args[2]], full_idx[args[1]]
         return self.block_builder.emit(relax.op.permute_dims(args[0], full_idx))
 
-    def _squeeze(self, node: fx.node.Node) -> relax.Var:
+    def _squeeze(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
 
         if "dim" in node.kwargs:
@@ -660,7 +660,7 @@ class TorchFXImporter:
             dim = None
         return self.block_builder.emit(relax.op.squeeze(x, dim))
 
-    def _repeat(self, node: fx.node.Node) -> relax.Var:
+    def _repeat(self, node: fx.Node) -> relax.Var:
         import torch  # type: ignore
 
         args = self.retrieve_args(node)
@@ -668,7 +668,7 @@ class TorchFXImporter:
             return self.block_builder.emit(relax.op.tile(args[0], tuple(args[1])))
         return self.block_builder.emit(relax.op.tile(args[0], args[1:]))
 
-    def _tile(self, node: fx.node.Node) -> relax.Var:
+    def _tile(self, node: fx.Node) -> relax.Var:
         import torch  # type: ignore
 
         args = self.retrieve_args(node)
@@ -676,7 +676,7 @@ class TorchFXImporter:
             return self.block_builder.emit(relax.op.tile(args[0], tuple(args[1])))
         return self.block_builder.emit(relax.op.tile(args[0], args[1:]))
 
-    def _cumsum(self, node: fx.node.Node) -> relax.Var:
+    def _cumsum(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
 
         if "dim" in node.kwargs:
@@ -694,13 +694,13 @@ class TorchFXImporter:
 
         return self.block_builder.emit(relax.op.cumsum(x, dim, dtype))
 
-    def _index_select(self, node: fx.node.Node) -> relax.Var:
+    def _index_select(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         dim = node.args[1]
         index = self.env[node.args[2]]
         return self.block_builder.emit(relax.op.take(x, index, dim))
 
-    def _masked_fill(self, node: fx.node.Node) -> relax.Var:
+    def _masked_fill(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         mask = self.env[node.args[1]]
         value = node.args[2]
@@ -708,7 +708,7 @@ class TorchFXImporter:
         values = self.block_builder.emit(relax.op.full_like(x, rx_value))
         return self.block_builder.emit(relax.op.where(mask, values, x))
 
-    def _inplace_masked_fill(self, node: fx.node.Node) -> relax.Var:
+    def _inplace_masked_fill(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         mask = self.env[node.args[1]]
         value = node.args[2]
@@ -723,7 +723,7 @@ class TorchFXImporter:
     def _argmax_argmin(self, op: Callable) -> Callable:
         from torch import fx
 
-        def convert(node: fx.node.Node):
+        def convert(node: fx.Node):
             x = self.env[node.args[0]]
             dim = None
             keepdims = False
@@ -746,14 +746,14 @@ class TorchFXImporter:
 
     ########## Neural Network ##########
 
-    def _linear(self, node: fx.node.Node) -> relax.Var:
+    def _linear(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         module = self.named_modules[node.target]
         weight = self.params[module.weight]
         bias = None if module.bias is None else self.params[module.bias]
         return self.block_builder.emit(relax.op.linear(x, weight, bias, "float32"))
 
-    def _linear_functional(self, node: fx.node.Node) -> relax.Var:
+    def _linear_functional(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
         x = args[0]
         weight = args[1]
@@ -790,7 +790,7 @@ class TorchFXImporter:
         bias = relax.op.reshape(bias, (1, -1, 1))
         return self.block_builder.emit(relax.op.add(conv1d, bias))
 
-    def _conv1d(self, node: fx.node.Node) -> relax.Var:
+    def _conv1d(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         module = self.named_modules[node.target]
         weight = self.params[module.weight]
@@ -808,7 +808,7 @@ class TorchFXImporter:
             groups=module.groups,
         )
 
-    def _conv1d_functional(self, node: fx.node.Node) -> relax.Var:
+    def _conv1d_functional(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
         x = args[0]
         weight = args[1]
@@ -858,7 +858,7 @@ class TorchFXImporter:
         bias = relax.op.reshape(bias, (1, -1, 1))
         return self.block_builder.emit(relax.op.add(conv1d_transpose, bias))
 
-    def _conv1d_transpose(self, node: fx.node.Node) -> relax.Var:
+    def _conv1d_transpose(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         module = self.named_modules[node.target]
         weight = self.params[module.weight]
@@ -876,7 +876,7 @@ class TorchFXImporter:
             groups=module.groups,
         )
 
-    def _conv1d_transpose_functional(self, node: fx.node.Node) -> relax.Var:
+    def _conv1d_transpose_functional(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
         x = args[0]
         weight = args[1]
@@ -925,7 +925,7 @@ class TorchFXImporter:
         bias = relax.op.reshape(bias, (1, -1, 1, 1))
         return self.block_builder.emit(relax.op.add(conv2d, bias))
 
-    def _conv2d(self, node: fx.node.Node) -> relax.Var:
+    def _conv2d(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         module = self.named_modules[node.target]
         weight = self.params[module.weight]
@@ -943,7 +943,7 @@ class TorchFXImporter:
             groups=module.groups,
         )
 
-    def _conv2d_functional(self, node: fx.node.Node) -> relax.Var:
+    def _conv2d_functional(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
         x = args[0]
         weight = args[1]
@@ -993,7 +993,7 @@ class TorchFXImporter:
         bias = relax.op.reshape(bias, (1, -1, 1, 1))
         return self.block_builder.emit(relax.op.add(conv2d_transpose, bias))
 
-    def _conv2d_transpose(self, node: fx.node.Node) -> relax.Var:
+    def _conv2d_transpose(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         module = self.named_modules[node.target]
         weight = self.params[module.weight]
@@ -1011,7 +1011,7 @@ class TorchFXImporter:
             groups=module.groups,
         )
 
-    def _conv2d_transpose_functional(self, node: fx.node.Node) -> relax.Var:
+    def _conv2d_transpose_functional(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
         x = args[0]
         weight = args[1]
@@ -1060,7 +1060,7 @@ class TorchFXImporter:
         bias = relax.op.reshape(bias, (1, -1, 1, 1, 1))
         return self.block_builder.emit(relax.op.add(conv3d, bias))
 
-    def _conv3d(self, node: fx.node.Node) -> relax.Var:
+    def _conv3d(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         module = self.named_modules[node.target]
         weight = self.params[module.weight]
@@ -1078,7 +1078,7 @@ class TorchFXImporter:
             groups=module.groups,
         )
 
-    def _conv3d_functional(self, node: fx.node.Node) -> relax.Var:
+    def _conv3d_functional(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
         x = args[0]
         weight = args[1]
@@ -1097,7 +1097,7 @@ class TorchFXImporter:
             groups=groups,
         )
 
-    def _max_pool2d(self, node: fx.node.Node) -> relax.Var:
+    def _max_pool2d(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         if node.target in self.named_modules:
             module = self.named_modules[node.target]
@@ -1128,7 +1128,7 @@ class TorchFXImporter:
             )
         )
 
-    def _avg_pool2d(self, node: fx.node.Node) -> relax.Var:
+    def _avg_pool2d(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         if node.target in self.named_modules:
             module = self.named_modules[node.target]
@@ -1174,7 +1174,7 @@ class TorchFXImporter:
     def _adaptive_avg_pool2d(self, is_module: bool) -> Callable:
         from torch import fx
 
-        def _impl(node: fx.node.Node) -> relax.Var:
+        def _impl(node: fx.Node) -> relax.Var:
             if is_module:
                 module = self.named_modules[node.target]
                 x = self.env[node.args[0]]
@@ -1188,7 +1188,7 @@ class TorchFXImporter:
 
         return _impl
 
-    def _softmax(self, node: fx.node.Node) -> relax.Var:
+    def _softmax(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         if node.target in self.named_modules:
             module = self.named_modules[node.target]
@@ -1199,7 +1199,7 @@ class TorchFXImporter:
         assert dim is not None
         return self.block_builder.emit(relax.op.nn.softmax(x, dim))
 
-    def _batch_norm_2d(self, node: fx.node.Node) -> relax.Var:
+    def _batch_norm_2d(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         module = self.named_modules[node.target]
         weight = self.params[module.weight]
@@ -1222,7 +1222,7 @@ class TorchFXImporter:
 
         return self.block_builder.emit(relax.TupleGetItem(res_tuple, 0))
 
-    def _layer_norm(self, node: fx.node.Node) -> relax.Var:
+    def _layer_norm(self, node: fx.Node) -> relax.Var:
         import torch  # type: ignore
         from torch.fx.immutable_collections import immutable_list
         import numpy as np  # type: ignore
@@ -1289,7 +1289,7 @@ class TorchFXImporter:
             )
         )
 
-    def _group_norm(self, node: fx.node.Node) -> relax.Var:
+    def _group_norm(self, node: fx.Node) -> relax.Var:
         import torch  # type: ignore
 
         x = self.env[node.args[0]]
@@ -1315,7 +1315,7 @@ class TorchFXImporter:
             )
         )
 
-    def _embedding(self, node: fx.node.Node) -> relax.Var:
+    def _embedding(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         module = self.named_modules[node.target]
         weight = self.params[module.weight]
@@ -1331,7 +1331,7 @@ class TorchFXImporter:
             embedding = self.block_builder.emit(relax.op.take(weight, x, axis=0))
             return self.block_builder.emit(relax.op.reshape(embedding, [*x_shape, emb_size]))
 
-    def _interpolate(self, node: fx.node.Node) -> relax.Var:
+    def _interpolate(self, node: fx.Node) -> relax.Var:
         # torch.nn.functional.interpolate(
         #   input, size=None, scale_factor=None, mode='nearest', align_corners=None,
         #   recompute_scale_factor=None, antialias=False)
@@ -1405,7 +1405,7 @@ class TorchFXImporter:
             )
         )
 
-    def _cross_entropy(self, node: fx.node.Node) -> relax.Expr:
+    def _cross_entropy(self, node: fx.Node) -> relax.Expr:
         preds = self.env[node.args[0]]
         targets = self.env[node.args[1]]
 
@@ -1440,7 +1440,7 @@ class TorchFXImporter:
             )
         )
 
-    def _scaled_dot_product_attention(self, node: fx.node.Node) -> relax.Var:
+    def _scaled_dot_product_attention(self, node: fx.Node) -> relax.Var:
         assert (
             len(node.args) <= 4
         ), "Dropout is not supported, and is_causal should be called by kwargs."
@@ -1462,13 +1462,13 @@ class TorchFXImporter:
 
     ########## Others ##########
 
-    def _sym_size_int(self, node: fx.node.Node) -> relax.Expr:
+    def _sym_size_int(self, node: fx.Node) -> relax.Expr:
         x = self.env[node.args[0]]
         shape = self.shape_of(x)
         idx = node.args[1]
         return self.block_builder.emit(relax.const(shape[idx].value, "int32"))
 
-    def _size(self, node: fx.node.Node) -> relax.Expr:
+    def _size(self, node: fx.Node) -> relax.Expr:
         x = self.env[node.args[0]]
         shape = self.shape_of(x)
         if len(node.args) == 1:
@@ -1478,7 +1478,7 @@ class TorchFXImporter:
         idx = node.args[1]
         return self.shape_of(x)[idx].value
 
-    def _getattr(self, node: fx.node.Node) -> relax.Var:
+    def _getattr(self, node: fx.Node) -> relax.Var:
         if isinstance(self.env[node.args[0]], relax.Expr):
             if node.args[1] == "dtype":
                 return self.env[node.args[0]].struct_info.dtype
@@ -1486,7 +1486,7 @@ class TorchFXImporter:
                 return self.shape_of(self.env[node.args[0]])
         return getattr(self.env[node.args[0]], node.args[1])
 
-    def _getitem(self, node: fx.node.Node) -> relax.Var:
+    def _getitem(self, node: fx.Node) -> relax.Var:
         import torch
 
         x = self.env[node.args[0]]
@@ -1508,7 +1508,7 @@ class TorchFXImporter:
             shape = self.shape_of(x)
             non_ellipsis_cnt = 0
             for index in node.args[1]:
-                if isinstance(index, (int, slice, torch.fx.node.Node)):
+                if isinstance(index, (int, slice, torch.fx.Node)):
                     non_ellipsis_cnt += 1
             for index in node.args[1]:
                 if isinstance(index, int):
@@ -1532,7 +1532,7 @@ class TorchFXImporter:
                         stride.append(1)
                         stride_axes.append(i)
                         i += 1
-                elif isinstance(index, torch.fx.node.Node):
+                elif isinstance(index, torch.fx.Node):
                     node_index = self.env[index]
                     if not isinstance(node_index, relax.Expr):
                         raise ValueError(
@@ -1571,7 +1571,7 @@ class TorchFXImporter:
         from torch import nn
         from torch import fx
 
-        self.convert_map: Dict[Union[nn.Module, str], Callable[[fx.node.Node], relax.Var]] = {
+        self.convert_map: Dict[Union[nn.Module, str], Callable[[fx.Node], relax.Var]] = {
             ## call_module
             # unary
             nn.Dropout: lambda node: self.env[node.args[0]],
