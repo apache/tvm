@@ -47,7 +47,7 @@ capabilities, and set the stage for understanding how TVM works.
 # ----------
 #
 # TVMC is a Python application, part of the TVM Python package.
-# When you install TVM using a Python package, you will get TVMC as
+# When you install TVM using a Python package, you will get TVMC
 # as a command line application called ``tvmc``. The location of this command
 # will vary depending on your platform and installation method.
 #
