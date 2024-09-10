@@ -145,8 +145,8 @@ Leaving the build environment ``tvm-build-venv``, there are two ways to install 
 
     conda activate your-own-env
     conda install python # make sure python is installed
-    export TVM_LIBRARY_PATH=/path/to/tvm/build
-    pip install -e /path-to-tvm/python    
+    export TVM_LIBRARY_PATH=/path-to-tvm/build
+    pip install -e /path-to-tvm/python
 
 Step 4. Validate Installation
 -----------------------------
