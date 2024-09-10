@@ -171,6 +171,23 @@ class TorchFXImporter:
         else:
             raise KeyError("Unregonized approximate algorithm for gelu: {}.".format(approximate))
 
+    def _hardsigmoid(self, node: fx.Node) -> relax.Var:
+        args = self.retrieve_args(node)
+        x = args[0]
+        dtype = x.struct_info.dtype
+        x0 = relax.op.add(x, relax.const(3, dtype))
+        x1 = relax.op.clip(x0, 0, 6)
+        return self.block_builder.emit(relax.op.divide(x1, relax.const(6, dtype)))
+
+    def _hardswish(self, node: fx.Node) -> relax.Var:
+        args = self.retrieve_args(node)
+        x = args[0]
+        dtype = x.struct_info.dtype
+        x0 = relax.op.add(x, relax.const(3, dtype))
+        x1 = relax.op.clip(x0, 0, 6)
+        x2 = relax.op.divide(x1, relax.const(6, dtype))
+        return self.block_builder.emit(relax.op.multiply(x, x2))
+
     ########## Arithmetic ##########
 
     def _round(self, node: fx.node.Node) -> relax.Expr:
@@ -227,23 +244,6 @@ class TorchFXImporter:
         if isinstance(lhs, relax.Var) or isinstance(rhs, relax.Var):
             return self._call_binary_op(relax.op.divide, lhs, rhs)
         return lhs / rhs
-
-    def _hardsigmoid(self, node: fx.node.Node) -> relax.Var:
-        args = self.retrieve_args(node)
-        x = args[0]
-        dtype = x.struct_info.dtype
-        x0 = relax.op.add(x, relax.const(3, dtype))
-        x1 = relax.op.clip(x0, 0, 6)
-        return self.block_builder.emit(relax.op.divide(x1, relax.const(6, dtype)))
-
-    def _hardswish(self, node: fx.node.Node) -> relax.Var:
-        args = self.retrieve_args(node)
-        x = args[0]
-        dtype = x.struct_info.dtype
-        x0 = relax.op.add(x, relax.const(3, dtype))
-        x1 = relax.op.clip(x0, 0, 6)
-        x2 = relax.op.divide(x1, relax.const(6, dtype))
-        return self.block_builder.emit(relax.op.multiply(x, x2))
 
     ########## Compare ##########
 
