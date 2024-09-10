@@ -216,6 +216,16 @@ class LLVMTargetInfo {
    */
   const llvm::TargetOptions& GetTargetOptions() const { return target_options_; }
   /*!
+   * \brief Get the LLVM target reloc model
+   * \return `llvm::Reloc::Model` object for this target
+   */
+  const llvm::Reloc::Model& GetTargetRelocModel() const { return reloc_model_; }
+  /*!
+   * \brief Get the LLVM target code model
+   * \return `llvm::CodeModel::Model` object for this target
+   */
+  const llvm::CodeModel::Model& GetTargetCodeModel() const { return code_model_; }
+  /*!
    * \brief Get fast math flags
    * \return `llvm::FastMathFlags` for this target
    */

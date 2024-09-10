@@ -482,6 +482,14 @@ void LLVMModuleNode::InitORCJIT() {
   tm_builder.setCodeGenOptLevel(llvm::CodeGenOptLevel::Aggressive);
 #endif
 
+  // Default is no explicit JIT code & reloc model
+  // Propagate instance code & reloc for RISCV case.
+  auto arch = tm_builder.getTargetTriple().getArch();
+  if (arch == llvm::Triple::riscv32 || arch == llvm::Triple::riscv64) {
+    tm_builder.setRelocationModel(llvm_target->GetTargetRelocModel());
+    tm_builder.setCodeModel(llvm_target->GetTargetCodeModel());
+  }
+
   // create the taget machine
   std::unique_ptr<llvm::TargetMachine> tm = llvm::cantFail(tm_builder.createTargetMachine());
   if (!IsCompatibleWithHost(tm.get())) {
