@@ -188,6 +188,17 @@ class TorchFXImporter:
         x2 = relax.op.divide(x1, relax.const(6, dtype))
         return self.block_builder.emit(relax.op.multiply(x, x2))
 
+    def _leakyrelu(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        alpha = node.args[1] if len(node.args) > 1 else node.kwargs.get("negative_slope", 0.01)
+        return self.block_builder.emit(relax.op.nn.leakyrelu(x, alpha))
+
+    def _leakyrelu_module(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        module = self.named_modules[node.target]
+        alpha = module.negative_slope
+        return self.block_builder.emit(relax.op.nn.leakyrelu(x, alpha))
+
     ########## Arithmetic ##########
 
     def _round(self, node: fx.node.Node) -> relax.Expr:
@@ -1175,17 +1186,6 @@ class TorchFXImporter:
         assert dim is not None
         return self.block_builder.emit(relax.op.nn.log_softmax(x, dim))
 
-    def _leakyrelu(self, node: fx.node.Node) -> relax.Var:
-        x = self.env[node.args[0]]
-        if node.target in self.named_modules:
-            module = self.named_modules[node.target]
-            alpha = module.negative_slope
-        else:
-            nargs = len(node.args)
-            alpha = node.args[1] if nargs > 1 else node.kwargs["negative_slope"]
-        assert alpha is not None
-        return self.block_builder.emit(relax.op.nn.leakyrelu(x, alpha))
-
     def _batch_norm_2d(self, node: fx.node.Node) -> relax.Var:
         x = self.env[node.args[0]]
         module = self.named_modules[node.target]
@@ -1566,7 +1566,7 @@ class TorchFXImporter:
             nn.Hardsigmoid: self._hardsigmoid,
             nn.Hardswish: self._hardswish,
             nn.Identity: lambda node: self.env[node.args[0]],
-            nn.LeakyReLU: self._leakyrelu,
+            nn.LeakyReLU: self._leakyrelu_module,
             nn.LogSoftmax: self._log_softmax,
             nn.ReLU: self._unary_op(relax.op.nn.relu),
             nn.ReLU6: lambda node: self.block_builder.emit(
