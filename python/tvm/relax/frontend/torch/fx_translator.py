@@ -211,13 +211,13 @@ class TorchFXImporter:
         assert dim is not None
         return self.block_builder.emit(relax.op.nn.log_softmax(x, dim))
 
-    ########## Arithmetic ##########
-
-    def _round(self, node: fx.node.Node) -> relax.Expr:
-        if "decimals" in node.kwargs and node.kwargs["decimals"] != 0:
+    def _round(self, node: fx.Node) -> relax.Expr:
+        if node.kwargs.get("decimals", 0) != 0:
             raise ValueError("specifying decimals for round is not supported yet")
         arg = self.env[node.args[0]]
         return self.block_builder.emit(relax.op.round(arg))
+
+    ########## Arithmetic ##########
 
     def _add(self, node: fx.node.Node) -> relax.Expr:
         lhs, rhs = self.retrieve_args(node)
