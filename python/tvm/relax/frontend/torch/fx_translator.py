@@ -199,6 +199,18 @@ class TorchFXImporter:
         alpha = module.negative_slope
         return self.block_builder.emit(relax.op.nn.leakyrelu(x, alpha))
 
+    def _log_softmax(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        dim = node.args[1] if len(node.args) > 1 else node.kwargs.get("dim", -1)
+        return self.block_builder.emit(relax.op.nn.log_softmax(x, dim))
+
+    def _log_softmax_module(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        module = self.named_modules[node.target]
+        dim = module.dim
+        assert dim is not None
+        return self.block_builder.emit(relax.op.nn.log_softmax(x, dim))
+
     ########## Arithmetic ##########
 
     def _round(self, node: fx.node.Node) -> relax.Expr:
@@ -1175,17 +1187,6 @@ class TorchFXImporter:
         assert dim is not None
         return self.block_builder.emit(relax.op.nn.softmax(x, dim))
 
-    def _log_softmax(self, node: fx.node.Node) -> relax.Var:
-        x = self.env[node.args[0]]
-        if node.target in self.named_modules:
-            module = self.named_modules[node.target]
-            dim = module.dim
-        else:
-            nargs = len(node.args)
-            dim = node.args[1] if nargs > 1 else node.kwargs["dim"]
-        assert dim is not None
-        return self.block_builder.emit(relax.op.nn.log_softmax(x, dim))
-
     def _batch_norm_2d(self, node: fx.node.Node) -> relax.Var:
         x = self.env[node.args[0]]
         module = self.named_modules[node.target]
@@ -1567,7 +1568,7 @@ class TorchFXImporter:
             nn.Hardswish: self._hardswish,
             nn.Identity: lambda node: self.env[node.args[0]],
             nn.LeakyReLU: self._leakyrelu_module,
-            nn.LogSoftmax: self._log_softmax,
+            nn.LogSoftmax: self._log_softmax_module,
             nn.ReLU: self._unary_op(relax.op.nn.relu),
             nn.ReLU6: lambda node: self.block_builder.emit(
                 relax.op.clip(self.env[node.args[0]], 0, 6)
