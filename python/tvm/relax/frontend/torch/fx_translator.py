@@ -136,25 +136,17 @@ class TorchFXImporter:
         lhs, rhs = TorchFXImporter._promote_binary_op_args(lhs, rhs)
         return self.block_builder.emit(op(lhs, rhs))
 
+    ########## Unary Ops ##########
+
+    def _unary_op(self, op: Callable) -> Callable:
+        from torch import fx
+
+        def convert(node: fx.Node) -> relax.Var:
+            return self.block_builder.emit(op(self.env[node.args[0]]))
+
+        return convert
+
     ########## Arithmetic ##########
-
-    def _exp(self, node: fx.node.Node) -> relax.Var:
-        return self.block_builder.emit(relax.op.exp(self.env[node.args[0]]))
-
-    def _sigmoid(self, node: fx.node.Node) -> relax.Var:
-        return self.block_builder.emit(relax.op.sigmoid(self.env[node.args[0]]))
-
-    def _sqrt(self, node: fx.node.Node) -> relax.Expr:
-        arg = self.env[node.args[0]]
-        if isinstance(arg, (int, float)):
-            arg = relax.const(arg, "float32")
-        return self.block_builder.emit(relax.op.sqrt(arg))
-
-    def _rsqrt(self, node: fx.node.Node) -> relax.Expr:
-        arg = self.env[node.args[0]]
-        if isinstance(arg, (int, float)):
-            arg = relax.const(arg, "float32")
-        return self.block_builder.emit(relax.op.rsqrt(arg))
 
     def _round(self, node: fx.node.Node) -> relax.Expr:
         if "decimals" in node.kwargs and node.kwargs["decimals"] != 0:
@@ -198,10 +190,6 @@ class TorchFXImporter:
         if isinstance(lhs, relax.Var) or isinstance(rhs, relax.Var):
             return self._call_binary_op(relax.op.power, lhs, rhs)
         return lhs**rhs
-
-    def _neg(self, node: fx.node.Node) -> relax.Expr:
-        x = self.env[node.args[0]]
-        return self.block_builder.emit(relax.op.negative(x))
 
     def _sub(self, node: fx.node.Node) -> relax.Expr:
         lhs, rhs = self.retrieve_args(node)
@@ -1583,14 +1571,14 @@ class TorchFXImporter:
             nn.Identity: lambda node: self.env[node.args[0]],
             nn.LeakyReLU: self._leakyrelu,
             nn.LogSoftmax: self._log_softmax,
-            nn.ReLU: lambda node: self.block_builder.emit(relax.op.nn.relu(self.env[node.args[0]])),
+            nn.ReLU: self._unary_op(relax.op.nn.relu),
             nn.ReLU6: lambda node: self.block_builder.emit(
                 relax.op.clip(self.env[node.args[0]], 0, 6)
             ),
-            nn.Sigmoid: self._sigmoid,
-            nn.SiLU: lambda node: self.block_builder.emit(relax.op.nn.silu(self.env[node.args[0]])),
+            nn.Sigmoid: self._unary_op(relax.op.sigmoid),
+            nn.SiLU: self._unary_op(relax.op.nn.silu),
             nn.Softmax: self._softmax,
-            nn.Tanh: lambda node: self.block_builder.emit(relax.op.tanh(self.env[node.args[0]])),
+            nn.Tanh: self._unary_op(relax.op.tanh),
             # neural network
             nn.AdaptiveAvgPool2d: self._adaptive_avg_pool2d(is_module=True),
             nn.AvgPool2d: self._avg_pool2d,
@@ -1610,34 +1598,34 @@ class TorchFXImporter:
             nn.Flatten: self._flatten,
             ## call_function and call_method
             # unary
-            "acos": lambda node: self.block_builder.emit(relax.op.acos(self.env[node.args[0]])),
-            "acosh": lambda node: self.block_builder.emit(relax.op.acosh(self.env[node.args[0]])),
-            "asin": lambda node: self.block_builder.emit(relax.op.asin(self.env[node.args[0]])),
-            "asinh": lambda node: self.block_builder.emit(relax.op.asinh(self.env[node.args[0]])),
-            "atan": lambda node: self.block_builder.emit(relax.op.atan(self.env[node.args[0]])),
-            "atanh": lambda node: self.block_builder.emit(relax.op.atanh(self.env[node.args[0]])),
+            "acos": self._unary_op(relax.op.acos),
+            "acosh": self._unary_op(relax.op.acosh),
+            "asin": self._unary_op(relax.op.asin),
+            "asinh": self._unary_op(relax.op.asinh),
+            "atan": self._unary_op(relax.op.atan),
+            "atanh": self._unary_op(relax.op.atanh),
             "clamp": self._clamp,
-            "cos": lambda node: self.block_builder.emit(relax.op.cos(self.env[node.args[0]])),
-            "cosh": lambda node: self.block_builder.emit(relax.op.cosh(self.env[node.args[0]])),
+            "cos": self._unary_op(relax.op.cos),
+            "cosh": self._unary_op(relax.op.cosh),
             "dropout": lambda node: self.env[node.args[0]],
-            "exp": self._exp,
+            "exp": self._unary_op(relax.op.exp),
             "gelu": self._gelu,
             "hardsigmoid": self._hardsigmoid,
             "hardswish": self._hardswish,
             "leaky_relu": self._leakyrelu,
             "log_softmax": self._log_softmax,
-            "neg": self._neg,
-            "relu": lambda node: self.block_builder.emit(relax.op.nn.relu(self.env[node.args[0]])),
+            "neg": self._unary_op(relax.op.negative),
+            "relu": self._unary_op(relax.op.nn.relu),
             "round": self._round,
-            "rsqrt": self._rsqrt,
-            "sigmoid": self._sigmoid,
-            "silu": lambda node: self.block_builder.emit(relax.op.nn.silu(self.env[node.args[0]])),
-            "sin": lambda node: self.block_builder.emit(relax.op.sin(self.env[node.args[0]])),
-            "sinh": lambda node: self.block_builder.emit(relax.op.sinh(self.env[node.args[0]])),
+            "rsqrt": self._unary_op(relax.op.rsqrt),
+            "sigmoid": self._unary_op(relax.op.sigmoid),
+            "silu": self._unary_op(relax.op.nn.silu),
+            "sin": self._unary_op(relax.op.sin),
+            "sinh": self._unary_op(relax.op.sinh),
             "softmax": self._softmax,
-            "sqrt": self._sqrt,
-            "tan": lambda node: self.block_builder.emit(relax.op.tan(self.env[node.args[0]])),
-            "tanh": lambda node: self.block_builder.emit(relax.op.tanh(self.env[node.args[0]])),
+            "sqrt": self._unary_op(relax.op.sqrt),
+            "tan": self._unary_op(relax.op.tan),
+            "tanh": self._unary_op(relax.op.tanh),
             "tril_": self._inplace_tril_triu(relax.op.tril),
             "tril": self._tril_triu(relax.op.tril),
             "triu_": self._inplace_tril_triu(relax.op.triu),
