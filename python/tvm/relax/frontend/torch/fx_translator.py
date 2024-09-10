@@ -162,6 +162,15 @@ class TorchFXImporter:
             )
         return self.block_builder.emit(relax.op.clip(args[0], a_min, a_max))
 
+    def _gelu(self, node: fx.Node) -> relax.Expr:
+        approximate = node.kwargs.get("approximate", "none")
+        if approximate == "none":
+            return self.block_builder.emit(relax.op.nn.gelu(self.env[node.args[0]]))
+        elif approximate == "tanh":
+            return self.block_builder.emit(relax.op.nn.gelu_tanh(self.env[node.args[0]]))
+        else:
+            raise KeyError("Unregonized approximate algorithm for gelu: {}.".format(approximate))
+
     ########## Arithmetic ##########
 
     def _round(self, node: fx.node.Node) -> relax.Expr:
@@ -218,18 +227,6 @@ class TorchFXImporter:
         if isinstance(lhs, relax.Var) or isinstance(rhs, relax.Var):
             return self._call_binary_op(relax.op.divide, lhs, rhs)
         return lhs / rhs
-
-    def _gelu(self, node: fx.node.Node) -> relax.Expr:
-        if "approximate" not in node.kwargs:
-            approximate = "none"
-        else:
-            approximate = node.kwargs["approximate"]
-        if approximate == "none":
-            return self.block_builder.emit(relax.op.nn.gelu(self.env[node.args[0]]))
-        elif approximate == "tanh":
-            return self.block_builder.emit(relax.op.nn.gelu_tanh(self.env[node.args[0]]))
-        else:
-            raise KeyError("Unregonized approximate algorithm for gelu: {}.".format(approximate))
 
     def _hardsigmoid(self, node: fx.node.Node) -> relax.Var:
         args = self.retrieve_args(node)
