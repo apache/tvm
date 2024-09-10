@@ -19,13 +19,13 @@
 
 /*!
  *
- * \file src/relax/transform/replace_global_var.cc
+ * \file src/relax/transform/replace_global_vars.cc
  *
  * \brief GlobalVar replacement across IR types
  */
 
 #include <tvm/ir/analysis.h>
-#include <tvm/ir/replace_global_var.h>
+#include <tvm/ir/replace_global_vars.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/tir/expr_functor.h>
@@ -53,7 +53,24 @@ TVM_STATIC_IR_FUNCTOR(GlobalVarReplacer, vtable)
     .set_dispatch<relax::FunctionNode>([](const ObjectRef& func,
                                           Map<GlobalVar, GlobalVar> replacements) -> BaseFunc {
       Mutator mutator(replacements);
-      return Downcast<BaseFunc>(mutator(Downcast<Function>(func)));
+      auto new_func = Downcast<Function>(mutator(Downcast<Function>(func)));
+
+      // If the function is externally exposed, and is being replaced
+      // by a GlobalVar with a new name, then the function's
+      // kGlobalSymbol must be updated to match.
+      if (auto opt = new_func->GetAttr<String>(tvm::attr::kGlobalSymbol)) {
+        auto name = opt.value();
+        for (const auto& [before, after] : replacements) {
+          if (before->name_hint == name) {
+            if (after->name_hint != name) {
+              new_func = WithAttr(new_func, tvm::attr::kGlobalSymbol, after->name_hint);
+            }
+            break;
+          }
+        }
+      }
+
+      return new_func;
     });
 
 TVM_STATIC_IR_FUNCTOR(GlobalVarReplacer, vtable)

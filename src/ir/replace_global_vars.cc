@@ -18,18 +18,22 @@
  */
 
 /*!
- * \file src/ir/replace_global_var.cc
+ * \file src/ir/replace_global_vars.cc
  * \brief IRModule transform to replace GlobalVar instances across any IR type.
  */
 
-#include <tvm/ir/replace_global_var.h>
+#include <tvm/ir/replace_global_vars.h>
 
 #include <vector>
 
 namespace tvm {
 namespace transform {
 
-IRModule ReplaceGlobalVar(IRModule mod, Map<GlobalVar, GlobalVar> replacements) {
+IRModule ReplaceGlobalVars(IRModule mod, Map<GlobalVar, GlobalVar> replacements) {
+  if (replacements.empty()) {
+    return mod;
+  }
+
   std::vector<GlobalVar> to_remove;
   IRModule updates;
 
@@ -57,7 +61,38 @@ IRModule ReplaceGlobalVar(IRModule mod, Map<GlobalVar, GlobalVar> replacements) 
   return mod;
 }
 
-TVM_REGISTER_GLOBAL("transform.ReplaceGlobalVar").set_body_typed(ReplaceGlobalVar);
+TVM_REGISTER_GLOBAL("transform.ReplaceGlobalVars").set_body_typed(ReplaceGlobalVars);
+
+IRModule ModuleReplaceGlobalVars(
+    IRModule mod, Map<Variant<String, GlobalVar>, Variant<String, GlobalVar>> replacements) {
+  Map<GlobalVar, GlobalVar> gvar_replacements;
+  for (const auto& [before, after] : replacements) {
+    GlobalVar gvar_before;
+    if (auto gvar = before.as<GlobalVar>()) {
+      gvar_before = gvar.value();
+    } else if (auto str = before.as<String>()) {
+      gvar_before = mod->GetGlobalVar(str.value());
+    } else {
+      LOG(FATAL) << "Variant<String,GlobalVar> must contain either String or GlobalVar";
+    }
+
+    GlobalVar gvar_after;
+    if (auto gvar = after.as<GlobalVar>()) {
+      gvar_after = gvar.value();
+    } else if (auto str = after.as<String>()) {
+      gvar_after = gvar_before;
+      gvar_after.CopyOnWrite()->name_hint = str.value();
+    } else {
+      LOG(FATAL) << "Variant<String,GlobalVar> must contain either String or GlobalVar";
+    }
+
+    gvar_replacements.Set(gvar_before, gvar_after);
+  }
+
+  return ReplaceGlobalVars(mod, gvar_replacements);
+}
+
+TVM_REGISTER_GLOBAL("ir.Module_ReplaceGlobalVars").set_body_typed(ModuleReplaceGlobalVars);
 
 }  // namespace transform
 }  // namespace tvm
