@@ -229,6 +229,17 @@ class TorchFXImporter:
         assert dim is not None
         return self.block_builder.emit(relax.op.nn.softmax(x, dim))
 
+    def _tril_triu(self, op: Callable) -> Callable:
+        from torch import fx
+
+        def convert(node: fx.Node) -> relax.Var:
+            x = self.env[node.args[0]]
+            k = node.args[1] if len(node.args) > 1 else node.kwargs.get("diagonal", 0)
+            assert isinstance(k, int)
+            return self.block_builder.emit(op(x, k))
+
+        return convert
+
     ########## Arithmetic ##########
 
     def _add(self, node: fx.node.Node) -> relax.Expr:
@@ -355,17 +366,6 @@ class TorchFXImporter:
         elif isinstance(node.args[0], int):
             return relax.const(node.args[0], dtype if dtype is not None else "int64")
         raise ValueError("torch.tensor with value not a float or int is not accepted")
-
-    def _tril_triu(self, op: Callable) -> Callable:
-        from torch import fx
-
-        def convert(node: fx.node.Node) -> relax.Var:
-            x = self.env[node.args[0]]
-            k = node.args[1] if len(node.args) > 1 else 0
-            assert isinstance(k, int)
-            return self.block_builder.emit(op(x, k))
-
-        return convert
 
     def _inplace_tril_triu(self, op: Callable) -> Callable:
         from torch import fx
