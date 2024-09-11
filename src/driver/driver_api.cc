@@ -654,6 +654,10 @@ transform::Sequential MixedModulePassManager(IRModule mixed_mod, Optional<Target
 
   mixed_pass_list.push_back(tir::transform::LowerDeviceKernelLaunch());
 
+  // After the device kernels have been split into host/device
+  // sections, the host section can be inlined.
+  mixed_pass_list.push_back(tir::transform::InlinePrivateFunctions());
+
   // Only applies to the device functions, identified by inspection of
   // each function's tvm::attr::kTarget attribute.
   mixed_pass_list.push_back(tir::transform::LowerWarpMemory());
