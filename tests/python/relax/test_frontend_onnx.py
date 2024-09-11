@@ -1909,5 +1909,48 @@ def test_multi_inputs_with_same_symbolic_shape():
     check_correctness(model)
 
 
+def test_multi_ops_with_same_params():
+    reshape_node_1 = helper.make_node("Reshape", ["a", "x"], ["b"])
+    reshape_node_2 = helper.make_node("Reshape", ["b", "x"], ["c"])
+
+    a_shape = [16]
+    output_shape = [1, 16]
+
+    graph = helper.make_graph(
+        [reshape_node_1, reshape_node_2],
+        "test_multi_ops_with_same_params",
+        inputs=[
+            helper.make_tensor_value_info("a", TensorProto.FLOAT, a_shape),
+        ],
+        initializer=[
+            helper.make_tensor("x", TensorProto.INT64, [2], output_shape),
+        ],
+        outputs=[helper.make_tensor_value_info("c", TensorProto.FLOAT, output_shape)],
+    )
+    model = helper.make_model(graph, producer_name="test_multi_ops_with_same_params")
+    check_correctness(model)
+
+
+def test_params_names_start_with_onnx():
+    reshape_node = helper.make_node("Reshape", ["a", "onnx::x"], ["b"])
+
+    a_shape = [16]
+    output_shape = [1, 16]
+
+    graph = helper.make_graph(
+        [reshape_node],
+        "test_params_names_start_with_onnx",
+        inputs=[
+            helper.make_tensor_value_info("a", TensorProto.FLOAT, a_shape),
+        ],
+        initializer=[
+            helper.make_tensor("onnx::x", TensorProto.INT64, [2], output_shape),
+        ],
+        outputs=[helper.make_tensor_value_info("b", TensorProto.FLOAT, output_shape)],
+    )
+    model = helper.make_model(graph, producer_name="test_params_names_start_with_onnx")
+    check_correctness(model)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
