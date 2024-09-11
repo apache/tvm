@@ -364,13 +364,6 @@ class MetalMatmul(GPUScheduleRule):
         if reduction_blocks is None:
             return None
 
-        main_block = reduction_blocks[0]
-        block_stmt = sch.get(main_block)
-        index_maps = get_index_map(block_stmt)
-        if index_maps is None:
-            return None
-        matmul_index_map, a_index_map, b_index_map, c_index_map = index_maps
-
         # Step 0. Configs
         block_size_x: int = 16
         block_size_y: int = 16
@@ -382,12 +375,19 @@ class MetalMatmul(GPUScheduleRule):
         vector_size: int = 4
 
         # Step 1. Normalize generic matmul to C[S, I, J] += A[S, I, K] * B[S, J, K]
-        block = sch.reindex(main_block, ("read", 0))
-        sch.transform_layout(block, ("write", 0), a_index_map)
-        block = sch.reindex(main_block, ("read", 1))
-        sch.transform_layout(block, ("write", 0), b_index_map)
-        block = sch.reindex(main_block, ("write", 0))
-        sch.transform_layout(block, ("read", 0), c_index_map)
+        # Reindex first and than analyze the index map
+        main_block = reduction_blocks[0]
+        reindex_a = sch.reindex(main_block, ("read", 0))
+        reindex_b = sch.reindex(main_block, ("read", 1))
+        reindex_c = sch.reindex(main_block, ("write", 0))
+
+        index_maps = get_index_map(sch.get(main_block))
+        assert index_maps is not None
+        matmul_index_map, a_index_map, b_index_map, c_index_map = index_maps
+
+        sch.transform_layout(reindex_a, ("write", 0), a_index_map)
+        sch.transform_layout(reindex_b, ("write", 0), b_index_map)
+        sch.transform_layout(reindex_c, ("read", 0), c_index_map)
         sch.transform_block_layout(main_block, matmul_index_map)
 
         # Step 2. Padding for dynamic shape kernels
@@ -508,13 +508,6 @@ class MatmulTensorization(GPUScheduleRule):
         if reduction_blocks is None:
             return None
 
-        main_block = reduction_blocks[0]
-        block_stmt = sch.get(main_block)
-        index_maps = get_index_map(block_stmt)
-        if index_maps is None:
-            return None
-        matmul_index_map, a_index_map, b_index_map, c_index_map = index_maps
-
         # Start Schedule
         # Step 0. Get schedule config.
         # NOTE: we can analyze the config by the hardware spec in the future
@@ -539,12 +532,19 @@ class MatmulTensorization(GPUScheduleRule):
         k_pad_factor = k_factors[1]
 
         # Step 1. Normalize generic matmul to C[S, I, J] += A[S, I, K] * B[S, J, K]
-        block = sch.reindex(main_block, ("read", 0))
-        sch.transform_layout(block, ("write", 0), a_index_map)
-        block = sch.reindex(main_block, ("read", 1))
-        sch.transform_layout(block, ("write", 0), b_index_map)
-        block = sch.reindex(main_block, ("write", 0))
-        sch.transform_layout(block, ("read", 0), c_index_map)
+        # Reindex first and than analyze the index map
+        main_block = reduction_blocks[0]
+        reindex_a = sch.reindex(main_block, ("read", 0))
+        reindex_b = sch.reindex(main_block, ("read", 1))
+        reindex_c = sch.reindex(main_block, ("write", 0))
+
+        index_maps = get_index_map(sch.get(main_block))
+        assert index_maps is not None
+        matmul_index_map, a_index_map, b_index_map, c_index_map = index_maps
+
+        sch.transform_layout(reindex_a, ("write", 0), a_index_map)
+        sch.transform_layout(reindex_b, ("write", 0), b_index_map)
+        sch.transform_layout(reindex_c, ("read", 0), c_index_map)
         sch.transform_block_layout(main_block, matmul_index_map)
 
         # Step 2. Padding for dynamic shape kernels
@@ -729,13 +729,6 @@ class MatmulInt8Tensorization(GPUScheduleRule):
         if reduction_blocks is None:
             return None
 
-        main_block = reduction_blocks[0]
-        block_stmt = sch.get(main_block)
-        index_maps = get_index_map(block_stmt)
-        if index_maps is None:
-            return None
-        matmul_index_map, a_index_map, b_index_map, c_index_map = index_maps
-
         # Start Schedule
         # Step 0. Get schedule config.
         # NOTE: we can analyze the config by the hardware spec in the future
@@ -760,12 +753,19 @@ class MatmulInt8Tensorization(GPUScheduleRule):
         k_pad_factor = k_factors[1]
 
         # Step 1. Normalize generic matmul to C[S, I, J] += A[S, I, K] * B[S, J, K]
-        block = sch.reindex(main_block, ("read", 0))
-        sch.transform_layout(block, ("write", 0), a_index_map)
-        block = sch.reindex(main_block, ("read", 1))
-        sch.transform_layout(block, ("write", 0), b_index_map)
-        block = sch.reindex(main_block, ("write", 0))
-        sch.transform_layout(block, ("read", 0), c_index_map)
+        # Reindex first and than analyze the index map
+        main_block = reduction_blocks[0]
+        reindex_a = sch.reindex(main_block, ("read", 0))
+        reindex_b = sch.reindex(main_block, ("read", 1))
+        reindex_c = sch.reindex(main_block, ("write", 0))
+
+        index_maps = get_index_map(sch.get(main_block))
+        assert index_maps is not None
+        matmul_index_map, a_index_map, b_index_map, c_index_map = index_maps
+
+        sch.transform_layout(reindex_a, ("write", 0), a_index_map)
+        sch.transform_layout(reindex_b, ("write", 0), b_index_map)
+        sch.transform_layout(reindex_c, ("read", 0), c_index_map)
         sch.transform_block_layout(main_block, matmul_index_map)
 
         # Step 2. Padding for dynamic shape kernels
@@ -979,12 +979,11 @@ class Matmul(GPUScheduleRule):
 
         main_block = reduction_blocks[0]
         block_stmt = sch.get(main_block)
-        index_maps = get_index_map(block_stmt)
-        if index_maps is None:
-            return None
 
         main_block_info = get_block_info(sch, main_block)
         iter_infos = main_block_info.iters
+        if not get_index_map(block_stmt):
+            return None
 
         # Checks if it's a inner reduction by getting the last matrix's inner Index
         def is_inner_reduction(block_stmt, iter_infos):
@@ -1000,13 +999,18 @@ class Matmul(GPUScheduleRule):
                 return ret
 
         # Step 0. Normalize generic matmul to C[S, I, J] += A[S, I, K] * B[S, J, K]
+        # Reindex first and than analyze the index map
+        reindex_a = sch.reindex(main_block, ("read", 0))
+        reindex_b = sch.reindex(main_block, ("read", 1))
+        reindex_c = sch.reindex(main_block, ("write", 0))
+
+        index_maps = get_index_map(sch.get(main_block))
+        assert index_maps is not None
         matmul_index_map, a_index_map, b_index_map, c_index_map = index_maps
-        block = sch.reindex(main_block, ("read", 0))
-        sch.transform_layout(block, ("write", 0), a_index_map)
-        block = sch.reindex(main_block, ("read", 1))
-        sch.transform_layout(block, ("write", 0), b_index_map)
-        block = sch.reindex(main_block, ("write", 0))
-        sch.transform_layout(block, ("read", 0), c_index_map)
+
+        sch.transform_layout(reindex_a, ("write", 0), a_index_map)
+        sch.transform_layout(reindex_b, ("write", 0), b_index_map)
+        sch.transform_layout(reindex_c, ("read", 0), c_index_map)
         sch.transform_block_layout(main_block, matmul_index_map)
 
         # Step 1. Check Tensor Core support
