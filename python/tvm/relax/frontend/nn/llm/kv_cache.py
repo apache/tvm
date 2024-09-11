@@ -1237,7 +1237,7 @@ def _merge_state_inplace(num_heads, head_dim, v_dtype, target: Target):
 
 
 def _attention_sequence_prefill(
-    batch_size, h_kv, h_q, d, dtype, target: Target, causal=0, attn_score_scaling_factor=1.0
+    h_kv, h_q, d, dtype, target: Target, causal=0, attn_score_scaling_factor=1.0
 ):  # pylint: disable=line-too-long
     LOAD_VEC = 8 // ((DataType(dtype).bits + 7) // 8)  # 8 bytes
     group_size = h_q // h_kv
@@ -1264,6 +1264,7 @@ def _attention_sequence_prefill(
         var_output: T.handle, # [total_len, h_q, d]
         var_lse: T.handle # [total_len, h_q]
     ):
+        batch_size = T.int32(is_size_var=True)
         qo_len = T.int32(is_size_var=True)
         kv_len = T.int32(is_size_var=True)
         q = T.match_buffer(var_q, (batch_size, qo_len, h_q, d), dtype)
