@@ -140,9 +140,9 @@ def test_replace_relax_subroutine():
             return D
 
         @R.function(private=True)
-        def relax_subroutine_with_new_name(A: R.Tensor([16], "float32")) -> R.Tensor(
-            [16], "float32"
-        ):
+        def relax_subroutine_with_new_name(
+            A: R.Tensor([16], "float32"),
+        ) -> R.Tensor([16], "float32"):
             B = R.add(A, R.prim_value(T.float32(1.0)))
             return B
 
@@ -282,9 +282,9 @@ def test_simultaneous_replacements():
             return D
 
         @R.function(private=True)
-        def relax_subroutine_with_new_name(A: R.Tensor([16], "float32")) -> R.Tensor(
-            [16], "float32"
-        ):
+        def relax_subroutine_with_new_name(
+            A: R.Tensor([16], "float32"),
+        ) -> R.Tensor([16], "float32"):
             B = R.add(A, R.prim_value(T.float32(1.0)))
             return B
 
