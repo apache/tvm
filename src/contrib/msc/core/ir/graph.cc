@@ -1116,9 +1116,8 @@ void WeightGraphNode::Build(const MSCGraph& graph, const Map<String, Array<Strin
         const auto& tensor = node->OutputAt(0);
         Map<String, String> attrs;
         attrs.Set("producer_type", node->optype);
-        if (node->optype == "reshape" && node->InputAt(0)->LayoutOf("C") >= 0 &&
-            node->OutputAt(0)->LayoutOf("C") >= 0 &&
-            node->InputAt(0)->DimAt("C")->value == node->OutputAt(0)->DimAt("C")->value) {
+        if (node->optype == "reshape") {
+          // TODO(archermmt): check non-passby reshape
           attrs.Set("weight_strategy", "passby");
         } else {
           attrs.Set("weight_strategy", relation_wtypes[node->optype]);

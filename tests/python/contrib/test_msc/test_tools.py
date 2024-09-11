@@ -47,7 +47,7 @@ def _get_config(
 
     path = "_".join(["test_tools", model_type, compile_type] + [t["tool_type"] for t in tools])
     return {
-        "workspace": msc_utils.msc_dir(path),
+        "workspace": msc_utils.msc_dir(path, keep_history=False),
         "verbose": "critical",
         "model_type": model_type,
         "inputs": inputs,

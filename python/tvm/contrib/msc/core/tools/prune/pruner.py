@@ -340,7 +340,12 @@ class BasePruner(WeightTool):
         def _prune_by_channel(tensor: MSCTensor, dim, channel_axis: int = None):
             shape = tensor.get_shape()
             if channel_axis is None:
-                channel_axis = tensor.layout_of("C")
+                if self.has_w_node(tensor.name):
+                    w_node = self.find_w_node(tensor.name)
+                    _, channel_axis = self._get_io_axes(w_node)
+                else:
+                    channel_axis = tensor.layout_of("C")
+            assert channel_axis >= 0, "Can not infer channel_axis for " + str(tensor)
             shape[channel_axis] = dim
             return _prune_by_shape(tensor, shape)
 
