@@ -256,6 +256,24 @@ class TorchFXImporter:
 
         return convert
 
+    ########## Neural Network ##########
+
+    def _adaptive_avg_pool2d(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        output_size = node.args[1]
+        return self.block_builder.emit(
+            relax.op.nn.adaptive_avg_pool2d(x, output_size, layout="NCHW")
+        )
+
+    def _adaptive_avg_pool2d_module(self, node: fx.Node) -> relax.Var:
+
+        module = self.named_modules[node.target]
+        x = self.env[node.args[0]]
+        output_size = module.output_size
+        return self.block_builder.emit(
+            relax.op.nn.adaptive_avg_pool2d(x, output_size, layout="NCHW")
+        )
+
     ########## Creation ##########
 
     def _arange(self, node: fx.Node) -> relax.Var:
@@ -1118,23 +1136,6 @@ class TorchFXImporter:
             )
         )
 
-    def _adaptive_avg_pool2d(self, is_module: bool) -> Callable:
-        from torch import fx
-
-        def _impl(node: fx.Node) -> relax.Var:
-            if is_module:
-                module = self.named_modules[node.target]
-                x = self.env[node.args[0]]
-                output_size = module.output_size
-            else:
-                x = self.env[node.args[0]]
-                output_size = node.args[1]
-            return self.block_builder.emit(
-                relax.op.nn.adaptive_avg_pool2d(x, output_size, layout="NCHW")
-            )
-
-        return _impl
-
     def _softmax(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         if node.target in self.named_modules:
@@ -1538,7 +1539,7 @@ class TorchFXImporter:
             nn.Softmax: self._softmax_module,
             nn.Tanh: self._unary_op(relax.op.tanh),
             # neural network
-            nn.AdaptiveAvgPool2d: self._adaptive_avg_pool2d(is_module=True),
+            nn.AdaptiveAvgPool2d: self._adaptive_avg_pool2d_module,
             nn.AvgPool2d: self._avg_pool2d,
             nn.BatchNorm2d: self._batch_norm_2d,
             nn.Conv1d: self._conv1d,
@@ -1603,7 +1604,7 @@ class TorchFXImporter:
             "sub": self._binary_op(relax.op.subtract, operator.sub),
             "truediv": self._binary_op(relax.op.divide, operator.truediv),
             # neural network
-            "adaptive_avg_pool2d": self._adaptive_avg_pool2d(is_module=False),
+            "adaptive_avg_pool2d": self._adaptive_avg_pool2d,
             "addmm": self._addmm,
             "avg_pool2d": self._avg_pool2d,
             "baddbmm": self._baddbmm,
