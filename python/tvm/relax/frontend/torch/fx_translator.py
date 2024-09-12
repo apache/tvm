@@ -274,6 +274,28 @@ class TorchFXImporter:
             relax.op.nn.adaptive_avg_pool2d(x, output_size, layout="NCHW")
         )
 
+    def _addmm(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        y = self.env[node.args[1]]
+        z = self.env[node.args[2]]
+        alpha = node.kwargs.get("alpha", 1)
+        beta = node.kwargs.get("beta", 1)
+
+        res = None
+        if alpha != 0:
+            res = self.block_builder.emit(relax.op.linear_algebra.matmul(y, z, out_dtype="float32"))
+            if alpha != 1:
+                dtype = res.struct_info.dtype
+                res = self.block_builder.emit(relax.op.multiply(res, relax.const(alpha, dtype)))
+        if beta != 0:
+            dtype = x.struct_info.dtype
+            if beta != 1:
+                bias = self.block_builder.emit(relax.op.multiply(x, relax.const(beta, dtype)))
+            else:
+                bias = x
+            res = bias if res is None else self.block_builder.emit(relax.op.add(bias, res))
+        return res
+
     ########## Creation ##########
 
     def _arange(self, node: fx.Node) -> relax.Var:
@@ -458,28 +480,6 @@ class TorchFXImporter:
 
     def _matmul_impl(self, a: relax.Expr, b: relax.Expr):
         return self.block_builder.emit(relax.op.linear_algebra.matmul(a, b, out_dtype="float32"))
-
-    def _addmm(self, node: fx.Node) -> relax.Var:
-        x = self.env[node.args[0]]
-        y = self.env[node.args[1]]
-        z = self.env[node.args[2]]
-        alpha = node.kwargs["alpha"] if "alpha" in node.kwargs else 1
-        beta = node.kwargs["beta"] if "beta" in node.kwargs else 1
-
-        res = None
-        if alpha != 0:
-            res = self.block_builder.emit(relax.op.linear_algebra.matmul(y, z, out_dtype="float32"))
-            if alpha != 1:
-                dtype = res.struct_info.dtype
-                res = self.block_builder.emit(relax.op.multiply(res, relax.const(alpha, dtype)))
-        if beta != 0:
-            dtype = x.struct_info.dtype
-            if beta != 1:
-                bias = self.block_builder.emit(relax.op.multiply(x, relax.const(beta, dtype)))
-            else:
-                bias = x
-            res = bias if res is None else self.block_builder.emit(relax.op.add(bias, res))
-        return res
 
     def _baddbmm(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
