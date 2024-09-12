@@ -18,13 +18,13 @@
  */
 
 /*!
- * \file tvm/ir/replace_global_var.h
+ * \file tvm/ir/replace_global_vars.h
  *
  * \brief A utility to replace GlobalVar instances across all TVM IR
  * types in an IRMdoule.
  */
-#ifndef TVM_IR_REPLACE_GLOBAL_VAR_H_
-#define TVM_IR_REPLACE_GLOBAL_VAR_H_
+#ifndef TVM_IR_REPLACE_GLOBAL_VARS_H_
+#define TVM_IR_REPLACE_GLOBAL_VARS_H_
 
 #include <tvm/ir/module.h>
 
@@ -41,7 +41,7 @@ namespace transform {
  *
  * \return The updated IRModule
  */
-TVM_DLL IRModule ReplaceGlobalVar(IRModule mod, Map<GlobalVar, GlobalVar> replacements);
+TVM_DLL IRModule ReplaceGlobalVars(IRModule mod, Map<GlobalVar, GlobalVar> replacements);
 
 struct GlobalVarReplacer {
   using FType = NodeFunctor<BaseFunc(const ObjectRef&, Map<GlobalVar, GlobalVar>)>;
@@ -54,4 +54,4 @@ struct GlobalVarReplacer {
 }  // namespace transform
 }  // namespace tvm
 
-#endif  // TVM_IR_REPLACE_GLOBAL_VAR_H_
+#endif  // TVM_IR_REPLACE_GLOBAL_VARS_H_
