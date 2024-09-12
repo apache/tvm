@@ -690,6 +690,29 @@ class TorchFXImporter:
         operands = args[1] if isinstance(args[1], (torch.Size, tuple, list)) else args[1:]
         return self.block_builder.emit(relax.op.einsum(operands, args[0]))
 
+    def _embedding_impl(
+        self,
+        x,
+        weight,
+    ) -> relax.Var:
+        x = self.block_builder.emit(relax.op.astype(x, "int32"))
+
+        ndim = x.struct_info.ndim
+        if ndim == 1:
+            return self.block_builder.emit(relax.op.take(weight, x, axis=0))
+        else:
+            x_shape = x.struct_info.shape.values
+            emb_size = weight.struct_info.shape.values[-1]
+            x = self.block_builder.emit(relax.op.reshape(x, shape=[-1]))
+            embedding = self.block_builder.emit(relax.op.take(weight, x, axis=0))
+            return self.block_builder.emit(relax.op.reshape(embedding, [*x_shape, emb_size]))
+
+    def _embedding_module(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        module = self.named_modules[node.target]
+        weight = self.params[module.weight]
+        return self._embedding_impl(x, weight)
+
     ########## Creation ##########
 
     def _arange(self, node: fx.Node) -> relax.Var:
@@ -1247,22 +1270,6 @@ class TorchFXImporter:
             )
         )
 
-    def _embedding(self, node: fx.Node) -> relax.Var:
-        x = self.env[node.args[0]]
-        module = self.named_modules[node.target]
-        weight = self.params[module.weight]
-        x = self.block_builder.emit(relax.op.astype(x, "int32"))
-
-        ndim = x.struct_info.ndim
-        if ndim == 1:
-            return self.block_builder.emit(relax.op.take(weight, x, axis=0))
-        else:
-            x_shape = x.struct_info.shape.values
-            emb_size = weight.struct_info.shape.values[-1]
-            x = self.block_builder.emit(relax.op.reshape(x, shape=[-1]))
-            embedding = self.block_builder.emit(relax.op.take(weight, x, axis=0))
-            return self.block_builder.emit(relax.op.reshape(embedding, [*x_shape, emb_size]))
-
     def _interpolate(self, node: fx.Node) -> relax.Var:
         # torch.nn.functional.interpolate(
         #   input, size=None, scale_factor=None, mode='nearest', align_corners=None,
@@ -1536,7 +1543,7 @@ class TorchFXImporter:
             nn.LayerNorm: self._layer_norm,
             nn.Linear: self._linear,
             nn.MaxPool2d: self._max_pool2d,
-            nn.modules.sparse.Embedding: self._embedding,
+            nn.modules.sparse.Embedding: self._embedding_module,
             # tensor manipulation
             nn.Flatten: self._flatten,
             ## call_function and call_method
