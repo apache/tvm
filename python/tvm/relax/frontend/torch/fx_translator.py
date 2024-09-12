@@ -853,6 +853,26 @@ class TorchFXImporter:
 
         return self._max_pool2d_impl(x, kernel_size, stride, padding, dilation, ceil_mode)
 
+    def _scaled_dot_product_attention(self, node: fx.Node) -> relax.Var:
+        transpose_S_H = lambda tensor: relax.op.permute_dims(tensor, [0, 2, 1, 3])
+        query = transpose_S_H(self.env[node.args[0]])
+        key = transpose_S_H(self.env[node.args[1]])
+        value = transpose_S_H(self.env[node.args[2]])
+        attn_mask = node.args[3] if len(node.args) > 3 else node.kwargs.get("attn_mask", None)
+        dropout_p = node.args[4] if len(node.args) > 4 else node.kwargs.get("dropout_p", 0.0)
+        assert dropout_p == 0.0, "Dropout is not supported"
+        is_causal = node.args[5] if len(node.args) > 5 else node.kwargs.get("is_causal", False)
+        causal_mask = "TopLeft" if is_causal else None
+
+        if attn_mask is not None:
+            attn_mask = self.env[attn_mask]
+            msg = "Only a float mask is supported for the attn_mask input."
+            assert "float" in attn_mask.struct_info.dtype, msg
+
+        return self.block_builder.emit(
+            relax.op.nn.attention(query, key, value, bias=attn_mask, causal_mask=causal_mask)
+        )
+
     ########## Creation ##########
 
     def _arange(self, node: fx.Node) -> relax.Var:
@@ -1380,26 +1400,6 @@ class TorchFXImporter:
                 relax.op.nn.log_softmax(preds), targets, weights, reduction, ignore_index
             )
         )
-
-    def _scaled_dot_product_attention(self, node: fx.Node) -> relax.Var:
-        assert (
-            len(node.args) <= 4
-        ), "Dropout is not supported, and is_causal should be called by kwargs."
-        transpose_S_H = lambda tensor: relax.op.permute_dims(tensor, [0, 2, 1, 3])
-        query = transpose_S_H(self.env[node.args[0]])
-        key = transpose_S_H(self.env[node.args[1]])
-        value = transpose_S_H(self.env[node.args[2]])
-        causal_mask = "TopLeft" if node.kwargs.get("is_causal", False) else None
-
-        if len(node.args) == 4:
-            mask = self.env[node.args[3]]
-            msg = "Only a float mask is supported for the attn_mask input."
-            assert "float" in mask.struct_info.dtype, msg
-            attn = relax.op.nn.attention(query, key, value, bias=mask, causal_mask=causal_mask)
-        else:
-            attn = relax.op.nn.attention(query, key, value, causal_mask=causal_mask)
-
-        return self.block_builder.emit(attn)
 
     ########## Others ##########
 
