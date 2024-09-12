@@ -1064,11 +1064,6 @@ class TorchFXImporter:
             return self.block_builder.emit(relax.op.astype(x, dtype))
         return x
 
-    ########## Linear Algebra ##########
-
-    def _matmul_impl(self, a: relax.Expr, b: relax.Expr):
-        return self.block_builder.emit(relax.op.linear_algebra.matmul(a, b, out_dtype="float32"))
-
     ########## Manipulation ##########
 
     def _cat(self, node: fx.Node) -> relax.Var:
