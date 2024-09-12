@@ -683,6 +683,13 @@ class TorchFXImporter:
             groups=module.groups,
         )
 
+    def _einsum(self, node: fx.Node) -> relax.Var:
+        import torch  # type: ignore
+
+        args = self.retrieve_args(node)
+        operands = args[1] if isinstance(args[1], (torch.Size, tuple, list)) else args[1:]
+        return self.block_builder.emit(relax.op.einsum(operands, args[0]))
+
     ########## Creation ##########
 
     def _arange(self, node: fx.Node) -> relax.Var:
@@ -867,14 +874,6 @@ class TorchFXImporter:
 
     def _matmul_impl(self, a: relax.Expr, b: relax.Expr):
         return self.block_builder.emit(relax.op.linear_algebra.matmul(a, b, out_dtype="float32"))
-
-    def _einsum(self, node: fx.Node) -> relax.Var:
-        import torch  # type: ignore
-
-        args = self.retrieve_args(node)
-        if isinstance(args[1], (torch.Size, tuple, list)):
-            return self.block_builder.emit(relax.op.einsum(tuple(args[1]), args[0]))
-        return self.block_builder.emit(relax.op.einsum(args[1:], args[0]))
 
     def _unbind(self, node: fx.Node) -> relax.Var:
         if len(node.args) == 2:
