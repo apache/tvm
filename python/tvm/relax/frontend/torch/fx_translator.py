@@ -795,6 +795,20 @@ class TorchFXImporter:
         eps = module.eps
         return self._layer_norm_impl(x, gamma, beta, eps, normalized_shape)
 
+    def _linear(self, node: fx.Node) -> relax.Var:
+        args = self.retrieve_args(node)
+        x = args[0]
+        weight = args[1]
+        bias = args[2] if len(args) > 2 else None
+        return self.block_builder.emit(relax.op.linear(x, weight, bias, "float32"))
+
+    def _linear_module(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        module = self.named_modules[node.target]
+        weight = self.params[module.weight]
+        bias = self.params.get(module.bias, None)
+        return self.block_builder.emit(relax.op.linear(x, weight, bias, "float32"))
+
     ########## Creation ##########
 
     def _arange(self, node: fx.Node) -> relax.Var:
@@ -1180,20 +1194,6 @@ class TorchFXImporter:
 
     ########## Neural Network ##########
 
-    def _linear(self, node: fx.Node) -> relax.Var:
-        x = self.env[node.args[0]]
-        module = self.named_modules[node.target]
-        weight = self.params[module.weight]
-        bias = None if module.bias is None else self.params[module.bias]
-        return self.block_builder.emit(relax.op.linear(x, weight, bias, "float32"))
-
-    def _linear_functional(self, node: fx.Node) -> relax.Var:
-        args = self.retrieve_args(node)
-        x = args[0]
-        weight = args[1]
-        bias = args[2] if len(args) > 2 else None
-        return self.block_builder.emit(relax.op.linear(x, weight, bias, "float32"))
-
     def _max_pool2d(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         if node.target in self.named_modules:
@@ -1530,7 +1530,7 @@ class TorchFXImporter:
             nn.CrossEntropyLoss: self._cross_entropy,
             nn.GroupNorm: self._group_norm_module,
             nn.LayerNorm: self._layer_norm_module,
-            nn.Linear: self._linear,
+            nn.Linear: self._linear_module,
             nn.MaxPool2d: self._max_pool2d,
             nn.modules.sparse.Embedding: self._embedding_module,
             # tensor manipulation
@@ -1600,7 +1600,7 @@ class TorchFXImporter:
             "einsum": self._einsum,
             "interpolate": self._interpolate,
             "layer_norm": self._layer_norm,
-            "linear": self._linear_functional,
+            "linear": self._linear,
             "max_pool2d": self._max_pool2d,
             "scaled_dot_product_attention": self._scaled_dot_product_attention,
             "stochastic_depth": lambda node: self.env[node.args[0]],
