@@ -296,6 +296,44 @@ class TorchFXImporter:
             res = bias if res is None else self.block_builder.emit(relax.op.add(bias, res))
         return res
 
+    def _avg_pool2d_impl(
+        self,
+        x: relax.Expr,
+        kernel_size: Union[int, Tuple[int, int]] = (1, 1),
+        stride: Optional[Union[int, Tuple[int, int]]] = None,
+        padding: Optional[int] = 0,
+        ceil_mode: Optional[bool] = False,
+    ) -> relax.Var:
+        stride = kernel_size if stride is None or stride == [] else stride
+        return self.block_builder.emit(
+            relax.op.nn.avg_pool2d(
+                x,
+                pool_size=kernel_size,
+                strides=stride,
+                padding=padding,
+                ceil_mode=ceil_mode,
+                layout="NCHW",
+            )
+        )
+
+    def _avg_pool2d(self, node: fx.Node) -> relax.Var:
+        args, kwargs = node.normalized_arguments(node)
+        x = self.env[args[0]]
+        kernel_size = args[1] if len(args) > 1 else kwargs["kernel_size"]
+        stride = args[2] if len(args) > 2 else kwargs.get("stride", None)
+        padding = args[3] if len(args) > 3 else kwargs.get("padding", 0)
+        ceil_mode = args[4] if len(args) > 4 else kwargs.get("ceil_mode", False)
+        return self._avg_pool2d_impl(x, kernel_size, stride, padding, ceil_mode)
+
+    def _avg_pool2d_module(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        module = self.named_modules[node.target]
+        kernel_size = module.kernel_size
+        stride = module.stride
+        padding = module.padding
+        ceil_mode = module.ceil_mode
+        return self._avg_pool2d_impl(x, kernel_size, stride, padding, ceil_mode)
+
     ########## Creation ##########
 
     def _arange(self, node: fx.Node) -> relax.Var:
@@ -1093,49 +1131,6 @@ class TorchFXImporter:
             )
         )
 
-    def _avg_pool2d(self, node: fx.Node) -> relax.Var:
-        x = self.env[node.args[0]]
-        if node.target in self.named_modules:
-            module = self.named_modules[node.target]
-            kernel = module.kernel_size
-            stride = module.stride
-            padding = module.padding
-            ceil_mode = module.ceil_mode
-        else:
-            nargs = len(node.args)
-            kernel = node.args[1] if nargs > 1 else node.kwargs["kernel_size"]
-            if nargs > 2:
-                stride = node.args[2]
-            elif "stride" in node.kwargs.keys():
-                stride = node.kwargs["stride"]
-            else:
-                stride = None
-            if nargs > 3:
-                padding = node.args[3]
-            elif "padding" in node.kwargs.keys():
-                padding = node.kwargs["padding"]
-            else:
-                padding = 0
-            if nargs > 4:
-                ceil_mode = node.args[4]
-            elif "ceil_mode" in node.kwargs.keys():
-                ceil_mode = node.kwargs["ceil_mode"]
-            else:
-                ceil_mode = False
-
-        stride = kernel if stride is None else stride
-
-        return self.block_builder.emit(
-            relax.op.nn.avg_pool2d(
-                x,
-                pool_size=kernel,
-                strides=stride,
-                padding=padding,
-                layout="NCHW",
-                ceil_mode=ceil_mode,
-            )
-        )
-
     def _softmax(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         if node.target in self.named_modules:
@@ -1540,7 +1535,7 @@ class TorchFXImporter:
             nn.Tanh: self._unary_op(relax.op.tanh),
             # neural network
             nn.AdaptiveAvgPool2d: self._adaptive_avg_pool2d_module,
-            nn.AvgPool2d: self._avg_pool2d,
+            nn.AvgPool2d: self._avg_pool2d_module,
             nn.BatchNorm2d: self._batch_norm_2d,
             nn.Conv1d: self._conv1d,
             nn.Conv2d: self._conv2d,
