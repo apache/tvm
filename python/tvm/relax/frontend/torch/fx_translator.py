@@ -809,6 +809,50 @@ class TorchFXImporter:
         bias = self.params.get(module.bias, None)
         return self.block_builder.emit(relax.op.linear(x, weight, bias, "float32"))
 
+    def _max_pool2d_impl(
+        self,
+        x: relax.Expr,
+        kernel_size: Union[int, Tuple[int, int]] = (1, 1),
+        stride: Optional[Union[int, Tuple[int, int]]] = None,
+        padding: Optional[int] = 0,
+        dilation: Optional[int] = 1,
+        ceil_mode: Optional[bool] = False,
+    ) -> relax.Var:
+        stride = kernel_size if stride is None else stride
+        return self.block_builder.emit(
+            relax.op.nn.max_pool2d(
+                x,
+                pool_size=kernel_size,
+                strides=stride,
+                padding=padding,
+                dilation=dilation,
+                ceil_mode=ceil_mode,
+                layout="NCHW",
+            )
+        )
+
+    def _max_pool2d(self, node: fx.Node) -> relax.Var:
+        args = self.retrieve_args(node)
+        x = args[0]
+        kernel_size = args[1]
+        stride = args[2] if len(args) > 2 else None
+        padding = args[3] if len(args) > 3 else 0
+        dilation = args[4] if len(args) > 4 else 1
+        ceil_mode = args[5] if len(args) > 5 else False
+
+        return self._max_pool2d_impl(x, kernel_size, stride, padding, dilation, ceil_mode)
+
+    def _max_pool2d_module(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        module = self.named_modules[node.target]
+        kernel_size = module.kernel_size
+        stride = module.stride
+        padding = module.padding
+        dilation = module.dilation
+        ceil_mode = module.ceil_mode
+
+        return self._max_pool2d_impl(x, kernel_size, stride, padding, dilation, ceil_mode)
+
     ########## Creation ##########
 
     def _arange(self, node: fx.Node) -> relax.Var:
@@ -1194,37 +1238,6 @@ class TorchFXImporter:
 
     ########## Neural Network ##########
 
-    def _max_pool2d(self, node: fx.Node) -> relax.Var:
-        x = self.env[node.args[0]]
-        if node.target in self.named_modules:
-            module = self.named_modules[node.target]
-            kernel = module.kernel_size
-            stride = module.stride
-            padding = module.padding
-            dilation = module.dilation
-            ceil_mode = module.ceil_mode
-        else:
-            nargs = len(node.args)
-            kernel = node.args[1] if nargs > 1 else node.kwargs["kernel_size"]
-            stride = node.args[2] if nargs > 2 else node.kwargs["stride"]
-            padding = node.args[3] if nargs > 3 else node.kwargs["padding"]
-            dilation = node.args[4] if nargs > 4 else node.kwargs["dilation"]
-            ceil_mode = node.args[5] if nargs > 5 else node.kwargs["ceil_mode"]
-
-        stride = kernel if stride is None else stride
-
-        return self.block_builder.emit(
-            relax.op.nn.max_pool2d(
-                x,
-                pool_size=kernel,
-                strides=stride,
-                padding=padding,
-                dilation=dilation,
-                layout="NCHW",
-                ceil_mode=ceil_mode,
-            )
-        )
-
     def _softmax(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         if node.target in self.named_modules:
@@ -1531,7 +1544,7 @@ class TorchFXImporter:
             nn.GroupNorm: self._group_norm_module,
             nn.LayerNorm: self._layer_norm_module,
             nn.Linear: self._linear_module,
-            nn.MaxPool2d: self._max_pool2d,
+            nn.MaxPool2d: self._max_pool2d_module,
             nn.modules.sparse.Embedding: self._embedding_module,
             # tensor manipulation
             nn.Flatten: self._flatten,
