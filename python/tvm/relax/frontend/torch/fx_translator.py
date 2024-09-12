@@ -873,6 +873,17 @@ class TorchFXImporter:
             relax.op.nn.attention(query, key, value, bias=attn_mask, causal_mask=causal_mask)
         )
 
+    def _unbind(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        dim = node.args[1] if len(node.args) > 1 else node.kwargs.get("dim", 0)
+        assert isinstance(dim, int), "Expected 2nd argument of unbind as int"
+        selections = self.shape_of(x)[dim].value
+        n_section = list(range(1, selections + 1))
+        ret, split = [], self.block_builder.emit(relax.op.split(x, n_section, dim))
+        for i in range(selections):
+            ret.append(self.block_builder.emit(relax.op.squeeze(split[i], axis=dim)))
+        return self.block_builder.emit(relax.Tuple(ret))
+
     ########## Creation ##########
 
     def _arange(self, node: fx.Node) -> relax.Var:
@@ -1057,22 +1068,6 @@ class TorchFXImporter:
 
     def _matmul_impl(self, a: relax.Expr, b: relax.Expr):
         return self.block_builder.emit(relax.op.linear_algebra.matmul(a, b, out_dtype="float32"))
-
-    def _unbind(self, node: fx.Node) -> relax.Var:
-        if len(node.args) == 2:
-            assert isinstance(node.args[1], int), "Expected 2nd argument of unbind as int"
-            dim = node.args[1]
-        elif "dim" in node.kwargs:
-            dim = node.kwargs["dim"]
-        else:
-            dim = 0
-        x = self.env[node.args[0]]
-        selections = self.shape_of(x)[dim].value
-        n_section = list(range(1, selections + 1))
-        ret, split = [], self.block_builder.emit(relax.op.split(x, n_section, dim))
-        for i in range(selections):
-            ret.append(self.block_builder.emit(relax.op.squeeze(split[i], axis=dim)))
-        return self.block_builder.emit(relax.Tuple(ret))
 
     ########## Manipulation ##########
 
