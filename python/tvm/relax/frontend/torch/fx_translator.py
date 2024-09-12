@@ -740,6 +740,61 @@ class TorchFXImporter:
             )
         )
 
+    def _layer_norm_impl(self, x, gamma, beta, eps, normalized_shape) -> relax.Var:
+        from torch.fx.immutable_collections import immutable_list
+        import numpy as np  # type: ignore
+
+        if isinstance(normalized_shape, (immutable_list, tuple)):
+            normalized_shape = tuple(normalized_shape)
+        else:
+            try:
+                normalized_shape = self.env[normalized_shape]
+            except TypeError:
+                normalized_shape = tuple(normalized_shape)
+
+        dim_num = len(normalized_shape)
+        axes = list(range(-dim_num, 0))
+
+        if gamma is None:
+            shape_tuple = [int(s) for s in normalized_shape]
+            gamma = relax.const(np.ones(shape_tuple), x.struct_info.dtype)
+        if beta is None:
+            shape_tuple = [int(s) for s in normalized_shape]
+            beta = relax.const(np.zeros(shape_tuple), x.struct_info.dtype)
+
+        return self.block_builder.emit(
+            relax.op.nn.layer_norm(
+                x,
+                gamma,
+                beta,
+                axes=axes,
+                epsilon=eps,
+            )
+        )
+
+    def _layer_norm(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        normalized_shape = node.args[1]
+        gamma = self.env[node.args[2]] if len(node.args) > 2 else None
+        beta = self.env[node.args[3]] if len(node.args) > 3 else None
+        eps = node.args[4] if len(node.args) > 4 else 1e-05
+        return self._layer_norm_impl(x, gamma, beta, eps, normalized_shape)
+
+    def _layer_norm_module(self, node: fx.Node) -> relax.Var:
+        import torch  # type: ignore
+
+        x = self.env[node.args[0]]
+        module = self.named_modules[node.target]
+        normalized_shape = module.normalized_shape
+        if module.elementwise_affine:
+            gamma = self.params[module.weight]
+            beta = self.params[module.bias]
+        else:
+            gamma = relax.const(torch.ones_like(module.normalized_shape), x.struct_info.dtype)
+            beta = relax.const(torch.zeros_like(module.normalized_shape), x.struct_info.dtype)
+        eps = module.eps
+        return self._layer_norm_impl(x, gamma, beta, eps, normalized_shape)
+
     ########## Creation ##########
 
     def _arange(self, node: fx.Node) -> relax.Var:
@@ -1204,73 +1259,6 @@ class TorchFXImporter:
 
         return self.block_builder.emit(relax.TupleGetItem(res_tuple, 0))
 
-    def _layer_norm(self, node: fx.Node) -> relax.Var:
-        import torch  # type: ignore
-        from torch.fx.immutable_collections import immutable_list
-        import numpy as np  # type: ignore
-
-        x = self.env[node.args[0]]
-
-        # functional.layer_norm
-        if node.target not in self.named_modules:
-            # static or symbolic
-            arg = node.args[1]
-            if isinstance(arg, (immutable_list, tuple)):
-                value = tuple(arg)
-            else:
-                try:
-                    value = self.env[arg]
-                except TypeError:
-                    value = tuple(arg)
-            normalized_shape = value
-            dim_num = len(normalized_shape)
-            axes = list(range(-dim_num, 0))
-
-            gamma = node.kwargs["weight"]
-            if gamma is None:
-                shape_tuple = [int(s) for s in normalized_shape]
-                gamma = relax.const(np.ones(shape_tuple), x.struct_info.dtype)
-            else:
-                gamma = self.env[gamma]
-            beta = node.kwargs["bias"]
-            if beta is None:
-                shape_tuple = [int(s) for s in normalized_shape]
-                beta = relax.const(np.zeros(shape_tuple), x.struct_info.dtype)
-            else:
-                beta = self.env[beta]
-            eps = node.kwargs["eps"]
-
-            return self.block_builder.emit(
-                relax.op.nn.layer_norm(
-                    x,
-                    gamma,
-                    beta,
-                    axes=axes,
-                    epsilon=eps,
-                )
-            )
-
-        module = self.named_modules[node.target]
-
-        if module.elementwise_affine:
-            gamma = self.params[module.weight]
-            beta = self.params[module.bias]
-        else:
-            gamma = relax.const(torch.ones_like(module.normalized_shape), x.struct_info.dtype)
-            beta = relax.const(torch.zeros_like(module.normalized_shape), x.struct_info.dtype)
-        dim_num = len(module.normalized_shape)
-        axes = list(range(-dim_num, 0))
-
-        return self.block_builder.emit(
-            relax.op.nn.layer_norm(
-                x,
-                gamma,
-                beta,
-                axes=axes,
-                epsilon=module.eps,
-            )
-        )
-
     def _interpolate(self, node: fx.Node) -> relax.Var:
         # torch.nn.functional.interpolate(
         #   input, size=None, scale_factor=None, mode='nearest', align_corners=None,
@@ -1541,7 +1529,7 @@ class TorchFXImporter:
             nn.ConvTranspose2d: self._conv2d_transpose_module,
             nn.CrossEntropyLoss: self._cross_entropy,
             nn.GroupNorm: self._group_norm_module,
-            nn.LayerNorm: self._layer_norm,
+            nn.LayerNorm: self._layer_norm_module,
             nn.Linear: self._linear,
             nn.MaxPool2d: self._max_pool2d,
             nn.modules.sparse.Embedding: self._embedding_module,
