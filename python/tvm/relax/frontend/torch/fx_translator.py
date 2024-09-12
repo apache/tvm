@@ -713,6 +713,33 @@ class TorchFXImporter:
         weight = self.params[module.weight]
         return self._embedding_impl(x, weight)
 
+    def _group_norm_module(self, node: fx.Node) -> relax.Var:
+        import torch  # type: ignore
+
+        x = self.env[node.args[0]]
+        module = self.named_modules[node.target]
+        num_groups = module.num_groups
+        if module.affine:
+            gamma = self.params[module.weight]
+            beta = self.params[module.bias]
+        else:
+            gamma = relax.const(torch.ones_like(module.num_channels), x.checked_type)
+            beta = relax.const(torch.zeros_like(module.num_channels), x.checked_type)
+        eps = module.eps
+
+        dim = len(self.shape_of(x))
+        return self.block_builder.emit(
+            relax.op.nn.group_norm(
+                x,
+                gamma,
+                beta,
+                num_groups=num_groups,
+                channel_axis=1,
+                axes=list(range(2, dim)),
+                epsilon=eps,
+            )
+        )
+
     ########## Creation ##########
 
     def _arange(self, node: fx.Node) -> relax.Var:
@@ -1244,32 +1271,6 @@ class TorchFXImporter:
             )
         )
 
-    def _group_norm(self, node: fx.Node) -> relax.Var:
-        import torch  # type: ignore
-
-        x = self.env[node.args[0]]
-        module = self.named_modules[node.target]
-
-        if module.affine:
-            gamma = self.params[module.weight]
-            beta = self.params[module.bias]
-        else:
-            gamma = relax.const(torch.ones_like(module.num_channels), x.checked_type)
-            beta = relax.const(torch.zeros_like(module.num_channels), x.checked_type)
-
-        dim = len(self.shape_of(x))
-        return self.block_builder.emit(
-            relax.op.nn.group_norm(
-                x,
-                gamma,
-                beta,
-                num_groups=module.num_groups,
-                channel_axis=1,
-                axes=list(range(2, dim)),
-                epsilon=module.eps,
-            )
-        )
-
     def _interpolate(self, node: fx.Node) -> relax.Var:
         # torch.nn.functional.interpolate(
         #   input, size=None, scale_factor=None, mode='nearest', align_corners=None,
@@ -1539,7 +1540,7 @@ class TorchFXImporter:
             nn.ConvTranspose1d: self._conv1d_transpose_module,
             nn.ConvTranspose2d: self._conv2d_transpose_module,
             nn.CrossEntropyLoss: self._cross_entropy,
-            nn.GroupNorm: self._group_norm,
+            nn.GroupNorm: self._group_norm_module,
             nn.LayerNorm: self._layer_norm,
             nn.Linear: self._linear,
             nn.MaxPool2d: self._max_pool2d,
