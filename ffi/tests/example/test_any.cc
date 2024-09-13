@@ -29,7 +29,7 @@ using namespace tvm::ffi::testing;
 
 TEST(Any, Int) {
   AnyView view0;
-  EXPECT_EQ(view0.AsTVMFFIAny().type_index, TypeIndex::kTVMFFINone);
+  EXPECT_EQ(view0.CopyToTVMFFIAny().type_index, TypeIndex::kTVMFFINone);
 
   std::optional<int64_t> opt_v0 = view0.TryAs<int64_t>();
   EXPECT_TRUE(!opt_v0.has_value());
@@ -48,21 +48,21 @@ TEST(Any, Int) {
       ::tvm::ffi::Error);
 
   AnyView view1 = 1;
-  EXPECT_EQ(view1.AsTVMFFIAny().type_index, TypeIndex::kTVMFFIInt);
-  EXPECT_EQ(view1.AsTVMFFIAny().v_int64, 1);
+  EXPECT_EQ(view1.CopyToTVMFFIAny().type_index, TypeIndex::kTVMFFIInt);
+  EXPECT_EQ(view1.CopyToTVMFFIAny().v_int64, 1);
 
   int32_t int_v1 = view1;
   EXPECT_EQ(int_v1, 1);
 
   int64_t v1 = 2;
   view0 = v1;
-  EXPECT_EQ(view0.AsTVMFFIAny().type_index, TypeIndex::kTVMFFIInt);
-  EXPECT_EQ(view0.AsTVMFFIAny().v_int64, 2);
+  EXPECT_EQ(view0.CopyToTVMFFIAny().type_index, TypeIndex::kTVMFFIInt);
+  EXPECT_EQ(view0.CopyToTVMFFIAny().v_int64, 2);
 }
 
 TEST(Any, Float) {
   AnyView view0;
-  EXPECT_EQ(view0.AsTVMFFIAny().type_index, TypeIndex::kTVMFFINone);
+  EXPECT_EQ(view0.CopyToTVMFFIAny().type_index, TypeIndex::kTVMFFINone);
 
   std::optional<double> opt_v0 = view0.TryAs<double>();
   EXPECT_TRUE(!opt_v0.has_value());
@@ -85,18 +85,18 @@ TEST(Any, Float) {
   EXPECT_EQ(float_v1, 1);
 
   AnyView view2 = 2.2;
-  EXPECT_EQ(view2.AsTVMFFIAny().type_index, TypeIndex::kTVMFFIFloat);
-  EXPECT_EQ(view2.AsTVMFFIAny().v_float64, 2.2);
+  EXPECT_EQ(view2.CopyToTVMFFIAny().type_index, TypeIndex::kTVMFFIFloat);
+  EXPECT_EQ(view2.CopyToTVMFFIAny().v_float64, 2.2);
 
   float v1 = 2;
   view0 = v1;
-  EXPECT_EQ(view0.AsTVMFFIAny().type_index, TypeIndex::kTVMFFIFloat);
-  EXPECT_EQ(view0.AsTVMFFIAny().v_float64, 2);
+  EXPECT_EQ(view0.CopyToTVMFFIAny().type_index, TypeIndex::kTVMFFIFloat);
+  EXPECT_EQ(view0.CopyToTVMFFIAny().v_float64, 2);
 }
 
 TEST(Any, Object) {
   AnyView view0;
-  EXPECT_EQ(view0.AsTVMFFIAny().type_index, TypeIndex::kTVMFFINone);
+  EXPECT_EQ(view0.CopyToTVMFFIAny().type_index, TypeIndex::kTVMFFINone);
 
   // int object is not nullable
   std::optional<TInt> opt_v0 = view0.TryAs<TInt>();

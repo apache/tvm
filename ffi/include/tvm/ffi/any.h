@@ -112,12 +112,12 @@ class AnyView {
    * \return The underlying supporting data of any view
    * \note This function is used only for testing purposes.
    */
-  TVMFFIAny AsTVMFFIAny() const { return data_; }
+  TVMFFIAny CopyToTVMFFIAny() const { return data_; }
   /*!
    * \return Create an AnyView from TVMFFIAny
    * \param data the underlying ffi data.
    */
-  static AnyView FromTVMFFIAny(TVMFFIAny data) {
+  static AnyView CopyFromTVMFFIAny(TVMFFIAny data) {
     AnyView view;
     view.data_ = data;
     return view;
@@ -142,7 +142,10 @@ TVM_FFI_INLINE void InplaceConvertAnyViewToAny(TVMFFIAny* data,
 }  // namespace details
 
 /*!
- * \brief
+ * \brief Managed Any that takes strong reference to a value.
+ *
+ * \note Develooper invariance: the TVMFFIAny data_
+ *       in the Any can be safely used in AnyView.
  */
 class Any {
  protected:
@@ -198,7 +201,7 @@ class Any {
     return *this;
   }
   /*! \brief Any can be converted to AnyView in zero cost. */
-  operator AnyView() { return AnyView::FromTVMFFIAny(data_); }
+  operator AnyView() { return AnyView::CopyFromTVMFFIAny(data_); }
   // constructor from general types
   template <typename T, typename = std::enable_if_t<TypeTraits<T>::enabled>>
   Any(T other) {  // NOLINT(*)
@@ -227,10 +230,14 @@ class Any {
     TVM_FFI_UNREACHABLE();
   }
 
+  bool operator==(std::nullptr_t) const { return data_.type_index == TypeIndex::kTVMFFINone; }
+
+  bool operator!=(std::nullptr_t) const { return data_.type_index != TypeIndex::kTVMFFINone; }
+
   // FFI related operations
   /*!
    * Move the current data to FFI any
-   * \parma result the output to nmove to
+   * \param result the output to nmove to
    */
   void MoveToTVMFFIAny(TVMFFIAny* result) {
     *result = data_;
