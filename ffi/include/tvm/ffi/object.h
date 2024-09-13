@@ -352,7 +352,7 @@ class ObjectPtr {
 };
 
 // Forward declaration, to prevent circular includes.
-template <typename T>
+template <typename T, typename = void>
 class Optional;
 
 /*! \brief Base class of all object reference */
