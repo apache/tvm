@@ -64,7 +64,6 @@ def bind_with_value(self: Parser, node: doc.expr, var_name: str, value: Any) -> 
         return value
     else:
         self.report_error(node, f"Do not know how to bind type: {type(value)} in with statement")
-        raise NotImplementedError
 
 
 def bind_for_value(self: Parser, node: doc.expr, var_name: str, value: Any) -> Any:
@@ -100,7 +99,6 @@ def bind_for_value(self: Parser, node: doc.expr, var_name: str, value: Any) -> A
         return value
     else:
         self.report_error(node, f"Do not know how to bind type: {type(value)} in for statement")
-        raise NotImplementedError
 
 
 def bind_assign_value(self: Parser, node: doc.expr, var_name: str, value: Any) -> Any:
