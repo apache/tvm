@@ -893,6 +893,13 @@ class TorchFXImporter:
         keepdim = args[2] if len(node.args) > 2 else node.kwargs.get("keepdim", False)
         return self.block_builder.emit(relax.op.mean(x, dim, keepdims=keepdim))
 
+    def _sum(self, node: fx.Node) -> relax.Var:
+        args = self.retrieve_args(node)
+        keepdim = node.kwargs["keepdim"] if "keepdim" in node.kwargs else False
+        if len(args) == 1:
+            return self.block_builder.emit(relax.op.sum(args[0], keepdims=keepdim))
+        return self.block_builder.emit(relax.op.sum(args[0], args[1]))
+
     ########## Creation ##########
 
     def _arange(self, node: fx.Node) -> relax.Var:
@@ -1030,15 +1037,6 @@ class TorchFXImporter:
                 dtype,
             )
         )
-
-    ########## Statistical ##########
-
-    def _sum(self, node: fx.Node) -> relax.Var:
-        args = self.retrieve_args(node)
-        keepdim = node.kwargs["keepdim"] if "keepdim" in node.kwargs else False
-        if len(args) == 1:
-            return self.block_builder.emit(relax.op.sum(args[0], keepdims=keepdim))
-        return self.block_builder.emit(relax.op.sum(args[0], args[1]))
 
     ########## DataType ##########
 
