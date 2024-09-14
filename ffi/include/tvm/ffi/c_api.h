@@ -78,7 +78,7 @@ typedef enum {
   kTVMFFIStaticObjectBegin = 64,
   kTVMFFIObject = 64,
   kTVMFFIArray = 65,
-  kTVMFFIDict = 66,
+  kTVMFFIMap = 66,
   kTVMFFIError = 67,
   kTVMFFIFunc = 68,
   kTVMFFIStr = 69,

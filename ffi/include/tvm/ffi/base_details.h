@@ -135,6 +135,22 @@ void for_each(const F& f, Args&&... args) {  // NOLINT(*)
 }
 
 /*!
+ * \brief hash an object and combines uint64_t key with previous keys
+ *
+ * This hash function is stable across platforms.
+ *
+ * \param key The left operand.
+ * \param value The right operand.
+ * \return the combined result.
+ */
+template <typename T, std::enable_if_t<std::is_convertible<T, uint64_t>::value, bool> = true>
+TVM_FFI_INLINE uint64_t StableHashCombine(uint64_t key, const T& value) {
+  // XXX: do not use std::hash in this function. This hash must be stable
+  // across different platforms and std::hash is implementation dependent.
+  return key ^ (uint64_t(value) + 0x9e3779b9 + (key << 6) + (key >> 2));
+}
+
+/*!
  * \brief Hash the binary bytes
  * \param data The data pointer
  * \param size The size of the bytes.

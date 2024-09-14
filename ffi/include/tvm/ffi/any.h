@@ -57,7 +57,11 @@ class AnyView {
   /*!
    * \brief Reset any view to None
    */
-  void reset() { data_.type_index = TypeIndex::kTVMFFINone; }
+  void reset() {
+    data_.type_index = TypeIndex::kTVMFFINone;
+    // invariance: always set the union padding part to 0
+    data_.v_int64 = 0;
+  }
   /*!
    * \brief Swap this array with another Object
    * \param other The other Object
@@ -68,12 +72,18 @@ class AnyView {
   /*! \return the internal type index */
   int32_t type_index() const { return data_.type_index; }
   // default constructors
-  AnyView() { data_.type_index = TypeIndex::kTVMFFINone; }
+  AnyView() {
+    data_.type_index = TypeIndex::kTVMFFINone;
+    data_.v_int64 = 0;
+  }
   ~AnyView() = default;
   // constructors from any view
   AnyView(const AnyView&) = default;
   AnyView& operator=(const AnyView&) = default;
-  AnyView(AnyView&& other) : data_(other.data_) { other.data_.type_index = TypeIndex::kTVMFFINone; }
+  AnyView(AnyView&& other) : data_(other.data_) {
+    other.data_.type_index = TypeIndex::kTVMFFINone;
+    other.data_.v_int64 = 0;
+  }
   AnyView& operator=(AnyView&& other) {
     // copy-and-swap idiom
     AnyView(std::move(other)).swap(*this);  // NOLINT(*)
@@ -161,6 +171,7 @@ class Any {
       details::ObjectUnsafe::DecRefObjectInAny(&data_);
     }
     data_.type_index = TVMFFITypeIndex::kTVMFFINone;
+    data_.v_int64 = 0;
   }
   /*!
    * \brief Swap this array with another Object
@@ -172,7 +183,10 @@ class Any {
   /*! \return the internal type index */
   int32_t type_index() const { return data_.type_index; }
   // default constructors
-  Any() { data_.type_index = TypeIndex::kTVMFFINone; }
+  Any() {
+    data_.type_index = TypeIndex::kTVMFFINone;
+    data_.v_int64 = 0;
+  }
   ~Any() { this->reset(); }
   // constructors from Any
   Any(const Any& other) : data_(other.data_) {
@@ -180,7 +194,10 @@ class Any {
       details::ObjectUnsafe::IncRefObjectInAny(&data_);
     }
   }
-  Any(Any&& other) : data_(other.data_) { other.data_.type_index = TypeIndex::kTVMFFINone; }
+  Any(Any&& other) : data_(other.data_) {
+    other.data_.type_index = TypeIndex::kTVMFFINone;
+    other.data_.v_int64 = 0;
+  }
   Any& operator=(const Any& other) {
     // copy-and-swap idiom
     Any(other).swap(*this);  // NOLINT(*)
@@ -242,9 +259,12 @@ class Any {
   void MoveToTVMFFIAny(TVMFFIAny* result) {
     *result = data_;
     data_.type_index = TypeIndex::kTVMFFINone;
+    data_.v_int64 = 0;
   }
 
-  friend class details::AnyUnsafe;
+  friend struct details::AnyUnsafe;
+  friend struct AnyHash;
+  friend struct AnyEqual;
 };
 
 // layout assert to ensure we can freely cast between the two types
@@ -279,6 +299,48 @@ struct AnyUnsafe : public ObjectUnsafe {
   }
 };
 }  // namespace details
+
+/*! \brief String-aware ObjectRef equal functor */
+struct AnyHash {
+  /*!
+   * \brief Calculate the hash code of an Any
+   * \param a The given Any
+   * \return Hash code of a, string hash for strings and pointer address otherwise.
+   */
+  size_t operator()(const Any& src) const {
+    uint64_t val_hash = [&]() -> uint64_t {
+      if (src.data_.type_index == TypeIndex::kTVMFFIStr) {
+        const StringObj* src_str = details::AnyUnsafe::ConvertAfterCheck<const StringObj*>(src);
+        return details::StableHashBytes(src_str->data, src_str->size);
+      } else {
+        return std::hash<int64_t>()(src.data_.v_int64);
+      }
+    }();
+    return static_cast<size_t>(details::StableHashCombine(src.data_.type_index, val_hash));
+  }
+};
+
+/*! \brief String-aware Any hash functor */
+struct AnyEqual {
+  /*!
+   * \brief Check if the two Any are equal
+   * \param lhs left operand.
+   * \param rhs right operand
+   * \return String equality if both are strings, pointer address equality otherwise.
+   */
+  bool operator()(const Any& lhs, const Any& rhs) const {
+    if (lhs.data_.type_index != rhs.data_.type_index) return false;
+    // byte equivalence
+    if (lhs.data_.v_int64 == rhs.data_.v_int64) return true;
+    // specialy handle string hash
+    if (lhs.data_.type_index == TypeIndex::kTVMFFIStr) {
+      const StringObj* lhs_str = details::AnyUnsafe::ConvertAfterCheck<const StringObj*>(lhs);
+      const StringObj* rhs_str = details::AnyUnsafe::ConvertAfterCheck<const StringObj*>(rhs);
+      return String::memncmp(lhs_str->data, rhs_str->data, lhs_str->size, rhs_str->size) == 0;
+    }
+    return false;
+  }
+};
 
 // Downcast an object
 // NOTE: the implementation is put in here to avoid cyclic dependency
