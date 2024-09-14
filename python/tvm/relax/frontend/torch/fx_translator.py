@@ -212,6 +212,20 @@ class TorchFXImporter:
         assert dim is not None
         return self.block_builder.emit(relax.op.nn.softmax(x, dim))
 
+    def _inplace_tril_triu(self, op: Callable) -> Callable:
+        from torch import fx
+
+        def convert(node: fx.Node) -> relax.Var:
+            x = self.env[node.args[0]]
+            k = node.args[1] if len(node.args) > 1 else 0
+            assert isinstance(k, int)
+
+            mutated = self.block_builder.emit(op(x, k))
+            self.env[node.args[0]] = mutated
+            return mutated
+
+        return convert
+
     def _tril_triu(self, op: Callable) -> Callable:
         from torch import fx
 
@@ -1206,20 +1220,6 @@ class TorchFXImporter:
 
     ########## Creation ##########
 
-    def _inplace_tril_triu(self, op: Callable) -> Callable:
-        from torch import fx
-
-        def convert(node: fx.Node) -> relax.Var:
-            x = self.env[node.args[0]]
-            k = node.args[1] if len(node.args) > 1 else 0
-            assert isinstance(k, int)
-
-            mutated = self.block_builder.emit(op(x, k))
-            self.env[node.args[0]] = mutated
-            return mutated
-
-        return convert
-
     ########## Manipulation ##########
 
     ########## Neural Network ##########
@@ -1611,11 +1611,11 @@ class TorchFXImporter:
             "new_ones": self._new_ones,
             "ones": self._ones,
             "tensor": self._tensor,
-            "to": self._to,
             # datatype
             "astype": self._type,
             "float": self._float,
             "half": self._half,
+            "to": self._to,
             "type": self._type,
             # other
             "getattr": self._getattr,
