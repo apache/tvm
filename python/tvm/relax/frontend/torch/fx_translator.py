@@ -1132,6 +1132,13 @@ class TorchFXImporter:
         self.env[node.args[0]] = output
         return output
 
+    def _masked_fill(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        mask = self.env[node.args[1]]
+        rx_value = relax.const(node.args[2])
+        values = self.block_builder.emit(relax.op.full_like(x, rx_value))
+        return self.block_builder.emit(relax.op.where(mask, values, x))
+
     ########## DataType ##########
 
     def _float(self, node: fx.Node) -> relax.Var:
@@ -1219,14 +1226,6 @@ class TorchFXImporter:
         )
 
     ########## Manipulation ##########
-
-    def _masked_fill(self, node: fx.Node) -> relax.Var:
-        x = self.env[node.args[0]]
-        mask = self.env[node.args[1]]
-        value = node.args[2]
-        rx_value = relax.const(value)
-        values = self.block_builder.emit(relax.op.full_like(x, rx_value))
-        return self.block_builder.emit(relax.op.where(mask, values, x))
 
     ########## Neural Network ##########
 
