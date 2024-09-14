@@ -1154,6 +1154,22 @@ class TorchFXImporter:
             )
         )
 
+    def _ones(self, node: fx.Node) -> relax.Var:
+        import torch
+
+        args = self.retrieve_args(node)
+        size = relax.ShapeExpr((args[0],) if isinstance(args[0], (list, tuple)) else args[0])
+        dtype = self._convert_data_type(
+            node.kwargs.get("dtype", torch.get_default_dtype()), self.env
+        )
+        return self.block_builder.emit(
+            relax.op.full(
+                size,
+                relax.const(1, dtype),
+                dtype,
+            )
+        )
+
     ########## DataType ##########
 
     def _float(self, node: fx.Node) -> relax.Var:
@@ -1203,27 +1219,6 @@ class TorchFXImporter:
             return mutated
 
         return convert
-
-    def _ones(self, node: fx.Node) -> relax.Var:
-        import torch
-
-        args = self.retrieve_args(node)
-        size = args[0]
-        if not isinstance(size, (list, tuple)):
-            size = (size,)
-        size = relax.ShapeExpr(size)
-        dtype = (
-            TorchFXImporter._convert_data_type(str(node.kwargs["dtype"]), self.env)
-            if "dtype" in node.kwargs
-            else TorchFXImporter._convert_data_type(torch.get_default_dtype(), self.env)
-        )
-        return self.block_builder.emit(
-            relax.op.full(
-                size,
-                relax.const(1, dtype),
-                dtype,
-            )
-        )
 
     ########## Manipulation ##########
 
