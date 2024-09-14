@@ -116,7 +116,7 @@ export async function detectGPUDevice(): Promise<GPUDeviceDetectOutput | undefin
       requiredFeatures.push("shader-f16");
     }
 
-    const adapterInfo = adapter.info || await adapter.requestAdapterInfo();
+    const adapterInfo = adapter.info;
     const device = await adapter.requestDevice({
       requiredLimits: {
         maxBufferSize: requiredMaxBufferSize,
