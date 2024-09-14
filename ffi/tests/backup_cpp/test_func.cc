@@ -1,12 +1,13 @@
 #include <gtest/gtest.h>
+
 #include <tvm/ffi/ffi.hpp>
 
 namespace {
 using namespace tvm::ffi;
 
-const char *c_str_raw = "Hello";
+const char* c_str_raw = "Hello";
 
-double func_unpacked_0(int64_t a, double b, const char *c, const double &d) {
+double func_unpacked_0(int64_t a, double b, const char* c, const double& d) {
   EXPECT_STREQ(c, c_str_raw);
   return a + b + d;
 }
@@ -17,7 +18,7 @@ void func_unpacked_1(DLDataType dtype, DLDevice device, std::string str) {
   (void)str;
 }
 
-void func_packed_0(int num_args, const AnyView *, Any *ret) { *ret = num_args; }
+void func_packed_0(int num_args, const AnyView*, Any* ret) { *ret = num_args; }
 
 template <enum TVMFFITypeIndex type_index>
 void func_unpacked_anyview_arg(AnyView a) {
@@ -30,8 +31,8 @@ void func_unpacked_any_arg(Any a) {
 AnyView func_unpacked_anyview_ret() { return AnyView(1); }
 Any func_unpacked_any_ret() { return Any(1); }
 
-std::string func_unpacked_str_obj(Str *str, const char *str_2) {
-  EXPECT_EQ(reinterpret_cast<TVMFFIStr *>(str)->ref_cnt, 1);
+std::string func_unpacked_str_obj(Str* str, const char* str_2) {
+  EXPECT_EQ(reinterpret_cast<TVMFFIStr*>(str)->ref_cnt, 1);
   EXPECT_STREQ(str->c_str(), str_2);
   return str->c_str();
 }
@@ -47,26 +48,23 @@ TEST(Func_Signature, 1) {
 }
 
 TEST(Func_Signature, AnyView_Arg) {
-  EXPECT_EQ(details::FuncFunctor<decltype(func_unpacked_anyview_arg<
-                                          TVMFFITypeIndex::kTVMFFIInt>)>::Sig(),
-            "(0: AnyView) -> void");
+  EXPECT_EQ(
+      details::FuncFunctor<decltype(func_unpacked_anyview_arg<TVMFFITypeIndex::kTVMFFIInt>)>::Sig(),
+      "(0: AnyView) -> void");
 }
 
 TEST(Func_Signature, AnyView_Ret) {
-  EXPECT_EQ(details::FuncFunctor<decltype(func_unpacked_anyview_ret)>::Sig(),
-            "() -> AnyView");
+  EXPECT_EQ(details::FuncFunctor<decltype(func_unpacked_anyview_ret)>::Sig(), "() -> AnyView");
 }
 
 TEST(Func_Signature, Any_Arg) {
   EXPECT_EQ(
-      details::FuncFunctor<
-          decltype(func_unpacked_any_arg<TVMFFITypeIndex::kTVMFFIInt>)>::Sig(),
+      details::FuncFunctor<decltype(func_unpacked_any_arg<TVMFFITypeIndex::kTVMFFIInt>)>::Sig(),
       "(0: Any) -> void");
 }
 
 TEST(Func_Signature, Any_Ret) {
-  EXPECT_EQ(details::FuncFunctor<decltype(func_unpacked_any_ret)>::Sig(),
-            "() -> Any");
+  EXPECT_EQ(details::FuncFunctor<decltype(func_unpacked_any_ret)>::Sig(), "() -> Any");
 }
 
 TEST(Func_Unpacked_Invoke, Func0_RawStr) {
@@ -98,8 +96,7 @@ TEST(Func_Unpacked_Invoke, Func1) {
 }
 
 TEST(Func_Unpacked_Invoke, AnyView_Arg) {
-  Ref<Func> func =
-      Ref<Func>::New(func_unpacked_anyview_arg<TVMFFITypeIndex::kTVMFFIInt>);
+  Ref<Func> func = Ref<Func>::New(func_unpacked_anyview_arg<TVMFFITypeIndex::kTVMFFIInt>);
   func(1);
 }
 
@@ -110,8 +107,7 @@ TEST(Func_Unpacked_Invoke, AnyView_Ret) {
 }
 
 TEST(Func_Unpacked_Invoke, Any_Arg) {
-  Ref<Func> func =
-      Ref<Func>::New(func_unpacked_any_arg<TVMFFITypeIndex::kTVMFFIInt>);
+  Ref<Func> func = Ref<Func>::New(func_unpacked_any_arg<TVMFFITypeIndex::kTVMFFIInt>);
   func(1);
 }
 
@@ -156,7 +152,7 @@ TEST(Func_Unpacked_Invoke_TypeError, TypeMismatch_0) {
   try {
     func(1.0, 2, c_str_raw, 4);
     FAIL() << "No execption thrown";
-  } catch (TVMError &ex) {
+  } catch (TVMError& ex) {
     EXPECT_STREQ(ex.what(),
                  "Mismatched type on argument #0 when calling: "
                  "`(0: int, 1: float, 2: const char *, 3: float) -> float`. "
@@ -169,10 +165,11 @@ TEST(Func_Unpacked_Invoke_TypeError, TypeMismatch_1) {
   try {
     func(DLDataType{kDLInt, 32, 1}, DLDevice{kDLCPU, 0}, 1);
     FAIL() << "No execption thrown";
-  } catch (TVMError &ex) {
-    EXPECT_STREQ(ex.what(), "Mismatched type on argument #2 when calling: "
-                            "`(0: dtype, 1: Device, 2: str) -> void`. "
-                            "Expected `str` but got `int`");
+  } catch (TVMError& ex) {
+    EXPECT_STREQ(ex.what(),
+                 "Mismatched type on argument #2 when calling: "
+                 "`(0: dtype, 1: Device, 2: str) -> void`. "
+                 "Expected `str` but got `int`");
   }
 }
 
@@ -181,7 +178,7 @@ TEST(Func_Unpacked_Invoke_TypeError, ArgCountMismatch_0) {
   try {
     func(1, 2, c_str_raw);
     FAIL() << "No execption thrown";
-  } catch (TVMError &ex) {
+  } catch (TVMError& ex) {
     EXPECT_STREQ(ex.what(),
                  "Mismatched number of arguments when calling: "
                  "`(0: int, 1: float, 2: const char *, 3: float) -> float`. "
@@ -194,10 +191,11 @@ TEST(Func_Unpacked_Invoke_TypeError, ArgCountMismatch_1) {
   try {
     func(DLDataType{kDLInt, 32, 1}, DLDevice{kDLCPU, 0});
     FAIL() << "No execption thrown";
-  } catch (TVMError &ex) {
-    EXPECT_STREQ(ex.what(), "Mismatched number of arguments when calling: "
-                            "`(0: dtype, 1: Device, 2: str) -> void`. "
-                            "Expected 3 but got 2 arguments");
+  } catch (TVMError& ex) {
+    EXPECT_STREQ(ex.what(),
+                 "Mismatched number of arguments when calling: "
+                 "`(0: dtype, 1: Device, 2: str) -> void`. "
+                 "Expected 3 but got 2 arguments");
   }
 }
 
@@ -207,9 +205,9 @@ TEST(Func_Unpacked_Invoke_TypeError, ReturnTypeMismatch_0) {
     int ret = func(DLDataType{kDLInt, 32, 1}, DLDevice{kDLCPU, 0}, "Hello");
     (void)ret;
     FAIL() << "No execption thrown";
-  } catch (TVMError &ex) {
+  } catch (TVMError& ex) {
     EXPECT_STREQ(ex.what(), "Cannot convert from type `None` to `int`");
   }
 }
 
-} // namespace
+}  // namespace

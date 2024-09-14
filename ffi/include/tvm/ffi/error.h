@@ -54,6 +54,17 @@ namespace tvm {
 namespace ffi {
 
 /*!
+ * \brief Error already set in frontend env.
+ *
+ *  This error can be thrown by EnvCheckSignals to indicate
+ *  that there is an error set in the frontend environment(e.g.
+ *  python interpreter). The TVM FFI should catch this error
+ *  and return a proper code tell the frontend caller about
+ *  this fact.
+ */
+struct EnvErrorAlreadySet : public std::exception {};
+
+/*!
  * \brief Error object class.
  */
 class ErrorObj : public Object {
@@ -128,33 +139,8 @@ class ErrorBuilder {
   bool log_before_throw_;
 };
 
-// Code section that depends on dynamic components that requires linking
-#if TVM_FFI_ALLOW_DYN_TYPE
-/*!
- * \brief Get stack traceback in a string.
- * \param filaname The current file name.
- * \param func The current function
- * \param lineno The current line number
- * \return The traceback string
- *
- * \note filename func and lino are only used as a backup info, most cases they are not needed.
- *  The return value is set to const char* to be more compatible across dll boundaries.
- */
-TVM_FFI_DLL const char* Traceback(const char* filename, const char* func, int lineno);
 // define traceback here as call into traceback function
-#define TVM_FFI_TRACEBACK_HERE ::tvm::ffi::details::Traceback(__FILE__, TVM_FFI_FUNC_SIG, __LINE__)
-
-#else
-// simple traceback when allow dyn type is set to false
-inline std::string SimpleTraceback(const char* filename, const char* func, int lineno) {
-  std::ostringstream traceback;
-  // python style backtrace
-  traceback << "  " << filename << ", line " << lineno << ", in " << func << '\n';
-  return traceback.str();
-}
-#define TVM_FFI_TRACEBACK_HERE \
-  ::tvm::ffi::details::SimpleTraceback(__FILE__, TVM_FFI_FUNC_SIG, __LINE__)
-#endif  // TVM_FFI_ALLOW_DYN_TYPE
+#define TVM_FFI_TRACEBACK_HERE TVMFFITraceback(__FILE__, TVM_FFI_FUNC_SIG, __LINE__)
 }  // namespace details
 
 /*!

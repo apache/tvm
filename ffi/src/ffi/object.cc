@@ -22,6 +22,7 @@
  */
 #include <tvm/ffi/c_api.h>
 #include <tvm/ffi/error.h>
+#include <tvm/ffi/function.h>
 
 #include <memory>
 #include <string>
@@ -219,20 +220,24 @@ class TypeTable {
   std::vector<std::unique_ptr<Entry>> type_table_;
   std::unordered_map<std::string, int32_t> type_key2index_;
 };
-
-namespace details {
-
-int32_t ObjectGetOrAllocTypeIndex(const char* type_key, int32_t static_type_index,
-                                  int32_t type_depth, int32_t num_child_slots,
-                                  bool child_slots_can_overflow, int32_t parent_index) {
-  return tvm::ffi::TypeTable::Global()->GetOrAllocTypeIndex(type_key, static_type_index, type_depth,
-                                                            num_child_slots,
-                                                            child_slots_can_overflow, parent_index);
-}
-
-const TypeInfo* ObjectGetTypeInfo(int32_t type_index) {
-  return tvm::ffi::TypeTable::Global()->GetTypeInfo(type_index);
-}
-}  // namespace details
 }  // namespace ffi
 }  // namespace tvm
+
+extern "C" {
+
+int32_t TVMFFIGetOrAllocTypeIndex(const char* type_key, int32_t static_type_index,
+                                  int32_t type_depth, int32_t num_child_slots,
+                                  int32_t child_slots_can_overflow, int32_t parent_type_index) {
+  TVM_FFI_LOG_EXCEPTION_CALL_BEGIN();
+  return tvm::ffi::TypeTable::Global()->GetOrAllocTypeIndex(
+      type_key, static_type_index, type_depth, num_child_slots, child_slots_can_overflow,
+      parent_type_index);
+  TVM_FFI_LOG_EXCEPTION_CALL_END(TVMFFIGetOrAllocTypeIndex);
+}
+
+const TVMFFITypeInfo* TVMFFIGetTypeInfo(int32_t type_index) {
+  TVM_FFI_LOG_EXCEPTION_CALL_BEGIN();
+  return tvm::ffi::TypeTable::Global()->GetTypeInfo(type_index);
+  TVM_FFI_LOG_EXCEPTION_CALL_END(TVMFFIGetTypeInfo);
+}
+}  // extern "C"

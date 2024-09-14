@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+
 #include <tvm/ffi/ffi.hpp>
 #include <unordered_set>
 
@@ -16,7 +17,7 @@ bool DTypeEqual(DLDataType a, DLDataType b) {
 TEST(Dict_Construtor, Default) {
   Ref<Dict> dict;
   ASSERT_EQ(dict.size(), 0);
-  TVMFFIDict *dict_ptr = reinterpret_cast<TVMFFIDict *>(dict.get());
+  TVMFFIDict* dict_ptr = reinterpret_cast<TVMFFIDict*>(dict.get());
   EXPECT_EQ(dict_ptr->type_index, static_cast<int32_t>(TVMFFITypeIndex::kTVMFFIDict));
   EXPECT_EQ(dict_ptr->ref_cnt, 1);
   EXPECT_NE(dict_ptr->deleter, nullptr);
@@ -32,7 +33,7 @@ TEST(Dict_Construtor, InitializerList) {
   EXPECT_EQ(int(dict[3]), 4);
 
   bool found[3] = {false, false, false};
-  for (const auto &kv : dict) {
+  for (const auto& kv : dict) {
     if (AnyEqual()(kv.first, Any("key1"))) {
       found[0] = true;
       EXPECT_EQ(int(kv.second), 1);
@@ -65,7 +66,7 @@ TEST(Dict_Insert, New) {
   EXPECT_DOUBLE_EQ(double(dict[integer]), fp);
   EXPECT_PRED2(DTypeEqual, DLDataType(dict[str]), dtype);
   EXPECT_EQ(int(dict[null_obj]), 0);
-  EXPECT_EQ((Object *)(dict[device]), nullptr);
+  EXPECT_EQ((Object*)(dict[device]), nullptr);
 }
 
 TEST(Dict_Insert, Override) {
@@ -98,7 +99,7 @@ TEST(Dict_At, NotFound) {
   try {
     dict.at("key3");
     FAIL() << "Expected TVMError";
-  } catch (const TVMError &e) {
+  } catch (const TVMError& e) {
   }
 }
 
@@ -109,7 +110,7 @@ TEST(Dict_ReHash, POD) {
   }
   EXPECT_EQ(dict.size(), 1000);
   std::unordered_set<int64_t> keys;
-  for (auto &kv : dict) {
+  for (auto& kv : dict) {
     int64_t key = kv.first;
     int64_t value = kv.second;
     EXPECT_EQ(key, value);
@@ -122,7 +123,7 @@ TEST(Dict_ReHash, POD) {
 
 TEST(Dict_ReHash, Object) {
   std::vector<Ref<Object>> objs;
-  std::unordered_map<Object *, int64_t> obj_map;
+  std::unordered_map<Object*, int64_t> obj_map;
   for (int j = 0; j < 1000; ++j) {
     objs.push_back(Ref<Object>::New());
     obj_map[objs[j].get()] = j;
@@ -132,8 +133,8 @@ TEST(Dict_ReHash, Object) {
     dict[objs[j]] = j;
   }
   EXPECT_EQ(dict.size(), 1000);
-  std::unordered_set<Object *> keys;
-  for (auto &kv : dict) {
+  std::unordered_set<Object*> keys;
+  for (auto& kv : dict) {
     Ref<Object> key = kv.first;
     int64_t value = kv.second;
     keys.insert(key.get());
@@ -160,7 +161,7 @@ TEST(Dict_Erase, POD) {
 
 TEST(Dict_Erase, Object) {
   std::vector<Ref<Object>> objs;
-  std::unordered_map<Object *, int64_t> obj_map;
+  std::unordered_map<Object*, int64_t> obj_map;
   for (int j = 0; j < 1000; ++j) {
     objs.push_back(Ref<Object>::New());
     obj_map[objs[j].get()] = j;
@@ -180,4 +181,4 @@ TEST(Dict_Erase, Object) {
   }
 }
 
-} // namespace
+}  // namespace

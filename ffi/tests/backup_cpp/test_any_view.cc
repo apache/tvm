@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+
 #include <tvm/ffi/ffi.hpp>
 
 namespace {
@@ -6,7 +7,7 @@ using namespace tvm::ffi;
 
 template <typename SrcType, typename Checker>
 void TestAnyViewConstructor(Checker check, TVMFFITypeIndex expected_type_index,
-                            const SrcType &source) {
+                            const SrcType& source) {
   AnyView v(source);
   EXPECT_EQ(v.type_index, static_cast<int32_t>(expected_type_index));
   EXPECT_EQ(v.ref_cnt, 0);
@@ -16,7 +17,7 @@ void TestAnyViewConstructor(Checker check, TVMFFITypeIndex expected_type_index,
 int64_t FuncCall(int64_t x) { return x + 1; }
 
 std::vector<AnyView> AnyViewArrayFactory() {
-  static const char *raw_str = "Hello (raw str)";
+  static const char* raw_str = "Hello (raw str)";
   static std::string std_str = "World (std::string)";
   static std::string ref_str = "Hello World (Ref<Str>)";
   static Ref<Object> obj = Ref<Object>::New();
@@ -26,34 +27,34 @@ std::vector<AnyView> AnyViewArrayFactory() {
       AnyView(nullptr),
       AnyView(1),
       AnyView(2.5),
-      AnyView(reinterpret_cast<void *>(FuncCall)),
+      AnyView(reinterpret_cast<void*>(FuncCall)),
       AnyView(DLDevice{kDLCPU, 0}),
       AnyView(DLDataType{kDLInt, 32, 1}),
       AnyView(raw_str),
       AnyView(obj),
       AnyView(func),
-      AnyView(std_str), // TODO: disable AnyView(std::string&&)
+      AnyView(std_str),  // TODO: disable AnyView(std::string&&)
       AnyView(str),
   };
 }
 
 template <typename SrcType>
-void TestAnyViewStringify(const SrcType &source, TVMFFITypeIndex expected_type_index,
-                          const std::string &expected) {
+void TestAnyViewStringify(const SrcType& source, TVMFFITypeIndex expected_type_index,
+                          const std::string& expected) {
   AnyView v(source);
   EXPECT_EQ(v.type_index, static_cast<int32_t>(expected_type_index));
   EXPECT_EQ(v.str()->c_str(), expected);
 }
 
 template <typename SrcType, typename Checker>
-void TestAnyViewStringifyChecker(const SrcType &source, TVMFFITypeIndex expected_type_index,
+void TestAnyViewStringifyChecker(const SrcType& source, TVMFFITypeIndex expected_type_index,
                                  Checker check) {
   AnyView v(source);
   EXPECT_EQ(v.type_index, static_cast<int32_t>(expected_type_index));
   check(v);
 }
 
-void CheckAnyViewRefCnt(const TVMFFIAny *v) {
+void CheckAnyViewRefCnt(const TVMFFIAny* v) {
   if (v->type_index >= static_cast<int32_t>(TVMFFITypeIndex::kTVMFFIStaticObjectBegin)) {
     EXPECT_EQ(v->v_obj->ref_cnt, 1);
   }
@@ -102,10 +103,10 @@ TEST(AnyView_Constructor_2_Any, Move) {
 TEST(AnyView_Constructor_3_Ref, Copy) {
   Ref<Object> obj = Ref<Object>::New();
   AnyView v(obj);
-  const TVMFFIAny *v_obj = v.v_obj;
+  const TVMFFIAny* v_obj = v.v_obj;
   EXPECT_EQ(v.type_index, static_cast<int32_t>(TVMFFITypeIndex::kTVMFFIObject));
   EXPECT_EQ(v.ref_cnt, 0);
-  EXPECT_EQ(v_obj, static_cast<const void *>(obj.get()));
+  EXPECT_EQ(v_obj, static_cast<const void*>(obj.get()));
   EXPECT_EQ(v_obj->ref_cnt, 1);
 }
 
@@ -116,7 +117,7 @@ TEST(AnyView_Constructor_3_Ref, Move) {
 }
 
 TEST(AnyView_Constructor_4_TypeTraits, Integer) {
-  auto check = [](TVMFFIAny *v, int64_t source) -> void { EXPECT_EQ(v->v_int64, source); };
+  auto check = [](TVMFFIAny* v, int64_t source) -> void { EXPECT_EQ(v->v_int64, source); };
   TestAnyViewConstructor(check, TVMFFITypeIndex::kTVMFFIInt, static_cast<int8_t>(1));
   TestAnyViewConstructor(check, TVMFFITypeIndex::kTVMFFIInt, static_cast<int16_t>(2));
   TestAnyViewConstructor(check, TVMFFITypeIndex::kTVMFFIInt, static_cast<int32_t>(3));
@@ -128,20 +129,20 @@ TEST(AnyView_Constructor_4_TypeTraits, Integer) {
 }
 
 TEST(AnyView_Constructor_4_TypeTraits, Float) {
-  auto check = [](TVMFFIAny *v, double source) -> void { EXPECT_EQ(v->v_float64, source); };
+  auto check = [](TVMFFIAny* v, double source) -> void { EXPECT_EQ(v->v_float64, source); };
   TestAnyViewConstructor(check, TVMFFITypeIndex::kTVMFFIFloat, static_cast<float>(3));
   TestAnyViewConstructor(check, TVMFFITypeIndex::kTVMFFIFloat, static_cast<float>(4));
 }
 
 TEST(AnyView_Constructor_4_TypeTraits, Ptr) {
   int p = 4;
-  auto check = [](TVMFFIAny *v, void *source) -> void { EXPECT_EQ(v->v_ptr, source); };
-  TestAnyViewConstructor(check, TVMFFITypeIndex::kTVMFFINone, static_cast<void *>(nullptr));
-  TestAnyViewConstructor(check, TVMFFITypeIndex::kTVMFFIPtr, static_cast<void *>(&p));
+  auto check = [](TVMFFIAny* v, void* source) -> void { EXPECT_EQ(v->v_ptr, source); };
+  TestAnyViewConstructor(check, TVMFFITypeIndex::kTVMFFINone, static_cast<void*>(nullptr));
+  TestAnyViewConstructor(check, TVMFFITypeIndex::kTVMFFIPtr, static_cast<void*>(&p));
 }
 
 TEST(AnyView_Constructor_4_TypeTraits, Device) {
-  auto check = [](TVMFFIAny *v, const DLDevice &source) -> void {
+  auto check = [](TVMFFIAny* v, const DLDevice& source) -> void {
     EXPECT_EQ(v->v_device.device_type, source.device_type);
     EXPECT_EQ(v->v_device.device_id, source.device_id);
   };
@@ -150,7 +151,7 @@ TEST(AnyView_Constructor_4_TypeTraits, Device) {
 }
 
 TEST(AnyView_Constructor_4_TypeTraits, DataType) {
-  auto check = [](TVMFFIAny *v, const DLDataType &source) -> void {
+  auto check = [](TVMFFIAny* v, const DLDataType& source) -> void {
     EXPECT_EQ(v->v_dtype.code, source.code);
     EXPECT_EQ(v->v_dtype.bits, source.bits);
     EXPECT_EQ(v->v_dtype.lanes, source.lanes);
@@ -160,15 +161,15 @@ TEST(AnyView_Constructor_4_TypeTraits, DataType) {
 }
 
 TEST(AnyView_Constructor_4_TypeTraits, RawStr) {
-  auto check = [](TVMFFIAny *v, const char *source) -> void { EXPECT_EQ(v->v_str, source); };
-  const char *empty = "";
-  const char *hello = "hello";
+  auto check = [](TVMFFIAny* v, const char* source) -> void { EXPECT_EQ(v->v_str, source); };
+  const char* empty = "";
+  const char* hello = "hello";
   TestAnyViewConstructor(check, TVMFFITypeIndex::kTVMFFIRawStr, empty);
   TestAnyViewConstructor(check, TVMFFITypeIndex::kTVMFFIRawStr, hello);
 }
 
 TEST(AnyView_Constructor_4_TypeTraits, CharArray) {
-  auto check = [](TVMFFIAny *v, const char *source) -> void { EXPECT_EQ(v->v_str, source); };
+  auto check = [](TVMFFIAny* v, const char* source) -> void { EXPECT_EQ(v->v_str, source); };
   const char empty[] = "";
   const char hello[] = "hello";
   TestAnyViewConstructor(check, TVMFFITypeIndex::kTVMFFIRawStr, empty);
@@ -176,7 +177,7 @@ TEST(AnyView_Constructor_4_TypeTraits, CharArray) {
 }
 
 TEST(AnyView_Constructor_4_TypeTraits, StdString) {
-  auto check = [](TVMFFIAny *v, const std::string &source) -> void {
+  auto check = [](TVMFFIAny* v, const std::string& source) -> void {
     EXPECT_EQ(v->v_str, source.data());
   };
   std::string empty = "";
@@ -190,7 +191,7 @@ TEST(AnyView_Constructor_5_Object_Ptr, Object) {
   AnyView v(obj.get());
   EXPECT_EQ(v.type_index, static_cast<int32_t>(TVMFFITypeIndex::kTVMFFIObject));
   EXPECT_EQ(v.v_obj->ref_cnt, 1);
-  EXPECT_EQ(v.v_obj, static_cast<void *>(obj.get()));
+  EXPECT_EQ(v.v_obj, static_cast<void*>(obj.get()));
 }
 
 TEST(AnyView_Constructor_5_Object_Ptr, Func) {
@@ -198,7 +199,7 @@ TEST(AnyView_Constructor_5_Object_Ptr, Func) {
   AnyView v(func.get());
   EXPECT_EQ(v.type_index, static_cast<int32_t>(TVMFFITypeIndex::kTVMFFIFunc));
   EXPECT_EQ(v.v_obj->ref_cnt, 1);
-  EXPECT_EQ(v.v_ptr, static_cast<void *>(func.get()));
+  EXPECT_EQ(v.v_ptr, static_cast<void*>(func.get()));
 }
 
 TEST(AnyView_Constructor_5_Object_Ptr, Str) {
@@ -206,12 +207,12 @@ TEST(AnyView_Constructor_5_Object_Ptr, Str) {
   AnyView v(str.get());
   EXPECT_EQ(v.type_index, static_cast<int32_t>(TVMFFITypeIndex::kTVMFFIStr));
   EXPECT_EQ(v.v_obj->ref_cnt, 1);
-  EXPECT_EQ(v.v_obj, static_cast<void *>(str.get()));
+  EXPECT_EQ(v.v_obj, static_cast<void*>(str.get()));
 }
 
 TEST(AnyView_Converter_0_TypeTraits, Integer) {
   std::vector<AnyView> views = AnyViewArrayFactory();
-  for (const AnyView &v : views) {
+  for (const AnyView& v : views) {
     auto convert = [&]() -> int64_t { return v; };
     if (v.type_index == static_cast<int32_t>(TVMFFITypeIndex::kTVMFFIInt)) {
       EXPECT_EQ(convert(), 1);
@@ -219,7 +220,7 @@ TEST(AnyView_Converter_0_TypeTraits, Integer) {
       try {
         convert();
         FAIL() << "No exception thrown";
-      } catch (TVMError &ex) {
+      } catch (TVMError& ex) {
         std::ostringstream os;
         os << "Cannot convert from type `" << TypeIndex2TypeKey(v.type_index) << "` to `int`";
         EXPECT_EQ(ex.what(), os.str());
@@ -231,7 +232,7 @@ TEST(AnyView_Converter_0_TypeTraits, Integer) {
 
 TEST(AnyView_Converter_0_TypeTraits, Float) {
   std::vector<AnyView> views = AnyViewArrayFactory();
-  for (const AnyView &v : views) {
+  for (const AnyView& v : views) {
     auto convert = [&]() -> double { return v; };
     if (v.type_index == static_cast<int32_t>(TVMFFITypeIndex::kTVMFFIInt)) {
       EXPECT_EQ(convert(), 1.0);
@@ -241,7 +242,7 @@ TEST(AnyView_Converter_0_TypeTraits, Float) {
       try {
         convert();
         FAIL() << "No exception thrown";
-      } catch (TVMError &ex) {
+      } catch (TVMError& ex) {
         std::ostringstream os;
         os << "Cannot convert from type `" << TypeIndex2TypeKey(v.type_index) << "` to `float`";
         EXPECT_EQ(ex.what(), os.str());
@@ -253,19 +254,19 @@ TEST(AnyView_Converter_0_TypeTraits, Float) {
 
 TEST(AnyView_Converter_0_TypeTraits, Ptr) {
   std::vector<AnyView> views = AnyViewArrayFactory();
-  for (const AnyView &v : views) {
-    auto convert = [&]() -> void * { return v; };
+  for (const AnyView& v : views) {
+    auto convert = [&]() -> void* { return v; };
     if (v.type_index == static_cast<int32_t>(TVMFFITypeIndex::kTVMFFINone)) {
       EXPECT_EQ(convert(), nullptr);
     } else if (v.type_index == static_cast<int32_t>(TVMFFITypeIndex::kTVMFFIPtr)) {
-      EXPECT_EQ(convert(), reinterpret_cast<void *>(&FuncCall));
+      EXPECT_EQ(convert(), reinterpret_cast<void*>(&FuncCall));
     } else if (v.type_index == static_cast<int32_t>(TVMFFITypeIndex::kTVMFFIRawStr)) {
       EXPECT_EQ(convert(), v.v_str);
     } else {
       try {
         convert();
         FAIL() << "No exception thrown";
-      } catch (TVMError &ex) {
+      } catch (TVMError& ex) {
         std::ostringstream os;
         os << "Cannot convert from type `" << TypeIndex2TypeKey(v.type_index) << "` to `Ptr`";
         EXPECT_EQ(ex.what(), os.str());
@@ -277,7 +278,7 @@ TEST(AnyView_Converter_0_TypeTraits, Ptr) {
 
 TEST(AnyView_Converter_0_TypeTraits, Device) {
   std::vector<AnyView> views = AnyViewArrayFactory();
-  for (const AnyView &v : views) {
+  for (const AnyView& v : views) {
     auto convert = [&]() -> DLDevice { return v; };
     if (v.type_index == static_cast<int32_t>(TVMFFITypeIndex::kTVMFFIDevice)) {
       EXPECT_EQ(convert().device_type, kDLCPU);
@@ -286,7 +287,7 @@ TEST(AnyView_Converter_0_TypeTraits, Device) {
       try {
         convert();
         FAIL() << "No exception thrown";
-      } catch (TVMError &ex) {
+      } catch (TVMError& ex) {
         std::ostringstream os;
         os << "Cannot convert from type `" << TypeIndex2TypeKey(v.type_index) << "` to `Device`";
         EXPECT_EQ(ex.what(), os.str());
@@ -298,7 +299,7 @@ TEST(AnyView_Converter_0_TypeTraits, Device) {
 
 TEST(AnyView_Converter_0_TypeTraits, DataType) {
   std::vector<AnyView> views = AnyViewArrayFactory();
-  for (const AnyView &v : views) {
+  for (const AnyView& v : views) {
     auto convert = [&]() -> DLDataType { return v; };
     if (v.type_index == static_cast<int32_t>(TVMFFITypeIndex::kTVMFFIDataType)) {
       EXPECT_EQ(convert().code, kDLInt);
@@ -308,7 +309,7 @@ TEST(AnyView_Converter_0_TypeTraits, DataType) {
       try {
         convert();
         FAIL() << "No exception thrown";
-      } catch (TVMError &ex) {
+      } catch (TVMError& ex) {
         std::ostringstream os;
         os << "Cannot convert from type `" << TypeIndex2TypeKey(v.type_index) << "` to `dtype`";
         EXPECT_EQ(ex.what(), os.str());
@@ -321,8 +322,8 @@ TEST(AnyView_Converter_0_TypeTraits, DataType) {
 TEST(AnyView_Converter_0_TypeTraits, RawStr) {
   std::vector<AnyView> views = AnyViewArrayFactory();
   int counter = 0;
-  for (const AnyView &v : views) {
-    auto convert = [&]() -> const char * { return v; };
+  for (const AnyView& v : views) {
+    auto convert = [&]() -> const char* { return v; };
     if (v.type_index == static_cast<int32_t>(TVMFFITypeIndex::kTVMFFIRawStr)) {
       counter += 1;
       EXPECT_LT(counter, 3);
@@ -337,7 +338,7 @@ TEST(AnyView_Converter_0_TypeTraits, RawStr) {
       try {
         convert();
         FAIL() << "No exception thrown";
-      } catch (TVMError &ex) {
+      } catch (TVMError& ex) {
         std::ostringstream os;
         os << "Cannot convert from type `" << TypeIndex2TypeKey(v.type_index)
            << "` to `const char *`";
@@ -351,10 +352,10 @@ TEST(AnyView_Converter_0_TypeTraits, RawStr) {
 TEST(AnyView_Converter_0_TypeTraits, RawStrToStrStar_Fail) {
   AnyView v = "Hello";
   try {
-    Str *v_str = v;
+    Str* v_str = v;
     (void)v_str;
     FAIL() << "No exception thrown";
-  } catch (TVMError &ex) {
+  } catch (TVMError& ex) {
     EXPECT_STREQ(ex.what(), "Cannot convert from type `const char *` to `object.Str *`");
   }
 }
@@ -362,19 +363,19 @@ TEST(AnyView_Converter_0_TypeTraits, RawStrToStrStar_Fail) {
 TEST(AnyView_Converter_0_TypeTraits, RawStrToStrStar_WrithStorage) {
   Any storage;
   AnyView v = "Hello";
-  Str *v_str = v.CastWithStorage<Str *>(&storage);
+  Str* v_str = v.CastWithStorage<Str*>(&storage);
   EXPECT_STREQ(v_str->c_str(), "Hello");
 }
 
 TEST(AnyView_Converter_1_Any, Any) {
   std::vector<AnyView> views = AnyViewArrayFactory();
-  for (const AnyView &view : views) {
+  for (const AnyView& view : views) {
     auto convert = [&]() -> Any { return view; };
     {
       Any ret = convert();
       EXPECT_EQ(view.ref_cnt, 0);
       if (view.type_index == static_cast<int32_t>(TVMFFITypeIndex::kTVMFFIRawStr)) {
-        Str *str = ret;
+        Str* str = ret;
         EXPECT_EQ(ret.type_index, static_cast<int32_t>(TVMFFITypeIndex::kTVMFFIStr));
         EXPECT_STREQ(str->c_str(), view.v_str);
         EXPECT_EQ(ret.ref_cnt, 0);
@@ -390,20 +391,20 @@ TEST(AnyView_Converter_1_Any, Any) {
 
 TEST(AnyView_Converter_2_Ref, Object) {
   std::vector<AnyView> views = AnyViewArrayFactory();
-  for (const AnyView &v : views) {
+  for (const AnyView& v : views) {
     auto convert = [&]() -> Ref<Object> { return v; };
     if (v.type_index == static_cast<int32_t>(TVMFFITypeIndex::kTVMFFINone)) {
       Ref<Object> ret = convert();
       EXPECT_EQ(ret.get(), nullptr);
     } else if (v.type_index >= static_cast<int32_t>(TVMFFITypeIndex::kTVMFFIStaticObjectBegin)) {
       Ref<Object> ret = convert();
-      EXPECT_EQ(ret.get(), static_cast<void *>(v.v_obj));
+      EXPECT_EQ(ret.get(), static_cast<void*>(v.v_obj));
       EXPECT_EQ(v.v_obj->ref_cnt, 2);
     } else {
       try {
         convert();
         FAIL() << "No exception thrown";
-      } catch (TVMError &ex) {
+      } catch (TVMError& ex) {
         std::ostringstream os;
         os << "Cannot convert from type `" << TypeIndex2TypeKey(v.type_index)
            << "` to `object.Object`";
@@ -416,19 +417,19 @@ TEST(AnyView_Converter_2_Ref, Object) {
 
 TEST(AnyView_Converter_2_Ref, Func) {
   std::vector<AnyView> views = AnyViewArrayFactory();
-  for (const AnyView &v : views) {
+  for (const AnyView& v : views) {
     auto convert = [&]() -> Ref<Func> { return v; };
     if (v.type_index == static_cast<int32_t>(TVMFFITypeIndex::kTVMFFINone)) {
       Ref<Func> ret = convert();
       EXPECT_EQ(ret.get(), nullptr);
     } else if (v.type_index == static_cast<int32_t>(TVMFFITypeIndex::kTVMFFIFunc)) {
       Ref<Func> ret = convert();
-      EXPECT_EQ(ret.get(), static_cast<void *>(v.v_obj));
+      EXPECT_EQ(ret.get(), static_cast<void*>(v.v_obj));
     } else {
       try {
         convert();
         FAIL() << "No exception thrown";
-      } catch (TVMError &ex) {
+      } catch (TVMError& ex) {
         std::ostringstream os;
         os << "Cannot convert from type `" << TypeIndex2TypeKey(v.type_index)
            << "` to `object.Func`";
@@ -441,7 +442,7 @@ TEST(AnyView_Converter_2_Ref, Func) {
 
 TEST(AnyView_Converter_2_Ref, Str) {
   std::vector<AnyView> views = AnyViewArrayFactory();
-  for (const AnyView &v : views) {
+  for (const AnyView& v : views) {
     auto convert = [&]() -> Ref<Str> { return v; };
     if (v.type_index == static_cast<int32_t>(TVMFFITypeIndex::kTVMFFINone)) {
       Ref<Str> ret = convert();
@@ -451,13 +452,13 @@ TEST(AnyView_Converter_2_Ref, Str) {
       EXPECT_STREQ(ret->c_str(), "Hello World (Ref<Str>)");
     } else if (v.type_index == static_cast<int32_t>(TVMFFITypeIndex::kTVMFFIRawStr)) {
       Ref<Str> ret = convert();
-      EXPECT_EQ(reinterpret_cast<TVMFFIStr *>(ret.get())->ref_cnt, 1);
+      EXPECT_EQ(reinterpret_cast<TVMFFIStr*>(ret.get())->ref_cnt, 1);
       EXPECT_STREQ(ret->c_str(), v.v_str);
     } else {
       try {
         convert();
         FAIL() << "No exception thrown";
-      } catch (TVMError &ex) {
+      } catch (TVMError& ex) {
         std::ostringstream os;
         os << "Cannot convert from type `" << TypeIndex2TypeKey(v.type_index)
            << "` to `object.Str`";
@@ -470,20 +471,20 @@ TEST(AnyView_Converter_2_Ref, Str) {
 
 TEST(AnyView_Converter_3_Object_Ptr, Object) {
   std::vector<AnyView> views = AnyViewArrayFactory();
-  for (const AnyView &v : views) {
-    auto convert = [&]() -> Object * { return v; };
+  for (const AnyView& v : views) {
+    auto convert = [&]() -> Object* { return v; };
     if (v.type_index == static_cast<int32_t>(TVMFFITypeIndex::kTVMFFINone)) {
-      Object *ret = convert();
+      Object* ret = convert();
       EXPECT_EQ(ret, nullptr);
     } else if (v.type_index >= static_cast<int32_t>(TVMFFITypeIndex::kTVMFFIStaticObjectBegin)) {
-      Object *ret = convert();
-      EXPECT_EQ(ret, static_cast<void *>(v.v_obj));
+      Object* ret = convert();
+      EXPECT_EQ(ret, static_cast<void*>(v.v_obj));
       EXPECT_EQ(v.v_obj->ref_cnt, 1);
     } else {
       try {
         convert();
         FAIL() << "No exception thrown";
-      } catch (TVMError &ex) {
+      } catch (TVMError& ex) {
         std::ostringstream os;
         os << "Cannot convert from type `" << TypeIndex2TypeKey(v.type_index)
            << "` to `object.Object *`";
@@ -496,19 +497,19 @@ TEST(AnyView_Converter_3_Object_Ptr, Object) {
 
 TEST(AnyView_Converter_3_Object_Ptr, Func) {
   std::vector<AnyView> views = AnyViewArrayFactory();
-  for (const AnyView &v : views) {
-    auto convert = [&]() -> Func * { return v; };
+  for (const AnyView& v : views) {
+    auto convert = [&]() -> Func* { return v; };
     if (v.type_index == static_cast<int32_t>(TVMFFITypeIndex::kTVMFFINone)) {
-      Func *ret = convert();
+      Func* ret = convert();
       EXPECT_EQ(ret, nullptr);
     } else if (v.type_index == static_cast<int32_t>(TVMFFITypeIndex::kTVMFFIFunc)) {
-      Func *ret = convert();
-      EXPECT_EQ(ret, reinterpret_cast<Func *>(v.v_ptr));
+      Func* ret = convert();
+      EXPECT_EQ(ret, reinterpret_cast<Func*>(v.v_ptr));
     } else {
       try {
         convert();
         FAIL() << "No exception thrown";
-      } catch (TVMError &ex) {
+      } catch (TVMError& ex) {
         std::ostringstream os;
         os << "Cannot convert from type `" << TypeIndex2TypeKey(v.type_index)
            << "` to `object.Func *`";
@@ -521,19 +522,19 @@ TEST(AnyView_Converter_3_Object_Ptr, Func) {
 
 TEST(AnyView_Converter_3_Object_Ptr, Str) {
   std::vector<AnyView> views = AnyViewArrayFactory();
-  for (const AnyView &v : views) {
-    auto convert = [&]() -> Str * { return v; };
+  for (const AnyView& v : views) {
+    auto convert = [&]() -> Str* { return v; };
     if (v.type_index == static_cast<int32_t>(TVMFFITypeIndex::kTVMFFINone)) {
-      Str *ret = convert();
+      Str* ret = convert();
       EXPECT_EQ(ret, nullptr);
     } else if (v.type_index == static_cast<int32_t>(TVMFFITypeIndex::kTVMFFIStr)) {
-      Str *ret = convert();
+      Str* ret = convert();
       EXPECT_STREQ(ret->c_str(), "Hello World (Ref<Str>)");
     } else {
       try {
         convert();
         FAIL() << "No exception thrown";
-      } catch (TVMError &ex) {
+      } catch (TVMError& ex) {
         std::ostringstream os;
         os << "Cannot convert from type `" << TypeIndex2TypeKey(v.type_index)
            << "` to `object.Str *`";
@@ -552,7 +553,7 @@ TEST(AnyView_Stringify, Integer) {
 }
 
 TEST(AnyView_Stringify, Float) {
-  auto check = [](const AnyView &v) -> void {
+  auto check = [](const AnyView& v) -> void {
     std::string str = v.str()->c_str();
     double f_str = std::stod(str);
     double f_src = v.v_float64;
@@ -563,13 +564,13 @@ TEST(AnyView_Stringify, Float) {
 }
 
 TEST(AnyView_Stringify, Ptr) {
-  auto check = [](const AnyView &v) -> void {
+  auto check = [](const AnyView& v) -> void {
     std::string str = v.str()->c_str();
     EXPECT_GT(str.size(), 2);
   };
-  TestAnyViewStringify<void *>(nullptr, TVMFFITypeIndex::kTVMFFINone, "None");
-  TestAnyViewStringifyChecker<void *>(reinterpret_cast<void *>(FuncCall),
-                                      TVMFFITypeIndex::kTVMFFIPtr, check);
+  TestAnyViewStringify<void*>(nullptr, TVMFFITypeIndex::kTVMFFINone, "None");
+  TestAnyViewStringifyChecker<void*>(reinterpret_cast<void*>(FuncCall), TVMFFITypeIndex::kTVMFFIPtr,
+                                     check);
 }
 
 TEST(AnyView_Stringify, Device) {
@@ -589,13 +590,13 @@ TEST(AnyView_Stringify, DataType) {
 }
 
 TEST(AnyView_Stringify, RawStr) {
-  TestAnyViewStringify<const char *>("Hello", TVMFFITypeIndex::kTVMFFIRawStr, "\"Hello\"");
+  TestAnyViewStringify<const char*>("Hello", TVMFFITypeIndex::kTVMFFIRawStr, "\"Hello\"");
   TestAnyViewStringify<char[6]>("Hello", TVMFFITypeIndex::kTVMFFIRawStr, "\"Hello\"");
   TestAnyViewStringify<const char[6]>("Hello", TVMFFITypeIndex::kTVMFFIRawStr, "\"Hello\"");
 }
 
 TEST(AnyView_Stringify, Object) {
-  auto check = [](const AnyView &v) -> void {
+  auto check = [](const AnyView& v) -> void {
     std::string expected_prefix = "object.Object@0";
     int n = static_cast<int>(expected_prefix.size());
     std::string str = v.str()->c_str();
@@ -607,7 +608,7 @@ TEST(AnyView_Stringify, Object) {
 }
 
 TEST(AnyView_Stringify, Func) {
-  auto check = [](const AnyView &v) -> void {
+  auto check = [](const AnyView& v) -> void {
     std::string expected_prefix = "object.Func@0";
     int n = static_cast<int>(expected_prefix.size());
     std::string str = v.str()->c_str();
@@ -619,7 +620,7 @@ TEST(AnyView_Stringify, Func) {
 }
 
 TEST(AnyView_Stringify, Str) {
-  auto check = [](const AnyView &v) -> void {
+  auto check = [](const AnyView& v) -> void {
     std::string str = v.str()->c_str();
     EXPECT_EQ(str, "\"Hello World\"");
   };
@@ -627,4 +628,4 @@ TEST(AnyView_Stringify, Str) {
                                         check);
 }
 
-} // namespace
+}  // namespace

@@ -41,39 +41,6 @@ namespace details {
 // unsafe operations related to object
 struct ObjectUnsafe;
 
-// Code section that depends on dynamic components
-#if TVM_FFI_ALLOW_DYN_TYPE
-/*!
- * \brief Initialize the type info during runtime.
- *
- *  When the function is first time called for a type,
- *  it will register the type to the type table in the runtime.
- *
- *  If the static_tindex is non-negative, the function will
- *  allocate a runtime type index.
- *  Otherwise, we will populate the type table and return the static index.
- *
- * \param type_key The type key.
- * \param static_type_index Static type index if any, can be -1, which means this is a dynamic index
- * \param num_child_slots Number of slots reserved for its children.
- * \param child_slots_can_overflow Whether to allow child to overflow the slots.
- * \param parent_type_index Parent type index, pass in -1 if it is root.
- *
- * \return The allocated type index
- */
-TVM_FFI_DLL int32_t ObjectGetOrAllocTypeIndex(const char* type_key, int32_t static_type_index,
-                                              int32_t type_depth, int32_t num_child_slots,
-                                              bool child_slots_can_overflow,
-                                              int32_t parent_type_index);
-
-/*!
- * \brief Get Type information from type index.
- * \param type_index The type index
- * \return The type information
- */
-TVM_FFI_DLL const TypeInfo* ObjectGetTypeInfo(int32_t type_index);
-#endif  // TVM_FFI_ALLOW_DYN_TYPE
-
 /*!
  * Check if the type_index is an instance of TargetObjectType.
  *
@@ -153,13 +120,9 @@ class Object {
    * \note this operation is expensive, can be used for error reporting.
    */
   std::string GetTypeKey() const {
-#if TVM_FFI_ALLOW_DYN_TYPE
     // the function checks that the info exists
-    const TypeInfo* type_info = details::ObjectGetTypeInfo(header_.type_index);
+    const TypeInfo* type_info = TVMFFIGetTypeInfo(header_.type_index);
     return type_info->type_key;
-#else
-    return "<unknown>";
-#endif
   }
 
   // Information about the object
@@ -462,19 +425,15 @@ inline ObjectPtr<BaseType> GetObjectPtr(ObjectType* ptr);
                 "Need to set _type_child_slots when parent specifies it.")
 
 // If dynamic type is enabled, we still need to register the runtime type of parent
-#if TVM_FFI_ALLOW_DYN_TYPE
 #define TVM_FFI_REGISTER_STATIC_TYPE_INFO(TypeName, ParentType)                \
   static int32_t _GetOrAllocRuntimeTypeIndex() {                               \
-    static int32_t tindex = ::tvm::ffi::details::ObjectGetOrAllocTypeIndex(    \
+    static int32_t tindex = TVMFFIGetOrAllocTypeIndex(                         \
         TypeName::_type_key, TypeName::_type_index, TypeName::_type_depth,     \
         TypeName::_type_child_slots, TypeName::_type_child_slots_can_overflow, \
         ParentType::_GetOrAllocRuntimeTypeIndex());                            \
     return tindex;                                                             \
   }                                                                            \
   static inline int32_t _register_type_index = _GetOrAllocRuntimeTypeIndex()
-#else
-#define TVM_FFI_REGISTER_STATIC_TYPE_INFO(TypeName, ParentType)
-#endif
 
 /*!
  * \brief Helper macro to declare a object that comes with static type index.
@@ -492,11 +451,9 @@ inline ObjectPtr<BaseType> GetObjectPtr(ObjectType* ptr);
  * \param ParentType The name of the ParentType
  */
 #define TVM_FFI_DECLARE_BASE_OBJECT_INFO(TypeName, ParentType)                                \
-  static_assert(TVM_FFI_ALLOW_DYN_TYPE,                                                       \
-                "Dynamic object depend on TVM_FFI_ALLOW_DYN_TYPE cd set to 1");               \
   TVM_FFI_OBJECT_STATIC_DEFS(TypeName, ParentType);                                           \
   static int32_t _GetOrAllocRuntimeTypeIndex() {                                              \
-    static int32_t tindex = ::tvm::ffi::details::ObjectGetOrAllocTypeIndex(                   \
+    static int32_t tindex = TVMFFIGetOrAllocTypeIndex(                                        \
         TypeName::_type_key, -1, TypeName::_type_depth, TypeName::_type_child_slots,          \
         TypeName::_type_child_slots_can_overflow, ParentType::_GetOrAllocRuntimeTypeIndex()); \
     return tindex;                                                                            \
@@ -571,15 +528,11 @@ TVM_FFI_INLINE bool IsObjectInstance(int32_t object_type_index) {
   if (!TargetType::_type_child_slots_can_overflow) return false;
   // Invariance: parent index is always smaller than the child.
   if (object_type_index < target_type_index) return false;
-    // Do a runtime lookup of type information
-#if TVM_FFI_ALLOW_DYN_TYPE
+  // Do a runtime lookup of type information
   // the function checks that the info exists
-  const TypeInfo* type_info = details::ObjectGetTypeInfo(object_type_index);
+  const TypeInfo* type_info = TVMFFIGetTypeInfo(object_type_index);
   return (type_info->type_depth > TargetType::_type_depth &&
           type_info->type_acenstors[TargetType::_type_depth] == target_type_index);
-#else
-  return false;
-#endif
 }
 /*!
  * \brief Namespace to internally manipulate object class.

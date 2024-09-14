@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+
 #include <tvm/ffi/ffi.hpp>
 
 #if TVM_FFI_ALLOW_DYN_TYPE == 1
@@ -18,8 +19,7 @@ struct SubTestObj : public TestObj {
   TVM_FFI_DEF_DYN_TYPE(SubTestObj, TestObj, "test.SubTestObj");
 };
 
-void CheckAncestor(int32_t num, const int32_t *ancestors,
-                   std::vector<int32_t> expected) {
+void CheckAncestor(int32_t num, const int32_t* ancestors, std::vector<int32_t> expected) {
   EXPECT_EQ(num, expected.size());
   for (int i = 0; i < num; ++i) {
     EXPECT_EQ(ancestors[i], expected[i]);
@@ -27,8 +27,7 @@ void CheckAncestor(int32_t num, const int32_t *ancestors,
 }
 
 TEST(DynTypeInfo, TestObj) {
-  EXPECT_GE(TestObj::_type_index,
-            static_cast<int32_t>(TVMFFITypeIndex::kTVMFFIDynObjectBegin));
+  EXPECT_GE(TestObj::_type_index, static_cast<int32_t>(TVMFFITypeIndex::kTVMFFIDynObjectBegin));
   EXPECT_STRCASEEQ(TestObj::_type_key, "test.TestObj");
   EXPECT_EQ(TestObj::_type_depth, 1);
   CheckAncestor(TestObj::_type_depth, TestObj::_type_ancestors.data(),
@@ -36,14 +35,12 @@ TEST(DynTypeInfo, TestObj) {
 }
 
 TEST(DynTypeInfo, SubTestObj) {
-  EXPECT_GE(SubTestObj::_type_index,
-            static_cast<int32_t>(TVMFFITypeIndex::kTVMFFIDynObjectBegin));
+  EXPECT_GE(SubTestObj::_type_index, static_cast<int32_t>(TVMFFITypeIndex::kTVMFFIDynObjectBegin));
   EXPECT_NE(SubTestObj::_type_index, TestObj::_type_index);
   EXPECT_STRCASEEQ(SubTestObj::_type_key, "test.SubTestObj");
   EXPECT_EQ(SubTestObj::_type_depth, 2);
   CheckAncestor(SubTestObj::_type_depth, SubTestObj::_type_ancestors.data(),
-                {static_cast<int32_t>(TVMFFITypeIndex::kTVMFFIObject),
-                 TestObj::_type_index});
+                {static_cast<int32_t>(TVMFFITypeIndex::kTVMFFIObject), TestObj::_type_index});
 }
 
 TEST(DynTypeInheritance, TestObj) {
@@ -66,6 +63,6 @@ TEST(DynTypeInheritance, SubTestObj) {
   EXPECT_FALSE(obj->IsInstance<Str>());
 }
 
-} // namespace
+}  // namespace
 
 #endif

@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+
 #include <tvm/ffi/ffi.hpp>
 #include <unordered_map>
 
@@ -7,30 +8,30 @@ using namespace tvm::ffi;
 using tvm::ffi::details::StrPad;
 using tvm::ffi::details::StrStd;
 
-using ObjDeleter = void (*)(void *);
+using ObjDeleter = void (*)(void*);
 
 struct AllocRecorder {
-  std::unordered_map<void *, ObjDeleter> deleters;
+  std::unordered_map<void*, ObjDeleter> deleters;
 
-  void Alloc(void *ptr) {
-    deleters[ptr] = reinterpret_cast<TVMFFIAny *>(ptr)->deleter;
-    reinterpret_cast<TVMFFIAny *>(ptr)->deleter = AllocRecorder::Deleter;
+  void Alloc(void* ptr) {
+    deleters[ptr] = reinterpret_cast<TVMFFIAny*>(ptr)->deleter;
+    reinterpret_cast<TVMFFIAny*>(ptr)->deleter = AllocRecorder::Deleter;
   }
 
-  void Delete(void *ptr) {
+  void Delete(void* ptr) {
     ASSERT_EQ(deleters.count(ptr), 1);
     ObjDeleter d = this->deleters[ptr];
     d(ptr);
     deleters.erase(ptr);
   }
 
-  bool IsDeletedImpl(void *ptr) { return deleters.count(ptr) == 0; }
+  bool IsDeletedImpl(void* ptr) { return deleters.count(ptr) == 0; }
 
-  static void Deleter(void *ptr) { AllocRecorder::Global()->Delete(ptr); }
+  static void Deleter(void* ptr) { AllocRecorder::Global()->Delete(ptr); }
 
-  static bool IsDeleted(void *ptr) { return AllocRecorder::Global()->IsDeletedImpl(ptr); }
+  static bool IsDeleted(void* ptr) { return AllocRecorder::Global()->IsDeletedImpl(ptr); }
 
-  static AllocRecorder *Global() {
+  static AllocRecorder* Global() {
     static AllocRecorder inst;
     return &inst;
   }
@@ -41,15 +42,15 @@ struct TestAllocator {
   using Allocator = typename ::tvm::ffi::GetAllocator<ObjectType>::Type;
 
   template <typename... Args>
-  TVM_FFI_INLINE static ObjectType *New(Args &&...args) {
-    ObjectType *ret = Allocator::New(std::forward<Args>(args)...);
+  TVM_FFI_INLINE static ObjectType* New(Args&&... args) {
+    ObjectType* ret = Allocator::New(std::forward<Args>(args)...);
     AllocRecorder::Global()->Alloc(ret);
     return ret;
   }
 
   template <typename PadType, typename... Args>
-  TVM_FFI_INLINE static ObjectType *NewWithPad(size_t pad_size, Args &&...args) {
-    ObjectType *ret =
+  TVM_FFI_INLINE static ObjectType* NewWithPad(size_t pad_size, Args&&... args) {
+    ObjectType* ret =
         Allocator::template NewWithPad<PadType>(pad_size, std::forward<Args>(args)...);
     AllocRecorder::Global()->Alloc(ret);
     return ret;
@@ -58,11 +59,11 @@ struct TestAllocator {
 
 int64_t FuncCall(int64_t x) { return x + 1; }
 
-int32_t GetRefCount(void *obj) { return reinterpret_cast<TVMFFIAny *>(obj)->ref_cnt; }
+int32_t GetRefCount(void* obj) { return reinterpret_cast<TVMFFIAny*>(obj)->ref_cnt; }
 
-int32_t GetTypeIndex(void *obj) { return reinterpret_cast<TVMFFIAny *>(obj)->type_index; }
+int32_t GetTypeIndex(void* obj) { return reinterpret_cast<TVMFFIAny*>(obj)->type_index; }
 
-ObjDeleter GetDeleter(void *obj) { return reinterpret_cast<TVMFFIAny *>(obj)->deleter; }
+ObjDeleter GetDeleter(void* obj) { return reinterpret_cast<TVMFFIAny*>(obj)->deleter; }
 
 TEST(Ref_Constructor_0_Default, Default) {
   Ref<Object> ref;
@@ -70,7 +71,7 @@ TEST(Ref_Constructor_0_Default, Default) {
 }
 
 TEST(Ref_Constructor_1_Ptr, SameType) {
-  Object *obj = TestAllocator<Object>::New();
+  Object* obj = TestAllocator<Object>::New();
   {
     Ref<Object> ref(obj);
     EXPECT_EQ(ref.get(), obj);
@@ -80,17 +81,17 @@ TEST(Ref_Constructor_1_Ptr, SameType) {
 }
 
 TEST(Ref_Constructor_1_Ptr, SubType) {
-  Str *obj = TestAllocator<Str>::New("Hello world");
+  Str* obj = TestAllocator<Str>::New("Hello world");
   {
     Ref<Object> ref(obj);
-    EXPECT_EQ(ref.get(), static_cast<void *>(obj));
+    EXPECT_EQ(ref.get(), static_cast<void*>(obj));
     EXPECT_EQ(GetRefCount(obj), 1);
   }
   EXPECT_TRUE(AllocRecorder::IsDeleted(obj));
 }
 
 TEST(Ref_Constructor_2_Ref, SameType_Copy) {
-  Object *obj = TestAllocator<Object>::New();
+  Object* obj = TestAllocator<Object>::New();
   {
     Ref<Object> ref1(obj);
     EXPECT_EQ(GetRefCount(obj), 1);
@@ -104,7 +105,7 @@ TEST(Ref_Constructor_2_Ref, SameType_Copy) {
 }
 
 TEST(Ref_Constructor_2_Ref, SameType_Move) {
-  Object *obj = TestAllocator<Object>::New();
+  Object* obj = TestAllocator<Object>::New();
   {
     Ref<Object> ref1(obj);
     EXPECT_EQ(GetRefCount(obj), 1);
@@ -118,7 +119,7 @@ TEST(Ref_Constructor_2_Ref, SameType_Move) {
 }
 
 TEST(Ref_Constructor_2_Ref, SubType_Copy) {
-  Str *obj = TestAllocator<Str>::New("Hello world");
+  Str* obj = TestAllocator<Str>::New("Hello world");
   {
     Ref<Str> ref1(obj);
     EXPECT_EQ(GetRefCount(obj), 1);
@@ -132,7 +133,7 @@ TEST(Ref_Constructor_2_Ref, SubType_Copy) {
 }
 
 TEST(Ref_Constructor_2_Ref, SubType_Move) {
-  Str *obj = TestAllocator<Str>::New("Hello world");
+  Str* obj = TestAllocator<Str>::New("Hello world");
   {
     Ref<Str> ref1(obj);
     EXPECT_EQ(GetRefCount(obj), 1);
@@ -146,7 +147,7 @@ TEST(Ref_Constructor_2_Ref, SubType_Move) {
 }
 
 TEST(Ref_Constructor_3_AnyView, Copy) {
-  Object *obj = TestAllocator<Object>::New();
+  Object* obj = TestAllocator<Object>::New();
   {
     Ref<Object> ref1(obj);
     EXPECT_EQ(GetRefCount(obj), 1);
@@ -161,7 +162,7 @@ TEST(Ref_Constructor_3_AnyView, Copy) {
 }
 
 TEST(Ref_Constructor_3_AnyView, Move) {
-  Object *obj = TestAllocator<Object>::New();
+  Object* obj = TestAllocator<Object>::New();
   {
     Ref<Object> ref1(obj);
     EXPECT_EQ(GetRefCount(obj), 1);
@@ -182,7 +183,7 @@ TEST(Ref_Constructor_3_AnyView, Move) {
 }
 
 TEST(Ref_Constructor_4_Any, Copy) {
-  Object *obj = TestAllocator<Object>::New();
+  Object* obj = TestAllocator<Object>::New();
   {
     Ref<Object> ref1(obj);
     EXPECT_EQ(GetRefCount(obj), 1);
@@ -198,7 +199,7 @@ TEST(Ref_Constructor_4_Any, Copy) {
 }
 
 TEST(Ref_Constructor_4_Any, Move) {
-  Object *obj = TestAllocator<Object>::New();
+  Object* obj = TestAllocator<Object>::New();
   {
     Ref<Object> ref1(obj);
     EXPECT_EQ(GetRefCount(obj), 1);
@@ -231,7 +232,7 @@ TEST(Ref_New, Func) {
 }
 
 TEST(Ref_New, RawStr) {
-  const char *str = "Hello world";
+  const char* str = "Hello world";
   Ref<Str> ref = Ref<Str>::New(str);
   EXPECT_EQ(GetTypeIndex(ref.get()), static_cast<int32_t>(TVMFFITypeIndex::kTVMFFIStr));
   EXPECT_EQ(GetRefCount(ref.get()), 1);
@@ -283,11 +284,11 @@ TEST(Ref_Stringify, Str) {
 }
 
 TEST(Ref_Misc, MoveToRaw) {
-  TVMFFIAny *str = reinterpret_cast<TVMFFIAny *>(Ref<Str>::New("Hello world").MoveToRawObjPtr());
+  TVMFFIAny* str = reinterpret_cast<TVMFFIAny*>(Ref<Str>::New("Hello world").MoveToRawObjPtr());
   EXPECT_EQ(GetTypeIndex(str), static_cast<int32_t>(TVMFFITypeIndex::kTVMFFIStr));
   EXPECT_EQ(GetRefCount(str), 1);
   EXPECT_EQ(GetDeleter(str), DefaultObjectAllocator<StrPad>::Deleter);
   str->deleter(str);
 }
 
-} // namespace
+}  // namespace

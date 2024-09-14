@@ -82,6 +82,23 @@
   TypeName& operator=(const TypeName& other) = default;       \
   TypeName& operator=(TypeName&& other) = default;
 
+/**
+ * \brief marks the begining of a C call that logs exception
+ */
+#define TVM_FFI_LOG_EXCEPTION_CALL_BEGIN() \
+  try {                                    \
+  (void)0
+
+/*!
+ * \brief Marks the end of a C call that logs exception
+ */
+#define TVM_FFI_LOG_EXCEPTION_CALL_END(Name)                                              \
+  }                                                                                       \
+  catch (const std::exception& err) {                                                     \
+    std::cout << "Exception caught during " << #Name << ":\n" << err.what() << std::endl; \
+    throw err;                                                                            \
+  }
+
 namespace tvm {
 namespace ffi {
 namespace details {
@@ -221,6 +238,7 @@ TVM_FFI_INLINE uint64_t StableHashBytes(const char* data, size_t size) {
   }
   return result;
 }
+
 }  // namespace details
 }  // namespace ffi
 }  // namespace tvm
