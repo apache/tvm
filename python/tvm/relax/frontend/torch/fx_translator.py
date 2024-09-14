@@ -913,6 +913,13 @@ class TorchFXImporter:
 
         return convert
 
+    ########## Manipulation ##########
+
+    def _cat(self, node: fx.Node) -> relax.Var:
+        args = self.retrieve_args(node)
+        axis = args[1] if len(node.args) > 1 else node.kwargs.get("dim", 0)
+        return self.block_builder.emit(relax.op.concat(args[0], axis=axis))
+
     ########## DataType ##########
 
     def _float(self, node: fx.Node) -> relax.Var:
@@ -1078,11 +1085,6 @@ class TorchFXImporter:
         )
 
     ########## Manipulation ##########
-
-    def _cat(self, node: fx.Node) -> relax.Var:
-        args = self.retrieve_args(node)
-        axis = args[1] if len(node.args) > 1 else node.kwargs.get("dim", 0)
-        return self.block_builder.emit(relax.op.concat(args[0], axis=axis))
 
     def _expand(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
