@@ -1170,6 +1170,14 @@ class TorchFXImporter:
             )
         )
 
+    def _tensor(self, node: fx.Node) -> relax.Var:
+        dtype = node.kwargs.get("dtype", None)
+        if isinstance(node.args[0], float):
+            return relax.const(node.args[0], dtype if dtype is not None else "float32")
+        elif isinstance(node.args[0], int):
+            return relax.const(node.args[0], dtype if dtype is not None else "int64")
+        raise ValueError("torch.tensor with value not a float or int is not accepted")
+
     ########## DataType ##########
 
     def _float(self, node: fx.Node) -> relax.Var:
@@ -1197,14 +1205,6 @@ class TorchFXImporter:
         return self.block_builder.emit(relax.op.astype(x, dtype))
 
     ########## Creation ##########
-
-    def _tensor(self, node: fx.Node) -> relax.Var:
-        dtype = node.kwargs["dtype"] if "dtype" in node.kwargs else None
-        if isinstance(node.args[0], float):
-            return relax.const(node.args[0], dtype if dtype is not None else "float32")
-        elif isinstance(node.args[0], int):
-            return relax.const(node.args[0], dtype if dtype is not None else "int64")
-        raise ValueError("torch.tensor with value not a float or int is not accepted")
 
     def _inplace_tril_triu(self, op: Callable) -> Callable:
         from torch import fx
