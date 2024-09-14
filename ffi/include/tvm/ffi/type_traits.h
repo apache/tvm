@@ -211,6 +211,10 @@ template <>
 struct TypeTraits<void*> : public TypeTraitsBase {
   static TVM_FFI_INLINE void CopyToAnyView(void* src, TVMFFIAny* result) {
     result->type_index = TypeIndex::kTVMFFIOpaquePtr;
+    // maintain padding zero in 32bit platform
+    if constexpr (sizeof(void*) != sizeof(int64_t)) {
+      result->v_int64 = 0;
+    }
     result->v_ptr = src;
   }
 
