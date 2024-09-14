@@ -900,6 +900,19 @@ class TorchFXImporter:
             return self.block_builder.emit(relax.op.sum(args[0], keepdims=keepdim))
         return self.block_builder.emit(relax.op.sum(args[0], args[1]))
 
+    ########## Search ##########
+
+    def _argmax_argmin(self, op: Callable) -> Callable:
+        from torch import fx
+
+        def convert(node: fx.Node):
+            x = self.env[node.args[0]]
+            dim = node.args[1] if len(node.args) > 1 else node.kwargs.get("dim", None)
+            keepdim = node.args[2] if len(node.args) > 2 else node.kwargs.get("keepdim", False)
+            return self.block_builder.emit(op(x, dim, keepdim))
+
+        return convert
+
     ########## Creation ##########
 
     def _arange(self, node: fx.Node) -> relax.Var:
@@ -1219,32 +1232,6 @@ class TorchFXImporter:
         output = self.block_builder.emit(relax.op.where(mask, values, x))
         self.env[node.args[0]] = output
         return output
-
-    ########## Search ##########
-
-    def _argmax_argmin(self, op: Callable) -> Callable:
-        from torch import fx
-
-        def convert(node: fx.Node):
-            x = self.env[node.args[0]]
-            dim = None
-            keepdims = False
-
-            if len(node.args) > 1:
-                dim = node.args[1]
-            if len(node.args) > 2:
-                keepdims = node.args[2]
-
-            if "dim" in node.kwargs:
-                dim = node.kwargs["dim"]
-            if "keepdim" in node.kwargs:
-                keepdims = node.kwargs["keepdim"]
-            if "keepdims" in node.kwargs:
-                keepdims = node.kwargs["keepdims"]
-
-            return self.block_builder.emit(op(x, dim, keepdims))
-
-        return convert
 
     ########## Neural Network ##########
 
