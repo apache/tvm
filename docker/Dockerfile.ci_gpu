@@ -133,10 +133,6 @@ RUN bash /install/ubuntu_install_wasmtime.sh
 COPY install/ubuntu_install_redis.sh /install/ubuntu_install_redis.sh
 RUN bash /install/ubuntu_install_redis.sh
 
-# NNPACK deps
-COPY install/ubuntu_install_nnpack.sh /install/ubuntu_install_nnpack.sh
-RUN bash /install/ubuntu_install_nnpack.sh
-
 # BYODT deps
 COPY install/ubuntu_install_universal.sh /install/ubuntu_install_universal.sh
 RUN bash /install/ubuntu_install_universal.sh

@@ -77,10 +77,6 @@ COPY install/ubuntu_install_golang.sh /install/ubuntu_install_golang.sh
 RUN bash /install/ubuntu_install_golang.sh
 ENV PATH $PATH:/usr/lib/go-1.18/bin
 
-# NNPACK deps
-COPY install/ubuntu_install_nnpack.sh /install/ubuntu_install_nnpack.sh
-RUN bash /install/ubuntu_install_nnpack.sh
-
 # ANTLR deps
 COPY install/ubuntu_install_java.sh /install/ubuntu_install_java.sh
 RUN bash /install/ubuntu_install_java.sh
