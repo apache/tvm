@@ -969,6 +969,14 @@ class TorchFXImporter:
         end_dim = module.end_dim
         return self._flatten_impl(x, start_dim, end_dim)
 
+    def _permute(self, node: fx.Node) -> relax.Var:
+        import torch  # type: ignore
+
+        args = self.retrieve_args(node)
+        x = args[0]
+        dims = args[1] if isinstance(args[1], (torch.Size, tuple, list)) else args[1:]
+        return self.block_builder.emit(relax.op.permute_dims(x, dims))
+
     ########## DataType ##########
 
     def _float(self, node: fx.Node) -> relax.Var:
@@ -1134,14 +1142,6 @@ class TorchFXImporter:
         )
 
     ########## Manipulation ##########
-
-    def _permute(self, node: fx.Node) -> relax.Var:
-        import torch  # type: ignore
-
-        args = self.retrieve_args(node)
-        if isinstance(args[1], (torch.Size, tuple, list)):
-            return self.block_builder.emit(relax.op.permute_dims(args[0], tuple(args[1])))
-        return self.block_builder.emit(relax.op.permute_dims(args[0], args[1:]))
 
     def _reshape(self, node: fx.Node) -> relax.Var:
         import torch  # type: ignore
