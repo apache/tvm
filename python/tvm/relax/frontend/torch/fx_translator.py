@@ -370,6 +370,29 @@ class TorchFXImporter:
             res = bias if res is None else self.block_builder.emit(relax.op.add(res, bias))
         return res
 
+    def _batch_norm_2d_module(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        module = self.named_modules[node.target]
+        weight = self.params[module.weight]
+        bias = self.params[module.bias]
+        running_mean = self._convert_torch_tensor_to_relax(module.running_mean)
+        running_var = self._convert_torch_tensor_to_relax(module.running_var)
+        eps = module.eps
+
+        res_tuple = self.block_builder.emit(
+            relax.op.nn.batch_norm(
+                x,
+                weight,
+                bias,
+                running_mean,
+                running_var,
+                axis=1,
+                epsilon=eps,
+            )
+        )
+
+        return self.block_builder.emit(relax.TupleGetItem(res_tuple, 0))
+
     def _conv1d_transpose_impl(
         self,
         x: relax.Expr,
@@ -1235,29 +1258,6 @@ class TorchFXImporter:
         assert dim is not None
         return self.block_builder.emit(relax.op.nn.softmax(x, dim))
 
-    def _batch_norm_2d(self, node: fx.Node) -> relax.Var:
-        x = self.env[node.args[0]]
-        module = self.named_modules[node.target]
-        weight = self.params[module.weight]
-        bias = self.params[module.bias]
-        running_mean = self._convert_torch_tensor_to_relax(module.running_mean)
-        running_var = self._convert_torch_tensor_to_relax(module.running_var)
-        eps = module.eps
-
-        res_tuple = self.block_builder.emit(
-            relax.op.nn.batch_norm(
-                x,
-                weight,
-                bias,
-                running_mean,
-                running_var,
-                axis=1,
-                epsilon=eps,
-            )
-        )
-
-        return self.block_builder.emit(relax.TupleGetItem(res_tuple, 0))
-
     def _interpolate(self, node: fx.Node) -> relax.Var:
         # torch.nn.functional.interpolate(
         #   input, size=None, scale_factor=None, mode='nearest', align_corners=None,
@@ -1490,7 +1490,7 @@ class TorchFXImporter:
             # neural network
             nn.AdaptiveAvgPool2d: self._adaptive_avg_pool2d_module,
             nn.AvgPool2d: self._avg_pool2d_module,
-            nn.BatchNorm2d: self._batch_norm_2d,
+            nn.BatchNorm2d: self._batch_norm_2d_module,
             nn.Conv1d: self._conv1d_module,
             nn.Conv2d: self._conv2d_module,
             nn.Conv3d: self._conv3d_module,
