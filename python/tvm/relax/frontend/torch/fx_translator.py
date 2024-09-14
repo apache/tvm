@@ -1016,6 +1016,11 @@ class TorchFXImporter:
             n_section = (self.shape_of(x)[dim].value + split_size - 1) // split_size
         return self.block_builder.emit(relax.op.split(x, n_section, dim))
 
+    def _squeeze(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        dim = node.args[1] if len(node.args) > 1 else node.kwargs.get("dim", None)
+        return self.block_builder.emit(relax.op.squeeze(x, dim))
+
     ########## DataType ##########
 
     def _float(self, node: fx.Node) -> relax.Var:
@@ -1199,17 +1204,6 @@ class TorchFXImporter:
         full_idx = list(range(len(self.shape_of(args[0]))))
         full_idx[args[1]], full_idx[args[2]] = full_idx[args[2]], full_idx[args[1]]
         return self.block_builder.emit(relax.op.permute_dims(args[0], full_idx))
-
-    def _squeeze(self, node: fx.Node) -> relax.Var:
-        x = self.env[node.args[0]]
-
-        if "dim" in node.kwargs:
-            dim = node.kwargs["dim"]
-        elif len(node.args) > 1:
-            dim = node.args[1]
-        else:
-            dim = None
-        return self.block_builder.emit(relax.op.squeeze(x, dim))
 
     def _tile(self, node: fx.Node) -> relax.Var:
         import torch  # type: ignore
