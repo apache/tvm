@@ -1041,36 +1041,10 @@ class TorchFXImporter:
         full_idx[args[1]], full_idx[args[2]] = full_idx[args[2]], full_idx[args[1]]
         return self.block_builder.emit(relax.op.permute_dims(args[0], full_idx))
 
-    ########## DataType ##########
-
-    def _float(self, node: fx.Node) -> relax.Var:
-        return self.block_builder.emit(relax.op.astype(self.env[node.args[0]], "float32"))
-
-    def _half(self, node: fx.Node) -> relax.Var:
-        return self.block_builder.emit(relax.op.astype(self.env[node.args[0]], "float16"))
-
-    def _to(self, node: fx.Node) -> relax.Var:
-        import torch
-
-        x = self.env[node.args[0]]
-        if len(node.args) == 2:
-            if isinstance(node.args[1], torch.dtype):
-                dtype = TorchFXImporter._convert_data_type(node.args[1], self.env)
-                return self.block_builder.emit(relax.op.astype(x, dtype))
-        elif "dtype" in node.kwargs:
-            dtype = TorchFXImporter._convert_data_type(node.kwargs["dtype"], self.env)
-            return self.block_builder.emit(relax.op.astype(x, dtype))
-        return x
-
-    def _type(self, node: fx.Node) -> relax.Var:
-        x = self.env[node.args[0]]
-        dtype = TorchFXImporter._convert_data_type(node.args[1], self.env)
-        return self.block_builder.emit(relax.op.astype(x, dtype))
-
     ########## Creation ##########
 
     def _arange(self, node: fx.Node) -> relax.Var:
-        import torch
+        import torch  # type: ignore
 
         start_end_step = [None, None, None]
         if "start" in node.kwargs:
@@ -1102,15 +1076,43 @@ class TorchFXImporter:
             start_end_step[2] = 1
 
         if "dtype" in node.kwargs:
-            dtype = TorchFXImporter._convert_data_type(str(node.kwargs["dtype"]), self.env)
+            dtype = self._convert_data_type(str(node.kwargs["dtype"]), self.env)
         elif any([isinstance(x, float) for x in start_end_step]):
-            dtype = TorchFXImporter._convert_data_type(torch.get_default_dtype())
+            dtype = self._convert_data_type(torch.get_default_dtype())
         else:
             dtype = "int64"
         start_end_step = [
             self.env[x] if isinstance(x, torch.fx.Node) else x for x in start_end_step
         ]
         return self.block_builder.emit(relax.op.arange(*start_end_step, dtype=dtype))
+
+    ########## DataType ##########
+
+    def _float(self, node: fx.Node) -> relax.Var:
+        return self.block_builder.emit(relax.op.astype(self.env[node.args[0]], "float32"))
+
+    def _half(self, node: fx.Node) -> relax.Var:
+        return self.block_builder.emit(relax.op.astype(self.env[node.args[0]], "float16"))
+
+    def _to(self, node: fx.Node) -> relax.Var:
+        import torch
+
+        x = self.env[node.args[0]]
+        if len(node.args) == 2:
+            if isinstance(node.args[1], torch.dtype):
+                dtype = TorchFXImporter._convert_data_type(node.args[1], self.env)
+                return self.block_builder.emit(relax.op.astype(x, dtype))
+        elif "dtype" in node.kwargs:
+            dtype = TorchFXImporter._convert_data_type(node.kwargs["dtype"], self.env)
+            return self.block_builder.emit(relax.op.astype(x, dtype))
+        return x
+
+    def _type(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        dtype = TorchFXImporter._convert_data_type(node.args[1], self.env)
+        return self.block_builder.emit(relax.op.astype(x, dtype))
+
+    ########## Creation ##########
 
     def _empty(self, node: fx.Node) -> relax.Var:
         dtype = TorchFXImporter._convert_data_type(str(node.kwargs["dtype"]), self.env)
