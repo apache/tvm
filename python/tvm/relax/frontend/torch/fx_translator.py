@@ -720,6 +720,40 @@ class TorchFXImporter:
             groups=module.groups,
         )
 
+    def _cross_entropy(self, node: fx.Node) -> relax.Expr:
+        preds = self.env[node.args[0]]
+        targets = self.env[node.args[1]]
+        weights = self.env.get(node.kwargs["weight"], None)
+        reduction = node.kwargs["reduction"]
+        ignore_index = node.kwargs["ignore_index"]
+
+        return self.block_builder.emit(
+            relax.op.nn.nll_loss(
+                relax.op.nn.log_softmax(preds), targets, weights, reduction, ignore_index
+            )
+        )
+
+    def _cross_entropy_module(self, node: fx.Node) -> relax.Expr:
+        preds = self.env[node.args[0]]
+        targets = self.env[node.args[1]]
+        module = self.named_modules[node.target]
+
+        weights = module.weight
+        if weights is not None:
+            if weights in self.params:
+                weights = self.params[weights]
+            else:
+                weights = relax.const(weights.numpy(), preds.struct_info.dtype)
+
+        reduction = module.reduction
+        ignore_index = module.ignore_index
+
+        return self.block_builder.emit(
+            relax.op.nn.nll_loss(
+                relax.op.nn.log_softmax(preds), targets, weights, reduction, ignore_index
+            )
+        )
+
     def _einsum(self, node: fx.Node) -> relax.Var:
         import torch  # type: ignore
 
@@ -1332,41 +1366,6 @@ class TorchFXImporter:
         assert dim is not None
         return self.block_builder.emit(relax.op.nn.softmax(x, dim))
 
-    def _cross_entropy(self, node: fx.Node) -> relax.Expr:
-        preds = self.env[node.args[0]]
-        targets = self.env[node.args[1]]
-
-        # functional.cross_entropy
-        if node.target not in self.named_modules:
-            weights = node.kwargs["weight"]
-            if weights is not None:
-                weights = self.env[weights]
-            reduction = node.kwargs["reduction"]
-            ignore_index = node.kwargs["ignore_index"]
-
-            return self.block_builder.emit(
-                relax.op.nn.nll_loss(
-                    relax.op.nn.log_softmax(preds), targets, weights, reduction, ignore_index
-                )
-            )
-
-        module = self.named_modules[node.target]
-
-        weights = module.weight
-        if weights is not None:
-            if weights in self.params:
-                weights = self.params[weights]
-            else:
-                weights = relax.const(weights.numpy(), preds.struct_info.dtype)
-        reduction = module.reduction
-        ignore_index = module.ignore_index
-
-        return self.block_builder.emit(
-            relax.op.nn.nll_loss(
-                relax.op.nn.log_softmax(preds), targets, weights, reduction, ignore_index
-            )
-        )
-
     ########## Others ##########
 
     def _sym_size_int(self, node: fx.Node) -> relax.Expr:
@@ -1496,7 +1495,7 @@ class TorchFXImporter:
             nn.Conv3d: self._conv3d_module,
             nn.ConvTranspose1d: self._conv1d_transpose_module,
             nn.ConvTranspose2d: self._conv2d_transpose_module,
-            nn.CrossEntropyLoss: self._cross_entropy,
+            nn.CrossEntropyLoss: self._cross_entropy_module,
             nn.GroupNorm: self._group_norm_module,
             nn.LayerNorm: self._layer_norm_module,
             nn.Linear: self._linear_module,
