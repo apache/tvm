@@ -777,6 +777,80 @@ class TorchFXImporter:
             )
         )
 
+    def _interpolate(self, node: fx.Node) -> relax.Var:
+        # torch.nn.functional.interpolate(
+        #   input, size=None, scale_factor=None, mode='nearest', align_corners=None,
+        #   recompute_scale_factor=None, antialias=False)
+        # (TODO) this is a temporary implementation for interpolate that only considers NCHW layout
+        # it basically replicates the implementation in tvm.relay.frontend.pytorch
+        data = self.env[node.args[0]]
+        size = (
+            node.args[1]
+            if len(node.args) > 1
+            else (node.kwargs["size"] if "size" in node.kwargs else None)
+        )
+        scale_factor = (
+            node.args[2]
+            if len(node.args) > 2
+            else (node.kwargs["scale_factor"] if "scale_factor" in node.kwargs else None)
+        )
+        method = (
+            node.args[3]
+            if len(node.args) > 3
+            else (node.kwargs["mode"] if "mode" in node.kwargs else "nearest")
+        )
+        align_corners = (
+            node.args[4]
+            if len(node.args) > 4
+            else (node.kwargs["align_corners"] if "align_corners" in node.kwargs else None)
+        )
+        recompute_scale_factor = (
+            node.args[5]
+            if len(node.args) > 5
+            else (
+                node.kwargs["recompute_scale_factor"]
+                if "recompute_scale_factor" in node.kwargs
+                else None
+            )
+        )
+        antialias = (
+            node.args[6]
+            if len(node.args) > 6
+            else (node.kwargs["antialias"] if "antialias" in node.kwargs else False)
+        )
+
+        assert recompute_scale_factor is None
+        assert antialias is False
+
+        if size is None:
+            shape = self.shape_of(data)
+            assert isinstance(shape, relax.ShapeExpr)
+            if isinstance(scale_factor, tuple):
+                assert len(scale_factor) == len(shape) - 2
+                size = tuple(
+                    int(shape[i].value * scale_factor[i - 2]) for i in range(2, len(shape))
+                )
+            else:
+                size = tuple(int(shape[i].value * scale_factor) for i in range(2, len(shape)))
+
+        if method.startswith("nearest"):
+            method = "nearest_neighbor"
+        elif method[0:2] == "bi":
+            method = method[2:]
+
+        if method == "nearest_neighbor":
+            coord_trans = "asymmetric"
+        elif align_corners:
+            coord_trans = "align_corners"
+        else:
+            coord_trans = "half_pixel"
+
+        return self.block_builder.emit(
+            relax.op.image.resize2d(
+                data, size, layout="NCHW", method=method, coordinate_transformation_mode=coord_trans
+            )
+        )
+
     def _layer_norm_impl(self, x, gamma, beta, eps, normalized_shape) -> relax.Var:
         from torch.fx.immutable_collections import immutable_list
         import numpy as np  # type: ignore
@@ -1257,80 +1331,6 @@ class TorchFXImporter:
             dim = node.args[1] if nargs > 1 else node.kwargs["dim"]
         assert dim is not None
         return self.block_builder.emit(relax.op.nn.softmax(x, dim))
-
-    def _interpolate(self, node: fx.Node) -> relax.Var:
-        # torch.nn.functional.interpolate(
-        #   input, size=None, scale_factor=None, mode='nearest', align_corners=None,
-        #   recompute_scale_factor=None, antialias=False)
-        # (TODO) this is a temporary implementation for interpolate that only considers NCHW layout
-        # it basically replicates the implementation in tvm.relay.frontend.pytorch
-        data = self.env[node.args[0]]
-        size = (
-            node.args[1]
-            if len(node.args) > 1
-            else (node.kwargs["size"] if "size" in node.kwargs else None)
-        )
-        scale_factor = (
-            node.args[2]
-            if len(node.args) > 2
-            else (node.kwargs["scale_factor"] if "scale_factor" in node.kwargs else None)
-        )
-        method = (
-            node.args[3]
-            if len(node.args) > 3
-            else (node.kwargs["mode"] if "mode" in node.kwargs else "nearest")
-        )
-        align_corners = (
-            node.args[4]
-            if len(node.args) > 4
-            else (node.kwargs["align_corners"] if "align_corners" in node.kwargs else None)
-        )
-        recompute_scale_factor = (
-            node.args[5]
-            if len(node.args) > 5
-            else (
-                node.kwargs["recompute_scale_factor"]
-                if "recompute_scale_factor" in node.kwargs
-                else None
-            )
-        )
-        antialias = (
-            node.args[6]
-            if len(node.args) > 6
-            else (node.kwargs["antialias"] if "antialias" in node.kwargs else False)
-        )
-
-        assert recompute_scale_factor is None
-        assert antialias is False
-
-        if size is None:
-            shape = self.shape_of(data)
-            assert isinstance(shape, relax.ShapeExpr)
-            if isinstance(scale_factor, tuple):
-                assert len(scale_factor) == len(shape) - 2
-                size = tuple(
-                    int(shape[i].value * scale_factor[i - 2]) for i in range(2, len(shape))
-                )
-            else:
-                size = tuple(int(shape[i].value * scale_factor) for i in range(2, len(shape)))
-
-        if method.startswith("nearest"):
-            method = "nearest_neighbor"
-        elif method[0:2] == "bi":
-            method = method[2:]
-
-        if method == "nearest_neighbor":
-            coord_trans = "asymmetric"
-        elif align_corners:
-            coord_trans = "align_corners"
-        else:
-            coord_trans = "half_pixel"
-
-        return self.block_builder.emit(
-            relax.op.image.resize2d(
-                data, size, layout="NCHW", method=method, coordinate_transformation_mode=coord_trans
-            )
-        )
 
     def _cross_entropy(self, node: fx.Node) -> relax.Expr:
         preds = self.env[node.args[0]]
