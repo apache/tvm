@@ -601,11 +601,18 @@ def bitserial_conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
             name="bitserial_conv2d_nchw.arm_cpu",
         )
     elif layout == "NHWC":
-        strategy.add_implementation(
-            wrap_compute_bitserial_conv2d(topi.arm_cpu.bitserial_conv2d_nhwc),
-            wrap_topi_schedule(topi.arm_cpu.schedule_bitserial_conv2d_nhwc),
-            name="bitserial_conv2d_nhwc.arm_cpu",
-        )
+        if target.features.is_aarch64:
+            strategy.add_implementation(
+                wrap_compute_bitserial_conv2d(topi.arm_cpu.bitserial_conv2d_nhwc_aarch64),
+                wrap_topi_schedule(topi.arm_cpu.schedule_bitserial_conv2d_nhwc_aarch64),
+                name="bitserial_conv2d_nhwc.arm_cpu",
+            )
+        else:
+            strategy.add_implementation(
+                wrap_compute_bitserial_conv2d(topi.arm_cpu.bitserial_conv2d_nhwc),
+                wrap_topi_schedule(topi.arm_cpu.schedule_bitserial_conv2d_nhwc),
+                name="bitserial_conv2d_nhwc.arm_cpu",
+            )
     else:
         raise ValueError(f"Data layout {layout} not supported.")
     return strategy
@@ -615,11 +622,18 @@ def bitserial_conv2d_strategy_arm_cpu(attrs, inputs, out_type, target):
 def schedule_bitserial_dense_arm_cpu(attrs, inputs, out_type, target):
     """bitserial_dense arm cpu strategy"""
     strategy = _op.OpStrategy()
-    strategy.add_implementation(
-        wrap_compute_bitserial_dense(topi.arm_cpu.bitserial_dense),
-        wrap_topi_schedule(topi.arm_cpu.schedule_bitserial_dense),
-        name="bitserial_dense.arm_cpu",
-    )
+    if target.features.is_aarch64:
+        strategy.add_implementation(
+            wrap_compute_bitserial_dense(topi.arm_cpu.bitserial_dense_aarch64),
+            wrap_topi_schedule(topi.arm_cpu.schedule_bitserial_dense_aarch64),
+            name="bitserial_dense.arm_cpu",
+        )
+    else:
+        strategy.add_implementation(
+            wrap_compute_bitserial_dense(topi.arm_cpu.bitserial_dense),
+            wrap_topi_schedule(topi.arm_cpu.schedule_bitserial_dense),
+            name="bitserial_dense.arm_cpu",
+        )
     return strategy
 
 
