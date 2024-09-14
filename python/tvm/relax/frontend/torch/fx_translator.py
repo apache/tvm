@@ -993,6 +993,16 @@ class TorchFXImporter:
         dims = args[1] if isinstance(args[1], (torch.Size, tuple, list)) else args[1:]
         return self.block_builder.emit(relax.op.reshape(x, dims))
 
+    def _size(self, node: fx.Node) -> relax.Expr:
+        x = self.env[node.args[0]]
+        shape = self.shape_of(x)
+        if len(node.args) == 1:
+            assert isinstance(shape, relax.ShapeExpr)
+            return shape
+        assert len(node.args) == 2
+        idx = node.args[1]
+        return self.shape_of(x)[idx].value
+
     ########## DataType ##########
 
     def _float(self, node: fx.Node) -> relax.Var:
@@ -1388,16 +1398,6 @@ class TorchFXImporter:
         shape = self.shape_of(x)
         idx = node.args[1]
         return self.block_builder.emit(relax.const(shape[idx].value, "int32"))
-
-    def _size(self, node: fx.Node) -> relax.Expr:
-        x = self.env[node.args[0]]
-        shape = self.shape_of(x)
-        if len(node.args) == 1:
-            assert isinstance(shape, relax.ShapeExpr)
-            return shape
-        assert len(node.args) == 2
-        idx = node.args[1]
-        return self.shape_of(x)[idx].value
 
     def _getattr(self, node: fx.Node) -> relax.Var:
         if isinstance(self.env[node.args[0]], relax.Expr):
