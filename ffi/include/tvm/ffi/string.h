@@ -165,7 +165,7 @@ class String : public ObjectRef {
   template <typename T>
   String& operator=(T&& other) {
     // copy-and-swap idiom
-    String(std::forward<T>(other)).swap(*this);
+    String(std::forward<T>(other)).swap(*this);  // NOLINT(*)
     return *this;
   }
 

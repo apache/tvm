@@ -20,22 +20,12 @@
 /*
  * \file tvm/ffi/c_api.h
  * \brief This file defines the C convention of the FFI convention
- *
- *  Only use the APIs when TVM_FFI_ALLOW_DYN_TYPE is set to true
  */
 #ifndef TVM_FFI_C_API_H_
 #define TVM_FFI_C_API_H_
 
 #include <dlpack/dlpack.h>
 #include <stdint.h>
-
-/*!
- * \brief Macro defines whether we enable dynamic runtime features.
- * \note Turning this one would mean that we need to link tvm_ffi_registry_shared
- */
-#ifndef TVM_FFI_ALLOW_DYN_TYPE
-#define TVM_FFI_ALLOW_DYN_TYPE 1
-#endif
 
 #if !defined(TVM_FFI_DLL) && defined(__EMSCRIPTEN__)
 #include <emscripten/emscripten.h>
@@ -92,9 +82,12 @@ typedef enum {
 } TVMFFITypeIndex;
 #endif
 
+/*! \brief Handle to Object from C API's pov */
+typedef void* TVMFFIObjectHandle;
+
 /*!
  * \brief C-based type of all FFI object types that allocates on heap.
- * \note TVMFFIObject and TVMFFIAny share the common type_index_ header
+ * \note TVMFFIObject and TVMFFIAny share the common type_index header
  */
 typedef struct TVMFFIObject {
   /*!
@@ -164,6 +157,9 @@ typedef struct {
   const int32_t* type_acenstors;
 } TVMFFITypeInfo;
 
+//------------------------------------------------------------
+// Section: User APIs to interact with the FFI
+//------------------------------------------------------------
 /*!
  * \brief Type that defines C-style safe call convention
  *
@@ -176,10 +172,101 @@ typedef struct {
  *
  * \return The call return 0 if call is successful.
  *  It returns non-zero value if there is an error.
- *  When error happens, the exception object will be stored in result.
+ *
+ *  Possible return error of the API functions:
+ *  * 0: success
+ *  * -1: error happens, can be retrieved by TVMFFIGetLastError
+ *  * -2: a frontend error occurred and recorded in the frontend.
+ *
+ * \note We decided to leverage TVMFFIGetLastError and TVMFFISetLastError
+ *  for C function error propagation. This design choice, while
+ *  introducing a dependency for TLS runtime, simplifies error
+ *  propgation in chains of calls in compiler codegen.
+ *  As we do not need to propagate error through argument but simply
+ *  set them in the runtime environment.
  */
 typedef int (*TVMFFISafeCallType)(void* func, int32_t num_args, const TVMFFIAny* args,
                                   TVMFFIAny* result);
+
+/*!
+ * \brief Free an object handle by decreasing reference
+ * \param obj The object handle.
+ * \note Internally we decrease the reference counter of the object.
+ *       The object will be freed when every reference to the object are removed.
+ * \return 0 when success, nonzero when failure happens
+ */
+TVM_FFI_DLL int TVMFFIObjectFree(TVMFFIObjectHandle obj);
+
+/*!
+ * \brief Move the last error from the environment to result.
+ *
+ * \param result The result error.
+ *
+ * \note This function clears the error stored in the TLS.
+ */
+TVM_FFI_DLL void TVMFFIMoveFromLastError(TVMFFIAny* result);
+
+/*!
+ * \brief Set the last error in TLS, which can be fetched by TVMFFIGetLastError.
+ *
+ * \param error_view The error in format of any view.
+ *        It can be an object, or simply a raw c_str.
+ * \note
+ */
+TVM_FFI_DLL void TVMFFISetLastError(const TVMFFIAny* error_view);
+
+//------------------------------------------------------------
+// Section: Backend noexcept functions for internal use
+//
+// These functions are used internally and do not throw error
+// instead the error will be logged and abort the process
+// These are function are being called in startup or exit time
+// so exception handling do not apply
+//------------------------------------------------------------
+/*!
+ * \brief Get stack traceback in a string.
+ * \param filaname The current file name.
+ * \param func The current function
+ * \param lineno The current line number
+ * \return The traceback string
+ *
+ * \note filename func and lino are only used as a backup info, most cases they are not needed.
+ *  The return value is set to const char* to be more compatible across dll boundaries.
+ */
+TVM_FFI_DLL const char* TVMFFITraceback(const char* filename, const char* func, int lineno);
+
+/*!
+ * \brief Initialize the type info during runtime.
+ *
+ *  When the function is first time called for a type,
+ *  it will register the type to the type table in the runtime.
+ *
+ *  If the static_tindex is non-negative, the function will
+ *  allocate a runtime type index.
+ *  Otherwise, we will populate the type table and return the static index.
+ *
+ * \param type_key The type key.
+ * \param static_type_index Static type index if any, can be -1, which means this is a dynamic index
+ * \param num_child_slots Number of slots reserved for its children.
+ * \param child_slots_can_overflow Whether to allow child to overflow the slots.
+ * \param parent_type_index Parent type index, pass in -1 if it is root.
+ * \param result The output type index
+ *
+ * \return 0 if success, -1 if error occured
+ */
+TVM_FFI_DLL int32_t TVMFFIGetOrAllocTypeIndex(const char* type_key, int32_t static_type_index,
+                                              int32_t type_depth, int32_t num_child_slots,
+                                              int32_t child_slots_can_overflow,
+                                              int32_t parent_type_index);
+/*!
+ * \brief Get dynamic type info by type index.
+ *
+ * \param type_index The type index
+ * \param result The output type information
+ *
+ * \return 0 when success, nonzero when failure happens
+ */
+TVM_FFI_DLL const TVMFFITypeInfo* TVMFFIGetTypeInfo(int32_t type_index);
 
 #ifdef __cplusplus
 }  // TVM_FFI_EXTERN_C

@@ -59,12 +59,8 @@ inline std::string TypeIndex2TypeKey(int32_t type_index) {
     default: {
       TVM_FFI_ICHECK_GE(type_index, TypeIndex::kTVMFFIStaticObjectBegin)
           << "Uknown type_index=" << type_index;
-#if TVM_FFI_ALLOW_DYN_TYPE
-      const TypeInfo* type_info = details::ObjectGetTypeInfo(type_index);
+      const TypeInfo* type_info = TVMFFIGetTypeInfo(type_index);
       return type_info->type_key;
-#else
-      return "object.Object";
-#endif
     }
   }
 }

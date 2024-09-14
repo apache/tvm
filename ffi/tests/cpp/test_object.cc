@@ -47,7 +47,7 @@ TEST(Object, RefCounter) {
 }
 
 TEST(Object, TypeInfo) {
-  const TypeInfo* info = tvm::ffi::details::ObjectGetTypeInfo(TIntObj::RuntimeTypeIndex());
+  const TypeInfo* info = TVMFFIGetTypeInfo(TIntObj::RuntimeTypeIndex());
   EXPECT_TRUE(info != nullptr);
   EXPECT_EQ(info->type_index, TIntObj::RuntimeTypeIndex());
   EXPECT_EQ(info->type_depth, 2);

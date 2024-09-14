@@ -1,11 +1,13 @@
 #include <gtest/gtest.h>
+
 #include <tvm/ffi/ffi.hpp>
 
 namespace {
 using namespace tvm::ffi;
 
-const char c_str_long[] = "Hello, World! This is an extremely long string to "
-                          "avoid any on-stack optimization.";
+const char c_str_long[] =
+    "Hello, World! This is an extremely long string to "
+    "avoid any on-stack optimization.";
 
 TEST(Str, CopyFromStdString) {
   std::string std_str = "Hello, World!";
@@ -17,9 +19,9 @@ TEST(Str, CopyFromStdString) {
 
 TEST(Str, MoveFromStdString_0) {
   std::string std_str = c_str_long;
-  const void *data = std_str.data();
+  const void* data = std_str.data();
   Ref<Str> str = Ref<Str>::New(std::move(std_str));
-  EXPECT_EQ(static_cast<const void *>(str->data()), data);
+  EXPECT_EQ(static_cast<const void*>(str->data()), data);
   EXPECT_STREQ(str->c_str(), c_str_long);
 }
 
@@ -44,4 +46,4 @@ TEST(Str, CopyFromCharArray) {
   EXPECT_EQ(str->size(), 17);
 }
 
-} // namespace
+}  // namespace

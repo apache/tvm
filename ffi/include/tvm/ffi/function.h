@@ -29,11 +29,60 @@
 #include <tvm/ffi/error.h>
 #include <tvm/ffi/function_details.h>
 
+#include <functional>
 #include <string>
 #include <utility>
 
 namespace tvm {
 namespace ffi {
+
+/**
+ * Helper macro to construct a safe call
+ *
+ * \brief Marks the begining of the safe call that catches exception explicitly
+ *
+ */
+#define TVM_FFI_SAFE_CALL_BEGIN() \
+  try {                           \
+  (void)0
+
+/*!
+ * \brief Marks the end of safe call.
+ */
+#define TVM_FFI_SAFE_CALL_END()                                                     \
+  return 0;                                                                         \
+  }                                                                                 \
+  catch (const ::tvm::ffi::Error& err) {                                            \
+    ::tvm::ffi::AnyView error_as_any(err);                                          \
+    TVMFFISetLastError(reinterpret_cast<TVMFFIAny*>(&error_as_any));                \
+    return -1;                                                                      \
+  }                                                                                 \
+  catch (const ::tvm::ffi::EnvErrorAlreadySet&) {                                   \
+    return -2;                                                                      \
+  }                                                                                 \
+  catch (const std::exception& err) {                                               \
+    ::tvm::ffi::Any error_as_any(tvm::ffi::Error("InternalError", err.what(), "")); \
+    TVMFFISetLastError(reinterpret_cast<TVMFFIAny*>(&error_as_any));                \
+    return -1;                                                                      \
+  }                                                                                 \
+  TVM_FFI_UNREACHABLE()
+
+#define TVM_FFI_CHECK_SAFE_CALL(func)                                                  \
+  {                                                                                    \
+    int ret_code = (func);                                                             \
+    if (ret_code != 0) {                                                               \
+      if (ret_code == -2) {                                                            \
+        throw ::tvm::ffi::EnvErrorAlreadySet();                                        \
+      }                                                                                \
+      Any error_any;                                                                   \
+      TVMFFIMoveFromLastError(reinterpret_cast<TVMFFIAny*>(&error_any));               \
+      if (std::optional<tvm::ffi::Error> error = error_any.TryAs<tvm::ffi::Error>()) { \
+        throw std::move(*error);                                                       \
+      } else {                                                                         \
+        TVM_FFI_THROW(RuntimeError) << "Error encountered";                            \
+      }                                                                                \
+    }                                                                                  \
+  }
 
 /*!
  * \brief Object container class that backs ffi::Function
@@ -61,20 +110,12 @@ class FunctionObj : public Object {
   FunctionObj() {}
 
   // Implementing safe call style
-  static int32_t SafeCall(void* func, int32_t num_args, const TVMFFIAny* args, TVMFFIAny* result) {
+  static int SafeCall(void* func, int32_t num_args, const TVMFFIAny* args, TVMFFIAny* result) {
+    TVM_FFI_SAFE_CALL_BEGIN();
     FunctionObj* self = static_cast<FunctionObj*>(func);
-    try {
-      self->call(self, num_args, reinterpret_cast<const AnyView*>(args),
-                 reinterpret_cast<Any*>(result));
-      return 0;
-    } catch (const tvm::ffi::Error& err) {
-      Any(std::move(err)).MoveToTVMFFIAny(result);
-      return 1;
-    } catch (const std::runtime_error& err) {
-      Any(tvm::ffi::Error("RuntimeError", err.what(), "")).MoveToTVMFFIAny(result);
-      return 1;
-    }
-    TVM_FFI_UNREACHABLE();
+    self->call(self, num_args, reinterpret_cast<const AnyView*>(args),
+               reinterpret_cast<Any*>(result));
+    TVM_FFI_SAFE_CALL_END();
   }
 
   friend class Function;
@@ -119,15 +160,8 @@ template <typename Derived>
 struct RedirectCallToSafeCall {
   static void Call(const FunctionObj* func, int32_t num_args, const AnyView* args, Any* rv) {
     Derived* self = static_cast<Derived*>(const_cast<FunctionObj*>(func));
-    int ret_code = self->RedirectSafeCall(num_args, reinterpret_cast<const TVMFFIAny*>(args),
-                                          reinterpret_cast<TVMFFIAny*>(rv));
-    if (ret_code != 0) {
-      if (std::optional<tvm::ffi::Error> err = rv->TryAs<tvm::ffi::Error>()) {
-        throw std::move(*err);
-      } else {
-        TVM_FFI_THROW(RuntimeError) << "Error encountered when calling a tvm::ffi::Function";
-      }
-    }
+    TVM_FFI_CHECK_SAFE_CALL(self->RedirectSafeCall(
+        num_args, reinterpret_cast<const TVMFFIAny*>(args), reinterpret_cast<TVMFFIAny*>(rv)));
   }
 
   static int32_t SafeCall(void* func, int32_t num_args, const TVMFFIAny* args, TVMFFIAny* rv) {

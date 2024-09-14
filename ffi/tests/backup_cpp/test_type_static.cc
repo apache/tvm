@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+
 #include <tvm/ffi/ffi.hpp>
 
 namespace {
@@ -15,8 +16,7 @@ struct SubType : public Object {
 
 int64_t FuncCall(int64_t x) { return x + 1; }
 
-void CheckAncestor(int32_t num, const int32_t *ancestors,
-                   std::vector<int32_t> expected) {
+void CheckAncestor(int32_t num, const int32_t* ancestors, std::vector<int32_t> expected) {
   EXPECT_EQ(num, expected.size());
   for (int i = 0; i < num; ++i) {
     EXPECT_EQ(ancestors[i], expected[i]);
@@ -28,16 +28,14 @@ static_assert(IsObject<Func>, "IsObject<Func> == true");
 static_assert(IsObject<Str>, "IsObject<Str> == true");
 
 TEST(StaticTypeInfo, Object) {
-  EXPECT_EQ(Object::_type_index,
-            static_cast<int32_t>(TVMFFITypeIndex::kTVMFFIObject));
+  EXPECT_EQ(Object::_type_index, static_cast<int32_t>(TVMFFITypeIndex::kTVMFFIObject));
   EXPECT_STRCASEEQ(Object::_type_key, "object.Object");
   EXPECT_EQ(Object::_type_depth, 0);
   CheckAncestor(Object::_type_depth, Object::_type_ancestors.data(), {});
 }
 
 TEST(StaticTypeInfo, Func) {
-  EXPECT_EQ(Func::_type_index,
-            static_cast<int32_t>(TVMFFITypeIndex::kTVMFFIFunc));
+  EXPECT_EQ(Func::_type_index, static_cast<int32_t>(TVMFFITypeIndex::kTVMFFIFunc));
   EXPECT_STRCASEEQ(Func::_type_key, "object.Func");
   EXPECT_EQ(Func::_type_depth, 1);
   CheckAncestor(Func::_type_depth, Func::_type_ancestors.data(),
@@ -45,8 +43,7 @@ TEST(StaticTypeInfo, Func) {
 }
 
 TEST(StaticTypeInfo, Str) {
-  EXPECT_EQ(Str::_type_index,
-            static_cast<int32_t>(TVMFFITypeIndex::kTVMFFIStr));
+  EXPECT_EQ(Str::_type_index, static_cast<int32_t>(TVMFFITypeIndex::kTVMFFIStr));
   EXPECT_STRCASEEQ(Str::_type_key, "object.Str");
   EXPECT_EQ(Str::_type_depth, 1);
   CheckAncestor(Str::_type_depth, Str::_type_ancestors.data(),
@@ -111,9 +108,9 @@ TEST(StaticTypeSubclass, Exception) {
   try {
     Ref<SubType>::New(1);
     FAIL() << "No exception thrown";
-  } catch (std::runtime_error &ex) {
+  } catch (std::runtime_error& ex) {
     EXPECT_STREQ(ex.what(), "New Error");
   }
 }
 
-} // namespace
+}  // namespace

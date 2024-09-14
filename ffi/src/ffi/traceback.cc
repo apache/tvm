@@ -146,22 +146,20 @@ __attribute__((constructor)) void install_signal_handler(void) {
 }
 #endif  // TVM_FFI_BACKTRACE_ON_SEGFAULT
 }  // namespace
+}  // namespace ffi
+}  // namespace tvm
 
-namespace details {
-const char* Traceback(const char*, const char*, int) {
+extern "C" {
+const char* TVMFFITraceback(const char*, const char*, int) {
   static thread_local std::string traceback_str;
   traceback_str = ::tvm::ffi::Traceback();
   return traceback_str.c_str();
 }
-}  // namespace details
-}  // namespace ffi
-}  // namespace tvm
+}  // extern "C"
 #else
-namespace tvm {
-namespace ffi {
-namespace details {
+extern "C" {
 // fallback implementation simply print out the last trace
-const char* Traceback(const char* filename, const char* func, int lineno) {
+const char* TVMFFITraceback(const char* filename, const char* func, int lineno) {
   static thread_local std::string traceback_str;
   std::ostringstream traceback_stream;
   // python style backtrace
@@ -169,8 +167,6 @@ const char* Traceback(const char* filename, const char* func, int lineno) {
   traceback_str = traceback_stream.str();
   return traceback_str.c_str();
 }
-}  // namespace details
-}  // namespace ffi
-}  // namespace tvm
+}  // extern "C"
 #endif  // TVM_FFI_USE_LIBBACKTRACE
 #endif  // _MSC_VER

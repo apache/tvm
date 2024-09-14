@@ -1,4 +1,5 @@
 #include <gtest/gtest.h>
+
 #include <tvm/ffi/ffi.hpp>
 
 namespace {
@@ -12,7 +13,7 @@ bool DeviceEqual(DLDevice a, DLDevice b) {
   return a.device_type == b.device_type && a.device_id == b.device_id;
 }
 
-void TestSizeCapacityClear(Ref<List> *list, int64_t size, int64_t capacity) {
+void TestSizeCapacityClear(Ref<List>* list, int64_t size, int64_t capacity) {
   EXPECT_EQ(list->size(), size);
   EXPECT_EQ(list->capacity(), capacity);
   EXPECT_EQ(list->empty(), size == 0);
@@ -24,7 +25,7 @@ void TestSizeCapacityClear(Ref<List> *list, int64_t size, int64_t capacity) {
 
 TEST(List_Constructor, Default) {
   Ref<List> list = Ref<List>::New();
-  TVMFFIList *list_ptr = reinterpret_cast<TVMFFIList *>(list.get());
+  TVMFFIList* list_ptr = reinterpret_cast<TVMFFIList*>(list.get());
   ASSERT_NE(list_ptr, nullptr);
   EXPECT_EQ(list_ptr->type_index, static_cast<int32_t>(TVMFFITypeIndex::kTVMFFIList));
   EXPECT_EQ(list_ptr->ref_cnt, 1);
@@ -44,8 +45,8 @@ TEST(List_Constructor, InitializerList) {
       100,          1.0f, "Hi", DLDataType{kDLInt, 32, 1}, DLDevice{kDLCPU, 0}, Ref<Object>::New(),
       Ref<Object>()};
 
-  auto test = [](Ref<List> *src) {
-    auto *list_ptr = reinterpret_cast<const TVMFFIList *>(src->get());
+  auto test = [](Ref<List>* src) {
+    auto* list_ptr = reinterpret_cast<const TVMFFIList*>(src->get());
     ASSERT_NE(list_ptr, nullptr);
     EXPECT_EQ(list_ptr->type_index, static_cast<int32_t>(TVMFFITypeIndex::kTVMFFIList));
     EXPECT_EQ(list_ptr->ref_cnt, 1);
@@ -53,7 +54,7 @@ TEST(List_Constructor, InitializerList) {
     EXPECT_EQ(list_ptr->list_capacity, 7);
     EXPECT_EQ(list_ptr->list_length, 7);
     EXPECT_EQ(list_ptr->pool_capacity, 7);
-    EXPECT_EQ(list_ptr->pool_length, 4); // string is not in the POD pool
+    EXPECT_EQ(list_ptr->pool_length, 4);  // string is not in the POD pool
     EXPECT_EQ(src->size(), 7);
     EXPECT_EQ(src->capacity(), 7);
     EXPECT_EQ(src->empty(), false);
@@ -68,7 +69,7 @@ TEST(List_PushBack, POD) {
   ASSERT_NE(list.get(), nullptr);
   list.push_back(100);
   list.push_back(1.0f);
-  TVMFFIList *list_ptr = reinterpret_cast<TVMFFIList *>(list.get());
+  TVMFFIList* list_ptr = reinterpret_cast<TVMFFIList*>(list.get());
   ASSERT_NE(list_ptr, nullptr);
   EXPECT_EQ(list_ptr->type_index, static_cast<int32_t>(TVMFFITypeIndex::kTVMFFIList));
   EXPECT_EQ(list_ptr->ref_cnt, 1);
@@ -88,7 +89,7 @@ TEST(List_PushBack, Obj) {
   Ref<Object> obj2 = Ref<Object>::New();
   list.push_back(obj1);
   list.push_back(obj2);
-  TVMFFIList *list_ptr = reinterpret_cast<TVMFFIList *>(list.get());
+  TVMFFIList* list_ptr = reinterpret_cast<TVMFFIList*>(list.get());
   ASSERT_NE(list_ptr, nullptr);
   EXPECT_EQ(list_ptr->type_index, static_cast<int32_t>(TVMFFITypeIndex::kTVMFFIList));
   EXPECT_EQ(list_ptr->ref_cnt, 1);
@@ -97,8 +98,8 @@ TEST(List_PushBack, Obj) {
   EXPECT_EQ(list_ptr->list_length, 2);
   EXPECT_EQ(list_ptr->pool_capacity, 0);
   EXPECT_EQ(list_ptr->pool_length, 0);
-  EXPECT_EQ((Object *)(list[0]), obj1.get());
-  EXPECT_EQ((Object *)(list[1]), obj2.get());
+  EXPECT_EQ((Object*)(list[0]), obj1.get());
+  EXPECT_EQ((Object*)(list[1]), obj2.get());
   TestSizeCapacityClear(&list, 2, List::kMinCapacity);
 }
 
@@ -138,9 +139,9 @@ TEST(List_PushBack, Heterogeneous) {
     std::string i_2 = list[i * k + 2];
     DLDataType i_3 = list[i * k + 3];
     DLDevice i_4 = list[i * k + 4];
-    Object *i_5 = list[i * k + 5];
-    Object *i_6 = list[i * k + 6];
-    const char *i_7 = list[i * k + 7];
+    Object* i_5 = list[i * k + 5];
+    Object* i_6 = list[i * k + 6];
+    const char* i_7 = list[i * k + 7];
     EXPECT_EQ(i_0, integer);
     EXPECT_DOUBLE_EQ(i_1, fp);
     EXPECT_EQ(i_2, str);
@@ -150,7 +151,7 @@ TEST(List_PushBack, Heterogeneous) {
     EXPECT_EQ(i_6, nullptr);
     EXPECT_STREQ(i_7, long_str.c_str());
   }
-  auto *list_ptr = reinterpret_cast<const TVMFFIList *>(list.get());
+  auto* list_ptr = reinterpret_cast<const TVMFFIList*>(list.get());
   EXPECT_EQ(list_ptr->list_capacity, expected_capacity);
   EXPECT_EQ(list_ptr->list_length, expected_size);
   EXPECT_EQ(list_ptr->pool_capacity, expected_pool_capacity);
@@ -160,7 +161,7 @@ TEST(List_PushBack, Heterogeneous) {
 TEST(List_Insert, Once) {
   Ref<List> values = {100,
                       1.0,
-                      "Hi", //
+                      "Hi",  //
                       DLDataType{kDLInt, 32, 1},
                       DLDevice{kDLCPU, 0},
                       Ref<Object>::New(),
@@ -192,7 +193,7 @@ TEST(List_Insert, Error_0) {
   try {
     list.insert(-1, 1.0);
     FAIL() << "No exception thrown";
-  } catch (TVMError &ex) {
+  } catch (TVMError& ex) {
     EXPECT_STREQ(ex.what(), "Indexing `-1` of a list of size 3");
   }
 }
@@ -202,7 +203,7 @@ TEST(List_Insert, Error_1) {
   try {
     list.insert(4, 1.0);
     FAIL() << "No exception thrown";
-  } catch (TVMError &ex) {
+  } catch (TVMError& ex) {
     EXPECT_STREQ(ex.what(), "Indexing `4` of a list of size 3");
   }
 }
@@ -224,7 +225,7 @@ TEST(List_Resize, Expand) {
   EXPECT_EQ(int32_t(list[0]), 100);
   EXPECT_DOUBLE_EQ(double(list[1]), 1.0);
   EXPECT_STREQ(list[2], "Hi");
-  EXPECT_EQ(list[3].operator void *(), nullptr);
+  EXPECT_EQ(list[3].operator void*(), nullptr);
 }
 
 TEST(List_Reserve, Shrink) {
@@ -259,7 +260,7 @@ TEST(List_SetItem, PodToPod) {
   }
   EXPECT_EQ(list.size(), 3);
   EXPECT_EQ(list.capacity(), 3);
-  TVMFFIList *list_ptr = reinterpret_cast<TVMFFIList *>(list.get());
+  TVMFFIList* list_ptr = reinterpret_cast<TVMFFIList*>(list.get());
   EXPECT_EQ(list_ptr->list_capacity, 3);
   EXPECT_EQ(list_ptr->list_length, 3);
   EXPECT_EQ(list_ptr->pool_capacity, 24);
@@ -267,7 +268,7 @@ TEST(List_SetItem, PodToPod) {
 }
 
 TEST(List_SetItem, ObjToPod) {
-  Ref<List> list = {100, 1.0, "Hi"}; //
+  Ref<List> list = {100, 1.0, "Hi"};  //
   for (int i = 0; i < 16; ++i) {
     list[2] = i;
     EXPECT_EQ(list.size(), 3);
@@ -278,7 +279,7 @@ TEST(List_SetItem, ObjToPod) {
   }
   EXPECT_EQ(list.size(), 3);
   EXPECT_EQ(list.capacity(), 3);
-  TVMFFIList *list_ptr = reinterpret_cast<TVMFFIList *>(list.get());
+  TVMFFIList* list_ptr = reinterpret_cast<TVMFFIList*>(list.get());
   EXPECT_EQ(list_ptr->list_capacity, 3);
   EXPECT_EQ(list_ptr->list_length, 3);
   EXPECT_EQ(list_ptr->pool_capacity, 24);
@@ -292,13 +293,13 @@ TEST(List_SetItem, PodToObj) {
     list[0] = obj;
     EXPECT_EQ(list.size(), 3);
     EXPECT_EQ(list.capacity(), 3);
-    EXPECT_EQ((Object *)(list[0]), obj.get());
+    EXPECT_EQ((Object*)(list[0]), obj.get());
     EXPECT_DOUBLE_EQ(double(list[1]), 1.0);
     EXPECT_STREQ(list[2], "Hi");
   }
   EXPECT_EQ(list.size(), 3);
   EXPECT_EQ(list.capacity(), 3);
-  TVMFFIList *list_ptr = reinterpret_cast<TVMFFIList *>(list.get());
+  TVMFFIList* list_ptr = reinterpret_cast<TVMFFIList*>(list.get());
   EXPECT_EQ(list_ptr->list_capacity, 3);
   EXPECT_EQ(list_ptr->list_length, 3);
   EXPECT_EQ(list_ptr->pool_capacity, 3);
@@ -314,11 +315,11 @@ TEST(List_SetItem, ObjToObj) {
     EXPECT_EQ(list.capacity(), 3);
     EXPECT_EQ(int32_t(list[0]), 100);
     EXPECT_DOUBLE_EQ(double(list[1]), 1.0);
-    EXPECT_EQ((Object *)(list[2]), obj.get());
+    EXPECT_EQ((Object*)(list[2]), obj.get());
   }
   EXPECT_EQ(list.size(), 3);
   EXPECT_EQ(list.capacity(), 3);
-  TVMFFIList *list_ptr = reinterpret_cast<TVMFFIList *>(list.get());
+  TVMFFIList* list_ptr = reinterpret_cast<TVMFFIList*>(list.get());
   EXPECT_EQ(list_ptr->list_capacity, 3);
   EXPECT_EQ(list_ptr->list_length, 3);
   EXPECT_EQ(list_ptr->pool_capacity, 3);
@@ -356,10 +357,10 @@ TEST(List_PopBack, Heterogeneous) {
       EXPECT_PRED2(DeviceEqual, DLDevice(list[4]), device);
     }
     if (m > 5) {
-      EXPECT_EQ((Object *)(list[5]), obj.get());
+      EXPECT_EQ((Object*)(list[5]), obj.get());
     }
     if (m > 6) {
-      EXPECT_EQ((Object *)(list[6]), nullptr);
+      EXPECT_EQ((Object*)(list[6]), nullptr);
     }
   }
   EXPECT_EQ(list.size(), 0);
@@ -369,7 +370,7 @@ TEST(List_PopBack, Heterogeneous) {
   try {
     list.pop_back();
     FAIL() << "No exception thrown";
-  } catch (TVMError &ex) {
+  } catch (TVMError& ex) {
     EXPECT_STREQ(ex.what(), "Indexing `-1` of a list of size 0");
   }
 }
@@ -390,8 +391,8 @@ TEST(List_Erase, Front) {
   EXPECT_STREQ(list[1], "Hi");
   EXPECT_PRED2(DTypeEqual, DLDataType(list[2]), dtype);
   EXPECT_PRED2(DeviceEqual, DLDevice(list[3]), device);
-  EXPECT_EQ((Object *)(list[4]), obj.get());
-  EXPECT_EQ((Object *)(list[5]), nullptr);
+  EXPECT_EQ((Object*)(list[4]), obj.get());
+  EXPECT_EQ((Object*)(list[5]), nullptr);
 }
 
 TEST(List_Erase, Back) {
@@ -410,8 +411,8 @@ TEST(List_Erase, Back) {
   EXPECT_STREQ(list[1], "Hi");
   EXPECT_PRED2(DTypeEqual, DLDataType(list[2]), dtype);
   EXPECT_PRED2(DeviceEqual, DLDevice(list[3]), device);
-  EXPECT_EQ((Object *)(list[4]), obj.get());
-  EXPECT_EQ((Object *)(list[5]), nullptr);
+  EXPECT_EQ((Object*)(list[4]), obj.get());
+  EXPECT_EQ((Object*)(list[5]), nullptr);
 }
 
 TEST(List_Erase, Mid) {
@@ -430,8 +431,8 @@ TEST(List_Erase, Mid) {
   EXPECT_DOUBLE_EQ(double(list[1]), 1.0);
   EXPECT_STREQ(list[2], "Hi");
   EXPECT_PRED2(DeviceEqual, DLDevice(list[3]), device);
-  EXPECT_EQ((Object *)(list[4]), obj.get());
-  EXPECT_EQ((Object *)(list[5]), nullptr);
+  EXPECT_EQ((Object*)(list[4]), obj.get());
+  EXPECT_EQ((Object*)(list[5]), nullptr);
 }
 
 TEST(List_Iter, Test) {
@@ -458,4 +459,4 @@ TEST(List_RevIter, Test) {
   }
 }
 
-} // namespace
+}  // namespace

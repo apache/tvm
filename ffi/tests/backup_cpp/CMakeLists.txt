@@ -17,9 +17,8 @@ set_target_properties(
 add_cxx_warning(tvm_ffi_tests)
 add_sanitizer_address(tvm_ffi_tests)
 target_link_libraries(tvm_ffi_tests PRIVATE tvm_ffi)
+add_sanitizer_address(tvm_ffi_registry_shared)
+target_link_libraries(tvm_ffi_tests PRIVATE tvm_ffi_registry_shared)
 
-if (TVM_FFI_BUILD_REGISTRY)
-  target_link_libraries(tvm_ffi_tests PRIVATE tvm_ffi_registry_shared)
-endif()
 
 add_googletest(tvm_ffi_tests)

@@ -20,7 +20,6 @@ option(TVM_FFI_BUILD_REGISTRY
 )
 option(TVM_FFI_USE_LIBBRACKTRACE "Enable libbacktrace" ON)
 option(TVM_FFI_BACKTRACE_ON_SEGFAULT "Set signal handler to print traceback on segfault" ON)
-option(TVM_FFI_ALLOW_DYN_TYPE "Wehthert to allow dynamic features" ON)
 
 include(cmake/Utils/CxxWarning.cmake)
 include(cmake/Utils/Sanitizer.cmake)
@@ -39,20 +38,13 @@ target_link_libraries(tvm_ffi INTERFACE dlpack_header)
 target_compile_features(tvm_ffi INTERFACE cxx_std_17)
 target_include_directories(tvm_ffi INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/include")
 
-if (TVM_FFI_ALLOW_DYN_TYPE)
-  message(STATUS "Setting C++ macro TVM_FFI_ALLOW_DYN_TYPE - 1")
-  target_compile_definitions(tvm_ffi INTERFACE TVM_FFI_ALLOW_DYN_TYPE=1)
-else()
-  message(STATUS "Setting C++ macro TVM_FFI_ALLOW_DYN_TYPES - 0")
-  target_compile_definitions(tvm_ffi INTERFACE TVM_FFI_ALLOW_DYN_TYPE=0)
-endif()
-
 ########## Target: `tvm_ffi_registry` ##########
 
 if (TVM_FFI_BUILD_REGISTRY)
   add_library(tvm_ffi_registry_objs OBJECT
     "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/traceback.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/object.cc"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/function.cc"
   )
   set_target_properties(
     tvm_ffi_registry_objs PROPERTIES
@@ -101,6 +93,6 @@ if (${PROJECT_NAME} STREQUAL ${CMAKE_PROJECT_NAME})
     enable_testing()
     message(STATUS "Enable Testing")
     include(cmake/Utils/AddGoogleTest.cmake)
-    add_subdirectory(tests/example/)
+    add_subdirectory(tests/cpp/)
   endif()
 endif ()

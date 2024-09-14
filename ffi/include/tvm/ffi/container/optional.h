@@ -28,6 +28,8 @@
 #include <tvm/ffi/object.h>
 
 #include <optional>
+#include <string>
+#include <utility>
 
 namespace tvm {
 namespace ffi {
