@@ -1003,6 +1003,19 @@ class TorchFXImporter:
         idx = node.args[1]
         return self.shape_of(x)[idx].value
 
+    def _split(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        split_size = node.args[1]
+        dim = node.args[2] if len(node.args) > 2 else node.kwargs.get("dim", 0)
+        if isinstance(split_size, (list, tuple)):
+            n_section = []
+            for s in split_size[:-1]:
+                cum_sum = 0 if not n_section else n_section[-1]
+                n_section.append(s + cum_sum)
+        else:
+            n_section = (self.shape_of(x)[dim].value + split_size - 1) // split_size
+        return self.block_builder.emit(relax.op.split(x, n_section, dim))
+
     ########## DataType ##########
 
     def _float(self, node: fx.Node) -> relax.Var:
@@ -1168,22 +1181,6 @@ class TorchFXImporter:
         )
 
     ########## Manipulation ##########
-
-    def _split(self, node: fx.Node) -> relax.Var:
-        x = self.env[node.args[0]]
-        split_size = node.args[1]
-        if "dim" in node.kwargs:
-            dim = node.kwargs["dim"]
-        else:
-            dim = 0
-        if isinstance(split_size, (list, tuple)):
-            n_section = []
-            for s in split_size[:-1]:
-                cum_sum = 0 if not n_section else n_section[-1]
-                n_section.append(s + cum_sum)
-        else:
-            n_section = (self.shape_of(x)[dim].value + split_size - 1) // split_size
-        return self.block_builder.emit(relax.op.split(x, n_section, dim))
 
     def _chunk(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
