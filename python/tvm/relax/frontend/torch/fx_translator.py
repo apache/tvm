@@ -920,6 +920,19 @@ class TorchFXImporter:
         axis = args[1] if len(node.args) > 1 else node.kwargs.get("dim", 0)
         return self.block_builder.emit(relax.op.concat(args[0], axis=axis))
 
+    def _cumsum(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+
+        dim = node.args[1] if len(node.args) > 1 else node.kwargs.get("dim", None)
+        if "dtype" in node.kwargs:
+            dtype = self._convert_data_type(str(node.kwargs["dtype"]), self.env)
+        else:
+            dtype = None
+        if "out" in node.kwargs:
+            raise ValueError("specifying out for cumsum is not supported yet")
+
+        return self.block_builder.emit(relax.op.cumsum(x, dim, dtype))
+
     ########## DataType ##########
 
     def _float(self, node: fx.Node) -> relax.Var:
@@ -1192,24 +1205,6 @@ class TorchFXImporter:
         if isinstance(args[1], (torch.Size, tuple, list)):
             return self.block_builder.emit(relax.op.tile(args[0], tuple(args[1])))
         return self.block_builder.emit(relax.op.tile(args[0], args[1:]))
-
-    def _cumsum(self, node: fx.Node) -> relax.Var:
-        x = self.env[node.args[0]]
-
-        if "dim" in node.kwargs:
-            dim = node.kwargs["dim"]
-        elif len(node.args) > 1:
-            dim = node.args[1]
-        else:
-            dim = None
-        if "dtype" in node.kwargs:
-            dtype = TorchFXImporter._convert_data_type(str(node.kwargs["dtype"]), self.env)
-        else:
-            dtype = None
-        if "out" in node.kwargs:
-            raise ValueError("specifying out for cumsum is not supported yet")
-
-        return self.block_builder.emit(relax.op.cumsum(x, dim, dtype))
 
     def _index_select(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
