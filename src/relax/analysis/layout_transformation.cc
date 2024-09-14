@@ -150,7 +150,7 @@ static bool AreIdenticalSpatialAccess(const SpatialLayout& s0, const SpatialLayo
  * (ignoring reduction dimensions). It checks that the order of spatial iter vars in spatial layout
  * of a buffer access is same as the order of spatial iter vars in block domain.
  */
-using VarToBlockIndexMap = std::unordered_map<tir::Var, int, ObjectPtrHash, ObjectPtrEqual>;
+using VarToBlockIndexMap = std::unordered_map<tir::Var, int>;
 static bool IsSequentialAccess(const SpatialLayout& iterators,
                                const VarToBlockIndexMap& iter_to_block_index) {
   int last_value = -1;
@@ -210,7 +210,7 @@ static bool AreIdenticalTransforms(const IndexMap& t0, const IndexMap& t1) {
  * source spatial layout.
  * target transformation = lambda dim, C, H, W -> (dim, H, W, C // 4, C %4)
  */
-using VarSet = std::unordered_set<tir::Var, ObjectPtrHash, ObjectPtrEqual>;
+using VarSet = std::unordered_set<tir::Var>;
 static Optional<IndexMap> InferLayoutTransformation(const SpatialLayout& src_spatial_layout,
                                                     const IndexMap& src_transformation,
                                                     const SpatialLayout& tgt_spatial_layout) {

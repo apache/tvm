@@ -159,11 +159,8 @@ class SimpleSockHandler : public dmlc::Stream {
   // Internal supporting.
   // Override methods that inherited from dmlc::Stream.
  private:
-  size_t Read(void* data, size_t size) final {
-    ICHECK_EQ(sock_.RecvAll(data, size), size);
-    return size;
-  }
-  void Write(const void* data, size_t size) final { ICHECK_EQ(sock_.SendAll(data, size), size); }
+  size_t Read(void* data, size_t size) final { return sock_.Recv(data, size); }
+  size_t Write(const void* data, size_t size) final { return sock_.Send(data, size); }
 
   // Things of current class.
  private:

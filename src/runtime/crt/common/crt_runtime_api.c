@@ -349,14 +349,28 @@ int ModuleGetFunction(TVMValue* args, int* type_codes, int num_args, TVMValue* r
 
   ret_value[0].v_handle = NULL;
   ret_type_codes[0] = kTVMNullptr;
-  if (num_args != 3 || type_codes[0] != kTVMModuleHandle || type_codes[1] != kTVMStr ||
-      type_codes[2] != kDLInt) {
-    return 0;
+  if (num_args != 3) {
+    TVMAPISetLastError("ModuleGetFunction expects exactly 3 arguments");
+    return kTvmErrorFunctionCallNumArguments;
+  }
+  if (type_codes[0] != kTVMModuleHandle) {
+    TVMAPISetLastError("ModuleGetFunction expects first argument to be a Module");
+    return kTvmErrorFunctionCallWrongArgType;
+  }
+  if (type_codes[1] != kTVMStr) {
+    TVMAPISetLastError("ModuleGetFunction expects second argument to be a string");
+    return kTvmErrorFunctionCallWrongArgType;
+  }
+
+  if (type_codes[2] == kDLInt || type_codes[2] == kTVMArgBool) {
+    query_imports = args[2].v_int64 != 0;
+  } else {
+    TVMAPISetLastError("ModuleGetFunction expects third argument to be an integer");
+    return kTvmErrorFunctionCallWrongArgType;
   }
 
   mod = (TVMModuleHandle)args[0].v_handle;
   name = args[1].v_str;
-  query_imports = args[2].v_int64 != 0;
   to_return = TVMModGetFunction(mod, name, query_imports, &ret_value->v_handle);
 
   if (to_return == 0) {

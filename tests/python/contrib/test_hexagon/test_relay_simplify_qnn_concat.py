@@ -92,7 +92,7 @@ def test_simplify_qnn_concat():
     out_mod = get_expected_output_module()
     out_mod = tvm.relay.transform.InferType()(out_mod)
 
-    assert tvm.ir.structural_equal(mod["main"], out_mod["main"])
+    tvm.ir.assert_structural_equal(mod["main"], out_mod["main"])
 
 
 if __name__ == "__main__":

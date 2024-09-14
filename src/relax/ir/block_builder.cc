@@ -58,8 +58,7 @@ namespace relax {
 //---------------------------------------
 class BlockBuilderImpl : public BlockBuilderNode {
  public:
-  explicit BlockBuilderImpl(IRModule context_mod)
-      : name_supply_(""), context_mod_(std::move(context_mod)) {}
+  explicit BlockBuilderImpl(IRModule context_mod) : context_mod_(std::move(context_mod)) {}
 
   ~BlockBuilderImpl() {
     if (!block_stack_.empty()) {
@@ -179,29 +178,54 @@ class BlockBuilderImpl : public BlockBuilderNode {
     // but can be further improved.
     //
     // TODO(relax-team): Add support for relax Var in struct info annotations.
-    Map<tir::Var, PrimExpr> shape_var_map;
-    for (const Var& var : params.value_or(Array<Var>())) {
-      const Map<tir::Var, PrimExpr>& var_map = StructInfoVarCollector::Collect(GetStructInfo(var));
-      for (const auto& kv : var_map) {
-        const tir::Var& shape_var = kv.first;
-        const PrimExpr& shape_expr = kv.second;
-        auto it = shape_var_map.find(shape_var);
-        if (it == shape_var_map.end()) {
-          shape_var_map.Set(shape_var, shape_expr);
-          // Expose the shape variable as non-negative, for purposes
-          // of shape inference.  In many cases, knowning that the
-          // shape variable is non-negative allows for simpler
-          // expressions for dynamic shapes.
-          analyzer_.MarkGlobalNonNegValue(shape_var);
-        } else {
-          const PrimExpr& old_shape_expr = (*it).second;
-          CHECK(analyzer_.CanProveEqual(old_shape_expr, shape_expr))
-              << "Inconsistent shape var " << shape_var << " in scope: " << old_shape_expr << " vs "
-              << shape_expr;
-        }
+
+    scope_stack_.emplace_back(ScopeFrame());
+    if (params.defined()) {
+      for (const auto& param : params.value()) {
+        AddDefinitionToScope(param);
       }
     }
-    scope_stack_.emplace_back(ScopeFrame({std::move(shape_var_map)}));
+  }
+
+  void BeginInnerScope() final {
+    if (scope_stack_.size()) {
+      scope_stack_.emplace_back(scope_stack_.back());
+    } else {
+      scope_stack_.emplace_back(ScopeFrame());
+    }
+  }
+
+  void AddDefinitionToScope(Var var) final {
+    if (scope_stack_.empty()) {
+      return;
+    }
+
+    auto& shape_var_map = CurrentScopeFrame()->shape_var_map;
+
+    // The current implementation handles the collection of shape var
+    // defined in parameter struct info annotations. The implementation
+    // is correct (since we will simply erase all relax Vars in EraseToWellDefined),
+    // but can be further improved.
+    Map<tir::Var, PrimExpr> var_map = StructInfoVarCollector::Collect(GetStructInfo(var));
+    for (const auto& kv : var_map) {
+      const tir::Var& shape_var = kv.first;
+      const PrimExpr& shape_expr = kv.second;
+      auto it = shape_var_map.find(shape_var);
+      if (it == shape_var_map.end()) {
+        shape_var_map.Set(shape_var, shape_expr);
+        // Expose the shape variable as non-negative, for purposes
+        // of shape inference.  In many cases, knowning that the
+        // shape variable is non-negative allows for simpler
+        // expressions for dynamic shapes.
+        analyzer_.MarkGlobalNonNegValue(shape_var);
+      } else {
+        const PrimExpr& old_shape_expr = (*it).second;
+        CHECK(old_shape_expr.same_as(shape_expr) ||
+              analyzer_.CanProveEqual(old_shape_expr, shape_expr))
+            << "Inconsistent shape var " << shape_var << " in scope: " << old_shape_expr << " vs "
+            << shape_expr;
+      }
+    }
   }
 
   void EndScope() final { scope_stack_.pop_back(); }
@@ -237,6 +261,8 @@ class BlockBuilderImpl : public BlockBuilderNode {
     cur_frame->bindings.push_back(match_cast);
     // NOTE match shape do not follow simple binding rule
     // as a result should not appear in binding table.
+
+    AddDefinitionToScope(var);
     return var;
   }
 
@@ -272,6 +298,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
       // NOTE match shape do not follow simple binding rule
       // as a result should not appear in binding table.
       cur_frame->bindings.push_back(binding);
+      AddDefinitionToScope(match_cast->var);
     } else {
       LOG(FATAL) << "Unsupported binding type: " << binding->GetTypeKey();
     }
@@ -832,7 +859,9 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
   // erase to well defined within current scope.
   StructInfo EraseToWellDefinedInScope(StructInfo info) {
     if (scope_stack_.empty()) {
-      return EraseToWellDefined(info);
+      // If no scopes are active, then this fragment does not require
+      // any normalization.
+      return info;
     }
     auto* curr_scope = CurrentScopeFrame();
     auto f_shape_var_map = [curr_scope](tir::Var var) -> Optional<PrimExpr> {
@@ -844,15 +873,18 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
   }
 
   Expr VisitWithNewScope(const Expr& expr, Optional<Array<Var>> params = NullOpt) {
+    if (params.defined()) {
+      this->BeginScope(params.value());
+    } else {
+      this->BeginInnerScope();
+    }
+
+    Expr ret;
+
     // SeqExpr do not need to prepare for normalization.
     if (expr.as<SeqExprNode>()) {
-      this->BeginScope(params);
-      Expr ret = this->VisitExpr(expr);
-      this->EndScope();
-      return ret;
+      ret = this->VisitExpr(expr);
     } else {
-      this->BeginScope(params);
-
       this->BeginBindingBlock();
       Expr post = this->NormalizeArgument(expr);
       BindingBlock prologue = this->EndBlock();
@@ -869,9 +901,11 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
       SeqExpr seq(bindings, post);
       UpdateStructInfo(seq, EraseToWellDefinedInScope(GetStructInfo(seq->body)));
 
-      this->EndScope();
-      return seq;
+      ret = seq;
     }
+
+    this->EndScope();
+    return ret;
   }
 
   Array<BindingBlock> FlattenBlocks(const Array<BindingBlock>& blocks) {

@@ -868,34 +868,26 @@ class CutlassRelaxFunctionAnnotator(relax.PyExprMutator):
         signature = _extract_relax_function_signature(f)
 
         if _get_call_node(f.body, "relax.nn.attention") is not None:
-            op_attrs = _get_call_node(f.body, "relax.nn.attention").attrs
+            attention_node = _get_call_node(f.body, "relax.nn.attention")
+            op_attrs = attention_node.attrs
         elif _get_call_node(f.body, "relax.nn.attention_bias") is not None:
-            op_attrs = _get_call_node(f.body, "relax.nn.attention_bias").attrs
+            attention_node = _get_call_node(f.body, "relax.nn.attention_bias")
+            op_attrs = attention_node.attrs
         elif _get_call_node(f.body, "relax.nn.attention_var_len") is not None:
-            op_attrs = _get_call_node(f.body, "relax.nn.attention_var_len").attrs
+            attention_node = _get_call_node(f.body, "relax.nn.attention_var_len")
+            op_attrs = attention_node.attrs
         else:
             raise ValueError("Cannot find call node for attention")
         arg = {}
 
         if "stacked_attention" in op_type:
-            arg["arg0_shape"] = signature["arg0_shape"]
             arg["arg0_dtype"] = signature["arg0_dtype"]
-            arg["arg1_shape"] = q_shape = signature["arg1_shape"]
-
-            if "arg3_shape" not in signature:
-                # arg0: qkv, arg1: shape, arg2: workspace
-                arg["arg2_shape"] = k_shape = signature["arg1_shape"]
-                arg["arg3_shape"] = v_shape = signature["arg1_shape"]
-            else:
-                # arg0: qkv, arg1: shape1, arg2: shape2, arg3: shape3, arg4: workspace
-                arg["arg2_shape"] = k_shape = signature["arg2_shape"]
-                arg["arg3_shape"] = v_shape = signature["arg3_shape"]
-
-            if "arg5_dtype" in signature:
-                # arg0: qkv, arg1: shape1, arg2: shape2, arg3: shape3, arg4: bias, arg5: workspace
-                arg["bias_dtype"] = signature["arg4_dtype"]
-            if "arg5_shape" in signature:
-                arg["bias_shape"] = signature["arg4_shape"]
+            q_shape = get_const_tuple(attention_node.args[0].struct_info.shape)
+            k_shape = get_const_tuple(attention_node.args[1].struct_info.shape)
+            v_shape = get_const_tuple(attention_node.args[2].struct_info.shape)
+            if len(attention_node.args) == 4:
+                arg["bias_shape"] = get_const_tuple(attention_node.args[3].struct_info.shape)
+                arg["bias_dtype"] = attention_node.args[3].struct_info.dtype
 
             qkv_layout = "qkv_stacked"
         else:

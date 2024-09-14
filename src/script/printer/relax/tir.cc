@@ -18,6 +18,7 @@
  */
 #include <tvm/ir/expr.h>
 
+#include "../tir/utils.h"
 #include "./utils.h"
 
 namespace tvm {
@@ -59,7 +60,7 @@ Doc PrintTIRVar(tir::Var n, ObjectPath n_p, IRDocsifier d) {
     }
     IdDoc var = d->Define(n, GetRef<Frame>(f), n->name_hint.empty() ? "v" : n->name_hint);
     var->source_paths.push_back(n_p);
-    f->stmts.push_back(AssignDoc(var, TIR(d, DType2Str(n->dtype))->Call({}), NullOpt));
+    f->stmts.push_back(AssignDoc(var, PrintVarCreation(n, n_p, d), NullOpt));
   }
   if (Optional<ExprDoc> doc = d->GetVarDoc(n)) {
     return doc.value();
@@ -74,7 +75,11 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tvm::IntImm>(                                             //
         "relax", [](tvm::IntImm n, ObjectPath n_p, IRDocsifier d) -> Doc {  //
           // TODO(@junrushao): support non-int64 cases
-          return LiteralDoc::Int(n->value, n_p);
+          if (n->dtype.is_bool()) {
+            return LiteralDoc::Boolean(n->value, n_p);
+          } else {
+            return LiteralDoc::Int(n->value, n_p);
+          }
         });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)

@@ -43,8 +43,7 @@ namespace {
 std::tuple<DFPattern, TypedPackedFunc<Expr(Expr, Map<DFPattern, Expr>)>> CreatePatterns(
     const Function& func) {
   auto compile_time_arr = ComputableAtCompileTime(func);
-  std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> compile_time_lookup(
-      compile_time_arr.begin(), compile_time_arr.end());
+  std::unordered_set<Var> compile_time_lookup(compile_time_arr.begin(), compile_time_arr.end());
 
   auto pat_lhs = WildcardPattern();
 

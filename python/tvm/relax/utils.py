@@ -19,13 +19,11 @@
 
 """Utility functions for Relax"""
 
-import functools
-import inspect
 import itertools
 import string
 
 from typing import Tuple as typing_Tuple
-from typing import Any, Callable, List, Dict, Optional, TypeVar
+from typing import Any, Callable, List, Dict, Optional
 
 import tvm
 from .. import tir
@@ -37,6 +35,9 @@ from .expr import Expr, ShapeExpr, Function, PrimValue, StringImm, te_tensor
 from ..te import Tensor as te_Tensor, create_prim_func
 from ..ir import Array, Attrs, Type, Map, VDevice
 from .struct_info import PrimStructInfo, ShapeStructInfo, TensorStructInfo
+
+# Re-export `args_converter` here for backwards compatibility
+from .type_converter import args_converter  # pylint: disable=unused-import
 
 
 def metadata_partitioner(rx_txt: str) -> List[str]:
@@ -96,6 +97,9 @@ def convert_to_expr(value: Any) -> Expr:
     if isinstance(value, int):
         return PrimValue(tir.IntImm("int64", value))
 
+    if isinstance(value, float):
+        return PrimValue(tir.FloatImm("float64", value))
+
     tvm_value = convert_to_object(value)
     # Case 1
     if isinstance(tvm_value, Expr):  # type: ignore
@@ -117,149 +121,6 @@ def convert_to_expr(value: Any) -> Expr:
         # `convert_to_expr` ensures that all elements are `Expr` if no exception raises
         return rx_Tuple([convert_to_expr(v) for v in value])
     raise TypeError(f"Cannot convert {value} with type {type(value)} to `relax.Expr`")
-
-
-FType = TypeVar("FType", bound=Callable[..., Expr])
-
-
-class _ArgsConverter:
-    """A helper class to convert the arguments to Expr."""
-
-    @staticmethod
-    def convert(args_to_expr: List[str], args_to_list_expr: List[str]):
-        """Convert the arguments to Expr.
-
-        Parameters
-        ----------
-        args_to_expr : List[str]
-            The argument names to be converted to Expr.
-
-        args_to_list_expr : List[str]
-            The argument names to be converted to List[Expr].
-
-        Returns
-        -------
-        output : Callable[[FType], FType]
-            The decorator.
-        """
-
-        if any([x in args_to_list_expr for x in args_to_expr]):
-            raise ValueError("`args_to_expr` and `args_to_list_expr` should be disjoint.")
-
-        def _convert(name: str, value: Any) -> Any:
-            if value is None:
-                return value
-            if name in args_to_expr:
-                try:
-                    return convert_to_expr(value)
-                except:
-                    raise TypeError(
-                        f"Argument `{name}` is expected to be converted to `Expr`, "
-                        f"but failed with input value: {value}"
-                    )
-            elif name in args_to_list_expr:
-                try:
-                    return [convert_to_expr(x) for x in value]
-                except:
-                    raise TypeError(
-                        f"Argument `{name}` is expected to be converted to `List[Expr]`, "
-                        f"but failed with input value: {value}"
-                    )
-            else:
-                return value
-
-        def inner(func: FType) -> FType:
-            sig = inspect.signature(func)
-            param_names = list(sig.parameters.keys())
-            for name in args_to_expr + args_to_list_expr:
-                if name not in param_names:
-                    raise ValueError(f"Argument `{name}` is not found in function signature.")
-
-            @functools.wraps(func)
-            def wrapper(*args, **kwargs):
-                bound = sig.bind(*args, **kwargs)
-                bound.apply_defaults()
-                for param in sig.parameters.values():
-                    if param.kind == param.VAR_POSITIONAL:
-                        # *args case
-                        values = [_convert(param.name, x) for x in bound.arguments[param.name]]
-                        bound.arguments[param.name] = tuple(values)
-                    elif param.kind == param.VAR_KEYWORD:
-                        # **kwargs case
-                        key_value = {
-                            key: _convert(param.name, value)
-                            for key, value in bound.arguments[param.name].items()
-                        }
-                        bound.arguments[param.name] = key_value
-                    else:
-                        bound.arguments[param.name] = _convert(
-                            param.name, bound.arguments[param.name]
-                        )
-                return func(*bound.args, **bound.kwargs)
-
-            return wrapper  # type: ignore
-
-        return inner
-
-    @staticmethod
-    def to_expr(*arg_names: str) -> Callable:
-        """Convert the arguments to Expr.
-
-        Parameters
-        ----------
-        *arg_names: str
-            The list of argument names that need to be converted to Expr.
-
-        Returns
-        -------
-        output: Callable
-            The decorator.
-        """
-
-        return _ArgsConverter.convert(args_to_expr=list(arg_names), args_to_list_expr=[])
-
-    @staticmethod
-    def to_list_expr(*arg_names: str) -> Callable:
-        """Convert the arguments to List of Expr.
-
-        Parameters
-        ----------
-        *arg_names: str
-            The list of argument names that need to be converted to List of Expr.
-
-        Returns
-        -------
-        output: Callable
-            The decorator.
-        """
-
-        return _ArgsConverter.convert(args_to_expr=[], args_to_list_expr=list(arg_names))
-
-    @staticmethod
-    def auto(func: FType) -> FType:
-        """Decorator for automatically convert the arguments to Expr according to type annotation.
-        Only two patterns are supported:
-
-        1. The argument is Expr or Optional[Expr].
-
-        2. The argument is List[Expr] or Optional[List[Expr]].
-
-        """
-        sig = inspect.signature(func)
-        args_to_expr = []
-        args_to_list_expr = []
-
-        for param in sig.parameters.values():
-            anno = param.annotation
-            if anno in (Expr, Optional[Expr]):
-                args_to_expr.append(param.name)
-            if anno in (List[Expr], Optional[List[Expr]]):
-                args_to_list_expr.append(param.name)
-
-        return _ArgsConverter.convert(args_to_expr, args_to_list_expr)(func)
-
-
-args_converter = _ArgsConverter()  # pylint: disable=invalid-name
 
 
 def copy_with_new_vars(func: Function) -> Function:

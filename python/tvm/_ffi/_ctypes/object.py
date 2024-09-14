@@ -60,14 +60,36 @@ def _return_object(x):
     tindex = ctypes.c_uint()
     check_call(_LIB.TVMObjectGetTypeIndex(handle, ctypes.byref(tindex)))
     cls = OBJECT_TYPE.get(tindex.value, _CLASS_OBJECT)
+
+    # Handle return values that subclass from both TVM objects and
+    # python native objects (e.g. runtime.String, a subclass of str).
     if issubclass(cls, PyNativeObject):
         obj = _CLASS_OBJECT.__new__(_CLASS_OBJECT)
         obj.handle = handle
         return cls.__from_tvm_object__(cls, obj)
+
     # Avoid calling __init__ of cls, instead directly call __new__
     # This allows child class to implement their own __init__
     obj = cls.__new__(cls)
     obj.handle = handle
+
+    # Handle return values that must be converted from the TVM object
+    # to a python native object.  This should be used in cases where
+    # subclassing the python native object is forbidden.  For example,
+    # `runtime.BoxBool` cannot be a subclass of `bool`, as `bool` does
+    # not allow any subclasses.
+    #
+    # The `hasattr` check is done on the object's class, not the
+    # object itself, to avoid edge cases that can result in invalid
+    # error messages.  If a C++ `LOG(FATAL) << nested_obj;` statement
+    # requires C++ to Python conversions in order to print
+    # `nested_obj`, then the `AttributeError` used internally by
+    # `hasattr` may overwrite the text being collected by
+    # `LOG(FATAL)`.  By checking for the method on the class instead
+    # of the instance, we avoid throwing the `AttributeError`.
+    # if hasattr(type(obj), "__into_pynative_object__"):
+    #     return obj.__into_pynative_object__()
+
     return obj
 
 

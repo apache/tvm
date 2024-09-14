@@ -2689,14 +2689,14 @@ def test_match_buffer_region():
     outer_block = root.body.body.body.block
     assert len(outer_block.match_buffers) == 1
     buffer_C = outer_block.match_buffers[0].buffer
-    tvm.ir.assert_structural_equal(buffer_C.shape, [16, 1, 4])
+    tvm.ir.assert_structural_equal(buffer_C.shape, [T.int32(16), T.int32(1), T.int32(4)])
 
     assert isinstance(outer_block.body, tir.stmt.For)
     assert isinstance(outer_block.body.body, tir.stmt.BlockRealize)
     inner_block = outer_block.body.body.block
     assert len(inner_block.match_buffers) == 1
     buffer_D = inner_block.match_buffers[0].buffer
-    tvm.ir.assert_structural_equal(buffer_D.shape, [4, 1, 4])
+    tvm.ir.assert_structural_equal(buffer_D.shape, [T.int32(4), T.int32(1), T.int32(4)])
 
 
 def block_elements():
@@ -3352,6 +3352,20 @@ def scalable_vectors():
     return func
 
 
+def predicated_buffer_load_store():
+    @T.prim_func
+    def func(a: T.handle, b: T.handle):
+        A = T.match_buffer(a, (4,), "float32")
+        B = T.match_buffer(b, (8,), "float32")
+        for i_0 in range(4):
+            load_a = T.meta_var(
+                A.vload([T.Ramp(i_0, 1, 4)], predicate=T.Broadcast(T.bool(True), 4))
+            )
+            B.vstore([T.Ramp(0, 2, 4)], load_a, predicate=T.Broadcast(T.bool(True), 4))
+
+    return func
+
+
 def let_expression():
     @T.prim_func
     def func():
@@ -3967,6 +3981,32 @@ def return_zero_private_with_attr():
     return func
 
 
+def func_attr_with_list():
+    @T.prim_func
+    def func(
+        A: T.Buffer((128, 128), "float32"),
+        B: T.Buffer((128, 128), "float32"),
+        D: T.Buffer((128, 128), "float32"),
+    ) -> None:
+        T.func_attr(
+            {"global_symbol": "main", "tir.noalias": True, "layout_free_buffers": [T.int32(1)]}
+        )
+        C = T.alloc_buffer([128, 128], dtype="float32")
+        for i0, i1, i2 in T.grid(128, 128, 128):
+            with T.block("C"):
+                x, y, k = T.axis.remap("SSR", [i0, i1, i2])
+                with T.init():
+                    C[x, y] = T.float32(0)
+                C[x, y] = C[x, y] + A[x, k] * B[y, k]
+        for i0, i1 in T.grid(128, 128):
+            with T.block("D"):
+                T.block_attr({"layout_free_placeholders": [C]})
+                x, y = T.axis.remap("SS", [i0, i1])
+                D[x, y] = C[x, y] + T.float32(1)
+
+    return func
+
+
 def op_of_literal():
     op_list = [
         (T.exp, 0),
@@ -4074,6 +4114,32 @@ def relax_match_cast_struct_info_proxy():
         yield make_ir_generator(subclass)
 
 
+def relax_symbolic_size_var():
+    """Relax symbolic variables may be SizeVar"""
+    N = tvm.tir.SizeVar("N", "int64")
+
+    @R.function
+    def func(A: R.Tensor([N], "float16")):
+        B: R.Tensor([N], "float16") = A
+        return B
+
+    return func
+
+
+def relax_float_symbolic_var():
+    """Relax symbolic variables may hold any dtype"""
+
+    @R.function
+    def func(A: R.Tensor(["N"], "float16"), _: R.Prim(value="threshold")):
+        N = T.int64()
+        threshold = T.float16()
+
+        B = A >= R.prim_value(threshold / T.cast(N, "float16"))
+        return B
+
+    return func
+
+
 ir_generator = tvm.testing.parameter(
     launch_env_thread,
     opt_gemm_normalize,
@@ -4116,6 +4182,8 @@ ir_generator = tvm.testing.parameter(
     buffer_axis_separator,
     buffer_ramp_access_as_slice_index,
     ramp_int64,
+    scalable_vectors,
+    predicated_buffer_load_store,
     let_expression,
     void_ptr,
     decl_buffer,
@@ -4156,8 +4224,11 @@ ir_generator = tvm.testing.parameter(
     return_zero,
     return_zero_private,
     return_zero_private_with_attr,
+    func_attr_with_list,
     *op_of_literal(),
     *relax_match_cast_struct_info_proxy(),
+    relax_symbolic_size_var,
+    relax_float_symbolic_var,
 )
 
 relax_ir_generator = tvm.testing.parameter(

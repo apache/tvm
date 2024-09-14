@@ -67,10 +67,12 @@ Expr flatten(Expr x);
  * not specified, any value can be used.
  * \param axis_separators Array of values to differentiate between input axes
  * when generating flattened output axes.
+ * \param input axis_separators Array of values for input buffer.
  * \return The transformed result.
  */
 Expr layout_transform(Expr x, tir::IndexMap index_map, Optional<PrimValue> pad_value,
-                      Optional<Array<IntImm>> axis_separators);
+                      Optional<Array<IntImm>> axis_separators,
+                      Optional<Array<IntImm>> input_axis_separators = NullOpt);
 
 /*!
  * \brief Permutes the dimensions of an array.
@@ -88,7 +90,7 @@ Expr permute_dims(Expr x, Optional<Array<Integer>> axes);
  * It is required to be either an Array of PrimExpr, or a Shape in Relax
  * \return The reshaped result.
  */
-Expr reshape(Expr x, ObjectRef shape);
+Expr reshape(Expr x, Variant<Expr, Array<PrimExpr>> shape);
 
 /*!
  * \brief Split input tensor along axis by sections or indices.
@@ -103,7 +105,7 @@ Expr reshape(Expr x, ObjectRef shape);
  * \param axis The axis over which to split.
  * \return The computed result.
  */
-Expr split(Expr x, ObjectRef indices_or_sections, int axis);
+Expr split(Expr x, Variant<IntImm, Array<IntImm>> indices_or_sections, int axis);
 
 /*!
  * \brief Squeeze axes in the array.

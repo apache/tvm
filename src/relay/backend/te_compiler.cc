@@ -136,8 +136,7 @@ TVM_REGISTER_OBJECT_TYPE(TECompilerNode);
 class TECompilerImpl : public TECompilerNode {
  public:
   explicit TECompilerImpl(Optional<IRModule> opt_mod, Optional<String> opt_mod_name)
-      : global_var_supply_(GlobalVarSupply(NameSupply(opt_mod_name.value_or("")))),
-        constant_name_supply_(NameSupply("")) {
+      : global_var_supply_(GlobalVarSupply(NameSupply(opt_mod_name.value_or("")))) {
     // Make sure we don't collide with any existing globals in the module.
     if (opt_mod) {
       for (const auto& kv : opt_mod.value()->functions) {
@@ -160,7 +159,7 @@ class TECompilerImpl : public TECompilerNode {
 
   // For now, build one module per function.
   PackedFunc JIT(const CCacheKey& key) final {
-    CCacheValue value = LowerInternal(key, GlobalVarSupply(NameSupply("")));
+    CCacheValue value = LowerInternal(key, GlobalVarSupply());
     if (value->packed_func != nullptr) {
       return value->packed_func;
     }

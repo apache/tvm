@@ -121,6 +121,12 @@ class CUDADeviceAPI final : public DeviceAPI {
         *rv = total_global_memory;
         return;
       }
+      case kAvailableGlobalMemory: {
+        size_t free_mem, total_mem;
+        CUDA_CALL(cudaMemGetInfo(&free_mem, &total_mem));
+        *rv = static_cast<int64_t>(free_mem);
+        return;
+      }
     }
     *rv = value;
   }
@@ -142,6 +148,24 @@ class CUDADeviceAPI final : public DeviceAPI {
   }
 
   void FreeDataSpace(Device dev, void* ptr) final {
+    if (std::uncaught_exceptions() && cudaPeekAtLastError() == cudaErrorIllegalAddress) {
+      // For most CUDA calls, an error from an API call will be
+      // immediately reported, and raised as an exception.  However,
+      // errors raised from async kernel execution leave the CUDA
+      // driver in an inconsistent state.  These errors are "sticky",
+      // and are never cleared. (See [0] for more details.)
+      //
+      // If we are currently unwinding the stack due to a thrown
+      // exception, and the CUDA driver is in an unrecoverable error,
+      // do not attempt to free the CUDA allocations.  Performing any
+      // CUDA API call while in this state will throw an additional
+      // exception, causing a segfault.  In this case, it is better to
+      // allow the original error to continue propagating.
+      //
+      // [0] https://forums.developer.nvidia.com/t/cuda-errors-determine-sticky-ness/271625
+      return;
+    }
+
     if (dev.device_type == kDLCUDAHost) {
       VLOG(1) << "freeing host memory";
       CUDA_CALL(cudaFreeHost(ptr));
@@ -237,6 +261,8 @@ class CUDADeviceAPI final : public DeviceAPI {
   void FreeWorkspace(Device dev, void* data) final {
     CUDAThreadEntry::ThreadLocal()->pool.FreeWorkspace(dev, data);
   }
+
+  bool SupportsDevicePointerArithmeticsOnHost() final { return true; }
 
   static CUDADeviceAPI* Global() {
     // NOTE: explicitly use new to avoid exit-time destruction of global state

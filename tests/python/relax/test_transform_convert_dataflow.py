@@ -489,5 +489,111 @@ class TestMergeWithNextDataflowBlock(ExtractCompare):
             return v
 
 
+class TestPreserveExistingDataflowBlocksAtBeginning(ExtractCompare):
+    """Preserve existing DataflowBlocks
+
+    This is a regression test.  In previous implementations, a
+    DataflowBlock in the input, without enough bindings to become a
+    new dataflow block, could be accidentally ommitted.
+
+    This test is identical to
+    `TestPreserveExistingDataflowBlocksAtEnd`, except that the
+    existing dataflow block is at the beginning of the function.
+
+    """
+
+    @I.ir_module
+    class Before:
+        @R.function(pure=False)
+        def main(A0: R.Tensor, B0: R.Tensor):
+            # This DataflowBlock is below the minimum size for a new
+            # block, but already exists in the input IRModule.
+            with R.dataflow():
+                A1 = R.add(A0, A0)
+                R.output(A1)
+
+            R.print(format="impure_function")
+
+            # This sequence is large enough that it may be converted
+            # to a DataflowBlock.
+            B1 = R.add(B0, B0)
+            B2 = R.add(B1, B1)
+            B3 = R.add(B2, B2)
+
+            return (A1, B3)
+
+    @I.ir_module
+    class Expected:
+        @R.function(pure=False)
+        def main(A0: R.Tensor, B0: R.Tensor):
+            # This dataflow block should be preserved in the output.
+            with R.dataflow():
+                A1 = R.add(A0, A0)
+                R.output(A1)
+
+            R.print(format="impure_function")
+
+            with R.dataflow():
+                B1 = R.add(B0, B0)
+                B2 = R.add(B1, B1)
+                B3 = R.add(B2, B2)
+                R.output(B3)
+
+            return (A1, B3)
+
+
+class TestPreserveExistingDataflowBlocksAtEnd(ExtractCompare):
+    """Preserve existing DataflowBlocks
+
+    This is a regression test.  In previous implementations, a
+    DataflowBlock in the input, without enough bindings to become a
+    new dataflow block, could be accidentally ommitted.
+
+    This test is identical to
+    `TestPreserveExistingDataflowBlocksAtBeginning`, except that the
+    existing dataflow block is at the end of the function.
+
+    """
+
+    @I.ir_module
+    class Before:
+        @R.function(pure=False)
+        def main(A0: R.Tensor, B0: R.Tensor):
+            # This sequence is large enough that it may be converted
+            # to a DataflowBlock.
+            B1 = R.add(B0, B0)
+            B2 = R.add(B1, B1)
+            B3 = R.add(B2, B2)
+
+            R.print(format="impure_function")
+
+            # This DataflowBlock is below the minimum size for a new
+            # block, but already exists in the input IRModule.
+            with R.dataflow():
+                A1 = R.add(A0, A0)
+                R.output(A1)
+
+            return (A1, B3)
+
+    @I.ir_module
+    class Expected:
+        @R.function(pure=False)
+        def main(A0: R.Tensor, B0: R.Tensor):
+            with R.dataflow():
+                B1 = R.add(B0, B0)
+                B2 = R.add(B1, B1)
+                B3 = R.add(B2, B2)
+                R.output(B3)
+
+            R.print(format="impure_function")
+
+            # This dataflow block should be preserved in the output.
+            with R.dataflow():
+                A1 = R.add(A0, A0)
+                R.output(A1)
+
+            return (A1, B3)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

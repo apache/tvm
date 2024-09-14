@@ -77,7 +77,7 @@ def test_mismatch_cast_dims_and_ndim():
 
         @R.function
         def f(
-            x: R.Tensor((2, 3), "float32", ndim=3)
+            x: R.Tensor((2, 3), "float32", ndim=3),
         ):  # error: ndim and the shape dims are mismatch
             return x
 
@@ -961,11 +961,11 @@ def test_call_tir_with_tir_var():
     class Module:
         @R.function
         def main(
-            dumb_param: R.Tensor(("n",), "float32"), x: R.Tensor(("n * 2", "float32"))
+            dumb_param: R.Tensor(("n",), "float32"), x: R.Tensor(("n * 2",), "float32")
         ) -> R.Tensor(("n * 2",), "float32"):
             n = T.int64()
             cls = Module
-            y = R.call_tir(cls.copy, (x,), R.Tensor(((n * 2,)), dtype="float32"), tir_vars=(n,))
+            y = R.call_tir(cls.copy, x, R.Tensor((n * 2,), dtype="float32"), tir_vars=(n,))
             return y
 
         @T.prim_func
@@ -1042,6 +1042,42 @@ def test_call_tir_inplace():
             return res
 
     _check(Module)
+
+
+def test_call_tir_inplace_with_tuple_var_raises_error():
+
+    with pytest.raises(tvm.error.DiagnosticError):
+
+        @tvm.script.ir_module
+        class Module:
+            @R.function
+            def main(x: R.Tensor((2, 3), "int32"), y: R.Tensor((2, 3), "int32")):
+                cls = Module
+                args = (x, y)
+                res = R.call_tir_inplace(
+                    cls.copy,
+                    # The `args` tuple must be an in-line tuple, not a
+                    # reference to a tuple.  This error should be
+                    # caught and raised during parsing.
+                    args,
+                    inplace_indices=[0, -1],
+                    out_sinfo=[R.Tensor((2, 3), "int32"), R.Tensor((2, 3), "int32")],
+                )
+                return res
+
+            @T.prim_func
+            def copy(
+                A: T.Buffer((2, 3), "int32"),
+                B: T.Buffer((2, 3), "int32"),
+                out1: T.Buffer((2, 3), "int32"),
+            ):
+                # copies the contents of B into A and out1
+                T.func_attr({"tir.noalias": True})
+                for iters in T.grid(T.int64(2), T.int64(3)):
+                    with T.block("T_zeros"):
+                        i, j = T.axis.remap("SS", iters)
+                        A[i, j] = B[i, j]
+                        out1[i, j] = B[i, j]
 
 
 def test_local_function():
@@ -2135,7 +2171,9 @@ def test_macro_hygienic():
     @R.function(private=True)
     def expect(z: R.Tensor((4, 4), dtype="float32")) -> R.Shape([4, 4]):
         alloc: R.Tensor((4, 4), dtype="float32") = R.builtin.alloc_tensor(
-            R.shape([4, 4]), R.dtype("float32"), R.prim_value(2)  # Make sure prim_value is 2
+            R.shape([4, 4]),
+            R.dtype("float32"),
+            R.prim_value(2),  # Make sure prim_value is 2
         )
         shape: R.Shape([4, 4]) = R.shape_of(alloc)
         shape_1: R.Shape([4, 4]) = shape
@@ -2167,7 +2205,9 @@ def test_macro_non_hygienic():
     @R.function(private=True)
     def expect(z: R.Tensor((4, 4), dtype="float32")) -> R.Shape([4, 4]):
         alloc: R.Tensor((4, 4), dtype="float32") = R.builtin.alloc_tensor(
-            R.shape([4, 4]), R.dtype("float32"), R.prim_value(1)  # Make sure prim_value is 1
+            R.shape([4, 4]),
+            R.dtype("float32"),
+            R.prim_value(1),  # Make sure prim_value is 1
         )
         shape: R.Shape([4, 4]) = R.shape_of(alloc)
         shape_1: R.Shape([4, 4]) = shape
@@ -2315,6 +2355,51 @@ def test_function_symbolic_variables_are_annotated():
         return output
 
     tvm.ir.assert_structural_equal(inferred_sinfo, expected)
+
+
+def test_conditional_may_use_symbolic_variables_from_function_scope():
+    """Symbolic variables from function scope may be used in branch
+
+    This is a regression test.  In earlier implementations, the
+    branches of `relax::If` were normalized with
+    `EraseToWellDefinedInScope`, using a fresh variable scope.  While
+    this had the intended behavior of preventing variables defined in
+    a single branch from being usable outside of the conditional, it
+    also caused the conditional's branches to treat function-scope
+    symbolic variables as if they were undefined.
+
+    """
+
+    @R.function(private=True)
+    def explicit_sinfo(
+        A: R.Tensor(["N"], "float32"),
+        B: R.Tensor(["N"], "float32"),
+        cond: R.Prim("bool"),
+    ) -> R.Tensor(["N"], "float32"):
+        N = T.int64()
+
+        if cond:
+            out: R.Tensor([N], "float32") = A + B
+        else:
+            out: R.Tensor([N], "float32") = A * B
+
+        return out
+
+    @R.function(private=True)
+    def inferred_sinfo(
+        A: R.Tensor(["N"], "float32"),
+        B: R.Tensor(["N"], "float32"),
+        cond: R.Prim("bool"),
+    ):
+        N = T.int64()
+        if cond:
+            out = A + B
+        else:
+            out = A * B
+
+        return out
+
+    tvm.ir.assert_structural_equal(explicit_sinfo, inferred_sinfo)
 
 
 if __name__ == "__main__":

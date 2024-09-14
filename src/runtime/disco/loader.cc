@@ -326,19 +326,19 @@ NDArray ShardLoaderObj::Load(int weight_index) const {
       for (const ShardInfo::ShardFunc& shard_func : param_info.shard_info.funcs) {
         w = this->ApplyShardFunc(shard_func, w);
       }
-      ScatterFromWorker0(w, recv);
+      ScatterFromWorker0(w, /*in_group=*/false, recv);
     } else {
-      ScatterFromWorker0(NullOpt, recv);
+      ScatterFromWorker0(NullOpt, /*in_group=*/false, recv);
     }
     return recv;
   } else {
     if (worker_id == 0) {
       NDArray w = LoadDirect(weight_index);
-      BroadcastFromWorker0(w, w);
+      BroadcastFromWorker0(w, /*in_group=*/false, w);
       return w;
     } else {
       NDArray w = NDArray::Empty(param->shape, param->dtype, device);
-      BroadcastFromWorker0(w, w);
+      BroadcastFromWorker0(w, /*in_group=*/false, w);
       return w;
     }
   }

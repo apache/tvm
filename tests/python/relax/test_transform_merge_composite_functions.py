@@ -20,6 +20,7 @@ import tvm
 from tvm import relax
 from tvm.script import relax as R
 from tvm.script import ir as I
+from tvm.script import tir as T
 
 
 @tvm.script.ir_module
@@ -1053,7 +1054,6 @@ def test_reshape():
         @R.function
         def fused_relax_reshape_relax_matmul_tensorrt(
             inp_0: R.Tensor((1, 1, 28, 28), dtype="float32"),
-            param_0: R.Shape([1, 784]),
             lv1: R.Tensor((784, 512), dtype="float32"),
         ) -> R.Tensor((1, 512), dtype="float32"):
             R.func_attr({"Codegen": "tensorrt"})
@@ -1069,7 +1069,7 @@ def test_reshape():
                     R.output(gv)
                 return gv
 
-            lv_1: R.Tensor((1, 784), dtype="float32") = lv_1(inp_0, param_0)
+            lv_1: R.Tensor((1, 784), dtype="float32") = lv_1(inp_0, R.shape([1, 784]))
 
             @R.function
             def lv1_1_1(
@@ -1100,11 +1100,129 @@ def test_reshape():
                 )
                 gv: R.Tensor(
                     (1, 512), dtype="float32"
-                ) = cls.fused_relax_reshape_relax_matmul_tensorrt(inp_0, R.shape([1, 784]), lv1)
+                ) = cls.fused_relax_reshape_relax_matmul_tensorrt(inp_0, lv1)
                 R.output(gv)
             return gv
 
     check(Module, Expected)
+
+
+def test_handle_existence_of_call_tir():
+    """MergeCompositeFunctions should accept R.call_tir as input
+
+    No merging is required in this case, since the two composite
+    functions have `R.call_tir` between them.  This is a regression
+    test, as previously the `Tuple` used to express of `R.call_tir`
+    caused a segfault.
+
+    """
+
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(A: R.Tensor([10], dtype="float32")) -> R.Tensor([10], dtype="float32"):
+            cls = Before
+            with R.dataflow():
+                B = cls.fused_relax_nn_relu(A)
+                C = R.call_tir(cls.relu, (B,), out_sinfo=R.Tensor([10], dtype="float32"))
+                D = cls.fused_relax_nn_gelu(C)
+                R.output(D)
+            return D
+
+        @R.function(private=True)
+        def fused_relax_nn_relu(
+            Input: R.Tensor([10], dtype="float32")
+        ) -> R.Tensor([10], dtype="float32"):
+            R.func_attr({"Composite": "compiler_A.relu", "Primitive": 1})
+            with R.dataflow():
+                Output = R.nn.relu(Input)
+                R.output(Output)
+            return Output
+
+        @T.prim_func(private=True)
+        def relu(
+            Input: T.Buffer(T.int64(10), "float32"),
+            Output: T.Buffer(T.int64(10), "float32"),
+        ):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            for i in range(T.int64(10)):
+                with T.block("compute"):
+                    vi = T.axis.remap("S", [i])
+                    Output[vi] = T.max(Input[vi], T.float32(0))
+
+        @R.function(private=True)
+        def fused_relax_nn_gelu(
+            Input: R.Tensor([10], dtype="float32")
+        ) -> R.Tensor([10], dtype="float32"):
+            R.func_attr({"Composite": "compiler_A.gelu", "Primitive": 1})
+            with R.dataflow():
+                Output = R.nn.gelu(Input)
+                R.output(Output)
+            return Output
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(A: R.Tensor([10], dtype="float32")) -> R.Tensor([10], dtype="float32"):
+            cls = Expected
+            with R.dataflow():
+                B = cls.fused_relax_nn_relu1_compiler_A(A)
+                C = R.call_tir(cls.relu, (B,), out_sinfo=R.Tensor([10], dtype="float32"))
+                D = cls.fused_relax_nn_gelu1_compiler_A(C)
+                R.output(D)
+            return D
+
+        @R.function
+        def fused_relax_nn_relu1_compiler_A(
+            Input: R.Tensor([10], dtype="float32")
+        ) -> R.Tensor([10], dtype="float32"):
+            R.func_attr({"Codegen": "compiler_A"})
+
+            @R.function
+            def composite_lambda(
+                Input: R.Tensor([10], dtype="float32")
+            ) -> R.Tensor([10], dtype="float32"):
+                R.func_attr({"Composite": "compiler_A.relu"})
+                with R.dataflow():
+                    Output = R.nn.relu(Input)
+                    R.output(Output)
+                return Output
+
+            Output = composite_lambda(Input)
+            return Output
+
+        @T.prim_func(private=True)
+        def relu(
+            Input: T.Buffer(T.int64(10), "float32"),
+            Output: T.Buffer(T.int64(10), "float32"),
+        ):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            for i in range(T.int64(10)):
+                with T.block("compute"):
+                    vi = T.axis.remap("S", [i])
+                    Output[vi] = T.max(Input[vi], T.float32(0))
+
+        @R.function
+        def fused_relax_nn_gelu1_compiler_A(
+            Input: R.Tensor([10], dtype="float32")
+        ) -> R.Tensor([10], dtype="float32"):
+            R.func_attr({"Codegen": "compiler_A"})
+
+            @R.function
+            def composite_lambda(
+                Input: R.Tensor([10], dtype="float32")
+            ) -> R.Tensor([10], dtype="float32"):
+                R.func_attr({"Composite": "compiler_A.gelu"})
+                with R.dataflow():
+                    Output = R.nn.gelu(Input)
+                    R.output(Output)
+                return Output
+
+            Output = composite_lambda(Input)
+            return Output
+
+    After = relax.transform.MergeCompositeFunctions()(Before)
+    tvm.ir.assert_structural_equal(Expected, After)
 
 
 if __name__ == "__main__":

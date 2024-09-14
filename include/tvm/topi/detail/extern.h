@@ -37,21 +37,6 @@ namespace detail {
 using namespace tvm::te;
 
 /*!
- * \brief Construct a buffer to pass to an external function
- *
- * \param shape The shape of the buffer
- * \param dtype The type of the buffer elements
- * \param name The name of the buffer
- *
- * \return The Buffer object
- */
-inline Buffer DeclExternBuffer(Array<PrimExpr> shape, DataType dtype, std::string name) {
-  auto data = var(name, DataType::Handle());
-  auto elem_offset = PrimExpr();
-  return Buffer(data, dtype, shape, Array<PrimExpr>(), elem_offset, name, -1, 0, kDefault);
-}
-
-/*!
  * \brief A function which constructs an Expr representing the invocation of an external
  * function. The function expects two arguments: an array of Buffers holding the input
  * tensor values, and a pre-allocated array of Buffers to be filled with the outputs.
@@ -84,11 +69,11 @@ inline Array<Tensor> make_extern(const Array<Array<PrimExpr>>& out_shapes,
 
   Array<Buffer> input_placeholders;
   for (auto t : inputs) {
-    input_placeholders.push_back(DeclExternBuffer(t->shape, t->dtype, t->op->name));
+    input_placeholders.push_back(tvm::tir::decl_buffer(t->shape, t->dtype, t->op->name));
   }
   Array<Buffer> output_placeholders;
   for (size_t i = 0; i < out_shapes.size(); ++i) {
-    output_placeholders.push_back(DeclExternBuffer(out_shapes[i], out_types[i], name));
+    output_placeholders.push_back(tvm::tir::decl_buffer(out_shapes[i], out_types[i], name));
   }
 
   auto body = fextern(input_placeholders, output_placeholders);

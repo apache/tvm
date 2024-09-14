@@ -189,7 +189,7 @@ def test_fanout():
     assert isinstance(ir, tvm.tir.For)
     assert ir.loop_var.name == "i"
     assert ir.min.value == 0
-    assert tvm.ir.structural_equal(ir.extent, n - 3)
+    tvm.ir.assert_structural_equal(ir.extent, n - 3)
     # Check loopbody
     abody = ir.body
     assert isinstance(abody, tvm.tir.ProducerRealize)
@@ -220,7 +220,7 @@ def test_fanout():
     assert value.a.indices[0].value == 0
     assert value.b.producer.name == "a"
     assert len(value.b.indices) == 1
-    assert tvm.ir.structural_equal(value.b.indices[0], ir.loop_var + jloop.loop_var)
+    tvm.ir.assert_structural_equal(value.b.indices[0], ir.loop_var + jloop.loop_var)
     divide = rbody[2]
     assert isinstance(divide, tvm.tir.ProducerStore)
     assert len(divide.indices) == 1

@@ -22,7 +22,6 @@ This article is a test script to test TFLite operator with Relay.
 """
 from __future__ import print_function
 from functools import partial
-from distutils.version import LooseVersion
 import platform
 import os
 import tempfile
@@ -224,7 +223,7 @@ def run_tvm_graph(
         mod_with_span, _ = relay.frontend.from_tflite(
             tflite_model, shape_dict=shape_dict, dtype_dict=dtype_dict, op_converter=op_converter
         )
-    assert tvm.ir.structural_equal(mod["main"], mod_with_span["main"])
+    tvm.ir.assert_structural_equal(mod["main"], mod_with_span["main"])
 
     if mode in ["debug", "vm"]:
         inputs = []
@@ -1054,7 +1053,7 @@ def _test_tflite2_quantized_convolution(
     input_node = subgraph.Tensors(model_input).Name().decode("utf-8")
 
     tflite_output = run_tflite_graph(tflite_model_quant, data)
-    if tf.__version__ < LooseVersion("2.9"):
+    if package_version.parse(tf.__version__) < package_version.parse("2.9"):
         input_node = data_in.name.replace(":0", "")
     else:
         input_node = "serving_default_" + data_in.name + ":0"
@@ -1775,7 +1774,7 @@ def _test_tflite2_quantized_transpose_conv(
 
     tflite_output = run_tflite_graph(tflite_model_quant, data)
 
-    if tf.__version__ < LooseVersion("2.9"):
+    if package_version.parse(tf.__version__) < package_version.parse("2.9"):
         input_node = data_in.name.replace(":0", "")
     else:
         input_node = "serving_default_" + data_in.name + ":0"
@@ -2219,9 +2218,9 @@ def _test_abs(data, quantized, int_quant_dtype=tf.int8):
         tflite_output = run_tflite_graph(tflite_model_quant, data)
 
         # TFLite 2.6.x upgrade support
-        if tf.__version__ < LooseVersion("2.6.1"):
+        if package_version.parse(tf.__version__) < package_version.parse("2.6.1"):
             in_node = ["serving_default_input_int8"]
-        elif tf.__version__ < LooseVersion("2.9"):
+        elif package_version.parse(tf.__version__) < package_version.parse("2.9"):
             in_node = (
                 ["serving_default_input_int16"] if int_quant_dtype == tf.int16 else ["tfl.quantize"]
             )
@@ -2245,7 +2244,7 @@ def _test_rsqrt(data, quantized, int_quant_dtype=tf.int8):
     """One iteration of rsqrt"""
 
     # tensorflow version upgrade support
-    if tf.__version__ < LooseVersion("2.6.1") or not quantized:
+    if package_version.parse(tf.__version__) < package_version.parse("2.6.1") or not quantized:
         return _test_unary_elemwise(
             math_ops.rsqrt, data, quantized, quant_range=[1, 6], int_quant_dtype=int_quant_dtype
         )
@@ -2254,7 +2253,7 @@ def _test_rsqrt(data, quantized, int_quant_dtype=tf.int8):
             tf.math.rsqrt, data, int_quant_dtype=int_quant_dtype
         )
         tflite_output = run_tflite_graph(tflite_model_quant, data)
-        if tf.__version__ < LooseVersion("2.9"):
+        if package_version.parse(tf.__version__) < package_version.parse("2.9"):
             in_node = ["tfl.quantize"]
         else:
             in_node = "serving_default_input"
@@ -2338,7 +2337,7 @@ def _test_cos(data, quantized, int_quant_dtype=tf.int8):
             tf.math.cos, data, int_quant_dtype=int_quant_dtype
         )
         tflite_output = run_tflite_graph(tflite_model_quant, data)
-        if tf.__version__ < LooseVersion("2.9"):
+        if package_version.parse(tf.__version__) < package_version.parse("2.9"):
             in_node = ["tfl.quantize"]
         else:
             in_node = "serving_default_input"
@@ -3396,7 +3395,7 @@ def _test_quantize_dequantize(data):
     tflite_model_quant = _quantize_keras_model(keras_model, representative_data_gen, True, True)
 
     tflite_output = run_tflite_graph(tflite_model_quant, data)
-    if tf.__version__ < LooseVersion("2.9"):
+    if package_version.parse(tf.__version__) < package_version.parse("2.9"):
         in_node = data_in.name.split(":")[0]
     else:
         in_node = "serving_default_" + data_in.name + ":0"
@@ -3426,7 +3425,7 @@ def _test_quantize_dequantize_const(data):
     tflite_model_quant = _quantize_keras_model(keras_model, representative_data_gen, True, True)
 
     tflite_output = run_tflite_graph(tflite_model_quant, data)
-    if tf.__version__ < LooseVersion("2.9"):
+    if package_version.parse(tf.__version__) < package_version.parse("2.9"):
         in_node = data_in.name.split(":")[0]
     else:
         in_node = "serving_default_" + data_in.name + ":0"
@@ -5548,7 +5547,7 @@ def test_structure_and_span():
             with_span = res_fptr()
         with tvm.testing.disable_span_filling():
             without_span = res_fptr()
-        assert tvm.ir.structural_equal(with_span, without_span)
+        tvm.ir.assert_structural_equal(with_span, without_span)
         _verify_structural_equal_with_span(with_span, golden_fptr())
 
     def _tf_to_tflite(

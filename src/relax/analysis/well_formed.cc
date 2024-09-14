@@ -352,6 +352,16 @@ class WellFormedChecker : public relax::ExprVisitor,
             << after_normalize);
       }
     }
+
+    if (auto func_validate = op_map_validate_.get(call->op, nullptr); func_validate != nullptr) {
+      try {
+        func_validate(GetRef<Call>(call));
+      } catch (std::exception& err) {
+        Malformed(Diagnostic::Error(call) << "Operator-specific validation (FValidate) for "
+                                          << call->op << " identified error: \n"
+                                          << err.what());
+      }
+    }
   }
 
   void VisitExpr_(const IfNode* op) final {
@@ -364,9 +374,8 @@ class WellFormedChecker : public relax::ExprVisitor,
       Malformed(Diagnostic::Error(op) << "The condition for an if node must be a leaf expression.");
     }
 
-    std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> previous_var_set = var_set_;
-    std::unordered_set<tir::Var, ObjectPtrHash, ObjectPtrEqual> previous_symbolic_var_set =
-        symbolic_var_set_;
+    std::unordered_set<Var> previous_var_set = var_set_;
+    std::unordered_set<tir::Var> previous_symbolic_var_set = symbolic_var_set_;
     this->VisitSeqExpr(op->true_branch.get());
     var_set_ = previous_var_set;
     symbolic_var_set_ = previous_symbolic_var_set;
@@ -420,6 +429,18 @@ class WellFormedChecker : public relax::ExprVisitor,
     }
 
     this->VisitVarDef(binding->var);
+
+    if (check_struct_info_ && binding->var->struct_info_.defined() &&
+        binding->value->struct_info_.defined()) {
+      auto expr_sinfo = GetStructInfo(binding->value);
+      auto var_sinfo = GetStructInfo(binding->var);
+      if (!IsBaseOf(var_sinfo, expr_sinfo)) {
+        Malformed(Diagnostic::Error(binding->var)
+                  << "Expression of type " << expr_sinfo
+                  << " cannot be assigned to a variable of type " << var_sinfo);
+      }
+    }
+
     if (is_lambda) {
       recur_vars_.erase(binding->var);
     }
@@ -567,15 +588,15 @@ class WellFormedChecker : public relax::ExprVisitor,
   // Current visit mode.
   VisitMode mode_ = VisitMode::kDefault;
   // set of context variables.
-  std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> var_set_;
-  std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> recur_vars_;
+  std::unordered_set<Var> var_set_;
+  std::unordered_set<Var> recur_vars_;
   std::unordered_set<DataflowVar, ObjectPtrHash, ObjectPtrEqual> dataflow_var_set_;
-  std::unordered_set<tir::Var, ObjectPtrHash, ObjectPtrEqual> symbolic_var_set_;
-  std::unordered_map<Var, const FunctionNode*, ObjectPtrHash, ObjectPtrEqual> param_var_func_map_;
-  std::unordered_map<tir::Var, const FunctionNode*, ObjectPtrHash, ObjectPtrEqual>
-      symbolic_var_func_map_;
+  std::unordered_set<tir::Var> symbolic_var_set_;
+  std::unordered_map<Var, const FunctionNode*> param_var_func_map_;
+  std::unordered_map<tir::Var, const FunctionNode*> symbolic_var_func_map_;
 
   tvm::OpAttrMap<FNormalize> op_map_normalize_ = Op::GetAttrMap<FNormalize>("FNormalize");
+  tvm::OpAttrMap<FValidate> op_map_validate_ = Op::GetAttrMap<FValidate>("FValidate");
 };
 
 bool WellFormed(Variant<IRModule, Function> obj, bool check_struct_info) {

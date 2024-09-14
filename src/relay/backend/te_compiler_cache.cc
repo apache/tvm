@@ -476,12 +476,10 @@ class ScheduleBuilder : public ExprVisitor {
         mod_eq_structural_(meta_schedule::ModuleEquality::Create("ignore-ndarray")) {
     // Whether to use auto_scheduler schedule.
     use_auto_scheduler_ = backend::IsAutoSchedulerEnabled();
+    database_ = meta_schedule::Database::Current();
     if (backend::IsMetaScheduleEnabled()) {
-      database_ = meta_schedule::Database::Current();
       CHECK(database_.defined()) << "ValueError: `use_meta_schedule` is enabled in Relay "
                                     "build, but no `meta_schedule.Database` context is provided. ";
-    } else {
-      database_ = NullOpt;
     }
   }
 
@@ -1129,7 +1127,7 @@ std::pair<Optional<tir::PrimFunc>, std::string> LowerToPrimFunc(const Function& 
 }
 
 tir::PrimFunc LowerToPrimFunc(const Function& relay_func, Target target) {
-  auto [f_opt, _] = LowerToPrimFunc(relay_func, target, NameSupply(""));
+  auto [f_opt, _] = LowerToPrimFunc(relay_func, target, NameSupply());
   (void)_;  // to suppress -Werror=unused-variable warning
   if (f_opt) {
     return f_opt.value();
@@ -1145,7 +1143,7 @@ TVM_REGISTER_GLOBAL("relay.backend.LowerToPrimFunc")
 
 TVM_REGISTER_GLOBAL("relay.backend.LowerToTE").set_body_typed([](Function prim_func) {
   auto tgt = tvm::Target("ext_dev");
-  LowerToTECompute lower_te_compute(tgt, NameSupply(""));
+  LowerToTECompute lower_te_compute(tgt, NameSupply());
   auto outputs = lower_te_compute.Lower(prim_func);
   return CachedFunc(tgt, GlobalVar(lower_te_compute.candidate_name_), lower_te_compute.fn_inputs_,
                     outputs, te::Schedule(), tir::PrimFunc(), {},

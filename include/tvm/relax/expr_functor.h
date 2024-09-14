@@ -494,7 +494,10 @@ class ExprMutator : public ExprMutatorBase {
   void ReEmitBinding(const VarBindingNode* binding, Expr new_value);
 
   /*!
-   * \brief Rewrite the expr with a new scope, used in a Function's body and the branches of If.
+   * \brief Rewrite the expr with a new scope, used in a Function's body.
+   *
+   * Visit an expression that may neither access variables from the
+   * current scope, nor may export definitions into the current scope.
    *
    * \param body_expr The body to be visited.
    * \param params Optional parameters that are visible within the scope.
@@ -503,6 +506,22 @@ class ExprMutator : public ExprMutatorBase {
    * \note The body_expr must be an SeqExpr in the normal form.
    */
   Expr VisitWithNewScope(const Expr& body_expr, Optional<Array<Var>> params = NullOpt);
+
+  /*!
+   * \brief Rewrite the expr with a new scope, used in the branches of If.
+   *
+   * Visit an expression that may access variables from the current
+   * scope, but may not export definitions into the current scope.
+   *
+   * \param body_expr The body to be visited.
+   *
+   * \return The expr after visiting.
+   *
+   * \sa VisitWithNewScope
+   *
+   * \note The body_expr must be an SeqExpr in the normal form.
+   */
+  Expr VisitWithInnerScope(const Expr& body_expr);
 
   /*!
    * \brief Look up the value bound to a variable.

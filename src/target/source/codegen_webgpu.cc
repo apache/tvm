@@ -47,7 +47,7 @@ struct WebGPUWorkGroupInfo {
   // whether we have ref to block index z is used.
   bool has_block_index_z{false};
   // set of handles that have write access
-  std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> write_access_set;
+  std::unordered_set<Var> write_access_set;
 };
 
 class WebGPUWorkgroupInfoCollector : public StmtExprVisitor {
@@ -298,6 +298,11 @@ void CodeGenWebGPU::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
 
   if (lanes != 1) {
     ICHECK(lanes >= 2 && lanes <= 4) << "CodeGenWebGPU: only allows vector with lanes in {2, 3, 4}";
+    // Currently WebGPU doesn't support `i8` and an `int8x4` is represented as a `u32`.
+    if (t.is_int() && t.bits() == 8 && lanes == 4) {
+      os << "u32";
+      return;
+    }
     os << "vec" << lanes << "<";
   }
 
@@ -405,6 +410,14 @@ void CodeGenWebGPU::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLIN
       this->EndScope(else_scope);
     }
     os << result;
+  } else if (op->op.same_as(builtin::dp4a())) {
+    // generate `dot4I8Packed(vec1, vec2) + acc` for the builtin `dp4a`
+    os << "dot4I8Packed(";
+    this->PrintExpr(op->args[0], os);
+    os << ", ";
+    this->PrintExpr(op->args[1], os);
+    os << ") + ";
+    this->PrintExpr(op->args[2], os);
   } else {
     CodeGenC::VisitExpr_(op, os);
   }
@@ -418,6 +431,27 @@ void CodeGenWebGPU::VisitExpr_(const CastNode* op, std::ostream& os) {  // NOLIN
 void CodeGenWebGPU::VisitExpr_(const SelectNode* op, std::ostream& os) {  // NOLINT(*)
   os << "select(" << PrintExpr(op->false_value) << ", " << PrintExpr(op->true_value) << ", "
      << PrintExpr(op->condition) << ")";
+}
+
+void CodeGenWebGPU::VisitExpr_(const LetNode* op, std::ostream& os) {  // NOLINT(*)
+  // use ssa form.
+  if (print_ssa_form_) {
+    std::string value = PrintExpr(op->value);
+    ICHECK(!var_idmap_.count(op->var.get()));
+    var_idmap_[op->var.get()] = value;
+  } else {
+    PrintIndent();
+    std::string value = PrintExpr(op->value);
+    this->stream << "let " << AllocVarID(op->var.get()) << " : ";
+    PrintType(op->var.dtype(), this->stream);
+    this->stream << " = " << value << ";\n";
+  }
+  os << PrintExpr(op->body);
+  // Pop the defined var from var_idmap when exiting its scope.
+  // We do this because it is hard to completely avoid a same LetNode appearing
+  // at different places.
+  bool removed = var_idmap_.erase(op->var.get());
+  ICHECK(removed);
 }
 
 void CodeGenWebGPU::VisitExpr_(const IntImmNode* op, std::ostream& os) {  // NOLINT(*)
@@ -459,6 +493,7 @@ void CodeGenWebGPU::VisitExpr_(const BufferLoadNode* op, std::ostream& os) {  //
   // to ensure correctness in the case of nested-expression
   // do not try to lift common printings from each case
   ICHECK_EQ(op->indices.size(), 1) << "Load from non-flat memory not supported.";
+  ICHECK(!op->predicate.defined()) << "Predicated buffer load is not supported.";
 
   DataType value_dtype = op->dtype;
   PrimExpr index = op->indices[0];
@@ -531,6 +566,8 @@ void CodeGenWebGPU::VisitStmt_(const LetStmtNode* op) {
 
 void CodeGenWebGPU::VisitStmt_(const BufferStoreNode* op) {
   CHECK_EQ(op->indices.size(), 1) << "Store to non-flat memory not supported.";
+  ICHECK(!op->predicate.defined()) << "Predicated buffer store is not supported.";
+
   DataType value_dtype = op->value.dtype();
   DataType element_dtype = op->buffer->dtype;
   PrimExpr index = op->indices[0];

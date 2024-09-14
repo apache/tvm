@@ -49,7 +49,10 @@ def transform_for_tensorrt(
     return tvm.transform.Sequential(
         [
             msc_transform.SetExprName(),
-            trt_transform.TransformTensorRT(trans_config.get("version")),
+            trt_transform.TransformTensorRT(
+                version=trans_config.get("version"),
+                linear_to_conv=trans_config.get("linear_to_conv", False),
+            ),
             relax.transform.FoldConstant(),
         ]
     )(mod)

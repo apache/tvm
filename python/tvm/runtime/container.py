@@ -172,3 +172,41 @@ class ShapeTuple(Object):
                 return False
 
         return True
+
+
+# @tvm._ffi.register_object("runtime.BoxBool")
+# class BoxBool(Object):
+#     """A boolean wrapped as a tvm Object
+
+#     Parameters
+#     ----------
+#     value: bool
+
+#         The value to hold
+#     """
+
+#     def __init__(self, value: bool):
+#         # Convert to int to avoid an infinite recursion, because
+#         # BoxBool may be constructed in _make_tvm_args, and calling
+#         # the packed func `_ffi_api.BoxBool` internally calls
+#         # `_make_tvm_args`.
+#         self.__init_handle_by_constructor__(_ffi_api.BoxBool, int(value))
+
+#     def __into_pynative_object__(self) -> bool:
+#         return self.value
+
+#     @property
+#     def value(self) -> bool:
+#         """Unwrap the boxed value.
+
+#         This is implemented explicitly rather than using the usual
+#         PackedFunc handling or AttrVisitor mechanics for two reasons.
+#         First, because the PackedFunc handling would require ambiguous
+#         representations between `True`/`1` and `False`/`0`.  Second,
+#         because the boxing/unboxing must be available in
+#         `libtvm_runtime.so`, and AttrVisitor is only available in
+#         `libtvm.so`.
+#         """
+#         unboxed_bool = _ffi_api.UnBoxBool(self)
+#         assert unboxed_bool is not None
+#         return bool(unboxed_bool)

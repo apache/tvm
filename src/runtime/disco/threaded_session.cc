@@ -96,10 +96,11 @@ class DiscoThreadedMessageQueue : private dmlc::Stream,
     return size;
   }
 
-  void Write(const void* data, size_t size) final {
+  size_t Write(const void* data, size_t size) final {
     size_t cur_size = write_buffer_.size();
     write_buffer_.resize(cur_size + size);
     std::memcpy(write_buffer_.data() + cur_size, data, size);
+    return size;
   }
 
   using dmlc::Stream::Read;
@@ -132,20 +133,20 @@ class DiscoThreadChannel final : public DiscoChannel {
   DiscoThreadedMessageQueue worker_to_controler_;
 };
 
-DiscoWorkerThread::DiscoWorkerThread(int worker_id, int num_workers,
+DiscoWorkerThread::DiscoWorkerThread(int worker_id, int num_workers, int num_groups,
                                      WorkerZeroData* worker_zero_data_)
     : channel(std::make_unique<DiscoThreadChannel>()),
-      worker(
-          std::make_unique<DiscoWorker>(worker_id, num_workers, worker_zero_data_, channel.get())),
+      worker(std::make_unique<DiscoWorker>(worker_id, num_workers, num_groups, worker_zero_data_,
+                                           channel.get())),
       thread(std::make_unique<std::thread>([worker = this->worker.get()] { worker->MainLoop(); })) {
 }
 
 class ThreadedSessionObj final : public BcastSessionObj {
  public:
-  explicit ThreadedSessionObj(int num_workers) {
+  explicit ThreadedSessionObj(int num_workers, int num_groups) {
     for (int i = 0; i < num_workers; ++i) {
       WorkerZeroData* data = (i == 0) ? &worker_zero_data_ : nullptr;
-      workers_.emplace_back(i, num_workers, data);
+      workers_.emplace_back(i, num_workers, num_groups, data);
     }
   }
 
@@ -153,6 +154,8 @@ class ThreadedSessionObj final : public BcastSessionObj {
     this->Shutdown();
     workers_.clear();
   }
+
+  int64_t GetNumWorkers() { return workers_.size(); }
 
   TVMRetValue DebugGetFromRemote(int64_t reg_id, int worker_id) {
     this->SyncWorker(worker_id);
@@ -170,6 +173,10 @@ class ThreadedSessionObj final : public BcastSessionObj {
     }
   }
 
+  void SendPacked(int worker_id, const TVMArgs& args) final {
+    this->workers_.at(worker_id).channel->Send(args);
+  }
+
   TVMArgs RecvReplyPacked(int worker_id) final {
     return this->workers_.at(worker_id).channel->RecvReply();
   }
@@ -182,8 +189,10 @@ class ThreadedSessionObj final : public BcastSessionObj {
 
 TVM_REGISTER_OBJECT_TYPE(ThreadedSessionObj);
 
-Session Session::ThreadedSession(int num_workers) {
-  ObjectPtr<ThreadedSessionObj> n = make_object<ThreadedSessionObj>(num_workers);
+Session Session::ThreadedSession(int num_workers, int num_group) {
+  CHECK_EQ(num_workers % num_group, 0)
+      << "The number of workers should be divisible by the number of worker group.";
+  ObjectPtr<ThreadedSessionObj> n = make_object<ThreadedSessionObj>(num_workers, num_group);
   return Session(std::move(n));
 }
 

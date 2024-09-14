@@ -27,7 +27,7 @@ from tvm.tir import IterVar, PrimExpr, Var
 from tvm.tir.analysis import undefined_vars
 from tvm.tir.schedule.schedule import BlockRV
 
-from ..base import analysis
+from ..base import analysis, BlockInfo, IterInfo
 from .base import GPUScheduleRule
 
 
@@ -273,6 +273,32 @@ def get_index_map(block: tir.Block) -> Optional[Tuple[tir.IndexMap, ...]]:
     )
 
 
+def get_block_info(sch: tir.Schedule, block: tir.schedule.BlockRV) -> BlockInfo:
+    def _iter_kind(loop: tir.IterVar) -> str:
+        return {tir.IterVar.DataPar: "S", tir.IterVar.CommReduce: "R"}.get(loop.iter_type, "O")
+
+    def _is_reduction_block(block: tir.schedule.BlockRV):
+        for iter_var in sch.get(block).iter_vars:
+            if _iter_kind(iter_var) == "R":
+                return True
+        return False
+
+    return BlockInfo(
+        name=sch.get(block).name_hint,
+        iters=[
+            IterInfo(
+                kind=_iter_kind(iter_var),
+                var=iter_var.var,
+                dom=iter_var.dom.extent,
+                loop_rv=loop_rv,
+            )
+            for loop_rv, iter_var in zip(sch.get_loops(block), sch.get(block).iter_vars)
+        ],
+        block_rv=block,
+        reduction_block=_is_reduction_block(block),
+    )
+
+
 def get_reduction_blocks(sch, blocks) -> bool:
     # Get the main computation block
     def is_reduction(block: BlockRV) -> bool:
@@ -313,6 +339,146 @@ def check_sm_version(arch: str) -> int:
     return int(sm_version) if sm_version.isdigit() else -1
 
 
+class MetalMatmul(GPUScheduleRule):
+    """
+    The schedule rule for Metal matmul computation.
+    """
+
+    def apply(  # pylint: disable=too-many-locals,missing-docstring
+        self,
+        func: tir.PrimFunc,
+        target: Target,
+        _: bool,
+    ) -> Optional[tir.Schedule]:
+        from tvm.tir.tensor_intrin.metal import (  # pylint: disable=import-outside-toplevel
+            get_simdgroup_intrin_group,
+        )
+
+        if not isinstance(func, tir.PrimFunc) or not self.is_target_available(target):
+            return None
+        sch = tir.Schedule(func)
+        root_block = analysis.get_root_block(sch)
+        blocks = sch.get_child_blocks(root_block)
+
+        reduction_blocks = get_reduction_blocks(sch, blocks)
+        if reduction_blocks is None:
+            return None
+
+        # Step 0. Configs
+        block_size_x: int = 16
+        block_size_y: int = 16
+        block_size_k: int = 32
+        micro_size: int = 8
+        warp_size: int = 32
+        ty_len: int = 1
+        tz_len: int = 4
+        vector_size: int = 4
+
+        # Step 1. Normalize generic matmul to C[S, I, J] += A[S, I, K] * B[S, J, K]
+        # Reindex first and than analyze the index map
+        main_block = reduction_blocks[0]
+        reindex_a = sch.reindex(main_block, ("read", 0))
+        reindex_b = sch.reindex(main_block, ("read", 1))
+        reindex_c = sch.reindex(main_block, ("write", 0))
+
+        index_maps = get_index_map(sch.get(main_block))
+        assert index_maps is not None
+        matmul_index_map, a_index_map, b_index_map, c_index_map = index_maps
+
+        sch.transform_layout(reindex_a, ("write", 0), a_index_map)
+        sch.transform_layout(reindex_b, ("write", 0), b_index_map)
+        sch.transform_layout(reindex_c, ("read", 0), c_index_map)
+        sch.transform_block_layout(main_block, matmul_index_map)
+
+        # Step 2. Padding for dynamic shape kernels
+        sch.pad_einsum(
+            main_block,
+            [
+                1,
+                ty_len * block_size_x,
+                tz_len * block_size_y,
+                block_size_k,
+            ],
+        )
+
+        # Step 3. Schedule matmul to use simdgroup intrinsics
+        batch, i, j, k = sch.get_loops(main_block)
+        bx, ty, i0, i1 = sch.split(i, [None, ty_len, block_size_x // micro_size, micro_size])
+        by, tz, j0, j1 = sch.split(j, [None, tz_len, block_size_y // micro_size, micro_size])
+        k0, k1, k2 = sch.split(k, [None, block_size_k // micro_size, micro_size])
+        sch.reorder(bx, by, ty, tz, k0, k1, i0, j0, i1, j1, k2)
+        sch.bind(bx, "blockIdx.x")
+        sch.bind(by, "blockIdx.y")
+        sch.bind(batch, "blockIdx.z")
+        sch.bind(ty, "threadIdx.y")
+        sch.bind(tz, "threadIdx.z")
+
+        def fetch_to_shared(block, idx):
+            block_read = sch.cache_read(block, idx, "shared")
+            sch.compute_at(block_read, k0, preserve_unit_loops=True)
+            fused = sch.fuse(*sch.get_loops(block_read)[-2:])
+            _, _tz, _ty, _tx, vec = sch.split(fused, [None, tz_len, ty_len, warp_size, vector_size])
+
+            sch.bind(_tz, "threadIdx.z")
+            sch.bind(_ty, "threadIdx.y")
+            sch.bind(_tx, "threadIdx.x")
+            sch.vectorize(vec)
+
+            return block_read
+
+        a_g2s = fetch_to_shared(main_block, 0)
+        b_g2s = fetch_to_shared(main_block, 1)
+
+        auto_inline_producers(sch, a_g2s)
+        auto_inline_producers(sch, b_g2s)
+
+        # create read cache to load matrix from shared memory to wmma fragments
+        A_simdgroup = sch.cache_read(main_block, 0, "metal.simdgroup")
+        B_simdgroup = sch.cache_read(main_block, 1, "metal.simdgroup")
+        sch.compute_at(A_simdgroup, k1)
+        sch.compute_at(B_simdgroup, k1)
+
+        C_simd2s = sch.cache_write(main_block, 0, "metal.simdgroup")
+        C_s2g = sch.cache_write(C_simd2s, 0, "shared")
+        sch.reverse_compute_at(C_simd2s, tz, preserve_unit_loops=True)
+        sch.reverse_compute_at(C_s2g, by, preserve_unit_loops=True)
+
+        intrin_group = get_simdgroup_intrin_group(
+            load_scope="shared",
+            store_scope="shared",
+            dtype="float16",
+            trans_a=False,
+            trans_b=True,
+        )
+        sch.transform_layout(B_simdgroup, ("write", 0), lambda s, i, j: (s, j, i))
+
+        def tensorize_block(block: tir.schedule.BlockRV, intrin: str):
+            *_, i, j = sch.get_loops(block)
+            io, ii = sch.split(i, [None, micro_size])
+            jo, ji = sch.split(j, [None, micro_size])
+            sch.reorder(io, jo, ii, ji)
+            sch.tensorize(ii, intrin)
+
+        C_init = sch.decompose_reduction(main_block, k0)
+        tensorize_block(A_simdgroup, intrin_group["load_a"])
+        tensorize_block(B_simdgroup, intrin_group["load_b"])
+        tensorize_block(C_simd2s, intrin_group["store"])
+        tensorize_block(C_init, intrin_group["init"])
+
+        *_, i, j, k = sch.get_loops(main_block)
+        sch.tensorize(i, intrin_group["compute"])
+
+        auto_inline_consumer_chain(sch, C_s2g)
+        fused = sch.fuse(*sch.get_loops(C_s2g)[-2:])
+        _, _tz, _ty, _tx, vec = sch.split(fused, [None, tz_len, ty_len, warp_size, vector_size])
+        sch.bind(_tz, "threadIdx.z")
+        sch.bind(_ty, "threadIdx.y")
+        sch.bind(_tx, "threadIdx.x")
+        sch.vectorize(vec)
+
+        return sch
+
+
 class MatmulTensorization(GPUScheduleRule):
     """
     The schedule rule for float16 tensor core matmul computation.
@@ -342,13 +508,6 @@ class MatmulTensorization(GPUScheduleRule):
         if reduction_blocks is None:
             return None
 
-        main_block = reduction_blocks[0]
-        block_stmt = sch.get(main_block)
-        index_maps = get_index_map(block_stmt)
-        if index_maps is None:
-            return None
-        matmul_index_map, a_index_map, b_index_map, c_index_map = index_maps
-
         # Start Schedule
         # Step 0. Get schedule config.
         # NOTE: we can analyze the config by the hardware spec in the future
@@ -373,12 +532,19 @@ class MatmulTensorization(GPUScheduleRule):
         k_pad_factor = k_factors[1]
 
         # Step 1. Normalize generic matmul to C[S, I, J] += A[S, I, K] * B[S, J, K]
-        block = sch.reindex(main_block, ("read", 0))
-        sch.transform_layout(block, ("write", 0), a_index_map)
-        block = sch.reindex(main_block, ("read", 1))
-        sch.transform_layout(block, ("write", 0), b_index_map)
-        block = sch.reindex(main_block, ("write", 0))
-        sch.transform_layout(block, ("read", 0), c_index_map)
+        # Reindex first and than analyze the index map
+        main_block = reduction_blocks[0]
+        reindex_a = sch.reindex(main_block, ("read", 0))
+        reindex_b = sch.reindex(main_block, ("read", 1))
+        reindex_c = sch.reindex(main_block, ("write", 0))
+
+        index_maps = get_index_map(sch.get(main_block))
+        assert index_maps is not None
+        matmul_index_map, a_index_map, b_index_map, c_index_map = index_maps
+
+        sch.transform_layout(reindex_a, ("write", 0), a_index_map)
+        sch.transform_layout(reindex_b, ("write", 0), b_index_map)
+        sch.transform_layout(reindex_c, ("read", 0), c_index_map)
         sch.transform_block_layout(main_block, matmul_index_map)
 
         # Step 2. Padding for dynamic shape kernels
@@ -563,13 +729,6 @@ class MatmulInt8Tensorization(GPUScheduleRule):
         if reduction_blocks is None:
             return None
 
-        main_block = reduction_blocks[0]
-        block_stmt = sch.get(main_block)
-        index_maps = get_index_map(block_stmt)
-        if index_maps is None:
-            return None
-        matmul_index_map, a_index_map, b_index_map, c_index_map = index_maps
-
         # Start Schedule
         # Step 0. Get schedule config.
         # NOTE: we can analyze the config by the hardware spec in the future
@@ -594,12 +753,19 @@ class MatmulInt8Tensorization(GPUScheduleRule):
         k_pad_factor = k_factors[1]
 
         # Step 1. Normalize generic matmul to C[S, I, J] += A[S, I, K] * B[S, J, K]
-        block = sch.reindex(main_block, ("read", 0))
-        sch.transform_layout(block, ("write", 0), a_index_map)
-        block = sch.reindex(main_block, ("read", 1))
-        sch.transform_layout(block, ("write", 0), b_index_map)
-        block = sch.reindex(main_block, ("write", 0))
-        sch.transform_layout(block, ("read", 0), c_index_map)
+        # Reindex first and than analyze the index map
+        main_block = reduction_blocks[0]
+        reindex_a = sch.reindex(main_block, ("read", 0))
+        reindex_b = sch.reindex(main_block, ("read", 1))
+        reindex_c = sch.reindex(main_block, ("write", 0))
+
+        index_maps = get_index_map(sch.get(main_block))
+        assert index_maps is not None
+        matmul_index_map, a_index_map, b_index_map, c_index_map = index_maps
+
+        sch.transform_layout(reindex_a, ("write", 0), a_index_map)
+        sch.transform_layout(reindex_b, ("write", 0), b_index_map)
+        sch.transform_layout(reindex_c, ("read", 0), c_index_map)
         sch.transform_block_layout(main_block, matmul_index_map)
 
         # Step 2. Padding for dynamic shape kernels
@@ -774,17 +940,19 @@ class Matmul(GPUScheduleRule):
                 storage_align=True,
                 inner_x=False,
             )
-        elif target.kind.name == "opencl" and "android" in str(target.host):
+        elif target.kind.name == "opencl" and (
+            ("android" in str(target.host)) or ("adreno" in str(target.attrs))
+        ):
             return Matmul.Config(
-                block_size_x=8,
-                block_size_y=16,
+                block_size_x=32,
+                block_size_y=8,
                 vthread_x=1,
                 vthread_y=1,
                 micro_size_x=8,
                 micro_size_y=2,
                 micro_size_k=16,
                 vector_size=8,
-                unroll=64,
+                unroll=4,
                 use_shared=False,
                 storage_align=False,
                 inner_x=True,
@@ -801,6 +969,7 @@ class Matmul(GPUScheduleRule):
         if not isinstance(func, tir.PrimFunc) or not self.is_target_available(target):
             return None
         sch = tir.Schedule(func)
+        config = self.get_configs(target)
         root_block = analysis.get_root_block(sch)
         blocks = sch.get_child_blocks(root_block)
 
@@ -810,18 +979,38 @@ class Matmul(GPUScheduleRule):
 
         main_block = reduction_blocks[0]
         block_stmt = sch.get(main_block)
-        index_maps = get_index_map(block_stmt)
-        if index_maps is None:
+
+        main_block_info = get_block_info(sch, main_block)
+        iter_infos = main_block_info.iters
+        if not get_index_map(block_stmt):
             return None
-        matmul_index_map, a_index_map, b_index_map, c_index_map = index_maps
+
+        # Checks if it's a inner reduction by getting the last matrix's inner Index
+        def is_inner_reduction(block_stmt, iter_infos):
+            end_it = block_stmt.reads[-1].region[-1].min
+            return {it.var: it.kind for it in iter_infos}.get(end_it, "O") == "R"
+
+        if (
+            target.kind.name == "opencl"
+            and (("android" in str(target.host)) or ("adreno" in str(target.attrs)))
+        ) and not is_inner_reduction(block_stmt, iter_infos):
+            ret = self.sch_outer_reduction(sch, config, main_block, blocks)
+            if ret is not None:
+                return ret
 
         # Step 0. Normalize generic matmul to C[S, I, J] += A[S, I, K] * B[S, J, K]
-        block = sch.reindex(main_block, ("read", 0))
-        sch.transform_layout(block, ("write", 0), a_index_map)
-        block = sch.reindex(main_block, ("read", 1))
-        sch.transform_layout(block, ("write", 0), b_index_map)
-        block = sch.reindex(main_block, ("write", 0))
-        sch.transform_layout(block, ("read", 0), c_index_map)
+        # Reindex first and than analyze the index map
+        reindex_a = sch.reindex(main_block, ("read", 0))
+        reindex_b = sch.reindex(main_block, ("read", 1))
+        reindex_c = sch.reindex(main_block, ("write", 0))
+
+        index_maps = get_index_map(sch.get(main_block))
+        assert index_maps is not None
+        matmul_index_map, a_index_map, b_index_map, c_index_map = index_maps
+
+        sch.transform_layout(reindex_a, ("write", 0), a_index_map)
+        sch.transform_layout(reindex_b, ("write", 0), b_index_map)
+        sch.transform_layout(reindex_c, ("read", 0), c_index_map)
         sch.transform_block_layout(main_block, matmul_index_map)
 
         # Step 1. Check Tensor Core support
@@ -848,11 +1037,13 @@ class Matmul(GPUScheduleRule):
                     tensorize_sch = MatmulTensorization().apply(func, target, _)
                 if tensorize_sch is not None:
                     return tensorize_sch
+        elif target.kind.name == "metal":
+            try:
+                return MetalMatmul().apply(func, target, _)
+            except:  # pylint: disable=bare-except
+                pass
 
-        # Step 2. Get schedule config.
-        config = self.get_configs(target)
-
-        # Step 3. Schedule matmul
+        # Step 2. Schedule matmul
         y_kernel_size = config.vthread_y * config.block_size_y * config.micro_size_y
         x_kernel_size = config.vthread_x * config.block_size_x * config.micro_size_x
         if config.inner_x:
@@ -929,4 +1120,110 @@ class Matmul(GPUScheduleRule):
         auto_inline_consumer_chain(sch, l2g)
 
         sch.decompose_reduction(main_block, ko)
+        return sch
+
+    def sch_outer_reduction(
+        self,
+        sch: tir.Schedule,
+        config: Config,
+        reduction_block: tir.schedule.BlockRV,
+        blocks: List[tir.schedule.BlockRV],
+    ) -> Optional[tir.Schedule]:
+
+        """Get vectorization factor"""
+
+        def get_max_factor(n, factors):
+            factors = sorted(factors, reverse=True)
+            for factor in factors:
+                if n % factor == 0:
+                    return factor
+            return 1
+
+        reduction_loops = sch.get_loops(reduction_block)
+        if not len(reduction_loops) == 4:
+            return None
+
+        mb, ms, n, k = reduction_loops
+        if not (
+            isinstance(sch.get(n).extent, tir.IntImm)
+            and isinstance(sch.get(mb).extent, tir.IntImm)
+            and isinstance(sch.get(ms).extent, tir.Var)
+        ):
+            return None
+
+        Threads_X, Threads_Y, VecSize, Unroll_M = (
+            config.block_size_x,
+            config.block_size_y,
+            config.vector_size,
+            config.unroll,
+        )
+        VecSize = min(get_max_factor(sch.get(n).extent // Threads_X, [1, 2, 4, 8]), VecSize)
+        dequant_block = None
+        matmul_block = reduction_block
+        epilogue_block = None
+        if blocks[-1] is not matmul_block:
+            epilogue_block = blocks[-1]
+        for blk in blocks[:-1]:
+            if "dequantize" in sch.get(blk).name_hint:
+                dequant_block = blk
+            elif blk is not matmul_block:
+                sch.compute_inline(blk)
+
+        m = sch.fuse(mb, ms)
+
+        sch.pad_einsum(matmul_block, [1, Threads_Y * Unroll_M, Threads_X * VecSize, 1])
+
+        rmat_block, wmat_block = (
+            sch.get_producers(matmul_block)[0],
+            sch.get_consumers(matmul_block)[0],
+        )
+        mo, mi, mu = sch.split(m, [None, Threads_Y, Unroll_M])
+        no, ni, nv = sch.split(n, [None, Threads_X, VecSize])
+        k0, k1, k2, k3 = sch.split(k, [None, (Threads_X * VecSize) // 32, 4, 8])
+        sch.reorder(no, mo, ni, mi, k0, k1, k2, k3, mu, nv)
+
+        sch.compute_at(rmat_block, k0)
+        if dequant_block is not None:
+            sch.compute_at(dequant_block, k3)
+        sch.reverse_compute_at(wmat_block, mi)
+        sch.set_scope(rmat_block, 0, "shared")
+        sch.set_scope(matmul_block, 0, "local")
+
+        if dequant_block is not None:
+            sch.set_scope(dequant_block, 0, "local")
+
+        sch.bind(mo, "blockIdx.y")
+        sch.bind(no, "blockIdx.x")
+        sch.bind(mi, "threadIdx.y")
+        sch.bind(ni, "threadIdx.x")
+        sch.vectorize(sch.get_loops(matmul_block)[-1])
+        if dequant_block is not None:
+            sch.vectorize(sch.get_loops(dequant_block)[-1])
+
+        # Co-operative Memory Fetch
+        ro, rv = sch.split(sch.get_loops(rmat_block)[-1], [None, VecSize])
+        sch.bind(ro, "threadIdx.x")
+        sch.vectorize(rv)
+
+        wv = sch.get_loops(wmat_block)[-1]
+        sch.vectorize(wv)
+
+        # Scale and Quant Cache
+        if dequant_block is not None:
+            qb = sch.cache_read(dequant_block, 0, "local")
+            sb = sch.cache_read(dequant_block, 1, "local")
+            sch.compute_at(sb, k1)
+            sch.compute_at(qb, k2)
+            sch.set_scope(sb, 0, "local")
+            sch.set_scope(qb, 0, "local")
+            sch.vectorize(sch.get_loops(qb)[-1])
+            sch.vectorize(sch.get_loops(sb)[-1])
+
+        if epilogue_block is not None:
+            sch.reverse_compute_at(epilogue_block, mi, preserve_unit_loops=True)
+            sch.set_scope(wmat_block, 0, "local")
+            sch.compute_inline(wmat_block)
+            sch.vectorize(sch.get_loops(epilogue_block)[-1])
+
+        sch.decompose_reduction(matmul_block, k0)
         return sch

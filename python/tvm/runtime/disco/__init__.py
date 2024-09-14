@@ -22,4 +22,5 @@ from .session import (
     ProcessSession,
     Session,
     ThreadedSession,
+    SocketSession,
 )

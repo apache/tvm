@@ -41,6 +41,10 @@ from . import generic as _generic
 from .buffer import Buffer, DataProducer
 
 
+def convert(expr) -> PrimExpr:
+    return _ffi_api.convert(expr)
+
+
 def div_ambiguity_error() -> RuntimeError:
     return RuntimeError(
         "TVM supports multiple types of integer divisions, "
@@ -1093,20 +1097,28 @@ class BufferLoad(PrimExprWithOp):
         The buffer to be loaded.
 
     indices : List[PrimExpr]
-        The buffer indices.
+        The buffer indices to load values from.
 
     span : Optional[Span]
         The location of this expression in the source code.
+
+    predicate : Optional[PrimExpr]
+        A vector mask of boolean values indicating which lanes of a vector are to be
+        loaded. The number lanes of the mask must be equal to the number of lanes being loaded.
     """
 
     buffer: Buffer
     indices: List[PrimExpr]
 
     def __init__(
-        self, buffer: Buffer, indices: List[PrimExpr], span: Optional[Span] = None
+        self,
+        buffer: Buffer,
+        indices: List[PrimExpr],
+        predicate: Optional[PrimExpr] = None,
+        span: Optional[Span] = None,
     ) -> None:
         self.__init_handle_by_constructor__(
-            _ffi_api.BufferLoad, buffer, indices, span  # type: ignore
+            _ffi_api.BufferLoad, buffer, indices, predicate, span  # type: ignore
         )
 
 

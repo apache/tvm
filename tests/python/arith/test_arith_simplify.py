@@ -32,10 +32,39 @@ def test_simplify_reshape_flattened_index():
     ana.bind(i1, tvm.ir.Range(0, 3))
 
     i_flattened = i0 * 3 + i1
-    assert tvm.ir.structural_equal(
+    tvm.ir.assert_structural_equal(
         ana.simplify((i_flattened) // 12 * 12 + (i_flattened) % 12 // 4 * 4 + (i_flattened) % 4),
         i_flattened,
     )
+
+
+dtype = tvm.testing.parameter(
+    "uint8",
+    "uint16",
+    "uint32",
+    "uint64",
+    "int8",
+    "int16",
+    "int32",
+    "int64",
+    "float16",
+    "float32",
+    "float64",
+)
+
+
+def test_can_prove_self_identity(dtype):
+    ana = tvm.arith.Analyzer()
+
+    n = tir.Var("n", dtype)
+    assert ana.can_prove(n == n)
+
+
+def test_can_prove_self_equal_to_self(dtype):
+    ana = tvm.arith.Analyzer()
+
+    n = tir.Var("n", dtype)
+    assert ana.can_prove_equal(n, n)
 
 
 def test_simplify_symbolic_comparison():
@@ -88,16 +117,6 @@ def test_simplify_vscale_comparison_without_sve_target(capfd):
     )
     capture = capfd.readouterr().err
     assert warning_msg in capture
-
-
-def test_simplify_vscale_non_comparison():
-    ana = tvm.arith.Analyzer()
-    vs = tvm.tir.vscale()
-
-    err_msg = r".*Expected comparison but got: T.vscale\(\) \* 4"
-    with pytest.raises(tvm.TVMError, match=err_msg):
-        with tvm.target.Target("llvm -mtriple=aarch64-linux-gnu -mattr=+sve"):
-            ana.can_prove(vs * 4)
 
 
 def test_regression_simplify_inf_recursion():

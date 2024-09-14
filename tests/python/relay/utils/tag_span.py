@@ -91,7 +91,7 @@ def _verify_span(lhs, rhs):
     assert len(lhs_spans) == len(rhs_spans)
 
     for i in range(len(lhs_spans)):
-        assert tvm.ir.structural_equal(lhs_spans[i], rhs_spans[i])
+        tvm.ir.assert_structural_equal(lhs_spans[i], rhs_spans[i])
 
 
 def _verify_structural_equal_with_span(lhs, rhs, assert_mode=False, map_free_vars=False):
@@ -103,6 +103,6 @@ def _verify_structural_equal_with_span(lhs, rhs, assert_mode=False, map_free_var
     if assert_mode:
         tvm.ir.assert_structural_equal(lhs, rhs, map_free_vars)
     else:
-        assert tvm.ir.structural_equal(lhs, rhs, map_free_vars)
+        tvm.ir.assert_structural_equal(lhs, rhs, map_free_vars)
 
     _verify_span(lhs, rhs)

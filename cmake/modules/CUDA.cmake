@@ -30,6 +30,26 @@ if(USE_CUDA)
   endif()
   message(STATUS "Build with CUDA ${CUDA_VERSION} support")
   enable_language(CUDA)
+
+  # Ensure that include directives to NVCC are in the
+  # `compile_commands.json`, as required by clangd.
+  #
+  # As of cmake 3.29.5 [0], if the NVCC version is 11 or higher, cmake
+  # will generate a "options-file.rsp" containing the -I flags for
+  # include directories, rather than providing them on the
+  # command-line.  This setting exists to work around the short
+  # command-line length limits on Windows, but is enabled on all
+  # platforms.  If set, because include directories are not part of
+  # the `compile_commands.json`, the clangd LSP cannot find the
+  # include files.
+  #
+  # Furthermore, this override cannot be specified in a user's
+  # `config.cmake` for TVM, because it must be set after CMake's
+  # built-in CUDA support.
+  #
+  # [0] https://github.com/Kitware/CMake/commit/6377a438
+  set(CMAKE_CUDA_USE_RESPONSE_FILE_FOR_INCLUDES 0)
+
   tvm_file_glob(GLOB RUNTIME_CUDA_SRCS src/runtime/cuda/*.cc)
   list(APPEND RUNTIME_SRCS ${RUNTIME_CUDA_SRCS})
   list(APPEND COMPILER_SRCS src/target/opt/build_cuda_on.cc)
@@ -56,6 +76,22 @@ if(USE_CUDA)
     list(APPEND RUNTIME_SRCS ${CONTRIB_CUDNN_SRCS})
     list(APPEND TVM_RUNTIME_LINKER_LIBS ${CUDA_CUDNN_LIBRARY})
   endif(USE_CUDNN)
+
+  if (USE_CUDNN_FRONTEND)
+    message(STATUS "Build with cuDNN Frontend support")
+    if (IS_DIRECTORY ${USE_CUDNN_FRONTEND})
+      find_file(CUDNN_FRONTEND_HEADER cudnn_frontend.h HINTS ${USE_CUDNN_FRONTEND}/include)
+      include_directories(SYSTEM ${USE_CUDNN_FRONTEND}/include)
+    else()
+      find_file(CUDNN_FRONTEND_HEADER cudnn_frontend.h)
+    endif()
+    if (NOT CUDNN_FRONTEND_HEADER)
+      message(FATAL_ERROR "Cannot find cudnn_frontend.h, please set USE_CUDNN_FRONTEND to the path of the cuDNN frontend header")
+    endif()
+    tvm_file_glob(GLOB CONTRIB_CUDNN_FRONTEND_SRCS src/runtime/contrib/cudnn/cudnn_frontend/*.cc)
+    set_property(SOURCE ${CONTRIB_CUDNN_SRCS} APPEND PROPERTY COMPILE_DEFINITIONS TVM_USE_CUDNN_FRONTEND=1)
+    list(APPEND RUNTIME_SRCS ${CONTRIB_CUDNN_FRONTEND_SRCS})
+  endif(USE_CUDNN_FRONTEND)
 
   if(USE_CUBLAS)
     message(STATUS "Build with cuBLAS support")

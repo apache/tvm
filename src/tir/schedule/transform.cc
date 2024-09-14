@@ -340,7 +340,9 @@ Optional<LoopRV> TileWithTensorIntrin(const tir::Schedule& sch, const tir::Block
     }
     auto consumers = sch->GetConsumers(block_rv);
     for (const auto& consumer : consumers) {
-      sch->ComputeInline(consumer);
+      auto sref = sch->GetSRef(consumer);
+      if (!tir::IsOutputBlock(sch->state(), sref, tir::GetScopeRoot(sch->state(), sref, true)))
+        sch->ComputeInline(consumer);
     }
   }
   // Construct a mapping from tir loops back to LoopRVs

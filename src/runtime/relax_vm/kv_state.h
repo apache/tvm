@@ -83,14 +83,18 @@ class KVStateObj : public Object {
    * with prefill length "10", "15", "20", then we pass `[5, 1, 8]`
    * as the seq_ids and `[10, 15, 20]` as the append_lengths.
    * This method is invoked right before entering the model forward
-   * function, and contains operations to prepare the the incoming
+   * function, and contains operations to prepare the incoming
    * forward. For instance, this method may send auxiliary KV cache
    * data structures to GPUs so that they can be operated
    * in the model forward function.
    * \param seq_ids The ids of the sequence to run in the incoming model forward.
    * \param append_lengths The sequence lengths to run forward for for each sequence.
+   * \param token_tree_parent_ptr The parent idx array of the token trees. Its length
+   * is the sum of "append_lengths". Nullptr means the token tree of each sequence
+   * is a chain.
    */
-  virtual void BeginForward(const IntTuple& seq_ids, const IntTuple& append_lengths) = 0;
+  virtual void BeginForward(const IntTuple& seq_ids, const IntTuple& append_lengths,
+                            const Optional<IntTuple>& token_tree_parent_ptr = NullOpt) = 0;
 
   /*!
    * \brief Mark the start of the forward function.
@@ -117,6 +121,8 @@ class AttentionKVCacheObj : public KVStateObj {
  public:
   /************** Raw Info Query **************/
 
+  /*! \brief Check if the KV cache is empty. */
+  virtual bool Empty() const = 0;
   /*!
    * \brief Get the number of available pages in the KV cache.
    * When the underlying KV cache implementation is not
@@ -140,6 +146,17 @@ class AttentionKVCacheObj : public KVStateObj {
   virtual void EnableSlidingWindowForSeq(int64_t seq_id, int32_t sliding_window_size,
                                          int32_t attn_sink_size) = 0;
 
+  /*!
+   * \brief Committed the accepted token tree nodes to KV cache.
+   * The commit will update the KV cache, by compacting the KV data and discard
+   * the KV data of rejected tokens.
+   * This is a mandatory step when the BeginForward is given with a token tree.
+   * \param seq_ids The ids of the sequences to commit.
+   * \param leaf_indices The leaf token tree node index of each sequence.
+   */
+  virtual void CommitAcceptedTokenTreeNodes(const IntTuple& seq_ids,
+                                            const IntTuple& leaf_indices) = 0;
+
   /************** Attention **************/
 
   /*!
@@ -150,6 +167,7 @@ class AttentionKVCacheObj : public KVStateObj {
    * `(total_length, num_qo_heads + 2 * num_kv_heads, head_dim)`.
    * \param mask The input mask data, in layout `(total_sqr_length)`.
    * \param o_data The output O data, in layout `(total_length, num_qo_heads, head_dim)`.
+   * \param attn_score_scaling_factor The additional attention scaling factor.
    * \sa AttentionKVCache::Attention
    */
   virtual void AttentionWithFusedQKV(int64_t layer_id, NDArray qkv_data, Optional<NDArray> mask,

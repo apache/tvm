@@ -3490,7 +3490,6 @@ class Schedule(Object):
             self, block, index_map
         )
 
-    @type_checked
     def set_axis_separator(
         self,
         block: Union[BlockRV, str],

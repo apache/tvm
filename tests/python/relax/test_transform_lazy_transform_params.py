@@ -43,7 +43,7 @@ def test_lazy_transform_params():
         def main_transform_params(
             params: R.Tuple(
                 R.Tensor((3, 16, 3, 3), dtype="float32"), R.Tensor((16, 16, 3, 3), dtype="float32")
-            )
+            ),
         ) -> R.Tuple(
             R.Tensor((16, 16, 3, 3), dtype="float32"), R.Tensor((16, 3, 3, 3), dtype="float32")
         ):
@@ -124,7 +124,7 @@ def test_get_item_only():
         def main_transform_params(
             params: R.Tuple(
                 R.Tensor((3, 16, 3, 3), dtype="float32"), R.Tensor((16, 16, 3, 3), dtype="float32")
-            )
+            ),
         ) -> R.Tuple(
             R.Tensor((16, 16, 3, 3), dtype="float32"), R.Tensor((16, 3, 3, 3), dtype="float32")
         ):
@@ -209,7 +209,7 @@ def test_extra_get_item_params():
         def main_transform_params(
             params: R.Tuple(
                 R.Tensor((3, 16, 3, 3), dtype="float32"), R.Tensor((16, 16, 3, 3), dtype="float32")
-            )
+            ),
         ) -> R.Tuple(
             R.Tensor((16, 16, 3, 3), dtype="float32"), R.Tensor((16, 3, 3, 3), dtype="float32")
         ):
@@ -298,7 +298,7 @@ def test_extra_set_item_params():
         def main_transform_params(
             params: R.Tuple(
                 R.Tensor((3, 16, 3, 3), dtype="float32"), R.Tensor((16, 16, 3, 3), dtype="float32")
-            )
+            ),
         ) -> R.Tuple(
             R.Tensor((16, 16, 3, 3), dtype="float32"), R.Tensor((16, 3, 3, 3), dtype="float32")
         ):
@@ -441,8 +441,8 @@ def test_lazy_transform_params_with_symbolic_vars():
         @T.prim_func(private=True)
         def slice_buffer(
             Input: T.Buffer((16, 16), "float32"),
-            slice_index: T.int64,
             Output: T.Buffer(16, "float32"),
+            slice_index: T.int64,
         ):
             for i in T.grid(16):
                 with T.block("slice_buffer"):
@@ -479,8 +479,8 @@ def test_lazy_transform_params_with_symbolic_vars():
         @T.prim_func(private=True)
         def slice_buffer(
             Input: T.Buffer((16, 16), "float32"),
-            slice_index: T.int64,
             Output: T.Buffer(16, "float32"),
+            slice_index: T.int64,
         ):
             for i in T.grid(16):
                 with T.block("slice_buffer"):
@@ -511,7 +511,7 @@ def test_param_shape_symbolic():
             params: R.Tuple(
                 R.Tensor((3, "ic", 3, 3), dtype="float32"),
                 R.Tensor((16, 16, 3, 3), dtype="float32"),
-            )
+            ),
         ) -> R.Tuple(
             R.Tensor((16, 16, 3, 3), dtype="float32"), R.Tensor(("ic", 3, 3, 3), dtype="float32")
         ):
@@ -637,7 +637,7 @@ def test_output():
             params: R.Tuple(
                 R.Tensor((3, "ic", 3, 3), dtype="float32"),
                 R.Tensor((16, 16, 3, 3), dtype="float32"),
-            )
+            ),
         ) -> R.Tuple(
             R.Tensor((16, 16, 3, 3), dtype="float32"), R.Tensor(("ic", 3, 3, 3), dtype="float32")
         ):
@@ -691,7 +691,7 @@ def test_duplicate_outputs():
     class Before:
         @R.function
         def main_transform_params(
-            params: R.Tuple(R.Tensor([16], dtype="int32"), R.Tensor([16], dtype="int32"))
+            params: R.Tuple(R.Tensor([16], dtype="int32"), R.Tensor([16], dtype="int32")),
         ):
             R.func_attr({"relax.force_pure": True})
             param0 = params[0]
@@ -966,7 +966,7 @@ def test_get_item_callback_dynamic_shape():
     class Expected:
         @R.function
         def transform_params(
-            fget_param: R.Callable([R.Prim("int64"), R.Object], R.Object)
+            fget_param: R.Callable([R.Prim("int64"), R.Object], R.Object),
         ) -> R.Tuple(R.Tensor(ndim=2, dtype="float32"), R.Tensor(ndim=2, dtype="float32")):
             R.func_attr({"num_input": 1})
             m = T.int64()
@@ -1002,11 +1002,11 @@ def test_set_output_callback():
 
     @I.ir_module
     class Expected:
-        @R.function
+        @R.function(pure=False)
         def transform_params(
             A: R.Tensor([16, 16], "float32"),
             B: R.Tensor([16, 16], "float32"),
-            fset_output: R.Callable([R.Prim("int64"), R.Object], R.Tuple([])),
+            fset_output: R.Callable([R.Prim("int64"), R.Object], R.Tuple([]), purity=False),
         ):
             C = R.multiply(A, R.const(2, "float32"))
             fset_output(R.prim_value(1), C)
@@ -1036,11 +1036,11 @@ def test_set_output_callback_of_param():
 
     @I.ir_module
     class Expected:
-        @R.function
+        @R.function(pure=False)
         def transform_params(
             A: R.Tensor([16, 16], "float32"),
             B: R.Tensor([16, 16], "float32"),
-            fset_output: R.Callable([R.Prim("int64"), R.Object], R.Tuple([])),
+            fset_output: R.Callable([R.Prim("int64"), R.Object], R.Tuple([]), purity=False),
         ):
             fset_output(R.prim_value(1), B)
             C = R.multiply(A, R.const(2, "float32"))
@@ -1070,10 +1070,10 @@ def test_set_output_callback_num_input():
 
     @I.ir_module
     class Expected:
-        @R.function
+        @R.function(pure=False)
         def transform_params(
             A: R.Tensor([16, 16], "float32"),
-            fset_output: R.Callable([R.Prim("int64"), R.Object], R.Tuple([])),
+            fset_output: R.Callable([R.Prim("int64"), R.Object], R.Tuple([]), purity=False),
             B: R.Tensor([16, 16], "float32"),
         ):
             R.func_attr({"num_input": 2})
@@ -1105,11 +1105,11 @@ def test_set_output_callback_with_duplicate_output():
 
     @I.ir_module
     class Expected:
-        @R.function
+        @R.function(pure=False)
         def transform_params(
             A: R.Tensor([16, 16], "float32"),
             B: R.Tensor([16, 16], "float32"),
-            fset_output: R.Callable([R.Prim("int64"), R.Object], R.Tuple([])),
+            fset_output: R.Callable([R.Prim("int64"), R.Object], R.Tuple([]), purity=False),
         ):
             C = R.multiply(A, R.const(2, "float32"))
             D = R.add(C, B)
@@ -1140,11 +1140,11 @@ def test_set_output_callback_with_inline_const():
 
     @I.ir_module
     class Expected:
-        @R.function
+        @R.function(pure=False)
         def transform_params(
             A: R.Tensor([16, 16], "float32"),
             B: R.Tensor([16, 16], "float32"),
-            fset_output: R.Callable([R.Prim("int64"), R.Object], R.Tuple([])),
+            fset_output: R.Callable([R.Prim("int64"), R.Object], R.Tuple([]), purity=False),
         ):
             C = R.multiply(A, R.const(2, "float32"))
             fset_output(R.prim_value(0), C)
@@ -1171,11 +1171,11 @@ def test_set_output_callback_with_non_tuple_output():
 
     @I.ir_module
     class Expected:
-        @R.function
+        @R.function(pure=False)
         def transform_params(
             A: R.Tensor([16, 16], "float32"),
             B: R.Tensor([16, 16], "float32"),
-            fset_output: R.Callable([R.Prim("int64"), R.Object], R.Tuple([])),
+            fset_output: R.Callable([R.Prim("int64"), R.Object], R.Tuple([]), purity=False),
         ):
             C = R.multiply(A, R.const(2, "float32"))
             D = R.add(C, B)

@@ -29,11 +29,118 @@
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/struct_info.h>
 #include <tvm/relax/transform.h>
+#include <tvm/tir/stmt_functor.h>
 
 namespace tvm {
 namespace relax {
 
 namespace {
+
+class SymbolicVarCanonicalizer : public ExprMutator {
+ public:
+  Expr VisitExpr_(const FunctionNode* func) override {
+    auto cached = known_values_;
+    auto output = ExprMutator::VisitExpr_(func);
+    known_values_ = cached;
+    return output;
+  }
+
+  void VisitBinding_(const MatchCastNode* binding) override {
+    auto tir_var_map =
+        InferSymbolicVarMap({{binding->var, binding->value}}, builder_->GetAnalyzer());
+    for (const auto& [tir_var, prim_expr] : tir_var_map) {
+      if (auto it = known_values_.find(tir_var); it != known_values_.end()) {
+        CHECK(!builder_->GetAnalyzer()->CanProve(it->second.expr != prim_expr))
+            << "ValueError: "
+            << "MatchCast statements must be consistent.  "
+            << "However, the definition of Relax variable " << it->second.source->var
+            << " implies that TIR variable " << tir_var << " is " << it->second.expr
+            << ", while the later definition of Relax variable " << binding->var
+            << " instead implies that TIR variable " << tir_var << " is " << prim_expr;
+      } else {
+        known_values_[tir_var] = KnownValue{prim_expr, GetRef<MatchCast>(binding)};
+      }
+    }
+    ExprMutator::VisitBinding_(binding);
+  }
+
+  Expr VisitExpr_(const IfNode* op) override {
+    Expr guard = this->VisitExpr(op->cond);
+
+    auto cached = known_values_;
+    Expr true_b = this->VisitWithInnerScope(op->true_branch);
+    known_values_ = cached;
+    Expr false_b = this->VisitWithInnerScope(op->false_branch);
+    known_values_ = cached;
+
+    if (op->cond.same_as(guard) && op->true_branch.same_as(true_b) &&
+        op->false_branch.same_as(false_b)) {
+      return GetRef<Expr>(op);
+    }
+
+    // The two branches may have had different TIR variables inlined.
+    // For example, one branch has a dynamic implementation and
+    // produces `R.Tensor([M,N])`, while the other branch checks if
+    // `N==16` and produces `R.Tensor([M,16])`.  After the branch, the
+    // output is `R.Tensor([M,N])`.  However, the `GetStructLCA` would
+    // correctly return `R.Tensor(ndim=2)`, removing all shape
+    // information.
+    //
+    // Since we know the StructInfo prior to replacing TIR variables,
+    // this pass can provide a better StructInfo than the generic
+    // handling in ExprMutator, by restoring the symbolic variables
+    // within each branch.
+    auto new_sinfo = VisitExprDepStructInfoField(Downcast<StructInfo>(op->struct_info_));
+
+    StructuralEqual struct_equal;
+    if (!struct_equal(new_sinfo, GetStructInfo(true_b))) {
+      auto output_var = Var("then_branch_with_dyn", new_sinfo);
+
+      true_b = SeqExpr({BindingBlock({
+                           MatchCast(output_var, true_b, new_sinfo),
+                       })},
+                       output_var);
+    }
+
+    if (!struct_equal(new_sinfo, GetStructInfo(false_b))) {
+      auto output_var = Var("else_branch_with_dyn", new_sinfo);
+
+      false_b = SeqExpr({BindingBlock({
+                            MatchCast(output_var, false_b, new_sinfo),
+                        })},
+                        output_var);
+    }
+
+    return If(guard, true_b, false_b, op->span);
+  }
+
+  PrimExpr VisitPrimExpr(const PrimExpr& expr) override {
+    if (known_values_.empty()) {
+      return expr;
+    }
+    PrimExpr output = tir::Substitute(expr, [this](const tir::Var& var) -> Optional<PrimExpr> {
+      if (auto it = known_values_.find(var); it != known_values_.end()) {
+        return it->second.expr;
+      } else {
+        return NullOpt;
+      }
+    });
+    if (output.same_as(expr)) {
+      return expr;
+    }
+
+    output = builder_->GetAnalyzer()->Simplify(output);
+    return output;
+  }
+
+ private:
+  struct KnownValue {
+    PrimExpr expr;
+    MatchCast source;
+  };
+
+  std::unordered_map<tir::Var, KnownValue> known_values_;
+};
 
 struct CanonicalizationPlan {
   Map<Id, Var> replace_usage;
@@ -155,33 +262,105 @@ class CanonicalizePlanner : public ExprVisitor {
     current_block_ = Optional<BindingBlock>();
   }
 
-  void VisitBinding(const Binding& binding) override {
-    bool has_same_struct_info = true;
-    Expr value;
-    if (auto ptr = binding.as<VarBindingNode>()) {
-      value = ptr->value;
-    } else if (auto ptr = binding.as<MatchCastNode>()) {
-      has_same_struct_info =
-          StructuralEqual()(GetStructInfo(binding->var), GetStructInfo(ptr->value));
-      value = ptr->value;
-    } else {
-      LOG(FATAL) << "Invalid binding type: " << binding->GetTypeKey();
+  Optional<Expr> UnwrapKnownValue(Expr expr) {
+    // If the expression is a variable, then it can be unwrapped into
+    // its known value.
+    auto unwrap_var = [this](Expr expr) -> Expr {
+      if (auto var = expr.as<Var>()) {
+        if (auto opt = known_bindings_.Get(var.value())) {
+          return opt.value();
+        }
+      }
+      return expr;
+    };
+
+    auto recursively_unwrap_var = [&unwrap_var](Expr expr) -> Expr {
+      while (true) {
+        auto new_expr = unwrap_var(expr);
+        if (new_expr.same_as(expr)) {
+          return expr;
+        } else {
+          expr = new_expr;
+        }
+      }
+    };
+
+    // If the expression is a TupleGetItem, which accesses a field of
+    // a known tuple, then it can be unwrapped into a direct access of
+    // that field.
+    if (auto tuple_get_item = expr.as<TupleGetItemNode>()) {
+      Expr tuple = recursively_unwrap_var(tuple_get_item->tuple);
+      if (auto ptr = tuple.as<TupleNode>()) {
+        return ptr->fields[tuple_get_item->index];
+      }
     }
 
-    // Unwrap TupleGetItem, if the Tuple being accessed is known.
-    if (auto tuple_get_item = value.as<TupleGetItemNode>()) {
-      Expr tuple = tuple_get_item->tuple;
-      while (auto tuple_var = tuple.as<Var>()) {
-        if (auto opt = known_bindings_.Get(tuple_var.value())) {
-          tuple = opt.value();
-        } else {
-          break;
+    // If the expression is a Tuple, and each element is
+    // `TupleGetItem(earlier_tuple, i)`, then this is just a copy of
+    // `earlier_tuple`.
+    auto earlier_tuple = [&]() -> Optional<Expr> {
+      auto expr_tuple = expr.as<TupleNode>();
+      if (!expr_tuple) {
+        return NullOpt;
+      }
+
+      if (expr_tuple->fields.empty()) {
+        return NullOpt;
+      }
+
+      auto first_element = recursively_unwrap_var(expr_tuple->fields[0]).as<TupleGetItemNode>();
+      if (!first_element) {
+        return NullOpt;
+      }
+
+      auto earlier_tuple_size =
+          Downcast<TupleStructInfo>(GetStructInfo(first_element->tuple))->fields.size();
+      if (earlier_tuple_size != expr_tuple->fields.size()) {
+        return NullOpt;
+      }
+
+      Expr earlier_tuple = recursively_unwrap_var(first_element->tuple);
+
+      for (size_t i = 0; i < expr_tuple->fields.size(); i++) {
+        auto element = recursively_unwrap_var(expr_tuple->fields[i]).as<TupleGetItemNode>();
+        if (!element) {
+          return NullOpt;
+        }
+        if (static_cast<size_t>(element->index) != i) {
+          return NullOpt;
+        }
+
+        auto source_of_element = recursively_unwrap_var(element->tuple);
+
+        if (!earlier_tuple.same_as(source_of_element)) {
+          return NullOpt;
         }
       }
 
-      if (auto ptr = tuple.as<TupleNode>()) {
-        value = ptr->fields[tuple_get_item->index];
+      return earlier_tuple;
+    }();
+    if (earlier_tuple) {
+      return earlier_tuple.value();
+    }
+
+    return NullOpt;
+  }
+
+  void VisitBinding(const Binding& binding) override {
+    bool has_same_struct_info = [&]() {
+      if (binding.as<VarBindingNode>()) {
+        return true;
+      } else if (auto match_cast = binding.as<MatchCastNode>()) {
+        return StructuralEqual()(GetStructInfo(binding->var), GetStructInfo(match_cast->value));
+      } else {
+        LOG(FATAL) << "Invalid binding type: " << binding->GetTypeKey();
       }
+    }();
+
+    Expr value = GetBoundValue(binding);
+
+    if (auto unwrapped = UnwrapKnownValue(value)) {
+      value = unwrapped.value();
     }
 
     if (auto parent = value.as<Var>(); parent && has_same_struct_info) {
@@ -226,10 +405,10 @@ class CanonicalizePlanner : public ExprVisitor {
   Map<Var, Var> trivial_bindings_;
   Map<Var, Expr> known_bindings_;
   Map<Var, Constant> known_bound_to_constant_;
-  std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> defined_inside_dataflow_;
+  std::unordered_set<Var> defined_inside_dataflow_;
   // Set of vars either used outside a dataflow block altogether or outside their
   // home dataflow block (the one where they were defined)
-  std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> used_outside_home_dataflow_;
+  std::unordered_set<Var> used_outside_home_dataflow_;
 };
 
 /*! \brief The mutator class to apply a CanonicalizationPlan */
@@ -377,16 +556,39 @@ class BindingCanonicalizer : public ExprMutator {
 };
 }  // namespace
 
-Expr CanonicalizeBindings(const Expr& expr) { return BindingCanonicalizer::Apply(expr); }
+Expr CanonicalizeTIRVariables(Expr expr) { return SymbolicVarCanonicalizer()(std::move(expr)); }
+
+Expr CanonicalizeRelaxBindings(Expr expr) { return BindingCanonicalizer::Apply(std::move(expr)); }
+
+Expr CanonicalizeBindings(Expr expr) {
+  expr = CanonicalizeTIRVariables(std::move(expr));
+  expr = CanonicalizeRelaxBindings(std::move(expr));
+  return expr;
+}
 
 namespace transform {
 
+Pass CanonicalizeTIRVariables() {
+  auto pass_func = [=](Function f, IRModule m, PassContext pc) {
+    return Downcast<Function>(CanonicalizeTIRVariables(f));
+  };
+  return CreateFunctionPass(pass_func, 1, "CanonicalizeTIRVariables", {});
+}
+
+Pass CanonicalizeRelaxBindings() {
+  auto pass_func = [=](Function f, IRModule m, PassContext pc) {
+    return Downcast<Function>(CanonicalizeBindings(f));
+  };
+  return CreateFunctionPass(pass_func, 1, "CanonicalizeRelaxBindings", {});
+}
+
 Pass CanonicalizeBindings() {
-  runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
-      [=](Function f, IRModule m, PassContext pc) {
-        return Downcast<Function>(CanonicalizeBindings(f));
-      };
-  return CreateFunctionPass(pass_func, 1, "CanonicalizeBindings", {});
+  return tvm::transform::Sequential(
+      {
+          CanonicalizeTIRVariables(),
+          CanonicalizeRelaxBindings(),
+      },
+      "CanonicalizeBindings");
 }
 
 TVM_REGISTER_GLOBAL("relax.transform.CanonicalizeBindings").set_body_typed(CanonicalizeBindings);

@@ -226,6 +226,8 @@ class NDArray : public ObjectRef {
 
  protected:
   friend class TVMPODValue_;
+  template <typename Derived>
+  friend class TVMPODValue_CRTP_;
   friend class TVMRetValue;
   friend class TVMArgsSetter;
   /*!
@@ -532,6 +534,23 @@ inline bool NDArray::Load(dmlc::Stream* strm) {
   }
   *this = ret;
   return true;
+}
+
+/*!
+ * \brief Get the preferred host device from the input device.
+ * - For CUDA and ROCm, CUDAHost and ROCMHost will be returned for pinned memory,
+ * since pinned memory reduces copy overhead.
+ * - For other devices, CPU is returned as a fallback.
+ */
+inline Device GetPreferredHostDevice(Device device) {
+  if (device.device_type == DLDeviceType::kDLCUDA) {
+    return Device{DLDeviceType::kDLCUDAHost, 0};
+  } else if (device.device_type == DLDeviceType::kDLROCM) {
+    return Device{DLDeviceType::kDLROCMHost, 0};
+  } else {
+    // Fallback to CPU.
+    return Device{DLDeviceType::kDLCPU, 0};
+  }
 }
 
 }  // namespace runtime

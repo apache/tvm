@@ -51,6 +51,7 @@ enum DeviceAttrKind : int {
   kDriverVersion = 12,
   kL2CacheSizeBytes = 13,
   kTotalGlobalMemory = 14,
+  kAvailableGlobalMemory = 15,
 };
 
 #ifdef TVM_KALLOC_ALIGNMENT
@@ -238,6 +239,11 @@ class TVM_DLL DeviceAPI {
   static bool NeedSetDevice(int device_type) {
     return device_type != kDLCPU && device_type != kDLMicroDev;
   }
+
+  /*!
+   * \brief Whether pointer arithmetics on a device owned pointer may be performed on the host.
+   */
+  virtual bool SupportsDevicePointerArithmeticsOnHost() { return false; }
 
  protected:
   /*!

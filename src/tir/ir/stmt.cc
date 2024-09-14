@@ -27,6 +27,7 @@
 #include <tvm/tir/stmt.h>
 
 #include "buffer_common.h"
+#include "utils.h"
 
 namespace tvm {
 namespace tir {
@@ -61,6 +62,15 @@ TVM_REGISTER_NODE_TYPE(LetStmtNode);
 
 // AttrStmt
 AttrStmt::AttrStmt(ObjectRef node, String attr_key, PrimExpr value, Stmt body, Span span) {
+  // The nodes are not required to be a TIR type, and may legally
+  // contain any ObjectRef.  However, normalizing to an IR type if
+  // possible prevents spurious discrepancies in StructuralEqual().
+  if (auto opt = node.as<runtime::Bool>()) {
+    node = Bool(opt.value());
+  } else if (auto opt = node.as<runtime::Int>()) {
+    node = Integer(opt.value());
+  }
+
   auto n = make_object<AttrStmtNode>();
   n->node = node;
   n->attr_key = std::move(attr_key);
@@ -109,12 +119,20 @@ TVM_REGISTER_GLOBAL("tir.AssertStmt")
 // For
 For::For(Var loop_var, PrimExpr min, PrimExpr extent, ForKind kind, Stmt body,
          Optional<IterVar> thread_binding, Map<String, ObjectRef> annotations, Span span) {
+  ICHECK(loop_var.defined());
   ICHECK(min.defined());
   ICHECK(extent.defined());
-  ICHECK(min.dtype().is_scalar());
-  ICHECK(extent.dtype().is_scalar());
-  ICHECK(loop_var.dtype().is_scalar());
   ICHECK(body.defined());
+
+  auto require_scalar_int_dtype = [&](PrimExpr expr, const char* field_name) {
+    auto dtype = expr.dtype();
+    CHECK(dtype.is_scalar() && (dtype.is_int() || dtype.is_uint()))
+        << "TIR For nodes require a scalar integer as the " << field_name << ", but received "
+        << expr << " with dtype " << dtype;
+  };
+  require_scalar_int_dtype(loop_var, "loop_var");
+  require_scalar_int_dtype(min, "min");
+  require_scalar_int_dtype(extent, "extent");
 
   // When extent or min is an IntImm but has narrower dtype than loop_var, we directly promote them
   // without raising errors.
@@ -135,6 +153,8 @@ For::For(Var loop_var, PrimExpr min, PrimExpr extent, ForKind kind, Stmt body,
 
   ICHECK(loop_var.dtype() == min.dtype()) << loop_var.dtype() << " vs " << min.dtype();
   ICHECK(loop_var.dtype() == extent.dtype()) << loop_var.dtype() << " vs " << extent.dtype();
+
+  annotations = Downcast<Map<String, ObjectRef>>(NormalizeAttributeObject(annotations));
 
   ObjectPtr<ForNode> node = make_object<ForNode>();
   node->loop_var = std::move(loop_var);
@@ -234,6 +254,8 @@ Allocate::Allocate(Var buffer_var, DataType dtype, Array<PrimExpr> extents, Prim
   ICHECK(condition.defined());
   ICHECK(condition.dtype().is_bool());
 
+  annotations = Downcast<Map<String, ObjectRef>>(NormalizeAttributeObject(annotations));
+
   ObjectPtr<AllocateNode> node = make_object<AllocateNode>();
   node->buffer_var = std::move(buffer_var);
   node->dtype = dtype;
@@ -287,6 +309,8 @@ AllocateConst::AllocateConst(Var buffer_var, DataType dtype, Array<PrimExpr> ext
   }
   ICHECK(body.defined());
   ICHECK(data_or_idx.defined());
+
+  annotations = Downcast<Map<String, ObjectRef>>(NormalizeAttributeObject(annotations));
 
   ObjectPtr<AllocateConstNode> node = make_object<AllocateConstNode>();
   node->buffer_var = std::move(buffer_var);
@@ -458,7 +482,8 @@ TVM_REGISTER_GLOBAL("tir.Evaluate").set_body_typed([](PrimExpr value, Span span)
 TVM_REGISTER_NODE_TYPE(EvaluateNode);
 
 // BufferStore
-BufferStore::BufferStore(Buffer buffer, PrimExpr value, Array<PrimExpr> indices, Span span) {
+BufferStore::BufferStore(Buffer buffer, PrimExpr value, Array<PrimExpr> indices,
+                         Optional<PrimExpr> predicate, Span span) {
   ICHECK_EQ(buffer->shape.size(), indices.size())
       << "Buffer " << buffer->name << " is " << buffer->shape.size()
       << "-dimensional, cannot be indexed with the " << indices.size()
@@ -476,28 +501,38 @@ BufferStore::BufferStore(Buffer buffer, PrimExpr value, Array<PrimExpr> indices,
   ICHECK(!(is_index_scalable && is_buffer_dtype_scalable))
       << "Index dtype and buffer dtype can't both be scalable.";
 
+  if (predicate.defined()) {
+    bool is_predicate_dtype_scalable = predicate.value().dtype().is_scalable_vector();
+    ICHECK_EQ(is_value_dtype_scalable, is_predicate_dtype_scalable)
+        << "Predicate mask dtype and value dtype must both be scalable.";
+  }
+
   if (is_index_scalable || is_buffer_dtype_scalable) {
     ICHECK(is_value_dtype_scalable) << "Can't store non-scalable data into scalable buffer";
   }
 
-  int index_lanes;
-  if (indices.empty()) {
-    index_lanes = 1;
-  } else if (is_index_scalable) {
-    index_lanes = indices.back().dtype().vscale_factor();
-  } else {
-    index_lanes = indices.back().dtype().lanes();
-  }
-
-  int buffer_lanes =
-      is_buffer_dtype_scalable ? buffer->dtype.vscale_factor() : buffer->dtype.lanes();
-  int value_dtype_lanes =
-      is_value_dtype_scalable ? value.dtype().vscale_factor() : value.dtype().lanes();
+  int index_lanes = indices.empty() ? 1 : indices.back().dtype().get_lanes_or_vscale_factor();
+  int buffer_lanes = buffer->dtype.get_lanes_or_vscale_factor();
+  int value_dtype_lanes = value.dtype().get_lanes_or_vscale_factor();
 
   ICHECK_EQ(index_lanes * buffer_lanes, value_dtype_lanes)
       << "Cannot store value with " << value_dtype_lanes << ", expected value with "
       << index_lanes * buffer_lanes << " (" << index_lanes << " index lanes * " << buffer_lanes
       << " buffer element lanes)";
+
+  if (predicate.defined()) {
+    DataType predicate_dtype = predicate.value().dtype();
+    int predicate_dtype_lanes = predicate_dtype.get_lanes_or_vscale_factor();
+    ICHECK_EQ(value_dtype_lanes, predicate_dtype_lanes)
+        << "Got a predicate mask with " << predicate_dtype_lanes
+        << " lanes, but trying to store a value with " << value_dtype_lanes
+        << " lanes. The number of lanes must match.";
+
+    DataType predicate_element_dtype = predicate_dtype.element_of();
+    ICHECK(predicate_element_dtype.is_bool())
+        << "Predicate mask elements must be boolean values, but got " << predicate_element_dtype
+        << ".";
+  }
 
   runtime::DataType buffer_dtype;
   if (is_index_scalable || is_buffer_dtype_scalable) {
@@ -517,14 +552,15 @@ BufferStore::BufferStore(Buffer buffer, PrimExpr value, Array<PrimExpr> indices,
   node->buffer = std::move(buffer);
   node->value = std::move(value);
   node->indices = std::move(indices);
+  node->predicate = std::move(predicate);
   node->span = std::move(span);
   data_ = std::move(node);
 }
 
 TVM_REGISTER_GLOBAL("tir.BufferStore")
-    .set_body_typed([](Buffer buffer, PrimExpr value, Array<PrimExpr> indices, Span span) {
-      return BufferStore(buffer, value, indices, span);
-    });
+    .set_body_typed([](Buffer buffer, PrimExpr value, Array<PrimExpr> indices,
+                       Optional<PrimExpr> predicate,
+                       Span span) { return BufferStore(buffer, value, indices, predicate, span); });
 
 TVM_REGISTER_NODE_TYPE(BufferStoreNode);
 
@@ -640,6 +676,8 @@ Block::Block(Array<IterVar> iter_vars, Array<BufferRegion> reads, Array<BufferRe
              String name_hint, Stmt body, Optional<Stmt> init, Array<Buffer> alloc_buffers,
              Array<MatchBufferRegion> match_buffers, Map<String, ObjectRef> annotations,
              Span span) {
+  annotations = Downcast<Map<String, ObjectRef>>(NormalizeAttributeObject(annotations));
+
   ObjectPtr<BlockNode> node = make_object<BlockNode>();
   node->iter_vars = std::move(iter_vars);
   node->reads = std::move(reads);

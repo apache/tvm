@@ -119,7 +119,10 @@ struct BaseCollectInfo {
     Function func(params, body, GetStructInfo(tuple_var));
     func = WithAttr(func, attr::kNumInput, Integer(0));
     func = CopyWithNewVars(func);
+    func = BundleModelParams(func);
     func = Downcast<Function>(CanonicalizeBindings(func));
+    func = Downcast<Function>(RemoveAllUnused(func));
+
     return func;
   }
 };
@@ -136,8 +139,7 @@ struct GlobalCollectInfo : public BaseCollectInfo {
   Array<tir::Var> GetPropagatedSymbolicVariables() const {
     auto vars_from_original_params =
         DefinableTIRVarsInStructInfo(TupleStructInfo(params.Map(GetStructInfo)));
-    auto vars_from_transformed_params =
-        [&]() -> std::unordered_set<tir::Var, ObjectPtrHash, ObjectPtrEqual> {
+    auto vars_from_transformed_params = [&]() -> std::unordered_set<tir::Var> {
       auto tir_vars =
           DefinableTIRVarsInStructInfo(TupleStructInfo(GetCompileTimeOutputs().Map(GetStructInfo)));
       return {tir_vars.begin(), tir_vars.end()};
@@ -179,15 +181,13 @@ struct LocalCollectInfo : public BaseCollectInfo {
     auto vars_from_any_param =
         DefinableTIRVarsInStructInfo(TupleStructInfo(orig_func->params.Map(GetStructInfo)));
 
-    auto vars_from_runtime_params =
-        [&]() -> std::unordered_set<tir::Var, ObjectPtrHash, ObjectPtrEqual> {
+    auto vars_from_runtime_params = [&]() -> std::unordered_set<tir::Var> {
       auto tir_var_vec =
           DefinableTIRVarsInStructInfo(TupleStructInfo(GetRuntimeInputs().Map(GetStructInfo)));
       return {tir_var_vec.begin(), tir_var_vec.end()};
     }();
 
-    auto vars_from_transformed_params =
-        [&]() -> std::unordered_set<tir::Var, ObjectPtrHash, ObjectPtrEqual> {
+    auto vars_from_transformed_params = [&]() -> std::unordered_set<tir::Var> {
       auto tir_var_vec =
           DefinableTIRVarsInStructInfo(TupleStructInfo(GetCompileTimeOutputs().Map(GetStructInfo)));
       return {tir_var_vec.begin(), tir_var_vec.end()};
@@ -287,7 +287,7 @@ struct LocalCollectInfo : public BaseCollectInfo {
 
     // Any binding that is computable at compile-time should be
     // suppressed at run-time.
-    std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> to_suppress;
+    std::unordered_set<Var> to_suppress;
     for (const auto& binding : computable_at_compile_time) {
       if (requires_compile_time_param.count(binding->var)) {
         to_suppress.insert(binding->var);
@@ -296,8 +296,7 @@ struct LocalCollectInfo : public BaseCollectInfo {
 
     class SuppressCompileTime : public ExprMutator {
      public:
-      explicit SuppressCompileTime(
-          const std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual>& to_suppress)
+      explicit SuppressCompileTime(const std::unordered_set<Var>& to_suppress)
           : to_suppress_(to_suppress) {}
 
       void VisitBinding(const Binding& binding) override {
@@ -317,7 +316,7 @@ struct LocalCollectInfo : public BaseCollectInfo {
       }
 
      private:
-      const std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual>& to_suppress_;
+      const std::unordered_set<Var>& to_suppress_;
     };
     Expr body = SuppressCompileTime(to_suppress)(orig_func->body);
     body = SeqExpr({DataflowBlock(bindings)}, body);
@@ -729,11 +728,12 @@ std::vector<std::pair<GlobalVar, Function>> GetTargetFunctions(
       target_functions.push_back({gvar.value(), func.value()});
     }
   } else {
-    // Get all the functions that have the `num_input` attribute.
+    // Get all the functions that have the `num_input` attribute, and
+    // are not already the result of `LiftTransformParams`.
     for (const auto& [gvar, func] : mod->functions) {
       if (func->IsInstance<FunctionNode>()) {
         auto opt_num_input = func->GetAttr<Integer>(attr::kNumInput);
-        if (opt_num_input) {
+        if (opt_num_input && !ends_with(gvar->name_hint, "transform_params")) {
           target_functions.emplace_back(gvar, Downcast<Function>(func));
         }
       }
@@ -752,7 +752,6 @@ namespace transform {
 
 Pass PartitionTransformParams(Variant<Bool, Array<String>> shared_transform) {
   auto pass_func = [=](IRModule mod, PassContext pc) {
-    IRModule updates;
     std::optional<GlobalCollectInfo> global_collect_info;
 
     CHECK(shared_transform.defined()) << "shared_transform is not defined";
@@ -769,32 +768,48 @@ Pass PartitionTransformParams(Variant<Bool, Array<String>> shared_transform) {
       global_collect_info = MakeGlobalLiftPlan(mod, functions);
     }
 
-    std::unordered_map<GlobalVar, LocalCollectInfo, ObjectPtrHash, ObjectPtrEqual>
-        local_collect_info;
+    std::unordered_map<GlobalVar, LocalCollectInfo> local_collect_info;
     for (const auto& [gvar, func] : target_functions) {
       auto info = LocalLiftableBindingCollector::Collect(
           func, global_collect_info.has_value() ? &global_collect_info.value() : nullptr);
       local_collect_info[gvar] = info;
     }
 
+    IRModule updated_runtime_functions;
+
     for (const auto& [gvar, info] : local_collect_info) {
       auto new_runtime_func = info.MakeRuntimeFunction();
-      updates->Add(gvar, new_runtime_func);
+      updated_runtime_functions->Add(gvar, new_runtime_func);
     }
 
+    Map<String, Function> lifted_transform_functions;
     if (global_collect_info.has_value()) {
       auto global_transform = global_collect_info.value().MakeCompileTimeFunc();
-      updates->Add(GlobalVar("transform_params"), global_transform);
+      lifted_transform_functions.Set("transform_params", global_transform);
     } else {
       for (const auto& [gvar, info] : local_collect_info) {
         // transform_params is emitted for each function if global lifting is not enabled
-        updates->Add(GlobalVar(gvar->name_hint + "_transform_params"),
-                     info.MakeCompileTimeFunction());
+        lifted_transform_functions.Set(gvar->name_hint + "_transform_params",
+                                       info.MakeCompileTimeFunction());
       }
     }
 
-    if (updates->functions.size()) {
-      mod.CopyOnWrite()->Update(updates);
+    if (updated_runtime_functions->functions.size() || lifted_transform_functions.size()) {
+      auto write_ptr = mod.CopyOnWrite();
+      write_ptr->Update(updated_runtime_functions);
+
+      for (auto [name, transform] : lifted_transform_functions) {
+        if (auto opt = write_ptr->global_var_map_.Get(name)) {
+          auto old_gvar = opt.value();
+          auto old_transform = Downcast<Function>(write_ptr->Lookup(old_gvar));
+          write_ptr->Remove(old_gvar);
+
+          transform = ComposeFunctions(old_transform, transform);
+        }
+        GlobalVar new_gvar(name);
+        UpdateStructInfo(new_gvar, GetStructInfo(transform));
+        write_ptr->Add(new_gvar, transform);
+      }
     }
 
     return mod;
@@ -814,7 +829,7 @@ Pass LiftTransformParams(Variant<Bool, Array<String>> shared_transform) {
   // 3. Post-proc: Expose the compile-time and run-time functions for
   // external use, replacing the end-to-end functions.
   auto post_proc_func = [=](IRModule mod, PassContext pc) {
-    std::unordered_map<GlobalVar, Function, ObjectPtrHash, ObjectPtrEqual> to_add;
+    std::unordered_map<GlobalVar, Function> to_add;
     for (const auto& [gvar, base_func] : mod->functions) {
       if (auto opt = base_func.as<Function>()) {
         auto func = opt.value();
@@ -822,7 +837,6 @@ Pass LiftTransformParams(Variant<Bool, Array<String>> shared_transform) {
         std::string func_name = gvar->name_hint;
         if (ends_with(func_name, "transform_params")) {
           func = WithAttr(func, tvm::attr::kGlobalSymbol, gvar->name_hint);
-          func = BundleModelParams(func);
           if (pc->GetConfig<Bool>(kLiftTransformConsumeParams).value_or(Bool(false))) {
             func = Downcast<Function>(ConsumeBundledParams()(func));
           }

@@ -214,6 +214,12 @@ void OpenCLWorkspace::GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) 
       *rv = static_cast<int64_t>(total_global_memory);
       return;
     }
+
+    case kAvailableGlobalMemory:
+      // Not currently implemented.  Based on
+      // https://stackoverflow.com/a/3568223, may not be implementable
+      // at all through OpenCL API.
+      break;
   }
 }
 

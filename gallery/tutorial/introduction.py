@@ -35,13 +35,11 @@ Contents
 --------
 
 #. :doc:`Introduction <introduction>`
-#. :doc:`Installing TVM <install>`
 #. :doc:`Compiling and Optimizing a Model with the Command Line Interface <tvmc_command_line_driver>`
 #. :doc:`Compiling and Optimizing a Model with the Python Interface <autotvm_relay_x86>`
 #. :doc:`Working with Operators Using Tensor Expression <tensor_expr_get_started>`
 #. :doc:`Optimizing Operators with Templates and AutoTVM <autotvm_matmul_x86>`
 #. :doc:`Optimizing Operators with Template-free AutoScheduler <auto_scheduler_matmul_x86>`
-#. :doc:`Cross Compilation and Remote Procedure Calls (RPC) <cross_compilation_and_rpc>`
 #. :doc:`Compiling Deep Learning Models for GPUs <relay_quick_start>`
 """
 

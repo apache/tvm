@@ -982,10 +982,25 @@ class StructInfoLCAFinder
   StructInfo VisitStructInfo_(const PrimStructInfoNode* lhs, const StructInfo& other) final {
     auto* rhs = other.as<PrimStructInfoNode>();
     if (rhs == nullptr) return ObjectStructInfo(lhs->span);
-    if (lhs->dtype == rhs->dtype) return GetRef<StructInfo>(lhs);
-    // PrimType will be treated as their boxed(object) values
-    // as a result we can unify to object.
-    return ObjectStructInfo(lhs->span);
+    if (lhs->dtype != rhs->dtype) {
+      // PrimType will be treated as their boxed(object) values
+      // as a result we can unify to object.
+      return ObjectStructInfo(lhs->span);
+    }
+    if (!lhs->value.defined() || !rhs->value.defined() ||
+        !analyzer_->CanProveEqual(lhs->value.value(), rhs->value.value())) {
+      // The two values are known to contain the same dtype, but may
+      // contain different values.
+      if (!lhs->value.defined()) {
+        // If the mismatch was due to extra information in the RHS,
+        // prefer to avoid constructing a new object.
+        return GetRef<StructInfo>(lhs);
+      } else {
+        return PrimStructInfo(lhs->dtype, lhs->span);
+      }
+    }
+
+    return GetRef<StructInfo>(lhs);
   }
 
   StructInfo VisitStructInfo_(const ShapeStructInfoNode* lhs, const StructInfo& other) final {
@@ -1163,19 +1178,29 @@ class TIRVarsDetector : public StructInfoVisitor {
   Array<tir::Var> GetTIRVars() const { return tir_vars_; }
 
  private:
-  void VisitShape(Array<PrimExpr> shape) {
-    for (const PrimExpr& value : shape) {
-      if (collection_type == VarType::Definition) {
-        if (auto opt = value.as<tir::Var>()) {
-          RecordTIRVar(opt.value());
-        }
-      } else if (collection_type == VarType::Usage) {
-        for (const tir::Var& tir_var : tir::UndefinedVars(value)) {
-          RecordTIRVar(tir_var);
-        }
-      } else {
-        LOG(FATAL) << "Invalid value for VarType enum, " << static_cast<int>(collection_type);
+  void VisitPrimExpr(PrimExpr expr) {
+    if (collection_type == VarType::Definition) {
+      if (auto opt = expr.as<tir::Var>()) {
+        RecordTIRVar(opt.value());
       }
+    } else if (collection_type == VarType::Usage) {
+      for (const tir::Var& tir_var : tir::UndefinedVars(expr)) {
+        RecordTIRVar(tir_var);
+      }
+    } else {
+      LOG(FATAL) << "Invalid value for VarType enum, " << static_cast<int>(collection_type);
+    }
+  }
+
+  void VisitShape(Array<PrimExpr> shape) {
+    for (const PrimExpr& expr : shape) {
+      VisitPrimExpr(expr);
+    }
+  }
+
+  void VisitStructInfo_(const PrimStructInfoNode* prim_sinfo) final {
+    if (prim_sinfo->value.defined()) {
+      VisitPrimExpr(prim_sinfo->value.value());
     }
   }
 
@@ -1220,6 +1245,51 @@ TVM_REGISTER_GLOBAL("relax.analysis.TIRVarsInStructInfo").set_body_typed(TIRVars
 
 TVM_REGISTER_GLOBAL("relax.analysis.DefinableTIRVarsInStructInfo")
     .set_body_typed(DefinableTIRVarsInStructInfo);
+
+class NonNegativeExpressionCollector : relax::StructInfoVisitor {
+ public:
+  static Array<PrimExpr> Collect(const StructInfo& sinfo) {
+    NonNegativeExpressionCollector visitor;
+    visitor(sinfo);
+    return visitor.expressions_;
+  }
+
+ private:
+  void VisitStructInfo_(const TensorStructInfoNode* op) override {
+    if (op->shape.defined()) {
+      VisitStructInfo(GetStructInfo(op->shape.value()));
+    }
+  }
+
+  void VisitStructInfo_(const PrimStructInfoNode* op) override {
+    // Unlike the expressions in TensorStructInfo or ShapeStructInfo,
+    // PrimStructInfo may contain negative values.  This override
+    // prevents calling VisitStructInfoExprField from the default
+    // StructInfoVisitor implementation.
+  }
+
+  void VisitStructInfoExprField(const PrimExpr& size_expr) override {
+    if (auto size_int = size_expr.as<IntImmNode>(); size_int && size_int->value >= 0) {
+      // Avoid cluttering the result with non-negative integers
+      return;
+    }
+
+    if (!dedup_lookup_.count(size_expr)) {
+      expressions_.push_back(size_expr);
+      dedup_lookup_.insert(size_expr);
+    }
+  }
+
+  Array<PrimExpr> expressions_;
+  std::unordered_set<PrimExpr, StructuralHash, StructuralEqual> dedup_lookup_;
+};
+
+Array<PrimExpr> CollectNonNegativeExpressions(const StructInfo& sinfo) {
+  return NonNegativeExpressionCollector::Collect(sinfo);
+}
+
+TVM_REGISTER_GLOBAL("relax.analysis.CollectNonNegativeExpressions")
+    .set_body_typed(CollectNonNegativeExpressions);
 
 class SymbolicVarCollector : public relax::ExprVisitor,
                              public relax::StructInfoVisitor,
@@ -1356,9 +1426,9 @@ class SymbolicVarCollector : public relax::ExprVisitor,
   /*! \brief The current visit mode. */
   VisitMode mode_ = VisitMode::kRequireDefinition;
   /*! \brief The set of defined symbolic vars. */
-  std::unordered_set<tir::Var, ObjectPtrHash, ObjectPtrEqual> defined_symbolic_var_;
+  std::unordered_set<tir::Var> defined_symbolic_var_;
   /*! \brief The set of free/undefined symbolic vars. */
-  std::unordered_set<tir::Var, ObjectPtrHash, ObjectPtrEqual> free_symbolic_var_;
+  std::unordered_set<tir::Var> free_symbolic_var_;
 };
 
 Array<tir::Var> DefinedSymbolicVars(const Expr& expr) {

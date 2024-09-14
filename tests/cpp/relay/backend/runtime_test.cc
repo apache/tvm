@@ -26,13 +26,13 @@ namespace tvm {
 namespace relay {
 
 TVM_REGISTER_RUNTIME("TestRuntime")
-    .add_attr_option<Bool>("my_bool")
+    .add_attr_option<runtime::Bool>("my_bool")
     .add_attr_option<Array<String>>("your_names")
     .add_attr_option<String>("another_option")
-    .add_attr_option<Bool>("defaulty_the_default_option", Bool(false));
+    .add_attr_option<runtime::Bool>("defaulty_the_default_option", runtime::Bool(false));
 
 TEST(Runtime, Create) {
-  Map<String, ObjectRef> attrs = {{"my_bool", Bool(true)}};
+  Map<String, ObjectRef> attrs = {{"my_bool", runtime::Bool(true)}};
   Runtime my_runtime = Runtime::Create("TestRuntime", attrs);
   ASSERT_EQ(my_runtime->GetAttr<Bool>("my_bool"), true);
   ASSERT_EQ(my_runtime->GetAttr<Array<String>>("your_names").defined(), false);
@@ -40,7 +40,7 @@ TEST(Runtime, Create) {
 }
 
 TEST(Runtime, UnknownAttr) {
-  Map<String, ObjectRef> attrs = {{"woofles", Bool(true)}};
+  Map<String, ObjectRef> attrs = {{"woofles", runtime::Bool(true)}};
   ASSERT_THROW(Runtime::Create("TestRuntime", attrs), Error);
 }
 
@@ -64,7 +64,7 @@ TEST(RuntimeRegistry, ListRuntimeOptions) {
   Map<String, String> attrs = Runtime::ListRuntimeOptions("TestRuntime");
 
   ICHECK_EQ(attrs.empty(), false);
-  ICHECK_EQ(attrs["my_bool"], "IntImm");
+  ICHECK_EQ(attrs["my_bool"], "runtime.BoxBool");
   ICHECK_EQ(attrs["your_names"], "Array");
   ICHECK_EQ(attrs["another_option"], "runtime.String");
 }

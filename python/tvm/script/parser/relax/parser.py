@@ -68,7 +68,14 @@ def bind_assign_value(
                     "Expected the same dtype for TIR vars "
                     f"but got {value.dtype} vs {prev_value.dtype}",
                 )
-            return prev_value
+            if not isinstance(value, type(prev_value)):
+                self.report_error(
+                    node,
+                    f"Expected the same IR type for TIR vars "
+                    f"but existing value {type(value)} is mismatched "
+                    f"to previous {type(prev_value)}",
+                )
+            value = prev_value
         IRBuilder.name(var_name, value)
         return value
 
@@ -108,7 +115,7 @@ def eval_struct_info(self: Parser, node: doc.expr, eval_str: bool = False) -> St
         struct_info = self.eval_expr(node)
         return _normalize_struct_info(struct_info, var_table)
     except Exception as err:
-        self.report_error(node, str(err))
+        self.report_error(node, err)
         raise err
 
 
@@ -144,18 +151,47 @@ def is_recursive(node: doc.FunctionDef) -> bool:
     return False
 
 
+def collect_symbolic_var_from_prelude(
+    self: Parser, node: doc.FunctionDef, symbolic_vars: Dict[str, tir.Var]
+) -> Dict[str, tir.Var]:
+    prelude_vars = {}
+    for stmt in node.body:
+        if isinstance(stmt, doc.Assign) and all(
+            isinstance(target, doc.Name) and target.id in symbolic_vars for target in stmt.targets
+        ):
+            values = self.eval_expr(stmt.value)
+
+            try:
+                iter(values)
+            except TypeError:
+                values = [values]
+
+            assert len(stmt.targets) == len(values)
+            for target, value in zip(stmt.targets, values):
+                name = target.id
+                prelude_vars[name] = value
+
+    return {**symbolic_vars, **prelude_vars}
+
+
 def collect_symbolic_var_from_params(self: Parser, node: doc.FunctionDef) -> None:
     # Collect symbolic vars from parameters
-    symbolic_vars = set()
+    symbolic_vars = {}
     for arg in node.args.args:
         if arg.annotation is None:
             self.report_error(arg, "Type annotation is required for function parameters.")
         param_sinfo_proxy = eval_struct_info_proxy(self, arg.annotation)
-        symbolic_vars.update(param_sinfo_proxy.get_symbolic_vars())
+
+        for var_name in param_sinfo_proxy.get_symbolic_vars():
+            if var_name not in symbolic_vars:
+                symbolic_vars[var_name] = tir.Var(var_name, "int64")
+
+    # Update symbolic vars based on
+    symbolic_vars = collect_symbolic_var_from_prelude(self, node, symbolic_vars)
 
     # Define symbolic vars to the current var_table frame
-    for var_name in symbolic_vars:
-        self.var_table.add(var_name, tir.Var(var_name, "int64"), allow_shadowing=False)
+    for var_name, var in symbolic_vars.items():
+        self.var_table.add(var_name, var, allow_shadowing=False)
 
 
 @dispatch.register(token="relax", type_name="FunctionDef")

@@ -81,6 +81,7 @@ def default_build_pipeline():
     def _pipeline(mod: tvm.ir.IRModule, _ctx: tvm.transform.PassContext) -> tvm.ir.IRModule:
         seq = tvm.transform.Sequential(
             [
+                backend.DispatchSampling(),
                 backend.DispatchSortScan(),
                 transform.LegalizeOps(),
                 transform.RewriteDataflowReshape(),
@@ -91,7 +92,7 @@ def default_build_pipeline():
                 transform.RewriteCUDAGraph(),
                 transform.LowerAllocTensor(),
                 transform.KillAfterLastUse(),
-                transform.VMBuiltinLower(),
+                transform.LowerRuntimeBuiltin(),
                 transform.ComputePrimValue(),
                 transform.VMShapeLower(),
                 transform.AttachGlobalSymbol(),

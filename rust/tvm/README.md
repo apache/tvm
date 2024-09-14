@@ -26,7 +26,7 @@ You can find the API Documentation [here](https://tvm.apache.org/docs/api/rust/t
 
 The goal of this crate is to provide bindings to both the TVM compiler and runtime
 APIs. First train your **Deep Learning** model using any major framework such as
-[PyTorch](https://pytorch.org/), [Apache MXNet](https://mxnet.apache.org/) or [TensorFlow](https://www.tensorflow.org/).
+[PyTorch](https://pytorch.org/) or [TensorFlow](https://www.tensorflow.org/).
 Then use **TVM** to build and deploy optimized model artifacts on a supported devices such as CPU, GPU, OpenCL and specialized accelerators.
 
 The Rust bindings are composed of a few crates:

@@ -47,8 +47,8 @@ std::vector<cudaIpcMemHandle_t> AllGatherIPCHandles(nccl::CCLThreadLocalContext*
   CUDA_CALL(cudaMalloc(&d_src, CUDA_IPC_HANDLE_SIZE));
   CUDA_CALL(cudaMalloc(&d_dst, CUDA_IPC_HANDLE_SIZE * ctx->worker->num_workers));
   CUDA_CALL(cudaMemcpy(d_src, &local_handle, CUDA_IPC_HANDLE_SIZE, cudaMemcpyHostToDevice));
-  NCCL_CALL(
-      ncclAllGather(d_src, d_dst, CUDA_IPC_HANDLE_SIZE, ncclChar, ctx->comm, /*stream=*/nullptr));
+  NCCL_CALL(ncclAllGather(d_src, d_dst, CUDA_IPC_HANDLE_SIZE, ncclChar, ctx->global_comm,
+                          /*stream=*/nullptr));
   std::vector<char> serial_handles(CUDA_IPC_HANDLE_SIZE * ctx->worker->num_workers, 0);
   CUDA_CALL(cudaMemcpy(serial_handles.data(), d_dst,
                        CUDA_IPC_HANDLE_SIZE * ctx->worker->num_workers, cudaMemcpyDefault));

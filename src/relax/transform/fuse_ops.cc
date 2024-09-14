@@ -33,6 +33,7 @@
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/struct_info.h>
 #include <tvm/relax/transform.h>
+#include <tvm/tir/analysis.h>
 #include <tvm/tir/expr_functor.h>
 #include <tvm/tir/function.h>
 
@@ -108,9 +109,16 @@ class GraphCreator : public ExprVisitor {
   static IndexedForwardGraph Create(IRModule mod, support::Arena* arena) {
     GraphCreator creator(mod, arena);
     for (const auto& it : mod->functions) {
-      // Only visit Relax function without attr kPrimitive.
+      // Only visit Relax functions with neither attr::kPrimitive nor
+      // attr::kCodegen.  Relax functions with `attr::kPrimitive` are
+      // previously fused functions, potentially from a previous use
+      // of `FuseOps` or `FuseOpsByPattern`.  Relax functions with
+      // `attr::kCodegen` are previously fused functions from
+      // `FuseOpsByPattern`, when the `annotate_codegen` option is
+      // true.
       const auto* func = it.second.as<FunctionNode>();
-      if (func == nullptr || func->HasNonzeroAttr(attr::kPrimitive)) {
+      if (func == nullptr || func->HasNonzeroAttr(attr::kPrimitive) ||
+          func->GetAttr<String>(attr::kCodegen).defined()) {
         continue;
       }
       creator(GetRef<Function>(func));
@@ -139,14 +147,13 @@ class GraphCreator : public ExprVisitor {
       SetNodePattern(param_node, OpPatternKind::kOpaque);
       AddToPostDFSOrder(param_node, param.get());
     }
-    ExprVisitor::VisitExpr_(func);
-  }
-
-  void VisitBindingBlock(const BindingBlock& block) final {
-    if (const auto* df_block = block.as<DataflowBlockNode>()) {
-      VisitBindingBlock_(df_block);
+    if (auto opt_num_input = func->GetAttr<Integer>(attr::kNumInput)) {
+      for (int i = static_cast<int>(opt_num_input.value()->value);
+           i < static_cast<int>(func->params.size()); ++i) {
+        input_params_.insert(func->params[i].get());
+      }
     }
-    // We skip ordinary binding blocks since they might be impure (with side effect or control flow)
+    ExprVisitor::VisitExpr_(func);
   }
 
   void VisitBinding_(const MatchCastNode* binding) final {
@@ -223,8 +230,15 @@ class GraphCreator : public ExprVisitor {
                          IndexedForwardGraph::Node* binding_var_node) {
     ICHECK_NOTNULL(binding_var_node);
 
-    SetNodePattern(binding_var_node, OpPatternKind::kInjective);
-    VisitLeaf(tuple_item->tuple, binding_var_node, OpPatternKind::kInjective);
+    auto pattern = OpPatternKind::kInjective;
+    if (input_params_.count(tuple_item->tuple.as<VarNode>())) {
+      // TupleGetItem for fetching the parameter from the packed param tuple is treated as opaque
+      // and won't be fused. This prevents the usage of packed param tuple changes the order of the
+      // fusion result as the function usually begins with fetching the parameters.
+      pattern = OpPatternKind::kOpaque;
+    }
+    SetNodePattern(binding_var_node, pattern);
+    VisitLeaf(tuple_item->tuple, binding_var_node, pattern);
   }
 
   void VisitUnsupportedNode(const Expr& expr, IndexedForwardGraph::Node* binding_var_node) {
@@ -262,16 +276,11 @@ class GraphCreator : public ExprVisitor {
     IndexedForwardGraph::Node* leaf_node = nullptr;
     if (it != graph_.node_map.end()) {
       leaf_node = it->second;
-    } else if (leaf_expr->IsInstance<ConstantNode>() || leaf_expr->IsInstance<ShapeExprNode>() ||
-               leaf_expr->IsInstance<PrimValueNode>() || leaf_expr->IsInstance<StringImmNode>() ||
-               leaf_expr->IsInstance<DataTypeImmNode>()) {
+    } else {
       leaf_node = CreateNode(leaf_expr.get());
       // Since we never fuse constants, the pattern of the constant is set to `kOpaque`.
       SetNodePattern(leaf_node, OpPatternKind::kOpaque);
       AddToPostDFSOrder(leaf_node, leaf_expr.get());
-    } else {
-      LOG(FATAL) << "The leaf Expr is supposed to be defined before, but got: " << leaf_expr
-                 << " used before definition.";
     }
     AddEdge(leaf_node, binding_var_node, pattern);
   }
@@ -358,6 +367,8 @@ class GraphCreator : public ExprVisitor {
   IndexedForwardGraph graph_;
   /*! \brief The graph nodes whose patterns are set */
   std::unordered_set<IndexedForwardGraph::Node*> initialized_nodes_;
+  /*! \brief The model params in the function input */
+  std::unordered_set<const VarNode*> input_params_;
 };
 
 /*!
@@ -600,8 +611,7 @@ class FunctionCreator : public ExprMutator {
       }
 
       StructInfo param_sinfo = GetStructInfo(expr);
-      // Exclude PrimValues from arg/params to make composite functions contain PrimValues.
-      if (!expr->IsInstance<PrimValueNode>()) {
+      if (!IsInlinableConstants(expr)) {
         Var param(std::move(name), GetStructInfo(expr));
         arguments_.push_back(expr);
         params_.push_back(param);
@@ -624,6 +634,21 @@ class FunctionCreator : public ExprMutator {
     }
     // Otherwise, recurse into this expression.
     return ExprMutator::VisitExpr(expr);
+  }
+
+  // Check if the expression is constant PrimValue or ShapeExpr or tuple of them that can be
+  // inlined in the composite functions and excluded from args/params.
+  bool IsInlinableConstants(const Expr& expr) {
+    if (const auto* tuple = expr.as<TupleNode>()) {
+      return std::all_of(tuple->fields.begin(), tuple->fields.end(),
+                         [this](const Expr& e) { return IsInlinableConstants(e); });
+    } else if (const auto* prim_value = expr.as<PrimValueNode>()) {
+      return tvm::tir::UndefinedVars(prim_value->value).empty();
+    } else if (const auto* shape_expr = expr.as<ShapeExprNode>()) {
+      return std::all_of(shape_expr->values.begin(), shape_expr->values.end(),
+                         [](const PrimExpr& e) { return tvm::tir::UndefinedVars(e).empty(); });
+    }
+    return false;
   }
 
  private:
@@ -701,8 +726,10 @@ class OperatorFusor : public ExprMutator {
     }
     for (const auto& gv : entry_functions) {
       const auto& func = mod_->Lookup(gv);
-      // Only visit Relax function without attr kPrimitive.
-      if (func->IsInstance<relax::FunctionNode>() && !func->HasNonzeroAttr(attr::kPrimitive)) {
+      // Only visit Relax functions with neither attr::kPrimitive nor
+      // attr::kCodegen.
+      if (func->IsInstance<relax::FunctionNode>() && !func->HasNonzeroAttr(attr::kPrimitive) &&
+          !func->GetAttr<String>(attr::kCodegen).defined()) {
         auto updated_func = Downcast<Function>(VisitExpr(func));
         builder_->UpdateFunction(gv, updated_func);
       }
@@ -737,14 +764,6 @@ class OperatorFusor : public ExprMutator {
       if (field->IsInstance<TupleStructInfoNode>()) return true;
     }
     return false;
-  }
-
-  BindingBlock VisitBindingBlock(const BindingBlock& block) final {
-    if (const auto* df_block = block.as<DataflowBlockNode>()) {
-      return VisitBindingBlock_(df_block);
-    }
-    // We skip ordinary binding blocks since they might be impure (with side effect or control flow)
-    return block;
   }
 
   BindingBlock VisitBindingBlock_(const DataflowBlockNode* block) final {
@@ -1046,7 +1065,7 @@ class PatternBasedPartitioner : ExprVisitor {
   using PatternCheckContext = transform::PatternCheckContext;
   using ExprVisitor::VisitExpr_;
   using FCheckMatch = runtime::TypedPackedFunc<bool(const transform::PatternCheckContext&)>;
-  using FAttrsGetter = runtime::TypedPackedFunc<Map<String, String>(const Map<String, Expr>&)>;
+  using FAttrsGetter = runtime::TypedPackedFunc<Map<String, ObjectRef>(const Map<String, Expr>&)>;
 
   static GroupMap Run(String pattern_name, DFPattern pattern,
                       Map<String, DFPattern> annotation_patterns, FCheckMatch check, Expr expr,
@@ -1073,7 +1092,11 @@ class PatternBasedPartitioner : ExprVisitor {
     current_block_use_def_ = {};
   }
 
-  void VisitVarDef(const Var& var) final { group_map_[var.get()] = arena_->make<Group>(); }
+  void VisitVarDef(const Var& var) final {
+    Group* g = arena_->make<Group>();
+    group_map_[var.get()] = g;
+    vars_in_group_[g].push_back(var);
+  }
 
   void VisitBinding_(const VarBindingNode* binding) final {
     bindings_.Set(binding->var, binding->value);
@@ -1097,7 +1120,13 @@ class PatternBasedPartitioner : ExprVisitor {
           auto g = GetGroup(match);
           if (g && g->FindRoot()->num_nodes > 1) {
             // This expression has already been matched to a previous pattern.
-            return;
+            // If the prior matched subgraph is subsumed by the new matched one,
+            // we can safely merge them, obtaining a maximized matched subgraph enventually.
+            // Otherwise, merging them will result in an incorrect subgraph,
+            // so we keep the prior subgraph and discard the current one by directly return.
+            auto vars_in_prior_matched_graph = vars_in_group_[g];
+            if (!GraphSubsumedInMatchedValues(vars_in_prior_matched_graph, matches_opt.value()))
+              return;
           }
         }
       }
@@ -1145,6 +1174,7 @@ class PatternBasedPartitioner : ExprVisitor {
     if (group_map_[e.get()] != to) {
       --group_map_[e.get()]->num_nodes;
       group_map_[e.get()]->parent = to;
+      vars_in_group_[to].push_back(e);
       ++to->num_nodes;
     }
   }
@@ -1181,6 +1211,21 @@ class PatternBasedPartitioner : ExprVisitor {
                                current_block_use_def_, value_to_bound_var_);
   }
 
+  // check if a previous matched subgraph is subsumed by the current matched result
+  bool GraphSubsumedInMatchedValues(const Array<Expr>& vars_in_graph,
+                                    const Map<DFPattern, Expr>& matched_result) {
+    std::set<Expr> matched_vars;
+    for (const auto& [pat, match] : matched_result) {
+      if ((pat->IsInstance<CallPatternNode>() || pat->IsInstance<TupleGetItemPatternNode>()))
+        matched_vars.insert(value_to_bound_var_[match]);
+    }
+
+    for (const auto var : vars_in_graph) {
+      if (matched_vars.find(var) == matched_vars.end()) return false;
+    }
+    return true;
+  }
+
   String pat_name_;
   DFPattern pat_;
   Map<String, DFPattern> annotation_pat_;
@@ -1191,6 +1236,7 @@ class PatternBasedPartitioner : ExprVisitor {
   Map<Expr, Var> value_to_bound_var_;
   Map<Var, Array<Var>> current_block_use_def_;
   GroupMap group_map_;
+  std::map<Group*, Array<Expr>> vars_in_group_;
 };
 
 /*!
@@ -1206,7 +1252,12 @@ class CompositeFunctionAnnotator : public ExprMutator {
   IRModule Run() {
     auto mod = builder_->GetContextIRModule();
     for (const auto& gv : mod->GetGlobalVars()) {
-      const auto& base_func = mod->Lookup(gv);
+      auto it = mod->functions.find(gv);
+      // Note that the fusion pass may have already removed the function.
+      if (it == mod->functions.end()) {
+        continue;
+      }
+      const auto& base_func = (*it).second;
       if (const auto* func = base_func.as<FunctionNode>()) {
         if (func->GetAttr<String>(attr::kComposite).defined() ||
             func->GetAttr<String>(attr::kCodegen).defined()) {
@@ -1383,7 +1434,7 @@ Pass FuseOps(int fuse_opt_level) {
       };
   return CreateModulePass(/*pass_function=*/pass_func,  //
                           /*opt_level=*/0,              //
-                          /*pass_name=*/"FuseOps",      //
+                          /*name=*/"FuseOps",           //
                           /*required=*/{});
 }
 
@@ -1396,9 +1447,9 @@ Pass FuseOpsByPattern(const tvm::Array<FusionPattern>& patterns, bool bind_const
         return relax::FuseOpsByPattern(patterns, m, bind_constants, annotate_codegen,
                                        entry_function_names);
       };
-  return CreateModulePass(/*pass_function=*/pass_func,       //
-                          /*opt_level=*/0,                   //
-                          /*pass_name=*/"FuseOpsByPattern",  //
+  return CreateModulePass(/*pass_function=*/pass_func,  //
+                          /*opt_level=*/0,              //
+                          /*name=*/"FuseOpsByPattern",  //
                           /*required=*/{});
 }
 

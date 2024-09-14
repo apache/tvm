@@ -1485,11 +1485,16 @@ class BufferAxisSeparatorMutator : private ReplaceBufferMutator {
     if (it != buffer_var_map_.end()) {
       const Buffer& new_source_buffer = it->second;
       Buffer new_target_buffer = match_buffer->buffer;
-      new_target_buffer.CopyOnWrite()->axis_separators = new_source_buffer->axis_separators;
-      if (new_target_buffer->shape.size() != new_source_buffer->shape.size()) {
-        LOG(WARNING)
-            << "Target buffer in match_buffer doesn't have the same dimensionality as its source "
-               "buffer. `axis_separators` for the target buffer might be incorrect.";
+
+      if (new_target_buffer->shape.size() == new_source_buffer->shape.size()) {
+        new_target_buffer.CopyOnWrite()->axis_separators = new_source_buffer->axis_separators;
+      } else {
+        new_target_buffer.CopyOnWrite()->axis_separators =
+            Array<IntImm>(new_source_buffer->axis_separators.size(), IntImm(DataType::Int(32), 0));
+        LOG(WARNING) << "Buffer view " << new_target_buffer
+                     << " has different dimensionality than backing buffer " << new_source_buffer
+                     << ".  The `axis_separators` for " << new_target_buffer << "."
+                     << "`axis_separators` for the view might be incorrect.";
       }
       buffer_var_map_[new_target_buffer->data.get()] = new_target_buffer;
       return MatchBufferRegion(new_target_buffer,

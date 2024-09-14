@@ -29,7 +29,7 @@ from tvm.runtime import ShapeTuple
 from tvm.script import tir as T
 
 reserved_nseq = 32
-maximum_total_seq_length = 1024
+maximum_total_seq_length = 2048
 prefill_chunk_size = 512
 page_size = 16
 num_layers = 4
@@ -249,6 +249,7 @@ def _copy_single_page(num_heads, page_size, head_dim, dtype, target):
         ):
             for t in T.thread_binding(tx, thread="threadIdx.x"):
                 with T.block("copy"):
+                    T.where(b * tx + t < copy_length * num_heads * head_dim)
                     vh = T.axis.spatial(
                         num_heads,
                         T.Cast("int32", (b * tx + t) // (copy_length * head_dim)),
@@ -354,7 +355,7 @@ def create_kv_cache(rope_mode):
                 support_sliding_window,
             ]
         ),
-        num_layers,
+        tvm.runtime.ShapeTuple([0, num_layers]),
         num_qo_heads,
         num_kv_heads,
         head_dim,
@@ -378,6 +379,9 @@ def create_kv_cache(rope_mode):
         fsplit_rotary,
         fcopy_single_page,
         fcopy_cache,
+        None,
+        None,
+        None,
     )
     return cache
 
@@ -621,8 +625,7 @@ def test_paged_attention_kv_cache_fork_sequence(kv_cache_and_rope_mode):
     apply_attention(kv_cache, rope_mode, [((5, 0, -1), 20)], cached_k, cached_v)
     apply_attention(kv_cache, rope_mode, [((6, 5, -1), 102)], cached_k, cached_v)
     apply_attention(kv_cache, rope_mode, [((7, 0, -1), 3)], cached_k, cached_v)
-    apply_attention(kv_cache, rope_mode, [((8, 5, -1), 71)], cached_k, cached_v)
-    apply_attention(kv_cache, rope_mode, [((9, 5, -1), 20)], cached_k, cached_v)
+    apply_attention(kv_cache, rope_mode, [((8, 5, -1), 71), ((9, 5, -1), 20)], cached_k, cached_v)
     # 0 <- 5 <- 6,8,9
     # 0 <- 7
     # 3 <- 4
@@ -637,15 +640,16 @@ def test_paged_attention_kv_cache_fork_sequence(kv_cache_and_rope_mode):
         apply_attention(kv_cache, rope_mode, batch, cached_k, cached_v)
 
     apply_attention(kv_cache, rope_mode, [((10, 1, 33), 11)], cached_k, cached_v)
-    apply_attention(kv_cache, rope_mode, [((11, 0, 60), 45)], cached_k, cached_v)
-    apply_attention(kv_cache, rope_mode, [((12, 0, 15), 14)], cached_k, cached_v)
-    apply_attention(kv_cache, rope_mode, [((13, 0, 16), 19)], cached_k, cached_v)
-    apply_attention(kv_cache, rope_mode, [((14, 0, 17), 19)], cached_k, cached_v)
-    apply_attention(kv_cache, rope_mode, [((15, 5, 60), 8)], cached_k, cached_v)
-    apply_attention(kv_cache, rope_mode, [((16, 5, 80), 10)], cached_k, cached_v)
-    apply_attention(kv_cache, rope_mode, [((17, 5, 75), 11)], cached_k, cached_v)
-    apply_attention(kv_cache, rope_mode, [((18, 5, 76), 45)], cached_k, cached_v)
-    apply_attention(kv_cache, rope_mode, [((19, 5, 77), 14)], cached_k, cached_v)
+    apply_attention(kv_cache, rope_mode, [((11, 0, 60), 45), ((12, 0, 15), 14)], cached_k, cached_v)
+    apply_attention(kv_cache, rope_mode, [((13, 0, 16), 19), ((14, 0, 17), 19)], cached_k, cached_v)
+    apply_attention(kv_cache, rope_mode, [((15, 5, 60), 8), ((16, 5, 80), 10)], cached_k, cached_v)
+    apply_attention(
+        kv_cache,
+        rope_mode,
+        [((17, 5, 75), 11), ((18, 5, 76), 45), ((19, 5, 77), 14)],
+        cached_k,
+        cached_v,
+    )
 
     operation_seq = [
         [(6, 1), (11, 1), (13, 1), (9, 1)],
@@ -661,6 +665,16 @@ def test_paged_attention_kv_cache_fork_sequence(kv_cache_and_rope_mode):
         cached_k.pop(i)
         cached_v.pop(i)
         verify_cached_kv(kv_cache, seq_ids=list(range(i)), expected_k=cached_k, expected_v=cached_v)
+
+    # Test fork after page recycle
+    apply_attention(kv_cache, rope_mode, [(0, 7), (1, 24)], cached_k, cached_v)
+    apply_attention(kv_cache, rope_mode, [((2, 1, -1), 10)], cached_k, cached_v)
+    apply_attention(kv_cache, rope_mode, [((3, 0, -1), 20)], cached_k, cached_v)
+    apply_attention(kv_cache, rope_mode, [(2, 1), (3, 1)], cached_k, cached_v)
+
+    apply_attention(kv_cache, rope_mode, [(10, 7), (11, 24)], cached_k, cached_v)
+    apply_attention(kv_cache, rope_mode, [((12, 11, -1), 200)], cached_k, cached_v)
+    apply_attention(kv_cache, rope_mode, [(10, 1), (12, 1)], cached_k, cached_v)
 
 
 @pytest.mark.skip(reason="Require FlashInfer enabled")

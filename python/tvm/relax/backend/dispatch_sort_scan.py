@@ -26,47 +26,21 @@ from tvm.contrib.thrust import can_use_thrust
 from tvm.ir import GlobalVar, Op
 from tvm.ir.module import IRModule
 from tvm.ir.transform import PassContext, module_pass
-from tvm.relax import PyExprMutator, expr_functor
+from tvm.relax import expr_functor
 from tvm.target import Target
 
-
-def is_gpu_target(target: Target) -> bool:
-    """Check if the target is a GPU target."""
-    return "gpu" in target.keys
+from .utils import BackendDispatcher
 
 
 @expr_functor.mutator
-class SortScanDispatcher(PyExprMutator):
-    """
-    Dispatcher to dispatch sort and scan.
-
-    """
+class SortScanDispatcher(BackendDispatcher):
+    """Dispatcher to dispatch sort and scan."""
 
     calls_to_update: Dict[GlobalVar, Target]
 
     def __init__(self, mod):
         super().__init__(mod)
         self.calls_to_update = {}
-
-    def _get_target(self, sinfo: relax.StructInfo) -> Target:
-        # Get target information from TensorStructInfo
-        if isinstance(sinfo, relax.TensorStructInfo):
-            vdevice = sinfo.vdevice
-            if vdevice is not None:
-                return vdevice.target
-        elif isinstance(sinfo, relax.TupleStructInfo):
-            for f in sinfo.fields:
-                tgt = self._get_target(f)
-                if tgt != Target.current():
-                    return tgt
-        # Return the target in current context
-        target = Target.current()
-        if target is None:
-            raise ValueError(
-                "Target not found. Please ensure that the target is annotated within the module, "
-                "or alternatively, execute this within a specified target context."
-            )
-        return target
 
     def apply_dlight_gpu_fallback(
         self,
@@ -107,7 +81,7 @@ class SortScanDispatcher(PyExprMutator):
                 if can_use_thrust(tgt, "tvm.contrib.thrust.sort"):
                     te_func = topi.cuda.sort_thrust
                     kwargs["workspace"] = self.allocate_workspace(call)
-                elif is_gpu_target(tgt):
+                elif self.is_gpu_target(tgt):
                     te_func = topi.cuda.sort
             return self.builder_.call_te(
                 te_func, call.args[0], call.attrs.axis, not call.attrs.descending, **kwargs
@@ -120,7 +94,7 @@ class SortScanDispatcher(PyExprMutator):
                 if can_use_thrust(tgt, "tvm.contrib.thrust.sort"):
                     te_func = topi.cuda.argsort_thrust
                     kwargs["workspace"] = self.allocate_workspace(call)
-                elif is_gpu_target(tgt):
+                elif self.is_gpu_target(tgt):
                     te_func = topi.cuda.argsort
             return self.builder_.call_te(
                 te_func,
@@ -137,7 +111,7 @@ class SortScanDispatcher(PyExprMutator):
             if can_use_thrust(tgt, "tvm.contrib.thrust.sort"):
                 te_func = topi.cuda.topk_thrust
                 kwargs["workspace"] = self.allocate_workspace(call)
-            elif is_gpu_target(tgt):
+            elif self.is_gpu_target(tgt):
                 te_func = topi.cuda.topk
             tir_call = self.builder_.call_te(
                 te_func,
@@ -155,10 +129,14 @@ class SortScanDispatcher(PyExprMutator):
             tgt = self._get_target(call.struct_info)
             axis = int(call.attrs.axis) if call.attrs.axis is not None else call.attrs.axis
             shape = call.struct_info.shape
+            # TODO(tvm-team): Support fully dynamic case with `shape=None`
+            if shape is None:
+                raise ValueError("non-symbolic shape is not supported for now")
             kwargs = {}
             if (
-                (axis == -1 or axis == len(shape) - 1)
-                and is_gpu_target(tgt)
+                shape is not None
+                and (axis == -1 or axis == len(shape) - 1)
+                and self.is_gpu_target(tgt)
                 and not can_use_thrust(tgt, "tvm.contrib.thrust.sum_scan")
                 and call.op.name == "relax.cumsum"
                 and call.attrs.exclusive == 0
@@ -198,11 +176,11 @@ class SortScanDispatcher(PyExprMutator):
 
             with tgt:
                 if call.op.name == "relax.cumsum":
-                    te_func = topi.cuda.cumsum if is_gpu_target(tgt) else topi.cumsum
+                    te_func = topi.cuda.cumsum if self.is_gpu_target(tgt) else topi.cumsum
                     if can_use_thrust(tgt, "tvm.contrib.thrust.sum_scan"):
                         kwargs["workspace"] = self.allocate_workspace(call)
                 elif call.op.name == "relax.cumprod":
-                    te_func = topi.cuda.cumprod if is_gpu_target(tgt) else topi.cumprod
+                    te_func = topi.cuda.cumprod if self.is_gpu_target(tgt) else topi.cumprod
                 else:
                     raise ValueError(f"Unsupported op: {call.op.name}")
                 tir_call = self.builder_.call_te(

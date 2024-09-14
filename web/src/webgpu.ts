@@ -37,27 +37,43 @@ export async function detectGPUDevice(): Promise<GPUDeviceDetectOutput | undefin
   if (typeof navigator !== "undefined" && navigator.gpu !== undefined) {
     const adapter = await navigator.gpu.requestAdapter({ "powerPreference": "high-performance" });
     if (adapter == null) {
-      throw Error("Cannot find adapter that matches the request");
+      throw Error(
+        "Unable to find a compatible GPU. This issue might be because your computer doesn't have a GPU, or your system settings are not configured properly. " +
+          "Please check if your device has a GPU properly set up and if your your browser supports WebGPU. " +
+          "You can also consult your browser's compatibility chart to see if it supports WebGPU. " +
+          "For more information about WebGPU support in your browser, visit https://webgpureport.org/"
+      );
     }
     const computeMB = (value: number) => {
       return Math.ceil(value / (1 << 20)) + "MB";
     }
 
     // more detailed error message
-    const requiredMaxBufferSize = 1 << 30;
+    let requiredMaxBufferSize = 1 << 30;  // 1GB
     if (requiredMaxBufferSize > adapter.limits.maxBufferSize) {
-      throw Error(
-        `Cannot initialize runtime because of requested maxBufferSize ` +
-        `exceeds limit. requested=${computeMB(requiredMaxBufferSize)}, ` +
-        `limit=${computeMB(adapter.limits.maxBufferSize)}. ` +
-        `This error may be caused by an older version of the browser (e.g. Chrome 112). ` +
-        `You can try to upgrade your browser to Chrome 113 or later.`
+      // If 1GB is too large, try 256MB (default size stated in WebGPU doc)
+      const backupRequiredMaxBufferSize = 1 << 28;  // 256MB
+      console.log(
+        `Requested maxBufferSize exceeds limit. \n` +
+        `requested=${computeMB(requiredMaxBufferSize)}, \n` +
+        `limit=${computeMB(adapter.limits.maxBufferSize)}. \n` +
+        `WARNING: Falling back to ${computeMB(backupRequiredMaxBufferSize)}...`
       );
+      requiredMaxBufferSize = backupRequiredMaxBufferSize;
+      if (backupRequiredMaxBufferSize > adapter.limits.maxBufferSize) {
+        // Fail if 256MB is still too big
+        throw Error(
+          `Cannot initialize runtime because of requested maxBufferSize ` +
+          `exceeds limit. requested=${computeMB(backupRequiredMaxBufferSize)}, ` +
+          `limit=${computeMB(adapter.limits.maxBufferSize)}. ` +
+          `Consider upgrading your browser.`
+        );
+      }
     }
 
     let requiredMaxStorageBufferBindingSize = 1 << 30;  // 1GB
     if (requiredMaxStorageBufferBindingSize > adapter.limits.maxStorageBufferBindingSize) {
-      // If 1GB is too large, try 128MB (default size for Android)
+      // If 1GB is too large, try 128MB (default size stated in WebGPU doc)
       const backupRequiredMaxStorageBufferBindingSize = 1 << 27;  // 128MB
       console.log(
         `Requested maxStorageBufferBindingSize exceeds limit. \n` +
@@ -100,7 +116,7 @@ export async function detectGPUDevice(): Promise<GPUDeviceDetectOutput | undefin
       requiredFeatures.push("shader-f16");
     }
 
-    const adapterInfo = await adapter.requestAdapterInfo();
+    const adapterInfo = adapter.info || await adapter.requestAdapterInfo();
     const device = await adapter.requestDevice({
       requiredLimits: {
         maxBufferSize: requiredMaxBufferSize,
@@ -118,6 +134,29 @@ export async function detectGPUDevice(): Promise<GPUDeviceDetectOutput | undefin
   } else {
     return undefined;
   }
+}
+
+/**
+ * Create GPU buffer with `createBuffer()` but with error catching; destroy if error caught.
+ * @param device The GPUDevice used to create a buffer.
+ * @param descriptor The GPUBufferDescriptor passed to `createBuffer()`.
+ * @returns The buffer created by `createBuffer()`.
+ *
+ * @note We treat any error occurred at `createBuffer()` fatal and expect the user to handle
+ *   `device.destroy()` with `device.lost.then()`.
+ */
+function tryCreateBuffer(device: GPUDevice, descriptor: GPUBufferDescriptor) {
+  device.pushErrorScope("out-of-memory");
+  device.pushErrorScope("validation");
+  device.pushErrorScope("internal");
+
+  const buffer = device.createBuffer(descriptor);
+
+  device.popErrorScope().then((error) => {if (error) {device.destroy(); console.error(error);}});
+  device.popErrorScope().then((error) => {if (error) {device.destroy(); console.error(error);}});
+  device.popErrorScope().then((error) => {if (error) {device.destroy(); console.error(error);}});
+
+  return buffer;
 }
 
 const canvasRenderWGSL = `
@@ -504,7 +543,7 @@ export class WebGPUContext {
 
     if (buffer == undefined) {
       // create uniform buffer
-      buffer = this.device.createBuffer({
+      buffer = tryCreateBuffer(this.device, {
         size: allocSize,
         usage: GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST,
       });
@@ -779,7 +818,7 @@ export class WebGPUContext {
     if (nbytes == 0) {
       nbytes = 1;
     }
-    const buffer = this.device.createBuffer({
+    const buffer = tryCreateBuffer(this.device, {
       size: nbytes,
       usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST,
     });
@@ -833,7 +872,7 @@ export class WebGPUContext {
     nbytes: number
   ): void {
     // Perhaps it would be more useful to resuse a staging buffer?
-    const gpuTemp = this.device.createBuffer({
+    const gpuTemp = tryCreateBuffer(this.device, {
       size: nbytes,
       usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST,
     });

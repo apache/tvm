@@ -590,6 +590,24 @@ def test_elu():
     verify_unary("Elu", [32, 32])
 
 
+def test_hardsigmoid():
+    verify_unary("HardSigmoid", [32, 32])
+    verify_unary("HardSigmoid", [32, 32], attrs={"alpha": 0.3, "beta": 0.4})
+    verify_unary("HardSigmoid", [1, 3, 20, 20], attrs={"alpha": 0.5, "beta": 0.6})
+
+
+def test_hardswish():
+    verify_unary("HardSwish", [32, 32])
+
+
+def test_sign():
+    verify_unary("Sign", [32, 32])
+
+
+def test_not():
+    verify_unary("Not", [32, 32], dtype=TensorProto.BOOL)
+
+
 def test_conv():
     def _verify_conv(input_shape, weight_shape, output_shape):
         bias_shape = [output_shape[1]]
@@ -1099,6 +1117,12 @@ def test_expand(dynamic):
     data = np.random.uniform(size=in_shape).astype(np.float32)
     ref_data = np.tile(data, 4)
     _test_expand("expand_with_dim_unchanged_test", data, shape, ref_data)
+
+    in_shape = (3, 1)
+    shape = (1, 3, 4)
+    data = np.random.uniform(size=in_shape).astype(np.float32)
+    ref_data = np.tile(data, (1, 1, 4))
+    _test_expand("expand_with_diff_dim", data, shape, ref_data)
 
 
 # TODO(jwfromm) Current approach to dynamic expand is technically not well formed. Reenable once fixed.
@@ -1882,6 +1906,49 @@ def test_multi_inputs_with_same_symbolic_shape():
         outputs=[helper.make_tensor_value_info("output", TensorProto.FLOAT, ["batch", 2])],
     )
     model = helper.make_model(graph, producer_name="test_multi_symbolic_shape_input")
+    check_correctness(model)
+
+
+def test_multi_ops_with_same_params():
+    reshape_node_1 = helper.make_node("Reshape", ["a", "x"], ["b"])
+    reshape_node_2 = helper.make_node("Reshape", ["b", "x"], ["c"])
+
+    a_shape = [16]
+    output_shape = [1, 16]
+
+    graph = helper.make_graph(
+        [reshape_node_1, reshape_node_2],
+        "test_multi_ops_with_same_params",
+        inputs=[
+            helper.make_tensor_value_info("a", TensorProto.FLOAT, a_shape),
+        ],
+        initializer=[
+            helper.make_tensor("x", TensorProto.INT64, [2], output_shape),
+        ],
+        outputs=[helper.make_tensor_value_info("c", TensorProto.FLOAT, output_shape)],
+    )
+    model = helper.make_model(graph, producer_name="test_multi_ops_with_same_params")
+    check_correctness(model)
+
+
+def test_params_names_start_with_onnx():
+    reshape_node = helper.make_node("Reshape", ["a", "onnx::x"], ["b"])
+
+    a_shape = [16]
+    output_shape = [1, 16]
+
+    graph = helper.make_graph(
+        [reshape_node],
+        "test_params_names_start_with_onnx",
+        inputs=[
+            helper.make_tensor_value_info("a", TensorProto.FLOAT, a_shape),
+        ],
+        initializer=[
+            helper.make_tensor("onnx::x", TensorProto.INT64, [2], output_shape),
+        ],
+        outputs=[helper.make_tensor_value_info("b", TensorProto.FLOAT, output_shape)],
+    )
+    model = helper.make_model(graph, producer_name="test_params_names_start_with_onnx")
     check_correctness(model)
 
 

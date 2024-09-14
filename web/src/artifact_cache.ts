@@ -47,24 +47,26 @@ export interface ArtifactCacheTemplate {
    * return the actual data object rather than the request. There are two options:
    * 1. "json": returns equivalent to `fetch(url).json()`
    * 2. "arraybuffer": returns equivalent to `fetch(url).arraybuffer()`
+   * @param signal: An optional AbortSignal allowing user to abort the fetching before its completion.
    * @return The data object (i.e. users do not need to call `.json()` or `.arraybuffer()`).
    *
    * @note This is an async function.
    */
-  fetchWithCache(url: string, storetype?: string): Promise<any>;
+  fetchWithCache(url: string, storetype?: string, signal?: AbortSignal): Promise<any>;
 
   /**
    * Fetch data from url and add into cache. If already exists in cache, should return instantly.
    *
    * @param url: The url to the data to be cached.
    * @param storetype: Only applies to `ArtifactIndexedDBCache`. Since `indexedDB` stores the actual
+   * @param signal: An optional AbortSignal to abort data retrival
    * data rather than a request, we specify `storagetype`. There are two options:
    * 1. "json": IndexedDB stores `fetch(url).json()`
    * 2. "arraybuffer": IndexedDB stores `fetch(url).arrayBuffer()`
    *
    * @note This is an async function.
    */
-  addToCache(url: string, storetype?: string): Promise<void>;
+  addToCache(url: string, storetype?: string, signal?: AbortSignal): Promise<void>;
 
   /**
    * check if cache has all keys in Cache
@@ -113,10 +115,11 @@ export class ArtifactCache implements ArtifactCacheTemplate {
    * fetch the corresponding url object in response or stored object format
    * @param url url
    * @param storetype the storage type for indexedDB
+   * @param signal an optional abort signal to abort fetching
    * @returns response in json, arraybuffer or pure response format
    */
-  async fetchWithCache(url: string, storetype?: string): Promise<any> {
-    await this.addToCache(url, storetype);
+  async fetchWithCache(url: string, storetype?: string, signal?: AbortSignal): Promise<any> {
+    await this.addToCache(url, storetype, signal);
     const result = await this.cache.match(new Request(url));
     if (result === undefined) {
       // Already called `addToCache()`, should expect the request in cache.
@@ -126,8 +129,8 @@ export class ArtifactCache implements ArtifactCacheTemplate {
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  async addToCache(url: string, storetype?: string) {
-    const request = new Request(url);
+  async addToCache(url: string, storetype?: string, signal?: AbortSignal) {
+    const request = new Request(url, signal ? { signal } : undefined);
     if (this.cache === undefined) {
       this.cache = await caches.open(this.scope);
     }
@@ -241,8 +244,8 @@ export class ArtifactIndexedDBCache implements ArtifactCacheTemplate {
     })
   }
 
-  async fetchWithCache(url: string, storetype?: string): Promise<any> {
-    await this.addToCache(url, storetype);
+  async fetchWithCache(url: string, storetype?: string, signal?: AbortSignal): Promise<any> {
+    await this.addToCache(url, storetype, signal);
     let result = await this.asyncGetHelper(url);
     if (result === null) {
       // previously null data in cache or somehow failed to add to cache, delete and retry
@@ -282,7 +285,7 @@ export class ArtifactIndexedDBCache implements ArtifactCacheTemplate {
     });
   }
 
-  async addToCache(url: string, storetype?: string): Promise<void> {
+  async addToCache(url: string, storetype?: string, signal?: AbortSignal): Promise<void> {
     await this.initDB(); // await the initDB process
     // If already cached, nothing to do
     const isInDB = await this.isUrlInDB(url);
@@ -290,7 +293,7 @@ export class ArtifactIndexedDBCache implements ArtifactCacheTemplate {
       return;
     }
     try {
-      const response = await fetch(url);
+      const response = await fetch(url, signal ? { signal } : undefined);
       if (!response.ok) {
         throw new Error('Network response was not ok');
       }

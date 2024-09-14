@@ -624,8 +624,8 @@ def elementwise_overcomputed_producer_reverse_inlined(
     for i, j in T.grid(128, 128):
         with T.block("B"):
             vi, vj = T.axis.remap("SS", [i, j])
-            if vi < 127 and vj < 127:
-                C[vi, vj] = A[vi, vj] * 2.0 + 1.0
+            T.where(i < 127 and j < 127)
+            C[vi, vj] = A[vi, vj] * 2.0 + 1.0
 
 
 @T.prim_func
@@ -652,8 +652,8 @@ def elementwise_overcomputed_producer_simplify_predicate_reverse_inlined(
         with T.block("B"):
             vi = T.axis.spatial(128, i // 128)
             vj = T.axis.spatial(128, i % 128)
-            if vi < 127 and vj < 127:
-                C[vi, vj] = A[vi, vj] * 2.0 + 1.0
+            T.where(i < 16255 and i % 128 < 127)
+            C[vi, vj] = A[vi, vj] * 2.0 + 1.0
 
 
 @T.prim_func
@@ -678,8 +678,8 @@ def elementwise_overcomputed_producer_injective_load_reverse_inlined(
     for i0, j0, i1, j1 in T.grid(8, 8, 16, 16):
         with T.block("B"):
             vi, vj, vm, vn = T.axis.remap("SSSS", [i0, j0, i1, j1])
-            if vi * 16 + vm < 127 and vj * 16 + vn < 127:
-                C[vm + vi * 16, vn + vj * 16] = A[vi * 16 + vm, vj * 16 + vn] * 2.0 + 1.0
+            T.where(i0 * 16 + i1 < 127 and j0 * 16 + j1 < 127)
+            C[vm + vi * 16, vn + vj * 16] = A[vi * 16 + vm, vj * 16 + vn] * 2.0 + 1.0
 
 
 @T.prim_func
@@ -740,8 +740,7 @@ def elementwise_predicate_producer_inlined(a: T.handle, c: T.handle) -> None:
             vi, vj = T.axis.remap("SS", [i, j])
             T.reads(A[vi, vj])
             T.writes(C[vi, vj])
-            if vi < 127:
-                C[vi, vj] = A[vi, vj] * T.float32(2) + T.float32(1)
+            C[vi, vj] = A[vi, vj] * T.float32(2) + T.float32(1)
 
 
 # fmt: off
@@ -1483,6 +1482,50 @@ def test_reverse_compute_inline_layer_norm():
 
     sch = tir.Schedule(before)
     sch.reverse_compute_inline(sch.get_block("compute"))
+    assert_structural_equal_ignore_global_symbol(after, sch.mod["main"])
+
+
+def test_reverse_compute_inline_slicing_then_cachewrite():
+    @T.prim_func
+    def before(
+        x: T.Buffer((1, 16, 7, 7), "float32"),
+        T_strided_slice_with_axes: T.Buffer((1, 12, 7, 7), "float32"),
+    ):
+        T_add = T.alloc_buffer((1, 16, 7, 7))
+        for ax0, ax1, ax2, ax3 in T.grid(1, 16, 7, 7):
+            with T.block("T_add"):
+                v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                T_add[v_ax0, v_ax1, v_ax2, v_ax3] = x[v_ax0, v_ax1, v_ax2, v_ax3] + T.float32(1)
+        for ax0, ax1, ax2, ax3 in T.grid(1, 12, 7, 7):
+            with T.block("T_strided_slice_with_axes"):
+                v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                T_strided_slice_with_axes[v_ax0, v_ax1, v_ax2, v_ax3] = T_add[
+                    v_ax0, v_ax1, v_ax2, v_ax3
+                ]
+
+    @T.prim_func
+    def after(
+        x: T.Buffer((1, 16, 7, 7), "float32"),
+        T_strided_slice_with_axes: T.Buffer((1, 12, 7, 7), "float32"),
+    ):
+        T_strided_slice_with_axes_global = T.alloc_buffer((1, 12, 7, 7))
+        for ax0, ax1, ax2, ax3 in T.grid(1, 16, 7, 7):
+            with T.block("T_add"):
+                v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                T.where(ax1 < 12)
+                T_strided_slice_with_axes_global[v_ax0, v_ax1, v_ax2, v_ax3] = x[
+                    v_ax0, v_ax1, v_ax2, v_ax3
+                ] + T.float32(1)
+        for ax0, ax1, ax2, ax3 in T.grid(1, 12, 7, 7):
+            with T.block("T_strided_slice_with_axes_global"):
+                v0, v1, v2, v3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                T_strided_slice_with_axes[v0, v1, v2, v3] = T_strided_slice_with_axes_global[
+                    v0, v1, v2, v3
+                ]
+
+    sch = tir.Schedule(before)
+    sch.reverse_compute_inline(sch.get_block("T_strided_slice_with_axes"))
+    sch.cache_write(sch.get_block("T_add"), 0, "global")
     assert_structural_equal_ignore_global_symbol(after, sch.mod["main"])
 
 

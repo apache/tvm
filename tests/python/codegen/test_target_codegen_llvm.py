@@ -1109,5 +1109,91 @@ def test_call_extern_returning_void():
     built = tvm.build(func, target="llvm")
 
 
+def test_invalid_volatile_masked_buffer_load():
+    @T.prim_func
+    def func(b: T.handle):
+        B = T.match_buffer(b, [4])
+        a = T.allocate([4], "float32", scope="global")
+        T.attr(a, "volatile_scope", 1)
+        A = T.Buffer([4], data=a)
+        B[0:4] = A.vload([T.Ramp(0, 1, 4)], predicate=T.Broadcast(T.bool(True), 4))
+
+    err_msg = "The masked load intrinsic does not support declaring load as volatile."
+    with pytest.raises(tvm.TVMError, match=err_msg):
+        with tvm.target.Target("llvm"):
+            tvm.build(func)
+
+
+def test_invalid_volatile_masked_buffer_store():
+    @T.prim_func
+    def func():
+        a = T.allocate([4], "float32", scope="global")
+        T.attr(a, "volatile_scope", 1)
+        A = T.Buffer([4], data=a)
+        A.vstore([T.Ramp(0, 1, 4)], T.Broadcast(0.0, 4), predicate=T.Broadcast(T.bool(True), 4))
+
+    err_msg = "The masked store intrinsic does not support declaring store as volatile."
+    with pytest.raises(tvm.TVMError, match=err_msg):
+        with tvm.target.Target("llvm"):
+            tvm.build(func)
+
+
+def test_int_parameter():
+    """Boolean may be passed to functions accepting int"""
+
+    @T.prim_func
+    def func(arg: T.int32) -> T.int32:
+        T.func_attr({"target": T.target("llvm")})
+        if arg > 0:
+            return 10
+        else:
+            return 20
+
+    built = tvm.build(func)
+    output = built(True)
+    assert output == 10
+
+    output = built(False)
+    assert output == 20
+
+
+def test_bool_parameter():
+    """Integers may be passed to functions accepting bool"""
+
+    @T.prim_func
+    def func(arg: T.bool) -> T.int32:
+        T.func_attr({"target": T.target("llvm")})
+        if arg:
+            return 10
+        else:
+            return 20
+
+    built = tvm.build(func)
+    output = built(1)
+    assert output == 10
+
+    output = built(2)
+    assert output == 10
+
+    output = built(0)
+    assert output == 20
+
+
+def test_bool_return_value():
+    """Booleans may be returned from a PrimFunc"""
+
+    @T.prim_func
+    def func(value: T.int32) -> T.bool:
+        T.func_attr({"target": T.target("llvm")})
+        return value < 10
+
+    built = tvm.build(func)
+    assert isinstance(built(0), bool)
+    assert built(0)
+
+    assert isinstance(built(15), bool)
+    assert not built(15)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

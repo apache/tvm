@@ -20,32 +20,39 @@
 import builtins
 import functools
 import inspect
-from typing import Any, Dict, List, Optional, Tuple, Union, Callable
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union, Type
 
 import tvm
 from tvm import DataType, relax
-from tvm.ir import PrimExpr, VDevice
-from ..ir import decl_function, lookup_vdevice
-from tvm.relax import Call, Expr, ExternFunc, TupleGetItem, ShapeExpr, Var, VarBinding, const
-from tvm.relax.utils import gen_call_tir_inputs
-
+from tvm.ir import PrimExpr, VDevice, IRModule
+from tvm.relax import (
+    Call,
+    Expr,
+    ExternFunc,
+    ShapeExpr,
+    TupleGetItem,
+    Var,
+    VarBinding,
+    const,
+)
+from tvm.relax.dpl import PatternMatchingRewriter
 
 ############################### Operators ###############################
 from tvm.relax.op import (
     abs,
     acos,
     acosh,
-    asin,
-    asinh,
-    atan,
-    atanh,
     add,
     arange,
     argmax,
     argmin,
     argsort,
+    asin,
+    asinh,
     assert_op,
     astype,
+    atan,
+    atanh,
     bitwise_and,
     bitwise_not,
     bitwise_or,
@@ -53,12 +60,13 @@ from tvm.relax.op import (
     broadcast_to,
     builtin,
     call_builtin_with_ctx,
+    call_dps_packed,
     call_inplace_packed,
     call_pure_packed,
     call_tir,
     call_tir_inplace,
     call_tir_with_grad,
-    call_dps_packed,
+    ccl,
     ceil,
     clip,
     collapse_sum_like,
@@ -68,10 +76,12 @@ from tvm.relax.op import (
     cosh,
     cumprod,
     cumsum,
-    einsum,
-    scatter_elements,
+    dequantize,
     divide,
+    dynamic_strided_slice,
+    einsum,
     equal,
+    erf,
     ewise_fma,
     exp,
     expand_dims,
@@ -108,8 +118,10 @@ from tvm.relax.op import (
     memory,
     min,
     minimum,
+    multinomial_from_uniform,
     multiply,
     negative,
+    nn,
     not_equal,
     null_value,
     ones,
@@ -119,75 +131,70 @@ from tvm.relax.op import (
     print,
     prod,
     quantize,
-    dequantize,
     repeat,
     reshape,
-    tensor_to_shape,
-    shape_to_tensor,
     round,
     rsqrt,
+    scatter_elements,
     shape_of,
-    std,
-    strided_slice,
-    dynamic_strided_slice,
-    sum,
-    take,
-    variance,
+    shape_to_tensor,
     sigmoid,
     sign,
     sin,
     sinh,
     sort,
     split,
+    sqrt,
     square,
     squeeze,
-    sqrt,
+    std,
+    strided_slice,
     subtract,
+    sum,
+    take,
     tan,
     tanh,
-    erf,
+    tensor_to_shape,
     tile,
     topk,
     tril,
     triu,
     unique,
+    variance,
     vm,
     where,
     wrap_param,
     zeros,
     zeros_like,
-    nn,
-    ccl,
 )
-
+from tvm.relax.op.builtin import stop_lift_params
+from tvm.relax.struct_info import StructInfo
+from tvm.relax.utils import args_converter, gen_call_tir_inputs
+from tvm.runtime import Object as tvm_Object
+from tvm.runtime import ObjectGeneric
 from tvm.runtime.ndarray import (
     cpu,
     cuda,
     device,
+    ext_dev,
     gpu,
-    rocm,
-    opencl,
+    hexagon,
     metal,
+    opencl,
+    rocm,
     vpi,
     vulkan,
-    ext_dev,
-    hexagon,
     webgpu,
 )
 
-from tvm.relax.op.builtin import stop_lift_params
-from tvm.relax.struct_info import StructInfo
-from tvm.relax.utils import args_converter
-from tvm.runtime import Object as tvm_Object
-from tvm.runtime import ObjectGeneric
-
+from ..ir import decl_function, lookup_vdevice
 from . import _ffi_api, frame
 
 ##################### Python Native Function Alias ######################
 
 py_print = builtins.print
-py_tuple = tuple
-py_str = str
+py_tuple = tuple  # pylint: disable=used-before-assignment
+py_str = str  # pylint: disable=used-before-assignment
 
 
 ################################ Device ################################
@@ -298,6 +305,48 @@ def func_ret_value(value: Expr) -> None:
         The function return value.
     """
     return _ffi_api.FuncRetValue(value)  # type: ignore[attr-defined] # pylint: disable=no-member
+
+
+def rewriter(rewriter_mod: Union[IRModule, Type]) -> PatternMatchingRewriter:
+    """Define a pattern-rewrite rule
+
+    The IRModule must have two publicly-exposed functions, `pattern`
+    and `replacement`, where `pattern` and `replacement` have the same
+    function signature.
+
+    .. code-block:: python
+
+        @R.rewriter
+        class RewriteAddIntoMultiply:
+            @R.function
+            def pattern(A: R.Tensor):
+                B = A + A
+                return B
+
+            @R.function
+            def replacement(A: R.Tensor):
+                B = A * 2
+                return B
+
+    Parameters
+    ----------
+    rewriter_mod: Union[IRModule, Type]
+
+        Either an IRModule that defines a rewrite pattern, or a
+        TVMScript class that can be parsed into an IRModule.
+
+    Returns
+    -------
+    rewriter: PatternMatchingRewriter
+
+        A rewriter object, which can be applied either to a Relax
+        function or to an entire IRModule.
+
+    """
+    if not isinstance(rewriter_mod, IRModule):
+        rewriter_mod = tvm.script.ir_module(rewriter_mod)
+
+    return PatternMatchingRewriter.from_module(rewriter_mod)
 
 
 ############################# BindingBlock ##############################
@@ -741,6 +790,7 @@ __all__ = [
     "metal",
     "min",
     "minimum",
+    "multinomial_from_uniform",
     "multiply",
     "negative",
     "not_equal",
@@ -758,6 +808,7 @@ __all__ = [
     "dequantize",
     "repeat",
     "reshape",
+    "rewriter",
     "tensor_to_shape",
     "shape_to_tensor",
     "rocm",

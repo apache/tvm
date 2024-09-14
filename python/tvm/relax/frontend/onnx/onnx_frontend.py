@@ -91,7 +91,7 @@ def get_constant(
     # Convert if possible
     if isinstance(var, relax.Var) and var.name_hint in params:
         # When converting a parameter to a constant, update references to it as well.
-        _, value = params.pop(var.name_hint)
+        _, value = params[var.name_hint]
         const_value = relax.const(value)
         graph_nodes[var.name_hint] = const_value
         return const_value
@@ -442,6 +442,11 @@ class Cast(OnnxOpConverter):
     @classmethod
     def _impl_v13(cls, bb, inputs, attr, params):
         to_type = get_type(attr["to"])
+        if isinstance(inputs[0], relax.ShapeExpr):
+            shape = inputs[0]
+            if all([isinstance(x, tir.IntImm) for x in shape]):
+                shape = [int(x) for x in shape]
+                return relax.const(shape, to_type)
         if isinstance(inputs[0], relax.Constant):
             output = inputs[0].data.numpy().astype(to_type)
             return relax.const(output, to_type)
@@ -1130,6 +1135,8 @@ class Expand(OnnxOpConverter):
             # For some reason, onnx allows target shapes to be smaller than input shapes.
             # We need to go correct it.
             data_shape = [dim.value for dim in data.struct_info.shape]
+            # Dimensions are right alignment.
+            data_shape = [1] * (len(new_shape) - len(data_shape)) + data_shape
             # Fix small target shapes.
             for i, s in enumerate(new_shape):
                 if i < len(data_shape) and s < data_shape[i]:
@@ -1913,6 +1920,52 @@ class Elu(OnnxOpConverter):
         ) + relax.op.nn.relu(inputs[0])
 
 
+class HardSigmoid(OnnxOpConverter):
+    """Converts an onnx HardSigmoid node into an equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr, params):
+        x = inputs[0]
+        dtype = x.struct_info.dtype
+        alpha = float(attr.get("alpha", 0.2))
+        alpha = relax.const(alpha, dtype=dtype)
+        beta = float(attr.get("beta", 0.5))
+        beta = relax.const(beta, dtype=dtype)
+        return relax.op.clip(relax.op.add(relax.op.multiply(alpha, x), beta), 0, 1)
+
+
+class HardSwish(OnnxOpConverter):
+    """Converts an onnx HardSwish node into an equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v14(cls, bb, inputs, attr, params):
+        x = inputs[0]
+        dtype = x.struct_info.dtype
+        return relax.op.multiply(
+            x,
+            relax.op.divide(
+                relax.op.clip(relax.op.add(x, relax.const(3, dtype)), 0, 6),
+                relax.expr.const(6, dtype),
+            ),
+        )
+
+
+class Sign(OnnxOpConverter):
+    """Converts an onnx Sign node into an equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v9(cls, bb, inputs, attr, params):
+        return relax.op.sign(inputs[0])
+
+
+class Not(OnnxOpConverter):
+    """Converts an onnx Not node into an equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr, params):
+        return relax.op.logical_not(inputs[0])
+
+
 def _get_convert_map():
     return {
         "MatMul": MatMul,
@@ -1993,6 +2046,10 @@ def _get_convert_map():
         "Reciprocal": Reciprocal,
         "OneHot": OneHot,
         "Elu": Elu,
+        "HardSigmoid": HardSigmoid,
+        "HardSwish": HardSwish,
+        "Sign": Sign,
+        "Not": Not,
     }
 
 
@@ -2095,7 +2152,7 @@ class ONNXGraphImporter:
                 init_var = self._new_var(var_name, shape=array.shape, dtype=array.dtype)
                 self._nodes[init_tensor.name] = init_var
                 # We need to keep track of both the real value and variable for this variable.
-                self._params[init_tensor.name] = (init_var, array)
+                self._params[var_name] = (init_var, array)
             # Otherwise we can use the weight as a constant.
             else:
                 self._nodes[init_tensor.name] = relax.const(array)
@@ -2210,6 +2267,7 @@ class ONNXGraphImporter:
                 "Concat",
                 "Equal",
                 "Where",
+                "Cast",
             ]
             for i, inp in enumerate(inputs):
                 if (

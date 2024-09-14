@@ -2,7 +2,7 @@
   "name": "tvmjs",
   "displayName": "TVM Wasm JS runtime",
   "license": "Apache-2.0",
-  "version": "0.17.0-dev0",
+  "version": "0.18.0-dev0",
   "files": [
     "lib"
   ],
@@ -25,7 +25,7 @@
     "@types/node": "^20.4.5",
     "@typescript-eslint/eslint-plugin": "^5.59.6",
     "@typescript-eslint/parser": "^5.59.6",
-    "@webgpu/types": "^0.1.40",
+    "@webgpu/types": "^0.1.42",
     "eslint": "^8.41.0",
     "jest": "^26.0.1",
     "rollup": "^2.56.2",

@@ -17,7 +17,7 @@
 """The core infra for nn.Module, which includes the following pieces:
 - Tensor, a wrapper on top of relax.Expr whose struct_info is a TensorStructInfo,
   providing more convenient access shape and dtype information.
-  Tensor is always symbolc and not bound to any concrete values.
+  Tensor is always symbolic and not bound to any concrete values.
 - Parameter, a special tensor which could be bound or not bound to concrete values.
 - Module, a container of nn.Parameters and sub nn.Modules.
 - Effect, a non-user-facing class that encloses potential side effects, for example, IO,
@@ -549,16 +549,16 @@ class ModuleList(Module):
     def __iter__(self):
         return iter(self.modules)
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx: int) -> Module:
         return self.modules[idx]
 
-    def __setitem__(self, idx, module):
+    def __setitem__(self, idx: int, module: Module) -> None:
         self.modules[idx] = module
 
     def __len__(self):
         return len(self.modules)
 
-    def append(self, module):
+    def append(self, module: Module):
         """Add a module to the end of the ModuleList"""
         self.modules.append(module)
 
@@ -607,16 +607,19 @@ def wrap_nested(expr: rx.Expr, name: str) -> Union[Tensor, Sequence[Tensor]]:
 
 def _attribute_finder(root: Module, prefix: str, condition_yield: Callable[[Any], bool]):
     """Find attributes that satisfy the condition recursively"""
+    if isinstance(root, ModuleList):
+        for i, subitem in enumerate(root):
+            yield from _attribute_finder(subitem, prefix + f"{i}.", condition_yield)
+        return
     for name, item in root.__dict__.items():
         if condition_yield(item):
             yield prefix + name, item
         elif isinstance(item, ModuleList):
-            for i, subitem in enumerate(item):
-                yield from _attribute_finder(
-                    subitem,
-                    prefix + name + f".{i}.",
-                    condition_yield,
-                )
+            yield from _attribute_finder(
+                item,
+                prefix + name + ".",
+                condition_yield,
+            )
         elif isinstance(item, Module):
             yield from _attribute_finder(
                 item,

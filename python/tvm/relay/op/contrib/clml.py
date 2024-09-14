@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=invalid-name, unused-argument, pointless-exception-statement
+# pylint: disable=invalid-name, unused-argument, pointless-exception-statement.
 """CLML Library supported operators."""
 import json
 from string import Template
@@ -166,7 +166,7 @@ def partition_for_clml(mod, params=None, **opts):
             transform.FoldConstant(),
             OptimizeBatchnormPass(),
             transform.MergeComposite(clml_pattern_table()),
-            transform.AnnotateTarget("clml", False),
+            transform.AnnotateTarget("clml"),
             transform.MergeCompilerRegions(),
             transform.PartitionGraph(),
         ]
@@ -518,7 +518,7 @@ def clml_pattern_table():
             return False
         if not (call.op.name in ["nn.bias_add", "add"] and call.args[0].op.name == "nn.dense"):
             return False
-        return check_default_op(call)
+        return True
 
     def check_dense2d_op(extract):
         call = extract
@@ -564,7 +564,7 @@ def clml_pattern_table():
         ("clml.dense2d", dense2d_pattern(), check_dense2d_op),
         ("clml.pad", pad_pattern(), check_pad_op),
         ("clml.concat", concat_pattern(), check_concat_op),
-        ("clml.batch_norm", batch_norm_pattern(), check_default_op),
+        ("clml.batch_norm", batch_norm_pattern()),
         ("clml.add", is_op("add")(wildcard(), wildcard()), check_binary_op),
         ("clml.subtract", is_op("subtract")(wildcard(), wildcard()), check_binary_op),
         ("clml.multiply", is_op("multiply")(wildcard(), wildcard()), check_binary_op),

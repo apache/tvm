@@ -70,6 +70,8 @@ tvm::relax::Var Arg(const String& name, const tvm::relax::StructInfo& struct_inf
   FunctionFrame frame = FindFunctionFrame("R.Arg");
   tvm::relax::Var var(name, struct_info);
   frame->params.push_back(var);
+  frame->block_builder->AddDefinitionToScope(var);
+
   return var;
 }
 

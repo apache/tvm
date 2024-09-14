@@ -130,7 +130,7 @@ class SSAVerifier final : public StmtExprVisitor {
   // deep equal
   ExprDeepEqual deep_equal_;
   // def map, for let, maps to the bind value, for others maps to self.
-  std::unordered_map<Var, PrimExpr, ObjectPtrHash, ObjectPtrEqual> def_map_;
+  std::unordered_map<Var, PrimExpr> def_map_;
 };
 
 bool VerifySSA(const PrimFunc& func) {

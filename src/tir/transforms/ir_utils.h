@@ -155,7 +155,7 @@ inline DataType APIType(DataType t) {
   ICHECK(!t.is_void()) << "Cannot pass void type through packed API.";
   if (t.is_handle()) return t;
   ICHECK_EQ(t.lanes(), 1) << "Cannot pass vector type through packed API.";
-  if (t.is_uint() || t.is_int()) return DataType::Int(64);
+  if (t.is_bool() || t.is_uint() || t.is_int()) return DataType::Int(64);
   ICHECK(t.is_float());
   return DataType::Float(64);
 }
@@ -342,8 +342,7 @@ using StorageAlignAnnotation = Array<StorageAlignTuple>;
  * \param body The stmt to collect.
  * \return The result dict from buffer var to storage align annotations.
  */
-std::unordered_map<Var, StorageAlignAnnotation, ObjectPtrHash, ObjectPtrEqual>
-CollectStorageAlignAnnotation(const Stmt& body);
+std::unordered_map<Var, StorageAlignAnnotation> CollectStorageAlignAnnotation(const Stmt& body);
 /*!
  * \brief Split string separated by "," to get wmma fragment dimension size.
  * \param  shape_str The string to split.

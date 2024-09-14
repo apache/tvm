@@ -241,7 +241,7 @@ def tril(x: Expr, k: Union[int, PrimExpr, Expr] = 0) -> Expr:
     return _ffi_api.tril(x, k)  # type: ignore
 
 
-def triu(x: Expr, k: [int, PrimExpr, Expr] = 0) -> Expr:
+def triu(x: Expr, k: Union[int, PrimExpr, Expr] = 0) -> Expr:
     """Return the upper triangular part of a matrix or a batch of matrices.
 
     Parameters

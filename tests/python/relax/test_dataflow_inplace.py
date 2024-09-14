@@ -172,8 +172,8 @@ def test_alias_call_tir():
             T.func_attr({"global_symbol": "tir_id"})
             m = T.int32()
             n = T.int32()
-            A = T.match_buffer(x, (m, n))
-            B = T.match_buffer(y, (m, n))
+            A = T.match_buffer(x, (m, n), "int32")
+            B = T.match_buffer(y, (m, n), "int32")
 
             for i, j in T.grid(m, n):
                 with T.block("id"):
@@ -185,9 +185,9 @@ def test_alias_call_tir():
             T.func_attr({"global_symbol": "tir_id"})
             m = T.int32()
             n = T.int32()
-            A = T.match_buffer(x, (m, n))
-            B = T.match_buffer(y, (m, n))
-            C = T.match_buffer(z, (m, n))
+            A = T.match_buffer(x, (m, n), "int32")
+            B = T.match_buffer(y, (m, n), "int32")
+            C = T.match_buffer(z, (m, n), "int32")
 
             for i, j in T.grid(m, n):
                 with T.block("id"):

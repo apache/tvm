@@ -53,7 +53,6 @@ def placeholder(shape, dtype=None, name="placeholder"):
     tensor: Tensor
         The created tensor
     """
-    shape = (shape,) if isinstance(shape, tvm.tir.PrimExpr) else shape
     dtype = "float32" if dtype is None else dtype
     return _ffi_api.Placeholder(shape, dtype, name)
 
@@ -460,7 +459,7 @@ def var(name="tindex", dtype="int32", span=None):
 
     Returns
     -------
-    var : Var
+    var : tir.Var
         The result symbolic variable.
     """
     return tvm.tir.Var(name, dtype, span)

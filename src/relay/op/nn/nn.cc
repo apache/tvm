@@ -193,6 +193,7 @@ RELAY_REGISTER_OP("nn.matmul")
     .add_argument("tensor_a", "nD Tensor", "The first input Tensor.")
     .add_argument("tensor_b", "2D Tensor", "The second input Tensor.")
     .set_support_level(1)
+    .set_attr<FInferCorrectLayout>("FInferCorrectLayout", DenseInferCorrectLayout)
     .add_type_rel("Matmul", MatmulRel<MatmulAttrs>)
     .set_attr<TOpPattern>("TOpPattern", kOutEWiseFusable);
 

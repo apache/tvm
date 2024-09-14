@@ -183,7 +183,7 @@ def verify_model(
     if validate_structural_equal:
         with tvm.testing.enable_span_filling():
             mod_with_span, _ = relay.frontend.from_pytorch(trace, input_shapes, custom_convert_map)
-        assert tvm.ir.structural_equal(mod, mod_with_span, map_free_vars=True)
+        tvm.ir.assert_structural_equal(mod, mod_with_span, map_free_vars=True)
 
     for arg in mod["main"].params[: len(input_names)]:
         assert arg.name_hint in input_names
@@ -254,7 +254,7 @@ def verify_model_with_input(
     if validate_structural_equal:
         with tvm.testing.enable_span_filling():
             mod_with_span, _ = relay.frontend.from_pytorch(trace, input_shapes, custom_convert_map)
-        assert tvm.ir.structural_equal(mod, mod_with_span, map_free_vars=True)
+        tvm.ir.assert_structural_equal(mod, mod_with_span, map_free_vars=True)
 
     with tvm.transform.PassContext(opt_level=3):
         for target in ["llvm", "cuda"]:
@@ -2775,7 +2775,7 @@ def verify_model_vm(input_model, ishapes, idtype=None, idata=None, targets=None)
         mod, params = relay.frontend.from_pytorch(input_model, input_shapes)
     with tvm.testing.enable_span_filling():
         mod_with_span, _ = relay.frontend.from_pytorch(input_model, input_shapes)
-    assert tvm.ir.structural_equal(mod, mod_with_span, map_free_vars=True)
+    tvm.ir.assert_structural_equal(mod, mod_with_span, map_free_vars=True)
 
     for tgt in targets:
         if not tvm.testing.device_enabled(tgt):
@@ -5658,6 +5658,30 @@ def test_parameterlist():
     verify_model(ParamListModel().float().eval(), input_data=input_data)
 
 
+@tvm.testing.uses_gpu
+def test_forward_tile():
+    """test_forward_repeat"""
+    torch.set_grad_enabled(False)
+    input_shape = [1, 3]
+
+    class Tile1(Module):
+        def forward(self, *args):
+            return args[0].tile(1, 1)
+
+    class Tile2(Module):
+        def forward(self, *args):
+            return args[0].tile(4, 2)
+
+    class Tile3(Module):
+        def forward(self, *args):
+            return args[0].tile(4, 2, 1)
+
+    input_data = torch.rand(input_shape).float()
+    verify_model(Tile1().float().eval(), input_data=input_data)
+    verify_model(Tile2().float().eval(), input_data=input_data)
+    verify_model(Tile3().float().eval(), input_data=input_data)
+
+
 class TestSetSpan:
     """test structural equal between translated / hand-crafted relay IR with span tagged."""
 
@@ -5666,7 +5690,7 @@ class TestSetSpan:
             with_span = res_fptr()
         with tvm.testing.disable_span_filling():
             without_span = res_fptr()
-        assert tvm.ir.structural_equal(with_span, without_span)
+        tvm.ir.assert_structural_equal(with_span, without_span)
         _verify_structural_equal_with_span(with_span, golden_fptr())
 
     def test_conv2d_bias_add(self):

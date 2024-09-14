@@ -17,3 +17,4 @@
 """Relax memory primitives."""
 
 from .memory import alloc_storage, alloc_tensor, kill_storage, kill_tensor
+from .view import view, ensure_zero_offset
