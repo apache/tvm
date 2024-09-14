@@ -920,6 +920,12 @@ class TorchFXImporter:
         axis = args[1] if len(node.args) > 1 else node.kwargs.get("dim", 0)
         return self.block_builder.emit(relax.op.concat(args[0], axis=axis))
 
+    def _chunk(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        chunks = node.args[1]
+        dim = node.args[2] if len(node.args) > 2 else node.kwargs.get("dim", 0)
+        return self.block_builder.emit(relax.op.split(x, chunks, dim))
+
     def _cumsum(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
 
@@ -1200,18 +1206,6 @@ class TorchFXImporter:
         )
 
     ########## Manipulation ##########
-
-    def _chunk(self, node: fx.Node) -> relax.Var:
-        x = self.env[node.args[0]]
-        chunks = node.args[1]
-
-        if "dim" in node.kwargs:
-            dim = node.kwargs["dim"]
-        elif len(node.args) > 2:
-            dim = node.args[2]
-        else:
-            dim = 0
-        return self.block_builder.emit(relax.op.split(x, chunks, dim))
 
     def _index_select(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
@@ -1597,6 +1591,7 @@ class TorchFXImporter:
             "argmin": self._argmax_argmin(relax.op.argmin),
             # tensor manipulation
             "cat": self._cat,
+            "chunk": self._chunk,
             "concat": self._cat,
             "contiguous": lambda node: self.env[node.args[0]],
             "cumsum": self._cumsum,
@@ -1616,7 +1611,6 @@ class TorchFXImporter:
             "view": self._reshape,
             # tensor creation
             "arange": self._arange,
-            "chunk": self._chunk,
             "empty": self._empty,
             "fill_": self._inplace_fill,
             "full": self._full,
