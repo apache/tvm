@@ -977,6 +977,14 @@ class TorchFXImporter:
         dims = args[1] if isinstance(args[1], (torch.Size, tuple, list)) else args[1:]
         return self.block_builder.emit(relax.op.permute_dims(x, dims))
 
+    def _repeat(self, node: fx.Node) -> relax.Var:
+        import torch  # type: ignore
+
+        args = self.retrieve_args(node)
+        x = args[0]
+        dims = args[1] if isinstance(args[1], (torch.Size, tuple, list)) else args[1:]
+        return self.block_builder.emit(relax.op.tile(x, dims))
+
     ########## DataType ##########
 
     def _float(self, node: fx.Node) -> relax.Var:
@@ -1195,14 +1203,6 @@ class TorchFXImporter:
         else:
             dim = None
         return self.block_builder.emit(relax.op.squeeze(x, dim))
-
-    def _repeat(self, node: fx.Node) -> relax.Var:
-        import torch  # type: ignore
-
-        args = self.retrieve_args(node)
-        if isinstance(args[1], (torch.Size, tuple, list)):
-            return self.block_builder.emit(relax.op.tile(args[0], tuple(args[1])))
-        return self.block_builder.emit(relax.op.tile(args[0], args[1:]))
 
     def _tile(self, node: fx.Node) -> relax.Var:
         import torch  # type: ignore
