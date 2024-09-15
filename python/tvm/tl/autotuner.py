@@ -16,10 +16,12 @@
 # under the License.
 """The auto-tune module for tl programs."""
 
+import tvm
 from tvm import tl
 import inspect
 from functools import wraps
-from typing import Any, Callable, List
+from typing import Any, Callable, List, Literal
+from tqdm import tqdm
 
 class Autotuner:
     def __init__(
@@ -45,7 +47,8 @@ class Autotuner:
         #     print(f"{name} = {value}")
         best_latency = 1e8
         best_config = None
-        for config in self.configs:
+        for config in tqdm(self.configs, desc="Auto-tuning progress"):
+            tqdm.write(f"Current config: {config}")
             new_args = []
             for name, value in bound_args.arguments.items():
                 if name not in self.keys:
@@ -62,6 +65,7 @@ class Autotuner:
             if latency < best_latency:
                 best_latency = latency
                 best_config = config
+            tqdm.write(f"Latency: {latency}")
         return best_latency, best_config, ref_latency
 
     def __call__(self, *args: Any, **kwds: Any) -> Any:
@@ -80,7 +84,9 @@ def jit(
     supply_type: tl.TensorSupplyType = tl.TensorSupplyType.Normal, 
     ref_prog: Callable = None,
     rtol: float = 1e-5,
-    atol: float = 1e-5
+    atol: float = 1e-5,
+    skip_check: bool = False, 
+    profiler: Literal['torch', 'tvm']='torch'
     ) -> Callable:
     
     def wrapper(fn: Callable):
@@ -88,10 +94,17 @@ def jit(
         @wraps(fn)
         def decorator(*args, **kwargs) -> float:
             nonlocal ref_latency_cache
-            mod, params = tl.lower(fn(*args, **kwargs))
+            # Enabling Efficient Fusion
+            with tvm.transform.PassContext(config={
+                "tir.merge_static_smem": True
+            }):
+                mod, params = tl.lower(fn(*args, **kwargs))
+            
             mod = tl.Profiler(mod, params, out_idx, supply_type)
-            mod.assert_allclose(ref_prog, rtol=rtol, atol=atol)
-            latency = mod.do_bench(mod.func, warmup = 25)
+            if (not skip_check) and (ref_prog is not None):
+                mod.assert_allclose(ref_prog, rtol=rtol, atol=atol)
+            
+            latency = mod.do_bench(fn, warmup = 25, profiler = profiler)
             if ref_latency_cache is None and ref_prog is not None:
                 ref_latency_cache = mod.do_bench(ref_prog, warmup = 25)
             return latency, ref_latency_cache

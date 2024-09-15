@@ -16,7 +16,7 @@
 # under the License.
 """The language interface for tl programs."""
 
-from typing import Union, List, Optional
+from typing import Union, List, Optional, Tuple
 from tvm import tir
 from tvm.script import tir as T
 from tvm.script.parser.tir import *
@@ -73,13 +73,14 @@ def Pipelined(start: tir.PrimExpr, stop: tir.PrimExpr = None, num_stages: int = 
 @register_object("tl.KernelLaunchFrame")
 class KernelLaunchFrame(TIRFrame):
     def __enter__(self) -> Union[Var, List[Var]]:  # type: ignore[override]
+        # Frames: BlockIdx.x, BlockIdx.y, BlockIdx.z, ThreadIdx.x, ThreadIdx.y, ThreadIdx.z, Root Block
         super().__enter__()
-        if len(self.frames) == 3:
+        if len(self.frames) == 5:
             return self.frames[0].iter_var.var
-        return [frame.iter_var.var for frame in self.frames[0:-2]]
+        return [frame.iter_var.var for frame in self.frames[0:-4]]
 
 
-def Kernel(*blocks: List[tir.PrimExpr], threads: int = 128, 
+def Kernel(*blocks: List[tir.PrimExpr], threads: Union[int, List[int], Tuple] = 128, 
            prelude:Optional[str]=None):
     """Tools to quickly construct a GPU kernel launch frame.
 
@@ -89,6 +90,7 @@ def Kernel(*blocks: List[tir.PrimExpr], threads: int = 128,
         A list of extent, can be 1-3 dimension, representing gridDim.(x|y|z)
     threads : int
         A integer representing blockDim.x
+        Or a list of integers representing blockDim.(x|y|z)
         if the value is -1, we skip the threadIdx.x binding.
     prelude : str
         The import c code of the kernel, 
@@ -102,6 +104,16 @@ def Kernel(*blocks: List[tir.PrimExpr], threads: int = 128,
         The result LaunchThreadFrame.
     """
     attrs:dict = {}
+
+    if isinstance(threads, int):
+        threads = [threads, 1, 1]
+    elif isinstance(threads, list):
+        threads = threads + [1] * (3 - len(threads))
+    elif isinstance(threads, tuple):
+        threads = list(threads) + [1] * (3 - len(threads))
+    else:
+        raise ValueError("threads must be an integer or a list of integers")
+
     if prelude is not None:
         attrs["pragma_import_c"] = prelude
 
@@ -300,3 +312,6 @@ def reduce_sum(buffer: tir.Buffer, out: tir.Buffer, dim: int):
 
 def atomic_add(dst, value):
     return T.call_extern("handle", "atomicAdd", T.address_of(dst), value)
+
+def atomic_addx2(dst, value):
+    return T.call_extern("handle", "atomicAddx2", T.address_of(dst), T.address_of(value))

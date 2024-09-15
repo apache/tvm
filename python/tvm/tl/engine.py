@@ -109,17 +109,25 @@ def lower(func):
     mod = tir.transform.VerifyMemory()(mod)
     mod = tir.transform.AnnotateEntryFunc()(mod)
     mod = tir.transform.ThreadSync("shared")(mod)
-    mod = tir.transform.ThreadSync("shared.dyn")(mod)
+    # TODO(lei): This is a hack to make sure the
+    # thread level allreduce pass can be applied
+    # in TL. As Tl ony use one thread dimension
+    # the var binding information will be lost
+    # in the lowering process with Legalization
+    # and Simplify pass.
+    # We can find a way better to create var instead
+    # of putting the LowerThreadAllreduce before
+    # the Legalization.
     mod = tir.transform.LowerThreadAllreduce()(mod)
-    mod = tir.transform.MergeSharedMemoryAllocations()(mod)
+    mod = tir.transform.ThreadSync("shared.dyn")(mod)
     mod = tl.transform.LowerHopperIntrin()(mod)
     mod = tir.transform.InjectPTXAsyncCopy()(mod)
 
     mod = tir.transform.AnnotateDeviceRegions()(mod)
     mod = tir.transform.SplitHostDevice()(mod)
+    mod = tir.transform.MergeSharedMemoryAllocations()(mod)
     mod = tir.transform.MakePackedAPI()(mod)
     mod = tir.transform.LowerDeviceKernelLaunch()(mod)
-
     host_mod = tir.transform.Filter(is_host_call)(mod)
     host_mod = tir.transform.BindTarget(target_host)(host_mod)
     host_mod = tir.transform.FP8StorageLegalize()(host_mod)
