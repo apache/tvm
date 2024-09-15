@@ -189,6 +189,41 @@ typedef int (*TVMFFISafeCallType)(void* func, int32_t num_args, const TVMFFIAny*
                                   TVMFFIAny* result);
 
 /*!
+ * \brief Create a FFIFunc by passing in callbacks from C callback.
+ *
+ * The registered function then can be pulled by the backend by the name.
+ *
+ * \param self The resource handle of the C callback.
+ * \param safe_call The C callback implementation
+ * \param deleter deleter to recycle
+ * \param out The output of the function.
+ * \return 0 when success, nonzero when failure happens
+ */
+TVM_FFI_DLL int TVMFFIFuncCreate(void* self, TVMFFISafeCallType safe_call,
+                                 void (*deleter)(void* self), TVMFFIObjectHandle* out);
+
+/*!
+ * \brief Register the function to runtime's global table.
+ *
+ * The registered function then can be pulled by the backend by the name.
+ *
+ * \param name The name of the function.
+ * \param f The function to be registered.
+ * \param override Whether allow override already registered function.
+ * \return 0 when success, nonzero when failure happens
+ */
+TVM_FFI_DLL int TVMFFIFuncSetGlobal(const char* name, TVMFFIObjectHandle f, int override);
+
+/*!
+ * \brief Get a global function.
+ *
+ * \param name The name of the function.
+ * \param out the result function pointer, NULL if it does not exist.
+ * \return 0 when success, nonzero when failure happens
+ */
+TVM_FFI_DLL int TVMFFIFuncGetGlobal(const char* name, TVMFFIObjectHandle* out);
+
+/*!
  * \brief Free an object handle by decreasing reference
  * \param obj The object handle.
  * \note Internally we decrease the reference counter of the object.
@@ -211,7 +246,6 @@ TVM_FFI_DLL void TVMFFIMoveFromLastError(TVMFFIAny* result);
  *
  * \param error_view The error in format of any view.
  *        It can be an object, or simply a raw c_str.
- * \note
  */
 TVM_FFI_DLL void TVMFFISetLastError(const TVMFFIAny* error_view);
 

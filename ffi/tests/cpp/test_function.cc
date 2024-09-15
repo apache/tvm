@@ -18,6 +18,7 @@
  */
 #include <gtest/gtest.h>
 #include <tvm/ffi/any.h>
+#include <tvm/ffi/container/array.h>
 #include <tvm/ffi/function.h>
 #include <tvm/ffi/memory.h>
 
@@ -112,4 +113,19 @@ TEST(Func, FromUnpacked) {
       },
       ::tvm::ffi::Error);
 }
+
+TEST(Func, Global) {
+  Function::SetGlobal("testing.add1",
+                      Function::FromUnpacked([](const int32_t& a) -> int { return a + 1; }));
+  Function fadd1 = Function::GetGlobal("testing.add1");
+  int b = fadd1(1);
+  EXPECT_EQ(b, 2);
+  Function fnot_exist = Function::GetGlobal("testing.not_existing_func");
+  EXPECT_TRUE(fnot_exist == nullptr);
+
+  Array<String> names = Function::GetGlobal("tvm_ffi.GlobalFunctionListNames")();
+
+  EXPECT_TRUE(std::find(names.begin(), names.end(), "testing.add1") != names.end());
+}
+
 }  // namespace

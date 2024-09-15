@@ -341,26 +341,6 @@ struct AnyEqual {
     return false;
   }
 };
-
-// Downcast an object
-// NOTE: the implementation is put in here to avoid cyclic dependency
-// with the
-template <typename SubRef, typename BaseRef,
-          typename = std::enable_if_t<std::is_base_of_v<ObjectRef, BaseRef>>>
-TVM_FFI_INLINE SubRef Downcast(BaseRef ref) {
-  if (ref.defined()) {
-    if (!ref->template IsInstance<typename SubRef::ContainerType>()) {
-      TVM_FFI_THROW(TypeError) << "Downcast from " << ref->GetTypeKey() << " to "
-                               << SubRef::ContainerType::_type_key << " failed.";
-    }
-  } else {
-    if (!SubRef::_type_is_nullable) {
-      TVM_FFI_THROW(TypeError) << "Downcast from nullptr to not nullable reference of "
-                               << SubRef::ContainerType::_type_key;
-    }
-  }
-  return details::ObjectUnsafe::DowncastRefNoCheck<SubRef>(std::move(ref));
-}
 }  // namespace ffi
 }  // namespace tvm
 #endif  // TVM_FFI_ANY_H_

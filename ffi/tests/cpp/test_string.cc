@@ -18,6 +18,7 @@
  */
 #include <gtest/gtest.h>
 #include <tvm/ffi/any.h>
+#include <tvm/ffi/cast.h>
 #include <tvm/ffi/string.h>
 
 namespace {
