@@ -55,9 +55,9 @@ class TorchOpCode : public BaseOpCode<TorchCodeGenConfig, TorchCodeGenHelper> {
   }
 
   /*! \brief Config the TorchOpCode*/
-  void Config(const MSCJoint& node, const std::shared_ptr<TorchCodeGenConfig> config,
-              bool is_init) {
-    BaseOpCode<TorchCodeGenConfig, TorchCodeGenHelper>::Config(node, config);
+  void Config(const MSCJoint& node, const std::shared_ptr<TorchCodeGenConfig> config, bool is_init,
+              const Map<String, String>& prims) {
+    BaseOpCode<TorchCodeGenConfig, TorchCodeGenHelper>::Config(node, config, prims);
     is_init_ = is_init;
     module_ref_ = "self." + StringUtils::Replace(node->name, ".", "_");
   }

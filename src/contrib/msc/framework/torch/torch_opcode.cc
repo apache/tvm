@@ -202,6 +202,13 @@ class TorchClipCodeGen : public TorchOpCode {
   }
 };
 
+class TorchConcatCodeGen : public TorchOpCode {
+  TORCH_OP_CODEGEN_METHODS(TorchConcatCodeGen);
+
+ protected:
+  void CodeGenForward() final { stack_.op_call().op_inputs_arg().op_arg<int>("axis", "dim"); }
+};
+
 class TorchConstantCodeGen : public TorchOpCode {
   TORCH_OP_CODEGEN_METHODS(TorchConstantCodeGen);
 
@@ -298,8 +305,8 @@ class TorchEmbeddingCodeGen : public TorchOpCode {
   void CodeGenInit() final {
     const auto& weight = node()->WeightAt("weight");
     stack_.op_call()
-        .call_arg(weight->DimAt("W"), "num_embeddings")
-        .call_arg(weight->DimAt("E"), "embedding_dim");
+        .call_arg(weight->DimAt(0), "num_embeddings")
+        .call_arg(weight->DimAt(1), "embedding_dim");
   }
 };
 
@@ -706,6 +713,7 @@ const std::shared_ptr<std::unordered_map<String, std::shared_ptr<TorchOpCode>>> 
   map->emplace("astype", std::make_shared<TorchAstypeCodeGen>("", "to"));
   map->emplace("broadcast_to", std::make_shared<TorchBroadcastToCodeGen>("", "expand"));
   map->emplace("clip", std::make_shared<TorchClipCodeGen>("", "torch.clamp"));
+  map->emplace("concat", std::make_shared<TorchConcatCodeGen>("", "torch.cat"));
   map->emplace("cumsum", std::make_shared<TorchCumsumCodeGen>("", "torch.cumsum"));
   map->emplace("expand_dims", std::make_shared<TorchExpandDimsCodeGen>("", "torch.unsqueeze"));
   map->emplace("permute_dims", std::make_shared<TorchPermuteDimsCodeGen>("", "torch.permute"));

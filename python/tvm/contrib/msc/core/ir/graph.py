@@ -41,6 +41,8 @@ class MSCTensor(Object):
         The shape of the tensor.
     alias: string
         The alias of the tensor.
+    prims: list<str>
+        The prims of the tensor.
     """
 
     def __init__(
@@ -50,15 +52,31 @@ class MSCTensor(Object):
         layout: str,
         shape: List[int],
         alias: Optional[str] = None,
+        prims: List[str] = None,
     ):
         if not isinstance(dtype, tvm.DataType):
             dtype = tvm.DataType(dtype)
         self.__init_handle_by_constructor__(
-            _ffi_api.MSCTensor, name, dtype, layout, shape, alias or ""
+            _ffi_api.MSCTensor, name, dtype, layout, shape, alias or "", prims or []
         )
 
-    def get_shape(self) -> List[int]:
-        return [int(i) for i in self.shape]
+    def get_shape(self, with_prims: bool = False) -> List[Union[int, str]]:
+        """Get shape of the tensor
+
+        Parameters
+        -------
+        with_prims: bool
+            Whether get shape with prims.
+
+        Returns
+        -------
+        shape: list<str|int>
+            The shape of tensor.
+        """
+
+        if not self.prims or not with_prims:
+            return [int(i) for i in self.shape]
+        return [int(p) if p.isdigit() else p for p in self.prims]
 
     def get_size(self) -> int:
         return int(_ffi_api.MSCTensorGetSize(self))
@@ -98,7 +116,7 @@ class MSCTensor(Object):
 
         if not isinstance(other, MSCTensor):
             return False
-        if self.get_shape() != other.get_shape():
+        if self.get_shape(True) != other.get_shape(True):
             return False
         if self.dtype != other.dtype:
             return False
@@ -124,7 +142,7 @@ class MSCTensor(Object):
             The tensor description in json format.
         """
 
-        tensor_des = {"name": self.alias, "shape": self.get_shape(), "dtype": self.dtype_name}
+        tensor_des = {"name": self.alias, "shape": self.get_shape(True), "dtype": self.dtype_name}
         tensor_des["layout"] = self.layout.name if self.layout else ""
         return tensor_des
 
@@ -405,6 +423,30 @@ class MSCJoint(BaseJoint):
         return msc_utils.dict_equal(self.get_attrs(), other.get_attrs())
 
 
+@tvm._ffi.register_object("msc.core.MSCPrim")
+class MSCPrim(BaseJoint):
+    """Prim in MSCGraph
+
+    Parameters
+    ----------
+    index: int
+        The index of the prim.
+    name: string
+        The name of the prim.
+    optype: string
+        The optype of the prim.
+    attrs: dict<string, string>
+        The attributes of the node.
+    parents: list<MSCPrim>
+        The parents of the prim.
+    """
+
+    def __init__(
+        self, index: int, name: str, optype: str, attrs: Dict[str, str], parents: List[BaseJoint]
+    ):
+        self.__init_handle_by_constructor__(_ffi_api.MSCPrim, index, name, optype, attrs, parents)
+
+
 @tvm._ffi.register_object("msc.core.WeightJoint")
 class WeightJoint(BaseJoint):
     """Node in WeightGraph
@@ -586,6 +628,22 @@ class MSCGraph(BaseGraph):
 
         return _ffi_api.MSCGraphFindNode(self, name)
 
+    def find_prim(self, name: str) -> MSCPrim:
+        """Find prim by name.
+
+        Parameters
+        ----------
+        name: string
+            The name of the prim.
+
+        Returns
+        -------
+        prim: MSCPrim
+            The found prim.
+        """
+
+        return _ffi_api.MSCGraphFindPrim(self, name)
+
     def has_tensor(self, name: str) -> bool:
         """Check if tensor in the graph.
 
@@ -678,6 +736,18 @@ class MSCGraph(BaseGraph):
 
         for n in self.node_names:
             yield self.find_node(n)
+
+    def get_prims(self) -> Iterable[MSCPrim]:
+        """Get all the prims in the graph.
+
+        Returns
+        -------
+        prims: generator<MSCPrim>
+            The generator of prims.
+        """
+
+        for n in self.prim_names:
+            yield self.find_prim(n)
 
     def get_weights(self) -> Iterable[MSCTensor]:
         """Get all the weights in the graph.
@@ -789,11 +859,16 @@ class MSCGraph(BaseGraph):
             "nodes": {"total": 0},
         }
         for node in self.get_nodes():
+            graph_des["nodes"].setdefault(node.optype, 0)
             graph_des["nodes"]["total"] += 1
-            if node.optype not in graph_des["nodes"]:
-                graph_des["nodes"][node.optype] = 1
-            else:
-                graph_des["nodes"][node.optype] += 1
+            graph_des["nodes"][node.optype] += 1
+        prims = {"total": 0}
+        for prim in self.get_prims():
+            prims.setdefault(prim.optype, 0)
+            prims["total"] += 1
+            prims[prim.optype] += 1
+        if prims["total"] > 0:
+            graph_des["prims"] = prims
         return graph_des
 
     @classmethod

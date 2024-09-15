@@ -16,6 +16,7 @@
 # under the License.
 """tvm.contrib.msc.pipeline.config"""
 
+import copy
 from typing import List, Union, Dict, Tuple
 
 from tvm.contrib.msc.core.tools import ToolType
@@ -129,6 +130,7 @@ def create_config(
     dataset: Dict[str, dict] = None,
     tools: List[Tuple[str, Union[dict, str]]] = None,
     dynamic: bool = False,
+    run_config: Dict[str, dict] = None,
     skip_config: Dict[str, str] = None,
     **extra_config,
 ) -> dict:
@@ -160,11 +162,13 @@ def create_config(
         The extra config.
     """
 
+    all_stages = [MSCStage.BASELINE, MSCStage.OPTIMIZE, MSCStage.COMPILE]
     baseline_type = baseline_type or model_type
     optimize_type = optimize_type or baseline_type
     compile_type = compile_type or optimize_type
     tools = tools or []
     tools = [config_tool(t_type, t_config) for t_type, t_config in tools]
+    extra_config = extra_config or {}
     # basic config
     config = {
         "model_type": model_type,
@@ -194,27 +198,34 @@ def create_config(
         "profile": {"check": {"atol": 1e-3, "rtol": 1e-3}, "benchmark": {"repeat": -1}},
     }
 
+    # update run config
+    if run_config:
+        if "all" in run_config:
+            all_config = run_config.pop("all")
+            run_config.update({s: copy.deepcopy(all_config) for s in all_stages})
+        for stage, r_config in run_config.items():
+            extra_config.setdefault(stage, {}).setdefault("run_config", {}).update(r_config)
+
     # update config
     if extra_config:
         config = msc_utils.update_dict(config, extra_config)
 
     # skip stages
-    skip_config = skip_config or {}
-    for stage in [MSCStage.BASELINE, MSCStage.OPTIMIZE, MSCStage.COMPILE]:
-        if stage not in config:
-            continue
-        for key in ["all", stage]:
-            if key not in skip_config:
+    if skip_config:
+        if "all" in run_config:
+            all_config = skip_config.pop("all")
+            skip_config.update({s: copy.deepcopy(all_config) for s in all_stages})
+        for stage, s_type in skip_config.items():
+            if stage not in config:
                 continue
-            if skip_config[key] == "stage":
+            if s_type == "stage":
                 config.pop(stage)
-            elif skip_config[key] == "profile":
+            elif s_type == "profile":
                 config[stage].pop("profile")
-            elif skip_config[key] == "check":
-                config[stage]["profile"].pop("check")
-            elif skip_config[key] == "benchmark":
+            elif s_type == "check":
+                config[stage]["profile"]["check"]["err_rate"] = -1
+            elif s_type == "benchmark":
                 config[stage]["profile"].pop("benchmark")
             else:
-                raise TypeError("Unexpected skip type " + str(skip_config[key]))
-
+                raise TypeError("Unexpected skip type " + str(s_type))
     return config

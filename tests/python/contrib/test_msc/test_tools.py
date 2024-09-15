@@ -47,7 +47,7 @@ def _get_config(
 
     path = "_".join(["test_tools", model_type, compile_type] + [t["tool_type"] for t in tools])
     return {
-        "workspace": msc_utils.msc_dir(path),
+        "workspace": msc_utils.msc_dir(path, keep_history=False),
         "verbose": "critical",
         "model_type": model_type,
         "inputs": inputs,
@@ -229,7 +229,7 @@ def get_model_info(compile_type):
             "inputs": [
                 {"name": "input_0", "shape": [1, 3, 224, 224], "dtype": "float32", "layout": "NCHW"}
             ],
-            "outputs": [{"name": "output", "shape": [1, 1000], "dtype": "float32", "layout": "NC"}],
+            "outputs": [{"name": "output", "shape": [1, 1000], "dtype": "float32", "layout": "NW"}],
             "nodes": {
                 "total": 229,
                 "input": 1,

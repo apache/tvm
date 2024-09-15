@@ -180,9 +180,10 @@ def to_relax(
 
     def _to_var(tensor: MSCTensor):
         v_name = tensor.alias if use_alias else graph.find_producer(tensor).name
-        return tvm.relax.Var(
-            v_name, tvm.relax.TensorStructInfo(tensor.get_shape(), tensor.dtype_name)
-        )
+        dims = [
+            d if isinstance(d, int) else tvm.tir.Var(d, "int64") for d in tensor.get_shape(True)
+        ]
+        return tvm.relax.Var(v_name, tvm.relax.TensorStructInfo(dims, tensor.dtype_name))
 
     def _save_weights(folder: msc_utils.MSCDirectory):
         if weights:

@@ -156,29 +156,30 @@ const LayoutDecision LayoutUtils::ExpandLayout(const LayoutDecision& src_layout,
   std::string new_layout = src_layout.name();
   ICHECK_EQ(new_layout.size(), src_layout->layout.ndim())
       << "Only support normal layout, get " << src_layout->layout;
-  std::vector<std::string> priority_dims{"N", "C", "H", "W", "D", "G", "T"};
-  size_t left_size = axes.size();
+  std::set<std::string> used_axes;
+  for (size_t i = 0; i < src_layout->layout.ndim(); i++) {
+    used_axes.insert(src_layout->layout[i].name());
+  }
+  std::vector<std::string> prefer_axes{"N", "C", "H", "W", "D"};
   for (const auto& a : axes) {
-    std::string target = "U";
-    if (new_layout.find("H") && !new_layout.find("W")) {
-      target = "W";
-    } else if (new_layout.find("W") && !new_layout.find("H")) {
-      target = "H";
-    } else if (left_size == 1 && new_layout.find("C") && !new_layout.find("D")) {
-      target = "D";
-    } else if (left_size == 1 && new_layout.find("D") && !new_layout.find("C")) {
-      target = "C";
-    } else {
-      for (const auto& p : priority_dims) {
-        int pos = new_layout.find(p);
-        if (pos < 0) {
-          target = p;
-          break;
-        }
-      }
+    bool use_prefer = false;
+    if (used_axes.size() < prefer_axes.size()) {
+      use_prefer =
+          std::all_of(prefer_axes.begin(), prefer_axes.begin() + used_axes.size(),
+                      [&used_axes](const std::string& axis) { return used_axes.count(axis); });
     }
-    new_layout = new_layout.insert(a, target);
-    left_size--;
+    std::string new_axis;
+    char cur_axis = 'A';
+    if (use_prefer) {
+      new_axis = prefer_axes[used_axes.size()];
+    } else {
+      while (used_axes.count(std::string(1, cur_axis))) {
+        cur_axis += 1;
+      }
+      new_axis = std::string(1, cur_axis);
+    }
+    used_axes.insert(new_axis);
+    new_layout = new_layout.insert(a, new_axis);
   }
   return LayoutDecision(new_layout);
 }
@@ -218,6 +219,18 @@ const LayoutDecision LayoutUtils::PermuteLayout(const LayoutDecision& src_layout
     layout_str = layout_str + src_layout->layout[a].name();
   }
   return LayoutDecision(layout_str);
+}
+
+int LayoutUtils::InferBatchDim(const LayoutDecision& layout) {
+  if (!layout->layout.defined()) {
+    return -1;
+  }
+  for (size_t i = 0; i < layout->layout.ndim(); i++) {
+    if (layout->layout[i].name() == "N") {
+      return static_cast<int>(i);
+    }
+  }
+  return -1;
 }
 
 }  // namespace msc
