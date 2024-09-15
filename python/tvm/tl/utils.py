@@ -16,13 +16,16 @@
 # under the License.
 """The profiler and convert to torch utils"""
 
-from typing import Any, List
+from typing import Any, List, Literal
 from enum import Enum
 from functools import partial
 import torch
 
+import tvm
 from tvm.relay import TensorType
 from tvm.contrib.dlpack import to_pytorch_func
+from torch.utils.dlpack import to_dlpack
+from tvm.runtime import ndarray
 
 from .engine import lower
 
@@ -43,6 +46,12 @@ def get_tensor_supply(supply_type: TensorSupplyType):
         # torch.manual_seed(0)
         # torch.cuda.manual_seed(0)
         shape = list(map(int, tensor.shape))
+        if dtype == torch.int8 and supply_type in [
+            TensorSupplyType.Uniform,
+            TensorSupplyType.Normal,
+        ]:
+            return torch.ones(*shape, device=device, dtype=dtype)
+
         if supply_type == TensorSupplyType.Integer:
             return torch.randint(low=-2, high=3, size=shape, device=device, dtype=dtype)
         elif supply_type == TensorSupplyType.Uniform:
@@ -111,11 +120,11 @@ class Profiler(ConvertTorch):
         super().__init__(mod, params, result_idx)
         self.supply = get_tensor_supply(supply_type)
 
-    def _get_inputs(self):
+    def _get_inputs(self, with_output=False):
         ins = []
-        for i in range(len(self.params)):
-            if i not in self.result_idx:
-                ins.append(self.supply(self.params[i]))
+        for param in self.params:
+            if with_output or param not in self.result_idx:
+                ins.append(self.supply(param))
         return ins
 
     def assert_allclose(self, reference_program: callable, atol: float = 1e-8, rtol: float = 1e-5):
@@ -138,7 +147,7 @@ class Profiler(ConvertTorch):
         ins = self._get_inputs()
         ref_outs = self.func(*ins)
 
-        for i in range(repeat):
+        for _ in range(repeat):
             lib_outs = self.func(*ins)
             for lhs, rhs in zip(lib_outs, ref_outs):
                 assert torch.allclose(lhs, rhs), ["result is not consistent", lhs, rhs]
@@ -147,14 +156,43 @@ class Profiler(ConvertTorch):
         ins = self._get_inputs()
         return self.__call__(*ins)
 
-    def do_bench(self, func: callable, warmup=25, rep=100, n_warmup=0, n_repeat=0):
-        ins = self._get_inputs()
-        bench_func = partial(func, *ins)
-        return do_bench(bench_func, warmup=warmup, rep=rep, _n_warmup=n_warmup, _n_repeat=n_repeat)
+    def do_bench(
+        self,
+        func: callable,
+        warmup=25,
+        rep=100,
+        n_warmup=1,
+        n_repeat=1,
+        profiler: Literal["torch", "tvm"] = "torch",
+    ):
+        if profiler == "torch":
+            ins = self._get_inputs()
+            bench_func = partial(func, *ins)
+            return do_bench(
+                bench_func, warmup=warmup, rep=rep, _n_warmup=n_warmup, _n_repeat=n_repeat
+            )
+        elif profiler == "tvm":
+            ins = self._get_inputs(with_output=True)
+            time_evaluator = self.mod.time_evaluator(
+                self.mod.entry_name, tvm.cuda(0), number=rep, repeat=n_repeat
+            )
+            tvm_inputs = [ndarray.from_dlpack(to_dlpack(inp)) for inp in ins]
+            # Transform Latency to ms
+            return time_evaluator(*tvm_inputs).mean * 1e3
+        else:
+            raise ValueError(f"Unknown profiler: {profiler}")
 
 
 def do_bench(
-    fn, warmup=25, rep=100, _n_warmup=0, _n_repeat=0, grad_to_none=None, quantiles=None, fast_flush=True, return_mode="mean"
+    fn,
+    warmup=25,
+    rep=100,
+    _n_warmup=0,
+    _n_repeat=0,
+    grad_to_none=None,
+    quantiles=None,
+    fast_flush=True,
+    return_mode="mean",
 ):
     """
     Benchmark the runtime of the provided function. By default, return the median runtime of :code:`fn` along with
@@ -199,9 +237,9 @@ def do_bench(
     # compute number of warmup and repeat
     n_warmup = max(1, int(warmup / estimate_ms))
     n_repeat = max(1, int(rep / estimate_ms))
-    if (_n_warmup > 0):
+    if _n_warmup > 0:
         n_warmup = _n_warmup
-    if (_n_repeat > 0):
+    if _n_repeat > 0:
         n_repeat = _n_repeat
     start_event = [torch.cuda.Event(enable_timing=True) for i in range(n_repeat)]
     end_event = [torch.cuda.Event(enable_timing=True) for i in range(n_repeat)]
