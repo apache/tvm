@@ -21,6 +21,13 @@ using cutlass::tfloat32_t;
 
 #define TL_DEVICE __forceinline__ __device__
 
+// Pack two half values.
+TL_DEVICE unsigned __pack_half2(const half x, const half y) {
+  unsigned v0 = *((unsigned short*)&x);
+  unsigned v1 = *((unsigned short*)&y);
+  return (v1 << 16) | v0;
+}
+
 // Pack two half_t values.
 TL_DEVICE unsigned __pack_half2(const half_t x, const half_t y) {
   unsigned v0 = *((unsigned short*)&x);

@@ -613,6 +613,64 @@ void CodeGenTL::PrintCallExtern(Type ret_type, String global_symbol, const Array
   }
 }
 
+// Print a reference expression to a buffer.
+std::string CodeGenTL::GetBufferRef(DataType t, const BufferNode* buffer, PrimExpr index) {
+  const VarNode* buffer_var = buffer->data.get();
+  std::ostringstream os;
+  std::string vid = GetVarID(buffer_var);
+  std::string scope;
+  if (alloc_storage_scope_.count(buffer_var)) {
+    scope = alloc_storage_scope_.at(buffer_var);
+  }
+  // bool is_vol = IsVolatile(buffer_var);
+  // always false for tl cutlass backend.
+  bool is_vol = false;
+
+  auto ptr_cast = [this, is_vol, scope](DataType pointed_to) {
+    std::ostringstream ptr_os;
+    ptr_os << "(";
+    if (is_vol) {
+      ptr_os << "volatile ";
+    }
+    if (!scope.empty() && IsScopePartOfType()) {
+      PrintStorageScope(scope, ptr_os);
+    }
+    PrintType(pointed_to, ptr_os);
+    ptr_os << "*)";
+    return ptr_os.str();
+  };
+
+  DataType buffer_element_dtype = buffer->dtype;
+
+  std::string buffer_str = vid;
+  if (!HandleTypeMatch(buffer_var, buffer_element_dtype) || is_vol) {
+    std::stringstream temp;
+    temp << "(" << ptr_cast(buffer_element_dtype) << vid << ")";
+    buffer_str = temp.str();
+  }
+
+  std::string index_str = PrintExpr(index);
+  if (t.bits() == 4 || (t.bits() == 1 && t.is_int())) {
+    // This is a special case, because CodegenCUDA::PrintType()
+    // returns "int" for bool and for 4-bit integers. In most cases,
+    // we divide by the number of lanes to determine the index.
+    // However, the backing type for scalar int4 and scalar bool is
+    // int32.  Therefore, we need to divide by the ratio of their
+    // sizes in that case.
+    int div_factor = (t.lanes() == 1) ? (32 / t.bits()) : t.lanes();
+
+    os << "*("
+       << "(" << ptr_cast(t) << vid << ")"
+       << " + " << index_str << " / " << div_factor << ")";
+  } else if (t == buffer_element_dtype) {
+    os << buffer_str << "[" << index_str << "]";
+  } else {
+    os << "*" << ptr_cast(t) << "(" << buffer_str << " + " << index_str << ")";
+  }
+
+  return os.str();
+}
+
 void CodeGenTL::VisitExpr_(const CallNode* op, std::ostream& os) {
   auto print_extern_call_stmt = [&](std::string name, size_t offset = 0) {
     this->PrintIndent();

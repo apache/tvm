@@ -62,6 +62,11 @@ class VectorizePlanner : public arith::IRVisitorWithAnalyzer {
     if (node->buffer.scope() == "shared" || node->buffer.scope() == "global" ||
         node->buffer.scope() == "shared.dyn")
       has_nonlocal_memory_access_ = true;
+    if (node->buffer->shape.size() == 1 && node->buffer->shape[0].as<IntImmNode>()->value == 1) {
+      // TODO(lei): This should be improved as 
+      // constant buffer that tl hack to use as local register.
+      return arith::IRVisitorWithAnalyzer::VisitExpr_(node);
+    }
     UpdateVectorSize(node->indices, node->buffer);
     return arith::IRVisitorWithAnalyzer::VisitExpr_(node);
   }
