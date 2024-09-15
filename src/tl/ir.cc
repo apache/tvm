@@ -114,15 +114,18 @@ class KernelLaunchFrame : public TIRFrame {
                                                     KernelLaunchFrameNode);
 };
 
-KernelLaunchFrame KernelLaunch(Array<PrimExpr> grid_size, PrimExpr extent,
+KernelLaunchFrame KernelLaunch(Array<PrimExpr> grid_size, Array<PrimExpr> block_size,
                                Map<String, ObjectRef> attrs) {
   ObjectPtr<KernelLaunchFrameNode> n = make_object<KernelLaunchFrameNode>();
   ICHECK(grid_size.size() <= 3);
   if (grid_size.size() > 0) n->frames.push_back(LaunchThread("blockIdx.x", grid_size[0]));
   if (grid_size.size() > 1) n->frames.push_back(LaunchThread("blockIdx.y", grid_size[1]));
   if (grid_size.size() > 2) n->frames.push_back(LaunchThread("blockIdx.z", grid_size[2]));
-  if (extent.defined() && extent.as<IntImmNode>()->value > 1){
-    n->frames.push_back(LaunchThread("threadIdx.x", extent));
+  if (block_size.defined()){
+    ICHECK(block_size.size() <= 3);
+    if (block_size.size() > 0) n->frames.push_back(LaunchThread("threadIdx.x", block_size[0]));
+    if (block_size.size() > 1) n->frames.push_back(LaunchThread("threadIdx.y", block_size[1]));
+    if (block_size.size() > 2) n->frames.push_back(LaunchThread("threadIdx.z", block_size[2]));
   }else{
     n->frames.push_back(Block(""));
   }

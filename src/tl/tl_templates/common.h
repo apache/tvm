@@ -46,6 +46,16 @@ TL_DEVICE void atomicAdd(half_t* address, half_t val) {
   atomicAdd(reinterpret_cast<half*>(address), static_cast<half>(val));
 }
 
+// AtomicAdd Functions for FP16
+TL_DEVICE void atomicAdd(half_t* address, half_t* val) {
+  atomicAdd(reinterpret_cast<half*>(address), static_cast<half>(*val));
+}
+
+// AtomicAdd Functions for FP16
+TL_DEVICE void atomicAddx2(half_t* address, half_t* val) {
+  atomicAdd(reinterpret_cast<half2*>(address), static_cast<half2>(*reinterpret_cast<half2*>(val)));
+}
+
 TL_DEVICE void atomicAdd(half_t* address, float val) {
   // Use atomicCAS with built-in cuda_fp16 support
   atomicAdd(reinterpret_cast<half*>(address), __float2half(val));

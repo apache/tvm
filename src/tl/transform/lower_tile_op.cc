@@ -111,36 +111,6 @@ class LowerTileOpPass : arith::IRMutatorWithAnalyzer {
     return block;
   }
 
-  bool CheckBufferShapeIsPermutable(Buffer buffer) {
-    if (buffer->shape.size() < 2) {
-      LOG(WARNING) << "The dimension of Buffer \"" << buffer->name << "\" with shape "
-                   << buffer->shape << " should be at least 2";
-      return false;
-    }
-
-    auto dim = buffer->shape.size();
-    auto bits = buffer->dtype.bits();
-    auto buffer_row_size = buffer->shape[dim - 1].as<IntImmNode>()->value;
-    auto buffer_col_size = buffer->shape[dim - 2].as<IntImmNode>()->value;
-
-    if (buffer_row_size % 64 != 0) {
-      if (buffer_row_size % 32 != 0 || buffer_col_size % 2 != 0) {
-        LOG(WARNING) << "Permuted Layout for Buffer \"" << buffer->name << "\" with shape "
-                     << buffer->shape
-                     << " is not supported since its second dimension is not divisible by 32 or "
-                        "first dimension is not divisible by 2 and second dimension is not "
-                        "divisible by 64"
-                     << " buffer row size: " << buffer_row_size
-                     << " buffer col size: " << buffer_col_size;
-        return false;
-      }
-    }
-
-    CHECK(buffer_row_size * bits == 512)
-        << "Permuted Layout for Buffer \"" << buffer->name << "\" with shape " << buffer->shape
-        << " is not supported as we only support 512 bits buffer col size for now";
-    return true;
-  }
 
   int CheckAndGetBufferRowSize(Buffer buffer) {
     CHECK(buffer->shape.size() >= 2)
@@ -149,17 +119,7 @@ class LowerTileOpPass : arith::IRMutatorWithAnalyzer {
 
     auto dim = buffer->shape.size();
     auto buffer_row_size = buffer->shape[dim - 1].as<IntImmNode>()->value;
-    auto buffer_col_size = buffer->shape[dim - 2].as<IntImmNode>()->value;
-
-    if (buffer_row_size % 64 != 0) {
-      CHECK(buffer_row_size % 32 == 0)
-          << "Permuted Layout for Buffer \"" << buffer->name << "\" with shape " << buffer->shape
-          << " is not supported since its second dimension is not divisible by 32";
-      CHECK(buffer_col_size % 2 == 0)
-          << "Permuted Layout for Buffer \"" << buffer->name << "\" with shape " << buffer->shape
-          << " is not supported since its first dimension is not divisible by 2 and second "
-             "dimension is not divisible by 64";
-    }
+    // auto buffer_col_size = buffer->shape[dim - 2].as<IntImmNode>()->value;
 
     return buffer_row_size;
   }
@@ -189,9 +149,7 @@ class LowerTileOpPass : arith::IRMutatorWithAnalyzer {
       auto buffer_map_iter = buffer_map_.find(Downcast<Var>(load->buffer->data));
       CHECK(buffer_map_iter != buffer_map_.end())
           << "The buffer corresponding to data Var " << access_ptr_call->args[0] << " is not found";
-      if (!CheckBufferShapeIsPermutable(buffer_map_iter->second)) {
-        return access_ptr_call;
-      }
+
       int buffer_row_size = CheckAndGetBufferRowSize(buffer_map_iter->second);
 
       // Convert offset to 2-dimension, reindex it and convert it back
