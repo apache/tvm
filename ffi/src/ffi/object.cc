@@ -34,12 +34,13 @@ namespace tvm {
 namespace ffi {
 
 /*!
- * \brief Type context that manages the type hierarchy information.
+ * \brief Global registry that manages
  *
- * \note We do not use mutex to guard updating of TypeContext
+ * \note We do not use mutex to guard updating of TypeTable
  *
- * The assumption is that updating of TypeContext will be done
- * in the main thread during initialization or loading.
+ * The assumption is that updating of TypeTable will be done
+ * in the main thread during initialization or loading, or
+ * explicitly locked from the caller.
  *
  * Then the followup code will leverage the information
  */
@@ -223,7 +224,11 @@ class TypeTable {
 }  // namespace ffi
 }  // namespace tvm
 
-extern "C" {
+int TVMFFIObjectFree(TVMFFIObjectHandle handle) {
+  TVM_FFI_SAFE_CALL_BEGIN();
+  tvm::ffi::details::ObjectUnsafe::DecRefObjectHandle(handle);
+  TVM_FFI_SAFE_CALL_END();
+}
 
 int32_t TVMFFIGetOrAllocTypeIndex(const char* type_key, int32_t static_type_index,
                                   int32_t type_depth, int32_t num_child_slots,
@@ -240,4 +245,3 @@ const TVMFFITypeInfo* TVMFFIGetTypeInfo(int32_t type_index) {
   return tvm::ffi::TypeTable::Global()->GetTypeInfo(type_index);
   TVM_FFI_LOG_EXCEPTION_CALL_END(TVMFFIGetTypeInfo);
 }
-}  // extern "C"

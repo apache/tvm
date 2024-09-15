@@ -246,11 +246,11 @@ class Function : public ObjectRef {
  public:
   /*! \brief Constructor from null */
   Function(std::nullptr_t) : ObjectRef(nullptr) {}  // NOLINT(*)
-                                                    /*!
-                                                     * \brief Constructing a packed function from a callable type
-                                                     *        whose signature is consistent with `PackedFunc`
-                                                     * \param packed_call The packed function signature
-                                                     */
+  /*!
+   * \brief Constructing a packed function from a callable type
+   *        whose signature is consistent with `PackedFunc`
+   * \param packed_call The packed function signature
+   */
   template <typename TCallable>
   static Function FromPacked(TCallable packed_call) {
     static_assert(
@@ -298,6 +298,31 @@ class Function : public ObjectRef {
     Function func;
     func.data_ = make_object<details::ExternCFunctionObjImpl>(self, safe_call, deleter);
     return func;
+  }
+  /*!
+   * \brief Get global function by name
+   * \param name The function name
+   * \return The global function.
+   */
+  static Function GetGlobal(const char* name) {
+    TVMFFIObjectHandle handle;
+    TVM_FFI_CHECK_SAFE_CALL(TVMFFIFuncGetGlobal(name, &handle));
+    if (handle != nullptr) {
+      return Function(
+          details::ObjectUnsafe::ObjectPtrFromOwned<Object>(static_cast<Object*>(handle)));
+    } else {
+      return Function();
+    }
+  }
+  /*!
+   * \brief Set global function by name
+   * \param name The name of the function
+   * \param func The function
+   * \param override Whether to override when there is duplication.
+   */
+  static void SetGlobal(const char* name, Function func, bool override = false) {
+    TVM_FFI_CHECK_SAFE_CALL(
+        TVMFFIFuncSetGlobal(name, details::ObjectUnsafe::GetHeader(func.get()), override));
   }
   /*!
    * \brief Constructing a packed function from a normal function.
@@ -367,8 +392,71 @@ class Function : public ObjectRef {
   bool operator!=(std::nullptr_t) const { return data_ != nullptr; }
 
   TVM_FFI_DEFINE_NULLABLE_OBJECT_REF_METHODS(Function, ObjectRef, FunctionObj);
+
+  class Registry;
 };
 
+/*! \brief Registry for global function */
+class Function::Registry {
+ public:
+  /*! \brief constructor */
+  explicit Registry(const char* name) : name_(name) {}
+  /*!
+   * \brief set the body of the function to the given function.
+   *        Note that this will ignore default arg values and always require all arguments to be
+   * provided.
+   *
+   * \code
+   *
+   * int multiply(int x, int y) {
+   *   return x * y;
+   * }
+   *
+   * TVM_REGISTER_GLOBAL("multiply")
+   * .set_body_typed(multiply); // will have type int(int, int)
+   *
+   * // will have type int(int, int)
+   * TVM_REGISTER_GLOBAL("sub")
+   * .set_body_typed([](int a, int b) -> int { return a - b; });
+   *
+   * \endcode
+   *
+   * \param f The function to forward to.
+   * \tparam FLambda The signature of the function.
+   */
+  template <typename FLambda>
+  Registry& set_body_typed(FLambda f) {
+    return Register(Function::FromUnpacked(f));
+  }
+
+ protected:
+  /*!
+   * \brief set the body of the function to be f
+   * \param f The body of the function.
+   */
+  Registry& Register(Function f) {
+    Function::SetGlobal(name_, f);
+    return *this;
+  }
+
+  /*! \brief name of the function */
+  const char* name_;
+};
+
+#define TVM_FFI_FUNC_REG_VAR_DEF \
+  static TVM_FFI_ATTRIBUTE_UNUSED ::tvm::ffi::Function::Registry& __mk_##TVMFFI
+
+/*!
+ * \brief Register a function globally.
+ * \code
+ *   TVM_FFI_REGISTER_GLOBAL("MyAdd")
+ *   .set_body_typed([](int a, int b) {
+ *      return a + b;
+ *   });
+ * \endcode
+ */
+#define TVM_FFI_REGISTER_GLOBAL(OpName) \
+  TVM_FFI_STR_CONCAT(TVM_FFI_FUNC_REG_VAR_DEF, __COUNTER__) = ::tvm::ffi::Function::Registry(OpName)
 }  // namespace ffi
 }  // namespace tvm
 #endif  // TVM_FFI_FUNCTION_H_

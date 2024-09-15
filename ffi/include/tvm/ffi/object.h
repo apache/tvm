@@ -545,6 +545,13 @@ struct ObjectUnsafe {
     return const_cast<TVMFFIObject*>(&(src->header_));
   }
 
+  template <typename T>
+  static TVM_FFI_INLINE ObjectPtr<T> ObjectPtrFromOwned(Object* raw_ptr) {
+    tvm::ffi::ObjectPtr<T> ptr;
+    ptr.data_ = raw_ptr;
+    return ptr;
+  }
+
   // Create ObjectPtr from unknowned ptr
   template <typename T>
   static TVM_FFI_INLINE ObjectPtr<T> ObjectPtrFromUnowned(Object* raw_ptr) {
@@ -556,7 +563,10 @@ struct ObjectUnsafe {
     return tvm::ffi::ObjectPtr<T>(reinterpret_cast<Object*>(obj_ptr));
   }
 
-  // Interactions with Any system
+  static TVM_FFI_INLINE void DecRefObjectHandle(TVMFFIObjectHandle handle) {
+    reinterpret_cast<Object*>(handle)->DecRef();
+  }
+
   static TVM_FFI_INLINE void DecRefObjectInAny(TVMFFIAny* src) {
     reinterpret_cast<Object*>(src->v_obj)->DecRef();
   }

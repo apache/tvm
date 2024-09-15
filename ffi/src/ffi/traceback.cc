@@ -149,15 +149,12 @@ __attribute__((constructor)) void install_signal_handler(void) {
 }  // namespace ffi
 }  // namespace tvm
 
-extern "C" {
 const char* TVMFFITraceback(const char*, const char*, int) {
   static thread_local std::string traceback_str;
   traceback_str = ::tvm::ffi::Traceback();
   return traceback_str.c_str();
 }
-}  // extern "C"
 #else
-extern "C" {
 // fallback implementation simply print out the last trace
 const char* TVMFFITraceback(const char* filename, const char* func, int lineno) {
   static thread_local std::string traceback_str;
@@ -167,6 +164,5 @@ const char* TVMFFITraceback(const char* filename, const char* func, int lineno) 
   traceback_str = traceback_stream.str();
   return traceback_str.c_str();
 }
-}  // extern "C"
 #endif  // TVM_FFI_USE_LIBBACKTRACE
 #endif  // _MSC_VER
