@@ -1248,7 +1248,7 @@ class TorchFXImporter:
         import torch
 
         args = self.retrieve_args(node)
-        size = relax.ShapeExpr((args[0],) if isinstance(args[0], (list, tuple)) else args[0])
+        size = relax.ShapeExpr(args[0] if isinstance(args[0], (list, tuple)) else (args[0],))
         dtype = self._convert_data_type(
             node.kwargs.get("dtype", torch.get_default_dtype()), self.env
         )
@@ -1303,7 +1303,7 @@ class TorchFXImporter:
         import torch
 
         args = self.retrieve_args(node)
-        size = relax.ShapeExpr((args[0],) if isinstance(args[0], (list, tuple)) else args[0])
+        size = relax.ShapeExpr(args[0] if isinstance(args[0], (list, tuple)) else (args[0],))
         dtype = self._convert_data_type(
             node.kwargs.get("dtype", torch.get_default_dtype()), self.env
         )
