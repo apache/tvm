@@ -25,6 +25,8 @@ ANDROID_HOME=/opt/android-sdk-linux
 ASDKTOOLS_HOME=/opt/android-sdk-tools
 ASDKTOOLS_VERSION=3859397
 ASDKTOOLS_SHA256=444e22ce8ca0f67353bda4b85175ed3731cae3ffa695ca18119cbacef1c1bea0
+COMMANDLINETOOLS_VERSION=11076708
+COMMANDLINETOOLS_SHA256=2d2d50857e4eb553af5a6dc3ad507a17adf43d115264b1afc116f95c92e5e258
 
 ANDROID_NDK_VERSION=21.3.6528147
 CMAKE_VERSION=3.6.4111459
@@ -52,11 +54,11 @@ echo "Cmake Version: ${CMAKE_VERSION}"
 echo "Build Tools: ${BUILD_TOOLS_VERSION}"
 echo "Android Platform: ${ANDROID_PLATFORM}"
 
-wget -q http://dl.google.com/android/repository/sdk-tools-linux-${ASDKTOOLS_VERSION}.zip -O sdk-tools-linux.zip
-echo "${ASDKTOOLS_SHA256} *sdk-tools-linux.zip" | sha256sum --check -
-unzip sdk-tools-linux.zip
-rm sdk-tools-linux.zip
-mv tools "${ASDKTOOLS_HOME}/"
+wget -q https://dl.google.com/android/repository/commandlinetools-linux-${COMMANDLINETOOLS_VERSION}_latest.zip  -O commandlinetools-linux.zip
+echo "${COMMANDLINETOOLS_SHA256} commandlinetools-linux.zip" | sha256sum --check -
+unzip commandlinetools-linux.zip
+rm commandlinetools-linux.zip
+mv cmdline-tools/ "${ASDKTOOLS_HOME}/"
 # The following popular fix makes sdkmanager honour $http_proxy variables
 mv ${ASDKTOOLS_HOME}/bin/sdkmanager ${ASDKTOOLS_HOME}/bin/sdkmanager-vanilla
 cat >${ASDKTOOLS_HOME}/bin/sdkmanager <<"EOF"
@@ -90,8 +92,6 @@ extras;google;market_apk_expansion
 extras;google;market_licensing
 extras;google;simulators
 extras;google;webdriver
-extras;m2repository;com;android;support;constraint;constraint-layout;1.0.2
-extras;m2repository;com;android;support;constraint;constraint-layout-solver;1.0.2
 platforms;android-26
 platforms;android-${ANDROID_PLATFORM}
 tools
