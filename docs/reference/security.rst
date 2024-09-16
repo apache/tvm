@@ -41,7 +41,8 @@ The runtime depends on a limited set of system calls(e.g. malloc) in the system 
 
 
 TVM RPC server assumes that the user is trusted and needs to be used in a trusted network environment
-and encrypted channels. It allows writings of arbitrary files into the server for benchmarking purposes.
+and encrypted channels. It allows writings of arbitrary files into the server and provide
+full remote code execution capabilities to anyone who can access this API.
 
 
 AutoTVM data exchange between the tracker, server and client are in plain-text.
