@@ -3825,7 +3825,7 @@ def test_attention():
             inp_0: R.Tensor((32, 8, 128, 64), dtype="float32"),
             inp_1: R.Tensor((32, 8, 128, 64), dtype="float32"),
             inp_2: R.Tensor((32, 8, 128, 64), dtype="float32"),
-        ) -> R.Tensor((32, 128, 8, 64), dtype="float32"):
+        ) -> R.Tensor((32, 8, 128, 64), dtype="float32"):
             with R.dataflow():
                 lv: R.Tensor((32, 128, 8, 64), dtype="float32") = R.permute_dims(
                     inp_0, axes=[0, 2, 1, 3]
@@ -3839,7 +3839,10 @@ def test_attention():
                 lv3: R.Tensor((32, 128, 8, 64), dtype="float32") = R.nn.attention(
                     lv, lv1, lv2, scale=None
                 )
-                gv: R.Tensor((32, 128, 8, 64), dtype="float32") = lv3
+                lv4: R.Tensor((32, 8, 128, 64), dtype="float32") = R.permute_dims(
+                    lv3, axes=[0, 2, 1, 3]
+                )
+                gv: R.Tensor((32, 8, 128, 64), dtype="float32") = lv4
                 R.output(gv)
             return gv
 
@@ -3851,7 +3854,7 @@ def test_attention():
             inp_1: R.Tensor((32, 8, 128, 64), dtype="float32"),
             inp_2: R.Tensor((32, 8, 128, 64), dtype="float32"),
             inp_3: R.Tensor((32, 8, 128, 128), dtype="float32"),
-        ) -> R.Tensor((32, 128, 8, 64), dtype="float32"):
+        ) -> R.Tensor((32, 8, 128, 64), dtype="float32"):
             with R.dataflow():
                 lv: R.Tensor((32, 128, 8, 64), dtype="float32") = R.permute_dims(
                     inp_0, axes=[0, 2, 1, 3]
@@ -3865,7 +3868,10 @@ def test_attention():
                 lv3: R.Tensor((32, 128, 8, 64), dtype="float32") = R.nn.attention(
                     lv, lv1, lv2, inp_3, scale=None
                 )
-                gv: R.Tensor((32, 128, 8, 64), dtype="float32") = lv3
+                lv4: R.Tensor((32, 8, 128, 64), dtype="float32") = R.permute_dims(
+                    lv3, axes=[0, 2, 1, 3]
+                )
+                gv: R.Tensor((32, 8, 128, 64), dtype="float32") = lv4
                 R.output(gv)
             return gv
 
@@ -3876,7 +3882,7 @@ def test_attention():
             inp_0: R.Tensor((32, 8, 128, 64), dtype="float32"),
             inp_1: R.Tensor((32, 8, 128, 64), dtype="float32"),
             inp_2: R.Tensor((32, 8, 128, 64), dtype="float32"),
-        ) -> R.Tensor((32, 128, 8, 64), dtype="float32"):
+        ) -> R.Tensor((32, 8, 128, 64), dtype="float32"):
             with R.dataflow():
                 lv: R.Tensor((32, 128, 8, 64), dtype="float32") = R.permute_dims(
                     inp_0, axes=[0, 2, 1, 3]
@@ -3890,7 +3896,10 @@ def test_attention():
                 lv3: R.Tensor((32, 128, 8, 64), dtype="float32") = R.nn.attention(
                     lv, lv1, lv2, scale=None, causal_mask="TopLeft"
                 )
-                gv: R.Tensor((32, 128, 8, 64), dtype="float32") = lv3
+                lv4: R.Tensor((32, 8, 128, 64), dtype="float32") = R.permute_dims(
+                    lv3, axes=[0, 2, 1, 3]
+                )
+                gv: R.Tensor((32, 8, 128, 64), dtype="float32") = lv4
                 R.output(gv)
             return gv
 
