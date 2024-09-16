@@ -122,9 +122,9 @@ class Profiler(ConvertTorch):
 
     def _get_inputs(self, with_output=False):
         ins = []
-        for param in self.params:
-            if with_output or param not in self.result_idx:
-                ins.append(self.supply(param))
+        for i in range(len(self.params)):
+            if with_output or i not in self.result_idx:
+                ins.append(self.supply(self.params[i]))
         return ins
 
     def assert_allclose(self, reference_program: callable, atol: float = 1e-8, rtol: float = 1e-5):
