@@ -1352,8 +1352,11 @@ class Parser {
     auto next = Peek();
     switch (next->token_type) {
       case TokenType::kFloat:
+        return runtime::Float(Downcast<FloatImm>(Match(next->token_type)->data)->value);
       case TokenType::kInteger:
+        return runtime::Int(Downcast<IntImm>(Match(next->token_type)->data)->value);
       case TokenType::kBoolean:
+        return runtime::Bool(Downcast<IntImm>(Match(next->token_type)->data)->value);
       case TokenType::kStringLiteral:
         return Match(next->token_type)->data;
       case TokenType::kMetaReference:
