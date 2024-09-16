@@ -133,6 +133,10 @@ def alloc_shared(shape, dtype, scope="shared.dyn"):
     return T.alloc_buffer(shape, dtype, scope=scope)
 
 
+def alloc_local(shape, dtype, scope="local"):
+    return T.alloc_buffer(shape, dtype, scope=scope)
+
+
 def alloc_fragment(shape, dtype, scope="local.fragment"):
     return T.alloc_buffer(shape, dtype, scope=scope)
 
