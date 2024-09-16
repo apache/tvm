@@ -15,17 +15,20 @@
     specific language governing permissions and limitations
     under the License.
 
-.. _tensor-ir:
+.. _relax:
 
-TensorIR
-========
-TensorIR is one of the core abstraction in Apache TVM stack, which is used to
-represent and optimize the primitive tensor functions.
+Relax
+=====
+Relax is a high-level abstraction for graph optimization and transformation in Apache TVM stack.
+Additionally, Apache TVM combine Relax and TensorIR together as a unity strategy for cross-level
+optimization. Hence, Relax is usually working closely with TensorIR for representing and optimizing
+the whole IRModule
+
 
 .. toctree::
     :maxdepth: 2
 
     abstraction
     learning
-    tutorials/tir_creation
-    tutorials/tir_transformation
+    tutorials/relax_creation
+    tutorials/relax_transformation

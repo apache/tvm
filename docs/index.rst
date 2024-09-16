@@ -55,6 +55,7 @@ driving its costs down.
    :caption: Deep Dive
 
    deep_dive/tensor_ir/index
+   deep_dive/relax/index
 
 .. toctree::
    :maxdepth: 1

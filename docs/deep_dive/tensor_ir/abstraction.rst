@@ -44,7 +44,6 @@ the compute statements themselves.
 
 Key Elements of Tensor Programs
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
 The demonstrated primitive tensor function calculates the element-wise sum of two vectors.
 The function:
 
