@@ -350,7 +350,7 @@ class MobilenetStructure:
     @T.prim_func
     def run_model(input: T.handle, output: T.handle) -> None:
         # function attr dict
-        T.func_attr({"global_symbol": "tvmgen_default_run_model", "runner_function": True})
+        T.func_attr({"runner_function": True})
         # body
         T.attr("default", "device_id", 0)
         T.attr("default", "device_type", 1)

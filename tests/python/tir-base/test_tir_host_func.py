@@ -33,7 +33,6 @@ class Module:
     ):
         T.func_attr(
             {
-                "global_symbol": "test",
                 "target": tvm.target.Target("llvm", host="llvm"),
                 "tir.noalias": True,
             }
@@ -59,12 +58,11 @@ def test_host_func():
     func = tvm.te.create_prim_func(
         te_workload.matmul(729, 729, 729, in_dtype="float32", out_dtype="float32")
     )
-    mod = tvm.ir.IRModule({"main": func})
+    mod = tvm.ir.IRModule({"main": func.with_attr("global_symbol", "main")})
     target = tvm.target.Target("cuda")
     mod = tvm.tir.transform.Apply(
         lambda f: f.with_attr(
             {
-                "global_symbol": "test",
                 "tir.is_host_func": 1,
             }
         )
