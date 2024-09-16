@@ -104,8 +104,9 @@ def eval_struct_info_proxy(self: Parser, node: doc.expr) -> StructInfoProxy:
     try:
         annotation = self.eval_expr(node)
         return _normalize_struct_info_proxy(annotation)
-    except Exception as err:
+    except Exception as err:  # pylint: disable=broad-except
         self.report_error(node, err)
+        raise
 
 
 def eval_struct_info(self: Parser, node: doc.expr, eval_str: bool = False) -> StructInfo:
@@ -113,8 +114,9 @@ def eval_struct_info(self: Parser, node: doc.expr, eval_str: bool = False) -> St
     try:
         struct_info = self.eval_expr(node)
         return _normalize_struct_info(struct_info, var_table)
-    except Exception as err:
+    except Exception as err:  # pylint: disable=broad-except
         self.report_error(node, err)
+        raise
 
 
 def is_called(node: Any, func_name: str) -> bool:

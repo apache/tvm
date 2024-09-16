@@ -465,6 +465,7 @@ def eval_assign(
         return _eval_assign(target, source)
     except Exception as err:  # pylint: disable=broad-except
         parser.report_error(target, err)
+        raise
 
 
 def _eval_expr(

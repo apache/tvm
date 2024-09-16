@@ -309,6 +309,7 @@ def _dispatch_wrapper(func: dispatch.ParseMethod) -> dispatch.ParseMethod:
             return func(self, node)
         except Exception as err:  # pylint: disable=broad-except
             self.report_error(node, err)
+            raise
 
     return _wrapper
 
@@ -493,6 +494,7 @@ class Parser(doc.NodeVisitor):
             return self._duplicate_lhs_check(target.value)
         else:
             self.report_error(target, "Invalid type in assign statement")
+            raise NotImplementedError
 
     def eval_assign(
         self,
