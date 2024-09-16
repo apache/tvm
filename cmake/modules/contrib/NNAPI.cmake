@@ -14,18 +14,26 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-# pylint: disable=wildcard-import
-"""Contrib modules."""
-from .register import get_pattern_table, register_pattern_table
 
-from .arm_compute_lib import *
-from .dnnl import *
-from .bnns import *
-from .coreml import *
-from .ethosn import *
-from .libtorch import *
-from .tensorrt import *
-from .cutlass import *
-from .clml import *
-from .mrvl import *
-from .nnapi import *
+# NNAPI Codegen
+if(USE_NNAPI_CODEGEN)
+    message(STATUS "Build with NNAPI codegen")
+
+    tvm_file_glob(GLOB COMPILER_NNAPI_SRCS src/relay/backend/contrib/nnapi/*.cc src/relax/backend/contrib/nnapi/*.cc)
+    tvm_file_glob(GLOB RUNTIME_NNAPI_SRCS src/runtime/contrib/nnapi/*.cc)
+    list(APPEND COMPILER_SRCS ${COMPILER_NNAPI_SRCS})
+    if(NOT USE_NNAPI_RUNTIME)
+        list(APPEND COMPILER_SRCS ${RUNTIME_NNAPI_SRCS})
+    endif()
+endif()
+
+# NNAPI Runtime
+if(USE_NNAPI_RUNTIME)
+    message(STATUS "Build with NNAPI runtime")
+
+    tvm_file_glob(GLOB RUNTIME_NNAPI_SRCS src/runtime/contrib/nnapi/*.cc)
+    list(APPEND RUNTIME_SRCS ${RUNTIME_NNAPI_SRCS})
+    list(APPEND TVM_RUNTIME_LINKER_LIBS neuralnetworks log)
+
+    add_definitions(-DTVM_GRAPH_EXECUTOR_NNAPI)
+endif()
