@@ -290,8 +290,8 @@ def test_fp16_conversion(target, dev):
                     "int32", main_output_handle_strides_1[0]
                 ), "main.output_handle.strides: expected to be compact array"
                 T.evaluate(0)
-            assert (
-                T.uint64(0) == T.tvm_struct_get(output_handle, 0, 8, "uint64")
+            assert T.uint64(0) == T.tvm_struct_get(
+                output_handle, 0, 8, "uint64"
             ), 'Argument main.output_handle.byte_offset has an unsatisfied constraint: T.uint64(0) == T.tvm_struct_get(output_handle, 0, 8, "uint64")'
             assert (
                 T.tvm_struct_get(output_handle, 0, 10, "int32") == 1
@@ -312,14 +312,14 @@ def test_fp16_conversion(target, dev):
                     "int32", main_input_handle_strides_1[0]
                 ), "main.input_handle.strides: expected to be compact array"
                 T.evaluate(0)
-            assert (
-                T.uint64(0) == T.tvm_struct_get(input_handle, 0, 8, "uint64")
+            assert T.uint64(0) == T.tvm_struct_get(
+                input_handle, 0, 8, "uint64"
             ), 'Argument main.input_handle.byte_offset has an unsatisfied constraint: T.uint64(0) == T.tvm_struct_get(input_handle, 0, 8, "uint64")'
             assert (
                 T.tvm_struct_get(input_handle, 0, 10, "int32") == 1
             ), 'Argument main.input_handle.device_type has an unsatisfied constraint: 1 == T.tvm_struct_get(input_handle, 0, 10, "int32")'
-            assert (
-                dev_id == T.tvm_struct_get(input_handle, 0, 9, "int32")
+            assert dev_id == T.tvm_struct_get(
+                input_handle, 0, 9, "int32"
             ), 'Argument main.input_handle.device_id has an unsatisfied constraint: dev_id == T.tvm_struct_get(input_handle, 0, 9, "int32")'
             assert not T.isnullptr(
                 Output
