@@ -22,9 +22,6 @@
  * \brief A parser for TVM IR.
  */
 
-
-#include "./tokenizer.h"
-
 #include <tvm/ir/module.h>
 #include <tvm/node/reflection.h>
 #include <tvm/relay/adt.h>
