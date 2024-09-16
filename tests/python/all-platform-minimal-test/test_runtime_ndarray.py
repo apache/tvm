@@ -17,6 +17,9 @@
 """Basic runtime enablement test."""
 
 import math
+import os
+import pathlib
+import tempfile
 
 import pytest
 import numpy as np
@@ -390,7 +393,16 @@ def test_fp16_conversion(target, dev):
     print(f"Input shape: {x_tvm.shape}, input dtype: {x_tvm.dtype}", flush=True)
     print(f"Output shape: {y_tvm.shape}, output dtype: {y_tvm.dtype}", flush=True)
 
-    func(x_tvm, y_tvm)
+    with tempfile.TemporaryDirectory(prefix="tvm_ndarray_") as temp_dir:
+        temp_dir = pathlib.Path(temp_dir)
+
+        extension = "dll" if os.name == "nt" else "so"
+
+        libname = temp_dir.joinpath(f"libexec.{extension}")
+        func.export_library(libname)
+        func = tvm.runtime.load_module(libname)
+
+        func(x_tvm, y_tvm)
 
     expected = x_tvm.numpy().astype(dst)
     real = y_tvm.numpy()
