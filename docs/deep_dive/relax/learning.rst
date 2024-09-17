@@ -26,7 +26,7 @@ dependencies and relationships between different parts of the model, as
 well as how to execute the model on hardware.
 
 End to End Model Execution
--------------------------
+--------------------------
 
 In this chapter, we will use the following model as an example. This is
 a two-layer neural network that consists of two linear operations with
@@ -270,4 +270,3 @@ Outside a dataflow block, the operations can contain side-effect.
 
 By allowing manual marking of dataflow blocks, we ensure that the compiler has the most
 accurate information to work with, leading to more effective optimizations.
-

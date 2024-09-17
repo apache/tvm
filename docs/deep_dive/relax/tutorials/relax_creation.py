@@ -215,7 +215,7 @@ mod.show()
 
 ######################################################################
 # Create Relax programs using Block Builder API
-# --------------------------------------------
+# ---------------------------------------------
 # In addition to the above APIs, we also provide a Block Builder API for
 # creating Relax programs. It is a IR builder API, which is more
 # low-level and widely used in TVM's internal logic, e.g writing a
@@ -276,6 +276,6 @@ mod.show()
 
 ######################################################################
 # Summary
-# --------
+# -------
 # This tutorial demonstrates how to create Relax programs using TVMScript,
 # NNModule API, Block Builder API and PackedFunc API for different use cases.
