@@ -179,6 +179,15 @@ def test_unassigned_call_fail():
             return x
 
 
+def test_incorrect_tensor_shape():
+    with pytest.raises(tvm.error.DiagnosticError):
+
+        @R.function
+        def f(x: R.Tensor([16])):
+            y: R.Tensor(16) = R.add(x, x)
+            return y
+
+
 def test_simple_module():
     @I.ir_module
     class TestModule:
@@ -1045,7 +1054,6 @@ def test_call_tir_inplace():
 
 
 def test_call_tir_inplace_with_tuple_var_raises_error():
-
     with pytest.raises(tvm.error.DiagnosticError):
 
         @tvm.script.ir_module
@@ -1838,7 +1846,7 @@ def test_class_normalize():
     _check(InputModule, OutputModule)
 
 
-def test_context_aware_parsing():
+def test_context_aware_parsing(monkeypatch):
     @tvm.script.ir_module
     class Module:
         @T.prim_func
@@ -1863,7 +1871,7 @@ def test_context_aware_parsing():
     def _break_env(self, *args):
         raise RuntimeError("Fail to pass context-aware parsing")
 
-    tvm.ir.GlobalVar.__call__ = _break_env
+    monkeypatch.setattr(tvm.ir.GlobalVar, "__call__", _break_env)
 
     _check(Module)
 

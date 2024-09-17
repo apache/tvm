@@ -307,10 +307,8 @@ def _dispatch_wrapper(func: dispatch.ParseMethod) -> dispatch.ParseMethod:
     def _wrapper(self: "Parser", node: doc.AST) -> None:
         try:
             return func(self, node)
-        except DiagnosticError:
-            raise
-        except Exception as e:  # pylint: disable=broad-except,invalid-name
-            self.report_error(node, e)
+        except Exception as err:  # pylint: disable=broad-except
+            self.report_error(node, err)
             raise
 
     return _wrapper
@@ -547,6 +545,12 @@ class Parser(doc.NodeVisitor):
         err: Union[Exception, str]
             The error to report.
         """
+
+        # If the error is already being raised as a DiagnosticError,
+        # re-raise it without wrapping it in a DiagnosticContext.
+        if isinstance(err, DiagnosticError):
+            raise err
+
         # Only take the last line of the error message
         if isinstance(err, TVMError):
             msg = list(filter(None, str(err).split("\n")))[-1]
@@ -595,11 +599,8 @@ class Parser(doc.NodeVisitor):
             raise NotImplementedError(f"Visitor of AST node is not implemented: {name}")
         try:
             func(node)
-        except DiagnosticError:
-            raise
-        except Exception as e:  # pylint: disable=broad-except,invalid-name
-            self.report_error(node, str(e))
-            raise
+        except Exception as err:  # pylint: disable=broad-except
+            self.report_error(node, err)
 
     def visit_body(self, node: List[doc.stmt]) -> Any:
         """The general body visiting method.
