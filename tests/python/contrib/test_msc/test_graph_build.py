@@ -2362,12 +2362,7 @@ def test_attention(dynamic):
             {"name": "inp_2", "shape": [1, 8, seq, 64], "dtype": "float32", "layout": "ACBD"},
         ],
         "outputs": [
-            {
-                "name": "attention",
-                "shape": [1, seq, 8, 64],
-                "dtype": "float32",
-                "layout": "ABCD",
-            }
+            {"name": "attention", "shape": [1, 8, seq, 64], "dtype": "float32", "layout": "ABCD"}
         ],
         "nodes": {"total": 4, "input": 3, "msc.attention": 1},
     }
@@ -2396,7 +2391,7 @@ def test_attention(dynamic):
         "outputs": [
             {
                 "name": "attention_bias",
-                "shape": [1, seq, 8, 64],
+                "shape": [1, 8, seq, 64],
                 "dtype": "float32",
                 "layout": "ABCD",
             }
