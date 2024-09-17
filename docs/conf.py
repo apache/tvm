@@ -424,6 +424,7 @@ examples_dirs = [
     # New tutorial structure under docs folder
     tvm_path.joinpath("docs", "get_started", "tutorials"),
     tvm_path.joinpath("docs", "how_to", "tutorials"),
+    tvm_path.joinpath("docs", "deep_dive", "relax", "tutorials"),
     tvm_path.joinpath("docs", "deep_dive", "tensor_ir", "tutorials"),
 ]
 
@@ -443,6 +444,7 @@ gallery_dirs = [
     # New tutorial structure under docs folder
     "get_started/tutorials/",
     "how_to/tutorials/",
+    "deep_dive/relax/tutorials/",
     "deep_dive/tensor_ir/tutorials/",
 ]
 
@@ -598,10 +600,10 @@ tvm_alias_check_map = {
 ## Setup header and other configs
 import tlcpack_sphinx_addon
 
-footer_copyright = "© 2023 Apache Software Foundation | All rights reserved"
+footer_copyright = "© 2024 Apache Software Foundation | All rights reserved"
 footer_note = " ".join(
     """
-Copyright © 2023 The Apache Software Foundation. Apache TVM, Apache, the Apache feather,
+Copyright © 2024 The Apache Software Foundation. Apache TVM, Apache, the Apache feather,
 and the Apache TVM project logo are either trademarks or registered trademarks of
 the Apache Software Foundation.""".split(
         "\n"
@@ -614,7 +616,6 @@ header_logo_link = "https://tvm.apache.org/"
 header_links = [
     ("Community", "https://tvm.apache.org/community"),
     ("Download", "https://tvm.apache.org/download"),
-    ("VTA", "https://tvm.apache.org/vta"),
     ("Blog", "https://tvm.apache.org/blog"),
     ("Docs", "https://tvm.apache.org/docs"),
     ("Conference", "https://tvmconf.org"),
