@@ -77,10 +77,6 @@ COPY install/ubuntu_install_golang.sh /install/ubuntu_install_golang.sh
 RUN bash /install/ubuntu_install_golang.sh
 ENV PATH $PATH:/usr/lib/go-1.18/bin
 
-# NNPACK deps
-COPY install/ubuntu_install_nnpack.sh /install/ubuntu_install_nnpack.sh
-RUN bash /install/ubuntu_install_nnpack.sh
-
 # ANTLR deps
 COPY install/ubuntu_install_java.sh /install/ubuntu_install_java.sh
 RUN bash /install/ubuntu_install_java.sh
@@ -128,10 +124,6 @@ RUN bash /install/ubuntu_install_ethosn_driver_stack.sh
 # Vitis-AI PyXIR CI deps
 COPY install/ubuntu_install_vitis_ai_packages_ci.sh /install/ubuntu_install_vitis_ai_packages_ci.sh
 RUN bash /install/ubuntu_install_vitis_ai_packages_ci.sh
-
-# Android SDK
-COPY install/ubuntu_install_androidsdk.sh /install/ubuntu_install_androidsdk.sh
-RUN bash /install/ubuntu_install_androidsdk.sh
 
 # PaddlePaddle deps
 COPY install/ubuntu_install_paddle.sh /install/ubuntu_install_paddle.sh

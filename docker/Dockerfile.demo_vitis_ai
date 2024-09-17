@@ -45,10 +45,6 @@ RUN bash /install/ubuntu_install_python_package.sh
 COPY install/ubuntu_install_llvm.sh /install/ubuntu_install_llvm.sh
 RUN bash /install/ubuntu_install_llvm.sh
 
-# NNPACK deps
-COPY install/ubuntu_install_nnpack.sh /install/ubuntu_install_nnpack.sh
-RUN bash /install/ubuntu_install_nnpack.sh
-
 ENV PATH $PATH:$CARGO_HOME/bin:/usr/lib/go-1.10/bin
 
 # ANTLR deps
