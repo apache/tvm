@@ -627,7 +627,7 @@ header_dropdown = {
         ("Apache Homepage", "https://apache.org/"),
         ("License", "https://www.apache.org/licenses/"),
         ("Sponsorship", "https://www.apache.org/foundation/sponsorship.html"),
-        ("Security", "https://www.apache.org/security/"),
+        ("Security", "https://tvm.apache.org/docs/reference/security.html"),
         ("Thanks", "https://www.apache.org/foundation/thanks.html"),
         ("Events", "https://www.apache.org/events/current-event"),
     ],
