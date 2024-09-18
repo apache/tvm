@@ -117,20 +117,29 @@ void FuncRetValue(const tvm::relax::Expr& value) {
   const tvm::relax::BlockBuilder& block_builder = GetBlockBuilder();
   tvm::relax::Expr normalized_value = block_builder->Normalize(value);
 
+  IRBuilder ir_builder = IRBuilder::Current();
+
   // Step 1. The current Relax TVMScript syntax only allows function return appearing at the end of
   // a function body. Therefore if there is any unended block frame when dealing with function
   // return, we should end the block frame.
-  Optional<BlockFrame> block_frame = IRBuilder::Current()->GetLastFrame<BlockFrame>();
-  if (block_frame.defined()) {
-    block_frame.value()->ExitWithScope();
-    ICHECK(!IRBuilder::Current()->FindFrame<BlockFrame>())
-        << "ValueError: Relax functions don't support return in true/false branch of If Node.";
+
+  if (auto opt = ir_builder->GetLastFrame<BlockFrame>()) {
+    auto block_frame = opt.value();
+    for (const auto& var : tvm::relax::FreeVars(normalized_value)) {
+      if (var->IsInstance<tvm::relax::DataflowVarNode>()) {
+        block_frame->output_vars.push_back(var);
+      }
+    }
   }
   // Step 2. Add the output value to the function frame.
   FunctionFrame frame = FindFunctionFrame("return");
   CHECK(!frame->output.defined())
-      << "ValueError: Relax functions don't support multiple return statement. Please make sure "
-         "the return statement appears at the end of function.";
+      << "ValueError: "
+      << "Relax functions do not support multiple return statement.  "
+      << "However, return of " << normalized_value << " occurred after a return of "
+      << frame->output << ".  "
+      << "Please make sure function only has a single return statement, "
+      << "which appears at the end of function.";
 
   frame->output = std::move(normalized_value);
 }
