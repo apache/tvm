@@ -3595,6 +3595,22 @@ def test_forward_fill_with_div():
     verify_model_with_input(test_func, [torch.rand([1, 3, 10, 10]).float()])
 
 
+def test_forward_index_fill_():
+    """ text_forward_index_fill """
+    torch.set_grad_enabled(False)
+
+    def test_func_vector_index(x):
+        index = torch.arange(start=0, end=2, step=1)
+        return x.index_fill_(dim=1, index=index, value=3.0)
+
+    def test_func_scalar_index(x):
+        return x.index_fill_(dim=1, index=1, value=3.0)
+
+    verify_model_with_input(test_func_vector_index, [torch.rand([1, 3, 224, 224], dtype=torch.float32)])
+    verify_model_with_input(test_func_vector_index, [torch.rand([32, 128, 128], dtype=torch.float32)])
+    verify_model_with_input(test_func_scalar_index, [torch.rand([1, 32, 224, 224], dtype=torch.float32)])
+    verify_model_with_input(test_func_scalar_index, [torch.rand([128, 128], dtype=torch.float32)])
+
 @tvm.testing.uses_gpu
 def test_forward_linspace():
     """test_forward_linspace"""

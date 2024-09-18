@@ -636,6 +636,32 @@ class PyTorchOpConverter:
 
             return _op.split(data, sections, dim)
 
+    def index_fill(self, inputs, input_types):
+        data = inputs[0]
+        dim = inputs[1]
+        indices = inputs[2]
+        value = inputs[3]
+
+        dtype = self.infer_type(data).dtype
+        input_shape = self.infer_shape(data)
+        input_rank = len(input_shape)
+        dim = input_rank - 1 if dim == -1 else dim
+
+        value = _op.nn.const(value, dtype=dtype)
+        indices_shape = list(input_shape)
+        indices_shape[dim] = 1
+
+        result = data
+        if np.isscalar(indices):
+            idx_val = _op.full(fill_value=indices, shape=indices_shape, dtype="int64")
+        else:
+            length = self.infer_shape(indices)[0]
+            for i in range(length):
+                idx_val = _op.transform.take(indices, indices=_op.nn.const(i), axis=0)
+                idx_val = _op.full(fill_value=idx_val, shape=indices_shape, dtype="int64")
+                result = _op.scatter_elements(data=result, indices=idx_val, updates=value, axis=dim, reduction="update")
+        return result
+
     def select(self, inputs, input_types):
         data = inputs[0]
         dim = int(inputs[1])
@@ -4039,6 +4065,7 @@ class PyTorchOpConverter:
             "aten::pixel_shuffle": self.pixel_shuffle,
             "aten::device": self.none,
             "prim::device": self.none,
+            "aten::index_fill_": self.index_fill,
             "aten::sub": self.sub,
             "aten::max": self.max,
             "aten::min": self.min,
