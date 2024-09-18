@@ -4565,18 +4565,18 @@ class If(OnnxOpConverter):
                     "Attempting to unify ranks but this may produce incorrect results."
                 )
                 warnings.warn(warning_msg)
-                if type(inputs[0]) is tvm.relay.expr.Constant:
-                    cond_value = inputs[0].data.asnumpy()[0]
-                    # breakpoint()
+                # Skip constant If node to avoid irrational broadcast
+                if isinstance(inputs[0], tvm.relay.expr.Constant):
+                    predicate = inputs[0].data.asnumpy()[0]
                     node_name = attr["tvm_custom"]["name"]
                     warn_msg_begin = f"Predicate of If node {node_name} is always "
-                    if cond_value == np.bool_(True):
+                    if predicate == np.bool_(True):
                         warnings.warn(
                             warn_msg_begin
                             + "true so only then branch would be executed. Removing else branch. "
                         )
                         else_expr = then_expr
-                    elif cond_value == np.bool_(False):
+                    elif predicate == np.bool_(False):
                         warnings.warn(
                             warn_msg_begin
                             + "false so only else branch would be executed. Removing then branch. "
