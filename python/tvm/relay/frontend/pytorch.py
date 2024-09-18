@@ -651,10 +651,11 @@ class PyTorchOpConverter:
         indices_shape = list(input_shape)
         indices_shape[dim] = 1
 
-        result = data
         if np.isscalar(indices):
             idx_val = _op.full(fill_value=indices, shape=indices_shape, dtype="int64")
+            result = _op.scatter_elements(data=data, indices=idx_val, updates=value, axis=dim, reduction="update")
         else:
+            result = data
             length = self.infer_shape(indices)[0]
             for i in range(length):
                 idx_val = _op.transform.take(indices, indices=_op.nn.const(i), axis=0)
