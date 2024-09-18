@@ -4565,6 +4565,23 @@ class If(OnnxOpConverter):
                     "Attempting to unify ranks but this may produce incorrect results."
                 )
                 warnings.warn(warning_msg)
+                if type(inputs[0]) is tvm.relay.expr.Constant:
+                    cond_value = inputs[0].data.asnumpy()[0]
+                    # breakpoint()
+                    node_name = attr["tvm_custom"]["name"]
+                    warn_msg_begin = f"Predicate of If node {node_name} is always "
+                    if cond_value == np.bool_(True):
+                        warnings.warn(
+                            warn_msg_begin
+                            + "true so only then branch would be executed. Removing else branch. "
+                        )
+                        else_expr = then_expr
+                    elif cond_value == np.bool_(False):
+                        warnings.warn(
+                            warn_msg_begin
+                            + "false so only else branch would be executed. Removing then branch. "
+                        )
+                        then_expr = else_expr
                 if len(then_shape) < len(else_shape):
                     then_expr = _op.broadcast_to_like(then_expr, else_expr)
                 else:
@@ -6528,6 +6545,7 @@ class SequenceAt(OnnxOpConverter):
 
 # compatible operators that do NOT require any conversion.
 _identity_list = []
+
 
 # _convert_map defines maps of name to converter functor(callable)
 # for 1 to 1 mapping, use Renamer if nothing but name is different
