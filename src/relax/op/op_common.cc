@@ -35,17 +35,16 @@ Array<Expr> GetCallArgs(const Call& call) {
   return args;
 }
 
-void CheckNumArguments(const Call& call, const BlockBuilder& ctx) {
+void CheckNumArguments(const Call& call) {
   Op op = Downcast<Op>(call->op);
   int expected_input = op->arguments.size();
   if (static_cast<int>(call->args.size()) != expected_input) {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "Operator " << op << " expects " << expected_input << " arguments"
-                     << ", but was called with " << call->args.size() << " arguments");
+    LOG(FATAL) << "Operator " << op << " expects " << expected_input << " arguments"
+               << ", but was called with " << call->args.size() << " arguments";
   }
 }
 
-TensorStructInfo GetInputTensorStructInfo(const Call& call, size_t i_arg, const BlockBuilder& ctx) {
+TensorStructInfo GetInputTensorStructInfo(const Call& call, size_t i_arg) {
   Op op = Downcast<Op>(call->op);
 
   ICHECK_EQ(op->arguments.size(), call->args.size())
@@ -59,24 +58,19 @@ TensorStructInfo GetInputTensorStructInfo(const Call& call, size_t i_arg, const 
   if (auto tensor_sinfo = sinfo.as<TensorStructInfo>()) {
     return tensor_sinfo.value();
   } else {
-    ctx->ReportFatal(Diagnostic::Error(call)
-                     << "Operator " << op << " requires argument " << i_arg << " ("
-                     << op->arguments[i_arg]->name << ") to be a tensor.  "
-                     << "However, the argument " << arg << " is instead of type " << sinfo);
-    // Unreachable, but [[noreturn]] attribute on virtual function
-    // `ReportFatal` is insufficient to silence -Wreturn-type, as
-    // child class might not be [[noreturn]].
-    return TensorStructInfo();
+    LOG(FATAL) << "Operator " << op << " requires argument " << i_arg << " ("
+               << op->arguments[i_arg]->name << ") to be a tensor.  "
+               << "However, the argument " << arg << " is instead of type " << sinfo;
   }
 }
 
-Array<TensorStructInfo> GetInputTensorStructInfo(const Call& call, const BlockBuilder& ctx) {
-  CheckNumArguments(call, ctx);
+Array<TensorStructInfo> GetInputTensorStructInfo(const Call& call) {
+  CheckNumArguments(call);
 
   Op op = Downcast<Op>(call->op);
   Array<TensorStructInfo> input_tensor_sinfo;
   for (size_t i = 0; i < call->args.size(); ++i) {
-    input_tensor_sinfo.push_back(GetInputTensorStructInfo(call, i, ctx));
+    input_tensor_sinfo.push_back(GetInputTensorStructInfo(call, i));
   }
   return input_tensor_sinfo;
 }

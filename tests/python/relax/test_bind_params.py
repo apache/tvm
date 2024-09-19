@@ -157,5 +157,31 @@ def test_error_on_unknown_var_name():
         before.bind_params({"unknown_var_name": np.arange(16).astype("float32")})
 
 
+def test_bind_computed_value():
+    @R.function(private=True)
+    def before(
+        state: R.Tensor(["batch_size", 16], "float16"),
+        weights: R.Tensor([16, 16], "float16"),
+        bias: R.Tensor([16], "float16"),
+    ):
+        state = R.matmul(state, weights)
+        state = R.add(state, bias)
+        return state
+
+    @R.function(private=True)
+    def expected(
+        state: R.Tensor(["batch_size", 16], "float16"),
+        weights: R.Tensor([16, 16], "float16"),
+    ):
+        state = R.matmul(state, weights)
+        bias = R.zeros([16], "float16")
+        state = R.add(state, bias)
+        return state
+
+    after = before.bind_params({"bias": R.zeros([16], "float16")})
+
+    tvm.ir.assert_structural_equal(expected, after)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
