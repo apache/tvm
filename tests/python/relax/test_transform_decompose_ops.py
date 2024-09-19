@@ -360,14 +360,14 @@ def test_op_tensor_to_shape():
     @I.ir_module
     class Before:
         @R.function
-        def main(t: R.Tensor(ndim=1, dtype="int64")):
+        def main(t: R.Tensor([3], dtype="int64")):
             gv: R.Shape(ndim=3) = R.tensor_to_shape(t)
             return gv
 
     @I.ir_module
     class Expected:
         @R.function
-        def main(t: R.Tensor(dtype="int64", ndim=1)) -> R.Shape(ndim=3):
+        def main(t: R.Tensor([3], dtype="int64")) -> R.Shape(ndim=3):
             x = T.int64()
             x_1 = T.int64()
             x_2 = T.int64()

@@ -366,8 +366,8 @@ def test_call_packed():
     ) -> R.Object:
         m = T.int64()
         z: R.Tensor((32, m), "float32") = R.multiply(x, y)
-        w: R.Tensor = R.multiply(z, z)
-        q: R.Tensor(ndim=2) = R.add(w, w)
+        w: R.Tensor(ndim=2) = R.multiply(z, z)
+        q: R.Tensor = R.add(w, w)
         t = R.add(w, z)
         sh: R.Shape = R.shape_of(t)
         o: R.Object = R.call_packed(

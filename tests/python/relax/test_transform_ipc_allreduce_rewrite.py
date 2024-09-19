@@ -83,7 +83,7 @@ def test_ipc_allreduce_spread_along_reshape():
             alloc: R.Tensor((m, n), dtype="float16") = R.builtin.alloc_tensor(  # type: ignore
                 R.shape([m, n]), R.dtype("float16"), R.prim_value(0), R.str("global")
             )
-            lv1: R.Tensor((m, n), dtype="float16") = R.reshape(alloc, (m * n,))  # type: ignore
+            lv1: R.Tensor((m * n,), dtype="float16") = R.reshape(alloc, (m * n,))  # type: ignore
             alloc1: R.Tensor((m * n,), dtype="float16") = R.builtin.alloc_tensor(  # type: ignore
                 R.shape([m * n]), R.dtype("float16"), R.prim_value(0), R.str("global")
             )
@@ -103,7 +103,7 @@ def test_ipc_allreduce_spread_along_reshape():
             alloc: R.Tensor((m, n), dtype="float16") = R.builtin.alloc_tensor(  # type: ignore
                 R.shape([m, n]), R.dtype("float16"), R.prim_value(0), R.str("ipc_memory")
             )
-            lv1: R.Tensor((m, n), dtype="float16") = R.reshape(  # type: ignore
+            lv1: R.Tensor((m * n,), dtype="float16") = R.reshape(  # type: ignore
                 alloc, R.shape([m * n])
             )
             alloc1: R.Tensor((m * n,), dtype="float16") = R.builtin.alloc_tensor(  # type: ignore

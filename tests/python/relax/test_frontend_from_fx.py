@@ -79,7 +79,7 @@ def test_conv1d():
                     out_layout="NCW",
                     out_dtype="float32",
                 )
-                lv2: R.Tensor((1, 6, 1)) = R.reshape(w2, [1, 6, 1])
+                lv2: R.Tensor((1, 6, 1), dtype="float32") = R.reshape(w2, [1, 6, 1])
                 lv3: R.Tensor((1, 6, 4), dtype="float32") = R.add(lv1, lv2)
                 gv: R.Tensor((1, 6, 4), dtype="float32") = lv3
                 R.output(gv)
@@ -171,7 +171,7 @@ def test_conv1d_transpose():
                     out_layout="NCW",
                     out_dtype="float32",
                 )
-                lv2: R.Tensor((1, 6, 1)) = R.reshape(w2, [1, 6, 1])
+                lv2: R.Tensor((1, 6, 1), dtype="float32") = R.reshape(w2, [1, 6, 1])
                 lv3: R.Tensor((1, 6, 6), dtype="float32") = R.add(lv1, lv2)
                 gv: R.Tensor((1, 6, 6), dtype="float32") = lv3
                 R.output(gv)
@@ -263,7 +263,7 @@ def test_conv2d():
                     out_layout="NCHW",
                     out_dtype="float32",
                 )
-                lv2: R.Tensor((1, 6, 1, 1)) = R.reshape(w2, [1, 6, 1, 1])
+                lv2: R.Tensor((1, 6, 1, 1), dtype="float32") = R.reshape(w2, [1, 6, 1, 1])
                 lv3: R.Tensor((1, 6, 4, 4), dtype="float32") = R.add(lv1, lv2)
                 gv: R.Tensor((1, 6, 4, 4), dtype="float32") = lv3
                 R.output(gv)
@@ -355,7 +355,7 @@ def test_conv2d_transpose():
                     out_layout="NCHW",
                     out_dtype="float32",
                 )
-                lv2: R.Tensor((1, 3, 1, 1)) = R.reshape(w2, [1, 3, 1, 1])
+                lv2: R.Tensor((1, 3, 1, 1), dtype="float32") = R.reshape(w2, [1, 3, 1, 1])
                 lv3: R.Tensor((1, 3, 16, 16), dtype="float32") = R.add(lv1, lv2)
                 gv: R.Tensor((1, 3, 16, 16), dtype="float32") = lv3
                 R.output(gv)
@@ -447,7 +447,7 @@ def test_conv3d():
                     out_layout="NCDHW",
                     out_dtype="float32",
                 )
-                lv2: R.Tensor((1, 6, 1, 1, 1)) = R.reshape(w2, [1, 6, 1, 1, 1])
+                lv2: R.Tensor((1, 6, 1, 1, 1), dtype="float32") = R.reshape(w2, [1, 6, 1, 1, 1])
                 lv3: R.Tensor((1, 6, 4, 4, 4), dtype="float32") = R.add(lv1, lv2)
                 gv: R.Tensor((1, 6, 4, 4, 4), dtype="float32") = lv3
                 R.output(gv)
