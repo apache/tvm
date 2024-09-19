@@ -70,9 +70,20 @@ class TupleFuser : public ExprMutator {
     bool has_tuple_arg = false;
     if (target_funcs_.count(val->op)) {
       Array<Expr> new_args;
-      for (const auto& arg : val->args) {
+      for (size_t i = 0; i < val->args.size(); i++) {
+        const auto& arg = val->args[i];
         if (arg->IsInstance<TupleNode>()) {
-          const auto& func_call = AddFunc(arg);
+          String tuple_name;
+          const auto& name_opt =
+              target_funcs_[val->op]->GetAttr<runtime::String>(msc_attr::kUnique);
+          if (name_opt.defined()) {
+            if (val->args.size() == 1) {
+              tuple_name = name_opt.value() + "_input";
+            } else {
+              tuple_name = name_opt.value() + "_inputs." + std::to_string(i);
+            }
+          }
+          const auto& func_call = AddFunc(arg, tuple_name);
           const auto& tuple_out = builder_->Emit(func_call);
           ICHECK(target_funcs_.count(func_call->op))
               << "Can not find target func " << func_call->op;
@@ -118,7 +129,7 @@ class TupleFuser : public ExprMutator {
   }
 
  private:
-  Call AddFunc(const Expr& expr) {
+  Call AddFunc(const Expr& expr, const String tuple_name = "") {
     builder_->BeginDataflowBlock();
     Array<Expr> inputs;
     if (const auto* v_node = expr.as<TupleNode>()) {
@@ -133,6 +144,10 @@ class TupleFuser : public ExprMutator {
     Array<Var> params;
     Map<Expr, Var> added_params;
     for (size_t i = 0; i < inputs.size(); i++) {
+      if (inputs[i]->IsInstance<ConstantNode>()) {
+        func_inputs.push_back(inputs[i]);
+        continue;
+      }
       if (!added_params.count(inputs[i])) {
         const auto& name = String("param_" + std::to_string(i));
         const auto& var = Var(std::move(name), GetStructInfo(inputs[i]));
@@ -145,11 +160,16 @@ class TupleFuser : public ExprMutator {
 
     Expr out_expr;
     String func_name;
+    Span expr_span = expr->span;
+    if (!expr_span.defined()) {
+      ICHECK(tuple_name.size() > 0) << "Missing tuple for " << expr;
+      expr_span = SpanUtils::CreateWithAttr(msc_attr::kName, tuple_name);
+    }
     if (expr->IsInstance<TupleNode>()) {
-      out_expr = Tuple(func_inputs, expr->span);
+      out_expr = Tuple(func_inputs, expr_span);
       func_name = "tuple";
     } else if (const auto* g_node = expr.as<TupleGetItemNode>()) {
-      out_expr = TupleGetItem(func_inputs[0], g_node->index, expr->span);
+      out_expr = TupleGetItem(func_inputs[0], g_node->index, expr_span);
       func_name = "get_item";
     } else {
       LOG_FATAL << "Unexpceted expr " << expr;
@@ -163,7 +183,7 @@ class TupleFuser : public ExprMutator {
     Map<String, ObjectRef> func_attrs;
     func_attrs.Set(attr::kPrimitive, Integer(1));
     func_attrs.Set(attr::kComposite, target_ + func_name);
-    func_attrs.Set(msc_attr::kUnique, SpanUtils::GetAttr(expr->span, msc_attr::kName));
+    func_attrs.Set(msc_attr::kUnique, SpanUtils::GetAttr(expr_span, msc_attr::kName));
 
     Function function = Function(/*params=*/params,            //
                                  /*body=*/body,                //
