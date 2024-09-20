@@ -1015,7 +1015,9 @@ class TorchFXImporter:
             assert "float" in attn_mask.struct_info.dtype, msg
 
         return self.block_builder.emit(
-            relax.op.nn.attention(query, key, value, bias=attn_mask, causal_mask=causal_mask)
+            transpose_S_H(
+                relax.op.nn.attention(query, key, value, bias=attn_mask, causal_mask=causal_mask)
+            )
         )
 
     def _unbind(self, node: fx.Node) -> relax.Var:
