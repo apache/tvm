@@ -30,6 +30,8 @@ from tvm.contrib.msc.framework.tvm import codegen as tvm_codegen
 
 
 def verify_model(torch_model, input_info, opt_config=None):
+    """Compare torch module IR"""
+
     graph_model = fx.symbolic_trace(torch_model)
     with torch.no_grad():
         orig_mod = from_fx(graph_model, input_info)
