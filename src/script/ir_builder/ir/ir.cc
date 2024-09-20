@@ -88,14 +88,40 @@ void DefFunction(const String& func_name, const BaseFunc& func) {
   gv->checked_type_ = func->checked_type_;
 }
 
-void ModuleAttrs(Map<String, ObjectRef> attrs) {
+void ModuleAttrs(Map<String, ObjectRef> attrs, bool allow_overwrite) {
   if (IRBuilder::IsInScope()) {
     // TODO(hongyi): add comments to explain why we need to check if the module frame is in scope
     IRModuleFrame frame = FindModuleFrame("I.ModuleAttr");
-    if (!frame->attrs.empty()) {
+    if (!allow_overwrite && !frame->attrs.empty()) {
       LOG(FATAL) << "ValueError: Duplicate module attrs, previous one is:\n" << frame->attrs;
     }
     frame->attrs = attrs;
+  }
+}
+
+Optional<ObjectRef> ModuleGetAttr(const String& key) {
+  if (IRBuilder::IsInScope()) {
+    IRModuleFrame frame = FindModuleFrame();
+    if (frame->attrs.find(key) != frame->attrs.end()) {
+      return frame->attrs[key];
+    }
+  }
+  return NullOpt;
+}
+
+void ModuleSetAttr(const String& key, const Optional<ObjectRef>& value, bool allow_override) {
+  if (IRBuilder::IsInScope()) {
+    IRModuleFrame frame = FindModuleFrame();
+    if (!allow_override && frame->attrs.find(key) != frame->attrs.end() && value.defined()) {
+      LOG(FATAL) << "ValueError: Duplicate module attr " << key;
+    }
+    if (value.defined()) {
+      frame->attrs.Set(key, value.value());
+    } else {
+      frame->attrs.erase(key);
+    }
+  } else {
+    LOG(FATAL) << "ValueError: Currently in in the scope of a module.";
   }
 }
 
@@ -143,6 +169,8 @@ TVM_REGISTER_GLOBAL("script.ir_builder.ir.IRModule").set_body_typed(IRModule);
 TVM_REGISTER_GLOBAL("script.ir_builder.ir.DeclFunction").set_body_typed(DeclFunction);
 TVM_REGISTER_GLOBAL("script.ir_builder.ir.DefFunction").set_body_typed(DefFunction);
 TVM_REGISTER_GLOBAL("script.ir_builder.ir.ModuleAttrs").set_body_typed(ModuleAttrs);
+TVM_REGISTER_GLOBAL("script.ir_builder.ir.ModuleGetAttr").set_body_typed(ModuleGetAttr);
+TVM_REGISTER_GLOBAL("script.ir_builder.ir.ModuleSetAttr").set_body_typed(ModuleSetAttr);
 TVM_REGISTER_GLOBAL("script.ir_builder.ir.ModuleGlobalInfos").set_body_typed(ModuleGlobalInfos);
 TVM_REGISTER_GLOBAL("script.ir_builder.ir.LookupVDevice").set_body_typed(LookupVDevice);
 

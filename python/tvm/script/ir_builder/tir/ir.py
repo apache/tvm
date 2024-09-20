@@ -2256,3 +2256,11 @@ __all__ = [
     "vscale",
     "get_active_lane_mask",
 ]
+
+try:
+    import triton
+    from .triton import call_triton
+
+    __all__.append("call_triton")
+except ImportError:
+    pass
