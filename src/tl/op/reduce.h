@@ -45,6 +45,7 @@ class ReduceOp : public Operator {
   int dim;
   enum class ReduceType {
     kSum,
+    kAbsSum,
     kMax,
     kMin,
   } type;

@@ -16,11 +16,14 @@
 # under the License.
 """The profiler and convert to torch utils"""
 
-from typing import Any, List
+from typing import Any, List, Literal
 from enum import Enum
 from functools import partial
 import torch
 
+import tvm
+from torch.utils.dlpack import to_dlpack
+from tvm.runtime import ndarray
 from tvm.relay import TensorType
 from tvm.contrib.dlpack import to_pytorch_func
 
@@ -111,10 +114,10 @@ class Profiler(ConvertTorch):
         super().__init__(mod, params, result_idx)
         self.supply = get_tensor_supply(supply_type)
 
-    def _get_inputs(self):
+    def _get_inputs(self, with_output=False):
         ins = []
         for i in range(len(self.params)):
-            if i not in self.result_idx:
+            if with_output or i not in self.result_idx:
                 ins.append(self.supply(self.params[i]))
         return ins
 
@@ -159,10 +162,21 @@ class Profiler(ConvertTorch):
 
         
 
-    def do_bench(self, func: callable, warmup=25, rep=100, n_warmup=0, n_repeat=0):
-        ins = self._get_inputs()
-        bench_func = partial(func, *ins)
-        return do_bench(bench_func, warmup=warmup, rep=rep, _n_warmup=n_warmup, _n_repeat=n_repeat)
+    def do_bench(self, func: callable, warmup=25, rep=100, n_warmup=0, n_repeat=0, profiler: Literal["torch", "tvm"] = "torch"):
+        if profiler == "torch":
+            ins = self._get_inputs()
+            bench_func = partial(func, *ins)
+            return do_bench(bench_func, warmup=warmup, rep=rep, _n_warmup=n_warmup, _n_repeat=n_repeat)
+        elif profiler == "tvm":
+            ins = self._get_inputs(with_output=True)
+            time_evaluator = self.mod.time_evaluator(
+                self.mod.entry_name, tvm.cuda(0), number=rep, repeat=n_repeat
+            )
+            tvm_inputs = [ndarray.from_dlpack(to_dlpack(inp)) for inp in ins]
+            # Transform Latency to ms
+            return time_evaluator(*tvm_inputs).mean * 1e3
+        else:
+            raise ValueError(f"Unknown profiler: {profiler}")
 
 
 def do_bench(

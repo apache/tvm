@@ -96,6 +96,10 @@ TIR_DEFINE_TL_BUILTIN(SetMaxNReg)
     .set_num_inputs(2)
     .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
 
+TIR_DEFINE_TL_BUILTIN(WaitWgmma)
+    .set_num_inputs(1)
+    .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
+
 TIR_DEFINE_TL_BUILTIN(PackB16Op).set_num_inputs(2).set_attr<TCallEffectKind>(
     "TCallEffectKind", Integer(CallEffectKind::kPure));
 }  // namespace tl

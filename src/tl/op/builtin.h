@@ -154,6 +154,14 @@ const Op& FenceProxyAsyncOp();
  */
 const Op& SetMaxNReg();
 
+/*!
+ * \brief Wait the previous wgmma to finish
+ *
+ * WaitWgmma(num_mma)
+ *
+ */
+const Op& WaitWgmma();
+
 }  // namespace tl
 }  // namespace tvm
 

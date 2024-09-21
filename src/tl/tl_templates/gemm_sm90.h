@@ -67,6 +67,7 @@ class GemmTensorOp {
   static_assert(num_warp_n == 1);
   static_assert(num_warp_m % 4 == 0);
 
+  template <int wg_wait=0>
   static CUTE_DEVICE void body(A_type_raw* pA, B_type_raw* pB, C_type_raw* pC) {
     const int tid = threadIdx.x;
     Tensor sA = make_tensor(make_smem_ptr(reinterpret_cast<A_type*>(pA)), SmemLayoutA{});
@@ -88,18 +89,33 @@ class GemmTensorOp {
                              partition_shape_C(tiled_mma, Shape<Int<M>, Int<N>>{}));
 
     warpgroup_fence_operand(acc);
-    warpgroup_arrive();
-
-    gemm(tiled_mma, tCrA(_, _, _), tCrB(_, _, _), acc);
+    CUTLASS_PRAGMA_UNROLL
+    for (int k_block = 0; k_block < size<2>(tCrA); ++k_block) {
+      warpgroup_arrive();
+      // (V,M) x (V,N) => (V,M,N)
+      gemm(tiled_mma, tCrA(_, _, k_block), tCrB(_, _, k_block), acc);
+      if(k_block == 0) {
+        tiled_mma.accumulate_ = GMMA::ScaleOut::One;
+      }
+    }
 
     warpgroup_commit_batch();
-    warpgroup_wait<0>();
+    if constexpr (wg_wait >= 0) { warpgroup_wait<wg_wait>(); }
     warpgroup_fence_operand(acc);
+    // warpgroup_fence_operand(acc);
+    // warpgroup_arrive();
+
+    // gemm(tiled_mma, tCrA(_, _, _), tCrB(_, _, _), acc);
+
+    // warpgroup_commit_batch();
+    // if constexpr (wg_wait >= 0) { warpgroup_wait<wg_wait>(); }
+    // warpgroup_fence_operand(acc);
   }
 
+  template <int wg_wait=0>
   static CUTE_DEVICE void body_rs(A_type_raw* pA, B_type_raw* pB, C_type_raw* pC) {
     // TODO: Move bar.sync out of body_rs
-    asm volatile("bar.sync %0, %1;" : : "r"(1), "r"(num_warp_m * num_warp_n * 32));
+    // asm volatile("bar.sync %0, %1;" : : "r"(1), "r"(num_warp_m * num_warp_n * 32));
     const int tid = threadIdx.x;
     Tensor sB = make_tensor(make_smem_ptr(reinterpret_cast<B_type*>(pB)), SmemLayoutB{});
     auto tiled_mma =
@@ -116,29 +132,31 @@ class GemmTensorOp {
     Tensor acc = make_tensor(make_rmem_ptr(reinterpret_cast<C_type*>(pC)),
                              partition_shape_C(tiled_mma, Shape<Int<M>, Int<N>>{}));
 
-    // warpgroup_fence_operand(tCrA);
-    // warpgroup_fence_operand(acc);
-    // for (int k_block = 0; k_block < size<2>(tCrA); ++k_block) {
-    //   warpgroup_arrive();
-    //   // (V,M) x (V,N) => (V,M,N)
-    //   gemm(tiled_mma, tCrA(_, _, k_block), tCrB(_, _, k_block), acc);
-    //   if(k_block == 0) {
-    //     tiled_mma.accumulate_ = GMMA::ScaleOut::One;
-    //   }
-    //   warpgroup_commit_batch();
-    // }
-    // warpgroup_wait<0>();
-    // warpgroup_fence_operand(acc);
-    // warpgroup_fence_operand(tCrA);
-
+    warpgroup_fence_operand(tCrA);
     warpgroup_fence_operand(acc);
-    warpgroup_arrive();
-
-    gemm(tiled_mma, tCrA(_, _, _), tCrB(_, _, _), acc);
-
+    CUTLASS_PRAGMA_UNROLL
+    for (int k_block = 0; k_block < size<2>(tCrA); ++k_block) {
+      warpgroup_arrive();
+      // (V,M) x (V,N) => (V,M,N)
+      gemm(tiled_mma, tCrA(_, _, k_block), tCrB(_, _, k_block), acc);
+      if(k_block == 0) {
+        tiled_mma.accumulate_ = GMMA::ScaleOut::One;
+      }
+    }
     warpgroup_commit_batch();
-    warpgroup_wait<0>();
+    if constexpr (wg_wait >= 0) { warpgroup_wait<wg_wait>(); }
     warpgroup_fence_operand(acc);
+    warpgroup_fence_operand(tCrA);
+
+    // warpgroup_fence_operand(acc);
+    // warpgroup_arrive();
+
+    // gemm(tiled_mma, tCrA(_, _, _), tCrB(_, _, _), acc);
+
+    // warpgroup_commit_batch();
+    
+    // if constexpr (wg_wait >= 0) { warpgroup_wait<wg_wait>(); }
+    // warpgroup_fence_operand(acc);
   }
 };
 
@@ -146,20 +164,24 @@ class GemmTensorOp {
 
 namespace tl {
 
-template <int M, int N, int K, int num_warp_m, int num_warp_n, bool trans_A, bool trans_B,
+template <int M, int N, int K, int num_warp_m, int num_warp_n, bool trans_A, bool trans_B, int wg_wait=0,
           typename A_type, typename B_type, typename C_type>
 TL_DEVICE void gemm_ss(A_type* pA, B_type* pB, C_type* accum) {
   using MMA =
       cute::GemmTensorOp<M, N, K, num_warp_m, num_warp_n, trans_A, trans_B, A_type, B_type, C_type>;
-  MMA::body(pA, pB, accum);
+  MMA::body<wg_wait>(pA, pB, accum);
 }
 
-template <int M, int N, int K, int num_warp_m, int num_warp_n, bool trans_A, bool trans_B,
+template <int M, int N, int K, int num_warp_m, int num_warp_n, bool trans_A, bool trans_B, int wg_wait=0,
           typename A_type, typename B_type, typename C_type>
 TL_DEVICE void gemm_rs(A_type* pA, B_type* pB, C_type* accum) {
   using MMA =
       cute::GemmTensorOp<M, N, K, num_warp_m, num_warp_n, trans_A, trans_B, A_type, B_type, C_type>;
-  MMA::body_rs(pA, pB, accum);
+  MMA::body_rs<wg_wait>(pA, pB, accum);
 }
 
+template <int num_mma>
+TL_DEVICE void wait_wgmma() {
+  warpgroup_wait<num_mma>();
+}
 }  // namespace tl
