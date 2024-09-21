@@ -76,6 +76,7 @@ def check_correctness(
     inputs: Optional[Dict[str, np.ndarray]] = None,
     ir_version: int = 8,
     opset: int = 14,
+    rtol: float = 1e-7,
     atol: float = 1e-5,
 ) -> None:
     """Run an onnx model in both onnxruntime and TVM through our importer
@@ -154,7 +155,7 @@ def check_correctness(
         # TODO Allow configurable tolerance.
         # Sometimes None is used to indicate an unused output.
         if ort_out is not None:
-            tvm.testing.assert_allclose(tvm_out.numpy(), ort_out, atol=atol)
+            tvm.testing.assert_allclose(tvm_out.numpy(), ort_out, rtol=rtol, atol=atol)
 
 
 @pytest.mark.parametrize(
@@ -1010,7 +1011,7 @@ def test_all_reduce_funcs(func, dynamic):
 
         inputs_dict = {"x": data}
         # Reduction ops accumulate arithmetic errors, so we use a higher tolerance.
-        check_correctness(model, inputs_dict, opset=11, atol=1e-4)
+        check_correctness(model, inputs_dict, opset=11, rtol=1e-4, atol=1e-4)
 
     for keepdims in [True, False]:
         verify_reduce_func(
