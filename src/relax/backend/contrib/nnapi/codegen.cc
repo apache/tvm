@@ -48,7 +48,7 @@ class CollectFromCompositeFunctionBody : public ExprVisitor {
   explicit CollectFromCompositeFunctionBody(NNAPIJSONSerializer* serializer)
       : serializer_(serializer), node_(std::make_shared<JSONGraphNode>()) {}
 
-  void VisitExpr_(const CallNode* call_node) override final;
+  void VisitExpr_(const CallNode* call_node) override;
 
   void SetPermuteDimsAttribute(const CallNode* call_node) {
     const auto* permute_dims_attr = call_node->attrs.as<PermuteDimsAttrs>();
@@ -237,12 +237,11 @@ void CollectFromCompositeFunctionBody::VisitExpr_(const CallNode* call_node) {
     SetAstypeAttribute(call_node);
   } else if (name == "relax.mean") {
     SetMeanAttribute(call_node);
-  }
-  else if(name == "relax.nn.conv2d"){
+  } else if (name == "relax.nn.conv2d") {
     SetConv2dAttribute(call_node);
-  }
-  else if(name == "relax.nn.max_pool2d"){
+  } else if (name == "relax.nn.max_pool2d") {
     SetMaxPool2dAttribute(call_node);
+  } else {
   }
   ExprVisitor::VisitExpr_(call_node);
 }

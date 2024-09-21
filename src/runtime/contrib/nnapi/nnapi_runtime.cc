@@ -178,7 +178,8 @@ class NNAPIRuntime : public JSONRuntimeBase {
     ExecuteModel(compiled_model.compilation, compiled_model.model_output_operands);
   }
 
-  void AddOperation(NNAPIModelBuilder& builder, uint32_t nid, const JSONGraphNode& node) {
+  void AddOperation(NNAPIModelBuilder& builder, uint32_t nid,  // NOLINT(*)
+                    const JSONGraphNode& node) {
     std::vector<NNAPIOperand> inputs;
     std::vector<NNAPIOperand> outputs;
 

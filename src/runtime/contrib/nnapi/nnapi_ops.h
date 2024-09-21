@@ -23,6 +23,11 @@
 
 #include <android/NeuralNetworks.h>
 
+#include <memory>
+#include <string>
+#include <unordered_map>
+#include <vector>
+
 #include "../json/json_node.h"
 #include "nnapi_builder.h"
 
@@ -36,7 +41,7 @@ struct NNAPIOpConverterParams {
   const JSONGraphNode& node;
   std::vector<NNAPIOperand> inputs;
   std::vector<NNAPIOperand> outputs;
-  NNAPIOpConverterParams(const JSONGraphNode& node);
+  explicit NNAPIOpConverterParams(const JSONGraphNode& node);
 };
 
 class NNAPIOpConverter {
@@ -46,9 +51,9 @@ class NNAPIOpConverter {
   explicit NNAPIOpConverter(std::string op_name);
   virtual ~NNAPIOpConverter() = default;
 
-  virtual void Convert(NNAPIModelBuilder& builder, const JSONGraphNode& node,
+  virtual void Convert(NNAPIModelBuilder& builder, const JSONGraphNode& node,  // NOLINT(*)
                        const std::vector<NNAPIOperand>& inputs,
-                       std::vector<NNAPIOperand>& outputs) const = 0;
+                       std::vector<NNAPIOperand>& outputs) const = 0;  // NOLINT(*)
 };
 
 class ElwBinaryOpConverter : public NNAPIOpConverter {
@@ -73,7 +78,7 @@ class UnaryOpConverter : public NNAPIOpConverter {
 
 class SoftmaxOpConverter : public NNAPIOpConverter {
  public:
-  inline explicit SoftmaxOpConverter() : NNAPIOpConverter("softmax") {}
+  inline SoftmaxOpConverter() : NNAPIOpConverter("softmax") {}
   ~SoftmaxOpConverter() = default;
 
   void Convert(NNAPIModelBuilder& builder, const JSONGraphNode& node,
@@ -83,7 +88,7 @@ class SoftmaxOpConverter : public NNAPIOpConverter {
 
 class MatmulOpConverter : public NNAPIOpConverter {
  public:
-  inline explicit MatmulOpConverter() : NNAPIOpConverter("") {}
+  inline MatmulOpConverter() : NNAPIOpConverter("") {}
   ~MatmulOpConverter() = default;
 
   void Convert(NNAPIModelBuilder& builder, const JSONGraphNode& node,
@@ -93,7 +98,7 @@ class MatmulOpConverter : public NNAPIOpConverter {
 
 class TransposeOpConverter : public NNAPIOpConverter {
  public:
-  inline explicit TransposeOpConverter() : NNAPIOpConverter("") {}
+  inline TransposeOpConverter() : NNAPIOpConverter("") {}
   ~TransposeOpConverter() = default;
 
   void Convert(NNAPIModelBuilder& builder, const JSONGraphNode& node,
@@ -112,7 +117,7 @@ class CastOpConverter : public NNAPIOpConverter {
 };
 class Conv2dOpConverter : public NNAPIOpConverter {
  public:
-  inline explicit Conv2dOpConverter() : NNAPIOpConverter("") {}
+  inline Conv2dOpConverter() : NNAPIOpConverter("") {}
   ~Conv2dOpConverter() = default;
 
   void Convert(NNAPIModelBuilder& builder, const JSONGraphNode& node,
@@ -122,7 +127,7 @@ class Conv2dOpConverter : public NNAPIOpConverter {
 
 class DenseOpConverter : public NNAPIOpConverter {
  public:
-  inline explicit DenseOpConverter() : NNAPIOpConverter("") {}
+  inline DenseOpConverter() : NNAPIOpConverter("") {}
   ~DenseOpConverter() = default;
 
   void Convert(NNAPIModelBuilder& builder, const JSONGraphNode& node,
@@ -132,7 +137,7 @@ class DenseOpConverter : public NNAPIOpConverter {
 
 class MaxPool2dOpConverter : public NNAPIOpConverter {
  public:
-  inline explicit MaxPool2dOpConverter() : NNAPIOpConverter("") {}
+  inline MaxPool2dOpConverter() : NNAPIOpConverter("") {}
   ~MaxPool2dOpConverter() = default;
 
   void Convert(NNAPIModelBuilder& builder, const JSONGraphNode& node,

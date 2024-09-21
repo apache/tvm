@@ -26,6 +26,7 @@
 
 #include <algorithm>
 #include <iterator>
+#include <utility>
 
 #include "../json/json_runtime.h"
 #include "nnapi_ops.h"

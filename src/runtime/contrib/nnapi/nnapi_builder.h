@@ -84,14 +84,14 @@ class NNAPIModelBuilder {
     other.model_ = nullptr;
     next_operand_index_ = other.next_operand_index_;
     other.next_operand_index_ = 0;
-  };
+  }
   inline NNAPIModelBuilder& operator=(NNAPIModelBuilder&& other) {
     model_ = other.model_;
     other.model_ = nullptr;
     next_operand_index_ = other.next_operand_index_;
     other.next_operand_index_ = 0;
     return *this;
-  };
+  }
 
   NNAPIOperand CreateOperandWithValue(const DLTensor& tensor);
   NNAPIOperand CreateOperandWithValue(int32_t tensor_type, std::vector<int64_t> dimensions,

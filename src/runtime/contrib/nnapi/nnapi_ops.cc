@@ -23,7 +23,12 @@
 #include <algorithm>
 #include <cstdint>
 #include <functional>
+#include <memory>
+#include <string>
+#include <tuple>
+#include <unordered_map>
 #include <utility>
+#include <vector>
 
 #include "nnapi_builder.h"
 
@@ -115,7 +120,7 @@ void SoftmaxOpConverter::Convert(NNAPIModelBuilder& builder, const JSONGraphNode
 
   // Add the scalar input for beta value at index 1.
   const auto& input = inputs[0];
-  // TODO: Conditionally use float16 beta for float16 input.
+  // TODO(PLLab): Conditionally use float16 beta for float16 input.
   ICHECK_EQ(input.GetTensorType(), ANEURALNETWORKS_TENSOR_FLOAT32)
       << "NNAPI runtime does not support non-float32 inputs for softmax yet";
   const float beta = 1.0f;
@@ -128,7 +133,7 @@ void SoftmaxOpConverter::Convert(NNAPIModelBuilder& builder, const JSONGraphNode
 
 // Insert a reshape operation that reshapes `operand` to `dimensions` and return the reshaped
 // operand.
-NNAPIOperand ReshapeOperand(NNAPIModelBuilder& builder, const NNAPIOperand& operand,
+NNAPIOperand ReshapeOperand(NNAPIModelBuilder& builder, const NNAPIOperand& operand,  // NOLINT(*)
                             std::vector<int64_t> dimensions) {
   // ANEURALNETWORKS_RESHAPE requires the dimensions to be specified in a int32 tensor.
   const std::vector<int32_t> dimensions_int32(dimensions.begin(), dimensions.end());
@@ -148,7 +153,7 @@ NNAPIOperand ReshapeOperand(NNAPIModelBuilder& builder, const NNAPIOperand& oper
   return reshaped_operand;
 }
 
-NNAPIOperand TransposeOperand(NNAPIModelBuilder& builder, const NNAPIOperand& operand,
+NNAPIOperand TransposeOperand(NNAPIModelBuilder& builder, const NNAPIOperand& operand,  // NOLINT(*)
                               std::vector<int64_t> dimensions) {
   const std::vector<int32_t> dimensions_int32(dimensions.begin(), dimensions.end());
   const std::vector<int64_t> dim_of_axes{static_cast<int64_t>(dimensions_int32.size())};
@@ -281,7 +286,8 @@ void CastOpConverter::Convert(NNAPIModelBuilder& builder, const JSONGraphNode& n
 }
 
 template <int TensorType, typename DataType>
-NNAPIOperand CreateConv2DBiasOperand(NNAPIModelBuilder& builder, int64_t output_depth) {
+NNAPIOperand CreateConv2DBiasOperand(NNAPIModelBuilder& builder,  // NOLINT(*)
+                                     int64_t output_depth) {
   std::vector<DataType> bias(output_depth, 0.0f);
 
   const std::vector<int64_t> dim_of_bias{static_cast<int64_t>(bias.size())};
@@ -324,17 +330,16 @@ void Conv2dOpConverter::Convert(NNAPIModelBuilder& builder, const JSONGraphNode&
           CreateConv2DBiasOperand<ANEURALNETWORKS_TENSOR_FLOAT16, uint16_t>(builder, output_depth);
       input_indices.push_back(bias_operand.GetOperandIndex());
     }
-  }
-  else{
+  } else {
     int64_t bias_dim;
-    for(int i=0; i<inputs[2].GetDimensions().size();i++){
-      if(inputs[2].GetDimensions()[i]!=1) {
+    for (int i = 0; i < inputs[2].GetDimensions().size(); i++) {
+      if (inputs[2].GetDimensions()[i] != 1) {
         bias_dim = inputs[2].GetDimensions()[i];
       }
     }
     std::vector<int64_t> bias_dimension = {bias_dim};
     NNAPIOperand bias_operand = ReshapeOperand(builder, inputs[2], bias_dimension);
-    input_indices[2] =  bias_operand.GetOperandIndex();
+    input_indices[2] = bias_operand.GetOperandIndex();
   }
   // padding operand
   std::vector<int32_t> padding;
@@ -588,7 +593,7 @@ const std::unordered_map<std::string, std::unique_ptr<NNAPIOpConverter>>& GetOpC
     return map;
   }();
   return map;
-};
+}
 
 }  // namespace contrib
 }  // namespace runtime
