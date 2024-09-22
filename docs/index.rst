@@ -54,6 +54,7 @@ driving its costs down.
    :maxdepth: 2
    :caption: Deep Dive
 
+   arch/index
    deep_dive/tensor_ir/index
    deep_dive/relax/index
 
@@ -73,7 +74,6 @@ driving its costs down.
    dev/tutorial/index
    dev/how_to/how_to.rst
    reference/langref/index
-   arch/index
    topic/microtvm/index
    topic/vta/index
 
