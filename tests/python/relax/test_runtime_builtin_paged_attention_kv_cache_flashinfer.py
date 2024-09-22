@@ -324,7 +324,7 @@ def set_global_func():
     )
     fattention_merge_state = tvm.get_global_func("flashinfer.merge_state_in_place")
 
-    target = tvm.target.Target("nvidia/geforce-rtx-3090-ti")
+    target = tvm.target.Target.from_device(device)
     builts = []
     for tir_func in [
         kv_cache_transpose_append,
