@@ -2339,6 +2339,57 @@ def test_max(dynamic):
 
 
 @pytest.mark.parametrize("dynamic", [True, False])
+def test_cat(dynamic):
+    """test graph builder for cat"""
+
+    class Cat1(Module):
+        def forward(self, data, data1, data2):
+            return torch.cat((data, data1, data2), dim=1)
+
+    class Cat2(Module):
+        def forward(self, data):
+            const1 = torch.ones((1, 3, 10, 10), dtype=torch.float32)
+            const2 = torch.ones((1, 3, 10, 10), dtype=torch.float32)
+            return torch.cat((data, const1, const2), dim=1)
+
+    bz = "bz" if dynamic else 1
+    dim = "dim" if dynamic else 3
+    input_info = [
+        ([bz, dim, 10, 10], "float32"),
+        ([bz, dim, 10, 10], "float32"),
+        ([bz, dim, 10, 10], "float32"),
+    ]
+    expected1 = {
+        "inputs": [
+            {"name": "inp_0", "shape": [bz, dim, 10, 10], "dtype": "float32", "layout": ""},
+            {"name": "inp_1", "shape": [bz, dim, 10, 10], "dtype": "float32", "layout": ""},
+            {"name": "inp_2", "shape": [bz, dim, 10, 10], "dtype": "float32", "layout": ""},
+        ],
+        "outputs": [
+            {
+                "name": "concat",
+                "shape": [bz, "MUL_3" if dynamic else 9, 10, 10],
+                "dtype": "float32",
+                "layout": "ABCD",
+            }
+        ],
+        "nodes": {"total": 4, "input": 3, "concat": 1},
+    }
+    expected2 = {
+        "inputs": [{"name": "inp_0", "shape": [1, 3, 10, 10], "dtype": "float32", "layout": ""}],
+        "outputs": [
+            {"name": "concat", "shape": [1, 9, 10, 10], "dtype": "float32", "layout": "ABCD"}
+        ],
+        "nodes": {"total": 4, "input": 1, "constant": 2, "concat": 1},
+    }
+    if dynamic:
+        expected1["prims"] = {"total": 4, "shape": 2, "Int": 1, "Mul": 1}
+
+    verify_model(Cat1(), input_info, expected1)
+    verify_model(Cat2(), [([1, 3, 10, 10], "float32")], expected2)
+
+
+@pytest.mark.parametrize("dynamic", [True, False])
 def test_attention(dynamic):
     """test graph builder for attention"""
 

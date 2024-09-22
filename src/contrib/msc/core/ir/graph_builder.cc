@@ -294,6 +294,25 @@ const MSCJoint RelaxGraphBuilder::AddNode(const Expr& expr, const Optional<Expr>
     layout = layouts_[node_name];
   }
 
+  // specail case for tuple
+  if (optype == "tuple" && expr->IsInstance<relax::CallNode>() &&
+      Downcast<relax::Call>(expr)->op->IsInstance<relax::VarNode>()) {
+    const auto& call_node = Downcast<relax::Call>(expr);
+    ICHECK(target_funcs_.count(call_node->op)) << "Can not find target func: " << call_node->op;
+    const auto& tuple_func = target_funcs_[call_node->op];
+    for (size_t i = 0; i < call_node->args.size(); i++) {
+      expr_tensor_map_.Set(tuple_func->params[i], expr_tensor_map_[call_node->args[i]]);
+    }
+    VisitExpr(tuple_func);
+    ICHECK(expr_tensor_map_.count(tuple_func->body->body))
+        << "Can not find seqexpr body " << tuple_func->body->body;
+    const auto& outputs = expr_tensor_map_[tuple_func->body->body];
+    const auto& ref_expr = binding_var.defined() ? binding_var.value() : expr;
+    expr_tensor_map_.Set(ref_expr, outputs);
+    ICHECK(tensor_input_map_.count(outputs[0])) << "Can not find tensor " << outputs[0];
+    return Downcast<MSCJoint>(tensor_input_map_[outputs[0]].first);
+  }
+
   // get plugin
   const auto& plugin = IsPlugin(optype) ? GetPlugin(optype) : Plugin();
 
@@ -814,6 +833,14 @@ void RelaxWeightsExtractor::VisitExpr_(const relax::ConstantNode* op) {
   weights_.Set(weight, op->data);
 }
 
+void RelaxWeightsExtractor::VisitExpr_(const relax::CallNode* op) {
+  RelaxExprVisitor::VisitExpr_(op);
+  if (const auto* v_node = op->op.as<GlobalVarNode>()) {
+    const auto& func = Downcast<relax::Function>(ref_module_->Lookup(v_node->name_hint));
+    VisitExpr(func);
+  }
+}
+
 void RelayFuncAttrGetter::VisitExpr_(const relay::CallNode* op) {
   RelayExprVisitor::VisitExpr_(op);
   if (op->attrs.defined()) {
@@ -1163,7 +1190,7 @@ TVM_REGISTER_GLOBAL("msc.core.GetRelaxWeights")
     .set_body_typed([](const IRModule& relax_module,
                        const String& entry_name) -> Map<MSCTensor, NDArray> {
       const auto& func = Downcast<relax::Function>(relax_module->Lookup(entry_name));
-      return RelaxWeightsExtractor().GetWeights(func);
+      return RelaxWeightsExtractor(relax_module).GetWeights(func);
     });
 
 TVM_REGISTER_GLOBAL("msc.core.BuildFromRelay")

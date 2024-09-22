@@ -1086,6 +1086,28 @@ def test_max():
     verify_model(Max(), [([256, 256], "float32"), ([256, 256], "float32")])
 
 
+def test_cat():
+    """test relay to relax for cat"""
+
+    class Cat1(Module):
+        def forward(self, data, data1, data2):
+            return torch.cat((data, data1, data2), dim=1)
+
+    class Cat2(Module):
+        def forward(self, data):
+            const1 = torch.ones((1, 3, 10, 10), dtype=torch.float32)
+            const2 = torch.ones((1, 3, 10, 10), dtype=torch.float32)
+            return torch.cat((data, const1, const2), dim=1)
+
+    input_info = [
+        ([1, 3, 10, 10], "float32"),
+        ([1, 3, 10, 10], "float32"),
+        ([1, 3, 10, 10], "float32"),
+    ]
+    verify_model(Cat1(), input_info, build_target="llvm")
+    verify_model(Cat2(), [([1, 3, 10, 10], "float32")], build_target="llvm")
+
+
 def test_name_string_with_colon():
     """test name string with colons,
     e.g., TFLite default input name 'serving_default_input:0'
