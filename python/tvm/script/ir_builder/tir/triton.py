@@ -1,16 +1,19 @@
+"""Triton kernel integration with TIR"""
+from typing import Tuple, List, Union, Any, Dict
+
 import triton
 from triton.runtime.jit import type_canonicalisation_dict
 from tvm import tir
 from tvm.topi.utils import get_const_int
-from tvm.runtime import load_module, Module
-from typing import Tuple, List, Union, Any, Dict
+from tvm.runtime import Module
 from .external_kernel import BaseKernel
 
 
 class TritonKernel(BaseKernel):
     """A kernel from Triton JIT function.
 
-    This class bridges the Triton kernel with TVM runtime. The compilation includes the following steps:
+    This class bridges the Triton kernel with TVM runtime. The compilation includes the following
+    steps:
         - Deduce the kernel signature and generate the Triton kernel
         - Embed the compiled kernel into the current IRModule as an external module
         - Generate a call to the Triton kernel following its calling convention via call_packed.
@@ -27,7 +30,8 @@ class TritonKernel(BaseKernel):
         Parameters
         ----------
         grid : List[int]
-            The grid size of the kernel. A list of one to three expressions, representing the number of
+            The grid size of the kernel. A list of one to three expressions, representing the number
+            of
             "blockIdx.x", "blockIdx.y", and "blockIdx.z" respectively.
 
         args : List[Any]
@@ -36,7 +40,7 @@ class TritonKernel(BaseKernel):
         kwargs : Dict[str, Any]
             Additional options for the kernel compilation.
         """
-        triton_kernel, kernel_args = self._generate_triton_kernel(self.func, grid, *args, **kwargs)
+        triton_kernel, kernel_args = self._generate_triton_kernel(self.func, *args, **kwargs)
         kernel_metadata = triton_kernel.metadata
         ptx = triton_kernel.asm["ptx"]
         assert kernel_metadata.num_ctas == 1, "Cluster is not supported"
@@ -58,7 +62,7 @@ class TritonKernel(BaseKernel):
         return triton_kernel.name, kernel_module, kernel_args + launch_args
 
     def _generate_triton_kernel(
-        self, func, grid, *args, **kwargs
+        self, func, *args, **kwargs
     ) -> Tuple["triton.compiler.CompiledKernel", List[tir.PrimExpr]]:
         """Deduce the kernel signature and generate the Triton kernel"""
 
@@ -86,5 +90,5 @@ class TritonKernel(BaseKernel):
         # TODO: Support default argument in the kernel
         # TODO: Add specialization for aligned buffer pointers
         source = triton.compiler.ASTSource(fn=func, constants=constants, signature=signature)
-        compiled = triton.compiler.compile(source)
+        compiled = triton.compiler.compile(source, options=kwargs)
         return compiled, kernel_args

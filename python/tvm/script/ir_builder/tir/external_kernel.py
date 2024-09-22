@@ -1,17 +1,18 @@
+"""External kernel integration fro TIR"""
 import json
+import logging
 import tempfile
 from typing import Any, Dict, List, Tuple, Union
 
 from tvm import __version__ as tvm_version
 from tvm import tir
 from tvm.runtime import Module, load_module
-import logging
 
 
 class BaseKernel:
     """Base class for external kernels."""
 
-    def compile_to_device_module(self, *args, **kwargs) -> Tuple[str, Module, List[Any]]:
+    def compile_to_device_module(self, launch_args, *args, **kwargs) -> Tuple[str, Module, List[Any]]:
         """Compile the kernel to a device module."""
         raise NotImplementedError()
 
@@ -96,12 +97,12 @@ def call_kernel(
     kwargs : Dict[str, Any]
         Additional keyword arguments to pass to the kernel or compilation.
     """
-    from ..ir import module_get_attr, module_set_attr
-    from .ir import call_packed
+    from ..ir import module_get_attr, module_set_attr  # pylint: disable=import-outside-toplevel
+    from .ir import call_packed  # pylint: disable=import-outside-toplevel
 
     kernel_type = f"{type(kernel).__module__}.{type(kernel).__qualname__}"
     if kernel_type == "triton.runtime.jit.JITFunction":
-        from .triton import TritonKernel
+        from .triton import TritonKernel  # pylint: disable=import-outside-toplevel
 
         kernel = TritonKernel(kernel)
     else:
