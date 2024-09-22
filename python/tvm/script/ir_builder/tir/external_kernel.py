@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Tuple, Union
 from tvm import __version__ as tvm_version
 from tvm import tir
 from tvm.runtime import Module, load_module
+import logging
 
 
 class BaseKernel:
@@ -111,7 +112,11 @@ def call_kernel(
     )
 
     # Attach the kernel module to the current IRModule
-    external_mods = module_get_attr("external_mods") or []
-    external_mods.append(kernel_module)
-    module_set_attr("external_mods", external_mods, True)
+    external_mods: List[Module] = module_get_attr("external_mods") or []
+    kernel_exists = any([mod.implements_function(kernel_name) for mod in external_mods])
+    if kernel_exists:
+        logging.debug("Kernel %s already exists in the IRModule", kernel_name)
+    else:
+        external_mods.append(kernel_module)
+        module_set_attr("external_mods", external_mods, True)
     return call_packed(kernel_name, *runtime_args)
