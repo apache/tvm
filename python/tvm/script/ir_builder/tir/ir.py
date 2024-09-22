@@ -83,6 +83,7 @@ from tvm.tir.expr import (
 from tvm.tir.generic import cast
 
 from . import _ffi_api, frame
+from .external_kernel import call_kernel
 
 # pylint: enable=unused-import
 
@@ -1943,7 +1944,6 @@ tvm_call_cpacked = call_cpacked
 tvm_call_packed_lowered = call_packed_lowered
 tvm_call_cpacked_lowered = call_cpacked_lowered
 
-
 # pylint: enable=invalid-name
 
 
@@ -2255,12 +2255,5 @@ __all__ = [
     "Range",
     "vscale",
     "get_active_lane_mask",
+    "call_kernel",
 ]
-
-try:
-    import triton
-    from .triton import call_triton
-
-    __all__.append("call_triton")
-except ImportError:
-    pass
