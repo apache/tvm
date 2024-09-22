@@ -50,7 +50,7 @@ def test_tir_triton_integration():
                 T.reads(x[0:m], y[0:m])
                 T.writes(output[0:m])
                 BLOCK_SIZE = T.meta_var(64)
-                T.call_triton(
+                T.call_kernel(
                     add_kernel,
                     (T.ceildiv(m, BLOCK_SIZE),),
                     x.data,
@@ -67,6 +67,30 @@ def test_tir_triton_integration():
                 output = R.call_tir(Module.add, [x, y], relax.TensorStructInfo((m,), "float32"))
                 R.output(output)
             return output
+
+    @I.ir_module
+    class Parsed:
+        @T.prim_func
+        def add(x_handle: T.handle, y_handle: T.handle, output_handle: T.handle):
+            m = T.int64()
+            x = T.match_buffer(x_handle, (m,))
+            y = T.match_buffer(y_handle, (m,))
+            output = T.match_buffer(output_handle, (m,))
+            with T.block("root"):
+                T.reads(x[0:m], y[0:m])
+                T.writes(output[0:m])
+                T.call_packed(
+                    "add_kernel",
+                    x.data,
+                    y.data,
+                    output.data,
+                    m,
+                    128,
+                    (m + T.int64(64) - T.int64(1)) // T.int64(64),
+                )
+
+    tvm.ir.assert_structural_equal(Module["add"], Parsed["add"])
+    assert len(Module.get_attr("external_mods")) == 1
 
     device = tvm.cuda(0)
     x_nd = tvm.nd.array(np.random.rand(256).astype(np.float32), device)
