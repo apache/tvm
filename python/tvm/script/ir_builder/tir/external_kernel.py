@@ -12,7 +12,9 @@ from tvm.runtime import Module, load_module
 class BaseKernel:
     """Base class for external kernels."""
 
-    def compile_to_device_module(self, launch_args, *args, **kwargs) -> Tuple[str, Module, List[Any]]:
+    def compile_to_device_module(
+        self, launch_args, *args, **kwargs
+    ) -> Tuple[str, Module, List[Any]]:
         """Compile the kernel to a device module."""
         raise NotImplementedError()
 
