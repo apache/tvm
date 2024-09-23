@@ -21,6 +21,8 @@ from .ir import (
     def_function,
     ir_module,
     module_attrs,
+    module_get_attr,
+    module_set_attr,
     module_global_infos,
     lookup_vdevice,
     vdevice,
