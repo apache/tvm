@@ -1021,18 +1021,40 @@ class TestMostRestrictiveConditional(BaseBeforeAfter):
     then `a >= b` cannot be proven, but can be reduced to `a == b`.
     """
 
+    class TupleWrapper(tuple):
+        """
+        A custom wrapper for `tuple` to handle element-wise equality comparison
+        to avoid comparison errors when dealing with objects like `ExprOp`.
+        See also: https://github.com/apache/tvm/pull/17397
+        """
+
+        def __new__(self, *args):
+            return super().__new__(self, args)
+
+        def __eq__(self, other):
+            from tvm.tir.expr import ExprOp
+
+            for a, b in zip(self, other):
+                if isinstance(a, ExprOp) and isinstance(a, ExprOp):
+                    if not tvm.ir.structural_equal(a, b):
+                        return False
+                else:
+                    if not a.__eq__(b):
+                        return False
+            return True
+
     i, j, k = [tvm.tir.Var(name, "int32") for name in "ijk"]
     tir_int = tvm.tir.IntImm("int32", 0)
 
     test_case = tvm.testing.parameter(
-        (i <= tir_int, tir_int <= i, i == tir_int),
-        (i <= tir_int, i != tir_int, i < tir_int),
-        (i != tir_int, i <= tir_int, i < tir_int),
-        (i != tir_int, tir_int <= i, tir_int < i),
-        (i <= j, j <= i, j == i),
-        (i <= j, i != j, i < j),
-        (i != j, i <= j, i < j),
-        (i != j, j <= i, j < i),
+        TupleWrapper(i <= tir_int, tir_int <= i, i == tir_int),
+        TupleWrapper(i <= tir_int, i != tir_int, i < tir_int),
+        TupleWrapper(i != tir_int, i <= tir_int, i < tir_int),
+        TupleWrapper(i != tir_int, tir_int <= i, tir_int < i),
+        TupleWrapper(i <= j, j <= i, j == i),
+        TupleWrapper(i <= j, i != j, i < j),
+        TupleWrapper(i != j, i <= j, i < j),
+        TupleWrapper(i != j, j <= i, j < i),
     )
 
     @tvm.testing.fixture
