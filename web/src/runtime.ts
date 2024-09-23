@@ -174,7 +174,7 @@ class RuntimeContext implements Disposable {
   applyRepetitionPenalty: PackedFunc;
   applyPresenceAndFrequencyPenalty: PackedFunc;
   applySoftmaxWithTemperature: PackedFunc;
-  concatEmbeddings: PackedFunc;
+  concatEmbeddings: PackedFunc | undefined;
 
   private autoDisposeScope: Array<Array<Disposable | undefined>> = [];
 
@@ -200,7 +200,11 @@ class RuntimeContext implements Disposable {
     this.applyRepetitionPenalty = getGlobalFunc("vm.builtin.apply_repetition_penalty");
     this.applyPresenceAndFrequencyPenalty = getGlobalFunc("vm.builtin.apply_presence_and_frequency_penalty");
     this.applySoftmaxWithTemperature = getGlobalFunc("vm.builtin.apply_softmax_with_temperature");
-    this.concatEmbeddings = getGlobalFunc("tvmjs.runtime.ConcatEmbeddings");
+    try {
+      this.concatEmbeddings = getGlobalFunc("tvmjs.runtime.ConcatEmbeddings");
+    } catch {
+      // TODO: remove soon. Older artifacts do not have this, try-catch for backward compatibility.
+    }
   }
 
   dispose(): void {
@@ -225,7 +229,7 @@ class RuntimeContext implements Disposable {
     this.applyRepetitionPenalty.dispose();
     this.applyPresenceAndFrequencyPenalty.dispose();
     this.applySoftmaxWithTemperature.dispose();
-    this.concatEmbeddings.dispose();
+    this.concatEmbeddings?.dispose();
   }
 
   beginScope(): void {
@@ -1929,6 +1933,12 @@ export class Instance implements Disposable {
     })
 
     // 2. Call global func
+    if (this.ctx.concatEmbeddings === undefined) {
+      throw new Error(
+        "Global function tvmjs.runtime.ConcatEmbeddings was " +
+        "not found, but called concatEmbeddings."
+      );
+    }
     return this.ctx.concatEmbeddings(...embeddings) as NDArray;
   }
 
