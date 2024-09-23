@@ -2315,7 +2315,7 @@ TVM_REGISTER_GLOBAL("tvm.codegen.llvm.GetHostCPUName").set_body_typed([]() -> st
 
 TVM_REGISTER_GLOBAL("tvm.codegen.llvm.GetHostCPUFeatures")
     .set_body_typed([]() -> Map<String, IntImm> {
-#if TVM_LLVM_VERSION >= 200
+#if TVM_LLVM_VERSION >= 190
       Map<String, IntImm> ret;
       auto features = llvm::sys::getHostCPUFeatures();
       for (auto it = features.begin(); it != features.end(); ++it) {
