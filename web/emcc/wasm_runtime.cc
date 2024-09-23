@@ -173,5 +173,51 @@ TVM_REGISTER_GLOBAL("tvmjs.runtime.ArrayConcat").set_body([](TVMArgs args, TVMRe
   }
   *ret = Array<ObjectRef>(data);
 });
+
+NDArray ConcatEmbeddings(const std::vector<NDArray>& embeddings) {
+  // Get output shape
+  int64_t hidden_size = embeddings[0]->shape[1];
+  DLDataType dtype = embeddings[0]->dtype;
+  DLDevice device = embeddings[0]->device;
+  int seqLen = 0;
+  for (int i = 0; i < embeddings.size(); ++i) {
+    ICHECK_EQ(embeddings[i]->ndim, 2);
+    ICHECK_EQ(embeddings[i]->shape[1], hidden_size);
+    seqLen += embeddings[i]->shape[0];
+  }
+
+  // Create output
+  std::vector<int64_t> shape;
+  shape.push_back(seqLen);
+  shape.push_back(hidden_size);
+  NDArray result = NDArray::Empty(shape, dtype, device);
+
+  // Copy
+  int offset = 0;
+  for (int i = 0; i < embeddings.size(); i++) {
+    const DLTensor& copy_src = *(embeddings[i].operator->());
+    const DLTensor* p_copy_dst = result.operator->();
+    DLTensor copy_dst = *p_copy_dst;
+    copy_dst.shape = embeddings[i]->shape;
+    copy_dst.byte_offset =
+        offset * hidden_size * ((embeddings[i]->dtype.bits * embeddings[i]->dtype.lanes + 7) / 8);
+    NDArray::CopyFromTo(&copy_src, &copy_dst);
+    offset += embeddings[i]->shape[0];
+  }
+
+  return result;
+}
+
+// Concatenate n NDArrays
+TVM_REGISTER_GLOBAL("tvmjs.runtime.ConcatEmbeddings").set_body([](TVMArgs args, TVMRetValue* ret) {
+  std::vector<NDArray> embeddings;
+  for (int i = 0; i < args.size(); ++i) {
+    ICHECK_EQ(args[i].type_code(), kTVMNDArrayHandle);
+    embeddings.push_back(args[i]);
+  }
+  NDArray result = ConcatEmbeddings(std::move(embeddings));
+  *ret = result;
+});
+
 }  // namespace runtime
 }  // namespace tvm

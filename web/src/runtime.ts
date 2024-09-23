@@ -174,6 +174,7 @@ class RuntimeContext implements Disposable {
   applyRepetitionPenalty: PackedFunc;
   applyPresenceAndFrequencyPenalty: PackedFunc;
   applySoftmaxWithTemperature: PackedFunc;
+  concatEmbeddings: PackedFunc;
 
   private autoDisposeScope: Array<Array<Disposable | undefined>> = [];
 
@@ -199,6 +200,7 @@ class RuntimeContext implements Disposable {
     this.applyRepetitionPenalty = getGlobalFunc("vm.builtin.apply_repetition_penalty");
     this.applyPresenceAndFrequencyPenalty = getGlobalFunc("vm.builtin.apply_presence_and_frequency_penalty");
     this.applySoftmaxWithTemperature = getGlobalFunc("vm.builtin.apply_softmax_with_temperature");
+    this.concatEmbeddings = getGlobalFunc("tvmjs.runtime.ConcatEmbeddings");
   }
 
   dispose(): void {
@@ -223,6 +225,7 @@ class RuntimeContext implements Disposable {
     this.applyRepetitionPenalty.dispose();
     this.applyPresenceAndFrequencyPenalty.dispose();
     this.applySoftmaxWithTemperature.dispose();
+    this.concatEmbeddings.dispose();
   }
 
   beginScope(): void {
@@ -575,7 +578,10 @@ export class NDArray implements Disposable {
    * @param data The source data array.
    * @returns this
    */
-  copyFrom(data: NDArray | Array<number> | Float32Array): this {
+  copyFrom(
+    data: NDArray | Array<number> | Float32Array | Float64Array |
+      Int32Array | Int8Array | Uint8Array | Uint8ClampedArray
+  ): this {
     if (data instanceof NDArray) {
       this.lib.checkCall(
         (this.lib.exports.TVMArrayCopyFromTo as ctypes.FTVMArrayCopyFromTo)(
@@ -608,6 +614,8 @@ export class NDArray implements Disposable {
         buffer = Int8Array.from(data).buffer;
       } else if (this.dtype === "uint8") {
         buffer = Uint8Array.from(data).buffer;
+      } else if (this.dtype === "uint32") {
+        buffer = Uint32Array.from(data).buffer;
       } else {
         throw new Error("Unsupported data type " + this.dtype);
       }
@@ -1904,6 +1912,24 @@ export class Instance implements Disposable {
       listOfArrays.push(this.ctx.arrayMake(...chunk) as TVMArray);
     }
     return this.ctx.arrayConcat(...listOfArrays) as TVMArray;
+  }
+
+  /**
+   * Join a sequence of NDArrays that represent embeddings.
+   * @param inputs A list of embeddings in NDArrays, each array i has shape (m_i, hidden_size).
+   * @returns An NDArray of shape (\sum_{i} {m}, hidden_size)
+   */
+  concatEmbeddings(embeddings: Array<NDArray>): NDArray {
+    // 1. Check shape validity
+    const hidden_size = embeddings[0].shape[1];
+    embeddings.forEach((input) => {
+      if (input.shape.length !== 2 || input.shape[1] !== hidden_size) {
+        throw new Error("Expect embeddings to concatenate have shape (m_i, hidden_size).");
+      }
+    })
+
+    // 2. Call global func
+    return this.ctx.concatEmbeddings(...embeddings) as NDArray;
   }
 
   /**
