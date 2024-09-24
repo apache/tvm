@@ -68,6 +68,7 @@ def test_memory_usage(target, dev, dtype):
 
     assert dev.available_global_memory == available_memory_before
 
+
 @pytest.mark.skip(reason="Skip for passing windows test on CI")
 def test_fp16_conversion():
     n = 100
