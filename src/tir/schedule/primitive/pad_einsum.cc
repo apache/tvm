@@ -491,13 +491,31 @@ struct PadEinsumTraits : public UnpackedInstTraits<PadEinsumTraits> {
   static constexpr size_t kNumDecisions = 0;
 
   static void UnpackedApplyToSchedule(Schedule sch, BlockRV block, Array<Integer> padding) {
-    sch->PadEinsum(block, padding);
+    Array<Integer> int32_padding;
+    for (const auto& pad : padding) {
+        if (pad.IntValue() <= INT32_MAX) {
+          int32_padding.push_back(Integer(pad.IntValue()));
+        }
+        else {
+          int32_padding.push_back(pad);
+        }
+    }
+    sch->PadEinsum(block, int32_padding);
   }
 
   static String UnpackedAsPython(Array<String> outputs, String block, Array<Integer> padding) {
     PythonAPICall py("pad_einsum");
+    Array<Integer> int32_padding;
+    for (const auto& pad : padding) {
+        if (pad.IntValue() <= INT32_MAX) {
+          int32_padding.push_back(Integer(pad.IntValue()));
+        }
+        else {
+          int32_padding.push_back(pad);
+        }
+    }
     py.Input("block", block);
-    py.Input("padding", padding);
+    py.Input("padding", int32_padding);
     return py.Str();
   }
 
