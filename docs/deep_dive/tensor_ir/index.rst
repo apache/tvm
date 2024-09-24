@@ -15,7 +15,7 @@
     specific language governing permissions and limitations
     under the License.
 
-.. _tensor-ir:
+.. _tensor-ir-deep-dive:
 
 TensorIR
 ========
