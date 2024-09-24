@@ -495,8 +495,7 @@ struct PadEinsumTraits : public UnpackedInstTraits<PadEinsumTraits> {
     for (const auto& pad : padding) {
         if (pad.IntValue() <= INT32_MAX) {
           int32_padding.push_back(Integer(pad.IntValue()));
-        }
-        else {
+        } else {
           int32_padding.push_back(pad);
         }
     }
@@ -509,8 +508,7 @@ struct PadEinsumTraits : public UnpackedInstTraits<PadEinsumTraits> {
     for (const auto& pad : padding) {
         if (pad.IntValue() <= INT32_MAX) {
           int32_padding.push_back(Integer(pad.IntValue()));
-        }
-        else {
+        } else {
           int32_padding.push_back(pad);
         }
     }
