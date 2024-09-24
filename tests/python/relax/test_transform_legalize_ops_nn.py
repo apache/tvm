@@ -204,6 +204,53 @@ def test_conv1d_symbolic():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
+def test_conv1d_transpose():
+    # fmt: off
+    @I.ir_module
+    class Conv1dTranspose:
+        @R.function
+        def main(x: R.Tensor((2, 128, 28), "float32"), w: R.Tensor((128, 16, 3), "float32")):
+            gv = R.nn.conv1d_transpose(x, w, strides=2, padding=1, dilation=1, output_padding=1, groups=8)
+            return gv
+
+    @I.ir_module
+    class Expected:
+        @T.prim_func(private=True)
+        def conv1d_transpose(x: T.Buffer((T.int64(2), T.int64(128), T.int64(28)), "float32"), w: T.Buffer((T.int64(128), T.int64(16), T.int64(3)), "float32"), compute: T.Buffer((T.int64(2), T.int64(128), T.int64(56)), "float32")):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            data_dilate = T.alloc_buffer((T.int64(2), T.int64(128), T.int64(55)))
+            data_pad = T.alloc_buffer((T.int64(2), T.int64(128), T.int64(58)))
+            kernel = T.alloc_buffer((T.int64(16), T.int64(128), T.int64(3)))
+            for i0, i1, i2 in T.grid(T.int64(2), T.int64(128), T.int64(55)):
+                with T.block("data_dilate"):
+                    v_i0, v_i1, v_i2 = T.axis.remap("SSS", [i0, i1, i2])
+                    data_dilate[v_i0, v_i1, v_i2] = T.if_then_else(v_i2 % T.int64(2) == T.int64(0), x[v_i0, v_i1, v_i2 // T.int64(2)], T.float32(0.0))
+            for i0, i1, i2 in T.grid(T.int64(2), T.int64(128), T.int64(58)):
+                with T.block("data_pad"):
+                    v_i0, v_i1, v_i2 = T.axis.remap("SSS", [i0, i1, i2])
+                    data_pad[v_i0, v_i1, v_i2] = T.if_then_else(T.int64(1) <= v_i2 and v_i2 < T.int64(56), data_dilate[v_i0, v_i1, v_i2 - T.int64(1)], T.float32(0.0))
+            for o, i, w_1 in T.grid(T.int64(16), T.int64(128), T.int64(3)):
+                with T.block("kernel"):
+                    v_o, v_i, v_w = T.axis.remap("SSS", [o, i, w_1])
+                    kernel[v_o, v_i, v_w] = w[v_i, v_o, T.int64(2) - v_w]
+            for b, c, w_1, dc, dw in T.grid(T.int64(2), T.int64(128), T.int64(56), T.int64(16), T.int64(3)):
+                with T.block("compute"):
+                    v_b, v_c, v_w, v_dc, v_dw = T.axis.remap("SSSRR", [b, c, w_1, dc, dw])
+                    with T.init():
+                        compute[v_b, v_c, v_w] = T.float32(0.0)
+                    compute[v_b, v_c, v_w] = compute[v_b, v_c, v_w] + data_pad[v_b, v_c // T.int64(16) * T.int64(16) + v_dc, v_w + v_dw] * kernel[v_c % T.int64(16), v_c // T.int64(16) * T.int64(16) + v_dc, v_dw]
+
+        @R.function
+        def main(x: R.Tensor((2, 128, 28), dtype="float32"), w: R.Tensor((128, 16, 3), dtype="float32")) -> R.Tensor((2, 128, 56), dtype="float32"):
+            cls = Expected
+            gv = R.call_tir(cls.conv1d_transpose, (x, w), out_sinfo=R.Tensor((2, 128, 56), dtype="float32"))
+            return gv
+    # fmt: on
+
+    mod = LegalizeOps()(Conv1dTranspose)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
 def test_conv2d():
     # fmt: off
     @tvm.script.ir_module
