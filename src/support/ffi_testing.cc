@@ -178,6 +178,14 @@ TVM_REGISTER_GLOBAL("testing.sleep_in_ffi").set_body_typed([](double timeout) {
   std::this_thread::sleep_for(duration);
 });
 
+TVM_REGISTER_GLOBAL("testing.check_signals").set_body_typed([](double sleep_period) {
+  while (true) {
+    std::chrono::duration<int64_t, std::nano> duration(static_cast<int64_t>(sleep_period * 1e9));
+    std::this_thread::sleep_for(duration);
+    runtime::EnvCheckSignals();
+  }
+});
+
 TVM_REGISTER_GLOBAL("testing.ReturnsVariant").set_body_typed([](int x) -> Variant<String, IntImm> {
   if (x % 2 == 0) {
     return IntImm(DataType::Int(64), x / 2);
