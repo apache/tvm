@@ -1059,5 +1059,15 @@ void ConcreteScheduleNode::UnsafeHideBufferAccess(const BlockRV& block_rv, const
   this->state_->DebugVerify();
 }
 
+void ConcreteScheduleNode::AnnotateBufferAccess(const BlockRV& block_rv, int buffer_index,
+                                                BufferIndexType buffer_index_type,
+                                                const IndexMap& index_map) {
+  TVM_TIR_SCHEDULE_BEGIN();
+  tir::AnnotateBufferAccess(state_, this->GetSRef(block_rv), buffer_index, buffer_index_type,
+                            index_map);
+  TVM_TIR_SCHEDULE_END("annotate-buffer-access", this->error_render_level_);
+  this->state_->DebugVerify();
+}
+
 }  // namespace tir
 }  // namespace tvm
