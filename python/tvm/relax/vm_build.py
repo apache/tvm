@@ -252,7 +252,7 @@ def _vmlink(
             runtime=_autodetect_system_lib_req(target, system_lib),
         )
     for ext_mod in ext_libs:
-        if ext_mod.type_key == "cuda":
+        if ext_mod.is_device_module:
             tir_ext_libs.append(ext_mod)
         else:
             relax_ext_libs.append(ext_mod)
