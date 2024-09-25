@@ -44,6 +44,15 @@ macro(find_llvm use_llvm)
   endif()
 
   if(${LLVM_CONFIG} MATCHES ${IS_TRUE_PATTERN})
+    # This is a workaround for an upstream LLVM issue [0], in which
+    # the `CMAKE_INSTALL_LIBDIR` variable is used before definition.
+    # While there is an LLVM PR to resolve this fix [1], as of
+    # 2024-08-19 it has not yet been merged to LLVM.
+    #
+    # [0] https://github.com/llvm/llvm-project/issues/83802
+    # [1] https://github.com/llvm/llvm-project/pull/83807
+    include(GNUInstallDirs)
+
     find_package(LLVM ${llvm_version_required} REQUIRED CONFIG)
     llvm_map_components_to_libnames(LLVM_LIBS "all")
     if (NOT LLVM_LIBS)
