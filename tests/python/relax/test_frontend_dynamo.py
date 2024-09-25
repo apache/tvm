@@ -223,7 +223,7 @@ def test_subgraph_capture():
         ) -> R.Tensor((10,), dtype="float32"):
             # block 0
             with R.dataflow():
-                lv5: R.Tensor((10,), dtype="float32") = R.multiply(inp_11, inp_01)
+                lv5: R.Tensor((10,), dtype="float32") = R.multiply(inp_01, inp_11)
                 gv1: R.Tensor((10,), dtype="float32") = lv5
                 R.output(gv1)
             return gv1
