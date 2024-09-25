@@ -413,5 +413,22 @@ def test_avg_pool2d():
     tvm.ir.assert_structural_equal(after["main"], expected_after.with_attr("global_symbol", "main"))
 
 
+def test_narrow_i64_valued_bufferload_index_to_i32():
+    @T.prim_func
+    def before(A: T.Buffer((16,), "int64")):
+        for i in range(T.int64(15)):
+            A[i + T.int64(1)] = A[i] + T.int64(1)
+
+    @T.prim_func
+    def expect(A: T.Buffer((16,), "int64")):
+        for i in range(15):
+            A[i + 1] = A[i] + T.int64(1)
+
+    after = tvm.tir.transform.NarrowDataType(32)(
+        tvm.IRModule.from_expr(before.with_attr("global_symbol", "main"))
+    )["main"]
+    tvm.ir.assert_structural_equal(after, expect.with_attr("global_symbol", "main"))
+
+
 if __name__ == "__main__":
     tvm.testing.main()
