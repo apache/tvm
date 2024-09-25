@@ -310,6 +310,9 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleEnterPostproc")
     .set_body_method<Schedule>(&ScheduleNode::EnterPostproc);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleUnsafeHideBufferAccess")
     .set_body_method<Schedule>(&ScheduleNode::UnsafeHideBufferAccess);
+/******** (FFI) Annotate read region ********/
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleAnnotateReadRegion")
+    .set_body_method<Schedule>(&ScheduleNode::AnnotateReadRegion);
 
 }  // namespace tir
 }  // namespace tvm

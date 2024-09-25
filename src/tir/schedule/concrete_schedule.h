@@ -183,6 +183,8 @@ class ConcreteScheduleNode : public ScheduleNode {
   void EnterPostproc() override {}
   void UnsafeHideBufferAccess(const BlockRV& block_rv, const String& buf_type,
                               const Array<IntImm>& buf_index_array) override;
+  void AnnotateReadRegion(const BlockRV& block_rv, int buffer_index,
+                          const IndexMap& index_map) override;
 
  protected:
   /******** Utility functions ********/

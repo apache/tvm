@@ -136,7 +136,12 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
   }
 
   void VisitExpr_(const BufferLoadNode* op) final {
-    VisitBufferAccess(BufferRegion::FromPoint(op->buffer, op->indices));
+    auto explicit_it = explicit_access_annotations_.find(op->buffer);
+    if (explicit_it != explicit_access_annotations_.end()) {
+      VisitBufferAccess(explicit_it->second);
+    } else {
+      VisitBufferAccess(BufferRegion::FromPoint(op->buffer, op->indices));
+    }
     StmtExprVisitor::VisitExpr_(op);
   }
 
@@ -235,17 +240,28 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
       auto& regions = access_annotations_[p.first];
       p.second.swap(regions);
     }
-    // Step 2. Record relax position of ancestor_loops_
+
+    // Step 2. Record explicit read region annotation
+    auto it = op->annotations.find(attr::explicit_read_region);
+    if (it != op->annotations.end()) {
+      int buffer_index = Downcast<Integer>((*it).second)->value;
+      if (buffer_index >= 0 && buffer_index < static_cast<int>(op->reads.size())) {
+        const BufferRegion& explicit_region = op->reads[buffer_index];
+        explicit_access_annotations_[explicit_region->buffer] = explicit_region;
+      }
+    }
+
+    // Step 3. Record relax position of ancestor_loops_
     for (const Buffer& buffer : op->alloc_buffers) {
       VisitBufferDef(buffer->data);
     }
-    // Step 3. Visit match buffers
+    // Step 4. Visit match buffers
     for (const MatchBufferRegion& region : op->match_buffers) {
       VisitBufferAccess(region->source);
     }
-    // Step 4. Visit block body recursively
+    // Step 5. Visit block body recursively
     StmtExprVisitor::VisitStmt_(op);
-    // Step 5. Recover read/write region annotations
+    // Step 6. Recover read/write region annotations
     for (auto& p : cur_access_annotations) {
       auto& regions = access_annotations_[p.first];
       if (p.second.empty()) {
@@ -254,7 +270,7 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
         regions.swap(p.second);
       }
     }
-    // Step 6. Update buffer_access_region_ from relaxed_accesses_ for inner buffers.
+    // Step 7. Update buffer_access_region_ from relaxed_accesses_ for inner buffers.
     for (const Buffer& buffer : op->alloc_buffers) {
       ICHECK_EQ(var2buffer_[buffer->data].size(), 1)
           << "Block allocation buffer shoud not be alised";
@@ -489,6 +505,9 @@ class BufferAccessRegionCollector : public StmtExprVisitor {
   /*! \brief The map from Buffer to it's access regions annotated by current block. */
   std::unordered_map<Buffer, std::vector<BufferRegion>, ObjectPtrHash, ObjectPtrEqual>
       access_annotations_;
+  /*! \brief The map from Buffer to its explicit access region annotated by the block. */
+  std::unordered_map<Buffer, BufferRegion, ObjectPtrHash, ObjectPtrEqual>
+      explicit_access_annotations_;
 };
 
 /*! \brief The storage alignment for a dimension */

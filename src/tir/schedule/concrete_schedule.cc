@@ -1059,5 +1059,13 @@ void ConcreteScheduleNode::UnsafeHideBufferAccess(const BlockRV& block_rv, const
   this->state_->DebugVerify();
 }
 
+void ConcreteScheduleNode::AnnotateReadRegion(const BlockRV& block_rv, int buffer_index,
+                                              const IndexMap& index_map) {
+  TVM_TIR_SCHEDULE_BEGIN();
+  tir::AnnotateReadRegion(state_, this->GetSRef(block_rv), buffer_index, index_map);
+  TVM_TIR_SCHEDULE_END("annotate-read-region", this->error_render_level_);
+  this->state_->DebugVerify();
+}
+
 }  // namespace tir
 }  // namespace tvm
