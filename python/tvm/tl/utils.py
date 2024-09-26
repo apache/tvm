@@ -81,7 +81,10 @@ class ConvertTorch:
         torch_func = to_pytorch_func(self.mod)
 
         def func(*ins: List[torch.Tensor]):
-            assert len(ins) + len(self.result_idx) == len(self.params)
+            if len(ins) + len(self.result_idx) != len(self.params):
+                raise ValueError(
+                    f"Expected {len(self.params)} inputs, got {len(ins) + len(self.result_idx)} with {len(ins)} inputs and {len(self.result_idx)} outputs"
+                )
             ins_idx = 0
             args = []
             device = torch.cuda.current_device()
