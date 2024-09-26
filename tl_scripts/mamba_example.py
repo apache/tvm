@@ -1,103 +1,62 @@
 import argparse
 import torch
+import torch.nn.functional as F
 from tvm import tl
 import tvm.tl.language as T
 from functools import partial
 
-
-def retnet(batch, heads, seq_len, dim, is_casual, block_M, block_N):
-    scale = (1.0 / dim) ** 0.5 * 1.44269504  # log2(e)
-    shape = [batch, seq_len, heads, dim]
+chunk_size = 256
+def bmm_chunk(batch, seqlen, ngroups, k, block_M, block_N, block_K):
     dtype = "float16"
     accum_dtype = "float"
-
+    nchunks = T.ceildiv(seqlen, chunk_size)
     @T.prim_func
     def main(
-        Q: T.Buffer(shape, dtype),
-        K: T.Buffer(shape, dtype),
-        V: T.Buffer(shape, dtype),
-        Output: T.Buffer(shape, dtype),
+        A: T.Buffer((batch, seqlen, ngroups, k), dtype),
+        B: T.Buffer((batch, seqlen, ngroups, k), dtype),
+        Output: T.Buffer((batch, nchunks, ngroups, chunk_size, chunk_size), dtype)
     ):
-        with T.Kernel(T.ceildiv(seq_len, block_M), heads, batch, threads=128) as (bx, by, bz):
-            Q_shared = T.alloc_shared([block_M, dim], dtype)
-            Q_local = T.alloc_fragment([block_M, dim], dtype)
-            K_shared = T.alloc_shared([block_N, dim], dtype)
-            V_shared = T.alloc_shared([block_N, dim], dtype)
-            acc_s = T.alloc_fragment([block_M, block_N], accum_dtype)
-            acc_s_cast = T.alloc_fragment([block_M, block_N], dtype)
-            acc_o = T.alloc_fragment([block_M, dim], accum_dtype)
-            scores_max = T.alloc_fragment([block_M], accum_dtype)
-            scores_max_prev = T.alloc_fragment([block_M], accum_dtype)
-            scores_sum = T.alloc_fragment([block_M], accum_dtype)
-            lse = T.alloc_fragment([block_M], accum_dtype)
+        with T.Kernel(T.ceildiv(chunk_size, block_M) * T.ceildiv(chunk_size, block_N), batch, nchunks * ngroups, threads=128) as (bx, by, bz):
+            A_shared = T.alloc_shared((block_M, block_K), dtype)
+            B_shared = T.alloc_shared((block_N, block_K), dtype)
+            acc_o = T.alloc_fragment((block_M, block_N), accum_dtype)
+            chunk_idx = bz // ngroups
+            group_idx = bz % ngroups
+            m_idx = bx // T.ceildiv(chunk_size, block_N)
+            n_idx = bx % T.ceildiv(chunk_size, block_N)
 
-            T.annotate_layout({Q_shared: tl.layout.make_swizzled_layout(Q_shared)})
-            T.copy(Q[bz, bx * block_M : (bx + 1) * block_M, by, :], Q_shared)
-            T.fill(acc_o, 0)
-            T.fill(scores_max, -T.infinity(accum_dtype))
-            T.fill(scores_max_prev, -T.infinity(accum_dtype))
-            T.fill(lse, -T.infinity(accum_dtype))
-            T.copy(Q_shared, Q_local)
-            loop_range = T.ceildiv(seq_len, block_N)
+            loop_range = T.ceildiv(chunk_size, block_K)
+            T.clear(acc_o)
             for k in T.Pipelined(loop_range, num_stages=1):
-                T.copy(K[bz, k * block_N : (k + 1) * block_N, by, :], K_shared)
-                T.clear(acc_s)
-                T.gemm(Q_local, K_shared, acc_s, transpose_B=True, policy=T.GemmWarpPolicy.FullRow)
-                T.copy(V[bz, k * block_N : (k + 1) * block_N, by, :], V_shared)
-                T.reduce_max(acc_s, scores_max, dim=1, clear=False)
-                for i in T.Parallel(block_M):
-                    scores_max[i] = T.max(scores_max_prev[i], scores_max[i])
-                for i, j in T.Parallel(block_M, block_N):
-                    acc_s[i, j] = T.exp(acc_s[i, j] - scores_max[i])
-                T.reduce_sum(acc_s, scores_sum, dim=1)
-                for i in T.Parallel(block_M):
-                    lse[i] = scores_max[i] + T.log(T.exp(lse[i] - scores_max[i]) + scores_sum[i])
-                for i, j in T.Parallel(block_M, dim):
-                    acc_o[i, j] = acc_o[i, j] * T.exp(scores_max_prev[i] - scores_max[i])
-                T.copy(scores_max, scores_max_prev)
-                T.copy(acc_s, acc_s_cast)
-                T.gemm(acc_s_cast, V_shared, acc_o, policy=T.GemmWarpPolicy.FullRow)
-            for i, j in T.Parallel(block_M, dim):
-                acc_o[i, j] *= T.exp(scores_max[i] - lse[i])
-            T.copy(acc_o, Output[bz, bx * block_M : (bx + 1) * block_M, by, :])
+                T.copy(A[by, 
+                    chunk_idx * chunk_size + m_idx * block_M : chunk_idx * chunk_size + (m_idx + 1) * block_M, 
+                    group_idx, 
+                    k * block_K : (k + 1) * block_K], 
+                    A_shared)
+                T.copy(B[by, 
+                    chunk_idx * chunk_size + n_idx * block_N : chunk_idx * chunk_size + (n_idx + 1) * block_N, 
+                    group_idx, 
+                    k * block_K : (k + 1) * block_K], 
+                    B_shared)
+                T.gemm(A_shared, B_shared, acc_o, transpose_B=True)
+            T.copy(acc_o, Output[by, chunk_idx, group_idx, m_idx * block_M : (m_idx + 1) * block_M, n_idx * block_N : (n_idx + 1) * block_N])
 
     return main
 
+def ref_program(A, B):
+    from einops import rearrange, repeat
+    seqlen = A.shape[1]
+    nchunks = (seqlen + chunk_size - 1) // chunk_size
 
-def ref_program(Q, K, V, casual):
-    qk = torch.matmul(Q.permute(0, 2, 1, 3), K.permute(0, 2, 3, 1)) # [B, H, SEQLEN, SEQLEN]
-    m = qk.max(dim=-1, keepdim=True).values
-    p = torch.exp(qk - m)
-    s = p / p.sum(dim=-1, keepdim=True)
-    o = torch.matmul(s.to(torch.float16), V.permute(0, 2, 1, 3)) # [B, H, SEQLEN, dim]
-    return o.permute(0, 2, 1, 3)
+    A = rearrange(A, "b (c l) g d -> b c l g d", c=nchunks)
+    B = rearrange(B, "b (c l) g d -> b c l g d", c=nchunks)
 
+    return torch.einsum("bclgd,bcsgd->bcgls", A, B)
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--batch', type=int, default=64, help='Batch size')
-    parser.add_argument('--h', type=int, default=12, help='Number of heads')
-    parser.add_argument('--n_ctx', type=int, default=2048, help='Context size')
-    parser.add_argument('--d_head', type=int, default=256, help='Head dimension')
-    parser.add_argument('--casual', type=bool, default=True, help='Casual flag')
-    args = parser.parse_args()
-    BATCH, H, N_CTX, D_HEAD = args.batch, args.h, args.n_ctx, args.d_head
-    casual = args.casual
-    flops_per_matmul = 2.0 * BATCH * H * N_CTX * N_CTX * D_HEAD
-    total_flops = 2 * flops_per_matmul
-    if casual:
-        total_flops *= 0.5
-    BLOCK_M = 64
-    BLOCK_N = 64 if D_HEAD <= 128 else 32
-    program = retnet(BATCH, H, N_CTX, D_HEAD, casual, BLOCK_M, BLOCK_N)
-    ref_program = partial(ref_program, casual=casual)
+    BATCH, SEQLEN, NGROUPS, DSTATE = 8, 4096, 16, 64
+    block_M, block_N, block_K = 64, 64, 64
+    program = bmm_chunk(BATCH, SEQLEN, NGROUPS, DSTATE, block_M, block_N, block_K)
     mod, params = tl.lower(program)
-    mod = tl.Profiler(mod, params, [3], tl.TensorSupplyType.Normal)
+    mod = tl.Profiler(mod, params, [2], tl.TensorSupplyType.Normal)
     mod.assert_allclose(ref_program, rtol=0.1, atol=0.1)
-
-    # latency = mod.do_bench(ref_program, n_warmup=10, n_repeat=1)
-    # print("torch: {:.2f} ms".format(latency))
-    # print("torch: {:.2f} TFlops".format(total_flops / latency * 1e-9))
-    latency = mod.do_bench(mod, n_warmup=10, n_repeat=5)
-    print("tl: {:.2f} ms".format(latency))
-    print("tl: {:.2f} TFlops".format(total_flops / latency * 1e-9))

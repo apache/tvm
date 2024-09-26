@@ -37,3 +37,6 @@
 [submodule "3rdparty/flash-linear-attention"]
 	path = 3rdparty/flash-linear-attention
 	url = git@github.com:sustcsonglin/flash-linear-attention.git
+[submodule "3rdparty/mamba"]
+	path = 3rdparty/mamba
+	url = git@github.com:state-spaces/mamba.git
