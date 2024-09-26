@@ -64,7 +64,7 @@ class GemmTensorOp {
   using SmemLayoutB = decltype(tile_to_shape(SmemLayoutAtomB{}, Shape<Int<N>, Int<K>>{},
                                              conditional_t<trans_B, Step<_1, _2>, Step<_2, _1>>{}));
 
-  static_assert(num_warp_n == 1);
+  // static_assert(num_warp_n == 1);
   static_assert(num_warp_m % 4 == 0);
 
   template <int wg_wait=0>
@@ -73,9 +73,9 @@ class GemmTensorOp {
     Tensor sA = make_tensor(make_smem_ptr(reinterpret_cast<A_type*>(pA)), SmemLayoutA{});
     Tensor sB = make_tensor(make_smem_ptr(reinterpret_cast<B_type*>(pB)), SmemLayoutB{});
     auto tiled_mma =
-        make_tiled_mma(GMMA::ss_op_selector<A_type, B_type, C_type, Shape<Int<M>, Int<N>, Int<K>>,
+        make_tiled_mma(GMMA::ss_op_selector<A_type, B_type, C_type, Shape<Int<M>, Int<N / num_warp_n>, Int<K>>,
                                             GmmaMajorA, GmmaMajorB>(),
-                       Layout<Shape<Int<num_warp_m / 4>, _1, _1>>{});
+                       Layout<Shape<Int<num_warp_m / 4>, Int<num_warp_n>, _1>>{});
     auto thr_mma = tiled_mma.get_thread_slice(tid);
 
     // Allocate registers for pipelining
@@ -119,9 +119,9 @@ class GemmTensorOp {
     const int tid = threadIdx.x;
     Tensor sB = make_tensor(make_smem_ptr(reinterpret_cast<B_type*>(pB)), SmemLayoutB{});
     auto tiled_mma =
-        make_tiled_mma(GMMA::rs_op_selector<A_type, B_type, C_type, Shape<Int<M>, Int<N>, Int<K>>,
+        make_tiled_mma(GMMA::rs_op_selector<A_type, B_type, C_type, Shape<Int<M>, Int<N / num_warp_n>, Int<K>>,
                                             GmmaMajorA, GmmaMajorB>(),
-                       Layout<Shape<Int<num_warp_m / 4>, _1, _1>>{});
+                       Layout<Shape<Int<num_warp_m / 4>, Int<num_warp_n>, _1>>{});
     auto thr_mma = tiled_mma.get_thread_slice(tid);
 
     // Allocate registers for pipelining

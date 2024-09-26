@@ -29,7 +29,7 @@ from .._ffi.base import py_str
 from . import utils
 
 
-def compile_cuda(code, target_format="ptx", arch=None, options=None, path_target=None):
+def compile_cuda(code, target_format="ptx", arch=None, options=None, path_target=None, get_output=False):
     """Compile cuda code with NVCC from env.
 
     Parameters
@@ -105,6 +105,9 @@ def compile_cuda(code, target_format="ptx", arch=None, options=None, path_target
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 
     (out, _) = proc.communicate()
+
+    if get_output:
+        print(py_str(out))
 
     if proc.returncode != 0:
         msg = code

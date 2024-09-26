@@ -79,7 +79,6 @@ def flashattn(batch, heads, seq_len, dim, is_casual, block_M, block_N):
     def Softmax(
         acc_s: T.Buffer([block_M, block_N], accum_dtype),
         acc_s_cast: T.Buffer([block_M, block_N], dtype),
-        acc_o: T.Buffer([block_M, dim], accum_dtype),
         scores_max: T.Buffer([block_M], accum_dtype),
         scores_max_prev: T.Buffer([block_M], accum_dtype),
         scores_scale: T.Buffer([block_M], accum_dtype),
@@ -104,9 +103,15 @@ def flashattn(batch, heads, seq_len, dim, is_casual, block_M, block_N):
         T.reduce_sum(acc_s, scores_sum, dim=1)
         for i in T.Parallel(block_M):
             logsum[i] = logsum[i] * scores_scale[i] + scores_sum[i]
+        T.copy(acc_s, acc_s_cast)
+
+    @T.macro
+    def Rescale(
+        acc_o: T.Buffer([block_M, dim], accum_dtype),
+        scores_scale: T.Buffer([block_M], accum_dtype),
+    ):
         for i, j in T.Parallel(block_M, dim):
             acc_o[i, j] *= scores_scale[i]
-        T.copy(acc_s, acc_s_cast)
 
     @T.prim_func
     def main(
@@ -142,9 +147,10 @@ def flashattn(batch, heads, seq_len, dim, is_casual, block_M, block_N):
                 T.min(T.ceildiv(seq_len, block_N), T.ceildiv((bx + 1) * block_M, block_N)) if is_casual else T.ceildiv(seq_len, block_N)
             )
 
-            for k in T.Pipelined(loop_range, num_stages=1, order=[0,2,1], stage=[0,0,1], group=[[0,1], [2,3,4,5,6,7,8,9,10], [11]]):
+            for k in T.Pipelined(loop_range, num_stages=2, order=[-1,0,3,1,-1,2], stage=[-1,0,0,1,-1,1], sync=[[0,13],[1,9]], group=[[0], [1,2], [3,4,5,6,7,8,9,10], [11], [12], [13]]):
                 MMA0(K, Q_shared, K_shared, acc_s, k, bx, by, bz)
-                Softmax(acc_s, acc_s_cast, acc_o, scores_max, scores_max_prev, scores_scale, scores_sum, logsum)
+                Softmax(acc_s, acc_s_cast, scores_max, scores_max_prev, scores_scale, scores_sum, logsum)
+                Rescale(acc_o, scores_scale)
                 MMA1(V, V_shared, acc_s_cast, acc_o, k, by, bz)
             for i, j in T.Parallel(block_M, dim):
                 acc_o[i, j] /= logsum[i]
@@ -155,20 +161,22 @@ def flashattn(batch, heads, seq_len, dim, is_casual, block_M, block_N):
 
 
 def ref_program(Q, K, V, casual):
-    from flash_attn.flash_attn_interface import flash_attn_func
-
-    return flash_attn_func(Q, K, V, causal=casual)
+    import sys
+    sys.path.append("/home/msra/cy/tvm.tl/3rdparty/fa3")
+    from hopper.flash_attn_interface import flash_attn_func
+    ret =  flash_attn_func(Q, K, V, causal=casual)
+    return ret[0]
 
 
 if __name__ == "__main__":
-    BATCH, H, N_CTX, D_HEAD = 64, 12, 1024, 128
-    casual = True
+    BATCH, H, N_CTX, D_HEAD = 1, 32, 4096, 128
+    casual = False
     flops_per_matmul = 2.0 * BATCH * H * N_CTX * N_CTX * D_HEAD
     total_flops = 2 * flops_per_matmul
     if casual:
         total_flops *= 0.5
     BLOCK_M = 128
-    BLOCK_N = 128 # if D_HEAD <= 128 else 32
+    BLOCK_N = 176 # if D_HEAD <= 128 else 32
     program = flashattn(BATCH, H, N_CTX, D_HEAD, casual, BLOCK_M, BLOCK_N)
     ref_program = partial(ref_program, casual=casual)
     mod, params = tl.lower(program)
@@ -178,6 +186,6 @@ if __name__ == "__main__":
     latency = mod.do_bench(ref_program, warmup=500)
     print("{:.2f} ms".format(latency))
     print("{:.2f} TFlops".format(total_flops / latency * 1e-9))
-    latency = mod.do_bench(mod, n_warmup=10, n_repeat=10)
+    latency = mod.do_bench(mod, n_warmup=10, n_repeat=10, profiler="torch")
     print("{:.2f} ms".format(latency))
     print("{:.2f} TFlops".format(total_flops / latency * 1e-9))

@@ -205,7 +205,8 @@ set_seed(42)
 batch = 8
 head = 16
 seq_len = 1024
-dim = 64
+dim_qk = 64
+dim_v = 448
 blockM = seq_len
 blockN = 64
 # q = torch.randn((BATCH, HEAD, SEQLEN, D), dtype=torch.float16)
@@ -213,10 +214,11 @@ blockN = 64
 # v = torch.randn((BATCH, HEAD, SEQLEN, D), dtype=torch.float16)
 # mask = torch.randn((HEAD, SEQLEN, SEQLEN), dtype=torch.float16)
 
-shape = [batch, seq_len, head, dim]
-q = torch.randn(shape, dtype=torch.float16)
-k = torch.randn(shape, dtype=torch.float16)
-v = torch.randn(shape, dtype=torch.float16)
+qk_shape = [batch, seq_len, head, dim_qk]
+v_shape = [batch, seq_len, head, dim_v]
+q = torch.randn(qk_shape, dtype=torch.float16)
+k = torch.randn(qk_shape, dtype=torch.float16)
+v = torch.randn(v_shape, dtype=torch.float16)
 mask = torch.randn((head, seq_len, seq_len), dtype=torch.float16)
 
 def ref_program(q, k, v, mask):
@@ -230,7 +232,7 @@ def test_program(q, k, v, mask):
     r = torch.zeros((batch, head, seq_len), dtype=torch.float16)
     r_new = torch.zeros((batch, head, seq_len), dtype=torch.float16)
     r_wo_clamp = torch.zeros((batch, head, seq_len), dtype=torch.float16)
-    acco = torch.zeros((batch, head, seq_len, dim), dtype=torch.float16)
+    acco = torch.zeros((batch, head, seq_len, dim_v), dtype=torch.float16)
     for i in range(seq_len // blockN):
         qk = torch.einsum('bqhd,bkhd->bhqk', q, k[:, i * blockN : (i + 1) * blockN, :, :])
         qkm = qk * mask[:, :, i * blockN : (i + 1) * blockN].unsqueeze(0)
