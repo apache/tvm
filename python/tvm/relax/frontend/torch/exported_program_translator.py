@@ -168,7 +168,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         return mod
 
 
-def from_exportedprogram(
+def from_exported_program(
     exported_program: torch.export.ExportedProgram,
     *,
     keep_params_as_input: bool = False,
@@ -209,7 +209,7 @@ def from_exportedprogram(
 
         # Import the importer.
         import tvm
-        from tvm.relax.frontend.torch import from_exportedprogram
+        from tvm.relax.frontend.torch import from_exported_program
         import torch
         from torch.export import export
 
@@ -230,7 +230,7 @@ def from_exportedprogram(
         exported_program = export(torch_model, args=example_args)
 
         # Use the importer to import the ExportedProgram to Relax.
-        mod: tvm.IRModule = from_exportedprogram(exported_program)
+        mod: tvm.IRModule = from_exported_program(exported_program)
     """
     # decompose into Core ATen operators
     exported_program.run_decompositions()

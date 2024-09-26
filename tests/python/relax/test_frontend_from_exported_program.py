@@ -24,12 +24,12 @@ import tvm.testing
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tir as T
-from tvm.relax.frontend.torch import from_exportedprogram
+from tvm.relax.frontend.torch import from_exported_program
 
 
 def verify_model(torch_model, example_args, binding, expected):
     exported_program = export(torch_model, args=example_args)
-    mod = from_exportedprogram(exported_program)
+    mod = from_exported_program(exported_program)
 
     binding = {k: tvm.nd.array(v) for k, v in binding.items()}
     expected = relax.transform.BindParams("main", binding)(expected)
@@ -465,7 +465,7 @@ def test_keep_params():
     example_args = (torch.randn(1, 3, 10, 10, dtype=torch.float32),)
     model = Conv2D1()
     exported_program = torch.export.export(model, example_args)
-    mod = from_exportedprogram(exported_program, keep_params_as_input=True)
+    mod = from_exported_program(exported_program, keep_params_as_input=True)
     mod, params = detach_params(mod)
     tvm.ir.assert_structural_equal(mod, expected1)
     func = mod["main"]
@@ -501,7 +501,7 @@ def test_unwrap_unit_return_tuple():
 
     example_args = (torch.randn(256, 256, dtype=torch.float32),)
     exported_program = export(Identity(), args=example_args)
-    mod = from_exportedprogram(exported_program, unwrap_unit_return_tuple=True)
+    mod = from_exported_program(exported_program, unwrap_unit_return_tuple=True)
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
@@ -531,5 +531,5 @@ def test_no_bind_return_tuple():
         torch.randn(256, 256, dtype=torch.float32),
     )
     exported_program = export(Identity(), args=example_args)
-    mod = from_exportedprogram(exported_program, no_bind_return_tuple=True)
+    mod = from_exported_program(exported_program, no_bind_return_tuple=True)
     tvm.ir.assert_structural_equal(mod, Expected)
