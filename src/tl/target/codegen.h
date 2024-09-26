@@ -68,6 +68,7 @@ class CodeGenTL final : public CodeGenC {
   void AddFunction(const PrimFunc& f);
 
  protected:
+  virtual std::string GetBufferRef(DataType t, const BufferNode* buffer, PrimExpr index) final;
   void PrintCallExtern(Type ret_type, String global_symbol, const Array<PrimExpr>& args,
                        bool skip_first_arg, std::ostream& os) final;  // NOLINT(*)
 
@@ -80,6 +81,17 @@ class CodeGenTL final : public CodeGenC {
   bool IsScopePartOfType() const final { return false; }
 
   friend void PrintConst(const FloatImmNode* op, std::ostream& os, CodeGenTL* p);
+  // The size of the barrier array in shared memory
+  int barrier_count_ = -1;
+  // whether need mma.h
+  bool need_mma_h_{false};
+  // whether need cast_smem_ptr_to_int helper function
+  bool need_cast_smem_ptr_to_int_{false};
+  // The name of the barrier array in shared memory
+  const std::string barrier_name_ = "barrier";
+  // The alignment of the barrier array in shared memory
+  // Set to 16 to maintain minimum alignment requirements for async bulk copy
+  const int barrier_alignment_bytes_ = 16;
 };
 
 }  // namespace codegen

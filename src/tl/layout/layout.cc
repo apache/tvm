@@ -104,8 +104,13 @@ Array<PrimExpr> LayoutNode::OutputShape() const {
   UpdateAnalyzer(&analyzer);
   for (size_t i = 0; i < ret.size(); i++) {
     auto ist = analyzer.int_set(forward_index_[i] + 1);
-    CHECK(is_one(ist.min())) << ist.min();
-    ret.Set(i, ist.max());
+    if (arith::is_neg_inf(ist.min()) && arith::is_pos_inf(ist.max())) {
+      // X-OR Expression
+      ret.Set(i, input_size_[i]);
+    } else {
+      CHECK(is_one(ist.min())) << ist.min();
+      ret.Set(i, ist.max());
+    }
   }
   return ret;
 }

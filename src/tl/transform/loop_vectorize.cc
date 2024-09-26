@@ -46,7 +46,8 @@ class VectorizePlanner : public arith::IRVisitorWithAnalyzer {
 
   int Plan(const For& node) {
     this->operator()(node);
-    if (!has_nonlocal_memory_access_) return 1;
+    // Always Enable vectorization
+    // if (!has_nonlocal_memory_access_) return 1;
     return vector_size_;
   }
 
@@ -61,6 +62,11 @@ class VectorizePlanner : public arith::IRVisitorWithAnalyzer {
     if (node->buffer.scope() == "shared" || node->buffer.scope() == "global" ||
         node->buffer.scope() == "shared.dyn")
       has_nonlocal_memory_access_ = true;
+    if (node->buffer->shape.size() == 1 && node->buffer->shape[0].as<IntImmNode>()->value == 1) {
+      // TODO(lei): This should be improved as 
+      // constant buffer that tl hack to use as local register.
+      return arith::IRVisitorWithAnalyzer::VisitExpr_(node);
+    }
     UpdateVectorSize(node->indices, node->buffer);
     return arith::IRVisitorWithAnalyzer::VisitExpr_(node);
   }
@@ -104,7 +110,6 @@ class VectorizePlanner : public arith::IRVisitorWithAnalyzer {
     max_vector_size = arith::ZeroAwareGCD(max_vector_size, mod_set->coeff);
     max_vector_size = arith::ZeroAwareGCD(max_vector_size, mod_set->base);
     vector_size_ = arith::ZeroAwareGCD(max_vector_size, vector_size_);
-
     while (!IndiceCanVectorize(buffer.OffsetOf(indices).back(), inner_for_->loop_var,
                                inner_for_->extent, vector_size_, &analyzer_)) {
       vector_size_ /= 2;

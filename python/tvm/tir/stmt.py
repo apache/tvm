@@ -661,6 +661,29 @@ class Prefetch(Stmt):
         self.__init_handle_by_constructor__(_ffi_api.Prefetch, buffer, bounds, span)  # type: ignore
 
 
+@tvm._ffi.register_object("tir.CustomizedCode")
+class CustomizedCode(Stmt):
+    """CustomizedCode node.
+
+    Parameters
+    ----------
+    body : str
+        The body of the code.
+
+    ftype : str
+        The type of the code.
+
+    span : Optional[Span]
+        The location of the stmt in the source code.
+    """
+
+    code: str
+    span: Optional[Span]
+
+    def __init__(self, code: str, span: Optional[Span] = None) -> None:
+        self.__init_handle_by_constructor__(_ffi_api.CustomizedCode, code, span) # type: ignore
+
+
 @tvm._ffi.register_object("tir.BufferRegion")
 class BufferRegion(Object, Scriptable):
     """BufferRegion node.

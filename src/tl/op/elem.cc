@@ -328,19 +328,27 @@ For Fill::MakeSIMTLoop(arith::Analyzer* analyzer) const {
 }
 
 Stmt Fill::Lower(const LowerArgs& T, arith::Analyzer* analyzer) const {
-  auto par_op = std::make_unique<ParallelOp>(MakeSIMTLoop(analyzer));
-  par_op->InferLayout({T.target, T.block_size, T.layout_map}, InferLevel::kFree);
-  par_op->InferLayout({T.target, T.block_size, T.layout_map}, InferLevel::kFree);
-  auto thread_loop =
-      PartitionLoop(par_op->GetRoot(), T.thread_var, analyzer, par_op->GetLoopLayout());
 
-  auto vectorized_thread_loop = VectorizeLoop(thread_loop);
-  if (par_op->GetPredicate(T.thread_var).defined()) {
-    return IfThenElse(par_op->GetPredicate(T.thread_var).value(), vectorized_thread_loop);
-  } else {
+  if (dst.scope() == "local.fragment") {
+    auto par_op = std::make_unique<ParallelOp>(MakeSIMTLoop(analyzer));
+    par_op->InferLayout({T.target, T.block_size, T.layout_map}, InferLevel::kFree);
+    par_op->InferLayout({T.target, T.block_size, T.layout_map}, InferLevel::kFree);
+    auto thread_loop =
+        PartitionLoop(par_op->GetRoot(), T.thread_var, analyzer, par_op->GetLoopLayout());
+    auto vectorized_thread_loop = VectorizeLoop(thread_loop);
+    if (par_op->GetPredicate(T.thread_var).defined()) {
+      return IfThenElse(par_op->GetPredicate(T.thread_var).value(), vectorized_thread_loop);
+    }
     return vectorized_thread_loop;
+  } else if (dst.scope() == "local") {
+    auto init_loop = MakeSIMTLoop(analyzer);
+    // CHECK(false) << "Unsupported scope " << dst.scope();
+    auto vectorized_thread_loop = VectorizeLoop(init_loop);
+    return vectorized_thread_loop;
+  } else{
+    LOG(FATAL) << "Unsupported scope " << dst.scope();
   }
-  return vectorized_thread_loop;
+
 }
 
 TIR_REGISTER_TL_OP(Copy, copy)

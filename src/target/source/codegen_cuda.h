@@ -36,7 +36,7 @@
 namespace tvm {
 namespace codegen {
 
-class CodeGenCUDA final : public CodeGenC {
+class CodeGenCUDA : public CodeGenC {
  public:
   CodeGenCUDA();
   void Init(bool output_ssa);

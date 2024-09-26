@@ -127,7 +127,7 @@ LayoutMap ParallelOp::InferLayout(const LayoutInferArgs& T, InferLevel level) {
   } else {
     return {};
   }
-  // Step 2: Check that the loop's partition ccan correctly align with all source fragment
+  // Step 2: Check that the loop's partition can correctly align with all source fragment
   for (const auto& [buffer, _] : indice_map_) {
     if (T.layout_map.count(buffer)) {
       auto fragment = T.layout_map[buffer].as<Fragment>().value();

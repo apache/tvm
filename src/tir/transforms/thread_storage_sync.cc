@@ -288,7 +288,8 @@ class ThreadSyncPlanner : public StorageAccessVisitor {
   }
 
   void insert_syncs(const Object* obj) {
-    ICHECK_EQ(condition_counter(), 0) << "Cannot insert syncs inside condition";
+    // ICHECK_EQ(condition_counter(), 0) << "Cannot insert syncs inside condition";
+    if (syncs_inserted_.count(obj)) return;
     if (num_partial_threads_.defined()) {
       syncs_inserted_.insert(obj);
       partial_syncs_inserted_[obj] = static_cast<int>(num_partial_threads_.value()->value);
@@ -419,6 +420,22 @@ class ThreadSyncInserter : public StmtExprMutator {
         ++rw_stats_[buffer_var].read_count;
       }
       if (flag->value & 2 && sync_scope_.rank == StorageRank::kGlobal &&
+          GetScope(buffer_var).rank == StorageRank::kGlobal) {
+        ++rw_stats_[buffer_var].write_count;
+      }
+      return expr;
+    } else if (op->op.same_as(builtin::address_of())){
+      PrimExpr expr = StmtExprMutator::VisitExpr_(op);
+      op = expr.as<CallNode>();
+      ICHECK_EQ(op->args.size(), 1U) << "address_of should only have one argument (Buffer)";
+
+      BufferLoad load = Downcast<BufferLoad>(op->args[0]);
+      Var buffer_var(Downcast<Var>(load->buffer->data));
+      if (sync_scope_.rank == StorageRank::kGlobal &&
+          GetScope(buffer_var).rank == StorageRank::kGlobal) {
+        ++rw_stats_[buffer_var].read_count;
+      }
+      if (sync_scope_.rank == StorageRank::kGlobal &&
           GetScope(buffer_var).rank == StorageRank::kGlobal) {
         ++rw_stats_[buffer_var].write_count;
       }
