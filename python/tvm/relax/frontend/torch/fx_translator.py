@@ -96,17 +96,6 @@ class TorchFXImporter(BaseFXGraphImporter):
 
         return convert
 
-    def _tril_triu(self, op: Callable) -> Callable:
-        from torch import fx
-
-        def convert(node: fx.Node) -> relax.Var:
-            x = self.env[node.args[0]]
-            k = node.args[1] if len(node.args) > 1 else node.kwargs.get("diagonal", 0)
-            assert isinstance(k, int)
-            return self.block_builder.emit(op(x, k))
-
-        return convert
-
     ########## Binary Ops ##########
 
     def _binary_op(self, relax_op: Callable, intrinsic_op: Callable) -> Callable:

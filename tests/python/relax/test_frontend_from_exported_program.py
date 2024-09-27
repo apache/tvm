@@ -748,6 +748,48 @@ def test_softmax():
     verify_model(Softmax2(), example_args, {}, expected1)
 
 
+def test_tril_triu():
+    example_args = (torch.randn(10, 10, dtype=torch.float32),)
+
+    class Tril(Module):
+        def forward(self, input):
+            return torch.tril(input, 1)
+
+    @tvm.script.ir_module
+    class expected_tril:
+        @R.function
+        def main(
+            input_1: R.Tensor((10, 10), dtype="float32")
+        ) -> R.Tuple(R.Tensor((10, 10), dtype="float32")):
+            # block 0
+            with R.dataflow():
+                lv: R.Tensor((10, 10), dtype="float32") = R.tril(input_1, 1)
+                gv: R.Tuple(R.Tensor((10, 10), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    verify_model(Tril(), example_args, {}, expected_tril)
+
+    class Triu(Module):
+        def forward(self, input):
+            return torch.triu(input, 1)
+
+    @tvm.script.ir_module
+    class expected_triu:
+        @R.function
+        def main(
+            input_1: R.Tensor((10, 10), dtype="float32")
+        ) -> R.Tuple(R.Tensor((10, 10), dtype="float32")):
+            # block 0
+            with R.dataflow():
+                lv: R.Tensor((10, 10), dtype="float32") = R.triu(input_1, 1)
+                gv: R.Tuple(R.Tensor((10, 10), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    verify_model(Triu(), example_args, {}, expected_triu)
+
+
 def test_adaptive_avgpool2d():
     class AdaptiveAvgPool2d0(Module):
         def __init__(self):

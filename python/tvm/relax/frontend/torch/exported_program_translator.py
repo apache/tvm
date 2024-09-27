@@ -107,6 +107,8 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "sqrt.default": self._unary_op(relax.op.sqrt),
             "tan.default": self._unary_op(relax.op.tan),
             "tanh.default": self._unary_op(relax.op.tanh),
+            "tril.default": self._tril_triu(relax.op.tril),
+            "triu.default": self._tril_triu(relax.op.triu),
             # neural network
             "adaptive_avg_pool2d.default": self._adaptive_avg_pool2d,
             "conv2d.default": self._conv2d,
