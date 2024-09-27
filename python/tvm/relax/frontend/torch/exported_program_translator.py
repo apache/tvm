@@ -81,6 +81,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "dropout.default": lambda node: self.env[node.args[0]],
             "exp.default": self._unary_op(relax.op.exp),
             "gelu.default": self._gelu,
+            "hardsigmoid.default": self._hardsigmoid,
             "neg.default": self._unary_op(relax.op.negative),
             "relu.default": self._unary_op(relax.op.nn.relu),
             "rsqrt.default": self._unary_op(relax.op.rsqrt),
