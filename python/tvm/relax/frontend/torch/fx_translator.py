@@ -62,11 +62,6 @@ class TorchFXImporter(BaseFXGraphImporter):
 
     ########## Unary Ops ##########
 
-    def _leakyrelu(self, node: fx.Node) -> relax.Var:
-        x = self.env[node.args[0]]
-        alpha = node.args[1] if len(node.args) > 1 else node.kwargs.get("negative_slope", 0.01)
-        return self.block_builder.emit(relax.op.nn.leakyrelu(x, alpha))
-
     def _leakyrelu_module(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         module = self.named_modules[node.target]

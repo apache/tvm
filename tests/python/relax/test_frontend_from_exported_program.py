@@ -628,6 +628,42 @@ def test_hardtanh():
     verify_model(Hardtanh2(), example_args, {}, expected1)
 
 
+def test_leakyrelu():
+    import torch
+    from torch.nn import Module
+
+    torch.set_grad_enabled(False)
+
+    class LeakyReLU0(Module):
+        def __init__(self):
+            super().__init__()
+            self.leakyrelu = torch.nn.LeakyReLU(0.02)
+
+        def forward(self, input):
+            return self.leakyrelu(input)
+
+    class LeakyReLU1(Module):
+        def forward(self, input):
+            return torch.nn.functional.leaky_relu(input, 0.02)
+
+    @tvm.script.ir_module
+    class expected:
+        @R.function
+        def main(
+            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
+        ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
+            # block 0
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.nn.leakyrelu(input_1, 0.02)
+                gv: R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(1, 3, 10, 10, dtype=torch.float32),)
+    verify_model(LeakyReLU0(), example_args, {}, expected)
+    verify_model(LeakyReLU1(), example_args, {}, expected)
+
+
 def test_adaptive_avgpool2d():
     class AdaptiveAvgPool2d0(Module):
         def __init__(self):

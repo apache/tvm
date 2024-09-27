@@ -153,6 +153,11 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         x2 = relax.op.divide(x1, relax.const(6, dtype))
         return self.block_builder.emit(relax.op.multiply(x, x2))
 
+    def _leakyrelu(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        alpha = node.args[1] if len(node.args) > 1 else node.kwargs.get("negative_slope", 0.01)
+        return self.block_builder.emit(relax.op.nn.leakyrelu(x, alpha))
+
     ########## Neural Network ##########
 
     def _adaptive_avg_pool2d(self, node: fx.Node) -> relax.Var:

@@ -93,6 +93,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "hardsigmoid.default": self._hardsigmoid,
             "hardswish.default": self._hardswish,
             "hardtanh.default": self._hardtanh,
+            "leaky_relu.default": self._leakyrelu,
             "neg.default": self._unary_op(relax.op.negative),
             "relu.default": self._unary_op(relax.op.nn.relu),
             "rsqrt.default": self._unary_op(relax.op.rsqrt),
