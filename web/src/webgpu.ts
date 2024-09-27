@@ -118,7 +118,7 @@ export async function detectGPUDevice(): Promise<GPUDeviceDetectOutput | undefin
 
     // requestAdapterInfo() is deprecated, causing requestAdapterInfo to raise
     // issue when building. However, it is still needed for older browsers, hence `as any`.
-    const adapterInfo = adapter.info || (adapter as any).requestAdapterInfo();
+    const adapterInfo = adapter.info || await (adapter as any).requestAdapterInfo();
     const device = await adapter.requestDevice({
       requiredLimits: {
         maxBufferSize: requiredMaxBufferSize,
