@@ -745,6 +745,18 @@ PackedFunc GraphExecutor::GetFunction(const String& name, const ObjectPtr<Object
       CHECK(String::CanConvertFrom(args[0])) << "Input key is not a string";
       *rv = this->GetInputIndex(args[0].operator String());
     });
+  } else if (name == "get_output_index") {
+    return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+      CHECK(String::CanConvertFrom(args[0])) << "Output key is not a string";
+      int out_idx = -1;
+      for (size_t i = 0; i < outputs_.size(); i++) {
+        std::string& name = nodes_[outputs_[i].node_id].name;
+        if (args[0].operator String() == name) {
+          out_idx = i;
+        }
+      }
+      *rv = out_idx;
+    });
   } else if (name == "get_input_info") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       auto [shape_info, dtype_info] = this->GetInputInfo();
