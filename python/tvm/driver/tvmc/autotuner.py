@@ -672,7 +672,7 @@ def autotvm_get_tuning_tasks(
     """
     target, target_host = Target.canon_target_and_host(target, target_host)
 
-    mod = apply_graph_transforms(mod, transform_args)
+    mod = apply_graph_transforms(mod, params, transform_args)
 
     tasks = autotvm.task.extract_from_program(
         mod["main"],
@@ -718,7 +718,7 @@ def autoscheduler_get_tuning_tasks(
     """
     target, target_host = Target.canon_target_and_host(target, target_host)
 
-    mod = apply_graph_transforms(mod, transform_args)
+    mod = apply_graph_transforms(mod, params, transform_args)
 
     # Extract the tasks
     tasks, task_weights = auto_scheduler.extract_tasks(
