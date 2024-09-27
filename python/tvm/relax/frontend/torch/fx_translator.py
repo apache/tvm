@@ -62,15 +62,6 @@ class TorchFXImporter(BaseFXGraphImporter):
 
     ########## Unary Ops ##########
 
-    def _gelu(self, node: fx.Node) -> relax.Expr:
-        approximate = node.kwargs.get("approximate", "none")
-        if approximate == "none":
-            return self.block_builder.emit(relax.op.nn.gelu(self.env[node.args[0]]))
-        elif approximate == "tanh":
-            return self.block_builder.emit(relax.op.nn.gelu_tanh(self.env[node.args[0]]))
-        else:
-            raise KeyError("Unregonized approximate algorithm for gelu: {}.".format(approximate))
-
     def _hardsigmoid(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
         x = args[0]

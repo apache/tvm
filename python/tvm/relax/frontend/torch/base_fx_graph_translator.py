@@ -127,6 +127,15 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             )
         return self.block_builder.emit(relax.op.clip(args[0], a_min, a_max))
 
+    def _gelu(self, node: fx.Node) -> relax.Expr:
+        approximate = node.kwargs.get("approximate", "none")
+        if approximate == "none":
+            return self.block_builder.emit(relax.op.nn.gelu(self.env[node.args[0]]))
+        elif approximate == "tanh":
+            return self.block_builder.emit(relax.op.nn.gelu_tanh(self.env[node.args[0]]))
+        else:
+            raise KeyError("Unregonized approximate algorithm for gelu: {}.".format(approximate))
+
     ########## Neural Network ##########
 
     def _adaptive_avg_pool2d(self, node: fx.Node) -> relax.Var:

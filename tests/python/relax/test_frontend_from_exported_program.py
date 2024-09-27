@@ -496,6 +496,36 @@ def test_clamp():
     verify_model(Clamp(), example_args, {}, expected_clamp)
 
 
+def test_gelu():
+    class Gelu(Module):
+        def __init__(self):
+            super().__init__()
+            self.gelu = torch.nn.GELU()
+
+        def forward(self, input):
+            return self.gelu(input)
+
+    class Gelu2(Module):
+        def forward(self, input):
+            return torch.nn.functional.gelu(input)
+
+    @tvm.script.ir_module
+    class expected_gelu:
+        @R.function
+        def main(
+            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
+        ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
+            # block 0
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.nn.gelu(input_1)
+                gv: R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(1, 3, 10, 10, dtype=torch.float32),)
+    verify_model(Gelu(), example_args, {}, expected_gelu)
+    verify_model(Gelu2(), example_args, {}, expected_gelu)
+
 
 def test_adaptive_avgpool2d():
     class AdaptiveAvgPool2d0(Module):
