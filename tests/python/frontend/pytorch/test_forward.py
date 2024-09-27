@@ -301,6 +301,23 @@ def test_forward_pixel_shuffle():
 
 
 @tvm.testing.uses_gpu
+def test_forward_pixel_unshuffle():
+    """test_forward_pixel_unshuffle"""
+    torch.set_grad_enabled(False)
+    input_shape = [1, 36, 32, 32]
+    input_data = torch.rand(input_shape).float()
+    verify_model(torch.nn.PixelUnshuffle(2).float().eval(), input_data=input_data)
+
+    input_shape = [1, 16, 48, 48]
+    input_data = torch.rand(input_shape).float()
+    verify_model(torch.nn.PixelUnshuffle(3).float().eval(), input_data=input_data)
+
+    input_shape = [1, 9, 64, 64]
+    input_data = torch.rand(input_shape).float()
+    verify_model(torch.nn.PixelUnshuffle(4).float().eval(), input_data=input_data)
+
+
+@tvm.testing.uses_gpu
 def test_forward_add():
     """test_forward_add"""
     torch.set_grad_enabled(False)
