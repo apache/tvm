@@ -47,6 +47,37 @@ namespace tir {
 using runtime::StorageRank;
 using runtime::StorageScope;
 
+/*!
+ * \brief collect the mapping from the buffer var to its allocate
+ */
+class AllocateCollector : public StmtExprVisitor {
+ private:
+ bool IsDynamicSharedMemory(Var buffer_var) {
+    StorageScope storage_scope = runtime::StorageScope::Create(GetPtrStorageScope(buffer_var));
+    return storage_scope.rank == runtime::StorageRank::kShared && storage_scope.tag == ".dyn";
+  }
+
+  bool IsStaticSharedMemory(Var buffer_var) {
+    StorageScope storage_scope = runtime::StorageScope::Create(GetPtrStorageScope(buffer_var));
+    return storage_scope.rank == runtime::StorageRank::kShared && storage_scope.tag == "";
+  }
+
+
+ public:
+  void VisitStmt_(const AllocateNode* op) final {
+    if (IsDynamicSharedMemory(op->buffer_var)) {
+      dyn_shmem_allocs_[op->buffer_var.get()] = op;
+    } else if (IsStaticSharedMemory(op->buffer_var)) {
+      static_shmem_allocs_[op->buffer_var.get()] = op;
+    }
+    StmtExprVisitor::VisitStmt_(op);
+  }
+  // The dynamic mapping from the original buffer var to its allocate
+  std::unordered_map<const VarNode*, const AllocateNode*> dyn_shmem_allocs_;
+  // The static mapping from the original buffer var to its allocate
+  std::unordered_map<const VarNode*, const AllocateNode*> static_shmem_allocs_;
+};
+
 // Find a linear pattern of storage access
 // Used for liveness analysis.
 // Composite scopes(loop/thread_launch/IfThen) is represented by two points:
@@ -1733,7 +1764,14 @@ Pass StorageRewrite() {
     bool enable_reuse = true;
     bool reuse_require_exact_matched_dtype = false;
     bool merge_static_smem = ctx->GetConfig<Bool>("tir.merge_static_smem", Bool(false)).value();
-    if (merge_static_smem) {
+    AllocateCollector collector;
+    collector(f->body);
+    bool has_dynamic = collector.dyn_shmem_allocs_.size() > 1;
+    if (has_dynamic || merge_static_smem) {
+      // For IRModule utilizing dynamic shared memory, reuse is not enabled
+      // Because dynamic doesn't require maintaining the readability and
+      // it benefits from a more optimized allocation strategy through the 
+      // Pass `MergeSharedMemoryAllocations`.
       // When `merge_static_smem` is true, we will reuse and merge shared
       // memory in a dedicated pass `MergeSharedMemoryAllocations`.
       // And so we don't enable reuse in this pass.
@@ -1755,7 +1793,7 @@ Pass StorageRewrite() {
     // padded out to 32 bits) would require either rewriting
     // AllocateConst::data, or would require the code generators to
     // handle vectorized constants.
-    return PointerValueTypeRewrite(std::move(f), true, false, false, true, true, true, false,
+    return PointerValueTypeRewrite(std::move(f), true, false, false, false, true, true, false,
                                    false);
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.StorageRewrite", {});

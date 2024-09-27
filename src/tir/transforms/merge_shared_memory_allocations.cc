@@ -42,12 +42,12 @@ namespace tir {
 using runtime::StorageRank;
 using runtime::StorageScope;
 
-bool IsDynamicSharedMemory(Var buffer_var) {
+static bool IsDynamicSharedMemory(Var buffer_var) {
   StorageScope storage_scope = runtime::StorageScope::Create(GetPtrStorageScope(buffer_var));
   return storage_scope.rank == runtime::StorageRank::kShared && storage_scope.tag == ".dyn";
 }
 
-bool IsStaticSharedMemory(Var buffer_var) {
+static bool IsStaticSharedMemory(Var buffer_var) {
   StorageScope storage_scope = runtime::StorageScope::Create(GetPtrStorageScope(buffer_var));
   return storage_scope.rank == runtime::StorageRank::kShared && storage_scope.tag == "";
 }
