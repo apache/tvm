@@ -62,63 +62,11 @@ class TorchFXImporter(BaseFXGraphImporter):
 
     ########## Unary Ops ##########
 
-    def _clamp(self, node: fx.Node) -> relax.Expr:
-        args = self.retrieve_args(node)
-        a_min = args[1] if len(args) > 1 else node.kwargs["min"]
-        a_max = args[2] if len(args) > 2 else node.kwargs["max"]
-        if not isinstance(a_min, (int, float)):
-            raise ValueError(
-                f"TVM only supports constant min value for torch.clamp/clip, "
-                f"but got {a_min} with type {type(a_min)}"
-            )
-        if not isinstance(a_max, (int, float)):
-            raise ValueError(
-                f"TVM only supports constant max value for torch.clamp/clip, "
-                f"but got {a_max} with type {type(a_max)}"
-            )
-        return self.block_builder.emit(relax.op.clip(args[0], a_min, a_max))
-
-    def _gelu(self, node: fx.Node) -> relax.Expr:
-        approximate = node.kwargs.get("approximate", "none")
-        if approximate == "none":
-            return self.block_builder.emit(relax.op.nn.gelu(self.env[node.args[0]]))
-        elif approximate == "tanh":
-            return self.block_builder.emit(relax.op.nn.gelu_tanh(self.env[node.args[0]]))
-        else:
-            raise KeyError("Unregonized approximate algorithm for gelu: {}.".format(approximate))
-
-    def _hardsigmoid(self, node: fx.Node) -> relax.Var:
-        args = self.retrieve_args(node)
-        x = args[0]
-        dtype = x.struct_info.dtype
-        x0 = relax.op.add(x, relax.const(3, dtype))
-        x1 = relax.op.clip(x0, 0, 6)
-        return self.block_builder.emit(relax.op.divide(x1, relax.const(6, dtype)))
-
-    def _hardswish(self, node: fx.Node) -> relax.Var:
-        args = self.retrieve_args(node)
-        x = args[0]
-        dtype = x.struct_info.dtype
-        x0 = relax.op.add(x, relax.const(3, dtype))
-        x1 = relax.op.clip(x0, 0, 6)
-        x2 = relax.op.divide(x1, relax.const(6, dtype))
-        return self.block_builder.emit(relax.op.multiply(x, x2))
-
-    def _leakyrelu(self, node: fx.Node) -> relax.Var:
-        x = self.env[node.args[0]]
-        alpha = node.args[1] if len(node.args) > 1 else node.kwargs.get("negative_slope", 0.01)
-        return self.block_builder.emit(relax.op.nn.leakyrelu(x, alpha))
-
     def _leakyrelu_module(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         module = self.named_modules[node.target]
         alpha = module.negative_slope
         return self.block_builder.emit(relax.op.nn.leakyrelu(x, alpha))
-
-    def _log_softmax(self, node: fx.Node) -> relax.Var:
-        x = self.env[node.args[0]]
-        dim = node.args[1] if len(node.args) > 1 else node.kwargs.get("dim", -1)
-        return self.block_builder.emit(relax.op.nn.log_softmax(x, dim))
 
     def _log_softmax_module(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
@@ -126,17 +74,6 @@ class TorchFXImporter(BaseFXGraphImporter):
         dim = module.dim
         assert dim is not None
         return self.block_builder.emit(relax.op.nn.log_softmax(x, dim))
-
-    def _round(self, node: fx.Node) -> relax.Expr:
-        if node.kwargs.get("decimals", 0) != 0:
-            raise ValueError("specifying decimals for round is not supported yet")
-        arg = self.env[node.args[0]]
-        return self.block_builder.emit(relax.op.round(arg))
-
-    def _softmax(self, node: fx.Node) -> relax.Var:
-        x = self.env[node.args[0]]
-        dim = node.args[1] if len(node.args) > 1 else node.kwargs.get("dim", -1)
-        return self.block_builder.emit(relax.op.nn.softmax(x, dim))
 
     def _softmax_module(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
@@ -156,17 +93,6 @@ class TorchFXImporter(BaseFXGraphImporter):
             mutated = self.block_builder.emit(op(x, k))
             self.env[node.args[0]] = mutated
             return mutated
-
-        return convert
-
-    def _tril_triu(self, op: Callable) -> Callable:
-        from torch import fx
-
-        def convert(node: fx.Node) -> relax.Var:
-            x = self.env[node.args[0]]
-            k = node.args[1] if len(node.args) > 1 else node.kwargs.get("diagonal", 0)
-            assert isinstance(k, int)
-            return self.block_builder.emit(op(x, k))
 
         return convert
 

@@ -64,13 +64,51 @@ class ExportedProgramImporter(BaseFXGraphImporter):
 
         return parameters_buffers_constants, user_inputs
 
+    ########## Unary Ops ##########
+
+    def _hardtanh(self, node: fx.Node) -> relax.Expr:
+        args = self.retrieve_args(node)
+        x = args[0]
+        min_val = node.args[1] if len(args) > 1 else node.kwargs("min_val", -1.0)
+        max_val = node.args[2] if len(args) > 2 else node.kwargs("max_val", 1.0)
+        return self.block_builder.emit(relax.op.clip(x, min_val, max_val))
+
     def create_convert_map(
         self,
     ) -> Dict[str, Callable[[fx.Node], relax.Var]]:
         return {
             # unary
+            "acos.default": self._unary_op(relax.op.acos),
+            "acosh.default": self._unary_op(relax.op.acosh),
+            "asin.default": self._unary_op(relax.op.asin),
+            "asinh.default": self._unary_op(relax.op.asinh),
+            "atan.default": self._unary_op(relax.op.atan),
+            "atanh.default": self._unary_op(relax.op.atanh),
+            "clamp.default": self._clamp,
+            "cos.default": self._unary_op(relax.op.cos),
+            "cosh.default": self._unary_op(relax.op.cosh),
             "dropout.default": lambda node: self.env[node.args[0]],
+            "exp.default": self._unary_op(relax.op.exp),
+            "gelu.default": self._gelu,
+            "hardsigmoid.default": self._hardsigmoid,
+            "hardswish.default": self._hardswish,
+            "hardtanh.default": self._hardtanh,
+            "leaky_relu.default": self._leakyrelu,
+            "log_softmax.int": self._log_softmax,
+            "neg.default": self._unary_op(relax.op.negative),
             "relu.default": self._unary_op(relax.op.nn.relu),
+            "round.default": self._round,
+            "rsqrt.default": self._unary_op(relax.op.rsqrt),
+            "sigmoid.default": self._unary_op(relax.op.sigmoid),
+            "silu.default": self._unary_op(relax.op.nn.silu),
+            "sin.default": self._unary_op(relax.op.sin),
+            "sinh.default": self._unary_op(relax.op.sinh),
+            "softmax.int": self._softmax,
+            "sqrt.default": self._unary_op(relax.op.sqrt),
+            "tan.default": self._unary_op(relax.op.tan),
+            "tanh.default": self._unary_op(relax.op.tanh),
+            "tril.default": self._tril_triu(relax.op.tril),
+            "triu.default": self._tril_triu(relax.op.triu),
             # neural network
             "adaptive_avg_pool2d.default": self._adaptive_avg_pool2d,
             "conv2d.default": self._conv2d,
