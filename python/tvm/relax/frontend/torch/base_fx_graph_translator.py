@@ -158,6 +158,11 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         alpha = node.args[1] if len(node.args) > 1 else node.kwargs.get("negative_slope", 0.01)
         return self.block_builder.emit(relax.op.nn.leakyrelu(x, alpha))
 
+    def _log_softmax(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        dim = node.args[1] if len(node.args) > 1 else node.kwargs.get("dim", -1)
+        return self.block_builder.emit(relax.op.nn.log_softmax(x, dim))
+
     ########## Neural Network ##########
 
     def _adaptive_avg_pool2d(self, node: fx.Node) -> relax.Var:

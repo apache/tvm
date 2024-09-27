@@ -68,11 +68,6 @@ class TorchFXImporter(BaseFXGraphImporter):
         alpha = module.negative_slope
         return self.block_builder.emit(relax.op.nn.leakyrelu(x, alpha))
 
-    def _log_softmax(self, node: fx.Node) -> relax.Var:
-        x = self.env[node.args[0]]
-        dim = node.args[1] if len(node.args) > 1 else node.kwargs.get("dim", -1)
-        return self.block_builder.emit(relax.op.nn.log_softmax(x, dim))
-
     def _log_softmax_module(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         module = self.named_modules[node.target]

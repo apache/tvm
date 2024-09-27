@@ -94,6 +94,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "hardswish.default": self._hardswish,
             "hardtanh.default": self._hardtanh,
             "leaky_relu.default": self._leakyrelu,
+            "log_softmax.int": self._log_softmax,
             "neg.default": self._unary_op(relax.op.negative),
             "relu.default": self._unary_op(relax.op.nn.relu),
             "rsqrt.default": self._unary_op(relax.op.rsqrt),
