@@ -169,6 +169,11 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         arg = self.env[node.args[0]]
         return self.block_builder.emit(relax.op.round(arg))
 
+    def _softmax(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        dim = node.args[1] if len(node.args) > 1 else node.kwargs.get("dim", -1)
+        return self.block_builder.emit(relax.op.nn.softmax(x, dim))
+
     ########## Neural Network ##########
 
     def _adaptive_avg_pool2d(self, node: fx.Node) -> relax.Var:
