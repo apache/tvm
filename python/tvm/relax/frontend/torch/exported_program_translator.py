@@ -97,6 +97,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "log_softmax.int": self._log_softmax,
             "neg.default": self._unary_op(relax.op.negative),
             "relu.default": self._unary_op(relax.op.nn.relu),
+            "round.default": self._round,
             "rsqrt.default": self._unary_op(relax.op.rsqrt),
             "sigmoid.default": self._unary_op(relax.op.sigmoid),
             "silu.default": self._unary_op(relax.op.nn.silu),
