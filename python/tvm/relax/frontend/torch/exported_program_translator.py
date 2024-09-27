@@ -69,8 +69,26 @@ class ExportedProgramImporter(BaseFXGraphImporter):
     ) -> Dict[str, Callable[[fx.Node], relax.Var]]:
         return {
             # unary
+            "acos.default": self._unary_op(relax.op.acos),
+            "acosh.default": self._unary_op(relax.op.acosh),
+            "asin.default": self._unary_op(relax.op.asin),
+            "asinh.default": self._unary_op(relax.op.asinh),
+            "atan.default": self._unary_op(relax.op.atan),
+            "atanh.default": self._unary_op(relax.op.atanh),
+            "cos.default": self._unary_op(relax.op.cos),
+            "cosh.default": self._unary_op(relax.op.cosh),
             "dropout.default": lambda node: self.env[node.args[0]],
+            "exp.default": self._unary_op(relax.op.exp),
+            "neg.default": self._unary_op(relax.op.negative),
             "relu.default": self._unary_op(relax.op.nn.relu),
+            "rsqrt.default": self._unary_op(relax.op.rsqrt),
+            "sigmoid.default": self._unary_op(relax.op.sigmoid),
+            "silu.default": self._unary_op(relax.op.nn.silu),
+            "sin.default": self._unary_op(relax.op.sin),
+            "sinh.default": self._unary_op(relax.op.sinh),
+            "sqrt.default": self._unary_op(relax.op.sqrt),
+            "tan.default": self._unary_op(relax.op.tan),
+            "tanh.default": self._unary_op(relax.op.tanh),
             # neural network
             "adaptive_avg_pool2d.default": self._adaptive_avg_pool2d,
             "conv2d.default": self._conv2d,
