@@ -161,17 +161,6 @@ class SharedMemLinearAccessPatternFinder final : public StmtExprVisitor {
     }
   }
 
-  void VisitExpr_(const CallNode* op) final {
-    if (op->op.same_as(builtin::address_of())) {
-      const BufferLoadNode* load = op->args[0].as<BufferLoadNode>();
-      for (const auto& index : load->indices) {
-        this->VisitExpr(index);
-      }
-    } else {
-      StmtExprVisitor::VisitExpr_(op);
-    }
-  }
-
   void VisitExpr_(const VarNode* buf) final {
     // Directly reference to the variable count as a read.
     auto it = alloc_info_.find(buf);
