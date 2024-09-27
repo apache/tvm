@@ -67,35 +67,6 @@ bool IsBoundToThreadIdx(const ForNode* loop) {
 }
 
 /*!
- * \brief Check the dominant property of a block:
- * the block is the only writer of its output, dominating the reader of its output buffers
- * \param scope_block The scope block of the block to be checked
- * \param block The block whose dominant property is to be checked
- * \return A boolean indicating if the block is a dominant block
- */
-bool IsDominantBlock(const Block& scope_block, const Block& block) {
-  // Step 1. Count the number of writers for each buffer written by the scope block.
-  std::unordered_map<const BufferNode*, int> buffer_writer_cnt;
-  PreOrderVisit(scope_block->body, [&buffer_writer_cnt](const ObjectRef& obj) {
-    if (const auto* block = obj.as<BlockNode>()) {
-      for (const BufferRegion& buffer_region : block->writes) {
-        ++buffer_writer_cnt[buffer_region->buffer.get()];
-      }
-      return false;
-    }
-    return true;
-  });
-  // Step 2. Check whether `block` is the only writer of its outputs.
-  for (const BufferRegion& buffer_region : block->writes) {
-    ICHECK(buffer_writer_cnt.count(buffer_region->buffer.get()));
-    if (buffer_writer_cnt[buffer_region->buffer.get()] != 1) {
-      return false;
-    }
-  }
-  return true;
-}
-
-/*!
  * \brief Check whether the input block is a reduction block.
  * \param realize The block to be checked
  * \param loop_range_map The mapping from the loop variables outside the input block to their ranges
@@ -322,59 +293,35 @@ class BufferInitBlockFinder : public StmtVisitor {
   Array<Block> blocks_;
 };
 
-/* !
- * \brief LoopVar Class to store the loop variables related information
- * \brief loop_var The loop variable
- * \brief min The minimum value of iteration
- * \brief extent The extent of the iteration
- * \brief kind The kind of the for loop
- * \return The loop variables between stmt1 and stmt2
- */
-class LoopVar {
- public:
-  LoopVar() = default;
-  LoopVar(Var loop_var, PrimExpr min, PrimExpr extent, ForKind kind)
-      : loop_var(loop_var), min(min), extent(extent), kind(kind) {}
-  /*! \brief The loop variable. */
-  Var loop_var;
-  /*! \brief The minimum value of iteration. */
-  PrimExpr min;
-  /*! \brief The extent of the iteration. */
-  PrimExpr extent;
-  /*! \brief The kind of the for loop. */
-  ForKind kind;
-};
-
 /*!
  * \brief Collect the loop variables between stmt1 and stmt2
  * \param stmt1 The first statement
  * \param stmt2 The second statement
  * \return The loop variables between stmt1 and stmt2
  */
-class LoopVarCollector : public StmtVisitor {
+class ForNodeCollector : public StmtVisitor {
  public:
-
-  static std::vector<LoopVar> Collect(const Stmt& stmt1, const Block& stmt2) {
-    LoopVarCollector collector(stmt2);
+  static std::vector<For> Collect(const Stmt& stmt1, const Block& stmt2) {
+    ForNodeCollector collector(stmt2);
     collector(stmt1);
-    return collector.loop_vars_;
+    return collector.for_nodes_;
   }
 
  private:
-  explicit LoopVarCollector(const Block& target_block) : target_block(target_block) {}
+  explicit ForNodeCollector(const Block& target_block) : target_block(target_block) {}
   void VisitStmt_(const ForNode* loop) final {
     // If loop dominant stmt2_, put loop_var into loop_vars_
     tir::PostOrderVisit(loop->body, [&](const ObjectRef& obj) {
       if (const auto* block = obj.as<tir::BlockNode>()) {
         if (block == target_block.get()) {
-          loop_vars_.push_back(LoopVar(loop->loop_var, loop->min, loop->extent, loop->kind));
+          for_nodes_.push_back(Downcast<For>(GetRef<For>(loop)));
         }
       }
     });
     StmtVisitor::VisitStmt_(loop);
   }
 
-  std::vector<LoopVar> loop_vars_;
+  std::vector<For> for_nodes_;
   const Block& target_block;
 };
 
@@ -811,14 +758,10 @@ Stmt TransformReductionBlock(const BlockRealizeNode* realize,            //
  * \param combiner_lhs The LHS values of the combiner
  * \param reduction_loops The reduction loops
  */
-Stmt InjectReductionBlock(const BlockRealizeNode* realize,
-                          const Array<Buffer>& ct_buffers,
-                          const Array<Buffer>& wb_buffers,
-                          const Array<PrimExpr>& old_wb_indices,
-                          const CommReducer& reducer,
-                          const Array<PrimExpr>& combiner_lhs,
-                          const std::vector<const ForNode*>& reduction_loops
-) {
+Stmt InjectReductionBlock(const BlockRealizeNode* realize, const Array<Buffer>& ct_buffers,
+                          const Array<Buffer>& wb_buffers, const Array<PrimExpr>& old_wb_indices,
+                          const CommReducer& reducer, const Array<PrimExpr>& combiner_lhs,
+                          const std::vector<const ForNode*>& reduction_loops) {
   int n_buffers = wb_buffers.size();
   const BlockNode* block = realize->block.get();
 
@@ -923,9 +866,8 @@ Stmt InjectReductionBlock(const BlockRealizeNode* realize,
                        Evaluate(Call(/*dtype=*/DataType::Handle(),
                                      /*op=*/tir::builtin::tvm_thread_allreduce(),
                                      /*args=*/std::move(parameters)))));
-    ObjectPtr<BlockNode> cross_thread_block_node =
-        make_object<BlockNode>(*cross_thread_block.operator->());
-    cross_thread_block_node->annotations.Set(kIsCrossThreadReductionApplied, tir::const_true());
+    cross_thread_block.CopyOnWrite()->annotations.Set(kIsCrossThreadReductionApplied,
+                                                      tir::const_true());
     stmts.push_back(BlockRealize(
         /*iter_values=*/std::move(bindings_used),
         /*predicate=*/const_true(),
@@ -1069,24 +1011,24 @@ Stmt InjectReductionBlock(const BlockRealizeNode* realize,
     const ForNode* loop = *rit;
     if (loop->thread_binding.defined()) {
       // Colelct Loop vars between the reduction loops
-      std::vector<LoopVar> chain_loop_vars =
-          LoopVarCollector::Collect(loop->body, GetRef<Block>(block));
-      std::vector<LoopVar> used_chain_loop_vars_array;
+      std::vector<For> chain_for_nodes =
+          ForNodeCollector::Collect(loop->body, GetRef<Block>(block));
+      std::vector<For> used_chain_for_nodes_array;
       if (HasChildBlocksChecker::Check(GetRef<Block>(block))) {
-        chain_loop_vars.clear();
+        chain_for_nodes.clear();
         Array<BlockRealize> child_blocks =
             HasChildBlocksChecker::GetChildBlockRealizes(GetRef<Block>(block));
         for (BlockRealize child_block : child_blocks) {
-          std::vector<LoopVar> child_loop_vars =
-              LoopVarCollector::Collect(loop->body, child_block->block);
-          chain_loop_vars.insert(chain_loop_vars.end(), child_loop_vars.begin(),
+          std::vector<For> child_loop_vars =
+              ForNodeCollector::Collect(loop->body, child_block->block);
+          chain_for_nodes.insert(chain_for_nodes.end(), child_loop_vars.begin(),
                                  child_loop_vars.end());
         }
       }
 
       // Remove Unused Loop from the chain loops, otherwise may generate duplicated for loops
-      for (auto it = chain_loop_vars.begin(); it != chain_loop_vars.end(); ++it) {
-        Var target_var = (*it).loop_var;
+      for (auto it = chain_for_nodes.begin(); it != chain_for_nodes.end(); ++it) {
+        Var target_var = (*it)->loop_var;
         auto f_find = [&target_var](const VarNode* var) -> bool {
           if (target_var.get() == var) {
             return true;
@@ -1095,15 +1037,15 @@ Stmt InjectReductionBlock(const BlockRealizeNode* realize,
         };
         for (const Stmt& stmt : stmts) {
           if (UsesVar(stmt, f_find)) {
-            used_chain_loop_vars_array.push_back(*it);
+            used_chain_for_nodes_array.push_back(*it);
             break;
           }
         }
       }
-      chain_loop_vars = used_chain_loop_vars_array;
+      chain_for_nodes = used_chain_for_nodes_array;
 
       ObjectPtr<ForNode> n = make_object<ForNode>(*loop);
-      if (chain_loop_vars.size() == 0) {
+      if (chain_for_nodes.size() == 0) {
         stmts.insert(stmts.begin(), n->body);
         new_stmt = SeqStmt::Flatten(std::move(stmts));
         n->body = std::move(new_stmt);
@@ -1111,15 +1053,17 @@ Stmt InjectReductionBlock(const BlockRealizeNode* realize,
         break;
       } else {
         new_stmt = SeqStmt::Flatten(std::move(stmts));
-        For new_for = For(chain_loop_vars.back().loop_var, chain_loop_vars.back().min,
-                          chain_loop_vars.back().extent, chain_loop_vars.back().kind, new_stmt);
+        For current_for =
+            For(chain_for_nodes.back()->loop_var, chain_for_nodes.back()->min,
+                chain_for_nodes.back()->extent, chain_for_nodes.back()->kind, new_stmt);
 
-        ObjectPtr<ForNode> current_loop = make_object<ForNode>(*new_for.get());
-        for (int i = chain_loop_vars.size() - 2; i >= 0; i--) {
-          new_for = For(chain_loop_vars[i].loop_var, chain_loop_vars[i].min,
-                        chain_loop_vars[i].extent, chain_loop_vars[i].kind, new_for);
+        ObjectPtr<ForNode> current_loop = make_object<ForNode>(*current_for.get());
+        for (int i = chain_for_nodes.size() - 2; i >= 0; i--) {
+          current_for = For(chain_for_nodes[i]->loop_var, chain_for_nodes[i]->min,
+                            chain_for_nodes[i]->extent, chain_for_nodes[i]->kind, current_for);
         }
-        new_stmt = SeqStmt::Flatten(std::move((SeqStmt({std::move(n->body), std::move(new_for)}))));
+        new_stmt =
+            SeqStmt::Flatten(std::move((SeqStmt({std::move(n->body), std::move(current_for)}))));
         n->body = std::move(new_stmt);
         new_stmt = For(n);
         break;
@@ -1437,24 +1381,24 @@ Stmt InjectWarpEvaluateReductionBlock(const BlockRealizeNode* realize,          
     const ForNode* loop = *rit;
     if (loop->thread_binding.defined()) {
       // Colelct Loop vars between the reduction loops
-      std::vector<LoopVar> chain_loop_vars =
-          LoopVarCollector::Collect(loop->body, GetRef<Block>(block));
-      std::vector<LoopVar> used_chain_loop_vars_array;
+      std::vector<For> chain_for_nodes =
+          ForNodeCollector::Collect(loop->body, GetRef<Block>(block));
+      std::vector<For> used_chain_for_nodes_array;
       if (HasChildBlocksChecker::Check(GetRef<Block>(block))) {
-        chain_loop_vars.clear();
+        chain_for_nodes.clear();
         Array<BlockRealize> child_blocks =
             HasChildBlocksChecker::GetChildBlockRealizes(GetRef<Block>(block));
         for (BlockRealize child_block : child_blocks) {
-          std::vector<LoopVar> child_loop_vars =
-              LoopVarCollector::Collect(loop->body, child_block->block);
-          chain_loop_vars.insert(chain_loop_vars.end(), child_loop_vars.begin(),
+          std::vector<For> child_loop_vars =
+              ForNodeCollector::Collect(loop->body, child_block->block);
+          chain_for_nodes.insert(chain_for_nodes.end(), child_loop_vars.begin(),
                                  child_loop_vars.end());
         }
       }
 
       // Remove Unused Loop from the chain loops, otherwise may generate duplicated for loops
-      for (auto it = chain_loop_vars.begin(); it != chain_loop_vars.end(); ++it) {
-        Var target_var = (*it).loop_var;
+      for (auto it = chain_for_nodes.begin(); it != chain_for_nodes.end(); ++it) {
+        Var target_var = (*it)->loop_var;
         auto f_find = [&target_var](const VarNode* var) -> bool {
           if (target_var.get() == var) {
             return true;
@@ -1463,19 +1407,23 @@ Stmt InjectWarpEvaluateReductionBlock(const BlockRealizeNode* realize,          
         };
         for (const Stmt& stmt : stmts) {
           if (UsesVar(stmt, f_find)) {
-            used_chain_loop_vars_array.push_back(*it);
+            used_chain_for_nodes_array.push_back(*it);
             break;
           }
         }
       }
-      chain_loop_vars = used_chain_loop_vars_array;
-      // append warp related loops
-      chain_loop_vars.push_back(LoopVar(ax_lane_id, IntImm(loop->loop_var->dtype, 0), warp_size,
-                                        ForKind::kThreadBinding));
-      chain_loop_vars.push_back(
-          LoopVar(ax_local_id, IntImm(loop->loop_var->dtype, 0), local_size, ForKind::kSerial));
+      chain_for_nodes = used_chain_for_nodes_array;
       ObjectPtr<ForNode> n = make_object<ForNode>(*loop);
-      if (chain_loop_vars.size() == 0) {
+
+      // Append the warp and local for loop
+      // Initialize for node with n->body to bypass
+      // empty body check in the ForNode
+      chain_for_nodes.push_back(
+          For(ax_lane_id, Integer(0), warp_size, ForKind::kThreadBinding, n->body));
+      chain_for_nodes.push_back(
+          For(ax_local_id, Integer(0), local_size, ForKind::kSerial, n->body));
+
+      if (chain_for_nodes.size() == 0) {
         stmts.insert(stmts.begin(), n->body);
         new_stmt = SeqStmt::Flatten(std::move(stmts));
         n->body = std::move(new_stmt);
@@ -1483,20 +1431,24 @@ Stmt InjectWarpEvaluateReductionBlock(const BlockRealizeNode* realize,          
         break;
       } else {
         new_stmt = SeqStmt::Flatten(std::move(stmts));
-        For new_for = For(chain_loop_vars.back().loop_var, chain_loop_vars.back().min,
-                          chain_loop_vars.back().extent, chain_loop_vars.back().kind, new_stmt);
 
-        ObjectPtr<ForNode> current_loop = make_object<ForNode>(*new_for.get());
-        for (int i = chain_loop_vars.size() - 2; i >= 0; i--) {
-          LoopVar loop_var = chain_loop_vars[i];
-          if (loop_var.kind == ForKind::kThreadBinding) {
-            new_for = For(loop_var.loop_var, loop_var.min, loop_var.extent, loop_var.kind, new_for,
-                          lane_id);
+        For current_for =
+            For(chain_for_nodes.back()->loop_var, chain_for_nodes.back()->min,
+                chain_for_nodes.back()->extent, chain_for_nodes.back()->kind, new_stmt);
+
+        ObjectPtr<ForNode> current_loop = make_object<ForNode>(*current_for.get());
+        for (int i = chain_for_nodes.size() - 2; i >= 0; i--) {
+          auto* for_node = chain_for_nodes[i].get();
+          if (for_node->kind == ForKind::kThreadBinding) {
+            current_for = For(for_node->loop_var, for_node->min, for_node->extent, for_node->kind,
+                              current_for, lane_id);
           } else {
-            new_for = For(loop_var.loop_var, loop_var.min, loop_var.extent, loop_var.kind, new_for);
+            current_for = For(for_node->loop_var, for_node->min, for_node->extent, for_node->kind,
+                              current_for);
           }
         }
-        new_stmt = SeqStmt::Flatten(std::move((SeqStmt({std::move(n->body), std::move(new_for)}))));
+        new_stmt =
+            SeqStmt::Flatten(std::move((SeqStmt({std::move(n->body), std::move(current_for)}))));
         n->body = std::move(new_stmt);
         new_stmt = For(n);
         break;
