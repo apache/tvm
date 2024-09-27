@@ -104,7 +104,7 @@ def jit(
             if (not skip_check) and (ref_prog is not None):
                 mod.assert_allclose(ref_prog, rtol=rtol, atol=atol)
             
-            latency = mod.do_bench(fn, warmup = 25, profiler = profiler)
+            latency = mod.do_bench(mod.func, warmup = 25, profiler = profiler)
             if ref_latency_cache is None and ref_prog is not None:
                 ref_latency_cache = mod.do_bench(ref_prog, warmup = 25)
             return latency, ref_latency_cache
