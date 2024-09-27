@@ -467,6 +467,12 @@ def test_graph_executor_api():
         assert isinstance(dtype_dict[name], tvm.runtime.container.String)
         assert dtype_dict[name] == ty.dtype
 
+    shape_dict, dtype_dict = mod.get_output_info()
+    assert isinstance(shape_dict, tvm.container.Map)
+    assert isinstance(dtype_dict, tvm.container.Map)
+    for i, key in enumerate(shape_dict):
+        assert mod.get_output_index(key) == i
+
 
 @tvm.testing.requires_llvm
 def test_benchmark():
