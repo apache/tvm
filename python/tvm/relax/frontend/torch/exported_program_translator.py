@@ -64,6 +64,15 @@ class ExportedProgramImporter(BaseFXGraphImporter):
 
         return parameters_buffers_constants, user_inputs
 
+    ########## Unary Ops ##########
+
+    def _hardtanh(self, node: fx.Node) -> relax.Expr:
+        args = self.retrieve_args(node)
+        x = args[0]
+        min_val = node.args[1] if len(args) > 1 else node.kwargs("min_val", -1.0)
+        max_val = node.args[2] if len(args) > 2 else node.kwargs("max_val", 1.0)
+        return self.block_builder.emit(relax.op.clip(x, min_val, max_val))
+
     def create_convert_map(
         self,
     ) -> Dict[str, Callable[[fx.Node], relax.Var]]:
@@ -83,6 +92,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "gelu.default": self._gelu,
             "hardsigmoid.default": self._hardsigmoid,
             "hardswish.default": self._hardswish,
+            "hardtanh.default": self._hardtanh,
             "neg.default": self._unary_op(relax.op.negative),
             "relu.default": self._unary_op(relax.op.nn.relu),
             "rsqrt.default": self._unary_op(relax.op.rsqrt),
