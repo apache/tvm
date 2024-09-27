@@ -50,7 +50,7 @@ CLMLWorkspace::CLMLWorkspace() {
   tentry = workspace->GetThreadEntry();
 
   device_id = workspace->GetCLDeviceID(tentry->device.device_id);
-  platform_id = workspace->device_to_platform[device_id];
+  platform_id = workspace->device_info[device_id].platform_id;
 
   // Print extensions
   size_t reqd_size = 0;

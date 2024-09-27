@@ -66,9 +66,9 @@ struct StorageToken {
 };
 
 /**
- * @brief Memory manager for flattened 1d memory (buffers)
+ * @brief Memory manager for mixed mode memory types
  */
-class TokenAllocator1D {
+class TokenAllocatorMixed {
  public:
   /*!
    * \brief ceil(size/word_size) to get number of words.
@@ -105,54 +105,22 @@ class TokenAllocator1D {
    * \param tok The token to be released.
    */
   void CheckForRelease(StorageToken* tok);
+  /*!
+   * \brief Get the texture 2d size requirement
+   * \param prototype The prototype token.
+   * \return The physical memory size.
+   */
+  size_t GetSize2D(StorageToken* prototype);
 
- private:
-  // scale used for rough match
-  const size_t match_range_{16};
+ protected:
   // free list of storage entry
   std::multimap<size_t, StorageToken*> free_;
   // all the storage resources available
   std::vector<StorageToken*> data_;
-};
 
-/**
- * @brief Memory manager for 2d memory (textures)
- */
-class TokenAllocator2D {
- public:
-  /*!
-   * \brief Request a storage token for a given prototype.
-   * \param prototype. The prototype storage token.
-   * \return The result token.
-   */
-  StorageToken* Request(StorageToken* prototype);
-  /*!
-   * \brief Alloacte a storage token by consuming prototype
-   * \param prototype The prototype token.
-   * \param size The size of memory being requested.
-   */
-  StorageToken* Alloc(StorageToken* prototype, int64_t storage_id);
-  /*!
-   * \brief Check if we can release token.
-   * \param tok The token to be released.
-   */
-  void CheckForRelease(StorageToken* tok);
-  /*!
-   * \brief Get the texture 2d size requirement
-   * \param prototype The prototype token.
-   * \return The required texture 2d memory size in (width, height, channel).
-   */
-  runtime::Texture2DShape<int64_t> GetSize2D(StorageToken* prototype);
-
- protected:
-  struct MemBlock {
-    StorageToken* token_;
-    int64_t x_;
-    int64_t y_;
-  };
-
-  std::unordered_map<int64_t, MemBlock> blocks_;
-  std::unordered_set<int64_t> free_list_;
+ private:
+  // scale used for rough match
+  const size_t match_range_{16};
 };
 
 }  // namespace relay

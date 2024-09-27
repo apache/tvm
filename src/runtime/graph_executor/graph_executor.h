@@ -223,6 +223,7 @@ class TVM_DLL GraphExecutor : public ModuleNode {
     int param_data_entry;
     NDArray linked_param;
     std::string scope;
+    int64_t alloc_size{-1};
     //    PoolEntry(int s, int dev_type, void* pre_linked_param) :
     //        size(s), device_type(dev_type), pre_linked_param(std::move(pre_linked_param)) {}
   };
