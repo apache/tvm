@@ -135,6 +135,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "max_pool2d.default": self._max_pool2d,
             # statistical
             "mean.dim": self._mean,
+            "sum.dim_IntList": self._sum,
             # tensor manipulation
             "view.default": self._reshape,
         }

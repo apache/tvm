@@ -1498,6 +1498,28 @@ def test_mean():
     verify_model(MeanKeepDim(), example_args, {}, Expected2)
 
 
+def test_sum():
+    class Sum(Module):
+        def forward(self, x):
+            return torch.sum(x, (2, 1))
+
+    @tvm.script.ir_module
+    class expected1:
+        @R.function
+        def main(
+            inp_0: R.Tensor((1, 2, 3, 4), dtype="float32")
+        ) -> R.Tuple(R.Tensor((1, 4), dtype="float32")):
+            # block 0
+            with R.dataflow():
+                lv: R.Tensor((1, 4), dtype="float32") = R.sum(inp_0, axis=[2, 1], keepdims=False)
+                gv: R.Tuple(R.Tensor((1, 4), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(1, 2, 3, 4, dtype=torch.float32),)
+    verify_model(Sum(), example_args, {}, expected1)
+
+
 def test_view():
     class View(Module):
         def forward(self, x):

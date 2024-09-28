@@ -761,15 +761,6 @@ class TorchFXImporter(BaseFXGraphImporter):
             ret.append(self.block_builder.emit(relax.op.squeeze(split[i], axis=dim)))
         return self.block_builder.emit(relax.Tuple(ret))
 
-    ########## Statistical ##########
-
-    def _sum(self, node: fx.Node) -> relax.Var:
-        args = self.retrieve_args(node)
-        keepdim = node.kwargs["keepdim"] if "keepdim" in node.kwargs else False
-        if len(args) == 1:
-            return self.block_builder.emit(relax.op.sum(args[0], keepdims=keepdim))
-        return self.block_builder.emit(relax.op.sum(args[0], args[1]))
-
     ########## Search ##########
 
     def _argmax_argmin(self, op: Callable) -> Callable:
