@@ -1900,6 +1900,98 @@ def test_conv2d():
     verify_model(model, example_args, binding, expected2)
 
 
+def test_conv3d():
+    class Conv3D1(Module):
+        def __init__(self):
+            super().__init__()
+            self.conv = torch.nn.Conv3d(3, 6, 7, bias=True)
+
+        def forward(self, input):
+            return self.conv(input)
+
+    class Conv3D1Func(Module):
+        def __init__(self):
+            super().__init__()
+            self.weight = torch.randn(size=[6, 3, 7, 7, 7])
+            self.bias = torch.randn(size=[6])
+
+        def forward(self, input):
+            return torch.nn.functional.conv3d(input, self.weight, self.bias)
+
+    @tvm.script.ir_module
+    class expected1:
+        @R.function
+        def main(
+            input_1: R.Tensor((1, 3, 10, 10, 10), dtype="float32"),
+            w1: R.Tensor((6, 3, 7, 7, 7), dtype="float32"),
+            w2: R.Tensor((6,), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((1, 6, 4, 4, 4), dtype="float32")):
+            # block 0
+            with R.dataflow():
+                lv1: R.Tensor((1, 6, 4, 4, 4), dtype="float32") = R.nn.conv3d(
+                    input_1,
+                    w1,
+                    strides=[1],
+                    padding=[0, 0, 0],
+                    dilation=[1],
+                    data_layout="NCDHW",
+                    kernel_layout="OIDHW",
+                    out_layout="NCDHW",
+                    out_dtype="float32",
+                )
+                lv2: R.Tensor((1, 6, 1, 1, 1)) = R.reshape(w2, [1, 6, 1, 1, 1])
+                lv3: R.Tensor((1, 6, 4, 4, 4), dtype="float32") = R.add(lv1, lv2)
+                gv: R.Tuple(R.Tensor((1, 6, 4, 4, 4), dtype="float32")) = (lv3,)
+                R.output(gv)
+            return gv
+
+    class Conv3D2(Module):
+        def __init__(self):
+            super().__init__()
+            self.conv = torch.nn.Conv3d(3, 6, 7, bias=False)
+
+        def forward(self, input):
+            return self.conv(input)
+
+    @tvm.script.ir_module
+    class expected2:
+        @R.function
+        def main(
+            input_1: R.Tensor((1, 3, 10, 10, 10), dtype="float32"),
+            w1: R.Tensor((6, 3, 7, 7, 7), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((1, 6, 4, 4, 4), dtype="float32")):
+            # block 0
+            with R.dataflow():
+                lv1: R.Tensor((1, 6, 4, 4, 4), dtype="float32") = R.nn.conv3d(
+                    input_1,
+                    w1,
+                    strides=[1],
+                    padding=[0, 0, 0],
+                    dilation=[1],
+                    data_layout="NCDHW",
+                    kernel_layout="OIDHW",
+                    out_layout="NCDHW",
+                    out_dtype="float32",
+                )
+                gv: R.Tuple(R.Tensor((1, 6, 4, 4, 4), dtype="float32")) = (lv1,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(1, 3, 10, 10, 10, dtype=torch.float32),)
+
+    model = Conv3D1()
+    binding = {"w1": model.conv.weight.detach().numpy(), "w2": model.conv.bias.detach().numpy()}
+    verify_model(model, example_args, binding, expected1)
+
+    model = Conv3D1Func()
+    binding = {"w1": model.weight.detach().numpy(), "w2": model.bias.detach().numpy()}
+    verify_model(model, example_args, binding, expected1)
+
+    model = Conv3D2()
+    binding = {"w1": model.conv.weight.detach().numpy()}
+    verify_model(model, example_args, binding, expected2)
+
+
 def test_linear():
     class Dense1(Module):
         def __init__(self):

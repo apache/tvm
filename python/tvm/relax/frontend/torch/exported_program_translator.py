@@ -169,6 +169,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "conv_transpose2d.input": self._conv_transpose2d,
             "conv1d.default": self._conv1d,
             "conv2d.default": self._conv2d,
+            "conv3d.default": self._conv3d,
             "linear.default": self._linear,
             "max_pool2d.default": self._max_pool2d,
             # statistical
