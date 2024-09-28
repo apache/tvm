@@ -139,57 +139,7 @@ class TorchFXImporter(BaseFXGraphImporter):
 
         return self.block_builder.emit(relax.TupleGetItem(res_tuple, 0))
 
-    def _conv1d_transpose_impl(
-        self,
-        x: relax.Expr,
-        weight: relax.Expr,
-        bias: Optional[relax.Expr],
-        strides: Optional[Tuple],
-        padding: Optional[Tuple],
-        dilation: Optional[Tuple],
-        groups: Optional[Tuple],
-    ) -> relax.Var:
-        conv1d_transpose = self.block_builder.emit(
-            relax.op.nn.conv1d_transpose(
-                x,
-                weight,
-                strides=strides,
-                padding=padding,
-                dilation=dilation,
-                groups=groups,
-                data_layout="NCW",
-                kernel_layout="OIW",
-                out_dtype="float32",
-            )
-        )
-
-        if bias is None:
-            return conv1d_transpose
-
-        assert len(self.shape_of(bias)) == 1
-        bias = relax.op.reshape(bias, (1, -1, 1))
-        return self.block_builder.emit(relax.op.add(conv1d_transpose, bias))
-
-    def _conv1d_transpose(self, node: fx.Node) -> relax.Var:
-        args = self.retrieve_args(node)
-        x = args[0]
-        weight = args[1]
-        bias = args[2] if len(args) > 2 else None
-        stride = args[3] if len(args) > 3 else 1
-        padding = args[4] if len(args) > 4 else 0
-        dilation = args[5] if len(args) > 5 else 1
-        groups = args[6] if len(args) > 6 else 1
-        return self._conv1d_transpose_impl(
-            x,
-            weight,
-            bias=bias,
-            strides=stride,
-            padding=padding,
-            dilation=dilation,
-            groups=groups,
-        )
-
-    def _conv1d_transpose_module(self, node: fx.Node) -> relax.Var:
+    def _conv_transpose1d_module(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         module = self.named_modules[node.target]
         weight = self.params[module.weight]
@@ -1028,7 +978,7 @@ class TorchFXImporter(BaseFXGraphImporter):
             nn.Conv1d: self._conv1d_module,
             nn.Conv2d: self._conv2d_module,
             nn.Conv3d: self._conv3d_module,
-            nn.ConvTranspose1d: self._conv1d_transpose_module,
+            nn.ConvTranspose1d: self._conv_transpose1d_module,
             nn.ConvTranspose2d: self._conv2d_transpose_module,
             nn.CrossEntropyLoss: self._cross_entropy_module,
             nn.GroupNorm: self._group_norm_module,
@@ -1094,7 +1044,7 @@ class TorchFXImporter(BaseFXGraphImporter):
             "bmm": self._binary_op(
                 partial(relax.op.linear_algebra.matmul, out_dtype="float32"), operator.matmul
             ),
-            "conv_transpose1d": self._conv1d_transpose,
+            "conv_transpose1d": self._conv_transpose1d,
             "conv_transpose2d": self._conv2d_transpose,
             "conv1d": self._conv1d,
             "conv2d": self._conv2d,
