@@ -378,17 +378,6 @@ class TorchFXImporter(BaseFXGraphImporter):
 
         return self._max_pool2d_impl(x, kernel_size, stride, padding, dilation, ceil_mode)
 
-    def _unbind(self, node: fx.Node) -> relax.Var:
-        x = self.env[node.args[0]]
-        dim = node.args[1] if len(node.args) > 1 else node.kwargs.get("dim", 0)
-        assert isinstance(dim, int), "Expected 2nd argument of unbind as int"
-        selections = self.shape_of(x)[dim].value
-        n_section = list(range(1, selections + 1))
-        ret, split = [], self.block_builder.emit(relax.op.split(x, n_section, dim))
-        for i in range(selections):
-            ret.append(self.block_builder.emit(relax.op.squeeze(split[i], axis=dim)))
-        return self.block_builder.emit(relax.Tuple(ret))
-
     ########## Manipulation ##########
 
     def _cat(self, node: fx.Node) -> relax.Var:

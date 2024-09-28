@@ -199,6 +199,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "linear.default": self._linear,
             "max_pool2d.default": self._max_pool2d,
             "scaled_dot_product_attention.default": self._scaled_dot_product_attention,
+            "unbind.int": self._unbind,
             # statistical
             "mean.dim": self._mean,
             "sum.dim_IntList": self._sum,
