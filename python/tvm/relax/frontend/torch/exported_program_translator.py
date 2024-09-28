@@ -122,6 +122,46 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             )
         )
 
+    def _upsample_impl(
+        self, x: relax.Expr, size, align_corners: bool, scale_factor, method: str
+    ) -> relax.Var:
+        coord_trans = "align_corners" if align_corners else "half_pixel"
+
+        if size is None:
+            shape = self.shape_of(x)
+            assert isinstance(shape, relax.ShapeExpr)
+            if isinstance(scale_factor, (tuple, list)):
+                assert len(scale_factor) == len(shape) - 2
+                size = tuple(
+                    int(shape[i].value * scale_factor[i - 2]) for i in range(2, len(shape))
+                )
+            else:
+                size = tuple(int(shape[i].value * scale_factor) for i in range(2, len(shape)))
+
+        return self.block_builder.emit(
+            relax.op.image.resize2d(
+                x, size, layout="NCHW", method=method, coordinate_transformation_mode=coord_trans
+            )
+        )
+
+    def _upsample_bilinear2d(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        size = node.args[1] if len(node.args) > 1 else node.kwargs.get("size", None)
+        align_corners = (
+            node.args[2] if len(node.args) > 2 else node.kwargs.get("align_corners", True)
+        )
+        scale_factor = node.args[3] if len(node.args) > 3 else node.kwargs.get("scale_factor", None)
+        return self._upsample_impl(x, size, align_corners, scale_factor, "linear")
+
+    def _upsample_nearest2d(self, node: fx.node) -> relax.Var:
+        x = self.env[node.args[0]]
+        size = node.args[1] if len(node.args) > 1 else node.kwargs.get("size", None)
+        align_corners = (
+            node.args[2] if len(node.args) > 2 else node.kwargs.get("align_corners", True)
+        )
+        scale_factor = node.args[3] if len(node.args) > 3 else node.kwargs.get("scale_factor", None)
+        return self._upsample_impl(x, size, align_corners, scale_factor, "nearest_neighbor")
+
     def create_convert_map(
         self,
     ) -> Dict[str, Callable[[fx.Node], relax.Var]]:
@@ -200,6 +240,8 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "max_pool2d.default": self._max_pool2d,
             "scaled_dot_product_attention.default": self._scaled_dot_product_attention,
             "unbind.int": self._unbind,
+            "upsample_bilinear2d.vec": self._upsample_bilinear2d,
+            "upsample_nearest2d.vec": self._upsample_nearest2d,
             # statistical
             "mean.dim": self._mean,
             "sum.dim_IntList": self._sum,
