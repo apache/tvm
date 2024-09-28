@@ -253,23 +253,6 @@ class TorchFXImporter(BaseFXGraphImporter):
             )
         )
 
-    def _embedding_impl(
-        self,
-        x,
-        weight,
-    ) -> relax.Var:
-        x = self.block_builder.emit(relax.op.astype(x, "int32"))
-
-        ndim = x.struct_info.ndim
-        if ndim == 1:
-            return self.block_builder.emit(relax.op.take(weight, x, axis=0))
-        else:
-            x_shape = x.struct_info.shape.values
-            emb_size = weight.struct_info.shape.values[-1]
-            x = self.block_builder.emit(relax.op.reshape(x, shape=[-1]))
-            embedding = self.block_builder.emit(relax.op.take(weight, x, axis=0))
-            return self.block_builder.emit(relax.op.reshape(embedding, [*x_shape, emb_size]))
-
     def _embedding_module(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         module = self.named_modules[node.target]

@@ -171,6 +171,9 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "conv2d.default": self._conv2d,
             "conv3d.default": self._conv3d,
             "einsum.default": self._einsum,
+            "embedding.default": lambda node: self._embedding_impl(
+                self.env[node.args[1]], self.env[node.args[0]]
+            ),
             "linear.default": self._linear,
             "max_pool2d.default": self._max_pool2d,
             # statistical

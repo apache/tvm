@@ -2040,6 +2040,36 @@ def test_einsum():
     verify_model(Einsum2(), example_args, {}, Expected2)
 
 
+def test_embedding():
+    class Embedding(Module):
+        def __init__(self):
+            super().__init__()
+            self.embedding = torch.nn.Embedding(10, 3)
+
+        def forward(self, input):
+            return self.embedding(input)
+
+    @tvm.script.ir_module
+    class expected1:
+        @R.function
+        def main(
+            input_1: R.Tensor((4,), dtype="int64"), w1: R.Tensor((10, 3), dtype="float32")
+        ) -> R.Tuple(R.Tensor((4, 3), dtype="float32")):
+            # block 0
+            with R.dataflow():
+                lv: R.Tensor((4,), dtype="int32") = R.astype(input_1, dtype="int32")
+                lv1: R.Tensor((4, 3), dtype="float32") = R.take(w1, lv, axis=0)
+                gv: R.Tuple(R.Tensor((4, 3), dtype="float32")) = (lv1,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randint(low=-int(1e5), high=int(1e5), size=(4,), dtype=torch.int64),)
+
+    model = Embedding()
+    binding = {"w1": model.embedding.weight.detach().numpy()}
+    verify_model(model, example_args, binding, expected1)
+
+
 def test_linear():
     class Dense1(Module):
         def __init__(self):
