@@ -253,13 +253,6 @@ class TorchFXImporter(BaseFXGraphImporter):
             )
         )
 
-    def _einsum(self, node: fx.Node) -> relax.Var:
-        import torch  # type: ignore
-
-        args = self.retrieve_args(node)
-        operands = args[1] if isinstance(args[1], (torch.Size, tuple, list)) else args[1:]
-        return self.block_builder.emit(relax.op.einsum(operands, args[0]))
-
     def _embedding_impl(
         self,
         x,

@@ -1992,6 +1992,54 @@ def test_conv3d():
     verify_model(model, example_args, binding, expected2)
 
 
+def test_einsum():
+    class Einsum1(Module):
+        def __init__(self):
+            super().__init__()
+
+        def forward(self, x):
+            return torch.einsum("ii", x)
+
+    class Einsum2(Module):
+        def __init__(self):
+            super().__init__()
+
+        def forward(self, x, y):
+            return torch.einsum("i,j->ij", x, y)
+
+    @tvm.script.ir_module
+    class Expected1:
+        @R.function
+        def main(
+            inp_0: R.Tensor((4, 4), dtype="float32")
+        ) -> R.Tuple(R.Tensor((), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((), dtype="float32") = R.einsum((inp_0,), subscripts="ii")
+                gv: R.Tuple(R.Tensor((), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    @tvm.script.ir_module
+    class Expected2:
+        @R.function
+        def main(
+            inp_0: R.Tensor((5,), dtype="float32"), inp_1: R.Tensor((4,), dtype="float32")
+        ) -> R.Tuple(R.Tensor((5, 4), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((5, 4), dtype="float32") = R.einsum(
+                    (inp_0, inp_1), subscripts="i,j->ij"
+                )
+                gv: R.Tuple(R.Tensor((5, 4), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(4, 4, dtype=torch.float32),)
+    verify_model(Einsum1(), example_args, {}, Expected1)
+
+    example_args = (torch.randn(5, dtype=torch.float32), torch.randn(4, dtype=torch.float32))
+    verify_model(Einsum2(), example_args, {}, Expected2)
+
+
 def test_linear():
     class Dense1(Module):
         def __init__(self):
