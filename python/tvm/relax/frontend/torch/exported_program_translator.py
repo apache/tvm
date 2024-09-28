@@ -102,6 +102,26 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             )
         )
 
+    def _group_norm(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        num_groups = node.args[1]
+        gamma = self.env[node.args[2]] if len(node.args) > 2 else None
+        beta = self.env[node.args[3]] if len(node.args) > 3 else None
+        eps = node.args[4] if len(node.args) > 4 else 1e-05
+
+        dim = len(self.shape_of(x))
+        return self.block_builder.emit(
+            relax.op.nn.group_norm(
+                x,
+                gamma,
+                beta,
+                num_groups=num_groups,
+                channel_axis=1,
+                axes=list(range(2, dim)),
+                epsilon=eps,
+            )
+        )
+
     def create_convert_map(
         self,
     ) -> Dict[str, Callable[[fx.Node], relax.Var]]:
@@ -174,6 +194,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "embedding.default": lambda node: self._embedding_impl(
                 self.env[node.args[1]], self.env[node.args[0]]
             ),
+            "group_norm.default": self._group_norm,
             "linear.default": self._linear,
             "max_pool2d.default": self._max_pool2d,
             # statistical

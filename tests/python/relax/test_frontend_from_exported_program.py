@@ -2070,6 +2070,55 @@ def test_embedding():
     verify_model(model, example_args, binding, expected1)
 
 
+def test_groupnorm():
+    import torch
+    from torch.nn import Module
+
+    torch.set_grad_enabled(False)
+    torch.random.manual_seed(0)
+
+    class GroupNorm(Module):
+        def __init__(self):
+            super().__init__()
+            self.gn = torch.nn.GroupNorm(3, 3)
+
+        def forward(self, input):
+            return self.gn(input)
+
+    @tvm.script.ir_module
+    class expected1:
+        @R.function
+        def main(
+            input_1: R.Tensor((1, 3, 10, 10), dtype="float32"),
+            w1: R.Tensor((3,), dtype="float32"),
+            w2: R.Tensor((3,), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.nn.group_norm(
+                    input_1,
+                    w1,
+                    w2,
+                    num_groups=3,
+                    channel_axis=1,
+                    axes=[2, 3],
+                    epsilon=1.0000000000000001e-05,
+                    center=True,
+                    scale=True,
+                )
+                gv: R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(1, 3, 10, 10, dtype=torch.float32),)
+
+    model = GroupNorm()
+    binding = {
+        "w1": model.gn.weight.detach().numpy(),
+        "w2": model.gn.bias.detach().numpy(),
+    }
+    verify_model(model, example_args, binding, expected1)
+
+
 def test_linear():
     class Dense1(Module):
         def __init__(self):
