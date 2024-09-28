@@ -133,6 +133,8 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "conv2d.default": self._conv2d,
             "linear.default": self._linear,
             "max_pool2d.default": self._max_pool2d,
+            # statistical
+            "mean.dim": self._mean,
             # tensor manipulation
             "view.default": self._reshape,
         }

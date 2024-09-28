@@ -316,6 +316,15 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
 
         return self._max_pool2d_impl(x, kernel_size, stride, padding, dilation, ceil_mode)
 
+    ########## Statistical ##########
+
+    def _mean(self, node: fx.Node) -> relax.Var:
+        args = self.retrieve_args(node)
+        x = args[0]
+        dim = args[1] if len(node.args) > 1 else node.kwargs.get("dim", None)
+        keepdim = args[2] if len(node.args) > 2 else node.kwargs.get("keepdim", False)
+        return self.block_builder.emit(relax.op.mean(x, dim, keepdims=keepdim))
+
     ########## Manipulation ##########
 
     def _reshape(self, node: fx.Node) -> relax.Var:

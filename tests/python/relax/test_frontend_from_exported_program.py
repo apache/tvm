@@ -1460,6 +1460,44 @@ def test_maxpool2d():
     verify_model(MaxPool2d3(), example_args, {}, expected3)
 
 
+def test_mean():
+    class Mean(Module):
+        def forward(self, input):
+            return input.mean(-1)
+
+    class MeanKeepDim(Module):
+        def forward(self, input: torch.Tensor):
+            return input.mean(-1, keepdim=True)
+
+    @I.ir_module
+    class Expected1:
+        @R.function
+        def main(
+            inp_0: R.Tensor((256, 256), dtype="float32")
+        ) -> R.Tuple(R.Tensor((256,), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((256,), dtype="float32") = R.mean(inp_0, axis=[-1], keepdims=False)
+                gv: R.Tuple(R.Tensor((256,), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class Expected2:
+        @R.function
+        def main(
+            inp_0: R.Tensor((256, 256), dtype="float32")
+        ) -> R.Tuple(R.Tensor((256, 1), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((256, 1), dtype="float32") = R.mean(inp_0, axis=[-1], keepdims=True)
+                gv: R.Tuple(R.Tensor((256, 1), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(256, 256, dtype=torch.float32),)
+    verify_model(Mean(), example_args, {}, Expected1)
+    verify_model(MeanKeepDim(), example_args, {}, Expected2)
+
+
 def test_view():
     class View(Module):
         def forward(self, x):
