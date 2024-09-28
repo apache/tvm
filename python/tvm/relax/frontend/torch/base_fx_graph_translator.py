@@ -185,6 +185,39 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
 
         return convert
 
+    ########## Binary Ops ##########
+
+    def _binary_op(self, relax_op: Callable, intrinsic_op: Callable) -> Callable:
+        from torch import fx
+
+        def convert(node: fx.Node) -> relax.Var:
+            def promote_binary_op_args(lhs, rhs):
+                if isinstance(lhs, relax.Expr) and isinstance(rhs, relax.Expr):
+                    return lhs, rhs
+                elif isinstance(lhs, relax.Expr):
+                    assert isinstance(lhs.struct_info, relax.TensorStructInfo)
+                    return lhs, relax.const(rhs, lhs.struct_info.dtype)
+                elif isinstance(rhs, relax.Expr):
+                    assert isinstance(rhs.struct_info, relax.TensorStructInfo)
+                    return relax.const(lhs, rhs.struct_info.dtype), rhs
+                else:
+                    assert False
+
+            def call_binary_op(op, lhs, rhs):
+                lhs, rhs = promote_binary_op_args(lhs, rhs)
+                return self.block_builder.emit(op(lhs, rhs))
+
+            lhs, rhs = self.retrieve_args(node)
+            if isinstance(lhs, relax.Var) or isinstance(rhs, relax.Var):
+                return call_binary_op(relax_op, lhs, rhs)
+            elif isinstance(lhs, relax.expr.Constant):
+                return call_binary_op(relax_op, lhs, relax.const(rhs, dtype=lhs.struct_info.dtype))
+            elif isinstance(rhs, relax.expr.Constant):
+                return call_binary_op(relax_op, relax.const(lhs, dtype=rhs.struct_info.dtype), rhs)
+            return intrinsic_op(lhs, rhs)
+
+        return convert
+
     ########## Neural Network ##########
 
     def _adaptive_avg_pool2d(self, node: fx.Node) -> relax.Var:
@@ -282,6 +315,35 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         ceil_mode = args[5] if len(args) > 5 else False
 
         return self._max_pool2d_impl(x, kernel_size, stride, padding, dilation, ceil_mode)
+
+    ########## Statistical ##########
+
+    def _mean(self, node: fx.Node) -> relax.Var:
+        args = self.retrieve_args(node)
+        x = args[0]
+        dim = args[1] if len(node.args) > 1 else node.kwargs.get("dim", None)
+        keepdim = args[2] if len(node.args) > 2 else node.kwargs.get("keepdim", False)
+        return self.block_builder.emit(relax.op.mean(x, dim, keepdims=keepdim))
+
+    def _sum(self, node: fx.Node) -> relax.Var:
+        args = self.retrieve_args(node)
+        keepdim = node.kwargs["keepdim"] if "keepdim" in node.kwargs else False
+        if len(args) == 1:
+            return self.block_builder.emit(relax.op.sum(args[0], keepdims=keepdim))
+        return self.block_builder.emit(relax.op.sum(args[0], args[1]))
+
+    ########## Search ##########
+
+    def _argmax_argmin(self, op: Callable) -> Callable:
+        from torch import fx
+
+        def convert(node: fx.Node):
+            x = self.env[node.args[0]]
+            dim = node.args[1] if len(node.args) > 1 else node.kwargs.get("dim", None)
+            keepdim = node.args[2] if len(node.args) > 2 else node.kwargs.get("keepdim", False)
+            return self.block_builder.emit(op(x, dim, keepdim))
+
+        return convert
 
     ########## Manipulation ##########
 

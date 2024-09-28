@@ -19,6 +19,7 @@
 # pylint: disable=import-outside-toplevel
 """PyTorch ExportedProgram of Relax."""
 from collections import ChainMap, OrderedDict
+from functools import partial
 from typing import Callable, Dict, List, Tuple
 
 import torch
@@ -76,6 +77,8 @@ class ExportedProgramImporter(BaseFXGraphImporter):
     def create_convert_map(
         self,
     ) -> Dict[str, Callable[[fx.Node], relax.Var]]:
+        import operator
+
         return {
             # unary
             "acos.default": self._unary_op(relax.op.acos),
@@ -109,11 +112,33 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "tanh.default": self._unary_op(relax.op.tanh),
             "tril.default": self._tril_triu(relax.op.tril),
             "triu.default": self._tril_triu(relax.op.triu),
+            # binary
+            "add.Tensor": self._binary_op(relax.op.add, operator.add),
+            "div.Tensor": self._binary_op(relax.op.divide, operator.truediv),
+            "eq.Scalar": self._binary_op(relax.op.equal, operator.eq),
+            "eq.Tensor": self._binary_op(relax.op.equal, operator.eq),
+            "floor_divide.default": self._binary_op(relax.op.floor_divide, operator.floordiv),
+            "lt.Scalar": self._binary_op(relax.op.less, operator.lt),
+            "lt.Tensor": self._binary_op(relax.op.less, operator.lt),
+            "matmul.default": self._binary_op(
+                partial(relax.op.linear_algebra.matmul, out_dtype="float32"), operator.matmul
+            ),
+            "max.other": self._binary_op(relax.op.maximum, max),
+            "mul.Tensor": self._binary_op(relax.op.multiply, operator.mul),
+            "pow.Tensor_Scalar": self._binary_op(relax.op.power, operator.pow),
+            "pow.Tensor_Tensor": self._binary_op(relax.op.power, operator.pow),
+            "sub.Tensor": self._binary_op(relax.op.subtract, operator.sub),
             # neural network
             "adaptive_avg_pool2d.default": self._adaptive_avg_pool2d,
             "conv2d.default": self._conv2d,
             "linear.default": self._linear,
             "max_pool2d.default": self._max_pool2d,
+            # statistical
+            "mean.dim": self._mean,
+            "sum.dim_IntList": self._sum,
+            # search
+            "argmax.default": self._argmax_argmin(relax.op.argmax),
+            "argmin.default": self._argmax_argmin(relax.op.argmin),
             # tensor manipulation
             "view.default": self._reshape,
         }
