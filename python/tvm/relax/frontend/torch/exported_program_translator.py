@@ -74,6 +74,94 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         max_val = node.args[2] if len(args) > 2 else node.kwargs("max_val", 1.0)
         return self.block_builder.emit(relax.op.clip(x, min_val, max_val))
 
+    ########## Neural Network ##########
+
+    def _batch_norm_legit_no_training(self, node: fx.Node) -> relax.Var:
+        import numpy as np
+
+        x = self.env[node.args[0]]
+        channel = int(self.shape_of(x)[1])
+        dtype = x.struct_info.dtype
+        weight = self.env.get(node.args[1], relax.const(np.ones(channel), dtype=dtype))
+        bias = self.env.get(node.args[2], relax.const(np.zeros(channel), dtype=dtype))
+        running_mean = self.env.get(node.args[3], relax.const(np.zeros(channel), dtype=dtype))
+        running_var = self.env.get(node.args[4], relax.const(np.ones(channel), dtype=dtype))
+        momentum = node.args[5] if len(node.args) > 5 else node.kwargs.get("momentum", 0.1)
+        eps = node.args[6] if len(node.args) > 6 else node.kwargs.get("eps", 1e-05)
+
+        return self.block_builder.emit(
+            relax.op.nn.batch_norm(
+                x,
+                weight,
+                bias,
+                running_mean,
+                running_var,
+                axis=1,
+                epsilon=eps,
+                momentum=momentum,
+            )
+        )
+
+    def _group_norm(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        num_groups = node.args[1]
+        gamma = self.env[node.args[2]] if len(node.args) > 2 else None
+        beta = self.env[node.args[3]] if len(node.args) > 3 else None
+        eps = node.args[4] if len(node.args) > 4 else 1e-05
+
+        dim = len(self.shape_of(x))
+        return self.block_builder.emit(
+            relax.op.nn.group_norm(
+                x,
+                gamma,
+                beta,
+                num_groups=num_groups,
+                channel_axis=1,
+                axes=list(range(2, dim)),
+                epsilon=eps,
+            )
+        )
+
+    def _upsample_impl(
+        self, x: relax.Expr, size, align_corners: bool, scale_factor, method: str
+    ) -> relax.Var:
+        coord_trans = "align_corners" if align_corners else "half_pixel"
+
+        if size is None:
+            shape = self.shape_of(x)
+            assert isinstance(shape, relax.ShapeExpr)
+            if isinstance(scale_factor, (tuple, list)):
+                assert len(scale_factor) == len(shape) - 2
+                size = tuple(
+                    int(shape[i].value * scale_factor[i - 2]) for i in range(2, len(shape))
+                )
+            else:
+                size = tuple(int(shape[i].value * scale_factor) for i in range(2, len(shape)))
+
+        return self.block_builder.emit(
+            relax.op.image.resize2d(
+                x, size, layout="NCHW", method=method, coordinate_transformation_mode=coord_trans
+            )
+        )
+
+    def _upsample_bilinear2d(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        size = node.args[1] if len(node.args) > 1 else node.kwargs.get("size", None)
+        align_corners = (
+            node.args[2] if len(node.args) > 2 else node.kwargs.get("align_corners", True)
+        )
+        scale_factor = node.args[3] if len(node.args) > 3 else node.kwargs.get("scale_factor", None)
+        return self._upsample_impl(x, size, align_corners, scale_factor, "linear")
+
+    def _upsample_nearest2d(self, node: fx.node) -> relax.Var:
+        x = self.env[node.args[0]]
+        size = node.args[1] if len(node.args) > 1 else node.kwargs.get("size", None)
+        align_corners = (
+            node.args[2] if len(node.args) > 2 else node.kwargs.get("align_corners", True)
+        )
+        scale_factor = node.args[3] if len(node.args) > 3 else node.kwargs.get("scale_factor", None)
+        return self._upsample_impl(x, size, align_corners, scale_factor, "nearest_neighbor")
+
     def create_convert_map(
         self,
     ) -> Dict[str, Callable[[fx.Node], relax.Var]]:
@@ -129,10 +217,31 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "pow.Tensor_Tensor": self._binary_op(relax.op.power, operator.pow),
             "sub.Tensor": self._binary_op(relax.op.subtract, operator.sub),
             # neural network
+            "_native_batch_norm_legit_no_training.default": self._batch_norm_legit_no_training,
             "adaptive_avg_pool2d.default": self._adaptive_avg_pool2d,
+            "addmm.default": self._addmm,
+            "avg_pool2d.default": self._avg_pool2d,
+            "baddbmm.default": self._baddbmm,
+            "bmm.default": self._binary_op(
+                partial(relax.op.linear_algebra.matmul, out_dtype="float32"), operator.matmul
+            ),
+            "conv_transpose1d.default": self._conv_transpose1d,
+            "conv_transpose2d.input": self._conv_transpose2d,
+            "conv1d.default": self._conv1d,
             "conv2d.default": self._conv2d,
+            "conv3d.default": self._conv3d,
+            "einsum.default": self._einsum,
+            "embedding.default": lambda node: self._embedding_impl(
+                self.env[node.args[1]], self.env[node.args[0]]
+            ),
+            "group_norm.default": self._group_norm,
+            "layer_norm.default": self._layer_norm,
             "linear.default": self._linear,
             "max_pool2d.default": self._max_pool2d,
+            "scaled_dot_product_attention.default": self._scaled_dot_product_attention,
+            "unbind.int": self._unbind,
+            "upsample_bilinear2d.vec": self._upsample_bilinear2d,
+            "upsample_nearest2d.vec": self._upsample_nearest2d,
             # statistical
             "mean.dim": self._mean,
             "sum.dim_IntList": self._sum,
@@ -141,6 +250,8 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "argmin.default": self._argmax_argmin(relax.op.argmin),
             # tensor manipulation
             "view.default": self._reshape,
+            # other
+            "getitem": self._getitem,
         }
 
     def from_exported_program(

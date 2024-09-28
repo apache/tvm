@@ -227,6 +227,228 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             relax.op.nn.adaptive_avg_pool2d(x, output_size, layout="NCHW")
         )
 
+    def _addmm(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        y = self.env[node.args[1]]
+        z = self.env[node.args[2]]
+        alpha = node.kwargs.get("alpha", 1)
+        beta = node.kwargs.get("beta", 1)
+
+        res = None
+        if alpha != 0:
+            res = self.block_builder.emit(relax.op.linear_algebra.matmul(y, z, out_dtype="float32"))
+            if alpha != 1:
+                dtype = res.struct_info.dtype
+                res = self.block_builder.emit(relax.op.multiply(res, relax.const(alpha, dtype)))
+        if beta != 0:
+            dtype = x.struct_info.dtype
+            if beta != 1:
+                bias = self.block_builder.emit(relax.op.multiply(x, relax.const(beta, dtype)))
+            else:
+                bias = x
+            res = bias if res is None else self.block_builder.emit(relax.op.add(bias, res))
+        return res
+
+    def _avg_pool2d_impl(
+        self,
+        x: relax.Expr,
+        kernel_size: Union[int, Tuple[int, int]] = (1, 1),
+        stride: Optional[Union[int, Tuple[int, int]]] = None,
+        padding: Optional[int] = 0,
+        ceil_mode: Optional[bool] = False,
+    ) -> relax.Var:
+        stride = kernel_size if stride is None or stride == [] else stride
+        return self.block_builder.emit(
+            relax.op.nn.avg_pool2d(
+                x,
+                pool_size=kernel_size,
+                strides=stride,
+                padding=padding,
+                ceil_mode=ceil_mode,
+                layout="NCHW",
+            )
+        )
+
+    def _avg_pool2d(self, node: fx.Node) -> relax.Var:
+        args, kwargs = node.normalized_arguments(node)
+        x = self.env[args[0]]
+        kernel_size = args[1] if len(args) > 1 else kwargs["kernel_size"]
+        stride = args[2] if len(args) > 2 else kwargs.get("stride", None)
+        padding = args[3] if len(args) > 3 else kwargs.get("padding", 0)
+        ceil_mode = args[4] if len(args) > 4 else kwargs.get("ceil_mode", False)
+        return self._avg_pool2d_impl(x, kernel_size, stride, padding, ceil_mode)
+
+    def _baddbmm(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        batch1 = self.env[node.args[1]]
+        batch2 = self.env[node.args[2]]
+        alpha = node.kwargs.get("alpha", 1)
+        beta = node.kwargs.get("beta", 1)
+
+        res = None
+        if alpha != 0:
+            res = self.block_builder.emit(relax.op.matmul(batch1, batch2))
+            if alpha != 1:
+                dtype = res.struct_info.dtype
+                res = self.block_builder.emit(relax.op.multiply(res, relax.const(alpha, dtype)))
+        if beta != 0:
+            dtype = x.struct_info.dtype
+            if beta != 1:
+                bias = self.block_builder.emit(relax.op.multiply(x, relax.const(beta, dtype)))
+            else:
+                bias = x
+            res = bias if res is None else self.block_builder.emit(relax.op.add(res, bias))
+        return res
+
+    def _conv_transpose1d_impl(
+        self,
+        x: relax.Expr,
+        weight: relax.Expr,
+        bias: Optional[relax.Expr],
+        strides: Optional[Tuple],
+        padding: Optional[Tuple],
+        dilation: Optional[Tuple],
+        groups: Optional[Tuple],
+    ) -> relax.Var:
+        conv1d_transpose = self.block_builder.emit(
+            relax.op.nn.conv1d_transpose(
+                x,
+                weight,
+                strides=strides,
+                padding=padding,
+                dilation=dilation,
+                groups=groups,
+                data_layout="NCW",
+                kernel_layout="OIW",
+                out_dtype="float32",
+            )
+        )
+
+        if bias is None:
+            return conv1d_transpose
+
+        assert len(self.shape_of(bias)) == 1
+        bias = relax.op.reshape(bias, (1, -1, 1))
+        return self.block_builder.emit(relax.op.add(conv1d_transpose, bias))
+
+    def _conv_transpose1d(self, node: fx.Node) -> relax.Var:
+        args = self.retrieve_args(node)
+        x = args[0]
+        weight = args[1]
+        bias = args[2] if len(args) > 2 else None
+        stride = args[3] if len(args) > 3 else 1
+        padding = args[4] if len(args) > 4 else 0
+        dilation = args[5] if len(args) > 5 else 1
+        groups = args[6] if len(args) > 6 else 1
+        return self._conv_transpose1d_impl(
+            x,
+            weight,
+            bias=bias,
+            strides=stride,
+            padding=padding,
+            dilation=dilation,
+            groups=groups,
+        )
+
+    def _conv_transpose2d_impl(
+        self,
+        x: relax.Expr,
+        weight: relax.Expr,
+        bias: Optional[relax.Expr],
+        strides: Optional[Tuple],
+        padding: Optional[Tuple],
+        dilation: Optional[Tuple],
+        groups: Optional[Tuple],
+    ) -> relax.Var:
+        conv2d_transpose = self.block_builder.emit(
+            relax.op.nn.conv2d_transpose(
+                x,
+                weight,
+                strides=strides,
+                padding=padding,
+                dilation=dilation,
+                groups=groups,
+                data_layout="NCHW",
+                kernel_layout="OIHW",
+                out_dtype="float32",
+            )
+        )
+
+        if bias is None:
+            return conv2d_transpose
+
+        assert len(self.shape_of(bias)) == 1
+        bias = relax.op.reshape(bias, (1, -1, 1, 1))
+        return self.block_builder.emit(relax.op.add(conv2d_transpose, bias))
+
+    def _conv_transpose2d(self, node: fx.Node) -> relax.Var:
+        args = self.retrieve_args(node)
+        x = args[0]
+        weight = args[1]
+        bias = args[2] if len(args) > 2 else None
+        stride = args[3] if len(args) > 3 else 1
+        padding = args[4] if len(args) > 4 else 0
+        dilation = args[5] if len(args) > 5 else 1
+        groups = args[6] if len(args) > 6 else 1
+        return self._conv_transpose2d_impl(
+            x,
+            weight,
+            bias=bias,
+            strides=stride,
+            padding=padding,
+            dilation=dilation,
+            groups=groups,
+        )
+
+    def _conv1d_impl(
+        self,
+        x: relax.Expr,
+        weight: relax.Expr,
+        bias: Optional[relax.Expr],
+        strides: Optional[Tuple],
+        padding: Optional[Tuple],
+        dilation: Optional[Tuple],
+        groups: Optional[Tuple],
+    ) -> relax.Var:
+        conv1d = self.block_builder.emit(
+            relax.op.nn.conv1d(
+                x,
+                weight,
+                strides=strides,
+                padding=padding,
+                dilation=dilation,
+                groups=groups,
+                data_layout="NCW",
+                kernel_layout="OIW",
+                out_dtype="float32",
+            )
+        )
+
+        if bias is None:
+            return conv1d
+        assert len(self.shape_of(bias)) == 1
+        bias = relax.op.reshape(bias, (1, -1, 1))
+        return self.block_builder.emit(relax.op.add(conv1d, bias))
+
+    def _conv1d(self, node: fx.Node) -> relax.Var:
+        args = self.retrieve_args(node)
+        x = args[0]
+        weight = args[1]
+        bias = args[2] if len(args) > 2 else None
+        stride = args[3] if len(args) > 3 else 1
+        padding = args[4] if len(args) > 4 else 0
+        dilation = args[5] if len(args) > 5 else 1
+        groups = args[6] if len(args) > 6 else 1
+        return self._conv1d_impl(
+            x,
+            weight,
+            bias=bias,
+            strides=stride,
+            padding=padding,
+            dilation=dilation,
+            groups=groups,
+        )
+
     def _conv2d_impl(
         self,
         x: relax.Expr,
@@ -276,6 +498,134 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             groups=groups,
         )
 
+    def _conv3d_impl(
+        self,
+        x: relax.Expr,
+        weight: relax.Expr,
+        bias: Optional[relax.Expr],
+        strides: Optional[Tuple],
+        padding: Optional[Tuple],
+        dilation: Optional[Tuple],
+        groups: Optional[Tuple],
+    ):
+        conv3d = self.block_builder.emit(
+            relax.op.nn.conv3d(
+                x,
+                weight,
+                strides=strides,
+                padding=padding,
+                dilation=dilation,
+                groups=groups,
+                data_layout="NCDHW",
+                kernel_layout="OIDHW",
+                out_dtype="float32",
+            )
+        )
+
+        if bias is None:
+            return conv3d
+        assert len(self.shape_of(bias)) == 1
+        bias = relax.op.reshape(bias, (1, -1, 1, 1, 1))
+        return self.block_builder.emit(relax.op.add(conv3d, bias))
+
+    def _conv3d(self, node: fx.Node) -> relax.Var:
+        args = self.retrieve_args(node)
+        x = args[0]
+        weight = args[1]
+        bias = args[2] if len(args) > 2 else None
+        stride = args[3] if len(args) > 3 else 1
+        padding = args[4] if len(args) > 4 else 0
+        dilation = args[5] if len(args) > 5 else 1
+        groups = args[6] if len(args) > 6 else 1
+        return self._conv3d_impl(
+            x,
+            weight,
+            bias=bias,
+            strides=stride,
+            padding=padding,
+            dilation=dilation,
+            groups=groups,
+        )
+
+    def _einsum(self, node: fx.Node) -> relax.Var:
+        import torch  # type: ignore
+
+        args = self.retrieve_args(node)
+        operands = args[1] if isinstance(args[1], (torch.Size, tuple, list)) else args[1:]
+        return self.block_builder.emit(relax.op.einsum(operands, args[0]))
+
+    def _embedding_impl(
+        self,
+        x,
+        weight,
+    ) -> relax.Var:
+        x = self.block_builder.emit(relax.op.astype(x, "int32"))
+
+        ndim = x.struct_info.ndim
+        if ndim == 1:
+            return self.block_builder.emit(relax.op.take(weight, x, axis=0))
+        else:
+            x_shape = x.struct_info.shape.values
+            emb_size = weight.struct_info.shape.values[-1]
+            x = self.block_builder.emit(relax.op.reshape(x, shape=[-1]))
+            embedding = self.block_builder.emit(relax.op.take(weight, x, axis=0))
+            return self.block_builder.emit(relax.op.reshape(embedding, [*x_shape, emb_size]))
+
+    def _layer_norm_impl(self, x, gamma, beta, eps, normalized_shape) -> relax.Var:
+        from torch.fx.immutable_collections import immutable_list
+        import numpy as np  # type: ignore
+
+        if isinstance(normalized_shape, (immutable_list, tuple)):
+            normalized_shape = tuple(normalized_shape)
+        else:
+            try:
+                normalized_shape = self.env[normalized_shape]
+            except TypeError:
+                normalized_shape = tuple(normalized_shape)
+
+        dim_num = len(normalized_shape)
+        axes = list(range(-dim_num, 0))
+
+        if gamma is None:
+            shape_tuple = [int(s) for s in normalized_shape]
+            gamma = relax.const(np.ones(shape_tuple), x.struct_info.dtype)
+        if beta is None:
+            shape_tuple = [int(s) for s in normalized_shape]
+            beta = relax.const(np.zeros(shape_tuple), x.struct_info.dtype)
+
+        return self.block_builder.emit(
+            relax.op.nn.layer_norm(
+                x,
+                gamma,
+                beta,
+                axes=axes,
+                epsilon=eps,
+            )
+        )
+
+    def _layer_norm(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        normalized_shape = node.args[1]
+        gamma = self.env[node.args[2]] if len(node.args) > 2 else None
+        beta = self.env[node.args[3]] if len(node.args) > 3 else None
+        eps = node.args[4] if len(node.args) > 4 else 1e-05
+        return self._layer_norm_impl(x, gamma, beta, eps, normalized_shape)
+
+    def _layer_norm_module(self, node: fx.Node) -> relax.Var:
+        import torch  # type: ignore
+
+        x = self.env[node.args[0]]
+        module = self.named_modules[node.target]
+        normalized_shape = module.normalized_shape
+        if module.elementwise_affine:
+            gamma = self.params[module.weight]
+            beta = self.params[module.bias]
+        else:
+            gamma = relax.const(torch.ones_like(module.normalized_shape), x.struct_info.dtype)
+            beta = relax.const(torch.zeros_like(module.normalized_shape), x.struct_info.dtype)
+        eps = module.eps
+        return self._layer_norm_impl(x, gamma, beta, eps, normalized_shape)
+
     def _linear(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
         x = args[0]
@@ -315,6 +665,39 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         ceil_mode = args[5] if len(args) > 5 else False
 
         return self._max_pool2d_impl(x, kernel_size, stride, padding, dilation, ceil_mode)
+
+    def _scaled_dot_product_attention(self, node: fx.Node) -> relax.Var:
+        transpose_S_H = lambda tensor: relax.op.permute_dims(tensor, [0, 2, 1, 3])
+        query = transpose_S_H(self.env[node.args[0]])
+        key = transpose_S_H(self.env[node.args[1]])
+        value = transpose_S_H(self.env[node.args[2]])
+        attn_mask = node.args[3] if len(node.args) > 3 else node.kwargs.get("attn_mask", None)
+        dropout_p = node.args[4] if len(node.args) > 4 else node.kwargs.get("dropout_p", 0.0)
+        assert dropout_p == 0.0, "Dropout is not supported"
+        is_causal = node.args[5] if len(node.args) > 5 else node.kwargs.get("is_causal", False)
+        causal_mask = "TopLeft" if is_causal else None
+
+        if attn_mask is not None:
+            attn_mask = self.env[attn_mask]
+            msg = "Only a float mask is supported for the attn_mask input."
+            assert "float" in attn_mask.struct_info.dtype, msg
+
+        return self.block_builder.emit(
+            transpose_S_H(
+                relax.op.nn.attention(query, key, value, bias=attn_mask, causal_mask=causal_mask)
+            )
+        )
+
+    def _unbind(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        dim = node.args[1] if len(node.args) > 1 else node.kwargs.get("dim", 0)
+        assert isinstance(dim, int), "Expected 2nd argument of unbind as int"
+        selections = self.shape_of(x)[dim].value
+        n_section = list(range(1, selections + 1))
+        ret, split = [], self.block_builder.emit(relax.op.split(x, n_section, dim))
+        for i in range(selections):
+            ret.append(self.block_builder.emit(relax.op.squeeze(split[i], axis=dim)))
+        return self.block_builder.emit(relax.Tuple(ret))
 
     ########## Statistical ##########
 
@@ -356,6 +739,87 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         return self.block_builder.emit(relax.op.reshape(x, dims))
 
     ########## Others ##########
+
+    def _getitem(self, node: fx.Node) -> relax.Var:
+        import torch
+
+        x = self.env[node.args[0]]
+        if isinstance(x, (list, tuple, relax.ShapeExpr, relax.Tuple)):
+            return x[node.args[1]]
+        elif isinstance(x, relax.Var):
+            if isinstance(x.struct_info, relax.TupleStructInfo):
+                return self.block_builder.emit(relax.TupleGetItem(x, node.args[1]))
+
+            assert isinstance(x.struct_info, relax.TensorStructInfo)
+            take_indices = []
+            take_axes = []
+            stride_begin = []
+            stride_end = []
+            stride = []
+            stride_axes = []
+            expand_dim = []
+            i = 0
+            shape = self.shape_of(x)
+            non_ellipsis_cnt = 0
+            for index in node.args[1]:
+                if isinstance(index, (int, slice, torch.fx.Node)):
+                    non_ellipsis_cnt += 1
+            for index in node.args[1]:
+                if isinstance(index, int):
+                    stride_begin.append(index)
+                    stride_end.append(index + 1)
+                    stride.append(1)
+                    stride_axes.append(i)
+                    i = i + 1
+                elif isinstance(index, slice):
+                    stride_begin.append(0 if index.start is None else index.start)
+                    stride_end.append(shape[i] if index.stop is None else index.stop)
+                    stride.append(1 if index.step is None else index.step)
+                    stride_axes.append(i)
+                    i = i + 1
+                elif index is None:
+                    expand_dim.append(len(stride_axes) + len(expand_dim))
+                elif index is Ellipsis:
+                    for _ in range(len(shape) - non_ellipsis_cnt):
+                        stride_begin.append(0)
+                        stride_end.append(shape[i])
+                        stride.append(1)
+                        stride_axes.append(i)
+                        i += 1
+                elif isinstance(index, torch.fx.Node):
+                    node_index = self.env[index]
+                    if not isinstance(node_index, relax.Expr):
+                        raise ValueError(
+                            "Unsupported index type for relax.op.take: " + str(type(node_index))
+                        )
+                    take_indices.append(node_index)
+                    take_axes.append(i)
+                    i = i + 1
+                else:
+                    raise ValueError("Unsupported index type: " + str(type(index)))
+            while i < len(shape):
+                stride_begin.append(0)
+                stride_end.append(shape[i])
+                stride.append(1)
+                stride_axes.append(i)
+                i += 1
+            taken = x
+            if len(take_indices) > 1:
+                raise ValueError("Multiple tensors as index not yet supported")
+            for each_index, each_axis in zip(take_indices, take_axes):
+                taken = self.block_builder.emit(relax.op.take(taken, each_index, each_axis))
+            sliced = self.block_builder.emit(
+                relax.op.strided_slice(taken, stride_axes, stride_begin, stride_end, stride)
+            )
+            sliced_shape = list(self.shape_of(sliced))
+            for i in expand_dim:
+                sliced_shape.insert(i, 1)
+            return self.block_builder.emit(relax.op.reshape(sliced, sliced_shape))
+        elif isinstance(x, relax.Constant):
+            dtype = x.struct_info.dtype
+            return relax.const(x.data.numpy()[node.args[1]], dtype)
+        else:
+            assert False
 
     @abc.abstractmethod
     def create_convert_map(
