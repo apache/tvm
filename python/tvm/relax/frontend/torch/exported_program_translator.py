@@ -195,6 +195,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                 self.env[node.args[1]], self.env[node.args[0]]
             ),
             "group_norm.default": self._group_norm,
+            "layer_norm.default": self._layer_norm,
             "linear.default": self._linear,
             "max_pool2d.default": self._max_pool2d,
             # statistical

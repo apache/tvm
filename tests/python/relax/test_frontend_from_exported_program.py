@@ -2119,6 +2119,48 @@ def test_groupnorm():
     verify_model(model, example_args, binding, expected1)
 
 
+def test_layernorm():
+    class LayerNorm(Module):
+        def __init__(self):
+            super().__init__()
+            self.ln = torch.nn.LayerNorm((10, 10))
+
+        def forward(self, input):
+            return self.ln(input)
+
+    @tvm.script.ir_module
+    class expected1:
+        @R.function
+        def main(
+            input_1: R.Tensor((1, 3, 10, 10), dtype="float32"),
+            w1: R.Tensor((10, 10), dtype="float32"),
+            w2: R.Tensor((10, 10), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
+            # block 0
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.nn.layer_norm(
+                    input_1,
+                    w1,
+                    w2,
+                    axes=[-2, -1],
+                    epsilon=1e-05,
+                    center=True,
+                    scale=True,
+                )
+                gv: R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(1, 3, 10, 10, dtype=torch.float32),)
+
+    model = LayerNorm()
+    binding = {
+        "w1": model.ln.weight.detach().numpy(),
+        "w2": model.ln.bias.detach().numpy(),
+    }
+    verify_model(LayerNorm(), example_args, binding, expected1)
+
+
 def test_linear():
     class Dense1(Module):
         def __init__(self):
