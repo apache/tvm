@@ -761,19 +761,6 @@ class TorchFXImporter(BaseFXGraphImporter):
             ret.append(self.block_builder.emit(relax.op.squeeze(split[i], axis=dim)))
         return self.block_builder.emit(relax.Tuple(ret))
 
-    ########## Search ##########
-
-    def _argmax_argmin(self, op: Callable) -> Callable:
-        from torch import fx
-
-        def convert(node: fx.Node):
-            x = self.env[node.args[0]]
-            dim = node.args[1] if len(node.args) > 1 else node.kwargs.get("dim", None)
-            keepdim = node.args[2] if len(node.args) > 2 else node.kwargs.get("keepdim", False)
-            return self.block_builder.emit(op(x, dim, keepdim))
-
-        return convert
-
     ########## Manipulation ##########
 
     def _cat(self, node: fx.Node) -> relax.Var:

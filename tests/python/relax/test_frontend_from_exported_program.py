@@ -1520,6 +1520,92 @@ def test_sum():
     verify_model(Sum(), example_args, {}, expected1)
 
 
+def test_argmax_argmin():
+    example_args = (torch.randn(256, 256, dtype=torch.float32),)
+
+    class Argmax1(Module):
+        def __init__(self) -> None:
+            super().__init__()
+
+        def forward(self, input):
+            return torch.argmax(input, dim=-1)
+
+    class Argmax2(Module):
+        def __init__(self) -> None:
+            super().__init__()
+
+        def forward(self, input):
+            return torch.argmax(input, dim=-1, keepdim=True)
+
+    @tvm.script.ir_module
+    class expected_argmax1:
+        @R.function
+        def main(
+            inp_0: R.Tensor((256, 256), dtype="float32")
+        ) -> R.Tuple(R.Tensor((256,), dtype="int64")):
+            with R.dataflow():
+                lv: R.Tensor((256,), dtype="int64") = R.argmax(inp_0, axis=-1, keepdims=False)
+                gv: R.Tuple(R.Tensor((256,), dtype="int64")) = (lv,)
+                R.output(gv)
+            return gv
+
+    @tvm.script.ir_module
+    class expected_argmax2:
+        @R.function
+        def main(
+            inp_0: R.Tensor((256, 256), dtype="float32")
+        ) -> R.Tuple(R.Tensor((256, 1), dtype="int64")):
+            with R.dataflow():
+                lv: R.Tensor((256, 1), dtype="int64") = R.argmax(inp_0, axis=-1, keepdims=True)
+                gv: R.Tuple(R.Tensor((256, 1), dtype="int64")) = (lv,)
+                R.output(gv)
+            return gv
+
+    verify_model(Argmax1(), example_args, {}, expected_argmax1)
+    verify_model(Argmax2(), example_args, {}, expected_argmax2)
+
+    class Argmin1(Module):
+        def __init__(self) -> None:
+            super().__init__()
+
+        def forward(self, input):
+            return torch.argmin(input)
+
+    class Argmin2(Module):
+        def __init__(self) -> None:
+            super().__init__()
+
+        def forward(self, input):
+            return torch.argmin(input, keepdim=True)
+
+    @tvm.script.ir_module
+    class expected_argmin1:
+        @R.function
+        def main(
+            inp_0: R.Tensor((256, 256), dtype="float32")
+        ) -> R.Tuple(R.Tensor((), dtype="int64")):
+            with R.dataflow():
+                lv: R.Tensor((), dtype="int64") = R.argmin(inp_0, axis=None, keepdims=False)
+                gv: R.Tuple(R.Tensor((), dtype="int64")) = (lv,)
+                R.output(gv)
+            return gv
+
+    @tvm.script.ir_module
+    class expected_argmin2:
+        @R.function
+        def main(
+            inp_0: R.Tensor((256, 256), dtype="float32")
+        ) -> R.Tuple(R.Tensor((1, 1), dtype="int64")):
+            with R.dataflow():
+                lv: R.Tensor((1, 1), dtype="int64") = R.argmin(inp_0, axis=None, keepdims=True)
+                gv: R.Tuple(R.Tensor((1, 1), dtype="int64")) = (lv,)
+                R.output(gv)
+            return gv
+
+    verify_model(Argmin1(), example_args, {}, expected_argmin1)
+    verify_model(Argmin2(), example_args, {}, expected_argmin2)
+
+
 def test_view():
     class View(Module):
         def forward(self, x):

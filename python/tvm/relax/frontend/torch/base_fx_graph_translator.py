@@ -332,6 +332,19 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             return self.block_builder.emit(relax.op.sum(args[0], keepdims=keepdim))
         return self.block_builder.emit(relax.op.sum(args[0], args[1]))
 
+    ########## Search ##########
+
+    def _argmax_argmin(self, op: Callable) -> Callable:
+        from torch import fx
+
+        def convert(node: fx.Node):
+            x = self.env[node.args[0]]
+            dim = node.args[1] if len(node.args) > 1 else node.kwargs.get("dim", None)
+            keepdim = node.args[2] if len(node.args) > 2 else node.kwargs.get("keepdim", False)
+            return self.block_builder.emit(op(x, dim, keepdim))
+
+        return convert
+
     ########## Manipulation ##########
 
     def _reshape(self, node: fx.Node) -> relax.Var:

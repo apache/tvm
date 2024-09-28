@@ -136,6 +136,9 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             # statistical
             "mean.dim": self._mean,
             "sum.dim_IntList": self._sum,
+            # search
+            "argmax.default": self._argmax_argmin(relax.op.argmax),
+            "argmin.default": self._argmax_argmin(relax.op.argmin),
             # tensor manipulation
             "view.default": self._reshape,
         }
