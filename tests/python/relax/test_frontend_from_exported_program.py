@@ -1394,6 +1394,108 @@ def test_avg_pool2d():
     verify_model(AvgPool2d4(), example_args, {}, expected3)
 
 
+def test_baddbmm():
+    class BAddBMM1(Module):
+        def __init__(self):
+            super().__init__()
+
+        def forward(self, c, x, y):
+            return torch.baddbmm(c, x, y)
+
+    @tvm.script.ir_module
+    class Expected1:
+        @R.function
+        def main(
+            inp_0: R.Tensor((4, 128, 512), dtype="float32"),
+            inp_1: R.Tensor((4, 128, 256), dtype="float32"),
+            inp_2: R.Tensor((4, 256, 512), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((4, 128, 512), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((4, 128, 512), dtype="float32") = R.matmul(inp_1, inp_2)
+                lv1: R.Tensor((4, 128, 512), dtype="float32") = R.add(lv, inp_0)
+                gv: R.Tuple(R.Tensor((4, 128, 512), dtype="float32")) = (lv1,)
+                R.output(gv)
+            return gv
+
+    class BAddBMM2(Module):
+        def __init__(self):
+            super().__init__()
+
+        def forward(self, c, x, y):
+            return torch.baddbmm(c, x, y, alpha=2, beta=0)
+
+    @tvm.script.ir_module
+    class Expected2:
+        @R.function
+        def main(
+            inp_0: R.Tensor((4, 128, 512), dtype="float32"),
+            inp_1: R.Tensor((4, 128, 256), dtype="float32"),
+            inp_2: R.Tensor((4, 256, 512), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((4, 128, 512), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((4, 128, 512), dtype="float32") = R.matmul(inp_1, inp_2)
+                lv1: R.Tensor((4, 128, 512), dtype="float32") = R.multiply(
+                    lv, R.const(2, "float32")
+                )
+                gv: R.Tuple(R.Tensor((4, 128, 512), dtype="float32")) = (lv1,)
+                R.output(gv)
+            return gv
+
+    class BAddBMM3(Module):
+        def __init__(self):
+            super().__init__()
+
+        def forward(self, c, x, y):
+            return torch.baddbmm(c, x, y, alpha=2, beta=3)
+
+    @tvm.script.ir_module
+    class Expected3:
+        @R.function
+        def main(
+            inp_0: R.Tensor((4, 128, 512), dtype="float32"),
+            inp_1: R.Tensor((4, 128, 256), dtype="float32"),
+            inp_2: R.Tensor((4, 256, 512), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((4, 128, 512), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((4, 128, 512), dtype="float32") = R.matmul(inp_1, inp_2)
+                lv1: R.Tensor((4, 128, 512), dtype="float32") = R.multiply(
+                    lv, R.const(2, "float32")
+                )
+                lv2: R.Tensor((4, 128, 512), dtype="float32") = R.multiply(
+                    inp_0, R.const(3, "float32")
+                )
+                lv3: R.Tensor((4, 128, 512), dtype="float32") = R.add(lv1, lv2)
+                gv: R.Tuple(R.Tensor((4, 128, 512), dtype="float32")) = (lv3,)
+                R.output(gv)
+            return gv
+
+    example_args = (
+        torch.randn(4, 128, 512, dtype=torch.float32),
+        torch.randn(4, 128, 256, dtype=torch.float32),
+        torch.randn(4, 256, 512, dtype=torch.float32),
+    )
+    verify_model(
+        BAddBMM1(),
+        example_args,
+        {},
+        Expected1,
+    )
+
+    verify_model(
+        BAddBMM2(),
+        example_args,
+        {},
+        Expected2,
+    )
+
+    verify_model(
+        BAddBMM3(),
+        example_args,
+        {},
+        Expected3,
+    )
+
+
 def test_conv2d():
     class Conv2D1(Module):
         def __init__(self):

@@ -161,6 +161,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "adaptive_avg_pool2d.default": self._adaptive_avg_pool2d,
             "addmm.default": self._addmm,
             "avg_pool2d.default": self._avg_pool2d,
+            "baddbmm.default": self._baddbmm,
             "conv2d.default": self._conv2d,
             "linear.default": self._linear,
             "max_pool2d.default": self._max_pool2d,
