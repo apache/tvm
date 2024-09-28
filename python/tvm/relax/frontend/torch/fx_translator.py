@@ -107,28 +107,6 @@ class TorchFXImporter(BaseFXGraphImporter):
             relax.op.nn.adaptive_avg_pool2d(x, output_size, layout="NCHW")
         )
 
-    def _addmm(self, node: fx.Node) -> relax.Var:
-        x = self.env[node.args[0]]
-        y = self.env[node.args[1]]
-        z = self.env[node.args[2]]
-        alpha = node.kwargs.get("alpha", 1)
-        beta = node.kwargs.get("beta", 1)
-
-        res = None
-        if alpha != 0:
-            res = self.block_builder.emit(relax.op.linear_algebra.matmul(y, z, out_dtype="float32"))
-            if alpha != 1:
-                dtype = res.struct_info.dtype
-                res = self.block_builder.emit(relax.op.multiply(res, relax.const(alpha, dtype)))
-        if beta != 0:
-            dtype = x.struct_info.dtype
-            if beta != 1:
-                bias = self.block_builder.emit(relax.op.multiply(x, relax.const(beta, dtype)))
-            else:
-                bias = x
-            res = bias if res is None else self.block_builder.emit(relax.op.add(bias, res))
-        return res
-
     def _avg_pool2d_impl(
         self,
         x: relax.Expr,
