@@ -162,6 +162,9 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "addmm.default": self._addmm,
             "avg_pool2d.default": self._avg_pool2d,
             "baddbmm.default": self._baddbmm,
+            "bmm.default": self._binary_op(
+                partial(relax.op.linear_algebra.matmul, out_dtype="float32"), operator.matmul
+            ),
             "conv2d.default": self._conv2d,
             "linear.default": self._linear,
             "max_pool2d.default": self._max_pool2d,

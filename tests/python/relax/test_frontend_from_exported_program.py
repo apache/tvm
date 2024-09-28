@@ -1496,6 +1496,42 @@ def test_baddbmm():
     )
 
 
+def test_bmm():
+    class BMM(Module):
+        def __init__(self):
+            super().__init__()
+
+        def forward(self, x, y):
+            return torch.bmm(x, y)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            input_1: R.Tensor((4, 128, 256), dtype="float32"),
+            input_2: R.Tensor((4, 256, 512), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((4, 128, 512), dtype="float32")):
+            # block 0
+            with R.dataflow():
+                lv: R.Tensor((4, 128, 512), dtype="float32") = R.matmul(
+                    input_1, input_2, out_dtype="float32"
+                )
+                gv: R.Tuple(R.Tensor((4, 128, 512), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args = (
+        torch.randn(4, 128, 256, dtype=torch.float32),
+        torch.randn(4, 256, 512, dtype=torch.float32),
+    )
+    verify_model(
+        BMM(),
+        example_args,
+        {},
+        Expected,
+    )
+
+
 def test_conv2d():
     class Conv2D1(Module):
         def __init__(self):
