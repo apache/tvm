@@ -2340,6 +2340,96 @@ def test_maxpool2d():
     verify_model(MaxPool2d3(), example_args, {}, expected3)
 
 
+def test_scaled_dot_product_attention():
+    class Attention1(Module):
+        def forward(self, q, k, v):
+            return torch.nn.functional.scaled_dot_product_attention(q, k, v)
+
+    @I.ir_module
+    class Expected1:
+        @R.function
+        def main(
+            inp_0: R.Tensor((32, 8, 128, 64), dtype="float32"),
+            inp_1: R.Tensor((32, 8, 128, 64), dtype="float32"),
+            inp_2: R.Tensor((32, 8, 128, 64), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((32, 8, 128, 64), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((32, 128, 8, 64), dtype="float32") = R.permute_dims(
+                    inp_0, axes=[0, 2, 1, 3]
+                )
+                lv1: R.Tensor((32, 128, 8, 64), dtype="float32") = R.permute_dims(
+                    inp_1, axes=[0, 2, 1, 3]
+                )
+                lv2: R.Tensor((32, 128, 8, 64), dtype="float32") = R.permute_dims(
+                    inp_2, axes=[0, 2, 1, 3]
+                )
+                lv3: R.Tensor((32, 128, 8, 64), dtype="float32") = R.nn.attention(
+                    lv, lv1, lv2, scale=None
+                )
+                lv4: R.Tensor((32, 8, 128, 64), dtype="float32") = R.permute_dims(
+                    lv3, axes=[0, 2, 1, 3]
+                )
+                gv: R.Tuple(R.Tensor((32, 8, 128, 64), dtype="float32")) = (lv4,)
+                R.output(gv)
+            return gv
+
+    class Attention2(Module):
+        def forward(self, q, k, v, mask):
+            return torch.nn.functional.scaled_dot_product_attention(q, k, v, mask)
+
+    @I.ir_module
+    class Expected2:
+        @R.function
+        def main(
+            inp_0: R.Tensor((32, 8, 128, 64), dtype="float32"),
+            inp_1: R.Tensor((32, 8, 128, 64), dtype="float32"),
+            inp_2: R.Tensor((32, 8, 128, 64), dtype="float32"),
+            inp_3: R.Tensor((32, 8, 128, 128), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((32, 8, 128, 64), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((32, 128, 8, 64), dtype="float32") = R.permute_dims(
+                    inp_0, axes=[0, 2, 1, 3]
+                )
+                lv1: R.Tensor((32, 128, 8, 64), dtype="float32") = R.permute_dims(
+                    inp_1, axes=[0, 2, 1, 3]
+                )
+                lv2: R.Tensor((32, 128, 8, 64), dtype="float32") = R.permute_dims(
+                    inp_2, axes=[0, 2, 1, 3]
+                )
+                lv3: R.Tensor((32, 128, 8, 64), dtype="float32") = R.nn.attention(
+                    lv, lv1, lv2, inp_3, scale=None
+                )
+                lv4: R.Tensor((32, 8, 128, 64), dtype="float32") = R.permute_dims(
+                    lv3, axes=[0, 2, 1, 3]
+                )
+                gv: R.Tuple(R.Tensor((32, 8, 128, 64), dtype="float32")) = (lv4,)
+                R.output(gv)
+            return gv
+
+    verify_model(
+        Attention1(),
+        (
+            torch.randn(32, 8, 128, 64, dtype=torch.float32),
+            torch.randn(32, 8, 128, 64, dtype=torch.float32),
+            torch.randn(32, 8, 128, 64, dtype=torch.float32),
+        ),
+        {},
+        Expected1,
+    )
+
+    verify_model(
+        Attention2(),
+        (
+            torch.randn(32, 8, 128, 64, dtype=torch.float32),
+            torch.randn(32, 8, 128, 64, dtype=torch.float32),
+            torch.randn(32, 8, 128, 64, dtype=torch.float32),
+            torch.randn(32, 8, 128, 128, dtype=torch.float32),
+        ),
+        {},
+        Expected2,
+    )
+
+
 def test_mean():
     class Mean(Module):
         def forward(self, input):
