@@ -300,7 +300,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             res = bias if res is None else self.block_builder.emit(relax.op.add(res, bias))
         return res
 
-    def _conv1d_transpose_impl(
+    def _conv_transpose1d_impl(
         self,
         x: relax.Expr,
         weight: relax.Expr,
@@ -340,7 +340,57 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         padding = args[4] if len(args) > 4 else 0
         dilation = args[5] if len(args) > 5 else 1
         groups = args[6] if len(args) > 6 else 1
-        return self._conv1d_transpose_impl(
+        return self._conv_transpose1d_impl(
+            x,
+            weight,
+            bias=bias,
+            strides=stride,
+            padding=padding,
+            dilation=dilation,
+            groups=groups,
+        )
+
+    def _conv_transpose2d_impl(
+        self,
+        x: relax.Expr,
+        weight: relax.Expr,
+        bias: Optional[relax.Expr],
+        strides: Optional[Tuple],
+        padding: Optional[Tuple],
+        dilation: Optional[Tuple],
+        groups: Optional[Tuple],
+    ) -> relax.Var:
+        conv2d_transpose = self.block_builder.emit(
+            relax.op.nn.conv2d_transpose(
+                x,
+                weight,
+                strides=strides,
+                padding=padding,
+                dilation=dilation,
+                groups=groups,
+                data_layout="NCHW",
+                kernel_layout="OIHW",
+                out_dtype="float32",
+            )
+        )
+
+        if bias is None:
+            return conv2d_transpose
+
+        assert len(self.shape_of(bias)) == 1
+        bias = relax.op.reshape(bias, (1, -1, 1, 1))
+        return self.block_builder.emit(relax.op.add(conv2d_transpose, bias))
+
+    def _conv_transpose2d(self, node: fx.Node) -> relax.Var:
+        args = self.retrieve_args(node)
+        x = args[0]
+        weight = args[1]
+        bias = args[2] if len(args) > 2 else None
+        stride = args[3] if len(args) > 3 else 1
+        padding = args[4] if len(args) > 4 else 0
+        dilation = args[5] if len(args) > 5 else 1
+        groups = args[6] if len(args) > 6 else 1
+        return self._conv_transpose2d_impl(
             x,
             weight,
             bias=bias,

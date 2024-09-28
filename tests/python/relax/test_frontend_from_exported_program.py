@@ -1624,6 +1624,98 @@ def test_conv_transpose1d():
     verify_model(model, example_args, binding, expected2)
 
 
+def test_conv_transpose2d():
+    class ConvTranspose2d1(Module):
+        def __init__(self):
+            super().__init__()
+            self.conv = torch.nn.ConvTranspose2d(3, 3, 7, bias=True)
+
+        def forward(self, input):
+            return self.conv(input)
+
+    class ConvTranspose2d1Func(Module):
+        def __init__(self):
+            super().__init__()
+            self.weight = torch.randn(size=[3, 3, 7, 7])
+            self.bias = torch.randn(size=[3])
+
+        def forward(self, input):
+            return torch.nn.functional.conv_transpose2d(input, self.weight, self.bias)
+
+    @tvm.script.ir_module
+    class expected1:
+        @R.function
+        def main(
+            input_1: R.Tensor((1, 3, 10, 10), dtype="float32"),
+            w1: R.Tensor((3, 3, 7, 7), dtype="float32"),
+            w2: R.Tensor((3,), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((1, 3, 16, 16), dtype="float32")):
+            # block 0
+            with R.dataflow():
+                lv1: R.Tensor((1, 3, 16, 16), dtype="float32") = R.nn.conv2d_transpose(
+                    input_1,
+                    w1,
+                    strides=[1, 1],
+                    padding=[0, 0, 0, 0],
+                    dilation=[1, 1],
+                    data_layout="NCHW",
+                    kernel_layout="OIHW",
+                    out_layout="NCHW",
+                    out_dtype="float32",
+                )
+                lv2: R.Tensor((1, 3, 1, 1)) = R.reshape(w2, [1, 3, 1, 1])
+                lv3: R.Tensor((1, 3, 16, 16), dtype="float32") = R.add(lv1, lv2)
+                gv: R.Tuple(R.Tensor((1, 3, 16, 16), dtype="float32")) = (lv3,)
+                R.output(gv)
+            return gv
+
+    class ConvTranspose2d2(Module):
+        def __init__(self):
+            super().__init__()
+            self.conv = torch.nn.ConvTranspose2d(3, 3, 7, bias=False)
+
+        def forward(self, input):
+            return self.conv(input)
+
+    @tvm.script.ir_module
+    class expected2:
+        @R.function
+        def main(
+            input_1: R.Tensor((1, 3, 10, 10), dtype="float32"),
+            w1: R.Tensor((3, 3, 7, 7), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((1, 3, 16, 16), dtype="float32")):
+            # block 0
+            with R.dataflow():
+                lv1: R.Tensor((1, 3, 16, 16), dtype="float32") = R.nn.conv2d_transpose(
+                    input_1,
+                    w1,
+                    strides=[1, 1],
+                    padding=[0, 0, 0, 0],
+                    dilation=[1, 1],
+                    data_layout="NCHW",
+                    kernel_layout="OIHW",
+                    out_layout="NCHW",
+                    out_dtype="float32",
+                )
+                gv: R.Tuple(R.Tensor((1, 3, 16, 16), dtype="float32")) = (lv1,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(1, 3, 10, 10, dtype=torch.float32),)
+
+    model = ConvTranspose2d1()
+    binding = {"w1": model.conv.weight.detach().numpy(), "w2": model.conv.bias.detach().numpy()}
+    verify_model(model, example_args, binding, expected1)
+
+    model = ConvTranspose2d1Func()
+    binding = {"w1": model.weight.detach().numpy(), "w2": model.bias.detach().numpy()}
+    verify_model(model, example_args, binding, expected1)
+
+    model = ConvTranspose2d2()
+    binding = {"w1": model.conv.weight.detach().numpy()}
+    verify_model(model, example_args, binding, expected2)
+
+
 def test_conv2d():
     class Conv2D1(Module):
         def __init__(self):

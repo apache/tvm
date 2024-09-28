@@ -166,6 +166,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                 partial(relax.op.linear_algebra.matmul, out_dtype="float32"), operator.matmul
             ),
             "conv_transpose1d.default": self._conv_transpose1d,
+            "conv_transpose2d.input": self._conv_transpose2d,
             "conv2d.default": self._conv2d,
             "linear.default": self._linear,
             "max_pool2d.default": self._max_pool2d,
