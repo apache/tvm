@@ -357,6 +357,87 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
 
     ########## Others ##########
 
+    def _getitem(self, node: fx.Node) -> relax.Var:
+        import torch
+
+        x = self.env[node.args[0]]
+        if isinstance(x, (list, tuple, relax.ShapeExpr, relax.Tuple)):
+            return x[node.args[1]]
+        elif isinstance(x, relax.Var):
+            if isinstance(x.struct_info, relax.TupleStructInfo):
+                return self.block_builder.emit(relax.TupleGetItem(x, node.args[1]))
+
+            assert isinstance(x.struct_info, relax.TensorStructInfo)
+            take_indices = []
+            take_axes = []
+            stride_begin = []
+            stride_end = []
+            stride = []
+            stride_axes = []
+            expand_dim = []
+            i = 0
+            shape = self.shape_of(x)
+            non_ellipsis_cnt = 0
+            for index in node.args[1]:
+                if isinstance(index, (int, slice, torch.fx.Node)):
+                    non_ellipsis_cnt += 1
+            for index in node.args[1]:
+                if isinstance(index, int):
+                    stride_begin.append(index)
+                    stride_end.append(index + 1)
+                    stride.append(1)
+                    stride_axes.append(i)
+                    i = i + 1
+                elif isinstance(index, slice):
+                    stride_begin.append(0 if index.start is None else index.start)
+                    stride_end.append(shape[i] if index.stop is None else index.stop)
+                    stride.append(1 if index.step is None else index.step)
+                    stride_axes.append(i)
+                    i = i + 1
+                elif index is None:
+                    expand_dim.append(len(stride_axes) + len(expand_dim))
+                elif index is Ellipsis:
+                    for _ in range(len(shape) - non_ellipsis_cnt):
+                        stride_begin.append(0)
+                        stride_end.append(shape[i])
+                        stride.append(1)
+                        stride_axes.append(i)
+                        i += 1
+                elif isinstance(index, torch.fx.Node):
+                    node_index = self.env[index]
+                    if not isinstance(node_index, relax.Expr):
+                        raise ValueError(
+                            "Unsupported index type for relax.op.take: " + str(type(node_index))
+                        )
+                    take_indices.append(node_index)
+                    take_axes.append(i)
+                    i = i + 1
+                else:
+                    raise ValueError("Unsupported index type: " + str(type(index)))
+            while i < len(shape):
+                stride_begin.append(0)
+                stride_end.append(shape[i])
+                stride.append(1)
+                stride_axes.append(i)
+                i += 1
+            taken = x
+            if len(take_indices) > 1:
+                raise ValueError("Multiple tensors as index not yet supported")
+            for each_index, each_axis in zip(take_indices, take_axes):
+                taken = self.block_builder.emit(relax.op.take(taken, each_index, each_axis))
+            sliced = self.block_builder.emit(
+                relax.op.strided_slice(taken, stride_axes, stride_begin, stride_end, stride)
+            )
+            sliced_shape = list(self.shape_of(sliced))
+            for i in expand_dim:
+                sliced_shape.insert(i, 1)
+            return self.block_builder.emit(relax.op.reshape(sliced, sliced_shape))
+        elif isinstance(x, relax.Constant):
+            dtype = x.struct_info.dtype
+            return relax.const(x.data.numpy()[node.args[1]], dtype)
+        else:
+            assert False
+
     @abc.abstractmethod
     def create_convert_map(
         self,

@@ -74,6 +74,34 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         max_val = node.args[2] if len(args) > 2 else node.kwargs("max_val", 1.0)
         return self.block_builder.emit(relax.op.clip(x, min_val, max_val))
 
+    ########## Neural Network ##########
+
+    def _native_batch_norm_legit_no_training(self, node: fx.Node) -> relax.Var:
+        import numpy as np
+
+        x = self.env[node.args[0]]
+        channel = int(self.shape_of(x)[1])
+        dtype = x.struct_info.dtype
+        weight = self.env.get(node.args[1], relax.const(np.ones(channel), dtype=dtype))
+        bias = self.env.get(node.args[2], relax.const(np.zeros(channel), dtype=dtype))
+        running_mean = self.env.get(node.args[3], relax.const(np.zeros(channel), dtype=dtype))
+        running_var = self.env.get(node.args[4], relax.const(np.ones(channel), dtype=dtype))
+        momentum = node.args[5] if len(node.args) > 5 else node.kwargs.get("momentum", 0.1)
+        eps = node.args[6] if len(node.args) > 6 else node.kwargs.get("eps", 1e-05)
+
+        return self.block_builder.emit(
+            relax.op.nn.batch_norm(
+                x,
+                weight,
+                bias,
+                running_mean,
+                running_var,
+                axis=1,
+                epsilon=eps,
+                momentum=momentum,
+            )
+        )
+
     def create_convert_map(
         self,
     ) -> Dict[str, Callable[[fx.Node], relax.Var]]:
@@ -129,6 +157,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "pow.Tensor_Tensor": self._binary_op(relax.op.power, operator.pow),
             "sub.Tensor": self._binary_op(relax.op.subtract, operator.sub),
             # neural network
+            "_native_batch_norm_legit_no_training.default": self._native_batch_norm_legit_no_training,
             "adaptive_avg_pool2d.default": self._adaptive_avg_pool2d,
             "conv2d.default": self._conv2d,
             "linear.default": self._linear,
@@ -141,6 +170,8 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "argmin.default": self._argmax_argmin(relax.op.argmin),
             # tensor manipulation
             "view.default": self._reshape,
+            # other
+            "getitem": self._getitem,
         }
 
     def from_exported_program(
