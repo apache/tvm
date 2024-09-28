@@ -76,7 +76,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
 
     ########## Neural Network ##########
 
-    def _native_batch_norm_legit_no_training(self, node: fx.Node) -> relax.Var:
+    def _batch_norm_legit_no_training(self, node: fx.Node) -> relax.Var:
         import numpy as np
 
         x = self.env[node.args[0]]
@@ -217,7 +217,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "pow.Tensor_Tensor": self._binary_op(relax.op.power, operator.pow),
             "sub.Tensor": self._binary_op(relax.op.subtract, operator.sub),
             # neural network
-            "_native_batch_norm_legit_no_training.default": self._native_batch_norm_legit_no_training,
+            "_native_batch_norm_legit_no_training.default": self._batch_norm_legit_no_training,
             "adaptive_avg_pool2d.default": self._adaptive_avg_pool2d,
             "addmm.default": self._addmm,
             "avg_pool2d.default": self._avg_pool2d,
