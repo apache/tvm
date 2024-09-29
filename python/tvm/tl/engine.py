@@ -71,7 +71,7 @@ def extrac_params(func: tir.PrimFunc):
     return tensor_types
 
 # TODO(lei): Should enhance to support IRModule with multiple functions
-def lower(func, target="cuda"):
+def lower(func, target="cuda", runtime_only=False):
     params = extrac_params(func)
     mod = tvm.IRModule({func.attrs["global_symbol"]: func})
 
@@ -146,6 +146,10 @@ def lower(func, target="cuda"):
     # code = tvm._ffi.get_global_func("target.build.tl_debug_codegen")(device_mod, target)
     # print(code)
     device_mod = tvm._ffi.get_global_func("target.build.tl")(device_mod, target)
-
+    
     host_mod.import_module(device_mod)
-    return host_mod, params
+
+    if runtime_only is True:
+        return host_mod
+    else:
+        return host_mod, params
