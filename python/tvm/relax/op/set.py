@@ -16,7 +16,7 @@
 # under the License.
 # pylint: disable=import-outside-toplevel, redefined-builtin, unused-argument
 """Set operators."""
-from typing import Optional, Tuple, Union
+from typing import Optional, Union
 
 import numpy as np  # type: ignore
 import tvm
