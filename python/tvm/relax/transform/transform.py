@@ -1020,14 +1020,13 @@ def BundleModelParams(param_tuple_name: Optional[str] = None) -> tvm.ir.transfor
     ----------
     param_tuple_name: Optional[str]
 
-        The name of the tuple parameter.  If unspecified, defaults to
+        The name of the tuple parameter. If unspecified, defaults to
         "model_params".
 
     Returns
     -------
     ret : tvm.transform.Pass
-        The registered pass for lifting transformation of parameters.
-
+        The registered pass for bundling model parameters.
     """
     return _ffi_api.BundleModelParams(param_tuple_name)  # type: ignore
 

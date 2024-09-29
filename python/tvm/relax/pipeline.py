@@ -21,6 +21,7 @@ This namespace offers a pre-defined collection that can be used
 as it is or serves as a basis to do further composition.
 """
 # pylint: disable=unused-argument
+from typing import Union
 import tvm
 from tvm import meta_schedule as ms
 
@@ -104,10 +105,48 @@ def default_build_pipeline():
     return _pipeline
 
 
+def static_shape_tuning_pipeline(
+    total_trials: int,
+    target: Union[str, tvm.target.Target],
+    work_dir: str = "tuning_logs",
+):
+    """Tune the static shape model and store the log to database.
+
+    Parameters
+    ----------
+    total_trials : int
+        Total number of trials to run.
+
+    target : Union[str, tvm.target.Target]
+        The target device to tune the model.
+
+    work_dir : str
+        The directory to store the tuning logs.
+    """
+
+    @tvm.transform.module_pass(opt_level=0)
+    def _pipeline(mod: tvm.ir.IRModule, _ctx: tvm.transform.PassContext) -> tvm.ir.IRModule:
+        with tvm.target.Target(target):
+            mod = tvm.transform.Sequential(
+                [
+                    transform.DecomposeOpsForInference(),
+                    transform.CanonicalizeBindings(),
+                    zero_pipeline(),
+                    transform.MetaScheduleTuneIRMod({}, work_dir, total_trials),
+                    transform.MetaScheduleApplyDatabase(work_dir),
+                ]
+            )(mod)
+
+        return mod
+
+    return _pipeline
+
+
 # global map of pre-built pipelines
 PIPELINE_MAP = {
     "zero": zero_pipeline,
     "default_build": default_build_pipeline,
+    "static_shape_tuning": static_shape_tuning_pipeline,
 }
 
 

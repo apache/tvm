@@ -101,21 +101,7 @@ work_dir = "tuning_logs"
 # Skip running in CI environment
 IS_IN_CI = os.getenv("CI", "") == "true"
 if not IS_IN_CI:
-    with target:
-        mod = tvm.ir.transform.Sequential(
-            [
-                # Convert BatchNorm into a sequence of simpler ops for fusion
-                relax.transform.DecomposeOpsForInference(),
-                # Canonicalize the bindings
-                relax.transform.CanonicalizeBindings(),
-                # Run default optimization pipeline
-                relax.get_pipeline("zero"),
-                # Tune the model and store the log to database
-                relax.transform.MetaScheduleTuneIRMod({}, work_dir, TOTAL_TRIALS),
-                # Apply the database
-                relax.transform.MetaScheduleApplyDatabase(work_dir),
-            ]
-        )(mod)
+    mod = relax.get_pipeline("static_shape_tuning", target=target, total_trials=TOTAL_TRIALS)(mod)
 
     # Only show the main function
     mod["main"].show()
