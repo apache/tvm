@@ -70,13 +70,13 @@ def extrac_params(func: tir.PrimFunc):
     tensor_types = [relay.TensorType(buffer.shape, buffer.dtype) for buffer in buffers]
     return tensor_types
 
-
-def lower(func):
+# TODO(lei): Should enhance to support IRModule with multiple functions
+def lower(func, target="cuda"):
     params = extrac_params(func)
     mod = tvm.IRModule({func.attrs["global_symbol"]: func})
 
     target_host = tvm.target.Target("llvm -keys=cpu")
-    target = tvm.target.Target("cuda", target_host)
+    target = tvm.target.Target(target, target_host)
     mod = tir.transform.BindTarget(target)(mod)
 
     mod = tl.transform.FrontendLegalize()(mod)

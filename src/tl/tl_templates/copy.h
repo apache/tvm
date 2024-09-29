@@ -2,7 +2,7 @@
 
 #include "common.h"
 
-#if (defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 900))
+#if (defined(__CUDA_ARCH_LIST__) && (__CUDA_ARCH_LIST__ >= 900))
 #include "copy_sm90.h"
 #endif
 

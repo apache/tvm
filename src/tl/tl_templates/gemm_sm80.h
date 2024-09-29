@@ -9,7 +9,7 @@ namespace cute {
 template <typename A_type, typename B_type, typename C_type>
 struct DispatchInstruction;
 
-#if (defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 800))
+#if (defined(__CUDA_ARCH_LIST__) && (__CUDA_ARCH_LIST__ >= 800))
 template <>
 struct DispatchInstruction<half_t, half_t, half_t> {
   using MMA = MMA_Atom<SM80_16x8x16_F16F16F16F16_TN>;
@@ -40,7 +40,7 @@ struct DispatchInstruction<double, double, double> {
   using MMA = MMA_Atom<SM80_8x8x4_F64F64F64F64_TN>;
   using MMA_Group = Layout<Shape<_2, _2, _1>>;
 };
-#elif (defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 750))
+#elif (defined(__CUDA_ARCH_LIST__) && (__CUDA_ARCH_LIST__ >= 750))
 template <>
 struct DispatchInstruction<half_t, half_t, float> {
   using MMA = MMA_Atom<SM75_16x8x8_F32F16F16F32_TN>;

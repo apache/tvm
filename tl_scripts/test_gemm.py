@@ -29,8 +29,8 @@ def matmul(
     block_K,
     trans_A,
     trans_B,
-    dtypeAB,
-    dtypeC,
+    in_dtype,
+    out_dtype,
     accum_dtype,
     num_stages,
     threads,
@@ -44,11 +44,11 @@ def matmul(
 
     @T.prim_func
     def main(
-        A: T.Buffer(A_shape, dtypeAB), B: T.Buffer(B_shape, dtypeAB), C: T.Buffer((M, N), dtypeC)
+        A: T.Buffer(A_shape, in_dtype), B: T.Buffer(B_shape, in_dtype), C: T.Buffer((M, N), out_dtype)
     ):
         with T.Kernel(T.ceildiv(N, block_N), T.ceildiv(M, block_M), threads=threads) as (bx, by):
-            A_shared = T.alloc_shared(A_shared_shape, dtypeAB)
-            B_shared = T.alloc_shared(B_shared_shape, dtypeAB)
+            A_shared = T.alloc_shared(A_shared_shape, in_dtype)
+            B_shared = T.alloc_shared(B_shared_shape, in_dtype)
             C_local = T.alloc_fragment((block_M, block_N), accum_dtype)
             T.clear(C_local)
             for k in T.Pipelined(T.ceildiv(K, block_K), num_stages=num_stages):
@@ -72,8 +72,8 @@ def run_gemm(
     K,
     trans_A,
     trans_B,
-    dtypeAB,
-    dtypeC,
+    in_dtype,
+    out_dtype,
     dtypeAccum,
     block_M,
     block_N,
@@ -90,8 +90,8 @@ def run_gemm(
         block_K,
         trans_A,
         trans_B,
-        dtypeAB,
-        dtypeC,
+        in_dtype,
+        out_dtype,
         dtypeAccum,
         num_stages,
         num_threads,
@@ -107,7 +107,7 @@ def run_gemm(
         if trans_B:
             B = B.T
         C = torch.matmul(A.to(torch.float), B.to(torch.float))
-        C = C.to(torch.__getattribute__(dtypeC))
+        C = C.to(torch.__getattribute__(out_dtype))
         return C
 
     mod.assert_allclose(ref_program)
