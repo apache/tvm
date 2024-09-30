@@ -49,7 +49,7 @@ ENV CARGO_HOME /opt/rust
 ENV PATH $PATH:$CARGO_HOME/bin
 ENV PYTHONNOUSERSITE 1  # Disable .local directory from affecting CI.
 
-ENV TVM_VENV /venv/apache-tvm-py3.8
+ENV TVM_VENV /venv/apache-tvm-py3.9
 COPY python/bootstrap/lockfiles /install/python/bootstrap/lockfiles
 COPY install/ubuntu2004_install_python.sh /install/ubuntu2004_install_python.sh
 RUN bash /install/ubuntu2004_install_python.sh
