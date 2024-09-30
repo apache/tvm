@@ -386,19 +386,6 @@ class TorchFXImporter(BaseFXGraphImporter):
         dim = node.args[2] if len(node.args) > 2 else node.kwargs.get("dim", 0)
         return self.block_builder.emit(relax.op.split(x, chunks, dim))
 
-    def _cumsum(self, node: fx.Node) -> relax.Var:
-        x = self.env[node.args[0]]
-
-        dim = node.args[1] if len(node.args) > 1 else node.kwargs.get("dim", None)
-        if "dtype" in node.kwargs:
-            dtype = self._convert_data_type(str(node.kwargs["dtype"]), self.env)
-        else:
-            dtype = None
-        if "out" in node.kwargs:
-            raise ValueError("specifying out for cumsum is not supported yet")
-
-        return self.block_builder.emit(relax.op.cumsum(x, dim, dtype))
-
     def _expand(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
         sizes = args[1:] if len(args) > 2 else args[1]

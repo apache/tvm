@@ -251,6 +251,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             # tensor manipulation
             "cat.default": self._cat,
             "concat.default": self._cat,
+            "cumsum.default": self._cumsum,
             "view.default": self._reshape,
             # other
             "getitem": self._getitem,
