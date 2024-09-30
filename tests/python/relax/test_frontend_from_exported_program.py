@@ -3270,6 +3270,30 @@ def test_fill():
     verify_model(Fill(), example_args, {}, Expected)
 
 
+def test_new_ones():
+    class NewOnes(Module):
+        def forward(self, x):
+            return x.new_ones(1, 2, 3)
+
+    @tvm.script.ir_module
+    class expected1:
+        @R.function
+        def main(
+            x: R.Tensor((1, 2, 3), dtype="float32")
+        ) -> R.Tuple(R.Tensor((1, 2, 3), dtype="float32")):
+            # block 0
+            with R.dataflow():
+                lv: R.Tensor((1, 2, 3), dtype="float32") = R.full(
+                    (1, 2, 3), R.const(1, "float32"), dtype="float32"
+                )
+                gv: R.Tuple(R.Tensor((1, 2, 3), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(1, 2, 3, dtype=torch.float32),)
+    verify_model(NewOnes(), example_args, {}, expected1)
+
+
 def test_keep_params():
     class Conv2D1(Module):
         def __init__(self):

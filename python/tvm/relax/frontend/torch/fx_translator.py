@@ -485,21 +485,6 @@ class TorchFXImporter(BaseFXGraphImporter):
         values = self.block_builder.emit(relax.op.full_like(x, rx_value))
         return self.block_builder.emit(relax.op.where(mask, values, x))
 
-    def _new_ones(self, node: fx.Node) -> relax.Var:
-        args = self.retrieve_args(node)
-        self_var = args[0]
-        size = args[1] if isinstance(args[1], (list, tuple)) else args[1:]
-        if not isinstance(size, (list, tuple)):
-            size = (size,)
-        size = relax.ShapeExpr(size)
-        return self.block_builder.emit(
-            relax.op.full(
-                size,
-                relax.const(1, self_var.struct_info.dtype),
-                self_var.struct_info.dtype,
-            )
-        )
-
     def _ones(self, node: fx.Node) -> relax.Var:
         import torch
 

@@ -285,6 +285,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "arange.start": self._arange,
             "empty.memory_format": self._empty,
             "fill.Scalar": self._fill,
+            "new_ones.default": self._new_ones,
             # other
             "getitem": self._getitem,
         }

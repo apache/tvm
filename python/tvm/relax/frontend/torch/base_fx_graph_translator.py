@@ -858,6 +858,21 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         value = args[1] if isinstance(args[1], relax.Expr) else relax.const(args[1], dtype)
         return self.block_builder.emit(relax.op.full(x.struct_info.shape, value, dtype))
 
+    def _new_ones(self, node: fx.Node) -> relax.Var:
+        args = self.retrieve_args(node)
+        self_var = args[0]
+        size = args[1] if isinstance(args[1], (list, tuple)) else args[1:]
+        if not isinstance(size, (list, tuple)):
+            size = (size,)
+        size = relax.ShapeExpr(size)
+        return self.block_builder.emit(
+            relax.op.full(
+                size,
+                relax.const(1, self_var.struct_info.dtype),
+                self_var.struct_info.dtype,
+            )
+        )
+
     ########## Others ##########
 
     def _getitem(self, node: fx.Node) -> relax.Var:
