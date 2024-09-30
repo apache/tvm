@@ -380,11 +380,6 @@ class TorchFXImporter(BaseFXGraphImporter):
 
     ########## Manipulation ##########
 
-    def _cat(self, node: fx.Node) -> relax.Var:
-        args = self.retrieve_args(node)
-        axis = args[1] if len(node.args) > 1 else node.kwargs.get("dim", 0)
-        return self.block_builder.emit(relax.op.concat(args[0], axis=axis))
-
     def _chunk(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         chunks = node.args[1]

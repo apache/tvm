@@ -249,6 +249,8 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "argmax.default": self._argmax_argmin(relax.op.argmax),
             "argmin.default": self._argmax_argmin(relax.op.argmin),
             # tensor manipulation
+            "cat.default": self._cat,
+            "concat.default": self._cat,
             "view.default": self._reshape,
             # other
             "getitem": self._getitem,
