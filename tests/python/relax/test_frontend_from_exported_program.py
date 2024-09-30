@@ -2833,6 +2833,33 @@ def test_expand():
     verify_model(Expand2(), example_args, {}, expected1)
 
 
+def test_permute():
+    class Permute1(Module):
+        def forward(self, x):
+            return x.permute(0, 3, 2, 1)
+
+    class Permute2(Module):
+        def forward(self, x):
+            return torch.permute(x, (0, 3, 2, 1))
+
+    @tvm.script.ir_module
+    class expected1:
+        @R.function
+        def main(
+            x: R.Tensor((1, 2, 3, 4), dtype="float32")
+        ) -> R.Tuple(R.Tensor((1, 4, 3, 2), dtype="float32")):
+            # block 0
+            with R.dataflow():
+                lv: R.Tensor((1, 4, 3, 2), dtype="float32") = R.permute_dims(x, axes=[0, 3, 2, 1])
+                gv: R.Tuple(R.Tensor((1, 4, 3, 2), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(1, 2, 3, 4, dtype=torch.float32),)
+    verify_model(Permute1(), example_args, {}, expected1)
+    verify_model(Permute2(), example_args, {}, expected1)
+
+
 def test_view():
     class View(Module):
         def forward(self, x):

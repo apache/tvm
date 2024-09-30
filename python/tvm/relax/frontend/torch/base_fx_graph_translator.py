@@ -759,6 +759,14 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
                 broadcast_shape.append(i)
         return self.block_builder.emit(relax.op.broadcast_to(args[0], broadcast_shape))
 
+    def _permute(self, node: fx.Node) -> relax.Var:
+        import torch  # type: ignore
+
+        args = self.retrieve_args(node)
+        x = args[0]
+        dims = args[1] if isinstance(args[1], (torch.Size, tuple, list)) else args[1:]
+        return self.block_builder.emit(relax.op.permute_dims(x, dims))
+
     def _reshape(self, node: fx.Node) -> relax.Var:
         import torch  # type: ignore
 
