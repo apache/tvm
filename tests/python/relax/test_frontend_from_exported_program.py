@@ -2833,6 +2833,32 @@ def test_expand():
     verify_model(Expand2(), example_args, {}, expected1)
 
 
+def test_flatten():
+    class Flatten(Module):
+        def __init__(self):
+            super().__init__()
+            self.f = torch.nn.Flatten(2, -1)
+
+        def forward(self, input):
+            return self.f(input)
+
+    @tvm.script.ir_module
+    class expected1:
+        @R.function
+        def main(
+            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
+        ) -> R.Tuple(R.Tensor((1, 3, 100), dtype="float32")):
+            # block 0
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 100), dtype="float32") = R.reshape(input_1, (1, 3, 100))
+                gv: R.Tuple(R.Tensor((1, 3, 100), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(1, 3, 10, 10, dtype=torch.float32),)
+    verify_model(Flatten(), example_args, {}, expected1)
+
+
 def test_permute():
     class Permute1(Module):
         def forward(self, x):
