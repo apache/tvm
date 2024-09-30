@@ -780,6 +780,14 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         dim = node.args[1] if len(node.args) > 1 else node.kwargs.get("dim", None)
         return self.block_builder.emit(relax.op.squeeze(x, dim))
 
+    def _tile(self, node: fx.Node) -> relax.Var:
+        import torch  # type: ignore
+
+        args = self.retrieve_args(node)
+        x = args[0]
+        dims = args[1] if isinstance(args[1], (torch.Size, tuple, list)) else args[1:]
+        return self.block_builder.emit(relax.op.tile(x, dims))
+
     ########## Others ##########
 
     def _getitem(self, node: fx.Node) -> relax.Var:
