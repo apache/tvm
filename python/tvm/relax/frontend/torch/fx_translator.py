@@ -442,11 +442,6 @@ class TorchFXImporter(BaseFXGraphImporter):
             n_section = (self.shape_of(x)[dim].value + split_size - 1) // split_size
         return self.block_builder.emit(relax.op.split(x, n_section, dim))
 
-    def _squeeze(self, node: fx.Node) -> relax.Var:
-        x = self.env[node.args[0]]
-        dim = node.args[1] if len(node.args) > 1 else node.kwargs.get("dim", None)
-        return self.block_builder.emit(relax.op.squeeze(x, dim))
-
     def _tile(self, node: fx.Node) -> relax.Var:
         import torch  # type: ignore
 

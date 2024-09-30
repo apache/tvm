@@ -2860,6 +2860,45 @@ def test_permute():
     verify_model(Permute2(), example_args, {}, expected1)
 
 
+def test_squeeze():
+    class Squeeze1(Module):
+        def forward(self, input):
+            return input.squeeze(1)
+
+    @tvm.script.ir_module
+    class Expected1:
+        @R.function
+        def main(
+            inp_0: R.Tensor((3, 1, 4, 1), dtype="float32")
+        ) -> R.Tuple(R.Tensor((3, 4, 1), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((3, 4, 1), dtype="float32") = R.squeeze(inp_0, axis=[1])
+                gv: R.Tuple(R.Tensor((3, 4, 1), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    class Squeeze2(Module):
+        def forward(self, input):
+            return input.squeeze()
+
+    @tvm.script.ir_module
+    class Expected2:
+        @R.function
+        def main(
+            inp_0: R.Tensor((3, 1, 4, 1), dtype="float32")
+        ) -> R.Tuple(R.Tensor((3, 4), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((3, 4), dtype="float32") = R.squeeze(inp_0, axis=None)
+                gv: R.Tuple(R.Tensor((3, 4), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(3, 1, 4, 1, dtype=torch.float32),)
+
+    verify_model(Squeeze1(), example_args, {}, Expected1)
+    verify_model(Squeeze2(), example_args, {}, Expected2)
+
+
 def test_view():
     class View(Module):
         def forward(self, x):
