@@ -23,6 +23,9 @@ import pytest
 import subprocess
 import threading
 import sys
+from multiprocessing import Process
+from typing import Any, Callable, List
+
 
 import tvm
 import tvm.testing
@@ -82,8 +85,6 @@ class SocketSessionTester:
         thread.join()
 
     def __del__(self):
-        for node in self.remote_nodes:
-            node.kill()
         if self.sess is not None:
             self.sess.shutdown()
             del self.sess
@@ -98,17 +99,49 @@ def create_socket_session(num_workers):
     return _SOCKET_SESSION_TESTER.sess
 
 
-@pytest.mark.parametrize("num_workers", [2, 4])
-def test_nvshmem_init(num_workers):
+def test_nvshmem_init_finalize(session_kind: di.Session, num_workers: int):
     if tvm.get_global_func("runtime.disco.nvshmem.init_nvshmem_uid", True) is None:
         return
-    sess = create_socket_session(num_workers=num_workers)
+
+    sess = session_kind(num_workers=num_workers)
     f_init_nvshmem_uid = tvm.get_global_func("runtime.disco.nvshmem.init_nvshmem_uid")
     uid = f_init_nvshmem_uid()
     init_dfunc = sess.get_global_func("runtime.disco.nvshmem.init_nvshmem")
     init_dfunc(uid, num_workers)
     sess.sync_worker_0()
+    finalize_dfunc = sess.get_global_func("runtime.disco.nvshmem.finalize_nvshmem")
+    finalize_dfunc()
+    sess.sync_worker_0()
+
+
+def test_nvshmem_empty(session_kind: di.Session, num_workers: int):
+    if tvm.get_global_func("runtime.disco.nvshmem.init_nvshmem_uid", True) is None:
+        return
+
+    device = tvm.cuda()
+    sess = session_kind(num_workers=num_workers)
+    f_init_nvshmem_uid = tvm.get_global_func("runtime.disco.nvshmem.init_nvshmem_uid")
+    uid = f_init_nvshmem_uid()
+    init_dfunc = sess.get_global_func("runtime.disco.nvshmem.init_nvshmem")
+    init_dfunc(uid, num_workers)
+    sess.sync_worker_0()
+    empty_dfunc = sess.get_global_func("runtime.disco.nvshmem.empty")
+    a = empty_dfunc(ShapeTuple((32, 64)), "float32", device)
+    b = empty_dfunc(ShapeTuple((64, 32)), "float32", device)
+    sess.sync_worker_0()
+    finalize_dfunc = sess.get_global_func("runtime.disco.nvshmem.finalize_nvshmem")
+    finalize_dfunc()
+    sess.sync_worker_0()
 
 
 if __name__ == "__main__":
-    tvm.testing.main()
+    # After the first call to `nvshmem_init`, a subsequent call to `nvshmem_init`
+    # or `nvshmem_init_thread` in the same program results in undefined behavior.
+    # So we always create a new process to run the test. Then no repeated nvshmem
+    # init happens in the same process, since the worker0 may share the same process.
+    for session_kind in [create_socket_session, di.ProcessSession]:
+        for num_workers in [2, 4]:
+            for test_func in [test_nvshmem_init_finalize, test_nvshmem_empty]:
+                p = Process(target=test_func, args=[session_kind, num_workers])
+                p.start()
+                p.join()
