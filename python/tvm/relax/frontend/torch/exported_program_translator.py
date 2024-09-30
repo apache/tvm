@@ -284,6 +284,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             # tensor creation
             "arange.start": self._arange,
             "empty.memory_format": self._empty,
+            "fill.Scalar": self._fill,
             # other
             "getitem": self._getitem,
         }
