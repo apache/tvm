@@ -3294,6 +3294,100 @@ def test_new_ones():
     verify_model(NewOnes(), example_args, {}, expected1)
 
 
+def test_to_copy():
+    # float
+    class ToFloat(Module):
+        def forward(self, x):
+            return x.float()
+
+    @tvm.script.ir_module
+    class expected_float:
+        @R.function
+        def main(
+            x: R.Tensor((1, 2, 3, 4), dtype="float32")
+        ) -> R.Tuple(R.Tensor((1, 2, 3, 4), dtype="float32")):
+            # block 0
+            with R.dataflow():
+                lv: R.Tensor((1, 2, 3, 4), dtype="float32") = R.astype(x, dtype="float32")
+                gv: R.Tuple(R.Tensor((1, 2, 3, 4), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    # half
+    class ToHalf(Module):
+        def forward(self, x):
+            return x.half()
+
+    @tvm.script.ir_module
+    class expected_half:
+        @R.function
+        def main(
+            x: R.Tensor((1, 2, 3, 4), dtype="float32")
+        ) -> R.Tuple(R.Tensor((1, 2, 3, 4), dtype="float16")):
+            # block 0
+            with R.dataflow():
+                lv: R.Tensor((1, 2, 3, 4), dtype="float16") = R.astype(x, dtype="float16")
+                gv: R.Tuple(R.Tensor((1, 2, 3, 4), dtype="float16")) = (lv,)
+                R.output(gv)
+            return gv
+
+    # type
+    class Type(Module):
+        def forward(self, x):
+            return x.type(torch.float32)
+
+    @tvm.script.ir_module
+    class expected_type:
+        @R.function
+        def main(
+            x: R.Tensor((1, 2, 3, 4), dtype="float32")
+        ) -> R.Tuple(R.Tensor((1, 2, 3, 4), dtype="float32")):
+            # block 0
+            with R.dataflow():
+                gv: R.Tuple(R.Tensor((1, 2, 3, 4), dtype="float32")) = (x,)
+                R.output(gv)
+            return gv
+
+    class To1(Module):
+        def forward(self, input):
+            return input.to(torch.float16)
+
+    @I.ir_module
+    class expected_to1:
+        @R.function
+        def main(
+            inp_0: R.Tensor((1, 2, 3, 4), dtype="float32")
+        ) -> R.Tuple(R.Tensor((1, 2, 3, 4), dtype="float16")):
+            with R.dataflow():
+                lv: R.Tensor((1, 2, 3, 4), dtype="float16") = R.astype(inp_0, dtype="float16")
+                gv: R.Tuple(R.Tensor((1, 2, 3, 4), dtype="float16")) = (lv,)
+                R.output(gv)
+            return gv
+
+    class To2(Module):
+        def forward(self, input):
+            return input.to("cpu")
+
+    @I.ir_module
+    class expected_to2:
+        @R.function
+        def main(
+            inp_0: R.Tensor((1, 2, 3, 4), dtype="float32")
+        ) -> R.Tuple(R.Tensor((1, 2, 3, 4), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((1, 2, 3, 4), dtype="float32") = R.astype(inp_0, dtype="float32")
+                gv: R.Tuple(R.Tensor((1, 2, 3, 4), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(1, 2, 3, 4, dtype=torch.float32),)
+    verify_model(ToFloat(), example_args, {}, expected_float)
+    verify_model(ToHalf(), example_args, {}, expected_half)
+    verify_model(Type(), example_args, {}, expected_type)
+    verify_model(To1(), example_args, {}, expected_to1)
+    verify_model(To2(), example_args, {}, expected_to2)
+
+
 def test_keep_params():
     class Conv2D1(Module):
         def __init__(self):

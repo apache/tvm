@@ -282,6 +282,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             ),
             "view.default": self._reshape,
             # tensor creation
+            "_to_copy.default": self._to_copy,
             "arange.start": self._arange,
             "empty.memory_format": self._empty,
             "fill.Scalar": self._fill,
