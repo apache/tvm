@@ -1079,9 +1079,7 @@ class Pad(OnnxOpConverter):
         pads = attr.get("pads")
         pads = relax.const(_np.array(pads), inputs[0].struct_info.shape[0].dtype)
         constant_value = attr.get("value")
-        if constant_value is not None:
-            constant_value = constant_value
-        else:
+        if constant_value is None:
             constant_value = 0.0
 
         if isinstance(pads, relax.Constant):
