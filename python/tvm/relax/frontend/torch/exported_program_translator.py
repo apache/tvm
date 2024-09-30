@@ -273,6 +273,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "repeat.default": self._repeat,
             "select.int": self._select,
             "slice.Tensor": self._slice,
+            "split.Tensor": self._split,
             "squeeze.default": self._squeeze,
             "squeeze.dim": self._squeeze,
             "tile.default": self._tile,

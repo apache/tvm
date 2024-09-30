@@ -3034,6 +3034,43 @@ def test_select_slice():
     verify_model(Slice2(), example_args, {}, expected2)
 
 
+def test_split():
+    class Chunk(Module):
+        def forward(self, input):
+            return torch.chunk(input, 3, dim=1)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
+        ) -> R.Tuple(
+            R.Tensor((1, 1, 10, 10), dtype="float32"),
+            R.Tensor((1, 1, 10, 10), dtype="float32"),
+            R.Tensor((1, 1, 10, 10), dtype="float32"),
+        ):
+            # block 0
+            with R.dataflow():
+                lv: R.Tuple(
+                    R.Tensor((1, 1, 10, 10), dtype="float32"),
+                    R.Tensor((1, 1, 10, 10), dtype="float32"),
+                    R.Tensor((1, 1, 10, 10), dtype="float32"),
+                ) = R.split(input_1, indices_or_sections=3, axis=1)
+                lv1: R.Tensor((1, 1, 10, 10), dtype="float32") = lv[0]
+                lv2: R.Tensor((1, 1, 10, 10), dtype="float32") = lv[1]
+                lv3: R.Tensor((1, 1, 10, 10), dtype="float32") = lv[2]
+                gv: R.Tuple(
+                    R.Tensor((1, 1, 10, 10), dtype="float32"),
+                    R.Tensor((1, 1, 10, 10), dtype="float32"),
+                    R.Tensor((1, 1, 10, 10), dtype="float32"),
+                ) = (lv1, lv2, lv3)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(1, 3, 10, 10, dtype=torch.float32),)
+    verify_model(Chunk(), example_args, {}, Expected)
+
+
 def test_squeeze():
     class Squeeze1(Module):
         def forward(self, input):

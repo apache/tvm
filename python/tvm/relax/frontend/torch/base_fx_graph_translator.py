@@ -783,6 +783,19 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         dims = args[1] if isinstance(args[1], (torch.Size, tuple, list)) else args[1:]
         return self.block_builder.emit(relax.op.reshape(x, dims))
 
+    def _split(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        split_size = node.args[1]
+        dim = node.args[2] if len(node.args) > 2 else node.kwargs.get("dim", 0)
+        if isinstance(split_size, (list, tuple)):
+            n_section = []
+            for s in split_size[:-1]:
+                cum_sum = 0 if not n_section else n_section[-1]
+                n_section.append(s + cum_sum)
+        else:
+            n_section = (self.shape_of(x)[dim].value + split_size - 1) // split_size
+        return self.block_builder.emit(relax.op.split(x, n_section, dim))
+
     def _squeeze(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         dim = node.args[1] if len(node.args) > 1 else node.kwargs.get("dim", None)
