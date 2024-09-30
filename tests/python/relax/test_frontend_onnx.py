@@ -1414,7 +1414,9 @@ def test_pad_v2(dynamic):
         #  onnx graph
         if mode in ["edge", "reflect"]:
             outdata = np.pad(indata, pad_width=np_pads, mode=mode)
-            node = helper.make_node("Pad", inputs=["input"], outputs=["output"], mode=mode, pads=pads)
+            node = helper.make_node(
+                "Pad", inputs=["input"], outputs=["output"], mode=mode, pads=pads
+            )
             graph = helper.make_graph(
                 [node],
                 "pad_test",
