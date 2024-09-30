@@ -3224,6 +3224,29 @@ def test_arange():
     verify_model(Arange(), example_args, {}, Expected)
 
 
+def test_empty():
+    class Empty(Module):
+        def forward(self, input):
+            return torch.empty((10, 10), dtype=torch.float32)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            inp_0: R.Tensor((10, 10), dtype="float32")
+        ) -> R.Tuple(R.Tensor((10, 10), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((10, 10), dtype="float32") = R.zeros(
+                    R.shape([10, 10]), dtype="float32"
+                )
+                gv: R.Tuple(R.Tensor((10, 10), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(10, 10, dtype=torch.float32),)
+    verify_model(Empty(), example_args, {}, Expected)
+
+
 def test_keep_params():
     class Conv2D1(Module):
         def __init__(self):

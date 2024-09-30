@@ -847,6 +847,10 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         ]
         return self.block_builder.emit(relax.op.arange(*start_end_step, dtype=dtype))
 
+    def _empty(self, node: fx.Node) -> relax.Var:
+        dtype = self._convert_data_type(str(node.kwargs["dtype"]), self.env)
+        return self.block_builder.emit(relax.op.zeros(node.args[0], dtype))
+
     ########## Others ##########
 
     def _getitem(self, node: fx.Node) -> relax.Var:

@@ -436,10 +436,6 @@ class TorchFXImporter(BaseFXGraphImporter):
 
     ########## Creation ##########
 
-    def _empty(self, node: fx.Node) -> relax.Var:
-        dtype = self._convert_data_type(str(node.kwargs["dtype"]), self.env)
-        return self.block_builder.emit(relax.op.zeros(node.args[0], dtype))
-
     def _inplace_fill(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
         x = args[0]
