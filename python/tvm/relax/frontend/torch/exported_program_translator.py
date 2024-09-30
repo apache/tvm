@@ -257,6 +257,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "squeeze.default": self._squeeze,
             "squeeze.dim": self._squeeze,
             "tile.default": self._tile,
+            "transpose.int": self._transpose,
             "view.default": self._reshape,
             # other
             "getitem": self._getitem,

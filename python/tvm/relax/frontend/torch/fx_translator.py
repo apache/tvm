@@ -442,12 +442,6 @@ class TorchFXImporter(BaseFXGraphImporter):
             n_section = (self.shape_of(x)[dim].value + split_size - 1) // split_size
         return self.block_builder.emit(relax.op.split(x, n_section, dim))
 
-    def _transpose(self, node: fx.Node) -> relax.Var:
-        args = self.retrieve_args(node)
-        full_idx = list(range(len(self.shape_of(args[0]))))
-        full_idx[args[1]], full_idx[args[2]] = full_idx[args[2]], full_idx[args[1]]
-        return self.block_builder.emit(relax.op.permute_dims(args[0], full_idx))
-
     ########## Creation ##########
 
     def _arange(self, node: fx.Node) -> relax.Var:

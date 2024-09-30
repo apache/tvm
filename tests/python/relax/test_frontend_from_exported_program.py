@@ -2944,6 +2944,28 @@ def test_tile():
     verify_model(Tile3(), example_args, {}, expected2)
 
 
+def test_transpose():
+    class Transpose(Module):
+        def forward(self, x):
+            return x.transpose(1, 3)
+
+    @tvm.script.ir_module
+    class expected1:
+        @R.function
+        def main(
+            x: R.Tensor((1, 2, 3, 4), dtype="float32")
+        ) -> R.Tuple(R.Tensor((1, 4, 3, 2), dtype="float32")):
+            # block 0
+            with R.dataflow():
+                lv: R.Tensor((1, 4, 3, 2), dtype="float32") = R.permute_dims(x, axes=[0, 3, 2, 1])
+                gv: R.Tuple(R.Tensor((1, 4, 3, 2), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(1, 2, 3, 4, dtype=torch.float32),)
+    verify_model(Transpose(), example_args, {}, expected1)
+
+
 def test_view():
     class View(Module):
         def forward(self, x):

@@ -788,6 +788,12 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         dims = args[1] if isinstance(args[1], (torch.Size, tuple, list)) else args[1:]
         return self.block_builder.emit(relax.op.tile(x, dims))
 
+    def _transpose(self, node: fx.Node) -> relax.Var:
+        args = self.retrieve_args(node)
+        full_idx = list(range(len(self.shape_of(args[0]))))
+        full_idx[args[1]], full_idx[args[2]] = full_idx[args[2]], full_idx[args[1]]
+        return self.block_builder.emit(relax.op.permute_dims(args[0], full_idx))
+
     ########## Others ##########
 
     def _getitem(self, node: fx.Node) -> relax.Var:
