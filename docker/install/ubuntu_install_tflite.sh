@@ -52,7 +52,7 @@ popd
 # Setup tflite from schema
 mkdir tflite
 find / -name "schema.fbs"
-cp /tensorflow/tensorflow/compiler/mlir/lite/schema/schema.fbs tflite
+cp /tensorflow/tensorflow/lite/stablehlo/schema/schema.fbs tflite
 pushd tflite
   flatc --python schema.fbs
 
