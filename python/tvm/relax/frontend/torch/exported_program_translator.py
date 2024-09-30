@@ -254,6 +254,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "cumsum.default": self._cumsum,
             "expand.default": self._expand,
             "permute.default": self._permute,
+            "repeat.default": self._repeat,
             "squeeze.default": self._squeeze,
             "squeeze.dim": self._squeeze,
             "tile.default": self._tile,

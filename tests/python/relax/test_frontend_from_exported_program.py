@@ -2886,6 +2886,49 @@ def test_permute():
     verify_model(Permute2(), example_args, {}, expected1)
 
 
+def test_repeat():
+    class Tile1(Module):
+        def forward(self, x: torch.Tensor):
+            return x.repeat(2)
+
+    class Tile2(Module):
+        def forward(self, x: torch.Tensor):
+            return x.repeat(4, 2)
+
+    @tvm.script.ir_module
+    class expected1:
+        @R.function
+        def main(x: R.Tensor((3,), dtype="float32")) -> R.Tuple(R.Tensor((6,), dtype="float32")):
+            # block 0
+            with R.dataflow():
+                lv: R.Tensor((6,), dtype="float32") = R.tile(x, 2)
+                gv: R.Tuple(R.Tensor((6,), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    @tvm.script.ir_module
+    class expected2:
+        @R.function
+        def main(
+            x: R.Tensor((1, 3), dtype="float32")
+        ) -> R.Tuple(R.Tensor((4, 6), dtype="float32")):
+            # block 0
+            with R.dataflow():
+                lv: R.Tensor((4, 6), dtype="float32") = R.tile(x, [4, 2])
+                gv: R.Tuple(R.Tensor((4, 6), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(3, dtype=torch.float32),)
+    verify_model(Tile1(), example_args, {}, expected1)
+
+    example_args = (torch.randn(1, 3, dtype=torch.float32),)
+    verify_model(Tile2(), example_args, {}, expected2)
+
+    example_args = (torch.randn(1, 3, dtype=torch.float32),)
+    verify_model(Tile2(), example_args, {}, expected2)
+
+
 def test_squeeze():
     class Squeeze1(Module):
         def forward(self, input):

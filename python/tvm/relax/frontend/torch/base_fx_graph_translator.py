@@ -767,6 +767,14 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         dims = args[1] if isinstance(args[1], (torch.Size, tuple, list)) else args[1:]
         return self.block_builder.emit(relax.op.permute_dims(x, dims))
 
+    def _repeat(self, node: fx.Node) -> relax.Var:
+        import torch  # type: ignore
+
+        args = self.retrieve_args(node)
+        x = args[0]
+        dims = args[1] if isinstance(args[1], (torch.Size, tuple, list)) else args[1:]
+        return self.block_builder.emit(relax.op.tile(x, dims))
+
     def _reshape(self, node: fx.Node) -> relax.Var:
         import torch  # type: ignore
 
