@@ -802,6 +802,51 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         full_idx[args[1]], full_idx[args[2]] = full_idx[args[2]], full_idx[args[1]]
         return self.block_builder.emit(relax.op.permute_dims(args[0], full_idx))
 
+    ########## Creation ##########
+
+    def _arange(self, node: fx.Node) -> relax.Var:
+        import torch  # type: ignore
+
+        start_end_step = [None, None, None]
+        if "start" in node.kwargs:
+            start_end_step[0] = node.kwargs["start"]
+        if "end" in node.kwargs:
+            start_end_step[1] = node.kwargs["end"]
+        if "step" in node.kwargs:
+            start_end_step[2] = node.kwargs["step"]
+
+        if len(node.args) == 1:
+            assert start_end_step[1] is None
+            start_end_step[1] = node.args[0]
+        elif len(node.args) == 2:
+            assert start_end_step[0] is None
+            assert start_end_step[1] is None
+            start_end_step[0] = node.args[0]
+            start_end_step[1] = node.args[1]
+        elif len(node.args) == 3:
+            assert start_end_step[0] is None
+            assert start_end_step[1] is None
+            assert start_end_step[2] is None
+            start_end_step[0] = node.args[0]
+            start_end_step[1] = node.args[1]
+            start_end_step[2] = node.args[2]
+
+        if start_end_step[0] is None:
+            start_end_step[0] = 0
+        if start_end_step[2] is None:
+            start_end_step[2] = 1
+
+        if "dtype" in node.kwargs:
+            dtype = self._convert_data_type(str(node.kwargs["dtype"]), self.env)
+        elif any([isinstance(x, float) for x in start_end_step]):
+            dtype = self._convert_data_type(torch.get_default_dtype())
+        else:
+            dtype = "int64"
+        start_end_step = [
+            self.env[x] if isinstance(x, torch.fx.Node) else x for x in start_end_step
+        ]
+        return self.block_builder.emit(relax.op.arange(*start_end_step, dtype=dtype))
+
     ########## Others ##########
 
     def _getitem(self, node: fx.Node) -> relax.Var:

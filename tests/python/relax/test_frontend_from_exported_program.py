@@ -3203,6 +3203,27 @@ def test_view():
     verify_model(View(), example_args, {}, expected1)
 
 
+def test_arange():
+    class Arange(Module):
+        def forward(self, input):
+            return torch.arange(0, 20, dtype=torch.int32)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            input: R.Tensor((10, 10), dtype="float32")
+        ) -> R.Tuple(R.Tensor((20,), dtype="int32")):
+            with R.dataflow():
+                lv: R.Tensor((20,), dtype="int32") = R.arange(0, 20, 1, dtype="int32")
+                gv: R.Tuple(R.Tensor((20,), dtype="int32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(10, 10, dtype=torch.float32),)
+    verify_model(Arange(), example_args, {}, Expected)
+
+
 def test_keep_params():
     class Conv2D1(Module):
         def __init__(self):
