@@ -162,6 +162,22 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         scale_factor = node.args[3] if len(node.args) > 3 else node.kwargs.get("scale_factor", None)
         return self._upsample_impl(x, size, align_corners, scale_factor, "nearest_neighbor")
 
+    ########## Manipulation ##########
+
+    def _select(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        dim = node.args[1]
+        index = relax.const(node.args[2], "int64")
+        return self.block_builder.emit(relax.op.take(x, index, dim))
+
+    def _slice(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        axes = [node.args[1]]
+        begin = [node.args[2]]
+        end = [node.args[3]]
+        stride = [node.args[4] if len(node.args) > 4 else 1]
+        return self.block_builder.emit(relax.op.strided_slice(x, axes, begin, end, stride))
+
     def create_convert_map(
         self,
     ) -> Dict[str, Callable[[fx.Node], relax.Var]]:
@@ -255,6 +271,8 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "expand.default": self._expand,
             "permute.default": self._permute,
             "repeat.default": self._repeat,
+            "select.int": self._select,
+            "slice.Tensor": self._slice,
             "squeeze.default": self._squeeze,
             "squeeze.dim": self._squeeze,
             "tile.default": self._tile,

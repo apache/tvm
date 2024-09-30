@@ -2951,6 +2951,89 @@ def test_reshape():
     verify_model(Reshape(), example_args, {}, expected1)
 
 
+def test_select_slice():
+    class Slice1(Module):
+        def forward(self, x):
+            return x[0, 1::2, :, :3]
+
+    @tvm.script.ir_module
+    class expected1:
+        @R.function
+        def main(
+            x: R.Tensor((1, 3, 10, 10), dtype="float32")
+        ) -> R.Tuple(R.Tensor((1, 10, 3), dtype="float32")):
+            # block 0
+            with R.dataflow():
+                lv: R.Tensor((3, 10, 10), dtype="float32") = R.take(x, R.const(0, "int64"), axis=0)
+                lv1: R.Tensor((1, 10, 10), dtype="float32") = R.strided_slice(
+                    lv,
+                    (R.prim_value(0),),
+                    (R.prim_value(1),),
+                    (R.prim_value(9223372036854775807),),
+                    (R.prim_value(2),),
+                    assume_inbound=False,
+                )
+                lv2: R.Tensor((1, 10, 10), dtype="float32") = R.strided_slice(
+                    lv1,
+                    (R.prim_value(1),),
+                    (R.prim_value(0),),
+                    (R.prim_value(9223372036854775807),),
+                    (R.prim_value(1),),
+                    assume_inbound=False,
+                )
+                lv3: R.Tensor((1, 10, 3), dtype="float32") = R.strided_slice(
+                    lv2,
+                    (R.prim_value(2),),
+                    (R.prim_value(0),),
+                    (R.prim_value(3),),
+                    (R.prim_value(1),),
+                    assume_inbound=False,
+                )
+                gv: R.Tuple(R.Tensor((1, 10, 3), dtype="float32")) = (lv3,)
+                R.output(gv)
+            return gv
+
+    class Slice2(Module):
+        def forward(self, x):
+            return x[:, None, None, :, None]
+
+    @I.ir_module
+    class expected2:
+        @R.function
+        def main(
+            x: R.Tensor((8, 16), dtype="float32")
+        ) -> R.Tuple(R.Tensor((8, 1, 1, 16, 1), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((8, 16), dtype="float32") = R.strided_slice(
+                    x,
+                    (R.prim_value(0),),
+                    (R.prim_value(0),),
+                    (R.prim_value(9223372036854775807),),
+                    (R.prim_value(1),),
+                    assume_inbound=False,
+                )
+                lv1: R.Tensor((8, 1, 16), dtype="float32") = R.expand_dims(lv, axis=[1])
+                lv2: R.Tensor((8, 1, 1, 16), dtype="float32") = R.expand_dims(lv1, axis=[2])
+                lv3: R.Tensor((8, 1, 1, 16), dtype="float32") = R.strided_slice(
+                    lv2,
+                    (R.prim_value(3),),
+                    (R.prim_value(0),),
+                    (R.prim_value(9223372036854775807),),
+                    (R.prim_value(1),),
+                    assume_inbound=False,
+                )
+                lv4: R.Tensor((8, 1, 1, 16, 1), dtype="float32") = R.expand_dims(lv3, axis=[4])
+                gv: R.Tuple(R.Tensor((8, 1, 1, 16, 1), dtype="float32")) = (lv4,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(1, 3, 10, 10, dtype=torch.float32),)
+    verify_model(Slice1(), example_args, {}, expected1)
+
+    example_args = (torch.randn(8, 16, dtype=torch.float32),)
+    verify_model(Slice2(), example_args, {}, expected2)
+
+
 def test_squeeze():
     class Squeeze1(Module):
         def forward(self, input):
