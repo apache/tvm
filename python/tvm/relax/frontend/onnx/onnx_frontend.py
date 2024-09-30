@@ -40,7 +40,6 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as _np
 import onnx.onnx_ml_pb2
-from onnx import helper
 
 import tvm
 from tvm import TVMError, relax, tir, topi
@@ -56,7 +55,14 @@ def get_type(elem_type: Union[str, int]) -> str:
     if isinstance(elem_type, str):
         return elem_type
 
-    return str(helper.tensor_dtype_to_np_dtype(elem_type))
+    try:
+        from onnx.mapping import (  # pylint: disable=import-outside-toplevel
+            TENSOR_TYPE_TO_NP_TYPE,
+        )
+    except ImportError as exception:
+        raise ImportError("Unable to import onnx which is required {}".format(exception))
+
+    return str(TENSOR_TYPE_TO_NP_TYPE[elem_type])
 
 
 def get_constant(
@@ -259,7 +265,7 @@ class BinaryBase(OnnxOpConverter):
             )
             return relax.PrimValue(cls.numpy_op(x, y))  # pylint: disable=not-callable
 
-        return cls.relax_op(inputs[0], inputs[1])
+        return cls.relax_op(inputs[0], inputs[1])  # pylint: disable=not-callable
 
 
 class Add(BinaryBase):
