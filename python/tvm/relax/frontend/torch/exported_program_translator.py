@@ -258,6 +258,9 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "squeeze.dim": self._squeeze,
             "tile.default": self._tile,
             "transpose.int": self._transpose,
+            "unsqueeze.default": lambda node: self.block_builder.emit(
+                relax.op.expand_dims(self.env[node.args[0]], node.args[1])
+            ),
             "view.default": self._reshape,
             # other
             "getitem": self._getitem,

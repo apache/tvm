@@ -2966,6 +2966,47 @@ def test_transpose():
     verify_model(Transpose(), example_args, {}, expected1)
 
 
+def test_unsqueeze():
+    class Unsqueeze1(Module):
+        def forward(self, input):
+            return input.unsqueeze(1)
+
+    @tvm.script.ir_module
+    class expected1:
+        @R.function
+        def main(
+            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
+        ) -> R.Tuple(R.Tensor((1, 1, 3, 10, 10), dtype="float32")):
+            # block 0
+            with R.dataflow():
+                lv: R.Tensor((1, 1, 3, 10, 10), dtype="float32") = R.expand_dims(input_1, 1)
+                gv: R.Tuple(R.Tensor((1, 1, 3, 10, 10), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    class Unsqueeze2(Module):
+        def forward(self, input):
+            return input.unsqueeze(-1)
+
+    @tvm.script.ir_module
+    class expected2:
+        @R.function
+        def main(
+            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
+        ) -> R.Tuple(R.Tensor((1, 3, 10, 10, 1), dtype="float32")):
+            # block 0
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10, 10, 1), dtype="float32") = R.expand_dims(input_1, -1)
+                gv: R.Tuple(R.Tensor((1, 3, 10, 10, 1), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(1, 3, 10, 10, dtype=torch.float32),)
+
+    verify_model(Unsqueeze1(), example_args, {}, expected1)
+    verify_model(Unsqueeze2(), example_args, {}, expected2)
+
+
 def test_view():
     class View(Module):
         def forward(self, x):
