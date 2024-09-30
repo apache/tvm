@@ -386,17 +386,6 @@ class TorchFXImporter(BaseFXGraphImporter):
         dim = node.args[2] if len(node.args) > 2 else node.kwargs.get("dim", 0)
         return self.block_builder.emit(relax.op.split(x, chunks, dim))
 
-    def _expand(self, node: fx.Node) -> relax.Var:
-        args = self.retrieve_args(node)
-        sizes = args[1:] if len(args) > 2 else args[1]
-        broadcast_shape, in_shape = [], self.shape_of(args[0])
-        for idx, i in enumerate(sizes):
-            if isinstance(i, int) and i == -1:
-                broadcast_shape.append(in_shape[idx])
-            else:
-                broadcast_shape.append(i)
-        return self.block_builder.emit(relax.op.broadcast_to(args[0], broadcast_shape))
-
     def _flatten_impl(self, x, start_dim, end_dim) -> relax.Var:
         shape = self.shape_of(x)
         start_dim = start_dim if start_dim >= 0 else len(shape) + start_dim

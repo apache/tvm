@@ -252,6 +252,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "cat.default": self._cat,
             "concat.default": self._cat,
             "cumsum.default": self._cumsum,
+            "expand.default": self._expand,
             "view.default": self._reshape,
             # other
             "getitem": self._getitem,
