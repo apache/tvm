@@ -84,6 +84,10 @@ RUN bash /install/ubuntu_install_tflite.sh
 COPY install/ubuntu_install_onnx.sh /install/ubuntu_install_onnx.sh
 RUN bash /install/ubuntu_install_onnx.sh
 
+# NNEF
+COPY install/ubuntu_install_nnef.sh /install/ubuntu_install_nnef.sh
+RUN bash /install/ubuntu_install_nnef.sh
+
 # xgboost (for tuning)
 COPY install/ubuntu_install_redis.sh /install/ubuntu_install_redis.sh
 RUN bash /install/ubuntu_install_redis.sh

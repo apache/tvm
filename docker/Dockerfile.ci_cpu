@@ -142,6 +142,10 @@ RUN bash /install/ubuntu_install_libxsmm.sh
 COPY install/ubuntu_install_onnx.sh /install/ubuntu_install_onnx.sh
 RUN bash /install/ubuntu_install_onnx.sh
 
+# NNEF
+COPY install/ubuntu_install_nnef.sh /install/ubuntu_install_nnef.sh
+RUN bash /install/ubuntu_install_nnef.sh
+
 # AArch64 Architecture Envelope Model (AEM)
 COPY install/ubuntu_install_aprofile_aem.sh /install
 RUN bash /install/ubuntu_install_aprofile_aem.sh
