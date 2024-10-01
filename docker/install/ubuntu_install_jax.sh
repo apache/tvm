@@ -20,15 +20,17 @@ set -e
 set -u
 set -o pipefail
 
+JAX_VERSION=0.4.30
+
 # Install jaxlib
 if [ "$1" == "cuda" ]; then
     pip install -U \
-        "jax[cuda12]~=0.4.33" \
-        jaxlib~=0.4.33
+        "jax[cuda12]~=${JAX_VERSION}" \
+        jaxlib~=${JAX_VERSION}
 else
     pip3 install -U \
-        jax~=0.4.33 \
-        jaxlib~=0.4.33
+        jax~=${JAX_VERSION} \
+        jaxlib~=${JAX_VERSION}
 fi
 
 # Install flax
