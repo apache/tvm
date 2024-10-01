@@ -34,4 +34,4 @@ else
 fi
 
 # Install flax
-pip3 install flax~=0.9.0
+pip3 install flax~=0.8.5
