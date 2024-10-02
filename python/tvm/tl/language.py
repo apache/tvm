@@ -120,13 +120,13 @@ def Kernel(*blocks: List[tir.PrimExpr], threads: Union[int, List[int], Tuple] = 
     return _ffi_api.KernelLaunch(blocks, threads, attrs)
 
 
-def use_swizzle(panel_size: int, order: str = "row"):
+def use_swizzle(panel_size: int, order: str = "row", enable: bool = True):
     device_func = (
         "rasterization2DRow" if order == "row" else "rasterization2DColumn"
     )
     return T.attr(
         None, "threadblock_swizzle_pattern", f"tl::{device_func}<{panel_size}>"
-    )
+    ) if enable else None
 
 
 def alloc_shared(shape, dtype, scope="shared.dyn"):
