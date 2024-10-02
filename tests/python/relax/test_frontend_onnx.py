@@ -55,7 +55,7 @@ def generate_random_inputs(
 
         # Extract datatype for the input.
         if i.type.tensor_type.elem_type:
-            dtype = str(helper.tensor_dtype_to_np_dtype(i.type.tensor_type.elem_type))
+            dtype = str(onnx.mapping.TENSOR_TYPE_TO_NP_TYPE[i.type.tensor_type.elem_type])
         else:
             dtype = "float32"
 
