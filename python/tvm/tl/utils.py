@@ -135,6 +135,12 @@ class Profiler(ConvertTorch):
         assert len(lib_outs) == len(ref_outs)
         # torch.set_printoptions(edgeitems=torch.inf)
         for lhs, rhs in zip(lib_outs, ref_outs):
+            # close_mask = torch.isclose(lhs, rhs, rtol=rtol, atol=atol)
+            # total_elements = lhs.numel()
+            # num_not_close = (~close_mask).sum().item()
+            # percentage_not_close = (num_not_close / total_elements) * 100
+            # print(f"{percentage_not_close:.2f}% of the elements are not close.")
+            # print(f"Total elements: {total_elements}, Not close elements: {num_not_close}")
             assert torch.allclose(lhs, rhs, rtol=rtol, atol=atol), (lhs, rhs)
 
     def assert_consistent(self, repeat=10):

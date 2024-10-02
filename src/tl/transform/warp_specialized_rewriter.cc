@@ -160,6 +160,22 @@ static Stmt makeParityWait(PrimExpr barrier_id, PrimExpr parity) {
   return Evaluate(call);
 }
 
+static bool isGemm(Stmt stmt) {
+  bool is_gemm = false;
+  if (stmt.as<EvaluateNode>()) {
+    auto call = Downcast<Evaluate>(stmt)->value.as<CallNode>();
+    if (call && call->op.same_as(Op::Get("tir.call_extern"))) {
+      if (call->args[0].as<StringImmNode>()) {
+        std::string name = Downcast<StringImm>(call->args[0])->value;
+        if (name.find("gemm") != std::string::npos) {
+          is_gemm = true;
+        }
+      }
+    }
+  }
+  return is_gemm;
+}
+
 class ProducerTraitsCollector : public StmtExprVisitor {
  public:
   ProducerTraitsCollector() { Clear(); }
@@ -256,9 +272,107 @@ Block MakeGroupBlock(const Stmt& stmt, const Map<String, ObjectRef>& annotations
   return block;
 }
 
+struct OpInfo {
+  int group_size, order, stage;
+  std::vector<int> group;
+};
+struct PipelineInfo {
+  std::vector<OpInfo> op_infos;
+
+  PipelineInfo() = default;
+  PipelineInfo(
+    Array<Array<Integer>> group_info,
+    Array<Integer> order_info,
+    Array<Integer> stage_info
+  ) {
+    int n = static_cast<int>(group_info.size());
+    ICHECK(n == static_cast<int>(order_info.size()));
+    ICHECK(n == static_cast<int>(stage_info.size()));
+    int cur_id = 0;
+    for (int i = 0; i < n; i++) {
+      OpInfo op_info;
+      op_info.group_size = group_info[i].size();
+      for (int j = 0; j < op_info.group_size; j++) {
+        op_info.group.push_back(group_info[i][j].as<IntImmNode>()->value);
+      }
+      op_info.order = order_info[i].as<IntImmNode>()->value;
+      op_info.stage = stage_info[i].as<IntImmNode>()->value;
+      op_infos.push_back(op_info);
+    }
+  }
+
+  PipelineInfo(const PipelineInfo& other) {
+    for (auto op_info : other.op_infos) {
+      op_infos.push_back(op_info);
+    }
+  }
+
+  std::pair<int, int> FindStmt(int stmt_idx) {
+    for (size_t i = 0; i < op_infos.size(); i++) {
+      for (size_t j = 0; j < op_infos[i].group.size(); j++) {
+        if (op_infos[i].group[j] == stmt_idx) {
+          return std::make_pair(i, j);
+        }
+      }
+    }
+    return std::make_pair(-1, -1);
+  }
+
+  void UpdateOrder(int order) {
+    for (int i = 0; i < static_cast<int>(op_infos.size()); i++) {
+      if (op_infos[i].order >= order && op_infos[i].order > 0) {
+        op_infos[i].order++;
+      }
+    }
+  }
+
+  int SplitOp(int stmt_idx) {
+    auto pair = FindStmt(stmt_idx);
+    int op_idx = pair.first;
+    int inner_idx = pair.second;
+    ICHECK(op_idx != -1);
+    ICHECK(inner_idx != -1);
+    OpInfo half0;
+    OpInfo half1;
+    // The order to do sync
+    int sync_order = op_infos[op_idx].order + 1;
+    UpdateOrder(sync_order);
+
+    half0.group_size = inner_idx + 1;
+    half0.order = op_infos[op_idx].order;
+    half0.stage = op_infos[op_idx].stage;
+    for (int i = 0; i <= inner_idx; i++) {
+      half0.group.push_back(op_infos[op_idx].group[i]);
+    }
+    half1.group_size = op_infos[op_idx].group_size - inner_idx - 1;
+    half1.order = op_infos[op_idx].order + 2;
+    half1.stage = op_infos[op_idx].stage;
+    for (int i = inner_idx + 1; i < op_infos[op_idx].group_size; i++) {
+      half1.group.push_back(op_infos[op_idx].group[i]);
+    }
+    op_infos.erase(op_infos.begin() + op_idx);
+    if (half0.group_size > 0) {
+      op_infos.insert(op_infos.begin() + op_idx, half0);
+    }
+    if (half1.group_size > 0) {
+      UpdateOrder(half1.order);
+      op_infos.insert(op_infos.begin() + op_idx + 1, half1);
+    }
+    return sync_order;
+  }
+
+  void PrintPipelineInfo() {
+    std::cout << "Print op_infos:" << std::endl;
+    for (size_t i = 0; i < op_infos.size(); i++) {
+      std::cout << i << " " << op_infos[i].group_size << " " << op_infos[i].order << " " << op_infos[i].stage << std::endl;
+    }
+    std::cout << "End of print" << std::endl;
+  }
+};
+
 class GroupOpRewriter : public StmtExprMutator {
  public:
-  GroupOpRewriter(Array<Array<Integer>>& group_info) : group_info_(group_info) {}
+  GroupOpRewriter(PipelineInfo pipeline_info) : pipeline_info_(pipeline_info) {}
 
  private:
   Stmt VisitStmt_(const ForNode* op) final {
@@ -269,25 +383,37 @@ class GroupOpRewriter : public StmtExprMutator {
       return GetRef<For>(op);
     }
     Array<Stmt> new_body;
-    for (size_t i = 0; i < group_info_.size(); i++) {
-      if (group_info_[i].size() == 0) continue;
+    int cur_id = 0;
+    for (int i = 0; i < static_cast<int>(pipeline_info_.op_infos.size()); i++) {
+      if (pipeline_info_.op_infos[i].group_size == 0) continue;
       Array<Stmt> block_stmt;
-      for (size_t j = 0; j < group_info_[i].size(); j++) {
-        ICHECK(group_info_[i][j].as<IntImmNode>());
-        int index = static_cast<int>(group_info_[i][j].as<IntImmNode>()->value);
-        ICHECK(original_node->seq[index].as<BlockNode>());
-        auto block = original_node->seq[index].as<BlockNode>();
+      for (int j = 0; j < static_cast<int>(pipeline_info_.op_infos[i].group_size); j++) {
+        // ICHECK(group_info_[i][j].as<IntImmNode>());
+        // int index = static_cast<int>(group_info_[i][j].as<IntImmNode>()->value);
+        ICHECK(original_node->seq[cur_id].as<BlockNode>());
+        auto block = original_node->seq[cur_id].as<BlockNode>();
         // TODO: handle nested seqstmt
         block_stmt.push_back(block->body);
+        cur_id++;
       }
       new_body.push_back(
         MakeGroupBlock(block_stmt.size() == 1 ? block_stmt[0] : SeqStmt(std::move(block_stmt)), annotations));
     }
-    For new_for = For(op->loop_var, op->min, op->extent, op->kind, new_body.size() == 1 ? new_body[0] : SeqStmt(std::move(new_body)), op->thread_binding, op->annotations);
+    Array<Integer> order_anno;
+    Array<Integer> stage_anno;
+    for (auto op_info : pipeline_info_.op_infos) {
+      order_anno.push_back(Integer(op_info.order));
+      stage_anno.push_back(Integer(op_info.stage));
+    }
+    Map<String, ObjectRef> for_annotations = op->annotations;
+    for_annotations.erase("software_pipeline_group");
+    for_annotations.Set("software_pipeline_order", order_anno);
+    for_annotations.Set("software_pipeline_stage", stage_anno);
+    For new_for = For(op->loop_var, op->min, op->extent, op->kind, new_body.size() == 1 ? new_body[0] : SeqStmt(std::move(new_body)), op->thread_binding, for_annotations);
     return new_for;
   }
 
-  Array<Array<Integer>> group_info_;
+  PipelineInfo pipeline_info_;
 };
 class WSCodeEmitter : public StmtMutator {
  public:
@@ -325,6 +451,16 @@ class WSCodeEmitter : public StmtMutator {
     auto seq_transformed = op->seq.Map([&](Stmt stmt) { return VisitStmt(stmt); });
 
     auto map = ExtractSyncPattern(op->seq);
+    // std::cout << "Print ExtractSyncPattern" << std::endl;
+    // for (int i = 0; i < static_cast<int>(op->seq.size()); i++) {
+    //   std::cout << i << " " << map.acquire[i] << " " << map.release[i] << " " << map.release_after[i] << std::endl;
+    // }
+    // std::cout << "Print sync pattern" << std::endl;
+    // for (auto pattern : map.patterns) {
+    //   std::cout << pattern.release_idx << " " << pattern.acquire_idx << std::endl;
+    // }
+    // std::cout << "End of ExtractSyncPattern" << std::endl;
+    // pipeline_info_.PrintPipelineInfo();
     Array<Stmt> new_body;
     Map<String, ObjectRef> annotations;
     annotations.Set(String("stmt_group"), Integer(1));
@@ -378,15 +514,37 @@ class WSCodeEmitter : public StmtMutator {
           block_stmt.push_back(makeParityWait(acquire_barrier_id, parity));
         }
         block_stmt.push_back(seq_transformed[i]);
+        // new_body.push_back(MakeGroupBlock(block_stmt.size() == 1 ? block_stmt[0] : SeqStmt(std::move(block_stmt)), annotations));
         if (map.release_after[i]) {
           PrimExpr release_barrier_id = stage_ + num_barriers_ + num_stages_ * map.release[i];
           block_stmt.push_back(makeArriveBarrier(release_barrier_id));
           for (int j = 0; j < num_stages_; j++) {
             released_barrier_.insert(j + num_barriers_ + num_stages_ * map.release[i]);
           }
+          // Update the pipeline info
+          // Todo: handle sync
         }
         new_body.push_back(MakeGroupBlock(block_stmt.size() == 1 ? block_stmt[0] : SeqStmt(std::move(block_stmt)), annotations));
       }
+      // Filter out the producer stmts
+      int cur_id = 0;
+      PipelineInfo new_pipeline_info;
+      for (int i = 0; i < static_cast<int>(pipeline_info_.op_infos.size()); i++) {
+        auto op_info = pipeline_info_.op_infos[i];
+        bool is_producer = false;
+        for (int j = 0; j < op_info.group_size; j++) {
+          if (marker_.GetRole(op->seq[cur_id]) == Role::kProducer) {
+            is_producer = true;
+          }
+          cur_id++;
+        }
+        if (is_producer) {
+          ICHECK(op_info.group_size == 1);
+        } else {
+          new_pipeline_info.op_infos.push_back(op_info);
+        }
+      }
+      pipeline_info_ = new_pipeline_info;
     }
 
     num_barriers_ += map.patterns.size() * num_stages_;
@@ -404,39 +562,65 @@ class WSCodeEmitter : public StmtMutator {
       ICHECK(num_stages_ == 1) << "Nested pipeline not supported.";
     }
 
+    Array<Array<Integer>> group_info_array;
+    Array<Integer> order_info_array;
+    Array<Integer> stage_info_array;
+   
+    auto group_anno = op->annotations.Get("software_pipeline_group");
+    if (group_anno.defined()) {
+      group_info_array = Downcast<Array<Array<Integer>>>(group_anno);
+    }
+    auto order_anno = op->annotations.Get("software_pipeline_order");
+    if (order_anno.defined()) {
+      order_info_array = Downcast<Array<Integer>>(order_anno);
+    }
+    auto stage_anno = op->annotations.Get("software_pipeline_stage");
+    if (stage_anno.defined()) {
+      stage_info_array = Downcast<Array<Integer>>(stage_anno);
+    }
+
+    PipelineInfo pipeline_info(group_info_array, order_info_array, stage_info_array);
+    if (pipeline_info.op_infos.size() > 0) {
+      ICHECK(pipeline_info_.op_infos.size() == 0) << "Nested pipeline not supported.";
+    }
+
     PrimExpr parity_before = std::move(parity_);
     PrimExpr stage_before = std::move(stage_);
     int num_stages_before = num_stages_;
+    PipelineInfo pipeline_info_before = pipeline_info_;
 
     num_stages_ = num_stages;
+    pipeline_info_ = pipeline_info;
     stage_ = FloorMod(op->loop_var - op->min, num_stages);
     parity_ =
         FloorMod(parity_before * op->extent + FloorDiv(op->loop_var - op->min, num_stages), 2);
 
     auto result = FilterByRole(op);
 
+    Stmt grouped_for_node;
+    if (result.as<ForNode>() && group_anno.defined() && group_info_array.size() > 0 && !is_emitting_producer_) {
+      GroupOpRewriter group_op_rewriter(pipeline_info_);
+      auto for_node = Downcast<For>(result);
+      grouped_for_node = group_op_rewriter(for_node);
+    }
+
     parity_ = std::move(parity_before);
     stage_ = std::move(stage_before);
     num_stages_ = num_stages_before;
+    pipeline_info_ = pipeline_info_before;
 
     // remove pipeline annotation
     auto for_node = result.as<For>();
     if (result.as<ForNode>()) {
       auto for_node = Downcast<For>(result);
       for_node.CopyOnWrite()->annotations.erase("num_stages");
-      if (is_emitting_producer_) {
+      if (is_emitting_producer_ || group_info_array.size() == 0) {
         for_node.CopyOnWrite()->annotations.erase("software_pipeline_order");
         for_node.CopyOnWrite()->annotations.erase("software_pipeline_stage");
       }
-      auto group_info_anno = op->annotations.Get("software_pipeline_group");
-      if (is_emitting_producer_ || !group_info_anno.defined()) {
+      if (is_emitting_producer_ || !group_anno.defined() ||group_info_array.size() == 0) {
         return for_node;
       }
-      auto group_info =
-        Downcast<Array<Array<Integer>>>(op->annotations.at("software_pipeline_group"));
-      GroupOpRewriter group_op_rewriter(group_info);
-      for_node.CopyOnWrite()->annotations.erase("software_pipeline_group");
-      Stmt grouped_for_node = group_op_rewriter(for_node);
       return grouped_for_node;
     }
     return result;
@@ -622,6 +806,7 @@ class WSCodeEmitter : public StmtMutator {
   PrimExpr stage_ = 0;
   int num_stages_ = 1;
   Var thread_var_;
+  PipelineInfo pipeline_info_;
   friend class WarpSpecializedRewriter;
 };
 

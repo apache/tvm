@@ -21,6 +21,7 @@ import os.path as osp
 import tvm
 from tvm import tir, tl, relay
 from tvm.contrib import nvcc
+from tvm.tl.code_replace import replace_code
 
 
 def is_device_call(func: tir.PrimFunc):
@@ -55,10 +56,12 @@ def tvm_callback_cuda_compile(code, target):
         arch,
         options=[
             "-std=c++17",
+            "--ptxas-options=--verbose,--register-usage-level=10,--warn-on-local-memory-usage",  # printing out number of registers
             "--use_fast_math",
             "-I" + tl_template_path,
             "-I" + cutlass_path,
         ],
+        get_output=True,
     )
     # with open("save.ptx", "wb") as f:
     #     f.write(ptx)
@@ -70,11 +73,6 @@ def extrac_params(func: tir.PrimFunc):
     tensor_types = [relay.TensorType(buffer.shape, buffer.dtype) for buffer in buffers]
     return tensor_types
 
-@tvm.register_func(func_name="tvm_callback_cuda_postproc", override=True)
-def tvm_callback_cuda_postproc(code, _):
-    code = code.replace("""original code""", 
-"""modified code""")
-    return code
 
 def lower(func):
     params = extrac_params(func)
