@@ -14,6 +14,7 @@ extern "C" __global__ void add_kernel(float* x, float* y, float* output, int n_e
 }
 """
 
+
 @tvm.testing.requires_cuda
 def test_tir_call_source_kernel():
     @I.ir_module
