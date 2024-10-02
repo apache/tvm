@@ -715,6 +715,7 @@ def test_selu():
     verify_unary("Selu", [3, 32, 32], attrs={"alpha": 0.25, "gamma": 0.3})
 
 
+@pytest.mark.skip(reason="opset 18 is not supported in CI")
 def test_mish():
     verify_unary("Mish", [3, 32, 32], opset=18)
 
