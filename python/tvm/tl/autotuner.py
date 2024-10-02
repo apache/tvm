@@ -107,6 +107,7 @@ def jit(
     out_idx: List[int], 
     supply_type: tl.TensorSupplyType = tl.TensorSupplyType.Normal, 
     ref_prog: Callable = None,
+    check_close: bool = True,
     rtol: float = 1e-5,
     atol: float = 1e-5,
     profiler: str = "torch"
@@ -119,10 +120,11 @@ def jit(
             nonlocal ref_latency_cache
             mod, params = tl.lower(fn(*args, **kwargs))
             mod = tl.Profiler(mod, params, out_idx, supply_type)
-            mod.assert_allclose(ref_prog, rtol=rtol, atol=atol)
+            if check_close:
+                mod.assert_allclose(ref_prog, rtol=rtol, atol=atol)
             latency = mod.do_bench(mod.func, n_warmup=10, n_repeat=10, profiler=profiler)
             if ref_latency_cache is None and ref_prog is not None:
-                ref_latency_cache = mod.do_bench(ref_prog, n_warmup=10, n_repeat=10, profiler=profiler)
+                ref_latency_cache = mod.do_bench(ref_prog, n_warmup=10, n_repeat=10, profiler="torch")
             return latency, ref_latency_cache
         return decorator
     return wrapper

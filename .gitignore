@@ -282,3 +282,8 @@ cmake/config.cmake
 */reports/*
 play.py
 *.ptx
+*.ncu-rep
+tl_verify/*
+*/modified_code.cu
+modified_code.cu
+code_replace.py

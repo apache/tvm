@@ -91,6 +91,14 @@ def ref_program(Q, K, V, mask):
     o = torch.einsum('bhqk,bkhd->bqhd', qkm/r, V)
     return o.to(dtype=torch.float16)
 
+def retnet_triton(Q, K, V, mask):
+    import sys
+    sys.path.append("/home/msra/cy/tvm.tl/3rdparty/flash-linear-attention")
+    from fla.ops.retention.parallel import parallel_retention
+    # Todo: mask
+    out = parallel_retention(Q, K, V)
+    return out
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
