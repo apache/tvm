@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -16,17 +16,10 @@
 # specific language governing permissions and limitations
 # under the License.
 
-set -euxo pipefail
+set -e
+set -u
+set -o pipefail
 
-source tests/scripts/setup-pytest-env.sh
-
-# Rebuild cython
-make cython3
-
-# cleanup pycache
-find . -type f -path "*.pyc" | xargs rm -f
-
-run_pytest cython python-topi-nightly tests/python/topi/nightly
-
-echo "Running relay NNEF frontend execution test..."
-run_pytest cython python-frontend-nnef tests/python/frontend/nnef
+pip3 install \
+  nnef_tools==1.0.7 \
+  nnef==1.0.7

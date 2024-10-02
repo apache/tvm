@@ -118,6 +118,9 @@ RUN bash /install/ubuntu_install_paddle.sh
 COPY install/ubuntu_install_oneflow.sh /install/ubuntu_install_oneflow.sh
 RUN bash /install/ubuntu_install_oneflow.sh
 
+COPY install/ubuntu_install_nnef.sh /install/ubuntu_install_nnef.sh
+RUN bash /install/ubuntu_install_nnef.sh
+
 # Rust env (build early; takes a while)
 COPY install/ubuntu_install_rust.sh /install/ubuntu_install_rust.sh
 RUN bash /install/ubuntu_install_rust.sh
