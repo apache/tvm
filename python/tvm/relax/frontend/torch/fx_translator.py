@@ -380,40 +380,11 @@ class TorchFXImporter(BaseFXGraphImporter):
 
     ########## Manipulation ##########
 
-    def _cat(self, node: fx.Node) -> relax.Var:
-        args = self.retrieve_args(node)
-        axis = args[1] if len(node.args) > 1 else node.kwargs.get("dim", 0)
-        return self.block_builder.emit(relax.op.concat(args[0], axis=axis))
-
     def _chunk(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         chunks = node.args[1]
         dim = node.args[2] if len(node.args) > 2 else node.kwargs.get("dim", 0)
         return self.block_builder.emit(relax.op.split(x, chunks, dim))
-
-    def _cumsum(self, node: fx.Node) -> relax.Var:
-        x = self.env[node.args[0]]
-
-        dim = node.args[1] if len(node.args) > 1 else node.kwargs.get("dim", None)
-        if "dtype" in node.kwargs:
-            dtype = self._convert_data_type(str(node.kwargs["dtype"]), self.env)
-        else:
-            dtype = None
-        if "out" in node.kwargs:
-            raise ValueError("specifying out for cumsum is not supported yet")
-
-        return self.block_builder.emit(relax.op.cumsum(x, dim, dtype))
-
-    def _expand(self, node: fx.Node) -> relax.Var:
-        args = self.retrieve_args(node)
-        sizes = args[1:] if len(args) > 2 else args[1]
-        broadcast_shape, in_shape = [], self.shape_of(args[0])
-        for idx, i in enumerate(sizes):
-            if isinstance(i, int) and i == -1:
-                broadcast_shape.append(in_shape[idx])
-            else:
-                broadcast_shape.append(i)
-        return self.block_builder.emit(relax.op.broadcast_to(args[0], broadcast_shape))
 
     def _flatten_impl(self, x, start_dim, end_dim) -> relax.Var:
         shape = self.shape_of(x)
@@ -440,22 +411,6 @@ class TorchFXImporter(BaseFXGraphImporter):
         end_dim = module.end_dim
         return self._flatten_impl(x, start_dim, end_dim)
 
-    def _permute(self, node: fx.Node) -> relax.Var:
-        import torch  # type: ignore
-
-        args = self.retrieve_args(node)
-        x = args[0]
-        dims = args[1] if isinstance(args[1], (torch.Size, tuple, list)) else args[1:]
-        return self.block_builder.emit(relax.op.permute_dims(x, dims))
-
-    def _repeat(self, node: fx.Node) -> relax.Var:
-        import torch  # type: ignore
-
-        args = self.retrieve_args(node)
-        x = args[0]
-        dims = args[1] if isinstance(args[1], (torch.Size, tuple, list)) else args[1:]
-        return self.block_builder.emit(relax.op.tile(x, dims))
-
     def _size(self, node: fx.Node) -> relax.Expr:
         x = self.env[node.args[0]]
         shape = self.shape_of(x)
@@ -466,86 +421,7 @@ class TorchFXImporter(BaseFXGraphImporter):
         idx = node.args[1]
         return self.shape_of(x)[idx].value
 
-    def _split(self, node: fx.Node) -> relax.Var:
-        x = self.env[node.args[0]]
-        split_size = node.args[1]
-        dim = node.args[2] if len(node.args) > 2 else node.kwargs.get("dim", 0)
-        if isinstance(split_size, (list, tuple)):
-            n_section = []
-            for s in split_size[:-1]:
-                cum_sum = 0 if not n_section else n_section[-1]
-                n_section.append(s + cum_sum)
-        else:
-            n_section = (self.shape_of(x)[dim].value + split_size - 1) // split_size
-        return self.block_builder.emit(relax.op.split(x, n_section, dim))
-
-    def _squeeze(self, node: fx.Node) -> relax.Var:
-        x = self.env[node.args[0]]
-        dim = node.args[1] if len(node.args) > 1 else node.kwargs.get("dim", None)
-        return self.block_builder.emit(relax.op.squeeze(x, dim))
-
-    def _tile(self, node: fx.Node) -> relax.Var:
-        import torch  # type: ignore
-
-        args = self.retrieve_args(node)
-        x = args[0]
-        dims = args[1] if isinstance(args[1], (torch.Size, tuple, list)) else args[1:]
-        return self.block_builder.emit(relax.op.tile(x, dims))
-
-    def _transpose(self, node: fx.Node) -> relax.Var:
-        args = self.retrieve_args(node)
-        full_idx = list(range(len(self.shape_of(args[0]))))
-        full_idx[args[1]], full_idx[args[2]] = full_idx[args[2]], full_idx[args[1]]
-        return self.block_builder.emit(relax.op.permute_dims(args[0], full_idx))
-
     ########## Creation ##########
-
-    def _arange(self, node: fx.Node) -> relax.Var:
-        import torch  # type: ignore
-
-        start_end_step = [None, None, None]
-        if "start" in node.kwargs:
-            start_end_step[0] = node.kwargs["start"]
-        if "end" in node.kwargs:
-            start_end_step[1] = node.kwargs["end"]
-        if "step" in node.kwargs:
-            start_end_step[2] = node.kwargs["step"]
-
-        if len(node.args) == 1:
-            assert start_end_step[1] is None
-            start_end_step[1] = node.args[0]
-        elif len(node.args) == 2:
-            assert start_end_step[0] is None
-            assert start_end_step[1] is None
-            start_end_step[0] = node.args[0]
-            start_end_step[1] = node.args[1]
-        elif len(node.args) == 3:
-            assert start_end_step[0] is None
-            assert start_end_step[1] is None
-            assert start_end_step[2] is None
-            start_end_step[0] = node.args[0]
-            start_end_step[1] = node.args[1]
-            start_end_step[2] = node.args[2]
-
-        if start_end_step[0] is None:
-            start_end_step[0] = 0
-        if start_end_step[2] is None:
-            start_end_step[2] = 1
-
-        if "dtype" in node.kwargs:
-            dtype = self._convert_data_type(str(node.kwargs["dtype"]), self.env)
-        elif any([isinstance(x, float) for x in start_end_step]):
-            dtype = self._convert_data_type(torch.get_default_dtype())
-        else:
-            dtype = "int64"
-        start_end_step = [
-            self.env[x] if isinstance(x, torch.fx.Node) else x for x in start_end_step
-        ]
-        return self.block_builder.emit(relax.op.arange(*start_end_step, dtype=dtype))
-
-    def _empty(self, node: fx.Node) -> relax.Var:
-        dtype = self._convert_data_type(str(node.kwargs["dtype"]), self.env)
-        return self.block_builder.emit(relax.op.zeros(node.args[0], dtype))
 
     def _inplace_fill(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
@@ -595,21 +471,6 @@ class TorchFXImporter(BaseFXGraphImporter):
         rx_value = relax.const(node.args[2])
         values = self.block_builder.emit(relax.op.full_like(x, rx_value))
         return self.block_builder.emit(relax.op.where(mask, values, x))
-
-    def _new_ones(self, node: fx.Node) -> relax.Var:
-        args = self.retrieve_args(node)
-        self_var = args[0]
-        size = args[1] if isinstance(args[1], (list, tuple)) else args[1:]
-        if not isinstance(size, (list, tuple)):
-            size = (size,)
-        size = relax.ShapeExpr(size)
-        return self.block_builder.emit(
-            relax.op.full(
-                size,
-                relax.const(1, self_var.struct_info.dtype),
-                self_var.struct_info.dtype,
-            )
-        )
 
     def _ones(self, node: fx.Node) -> relax.Var:
         import torch
