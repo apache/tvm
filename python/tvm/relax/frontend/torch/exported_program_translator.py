@@ -162,6 +162,22 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         scale_factor = node.args[3] if len(node.args) > 3 else node.kwargs.get("scale_factor", None)
         return self._upsample_impl(x, size, align_corners, scale_factor, "nearest_neighbor")
 
+    ########## Manipulation ##########
+
+    def _select(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        dim = node.args[1]
+        index = relax.const(node.args[2], "int64")
+        return self.block_builder.emit(relax.op.take(x, index, dim))
+
+    def _slice(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        axes = [node.args[1]]
+        begin = [node.args[2]]
+        end = [node.args[3]]
+        stride = [node.args[4] if len(node.args) > 4 else 1]
+        return self.block_builder.emit(relax.op.strided_slice(x, axes, begin, end, stride))
+
     def create_convert_map(
         self,
     ) -> Dict[str, Callable[[fx.Node], relax.Var]]:
@@ -249,7 +265,30 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "argmax.default": self._argmax_argmin(relax.op.argmax),
             "argmin.default": self._argmax_argmin(relax.op.argmin),
             # tensor manipulation
+            "cat.default": self._cat,
+            "concat.default": self._cat,
+            "cumsum.default": self._cumsum,
+            "expand.default": self._expand,
+            "permute.default": self._permute,
+            "repeat.default": self._repeat,
+            "select.int": self._select,
+            "slice.Tensor": self._slice,
+            "split.Tensor": self._split,
+            "squeeze.default": self._squeeze,
+            "squeeze.dim": self._squeeze,
+            "tile.default": self._tile,
+            "transpose.int": self._transpose,
+            "unsqueeze.default": lambda node: self.block_builder.emit(
+                relax.op.expand_dims(self.env[node.args[0]], node.args[1])
+            ),
             "view.default": self._reshape,
+            # tensor creation
+            "_to_copy.default": self._to_copy,
+            "arange.start": self._arange,
+            "clone.default": lambda node: self.env[node.args[0]],
+            "empty.memory_format": self._empty,
+            "fill.Scalar": self._fill,
+            "new_ones.default": self._new_ones,
             # other
             "getitem": self._getitem,
         }

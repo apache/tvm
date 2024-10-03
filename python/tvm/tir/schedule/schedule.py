@@ -16,7 +16,7 @@
 # under the License.
 """The TensorIR schedule class"""
 import inspect
-from typing import Callable, Dict, List, Optional, Tuple, Union
+from typing import Callable, Dict, List, Literal, Optional, Tuple, Union
 
 from tvm._ffi import register_object as _register_object
 from tvm.error import TVMError, register_error
@@ -65,8 +65,11 @@ ExprRV = Union[PrimExpr]  # A random variable that evaluates to an integer
 
 RAND_VAR_TYPE = Union[ExprRV, BlockRV, LoopRV]  # pylint: disable=invalid-name
 
-# Update to `Literal["detail", "fast", "none"]` once upgraded to python3.8
-_ERROR_RENDER_LEVEL: Dict[str, int] = {"detail": 0, "fast": 1, "none": 2}
+_ERROR_RENDER_LEVEL: Dict[Literal["detail", "fast", "none"], int] = {
+    "detail": 0,
+    "fast": 1,
+    "none": 2,
+}
 
 
 def _parse_error_render_level(error_render_level: str) -> int:

@@ -21,17 +21,17 @@ set -u
 set -o pipefail
 
 # Verilator version
-version="5.002"
+VERILATOR_VERSION="5.002"
 
 # Install dependencies
 apt-get update && apt-install-and-clear -y autoconf g++ flex bison
 
 # Install Verilator
-wget "https://github.com/verilator/verilator/archive/v$version.tar.gz"
-tar xf "v$version.tar.gz"
-rm "v$version.tar.gz"
-cd "verilator-$version"
-autoconf
-./configure
-make -j4
-make install
+git clone --depth 1 --branch v${VERILATOR_VERSION} https://github.com/verilator/verilator
+pushd verilator
+  autoconf
+  ./configure
+  make -j$(nproc)
+  make install
+popd
+rm -rf verilator
