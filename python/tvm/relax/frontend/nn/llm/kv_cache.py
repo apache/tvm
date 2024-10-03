@@ -928,6 +928,8 @@ def _attention_decode(
     if target.kind.name == "opencl" and (
         ("android" in str(target.host)) or ("adreno" in str(target.attrs))
     ):
+        # Keeping lower thread limit for this kernel on adreno target
+        # to avoid register spill
         THREAD_LIMIT = 256
         TILE_SIZE_PER_BDX = 1
     max_num_threads_per_block = get_max_num_threads_per_block(target)
