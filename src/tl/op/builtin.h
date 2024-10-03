@@ -146,6 +146,22 @@ const Op& SyncThreadsPartialOp();
  */
 const Op& FenceProxyAsyncOp();
 
+/*!
+ * \brief Set reg hint for warp-specialized branched
+ *
+ * SetMaxNRegInc(num_reg, is_inc)
+ *
+ */
+const Op& SetMaxNReg();
+
+/*!
+ * \brief Wait the previous wgmma to finish
+ *
+ * WaitWgmma(num_mma)
+ *
+ */
+const Op& WaitWgmma();
+
 }  // namespace tl
 }  // namespace tvm
 

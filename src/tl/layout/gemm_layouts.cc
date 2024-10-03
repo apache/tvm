@@ -83,12 +83,12 @@ Fragment makeGemmFragmentC(const int block_m, const int block_n, const int warp_
 Fragment makeGemmFragmentCHopper(const int block_m, const int block_n, const int warp_m,
                                  const int warp_n, const int element_size) {
   ICHECK(block_m % warp_m == 0);
-  ICHECK(block_n == warp_n);
+  // ICHECK(block_n == warp_n);
   ICHECK(warp_m % 16 == 0);
   auto warp_layout =
-      makeGemmFragment8x8()->Repeat({2, block_n / 8}, false, false);     // 16 x N (1 warp)
-  auto block_layout = warp_layout->Repeat({block_m / warp_m, 1}, true);  // 16*Y x N (Y warp)
-  return block_layout->Repeat({warp_m / 16, 1}, false);
+      makeGemmFragment8x8()->Repeat({2, warp_n / 8}, false, false);     // 16 x N (1 warp)
+  auto block_layout = warp_layout->Repeat({block_m / warp_m, block_n / warp_n}, true, false);  // 16*Y x N (Y warp)
+  return block_layout->Repeat({warp_m / 16, 1}, false, false);
 }
 
 Fragment makeGemmFragmentA(const int block_m, const int block_n, const int block_k,

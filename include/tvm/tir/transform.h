@@ -316,6 +316,14 @@ TVM_DLL Pass LowerDeviceKernelLaunch();
 TVM_DLL Pass SkipAssert();
 
 /*!
+ * \brief Insert partial sync
+ *
+ * \param storage_scope The storage scope considered.
+ * \return The pass.
+ */
+TVM_DLL Pass ThreadPartialSync(String storage_scope);
+
+/*!
  * \brief Insert sync between parallel read/write of shared buffers.
  *
  * \param storage_scope The storage scope considered.

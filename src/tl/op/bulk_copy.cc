@@ -228,11 +228,11 @@ Stmt Copy::LowerBulkCopy(const LowerArgs& T, arith::Analyzer* analyzer) const {
   }
   tma_copy = IfThenElse(EQ(T.thread_var, 0), tma_copy);
 
-  if (!is_load) {
-    // TODO: Add this async proxy fence with a seperate pass
-    auto fence_stmt = Evaluate(Call(DataType::Handle(), FenceProxyAsyncOp(), {}));
-    tma_copy = SeqStmt({fence_stmt, tma_copy});
-  }
+  // if (!is_load) {
+  //   // TODO: Add this async proxy fence with a seperate pass
+  //   auto fence_stmt = Evaluate(Call(DataType::Handle(), FenceProxyAsyncOp(), {}));
+  //   tma_copy = SeqStmt({fence_stmt, tma_copy});
+  // }
 
   return tma_copy;
 }

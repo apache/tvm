@@ -38,9 +38,9 @@
 namespace tvm {
 namespace tir {
 
-class ThreadSyncPlanner : public StorageAccessVisitor {
+class ThreadPartialSyncPlanner : public StorageAccessVisitor {
  public:
-  explicit ThreadSyncPlanner(StorageScope sync_scope) : sync_scope_(sync_scope) {}
+  explicit ThreadPartialSyncPlanner(StorageScope sync_scope) : sync_scope_(sync_scope) {}
 
   // The syncs inserted before each statement
   std::unordered_set<const Object*> syncs_inserted_;
@@ -304,9 +304,9 @@ class ThreadSyncPlanner : public StorageAccessVisitor {
   StorageScope sync_scope_;
 };
 
-// There are cases where necessary syncthreads is not inserted by ThreadSyncInserter.
+// There are cases where necessary syncthreads is not inserted by ThreadPartialSyncInserter.
 // For example, syncthreads is needed after async_wait_queue in the second loop below,
-// but since ThreadSyncInserter is not aware of the asynchronous semantics, it cannot tell
+// but since ThreadPartialSyncInserter is not aware of the asynchronous semantics, it cannot tell
 // that the syncthreads is needed there.
 //
 // // Pipeline prologue
@@ -321,34 +321,10 @@ class ThreadSyncPlanner : public StorageAccessVisitor {
 //    async_wait_queue(0, 2 - i):
 //       local[...] = shared[(i + 125) % 4]
 
-// This class adds syncthreads after all async_wait_queue. That includes syncthreads that
-// can be inserted by ThreadSyncInserter as well, but ThreadSyncInserter will not insert
-// duplicate syncthreads if it finds an existing one at the synchronization point.
-class ThreadSyncAfterWaitQueueInserter : public StmtExprMutator {
+
+class ThreadPartialSyncInserter : public StmtExprMutator {
  public:
-  explicit ThreadSyncAfterWaitQueueInserter(StorageScope sync_scope) : sync_scope_(sync_scope) {}
-
-  Stmt VisitStmt_(const AttrStmtNode* op) final {
-    if (op->attr_key == attr::async_wait_queue_scope) {
-      auto sync = Evaluate(Call(DataType::Int(32), builtin::tvm_storage_sync(),
-                                {StringImm(sync_scope_.to_string())}));
-      auto inner = op->body.as<AttrStmtNode>();
-      ICHECK(inner && inner->attr_key == tir::attr::async_wait_inflight_count);
-      auto zero = make_zero(DataType::Int(32));
-      auto new_body = SeqStmt({sync, inner->body});
-      return AttrStmt(zero, tir::attr::async_wait_queue_scope, op->value,
-                      AttrStmt(zero, tir::attr::async_wait_inflight_count, inner->value, new_body));
-    }
-    return StmtExprMutator::VisitStmt_(op);
-  }
-
- private:
-  StorageScope sync_scope_;
-};
-
-class ThreadSyncInserter : public StmtExprMutator {
- public:
-  ThreadSyncInserter(StorageScope sync_scope, const std::unordered_set<const Object*>& syncs,
+  ThreadPartialSyncInserter(StorageScope sync_scope, const std::unordered_set<const Object*>& syncs,
                      std::unordered_map<const Object*, int> partial_syncs)
       : sync_scope_(sync_scope), syncs_(syncs), partial_syncs_(partial_syncs) {}
 
@@ -356,16 +332,12 @@ class ThreadSyncInserter : public StmtExprMutator {
     if (syncs_.size() == 0) return stmt;
     if (syncs_.count(stmt.get())) {
       Stmt barrier;
-      if (sync_scope_.rank == StorageRank::kGlobal) {
-        barrier = MakeGlobalBarrier();
-      } else if (partial_syncs_.count(stmt.get())) {
-        // auto iter = partial_syncs_.find(stmt.get());
-        // ICHECK(sync_scope_.rank == StorageRank::kShared);
-        // barrier = Evaluate(Call(DataType::Int(32), tl::SyncThreadsPartialOp(), {iter->second}));
-        return StmtExprMutator::VisitStmt(stmt);
+      if (partial_syncs_.count(stmt.get())) {
+        auto iter = partial_syncs_.find(stmt.get());
+        ICHECK(sync_scope_.rank == StorageRank::kShared);
+        barrier = Evaluate(Call(DataType::Int(32), tl::SyncThreadsPartialOp(), {iter->second}));
       } else {
-        barrier = Evaluate(Call(DataType::Int(32), builtin::tvm_storage_sync(),
-                                {StringImm(sync_scope_.to_string())}));
+        return StmtExprMutator::VisitStmt(stmt);
       }
       // Mutate after query, to avoid stmt change.
       auto ret = StmtExprMutator::VisitStmt(stmt);
@@ -375,166 +347,34 @@ class ThreadSyncInserter : public StmtExprMutator {
       return StmtExprMutator::VisitStmt(stmt);
     }
   }
-  PrimExpr VisitExpr_(const BufferLoadNode* op) final {
-    if (sync_scope_.rank == StorageRank::kGlobal &&
-        GetScope(op->buffer->data).rank == StorageRank::kGlobal) {
-      ++rw_stats_[op->buffer->data].read_count;
-    }
-    return StmtExprMutator::VisitExpr_(op);
-  }
-  Stmt VisitStmt_(const BufferStoreNode* op) final {
-    if (sync_scope_.rank == StorageRank::kGlobal &&
-        GetScope(op->buffer->data).rank == StorageRank::kGlobal) {
-      ++rw_stats_[op->buffer->data].write_count;
-    }
-    return StmtExprMutator::VisitStmt_(op);
-  }
-  Stmt VisitStmt_(const AttrStmtNode* op) final {
-    if (op->attr_key == attr::thread_extent) {
-      bool temp = true;
-      std::swap(temp, in_thread_env_);
-      thread_extents_.push_back(op);
-      Stmt ret = StmtExprMutator::VisitStmt_(op);
-      thread_extents_.pop_back();
-      std::swap(temp, in_thread_env_);
-      // first thread scope.
-      if (!in_thread_env_ && sync_scope_.rank == StorageRank::kGlobal) {
-        ret = InitGlobalBarrier(ret.as<AttrStmtNode>());
-        num_blocks_ = PrimExpr();
-        is_lead_ = PrimExpr();
-      }
-      return ret;
-    } else {
-      return StmtExprMutator::VisitStmt_(op);
-    }
-  }
-
-  PrimExpr VisitExpr_(const CallNode* op) final {
-    if (op->op.same_as(builtin::tvm_access_ptr())) {
-      PrimExpr expr = StmtExprMutator::VisitExpr_(op);
-      op = expr.as<CallNode>();
-      ICHECK_EQ(op->args.size(), 5U);
-      Var buffer_var(Downcast<Var>(op->args[1]));
-      const IntImmNode* flag = op->args[4].as<IntImmNode>();
-      if ((flag->value & 1) && sync_scope_.rank == StorageRank::kGlobal &&
-          GetScope(buffer_var).rank == StorageRank::kGlobal) {
-        ++rw_stats_[buffer_var].read_count;
-      }
-      if (flag->value & 2 && sync_scope_.rank == StorageRank::kGlobal &&
-          GetScope(buffer_var).rank == StorageRank::kGlobal) {
-        ++rw_stats_[buffer_var].write_count;
-      }
-      return expr;
-    } else if (op->op.same_as(builtin::address_of())){
-      PrimExpr expr = StmtExprMutator::VisitExpr_(op);
-      op = expr.as<CallNode>();
-      ICHECK_EQ(op->args.size(), 1U) << "address_of should only have one argument (Buffer)";
-
-      BufferLoad load = Downcast<BufferLoad>(op->args[0]);
-      Var buffer_var(Downcast<Var>(load->buffer->data));
-      if (sync_scope_.rank == StorageRank::kGlobal &&
-          GetScope(buffer_var).rank == StorageRank::kGlobal) {
-        ++rw_stats_[buffer_var].read_count;
-      }
-      if (sync_scope_.rank == StorageRank::kGlobal &&
-          GetScope(buffer_var).rank == StorageRank::kGlobal) {
-        ++rw_stats_[buffer_var].write_count;
-      }
-      return expr;
-    } else {
-      return StmtExprMutator::VisitExpr_(op);
-    }
-  }
 
  private:
-  // RW statistics about data
-  struct Entry {
-    int read_count{0};
-    int write_count{0};
-  };
-
-  // Get current storage scope.
-  StorageScope GetScope(Var buffer_var) const {
-    return StorageScope::Create(GetPtrStorageScope(buffer_var));
-  }
-
-  // private functions.
-  Stmt InitGlobalBarrier(const AttrStmtNode* op) {
-    ICHECK(op != nullptr);
-    Array<PrimExpr> pargs = {StringImm(runtime::symbol::tvm_prepare_global_barrier)};
-    Stmt prep = Evaluate(Call(DataType::Int(32), builtin::tvm_call_packed(), pargs));
-    Stmt body = op->body;
-    for (const auto& kv : rw_stats_) {
-      const auto& e = kv.second;
-      if (e.read_count != 0 && e.write_count != 0) {
-        body = AttrStmt(kv.first, attr::volatile_scope, 1, body);
-      }
-    }
-    rw_stats_.clear();
-    Stmt kinit = Evaluate(Call(DataType::Int(32), builtin::tvm_global_barrier_kinit(), {}));
-    body = SeqStmt({kinit, body});
-    body = AttrStmt(op->node, op->attr_key, op->value, body);
-    return SeqStmt({prep, body});
-  }
-  Stmt MakeGlobalBarrier() {
-    ICHECK(sync_scope_.rank == StorageRank::kGlobal);
-    if (!num_blocks_.defined()) {
-      ICHECK(!is_lead_.defined());
-      num_work_dim_ = thread_extents_.size();
-      for (const AttrStmtNode* attr : thread_extents_) {
-        IterVar iv = Downcast<IterVar>(attr->node);
-        runtime::ThreadScope s = runtime::ThreadScope::Create(iv->thread_tag);
-        if (s.rank == 0) {
-          num_blocks_ = (num_blocks_.defined() ? attr->value * num_blocks_ : attr->value);
-        } else if (s.rank == 1) {
-          PrimExpr cond = iv->var == make_zero(iv->var.dtype());
-          is_lead_ = is_lead_.defined() ? (is_lead_ && cond) : cond;
-        }
-      }
-    } else {
-      ICHECK_EQ(num_work_dim_, thread_extents_.size());
-    }
-    return Evaluate(Call(DataType::Int(32), builtin::tvm_storage_sync(),
-                         {StringImm(sync_scope_.to_string()), is_lead_, num_blocks_}));
-  }
   // data structure.
   StorageScope sync_scope_;
   const std::unordered_set<const Object*>& syncs_;
   const std::unordered_map<const Object*, int>& partial_syncs_;
-  // The read write statistics of storage
-  std::unordered_map<Var, Entry, ObjectPtrHash, ObjectPtrEqual> rw_stats_;
-  // The statistics for global barrier
-  bool in_thread_env_{false};
-  // memorized results
-  std::vector<const AttrStmtNode*> thread_extents_;
-  size_t num_work_dim_{0};
-  PrimExpr num_blocks_;
-  PrimExpr is_lead_;
 };
 
-Stmt ThreadSync(Stmt stmt, std::string storage_scope) {
+Stmt ThreadPartialSync(Stmt stmt, std::string storage_scope) {
   StorageScope sync_scope = StorageScope::Create(storage_scope);
-  if (sync_scope.rank == StorageRank::kShared && sync_scope.tag == "") {
-    stmt = ThreadSyncAfterWaitQueueInserter(sync_scope)(stmt);
-  }
-  ThreadSyncPlanner planner(sync_scope);
+  ThreadPartialSyncPlanner planner(sync_scope);
   planner(stmt);
-  return ThreadSyncInserter(sync_scope, planner.syncs_inserted_,
+  return ThreadPartialSyncInserter(sync_scope, planner.syncs_inserted_,
                             planner.partial_syncs_inserted_)(std::move(stmt));
 }
 
 namespace transform {
 
-Pass ThreadSync(String storage_scope) {
+Pass ThreadPartialSync(String storage_scope) {
   auto pass_func = [storage_scope](PrimFunc f, IRModule m, PassContext ctx) {
     auto* n = f.CopyOnWrite();
-    n->body = ThreadSync(std::move(n->body), storage_scope);
+    n->body = ThreadPartialSync(std::move(n->body), storage_scope);
     return f;
   };
-  return CreatePrimFuncPass(pass_func, 0, "tir.ThreadSync", {});
+  return CreatePrimFuncPass(pass_func, 0, "tir.ThreadPartialSync", {});
 }
 
-TVM_REGISTER_GLOBAL("tir.transform.ThreadSync").set_body_typed(ThreadSync);
+TVM_REGISTER_GLOBAL("tir.transform.ThreadPartialSync").set_body_typed(ThreadPartialSync);
 
 }  // namespace transform
 }  // namespace tir

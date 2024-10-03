@@ -67,7 +67,16 @@ std::pair<int, int> Gemm::ComputeWarpPartition(int num_warps, Target target) con
   int m_warp = 1, n_warp = 1;
   if (TargetIsHopper(target)) {
     ICHECK(num_warps % 4 == 0) << "Use Warp Group MMA requires 128*N threads.";
-    m_warp = num_warps;
+    if (this->policy == GemmWarpPolicy::kFullRow || this->policy == GemmWarpPolicy::kSquare) {
+      m_warp = num_warps;
+      ICHECK(this->M % num_warps == 0);
+    } else if (this->policy == GemmWarpPolicy::kFullCol) {
+      m_warp = 4;
+      n_warp = num_warps / 4;
+      ICHECK(this->N % n_warp == 0);
+    } else {
+      ICHECK(0) << "Unknown GemmWarpPolicy";
+    }
     return {m_warp, n_warp};
   }
   if (this->policy == GemmWarpPolicy::kFullRow) {

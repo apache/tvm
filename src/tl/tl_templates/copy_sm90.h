@@ -214,4 +214,14 @@ TL_DEVICE void syncthreads_partial(uint64_t& smem_barrier) {
       : "r"(smem_int_ptr), "l"(state));
 }
 
+template<uint32_t RegCount>
+TL_DEVICE void warpgroup_reg_alloc(){
+  asm volatile( "setmaxnreg.inc.sync.aligned.u32 %0;\n" : : "n"(RegCount) );
+}
+
+template<uint32_t RegCount>
+TL_DEVICE void warpgroup_reg_dealloc(){
+  asm volatile( "setmaxnreg.dec.sync.aligned.u32 %0;\n" : : "n"(RegCount) );
+}
+
 }  // namespace tl

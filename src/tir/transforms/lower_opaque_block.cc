@@ -82,6 +82,14 @@ class OpaqueBlockLower : public StmtExprMutator {
     return body;
   }
 
+  Stmt VisitStmt_(const BlockNode* op) final {
+    Block block = Downcast<Block>(StmtExprMutator::VisitStmt_(op));
+    if (block->annotations.count("stmt_group")) {
+      return block->body;
+    }
+    return block;
+  }
+
   Stmt VisitStmt_(const ForNode* op) final {
     // Step 1. Update unit loop info.
     PrimExpr min = this->VisitExpr(op->min);
