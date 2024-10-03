@@ -18,14 +18,16 @@
 import json
 import logging
 import tempfile
+from pathlib import Path
 from typing import Any, Dict, List, Tuple, Union
 
 from tvm import __version__ as tvm_version
 from tvm import tir
-from tvm.runtime import Module, load_module
+from tvm.runtime import Module, load_module, const
+from tvm.contrib import nvcc
 
 
-class BaseKernel:
+class BaseKernel:  # pylint: disable=too-few-public-methods
     """Base class for external kernels."""
 
     def compile_to_device_module(
@@ -91,6 +93,60 @@ class BaseKernel:
         return kernel_module
 
 
+class SourceKernel(BaseKernel):  # pylint: disable=too-few-public-methods
+    """A kernel from source code."""
+
+    def __init__(self, source_code: str):
+        self.source_code = source_code
+
+    def compile_to_device_module(  # pylint: disable=arguments-differ
+        self, grid: List[List[Union[int, tir.PrimExpr]]], *args: List[Any], **kwargs: Dict[str, Any]
+    ) -> Tuple[str, Module, List[Any]]:
+        """Compile the kernel to a device module."""
+        from tvm.relax.frontend.nn import SourceModule  # pylint: disable=import-outside-toplevel
+
+        kernel_name = kwargs["kernel_name"]
+        assert len(grid) == 2, (
+            "grid should be two list of integers, representing the dimension of "
+            "['blockIdx.x', 'blockIdx.y', 'blockIdx.z'] and "
+            "['threadIdx.x', 'threadIdx.y', 'threadIdx.z']"
+        )
+        assert isinstance(grid[0], (list, tuple)) and isinstance(grid[1], (list, tuple))
+        launch_param_tags = ["blockIdx.x", "blockIdx.y", "blockIdx.z"][: len(grid[0])] + [
+            "threadIdx.x",
+            "threadIdx.y",
+            "threadIdx.z",
+        ][: len(grid[1])]
+        runtime_args = [arg if hasattr(arg, "dtype") else const(arg) for arg in args]
+        kernel_arg_types = [arg.dtype for arg in runtime_args]
+        runtime_args = runtime_args + list(grid[0]) + list(grid[1])
+
+        # Reuse compilation path from SourceModule
+        compile_options = SourceModule.get_compile_options("cu")
+        source_code = self.source_code
+        try:
+            source_path = Path(source_code)
+            if source_path.is_file():
+                with open(source_path, "r") as f:
+                    source_code = f.read()
+        except:  # pylint: disable=bare-except
+            pass
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            ptx_path = f"{temp_dir}/{kernel_name}.ptx"
+            nvcc.compile_cuda(
+                source_code, target_format="ptx", options=compile_options, path_target=ptx_path
+            )
+            with open(ptx_path, "r") as f:
+                ptx = f.read()
+
+            kernel_module = self._create_cuda_module(
+                ptx, kernel_arg_types, launch_param_tags, kernel_name
+            )
+
+        return kernel_name, kernel_module, runtime_args
+
+
 def call_kernel(
     kernel,
     launch_args: List[Union[int, tir.PrimExpr, List[Union[int, tir.PrimExpr]]]],
@@ -123,6 +179,8 @@ def call_kernel(
         from .triton import TritonKernel  # pylint: disable=import-outside-toplevel
 
         kernel = TritonKernel(kernel)
+    elif kernel_type == "builtins.str":
+        kernel = SourceKernel(kernel)
     else:
         raise ValueError("Unsupported kernel type {}".format(kernel_type))
 
