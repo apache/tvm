@@ -41,7 +41,7 @@ description = ""
 [tool.poetry.dependencies]
 python = "^$1"
 pip = "*"
-poetry = "1.2.0b1"
+poetry = "1.8.1"
 setuptools = "*"
 EOF
 
@@ -50,7 +50,7 @@ EOF
     pwd
     . build/$1/_venv/bin/activate
     (mkdir -p build/$1/downloaded && cd build/$1/downloaded && pip3 download pip setuptools && pip3 install *.whl)
-    pip3 install poetry
+    pip3 install poetry poetry-plugin-export
     (cd build/$1 && poetry lock)
 
     # Now export requirements.txt and constraints.txt for
@@ -73,7 +73,7 @@ with open("requirements.txt", "w") as f:
 EOF
 
     # For
-    (cd build/$1 && poetry export -o constraints.txt)
+    (cd build/$1 && poetry export -f constraints.txt -o constraints.txt)
 
 
     (cd build/$1 && python3 <<EOF )
@@ -86,6 +86,8 @@ with open("constraints.txt", "a") as constraints_f:
         if not f.is_file():
             continue
         p = pkginfo.get_metadata("downloaded/" + f.name)
+        if p.name == "my-test-package":
+            continue
         constraints_f.write(
             f"{p.name}=={p.version} {subprocess.check_output(['pip3', 'hash', '-a', 'sha256', p.filename], encoding='utf-8').split()[1]}\n")
 EOF
@@ -98,3 +100,4 @@ EOF
 
 lock 3.7
 lock 3.8
+lock 3.9

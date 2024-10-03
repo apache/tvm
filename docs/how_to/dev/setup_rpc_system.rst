@@ -185,7 +185,7 @@ Troubleshooting
 
 The package ``numpy`` is imported in some Python files which RPC server dependent on, and eliminating the import relationship is difficult, for some devices cross compiling ``numpy`` is very hard to do too.
 
-But acturally the TVM runtime doesn't really dependent on ``numpy``, so a very simple workaround is create a dummy ``numpy``, just need to copy the below content into a file named ``numpy.py`` and place it into directory like ``/usr/local/lib/python3.8/site-packages``.
+But acturally the TVM runtime doesn't really dependent on ``numpy``, so a very simple workaround is create a dummy ``numpy``, just need to copy the below content into a file named ``numpy.py`` and place it into directory like ``/usr/local/lib/python3.9/site-packages``.
 
 .. code-block:: python
 
@@ -242,4 +242,4 @@ But acturally the TVM runtime doesn't really dependent on ``numpy``, so a very s
 2. The lack of ``cloudpickle`` on device machine caused the RPC server can't be launched.
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Because ``cloudpickle`` package is a pure Python package, so just copying it from other machine to the directory like ``/usr/local/lib/python3.8/site-packages`` of the device machine will resolve the problem.
+Because ``cloudpickle`` package is a pure Python package, so just copying it from other machine to the directory like ``/usr/local/lib/python3.9/site-packages`` of the device machine will resolve the problem.

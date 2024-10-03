@@ -25,5 +25,5 @@ apt-install-and-clear -y --no-install-recommends libhdf5-dev
 # h5py wheel tries to use the wrong .so file
 pip3 install \
     numpy==1.23.5 \
-    keras==2.9 \
-    tensorflow-aarch64~=2.9.3
+    keras==3.5 \
+    tensorflow-aarch64~=2.16.1
