@@ -135,9 +135,9 @@ class ScriptMacro(abc.ABC):
     def get_macro_def(self):
         ast_module = self.source.as_ast()
         for decl in ast_module.body:
-            if isinstance(decl, doc.FunctionDef) and decl.name == self.__name__:
+            if isinstance(decl, doc.FunctionDef) and decl.name == self.func.__name__:
                 return decl
-        raise RuntimeError(f"cannot find macro definition for {self.__name__}")
+        raise RuntimeError(f"cannot find macro definition for {self.func.__name__}")
 
     def __call__(self, *args, **kwargs):
         param_binding = inspect.signature(self.func).bind(*args, **kwargs)
