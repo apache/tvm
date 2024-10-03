@@ -224,8 +224,10 @@ def test_tir_macro_in_class():
     @T.prim_func(private=True)
     def func_w_macro(a: T.handle):
         A = T.match_buffer(a, [128, 128])
-        o = T.meta_var(Object(A))
-        o.load(A)
+        o1 = T.meta_var(Object(A))
+        o1.load(A)
+        o2 = T.meta_var(Object(A))
+        o2.load(o1.local_x)
 
     @T.prim_func(private=True)
     def func_no_macro(a: T.handle):
@@ -235,6 +237,11 @@ def test_tir_macro_in_class():
             with T.block("update"):
                 vi, vj = T.axis.remap("SS", [i, j])
                 local_a[vi, vj] = A[vi, vj]
+        local_b = T.alloc_buffer([128, 128])
+        for i, j in T.grid(128, 128):
+            with T.block("update"):
+                vi, vj = T.axis.remap("SS", [i, j])
+                local_b[vi, vj] = local_a[vi, vj]
 
     tvm.ir.assert_structural_equal(func_no_macro, func_w_macro)
 
