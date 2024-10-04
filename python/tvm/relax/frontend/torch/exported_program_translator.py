@@ -266,7 +266,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
 
     def create_input_vars(
         self, exported_program: torch.export.ExportedProgram
-    ) -> Tuple[OrderedDict[str, relax.Var], OrderedDict[str, relax.Var]]:
+    ) -> Tuple[Dict[str, relax.Var], Dict[str, relax.Var]]:
         """Create relax input vars."""
         parameters_buffers_constants = OrderedDict()
         user_inputs = OrderedDict()
