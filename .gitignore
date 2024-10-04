@@ -278,11 +278,5 @@ gallery/how_to/work_with_microtvm/micro_tvmc.py
 # GDB history file
 .gdb_history
 
-*/reports/*
-play.py
 *.ptx
 *.ncu-rep
-tl_verify/*
-*/modified_code.cu
-modified_code.cu
-code_replace.py

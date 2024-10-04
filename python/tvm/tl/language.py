@@ -47,10 +47,10 @@ def Pipelined(
         start: tir.PrimExpr, 
         stop: tir.PrimExpr = None, 
         num_stages: int = 0, 
-        order: List[int] = [], 
-        stage: List[int] = [], 
-        sync: List[List[int]] = [], 
-        group: List[List[int]] = []
+        order: List[int] = None, 
+        stage: List[int] = None, 
+        sync: List[List[int]] = None, 
+        group: List[List[int]] = None
     ):
     """Tools to construct pipelined for loop.
 
@@ -74,6 +74,14 @@ def Pipelined(
             start = IntImm(start.dtype, 0)
         else:
             start = 0
+    if order is None:
+        order = []
+    if stage is None:
+        stage = []
+    if sync is None:
+        sync = []
+    if group is None:
+        group = []
     # type: ignore[attr-defined] # pylint: disable=no-member
     return _ffi_api.Pipelined(start, stop, num_stages, order, stage, sync, group)
 
