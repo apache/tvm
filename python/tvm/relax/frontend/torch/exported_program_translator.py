@@ -34,37 +34,6 @@ class ExportedProgramImporter(BaseFXGraphImporter):
 
     from torch import fx
 
-    def create_input_vars(
-        self, exported_program: torch.export.ExportedProgram
-    ) -> Tuple[OrderedDict[str, relax.Var], OrderedDict[str, relax.Var]]:
-        """Create relax input vars."""
-        parameters_buffers_constants = OrderedDict()
-        user_inputs = OrderedDict()
-        for spec in exported_program.graph_signature.input_specs:
-            name_hint = spec.arg.name
-            if spec.kind is torch.export.graph_signature.InputKind.CONSTANT_TENSOR:
-                shape = exported_program.tensor_constants[spec.target].shape
-                torch_dtype = exported_program.tensor_constants[spec.target].dtype
-            elif spec.kind is torch.export.graph_signature.InputKind.USER_INPUT:
-                for node in exported_program.graph.find_nodes(op="placeholder", target=spec.target):
-                    if node.name == name_hint:
-                        shape = node.meta["tensor_meta"].shape
-                        torch_dtype = node.meta["tensor_meta"].dtype
-                        break
-            else:
-                # PARAMETER or BUFFER
-                shape = exported_program.state_dict[spec.target].shape
-                torch_dtype = exported_program.state_dict[spec.target].dtype
-
-            dtype = self._convert_data_type(torch_dtype)
-            relax_var = relax.Var(name_hint, relax.TensorStructInfo(shape, dtype))
-            if spec.kind is torch.export.graph_signature.InputKind.USER_INPUT:
-                user_inputs[name_hint] = relax_var
-            else:
-                parameters_buffers_constants[name_hint] = relax_var
-
-        return parameters_buffers_constants, user_inputs
-
     ########## Unary Ops ##########
 
     def _hardtanh(self, node: fx.Node) -> relax.Expr:
@@ -177,6 +146,8 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         end = [node.args[3]]
         stride = [node.args[4] if len(node.args) > 4 else 1]
         return self.block_builder.emit(relax.op.strided_slice(x, axes, begin, end, stride))
+
+    ########## Others ##########
 
     def create_convert_map(
         self,
@@ -292,6 +263,37 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             # other
             "getitem": self._getitem,
         }
+
+    def create_input_vars(
+        self, exported_program: torch.export.ExportedProgram
+    ) -> Tuple[OrderedDict[str, relax.Var], OrderedDict[str, relax.Var]]:
+        """Create relax input vars."""
+        parameters_buffers_constants = OrderedDict()
+        user_inputs = OrderedDict()
+        for spec in exported_program.graph_signature.input_specs:
+            name_hint = spec.arg.name
+            if spec.kind is torch.export.graph_signature.InputKind.CONSTANT_TENSOR:
+                shape = exported_program.tensor_constants[spec.target].shape
+                torch_dtype = exported_program.tensor_constants[spec.target].dtype
+            elif spec.kind is torch.export.graph_signature.InputKind.USER_INPUT:
+                for node in exported_program.graph.find_nodes(op="placeholder", target=spec.target):
+                    if node.name == name_hint:
+                        shape = node.meta["tensor_meta"].shape
+                        torch_dtype = node.meta["tensor_meta"].dtype
+                        break
+            else:
+                # PARAMETER or BUFFER
+                shape = exported_program.state_dict[spec.target].shape
+                torch_dtype = exported_program.state_dict[spec.target].dtype
+
+            dtype = self._convert_data_type(torch_dtype)
+            relax_var = relax.Var(name_hint, relax.TensorStructInfo(shape, dtype))
+            if spec.kind is torch.export.graph_signature.InputKind.USER_INPUT:
+                user_inputs[name_hint] = relax_var
+            else:
+                parameters_buffers_constants[name_hint] = relax_var
+
+        return parameters_buffers_constants, user_inputs
 
     def from_exported_program(
         self,
