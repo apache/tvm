@@ -43,7 +43,15 @@ def Parallel(*extents: tir.PrimExpr):
     return _ffi_api.Parallel(extents)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
-def Pipelined(start: tir.PrimExpr, stop: tir.PrimExpr = None, num_stages: int = 0):
+def Pipelined(
+        start: tir.PrimExpr, 
+        stop: tir.PrimExpr = None, 
+        num_stages: int = 0, 
+        order: List[int] = None, 
+        stage: List[int] = None, 
+        sync: List[List[int]] = None, 
+        group: List[List[int]] = None
+    ):
     """Tools to construct pipelined for loop.
 
     Parameters
@@ -66,8 +74,16 @@ def Pipelined(start: tir.PrimExpr, stop: tir.PrimExpr = None, num_stages: int = 
             start = IntImm(start.dtype, 0)
         else:
             start = 0
+    if order is None:
+        order = []
+    if stage is None:
+        stage = []
+    if sync is None:
+        sync = []
+    if group is None:
+        group = []
     # type: ignore[attr-defined] # pylint: disable=no-member
-    return _ffi_api.Pipelined(start, stop, num_stages)
+    return _ffi_api.Pipelined(start, stop, num_stages, order, stage, sync, group)
 
 
 @register_object("tl.KernelLaunchFrame")
@@ -312,6 +328,10 @@ def reduce_min(buffer: tir.Buffer, out: tir.Buffer, dim: int, clear: bool = True
 
 def reduce_sum(buffer: tir.Buffer, out: tir.Buffer, dim: int):
     return reduce(buffer, out, "sum", dim, True)
+
+
+def reduce_abssum(buffer: tir.Buffer, out: tir.Buffer, dim: int):
+    return reduce(buffer, out, "abssum", dim, True)
 
 
 def atomic_add(dst, value):

@@ -22,6 +22,8 @@ from functools import partial
 import torch
 
 import tvm
+from torch.utils.dlpack import to_dlpack
+from tvm.runtime import ndarray
 from tvm.relay import TensorType
 from tvm.contrib.dlpack import to_pytorch_func
 from torch.utils.dlpack import to_dlpack
@@ -142,7 +144,14 @@ class Profiler(ConvertTorch):
         if isinstance(ref_outs, torch.Tensor):
             ref_outs = [ref_outs]
         assert len(lib_outs) == len(ref_outs)
+        # torch.set_printoptions(edgeitems=torch.inf)
         for lhs, rhs in zip(lib_outs, ref_outs):
+            # close_mask = torch.isclose(lhs, rhs, rtol=rtol, atol=atol)
+            # total_elements = lhs.numel()
+            # num_not_close = (~close_mask).sum().item()
+            # percentage_not_close = (num_not_close / total_elements) * 100
+            # print(f"{percentage_not_close:.2f}% of the elements are not close.")
+            # print(f"Total elements: {total_elements}, Not close elements: {num_not_close}")
             assert torch.allclose(lhs, rhs, rtol=rtol, atol=atol), (lhs, rhs)
 
     def assert_consistent(self, repeat=10):
@@ -155,9 +164,13 @@ class Profiler(ConvertTorch):
             for lhs, rhs in zip(lib_outs, ref_outs):
                 assert torch.allclose(lhs, rhs), ["result is not consistent", lhs, rhs]
 
-    def run_once(self):
+    def run_once(self, func=None):
+        import ctypes
+        libcuda = ctypes.CDLL("libcuda.so")
+        
         ins = self._get_inputs()
-        return self.__call__(*ins)
+        if not func:
+            func = self.__call__
 
     def do_bench(
         self,

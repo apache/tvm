@@ -21,7 +21,11 @@ import os.path as osp
 import tvm
 from tvm import tir, tl, relay
 from tvm.contrib import nvcc
-
+try:
+    from tvm.tl.code_replace import replace_code
+except ImportError:
+    def replace_code(code):
+        return code
 
 def is_device_call(func: tir.PrimFunc):
     return bool(func.attrs and "calling_conv" in func.attrs and func.attrs["calling_conv"] == 2)
@@ -47,7 +51,7 @@ def tvm_callback_cuda_compile(code, target):
         format = "cubin"
     else:
         arch = [f"-arch=sm_{compute_version}"]
-        format = "ptx"
+        format = "cubin"
 
     ptx = nvcc.compile_cuda(
         code,
@@ -55,10 +59,12 @@ def tvm_callback_cuda_compile(code, target):
         arch,
         options=[
             "-std=c++17",
+            "--ptxas-options=--verbose,--register-usage-level=10,--warn-on-local-memory-usage",  # printing out number of registers
             "--use_fast_math",
             "-I" + tl_template_path,
             "-I" + cutlass_path,
         ],
+        get_output=True,
     )
     # with open("save.ptx", "wb") as f:
     #     f.write(ptx)
@@ -86,7 +92,12 @@ def lower(func, target="cuda", runtime_only=False):
     mod = tir.transform.Simplify()(mod)
 
     if target.arch == "sm_90":
-        mod = tl.transform.WarpSpecializedPipeline()(mod)
+        mod = tl.transform.MultiVersionBuffer()(mod)
+        mod = tl.transform.WarpSpecialized()(mod)
+        mod = tl.transform.InjectSoftwarePipeline()(mod)
+        mod = tir.transform.LowerOpaqueBlock()(mod)
+        # mod = tl.transform.WarpSpecializedPipeline()(mod)
+        mod = tl.transform.InjectFenceProxy()(mod)
     else:
         mod = tir.transform.PlanAndUpdateBufferAllocationLocation()(mod)
         mod = tl.transform.PipelinePlanning()(mod)
@@ -117,6 +128,7 @@ def lower(func, target="cuda", runtime_only=False):
     # We can find a way better to create var instead
     # of putting the LowerThreadAllreduce before
     # the Legalization.
+    mod = tir.transform.ThreadPartialSync("shared.dyn")(mod)
     mod = tir.transform.LowerThreadAllreduce()(mod)
     mod = tl.transform.LowerHopperIntrin()(mod)
     mod = tir.transform.InjectPTXAsyncCopy()(mod)

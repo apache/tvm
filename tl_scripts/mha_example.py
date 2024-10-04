@@ -43,7 +43,6 @@ def flashattn(batch, heads, seq_len, dim, is_casual):
         ):
             with T.Kernel(T.ceildiv(seq_len, block_M), heads, batch, threads=thread_num) as (bx, by, bz):
                 Q_shared = T.alloc_shared([block_M, dim], dtype)
-                Q_local = T.alloc_fragment([block_M, dim], dtype)
                 K_shared = T.alloc_shared([block_N, dim], dtype)
                 V_shared = T.alloc_shared([block_N, dim], dtype)
                 acc_s = T.alloc_fragment([block_M, block_N], accum_dtype)
@@ -60,9 +59,6 @@ def flashattn(batch, heads, seq_len, dim, is_casual):
                 T.fill(acc_o, 0)
                 T.fill(logsum, 0)
                 T.fill(scores_max, -T.infinity(accum_dtype))
-                T.copy(Q_shared, Q_local)
-                for i, j in T.Parallel(block_M, dim):
-                    Q_local[i, j] *= scale
                 loop_range = (
                     T.ceildiv((bx + 1) * block_M, block_N) if is_casual else T.ceildiv(seq_len, block_N)
                 )
@@ -75,9 +71,12 @@ def flashattn(batch, heads, seq_len, dim, is_casual):
                             )
                     else:
                         T.clear(acc_s)
-                    T.gemm(Q_local, K_shared, acc_s, transpose_B=True, policy=T.GemmWarpPolicy.FullRow)
+                    T.gemm(Q_shared, K_shared, acc_s, transpose_B=True, policy=T.GemmWarpPolicy.FullRow)
                     T.copy(V[bz, k * block_N : (k + 1) * block_N, by, :], V_shared)
+                    for i, j in T.Parallel(block_M, dim):
+                        acc_s[i, j] *= scale
                     T.copy(scores_max, scores_max_prev)
+                    T.fill(scores_max, -T.infinity(accum_dtype))
                     T.reduce_max(acc_s, scores_max, dim=1, clear=False)
                     for i in T.Parallel(block_M):
                         scores_scale[i] = T.exp2(scores_max_prev[i] - scores_max[i])

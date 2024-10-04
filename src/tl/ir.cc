@@ -54,7 +54,15 @@ ForFrame ParallelFor(Array<PrimExpr> extents) {
   return ForFrame(n);
 }
 
-ForFrame PipelinedFor(PrimExpr start, PrimExpr stop, int num_stages) {
+ForFrame PipelinedFor(
+    PrimExpr start, 
+    PrimExpr stop, 
+    int num_stages, 
+    Array<PrimExpr> order, 
+    Array<PrimExpr> stages, 
+    Array<Array<PrimExpr>> sync, 
+    Array<Array<PrimExpr>> groups
+  ) {
   using namespace tvm::tir;
   ObjectPtr<ForFrameNode> n = make_object<ForFrameNode>();
   DataType dtype = stop.dtype();
@@ -66,6 +74,10 @@ ForFrame PipelinedFor(PrimExpr start, PrimExpr stop, int num_stages) {
     ICHECK(n == 1);
     Map<String, ObjectRef> anno;
     if (num_stages > 0) anno.Set("num_stages", PrimExpr(num_stages));
+    anno.Set("software_pipeline_order", order);
+    anno.Set("software_pipeline_stage", stages);
+    anno.Set("software_pipeline_sync", sync);
+    anno.Set("software_pipeline_group", groups);
     body = For(vars[0], doms[0]->min, doms[0]->extent, ForKind::kSerial, std::move(body),
                /*thread_binding=*/NullOpt, /*annotations=*/anno);
     return body;

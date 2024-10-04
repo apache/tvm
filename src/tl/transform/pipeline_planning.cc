@@ -66,7 +66,7 @@ class PipelinePlanner : public StmtExprMutator {
       substituter.buffer_data_to_buffer_.Set(buffer->data, buffer);
     }
     auto target = f->GetAttr<Target>(tvm::attr::kTarget);
-    ICHECK(target.defined()) << "Layout_Inference: Require the target attribute";
+    ICHECK(target.defined()) << "Pipeline_Planning: Require the target attribute";
     substituter.target_ = target.value();
     return substituter.VisitStmt(f->body);
   }
