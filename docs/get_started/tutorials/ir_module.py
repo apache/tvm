@@ -40,8 +40,9 @@ from tvm import relax
 # below.
 
 import torch
-from torch import fx, nn
-from tvm.relax.frontend.torch import from_fx
+from torch import nn
+from torch.export import export
+from tvm.relax.frontend.torch import from_exported_program
 
 ######################################################################
 # Import from existing models
@@ -67,13 +68,15 @@ class TorchModel(nn.Module):
         return x
 
 
-# Give the input shape and data type
-input_info = [((1, 784), "float32")]
+# Give an example argument to torch.export
+example_args = (torch.randn(1, 784, dtype=torch.float32),)
 
 # Convert the model to IRModule
 with torch.no_grad():
-    torch_fx_model = fx.symbolic_trace(TorchModel())
-    mod_from_torch = from_fx(torch_fx_model, input_info, keep_params_as_input=True)
+    exported_program = export(TorchModel().eval(), example_args)
+    mod_from_torch = from_exported_program(
+        exported_program, keep_params_as_input=True, unwrap_unit_return_tuple=True
+    )
 
 mod_from_torch, params_from_torch = relax.frontend.detach_params(mod_from_torch)
 # Print the IRModule
