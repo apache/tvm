@@ -108,6 +108,10 @@ RUN bash /install/ubuntu_install_arduino.sh
 COPY install/ubuntu_install_onnx.sh /install/ubuntu_install_onnx.sh
 RUN bash /install/ubuntu_install_onnx.sh
 
+# NNEF
+COPY install/ubuntu_install_nnef.sh /install/ubuntu_install_nnef.sh
+RUN bash /install/ubuntu_install_nnef.sh
+
 # Install CMSIS_NN
 COPY install/ubuntu_install_cmsis.sh /install/ubuntu_install_cmsis.sh
 RUN bash /install/ubuntu_install_cmsis.sh /opt/arm/ethosu/cmsis
