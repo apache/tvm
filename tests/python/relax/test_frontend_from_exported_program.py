@@ -3550,9 +3550,9 @@ def test_keep_params():
     class expected1:
         @R.function
         def main(
+            input_1: R.Tensor((1, 3, 10, 10), dtype="float32"),
             conv_weight: R.Tensor((6, 3, 7, 7), dtype="float32"),
             conv_bias: R.Tensor((6,), dtype="float32"),
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32"),
         ) -> R.Tuple(R.Tensor((1, 6, 4, 4), dtype="float32")):
             R.func_attr({"num_input": 1})
             # block 0
@@ -3586,7 +3586,7 @@ def test_keep_params():
     params = params["main"]
 
     assert len(params) == len(func.params) - 1
-    for param_var, param_ndarray in zip(func.params[:-1], params):
+    for param_var, param_ndarray in zip(func.params[1:], params):
         assert tuple(x.value for x in param_var.struct_info.shape.values) == param_ndarray.shape
         assert param_var.struct_info.dtype == param_ndarray.dtype
 

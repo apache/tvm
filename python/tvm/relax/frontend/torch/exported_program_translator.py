@@ -36,10 +36,10 @@ class ExportedProgramImporter(BaseFXGraphImporter):
 
     def create_input_vars(
         self, exported_program: torch.export.ExportedProgram
-    ) -> Tuple[List[relax.Var], List[relax.Var]]:
+    ) -> Tuple[OrderedDict[str, relax.Var], OrderedDict[str, relax.Var]]:
         """Create relax input vars."""
-        parameters_buffers_constants = []
-        user_inputs = []
+        parameters_buffers_constants = OrderedDict()
+        user_inputs = OrderedDict()
         for spec in exported_program.graph_signature.input_specs:
             name_hint = spec.arg.name
             if spec.kind is torch.export.graph_signature.InputKind.CONSTANT_TENSOR:
@@ -59,9 +59,9 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             dtype = self._convert_data_type(torch_dtype)
             relax_var = relax.Var(name_hint, relax.TensorStructInfo(shape, dtype))
             if spec.kind is torch.export.graph_signature.InputKind.USER_INPUT:
-                user_inputs.append(relax_var)
+                user_inputs[name_hint] = relax_var
             else:
-                parameters_buffers_constants.append(relax_var)
+                parameters_buffers_constants[name_hint] = relax_var
 
         return parameters_buffers_constants, user_inputs
 
@@ -305,7 +305,8 @@ class ExportedProgramImporter(BaseFXGraphImporter):
 
         # Create input variables.
         parameter_buffer_constant_vars, user_input_vars = self.create_input_vars(exported_program)
-        inputs_vars = parameter_buffer_constant_vars + user_input_vars
+        inputs_vars = user_input_vars.copy()
+        inputs_vars.update(parameter_buffer_constant_vars)
 
         # Initialize the block builder with a function and a dataflow block.
         self.block_builder = relax.BlockBuilder()
@@ -314,7 +315,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
 
         nodes: List[fx.Node] = exported_program.graph.nodes
         with self.block_builder.function(
-            name=func_name, params=inputs_vars.copy(), attrs=func_attrs
+            name=func_name, params=list(inputs_vars.values()).copy(), attrs=func_attrs
         ):
             output = None
             with self.block_builder.dataflow():
@@ -325,7 +326,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                             # Ignore sym input
                             continue
 
-                        self.env[node] = inputs_vars.pop(0)
+                        self.env[node] = inputs_vars[node.name]
                     elif node.op == "output":
                         args = self.retrieve_args(node)
                         assert len(args) == 1
