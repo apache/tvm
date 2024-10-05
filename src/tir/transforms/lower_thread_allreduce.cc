@@ -38,12 +38,49 @@
 namespace tvm {
 namespace tir {
 
+using runtime::StorageRank;
+using runtime::StorageScope;
+
+/*!
+ * \brief collect the mapping from the buffer var to its allocate
+ */
+class AllocateCollector : public StmtExprVisitor {
+ private:
+  bool IsDynamicSharedMemory(Var buffer_var) {
+    StorageScope storage_scope = runtime::StorageScope::Create(GetPtrStorageScope(buffer_var));
+    return storage_scope.rank == runtime::StorageRank::kShared && storage_scope.tag == ".dyn";
+  }
+
+  bool IsStaticSharedMemory(Var buffer_var) {
+    StorageScope storage_scope = runtime::StorageScope::Create(GetPtrStorageScope(buffer_var));
+    return storage_scope.rank == runtime::StorageRank::kShared && storage_scope.tag == "";
+  }
+
+ public:
+  void VisitStmt_(const AllocateNode* op) final {
+    if (IsDynamicSharedMemory(op->buffer_var)) {
+      dyn_shmem_allocs_[op->buffer_var.get()] = op;
+    } else if (IsStaticSharedMemory(op->buffer_var)) {
+      static_shmem_allocs_[op->buffer_var.get()] = op;
+    }
+    StmtExprVisitor::VisitStmt_(op);
+  }
+  // The dynamic mapping from the original buffer var to its allocate
+  std::unordered_map<const VarNode*, const AllocateNode*> dyn_shmem_allocs_;
+  // The static mapping from the original buffer var to its allocate
+  std::unordered_map<const VarNode*, const AllocateNode*> static_shmem_allocs_;
+};
+
 class ThreadAllreduceBuilder final : public StmtExprMutator {
  public:
-  explicit ThreadAllreduceBuilder(const TargetNode* target)
+  explicit ThreadAllreduceBuilder(const TargetNode* target, bool is_dynamic = false)
       : target_(target),
         warp_size_(target->GetAttr<Integer>("thread_warp_size", 1).value().IntValue()),
-        max_num_threads_(target->GetAttr<Integer>("max_num_threads", -1).value().IntValue()) {}
+        max_num_threads_(target->GetAttr<Integer>("max_num_threads", -1).value().IntValue()) {
+    if (is_dynamic) {
+      shared_scope = "shared.dyn";
+    }
+  }
 
   Stmt VisitStmt_(const AttrStmtNode* op) final {
     if (op->attr_key == attr::thread_extent) {
@@ -83,7 +120,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       write_ptr->extents = buf->shape;
       write_ptr->condition = const_true(buf->dtype.lanes());
 
-      if (buf.scope() == "shared") {
+      if (buf.scope() == shared_scope) {
         // Use volatile access to shared buffer.
         write_ptr->body = AttrStmt(buf->data, attr::volatile_scope, 1, write_ptr->body);
       }
@@ -247,7 +284,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     // sort according to dim_index
     std::sort(block_threads.begin(), block_threads.end());
     for (auto&& thr_attr : block_threads) {
-      auto [dim_index, extent, is_reduce] = thr_attr;
+      auto[dim_index, extent, is_reduce] = thr_attr;
       (void)dim_index;  // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=81767
       if (is_reduce) {
         contiguous_reduce_extent *= extent;
@@ -318,7 +355,8 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
         for (size_t i = 0; i < size; ++i) {
           Buffer staging_shared_buf = decl_buffer(
               /*shape=*/{make_const(reduce_index->dtype, n_warps * group_extent)},
-              /*dtype=*/buffers[i]->dtype, /*name=*/"red_buf_staging", /*storage_scope=*/"shared");
+              /*dtype=*/buffers[i]->dtype, /*name=*/"red_buf_staging",
+              /*storage_scope=*/shared_scope);
           staging_shared_bufs.push_back(staging_shared_buf);
           new_alloc_bufs.push_back(staging_shared_buf);
         }
@@ -340,7 +378,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
         }
         PrimExpr cond = floormod(reduce_index, warp_size_) == zero_index;
         seq.push_back(IfThenElse(cond, SeqStmt::Flatten(write_staging_buf)));
-        seq.push_back(SyncThread("shared"));
+        seq.push_back(SyncThread(shared_scope));
 
         // 4. Load staging buffer.
         //    Second round of allreduce.
@@ -361,14 +399,14 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
           new_alloc_bufs.push_back(Downcast<BufferLoad>(reduce_results[i])->buffer);
           Buffer broadcast_shared_buf = decl_buffer(
               /*shape=*/{make_const(reduce_index->dtype, group_extent)},
-              /*dtype=*/buffers[i]->dtype, /*name=*/"red_result", /*storage_scope=*/"shared");
+              /*dtype=*/buffers[i]->dtype, /*name=*/"red_result", /*storage_scope=*/shared_scope);
           write_result.push_back(
               BufferStore(broadcast_shared_buf, reduce_results[i], {group_index}));
           // Update `reduce_results`, pointing to the value loaded from the shared memory buffer.
           reduce_results[i] = BufferLoad(broadcast_shared_buf, {group_index});
         }
         seq.push_back(IfThenElse(reduce_index == zero_index, SeqStmt::Flatten(write_result)));
-        seq.push_back(SyncThread("shared"));
+        seq.push_back(SyncThread(shared_scope));
       }
 
       // Write back allreduce results and update existing allocations.
@@ -396,14 +434,14 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       }
       // This sync is necessary because there might be incomplete read of
       // previous iteration on the same buffer.
-      seq.emplace_back(SyncThread("shared"));
+      seq.emplace_back(SyncThread(shared_scope));
       for (size_t idx = 0; idx < size; ++idx) {
         shared_bufs[idx] = decl_buffer({IntImm(group_index->dtype, group_extent * reduce_extent)},
-                                       types[idx], "red_buf" + std::to_string(idx), "shared");
+                                       types[idx], "red_buf" + std::to_string(idx), shared_scope);
         seq.emplace_back(BufferStore(shared_bufs[idx], values[idx],
                                      {BufIndex(reduce_index, group_index, reduce_extent)}));
       }
-      seq.emplace_back(SyncThread("shared"));
+      seq.emplace_back(SyncThread(shared_scope));
       seq.emplace_back(MakeBufAllreduce(combiner, types, shared_bufs, reduce_index, group_index,
                                         reduce_extent, group_extent, contiguous_reduce_extent));
       for (size_t idx = 0; idx < size; ++idx) {
@@ -597,7 +635,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       reduce_align = reduce_align >> 1;
       PrimExpr cond = reduce_index < (reduce_extent - reduce_align);
       seq.emplace_back(IfThenElse(cond, freduce(reduce_align)));
-      seq.emplace_back(SyncThread("shared"));
+      seq.emplace_back(SyncThread(shared_scope));
     }
 
     // normal synchronization
@@ -609,7 +647,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       reduce_align = reduce_align >> 1;
       PrimExpr cond = reduce_index < reduce_align;
       seq.emplace_back(IfThenElse(cond, freduce(reduce_align)));
-      seq.emplace_back(SyncThread("shared"));
+      seq.emplace_back(SyncThread(shared_scope));
     }
     // in warp synchronization.
     if (reduce_align > 1) {
@@ -654,7 +692,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       Stmt warp_body = SeqStmt::Flatten(in_warp_seq);
 
       seq.emplace_back(IfThenElse(in_warp_cond, warp_body));
-      seq.emplace_back(SyncThread("shared"));
+      seq.emplace_back(SyncThread(shared_scope));
     }
     return SeqStmt::Flatten(seq);
   }
@@ -769,7 +807,8 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
 
   // The target.
   const TargetNode* target_ = nullptr;
-
+  // The shared memory scope for reduce buffer.
+  String shared_scope = "shared";
   // The warp size of the device.
   int warp_size_{1};
   // The maximum number of threads of the device. "-1" denotes unknown.
@@ -796,11 +835,15 @@ namespace transform {
 
 Pass LowerThreadAllreduce() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+    AllocateCollector collector;
+    collector(f->body);
+    bool is_dynamic = collector.dyn_shmem_allocs_.size() > 1;
+
     auto* n = f.CopyOnWrite();
     auto target = f->GetAttr<Target>(tvm::attr::kTarget);
     ICHECK(target.defined()) << "LowerThreadAllreduce: Require the target attribute";
     const TargetNode* target_node = target.as<TargetNode>();
-    ThreadAllreduceBuilder thread_all_reduce(target_node);
+    ThreadAllreduceBuilder thread_all_reduce(target_node, is_dynamic);
     n->body = thread_all_reduce(n->body);
     return f;
   };
