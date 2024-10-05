@@ -66,7 +66,7 @@ inline PrimExpr DispatchTVMQHLWrapperFp16(const PrimExpr& e) {
 
   // Enable QHL library for FP16 data type
   const PrimExpr& x = call->args[0];
-  if (x->dtype.is_float16() && x->dtypeis_vector() && useqhl) {
+  if (x->dtype.is_float16() && x->dtype.is_vector() && useqhl) {
     return TVMExternCall(call, tvm_wrapper);
   }
 #endif
@@ -116,7 +116,7 @@ TVM_REGISTER_OP("tir.tanh")
       }
 
       // Enable QHL library for FP16 data type
-      if (x->dtype.is_float16() && x->dtypeis_vector() && useqhl) {
+      if (x->dtype.is_float16() && x->dtype.is_vector() && useqhl) {
         std::string tvm_wrapper("tvm_vect_qhmath_hvx_tanh_ahf");
         return TVMExternCall(call, tvm_wrapper);
       }
@@ -152,7 +152,7 @@ TVM_REGISTER_OP("tir.tan").set_attr<FLowerIntrinsic>(
       }
 
       // Enable QHL library for FP16 data type
-      if (x->dtype.is_float16() && x->dtypeis_vector() && useqhl) {
+      if (x->dtype.is_float16() && x->dtype.is_vector() && useqhl) {
         std::string tvm_wrapper("tvm_vect_qhmath_hvx_tan_ahf");
         return TVMExternCall(call, tvm_wrapper);
       }
@@ -191,7 +191,7 @@ TVM_REGISTER_OP("tir.sigmoid")
       const tir::Call new_call = tir::Call(call->dtype, call->op, new_args);
 
       // Enable QHL library for FP16 data type
-      if (x->dtype.is_float16() && x->dtypeis_vector() && useqhl) {
+      if (x->dtype.is_float16() && x->dtype.is_vector() && useqhl) {
         std::string tvm_wrapper("tvm_vect_qhmath_hvx_sigmoid_ahf");
         return TVMExternCall(new_call.get(), tvm_wrapper);
       }
