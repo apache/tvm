@@ -195,6 +195,7 @@ typedef enum {
   kTVMExtBegin = 16U,
   kTVMNNVMFirst = 16U,
   kTVMNNVMLast = 20U,
+  kTVMGridConstant = 30U,
   // The following section of code is used for non-reserved types.
   kTVMExtReserveEnd = 64U,
   kTVMExtEnd = 128U,
