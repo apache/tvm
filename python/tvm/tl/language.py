@@ -47,10 +47,10 @@ def Pipelined(
         start: tir.PrimExpr, 
         stop: tir.PrimExpr = None, 
         num_stages: int = 0, 
-        order: List[int] = None, 
-        stage: List[int] = None, 
-        sync: List[List[int]] = None, 
-        group: List[List[int]] = None
+        order: Optional[List[int]] = None, 
+        stage: Optional[List[int]] = None, 
+        sync: Optional[List[List[int]]] = None,
+        group: Optional[List[List[int]]] = None
     ):
     """Tools to construct pipelined for loop.
 
