@@ -160,21 +160,21 @@ static Stmt makeParityWait(PrimExpr barrier_id, PrimExpr parity) {
   return Evaluate(call);
 }
 
-static bool isGemm(Stmt stmt) {
-  bool is_gemm = false;
-  if (stmt.as<EvaluateNode>()) {
-    auto call = Downcast<Evaluate>(stmt)->value.as<CallNode>();
-    if (call && call->op.same_as(Op::Get("tir.call_extern"))) {
-      if (call->args[0].as<StringImmNode>()) {
-        std::string name = Downcast<StringImm>(call->args[0])->value;
-        if (name.find("gemm") != std::string::npos) {
-          is_gemm = true;
-        }
-      }
-    }
-  }
-  return is_gemm;
-}
+// static bool isGemm(Stmt stmt) {
+//   bool is_gemm = false;
+//   if (stmt.as<EvaluateNode>()) {
+//     auto call = Downcast<Evaluate>(stmt)->value.as<CallNode>();
+//     if (call && call->op.same_as(Op::Get("tir.call_extern"))) {
+//       if (call->args[0].as<StringImmNode>()) {
+//         std::string name = Downcast<StringImm>(call->args[0])->value;
+//         if (name.find("gemm") != std::string::npos) {
+//           is_gemm = true;
+//         }
+//       }
+//     }
+//   }
+//   return is_gemm;
+// }
 
 class ProducerTraitsCollector : public StmtExprVisitor {
  public:
@@ -288,7 +288,7 @@ struct PipelineInfo {
     int n = static_cast<int>(group_info.size());
     ICHECK(n == static_cast<int>(order_info.size()));
     ICHECK(n == static_cast<int>(stage_info.size()));
-    int cur_id = 0;
+    // int cur_id = 0;
     for (int i = 0; i < n; i++) {
       OpInfo op_info;
       op_info.group_size = group_info[i].size();
@@ -406,7 +406,7 @@ class GroupOpRewriter : public StmtExprMutator {
       stage_anno.push_back(Integer(op_info.stage));
     }
     Map<String, ObjectRef> for_annotations = op->annotations;
-    for_annotations.erase("software_pipeline_group");
+    for_annotations.erase("tl_pipeline_group");
     for_annotations.Set("software_pipeline_order", order_anno);
     for_annotations.Set("software_pipeline_stage", stage_anno);
     For new_for = For(op->loop_var, op->min, op->extent, op->kind, new_body.size() == 1 ? new_body[0] : SeqStmt(std::move(new_body)), op->thread_binding, for_annotations);
@@ -566,15 +566,15 @@ class WSCodeEmitter : public StmtMutator {
     Array<Integer> order_info_array;
     Array<Integer> stage_info_array;
    
-    auto group_anno = op->annotations.Get("software_pipeline_group");
+    auto group_anno = op->annotations.Get("tl_pipeline_group");
     if (group_anno.defined()) {
       group_info_array = Downcast<Array<Array<Integer>>>(group_anno);
     }
-    auto order_anno = op->annotations.Get("software_pipeline_order");
+    auto order_anno = op->annotations.Get("tl_pipeline_order");
     if (order_anno.defined()) {
       order_info_array = Downcast<Array<Integer>>(order_anno);
     }
-    auto stage_anno = op->annotations.Get("software_pipeline_stage");
+    auto stage_anno = op->annotations.Get("tl_pipeline_stage");
     if (stage_anno.defined()) {
       stage_info_array = Downcast<Array<Integer>>(stage_anno);
     }
@@ -615,8 +615,8 @@ class WSCodeEmitter : public StmtMutator {
       auto for_node = Downcast<For>(result);
       for_node.CopyOnWrite()->annotations.erase("num_stages");
       if (is_emitting_producer_ || group_info_array.size() == 0) {
-        for_node.CopyOnWrite()->annotations.erase("software_pipeline_order");
-        for_node.CopyOnWrite()->annotations.erase("software_pipeline_stage");
+        for_node.CopyOnWrite()->annotations.erase("tl_pipeline_order");
+        for_node.CopyOnWrite()->annotations.erase("tl_pipeline_stage");
       }
       if (is_emitting_producer_ || !group_anno.defined() ||group_info_array.size() == 0) {
         return for_node;
@@ -836,6 +836,22 @@ class WarpSpecializedRewriter : public StmtExprMutator {
     } else {
       return StmtExprMutator::VisitStmt_(op);
     }
+  }
+
+  // If users define a thread binding, we will replace the thread binding with threadIdx.x
+  // We require the thread binding is threadIdx.x, and the extent is the same as the thread extent
+  Stmt VisitStmt_(const ForNode* op) final {
+    ICHECK(thread_iv_.defined());
+    For for_node = Downcast<For>(StmtExprMutator::VisitStmt_(op));
+    if (for_node->kind == ForKind::kThreadBinding) {
+      ICHECK(for_node->thread_binding.defined());
+      String thread_tag = for_node->thread_binding.value()->thread_tag;
+      ICHECK(thread_tag == "threadIdx.x") << "Only support threadIdx.x";
+      Var thread_iv = Downcast<Var>(for_node->loop_var);
+      Stmt new_body = ThreadIdxRewriter::Rewrite(for_node->body, thread_iv, thread_iv_);
+      return new_body;
+    }
+    return for_node;
   }
 
   Stmt VisitStmt_(const BlockRealizeNode* op) final {

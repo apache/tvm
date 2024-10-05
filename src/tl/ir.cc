@@ -74,10 +74,10 @@ ForFrame PipelinedFor(
     ICHECK(n == 1);
     Map<String, ObjectRef> anno;
     if (num_stages > 0) anno.Set("num_stages", PrimExpr(num_stages));
-    anno.Set("software_pipeline_order", order);
-    anno.Set("software_pipeline_stage", stages);
-    anno.Set("software_pipeline_sync", sync);
-    anno.Set("software_pipeline_group", groups);
+    anno.Set("tl_pipeline_order", order);
+    anno.Set("tl_pipeline_stage", stages);
+    anno.Set("tl_pipeline_sync", sync);
+    anno.Set("tl_pipeline_group", groups);
     body = For(vars[0], doms[0]->min, doms[0]->extent, ForKind::kSerial, std::move(body),
                /*thread_binding=*/NullOpt, /*annotations=*/anno);
     return body;

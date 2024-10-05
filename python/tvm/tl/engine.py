@@ -64,7 +64,7 @@ def tvm_callback_cuda_compile(code, target):
             "-I" + tl_template_path,
             "-I" + cutlass_path,
         ],
-        get_output=True,
+        get_output=False,
     )
     # with open("save.ptx", "wb") as f:
     #     f.write(ptx)

@@ -80,7 +80,7 @@ class LowerHopperIntrin : public StmtExprMutator {
 
           auto stmts = prefetch_calls_;
           stmts.insert(stmts.end(), init_mbarrier_calls_.begin(), init_mbarrier_calls_.end());
-          auto init_stmt = IfThenElse(EQ(iv->var, 0), SeqStmt(stmts));
+          auto init_stmt = IfThenElse(EQ(iv->var, 0), stmts.size() > 1 ? SeqStmt(stmts) : stmts[0]);
           stmt_seq.push_back(init_stmt);
           if (!init_mbarrier_calls_.empty()) {
             Stmt mem_sync = Evaluate(

@@ -171,6 +171,7 @@ class Profiler(ConvertTorch):
         ins = self._get_inputs()
         if not func:
             func = self.__call__
+        return func(*ins)
 
     def do_bench(
         self,
