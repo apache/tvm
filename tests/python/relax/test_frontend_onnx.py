@@ -710,6 +710,28 @@ def test_trilu(upper: bool):
     verify_unary("Trilu", [3, 5, 5], attrs={"upper": upper})
 
 
+@pytest.mark.parametrize("k_value", [-1, 0, 1])
+def test_trilu_with_const_k(k_value: int):
+    """test_trilu_with_const_k"""
+
+    input_shape = [2, 3, 3]
+
+    graph = helper.make_graph(
+        [
+            make_constant_node("k", onnx.TensorProto.INT64, [1], [k_value]),
+            helper.make_node("Trilu", inputs=["x", "k"], outputs=["y"]),
+        ],
+        "trilu_graph",
+        inputs=[
+            helper.make_tensor_value_info("x", onnx.TensorProto.DOUBLE, input_shape),
+        ],
+        outputs=[helper.make_tensor_value_info("y", onnx.TensorProto.DOUBLE, input_shape)],
+    )
+
+    model = helper.make_model(graph, producer_name="trilu_graph")
+    check_correctness(model)
+
+
 def test_selu():
     verify_unary("Selu", [3, 32, 32])
     verify_unary("Selu", [3, 32, 32], attrs={"alpha": 0.25, "gamma": 0.3})
@@ -856,6 +878,27 @@ def test_cumsum(reverse, exclusive):
     )
 
     model = helper.make_model(graph, producer_name="cumsum_test")
+    check_correctness(model)
+
+
+def test_cumsum1():
+    """test_cumsum1"""
+
+    input_shape = [2, 3]
+
+    graph = helper.make_graph(
+        [
+            helper.make_node("CumSum", inputs=["X", "axis"], outputs=["Y"]),
+        ],
+        "cumsum_graph",
+        inputs=[
+            helper.make_tensor_value_info("X", onnx.TensorProto.DOUBLE, input_shape),
+            helper.make_tensor_value_info("axis", onnx.TensorProto.INT32, [1], "axis"),
+        ],
+        outputs=[helper.make_tensor_value_info("Y", onnx.TensorProto.DOUBLE, input_shape)],
+    )
+
+    model = helper.make_model(graph, producer_name="cumsum_graph")
     check_correctness(model)
 
 
