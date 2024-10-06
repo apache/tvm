@@ -87,18 +87,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
       }
       GlobalVar gvar(func_name);
 
-      StructInfo finfo;
-      if (func->struct_info_.defined()) {
-        finfo = GetStructInfo(func);
-      } else if (auto* prim_func = func.as<tir::PrimFuncNode>()) {
-        // NOTE: use a slightly different struct info than checked type
-        // in PrimFunc so handle can turn into Tensor.
-        // TODO(relax-team): add fine-grained PrimFunc struct info signature generation.
-        finfo = FuncStructInfo::OpaqueFunc(StructInfoFromType(prim_func->ret_type));
-      } else {
-        finfo = StructInfoFromType(func->checked_type());
-      }
-      UpdateStructInfo(gvar, finfo);
+      UpdateStructInfo(gvar, GetStructInfo(func));
 
       context_mod_->Add(gvar, func);
 
@@ -141,6 +130,8 @@ class BlockBuilderImpl : public BlockBuilderNode {
     }
 
     context_mod_->Update(gv, function);
+    // Force update struct info
+    gv->struct_info_ = GetStructInfo(function);
 
     // add new dedup map item.
     if (ctx_func_dedup_map_ != nullptr) {
