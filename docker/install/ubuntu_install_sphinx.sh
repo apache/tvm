@@ -20,14 +20,14 @@ set -e
 set -u
 set -o pipefail
 
-# NOTE: install docutils < 0.17 to work around https://github.com/readthedocs/sphinx_rtd_theme/issues/1115
+# pin sphinx<7 because https://github.com/readthedocs/sphinx_rtd_theme/issues/1465
 pip3 install \
     autodocsumm \
-    "commonmark>=0.7.3" \
-    "docutils>=0.11,<0.17" \
+    commonmark \
+    docutils \
     Image \
     matplotlib \
-    sphinx==4.2.0 \
+    "sphinx<7" \
     sphinx_autodoc_annotation \
-    "git+https://github.com/sphinx-gallery/sphinx-gallery.git@6142f1791151849b5bec4bf3959f75697ba226cd" \
+    sphinx-gallery \
     sphinx_rtd_theme
