@@ -129,6 +129,12 @@ Expr bitwise_or(Expr x1, Expr x2);
 /*! \brief Broadcasted element-wise bitwise xor */
 Expr bitwise_xor(Expr x1, Expr x2);
 
+/*! \brief Broadcasted element-wise bitwise shift left */
+Expr left_shift(Expr x1, Expr x2);
+
+/*! \brief Broadcasted element-wise bitwise shift right */
+Expr right_shift(Expr x1, Expr x2);
+
 }  // namespace relax
 }  // namespace tvm
 

@@ -244,7 +244,8 @@ class BinaryBase(OnnxOpConverter):
     relax_op: Callable = None
 
     @classmethod
-    def _impl_v1(cls, bb, inputs, attr, params):
+    def base_impl(cls, bb, inputs, attr, params):
+        """Base implementation for binary operations."""
         if cls.numpy_op is None or cls.relax_op is None:
             raise ValueError("Numpy and Relax operators must be defined for BinaryBase.")
         if all([isinstance(inp, relax.Constant) for inp in inputs]):
@@ -274,12 +275,20 @@ class Add(BinaryBase):
     numpy_op = _np.add
     relax_op = relax.op.add
 
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr, params):
+        return cls.base_impl(bb, inputs, attr, params)
+
 
 class Sub(BinaryBase):
     """Converts an onnx Sub node into an equivalent Relax expression."""
 
     numpy_op = _np.subtract
     relax_op = relax.op.subtract
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr, params):
+        return cls.base_impl(bb, inputs, attr, params)
 
 
 class Mul(BinaryBase):
@@ -288,12 +297,20 @@ class Mul(BinaryBase):
     numpy_op = _np.multiply
     relax_op = relax.op.multiply
 
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr, params):
+        return cls.base_impl(bb, inputs, attr, params)
+
 
 class Div(BinaryBase):
     """Converts an onnx Div node into an equivalent Relax expression."""
 
     numpy_op = _np.divide
     relax_op = relax.op.divide
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr, params):
+        return cls.base_impl(bb, inputs, attr, params)
 
 
 class Pow(BinaryBase):
@@ -302,12 +319,20 @@ class Pow(BinaryBase):
     numpy_op = _np.power
     relax_op = relax.op.power
 
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr, params):
+        return cls.base_impl(bb, inputs, attr, params)
+
 
 class And(BinaryBase):
     """Converts an onnx And node into an equivalent Relax expression."""
 
     numpy_op = _np.logical_and
     relax_op = relax.op.logical_and
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr, params):
+        return cls.base_impl(bb, inputs, attr, params)
 
 
 class Or(BinaryBase):
@@ -316,12 +341,20 @@ class Or(BinaryBase):
     numpy_op = _np.logical_or
     relax_op = relax.op.logical_or
 
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr, params):
+        return cls.base_impl(bb, inputs, attr, params)
+
 
 class Xor(BinaryBase):
     """Converts an onnx Xor node into an equivalent Relax expression."""
 
     numpy_op = _np.logical_xor
     relax_op = relax.op.logical_xor
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr, params):
+        return cls.base_impl(bb, inputs, attr, params)
 
 
 class Less(BinaryBase):
@@ -330,12 +363,20 @@ class Less(BinaryBase):
     numpy_op = _np.less
     relax_op = relax.op.less
 
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr, params):
+        return cls.base_impl(bb, inputs, attr, params)
+
 
 class LessOrEqual(BinaryBase):
     """Converts an onnx LessEqual node into an equivalent Relax expression."""
 
     numpy_op = _np.less_equal
     relax_op = relax.op.less_equal
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr, params):
+        return cls.base_impl(bb, inputs, attr, params)
 
 
 class Greater(BinaryBase):
@@ -344,12 +385,20 @@ class Greater(BinaryBase):
     numpy_op = _np.greater
     relax_op = relax.op.greater
 
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr, params):
+        return cls.base_impl(bb, inputs, attr, params)
+
 
 class GreaterOrEqual(BinaryBase):
     """Converts an onnx GreaterEqual node into an equivalent Relax expression."""
 
     numpy_op = _np.greater_equal
     relax_op = relax.op.greater_equal
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr, params):
+        return cls.base_impl(bb, inputs, attr, params)
 
 
 class Equal(OnnxOpConverter):
@@ -374,7 +423,8 @@ class BitwiseBase(BinaryBase):
     """Converts an onnx BitwiseBase node into an equivalent Relax expression."""
 
     @classmethod
-    def base_impl(cls, bb, inputs, attr, params, py_func, relax_op):
+    def base_impl(cls, bb, inputs, attr, params):
+        """Base implementation for bitwise operations."""
         valid_types = ["int8", "int16", "int32", "int64", "uint8", "uint16", "uint32", "uint64"]
         for num, inp in enumerate(inputs):
             if inp.struct_info.dtype not in valid_types:
@@ -382,31 +432,69 @@ class BitwiseBase(BinaryBase):
                     f"Bitwise operations expect all inputs to have integer types, "
                     f"got {inp.struct_info.dtype} for input {num}"
                 )
-        return BinaryBase.base_impl(bb, inputs, attr, params, py_func, relax_op)
+        return super().base_impl(bb, inputs, attr, params)
 
 
 class BitwiseAnd(BitwiseBase):
     """Converts an onnx BitwiseAnd node into an equivalent Relax expression."""
 
+    numpy_op = _np.bitwise_and
+    relax_op = relax.op.bitwise_and
+
     @classmethod
     def _impl_v18(cls, bb, inputs, attr, params):
-        return cls.base_impl(bb, inputs, attr, params, lambda x, y: x & y, relax.op.bitwise_and)
+        return cls.base_impl(bb, inputs, attr, params)
 
 
 class BitwiseOr(BitwiseBase):
     """Converts an onnx BitwiseOr node into an equivalent Relax expression."""
 
+    numpy_op = _np.bitwise_or
+    relax_op = relax.op.bitwise_or
+
     @classmethod
     def _impl_v18(cls, bb, inputs, attr, params):
-        return cls.base_impl(bb, inputs, attr, params, lambda x, y: x | y, relax.op.bitwise_or)
+        return cls.base_impl(bb, inputs, attr, params)
 
 
 class BitwiseXor(BitwiseBase):
     """Converts an onnx BitwiseXor node into an equivalent Relax expression."""
 
+    numpy_op = _np.bitwise_xor
+    relax_op = relax.op.bitwise_xor
+
     @classmethod
     def _impl_v18(cls, bb, inputs, attr, params):
-        return cls.base_impl(bb, inputs, attr, params, lambda x, y: x ^ y, relax.op.bitwise_xor)
+        return cls.base_impl(bb, inputs, attr, params)
+
+
+class BitwiseNot(BitwiseBase):
+    """Converts an onnx BitwiseNot node into an equivalent Relax expression."""
+
+    numpy_op = _np.bitwise_not
+    relax_op = relax.op.bitwise_not
+
+    @classmethod
+    def _impl_v18(cls, bb, inputs, attr, params):
+        return cls.base_impl(bb, inputs, attr, params)
+
+
+class BitShift(BitwiseBase):
+    """Converts an onnx BitShift node into an equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v11(cls, bb, inputs, attr, params):
+        direction = attr.get("direction", "LEFT").decode("ascii")
+        if direction == "LEFT":
+            cls.numpy_op = _np.left_shift
+            cls.relax_op = relax.op.left_shift
+        elif direction == "RIGHT":
+            cls.numpy_op = _np.right_shift
+            cls.relax_op = relax.op.right_shift
+        else:
+            raise ValueError("Unsupported Shift Direction: " + direction)
+
+        return cls.base_impl(bb, inputs, attr, params)
 
 
 class Sigmoid(OnnxOpConverter):
@@ -2652,8 +2740,8 @@ def _get_convert_map():
         "BitwiseAnd": BitwiseAnd,
         "BitwiseOr": BitwiseOr,
         "BitwiseXor": BitwiseXor,
-        # "BitwiseNot": BitwiseNot,
-        # "BitwiseShift": BitwiseShift,
+        "BitwiseNot": BitwiseNot,
+        "BitShift": BitShift,
         "And": And,
         "Or": Or,
         "Xor": Xor,

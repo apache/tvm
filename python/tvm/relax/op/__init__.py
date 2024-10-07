@@ -52,6 +52,7 @@ from .binary import (
     floor_divide,
     greater,
     greater_equal,
+    left_shift,
     less,
     less_equal,
     logical_and,
@@ -62,6 +63,7 @@ from .binary import (
     multiply,
     not_equal,
     power,
+    right_shift,
     subtract,
 )
 from .create import (

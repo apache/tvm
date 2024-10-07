@@ -62,6 +62,8 @@ register_legalize("relax.minimum", _binary(topi.minimum))
 register_legalize("relax.bitwise_and", _binary(topi.bitwise_and))
 register_legalize("relax.bitwise_or", _binary(topi.bitwise_or))
 register_legalize("relax.bitwise_xor", _binary(topi.bitwise_xor))
+register_legalize("relax.left_shift", _binary(topi.left_shift))
+register_legalize("relax.right_shift", _binary(topi.right_shift))
 
 # logical
 register_legalize("relax.logical_and", _binary(topi.logical_and))

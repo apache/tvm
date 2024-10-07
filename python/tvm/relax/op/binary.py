@@ -386,3 +386,35 @@ def bitwise_xor(x1: Expr, x2: Expr) -> Expr:
         The computed result.
     """
     return _ffi_api.bitwise_xor(x1, x2)
+
+
+def left_shift(x1: Expr, x2: Expr) -> Expr:
+    """Bitwise Shift Left
+    Parameters
+    ----------
+    x1 : relax.Expr
+        The input tensor to be shifted.
+    x2 : relax.Expr
+        The number of positions to shift.
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+    """
+    return _ffi_api.left_shift(x1, x2)
+
+
+def right_shift(x1: Expr, x2: Expr) -> Expr:
+    """Bitwise Shift Right
+    Parameters
+    ----------
+    x1 : relax.Expr
+        The input tensor to be shifted.
+    x2 : relax.Expr
+        The number of positions to shift.
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+    """
+    return _ffi_api.right_shift(x1, x2)
