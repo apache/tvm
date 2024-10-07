@@ -71,6 +71,22 @@ class MatmulRelu:
                 D[vi, vj] = T.max(C[vi, vj], 0.0)
 
 
+@tvm.script.ir_module
+class MatmulNeedsPadding:
+    @T.prim_func
+    def main(a: T.handle, b: T.handle, c: T.handle) -> None:
+        T.func_attr({"global_symbol": "main"})
+        A = T.match_buffer(a, (1024, 1024), "float32")
+        B = T.match_buffer(b, (1024, 1), "float32")
+        C = T.match_buffer(c, (1024, 1), "float32")
+        for i, j, k in T.grid(1024, 1024, 1024):
+            with T.block("matmul"):
+                vi, vj, vk = T.axis.remap("SSR", [i, j, k])
+                with T.init():
+                    C[vi, vj] = 0.0
+                C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vk, vj]
+
+
 # fmt: on
 # pylint: enable=invalid-name,no-member,line-too-long,too-many-nested-blocks,no-self-argument
 
@@ -394,6 +410,52 @@ def test_meta_schedule_database_reload():
                 token,
                 [4.0, 5.0, 6.0],
                 tvm.target.Target("llvm"),
+                ms.arg_info.ArgInfo.from_prim_func(func=mod["main"]),
+            ),
+        ]
+        for record in records:
+            database.commit_tuning_record(record)
+        new_database = ms.database.JSONDatabase(
+            path_workload=database.path_workload,
+            path_tuning_record=database.path_tuning_record,
+        )
+        token = new_database.commit_workload(mod)
+        ret = new_database.get_top_k(token, 2)
+        assert len(ret) == 2
+        try:
+            _equal_record(ret[0], records[2])
+            _equal_record(ret[1], records[1])
+        except AssertionError:
+            _equal_record(ret[0], records[1])
+            _equal_record(ret[1], records[2])
+
+
+def test_meta_schedule_database_needs_padding_reload():
+    mod: IRModule = MatmulNeedsPadding
+    with tempfile.TemporaryDirectory() as tmpdir:
+        database = _create_tmp_database(tmpdir)
+        token = database.commit_workload(mod)
+        trace = _create_schedule(mod, _schedule_matmul).trace
+        records = [
+            ms.database.TuningRecord(
+                trace,
+                token,
+                [7.0, 8.0, 9.0],
+                tvm.target.Target("cuda-tensorcore"),
+                ms.arg_info.ArgInfo.from_prim_func(func=mod["main"]),
+            ),
+            ms.database.TuningRecord(
+                trace,
+                token,
+                [1.0, 2.0, 3.0],
+                tvm.target.Target("cuda-tensorcore"),
+                ms.arg_info.ArgInfo.from_prim_func(func=mod["main"]),
+            ),
+            ms.database.TuningRecord(
+                trace,
+                token,
+                [4.0, 5.0, 6.0],
+                tvm.target.Target("cuda-tensorcore"),
                 ms.arg_info.ArgInfo.from_prim_func(func=mod["main"]),
             ),
         ]
