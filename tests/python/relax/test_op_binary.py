@@ -46,6 +46,8 @@ def test_op_correctness():
     assert relax.op.bitwise_and(x, y).op == Op.get("relax.bitwise_and")
     assert relax.op.bitwise_or(x, y).op == Op.get("relax.bitwise_or")
     assert relax.op.bitwise_xor(x, y).op == Op.get("relax.bitwise_xor")
+    assert relax.op.left_shift(x, y).op == Op.get("relax.left_shift")
+    assert relax.op.right_shift(x, y).op == Op.get("relax.right_shift")
 
     x = relax.Var("x", R.Tensor((2, 3), "bool"))
     y = relax.Var("y", R.Tensor((2, 3), "bool"))

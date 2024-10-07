@@ -358,6 +358,42 @@ def test_binary_bool(op_name: str):
     verify_binary(op_name, [32, 32], [32, 32], [32, 32], dtype=TensorProto.BOOL)
 
 
+@pytest.mark.skip(reason="opset 18 is not supported in CI")
+@pytest.mark.parametrize("op_name", ["BitwiseAnd", "BitwiseOr", "BitwiseXor"])
+def test_bitwise(op_name: str):
+    verify_binary(op_name, [32, 32], [32, 32], [32, 32], dtype=TensorProto.UINT64, opset=18)
+
+
+@pytest.mark.skip(reason="opset 18 is not supported in CI")
+def test_bitwise_not():
+    verify_unary(
+        "BitwiseNot",
+        [32, 32],
+        input_dtype=TensorProto.UINT64,
+        output_dtype=TensorProto.UINT64,
+        opset=18,
+    )
+
+
+@pytest.mark.parametrize("direction", ["LEFT", "RIGHT"])
+def test_bitwise_shift(direction: str):
+    shape = [32, 32]
+    dtype = TensorProto.UINT64
+    test_node = helper.make_node("BitShift", ["a", "b"], ["c"], direction=direction)
+    graph = helper.make_graph(
+        [test_node],
+        "binary_test",
+        inputs=[
+            helper.make_tensor_value_info("a", dtype, shape),
+            helper.make_tensor_value_info("b", dtype, shape),
+        ],
+        outputs=[helper.make_tensor_value_info("c", dtype, shape)],
+    )
+
+    model = helper.make_model(graph, producer_name="binary_test")
+    check_correctness(model, inputs={"b": np.random.randint(0, 8, shape).astype("uint64")})
+
+
 @pytest.mark.parametrize(
     "op_name",
     [
