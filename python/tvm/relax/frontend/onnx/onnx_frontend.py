@@ -740,10 +740,12 @@ class Trilu(OnnxOpConverter):
         x = inputs[0]
         k = inputs[1] if len(inputs) > 1 else 0
 
-        if isinstance(k, relax.Var) and k.name_hint in params:
-            k = get_constant(k, params)
-        elif isinstance(k, relax.Constant):
-            k = int(k.data.numpy()[0])
+        if len(inputs) > 1:
+            k = get_constant(inputs[1], params)
+            if isinstance(k, relax.Constant):
+                k = int(k.data.numpy()[0])
+            else:
+                raise ValueError("Currently only support constant k for Trilu op.")
         else:
             k = 0
 
