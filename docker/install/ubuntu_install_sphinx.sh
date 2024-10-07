@@ -20,14 +20,13 @@ set -e
 set -u
 set -o pipefail
 
-# pin sphinx<7 because https://github.com/readthedocs/sphinx_rtd_theme/issues/1465
 pip3 install \
     autodocsumm \
     commonmark \
     docutils \
     Image \
     matplotlib \
-    "sphinx<7" \
+    sphinx \
     sphinx_autodoc_annotation \
     sphinx-gallery \
     sphinx_rtd_theme
