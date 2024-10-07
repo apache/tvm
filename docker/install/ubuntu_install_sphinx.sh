@@ -29,4 +29,5 @@ pip3 install \
     sphinx \
     sphinx_autodoc_annotation \
     sphinx-gallery \
-    sphinx_rtd_theme
+    sphinx_rtd_theme \
+    https://github.com/tlc-pack/tlcpack-sphinx-addon/archive/refs/tags/v0.2.3.zip
