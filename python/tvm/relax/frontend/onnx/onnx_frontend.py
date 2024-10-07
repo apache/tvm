@@ -604,6 +604,36 @@ class ScatterElements(OnnxOpConverter):
         return relax.op.scatter_elements(inputs[0], inputs[1], inputs[2], axis=axis)
 
 
+class ScatterND(OnnxOpConverter):
+    """Convert an onnx ScatterND node into an equivalent Relax expression."""
+
+    @staticmethod
+    def _reduction_check(attr, valid_reductions: List[str]):
+        reduction = attr.get("reduction", None)
+        reduction = reduction or b"update"
+        reduction = reduction.decode("utf-8")
+        reduction = "update" if reduction == "none" else reduction
+        assert (
+            reduction in valid_reductions
+        ), f"Only {valid_reductions} reductions are supported, but {reduction} is gotten"
+
+        return reduction
+
+    @classmethod
+    def _impl_v11(cls, bb, inputs, attr, params):
+        return relax.op.scatter_nd(inputs[0], inputs[1], inputs[2])
+
+    @classmethod
+    def _impl_v16(cls, bb, inputs, attr, params):
+        reduction = cls._reduction_check(attr, ["update", "add", "mul"])
+        return relax.op.scatter_nd(inputs[0], inputs[1], inputs[2], reduction)
+
+    @classmethod
+    def _impl_v18(cls, bb, inputs, attr, params):
+        reduction = cls._reduction_check(attr, ["update", "add", "mul", "min", "max"])
+        return relax.op.scatter_nd(inputs[0], inputs[1], inputs[2], reduction)
+
+
 class Size(OnnxOpConverter):
     """Convert an onnx Size node into an equivalent Relax expression."""
 
@@ -2729,7 +2759,7 @@ def _get_convert_map():
         # "GatherND": GatherND,
         "Scatter": Scatter,
         "ScatterElements": ScatterElements,
-        # "ScatterND": ScatterND,
+        "ScatterND": ScatterND,
         # "Compress": Compress,
         "Size": Size,
         # "EyeLike": EyeLike,

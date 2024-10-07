@@ -118,7 +118,6 @@ def check_correctness(
     tvm_model = relax.transform.DecomposeOpsForInference()(tvm_model)
     # Legalize any relax ops into tensorir.
     tvm_model = relax.transform.LegalizeOps()(tvm_model)
-    print(tvm_model)
 
     # Separate model from parameters.
     tvm_model, params = relax.frontend.detach_params(tvm_model)
@@ -485,6 +484,38 @@ def test_scatter(axis: int, name: str, opset: int):
     model = helper.make_model(graph, producer_name="scatter_test")
     indices = np.random.randint(0, 16, indices_shape)
     check_correctness(model, inputs={"indices": indices}, opset=opset)
+
+
+@pytest.mark.parametrize("reduction", ["none", "add", "mul"])
+def test_scatter_nd(reduction):
+    def verify_scatter_nd(data_shape, indices_shape, updates_shape):
+        scatter_nd_node = helper.make_node(
+            "ScatterND",
+            ["data", "indices", "updates"],
+            ["output"],
+            reduction=reduction,
+        )
+
+        graph = helper.make_graph(
+            [scatter_nd_node],
+            "scatter_nd_test",
+            inputs=[
+                helper.make_tensor_value_info("data", TensorProto.FLOAT, data_shape),
+                helper.make_tensor_value_info("indices", TensorProto.INT64, indices_shape),
+                helper.make_tensor_value_info("updates", TensorProto.FLOAT, updates_shape),
+            ],
+            outputs=[helper.make_tensor_value_info("output", TensorProto.FLOAT, data_shape)],
+        )
+
+        model = helper.make_model(graph, producer_name="scatter_nd_test")
+
+        indices = np.random.choice(data_shape[0], indices_shape)
+        check_correctness(model, inputs={"indices": indices}, opset=16)
+
+    verify_scatter_nd([8], [4, 1], [4])
+    verify_scatter_nd([4, 4, 4], [2, 1], [2, 4, 4])
+    verify_scatter_nd([4, 5, 6], [2, 3, 2], [2, 3, 6])
+    verify_scatter_nd([10], [5, 1], [5])
 
 
 def test_size():

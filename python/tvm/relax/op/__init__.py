@@ -91,6 +91,7 @@ from .manipulate import (
     repeat,
     reshape,
     scatter_elements,
+    scatter_nd,
     split,
     squeeze,
     tile,

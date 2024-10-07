@@ -45,6 +45,7 @@ def test_op_correctness():
     assert relax.op.einsum(x, subscripts="ii").op == Op.get("relax.einsum")
     assert relax.op.flip(x, axis=1).op == Op.get("relax.flip")
     assert relax.op.scatter_elements(x, x, x).op == Op.get("relax.scatter_elements")
+    assert relax.op.scatter_nd(x, x, x).op == Op.get("relax.scatter_nd")
 
 
 def _check_inference(bb: relax.BlockBuilder, call: relax.Call, expected_sinfo: relax.StructInfo):
@@ -3350,6 +3351,30 @@ def test_scatter_elements_infer_struct_info_rank_shape_mismatch():
         bb.normalize(relax.op.scatter_elements(d0, i2, u3))
     with pytest.raises(TVMError):
         bb.normalize(relax.op.scatter_elements(d0, i0, u4))
+
+
+def test_scatter_nd_infer_struct_info():
+    bb = relax.BlockBuilder()
+
+    d0 = relax.Var("data", R.Tensor((8,), "float32"))
+    i0 = relax.Var("indices", R.Tensor((4, 1), "int64"))
+    u0 = relax.Var("updates", R.Tensor((4,), "float32"))
+
+    _check_inference(
+        bb,
+        relax.op.scatter_nd(d0, i0, u0, "update"),
+        relax.TensorStructInfo((8,), dtype="float32"),
+    )
+
+    d1 = relax.Var("data", R.Tensor((4, 4, 4), "float32"))
+    i1 = relax.Var("indices", R.Tensor((2, 1), "int64"))
+    u1 = relax.Var("updates", R.Tensor((2, 4, 4), "float32"))
+
+    _check_inference(
+        bb,
+        relax.op.scatter_nd(d1, i1, u1, "update"),
+        relax.TensorStructInfo((4, 4, 4), dtype="float32"),
+    )
 
 
 if __name__ == "__main__":
