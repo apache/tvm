@@ -34,37 +34,6 @@ class ExportedProgramImporter(BaseFXGraphImporter):
 
     from torch import fx
 
-    def create_input_vars(
-        self, exported_program: torch.export.ExportedProgram
-    ) -> Tuple[List[relax.Var], List[relax.Var]]:
-        """Create relax input vars."""
-        parameters_buffers_constants = []
-        user_inputs = []
-        for spec in exported_program.graph_signature.input_specs:
-            name_hint = spec.arg.name
-            if spec.kind is torch.export.graph_signature.InputKind.CONSTANT_TENSOR:
-                shape = exported_program.tensor_constants[spec.target].shape
-                torch_dtype = exported_program.tensor_constants[spec.target].dtype
-            elif spec.kind is torch.export.graph_signature.InputKind.USER_INPUT:
-                for node in exported_program.graph.find_nodes(op="placeholder", target=spec.target):
-                    if node.name == name_hint:
-                        shape = node.meta["tensor_meta"].shape
-                        torch_dtype = node.meta["tensor_meta"].dtype
-                        break
-            else:
-                # PARAMETER or BUFFER
-                shape = exported_program.state_dict[spec.target].shape
-                torch_dtype = exported_program.state_dict[spec.target].dtype
-
-            dtype = self._convert_data_type(torch_dtype)
-            relax_var = relax.Var(name_hint, relax.TensorStructInfo(shape, dtype))
-            if spec.kind is torch.export.graph_signature.InputKind.USER_INPUT:
-                user_inputs.append(relax_var)
-            else:
-                parameters_buffers_constants.append(relax_var)
-
-        return parameters_buffers_constants, user_inputs
-
     ########## Unary Ops ##########
 
     def _hardtanh(self, node: fx.Node) -> relax.Expr:
@@ -177,6 +146,8 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         end = [node.args[3]]
         stride = [node.args[4] if len(node.args) > 4 else 1]
         return self.block_builder.emit(relax.op.strided_slice(x, axes, begin, end, stride))
+
+    ########## Others ##########
 
     def create_convert_map(
         self,
@@ -293,6 +264,37 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "getitem": self._getitem,
         }
 
+    def create_input_vars(
+        self, exported_program: torch.export.ExportedProgram
+    ) -> Tuple[Dict[str, relax.Var], Dict[str, relax.Var]]:
+        """Create relax input vars."""
+        parameters_buffers_constants = OrderedDict()
+        user_inputs = OrderedDict()
+        for spec in exported_program.graph_signature.input_specs:
+            name_hint = spec.arg.name
+            if spec.kind is torch.export.graph_signature.InputKind.CONSTANT_TENSOR:
+                shape = exported_program.tensor_constants[spec.target].shape
+                torch_dtype = exported_program.tensor_constants[spec.target].dtype
+            elif spec.kind is torch.export.graph_signature.InputKind.USER_INPUT:
+                for node in exported_program.graph.find_nodes(op="placeholder", target=spec.target):
+                    if node.name == name_hint:
+                        shape = node.meta["tensor_meta"].shape
+                        torch_dtype = node.meta["tensor_meta"].dtype
+                        break
+            else:
+                # PARAMETER or BUFFER
+                shape = exported_program.state_dict[spec.target].shape
+                torch_dtype = exported_program.state_dict[spec.target].dtype
+
+            dtype = self._convert_data_type(torch_dtype)
+            relax_var = relax.Var(name_hint, relax.TensorStructInfo(shape, dtype))
+            if spec.kind is torch.export.graph_signature.InputKind.USER_INPUT:
+                user_inputs[name_hint] = relax_var
+            else:
+                parameters_buffers_constants[name_hint] = relax_var
+
+        return parameters_buffers_constants, user_inputs
+
     def from_exported_program(
         self,
         exported_program: torch.export.ExportedProgram,
@@ -305,7 +307,8 @@ class ExportedProgramImporter(BaseFXGraphImporter):
 
         # Create input variables.
         parameter_buffer_constant_vars, user_input_vars = self.create_input_vars(exported_program)
-        inputs_vars = parameter_buffer_constant_vars + user_input_vars
+        inputs_vars = user_input_vars.copy()
+        inputs_vars.update(parameter_buffer_constant_vars)
 
         # Initialize the block builder with a function and a dataflow block.
         self.block_builder = relax.BlockBuilder()
@@ -314,7 +317,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
 
         nodes: List[fx.Node] = exported_program.graph.nodes
         with self.block_builder.function(
-            name=func_name, params=inputs_vars.copy(), attrs=func_attrs
+            name=func_name, params=list(inputs_vars.values()).copy(), attrs=func_attrs
         ):
             output = None
             with self.block_builder.dataflow():
@@ -325,7 +328,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                             # Ignore sym input
                             continue
 
-                        self.env[node] = inputs_vars.pop(0)
+                        self.env[node] = inputs_vars[node.name]
                     elif node.op == "output":
                         args = self.retrieve_args(node)
                         assert len(args) == 1

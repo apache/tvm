@@ -34,10 +34,10 @@ Please note that default end-to-end optimization may not suit complex models.
 import os
 import numpy as np
 import torch
-from torch import fx
+from torch.export import export
 from torchvision.models.resnet import ResNet18_Weights, resnet18
 
-torch_model = resnet18(weights=ResNet18_Weights.DEFAULT)
+torch_model = resnet18(weights=ResNet18_Weights.DEFAULT).eval()
 
 ######################################################################
 # Review Overall Flow
@@ -63,21 +63,19 @@ torch_model = resnet18(weights=ResNet18_Weights.DEFAULT)
 # Convert the model to IRModule
 # ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 # Next step, we convert the model to an IRModule using the Relax frontend for PyTorch for further
-# optimization. Besides the model, we also need to provide the input shape and data type.
+# optimization.
 
 import tvm
 from tvm import relax
-from tvm.relax.frontend.torch import from_fx
+from tvm.relax.frontend.torch import from_exported_program
 
-torch_model = resnet18(weights=ResNet18_Weights.DEFAULT)
-
-# Give the input shape and data type
-input_info = [((1, 3, 224, 224), "float32")]
+# Give an example argument to torch.export
+example_args = (torch.randn(1, 3, 224, 224, dtype=torch.float32),)
 
 # Convert the model to IRModule
 with torch.no_grad():
-    torch_fx_model = fx.symbolic_trace(torch_model)
-    mod = from_fx(torch_fx_model, input_info, keep_params_as_input=True)
+    exported_program = export(torch_model, example_args)
+    mod = from_exported_program(exported_program, keep_params_as_input=True)
 
 mod, params = relax.frontend.detach_params(mod)
 mod.show()
