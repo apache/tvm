@@ -139,3 +139,14 @@ def InjectFenceProxy():
         The result pass
     """
     return _ffi_api.InjectFenceProxy()  # type: ignore
+
+
+def Simplify():
+    """Simplify
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.Simplify()  # type: ignore
