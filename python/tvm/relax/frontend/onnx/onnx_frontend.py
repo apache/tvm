@@ -2394,6 +2394,14 @@ class Unique(OnnxOpConverter):
         return relax.op.unique(data, sorted=sorted, axis=axis)
 
 
+class NonZero(OnnxOpConverter):
+    """Converts an onnx NonZero node into an equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v9(cls, bb, inputs, attr, params):
+        return relax.op.nonzero(inputs[0])
+
+
 class HardSigmoid(OnnxOpConverter):
     """Converts an onnx HardSigmoid node into an equivalent Relax expression."""
 
@@ -2779,7 +2787,7 @@ def _get_convert_map():
         "Range": Range,
         "OneHot": OneHot,
         "Unique": Unique,
-        # "NonZero": NonZero,
+        "NonZero": NonZero,
         # "If": If,
         # "LRN": LRN,
         # "MaxRoiPool": MaxRoiPool,

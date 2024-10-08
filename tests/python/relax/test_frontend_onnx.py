@@ -2126,6 +2126,11 @@ def test_unique(axis: Optional[int], sorted: int):
     check_correctness(model)
 
 
+@pytest.mark.parametrize("shape", [(), (1,), (2, 3), (4, 5, 6)])
+def test_nonzero(shape):
+    verify_unary("NonZero", shape, input_dtype=TensorProto.BOOL, output_dtype=TensorProto.INT64)
+
+
 @pytest.mark.parametrize("mode", ["DCR", "CRD"])
 def test_depth_to_space(mode: Literal["DCR", "CRD"]):
     in_shape = [1, 8, 2, 3]
