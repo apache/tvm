@@ -179,6 +179,10 @@ def validate_targets(parse_targets, additional_target_options=None):
         )
 
     if additional_target_options is not None:
+        # Add-on target options are passed from codegen's config(BYOC) which has pass_default=True
+        # Eg: --target="llvm"
+        if len(tvm_targets) == 1:
+            return
         for target_name in additional_target_options:
             if not any([target for target in parse_targets if target["name"] == target_name]):
                 first_option = list(additional_target_options[target_name].keys())[0]

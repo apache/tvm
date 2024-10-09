@@ -86,6 +86,20 @@ def test_default_arg_for_mrvl_hybrid():
     assert parsed.target_mrvl_num_tiles == 8
 
 
+@tvm.testing.requires_mrvl
+def test_default_arg_for_mrvl_hybrid():
+    parser = argparse.ArgumentParser()
+    generate_target_args(parser)
+    parsed, _ = parser.parse_known_args(
+        [
+            "--target=mrvl, llvm",
+        ]
+    )
+    assert parsed.target == "mrvl, llvm"
+    assert parsed.target_mrvl_mcpu == "cn10ka"
+    assert parsed.target_mrvl_num_tiles == 8
+
+
 @tvm.testing.requires_cmsisnn
 def test_mapping_target_args():
     parser = argparse.ArgumentParser()
