@@ -179,12 +179,13 @@ def validate_targets(parse_targets, additional_target_options=None):
         )
 
     if additional_target_options is not None:
-        # Add-on target options are passed from codegen's config(BYOC) which has pass_default=True
-        # Eg: --target="llvm"
-        if len(tvm_targets) == 1:
-            return
         for target_name in additional_target_options:
             if not any([target for target in parse_targets if target["name"] == target_name]):
+                # When built with USE_MRVL=ON, add-on target options are passed from MRVL codegen's
+                # config which has pass_default=True, Eg: --target="llvm" cnn.onnx
+                if len(tvm_targets) == 1 && (target_name == 'mrvl'):
+                    return
+
                 first_option = list(additional_target_options[target_name].keys())[0]
                 raise TVMCException(
                     f"Passed --target-{target_name}-{first_option}"
