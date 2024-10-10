@@ -173,6 +173,39 @@ Expr tile(Expr data, Array<Integer> repeats);
  */
 Expr flip(Expr data, Integer axis);
 
+/*!
+ * \brief Scatter updates into an array according to indices.
+ * \param data The input tensor.
+ * \param indices The index positions to update in `data`.
+ * \param updates The values to replace to.
+ * \param axis The axis along which to scatter the elements.
+ * \param reduction The reduction mode of the scatter elements,
+ * either "update", "add", "mul", "mean", "max" or "min".
+ * \return The computed result.
+ */
+Expr scatter_elements(Expr data, Expr indices, Expr updates, int axis, String reduction);
+
+/*!
+ * \brief Scatter updates into an array according to indices.
+ * \param data The input tensor to be updated.
+ * \param indices The index positions to update in `data`.
+ * \param updates The values to replace to.
+ * \param reduction The reduction mode of the scatter operation.
+ *        Supported modes are:
+ *        - "update": Replace the values at the indices with the update values.
+ *        - "add": Add the update values to the existing values at the indices.
+ *        - "mul": Multiply the existing values at the indices by the update values.
+ *        - "max": Take the maximum of the existing value and the update value at each index.
+ *        - "min": Take the minimum of the existing value and the update value at each index.
+ * \return The computed result tensor with the same shape as `data`.
+ *
+ * \note The shape of `indices` defines the shape of the scattered tensor.
+ *       The last dimension of `indices` corresponds to the depth of each index vector.
+ *       The shape of `updates` must match the shape of `indices` except for the last dimension,
+ *       which must match the slice shape at each index.
+ */
+Expr scatter_nd(Expr data, Expr indices, Expr updates, String reduction);
+
 }  // namespace relax
 }  // namespace tvm
 

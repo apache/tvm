@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import pytest
 import tvm
 from tvm import relax
 from tvm.relax.transform import LegalizeOps
@@ -1737,6 +1736,67 @@ def test_func_struct_info_of_legalized_layout_transform():
                     te_layout_transform[vi // T.int64(4), vi % T.int64(4)] = A[vi]
 
     tvm.ir.assert_structural_equal(Expected, After)
+
+
+def test_scatter_nd():
+
+    # fmt: off
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(
+            data: R.Tensor((8,), "float32"),
+            indices: R.Tensor((4, 1), "int64"),
+            updates: R.Tensor((4,), "float32"),
+        ) -> R.Tensor((8,), "float32"):
+            gv: R.Tensor((8,), "float32") = R.scatter_nd(data, indices, updates, reduction="update")
+            return gv
+
+    After = relax.transform.LegalizeOps()(Before)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            data: R.Tensor((8,), "float32"),
+            indices: R.Tensor((4, 1), "int64"),
+            updates: R.Tensor((4,), "float32"),
+        ) -> R.Tensor((8,), "float32"):
+            gv = R.call_tir(
+                Expected.scatter_nd, (data, indices, updates), R.Tensor((8,), dtype="float32")
+            )
+            return gv
+
+        @T.prim_func(private=True)
+        def scatter_nd(var_data: T.handle, var_indices: T.handle, var_updates: T.handle, var_scatter_nd_generic: T.handle):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            data = T.match_buffer(var_data, (T.int64(8),), offset_factor=1)
+            indices = T.match_buffer(var_indices, (T.int64(4), T.int64(1)), "int64")
+            updates = T.match_buffer(var_updates, (T.int64(4),), offset_factor=1)
+            out_buf = T.match_buffer(var_scatter_nd_generic, (T.int64(8),))
+            with T.block("root"):
+                T.reads()
+                T.writes()
+                T_transpose = T.alloc_buffer((T.int64(1), T.int64(4)), "int64")
+                for ax0 in range(T.int64(1)):
+                    for ax1 in range(T.int64(4)):
+                        with T.block("T_transpose"):
+                            v_ax0 = T.axis.spatial(T.int64(1), ax0)
+                            v_ax1 = T.axis.spatial(T.int64(4), ax1)
+                            T.reads(indices[v_ax1, v_ax0])
+                            T.writes(T_transpose[v_ax0, v_ax1])
+                            T_transpose[v_ax0, v_ax1] = indices[v_ax1, v_ax0]
+                with T.block("scatter_nd_generic"):
+                    T.reads()
+                    T.writes()
+                    for i in range(T.int64(8)):
+                        out_buf[i] = data[i]
+                    for j in range(T.int64(4)):
+                        for k in T.parallel(T.int64(1)):
+                            out_buf[k + T_transpose[j // T.int64(4), j % T.int64(4)]] = updates[j + k]
+
+    # fmt: on
+    tvm.ir.assert_structural_equal(After, Expected)
 
 
 if __name__ == "__main__":
