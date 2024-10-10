@@ -183,7 +183,7 @@ def validate_targets(parse_targets, additional_target_options=None):
             if not any([target for target in parse_targets if target["name"] == target_name]):
                 # When built with USE_MRVL=ON, add-on target options are passed from MRVL codegen's
                 # config which has pass_default=True, Eg: --target="llvm" cnn.onnx
-                if len(tvm_targets) == 1 && (target_name == 'mrvl'):
+                if (len(tvm_targets) == 1) and (target_name == 'mrvl'):
                     return
 
                 first_option = list(additional_target_options[target_name].keys())[0]
