@@ -1696,6 +1696,63 @@ def test_pad(dynamic):
     verify_pad((1, 3, 4, 5), [0, 1, 1, 1, 0, 0, 1, 1], "reflect")
 
 
+@pytest.mark.parametrize("dynamic", [True, False])
+def test_pad_v2(dynamic):
+
+    if dynamic:
+        pytest.skip("Dynamic pad not supported")
+
+    def verify_pad(input_shape, pads, mode="constant", value=0.0):
+        indata = np.random.normal(size=input_shape).astype(np.float32)
+        #  numpy expect result
+        len_dim = len(pads) // 2
+        np_pads = [(pads[i], pads[i + len_dim]) for i in range(len_dim)]
+        pads = np.array(pads)
+        #  onnx graph
+        if mode in ["edge", "reflect"]:
+            outdata = np.pad(indata, pad_width=np_pads, mode=mode)
+            node = helper.make_node(
+                "Pad", inputs=["input"], outputs=["output"], mode=mode, pads=pads
+            )
+            graph = helper.make_graph(
+                [node],
+                "pad_test",
+                inputs=[
+                    helper.make_tensor_value_info("input", TensorProto.FLOAT, list(indata.shape))
+                ],
+                outputs=[
+                    helper.make_tensor_value_info("output", TensorProto.FLOAT, list(outdata.shape))
+                ],
+            )
+        else:
+            outdata = np.pad(indata, pad_width=np_pads, mode="constant", constant_values=value)
+            node = helper.make_node(
+                "Pad",
+                inputs=["input"],
+                outputs=["output"],
+                mode="constant",
+                pads=pads,
+                value=value,
+            )
+            graph = helper.make_graph(
+                [node],
+                "pad_test",
+                inputs=[
+                    helper.make_tensor_value_info("input", TensorProto.FLOAT, list(indata.shape))
+                ],
+                outputs=[
+                    helper.make_tensor_value_info("output", TensorProto.FLOAT, list(outdata.shape))
+                ],
+            )
+        model = helper.make_model(graph, producer_name="pad_test")
+        check_correctness(model=model, opset=10)
+
+    verify_pad((2, 2), [0, 1, 0, 0], "constant", 0.0)
+    verify_pad((2, 3), [1, 0, 0, 1], "constant", 0.0)
+    verify_pad((3, 2), [0, 0, 1, 0], "constant", 5.0)
+    verify_pad((1, 3, 4, 5), [0, 1, 1, 1, 0, 0, 1, 1], "reflect")
+
+
 @pytest.mark.parametrize("fp_arith", [np.float16, np.float32])
 @pytest.mark.parametrize("dynamic", [True, False])
 def test_split(fp_arith, dynamic):
