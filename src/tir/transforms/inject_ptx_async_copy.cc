@@ -171,10 +171,14 @@ class PTXAsyncCopyInjector : public StmtMutator {
             if (auto* b = call->args[2].as<BroadcastNode>()) {
               if (auto* f = b->value.as<FloatImmNode>()) {
                 else_value_is_zero = f->value == 0.0f;
+              } else if (auto* i = b->value.as<IntImmNode>()) {
+                else_value_is_zero = i->value == 0;
               }
             }
             if (auto* f = call->args[2].as<FloatImmNode>()) {
               else_value_is_zero = f->value == 0.0f;
+            } else if (auto* i = call->args[2].as<IntImmNode>()) {
+              else_value_is_zero = i->value == 0;
             }
             if (else_value_is_zero) {
               return InjectPTX(load, store, true, call->args[0]);
