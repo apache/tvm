@@ -264,11 +264,13 @@ class Session : public ObjectRef {
   /*!
    * \brief Create a session backed by a thread pool of workers
    * \param num_workers The number of workers.
+   * \param num_groups The number of worker groups.
    */
-  TVM_DLL static Session ThreadedSession(int num_workers);
+  TVM_DLL static Session ThreadedSession(int num_workers, int num_groups);
   /*!
    * \brief Create a session backed by pipe-based multiprocessing
    * \param num_workers The number of workers.
+   * \param num_groups The number of worker groups.
    * \param process_pool_creator The name of a global function that takes `num_workers` as an input,
    * and returns a PackedFunc, which takes an integer `worker_id` as the input and returns None.
    * When `worker-id` is 0, it shuts down the process pool; Otherwise, it retursn a tuple
@@ -277,8 +279,9 @@ class Session : public ObjectRef {
    * \note Worker-0 is always co-located with the controler as a separate thread, and therefore
    * worker-0 does not exist in the process pool.
    */
-  TVM_DLL static Session ProcessSession(int num_workers, String process_pool_creator,
-                                        String entrypoint);
+  TVM_DLL static Session ProcessSession(int num_workers, int num_groups,
+                                        String process_pool_creator, String entrypoint);
+
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(Session, ObjectRef, SessionObj);
 };
 

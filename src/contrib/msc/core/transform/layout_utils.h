@@ -123,6 +123,12 @@ class LayoutUtils {
                                                     const Array<Integer>& axes);
   TVM_DLL static const LayoutDecision PermuteLayout(const LayoutDecision& src_layout,
                                                     const std::vector<size_t>& axes);
+
+  /*!
+   * \brief Infer batch dim from the Layout
+   * \return The batch dim.
+   */
+  TVM_DLL static int InferBatchDim(const LayoutDecision& layout);
 };
 
 }  // namespace msc

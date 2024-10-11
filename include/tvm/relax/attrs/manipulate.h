@@ -164,6 +164,18 @@ struct ScatterElementsAttrs : public tvm::AttrsNode<ScatterElementsAttrs> {
         "either \"update\", \"add\", \"mul\", \"mean\", \"min\" or \"max\".");
   }
 };  // struct ScatterElementsAttrs
+
+/*! \brief Attributes used in scatter_nd operators */
+struct ScatterNDAttrs : public tvm::AttrsNode<ScatterNDAttrs> {
+  String reduction;
+
+  TVM_DECLARE_ATTRS(ScatterNDAttrs, "relax.attrs.ScatterNDAttrs") {
+    TVM_ATTR_FIELD(reduction).set_default("update").describe(
+        "Accumulation mode of the ScatterND, "
+        "either \"update\", \"add\", \"mul\", \"min\" or \"max\".");
+  }
+};  // struct ScatterNDAttrs
+
 }  // namespace relax
 }  // namespace tvm
 

@@ -15,6 +15,7 @@ runs:
       channel-priority: strict
       environment-file: conda/build-environment.yaml
       auto-activate-base: false
+      conda-solver: classic
       use-only-tar-bz2: true
       python-version: 3.9
       condarc-file: conda/condarc
@@ -25,6 +26,7 @@ runs:
       channel-priority: strict
       environment-file: conda/build-environment.yaml
       auto-activate-base: false
+      conda-solver: classic
       use-only-tar-bz2: true
       python-version: 3.9
       condarc-file: conda/condarc
@@ -33,3 +35,5 @@ runs:
     run: |
       conda info
       conda list
+      conda info --envs
+      conda list --name base

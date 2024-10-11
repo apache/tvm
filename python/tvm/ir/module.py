@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """IRModule that holds the functions and type definitions."""
+
 from __future__ import annotations
 
 from typing import Dict, Union
@@ -215,6 +216,33 @@ class IRModule(Node, Scriptable):
             An array of global vars.
         """
         return _ffi_api.Module_GetGlobalVars(self)
+
+    def replace_global_vars(
+        self,
+        replacements: Dict[Union[str, _expr.GlobalVar], Union[str, _expr.GlobalVar]],
+    ) -> "IRModule":
+        """Replace GlobalVar instances within the module
+
+        Replace GlobalVars within the IRModule.  Since the IRModule
+        may contain internal references to a GlobalVar, either in TIR
+        or in Relax, this method should be used whenever replacing or
+        renaming a GlobalVar.
+
+        Parameters
+        ----------
+        replacements: Dict[Union[str, _expr.GlobalVar], Union[str, _expr.GlobalVar]]
+
+            A dictionary where each key is a GlobalVar to be replaced,
+            and the corresponding value is the GlobalVar with which to
+            replace it.
+
+        Returns
+        -------
+        IRModule
+            The updated module
+
+        """
+        return _ffi_api.Module_ReplaceGlobalVars(self, replacements)
 
     def get_global_type_vars(self):
         """Collect all global type vars defined in this module.

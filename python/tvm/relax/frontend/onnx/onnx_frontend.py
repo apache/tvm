@@ -34,14 +34,15 @@ If this fails, there may still be dynamic operations in the model.
 Not all TVM kernels currently support dynamic shapes, please file an issue on
 github.com/apache/tvm/issues if you hit an error with dynamic kernels.
 """
+import math
 import warnings
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 import numpy as _np
 import onnx.onnx_ml_pb2
 
 import tvm
-from tvm import relax, tir, topi
+from tvm import TVMError, relax, tir, topi
 from tvm.ir import IRModule
 from tvm.ir.supply import NameSupply
 from tvm.tir.generic import cast
@@ -91,7 +92,7 @@ def get_constant(
     # Convert if possible
     if isinstance(var, relax.Var) and var.name_hint in params:
         # When converting a parameter to a constant, update references to it as well.
-        _, value = params.pop(var.name_hint)
+        _, value = params[var.name_hint]
         const_value = relax.const(value)
         graph_nodes[var.name_hint] = const_value
         return const_value
@@ -236,28 +237,264 @@ class MatMul(OnnxOpConverter):
         return relax.op.matmul(inputs[0], inputs[1])
 
 
-class Div(OnnxOpConverter):
-    """Converts an onnx Div node into an equivalent Relax expression."""
+class BinaryBase(OnnxOpConverter):
+    """Converts an onnx BinaryBase node into an equivalent Relax expression."""
+
+    numpy_op: Callable = None
+    relax_op: Callable = None
 
     @classmethod
-    def _impl_v14(cls, bb, inputs, attr, params):
+    def base_impl(cls, bb, inputs, attr, params):
+        """Base implementation for binary operations."""
+        if cls.numpy_op is None or cls.relax_op is None:
+            raise ValueError("Numpy and Relax operators must be defined for BinaryBase.")
         if all([isinstance(inp, relax.Constant) for inp in inputs]):
-            output = inputs[0].data.numpy() / inputs[1].data.numpy()
+            output = cls.numpy_op(  # pylint: disable=not-callable
+                inputs[0].data.numpy(), inputs[1].data.numpy()
+            )
             return relax.const(output, inputs[0].struct_info.dtype)
         if any([isinstance(inp, relax.PrimValue) for inp in inputs]):
             x = (
-                int(inputs[0].value)
+                _np.array(inputs[0].value)
                 if isinstance(inputs[0], relax.PrimValue)
                 else inputs[0].data.numpy()
             )
             y = (
-                int(inputs[1].value)
+                _np.array(inputs[0].value)
                 if isinstance(inputs[1], relax.PrimValue)
                 else inputs[1].data.numpy()
             )
-            return relax.PrimValue(int(x / y))
+            return relax.PrimValue(cls.numpy_op(x, y))  # pylint: disable=not-callable
 
-        return relax.op.divide(inputs[0], inputs[1])
+        return cls.relax_op(inputs[0], inputs[1])  # pylint: disable=not-callable
+
+
+class Add(BinaryBase):
+    """Converts an onnx Add node into an equivalent Relax expression."""
+
+    numpy_op = _np.add
+    relax_op = relax.op.add
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr, params):
+        return cls.base_impl(bb, inputs, attr, params)
+
+
+class Sub(BinaryBase):
+    """Converts an onnx Sub node into an equivalent Relax expression."""
+
+    numpy_op = _np.subtract
+    relax_op = relax.op.subtract
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr, params):
+        return cls.base_impl(bb, inputs, attr, params)
+
+
+class Mul(BinaryBase):
+    """Converts an onnx Mul node into an equivalent Relax expression."""
+
+    numpy_op = _np.multiply
+    relax_op = relax.op.multiply
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr, params):
+        return cls.base_impl(bb, inputs, attr, params)
+
+
+class Div(BinaryBase):
+    """Converts an onnx Div node into an equivalent Relax expression."""
+
+    numpy_op = _np.divide
+    relax_op = relax.op.divide
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr, params):
+        return cls.base_impl(bb, inputs, attr, params)
+
+
+class Pow(BinaryBase):
+    """Converts an onnx Pow node into an equivalent Relax expression."""
+
+    numpy_op = _np.power
+    relax_op = relax.op.power
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr, params):
+        return cls.base_impl(bb, inputs, attr, params)
+
+
+class And(BinaryBase):
+    """Converts an onnx And node into an equivalent Relax expression."""
+
+    numpy_op = _np.logical_and
+    relax_op = relax.op.logical_and
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr, params):
+        return cls.base_impl(bb, inputs, attr, params)
+
+
+class Or(BinaryBase):
+    """Converts an onnx Or node into an equivalent Relax expression."""
+
+    numpy_op = _np.logical_or
+    relax_op = relax.op.logical_or
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr, params):
+        return cls.base_impl(bb, inputs, attr, params)
+
+
+class Xor(BinaryBase):
+    """Converts an onnx Xor node into an equivalent Relax expression."""
+
+    numpy_op = _np.logical_xor
+    relax_op = relax.op.logical_xor
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr, params):
+        return cls.base_impl(bb, inputs, attr, params)
+
+
+class Less(BinaryBase):
+    """Converts an onnx Less node into an equivalent Relax expression."""
+
+    numpy_op = _np.less
+    relax_op = relax.op.less
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr, params):
+        return cls.base_impl(bb, inputs, attr, params)
+
+
+class LessOrEqual(BinaryBase):
+    """Converts an onnx LessEqual node into an equivalent Relax expression."""
+
+    numpy_op = _np.less_equal
+    relax_op = relax.op.less_equal
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr, params):
+        return cls.base_impl(bb, inputs, attr, params)
+
+
+class Greater(BinaryBase):
+    """Converts an onnx Greater node into an equivalent Relax expression."""
+
+    numpy_op = _np.greater
+    relax_op = relax.op.greater
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr, params):
+        return cls.base_impl(bb, inputs, attr, params)
+
+
+class GreaterOrEqual(BinaryBase):
+    """Converts an onnx GreaterEqual node into an equivalent Relax expression."""
+
+    numpy_op = _np.greater_equal
+    relax_op = relax.op.greater_equal
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr, params):
+        return cls.base_impl(bb, inputs, attr, params)
+
+
+class Equal(OnnxOpConverter):
+    """Converts an onnx Equal node into an equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v13(cls, bb, inputs, attr, params):
+        if all([isinstance(inp, relax.Constant) for inp in inputs]):
+            output = inputs[0].data.numpy() == inputs[1].data.numpy()
+            return relax.const(output, output.dtype)
+        elif all([isinstance(inp, (relax.Constant, relax.ShapeExpr)) for inp in inputs]):
+            lhs = get_prim_expr_list(inputs[0])
+            rhs = get_prim_expr_list(inputs[1])
+            if len(lhs) != len(rhs):
+                raise ValueError("Cannot compare two tensors with different shapes")
+            output = [tvm.ir.structural_equal(l, r) for l, r in zip(lhs, rhs)]
+            return relax.const(output, "bool")
+        return relax.op.equal(inputs[0], inputs[1])
+
+
+class BitwiseBase(BinaryBase):
+    """Converts an onnx BitwiseBase node into an equivalent Relax expression."""
+
+    @classmethod
+    def base_impl(cls, bb, inputs, attr, params):
+        """Base implementation for bitwise operations."""
+        valid_types = ["int8", "int16", "int32", "int64", "uint8", "uint16", "uint32", "uint64"]
+        for num, inp in enumerate(inputs):
+            if inp.struct_info.dtype not in valid_types:
+                raise ValueError(
+                    f"Bitwise operations expect all inputs to have integer types, "
+                    f"got {inp.struct_info.dtype} for input {num}"
+                )
+        return super().base_impl(bb, inputs, attr, params)
+
+
+class BitwiseAnd(BitwiseBase):
+    """Converts an onnx BitwiseAnd node into an equivalent Relax expression."""
+
+    numpy_op = _np.bitwise_and
+    relax_op = relax.op.bitwise_and
+
+    @classmethod
+    def _impl_v18(cls, bb, inputs, attr, params):
+        return cls.base_impl(bb, inputs, attr, params)
+
+
+class BitwiseOr(BitwiseBase):
+    """Converts an onnx BitwiseOr node into an equivalent Relax expression."""
+
+    numpy_op = _np.bitwise_or
+    relax_op = relax.op.bitwise_or
+
+    @classmethod
+    def _impl_v18(cls, bb, inputs, attr, params):
+        return cls.base_impl(bb, inputs, attr, params)
+
+
+class BitwiseXor(BitwiseBase):
+    """Converts an onnx BitwiseXor node into an equivalent Relax expression."""
+
+    numpy_op = _np.bitwise_xor
+    relax_op = relax.op.bitwise_xor
+
+    @classmethod
+    def _impl_v18(cls, bb, inputs, attr, params):
+        return cls.base_impl(bb, inputs, attr, params)
+
+
+class BitwiseNot(BitwiseBase):
+    """Converts an onnx BitwiseNot node into an equivalent Relax expression."""
+
+    numpy_op = _np.bitwise_not
+    relax_op = relax.op.bitwise_not
+
+    @classmethod
+    def _impl_v18(cls, bb, inputs, attr, params):
+        return cls.base_impl(bb, inputs, attr, params)
+
+
+class BitShift(BitwiseBase):
+    """Converts an onnx BitShift node into an equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v11(cls, bb, inputs, attr, params):
+        direction = attr.get("direction", "LEFT").decode("ascii")
+        if direction == "LEFT":
+            cls.numpy_op = _np.left_shift
+            cls.relax_op = relax.op.left_shift
+        elif direction == "RIGHT":
+            cls.numpy_op = _np.right_shift
+            cls.relax_op = relax.op.right_shift
+        else:
+            raise ValueError("Unsupported Shift Direction: " + direction)
+
+        return cls.base_impl(bb, inputs, attr, params)
 
 
 class Sigmoid(OnnxOpConverter):
@@ -275,6 +512,15 @@ class Softmax(OnnxOpConverter):
     def _impl_v13(cls, bb, inputs, attr, params):
         axis = attr.get("axis", -1)
         return relax.op.nn.softmax(inputs[0], axis=axis)
+
+
+class LogSoftmax(OnnxOpConverter):
+    """Converts an onnx LogSoftmax node into an equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v13(cls, bb, inputs, attr, params):
+        axis = attr.get("axis", -1)
+        return relax.op.nn.log_softmax(inputs[0], axis=axis)
 
 
 class Transpose(OnnxOpConverter):
@@ -375,67 +621,6 @@ class Concat(OnnxOpConverter):
         return relax.op.concat(inputs, axis=axis)
 
 
-class Add(OnnxOpConverter):
-    """Convert an onnx Add node into an equivalent Relax expression."""
-
-    @classmethod
-    def _impl_v13(cls, bb, inputs, attr, params):
-        if all([isinstance(inp, relax.Constant) for inp in inputs]):
-            output = inputs[0].data.numpy() + inputs[1].data.numpy()
-            return relax.const(output, output.dtype)
-        # If primvalues are involved, handle them directly.
-        if any([isinstance(inp, relax.PrimValue) for inp in inputs]):
-            x = (
-                int(inputs[0].value)
-                if isinstance(inputs[0], relax.PrimValue)
-                else inputs[0].data.numpy()
-            )
-            y = (
-                int(inputs[1].value)
-                if isinstance(inputs[1], relax.PrimValue)
-                else inputs[1].data.numpy()
-            )
-            return relax.PrimValue(int(x + y))
-        return relax.op.add(inputs[0], inputs[1])
-
-
-class Sum(OnnxOpConverter):
-    """Convert an onnx Sum node into an equivalent Relax expression."""
-
-    @classmethod
-    def _impl_v1(cls, bb, inputs, attr, params):
-        for in_index in range(len(inputs) - 1):
-            inputs[in_index + 1] = relax.op.add(inputs[in_index], inputs[in_index + 1])
-
-        return inputs[len(inputs) - 1]
-
-
-class Mul(OnnxOpConverter):
-    """Convert an onnx Mul node into an equivalent Relax expression."""
-
-    @classmethod
-    def _impl_v13(cls, bb, inputs, attr, params):
-        # When all inputs are constant, directly multiply.
-        if all([isinstance(inp, relax.Constant) for inp in inputs]):
-            output = inputs[0].data.numpy() * inputs[1].data.numpy()
-            return relax.const(output, output.dtype)
-        # If primvalues are involved, handle them directly.
-        if any([isinstance(inp, relax.PrimValue) for inp in inputs]):
-            x = (
-                int(inputs[0].value)
-                if isinstance(inputs[0], relax.PrimValue)
-                else inputs[0].data.numpy()
-            )
-            y = (
-                int(inputs[1].value)
-                if isinstance(inputs[1], relax.PrimValue)
-                else inputs[1].data.numpy()
-            )
-            return relax.PrimValue(int(x * y))
-
-        return relax.op.multiply(inputs[0], inputs[1])
-
-
 class Cast(OnnxOpConverter):
     """Convert an onnx Cast node into an equivalent Relax expression."""
 
@@ -482,8 +667,68 @@ class Gather(OnnxOpConverter):
             shape_val = data[np_index]
             return relax.PrimValue(shape_val)
 
-        # TODO(jwfromm) Make relax.take work with other indices shape.
-        return bb.emit_te(topi.take, data, indices, axis)
+        return relax.op.take(data, indices, axis)
+
+
+class Scatter(OnnxOpConverter):
+    """Convert an onnx Scatter node into an equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v9(cls, bb, inputs, attr, params):
+        axis = attr.get("axis", 0)
+        return relax.op.scatter_elements(inputs[0], inputs[1], inputs[2], axis=axis)
+
+    @classmethod
+    def _impl_v11(cls, bb, inputs, attr, params):
+        raise ValueError("Scatter is deprecated in ONNX 11")
+
+
+class ScatterElements(OnnxOpConverter):
+    """Convert an onnx ScatterElements node into an equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v11(cls, bb, inputs, attr, params):
+        axis = attr.get("axis", 0)
+        return relax.op.scatter_elements(inputs[0], inputs[1], inputs[2], axis=axis)
+
+
+class ScatterND(OnnxOpConverter):
+    """Convert an onnx ScatterND node into an equivalent Relax expression."""
+
+    @staticmethod
+    def _reduction_check(attr, valid_reductions: List[str]):
+        reduction = attr.get("reduction", None)
+        reduction = reduction or b"update"
+        reduction = reduction.decode("utf-8")
+        reduction = "update" if reduction == "none" else reduction
+        assert (
+            reduction in valid_reductions
+        ), f"Only {valid_reductions} reductions are supported, but {reduction} is gotten"
+
+        return reduction
+
+    @classmethod
+    def _impl_v11(cls, bb, inputs, attr, params):
+        return relax.op.scatter_nd(inputs[0], inputs[1], inputs[2])
+
+    @classmethod
+    def _impl_v16(cls, bb, inputs, attr, params):
+        reduction = cls._reduction_check(attr, ["update", "add", "mul"])
+        return relax.op.scatter_nd(inputs[0], inputs[1], inputs[2], reduction)
+
+    @classmethod
+    def _impl_v18(cls, bb, inputs, attr, params):
+        reduction = cls._reduction_check(attr, ["update", "add", "mul", "min", "max"])
+        return relax.op.scatter_nd(inputs[0], inputs[1], inputs[2], reduction)
+
+
+class Size(OnnxOpConverter):
+    """Convert an onnx Size node into an equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr, params):
+        # TODO(tvm-team): add native support for size op
+        return relax.op.prod(relax.op.shape_to_tensor(relax.op.shape_of(inputs[0])))
 
 
 class Gemm(OnnxOpConverter):
@@ -542,29 +787,6 @@ class Reshape(OnnxOpConverter):
         return out
 
 
-class Gelu(OnnxOpConverter):
-    """Operator converter for Gelu from Microsoft onnxruntime contrib opset.
-
-    gelu(x) = 0.5x(1 + erf(x/sqrt(2)))
-    """
-
-    @classmethod
-    def _impl_v1(cls, bb, inputs, attr, params):
-        return relax.op.nn.gelu(inputs[0])
-
-
-class BiasGelu(OnnxOpConverter):
-    """Operator converter for BiasGelu from Microsoft onnxruntime contrib opset.
-
-    bias_gelu(x, b) = 0.5(x + b)(1 + erf((x + b)/sqrt(2)))
-    """
-
-    @classmethod
-    def _impl_v1(cls, bb, inputs, attr, params):
-        inp = relax.op.add(inputs[0], inputs[1])
-        return relax.op.nn.gelu(inp)
-
-
 class Where(OnnxOpConverter):
     """Convert an onnx Where node into an equivalent Relax expression."""
 
@@ -605,24 +827,6 @@ class Clip(OnnxOpConverter):
         return results
 
 
-class Equal(OnnxOpConverter):
-    """Converts an onnx Equal node into an equivalent Relax expression."""
-
-    @classmethod
-    def _impl_v13(cls, bb, inputs, attr, params):
-        if all([isinstance(inp, relax.Constant) for inp in inputs]):
-            output = inputs[0].data.numpy() == inputs[1].data.numpy()
-            return relax.const(output, output.dtype)
-        elif all([isinstance(inp, (relax.Constant, relax.ShapeExpr)) for inp in inputs]):
-            lhs = get_prim_expr_list(inputs[0])
-            rhs = get_prim_expr_list(inputs[1])
-            if len(lhs) != len(rhs):
-                raise ValueError("Cannot compare two tensors with different shapes")
-            output = [tvm.ir.structural_equal(l, r) for l, r in zip(lhs, rhs)]
-            return relax.const(output, "bool")
-        return relax.op.equal(inputs[0], inputs[1])
-
-
 class Shape(OnnxOpConverter):
     """Converts an onnx Equal node into an equivalent Relax expression."""
 
@@ -643,22 +847,6 @@ class Shape(OnnxOpConverter):
         return data_info.shape
 
 
-class Tanh(OnnxOpConverter):
-    """Converts an onnx Tanh node into an equivalent Relax expression."""
-
-    @classmethod
-    def _impl_v13(cls, bb, inputs, attr, params):
-        return relax.op.tanh(inputs[0])
-
-
-class Sqrt(OnnxOpConverter):
-    """Converts an onnx Sqrt node into an equivalent Relax expression."""
-
-    @classmethod
-    def _impl_v13(cls, bb, inputs, attr, params):
-        return relax.op.sqrt(inputs[0])
-
-
 class Trilu(OnnxOpConverter):
     """Given a 2-D matrix or batches of 2-D matrices, returns the upper or
     lower triangular part of the tensor(s)
@@ -670,10 +858,12 @@ class Trilu(OnnxOpConverter):
         x = inputs[0]
         k = inputs[1] if len(inputs) > 1 else 0
 
-        if isinstance(k, relax.Var) and k.name_hint in params:
-            k = get_constant(k, params)
-        elif isinstance(k, relax.Constant):
-            k = int(k.data.numpy()[0])
+        if len(inputs) > 1:
+            k = get_constant(inputs[1], params)
+            if isinstance(k, relax.Constant):
+                k = int(k.data.numpy()[0])
+            else:
+                raise ValueError("Currently only support constant k for Trilu op.")
         else:
             k = 0
 
@@ -691,12 +881,157 @@ class Relu(OnnxOpConverter):
         return relax.op.nn.relu(inputs[0])
 
 
-class Pow(OnnxOpConverter):
-    """Converts an onnx Pow node into an equivalent Relax expression."""
+class Elu(OnnxOpConverter):
+    """Converts an onnx Elu node into an equivalent Relax expression."""
 
     @classmethod
-    def _impl_v13(cls, bb, inputs, attr, params):
-        return relax.op.power(inputs[0], inputs[1])
+    def _impl_v1(cls, bb, inputs, attr, params):
+        alpha = float(attr.get("alpha", 1.0))
+        return relax.expr.const(-alpha) * relax.op.nn.relu(
+            relax.expr.const(1.0) - relax.op.exp(inputs[0])
+        ) + relax.op.nn.relu(inputs[0])
+
+
+class Selu(OnnxOpConverter):
+    """Converts an onnx Selu node into an equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr, params):
+        alpha = attr.get("alpha", 1.67326319217681884765625)
+        gamma = attr.get("gamma", 1.05070102214813232421875)
+        return relax.const(gamma) * (
+            relax.const(-alpha) * relax.op.nn.relu(relax.const(1.0) - relax.op.exp(inputs[0]))
+            + relax.op.nn.relu(inputs[0])
+        )
+
+
+class Mish(OnnxOpConverter):
+    """Converts an onnx Mish node into an equivalent Relax expression.
+
+    mish(x) = x * tanh(softplus(x)) = x * tanh(ln(1 + e^{x}))
+    """
+
+    @classmethod
+    def _impl_v18(cls, bb, inputs, attr, params):
+        dtype = inputs[0].checked_type.dtype
+        return inputs[0] * relax.op.tanh(
+            relax.op.log(relax.const(1.0, dtype) + relax.op.exp(inputs[0]))
+        )
+
+
+class PRelu(OnnxOpConverter):
+    """Converts an onnx PRelu node into an equivalent Relax expression.
+
+    f(x) = slope * x for x < 0, x for x >= 0
+    """
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr, params):
+        x = inputs[0]
+        slope = inputs[1]
+        # TODO(tvm-team): Should add a new op for this.
+        return x * slope + relax.op.nn.relu(x) * (relax.const(1.0) - slope)
+
+
+class ThresholdedRelu(OnnxOpConverter):
+    """Converts an onnx ThresholdedRelu node into an equivalent Relax expression.
+
+    f(x) = x for x > alpha, 0 otherwise
+    """
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr, params):
+        x = inputs[0]
+        alpha = attr.get("alpha", 1.0)
+        return relax.op.greater(x, relax.const(alpha)).astype("float32") * x
+
+
+class LeakyRelu(OnnxOpConverter):
+    """Converts an onnx LeakyRelu node into an equivalent Relax expression.
+
+    f(x) = x for x > 0, alpha * x otherwise
+    """
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr, params):
+        x = inputs[0]
+        alpha = attr.get("alpha", 0.01)
+        return relax.op.nn.leakyrelu(x, alpha)
+
+
+class Gelu(OnnxOpConverter):
+    """Operator converter for Gelu from Microsoft onnxruntime contrib opset.
+
+    gelu(x) = 0.5x(1 + erf(x/sqrt(2)))
+    """
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr, params):
+        return relax.op.nn.gelu(inputs[0])
+
+
+class FastGelu(OnnxOpConverter):
+    """Operator converter for FastGelu from Microsoft onnxruntime contrib opset.
+
+    fast_gelu(x) = 0.5x(1 + tanh(sqrt(2/pi)(x + 0.044715x^3)))
+                 = 0.5x(1 + tanh((sqrt(2/pi)x + 0.044715(sqrt(2/pi)x^3)))
+                 = 0.5x(1 + tanh(c1 * x + c2 * x^3)))
+    , where
+        c1 = sqrt(2/pi)
+        c2 = 0.044715 * sqrt(2/pi)
+    """
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr, params):
+        if inputs[1]:
+            bias = inputs[1]
+            bias_shape = bias.struct_info.shape
+            assert len(bias_shape) == 1, "bias term must be a 1D tensor"
+            x += bias
+
+        # Declare consts
+        const_dtype = x.struct_info.dtype
+        half = relax.const(0.5, dtype=const_dtype)
+        one = relax.const(1.0, dtype=const_dtype)
+        const1 = relax.const(math.sqrt(2 / math.pi), dtype=const_dtype)
+        const2 = relax.const(0.044715 * math.sqrt(2 / math.pi), dtype=const_dtype)
+
+        # Compute FastGelu
+        term1 = relax.op.multiply(half, x)
+        term2 = relax.op.multiply(const1, x)
+        term3 = relax.op.multiply(const2, relax.op.power(x, relax.const(3, const_dtype)))
+        tanh = relax.op.tanh(relax.op.add(term2, term3))
+        return relax.op.multiply(term1, relax.op.add(one, tanh))
+
+
+class BiasGelu(OnnxOpConverter):
+    """Operator converter for BiasGelu from Microsoft onnxruntime contrib opset.
+
+    bias_gelu(x, b) = 0.5(x + b)(1 + erf((x + b)/sqrt(2)))
+    """
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr, params):
+        inp = relax.op.add(inputs[0], inputs[1])
+        return relax.op.nn.gelu(inp)
+
+
+class Shrink(OnnxOpConverter):
+    """Converts an onnx Shrink node into an equivalent Relax expression.
+
+    f(x) = x + bias if x > lambd, x - bias if x < -lambd, 0 otherwise
+    """
+
+    @classmethod
+    def _impl_v9(cls, bb, inputs, attr, params):
+        x = inputs[0]
+        dtype = x.struct_info.dtype
+        lambd = relax.const(attr.get("lambd", 0.5), dtype)
+        bias = relax.const(attr.get("bias", 0.0), dtype)
+        zeros = relax.op.zeros_like(x)
+        return relax.op.where(x > lambd, x - bias, zeros) + relax.op.where(
+            x < -lambd, x + bias, zeros
+        )
 
 
 class Conv(OnnxOpConverter):
@@ -730,21 +1065,55 @@ class Conv(OnnxOpConverter):
                 weight=inputs[1],
                 strides=attr.get("strides", 1),
                 padding=attr.get("pads", 0),
-                dilation=attr.get("dilation", 1),
+                dilation=attr.get("dilations", 1),
                 groups=attr.get("group", 1),
                 data_layout=data_layout,
                 kernel_layout=kernel_layout,
             )
         )
         if inputs[2] is not None:
-            bias = relax.op.reshape(
-                inputs[2],
-                [1, -1]
-                + [
-                    1,
-                ]
-                * (ndim - 2),
-            )
+            bias = relax.op.reshape(inputs[2], [1, -1] + [1] * (ndim - 2))
+            conv_out = relax.op.add(conv_out, bias)
+
+        return conv_out
+
+
+class ConvTranspose(OnnxOpConverter):
+    """Converts an onnx ConvTranspose node into an equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr, params):
+        if hasattr(inputs[0].struct_info, "ndim"):
+            ndim = inputs[0].struct_info.ndim
+        else:
+            ndim = len(inputs[0].struct_info.shape)
+
+        if ndim == 3:
+            op = relax.op.nn.conv1d_transpose
+            data_layout = "NCW"
+            kernel_layout = "IOW"
+        elif ndim == 4:
+            op = relax.op.nn.conv2d_transpose
+            data_layout = "NCHW"
+            kernel_layout = "IOHW"
+        elif ndim == 5:
+            raise NotImplementedError("Relax ConvTranspose3d not supported yet")
+        else:
+            raise NotImplementedError("Ndim > 5 not supported for convolution.")
+
+        conv_out = op(
+            data=inputs[0],
+            weight=inputs[1],
+            strides=attr.get("strides", 1),
+            padding=attr.get("pads", 0),
+            dilation=attr.get("dilations", 1),
+            groups=attr.get("group", 1),
+            data_layout=data_layout,
+            kernel_layout=kernel_layout,
+        )
+
+        if inputs[2] is not None:
+            bias = relax.op.reshape(inputs[2], [1, -1] + [1] * (ndim - 2))
             conv_out = relax.op.add(conv_out, bias)
 
         return conv_out
@@ -839,17 +1208,6 @@ class ConstantOfShape(OnnxOpConverter):
         return relax.op.broadcast_to(relax.const(value, dtype), shape)
 
 
-class Sub(OnnxOpConverter):
-    """Converts an onnx Sub node into an equivalent Relax expression."""
-
-    @classmethod
-    def _impl_v13(cls, bb, inputs, attr, params):
-        if all([isinstance(inp, relax.Constant) for inp in inputs]):
-            output = inputs[0].data.numpy() - inputs[1].data.numpy()
-            return relax.const(output, output.dtype)
-        return relax.op.subtract(inputs[0], inputs[1])
-
-
 class Sin(OnnxOpConverter):
     """Converts an onnx Sin node into an equivalent Relax expression."""
 
@@ -858,12 +1216,92 @@ class Sin(OnnxOpConverter):
         return relax.op.sin(inputs[0])
 
 
+class Sinh(OnnxOpConverter):
+    """Converts an onnx Sinh node into an equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v9(cls, bb, inputs, attr, params):
+        return relax.op.sinh(inputs[0])
+
+
 class Cos(OnnxOpConverter):
     """Converts an onnx Cos node into an equivalent Relax expression."""
 
     @classmethod
     def _impl_v7(cls, bb, inputs, attr, params):
         return relax.op.cos(inputs[0])
+
+
+class Cosh(OnnxOpConverter):
+    """Converts an onnx Cosh node into an equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v9(cls, bb, inputs, attr, params):
+        return relax.op.cosh(inputs[0])
+
+
+class Tan(OnnxOpConverter):
+    """Converts an onnx Tan node into an equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v7(cls, bb, inputs, attr, params):
+        return relax.op.tan(inputs[0])
+
+
+class Tanh(OnnxOpConverter):
+    """Converts an onnx Tanh node into an equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v7(cls, bb, inputs, attr, params):
+        return relax.op.tanh(inputs[0])
+
+
+class Acos(OnnxOpConverter):
+    """Converts an onnx Acos node into an equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v7(cls, bb, inputs, attr, params):
+        return relax.op.acos(inputs[0])
+
+
+class Acosh(OnnxOpConverter):
+    """Converts an onnx Acosh node into an equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v9(cls, bb, inputs, attr, params):
+        return relax.op.acosh(inputs[0])
+
+
+class Asin(OnnxOpConverter):
+    """Converts an onnx Asin node into an equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v7(cls, bb, inputs, attr, params):
+        return relax.op.asin(inputs[0])
+
+
+class Asinh(OnnxOpConverter):
+    """Converts an onnx Asinh node into an equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v9(cls, bb, inputs, attr, params):
+        return relax.op.asinh(inputs[0])
+
+
+class Atan(OnnxOpConverter):
+    """Converts an onnx Atan node into an equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v7(cls, bb, inputs, attr, params):
+        return relax.op.atan(inputs[0])
+
+
+class Atanh(OnnxOpConverter):
+    """Converts an onnx Atanh node into an equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v9(cls, bb, inputs, attr, params):
+        return relax.op.atanh(inputs[0])
 
 
 class Neg(OnnxOpConverter):
@@ -888,36 +1326,110 @@ class Abs(OnnxOpConverter):
         return relax.op.abs(inputs[0])
 
 
-class Min(OnnxOpConverter):
-    """Converts an onnx Min node into an equivalent Relax expression."""
+class Reciprocal(OnnxOpConverter):
+    """Converts an onnx Reciprocal node into an equivalent Relax expression."""
 
     @classmethod
     def _impl_v13(cls, bb, inputs, attr, params):
+        input_dtype = inputs[0].struct_info.dtype
+        return relax.op.divide(relax.const(1, dtype=input_dtype), inputs[0])
+
+
+class Floor(OnnxOpConverter):
+    """Converts an onnx Floor node into an equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr, params):
+        return relax.op.floor(inputs[0])
+
+
+class Ceil(OnnxOpConverter):
+    """Converts an onnx Ceil node into an equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr, params):
+        return relax.op.ceil(inputs[0])
+
+
+class Round(OnnxOpConverter):
+    """Converts an onnx Round node into an equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr, params):
+        return relax.op.round(inputs[0])
+
+
+class IsInf(OnnxOpConverter):
+    """Converts an onnx IsInf node into an equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v10(cls, bb, inputs, attr, params):
+        return relax.op.isinf(inputs[0])
+
+
+class IsNaN(OnnxOpConverter):
+    """Converts an onnx IsNaN node into an equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v9(cls, bb, inputs, attr, params):
+        return relax.op.isnan(inputs[0])
+
+
+class Sqrt(OnnxOpConverter):
+    """Converts an onnx Sqrt node into an equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr, params):
+        return relax.op.sqrt(inputs[0])
+
+
+class MultiInputBase(OnnxOpConverter):
+    """Converts an onnx MultiInputBase node into an equivalent Relax expression."""
+
+    numpy_op: Callable = None
+    relax_op: Callable = None
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr, params):
+        if cls.numpy_op is None or cls.relax_op is None:
+            raise NotImplementedError("numpy_op and relax_op must be defined for MultiInputBase")
         if all([isinstance(inp, relax.Constant) for inp in inputs]):
             np_inputs = [inp.data.numpy() for inp in inputs]
-            output = _np.minimum(*np_inputs)
+            output = cls.numpy_op(*np_inputs)  # pylint: disable=not-callable
             return relax.const(output, output.dtype)
 
         # Expand inputs, stack them, then perform minimum over the new axis.
         inputs = [bb.normalize(relax.op.expand_dims(i, axis=0)) for i in inputs]
         stacked_tensor = relax.op.concat(inputs, axis=0)
-        return relax.op.min(stacked_tensor, axis=0)
+        return cls.relax_op(stacked_tensor, axis=0)  # pylint: disable=not-callable
 
 
-class Max(OnnxOpConverter):
+class Min(MultiInputBase):
+    """Converts an onnx Min node into an equivalent Relax expression."""
+
+    numpy_op = _np.min
+    relax_op = relax.op.min
+
+
+class Max(MultiInputBase):
     """Converts an onnx Max node into an equivalent Relax expression."""
 
-    @classmethod
-    def _impl_v13(cls, bb, inputs, attr, params):
-        if all([isinstance(inp, relax.Constant) for inp in inputs]):
-            np_inputs = [inp.data.numpy() for inp in inputs]
-            output = _np.maximum(*np_inputs)
-            return relax.const(output, output.dtype)
+    numpy_op = _np.max
+    relax_op = relax.op.max
 
-        # Expand inputs, stack them, then perform maximum over the new axis.
-        inputs = [bb.normalize(relax.op.expand_dims(i, axis=0)) for i in inputs]
-        stacked_tensor = relax.op.concat(inputs, axis=0)
-        return relax.op.max(stacked_tensor, axis=0)
+
+class Mean(MultiInputBase):
+    """Converts an onnx Mean node into an equivalent Relax expression."""
+
+    numpy_op = _np.mean
+    relax_op = relax.op.mean
+
+
+class Sum(MultiInputBase):
+    """Converts an onnx Sum node into an equivalent Relax expression."""
+
+    numpy_op = _np.sum
+    relax_op = relax.op.sum
 
 
 class Log(OnnxOpConverter):
@@ -956,26 +1468,22 @@ class Exp(OnnxOpConverter):
         return relax.op.exp(data)
 
 
-class Less(OnnxOpConverter):
-    """Converts an onnx Less node into an equivalent Relax expression."""
+class Softplus(OnnxOpConverter):
+    """Converts an onnx Softplus node into an equivalent Relax expression."""
 
     @classmethod
-    def _impl_v13(cls, bb, inputs, attr, params):
-        if all([isinstance(inp, relax.Constant) for inp in inputs]):
-            output = _np.less(inputs[0].data.numpy(), inputs[1].data.numpy())
-            return relax.const(output, output.dtype)
-        return relax.op.less(inputs[0], inputs[1])
+    def _impl_v1(cls, bb, inputs, attr, params):
+        dtype = inputs[0].struct_info.dtype
+        return relax.op.log(relax.op.exp(inputs[0]) + relax.const(1, dtype=dtype))
 
 
-class LessOrEqual(OnnxOpConverter):
-    """Converts an onnx LessOrEqual node into an equivalent Relax expression."""
+class Softsign(OnnxOpConverter):
+    """Converts an onnx Softsign node into an equivalent Relax expression."""
 
     @classmethod
-    def _impl_v13(cls, bb, inputs, attr, params):
-        if all([isinstance(inp, relax.Constant) for inp in inputs]):
-            output = _np.less_equal(inputs[0].data.numpy(), inputs[1].data.numpy())
-            return relax.const(output, output.dtype)
-        return relax.op.less_equal(inputs[0], inputs[1])
+    def _impl_v1(cls, bb, inputs, attr, params):
+        dtype = inputs[0].struct_info.dtype
+        return inputs[0] / (relax.op.abs(inputs[0]) + relax.const(1, dtype=dtype))
 
 
 class Split(OnnxOpConverter):
@@ -1075,6 +1583,35 @@ class Pad(OnnxOpConverter):
     """Converts an onnx Pad node into an equivalent Relax expression."""
 
     @classmethod
+    def _impl_v2(cls, bb, inputs, attr, params):
+        pads = attr.get("pads")
+        pads = relax.const(_np.array(pads), inputs[0].struct_info.shape[0].dtype)
+        constant_value = attr.get("value")
+        if constant_value is None:
+            constant_value = 0.0
+
+        if isinstance(pads, relax.Constant):
+            pad_before, pad_after = _np.split(pads.data.numpy(), 2)
+            pad_before = _np.ndarray.tolist(pad_before)
+            pad_after = _np.ndarray.tolist(pad_after)
+        else:
+            raise ValueError("Dynamic pads are not supported yet.")
+
+        pad_mode = attr.get("mode", b"constant").decode("utf-8")
+        if not pad_mode in ["constant", "edge", "reflect"]:
+            raise tvm.error.OpAttributeInvalid(
+                "Value " + pad_mode + ' in attribute "mode" is invalid for operator Pad.'
+            )
+
+        if pad_mode == "constant":
+            return bb.emit_te(topi.nn.pad, inputs[0], pad_before, pad_after, constant_value)
+        elif pad_mode == "reflect":
+            return bb.emit_te(topi.nn.mirror_pad, inputs[0], pad_before, pad_after, "REFLECT")
+        else:
+            # TODO(gigiblender) Support edge mode.
+            raise NotImplementedError("Pad mode {} not implemented".format(pad_mode))
+
+    @classmethod
     def _impl_v11(cls, bb, inputs, attr, params):
         pads = get_constant(inputs[1], params)
         constant_value = get_constant(inputs[2], params)
@@ -1135,6 +1672,8 @@ class Expand(OnnxOpConverter):
             # For some reason, onnx allows target shapes to be smaller than input shapes.
             # We need to go correct it.
             data_shape = [dim.value for dim in data.struct_info.shape]
+            # Dimensions are right alignment.
+            data_shape = [1] * (len(new_shape) - len(data_shape)) + data_shape
             # Fix small target shapes.
             for i, s in enumerate(new_shape):
                 if i < len(data_shape) and s < data_shape[i]:
@@ -1454,6 +1993,20 @@ class BatchNormalization(OnnxOpConverter):
         )
 
 
+class MeanVarianceNormalization(OnnxOpConverter):
+    """Converts an onnx MeanVarianceNormalization node into an equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v9(cls, bb, inputs, attr, params):
+        data = inputs[0]
+        axis = attr.get("axes", (0, 2, 3))
+        data_mean = relax.op.mean(data, axis=axis, keepdims=True)
+        data_mean_squared = relax.op.power(data_mean, relax.const(2, dtype="float32"))
+        data_squared = relax.op.power(data, relax.const(2, dtype="float32"))
+        data_squared_mean = relax.op.mean(data_squared, axis=axis, keepdims=True)
+        return (data - data_mean) / relax.op.sqrt(data_squared_mean - data_mean_squared)
+
+
 class Pool(OnnxOpConverter):
     """A helper class for pool op converters."""
 
@@ -1555,16 +2108,79 @@ class GlobalAveragePool(OnnxOpConverter):
     @classmethod
     def _impl_v1(cls, bb, inputs, attr, params):
         rank = len(inputs[0].struct_info.shape)
-        if rank == 3:
-            return relax.op.nn.adaptive_avg_pool1d(inputs[0], 1)
-        elif rank == 4:
-            return relax.op.nn.adaptive_avg_pool2d(inputs[0], 1)
-        elif rank == 5:
-            return relax.op.nn.adaptive_avg_pool3d(inputs[0], 1)
-        raise NotImplementedError(
-            "Global average pooling is only implemented for 1D, 2D, and 3D kernels, got %dD."
-            % (rank - 2)
+        axes = list(range(2, rank))
+        return relax.op.mean(inputs[0], axis=axes, keepdims=True)
+
+
+class GlobalMaxPool(OnnxOpConverter):
+    """Converts an onnx GlobalMaxPool node into an equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr, params):
+        rank = len(inputs[0].struct_info.shape)
+        axes = list(range(2, rank))
+        return relax.op.max(inputs[0], axis=axes, keepdims=True)
+
+
+class GlobalLpPool(OnnxOpConverter):
+    """Converts an onnx GlobalLpPool node into an equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v2(cls, bb, inputs, attr, params):
+        p = attr.get("p", 2.0)
+        dtype = inputs[0].struct_info.dtype
+        rank = len(inputs[0].struct_info.shape)
+        axes = list(range(2, rank))
+        x_abs = relax.op.abs(inputs[0])
+        x_p = relax.op.power(x_abs, relax.const(p, dtype=dtype))
+        x_sum = relax.op.sum(x_p, axes, keepdims=True)
+        return relax.op.power(x_sum, relax.const(1.0 / p, dtype=dtype))
+
+
+class MaxUnpool(OnnxOpConverter):
+    """Converts an onnx MaxUnpool node into an equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v9(cls, bb, inputs, attr, params):
+        data = inputs[0]
+        indices = inputs[1]
+        output_shape = inputs[2]
+        kernel_shape = attr.get("kernel_shape")
+        pads = attr.get("pads", [0] * len(kernel_shape) * 2)
+        strides = attr.get("strides", [1] * len(kernel_shape))
+
+        multiplier = _np.concatenate([[1, 1], list(strides)])
+        shape = [v.value for v in data.struct_info.shape]
+        total_output_shape = multiplier * shape
+        # Add extra dimensions from kernel size and stride mismatch
+        total_output_shape += _np.concatenate([[0, 0], list(kernel_shape)], axis=0)
+        total_output_shape -= _np.concatenate([[0, 0], list(strides)], axis=0)
+
+        if output_shape is not None:
+            total_output_shape = output_shape
+
+        elif pads is not None:
+            # Get pads in the proper format for relay.
+            pads = _np.concatenate([[0, 0, 0, 0], list(pads)], axis=0)
+            pads = _np.reshape(pads, [-1, 2])
+            # Compute the total padding per axis.
+            total_pad = _np.sum(pads, axis=-1)
+            # Reversing maxpool means that padding actually makes our output smaller.
+            total_output_shape = total_output_shape - total_pad
+
+        # Create a tensor of zeros then scatter our data through it.
+        relax_shape = relax.ShapeExpr(total_output_shape.tolist())
+        zeros_tensor = bb.emit(relax.op.zeros(relax_shape, data.struct_info.dtype))
+        # We need to flatten all our tensors before scattering.
+        flat_tensor = relax.op.scatter_elements(
+            relax.op.reshape(zeros_tensor, [-1]),
+            relax.op.reshape(indices, [-1]),
+            relax.op.reshape(data, [-1]),
+            axis=0,
         )
+        # Reshape our flattened data back to normal.
+        output = relax.op.reshape(flat_tensor, relax_shape)
+        return output
 
 
 class Flatten(OnnxOpConverter):
@@ -1797,6 +2413,32 @@ class ArgMin(OnnxOpConverter):
         return relax.op.argmin(data, axis, keepdims)
 
 
+class TopK(OnnxOpConverter):
+    """Converts an onnx TopK node into an equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v11(cls, bb, inputs, attr, params):
+        data = inputs[0]
+        k = inputs[1]
+        if not isinstance(k, relax.Constant):
+            raise ValueError("TopK k must be a constant")
+        k = int(k.data.numpy())
+        axis = attr.get("axis", -1)
+        largest = attr.get("largest", 1)
+        sorted = attr.get("sorted", 1)
+        if sorted != 1:
+            raise ValueError("TopK sorted must be 1 for Relax frontend")
+
+        return relax.op.topk(data, k, axis, ret_type="both", largest=largest)
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr, params):
+        data = inputs[0]
+        k = attr.get("k", 1)
+        axis = attr.get("axis", -1)
+        return relax.op.topk(data, k, axis, ret_type="both")
+
+
 class SkipLayerNormalization(OnnxOpConverter):
     """Converts a microsoft contrib SkipLayerNormalization node into a Relax expression."""
 
@@ -1869,26 +2511,6 @@ class EmbedLayerNormalization(OnnxOpConverter):
         return relax.Tuple([ln, mask_index])
 
 
-class Greater(OnnxOpConverter):
-    """Converts an onnx Greater node into an equivalent Relax expression."""
-
-    @classmethod
-    def _impl_v13(cls, bb, inputs, attr, params):
-        if all([isinstance(inp, relax.Constant) for inp in inputs]):
-            output = _np.greater(inputs[0].data.numpy(), inputs[1].data.numpy())
-            return relax.const(output, output.dtype)
-        return relax.op.greater(inputs[0], inputs[1])
-
-
-class Reciprocal(OnnxOpConverter):
-    """Converts an onnx Reciprocal node into an equivalent Relax expression."""
-
-    @classmethod
-    def _impl_v13(cls, bb, inputs, attr, params):
-        input_dtype = inputs[0].struct_info.dtype
-        return relax.op.divide(relax.const(1, dtype=input_dtype), inputs[0])
-
-
 class OneHot(OnnxOpConverter):
     """Converts an onnx OneHot node into an equivalent Relax expression."""
 
@@ -1907,15 +2529,24 @@ class OneHot(OnnxOpConverter):
         return bb.emit_te(topi.one_hot, indices, on_value, off_value, depth, axis, dtype)
 
 
-class Elu(OnnxOpConverter):
-    """Converts an onnx Elu node into an equivalent Relax expression."""
+class Unique(OnnxOpConverter):
+    """Converts an onnx Unique node into an equivalent Relax expression."""
 
     @classmethod
-    def _impl_v1(cls, bb, inputs, attr, params):
-        alpha = float(attr.get("alpha", 1.0))
-        return relax.expr.const(-alpha) * relax.op.nn.relu(
-            relax.expr.const(1.0) - relax.op.exp(inputs[0])
-        ) + relax.op.nn.relu(inputs[0])
+    def _impl_v11(cls, bb, inputs, attr, params):
+        data = inputs[0]
+        axis = attr.get("axis", None)
+        sorted = bool(attr.get("sorted", 1))
+        # TODO(tvm-team): Add support for return_index, return_inverse, return_counts
+        return relax.op.unique(data, sorted=sorted, axis=axis)
+
+
+class NonZero(OnnxOpConverter):
+    """Converts an onnx NonZero node into an equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v9(cls, bb, inputs, attr, params):
+        return relax.op.nonzero(inputs[0])
 
 
 class HardSigmoid(OnnxOpConverter):
@@ -1964,53 +2595,308 @@ class Not(OnnxOpConverter):
         return relax.op.logical_not(inputs[0])
 
 
+class DepthToSpace(OnnxOpConverter):
+    """Converts an onnx DepthToSpace node into an equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v11(cls, bb, inputs, attr, params):
+        block_size = int(attr["blocksize"])
+        mode = attr.get("mode", b"DCR").decode("utf-8")
+        b, c, h, w = inputs[0].struct_info.shape
+        if mode == "DCR":
+            x = relax.op.reshape(
+                inputs[0], (b, block_size, block_size, c // (block_size**2), h, w)
+            )
+            x = relax.op.permute_dims(x, [0, 3, 4, 1, 5, 2])
+            return relax.op.reshape(x, (b, c // (block_size**2), h * block_size, w * block_size))
+        elif mode == "CRD":
+            x = relax.op.reshape(
+                inputs[0], (b, c // (block_size**2), block_size, block_size, h, w)
+            )
+            x = relax.op.permute_dims(x, [0, 1, 4, 2, 5, 3])
+            return relax.op.reshape(x, (b, c // (block_size**2), h * block_size, w * block_size))
+        else:
+            raise ValueError(f"Unsupported mode: {mode}, expected DCR or CRD")
+
+
+class SpaceToDepth(OnnxOpConverter):
+    """Converts an onnx SpaceToDepth node into an equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr, params):
+        block_size = int(attr["blocksize"])
+        b, c, h, w = inputs[0].struct_info.shape
+        x = relax.op.reshape(
+            inputs[0], (b, c, h // block_size, block_size, w // block_size, block_size)
+        )
+        x = relax.op.permute_dims(x, [0, 3, 5, 1, 2, 4])
+        return relax.op.reshape(
+            x, (b, c * block_size * block_size, h // block_size, w // block_size)
+        )
+
+
+class SequenceConstruct(OnnxOpConverter):
+    """Operator converter for sequence construction op."""
+
+    @classmethod
+    def _impl_v11(cls, bb, inputs, attr, params):
+        # Construct a tuple from input tensors.
+        return relax.Tuple(inputs)
+
+
+class SequenceEmpty(OnnxOpConverter):
+    """Operator converter for sequence empty op."""
+
+    @classmethod
+    def _impl_v11(cls, bb, inputs, attr, params):
+        # Construct an empty tuple.
+        return relax.Tuple([])
+
+
+class SequenceErase(OnnxOpConverter):
+    """Operator converter for sequence erase op."""
+
+    @classmethod
+    def _impl_v11(cls, bb, inputs, attr, params):
+        # Erase tensor from sequence on specified position
+        input_sequence = inputs[0]
+
+        if len(inputs) == 2:
+            position = inputs[1]
+            # Non constant position is not supported.
+            if isinstance(position, relax.Constant):
+                position = int(position.data.numpy())
+            else:
+                raise NotImplementedError("Position must be a constant.")
+        else:
+            position = -1
+
+        seq_len = len(input_sequence)
+        if not -seq_len <= position < seq_len:
+            raise ValueError(
+                f"Position is out of bounds, expected [-{seq_len}, {seq_len}), got {position}"
+            )
+
+        if position < 0:
+            position = seq_len + position
+        # Convert sequence to a list, insert tensors before erased, and repackage as Tuple.
+        tensor_list = [input_sequence[i] for i in range(seq_len) if i != position]
+        # Create new tuple and return.
+        return relax.Tuple(tensor_list)
+
+
+class SequenceInsert(OnnxOpConverter):
+    """Operator converter for sequence insert op."""
+
+    @classmethod
+    def _impl_v11(cls, bb, inputs, attr, params):
+        # Insert a new tensor into a tuple of tensors.
+        input_sequence = inputs[0]
+        tensor_to_insert = inputs[1]
+
+        if len(inputs) == 3:
+            position = inputs[2]
+            # Non constant position is not supported.
+            if isinstance(position, relax.Constant):
+                position = position.data.numpy()
+            else:
+                raise NotImplementedError("Position must be a constant.")
+        else:
+            position = -1
+
+        if position < 0:
+            position = len(input_sequence) + position + 1
+        # Convert sequence to a list, insert new tensor, and repackage as Tuple.
+        tensor_list = [input_sequence[i] for i in range(len(input_sequence))]
+        # Insert new tensor.
+        tensor_list.insert(position, tensor_to_insert)
+        # Create new tuple and return.
+        return relax.Tuple(tensor_list)
+
+
+class SequenceLength(OnnxOpConverter):
+    """Operator converter for sequence length op."""
+
+    @classmethod
+    def _impl_v11(cls, bb, inputs, attr, params):
+        # Get length of input sequence
+        return relax.const(len(inputs[0]), dtype="int64")
+
+
+class ConcatFromSequence(OnnxOpConverter):
+    """Operator converter for sequence concatenation op."""
+
+    @classmethod
+    def _impl_v11(cls, bb, inputs, attr, params):
+        axis = attr.get("axis", 0)
+        new_axis = attr.get("new_axis", 0)
+
+        if new_axis == 1:
+            raise NotImplementedError("Insert new axis is not supported yet.")
+
+        return relax.op.concat(inputs[0], axis=axis)
+
+
+class SplitToSequence(OnnxOpConverter):
+    """Operator converter for split to sequence op."""
+
+    @classmethod
+    def _impl_v11(cls, bb, inputs, attr, params):
+        axis = attr.get("axis", 0)
+        keepdims = attr.get("keepdims", 1)
+
+        input_tensor = inputs[0]
+        input_shape = input_tensor.struct_info.shape
+
+        # If split is not provided, we split all values along axis.
+        if len(inputs) == 1:
+            split = _np.array(1)
+            if not keepdims:
+                raise NotImplementedError("Only keepdims=1 is supported for now")
+        else:
+            split = inputs[1]
+            if not isinstance(split, relax.Constant):
+                raise ValueError("Only constant split supported for SplitToSequence")
+            split = split.data.numpy()
+
+        if len(split.shape) == 1 and split.shape[0] > 1:
+            split = _np.cumsum(split)
+            split = list(split[:-1])
+        else:
+            chunk_size, dim_size = int(split), input_shape[axis]
+            if dim_size % chunk_size != 0:
+                raise ValueError(
+                    f"Dimension of size {dim_size} along axis {axis} must be "
+                    f"evenly divisible by chunk size {chunk_size}"
+                )
+            split = dim_size // chunk_size
+
+        output = relax.op.split(input_tensor, split, axis=axis)
+        return output
+
+
+class SequenceAt(OnnxOpConverter):
+    """Operator converter for sequence at op."""
+
+    @classmethod
+    def _impl_v11(cls, bb, inputs, attr, params):
+        input_sequence = inputs[0]
+        position = inputs[1]
+        assert isinstance(
+            position, relax.Constant
+        ), "Only constant position supported for SequenceAt"
+        position = int(position.data.numpy())
+        return input_sequence[position]
+
+
 def _get_convert_map():
     return {
-        "MatMul": MatMul,
-        "Concat": Concat,
+        # defs/experimental
+        # "Optional": Optional_,
+        # "OptionalHasElement": OptionalHasElement,
+        # "OptionalGetElement": OptionalGetElement,
+        # Binary operators
         "Add": Add,
+        "Sub": Sub,
         "Mul": Mul,
-        "Cast": Cast,
-        "Sum": Sum,
-        "Gather": Gather,
-        "Gemm": Gemm,
-        "Reshape": Reshape,
         "Div": Div,
+        # "Mod": Mod,
+        "Less": Less,
+        "LessOrEqual": LessOrEqual,
+        "Greater": Greater,
+        "GreaterOrEqual": GreaterOrEqual,
+        "Equal": Equal,
+        "BitwiseAnd": BitwiseAnd,
+        "BitwiseOr": BitwiseOr,
+        "BitwiseXor": BitwiseXor,
+        "BitwiseNot": BitwiseNot,
+        "BitShift": BitShift,
+        "And": And,
+        "Or": Or,
+        "Xor": Xor,
+        "Not": Not,
+        # Unary operators
+        "Log": Log,
+        "Exp": Exp,
+        "Acos": Acos,
+        "Acosh": Acosh,
+        "Asin": Asin,
+        "Asinh": Asinh,
+        "Atan": Atan,
+        "Atanh": Atanh,
+        "Cos": Cos,
+        "Cosh": Cosh,
+        "Sin": Sin,
+        "Sinh": Sinh,
+        "Tan": Tan,
+        "Tanh": Tanh,
+        "Neg": Neg,
+        "Abs": Abs,
+        "Reciprocal": Reciprocal,
+        "Floor": Floor,
+        "Ceil": Ceil,
+        "Round": Round,
+        "IsInf": IsInf,
+        "IsNaN": IsNaN,
+        "Sqrt": Sqrt,
+        "Relu": Relu,
+        "Selu": Selu,
+        "Mish": Mish,
+        "Trilu": Trilu,
+        "PRelu": PRelu,
+        "LeakyRelu": LeakyRelu,
+        "ThresholdedRelu": ThresholdedRelu,
+        "Elu": Elu,
+        "Gelu": Gelu,
+        "FastGelu": FastGelu,
+        "BiasGelu": BiasGelu,
+        "HardSigmoid": HardSigmoid,
+        "HardSwish": HardSwish,
+        "Sign": Sign,
+        "Softplus": Softplus,
+        "Softsign": Softsign,
+        "Shrink": Shrink,
+        "Erf": Erf,
+        "Sum": Sum,
+        "Min": Min,
+        "Max": Max,
+        "Mean": Mean,
+        "Cast": Cast,
+        "Gemm": Gemm,
+        "MatMul": MatMul,
+        # "MatMulInteger": MatMulInteger,
+        # "MatMulInteger16": MatMulInteger16,
+        "Reshape": Reshape,
         "Sigmoid": Sigmoid,
         "Softmax": Softmax,
+        "LogSoftmax": LogSoftmax,
+        # "Hardmax": Hardmax,
         "Transpose": Transpose,
         "Unsqueeze": Unsqueeze,
-        "Gelu": Gelu,
-        "BiasGelu": BiasGelu,
         "Where": Where,
+        "Concat": Concat,
         "Clip": Clip,
-        "Equal": Equal,
         "Shape": Shape,
-        "Tanh": Tanh,
-        "Sqrt": Sqrt,
-        "Trilu": Trilu,
-        "Relu": Relu,
-        "Conv": Conv,
         "Pow": Pow,
-        "Erf": Erf,
         "CumSum": CumSum,
         "Squeeze": Squeeze,
         "Constant": Constant,
-        "Sub": Sub,
-        "Sin": Sin,
-        "Cos": Cos,
-        "Neg": Neg,
-        "Abs": Abs,
-        "Min": Min,
-        "Max": Max,
-        "Log": Log,
-        "Exp": Exp,
-        "Less": Less,
-        "LessOrEqual": LessOrEqual,
+        "Gather": Gather,
+        # "GatherElements": GatherElements,
+        # "GatherND": GatherND,
+        "Scatter": Scatter,
+        "ScatterElements": ScatterElements,
+        "ScatterND": ScatterND,
+        # "Compress": Compress,
+        "Size": Size,
+        # "EyeLike": EyeLike,
+        # Normalization
+        "BatchNormalization": BatchNormalization,
         "LayerNormalization": LayerNormalization,
         "SkipLayerNormalization": SkipLayerNormalization,
         "EmbedLayerNormalization": EmbedLayerNormalization,
         "InstanceNormalization": InstanceNormalization,
+        "MeanVarianceNormalization": MeanVarianceNormalization,
         # defs/reduction
         "ReduceMax": ReduceMax,
         "ReduceMin": ReduceMin,
@@ -2024,6 +2910,7 @@ def _get_convert_map():
         "ReduceL2": ReduceL2,
         "ArgMax": ArgMax,
         "ArgMin": ArgMin,
+        "TopK": TopK,
         "Expand": Expand,
         "ConstantOfShape": ConstantOfShape,
         "Slice": Slice,
@@ -2031,23 +2918,42 @@ def _get_convert_map():
         "Pad": Pad,
         "Split": Split,
         "Tile": Tile,
-        "BatchNormalization": BatchNormalization,
-        "MaxPool": MaxPool,
         "AveragePool": AveragePool,
+        "MaxPool": MaxPool,
+        # "LpPool": LpPool,
         "GlobalAveragePool": GlobalAveragePool,
+        "GlobalMaxPool": GlobalMaxPool,
+        "GlobalLpPool": GlobalLpPool,
+        "MaxUnpool": MaxUnpool,
+        "Conv": Conv,
+        "ConvTranspose": ConvTranspose,
         "Flatten": Flatten,
         "Identity": Identity,
         "Resize": Resize,
         "Einsum": Einsum,
         "Range": Range,
-        "Greater": Greater,
-        "Reciprocal": Reciprocal,
         "OneHot": OneHot,
-        "Elu": Elu,
-        "HardSigmoid": HardSigmoid,
-        "HardSwish": HardSwish,
-        "Sign": Sign,
-        "Not": Not,
+        "Unique": Unique,
+        "NonZero": NonZero,
+        # "If": If,
+        # "LRN": LRN,
+        # "MaxRoiPool": MaxRoiPool,
+        # "RoiAlign": RoiAlign,
+        # "NonMaxSuppression": NonMaxSuppression,
+        # "GridSample": GridSample,
+        # "Upsample": Upsample,
+        # others
+        "DepthToSpace": DepthToSpace,
+        "SpaceToDepth": SpaceToDepth,
+        # Sequence operators
+        "SequenceConstruct": SequenceConstruct,
+        "SequenceEmpty": SequenceEmpty,
+        "SequenceErase": SequenceErase,
+        "SequenceInsert": SequenceInsert,
+        "SequenceLength": SequenceLength,
+        "ConcatFromSequence": ConcatFromSequence,
+        "SplitToSequence": SplitToSequence,
+        "SequenceAt": SequenceAt,
     }
 
 
@@ -2150,7 +3056,7 @@ class ONNXGraphImporter:
                 init_var = self._new_var(var_name, shape=array.shape, dtype=array.dtype)
                 self._nodes[init_tensor.name] = init_var
                 # We need to keep track of both the real value and variable for this variable.
-                self._params[init_tensor.name] = (init_var, array)
+                self._params[var_name] = (init_var, array)
             # Otherwise we can use the weight as a constant.
             else:
                 self._nodes[init_tensor.name] = relax.const(array)
@@ -2267,6 +3173,14 @@ class ONNXGraphImporter:
                 "Where",
                 "Cast",
             ]
+            return_tuple_ops = [
+                "SequenceConstruct",
+                "SequenceEmpty",
+                "SequenceErase",
+                "SequenceInsert",
+                "ConcatFromSequence",
+                "SplitToSequence",
+            ]
             for i, inp in enumerate(inputs):
                 if (
                     inp is not None
@@ -2275,11 +3189,17 @@ class ONNXGraphImporter:
                     and op_name not in shape_compatible_ops
                 ):
                     raise ValueError(f"Node {node.name} cannot handle ShapeExpr inputs.")
-            op = self._convert_operator(op_name, inputs, attr, self.opset)
-            # Create struct information for the new operator.
-            op = self.bb.normalize(op)
+            try:
+                op = self._convert_operator(op_name, inputs, attr, self.opset)
+                # Create struct information for the new operator.
+                op = self.bb.normalize(op)
+            except TVMError as err:
+                print(f"Error converting operator {op_name}, with inputs: {inputs}")
+                raise err
 
-            if not isinstance(op, relax.Tuple):
+            if op_name in return_tuple_ops:
+                outputs_num = 1
+            elif not isinstance(op, relax.Tuple):
                 if isinstance(op.checked_type, tvm.ir.type.TupleType):
                     # This is a var bound to a tuple. We need to unpack it and create
                     # a new tuple.
@@ -2297,7 +3217,6 @@ class ONNXGraphImporter:
             ), "Missing outputs during conversion. Expected {} but Got {} in {}.".format(
                 len(outputs), outputs_num, op_name
             )
-
             if outputs_num == 1:
                 self._nodes[outputs[0]] = op
             else:
@@ -2344,10 +3263,10 @@ class ONNXGraphImporter:
     def _convert_operator(
         self,
         op_name: str,
-        inputs: List[relax.Function],
+        inputs: List[relax.Expr],
         attrs: Dict,
         opset: int,
-    ) -> relax.Function:
+    ) -> relax.Expr:
         """Convert ONNX operator into a Relax operator.
         The converter must specify conversions explicitly for incompatible name, and
         apply handlers to operator attributes.
@@ -2384,7 +3303,7 @@ def from_onnx(
     opset: int = None,
     keep_params_in_input: bool = False,
     sanitize_input_names: bool = True,
-) -> Tuple[IRModule, Dict]:
+) -> IRModule:
     """Convert a ONNX model into an equivalent Relax Function.
     ONNX graphs are represented as Python Protobuf objects.
 
@@ -2411,8 +3330,6 @@ def from_onnx(
     -------
     mod : tvm.IRModule
         The relax module for compilation
-    params : dict of str to tvm.nd.NDArray
-        The parameter dict to be used by relax
     """
     # Error if the model version is below 1.1.0
     if model.ir_version < 3:

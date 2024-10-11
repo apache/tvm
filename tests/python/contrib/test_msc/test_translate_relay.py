@@ -731,12 +731,33 @@ def test_addmm():
 def test_split():
     """test relay to relax for split"""
 
-    class Split(Module):
+    class Split1(Module):
         def forward(self, data):
             return torch.split(data, 1, dim=1)
 
+    class Split2(Module):
+        def forward(self, data):
+            return torch.split(data, [1, 2], dim=1)
+
     input_info = [([1, 3, 10, 10], "float32")]
-    verify_model(Split(), input_info, build_target="llvm")
+    verify_model(Split1(), input_info, build_target="llvm")
+    verify_model(Split2(), input_info, build_target="llvm")
+
+
+def test_unbind():
+    """test relay to relax for unbind"""
+
+    class Unbind1(Module):
+        def forward(self, data):
+            return torch.unbind(data)
+
+    class Unbind2(Module):
+        def forward(self, data):
+            return torch.unbind(data, dim=1)
+
+    input_info = [([3, 3, 10, 10], "float32")]
+    verify_model(Unbind1(), input_info, build_target="llvm")
+    verify_model(Unbind2(), input_info, build_target="llvm")
 
 
 def test_cumsum():
@@ -859,12 +880,17 @@ def test_new_ones():
 def test_expand():
     """test relay to relax for expand"""
 
-    class Expand(Module):
+    class Expand1(Module):
         def forward(self, x):
             return x.expand(4, 2, 3, 4)
 
+    class Expand2(Module):
+        def forward(self, x):
+            return x.expand(4, -1, -1, 4)
+
     input_info = [([1, 2, 3, 4], "float32")]
-    verify_model(Expand(), input_info, build_target="llvm")
+    verify_model(Expand1(), input_info, build_target="llvm")
+    verify_model(Expand2(), input_info, build_target="llvm")
 
 
 def test_reduce():
@@ -1058,6 +1084,28 @@ def test_max():
             return torch.max(x, y)
 
     verify_model(Max(), [([256, 256], "float32"), ([256, 256], "float32")])
+
+
+def test_cat():
+    """test relay to relax for cat"""
+
+    class Cat1(Module):
+        def forward(self, data, data1, data2):
+            return torch.cat((data, data1, data2), dim=1)
+
+    class Cat2(Module):
+        def forward(self, data):
+            const1 = torch.ones((1, 3, 10, 10), dtype=torch.float32)
+            const2 = torch.ones((1, 3, 10, 10), dtype=torch.float32)
+            return torch.cat((data, const1, const2), dim=1)
+
+    input_info = [
+        ([1, 3, 10, 10], "float32"),
+        ([1, 3, 10, 10], "float32"),
+        ([1, 3, 10, 10], "float32"),
+    ]
+    verify_model(Cat1(), input_info, build_target="llvm")
+    verify_model(Cat2(), [([1, 3, 10, 10], "float32")], build_target="llvm")
 
 
 def test_name_string_with_colon():

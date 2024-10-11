@@ -160,19 +160,19 @@ def test_full_like():
     @tvm.script.ir_module
     class FullLike:
         @R.function
-        def main(x: R.Tensor((2, 3), "int32"), v: R.Tensor((), "float32")) -> R.Tensor((2, 3), "float32"):
-            gv: R.Tensor((2, 3), "float32") = R.full_like(x, v)
+        def main(x: R.Tensor((2, 3), "int32"), v: R.Tensor((), "float32")) -> R.Tensor((2, 3), "int32"):
+            gv: R.Tensor((2, 3), "int32") = R.full_like(x, v)
             return gv
 
     @tvm.script.ir_module
     class Expected:
         @R.function
-        def main(x: R.Tensor((2, 3), "int32"), v: R.Tensor((), "float32")) -> R.Tensor((2, 3), "float32"):
-            gv = R.call_tir(Expected.full, (v,), R.Tensor((2, 3), dtype="float32"))
+        def main(x: R.Tensor((2, 3), "int32"), v: R.Tensor((), "float32")) -> R.Tensor((2, 3), "int32"):
+            gv = R.call_tir(Expected.full, (v,), R.Tensor((2, 3), dtype="int32"))
             return gv
 
         @T.prim_func(private=True)
-        def full(rxplaceholder: T.Buffer((), "float32"), T_full: T.Buffer((T.int64(2), T.int64(3)), "float32")):
+        def full(rxplaceholder: T.Buffer((), "float32"), T_full: T.Buffer((T.int64(2), T.int64(3)), "int32")):
             T.func_attr({"tir.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
                 with T.block("T_full"):
@@ -191,26 +191,26 @@ def test_full_like_constant_scalar_fill_value():
     @tvm.script.ir_module
     class FullLike:
         @R.function
-        def main(x: R.Tensor((2, 3), "int32")) -> R.Tensor((2, 3), "float32"):
-            gv: R.Tensor((2, 3), "float32") = R.full_like(x, R.const(-5, "float32"))
+        def main(x: R.Tensor((2, 3), "int32")) -> R.Tensor((2, 3), "int32"):
+            gv: R.Tensor((2, 3), "int32") = R.full_like(x, R.const(-5, "float32"))
             return gv
 
     @tvm.script.ir_module
     class Expected:
         @R.function
-        def main(x: R.Tensor((2, 3), "int32")) -> R.Tensor((2, 3), "float32"):
-            gv = R.call_tir(Expected.full, R.tuple(), R.Tensor((2, 3), dtype="float32"))
+        def main(x: R.Tensor((2, 3), "int32")) -> R.Tensor((2, 3), "int32"):
+            gv = R.call_tir(Expected.full, R.tuple(), R.Tensor((2, 3), dtype="int32"))
             return gv
 
         @T.prim_func(private=True)
-        def full(T_full: T.Buffer((T.int64(2), T.int64(3)), "float32")):
+        def full(T_full: T.Buffer((T.int64(2), T.int64(3)), "int32")):
             T.func_attr({"tir.noalias": True})
             for i0, i1 in T.grid(T.int64(2), T.int64(3)):
                 with T.block("T_full"):
                     ax0, ax1 = T.axis.remap("SS", [i0, i1])
                     T.reads()
                     T.writes(T_full[ax0, ax1])
-                    T_full[ax0, ax1] = T.float32(-5)
+                    T_full[ax0, ax1] = T.int32(-5)
     # fmt: on
 
     mod = LegalizeOps()(FullLike)
@@ -253,19 +253,19 @@ def test_full_like_symbolic():
     @tvm.script.ir_module
     class FullLike:
         @R.function
-        def main(x: R.Tensor(("m", "n"), "int32"), v: R.Tensor((), "float32")) -> R.Tensor(("m", "n"), "float32"):
+        def main(x: R.Tensor(("m", "n"), "int32"), v: R.Tensor((), "float32")) -> R.Tensor(("m", "n"), "int32"):
             m = T.int64()
             n = T.int64()
-            gv: R.Tensor((m, n), "float32") = R.full_like(x, v)
+            gv: R.Tensor((m, n), "int32") = R.full_like(x, v)
             return gv
 
     @tvm.script.ir_module
     class Expected:
         @R.function
-        def main(x: R.Tensor(("m", "n"), "int32"), v: R.Tensor((), "float32")) -> R.Tensor(("m", "n"), "float32"):
+        def main(x: R.Tensor(("m", "n"), "int32"), v: R.Tensor((), "float32")) -> R.Tensor(("m", "n"), "int32"):
             m = T.int64()
             n = T.int64()
-            gv = R.call_tir(Expected.full, (v,), R.Tensor((m, n), dtype="float32"))
+            gv = R.call_tir(Expected.full, (v,), R.Tensor((m, n), dtype="int32"))
             return gv
 
         @T.prim_func(private=True)
@@ -273,13 +273,13 @@ def test_full_like_symbolic():
             T.func_attr({"tir.noalias": True})
             m = T.int64()
             n = T.int64()
-            T_full = T.match_buffer(var_T_full, [m, n], dtype="float32")
+            T_full = T.match_buffer(var_T_full, [m, n], dtype="int32")
             for i0, i1 in T.grid(m, n):
                 with T.block("T_full"):
                     ax0, ax1 = T.axis.remap("SS", [i0, i1])
                     T.reads(rxplaceholder[()])
                     T.writes(T_full[ax0, ax1])
-                    T_full[ax0, ax1] = rxplaceholder[()]
+                    T_full[ax0, ax1] = T.int32(rxplaceholder[()])
     # fmt: on
 
     mod = LegalizeOps()(FullLike)

@@ -30,15 +30,15 @@ trap cleanup 0
 # Install python and pip. Don't modify this to add Python package dependencies,
 # instead modify install_python_package.sh
 apt-get update
-apt-install-and-clear -y python3.8 python3.8-dev python3-pip
-update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.8 1
+apt-install-and-clear -y python3.9 python3.9-dev python3-pip
+update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.9 1
 
 # Pin pip and setuptools versions
 # Hashes generated via:
 #   $ pip download <package>==<version>
 #   $ pip hash --algorithm sha256 <package>.whl
 cat <<EOF > base-requirements.txt
-pip==23.3.2 --hash=sha256:5052d7889c1f9d05224cd41741acb7c5d6fa735ab34e339624a614eaaa7e7d76
-setuptools==58.4.0 --hash=sha256:e8b1d3127a0441fb99a130bcc3c2bf256c2d3ead3aba8fd400e5cbbaf788e036
+pip==24.2 --hash=sha256:2cd581cf58ab7fcfca4ce8efa6dcacd0de5bf8d0a3eb9ec927e07405f4d9e2a2
+setuptools==75.1.0 --hash=sha256:35ab7fd3bcd95e6b7fd704e4a1539513edad446c097797f2985e0e4b960772f2
 EOF
 pip3 install -r base-requirements.txt

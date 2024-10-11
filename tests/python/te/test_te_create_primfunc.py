@@ -814,5 +814,78 @@ def test_with_var_input():
     _check_workload(te_slice_with_var_input, tir_slice_with_var_input, index_dtype_override="int64")
 
 
+def test_loop_aware_initial_value():
+    """Test initial value aware of spatial iter position"""
+
+    @T.prim_func
+    def tir_workload(var_a: T.handle, var_b: T.handle, var_sum_red: T.handle):
+        T.func_attr({"tir.noalias": T.bool(True), "global_symbol": "main"})
+        a = T.match_buffer(var_a, (5, 5))
+        b = T.match_buffer(var_b, (5,))
+        sum_red = T.match_buffer(var_sum_red, (5,))
+        for i, ax in T.grid(5, 5):
+            with T.block("sum_red"):
+                v_i, v_ax = T.axis.remap("SR", [i, ax])
+                T.reads(b[v_i], a[v_i, v_ax])
+                T.writes(sum_red[v_i])
+                with T.init():
+                    sum_red[v_i] = b[v_i]
+                sum_red[v_i] = sum_red[v_i] + a[v_i, v_ax]
+
+    def te_workload():
+        data = te.placeholder((5, 5), "float32", "a")
+        init = te.placeholder((5,), "float32", "b")
+        ax = te.reduce_axis((0, 5), "ax")
+        sum_red = te.compute(
+            (5,),
+            lambda i: te.comm_reducer(
+                lambda x, y: x + y,
+                lambda t: init[i],
+            )(data[i, ax], axis=[ax]),
+            name="sum_red",
+        )
+        return [data, init, sum_red]
+
+    _check_workload(te_workload, tir_workload)
+
+
+def test_loop_aware_reducer_combiner():
+    """Test combiner aware of spatial iter position"""
+
+    @T.prim_func
+    def tir_workload(var_a: T.handle, var_b: T.handle, var_sum_red: T.handle):
+        T.func_attr({"tir.noalias": T.bool(True), "global_symbol": "main"})
+        a = T.match_buffer(var_a, (5, 5))
+        b = T.match_buffer(var_b, (5,))
+        sum_red = T.match_buffer(var_sum_red, (5,))
+        for i, ax in T.grid(5, 5):
+            with T.block("sum_red"):
+                v_i = T.axis.spatial(5, i)
+                v_ax = T.axis.reduce(5, ax)
+                T.reads(a[v_i, 0:5])
+                T.writes(sum_red[v_i])
+                with T.init():
+                    sum_red[v_i] = T.float32(0.0)
+                sum_red[v_i] = T.if_then_else(
+                    a[v_i, sum_red[v_i]] < a[v_i, v_ax], sum_red[v_i], T.Cast("float32", v_ax)
+                )
+
+    def te_workload():
+        data = te.placeholder((5, 5), "float32", "a")
+        init = te.placeholder((5,), "float32", "b")
+        ax = te.reduce_axis((0, 5), "ax")
+        sum_red = te.compute(
+            (5,),
+            lambda i: te.comm_reducer(
+                lambda x, y: te.if_then_else(data[i, x] < y, x, ax),
+                lambda _: te.const(0, "float32"),
+            )(data[i, ax], axis=[ax]),
+            name="sum_red",
+        )
+        return [data, init, sum_red]
+
+    _check_workload(te_workload, tir_workload)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

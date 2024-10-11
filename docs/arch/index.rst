@@ -18,46 +18,37 @@
 Design and Architecture
 =======================
 
-This document is intended for developers who want to understand the
-architecture of TVM and/or actively develop on the project.
+This document is intended for developers who want to understand the architecture of Apache TVM and/or actively develop on the project.
 This page is organized as follows:
 
-- The `Example Compilation Flow`_ gives an overview of the steps that TVM takes to turn a high level description of a model into a deployable module.
+- The `Overall Flow`_ gives an overview of the steps that TVM takes to turn a high level description of a model into a deployable module.
   To get started, please read this section first.
-
-- The `Logical Architecture Components`_ section describes the logical components.
-  The sections after are specific guides focused on each logical component, organized
-  by the component's name.
-
-- The :ref:`Device/Target Interactions <tvm-target-specific-overview>`
-  page describes how TVM interacts with each supported physical device
-  and code-generation target.
-
-- Feel free to also check out the :ref:`dev-how-to` for useful development tips.
+- Brief introduction to the key components of the TVM stack. Feel free to also check out the :ref:`TensorIR Deep Dive <tensor-ir-deep-dive>`
+  and :ref:`Relax Deep Dive <relax-deep-dive>` for more details about the two major components in the TVM stack.
 
 This guide provides a few complementary views of the architecture.
 First, we review a single end-to-end compilation flow and discuss the key data structures and the transformations.
 This runtime-based view focuses on the interactions of each components when running the compiler.
 Then we will review the logical modules of the codebase and their relationship. This part provides a static overarching view of the design.
 
-
-Example Compilation Flow
-------------------------
+Overall Flow
+------------
 
 In this guide, we will study an example compilation flow in the compiler. The figure below shows the flow. At a high-level, it contains several steps:
 
-- Import: The frontend component ingests a model into an IRModule, which contains a collection of functions that internally represent the model.
-- Transformation: The compiler transforms an IRModule to another functionally equivalent or approximately
+- **Model Creation**: Create the IRModule to be optimized and compiled, which contains a collection of functions that internally represent the model.
+  Users can manually construct IRModule via NNModule, TVMScript, or import a pre-trained model from from Relax frontend.
+- **Transformation**: The compiler transforms an IRModule to another functionally equivalent or approximately
   equivalent(e.g. in the case of quantization) IRModule. Many of the transformations are target (backend) independent.
   We also allow target to affect the configuration of the transformation pipeline.
-- Target Translation: The compiler translates(codegen) the IRModule to an executable format specified by the target.
+- **Target Translation**: The compiler translates(codegen) the IRModule to an executable format specified by the target.
   The target translation result is encapsulated as a `runtime.Module` that can be exported, loaded, and executed on the target runtime environment.
-- Runtime Execution: the user loads back a `runtime.Module` and runs the compiled functions in the supported runtime environment.
+- **Runtime Execution**: the user loads back a `runtime.Module` and runs the compiled functions in the supported runtime environment.
 
 
-.. figure:: https://raw.githubusercontent.com/tlc-pack/web-data/main/images/design/tvm_dyn_workflow.svg
+.. figure:: https://raw.githubusercontent.com/tlc-pack/web-data/main/images/design/tvm_overall_flow.svg
    :align: center
-   :width: 85%
+   :width: 80%
 
 
 Key data structures
@@ -70,13 +61,14 @@ components that either define a collection of key data structures or transformat
 **IRModule** is the primary data structure used across the entire stack. An IRModule (intermediate representation module)
 contains a collection of functions. Currently, we support two primary variants of functions.
 
-- **relay::Function** is a high-level functional program representation. A relay.Function usually corresponds to an end-to-end model.
-  You can view a relay.Function as a computational graph with additional support for control-flow, recursion, and complex data structures.
+- **relax::Function** is a high-level functional program representation. A relax.Function represents high-level graph structure,
+  usually corresponds to an end-to-end model or a sub-graph of the overall model. You can view a relax.Function as a computational
+  graph with additional support for control-flow, and complex data structures.
 - **tir::PrimFunc** is a low-level program representation that contains elements including loop-nest choices, multi-dimensional load/store,
   threading, and vector/tensor instructions. It is usually used to represent an operator program that executes a (possibly-fused) layer in a model.
 
-During the compilation, a relay function may be lowered to multiple tir::PrimFunc functions and a top-level function that calls into
-those tir::PrimFunc functions.
+During the compilation and transformation, all relax operators are lowered to ``tir::PrimFunc`` or ``TVM PackedFunc``, which can be executed directly
+on the target device, while the calls to relax operators are lowered to calls to low-level functions (e.g. ``R.call_tir`` or ``R.call_dps``).
 
 Transformations
 ~~~~~~~~~~~~~~~
@@ -86,44 +78,35 @@ Now that we have covered the key data structures, let us talk about the transfor
 - optimization: transform a program to an equivalent, possibly more optimized version.
 - lowering: transform a program to a lower-level representation that is closer to the target.
 
-**relay/transform** contains a collection of passes that optimize the model. The optimizations include common program
-optimizations such as constant folding and dead-code elimination, and tensor-computation specific passes such as layout
-transformation and scaling factor folding.
+relax transformations
+^^^^^^^^^^^^^^^^^^^^^
+relax transformations contain a collection of passes that apply to relax functions. The optimizations include common graph-level
+optimizations such as constant folding and dead-code elimination for operators, and backend-specific optimizations such as library dispatch.
 
-Near the end of the relay optimization pipeline, we will run a pass(FuseOps) to break the end-to-end function(e.g. MobileNet)
-into sub-function(e.g. conv2d-relu) segments. We call these segments of functions.
-This process helps us to divide the original problem into two sub-problems:
+tir transformations
+^^^^^^^^^^^^^^^^^^^
+tir transformations contain a collection of passes that apply to tir functions. There are two major types of transformations:
 
-- Compilation and optimization for each sub-function.
-- Overall execution structure: we need to do a sequence of calls into the generated sub-functions to execute the whole model.
+- **TensorIR schedule**: TensorIR schedules are designed to optimize the TensorIR functions for a specific target, with user-guided instructions and control how the target code is generated.
+  For CPU targets, TIR PrimFunc can generate valid code and execute on the target device without schedule but with very-low performance. However, for GPU targets, the schedule is essential
+  for generating valid code with thread bindings. For more details, please refer to the :ref:`TensorIR Transformation <tir-transform>` section. Additionally, we provides ``MetaSchedule`` to
+  automate the search of TensorIR schedule.
+- **Lowering Passes**: These passes usually perform after the schedule is applied, transforming a TIR PrimFunc into another functionally equivalent PrimFunc, but closer to the
+  target-specific representation. For example, there are passes to flatten multi-dimensional access to one-dimensional pointer access, to expand the intrinsics into target-specific ones,
+  and to decorate the function entry to meet the runtime calling convention.
 
-We use the low-level tir phase to compile and optimize each sub-functions. For specific targets, we may also directly go to the target translation
-phase and use external code generators.
+Many low-level optimizations can be handled in the target phase by the LLVM, CUDA C, and other target compilers. As a result, we leave low-level optimizations such as register allocation
+ to the downstream compilers and only focus on optimizations that are not covered by them.
 
-There are a few different ways(in relay/backend) to handle the calls into the overall execution problem. For simple models with known shapes and no control flow, we can lower to a graph executor that stores the execution structure in a graph. We also support a virtual machine backend for dynamic executions. Finally, we plan to support ahead of time compilation that compiles the high-level execution structure into the executable and generated primitive functions. All of these execution modes are encapsulated by a unified **runtime.Module** interface, which we will discuss in the latter part of the guide.
+cross-level transformations
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Apache TVM brings a unity strategy to optimize the end-to-end models. As the IRModule includes both relax and tir functions, the cross-level transformations are designed to mutate
+the IRModule by applying different transformations to these two types of functions.
 
-**tir/transform** contains transformation passes for TIR level functions. Many tir passes serve the purpose of lowering. For example, there are passes to flatten multi-dimensional access to one-dimensional pointer access, to expand the intrinsics into target-specific ones, and to decorate the function entry to meet the runtime calling convention. Of course, there are also optimizations passes, such as access index simplification and dead code elimination.
-
-Many low-level optimizations can be handled in the target phase by the LLVM, CUDA C, and other target compilers. As a result, we leave low-level optimizations such as register allocation to the downstream compilers and only focus on optimizations that are not covered by them.
-
-Search-space and Learning-based Transformations
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-The transformation passes we described so far are deterministic and rule-based. One design goal of the TVM stack is to support high-performance code optimizations for different hardware platforms. To do so, we will need to investigate as many optimization choices as possible, including but not limited to, multi-dimensional tensor access, loop tiling behavior, special accelerator memory hierarchy, and threading.
-
-It is hard to define a heuristic to make all of the choices. Instead, we will take a search and learning-based approach.
-We first define a collection of actions we can take to transform a program. Example actions include loop transformations, inlining,
-vectorization. We call these actions **scheduling primitives**. The collection of scheduling primitives defines a search space of possible
-optimizations we can make to a program. The system then searches over different possible scheduling
-sequence to pick the best scheduling combination.
-The search procedure is usually guided by a machine learning algorithm.
-
-We can record the best schedule sequence for an (possibly-fused) operator once the search is completed. The compiler can then just lookup the best
-schedule sequence and apply it to the program. Notably, this schedule application phase is **exactly like** the rule-based transformations,
-enabling us to share the same interface convention with tradition passes.
-
-We use search based optimizations to handle the initial tir function generation problem. This part of the module is called AutoTVM(auto_scheduler).
-We expect to expand the learning-based transformations to more areas as we continue to develop the TVM stack.
+For example, ``relax.LegalizeOps`` pass mutates the IRModule by lowering relax operators, add corresponding TIR PrimFunc into the IRModule, and replace the relax operators
+with calls to the lowered TIR PrimFunc. Another example is operator fusion pipeline in relax (including ``relax.FuseOps`` and ``relax.FuseTIR``), which fuse multiple consecutive tensor operations
+into one. Different from the previous implementations, relax fusion pipeline analyzes the pattern of TIR functions and detects the best fusion rules automatically rather
+than human-defined operator fusion patterns.
 
 Target Translation
 ~~~~~~~~~~~~~~~~~~
@@ -204,19 +187,6 @@ except that the data structure of interest changes from the numpy.ndarray to tvm
 - Manipulate the IR directly using TVM's python API.
 
 
-Logical Architecture Components
--------------------------------
-
-.. figure:: https://raw.githubusercontent.com/tlc-pack/web-data/main/images/design/tvm_static_overview.svg
-   :align: center
-   :width: 85%
-
-   TVM Architecture Diagram
-
-The above figure shows the major logical components in the project. Please read the following sections
-for information about the components and their relations.
-
-
 tvm/support
 -----------
 The support module contains the most common utilities for the infrastructure, such as generic arena allocator, socket, and logging.
@@ -243,22 +213,19 @@ These hardware-specific runtime modules define APIs for device memory allocation
 device and benchmark the execution performance. The rpc infrastructure enables data collection from a wide range of hardware backends
 for learning-based optimizations.
 
-
 .. toctree::
    :maxdepth: 1
 
    runtime
 
-
 .. toctree::
    :maxdepth: 1
 
    debugger
-   virtual_machine
    introduction_to_module_serialization
    device_target_interactions
 
-
+..  TODO(tvm-team) add a section about relax vm here
 
 tvm/node
 --------
@@ -275,10 +242,8 @@ Thanks to the node module, we can directly access any field of the TVM's IRNode 
     # we can directly use the field name to access the IR structures
     assert y.a == x
 
-
 We can also serialize arbitrary IR node into a JSON format, and load them back.
 The ability to save/store, and inspect an IR node provides a foundation for making the compiler more accessible.
-
 
 tvm/ir
 ------
@@ -331,11 +296,25 @@ in the target and builtin information registered to each target id(cuda, opencl)
 
    device_target_interactions
 
+tvm/relax
+---------
+
+Relax is the high-level IR used to represent the computational graph of a model. Various optimizations are defined in ``relax.transform``.
+Note that Relax usually works closely the the TensorIR IRModule, most of the transformations are applied on the both Relax and TensorIR functions
+in the IRModule. Please refer to the :ref:`Relax Deep Dive <relax-deep-dive>` for more details.
+
 tvm/tir
 -------
 
 TIR contains the definition of the low-level program representations. We use `tir::PrimFunc` to represent functions that can be transformed by TIR passes.
-Besides the IR data structures, the tir module also defines a set of builtin intrinsics and their attributes via the common Op registry, as well as transformation passes in `tir/transform`.
+Besides the IR data structures, the tir module also includes:
+
+- A set of schedule primitives to control the generated code in ``tir/schedule``.
+- A set of builtin intrinsics in ``tir/tensor_intrin``.
+- A set of analysis passes to analyze the TIR functions in ``tir/analysis``.
+- A set of transformation passes to lower or optimize the TIR functions in ``tir/transform``.
+
+Please refer to the :ref:`TensorIR Deep Dive <tensor-ir-deep-dive>` for more details.
 
 tvm/arith
 ---------
@@ -344,84 +323,28 @@ This module is closely tied to the TIR. One of the key problems in the low-level
 arithmetic properties — the positiveness, variable bound, and the integer set that describes the iterator space. arith module provides
 a collection of tools that do (primarily integer) analysis. A TIR pass can use these analyses to simplify and optimize the code.
 
-tvm/te
-------
+tvm/te and tvm/topi
+-------------------
 
-The name te stands for "tensor expression". This is a domain-specific language module that allows us to construct `tir::PrimFunc` variants quickly by writing tensor expressions.
-Importantly, a tensor expression itself is not a self-contained function that can be stored into IRModule. Instead, it is a fragment of IR that we can stitch together to build an IRModule.
+TE stands for Tensor Expression. TE is a domain-specific language (DSL) for describing tensor computations. Importantly, a tensor expression
+itself is not a self-contained function that can be stored into IRModule. We can use ``te.create_prim_func`` to convert a tensor expression to a ``tir::PrimFunc``
+and then integrate it into the IRModule.
 
-`te/schedule` provides a collection of scheduling primitives to control the function being generated. In the future, we might bring some of
-these scheduling components to the a `tir::PrimFunc` itself.
-
-.. toctree::
-   :maxdepth: 1
-
-   inferbound
-   hybrid_script
-
-tvm/topi
---------
 While possible to construct operators directly via TIR or tensor expressions (TE) for each use case it is tedious to do so.
-`topi` (Tensor operator inventory) provides a set of pre-defined operators (in TE or TIR) defined by
-numpy and found in common deep learning workloads. We also provide a collection of common schedule templates to obtain performant implementations across different target platforms.
+`topi` (Tensor operator inventory) provides a set of pre-defined operators defined by numpy and found in common deep learning workloads.
 
+tvm/meta_schedule
+-----------------
 
-tvm/relay
----------
-Relay is the high-level functional IR used to represent full models. Various optimizations are defined in `relay.transform`. The Relay compiler defines multiple dialects,
-and each dialect is designed to support specific styles of optimization. Notable ones include QNN(for importing pre-quantized models), VM(for lowering to dynamic virtual machine),
-memory(for memory optimization).
+MetaSchedule is a system for automated search-based program optimization. It is designed to be a drop-in replacement for AutoTVM and AutoScheduler,
+and can be used to optimize TensorIR schedules. Note that MetaSchedule only works with static-shape workloads.
 
-.. toctree::
-   :maxdepth: 1
+tvm/dlight
+----------
 
-   relay_intro
-   relay_op_strategy
-   convert_layout
+DLight is a set of pre-defined, easy-to-use, and performant TIR schedules. DLight aims:
 
-
-tvm/autotvm
------------
-
-AutoTVM and AutoScheduler are both components which automate search based program optimization. This is rapidly evolving and primarily consists of:
-
-- Cost models and feature extraction.
-- A record format for storing program benchmark results for cost model construction.
-- A set of search policies over program transformations.
-
-Automated program optimization is still an active research field. As a result, we have attempted to modularize the design so that researchers may quickly modify a
-component or apply their own algorithms via the Python bindings, and
-customize the search and plugin their algorithms from the Python binding.
-
-.. toctree::
-   :maxdepth: 1
-
-   benchmark
-
-Frontends
----------
-Frontends ingest models from different frameworks into the TVM stack.
-:py:mod:`tvm.relay.frontend` is the namespace for model ingestion APIs.
-
-.. toctree::
-   :maxdepth: 1
-
-   frontend/tensorflow
-
-
-Security
----------
-.. toctree::
-   :maxdepth: 1
-
-   security
-
-
-microTVM
---------
-.. toctree::
-   :maxdepth: 1
-
-   microtvm_design
-   microtvm_project_api
-   model_library_format
+- Fully support **dynamic shape workloads**.
+- **Light weight**. DLight schedules provides tuning-free or (very few-shots tuning) schedule with reasonable performance.
+- **Robust**. DLight schedules are designed to be robust and general-purpose for a single rule. And if the rule is not applicable,
+  DLight not raise any error and switch to the next rule automatically.

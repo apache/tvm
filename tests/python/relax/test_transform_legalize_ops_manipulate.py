@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import pytest
 import tvm
 from tvm import relax
 from tvm.relax.transform import LegalizeOps
@@ -691,9 +690,12 @@ def test_data_dependent_reshape():
     @tvm.script.ir_module
     class DDReshape:
         @R.function
-        def main(x: R.Tensor((3, ), dtype="int64")):
-            lv: R.Shape([3,]) = R.tensor_to_shape(x)
-            gv = R.reshape(x, lv)
+        def main(
+            x: R.Tensor([2], dtype="int64"),
+            y: R.Tensor([16],dtype='float32'),
+        ):
+            lv: R.Shape(ndim=2) = R.tensor_to_shape(x)
+            gv = R.reshape(y, lv)
             return gv
     # fmt: on
 
@@ -704,29 +706,35 @@ def test_data_dependent_reshape():
     # fmt: off
     @I.ir_module
     class Expected:
+        @R.function
+        def main(
+                x: R.Tensor([2], dtype="int64"),
+                y: R.Tensor([16],dtype="float32"),
+        ) -> R.Tensor(ndim=2, dtype="float32"):
+            M = T.int64()
+            N = T.int64()
+            gv = R.call_pure_packed("vm.builtin.tensor_to_shape", x, sinfo_args=(R.Shape(ndim=2),))
+            _ = R.match_cast(gv, R.Shape([M,N]))
+            _ = R.shape([M,N])
+            gv_1 = R.call_tir(Expected.reshape, (y,), out_sinfo=R.Tensor([M,N], dtype="float32"))
+            return gv_1
+
         @T.prim_func(private=True)
         def reshape(
-            rxplaceholder: T.Buffer((T.int64(3),), "int64"), var_T_reshape: T.handle
+            rxplaceholder: T.Buffer(T.int64(16), "float32"),
+            var_T_reshape: T.handle,
         ):
             T.func_attr({"tir.noalias": True})
-            x = T.int64()
-            T_reshape = T.match_buffer(var_T_reshape, (x,), "int64")
-            # with T.block("root"):
-            for ax0 in range(x):
+            M = T.int64()
+            N = T.int64()
+            T_reshape = T.match_buffer(var_T_reshape, [M,N], "float32")
+            for i,j in T.grid(M,N):
                 with T.block("T_reshape"):
-                    v_ax0 = T.axis.spatial(x, ax0)
-                    T.reads(rxplaceholder[v_ax0 % T.int64(3)])
-                    T.writes(T_reshape[v_ax0])
-                    T_reshape[v_ax0] = rxplaceholder[v_ax0 % T.int64(3)]
+                    vi,vj = T.axis.remap('SS',[i,j])
+                    T.reads(rxplaceholder[(vi*N + vj) % 16])
+                    T.writes(T_reshape[vi,vj])
+                    T_reshape[vi,vj] = rxplaceholder[(vi*N + vj) % 16]
 
-        @R.function
-        def main(x: R.Tensor((3,), dtype="int64")) -> R.Tensor((3,), dtype="int64"):
-            x_1 = T.int64()
-            gv: R.Shape([3]) = R.call_pure_packed("vm.builtin.tensor_to_shape", x, sinfo_args=(R.Shape([3]),))
-            y: R.Shape([x_1]) = R.match_cast(gv, R.Shape([x_1]))
-            lv: R.Shape([x_1]) = R.shape([x_1])
-            gv_1 = R.call_tir(Expected.reshape, (x,), out_sinfo=R.Tensor((x_1,), dtype="int64"))
-            return gv_1
     # fmt: on
     tvm.ir.assert_structural_equal(out_mod, Expected)
 
@@ -914,7 +922,7 @@ def test_squeeze_no_axis():
     class Squeeze:
         @R.function
         def main(x: R.Tensor((2, 1, 3, 1, 1, 4), "float32")) :
-            gv: R.Tensor((2, 3, 1, 4), "float32") = R.squeeze(x)
+            gv: R.Tensor((2, 3, 4), "float32") = R.squeeze(x)
             return gv
 
     @tvm.script.ir_module
@@ -1728,6 +1736,67 @@ def test_func_struct_info_of_legalized_layout_transform():
                     te_layout_transform[vi // T.int64(4), vi % T.int64(4)] = A[vi]
 
     tvm.ir.assert_structural_equal(Expected, After)
+
+
+def test_scatter_nd():
+
+    # fmt: off
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(
+            data: R.Tensor((8,), "float32"),
+            indices: R.Tensor((4, 1), "int64"),
+            updates: R.Tensor((4,), "float32"),
+        ) -> R.Tensor((8,), "float32"):
+            gv: R.Tensor((8,), "float32") = R.scatter_nd(data, indices, updates, reduction="update")
+            return gv
+
+    After = relax.transform.LegalizeOps()(Before)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            data: R.Tensor((8,), "float32"),
+            indices: R.Tensor((4, 1), "int64"),
+            updates: R.Tensor((4,), "float32"),
+        ) -> R.Tensor((8,), "float32"):
+            gv = R.call_tir(
+                Expected.scatter_nd, (data, indices, updates), R.Tensor((8,), dtype="float32")
+            )
+            return gv
+
+        @T.prim_func(private=True)
+        def scatter_nd(var_data: T.handle, var_indices: T.handle, var_updates: T.handle, var_scatter_nd_generic: T.handle):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            data = T.match_buffer(var_data, (T.int64(8),), offset_factor=1)
+            indices = T.match_buffer(var_indices, (T.int64(4), T.int64(1)), "int64")
+            updates = T.match_buffer(var_updates, (T.int64(4),), offset_factor=1)
+            out_buf = T.match_buffer(var_scatter_nd_generic, (T.int64(8),))
+            with T.block("root"):
+                T.reads()
+                T.writes()
+                T_transpose = T.alloc_buffer((T.int64(1), T.int64(4)), "int64")
+                for ax0 in range(T.int64(1)):
+                    for ax1 in range(T.int64(4)):
+                        with T.block("T_transpose"):
+                            v_ax0 = T.axis.spatial(T.int64(1), ax0)
+                            v_ax1 = T.axis.spatial(T.int64(4), ax1)
+                            T.reads(indices[v_ax1, v_ax0])
+                            T.writes(T_transpose[v_ax0, v_ax1])
+                            T_transpose[v_ax0, v_ax1] = indices[v_ax1, v_ax0]
+                with T.block("scatter_nd_generic"):
+                    T.reads()
+                    T.writes()
+                    for i in range(T.int64(8)):
+                        out_buf[i] = data[i]
+                    for j in range(T.int64(4)):
+                        for k in T.parallel(T.int64(1)):
+                            out_buf[k + T_transpose[j // T.int64(4), j % T.int64(4)]] = updates[j + k]
+
+    # fmt: on
+    tvm.ir.assert_structural_equal(After, Expected)
 
 
 if __name__ == "__main__":

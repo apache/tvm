@@ -128,8 +128,11 @@ def macro(*args, hygienic: bool = True) -> _Callable:
     def _decorator(func: _Callable) -> ScriptMacro:
         source, closure_vars = scan_macro(func, utils.inspect_function_capture(func))
         obj = RelaxMacro(source, closure_vars, func, hygienic)
-        obj.__name__ = func.__name__
-        return obj
+
+        def wrapper(*args, **kwargs):
+            return obj(*args, **kwargs)
+
+        return wrapper
 
     if len(args) == 0:
         return _decorator

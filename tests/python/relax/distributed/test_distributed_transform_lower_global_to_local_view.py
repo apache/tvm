@@ -220,7 +220,7 @@ def test_mlp():
                 out_sinfo=R.DTensor((128, 128), "float32", "mesh[0]", "R"),
             )
             lv3: R.DTensor((128, 128), "float32", "mesh[0]", "R") = R.ccl.allreduce(
-                gv, op_type="sum"
+                gv, op_type="sum", in_group=False
             )
             return lv3
 
@@ -1559,7 +1559,7 @@ def test_llama_attention():
                 out_sinfo=R.DTensor((1, 256, 4096), "float16", "mesh[0]", "R"),
             )
             lv43: R.DTensor((1, 256, 4096), "float16", "mesh[0]", "R") = R.ccl.allreduce(
-                gv, op_type="sum"
+                gv, op_type="sum", in_group=False
             )
             lv44: R.DTensor((1, 256, 4096), "float16", "mesh[0]", "R") = R.dist.call_tir_local_view(
                 cls.add,

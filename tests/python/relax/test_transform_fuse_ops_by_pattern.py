@@ -696,10 +696,10 @@ def test_ignore_call_tir():
     class Conv2dReLUCallTIR:
         @T.prim_func
         def relu(
-            data: T.Buffer((64, 64, 56, 56), "float32"),
-            out: T.Buffer((64, 64, 56, 56), "float32"),
+            data: T.Buffer((1, 64, 56, 56), "float32"),
+            out: T.Buffer((1, 64, 56, 56), "float32"),
         ):
-            for ax0, ax1, ax2, ax3 in T.grid(64, 64, 56, 56):
+            for ax0, ax1, ax2, ax3 in T.grid(1, 64, 56, 56):
                 with T.block("root"):
                     i, j, k, l = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
                     out[i, j, k, l] = T.max(data[i, j, k, l], 0.0)
@@ -714,7 +714,7 @@ def test_ignore_call_tir():
                 relu1 = R.call_tir(
                     Conv2dReLUCallTIR.relu,
                     (conv1,),
-                    R.Tensor((64, 64, 56, 56), "float32"),
+                    R.Tensor((1, 64, 56, 56), "float32"),
                 )
                 R.output(relu1)
 
@@ -724,11 +724,11 @@ def test_ignore_call_tir():
     class Conv2dReLUCallTIR_partitioned:
         @T.prim_func
         def relu(
-            data: T.Buffer((64, 64, 56, 56), "float32"),
-            out: T.Buffer((64, 64, 56, 56), "float32"),
+            data: T.Buffer((1, 64, 56, 56), "float32"),
+            out: T.Buffer((1, 64, 56, 56), "float32"),
         ):
             # with T.block("root"):
-            for ax0, ax1, ax2, ax3 in T.grid(64, 64, 56, 56):
+            for ax0, ax1, ax2, ax3 in T.grid(1, 64, 56, 56):
                 with T.block("root"):
                     i, j, k, l = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
                     T.reads(data[i, j, k, l])
@@ -754,7 +754,7 @@ def test_ignore_call_tir():
         def main(
             data: R.Tensor((1, 64, 56, 56), dtype="float32"),
             weight1: R.Tensor((64, 64, 3, 3), dtype="float32"),
-        ) -> R.Tensor((64, 64, 56, 56), dtype="float32"):
+        ) -> R.Tensor((1, 64, 56, 56), dtype="float32"):
             cls = Conv2dReLUCallTIR_partitioned
             with R.dataflow():
                 lv: R.Tensor((1, 64, 56, 56), dtype="float32") = cls.fused_relax_nn_conv2d(
@@ -763,7 +763,7 @@ def test_ignore_call_tir():
                 relu1 = R.call_tir(
                     cls.relu,
                     (lv,),
-                    out_sinfo=R.Tensor((64, 64, 56, 56), dtype="float32"),
+                    out_sinfo=R.Tensor((1, 64, 56, 56), dtype="float32"),
                 )
                 R.output(relu1)
             return relu1

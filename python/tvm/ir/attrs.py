@@ -61,7 +61,7 @@ class Attrs(Object):
         -------
         value: Tuple of int
         """
-        return tuple(x.value for x in self.__getattr__(key))
+        return tuple(x if isinstance(x, int) else x.value for x in self.__getattr__(key))
 
     def get_int(self, key):
         """Get a python int value of a key

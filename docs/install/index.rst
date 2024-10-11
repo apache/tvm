@@ -21,11 +21,10 @@ Installing TVM
 ==============
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
 
    from_source
    docker
-   nnpack
 
 Visit the :ref:`install TVM from source <install-from-source>` page to install TVM from the source code. Installing
 from source gives you the maximum flexibility to configure the build effectively from the official source releases.

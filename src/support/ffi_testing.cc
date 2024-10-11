@@ -178,6 +178,14 @@ TVM_REGISTER_GLOBAL("testing.sleep_in_ffi").set_body_typed([](double timeout) {
   std::this_thread::sleep_for(duration);
 });
 
+TVM_REGISTER_GLOBAL("testing.check_signals").set_body_typed([](double sleep_period) {
+  while (true) {
+    std::chrono::duration<int64_t, std::nano> duration(static_cast<int64_t>(sleep_period * 1e9));
+    std::this_thread::sleep_for(duration);
+    runtime::EnvCheckSignals();
+  }
+});
+
 TVM_REGISTER_GLOBAL("testing.ReturnsVariant").set_body_typed([](int x) -> Variant<String, IntImm> {
   if (x % 2 == 0) {
     return IntImm(DataType::Int(64), x / 2);
@@ -188,6 +196,58 @@ TVM_REGISTER_GLOBAL("testing.ReturnsVariant").set_body_typed([](int x) -> Varian
 
 TVM_REGISTER_GLOBAL("testing.AcceptsVariant")
     .set_body_typed([](Variant<String, Integer> arg) -> String { return arg->GetTypeKey(); });
+
+TVM_REGISTER_GLOBAL("testing.AcceptsBool").set_body_typed([](bool arg) -> bool { return arg; });
+
+TVM_REGISTER_GLOBAL("testing.AcceptsInt").set_body_typed([](int arg) -> int { return arg; });
+
+TVM_REGISTER_GLOBAL("testing.AcceptsObjectRef").set_body_typed([](ObjectRef arg) -> ObjectRef {
+  return arg;
+});
+
+TVM_REGISTER_GLOBAL("testing.AcceptsObjectRefArray")
+    .set_body_typed([](Array<ObjectRef> arg) -> ObjectRef { return arg[0]; });
+
+TVM_REGISTER_GLOBAL("testing.AcceptsMapReturnsValue")
+    .set_body_typed([](Map<ObjectRef, ObjectRef> map, ObjectRef key) -> ObjectRef {
+      return map[key];
+    });
+
+TVM_REGISTER_GLOBAL("testing.AcceptsMapReturnsMap")
+    .set_body_typed([](Map<ObjectRef, ObjectRef> map) -> ObjectRef { return map; });
+
+TVM_REGISTER_GLOBAL("testing.AcceptsPrimExpr").set_body_typed([](PrimExpr expr) -> ObjectRef {
+  return expr;
+});
+
+TVM_REGISTER_GLOBAL("testing.AcceptsArrayOfPrimExpr")
+    .set_body_typed([](Array<PrimExpr> arr) -> ObjectRef {
+      for (ObjectRef item : arr) {
+        CHECK(item->IsInstance<PrimExprNode>())
+            << "Array contained " << item->GetTypeKey() << " when it should contain PrimExpr";
+      }
+      return arr;
+    });
+
+TVM_REGISTER_GLOBAL("testing.AcceptsArrayOfVariant")
+    .set_body_typed([](Array<Variant<PackedFunc, PrimExpr>> arr) -> ObjectRef {
+      for (ObjectRef item : arr) {
+        CHECK(item->IsInstance<PrimExprNode>() || item->IsInstance<runtime::PackedFuncObj>())
+            << "Array contained " << item->GetTypeKey()
+            << " when it should contain either PrimExpr or PackedFunc";
+      }
+      return arr;
+    });
+
+TVM_REGISTER_GLOBAL("testing.AcceptsMapOfPrimExpr")
+    .set_body_typed([](Map<ObjectRef, PrimExpr> map) -> ObjectRef {
+      for (const auto& kv : map) {
+        ObjectRef value = kv.second;
+        CHECK(value->IsInstance<PrimExprNode>())
+            << "Map contained " << value->GetTypeKey() << " when it should contain PrimExpr";
+      }
+      return map;
+    });
 
 /**
  * Simple event logger that can be used for testing purposes

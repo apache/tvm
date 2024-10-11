@@ -342,10 +342,7 @@ class TestMultiGroupMask1(BaseCompare):
             t0 = T.decl_buffer([1], "float32", scope="local")
             A_1 = T.Buffer((256,), data=A.data)
             red_buf0_1[0] = A_1[threadIdx_y * 8 + threadIdx_x]
-            mask[0] = T.bitwise_and(
-                T.tvm_warp_activemask(),
-                T.shift_left(T.uint32(255), T.uint32(8) * T.Cast("uint32", threadIdx_y)),
-            )
+            mask[0] = T.tvm_warp_activemask()
             t0[0] = T.tvm_warp_shuffle_down(mask[0], red_buf0_1[0], 4, 32, 32)
             red_buf0_1[0] = red_buf0_1[0] + t0[0]
             t0[0] = T.tvm_warp_shuffle_down(mask[0], red_buf0_1[0], 2, 32, 32)
@@ -421,7 +418,7 @@ class TestMultiWarpReduce1(BaseCompare):
                 T.tvm_storage_sync("shared")
                 if threadIdx_x < 4:
                     red_buf0[0] = red_buf_staging[threadIdx_x]
-                mask[0] = T.bitwise_and(T.tvm_warp_activemask(), T.uint32(15))
+                mask[0] = T.tvm_warp_activemask()
                 t0[0] = T.tvm_warp_shuffle_down(mask[0], red_buf0[0], 2, 32, 32)
                 red_buf0[0] = red_buf0[0] + t0[0]
                 t0[0] = T.tvm_warp_shuffle_down(mask[0], red_buf0[0], 1, 32, 32)
@@ -573,9 +570,7 @@ class TestMultiGroupMultiWarpReduction(BaseCompare):
             T.tvm_storage_sync("shared")
             if threadIdx_x < 4:
                 red_buf0[0] = red_buf_staging[threadIdx_y * 4 + threadIdx_x]
-            mask[0] = T.bitwise_and(
-                T.tvm_warp_activemask(), T.Cast("uint32", T.shift_left(15, threadIdx_y * 4))
-            )
+            mask[0] = T.tvm_warp_activemask()
             t0[0] = T.tvm_warp_shuffle_down(mask[0], red_buf0[0], 2, 32, 32)
             red_buf0[0] = red_buf0[0] + t0[0]
             t0[0] = T.tvm_warp_shuffle_down(mask[0], red_buf0[0], 1, 32, 32)
@@ -657,9 +652,7 @@ class TestMultiGroupMultiWarpPredicatedReduction(BaseCompare):
             T.tvm_storage_sync("shared")
             if threadIdx_x < 16:
                 red_buf0[0] = red_buf_staging[threadIdx_y * 16 + threadIdx_x]
-            mask[0] = T.bitwise_and(
-                T.tvm_warp_activemask(), T.Cast("uint32", T.shift_left(65535, threadIdx_y * 16))
-            )
+            mask[0] = T.tvm_warp_activemask()
             t0[0] = T.tvm_warp_shuffle_down(mask[0], red_buf0[0], 8, 32, 32)
             red_buf0[0] = red_buf0[0] + t0[0]
             t0[0] = T.tvm_warp_shuffle_down(mask[0], red_buf0[0], 4, 32, 32)

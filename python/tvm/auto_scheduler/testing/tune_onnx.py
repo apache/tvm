@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-docstring
-from distutils.util import strtobool
 import argparse
 import json
 import os
@@ -30,6 +29,7 @@ from tvm.meta_schedule.testing.tune_utils import generate_input_data, create_tim
 from tvm.meta_schedule.utils import cpu_count
 from tvm.relay.frontend import from_onnx
 from tvm.support import describe
+from tvm.testing.utils import strtobool
 
 
 def _parse_args():

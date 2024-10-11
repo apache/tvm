@@ -27,9 +27,10 @@ namespace relax {
 /* relax.ccl.allreduce */
 TVM_REGISTER_NODE_TYPE(AllReduceAttrs);
 
-Expr allreduce(Expr x, String op_type) {
+Expr allreduce(Expr x, String op_type, bool in_group) {
   ObjectPtr<AllReduceAttrs> attrs = make_object<AllReduceAttrs>();
   attrs->op_type = std::move(op_type);
+  attrs->in_group = std::move(in_group);
 
   static const Op& op = Op::Get("relax.ccl.allreduce");
   return Call(op, {std::move(x)}, Attrs{attrs}, {});
@@ -51,19 +52,24 @@ TVM_REGISTER_OP("relax.ccl.allreduce")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.ccl.allgather */
-Expr allgather(Expr x, Expr num_workers) {
+TVM_REGISTER_NODE_TYPE(AllGatherAttrs);
+
+Expr allgather(Expr x, int num_workers, bool in_group) {
+  ObjectPtr<AllGatherAttrs> attrs = make_object<AllGatherAttrs>();
+  attrs->num_workers = std::move(num_workers);
+  attrs->in_group = std::move(in_group);
+
   static const Op& op = Op::Get("relax.ccl.allgather");
-  return Call(op, {std::move(x), std::move(num_workers)});
+  return Call(op, {std::move(x)}, Attrs{attrs}, {});
 }
 
 TVM_REGISTER_GLOBAL("relax.op.ccl.allgather").set_body_typed(allgather);
 
 StructInfo InferStructInfoAllGather(const Call& call, const BlockBuilder& ctx) {
-  CHECK_EQ(call->args.size(), 2);
-  auto input_sinfo = Downcast<TensorStructInfo>(call->args[0]->struct_info_);
-  auto num_workers_sinfo = Downcast<PrimStructInfo>(call->args[1]->struct_info_);
+  TensorStructInfo input_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
 
-  auto num_workers = num_workers_sinfo->value;
+  const auto* attrs = call->attrs.as<AllGatherAttrs>();
+  int num_workers = attrs->num_workers;
 
   DataType output_dtype = input_sinfo->dtype;
   auto input_shape = input_sinfo->GetShape();
@@ -71,7 +77,7 @@ StructInfo InferStructInfoAllGather(const Call& call, const BlockBuilder& ctx) {
     return input_sinfo;
   }
   Array<PrimExpr> output_shape = input_shape.value();
-  output_shape.Set(0, floor(output_shape[0] * num_workers.value()));
+  output_shape.Set(0, floor(output_shape[0] * num_workers));
   return TensorStructInfo(ShapeExpr(output_shape), output_dtype, input_sinfo->vdevice);
 }
 

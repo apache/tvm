@@ -114,9 +114,10 @@ def test_relax_dynamo():
     with db:
         opt_model = torch.compile(model, backend=relax_dynamo())
     inp = torch.randn(10, 100)
-    tvm.testing.assert_allclose(
-        opt_model(inp).detach().numpy(), model(inp).detach().numpy(), rtol=1e-5, atol=1e-5
-    )
+
+    default_output = model(inp).detach().numpy()
+    optimized_output = opt_model(inp).detach().numpy()
+    tvm.testing.assert_allclose(optimized_output, default_output, rtol=1e-5, atol=1e-5)
 
 
 def test_relax_dynamo_dynamic():
@@ -222,7 +223,7 @@ def test_subgraph_capture():
         ) -> R.Tensor((10,), dtype="float32"):
             # block 0
             with R.dataflow():
-                lv5: R.Tensor((10,), dtype="float32") = R.multiply(inp_11, inp_01)
+                lv5: R.Tensor((10,), dtype="float32") = R.multiply(inp_01, inp_11)
                 gv1: R.Tensor((10,), dtype="float32") = lv5
                 R.output(gv1)
             return gv1

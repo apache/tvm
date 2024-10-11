@@ -32,7 +32,7 @@ cmake ^
       -DUSE_RANDOM=ON ^
       -DUSE_PROFILER=ON ^
       -DINSTALL_DEV=ON ^
-      %SRC_DIR%
+      %SRC_DIR% || exit /b
 
 cd ..
 :: defer build to install stage to avoid rebuild.

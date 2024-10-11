@@ -185,7 +185,7 @@ def test_basic():
     tvm.ir.assert_structural_equal(mod, Expected)
     mod = relax.transform.LowerAllocTensor()(mod)
     mod = relax.transform.KillAfterLastUse()(mod)
-    mod = relax.transform.VMBuiltinLower()(mod)
+    mod = relax.transform.LowerRuntimeBuiltin()(mod)
     tvm.ir.assert_structural_equal(mod, ExpectedLowered)
 
 
@@ -1386,11 +1386,11 @@ def test_add():
             )
             cls.cumsum(probs, lv1, alloc1)
             cumsum: R.Tensor((batch_size, vocab_size), dtype="float32") = alloc1
-            lv1_1: R.Tensor((batch_size, vocab_size), dtype="int32") = R.call_packed(
+            lv1_1: R.Tensor((batch_size, vocab_size), dtype="float32") = R.call_packed(
                 "vm.builtin.reshape",
                 cumsum,
                 R.shape([batch_size, vocab_size]),
-                sinfo_args=(R.Tensor((batch_size, vocab_size), dtype="float"),),
+                sinfo_args=(R.Tensor((batch_size, vocab_size), dtype="float32"),),
             )
             return lv1_1
 
@@ -1403,7 +1403,7 @@ def test_add():
         @R.function
         def main(
             probs: R.Tensor(("batch_size", "vocab_size"), dtype="float32")
-        ) -> R.Tensor(("batch_size", "vocab_size"), dtype="int32"):
+        ) -> R.Tensor(("batch_size", "vocab_size"), dtype="float32"):
             batch_size = T.int64()
             vocab_size = T.int64()
             R.func_attr(
@@ -1437,7 +1437,7 @@ def test_add():
             )
             cls.cumsum(probs, lv1, alloc1)
             cumsum: R.Tensor((batch_size, vocab_size), dtype="float32") = alloc1
-            lv1_1: R.Tensor((batch_size, vocab_size), dtype="int32") = R.call_packed(
+            lv1_1: R.Tensor((batch_size, vocab_size), dtype="float32") = R.call_packed(
                 "vm.builtin.reshape",
                 cumsum,
                 R.shape([batch_size, vocab_size]),
@@ -1447,6 +1447,61 @@ def test_add():
 
     mod = relax.transform.StaticPlanBlockMemory()(Module)
     tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_view():
+    @I.ir_module
+    class Before:
+        @T.prim_func
+        def tir_exp(var_rxplaceholder: T.handle, var_compute: T.handle):
+            T.evaluate(0)
+
+        @R.function
+        def main():
+            cls = Before
+            x = R.builtin.alloc_tensor(R.shape([16, 16]), dtype="float32", runtime_device_index=0)
+            x1 = R.memory.view(x, [128], "float32", 0)
+            x2 = R.memory.ensure_zero_offset(x1)
+            y = R.builtin.alloc_tensor(R.shape([128]), dtype="float32", runtime_device_index=0)
+            cls.tir_exp(x2, y)
+            z = R.builtin.alloc_tensor(R.shape([128]), dtype="float32", runtime_device_index=0)
+            cls.tir_exp(y, z)
+            return z
+
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def tir_exp(var_rxplaceholder: T.handle, var_compute: T.handle):
+            T.evaluate(0)
+
+        @R.function
+        def main() -> R.Tensor((128,), dtype="float32"):
+            cls = Expected
+            storage: R.Object = R.memory.alloc_storage(
+                R.shape([1024]), R.prim_value(0), R.str("global"), R.dtype("float32")
+            )
+            x: R.Tensor((16, 16), dtype="float32") = R.memory.alloc_tensor(
+                storage, R.prim_value(0), R.shape([16, 16]), R.dtype("float32")
+            )
+            x1: R.Tensor((128,), dtype="float32") = R.memory.view(
+                x, R.shape([128]), R.dtype("float32"), R.prim_value(0)
+            )
+            x2: R.Tensor((128,), dtype="float32") = R.memory.ensure_zero_offset(x1)
+            storage1: R.Object = R.memory.alloc_storage(
+                R.shape([512]), R.prim_value(0), R.str("global"), R.dtype("float32")
+            )
+            y: R.Tensor((128,), dtype="float32") = R.memory.alloc_tensor(
+                storage1, R.prim_value(0), R.shape([128]), R.dtype("float32")
+            )
+            cls.tir_exp(x2, y)
+            z: R.Tensor((128,), dtype="float32") = R.builtin.alloc_tensor(
+                R.shape([128]), R.dtype("float32"), R.prim_value(0), R.str("global")
+            )
+            cls.tir_exp(y, z)
+            return z
+
+    after = relax.transform.StaticPlanBlockMemory()(Before)
+    tvm.ir.assert_structural_equal(after, Expected)
 
 
 if __name__ == "__main__":

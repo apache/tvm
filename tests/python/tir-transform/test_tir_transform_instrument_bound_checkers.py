@@ -14,10 +14,12 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import pytest
+
 import tvm
 import tvm.testing
-from tvm import te
+from tvm import te, tir
+
+import pytest
 import numpy as np
 
 
@@ -184,7 +186,7 @@ def test_in_bounds_const_loop_partition_ir():
         if isinstance(x, tvm.tir.IfThenElse):
             branch_collector.append(x)
 
-    n = 21
+    n = tir.const(21)
     A = te.placeholder((n,), name="A")
     B = te.placeholder((n,), name="B")
 

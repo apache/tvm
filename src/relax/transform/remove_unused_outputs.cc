@@ -92,29 +92,48 @@ class PartialTupleUsageCollector : ExprVisitor {
   }
 
   void VisitExpr_(const TupleGetItemNode* op) override {
-    Expr tuple = UnwrapBindings(op->tuple);
+    if (auto* usage_mask_ptr = GetCalleeUsageMask(op->tuple)) {
+      auto& used_indices = *usage_mask_ptr;
 
-    if (auto call = tuple.as<CallNode>()) {
-      if (auto opt_callee = call->op.as<GlobalVar>()) {
-        auto callee = opt_callee.value();
-        if (auto it = output_usage_mask_.find(callee); it != output_usage_mask_.end()) {
-          auto& used_indices = it->second;
+      CHECK_GE(op->index, 0) << "IndexError: "
+                             << "Indices for TupleGetItem must be non-negative, "
+                             << "but expression " << GetRef<Expr>(op) << " uses a tuple index of "
+                             << op->index;
+      size_t index = op->index;
 
-          CHECK_GE(op->index, 0) << "IndexError: "
-                                 << "Indices for TupleGetItem must be non-negative, "
-                                 << "but expression " << GetRef<Expr>(op)
-                                 << " uses a tuple index of " << op->index;
-          size_t index = op->index;
+      CHECK_LT(index, used_indices.size())
+          << "IndexError: "
+          << "Indices for TupleGetItem must be less than the size of the tuple, "
+          << "but expression " << GetRef<Expr>(op) << " uses a tuple index of " << op->index
+          << " for a tuple of size " << used_indices.size();
+      used_indices[index] = true;
+    }
+  }
 
-          CHECK_LT(index, used_indices.size())
-              << "IndexError: "
-              << "Indices for TupleGetItem must be less than the size of the tuple, "
-              << "but expression " << GetRef<Expr>(op) << " uses a tuple index of " << op->index
-              << " for a tuple of size " << used_indices.size();
-          used_indices[index] = true;
+  void VisitExpr_(const VarNode* op) override {
+    if (auto* usage_mask_ptr = GetCalleeUsageMask(GetRef<Var>(op))) {
+      auto& usage_mask = *usage_mask_ptr;
+      for (size_t i = 0; i < usage_mask.size(); i++) {
+        usage_mask[i] = true;
+      }
+    }
+  }
+
+  std::vector<bool>* GetCalleeUsageMask(Expr expr) {
+    if (!expr->struct_info_.as<TupleStructInfoNode>()) {
+      return nullptr;
+    }
+
+    expr = UnwrapBindings(expr);
+    if (auto call = expr.as<CallNode>()) {
+      if (auto callee = call->op.as<GlobalVar>()) {
+        if (auto it = output_usage_mask_.find(callee.value()); it != output_usage_mask_.end()) {
+          return &it->second;
         }
       }
     }
+
+    return nullptr;
   }
 
   Expr UnwrapBindings(Expr expr) const {

@@ -171,11 +171,19 @@ class ASTPrinter(ExprFunctor):
 
             def display_attrs(attr_key):
                 attr_val = op.attrs[attr_key]
-                # attrs can be strings but also other types;
-                # we want to wrap strings in quotes
-                # (__repr__ would work but it uses single quotes)
-                attr_str = wrap_quotes(attr_val) if isinstance(attr_val, str) else str(attr_val)
-                return f"{wrap_quotes(attr_key)}: {attr_str}"
+
+                if isinstance(attr_val, str):
+                    # attrs can be strings but also other types;
+                    # we want to wrap strings in quotes
+                    # (__repr__ would work but it uses single quotes)
+                    attr_val = wrap_quotes(attr_val)
+                elif isinstance(attr_val, tvm.tir.IntImm):
+                    if attr_val.dtype == "bool":
+                        attr_val = bool(attr_val.value)
+                    else:
+                        attr_val = int(attr_val.value)
+
+                return f"{wrap_quotes(attr_key)}: {attr_val}"
 
             fields["attrs"] = self.build_list(
                 map(display_attrs, op.attrs.keys()),

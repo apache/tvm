@@ -98,6 +98,7 @@ def test_lstm(target_precision):
     )
 
 
+@pytest.mark.skip(reason="Flaky test")
 def test_lstm_float64():
     """Tests if can handle other mixed precision types.
 

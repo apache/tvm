@@ -1486,6 +1486,28 @@ def square(x: Tensor, name: str = "square") -> Tensor:
     return wrap_nested(_op.square(x._expr), name)
 
 
+def sqrt(x: Tensor, name: str = "sqrt") -> Tensor:
+    """Computes the element-wise sqrt of the input tensor.
+
+    Parameters
+    ----------
+    x : Tensor
+        The input tensor.
+
+    name : str
+        Name hint.
+
+    Returns
+    -------
+    result : Tensor
+        The computed result.
+    Note
+    ----
+    The input tensor is required to have float dtype
+    """
+    return wrap_nested(_op.sqrt(x._expr), name)
+
+
 def get_timestep_embedding(
     x: Tensor,
     embedding_dim: int,
@@ -1568,11 +1590,14 @@ def scaled_dot_product_attention(
     Parameters
     ----------
     query : Tensor
-        Tensor representing current attention lookup.
+        Tensor representing current attention lookup of shape
+        [batch, seq_len, num_heads, head_size].
     key : Tensor
-        Tensor representing cross attention mapping.
+        Tensor representing cross attention mapping of shape
+        [batch, seq_len_kv, num_heads_kv, head_size].
     value : Tensor
-        Tensor representing embedded attention values.
+        Tensor representing embedded attention values of shape
+        [batch, seq_len_kv, num_heads_kv, head_size_value].
     attn_mask : Optional[Tensor]
         Optional mask for attention, not yet supported.
     is_causal : Optional[bool]
@@ -1668,16 +1693,21 @@ def interpolate(
     )
 
 
-def ccl_allreduce(x: Tensor, op_type: str = "sum", name="ccl_allreduce"):
+def ccl_allreduce(x: Tensor, op_type: str = "sum", in_group: bool = True, name="ccl_allreduce"):
     """CCL Allreduce operator
 
     Parameters
     ----------
-    x : Tensor
+    x : relax.Expr
       The input tensor.
-    op_type: str
+
+    op_type : str
       The type of reduction operation to be applied to the input data.
       Now "sum", "prod", "min", "max" and "avg" are supported.
+
+    in_group : bool
+      Whether the reduction operation performs globally or in group as default.
+
     name : str
         Name hint for this operation.
 
@@ -1686,7 +1716,29 @@ def ccl_allreduce(x: Tensor, op_type: str = "sum", name="ccl_allreduce"):
     result : Tensor
       The result tensor of allreduce.
     """
-    return wrap_nested(_op.ccl.allreduce(x._expr, op_type), name)
+    return wrap_nested(_op.ccl.allreduce(x._expr, op_type, in_group), name)
+
+
+def ccl_allgather(x: Tensor, num_workers: int, name="ccl_allgather"):
+    """CCL Allgather operator
+
+    Parameters
+    ----------
+    x : relax.Expr
+      The input tensor.
+
+    num_workers : int
+      Number of workers.
+
+    name : str
+        Name hint for this operation.
+
+    Returns
+    -------
+    result : Tensor
+      The result tensor of allgather.
+    """
+    return wrap_nested(_op.ccl.allgather(x._expr, num_workers), name)
 
 
 def ccl_broadcast_from_worker0(x: Tensor, name="broadcast_from_worker"):
@@ -2514,7 +2566,7 @@ def sample_top_p_top_k_from_sorted_prob(
 
     @T.prim_func(private=True)
     def _get_renorm_prob(A: T.handle, B: T.handle, C: T.handle, D: T.handle):
-        batch, vocab_size = T.int64(), T.int64()
+        batch, vocab_size = T.int64(is_size_var=True), T.int64(is_size_var=True)
         cumsum_sorted = T.match_buffer(A, (batch, vocab_size), prob_dtype)
         top_p = T.match_buffer(B, (batch, 1), prob_dtype)
         top_k = T.match_buffer(C, (batch, 1), index_dtype)
@@ -2534,8 +2586,8 @@ def sample_top_p_top_k_from_sorted_prob(
     def _get_index_from_sorted(
         A: T.handle, B: T.handle, C: T.handle, D: T.handle, E: T.handle, F: T.handle
     ):
-        batch, vocab_size = T.int64(), T.int64()
-        out_batch = T.int64()
+        batch, vocab_size = T.int64(is_size_var=True), T.int64(is_size_var=True)
+        out_batch = T.int64(is_size_var=True)
         cumsum_sorted = T.match_buffer(A, (batch, vocab_size), prob_dtype)
         indices = T.match_buffer(B, (batch, vocab_size), index_dtype)
         renorm_prob = T.match_buffer(C, (batch, 1), prob_dtype)

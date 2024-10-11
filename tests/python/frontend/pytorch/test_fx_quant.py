@@ -87,6 +87,9 @@ def test_deeplab_v3():
     quantize_and_build(model, 300)
 
 
+@pytest.mark.skip(
+    reason="Model binary isn't uploaded to S3. See https://github.com/apache/tvm/pull/17397"
+)
 def test_imagenet():
     for model_func in [resnet50, efficientnet_b4]:
         quantize_and_build(model_func(pretrained=True).eval(), 224)

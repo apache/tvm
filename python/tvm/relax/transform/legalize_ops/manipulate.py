@@ -168,6 +168,23 @@ def _scatter_elements(bb: BlockBuilder, call: Call) -> Expr:
     )
 
 
+@register_legalize("relax.scatter_nd")
+def _scatter_nd(bb: BlockBuilder, call: Call) -> Expr:
+    # TODO(relax-team): Support native scatter_nd without te extern
+    def scatter_nd(data, indices, updates, reduction):
+        axes = list(range(len(indices.shape)))
+        indices = topi.transpose(indices, axes[-1:] + axes[:-1])
+        return topi.scatter_nd(data, indices, updates, reduction)
+
+    return bb.call_te(
+        scatter_nd,
+        call.args[0],
+        call.args[1],
+        call.args[2],
+        call.attrs.reduction,
+    )
+
+
 @register_legalize("relax.layout_transform")
 def _layout_transform(bb: BlockBuilder, call: Call) -> Expr:
     def te_layout_transform(data, name):

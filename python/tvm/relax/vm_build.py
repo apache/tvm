@@ -243,13 +243,25 @@ def _vmlink(
     if ext_libs is None:
         ext_libs = []
     lib = None
+    relax_ext_libs = []
+    tir_ext_libs = []
     if tir_mod is not None and len(tir_mod.get_global_vars()) > 0:
         lib = tvm.build(
             tir_mod,
             target=target,
             runtime=_autodetect_system_lib_req(target, system_lib),
         )
-    return Executable(_ffi_api.VMLink(builder, target, lib, ext_libs, params))  # type: ignore
+    for ext_mod in ext_libs:
+        if ext_mod.is_device_module:
+            tir_ext_libs.append(ext_mod)
+        else:
+            relax_ext_libs.append(ext_mod)
+    if lib is not None:
+        for mod in tir_ext_libs:
+            lib.import_module(mod)
+    elif len(tir_ext_libs) > 0:
+        print("Warning: No TIR module is found, but external modules for TIR are provided.")
+    return Executable(_ffi_api.VMLink(builder, target, lib, relax_ext_libs, params))  # type: ignore
 
 
 def build(

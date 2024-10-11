@@ -51,7 +51,8 @@ namespace msc {
 using Expr = tvm::RelayExpr;
 using RelaxExprVisitor = tvm::relax::ExprVisitor;
 using RelayExprVisitor = tvm::relay::ExprVisitor;
-using namespace tvm::runtime;
+
+using tvm::runtime::NDArray;
 
 /*!
  * \brief Config for building MSCGraph.
@@ -264,6 +265,13 @@ class RelaxGraphBuilder : public RelaxExprVisitor {
   const MSCJoint AddNode(const Expr& expr, const Optional<Expr>& binding_var = NullOpt,
                          const String& name = "");
 
+  /*! \brief Create and add MSCPrim from prim*/
+  const MSCPrim AddPrim(const PrimExpr& prim);
+
+  const MSCPrim MatchOrCreatePrim(const PrimExpr& prim, const String& op = "",
+                                  const Array<BaseJoint>& parents = Array<BaseJoint>(),
+                                  const Map<String, String>& attrs = Map<String, String>());
+
   void VisitBindingBlock(const relax::BindingBlock& block) final;
 
   void VisitExpr_(const relax::ConstantNode* op) final;
@@ -284,6 +292,8 @@ class RelaxGraphBuilder : public RelaxExprVisitor {
   void VisitBinding_(const relax::VarBindingNode* binding, const relax::DataflowVarNode* val) final;
 
   void VisitBinding_(const relax::VarBindingNode* binding, const relax::FunctionNode* val) final;
+
+  void VisitPrimExpr(const PrimExpr& prim) final;
 
  private:
   /*! \brief Get the node_name, optype, layout for func*/
@@ -308,17 +318,34 @@ class RelaxGraphBuilder : public RelaxExprVisitor {
   // BYOC maps
   Map<Expr, relax::Function> target_funcs_;
   Map<Expr, Expr> func_params_;
+  // prims
+  Array<MSCPrim> prims_;
+  Map<PrimExpr, MSCPrim> prim_map_;
 };
 
 class RelaxWeightsExtractor : public RelaxExprVisitor {
  public:
+  /*!
+   * \brief The constructor of RelaxGraphBuilder
+   * \param ref_module the reference module.
+   * \param name the name of the graph.
+   * \param options the options of build the graph.
+   */
+  explicit RelaxWeightsExtractor(const IRModule& ref_module) : RelaxExprVisitor() {
+    ref_module_ = ref_module;
+  }
+
   /*! \brief Visit the constant and save weights */
   Map<MSCTensor, NDArray> GetWeights(const relax::Function& func);
 
   void VisitExpr_(const relax::ConstantNode* op) final;
 
+  void VisitExpr_(const relax::CallNode* op) final;
+
  private:
   Map<MSCTensor, NDArray> weights_;
+  Map<Expr, relax::Function> local_funcs_;
+  IRModule ref_module_;
 };
 
 class RelayFuncAttrGetter : public RelayExprVisitor {

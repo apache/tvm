@@ -330,7 +330,8 @@ def make_relax_attention_pattern() -> (
     q_trans = relax_pattern.is_op("relax.permute_dims")(weight_q)
     k_trans = relax_pattern.is_op("relax.permute_dims")(weight_k)
     v_trans = relax_pattern.is_op("relax.permute_dims")(weight_v)
-    out = relax_pattern.is_op("relax.nn.attention")(q_trans, k_trans, v_trans)
+    attention = relax_pattern.is_op("relax.nn.attention")(q_trans, k_trans, v_trans)
+    out = relax_pattern.is_op("relax.permute_dims")(attention)
     annotations = {
         "weight_q": weight_q,
         "weight_k": weight_k,
@@ -338,7 +339,8 @@ def make_relax_attention_pattern() -> (
         "q_trans": q_trans,
         "k_trans": k_trans,
         "v_trans": v_trans,
-        "attention": out,
+        "attention": attention,
+        "out": out,
     }
     return out, annotations
 
@@ -378,7 +380,8 @@ def make_relax_mask_attention_pattern() -> (
     q_trans = relax_pattern.is_op("relax.permute_dims")(weight_q)
     k_trans = relax_pattern.is_op("relax.permute_dims")(weight_k)
     v_trans = relax_pattern.is_op("relax.permute_dims")(weight_v)
-    out = relax_pattern.is_op("relax.nn.attention_bias")(q_trans, k_trans, v_trans, mask)
+    attention = relax_pattern.is_op("relax.nn.attention_bias")(q_trans, k_trans, v_trans, mask)
+    out = relax_pattern.is_op("relax.permute_dims")(attention)
     annotations = {
         "weight_q": weight_q,
         "weight_k": weight_k,
@@ -387,7 +390,8 @@ def make_relax_mask_attention_pattern() -> (
         "q_trans": q_trans,
         "k_trans": k_trans,
         "v_trans": v_trans,
-        "attention": out,
+        "attention": attention,
+        "out": out,
     }
     return out, annotations
 

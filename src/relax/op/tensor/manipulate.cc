@@ -654,7 +654,7 @@ TVM_REGISTER_OP("relax.permute_dims")
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.reshape */
-Expr ConvertNewShapeToExpr(const Expr& data, const ObjectRef& shape) {
+Expr ConvertNewShapeToExpr(const Expr& data, const Variant<Expr, Array<PrimExpr>>& shape) {
   const ArrayNode* array;
   // Treat shape expressions as constant arrays to handle special values.
   if (const auto* e = shape.as<ShapeExprNode>()) {
@@ -747,7 +747,7 @@ Expr ConvertNewShapeToExpr(const Expr& data, const ObjectRef& shape) {
   return ShapeExpr(array_ref);
 }
 
-Expr reshape(Expr x, ObjectRef shape) {
+Expr reshape(Expr x, Variant<Expr, Array<PrimExpr>> shape) {
   Expr shape_in_expr = ConvertNewShapeToExpr(x, shape);
   static const Op& op = Op::Get("relax.reshape");
   return Call(op, {std::move(x), std::move(shape_in_expr)}, Attrs(), {});
@@ -812,7 +812,7 @@ TVM_REGISTER_OP("relax.reshape")
 /* relax.split */
 TVM_REGISTER_NODE_TYPE(SplitAttrs);
 
-Expr split(Expr x, ObjectRef indices_or_sections, int axis) {
+Expr split(Expr x, Variant<IntImm, Array<IntImm>> indices_or_sections, int axis) {
   ObjectPtr<SplitAttrs> attrs = make_object<SplitAttrs>();
   if (const auto* indices = indices_or_sections.as<ArrayNode>()) {
     for (int i = 0; i < static_cast<int>(indices->size()); ++i) {
@@ -1529,6 +1529,140 @@ TVM_REGISTER_OP("relax.scatter_elements")
     .add_argument("indices", "Tensor", "The indices tensor.")
     .add_argument("updates", "Tensor", "The input tensor of updates.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoScatterElements)
+    .set_attr<Bool>("FPurity", Bool(true));
+
+/* relax.scatter_nd */
+TVM_REGISTER_NODE_TYPE(ScatterNDAttrs);
+
+Expr scatter_nd(Expr data, Expr indices, Expr updates, String reduction) {
+  auto attrs = make_object<ScatterNDAttrs>();
+  attrs->reduction = std::move(reduction);
+  static const Op& op = Op::Get("relax.scatter_nd");
+  return Call(op, {data, indices, updates}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relax.op.scatter_nd").set_body_typed(scatter_nd);
+
+StructInfo InferStructInfoScatterND(const Call& call, const BlockBuilder& ctx) {
+  // `call->args` contains: [data, indices, updates]
+  arith::Analyzer* analyzer = ctx->GetAnalyzer();
+  ICHECK_EQ(call->args.size(), 3);
+  const auto* data_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
+  const auto* indices_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[1]);
+  const auto* updates_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[2]);
+
+  if (data_sinfo == nullptr) {
+    ctx->ReportFatal(
+        Diagnostic::Error(call)
+        << "ScatterND op requires the input data to be a tensor. However, the given type is "
+        << call->args[0]->GetTypeKey());
+  }
+  if (indices_sinfo == nullptr) {
+    ctx->ReportFatal(
+        Diagnostic::Error(call)
+        << "ScatterND op requires the input indices to be a tensor. However, the given type is "
+        << call->args[1]->GetTypeKey());
+  }
+  if (updates_sinfo == nullptr) {
+    ctx->ReportFatal(
+        Diagnostic::Error(call)
+        << "ScatterND op requires the input updates to be a tensor. However, the given type is "
+        << call->args[2]->GetTypeKey());
+  }
+
+  if (data_sinfo->IsUnknownDtype() || updates_sinfo->IsUnknownDtype()) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "ScatterND op requires the input data and updates to have known dtype. "
+                        "However, the given types are "
+                     << "data: " << data_sinfo->dtype << ", updates: " << updates_sinfo->dtype);
+  }
+
+  if (data_sinfo->dtype != updates_sinfo->dtype) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "ScatterND op requires the input data to have same type with updates. "
+                        "However, the given types are "
+                     << "data: " << data_sinfo->dtype << ", updates: " << updates_sinfo->dtype);
+  }
+
+  if (indices_sinfo->IsUnknownDtype()) {
+    LOG(WARNING) << "Data type of indices has not been specified. Assume it has an integer type.";
+  } else if (!(indices_sinfo->dtype.is_int() || indices_sinfo->dtype.is_uint())) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "ScatterND op requires the input indices to have integer dtype. However, "
+                        "the given indices dtype is "
+                     << indices_sinfo->dtype);
+  }
+
+  const auto* data_shape = data_sinfo->shape.as<ShapeExprNode>();
+  const auto* indices_shape = indices_sinfo->shape.as<ShapeExprNode>();
+  const auto* updates_shape = updates_sinfo->shape.as<ShapeExprNode>();
+
+  if (data_shape && indices_shape && updates_shape) {
+    const IntImmNode* k_dim = indices_shape->values[indices_sinfo->ndim - 1].as<IntImmNode>();
+    if (!k_dim) {
+      ctx->ReportFatal(Diagnostic::Error(call)
+                       << "ScatterND needs a static shape for the last axis of indices, got "
+                       << indices_shape->values);
+    }
+    const size_t data_ndim = data_sinfo->ndim;
+    const size_t indices_ndim = indices_sinfo->ndim;
+    const size_t updates_ndim = updates_sinfo->ndim;
+    if (data_ndim + indices_ndim - k_dim->value - 1 != updates_ndim) {
+      ctx->ReportFatal(Diagnostic::Error(call)
+                       << "ScatterND op requires the updates tensor to have the rank of "
+                          "`data tensor + indices tensor - last axis of indices tensor - 1`. "
+                          "However, the given shapes are "
+                       << "data: " << ShapeExpr(data_shape->values)
+                       << ", indices: " << ShapeExpr(indices_shape->values)
+                       << ", updates: " << ShapeExpr(updates_shape->values));
+    }
+    if (k_dim->value > static_cast<int>(data_ndim)) {
+      ctx->ReportFatal(Diagnostic::Error(call)
+                       << "ScatterND op requires the last axis of indices tensor to be less than "
+                          "or equal to the rank of data tensor. However, the given shapes are "
+                       << "data: " << ShapeExpr(data_shape->values)
+                       << ", indices: " << ShapeExpr(indices_shape->values));
+    }
+    Array<PrimExpr> expected_updates_shape;
+    for (size_t i = 0; i < indices_ndim - 1; i++) {
+      expected_updates_shape.push_back(indices_shape->values[i]);
+    }
+    for (size_t i = k_dim->value; i < data_ndim; i++) {
+      expected_updates_shape.push_back(data_shape->values[i]);
+    }
+    auto check_shape = [&](const Array<PrimExpr>& expected, const Array<PrimExpr>& actual) {
+      if (expected.size() != actual.size()) {
+        return false;
+      }
+      for (size_t i = 0; i < expected.size(); i++) {
+        if (!analyzer->CanProve(expected[i] == actual[i])) {
+          return false;
+        }
+      }
+      return true;
+    };
+    if (!check_shape(expected_updates_shape, updates_shape->values)) {
+      ctx->ReportFatal(
+          Diagnostic::Error(call)
+          << "ScatterND op requires the updates tensor to have the shape with constraint: "
+          << "`updates.shape = indices.shape[:-1] + data.shape[K:]`, but got "
+          << "updates.shape: " << ShapeExpr(updates_shape->values) << ", indices.shape: "
+          << ShapeExpr(indices_shape->values) << ", data.shape: " << ShapeExpr(data_shape->values));
+    }
+  }
+  if (data_shape) {
+    return TensorStructInfo(ShapeExpr(data_shape->values), data_sinfo->dtype, data_sinfo->vdevice);
+  }
+  return TensorStructInfo(data_sinfo->dtype, data_sinfo->ndim, data_sinfo->vdevice);
+}
+
+TVM_REGISTER_OP("relax.scatter_nd")
+    .set_attrs_type<ScatterNDAttrs>()
+    .set_num_inputs(3)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .add_argument("indices", "Tensor", "The indices tensor.")
+    .add_argument("updates", "Tensor", "The input tensor of updates.")
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoScatterND)
     .set_attr<Bool>("FPurity", Bool(true));
 
 }  // namespace relax

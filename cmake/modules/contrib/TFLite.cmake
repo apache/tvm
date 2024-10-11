@@ -39,6 +39,10 @@ if(NOT USE_TFLITE STREQUAL "OFF")
   endif()
   find_library(TFLITE_CONTRIB_LIB libtensorflow-lite.a ${USE_TFLITE})
   file(GLOB_RECURSE TFLITE_DEPS "${USE_TFLITE}/*.a")
+  # the order of the next libs are important for correct build
+  list(REMOVE_ITEM TFLITE_DEPS "${USE_TFLITE}/_deps/clog-build/libclog.a" "${USE_TFLITE}/_deps/cpuinfo-build/libcpuinfo.a")
+  list(APPEND TFLITE_DEPS "${USE_TFLITE}/_deps/cpuinfo-build/libcpuinfo.a")
+  list(APPEND TFLITE_DEPS "${USE_TFLITE}/_deps/clog-build/libclog.a")
 
   list(APPEND TVM_RUNTIME_LINKER_LIBS ${TFLITE_CONTRIB_LIB})
   list(APPEND TVM_RUNTIME_LINKER_LIBS ${TFLITE_DEPS})

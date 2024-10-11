@@ -110,7 +110,7 @@ tasks.
 - lint the python codes
 
   ```bash
-  ./docker/build.sh tvm.ci_lint make pylint
+  ./docker/build.sh ci_lint make pylint
   ```
 
 - build codes with CUDA support

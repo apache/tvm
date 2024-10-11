@@ -22,7 +22,8 @@ import tvm.testing
 import tvm.topi.testing
 from tvm import relax
 from tvm.relax.backend.contrib.cudnn import partition_for_cudnn
-from tvm.relax.testing import get_relax_matmul_module
+from tvm.relax.testing import get_relax_matmul_module, get_relax_stacked_attention_module
+from tvm.contrib.pickle_memoize import memoize
 from tvm.script import relax as R
 
 from tvm.script.ir_builder import IRBuilder
@@ -99,7 +100,7 @@ def get_relax_conv2d_module(
 def get_result_with_relax_cudnn_offload(mod, np_inputs, cuda_graph=False):
     mod = partition_for_cudnn(mod)
     mod = relax.transform.RunCodegen()(mod)
-    return build_and_run(mod, np_inputs, "cuda", cuda_graph)
+    return build_and_run(mod, np_inputs, "cuda", cuda_graph=cuda_graph)
 
 
 def build_and_run(mod, inputs_np, target, legalize=False, cuda_graph=False):
@@ -242,6 +243,66 @@ def test_conv2d_nchw_oihw_offload(data_shape, weight_shape, dtype, with_bias, ac
         tvm.testing.assert_allclose(out, ref, rtol=1e-1, atol=1e-1)
     else:
         tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
+
+
+@memoize("topi.tests.test_codegen_cudnn.test_stacked_attention_offload")
+def get_numpy_stacked_attention_ref(b, s, n, h, h_v, bias_shape, qk_scale, dtype, layout):
+    if layout == "BS3NH":
+        qkv = np.random.randn(b, s, n * h * 2 + n * h_v).astype(dtype)
+        split_qkv = np.split(qkv, [n * h, n * h * 2], axis=2)
+        q = split_qkv[0].reshape(b, s, n, h)
+        k = split_qkv[1].reshape(b, s, n, h)
+        v = split_qkv[2].reshape(b, s, n, h_v)
+        layout = "BSNH"
+    elif layout == "SBN3H":
+        qkv = np.random.randn(s, b, n, h * 2 + h_v).astype(dtype)
+        q, k, v = np.split(qkv, [h, h * 2], axis=3)
+        layout = "SBNH"
+    else:
+        raise ValueError("Unsupported layout: {}".format(layout))
+    if not bias_shape == "none":
+        bias = np.random.randn(*bias_shape).astype(dtype)
+        score = score + bias  # b, n, s, s
+    else:
+        bias = None
+    ref = tvm.topi.testing.attention_python(q, k, v, bias, qk_scale, "none", None, layout)
+    return qkv, bias, ref
+
+
+@pytest.fixture(
+    params=[
+        # B, S, N, H, bias_shape scale, single_shape, layout
+        (4, 8, 32, (64, 32), "none", 1.0, False, "BS3NH"),
+        (4, 8, 32, (64, 64), "none", "none", True, "BS3NH"),
+        (4, 8, 32, (64, 32), "none", 1.0, False, "SBN3H"),
+        (4, 8, 32, (64, 64), "none", "none", True, "SBN3H"),
+    ]
+)
+def stacked_attention_size(request):
+    return request.param
+
+
+@pytest.mark.skip(reason="require cudnn frontend")
+def test_stacked_attention_split_offload(stacked_attention_size):
+    b, s, n, (h, h_v), bias_shape, scale, single_shape, layout = stacked_attention_size
+    qkv, bias, ref = get_numpy_stacked_attention_ref(
+        b, s, n, h, h_v, bias_shape, scale, "float16", layout
+    )
+    if scale == "none":
+        mod = get_relax_stacked_attention_module(
+            qkv, b, s, n, h, h_v, "split", bias, single_shape=single_shape, layout=layout
+        )
+        scale = 1.0 / np.sqrt(h)
+    else:
+        mod = get_relax_stacked_attention_module(
+            qkv, b, s, n, h, h_v, "split", bias, scale, single_shape=single_shape, layout=layout
+        )
+
+    if bias is None:
+        out = get_result_with_relax_cudnn_offload(mod, [qkv])
+    else:
+        out = get_result_with_relax_cudnn_offload(mod, [qkv, bias])
+    tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=2e-2)
 
 
 if __name__ == "__main__":
