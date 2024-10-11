@@ -162,8 +162,8 @@ def annotate_layout(layout_map):
     return T.block_attr({"layout_map": layout_map})
 
 
-def import_source(source:str):
-    return T.block_attr({"pragma_import_c": source})
+def import_source(source:Optional[str] = None):
+    return T.block_attr({"pragma_import_c": source}) if source is not None else None
 
 
 def region(buffer: tir.BufferLoad, access_type: str, *args: tir.PrimExpr):

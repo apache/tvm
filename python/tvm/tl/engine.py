@@ -78,7 +78,7 @@ def extrac_params(func: tir.PrimFunc):
 
 # TODO(lei): Should enhance to support IRModule with multiple functions
 def lower(func, target="cuda", runtime_only=False):
-    params = extrac_params(func)
+    params = extrac_params(func) if not runtime_only else None
     mod = tvm.IRModule({func.attrs["global_symbol"]: func})
 
     target_host = tvm.target.Target("llvm -keys=cpu")
