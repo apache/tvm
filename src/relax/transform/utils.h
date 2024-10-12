@@ -395,6 +395,25 @@ inline int GetDeviceIndex(const IRModule& mod, const VDevice& vdevice) {
   return -1;
 }
 
+/*! Normalize a relax function
+ *
+ * This utility should only be used when there isn't already an
+ * `ExprMutator` in use.  In most cases, when normalization occurs as
+ * part of a `ExprMutator`, it should be invoked using
+ * `block_builder_->Normalize(expr)`.  Using the existing
+ * `BlockBuilder` for normalization is necessary for correct struct
+ * inference of dynamic shapes.
+ *
+ * This requires a `relax::Function` argument, rather than a
+ * `relax::Expr`, to ensure that it receives sufficient context to
+ * correctly normalize dynamic shapes.
+ *
+ * \param func The function to be normalized
+ *
+ * \returns The normalized function
+ */
+Function Normalize(Function func);
+
 /* \brief Eliminate common subexpressions
  *
  * Utility for simplifying relax expressions by removing common

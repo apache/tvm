@@ -34,6 +34,7 @@
 #include <tvm/tir/function.h>
 
 #include <memory>
+#include <optional>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -341,6 +342,15 @@ class BlockBuilderImpl : public BlockBuilderNode {
     // Consider impl alternative: merge with block frame if we have more frame kinds.
     //
     // TODO(relax-team) tracks the var defined also through match-cast.
+
+    /*! \brief The parameters used to define this scope
+     *
+     * Can be used to copy the parent scope, for cases that should
+     * inherit definitions from their parent, but not expose new
+     * definitions into the parent.
+     */
+    Optional<Array<Var>> params;
+
     /*! \brief set of defined symbolic vars, value as themself. */
     Map<tir::Var, PrimExpr> shape_var_map;
   };
@@ -732,8 +742,11 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
 
   Expr VisitExpr_(const IfNode* op) final {
     Expr new_cond = this->NormalizeArgument(op->cond);
-    Expr new_true = this->VisitWithNewScope(op->true_branch);
-    Expr new_false = this->VisitWithNewScope(op->false_branch);
+
+    Optional<Array<Var>> scope_params = scope_stack_.size() ? scope_stack_.back().params : NullOpt;
+
+    Expr new_true = this->VisitWithNewScope(op->true_branch, scope_params);
+    Expr new_false = this->VisitWithNewScope(op->false_branch, scope_params);
 
     If if_node;
     if (new_cond.same_as(op->cond) && new_true.same_as(op->true_branch) &&
@@ -743,9 +756,77 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
       if_node = If(new_cond, new_true, new_false, op->span);
     }
     if (!if_node->struct_info_.defined()) {
-      auto true_info = EraseToWellDefinedInScope(GetStructInfo(new_true));
-      auto false_info = EraseToWellDefinedInScope(GetStructInfo(new_false));
-      UpdateStructInfo(if_node, StructInfoLCA(true_info, false_info));
+      StructInfo lca = [&]() -> StructInfo {
+        StructuralEqual struct_equal;
+
+        auto true_info = GetStructInfo(new_true);
+        auto false_info = GetStructInfo(new_false);
+
+        if (struct_equal(true_info, false_info)) {
+          return true_info;
+        }
+
+        auto prim_cond = [&]() -> Optional<PrimExpr> {
+          Expr cond_expr = new_cond;
+          while (true) {
+            if (auto var = cond_expr.as<Var>()) {
+              if (auto value = LookupBinding(var.value())) {
+                cond_expr = value.value();
+              }
+            }
+            break;
+          }
+
+          if (auto prim_value = cond_expr.as<PrimValueNode>()) {
+            return prim_value->value;
+          }
+
+          if (auto prim_sinfo = cond_expr->struct_info_.as<PrimStructInfoNode>()) {
+            if (prim_sinfo->value.defined()) {
+              return prim_sinfo->value.value();
+            }
+          }
+          return NullOpt;
+        }();
+
+        arith::Analyzer* analyzer = GetAnalyzer();
+
+        if (!prim_cond.defined()) {
+          return StructInfoLCA(true_info, false_info, analyzer);
+        }
+
+        // auto true_info = EraseToWellDefinedInScope(GetStructInfo(new_true));
+        // auto false_info = EraseToWellDefinedInScope(GetStructInfo(new_false));
+
+        {
+          // The struct info returned in the "then" branch is a special
+          // case, and the "else" branch returns the general case.
+          std::optional<With<arith::ConstraintContext>> context;
+          if (prim_cond.defined()) {
+            context.emplace(analyzer, prim_cond.value());
+          }
+          auto then_lca = StructInfoLCA(true_info, false_info, GetAnalyzer());
+          if (struct_equal(true_info, then_lca)) {
+            return false_info;
+          }
+        }
+        {
+          // The struct info returned in the "else" branch is a special
+          // case, and the "then" branch returns the general case.
+          std::optional<With<arith::ConstraintContext>> context;
+          if (prim_cond.defined()) {
+            context.emplace(analyzer, !prim_cond.value());
+          }
+          auto else_lca = StructInfoLCA(true_info, false_info, GetAnalyzer());
+          if (struct_equal(false_info, else_lca)) {
+            return true_info;
+          }
+        }
+
+        return StructInfoLCA(true_info, false_info, analyzer);
+      }();
+
+      UpdateStructInfo(if_node, lca);
     }
     return if_node;
   }
