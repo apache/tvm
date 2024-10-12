@@ -63,8 +63,11 @@ def generate_random_inputs(
         if dtype == "bool":
             # random_value = np.random.choice(a=[False, True], size=shape)
             random_value = rg.choice(a=[False, True], size=shape)
+        elif dtype.startswith("int"):
+            # Keep non-zero values
+            random_value = rg.integers(low=-63, high=63, size=shape).astype(dtype)
+            random_value[random_value <= 0] -= 1
         else:
-            # random_value = np.random.normal(size=shape).astype(dtype)
             random_value = rg.standard_normal(size=shape).astype(dtype)
         input_values[i.name] = random_value
 
@@ -246,7 +249,6 @@ def verify_binary_scalar(op_name, attrs={}, domain=None, dtype=TensorProto.INT32
     )
 
     model = helper.make_model(graph, producer_name="binary_test")
-    # NOTE: explicitly pass inputs to avoid numerical error
     check_correctness(model, opset=opset)
 
 
@@ -325,6 +327,16 @@ def test_concat():
 def test_binary(op_name: str):
     verify_binary(op_name, [1, 32], [1, 32], [1, 32])
     verify_binary_scalar(op_name)
+
+
+@pytest.mark.parametrize("int_mode", [True, False])
+def test_mod(int_mode: bool):
+    if int_mode:
+        dtype, fmod = TensorProto.INT32, 0
+    else:
+        dtype, fmod = TensorProto.FLOAT, 1
+    verify_binary("Mod", [1, 32], [1, 32], [1, 32], attrs={"fmod": fmod}, dtype=dtype)
+    verify_binary_scalar("Mod", attrs={"fmod": fmod}, dtype=dtype)
 
 
 @pytest.mark.parametrize("num_inputs", [1, 2, 4])
@@ -430,6 +442,7 @@ def test_bitwise_shift(direction: str):
         "Sigmoid",
         "Softmax",
         "LogSoftmax",
+        "Hardmax",
         "Identity",
     ],
 )
@@ -445,7 +458,7 @@ def test_unary(op_name: str):
         output_dtype = TensorProto.BOOL
     else:
         output_dtype = TensorProto.FLOAT
-    verify_unary(op_name, [32, 32], input_dtype=input_dtype, output_dtype=output_dtype)
+    verify_unary(op_name, [8, 8, 8], input_dtype=input_dtype, output_dtype=output_dtype)
 
 
 @pytest.mark.parametrize("from_type", [TensorProto.INT32, TensorProto.FLOAT, TensorProto.FLOAT16])
@@ -565,6 +578,11 @@ def test_size():
 
     model = helper.make_model(graph, producer_name="size_test")
     check_correctness(model)
+
+
+@pytest.mark.parametrize("k", [-1, 0, 1])
+def test_eye_like(k: int):
+    verify_unary("EyeLike", [32, 32], attrs={"k": k})
 
 
 @pytest.mark.parametrize("alpha", [None, 0.25, 1.0])
@@ -966,7 +984,7 @@ def test_cumsum1():
     )
 
     model = helper.make_model(graph, producer_name="cumsum_graph")
-    check_correctness(model)
+    check_correctness(model, inputs={"axis": np.array([0], dtype=np.int32)})
 
 
 @pytest.mark.parametrize("axis", [[0, 2], None])

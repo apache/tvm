@@ -550,3 +550,47 @@ def scatter_nd(data: Expr, indices: Expr, updates: Expr, reduction: str = "updat
 
     """
     return _ffi_api.scatter_nd(data, indices, updates, reduction)  # type: ignore
+
+
+def one_hot(
+    indices: Expr, on_value: PrimValue, off_value: PrimValue, depth: int, axis: int = -1
+) -> Expr:
+    """Returns a one-hot tensor.
+
+    Parameters
+    ----------
+    indices : relax.Expr
+        The indices to set to `on_value`.
+
+    on_value : relax.PrimValue
+        The value to fill at `indices`.
+
+    off_value : relax.PrimValue
+        The value to fill at other locations.
+
+    depth : int
+        The depth of the one-hot dimension.
+
+    axis : int, optional
+        The axis to fill. Default is -1 which adds a new dimension at the end.
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        indices = [0, 1, 2]
+        depth = 3
+        on_value = 1
+        off_value = 0
+
+        one_hot(indices, on_value, off_value, depth) =
+            [[1, 0, 0],
+             [0, 1, 0],
+             [0, 0, 1]]
+    """
+    return _ffi_api.one_hot(indices, on_value, off_value, depth, axis)  # type: ignore

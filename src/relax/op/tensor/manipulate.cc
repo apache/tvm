@@ -30,6 +30,8 @@
 #include <utility>
 #include <vector>
 
+#include "tvm/runtime/data_type.h"
+
 namespace tvm {
 namespace relax {
 
@@ -1663,6 +1665,79 @@ TVM_REGISTER_OP("relax.scatter_nd")
     .add_argument("indices", "Tensor", "The indices tensor.")
     .add_argument("updates", "Tensor", "The input tensor of updates.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoScatterND)
+    .set_attr<Bool>("FPurity", Bool(true));
+
+/* relax.one_hot */
+TVM_REGISTER_NODE_TYPE(OneHotAttrs);
+Expr one_hot(Expr indices, PrimValue on_value, PrimValue off_value, int depth, int axis) {
+  ObjectPtr<OneHotAttrs> attrs = make_object<OneHotAttrs>();
+  attrs->depth = depth;
+  attrs->axis = axis;
+
+  // Check if on_value and off_value have the same dtype
+  DataType on_dtype = on_value->value->dtype;
+  DataType off_dtype = off_value->value->dtype;
+  ICHECK(on_dtype == off_dtype) << "one_hot: on_value and off_value must have the same dtype, "
+                                << "but got " << on_dtype << " and " << off_dtype;
+
+  ICHECK(depth > 0) << "one_hot: depth must be positive, but got " << depth;
+
+  static const Op& op = Op::Get("relax.one_hot");
+  return Call(op, {indices, on_value, off_value}, Attrs(attrs), {});
+}  // namespace relax
+
+TVM_REGISTER_GLOBAL("relax.op.one_hot").set_body_typed(one_hot);
+
+StructInfo InferStructInfoOneHot(const Call& call, const BlockBuilder& ctx) {
+  TensorStructInfo indices_sinfo = GetInputTensorStructInfo(call, 0, ctx);
+  const auto* attrs = call->attrs.as<OneHotAttrs>();
+  PrimValue on_value = Downcast<PrimValue>(call->args[1]);
+  PrimValue off_value = Downcast<PrimValue>(call->args[2]);
+  // Check if on_value and off_value have the same dtype
+  ICHECK(on_value->value->dtype == off_value->value->dtype)
+      << "one_hot: on_value and off_value must have the same dtype, "
+      << "but got " << on_value->value->dtype << " and " << off_value->value->dtype;
+  DataType dtype = on_value->value->dtype;
+
+  // Check if indices has an integer dtype
+  if (indices_sinfo->IsUnknownDtype()) {
+    LOG(WARNING) << "Data type of indices has not been specified. Assume it has an integer type.";
+  } else if (!(indices_sinfo->dtype.is_int() || indices_sinfo->dtype.is_uint())) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "one_hot op requires the input indices to have integer dtype. However, the "
+                        "given indices dtype is "
+                     << indices_sinfo->dtype);
+  }
+  // Check if indices has unknown dimension
+  if (indices_sinfo->IsUnknownNdim()) {
+    return TensorStructInfo(dtype, kUnknownNDim, indices_sinfo->vdevice);
+  }
+  // Get the shape of indices
+  const auto* indices_shape = indices_sinfo->shape.as<ShapeExprNode>();
+  if (indices_shape == nullptr) {
+    return TensorStructInfo(dtype, indices_sinfo->ndim + 1, indices_sinfo->vdevice);
+  }
+
+  Array<PrimExpr> output_shape = indices_shape->values;
+  int axis = attrs->axis;
+  if (axis < 0) {
+    axis += output_shape.size() + 1;
+  }
+  ICHECK(0 <= axis && axis <= static_cast<int>(output_shape.size()))
+      << "one_hot: axis must be in the range of [0, " << output_shape.size() << "], "
+      << "but got " << axis;
+  output_shape.insert(output_shape.begin() + axis, attrs->depth);
+
+  return TensorStructInfo(ShapeExpr(output_shape), dtype, indices_sinfo->vdevice);
+}
+
+TVM_REGISTER_OP("relax.one_hot")
+    .set_attrs_type<OneHotAttrs>()
+    .set_num_inputs(3)
+    .add_argument("indices", "Tensor", "The indices tensor.")
+    .add_argument("on_value", "PrimValue", "The value to fill at specified indices.")
+    .add_argument("off_value", "PrimValue", "The value to fill at other indices.")
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoOneHot)
     .set_attr<Bool>("FPurity", Bool(true));
 
 }  // namespace relax

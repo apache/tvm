@@ -3377,5 +3377,57 @@ def test_scatter_nd_infer_struct_info():
     )
 
 
+def test_one_hot_infer_struct_info():
+    bb = relax.BlockBuilder()
+
+    # Test case 1: Basic usage
+    i0 = relax.Var("indices", R.Tensor((3,), "int32"))
+    _check_inference(
+        bb,
+        relax.op.one_hot(i0, relax.PrimValue(1.0), relax.PrimValue(0.0), 5),
+        relax.TensorStructInfo((3, 5), "float32"),
+    )
+
+    # Test case 2: With specified axis
+    i1 = relax.Var("indices", R.Tensor((2, 2), "int32"))
+    _check_inference(
+        bb,
+        relax.op.one_hot(i1, relax.PrimValue(1), relax.PrimValue(0), 3, axis=1),
+        relax.TensorStructInfo((2, 3, 2), "int64"),
+    )
+
+    # Test case 3: With symbolic shape
+    n = tir.Var("n", "int64")
+    i2 = relax.Var("indices", R.Tensor((n,), "int32"))
+    _check_inference(
+        bb,
+        relax.op.one_hot(i2, relax.PrimValue(1.0), relax.PrimValue(0.0), 4),
+        relax.TensorStructInfo((n, 4), "float32"),
+    )
+
+    # Test case 4: With unknown shape
+    i3 = relax.Var("indices", R.Tensor("int32"))
+    _check_inference(
+        bb,
+        relax.op.one_hot(i3, relax.PrimValue(1.0), relax.PrimValue(0.0), 6),
+        relax.TensorStructInfo(dtype="float32"),
+    )
+
+    # Test case 5: With different on_value and off_value dtypes
+    i3 = relax.Var("indices", R.Tensor((2, 3), "int32"))
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.one_hot(i3, relax.PrimValue(1.0), relax.PrimValue(0), 5))
+
+    # Test case 6: With invalid indices dtype
+    i4 = relax.Var("indices", R.Tensor((2, 3), "float32"))
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.one_hot(i4, relax.PrimValue(1.0), relax.PrimValue(0.0), 5))
+
+    # Test case 7: With invalid depth
+    i5 = relax.Var("indices", R.Tensor((2, 3), "int32"))
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.one_hot(i5, relax.PrimValue(1.0), relax.PrimValue(0.0), -1))
+
+
 if __name__ == "__main__":
     tvm.testing.main()
