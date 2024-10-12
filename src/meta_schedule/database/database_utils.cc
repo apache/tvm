@@ -236,7 +236,8 @@ class JSONTokenizer {
           str.push_back('\t');
           break;
         default:
-          LOG(FATAL) << "ValueError: Unsupported escape sequence: \\" << *cur_ << ". record:" << std::string(cur_, end_);
+          LOG(FATAL) << "ValueError: Unsupported escape sequence: \\" << *cur_
+                     << ". record:" << std::string(cur_, end_);
       }
     }
     if (cur_ == end_) {
