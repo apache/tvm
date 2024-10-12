@@ -32,7 +32,13 @@ from tvm.runtime.relax_vm import VirtualMachine
 from tvm.script import relax as R
 
 _all_session_kinds = [di.ThreadedSession, di.ProcessSession]
-_ccl = [get_global_func("runtime.disco.compiled_ccl")()]
+_ccl = [
+    pytest.param(
+        ccl,
+        marks=tvm.testing.Feature._all_features[ccl].marks(),
+    )
+    for ccl in ["nccl", "rccl"]
+]
 
 
 def create_device_target(ccl):
@@ -445,7 +451,6 @@ def test_mlp(session_kind, ccl):  # pylint: disable=too-many-locals
             W1: R.Tensor((128, 128), "float32"),
             W2: R.Tensor((128, 128), "float32"),
         ) -> R.Tensor((128, 128), "float32"):
-            R.func_attr({"global_symbol": "main"})
             with R.dataflow():
                 lv0: R.Tensor((128, 128), "float32") = R.matmul(x, W1)
                 lv1: R.Tensor((128, 128), "float32") = R.nn.gelu(lv0)
@@ -461,7 +466,6 @@ def test_mlp(session_kind, ccl):  # pylint: disable=too-many-locals
             W1: R.Tensor((128, 64), "float32"),  # shard along axis 1
             W2: R.Tensor((64, 128), "float32"),  # shard along axis 0
         ) -> R.Tensor((128, 128), "float32"):
-            R.func_attr({"global_symbol": "main"})
             with R.dataflow():
                 broadcast_x: R.Tensor((128, 128), "float32") = R.ccl.broadcast_from_worker0(x)
                 lv0: R.Tensor((128, 64), "float32") = R.matmul(broadcast_x, W1)
@@ -538,7 +542,6 @@ def test_attention(session_kind, ccl):  # pylint: disable=too-many-locals,too-ma
             Wv: R.Tensor((128, 512), "float32"),
             Wo: R.Tensor((512, 128), "float32"),
         ) -> R.Tensor((128, 128), "float32"):
-            R.func_attr({"global_symbol": "main"})
             with R.dataflow():
                 # q
                 lv0: R.Tensor((1, 10, 512), "float32") = R.matmul(x, Wq)
@@ -578,7 +581,6 @@ def test_attention(session_kind, ccl):  # pylint: disable=too-many-locals,too-ma
             Wv: R.Tensor((128, 256), "float32"),  # shard along axis 1
             Wo: R.Tensor((256, 128), "float32"),  # shard along axis 0
         ) -> R.Tensor((128, 128), "float32"):
-            R.func_attr({"global_symbol": "main"})
             with R.dataflow():
                 broadcast_x: R.Tensor((1, 10, 128), "float32") = R.ccl.broadcast_from_worker0(x)
                 # q
