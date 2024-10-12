@@ -93,7 +93,7 @@ class Conv2dReLUx2_merged:
             R.output(gv)
         return gv
 
-    @R.function
+    @R.function(pure=True)
     def fused_relax_nn_conv2d_relax_nn_relu_relax_nn_conv2d_relax_nn_relu1_dnnl(
         data1: R.Tensor((1, 64, 56, 56), dtype="float32"),
         weight11: R.Tensor((64, 64, 3, 3), dtype="float32"),
@@ -206,7 +206,7 @@ class Diamond:
 
 @tvm.script.ir_module
 class Diamond_merged:
-    @R.function
+    @R.function(pure=True)
     def fused_relax_nn_conv2d_relax_nn_relu_relax_nn_gelu_relax_add_compiler_A(
         data: R.Tensor((1, 64, 56, 56), dtype="float32"),
         weight: R.Tensor((64, 64, 3, 3), dtype="float32"),
@@ -390,7 +390,7 @@ class Diamond_cyclic_dep_merged:
             R.output(gv5)
         return gv5
 
-    @R.function
+    @R.function(pure=True)
     def fused_relax_nn_conv2d_relax_nn_relu_compiler_A(
         data: R.Tensor((1, 64, 56, 56), dtype="float32"),
         weight: R.Tensor((64, 64, 3, 3), dtype="float32"),
@@ -430,7 +430,7 @@ class Diamond_cyclic_dep_merged:
 
         return (gv, gv11)
 
-    @R.function
+    @R.function(pure=True)
     def fused_relax_nn_gelu1_compiler_B(
         lv2: R.Tensor((1, 64, 54, 54), dtype="float32")
     ) -> R.Tensor((1, 64, 54, 54), dtype="float32"):
@@ -449,7 +449,7 @@ class Diamond_cyclic_dep_merged:
         gv3: R.Tensor((1, 64, 54, 54), dtype="float32") = lv21(lv2)
         return gv3
 
-    @R.function
+    @R.function(pure=True)
     def fused_relax_add1_compiler_A(
         lv32: R.Tensor((1, 64, 54, 54), dtype="float32"),
         lv41: R.Tensor((1, 64, 54, 54), dtype="float32"),
@@ -520,7 +520,7 @@ class MultipleProducers:
 
 @tvm.script.ir_module
 class MultipleProducers_merged:
-    @R.function
+    @R.function(pure=True)
     def fused_relax_nn_relu_relax_nn_gelu_relax_nn_relu_relax_nn_gelu_relax_add_compiler_A(
         x1: R.Tensor((10,), dtype="float32"), x2: R.Tensor((10,), dtype="float32")
     ) -> R.Tensor((10,), dtype="float32"):
@@ -642,7 +642,7 @@ class MultipleProducersCyclic_merged:
             R.output(gv)
         return gv
 
-    @R.function
+    @R.function(pure=True)
     def fused_relax_nn_relu1_compiler_A(
         x11: R.Tensor((10,), dtype="float32")
     ) -> R.Tensor((10,), dtype="float32"):
@@ -663,7 +663,7 @@ class MultipleProducersCyclic_merged:
         gv1: R.Tensor((10,), dtype="float32") = lv1(x11)
         return gv1
 
-    @R.function
+    @R.function(pure=True)
     def fused_relax_nn_gelu_relax_add_compiler_A(
         lv21: R.Tensor((10,), dtype="float32"), lv11: R.Tensor((10,), dtype="float32")
     ) -> R.Tensor((10,), dtype="float32"):
@@ -753,7 +753,7 @@ class MergeCompilerRegionsExample:
 
 @tvm.script.ir_module
 class MergeCompilerRegionsExampleRef:
-    @R.function
+    @R.function(pure=True)
     def fused_relax_add_relax_add_relax_nn_relu_compiler_A(
         x1: R.Tensor((10,), dtype="float32"),
         x2: R.Tensor((10,), dtype="float32"),
@@ -785,7 +785,7 @@ class MergeCompilerRegionsExampleRef:
         gv11: R.Tensor((10,), dtype="float32") = lv11(gv1)
         return (gv1, gv11)
 
-    @R.function
+    @R.function(pure=True)
     def fused_relax_add_relax_nn_relu_compiler_A(
         lv12: R.Tensor((10,), dtype="float32"), lv3: R.Tensor((10,), dtype="float32")
     ) -> R.Tensor((10,), dtype="float32"):
@@ -815,7 +815,7 @@ class MergeCompilerRegionsExampleRef:
 
         return gv3
 
-    @R.function
+    @R.function(pure=True)
     def fused_relax_nn_gelu1_compiler_B(
         x3: R.Tensor((10,), dtype="float32")
     ) -> R.Tensor((10,), dtype="float32"):
@@ -900,7 +900,7 @@ class ModuleWithNonComposite_ref:
             R.output(conv)
         return conv
 
-    @R.function
+    @R.function(pure=True)
     def fused_relax_nn_conv2d1_tensorrt(
         data1: R.Tensor((1, 64, 56, 56), dtype="float32"),
         weight1: R.Tensor((64, 64, 3, 3), dtype="float32"),
@@ -1051,7 +1051,7 @@ def test_reshape():
 
     @I.ir_module
     class Expected:
-        @R.function
+        @R.function(pure=True)
         def fused_relax_reshape_relax_matmul_tensorrt(
             inp_0: R.Tensor((1, 1, 28, 28), dtype="float32"),
             lv1: R.Tensor((784, 512), dtype="float32"),
