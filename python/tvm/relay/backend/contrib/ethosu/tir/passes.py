@@ -26,6 +26,7 @@ import tvm
 from tvm.relay.backend.contrib.ethosu import vela_api
 from tvm.relay.backend.contrib.ethosu import tir_to_cs_translator as tirtocs
 
+from .utils import collect_buffer_map
 from .convolution import get_conv2d_params
 from .depthwise import get_depthwise_conv2d_params
 from .pooling import get_pooling_params
@@ -72,9 +73,10 @@ def ReplaceOperators():
         "ethosu_unary_elementwise": get_unary_elementwise_params,
     }
     producers_consumers = ProducersConsumers()
-    replace_output_pointer = {}
+    pointer_to_buffer = {}
+    replace_output_buffer = {}
     pointer_to_extents = {}
-    replaced_pointers = []
+    replaced_buffers = []
 
     ReplaceInfo = namedtuple("ReplaceInfo", ["pointer", "reallocate"])
 
@@ -90,28 +92,37 @@ def ReplaceOperators():
 
         Additionally, it determines the extent (size/shape) of each pointer which
         is required for the _replace_pointers pass which runs later."""
-        loads = []
 
         def _get_loads(stmt):
-            if isinstance(stmt, tvm.tir.BufferLoad):
-                loads.append(stmt.buffer.data)
+            loads = []
 
-        buffer_var = None
+            def _visit(stmt):
+                if isinstance(stmt, tvm.tir.BufferLoad):
+                    loads.append(stmt.buffer)
 
-        def _get_buffer_var(stmt):
-            if isinstance(stmt, tvm.tir.BufferStore):
-                nonlocal buffer_var
-                buffer_var = stmt.buffer.data
+            tvm.tir.stmt_functor.post_order_visit(stmt, _visit)
+            return loads
+
+        def _get_output_buffer(stmt):
+            output_buffer = None
+
+            def _visit(stmt):
+                if isinstance(stmt, tvm.tir.BufferStore):
+                    nonlocal output_buffer
+                    output_buffer = stmt.buffer
+
+            tvm.tir.stmt_functor.post_order_visit(stmt, _visit)
+            return output_buffer
 
         if isinstance(stmt, tvm.tir.AttrStmt):
             if stmt.attr_key == "pragma_op":
-                tvm.tir.stmt_functor.post_order_visit(stmt, _get_buffer_var)
-                producers_consumers.add_producer(buffer_var, stmt)
+                output_buffer = _get_output_buffer(stmt)
+                producers_consumers.add_producer(output_buffer, stmt)
 
-                tvm.tir.stmt_functor.post_order_visit(stmt, _get_loads)
-                for load_pointer in loads:
-                    if load_pointer != buffer_var:
-                        producers_consumers.add_consumer(load_pointer, stmt)
+                loads = _get_loads(stmt)
+                for load_buffer in loads:
+                    if load_buffer != output_buffer:
+                        producers_consumers.add_consumer(load_buffer, stmt)
 
     def _replace_operator(stmt):
         """Replace operators with call_externs, having derived the parameters
@@ -135,22 +146,27 @@ def ReplaceOperators():
             if stmt.attr_key == "pragma_op" and op_name in op_map:
                 # Get the parameters for the extern call
                 param_func = op_map[op_name]
-                info, output_pointer, replace_pointer, is_allocator = param_func(
+                info, output_buffer, replace_buffer, is_allocator = param_func(
                     stmt, producers_consumers
                 )
-                if replace_pointer is not None:
+                if replace_buffer is not None:
                     # Allocate pointer only once
-                    if replace_pointer in replaced_pointers:
+                    if replace_buffer in replaced_buffers:
                         is_allocator = False
-                    replace_output_pointer[output_pointer] = ReplaceInfo(
-                        replace_pointer, is_allocator
-                    )
-                    replaced_pointers.append(replace_pointer)
+                    replace_output_buffer[output_buffer] = ReplaceInfo(replace_buffer, is_allocator)
+                    replaced_buffers.append(replace_buffer)
                 # Make the extern call
                 irb = tvm.tir.ir_builder.create()
                 irb.emit(tvm.tir.call_extern("handle", op_name, *info))
                 return irb.get()
         return None
+
+    def _remove_buffer_decl(stmt, buffer_var):
+        def _mutator(stmt):
+            if isinstance(stmt, tvm.tir.DeclBuffer) and stmt.buffer.data == buffer_var:
+                return stmt.body
+
+        return tvm.tir.stmt_functor.ir_transform(stmt, None, _mutator, ["tir.DeclBuffer"])
 
     def _remove_no_compile(stmt):
         """Certain operators are marked as 'no compile' operators. This means they
@@ -170,33 +186,41 @@ def ReplaceOperators():
 
         if isinstance(stmt, tvm.tir.Allocate):
             # Remove allocates
-            producer = producers_consumers.get_last_producer(stmt.buffer_var)
+            buffer = pointer_to_buffer[stmt.buffer_var]
+            producer = producers_consumers.get_last_producer(buffer)
             if producer:
                 if producer.attr_key == "pragma_op" and producer.value.value not in op_map:
-                    return stmt.body
+                    return _remove_buffer_decl(stmt.body, stmt.buffer_var)
 
         return None
 
     def _replace_pointers(stmt):
         if isinstance(stmt, tvm.tir.Allocate):
             # If the allocate allocates a pointer that needs replacing
-            if stmt.buffer_var in replace_output_pointer:
-                replace_pointer, reallocate = replace_output_pointer[stmt.buffer_var]
-                if not reallocate:
-                    return stmt.body
-                # Otherwise, rewrite the allocation statement with the new pointer
-                # and the new extent
-                replace_type = replace_pointer.type_annotation.element_type.dtype
-                replace_extents = pointer_to_extents[replace_pointer]
-                return tvm.tir.Allocate(
-                    replace_pointer, replace_type, replace_extents, stmt.condition, stmt.body
-                )
+            buffer = pointer_to_buffer[stmt.buffer_var]
+            if buffer in replace_output_buffer:
+                replace_buffer, reallocate = replace_output_buffer[buffer]
+                if reallocate:
+                    # Otherwise, rewrite the allocation statement with the new pointer
+                    # and the new extent
+                    replace_pointer = replace_buffer.data
+                    replace_type = replace_pointer.type_annotation.element_type.dtype
+                    replace_extents = pointer_to_extents[replace_pointer]
+                    return tvm.tir.Allocate(
+                        replace_pointer, replace_type, replace_extents, stmt.condition, stmt.body
+                    )
+                else:
+                    return _remove_buffer_decl(stmt.body, stmt.buffer_var)
         return None
 
-    def _remove_buffer_decl(stmt):
+    def _replace_buffers(stmt):
         if isinstance(stmt, tvm.tir.DeclBuffer):
-            if stmt.buffer.data in replace_output_pointer:
-                return stmt.body
+            if stmt.buffer in replace_output_buffer:
+                replace_buffer, reallocate = replace_output_buffer[stmt.buffer]
+                if reallocate:
+                    return tvm.tir.DeclBuffer(replace_buffer, stmt.body)
+                else:
+                    return stmt.body
 
     def _post_transform(stmt):
         # Replace operators with call_externs
@@ -205,19 +229,21 @@ def ReplaceOperators():
         result = result or _remove_no_compile(stmt)
         # Replace necessary pointers that were removed in the previous step
         result = result or _replace_pointers(stmt)
-        # Replace BufferDecl, since only the tir.Var data pointer is
-        # still used, and not the tir.Buffer
-        result = result or _remove_buffer_decl(stmt)
+        # Replace BufferDecl, since only the tir.Var data pointer may
+        # have been replaced or removed
+        result = result or _replace_buffers(stmt)
 
         return result
 
     def _ftransform(f, mod, ctx):
+        nonlocal pointer_to_buffer
+        pointer_to_buffer = collect_buffer_map(f.body)
         tvm.tir.stmt_functor.post_order_visit(f.body, _find_pointer_to_extent)
         tvm.tir.stmt_functor.post_order_visit(f.body, _resolve_pointers)
         producers_consumers.add_allocate_variables(pointer_to_extents.keys())
         return f.with_body(
             tvm.tir.stmt_functor.ir_transform(
-                f.body, None, _post_transform, ["tir.AttrStmt", "tir.Allocate"]
+                f.body, None, _post_transform, ["tir.AttrStmt", "tir.Allocate", "tir.DeclBuffer"]
             )
         )
 
@@ -491,6 +517,7 @@ def EncodeConstants(const_dict):
     def transform_stmt(
         stmt,
         buf_remap,
+        remove_decl_buffer,
         var_remap,
         pointer_to_buffer,
         new_buffer_var_to_const,
@@ -557,6 +584,13 @@ def EncodeConstants(const_dict):
                         offset = new_buffer_to_split_idx[new_buffer]
                     return tvm.tir.BufferLoad(buf_remap[stmt.buffer], [offset], stmt.span)
 
+            # Update or remove DeclBuffer
+            if isinstance(stmt, tvm.tir.DeclBuffer):
+                if stmt.buffer in remove_decl_buffer:
+                    return stmt.body
+                elif stmt.buffer in buf_remap:
+                    return tvm.tir.DeclBuffer(buf_remap[stmt.buffer], stmt.body)
+
             if isinstance(stmt, tvm.tir.AttrStmt):
                 node_pointer = stmt.node
                 if node_pointer in var_remap:
@@ -574,7 +608,7 @@ def EncodeConstants(const_dict):
             stmt,
             None,
             _visit_rewrite,
-            ["tir.Call", "tir.Allocate", "tir.BufferLoad", "tir.AttrStmt"],
+            ["tir.Call", "tir.Allocate", "tir.BufferLoad", "tir.AttrStmt", "tir.DeclBuffer"],
         )
 
     def _collect_parameter_buffer_aliases(prim_func):
@@ -610,17 +644,22 @@ def EncodeConstants(const_dict):
         # Step 2: Generate variable/buffer remaps, based on the
         # collected information.
         buf_remap = {}
+        remove_decl_buffer = set()
         new_buffer_var_to_const = {}
         new_buffer_to_split_idx = {}
 
         def define_remap(old_buf, new_buf):
             try:
                 old_buffers = param_buffer_var_usage[old_buf.data]
+                is_param = True
             except KeyError:
                 old_buffers = [old_buf]
+                is_param = False
 
             for old_buffer in old_buffers:
                 buf_remap[old_buffer] = new_buf
+                if is_param:
+                    remove_decl_buffer.add(old_buffer)
 
         # Any encoded buffers must be replaced
         for info in buffer_information["constant_buffer_replacements"]:
@@ -666,6 +705,7 @@ def EncodeConstants(const_dict):
         new_body = transform_stmt(
             f.body,
             buf_remap,
+            remove_decl_buffer,
             var_remap,
             pointer_to_buffer,
             new_buffer_var_to_const,
