@@ -618,12 +618,16 @@ void* LLVMModuleNode::GetFunctionAddr(const std::string& name,
   return nullptr;
 }
 
-TVM_REGISTER_GLOBAL("target.build.llvm")
-    .set_body_typed([](IRModule mod, Target target) -> runtime::Module {
-      auto n = make_object<LLVMModuleNode>();
-      n->Init(mod, target);
-      return runtime::Module(n);
-    });
+namespace {
+runtime::Module BuildLLVM(IRModule mod, Target target) {
+  auto n = make_object<LLVMModuleNode>();
+  n->Init(mod, target);
+  return runtime::Module(n);
+}
+}  // namespace
+
+TVM_REGISTER_GLOBAL("target.build.llvm").set_body_typed(BuildLLVM);
+TVM_REGISTER_GLOBAL("target.build.ext_dev").set_body_typed(BuildLLVM);
 
 TVM_REGISTER_GLOBAL("codegen.LLVMModuleCreate")
     .set_body_typed([](std::string target_str, std::string module_name) -> runtime::Module {
