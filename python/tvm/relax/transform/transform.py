@@ -764,6 +764,58 @@ def RemoveUnusedOutputs() -> tvm.ir.transform.Pass:
     return _ffi_api.RemoveUnusedOutputs()  # type: ignore
 
 
+def RemoveSymbolicExpressionInSubroutine() -> tvm.ir.transform.Pass:
+    """Remove unnecessary symbolic expressions in subroutines
+
+    If all occurrences of a symbolic variable within a subroutine
+    occur within the same symbolic expression, then the subroutine
+    could be simplified to be in terms of that expression.
+
+    For example, consider an elementwise operation that takes input of
+    shape `arg: R.Tensor([m * n])`, producing output of shape
+    `R.Tensor([m * n])`.  The symbolic variables `m` and `n` cannot be
+    inferred from the shape of `arg`, as only their product `m*n` can
+    be determined from the tensor's shape.  In order to be
+    well-formed, Relax requires one of the three following
+    workarounds.
+
+    1. Remove the symbolic variables, producing `arg:
+       R.Tensor(ndim=1)`.  This no longer provides the symbolic
+       variables, and is well-formed.  However, this also causes the
+       output shape to be `R.Tensor(ndim=1)`.  The calling scope can
+       no longer determine that the input and output shape are
+       identical.
+
+       This is the default behavior of the `relax::BlockBuilder`
+
+    2. Provide an additional argument to define the symbolic variable.
+       If the elementwise operation takes an addition argument
+       `R.Shape([m, n])`, then that additional argument would
+       define the symbolic variables.
+
+       This is the output produced by `relax.transform.FuseOps`, and
+       while it is well-formed, the additional non-tensor argument can
+       be unexpected by downstream transforms.
+
+    3. Update the shape of `arg` to `R.Tensor([arg_size])`.  This
+       allows the symbolic variable `arg_size` to be inferred from the
+       tensor's shape, and propagates to the output shape of
+       `R.Tensor([arg_size])`.  Within the calling scope, an
+       argument of `R.Tensor([m * n])` can then be inferred to produce
+       an output of `R.Tensor([m * n])`, without requiring an
+       additional parameter to provide the shape.
+
+    This transform updates internal function that use option (2) to
+    instead use option (3).
+
+    Returns
+    -------
+    ret: tvm.ir.transform.Pass
+
+    """
+    return _ffi_api.RemoveSymbolicExpressionInSubroutine()  # type: ignore
+
+
 def InlinePrivateFunctions() -> tvm.ir.transform.Pass:
     """Inline all private relax functions
 
