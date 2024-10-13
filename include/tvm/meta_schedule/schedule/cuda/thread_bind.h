@@ -36,7 +36,7 @@ namespace meta_schedule {
  * \return A sampler that returns a random thread extent.
  */
 std::function<tir::ExprRV(int64_t)> MakeFactorSampler(tir::Schedule sch,
-                                                      Array<Integer> thread_extents);
+                                                      Array<runtime::Int> thread_extents);
 
 /*!
  * \brief Bind blockIdx.x and threadIdx.x to the given loop

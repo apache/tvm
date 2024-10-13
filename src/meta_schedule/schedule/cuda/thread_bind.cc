@@ -31,14 +31,14 @@ namespace meta_schedule {
 
 using namespace tvm::tir;
 
-std::function<ExprRV(int64_t)> MakeFactorSampler(Schedule sch, Array<Integer> thread_extents) {
+std::function<ExprRV(int64_t)> MakeFactorSampler(Schedule sch, Array<runtime::Int> thread_extents) {
   return [sch = std::move(sch),
           thread_extents = std::move(thread_extents)](int64_t max_extent) -> ExprRV {
     Array<runtime::Int> extents;
     extents.reserve(thread_extents.size());
-    for (const Integer extent : thread_extents) {
+    for (auto extent : thread_extents) {
       if (extent->value <= max_extent) {
-        extents.push_back(runtime::Int(extent->value));
+        extents.push_back(extent);
       }
     }
     int n = extents.size();
@@ -64,7 +64,7 @@ Array<LoopRV> BindSpatialLoop(Schedule sch, LoopRV loop, int64_t max_threadblock
   }
   if (extent <= max_threadblocks * max_threads_per_block) {
     if (!get_factor) {
-      get_factor = MakeFactorSampler(sch, {32, 64, 128, 256, 512, 1024});
+      get_factor = MakeFactorSampler(sch, Array<runtime::Int>{32, 64, 128, 256, 512, 1024});
     }
     ExprRV factor = get_factor(std::min(extent, max_threads_per_block));
     Array<LoopRV> splits = sch->Split(loop, {NullOpt, factor});
