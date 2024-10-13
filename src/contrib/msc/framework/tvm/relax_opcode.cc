@@ -107,6 +107,7 @@ class RelaxAttentionCodeGen : public RelaxOpCode {
           .op_list_arg<int>(axes_key, "axes");
     }
     stack_.op_call().op_inputs_arg(false).op_arg<float>("scale").op_str_arg("causal_mask");
+    stack_.op_call("relax.op.permute_dims").op_output_arg().op_list_arg<int>("axes_3", "axes");
   }
 };
 

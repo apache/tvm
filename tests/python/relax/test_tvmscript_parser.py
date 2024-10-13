@@ -882,8 +882,8 @@ def test_annotation():
     ) -> R.Object:
         m = T.int64()
         z: R.Tensor((32, m), "float32") = R.multiply(x, y)
-        w: R.Tensor = R.multiply(z, z)
-        q: R.Tensor(ndim=2) = R.add(w, w)
+        w: R.Tensor(ndim=2) = R.multiply(z, z)
+        q: R.Tensor = R.add(w, w)
         t = R.add(w, z)
         sh: R.Shape = R.call_packed("shape_of", x, sinfo_args=R.Shape)
         lv: R.Tensor(sh, dtype="float32") = R.reshape(x, sh)
@@ -902,9 +902,9 @@ def test_annotation():
     sh = bindings[4].var
 
     _check_struct_info(bindings[0], relax.TensorStructInfo([32, m], "float32"))
-    _check_struct_info(bindings[1], relax.TensorStructInfo(dtype="", ndim=-1))
-    _check_struct_info(bindings[2], relax.TensorStructInfo(dtype="", ndim=2))
-    _check_struct_info(bindings[3], relax.TensorStructInfo(dtype="", ndim=-1))
+    _check_struct_info(bindings[1], relax.TensorStructInfo(dtype="", ndim=2))
+    _check_struct_info(bindings[2], relax.TensorStructInfo(dtype="", ndim=-1))
+    _check_struct_info(bindings[3], relax.TensorStructInfo(dtype="", ndim=2))
     _check_struct_info(bindings[4], relax.ShapeStructInfo(ndim=-1))
     _check_struct_info(bindings[5], relax.TensorStructInfo(sh))
     _check_struct_info(bindings[6], relax.ObjectStructInfo())
@@ -2408,6 +2408,37 @@ def test_conditional_may_use_symbolic_variables_from_function_scope():
         return out
 
     tvm.ir.assert_structural_equal(explicit_sinfo, inferred_sinfo)
+
+
+def test_return_from_dataflow_block():
+    """Return statements imply
+
+    The `R.output` statement in a `R.dataflow()` block marks a
+    variable that should be a `relax.Var` instead of a
+    `relax.DataflowVar`, allowing it to be used outside of the
+    `DataflowBlock` that defined it.  A relax function's output is not
+    part of any binding, and must not contain any `DataflowVar`, so
+    these are exposed implicitly.
+
+    """
+
+    @R.function(private=True)
+    def output_then_return(A: R.Tensor([16], "float16")):
+        with R.dataflow():
+            B = R.add(A, A)
+            C = R.multiply(B, B)
+            R.output(C)
+
+        return C
+
+    @R.function(private=True)
+    def return_inside_dataflow(A: R.Tensor([16], "float16")):
+        with R.dataflow():
+            B = R.add(A, A)
+            C = R.multiply(B, B)
+            return C
+
+    tvm.ir.assert_structural_equal(output_then_return, return_inside_dataflow)
 
 
 if __name__ == "__main__":

@@ -362,6 +362,49 @@ class WellFormedChecker : public relax::ExprVisitor,
                                           << err.what());
       }
     }
+
+    if (check_struct_info_ && call->struct_info_.defined()) {
+      // The `InferStructInfo` method isn't currently exposed by the
+      // Normalizer, and can only be called indirectly by normalizing
+      // an expression that does not yet have `StructInfo`.
+      auto dummy_builder = tvm::relax::BlockBuilder::Create(mod_);
+      Call copied(call->op, call->args, call->attrs, call->sinfo_args);
+      Optional<Expr> normalized = NullOpt;
+      try {
+        normalized = dummy_builder->Normalize(copied);
+      } catch (std::exception& err) {
+        Malformed(Diagnostic::Error(call)
+                  << "Each Relax expression must be able to have its StructInfo inferred.  "
+                  << "However, inferring the struct info of expression " << GetRef<Call>(call)
+                  << " resulted in the error: \n"
+                  << err.what());
+      }
+      if (normalized.defined()) {
+        auto inferred_struct_info = GetStructInfo(normalized.value());
+        auto current_struct_info = Downcast<StructInfo>(call->struct_info_);
+
+        // An error should be raised if the annotated StructInfo is
+        // provably incorrect.  This check is done using
+        // `StructInfoBaseCheck(...) < kFailL1`, because `kFailL1`
+        // represents cases that are neither provably correct nor
+        // provably incorrect.  If this check were replaced with
+        // `!IsBaseOf(...)`, cases that are correct but not provably
+        // so would raise an exception.
+        //
+        // For example, if a dynamic size in the inferred StructInfo
+        // is equivalent to the expression used in the annotated
+        // StructInfo, but the TIR simplifications are not sufficient
+        // to prove that the two expressions are equivalent, we should
+        // not raise an error.
+        if (StructInfoBaseCheck(current_struct_info, inferred_struct_info) <
+            BaseCheckResult::kFailL1) {
+          Malformed(Diagnostic::Error(call)
+                    << "All information in StructInfo annotations must be correct.  "
+                    << "However, while the expression " << GetRef<Call>(call) << " is annotated as "
+                    << current_struct_info << ", the expression outputs " << inferred_struct_info);
+        }
+      }
+    }
   }
 
   void VisitExpr_(const IfNode* op) final {

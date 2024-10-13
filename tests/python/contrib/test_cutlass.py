@@ -15,26 +15,27 @@
 # specific language governing permissions and limitations
 # under the License.
 import logging
-import tempfile
 import math
+import tempfile
+
 import ml_dtypes
-import tvm
-from tvm import relay
-from tvm.contrib.cudnn import conv_output_shape
 import numpy as np
-from tvm.relay import op as _op
-from tvm.runtime.vm import VirtualMachine
-from tvm.relay.op.contrib.cutlass import partition_for_cutlass
-from tvm import auto_scheduler
-from tvm.relay.transform import FirstOrderGradient, ToMixedPrecision, InferType
+
+import tvm
+import tvm.testing
+from tvm import auto_scheduler, relay
+from tvm.contrib.cudnn import conv_output_shape
 from tvm.contrib.cutlass import (
-    has_cutlass,
-    num_cutlass_partitions,
     finalize_modules,
     finalize_modules_vm,
+    has_cutlass,
+    num_cutlass_partitions,
 )
 from tvm.contrib.pickle_memoize import memoize
-import tvm.testing
+from tvm.relay import op as _op
+from tvm.relay.op.contrib.cutlass import partition_for_cutlass
+from tvm.relay.transform import FirstOrderGradient, InferType, ToMixedPrecision
+from tvm.runtime.vm import VirtualMachine
 
 logging.basicConfig(level=logging.INFO)
 
@@ -1189,15 +1190,95 @@ def test_group_gemm_sm90():
         atol=1,
     )
     verify_group_gemm(
-        "cutlass.group_gemm_e4m3_e5m2_fp16",
+        "cutlass.group_gemm_e5m2_e4m3_fp16",
         8,
         16,
         16,
         4,
-        "e4m3_float8",
         "e5m2_float8",
+        "e4m3_float8",
         "float16",
         True,
+        rtol=1e-1,
+        atol=1,
+    )
+
+
+def verify_gemm(func_name, M, N, K, x_dtype, weight_dtype, out_dtype, scale_value, rtol, atol):
+    gemm_func = tvm.get_global_func(func_name, allow_missing=True)
+    if gemm_func is None:
+        print(f"Skipped as {func_name} is not available")
+        return
+
+    @memoize("tvm.contrib.cutlass.test_fp8_gemm_sm90")
+    def get_ref_data():
+        a_np = get_random_ndarray((M, K), "float16")
+        b_np = get_random_ndarray((N, K), "float16")
+        c_np = a_np @ b_np.T * scale_value
+        return a_np, b_np, c_np
+
+    def to_numpy_dtype(dtype):
+        mapping = {"e5m2_float8": ml_dtypes.float8_e5m2, "e4m3_float8": ml_dtypes.float8_e4m3fn}
+        return mapping.get(dtype, dtype)
+
+    a_np, b_np, c_np = get_ref_data()
+    dev = tvm.cuda(0)
+    a_nd = tvm.nd.array(a_np.astype(to_numpy_dtype(x_dtype)), device=dev)
+    b_nd = tvm.nd.array(b_np.astype(to_numpy_dtype(weight_dtype)), device=dev)
+    c_nd = tvm.nd.empty(c_np.shape, dtype=out_dtype, device=dev)
+    workspace = tvm.nd.empty((4096 * 1024,), dtype="uint8", device=dev)
+    scale = tvm.nd.array(np.array([scale_value], dtype="float32"), device=dev)
+    gemm_func(a_nd, b_nd, workspace, scale, c_nd)
+    tvm.testing.assert_allclose(c_nd.asnumpy(), c_np, rtol=rtol, atol=atol)
+
+
+@tvm.testing.requires_cutlass
+def test_fp8_gemm_sm90():
+    verify_gemm(
+        "cutlass.gemm_e5m2_e5m2_fp16",
+        8,
+        16,
+        16,
+        "e5m2_float8",
+        "e5m2_float8",
+        "float16",
+        1.5,
+        rtol=1e-1,
+        atol=1,
+    )
+    verify_gemm(
+        "cutlass.gemm_e4m3_e4m3_fp16",
+        8,
+        16,
+        16,
+        "e4m3_float8",
+        "e4m3_float8",
+        "float16",
+        1.5,
+        rtol=1e-1,
+        atol=1,
+    )
+    verify_gemm(
+        "cutlass.gemm_e4m3_e4m3_fp16",
+        32,
+        16,
+        16,
+        "e4m3_float8",
+        "e4m3_float8",
+        "float16",
+        1.5,
+        rtol=1e-1,
+        atol=1,
+    )
+    verify_gemm(
+        "cutlass.gemm_e5m2_e4m3_fp16",
+        8,
+        16,
+        16,
+        "e5m2_float8",
+        "e4m3_float8",
+        "float16",
+        1.5,
         rtol=1e-1,
         atol=1,
     )

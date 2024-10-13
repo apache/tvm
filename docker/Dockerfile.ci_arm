@@ -53,10 +53,10 @@ ENV PATH /opt/sccache:$PATH
 COPY install/ubuntu2204_install_llvm.sh /install/ubuntu2204_install_llvm.sh
 RUN bash /install/ubuntu2204_install_llvm.sh
 
-ENV TVM_VENV /venv/apache-tvm-py3.8
+ENV TVM_VENV /venv/apache-tvm-py3.9
 COPY python/bootstrap/lockfiles /install/python/bootstrap/lockfiles
 COPY install/ubuntu_install_python.sh /install/ubuntu_install_python.sh
-RUN bash /install/ubuntu_install_python.sh 3.8
+RUN bash /install/ubuntu_install_python.sh 3.9
 ENV PATH ${TVM_VENV}/bin:$PATH
 ENV PYTHONNOUSERSITE 1  # Disable .local directory from affecting CI.
 
@@ -71,17 +71,13 @@ RUN bash /install/ubuntu_install_tensorflow_aarch64.sh
 COPY install/ubuntu_install_tflite.sh /install/ubuntu_install_tflite.sh
 RUN bash /install/ubuntu_install_tflite.sh
 
-# Caffe deps
-COPY install/ubuntu_install_boost.sh /install/ubuntu_install_boost.sh
-RUN bash /install/ubuntu_install_boost.sh
-
-# Caffe
-COPY install/ubuntu_install_caffe.sh /install/ubuntu_install_caffe.sh
-RUN bash /install/ubuntu_install_caffe.sh
-
 # ONNX
 COPY install/ubuntu_install_onnx.sh /install/ubuntu_install_onnx.sh
 RUN bash /install/ubuntu_install_onnx.sh
+
+# NNEF
+COPY install/ubuntu_install_nnef.sh /install/ubuntu_install_nnef.sh
+RUN bash /install/ubuntu_install_nnef.sh
 
 # AutoTVM deps
 COPY install/ubuntu_install_redis.sh /install/ubuntu_install_redis.sh

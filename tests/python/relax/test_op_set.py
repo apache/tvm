@@ -867,5 +867,39 @@ def test_unique_infer_struct_info_wrong_input_dtype():
         bb.normalize(relax.op.unique(x1))
 
 
+@pytest.mark.parametrize("shape", [(1,), (2, 3), (4, 5, 6)])
+def test_nonzero_infer_struct_info(shape):
+    bb = relax.BlockBuilder()
+    x0 = relax.Var("x", R.Tensor(shape, "bool"))
+
+    _check_inference(
+        bb,
+        relax.op.nonzero(x0),
+        relax.TensorStructInfo(ndim=len(shape) + 1, dtype="int64"),
+    )
+
+
+def test_nonzero_infer_struct_info_ndim_zero():
+    bb = relax.BlockBuilder()
+    x = relax.Var("x", R.Tensor((), "bool"))
+
+    _check_inference(
+        bb,
+        relax.op.nonzero(x),
+        relax.TensorStructInfo(ndim=2, dtype="int64"),
+    )
+
+
+def test_nonzero_infer_struct_info_wrong_input_dtype():
+    bb = relax.BlockBuilder()
+    x0 = relax.Var("x", relax.ShapeStructInfo((2, 3, 4)))
+    x1 = relax.Var("x", relax.FuncStructInfo([], R.Tensor((2, 3, 4), "float32")))
+
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.nonzero(x0))
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.nonzero(x1))
+
+
 if __name__ == "__main__":
     tvm.testing.main()

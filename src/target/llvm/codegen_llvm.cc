@@ -1737,7 +1737,7 @@ void CodeGenLLVM::BufferAccessHelper(
     if (const RampNode* ramp = last_index.as<RampNode>()) {
       PrimExpr offset = ramp->base + (ramp->stride * i);
       last_index_value = MakeValue(offset);
-    } else if (last_index.dtype().lanes() > 1) {
+    } else if (last_index.dtype().is_vector()) {
       if (i == 0) {
         cached_vector_index = MakeValue(last_index);
       }
@@ -2315,7 +2315,7 @@ TVM_REGISTER_GLOBAL("tvm.codegen.llvm.GetHostCPUName").set_body_typed([]() -> st
 
 TVM_REGISTER_GLOBAL("tvm.codegen.llvm.GetHostCPUFeatures")
     .set_body_typed([]() -> Map<String, IntImm> {
-#if TVM_LLVM_VERSION >= 200
+#if TVM_LLVM_VERSION >= 190
       Map<String, IntImm> ret;
       auto features = llvm::sys::getHostCPUFeatures();
       for (auto it = features.begin(); it != features.end(); ++it) {

@@ -148,6 +148,8 @@ class DataType {
   bool is_fixed_length_vector() const { return static_cast<int16_t>(data_.lanes) > 1; }
   /*! \return Whether the type is a scalable vector. */
   bool is_scalable_vector() const { return static_cast<int16_t>(data_.lanes) < -1; }
+  /*! \return whether type is a vector type. */
+  bool is_vector() const { return lanes() > 1; }
   /*! \return whether type is a bool vector type. */
   bool is_vector_bool() const { return is_scalable_or_fixed_length_vector() && bits() == 1; }
   /*! \return whether type is a Void type. */

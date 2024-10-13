@@ -1105,6 +1105,29 @@ def test_max():
         verify_model(Max(), [([256, 256], "float32"), ([256, 256], "float32")], via_relax)
 
 
+def test_cat():
+    """test torch translator for cat"""
+
+    class Cat1(Module):
+        def forward(self, data, data1, data2):
+            return torch.cat((data, data1, data2), dim=1)
+
+    class Cat2(Module):
+        def forward(self, data):
+            const1 = torch.ones((1, 3, 10, 10), dtype=torch.float32)
+            const2 = torch.ones((1, 3, 10, 10), dtype=torch.float32)
+            return torch.cat((data, const1, const2), dim=1)
+
+    input_info = [
+        ([1, 3, 10, 10], "float32"),
+        ([1, 3, 10, 10], "float32"),
+        ([1, 3, 10, 10], "float32"),
+    ]
+    for via_relax in [True, False]:
+        verify_model(Cat1(), input_info, via_relax)
+        verify_model(Cat2(), [([1, 3, 10, 10], "float32")], via_relax)
+
+
 def test_attention():
     """test torch translator for attention"""
 

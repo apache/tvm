@@ -325,13 +325,27 @@ class RelaxGraphBuilder : public RelaxExprVisitor {
 
 class RelaxWeightsExtractor : public RelaxExprVisitor {
  public:
+  /*!
+   * \brief The constructor of RelaxGraphBuilder
+   * \param ref_module the reference module.
+   * \param name the name of the graph.
+   * \param options the options of build the graph.
+   */
+  explicit RelaxWeightsExtractor(const IRModule& ref_module) : RelaxExprVisitor() {
+    ref_module_ = ref_module;
+  }
+
   /*! \brief Visit the constant and save weights */
   Map<MSCTensor, NDArray> GetWeights(const relax::Function& func);
 
   void VisitExpr_(const relax::ConstantNode* op) final;
 
+  void VisitExpr_(const relax::CallNode* op) final;
+
  private:
   Map<MSCTensor, NDArray> weights_;
+  Map<Expr, relax::Function> local_funcs_;
+  IRModule ref_module_;
 };
 
 class RelayFuncAttrGetter : public RelayExprVisitor {

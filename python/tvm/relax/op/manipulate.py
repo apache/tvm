@@ -511,3 +511,42 @@ def scatter_elements(
 
     """
     return _ffi_api.scatter_elements(data, indices, updates, axis, reduction)  # type: ignore
+
+
+def scatter_nd(data: Expr, indices: Expr, updates: Expr, reduction: str = "update") -> Expr:
+    """Scatter updates into an array according to indices.
+
+    Parameters
+    ----------
+    data: relax.Expr
+        The input data to be updated.
+
+    indices: relax.Expr
+        The index positions to update in `data`.
+
+    updates: relax.Expr
+        Values to replace to.
+
+    reduction: str
+        Type of reduction to apply: update, add, mul, max, min.
+        It is "update" by default.
+
+    Returns
+    -------
+    result : relax.Expr
+        The result has the same shape as data.
+
+    Examples
+    --------
+    .. code-block:: python
+
+       # inputs
+       data = [1, 2, 3, 4, 5, 6, 7, 8]
+       indices = [[4], [3], [1], [7]]
+       updates = [9, 10, 11, 12]
+
+       # output
+       output = [1, 11, 3, 10, 9, 6, 7, 12]
+
+    """
+    return _ffi_api.scatter_nd(data, indices, updates, reduction)  # type: ignore

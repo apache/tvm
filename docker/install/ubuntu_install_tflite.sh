@@ -26,11 +26,11 @@ set -o pipefail
 TENSORFLOW_VERSION=$(python3 -c "import tensorflow; print(tensorflow.__version__)" 2> /dev/null)
 
 # Download, build and install flatbuffers
-git clone --branch=v1.12.0 --depth=1 --recursive https://github.com/google/flatbuffers.git
-cd flatbuffers
-cmake -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_FLAGS="-Wno-class-memaccess"
-make install -j8
-cd ..
+git clone --branch=v24.3.25 --depth=1 --recursive https://github.com/google/flatbuffers.git
+pushd flatbuffers
+  cmake -G Ninja -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_FLAGS="-Wno-class-memaccess"
+  ninja install -j8
+popd
 
 # Install flatbuffers python packages.
 pip3 install flatbuffers
@@ -41,22 +41,22 @@ pip3 install flatbuffers
 git clone https://github.com/tensorflow/tensorflow --branch=v${TENSORFLOW_VERSION} --depth 1
 
 mkdir -p /opt/tflite
-cd /opt/tflite
-cmake \
-  -DTFLITE_ENABLE_XNNPACK=OFF \
-  /tensorflow/tensorflow/lite
+pushd /opt/tflite
+  cmake -G Ninja \
+    -DTFLITE_ENABLE_XNNPACK=OFF \
+    /tensorflow/tensorflow/lite
 
-cmake --build .
-cd -
-
+  cmake --build .
+popd
 
 # Setup tflite from schema
 mkdir tflite
-cp tensorflow/tensorflow/lite/schema/schema.fbs tflite
-cd tflite
-flatc --python schema.fbs
+find / -name "schema.fbs"
+cp /tensorflow/tensorflow/lite/stablehlo/schema/schema.fbs tflite
+pushd tflite
+  flatc --python schema.fbs
 
-cat <<EOM >setup.py
+  cat <<EOM >setup.py
 import setuptools
 
 setuptools.setup(
@@ -77,12 +77,12 @@ setuptools.setup(
 )
 EOM
 
-cat <<EOM >__init__.py
+  cat <<EOM >__init__.py
 name = "tflite"
 EOM
 
-# Install tflite over python3
-python3 setup.py install
+  # Install tflite over python3
+  python3 setup.py install
 
-cd ..
+popd
 rm -rf tflite

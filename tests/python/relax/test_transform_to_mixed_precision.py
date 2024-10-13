@@ -906,15 +906,15 @@ def test_conv2d_bias_fp32():
         ) -> R.Tensor((1, 512, 64, 64), dtype="float32"):
             # block 0
             with R.dataflow():
-                lv142: R.Tensor((1, 4, 64, 64), dtype="float32") = R.nn.conv2d(
+                lv142: R.Tensor((1, 512, 62, 62), dtype="float32") = R.nn.conv2d(
                     x,
                     w,
                     strides=[1, 1],
                     padding=[0, 0, 0, 0],
                     out_dtype="float32",
                 )
-                lv143: R.Tensor((1, 4, 1, 1), dtype="float32") = R.reshape(bias, (1, 512, 1, 1))
-                lv144: R.Tensor((1, 4, 64, 64), dtype="float32") = R.add(lv142, lv143)
+                lv143: R.Tensor((1, 512, 1, 1), dtype="float32") = R.reshape(bias, (1, 512, 1, 1))
+                lv144: R.Tensor((1, 512, 62, 62), dtype="float32") = R.add(lv142, lv143)
                 R.output(lv144)
             return lv144
 
@@ -1001,15 +1001,15 @@ def test_convert_sig():
         ) -> R.Tensor((1, 512, 64, 64), dtype="float32"):
             # block 0
             with R.dataflow():
-                lv142: R.Tensor((1, 4, 64, 64), dtype="float32") = R.nn.conv2d(
+                lv142: R.Tensor((1, 512, 62, 62), dtype="float32") = R.nn.conv2d(
                     x,
                     w,
                     strides=[1, 1],
                     padding=[0, 0, 0, 0],
                     out_dtype="float32",
                 )
-                lv143: R.Tensor((1, 4, 1, 1), dtype="float32") = R.reshape(bias, (1, 512, 1, 1))
-                lv144: R.Tensor((1, 4, 64, 64), dtype="float32") = R.add(lv142, lv143)
+                lv143: R.Tensor((1, 512, 1, 1), dtype="float32") = R.reshape(bias, (1, 512, 1, 1))
+                lv144: R.Tensor((1, 512, 62, 62), dtype="float32") = R.add(lv142, lv143)
                 R.output(lv144)
             return lv144
 

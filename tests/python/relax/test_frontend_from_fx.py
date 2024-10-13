@@ -79,7 +79,7 @@ def test_conv1d():
                     out_layout="NCW",
                     out_dtype="float32",
                 )
-                lv2: R.Tensor((1, 6, 1)) = R.reshape(w2, [1, 6, 1])
+                lv2: R.Tensor((1, 6, 1), dtype="float32") = R.reshape(w2, [1, 6, 1])
                 lv3: R.Tensor((1, 6, 4), dtype="float32") = R.add(lv1, lv2)
                 gv: R.Tensor((1, 6, 4), dtype="float32") = lv3
                 R.output(gv)
@@ -171,7 +171,7 @@ def test_conv1d_transpose():
                     out_layout="NCW",
                     out_dtype="float32",
                 )
-                lv2: R.Tensor((1, 6, 1)) = R.reshape(w2, [1, 6, 1])
+                lv2: R.Tensor((1, 6, 1), dtype="float32") = R.reshape(w2, [1, 6, 1])
                 lv3: R.Tensor((1, 6, 6), dtype="float32") = R.add(lv1, lv2)
                 gv: R.Tensor((1, 6, 6), dtype="float32") = lv3
                 R.output(gv)
@@ -263,7 +263,7 @@ def test_conv2d():
                     out_layout="NCHW",
                     out_dtype="float32",
                 )
-                lv2: R.Tensor((1, 6, 1, 1)) = R.reshape(w2, [1, 6, 1, 1])
+                lv2: R.Tensor((1, 6, 1, 1), dtype="float32") = R.reshape(w2, [1, 6, 1, 1])
                 lv3: R.Tensor((1, 6, 4, 4), dtype="float32") = R.add(lv1, lv2)
                 gv: R.Tensor((1, 6, 4, 4), dtype="float32") = lv3
                 R.output(gv)
@@ -355,7 +355,7 @@ def test_conv2d_transpose():
                     out_layout="NCHW",
                     out_dtype="float32",
                 )
-                lv2: R.Tensor((1, 3, 1, 1)) = R.reshape(w2, [1, 3, 1, 1])
+                lv2: R.Tensor((1, 3, 1, 1), dtype="float32") = R.reshape(w2, [1, 3, 1, 1])
                 lv3: R.Tensor((1, 3, 16, 16), dtype="float32") = R.add(lv1, lv2)
                 gv: R.Tensor((1, 3, 16, 16), dtype="float32") = lv3
                 R.output(gv)
@@ -447,7 +447,7 @@ def test_conv3d():
                     out_layout="NCDHW",
                     out_dtype="float32",
                 )
-                lv2: R.Tensor((1, 6, 1, 1, 1)) = R.reshape(w2, [1, 6, 1, 1, 1])
+                lv2: R.Tensor((1, 6, 1, 1, 1), dtype="float32") = R.reshape(w2, [1, 6, 1, 1, 1])
                 lv3: R.Tensor((1, 6, 4, 4, 4), dtype="float32") = R.add(lv1, lv2)
                 gv: R.Tensor((1, 6, 4, 4, 4), dtype="float32") = lv3
                 R.output(gv)
@@ -3825,7 +3825,7 @@ def test_attention():
             inp_0: R.Tensor((32, 8, 128, 64), dtype="float32"),
             inp_1: R.Tensor((32, 8, 128, 64), dtype="float32"),
             inp_2: R.Tensor((32, 8, 128, 64), dtype="float32"),
-        ) -> R.Tensor((32, 128, 8, 64), dtype="float32"):
+        ) -> R.Tensor((32, 8, 128, 64), dtype="float32"):
             with R.dataflow():
                 lv: R.Tensor((32, 128, 8, 64), dtype="float32") = R.permute_dims(
                     inp_0, axes=[0, 2, 1, 3]
@@ -3839,7 +3839,10 @@ def test_attention():
                 lv3: R.Tensor((32, 128, 8, 64), dtype="float32") = R.nn.attention(
                     lv, lv1, lv2, scale=None
                 )
-                gv: R.Tensor((32, 128, 8, 64), dtype="float32") = lv3
+                lv4: R.Tensor((32, 8, 128, 64), dtype="float32") = R.permute_dims(
+                    lv3, axes=[0, 2, 1, 3]
+                )
+                gv: R.Tensor((32, 8, 128, 64), dtype="float32") = lv4
                 R.output(gv)
             return gv
 
@@ -3851,7 +3854,7 @@ def test_attention():
             inp_1: R.Tensor((32, 8, 128, 64), dtype="float32"),
             inp_2: R.Tensor((32, 8, 128, 64), dtype="float32"),
             inp_3: R.Tensor((32, 8, 128, 128), dtype="float32"),
-        ) -> R.Tensor((32, 128, 8, 64), dtype="float32"):
+        ) -> R.Tensor((32, 8, 128, 64), dtype="float32"):
             with R.dataflow():
                 lv: R.Tensor((32, 128, 8, 64), dtype="float32") = R.permute_dims(
                     inp_0, axes=[0, 2, 1, 3]
@@ -3865,7 +3868,10 @@ def test_attention():
                 lv3: R.Tensor((32, 128, 8, 64), dtype="float32") = R.nn.attention(
                     lv, lv1, lv2, inp_3, scale=None
                 )
-                gv: R.Tensor((32, 128, 8, 64), dtype="float32") = lv3
+                lv4: R.Tensor((32, 8, 128, 64), dtype="float32") = R.permute_dims(
+                    lv3, axes=[0, 2, 1, 3]
+                )
+                gv: R.Tensor((32, 8, 128, 64), dtype="float32") = lv4
                 R.output(gv)
             return gv
 
@@ -3876,7 +3882,7 @@ def test_attention():
             inp_0: R.Tensor((32, 8, 128, 64), dtype="float32"),
             inp_1: R.Tensor((32, 8, 128, 64), dtype="float32"),
             inp_2: R.Tensor((32, 8, 128, 64), dtype="float32"),
-        ) -> R.Tensor((32, 128, 8, 64), dtype="float32"):
+        ) -> R.Tensor((32, 8, 128, 64), dtype="float32"):
             with R.dataflow():
                 lv: R.Tensor((32, 128, 8, 64), dtype="float32") = R.permute_dims(
                     inp_0, axes=[0, 2, 1, 3]
@@ -3890,7 +3896,10 @@ def test_attention():
                 lv3: R.Tensor((32, 128, 8, 64), dtype="float32") = R.nn.attention(
                     lv, lv1, lv2, scale=None, causal_mask="TopLeft"
                 )
-                gv: R.Tensor((32, 128, 8, 64), dtype="float32") = lv3
+                lv4: R.Tensor((32, 8, 128, 64), dtype="float32") = R.permute_dims(
+                    lv3, axes=[0, 2, 1, 3]
+                )
+                gv: R.Tensor((32, 8, 128, 64), dtype="float32") = lv4
                 R.output(gv)
             return gv
 
