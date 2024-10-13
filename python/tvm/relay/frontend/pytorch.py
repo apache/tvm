@@ -52,6 +52,7 @@ from .pytorch_utils import is_version_greater_than, getattr_attr_name
 
 __all__ = ["from_pytorch"]
 
+
 # This returns a "subgraph" which puts variables whenever
 # the type is known. It also records things to map the input
 # nodes to the extracted graph's nodes.
@@ -653,14 +654,18 @@ class PyTorchOpConverter:
 
         if np.isscalar(indices):
             idx_val = _op.full(fill_value=indices, shape=indices_shape, dtype="int64")
-            result = _op.scatter_elements(data=data, indices=idx_val, updates=value, axis=dim, reduction="update")
+            result = _op.scatter_elements(
+                data=data, indices=idx_val, updates=value, axis=dim, reduction="update"
+            )
         else:
             result = data
             length = self.infer_shape(indices)[0]
             for i in range(length):
                 idx_val = _op.transform.take(indices, indices=_op.nn.const(i), axis=0)
                 idx_val = _op.full(fill_value=idx_val, shape=indices_shape, dtype="int64")
-                result = _op.scatter_elements(data=result, indices=idx_val, updates=value, axis=dim, reduction="update")
+                result = _op.scatter_elements(
+                    data=result, indices=idx_val, updates=value, axis=dim, reduction="update"
+                )
         return result
 
     def select(self, inputs, input_types):
@@ -3895,7 +3900,7 @@ class PyTorchOpConverter:
 
         # Create indices
         nelem = 1
-        for (begin, end) in index_map.values():
+        for begin, end in index_map.values():
             nelem *= end - begin
         chunk_sizes = [nelem]
         for i in range(1, last_index_dim + 1):
@@ -4505,7 +4510,7 @@ class PyTorchOpConverter:
             # Update loop variables using the prev iteration outputs
             assert len(current_vals) == num_block_inputs + len(free_vars)
 
-            for (i, val) in enumerate(current_vals):
+            for i, val in enumerate(current_vals):
                 if i < num_block_inputs:
                     outputs[block_input_names[i]] = val
                 else:
@@ -5486,9 +5491,11 @@ def from_pytorch(
     }
     data_inputs = sorted(
         data_inputs,
-        key=lambda data_input: order_input_infos[data_input.name_hint]
-        if data_input.name_hint in order_input_infos
-        else -1,
+        key=lambda data_input: (
+            order_input_infos[data_input.name_hint]
+            if data_input.name_hint in order_input_infos
+            else -1
+        ),
         reverse=True,
     )
 

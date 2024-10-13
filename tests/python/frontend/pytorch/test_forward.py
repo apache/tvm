@@ -2940,6 +2940,7 @@ def test_control_flow():
 @tvm.testing.uses_gpu
 def test_simple_rnn():
     """test_simple_rnn"""
+
     # The mixed tracing and scripting example from
     # https://pytorch.org/tutorials/beginner/Intro_to_TorchScript_tutorial.html#mixing-scripting-and-tracing
     class DecisionGate(torch.nn.Module):
@@ -3596,7 +3597,7 @@ def test_forward_fill_with_div():
 
 
 def test_forward_index_fill_():
-    """ text_forward_index_fill """
+    """text_forward_index_fill"""
     torch.set_grad_enabled(False)
 
     def test_func_vector_index(x):
@@ -3606,10 +3607,17 @@ def test_forward_index_fill_():
     def test_func_scalar_index(x):
         return x.index_fill_(dim=1, index=1, value=3.0)
 
-    verify_model_with_input(test_func_vector_index, [torch.rand([1, 3, 224, 224], dtype=torch.float32)])
-    verify_model_with_input(test_func_vector_index, [torch.rand([32, 128, 128], dtype=torch.float32)])
-    verify_model_with_input(test_func_scalar_index, [torch.rand([1, 32, 224, 224], dtype=torch.float32)])
+    verify_model_with_input(
+        test_func_vector_index, [torch.rand([1, 3, 224, 224], dtype=torch.float32)]
+    )
+    verify_model_with_input(
+        test_func_vector_index, [torch.rand([32, 128, 128], dtype=torch.float32)]
+    )
+    verify_model_with_input(
+        test_func_scalar_index, [torch.rand([1, 32, 224, 224], dtype=torch.float32)]
+    )
     verify_model_with_input(test_func_scalar_index, [torch.rand([128, 128], dtype=torch.float32)])
+
 
 @tvm.testing.uses_gpu
 def test_forward_linspace():
@@ -4216,6 +4224,7 @@ def test_weight_names():
 @tvm.testing.uses_gpu
 def test_duplicate_weight_use():
     """test_duplicate_weight_use"""
+
     # The test cases doesn't make any sense as a neural network,
     # the issue popped up in shared input/output embeddings of bert,
     # but this is quicker
@@ -4471,6 +4480,7 @@ def test_forward_nonzero():
 
 def test_forward_scatter():
     """test_forward_scatter"""
+
     # integer cannot be traced
     def test_fn_scatter(dim):
         return lambda data, index, src: torch.scatter(data, dim=dim, index=index, src=src)
@@ -4507,6 +4517,7 @@ def test_forward_scatter():
 
 def test_forward_scatter_reduce():
     """test_forward_scatter_reduce"""
+
     # integer cannot be traced
     def test_fn_scatter_reduce(dim, reduce):
         return lambda data, index, src: torch.scatter_reduce(
@@ -4531,6 +4542,7 @@ def test_forward_scatter_reduce():
 
 def test_forward_index_put():
     """test_forward_index_put"""
+
     # torch.index_put for 2D tensor and default accumulate (False)
     def test_fn_index_put2():
         return lambda data, xidx, yidx, values: torch.index_put(
@@ -5326,6 +5338,7 @@ def test_mod():
 
 def test_softmax_fuse():
     """test_softmax_fuse"""
+
     # https://github.com/apache/tvm/issues/12001
     class Model(torch.nn.Module):
         """Pytorch model module"""
