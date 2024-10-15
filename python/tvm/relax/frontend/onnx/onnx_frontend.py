@@ -260,7 +260,7 @@ class BinaryBase(OnnxOpConverter):
                 else inputs[0].data.numpy()
             )
             y = (
-                _np.array(inputs[0].value)
+                _np.array(inputs[1].value)
                 if isinstance(inputs[1], relax.PrimValue)
                 else inputs[1].data.numpy()
             )
