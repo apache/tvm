@@ -1664,6 +1664,16 @@ constexpr const char* warp_execution = "warp_execution";
 /*! \brief Mark that a block is disallowed in auto inline. */
 constexpr const char* meta_schedule_inline_rule = "meta_schedule.inline_rule";
 
+/*! \brief Mark that a block has an explicitly specified read region.
+ * This is used to override the default read region inference in TIR.
+ */
+constexpr const char* explicit_read_region = "explicit_read_region";
+
+/*! \brief Mark that a block has an explicitly specified write region.
+ * This is used to override the default write region inference in TIR.
+ */
+constexpr const char* explicit_write_region = "explicit_write_region";
+
 /*!
  * \brief Check if attr_key is a pragma key extension
  * \param attr_key The attr key to be compared

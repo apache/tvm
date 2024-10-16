@@ -769,5 +769,17 @@ void TracedScheduleNode::UnsafeHideBufferAccess(const BlockRV& block_rv, const S
       /*outputs=*/{}));
 }
 
+void TracedScheduleNode::AnnotateBufferAccess(const BlockRV& block_rv, int buffer_index,
+                                              BufferIndexType buffer_index_type,
+                                              const IndexMap& index_map) {
+  ConcreteScheduleNode::AnnotateBufferAccess(block_rv, buffer_index, buffer_index_type, index_map);
+  static const InstructionKind& kind = InstructionKind::Get("AnnotateBufferAccess");
+  trace_->Append(/*inst=*/Instruction(
+      /*kind=*/kind,
+      /*inputs=*/{block_rv, Integer(buffer_index), Integer(buffer_index_type), index_map},
+      /*attrs=*/{},
+      /*outputs=*/{}));
+}
+
 }  // namespace tir
 }  // namespace tvm
