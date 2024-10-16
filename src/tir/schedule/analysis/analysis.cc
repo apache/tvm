@@ -1581,14 +1581,14 @@ std::pair<int64_t, int64_t> GetCumulativeSpaceAndReductionLength(const tir::Sche
     tir::IterVarType type = GetLoopIterType(loop_sref);
     if (type == tir::kDataPar) {
       const int64_t* extent = GetLoopIntExtent(loop_sref);
-      if (*extent != -1) {
+      if (extent && *extent != -1) {
         cum_space_len *= *extent;
       } else {
         return std::make_pair(-1, -1);
       }
     } else if (type == tir::kCommReduce) {
       const int64_t* extent = GetLoopIntExtent(loop_sref);
-      if (*extent != -1) {
+      if (extent && *extent != -1) {
         cum_reduce_len *= *extent;
       } else {
         return std::make_pair(-1, -1);
