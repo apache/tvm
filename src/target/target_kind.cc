@@ -194,6 +194,30 @@ TargetJSON UpdateNVPTXAttrs(TargetJSON target) {
 }
 
 /*!
+ * \brief Update the attributes in the HIP target.
+ * \param target The Target to update
+ * \return The updated attributes
+ */
+TargetJSON UpdateHIPAttrs(TargetJSON target) {
+  using tvm::runtime::Registry;
+  // Update -mcpu=gfx
+  std::string arch = "gfx900";
+  if (target.count("mcpu")) {
+    String mcpu = Downcast<String>(target.at("mcpu"));
+    arch = ExtractStringWithPrefix(mcpu, "gfx");
+    ICHECK(!arch.empty()) << "ValueError: ROCm target gets an invalid GFX version: -mcpu=" << mcpu;
+  } else {
+    TVMRetValue val;
+    if (const auto* f_get_rocm_arch = Registry::Get("tvm_callback_rocm_get_arch")) {
+      arch = (*f_get_rocm_arch)().operator std::string();
+    }
+  }
+  target.Set("mcpu", String(arch));
+  LOG(INFO) << "HIP target uses -mcpu=" << arch;
+  return target;
+}
+
+/*!
  * \brief Update the attributes in the LLVM ROCm target.
  * \param target The Target to update
  * \return The updated attributes
@@ -325,6 +349,17 @@ TVM_REGISTER_TARGET_KIND("nvptx", kDLCUDA)
     .add_attr_option<Integer>("thread_warp_size", Integer(32))
     .set_default_keys({"cuda", "gpu"})
     .set_target_parser(UpdateNVPTXAttrs);
+
+TVM_REGISTER_TARGET_KIND("hip", kDLROCM)
+    .add_attr_option<String>("mcpu")
+    // TODO(lei/masihi): Support querying from a target device
+    // On RDNA cards, thread_warp_size should be 32
+    .add_attr_option<Integer>("max_num_threads", Integer(256))
+    .add_attr_option<Integer>("max_threads_per_block", Integer(256))
+    .add_attr_option<Integer>("max_shared_memory_per_block", Integer(65536))
+    .add_attr_option<Integer>("thread_warp_size", Integer(64))
+    .set_default_keys({"rocm", "gpu"})
+    .set_target_parser(UpdateHIPAttrs);
 
 TVM_REGISTER_TARGET_KIND("rocm", kDLROCM)
     .add_attr_option<String>("mcpu")

@@ -1914,6 +1914,10 @@ mma_fill = _dtype_forward(_tir_op.mma_fill)
 vectorlow = _dtype_forward(_tir_op.vectorlow)
 vectorhigh = _dtype_forward(_tir_op.vectorhigh)
 vectorcombine = _dtype_forward(_tir_op.vectorcombine)
+tvm_mfma = _dtype_forward(_tir_op.tvm_mfma)
+tvm_mfma_store = _dtype_forward(_tir_op.tvm_mfma_store)
+tvm_rdna_wmma = _dtype_forward(_tir_op.tvm_rdna_wmma)
+tvm_rdna_wmma_store = _dtype_forward(_tir_op.tvm_rdna_wmma_store)
 
 
 broadcast = Broadcast
@@ -2170,6 +2174,10 @@ __all__ = [
     "vectorlow",
     "vectorhigh",
     "vectorcombine",
+    "tvm_mfma",
+    "tvm_mfma_store",
+    "tvm_rdna_wmma",
+    "tvm_rdna_wmma_store",
     "assume",
     "undef",
     "tvm_call_packed",

@@ -617,6 +617,52 @@ TVM_DLL const Op& tvm_store_matrix_sync();
 TVM_DLL const Op& ptx_mma();
 
 /*!
+ * \brief tvm intrinsic for amd matrix core mfma instructions.
+ *
+ *  void tvm_mfma(StringImm shape, StringImm A_layout, StringImm B_layout,
+ *               StringImm A_dtype, StringImm B_dtype, StringImm C_dtype,
+ *               Var multiplicand_a, Expr a_index,
+ *               Var multiplicand_b, Expr b_index,
+ *               Var accumulator, Expr c_index);
+ */
+TVM_DLL const Op& tvm_mfma();
+
+/*!
+ * \brief tvm intrinsic for storing the result of AMD MFMA into a destination pointer.
+ *
+ *        There is no real instruction that does that, but we want to hide details of
+ *        complex index manipulation behind this intrinsic to simplify TIR lowering passes (e.g.
+ *        LowerWarpMemory) like cuda ptx backend does.
+ *
+ * void tvm_mfma_store(IntImm m, IntImm n, Var dst_ptr, Var src_ptr, Expr src_offset, Var
+ * dst_stride);
+ */
+TVM_DLL const Op& tvm_mfma_store();
+
+/*!
+ * \brief tvm intrinsic for amd rdna matrix core instructions.
+ *
+ *  void tvm_rdna_wmma(StringImm shape, StringImm A_layout, StringImm B_layout,
+ *               StringImm A_dtype, StringImm B_dtype, StringImm C_dtype,
+ *               Var multiplicand_a, Expr a_index,
+ *               Var multiplicand_b, Expr b_index,
+ *               Var accumulator, Expr c_index);
+ */
+TVM_DLL const Op& tvm_rdna_wmma();
+
+/*!
+ * \brief tvm intrinsic for storing the result of AMD RDNA WMMA into a destination pointer.
+ *
+ *        There is no real instruction that does that, but we want to hide details of
+ *        complex index manipulation behind this intrinsic to simplify TIR lowering passes (e.g.
+ *        LowerWarpMemory) like cuda ptx backend does.
+ *
+ * void tvm_rdna_wmma_store(IntImm m, IntImm n, Var dst_ptr, Var src_ptr, Expr src_offset, Var
+ * dst_stride);
+ */
+TVM_DLL const Op& tvm_rdna_wmma_store();
+
+/*!
  * \brief tvm intrinsic for ptx predicate load with 32-bit data type.
  *
  */
