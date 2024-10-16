@@ -27,6 +27,7 @@
 #include <tvm/relax/attrs/manipulate.h>
 
 #include "../op_common.h"
+#include "tvm/relax/expr.h"
 
 namespace tvm {
 namespace relax {
@@ -205,6 +206,17 @@ Expr scatter_elements(Expr data, Expr indices, Expr updates, int axis, String re
  *       which must match the slice shape at each index.
  */
 Expr scatter_nd(Expr data, Expr indices, Expr updates, String reduction);
+
+/*!
+ * \brief Returns a one-hot tensor.
+ * \param indices The indices to set to `on_value`.
+ * \param on_value The value to fill at `indices`.
+ * \param off_value The value to fill at other locations.
+ * \param depth The depth of the one hot dimension.
+ * \param axis The axis to fill.
+ * \return The computed result.
+ */
+Expr one_hot(Expr indices, PrimValue on_value, PrimValue off_value, int depth, int axis);
 
 }  // namespace relax
 }  // namespace tvm

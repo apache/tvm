@@ -176,6 +176,17 @@ struct ScatterNDAttrs : public tvm::AttrsNode<ScatterNDAttrs> {
   }
 };  // struct ScatterNDAttrs
 
+/*! \brief Attributes used in one_hot operator */
+struct OneHotAttrs : public tvm::AttrsNode<OneHotAttrs> {
+  int depth;
+  int axis;
+
+  TVM_DECLARE_ATTRS(OneHotAttrs, "relax.attrs.OneHotAttrs") {
+    TVM_ATTR_FIELD(depth).describe("Depth of the one hot dimension.");
+    TVM_ATTR_FIELD(axis).set_default(-1).describe("Axis to fill.");
+  }
+};  // struct OneHotAttrs
+
 }  // namespace relax
 }  // namespace tvm
 

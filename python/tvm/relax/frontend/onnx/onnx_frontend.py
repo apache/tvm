@@ -287,7 +287,7 @@ class Sub(BinaryBase):
     relax_op = relax.op.subtract
 
     @classmethod
-    def _impl_v1(cls, bb, inputs, attr, params):
+    def _impl_v7(cls, bb, inputs, attr, params):
         return cls.base_impl(bb, inputs, attr, params)
 
 
@@ -298,7 +298,7 @@ class Mul(BinaryBase):
     relax_op = relax.op.multiply
 
     @classmethod
-    def _impl_v1(cls, bb, inputs, attr, params):
+    def _impl_v7(cls, bb, inputs, attr, params):
         return cls.base_impl(bb, inputs, attr, params)
 
 
@@ -309,7 +309,7 @@ class Div(BinaryBase):
     relax_op = relax.op.divide
 
     @classmethod
-    def _impl_v1(cls, bb, inputs, attr, params):
+    def _impl_v7(cls, bb, inputs, attr, params):
         return cls.base_impl(bb, inputs, attr, params)
 
 
@@ -320,7 +320,24 @@ class Pow(BinaryBase):
     relax_op = relax.op.power
 
     @classmethod
-    def _impl_v1(cls, bb, inputs, attr, params):
+    def _impl_v7(cls, bb, inputs, attr, params):
+        return cls.base_impl(bb, inputs, attr, params)
+
+
+class Mod(BinaryBase):
+    """Converts an onnx Mod node into an equivalent Relax expression."""
+
+    numpy_op = _np.mod
+    relax_op = relax.op.mod
+
+    @classmethod
+    def _impl_v10(cls, bb, inputs, attr, params):
+        if attr.get("fmod", 0) == 0:
+            cls.numpy_op = _np.fmod
+            cls.relax_op = relax.op.floor_mod
+        else:
+            cls.numpy_op = _np.mod
+            cls.relax_op = relax.op.mod
         return cls.base_impl(bb, inputs, attr, params)
 
 
@@ -521,6 +538,23 @@ class LogSoftmax(OnnxOpConverter):
     def _impl_v13(cls, bb, inputs, attr, params):
         axis = attr.get("axis", -1)
         return relax.op.nn.log_softmax(inputs[0], axis=axis)
+
+
+class Hardmax(OnnxOpConverter):
+    """Converts an onnx Hardmax node into an equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v13(cls, bb, inputs, attr, params):
+        axis = attr.get("axis", -1)
+        indices = inputs[0]
+        dtype = indices.struct_info.dtype
+        axis_len = int(inputs[0].struct_info.shape[axis])
+        argmax = relax.op.argmax(indices, axis=axis)
+        on_value = relax.PrimValue(tvm.tir.const(1.0, dtype))
+        off_value = relax.PrimValue(tvm.tir.const(0.0, dtype))
+
+        one_hot = relax.op.one_hot(argmax, on_value, off_value, axis_len, axis)
+        return one_hot
 
 
 class Transpose(OnnxOpConverter):
@@ -729,6 +763,20 @@ class Size(OnnxOpConverter):
     def _impl_v1(cls, bb, inputs, attr, params):
         # TODO(tvm-team): add native support for size op
         return relax.op.prod(relax.op.shape_to_tensor(relax.op.shape_of(inputs[0])))
+
+
+class EyeLike(OnnxOpConverter):
+    """Convert an onnx EyeLike node into an equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v9(cls, bb, inputs, attr, params):
+        k = attr.get("k", 0)
+        input_dtype = inputs[0].struct_info.dtype
+        if "dtype" in attr and get_type(attr["dtype"]) != input_dtype:
+            raise ValueError(
+                f"dtype mismatch between input ({input_dtype}) and attribute ({attr['dtype']})"
+            )
+        return relax.op.eye_like(inputs[0], k, input_dtype)
 
 
 class Gemm(OnnxOpConverter):
@@ -2520,13 +2568,13 @@ class OneHot(OnnxOpConverter):
         depth = get_constant(inputs[1], params)
         values = get_constant(inputs[2], params)
         axis = attr.get("axis", -1)
-        dtype = values.struct_info.dtype
         assert isinstance(depth, relax.Constant), "Only constant depth currently supported."
         depth = depth.data.numpy().tolist()
         assert isinstance(values, relax.Constant), "Only constant values currently supported."
         values = values.data.numpy().tolist()
         off_value, on_value = values
-        return bb.emit_te(topi.one_hot, indices, on_value, off_value, depth, axis, dtype)
+        off_value, on_value = relax.PrimValue(off_value), relax.PrimValue(on_value)
+        return relax.op.one_hot(indices, on_value, off_value, depth, axis)
 
 
 class Unique(OnnxOpConverter):
@@ -2800,7 +2848,7 @@ def _get_convert_map():
         "Sub": Sub,
         "Mul": Mul,
         "Div": Div,
-        # "Mod": Mod,
+        "Mod": Mod,
         "Less": Less,
         "LessOrEqual": LessOrEqual,
         "Greater": Greater,
@@ -2870,7 +2918,7 @@ def _get_convert_map():
         "Sigmoid": Sigmoid,
         "Softmax": Softmax,
         "LogSoftmax": LogSoftmax,
-        # "Hardmax": Hardmax,
+        "Hardmax": Hardmax,
         "Transpose": Transpose,
         "Unsqueeze": Unsqueeze,
         "Where": Where,
@@ -2889,7 +2937,7 @@ def _get_convert_map():
         "ScatterND": ScatterND,
         # "Compress": Compress,
         "Size": Size,
-        # "EyeLike": EyeLike,
+        "EyeLike": EyeLike,
         # Normalization
         "BatchNormalization": BatchNormalization,
         "LayerNormalization": LayerNormalization,
