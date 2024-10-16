@@ -479,14 +479,21 @@ def visit_if(self: Parser, node: doc.If) -> None:
         The doc AST if node.
     """
     with self.var_table.with_frame():
-        with T.If(self.eval_expr(node.test)):
-            with T.Then():
-                with self.var_table.with_frame():
-                    self.visit_body(node.body)
-            if node.orelse:
-                with T.Else():
+        condition = self.eval_expr(node.test)
+        if isinstance(condition, bool):
+            if condition:
+                self.visit_body(node.body)
+            elif node.orelse:
+                self.visit_body(node.orelse)
+        else:
+            with T.If(self.eval_expr(node.test)):
+                with T.Then():
                     with self.var_table.with_frame():
-                        self.visit_body(node.orelse)
+                        self.visit_body(node.body)
+                if node.orelse:
+                    with T.Else():
+                        with self.var_table.with_frame():
+                            self.visit_body(node.orelse)
 
 
 @dispatch.register(token="tir", type_name="Assert")
