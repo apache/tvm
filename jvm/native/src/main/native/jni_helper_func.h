@@ -171,7 +171,8 @@ void fromJavaDType(JNIEnv* env, jobject jdtype, DLDataType* dtype) {
   jclass tvmTypeClass = env->FindClass("org/apache/tvm/DLDataType");
   dtype->code = (uint8_t)(env->GetIntField(jdtype, env->GetFieldID(tvmTypeClass, "typeCode", "I")));
   dtype->bits = (uint8_t)(env->GetIntField(jdtype, env->GetFieldID(tvmTypeClass, "bits", "I")));
-  dtype->lanes = (uint16_t)(env->GetIntField(jdtype, env->GetFieldID(tvmTypeClass, "lanes", "I")));
+  dtype->lanes = static_cast<uint16_t>(
+    env->GetIntField(jdtype, env->GetFieldID(tvmTypeClass, "lanes", "I")));
   env->DeleteLocalRef(tvmTypeClass);
 }
 
