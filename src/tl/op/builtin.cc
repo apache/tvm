@@ -30,7 +30,7 @@
 #include <tvm/tir/op_attr_types.h>
 
 #include "../target/utils.h"
-#include "cuda.h"
+#include "../target/cuda.h"
 
 namespace tvm {
 namespace tl {

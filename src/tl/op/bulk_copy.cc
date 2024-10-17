@@ -31,7 +31,7 @@
 
 #include "../target/utils.h"
 #include "builtin.h"
-#include "cuda.h"
+#include "../target/cuda.h"
 
 namespace tvm {
 namespace tl {
