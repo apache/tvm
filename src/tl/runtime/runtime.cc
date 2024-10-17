@@ -25,7 +25,7 @@
 
 #include "runtime.h"
 
-#include <cuda.h>
+#include "../target/cuda.h"
 #include <tvm/runtime/registry.h>
 
 namespace tvm {
