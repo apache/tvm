@@ -22,6 +22,11 @@ if(NOT USE_TFLITE STREQUAL "OFF")
   endif()
 
   tvm_file_glob(GLOB TFLITE_CONTRIB_SRC src/runtime/contrib/tflite/*.cc)
+
+  # Set specific compile options for tflite_runtime.cc
+  set_source_files_properties(src/runtime/contrib/tflite/tflite_runtime.cc
+                              PROPERTIES COMPILE_FLAGS "-Wno-comment")
+
   list(APPEND RUNTIME_SRCS ${TFLITE_CONTRIB_SRC})
   include_directories(${USE_TENSORFLOW_PATH})
 
@@ -39,10 +44,6 @@ if(NOT USE_TFLITE STREQUAL "OFF")
   endif()
   find_library(TFLITE_CONTRIB_LIB libtensorflow-lite.a ${USE_TFLITE})
   file(GLOB_RECURSE TFLITE_DEPS "${USE_TFLITE}/*.a")
-  # the order of the next libs are important for correct build
-  list(REMOVE_ITEM TFLITE_DEPS "${USE_TFLITE}/_deps/clog-build/libclog.a" "${USE_TFLITE}/_deps/cpuinfo-build/libcpuinfo.a")
-  list(APPEND TFLITE_DEPS "${USE_TFLITE}/_deps/cpuinfo-build/libcpuinfo.a")
-  list(APPEND TFLITE_DEPS "${USE_TFLITE}/_deps/clog-build/libclog.a")
 
   list(APPEND TVM_RUNTIME_LINKER_LIBS ${TFLITE_CONTRIB_LIB})
   list(APPEND TVM_RUNTIME_LINKER_LIBS ${TFLITE_DEPS})
