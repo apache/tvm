@@ -157,10 +157,7 @@ def lower(func, target="cuda", runtime_only=False):
     device_mod = tir.transform.LowerIntrin()(device_mod)
     device_mod = tir.transform.Simplify()(device_mod)
     # code = tvm._ffi.get_global_func("target.build.tl_debug_codegen")(device_mod, target)
-    if target.kind.name == "cuda":
-        device_mod = tvm._ffi.get_global_func("target.build.tl")(device_mod, target)
-    elif target.kind.name == "hip":
-        device_mod = tvm._ffi.get_global_func("target.build.tl_hip")(device_mod, target)
+    device_mod = tvm._ffi.get_global_func("target.build.tl")(device_mod, target)
 
     host_mod.import_module(device_mod)
 

@@ -7,13 +7,4 @@
 #include "gemm_sm70.h"
 #else
 
-
-#if defined(__gfx1100__)
-#include "gemm_gfx1100.h"
-#elif defined(__gfx908__)
-#include "gemm_gfx908.h"
-#elif defined(__gfx906__)
-#include "gemm_gfx906.h"
-#endif
-
 #endif

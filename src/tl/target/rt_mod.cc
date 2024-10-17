@@ -19,7 +19,6 @@
 
 #include "../../runtime/cuda/cuda_module.h"
 #include "codegen.h"
-#include "codegen_hip.h"
 
 namespace tvm {
 namespace codegen {
@@ -103,40 +102,7 @@ String BuildTLDebug(IRModule mod, Target target) {
   return String(code);
 }
 
-
-runtime::Module BuildTLHip(IRModule mod, Target target) {
-  using tvm::runtime::Registry;
-  bool output_ssa = false;
-  CodeGenTL cg;
-  cg.Init(output_ssa);
-
-  for (auto kv : mod->functions) {
-    ICHECK(kv.second->IsInstance<PrimFuncNode>()) << "CodeGenTL: Can only take PrimFunc";
-    auto f = Downcast<PrimFunc>(kv.second);
-    auto calling_conv = f->GetAttr<Integer>(tvm::attr::kCallingConv);
-    ICHECK(calling_conv == CallingConv::kDeviceKernelLaunch);
-    cg.AddFunction(f);
-  }
-
-  std::string code = cg.Finish();
-  if (const auto* f = Registry::Get("tvm_callback_hip_postproc")) {
-    code = (*f)(code, target).operator std::string();
-  }
-  std::string fmt = "ptx";
-  std::string ptx;
-  if (const auto* f = Registry::Get("tvm_tl_cuda_compile")) {
-    ptx = (*f)(code, target).operator std::string();
-    if (ptx[0] != '/') fmt = "hsaco";
-  } else {
-    // TODO(maybe separate into several paths.)
-    // ptx = HIPRTCCompile(code, cg.need_include_path());
-    ICHECK(0);
-  }
-  return runtime::CUDAModuleCreate(ptx, fmt, ExtractFuncInfo(mod), code);
-}
-
 TVM_REGISTER_GLOBAL("target.build.tl").set_body_typed(BuildTL);
-TVM_REGISTER_GLOBAL("target.build.tl_hip").set_body_typed(BuildTLHip);
 TVM_REGISTER_GLOBAL("target.build.tl_debug_codegen").set_body_typed(BuildTLDebug);
 
 }  // namespace codegen
