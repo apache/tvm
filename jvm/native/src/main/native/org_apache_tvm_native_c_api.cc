@@ -29,9 +29,11 @@
 #include <dmlc/thread_local.h>
 #include <tvm/runtime/c_runtime_api.h>
 #endif
+#include <cstdio>
 #include <cstring>
 #include <iostream>
 #include <thread>
+#include <utility>
 #include <vector>
 
 #include "jni_helper_func.h"
