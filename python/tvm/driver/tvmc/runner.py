@@ -64,7 +64,7 @@ logger = logging.getLogger("TVMC")
 
 
 @register_parser
-def add_run_parser(subparsers, main_parser, json_params):
+def add_run_parser(subparsers, main_parser, json_params, argv):
     """Include parser for 'run' subcommand"""
 
     # Use conflict_handler='resolve' to allow '--list-options' option to be properly overriden when
@@ -157,7 +157,7 @@ def add_run_parser(subparsers, main_parser, json_params):
 
     disposable_parser = TVMCSuppressedArgumentParser(main_parser)
     try:
-        known_args, _ = disposable_parser.parse_known_args()
+        known_args, _ = disposable_parser.parse_known_args(argv)
     except TVMCException:
         return
 
