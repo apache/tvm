@@ -202,7 +202,23 @@ LayoutMap Gemm::InferLayout(const LayoutInferArgs& T, InferLevel level) {
       ICHECK(0) << "WGMMA only support B in shared.";
     }
   } else {
-    ICHECK(0) << "Not supported " << T.target->str();
+    LOG(WARNING) << "Not supported " << T.target->str() << "Fallback to Volta Layout";
+    auto fragment = makeGemmVoltaFragmentC(M, N, M / warp_m, N / warp_n, C->dtype.bits());
+    results.Set(C, fragment);
+    if (A.scope() == "shared" || A.scope() == "shared.dyn") {
+      results.Set(A, makeGemmVoltaABLayout(*as_const_int(A->shape[0]), *as_const_int(A->shape[1]),
+                                           true, trans_A ? 1 : 2));
+    } else if (A.scope() == "local.fragment") {
+      ICHECK(trans_A == false);
+      results.Set(A, makeGemmVoltaFragmentA(M, N, K, M / warp_m, N / warp_n));
+    } else {
+      ICHECK(0);
+    }
+
+    ICHECK(B.scope() == "shared" || B.scope() == "shared.dyn");
+    results.Set(B, makeGemmVoltaABLayout(*as_const_int(B->shape[0]), *as_const_int(B->shape[1]),
+                                         false, trans_B ? 2 : 1));
+    // ICHECK(0) << "Not supported " << T.target->str();
   }
   completed_ = true;
   return results;
