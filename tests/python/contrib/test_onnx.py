@@ -655,7 +655,6 @@ def test_cast():
             verify_cast(i, o_dtype)
 
 
-@pytest.mark.xfail(reason="Known failing test. See issue #12567.")
 def test_resize():
     """Resize unit test."""
 
