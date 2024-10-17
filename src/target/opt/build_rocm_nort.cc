@@ -41,12 +41,13 @@ class ROCMModuleNode : public runtime::ModuleNode {
 
   const char* type_key() const final { return "hip"; }
 
-  PackedFunc GetFunction(const std::string& name, const ObjectPtr<Object>& sptr_to_self) {
-    ICHECK(0) << "Not implemented when rocm is not enabled in TVM.";
-    return PackedFunc();
-  };
+  PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final {
+      ICHECK(0) << "Not implemented when rocm is not enabled in TVM.";
+      return PackedFunc();
+  }
 
-  std::string GetSource(const std::string& format) final {
+
+  String GetSource(const String& format) {
     if (format == fmt_) {
       return data_;
     }
@@ -95,11 +96,12 @@ runtime::Module BuildHIP(IRModule mod, Target target) {
 
   for (auto kv : mod->functions) {
     ICHECK(kv.second->IsInstance<PrimFuncNode>()) << "CodeGenHIP: Can only take PrimFunc";
+    auto gvar = Downcast<GlobalVar>(kv.first);
     auto f = Downcast<PrimFunc>(kv.second);
     auto calling_conv = f->GetAttr<Integer>(tvm::attr::kCallingConv);
     ICHECK(calling_conv == CallingConv::kDeviceKernelLaunch)
         << "CodeGenHIP: expect calling_conv equals CallingConv::kDeviceKernelLaunch";
-    cg.AddFunction(f);
+    cg.AddFunction(gvar, f);
   }
 
   std::string code = cg.Finish();

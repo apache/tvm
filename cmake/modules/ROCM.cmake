@@ -70,6 +70,6 @@ if(USE_ROCM)
   endif(USE_THRUST)
 
 else(USE_ROCM)
-  #list(APPEND COMPILER_SRCS src/target/opt/build_rocm_off.cc)
+  # list(APPEND COMPILER_SRCS src/target/opt/build_rocm_off.cc)
   list(APPEND COMPILER_SRCS src/target/opt/build_rocm_nort.cc)
 endif(USE_ROCM)
