@@ -989,16 +989,15 @@ def test_legalize_dynamic_begin_end():
             index = T.int64()
             return R.call_tir(
                 expected.strided_slice,
-                (A,),
+                (A, R.prim_value(index)),
                 out_sinfo=R.Tensor((1, 16), "float32"),
-                tir_vars=R.shape([index]),
             )
 
         @T.prim_func(private=True)
         def strided_slice(
             A: T.Buffer((T.int64(16), T.int64(16))),
-            B: T.Buffer((T.int64(1), T.int64(16))),
             index: T.int64,
+            B: T.Buffer((T.int64(1), T.int64(16))),
         ):
             T.func_attr({"tir.noalias": T.bool(True)})
             for iters in T.grid(*B.shape):
