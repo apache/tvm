@@ -33,6 +33,7 @@ from . import (
     space_generator,
     tir_integration,
     trace_apply,
+    post_optimization,
 )
 from .builder import Builder
 from .cost_model import CostModel
@@ -53,3 +54,4 @@ from .tir_integration import tune_tir
 from .tune import tune_tasks
 from .tune_context import TuneContext
 from .utils import derived_object
+from .post_optimization import post_opt
