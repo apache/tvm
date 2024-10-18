@@ -171,6 +171,8 @@ inline const char* CLGetErrorString(cl_int error) {
       return "CL_INVALID_BUFFER_SIZE";
     case CL_INVALID_MIP_LEVEL:
       return "CL_INVALID_MIP_LEVEL";
+    case CL_EXEC_STATUS_ERROR_FOR_EVENTS_IN_WAIT_LIST:
+      return "CL_EXEC_STATUS_ERROR_FOR_EVENTS_IN_WAIT_LIST";
     default:
       return "Unknown OpenCL error code";
   }
