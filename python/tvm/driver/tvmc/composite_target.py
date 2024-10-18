@@ -33,6 +33,7 @@ from tvm.relay.op.contrib.mrvl import partition_for_mrvl
 
 
 from tvm.driver.tvmc import TVMCException
+from tvm.driver.tvmc.extensions import get_extensions
 
 
 # pylint: disable=invalid-name
@@ -100,7 +101,18 @@ def get_codegen_names():
     list of str
         all registered targets
     """
-    return list(REGISTERED_CODEGEN.keys())
+    return list(get_all_codegens().keys())
+
+
+def get_all_codegens():
+    codegens = REGISTERED_CODEGEN
+    for ext in get_extensions():
+        for uma_backend in ext.uma_backends():
+            codegens[uma_backend.target_name] = {
+                "config_key": None,
+                "pass_pipeline": uma_backend.partition,
+            }
+    return codegens
 
 
 def get_codegen_by_target(name):
@@ -117,6 +129,6 @@ def get_codegen_by_target(name):
         requested target codegen information
     """
     try:
-        return REGISTERED_CODEGEN[name]
+        return get_all_codegens()[name]
     except KeyError:
         raise TVMCException("Composite target %s is not defined in TVMC." % name)

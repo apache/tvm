@@ -72,7 +72,7 @@ class UMALower:
 
         compiler_attr = relay_prim_func.attrs["Compiler"]
         target = tvm.target.Target.current()
-        if target.kind.name != compiler_attr:
+        if target is None or target.kind.name != compiler_attr:
             target = tvm.target.Target(compiler_attr)
 
         tir_prim_func = tir_prim_func.with_attr("target", target)
