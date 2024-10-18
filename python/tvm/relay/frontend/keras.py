@@ -1018,7 +1018,7 @@ def _convert_lstm(
     units = list(weightList[0].shape)[1]
     assert units > 0, "The value of units must be a positive integer"
     time_steps = in_shape[1]
-    in_data = _op.squeeze(in_data, axis=[0])
+    in_data = _op.reshape(in_data, newshape=(-1, input_shape[-1]))
     in_data = _op.split(in_data, indices_or_sections=time_steps, axis=0)
     # loop for the number of time_steps
     out_list = []  # store h outputs in case return_sequences is True
@@ -1039,8 +1039,6 @@ def _convert_lstm(
         if keras_layer.return_sequences:
             out_list.append(_op.expand_dims(next_h, axis=1))
     out = _op.concatenate(out_list, axis=1) if keras_layer.return_sequences else next_h
-    out_shape = tuple(dim if dim else 1 for dim in _as_list(keras_layer.output_shape)[0])
-    out = _op.reshape(out, newshape=out_shape)
     return [out, next_h, next_c]
 
 
