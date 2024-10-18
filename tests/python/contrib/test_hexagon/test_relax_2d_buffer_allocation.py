@@ -17,6 +17,7 @@
 """Relax hexagon 2d VTCM allocation test."""
 
 import numpy as np
+import pytest
 
 import tvm
 import tvm.contrib.hexagon
@@ -25,7 +26,6 @@ from tvm import relax
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tir as T
-import pytest
 
 
 # pylint: disable=missing-docstring,no-self-argument,invalid-name
