@@ -21,8 +21,8 @@
  * \file target/codegen.h
  * \brief Utility to generate code
  */
-#ifndef TVM_TL_TARGET_CODEGEN_H_
-#define TVM_TL_TARGET_CODEGEN_H_
+#ifndef TVM_TL_TARGET_CODEGEN_CUDA_H_
+#define TVM_TL_TARGET_CODEGEN_CUDA_H_
 
 #include <tvm/target/codegen.h>
 #include <tvm/tir/expr.h>
@@ -36,9 +36,9 @@
 namespace tvm {
 namespace codegen {
 
-class CodeGenTL final : public CodeGenC {
+class CodeGenTileLangCUDA final : public CodeGenC {
  public:
-  CodeGenTL();
+  CodeGenTileLangCUDA();
   std::string Finish();
   // override behavior
   void PrintFuncPrefix(std::ostream& os) final;
@@ -80,7 +80,7 @@ class CodeGenTL final : public CodeGenC {
   // Whether scope such as "__shared__" or "__constant__"  is part of type.
   bool IsScopePartOfType() const final { return false; }
 
-  friend void PrintConst(const FloatImmNode* op, std::ostream& os, CodeGenTL* p);
+  friend void PrintConst(const FloatImmNode* op, std::ostream& os, CodeGenTileLangCUDA* p);
   // The size of the barrier array in shared memory
   int barrier_count_ = -1;
   // whether need mma.h
@@ -97,4 +97,4 @@ class CodeGenTL final : public CodeGenC {
 }  // namespace codegen
 }  // namespace tvm
 
-#endif  // TVM_TL_TARGET_CODEGEN_H_
+#endif  // TVM_TL_TARGET_CODEGEN_CUDA_H_

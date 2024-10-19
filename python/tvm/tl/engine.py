@@ -20,7 +20,7 @@ import os
 import os.path as osp
 import tvm
 from tvm import tir, tl, relay
-from tvm.contrib import nvcc
+from tvm.contrib import nvcc, hipcc
 try:
     from tvm.tl.code_replace import replace_code
 except ImportError:
@@ -35,7 +35,7 @@ def is_host_call(func: tir.PrimFunc):
     return not is_device_call(func)
 
 
-@tvm.register_func("tvm_tl_cuda_compile", override=True)
+@tvm.register_func("tvm_callback_cuda_compile", override=True)
 def tvm_callback_cuda_compile(code, target):
     tvm_root = osp.join(osp.dirname(__file__), "../../..")
     tl_template_path = osp.abspath(osp.join(tvm_root, "src/tl"))
@@ -66,11 +66,27 @@ def tvm_callback_cuda_compile(code, target):
             "-I" + tl_template_path,
             "-I" + cutlass_path,
         ],
-        get_output=False,
+        verbose=False,
     )
 
     return ptx
 
+@tvm.register_func("tvm_callback_hip_compile", override=True)
+def tvm_callback_hip_compile(code, target):
+    tvm_root = osp.join(osp.dirname(__file__), "../../..")
+    tl_template_path = osp.abspath(osp.join(tvm_root, "src/tl"))
+
+    hsaco = hipcc.compile_hip(
+        code,
+        target_format="hsaco",
+        options=[
+            "-std=c++17",
+            "-I" + tl_template_path,
+        ],
+        verbose=False,
+    )
+
+    return hsaco
 
 def extrac_params(func: tir.PrimFunc):
     buffers = [func.buffer_map[var] for var in func.params]
@@ -167,9 +183,9 @@ def lower(func, target="cuda", target_host="llvm", runtime_only=False):
     if target.kind.name == "cuda":
         # Debug to get the code
         # code = tvm._ffi.get_global_func("target.build.tl_debug_codegen")(device_mod, target)
-        device_mod = tvm._ffi.get_global_func("target.build.tl")(device_mod, target)
+        device_mod = tvm._ffi.get_global_func("target.build.tilelang_cuda")(device_mod, target)
     elif target.kind.name == "hip":
-        device_mod = tvm._ffi.get_global_func("target.build.tl")(device_mod, target)
+        device_mod = tvm._ffi.get_global_func("target.build.tilelang_hip")(device_mod, target)
     else:
         raise ValueError("Target is not supported")
 
