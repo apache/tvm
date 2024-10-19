@@ -53,21 +53,22 @@ def tvm_callback_cuda_compile(code, target):
         arch = [f"-arch=sm_{compute_version}"]
         format = "cubin"
 
+    # printing out number of registers
+    debug_option = "--ptxas-options=--verbose,--register-usage-level=10,--warn-on-local-memory-usage"
     ptx = nvcc.compile_cuda(
         code,
         format,
         arch,
         options=[
             "-std=c++17",
-            "--ptxas-options=--verbose,--register-usage-level=10,--warn-on-local-memory-usage",  # printing out number of registers
+            debug_option,
             "--use_fast_math",
             "-I" + tl_template_path,
             "-I" + cutlass_path,
         ],
         get_output=False,
     )
-    # with open("save.ptx", "wb") as f:
-    #     f.write(ptx)
+
     return ptx
 
 
@@ -77,12 +78,14 @@ def extrac_params(func: tir.PrimFunc):
     return tensor_types
 
 # TODO(lei): Should enhance to support IRModule with multiple functions
-def lower(func, target="cuda", runtime_only=False):
+def lower(func, target="cuda", target_host="llvm", runtime_only=False):
+    # TODO(lei): Append C Source code host generation to the runtime
     params = extrac_params(func) if not runtime_only else None
     mod = tvm.IRModule({func.attrs["global_symbol"]: func})
-
-    target_host = tvm.target.Target("llvm -keys=cpu")
+    
+    target_host = tvm.target.Target.canon_target(target_host)
     target = tvm.target.Target(target, target_host)
+
     mod = tir.transform.BindTarget(target)(mod)
 
     mod = tl.transform.FrontendLegalize()(mod)
@@ -150,14 +153,25 @@ def lower(func, target="cuda", runtime_only=False):
     host_mod = tir.transform.LowerIntrin()(host_mod)
     host_mod = tir.transform.LowerDeviceStorageAccessInfo()(host_mod)
     host_mod = tir.transform.CombineContextCall()(host_mod)
-    host_mod = tvm._ffi.get_global_func("target.build.llvm")(host_mod, target)
+
+    if target_host.kind.name == "llvm":
+        host_mod = tvm._ffi.get_global_func("target.build.llvm")(host_mod, target_host)
+    else:
+        raise ValueError("Target host is not supported")
 
     device_mod = tir.transform.Filter(is_device_call)(mod)
     device_mod = tir.transform.LowerDeviceStorageAccessInfo()(device_mod)
     device_mod = tir.transform.LowerIntrin()(device_mod)
     device_mod = tir.transform.Simplify()(device_mod)
-    # code = tvm._ffi.get_global_func("target.build.tl_debug_codegen")(device_mod, target)
-    device_mod = tvm._ffi.get_global_func("target.build.tl")(device_mod, target)
+    
+    if target.kind.name == "cuda":
+        # Debug to get the code
+        # code = tvm._ffi.get_global_func("target.build.tl_debug_codegen")(device_mod, target)
+        device_mod = tvm._ffi.get_global_func("target.build.tl")(device_mod, target)
+    elif target.kind.name == "hip":
+        device_mod = tvm._ffi.get_global_func("target.build.tl")(device_mod, target)
+    else:
+        raise ValueError("Target is not supported")
 
     host_mod.import_module(device_mod)
 
