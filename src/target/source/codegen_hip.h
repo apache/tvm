@@ -45,6 +45,7 @@ class CodeGenHIP final : public CodeGenC {
   bool need_include_path() { return (need_math_constants_h_ || need_wmma_h_); }
   // override behavior
   void PrintFuncPrefix(std::ostream& os) final;
+  void PrintExtraAttrs(const PrimFunc& f, std::ostream& os) final;  // NOLINT(*)
   void VisitStmt_(const ForNode* op) final;
   void PrintStorageSync(const CallNode* op) final;
   void PrintStorageScope(const std::string& scope, std::ostream& os) final;  // NOLINT(*)
@@ -76,9 +77,11 @@ class CodeGenHIP final : public CodeGenC {
   void VisitStmt_(const EvaluateNode* op) final;
   void VisitStmt_(const AllocateNode* op) final;
   void VisitStmt_(const AttrStmtNode* op) final;
-  //void VisitStmt_(const RasterNode* op) final;
 
  protected:
+   // Handle volatile loads
+  void HandleVolatileLoads(const std::string& value, const BufferLoadNode* op,
+                           std::ostream& os) final;
   void PrintCallExtern(Type ret_type, String global_symbol, const Array<PrimExpr>& args,
                        bool skip_first_arg, std::ostream& os) final;  // NOLINT(*)
 
