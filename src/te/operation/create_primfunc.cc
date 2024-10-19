@@ -183,19 +183,32 @@ class LayoutFreePlaceholdersNormalizer : public StmtMutator {
 BlockRealize GenerateBlockFromTensors(const te::ComputeOp& compute_op,
                                       const Array<te::Tensor>& tensors, Array<PrimExpr> bindings,
                                       PrimExpr expr_body, CreateFuncInfo* info,
+                                      const std::unordered_map<const VarNode*, Var>& loop_var_map,
                                       arith::Analyzer* analyzer) {
+  std::unordered_map<const VarNode*, Var> block_var_map;
+
+  // helper to transform the expr and remap iters to the block domain
+  auto f_transform_block_domain = [&](const PrimExpr& e) {
+    return Substitute(info->transformer(e), block_var_map);
+  };
+
+  // helper to transform the expr and remap iters to the loop domain
+  auto f_transform_loop_domain = [&](const PrimExpr& e) {
+    return Substitute(info->transformer(e), loop_var_map);
+  };
+
   // Step 1. Push_back data_par axis and reduce_axis into block_vars.
   Array<IterVar> iter_vars;
-  std::unordered_map<const VarNode*, Var> var_map;
   iter_vars.reserve(compute_op->axis.size() + compute_op->reduce_axis.size());
-  auto f_push_block_vars = [&iter_vars, &var_map, &analyzer](const Array<IterVar>& iters) {
+  auto f_push_block_vars = [&iter_vars, &block_var_map, &analyzer,
+                            f_transform_loop_domain](const Array<IterVar>& iters) {
     for (IterVar iter_var : iters) {
       // Create new var
       Var new_var("v_" + iter_var->var->name_hint, iter_var->var->dtype);
-      var_map[iter_var->var.get()] = new_var;
+      block_var_map[iter_var->var.get()] = new_var;
 
-      PrimExpr dom_min = analyzer->Simplify(iter_var->dom->min);
-      PrimExpr dom_extent = analyzer->Simplify(iter_var->dom->extent);
+      PrimExpr dom_min = analyzer->Simplify(f_transform_loop_domain(iter_var->dom->min));
+      PrimExpr dom_extent = analyzer->Simplify(f_transform_loop_domain(iter_var->dom->extent));
       iter_vars.push_back(IterVar(Range::FromMinExtent(dom_min, dom_extent), new_var,
                                   iter_var->iter_type, iter_var->thread_tag, iter_var->span));
     }
@@ -222,16 +235,12 @@ BlockRealize GenerateBlockFromTensors(const te::ComputeOp& compute_op,
   Array<PrimExpr> indices;
   indices.reserve(compute_op->axis.size());
   for (const IterVar& iter_var : compute_op->axis) {
-    auto it = var_map.find(iter_var->var.get());
-    ICHECK(it != var_map.end());
+    auto it = block_var_map.find(iter_var->var.get());
+    ICHECK(it != block_var_map.end());
     indices.push_back(it->second);
   }
 
   // Step 4. Create block body.
-  // helper to transform the expr and remap iters to the block domain
-  auto f_transform_and_remap = [&](const PrimExpr& e) {
-    return Substitute(info->transformer(e), var_map);
-  };
   String block_name{nullptr};
   Optional<Stmt> init = NullOpt;
   Stmt body;
@@ -250,7 +259,7 @@ BlockRealize GenerateBlockFromTensors(const te::ComputeOp& compute_op,
     //  - A RHS operand is the value to be reduced.
     for (int i = 0; i < n_buffers; ++i) {
       const PrimExpr& left = BufferLoad(buffers[i], indices);
-      const PrimExpr& right = analyzer->Simplify(f_transform_and_remap(reduce->source[i]));
+      const PrimExpr& right = analyzer->Simplify(f_transform_block_domain(reduce->source[i]));
       lhs.push_back(left);
       rhs.push_back(right);
       ICHECK_EQ(left->dtype, right->dtype);
@@ -270,7 +279,7 @@ BlockRealize GenerateBlockFromTensors(const te::ComputeOp& compute_op,
     //   then store the value of the variables into the target buffer positions.
     for (int i = 0; i < n_buffers; ++i) {
       const Buffer& buffer = buffers[i];
-      PrimExpr identity = f_transform_and_remap(reduce->combiner->identity_element[i]);
+      PrimExpr identity = f_transform_block_domain(reduce->combiner->identity_element[i]);
       init_stmts.push_back(BufferStore(buffer, identity, indices));
       PrimExpr value{nullptr};
       if (n_buffers > 1) {
@@ -278,7 +287,7 @@ BlockRealize GenerateBlockFromTensors(const te::ComputeOp& compute_op,
         value = temp_vars.back();
       } else {
         PrimExpr combined = reduce->combiner.get()->operator()(lhs, rhs)[i];
-        value = f_transform_and_remap(combined);
+        value = f_transform_block_domain(combined);
       }
       body_stmts.push_back(BufferStore(buffer, value, indices));
     }
@@ -288,7 +297,7 @@ BlockRealize GenerateBlockFromTensors(const te::ComputeOp& compute_op,
     if (n_buffers > 1) {
       // When there are multiple buffers, we wrap the body with LetStmts.
       for (int i = n_buffers - 1; i >= 0; --i) {
-        PrimExpr value = f_transform_and_remap(reduce->combiner.get()->operator()(lhs, rhs)[i]);
+        PrimExpr value = f_transform_block_domain(reduce->combiner.get()->operator()(lhs, rhs)[i]);
         body = LetStmt(temp_vars[i], std::move(value), std::move(body));
       }
     }
@@ -296,7 +305,7 @@ BlockRealize GenerateBlockFromTensors(const te::ComputeOp& compute_op,
     // Case 2. Data parallel compute
     ICHECK_EQ(tensors.size(), 1);
     block_name = info->FreshName(tensors[0]->GetNameHint());
-    const PrimExpr& compute_body = f_transform_and_remap(expr_body);
+    const PrimExpr& compute_body = f_transform_block_domain(expr_body);
     body = BufferStore(info->tensor2buffers[tensors[0]], analyzer->Simplify(compute_body), indices);
   }
 
@@ -350,11 +359,18 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
   // Step 1. Creating loop vars for block bindings.
   Array<IterVar> axes = compute_op->axis;
   axes.insert(axes.end(), compute_op->reduce_axis.begin(), compute_op->reduce_axis.end());
-
+  std::unordered_map<const VarNode*, Var> loop_var_map;
   Array<PrimExpr> bindings = axes.Map([&](IterVar iter_var) -> PrimExpr {
     int bits = std::max(iter_var->dom->min.dtype().bits(), iter_var->dom->extent.dtype().bits());
-    return Var(iter_var->var->name_hint, runtime::DataType::Int(bits));
+    auto new_var = Var(iter_var->var->name_hint, runtime::DataType::Int(bits));
+    loop_var_map[iter_var->var.get()] = new_var;
+    return new_var;
   });
+
+  // helpers to transform the expr and remap iters to the block domain
+  auto f_transform_loop_domain = [&](const PrimExpr& e) {
+    return Substitute(info->transformer(e), loop_var_map);
+  };
 
   // Step 2. Generate block bodies.
   Array<Stmt> seq_stmt;
@@ -383,13 +399,13 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
     }
 
     seq_stmt.push_back(GenerateBlockFromTensors(compute_op, tensors, bindings, std::move(expr_body),
-                                                info, analyzer));
+                                                info, loop_var_map, analyzer));
   } else {
     for (int i = 0; i < compute_op->num_outputs(); ++i) {
       const te::Tensor& tensor = compute_op.output(i);
       PrimExpr expr_body = compute_op->body[i];
-      seq_stmt.push_back(GenerateBlockFromTensors(compute_op, {tensor}, bindings,
-                                                  std::move(expr_body), info, analyzer));
+      seq_stmt.push_back(GenerateBlockFromTensors(
+          compute_op, {tensor}, bindings, std::move(expr_body), info, loop_var_map, analyzer));
     }
   }
 
@@ -398,8 +414,8 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
   // Step 3. Generate loop nesting.
   for (size_t i = axes.size(); i > 0; --i) {
     const IterVar& axis = axes[i - 1];
-    PrimExpr dom_min = analyzer->Simplify(axis->dom->min);
-    PrimExpr dom_extent = analyzer->Simplify(axis->dom->extent);
+    PrimExpr dom_min = analyzer->Simplify(f_transform_loop_domain(axis->dom->min));
+    PrimExpr dom_extent = analyzer->Simplify(f_transform_loop_domain(axis->dom->extent));
     const Var& loop_var = Downcast<Var>(bindings[i - 1]);
     body = For(loop_var, dom_min, dom_extent, ForKind::kSerial, body);
   }
