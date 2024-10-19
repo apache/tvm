@@ -73,7 +73,7 @@ void CodeGenHIP::Init(bool output_ssa) {
   this->cuda_codegen_.Init(output_ssa);
 }
 
-void CodeGenHIP::PrintFuncPrefix(std::ostream& os) { os << "extern \"C\" __global__ void"; }
+void CodeGenHIP::PrintFuncPrefix(std::ostream& os) { os << "extern \"C\" __global__ "; }
 
 std::string CodeGenHIP::Finish() {
   // hip must need a header file.
@@ -106,6 +106,9 @@ std::string CodeGenHIP::Finish() {
   decl_stream << "using float32x16\n";
   decl_stream << " = __attribute__((__vector_size__(16 * sizeof(float)))) float;\n";
 
+  decl_stream << "#define max(a, b) (((a) > (b)) ? (a) : (b))\n";
+  decl_stream << "#define min(a, b) (((a) < (b)) ? (a) : (b))\n";
+
   return CodeGenC::Finish();
 }
 
@@ -133,7 +136,7 @@ class ThreadIdxExtractor : public tir::StmtVisitor {
   PrimExpr threadIdx_z_ext = Integer(1);
 };
 
-/*void CodeGenHIP::PrintExtraAttrs(const PrimFunc& f) {
+void CodeGenHIP::PrintExtraAttrs(const PrimFunc& f, std::ostream& os) {
   ThreadIdxExtractor extractor;
   extractor(f->body);
   arith::Analyzer analyzer;
@@ -144,10 +147,10 @@ class ThreadIdxExtractor : public tir::StmtVisitor {
       // unable to extract the number of threads per block, hence directly return
       return;
     }
-    stream << " __launch_bounds__(" << threadIdx_ext_int->value << ")";
+    os << " __launch_bounds__(" << threadIdx_ext_int->value << ")";
   }
 }
-*/
+
 
 void CodeGenHIP::VisitStmt_(const tir::ForNode* op) {
   ICHECK(is_const_int(op->min, 0));
@@ -398,24 +401,6 @@ void CodeGenHIP::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
   LOG(FATAL) << "Cannot convert type " << t << " to CUDA type";
 }
 
-/*void CodeGenHIP::VisitStmt_(const RasterNode* op) {
-  ICHECK(is_positive_const(op->stage));
-  stream << "\n";
-  PrintIndent();
-  stream << "const int MAX_BLOCK_N = " << op->stage << ";";
-  stream << R"(
-  const auto baseBlockIdx = blockIdx.x + gridDim.x *blockIdx.y;
-  const auto totalPanel = (gridDim.x * gridDim.y +MAX_BLOCK_N * gridDim.x - 1) / (MAX_BLOCK_N * gridDim.x);
-  const auto totalBlock = gridDim.x * gridDim.y;
-  const auto panelIdx = baseBlockIdx / (MAX_BLOCK_N *gridDim.x);
-  const auto strideLd = panelIdx + 1 < totalPanel ?MAX_BLOCK_N : (totalBlock - panelIdx * (MAX_BLOCK_N *gridDim.x)) / gridDim.x;
-  const auto bx = (panelIdx & 1) ? gridDim.x -(baseBlockIdx - panelIdx * MAX_BLOCK_N * gridDim.x) /strideLd - 1 : (baseBlockIdx - panelIdx * MAX_BLOCK_N *gridDim.x) / strideLd;
-  const auto by = (baseBlockIdx - panelIdx * MAX_BLOCK_N *gridDim.x) % strideLd + panelIdx * MAX_BLOCK_N;
-  const auto bz = blockIdx.z;
-  const dim3 blockIdx(bx, by, bz);
-  
-)";
-}*/
 
 void CodeGenHIP::PrintStorageSync(const CallNode* op) {
   const std::string& sync = op->args[0].as<StringImmNode>()->value;
@@ -650,10 +635,6 @@ void CodeGenHIP::VisitExpr_(const ShuffleNode* op, std::ostream& os) {
 
 void CodeGenHIP::VisitExpr_(const SelectNode* op, std::ostream& os) {
   // Non-vector cases.
-  /*if (!op->dtype.is_vector()) {
-    CodeGenC::VisitExpr_(op, os);
-    return;
-  }*/
   if (!op->dtype.is_fixed_length_vector()) {
     CodeGenC::VisitExpr_(op, os);
     return;
@@ -707,10 +688,10 @@ inline void PrintConst(const FloatImmNode* op, std::ostream& os, CodeGenHIP* p) 
         if (op->value < 0) {
           temp << "-";
         }
-        temp << ((op->dtype.bits() == 32) ? "CUDART_INF_F" : "CUDART_INF");
+        temp << ((op->dtype.bits() == 32) ? "HIPRT_INF_F" : "HIPRT_INF");
         p->need_math_constants_h_ = true;
       } else if (std::isnan(op->value)) {
-        temp << ((op->dtype.bits() == 32) ? "CUDART_NAN_F" : "CUDART_NAN");
+        temp << ((op->dtype.bits() == 32) ? "HIPRT_NAN_F" : "HIPRT_NAN");
         p->need_math_constants_h_ = true;
       } else {
         temp << std::scientific << op->value;
@@ -734,6 +715,20 @@ inline void PrintConst(const FloatImmNode* op, std::ostream& os, CodeGenHIP* p) 
 
 void CodeGenHIP::VisitExpr_(const FloatImmNode* op, std::ostream& os) {  // NOLINT(*)
   PrintConst(op, os, this);
+}
+
+void CodeGenHIP::HandleVolatileLoads(const std::string& value, const BufferLoadNode* op,
+                                      std::ostream& os) {
+  // Cast away volatile qualifier for fp16 types. That is, only loads and
+  // stores are volatile. The loaded objects are not marked as volatile.
+  //
+  if ((op->dtype.is_float16() || op->dtype.is_bfloat16()) && IsVolatile(op->buffer->data.get())) {
+    os << "(";
+    PrintType(op->dtype, os);
+    os << ")(" << value << ")";
+  } else {
+    os << value;
+  }
 }
 
 void CodeGenHIP::VisitExpr_(const CallNode* op, std::ostream& os) {
@@ -818,11 +813,13 @@ void CodeGenHIP::VisitExpr_(const CallNode* op, std::ostream& os) {
     std::unordered_map<std::string, std::string> dtype_map = {
         {"int8", "char"},
         {"int32", "int"},
+        {"int8x4", "int32_t"},
         {"int32x4", "int32x4"},
         {"float16", "half"},
         {"float32", "float"},
         {"float64", "double"},
         {"float16x4", "float16x4"},
+        {"bfloat16x4", "bfloat16x4"},
         {"float32x4", "float32x4"},
         {"float32x16", "float32x16"}
     };
@@ -891,7 +888,9 @@ void CodeGenHIP::VisitExpr_(const CallNode* op, std::ostream& os) {
 
       os << "for (int local_id = 0; local_id < 4; ++local_id) {\n";
       os << dst << "[" + this->PrintExpr(dst_ind) + "]"
-         << " = " << src << "[" << src_offset << " + local_id];\n";
+         << " = (";
+      this->PrintType(op->dtype, os);
+      os << ")" << src << "[" << src_offset << " + local_id];\n";
       os << "}\n";
     }else{
       // Each thread in a warp holds a certain number of elements of an MMA output.
@@ -971,6 +970,7 @@ void CodeGenHIP::VisitExpr_(const CallNode* op, std::ostream& os) {
         {"float32", "float"},
         {"float64", "double"},
         {"float16x4", "float16x4"},
+        {"bfloat16x4", "bfloat16x4"},
         {"float16x8", "float16x16"},
         {"float16x16", "float16x16"},
         {"float32x4", "float32x4"},
