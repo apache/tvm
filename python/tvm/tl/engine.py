@@ -39,6 +39,8 @@ def is_host_call(func: tir.PrimFunc):
 def tvm_callback_cuda_compile(code, target):
     tvm_root = osp.join(osp.dirname(__file__), "../../..")
     tl_template_path = osp.abspath(osp.join(tvm_root, "src/tl"))
+    # TODO(lei): actually this indeed should be renamed into
+    # TL_CUTLASS_INCLUDE_PATH
     if "TL_CUTLASS_PATH" in os.environ:
         cutlass_path = os.environ["TL_CUTLASS_PATH"]
     else:
@@ -76,12 +78,21 @@ def tvm_callback_hip_compile(code, target):
     tvm_root = osp.join(osp.dirname(__file__), "../../..")
     tl_template_path = osp.abspath(osp.join(tvm_root, "src/tl"))
 
+    # TODO(lei): actually this indeed should be renamed into
+    # TL_COMPOSABLE_KERNEL_INCLUDE_PATH
+    if "TL_COMPOSABLE_KERNEL_PATH" in os.environ:
+        ck_path = os.environ["TL_COMPOSABLE_KERNEL_PATH"]
+    else:
+        ck_path = osp.abspath(osp.join(tvm_root, "3rdparty/composable_kernel/include"))
+
     hsaco = hipcc.compile_hip(
         code,
         target_format="hsaco",
         options=[
             "-std=c++17",
             "-I" + tl_template_path,
+            "-I" + ck_path,
+            # "-I" + osp.join(ck_path, "../build/include/"),
         ],
         verbose=False,
     )

@@ -28,6 +28,7 @@ namespace tvm {
 namespace tl {
 
 bool TargetIsCuda(Target target) { return target->GetTargetDeviceType() == kDLCUDA; }
+bool TargetIsRocm(Target target) { return target->GetTargetDeviceType() == kDLROCM; }
 
 int GetArchInt(Target target) {
   auto s = target->GetAttr<String>("arch");
