@@ -785,7 +785,7 @@ def test_layout_optimizer_runs_in_compilation_pipeline():
     prim_func = mod[external_gv_name]
 
     # Check for hints in the TIR prim func that the layout optimization pass has ran
-    ops = prim_func.body.body.seq
+    ops = prim_func.body.body.body.body.body.seq
     max_pool1, max_pool2 = ops
 
     assert str(max_pool1.value.args[31]) == '"NHCWB16"'

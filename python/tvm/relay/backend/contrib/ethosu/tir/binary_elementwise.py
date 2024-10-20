@@ -41,7 +41,7 @@ def get_binary_elementwise_params(
     -------
     SerialBinaryElementwise
         The parameters needed to construct a binary elementwise operator.
-    output_pointer : tvm.tir.Var
+    output_buffer : tvm.tir.Buffer
         The output pointer of the binary elementwise operation.
     replace_pointer : tvm.tir.Var
         The output pointer of the DMA write operation, which is to replace
@@ -56,17 +56,17 @@ def get_binary_elementwise_params(
     _, _, _, _, _, inner = get_outer_loops(body, "NHWC")
     # loads = [input, input, LUT, LUT]
     loads = get_loads(inner)
-    input_pointer = loads[0].buffer.data
-    input_pointer1 = loads[1].buffer.data
+    input_buffer = loads[0].buffer
+    input_buffer1 = loads[1].buffer
 
     if reversed_operands:
-        input_pointer, input_pointer1 = input_pointer1, input_pointer
-    output_pointer = inner.buffer.data
+        input_buffer, input_buffer1 = input_buffer1, input_buffer
+    output_buffer = inner.buffer
     # Get feature map info
-    serial_ifm, _ = get_ifm_params(input_pointer, producers_consumers, stmt)
-    serial_ifm2, _ = get_ifm_params(input_pointer1, producers_consumers, stmt)
-    serial_ofm, serial_block_config, replace_pointer, is_allocator = get_ofm_params(
-        output_pointer, producers_consumers, stmt
+    serial_ifm, _ = get_ifm_params(input_buffer, producers_consumers, stmt)
+    serial_ifm2, _ = get_ifm_params(input_buffer1, producers_consumers, stmt)
+    serial_ofm, serial_block_config, replace_buffer, is_allocator = get_ofm_params(
+        output_buffer, producers_consumers, stmt
     )
     # Get activation info
     serial_activation = SerialActivation(
@@ -87,7 +87,7 @@ def get_binary_elementwise_params(
             block_config=serial_block_config,
             rescale_config=rescale_config,
         ),
-        output_pointer,
-        replace_pointer,
+        output_buffer,
+        replace_buffer,
         is_allocator,
     )

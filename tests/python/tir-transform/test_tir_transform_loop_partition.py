@@ -17,7 +17,7 @@
 import pytest
 import tvm
 import tvm.testing
-from tvm import te
+from tvm import te, tir
 from tvm.ir.module import IRModule
 from tvm.script import tir as T
 import numpy
@@ -182,7 +182,11 @@ def test_vectorize():
     s[C].bind(tx, te.thread_axis("threadIdx.x"))
     s[C].vectorize(x)
     stmt = tvm.lower(s, [A, B], name="main")["main"]
-    body = stmt.body.body.body.body
+
+    body = stmt
+    while not isinstance(body, tir.IfThenElse):
+        body = body.body
+
     assert x.var.name not in str(body.condition)
     assert any(collect_visit(body.then_case, lambda x: isinstance(x, tvm.tir.Ramp)))
 
@@ -233,7 +237,11 @@ def test_thread_axis2():
     s[C].bind(bx, te.thread_axis("blockIdx.x"))
     s[C].bind(tx, te.thread_axis("threadIdx.x"))
     stmt = tvm.lower(s, [A, B], name="main")["main"]
-    for_body = stmt.body.body.body.body[0]
+
+    while not isinstance(stmt, tir.SeqStmt):
+        stmt = stmt.body
+
+    for_body = stmt[0]
     assert "threadIdx" not in str(for_body.extent)
 
 
@@ -712,32 +720,28 @@ def test_loop_partition_recursive_unroll_hint():
 
     @T.prim_func
     def partitioned_main():
-        placeholder_0_dm = T.allocate([16384], "int8", "global")
-        placeholder_0_dm_1 = T.Buffer([16384], dtype="int8", data=placeholder_0_dm)
+        placeholder_0_dm = T.decl_buffer([16384], "int8")
         for i3_0 in T.unroll(2):
             for i2_0 in T.unroll(2):
-                pad_temp = T.allocate([4096], "int8", "global")
-                pad_temp_1 = T.Buffer([4096], dtype="int8", data=pad_temp)
+                pad_temp = T.decl_buffer([4096], "int8")
                 for ax0, ax1, ax2 in T.grid(16, 16, 16):
                     if 6 <= i2_0 * 4 + ax0 and 6 <= i3_0 * 4 + ax1:
-                        pad_temp_1[ax0 * 256 + ax1 * 16 + ax2] = placeholder_0_dm_1[
+                        pad_temp[ax0 * 256 + ax1 * 16 + ax2] = placeholder_0_dm[
                             i2_0 * 2048 + ax0 * 512 + i3_0 * 64 + ax1 * 16 + ax2
                         ]
         for i2_0 in T.unroll(2):
-            pad_temp_2 = T.allocate([4096], "int8", "global")
-            pad_temp_3 = T.Buffer([4096], dtype="int8", data=pad_temp_2)
+            pad_temp_2 = T.decl_buffer([4096], "int8")
             for ax0, ax1, ax2 in T.grid(16, 16, 16):
                 if 6 <= i2_0 * 4 + ax0:
-                    pad_temp_3[ax0 * 256 + ax1 * 16 + ax2] = placeholder_0_dm_1[
+                    pad_temp_2[ax0 * 256 + ax1 * 16 + ax2] = placeholder_0_dm[
                         i2_0 * 2048 + ax0 * 512 + ax1 * 16 + ax2 + 128
                     ]
         for i3_0 in T.unroll(2):
             for i2_0 in T.unroll(2):
-                pad_temp_4 = T.allocate([4096], "int8", "global")
-                pad_temp_5 = T.Buffer([4096], dtype="int8", data=pad_temp_4)
+                pad_temp_4 = T.decl_buffer([4096], "int8")
                 for ax0, ax1, ax2 in T.grid(16, 16, 16):
                     if 6 <= i2_0 * 4 + ax0 and i3_0 * 4 + ax1 < 14:
-                        pad_temp_5[ax0 * 256 + ax1 * 16 + ax2] = placeholder_0_dm_1[
+                        pad_temp_4[ax0 * 256 + ax1 * 16 + ax2] = placeholder_0_dm[
                             i2_0 * 2048 + ax0 * 512 + i3_0 * 64 + ax1 * 16 + ax2 + 192
                         ]
 

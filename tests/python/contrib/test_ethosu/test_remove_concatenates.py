@@ -36,9 +36,9 @@ class ReferenceModule:
         # function attr dict
         T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
 
-        placeholder = T.Buffer(1536, dtype="int8", data=input_placeholder.data)
-        placeholder_1 = T.Buffer(1280, dtype="int8", data=input_placeholder_1.data)
-        T_concat = T.Buffer(4096, dtype="int8", data=input_T_concat.data)
+        placeholder = T.decl_buffer(1536, dtype="int8", data=input_placeholder.data)
+        placeholder_1 = T.decl_buffer(1280, dtype="int8", data=input_placeholder_1.data)
+        T_concat = T.decl_buffer(4096, dtype="int8", data=input_T_concat.data)
 
         buffer = T.Buffer([2992], "uint8")
         buffer_1 = T.Buffer([160], "uint8")
@@ -50,7 +50,7 @@ class ReferenceModule:
         buffer_7 = T.Buffer([160], "uint8")
         # body
         T_concat_1_data = T.allocate([2816], "int8", "global", annotations={"disable_lower_builtin":True})
-        T_concat_1 = T.Buffer([2816], "int8", data=T_concat_1_data)
+        T_concat_1 = T.decl_buffer([2816], "int8", data=T_concat_1_data)
         T.evaluate(T.call_extern("ethosu_conv2d", "int8", 8, 10, 16, 8, 0, 10, placeholder_1[0], 0, 0, 0, T.float32(0.5), 10, "NHWC", 160, 16, 1, "int8", 8, 10, 16, 8, 0, 10, T_concat_1[192], 0, 0, 0, T.float32(0.25), 14, "NHWC", 352, 16, 1, 3, 3, 1, 1, 1, 1, buffer[0], 2992, T.int8(-1), T.int8(-1), 12, buffer_1[0], 160, T.int8(-1), T.int8(-1), 1, 1, 1, 1, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
         T.evaluate(T.call_extern("ethosu_conv2d", "int8", 8, 10, 16, 8, 0, 10, T_concat_1[192], 0, 0, 0, T.float32(0.5), 10, "NHWC", 352, 16, 1, "int8", 8, 10, 16, 8, 0, 10, T_concat[352], 0, 0, 0, T.float32(0.25), 14, "NHWC", 512, 16, 1, 3, 3, 1, 1, 1, 1, buffer_2[0], 2992, T.int8(-1), T.int8(-1), 12, buffer_3[0], 160, T.int8(-1), T.int8(-1), 1, 1, 1, 1, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
         T.evaluate(T.call_extern("ethosu_conv2d", "int8", 8, 12, 16, 8, 0, 12, placeholder[0], 0, 0, 0, T.float32(0.5), 10, "NHWC", 192, 16, 1, "int8", 8, 12, 16, 8, 0, 12, T_concat_1[0], 0, 0, 0, T.float32(0.25), 14, "NHWC", 352, 16, 1, 3, 3, 1, 1, 1, 1, buffer_4[0], 2992, T.int8(-1), T.int8(-1), 12, buffer_5[0], 160, T.int8(-1), T.int8(-1), 1, 1, 1, 1, "NONE", 0, 0, "TFL", "NONE", 0, 0, 0, dtype="handle"))
