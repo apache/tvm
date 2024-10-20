@@ -1352,26 +1352,30 @@ def test_onehot(target, dev):
     values = np.asarray([0, 1]).astype("int32")
     out_np = np.eye(depth)[indices_array.reshape(-1)]
 
-    onehot_node = helper.make_node("OneHot", ["indices", "depth", "values"], ["out"])
-
-    graph = helper.make_graph(
-        [onehot_node],
-        "onehot_test",
-        inputs=[
-            helper.make_tensor_value_info("indices", TensorProto.INT32, indices_shape),
-            helper.make_tensor_value_info("depth", TensorProto.INT32, [1]),
-            helper.make_tensor_value_info("values", TensorProto.INT32, values.shape),
-        ],
-        outputs=[helper.make_tensor_value_info("out", TensorProto.INT32, out_np.shape)],
-    )
-
-    model = helper.make_model(graph, producer_name="onehot_test")
-
-    # TODO(jwfromm): Replace test against np with test against onnxrt once we update versions.
-    tvm_out = get_tvm_output_with_vm(
-        model, [indices_array, np.array([depth]).astype("int32"), values], target, dev
-    )
-    tvm.testing.assert_allclose(out_np, tvm_out, rtol=1e-5, atol=1e-5)
+    onehot_node1 = helper.make_node("OneHot", ["indices", "depth", "values"], ["out"])
+    onehot_node2 = helper.make_node("OneHot", ["indices", "depth", "values"], ["out"], axis=1)
+    onehot_node3 = helper.make_node("OneHot", ["indices", "depth", "values"], ["out"], axis=-1)
+    onehot_node4 = helper.make_node("OneHot", ["indices", "depth", "values"], ["out"], axis=-2)
+    onehot_node_list = [onehot_node1, onehot_node2, onehot_node3, onehot_node4]
+    for onehot_node in onehot_node_list:
+        graph = helper.make_graph(
+            [onehot_node],
+            "onehot_test",
+            inputs=[
+                helper.make_tensor_value_info("indices", TensorProto.INT32, indices_shape),
+                helper.make_tensor_value_info("depth", TensorProto.INT32, [1]),
+                helper.make_tensor_value_info("values", TensorProto.INT32, values.shape),
+            ],
+            outputs=[helper.make_tensor_value_info("out", TensorProto.INT32, out_np.shape)],
+        )
+    
+        model = helper.make_model(graph, producer_name="onehot_test")
+    
+        # TODO(jwfromm): Replace test against np with test against onnxrt once we update versions.
+        tvm_out = get_tvm_output_with_vm(
+            model, [indices_array, np.array([depth]).astype("int32"), values], target, dev
+        )
+        tvm.testing.assert_allclose(out_np, tvm_out, rtol=1e-5, atol=1e-5)
 
 
 @tvm.testing.parametrize_targets
