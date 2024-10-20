@@ -18,7 +18,7 @@
  */
 
 #include "../../runtime/cuda/cuda_module.h"
-#include "codegen.h"
+#include "codegen_cuda.h"
 
 namespace tvm {
 namespace codegen {
@@ -52,14 +52,14 @@ static std::unordered_map<std::string, runtime::FunctionInfo> ExtractFuncInfo(co
   return fmap;
 }
 
-runtime::Module BuildTL(IRModule mod, Target target) {
+runtime::Module BuildTileLangCUDA(IRModule mod, Target target) {
   using tvm::runtime::Registry;
   bool output_ssa = false;
-  CodeGenTL cg;
+  CodeGenTileLangCUDA cg;
   cg.Init(output_ssa);
 
   for (auto kv : mod->functions) {
-    ICHECK(kv.second->IsInstance<PrimFuncNode>()) << "CodeGenTL: Can only take PrimFunc";
+    ICHECK(kv.second->IsInstance<PrimFuncNode>()) << "CodeGenTileLangCUDA: Can only take PrimFunc";
     auto f = Downcast<PrimFunc>(kv.second);
     auto calling_conv = f->GetAttr<Integer>(tvm::attr::kCallingConv);
     ICHECK(calling_conv == CallingConv::kDeviceKernelLaunch);
@@ -72,7 +72,7 @@ runtime::Module BuildTL(IRModule mod, Target target) {
   }
   std::string fmt = "ptx";
   std::string ptx;
-  if (const auto* f = Registry::Get("tvm_tl_cuda_compile")) {
+  if (const auto* f = Registry::Get("tvm_callback_cuda_compile")) {
     ptx = (*f)(code, target).operator std::string();
     if (ptx[0] != '/') fmt = "cubin";
   } else {
@@ -84,11 +84,11 @@ runtime::Module BuildTL(IRModule mod, Target target) {
 String BuildTLDebug(IRModule mod, Target target) {
   using tvm::runtime::Registry;
   bool output_ssa = false;
-  CodeGenTL cg;
+  CodeGenTileLangCUDA cg;
   cg.Init(output_ssa);
 
   for (auto kv : mod->functions) {
-    ICHECK(kv.second->IsInstance<PrimFuncNode>()) << "CodeGenTL: Can only take PrimFunc";
+    ICHECK(kv.second->IsInstance<PrimFuncNode>()) << "CodeGenTileLangCUDA: Can only take PrimFunc";
     auto f = Downcast<PrimFunc>(kv.second);
     auto calling_conv = f->GetAttr<Integer>(tvm::attr::kCallingConv);
     ICHECK(calling_conv == CallingConv::kDeviceKernelLaunch);
@@ -102,7 +102,7 @@ String BuildTLDebug(IRModule mod, Target target) {
   return String(code);
 }
 
-TVM_REGISTER_GLOBAL("target.build.tl").set_body_typed(BuildTL);
+TVM_REGISTER_GLOBAL("target.build.tilelang_cuda").set_body_typed(BuildTileLangCUDA);
 TVM_REGISTER_GLOBAL("target.build.tl_debug_codegen").set_body_typed(BuildTLDebug);
 
 }  // namespace codegen

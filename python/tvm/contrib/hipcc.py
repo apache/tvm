@@ -30,7 +30,7 @@ from .._ffi.base import py_str
 from .rocm import get_rocm_arch, find_rocm_path
 
 
-def compile_hip(code, target_format="hsaco", arch=None, options=None, path_target=None):
+def compile_hip(code, target_format="hsaco", arch=None, options=None, path_target=None, verbose=False):
     """Compile HIP code with hipcc.
 
     Parameters
@@ -85,11 +85,13 @@ def compile_hip(code, target_format="hsaco", arch=None, options=None, path_targe
 
     cmd += ["-o", file_target]
     cmd += [temp_code]
-    print(f"cmd: {cmd}")
+
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE,
                             stderr=subprocess.STDOUT)
 
     (out, _) = proc.communicate()
+    if verbose:
+        print(py_str(out))
 
     if proc.returncode != 0:
         msg = code

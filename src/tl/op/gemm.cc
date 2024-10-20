@@ -142,12 +142,12 @@ Stmt Gemm::Lower(const LowerArgs& T, arith::Analyzer* analyzer) const {
 
 LayoutMap Gemm::InferLayout(const LayoutInferArgs& T, InferLevel level) {
   if (completed_) return {};
-
   LayoutMap results;
   ICHECK(C.scope() == "local.fragment");
-  auto [warp_m, warp_n] = ComputeWarpPartition(T.block_size / 32, T.target);
 
   if (TargetIsVolta(T.target)) {
+    const int warp_size = 32;
+    auto [warp_m, warp_n] = ComputeWarpPartition(T.block_size / warp_size, T.target);
     auto fragment = makeGemmVoltaFragmentC(M, N, M / warp_m, N / warp_n, C->dtype.bits());
     results.Set(C, fragment);
     if (A.scope() == "shared" || A.scope() == "shared.dyn") {
@@ -164,6 +164,8 @@ LayoutMap Gemm::InferLayout(const LayoutInferArgs& T, InferLevel level) {
     results.Set(B, makeGemmVoltaABLayout(*as_const_int(B->shape[0]), *as_const_int(B->shape[1]),
                                          false, trans_B ? 2 : 1));
   } else if (TargetIsAmpere(T.target) || TargetIsTuring(T.target)) {
+    const int warp_size = 32;
+    auto [warp_m, warp_n] = ComputeWarpPartition(T.block_size / warp_size, T.target);
     auto fragment = makeGemmFragmentC(M, N, M / warp_m, N / warp_n, C->dtype.bits());
     results.Set(C, fragment);
 
@@ -186,6 +188,8 @@ LayoutMap Gemm::InferLayout(const LayoutInferArgs& T, InferLevel level) {
       ICHECK(0);
     }
   } else if (TargetIsHopper(T.target)) {
+    const int warp_size = 32;
+    auto [warp_m, warp_n] = ComputeWarpPartition(T.block_size / warp_size, T.target);
     auto fragment = makeGemmFragmentCHopper(M, N, M / warp_m, N / warp_n, C->dtype.bits());
     results.Set(C, fragment);
     if (A.scope() == "shared" || A.scope() == "shared.dyn") {
@@ -201,7 +205,33 @@ LayoutMap Gemm::InferLayout(const LayoutInferArgs& T, InferLevel level) {
     } else {
       ICHECK(0) << "WGMMA only support B in shared.";
     }
-  } else {
+  } else if (TargetIsRocm(T.target)){
+    const int warp_size = 32;
+    auto [warp_m, warp_n] = ComputeWarpPartition(T.block_size / warp_size, T.target);
+
+    auto fragment = makeGemmFragmentC(M, N, M / warp_m, N / warp_n, C->dtype.bits());
+      results.Set(C, fragment);
+
+    if (A.scope() == "shared" || A.scope() == "shared.dyn") {
+      results.Set(A, makeGemmABLayout(*as_const_int(A->shape[0]), *as_const_int(A->shape[1]),
+                                      A->dtype.bits(), trans_A ? 1 : 2));
+    } else if (A.scope() == "local.fragment") {
+      ICHECK(trans_A == false);
+      results.Set(A, makeGemmFragmentA(M, N, K, M / warp_m, N / warp_n));
+    } else {
+      ICHECK(0);
+    }
+    if (B.scope() == "shared" || B.scope() == "shared.dyn") {
+      results.Set(B, makeGemmABLayout(*as_const_int(B->shape[0]), *as_const_int(B->shape[1]),
+                                      B->dtype.bits(), trans_B ? 2 : 1));
+    } else if (B.scope() == "local.fragment") {
+      ICHECK(trans_B == false);
+      results.Set(B, makeGemmFragmentB(M, N, K, M / warp_m, N / warp_n));
+    } else {
+      ICHECK(0);
+    }
+  }
+  else {
     ICHECK(0) << "Not supported " << T.target->str();
   }
   completed_ = true;

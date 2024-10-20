@@ -383,8 +383,12 @@ tvm_file_glob(GLOB RUNTIME_SRCS
   src/runtime/disco/*.cc
   src/runtime/minrpc/*.cc
   src/runtime/relax_vm/*.cc
-  src/tl/runtime/*.cc
 )
+if(USE_CUDA)
+  list(APPEND TILELANG_RUNTIME_SRCS src/tl/runtime/*.cc)
+  list(APPEND RUNTIME_SRCS ${TILELANG_RUNTIME_SRCS})
+endif(USE_CUDA)
+
 set(TVM_RUNTIME_EXT_OBJS "")
 
 if(BUILD_FOR_HEXAGON)

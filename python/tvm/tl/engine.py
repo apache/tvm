@@ -20,7 +20,7 @@ import os
 import os.path as osp
 import tvm
 from tvm import tir, tl, relay
-from tvm.contrib import nvcc
+from tvm.contrib import nvcc, hipcc
 try:
     from tvm.tl.code_replace import replace_code
 except ImportError:
@@ -35,10 +35,12 @@ def is_host_call(func: tir.PrimFunc):
     return not is_device_call(func)
 
 
-@tvm.register_func("tvm_tl_cuda_compile", override=True)
+@tvm.register_func("tvm_callback_cuda_compile", override=True)
 def tvm_callback_cuda_compile(code, target):
     tvm_root = osp.join(osp.dirname(__file__), "../../..")
     tl_template_path = osp.abspath(osp.join(tvm_root, "src/tl"))
+    # TODO(lei): actually this indeed should be renamed into
+    # TL_CUTLASS_INCLUDE_PATH
     if "TL_CUTLASS_PATH" in os.environ:
         cutlass_path = os.environ["TL_CUTLASS_PATH"]
     else:
@@ -53,23 +55,49 @@ def tvm_callback_cuda_compile(code, target):
         arch = [f"-arch=sm_{compute_version}"]
         format = "cubin"
 
+    # printing out number of registers
+    debug_option = "--ptxas-options=--verbose,--register-usage-level=10,--warn-on-local-memory-usage"
     ptx = nvcc.compile_cuda(
         code,
         format,
         arch,
         options=[
             "-std=c++17",
-            "--ptxas-options=--verbose,--register-usage-level=10,--warn-on-local-memory-usage",  # printing out number of registers
+            debug_option,
             "--use_fast_math",
             "-I" + tl_template_path,
             "-I" + cutlass_path,
         ],
-        get_output=False,
+        verbose=False,
     )
-    # with open("save.ptx", "wb") as f:
-    #     f.write(ptx)
+
     return ptx
 
+@tvm.register_func("tvm_callback_hip_compile", override=True)
+def tvm_callback_hip_compile(code, target):
+    tvm_root = osp.join(osp.dirname(__file__), "../../..")
+    tl_template_path = osp.abspath(osp.join(tvm_root, "src/tl"))
+
+    # TODO(lei): actually this indeed should be renamed into
+    # TL_COMPOSABLE_KERNEL_INCLUDE_PATH
+    if "TL_COMPOSABLE_KERNEL_PATH" in os.environ:
+        ck_path = os.environ["TL_COMPOSABLE_KERNEL_PATH"]
+    else:
+        ck_path = osp.abspath(osp.join(tvm_root, "3rdparty/composable_kernel/include"))
+
+    hsaco = hipcc.compile_hip(
+        code,
+        target_format="hsaco",
+        options=[
+            "-std=c++17",
+            "-I" + tl_template_path,
+            "-I" + ck_path,
+            # "-I" + osp.join(ck_path, "../build/include/"),
+        ],
+        verbose=False,
+    )
+
+    return hsaco
 
 def extrac_params(func: tir.PrimFunc):
     buffers = [func.buffer_map[var] for var in func.params]
@@ -77,12 +105,14 @@ def extrac_params(func: tir.PrimFunc):
     return tensor_types
 
 # TODO(lei): Should enhance to support IRModule with multiple functions
-def lower(func, target="cuda", runtime_only=False):
+def lower(func, target="cuda", target_host="llvm", runtime_only=False):
+    # TODO(lei): Append C Source code host generation to the runtime
     params = extrac_params(func) if not runtime_only else None
     mod = tvm.IRModule({func.attrs["global_symbol"]: func})
-
-    target_host = tvm.target.Target("llvm -keys=cpu")
+    
+    target_host = tvm.target.Target.canon_target(target_host)
     target = tvm.target.Target(target, target_host)
+
     mod = tir.transform.BindTarget(target)(mod)
 
     mod = tl.transform.FrontendLegalize()(mod)
@@ -150,14 +180,25 @@ def lower(func, target="cuda", runtime_only=False):
     host_mod = tir.transform.LowerIntrin()(host_mod)
     host_mod = tir.transform.LowerDeviceStorageAccessInfo()(host_mod)
     host_mod = tir.transform.CombineContextCall()(host_mod)
-    host_mod = tvm._ffi.get_global_func("target.build.llvm")(host_mod, target)
+
+    if target_host.kind.name == "llvm":
+        host_mod = tvm._ffi.get_global_func("target.build.llvm")(host_mod, target_host)
+    else:
+        raise ValueError("Target host is not supported")
 
     device_mod = tir.transform.Filter(is_device_call)(mod)
     device_mod = tir.transform.LowerDeviceStorageAccessInfo()(device_mod)
     device_mod = tir.transform.LowerIntrin()(device_mod)
     device_mod = tir.transform.Simplify()(device_mod)
-    # code = tvm._ffi.get_global_func("target.build.tl_debug_codegen")(device_mod, target)
-    device_mod = tvm._ffi.get_global_func("target.build.tl")(device_mod, target)
+    
+    if target.kind.name == "cuda":
+        # Debug to get the code
+        # code = tvm._ffi.get_global_func("target.build.tl_debug_codegen")(device_mod, target)
+        device_mod = tvm._ffi.get_global_func("target.build.tilelang_cuda")(device_mod, target)
+    elif target.kind.name == "hip":
+        device_mod = tvm._ffi.get_global_func("target.build.tilelang_hip")(device_mod, target)
+    else:
+        raise ValueError("Target is not supported")
 
     host_mod.import_module(device_mod)
 

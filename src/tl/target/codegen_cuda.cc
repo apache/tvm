@@ -21,7 +21,7 @@
  * \file target/codegen.cc
  */
 
-#include "codegen.h"
+#include "codegen_cuda.h"
 #include <tvm/tir/index_map.h>
 #include <tvm/arith/analyzer.h>
 #include <tvm/runtime/registry.h>
@@ -39,9 +39,9 @@
 namespace tvm {
 namespace codegen {
 
-CodeGenTL::CodeGenTL() { restrict_keyword_ = "__restrict__"; }
+CodeGenTileLangCUDA::CodeGenTileLangCUDA() { restrict_keyword_ = "__restrict__"; }
 
-void CodeGenTL::PrintFuncPrefix(std::ostream& os) { os << "extern \"C\" __global__ "; }
+void CodeGenTileLangCUDA::PrintFuncPrefix(std::ostream& os) { os << "extern \"C\" __global__ "; }
 
 class LaunchConfigExtractor : public tir::StmtVisitor {
  private:
@@ -65,7 +65,7 @@ class LaunchConfigExtractor : public tir::StmtVisitor {
   PrimExpr threadIdx_z_ext = Integer(1);
 };
 
-void CodeGenTL::PrintExtraAttrs(const PrimFunc& f, std::ostream& os) {
+void CodeGenTileLangCUDA::PrintExtraAttrs(const PrimFunc& f, std::ostream& os) {
   LaunchConfigExtractor extractor;
   extractor(f->body);
   arith::Analyzer analyzer;
@@ -80,20 +80,20 @@ void CodeGenTL::PrintExtraAttrs(const PrimFunc& f, std::ostream& os) {
   }
 }
 
-std::string CodeGenTL::Finish() {
+std::string CodeGenTileLangCUDA::Finish() {
   if (need_mma_h_) {
     decl_stream << "#include <mma.h>\n";
   }
-  decl_stream << "#include <tl_templates/gemm.h>\n";
-  decl_stream << "#include <tl_templates/copy.h>\n";
-  decl_stream << "#include <tl_templates/reduce.h>\n";
-  decl_stream << "#include <tl_templates/ldsm.h>\n";
-  decl_stream << "#include <tl_templates/threadblock_swizzle.h>\n";
+  decl_stream << "#include <tl_templates/cuda/gemm.h>\n";
+  decl_stream << "#include <tl_templates/cuda/copy.h>\n";
+  decl_stream << "#include <tl_templates/cuda/reduce.h>\n";
+  decl_stream << "#include <tl_templates/cuda/ldsm.h>\n";
+  decl_stream << "#include <tl_templates/cuda/threadblock_swizzle.h>\n";
   decl_stream << "\n";
   return CodeGenC::Finish();
 }
 
-void CodeGenTL::VisitStmt_(const tir::ForNode* op) {
+void CodeGenTileLangCUDA::VisitStmt_(const tir::ForNode* op) {
   if (op->kind == tir::ForKind::kUnrolled) {
     PrintIndent();
     stream << "#pragma unroll\n";
@@ -113,12 +113,12 @@ void CodeGenTL::VisitStmt_(const tir::ForNode* op) {
   stream << "}\n";
 }
 
-void CodeGenTL::BindThreadIndex(const IterVar& iv) {
+void CodeGenTileLangCUDA::BindThreadIndex(const IterVar& iv) {
   ICHECK(!var_idmap_.count(iv->var.get()));
   var_idmap_[iv->var.get()] = CastFromTo(iv->thread_tag, DataType::UInt(32), iv->var.dtype());
 }
 
-void CodeGenTL::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
+void CodeGenTileLangCUDA::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
   int lanes = t.lanes();
   if (t.is_handle()) {
     ICHECK(t.is_scalar()) << "do not yet support vector types";
@@ -364,7 +364,7 @@ void CodeGenTL::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
   LOG(FATAL) << "Cannot convert type " << t << " to CUDA type";
 }
 
-void CodeGenTL::PrintVecBinaryOp(const std::string& op, DataType t, PrimExpr lhs, PrimExpr rhs,
+void CodeGenTileLangCUDA::PrintVecBinaryOp(const std::string& op, DataType t, PrimExpr lhs, PrimExpr rhs,
                                  std::ostream& os) {  // NOLINT(*)
   // Delcare the result.
   std::string sret = name_supply_->FreshName("_");
@@ -399,7 +399,7 @@ void CodeGenTL::PrintVecBinaryOp(const std::string& op, DataType t, PrimExpr lhs
   os << sret;
 }
 
-void CodeGenTL::PrintVecElemLoad(const std::string& vec, DataType t, int i,
+void CodeGenTileLangCUDA::PrintVecElemLoad(const std::string& vec, DataType t, int i,
                                  std::ostream& os) {  // NOLINT(*)
   if (t.is_scalar()) {
     os << vec;
@@ -444,7 +444,7 @@ void CodeGenTL::PrintVecElemLoad(const std::string& vec, DataType t, int i,
   }
 }
 
-void CodeGenTL::PrintVecElemStore(const std::string& vec, DataType t, int i,
+void CodeGenTileLangCUDA::PrintVecElemStore(const std::string& vec, DataType t, int i,
                                   const std::string& value) {
   this->PrintIndent();
   static const char access[] = {'x', 'y', 'z', 'w'};
@@ -492,7 +492,7 @@ void CodeGenTL::PrintVecElemStore(const std::string& vec, DataType t, int i,
   }
 }
 
-void CodeGenTL::PrintStorageSync(const CallNode* op) {
+void CodeGenTileLangCUDA::PrintStorageSync(const CallNode* op) {
   const std::string& sync = op->args[0].as<StringImmNode>()->value;
   if (sync == "warp") {
     // DO nothing.
@@ -502,7 +502,7 @@ void CodeGenTL::PrintStorageSync(const CallNode* op) {
   }
 }
 
-void CodeGenTL::PrintStorageScope(const std::string& scope, std::ostream& os) {  // NOLINT(*)
+void CodeGenTileLangCUDA::PrintStorageScope(const std::string& scope, std::ostream& os) {  // NOLINT(*)
   ICHECK_NE(scope, "global") << "Cannot allocate global memory when targeting CUDA. You must pass "
                                 "all global arrays as input instead";
   if (scope == "shared") {
@@ -512,7 +512,7 @@ void CodeGenTL::PrintStorageScope(const std::string& scope, std::ostream& os) { 
   }
 }
 
-std::string CodeGenTL::CastFromTo(std::string value, DataType from, DataType target) {
+std::string CodeGenTileLangCUDA::CastFromTo(std::string value, DataType from, DataType target) {
   if (from == target) return value;
   std::ostringstream os;
   os << "((";
@@ -529,7 +529,7 @@ std::string CodeGenTL::CastFromTo(std::string value, DataType from, DataType tar
   return os.str();
 }
 
-void CodeGenTL::VisitExpr_(const CastNode* op, std::ostream& os) {
+void CodeGenTileLangCUDA::VisitExpr_(const CastNode* op, std::ostream& os) {
   DataType from_ty = op->value.dtype();
   DataType target_ty = op->dtype;
   ICHECK_EQ(target_ty.lanes(), from_ty.lanes());
@@ -558,7 +558,7 @@ void CodeGenTL::VisitExpr_(const CastNode* op, std::ostream& os) {
   os << sret;
 }
 
-void CodeGenTL::PrintCallExtern(Type ret_type, String global_symbol, const Array<PrimExpr>& args,
+void CodeGenTileLangCUDA::PrintCallExtern(Type ret_type, String global_symbol, const Array<PrimExpr>& args,
                                 bool skip_first_arg, std::ostream& os) {  // NOLINT(*)
   DataType ret_dtype = GetRuntimeDataType(ret_type);
   if (ret_dtype.is_vector()) {
@@ -613,7 +613,7 @@ void CodeGenTL::PrintCallExtern(Type ret_type, String global_symbol, const Array
 }
 
 // Print a reference expression to a buffer.
-std::string CodeGenTL::GetBufferRef(DataType t, const BufferNode* buffer, PrimExpr index) {
+std::string CodeGenTileLangCUDA::GetBufferRef(DataType t, const BufferNode* buffer, PrimExpr index) {
   const VarNode* buffer_var = buffer->data.get();
   std::ostringstream os;
   std::string vid = GetVarID(buffer_var);
@@ -670,7 +670,7 @@ std::string CodeGenTL::GetBufferRef(DataType t, const BufferNode* buffer, PrimEx
   return os.str();
 }
 
-void CodeGenTL::VisitExpr_(const CallNode* op, std::ostream& os) {
+void CodeGenTileLangCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
   auto print_extern_call_stmt = [&](std::string name, size_t offset = 0) {
     this->PrintIndent();
     this->stream << name << "(";
@@ -1100,7 +1100,7 @@ void CodeGenTL::VisitExpr_(const CallNode* op, std::ostream& os) {
   }
 }
 
-void CodeGenTL::VisitStmt_(const AttrStmtNode* op) {
+void CodeGenTileLangCUDA::VisitStmt_(const AttrStmtNode* op) {
   if (op->attr_key == tir::attr::async_commit_queue_scope) {
     const IntImmNode* queue_id = op->value.as<IntImmNode>();
     ICHECK(queue_id && queue_id->value == 0) << "For CUDA, the index of an async queue must be 0.";
@@ -1130,7 +1130,7 @@ void CodeGenTL::VisitStmt_(const AttrStmtNode* op) {
   CodeGenC::VisitStmt_(op);
 }
 
-void CodeGenTL::VisitStmt_(const AllocateNode* op) {
+void CodeGenTileLangCUDA::VisitStmt_(const AllocateNode* op) {
   ICHECK(!is_zero(op->condition));
   std::string vid = AllocVarID(op->buffer_var.get());
 
@@ -1157,7 +1157,7 @@ void CodeGenTL::VisitStmt_(const AllocateNode* op) {
   this->PrintStmt(op->body);
 }
 
-void CodeGenTL::VisitExpr_(const RampNode* op, std::ostream& os) {
+void CodeGenTileLangCUDA::VisitExpr_(const RampNode* op, std::ostream& os) {
   int lanes = static_cast<int>(Downcast<IntImm>(op->lanes)->value);
   CHECK_LE(lanes, 4) << "ValueError: Ramp of more than 4 lanes is not allowed.";
   os << "(make_";
@@ -1171,7 +1171,7 @@ void CodeGenTL::VisitExpr_(const RampNode* op, std::ostream& os) {
   os << "))";
 }
 
-void CodeGenTL::VisitExpr_(const BroadcastNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenTileLangCUDA::VisitExpr_(const BroadcastNode* op, std::ostream& os) {  // NOLINT(*)
   int lanes = static_cast<int>(Downcast<IntImm>(op->lanes)->value);
   if ((op->dtype.is_int() || op->dtype.is_uint()) && op->dtype.bits() == 8 && lanes == 4) {
     // make_int8x4
@@ -1279,7 +1279,7 @@ void CodeGenTL::VisitExpr_(const BroadcastNode* op, std::ostream& os) {  // NOLI
   os << ')';
 }
 
-inline void PrintConst(const FloatImmNode* op, std::ostream& os, CodeGenTL* p) {  // NOLINT(*)
+inline void PrintConst(const FloatImmNode* op, std::ostream& os, CodeGenTileLangCUDA* p) {  // NOLINT(*)
   // Type code is kBFloat
   if (op->dtype.is_bfloat16()) {
     os << "bfloat16_t";
@@ -1318,11 +1318,11 @@ inline void PrintConst(const FloatImmNode* op, std::ostream& os, CodeGenTL* p) {
   }
 }
 
-void CodeGenTL::VisitExpr_(const FloatImmNode* op, std::ostream& os) {  // NOLINT(*)
+void CodeGenTileLangCUDA::VisitExpr_(const FloatImmNode* op, std::ostream& os) {  // NOLINT(*)
   PrintConst(op, os, this);
 }
 
-void CodeGenTL::HandleVolatileLoads(const std::string& value, const BufferLoadNode* op,
+void CodeGenTileLangCUDA::HandleVolatileLoads(const std::string& value, const BufferLoadNode* op,
                                     std::ostream& os) {
   // Cast away volatile qualifier for fp16 types. That is, only loads and
   // stores are volatile. The loaded objects are not marked as volatile.
@@ -1336,7 +1336,7 @@ void CodeGenTL::HandleVolatileLoads(const std::string& value, const BufferLoadNo
   }
 }
 
-void CodeGenTL::PrintVecElemLoadExpr(DataType t, int i, const std::string& value,
+void CodeGenTileLangCUDA::PrintVecElemLoadExpr(DataType t, int i, const std::string& value,
                                      std::ostream& os) {
   ICHECK_GT(t.lanes(), 1);
   if (t.bits() == 8 && (t.is_int() || t.is_uint())) {
@@ -1401,7 +1401,7 @@ void CodeGenTL::PrintVecElemLoadExpr(DataType t, int i, const std::string& value
   return;
 }
 
-void CodeGenTL::AddFunction(const PrimFunc& f) {
+void CodeGenTileLangCUDA::AddFunction(const PrimFunc& f) {
   // clear previous generated state.
   this->InitFuncState(f);
   // reserve keywords
