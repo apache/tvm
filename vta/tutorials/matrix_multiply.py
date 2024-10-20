@@ -392,13 +392,13 @@ my_gemm = vta.build(
 
 # Write the compiled module into an object file.
 temp = utils.tempdir()
-my_gemm.save(temp.relpath("gemm.o"))
+my_gemm.export_library(temp.relpath("gemm.so"))
 
 # Send the executable over RPC
-remote.upload(temp.relpath("gemm.o"))
+remote.upload(temp.relpath("gemm.so"))
 
 # Load the compiled module
-f = remote.load_module("gemm.o")
+f = remote.load_module("gemm.so")
 
 ######################################################################
 # Running the Function

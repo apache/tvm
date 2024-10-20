@@ -44,6 +44,10 @@ class IntrinInjecter : public tvm::arith::IRMutatorWithAnalyzer {
 
   IntrinInjecter(arith::Analyzer* analyzer, std::string target, std::string mtriple = "")
       : IRMutatorWithAnalyzer(analyzer) {
+    if (target == "ext_dev") {
+      target = "llvm";
+    }
+
     std::vector<std::string> patterns;
     patterns.push_back(target + ".FLowerIntrinsic");
     patterns.push_back(target + ".FLegalize");
