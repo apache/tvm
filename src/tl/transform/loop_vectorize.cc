@@ -40,6 +40,12 @@ namespace tl {
 
 using namespace tir;
 
+struct VectorizePlanResult {
+  int vector_size;
+  bool dynamic;
+  PrimExpr condition;
+};
+
 class VectorizePlanner : public arith::IRVisitorWithAnalyzer {
  public:
   VectorizePlanner() = default;
@@ -49,6 +55,14 @@ class VectorizePlanner : public arith::IRVisitorWithAnalyzer {
     // Always Enable vectorization
     // if (!has_nonlocal_memory_access_) return 1;
     return vector_size_;
+  }
+
+  bool GetDynamic() {
+    return dynamic_;
+  }
+
+  PrimExpr GetCondition() {
+    return condition_;
   }
 
  private:
@@ -107,12 +121,20 @@ class VectorizePlanner : public arith::IRVisitorWithAnalyzer {
     int max_vector_size = arith::ZeroAwareGCD(128 / access_type.bits(), extent_ptr->value);
 
     auto mod_set = analyzer_.modular_set(buffer->shape.back());
-    max_vector_size = arith::ZeroAwareGCD(max_vector_size, mod_set->coeff);
-    max_vector_size = arith::ZeroAwareGCD(max_vector_size, mod_set->base);
-    vector_size_ = arith::ZeroAwareGCD(max_vector_size, vector_size_);
-    while (!IndiceCanVectorize(buffer.OffsetOf(indices).back(), inner_for_->loop_var,
-                               inner_for_->extent, vector_size_, &analyzer_)) {
-      vector_size_ /= 2;
+    // when dynamic shape like [m, k]: coeff=1, base=0, GCD will block conditionally tail vectorize
+    if (buffer->shape.back().as<IntImmNode>()) {
+      max_vector_size = arith::ZeroAwareGCD(max_vector_size, mod_set->coeff);
+      max_vector_size = arith::ZeroAwareGCD(max_vector_size, mod_set->base);
+      vector_size_ = arith::ZeroAwareGCD(max_vector_size, vector_size_);
+      while (!IndiceCanVectorize(buffer.OffsetOf(indices).back(), inner_for_->loop_var,
+                                inner_for_->extent, vector_size_, &analyzer_)) {
+        vector_size_ /= 2;
+      }
+    } else if (vector_size_ <= 128 / buffer->dtype.bits()) {
+      // dynamic shape load: get the vectorization condition
+      dynamic_ = true;
+      PrimExpr offset = buffer.OffsetOf(indices).back();
+      condition_ = (FloorMod(offset, vector_size_) == 0);
     }
   }
 
@@ -122,11 +144,39 @@ class VectorizePlanner : public arith::IRVisitorWithAnalyzer {
   Map<Var, Range> iter_map_;
   bool has_nonlocal_memory_access_ = false;
   int vector_size_ = 128;
+  // conditionally vectorize
+  bool dynamic_ = false;
+  PrimExpr condition_;
+};
+
+class VectorizeDynamicCallRemover : public StmtExprMutator {
+  public:
+    VectorizeDynamicCallRemover(Var inner_var, int vector_size):
+      inner_var_(inner_var), vector_size_(vector_size) {}
+  private:
+    PrimExpr VisitExpr_(const CallNode* op) final {
+      if (op->op.same_as(builtin::if_then_else())) {
+        PrimExpr cond = this->VisitExpr(op->args[0]);
+        Map<Var, PrimExpr> vmap;
+        // Currently remove upper bound check
+        vmap.Set(inner_var_, 0);
+        cond = Substitute(cond, vmap);
+        Array<PrimExpr> new_args{cond, op->args[1], op->args[2]};
+        return Call(op->dtype, op->op, new_args, op->span);
+      } else {
+        // TODO: For other calls
+        return GetRef<PrimExpr>(op);
+      }
+    }
+
+    Var inner_var_;
+    int vector_size_;
 };
 
 class VectorizeRewriter : public StmtExprMutator {
  public:
-  VectorizeRewriter(int vector_size) : vector_size_(vector_size) {}
+  VectorizeRewriter(VectorizePlanResult plan):
+    vector_size_(plan.vector_size), condition_(plan.condition), dynamic_(plan.dynamic) {}
 
  private:
   Stmt VisitStmt_(const ForNode* node) final {
@@ -140,19 +190,51 @@ class VectorizeRewriter : public StmtExprMutator {
       int extent = *extent_ptr;
       ICHECK(extent % vector_size_ == 0);
       ICHECK(is_zero(fnode->min));
-      if (extent == vector_size_) {
-        fnode.CopyOnWrite()->kind = ForKind::kVectorized;
-        return fnode;
+      if (!dynamic_) { // check dynamic shape
+        if (extent == vector_size_) {
+          fnode.CopyOnWrite()->kind = ForKind::kVectorized;
+          return fnode;
+        } else {
+          Var inner_var = Var("vec");
+          Var outer_var = Var(old_var->name_hint);
+          Map<Var, PrimExpr> vmap;
+          vmap.Set(fnode->loop_var, outer_var * vector_size_ + inner_var);
+          Stmt body = Substitute(fnode->body, vmap);
+          body = For(inner_var, 0, vector_size_, ForKind::kVectorized, body);
+          body = For(outer_var, 0, extent / vector_size_, fnode->kind, body, fnode->thread_binding,
+                    fnode->annotations, fnode->span);
+          return body;
+        }
       } else {
-        Var inner_var = Var("vec");
-        Var outer_var = Var(old_var->name_hint);
-        Map<Var, PrimExpr> vmap;
-        vmap.Set(fnode->loop_var, outer_var * vector_size_ + inner_var);
-        Stmt body = Substitute(fnode->body, vmap);
-        body = For(inner_var, 0, vector_size_, ForKind::kVectorized, body);
-        body = For(outer_var, 0, extent / vector_size_, fnode->kind, body, fnode->thread_binding,
-                   fnode->annotations, fnode->span);
-        return body;
+        if (extent == vector_size_) {
+          // add condition ifthenelse here
+          For vectorize_for = fnode;
+          vectorize_for.CopyOnWrite()->kind = ForKind::kVectorized;
+          For serial_for = fnode;
+          serial_for.CopyOnWrite()->kind = ForKind::kSerial;
+          Stmt body = IfThenElse(condition_, vectorize_for, serial_for);
+          return body;
+        } else {
+          Var inner_var = Var("vec");
+          Var outer_var = Var(old_var->name_hint);
+          Map<Var, PrimExpr> vmap;
+          vmap.Set(fnode->loop_var, outer_var * vector_size_ + inner_var);
+          Stmt body = Substitute(fnode->body, vmap);
+          // add condition ifthenelse here
+          Map<Var, PrimExpr> vmap_condition;
+          vmap_condition.Set(fnode->loop_var, outer_var * vector_size_);
+          PrimExpr condition = Substitute(condition_, vmap_condition);
+
+          VectorizeDynamicCallRemover remover(inner_var, vector_size_);
+          body = remover(body);
+
+          For vectorize_for = For(inner_var, 0, vector_size_, ForKind::kVectorized, body);
+          For serial_for = For(inner_var, 0, vector_size_, ForKind::kSerial, body);
+          body = IfThenElse(condition, vectorize_for, serial_for);
+          body = For(outer_var, 0, extent / vector_size_, fnode->kind, body, fnode->thread_binding,
+                    fnode->annotations, fnode->span);
+          return body;
+        }
       }
     } else {
       return ret;
@@ -161,9 +243,19 @@ class VectorizeRewriter : public StmtExprMutator {
 
   const ForNode* inner_for_;
   const int vector_size_;
+  const PrimExpr condition_;
+  const bool dynamic_;
 };
 
 int GetVectorizeSize(const For& loop) { return VectorizePlanner().Plan(loop); }
+
+VectorizePlanResult GetVectorizePlanResult(const For& loop) {
+  VectorizePlanner planner;
+  int vector_size = planner.Plan(loop);
+  bool dynamic = planner.GetDynamic();
+  PrimExpr condition = planner.GetCondition();
+  return {vector_size, dynamic, condition};
+}
 
 // Use the same code as tir.transform.vectorize_loop
 class VectorizeChecker : public ExprMutator {
@@ -444,11 +536,14 @@ bool IndiceCanVectorize(PrimExpr expr, Var var, PrimExpr iter_var_size, int targ
 }
 
 For VectorizeLoop(const For& loop, int vectorize_hint) {
+  VectorizePlanResult res{128, false, 0};
   if (vectorize_hint <= 0) {
-    vectorize_hint = GetVectorizeSize(loop);
+    res = GetVectorizePlanResult(loop);
+    vectorize_hint = res.vector_size;
+    // vectorize_hint = GetVectorizeSize(loop);
   }
   if (vectorize_hint == 1) return loop;
-  auto rewriter = VectorizeRewriter(vectorize_hint);
+  auto rewriter = VectorizeRewriter(res);
   return Downcast<For>(rewriter(loop));
 }
 
