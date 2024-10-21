@@ -130,7 +130,7 @@ class VectorizePlanner : public arith::IRVisitorWithAnalyzer {
                                 inner_for_->extent, vector_size_, &analyzer_)) {
         vector_size_ /= 2;
       }
-    } else if (vector_size_ <= 128 / buffer->dtype.bits()) {
+    } else if (vector_size_ <= vector_load_bits_max_ / buffer->dtype.bits()) {
       // dynamic shape load: get the vectorization condition
       dynamic_ = true;
       PrimExpr offset = buffer.OffsetOf(indices).back();
