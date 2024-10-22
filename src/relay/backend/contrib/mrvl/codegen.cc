@@ -226,6 +226,13 @@ class MrvlJSONSerializer : public backend::contrib::JSONSerializer {
   };
 
   /*!
+   * \brief A series of operators that form a Squeeze node.
+   */
+  struct CompositeSqueezeNode {
+    const CallNode* squeeze = nullptr;
+  };
+
+  /*!
    * \brief A series of operators that form a composite
    * fc layer. Supports both nn.fc_ni2no and qnn.fc_ni2no.
    */
@@ -278,6 +285,8 @@ class MrvlJSONSerializer : public backend::contrib::JSONSerializer {
       json_kernel_node = CreateCompositeMrvlAvgpool2DLayer(cn);
     } else if (name == "mrvl.globalavgpool2d_nhwc2nhwc") {
       json_kernel_node = CreateCompositeMrvlGlobalAvgpool2DLayer(cn);
+    } else if (name == "mrvl.globalmaxpool2d_nhwc2nhwc") {
+      json_kernel_node = CreateCompositeMrvlGlobalMaxpool2DLayer(cn);
     } else if (name == "mrvl.sum") {
       json_kernel_node = CreateCompositeMrvlSumLayer(cn);
     } else if (name == "mrvl.concat") {
@@ -286,6 +295,8 @@ class MrvlJSONSerializer : public backend::contrib::JSONSerializer {
       json_kernel_node = CreateMrvlReshapeLayer(cn);
     } else if (name == "mrvl.batch_flatten") {
       json_kernel_node = CreateMrvlBatchFlattenLayer(cn);
+    } else if (name == "mrvl.squeeze") {
+      json_kernel_node = CreateMrvlSqueezeLayer(cn);
     } else {
       LOG(FATAL) << "Unrecognized Mrvl pattern: " << name;
     }
@@ -512,6 +523,22 @@ class MrvlJSONSerializer : public backend::contrib::JSONSerializer {
   }
 
   /*!
+   * \brief Extract squeeze nodes from a composite function.
+   * \param call The call node of the composite function.
+   * \return Extracted composite squeeze nodes.
+   */
+  CompositeSqueezeNode UnpackCompositeSqueeze(const CallNode* call) {
+    CompositeSqueezeNode nodes{};
+    const auto* fn = call->op.as<FunctionNode>();
+    ICHECK(fn) << "Marvell-Compiler-ERROR-Internal::Downcast to FunctionNode failed.";
+    const auto* current_call = fn->body.as<CallNode>();
+    ICHECK(backend::IsOp(current_call, "squeeze"))
+        << "Marvell-Compiler-ERROR-Internal::squeeze missing.";
+    nodes.squeeze = current_call;
+    return nodes;
+  }
+
+  /*!
    * \brief Extract maxpool nodes from a composite function.
    *
    * \param call The call node of the composite function.
@@ -533,6 +560,11 @@ class MrvlJSONSerializer : public backend::contrib::JSONSerializer {
           << "Marvell-Compiler-ERROR-Internal::nn.avg_pool2d Op missing.";
       ICHECK(backend::IsOp(current_call, "nn.avg_pool2d"))
           << "Marvell-Compiler-ERROR-Internal::nn.avg_pool2d Op missing.";
+    } else if (mrvlLayerName == "GlobalMaxpool2D") {
+      ICHECK(mrvlLayerName == "GlobalMaxpool2D")
+          << "Marvell-Compiler-ERROR-Internal::nn.global_max_pool2d Op missing.";
+      ICHECK(backend::IsOp(current_call, "nn.global_max_pool2d"))
+          << "Marvell-Compiler-ERROR-Internal::nn.global_max_pool2d Op missing.";
     } else {
       ICHECK(mrvlLayerName == "GlobalAvgpool2D")
           << "Marvell-Compiler-ERROR-Internal::nn.global_avg_pool2d Op missing.";
@@ -1116,6 +1148,34 @@ class MrvlJSONSerializer : public backend::contrib::JSONSerializer {
   }
 
   /*!
+   * \brief Create a JSON representation of a composite Squeeze.
+   *
+   * \param cn The call to be represented.
+   * \return A JSON representation of a specific operator.
+   */
+  std::shared_ptr<JSONGraphNode> CreateMrvlSqueezeLayer(const CallNode* cn) {
+    CompositeSqueezeNode nodes = UnpackCompositeSqueeze(cn);
+    std::vector<JSONGraphNodeEntry> inputs;
+    std::string name = "squeeze";
+    inputs.push_back(VisitExpr(cn->args[0])[0]);
+    std::vector<int64_t> layout_vec;
+    GetInputTensorShapeViaArgN(nodes.squeeze, &layout_vec);
+    std::string data_layout;
+    if (layout_vec.size() == 4) {
+      data_layout = "NHWC";
+    } else {
+      data_layout = "NC";
+    }
+    layout_vec.clear();
+    std::string out_layout = "NC";
+    auto json_node = std::make_shared<JSONGraphNode>(name, "kernel", inputs, 1);
+    SetMrvlLayerCommonAttrs(json_node, cn, layer_name_, name, data_layout,
+                            "" /* no kernel_layout */, out_layout);
+    SetMrvlQuantAttrs(json_node, nodes.instrument_1, "1");
+    return json_node;
+  }
+
+  /*!
    * \brief Create a JSON representation of a composite concat.
    *
    * \param cn The call to be represented.
@@ -1294,6 +1354,48 @@ class MrvlJSONSerializer : public backend::contrib::JSONSerializer {
     ICHECK(data_layout_vec.size() == 4);
     kernel_layout_vec.push_back(data_layout_vec[1]);
     kernel_layout_vec.push_back(data_layout_vec[2]);
+    auto json_node = std::make_shared<JSONGraphNode>(name, "kernel", inputs, 1);
+    SetCallNodeAttribute(json_node, nodes.pool);
+    JsonNodeSetVecAttr(json_node, "kernel_layout_shape", kernel_layout_vec);
+    if (nodes.pad) SetMrvlLayerPadAttrs(json_node, nodes.pad);
+
+    SetMrvlLayerCommonAttrs(json_node, cn, layer_name_, mrvlLayerName, data_layout, "HW",
+                            out_layout);
+    return json_node;
+  }
+
+  /*!
+   * \brief Create a JSON representation of a composite globalmaxpooling operator.
+   *
+   * A composite function is only created when using the uint8 datatype for these operators.
+   *
+   * \param cn The call to be represented.
+   * \return A JSON representation of a specific operator.
+   */
+  std::shared_ptr<JSONGraphNode> CreateCompositeMrvlGlobalMaxpool2DLayer(const CallNode* cn) {
+    std::string mrvlLayerName = "GlobalMaxpool2D";
+    std::string name = "nn.globalmaxpool2d_nhwc2nhwc";
+    CompositePoolNode nodes = UnpackCompositePool(cn, mrvlLayerName);
+
+    const auto* globalmaxpool_attr = nodes.pool->attrs.as<GlobalPool2DAttrs>();
+    ICHECK(globalmaxpool_attr)
+        << "Marvell-Compiler-ERROR-Internal::Downcast to GlobalPool2DAttrs failed.";
+    ICHECK(globalmaxpool_attr->layout == "NHWC")
+        << "Marvell-Compiler-ERROR-Internal::"
+        << "Layout must be NHWC, has the module been pre-processed correctly?";
+
+    std::string data_layout = globalmaxpool_attr->layout;
+    std::string out_layout = globalmaxpool_attr->layout;
+    std::vector<JSONGraphNodeEntry> inputs;
+    std::vector<int64_t> kernel_layout_vec;
+    std::vector<int64_t> data_layout_vec;
+    GetInputTensorShapeViaArgN(cn, &data_layout_vec);
+    ICHECK(data_layout_vec.size() == 4);
+    kernel_layout_vec.push_back(data_layout_vec[1]);
+    kernel_layout_vec.push_back(data_layout_vec[2]);
+    inputs.push_back(VisitExpr(cn->args[0])[0]);
+
+    // op_type_ is "kernel"
     auto json_node = std::make_shared<JSONGraphNode>(name, "kernel", inputs, 1);
     SetCallNodeAttribute(json_node, nodes.pool);
     JsonNodeSetVecAttr(json_node, "kernel_layout_shape", kernel_layout_vec);
