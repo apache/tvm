@@ -122,7 +122,11 @@ def _reconstruct_codegen_args(args, codegen_name):
     codegen = get_codegen_by_target(codegen_name)
     pass_configs = PassContext.list_configs()
     codegen_options = {}
+    default_tgt = codegen["default_target"]
 
+    # Do not fetch codegen options, if the default target alone is choosen by user
+    if codegen_name not in args.target and default_tgt is not None and default_tgt in args.target:
+        return codegen_options
     if codegen["config_key"] is not None and codegen["config_key"] in pass_configs:
         attrs = make_node(pass_configs[codegen["config_key"]]["type"])
         fields = attrs_api.AttrsListFieldInfo(attrs)
