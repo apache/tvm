@@ -80,7 +80,7 @@ def _main(argv):
 
     subparser = parser.add_subparsers(title="commands")
     for make_subparser in REGISTERED_PARSER:
-        make_subparser(subparser, parser, json_config_values)
+        make_subparser(subparser, parser, json_config_values, argv)
 
     # Finally, add help for the main parser.
     parser.add_argument("-h", "--help", action="help", help="show this help message and exit.")
