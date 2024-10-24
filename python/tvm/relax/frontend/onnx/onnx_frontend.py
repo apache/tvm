@@ -1204,8 +1204,8 @@ class Squeeze(OnnxOpConverter):
         if isinstance(axis, relax.Constant):
             axis = [int(x) for x in axis.data.numpy()]
         # If data is constant, perform computation directly.
-        if isinstance(inputs[0], relax.Constant):
-            out_data = _np.squeeze(data.data.numpy(), axis[0])
+        if isinstance(data, relax.Constant):
+            out_data = _np.squeeze(data.data.numpy(), tuple(axis))
             return relax.const(out_data, data.struct_info.dtype)
 
         if isinstance(data, relax.ShapeExpr):
@@ -1213,7 +1213,7 @@ class Squeeze(OnnxOpConverter):
                 return relax.PrimValue(data[0])
             else:
                 raise NotImplementedError(
-                    "Unsqueeze with symbolic axes and non-zero axes is not supported."
+                    "Squeeze with symbolic axes and non-zero axes is not supported."
                 )
 
         return relax.op.squeeze(data, axis)
@@ -2252,8 +2252,24 @@ class Flatten(OnnxOpConverter):
     @classmethod
     def _impl_v13(cls, bb, inputs, attr, params):
         axis = attr.get("axis", 1)
-        data_shape = [i.value for i in inputs[0].struct_info.shape]
-        new_shape = (1, -1) if axis == 0 else (_np.prod(data_shape[0:axis]).astype("int64"), -1)
+        data_shape = [i for i in inputs[0].struct_info.shape]
+
+        if axis == 0:
+            new_shape = (1, -1)
+        else:
+            shape_flags = [isinstance(x, tvm.script.tir.IntImm) for x in data_shape[0:axis]]
+
+            if all(shape_flags):
+                data_shape = [x.value for x in data_shape[0:axis]]
+                new_shape = (_np.prod(data_shape[0:axis]).astype("int64"), -1)
+            else:
+                batch_size = 1
+
+                for el in data_shape[0:axis]:
+                    batch_size = batch_size * el
+
+                new_shape = (batch_size, -1)
+
         return relax.op.reshape(inputs[0], new_shape)
 
 
