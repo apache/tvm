@@ -369,6 +369,14 @@ class TestKeras:
             x = conv_func(data)
             keras_model = keras_mod.models.Model(data, x)
             verify_keras_frontend(keras_model)
+        # check the DepthwiseConv2D with single-channel
+        data = keras_mod.layers.Input(shape=(32, 32, 1))
+        conv_func = keras_mod.layers.DepthwiseConv2D(
+            kernel_size=(2, 2), strides=(2, 2), data_format="channels_last"
+        )
+        x = conv_func(data)
+        keras_model = keras_mod.models.Model(data, x)
+        verify_keras_frontend(keras_model)
 
     def test_forward_conv_transpose(self, keras_mod):
         """test_forward_conv_transpose"""
