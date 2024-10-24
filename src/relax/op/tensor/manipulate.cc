@@ -30,6 +30,8 @@
 #include <utility>
 #include <vector>
 
+#include "tvm/runtime/data_type.h"
+
 namespace tvm {
 namespace relax {
 
@@ -1529,6 +1531,213 @@ TVM_REGISTER_OP("relax.scatter_elements")
     .add_argument("indices", "Tensor", "The indices tensor.")
     .add_argument("updates", "Tensor", "The input tensor of updates.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoScatterElements)
+    .set_attr<Bool>("FPurity", Bool(true));
+
+/* relax.scatter_nd */
+TVM_REGISTER_NODE_TYPE(ScatterNDAttrs);
+
+Expr scatter_nd(Expr data, Expr indices, Expr updates, String reduction) {
+  auto attrs = make_object<ScatterNDAttrs>();
+  attrs->reduction = std::move(reduction);
+  static const Op& op = Op::Get("relax.scatter_nd");
+  return Call(op, {data, indices, updates}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relax.op.scatter_nd").set_body_typed(scatter_nd);
+
+StructInfo InferStructInfoScatterND(const Call& call, const BlockBuilder& ctx) {
+  // `call->args` contains: [data, indices, updates]
+  arith::Analyzer* analyzer = ctx->GetAnalyzer();
+  ICHECK_EQ(call->args.size(), 3);
+  const auto* data_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
+  const auto* indices_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[1]);
+  const auto* updates_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[2]);
+
+  if (data_sinfo == nullptr) {
+    ctx->ReportFatal(
+        Diagnostic::Error(call)
+        << "ScatterND op requires the input data to be a tensor. However, the given type is "
+        << call->args[0]->GetTypeKey());
+  }
+  if (indices_sinfo == nullptr) {
+    ctx->ReportFatal(
+        Diagnostic::Error(call)
+        << "ScatterND op requires the input indices to be a tensor. However, the given type is "
+        << call->args[1]->GetTypeKey());
+  }
+  if (updates_sinfo == nullptr) {
+    ctx->ReportFatal(
+        Diagnostic::Error(call)
+        << "ScatterND op requires the input updates to be a tensor. However, the given type is "
+        << call->args[2]->GetTypeKey());
+  }
+
+  if (data_sinfo->IsUnknownDtype() || updates_sinfo->IsUnknownDtype()) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "ScatterND op requires the input data and updates to have known dtype. "
+                        "However, the given types are "
+                     << "data: " << data_sinfo->dtype << ", updates: " << updates_sinfo->dtype);
+  }
+
+  if (data_sinfo->dtype != updates_sinfo->dtype) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "ScatterND op requires the input data to have same type with updates. "
+                        "However, the given types are "
+                     << "data: " << data_sinfo->dtype << ", updates: " << updates_sinfo->dtype);
+  }
+
+  if (indices_sinfo->IsUnknownDtype()) {
+    LOG(WARNING) << "Data type of indices has not been specified. Assume it has an integer type.";
+  } else if (!(indices_sinfo->dtype.is_int() || indices_sinfo->dtype.is_uint())) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "ScatterND op requires the input indices to have integer dtype. However, "
+                        "the given indices dtype is "
+                     << indices_sinfo->dtype);
+  }
+
+  const auto* data_shape = data_sinfo->shape.as<ShapeExprNode>();
+  const auto* indices_shape = indices_sinfo->shape.as<ShapeExprNode>();
+  const auto* updates_shape = updates_sinfo->shape.as<ShapeExprNode>();
+
+  if (data_shape && indices_shape && updates_shape) {
+    const IntImmNode* k_dim = indices_shape->values[indices_sinfo->ndim - 1].as<IntImmNode>();
+    if (!k_dim) {
+      ctx->ReportFatal(Diagnostic::Error(call)
+                       << "ScatterND needs a static shape for the last axis of indices, got "
+                       << indices_shape->values);
+    }
+    const size_t data_ndim = data_sinfo->ndim;
+    const size_t indices_ndim = indices_sinfo->ndim;
+    const size_t updates_ndim = updates_sinfo->ndim;
+    if (data_ndim + indices_ndim - k_dim->value - 1 != updates_ndim) {
+      ctx->ReportFatal(Diagnostic::Error(call)
+                       << "ScatterND op requires the updates tensor to have the rank of "
+                          "`data tensor + indices tensor - last axis of indices tensor - 1`. "
+                          "However, the given shapes are "
+                       << "data: " << ShapeExpr(data_shape->values)
+                       << ", indices: " << ShapeExpr(indices_shape->values)
+                       << ", updates: " << ShapeExpr(updates_shape->values));
+    }
+    if (k_dim->value > static_cast<int>(data_ndim)) {
+      ctx->ReportFatal(Diagnostic::Error(call)
+                       << "ScatterND op requires the last axis of indices tensor to be less than "
+                          "or equal to the rank of data tensor. However, the given shapes are "
+                       << "data: " << ShapeExpr(data_shape->values)
+                       << ", indices: " << ShapeExpr(indices_shape->values));
+    }
+    Array<PrimExpr> expected_updates_shape;
+    for (size_t i = 0; i < indices_ndim - 1; i++) {
+      expected_updates_shape.push_back(indices_shape->values[i]);
+    }
+    for (size_t i = k_dim->value; i < data_ndim; i++) {
+      expected_updates_shape.push_back(data_shape->values[i]);
+    }
+    auto check_shape = [&](const Array<PrimExpr>& expected, const Array<PrimExpr>& actual) {
+      if (expected.size() != actual.size()) {
+        return false;
+      }
+      for (size_t i = 0; i < expected.size(); i++) {
+        if (!analyzer->CanProve(expected[i] == actual[i])) {
+          return false;
+        }
+      }
+      return true;
+    };
+    if (!check_shape(expected_updates_shape, updates_shape->values)) {
+      ctx->ReportFatal(
+          Diagnostic::Error(call)
+          << "ScatterND op requires the updates tensor to have the shape with constraint: "
+          << "`updates.shape = indices.shape[:-1] + data.shape[K:]`, but got "
+          << "updates.shape: " << ShapeExpr(updates_shape->values) << ", indices.shape: "
+          << ShapeExpr(indices_shape->values) << ", data.shape: " << ShapeExpr(data_shape->values));
+    }
+  }
+  if (data_shape) {
+    return TensorStructInfo(ShapeExpr(data_shape->values), data_sinfo->dtype, data_sinfo->vdevice);
+  }
+  return TensorStructInfo(data_sinfo->dtype, data_sinfo->ndim, data_sinfo->vdevice);
+}
+
+TVM_REGISTER_OP("relax.scatter_nd")
+    .set_attrs_type<ScatterNDAttrs>()
+    .set_num_inputs(3)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .add_argument("indices", "Tensor", "The indices tensor.")
+    .add_argument("updates", "Tensor", "The input tensor of updates.")
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoScatterND)
+    .set_attr<Bool>("FPurity", Bool(true));
+
+/* relax.one_hot */
+TVM_REGISTER_NODE_TYPE(OneHotAttrs);
+Expr one_hot(Expr indices, PrimValue on_value, PrimValue off_value, int depth, int axis) {
+  ObjectPtr<OneHotAttrs> attrs = make_object<OneHotAttrs>();
+  attrs->depth = depth;
+  attrs->axis = axis;
+
+  // Check if on_value and off_value have the same dtype
+  DataType on_dtype = on_value->value->dtype;
+  DataType off_dtype = off_value->value->dtype;
+  ICHECK(on_dtype == off_dtype) << "one_hot: on_value and off_value must have the same dtype, "
+                                << "but got " << on_dtype << " and " << off_dtype;
+
+  ICHECK(depth > 0) << "one_hot: depth must be positive, but got " << depth;
+
+  static const Op& op = Op::Get("relax.one_hot");
+  return Call(op, {indices, on_value, off_value}, Attrs(attrs), {});
+}  // namespace relax
+
+TVM_REGISTER_GLOBAL("relax.op.one_hot").set_body_typed(one_hot);
+
+StructInfo InferStructInfoOneHot(const Call& call, const BlockBuilder& ctx) {
+  TensorStructInfo indices_sinfo = GetInputTensorStructInfo(call, 0, ctx);
+  const auto* attrs = call->attrs.as<OneHotAttrs>();
+  PrimValue on_value = Downcast<PrimValue>(call->args[1]);
+  PrimValue off_value = Downcast<PrimValue>(call->args[2]);
+  // Check if on_value and off_value have the same dtype
+  ICHECK(on_value->value->dtype == off_value->value->dtype)
+      << "one_hot: on_value and off_value must have the same dtype, "
+      << "but got " << on_value->value->dtype << " and " << off_value->value->dtype;
+  DataType dtype = on_value->value->dtype;
+
+  // Check if indices has an integer dtype
+  if (indices_sinfo->IsUnknownDtype()) {
+    LOG(WARNING) << "Data type of indices has not been specified. Assume it has an integer type.";
+  } else if (!(indices_sinfo->dtype.is_int() || indices_sinfo->dtype.is_uint())) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "one_hot op requires the input indices to have integer dtype. However, the "
+                        "given indices dtype is "
+                     << indices_sinfo->dtype);
+  }
+  // Check if indices has unknown dimension
+  if (indices_sinfo->IsUnknownNdim()) {
+    return TensorStructInfo(dtype, kUnknownNDim, indices_sinfo->vdevice);
+  }
+  // Get the shape of indices
+  const auto* indices_shape = indices_sinfo->shape.as<ShapeExprNode>();
+  if (indices_shape == nullptr) {
+    return TensorStructInfo(dtype, indices_sinfo->ndim + 1, indices_sinfo->vdevice);
+  }
+
+  Array<PrimExpr> output_shape = indices_shape->values;
+  int axis = attrs->axis;
+  if (axis < 0) {
+    axis += output_shape.size() + 1;
+  }
+  ICHECK(0 <= axis && axis <= static_cast<int>(output_shape.size()))
+      << "one_hot: axis must be in the range of [0, " << output_shape.size() << "], "
+      << "but got " << axis;
+  output_shape.insert(output_shape.begin() + axis, attrs->depth);
+
+  return TensorStructInfo(ShapeExpr(output_shape), dtype, indices_sinfo->vdevice);
+}
+
+TVM_REGISTER_OP("relax.one_hot")
+    .set_attrs_type<OneHotAttrs>()
+    .set_num_inputs(3)
+    .add_argument("indices", "Tensor", "The indices tensor.")
+    .add_argument("on_value", "PrimValue", "The value to fill at specified indices.")
+    .add_argument("off_value", "PrimValue", "The value to fill at other indices.")
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoOneHot)
     .set_attr<Bool>("FPurity", Bool(true));
 
 }  // namespace relax

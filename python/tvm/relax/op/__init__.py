@@ -50,6 +50,7 @@ from .binary import (
     divide,
     equal,
     floor_divide,
+    floor_mod,
     greater,
     greater_equal,
     left_shift,
@@ -60,6 +61,7 @@ from .binary import (
     logical_xor,
     maximum,
     minimum,
+    mod,
     multiply,
     not_equal,
     power,
@@ -72,6 +74,8 @@ from .create import (
     full_like,
     ones,
     ones_like,
+    eye,
+    eye_like,
     tril,
     triu,
     zeros,
@@ -89,10 +93,12 @@ from .manipulate import (
     flatten,
     flip,
     layout_transform,
+    one_hot,
     permute_dims,
     repeat,
     reshape,
     scatter_elements,
+    scatter_nd,
     split,
     squeeze,
     tile,
@@ -101,7 +107,7 @@ from .mask import masked_fill
 from .qdq import dequantize, quantize
 from .sampling import multinomial_from_uniform
 from .search import argmax, argmin, where
-from .set import unique
+from .set import nonzero, unique
 from .sorting import argsort, sort, topk
 from .statistical import cumprod, cumsum, max, mean, min, prod, std, sum, variance
 from .ternary import ewise_fma

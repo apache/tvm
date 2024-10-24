@@ -254,6 +254,27 @@ TVM_DLL Pass LegalizeOps(Optional<Map<String, PackedFunc>> cmap, bool enable_war
 TVM_DLL Pass RealizeVDevice();
 
 /*!
+ * \brief Attach layout free buffers to the tir::PrimFunc.
+ *
+ * This pass is used to attach layout free buffers to the tir::PrimFunc according to
+ * the function usage in the relax function. Currently, the layout free buffers are the model
+ * weights and relax constants.
+ *
+ * \note We recommend applying CanonicalizeBindings before this pass.
+ * \return The Pass.
+ */
+TVM_DLL Pass AttachAttrLayoutFreeBuffers();
+
+/*!
+ * \brief Split the layout rewrite preproc block to a separate tir::PrimFunc.
+ *
+ * This pass is used in the prepack weight after meta_schedule tuning.
+ *
+ * \return The Pass.
+ */
+TVM_DLL Pass SplitLayoutRewritePreproc();
+
+/*!
  * \brief Lift transformation of the parameters of a function.
  *
  * When some inputs of the function is marked as 'parameters' (the model weights), this pass

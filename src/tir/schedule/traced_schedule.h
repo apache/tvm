@@ -142,6 +142,8 @@ class TracedScheduleNode : public ConcreteScheduleNode {
   void EnterPostproc() final;
   void UnsafeHideBufferAccess(const BlockRV& block_rv, const String& buf_type,
                               const Array<IntImm>& buf_index_array) final;
+  void AnnotateBufferAccess(const BlockRV& block_rv, int buffer_index,
+                            BufferIndexType buffer_index_type, const IndexMap& index_map) final;
 };
 
 }  // namespace tir

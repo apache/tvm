@@ -260,7 +260,7 @@ class BinaryBase(OnnxOpConverter):
                 else inputs[0].data.numpy()
             )
             y = (
-                _np.array(inputs[0].value)
+                _np.array(inputs[1].value)
                 if isinstance(inputs[1], relax.PrimValue)
                 else inputs[1].data.numpy()
             )
@@ -287,7 +287,7 @@ class Sub(BinaryBase):
     relax_op = relax.op.subtract
 
     @classmethod
-    def _impl_v1(cls, bb, inputs, attr, params):
+    def _impl_v7(cls, bb, inputs, attr, params):
         return cls.base_impl(bb, inputs, attr, params)
 
 
@@ -298,7 +298,7 @@ class Mul(BinaryBase):
     relax_op = relax.op.multiply
 
     @classmethod
-    def _impl_v1(cls, bb, inputs, attr, params):
+    def _impl_v7(cls, bb, inputs, attr, params):
         return cls.base_impl(bb, inputs, attr, params)
 
 
@@ -309,7 +309,7 @@ class Div(BinaryBase):
     relax_op = relax.op.divide
 
     @classmethod
-    def _impl_v1(cls, bb, inputs, attr, params):
+    def _impl_v7(cls, bb, inputs, attr, params):
         return cls.base_impl(bb, inputs, attr, params)
 
 
@@ -320,7 +320,24 @@ class Pow(BinaryBase):
     relax_op = relax.op.power
 
     @classmethod
-    def _impl_v1(cls, bb, inputs, attr, params):
+    def _impl_v7(cls, bb, inputs, attr, params):
+        return cls.base_impl(bb, inputs, attr, params)
+
+
+class Mod(BinaryBase):
+    """Converts an onnx Mod node into an equivalent Relax expression."""
+
+    numpy_op = _np.mod
+    relax_op = relax.op.mod
+
+    @classmethod
+    def _impl_v10(cls, bb, inputs, attr, params):
+        if attr.get("fmod", 0) == 0:
+            cls.numpy_op = _np.fmod
+            cls.relax_op = relax.op.floor_mod
+        else:
+            cls.numpy_op = _np.mod
+            cls.relax_op = relax.op.mod
         return cls.base_impl(bb, inputs, attr, params)
 
 
@@ -523,6 +540,23 @@ class LogSoftmax(OnnxOpConverter):
         return relax.op.nn.log_softmax(inputs[0], axis=axis)
 
 
+class Hardmax(OnnxOpConverter):
+    """Converts an onnx Hardmax node into an equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v13(cls, bb, inputs, attr, params):
+        axis = attr.get("axis", -1)
+        indices = inputs[0]
+        dtype = indices.struct_info.dtype
+        axis_len = int(inputs[0].struct_info.shape[axis])
+        argmax = relax.op.argmax(indices, axis=axis)
+        on_value = relax.PrimValue(tvm.tir.const(1.0, dtype))
+        off_value = relax.PrimValue(tvm.tir.const(0.0, dtype))
+
+        one_hot = relax.op.one_hot(argmax, on_value, off_value, axis_len, axis)
+        return one_hot
+
+
 class Transpose(OnnxOpConverter):
     """Converts an onnx Transpose node into an equivalent Relax expression."""
 
@@ -692,6 +726,36 @@ class ScatterElements(OnnxOpConverter):
         return relax.op.scatter_elements(inputs[0], inputs[1], inputs[2], axis=axis)
 
 
+class ScatterND(OnnxOpConverter):
+    """Convert an onnx ScatterND node into an equivalent Relax expression."""
+
+    @staticmethod
+    def _reduction_check(attr, valid_reductions: List[str]):
+        reduction = attr.get("reduction", None)
+        reduction = reduction or b"update"
+        reduction = reduction.decode("utf-8")
+        reduction = "update" if reduction == "none" else reduction
+        assert (
+            reduction in valid_reductions
+        ), f"Only {valid_reductions} reductions are supported, but {reduction} is gotten"
+
+        return reduction
+
+    @classmethod
+    def _impl_v11(cls, bb, inputs, attr, params):
+        return relax.op.scatter_nd(inputs[0], inputs[1], inputs[2])
+
+    @classmethod
+    def _impl_v16(cls, bb, inputs, attr, params):
+        reduction = cls._reduction_check(attr, ["update", "add", "mul"])
+        return relax.op.scatter_nd(inputs[0], inputs[1], inputs[2], reduction)
+
+    @classmethod
+    def _impl_v18(cls, bb, inputs, attr, params):
+        reduction = cls._reduction_check(attr, ["update", "add", "mul", "min", "max"])
+        return relax.op.scatter_nd(inputs[0], inputs[1], inputs[2], reduction)
+
+
 class Size(OnnxOpConverter):
     """Convert an onnx Size node into an equivalent Relax expression."""
 
@@ -699,6 +763,20 @@ class Size(OnnxOpConverter):
     def _impl_v1(cls, bb, inputs, attr, params):
         # TODO(tvm-team): add native support for size op
         return relax.op.prod(relax.op.shape_to_tensor(relax.op.shape_of(inputs[0])))
+
+
+class EyeLike(OnnxOpConverter):
+    """Convert an onnx EyeLike node into an equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v9(cls, bb, inputs, attr, params):
+        k = attr.get("k", 0)
+        input_dtype = inputs[0].struct_info.dtype
+        if "dtype" in attr and get_type(attr["dtype"]) != input_dtype:
+            raise ValueError(
+                f"dtype mismatch between input ({input_dtype}) and attribute ({attr['dtype']})"
+            )
+        return relax.op.eye_like(inputs[0], k, input_dtype)
 
 
 class Gemm(OnnxOpConverter):
@@ -1551,6 +1629,35 @@ class Slice(OnnxOpConverter):
 
 class Pad(OnnxOpConverter):
     """Converts an onnx Pad node into an equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v2(cls, bb, inputs, attr, params):
+        pads = attr.get("pads")
+        pads = relax.const(_np.array(pads), inputs[0].struct_info.shape[0].dtype)
+        constant_value = attr.get("value")
+        if constant_value is None:
+            constant_value = 0.0
+
+        if isinstance(pads, relax.Constant):
+            pad_before, pad_after = _np.split(pads.data.numpy(), 2)
+            pad_before = _np.ndarray.tolist(pad_before)
+            pad_after = _np.ndarray.tolist(pad_after)
+        else:
+            raise ValueError("Dynamic pads are not supported yet.")
+
+        pad_mode = attr.get("mode", b"constant").decode("utf-8")
+        if not pad_mode in ["constant", "edge", "reflect"]:
+            raise tvm.error.OpAttributeInvalid(
+                "Value " + pad_mode + ' in attribute "mode" is invalid for operator Pad.'
+            )
+
+        if pad_mode == "constant":
+            return bb.emit_te(topi.nn.pad, inputs[0], pad_before, pad_after, constant_value)
+        elif pad_mode == "reflect":
+            return bb.emit_te(topi.nn.mirror_pad, inputs[0], pad_before, pad_after, "REFLECT")
+        else:
+            # TODO(gigiblender) Support edge mode.
+            raise NotImplementedError("Pad mode {} not implemented".format(pad_mode))
 
     @classmethod
     def _impl_v11(cls, bb, inputs, attr, params):
@@ -2461,13 +2568,13 @@ class OneHot(OnnxOpConverter):
         depth = get_constant(inputs[1], params)
         values = get_constant(inputs[2], params)
         axis = attr.get("axis", -1)
-        dtype = values.struct_info.dtype
         assert isinstance(depth, relax.Constant), "Only constant depth currently supported."
         depth = depth.data.numpy().tolist()
         assert isinstance(values, relax.Constant), "Only constant values currently supported."
         values = values.data.numpy().tolist()
         off_value, on_value = values
-        return bb.emit_te(topi.one_hot, indices, on_value, off_value, depth, axis, dtype)
+        off_value, on_value = relax.PrimValue(off_value), relax.PrimValue(on_value)
+        return relax.op.one_hot(indices, on_value, off_value, depth, axis)
 
 
 class Unique(OnnxOpConverter):
@@ -2480,6 +2587,14 @@ class Unique(OnnxOpConverter):
         sorted = bool(attr.get("sorted", 1))
         # TODO(tvm-team): Add support for return_index, return_inverse, return_counts
         return relax.op.unique(data, sorted=sorted, axis=axis)
+
+
+class NonZero(OnnxOpConverter):
+    """Converts an onnx NonZero node into an equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v9(cls, bb, inputs, attr, params):
+        return relax.op.nonzero(inputs[0])
 
 
 class HardSigmoid(OnnxOpConverter):
@@ -2733,7 +2848,7 @@ def _get_convert_map():
         "Sub": Sub,
         "Mul": Mul,
         "Div": Div,
-        # "Mod": Mod,
+        "Mod": Mod,
         "Less": Less,
         "LessOrEqual": LessOrEqual,
         "Greater": Greater,
@@ -2803,7 +2918,7 @@ def _get_convert_map():
         "Sigmoid": Sigmoid,
         "Softmax": Softmax,
         "LogSoftmax": LogSoftmax,
-        # "Hardmax": Hardmax,
+        "Hardmax": Hardmax,
         "Transpose": Transpose,
         "Unsqueeze": Unsqueeze,
         "Where": Where,
@@ -2819,10 +2934,10 @@ def _get_convert_map():
         # "GatherND": GatherND,
         "Scatter": Scatter,
         "ScatterElements": ScatterElements,
-        # "ScatterND": ScatterND,
+        "ScatterND": ScatterND,
         # "Compress": Compress,
         "Size": Size,
-        # "EyeLike": EyeLike,
+        "EyeLike": EyeLike,
         # Normalization
         "BatchNormalization": BatchNormalization,
         "LayerNormalization": LayerNormalization,
@@ -2867,7 +2982,7 @@ def _get_convert_map():
         "Range": Range,
         "OneHot": OneHot,
         "Unique": Unique,
-        # "NonZero": NonZero,
+        "NonZero": NonZero,
         # "If": If,
         # "LRN": LRN,
         # "MaxRoiPool": MaxRoiPool,
