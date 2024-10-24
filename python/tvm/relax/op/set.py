@@ -110,3 +110,40 @@ def numpy_unique(
         return tvm.nd.array(output_sorted_numpy)
     output_numpy = np.take(x_numpy, builtins.sorted(indices), axis=axis)
     return tvm.nd.array(output_numpy)
+
+
+def nonzero(x: Expr) -> Expr:
+    """Find the indices of elements of a tensor that are non-zero.
+
+    Parameters
+    ----------
+    x : relax.Expr
+        The input data tensor.
+
+    Returns
+    -------
+    result : relax.Expr
+        A (n+1)-D tensor containing indices of non-zero elements.
+
+    Note
+    ----
+    This function is equivalent to `onnx.nonzero`.
+
+    Examples
+    --------
+
+    .. code-block:: python
+
+        x = [[0, 1],
+             [2, 0]]
+        nonzero(x) = [[0, 1],
+                      [1, 0]]
+
+    """
+    return _ffi_api.nonzero(x)  # type: ignore
+
+
+@tvm.register_func("relax.run.nonzero")
+def numpy_nonzero(x: tvm.nd.array) -> tvm.nd.array:
+    np_result = np.atleast_1d(x.numpy()).nonzero()
+    return tvm.nd.array(np.stack(np_result, axis=0))

@@ -511,3 +511,86 @@ def scatter_elements(
 
     """
     return _ffi_api.scatter_elements(data, indices, updates, axis, reduction)  # type: ignore
+
+
+def scatter_nd(data: Expr, indices: Expr, updates: Expr, reduction: str = "update") -> Expr:
+    """Scatter updates into an array according to indices.
+
+    Parameters
+    ----------
+    data: relax.Expr
+        The input data to be updated.
+
+    indices: relax.Expr
+        The index positions to update in `data`.
+
+    updates: relax.Expr
+        Values to replace to.
+
+    reduction: str
+        Type of reduction to apply: update, add, mul, max, min.
+        It is "update" by default.
+
+    Returns
+    -------
+    result : relax.Expr
+        The result has the same shape as data.
+
+    Examples
+    --------
+    .. code-block:: python
+
+       # inputs
+       data = [1, 2, 3, 4, 5, 6, 7, 8]
+       indices = [[4], [3], [1], [7]]
+       updates = [9, 10, 11, 12]
+
+       # output
+       output = [1, 11, 3, 10, 9, 6, 7, 12]
+
+    """
+    return _ffi_api.scatter_nd(data, indices, updates, reduction)  # type: ignore
+
+
+def one_hot(
+    indices: Expr, on_value: PrimValue, off_value: PrimValue, depth: int, axis: int = -1
+) -> Expr:
+    """Returns a one-hot tensor.
+
+    Parameters
+    ----------
+    indices : relax.Expr
+        The indices to set to `on_value`.
+
+    on_value : relax.PrimValue
+        The value to fill at `indices`.
+
+    off_value : relax.PrimValue
+        The value to fill at other locations.
+
+    depth : int
+        The depth of the one-hot dimension.
+
+    axis : int, optional
+        The axis to fill. Default is -1 which adds a new dimension at the end.
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        indices = [0, 1, 2]
+        depth = 3
+        on_value = 1
+        off_value = 0
+
+        one_hot(indices, on_value, off_value, depth) =
+            [[1, 0, 0],
+             [0, 1, 0],
+             [0, 0, 1]]
+    """
+    return _ffi_api.one_hot(indices, on_value, off_value, depth, axis)  # type: ignore
