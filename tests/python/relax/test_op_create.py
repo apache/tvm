@@ -545,6 +545,64 @@ def test_ones_like_zeros_like_infer_struct_info_wrong_input_type():
         bb.normalize(relax.op.zeros_like(x1))
 
 
+def test_eye_infer_struct_info():
+    bb = relax.BlockBuilder()
+
+    _check_inference(bb, relax.op.eye(3), relax.TensorStructInfo((3, 3), "float32"))
+    _check_inference(bb, relax.op.eye(2, 4), relax.TensorStructInfo((2, 4), "float32"))
+    _check_inference(bb, relax.op.eye(3, dtype="int64"), relax.TensorStructInfo((3, 3), "int64"))
+    _check_inference(bb, relax.op.eye(3, 5, k=1), relax.TensorStructInfo((3, 5), "float32"))
+    _check_inference(bb, relax.op.eye(3, 5, k=-2), relax.TensorStructInfo((3, 5), "float32"))
+
+
+def test_eye_infer_struct_info_symbolic():
+    bb = relax.BlockBuilder()
+    n = tir.Var("n", "int64")
+    m = tir.Var("m", "int64")
+    k = tir.Var("k", "int64")
+
+    _check_inference(bb, relax.op.eye(n), relax.TensorStructInfo((n, n), "float32"))
+    _check_inference(bb, relax.op.eye(n, m), relax.TensorStructInfo((n, m), "float32"))
+    _check_inference(bb, relax.op.eye(n, k=k), relax.TensorStructInfo((n, n), "float32"))
+
+
+def test_eye_like_infer_struct_info():
+    bb = relax.BlockBuilder()
+    x0 = relax.Var("x", R.Tensor((3, 4), "float32"))
+    x1 = relax.Var("x", R.Tensor((2, 5), "int64"))
+    x2 = relax.Var("x", R.Tensor((3, 3)))
+
+    _check_inference(bb, relax.op.eye_like(x0), relax.TensorStructInfo((3, 4), "float32"))
+    _check_inference(bb, relax.op.eye_like(x1), relax.TensorStructInfo((2, 5), "int64"))
+    _check_inference(bb, relax.op.eye_like(x2), relax.TensorStructInfo((3, 3), dtype=""))
+    _check_inference(bb, relax.op.eye_like(x0, k=1), relax.TensorStructInfo((3, 4), "float32"))
+    _check_inference(
+        bb, relax.op.eye_like(x1, dtype="float32"), relax.TensorStructInfo((2, 5), "float32")
+    )
+
+
+def test_eye_like_infer_struct_info_symbolic():
+    bb = relax.BlockBuilder()
+    n = tir.Var("n", "int64")
+    m = tir.Var("m", "int64")
+    x = relax.Var("x", R.Tensor((n, m), "float32"))
+    k = tir.Var("k", "int64")
+
+    _check_inference(bb, relax.op.eye_like(x), relax.TensorStructInfo((n, m), "float32"))
+    _check_inference(bb, relax.op.eye_like(x, k=k), relax.TensorStructInfo((n, m), "float32"))
+
+
+def test_eye_like_infer_struct_info_wrong_input_type():
+    bb = relax.BlockBuilder()
+    x0 = relax.Var("x", relax.ShapeStructInfo((2, 3)))
+    x1 = relax.Var("x", relax.FuncStructInfo([], R.Tensor((2, 3), "float32")))
+
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.eye_like(x0))
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.eye_like(x1))
+
+
 def test_arange_infer_struct_info():
     bb = relax.BlockBuilder()
 

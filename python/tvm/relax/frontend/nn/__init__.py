@@ -23,6 +23,8 @@ from .extern import ExternModule, ObjectModule, SourceModule
 from .modules import (
     GELU,
     Conv1D,
+    Conv2D,
+    Conv3D,
     ConvTranspose1D,
     Embedding,
     GroupNorm,

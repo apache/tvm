@@ -112,6 +112,21 @@ JNIEXPORT void JNICALL Java_org_apache_tvm_LibInfo_tvmFuncPushArgHandle(JNIEnv* 
   e->tvmFuncArgTypes.push_back(static_cast<int>(argType));
 }
 
+JNIEXPORT void JNICALL Java_org_apache_tvm_LibInfo_tvmFuncPushArgDevice(JNIEnv* env, jobject obj,
+                                                                        jobject arg) {
+  jclass deviceClass = env->FindClass("org/apache/tvm/Device");
+  jfieldID deviceTypeField = env->GetFieldID(deviceClass, "deviceType", "I");
+  jfieldID deviceIdField = env->GetFieldID(deviceClass, "deviceId", "I");
+  jint deviceType = env->GetIntField(arg, deviceTypeField);
+  jint deviceId = env->GetIntField(arg, deviceIdField);
+
+  TVMValue value;
+  value.v_int64 = deviceToInt64(deviceType, deviceId);
+  TVMFuncArgsThreadLocalEntry* e = TVMFuncArgsThreadLocalStore::Get();
+  e->tvmFuncArgValues.push_back(value);
+  e->tvmFuncArgTypes.push_back(kDLDevice);
+}
+
 JNIEXPORT void JNICALL Java_org_apache_tvm_LibInfo_tvmFuncPushArgBytes(JNIEnv* env, jobject obj,
                                                                        jbyteArray arg) {
   jbyteArray garg = reinterpret_cast<jbyteArray>(env->NewGlobalRef(arg));

@@ -168,6 +168,42 @@ def _scatter_elements(bb: BlockBuilder, call: Call) -> Expr:
     )
 
 
+@register_legalize("relax.scatter_nd")
+def _scatter_nd(bb: BlockBuilder, call: Call) -> Expr:
+    # TODO(relax-team): Support native scatter_nd without te extern
+    def scatter_nd(data, indices, updates, reduction):
+        axes = list(range(len(indices.shape)))
+        indices = topi.transpose(indices, axes[-1:] + axes[:-1])
+        return topi.scatter_nd(data, indices, updates, reduction)
+
+    return bb.call_te(
+        scatter_nd,
+        call.args[0],
+        call.args[1],
+        call.args[2],
+        call.attrs.reduction,
+    )
+
+
+@register_legalize("relax.one_hot")
+def _one_hot(bb: BlockBuilder, call: Call) -> Expr:
+    indices, on_value, off_value = call.args
+    if not (isinstance(on_value, relax.PrimValue) and isinstance(off_value, relax.PrimValue)):
+        raise ValueError("on_value and off_value must be PrimValue")
+    on_value, off_value = on_value.value, off_value.value
+    if on_value.dtype != off_value.dtype:
+        raise ValueError("on_value and off_value must have the same dtype")
+    return bb.call_te(
+        topi.one_hot,
+        indices,
+        on_value,
+        off_value,
+        call.attrs.depth,
+        call.attrs.axis,
+        on_value.dtype,
+    )
+
+
 @register_legalize("relax.layout_transform")
 def _layout_transform(bb: BlockBuilder, call: Call) -> Expr:
     def te_layout_transform(data, name):
