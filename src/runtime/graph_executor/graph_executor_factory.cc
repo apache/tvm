@@ -121,6 +121,8 @@ Module GraphExecutorFactory::ExecutorCreate(const std::vector<Device>& devs) {
   exec->Init(this->graph_json_, this->imports_[0], devs, PackedFunc());
   // set params
   SetParams(exec.get(), this->params_);
+  // release resources since this->params_ will not be used any more during inference.
+  this->params_.clear();
   return Module(exec);
 }
 
