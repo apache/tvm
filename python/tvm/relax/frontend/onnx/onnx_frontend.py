@@ -1570,7 +1570,7 @@ class Split(OnnxOpConverter):
             splits_rank = splits.checked_type.ndim
         if splits is not None and splits_rank > 0:
             if isinstance(splits, relax.Constant):
-                splits = splits.data.asnumpy()
+                splits = splits.data.numpy()
                 indices = []
                 index = 0
                 for i in splits[:-1]:
