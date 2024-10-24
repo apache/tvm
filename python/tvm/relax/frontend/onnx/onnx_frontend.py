@@ -1203,18 +1203,19 @@ class Squeeze(OnnxOpConverter):
         axis = get_constant(inputs[1], params)
         if isinstance(axis, relax.Constant):
             axis = [int(x) for x in axis.data.numpy()]
-        # If data is constant, perform computation directly.
-        if isinstance(data, relax.Constant):
-            out_data = _np.squeeze(data.data.numpy(), tuple(axis))
-            return relax.const(out_data, data.struct_info.dtype)
+            
+            # If data is constant, perform computation directly.
+            if isinstance(data, relax.Constant):
+                out_data = _np.squeeze(data.data.numpy(), tuple(axis))
+                return relax.const(out_data, data.struct_info.dtype)
 
-        if isinstance(data, relax.ShapeExpr):
-            if axis == [0]:
-                return relax.PrimValue(data[0])
-            else:
-                raise NotImplementedError(
-                    "Squeeze with symbolic axes and non-zero axes is not supported."
-                )
+            if isinstance(data, relax.ShapeExpr):
+                if axis == [0]:
+                    return relax.PrimValue(data[0])
+                else:
+                    raise NotImplementedError(
+                        "Squeeze with symbolic axes and non-zero axes is not supported."
+                    )
 
         return relax.op.squeeze(data, axis)
 
