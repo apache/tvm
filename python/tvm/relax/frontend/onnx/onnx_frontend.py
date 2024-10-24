@@ -1209,7 +1209,6 @@ class Squeeze(OnnxOpConverter):
             return relax.const(out_data, data.struct_info.dtype)
 
         if isinstance(data, relax.ShapeExpr):
-
             if axis == [0]:
                 return relax.PrimValue(data[0])
             else:
@@ -1622,7 +1621,6 @@ class Slice(OnnxOpConverter):
             steps = [1] * len(axes)
         # If input is a shape tensor, we can directly extract it.
         if isinstance(data, relax.ShapeExpr):
-
             shape_data = [dim for dim in data]
             # Starts, ends, and steps must be 1-d for shape operation.
             assert all(len(i) == 1 for i in [starts, ends, steps])
