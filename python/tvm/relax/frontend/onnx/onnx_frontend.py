@@ -1199,14 +1199,25 @@ class Squeeze(OnnxOpConverter):
 
     @classmethod
     def _impl_v13(cls, bb, inputs, attr, params):
+        data = inputs[0]
         axis = get_constant(inputs[1], params)
         if isinstance(axis, relax.Constant):
             axis = [int(x) for x in axis.data.numpy()]
         # If data is constant, perform computation directly.
         if isinstance(inputs[0], relax.Constant):
-            out_data = _np.squeeze(inputs[0].data.numpy(), axis)
-            return relax.const(out_data, inputs[0].struct_info.dtype)
-        return relax.op.squeeze(inputs[0], axis)
+            out_data = _np.squeeze(data.data.numpy(), axis[0])
+            return relax.const(out_data, data.struct_info.dtype)
+
+        if isinstance(data, relax.ShapeExpr):
+
+            if axis == [0]:
+                return relax.PrimValue(data[0])
+            else:
+                raise NotImplementedError(
+                    "Unsqueeze with symbolic axes and non-zero axes is not supported."
+                )
+
+        return relax.op.squeeze(data, axis)
 
 
 class Constant(OnnxOpConverter):
@@ -1564,7 +1575,7 @@ class Split(OnnxOpConverter):
                 index = 0
                 for i in splits[:-1]:
                     index += i
-                    indices.append(index)
+                    indices.append(index.item())
             else:
                 raise ValueError("Dynamic Split not yet supported")
         # When splits isnt specified divide evenly over axis.
@@ -1611,11 +1622,17 @@ class Slice(OnnxOpConverter):
             steps = [1] * len(axes)
         # If input is a shape tensor, we can directly extract it.
         if isinstance(data, relax.ShapeExpr):
-            shape_data = [dim.value for dim in data]
+
+            shape_data = [dim for dim in data]
             # Starts, ends, and steps must be 1-d for shape operation.
             assert all(len(i) == 1 for i in [starts, ends, steps])
             sliced_values = shape_data[starts[0] : ends[0] : steps[0]]
-            return relax.const(sliced_values, "int64")
+
+            if all([isinstance(val, (tir.IntImm, int)) for val in sliced_values]):
+                return relax.const([x.value for x in sliced_values], "int64")
+            else:
+                return relax.ShapeExpr(sliced_values)
+
         # If all `starts`, `ends`, and `steps` are constant, use strict mode
         # Otherwise, we assume the slice is inbound.
         assume_inbound = not all(
@@ -3220,6 +3237,7 @@ class ONNXGraphImporter:
                 "Equal",
                 "Where",
                 "Cast",
+                "Squeeze",
             ]
             return_tuple_ops = [
                 "SequenceConstruct",
