@@ -186,6 +186,12 @@ def validate_targets(parse_targets, additional_target_options=None):
     if additional_target_options is not None:
         for target_name in additional_target_options:
             if not any([target for target in parse_targets if target["name"] == target_name]):
+                # When built with USE_MRVL=ON, add-on target options are passed from MRVL codegen's
+                # config which has pass_default=True and compiled with default target, don't error
+                # Use case: --target="llvm" cnn.onnx
+                if (len(tvm_targets) == 1) and (target_name == "mrvl"):
+                    return
+
                 first_option = list(additional_target_options[target_name].keys())[0]
                 raise TVMCException(
                     f"Passed --target-{target_name}-{first_option}"
