@@ -39,7 +39,7 @@ from . import _ffi_api
 # This feature is not supported until python 3.10:
 # https://docs.python.org/3.10/whatsnew/3.10.html#pep-613-typealias
 Expr = Union[tvm.ir.RelayExpr]
-Type = Union[tvm.ir.Type]
+Type = Union[tvm.ir.Type]  # pylint: disable=invalid-name
 GlobalVar = Union[tvm.ir.GlobalVar]
 
 

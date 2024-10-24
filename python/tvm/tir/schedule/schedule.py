@@ -61,7 +61,8 @@ class BlockRV(Object):
 # It is a workaround for mypy: https://github.com/python/mypy/issues/7866#issuecomment-549454370
 # This feature is not supported until python 3.10:
 # https://docs.python.org/3.10/whatsnew/3.10.html#pep-613-typealias
-ExprRV = Union[PrimExpr]  # A random variable that evaluates to an integer
+# A random variable that evaluates to an integer
+ExprRV = Union[PrimExpr]  # pylint: disable=invalid-name
 
 RAND_VAR_TYPE = Union[ExprRV, BlockRV, LoopRV]  # pylint: disable=invalid-name
 

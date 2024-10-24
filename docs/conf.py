@@ -160,7 +160,9 @@ BUTTON = (
 
 
 @monkey_patch("sphinx_gallery.gen_rst", "save_rst_example")
-def save_rst_example(example_rst, example_file, time_elapsed, memory_used, gallery_conf, real_func):
+def save_rst_example(
+    example_rst, example_file, time_elapsed, memory_used, gallery_conf, language, real_func
+):
     """Monkey-patch save_rst_example to include the "Open in Colab" button."""
 
     # The url is the md5 hash of the notebook path.
@@ -179,7 +181,9 @@ def save_rst_example(example_rst, example_file, time_elapsed, memory_used, galle
         python_file=example_fname, ref_name=ref_fname, colab_url=colab_url, button_svg=BUTTON
     )
     with patch("sphinx_gallery.gen_rst.EXAMPLE_HEADER", new_header):
-        real_func(example_rst, example_file, time_elapsed, memory_used, gallery_conf)
+        real_func(
+            example_rst, example_file, time_elapsed, memory_used, gallery_conf, language=language
+        )
 
 
 INCLUDE_DIRECTIVE_RE = re.compile(r"^([ \t]*)\.\. include::\s*(.+)\n", flags=re.M)
@@ -450,10 +454,12 @@ gallery_dirs = [
 
 
 subsection_order = ExplicitOrder(
-    str(p)
-    for p in [
-        tvm_path / "vta" / "tutorials" / "frontend",
-        tvm_path / "vta" / "tutorials" / "optimize",
+    [
+        str(p)
+        for p in [
+            tvm_path / "vta" / "tutorials" / "frontend",
+            tvm_path / "vta" / "tutorials" / "optimize",
+        ]
     ]
 )
 
