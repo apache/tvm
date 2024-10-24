@@ -582,15 +582,6 @@ transform::Sequential MixedModulePassManager(IRModule mixed_mod, Target target) 
 
   mixed_pass_list.push_back(tir::transform::AnnotateEntryFunc());
 
-  bool detect_global_barrier =
-      pass_ctx->GetConfig<Bool>("tir.detect_global_barrier", Bool(false)).value();
-  if (detect_global_barrier) {
-    mixed_pass_list.push_back(tir::transform::ThreadSync("global"));
-  }
-
-  mixed_pass_list.push_back(tir::transform::ThreadSync("shared"));
-  mixed_pass_list.push_back(tir::transform::ThreadSync("shared.dyn"));
-  mixed_pass_list.push_back(tir::transform::ThreadSync("warp"));
   mixed_pass_list.push_back(tir::transform::InferFragment());
   mixed_pass_list.push_back(tir::transform::LowerThreadAllreduce());
 
@@ -610,6 +601,16 @@ transform::Sequential MixedModulePassManager(IRModule mixed_mod, Target target) 
   // MergeSharedMemoryAllocations must be applied after SplitHostDevice
   // because the merged allocation site is at the beginning of each device function
   mixed_pass_list.push_back(tir::transform::MergeSharedMemoryAllocations());
+
+  bool detect_global_barrier =
+      pass_ctx->GetConfig<Bool>("tir.detect_global_barrier", Bool(false)).value();
+  if (detect_global_barrier) {
+    mixed_pass_list.push_back(tir::transform::ThreadSync("global"));
+  }
+
+  mixed_pass_list.push_back(tir::transform::ThreadSync("shared"));
+  mixed_pass_list.push_back(tir::transform::ThreadSync("shared.dyn"));
+  mixed_pass_list.push_back(tir::transform::ThreadSync("warp"));
 
   bool unpacked_api = mixed_mod->GetAttr<relay::Executor>(tvm::attr::kExecutor)
                           .value_or(relay::Executor::Create("graph", {}))
