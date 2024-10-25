@@ -855,7 +855,8 @@ def _timed_eval_func(
     # pylint: disable=broad-except
     except Exception:
         costs = (MAX_FLOAT,)
-        error_no = MeasureErrorNo.COMPILE_DEVICE
+        print("COMPILE_DEVICE_1")
+#        error_no = MeasureErrorNo.COMPILE_DEVICE
         error_msg = make_traceback_info()
 
     if error_no == 0:
@@ -1068,7 +1069,8 @@ def _timed_rpc_run(
     # pylint: disable=broad-except
     except Exception:
         costs = (MAX_FLOAT,)
-        error_no = MeasureErrorNo.COMPILE_DEVICE
+        print("COMPILE_DEVICE_2")
+#        error_no = MeasureErrorNo.COMPILE_DEVICE
         error_msg = make_traceback_info()
 
     if error_no == 0:
@@ -1134,7 +1136,8 @@ def _timed_rpc_run(
         if error_no == MeasureErrorNo.NO_ERROR:
             print("*", end="")
         else:
-            print("*E", end="")  # Run error
+            # print(error_no)
+            print("E", end="")  # Run error
 
     return costs, error_no, error_msg, toc - tic + build_res.time_cost, toc
 

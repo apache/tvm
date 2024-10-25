@@ -198,12 +198,12 @@ def select_implementation(op, attrs, inputs, out_type, target, use_autotvm=True)
 
     # If not use autotvm, always return the implementation with the highest priority
     if not use_autotvm:
-        logger.info(
-            "Using %s for %s based on highest priority (%d)",
-            best_plevel_impl.name,
-            op.name,
-            best_plevel_impl.plevel,
-        )
+#        logger.info(
+#            "Using %s for %s based on highest priority (%d)",
+#            best_plevel_impl.name,
+#            op.name,
+#            best_plevel_impl.plevel,
+#        )
         outs = best_plevel_impl.compute(attrs, inputs, out_type)
         return best_plevel_impl, outs
 
@@ -265,12 +265,12 @@ def select_implementation(op, attrs, inputs, out_type, target, use_autotvm=True)
                 autotvm_logger.warning(info_msg)
             autotvm_logger.debug(msg)
 
-    logger.info(
-        "Using %s for %s based on highest priority (%s)",
-        best_plevel_impl.name,
-        op.name,
-        best_plevel_impl.plevel,
-    )
+#    logger.info(
+#        "Using %s for %s based on highest priority (%s)",
+#        best_plevel_impl.name,
+#        op.name,
+#        best_plevel_impl.plevel,
+#    )
     return best_plevel_impl, outputs[best_plevel_impl]
 
 
