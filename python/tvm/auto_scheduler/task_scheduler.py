@@ -517,40 +517,48 @@ class TaskScheduler:
                     print("All tasks finished tuning")
                 break      
 
-        core_key = {}
+        core_key = {} # Filtering and Finding Convolution Layer 
+        # Convolution Layer has ff and ax (ff is i dont know but, that means Conv2d)
+        # ax may be actually... relu but ...
+        
         output_keys = {}
         for i in range(len(self.best_measure_inputs)):
             init_state = self.best_measure_inputs[i].task.compute_dag.init_state
+            flags = False
             for j in range(len(init_state.stages)):
                 if str(init_state.stages[j].op.name) == "Conv2dOutput" or str(init_state.stages[j].op.name) == "inverse":
+                    flags = True
                     self.core[i] = {}
                     self.output[i] = {}
                     output_keys[i] = []
-            for j in range(len(init_state.stages)):
-                if str(init_state.stages[j].op.name) == "Conv2dOutput" or str(init_state.stages[j].op.name) == "inverse":
-                    init_stage = init_state.stages[j]
-                    key_idx = 0
-                    for k in range(len(init_stage.iters)):
-                        init_iter = init_stage.iters[k]
-                        if int(init_iter.range.extent) > 1:
-                            if key_idx == 2:
-                                core_key[i] = str(init_iter.name)
-                            self.core[i][str(init_iter.name)] = int(init_iter.range.extent)
-                            key_idx += 1
-                if str(init_state.stages[j].op.name) == "conv2d_winograd" or str(init_state.stages[j].op.name) == "T_relu" or (i in self.output and j == len(init_state.stages) - 1):
-                    init_stage = init_state.stages[j]
-                    key_idx = 0
-                    for k in range(len(init_stage.iters)):
-                        init_iter = init_stage.iters[k]
-                        if int(init_iter.range.extent) > 1:
-                            output_keys[i].append(str(init_iter.name))
-                            self.output[i][str(init_iter.name)] = int(init_iter.range.extent)
-                            key_idx += 1
-                    if core_key[i] != "ff":
-                        core_key[i] = output_keys[i][2]
-                    break  
-
-        for i in range(len(self.best_measure_inputs)):
+            if flags:
+                for j in range(len(init_state.stages)):
+                    if str(init_state.stages[j].op.name) == "Conv2dOutput" or str(init_state.stages[j].op.name) == "inverse":
+                        init_stage = init_state.stages[j]
+                        key_idx = 0
+                        for k in range(len(init_stage.iters)):
+                            init_iter = init_stage.iters[k]
+                            if int(init_iter.range.extent) > 1:
+                                if key_idx == 2:
+                                    core_key[i] = str(init_iter.name)
+                                self.core[i][str(init_iter.name)] = int(init_iter.range.extent)
+                                key_idx += 1
+                    if str(init_state.stages[j].op.name) == "conv2d_winograd" or str(init_state.stages[j].op.name) == "T_relu" or (i in self.output and j == len(init_state.stages) - 1):
+                        init_stage = init_state.stages[j]
+                        key_idx = 0
+                        for k in range(len(init_stage.iters)):
+                            init_iter = init_stage.iters[k]
+                            if int(init_iter.range.extent) > 1:
+                                output_keys[i].append(str(init_iter.name))
+                                self.output[i][str(init_iter.name)] = int(init_iter.range.extent)
+                                key_idx += 1
+                        if core_key[i] != "ff":
+                            core_key[i] = output_keys[i][2]
+                        break  
+        
+        # Find Parameters of size of extracting channel data.
+        # for i in range(len(self.best_measure_inputs)):
+        for i in list(output_keys.keys()):
             cand1 = []
             cand2 = []
             state = self.best_measure_inputs[i].state

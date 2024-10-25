@@ -172,6 +172,7 @@ def connect_with_retry(addr, timeout=60, retry_period=5):
                 raise sock_err
             period = time.time() - tstart
             if period > timeout:
+                #HERE! TODO LIST, YOU CAN EDIT FOR IT, DONT RAISE IT! ############################
                 raise RuntimeError("Failed to connect to server %s" % str(addr))
             logger.warning(
                 "Cannot connect to tracker %s, retry in %g secs...", str(addr), retry_period
