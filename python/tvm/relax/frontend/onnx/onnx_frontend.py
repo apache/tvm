@@ -1203,7 +1203,7 @@ class Squeeze(OnnxOpConverter):
         axis = get_constant(inputs[1], params)
         if isinstance(axis, relax.Constant):
             axis = [int(x) for x in axis.data.numpy()]
-            
+
             # If data is constant, perform computation directly.
             if isinstance(data, relax.Constant):
                 out_data = _np.squeeze(data.data.numpy(), tuple(axis))
@@ -1622,7 +1622,7 @@ class Slice(OnnxOpConverter):
             steps = [1] * len(axes)
         # If input is a shape tensor, we can directly extract it.
         if isinstance(data, relax.ShapeExpr):
-            shape_data = [dim for dim in data]
+            shape_data = list(data)
             # Starts, ends, and steps must be 1-d for shape operation.
             assert all(len(i) == 1 for i in [starts, ends, steps])
             sliced_values = shape_data[starts[0] : ends[0] : steps[0]]
@@ -2253,7 +2253,7 @@ class Flatten(OnnxOpConverter):
     @classmethod
     def _impl_v13(cls, bb, inputs, attr, params):
         axis = attr.get("axis", 1)
-        data_shape = [i for i in inputs[0].struct_info.shape]
+        data_shape = list(inputs[0].struct_info.shape)
 
         if axis == 0:
             new_shape = (1, -1)
@@ -2262,7 +2262,7 @@ class Flatten(OnnxOpConverter):
 
             if all(shape_flags):
                 data_shape = [x.value for x in data_shape[0:axis]]
-                new_shape = (_np.prod(data_shape[0:axis]).astype("int64"), -1)
+                new_shape = (_np.prod(data_shape).astype("int64"), -1)
             else:
                 batch_size = 1
 
