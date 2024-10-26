@@ -17,7 +17,7 @@
 
 TVM.TL
 ==============================================
-**Not the official and Final Release, but you can use tl via [BitBLAS](https://github.com/microsoft/BitBLAS)**
+**Not the official and Release, but you can use tl via [BitBLAS](https://github.com/microsoft/BitBLAS)**
 
 TVM.TL is an extention of TVMScript to write simple and high performance GPU kernels with tensorcores. TVM.TL is currently supported on CUDA deivces with Ampere (sm_80+), Turing (sm_75) and Volta(sm_70).
 
