@@ -93,7 +93,15 @@ void InitCCLPerWorker(IntTuple device_ids, std::string unique_id_bytes) {
   StreamCreate(&ctx->default_stream);
 #endif
   Device device{TVM_DISCO_DEVICE_TYPE, device_id};
-  worker->default_device = device;
+  if (worker->default_device.device_type == DLDeviceType::kDLCPU) {
+    worker->default_device = device;
+  } else {
+    ICHECK(worker->default_device.device_type == device.device_type &&
+           worker->default_device.device_id == device.device_id)
+        << "The default device of the worker is inconsistent with the device used for CCL. "
+        << "The default device is " << worker->default_device << ", but the device used for CCL is "
+        << device << ".";
+  }
   worker->ccl = TVM_DISCO_CCL_NAME;
   ctx->worker = worker;
   ctx->device_id = device_id;
