@@ -64,6 +64,16 @@ bool TargetIsHopper(Target target) {
   return arch >= 90;
 }
 
+bool TargetIsCDNA(Target target) {
+  if (!TargetIsRocm(target)) return false;
+  if (target->attrs.count("mcpu")) {
+    std::string mcpu = Downcast<String>(target->attrs.at("mcpu"));
+    // if mcpu start with "gfx9", it is CDNA
+    return mcpu.find("gfx9") == 0;
+  }
+  return false;
+}
+
 bool TargetHasAsyncCopy(Target target) {
   if (!TargetIsCuda(target)) return false;
   int arch = GetArchInt(target);

@@ -108,13 +108,17 @@ std::pair<int, int> Gemm::ComputeWarpPartition(int num_warps, Target target) con
     ICHECK(0) << "Unknown GemmWarpPolicy";
   }
   // TODO: perform more checks here
-
   return {m_warp, n_warp};
 }
 
 Stmt Gemm::Lower(const LowerArgs& T, arith::Analyzer* analyzer) const {
-  ICHECK(T.block_size % 32 == 0);
-  auto [warp_m, warp_n] = ComputeWarpPartition(T.block_size / 32, T.target);
+  int warp_size = 32;
+  if (TargetIsCDNA(T.target)) {
+    warp_size = 64;
+  }
+
+  ICHECK(T.block_size % warp_size == 0);
+  auto [warp_m, warp_n] = ComputeWarpPartition(T.block_size / warp_size, T.target);
   std::stringstream ss;
   std::string op_name = "tl::gemm_ss";
   if (A.scope() == "local.fragment") {
@@ -205,12 +209,13 @@ LayoutMap Gemm::InferLayout(const LayoutInferArgs& T, InferLevel level) {
     } else {
       ICHECK(0) << "WGMMA only support B in shared.";
     }
-  } else if (TargetIsRocm(T.target)){
-    const int warp_size = 32;
+  } else if (TargetIsCDNA(T.target)) {
+    const int warp_size = 64;
     auto [warp_m, warp_n] = ComputeWarpPartition(T.block_size / warp_size, T.target);
 
-    auto fragment = makeGemmFragmentC(M, N, M / warp_m, N / warp_n, C->dtype.bits());
-      results.Set(C, fragment);
+    auto fragment = makeGemmFragmentCCDNA(M, N, M / warp_m, N / warp_n, C->dtype.bits());
+
+    results.Set(C, fragment);
 
     if (A.scope() == "shared" || A.scope() == "shared.dyn") {
       results.Set(A, makeGemmABLayout(*as_const_int(A->shape[0]), *as_const_int(A->shape[1]),
@@ -230,8 +235,7 @@ LayoutMap Gemm::InferLayout(const LayoutInferArgs& T, InferLevel level) {
     } else {
       ICHECK(0);
     }
-  }
-  else {
+  } else {
     ICHECK(0) << "Not supported " << T.target->str();
   }
   completed_ = true;

@@ -139,6 +139,8 @@ Fragment makeGemmFragment8x8();
 Fragment makeGemmFragment8x8Transposed();
 Fragment makeGemmFragmentC(const int block_m, const int block_n, const int warp_m, const int warp_n,
                            const int element_size);
+Fragment makeGemmFragmentCCDNA(const int block_m, const int block_n, const int warp_m, const int warp_n,
+                           const int element_size);
 Fragment makeGemmFragmentCHopper(const int block_m, const int block_n, const int warp_m,
                                  const int warp_n, const int element_size);
 Fragment makeGemmFragmentA(const int block_m, const int block_n, const int block_k,

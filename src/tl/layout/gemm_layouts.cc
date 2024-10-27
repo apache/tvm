@@ -45,6 +45,19 @@ Fragment makeGemmFragment8x8() {
   PrimExpr index = FloorMod(j->var, 2);
   return Fragment({i, j}, {index}, forward_thread, rep);
 }
+/*
+From https://github.com/RadeonOpenCompute/amd_matrix_instruction_calculator
+./matrix_calculator.py --architecture cdna1 --instruction v_mfma_f32_16x16x16f16
+--detail-instruction
+*/
+Fragment makeGemmFragmentCDNA16x16() {
+  IterVar i = make_itervar("i", 16);
+  IterVar j = make_itervar("j", 16);
+  IterVar rep = make_itervar("rep", 1);
+  PrimExpr forward_thread = 16 * FloorDiv(i->var, 4) + j;
+  PrimExpr index = FloorMod(i->var, 4);
+  return Fragment({i, j}, {index}, forward_thread, rep);
+}
 
 Fragment makeGemmFragment8x8Transposed() {
   IterVar i = make_itervar("i", 8);
@@ -77,6 +90,19 @@ Fragment makeGemmFragmentC(const int block_m, const int block_n, const int warp_
   auto base_layout = makeGemmFragment8x8()->Repeat({2, 1}, false);
   auto warp_layout = base_layout->Repeat({block_m / warp_m, block_n / warp_n}, true, false);
   auto block_layout = warp_layout->Repeat({warp_m / 16, warp_n / 8}, false, false);
+  return block_layout;
+}
+
+Fragment makeGemmFragmentCCDNA(const int block_m, const int block_n, const int warp_m, const int warp_n,
+                           const int element_size) {
+  if (element_size == 64) LOG(FATAL) << "Not supported";
+  ICHECK(block_m % warp_m == 0);
+  ICHECK(block_n % warp_n == 0);
+  ICHECK(warp_m % 16 == 0) << "warp_m=" << warp_m;
+  ICHECK(warp_n % 16 == 0) << "warp_n=" << warp_n;
+  auto base_layout = makeGemmFragmentCDNA16x16()->Repeat({1, 1}, false);
+  auto warp_layout = base_layout->Repeat({block_m / warp_m, block_n / warp_n}, true, false);
+  auto block_layout = warp_layout->Repeat({warp_m / 16, warp_n / 16}, false, false);
   return block_layout;
 }
 
