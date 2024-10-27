@@ -218,8 +218,10 @@ LayoutMap Gemm::InferLayout(const LayoutInferArgs& T, InferLevel level) {
     results.Set(C, fragment);
 
     if (A.scope() == "shared" || A.scope() == "shared.dyn") {
-      results.Set(A, makeGemmABLayout(*as_const_int(A->shape[0]), *as_const_int(A->shape[1]),
-                                      A->dtype.bits(), trans_A ? 1 : 2));
+      auto shared_layout =
+          makeGemmLayoutLinear(*as_const_int(A->shape[0]), *as_const_int(A->shape[1]));
+      // TODO(lei): Handle Pad and CK Tile Swizzle
+      results.Set(A, shared_layout);
     } else if (A.scope() == "local.fragment") {
       ICHECK(trans_A == false);
       results.Set(A, makeGemmFragmentA(M, N, K, M / warp_m, N / warp_n));
@@ -227,8 +229,10 @@ LayoutMap Gemm::InferLayout(const LayoutInferArgs& T, InferLevel level) {
       ICHECK(0);
     }
     if (B.scope() == "shared" || B.scope() == "shared.dyn") {
-      results.Set(B, makeGemmABLayout(*as_const_int(B->shape[0]), *as_const_int(B->shape[1]),
-                                      B->dtype.bits(), trans_B ? 2 : 1));
+      auto shared_layout =
+          makeGemmLayoutLinear(*as_const_int(B->shape[0]), *as_const_int(B->shape[1]));
+      // TODO(lei): Handle Pad and CK Tile Swizzle
+      results.Set(B, shared_layout);
     } else if (B.scope() == "local.fragment") {
       ICHECK(trans_B == false);
       results.Set(B, makeGemmFragmentB(M, N, K, M / warp_m, N / warp_n));

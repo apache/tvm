@@ -152,7 +152,7 @@ class Profiler(ConvertTorch):
             # percentage_not_close = (num_not_close / total_elements) * 100
             # print(f"{percentage_not_close:.2f}% of the elements are not close.")
             # print(f"Total elements: {total_elements}, Not close elements: {num_not_close}")
-            assert torch.allclose(lhs, rhs, rtol=rtol, atol=atol), (lhs, rhs)
+            torch.testing.assert_close(lhs, rhs, rtol=rtol, atol=atol)
 
     def assert_consistent(self, repeat=10):
         # Used to check no race condition inside the kernel

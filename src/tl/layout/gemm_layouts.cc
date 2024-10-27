@@ -101,8 +101,8 @@ Fragment makeGemmFragmentCCDNA(const int block_m, const int block_n, const int w
   ICHECK(warp_m % 16 == 0) << "warp_m=" << warp_m;
   ICHECK(warp_n % 16 == 0) << "warp_n=" << warp_n;
   auto base_layout = makeGemmFragmentCDNA16x16()->Repeat({1, 1}, false);
-  auto warp_layout = base_layout->Repeat({block_m / warp_m, block_n / warp_n}, true, false);
-  auto block_layout = warp_layout->Repeat({warp_m / 16, warp_n / 16}, false, false);
+  auto warp_layout = base_layout->Repeat({block_m / warp_m, block_n / warp_n}, true, true);
+  auto block_layout = warp_layout->Repeat({warp_m / 16, warp_n / 16}, false, true);
   return block_layout;
 }
 
@@ -269,6 +269,13 @@ Layout makeGemmABLayoutF64_Kouter(int stride, int continuous) {
   PrimExpr swizzled_c = FloorMod(c, 4) + xor4x4(FloorDiv(c, 4), s) * 4;
   PrimExpr index = swizzled_c + s * 16;
   return Layout(Array<PrimExpr>{stride, continuous}, {tc, ts, index});
+}
+
+// The Default Layout for Tensor Access
+Layout makeGemmLayoutLinear(int stride, int continuous) {
+  IterVar i = make_itervar("i", stride);
+  IterVar j = make_itervar("j", continuous);
+  return Layout(Array{i, j}, {i * continuous + j});
 }
 
 Layout makeGemmABLayoutPadded(int stride, int continuous, int element_size) {

@@ -385,8 +385,8 @@ endif(USE_CUDA)
 
 if(USE_ROCM)
 tvm_file_glob(GLOB TILE_LIBRARY_HIP_SRCS
-  src/tl/target/codegen_rocm.cc
-  src/tl/target/rt_mod_rocm.cc
+  src/tl/target/codegen_hip.cc
+  src/tl/target/rt_mod_hip.cc
 )
 list(APPEND TILE_LIBRARY_SRCS ${TILE_LIBRARY_HIP_SRCS})
 endif(USE_ROCM)
