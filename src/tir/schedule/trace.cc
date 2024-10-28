@@ -227,7 +227,9 @@ Array<String> TranslateAddOutputRVs(
     ICHECK(!rv_names->count(output))
         << "ValueError: The random variable has been produced once: " << rv_names->at(output);
     String result{ObjectPtr<StringObj>{nullptr}};
-    if (output->IsInstance<BlockRVNode>()) {
+    if (!output.defined()) {
+      result = "_";
+    } else if (output->IsInstance<BlockRVNode>()) {
       result = "b" + std::to_string(i);
     } else if (output->IsInstance<LoopRVNode>()) {
       result = "l" + std::to_string(i);

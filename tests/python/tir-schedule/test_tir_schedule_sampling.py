@@ -212,5 +212,33 @@ def test_sample_perfect_tile_after_copy():
     sch_copy.sample_perfect_tile(i, n=4)
 
 
+def test_sample_perfect_tile_on_dynamic_loops():
+    """Currently dynamic loop is trivially tiled"""
+
+    @T.prim_func
+    def workload(a: T.handle) -> None:
+        n = T.int32()
+        A = T.match_buffer(a, (n, 1024))
+        for i, j in T.grid(n, 1024):
+            with T.block("B"):
+                vi, vj = T.axis.remap("SS", [i, j])
+                A[vi, vj] = 1.0
+
+    sch = tir.Schedule(workload, debug_mask="all")
+    di, si = sch.get_loops(sch.get_block("B"))
+
+    factors = sch.sample_perfect_tile(si, n=4)
+    factors = [sch.get(i) for i in factors]
+    prod = factors[0] * factors[1] * factors[2] * factors[3]
+    assert prod == 1024
+
+    factors = sch.sample_perfect_tile(di, n=4)
+    assert factors[0] is None
+    factors = [sch.get(i) for i in factors[1:]]
+    prod = factors[0] * factors[1] * factors[2]
+    assert prod == 1
+    verify_trace_roundtrip(sch, mod=workload)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

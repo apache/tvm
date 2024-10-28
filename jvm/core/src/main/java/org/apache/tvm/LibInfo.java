@@ -37,6 +37,8 @@ class LibInfo {
 
   native void tvmFuncPushArgHandle(long arg, int argType);
 
+  native void tvmFuncPushArgDevice(Device device);
+
   native int tvmFuncListGlobalNames(List<String> funcNames);
 
   native int tvmFuncFree(long handle);

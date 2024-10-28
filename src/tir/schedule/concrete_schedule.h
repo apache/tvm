@@ -183,6 +183,8 @@ class ConcreteScheduleNode : public ScheduleNode {
   void EnterPostproc() override {}
   void UnsafeHideBufferAccess(const BlockRV& block_rv, const String& buf_type,
                               const Array<IntImm>& buf_index_array) override;
+  void AnnotateBufferAccess(const BlockRV& block_rv, int buffer_index,
+                            BufferIndexType buffer_index_type, const IndexMap& index_map) override;
 
  protected:
   /******** Utility functions ********/
@@ -217,9 +219,12 @@ class ConcreteScheduleNode : public ScheduleNode {
   /*!
    * \brief Add a list of integers as random variables into the symbol table
    * \param value The list of integers to be added to the symbol table
+   * \param convert_negone_to_none Convert negative one to none RV.
+   * Which is convention of certain primitives.
    * \return The new random variables created
    */
-  inline Array<ExprRV> CreateRV(const std::vector<int64_t>& value);
+  inline Array<ExprRV> CreateRV(const std::vector<int64_t>& value,
+                                bool convert_negone_to_none = false);
   /*! \brief Remove a random variable from the symbol table */
   inline void RemoveFromSymbolTable(const ObjectRef& rv);
   /*!
@@ -360,10 +365,15 @@ inline ExprRV ConcreteScheduleNode::CreateRV(int64_t value) {
   return std::move(rv);
 }
 
-inline Array<ExprRV> ConcreteScheduleNode::CreateRV(const std::vector<int64_t>& value) {
+inline Array<ExprRV> ConcreteScheduleNode::CreateRV(const std::vector<int64_t>& value,
+                                                    bool convert_negone_to_none) {
   Array<ExprRV> results;
   results.reserve(value.size());
   for (int64_t v : value) {
+    if (convert_negone_to_none && v == -1) {
+      results.push_back(ExprRV(nullptr));
+      continue;
+    }
     results.push_back(CreateRV(v));
   }
   return results;

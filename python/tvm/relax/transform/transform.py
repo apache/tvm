@@ -970,6 +970,35 @@ def MergeCompositeFunctions() -> tvm.ir.transform.Pass:
     return _ffi_api.MergeCompositeFunctions()  # type: ignore
 
 
+def AttachAttrLayoutFreeBuffers() -> tvm.ir.transform.Pass:
+    """Attach layout free buffers to the tir::PrimFunc.
+
+    This pass is used to attach layout free buffers to the tir::PrimFunc according to
+    the function usage in the relax function. Currently, the layout free buffers are the model
+    weights and relax constants.
+
+    Note that we recommend applying CanonicalizeBindings before this pass.
+
+    Returns
+    -------
+    ret : tvm.transform.Pass
+        The registered pass for attaching layout free buffers.
+    """
+    return _ffi_api.AttachAttrLayoutFreeBuffers()  # type: ignore
+
+
+def SplitLayoutRewritePreproc() -> tvm.ir.transform.Pass:
+    """Split the TIR layout rewrite into multiple TIR functions.
+    This pass is used in the prepack weight after meta_schedule tuning.
+
+    Returns
+    -------
+    ret : tvm.transform.Pass
+        The registered pass for splitting TIR layout rewrite.
+    """
+    return _ffi_api.SplitLayoutRewritePreproc()  # type: ignore
+
+
 def LiftTransformParams(shared_transform: Union[bool, List[str]] = False) -> tvm.ir.transform.Pass:
     """Lift transformation of the parameters of a function.
 
@@ -1020,14 +1049,13 @@ def BundleModelParams(param_tuple_name: Optional[str] = None) -> tvm.ir.transfor
     ----------
     param_tuple_name: Optional[str]
 
-        The name of the tuple parameter.  If unspecified, defaults to
+        The name of the tuple parameter. If unspecified, defaults to
         "model_params".
 
     Returns
     -------
     ret : tvm.transform.Pass
-        The registered pass for lifting transformation of parameters.
-
+        The registered pass for bundling model parameters.
     """
     return _ffi_api.BundleModelParams(param_tuple_name)  # type: ignore
 

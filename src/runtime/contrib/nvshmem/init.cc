@@ -54,6 +54,8 @@ void InitNVSHMEM(ShapeTuple uid_64, int num_workers) {
   }
   nvshmemx_set_attr_uniqueid_args(worker->worker_id, num_workers, &uid, &attr);
   nvshmemx_init_attr(NVSHMEMX_INIT_WITH_UNIQUEID, &attr);
+  int mype_node = nvshmem_team_my_pe(NVSHMEMX_TEAM_NODE);
+  CUDA_CALL(cudaSetDevice(mype_node));
   LOG_INFO << "NVSHMEM init finished: mype=" << nvshmem_my_pe() << " "
            << ", npes=" << nvshmem_n_pes();
 }

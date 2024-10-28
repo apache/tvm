@@ -376,19 +376,3 @@ def _set_class_object_generic(object_generic_class, func_convert_to_object):
     global _FUNC_CONVERT_TO_OBJECT
     _CLASS_OBJECT_GENERIC = object_generic_class
     _FUNC_CONVERT_TO_OBJECT = func_convert_to_object
-
-# Py_INCREF and Py_DECREF are C macros, not function objects.
-# Therefore, providing a wrapper function.
-cdef void _py_incref_wrapper(void* py_object):
-    Py_INCREF(<object>py_object)
-cdef void _py_decref_wrapper(void* py_object):
-    Py_DECREF(<object>py_object)
-
-def _init_pythonapi_inc_def_ref():
-    register_func = TVMBackendRegisterEnvCAPI
-    register_func(c_str("Py_IncRef"), <void*>_py_incref_wrapper)
-    register_func(c_str("Py_DecRef"), <void*>_py_decref_wrapper)
-    register_func(c_str("PyGILState_Ensure"), <void*>PyGILState_Ensure)
-    register_func(c_str("PyGILState_Release"), <void*>PyGILState_Release)
-
-_init_pythonapi_inc_def_ref()

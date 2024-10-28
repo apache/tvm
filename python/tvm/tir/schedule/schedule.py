@@ -16,7 +16,7 @@
 # under the License.
 """The TensorIR schedule class"""
 import inspect
-from typing import Callable, Dict, List, Optional, Tuple, Union
+from typing import Callable, Dict, List, Literal, Optional, Tuple, Union
 
 from tvm._ffi import register_object as _register_object
 from tvm.error import TVMError, register_error
@@ -65,8 +65,11 @@ ExprRV = Union[PrimExpr]  # A random variable that evaluates to an integer
 
 RAND_VAR_TYPE = Union[ExprRV, BlockRV, LoopRV]  # pylint: disable=invalid-name
 
-# Update to `Literal["detail", "fast", "none"]` once upgraded to python3.8
-_ERROR_RENDER_LEVEL: Dict[str, int] = {"detail": 0, "fast": 1, "none": 2}
+_ERROR_RENDER_LEVEL: Dict[Literal["detail", "fast", "none"], int] = {
+    "detail": 0,
+    "fast": 1,
+    "none": 2,
+}
 
 
 def _parse_error_render_level(error_render_level: str) -> int:
@@ -3903,4 +3906,140 @@ class Schedule(Object):
             block,
             buf_type,
             buf_index_array,
+        )
+
+    @type_checked
+    def annotate_buffer_access(
+        self, block: BlockRV, buffer_index: int, buf_type: str, gen_new_ranges: Callable
+    ) -> None:
+        """Annotate the read or write region of a block
+
+        Parameters
+        ----------
+        block : BlockRV
+            The block to be annotated
+        buffer_index : int
+            The index of the buffer in block's read or write region
+        buf_type : str
+            The buffer type: "read" or "write"
+        gen_new_ranges : Callable
+            A function that takes the block's iter_vars and returns a
+            Tuple[Union[PrimExpr, Tuple[PrimExpr, PrimExpr]], ...]
+            which defines the new read or write region for the buffer.
+            Each element in the tuple can be:
+            - A single PrimExpr representing the iter_var itself
+            - A tuple of two PrimExprs representing the range (begin, end)
+
+        Examples
+        --------
+        Annotate a 2D read region for a buffer.
+        Before annotate_buffer_access, in TensorIR, the IR is:
+
+        .. code-block:: python
+
+            @T.prim_func
+            def before_annotate_buffer_access(
+                A: T.Buffer((128, 128), "float32"),
+                C: T.Buffer((128, 128), "float32")
+            ) -> None:
+                B = T.alloc_buffer((128, 128), "float32")
+                for i, j in T.grid(128, 128):
+                    with T.block("B"):
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        B[vi, vj] = A[vi, vj] * 2.0
+                for i, j in T.grid(128, 128):
+                    with T.block("C"):
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        C[vi, vj] = B[vi, vj] + 1.0
+
+        Create the schedule and do annotate_buffer_access:
+
+        .. code-block:: python
+
+            sch = tir.Schedule(before_annotate_buffer_access)
+            block = sch.get_block("B")
+            sch.annotate_buffer_access(block, 0, "read",
+            lambda vi, vj: ((vi - 1, vi + 1), (vj - 1, vj + 1)))
+            print(sch.mod["main"].script())
+
+        After applying annotate_buffer_access, the IR becomes:
+
+        .. code-block:: python
+
+            @T.prim_func
+            def after_annotate_buffer_access(
+                A: T.Buffer((128, 128), "float32"),
+                C: T.Buffer((128, 128), "float32")
+            ) -> None:
+                B = T.alloc_buffer((128, 128), "float32")
+                for i, j in T.grid(128, 128):
+                    with T.block("B"):
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        T.reads(A[vi - 1:vi + 1, vj - 1:vj + 1])
+                        T.writes(B[vi, vj])
+                        T.block_attr({"explicit_read_region": 0})
+                        B[vi, vj] = A[vi, vj] * 2.0
+                for i, j in T.grid(128, 128):
+                    with T.block("C"):
+                        vi, vj = T.axis.remap("SS", [i, j])
+                        C[vi, vj] = B[vi, vj] + 1.0
+
+        This annotates the read region for buffer A (index 0) in block "B" to be
+        [vi-1:vi+1, vj-1:vj+1] for each (vi, vj) in the block's iteration domain.
+
+        Note
+        ----
+        This function allows manual specification of read or write regions, which
+        can be useful in cases where the compiler cannot accurately infer the
+        access pattern, such as complex data-dependent accesses.
+        It overrides the automatically inferred region for the specified buffer.
+        The function adds an annotation to the block, indicating that an explicit
+        region has been provided for the buffer at the given index. This annotation
+        is used in the CompactBufferAllocation pass to respect the manually specified
+        region instead of relying on automatic inference.
+
+        Caution should be exercised when using this function, as incorrect annotations
+        may lead to incorrect code generation or runtime errors. It's crucial to
+        ensure that the specified region covers all actual reads or writes performed
+        by the block for the given buffer.
+
+        """
+        block_obj = self.get(block)
+        iter_vars = [x.var for x in block_obj.iter_vars]
+        new_ranges_spec = gen_new_ranges(*iter_vars)
+        if len(iter_vars) != len(new_ranges_spec):
+            raise ValueError(
+                f"Number of iter_vars ({len(iter_vars)}) must match "
+                f"number of new_ranges_spec ({len(new_ranges_spec)})"
+            )
+
+        result = []
+        for rng in new_ranges_spec:
+            if isinstance(rng, (tuple, list)):
+                if len(rng) != 2:
+                    raise ValueError(
+                        "Tuple must have exactly 2 elements to represent (begin, end)."
+                    )
+                result.extend(rng)
+            elif isinstance(rng, PrimExpr):
+                result.extend([rng, rng + 1])  # Single point represented as (rng, rng + 1)
+            else:
+                raise TypeError(f"Expected PrimExpr or tuple of PrimExpr, got {type(rng)}")
+
+        # Create index_map using IndexMap constructor
+        index_map = IndexMap(
+            initial_indices=iter_vars,
+            final_indices=result,
+            inverse_index_map=None,
+        )
+
+        if buf_type == "read":
+            buffer_index_type = 0
+        elif buf_type == "write":
+            buffer_index_type = 1
+        else:
+            raise ValueError(f"Invalid buf_type: {buf_type}. Expected 'read' or 'write'.")
+
+        return _ffi_api.ScheduleAnnotateBufferAccess(
+            self, block, buffer_index, buffer_index_type, index_map
         )

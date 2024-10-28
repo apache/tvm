@@ -54,13 +54,37 @@ const String CodeGenUtils::IdxWeight(const MSCJoint& node, const String& wtype,
   return wtype + "_" + std::to_string(node->index) + suffix;
 }
 
-const String CodeGenUtils::CommentNode(const MSCJoint& node, const String& prefix) {
+const Array<String> CodeGenUtils::GetPrims(const MSCTensor& tensor,
+                                           const Map<String, String>& prims) {
+  Array<String> dims;
+  if (tensor->prims.size() == 0) {
+    for (size_t i = 0; i < tensor->Ndim(); i++) {
+      dims.push_back(StringUtils::ToString(tensor->DimAt(i)));
+    }
+    return dims;
+  }
+  for (size_t i = 0; i < tensor->Ndim(); i++) {
+    const auto& prim = tensor->PrimAt(i);
+    dims.push_back(prims.count(prim) ? prims[prim] : prim);
+  }
+  return dims;
+}
+
+const String CodeGenUtils::CommentNode(const MSCJoint& node, const String& prefix,
+                                       const Map<String, String>& prims) {
   String comment = node->name + "(" + node->optype + "): <";
   for (size_t i = 0; i < node->inputs.size(); i++) {
     comment = comment + IdxInput(node, prefix, i) + (i == node->inputs.size() - 1 ? "> -> <" : ",");
   }
   for (size_t i = 0; i < node->outputs.size(); i++) {
-    comment = comment + IdxOutput(node, prefix, i) + (i == node->outputs.size() - 1 ? ">" : ",");
+    const auto& t_output = node->OutputAt(i);
+    const auto& t_prims = GetPrims(t_output, prims);
+    comment = comment + IdxOutput(node, prefix, i) + "|" + StringUtils::Join(t_prims, ":");
+    comment = comment + "|" + t_output->DTypeName();
+    if (t_output->layout.defined()) {
+      comment = comment + "|" + t_output->layout->name;
+    }
+    comment = comment + (i == node->outputs.size() - 1 ? ">" : ", ");
   }
   return comment;
 }

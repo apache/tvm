@@ -1021,14 +1021,19 @@ StructInfo ReturnTensorToShapeStructInfo(const Call& call, const BlockBuilder& c
   ICHECK(call->args.size() == 1);
   ICHECK(call->args[0]->struct_info_.defined());
   const auto* tsinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
-  ICHECK(tsinfo && tsinfo->shape.defined());
-  ShapeExpr shape_expr = Downcast<ShapeExpr>(tsinfo->shape.value());
-  ICHECK(shape_expr->values.size() == 1) << "relax.tensor_to_shape expected argument to be 1-d, "
-                                         << "but " << call << " has argument " << call->args[0]
-                                         << " with struct info " << call->args[0]->struct_info_;
-  const IntImmNode* ndim = shape_expr->values[0].as<IntImmNode>();
-  ICHECK(ndim);
-  return ShapeStructInfo(ndim->value);
+  ICHECK(tsinfo);
+  ICHECK_EQ(tsinfo->ndim, 1) << "relax.tensor_to_shape expected argument to be 1-d, "
+                             << "but " << call << " has argument " << call->args[0]
+                             << " with struct info " << call->args[0]->struct_info_;
+
+  if (tsinfo->shape.defined()) {
+    ShapeExpr shape_expr = Downcast<ShapeExpr>(tsinfo->shape.value());
+    const IntImmNode* ndim = shape_expr->values[0].as<IntImmNode>();
+    if (ndim) {
+      return ShapeStructInfo(ndim->value);
+    }
+  }
+  return ShapeStructInfo(kUnknownNDim);
 }
 
 RELAY_REGISTER_OP("relax.tensor_to_shape")

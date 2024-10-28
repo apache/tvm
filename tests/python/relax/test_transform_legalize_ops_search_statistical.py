@@ -999,8 +999,8 @@ def test_variance_no_keepdims():
     @tvm.script.ir_module
     class Variance:
         @R.function
-        def main(x: R.Tensor((2, 3, 4, 5), "float32")) -> R.Tensor((1, 3, 4, 1), "float32"):
-            gv: R.Tensor((1, 3, 4, 1), "float32") = R.variance(x, [0, 3], keepdims=False)
+        def main(x: R.Tensor((2, 3, 4, 5), "float32")) -> R.Tensor((3, 4), "float32"):
+            gv: R.Tensor((3, 4), "float32") = R.variance(x, [0, 3], keepdims=False)
             return gv
 
     @I.ir_module

@@ -19,12 +19,12 @@
 
 /*!
  *
- * \file src/tir/transforms/replace_global_var.cc
+ * \file src/tir/transforms/replace_global_vars.cc
  *
  * \brief GlobalVar replacement across IR types
  */
 
-#include <tvm/ir/replace_global_var.h>
+#include <tvm/ir/replace_global_vars.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/stmt_functor.h>
 
@@ -61,6 +61,22 @@ TVM_STATIC_IR_FUNCTOR(GlobalVarReplacer, vtable)
       if (!new_body.same_as(func->body)) {
         func.CopyOnWrite()->body = new_body;
       }
+
+      // If the function is externally exposed, and is being replaced
+      // by a GlobalVar with a new name, then the function's
+      // kGlobalSymbol must be updated to match.
+      if (auto opt = func->GetAttr<String>(tvm::attr::kGlobalSymbol)) {
+        auto name = opt.value();
+        for (const auto& [before, after] : replacements) {
+          if (before->name_hint == name) {
+            if (after->name_hint != name) {
+              func = WithAttr(func, tvm::attr::kGlobalSymbol, after->name_hint);
+            }
+            break;
+          }
+        }
+      }
+
       return func;
     });
 

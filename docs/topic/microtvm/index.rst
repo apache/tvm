@@ -58,13 +58,6 @@ more as they follow through them. Here is a list of tutorials that you can start
 3. Try running a more complex tutorial: :ref:`Creating Your MLPerfTiny Submission with microTVM <tutorial-micro-mlperftiny>`.
 
 
-How microTVM Works
-~~~~~~~~~~~~~~~~~~
-
-
-You can read more about the design of these pieces at the :ref:`microTVM Design Document <microTVM-design>`.
-
-
 Help and Discussion
 ~~~~~~~~~~~~~~~~~~~
 

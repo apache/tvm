@@ -48,7 +48,8 @@ register_legalize("relax.multiply", _binary(topi.multiply))
 register_legalize("relax.power", _binary(topi.power))
 register_legalize("relax.subtract", _binary(topi.subtract))
 register_legalize("relax.equal", _binary(topi.equal))
-
+register_legalize("relax.mod", _binary(topi.mod))
+register_legalize("relax.floor_mod", _binary(topi.floor_mod))
 register_legalize("relax.greater", _binary(topi.greater))
 register_legalize("relax.greater_equal", _binary(topi.greater_equal))
 register_legalize("relax.less", _binary(topi.less))
@@ -62,6 +63,8 @@ register_legalize("relax.minimum", _binary(topi.minimum))
 register_legalize("relax.bitwise_and", _binary(topi.bitwise_and))
 register_legalize("relax.bitwise_or", _binary(topi.bitwise_or))
 register_legalize("relax.bitwise_xor", _binary(topi.bitwise_xor))
+register_legalize("relax.left_shift", _binary(topi.left_shift))
+register_legalize("relax.right_shift", _binary(topi.right_shift))
 
 # logical
 register_legalize("relax.logical_and", _binary(topi.logical_and))

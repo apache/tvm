@@ -79,6 +79,12 @@ Expr power(Expr x1, Expr x2);
 /*! \brief Subtraction with numpy-style broadcasting. */
 Expr subtract(Expr x1, Expr x2);
 
+/*! \brief Modulo with numpy-style broadcasting. */
+Expr mod(Expr x1, Expr x2);
+
+/*! \brief Floor modulo with numpy-style broadcasting. */
+Expr floor_mod(Expr x1, Expr x2);
+
 /***************** Comparison operators *****************/
 
 /*! \brief Broadcasted element-wise test for (lhs == rhs). */
@@ -128,6 +134,12 @@ Expr bitwise_or(Expr x1, Expr x2);
 
 /*! \brief Broadcasted element-wise bitwise xor */
 Expr bitwise_xor(Expr x1, Expr x2);
+
+/*! \brief Broadcasted element-wise bitwise shift left */
+Expr left_shift(Expr x1, Expr x2);
+
+/*! \brief Broadcasted element-wise bitwise shift right */
+Expr right_shift(Expr x1, Expr x2);
 
 }  // namespace relax
 }  // namespace tvm

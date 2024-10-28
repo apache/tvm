@@ -1208,5 +1208,177 @@ def test_call_tir_inplace_with_some_allocated_outputs():
     assert rx.analysis.well_formed(Module)
 
 
+def test_var_binding_must_have_compatible_struct_info():
+    """Variables must accurately describe their contents
+
+    To be well-formed, the inferred struct info must not conflict with
+    the StructInfo annotations.
+
+    """
+
+    # The function is equivalent to the TVMScript below.  However,
+    # TVMScript applies additional checks that would catch this error
+    # while parsing.  In order to validate the well-formed checker
+    # itself, this test directly constructs the function withoutusing
+    # TVMScript, skipping the TVMScript-specific checks.
+    #
+    # @R.function
+    # def main(
+    #     A: R.Tensor(shape=[128, 32], dtype="float32"),
+    # ):
+    #     B: R.Tensor(shape=[128, 32], dtype="int32") = A
+    #     return B
+
+    param = tvm.relax.Var("A", R.Tensor(shape=[128, 32], dtype="float32"))
+    var = tvm.relax.Var("B", R.Tensor(shape=[128, 32], dtype="int32"))
+    binding = tvm.relax.VarBinding(var, param)
+    body = tvm.relax.SeqExpr([tvm.relax.BindingBlock([binding])], var)
+    tvm.relax.expr._update_struct_info(body, var.struct_info)
+    main = tvm.relax.Function([param], body)
+
+    assert not rx.analysis.well_formed(main)
+
+
+def test_var_binding_may_have_less_constrained_struct_info():
+    """StructInfo of variable may be less specific than expression
+
+    The StructInfo annotation of a variable is not required to be an
+    exact match to the expression's StructInfo, and may provide less
+    specific information than the inference would provide.
+
+    """
+
+    @I.ir_module
+    class Module:
+        @R.function
+        def main(
+            A: R.Tensor(shape=[128, 32], dtype="float32"),
+        ):
+            B: R.Object = R.add(A, A)
+            return B
+
+    assert isinstance(
+        Module["main"].body.blocks[0].bindings[0].var.struct_info, tvm.relax.ObjectStructInfo
+    ), "Validity of this test requires a variable with R.Object struct info"
+
+    assert rx.analysis.well_formed(Module)
+
+
+def test_var_binding_with_incomplete_struct_info_must_be_consistent():
+    """StructInfo of variable must be accurate
+
+    Even though StructInfo annotation may be less specific, the
+    information that they do contain must be correct.
+
+    """
+
+    # The function is equivalent to the TVMScript below.  However,
+    # TVMScript applies additional checks that would catch this error
+    # while parsing.  In order to validate the well-formed checker
+    # itself, this test directly constructs the function withoutusing
+    # TVMScript, skipping the TVMScript-specific checks.
+    #
+    #   @R.function
+    #   def main(
+    #       A: R.Tensor(shape=[128, 32], dtype="float32"),
+    #   ):
+    #       B: R.Tensor(ndim=3) = A
+    #       return B
+
+    param = tvm.relax.Var("A", R.Tensor(shape=[128, 32], dtype="float32"))
+    var = tvm.relax.Var("B", R.Tensor(ndim=3, dtype="int32"))
+    binding = tvm.relax.VarBinding(var, param)
+    body = tvm.relax.SeqExpr([tvm.relax.BindingBlock([binding])], var)
+    tvm.relax.expr._update_struct_info(body, var.struct_info)
+    main = tvm.relax.Function([param], body)
+
+    assert not rx.analysis.well_formed(main)
+
+
+def test_incomplete_struct_info_must_be_consistent():
+    """StructInfo annotations must be accurate
+
+    Even though StructInfo annotation may be less specific, the
+    information that they do contain must be correct.
+
+    """
+
+    @I.ir_module(check_well_formed=False)
+    class Module:
+        @R.function
+        def main(
+            A: R.Tensor(shape=[128, 32], dtype="float32"),
+            B: R.Tensor(shape=[128, 32], dtype="float32"),
+        ):
+            C: R.Tensor(ndim=3) = R.add(A, B)
+            return C
+
+    assert not rx.analysis.well_formed(Module)
+
+
+def test_struct_info_annotations_must_be_correct():
+    """StructInfo annotations must be correct
+
+    To be well-formed, the inferred struct info must not conflict with
+    the StructInfo annotations.
+
+    """
+
+    @I.ir_module(check_well_formed=False)
+    class Module:
+        @R.function
+        def main(
+            A: R.Tensor(shape=[128, 32], dtype="float32"),
+            B: R.Tensor(shape=[128, 32], dtype="float32"),
+        ):
+            C: R.Tensor(shape=[128, 32], dtype="int32") = R.add(A, B)
+            return C
+
+    assert not rx.analysis.well_formed(Module)
+
+
+def test_struct_info_may_be_incomplete():
+    """StructInfo annotations may be less specific
+
+    The StructInfo annotations are not required to be an exact match
+    to the inferred StructInfo, and may provide less specific
+    information than the inference would provide.
+
+    """
+
+    @I.ir_module
+    class Module:
+        @R.function
+        def main(
+            A: R.Tensor(shape=[128, 32], dtype="float32"),
+            B: R.Tensor(shape=[128, 32], dtype="float32"),
+        ):
+            C: R.Object = R.add(A, B)
+            return C
+
+    assert rx.analysis.well_formed(Module)
+
+
+def test_incomplete_struct_info_must_be_consistent():
+    """StructInfo annotations must be accurate
+
+    Even though StructInfo annotation may be less specific, the
+    information that they do contain must be correct.
+
+    """
+
+    @I.ir_module(check_well_formed=False)
+    class Module:
+        @R.function
+        def main(
+            A: R.Tensor(shape=[128, 32], dtype="float32"),
+            B: R.Tensor(shape=[128, 32], dtype="float32"),
+        ):
+            C: R.Tensor(ndim=3) = R.add(A, B)
+            return C
+
+    assert not rx.analysis.well_formed(Module)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

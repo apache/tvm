@@ -15,11 +15,11 @@
     specific language governing permissions and limitations
     under the License.
 
-.. _tensor-ir:
+.. _tensor-ir-deep-dive:
 
 TensorIR
 ========
-TensorIR is one of the core abstraction in Apache TVM Unity stack, which is used to
+TensorIR is one of the core abstraction in Apache TVM stack, which is used to
 represent and optimize the primitive tensor functions.
 
 .. toctree::
@@ -27,5 +27,5 @@ represent and optimize the primitive tensor functions.
 
     abstraction
     learning
-    tutorials/creation
-    tutorials/transformation
+    tutorials/tir_creation
+    tutorials/tir_transformation

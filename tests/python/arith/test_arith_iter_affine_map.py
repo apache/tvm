@@ -346,6 +346,27 @@ def test_predicate():
         predicate=tvm.tir.all(2 <= j * 2 + k, 0 <= i * 4 + j),
     )
 
+    # constraint with differnent lower bound
+    assert_iter_sum_pattern(
+        {
+            (i * 16 + j) // 23 * 8
+            + (i * 16 + j) % 23
+            - 15: (
+                64,
+                0,
+                1,
+                (i * 16 + j) // 23 * 8 + ((i * 16 + j) % 23 + tvm.tir.IntImm("int32", -15)),
+            )
+        },
+        var_dom([(i, 12), (j, 16)]),
+        predicate=tvm.tir.And(
+            tvm.tir.And(
+                i * 16 + j < 184, tvm.tir.LE(tvm.tir.IntImm("int32", 8), (i * 16 + j) % 23)
+            ),
+            tvm.tir.LE(tvm.tir.IntImm("int32", 15), (i * 16 + j) % 23),
+        ),
+    )
+
     # constraint on many disjoint fused iters, case 1
     # i4 * 6 + i5 in [3, 9), extent=6 (= scale of i2)
     # i2 * 30 + i3 * 15 in [30, 90), extent=60 (= scale of i1)

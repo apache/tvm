@@ -58,9 +58,11 @@ class BaseOpCode {
   virtual ~BaseOpCode() = default;
 
   /*! \brief Config the BaseOpCode*/
-  void Config(const MSCJoint& node, const std::shared_ptr<ConfigType> config) {
+  void Config(const MSCJoint& node, const std::shared_ptr<ConfigType> config,
+              const Map<String, String>& prims) {
     node_ = node;
     config_ = config;
+    prims_ = prims;
   }
 
   /*! \brief Get docs for the node*/
@@ -158,6 +160,13 @@ class BaseCodeGen {
     }
   }
 
+  virtual void Init() {
+    // define prims
+    for (const auto& p_name : this->graph()->prim_names) {
+      prims_.Set(p_name, this->DescribePrim(this->graph()->FindPrim(p_name)));
+    }
+  }
+
   virtual ~BaseCodeGen() = default;
 
   /*! \brief Get sources*/
@@ -210,6 +219,29 @@ class BaseCodeGen {
 
   /*! \brief Get the docs for the op*/
   virtual const Array<Doc> GetOpCodes(const MSCJoint& node) = 0;
+
+  /*! \brief Describe the prim*/
+  virtual const String DescribePrim(const MSCPrim& prim) {
+    if (prim->optype == "Int") {
+      return prim->GetTypeAttr<std::string>("value");
+    }
+    if (prim->optype == "shape") {
+      const auto& producer = this->graph()->FindNode(prim->GetTypeAttr<std::string>("producer"));
+      int out_idx = prim->GetTypeAttr<int>("out_idx");
+      const auto& dim = prim->GetTypeAttr<std::string>("dim");
+      return this->IdxOutputBase(producer, out_idx) + ".shape[" + dim + "]";
+    }
+    // binary ops
+    DESCRIBE_PRIM_BINARY("Add", "+", false)
+    DESCRIBE_PRIM_BINARY("Sub", "-", false)
+    DESCRIBE_PRIM_BINARY("Mul", "*", false)
+    DESCRIBE_PRIM_BINARY("Divide", "/", false)
+    DESCRIBE_PRIM_BINARY("LT", "<", false)
+    DESCRIBE_PRIM_BINARY("LE", "<=", false)
+    DESCRIBE_PRIM_BINARY("GT", ">", false)
+    DESCRIBE_PRIM_BINARY("GE", ">=", false)
+    LOG_FATAL << "Unexpected prim " << prim;
+  }
 
   /*! \brief Get the graph*/
   const MSCGraph graph() const { return graph_; }

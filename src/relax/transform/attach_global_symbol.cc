@@ -22,7 +22,7 @@
  */
 
 #include <tvm/ir/module.h>
-#include <tvm/ir/replace_global_var.h>
+#include <tvm/ir/replace_global_vars.h>
 #include <tvm/relax/struct_info.h>
 #include <tvm/relax/transform.h>
 #include <tvm/tir/function.h>
@@ -72,7 +72,7 @@ Pass AttachGlobalSymbol() {
       mod.CopyOnWrite()->Update(updates);
 
       if (gvar_updates.size()) {
-        mod = tvm::transform::ReplaceGlobalVar(mod, gvar_updates);
+        mod = tvm::transform::ReplaceGlobalVars(mod, gvar_updates);
       }
     }
     return mod;

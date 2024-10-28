@@ -71,7 +71,7 @@ class GPUCodeVerifier : public StmtExprVisitor {
       size_t size = static_cast<size_t>(op->ConstantAllocationSize());
       shared_memory_per_block_ += size * op->dtype.bytes() * op->dtype.lanes();
     }
-    if (op->dtype.lanes() > 1) {
+    if (op->dtype.is_vector()) {
       if (static_cast<size_t>(op->dtype.lanes() * op->dtype.bytes()) > max_vector_bytes_) {
         std::stringstream s;
         s << "Number of lanes (" << op->dtype.lanes() << ") times number of bytes ("
@@ -202,7 +202,7 @@ class GPUCodeVerifier : public StmtExprVisitor {
   }
 
   void VisitExpr_(const CastNode* op) {
-    if (op->dtype.lanes() > 1) {
+    if (op->dtype.is_vector()) {
       if (static_cast<size_t>(op->dtype.lanes() * op->dtype.bytes()) > max_vector_bytes_) {
         std::stringstream s;
         s << "Number of lanes (" << op->dtype.lanes() << ") times number of bytes ("
@@ -215,7 +215,7 @@ class GPUCodeVerifier : public StmtExprVisitor {
   }
 
   void VisitExpr_(const BufferLoadNode* op) {
-    if (op->dtype.lanes() > 1) {
+    if (op->dtype.is_vector()) {
       if (static_cast<size_t>(op->dtype.lanes() * op->dtype.bytes()) > max_vector_bytes_) {
         std::stringstream s;
         s << "Number of lanes (" << op->dtype.lanes() << ") times number of bytes ("
@@ -229,7 +229,7 @@ class GPUCodeVerifier : public StmtExprVisitor {
   }
 
   void VisitStmt_(const BufferStoreNode* op) {
-    if (op->value->dtype.lanes() > 1) {
+    if (op->value->dtype.is_vector()) {
       if (static_cast<size_t>(op->value->dtype.lanes() * op->value->dtype.bytes()) >
           max_vector_bytes_) {
         std::stringstream s;

@@ -60,7 +60,7 @@ def test_unique(exec_mode):
     result, result_sorted = run_cpu(InputModule, "foo", data, exec_mode=exec_mode)
 
     expected_output_sorted, indices = np.unique(data_numpy, return_index=True)
-    expected_output = [data_numpy.flatten()[index] for index in sorted(indices, reverse=True)]
+    expected_output = [data_numpy.flatten()[index] for index in sorted(indices)]
 
     np.testing.assert_array_equal(expected_output_sorted, result_sorted.numpy())
     np.testing.assert_array_equal(expected_output, result.numpy())
