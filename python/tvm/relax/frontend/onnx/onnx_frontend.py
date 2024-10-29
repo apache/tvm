@@ -1209,9 +1209,7 @@ class Squeeze(OnnxOpConverter):
             if isinstance(axis, (tuple, type(None))):
                 out_data = _np.squeeze(data.data.numpy(), axis)
             else:
-                raise NotImplementedError(
-                    "Squeeze with symbolic axes not supported"
-                )
+                raise NotImplementedError("Squeeze with symbolic axes not supported")
 
             return relax.const(out_data, data.struct_info.dtype)
 
