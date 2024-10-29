@@ -106,8 +106,8 @@ def compile_hip(code, target_format="hsaco", arch=None, options=None, path_targe
         return data
 
 
-@tvm._ffi.register_func("tvm_callback_hip_compile")
-def tvm_callback_hip_compile(code):
+@tvm._ffi.register_func
+def tvm_callback_hip_compile(code, target):
     """use hipcc to generate fatbin code for better optimization"""
     hsaco = compile_hip(code, target_format="hsaco")
     return hsaco
