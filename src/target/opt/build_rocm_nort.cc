@@ -107,7 +107,7 @@ runtime::Module BuildHIP(IRModule mod, Target target) {
   std::string code = cg.Finish();
 
   if (const auto* f = Registry::Get("tvm_callback_hip_postproc")) {
-    code = (*f)(code).operator std::string();
+    code = (*f)(code, target).operator std::string();
   }
   std::string fmt = "ptx";
   std::string ptx;
