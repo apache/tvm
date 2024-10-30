@@ -29,6 +29,7 @@ from tvm.contrib.msc.core.ir import MSCGraph
 from tvm.contrib.msc.core.runtime import ModelRunner
 from tvm.contrib.msc.core.utils.message import MSCStage
 from tvm.contrib.msc.core.utils.namespace import MSCFramework
+from tvm.contrib.msc.core import utils as msc_utils
 from tvm.contrib.msc.framework.tensorflow.frontend import from_tensorflow
 from tvm.contrib.msc.framework.tensorflow.codegen import to_tensorflow
 from tvm.contrib.msc.framework.tensorflow import tf_v1
@@ -154,24 +155,9 @@ class TensorflowRunner(ModelRunner):
             The outputs in list or dict.
         """
 
-        feed_dict = {i["name"] + ":0": inputs[i["name"]] for i in self.get_inputs()}
+        input_names = [i["name"] for i in self.get_inputs()]
+        feed_dict = {i + ":0": msc_utils.cast_array(inputs[i]) for i in input_names}
         return runnable.run(self._tf_outputs, feed_dict)
-
-    def _device_enabled(self, device: str) -> bool:
-        """Check if the device is enabled
-
-        Returns
-        -------
-        enabled: bool
-            Whether the device is enabled.
-        """
-
-        if device == "cpu":
-            return True
-        if device.startswith("cuda"):
-            device_protos = device_lib.list_local_devices()
-            return any(dev.device_type == "GPU" for dev in device_protos)
-        return False
 
     @property
     def codegen_func(self):
@@ -182,13 +168,15 @@ class TensorflowRunner(ModelRunner):
         return MSCFramework.TENSORFLOW
 
     @classmethod
-    def load_native(cls, model: Any) -> Tuple[tf_v1.GraphDef, str, bool]:
+    def load_native(cls, model: Any, config: dict) -> Tuple[tf_v1.GraphDef, str, bool]:
         """Load the native model
 
         Parameters
         -------
         model:
             The native model.
+        config: dict
+            The config for pipeline.
 
         Returns
         -------
@@ -212,40 +200,6 @@ class TensorflowRunner(ModelRunner):
         else:
             device = "cpu"
         return native_model, device, False
-
-    @classmethod
-    def update_config(cls, stage: str, config: dict, model: Any = None) -> dict:
-        """Update the config for parse
-
-        Parameters
-        -------
-        stage: str
-            The stage to be updated
-        config: dict
-            The config for pipeline.
-        model:
-            The native model.
-
-        Returns
-        -------
-        config: dict
-            The updated config.
-        """
-
-        config = ModelRunner.update_config(stage, config, model)
-        if stage not in config:
-            return config
-        if stage == MSCStage.PARSE:
-            config["parse"]["parser"] = from_tensorflow
-            parse_config = config["parse"].get("parse_config", {})
-            parse_config.update(
-                {
-                    "shape_dict": {i[0]: i[1] for i in config["inputs"]},
-                    "outputs": config["outputs"],
-                }
-            )
-            config["parse"]["parse_config"] = parse_config
-        return config
 
     @classmethod
     def run_native(
@@ -298,3 +252,54 @@ class TensorflowRunner(ModelRunner):
                     avg_time = -1
         outputs = dict(zip(output_names, outputs))
         return outputs, avg_time
+
+    @classmethod
+    def update_config(cls, stage: str, config: dict, model: Any = None) -> dict:
+        """Update the config for parse
+
+        Parameters
+        -------
+        stage: str
+            The stage to be updated
+        config: dict
+            The config for pipeline.
+        model:
+            The native model.
+
+        Returns
+        -------
+        config: dict
+            The updated config.
+        """
+
+        config = ModelRunner.update_config(stage, config, model)
+        if stage not in config:
+            return config
+        if stage == MSCStage.PARSE:
+            config["parse"]["parser"] = from_tensorflow
+            parse_config = config["parse"].get("parse_config", {})
+            parse_config.update(
+                {
+                    "shape_dict": {i[0]: i[1] for i in config["inputs"]},
+                    "outputs": config["outputs"],
+                }
+            )
+            config["parse"]["parse_config"] = parse_config
+        return config
+
+    @classmethod
+    def support_device(cls, device: str) -> bool:
+        """Check if the device is enabled
+
+        Returns
+        -------
+        enabled: bool
+            Whether the device is enabled.
+        """
+
+        if device == "cpu":
+            return True
+        if device.startswith("cuda"):
+            device_protos = device_lib.list_local_devices()
+            return any(dev.device_type == "GPU" for dev in device_protos)
+        return False

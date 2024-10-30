@@ -105,7 +105,7 @@ def lower(
     inp : Union[tvm.te.schedule.Schedule, tvm.tir.PrimFunc, IRModule]
         The TE schedule or TensorIR PrimFunc/IRModule to be built
 
-    args : Optional[List[Union[tvm.tir.Buffer, tensor.Tensor, Var]]]
+    args : Optional[List[Union[tvm.tir.Buffer, tensor.Tensor, tir.Var]]]
         The argument lists to the function for TE schedule.
 
         It should be None if we want to lower TensorIR.
@@ -156,7 +156,7 @@ def build(
     inputs : Union[tvm.te.schedule.Schedule, tvm.tir.PrimFunc, IRModule, Mapping[str, IRModule]]
         The input to be built
 
-    args : Optional[List[Union[tvm.tir.Buffer, tensor.Tensor, Var]]]
+    args : Optional[List[Union[tvm.tir.Buffer, tensor.Tensor, tir.Var]]]
         The argument lists to the function.
 
     target : Optional[Union[str, Target]]
@@ -249,7 +249,7 @@ def build(
         if target is None and isinstance(input_mod, tvm.IRModule):
             target_mod = {}
             for gvar, func in input_mod.functions.items():
-                tgt = func.attrs["target"] if func.attrs and "target" in func.attrs else "llvm"
+                tgt = func.attrs["target"] if "target" in func.attrs else "llvm"
                 if tgt not in target_mod:
                     target_mod[tgt] = {}
                 target_mod[tgt][gvar] = func

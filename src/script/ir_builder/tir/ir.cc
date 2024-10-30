@@ -61,7 +61,7 @@ PrimFuncFrame PrimFunc(bool is_private) {
   n->args.clear();
   n->ret_type = NullOpt;
   n->buffer_map.clear();
-  n->attrs = NullOpt;
+  n->attrs = {};
   n->env_threads.clear();
   n->root_alloc_buffers.clear();
   return PrimFuncFrame(n);
@@ -91,17 +91,25 @@ void FuncName(String name) {
   frame->name = name;
 }
 
-void FuncAttrs(Map<String, ObjectRef> attrs) {
+void FuncAttrs(Map<String, ObjectRef> new_attrs) {
   using namespace tvm::tir;
   PrimFuncFrame frame = FindPrimFuncFrame("T.func_attr");
-  if (frame->attrs.defined()) {
-    LOG(FATAL) << "ValueError: Duplicate prim func annotations, previous one is " << frame->attrs;
+  for (const auto& [key, value] : new_attrs) {
+    if (key == tvm::attr::kGlobalSymbol && frame->is_private) {
+      LOG(FATAL) << "ValueError: "
+                 << "A private function may not have the kGlobalSymbol (\""
+                 << tvm::attr::kGlobalSymbol << "\") attribute.  "
+                 << "However, a private function specified the global symbol as " << value;
+    }
+
+    if (auto prev = frame->attrs.Get(key)) {
+      LOG(FATAL) << "ValueError: "
+                 << "Duplicate prim func annotation for key = \"" << key << "\".  "
+                 << "Previous value was " << prev.value() << ", with later definition as " << value;
+    } else {
+      frame->attrs.Set(key, value);
+    }
   }
-  if (attrs.count(tvm::attr::kGlobalSymbol) && frame->is_private) {
-    LOG(FATAL) << "ValueError: Specifying the global symbol even though the PrimFunc is annotated "
-                  "as private";
-  }
-  frame->attrs = attrs;
 }
 
 tvm::Type FuncRet(tvm::Type ret_type) {
@@ -424,7 +432,8 @@ LaunchThreadFrame LaunchThread(Var var, PrimExpr extent) {
   }
   ObjectPtr<LaunchThreadFrameNode> n = make_object<LaunchThreadFrameNode>();
   if (!iter_var->dom.defined()) {
-    const_cast<tvm::tir::IterVarNode*>(iter_var.get())->dom = Range(0, extent);
+    const_cast<tvm::tir::IterVarNode*>(iter_var.get())->dom =
+        Range(tvm::tir::make_zero(extent.dtype()), extent);
   } else if (!arith::Analyzer().CanProveEqual(iter_var->dom->extent, extent)) {
     LOG(FATAL) << "ValueError: Inconsistent extents of environment thread. "
                << iter_var->dom->extent << " vs " << extent;
@@ -436,7 +445,7 @@ LaunchThreadFrame LaunchThread(Var var, PrimExpr extent) {
 }
 
 LaunchThreadFrame LaunchThread(String thread_tag, PrimExpr extent) {
-  return LaunchThread(EnvThread(thread_tag), extent);
+  return LaunchThread(EnvThread(thread_tag, extent.dtype()), extent);
 }
 
 RealizeFrame Realize(tvm::tir::BufferRegion buffer_slice, String storage_scope,
@@ -504,9 +513,8 @@ ElseFrame Else() {
   return ElseFrame(n);
 }
 
-Var EnvThread(String thread_tag) {
-  IterVar iter_var(Range{nullptr}, Var("", DataType::Int(32)), tvm::tir::IterVarType::kThreadIndex,
-                   thread_tag);
+Var EnvThread(String thread_tag, DataType dtype) {
+  IterVar iter_var(Range{nullptr}, Var("", dtype), tvm::tir::IterVarType::kThreadIndex, thread_tag);
   Var var = iter_var->var;
   if (Optional<PrimFuncFrame> opt_frame = IRBuilder::Current()->FindFrame<PrimFuncFrame>()) {
     opt_frame.value()->env_threads.Set(var, iter_var);
@@ -516,7 +524,8 @@ Var EnvThread(String thread_tag) {
   return var;
 }
 
-void BufferStore(Buffer buffer, PrimExpr value, Array<PrimExpr> indices) {
+void BufferStore(Buffer buffer, PrimExpr value, Array<PrimExpr> indices,
+                 Optional<PrimExpr> predicate = NullOpt) {
   runtime::DataType buffer_dtype = buffer->dtype;
   bool is_index_scalable = indices.empty() ? false : indices.back().dtype().is_scalable_vector();
   bool is_buffer_dtype_scalable = buffer_dtype.is_scalable_vector();
@@ -578,7 +587,7 @@ void BufferStore(Buffer buffer, PrimExpr value, Array<PrimExpr> indices) {
     }
     value = tvm::cast(lhs_dtype, value);
   }
-  AddToParent(tvm::tir::BufferStore(buffer, value, indices));
+  AddToParent(tvm::tir::BufferStore(buffer, value, indices, predicate));
 }
 
 void Prefetch(Buffer buffer, Array<Range> bounds) {
@@ -742,6 +751,11 @@ TVM_REGISTER_GLOBAL_SIZE("script.ir_builder.tir.Int", Int);
 TVM_REGISTER_GLOBAL_SIZES_LANES("script.ir_builder.tir.Float", Float);
 TVM_REGISTER_GLOBAL_SIZES_LANES("script.ir_builder.tir.UInt", UInt);
 TVM_REGISTER_GLOBAL_SIZES_LANES("script.ir_builder.tir.Int", Int);
+
+TVM_REGISTER_GLOBAL("script.ir_builder.tir.E4M3Float8").set_body_typed(E4M3Float8);
+TVM_REGISTER_GLOBAL("script.ir_builder.tir.E5M2Float8").set_body_typed(E5M2Float8);
+TVM_REGISTER_GLOBAL_LANES("script.ir_builder.tir.E4M3Float8", E4M3Float8);
+TVM_REGISTER_GLOBAL_LANES("script.ir_builder.tir.E5M2Float8", E5M2Float8);
 
 TVM_REGISTER_GLOBAL("script.ir_builder.tir.Boolean").set_body_typed(Boolean);
 TVM_REGISTER_GLOBAL("script.ir_builder.tir.Handle").set_body_typed(Handle);

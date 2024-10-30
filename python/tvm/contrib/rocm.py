@@ -52,7 +52,8 @@ def find_lld(required=True):
     if major is not None:
         lld_list += [f"ld.lld-{major}.0"]
         lld_list += [f"ld.lld-{major}"]
-    lld_list += ["ld.lld", "/opt/rocm/llvm/bin"]
+    lld_list += ["ld.lld"]
+    lld_list += [f"/opt/rocm/llvm/bin/{x}" for x in lld_list]
     valid_list = [utils.which(x) for x in lld_list]
     valid_list = [x for x in valid_list if x]
     if not valid_list and required:
@@ -135,8 +136,10 @@ def callback_rocm_bitcode_path(rocdl_dir=None):
     # seems link order matters.
 
     if rocdl_dir is None:
-        if exists("/opt/rocm/amdgcn/bitcode/"):
-            rocdl_dir = "/opt/rocm/amdgcn/bitcode/"  # starting with rocm 3.9
+        rocm_path = find_rocm_path()
+        amdgcn_path = f"{rocm_path}/amdgcn/bitcode/"
+        if exists(amdgcn_path):
+            rocdl_dir = amdgcn_path  # starting with rocm 3.9
         else:
             rocdl_dir = "/opt/rocm/lib/"  # until rocm 3.8
 
@@ -225,7 +228,7 @@ def have_matrixcore(compute_version=None):
 
 
 @tvm._ffi.register_func("tvm_callback_rocm_get_arch")
-def get_rocm_arch(rocm_path="/opt/rocm"):
+def get_rocm_arch(rocm_path=None):
     """Utility function to get the AMD GPU architecture
 
     Parameters
@@ -238,9 +241,15 @@ def get_rocm_arch(rocm_path="/opt/rocm"):
     gpu_arch : str
         The AMD GPU architecture
     """
+    if rocm_path is None:
+        try:
+            rocm_path = find_rocm_path()
+        except RuntimeError:
+            rocm_path = None
+
     gpu_arch = "gfx900"
     # check if rocm is installed
-    if not os.path.exists(rocm_path):
+    if rocm_path is None or not os.path.exists(rocm_path):
         print("ROCm not detected, using default gfx900")
         return gpu_arch
     try:

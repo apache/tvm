@@ -254,6 +254,27 @@ TVM_DLL Pass LegalizeOps(Optional<Map<String, PackedFunc>> cmap, bool enable_war
 TVM_DLL Pass RealizeVDevice();
 
 /*!
+ * \brief Attach layout free buffers to the tir::PrimFunc.
+ *
+ * This pass is used to attach layout free buffers to the tir::PrimFunc according to
+ * the function usage in the relax function. Currently, the layout free buffers are the model
+ * weights and relax constants.
+ *
+ * \note We recommend applying CanonicalizeBindings before this pass.
+ * \return The Pass.
+ */
+TVM_DLL Pass AttachAttrLayoutFreeBuffers();
+
+/*!
+ * \brief Split the layout rewrite preproc block to a separate tir::PrimFunc.
+ *
+ * This pass is used in the prepack weight after meta_schedule tuning.
+ *
+ * \return The Pass.
+ */
+TVM_DLL Pass SplitLayoutRewritePreproc();
+
+/*!
  * \brief Lift transformation of the parameters of a function.
  *
  * When some inputs of the function is marked as 'parameters' (the model weights), this pass
@@ -265,9 +286,21 @@ TVM_DLL Pass RealizeVDevice();
  * Users are expected to invoke the `transform_params` function in runtime and pass the transformed
  * parameters to the original function as input.
  *
+ * \param shared_transform Indicates how the parameter transformation function will be produced.
+ *    - `False` (default): A separate parameter transformation function will be produced for each
+ *      function with the `"num_input"` attribute.
+ *
+ *    - `True`: A single parameter transformation function will be produced, containing the
+ *      preprocessing steps common across all functions with the `"num_input"` attribute.
+ *
+ *    - List[str]: A single parameter transformation function will be produced, containing the
+ *      preprocessing steps common across each function whose name is in the list. Passing a list of
+ *      all functions with the `"num_input"` attribute or an empty list is equivalent to passing
+ *      `True`.
+ *
  * \return The Pass.
  */
-TVM_DLL Pass LiftTransformParams();
+TVM_DLL Pass LiftTransformParams(Variant<Bool, Array<String>> shared_transform = Bool(false));
 
 /*!
  * \brief Update virtual device.
@@ -355,7 +388,7 @@ class FusionPatternNode : public Object {
    * \brief The function to get attributes for fused function
    *
    * It should have signature
-   * Map<String, String>(const Map<String, Expr>& context)
+   * Map<String, ObjectRef>(const Map<String, Expr>& context)
    */
   Optional<PackedFunc> attrs_getter;
 
@@ -480,12 +513,15 @@ TVM_DLL Pass Gradient(String func_name, Optional<Array<Var>> require_grads = Nul
  * corresponding pattern name. For example, "dnnl" if the pattern name is "dnnl.conv2d_relu".
  * This must be True if the created composite functions are intended to be offloaded to
  * an external backend without using the MergeCompositeFunctions pass.
+ * \param entry_function_names The names of functions that should be considered as entry points. If
+ * not specified, all externally exposed functions will be considered as entry points.
  * \return The Pass.
  *
  * \note Only operates within dataflow blocks. ConvertToDataflow may need to be called first.
  */
 TVM_DLL Pass FuseOpsByPattern(const tvm::Array<FusionPattern>& patterns, bool bind_constants = true,
-                              bool annotate_codegen = false);
+                              bool annotate_codegen = false,
+                              const tvm::Array<String>& entry_function_names = {});
 
 /*!
  * \brief Group one or multiple composite functions created by FuseOpsByPattern into a new
@@ -544,11 +580,13 @@ TVM_DLL Pass DecomposeOpsForTraining(Optional<String> func_name);
  * \param op_buffer_transforms Map from kOperatorName attr to layout transformations on each of the
  * PrimFunc i/o buffers.
  * \param axis_separators Map from kOperatorName attr to axis_separators of each buffer_transforms
+ * \param input_axis_separators Map from kOperatorName attr to axis_separator for input buffer
  * \return The Pass.
  */
 TVM_DLL Pass AlterOpImpl(const Map<String, tir::PrimFunc>& op_impl_map,
                          const Map<String, Array<tir::IndexMap>>& op_buffer_transforms,
-                         const Map<String, Array<Array<IntImm>>>& axis_separators);
+                         const Map<String, Array<Array<IntImm>>>& axis_separators,
+                         const Map<String, Array<Array<IntImm>>>& input_axis_separators);
 
 /*!
  * \brief Layout conversion pass.

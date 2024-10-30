@@ -41,7 +41,7 @@ public class GraphModule {
   private Function fdebugGetOutput;
   private Function floadParams;
 
-  GraphModule(Module module, Device dev) {
+  public GraphModule(Module module, Device dev) {
     this.module = module;
     this.device = dev;
     fsetInput = module.getFunction("set_input");

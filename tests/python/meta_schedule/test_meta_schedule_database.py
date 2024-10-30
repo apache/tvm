@@ -104,7 +104,7 @@ def _equal_record(a: ms.database.TuningRecord, b: ms.database.TuningRecord):
     assert str(a.run_secs) == str(b.run_secs)
     # AWAIT(@zxybazh): change to export after fixing "(bool)0"
     assert str(a.target) == str(b.target)
-    assert tvm.ir.structural_equal(a.workload.mod, b.workload.mod)
+    tvm.ir.assert_structural_equal(a.workload.mod, b.workload.mod)
     for arg0, arg1 in zip(a.args_info, b.args_info):
         assert str(arg0.as_json()) == str(arg1.as_json())
 

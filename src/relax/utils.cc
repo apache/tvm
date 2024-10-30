@@ -65,49 +65,6 @@ class ExprBinder : public ExprMutator {
     }
   }
 
-  Expr VisitExpr_(const CallNode* op) final {
-    auto call_node = Downcast<Call>(ExprMutator::VisitExpr_(op));
-
-    // Special case for strided_slice
-    //
-    // The strided_slice operator currently stores the begins/ends in
-    // the CallNode::attrs.  Because the CallNode::attrs is only
-    // intended to store static information, any PrimExpr members in
-    // the attributes are not visited by `ExprMutator::VisitPrimExpr`.
-    // Therefore, these must be explicitly visited.
-    //
-    // When the strided_slice operator is updated to store begins/ends
-    // as a tuple of `relax::PrimValue` in the arguments, this special
-    // case can be removed.
-    static auto strided_slice_op = Op::Get("relax.strided_slice");
-    if (call_node->op.same_as(strided_slice_op)) {
-      auto attrs = call_node->attrs.as<StridedSliceAttrs>();
-
-      auto visit_prim_expr = [this](const auto& expr) { return VisitPrimExpr(expr); };
-
-      Array<PrimExpr> begin = attrs->begin.Map(visit_prim_expr);
-      Array<PrimExpr> end = attrs->end.Map(visit_prim_expr);
-      auto strides = attrs->strides;
-      if (strides.defined()) {
-        strides = strides.value().Map(visit_prim_expr);
-      }
-
-      bool all_same = begin.same_as(attrs->begin) && end.same_as(attrs->end) &&
-                      (!strides.defined() || strides.same_as(attrs->strides));
-      if (!all_same) {
-        ObjectPtr<StridedSliceAttrs> new_attrs = make_object<StridedSliceAttrs>();
-        new_attrs->axes = attrs->axes;
-        new_attrs->begin = std::move(begin);
-        new_attrs->end = std::move(end);
-        new_attrs->strides = std::move(strides);
-        new_attrs->assume_inbound = attrs->assume_inbound;
-        call_node.CopyOnWrite()->attrs = Attrs(new_attrs);
-      }
-    }
-
-    return std::move(call_node);
-  }
-
   Expr VisitExpr_(const VarNode* op) final {
     auto id = GetRef<Var>(op);
     auto it = args_map_.find(id);
@@ -144,6 +101,10 @@ Expr Bind(const Expr& expr, const tvm::Map<Var, Expr>& binds,
   return ExprBinder(binds, symbolic_var_map).VisitExpr(expr);
 }
 
+StructInfo Bind(const StructInfo& sinfo, const tvm::Map<tir::Var, PrimExpr>& symbolic_var_map) {
+  return ExprBinder({}, symbolic_var_map).VisitExprDepStructInfoField(sinfo);
+}
+
 tvm::Map<tir::Var, PrimExpr> InferSymbolicVarMap(
     const tvm::Map<relax::Var, relax::Expr>& relax_var_remap, arith::Analyzer* analyzer) {
   tvm::Map<tir::Var, PrimExpr> tir_var_remap;
@@ -161,11 +122,7 @@ tvm::Map<tir::Var, PrimExpr> InferSymbolicVarMap(
     if (!var_sinfo) return;
 
     auto expr_sinfo = expr.as<PrimStructInfoNode>();
-    CHECK(expr_sinfo) << "Cannot bind expression with struct type " << expr
-                      << " to variable with struct type " << var;
-    CHECK_EQ(var_sinfo->dtype, expr_sinfo->dtype)
-        << "Cannot bind expression with struct type " << expr << " to variable with struct type "
-        << var << ", due to conflicting PrimExpr DataType";
+    if (!expr_sinfo) return;
 
     if (!var_sinfo->value.defined() || !expr_sinfo->value.defined()) return;
 
@@ -178,15 +135,12 @@ tvm::Map<tir::Var, PrimExpr> InferSymbolicVarMap(
     if (!var_shape->values.defined()) return;
 
     auto expr_shape = expr.as<ShapeStructInfoNode>();
-    CHECK(expr_shape) << "Cannot bind expression with struct type " << expr
-                      << " to variable with struct type " << var;
+    if (!expr_shape) return;
     if (!expr_shape->values.defined()) return;
 
     auto var_shape_arr = var_shape->values.value();
     auto expr_shape_arr = expr_shape->values.value();
-    CHECK_EQ(var_shape_arr.size(), expr_shape_arr.size())
-        << "Cannot bind shape " << expr_shape_arr << " of dimension " << expr_shape_arr.size()
-        << " to variable with shape " << var_shape_arr << " of dimension " << var_shape_arr.size();
+    if (var_shape_arr.size() != expr_shape_arr.size()) return;
     for (size_t i = 0; i < var_shape_arr.size(); i++) {
       bind_from_prim_expr(var_shape_arr[i], expr_shape_arr[i]);
     }
@@ -198,21 +152,39 @@ tvm::Map<tir::Var, PrimExpr> InferSymbolicVarMap(
     if (!var_tensor->shape.defined()) return;
 
     auto expr_tensor = expr.as<TensorStructInfoNode>();
-    CHECK(expr_tensor) << "Cannot bind expression with struct type " << expr
-                       << " to variable with struct type " << var;
+    if (!expr_tensor) return;
     if (!expr_tensor->shape.defined()) return;
 
     bind_from_shape(GetStructInfo(var_tensor->shape.value()),
                     GetStructInfo(expr_tensor->shape.value()));
   };
 
+  std::function<void(const StructInfo&, const StructInfo&)> bind_from_struct_info = nullptr;
+  auto bind_from_tuple = [&bind_from_struct_info](const StructInfo& var, const StructInfo& expr) {
+    auto var_tuple = var.as<TupleStructInfoNode>();
+    if (!var_tuple) return;
+
+    auto expr_tuple = expr.as<TupleStructInfoNode>();
+    if (!expr_tuple) return;
+
+    if (var_tuple->fields.size() != expr_tuple->fields.size()) return;
+
+    for (size_t i = 0; i < var_tuple->fields.size(); i++) {
+      bind_from_struct_info(var_tuple->fields[i], expr_tuple->fields[i]);
+    }
+  };
+
+  bind_from_struct_info = [&](const StructInfo& var, const StructInfo& expr) {
+    bind_from_tensor(var, expr);
+    bind_from_shape(var, expr);
+    bind_from_prim_value(var, expr);
+    bind_from_tuple(var, expr);
+  };
+
   for (const auto& [relax_var, relax_expr] : relax_var_remap) {
     auto var_sinfo = GetStructInfo(relax_var);
     auto expr_sinfo = GetStructInfo(relax_expr);
-
-    bind_from_tensor(var_sinfo, expr_sinfo);
-    bind_from_shape(var_sinfo, expr_sinfo);
-    bind_from_prim_value(var_sinfo, expr_sinfo);
+    bind_from_struct_info(var_sinfo, expr_sinfo);
   }
 
   return tir_var_remap;
@@ -220,12 +192,21 @@ tvm::Map<tir::Var, PrimExpr> InferSymbolicVarMap(
 
 bool IsBoolStructInfo(const StructInfo& sinfo, bool permit_unknown_rank,
                       bool permit_unknown_dtype) {
-  const TensorStructInfoNode* tt = sinfo.as<TensorStructInfoNode>();
-  if (!tt) {
+  DataType dtype;
+  int ndim;
+
+  if (const auto* tensor = sinfo.as<TensorStructInfoNode>()) {
+    dtype = tensor->dtype;
+    ndim = tensor->ndim;
+  } else if (const auto* prim = sinfo.as<PrimStructInfoNode>()) {
+    dtype = prim->dtype;
+    ndim = 0;
+  } else {
     return false;
   }
-  bool correct_dtype = tt->dtype.is_bool() || (permit_unknown_dtype && tt->dtype.is_void());
-  bool correct_rank = tt->ndim == 0 || (permit_unknown_rank && tt->ndim == -1);
+
+  bool correct_dtype = dtype.is_bool() || (permit_unknown_dtype && dtype.is_void());
+  bool correct_rank = ndim == 0 || (permit_unknown_rank && ndim == -1);
   return correct_dtype && correct_rank;
 }
 

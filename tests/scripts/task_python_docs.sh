@@ -90,6 +90,8 @@ IGNORED_WARNINGS=(
     'absl:For model inputs containing unsupported operations which cannot be quantized, the `inference_input_type` attribute will default to the original type.'
     'absl:Found untraced functions such as _jit_compiled_convolution_op'
     'You are using pip version'
+    # Tutorial READMEs can be ignored, but other docs should be included
+    "tutorials/README.rst: WARNING: document isn't included in any toctree"
 )
 
 JOINED_WARNINGS=$(join_by '|' "${IGNORED_WARNINGS[@]}")

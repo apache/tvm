@@ -233,9 +233,9 @@ support::LinearCongruentialEngine::TRandState ConcreteScheduleNode::ForkSeed() {
   return support::LinearCongruentialEngine(&rand_state_).ForkSeed();
 }
 
-ExprRV ConcreteScheduleNode::SampleCategorical(const Array<Integer>& candidates,
-                                               const Array<FloatImm>& probs,
-                                               Optional<Integer> decision) {
+ExprRV ConcreteScheduleNode::SampleCategorical(const Array<runtime::Int>& candidates,
+                                               const Array<runtime::Float>& probs,
+                                               Optional<runtime::Int> decision) {
   TVM_TIR_SCHEDULE_BEGIN();
   return CreateRV(tir::SampleCategorical(&this->rand_state_, candidates, probs, &decision));
   TVM_TIR_SCHEDULE_END("sample-categorical", this->error_render_level_);
@@ -246,8 +246,10 @@ Array<ExprRV> ConcreteScheduleNode::SamplePerfectTile(const LoopRV& loop_rv, int
                                                       int max_innermost_factor,
                                                       Optional<Array<Integer>> decision) {
   TVM_TIR_SCHEDULE_BEGIN();
+  // use None RV object to denotes auto-infer tile factors.
   return CreateRV(tir::SamplePerfectTile(&this->rand_state_, this->GetSRef(loop_rv), n,
-                                         max_innermost_factor, &decision));
+                                         max_innermost_factor, &decision),
+                  /*convert_negone_to_none=*/true);
   TVM_TIR_SCHEDULE_END("sample-perfect-tile", this->error_render_level_);
   throw;
 }
@@ -466,7 +468,7 @@ class NonPositiveFactorError : public ScheduleError {
 
 Array<LoopRV> ConcreteScheduleNode::Split(const LoopRV& loop_rv,
                                           const Array<Optional<ExprRV>>& factor_rvs,
-                                          bool preserve_unit_iters) {
+                                          bool preserve_unit_iters, bool disable_predication) {
   // Prepare for the splitting
   StmtSRef loop_sref = this->GetSRef(loop_rv);
   const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
@@ -502,7 +504,7 @@ Array<LoopRV> ConcreteScheduleNode::Split(const LoopRV& loop_rv,
   } else if (!this->analyzer_->CanProve(tot_length >= loop->extent)) {
     throw WrongFactorError(state_->mod, GetRef<For>(loop), true);
   }
-  results = tir::Split(state_, loop_sref, factors, preserve_unit_iters);
+  results = tir::Split(state_, loop_sref, factors, preserve_unit_iters, disable_predication);
   TVM_TIR_SCHEDULE_END("split", this->error_render_level_);
   this->state_->DebugVerify();
   return CreateRV<LoopRV>(results);
@@ -914,6 +916,14 @@ ObjectRef ConcreteScheduleNode::CheckAndGetAnnotationValue(const ObjectRef& ann_
   if (ann_val.as<StringObj>()) {
     return ann_val;
   }
+  if (auto* runtime_int = ann_val.as<runtime::Int::ContainerType>()) {
+    return IntImm(DataType::Int(32), runtime_int->value);
+  } else if (auto* runtime_float = ann_val.as<runtime::Float::ContainerType>()) {
+    return FloatImm(DataType::Float(32), runtime_float->value);
+  } else if (auto* runtime_bool = ann_val.as<runtime::Bool::ContainerType>()) {
+    return Bool(runtime_bool->value);
+  }
+
   if (const auto* expr = ann_val.as<PrimExprNode>()) {
     ICHECK(!ann_val->IsInstance<StringImmNode>())
         << "TypeError: runtime::String is expected, but gets StringImm";
@@ -1048,6 +1058,16 @@ void ConcreteScheduleNode::UnsafeHideBufferAccess(const BlockRV& block_rv, const
   TVM_TIR_SCHEDULE_BEGIN();
   tir::UnsafeHideBufferAccess(state_, this->GetSRef(block_rv), buf_type, buf_index_array);
   TVM_TIR_SCHEDULE_END("hide-buffer-access", this->error_render_level_);
+  this->state_->DebugVerify();
+}
+
+void ConcreteScheduleNode::AnnotateBufferAccess(const BlockRV& block_rv, int buffer_index,
+                                                BufferIndexType buffer_index_type,
+                                                const IndexMap& index_map) {
+  TVM_TIR_SCHEDULE_BEGIN();
+  tir::AnnotateBufferAccess(state_, this->GetSRef(block_rv), buffer_index, buffer_index_type,
+                            index_map);
+  TVM_TIR_SCHEDULE_END("annotate-buffer-access", this->error_render_level_);
   this->state_->DebugVerify();
 }
 

@@ -25,6 +25,7 @@
 #include <tvm/ir/transform.h>
 #include <tvm/node/repr_printer.h>
 #include <tvm/node/structural_hash.h>
+#include <tvm/relax/expr.h>
 #include <tvm/relax/tuning_api.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/registry.h>
@@ -35,6 +36,7 @@
 #include <unordered_set>
 
 #include "../runtime/object_internal.h"
+#include "../runtime/regex.h"
 
 namespace tvm {
 namespace transform {
@@ -105,43 +107,42 @@ bool PassContext::PassEnabled(const PassInfo& info) const {
 
 class PassConfigManager {
  public:
-  void Register(std::string key, uint32_t value_type_index) {
+  void Register(std::string key, uint32_t value_type_index,
+                std::function<ObjectRef(ObjectRef)> legalization) {
     ICHECK_EQ(key2vtype_.count(key), 0U);
     ValueTypeInfo info;
     info.type_index = value_type_index;
     info.type_key = runtime::Object::TypeIndex2Key(value_type_index);
+    info.legalization = legalization;
     key2vtype_[key] = info;
   }
 
   // Trying to validate and legalize a config.
   void Legalize(Map<String, ObjectRef>* config) {
     std::vector<std::pair<std::string, ObjectRef>> update;
-    auto* reflection = ReflectionVTable::Global();
-
-    for (auto kv : *config) {
-      auto it = key2vtype_.find(kv.first);
+    for (auto [key, obj] : *config) {
+      auto it = key2vtype_.find(key);
       if (it == key2vtype_.end()) {
         std::ostringstream os;
-        os << "AttributeError: Invalid config option \'" << kv.first << "\' candidates are:";
+        os << "AttributeError: Invalid config option \'" << key << "\' candidates are:";
         int counter = 0;
-        for (const auto& kv : key2vtype_) {
+        for (const auto& [key, obj] : key2vtype_) {
           os << ' ';
           if (counter++ != 0) os << ',';
-          os << kv.first;
+          os << key;
         }
         LOG(FATAL) << os.str();
       }
       const auto& info = it->second;
-      ICHECK(kv.second.defined()) << "AttributeError: " << kv.first << " is None";
-      if (kv.second->IsInstance<Map<String, ObjectRef>::ContainerType>()) {
-        ObjectRef converted =
-            reflection->CreateObject(info.type_key, Downcast<Map<String, ObjectRef>>(kv.second));
-        update.emplace_back(kv.first, converted);
-      } else {
-        if (!runtime::ObjectInternal::DerivedFrom(kv.second.get(), info.type_index)) {
-          LOG(FATAL) << "AttributeError: expect config " << kv.first << " to have type "
-                     << info.type_key << " but get " << kv.second->GetTypeKey();
-        }
+
+      ICHECK(obj.defined()) << "AttributeError: " << key << " is None";
+
+      ICHECK(info.legalization) << "AttributeError: "
+                                << "Config option \'" << key
+                                << "\' was defined without a legalization function.";
+      auto legalized = info.legalization(obj);
+      if (!legalized.same_as(obj)) {
+        update.emplace_back(key, legalized);
       }
     }
     for (auto&& kv : update) {
@@ -168,13 +169,15 @@ class PassConfigManager {
   struct ValueTypeInfo {
     std::string type_key;
     uint32_t type_index;
+    std::function<ObjectRef(ObjectRef)> legalization;
   };
 
   std::unordered_map<std::string, ValueTypeInfo> key2vtype_;
 };
 
-void PassContext::RegisterConfigOption(const char* key, uint32_t value_type_index) {
-  PassConfigManager::Global()->Register(key, value_type_index);
+void PassContext::RegisterConfigOption(const char* key, uint32_t value_type_index,
+                                       std::function<ObjectRef(ObjectRef)> legalization) {
+  PassConfigManager::Global()->Register(key, value_type_index, legalization);
 }
 
 Map<String, Map<String, String>> PassContext::ListConfigs() {
@@ -530,43 +533,6 @@ Pass CreateModulePass(const runtime::TypedPackedFunc<IRModule(IRModule, PassCont
   PassInfo pass_info = PassInfo(opt_level, name, required, traceable);
   return ModulePass(pass_func, pass_info);
 }
-
-Pass ApplyPassToFunction(Pass pass, String func_name_regex,
-                         bool error_if_no_function_matches_regex) {
-  auto pass_name =
-      static_cast<const std::stringstream&>(std::stringstream() << "ApplyPassTo" << func_name_regex)
-          .str();
-
-  auto pass_func = [pass, func_name_regex](IRModule mod, PassContext) -> IRModule {
-    const auto* regex_match_func = tvm::runtime::Registry::Get("tvm.support.regex_match");
-    CHECK(regex_match_func)
-        << "RuntimeError: "
-        << "The PackedFunc 'tvm.support.regex_match' has not been registered.  "
-        << "This can occur if the TVM Python library has not yet been imported.";
-
-    IRModule subset;
-
-    for (const auto& [gvar, func] : mod->functions) {
-      std::string name = gvar->name_hint;
-      if ((*regex_match_func)(func_name_regex, name)) {
-        subset->Add(gvar, func);
-      }
-    }
-
-    if (subset->functions.size()) {
-      IRModule new_subset = pass(subset);
-      if (!new_subset.same_as(subset)) {
-        mod.CopyOnWrite()->Update(new_subset);
-      }
-    }
-
-    return mod;
-  };
-
-  return CreateModulePass(pass_func, 0, pass_name, {});
-}
-
-TVM_REGISTER_GLOBAL("transform.ApplyPassToFunction").set_body_typed(ApplyPassToFunction);
 
 TVM_REGISTER_NODE_TYPE(PassInfoNode);
 

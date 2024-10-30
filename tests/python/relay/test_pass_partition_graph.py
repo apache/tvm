@@ -327,7 +327,7 @@ def test_extern_ccompiler_default_ops():
     mod = transform.PartitionGraph()(mod)
     fused_mod = transform.FuseOps(2)(mod)
     expected_mod = expected()
-    assert tvm.ir.structural_equal(fused_mod, expected_mod, map_free_vars=True)
+    tvm.ir.assert_structural_equal(fused_mod, expected_mod, map_free_vars=True)
 
     x_data = np.random.rand(8, 8).astype("float32")
     y_data = np.random.rand(8, 8).astype("float32")
@@ -376,7 +376,7 @@ def test_extern_compiler_sanitized_ops():
     mod = transform.PartitionGraph()(mod)
     fused_mod = transform.FuseOps(2)(mod)
     expected_mod = expected()
-    assert tvm.ir.structural_equal(fused_mod, expected_mod, map_free_vars=True)
+    tvm.ir.assert_structural_equal(fused_mod, expected_mod, map_free_vars=True)
 
 
 def test_extern_ccompiler_multiple_functions():
@@ -451,7 +451,7 @@ def test_extern_ccompiler_multiple_functions():
 
     fused_mod = transform.FuseOps(2)(mod)
     expected_mod = expected()
-    assert tvm.ir.structural_equal(fused_mod, expected_mod, map_free_vars=True)
+    tvm.ir.assert_structural_equal(fused_mod, expected_mod, map_free_vars=True)
 
     x_data = np.random.rand(8, 8).astype("float32")
     y_data = np.random.rand(8, 8).astype("float32")
@@ -529,7 +529,7 @@ def test_extern_dnnl():
     mod = transform.PartitionGraph()(mod)
     mod = transform.InferType()(mod)
 
-    assert tvm.ir.structural_equal(mod, expected(), map_free_vars=True)
+    tvm.ir.assert_structural_equal(mod, expected(), map_free_vars=True)
 
     ref_mod = tvm.IRModule()
     ref_mod["main"] = get_func()
@@ -650,7 +650,7 @@ def test_function_lifting():
 
     partitioned = partition()
     ref_mod = expected()
-    assert tvm.ir.structural_equal(partitioned, ref_mod, map_free_vars=True)
+    tvm.ir.assert_structural_equal(partitioned, ref_mod, map_free_vars=True)
 
 
 def test_function_lifting_inline():
@@ -712,7 +712,7 @@ def test_function_lifting_inline():
 
     partitioned = partition()
     ref_mod = expected()
-    assert tvm.ir.structural_equal(partitioned, ref_mod, map_free_vars=True)
+    tvm.ir.assert_structural_equal(partitioned, ref_mod, map_free_vars=True)
 
 
 def test_constant_propagation():
@@ -751,7 +751,7 @@ def test_constant_propagation():
 
     expected_mod = expected()
     expected_mod = relay.transform.InferType()(expected_mod)
-    assert tvm.ir.structural_equal(mod, expected_mod, map_free_vars=True)
+    tvm.ir.assert_structural_equal(mod, expected_mod, map_free_vars=True)
 
     y_data = np.random.rand(8, 8).astype("float32")
     np_add = ones + y_data
@@ -847,7 +847,7 @@ def test_multiple_outputs():
     mod["main"] = create_graph()
     ref_mod = expected()
     partitioned = transform.PartitionGraph()(mod)
-    assert tvm.ir.structural_equal(partitioned, ref_mod, map_free_vars=True)
+    tvm.ir.assert_structural_equal(partitioned, ref_mod, map_free_vars=True)
 
 
 def test_mixed_single_multiple_outputs():
@@ -914,7 +914,7 @@ def test_mixed_single_multiple_outputs():
     ref_mod = expected()
 
     partitioned = transform.PartitionGraph()(mod)
-    assert tvm.ir.structural_equal(partitioned, ref_mod, map_free_vars=True)
+    tvm.ir.assert_structural_equal(partitioned, ref_mod, map_free_vars=True)
 
 
 def test_dnnl_fuse():
@@ -1201,7 +1201,7 @@ def test_multiple_use_of_an_output():
         mod = transform.PartitionGraph()(mod)
 
         expected_mod = expected_same_output_region()
-        assert tvm.ir.structural_equal(mod, expected_mod, map_free_vars=True)
+        tvm.ir.assert_structural_equal(mod, expected_mod, map_free_vars=True)
 
     def test_different_output_region():
         mod = get_mod()
@@ -1210,7 +1210,7 @@ def test_multiple_use_of_an_output():
         mod = transform.PartitionGraph()(mod)
 
         expected_mod = expected_different_output_region()
-        assert tvm.ir.structural_equal(mod, expected_mod, map_free_vars=True)
+        tvm.ir.assert_structural_equal(mod, expected_mod, map_free_vars=True)
 
     test_same_output_region()
     test_different_output_region()
@@ -1274,7 +1274,7 @@ def test_duplicate_outputs():
 
     ref_mod = expected()
     partitioned = seq(mod)
-    assert tvm.ir.structural_equal(partitioned, ref_mod, map_free_vars=True)
+    tvm.ir.assert_structural_equal(partitioned, ref_mod, map_free_vars=True)
 
 
 def test_duplicate_merge_and_tuplegetitem():
@@ -1357,7 +1357,7 @@ def test_duplicate_merge_and_tuplegetitem():
 
     ref_mod = expected()
     partitioned = seq(mod)
-    assert tvm.ir.structural_equal(partitioned, ref_mod, map_free_vars=True)
+    tvm.ir.assert_structural_equal(partitioned, ref_mod, map_free_vars=True)
 
 
 def test_constant_tuples():
@@ -1477,7 +1477,7 @@ def test_flatten_tuple_output():
     partitioned = seq(create_graph())
     partitioned = transform.InferType()(partitioned)
     expected_mod = transform.InferType()(expected())
-    assert tvm.ir.structural_equal(partitioned, expected_mod, map_free_vars=True)
+    tvm.ir.assert_structural_equal(partitioned, expected_mod, map_free_vars=True)
 
 
 def test_tuple_output_exec():

@@ -39,7 +39,7 @@ namespace relax {
  * If dtype is not given, it will by default use the dtype of fill_value.
  * \return The result tensor.
  */
-Expr full(ObjectRef shape, Expr fill_value, DataType dtype);
+Expr full(Variant<Expr, Array<PrimExpr>> shape, Expr fill_value, DataType dtype);
 
 /*!
  * \brief Construct a tensor such that
@@ -72,11 +72,47 @@ Expr ones(Expr shape, DataType dtype);
  */
 Expr ones_like(Expr x, DataType dtype);
 
-/*! \brief Construct a tensor of all zeros, with the input shape and dtype. */
+/*!
+ * \brief Construct a tensor of all zeros, with the input shape and dtype.
+ * \param shape The shape of the created tensor.
+ * \param dtype The data type of the created tensor.
+ * \return The result tensor.
+ */
 Expr zeros(Expr shape, DataType dtype);
 
-/*! \brief Construct a tensor with all zeros, with shape of the input tensor shape. */
+/*!
+ * \brief Construct a tensor with all zeros, with shape of the input tensor shape.
+ * \param x The input tensor, which provides the shape, and dtype
+ * when the input dtype is void.
+ * \param dtype The data type of the created tensor. If it is
+ * void, the input tensor's dtype will be used.
+ * \return The result tensor.
+ */
 Expr zeros_like(Expr x, DataType dtype);
+
+/*!
+ * \brief Construct a 2-D tensor with ones on the diagonal and zeros elsewhere.
+ * \param n The number of rows and columns in the output.
+ * \param m The number of columns in the output. If None, defaults to n.
+ * \param k The index of the diagonal. A positive value refers to an upper diagonal,
+ *          a negative value to a lower diagonal, and 0 to the main diagonal.
+ * \param dtype The data type of the created tensor.
+ * \return The result tensor.
+ */
+Expr eye(PrimValue n, PrimValue m, PrimValue k, DataType dtype);
+
+/*!
+ * \brief Construct a tensor with ones on the diagonal and zeros elsewhere,
+ *        with shape and dtype similar to the input tensor.
+ * \param x The input tensor, which provides the shape, and dtype
+ * when the input dtype is void.
+ * \param k The index of the diagonal. A positive value refers to an upper diagonal,
+ *          a negative value to a lower diagonal, and 0 to the main diagonal.
+ * \param dtype The data type of the created tensor. If it is
+ * void, the input tensor's dtype will be used.
+ * \return The result tensor.
+ */
+Expr eye_like(Expr x, PrimValue k, DataType dtype);
 
 /*! \brief Construct a tensor with evenly spaced elements. */
 Expr arange(PrimValue start, PrimValue stop, PrimValue step, DataType dtype);

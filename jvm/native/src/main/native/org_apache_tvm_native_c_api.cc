@@ -112,6 +112,21 @@ JNIEXPORT void JNICALL Java_org_apache_tvm_LibInfo_tvmFuncPushArgHandle(JNIEnv* 
   e->tvmFuncArgTypes.push_back(static_cast<int>(argType));
 }
 
+JNIEXPORT void JNICALL Java_org_apache_tvm_LibInfo_tvmFuncPushArgDevice(JNIEnv* env, jobject obj,
+                                                                        jobject arg) {
+  jclass deviceClass = env->FindClass("org/apache/tvm/Device");
+  jfieldID deviceTypeField = env->GetFieldID(deviceClass, "deviceType", "I");
+  jfieldID deviceIdField = env->GetFieldID(deviceClass, "deviceId", "I");
+  jint deviceType = env->GetIntField(arg, deviceTypeField);
+  jint deviceId = env->GetIntField(arg, deviceIdField);
+
+  TVMValue value;
+  value.v_int64 = deviceToInt64(deviceType, deviceId);
+  TVMFuncArgsThreadLocalEntry* e = TVMFuncArgsThreadLocalStore::Get();
+  e->tvmFuncArgValues.push_back(value);
+  e->tvmFuncArgTypes.push_back(kDLDevice);
+}
+
 JNIEXPORT void JNICALL Java_org_apache_tvm_LibInfo_tvmFuncPushArgBytes(JNIEnv* env, jobject obj,
                                                                        jbyteArray arg) {
   jbyteArray garg = reinterpret_cast<jbyteArray>(env->NewGlobalRef(arg));
@@ -222,17 +237,30 @@ JNIEXPORT jint JNICALL Java_org_apache_tvm_LibInfo_tvmFuncCall(JNIEnv* env, jobj
   return ret;
 }
 
+// A helper object to take in JNIEnv ptr
+// and allow automatic casting to both JNIEnv** and void**
+// Background: different version of JDK may choose to have one signature
+// or another for the case of AttachCurrentThread
+// we use this universal helper object to enable compatibility with both
+class JNIEnvPtrHelper {
+ public:
+  explicit JNIEnvPtrHelper(JNIEnv** penv) : penv_(penv) {}
+
+  operator JNIEnv**() { return penv_; }
+
+  operator void**() { return reinterpret_cast<void**>(penv_); }
+
+ private:
+  JNIEnv** penv_;
+};
+
 // Callback function
 extern "C" int funcInvokeCallback(TVMValue* args, int* typeCodes, int numArgs,
                                   TVMRetValueHandle ret, void* resourceHandle) {
   JNIEnv* env;
   int jniStatus = _jvm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_6);
   if (jniStatus == JNI_EDETACHED) {
-#ifdef TVM4J_ANDROID
-    _jvm->AttachCurrentThread(&env, nullptr);
-#else
-    _jvm->AttachCurrentThread(reinterpret_cast<void**>(&env), nullptr);
-#endif
+    _jvm->AttachCurrentThread(JNIEnvPtrHelper(&env), nullptr);
   } else {
     CHECK(jniStatus == JNI_OK);
   }
@@ -305,11 +333,7 @@ extern "C" void funcFreeCallback(void* resourceHandle) {
   JNIEnv* env;
   int jniStatus = _jvm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_6);
   if (jniStatus == JNI_EDETACHED) {
-#ifdef TVM4J_ANDROID
-    _jvm->AttachCurrentThread(&env, nullptr);
-#else
-    _jvm->AttachCurrentThread(reinterpret_cast<void**>(&env), nullptr);
-#endif
+    _jvm->AttachCurrentThread(JNIEnvPtrHelper(&env), nullptr);
   } else {
     CHECK(jniStatus == JNI_OK);
   }

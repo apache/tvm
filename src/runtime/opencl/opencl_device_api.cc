@@ -214,6 +214,12 @@ void OpenCLWorkspace::GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) 
       *rv = static_cast<int64_t>(total_global_memory);
       return;
     }
+
+    case kAvailableGlobalMemory:
+      // Not currently implemented.  Based on
+      // https://stackoverflow.com/a/3568223, may not be implementable
+      // at all through OpenCL API.
+      break;
   }
 }
 
@@ -294,7 +300,7 @@ cl_mem OpenCLWorkspace::AllocTexture(Device dev, size_t width, size_t height,
   cl_channel_type cl_type = DTypeToOpenCLChannelType(type_hint);
   cl_image_format format = {CL_RGBA, cl_type};
   cl_image_desc descriptor = {CL_MEM_OBJECT_IMAGE2D, width, height, 0, 0, 0, 0, 0, 0};
-  cl_mem mptr = clCreateImage(this->contexts[platform], CL_MEM_CREATE_FLAGS, &format, &descriptor,
+  cl_mem mptr = clCreateImage(this->contexts[platform], CL_MEM_READ_WRITE, &format, &descriptor,
                               nullptr, &err_code);
   OPENCL_CHECK_ERROR(err_code);
   return mptr;

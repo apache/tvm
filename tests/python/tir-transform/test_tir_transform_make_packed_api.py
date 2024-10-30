@@ -284,5 +284,246 @@ def test_subroutine_call_to_externally_visible_subroutine():
     )
 
 
+def test_function_call_with_wrong_argument_count():
+    """Argument counts must be checked before accessing the type codes"""
+
+    @T.prim_func
+    def func(
+        A: T.Buffer([16, 16], "int32"),
+        B: T.Buffer([16, 16], "int32"),
+        C: T.Buffer([16, 16], "int32"),
+        D: T.Buffer([16, 16], "int32"),
+    ):
+        pass
+
+    built = tvm.build(func, target="llvm")
+
+    with pytest.raises(tvm.TVMError):
+        built()
+
+
+def test_function_call_with_wrong_type_code():
+    """Type codes must be checked before accessing the arguments"""
+
+    @T.prim_func
+    def func(A: T.Buffer([16, 16], "int32")):
+        pass
+
+    built = tvm.build(func, target="llvm")
+
+    with pytest.raises(tvm.TVMError):
+        built(0)
+
+
+def test_function_call_with_null_data_pointer():
+    """The data pointer must be checked before accessing the array"""
+
+    @T.prim_func
+    def func(A: T.Buffer([16, 16], "int32"), B: T.Buffer([16, 16], "int32")):
+        for i, j in T.grid(16, 16):
+            B[i, j] = A[i, j]
+
+    built = tvm.build(func, target="llvm")
+
+    A = tvm.nd.empty([16, 16], "int32", tvm.cpu())
+    B = tvm.nd.empty([16, 16], "int32", tvm.cpu())
+
+    A.handle.contents.data = 0
+
+    with pytest.raises(tvm.TVMError):
+        built(A, B)
+
+
+def test_function_call_with_wrong_dimensionality():
+    """The dimensionality must be checked before validating the shape"""
+
+    @T.prim_func
+    def func(A: T.Buffer([16, 16], "int32"), B: T.Buffer([16, 16], "int32")):
+        for i, j in T.grid(16, 16):
+            B[i, j] = A[i, j]
+
+    built = tvm.build(func, target="llvm")
+
+    A = tvm.nd.empty([16], "int32", tvm.cpu())
+    B = tvm.nd.empty([16], "int32", tvm.cpu())
+
+    A.handle.contents.data = 0
+
+    with pytest.raises(tvm.TVMError):
+        built(A, B)
+
+
+def test_zero_arg_function():
+    """Only check non-null args when num_args>0"""
+
+    @I.ir_module
+    class Before:
+        @T.prim_func
+        def func_without_arg() -> T.int64:
+            T.func_attr({"target": T.target("llvm", host="llvm")})
+            return T.int64(42)
+
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def func_without_arg(
+            args: T.handle,
+            arg_type_ids: T.handle("int32"),
+            num_args: T.int32,
+            out_ret_value: T.handle("void"),
+            out_ret_tcode: T.handle("int32"),
+            resource_handle: T.handle,
+        ) -> T.int32:
+            T.func_attr(
+                {
+                    "calling_conv": 1,
+                    "target": T.target("llvm"),
+                }
+            )
+            assert num_args == 0, "func_without_arg: num_args should be 0"
+            arg_type_ids_1 = T.decl_buffer((0,), "int32", data=arg_type_ids)
+            with T.attr(0, "compute_scope", "func_without_arg_compute_"):
+                out_ret_value_1 = T.Buffer((1,), "int64", data=out_ret_value, strides=(1,))
+                out_ret_value_1[0] = T.Cast("int64", T.int64(42))
+                out_ret_tcode_1 = T.Buffer((1,), "int32", data=out_ret_tcode, strides=(1,))
+                out_ret_tcode_1[0] = 0
+                return 0
+            return 0
+
+    After = tvm.tir.transform.MakePackedAPI()(Before)
+    tvm.ir.assert_structural_equal(Expected, After)
+
+
+def test_int_parameter():
+    """Boolean may be passed to functions accepting int
+
+    A PackedFunc produced by compiling an IRModule should support the
+    same type conversions as the C++ implementation.  When a function
+    accepts an integer argument, the caller may call it with a boolean
+    value.
+
+    This also provides backwards compatibility for functions that were
+    defined as accepting an integer, but are called with a boolean
+    argument.  Prior to PackedFunc interface supporting boolean
+    arguments directly, the argument would be converted from boolean
+    to integer to be stored in a TVMValue.  After adding support for
+    boolean arguments, this usage should not cause an error.
+
+    """
+
+    @I.ir_module
+    class Before:
+        @T.prim_func
+        def main(arg: T.int32) -> T.int32:
+            T.func_attr({"target": T.target("llvm", host="llvm")})
+            if arg > 0:
+                return 10
+            else:
+                return 20
+
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def main(
+            args: T.handle,
+            arg_type_ids: T.handle("int32"),
+            num_args: T.int32,
+            out_ret_value: T.handle("void"),
+            out_ret_tcode: T.handle("int32"),
+            resource_handle: T.handle,
+        ) -> T.int32:
+            T.func_attr(
+                {
+                    "calling_conv": 1,
+                    "target": T.target("llvm"),
+                }
+            )
+            assert num_args == 1, "main: num_args should be 1"
+            assert not T.isnullptr(args), "main: TVMValue* arg pointer was NULL"
+            assert not T.isnullptr(arg_type_ids), "main: int* type_codes was NULL"
+            arg_type_ids_1 = T.decl_buffer((1,), "int32", data=arg_type_ids)
+            arg_code: T.int32 = arg_type_ids_1[0]
+            assert arg_code == 0 or arg_code == 15, "main: Expect arg[0] to be int"
+            arg: T.int32 = T.Cast("int32", T.tvm_struct_get(args, 0, 12, "int64"))
+            with T.attr(0, "compute_scope", "main_compute_"):
+                out_ret_value_1 = T.Buffer((1,), "int64", data=out_ret_value, strides=(1,))
+                out_ret_tcode_1 = T.Buffer((1,), "int32", data=out_ret_tcode, strides=(1,))
+                if arg > 0:
+                    out_ret_value_1[0] = T.Cast("int64", 10)
+                    out_ret_tcode_1[0] = 0
+                    return 0
+                else:
+                    out_ret_value_1[0] = T.Cast("int64", 20)
+                    out_ret_tcode_1[0] = 0
+                    return 0
+            return 0
+
+    After = tvm.tir.transform.MakePackedAPI()(Before)
+
+    tvm.ir.assert_structural_equal(Expected, After)
+
+
+def test_bool_parameter():
+    """An integer may be passed to a function acccepting Boolean
+
+    A PackedFunc produced by compiling an IRModule should support the
+    same type conversions as the C++ implementation.  When a function
+    accepts a boolean argument, the caller may call it with an integer
+    value.
+
+    """
+
+    @I.ir_module
+    class Before:
+        @T.prim_func
+        def main(arg: T.bool) -> T.int32:
+            T.func_attr({"target": T.target("llvm", host="llvm")})
+            if arg:
+                return 10
+            else:
+                return 20
+
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def main(
+            args: T.handle,
+            arg_type_ids: T.handle("int32"),
+            num_args: T.int32,
+            out_ret_value: T.handle("void"),
+            out_ret_tcode: T.handle("int32"),
+            resource_handle: T.handle,
+        ) -> T.int32:
+            T.func_attr(
+                {
+                    "calling_conv": 1,
+                    "target": T.target("llvm"),
+                }
+            )
+            assert num_args == 1, "main: num_args should be 1"
+            assert not T.isnullptr(args), "main: TVMValue* arg pointer was NULL"
+            assert not T.isnullptr(arg_type_ids), "main: int* type_codes was NULL"
+            arg_type_ids_1 = T.decl_buffer((1,), "int32", data=arg_type_ids)
+            arg_code: T.int32 = arg_type_ids_1[0]
+            assert arg_code == 15 or arg_code == 0, "main: Expect arg[0] to be boolean"
+            arg: T.bool = T.Cast("bool", T.tvm_struct_get(args, 0, 12, "int64"))
+            with T.attr(0, "compute_scope", "main_compute_"):
+                out_ret_value_1 = T.Buffer((1,), "int64", data=out_ret_value, strides=(1,))
+                out_ret_tcode_1 = T.Buffer((1,), "int32", data=out_ret_tcode, strides=(1,))
+                if arg:
+                    out_ret_value_1[0] = T.Cast("int64", 10)
+                    out_ret_tcode_1[0] = 0
+                    return 0
+                else:
+                    out_ret_value_1[0] = T.Cast("int64", 20)
+                    out_ret_tcode_1[0] = 0
+                    return 0
+            return 0
+
+    After = tvm.tir.transform.MakePackedAPI()(Before)
+
+    tvm.ir.assert_structural_equal(Expected, After)
+
+
 if __name__ == "__main__":
-    test_makeapi()
+    tvm.testing.main()

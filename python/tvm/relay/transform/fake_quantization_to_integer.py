@@ -364,9 +364,8 @@ def split(expr, type_map):
     arg = expr.args[0]
     t = type_map[arg]
     attrs = {**expr.attrs}
-    if isinstance(attrs["indices_or_sections"], tvm.tir.IntImm):
-        num_split = attrs["indices_or_sections"].value
-        attrs["indices_or_sections"] = num_split
+    if isinstance(attrs["indices_or_sections"], int):
+        num_split = attrs["indices_or_sections"]
     else:
         num_split = len(attrs["indices_or_sections"]) + 1
     return [expr, TupleAffineType([t] * num_split)]
@@ -466,7 +465,7 @@ def pad(expr, type_map):
         # If the pad-value is a constant, we need to quantize it
         assert isinstance(pad_value, relay.expr.Constant)
         assert pad_value.checked_type.dtype in ["float32", "float64", "float16", "bfloat16"]
-        pad_value = relay.qnn.op.quantize(pad_value, t.scale, t.zero_point)
+        pad_value = relay.qnn.op.quantize(pad_value, t.scale, t.zero_point, out_dtype=t.dtype)
 
     out = relay.op.nn.pad(arg, pad_value=pad_value, **expr.attrs)
     return [out, t]

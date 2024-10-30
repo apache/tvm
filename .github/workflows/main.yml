@@ -77,15 +77,17 @@ jobs:
       - name: Minimal Metal Compile-and-Run
         shell: bash -l {0}
         run: >-
+          python -m pytest -v -s 'tests/python/codegen/test_target_codegen_metal.py'
+          python -m pytest -v -s 'tests/python/codegen/test_target_codegen_gpu_common.py'
           python -m pytest -v -s 'tests/python/codegen/test_gpu_codegen_allreduce.py::test_allreduce_sum[dims0-metal]'
-      - name: Test iOS RPC
-        shell: bash -l {0}
-        run: >-
-          python -m pip install tornado psutil cloudpickle &&
-          export PYTHONPATH=tests/python/contrib:${PYTHONPATH} &&
-          export BUNDLE_ID=org.apache.tvmrpc &&
-          export BUNDLE_PATH=build-ios-simulator/apps/ios_rpc/ios_rpc/src/ios_rpc-build/Release-iphonesimulator/tvmrpc.app &&
-          python -m pytest -v tests/python/contrib/test_rpc_server_device.py
+#      - name: Test iOS RPC
+#        shell: bash -l {0}
+#        run: >-
+#          python -m pip install tornado psutil cloudpickle &&
+#          export PYTHONPATH=tests/python/contrib:${PYTHONPATH} &&
+#          export BUNDLE_ID=org.apache.tvmrpc &&
+#          export BUNDLE_PATH=build-ios-simulator/apps/ios_rpc/ios_rpc/src/ios_rpc-build/Release-iphonesimulator/tvmrpc.app &&
+#          python -m pytest -v tests/python/contrib/test_rpc_server_device.py
 
   Windows:
     if: ${{ github.repository == 'apache/tvm' }}
@@ -173,7 +175,7 @@ jobs:
           export PATH="${ANDROID_NDK_LATEST_HOME}:$PATH"
           gradle clean build
       - name: Upload android_rpc APK
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: android_rpc-debug.apk
           path: ./apps/android_rpc/app/build/outputs/apk/debug/app-debug.apk
@@ -184,7 +186,7 @@ jobs:
           export PATH="${ANDROID_NDK_LATEST_HOME}:$PATH"
           gradle clean build
       - name: Upload android_deploy APK
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v4
         with:
           name: android_deploy-debug.apk
           path: ./apps/android_deploy/app/build/outputs/apk/debug/app-debug.apk

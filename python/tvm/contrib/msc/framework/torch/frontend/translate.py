@@ -22,9 +22,8 @@ import numpy as np
 import torch
 import tvm
 from tvm.relax.frontend.torch import from_fx
-
 from tvm.contrib.msc.core.ir.graph import MSCGraph
-from tvm.contrib.msc.core.frontend import from_relax
+from tvm.contrib.msc.core.frontend import from_relax, normalize_inputs
 from tvm.contrib.msc.core.codegen import relay_to_relax
 
 
@@ -104,6 +103,7 @@ def from_torch(
     """
 
     if via_relax:
+        input_info = normalize_inputs(input_info)
         graph_model, params = torch.fx.symbolic_trace(model), None
         with torch.no_grad():
             relax_mod = from_fx(graph_model, input_info, custom_convert_map=custom_convert_map)

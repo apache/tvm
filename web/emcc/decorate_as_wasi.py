@@ -20,6 +20,7 @@ import sys
 
 template_head = """
 function EmccWASI() {
+var asyncifyStubs = {};
 """
 
 template_tail = """

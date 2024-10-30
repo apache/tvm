@@ -16,8 +16,10 @@
 # under the License.
 """Tests for Arm(R) A-Profile Architecture."""
 import os
+
 import numpy as np
 import pytest
+
 import tvm
 import tvm.testing
 from tvm import relay
@@ -73,3 +75,7 @@ def test_conv2d(dtype):
     with tvm.transform.PassContext(opt_level=3):
         lib = tvm.relay.build(mod, target=target, params=params)
         lib.export_library(lib_path, cc="aarch64-linux-gnu-gcc")
+
+
+if __name__ == "__main__":
+    tvm.testing.main()

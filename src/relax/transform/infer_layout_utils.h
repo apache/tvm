@@ -102,6 +102,7 @@ class InferLayoutOutputNode : public Object {
   Array<NLayout> input_layouts;
   Array<NLayout> output_layouts;
   Attrs new_attrs;
+  Map<Integer, Expr> new_args;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("input_layouts", &input_layouts);
@@ -117,11 +118,12 @@ class InferLayoutOutputNode : public Object {
 class InferLayoutOutput : public ObjectRef {
  public:
   explicit InferLayoutOutput(Array<NLayout> input_layouts, Array<NLayout> output_layouts,
-                             Attrs new_attrs) {
+                             Attrs new_attrs, Map<Integer, Expr> new_args = {}) {
     auto n = make_object<InferLayoutOutputNode>();
     n->input_layouts = std::move(input_layouts);
     n->output_layouts = std::move(output_layouts);
     n->new_attrs = std::move(new_attrs);
+    n->new_args = std::move(new_args);
     data_ = n;
   }
   TVM_DEFINE_OBJECT_REF_METHODS(InferLayoutOutput, ObjectRef, InferLayoutOutputNode);

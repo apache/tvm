@@ -139,6 +139,32 @@ def subtract(x1: Expr, x2: Expr) -> Expr:
     return _ffi_api.subtract(x1, x2)  # type: ignore
 
 
+def mod(x1: Expr, x2: Expr) -> Expr:
+    """Modulo with numpy-style broadcasting.
+
+    Parameters
+    ----------
+    x1 : Expr
+        The first input tensor.
+    x2 : Expr
+        The second input tensor.
+    """
+    return _ffi_api.mod(x1, x2)  # type: ignore
+
+
+def floor_mod(x1: Expr, x2: Expr) -> Expr:
+    """Floor modulo with numpy-style broadcasting.
+
+    Parameters
+    ----------
+    x1 : Expr
+        The first input tensor.
+    x2 : Expr
+        The second input tensor.
+    """
+    return _ffi_api.floor_mod(x1, x2)  # type: ignore
+
+
 ###################### Comparison operators ######################
 
 
@@ -386,3 +412,35 @@ def bitwise_xor(x1: Expr, x2: Expr) -> Expr:
         The computed result.
     """
     return _ffi_api.bitwise_xor(x1, x2)
+
+
+def left_shift(x1: Expr, x2: Expr) -> Expr:
+    """Bitwise Shift Left
+    Parameters
+    ----------
+    x1 : relax.Expr
+        The input tensor to be shifted.
+    x2 : relax.Expr
+        The number of positions to shift.
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+    """
+    return _ffi_api.left_shift(x1, x2)
+
+
+def right_shift(x1: Expr, x2: Expr) -> Expr:
+    """Bitwise Shift Right
+    Parameters
+    ----------
+    x1 : relax.Expr
+        The input tensor to be shifted.
+    x2 : relax.Expr
+        The number of positions to shift.
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+    """
+    return _ffi_api.right_shift(x1, x2)

@@ -137,8 +137,10 @@ int roundoff(int v, int d) { return (v + d - 1) / d * d; }
 
 void CallCublasLt(cublasLtHandle_t hdl, cudaStream_t stream,
                   cublasLtMatmulPreference_t matmul_pref_desc, const DLTensor* A, const DLTensor* B,
-                  const DLTensor* bias, const DLTensor* C, bool transa, bool transb,
-                  void* workspace_ptr, size_t workspace_size, cublasLtEpilogue_t epilogue) {
+                  const DLTensor* bias, const DLTensor* scaleA, const DLTensor* scaleB,
+                  const DLTensor* C, bool transa, bool transb, void* workspace_ptr,
+                  size_t workspace_size, cublasLtEpilogue_t epilogue,
+                  std::optional<float> dq_scale) {
   ICHECK(TypeEqual(A->dtype, B->dtype));
   // Reversed strides indicates an in-place transpose operation.
   transa = IsInPlaceTransposed(A) ? !transa : transa;
@@ -150,25 +152,25 @@ void CallCublasLt(cublasLtHandle_t hdl, cudaStream_t stream,
   cudaDataType_t c_type = CUDA_R_32F;
   float one_fp32 = 1.0;
   float zero_fp32 = 0.0;
-  auto one_fp16 = __truncXfYf2__<float, uint32_t, 23, uint16_t, uint16_t, 10>(1.0);
-  auto zero_fp16 = __truncXfYf2__<float, uint32_t, 23, uint16_t, uint16_t, 10>(0.0);
   int32_t one_i32 = 1;
   int32_t zero_i32 = 0;
-  void* alpha = &one_fp32;
+  // Pass dequantization scale through the "alpha" parameter. If there is no dequantization after
+  // matmul, then alpha == 1.0
+  float alpha_value = dq_scale.value_or(one_fp32);
+  void* alpha = &alpha_value;
   void* beta = &zero_fp32;
 
   if (TypeMatch(A->dtype, kDLFloat, 16)) {
     ab_type = CUDA_R_16F;
   } else if (TypeMatch(A->dtype, kDLInt, 8)) {
     ab_type = CUDA_R_8I;
+  } else if (TypeMatch(A->dtype, DataType::TypeCode::kE4M3Float, 8)) {
+    ICHECK(TypeMatch(B->dtype, DataType::TypeCode::kE4M3Float, 8));
+    ab_type = CUDA_R_8F_E4M3;
   }
 
   if (TypeMatch(C->dtype, kDLFloat, 16)) {
     c_type = CUDA_R_16F;
-    compute_type = CUBLAS_COMPUTE_16F;
-    scale_type = CUDA_R_16F;
-    alpha = &one_fp16;
-    beta = &zero_fp16;
   } else if (TypeMatch(C->dtype, kDLInt, 32)) {
     c_type = CUDA_R_32I;
     compute_type = CUBLAS_COMPUTE_32I;
@@ -190,6 +192,17 @@ void CallCublasLt(cublasLtHandle_t hdl, cudaStream_t stream,
   if (bias != nullptr) {
     CHECK_CUBLAS_ERROR(cublasLtMatmulDescSetAttribute(op_desc, CUBLASLT_MATMUL_DESC_BIAS_POINTER,
                                                       &bias->data, sizeof(float*)));
+  }
+
+  if (scaleA != nullptr) {
+    auto scaleA_data = static_cast<char*>(scaleA->data) + scaleA->byte_offset;
+    CHECK_CUBLAS_ERROR(cublasLtMatmulDescSetAttribute(op_desc, CUBLASLT_MATMUL_DESC_A_SCALE_POINTER,
+                                                      &scaleA_data, sizeof(float*)));
+  }
+  if (scaleB != nullptr) {
+    auto scaleB_data = static_cast<char*>(scaleB->data) + scaleB->byte_offset;
+    CHECK_CUBLAS_ERROR(cublasLtMatmulDescSetAttribute(op_desc, CUBLASLT_MATMUL_DESC_B_SCALE_POINTER,
+                                                      &scaleB_data, sizeof(float*)));
   }
 
   if (epilogue != CUBLASLT_EPILOGUE_DEFAULT) {

@@ -72,6 +72,34 @@ def test_target_to_argparse_for_mrvl_hybrid():
     assert parsed.target_mrvl_mcpu == "cnf10kb"
 
 
+@tvm.testing.requires_mrvl
+def test_default_arg_for_mrvl_hybrid():
+    parser = argparse.ArgumentParser()
+    generate_target_args(parser)
+    parsed, _ = parser.parse_known_args(
+        [
+            "--target=mrvl, llvm",
+        ]
+    )
+    assert parsed.target == "mrvl, llvm"
+    assert parsed.target_mrvl_mcpu == "cn10ka"
+    assert parsed.target_mrvl_num_tiles == 8
+
+
+@tvm.testing.requires_mrvl
+# Test for default(LLVM) target, when built with USE_MRVL=ON
+def test_mrvl_build_with_llvm_only_target():
+    parser = argparse.ArgumentParser()
+    generate_target_args(parser)
+    parsed, _ = parser.parse_known_args(
+        [
+            "--target=llvm",
+        ]
+    )
+    assert parsed.target == "llvm"
+
+
+@tvm.testing.requires_cmsisnn
 def test_mapping_target_args():
     parser = argparse.ArgumentParser()
     generate_target_args(parser)
@@ -129,6 +157,7 @@ def test_ethosu_compiler_attrs():
     }
 
 
+@tvm.testing.requires_cmsisnn
 def test_skip_target_from_codegen():
     parser = argparse.ArgumentParser()
     generate_target_args(parser)

@@ -35,7 +35,7 @@ pip3 install --upgrade \
     psutil \
     pytest \
     git+https://github.com/tlc-pack/tlcpack-sphinx-addon.git@768ec1dce349fe4708f6ad68be1ebb3f3dabafa1 \
-    pytest-profiling \
+    pytest-profiling==1.7.0 \
     pytest-xdist \
     pytest-rerunfailures==10.2 \
     requests \

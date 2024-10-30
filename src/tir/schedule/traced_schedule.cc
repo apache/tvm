@@ -53,9 +53,9 @@ Schedule TracedScheduleNode::Copy() {
 
 /******** Schedule: Sampling ********/
 
-ExprRV TracedScheduleNode::SampleCategorical(const Array<Integer>& candidates,
-                                             const Array<FloatImm>& probs,
-                                             Optional<Integer> decision) {
+ExprRV TracedScheduleNode::SampleCategorical(const Array<runtime::Int>& candidates,
+                                             const Array<runtime::Float>& probs,
+                                             Optional<runtime::Int> decision) {
   ExprRV result =
       CreateRV(tir::SampleCategorical(&this->rand_state_, candidates, probs, &decision));
   static const InstructionKind& kind = InstructionKind::Get("SampleCategorical");
@@ -70,9 +70,11 @@ ExprRV TracedScheduleNode::SampleCategorical(const Array<Integer>& candidates,
 Array<ExprRV> TracedScheduleNode::SamplePerfectTile(const LoopRV& loop_rv, int n,
                                                     int max_innermost_factor,
                                                     Optional<Array<Integer>> decision) {
-  Array<ExprRV> results = CreateRV(tir::SamplePerfectTile(
-      &this->rand_state_, this->GetSRef(loop_rv), n, max_innermost_factor, &decision));
-
+  // use None RV object to denotes auto-infer tile factors.
+  Array<ExprRV> results =
+      CreateRV(tir::SamplePerfectTile(&this->rand_state_, this->GetSRef(loop_rv), n,
+                                      max_innermost_factor, &decision),
+               /*convert_negone_to_none=*/true);
   static const InstructionKind& kind = InstructionKind::Get("SamplePerfectTile");
   trace_->Append(/*inst=*/Instruction(/*kind=*/kind,  //
                                       /*inputs=*/{loop_rv},
@@ -226,8 +228,9 @@ LoopRV TracedScheduleNode::Fuse(const Array<LoopRV>& loop_rvs, bool preserve_uni
 
 Array<LoopRV> TracedScheduleNode::Split(const LoopRV& loop_rv,
                                         const Array<Optional<ExprRV>>& factor_rvs,
-                                        bool preserve_unit_iters) {
-  Array<LoopRV> results = ConcreteScheduleNode::Split(loop_rv, factor_rvs, preserve_unit_iters);
+                                        bool preserve_unit_iters, bool disable_predication) {
+  Array<LoopRV> results =
+      ConcreteScheduleNode::Split(loop_rv, factor_rvs, preserve_unit_iters, disable_predication);
 
   std::vector<ObjectRef> inputs;
   inputs.reserve(1 + factor_rvs.size());
@@ -237,10 +240,11 @@ Array<LoopRV> TracedScheduleNode::Split(const LoopRV& loop_rv,
   }
 
   static const InstructionKind& kind = InstructionKind::Get("Split");
-  trace_->Append(/*inst=*/Instruction(/*kind=*/kind,
-                                      /*inputs=*/inputs,
-                                      /*attrs=*/{Integer(preserve_unit_iters)},
-                                      /*outputs=*/{results.begin(), results.end()}));
+  trace_->Append(
+      /*inst=*/Instruction(/*kind=*/kind,
+                           /*inputs=*/inputs,
+                           /*attrs=*/{Integer(preserve_unit_iters), Integer(disable_predication)},
+                           /*outputs=*/{results.begin(), results.end()}));
   return results;
 }
 
@@ -763,6 +767,18 @@ void TracedScheduleNode::UnsafeHideBufferAccess(const BlockRV& block_rv, const S
   trace_->Append(/*inst=*/Instruction(
       /*kind=*/kind,
       /*inputs=*/{block_rv, buf_type, buf_index_array},
+      /*attrs=*/{},
+      /*outputs=*/{}));
+}
+
+void TracedScheduleNode::AnnotateBufferAccess(const BlockRV& block_rv, int buffer_index,
+                                              BufferIndexType buffer_index_type,
+                                              const IndexMap& index_map) {
+  ConcreteScheduleNode::AnnotateBufferAccess(block_rv, buffer_index, buffer_index_type, index_map);
+  static const InstructionKind& kind = InstructionKind::Get("AnnotateBufferAccess");
+  trace_->Append(/*inst=*/Instruction(
+      /*kind=*/kind,
+      /*inputs=*/{block_rv, Integer(buffer_index), Integer(buffer_index_type), index_map},
       /*attrs=*/{},
       /*outputs=*/{}));
 }

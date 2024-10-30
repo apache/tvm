@@ -769,7 +769,7 @@ def test_cuda_vectorize_load_permute_pad():
             (n // lanes, l + 2 * padding, lanes),
             lambda i, j, k: tvm.te.if_then_else(
                 tvm.te.any(j < padding, j >= l + padding),
-                tvm.runtime.convert(0).astype(dtype),
+                tvm.tir.const(0, dtype),
                 A[i * lanes + k, j - padding],
             ),
             name="B",
@@ -1114,6 +1114,16 @@ def test_cuda_thread_sync_inside_condition():
 
     mod = tvm.IRModule({"main": func3})
     tvm.build(mod, target="cuda")
+
+
+def test_invalid_reinterpret():
+    @T.prim_func
+    def func(A: T.Buffer((4,), "uint32"), B: T.Buffer((4,), "uint8")) -> None:
+        for tx in T.thread_binding(4, "threadIdx.x"):
+            B[tx] = T.call_intrin("uint8", "tir.reinterpret", A[tx])
+
+    with pytest.raises(tvm.error.TVMError):
+        tvm.build(func, target="cuda")
 
 
 if __name__ == "__main__":

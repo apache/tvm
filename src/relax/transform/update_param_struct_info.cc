@@ -27,10 +27,10 @@
 #include <tvm/relax/transform.h>
 
 #include <optional>
-#include <regex>
 #include <unordered_map>
 #include <vector>
 
+#include "../../runtime/regex.h"
 #include "utils.h"
 
 namespace tvm {
@@ -73,8 +73,8 @@ Pass UpdateParamStructInfo(TypedPackedFunc<Optional<StructInfo>(Var)> sinfo_func
   auto pass_func = [=](IRModule mod, PassContext pc) {
     ParamStructInfoMutator mutator(sinfo_func);
 
-    std::unordered_set<GlobalVar, ObjectPtrHash, ObjectPtrEqual> to_remove;
-    std::unordered_map<GlobalVar, Function, ObjectPtrHash, ObjectPtrEqual> to_add;
+    std::unordered_set<GlobalVar> to_remove;
+    std::unordered_map<GlobalVar, Function> to_add;
 
     for (const auto& [gvar, base_func] : mod->functions) {
       if (auto func = base_func.as<Function>()) {

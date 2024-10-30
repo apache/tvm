@@ -650,7 +650,7 @@ def test_debugging_enabled(workspace_dir):
 def test_qemu_make_fail(workspace_dir, board, microtvm_debug, serial_number):
     """Testing QEMU make fail."""
     if not utils.ZEPHYR_BOARDS[board]["is_qemu"]:
-        pytest.skip(msg="Only for QEMU targets.")
+        pytest.skip("Only for QEMU targets.")
 
     build_config = {"debug": microtvm_debug}
     shape = (10,)

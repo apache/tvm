@@ -79,7 +79,7 @@ class BufferSubstituter : public StmtExprMutator {
     auto load = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(op));
     auto it = buffer_map_.find(load->buffer.get());
     if (it != buffer_map_.end()) {
-      return BufferLoad(it->second, load->indices, load->span);
+      return BufferLoad(it->second, load->indices, load->predicate, load->span);
     }
     return load;
   }
@@ -88,7 +88,7 @@ class BufferSubstituter : public StmtExprMutator {
     auto store = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(op));
     auto it = buffer_map_.find(store->buffer.get());
     if (it != buffer_map_.end()) {
-      return BufferStore(it->second, store->value, store->indices, store->span);
+      return BufferStore(it->second, store->value, store->indices, store->predicate, store->span);
     }
     return store;
   }
@@ -109,7 +109,7 @@ struct CreateFuncInfo {
   /*! \brief The buffers should be allocated at function root. */
   Array<Buffer> root_alloc;
   /*! \brief The NameSupply to make block name unique. */
-  NameSupply name_supply = NameSupply("");
+  NameSupply name_supply;
 
   String FreshName(String base_name) { return name_supply->FreshName(base_name); }
 
@@ -228,6 +228,10 @@ BlockRealize GenerateBlockFromTensors(const te::ComputeOp& compute_op,
   }
 
   // Step 4. Create block body.
+  // helper to transform the expr and remap iters to the block domain
+  auto f_transform_and_remap = [&](const PrimExpr& e) {
+    return Substitute(info->transformer(e), var_map);
+  };
   String block_name{nullptr};
   Optional<Stmt> init = NullOpt;
   Stmt body;
@@ -246,8 +250,7 @@ BlockRealize GenerateBlockFromTensors(const te::ComputeOp& compute_op,
     //  - A RHS operand is the value to be reduced.
     for (int i = 0; i < n_buffers; ++i) {
       const PrimExpr& left = BufferLoad(buffers[i], indices);
-      const PrimExpr& right =
-          analyzer->Simplify(Substitute(info->transformer(reduce->source[i]), var_map));
+      const PrimExpr& right = analyzer->Simplify(f_transform_and_remap(reduce->source[i]));
       lhs.push_back(left);
       rhs.push_back(right);
       ICHECK_EQ(left->dtype, right->dtype);
@@ -267,13 +270,15 @@ BlockRealize GenerateBlockFromTensors(const te::ComputeOp& compute_op,
     //   then store the value of the variables into the target buffer positions.
     for (int i = 0; i < n_buffers; ++i) {
       const Buffer& buffer = buffers[i];
-      init_stmts.push_back(BufferStore(buffer, reduce->combiner->identity_element[i], indices));
+      PrimExpr identity = f_transform_and_remap(reduce->combiner->identity_element[i]);
+      init_stmts.push_back(BufferStore(buffer, identity, indices));
       PrimExpr value{nullptr};
       if (n_buffers > 1) {
         temp_vars.push_back(Var("v_" + buffer->name, PrimType(lhs[i].dtype())));
         value = temp_vars.back();
       } else {
-        value = reduce->combiner.get()->operator()(lhs, rhs)[i];
+        PrimExpr combined = reduce->combiner.get()->operator()(lhs, rhs)[i];
+        value = f_transform_and_remap(combined);
       }
       body_stmts.push_back(BufferStore(buffer, value, indices));
     }
@@ -283,7 +288,7 @@ BlockRealize GenerateBlockFromTensors(const te::ComputeOp& compute_op,
     if (n_buffers > 1) {
       // When there are multiple buffers, we wrap the body with LetStmts.
       for (int i = n_buffers - 1; i >= 0; --i) {
-        PrimExpr value = reduce->combiner.get()->operator()(lhs, rhs)[i];
+        PrimExpr value = f_transform_and_remap(reduce->combiner.get()->operator()(lhs, rhs)[i]);
         body = LetStmt(temp_vars[i], std::move(value), std::move(body));
       }
     }
@@ -291,7 +296,7 @@ BlockRealize GenerateBlockFromTensors(const te::ComputeOp& compute_op,
     // Case 2. Data parallel compute
     ICHECK_EQ(tensors.size(), 1);
     block_name = info->FreshName(tensors[0]->GetNameHint());
-    const PrimExpr& compute_body = Substitute(info->transformer(expr_body), var_map);
+    const PrimExpr& compute_body = f_transform_and_remap(expr_body);
     body = BufferStore(info->tensor2buffers[tensors[0]], analyzer->Simplify(compute_body), indices);
   }
 
@@ -355,11 +360,12 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
   Array<Stmt> seq_stmt;
   if (compute_op->body[0]->IsInstance<ReduceNode>()) {
     auto f_reducer_equal = [](const ReduceNode* a, const ReduceNode* b) -> bool {
-      return a->combiner.same_as(b->combiner) &&    //
-             a->source.same_as(b->source) &&        //
-             a->axis.same_as(b->axis) &&            //
-             a->condition.same_as(b->condition) &&  //
-             ((a->init.empty() && b->init.empty()) || a->init.same_as(b->init));
+      StructuralEqual eq;
+      return eq(a->combiner, b->combiner) &&    //
+             eq(a->source, b->source) &&        //
+             eq(a->axis, b->axis) &&            //
+             eq(a->condition, b->condition) &&  //
+             eq(a->init, b->init);
     };
 
     PrimExpr expr_body = compute_op->body[0];
@@ -370,7 +376,9 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
       const tir::ReduceNode* reduce_ = compute_op->body[k].as<tir::ReduceNode>();
       ICHECK(reduce_);
       ICHECK(f_reducer_equal(reduce_, reduce))
-          << "The Reduce inputs of ComputeOp should have the same attribute except value_index";
+          << "The Reduce inputs of ComputeOp should have the same attribute except value_index, "
+          << "but the first argument has body " << GetRef<PrimExpr>(reduce_) << ", while the " << k
+          << "-th argument has body " << GetRef<PrimExpr>(reduce);
       tensors.push_back(compute_op.output(k));
     }
 
@@ -488,7 +496,9 @@ void RewriteStageToBlock(const te::Operation& op, CreateFuncInfo* info, Array<St
     ICHECK_EQ(op->num_outputs(), 1);
     const te::Tensor& tensor = op.output(0);
     // Check op is in op list
-    ICHECK(info->IsArg(tensor));
+    ICHECK(info->IsArg(tensor)) << "The operation " << op << " produces tensor " << tensor
+                                << ", but this tensor does not appear as a function argument.  "
+                                << "The function accepts arguments " << info->arg_list;
     // Declare a buffer for any argument tensors without a pre-existing
     // buffer declaration recorded in the tensor2buffer binds map
     if (info->tensor2buffers.count(tensor) == 0) {
@@ -581,17 +591,16 @@ PrimFunc GenerateAndCompletePrimFunc(const Array<ObjectRef>& arg_tir_var_list,
                                      const Array<Stmt>& root_stmts, CreateFuncInfo* info) {
   Array<Var> parameters;
   Map<Var, Buffer> buffer_map;
-  for (const ObjectRef& x : arg_tir_var_list) {
-    if (auto n = x.as<te::TensorNode>()) {
-      te::Tensor tensor = GetRef<te::Tensor>(n);
+  for (const ObjectRef& arg : arg_tir_var_list) {
+    if (auto opt_tensor = arg.as<te::Tensor>()) {
+      te::Tensor tensor = opt_tensor.value();
       Var arg("var_" + tensor->GetNameHint(), PrimType(DataType::Handle()));
       parameters.push_back(arg);
       auto it = info->tensor2buffers.find(tensor);
       ICHECK(it != info->tensor2buffers.end());
       buffer_map.Set(arg, it->second);
-    } else if (auto n = x.as<tir::VarNode>()) {
-      tir::Var var = GetRef<tir::Var>(n);
-      parameters.push_back(var);
+    } else if (auto var = arg.as<tir::Var>()) {
+      parameters.push_back(var.value());
     }
   }
   PrimFunc func = WithAttrs(PrimFunc(/*params=*/std::move(parameters),

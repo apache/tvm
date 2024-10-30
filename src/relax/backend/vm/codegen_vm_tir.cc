@@ -260,10 +260,8 @@ class CodeGenVMTIR : public ExprFunctor<Optional<PrimExpr>(const Expr&)> {
     size_t merge_register = NewRegister();
     PrimExpr cond_value = this->VisitExpr(op->cond).value();
 
-    // turn ndarray cond value into scalar.
-    cond_value = tir::Cast(DataType::Bool(),
-                           tir::Call(DataType::Int(32), tir::builtin::tvm_call_packed(),
-                                     {tir::StringImm("vm.builtin.read_if_cond"), cond_value}));
+    cond_value = tir::Call(DataType::Bool(), tir::builtin::tvm_call_packed(),
+                           {tir::StringImm("vm.builtin.read_if_cond"), cond_value});
 
     tir::Stmt true_branch = WithNewScope([&]() {
       PrimExpr true_value = this->VisitExpr(op->true_branch).value();
@@ -511,7 +509,7 @@ class CodeGenVMTIR : public ExprFunctor<Optional<PrimExpr>(const Expr&)> {
   /*! \brief Stack to build up statements */
   std::vector<std::vector<tir::Stmt>> stmt_stack_;
   /*! \brief Map from var to Expr. */
-  std::unordered_map<Var, Optional<PrimExpr>, ObjectPtrHash, ObjectPtrEqual> var_map_;
+  std::unordered_map<Var, Optional<PrimExpr>> var_map_;
   /*! \brief the context module. */
   IRModule ctx_mod_;
   /*! \brief system lib prefix */

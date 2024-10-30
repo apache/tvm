@@ -95,7 +95,6 @@ class Expected:
         R.func_attr(
             {
                 "Codegen": "cutlass",
-                "WorkspaceSize": 65536,
                 "global_symbol": "fused_relax_nn_attention_cutlass1",
             }
         )
@@ -107,7 +106,7 @@ class Expected:
             v_1: R.Tensor((32, 8, 16, 8), dtype="float16"),
             workspace_1: R.Tensor((65536,), dtype="uint8"),
         ) -> R.Tensor((32, 8, 16, 8), dtype="float16"):
-            R.func_attr({"Composite": "cutlass.attention", "Primitive": 1, "WorkspaceSize": 65536})
+            R.func_attr({"Composite": "cutlass.attention", "Primitive": 1})
             with R.dataflow():
                 gv_2: R.Tensor((32, 8, 16, 8), dtype="float16") = R.nn.attention(
                     q_1, k_1, v_1, scale=None
@@ -126,9 +125,8 @@ class Expected:
     ) -> R.Tensor((32, 8, 16, 8), dtype="float16"):
         cls = Expected
         with R.dataflow():
-            lv: R.Object = R.vm.alloc_storage(R.shape([65536]), R.prim_value(0), R.dtype("uint8"))
-            workspace_main: R.Tensor((65536,), dtype="uint8") = R.vm.alloc_tensor(
-                lv, R.prim_value(0), R.shape([65536]), R.dtype("uint8")
+            workspace_main: R.Tensor((65536,), dtype="uint8") = R.builtin.alloc_tensor(
+                R.shape([65536]), R.dtype("uint8"), R.prim_value(0)
             )
             gv: R.Tensor((32, 8, 16, 8), dtype="float16") = cls.fused_relax_nn_attention_cutlass1(
                 q, k, v, workspace_main
@@ -144,9 +142,8 @@ class Expected:
     ) -> R.Tensor((32, 8, 16, 8), dtype="float16"):
         cls = Expected
         with R.dataflow():
-            lv: R.Object = R.vm.alloc_storage(R.shape([65536]), R.prim_value(0), R.dtype("uint8"))
-            workspace_main: R.Tensor((65536,), dtype="uint8") = R.vm.alloc_tensor(
-                lv, R.prim_value(0), R.shape([65536]), R.dtype("uint8")
+            workspace_main: R.Tensor((65536,), dtype="uint8") = R.builtin.alloc_tensor(
+                R.shape([65536]), R.dtype("uint8"), R.prim_value(0)
             )
             gv: R.Tensor((32, 8, 16, 8), dtype="float16") = cls.fused_relax_nn_attention_cutlass1(
                 q, k, v, workspace_main

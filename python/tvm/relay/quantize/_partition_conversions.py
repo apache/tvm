@@ -215,7 +215,7 @@ def partition_prefix(mod, quantized_dtypes):
     prefix_cutter = PrefixCutter(func.params, quantized_dtypes)
     mid_body = prefix_cutter.visit(func.body)
     assert not func.type_params, "unimplemented"
-    assert func.attrs is None, "unimplemented"
+    assert not func.attrs, "unimplemented"
     mid_func = relay.Function(relay.analysis.free_vars(mid_body), mid_body)
     mid_mod = tvm.IRModule.from_expr(mid_func)
     mid_mod = relay.transform.InferType()(mid_mod)
@@ -288,7 +288,7 @@ def partition_suffix(mod, quantized_dtypes):
     suffix_cutter = SuffixCutter(quantized_dtypes)
     post_body = suffix_cutter.visit(func.body)
     assert not func.type_params, "unimplemented"
-    assert func.attrs is None, "unimplemented"
+    assert not func.attrs, "unimplemented"
     post_func = relay.Function(relay.analysis.free_vars(post_body), post_body, func.ret_type)
     post_mod = tvm.IRModule.from_expr(post_func)
     post_mod = relay.transform.InferType()(post_mod)

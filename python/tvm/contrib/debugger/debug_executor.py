@@ -272,8 +272,10 @@ class GraphModuleDebug(graph_executor.GraphModule):
             node_index = node
         else:
             raise RuntimeError("Require node index or name only.")
-
-        self._debug_get_output(node_index, out)
+        if out:
+            self._debug_get_output(node_index, out)
+            return out
+        return self._debug_get_output(node_index)
 
     # pylint: disable=arguments-differ
     def run(

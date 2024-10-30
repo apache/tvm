@@ -17,7 +17,7 @@
 
 # CI docker GPU env
 # tag: v0.60
-FROM nvidia/cuda:11.8.0-cudnn8-devel-ubuntu22.04
+FROM nvidia/cuda:12.4.1-cudnn-devel-ubuntu22.04
 
 COPY utils/apt-install-and-clear.sh /usr/local/bin/apt-install-and-clear
 
@@ -41,10 +41,10 @@ RUN bash /install/ubuntu_install_cmake_source.sh
 COPY install/ubuntu_install_googletest.sh /install/ubuntu_install_googletest.sh
 RUN bash /install/ubuntu_install_googletest.sh /googletest
 
-ENV TVM_VENV /venv/apache-tvm-py3.8
+ENV TVM_VENV /venv/apache-tvm-py3.9
 COPY python/bootstrap/lockfiles /install/python/bootstrap/lockfiles
 COPY install/ubuntu_install_python.sh /install/ubuntu_install_python.sh
-RUN bash /install/ubuntu_install_python.sh 3.8
+RUN bash /install/ubuntu_install_python.sh 3.9
 ENV PATH ${TVM_VENV}/bin:$PATH
 ENV PYTHONNOUSERSITE 1  # Disable .local directory from affecting CI.
 
@@ -104,6 +104,9 @@ RUN bash /install/ubuntu_install_libtorch.sh
 COPY install/ubuntu_install_tflite.sh /install/ubuntu_install_tflite.sh
 RUN bash /install/ubuntu_install_tflite.sh
 
+COPY install/ubuntu_install_nnef.sh /install/ubuntu_install_nnef.sh
+RUN bash /install/ubuntu_install_nnef.sh
+
 COPY install/ubuntu_install_dgl.sh /install/ubuntu_install_dgl.sh
 RUN bash /install/ubuntu_install_dgl.sh
 
@@ -132,10 +135,6 @@ RUN bash /install/ubuntu_install_wasmtime.sh
 # AutoTVM deps
 COPY install/ubuntu_install_redis.sh /install/ubuntu_install_redis.sh
 RUN bash /install/ubuntu_install_redis.sh
-
-# NNPACK deps
-COPY install/ubuntu_install_nnpack.sh /install/ubuntu_install_nnpack.sh
-RUN bash /install/ubuntu_install_nnpack.sh
 
 # BYODT deps
 COPY install/ubuntu_install_universal.sh /install/ubuntu_install_universal.sh

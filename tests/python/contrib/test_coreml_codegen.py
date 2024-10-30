@@ -100,7 +100,7 @@ def test_annotate():
     mod = transform.PartitionGraph()(mod)
 
     expected = _create_graph_annotated()
-    assert tvm.ir.structural_equal(mod, expected, map_free_vars=True)
+    tvm.ir.assert_structural_equal(mod, expected, map_free_vars=True)
 
 
 @pytest.mark.skipif(not _has_xcode(), reason="Xcode is not available")
@@ -140,7 +140,7 @@ def _construct_model(func, m1, m2):
     fcompile = tvm._ffi.get_global_func("relay.ext.coremlcompiler")
 
     for var, func in mod.functions.items():
-        if func.attrs and "Compiler" in func.attrs and func.attrs["Compiler"] == "coremlcompiler":
+        if "Compiler" in func.attrs and func.attrs["Compiler"] == "coremlcompiler":
             fcompile(func)
 
 

@@ -512,13 +512,11 @@ def test_decoder_layer():
                 cls.rotary_embedding,
                 (lv9, cos_cached, sin_cached),
                 out_sinfo=R.Tensor((1, 256, 32, 128), dtype="float16"),
-                tir_vars=R.shape([256]),
             )
             lv17 = R.call_tir(
                 cls.rotary_embedding,
                 (lv12, cos_cached, sin_cached),
                 out_sinfo=R.Tensor((1, 256, 32, 128), dtype="float16"),
-                tir_vars=R.shape([256]),
             )
             lv18: R.Tensor((256, 32, 128), dtype="float16") = R.reshape(
                 lv17, R.shape([256, 32, 128])
@@ -712,13 +710,11 @@ def test_decoder_layer():
                 cls.rotary_embedding,
                 (lv9, cos_cached, sin_cached),
                 out_sinfo=R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]"),
-                tir_vars=R.shape([256]),
             )
             lv17 = R.dist.call_tir(
                 cls.rotary_embedding,
                 (lv12, cos_cached, sin_cached),
                 out_sinfo=R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]"),
-                tir_vars=R.shape([256]),
             )
             lv18: R.DTensor((256, 32, 128), "float16", "mesh[0]", "S[1]") = R.reshape(
                 lv17, R.shape([256, 32, 128])
@@ -1278,13 +1274,11 @@ def test_decoder_layer_tir():
                 cls.rotary_embedding,
                 (lv9, cos_cached, sin_cached),
                 out_sinfo=R.Tensor((1, 256, 32, 128), dtype="float16"),
-                tir_vars=R.shape([256]),
             )
             lv17 = R.call_tir(
                 cls.rotary_embedding,
                 (lv12, cos_cached, sin_cached),
                 out_sinfo=R.Tensor((1, 256, 32, 128), dtype="float16"),
-                tir_vars=R.shape([256]),
             )
             lv18 = R.call_tir(
                 cls.reshape1, (lv17,), out_sinfo=R.Tensor((256, 32, 128), dtype="float16")
@@ -1370,7 +1364,9 @@ def test_decoder_layer_tir():
             gv: R.Tensor((1, 256, 4096), dtype="float16") = lv44
             return gv
 
-    @I.ir_module
+    # the below uses global vars that are not yet defined but the definitions
+    # will be added later
+    @I.ir_module(check_well_formed=False)
     class ShardedLlamaAttentionLayerTIR:
         I.module_attrs({"device_num": 10})
         I.module_global_infos(
@@ -1447,13 +1443,11 @@ def test_decoder_layer_tir():
                 LlamaAttentionLayerTIR.get_global_var("rotary_embedding"),
                 (lv9, cos_cached, sin_cached),
                 out_sinfo=R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]"),
-                tir_vars=R.shape([256]),
             )
             lv17 = R.dist.call_tir(
                 LlamaAttentionLayerTIR.get_global_var("rotary_embedding"),
                 (lv12, cos_cached, sin_cached),
                 out_sinfo=R.DTensor((1, 256, 32, 128), "float16", "mesh[0]", "S[2]"),
-                tir_vars=R.shape([256]),
             )
             lv18 = R.dist.call_tir(
                 LlamaAttentionLayerTIR.get_global_var("reshape1"),

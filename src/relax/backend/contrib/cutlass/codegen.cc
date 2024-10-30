@@ -52,7 +52,7 @@ class CodegenCutlass : public relax::MemoizedExprTranslator<OutputType>,
                        public relay::contrib::CodegenCBase {
  public:
   CodegenCutlass(const std::string& id, const Map<Var, Expr>& bindings)
-      : ext_func_id_(id), bindings_(bindings), name_sup_("") {}
+      : ext_func_id_(id), bindings_(bindings) {}
 
   void AddParm(Var param) {
     ext_func_args_.push_back(param);

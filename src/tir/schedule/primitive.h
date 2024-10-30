@@ -55,8 +55,9 @@ std::vector<int32_t> SampleWithoutReplacement(
  * \return The random variable sampled from candidates
  */
 TVM_DLL int64_t SampleCategorical(support::LinearCongruentialEngine::TRandState* rand_state,
-                                  const Array<Integer>& candidates, const Array<FloatImm>& probs,
-                                  Optional<Integer>* decision);
+                                  const Array<runtime::Int>& candidates,
+                                  const Array<runtime::Float>& probs,
+                                  Optional<runtime::Int>* decision);
 /*!
  * \brief Create a sampling function that does multinomial sampling.
  * \param rand_state The random state.
@@ -204,10 +205,15 @@ Array<StmtSRef> GetOutputBlocks(const ScheduleState& self, const StmtSRef& scope
  * \param loop_sref The sref to the loop being split
  * \param factors The splitting factors
  * \param preserve_unit_iters Whether or not to preserve unit iterators in block bindings
- * \return An array of srefs to the loops after splitting
+ * \param disable_predication If enabled, don't create a predicate for guarding the
+ *      loop. This can be useful when splitting with scalable factors that the schedule writer
+ *      knows are divisible by the loop bound.
+ *      Warning: enabling this feature may result in incorrect code generation if not used
+ * carefully. \return An array of srefs to the loops after splitting
  */
 TVM_DLL Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref,
-                              const Array<PrimExpr>& factors, bool preserve_unit_iters);
+                              const Array<PrimExpr>& factors, bool preserve_unit_iters,
+                              bool disable_predication);
 
 /*!
  * Partition a loop into a list of consecutive loops. It requires:
@@ -712,6 +718,16 @@ TVM_DLL void RollingBuffer(ScheduleState self, const StmtSRef& block_sref, int w
 TVM_DLL void UnsafeHideBufferAccess(ScheduleState self, const StmtSRef& block_sref,
                                     const String& buf_type, const Array<IntImm>& buf_index_array);
 
+/*!
+ * \brief Annotate the read or write region of a specific buffer in a block
+ * \param self The state of the schedule
+ * \param block_sref The sref of the block to be annotated
+ * \param buffer_index The index of the buffer in block's read or write region
+ * \param buffer_index_type The type of the buffer index, kRead or kWrite
+ * \param index_map The IndexMap that defines the new read or write region for the buffer
+ */
+TVM_DLL void AnnotateBufferAccess(ScheduleState self, const StmtSRef& block_sref, int buffer_index,
+                                  BufferIndexType buffer_index_type, const IndexMap& index_map);
 }  // namespace tir
 }  // namespace tvm
 

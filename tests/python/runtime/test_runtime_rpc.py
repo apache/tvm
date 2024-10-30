@@ -14,22 +14,27 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import tvm
-from tvm import te
-import tvm.testing
+
 import multiprocessing
 import os
 import stat
 import sys
+import tempfile
 import time
 
 import pytest
 import numpy as np
+
+import tvm
+import tvm.testing
+
+from tvm import te
 from tvm import rpc
 from tvm.relay.backend import Runtime
 from tvm.contrib import utils, cc
 from tvm.rpc.tracker import Tracker
 from tvm.rpc.proxy import Proxy
+from tvm.script import ir as I, tir as T
 
 
 if __name__ == "__main__":
@@ -447,12 +452,21 @@ def test_rpc_return_remote_object():
         assert get_elem(shape, 0) == 2
         assert get_elem(shape, 1) == 3
         assert get_size(shape) == 2
+        # Test free object by assigning to the same variable
+        shape = make_shape(0)
+        assert get_size(shape) == 1
+        assert get_elem(shape, 0) == 0
 
     # start server
-    server = rpc.Server(key="x1")
-    client = rpc.connect("127.0.0.1", server.port, key="x1")
+
     check(rpc.LocalSession(), True)
-    check(client, False)
+
+    def check_remote():
+        server = rpc.Server(key="x1")
+        client = rpc.connect("127.0.0.1", server.port, key="x1")
+        check(client, False)
+
+    check_remote()
 
     def check_minrpc():
         if tvm.get_global_func("rpc.CreatePipeClient", allow_missing=True) is None:
@@ -462,6 +476,14 @@ def test_rpc_return_remote_object():
         minrpc_exec = temp.relpath("minrpc")
         tvm.rpc.with_minrpc(cc.create_executable)(minrpc_exec, [])
         check(rpc.PopenSession(minrpc_exec), False)
+        # minrpc on the remote
+        server = rpc.Server()
+        client = rpc.connect(
+            "127.0.0.1",
+            server.port,
+            session_constructor_args=["rpc.PopenSession", open(minrpc_exec, "rb").read()],
+        )
+        check(client, False)
 
     check_minrpc()
 
@@ -668,3 +690,47 @@ def test_rpc_session_timeout_error(with_proxy):
     if with_proxy:
         proxy.terminate()
     tracker.terminate()
+
+
+@pytest.mark.parametrize("call_with_unused_argument", [True, False])
+def test_compiled_function_with_zero_arguments(call_with_unused_argument):
+    """RPC functions do not require an argument
+
+    This is a regression test.  When no arguments are provided, RPC
+    provides NULL as the `TVMValue* args` argument to a PackedFunc.
+    However, previous implementations of `MakePackedAPI`
+    unconditionally asserted that the `args` pointer was non-null.
+    This assertion is now generated only when the function accepts
+    a non-zero number of arguments.
+
+    """
+
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def func_without_arg() -> T.int64:
+            return T.int64(42)
+
+        @T.prim_func
+        def func_with_arg(unused: T.int64) -> T.int64:
+            return T.int64(42)
+
+    built = tvm.build(Module, target="llvm")
+
+    server = tvm.rpc.Server(key="x1")
+    client = tvm.rpc.connect("127.0.0.1", server.port, key="x1")
+
+    libname = "libbuilt.so"
+    with tempfile.TemporaryDirectory(prefix="tvm_rpc_testing_") as temp_dir:
+        local_path = os.path.join(temp_dir, libname)
+        built.export_library(local_path)
+        client.upload(local_path)
+
+    remote_mod = client.load_module(libname)
+
+    if call_with_unused_argument:
+        res = remote_mod["func_with_arg"](0)
+    else:
+        res = remote_mod["func_without_arg"]()
+
+    assert res == 42

@@ -54,7 +54,7 @@ def test_no_convert_layout():
     a = run_opt_pass(a, transform.ConvertLayout({"nn.conv2d": ["NCHW", "default"]}))
     b = run_opt_pass(expected(), transform.InferType())
 
-    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+    tvm.ir.assert_structural_equal(a, b)
 
 
 def test_qnn_binary_no_convert_layout():
@@ -81,7 +81,7 @@ def test_qnn_binary_no_convert_layout():
     a = before()
     a = run_opt_pass(a, transform.ConvertLayout({}))
     b = run_opt_pass(expected(), transform.InferType())
-    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+    tvm.ir.assert_structural_equal(a, b)
 
 
 def test_conv_convert_layout():
@@ -116,7 +116,7 @@ def test_conv_convert_layout():
     a = run_opt_pass(a, transform.ConvertLayout({"nn.conv2d": ["NCHW", "default"]}))
     b = run_opt_pass(expected(), transform.InferType())
 
-    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+    tvm.ir.assert_structural_equal(a, b)
 
 
 def test_conv_nhwc_convert_layout():
@@ -159,7 +159,7 @@ def test_conv_nhwc_convert_layout():
     a = run_opt_pass(a, transform.ConvertLayout({"nn.conv2d": ["NHWC", "default"]}))
     b = run_opt_pass(expected(), transform.InferType())
 
-    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+    tvm.ir.assert_structural_equal(a, b)
 
 
 def test_conv_transpose_convert_layout():
@@ -194,7 +194,7 @@ def test_conv_transpose_convert_layout():
     a = run_opt_pass(a, transform.ConvertLayout({"nn.conv2d_transpose": ["NCHW", "IOHW"]}))
     b = run_opt_pass(expected(), transform.InferType())
 
-    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+    tvm.ir.assert_structural_equal(a, b)
 
 
 def test_conv_bias_pool_convert_layout():
@@ -246,7 +246,7 @@ def test_conv_bias_pool_convert_layout():
     a = run_opt_pass(a, transform.ConvertLayout({"nn.conv2d": ["NCHW", "default"]}))
     b = run_opt_pass(expected(), transform.InferType())
 
-    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+    tvm.ir.assert_structural_equal(a, b)
 
 
 def test_conv_bias_pool_uses_specified_convert_layout():
@@ -301,7 +301,7 @@ def test_conv_bias_pool_uses_specified_convert_layout():
     )
     b = run_opt_pass(expected(), transform.InferType())
 
-    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a) + "\n\n Expected = \n" + str(b)
+    tvm.ir.assert_structural_equal(a, b)
 
 
 def test_conv_concat_convert_layout():
@@ -349,7 +349,7 @@ def test_conv_concat_convert_layout():
     a = run_opt_pass(a, transform.ConvertLayout({"nn.conv2d": ["NCHW", "default"]}))
     b = run_opt_pass(expected(), transform.InferType())
 
-    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+    tvm.ir.assert_structural_equal(a, b)
 
 
 def test_deformable_conv_bias_pool_convert_layout():
@@ -457,7 +457,7 @@ def test_deformable_conv_bias_pool_convert_layout():
     b = run_opt_pass(
         expected(1, 3, 224, 224, 32, 3, 3, 222, 222, "NHWC", "NCHW"), transform.InferType()
     )
-    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+    tvm.ir.assert_structural_equal(a, b)
 
     # NCHW -> NHWC
     a = before(1, 3, 224, 224, 32, 3, 3, "NCHW")
@@ -465,7 +465,7 @@ def test_deformable_conv_bias_pool_convert_layout():
     b = run_opt_pass(
         expected(1, 3, 224, 224, 32, 3, 3, 222, 222, "NCHW", "NHWC"), transform.InferType()
     )
-    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+    tvm.ir.assert_structural_equal(a, b)
 
 
 def test_deformable_conv_bias_pool_uses_specified_convert_layout():
@@ -582,7 +582,7 @@ def test_deformable_conv_bias_pool_uses_specified_convert_layout():
         expected(1, 3, 224, 224, 32, 3, 3, 222, 222, "NHWC", "NCHW", max_pool_layout="NHWC"),
         transform.InferType(),
     )
-    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a) + "\n\n Expected = \n" + str(b)
+    tvm.ir.assert_structural_equal(a, b)
 
     # NCHW -> NHWC
     a = before(1, 3, 224, 224, 32, 3, 3, "NCHW")
@@ -598,7 +598,7 @@ def test_deformable_conv_bias_pool_uses_specified_convert_layout():
         expected(1, 3, 224, 224, 32, 3, 3, 222, 222, "NCHW", "NHWC", max_pool_layout="NCHW"),
         transform.InferType(),
     )
-    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a) + "\n\n Expected = \n" + str(b)
+    tvm.ir.assert_structural_equal(a, b)
 
 
 def test_dual_path_convert_layout():
@@ -653,7 +653,7 @@ def test_dual_path_convert_layout():
     a = run_opt_pass(a, transform.ConvertLayout({"nn.conv2d": ["NCHW", "default"]}))
     b = run_opt_pass(expected(), transform.InferType())
 
-    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+    tvm.ir.assert_structural_equal(a, b)
 
 
 def test_bn_convert_layout():
@@ -888,7 +888,7 @@ def test_resnet_convert_layout():
     a = run_opt_pass(a, transform.ConvertLayout({"nn.conv2d": ["NCHW", "default"]}))
     b = run_opt_pass(expected(), transform.InferType())
 
-    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+    tvm.ir.assert_structural_equal(a, b)
 
 
 def test_resnet_pool_uses_specified_convert_layout():
@@ -939,7 +939,7 @@ def test_resnet_pool_uses_specified_convert_layout():
     )
     b = run_opt_pass(expected(), transform.InferType())
 
-    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a) + "\n\n Expected = \n" + str(b)
+    tvm.ir.assert_structural_equal(a, b)
 
 
 def test_scalar_convert_layout():
@@ -975,7 +975,7 @@ def test_scalar_convert_layout():
     a = run_opt_pass(a, transform.ConvertLayout({"nn.conv2d": ["NCHW", "default"]}))
     b = run_opt_pass(expected(), transform.InferType())
 
-    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+    tvm.ir.assert_structural_equal(a, b)
 
 
 def test_conv_ln_convert_layout():
@@ -1022,7 +1022,7 @@ def test_conv_ln_convert_layout():
     a = run_opt_pass(a, transform.ConvertLayout({"nn.conv2d": ["NCHW", "default"]}))
     b = run_opt_pass(expected(), transform.InferType())
 
-    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+    tvm.ir.assert_structural_equal(a, b)
 
 
 def test_conv_InstanceNorm_convert_layout():
@@ -1069,7 +1069,7 @@ def test_conv_InstanceNorm_convert_layout():
     a = run_opt_pass(a, transform.ConvertLayout({"nn.conv2d": ["NCHW", "default"]}))
     b = run_opt_pass(expected(), transform.InferType())
 
-    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+    tvm.ir.assert_structural_equal(a, b)
 
 
 def test_conv_bn_convert_layout():
@@ -1122,7 +1122,7 @@ def test_conv_bn_convert_layout():
     a = run_opt_pass(a, transform.ConvertLayout({"nn.conv2d": ["NCHW", "default"]}))
     b = run_opt_pass(expected(), transform.InferType())
 
-    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+    tvm.ir.assert_structural_equal(a, b)
 
 
 def test_qnn_conv_requantize_convert_layout():
@@ -1188,7 +1188,7 @@ def test_qnn_conv_requantize_convert_layout():
     a = run_opt_pass(a, transform.ConvertLayout({"qnn.conv2d": ["NCHW", "default"]}))
     b = run_opt_pass(expected(), transform.InferType())
 
-    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+    tvm.ir.assert_structural_equal(a, b)
 
 
 def test_qnn_conv_concat_convert_layout():
@@ -1282,7 +1282,7 @@ def test_qnn_conv_concat_convert_layout():
     a = run_opt_pass(a, transform.ConvertLayout({"qnn.conv2d": ["NCHW", "default"]}))
     b = run_opt_pass(expected(), transform.InferType())
 
-    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+    tvm.ir.assert_structural_equal(a, b)
 
 
 def test_qnn_conv_add_convert_layout():
@@ -1380,7 +1380,7 @@ def test_qnn_conv_add_convert_layout():
     a = run_opt_pass(a, transform.ConvertLayout({"qnn.conv2d": ["NCHW", "default"]}))
     b = run_opt_pass(expected(), transform.InferType())
 
-    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+    tvm.ir.assert_structural_equal(a, b)
 
 
 def test_qnn_conv_nhwc_convert_layout():
@@ -1431,7 +1431,7 @@ def test_qnn_conv_nhwc_convert_layout():
     a = run_opt_pass(a, transform.ConvertLayout({"qnn.conv2d": ["NHWC", "default"]}))
     b = run_opt_pass(expected(), transform.InferType())
 
-    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+    tvm.ir.assert_structural_equal(a, b)
 
 
 def test_qnn_conv_transpose_requantize_convert_layout():
@@ -1498,7 +1498,7 @@ def test_qnn_conv_transpose_requantize_convert_layout():
     a = before()
     a = run_opt_pass(a, transform.ConvertLayout({"qnn.conv2d_transpose": ["NCHW", "default"]}))
     b = run_opt_pass(expected(), transform.InferType())
-    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+    tvm.ir.assert_structural_equal(a, b)
 
 
 def test_conv_convert_kernel_layout():
@@ -1539,7 +1539,86 @@ def test_conv_convert_kernel_layout():
     a = run_opt_pass(a, transform.ConvertLayout({"nn.conv2d": ["NHWC", "OHWI"]}))
     b = run_opt_pass(expected(), transform.InferType())
 
-    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+    tvm.ir.assert_structural_equal(a, b)
+
+
+def test_qnn_conv_avgpool_2d_convert_layout():
+    def before():
+        x = relay.var("x", shape=(1, 56, 56, 64), dtype="int8")
+        weight = relay.var("weight", shape=(3, 3, 64, 64), dtype="int8")
+        y = relay.qnn.op.conv2d(
+            x,
+            weight,
+            relay.const(1, "int32"),
+            relay.const(1, "int32"),
+            relay.const(1, "float32"),
+            relay.const(1, "float32"),
+            channels=64,
+            kernel_size=(3, 3),
+            padding=(1, 1),
+            data_layout="NHWC",
+            kernel_layout="HWIO",
+        )
+        y = relay.cast(y, "int8")
+        y = relay.qnn.op.avg_pool2d(
+            y,
+            relay.const(1, "float32"),
+            relay.const(1, "int32"),
+            relay.const(1, "float32"),
+            relay.const(1, "int32"),
+            layout="NHWC",
+            out_layout="NHWC",
+            pool_size=(3, 3),
+            padding=(0, 0),
+            strides=(1, 1),
+            dilation=(1, 1),
+        )
+        y = relay.Function([x, weight], y)
+        return y
+
+    def expected():
+        x = relay.var("x", shape=(1, 56, 56, 64), dtype="int8")
+        weight = relay.var("weight", shape=(3, 3, 64, 64), dtype="int8")
+        x = relay.layout_transform(x, "NHWC", "NCHW")
+        weight = relay.layout_transform(weight, "HWIO", "OIHW")
+        y = relay.qnn.op.conv2d(
+            x,
+            weight,
+            relay.const(1, "int32"),
+            relay.const(1, "int32"),
+            relay.const(1, "float32"),
+            relay.const(1, "float32"),
+            channels=64,
+            kernel_size=(3, 3),
+            padding=(1, 1),
+            data_layout="NCHW",
+            kernel_layout="OIHW",
+        )
+        y = relay.cast(y, "int8")
+        y = relay.qnn.op.avg_pool2d(
+            y,
+            relay.const(1, "float32"),
+            relay.const(1, "int32"),
+            relay.const(1, "float32"),
+            relay.const(1, "int32"),
+            layout="NCHW",
+            out_layout="NCHW",
+            pool_size=(3, 3),
+            padding=(0, 0),
+            strides=(1, 1),
+            dilation=(1, 1),
+        )
+        y = relay.layout_transform(y, "NCHW", "NHWC")
+        y = relay.Function(relay.analysis.free_vars(y), y)
+        return y
+
+    a = before()
+    a = run_opt_pass(
+        a, transform.ConvertLayout({"qnn.conv2d": ["NCHW", "default"], "qnn.avg_pool2d": ["NCHW"]})
+    )
+    b = run_opt_pass(expected(), transform.InferType())
+
+    tvm.ir.assert_structural_equal(a, b)
 
 
 def test_conv_roi_align_convert_layout():
@@ -1592,7 +1671,7 @@ def test_conv_roi_align_convert_layout():
     a = run_opt_pass(a, transform.ConvertLayout(desired_layouts))
     b = run_opt_pass(expected(), transform.InferType())
 
-    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+    tvm.ir.assert_structural_equal(a, b)
 
 
 def test_conv_strided_slice_convert_layout():
@@ -1637,7 +1716,7 @@ def test_conv_strided_slice_convert_layout():
     a = run_opt_pass(a, transform.ConvertLayout({"nn.conv2d": ["NHWC", "default"]}))
     b = run_opt_pass(expected(), transform.InferType())
 
-    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+    tvm.ir.assert_structural_equal(a, b)
 
 
 def test_conv_split_convert_layout():
@@ -1679,7 +1758,7 @@ def test_conv_split_convert_layout():
         a = run_opt_pass(a, transform.ConvertLayout({"nn.conv2d": ["NCHW", "default"]}))
         b = run_opt_pass(expected(), transform.InferType())
 
-        assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+        tvm.ir.assert_structural_equal(a, b)
 
     def _test_conv_split_convert_layout2():
         def before():
@@ -1719,7 +1798,7 @@ def test_conv_split_convert_layout():
         a = run_opt_pass(a, transform.ConvertLayout({"nn.conv2d": ["NCHW", "default"]}))
         b = run_opt_pass(expected(), transform.InferType())
 
-        assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+        tvm.ir.assert_structural_equal(a, b)
 
     def _test_conv_split_convert_layout3():
         def before():
@@ -1762,7 +1841,7 @@ def test_conv_split_convert_layout():
         a = run_opt_pass(a, transform.ConvertLayout({"nn.conv2d": ["NCHW", "default"]}))
         b = run_opt_pass(expected(), transform.InferType())
 
-        assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+        tvm.ir.assert_structural_equal(a, b)
 
     def _test_conv_split_convert_layout_blocking():
         def before():
@@ -1810,7 +1889,7 @@ def test_conv_split_convert_layout():
         a = run_opt_pass(a, transform.ConvertLayout({"nn.conv2d": ["NCHW4c", "OIHW4o"]}))
         b = run_opt_pass(expected(), transform.InferType())
 
-        assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+        tvm.ir.assert_structural_equal(a, b)
 
     _test_conv_split_convert_layout1()
     _test_conv_split_convert_layout2()
@@ -1858,7 +1937,7 @@ def test_conv_strided_slice_axes_convert_layout():
     a = run_opt_pass(before(), transform.ConvertLayout({"nn.conv2d": ["NCHW", "default"]}))
     b = run_opt_pass(expected(), transform.InferType())
 
-    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+    tvm.ir.assert_structural_equal(a, b)
 
 
 def test_conv_topk_convert_layout():
@@ -1898,7 +1977,7 @@ def test_conv_topk_convert_layout():
     a = run_opt_pass(a, transform.ConvertLayout({"nn.conv2d": ["NCHW", "default"]}))
     b = run_opt_pass(expected(), transform.InferType())
 
-    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+    tvm.ir.assert_structural_equal(a, b)
 
 
 def test_conv_roi_pool_convert_layout():
@@ -1951,7 +2030,7 @@ def test_conv_roi_pool_convert_layout():
     a = run_opt_pass(a, transform.ConvertLayout(desired_layouts))
     b = run_opt_pass(expected(), transform.InferType())
 
-    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+    tvm.ir.assert_structural_equal(a, b)
 
 
 def test_default_keyword():
@@ -1992,7 +2071,7 @@ def test_default_keyword():
     a = run_opt_pass(a, transform.ConvertLayout({"nn.conv2d": ["NCHW", "default"]}))
     b = run_opt_pass(expected(), transform.InferType())
 
-    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+    tvm.ir.assert_structural_equal(a, b)
 
 
 def test_different_ops_convert_layout():
@@ -2098,7 +2177,7 @@ def test_different_ops_convert_layout():
     a = run_opt_pass(a, transform.ConvertLayout(desired_layouts))
     b = run_opt_pass(expected(), transform.InferType())
 
-    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+    tvm.ir.assert_structural_equal(a, b)
 
 
 def test_no_desired_layout():
@@ -2147,7 +2226,7 @@ def test_no_desired_layout():
     a = run_opt_pass(a, transform.ConvertLayout({"nn.conv2d": ["NHWC", "HWIO"]}))
     b = run_opt_pass(expected(), transform.InferType())
 
-    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+    tvm.ir.assert_structural_equal(a, b)
 
 
 def test_convert_with_config():
@@ -2219,7 +2298,7 @@ def test_convert_with_config():
     with layout_config:
         a = run_opt_pass(a, transform.ConvertLayout({"nn.conv2d": ["HWNC", "default"]}))
     b = run_opt_pass(expected(), transform.InferType())
-    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+    tvm.ir.assert_structural_equal(a, b)
 
 
 def test_conv_squeeze_convert_layout():
@@ -2255,7 +2334,7 @@ def test_conv_squeeze_convert_layout():
         a = run_opt_pass(a, transform.ConvertLayout({"nn.conv2d": ["NCHW", "default"]}))
         b = run_opt_pass(expected(), transform.InferType())
 
-        assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+        tvm.ir.assert_structural_equal(a, b)
 
     def _test_conv_squeeze_convert_layout2():
         # all axes of dimension 1 are squeezed
@@ -2288,7 +2367,7 @@ def test_conv_squeeze_convert_layout():
         a = run_opt_pass(a, transform.ConvertLayout({"nn.conv2d": ["NCHW", "default"]}))
         b = run_opt_pass(expected(), transform.InferType())
 
-        assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+        tvm.ir.assert_structural_equal(a, b)
 
     def _test_conv_squeeze_convert_layout3():
         # squeeze axis is empty
@@ -2322,7 +2401,7 @@ def test_conv_squeeze_convert_layout():
         a = run_opt_pass(a, transform.ConvertLayout({"nn.conv2d": ["NCHW", "default"]}))
         b = run_opt_pass(expected(), transform.InferType())
 
-        assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+        tvm.ir.assert_structural_equal(a, b)
 
     _test_conv_squeeze_convert_layout1()
     _test_conv_squeeze_convert_layout2()
@@ -2366,7 +2445,7 @@ def test_conv_reduce_convert_layout():
         a = run_opt_pass(a, transform.ConvertLayout({"nn.conv2d": ["NCHW", "default"]}))
         b = run_opt_pass(expected(), transform.InferType())
 
-        assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+        tvm.ir.assert_structural_equal(a, b)
 
     def _test_conv_reduce_convert_layout2():
         def _set_span(y, text):
@@ -2414,7 +2493,7 @@ def test_conv_reduce_convert_layout():
         assert "SpanSum" in a.astext()
         b = run_opt_pass(expected(), transform.InferType())
 
-        assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+        tvm.ir.assert_structural_equal(a, b)
 
     _test_conv_reduce_convert_layout1()
     _test_conv_reduce_convert_layout2()
@@ -2440,7 +2519,7 @@ def test_image_resize2d_convert_layout():
         a = run_opt_pass(a, transform.ConvertLayout({"image.resize2d": ["NHWC"]}))
         b = run_opt_pass(expected(), transform.InferType())
 
-        assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+        tvm.ir.assert_structural_equal(a, b)
 
     def _test_image_resize_convert_layout_nhwc_to_nchw():
         def before():
@@ -2461,7 +2540,7 @@ def test_image_resize2d_convert_layout():
         a = run_opt_pass(a, transform.ConvertLayout({"image.resize2d": ["NCHW"]}))
         b = run_opt_pass(expected(), transform.InferType())
 
-        assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+        tvm.ir.assert_structural_equal(a, b)
 
     _test_image_resize_convert_layout_nchw_to_nhwc()
     _test_image_resize_convert_layout_nhwc_to_nchw()
@@ -2501,7 +2580,7 @@ def test_conv_image_resize2d_convert_layout():
     a = run_opt_pass(a, transform.ConvertLayout({"nn.conv2d": ["NCHW", "default"]}))
     b = run_opt_pass(expected(), transform.InferType())
 
-    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+    tvm.ir.assert_structural_equal(a, b)
 
 
 def test_infer_correct_layout():
@@ -2587,7 +2666,7 @@ def test_reduce_op_convert_layout():
         a = run_opt_pass(a, transform.ConvertLayout({"nn.conv2d": ["NHWC", "default"]}))
         b = run_opt_pass(expected(), transform.InferType())
 
-        assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a)
+        tvm.ir.assert_structural_equal(a, b)
 
 
 def test_conv_max_pool_uses_specified_convert_layout():
@@ -2636,7 +2715,7 @@ def test_conv_max_pool_uses_specified_convert_layout():
     )
     b = run_opt_pass(expected(), transform.InferType())
 
-    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a) + "\n\n Expected = \n" + str(b)
+    tvm.ir.assert_structural_equal(a, b)
 
 
 def test_simulated_quantize_uses_specified_convert_layout():
@@ -2681,7 +2760,7 @@ def test_simulated_quantize_uses_specified_convert_layout():
     a = run_opt_pass(a, transform.ConvertLayout({"nn.conv2d": ["NHWC", "OHWI"]}))
     b = run_opt_pass(expected(), transform.InferType())
 
-    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a) + "\n\n Expected = \n" + str(b)
+    tvm.ir.assert_structural_equal(a, b)
 
 
 @pytest.mark.parametrize(
@@ -2792,7 +2871,7 @@ def test_resnet_convert_layout_nchwc(data_layout, kernel_layout):
     a = before()
     a = run_opt_pass(a, transform.ConvertLayout({"nn.conv2d": [data_layout, kernel_layout]}))
     b = run_opt_pass(expected(), transform.InferType())
-    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a) + "\n Expect = \n" + str(b)
+    tvm.ir.assert_structural_equal(a, b)
 
 
 def test_conv_l2n_convert_layout():
@@ -2831,7 +2910,7 @@ def test_conv_l2n_convert_layout():
     a = before()
     a = run_opt_pass(a, transform.ConvertLayout({"nn.conv2d": ["NCHW", "default"]}))
     b = run_opt_pass(expected(), transform.InferType())
-    assert tvm.ir.structural_equal(a, b), "Actual = \n" + str(a) + "\n\n Expected = \n" + str(b)
+    tvm.ir.assert_structural_equal(a, b)
 
 
 if __name__ == "__main__":

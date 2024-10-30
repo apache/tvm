@@ -55,6 +55,9 @@ class RelaxCodeGen : public PyCodeGen<RelaxCodeGenConfig, RelaxCodeGenHelper> {
   /*! \brief Stack the docs for the graph inference*/
   void CodeGenInference() final;
 
+  /*! \brief Describe the prim*/
+  const String DescribePrim(const MSCPrim& prim) final;
+
   /*! \brief Get the docs for the op*/
   const Array<Doc> GetOpCodes(const MSCJoint& node) final;
 

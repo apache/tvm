@@ -21,20 +21,71 @@
  * \file src/tir/ir/function.cc
  * \brief The function data structure.
  */
+#include <tvm/relax/struct_info.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/tir/analysis.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/op.h>
 
+#include "utils.h"
+
 namespace tvm {
 namespace tir {
+namespace {
+relax::StructInfo InferStructInfo(const PrimFunc& prim_func) {
+  Array<relax::StructInfo> params;
+  for (const auto& param : prim_func->params) {
+    relax::StructInfo param_sinfo = [&]() -> relax::StructInfo {
+      if (auto opt_buf = prim_func->buffer_map.Get(param)) {
+        auto buf = opt_buf.value();
+        relax::ShapeExpr shape(
+            buf->shape.Map([](PrimExpr dim) { return cast(DataType::Int(64), dim); }));
+        return relax::TensorStructInfo(shape, buf->dtype);
+      }
+
+      if (auto prim_type = param->type_annotation.as<PrimTypeNode>();
+          prim_type && prim_type->dtype.is_handle()) {
+        return relax::ObjectStructInfo();
+      }
+
+      return relax::PrimStructInfo(param->dtype);
+    }();
+    params.push_back(param_sinfo);
+  }
+
+  relax::StructInfo ret = [&]() -> relax::StructInfo {
+    if (const auto* prim = prim_func->ret_type.as<PrimTypeNode>()) {
+      return relax::PrimStructInfo(prim->dtype);
+    } else if (IsVoidType(prim_func->ret_type)) {
+      return relax::TupleStructInfo(Array<relax::StructInfo>{});
+    } else {
+      return relax::ObjectStructInfo();
+    }
+  }();
+
+  bool purity = prim_func->body.defined() ? IsPureFunction(prim_func) : false;
+
+  return relax::FuncStructInfo(params, ret, purity);
+}
+}  // namespace
+
 // Get the function type of a PrimFunc
 PrimFunc::PrimFunc(Array<tir::Var> params, Stmt body, Type ret_type,
                    Map<tir::Var, Buffer> buffer_map, DictAttrs attrs, Span span) {
+  if (!attrs.defined()) {
+    attrs = DictAttrs();
+  }
+
   // Assume void-return type for now
   // TODO(tvm-team) consider type deduction from body.
   if (!ret_type.defined()) {
     ret_type = VoidType();
   }
+
+  if (attrs.defined()) {
+    attrs = Downcast<DictAttrs>(NormalizeAttributeObject(attrs));
+  }
+
   auto n = make_object<PrimFuncNode>();
   n->params = std::move(params);
   n->body = std::move(body);
@@ -42,8 +93,11 @@ PrimFunc::PrimFunc(Array<tir::Var> params, Stmt body, Type ret_type,
   n->buffer_map = std::move(buffer_map);
   n->attrs = std::move(attrs);
   n->checked_type_ = n->func_type_annotation();
+  n->struct_info_ = relax::FuncStructInfo::OpaqueFunc();
   n->span = std::move(span);
   data_ = std::move(n);
+
+  (*this)->struct_info_ = InferStructInfo(*this);
 }
 
 FuncType PrimFuncNode::func_type_annotation() const {

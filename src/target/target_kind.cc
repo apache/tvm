@@ -30,11 +30,25 @@
 #include <algorithm>
 
 #include "../node/attr_registry.h"
+#include "../support/utils.h"
 #include "./parsers/cpu.h"
 
 namespace tvm {
 
-TVM_REGISTER_NODE_TYPE(TargetKindNode);
+// helper to get internal dev function in objectref.
+struct TargetKind2ObjectPtr : public ObjectRef {
+  static ObjectPtr<Object> Get(const TargetKind& kind) { return GetDataPtr<Object>(kind); }
+};
+
+TVM_REGISTER_NODE_TYPE(TargetKindNode)
+    .set_creator([](const std::string& name) {
+      auto kind = TargetKind::Get(name);
+      ICHECK(kind.defined()) << "Cannot find target kind \'" << name << '\'';
+      return TargetKind2ObjectPtr::Get(kind.value());
+    })
+    .set_repr_bytes([](const Object* n) -> std::string {
+      return static_cast<const TargetKindNode*>(n)->name;
+    });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<TargetKindNode>([](const ObjectRef& obj, ReprPrinter* p) {
@@ -80,30 +94,6 @@ Optional<TargetKind> TargetKind::Get(const String& target_kind_name) {
 }
 
 /**********  Utility functions  **********/
-
-/*!
- * \brief Extract a number from the string with the given prefix.
- * For example, when `str` is "sm_20" and `prefix` is "sm_".
- * This function first checks if `str` starts with `prefix`,
- * then return the integer 20 after the `prefix`
- * \param str The string to be extracted
- * \param prefix The prefix to be checked
- * \return An integer, the extracted number. -1 if the check fails
- */
-static int ExtractIntWithPrefix(const std::string& str, const std::string& prefix) {
-  if (str.substr(0, prefix.size()) != prefix) {
-    return -1;
-  }
-  int result = 0;
-  for (size_t i = prefix.size(); i < str.size(); ++i) {
-    char c = str[i];
-    if (!isdigit(c)) {
-      return -1;
-    }
-    result = result * 10 + c - '0';
-  }
-  return result;
-}
 
 /*!
  * \brief Extract a string from the string with the given prefix.
@@ -168,14 +158,14 @@ void CheckOrSetAttr(Map<String, ObjectRef>* attrs, const String& name, const Str
  */
 TargetJSON UpdateCUDAAttrs(TargetJSON target) {
   // Update -arch=sm_xx
-  int archInt;
   if (target.count("arch")) {
     // If -arch has been specified, validate the correctness
     String archStr = Downcast<String>(target.at("arch"));
-    archInt = ExtractIntWithPrefix(archStr, "sm_");
-    ICHECK(archInt != -1) << "ValueError: CUDA target gets an invalid CUDA arch: -arch=" << archStr;
+    ICHECK(support::StartsWith(archStr, "sm_"))
+        << "ValueError: CUDA target gets an invalid CUDA arch: -arch=" << archStr;
   } else {
     // Use the compute version of the first CUDA GPU instead
+    int archInt;
     TVMRetValue version;
     if (!DetectDeviceFlag({kDLCUDA, 0}, runtime::kComputeVersion, &version)) {
       LOG(WARNING) << "Unable to detect CUDA version, default to \"-arch=sm_50\" instead";
@@ -196,14 +186,14 @@ TargetJSON UpdateCUDAAttrs(TargetJSON target) {
 TargetJSON UpdateNVPTXAttrs(TargetJSON target) {
   CheckOrSetAttr(&target, "mtriple", "nvptx64-nvidia-cuda");
   // Update -mcpu=sm_xx
-  int arch;
   if (target.count("mcpu")) {
     // If -mcpu has been specified, validate the correctness
     String mcpu = Downcast<String>(target.at("mcpu"));
-    arch = ExtractIntWithPrefix(mcpu, "sm_");
-    ICHECK(arch != -1) << "ValueError: NVPTX target gets an invalid CUDA arch: -mcpu=" << mcpu;
+    ICHECK(support::StartsWith(mcpu, "sm_"))
+        << "ValueError: NVPTX target gets an invalid CUDA arch: -mcpu=" << mcpu;
   } else {
     // Use the compute version of the first CUDA GPU instead
+    int arch;
     TVMRetValue version;
     if (!DetectDeviceFlag({kDLCUDA, 0}, runtime::kComputeVersion, &version)) {
       LOG(WARNING) << "Unable to detect CUDA version, default to \"-mcpu=sm_50\" instead";
@@ -266,7 +256,7 @@ TargetJSON UpdateROCmAttrs(TargetJSON target) {
  * \return The updated attributes
  */
 TargetJSON TestTargetParser(TargetJSON target) {
-  Map<String, ObjectRef> features = {{"is_test", Bool(true)}};
+  Map<String, ObjectRef> features = {{"is_test", runtime::Bool(true)}};
   target.Set("features", features);
   return target;
 }
@@ -279,22 +269,24 @@ TVM_REGISTER_TARGET_KIND("llvm", kDLCPU)
     .add_attr_option<String>("mtriple")
     .add_attr_option<String>("mfloat-abi")
     .add_attr_option<String>("mabi")
-    .add_attr_option<Integer>("num-cores")
+    .add_attr_option<runtime::Int>("num-cores")
     // Fast math flags, see https://llvm.org/docs/LangRef.html#fast-math-flags
-    .add_attr_option<Bool>("fast-math")  // implies all the below
-    .add_attr_option<Bool>("fast-math-nnan")
-    .add_attr_option<Bool>("fast-math-ninf")
-    .add_attr_option<Bool>("fast-math-nsz")
-    .add_attr_option<Bool>("fast-math-arcp")
-    .add_attr_option<Bool>("fast-math-contract")
-    .add_attr_option<Bool>("fast-math-reassoc")
-    .add_attr_option<Integer>("opt-level")
+    .add_attr_option<runtime::Bool>("fast-math")  // implies all the below
+    .add_attr_option<runtime::Bool>("fast-math-nnan")
+    .add_attr_option<runtime::Bool>("fast-math-ninf")
+    .add_attr_option<runtime::Bool>("fast-math-nsz")
+    .add_attr_option<runtime::Bool>("fast-math-arcp")
+    .add_attr_option<runtime::Bool>("fast-math-contract")
+    .add_attr_option<runtime::Bool>("fast-math-reassoc")
+    .add_attr_option<runtime::Int>("opt-level")
     // LLVM command line flags, see below
     .add_attr_option<Array<String>>("cl-opt")
+    // LLVM JIT engine mcjit/orcjit
+    .add_attr_option<String>("jit")
     .set_default_keys({"cpu"})
     // Force the external codegen kind attribute to be registered, even if no external
     // codegen targets are enabled by the TVM build.
-    .set_attr<Bool>(tvm::attr::kIsExternalCodegen, Bool(false))
+    .set_attr<runtime::Bool>(tvm::attr::kIsExternalCodegen, runtime::Bool(false))
     .set_target_parser(tvm::target::parsers::cpu::ParseTarget);
 
 // Note regarding the "cl-opt" attribute:
@@ -322,28 +314,29 @@ TVM_REGISTER_TARGET_KIND("llvm", kDLCPU)
 TVM_REGISTER_TARGET_KIND("c", kDLCPU)
     .add_attr_option<String>("mcpu")
     .add_attr_option<String>("march")
-    .add_attr_option<Integer>("workspace-byte-alignment")
-    .add_attr_option<Integer>("constants-byte-alignment")
+    .add_attr_option<runtime::Int>("workspace-byte-alignment")
+    .add_attr_option<runtime::Int>("constants-byte-alignment")
     .set_default_keys({"cpu"})
     .set_target_parser(tvm::target::parsers::cpu::ParseTarget);
 
 TVM_REGISTER_TARGET_KIND("cuda", kDLCUDA)
     .add_attr_option<String>("mcpu")
     .add_attr_option<String>("arch")
-    .add_attr_option<Integer>("max_shared_memory_per_block")
-    .add_attr_option<Integer>("max_threads_per_block")
-    .add_attr_option<Integer>("thread_warp_size", Integer(32))
-    .add_attr_option<Integer>("registers_per_block")
-    .add_attr_option<Integer>("l2_cache_size_bytes")
-    .add_attr_option<Integer>("max_num_threads", Integer(1024))  // TODO(@zxybazh): deprecate it
+    .add_attr_option<runtime::Int>("max_shared_memory_per_block")
+    .add_attr_option<runtime::Int>("max_threads_per_block")
+    .add_attr_option<runtime::Int>("thread_warp_size", runtime::Int(32))
+    .add_attr_option<runtime::Int>("registers_per_block")
+    .add_attr_option<runtime::Int>("l2_cache_size_bytes")
+    .add_attr_option<runtime::Int>("max_num_threads",
+                                   runtime::Int(1024))  // TODO(@zxybazh): deprecate it
     .set_default_keys({"cuda", "gpu"})
     .set_target_parser(UpdateCUDAAttrs);
 
 TVM_REGISTER_TARGET_KIND("nvptx", kDLCUDA)
     .add_attr_option<String>("mcpu")
     .add_attr_option<String>("mtriple")
-    .add_attr_option<Integer>("max_num_threads", Integer(1024))
-    .add_attr_option<Integer>("thread_warp_size", Integer(32))
+    .add_attr_option<runtime::Int>("max_num_threads", runtime::Int(1024))
+    .add_attr_option<runtime::Int>("thread_warp_size", runtime::Int(32))
     .set_default_keys({"cuda", "gpu"})
     .set_target_parser(UpdateNVPTXAttrs);
 
@@ -353,24 +346,24 @@ TVM_REGISTER_TARGET_KIND("rocm", kDLROCM)
     .add_attr_option<Array<String>>("mattr")
     // TODO(masahi): Support querying from a target device
     // On RDNA cards, thread_warp_size should be 32
-    .add_attr_option<Integer>("max_num_threads", Integer(256))
-    .add_attr_option<Integer>("max_threads_per_block", Integer(256))
-    .add_attr_option<Integer>("max_shared_memory_per_block", Integer(65536))
-    .add_attr_option<Integer>("thread_warp_size", Integer(64))
+    .add_attr_option<runtime::Int>("max_num_threads", runtime::Int(256))
+    .add_attr_option<runtime::Int>("max_threads_per_block", runtime::Int(256))
+    .add_attr_option<runtime::Int>("max_shared_memory_per_block", runtime::Int(65536))
+    .add_attr_option<runtime::Int>("thread_warp_size", runtime::Int(64))
     .set_default_keys({"rocm", "gpu"})
     .set_target_parser(UpdateROCmAttrs);
 
 TVM_REGISTER_TARGET_KIND("opencl", kDLOpenCL)
-    .add_attr_option<Integer>("max_threads_per_block", Integer(256))
-    .add_attr_option<Integer>("max_shared_memory_per_block", Integer(16384))
-    .add_attr_option<Integer>("max_num_threads", Integer(256))
-    .add_attr_option<Integer>("thread_warp_size", Integer(1))
-    .add_attr_option<Integer>("texture_spatial_limit", Integer(16384))
+    .add_attr_option<runtime::Int>("max_threads_per_block", runtime::Int(256))
+    .add_attr_option<runtime::Int>("max_shared_memory_per_block", runtime::Int(16384))
+    .add_attr_option<runtime::Int>("max_num_threads", runtime::Int(256))
+    .add_attr_option<runtime::Int>("thread_warp_size", runtime::Int(1))
+    .add_attr_option<runtime::Int>("texture_spatial_limit", runtime::Int(16384))
     // Faced that Qualcomm OpenCL runtime crashed without any error message in
     // the case when the number of kernel arguments was pretty big. OpenCL doesn't
     // specify any limitations on the number of kernel arguments. max_function_args
     // equals to 128 looks like a reasonable number of kernel arguments.
-    .add_attr_option<Integer>("max_function_args", Integer(128))
+    .add_attr_option<runtime::Int>("max_function_args", runtime::Int(128))
     .set_default_keys({"opencl", "gpu"});
 
 // The metal has some limitations on the number of input parameters. This is why attribute
@@ -379,55 +372,55 @@ TVM_REGISTER_TARGET_KIND("opencl", kDLOpenCL)
 // https://developer.apple.com/documentation/metal/buffers/about_argument_buffers?language=objc
 // See also https://developer.apple.com/metal/Metal-Feature-Set-Tables.pdf
 TVM_REGISTER_TARGET_KIND("metal", kDLMetal)
-    .add_attr_option<Integer>("max_num_threads", Integer(256))
-    .add_attr_option<Integer>("max_threads_per_block", Integer(256))
-    .add_attr_option<Integer>("max_shared_memory_per_block", Integer(32768))
-    .add_attr_option<Integer>("thread_warp_size", Integer(16))
-    .add_attr_option<Integer>("max_function_args", Integer(31))
+    .add_attr_option<runtime::Int>("max_num_threads", runtime::Int(256))
+    .add_attr_option<runtime::Int>("max_threads_per_block", runtime::Int(256))
+    .add_attr_option<runtime::Int>("max_shared_memory_per_block", runtime::Int(32768))
+    .add_attr_option<runtime::Int>("thread_warp_size", runtime::Int(16))
+    .add_attr_option<runtime::Int>("max_function_args", runtime::Int(31))
     .set_default_keys({"metal", "gpu"});
 
 TVM_REGISTER_TARGET_KIND("vulkan", kDLVulkan)
     .add_attr_option<Array<String>>("mattr")
     // Feature support
-    .add_attr_option<Bool>("supports_float16")
-    .add_attr_option<Bool>("supports_float32", Bool(true))
-    .add_attr_option<Bool>("supports_float64")
-    .add_attr_option<Bool>("supports_int8")
-    .add_attr_option<Bool>("supports_int16")
-    .add_attr_option<Bool>("supports_int32", Bool(true))
-    .add_attr_option<Bool>("supports_int64")
-    .add_attr_option<Bool>("supports_8bit_buffer")
-    .add_attr_option<Bool>("supports_16bit_buffer")
-    .add_attr_option<Bool>("supports_storage_buffer_storage_class")
-    .add_attr_option<Bool>("supports_push_descriptor")
-    .add_attr_option<Bool>("supports_dedicated_allocation")
-    .add_attr_option<Bool>("supports_integer_dot_product")
-    .add_attr_option<Bool>("supports_cooperative_matrix")
-    .add_attr_option<Integer>("supported_subgroup_operations")
+    .add_attr_option<runtime::Bool>("supports_float16")
+    .add_attr_option<runtime::Bool>("supports_float32", runtime::Bool(true))
+    .add_attr_option<runtime::Bool>("supports_float64")
+    .add_attr_option<runtime::Bool>("supports_int8")
+    .add_attr_option<runtime::Bool>("supports_int16")
+    .add_attr_option<runtime::Bool>("supports_int32", runtime::Bool(true))
+    .add_attr_option<runtime::Bool>("supports_int64")
+    .add_attr_option<runtime::Bool>("supports_8bit_buffer")
+    .add_attr_option<runtime::Bool>("supports_16bit_buffer")
+    .add_attr_option<runtime::Bool>("supports_storage_buffer_storage_class")
+    .add_attr_option<runtime::Bool>("supports_push_descriptor")
+    .add_attr_option<runtime::Bool>("supports_dedicated_allocation")
+    .add_attr_option<runtime::Bool>("supports_integer_dot_product")
+    .add_attr_option<runtime::Bool>("supports_cooperative_matrix")
+    .add_attr_option<runtime::Int>("supported_subgroup_operations")
     // Physical device limits
-    .add_attr_option<Integer>("max_num_threads", Integer(256))
-    .add_attr_option<Integer>("max_threads_per_block", Integer(256))
-    .add_attr_option<Integer>("thread_warp_size", Integer(1))
-    .add_attr_option<Integer>("max_block_size_x")
-    .add_attr_option<Integer>("max_block_size_y")
-    .add_attr_option<Integer>("max_block_size_z")
-    .add_attr_option<Integer>("max_push_constants_size")
-    .add_attr_option<Integer>("max_uniform_buffer_range")
-    .add_attr_option<Integer>("max_storage_buffer_range")
-    .add_attr_option<Integer>("max_per_stage_descriptor_storage_buffer")
-    .add_attr_option<Integer>("max_shared_memory_per_block")
+    .add_attr_option<runtime::Int>("max_num_threads", runtime::Int(256))
+    .add_attr_option<runtime::Int>("max_threads_per_block", runtime::Int(256))
+    .add_attr_option<runtime::Int>("thread_warp_size", runtime::Int(1))
+    .add_attr_option<runtime::Int>("max_block_size_x")
+    .add_attr_option<runtime::Int>("max_block_size_y")
+    .add_attr_option<runtime::Int>("max_block_size_z")
+    .add_attr_option<runtime::Int>("max_push_constants_size")
+    .add_attr_option<runtime::Int>("max_uniform_buffer_range")
+    .add_attr_option<runtime::Int>("max_storage_buffer_range")
+    .add_attr_option<runtime::Int>("max_per_stage_descriptor_storage_buffer")
+    .add_attr_option<runtime::Int>("max_shared_memory_per_block")
     // Other device properties
     .add_attr_option<String>("device_type")
     .add_attr_option<String>("device_name")
     .add_attr_option<String>("driver_name")
-    .add_attr_option<Integer>("driver_version")
-    .add_attr_option<Integer>("vulkan_api_version")
-    .add_attr_option<Integer>("max_spirv_version")
+    .add_attr_option<runtime::Int>("driver_version")
+    .add_attr_option<runtime::Int>("vulkan_api_version")
+    .add_attr_option<runtime::Int>("max_spirv_version")
     // Tags
     .set_default_keys({"vulkan", "gpu"});
 
 TVM_REGISTER_TARGET_KIND("webgpu", kDLWebGPU)
-    .add_attr_option<Integer>("max_num_threads", Integer(256))
+    .add_attr_option<runtime::Int>("max_num_threads", runtime::Int(256))
     .set_default_keys({"webgpu", "gpu"});
 
 TVM_REGISTER_TARGET_KIND("sdaccel", kDLOpenCL)  // line break
@@ -444,8 +437,8 @@ TVM_REGISTER_TARGET_KIND("hexagon", kDLHexagon)
     .add_attr_option<String>("mcpu")
     .add_attr_option<String>("mtriple")
     .add_attr_option<Array<String>>("llvm-options")
-    .add_attr_option<Integer>("num-cores")
-    .add_attr_option<Integer>("vtcm-capacity")
+    .add_attr_option<runtime::Int>("num-cores")
+    .add_attr_option<runtime::Int>("vtcm-capacity")
     .set_default_keys({"hexagon", "cpu"});
 
 TVM_REGISTER_TARGET_KIND("stackvm", kDLCPU)  // line break

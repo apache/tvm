@@ -202,6 +202,33 @@ def definable_tir_vars_in_struct_info(sinfo: StructInfo) -> List[tir.Var]:
     return _ffi_api.DefinableTIRVarsInStructInfo(sinfo)  # type: ignore
 
 
+def collect_non_negative_expressions(sinfo: StructInfo) -> List[tir.PrimExpr]:
+    """Collect TIR expressions used in non-negative contexts
+
+    Get TIR variables that are non-negative within the context where
+    the struct info is used.  For example, any expression used as a
+    tensor shape.
+
+    The returned list is deduplicated - each TIR expression will
+    appear at most once.  The order of the list is in the order of
+    occurrence within the struct info.
+
+    Parameters
+    ----------
+    sinfo : StructInfo
+        The struct info object to be analyzed.
+
+    Returns
+    -------
+    ret : List[tir.Var]
+
+        The list of TIR variables that can be defined from the StructInfo
+
+    """
+
+    return _ffi_api.CollectNonNegativeExpressions(sinfo)  # type: ignore
+
+
 def defined_symbolic_vars(func: Function) -> List[Var]:
     """Get the TIR variables that defined in the input function.
     The returned list is deduplicated - each TIR variable will appear at most once.
@@ -434,13 +461,13 @@ def remove_all_unused(func: Function) -> Function:
     return _ffi_api.remove_all_unused(func)  # type: ignore
 
 
-def well_formed(mod: IRModule, check_struct_info: bool = True) -> bool:
+def well_formed(obj: Union[IRModule, Function], check_struct_info: bool = True) -> bool:
     """Check if the IRModule is well formed.
 
     Parameters
     ----------
-    mod : tvm.IRModule
-        The input IRModule.
+    obj : Union[tvm.IRModule, Function]
+        The input IRModule or relax.Function.
 
     check_struct_info : bool
         A boolean flag indicating if the property "every Expr must
@@ -457,7 +484,7 @@ def well_formed(mod: IRModule, check_struct_info: bool = True) -> bool:
     where `check_struct_info` might be false, so that other well-formed requirements
     will be well tested and will not be blocked by not having structure info.
     """
-    return _ffi_api.well_formed(mod, check_struct_info)  # type: ignore
+    return _ffi_api.well_formed(obj, check_struct_info)  # type: ignore
 
 
 def _get_prim_func_default_dtype(func: PrimFunc):

@@ -406,6 +406,7 @@ TVM_DLL Pass BF16ComputeLegalize();
  * \brief Legalize fp8 compute Ops. Add a cast to fp16/fp32
  *   before Ops, then add a cast back to fp8.
  * \param promote_dtype_str The data type used for type promotion, defaults to float16
+ * \note Must be run after BindTarget, as it relies on target attributes for PrimFuncs
  * \return The pass.
  */
 TVM_DLL Pass FP8ComputeLegalize(String promote_dtype_str = "float16");
@@ -418,6 +419,7 @@ TVM_DLL Pass BF16StorageLegalize();
 
 /*!
  * \brief Legalize fp8 storage types to u8.
+ * \note Must be run after BindTarget, as it relies on target attributes for PrimFuncs
  * \return The pass.
  */
 TVM_DLL Pass FP8StorageLegalize();
@@ -831,6 +833,14 @@ TVM_DLL Pass InstrumentProfileIntrinsics();
  * \return The Pass.
  */
 TVM_DLL Pass DefaultGPUSchedule();
+
+/*!
+ * \brief This pass analyzes primfunc & eliminates branch introdued due to layout specific padding.
+ *  It leverages from the buffer assumptions and use the information to eliminate the branch.
+ * \note This creates more opportunity to vectorize the code.
+ * \return The Pass.
+ */
+TVM_DLL Pass UseAssumeToReduceBranches();
 
 }  // namespace transform
 }  // namespace tir

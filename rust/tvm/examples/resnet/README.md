@@ -21,7 +21,7 @@ This end-to-end example shows how to:
 * build `Resnet 18` with `tvm` from Python
 * use the provided Rust frontend API to test for an input image
 
-To run the example with pretrained resnet weights, first `tvm`  and `mxnet` must be installed for the python build. To install mxnet for cpu, run `pip install mxnet`
+To run the example with pretrained resnet weights, first `tvm`  and `torchvision` must be installed for the python build. To install torchvision for cpu, run `pip install torch torchvision`
 and to install `tvm` with `llvm` follow the [TVM installation guide](https://tvm.apache.org/docs/install/index.html).
 
 * **Build the example**: `cargo build

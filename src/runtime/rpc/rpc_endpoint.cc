@@ -258,8 +258,12 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
     if (type_index == kRuntimeRPCObjectRefTypeIndex) {
       uint64_t handle;
       this->template Read<uint64_t>(&handle);
-      tcode[0] = kTVMObjectHandle;
-      value[0].v_handle = reinterpret_cast<void*>(handle);
+      // Always wrap things back in RPCObjectRef
+      // this is because we want to enable multi-hop RPC
+      // and next hop would also need to check the object index
+      RPCObjectRef rpc_obj(make_object<RPCObjectRefObj>(reinterpret_cast<void*>(handle), nullptr));
+      TVMArgsSetter(value, tcode)(0, rpc_obj);
+      object_arena_.push_back(rpc_obj);
     } else {
       LOG(FATAL) << "ValueError: Object type is not supported in Disco calling convention: "
                  << Object::TypeIndex2Key(type_index) << " (type_index = " << type_index << ")";
@@ -274,6 +278,12 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
   T* ArenaAlloc(int count) {
     static_assert(std::is_pod<T>::value, "need to be trival");
     return arena_.template allocate_<T>(count);
+  }
+
+  /*! \brief Recycle all the memory used in the arena */
+  void RecycleAll() {
+    this->object_arena_.clear();
+    this->arena_.RecycleAll();
   }
 
  protected:
@@ -296,6 +306,8 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
   bool async_server_mode_{false};
   // Internal arena
   support::Arena arena_;
+  // internal arena for temp objects
+  std::vector<ObjectRef> object_arena_;
 
   // State switcher
   void SwitchToState(State state) {
@@ -313,7 +325,7 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
     if (state == kRecvPacketNumBytes) {
       this->RequestBytes(sizeof(uint64_t));
       // recycle arena for the next session.
-      arena_.RecycleAll();
+      this->RecycleAll();
     }
   }
 
@@ -654,8 +666,12 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
     pending_request_bytes_ -= size;
     return size;
   }
-  // wriite the data to the channel.
-  void Write(const void* data, size_t size) final { writer_->Write(data, size); }
+  // write the data to the channel.
+  size_t Write(const void* data, size_t size) final {
+    writer_->Write(data, size);
+    return size;
+  }
+
   // Number of pending bytes requests
   size_t pending_request_bytes_{0};
   // The ring buffer to read data from.
@@ -994,6 +1010,11 @@ void RPCDevSetStream(RPCSession* handler, TVMArgs args, TVMRetValue* rv) {
   handler->GetDeviceAPI(dev)->SetStream(dev, stream);
 }
 
+void RPCDevGetCurrentStream(RPCSession* handler, TVMArgs args, TVMRetValue* rv) {
+  Device dev = args[0];
+  *rv = handler->GetDeviceAPI(dev)->GetCurrentStream(dev);
+}
+
 void RPCEndpoint::EventHandler::HandleSyscall(RPCCode code) {
   // Event handler sit at clean state at this point.
   switch (code) {
@@ -1030,6 +1051,9 @@ void RPCEndpoint::EventHandler::HandleSyscall(RPCCode code) {
       break;
     case RPCCode::kDevSetStream:
       SysCallHandler(RPCDevSetStream);
+      break;
+    case RPCCode::kDevGetCurrentStream:
+      SysCallHandler(RPCDevGetCurrentStream);
       break;
     case RPCCode::kCopyAmongRemote:
       SysCallHandler(RPCCopyAmongRemote);
@@ -1174,6 +1198,10 @@ class RPCClientSession : public RPCSession, public DeviceAPI {
 
   void SetStream(Device dev, TVMStreamHandle stream) final {
     endpoint_->SysCallRemote(RPCCode::kDevSetStream, dev, stream);
+  }
+
+  TVMStreamHandle GetCurrentStream(Device dev) final {
+    return endpoint_->SysCallRemote(RPCCode::kDevGetCurrentStream, dev);
   }
 
   DeviceAPI* GetDeviceAPI(Device dev, bool allow_missing) final { return this; }

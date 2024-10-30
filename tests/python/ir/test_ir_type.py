@@ -16,12 +16,13 @@
 # under the License.
 """Test type nodes in the IR"""
 import tvm
+from tvm.script import tir as T
 
 
 def check_json_roundtrip(node):
     json_str = tvm.ir.save_json(node)
     back = tvm.ir.load_json(json_str)
-    assert tvm.ir.structural_equal(back, node, map_free_vars=True)
+    tvm.ir.assert_structural_equal(back, node, map_free_vars=True)
 
 
 def test_prim_type():
@@ -38,11 +39,9 @@ def test_tensor_type_bad_constructor():
 
 
 def test_tensor_type():
-    shape = tvm.runtime.convert([1, 2, 3])
-    dtype = "float32"
-    tt = tvm.ir.TensorType(shape, dtype)
-    assert tt.dtype == dtype
-    assert tt.shape == shape
+    tt = tvm.ir.TensorType([1, 2, 3], "float32")
+    assert tt.dtype == "float32"
+    assert list(tt.shape) == [T.int32(1), T.int32(2), T.int32(3)]
     assert tt.span == None
     str(tt)
     check_json_roundtrip(tt)

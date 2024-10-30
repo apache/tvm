@@ -51,6 +51,7 @@ enum DeviceAttrKind : int {
   kDriverVersion = 12,
   kL2CacheSizeBytes = 13,
   kTotalGlobalMemory = 14,
+  kAvailableGlobalMemory = 15,
 };
 
 #ifdef TVM_KALLOC_ALIGNMENT
@@ -147,6 +148,8 @@ class TVM_DLL DeviceAPI {
    * \param from The source array.
    * \param to The target array.
    * \param stream Optional stream object.
+   * \note The copy may happen asynchronously if it involves a GPU context.
+   *       Call StreamSync to ensure the copy completes from host's pov.
    */
   virtual void CopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamHandle stream);
   /*!
@@ -176,6 +179,12 @@ class TVM_DLL DeviceAPI {
    * \param stream The stream to be set.
    */
   virtual void SetStream(Device dev, TVMStreamHandle stream) {}
+  /*!
+   * \brief Get the current stream
+   * \param dev The device to get stream.
+   * \return The current stream of the device.
+   */
+  virtual TVMStreamHandle GetCurrentStream(Device dev);
   /*!
    * \brief Synchronize 2 streams of execution.
    *
@@ -230,6 +239,11 @@ class TVM_DLL DeviceAPI {
   static bool NeedSetDevice(int device_type) {
     return device_type != kDLCPU && device_type != kDLMicroDev;
   }
+
+  /*!
+   * \brief Whether pointer arithmetics on a device owned pointer may be performed on the host.
+   */
+  virtual bool SupportsDevicePointerArithmeticsOnHost() { return false; }
 
  protected:
   /*!

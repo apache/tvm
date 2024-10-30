@@ -401,17 +401,21 @@ LaunchThreadFrame LaunchThread(String thread_tag, PrimExpr extent);
 /*!
  * \brief Bind a var to thread env.
  * \param thread_tag The thread type tag.
+ * \param dtype The data type of the variable.
  * \return The result variable which gets bound to the thread env.
  */
-Var EnvThread(String thread_tag);
+Var EnvThread(String thread_tag, DataType dtype = DataType::Int(32));
 
 /*!
  * \brief Store data in a buffer.
  * \param buffer The buffer.
  * \param value The value to be stored.
  * \param indices The indices location to be stored.
+ * \param predicate A vector mask of boolean values indicating which lanes of a vector are to be
+ * stored. The number lanes of the mask must be equal to the number of lanes in value.
  */
-void BufferStore(Buffer buffer, PrimExpr value, Array<PrimExpr> indices);
+void BufferStore(Buffer buffer, PrimExpr value, Array<PrimExpr> indices,
+                 Optional<PrimExpr> predicate);
 
 /*!
  * \brief The prefetch hint for a buffer
@@ -489,6 +493,18 @@ TVM_TIR_IR_BUILDER_DEF_DTYPE_CAST_SIZES(Int, DataType::Int);
 TVM_TIR_IR_BUILDER_DEF_DTYPE_CAST_SIZES_LANES(Float, DataType::Float);
 TVM_TIR_IR_BUILDER_DEF_DTYPE_CAST_SIZES_LANES(UInt, DataType::UInt);
 TVM_TIR_IR_BUILDER_DEF_DTYPE_CAST_SIZES_LANES(Int, DataType::Int);
+
+#define TVM_TIR_IR_BUILDER_DEF_DTYPE_CAST_LANES_FIXED_SIZE(DType, FDType) \
+  TVM_TIR_IR_BUILDER_DEF_DTYPE_CAST(DType, FDType(1));                    \
+  TVM_TIR_IR_BUILDER_DEF_DTYPE_CAST(DType##x4, FDType(4));                \
+  TVM_TIR_IR_BUILDER_DEF_DTYPE_CAST(DType##x8, FDType(8));                \
+  TVM_TIR_IR_BUILDER_DEF_DTYPE_CAST(DType##x16, FDType(16));              \
+  TVM_TIR_IR_BUILDER_DEF_DTYPE_CAST(DType##x32, FDType(32));              \
+  TVM_TIR_IR_BUILDER_DEF_DTYPE_CAST(DType##x64, FDType(64));
+
+TVM_TIR_IR_BUILDER_DEF_DTYPE_CAST_LANES_FIXED_SIZE(E4M3Float8, DataType::NVFloat8E4M3);
+TVM_TIR_IR_BUILDER_DEF_DTYPE_CAST_LANES_FIXED_SIZE(E5M2Float8, DataType::NVFloat8E5M2);
+
 TVM_TIR_IR_BUILDER_DEF_DTYPE_CAST(Boolean, DataType::Bool());
 TVM_TIR_IR_BUILDER_DEF_DTYPE_CAST(Void, DataType::Void());
 

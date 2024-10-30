@@ -46,6 +46,11 @@ void SeqExprFrameNode::EnterWithScope() {
   BindingBlock()->EnterWithScope();
 }
 
+void FunctionFrameNode::EnterWithScope() {
+  this->block_builder->BeginScope(params);
+  SeqExprFrameNode::EnterWithScope();
+}
+
 void FunctionFrameNode::ExitWithScope() {
   using ir::IRModuleFrame;
   using tvm::relax::Expr;
@@ -54,20 +59,19 @@ void FunctionFrameNode::ExitWithScope() {
   // Step 1: Create the function.
   CHECK(output.defined()) << "ValueError: A Relax function must have a return value. Please use "
                              "`return` to return an Expr";
-  this->block_builder->BeginScope(params);
+
   Expr body = this->block_builder->Normalize(tvm::relax::SeqExpr(binding_blocks, output.value()));
   // if the function is not private, add a global symbol to its attributes
   if (!is_private.value_or(Bool(false))->value && name.defined() &&
       !attrs.count(tvm::attr::kGlobalSymbol)) {
     attrs.Set(tvm::attr::kGlobalSymbol, name.value());
   }
-  auto dict_attrs = attrs.empty() ? NullValue<DictAttrs>() : DictAttrs(attrs);
   this->block_builder->EndScope();
   tvm::relax::Function func(/*params=*/params,
                             /*body=*/body,
                             /*ret_struct_info=*/ret_struct_info,
                             /*is_pure=*/is_pure.value_or(Bool(true))->value,
-                            /*attrs=*/dict_attrs);
+                            /*attrs=*/DictAttrs(attrs));
   // Step 2: Update IRModule.
   if (builder->frames.empty()) {
     // Case 0. No outer frame, return function directly
@@ -114,36 +118,23 @@ void BlockFrameNode::EnterWithScope() {
   }
 }
 
-class DataflowBlockRewriter : public tvm::relax::ExprMutator {
+class VarReplacer : public tvm::relax::ExprMutator {
  public:
-  static tvm::relax::DataflowBlock Rewrite(const tvm::relax::DataflowBlock& block,
-                                           const Array<tvm::relax::Var>& output_vars) {
-    DataflowBlockRewriter rewriter(output_vars);
-    return Downcast<tvm::relax::DataflowBlock>(rewriter.VisitBindingBlock(block));
+  explicit VarReplacer(
+      std::unordered_map<tvm::relax::Id, tvm::relax::Var, ObjectPtrHash, ObjectPtrEqual>
+          var_remap) {
+    var_remap_ = std::move(var_remap);
   }
 
- private:
-  explicit DataflowBlockRewriter(const Array<tvm::relax::Var>& output_vars) {
-    for (const tvm::relax::Var& var : output_vars) {
-      output_var_set_.insert(var.get());
-    }
-  }
-
-  tvm::relax::Var VisitVarDef_(const tvm::relax::DataflowVarNode* op) final {
-    auto it = output_var_set_.find(op);
-    if (it != output_var_set_.end()) {
-      // Rewrite dataflow vars to global vars
-      auto n = make_object<tvm::relax::VarNode>(*op);
-      tvm::relax::Var new_var(n);
-      this->var_remap_[op->vid] = new_var;
-      return new_var;
+  tvm::relax::Var VisitVarDef(const tvm::relax::Var& var) override {
+    // ExprMutator only applies var_remap_ at usage sites.  This
+    // applies var_remap_ at each definition site as well.
+    if (auto it = var_remap_.find(var->vid); it != var_remap_.end()) {
+      return it->second;
     } else {
-      return GetRef<tvm::relax::Var>(op);
+      return var;
     }
   }
-
- private:
-  std::unordered_set<const tvm::relax::VarNode*> output_var_set_;
 };
 
 void BlockFrameNode::ExitWithScope() {
@@ -160,25 +151,27 @@ void BlockFrameNode::ExitWithScope() {
 
   // Step 3. Rewrite the dataflow block.
   if (is_dataflow) {
-    // Step 3.1. Rewrite block binding
-    block = DataflowBlockRewriter::Rewrite(Downcast<tvm::relax::DataflowBlock>(block), output_vars);
-
-    // Step 3.2. Collect global vars' reference in bindings
-    Map<tvm::relax::Id, tvm::relax::Var> new_global_vars;
-    for (const tvm::relax::Binding& binding : block->bindings) {
-      if (!binding->var->IsInstance<tvm::relax::DataflowVarNode>()) {
-        new_global_vars.Set(binding->var->vid, binding->var);
-      }
+    // Step 3.0.  Define a map to replace variables
+    Array<tvm::relax::Var> new_output_vars;
+    std::unordered_map<tvm::relax::Id, tvm::relax::Var, ObjectPtrHash, ObjectPtrEqual> var_remap;
+    for (const auto& output_var : output_vars) {
+      tvm::relax::Var new_output_var(output_var->name_hint(), GetStructInfo(output_var));
+      new_output_vars.push_back(new_output_var);
+      var_remap[output_var->vid] = new_output_var;
     }
+    VarReplacer mutator(std::move(var_remap));
+
+    // Step 3.1. Rewrite block binding
+    block = mutator.VisitBindingBlock(block);
 
     // Step 3.3. Rewrite output vars
-    Array<tvm::relax::Var> new_output_vars;
-    for (const auto& var : output_vars) {
-      auto it = new_global_vars.find(var->vid);
-      ICHECK(it != new_global_vars.end());
-      new_output_vars.push_back((*it).second);
-    }
     output_vars = std::move(new_output_vars);
+
+    // Step 3.4 Rewrite usage of output var, if any
+    auto function = FindFunctionFrame("R.dataflow()");
+    if (function->output.defined()) {
+      function->output = mutator.VisitExpr(function->output.value());
+    }
   }
 
   // Step 3. Get the last frame from the IRBuilder frame stack.
@@ -192,8 +185,6 @@ void BlockFrameNode::ExitWithScope() {
 
   // Step 5. Push the block frame into the corresponding field of the last frame.
   if (const auto* seq_frame = last_frame.as<SeqExprFrameNode>()) {
-    ICHECK(!seq_frame->output.defined())
-        << "The function is not expected to have output values when emitting blocks.";
     auto frame = GetRef<SeqExprFrame>(seq_frame);
     frame->binding_blocks.push_back(block);
   } else {
@@ -263,7 +254,9 @@ void ElseFrameNode::ExitWithScope() {
   IfFrame frame = FindIfFrame("R.Else");
   frame->else_expr = output;
   CHECK(frame->var_name == var_name)
-      << "This last binding of both branches must have the same variable.";
+      << "This last binding of both branches must provide the same variable.  "
+      << "However, the R.Then branch provides variable " << frame->var_name
+      << ", while the R.Else branch provides variable " << var_name;
 }
 
 TVM_REGISTER_NODE_TYPE(FunctionFrameNode);

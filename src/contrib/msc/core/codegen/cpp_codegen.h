@@ -95,6 +95,20 @@ class CppCodeGen : public BaseCodeGen<ConfigType, HelperType> {
   }
 
  protected:
+  /*! \brief Describe the prim*/
+  virtual const String DescribePrim(const MSCPrim& prim) {
+    // binary ops
+    DESCRIBE_PRIM_BINARY("Min", "std::min", true)
+    DESCRIBE_PRIM_BINARY("Max", "std::max", true)
+    // special
+    if (prim->optype == "if_then_else") {
+      return "(" + this->DescribePrim(prim->ParentAt(0)) + "?" +
+             this->DescribePrim(prim->ParentAt(1)) + ":" + this->DescribePrim(prim->ParentAt(2)) +
+             ")";
+    }
+    return BaseCodeGen<ConfigType, HelperType>::DescribePrim(prim);
+  }
+
   /*! \brief Stack the docs for the node*/
   virtual void CodeGenNode(const MSCJoint& node, bool use_tools) {
     this->stack_.comment(this->Comment(node));

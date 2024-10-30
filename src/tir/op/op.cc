@@ -229,8 +229,11 @@ void BinaryOpMatchTypes(PrimExpr& lhs, PrimExpr& rhs, Span span) {  // NOLINT(*)
 }
 
 PrimExpr ret(PrimExpr value, Span span) {
+  CHECK(value.defined());
   return tir::Call(value.dtype(), tir::builtin::ret(), {value}, span);
 }
+
+TVM_REGISTER_GLOBAL("tir.ret").set_body_typed(ret);
 
 // maximum and min limits
 PrimExpr max_value(const DataType& dtype, Span span) {
@@ -262,6 +265,13 @@ PrimExpr max_value(const DataType& dtype, Span span) {
     }
   } else if (dtype.is_bfloat16()) {
     return FloatImm(dtype, std::numeric_limits<float>::max(), span);
+  } else if (dtype.is_float8()) {
+    // according to https://arxiv.org/pdf/2209.05433.pdf
+    if (dtype.code() == DataType::TypeCode::kE5M2Float) {
+      return FloatImm(dtype, 57344.0, span);
+    } else if (dtype.code() == DataType::TypeCode::kE4M3Float) {
+      return FloatImm(dtype, 448.0, span);
+    }
   }
   LOG(FATAL) << "Cannot decide max_value for type" << dtype;
 }
@@ -296,6 +306,13 @@ PrimExpr min_value(const DataType& dtype, Span span) {
     }
   } else if (dtype.is_bfloat16()) {
     return FloatImm(dtype, std::numeric_limits<float>::lowest(), span);
+  } else if (dtype.is_float8()) {
+    // according to https://arxiv.org/pdf/2209.05433.pdf
+    if (dtype.code() == DataType::TypeCode::kE5M2Float) {
+      return FloatImm(dtype, -57344.0, span);
+    } else if (dtype.code() == DataType::TypeCode::kE4M3Float) {
+      return FloatImm(dtype, -448.0, span);
+    }
   }
   LOG(FATAL) << "Cannot decide min_value for type" << dtype;
 }
@@ -342,7 +359,7 @@ PrimExpr cast(const DataType& t, PrimExpr value, Span span) {
   using tir::FloatImmNode;
   if (value.dtype() == t) return value;
   // const fold IntImm as they are used in index computations
-  if (t.lanes() == 1) {
+  if (t.is_scalar()) {
     if (const IntImmNode* op = value.as<IntImmNode>()) {
       return make_const(t, op->value, op->span);
     } else if (const FloatImmNode* op = value.as<FloatImmNode>()) {
@@ -397,8 +414,10 @@ PrimExpr cast(const DataType& t, PrimExpr value, Span span) {
 // reinterpret
 PrimExpr reinterpret(const DataType& t, PrimExpr value, Span span) {
   if (value.dtype() == t) return value;
-  ICHECK(value.dtype().bits() * value.dtype().lanes() == t.bits() * t.lanes())
-      << "Bitcast requires size match " << t << " vs " << value.dtype();
+  if (!t.is_scalable_vector() && !value.dtype().is_scalable_vector()) {
+    ICHECK(value.dtype().bits() * value.dtype().lanes() == t.bits() * t.lanes())
+        << "Bitcast requires size match " << t << " vs " << value.dtype();
+  }
   return tir::Call(t, tir::builtin::reinterpret(), {value}, span);
 }
 
@@ -1032,12 +1051,15 @@ TVM_TIR_REGISTER_OP("TVMBackendFreeWorkspace")
 
 // expose basic functions to node namespace
 TVM_REGISTER_GLOBAL("node._const").set_body([](TVMArgs args, TVMRetValue* ret) {
-  if (args[0].type_code() == kDLInt) {
-    *ret = tir::make_const(args[1], args[0].operator int64_t(), args[2]);
-  } else if (args[0].type_code() == kDLFloat) {
-    *ret = tir::make_const(args[1], args[0].operator double(), args[2]);
+  if (auto opt = args[0].TryAsInt()) {
+    *ret = tir::make_const(args[1], opt.value(), args[2]);
+  } else if (auto opt = args[0].TryAsBool()) {
+    *ret = tir::make_const(args[1], opt.value(), args[2]);
+  } else if (auto opt = args[0].TryAsFloat()) {
+    *ret = tir::make_const(args[1], opt.value(), args[2]);
   } else {
-    LOG(FATAL) << "only accept int or float";  // FIXME
+    LOG(FATAL) << "First argument to tvm.tir.const must be int, float, or bool, "
+               << "but instead received argument with type code " << args[0].type_code();  // FIXME
   }
 });
 
@@ -1070,6 +1092,8 @@ TVM_REGISTER_GLOBAL("tir.nearbyint").set_body_typed(tvm::nearbyint);
 TVM_REGISTER_GLOBAL("tir.trunc").set_body_typed(tvm::trunc);
 
 TVM_REGISTER_GLOBAL("tir._cast").set_body_typed(tvm::cast);
+
+TVM_REGISTER_GLOBAL("tir.reinterpret").set_body_typed(tvm::reinterpret);
 
 // operator overloading, smarter than make
 #define REGISTER_MAKE_BINARY_OP(Node, Func)                                                \

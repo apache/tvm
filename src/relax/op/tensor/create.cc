@@ -36,7 +36,7 @@ namespace relax {
 TVM_REGISTER_NODE_TYPE(InitAttrs);
 
 /* relax.full */
-Expr full(ObjectRef shape, Expr fill_value, DataType dtype) {
+Expr full(Variant<Expr, Array<PrimExpr>> shape, Expr fill_value, DataType dtype) {
   Expr shape_in_expr{nullptr};
   if (const auto* expr = shape.as<ExprNode>()) {
     shape_in_expr = GetRef<Expr>(expr);
@@ -226,6 +226,90 @@ TVM_REGISTER_OP("relax.zeros_like")
     .set_num_inputs(1)
     .add_argument("x", "Tensor", "The input tensor.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoOnesLikeZerosLike)
+    .set_attr<Bool>("FPurity", Bool(true));
+
+/* relax.eye & relax.eye_like */
+Expr eye(PrimValue n, PrimValue m, PrimValue k, DataType dtype) {
+  ObjectPtr<InitAttrs> attrs = make_object<InitAttrs>();
+  attrs->dtype = dtype;
+  static const Op& op = Op::Get("relax.eye");
+  return Call(op, {std::move(n), std::move(m), std::move(k)}, Attrs(attrs), {});
+}
+
+Expr eye_like(Expr x, PrimValue k, DataType dtype) {
+  ObjectPtr<InitAttrs> attrs = make_object<InitAttrs>();
+  attrs->dtype = dtype;
+  static const Op& op = Op::Get("relax.eye_like");
+  return Call(op, {std::move(x), std::move(k)}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relax.op.eye").set_body_typed(eye);
+TVM_REGISTER_GLOBAL("relax.op.eye_like").set_body_typed(eye_like);
+
+StructInfo InferStructInfoEye(const Call& call, const BlockBuilder& ctx) {
+  if (call->args.size() != 3) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "Eye op should have 3 arguments: n, m, and k, but got " << call->args.size()
+                     << " arguments");
+  }
+
+  auto get_prim_value = [&ctx](const Expr& expr, std::string key) {
+    if (!expr->IsInstance<PrimValueNode>()) {
+      ctx->ReportFatal(Diagnostic::Error(expr)
+                       << "Eye expects the `" << key << "` to be a PrimValue, but got "
+                       << expr->GetTypeKey());
+    }
+    return expr.as<PrimValueNode>()->value;
+  };
+
+  PrimExpr n = get_prim_value(call->args[0], "n");
+  PrimExpr m = get_prim_value(call->args[1], "m");
+
+  DataType dtype = call->attrs.as<InitAttrs>()->dtype;
+  return TensorStructInfo(ShapeExpr({n, m}), dtype);
+}
+
+StructInfo InferStructInfoEyeLike(const Call& call, const BlockBuilder& ctx) {
+  if (call->args.size() != 2) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "Eye_like op should have 2 arguments: x and k, but got "
+                     << call->args.size() << " arguments");
+  }
+
+  const auto* x_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
+  if (x_sinfo == nullptr) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "Eye_like expects the input `x` to be a Tensor, but got "
+                     << call->args[0]->struct_info_->GetTypeKey());
+  }
+  if (x_sinfo->ndim != 2 && x_sinfo->ndim != kUnknownNDim) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "Eye_like expects the input tensor to be 2-dimensional, but got "
+                     << x_sinfo->ndim << " dimensions");
+  }
+
+  const auto* attrs = call->attrs.as<InitAttrs>();
+  DataType out_dtype = attrs->dtype.is_void() ? x_sinfo->dtype : attrs->dtype;
+
+  return TensorStructInfo(x_sinfo->shape.value(), out_dtype, x_sinfo->vdevice);
+}
+
+TVM_REGISTER_OP("relax.eye")
+    .set_attrs_type<InitAttrs>()
+    .set_num_inputs(3)
+    .add_argument("n", "PrimValue", "Number of rows in the output.")
+    .add_argument("m", "PrimValue", "Number of columns in the output.")
+    .add_argument("k", "PrimValue", "Index of the diagonal.")
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoEye)
+    .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kFollow)
+    .set_attr<Bool>("FPurity", Bool(true));
+
+TVM_REGISTER_OP("relax.eye_like")
+    .set_attrs_type<InitAttrs>()
+    .set_num_inputs(2)
+    .add_argument("x", "Tensor", "The input tensor.")
+    .add_argument("k", "PrimValue", "Index of the diagonal.")
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoEyeLike)
     .set_attr<Bool>("FPurity", Bool(true));
 
 /* relax.arange */

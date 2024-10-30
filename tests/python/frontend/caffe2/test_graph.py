@@ -24,7 +24,7 @@ from tvm.relay import transform
 def compare_graph(lhs_mod, rhs_mod):
     lhs_mod = transform.InferType()(lhs_mod)
     rhs_mod = transform.InferType()(rhs_mod)
-    assert tvm.ir.structural_equal(lhs_mod["main"], rhs_mod["main"])
+    tvm.ir.assert_structural_equal(lhs_mod["main"], rhs_mod["main"])
 
 
 def test_squeeze_net():

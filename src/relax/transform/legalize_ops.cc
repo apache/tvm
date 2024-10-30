@@ -28,6 +28,7 @@
 #include <tvm/relax/op_attr_types.h>
 #include <tvm/relax/struct_info.h>
 #include <tvm/relax/transform.h>
+#include <tvm/tir/transform.h>
 
 namespace tvm {
 namespace relax {
@@ -67,21 +68,29 @@ class LegalizeMutator : public ExprMutator {
   }
 
   IRModule Transform() {
-    for (const auto& [gv, func] : mod_->functions) {
+    for (const auto& gv : mod_->GetGlobalVars()) {
+      const auto& func = mod_->Lookup(gv);
       if (func->IsInstance<FunctionNode>()) {
         auto updated_func = Downcast<Function>(this->VisitExpr(func));
         builder_->UpdateFunction(gv, Downcast<BaseFunc>(updated_func));
       }
     }
-    // Fill the "kTarget" attribute of PrimFunc
-    for (const auto& [gv, func] : builder_->GetContextIRModule()->functions) {
-      const tir::PrimFuncNode* prim_func;
-      if (tmap_.count(gv) && (prim_func = func.as<tir::PrimFuncNode>())) {
-        auto f = WithAttr(GetRef<tir::PrimFunc>(prim_func), tvm::attr::kTarget, tmap_[gv]);
-        builder_->UpdateFunction(gv, f);
-      }
+
+    IRModule output = builder_->GetContextIRModule();
+    if (generated_tir_with_target_attr_) {
+      // It is possible that every call to a legalized PrimFunc
+      // contains VDevice annotations.  In that case, the PrimFunc
+      // without a target annotation no longer has any callers, and
+      // should be removed.
+      output = relax::transform::DeadCodeElimination()(output);
+
+      // Avoid accidental sharing of TIR variables in the legalized
+      // PrimFuncs, when kernels for multiple devices are generated
+      // from the same PrimFunc.
+      output = tir::transform::ConvertSSA()(output);
     }
-    return builder_->GetContextIRModule();
+
+    return output;
   }
 
  private:
@@ -127,7 +136,7 @@ class LegalizeMutator : public ExprMutator {
     return Call(call_pure_packed_op, ret_args, ret->attrs, ret->sinfo_args);
   }
 
-  Target GetTarget(const Array<StructInfo>& sinfos) {
+  Optional<Target> GetTarget(const Array<StructInfo>& sinfos) {
     for (auto sinfo : sinfos) {
       if (const auto* tinfo = sinfo.as<TensorStructInfoNode>()) {
         if (tinfo->vdevice.defined()) {
@@ -140,23 +149,82 @@ class LegalizeMutator : public ExprMutator {
         return GetTarget(tup_sinfo->fields);
       }
     }
-    return Target();
+    return NullOpt;
   }
 
-  void SaveTarget(const Expr& expr) {
-    if (expr->IsInstance<CallNode>()) {
-      auto call = Downcast<Call>(expr);
-      auto target = GetTarget(call->sinfo_args);
-      const GlobalVarNode* gvar_node;
-      if (target.defined() && (gvar_node = call->args[0].as<GlobalVarNode>())) {
-        this->tmap_.Set(GetRef<GlobalVar>(gvar_node), target);
-      }
+  Expr BindTarget(Expr expr) {
+    if (!expr->IsInstance<CallNode>()) {
+      // FLegalize returned something other than a relax::Call.  This
+      // post-processing only handles cases where legalization
+      // produces a lowered call node.  In principle, this
+      // post-processing isn't necessary, and FLegalize should already
+      // have generated vdevice-aware kernels, so hopefully the
+      // FLegalize implementation did so.
+      return expr;
     }
+
+    auto call = Downcast<Call>(expr);
+
+    auto vdevice_target = GetTarget(call->sinfo_args);
+    if (!vdevice_target.defined()) {
+      // No vdevice annotation is present, so we don't need to apply
+      // any updates.
+      return expr;
+    }
+
+    if (call->args.empty()) {
+      return expr;
+    }
+
+    auto gvar = call->args[0].as<GlobalVar>();
+    if (!gvar.defined()) {
+      // This is not a call into a legalized function within the
+      // current IRModule, so no post-processing is required.
+      return expr;
+    }
+
+    auto base_func = builder_->GetContextIRModule()->Lookup(gvar.value());
+    auto opt_prim_func = base_func.as<tir::PrimFunc>();
+    if (!opt_prim_func) {
+      // The call is to something other than a PrimFunc.  It may be
+      // another Relax function, in which case the legalization of its
+      // body will handle any additional target annotations.
+      return expr;
+    }
+    auto prim_func = opt_prim_func.value();
+
+    auto func_target = prim_func->GetAttr<Target>(tvm::attr::kTarget);
+    if (func_target && func_target.value()->kind == vdevice_target.value()->kind) {
+      // The function already has compatible annotations for the
+      // target, so no modifications are required.
+      return expr;
+    }
+
+    // The FLegalize function generated a PrimFunc, but that PrimFunc
+    // doesn't have annotations compatible with the vdevice required
+    // by the Relax StructInfo.  Update the call to instead call a
+    // `PrimFunc` with the appropriate target annotation.  In the
+    // future, this may be treated as a bug in the FLegalize
+    // implementation, rather than expected output from it.
+    auto new_prim_func = WithAttr(prim_func, tvm::attr::kTarget, vdevice_target.value());
+    auto new_gvar_name = [&]() -> std::string {
+      std::stringstream ss;
+      ss << gvar.value()->name_hint;
+      ss << "_";
+      ss << vdevice_target.value()->kind->name;
+      return ss.str();
+    }();
+    auto new_gvar = builder_->AddFunction(new_prim_func, new_gvar_name);
+    generated_tir_with_target_attr_ = true;
+
+    call.CopyOnWrite()->args.Set(0, new_gvar);
+    return call;
   }
 
   Expr VisitExpr_(const CallNode* call) final {
     Call visited_call = Downcast<Call>(this->VisitExprPostOrder_(call));
     static const auto& legalize_map = Op::GetAttrMap<FLegalize>("FLegalize");
+    static const auto& call_packed_map = Op::GetAttrMap<FCallPacked>("FCallPacked");
     static const auto& requires_arg_shapes_map = Op::GetAttrMap<Bool>("RequiresArgumentShapes");
     static const Op& call_pure_packed_op = Op::Get("relax.call_pure_packed");
     static const Op& call_tir_op = Op::Get("relax.call_tir");
@@ -169,7 +237,7 @@ class LegalizeMutator : public ExprMutator {
     }
     auto op = GetRef<Op>(op_node);
 
-    bool can_legalize = [&]() -> bool {
+    bool shapes_are_known_if_required = [&]() -> bool {
       bool requires_arg_shapes = requires_arg_shapes_map.get(op, Bool(true))->value;
       if (!requires_arg_shapes) {
         // This operator does not require its arguments to have a
@@ -232,23 +300,31 @@ class LegalizeMutator : public ExprMutator {
       return true;
     }();
 
-    if (!can_legalize) {
-      return visited_call;
-    }
-
     FLegalize legalization_func;
 
-    if (auto opt_custom_legalize = cmap_.Get(op->name)) {
+    if (auto opt_custom_legalize = cmap_.Get(op->name);
+        opt_custom_legalize && shapes_are_known_if_required) {
       // First choice, use a custom legalization function
       legalization_func = opt_custom_legalize.value();
-    } else if (legalize_map.count(op)) {
+    } else if (legalize_map.count(op) && shapes_are_known_if_required) {
       // Second choice, use a default legalization
       legalization_func = legalize_map[op];
+    } else if (call_packed_map.count(op)) {
+      // Third choice, use an explicit FCallPacked replacement.  This does not require the shape
+      String packed_func_name = call_packed_map[op];
+      legalization_func = [packed_func_name](const BlockBuilder& bb, const Call& call) -> Expr {
+        return Call(ExternFunc(packed_func_name), call->args, Attrs(), {GetStructInfo(call)});
+      };
     } else {
       // No legalization.
       if (enable_warning_ && op != call_tir_op && op != call_dps_packed_op &&
           op != call_pure_packed_op) {
-        LOG(WARNING) << "No legalization func for " << op->name << " is found.";
+        if (shapes_are_known_if_required) {
+          LOG(WARNING) << "No legalization func for " << op->name << " is found.";
+        } else {
+          LOG(WARNING) << "Cannot legalize " << visited_call
+                       << ", missing known shapes for arguments and return value";
+        }
       }
       return visited_call;
     }
@@ -266,8 +342,9 @@ class LegalizeMutator : public ExprMutator {
     }
     Expr legalized = legalization_func(builder_, visited_call);
 
-    // Save the expected target info. into tmap_
-    SaveTarget(legalized);
+    // Append the target attribute to any PrimFunc generated in
+    // legalization.
+    legalized = BindTarget(legalized);
 
     legalized = builder_->Normalize(legalized);
 
@@ -301,8 +378,8 @@ class LegalizeMutator : public ExprMutator {
   IRModule mod_;
   /*! \brief The customized legalization function map. */
   Map<String, PackedFunc> cmap_;
-  /*! \brief The map from GlobalVar of PrimFunc to compilation Target. */
-  Map<GlobalVar, Target> tmap_;
+  /*! \brief If VDevice annotations produced at least one PrimFunc with a Target attr*/
+  bool generated_tir_with_target_attr_{false};
   /*!
    * \brief A boolean value indicating if to print warnings for CallNode whose op's
    * legalization function is not registered.

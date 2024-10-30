@@ -135,9 +135,9 @@ class ScriptMacro(abc.ABC):
     def get_macro_def(self):
         ast_module = self.source.as_ast()
         for decl in ast_module.body:
-            if isinstance(decl, doc.FunctionDef) and decl.name == self.__name__:
+            if isinstance(decl, doc.FunctionDef) and decl.name == self.func.__name__:
                 return decl
-        raise RuntimeError(f"cannot find macro definition for {self.__name__}")
+        raise RuntimeError(f"cannot find macro definition for {self.func.__name__}")
 
     def __call__(self, *args, **kwargs):
         param_binding = inspect.signature(self.func).bind(*args, **kwargs)
@@ -145,26 +145,27 @@ class ScriptMacro(abc.ABC):
         local_vars = param_binding.arguments
         parser = self._find_parser_def()
 
-        if self.hygienic:
-            saved_var_table = parser.var_table
-            parser.var_table = VarTable()
+        with parser.with_diag_source(self.source):
+            if self.hygienic:
+                saved_var_table = parser.var_table
+                parser.var_table = VarTable()
 
-            with parser.var_table.with_frame():
-                for k, v in self.closure_vars.items():
-                    parser.var_table.add(k, v)
-                for k, v in local_vars.items():
-                    parser.var_table.add(k, v)
+                with parser.var_table.with_frame():
+                    for k, v in self.closure_vars.items():
+                        parser.var_table.add(k, v)
+                    for k, v in local_vars.items():
+                        parser.var_table.add(k, v)
 
-                parse_result = self.parse_macro(parser)
+                    parse_result = self.parse_macro(parser)
 
-            parser.var_table = saved_var_table
+                parser.var_table = saved_var_table
 
-        else:
-            with parser.var_table.with_frame():
-                for k, v in local_vars.items():
-                    parser.var_table.add(k, v)
+            else:
+                with parser.var_table.with_frame():
+                    for k, v in local_vars.items():
+                        parser.var_table.add(k, v)
 
-                parse_result = self.parse_macro(parser)
+                    parse_result = self.parse_macro(parser)
 
         return parse_result
 
@@ -306,10 +307,8 @@ def _dispatch_wrapper(func: dispatch.ParseMethod) -> dispatch.ParseMethod:
     def _wrapper(self: "Parser", node: doc.AST) -> None:
         try:
             return func(self, node)
-        except DiagnosticError:
-            raise
-        except Exception as e:  # pylint: disable=broad-except,invalid-name
-            self.report_error(node, e)
+        except Exception as err:  # pylint: disable=broad-except
+            self.report_error(node, err)
             raise
 
     return _wrapper
@@ -414,6 +413,28 @@ class Parser(doc.NodeVisitor):
             self.dispatch_tokens.pop()
 
         return _deferred(pop_token)
+
+    def with_diag_source(self, source: Source):
+        """Add a new source as with statement.
+
+        Parameters
+        ----------
+        source : Source
+            The source for diagnostics.
+
+        Returns
+        -------
+        res : Any
+            The context with new source.
+        """
+
+        last_diag = self.diag
+        self.diag = Diagnostics(source)
+
+        def pop_source():
+            self.diag = last_diag
+
+        return _deferred(pop_source)
 
     def eval_expr(
         self,
@@ -524,6 +545,12 @@ class Parser(doc.NodeVisitor):
         err: Union[Exception, str]
             The error to report.
         """
+
+        # If the error is already being raised as a DiagnosticError,
+        # re-raise it without wrapping it in a DiagnosticContext.
+        if isinstance(err, DiagnosticError):
+            raise err
+
         # Only take the last line of the error message
         if isinstance(err, TVMError):
             msg = list(filter(None, str(err).split("\n")))[-1]
@@ -572,11 +599,8 @@ class Parser(doc.NodeVisitor):
             raise NotImplementedError(f"Visitor of AST node is not implemented: {name}")
         try:
             func(node)
-        except DiagnosticError:
-            raise
-        except Exception as e:  # pylint: disable=broad-except,invalid-name
-            self.report_error(node, str(e))
-            raise
+        except Exception as err:  # pylint: disable=broad-except
+            self.report_error(node, err)
 
     def visit_body(self, node: List[doc.stmt]) -> Any:
         """The general body visiting method.

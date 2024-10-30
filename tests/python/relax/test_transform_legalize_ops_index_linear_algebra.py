@@ -55,6 +55,68 @@ def test_take():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
+def test_take_prim_value():
+    # fmt: off
+    @tvm.script.ir_module
+    class Take:
+        @R.function
+        def main(x: R.Tensor((2, 3, 4), "float32"), index: R.Prim("int64")) -> R.Tensor((2, 4), "float32"):
+            gv: R.Tensor((2, 4), "float32") = R.take(x, index, axis=1)
+            return gv
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((2, 3, 4), "float32"), index: R.Prim("int64")) -> R.Tensor((2, 4), "float32"):
+            gv = R.call_tir(Expected.take, (x, index), R.Tensor((2, 4), dtype="float32"))
+            return gv
+
+        @T.prim_func(private=True)
+        def take(rxplaceholder: T.Buffer((T.int64(2), T.int64(3), T.int64(4)), "float32"), index: T.int64, T_take: T.Buffer((T.int64(2), T.int64(4)), "float32")):
+            T.func_attr({"tir.noalias": True})
+            for i0, i2 in T.grid(T.int64(2), T.int64(4)):
+                with T.block("T_take"):
+                    ax0, ax2 = T.axis.remap("SS", [i0, i2])
+                    T.reads(rxplaceholder[ax0, index, ax2])
+                    T.writes(T_take[ax0, ax2])
+                    T_take[ax0, ax2] = rxplaceholder[ax0, index, ax2]
+    # fmt: on
+
+    mod = LegalizeOps()(Take)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_take_const_prim_value():
+    # fmt: off
+    @tvm.script.ir_module
+    class Take:
+        @R.function
+        def main(x: R.Tensor((2, 3, 4), "float32")) -> R.Tensor((2, 4), "float32"):
+            gv: R.Tensor((2, 4), "float32") = R.take(x, R.prim_value(0), axis=1)
+            return gv
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((2, 3, 4), "float32")) -> R.Tensor((2, 4), "float32"):
+            gv = R.call_tir(Expected.take, (x,), R.Tensor((2, 4), dtype="float32"))
+            return gv
+
+        @T.prim_func(private=True)
+        def take(rxplaceholder: T.Buffer((T.int64(2), T.int64(3), T.int64(4)), "float32"), T_take: T.Buffer((T.int64(2), T.int64(4)), "float32")):
+            T.func_attr({"tir.noalias": True})
+            for i0, i2 in T.grid(T.int64(2), T.int64(4)):
+                with T.block("T_take"):
+                    ax0, ax2 = T.axis.remap("SS", [i0, i2])
+                    T.reads(rxplaceholder[ax0, T.int64(0), ax2])
+                    T.writes(T_take[ax0, ax2])
+                    T_take[ax0, ax2] = rxplaceholder[ax0, T.int64(0), ax2]
+    # fmt: on
+
+    mod = LegalizeOps()(Take)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
 def test_take_symbolic():
     # fmt: off
     @tvm.script.ir_module
@@ -90,6 +152,41 @@ def test_take_symbolic():
                     T.reads(rxplaceholder[ax0, rxplaceholder_1[ax1]], rxplaceholder_1[ax1])
                     T.writes(T_take[ax0, ax1])
                     T_take[ax0, ax1] = rxplaceholder[ax0, rxplaceholder_1[ax1]]
+    # fmt: on
+
+    mod = LegalizeOps()(Take)
+    tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_take_symbolic_prim_value():
+    # fmt: off
+    @tvm.script.ir_module
+    class Take:
+        @R.function
+        def main(x: R.Tensor((2, "n", 4), "float32")) -> R.Tensor((2, 4), "float32"):
+            n = T.int64()
+            gv: R.Tensor((2, 4), "float32") = R.take(x, R.prim_value(n-1), axis=1)
+            return gv
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor((2, "n", 4), "float32")) -> R.Tensor((2, 4), "float32"):
+            gv = R.call_tir(Expected.take, (x,), R.Tensor((2, 4), dtype="float32"))
+            return gv
+
+        @T.prim_func(private=True)
+        def take(x_handle: T.handle, T_take: T.Buffer((T.int64(2), T.int64(4)), "float32")):
+            n = T.int64()
+            rxplaceholder = T.match_buffer(x_handle, (T.int64(2), n, T.int64(4)), "float32")
+
+            T.func_attr({"tir.noalias": True})
+            for i0, i2 in T.grid(T.int64(2), T.int64(4)):
+                with T.block("T_take"):
+                    ax0, ax2 = T.axis.remap("SS", [i0, i2])
+                    T.reads(rxplaceholder[ax0, n-1, ax2])
+                    T.writes(T_take[ax0, ax2])
+                    T_take[ax0, ax2] = rxplaceholder[ax0, n-1, ax2]
     # fmt: on
 
     mod = LegalizeOps()(Take)
@@ -133,7 +230,7 @@ def test_strided_slice_no_strides():
     class StridedSlice:
         @R.function
         def main(x: R.Tensor((8, 9, 10, 10), "float32")) :
-            gv: R.Tensor((4, 9, 10, 3), "float32") = R.strided_slice(x, axes=[0, 1, 3], begin=[1, 0, 2], end=[8, 9, 4])
+            gv: R.Tensor((7, 9, 10, 2), "float32") = R.strided_slice(x, axes=[0, 1, 3], begin=[1, 0, 2], end=[8, 9, 4])
             return gv
 
     @tvm.script.ir_module

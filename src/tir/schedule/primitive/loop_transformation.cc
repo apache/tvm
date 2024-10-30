@@ -386,7 +386,7 @@ class DependentLoopError : public ScheduleError {
 };
 
 Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref, const Array<PrimExpr>& factors,
-                      bool preserve_unit_iters) {
+                      bool preserve_unit_iters, bool disable_predication) {
   // Invariance
   // - The total repeat number has not changed for each direct child block with updating predicate.
   // - The execution order has not changed. (The block executes with the same args and the same
@@ -433,7 +433,7 @@ Array<StmtSRef> Split(ScheduleState self, const StmtSRef& loop_sref, const Array
       &opaque_block_reuse)(std::move(new_stmt));
   // Step 3. Update predicate to guard the loop
   PrimExpr predicate = substitute_value < loop->extent;
-  if (!analyzer.CanProve(predicate, arith::ProofStrength::kSymbolicBound)) {
+  if (!disable_predication && !analyzer.CanProve(predicate, arith::ProofStrength::kSymbolicBound)) {
     new_stmt = BlockPredicateAppender(/*predicate=*/predicate)(std::move(new_stmt));
   }
   // Step 4. Generate nested loops to replace the original loop and simplify the binding
@@ -1172,7 +1172,7 @@ struct SplitTraits : public UnpackedInstTraits<SplitTraits> {
 
  private:
   static constexpr size_t kNumInputs = 2;
-  static constexpr size_t kNumAttrs = 1;
+  static constexpr size_t kNumAttrs = 2;
   static constexpr size_t kNumDecisions = 0;
 
   template <size_t delta>
@@ -1188,16 +1188,18 @@ struct SplitTraits : public UnpackedInstTraits<SplitTraits> {
 
   static Array<LoopRV> UnpackedApplyToSchedule(Schedule sch, LoopRV loop_rv,
                                                Array<Optional<ExprRV>> factors,
-                                               Bool preserve_unit_iters) {
-    return sch->Split(loop_rv, factors, preserve_unit_iters.operator bool());
+                                               Bool preserve_unit_iters, Bool disable_predication) {
+    return sch->Split(loop_rv, factors, preserve_unit_iters.operator bool(),
+                      disable_predication.operator bool());
   }
 
   static String UnpackedAsPython(Array<String> outputs, String loop_rv, Array<ObjectRef> factors,
-                                 Bool preserve_unit_iters) {
+                                 Bool preserve_unit_iters, Bool disable_predication) {
     PythonAPICall py("split");
     py.Input("loop", loop_rv);
     py.Input("factors", factors);
     py.Input("preserve_unit_iters", preserve_unit_iters.operator bool());
+    py.Input("disable_predication", disable_predication.operator bool());
     py.OutputList(outputs);
     return py.Str();
   }

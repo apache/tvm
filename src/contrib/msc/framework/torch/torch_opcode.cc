@@ -202,6 +202,13 @@ class TorchClipCodeGen : public TorchOpCode {
   }
 };
 
+class TorchConcatCodeGen : public TorchOpCode {
+  TORCH_OP_CODEGEN_METHODS(TorchConcatCodeGen);
+
+ protected:
+  void CodeGenForward() final { stack_.op_call().op_inputs_arg().op_arg<int>("axis", "dim"); }
+};
+
 class TorchConstantCodeGen : public TorchOpCode {
   TORCH_OP_CODEGEN_METHODS(TorchConstantCodeGen);
 
@@ -298,8 +305,8 @@ class TorchEmbeddingCodeGen : public TorchOpCode {
   void CodeGenInit() final {
     const auto& weight = node()->WeightAt("weight");
     stack_.op_call()
-        .call_arg(weight->DimAt("W"), "num_embeddings")
-        .call_arg(weight->DimAt("E"), "embedding_dim");
+        .call_arg(weight->DimAt(0), "num_embeddings")
+        .call_arg(weight->DimAt(1), "embedding_dim");
   }
 };
 
@@ -580,18 +587,22 @@ class TorchStridedSliceCodeGen : public TorchOpCode {
   void CodeGenForward() final {
     const auto& begin = node()->GetTypeArrayAttr<int>("begin");
     const auto& end = node()->GetTypeArrayAttr<int>("end");
-    const auto& strides = node()->GetTypeArrayAttr<int>("strides");
+    std::vector<int> strides;
+    if (!node()->GetAttr("strides", &strides)) {
+      strides = std::vector<int>(begin.size(), 1);
+    }
     const auto& axes =
         CommonUtils::GetIndices(node()->GetTypeArrayAttr<int>("axes"), node()->InputAt(0)->Ndim());
-    std::set<size_t> axes_set;
-    for (const auto& a : axes) {
-      axes_set.insert(a);
+    std::unordered_map<size_t, size_t> axes_map;
+    for (size_t i = 0; i < axes.size(); i++) {
+      axes_map[axes[i]] = i;
     }
     Array<String> slice;
     for (size_t i = 0; i < node()->InputAt(0)->Ndim(); i++) {
-      if (axes_set.count(i)) {
-        slice.push_back(std::to_string(begin[i]) + ":" + std::to_string(end[i]) + ":" +
-                        std::to_string(strides[i]));
+      if (axes_map.count(i)) {
+        size_t idx = axes_map[i];
+        slice.push_back(std::to_string(begin[idx]) + ":" + std::to_string(end[idx]) + ":" +
+                        std::to_string(strides[idx]));
       } else {
         slice.push_back(":");
       }
@@ -702,6 +713,7 @@ const std::shared_ptr<std::unordered_map<String, std::shared_ptr<TorchOpCode>>> 
   map->emplace("astype", std::make_shared<TorchAstypeCodeGen>("", "to"));
   map->emplace("broadcast_to", std::make_shared<TorchBroadcastToCodeGen>("", "expand"));
   map->emplace("clip", std::make_shared<TorchClipCodeGen>("", "torch.clamp"));
+  map->emplace("concat", std::make_shared<TorchConcatCodeGen>("", "torch.cat"));
   map->emplace("cumsum", std::make_shared<TorchCumsumCodeGen>("", "torch.cumsum"));
   map->emplace("expand_dims", std::make_shared<TorchExpandDimsCodeGen>("", "torch.unsqueeze"));
   map->emplace("permute_dims", std::make_shared<TorchPermuteDimsCodeGen>("", "torch.permute"));

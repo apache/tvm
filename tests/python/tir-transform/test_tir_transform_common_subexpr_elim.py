@@ -101,7 +101,7 @@ def test_cse():
     # And this is the name and value of this variable
     cse_var_1 = body.var  # Keep the variable accessible for later checking the replacements
     assert body.var.name == "cse_var_1"
-    assert tvm.ir.structural_equal(body.value, z1 + z2)
+    tvm.ir.assert_structural_equal(body.value, z1 + z2)
     assert isinstance(body.body, tvm.tir.SeqStmt)
 
     body = body.body
@@ -126,19 +126,19 @@ def test_cse():
     # And this is the name and value of this variable
     cse_var_2 = body.var  # Keep the variable accessible for later checking the replacements
     assert body.var.name == "cse_var_2"
-    assert tvm.ir.structural_equal(body.value, x + y)
+    tvm.ir.assert_structural_equal(body.value, x + y)
 
     body = body.body
 
     body.var.name == "a"
     # Check that the replacement has been done correctly!
-    assert tvm.ir.structural_equal(body.value, cse_var_2 + cse_var_1)
+    tvm.ir.assert_structural_equal(body.value, cse_var_2 + cse_var_1)
 
     body = body.body
 
     body.var.name == "b"
     # Check that the replacement has been done correctly!
-    assert tvm.ir.structural_equal(body.value, cse_var_2 + z3)
+    tvm.ir.assert_structural_equal(body.value, cse_var_2 + z3)
 
     assert isinstance(body.body, tvm.tir.BufferStore)
 
@@ -201,7 +201,7 @@ def test_cse_ifNode_1():
     # The let-in introduced by the CSE should appear now, inside the Then branch of the If node
     assert body.var.name == "cse_var_1"
     # and it should contain the expression (y+z) that was redundant
-    assert tvm.ir.structural_equal(body.value, y + z)
+    tvm.ir.assert_structural_equal(body.value, y + z)
 
 
 # Second test for if nodes : Some duplicated computations appear in both the Then and Else branch.
@@ -252,7 +252,7 @@ def test_cse_ifNode_2():
     # The let-in introduced by the CSE should appear now, at the toplevel (i.e. before the If)
     assert body.var.name == "cse_var_1"
     # and it should contain the expression (y+z) that was redundant
-    assert tvm.ir.structural_equal(body.value, y + z)
+    tvm.ir.assert_structural_equal(body.value, y + z)
 
 
 # -------------------------------------------------------------------------------------------------
@@ -294,7 +294,7 @@ def test_cse_cascade():
     cse_var_2 = body.var  # Keep the variable accessible for later checking the replacements
     assert body.var.name == "cse_var_2"
     # and it should contain the expression (x+y)
-    assert tvm.ir.structural_equal(body.value, (x + y))
+    tvm.ir.assert_structural_equal(body.value, (x + y))
 
     body = body.body
 
@@ -304,7 +304,7 @@ def test_cse_cascade():
     cse_var_1 = body.var  # Keep the variable accessible for later checking the replacements
     assert body.var.name == "cse_var_1"
     # and it should contain the expression cse_var_2+z
-    assert tvm.ir.structural_equal(body.value, cse_var_2 + z)
+    tvm.ir.assert_structural_equal(body.value, cse_var_2 + z)
 
     body = body.body
 
@@ -317,9 +317,9 @@ def test_cse_cascade():
     store2 = body[1]
     store3 = body[2]
 
-    assert tvm.ir.structural_equal(store1.value, cse_var_1)
-    assert tvm.ir.structural_equal(store2.value, cse_var_1)
-    assert tvm.ir.structural_equal(store3.value, cse_var_2)
+    tvm.ir.assert_structural_equal(store1.value, cse_var_1)
+    tvm.ir.assert_structural_equal(store2.value, cse_var_1)
+    tvm.ir.assert_structural_equal(store3.value, cse_var_2)
 
 
 # -----------------------------------------------------------------------------------------
@@ -342,41 +342,41 @@ def test_no_normalization_without_commoning():
     body = body["main"].body  # Gets the body of the main, i.e. the full statement
 
     assert body.var.name == "a"
-    assert tvm.ir.structural_equal(body.value, x + (y + z))
+    tvm.ir.assert_structural_equal(body.value, x + (y + z))
 
 
 # -------------------------------------------------
 # Part for testing the commoning with equivalences
 # -------------------------------------------------
 @T.prim_func
-def func_distributivity(i1: T.int32, i2: T.int32, x: T.int32, y: T.int32, z: T.int32) -> None:
-    B = T.Buffer((50,), "int32")
+def func_distributivity(
+    B: T.Buffer((50,), "int32"), i1: T.int32, i2: T.int32, x: T.int32, y: T.int32, z: T.int32
+) -> None:
     B[i1] = x * (y + z)
     B[i2] = x * y + x * z
 
 
 @T.prim_func
 def func_distributivity_expected(
-    i1: T.int32, i2: T.int32, x: T.int32, y: T.int32, z: T.int32
+    B: T.Buffer((50,), "int32"), i1: T.int32, i2: T.int32, x: T.int32, y: T.int32, z: T.int32
 ) -> None:
-    B = T.Buffer((50,), "int32")
     with T.LetStmt(x * y + x * z) as cse_var_1:
         B[i1] = cse_var_1
         B[i2] = cse_var_1
 
 
 @T.prim_func
-def func_associativity(i1: T.int32, i2: T.int32, x: T.int32, y: T.int32, z: T.int32) -> None:
-    B = T.Buffer((50,), "int32")
+def func_associativity(
+    B: T.Buffer((50,), "int32"), i1: T.int32, i2: T.int32, x: T.int32, y: T.int32, z: T.int32
+) -> None:
     B[i1] = (x + y) + z
     B[i2] = x + (y + z)
 
 
 @T.prim_func
 def func_associativity_expected(
-    i1: T.int32, i2: T.int32, x: T.int32, y: T.int32, z: T.int32
+    B: T.Buffer((50,), "int32"), i1: T.int32, i2: T.int32, x: T.int32, y: T.int32, z: T.int32
 ) -> None:
-    B = T.Buffer((50,), "int32")
     with T.LetStmt((x + y) + z) as cse_var_1:
         B[i1] = cse_var_1
         B[i2] = cse_var_1
@@ -459,6 +459,7 @@ LOG_LINE = '{"i": [["[\\"conv2d_layer\\", 1, 7, 7, 512, 512, 3, 3, [1, 1], [1, 1
             ["CA", 3, 6, 7], ["CA", 1, 6, 5], ["FU", 6, [0, 1, 2, 3, 4, 5]], ["AN", 6, 0, 3], \
             ["PR", 3, 0, "auto_unroll_max_step$512"], ["AN", 1, 3, 2], ["AN", 3, 21, 2], \
             ["AN", 6, 6, 2]]]], "r": [[0.0331129], 0, 0.900362, 1647464342], "v": "v0.6"}\n'
+
 
 # The workload associated with the log
 @auto_scheduler.register_workload

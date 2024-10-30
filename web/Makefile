@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-TVM_ROOT=$(shell cd ..; pwd)
+TVM_ROOT=$(realpath $(shell dirname $(firstword $(MAKEFILE_LIST))))/../
 
 INCLUDE_FLAGS = -I$(TVM_ROOT) -I$(TVM_ROOT)/include\
 	-I$(TVM_ROOT)/3rdparty/dlpack/include -I$(TVM_ROOT)/3rdparty/dmlc-core/include\
@@ -27,10 +27,11 @@ all: dist/wasm/tvmjs_runtime.wasm dist/wasm/tvmjs_runtime.wasi.js src/tvmjs_runt
 
 EMCC = emcc
 
-EMCC_CFLAGS = $(INCLUDE_FLAGS) -O3 -std=c++17 -Wno-ignored-attributes -fwasm-exceptions
+EMCC_CFLAGS = $(INCLUDE_FLAGS) -O3 -std=c++17 -Wno-ignored-attributes
 
 EMCC_LDFLAGS = --no-entry -s WASM_BIGINT=1 -s ALLOW_MEMORY_GROWTH=1 -s STANDALONE_WASM=1\
- -s ERROR_ON_UNDEFINED_SYMBOLS=0 --pre-js emcc/preload.js
+ -s ERROR_ON_UNDEFINED_SYMBOLS=0 --pre-js emcc/preload.js\
+ -s ASYNCIFY=1
 
 dist/wasm/%.bc: emcc/%.cc
 	@mkdir -p $(@D)

@@ -15,9 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
-from tvm import te
 import tvm.testing
-from tvm.script import tir as T, ir as I
+from tvm import te
+from tvm.script import ir as I
+from tvm.script import tir as T
 
 
 @tvm.testing.requires_cuda
@@ -343,6 +344,26 @@ def test_dynamic_launch_thread():
 
     tvm.tir.analysis.verify_well_formed(after)
     tvm.ir.assert_structural_equal(expected, after)
+
+
+def test_size_var():
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def main(var_A: T.handle, var_B: T.handle):
+            T.func_attr({"target": T.target("cuda")})
+            m = T.int64(is_size_var=True)
+            A = T.match_buffer(var_A, (m,))
+            B = T.match_buffer(var_B, (m,))
+            T.attr(T.target("cuda"), "target", 0)
+            blockIdx_x = T.launch_thread("blockIdx.x", m)
+            B_1 = T.Buffer((m,), data=B.data)
+            A_1 = T.Buffer((m,), data=A.data)
+            B_1[blockIdx_x] = A_1[blockIdx_x]
+
+    after = tvm.tir.transform.SplitHostDevice()(Module)
+    assert len(after["main_kernel"].params) == 3
+    assert isinstance(after["main_kernel"].params[2], tvm.tir.SizeVar)
 
 
 if __name__ == "__main__":

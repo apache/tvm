@@ -54,6 +54,9 @@ class Function(BaseFunc):
         if type_params is None:
             type_params = convert([])
 
+        if attrs is None:
+            attrs = tvm.ir.make_node("DictAttrs")
+
         self.__init_handle_by_constructor__(
             _ffi_api.Function, params, body, ret_type, type_params, attrs, span
         )

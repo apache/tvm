@@ -35,6 +35,7 @@
 
 #include <memory>
 #include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 #include "../../node/ndarray_hash_equal.h"
@@ -57,8 +58,7 @@ namespace relax {
 //---------------------------------------
 class BlockBuilderImpl : public BlockBuilderNode {
  public:
-  explicit BlockBuilderImpl(IRModule context_mod)
-      : name_supply_(""), context_mod_(std::move(context_mod)) {}
+  explicit BlockBuilderImpl(IRModule context_mod) : context_mod_(std::move(context_mod)) {}
 
   ~BlockBuilderImpl() {
     if (!block_stack_.empty()) {
@@ -102,24 +102,41 @@ class BlockBuilderImpl : public BlockBuilderNode {
 
       context_mod_->Add(gvar, func);
 
-      ctx_func_dedup_map_->emplace(func, gvar);
+      (*ctx_func_dedup_map_)[func].insert(gvar);
       return gvar;
     } else {
-      return it->second;
+      ICHECK(it->second.size()) << "Values contained in de-duplication map must be non-empty sets, "
+                                << "but found an empty set for function of type "
+                                << func->GetTypeKey();
+      // To provide deterministic results, return the GlobalVar that
+      // comes first in lexicographic order.
+      return *std::min_element(
+          it->second.begin(), it->second.end(),
+          [](const GlobalVar& a, const GlobalVar& b) { return a->name_hint < b->name_hint; });
     }
   }
 
   void UpdateFunction(const GlobalVar& gv, BaseFunc function) final {
     context_mod_.CopyOnWrite();
 
-    // invalidate old dedup map
+    // Remove function from the de-duplication map.
     if (ctx_func_dedup_map_ != nullptr) {
       auto it = context_mod_->functions.find(gv);
       if (it != context_mod_->functions.end()) {
         BaseFunc old_func = (*it).second;
         auto ptr = ctx_func_dedup_map_->find(old_func);
-        ICHECK(ptr != ctx_func_dedup_map_->end());
-        ctx_func_dedup_map_->erase(ptr);
+        ICHECK(ptr != ctx_func_dedup_map_->end())
+            << "BlockBuilder::UpdateFunction is updating " << gv
+            << ", which appears in the BlockBuilder's context_mod_, "
+            << "but does not appear in the de-duplication map";
+        ICHECK(ptr->second.count(gv))
+            << "BlockBuilder::UpdateFunction is updating " << gv
+            << ", but the de-duplication map for the previous value of this function "
+            << "does not include " << gv;
+        ptr->second.erase(gv);
+        if (ptr->second.empty()) {
+          ctx_func_dedup_map_->erase(ptr);
+        }
       }
     }
 
@@ -127,11 +144,11 @@ class BlockBuilderImpl : public BlockBuilderNode {
 
     // add new dedup map item.
     if (ctx_func_dedup_map_ != nullptr) {
-      ctx_func_dedup_map_->emplace(function, gv);
+      (*ctx_func_dedup_map_)[function].insert(gv);
     }
   }
 
-  void ReportFatal(const Diagnostic& diagnostic) final {
+  [[noreturn]] void ReportFatal(const Diagnostic& diagnostic) final {
     // TODO(relax-team): Print more context information by looking
     // into the diagnostic->loc and surrounding IRModule.
     // We do not materialzie DiagnosticContext to avoid double referencing to
@@ -161,29 +178,54 @@ class BlockBuilderImpl : public BlockBuilderNode {
     // but can be further improved.
     //
     // TODO(relax-team): Add support for relax Var in struct info annotations.
-    Map<tir::Var, PrimExpr> shape_var_map;
-    for (const Var& var : params.value_or(Array<Var>())) {
-      const Map<tir::Var, PrimExpr>& var_map = StructInfoVarCollector::Collect(GetStructInfo(var));
-      for (const auto& kv : var_map) {
-        const tir::Var& shape_var = kv.first;
-        const PrimExpr& shape_expr = kv.second;
-        auto it = shape_var_map.find(shape_var);
-        if (it == shape_var_map.end()) {
-          shape_var_map.Set(shape_var, shape_expr);
-          // Expose the shape variable as non-negative, for purposes
-          // of shape inference.  In many cases, knowning that the
-          // shape variable is non-negative allows for simpler
-          // expressions for dynamic shapes.
-          analyzer_.MarkGlobalNonNegValue(shape_var);
-        } else {
-          const PrimExpr& old_shape_expr = (*it).second;
-          CHECK(analyzer_.CanProveEqual(old_shape_expr, shape_expr))
-              << "Inconsistent shape var " << shape_var << " in scope: " << old_shape_expr << " vs "
-              << shape_expr;
-        }
+
+    scope_stack_.emplace_back(ScopeFrame());
+    if (params.defined()) {
+      for (const auto& param : params.value()) {
+        AddDefinitionToScope(param);
       }
     }
-    scope_stack_.emplace_back(ScopeFrame({std::move(shape_var_map)}));
+  }
+
+  void BeginInnerScope() final {
+    if (scope_stack_.size()) {
+      scope_stack_.emplace_back(scope_stack_.back());
+    } else {
+      scope_stack_.emplace_back(ScopeFrame());
+    }
+  }
+
+  void AddDefinitionToScope(Var var) final {
+    if (scope_stack_.empty()) {
+      return;
+    }
+
+    auto& shape_var_map = CurrentScopeFrame()->shape_var_map;
+
+    // The current implementation handles the collection of shape var
+    // defined in parameter struct info annotations. The implementation
+    // is correct (since we will simply erase all relax Vars in EraseToWellDefined),
+    // but can be further improved.
+    Map<tir::Var, PrimExpr> var_map = StructInfoVarCollector::Collect(GetStructInfo(var));
+    for (const auto& kv : var_map) {
+      const tir::Var& shape_var = kv.first;
+      const PrimExpr& shape_expr = kv.second;
+      auto it = shape_var_map.find(shape_var);
+      if (it == shape_var_map.end()) {
+        shape_var_map.Set(shape_var, shape_expr);
+        // Expose the shape variable as non-negative, for purposes
+        // of shape inference.  In many cases, knowning that the
+        // shape variable is non-negative allows for simpler
+        // expressions for dynamic shapes.
+        analyzer_.MarkGlobalNonNegValue(shape_var);
+      } else {
+        const PrimExpr& old_shape_expr = (*it).second;
+        CHECK(old_shape_expr.same_as(shape_expr) ||
+              analyzer_.CanProveEqual(old_shape_expr, shape_expr))
+            << "Inconsistent shape var " << shape_var << " in scope: " << old_shape_expr << " vs "
+            << shape_expr;
+      }
+    }
   }
 
   void EndScope() final { scope_stack_.pop_back(); }
@@ -219,6 +261,8 @@ class BlockBuilderImpl : public BlockBuilderNode {
     cur_frame->bindings.push_back(match_cast);
     // NOTE match shape do not follow simple binding rule
     // as a result should not appear in binding table.
+
+    AddDefinitionToScope(var);
     return var;
   }
 
@@ -254,6 +298,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
       // NOTE match shape do not follow simple binding rule
       // as a result should not appear in binding table.
       cur_frame->bindings.push_back(binding);
+      AddDefinitionToScope(match_cast->var);
     } else {
       LOG(FATAL) << "Unsupported binding type: " << binding->GetTypeKey();
     }
@@ -399,7 +444,8 @@ class BlockBuilderImpl : public BlockBuilderNode {
    * We use a custom hash to avoid hashing constants that may be bound to each BaseFunc.
    */
   std::unique_ptr<
-      std::unordered_map<BaseFunc, GlobalVar, StructuralHashIgnoreNDarray, StructuralEqual>>
+      std::unordered_map<BaseFunc, std::unordered_set<GlobalVar, ObjectPtrHash, ObjectPtrEqual>,
+                         StructuralHashIgnoreNDarray, StructuralEqual>>
       ctx_func_dedup_map_ = nullptr;
 
   /*!
@@ -408,11 +454,12 @@ class BlockBuilderImpl : public BlockBuilderNode {
   void LazyInitCtxFuncDedupMap() {
     if (ctx_func_dedup_map_ != nullptr) return;
     ctx_func_dedup_map_ = std::make_unique<
-        std::unordered_map<BaseFunc, GlobalVar, StructuralHashIgnoreNDarray, StructuralEqual>>();
+        std::unordered_map<BaseFunc, std::unordered_set<GlobalVar, ObjectPtrHash, ObjectPtrEqual>,
+                           StructuralHashIgnoreNDarray, StructuralEqual>>();
     for (const auto& kv : context_mod_->functions) {
       const GlobalVar gv = kv.first;
       const BaseFunc func = kv.second;
-      ctx_func_dedup_map_->emplace(func, gv);
+      (*ctx_func_dedup_map_)[func].insert(gv);
     }
   }
 
@@ -547,7 +594,14 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
     return GetRef<Var>(var);
   }
 
-  Expr VisitExpr_(const VarNode* var) final { return VisitVar_<Var>(var); }
+  Expr VisitExpr_(const VarNode* var_ptr) final {
+    auto var = VisitVar_<Var>(var_ptr);
+    if (HasVoidStructInfo(var)) {
+      return VisitExpr(Tuple(Array<Expr>{}));
+    } else {
+      return var;
+    }
+  }
 
   Expr VisitExpr_(const DataflowVarNode* var) final { return VisitVar_<DataflowVar>(var); }
 
@@ -705,7 +759,8 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
     if (!node->struct_info_.defined()) {
       auto opt = MatchStructInfo<TupleStructInfo>(node->tuple);
       ICHECK(opt) << "The struct info of Tuple must be TupleStructInfo, "
-                  << "but expression " << node << " has struct info " << node->struct_info_;
+                  << "but expression " << node->tuple << " has struct info "
+                  << node->tuple->struct_info_;
       UpdateStructInfo(node, opt.value()->fields[node->index]);
     }
 
@@ -804,7 +859,9 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
   // erase to well defined within current scope.
   StructInfo EraseToWellDefinedInScope(StructInfo info) {
     if (scope_stack_.empty()) {
-      return EraseToWellDefined(info);
+      // If no scopes are active, then this fragment does not require
+      // any normalization.
+      return info;
     }
     auto* curr_scope = CurrentScopeFrame();
     auto f_shape_var_map = [curr_scope](tir::Var var) -> Optional<PrimExpr> {
@@ -816,15 +873,18 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
   }
 
   Expr VisitWithNewScope(const Expr& expr, Optional<Array<Var>> params = NullOpt) {
+    if (params.defined()) {
+      this->BeginScope(params.value());
+    } else {
+      this->BeginInnerScope();
+    }
+
+    Expr ret;
+
     // SeqExpr do not need to prepare for normalization.
     if (expr.as<SeqExprNode>()) {
-      this->BeginScope(params);
-      Expr ret = this->VisitExpr(expr);
-      this->EndScope();
-      return ret;
+      ret = this->VisitExpr(expr);
     } else {
-      this->BeginScope(params);
-
       this->BeginBindingBlock();
       Expr post = this->NormalizeArgument(expr);
       BindingBlock prologue = this->EndBlock();
@@ -841,9 +901,11 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
       SeqExpr seq(bindings, post);
       UpdateStructInfo(seq, EraseToWellDefinedInScope(GetStructInfo(seq->body)));
 
-      this->EndScope();
-      return seq;
+      ret = seq;
     }
+
+    this->EndScope();
+    return ret;
   }
 
   Array<BindingBlock> FlattenBlocks(const Array<BindingBlock>& blocks) {

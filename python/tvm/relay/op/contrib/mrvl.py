@@ -432,14 +432,14 @@ def mrvl_pattern_table():
 
         return pad | no_pad
 
-    def sum2d_pattern():
-        """Create a sum2d pattern.
+    def sum_pattern():
+        """Create a sum pattern.
            review tvm/tests/python/relay/test_dataflow_pattern.py for examples
 
         Returns
         -------
         pattern : dataflow_pattern.AltPattern
-            Denotes the sum2d pattern.
+            Denotes the sum pattern.
         """
         pattern = is_op("add")(wildcard(), wildcard())
         pattern = is_activation(pattern)
@@ -466,13 +466,28 @@ def mrvl_pattern_table():
         pattern : dataflow_pattern.AltPattern
             Denotes the fc pattern.
         """
-        pattern = is_op("nn.dense")(wildcard(), is_constant())
-        pattern = pattern.optional(
-            lambda x: (is_op("nn.bias_add")(x, is_constant()) | is_op("add")(x, is_constant()))
-        )
-        pattern = is_activation(pattern)
 
-        return pattern
+        def fc_base_pattern(pattern):
+            pattern = is_op("nn.dense")(pattern, is_constant())
+            pattern = pattern.optional(
+                lambda x: (is_op("nn.bias_add")(x, is_constant()) | is_op("add")(x, is_constant()))
+            )
+            pattern = is_activation(pattern)
+
+            return pattern
+
+        transform1 = is_op("layout_transform")(wildcard()).has_attr(
+            {"src_layout": "NHWC", "dst_layout": "NCHW"}
+        )
+        reshape = is_op("reshape")(transform1)
+        flatten = is_op("nn.batch_flatten")(transform1)
+        flatten = reshape | flatten
+        flatten = fc_base_pattern(flatten)
+
+        no_flatten = wildcard()
+        no_flatten = fc_base_pattern(no_flatten)
+
+        return flatten | no_flatten
 
     def maxpool2d_pattern():
         """Create a maxpool2d pattern.
@@ -520,13 +535,23 @@ def mrvl_pattern_table():
 
     def globalavgpool2d_pattern():
         """Create a globalavgpool2d pattern.
-           review tvm/tests/python/relay/test_dataflow_pattern.py for examples
         Returns
         -------
         pattern : dataflow_pattern.AltPattern
             Denotes the globalavgpool2d pattern.
         """
         pattern = is_op("nn.global_avg_pool2d")(wildcard())
+        return pattern
+
+    def globalmaxpool2d_pattern():
+        """Create a globalmaxpool2d pattern.
+           review tvm/tests/python/relay/test_dataflow_pattern.py for examples
+        Returns
+        -------
+        pattern : dataflow_pattern.AltPattern
+            Denotes the globalmaxpool2d pattern.
+        """
+        pattern = is_op("nn.global_max_pool2d")(wildcard())
         return pattern
 
     def reshape_pattern():
@@ -537,21 +562,15 @@ def mrvl_pattern_table():
         pattern = is_op("nn.batch_flatten")(wildcard())
         return pattern
 
+    def squeeze_pattern():
+        pattern = is_op("squeeze")(wildcard())
+        return pattern
+
     def layout_transform_nchw2nhwc_pattern():
         pattern = is_op("layout_transform")(is_var(), wildcard(), wildcard()).has_attr(
             {"src_layout": "NCHW", "dst_layout": "NHWC"}
         )
         return pattern
-
-    def layout_transform_nhwc2nchw_to_2D_pattern():
-        # Layout_Transform + Reshape/BatchFlatten
-        transform1 = is_op("layout_transform")(wildcard()).has_attr(
-            {"src_layout": "NHWC", "dst_layout": "NCHW"}
-        )
-        pattern1 = is_op("reshape")(transform1)
-        pattern2 = is_op("nn.batch_flatten")(transform1)
-
-        return pattern1 | pattern2
 
     def check_conv2d(extract):
         """Check conv pattern is supported by Mrvl."""
@@ -591,6 +610,13 @@ def mrvl_pattern_table():
             call = call.args[0]
         return globalavgpool2d_nhwc2nhwc(call)
 
+    def check_globalmaxpool2d(extract):
+        """Check globalmaxpool2d pattern is supported by Mrvl."""
+        call = extract
+        while call.op.name != "nn.global_max_pool2d":
+            call = call.args[0]
+        return globalmaxpool2d_nhwc2nhwc(call)
+
     def check_reshape(extract):
         call = extract
         while call.op.name != "reshape":
@@ -603,27 +629,24 @@ def mrvl_pattern_table():
             call = call.args[0]
         return batch_flatten_mrvl(call)
 
+    def check_squeeze(extract):
+        call = extract
+        while call.op.name != "squeeze":
+            call = call.args[0]
+        return squeeze_mrvl(call)
+
     def check_layout_transform_nchw2nhwc(extract):
         call = extract
         while call.op.name != "layout_transform":
             call = call.args[0]
         return layout_transform_nchw2nhwc(call)
 
-    def check_layout_transform_nhwc2nchw_2D(extract):
-        call = extract
-        if call.op.name == "reshape" or call.op.name == "nn.batch_flatten":
-            call = call.args[0]
-            if call.op.name == "layout_transform":
-                if call.attrs.src_layout == "NHWC" and call.attrs.dst_layout == "NCHW":
-                    return True
-        return False
-
-    def check_sum2d(extract):
+    def check_sum(extract):
         """Check sum2d pattern is supported by Mrvl."""
         call = extract
         while call.op.name != "add":
             call = call.args[0]
-        return sum2d(call)
+        return summation(call)
 
     def check_concat(extract):
         """Check concat pattern is supported by Mrvl."""
@@ -638,13 +661,9 @@ def mrvl_pattern_table():
         ("mrvl.maxpool2d_nhwc2nhwc", maxpool2d_pattern(), check_maxpool2d),
         ("mrvl.avgpool2d_nhwc2nhwc", avgpool2d_pattern(), check_avgpool2d),
         ("mrvl.globalavgpool2d_nhwc2nhwc", globalavgpool2d_pattern(), check_globalavgpool2d),
-        ("mrvl.sum2d", sum2d_pattern(), check_sum2d),
+        ("mrvl.globalmaxpool2d_nhwc2nhwc", globalmaxpool2d_pattern(), check_globalmaxpool2d),
+        ("mrvl.sum", sum_pattern(), check_sum),
         ("mrvl.concat", concat_pattern(), check_concat),
-        (
-            "mrvl.layout_transform_nhwc2nchw_reshape",
-            layout_transform_nhwc2nchw_to_2D_pattern(),
-            check_layout_transform_nhwc2nchw_2D,
-        ),
         (
             "mrvl.layout_transform_nchw2nhwc",
             layout_transform_nchw2nhwc_pattern(),
@@ -652,6 +671,7 @@ def mrvl_pattern_table():
         ),
         ("mrvl.reshape", reshape_pattern(), check_reshape),
         ("mrvl.batch_flatten", batch_flatten_pattern(), check_batch_flatten),
+        ("mrvl.squeeze", squeeze_pattern(), check_squeeze),
     ]
 
 
@@ -692,8 +712,8 @@ def conv2d_nhwc2nhwc(expr):
 
 # register a helper function to indicate that the given operator can be supported by Mrvl.
 @tvm.ir.register_op_attr("add", "target.mrvl")
-def sum2d(expr):
-    """Check if the external Mrvl codegen for sum2d should be used."""
+def summation(expr):
+    """Check if the external Mrvl codegen for sum should be used."""
     arg0 = expr.args[0]
 
     # - need to further checking if the call_func of arg0 is not nn.conv2d nor nn.dense
@@ -707,7 +727,7 @@ def sum2d(expr):
     # - need to further checking if dimension of input or output tensor is 4
     data_type = arg0.checked_type
     if (
-        (len(data_type.shape) != 4)
+        (len(data_type.shape) != 4 and len(data_type.shape) != 3)
         or not is_valid_batch_size(data_type.shape[0])
         or (data_type.dtype not in ["float32"])
     ):
@@ -822,19 +842,33 @@ def globalavgpool2d_nhwc2nhwc(expr):
     return True
 
 
+# register a helper function to indicate that the given operator can be supported by Mrvl.
+@tvm.ir.register_op_attr("nn.global_max_pool2d", "target.mrvl")
+def globalmaxpool2d_nhwc2nhwc(expr):
+    """Check if the external Mrvl codegen for globalmaxpool2d_nhwc2nhwc should be used."""
+    attrs, args = expr.attrs, expr.args
+    if attrs.layout != "NHWC":
+        return False
+    data_type = args[0].checked_type
+    if not (len(data_type.shape) == 4 or len(data_type.shape) == 2):
+        return False
+    if (len(data_type.shape) != 4) or (data_type.dtype not in ["float32"]):
+        return False
+    return True
+
+
 @tvm.ir.register_op_attr("reshape", "target.mrvl")
 def reshape_mrvl(expr):
     """Check if the external Mrvl codegen for reshape should be used."""
     if expr.op.name != "reshape":
         return False
-    else:
-        data_type = expr.checked_type
-        if not (len(data_type.shape) == 4 or len(data_type.shape) == 2):
-            return False
+    data_type = expr.checked_type
+    if not (len(data_type.shape) == 4 or len(data_type.shape) == 2):
+        return False
 
-        args = expr.args
-        data_type = args[0].checked_type
-        return True
+    args = expr.args
+    data_type = args[0].checked_type
+    return True
 
 
 @tvm.ir.register_op_attr("nn.batch_flatten", "target.mrvl")
@@ -854,6 +888,14 @@ def batch_flatten_mrvl(expr):
             return False
 
         return True
+
+
+@tvm.ir.register_op_attr("squeeze", "target.mrvl")
+def squeeze_mrvl(expr):
+    """Check if the external Mrvl codegen for squeeze should be used."""
+    if expr.op.name != "squeeze":
+        return False
+    return True
 
 
 # register a helper function to indicate that the given operator can be supported by Mrvl.

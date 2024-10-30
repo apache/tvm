@@ -999,8 +999,8 @@ def test_variance_no_keepdims():
     @tvm.script.ir_module
     class Variance:
         @R.function
-        def main(x: R.Tensor((2, 3, 4, 5), "float32")) -> R.Tensor((1, 3, 4, 1), "float32"):
-            gv: R.Tensor((1, 3, 4, 1), "float32") = R.variance(x, [0, 3], keepdims=False)
+        def main(x: R.Tensor((2, 3, 4, 5), "float32")) -> R.Tensor((3, 4), "float32"):
+            gv: R.Tensor((3, 4), "float32") = R.variance(x, [0, 3], keepdims=False)
             return gv
 
     @I.ir_module
@@ -1063,75 +1063,6 @@ def test_variance_no_keepdims():
     # fmt: on
 
     mod = LegalizeOps()(Variance)
-    tvm.ir.assert_structural_equal(mod, Expected)
-
-
-def test_cumsum():
-    # fmt: off
-    @I.ir_module
-    class Cumsum:
-        @R.function
-        def main(x: R.Tensor((3, 2, 3), "float32")):
-            gv = R.cumsum(x, axis=1, dtype="int32")
-            return gv
-
-    @I.ir_module
-    class Expected:
-        @T.prim_func(private=True)
-        def cumsum(var_rxplaceholder: T.handle, out_buf: T.Buffer((T.int64(3), T.int64(2), T.int64(3)), "int32")):
-            T.func_attr({"tir.noalias": True})
-            rxplaceholder = T.match_buffer(var_rxplaceholder, (T.int64(3), T.int64(2), T.int64(3)), offset_factor=1)
-            with T.block("cumsum_generic"):
-                for fused in T.parallel(T.int64(9)):
-                    out_buf[(fused // T.int64(3) * T.int64(2) * T.int64(3) + fused % T.int64(3)) // T.int64(3) // T.int64(2), (fused // T.int64(3) * T.int64(2) * T.int64(3) + fused % T.int64(3)) // T.int64(3) % T.int64(2), (fused // T.int64(3) * T.int64(2) * T.int64(3) + fused % T.int64(3)) % T.int64(3)] = T.Cast("int32", rxplaceholder[(fused // T.int64(3) * T.int64(2) * T.int64(3) + fused % T.int64(3)) // T.int64(3) // T.int64(2), (fused // T.int64(3) * T.int64(2) * T.int64(3) + fused % T.int64(3)) // T.int64(3) % T.int64(2), (fused // T.int64(3) * T.int64(2) * T.int64(3) + fused % T.int64(3)) % T.int64(3)])
-                    for _k in range(T.int64(1)):
-                        out_buf[(fused // T.int64(3) * T.int64(2) * T.int64(3) + fused % T.int64(3) + (_k + T.int64(1)) * T.int64(3)) // T.int64(3) // T.int64(2), (fused // T.int64(3) * T.int64(2) * T.int64(3) + fused % T.int64(3) + (_k + T.int64(1)) * T.int64(3)) // T.int64(3) % T.int64(2), (fused // T.int64(3) * T.int64(2) * T.int64(3) + fused % T.int64(3) + (_k + T.int64(1)) * T.int64(3)) % T.int64(3)] = out_buf[(fused // T.int64(3) * T.int64(2) * T.int64(3) + fused % T.int64(3) + (_k + T.int64(1) - T.int64(1)) * T.int64(3)) // T.int64(3) // T.int64(2), (fused // T.int64(3) * T.int64(2) * T.int64(3) + fused % T.int64(3) + (_k + T.int64(1) - T.int64(1)) * T.int64(3)) // T.int64(3) % T.int64(2), (fused // T.int64(3) * T.int64(2) * T.int64(3) + fused % T.int64(3) + (_k + T.int64(1) - T.int64(1)) * T.int64(3)) % T.int64(3)] + T.Cast("int32", rxplaceholder[(fused // T.int64(3) * T.int64(2) * T.int64(3) + fused % T.int64(3) + (_k + T.int64(1)) * T.int64(3)) // T.int64(3) // T.int64(2), (fused // T.int64(3) * T.int64(2) * T.int64(3) + fused % T.int64(3) + (_k + T.int64(1)) * T.int64(3)) // T.int64(3) % T.int64(2), (fused // T.int64(3) * T.int64(2) * T.int64(3) + fused % T.int64(3) + (_k + T.int64(1)) * T.int64(3)) % T.int64(3)])
-
-        @R.function
-        def main(x: R.Tensor((3, 2, 3), dtype="float32")) -> R.Tensor((3, 2, 3), dtype="int32"):
-            cls = Expected
-            gv = R.call_tir(cls.cumsum, (x,), out_sinfo=R.Tensor((3, 2, 3), dtype="int32"))
-            return gv
-    # fmt: on
-
-    mod = LegalizeOps()(Cumsum)
-    tvm.ir.assert_structural_equal(mod, Expected)
-
-
-def test_cumsum_symbolic():
-    # fmt: off
-    @I.ir_module
-    class Cumsum:
-        @R.function
-        def main(x: R.Tensor(("a", "b", "c"), "float32")):
-            gv = R.cumsum(x, axis=1, dtype="int32")
-            return gv
-
-    @I.ir_module
-    class Expected:
-        @T.prim_func(private=True)
-        def cumsum(var_rxplaceholder: T.handle, var_cumsum_generic: T.handle):
-            T.func_attr({"tir.noalias": True})
-            a, b, c = T.int64(), T.int64(), T.int64()
-            rxplaceholder = T.match_buffer(var_rxplaceholder, (a, b, c), offset_factor=1)
-            out_buf = T.match_buffer(var_cumsum_generic, (a, b, c), "int32")
-            with T.block("cumsum_generic"):
-                for fused in T.parallel(a * c):
-                    out_buf[(fused // c * b * c + fused % c) // c // b, (fused // c * b * c + fused % c) // c % b, (fused // c * b * c + fused % c) % c] = T.Cast("int32", rxplaceholder[(fused // c * b * c + fused % c) // c // b, (fused // c * b * c + fused % c) // c % b, (fused // c * b * c + fused % c) % c])
-                    for _k in range(b - T.int64(1)):
-                        out_buf[(fused // c * b * c + fused % c + (_k + T.int64(1)) * c) // c // b, (fused // c * b * c + fused % c + (_k + T.int64(1)) * c) // c % b, (fused // c * b * c + fused % c + (_k + T.int64(1)) * c) % c] = out_buf[(fused // c * b * c + fused % c + (_k + T.int64(1) - T.int64(1)) * c) // c // b, (fused // c * b * c + fused % c + (_k + T.int64(1) - T.int64(1)) * c) // c % b, (fused // c * b * c + fused % c + (_k + T.int64(1) - T.int64(1)) * c) % c] + T.Cast("int32", rxplaceholder[(fused // c * b * c + fused % c + (_k + T.int64(1)) * c) // c // b, (fused // c * b * c + fused % c + (_k + T.int64(1)) * c) // c % b, (fused // c * b * c + fused % c + (_k + T.int64(1)) * c) % c])
-
-        @R.function
-        def main(x: R.Tensor(("a", "b", "c"), dtype="float32")) -> R.Tensor(("a", "b", "c"), dtype="int32"):
-            a = T.int64()
-            b = T.int64()
-            c = T.int64()
-            cls = Expected
-            gv = R.call_tir(cls.cumsum, (x,), out_sinfo=R.Tensor((a, b, c), dtype="int32"))
-            return gv
-    # fmt: on
-
-    mod = LegalizeOps()(Cumsum)
     tvm.ir.assert_structural_equal(mod, Expected)
 
 

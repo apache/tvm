@@ -31,6 +31,44 @@ from tvm.contrib.msc.core import utils as msc_utils
 from tvm.contrib.msc.core.ir import MSCGraph, MSCTensor
 
 
+def normalize_inputs(inputs: List[tuple]) -> List[tuple]:
+    """Normalize the inputs info
+
+    Parameters
+    ----------
+    inputs: list of <name, shape, dtype>
+        The inputs info.
+
+    Returns
+    -------
+    inputs: list of <name, shape, dtype>
+        The normalized inputs info.
+    """
+
+    recorded_vars = {}
+
+    def _normalize_input(inp):
+        def _normalize(info):
+            if not isinstance(info, (tuple, list)):
+                return info
+            dims = []
+            for dim in info:
+                if isinstance(dim, int):
+                    dims.append(dim)
+                elif dim in recorded_vars:
+                    dims.append(recorded_vars[dim])
+                elif isinstance(dim, str):
+                    recorded_vars[dim] = tvm.tir.Var(dim, "int64")
+                    dims.append(recorded_vars[dim])
+                else:
+                    raise TypeError("Unexpected dim {} in shape {}".format(dim, info))
+            return dims
+
+        return [_normalize(i) for i in inp]
+
+    return [_normalize_input(inp) for inp in inputs]
+
+
 def normalize_weights(
     t_weights: Dict[MSCTensor, tvm.nd.array], graph: MSCGraph
 ) -> Dict[str, tvm.nd.array]:
@@ -119,6 +157,7 @@ def from_relax(
         )(mod)
     patterns = get_patterns_with_prefix("msc.")
     passes = [
+        tvm.relax.transform.ExpandTupleArguments(),
         msc_transform.SetExprName(),
         msc_transform.SetExprLayout(trans_config.get("allow_layout_missing", True)),
         tvm.relax.transform.FuseOpsByPattern(
@@ -310,6 +349,7 @@ def byoc_partition(
     def _partition_mod(mod, as_msc=True):
         patterns = get_patterns_with_prefix(target)
         passes = [
+            tvm.relax.transform.ExpandTupleArguments(),
             msc_transform.SetExprName(),
             msc_transform.SetExprLayout(trans_config.get("allow_layout_missing", True)),
             tvm.relax.transform.FuseOpsByPattern(patterns, bind_constants=not as_msc),
@@ -328,7 +368,7 @@ def byoc_partition(
     msc_mod = _partition_mod(mod)
     func_names = [var.name_hint for var, func in msc_mod.functions.items() if _is_target_func(func)]
 
-    if not trans_config.get("allow_incomplete", False):
+    if trans_config.get("as_complete", True):
         assert len(func_names) == 1, "More than 1 target func is found: " + str(msc_mod)
         BYOCChecker().check(func_names, msc_mod[entry])
 

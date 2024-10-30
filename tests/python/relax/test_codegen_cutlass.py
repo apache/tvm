@@ -24,7 +24,11 @@ from tvm import relax
 from tvm.contrib.cutlass.build import is_shape_valid_for_cutlass_matmul
 from tvm.contrib.pickle_memoize import memoize
 from tvm.relax.backend.contrib.cutlass import partition_for_cutlass
-from tvm.relax.testing import get_relax_matmul_module
+from tvm.relax.testing import (
+    get_relax_matmul_module,
+    get_relax_attention_module,
+    get_relax_stacked_attention_module,
+)
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tir as T
@@ -75,14 +79,7 @@ class Conv2dx2:
         return conv2
 
 
-has_cutlass = tvm.get_global_func("relax.ext.cutlass", True)
-
-cutlass_enabled = pytest.mark.skipif(
-    not has_cutlass,
-    reason="CUTLASS not enabled.",
-)
-
-pytestmark = [cutlass_enabled]
+pytestmark = tvm.testing.requires_cutlass.marks()
 
 
 def build_and_run(mod, inputs_np, target, legalize=True, cuda_graph=False):
@@ -111,7 +108,9 @@ def build_cutlass(mod, assert_all_bindings_fused=True, num_final_bindings=1):
     mod = partition_for_cutlass(mod)
 
     if assert_all_bindings_fused:
-        assert len(mod["main"].body.blocks[0].bindings) == num_final_bindings
+        assert (
+            len(mod["main"].body.blocks[0].bindings) == num_final_bindings
+        ), "Not all bindings are fused. " + str(mod["main"])
 
     codegen_pass = relax.transform.RunCodegen({"cutlass": {"sm": 80, "find_first_valid": True}})
     mod = codegen_pass(mod)
@@ -328,7 +327,7 @@ def test_cutlass_partition_conv2d_residual_blocked():
     mod = partition_for_cutlass(Conv2dReLU, annotate_codegen=False)
     for f_var in mod.functions:
         func = mod[f_var]
-        if func.attrs and "Composite" in func.attrs:
+        if "Composite" in func.attrs:
             # verify that the function is not fused as residual block
             assert func.attrs["Composite"] == "cutlass.conv2d_bias_relu"
 
@@ -554,7 +553,7 @@ def test_cutlass_partition_matmul_tuple_return_blocked():
     mod = partition_for_cutlass(TransposedMatmul, annotate_codegen=False)
     for f_var in mod.functions:
         func = mod[f_var]
-        if func.attrs and "Composite" in func.attrs:
+        if "Composite" in func.attrs:
             # verify that the function is not fused as transposed matmul
             assert func.attrs["Composite"] == "cutlass.matmul"
 
@@ -575,7 +574,7 @@ def test_cutlass_partition_matmul_cyclic_dependency_blocked():
     mod = partition_for_cutlass(Module, annotate_codegen=False)
     for f_var in mod.functions:
         func = mod[f_var]
-        if func.attrs and "Composite" in func.attrs:
+        if "Composite" in func.attrs:
             assert func.attrs["Composite"] == "cutlass.matmul"
 
 
@@ -599,47 +598,6 @@ def attention_size(request):
     return request.param
 
 
-def get_relax_attention_module(
-    q_shape,
-    k_shape,
-    v_shape,
-    *,
-    dtype,
-    bias_shape=None,
-    qk_scale=None,
-    causal_mask=None,
-    window_size=None,
-):
-    from tvm.script.ir_builder import IRBuilder
-    from tvm.script.ir_builder import relax as relax_builder
-    from tvm.script.ir_builder import tir as T
-
-    if qk_scale is not None:
-        qk_scale = T.FloatImm("float32", qk_scale)
-
-    if window_size is not None:
-        window_size = T.IntImm("int32", window_size)
-
-    with IRBuilder() as builder:
-        with relax_builder.function():
-            R.func_name("main")
-            q = R.arg("q", R.Tensor(q_shape, dtype))
-            k = R.arg("k", R.Tensor(k_shape, dtype))
-            v = R.arg("v", R.Tensor(v_shape, dtype))
-            bias = None
-            if bias_shape is not None and bias_shape != "none":
-                bias = R.arg("bias", R.Tensor(bias_shape, dtype))
-
-            with R.dataflow() as frame:
-                result = R.emit(R.nn.attention(q, k, v, bias, qk_scale, causal_mask, window_size))
-                R.output(result)
-
-            R.func_ret_value(frame.output_vars[0])
-
-    func = builder.get()
-    return tvm.IRModule({"main": func})
-
-
 def get_numpy_attention_ref(
     b,
     s,
@@ -654,59 +612,20 @@ def get_numpy_attention_ref(
     window_size=None,
     num_kv_head=None,
 ):
-    if num_kv_head is None:
-        num_kv_head = n
-
+    num_kv_head = num_kv_head or n
     q = np.random.randn(b, s, n, h).astype(dtype)
-    k_orig = np.random.randn(b, s_kv, num_kv_head, h).astype(dtype)
-    v_orig = np.random.randn(b, s_kv, num_kv_head, h_v).astype(dtype)
-
-    if num_kv_head is None:
-        k = k_orig
-        v = v_orig
-    else:
-        factor = n // num_kv_head
-        k = np.repeat(k_orig, factor, axis=2)
-        v = np.repeat(v_orig, factor, axis=2)
-
-    qt = q.transpose(0, 2, 1, 3)  # b, n, s, h
-    kt = k.transpose(0, 2, 3, 1)  # b, n, h, s_kv
-    if not qk_scale == "none":
-        score = qt @ kt * qk_scale  # b, n, s, s_kv
-    else:
-        score = qt @ kt / np.sqrt(q.shape[-1])  # b, n, s, s_kv
-    if not bias_shape == "none":
-        bias = np.random.randn(*bias_shape).astype(dtype)
-        score = score + bias  # b, n, s, s_kv
-    else:
+    k = np.random.randn(b, s_kv, num_kv_head, h).astype(dtype)
+    v = np.random.randn(b, s_kv, num_kv_head, h_v).astype(dtype)
+    if bias_shape == "none":
         bias = None
-    if causal == "none":
-        attn = tvm.topi.testing.softmax_python(score, -1)
     else:
-        if causal == "TopLeft":
-            offset = 0
-        elif causal == "BottomRight":
-            offset = abs(s - s_kv)
-        else:
-            raise NotImplementedError()
-        score_masked = np.tril(score, k=offset)
+        bias = np.random.randn(*bias_shape).astype(dtype)
 
-        if window_size:
-            score_masked = np.triu(score_masked, -window_size + 1)
+    ref = tvm.topi.testing.attention_python(
+        q, k, v, bias, qk_scale, causal=causal, window_size=window_size, layout="BSNH"
+    )
 
-        score_masked_exp = np.tril(
-            np.exp(score_masked - np.max(score_masked, axis=-1, keepdims=True)), k=offset
-        )
-
-        if window_size:
-            score_masked_exp = np.triu(score_masked_exp, -window_size + 1)
-
-        score_masked_sum = np.sum(score_masked_exp, axis=-1, keepdims=True)
-        attn = np.divide(score_masked_exp, score_masked_sum)
-
-    vt = v.transpose(0, 2, 1, 3)  # b, n, s_kv, h_v
-    ref = attn @ vt  # b, n, s, h_v
-    return q, k_orig, v_orig, bias, ref.transpose(0, 2, 1, 3)  # b, s, n, h_v
+    return q, k, v, bias, ref
 
 
 def test_attention_offload(attention_size, attention_dtype):
@@ -721,7 +640,7 @@ def test_attention_offload(attention_size, attention_dtype):
     v_shape = (b, s_kv, n, h_v)
 
     mod = get_relax_attention_module(q_shape, k_shape, v_shape, dtype=attention_dtype)
-    out = get_result_with_relax_cutlass_offload(mod, q, k, v, num_final_bindings=3)
+    out = get_result_with_relax_cutlass_offload(mod, q, k, v, num_final_bindings=2)
 
     tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
 
@@ -758,7 +677,7 @@ def test_attention_bias_offload(attention_bias_size):
     mod = get_relax_attention_module(
         q_shape, k_shape, v_shape, bias_shape=bias_shape, dtype="float32"
     )
-    out = get_result_with_relax_cutlass_offload(mod, q, k, v, bias, num_final_bindings=3)
+    out = get_result_with_relax_cutlass_offload(mod, q, k, v, bias, num_final_bindings=2)
 
     tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
 
@@ -793,9 +712,9 @@ def test_attention_scale_offload(attention_scale_size, attention_scale):
         q_shape, k_shape, v_shape, dtype="float32", bias_shape=bias_shape, qk_scale=attention_scale
     )
     if bias is None:
-        out = get_result_with_relax_cutlass_offload(mod, q, k, v, num_final_bindings=3)
+        out = get_result_with_relax_cutlass_offload(mod, q, k, v, num_final_bindings=2)
     else:
-        out = get_result_with_relax_cutlass_offload(mod, q, k, v, bias, num_final_bindings=3)
+        out = get_result_with_relax_cutlass_offload(mod, q, k, v, bias, num_final_bindings=2)
     tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
 
 
@@ -836,9 +755,9 @@ def test_attention_causal_offload(attention_causal_size, attention_causal):
     )
 
     if bias is None:
-        out = get_result_with_relax_cutlass_offload(mod, q, k, v, num_final_bindings=3)
+        out = get_result_with_relax_cutlass_offload(mod, q, k, v, num_final_bindings=2)
     else:
-        out = get_result_with_relax_cutlass_offload(mod, q, k, v, bias, num_final_bindings=3)
+        out = get_result_with_relax_cutlass_offload(mod, q, k, v, bias, num_final_bindings=2)
     tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
 
 
@@ -849,69 +768,14 @@ def get_numpy_stacked_attention_ref(b, s, n, h, h_v, bias_shape, qk_scale, dtype
     q = np.reshape(split_qkv[0], (b, s, n, h))
     k = np.reshape(split_qkv[1], (b, s, n, h))
     v = np.reshape(split_qkv[2], (b, s, n, h_v))
-    qt = q.transpose(0, 2, 1, 3)  # b, n, s, h
-    kt = k.transpose(0, 2, 3, 1)  # b, n, h, s
-    if not qk_scale == "none":
-        score = qt @ kt * qk_scale  # b, n, s, s
-    else:
-        score = qt @ kt / np.sqrt(q.shape[-1])  # b, n, s, s
     if not bias_shape == "none":
         bias = np.random.randn(*bias_shape).astype(dtype)
-        score = score + bias  # b, n, s, s
     else:
         bias = None
-    attn = tvm.topi.testing.softmax_python(score, -1)
-    vt = v.transpose(0, 2, 1, 3)  # b, n, s, h_v
-    ref = attn @ vt  # b, n, s, h_v
-    return qkv, bias, ref.transpose(0, 2, 1, 3)  # b, s, n, h_v
-
-
-def get_relax_stacked_attention_module(
-    qkv, b, s, n, h, h_v, op, bias=None, qk_scale=None, single_shape=False
-):
-    dtype = str(qkv.dtype)
-
-    from tvm.script.ir_builder import IRBuilder
-    from tvm.script.ir_builder import relax as relax_builder
-    from tvm.script.ir_builder import tir as T
-
-    if qk_scale is not None:
-        qk_scale = T.FloatImm("float32", qk_scale)
-
-    if single_shape:
-        qk_shape = R.shape([b, s, n, h])
-        v_shape = qk_shape
-    else:
-        qk_shape = [b, s, n, h]
-        v_shape = [b, s, n, h_v]
-
-    with IRBuilder() as builder:
-        with relax_builder.function():
-            R.func_name("main")
-            qkv = R.arg("qkv", R.Tensor(qkv.shape, dtype))
-            if bias is not None:
-                bias = R.arg("bias", R.Tensor(bias.shape, dtype))
-            with R.dataflow() as frame:
-                if op == "split":
-                    qkv_tuple = R.split(qkv, [n * h, n * h * 2], axis=2)
-                    q = R.reshape(qkv_tuple[0], qk_shape)
-                    k = R.reshape(qkv_tuple[1], qk_shape)
-                    v = R.reshape(qkv_tuple[2], v_shape)
-                elif op == "strided_slice":
-                    q = R.reshape(R.strided_slice(qkv, [2], [0], [n * h], [1]), qk_shape)
-                    k = R.reshape(R.strided_slice(qkv, [2], [n * h], [n * h * 2], [1]), qk_shape)
-                    v = R.reshape(
-                        R.strided_slice(qkv, [2], [n * h * 2], [n * h * 2 + n * h_v], [1]), v_shape
-                    )
-                else:
-                    raise NotImplementedError()
-                result = R.emit(R.nn.attention(q, k, v, bias, qk_scale))
-                R.output(result)
-
-            R.func_ret_value(frame.output_vars[0])
-
-    func = builder.get()
-    return tvm.IRModule({"main": func})
+    ref = tvm.topi.testing.attention_python(
+        q, k, v, bias, qk_scale, causal="none", window_size=None, layout="BSNH"
+    )
+    return qkv, bias, ref
 
 
 @pytest.fixture(
@@ -931,17 +795,36 @@ def test_stacked_attention_split_offload(stacked_attention_size):
     qkv, bias, ref = get_numpy_stacked_attention_ref(b, s, n, h, h_v, bias_shape, scale, "float16")
     if scale == "none":
         mod = get_relax_stacked_attention_module(
-            qkv, b, s, n, h, h_v, "split", bias, single_shape=single_shape
+            qkv,
+            b,
+            s,
+            n,
+            h,
+            h_v,
+            "split",
+            bias,
+            single_shape=single_shape,
+            layout="BS3NH",
         )
     else:
         mod = get_relax_stacked_attention_module(
-            qkv, b, s, n, h, h_v, "split", bias, scale, single_shape=single_shape
+            qkv,
+            b,
+            s,
+            n,
+            h,
+            h_v,
+            "split",
+            bias,
+            scale,
+            single_shape=single_shape,
+            layout="BS3NH",
         )
 
     if bias is None:
-        out = get_result_with_relax_cutlass_offload(mod, qkv, num_final_bindings=3)
+        out = get_result_with_relax_cutlass_offload(mod, qkv, num_final_bindings=2)
     else:
-        out = get_result_with_relax_cutlass_offload(mod, qkv, bias, num_final_bindings=3)
+        out = get_result_with_relax_cutlass_offload(mod, qkv, bias, num_final_bindings=2)
     tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
 
 
@@ -950,16 +833,35 @@ def test_stacked_attention_strided_slice_offload(stacked_attention_size):
     qkv, bias, ref = get_numpy_stacked_attention_ref(b, s, n, h, h_v, bias_shape, scale, "float32")
     if scale == "none":
         mod = get_relax_stacked_attention_module(
-            qkv, b, s, n, h, h_v, "strided_slice", bias, single_shape=single_shape
+            qkv,
+            b,
+            s,
+            n,
+            h,
+            h_v,
+            "strided_slice",
+            bias,
+            single_shape=single_shape,
+            layout="BS3NH",
         )
     else:
         mod = get_relax_stacked_attention_module(
-            qkv, b, s, n, h, h_v, "strided_slice", bias, scale, single_shape=single_shape
+            qkv,
+            b,
+            s,
+            n,
+            h,
+            h_v,
+            "strided_slice",
+            bias,
+            scale,
+            single_shape=single_shape,
+            layout="BS3NH",
         )
     if bias is None:
-        out = get_result_with_relax_cutlass_offload(mod, qkv, num_final_bindings=3)
+        out = get_result_with_relax_cutlass_offload(mod, qkv, num_final_bindings=2)
     else:
-        out = get_result_with_relax_cutlass_offload(mod, qkv, bias, num_final_bindings=3)
+        out = get_result_with_relax_cutlass_offload(mod, qkv, bias, num_final_bindings=2)
     tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
 
 
@@ -1318,9 +1220,8 @@ def test_attention_rewrite_fp16():
             R.func_attr({"num_input": 4})
             cls = Expected
             with R.dataflow():
-                lv = R.vm.alloc_storage(R.shape([65536]), R.prim_value(0), R.dtype("uint8"))
-                workspace_main = R.vm.alloc_tensor(
-                    lv, R.prim_value(0), R.shape([65536]), R.dtype("uint8")
+                workspace_main = R.builtin.alloc_tensor(
+                    R.shape([65536]), R.dtype("uint8"), R.prim_value(0)
                 )
                 lv_1 = R.reshape(bias, R.shape([128, 16, 8]))
                 lv1 = R.reshape(lv_1, R.shape([4, 32, 16, 8]))
@@ -2426,7 +2327,7 @@ def test_sliding_window():
         1, 64, 64, 16, 8, 8, "none", "none", causal, "float16", window_size=window_size
     )
 
-    out = get_result_with_relax_cutlass_offload(mod, q, k, v, num_final_bindings=3)
+    out = get_result_with_relax_cutlass_offload(mod, q, k, v, num_final_bindings=2)
 
     tvm.testing.assert_allclose(out, ref, rtol=1e-2, atol=1e-2)
 

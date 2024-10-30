@@ -59,7 +59,7 @@ namespace relax_vm {
 /*!
  * \brief An object representing an attention kv cache.
  */
-class AttentionKVCacheObj : public Object {
+class AttentionKVCacheLegacyObj : public Object {
  public:
   /*!
    * \brief Underlying support data.
@@ -227,7 +227,7 @@ class AttentionKVCacheObj : public Object {
 
   static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
   static constexpr const char* _type_key = "relax.vm.AttentionKVCacheLegacy";
-  TVM_DECLARE_FINAL_OBJECT_INFO(AttentionKVCacheObj, Object);
+  TVM_DECLARE_FINAL_OBJECT_INFO(AttentionKVCacheLegacyObj, Object);
 };
 
 /*! \brief reference to closure. */
@@ -239,7 +239,7 @@ class AttentionKVCacheLegacy : public ObjectRef {
    */
   static AttentionKVCacheLegacy Create(NDArray init_data, ShapeTuple reserve_shape,
                                        int init_fill_count) {
-    auto n = make_object<AttentionKVCacheObj>();
+    auto n = make_object<AttentionKVCacheLegacyObj>();
     n->data = NDArray::Empty(reserve_shape, init_data->dtype, init_data->device);
     n->fill_count = 0;
     n->Append(init_data);
@@ -250,10 +250,11 @@ class AttentionKVCacheLegacy : public ObjectRef {
     return AttentionKVCacheLegacy(n);
   }
 
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(AttentionKVCacheLegacy, ObjectRef, AttentionKVCacheObj);
+  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(AttentionKVCacheLegacy, ObjectRef,
+                                        AttentionKVCacheLegacyObj);
 };
 
-TVM_REGISTER_OBJECT_TYPE(AttentionKVCacheObj);
+TVM_REGISTER_OBJECT_TYPE(AttentionKVCacheLegacyObj);
 
 //-------------------------------------------------
 //  Register runtime functions
@@ -494,6 +495,43 @@ int SampleTopPFromProb(NDArray prob, double top_p, double uniform_sample) {
 }
 
 TVM_REGISTER_GLOBAL("vm.builtin.sample_top_p_from_prob").set_body_typed(SampleTopPFromProb);
+
+NDArray MultinomialFromUniform(NDArray prob, NDArray uniform_sample) {
+  ICHECK(prob.IsContiguous());
+  ICHECK(uniform_sample.IsContiguous());
+
+  if (prob->device.device_type != kDLCPU) {
+    prob = prob.CopyTo(DLDevice{kDLCPU, 0});
+  }
+  if (uniform_sample->device.device_type != kDLCPU) {
+    uniform_sample = uniform_sample.CopyTo(DLDevice{kDLCPU, 0});
+  }
+
+  ICHECK(prob->device.device_type == kDLCPU);
+  ICHECK(uniform_sample->device.device_type == kDLCPU);
+
+  int64_t batch_size = prob->shape[0];
+  int64_t vocab_size = prob->shape[prob->ndim - 1];
+  const float* pprob = static_cast<float*>(prob->data);
+  const float* psample = static_cast<float*>(uniform_sample->data);
+  NDArray new_array = NDArray::Empty({batch_size, 1}, DataType::Int(64), uniform_sample->device);
+  int64_t* parray = static_cast<int64_t*>(new_array->data);
+  for (int64_t i = 0; i < batch_size; ++i) {
+    float cum_sum_prob = 0.0f;
+    int64_t prob_idx = 0;
+    for (int64_t j = 0; j < vocab_size; ++j) {
+      prob_idx = j;
+      cum_sum_prob += pprob[i * vocab_size + j];
+      if (cum_sum_prob > psample[i]) {
+        break;
+      }
+    }
+    parray[i] = prob_idx;
+  }
+  return new_array;
+}
+
+TVM_REGISTER_GLOBAL("vm.builtin.multinomial_from_uniform").set_body_typed(MultinomialFromUniform);
 
 // This is an inplace operation.
 void ApplyRepetitionPenalty(NDArray logits, NDArray token_ids, double penalty) {

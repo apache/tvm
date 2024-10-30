@@ -725,13 +725,35 @@ def test_addmm():
 def test_split():
     """test torch translator for split"""
 
-    class Split(Module):
+    class Split1(Module):
         def forward(self, data):
             return torch.split(data, 1, dim=1)
 
+    class Split2(Module):
+        def forward(self, data):
+            return torch.split(data, [1, 2], dim=1)
+
     input_info = [([1, 3, 10, 10], "float32")]
     for via_relax in [True, False]:
-        verify_model(Split(), input_info, via_relax)
+        verify_model(Split1(), input_info, via_relax)
+        verify_model(Split2(), input_info, via_relax)
+
+
+def test_unbind():
+    """test torch translator for unbind"""
+
+    class Unbind1(Module):
+        def forward(self, data):
+            return torch.unbind(data)
+
+    class Unbind2(Module):
+        def forward(self, data):
+            return torch.unbind(data, dim=1)
+
+    input_info = [([3, 3, 10, 10], "float32")]
+    for via_relax in [True, False]:
+        verify_model(Unbind1(), input_info, via_relax)
+        verify_model(Unbind2(), input_info, via_relax)
 
 
 def test_cumsum():
@@ -832,13 +854,18 @@ def test_new_ones():
 def test_expand():
     """test torch translator for expand"""
 
-    class Expand(Module):
+    class Expand1(Module):
         def forward(self, x):
             return x.expand(4, 2, 3, 4)
 
+    class Expand2(Module):
+        def forward(self, x):
+            return x.expand(4, -1, -1, 4)
+
     input_info = [([1, 2, 3, 4], "float32")]
     for via_relax in [True, False]:
-        verify_model(Expand(), input_info, via_relax)
+        verify_model(Expand1(), input_info, via_relax)
+        verify_model(Expand2(), input_info, via_relax)
 
 
 def test_reduce():
@@ -1076,6 +1103,29 @@ def test_max():
 
     for via_relax in [True, False]:
         verify_model(Max(), [([256, 256], "float32"), ([256, 256], "float32")], via_relax)
+
+
+def test_cat():
+    """test torch translator for cat"""
+
+    class Cat1(Module):
+        def forward(self, data, data1, data2):
+            return torch.cat((data, data1, data2), dim=1)
+
+    class Cat2(Module):
+        def forward(self, data):
+            const1 = torch.ones((1, 3, 10, 10), dtype=torch.float32)
+            const2 = torch.ones((1, 3, 10, 10), dtype=torch.float32)
+            return torch.cat((data, const1, const2), dim=1)
+
+    input_info = [
+        ([1, 3, 10, 10], "float32"),
+        ([1, 3, 10, 10], "float32"),
+        ([1, 3, 10, 10], "float32"),
+    ]
+    for via_relax in [True, False]:
+        verify_model(Cat1(), input_info, via_relax)
+        verify_model(Cat2(), [([1, 3, 10, 10], "float32")], via_relax)
 
 
 def test_attention():

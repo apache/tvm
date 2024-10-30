@@ -32,6 +32,7 @@
  * Any binding blocks that are left empty will be removed by the normalizer.
  */
 
+#include <tvm/ir/analysis.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
@@ -42,67 +43,40 @@
 namespace tvm {
 namespace relax {
 
-/**
- * \brief Detects all the functions that can be possibly called by entry function.
- */
-class CallTracer : public ExprVisitor {
- public:
-  explicit CallTracer(IRModule mod) : mod_{mod}, called_funcs_{}, visiting_{} {}
+IRModule RemoveUnusedFunctions(IRModule mod, const std::unordered_set<GlobalVar>& entry_funcs) {
+  auto call_map = ir::CollectCallMap(mod);
 
-  void VisitExpr_(const GlobalVarNode* op) final {
-    called_funcs_.insert(GetRef<GlobalVar>(op));
-    auto func = mod_->Lookup(op->name_hint);
-    if (const auto* function_node = func.as<FunctionNode>()) {
-      VisitExpr(GetRef<Function>(function_node));
-    }
-    // else: Don't visit PrimFuncs -- we don't need to collect any tir.Calls therein.
-  }
+  std::unordered_set<GlobalVar> reachable = entry_funcs;
+  std::vector<GlobalVar> to_visit(entry_funcs.begin(), entry_funcs.end());
+  bool all_callees_in_module = true;
 
-  void VisitExpr_(const CallNode* call_node) final { ExprVisitor::VisitExpr_(call_node); }
+  while (to_visit.size()) {
+    GlobalVar visiting = to_visit.back();
+    to_visit.pop_back();
 
-  void VisitExpr_(const FunctionNode* func_node) final {
-    auto func = GetRef<Function>(func_node);
-    if (visiting_.find(func) == visiting_.end()) {
-      visiting_.insert(func);
-      for (auto param : func_node->params) {
-        ExprVisitor::VisitExpr(param);
+    if (auto it = call_map.find(visiting); it != call_map.end()) {
+      for (GlobalVar callee : (*it).second) {
+        if (!reachable.count(callee)) {
+          reachable.insert(callee);
+          to_visit.push_back(callee);
+        }
       }
-      ExprVisitor::VisitExpr(func_node->body);
+    } else {
+      all_callees_in_module = false;
     }
   }
 
-  void Trace(std::string entry) {
-    called_funcs_.insert(mod_->GetGlobalVar(entry));
-    auto main_func = mod_->Lookup(entry);
-    VisitExpr(main_func);
-  }
-
-  bool check_if_called(GlobalVar gv) { return called_funcs_.count(gv) > 0; }
-
- private:
-  IRModule mod_;
-
-  // Record the names of all encountered functions.
-  std::unordered_set<GlobalVar, ObjectPtrHash, ObjectPtrEqual> called_funcs_;
-
-  // Record the expressions that are being visited.
-  std::unordered_set<Expr, ObjectPtrHash, ObjectPtrEqual> visiting_;
-};
-
-IRModule RemoveUnusedFunctions(
-    IRModule mod, const std::unordered_set<GlobalVar, ObjectPtrHash, ObjectPtrEqual>& entry_funcs) {
-  CallTracer tracer(mod);
-  for (const auto& gvar : entry_funcs) {
-    tracer.VisitExpr(gvar);
+  if (!all_callees_in_module) {
+    return mod;
   }
 
   std::vector<GlobalVar> to_remove;
-  for (const auto& kv : mod->functions) {
+  for (const auto& [gvar, func] : mod->functions) {
     // The tracer contains all user-provided entry functions, all
     // externally-callable functions, and anything that is directly or
     // indirectly accessible from an entry function.
-    if (!tracer.check_if_called(kv.first)) {
-      to_remove.push_back(kv.first);
+    if (!reachable.count(gvar)) {
+      to_remove.push_back(gvar);
     }
   }
 
@@ -121,11 +95,12 @@ IRModule DeadCodeElimination(const IRModule& arg_mod, Array<runtime::String> ent
 
   // S0: Make a list of all user-specified entry functions and
   // externally-visible entry functions.
-  std::unordered_set<GlobalVar, ObjectPtrHash, ObjectPtrEqual> entry_functions;
+  std::unordered_set<GlobalVar> entry_functions;
   for (const auto& name : entry_function_names) {
     entry_functions.insert(mod->GetGlobalVar(name));
   }
-  for (const auto& [gv, func] : mod->functions) {
+  for (const auto& gv : mod->GetGlobalVars()) {
+    const auto& func = mod->Lookup(gv);
     if (func.as<ExternFuncNode>() || func->GetLinkageType() == LinkageType::kExternal) {
       entry_functions.insert(gv);
     }

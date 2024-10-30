@@ -18,6 +18,8 @@
  */
 #include "./ir_comparator.h"
 
+#include "../../arith/scalable_expression.h"
+
 namespace tvm {
 
 namespace tir {
@@ -74,13 +76,39 @@ bool TensorizeComparator::VisitStmt(const Stmt& n, const Stmt& other) {
 bool TensorizeComparator::VisitExpr(const PrimExpr& n, const PrimExpr& other) {
   bool equal = n.same_as(other) ||
                ((n->type_index() == other->type_index()) &&
-                n.dtype().code() == other.dtype().code() && ExprComparator::VisitExpr(n, other));
+                n.dtype().code() == other.dtype().code() && ExprComparator::VisitExpr(n, other)) ||
+               (tvm::arith::ContainsVscaleCall(n) && analyzer_.CanProveEqual(n, other));
+
   if (!equal && assert_mode_) {
     std::ostringstream os;
     os << "Expression mismatch: " << n << " vs " << other;
     EmitError(os.str());
   }
   return equal;
+}
+
+bool TensorizeComparator::VisitExpr_(const CallNode* op, const PrimExpr& other) {
+  const auto* rhs = other.as<CallNode>();
+  if (!rhs->op.same_as(op->op)) return false;
+  if (op->dtype.code() != rhs->dtype.code()) {
+    if (assert_mode_) {
+      std::ostringstream os;
+      os << "CallNode data type codes do not match: op->dtype.code()=" << op->dtype.code()
+         << " vs rhs->dtype.code()=" << rhs->dtype.code();
+      EmitError(os.str());
+    }
+    return false;
+  }
+  if (!CompareArray(op->args, rhs->args, &TensorizeComparator::VisitExpr)) {
+    if (assert_mode_) {
+      std::ostringstream os;
+      os << "CallNode iter_values do not match: op->iter_values=" << op->args
+         << " vs rhs->iter_values=" << rhs->args;
+      EmitError(os.str());
+    }
+    return false;
+  }
+  return true;
 }
 
 bool TensorizeComparator::VisitStmt_(const ForNode* op, const Stmt& other) {

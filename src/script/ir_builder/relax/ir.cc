@@ -70,6 +70,8 @@ tvm::relax::Var Arg(const String& name, const tvm::relax::StructInfo& struct_inf
   FunctionFrame frame = FindFunctionFrame("R.Arg");
   tvm::relax::Var var(name, struct_info);
   frame->params.push_back(var);
+  frame->block_builder->AddDefinitionToScope(var);
+
   return var;
 }
 
@@ -84,14 +86,21 @@ void FuncName(const String& name) {
 
 void FuncAttrs(Map<String, ObjectRef> attrs) {
   FunctionFrame frame = FindFunctionFrame("R.func_attr");
-  if (!frame->attrs.empty()) {
-    LOG(FATAL) << "ValueError: Duplicate function attrs, previous one is:\n" << frame->attrs;
+  for (const auto& [key, value] : attrs) {
+    if (key == tvm::attr::kGlobalSymbol && frame->is_private.value_or(Bool(false))->value) {
+      LOG(FATAL) << "ValueError: "
+                 << "A private function may not have the kGlobalSymbol (\""
+                 << tvm::attr::kGlobalSymbol << "\") attribute.  "
+                 << "However, a private function specified the global symbol as " << value;
+    }
+    if (auto prev = frame->attrs.Get(key)) {
+      LOG(FATAL) << "ValueError: "
+                 << "Duplicate R.func_attr annotation for key = \"" << key << "\".  "
+                 << "Previous value was " << prev.value() << ", with later definition as " << value;
+    } else {
+      frame->attrs.Set(key, value);
+    }
   }
-  if (attrs.count(tvm::attr::kGlobalSymbol) && frame->is_private.value_or(Bool(false))->value) {
-    LOG(FATAL) << "ValueError: Specifying a global symbol attribute even though the function is "
-                  "annotated as private";
-  }
-  frame->attrs = attrs;
 }
 
 void FuncRetStructInfo(const tvm::relax::StructInfo& ret_sinfo) {
@@ -108,20 +117,29 @@ void FuncRetValue(const tvm::relax::Expr& value) {
   const tvm::relax::BlockBuilder& block_builder = GetBlockBuilder();
   tvm::relax::Expr normalized_value = block_builder->Normalize(value);
 
+  IRBuilder ir_builder = IRBuilder::Current();
+
   // Step 1. The current Relax TVMScript syntax only allows function return appearing at the end of
   // a function body. Therefore if there is any unended block frame when dealing with function
   // return, we should end the block frame.
-  Optional<BlockFrame> block_frame = IRBuilder::Current()->GetLastFrame<BlockFrame>();
-  if (block_frame.defined()) {
-    block_frame.value()->ExitWithScope();
-    ICHECK(!IRBuilder::Current()->FindFrame<BlockFrame>())
-        << "ValueError: Relax functions don't support return in true/false branch of If Node.";
+
+  if (auto opt = ir_builder->GetLastFrame<BlockFrame>()) {
+    auto block_frame = opt.value();
+    for (const auto& var : tvm::relax::FreeVars(normalized_value)) {
+      if (var->IsInstance<tvm::relax::DataflowVarNode>()) {
+        block_frame->output_vars.push_back(var);
+      }
+    }
   }
   // Step 2. Add the output value to the function frame.
   FunctionFrame frame = FindFunctionFrame("return");
   CHECK(!frame->output.defined())
-      << "ValueError: Relax functions don't support multiple return statement. Please make sure "
-         "the return statement appears at the end of function.";
+      << "ValueError: "
+      << "Relax functions do not support multiple return statement.  "
+      << "However, return of " << normalized_value << " occurred after a return of "
+      << frame->output << ".  "
+      << "Please make sure function only has a single return statement, "
+      << "which appears at the end of function.";
 
   frame->output = std::move(normalized_value);
 }

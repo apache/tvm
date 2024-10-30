@@ -19,7 +19,7 @@ import tvm
 import tvm.testing
 from tvm import tir
 from tvm import relay
-from tvm.script import tir as T
+from tvm.script import tir as T, ir as I
 
 from typing import List, Dict
 import re
@@ -141,7 +141,7 @@ def test_llvm_ir_debug_info():
     source = runtime_module.get_source()
 
     locations = find_di_locations(source)
-    assert len(locations) == 34
+    assert len(locations) == 41
 
 
 def test_llvm_ir_debug_accuracy():
@@ -162,7 +162,28 @@ def test_llvm_ir_debug_accuracy():
 
     # Check that it matches the expected line number (in main.tir)
     debug_line_no = int(locations[directive_idx])
-    assert debug_line_no == 56
+    assert debug_line_no == 60
+
+
+def test_building_without_llvm_equivalent():
+    """A TIR PrimFunc may contain non-LLVM types
+
+    Types used in optimized kernels (e.g. "e4m3_float8") may not have
+    an equivalent in DWARF, or the mapping from TIR type to DWARF type
+    may not be defined.  If this occurs, the function should still be
+    able to be built.
+    """
+
+    @I.ir_module
+    class Module:
+        @T.prim_func(private=True)
+        def main(A_data: T.handle("e4m3_float8"), B_data: T.handle("e4m3_float8")):
+            A = T.decl_buffer(128, "e4m3_float8", data=A_data)
+            B = T.decl_buffer(128, "e4m3_float8", data=B_data)
+            for i in range(128):
+                B[i] = A[i]
+
+    tvm.target.codegen.build_module(Module, "llvm")
 
 
 if __name__ == "__main__":

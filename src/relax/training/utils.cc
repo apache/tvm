@@ -65,13 +65,10 @@ class AppendLossMutator : private ExprMutator {
         num_backbone_outputs_(num_backbone_outputs) {}
 
   Expr VisitExpr_(const FunctionNode* func) final {
-    CHECK(func->body->IsInstance<SeqExprNode>() && loss_function_->body->IsInstance<SeqExprNode>())
-        << "The bodies of the backbone and the loss function must be SeqExpr.";
-
     // Well-formed checks and setting up class members
-    loss_body_ = Downcast<SeqExpr>(loss_function_->body);
+    loss_body_ = loss_function_->body;
     CheckLossBody();
-    BackboneReturnToArr(func->body.as<SeqExprNode>()->body);
+    BackboneReturnToArr(func->body->body);
     CheckAndRemapBackboneReturn();
     CheckAndRemapLossParams(loss_function_->params);
 

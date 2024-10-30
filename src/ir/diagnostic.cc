@@ -127,7 +127,8 @@ void DiagnosticContext::Render() {
   }
 
   if (errs) {
-    (*this)->renderer = DiagnosticRenderer();
+    (*this)->renderer = DiagnosticRenderer([](DiagnosticContext) {});
+    // (*this)->diagnostics.clear();
     LOG(FATAL) << "DiagnosticError: one or more error diagnostics were "
                << "emitted, please check diagnostic render for output.";
   }

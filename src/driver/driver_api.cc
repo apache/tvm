@@ -44,6 +44,7 @@ TVM_REGISTER_PASS_CONFIG_OPTION("tir.detect_global_barrier", Bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.instrument_bound_checkers", Bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.disable_assert", Bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.disable_vectorize", Bool);
+TVM_REGISTER_PASS_CONFIG_OPTION("tir.enable_buffer_level_predication", Bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.disable_cse_tir", Bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.enable_debug", Bool);
 TVM_REGISTER_PASS_CONFIG_OPTION("tir.enable_equiv_terms_in_cse_tir", Bool);
@@ -170,9 +171,10 @@ Array<tvm::transform::Pass> CreatePassList(bool disable_loop_partition) {
   // phase passes is of the form
   // [[phase_number, pass], [phase_number, pass]... ]
   for (Array<ObjectRef> phase_pass : add_lower_pass) {
-    const IntImmNode* phase_num = phase_pass[0].as<IntImmNode>();
+    auto phase_num = phase_pass[0].as<runtime::Int::ContainerType>();
     ICHECK(phase_num)
-        << "Expected the first entry in the inner Array of tir.add_lower_pass to be an integer";
+        << "Expected the first entry in the inner Array of tir.add_lower_pass to be an integer, "
+        << "but instead received " << phase_pass[0] << " with type " << phase_pass[0]->GetTypeKey();
     int phase_num_val = phase_num->value;
 
     CHECK_GE(phase_num_val, 0);
@@ -216,7 +218,6 @@ Array<tvm::transform::Pass> CreatePassList(bool disable_loop_partition) {
   pass_list.push_back(tir::transform::TransformMmaBufferLayout());
   pass_list.push_back(tir::transform::LowerOpaqueBlock());
   pass_list.push_back(tir::transform::FlattenBuffer());
-  pass_list.push_back(tir::transform::FP8ComputeLegalize());
   pass_list.push_back(tir::transform::BF16ComputeLegalize());
   pass_list.push_back(tir::transform::NarrowDataType(32));
   pass_list.push_back(tir::transform::Simplify());
@@ -240,6 +241,10 @@ Array<tvm::transform::Pass> CreatePassList(bool disable_loop_partition) {
   if (use_async_copy) {
     pass_list.push_back(tir::transform::LowerAsyncDMA());
   }
+  // HoistIfThenElse must be applied before UnrollLoop
+  // because HoistIfThenElse could utilize for loop structure
+  // which might be unrolled in UnrollLoop
+  pass_list.push_back(tir::transform::HoistIfThenElse());
   pass_list.push_back(tir::transform::UnrollLoop());
 
   // Add user-defined phase-2 passes
@@ -250,7 +255,6 @@ Array<tvm::transform::Pass> CreatePassList(bool disable_loop_partition) {
   pass_list.push_back(tir::transform::Simplify());
   pass_list.push_back(tir::transform::RemoveNoOp());
   pass_list.push_back(tir::transform::RewriteUnsafeSelect());
-  pass_list.push_back(tir::transform::HoistIfThenElse());
 
   // Add user-defined phase-3 passes
   pass_list.insert(pass_list.end(), user_lower_phase3.begin(), user_lower_phase3.end());
@@ -333,8 +337,7 @@ TVM_REGISTER_GLOBAL("driver.schedule_to_module")
           c_binds.insert({kv.first, kv.second});
         }
       }
-      IRModule mod =
-          ScheduleToModule(std::move(sch), args, name, c_binds, GlobalVarSupply(NameSupply("")));
+      IRModule mod = ScheduleToModule(std::move(sch), args, name, c_binds, GlobalVarSupply());
       return mod;
     });
 
@@ -397,8 +400,7 @@ TVM_REGISTER_GLOBAL("driver.lower_schedule")
           c_binds.insert({kv.first, kv.second});
         }
       }
-      return LowerSchedule(std::move(sch), args, name, c_binds, GlobalVarSupply(NameSupply("")),
-                           simple_mode);
+      return LowerSchedule(std::move(sch), args, name, c_binds, GlobalVarSupply(), simple_mode);
     });
 
 /**
@@ -567,12 +569,14 @@ transform::Sequential MixedModulePassManager(IRModule mixed_mod, Target target) 
 
   Array<Pass> mixed_pass_list;
 
+  // FPComputeLegalize uses the target attrs added by BindTarget, so it must come first
+  mixed_pass_list.push_back(tir::transform::BindTarget(target));
+  mixed_pass_list.push_back(tir::transform::FP8ComputeLegalize());
+
   // VerifyVTCMLimit must occur before LowerVtcmAlloc
   mixed_pass_list.push_back(tir::transform::VerifyVTCMLimit(target));
   // LowerVtcmAlloc must occur after any transformations that modify memory allocation locations
   mixed_pass_list.push_back(tir::transform::LowerVtcmAlloc());
-
-  mixed_pass_list.push_back(tir::transform::BindTarget(target));
 
   mixed_pass_list.push_back(tir::transform::VerifyMemory());
 
@@ -586,7 +590,6 @@ transform::Sequential MixedModulePassManager(IRModule mixed_mod, Target target) 
 
   mixed_pass_list.push_back(tir::transform::ThreadSync("shared"));
   mixed_pass_list.push_back(tir::transform::ThreadSync("shared.dyn"));
-  mixed_pass_list.push_back(tir::transform::MergeSharedMemoryAllocations());
   mixed_pass_list.push_back(tir::transform::ThreadSync("warp"));
   mixed_pass_list.push_back(tir::transform::InferFragment());
   mixed_pass_list.push_back(tir::transform::LowerThreadAllreduce());
@@ -604,6 +607,9 @@ transform::Sequential MixedModulePassManager(IRModule mixed_mod, Target target) 
 
   mixed_pass_list.push_back(tir::transform::AnnotateDeviceRegions());
   mixed_pass_list.push_back(tir::transform::SplitHostDevice());
+  // MergeSharedMemoryAllocations must be applied after SplitHostDevice
+  // because the merged allocation site is at the beginning of each device function
+  mixed_pass_list.push_back(tir::transform::MergeSharedMemoryAllocations());
 
   bool unpacked_api = mixed_mod->GetAttr<relay::Executor>(tvm::attr::kExecutor)
                           .value_or(relay::Executor::Create("graph", {}))

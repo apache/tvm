@@ -45,6 +45,8 @@ NP_TYPE_TO_C = {
     "uint16": "uint16_t",
     "int32": "int32_t",
     "uint32": "uint32_t",
+    # See: https://gcc.gnu.org/onlinedocs/gcc/Half-Precision.html
+    "float16": "_Float16",
     "float32": "float",
 }
 
@@ -177,6 +179,15 @@ def _subprocess_check_log_output(cmd, cwd, logfile):
     proc.wait()
     if proc.returncode != 0:
         raise RuntimeError(f"Subprocess failed: {cmd}\nstdout:\n{stdout}")
+
+
+def _get_entrypoint_suffix(target):
+    # LLVM modules don't use the same entrypoint suffix
+    # as C source generated modules.
+    if target.kind.name == "llvm":
+        return "__tvm_main__"
+    else:
+        return "run"
 
 
 def _mangle_name(mod_name, name):
@@ -385,7 +396,14 @@ def _emit_main_fake_packed_values(main_file):
     )
 
 
-def _emit_main_packed_call(main_file, input_map, output_list, mod_name):
+def _emit_entry_function_forward_declaration(main_file, mod_name, entrypoint_suffix):
+    main_file.write(
+        f"int {_mangle_name(mod_name, entrypoint_suffix)}"
+        f"(TVMValue[], int32_t[], int32_t, void*, int32_t, void*);\n"
+    )
+
+
+def _emit_main_packed_call(main_file, input_map, output_list, mod_name, entrypoint_suffix):
     tensors_name = _mangle_name(mod_name, "tensors")
     values_name = _mangle_name(mod_name, "values")
     typeids_name = _mangle_name(mod_name, "typeids")
@@ -420,12 +438,20 @@ def _emit_main_packed_call(main_file, input_map, output_list, mod_name):
         fake_tensor(_mangle_name(mod_name, "outputs"), i, i + num_inputs)
 
     main_file.write(
-        f'{_mangle_name(mod_name, "run")}({values_name}, {typeids_name}, 0, NULL, 0, NULL);\n'
+        f"{_mangle_name(mod_name, entrypoint_suffix)}"
+        f"({values_name}, {typeids_name}, 0, NULL, 0, NULL);\n"
     )
     main_file.write("\n")
 
 
-def _emit_main_compare(main_file, outputs, output_tolerance, mod_name, use_interface_c=False):
+def _emit_main_compare(
+    main_file,
+    outputs,
+    output_tolerance,
+    mod_name,
+    use_interface_c=False,
+    print_output_on_mismatch=False,
+):
     for key in outputs:
         sanitized_tensor_name = re.sub(r"\W", "_", key)
         expected_data_name = _mangle_name(mod_name, f"expected_output_data_{sanitized_tensor_name}")
@@ -433,9 +459,11 @@ def _emit_main_compare(main_file, outputs, output_tolerance, mod_name, use_inter
 
         comparison_function = "abs"
         tolerance = output_tolerance or 0
+        value_format_specifier = "%d"
         if is_float_dtype:
             comparison_function = "fabs"
             tolerance = output_tolerance or 0.001
+            value_format_specifier = "%f"
 
         data_length_var_name = (
             _mangle_name(mod_name, f"output_data_{sanitized_tensor_name}") + "_len"
@@ -447,15 +475,54 @@ def _emit_main_compare(main_file, outputs, output_tolerance, mod_name, use_inter
             )
         else:
             actual_data_name = _mangle_name(mod_name, f"output_data_{sanitized_tensor_name}")
-        main_file.write(
-            f"for (int i = 0; i<{data_length_var_name}; i++) {{\n"
-            f"\tif ({comparison_function}({actual_data_name}[i]-"
-            f"{expected_data_name}[i]) > {tolerance}) {{\n"
-            f'\t\tprintf("{AOT_FAILURE_TOKEN}\\n");\n'
-            f"\t\treturn -1;\n"
-            f"\t}}\n"
-            f"}}"
-        )
+
+        if print_output_on_mismatch:
+            main_file.write(
+                f"""
+                {{
+                int mismatch = 0;
+                int out_ndim = {outputs[key].ndim};
+                int out_shape[] = {{{','.join(map(str, outputs[key].shape))}}};
+                int out_indices[out_ndim];
+                printf("Element [Position]: Actual, Reference\\n");
+                printf("-------------------------------------\\n");
+                for (int i = 0; i<{data_length_var_name}; i++) {{
+                  if ({comparison_function}({actual_data_name}[i] -
+                      {expected_data_name}[i]) > {tolerance}) {{
+                    int flat_index = i;
+                    for (int j = out_ndim - 1; j >= 0; j--){{
+                      out_indices[j] = flat_index % out_shape[j];
+                      flat_index /= out_shape[j];
+                    }}
+                    printf("Element [%d", out_indices[0]);
+                    for (int j = 1; j < out_ndim; j++)
+                      printf(", %d", out_indices[j]);
+                    printf("]: {value_format_specifier}, {value_format_specifier}\\n",
+                           {actual_data_name}[i], {expected_data_name}[i]);
+                    mismatch += 1;
+                  }}
+                }}
+                if (mismatch >= 1) {{
+                  float percent_mismatched =
+                      ((float) mismatch) / ((float) {data_length_var_name}) * 100;
+                  printf("\\nMismatched elements: %d / %zu (%.2f%%)\\n",
+                         mismatch, {data_length_var_name}, percent_mismatched);
+                  printf("{AOT_FAILURE_TOKEN}\\n");
+                  return -1;
+                }}
+                }}
+                """
+            )
+        else:
+            main_file.write(
+                f"for (int i = 0; i<{data_length_var_name}; i++) {{\n"
+                f"\tif ({comparison_function}({actual_data_name}[i]-"
+                f"{expected_data_name}[i]) > {tolerance}) {{\n"
+                f'\t\tprintf("{AOT_FAILURE_TOKEN}\\n");\n'
+                f"\t\treturn -1;\n"
+                f"\t}}\n"
+                f"}}"
+            )
 
 
 def _emit_main_init_memory_manager(main_file):
@@ -500,6 +567,7 @@ def _create_main(
     use_stack_allocator=True,
     use_workspace_io=False,
     debug_last_error=False,
+    print_output_on_mismatch=False,
 ):
     file_path = pathlib.Path(f"{output_path}/" + test_name).resolve()
     # create header file
@@ -514,6 +582,15 @@ def _create_main(
         for compiled_model in compiled_models:
             model = compiled_model.model
             _emit_main_data(main_file, model.inputs, model.outputs, model.name)
+
+        if interface_api == "packed":
+            for compiled_model in compiled_models:
+                entrypoint_suffix = _get_entrypoint_suffix(
+                    compiled_model.executor_factory.target[0]
+                )
+                _emit_entry_function_forward_declaration(
+                    main_file, compiled_model.model.name, entrypoint_suffix
+                )
 
         _emit_main_prologue(
             main_file,
@@ -563,12 +640,22 @@ def _create_main(
             for compiled_model in compiled_models:
                 model = compiled_model.model
                 _emit_main_data_setup(main_file, model.inputs, model.outputs, model.name)
-                _emit_main_packed_call(main_file, model.inputs, model.outputs, model.name)
+                entrypoint_suffix = _get_entrypoint_suffix(
+                    compiled_model.executor_factory.target[0]
+                )
+                _emit_main_packed_call(
+                    main_file, model.inputs, model.outputs, model.name, entrypoint_suffix
+                )
 
         for compiled_model in compiled_models:
             model = compiled_model.model
             _emit_main_compare(
-                main_file, model.outputs, model.output_tolerance, model.name, interface_api == "c"
+                main_file,
+                model.outputs,
+                model.output_tolerance,
+                model.name,
+                interface_api == "c",
+                print_output_on_mismatch,
             )
         _emit_main_epilogue(main_file, custom_epilogue)
 
@@ -631,6 +718,7 @@ def compile_models(
     workspace_memory_pools=None,
     constant_memory_pools=None,
     schedule_name: str = None,
+    runtime: tvm.relay.backend.Runtime = Runtime("crt"),
 ) -> List[AOTCompiledTestModel]:
     """
     This method generates runtime.Modules for the tests
@@ -638,7 +726,10 @@ def compile_models(
     if not isinstance(models, list):
         models = [models]
 
-    runtime = Runtime("crt")
+    assert (
+        runtime.name == "crt"
+    ), f"Currently only 'crt' is supported by the test framework, but got {runtime.name}"
+
     executor = Executor(
         "aot",
         {
@@ -709,6 +800,7 @@ def run_and_check(
     use_workspace_io: bool = False,
     debug_last_error: bool = False,
     checker: Optional[Callable[[str], bool]] = None,
+    print_output_on_mismatch: bool = False,
 ):
     """
     This method uses the original test data and compiled runtime.Modules
@@ -789,6 +881,7 @@ def run_and_check(
             use_stack_allocator,
             use_workspace_io,
             debug_last_error,
+            print_output_on_mismatch,
         )
 
         if checker and (not checker(base_path)):
@@ -799,10 +892,12 @@ def run_and_check(
         makefile_dir = os.path.join(file_dir, "../../../tests/python/relay/aot")
         codegen_path = os.path.join(base_path, "codegen")
         makefile = os.path.join(makefile_dir, f"{runner.makefile}.mk")
-        fvp_dir = "/opt/arm/FVP_Corstone_SSE-300/models/Linux64_GCC-6.4/"
-        # TODO(@grant-arm): Remove once ci_cpu docker image has been updated to FVP_Corstone_SSE
-        if not os.path.isdir(fvp_dir):
-            fvp_dir = "/opt/arm/FVP_Corstone_SSE-300_Ethos-U55/models/Linux64_GCC-6.4/"
+
+        if runner.makefile == "aprofile_aem":
+            fvp_dir = "/opt/arm/fvp/Base_RevC_AEMvA_pkg/models/Linux64_GCC-9.3/"
+        else:
+            fvp_dir = "/opt/arm/FVP_Corstone_SSE-300/models/Linux64_GCC-6.4/"
+
         custom_params = " ".join(
             [f" {param}='{value}'" for param, value in runner.parameters.items()]
         )
@@ -832,7 +927,10 @@ def run_and_check(
         _subprocess_check_log_output(run_command, build_path, run_log_path)
 
         with open(run_log_path) as run_log:
-            assert AOT_SUCCESS_TOKEN in run_log.read()
+            run_log_out = run_log.read()
+            if print_output_on_mismatch and AOT_FAILURE_TOKEN in run_log_out:
+                print(run_log_out)
+            assert AOT_SUCCESS_TOKEN in run_log_out
 
         return True
 
@@ -861,15 +959,38 @@ def compile_and_run(
     schedule_name: str = None,
     debug_last_error: bool = False,
     checker: Optional[Callable[[str], bool]] = None,
+    print_output_on_mismatch: bool = False,
+    runtime: tvm.relay.backend.Runtime = Runtime("crt"),
 ) -> bool:
     """This is a wrapper API to compile and run models as test for AoT
 
     Parameters
     ----------
+    interface_api : str
+        The external calling convention interface API.
+
+        Examples: "c", "packed"
+
+    use_unpacked_api : bool
+        Whether or not to use type-erased API internally for the
+        operator calling convention.
+
+        Note: This feature can be useful for embedded targets
+        when space is at a premium.
+
+        Permitted values when interface API is:
+        > "c": True
+        > "packed": True/False
+
     test_dir : str
-        This path will contain build, codegen, include directories
-    verbose: bool
-        Prints commands to build and run AOT test runner
+        This path will contain build, codegen, include directories.
+
+    verbose : bool
+        Prints commands to build and run AOT test runner.
+
+    print_output_on_mismatch : bool
+        Print both the output and reference values side-by-side
+        when there is a mismatch.
     """
 
     if target_opts:
@@ -890,6 +1011,7 @@ def compile_and_run(
         use_runtime_executor=use_runtime_executor,
         target=target,
         schedule_name=schedule_name,
+        runtime=runtime,
     )
 
     return run_and_check(
@@ -904,6 +1026,7 @@ def compile_and_run(
         verbose=verbose,
         debug_last_error=debug_last_error,
         checker=checker,
+        print_output_on_mismatch=print_output_on_mismatch,
     )
 
 
@@ -955,12 +1078,12 @@ def generate_ref_data(mod, input_data, params=None, target="llvm"):
         main = mod
     else:
         main = mod["main"]
-    if main.attrs is None or main.attrs["output_tensor_names"] is None:
+    if "output_tensor_names" in main.attrs:
+        output_tensor_names = main.attrs["output_tensor_names"]
+    else:
         output_tensor_names = (
             ["output"] if output_count == 1 else [f"output{i}" for i in range(output_count)]
         )
-    else:
-        output_tensor_names = main.attrs["output_tensor_names"]
 
     return dict(zip(output_tensor_names, out))
 

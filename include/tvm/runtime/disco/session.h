@@ -196,21 +196,23 @@ class SessionObj : public Object {
    * The second element must be 0, which will later be updated by the session to return reg_id
    * The thirtd element is the function to be called.
    */
-  virtual DRef CallWithPacked(const TVMArgs& args) = 0;
+  TVM_DLL virtual DRef CallWithPacked(const TVMArgs& args) = 0;
+  /*! \brief Get the number of workers in the session. */
+  TVM_DLL virtual int64_t GetNumWorkers() = 0;
   /*! \brief Get a global functions on workers. */
-  virtual DRef GetGlobalFunc(const std::string& name) = 0;
+  TVM_DLL virtual DRef GetGlobalFunc(const std::string& name) = 0;
   /*!
    * \brief Copy an NDArray from worker-0 to the controler-side NDArray
    * \param host_array The array to be copied to worker-0
    * \param remote_array The NDArray on worker-0
    */
-  virtual void CopyFromWorker0(const NDArray& host_array, const DRef& remote_array) = 0;
+  TVM_DLL virtual void CopyFromWorker0(const NDArray& host_array, const DRef& remote_array) = 0;
   /*!
    * \brief Copy the controler-side NDArray to worker-0
    * \param host_array The array to be copied to worker-0
    * \param remote_array The NDArray on worker-0
    */
-  virtual void CopyToWorker0(const NDArray& host_array, const DRef& remote_array) = 0;
+  TVM_DLL virtual void CopyToWorker0(const NDArray& host_array, const DRef& remote_array) = 0;
   /*!
    * \brief Synchrnoize the controler with a worker, and it will wait until worker finishes
    * executing this instruction.
@@ -218,29 +220,29 @@ class SessionObj : public Object {
    * \note This function is usually used for worker-0, because it is the only worker that is
    * assumed to collocate with the controler. Syncing with other workers may not be supported.
    */
-  virtual void SyncWorker(int worker_id) = 0;
+  TVM_DLL virtual void SyncWorker(int worker_id) = 0;
   /*! \brief Signal all the workers to shutdown */
-  virtual void Shutdown() = 0;
+  TVM_DLL virtual void Shutdown() = 0;
   /*!
    * \brief Initialize the data plane between workers.
    * \param ccl The name of the communication backend, e.g., nccl, rccl, mpi.
    * \param device_ids The device ids of the workers.
    */
-  virtual void InitCCL(String ccl, IntTuple device_ids) = 0;
+  TVM_DLL virtual void InitCCL(String ccl, IntTuple device_ids) = 0;
   /*!
    * \brief Get the value of a register from a remote worker.
    * \param reg_id The id of the register to be fetched.
    * \param worker_id The id of the worker to be fetched from.
    * \return The value of the register.
    */
-  virtual TVMRetValue DebugGetFromRemote(int64_t reg_id, int worker_id) = 0;
+  TVM_DLL virtual TVMRetValue DebugGetFromRemote(int64_t reg_id, int worker_id) = 0;
   /*!
    * \brief Set the value of a register on a remote worker.
    * \param reg_id The id of the register to be set.
    * \param value The value to be set.
    * \param worker_id The id of the worker to be set.
    */
-  virtual void DebugSetRegister(int64_t reg_id, TVMArgValue value, int worker_id) = 0;
+  TVM_DLL virtual void DebugSetRegister(int64_t reg_id, TVMArgValue value, int worker_id) = 0;
 
   struct FFI;
   friend struct SessionObj::FFI;
@@ -262,11 +264,13 @@ class Session : public ObjectRef {
   /*!
    * \brief Create a session backed by a thread pool of workers
    * \param num_workers The number of workers.
+   * \param num_groups The number of worker groups.
    */
-  TVM_DLL static Session ThreadedSession(int num_workers);
+  TVM_DLL static Session ThreadedSession(int num_workers, int num_groups);
   /*!
    * \brief Create a session backed by pipe-based multiprocessing
    * \param num_workers The number of workers.
+   * \param num_groups The number of worker groups.
    * \param process_pool_creator The name of a global function that takes `num_workers` as an input,
    * and returns a PackedFunc, which takes an integer `worker_id` as the input and returns None.
    * When `worker-id` is 0, it shuts down the process pool; Otherwise, it retursn a tuple
@@ -275,8 +279,9 @@ class Session : public ObjectRef {
    * \note Worker-0 is always co-located with the controler as a separate thread, and therefore
    * worker-0 does not exist in the process pool.
    */
-  TVM_DLL static Session ProcessSession(int num_workers, String process_pool_creator,
-                                        String entrypoint);
+  TVM_DLL static Session ProcessSession(int num_workers, int num_groups,
+                                        String process_pool_creator, String entrypoint);
+
   TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(Session, ObjectRef, SessionObj);
 };
 

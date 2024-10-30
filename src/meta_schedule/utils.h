@@ -424,13 +424,22 @@ inline Array<FloatImm> AsFloatArray(const ObjectRef& obj) {
   Array<FloatImm> results;
   results.reserve(arr->size());
   for (const ObjectRef& elem : *arr) {
-    if (const auto* int_imm = elem.as<IntImmNode>()) {
-      results.push_back(FloatImm(DataType::Float(32), int_imm->value));
-    } else if (const auto* float_imm = elem.as<FloatImmNode>()) {
-      results.push_back(FloatImm(DataType::Float(32), float_imm->value));
-    } else {
-      LOG(FATAL) << "TypeError: Expect an array of float or int, but gets: " << elem->GetTypeKey();
-    }
+    auto float_value = [&]() -> double {
+      if (const auto* int_imm = elem.as<IntImmNode>()) {
+        return int_imm->value;
+      } else if (const auto* runtime_int = elem.as<runtime::Int::ContainerType>()) {
+        return runtime_int->value;
+      } else if (const auto* float_imm = elem.as<FloatImmNode>()) {
+        return float_imm->value;
+      } else if (const auto* runtime_float = elem.as<runtime::Float::ContainerType>()) {
+        return runtime_float->value;
+      } else {
+        LOG(FATAL) << "TypeError: Expect an array of float or int, but gets: "
+                   << elem->GetTypeKey();
+      }
+    }();
+
+    results.push_back(FloatImm(DataType::Float(32), float_value));
   }
   return results;
 }
@@ -446,11 +455,16 @@ inline Array<Integer> AsIntArray(const ObjectRef& obj) {
   Array<Integer> results;
   results.reserve(arr->size());
   for (const ObjectRef& elem : *arr) {
-    if (const auto* int_imm = elem.as<IntImmNode>()) {
-      results.push_back(Integer(int_imm->value));
-    } else {
-      LOG(FATAL) << "TypeError: Expect an array of integers, but gets: " << elem->GetTypeKey();
-    }
+    auto int_value = [&]() -> int64_t {
+      if (const auto* int_imm = elem.as<IntImmNode>()) {
+        return int_imm->value;
+      } else if (const auto* runtime_int = elem.as<runtime::Int::ContainerType>()) {
+        return runtime_int->value;
+      } else {
+        LOG(FATAL) << "TypeError: Expect an array of integers, but gets: " << elem->GetTypeKey();
+      }
+    }();
+    results.push_back(Integer(int_value));
   }
   return results;
 }
@@ -513,7 +527,8 @@ inline void CloneRules(const SpaceGeneratorNode* src, SpaceGeneratorNode* dst) {
 
 /*! \brief Returns true if the given target is one of the supported gpu targets. */
 inline bool IsGPUTarget(const std::string& target_name) {
-  static const std::unordered_set<std::string> gpu_targets{"cuda", "rocm", "vulkan", "metal"};
+  static const std::unordered_set<std::string> gpu_targets{"cuda", "rocm", "vulkan", "metal",
+                                                           "opencl"};
   return gpu_targets.count(target_name);
 }
 

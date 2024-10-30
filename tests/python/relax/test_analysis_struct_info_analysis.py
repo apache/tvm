@@ -24,6 +24,7 @@ import tvm.testing
 from tvm import TVMError
 from tvm import relax as rx
 from tvm import tir, ir
+from tvm.script import relax as R, tir as T
 
 
 def test_get_static_type_basic():
@@ -619,6 +620,98 @@ def test_struct_info_lca():
     _check_lca(fopaque2(), fn_info_shape(1), fopaque2())
 
 
+def _generate_prim_test_cases():
+    dtypes = [
+        "bool",
+        "int8",
+        "uint8",
+        "int16",
+        "uint16",
+        "int32",
+        "uint32",
+        "int64",
+        "uint64",
+        "float16",
+        "float32",
+        "float64",
+    ]
+
+    for dtype in dtypes:
+        # LCA of a PrimStructInfo with itself yields itself
+        yield (R.Prim(dtype), R.Prim(dtype), R.Prim(dtype))
+
+        # The LCA of two values, each statically known to be the same
+        # value, is known to have that value.
+        yield (
+            R.Prim(value=tir.const(0, dtype)),
+            R.Prim(value=tir.const(0, dtype)),
+            R.Prim(value=tir.const(0, dtype)),
+        )
+
+        # The LCA of two values, each of which is statically known to
+        # have a different value, no longer knows the contained value.
+        yield (
+            R.Prim(value=tir.const(0, dtype)),
+            R.Prim(value=tir.const(1, dtype)),
+            R.Prim(dtype=dtype),
+        )
+
+        # LCA of a known variable with itself yields itself
+        var_N = tir.Var("N", dtype)
+        yield (R.Prim(value=var_N), R.Prim(value=var_N), R.Prim(value=var_N))
+
+        # LCA of a known variable with a known static value is no
+        # longer known to have a specific value.
+        yield (R.Prim(value=var_N), R.Prim(value=tir.const(0, dtype)), R.Prim(dtype=dtype))
+        yield (R.Prim(value=tir.const(0, dtype)), R.Prim(value=var_N), R.Prim(dtype=dtype))
+
+        var_M = tir.Var("M", dtype)
+        yield (R.Prim(value=var_N), R.Prim(value=var_M), R.Prim(dtype=dtype))
+
+    for dtype_a in dtypes:
+        for dtype_b in dtypes:
+            if dtype_a != dtype_b:
+                # Unlike R.Tensor, R.Prim does not currently support a
+                # value with an unknown datatype.  If the dtype
+                # differs between the two annotations, the next wider
+                # category is R.Object.
+                yield (R.Prim(dtype_a), R.Prim(dtype_b), R.Object)
+
+                # Because the dtypes are different, even `R.Prim` containing
+                # the same value in different representations (e.g.
+                # `T.float32(0)` vs `T.float16(0)`) fall back to `R.Object`.
+                yield (
+                    R.Prim(value=tir.const(0, dtype_a)),
+                    R.Prim(value=tir.const(0, dtype_b)),
+                    R.Object,
+                )
+
+                # And the same is true for known variable values
+                var_N = tir.Var("N", dtype_a)
+                var_M = tir.Var("M", dtype_b)
+                yield (R.Prim(value=var_N), R.Prim(value=var_M), R.Object)
+
+
+@pytest.mark.parametrize("test_case", list(_generate_prim_test_cases()))
+def test_prim_struct_info_lca(test_case):
+    def _normalize_sinfo(sinfo):
+        if isinstance(sinfo, tvm.relax.StructInfo):
+            return sinfo
+        elif isinstance(sinfo, tvm.script.parser.relax.entry.StructInfoProxy):
+            return sinfo.as_struct_info()
+        elif callable(sinfo):
+            return sinfo()
+        else:
+            raise TypeError(f"Cannot normalize {type(sinfo)} to StructInfo")
+
+    lhs, rhs, expected = map(_normalize_sinfo, test_case)
+
+    lca = rx.analysis.struct_info_lca(lhs, rhs)
+    assert tvm.ir.structural_equal(
+        lca, expected
+    ), f"Expected {lhs} and {rhs} to have LCA of {expected}, but instead found {lca}"
+
+
 def _generate_tir_var_test_cases():
     n, m = tir.Var("n", "int64"), tir.Var("m", "int64")
     shape0 = rx.ShapeStructInfo([1, n, 3])
@@ -716,6 +809,48 @@ def test_collect_symbolic_var_from_non_tensor_params(param_type, param_order):
     free_vars = set(rx.analysis.free_symbolic_vars(func))
     assert defined_vars == {tir_n, tir_m}
     assert free_vars == set()
+
+
+def test_collect_nonnegative_expressions():
+    @R.function
+    def func(
+        A: R.Tensor([1024, "M", "N-2"]),
+        B: R.Tensor([128, "N", "M+2"]),
+        C: R.Shape(["M", "N"]),
+        D: R.Prim(value="N"),
+    ):
+        return R.tuple()
+
+    M, N = list(func.params[2].struct_info.values)
+
+    # Expressions are de-duplicated, in order of their first appearance
+    tvm.ir.assert_structural_equal(
+        rx.analysis.collect_non_negative_expressions(func.struct_info),
+        [M, N - 2, N, M + 2],
+    )
+
+    # Tensor shapes can imply that their shapes are non-negative
+    tvm.ir.assert_structural_equal(
+        rx.analysis.collect_non_negative_expressions(func.params[0].struct_info),
+        [M, N - 2],
+    )
+    tvm.ir.assert_structural_equal(
+        rx.analysis.collect_non_negative_expressions(func.params[1].struct_info),
+        [N, M + 2],
+    )
+
+    # ShapeExpr values can imply that their contents are non-negative
+    tvm.ir.assert_structural_equal(
+        rx.analysis.collect_non_negative_expressions(func.params[2].struct_info),
+        [M, N],
+    )
+
+    # PrimValue instances may contain negative values, and do not
+    # imply that their contents are non-negative.
+    tvm.ir.assert_structural_equal(
+        rx.analysis.collect_non_negative_expressions(func.params[3].struct_info),
+        [],
+    )
 
 
 if __name__ == "__main__":

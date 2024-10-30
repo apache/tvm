@@ -615,7 +615,7 @@ def conv2d_NCHWc_int8(
     )
 
 
-def conv2d_gemm_weight_transform(kernel, tile_N, tile_K):
+def conv2d_gemm_weight_transform(kernel, tile_N, tile_K, use_scalable_vectors=False, use_sme=False):
     """Weight transformation for winograd
 
     Parameters
@@ -626,6 +626,10 @@ def conv2d_gemm_weight_transform(kernel, tile_N, tile_K):
         Tile size across N axis of the weight transformation for ConvGemm. (N = OC)
     tile_K: int
         Tile size across K axis of the weight transformation for ConvGemm. (K = KW * KH * IC)
+    use_scalable_vectors : bool
+        determines if operations on scalable vectors are expected
+    use_sme : bool
+        determines if SME operations on scalable vectors are expected
 
     Returns
     -------
@@ -649,6 +653,14 @@ def conv2d_gemm_weight_transform(kernel, tile_N, tile_K):
         kernel_flat = pad(
             kernel_flat, pad_before=(0, 0), pad_after=(pad_K, pad_N), name="weight_padding"
         )
+
+    if use_sme and kernel.dtype == "float16":
+        return te.compute(
+            (N_padded, K_padded), lambda x, y: kernel_flat[y, x], name="weight_transpose"
+        )
+
+    if use_scalable_vectors or use_sme:
+        return kernel_flat
 
     if kernel.dtype in ["int8", "uint8"]:
         B_inter_t = te.compute(

@@ -81,15 +81,18 @@ class AlterOpImplMutator : public ExprMutator {
  public:
   AlterOpImplMutator(const IRModule& mod, const Map<String, tir::PrimFunc>& op_impl_map,
                      const Map<String, Array<IndexMap>>& op_buffer_transforms_,
-                     const Map<String, Array<Array<IntImm>>>& axis_separators_)
+                     const Map<String, Array<Array<IntImm>>>& axis_separators_,
+                     const Map<String, Array<Array<IntImm>>>& input_axis_separators_)
       : ExprMutator(mod),
         mod_(mod),
         op_impl_map_(op_impl_map),
         op_buffer_transforms__(op_buffer_transforms_),
-        op_buffer_axis_separators__(axis_separators_) {}
+        op_buffer_axis_separators__(axis_separators_),
+        op_buffer_input_axis_separators__(input_axis_separators_) {}
 
   IRModule Run() {
-    for (const auto& [gv, func] : mod_->functions) {
+    for (const auto& gv : mod_->GetGlobalVars()) {
+      const auto& func = mod_->Lookup(gv);
       if (func->IsInstance<relax::FunctionNode>()) {
         relax::Function update_func = Downcast<Function>(VisitExpr(func));
         builder_->UpdateFunction(gv, update_func);
@@ -126,9 +129,12 @@ class AlterOpImplMutator : public ExprMutator {
 
     Array<IndexMap> buffer_transforms;
     Optional<Array<Array<IntImm>>> axis_separators;
+    Optional<Array<Array<IntImm>>> input_axis_separators;
     if (op_buffer_transforms__.count(op_kind)) buffer_transforms = op_buffer_transforms__[op_kind];
     if (op_buffer_axis_separators__.count(op_kind))
       axis_separators = op_buffer_axis_separators__[op_kind];
+    if (op_buffer_input_axis_separators__.count(op_kind))
+      input_axis_separators = op_buffer_input_axis_separators__[op_kind];
 
     ICHECK(buffer_transforms.empty() || buffer_transforms.size() == replacement_func->params.size())
         << "Either the i/o buffers do not require any transformations or transformations for each "
@@ -139,7 +145,8 @@ class AlterOpImplMutator : public ExprMutator {
     GlobalVar replacement_gv = GetOrCreateGlobalVarForFunc(replacement_func, op_kind);
 
     auto call_tir_inputs_tuple = GetRef<Tuple>(call->args[1].as<TupleNode>());
-    Tuple updated_inputs = UpdateInputs(call_tir_inputs_tuple, buffer_transforms, axis_separators);
+    Tuple updated_inputs = UpdateInputs(call_tir_inputs_tuple, buffer_transforms, axis_separators,
+                                        input_axis_separators);
 
     ICHECK_EQ(call->sinfo_args.size(), 1) << "call_tir sinfo_args.size() is expected to be 1";
     StructInfo updated_ret_sinfo = UpdateStructInfo(call->sinfo_args[0], buffer_transforms);
@@ -147,7 +154,8 @@ class AlterOpImplMutator : public ExprMutator {
         Call(call_tir_op_, {replacement_gv, updated_inputs}, call->attrs, {updated_ret_sinfo}));
 
     // Now transform each of the outputs to previous layout.
-    return TransformOutputs(updated_call, buffer_transforms, call->sinfo_args[0], axis_separators);
+    return TransformOutputs(updated_call, buffer_transforms, call->sinfo_args[0], axis_separators,
+                            input_axis_separators);
   }
 
   Array<TensorStructInfo> GetTensorStructInfoPerOutput(const StructInfo& output_sinfo) {
@@ -174,7 +182,8 @@ class AlterOpImplMutator : public ExprMutator {
   }
 
   Expr TransformLayout(const Expr& expr, const IndexMap& index_map,
-                       const Array<IntImm>& axis_separators) {
+                       const Array<IntImm>& axis_separators,
+                       const Array<IntImm>& input_axis_separators) {
     if (IsScalarConstant(expr) || index_map.get() == nullptr) {
       return expr;
     }
@@ -184,6 +193,7 @@ class AlterOpImplMutator : public ExprMutator {
     // so would confuse the structural equality check.
     attrs->index_map = std::move(DeepCopyIndexMap(index_map));
     attrs->axis_separators = std::move(axis_separators);
+    attrs->input_axis_separators = std::move(input_axis_separators);
     return Call(layout_transform_op_, {expr}, Attrs{std::move(attrs)}, {});
   }
 
@@ -231,7 +241,8 @@ class AlterOpImplMutator : public ExprMutator {
 
   Expr TransformLayoutInverse(const Expr& expr, const IndexMap& index_map,
                               const TensorStructInfo& old_tensor_sinfo,
-                              const Array<IntImm>& axis_separator) {
+                              const Array<IntImm>& axis_separator,
+                              const Array<IntImm>& input_axis_separator) {
     if (IsScalarConstant(expr) || index_map.get() == nullptr) {
       return expr;
     }
@@ -242,10 +253,10 @@ class AlterOpImplMutator : public ExprMutator {
         index_map.NonSurjectiveInverse(initial_ranges, &analyzer);
 
     if (tir::is_zero(padding_predicate)) {
-      return TransformLayout(expr, inverse_index_map, axis_separator);
+      return TransformLayout(expr, inverse_index_map, axis_separator, input_axis_separator);
     } else {
-      auto padded_expr =
-          builder_->Normalize(TransformLayout(expr, inverse_index_map, axis_separator));
+      auto padded_expr = builder_->Normalize(
+          TransformLayout(expr, inverse_index_map, axis_separator, input_axis_separator));
       const auto& tensor_sinfo = Downcast<TensorStructInfo>(padded_expr->struct_info_);
 
       GlobalVar gv_remove_pad = GetOrCreateRemovePadOp(old_shape, tensor_sinfo->dtype);
@@ -276,19 +287,26 @@ class AlterOpImplMutator : public ExprMutator {
    * \brief Updates call inputs with layout transformed inputs
    */
   Tuple UpdateInputs(const Tuple& inputs, const Array<IndexMap>& transforms,
-                     const Optional<Array<Array<IntImm>>>& axis_separators) {
+                     const Optional<Array<Array<IntImm>>>& axis_separators,
+                     const Optional<Array<Array<IntImm>>>& input_axis_separators) {
     if (transforms.empty()) return inputs;
 
     Array<Expr> updated_inputs;
     int index = 0;
     for (const auto& input : inputs->fields) {
       Array<IntImm> axis_separator;
+      Array<IntImm> input_axis_separator;
       if (axis_separators.defined()) {
         Array<Array<IntImm>> axis_separators_value = axis_separators.value();
         axis_separator = axis_separators_value[index];
       }
+      if (input_axis_separators.defined()) {
+        Array<Array<IntImm>> input_axis_separators_value = input_axis_separators.value();
+        input_axis_separator = input_axis_separators_value[index];
+      }
       auto transform = transforms[index++];
-      updated_inputs.push_back(TransformLayout(input, transform, axis_separator));
+      updated_inputs.push_back(
+          TransformLayout(input, transform, axis_separator, input_axis_separator));
     }
     return Tuple(updated_inputs);
   }
@@ -337,12 +355,13 @@ class AlterOpImplMutator : public ExprMutator {
 
   Expr TransformOutputs(const Expr& expr, const Array<IndexMap>& buffer_transforms,
                         const StructInfo& old_struct_info,
-                        const Optional<Array<Array<IntImm>>>& axis_separators) {
+                        const Optional<Array<Array<IntImm>>>& axis_separators,
+                        const Optional<Array<Array<IntImm>>>& input_axis_separators) {
     if (buffer_transforms.empty()) return expr;
 
     Array<TensorStructInfo> old_output_sinfo = GetTensorStructInfoPerOutput(old_struct_info);
 
-    Array<IntImm> axis_sep;
+    Array<IntImm> axis_sep, input_axis_sep;
     size_t num_outputs = old_output_sinfo.size();
     if (num_outputs == 0) return expr;
 
@@ -354,7 +373,12 @@ class AlterOpImplMutator : public ExprMutator {
         Array<Array<IntImm>> axis_separators_value = axis_separators.value();
         axis_sep = axis_separators_value[first_output_index];
       }
-      return TransformLayoutInverse(expr, output_map, old_output_sinfo[0], axis_sep);
+      if (input_axis_separators.defined()) {
+        Array<Array<IntImm>> input_axis_separators_value = input_axis_separators.value();
+        input_axis_sep = input_axis_separators_value[first_output_index];
+      }
+      return TransformLayoutInverse(expr, output_map, old_output_sinfo[0], axis_sep,
+                                    input_axis_sep);
     }
 
     // In case of more than one output, we would have to get each item of the output tuple,
@@ -366,9 +390,13 @@ class AlterOpImplMutator : public ExprMutator {
         Array<Array<IntImm>> axis_separators_value = axis_separators.value();
         axis_sep = axis_separators_value[i + first_output_index];
       }
+      if (input_axis_separators.defined()) {
+        Array<Array<IntImm>> input_axis_separators_value = input_axis_separators.value();
+        input_axis_sep = input_axis_separators_value[i + first_output_index];
+      }
       auto output = builder_->Normalize(TupleGetItem(expr, static_cast<int>(i)));
-      transformed_outputs.push_back(
-          TransformLayoutInverse(output, output_map, old_output_sinfo[i], axis_sep));
+      transformed_outputs.push_back(TransformLayoutInverse(output, output_map, old_output_sinfo[i],
+                                                           axis_sep, input_axis_sep));
     }
     return Tuple(transformed_outputs);
   }
@@ -386,6 +414,8 @@ class AlterOpImplMutator : public ExprMutator {
   const Map<String, Array<IndexMap>>& op_buffer_transforms__;
   /*! \brief Map from kOperatorName attribute to the axis separatos on i/o buffers */
   const Map<String, Array<Array<IntImm>>>& op_buffer_axis_separators__;
+  /*! \brief Map from kOperatorName attribute to the input axis separatos */
+  const Map<String, Array<Array<IntImm>>>& op_buffer_input_axis_separators__;
 
   const Op& call_tir_op_ = Op::Get("relax.call_tir");
   const Op& layout_transform_op_ = Op::Get("relax.layout_transform");
@@ -395,10 +425,13 @@ namespace transform {
 
 Pass AlterOpImpl(const Map<String, tir::PrimFunc>& op_impl_map,
                  const Map<String, Array<IndexMap>>& op_buffer_transforms_,
-                 const Map<String, Array<Array<IntImm>>>& axis_separators_) {
+                 const Map<String, Array<Array<IntImm>>>& axis_separators_,
+                 const Map<String, Array<Array<IntImm>>>& input_axis_separators_) {
   runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func = [=](IRModule mod,
                                                                             PassContext pc) {
-    return AlterOpImplMutator(mod, op_impl_map, op_buffer_transforms_, axis_separators_).Run();
+    return AlterOpImplMutator(mod, op_impl_map, op_buffer_transforms_, axis_separators_,
+                              input_axis_separators_)
+        .Run();
   };
   return CreateModulePass(/*pass_function=*/pass_func,  //
                           /*opt_level=*/0,              //

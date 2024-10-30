@@ -112,8 +112,9 @@ class NDArray : public ObjectRef {
    * \param dev The target device.
    * \param mem_scope The memory scope of the target array.
    * \return The array under another device.
+   * \note The copy always triggers a TVMSynchronize.
    */
-  inline NDArray CopyTo(const Device& dev, Optional<String> mem_scope = NullOpt) const;
+  TVM_DLL NDArray CopyTo(const Device& dev, Optional<String> mem_scope = NullOpt) const;
   /*!
    * \brief Load NDArray from stream
    * \param stream The input data stream
@@ -125,13 +126,29 @@ class NDArray : public ObjectRef {
    * \param stream The output data stream
    */
   inline void Save(dmlc::Stream* stream) const;
+
   /*!
    * \brief Create a NDArray that shares the data memory with the current one.
+   *
    * \param shape The shape of the new array.
+   *
    * \param dtype The data type of the new array.
-   * \note The memory size of new array must be smaller than the current one.
+   *
+   * \param relative_byte_offset The offset of the output NDArray,
+   *     relative to the current byte offset.
+   *
+   *     By default, the offset of the view is the same as the offset
+   *     of the current array.
+   *
+   * \note The new array must not allow access of addresses which
+   *       would be out of bounds in the current array.  If the new
+   *       array is larger than the current array, or if the
+   *       `relative_byte_offset` would place the end of the new array
+   *       outside the bounds of the current array, this function will
+   *       raise an exception.
    */
-  TVM_DLL NDArray CreateView(ShapeTuple shape, DLDataType dtype);
+  TVM_DLL NDArray CreateView(ShapeTuple shape, DLDataType dtype, uint64_t relative_byte_offset = 0);
+
   /*!
    * \brief Create a reference view of NDArray that
    *  represents as DLManagedTensor.
@@ -209,6 +226,8 @@ class NDArray : public ObjectRef {
 
  protected:
   friend class TVMPODValue_;
+  template <typename Derived>
+  friend class TVMPODValue_CRTP_;
   friend class TVMRetValue;
   friend class TVMArgsSetter;
   /*!
@@ -399,15 +418,6 @@ inline void NDArray::CopyTo(const NDArray& other) const {
   CopyFromTo(&(get_mutable()->dl_tensor), &(other.get_mutable()->dl_tensor));
 }
 
-inline NDArray NDArray::CopyTo(const Device& dev, Optional<String> mem_scope) const {
-  ICHECK(data_ != nullptr);
-  const DLTensor* dptr = operator->();
-  NDArray ret =
-      Empty(ShapeTuple(dptr->shape, dptr->shape + dptr->ndim), dptr->dtype, dev, mem_scope);
-  this->CopyTo(ret);
-  return ret;
-}
-
 inline int NDArray::use_count() const { return data_.use_count(); }
 
 inline const DLTensor* NDArray::operator->() const { return &(get_mutable()->dl_tensor); }
@@ -524,6 +534,23 @@ inline bool NDArray::Load(dmlc::Stream* strm) {
   }
   *this = ret;
   return true;
+}
+
+/*!
+ * \brief Get the preferred host device from the input device.
+ * - For CUDA and ROCm, CUDAHost and ROCMHost will be returned for pinned memory,
+ * since pinned memory reduces copy overhead.
+ * - For other devices, CPU is returned as a fallback.
+ */
+inline Device GetPreferredHostDevice(Device device) {
+  if (device.device_type == DLDeviceType::kDLCUDA) {
+    return Device{DLDeviceType::kDLCUDAHost, 0};
+  } else if (device.device_type == DLDeviceType::kDLROCM) {
+    return Device{DLDeviceType::kDLROCMHost, 0};
+  } else {
+    // Fallback to CPU.
+    return Device{DLDeviceType::kDLCPU, 0};
+  }
 }
 
 }  // namespace runtime

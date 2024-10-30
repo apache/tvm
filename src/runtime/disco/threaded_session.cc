@@ -42,11 +42,11 @@ class DiscoThreadedMessageQueue : private dmlc::Stream,
  public:
   void Send(const TVMArgs& args) {
     RPCReference::ReturnPackedSeq(args.values, args.type_codes, args.num_args, this);
-    NotifyEnqueue();
+    CommitSendAndNotifyEnqueue();
   }
 
   TVMArgs Recv() {
-    WaitDequeue();
+    DequeueNextPacket();
     TVMValue* values = nullptr;
     int* type_codes = nullptr;
     int num_args = 0;
@@ -55,43 +55,52 @@ class DiscoThreadedMessageQueue : private dmlc::Stream,
   }
 
  protected:
-  void NotifyEnqueue() {
+  void CommitSendAndNotifyEnqueue() {
+    bool need_notify = false;
     {
       std::lock_guard<std::mutex> lock{mutex_};
       ++msg_cnt_;
+      ring_buffer_.Write(write_buffer_.data(), write_buffer_.size());
+      need_notify = dequeue_waiting_;
     }
-    condition_.notify_one();
+    if (need_notify) {
+      condition_.notify_one();
+    }
+    write_buffer_.clear();
   }
 
-  void WaitDequeue() {
+  void DequeueNextPacket() {
     {
       std::unique_lock<std::mutex> lock(mutex_);
+      dequeue_waiting_ = true;
       condition_.wait(lock, [this] { return msg_cnt_.load() > 0; });
+      dequeue_waiting_ = false;
       --msg_cnt_;
+      uint64_t packet_nbytes = 0;
+      ring_buffer_.Read(&packet_nbytes, sizeof(packet_nbytes));
+      read_buffer_.resize(packet_nbytes);
+      ring_buffer_.Read(read_buffer_.data(), packet_nbytes);
+      read_offset_ = 0;
     }
     this->RecycleAll();
-    uint64_t packet_nbytes = 0;
     RPCCode code = RPCCode::kReturn;
-    this->Read(&packet_nbytes);
     this->Read(&code);
   }
 
-  void MessageStart(uint64_t packet_nbytes) {
-    std::lock_guard<std::mutex> lock(mutex_);
-    size_t n = ring_buffer_.bytes_available();
-    n += packet_nbytes + sizeof(uint64_t);
-    this->ring_buffer_.Reserve(n);
-  }
+  void MessageStart(uint64_t packet_nbytes) {}
 
   size_t Read(void* data, size_t size) final {
-    std::lock_guard<std::mutex> lock(mutex_);
-    ring_buffer_.Read(data, size);
+    std::memcpy(data, read_buffer_.data() + read_offset_, size);
+    read_offset_ += size;
+    ICHECK_LE(read_offset_, read_buffer_.size());
     return size;
   }
 
-  void Write(const void* data, size_t size) final {
-    std::lock_guard<std::mutex> lock(mutex_);
-    ring_buffer_.Write(data, size);
+  size_t Write(const void* data, size_t size) final {
+    size_t cur_size = write_buffer_.size();
+    write_buffer_.resize(cur_size + size);
+    std::memcpy(write_buffer_.data() + cur_size, data, size);
+    return size;
   }
 
   using dmlc::Stream::Read;
@@ -100,6 +109,12 @@ class DiscoThreadedMessageQueue : private dmlc::Stream,
   using dmlc::Stream::WriteArray;
   friend struct RPCReference;
   friend struct DiscoProtocol<DiscoThreadedMessageQueue>;
+
+  // The read/write buffer will only be accessed by the producer thread.
+  std::string write_buffer_;
+  std::string read_buffer_;
+  size_t read_offset_ = 0;
+  bool dequeue_waiting_ = false;
 
   std::mutex mutex_;
   std::atomic<int> msg_cnt_{0};
@@ -118,20 +133,20 @@ class DiscoThreadChannel final : public DiscoChannel {
   DiscoThreadedMessageQueue worker_to_controler_;
 };
 
-DiscoWorkerThread::DiscoWorkerThread(int worker_id, int num_workers,
+DiscoWorkerThread::DiscoWorkerThread(int worker_id, int num_workers, int num_groups,
                                      WorkerZeroData* worker_zero_data_)
     : channel(std::make_unique<DiscoThreadChannel>()),
-      worker(
-          std::make_unique<DiscoWorker>(worker_id, num_workers, worker_zero_data_, channel.get())),
+      worker(std::make_unique<DiscoWorker>(worker_id, num_workers, num_groups, worker_zero_data_,
+                                           channel.get())),
       thread(std::make_unique<std::thread>([worker = this->worker.get()] { worker->MainLoop(); })) {
 }
 
 class ThreadedSessionObj final : public BcastSessionObj {
  public:
-  explicit ThreadedSessionObj(int num_workers) {
+  explicit ThreadedSessionObj(int num_workers, int num_groups) {
     for (int i = 0; i < num_workers; ++i) {
       WorkerZeroData* data = (i == 0) ? &worker_zero_data_ : nullptr;
-      workers_.emplace_back(i, num_workers, data);
+      workers_.emplace_back(i, num_workers, num_groups, data);
     }
   }
 
@@ -139,6 +154,8 @@ class ThreadedSessionObj final : public BcastSessionObj {
     this->Shutdown();
     workers_.clear();
   }
+
+  int64_t GetNumWorkers() { return workers_.size(); }
 
   TVMRetValue DebugGetFromRemote(int64_t reg_id, int worker_id) {
     this->SyncWorker(worker_id);
@@ -156,6 +173,10 @@ class ThreadedSessionObj final : public BcastSessionObj {
     }
   }
 
+  void SendPacked(int worker_id, const TVMArgs& args) final {
+    this->workers_.at(worker_id).channel->Send(args);
+  }
+
   TVMArgs RecvReplyPacked(int worker_id) final {
     return this->workers_.at(worker_id).channel->RecvReply();
   }
@@ -168,8 +189,10 @@ class ThreadedSessionObj final : public BcastSessionObj {
 
 TVM_REGISTER_OBJECT_TYPE(ThreadedSessionObj);
 
-Session Session::ThreadedSession(int num_workers) {
-  ObjectPtr<ThreadedSessionObj> n = make_object<ThreadedSessionObj>(num_workers);
+Session Session::ThreadedSession(int num_workers, int num_group) {
+  CHECK_EQ(num_workers % num_group, 0)
+      << "The number of workers should be divisible by the number of worker group.";
+  ObjectPtr<ThreadedSessionObj> n = make_object<ThreadedSessionObj>(num_workers, num_group);
   return Session(std::move(n));
 }
 

@@ -137,12 +137,13 @@ inline std::string GetExtSymbol(const Function& func) {
  * \param partition A mapping from a subexpression to the containing group.
  * \param lift_constants Whether or not to lift bound constants to parameters of the
  * grouped function.
+ * \param entry_function_names The names of the entry functions.
  * \return A new module containing grouped functions.
  */
 IRModule MakeGroupedFunctions(
     IRModule mod,
     const std::unordered_map<const Object*, relay::GraphPartitioner::Group*>& partition,
-    bool lift_constants = true);
+    bool lift_constants = true, const Array<String>& entry_function_names = {});
 
 /*!
  * \brief Check if the given StructInfo is a scalar tensor. The sinfo should be an instance of
@@ -419,7 +420,7 @@ Expr EliminateCommonSubexpr(const Expr& expr, bool call_only = false);
  *
  * \ret The canonicalized expression
  */
-Expr CanonicalizeBindings(const Expr& expr);
+Expr CanonicalizeBindings(Expr expr);
 
 /* \brief Remove use of trivial bindings
  *
@@ -429,9 +430,26 @@ Expr CanonicalizeBindings(const Expr& expr);
  *
  * \param func The function to be updated.
  *
+ * \param param_tuple_name The name of the tuple parameter.  If
+ * unspecified, defaults to "model_params"
+ *
  * \ret The updated function.
  */
-Function BundleModelParams(const Function& func);
+Function BundleModelParams(const Function& func, Optional<String> param_tuple_name = NullOpt);
+
+/*! \brief Compose two functions
+ *
+ * Given two functions `func_a` and `func_b`, produce `func_c` such
+ * that `func_c(x)` is equivalent to `func_b(func_a(x))`.
+ *
+ * If the output if `func_a` is not usable as the input of `func_b`,
+ * an error will be raised.
+ *
+ * \param func_a The first function to be composed.
+ * \param func_b The second function to be composed.
+ * \return The composed function
+ */
+TVM_DLL Function ComposeFunctions(Function func_a, Function func_b);
 
 }  // namespace relax
 }  // namespace tvm

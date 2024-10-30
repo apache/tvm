@@ -27,8 +27,11 @@ from torch.nn import Module
 import tvm.testing
 from tvm.relax.frontend.torch import from_fx
 from tvm.relay.frontend import from_pytorch
+from tvm import relay
+from tvm.ir.module import IRModule
 from tvm.contrib.msc.core.frontend import translate
 from tvm.contrib.msc.framework.tvm import codegen as tvm_codegen
+from tvm.contrib.msc.core import utils as msc_utils
 
 
 def _valid_target(target):
@@ -728,12 +731,33 @@ def test_addmm():
 def test_split():
     """test relay to relax for split"""
 
-    class Split(Module):
+    class Split1(Module):
         def forward(self, data):
             return torch.split(data, 1, dim=1)
 
+    class Split2(Module):
+        def forward(self, data):
+            return torch.split(data, [1, 2], dim=1)
+
     input_info = [([1, 3, 10, 10], "float32")]
-    verify_model(Split(), input_info, build_target="llvm")
+    verify_model(Split1(), input_info, build_target="llvm")
+    verify_model(Split2(), input_info, build_target="llvm")
+
+
+def test_unbind():
+    """test relay to relax for unbind"""
+
+    class Unbind1(Module):
+        def forward(self, data):
+            return torch.unbind(data)
+
+    class Unbind2(Module):
+        def forward(self, data):
+            return torch.unbind(data, dim=1)
+
+    input_info = [([3, 3, 10, 10], "float32")]
+    verify_model(Unbind1(), input_info, build_target="llvm")
+    verify_model(Unbind2(), input_info, build_target="llvm")
 
 
 def test_cumsum():
@@ -856,12 +880,17 @@ def test_new_ones():
 def test_expand():
     """test relay to relax for expand"""
 
-    class Expand(Module):
+    class Expand1(Module):
         def forward(self, x):
             return x.expand(4, 2, 3, 4)
 
+    class Expand2(Module):
+        def forward(self, x):
+            return x.expand(4, -1, -1, 4)
+
     input_info = [([1, 2, 3, 4], "float32")]
-    verify_model(Expand(), input_info, build_target="llvm")
+    verify_model(Expand1(), input_info, build_target="llvm")
+    verify_model(Expand2(), input_info, build_target="llvm")
 
 
 def test_reduce():
@@ -1055,6 +1084,61 @@ def test_max():
             return torch.max(x, y)
 
     verify_model(Max(), [([256, 256], "float32"), ([256, 256], "float32")])
+
+
+def test_cat():
+    """test relay to relax for cat"""
+
+    class Cat1(Module):
+        def forward(self, data, data1, data2):
+            return torch.cat((data, data1, data2), dim=1)
+
+    class Cat2(Module):
+        def forward(self, data):
+            const1 = torch.ones((1, 3, 10, 10), dtype=torch.float32)
+            const2 = torch.ones((1, 3, 10, 10), dtype=torch.float32)
+            return torch.cat((data, const1, const2), dim=1)
+
+    input_info = [
+        ([1, 3, 10, 10], "float32"),
+        ([1, 3, 10, 10], "float32"),
+        ([1, 3, 10, 10], "float32"),
+    ]
+    verify_model(Cat1(), input_info, build_target="llvm")
+    verify_model(Cat2(), [([1, 3, 10, 10], "float32")], build_target="llvm")
+
+
+def test_name_string_with_colon():
+    """test name string with colons,
+    e.g., TFLite default input name 'serving_default_input:0'
+    """
+
+    dtype = "float32"
+    x_var = relay.var("input_0:0", shape=(3, 5), dtype=dtype)
+    y_var = relay.var("input_1:0", shape=(3, 5), dtype=dtype)
+    z_add = relay.add(x_var, y_var)
+    func = relay.Function([x_var, y_var], z_add)
+    mod = IRModule()
+    mod["main"] = func
+
+    try:
+        graph, _ = translate.from_relay(mod)
+    except Exception as err:
+        raise RuntimeError(f"Translation from relay to graph failed: {err}")
+    inspect = graph.inspect()
+
+    expected = {
+        "inputs": [
+            {"name": "input_0:0", "shape": [3, 5], "dtype": dtype, "layout": ""},
+            {"name": "input_1:0", "shape": [3, 5], "dtype": dtype, "layout": ""},
+        ],
+        "outputs": [{"name": "add", "shape": [3, 5], "dtype": dtype, "layout": ""}],
+        "nodes": {"total": 3, "input": 2, "add": 1},
+    }
+
+    assert msc_utils.dict_equal(inspect, expected), "Inspect {} mismatch with expected {}".format(
+        inspect, expected
+    )
 
 
 if __name__ == "__main__":

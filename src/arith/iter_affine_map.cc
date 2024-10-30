@@ -440,7 +440,7 @@ class IterMapRewriter : public ExprMutator {
   // Error messages for each unresolved expression.
   Array<String>& errors_;
   // The var map
-  std::unordered_map<Var, PrimExpr, ObjectPtrHash, ObjectPtrEqual> var_map_;
+  std::unordered_map<Var, PrimExpr> var_map_;
   // input iter marks
   std::vector<IterMark> input_marks_;
 
@@ -696,7 +696,7 @@ class IterMapRewriter : public ExprMutator {
       // the delta of iter_min when it is updated when the lower bound predicate is present
       PrimExpr iter_min_delta = make_const(iter_min.dtype(), 0);
       if (predicate_induced_min.defined()) {
-        iter_min_delta = predicate_induced_min.value() - iter_min;
+        iter_min_delta = max(predicate_induced_min.value(), iter_min) - iter_min;
         iter_min = max(predicate_induced_min.value(), iter_min);
       }
       if (predicate_induced_max.defined()) {
@@ -1419,7 +1419,7 @@ bool MatchBoundConstraints(PrimExpr pred, Map<Var, Range>* input_iters,
 }
 
 bool IterRangeSanityCheck(const Map<Var, Range>& iter_ranges) {
-  std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> iters;
+  std::unordered_set<Var> iters;
   for (const auto& it : iter_ranges) iters.insert(it.first);
   auto f = [&](const VarNode* var) { return iters.count(GetRef<Var>(var)); };
   for (const auto& it : iter_ranges) {
@@ -2187,7 +2187,7 @@ TVM_REGISTER_GLOBAL("arith.IterMapSimplify")
 class SubspaceDivider {
  public:
   explicit SubspaceDivider(Analyzer* analyzer, const IterMarkSplitCollector& collector,
-                           const std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual>& sub_iters)
+                           const std::unordered_set<Var>& sub_iters)
       : analyzer_(analyzer), collector_(collector), sub_iters_(sub_iters) {}
 
   size_t unresolved_count() const { return unresolved_count_; }
@@ -2455,7 +2455,7 @@ class SubspaceDivider {
   // collector that collects the outgoing split reference of each IterMark
   const IterMarkSplitCollector collector_;
   // the set of subspace iters
-  const std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual>& sub_iters_;
+  const std::unordered_set<Var>& sub_iters_;
   // map from SplitExpr to its corresponding DivisionResult(Y*E(X)+X)
   std::unordered_map<IterSplitExpr, DivisionResult, ObjectPtrHash, ObjectPtrEqual> split_map_;
   // predicate of outer space and inner space;
@@ -2473,7 +2473,7 @@ Array<Array<IterMark>> SubspaceDivide(const Array<PrimExpr>& bindings,
   const Array<IterSumExpr>& maps = res->indices;
   if (maps.empty()) return {};
 
-  std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> inner_iter_set;
+  std::unordered_set<Var> inner_iter_set;
   for (const Var& inner_iter : sub_iters) {
     inner_iter_set.insert(inner_iter);
   }

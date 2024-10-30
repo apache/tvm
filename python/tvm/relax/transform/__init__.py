@@ -21,6 +21,7 @@ from .transform import (
     AllocateWorkspace,
     AlterOpImpl,
     AnnotateTIROpPattern,
+    AttachAttrLayoutFreeBuffers,
     AttachGlobalSymbol,
     BindParams,
     BindSymbolicVars,
@@ -28,6 +29,7 @@ from .transform import (
     CallTIRRewrite,
     CanonicalizeBindings,
     CombineParallelMatmul,
+    ComputePrimValue,
     ConvertLayout,
     ConvertToDataflow,
     DataflowBlockPass,
@@ -49,9 +51,12 @@ from .transform import (
     InlinePrivateFunctions,
     KillAfterLastUse,
     LambdaLift,
+    LazyGetInput,
+    LazySetOutput,
     LegalizeOps,
     LiftTransformParams,
     LowerAllocTensor,
+    LowerRuntimeBuiltin,
     MergeCompositeFunctions,
     MetaScheduleApplyDatabase,
     MetaScheduleTuneIRMod,
@@ -61,16 +66,19 @@ from .transform import (
     PatternCheckContext,
     RealizeVDevice,
     RemovePurityChecking,
-    RemoveUnusedParameters,
     RemoveUnusedOutputs,
+    RemoveUnusedParameters,
+    ReorderPermuteDimsAfterConcat,
     ReorderTakeAfterMatmul,
     RewriteCUDAGraph,
     RewriteDataflowReshape,
     RunCodegen,
     SplitCallTIRByPattern,
+    SplitLayoutRewritePreproc,
     StaticPlanBlockMemory,
     ToMixedPrecision,
     ToNonDataflow,
+    TopologicalSort,
     UpdateParamStructInfo,
     UpdateVDevice,
     VMBuiltinLower,
@@ -79,11 +87,14 @@ from .transform import (
     function_pass,
 )
 
+from .attach_external_modules import AttachExternModules
+from .fast_math import FastMathTransform
+from .fuse_transpose_matmul import FuseTransposeMatmul
+from .ipc_allreduce_rewrite import IPCAllReduceRewrite
 from .lazy_transform_params import LazyTransformParams
+from .lower_gpu_ipc_alloc_storage import LowerGPUIPCAllocStorage
 from .optimize_layout_transform import OptimizeLayoutTransform
 from .remove_redundant_reshape import RemoveRedundantReshape
-from .fast_math import FastMathTransform
-from .attach_external_modules import AttachExternModules
 
 # Import to register the legalization functions.
 from . import legalize_ops, tuning_api

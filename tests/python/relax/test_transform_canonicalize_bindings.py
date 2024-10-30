@@ -198,9 +198,43 @@ def test_change_shape():
     @I.ir_module
     class TestChangeShape:
         @R.function
+        def main(x: R.Tensor(ndim=2)):
+            y = x
+            # The MatchCast is non-trivial, as it introduces new shape
+            # vars.  Because the input tensor has an unknown shape
+            # rather than a symbolic shape, these new shape vars
+            # cannot be expressed in terms of previous variables.
+            # Therefore, the match cast must be retained.
+            o, p = T.int64(), T.int64()
+            z = R.match_cast(x, R.Tensor((o, p)))
+            w = z
+            q = R.add(w, y)
+            return R.add(q, w)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor(ndim=2)):
+            o, p = T.int64(), T.int64()
+            z = R.match_cast(x, R.Tensor((o, p)))
+            # the struct_info field on q will need to be updated
+            q = R.add(z, x)
+            return R.add(q, z)
+
+    verify(TestChangeShape, Expected)
+
+
+def test_replace_symbolic_variable_and_remove_match_cast():
+    @I.ir_module
+    class TestChangeShape:
+        @R.function
         def main(x: R.Tensor(("m", "n"))):
             y = x
-            # not trivial: introduces new shape vars
+            # The MatchCast is non-trivial, as it introduces new shape
+            # vars.  However, the new shape vars are redundant, and
+            # are replaced by canonicalization.  After replacing the
+            # new shape vars, the MatchCast is trivial and may be
+            # removed.
             o, p = T.int64(), T.int64()
             z = R.match_cast(x, R.Tensor((o, p)))
             w = z
@@ -211,13 +245,46 @@ def test_change_shape():
     class Expected:
         @R.function
         def main(x: R.Tensor(("m", "n"))):
-            o, p = T.int64(), T.int64()
-            z = R.match_cast(x, R.Tensor((o, p)))
-            # the struct_info field on q will need to be updated
-            q = R.add(z, x)
-            return R.add(q, z)
+            m = T.int64()
+            n = T.int64()
+            q: R.Tensor([m, n]) = R.add(x, x)
+            return R.add(q, x)
 
     verify(TestChangeShape, Expected)
+
+
+def test_replace_symbolic_variable_and_remove_match_cast_of_tuple():
+    """Symbolic variables may be defined in R.match_cast of tuple
+
+    This test is similar to
+    `test_replace_symbolic_variable_and_remove_match_cast`, except
+    that the MatchCast is performed on a Relax tuple.
+
+    This is a regression test.  Earlier implementations only inferred
+    TIR variables from `R.match_cast` of tensors, shapes, and prim
+    values, but omitted tuples.
+
+    """
+
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(x: R.Tuple(R.Tensor(("m", "n")))):
+            y = x
+            o, p = T.int64(), T.int64()
+            z = R.match_cast(x, R.Tuple(R.Tensor((o, p))))
+            w = z
+            q = R.add(w[0], y[0])
+            return R.add(q, w[0])
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tuple(R.Tensor(("m", "n")))):
+            q = R.add(x[0], x[0])
+            return R.add(q, x[0])
+
+    verify(Before, Expected)
 
 
 def test_unwrap_tuple():
@@ -287,6 +354,222 @@ def test_fold_match_cast():
             return n
 
     verify(Input, Expected)
+
+
+def test_fold_variables_from_match_cast():
+    """Symbolic variables in R.match_cast may be inferred
+
+    If the argument to `R.match_cast` has known shape parameters, they
+    may be used to infer symbolic shape parameters.
+
+    """
+
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(
+            state: R.Tensor([16], dtype="float32"),
+            A: R.Tensor([16, 16], dtype="float32"),
+            B: R.Tensor([16, 16], dtype="float32"),
+        ):
+            N1 = T.int64()
+            M = T.int64()
+            N2 = T.int64()
+
+            # The symbolic variables `N1`, `N2` and `M` are defined by
+            # these `R.match_cast` statements.  Since the inputs have
+            # a known shape, the values of these symbolic variables
+            # may be inferred.
+            lhs_A = R.match_cast(A, R.Tensor([N1, M], dtype="float32"))
+            lhs_B = R.match_cast(B, R.Tensor([N2, M], dtype="float32"))
+            rhs = R.match_cast(state, R.Tensor([M], dtype="float32"))
+
+            # The symbolic shapes propagate downstream.
+            lhs: R.Tensor([N1 + N2, M], "float32") = R.concat((lhs_A, lhs_B), axis=0)
+            proj_concat: R.Tensor([N1 + N2], "float32") = R.matmul(lhs, rhs, out_dtype="void")
+            proj_A = R.strided_slice(
+                proj_concat,
+                (R.prim_value(0),),
+                (R.prim_value(0),),
+                (R.prim_value(N1),),
+                assume_inbound=False,
+            )
+            proj_B = R.strided_slice(
+                proj_concat,
+                [R.prim_value(0)],
+                [R.prim_value(N1)],
+                [R.prim_value(N1 + N2)],
+                assume_inbound=False,
+            )
+            return (proj_A, proj_B)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            state: R.Tensor([16], dtype="float32"),
+            A: R.Tensor([16, 16], dtype="float32"),
+            B: R.Tensor([16, 16], dtype="float32"),
+        ):
+            # The function no longer depends on symbolic variables.
+            # Shape inference is now propagated using the
+            # statically-known shapes.
+
+            lhs: R.Tensor([32, 16], dtype="float32") = R.concat((A, B), axis=0)
+            proj_concat: R.Tensor([32], dtype="float32") = R.matmul(lhs, state, out_dtype="void")
+            proj_A: R.Tensor([16], dtype="float32") = R.strided_slice(
+                proj_concat,
+                [R.prim_value(0)],
+                [R.prim_value(0)],
+                [R.prim_value(16)],
+                assume_inbound=False,
+            )
+            proj_B: R.Tensor([16], dtype="float32") = R.strided_slice(
+                proj_concat,
+                [R.prim_value(0)],
+                [R.prim_value(16)],
+                [R.prim_value(32)],
+                assume_inbound=False,
+            )
+            return (proj_A, proj_B)
+
+    verify(Before, Expected)
+
+
+def test_inconsistent_match_cast_raises_error():
+    """Symbolic variables from R.match_cast must be consistent
+
+    All match cast statements must provide consistent definitions for
+    symbolic variables.  In this test, the value of `M` would be
+    inferred as 16 from either `state` or `A`, but would be inferred
+    as 32 from `B`.
+
+    """
+
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(
+            state: R.Tensor([16], dtype="float32"),
+            A: R.Tensor([16, 16], dtype="float32"),
+            B: R.Tensor([32, 32], dtype="float32"),
+        ):
+            N1 = T.int64()
+            M = T.int64()
+            N2 = T.int64()
+
+            # These R.match_cast statements define inconsistent values
+            # for the symbolic shape parameters.
+            lhs_A = R.match_cast(A, R.Tensor([N1, M], dtype="float32"))
+            lhs_B = R.match_cast(B, R.Tensor([N2, M], dtype="float32"))
+            rhs = R.match_cast(state, R.Tensor([M], dtype="float32"))
+
+            lhs: R.Tensor([N1 + N2, M], "float32") = R.concat((lhs_A, lhs_B), axis=0)
+            proj_concat: R.Tensor([N1 + N2], "float32") = R.matmul(lhs, rhs, out_dtype="void")
+            proj_A = R.strided_slice(
+                proj_concat,
+                (R.prim_value(0),),
+                (R.prim_value(0),),
+                (R.prim_value(N1),),
+                assume_inbound=False,
+            )
+            proj_B = R.strided_slice(
+                proj_concat,
+                [R.prim_value(0)],
+                [R.prim_value(N1)],
+                [R.prim_value(N1 + N2)],
+                assume_inbound=False,
+            )
+            return (proj_A, proj_B)
+
+    with pytest.raises(ValueError, match="MatchCast statements must be consistent"):
+        CanonicalizeBindings()(Before)
+
+
+def test_match_cast_may_have_distinct_values_in_branches():
+    """Conditional branches may have different values of symbolic variables
+
+    Here, the value of `N` can be inferred as 16 within the `if`
+    branch and as 32 within the `else` branch.
+
+    """
+
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(
+            state: R.Tensor(["N"], dtype="float32"),
+            A: R.Tensor(["M", 16], dtype="float32"),
+            B: R.Tensor(["M", 32], dtype="float32"),
+            scale: R.Prim("float32"),
+        ):
+            N = T.int64()
+            M = T.int64()
+
+            if N == 16:
+                weights: R.Tensor([M, 16], "float32") = A * scale
+                weights: R.Tensor([M, N], "float32") = R.match_cast(
+                    weights, R.Tensor([M, N], "float32")
+                )
+                weights: R.Tensor([M, N], "float32") = weights * scale
+            else:
+                weights: R.Tensor([M, 32], "float32") = B * scale
+                weights: R.Tensor([M, N], "float32") = R.match_cast(
+                    weights, R.Tensor([M, N], "float32")
+                )
+                weights: R.Tensor([M, N], "float32") = weights * scale
+
+            weights: R.Tensor([M, N], "float32") = weights * scale
+
+            out: R.Tensor([M], "float32") = R.matmul(weights, state)
+
+            return out
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(
+            state: R.Tensor(["N"], dtype="float32"),
+            A: R.Tensor(["M", 16], dtype="float32"),
+            B: R.Tensor(["M", 32], dtype="float32"),
+            scale: R.Prim("float32"),
+        ):
+            N = T.int64()
+            M = T.int64()
+
+            if N == 16:
+                # Prior to the R.match_cast, the
+                weights: R.Tensor([M, 16], "float32") = A * scale
+                # The scaled weights within the branch may perform
+                # shape inference knowing that N==16.
+                weights: R.Tensor([M, 16], "float32") = weights * scale
+                # The match cast on exiting the if branch restores the
+                weights = R.match_cast(weights, R.Tensor([M, N], "float32"))
+            else:
+                # Prior to the R.match_cast, the
+                weights: R.Tensor([M, 32], "float32") = B * scale
+                # Within the else-branch, the R.match_cast implies
+                # that N==32.  While this conflicts with the earlier
+                # definition, the two occur in separate branches, so
+                # this is legal.
+                # The scaled weights within the branch may perform
+                # shape inference knowing that N==32.
+                weights: R.Tensor([M, 32], "float32") = weights * scale
+                weights = R.match_cast(weights, R.Tensor([M, N], "float32"))
+
+            # Outside of the conditional, we no longer have a known
+            # value for N, so this shape inference must be done using
+            # a dynamic shape for `N`.
+            weights: R.Tensor([M, N], "float32") = weights * scale
+
+            # After the conditional branch, we no longer have a known
+            # value of N, so this shape inference must use the dynamic
+            # shape.
+            out: R.Tensor([M], "float32") = R.matmul(weights, state)
+
+            return out
+
+    verify(Before, Expected)
 
 
 def test_multiple_outputs():
@@ -975,6 +1258,91 @@ def test_unwrap_tuple_of_constant():
             return z
 
     verify(TestChainAssignments, Expected)
+
+
+def test_trivial_binding_of_replaced_non_dataflow_var():
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(param_tuple: R.Tuple([R.Tensor])):
+            with R.dataflow():
+                A = param_tuple[0]
+                B = A
+                C = R.add(A, B)
+                R.output(A, B, C)
+            return C
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(param_tuple: R.Tuple([R.Tensor])):
+            with R.dataflow():
+                A = param_tuple[0]
+                C = R.add(A, A)
+                R.output(C)
+            return C
+
+    After = CanonicalizeBindings()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
+
+    def _get_binding_names(mod):
+        return [binding.var.name_hint for binding in mod["main"].body.blocks[0].bindings]
+
+    expected_names = _get_binding_names(Expected)
+    after_names = _get_binding_names(After)
+
+    assert after_names == expected_names
+
+
+def test_trace_tuple_through_round_trip():
+    """Canonicalize to the orignal tuple, without unwrap/rewrap."""
+
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(param_tuple: R.Tuple([R.Tensor, R.Tensor, R.Tensor])):
+            with R.dataflow():
+                A = param_tuple[0]
+                B = param_tuple[1]
+                C = param_tuple[2]
+                output = (A, B, C)
+                R.output(output)
+            return output
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(param_tuple: R.Tuple([R.Tensor, R.Tensor, R.Tensor])):
+            with R.dataflow():
+                A = param_tuple[0]
+                B = param_tuple[1]
+                C = param_tuple[2]
+                R.output()
+
+            return param_tuple
+
+    After = CanonicalizeBindings()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
+
+
+def test_trace_partial_tuple_through_round_trip():
+    """Canonicalize to the orignal tuple, without unwrap/rewrap."""
+
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(param_tuple: R.Tuple([R.Tensor, R.Tensor, R.Tensor])):
+            with R.dataflow():
+                A = param_tuple[0]
+                B = param_tuple[1]
+                output = (A, B)
+                R.output(output)
+            return output
+
+    Expected = Before
+
+    After = CanonicalizeBindings()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
 
 if __name__ == "__main__":

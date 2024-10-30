@@ -171,6 +171,13 @@ def test_target_llvm_options():
     )
 
 
+def test_target_llvm_jit_options():
+    target = tvm.target.Target("llvm -jit=mcjit")
+    assert target.attrs["jit"] == "mcjit"
+    target = tvm.target.Target("llvm -jit=orcjit")
+    assert target.attrs["jit"] == "orcjit"
+
+
 def test_target_create():
     targets = [cuda(), rocm(), mali(), intel_graphics(), arm_cpu("rk3399"), vta(), bifrost()]
     for tgt in targets:
@@ -538,6 +545,34 @@ def test_target_from_device_rocm(input_device):
     assert target.attrs["supports_16bit_buffer"] == f_get_target_property(
         dev, "supports_16bit_buffer"
     )
+
+
+@tvm.testing.requires_opencl
+@pytest.mark.parametrize("input_device", ["opencl", tvm.opencl()])
+def test_target_from_device_opencl(input_device):
+    target = Target.from_device(input_device)
+
+    dev = tvm.opencl()
+    assert target.kind.name == "opencl"
+    assert target.attrs["max_threads_per_block"] == dev.max_threads_per_block
+    assert target.max_shared_memory_per_block == dev.max_shared_memory_per_block
+    assert target.thread_warp_size == dev.warp_size
+
+
+def test_module_dict_from_deserialized_targets():
+    target = Target("llvm")
+
+    from tvm.script import tir as T
+
+    @T.prim_func
+    def func():
+        T.evaluate(0)
+
+    func = func.with_attr("Target", target)
+    target2 = tvm.ir.load_json(tvm.ir.save_json(target))
+    mod = tvm.IRModule({"main": func})
+    lib = tvm.build({target2: mod}, target_host=target)
+    lib["func"]()
 
 
 if __name__ == "__main__":

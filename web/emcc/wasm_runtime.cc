@@ -58,9 +58,11 @@
 #include "src/runtime/relax_vm/builtin.cc"
 #include "src/runtime/relax_vm/bytecode.cc"
 #include "src/runtime/relax_vm/executable.cc"
+#include "src/runtime/relax_vm/kv_state.cc"
 #include "src/runtime/relax_vm/lm_support.cc"
 #include "src/runtime/relax_vm/ndarray_cache_support.cc"
 #include "src/runtime/relax_vm/paged_kv_cache.cc"
+#include "src/runtime/relax_vm/rnn_state.cc"
 #include "src/runtime/relax_vm/vm.cc"
 
 // --- Implementations of backend and wasm runtime API. ---
@@ -98,6 +100,11 @@ void LogMessageImpl(const std::string& file, int lineno, int level, const std::s
 
 TVM_REGISTER_GLOBAL("testing.echo").set_body([](TVMArgs args, TVMRetValue* ret) {
   *ret = args[0];
+});
+
+TVM_REGISTER_GLOBAL("testing.call").set_body([](TVMArgs args, TVMRetValue* ret) {
+  (args[0].operator PackedFunc())
+      .CallPacked(TVMArgs(args.values + 1, args.type_codes + 1, args.num_args - 1), ret);
 });
 
 TVM_REGISTER_GLOBAL("testing.ret_string").set_body([](TVMArgs args, TVMRetValue* ret) {
@@ -149,5 +156,68 @@ void ArrayDecodeStorage(NDArray cpu_arr, std::string bytes, std::string format, 
 }
 
 TVM_REGISTER_GLOBAL("tvmjs.array.decode_storage").set_body_typed(ArrayDecodeStorage);
+
+// Concatenate n TVMArrays
+TVM_REGISTER_GLOBAL("tvmjs.runtime.ArrayConcat").set_body([](TVMArgs args, TVMRetValue* ret) {
+  std::vector<ObjectRef> data;
+  for (int i = 0; i < args.size(); ++i) {
+    // Get i-th TVMArray
+    ICHECK_EQ(args[i].type_code(), kTVMObjectHandle);
+    Object* ptr = static_cast<Object*>(args[i].value().v_handle);
+    ICHECK(ptr->IsInstance<ArrayNode>());
+    auto* arr_i = static_cast<const ArrayNode*>(ptr);
+    for (size_t j = 0; j < arr_i->size(); ++j) {
+      // Push back each j-th element of the i-th array
+      data.push_back(arr_i->at(j));
+    }
+  }
+  *ret = Array<ObjectRef>(data);
+});
+
+NDArray ConcatEmbeddings(const std::vector<NDArray>& embeddings) {
+  // Get output shape
+  int64_t hidden_size = embeddings[0]->shape[1];
+  DLDataType dtype = embeddings[0]->dtype;
+  DLDevice device = embeddings[0]->device;
+  int seqLen = 0;
+  for (int i = 0; i < embeddings.size(); ++i) {
+    ICHECK_EQ(embeddings[i]->ndim, 2);
+    ICHECK_EQ(embeddings[i]->shape[1], hidden_size);
+    seqLen += embeddings[i]->shape[0];
+  }
+
+  // Create output
+  std::vector<int64_t> shape;
+  shape.push_back(seqLen);
+  shape.push_back(hidden_size);
+  NDArray result = NDArray::Empty(shape, dtype, device);
+
+  // Copy
+  int offset = 0;
+  for (int i = 0; i < embeddings.size(); i++) {
+    const DLTensor& copy_src = *(embeddings[i].operator->());
+    const DLTensor* p_copy_dst = result.operator->();
+    DLTensor copy_dst = *p_copy_dst;
+    copy_dst.shape = embeddings[i]->shape;
+    copy_dst.byte_offset =
+        offset * hidden_size * ((embeddings[i]->dtype.bits * embeddings[i]->dtype.lanes + 7) / 8);
+    NDArray::CopyFromTo(&copy_src, &copy_dst);
+    offset += embeddings[i]->shape[0];
+  }
+
+  return result;
+}
+
+// Concatenate n NDArrays
+TVM_REGISTER_GLOBAL("tvmjs.runtime.ConcatEmbeddings").set_body([](TVMArgs args, TVMRetValue* ret) {
+  std::vector<NDArray> embeddings;
+  for (int i = 0; i < args.size(); ++i) {
+    ICHECK_EQ(args[i].type_code(), kTVMNDArrayHandle);
+    embeddings.push_back(args[i]);
+  }
+  NDArray result = ConcatEmbeddings(std::move(embeddings));
+  *ret = result;
+});
+
 }  // namespace runtime
 }  // namespace tvm

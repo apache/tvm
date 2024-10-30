@@ -17,13 +17,19 @@
 # pylint: disable=invalid-name
 """tvm.contrib.msc.core.transform.transform"""
 
+from typing import Dict
+
 import tvm
 from tvm.relax.transform import _ffi_api as relax_api
 from tvm.relay.transform import _ffi_api as relay_api
+from tvm.contrib.msc.core import utils as msc_utils
 
 
 def SetExprName(
-    as_relax: bool = True, entry_name: str = "main", target: str = ""
+    as_relax: bool = True,
+    entry_name: str = "main",
+    target: str = "",
+    var_names: Dict[str, str] = None,
 ) -> tvm.ir.transform.Pass:
     """Set name for the call and constant in IRModule.
 
@@ -35,6 +41,8 @@ def SetExprName(
         The entry name
     target: str
         The target prefix for target functions
+    var_names: dict<str, str>
+        The var names.
 
     Returns
     -------
@@ -42,7 +50,9 @@ def SetExprName(
     """
 
     if as_relax:
-        return relax_api.SetRelaxExprName(entry_name, target)  # type: ignore
+        var_names = var_names or {}
+        var_names = {k: msc_utils.legalize_expr_name(v) for k, v in var_names.items()}
+        return relax_api.SetRelaxExprName(entry_name, target, var_names)  # type: ignore
     return relay_api.SetRelayExprName(entry_name)  # type: ignore
 
 
@@ -136,3 +146,25 @@ def SetBYOCAttrs(target, entry_name: str = "main") -> tvm.ir.transform.Pass:
     """
 
     return relax_api.SetBYOCAttrs(target, entry_name)  # type: ignore
+
+
+def BindNamedParams(
+    func_name: str,
+    params: Dict[str, tvm.runtime.NDArray],
+) -> tvm.ir.transform.Pass:
+    """Bind params of function of the module to constant tensors with span names.
+
+    Parameters
+    ----------
+    func_name: str
+        The function name to be bound
+    params: dict<str, tvm.nd.array>
+        The map from parameter or parameter name to constant
+        tensors.
+
+    Returns
+    -------
+    ret: tvm.ir.transform.Pass
+    """
+
+    return relax_api.BindNamedParams(func_name, params)  # type: ignore

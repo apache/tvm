@@ -31,11 +31,17 @@ from .schedule_rule import ScheduleRule
 def _is_scheduled(func: tir.PrimFunc) -> bool:
     if not isinstance(func, tir.PrimFunc):
         return False
-    if not func.attrs:
-        return False
     if "tir.is_scheduled" not in func.attrs:
         return False
     return func.attrs["tir.is_scheduled"] == 1
+
+
+def _get_target(func: tir.PrimFunc) -> Target:
+    target = func.attrs.get("target")
+    if target is None:
+        return Target.current(allow_none=False)
+    else:
+        return target
 
 
 @module_pass(opt_level=0, name="ApplyDefaultSchedule")
@@ -57,10 +63,11 @@ class ApplyDefaultSchedule:  # pylint: disable=too-few-public-methods
         mod: IRModule,
         _: PassContext,
     ) -> IRModule:
-        target = Target.current(allow_none=False)
         updated_functions = {}
         for g_var, func in mod.functions_items():
             if isinstance(func, tir.PrimFunc) and not _is_scheduled(func):
+                target = _get_target(func)
+
                 sch = _apply_rules(func, target, self.rules, tunable=False)
                 if sch is not None:
                     assert len(sch) == 1

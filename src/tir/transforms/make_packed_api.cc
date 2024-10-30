@@ -81,7 +81,11 @@ class ReturnRewriter : public StmtMutator {
 
     // convert val's data type to FFI data type, return type code
     DataType dtype = val.dtype();
-    if (dtype.is_int() || dtype.is_uint()) {
+    if (dtype.is_bool()) {
+      info.tcode = kTVMArgBool;
+      info.expr = Cast(DataType::Int(64), val);
+
+    } else if (dtype.is_int() || dtype.is_uint()) {
       info.tcode = kTVMArgInt;
       info.expr = Cast(DataType::Int(64), val);
     } else if (dtype.is_float()) {
@@ -183,6 +187,11 @@ inline Stmt MakeAssertEQ(PrimExpr lhs, PrimExpr rhs, std::string msg) {
   return AssertStmt(lhs == rhs, tvm::tir::StringImm(msg), Evaluate(0));
 }
 
+inline Stmt MakeAssertNotNull(PrimExpr ptr, std::string msg) {
+  Call isnull(DataType::Bool(), builtin::isnullptr(), {ptr});
+  return AssertStmt(!isnull, tvm::tir::StringImm(msg), Evaluate(0));
+}
+
 /* \brief Return the global_symbol of the function, if it should be updated
  *
  * \param func The function to be inspected
@@ -255,23 +264,50 @@ PrimFunc MakePackedAPI(PrimFunc func) {
   std::unordered_map<const VarNode*, PrimExpr> vmap;
   ArgBinder binder(&vmap);
 
-  seq_init.emplace_back(DeclBuffer(buf_packed_arg_type_ids, nop));
-
   // ---------------------------
   // local function definitions
   // load i-th argument as type t
-  auto f_arg_value = [&](DataType t, int i) {
+  auto f_arg_value = [&](DataType arg_type, int i) {
     Array<PrimExpr> call_args{v_packed_args, IntImm(DataType::Int(32), i),
                               IntImm(DataType::Int(32), builtin::kTVMValueContent)};
     // load 64 bit version
-    DataType api_type = APIType(t);
+    DataType api_type = APIType(arg_type);
     PrimExpr res = Call(api_type, builtin::tvm_struct_get(), call_args);
     // cast to the target version.
-    if (api_type != t) {
-      res = Cast(t, res);
+    if (api_type != arg_type) {
+      res = Cast(arg_type, res);
     }
     return res;
   };
+
+  // Find the device API context argument based on name
+  for (const auto& param : func_ptr->params) {
+    if (param->name_hint == kDeviceContextVar) {
+      num_args--;
+      v_resource_handle = param;
+      break;
+    }
+  }
+
+  // Assert correct type codes for each argument.  This must be done
+  // *before* any initialization steps produced by
+  // `binder.BindDLTensor()`.  The validity of those initialization
+  // steps depends on the correct types being present, and must not
+  // occur before the type codes are actually checked.
+  seq_init.push_back(MakeAssertEQ(v_num_packed_args, num_args, [&]() -> std::string {
+    std::ostringstream error_message;
+    error_message << name_hint << ": num_args should be " << num_args;
+    return error_message.str();
+  }()));
+
+  if (num_args > 0) {
+    seq_init.push_back(
+        MakeAssertNotNull(v_packed_args, name_hint + ": TVMValue* arg pointer was NULL"));
+    seq_init.push_back(
+        MakeAssertNotNull(buf_packed_arg_type_ids->data, name_hint + ": int* type_codes was NULL"));
+  }
+
+  seq_init.emplace_back(DeclBuffer(buf_packed_arg_type_ids, nop));
 
   // Need to delay binding of the buffers, in case some arguments also
   // appear in the buffer.
@@ -281,17 +317,13 @@ PrimFunc MakePackedAPI(PrimFunc func) {
   for (int i = 0; i < static_cast<int>(func_ptr->params.size()); ++i) {
     Var param = func_ptr->params[i];
 
-    // Pluck the device API context out based on name
+    // Ignore the device context argument, as it will still be passed
+    // as a native argument.
     if (param->name_hint == kDeviceContextVar) {
-      num_args--;
-      v_resource_handle = param;
       continue;
     }
 
-    var_def.emplace_back(f_arg_value(param.dtype(), i), param);
-    if (func_ptr->buffer_map.count(param)) {
-      buffer_def.emplace_back(param, func_ptr->buffer_map[param]);
-    }
+    PrimExpr arg_value;
 
     // type code checks
     Var tcode(param->name_hint + ".code", DataType::Int(32));
@@ -301,18 +333,38 @@ PrimFunc MakePackedAPI(PrimFunc func) {
     if (t.is_handle()) {
       std::ostringstream msg;
       msg << name_hint << ": Expect arg[" << i << "] to be pointer";
-      seq_check.emplace_back(AssertStmt(tcode == kTVMOpaqueHandle || tcode == kTVMNDArrayHandle ||
-                                            tcode == kTVMDLTensorHandle || tcode == kTVMNullptr,
-                                        tvm::tir::StringImm(msg.str()), nop));
+      seq_init.emplace_back(AssertStmt(tcode == kTVMOpaqueHandle || tcode == kTVMNDArrayHandle ||
+                                           tcode == kTVMDLTensorHandle || tcode == kTVMNullptr,
+                                       tvm::tir::StringImm(msg.str()), nop));
+
+      arg_value = f_arg_value(param.dtype(), i);
+    } else if (t.is_bool()) {
+      std::ostringstream msg;
+      msg << name_hint << ": Expect arg[" << i << "] to be boolean";
+      seq_init.emplace_back(
+          AssertStmt(tcode == kTVMArgBool || tcode == kDLInt, tvm::tir::StringImm(msg.str()), nop));
+
+      arg_value = cast(DataType::Bool(), f_arg_value(DataType::Int(64), i));
+
     } else if (t.is_int() || t.is_uint()) {
       std::ostringstream msg;
       msg << name_hint << ": Expect arg[" << i << "] to be int";
-      seq_check.emplace_back(AssertStmt(tcode == kDLInt, tvm::tir::StringImm(msg.str()), nop));
+      seq_init.emplace_back(
+          AssertStmt(tcode == kDLInt || tcode == kTVMArgBool, tvm::tir::StringImm(msg.str()), nop));
+
+      arg_value = f_arg_value(t, i);
     } else {
       ICHECK(t.is_float());
       std::ostringstream msg;
       msg << name_hint << ": Expect arg[" << i << "] to be float";
-      seq_check.emplace_back(AssertStmt(tcode == kDLFloat, tvm::tir::StringImm(msg.str()), nop));
+      seq_init.emplace_back(AssertStmt(tcode == kDLFloat, tvm::tir::StringImm(msg.str()), nop));
+
+      arg_value = f_arg_value(param.dtype(), i);
+    }
+
+    var_def.emplace_back(arg_value, param);
+    if (func_ptr->buffer_map.count(param)) {
+      buffer_def.emplace_back(param, func_ptr->buffer_map[param]);
     }
   }
 
@@ -360,13 +412,8 @@ PrimFunc MakePackedAPI(PrimFunc func) {
   // Return error code of zero on success
   body = SeqStmt({body, Evaluate(ret(Integer(0)))});
 
-  // Apply all argument assertions
-  std::ostringstream num_args_error;
-  num_args_error << name_hint << ": num_args should be " << num_args;
-  std::vector<Stmt> arg_assert = {MakeAssertEQ(v_num_packed_args, num_args, num_args_error.str())};
-  body = MergeNest({arg_assert, seq_init, binder.init_nest(), seq_check, binder.asserts(),
-                    arg_buffer_declarations},
-                   body);
+  body = MergeNest(
+      {seq_init, binder.init_nest(), seq_check, binder.asserts(), arg_buffer_declarations}, body);
   func_ptr->body = body;
   func_ptr->params = args;
 

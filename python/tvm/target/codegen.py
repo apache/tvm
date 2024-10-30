@@ -183,7 +183,8 @@ def llvm_get_cpu_features(target=None):
         List of available CPU features.
     """
     assert isinstance(target, Target) or target is None
-    return _ffi_api.llvm_get_cpu_features(target)
+    feature_map = _ffi_api.llvm_get_cpu_features(target)
+    return set(feature_map.keys())
 
 
 def llvm_cpu_has_features(cpu_features, target=None):

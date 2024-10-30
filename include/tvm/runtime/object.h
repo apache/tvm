@@ -741,13 +741,23 @@ struct ObjectPtrEqual {
  * \param ParentType The parent type of the objectref
  * \param ObjectName The type name of the object.
  */
-#define TVM_DEFINE_OBJECT_REF_METHODS(TypeName, ParentType, ObjectName)                        \
-  TypeName() = default;                                                                        \
+#define TVM_DEFINE_OBJECT_REF_METHODS_WITHOUT_DEFAULT_CONSTRUCTOR(TypeName, ParentType,        \
+                                                                  ObjectName)                  \
   explicit TypeName(::tvm::runtime::ObjectPtr<::tvm::runtime::Object> n) : ParentType(n) {}    \
   TVM_DEFINE_DEFAULT_COPY_MOVE_AND_ASSIGN(TypeName);                                           \
   const ObjectName* operator->() const { return static_cast<const ObjectName*>(data_.get()); } \
   const ObjectName* get() const { return operator->(); }                                       \
   using ContainerType = ObjectName;
+
+/*
+ * \brief Define object reference methods.
+ * \param TypeName The object type name
+ * \param ParentType The parent type of the objectref
+ * \param ObjectName The type name of the object.
+ */
+#define TVM_DEFINE_OBJECT_REF_METHODS(TypeName, ParentType, ObjectName) \
+  TypeName() = default;                                                 \
+  TVM_DEFINE_OBJECT_REF_METHODS_WITHOUT_DEFAULT_CONSTRUCTOR(TypeName, ParentType, ObjectName)
 
 /*
  * \brief Define object reference methods that is not nullable.
@@ -813,14 +823,18 @@ struct ObjectPtrEqual {
  *
  * \endcode
  */
-#define TVM_DEFINE_OBJECT_REF_COW_METHOD(ObjectName)     \
-  ObjectName* CopyOnWrite() {                            \
-    ICHECK(data_ != nullptr);                            \
-    if (!data_.unique()) {                               \
-      auto n = make_object<ObjectName>(*(operator->())); \
-      ObjectPtr<Object>(std::move(n)).swap(data_);       \
-    }                                                    \
-    return static_cast<ObjectName*>(data_.get());        \
+#define TVM_DEFINE_OBJECT_REF_COW_METHOD(ObjectName)               \
+  static_assert(ObjectName::_type_final,                           \
+                "TVM's CopyOnWrite may only be used for "          \
+                "Object types that are declared as final, "        \
+                "using the TVM_DECLARE_FINAL_OBJECT_INFO macro."); \
+  ObjectName* CopyOnWrite() {                                      \
+    ICHECK(data_ != nullptr);                                      \
+    if (!data_.unique()) {                                         \
+      auto n = make_object<ObjectName>(*(operator->()));           \
+      ObjectPtr<Object>(std::move(n)).swap(data_);                 \
+    }                                                              \
+    return static_cast<ObjectName*>(data_.get());                  \
   }
 
 // Implementations details below

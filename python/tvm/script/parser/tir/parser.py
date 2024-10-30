@@ -462,6 +462,8 @@ def visit_expr_stmt(self: Parser, node: doc.Expr) -> None:
     elif isinstance(res, str):
         # Ignore docstrings
         pass
+    elif isinstance(res, tvm.tir.stmt.BufferStore):
+        T.buffer_store(res.buffer, res.value, res.indices, res.predicate)
     else:
         self.report_error(node, f"Parsing resulted in unexpected type {type(res)}")
 
@@ -479,14 +481,27 @@ def visit_if(self: Parser, node: doc.If) -> None:
         The doc AST if node.
     """
     with self.var_table.with_frame():
-        with T.If(self.eval_expr(node.test)):
-            with T.Then():
+        predicate = self.eval_expr(node.test)
+        if isinstance(predicate, (PrimExpr, tvm.tir.expr.ExprOp)):
+            with T.If(self.eval_expr(node.test)):
+                with T.Then():
+                    with self.var_table.with_frame():
+                        self.visit_body(node.body)
+                if node.orelse:
+                    with T.Else():
+                        with self.var_table.with_frame():
+                            self.visit_body(node.orelse)
+        elif isinstance(predicate, bool):
+            if predicate:
                 with self.var_table.with_frame():
                     self.visit_body(node.body)
-            if node.orelse:
-                with T.Else():
-                    with self.var_table.with_frame():
-                        self.visit_body(node.orelse)
+            elif node.orelse:
+                with self.var_table.with_frame():
+                    self.visit_body(node.orelse)
+        else:
+            self.report_error(
+                node.test, f"If condition must be a boolean expression, but got {predicate}"
+            )
 
 
 @dispatch.register(token="tir", type_name="Assert")
@@ -520,7 +535,10 @@ def visit_return(self: Parser, node: doc.Return) -> None:
     node : doc.Return
         The doc AST return node.
     """
-    self.report_error(node, "Return is not allowed.")
+    value = self.eval_expr(node.value)
+    if value is None:
+        self.report_error(node, "Expression to be returned must be a PrimExpr")
+    T.evaluate(tvm.tir.ret(value))
 
 
 @dispatch.register(token="tir", type_name="tvm_declare_function")
@@ -536,12 +554,31 @@ def visit_tvm_declare_function(self: Parser, node: doc.FunctionDef) -> GlobalVar
         The doc AST return node.
     """
 
-    ret_type = None
-    if node.returns is not None:
-        ret_type = self.eval_expr(node.returns)
-        if callable(ret_type):
-            ret_type = PrimType(ret_type().dtype)
+    supplied_annotation = self.function_annotations
+    func_annotation = supplied_annotation.get(node.name, {})
 
-    # Only ret_type is needed for func_signature.
-    func_signature = tvm.tir.PrimFunc([], None, ret_type=ret_type)
+    ret_type = None
+    with self.var_table.with_frame():
+        if node.returns is not None:
+            ret_type = self.eval_expr(node.returns)
+            if callable(ret_type):
+                ret_type = PrimType(ret_type().dtype)
+
+        arg_annotations = []
+        for arg in node.args.args:
+            if arg.annotation is None:
+                self.report_error(arg, "Type annotation required for function parameters.")
+            try:
+                ann = self.eval_expr(arg.annotation)
+                if callable(ann):
+                    ann = ann()
+            except Exception:  # pylint: disable=broad-except
+                ann = func_annotation.get(arg.arg, None)
+                if ann is None:
+                    raise
+
+            IRBuilder.name(arg.arg, ann)
+            arg_annotations.append(ann)
+
+    func_signature = tvm.tir.PrimFunc(arg_annotations, None, ret_type=ret_type)
     return I.decl_function(node.name, func_signature)

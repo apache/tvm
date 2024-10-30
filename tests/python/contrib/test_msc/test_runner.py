@@ -84,13 +84,15 @@ def _test_from_torch(runner_cls, device, training=False, atol=1e-1, rtol=1e-1):
     torch_model = _get_torch_model("resnet50", training)
     if torch_model:
         path = "test_runner_torch_{}_{}".format(runner_cls.__name__, device)
-        workspace = msc_utils.set_workspace(msc_utils.msc_dir(path))
+        workspace = msc_utils.set_workspace(msc_utils.msc_dir(path, keep_history=False))
         log_path = workspace.relpath("MSC_LOG", keep_history=False)
         msc_utils.set_global_logger("critical", log_path)
         input_info = [([1, 3, 224, 224], "float32")]
         datas = [np.random.rand(*i[0]).astype(i[1]) for i in input_info]
         torch_datas = [torch.from_numpy(d) for d in datas]
         graph_model = fx.symbolic_trace(torch_model)
+        if training:
+            input_info = [([tvm.tir.Var("bz", "int64"), 3, 224, 224], "float32")]
         with torch.no_grad():
             golden = torch_model(*torch_datas)
             mod = from_fx(graph_model, input_info)
@@ -100,37 +102,37 @@ def _test_from_torch(runner_cls, device, training=False, atol=1e-1, rtol=1e-1):
         golden = [msc_utils.cast_array(golden)]
         workspace.destory()
         for gol_r, out_r in zip(golden, outputs):
-            tvm.testing.assert_allclose(gol_r, out_r, atol=atol, rtol=rtol)
+            tvm.testing.assert_allclose(gol_r, msc_utils.cast_array(out_r), atol=atol, rtol=rtol)
 
 
-def test_tvm_runner_cpu():
+@pytest.mark.parametrize("training", [True, False])
+def test_tvm_runner_cpu(training):
     """Test runner for tvm on cpu"""
 
-    for training in [True, False]:
-        _test_from_torch(TVMRunner, "cpu", training=training)
+    _test_from_torch(TVMRunner, "cpu", training=training)
 
 
 @tvm.testing.requires_cuda
-def test_tvm_runner_cuda():
+@pytest.mark.parametrize("training", [True, False])
+def test_tvm_runner_cuda(training):
     """Test runner for tvm on cuda"""
 
-    for training in [True, False]:
-        _test_from_torch(TVMRunner, "cuda", training=training)
+    _test_from_torch(TVMRunner, "cuda", training=training)
 
 
-def test_torch_runner_cpu():
+@pytest.mark.parametrize("training", [True, False])
+def test_torch_runner_cpu(training):
     """Test runner for torch on cpu"""
 
-    for training in [True, False]:
-        _test_from_torch(TorchRunner, "cpu", training=training)
+    _test_from_torch(TorchRunner, "cpu", training=training)
 
 
 @tvm.testing.requires_cuda
-def test_torch_runner_cuda():
+@pytest.mark.parametrize("training", [True, False])
+def test_torch_runner_cuda(training):
     """Test runner for torch on cuda"""
 
-    for training in [True, False]:
-        _test_from_torch(TorchRunner, "cuda", training=training, atol=1e-1, rtol=1e-1)
+    _test_from_torch(TorchRunner, "cuda", training=training, atol=1e-1, rtol=1e-1)
 
 
 @requires_tensorrt
@@ -146,7 +148,7 @@ def test_tensorflow_runner():
     tf_graph, graph_def = _get_tf_graph()
     if tf_graph and graph_def:
         path = "test_runner_tf"
-        workspace = msc_utils.set_workspace(msc_utils.msc_dir(path))
+        workspace = msc_utils.set_workspace(msc_utils.msc_dir(path, keep_history=False))
         log_path = workspace.relpath("MSC_LOG", keep_history=False)
         msc_utils.set_global_logger("critical", log_path)
         data = np.random.uniform(size=(1, 224, 224, 3)).astype("float32")
@@ -162,7 +164,7 @@ def test_tensorflow_runner():
         outputs = runner.run([data], ret_type="list")
         workspace.destory()
         for gol_r, out_r in zip(golden, outputs):
-            tvm.testing.assert_allclose(gol_r, out_r, atol=1e-3, rtol=1e-3)
+            tvm.testing.assert_allclose(gol_r, msc_utils.cast_array(out_r), atol=1e-3, rtol=1e-3)
 
 
 if __name__ == "__main__":

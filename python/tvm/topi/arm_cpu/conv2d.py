@@ -21,13 +21,15 @@ from __future__ import absolute_import as _abs
 import tvm
 from tvm import te
 from tvm import autotvm
+from tvm.script import tir as T
 import tvm.contrib.nnpack
+from tvm.tir.schedule.analysis import has_block
 
 from ..utils import traverse_inline, get_const_tuple
 from .. import nn
 from ..nn.utils import get_const_int, get_pad_tuple
 from ..nn.winograd_util import winograd_transform_matrices
-from .arm_utils import get_tiling_B_transformed
+from .arm_utils import get_tiling_A, get_tiling_B_transformed
 from .conv2d_spatial_pack import (
     conv2d_spatial_pack_nchw,
     conv2d_spatial_pack_nhwc,
@@ -517,14 +519,39 @@ def schedule_conv2d_nhwc_dsp(cfg, outs):
     return conv2d_nhwc_dsp_schedule(cfg, outs)
 
 
-def compute_conv2d_NHWC(cfg, data, kernel, strides, padding, dilation, out_dtype, interleave_A):
+def compute_conv2d_NHWC(
+    cfg,
+    data,
+    kernel,
+    strides,
+    padding,
+    dilation,
+    out_dtype,
+    interleave_A,
+    use_scalable_vectors=False,
+    use_sme=False,
+):
+    """Compute definition for conv2d NHWC"""
     N, IH, IW, IC = get_const_tuple(data.shape)
     KH, KW, _, OC = get_const_tuple(kernel.shape)
-    tile_N, tile_K = get_tiling_B_transformed(interleave_A, data.dtype)
+    tile_N, tile_K = get_tiling_B_transformed(
+        interleave_A, data.dtype, use_scalable_vectors, use_sme
+    )
 
-    kernel = nn.conv2d_gemm_weight_transform(kernel, tile_N, tile_K)
+    kernel = nn.conv2d_gemm_weight_transform(kernel, tile_N, tile_K, use_scalable_vectors, use_sme)
     return compute_conv2d_gemm_without_weight_transform(
-        cfg, data, kernel, strides, padding, dilation, out_dtype, (KH, KW), OC, interleave_A
+        cfg,
+        data,
+        kernel,
+        strides,
+        padding,
+        dilation,
+        out_dtype,
+        (KH, KW),
+        OC,
+        interleave_A,
+        use_scalable_vectors,
+        use_sme,
     )
 
 
@@ -620,3 +647,310 @@ def schedule_conv2d_NHWC_hybrid(cfg, outs):
 def schedule_conv2d_NHWC_hybrid_without_transform(cfg, outs):
     """Interface for hybrid schedule_conv2d_NHWC_hybrid"""
     return schedule_conv2d_NHWC(cfg, outs, False)
+
+
+@autotvm.register_topi_compute("conv2d_NHWC_hybrid_SVE.arm_cpu")
+def compute_conv2d_NHWC_hybrid_SVE(cfg, data, kernel, strides, padding, dilation, out_dtype):
+    """Interface for hybrid compute_conv2d_NHWC_hybrid_SVE"""
+    return compute_conv2d_NHWC(
+        cfg, data, kernel, strides, padding, dilation, out_dtype, False, True
+    )
+
+
+@autotvm.register_topi_schedule("conv2d_NHWC_hybrid_SVE.arm_cpu")
+def schedule_conv2d_NHWC_hybrid_SVE(cfg, outs):
+    """Interface for hybrid schedule_conv2d_NHWC_hybrid_SVE"""
+    return schedule_conv2d_NHWC(cfg, outs, False)
+
+
+@autotvm.register_topi_compute("conv2d_NHWC_hybrid_SME.arm_cpu")
+def compute_conv2d_NHWC_hybrid_SME(cfg, data, kernel, strides, padding, dilation, out_dtype):
+    """Interface for hybrid compute_conv2d_NHWC_hybrid_SME"""
+    return compute_conv2d_NHWC(
+        cfg,
+        data,
+        kernel,
+        strides,
+        padding,
+        dilation,
+        out_dtype,
+        False,
+        True,
+        True,
+    )
+
+
+@autotvm.register_topi_compute("conv2d_NHWC_hybrid_SME_transposed_B.arm_cpu")
+def compute_conv2d_NHWC_SME_transposed_B(
+    cfg,
+    data,
+    kernel,
+    strides,
+    padding,
+    dilation,
+    out_dtype,
+    kernel_size,
+    output_channels,
+):
+    """Compute conv2d NHWC hybrid SME transposed B"""
+    N, K = get_const_tuple(kernel.shape)
+    tile_N, tile_K = get_tiling_B_transformed(False, data.dtype, True, True)
+    pad_N, pad_K = tvm.topi.arm_cpu.arm_utils.get_conv2d_weights_padding(N, K, tile_N, tile_K)
+
+    kernel = tvm.topi.nn.pad(
+        kernel, pad_before=(0, 0), pad_after=(pad_N, pad_K), name="weight_padding"
+    )
+
+    return compute_conv2d_gemm_without_weight_transform(
+        cfg,
+        data,
+        kernel,
+        strides,
+        padding,
+        dilation,
+        out_dtype,
+        kernel_size,
+        output_channels,
+        interleave_A=False,
+        use_scalable_vectors=True,
+        use_sme=True,
+    )
+
+
+def schedule_conv2d_NHWC_hybrid_TIR(sch: tvm.tir.Schedule):
+    """
+    Perform TIR scheduling for conv2d NHWC.
+    """
+    # Get ordered buffer list
+    primfunc = sch.mod["main"]
+    buffer_names = primfunc.params
+    buffer_list = [primfunc.buffer_map[buf] for buf in buffer_names]
+    in_dtype = buffer_list[0].dtype
+    out_dtype = "float32"
+
+    # Determine PrimFunc blocks
+    block_list = [
+        "data_pad",
+        "data_im2col",
+        "T_reshape",
+        "A_padded_K",
+        "A_padded_M",
+        "weight_flatten",
+        "weight_padding",
+        "weight_transpose",
+        "C",
+        "conv2d_gemm_output",
+    ]
+    func_blocks = {}
+    for block in block_list:
+        func_blocks[block] = sch.get_block(block) if has_block(sch, block) else None
+
+    gemm_block = func_blocks["C"]
+    b, m, n, k = sch.get_loops(gemm_block)
+
+    # Get tiling information
+    use_scalable_vectors = sch.get(func_blocks["conv2d_gemm_output"]).annotations[
+        "use_scalable_vectors"
+    ]
+    use_sme = sch.get(func_blocks["conv2d_gemm_output"]).annotations["use_sme"]
+    M_padded = sch.get(m).extent
+    N_padded = sch.get(n).extent
+    K_padded = sch.get(k).extent
+    tile_M, tile_K = get_tiling_A(False, in_dtype, use_sme)
+    tile_N, _ = get_tiling_B_transformed(False, in_dtype, use_scalable_vectors, use_sme)
+    tile_M = T.cast(tile_M, M_padded.dtype)
+    tile_N = T.cast(tile_N, N_padded.dtype)
+    tile_K = T.cast(tile_K, K_padded.dtype)
+
+    # GeMM
+    # Compute each tile_M x tile_N tile
+    # By summing up K outer products
+    if use_sme:
+        # pylint: disable=import-outside-toplevel
+        from tvm.topi.arm_cpu.pstate_attributes import SMEAttributes
+        from tvm.tir.tensor_intrin.arm_cpu import (
+            ARM_SME_2SVLx2SVL_GEMM_INTERLEAVED_MOPA,
+            ARM_SME_INIT,
+            get_sme_gemm_interleaved_mopa_2svlx2svl_intrin,
+            get_transpose_interleave_intrin_name,
+        )
+
+        # Interleave the padded im2col matrix utilizing the matrix tile
+        interleave_t_A_block = sch.cache_read(gemm_block, 0, "global")
+        sch.transform_layout(interleave_t_A_block, ("write", 0), lambda b, m, k: (b, k, m))
+        b, m, k = sch.get_loops(interleave_t_A_block)
+        mo, mi = sch.split(m, factors=(None, tile_M), disable_predication=True)
+        ko, ki = sch.split(k, factors=(None, tile_K), disable_predication=True)
+        sch.parallel(b)
+        sch.reorder(b, ko, mo, ki, mi)
+        sch.tensorize(
+            ki, get_transpose_interleave_intrin_name(in_dtype, out_dtype, M_padded, K_padded)
+        )
+
+        # Interleave the padded weights matrix utilizing the matrix tile
+        if in_dtype == "float16":
+            interleave_b_block = sch.cache_read(gemm_block, 1, "global")
+            sch.transform_layout(interleave_b_block, ("write", 0), lambda n, k: (k, n))
+            n, k = sch.get_loops(interleave_b_block)
+            ko, ki = sch.split(k, factors=(None, tile_K), disable_predication=True)
+            no, ni = sch.split(n, factors=(None, tile_N), disable_predication=True)
+            sch.reorder(ko, no, ki, ni)
+            sch.tensorize(
+                ki, get_transpose_interleave_intrin_name(in_dtype, out_dtype, M_padded, K_padded)
+            )
+
+        # Split and reorder the loops of the GeMM for tensorization
+        b, m, n, k = sch.get_loops(gemm_block)
+        tile_M, _ = get_tiling_A(False, out_dtype, True)
+        tile_N, _ = get_tiling_B_transformed(False, out_dtype, True, True)
+        tile_M = T.cast(tile_M, M_padded.dtype)
+        tile_N = T.cast(tile_N, N_padded.dtype)
+        mo, mi = sch.split(m, factors=(None, tile_M), disable_predication=True)
+        no, ni = sch.split(n, factors=(None, tile_N), disable_predication=True)
+        sch.parallel(b)
+        sch.reorder(b, mo, no, mi, ni, k)
+
+        # Tensorize the GeMM initialization
+        init_block = sch.decompose_reduction(gemm_block, mi)
+        sch.tensorize(sch.get_loops(init_block)[-2], ARM_SME_INIT)
+
+        # Tensorize the GeMM update
+        sme_gemm_interleaved_intrin_name = (
+            ARM_SME_2SVLx2SVL_GEMM_INTERLEAVED_MOPA + f"_{M_padded}_{K_padded}_{in_dtype}"
+        )
+        tvm.tir.TensorIntrin.register(
+            sme_gemm_interleaved_intrin_name,
+            *get_sme_gemm_interleaved_mopa_2svlx2svl_intrin(M_padded, K_padded, in_dtype),
+            override=True,
+        )
+        sch.tensorize(mi, sme_gemm_interleaved_intrin_name)
+
+        # Add pstate annotations
+        root_block = sch.get_block("root")
+        sch.annotate(
+            root_block, SMEAttributes.STREAMING_MODE, SMEAttributes.StreamingModeValues.ENABLED
+        )
+        sch.annotate(root_block, SMEAttributes.ZA_STORAGE, SMEAttributes.ZAStorageValues.NEW)
+    elif use_scalable_vectors:
+        mo, mi = sch.split(m, [None, tile_M])
+        no, ni = sch.split(n, [None, tile_N], disable_predication=True)
+        ko, ki = sch.split(k, [None, tile_K])
+        b_mo_fused = sch.fuse(b, mo)
+        sch.parallel(b_mo_fused)
+        sch.reorder(
+            b_mo_fused,
+            no,
+            ko,
+            ki,
+            mi,
+            ni,
+        )
+        sch.vectorize(ni)
+        sch.unroll(mi)
+
+        # GeMM - Init
+        # Initialise an entire GeMM tile at once
+        sch.decompose_reduction(gemm_block, ko)
+    else:
+        mo, mi = sch.split(m, [None, tile_M])
+        no, ni = sch.split(n, [None, tile_N])
+        ko, ki = sch.split(k, [None, tile_K])
+        ni_outer, ni_inner = sch.split(ni, [4, None])
+        b_mo_fused = sch.fuse(b, mo)
+        sch.parallel(b_mo_fused)
+        sch.reorder(
+            b_mo_fused,
+            no,
+            ko,
+            ki,
+            ni_outer,
+            mi,
+            ni_inner,
+        )
+        sch.vectorize(ni_inner)
+        sch.unroll(mi)
+        sch.unroll(ni_outer)
+
+        # GeMM - Init
+        # Initialise an entire GeMM tile at once
+        sch.decompose_reduction(gemm_block, ko)
+
+    # Input padding
+    if func_blocks["data_pad"]:
+        input_padding_block = func_blocks["data_pad"]
+        b, h, w, ic = sch.get_loops(input_padding_block)
+        b_h_fused = sch.fuse(b, h)
+        sch.parallel(b_h_fused)
+
+    # Im2col + padding to tile size
+    # Computed outside GeMM
+    if func_blocks["data_im2col"]:
+        im2col_block = func_blocks["data_im2col"]
+        b1, m1, k1 = sch.get_loops(im2col_block)
+        b_m_fused_1 = sch.fuse(b1, m1)
+        if func_blocks["A_padded_K"]:
+            im2col_pad_K_block = func_blocks["A_padded_K"]
+            b2, m2, k2 = sch.get_loops(im2col_pad_K_block)
+            b_m_fused_2 = sch.fuse(b2, m2)
+            sch.parallel(b_m_fused_2)
+            sch.compute_at(im2col_block, b_m_fused_2)
+            _, k1 = sch.get_loops(sch.get_block("data_im2col"))
+        elif func_blocks["A_padded_M"]:
+            im2col_pad_M_block = func_blocks["A_padded_M"]
+            b2, m2, k2 = sch.get_loops(im2col_pad_M_block)
+            b_m_fused_2 = sch.fuse(b2, m2)
+            sch.parallel(b_m_fused_1)
+            sch.parallel(b_m_fused_2)
+        else:
+            sch.parallel(b_m_fused_1)
+
+        K = sch.get(k1).extent.value
+        if K % 16 == 0:
+            split_factor = 16
+        elif K % 8 == 0:
+            split_factor = 8
+        else:
+            IC = buffer_list[0].shape[3]
+            split_factor = IC
+        k_outer, k_inner = sch.split(k1, [None, split_factor])
+        sch.vectorize(k_inner)
+        sch.unroll(k_outer)
+
+    # Reshape + padding to tile size
+    # Computed inside GeMM
+    elif func_blocks["T_reshape"]:
+        reshape_block = func_blocks["T_reshape"]
+        A_pad_block = func_blocks["A_padded_K"] if func_blocks["A_padded_K"] else None
+        A_pad_block = func_blocks["A_padded_M"] if func_blocks["A_padded_M"] else A_pad_block
+        use_explicit_predication = use_sme and in_dtype == "float32"
+        if not use_explicit_predication:
+            if use_sme:
+                sch.compute_inline(reshape_block)
+            elif A_pad_block:
+                sch.compute_inline(reshape_block)
+                b, m, k = sch.get_loops(A_pad_block)
+                _, k_inner = sch.split(k, [None, tile_N])
+                sch.vectorize(k_inner)
+                sch.compute_at(A_pad_block, mi)
+            else:
+                sch.compute_at(reshape_block, mi)
+
+    # Weight flattening
+    if func_blocks["weight_flatten"]:
+        weight_flatten_block = func_blocks["weight_flatten"]
+        sch.compute_inline(weight_flatten_block)
+
+    # Weight transpose
+    if func_blocks["weight_transpose"] and func_blocks["weight_padding"]:
+        weight_padding_block = func_blocks["weight_padding"]
+        sch.compute_inline(weight_padding_block)
+
+    # Conv2d output block
+    output_block = func_blocks["conv2d_gemm_output"]
+    n, h, w, c = sch.get_loops(output_block)
+    n_h_fused = sch.fuse(n, h)
+    _, inner = sch.split(c, [None, 4])
+    sch.vectorize(inner)
+    sch.parallel(n_h_fused)
+
+    return sch

@@ -69,10 +69,28 @@ def _generate_codegen_args(parser, codegen_name):
             for tvm_type, python_type in INTERNAL_TO_NATIVE_TYPE.items():
                 if field.type_info.startswith(tvm_type):
                     target_option = field.name
+                    default_value = None
+
+                    # Retrieve the default value string from attrs(field) of config node
+                    # Eg: "default=target_cpu_name"
+                    target_option_default_str = field.type_info.split("default=")[1]
+
+                    # Extract the defalut value based on the tvm type
+                    if target_option_default_str and tvm_type == "runtime.String":
+                        default_value = target_option_default_str
+                    elif target_option_default_str and tvm_type == "IntImm":
+                        # Extract the numeric value from the python Int string, Eg: T.int64(8)
+                        str_slice = target_option_default_str.split("(")[1]
+                        default_value = str_slice.split(")")[0]
+
+                    if codegen["pass_default"] is False:
+                        default_value = None
+
                     target_group.add_argument(
                         f"--target-{codegen_name}-{target_option}",
                         type=python_type,
                         help=field.description,
+                        default=default_value,
                     )
 
 
@@ -104,6 +122,11 @@ def _reconstruct_codegen_args(args, codegen_name):
     codegen = get_codegen_by_target(codegen_name)
     pass_configs = PassContext.list_configs()
     codegen_options = {}
+    default_tgt = codegen["default_target"]
+
+    # Do not fetch codegen options, if the default target alone is choosen by user
+    if codegen_name not in args.target and default_tgt is not None and default_tgt in args.target:
+        return codegen_options
 
     if codegen["config_key"] is not None and codegen["config_key"] in pass_configs:
         attrs = make_node(pass_configs[codegen["config_key"]]["type"])
@@ -133,7 +156,6 @@ def reconstruct_target_args(args):
         codegen_options = _reconstruct_codegen_args(args, codegen_name)
         if codegen_options:
             reconstructed[codegen_name] = codegen_options
-
     return reconstructed
 
 

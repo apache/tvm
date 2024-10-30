@@ -34,10 +34,10 @@ RUN bash /install/ubuntu_install_cmake_source.sh
 COPY install/ubuntu_install_googletest.sh /install/ubuntu_install_googletest.sh
 RUN bash /install/ubuntu_install_googletest.sh
 
-ENV TVM_VENV /venv/apache-tvm-py3.8
+ENV TVM_VENV /venv/apache-tvm-py3.9
 COPY python/bootstrap/lockfiles /install/python/bootstrap/lockfiles
 COPY install/ubuntu_install_python.sh /install/ubuntu_install_python.sh
-RUN bash /install/ubuntu_install_python.sh 3.8
+RUN bash /install/ubuntu_install_python.sh 3.9
 ENV PATH ${TVM_VENV}/bin:$PATH
 ENV PYTHONNOUSERSITE 1  # Disable .local directory from affecting CI.
 
@@ -77,10 +77,6 @@ COPY install/ubuntu_install_golang.sh /install/ubuntu_install_golang.sh
 RUN bash /install/ubuntu_install_golang.sh
 ENV PATH $PATH:/usr/lib/go-1.18/bin
 
-# NNPACK deps
-COPY install/ubuntu_install_nnpack.sh /install/ubuntu_install_nnpack.sh
-RUN bash /install/ubuntu_install_nnpack.sh
-
 # ANTLR deps
 COPY install/ubuntu_install_java.sh /install/ubuntu_install_java.sh
 RUN bash /install/ubuntu_install_java.sh
@@ -113,14 +109,6 @@ RUN bash /install/ubuntu_install_jax.sh "cpu"
 COPY install/ubuntu_download_arm_compute_lib_binaries.sh /install/ubuntu_download_arm_compute_lib_binaries.sh
 RUN bash /install/ubuntu_download_arm_compute_lib_binaries.sh
 
-# Caffe deps
-COPY install/ubuntu_install_boost.sh /install/ubuntu_install_boost.sh
-RUN bash /install/ubuntu_install_boost.sh
-
-# Caffe
-COPY install/ubuntu_install_caffe.sh /install/ubuntu_install_caffe.sh
-RUN bash /install/ubuntu_install_caffe.sh
-
 # Github Arm(R) Ethos(TM)-N NPU driver
 COPY install/ubuntu_install_ethosn_driver_stack.sh /install/ubuntu_install_ethosn_driver_stack.sh
 RUN bash /install/ubuntu_install_ethosn_driver_stack.sh
@@ -128,10 +116,6 @@ RUN bash /install/ubuntu_install_ethosn_driver_stack.sh
 # Vitis-AI PyXIR CI deps
 COPY install/ubuntu_install_vitis_ai_packages_ci.sh /install/ubuntu_install_vitis_ai_packages_ci.sh
 RUN bash /install/ubuntu_install_vitis_ai_packages_ci.sh
-
-# Android SDK
-COPY install/ubuntu_install_androidsdk.sh /install/ubuntu_install_androidsdk.sh
-RUN bash /install/ubuntu_install_androidsdk.sh
 
 # PaddlePaddle deps
 COPY install/ubuntu_install_paddle.sh /install/ubuntu_install_paddle.sh
@@ -149,3 +133,12 @@ RUN bash /install/ubuntu_install_libxsmm.sh
 # ONNX and PyTorch
 COPY install/ubuntu_install_onnx.sh /install/ubuntu_install_onnx.sh
 RUN bash /install/ubuntu_install_onnx.sh
+
+# NNEF
+COPY install/ubuntu_install_nnef.sh /install/ubuntu_install_nnef.sh
+RUN bash /install/ubuntu_install_nnef.sh
+
+# AArch64 Architecture Envelope Model (AEM)
+COPY install/ubuntu_install_aprofile_aem.sh /install
+RUN bash /install/ubuntu_install_aprofile_aem.sh
+ENV PATH $PATH:/opt/arm/fvp/Base_RevC_AEMvA_pkg/models/Linux64_GCC-9.3/:/opt/arm/gcc-aarch64-none-elf/bin

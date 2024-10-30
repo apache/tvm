@@ -54,12 +54,12 @@ def test_simplify_reshape():
     z = before()
     zz = run_opt_pass(z, transform.SimplifyExpr())
     after = run_opt_pass(expected(), transform.InferType())
-    assert tvm.ir.structural_equal(zz, after)
+    tvm.ir.assert_structural_equal(zz, after)
 
     z = symbolic()
     zz = run_opt_pass(z, transform.SimplifyExpr())
     after = run_opt_pass(symbolic(), transform.InferType())
-    assert tvm.ir.structural_equal(zz, after)
+    tvm.ir.assert_structural_equal(zz, after)
 
 
 def test_simplify_transpose():
@@ -302,9 +302,7 @@ def test_simplify_transpose():
     ]:
         after = run_opt_pass(before, transform.SimplifyExpr())
         expected = run_opt_pass(expected, transform.InferType())
-        assert tvm.ir.structural_equal(after, expected), "\nafter: {} \nexpected: {}".format(
-            after, expected
-        )
+        tvm.ir.assert_structural_equal(after, expected)
 
 
 def test_simplify_full_elementwise():
@@ -348,12 +346,12 @@ def test_simplify_full_elementwise():
                 z = before_left(x, op, full)
                 zz = run_opt_pass(z, transform.SimplifyExpr())
                 after = run_opt_pass(after_left(x, op, value), transform.InferType())
-                assert tvm.ir.structural_equal(zz, after)
+                tvm.ir.assert_structural_equal(zz, after)
 
                 z = before_right(x, op, full)
                 zz = run_opt_pass(z, transform.SimplifyExpr())
                 after = run_opt_pass(after_right(x, op, value), transform.InferType())
-                assert tvm.ir.structural_equal(zz, after)
+                tvm.ir.assert_structural_equal(zz, after)
 
         # Test the case in which x is broadcast to full's shape
         full_ops = []
@@ -368,12 +366,12 @@ def test_simplify_full_elementwise():
                 z = before_left(x, op, full)
                 zz = run_opt_pass(z, transform.SimplifyExpr())
                 after = run_opt_pass(before_left(x, op, full), transform.InferType())
-                assert tvm.ir.structural_equal(zz, after)
+                tvm.ir.assert_structural_equal(zz, after)
 
                 z = before_right(x, op, full)
                 zz = run_opt_pass(z, transform.SimplifyExpr())
                 after = run_opt_pass(before_right(x, op, full), transform.InferType())
-                assert tvm.ir.structural_equal(zz, after)
+                tvm.ir.assert_structural_equal(zz, after)
 
     for shape in [[10], [10, 10], [10, 10, 10]]:
         for dtype in ["float32", "int32", "bool"]:
@@ -386,11 +384,11 @@ def test_eliminate_identity():
         expected = run_infer_type(x)
         if do_nothing:
             actual = run_opt_pass(x, transform.SimplifyExpr())
-            assert tvm.ir.structural_equal(actual, expected)
+            tvm.ir.assert_structural_equal(actual, expected)
         else:
             assert y is not None
             actual = run_opt_pass(y, transform.SimplifyExpr())
-            assert tvm.ir.structural_equal(actual, expected)
+            tvm.ir.assert_structural_equal(actual, expected)
 
     shape = [2, 3, 4]
     dtype = "float32"
@@ -434,9 +432,9 @@ def test_simplify_same_cast():
 
     expected = run_infer_type(data)
     actual1 = run_opt_pass(expr1, relay.transform.SimplifyExpr())
-    assert tvm.ir.structural_equal(actual1, expected)
+    tvm.ir.assert_structural_equal(actual1, expected)
     actual2 = run_opt_pass(expr2, relay.transform.SimplifyExpr())
-    assert tvm.ir.structural_equal(actual2, expected)
+    tvm.ir.assert_structural_equal(actual2, expected)
 
 
 def test_simplify_consecutive_cast():
@@ -451,13 +449,13 @@ def test_simplify_consecutive_cast():
 
     actual1 = run_opt_pass(expr2, relay.transform.SimplifyExpr())
     expected = run_infer_type(relay.cast(x, "int32"))
-    assert tvm.ir.structural_equal(actual1, expected)
+    tvm.ir.assert_structural_equal(actual1, expected)
     actual2 = run_opt_pass(expr3, relay.transform.SimplifyExpr())
     expected = run_infer_type(relay.cast(x, "int64"))
-    assert tvm.ir.structural_equal(actual2, expected)
+    tvm.ir.assert_structural_equal(actual2, expected)
     actual3 = run_opt_pass(expr4, relay.transform.SimplifyExpr())
     expected = run_infer_type(relay.cast(x, "float32"))
-    assert tvm.ir.structural_equal(actual3, expected)
+    tvm.ir.assert_structural_equal(actual3, expected)
 
     # cannot simplify the narrow cast
     x = relay.var("x", shape=(3, 4, 5), dtype="float32")
@@ -466,14 +464,14 @@ def test_simplify_consecutive_cast():
     expr2 = relay.cast_like(expr1, y)
     actual = run_opt_pass(expr2, relay.transform.SimplifyExpr())
     expected = run_infer_type(relay.cast(expr1, "float32"))
-    assert tvm.ir.structural_equal(actual, expected)
+    tvm.ir.assert_structural_equal(actual, expected)
 
     x = relay.var("x", shape=(3, 4), dtype="int64")
     expr1 = relay.cast(x, "bool")
     expr2 = relay.cast(expr1, "int32")
     actual = run_opt_pass(expr2, relay.transform.SimplifyExpr())
     expected = run_infer_type(expr2)
-    assert tvm.ir.structural_equal(actual, expected)
+    tvm.ir.assert_structural_equal(actual, expected)
 
 
 def test_concretize_reshape_like():
@@ -483,7 +481,7 @@ def test_concretize_reshape_like():
 
     expected = run_infer_type(relay.reshape(data, (6, 2, 2)))
     actual = run_opt_pass(expr, relay.transform.SimplifyExpr())
-    assert tvm.ir.structural_equal(actual, expected)
+    tvm.ir.assert_structural_equal(actual, expected)
 
 
 def test_concretize_reshape_like_attrs():
@@ -493,7 +491,7 @@ def test_concretize_reshape_like_attrs():
 
     expected = run_infer_type(relay.reshape(data, (2, 3, 2, 2)))
     actual = run_opt_pass(expr, relay.transform.SimplifyExpr())
-    assert tvm.ir.structural_equal(actual, expected)
+    tvm.ir.assert_structural_equal(actual, expected)
 
 
 def test_concretize_zeros_like():
@@ -503,7 +501,7 @@ def test_concretize_zeros_like():
 
     expected = run_infer_type(relay.zeros((3, 4, 5), dtype))
     actual = run_opt_pass(expr, relay.transform.SimplifyExpr())
-    assert tvm.ir.structural_equal(actual, expected)
+    tvm.ir.assert_structural_equal(actual, expected)
 
 
 def test_concretize_ones_like():
@@ -513,7 +511,7 @@ def test_concretize_ones_like():
 
     expected = run_infer_type(relay.ones((3, 4, 5), dtype))
     actual = run_opt_pass(expr, relay.transform.SimplifyExpr())
-    assert tvm.ir.structural_equal(actual, expected)
+    tvm.ir.assert_structural_equal(actual, expected)
 
 
 def test_concretize_full_like():
@@ -524,7 +522,7 @@ def test_concretize_full_like():
 
     expected = run_infer_type(relay.full(fill_value, (3, 4, 5), dtype))
     actual = run_opt_pass(expr, relay.transform.SimplifyExpr())
-    assert tvm.ir.structural_equal(actual, expected)
+    tvm.ir.assert_structural_equal(actual, expected)
 
 
 def test_concretize_collapse_sum_like():
@@ -534,7 +532,7 @@ def test_concretize_collapse_sum_like():
 
     expected = run_infer_type(relay.collapse_sum_to(data, (3,)))
     actual = run_opt_pass(expr, relay.transform.SimplifyExpr())
-    assert tvm.ir.structural_equal(actual, expected)
+    tvm.ir.assert_structural_equal(actual, expected)
 
 
 def test_concretize_broadcast_to_like():
@@ -544,7 +542,7 @@ def test_concretize_broadcast_to_like():
 
     expected = run_infer_type(relay.broadcast_to(data, (3, 3, 3)))
     actual = run_opt_pass(expr, relay.transform.SimplifyExpr())
-    assert tvm.ir.structural_equal(actual, expected)
+    tvm.ir.assert_structural_equal(actual, expected)
 
 
 def test_concretize_cast_like():
@@ -555,7 +553,7 @@ def test_concretize_cast_like():
 
     expected = run_infer_type(relay.cast(data, "int32"))
     actual = run_opt_pass(expr, relay.transform.SimplifyExpr())
-    assert tvm.ir.structural_equal(actual, expected)
+    tvm.ir.assert_structural_equal(actual, expected)
 
 
 def test_concretize_multiple():
@@ -580,14 +578,14 @@ def test_concretize_multiple():
 
     expected = run_infer_type(ret_c)
     actual = run_opt_pass(ret, relay.transform.SimplifyExpr())
-    assert tvm.ir.structural_equal(actual, expected)
+    tvm.ir.assert_structural_equal(actual, expected)
 
 
 def test_simplify_mul_add():
     def check_simple_fold(origin_exprs, expect_expr):
         for origin_expr in origin_exprs:
             simple_expr = run_opt_pass(origin_expr, transform.SimplifyExpr())
-            assert tvm.ir.structural_equal(simple_expr, expect_expr)
+            tvm.ir.assert_structural_equal(simple_expr, expect_expr)
 
     n = 32
     c1_val = np.random.uniform(size=n).astype("float32")
@@ -670,7 +668,7 @@ def test_simplify_rsqrt():
     for c in [1.0, 2.0, 2.5]:
         opt = run_opt_pass(before(c), transform.SimplifyExpr())
         after = run_opt_pass(expected(c), transform.InferType())
-        assert tvm.ir.structural_equal(opt, after)
+        tvm.ir.assert_structural_equal(opt, after)
 
 
 def test_simplify_dq_argmax():
@@ -686,7 +684,7 @@ def test_simplify_dq_argmax():
 
     opt = run_opt_pass(before(), transform.SimplifyExpr())
     after = run_opt_pass(expected(), transform.InferType())
-    assert tvm.ir.structural_equal(opt, after)
+    tvm.ir.assert_structural_equal(opt, after)
 
 
 def test_simplify_dq_argmin():
@@ -702,7 +700,7 @@ def test_simplify_dq_argmin():
 
     opt = run_opt_pass(before(), transform.SimplifyExpr())
     after = run_opt_pass(expected(), transform.InferType())
-    assert tvm.ir.structural_equal(opt, after)
+    tvm.ir.assert_structural_equal(opt, after)
 
 
 def test_simplify_dq_argsort():
@@ -718,7 +716,7 @@ def test_simplify_dq_argsort():
 
     opt = run_opt_pass(before(), transform.SimplifyExpr())
     after = run_opt_pass(expected(), transform.InferType())
-    assert tvm.ir.structural_equal(opt, after)
+    tvm.ir.assert_structural_equal(opt, after)
 
 
 def test_simplify_clip_cast():
@@ -797,9 +795,7 @@ def test_simplify_clip_cast():
     ]:
         after = run_opt_pass(before, transform.SimplifyExpr())
         expected = run_opt_pass(expected, transform.InferType())
-        assert tvm.ir.structural_equal(after, expected), "\nafter: {} \nexpected: {}".format(
-            after, expected
-        )
+        tvm.ir.assert_structural_equal(after, expected)
 
 
 def test_simplify_cast_clip():
@@ -842,9 +838,7 @@ def test_simplify_cast_clip():
     ]:
         after = run_opt_pass(before, transform.SimplifyExpr())
         expected = run_opt_pass(expected, transform.InferType())
-        assert tvm.ir.structural_equal(after, expected), "\nafter: {} \nexpected: {}".format(
-            after, expected
-        )
+        tvm.ir.assert_structural_equal(after, expected)
 
 
 def test_simplify_add():
@@ -859,7 +853,7 @@ def test_simplify_add():
 
     opt = run_opt_pass(before(), transform.SimplifyExpr())
     ref = run_infer_type(expected())
-    assert tvm.ir.structural_equal(opt, ref)
+    tvm.ir.assert_structural_equal(opt, ref)
 
 
 def test_binomials():

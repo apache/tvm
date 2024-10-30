@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Test eliminate common subexpr pass"""
+
 import tvm
 import tvm.testing
 from tvm.ir import VDevice
@@ -60,8 +61,9 @@ def test_dataflow_binding():
                 y1 = y
                 x2 = x1
                 y2 = y1
-                lv0: R.Tensor((2, 3), "float32", "llvm") = R.add(x2, y2)
-                gv: R.Tensor((2, 3), "float32", "llvm") = R.multiply(lv0, z)
+                x2 = R.hint_on_device(x2, tvm.cpu())
+                lv0 = R.add(x2, y2)
+                gv = R.multiply(lv0, z)
                 R.output(gv)
             return gv
 
@@ -90,6 +92,7 @@ def test_dataflow_binding():
                 y1: R.Tensor((2, 3), "float32", "llvm") = y
                 x2: R.Tensor((2, 3), "float32", "llvm") = x1
                 y2: R.Tensor((2, 3), "float32", "llvm") = y1
+                x2: R.Tensor((2, 3), "float32", "llvm") = x2
                 lv0: R.Tensor((2, 3), "float32", "llvm") = R.add(x2, y2)
                 gv: R.Tensor((2, 3), "float32", "llvm") = R.multiply(lv0, z)
                 R.output(gv)
@@ -120,7 +123,8 @@ def test_binding():
             y1 = y
             x2 = x1
             y2 = y1
-            s: R.Tensor((2, 3), "float32", "llvm") = R.add(x2, y2)
+            x2 = R.hint_on_device(x2, tvm.cpu())
+            s = R.add(x2, y2)
             m = R.multiply(s, z)
             return m
 
@@ -145,6 +149,7 @@ def test_binding():
             y1: R.Tensor((2, 3), "float32", "llvm") = y
             x2: R.Tensor((2, 3), "float32", "llvm") = x1
             y2: R.Tensor((2, 3), "float32", "llvm") = y1
+            x2: R.Tensor((2, 3), "float32", "llvm") = x2
             s: R.Tensor((2, 3), "float32", "llvm") = R.add(x2, y2)
             m: R.Tensor((2, 3), "float32", "llvm") = R.multiply(s, z)
             return m
@@ -202,6 +207,56 @@ def test_func_ret():
     verify(Input, Expect)
 
 
+def test_tuple_func_ret():
+    @I.ir_module
+    class Input:
+        I.module_attrs({"attr": 10})
+        I.module_global_infos(
+            {
+                "vdevice": [
+                    I.vdevice("cuda"),
+                ]
+            }
+        )
+
+        @R.function
+        def foo(
+            x: R.Tensor((2, 3), "float32"),
+            y: R.Tensor((2, 3), "float32"),
+            z: R.Tensor((2, 3), "float32"),
+        ) -> R.Tuple([R.Tensor((2, 3), "float32", "cuda"), R.Tensor((2, 3), "float32", "cuda")]):
+            with R.dataflow():
+                lv0 = R.add(x, y)
+                gv = R.multiply(lv0, z)
+                R.output(gv)
+            return (gv, gv)
+
+    @I.ir_module
+    class Expect:
+        I.module_attrs({"attr": 10})
+        I.module_global_infos(
+            {
+                "vdevice": [
+                    I.vdevice("cuda"),
+                ]
+            }
+        )
+
+        @R.function
+        def foo(
+            x: R.Tensor((2, 3), "float32", "cuda"),
+            y: R.Tensor((2, 3), "float32", "cuda"),
+            z: R.Tensor((2, 3), "float32", "cuda"),
+        ) -> R.Tuple([R.Tensor((2, 3), "float32", "cuda"), R.Tensor((2, 3), "float32", "cuda")]):
+            with R.dataflow():
+                lv0: R.Tensor((2, 3), "float32", "cuda") = R.add(x, y)
+                gv: R.Tensor((2, 3), "float32", "cuda") = R.multiply(lv0, z)
+                R.output(gv)
+            return (gv, gv)
+
+    verify(Input, Expect)
+
+
 def test_multi_device():
     @I.ir_module
     class Input:
@@ -224,10 +279,11 @@ def test_multi_device():
             z: R.Tensor((2, 3), "float32"),
         ) -> R.Tensor((2, 3), "float32", "cuda"):
             with R.dataflow():
-                lv0: R.Tensor((2, 3), "float32", "llvm") = R.add(x, y)
+                lv0 = R.add(x, y)
+                lv0 = R.hint_on_device(lv0, tvm.cpu())
                 lv1 = R.to_vdevice(lv0, "cuda")
                 lv2 = R.add(z, z)
-                gv: R.Tensor((2, 3), "float32", "cuda") = R.multiply(lv1, lv2)
+                gv = R.multiply(lv1, lv2)
                 R.output(gv)
             return gv
 
@@ -253,6 +309,7 @@ def test_multi_device():
         ) -> R.Tensor((2, 3), "float32", "cuda"):
             with R.dataflow():
                 lv0: R.Tensor((2, 3), "float32", "llvm") = R.add(x, y)
+                lv0: R.Tensor((2, 3), "float32", "llvm") = lv0
                 lv1: R.Tensor((2, 3), "float32", "cuda") = R.to_vdevice(lv0, "cuda")
                 lv2: R.Tensor((2, 3), "float32", "cuda") = R.add(z, z)
                 gv: R.Tensor((2, 3), "float32", "cuda") = R.multiply(lv1, lv2)
@@ -324,6 +381,35 @@ def test_insert_to_vdevice():
             return gv
 
     verify(Input, Expect)
+
+
+def test_input_module_is_unmodified():
+    def make_module():
+        @I.ir_module
+        class Module:
+            I.module_global_infos({"vdevice": [I.vdevice("llvm")]})
+
+            @R.function
+            def foo(
+                x: R.Tensor((2, 3), "float32"),
+                y: R.Tensor((2, 3), "float32"),
+                z: R.Tensor((2, 3), "float32"),
+            ) -> R.Tensor((2, 3), "float32"):
+                x1 = x
+                y1 = y
+                x2 = x1
+                y2 = y1
+                s: R.Tensor((2, 3), "float32", "llvm") = R.add(x2, y2)
+                m = R.multiply(s, z)
+                return m
+
+        return Module
+
+    original = make_module()
+    expected = make_module()
+
+    RealizeVDevice()(original)
+    tvm.ir.assert_structural_equal(original, expected)
 
 
 if __name__ == "__main__":

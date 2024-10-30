@@ -18,34 +18,89 @@
 Python API
 ==========
 
+.. toctree::
+    :maxdepth: 1
+    :caption: tvm
+
+    error
+    ir
+    instrument
+    transform
+    target
+    driver
 
 .. toctree::
-   :maxdepth: 2
+    :maxdepth: 1
+    :caption: tvm.runtime
 
-   runtime
-   ndarray
-   error
-   ir
-   target
-   tir
-   te
-   driver
-   relay/index
-   relay/frontend
-   relay/nn
-   relay/vision
-   relay/image
-   relay/transform
-   relay/analysis
-   relay/backend
-   relay/dataflow_pattern
-   relay/testing
-   autotvm
-   auto_scheduler
-   meta_schedule
-   rpc
-   micro
-   contrib
-   graph_executor
-   topi
-   vta/index
+    runtime/runtime
+    runtime/ndarray
+    runtime/relax_vm
+    runtime/disco
+    runtime/profiling
+
+.. toctree::
+    :maxdepth: 1
+    :caption: tvm.relax
+
+    relax/relax
+    relax/analysis
+    relax/block_builder
+    relax/frontend
+    relax/op
+    relax/transform
+
+.. toctree::
+    :maxdepth: 1
+    :caption: tvm.tir
+
+    tir/tir
+    tir/analysis
+    tir/schedule
+    tir/stmt_functor
+    tir/transform
+
+.. toctree::
+    :maxdepth: 1
+    :caption: tvm.te
+
+    te
+    topi
+
+.. toctree::
+    :maxdepth: 1
+    :caption: tvm.meta_schedule
+
+    meta_schedule
+
+.. toctree::
+    :maxdepth: 1
+    :caption: tvm.dlight
+
+    dlight
+
+.. toctree::
+    :maxdepth: 1
+    :caption: Misc
+
+    rpc
+    contrib
+
+.. toctree::
+    :maxdepth: 1
+    :caption: Legacy
+
+    relay/index
+    relay/frontend
+    relay/nn
+    relay/vision
+    relay/image
+    relay/transform
+    relay/analysis
+    relay/backend
+    relay/dataflow_pattern
+    relay/testing
+    autotvm
+    auto_scheduler
+    micro
+    graph_executor

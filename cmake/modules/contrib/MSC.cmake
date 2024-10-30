@@ -20,6 +20,7 @@ if(USE_MSC)
     list(APPEND COMPILER_SRCS ${MSC_CORE_SOURCE})
 
     tvm_file_glob(GLOB_RECURSE MSC_RUNTIME_SOURCE "src/runtime/contrib/msc/*.cc")
+    set_source_files_properties(${MSC_RUNTIME_SOURCE} PROPERTIES COMPILE_FLAGS "-Wno-deprecated-declarations")
     list(APPEND RUNTIME_SRCS ${MSC_RUNTIME_SOURCE})
 
     if(USE_TENSORRT_RUNTIME)

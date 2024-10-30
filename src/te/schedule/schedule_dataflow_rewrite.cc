@@ -124,9 +124,10 @@ void ReplaceDataFlow(const Array<Stage>& stages, std::unordered_map<Tensor, Tens
 }
 
 inline bool ReduceEqual(const tir::ReduceNode* a, const tir::ReduceNode* b) {
-  return (a->combiner.same_as(b->combiner)) && (a->source.same_as(b->source)) &&
-         (a->axis.same_as(b->axis)) && (a->condition.same_as(b->condition)) &&
-         ((a->init.empty() && b->init.empty()) || (a->init.same_as(b->init)));
+  StructuralEqual struct_equal;
+  return struct_equal(a->combiner, b->combiner) && struct_equal(a->source, b->source) &&
+         struct_equal(a->axis, b->axis) && struct_equal(a->condition, b->condition) &&
+         struct_equal(a->init, b->init);
 }
 
 Tensor Schedule::cache_read(const Tensor& tensor, const std::string& scope,

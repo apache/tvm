@@ -540,9 +540,7 @@ the graph node will only be evaluated once by the compiled program.
 These bindings allow for a style of programming that corresponds to that already
 employed by NNVM and other dataflow graph-based input formats. The fact that the variables
 are not scoped offers some flexibility in evaluation order compared to :code:`let`
-bindings, though this can also introduce some ambiguity in programs (the
-:ref:`developer introduction to the Relay IR<relay-dev-intro>` includes more detailed discussion
-of this nuance).
+bindings, though this can also introduce some ambiguity in programs.
 
 *Note: Graph bindings are not currently parsed by the text format.*
 

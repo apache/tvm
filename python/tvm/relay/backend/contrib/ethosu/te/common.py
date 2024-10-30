@@ -61,3 +61,29 @@ def get_layout_transform_matrices(ofm_channels: int) -> Tuple[List[List[float]],
     ]
 
     return nhwc_to_nhcwb16, nhcwb16_to_nhwc
+
+
+def get_lut_expr(lut, ifm_dtype):
+    """Get the LUT expression to pass it to the TE graph.
+    For information about the LUT see
+    https://developer.arm.com/documentation/102420/0200/Functional-description/Functional-blocks-/Output-unit/tanh--sigmoid--and-LUT
+
+    Parameters
+    ----------
+    lut : te.Tensor
+        The look-up table values.
+    ifm_dtype : str
+        The type of Input Feature Map tensor (IFM).
+
+    Returns
+    -------
+    lut_expr : tvm.tir.expr.Cast
+        The LUT expression to pass it to the TE graph
+    """
+    assert ifm_dtype in ["int8", "int16"]
+    if ifm_dtype == "int8":
+        assert lut.shape[0] == 256
+    if ifm_dtype == "int16":
+        assert lut.shape[0] == 512
+    lut_expr = (lut[0] + lut[lut.shape[0] - 1]).astype(ifm_dtype)
+    return lut_expr

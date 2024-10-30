@@ -53,7 +53,6 @@ def placeholder(shape, dtype=None, name="placeholder"):
     tensor: Tensor
         The created tensor
     """
-    shape = (shape,) if isinstance(shape, tvm.tir.PrimExpr) else shape
     dtype = "float32" if dtype is None else dtype
     return _ffi_api.Placeholder(shape, dtype, name)
 
@@ -333,15 +332,15 @@ def extern(
             )
         types.add(t.dtype)
 
-    if dtype is None:
-        if len(types) != 1:
-            raise ValueError("Cannot infer output type, please provide dtype argument")
-        infered_type = types.pop()
-        dtype = [infered_type for _ in shape]
-    if isinstance(dtype, str):
-        dtype = [dtype]
-
     if out_buffers is None:
+        if dtype is None:
+            if len(types) != 1:
+                raise ValueError("Cannot infer output type, please provide dtype argument")
+            infered_type = types.pop()
+            dtype = [infered_type for _ in shape]
+        if isinstance(dtype, str):
+            dtype = [dtype]
+
         for shp, dt in zip(shape, dtype):
             output_placeholders.append(
                 tvm.tir.decl_buffer(shp, dt, name, elem_offset=tvm.tir.Var("elem_offset", "int32"))
@@ -460,7 +459,7 @@ def var(name="tindex", dtype="int32", span=None):
 
     Returns
     -------
-    var : Var
+    var : tir.Var
         The result symbolic variable.
     """
     return tvm.tir.Var(name, dtype, span)

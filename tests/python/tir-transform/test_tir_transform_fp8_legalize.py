@@ -17,7 +17,9 @@
 import tvm
 import tvm.script
 import tvm.testing
+from tvm.target import Target
 from tvm.script import tir as T
+from tvm.tir.transform.transform import BindTarget
 
 # pylint: disable=no-member,invalid-name,unused-variable
 
@@ -204,8 +206,9 @@ promote_dtype = tvm.testing.parameter("float16", "float32")
 
 
 def test_fp8_compute_legalize(dtype, promote_dtype):
-    before = get_before(dtype)
-    expected = get_after_compute_legalize(dtype, promote_dtype)
+    target = Target("cuda")
+    before = BindTarget(target)(get_before(dtype))
+    expected = BindTarget(target)(get_after_compute_legalize(dtype, promote_dtype))
     # run the transform twice to ensure we can afford to deal
     # with this repeative optimizations
     after = tvm.tir.transform.FP8ComputeLegalize(promote_dtype)(before)
@@ -214,9 +217,10 @@ def test_fp8_compute_legalize(dtype, promote_dtype):
 
 
 def test_fp8_storage_legalize(dtype, promote_dtype):
-    before = get_after_compute_legalize(dtype, promote_dtype)
+    target = Target("cuda")
+    before = BindTarget(target)(get_after_compute_legalize(dtype, promote_dtype))
     after = tvm.tir.transform.FP8StorageLegalize()(before)
-    expected = get_after_storage_legalize(dtype, promote_dtype)
+    expected = BindTarget(target)(get_after_storage_legalize(dtype, promote_dtype))
     tvm.ir.assert_structural_equal(after, expected)
 
 

@@ -40,20 +40,9 @@ struct TakeAttrs : public tvm::AttrsNode<TakeAttrs> {
 
 /*! \brief Attributes used in strided_slice operator */
 struct StridedSliceAttrs : public tvm::AttrsNode<StridedSliceAttrs> {
-  Array<Integer> axes;
-  Array<PrimExpr> begin;
-  Array<PrimExpr> end;
-  Optional<Array<PrimExpr>> strides;
   bool assume_inbound;
 
   TVM_DECLARE_ATTRS(StridedSliceAttrs, "relax.attrs.StridedSliceAttrs") {
-    TVM_ATTR_FIELD(axes).describe("Axes along which slicing is applied.");
-    TVM_ATTR_FIELD(begin).describe("The indices to begin with in the slicing, inclusive.");
-    TVM_ATTR_FIELD(end).describe("The indices indicating end of the slice, exclusive.");
-    TVM_ATTR_FIELD(strides).describe(
-        "Specifies the stride values, it can be negative in that case, the input tensor will be "
-        "reversed in that particular axis. If not specified, it by default is an list of ones of "
-        "the same length as `axes`.");
     TVM_ATTR_FIELD(assume_inbound)
         .set_default(true)
         .describe(

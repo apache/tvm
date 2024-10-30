@@ -224,6 +224,10 @@ struct BlockVarDomainInfo {
                analyzer->CanProveEqual(bound.max(), intersect.max())) {
       dom = bound;
       bound = arith::IntSet::Nothing();
+    } else if (is_const_int(intersect.min()) && is_const_int(intersect.max())) {
+      // if the bound induce constant iter range, merge bound to loop domain
+      dom = intersect;
+      bound = arith::IntSet::Nothing();
     }
   }
 };

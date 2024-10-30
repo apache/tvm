@@ -43,7 +43,7 @@ def test_lazy_transform_params():
         def main_transform_params(
             params: R.Tuple(
                 R.Tensor((3, 16, 3, 3), dtype="float32"), R.Tensor((16, 16, 3, 3), dtype="float32")
-            )
+            ),
         ) -> R.Tuple(
             R.Tensor((16, 16, 3, 3), dtype="float32"), R.Tensor((16, 3, 3, 3), dtype="float32")
         ):
@@ -124,7 +124,7 @@ def test_get_item_only():
         def main_transform_params(
             params: R.Tuple(
                 R.Tensor((3, 16, 3, 3), dtype="float32"), R.Tensor((16, 16, 3, 3), dtype="float32")
-            )
+            ),
         ) -> R.Tuple(
             R.Tensor((16, 16, 3, 3), dtype="float32"), R.Tensor((16, 3, 3, 3), dtype="float32")
         ):
@@ -191,7 +191,7 @@ def test_get_item_only():
     tvm.ir.assert_structural_equal(after, Expected, map_free_vars=True)
 
 
-def test_extra_params():
+def test_extra_get_item_params():
     @I.ir_module
     class Before:
         @T.prim_func
@@ -209,7 +209,7 @@ def test_extra_params():
         def main_transform_params(
             params: R.Tuple(
                 R.Tensor((3, 16, 3, 3), dtype="float32"), R.Tensor((16, 16, 3, 3), dtype="float32")
-            )
+            ),
         ) -> R.Tuple(
             R.Tensor((16, 16, 3, 3), dtype="float32"), R.Tensor((16, 3, 3, 3), dtype="float32")
         ):
@@ -280,6 +280,136 @@ def test_extra_params():
     tvm.ir.assert_structural_equal(after, Expected, map_free_vars=True)
 
 
+def test_extra_set_item_params():
+    @I.ir_module
+    class Before:
+        @T.prim_func
+        def transform_layout_IOHW_to_OIHW(
+            w1: T.Buffer((3, 16, 3, 3), "float32"), out: T.Buffer((16, 3, 3, 3), "float32")
+        ):
+            for ax0, ax1, ax2, ax3 in T.grid(16, 3, 3, 3):
+                with T.block("layout_transform"):
+                    o, i, h, w = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                    T.reads(w1[i, o, h, w])
+                    T.writes(out[o, i, h, w])
+                    out[o, i, h, w] = w1[i, o, h, w]
+
+        @R.function
+        def main_transform_params(
+            params: R.Tuple(
+                R.Tensor((3, 16, 3, 3), dtype="float32"), R.Tensor((16, 16, 3, 3), dtype="float32")
+            ),
+        ) -> R.Tuple(
+            R.Tensor((16, 16, 3, 3), dtype="float32"), R.Tensor((16, 3, 3, 3), dtype="float32")
+        ):
+            # we expect ToNonDataflow and RemovePurityTracking to be invoked first
+            R.func_attr({"relax.force_pure": True})
+            cls = Before
+            lv: R.Tensor((16, 16, 3, 3), dtype="float32") = params[1]
+            lv1: R.Tensor((3, 16, 3, 3), dtype="float32") = params[0]
+            lv2 = R.call_tir(
+                cls.transform_layout_IOHW_to_OIHW,
+                (lv1,),
+                out_sinfo=R.Tensor((16, 3, 3, 3), dtype="float32"),
+            )
+            lv3 = R.add(lv2, R.const(1, "float32"))
+            gv: R.Tuple(
+                R.Tensor((16, 16, 3, 3), dtype="float32"),
+                R.Tensor((16, 3, 3, 3), dtype="float32"),
+            ) = (lv, lv3)
+            return gv
+
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def transform_layout_IOHW_to_OIHW(
+            w1: T.Buffer((3, 16, 3, 3), "float32"), out: T.Buffer((16, 3, 3, 3), "float32")
+        ):
+            # with T.block("root"):
+            for ax0, ax1, ax2, ax3 in T.grid(16, 3, 3, 3):
+                with T.block("layout_transform"):
+                    o, i, h, w = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                    T.reads(w1[i, o, h, w])
+                    T.writes(out[o, i, h, w])
+                    out[o, i, h, w] = w1[i, o, h, w]
+
+        @R.function(pure=False)
+        def main_transform_params(setter: R.Object) -> R.Tuple:
+            cls = Expected
+            gv: R.Object = R.call_packed("get_item", R.prim_value(1), sinfo_args=(R.Object,))
+            gv1: R.Tensor((16, 16, 3, 3), dtype="float32") = R.match_cast(
+                gv, R.Tensor((16, 16, 3, 3), dtype="float32")
+            )
+            lv: R.Tensor((16, 16, 3, 3), dtype="float32") = gv1
+            _: R.Object = R.call_packed(
+                "set_item", setter, R.prim_value(0), lv, sinfo_args=(R.Object,)
+            )
+            _1: R.Tuple = R.vm.kill_object(lv)
+            gv2: R.Object = R.call_packed("get_item", R.prim_value(0), sinfo_args=(R.Object,))
+            gv3: R.Tensor((3, 16, 3, 3), dtype="float32") = R.match_cast(
+                gv2, R.Tensor((3, 16, 3, 3), dtype="float32")
+            )
+            lv1: R.Tensor((3, 16, 3, 3), dtype="float32") = gv3
+            lv2 = R.call_tir(
+                cls.transform_layout_IOHW_to_OIHW,
+                (lv1,),
+                out_sinfo=R.Tensor((16, 3, 3, 3), dtype="float32"),
+            )
+            _2: R.Tuple = R.vm.kill_object(lv1)
+            lv3: R.Tensor((16, 3, 3, 3), dtype="float32") = R.add(lv2, R.const(1, "float32"))
+            _3: R.Object = R.call_packed(
+                "set_item", setter, R.prim_value(1), lv3, sinfo_args=(R.Object,)
+            )
+            gv_1: R.Tuple = R.tuple()
+            return gv_1
+
+    after = LazyTransformParams(
+        extra_set_item_params=[relax.Var("setter", relax.ObjectStructInfo())]
+    )(Before)
+    tvm.ir.assert_structural_equal(after, Expected, map_free_vars=True)
+
+
+def test_extra_set_item_params_with_const_output():
+    @I.ir_module
+    class Before:
+        @R.function
+        def main_transform_params(
+            params: R.Tuple(),
+        ) -> R.Tuple(R.Tensor([2], dtype="float32"), R.Tensor([3], dtype="float32")):
+            R.func_attr({"relax.force_pure": True})
+            gv = (
+                R.const(np.array([1, 2]).astype("float32")),
+                R.const(np.array([3, 4]).astype("float32")),
+            )
+            return gv
+
+    @I.ir_module
+    class Expected:
+        @R.function(pure=False)
+        def main_transform_params(setter: R.Object) -> R.Tuple:
+            output = R.tuple()
+            _ = R.call_packed(
+                "set_item",
+                setter,
+                R.prim_value(0),
+                R.const(np.array([1, 2]).astype("float32")),
+                sinfo_args=(R.Object,),
+            )
+            _ = R.call_packed(
+                "set_item",
+                setter,
+                R.prim_value(1),
+                R.const(np.array([3, 4]).astype("float32")),
+                sinfo_args=(R.Object,),
+            )
+            return output
+
+    after = LazyTransformParams(
+        extra_set_item_params=[relax.Var("setter", relax.ObjectStructInfo())]
+    )(Before)
+    tvm.ir.assert_structural_equal(after, Expected)
+
+
 def test_lazy_transform_params_with_symbolic_vars():
     @I.ir_module
     class Before:
@@ -311,8 +441,8 @@ def test_lazy_transform_params_with_symbolic_vars():
         @T.prim_func(private=True)
         def slice_buffer(
             Input: T.Buffer((16, 16), "float32"),
-            slice_index: T.int64,
             Output: T.Buffer(16, "float32"),
+            slice_index: T.int64,
         ):
             for i in T.grid(16):
                 with T.block("slice_buffer"):
@@ -349,8 +479,8 @@ def test_lazy_transform_params_with_symbolic_vars():
         @T.prim_func(private=True)
         def slice_buffer(
             Input: T.Buffer((16, 16), "float32"),
-            slice_index: T.int64,
             Output: T.Buffer(16, "float32"),
+            slice_index: T.int64,
         ):
             for i in T.grid(16):
                 with T.block("slice_buffer"):
@@ -381,7 +511,7 @@ def test_param_shape_symbolic():
             params: R.Tuple(
                 R.Tensor((3, "ic", 3, 3), dtype="float32"),
                 R.Tensor((16, 16, 3, 3), dtype="float32"),
-            )
+            ),
         ) -> R.Tuple(
             R.Tensor((16, 16, 3, 3), dtype="float32"), R.Tensor(("ic", 3, 3, 3), dtype="float32")
         ):
@@ -507,7 +637,7 @@ def test_output():
             params: R.Tuple(
                 R.Tensor((3, "ic", 3, 3), dtype="float32"),
                 R.Tensor((16, 16, 3, 3), dtype="float32"),
-            )
+            ),
         ) -> R.Tuple(
             R.Tensor((16, 16, 3, 3), dtype="float32"), R.Tensor(("ic", 3, 3, 3), dtype="float32")
         ):
@@ -561,7 +691,7 @@ def test_duplicate_outputs():
     class Before:
         @R.function
         def main_transform_params(
-            params: R.Tuple(R.Tensor([16], dtype="int32"), R.Tensor([16], dtype="int32"))
+            params: R.Tuple(R.Tensor([16], dtype="int32"), R.Tensor([16], dtype="int32")),
         ):
             R.func_attr({"relax.force_pure": True})
             param0 = params[0]
@@ -600,6 +730,460 @@ def test_duplicate_outputs():
 
     after = LazyTransformParams()(Before)
     tvm.ir.assert_structural_equal(after, Expected)
+
+
+def test_params_without_tuple():
+    @I.ir_module
+    class Before:
+        @R.function
+        def transform_params(A: R.Tensor([16, 16], "float32"), B: R.Tensor([16, 16], "float32")):
+            C = R.multiply(A, R.const(2, "float32"))
+            D = R.add(C, B)
+            return (D, B)
+
+    @I.ir_module
+    class Expected:
+        @R.function(pure=False)
+        def transform_params():
+            A = R.call_packed("get_item", R.prim_value(0), sinfo_args=[R.Object])
+            A = R.match_cast(A, R.Tensor([16, 16], "float32"))
+            C = R.multiply(A, R.const(2, "float32"))
+
+            B = R.call_packed("get_item", R.prim_value(1), sinfo_args=[R.Object])
+            B = R.match_cast(B, R.Tensor([16, 16], "float32"))
+            D = R.add(C, B)
+            return (D, B)
+
+    After = LazyTransformParams(fset_item=None)(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
+
+
+def test_retain_before_num_input():
+    """Only lazily load parameters after num_input"""
+
+    @I.ir_module
+    class Before:
+        @R.function
+        def transform_params(
+            relax_rank: R.Prim(value="rank"),
+            A: R.Tensor([16, 16], "float32"),
+            B: R.Tensor([16, 16], "float32"),
+        ):
+            R.func_attr({"num_input": 1})
+            rank = T.int64()
+            A_sharded = R.strided_slice(
+                A, axes=[0], begin=[rank * 8], end=[(rank + 1) * 8], assume_inbound=True
+            )
+            B_sharded = R.strided_slice(
+                B, axes=[1], begin=[rank * 8], end=[(rank + 1) * 8], assume_inbound=True
+            )
+            return (A_sharded, B_sharded)
+
+    @I.ir_module
+    class Expected:
+        @R.function(pure=False)
+        def transform_params(relax_rank: R.Prim(value="rank")):
+            R.func_attr({"num_input": 1})
+            rank = T.int64()
+
+            A = R.call_packed("get_item", R.prim_value(0), sinfo_args=[R.Object])
+            A = R.match_cast(A, R.Tensor([16, 16], "float32"))
+            A_sharded = R.strided_slice(
+                A, axes=[0], begin=[rank * 8], end=[(rank + 1) * 8], assume_inbound=True
+            )
+
+            B = R.call_packed("get_item", R.prim_value(1), sinfo_args=[R.Object])
+            B = R.match_cast(B, R.Tensor([16, 16], "float32"))
+            B_sharded = R.strided_slice(
+                B, axes=[1], begin=[rank * 8], end=[(rank + 1) * 8], assume_inbound=True
+            )
+
+            return (A_sharded, B_sharded)
+
+    After = LazyTransformParams(fset_item=None)(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
+
+
+def test_params_without_tuple_with_symbolic_var():
+    @I.ir_module
+    class Before:
+        @R.function
+        def transform_params(A: R.Object):
+            return (A,)
+
+    @I.ir_module
+    class Expected:
+        @R.function(pure=False)
+        def transform_params():
+            A = R.call_packed("get_item", R.prim_value(0), sinfo_args=[R.Object])
+            A = R.match_cast(A, R.Object)
+
+            return (A,)
+
+    After = LazyTransformParams(fset_item=None)(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
+
+
+def test_get_item_callback():
+    @I.ir_module
+    class Before:
+        @R.function
+        def transform_params(A: R.Tensor([16, 16], "float32"), B: R.Tensor([16, 16], "float32")):
+            C = R.multiply(A, R.const(2, "float32"))
+            D = R.add(C, B)
+            return (D, B)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def transform_params(fget_param: R.Callable([R.Prim("int64"), R.Object], R.Object)):
+            R.func_attr({"num_input": 1})
+            A = fget_param(R.prim_value(0), R.str("A"))
+            A = R.match_cast(A, R.Tensor([16, 16], "float32"))
+            C = R.multiply(A, R.const(2, "float32"))
+
+            B = fget_param(R.prim_value(1), R.str("B"))
+            B = R.match_cast(B, R.Tensor([16, 16], "float32"))
+            D = R.add(C, B)
+            return (D, B)
+
+    After = relax.transform.LazyGetInput()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
+
+
+def test_get_item_callback_num_attrs():
+    @I.ir_module
+    class Before:
+        @R.function(pure=False)
+        def transform_params(
+            rank_arg: R.Prim(value="rank"),
+            world_size_arg: R.Prim(value="world_size"),
+            weight_A: R.Tensor([16, 64], "float32"),
+            weight_B: R.Tensor([1024, 2048], "float32"),
+        ):
+            R.func_attr({"num_input": 2})
+
+            rank = T.int64()
+            world_size = T.int64()
+
+            _ = R.assert_op(
+                R.prim_value(16 % world_size == 0),
+                [R.prim_value(16), R.prim_value(world_size)],
+                format=(
+                    "World size must evenly divide A.shape[0] ({}), "
+                    "but received world size of {}."
+                ),
+            )
+            weight_A = R.strided_slice(
+                weight_A,
+                axes=[0],
+                begin=[rank * 16 // world_size],
+                end=[(rank + 1) * 16 // world_size],
+            )
+
+            _ = R.assert_op(
+                R.prim_value(2048 % world_size == 0),
+                [R.prim_value(2048), R.prim_value(world_size)],
+                format=(
+                    "World size must evenly divide B.shape[1] ({}), "
+                    "but received world size of {}."
+                ),
+            )
+            weight_B = R.strided_slice(
+                weight_B,
+                axes=[1],
+                begin=[rank * 2048 // world_size],
+                end=[(rank + 1) * 2048 // world_size],
+            )
+
+            return (weight_A, weight_B)
+
+    @I.ir_module
+    class Expected:
+        @R.function(pure=False)
+        def transform_params(
+            rank_arg: R.Prim(value="rank"),
+            world_size_arg: R.Prim(value="world_size"),
+            fget_item: R.Callable([R.Prim("int64"), R.Object], R.Object),
+        ):
+            R.func_attr({"num_input": 3})
+
+            rank = T.int64()
+            world_size = T.int64()
+
+            _ = R.assert_op(
+                R.prim_value(16 % world_size == 0),
+                [R.prim_value(16), R.prim_value(world_size)],
+                format=(
+                    "World size must evenly divide A.shape[0] ({}), "
+                    "but received world size of {}."
+                ),
+            )
+            weight_A = fget_item(R.prim_value(0), R.str("weight_A"))
+            weight_A = R.match_cast(weight_A, R.Tensor([16, 64], "float32"))
+            weight_A = R.strided_slice(
+                weight_A,
+                axes=[0],
+                begin=[rank * 16 // world_size],
+                end=[(rank + 1) * 16 // world_size],
+            )
+
+            _ = R.assert_op(
+                R.prim_value(2048 % world_size == 0),
+                [R.prim_value(2048), R.prim_value(world_size)],
+                format=(
+                    "World size must evenly divide B.shape[1] ({}), "
+                    "but received world size of {}."
+                ),
+            )
+            weight_B = fget_item(R.prim_value(1), R.str("weight_B"))
+            weight_B = R.match_cast(weight_B, R.Tensor([1024, 2048], "float32"))
+            weight_B = R.strided_slice(
+                weight_B,
+                axes=[1],
+                begin=[rank * 2048 // world_size],
+                end=[(rank + 1) * 2048 // world_size],
+            )
+
+            return (weight_A, weight_B)
+
+    After = relax.transform.LazyGetInput()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
+
+
+def test_get_item_callback_dynamic_shape():
+    @I.ir_module
+    class Before:
+        @R.function
+        def transform_params(
+            A: R.Tensor(["m", "n"], "float32"), B: R.Tensor(["m", "n"], "float32")
+        ) -> R.Tuple(R.Tensor(["m", "n"], "float32"), R.Tensor(["m", "n"], "float32")):
+            C = R.multiply(A, R.const(2, "float32"))
+            D = R.add(C, B)
+            return (D, B)
+
+    @I.ir_module
+    class Expected:
+        @R.function
+        def transform_params(
+            fget_param: R.Callable([R.Prim("int64"), R.Object], R.Object),
+        ) -> R.Tuple(R.Tensor(ndim=2, dtype="float32"), R.Tensor(ndim=2, dtype="float32")):
+            R.func_attr({"num_input": 1})
+            m = T.int64()
+            n = T.int64()
+
+            A = fget_param(R.prim_value(0), R.str("A"))
+            A = R.match_cast(A, R.Tensor([m, n], "float32"))
+            C = R.multiply(A, R.const(2, "float32"))
+
+            B = fget_param(R.prim_value(1), R.str("B"))
+            B = R.match_cast(B, R.Tensor([m, n], "float32"))
+            D = R.add(C, B)
+            return (D, B)
+
+    After = relax.transform.LazyGetInput()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
+
+
+def test_set_output_callback():
+    """fset_output is called for each element of the output tuple
+
+    The call is placed immediately after the corresponding
+    `VarBinding`.
+    """
+
+    @I.ir_module
+    class Before:
+        @R.function
+        def transform_params(A: R.Tensor([16, 16], "float32"), B: R.Tensor([16, 16], "float32")):
+            C = R.multiply(A, R.const(2, "float32"))
+            D = R.add(C, B)
+            return (D, C)
+
+    @I.ir_module
+    class Expected:
+        @R.function(pure=False)
+        def transform_params(
+            A: R.Tensor([16, 16], "float32"),
+            B: R.Tensor([16, 16], "float32"),
+            fset_output: R.Callable([R.Prim("int64"), R.Object], R.Tuple([]), purity=False),
+        ):
+            C = R.multiply(A, R.const(2, "float32"))
+            fset_output(R.prim_value(1), C)
+            D = R.add(C, B)
+            fset_output(R.prim_value(0), D)
+            return R.tuple()
+
+    After = relax.transform.LazySetOutput()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
+
+
+def test_set_output_callback_of_param():
+    """fset_output may need to be called for parameters
+
+    A function parameter does not have a `VarBinding`.  If a parameter
+    is returned in the output tuple, the `fset_output` call is
+    generated at the beginning of the function.
+    """
+
+    @I.ir_module
+    class Before:
+        @R.function
+        def transform_params(A: R.Tensor([16, 16], "float32"), B: R.Tensor([16, 16], "float32")):
+            C = R.multiply(A, R.const(2, "float32"))
+            D = R.add(C, B)
+            return (D, B)
+
+    @I.ir_module
+    class Expected:
+        @R.function(pure=False)
+        def transform_params(
+            A: R.Tensor([16, 16], "float32"),
+            B: R.Tensor([16, 16], "float32"),
+            fset_output: R.Callable([R.Prim("int64"), R.Object], R.Tuple([]), purity=False),
+        ):
+            fset_output(R.prim_value(1), B)
+            C = R.multiply(A, R.const(2, "float32"))
+            D = R.add(C, B)
+            fset_output(R.prim_value(0), D)
+            return R.tuple()
+
+    After = relax.transform.LazySetOutput()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
+
+
+def test_set_output_callback_num_input():
+    """The parameter transformation may have other runtime parameters
+
+    The new `fset_output` parameter is placed after the other runtime
+    parameters, before any model weights.
+    """
+
+    @I.ir_module
+    class Before:
+        @R.function
+        def transform_params(A: R.Tensor([16, 16], "float32"), B: R.Tensor([16, 16], "float32")):
+            R.func_attr({"num_input": 1})
+            C = R.multiply(A, R.const(2, "float32"))
+            D = R.add(C, B)
+            return (D, B)
+
+    @I.ir_module
+    class Expected:
+        @R.function(pure=False)
+        def transform_params(
+            A: R.Tensor([16, 16], "float32"),
+            fset_output: R.Callable([R.Prim("int64"), R.Object], R.Tuple([]), purity=False),
+            B: R.Tensor([16, 16], "float32"),
+        ):
+            R.func_attr({"num_input": 2})
+            fset_output(R.prim_value(1), B)
+            C = R.multiply(A, R.const(2, "float32"))
+            D = R.add(C, B)
+            fset_output(R.prim_value(0), D)
+            return R.tuple()
+
+    After = relax.transform.LazySetOutput()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
+
+
+def test_set_output_callback_with_duplicate_output():
+    """fset_output may be called more than once for a variable
+
+    A variable may occur multiple times in the output tuple.  The
+    `fset_output` callback should be called once for each tuple
+    element, even if they reuse the same variable.
+    """
+
+    @I.ir_module
+    class Before:
+        @R.function
+        def transform_params(A: R.Tensor([16, 16], "float32"), B: R.Tensor([16, 16], "float32")):
+            C = R.multiply(A, R.const(2, "float32"))
+            D = R.add(C, B)
+            return (D, D)
+
+    @I.ir_module
+    class Expected:
+        @R.function(pure=False)
+        def transform_params(
+            A: R.Tensor([16, 16], "float32"),
+            B: R.Tensor([16, 16], "float32"),
+            fset_output: R.Callable([R.Prim("int64"), R.Object], R.Tuple([]), purity=False),
+        ):
+            C = R.multiply(A, R.const(2, "float32"))
+            D = R.add(C, B)
+            fset_output(R.prim_value(0), D)
+            fset_output(R.prim_value(1), D)
+            return R.tuple()
+
+    After = relax.transform.LazySetOutput()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
+
+
+def test_set_output_callback_with_inline_const():
+    """fset_output may be called for inline objects
+
+    The return tuple may contain inline leaf nodes, such as
+    `relax.PrimValue` or `relax.Constant`.  A call to `fset_output`
+    must be generated, even though they do not have an associated
+    `relax.VarBinding`.
+    """
+
+    @I.ir_module
+    class Before:
+        @R.function
+        def transform_params(A: R.Tensor([16, 16], "float32"), B: R.Tensor([16, 16], "float32")):
+            C = R.multiply(A, R.const(2, "float32"))
+            D = R.add(C, B)
+            return (C, D, R.prim_value(42), R.const(17.5, "float16"))
+
+    @I.ir_module
+    class Expected:
+        @R.function(pure=False)
+        def transform_params(
+            A: R.Tensor([16, 16], "float32"),
+            B: R.Tensor([16, 16], "float32"),
+            fset_output: R.Callable([R.Prim("int64"), R.Object], R.Tuple([]), purity=False),
+        ):
+            C = R.multiply(A, R.const(2, "float32"))
+            fset_output(R.prim_value(0), C)
+            D = R.add(C, B)
+            fset_output(R.prim_value(1), D)
+            fset_output(R.prim_value(2), R.prim_value(42))
+            fset_output(R.prim_value(3), R.const(17.5, "float16"))
+            return R.tuple()
+
+    After = relax.transform.LazySetOutput()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
+
+
+def test_set_output_callback_with_non_tuple_output():
+    """Non-tuple outputs produce a single call to fset_output"""
+
+    @I.ir_module
+    class Before:
+        @R.function
+        def transform_params(A: R.Tensor([16, 16], "float32"), B: R.Tensor([16, 16], "float32")):
+            C = R.multiply(A, R.const(2, "float32"))
+            D = R.add(C, B)
+            return D
+
+    @I.ir_module
+    class Expected:
+        @R.function(pure=False)
+        def transform_params(
+            A: R.Tensor([16, 16], "float32"),
+            B: R.Tensor([16, 16], "float32"),
+            fset_output: R.Callable([R.Prim("int64"), R.Object], R.Tuple([]), purity=False),
+        ):
+            C = R.multiply(A, R.const(2, "float32"))
+            D = R.add(C, B)
+            fset_output(R.prim_value(0), D)
+            return R.tuple()
+
+    After = relax.transform.LazySetOutput()(Before)
+    tvm.ir.assert_structural_equal(After, Expected)
 
 
 if __name__ == "__main__":

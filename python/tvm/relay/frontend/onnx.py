@@ -307,6 +307,21 @@ def matmul_out_dtype(inputs, out_dtype):
             a = flatten_to_nd(inputs[0], a_shape, 2)
             b = _op.transpose(inputs[1])
             output = _op.nn.dense(a, b, out_dtype=out_dtype)
+        elif a_rank == 1 or b_rank == 1:
+            a, b = inputs
+            _a_shape = tuple(a_shape.data.numpy())
+            _b_shape = tuple(b_shape.data.numpy())
+            if a_rank == 1:
+                axis = -2
+                a = _op.expand_dims(a, axis=0)
+                batches = _b_shape[:-2]
+                a = _op.broadcast_to(a, (*batches, 1, _a_shape[0]))
+            else:
+                axis = -1
+                b = _op.expand_dims(b, axis=-1)
+                batches = _a_shape[:-2]
+                b = _op.broadcast_to(b, (*batches, _b_shape[0], 1))
+            return _op.squeeze(_op.nn.batch_matmul(a, b, transpose_b=False), axis=axis)
         else:
             a = inputs[0]
             b = inputs[1]
@@ -826,6 +841,15 @@ class Conv(OnnxOpConverter):
         return out
 
 
+def is_ort_version_greater_than(ver):
+    import onnxruntime as ort
+
+    v11, v12, v13 = tuple(int(v) for v in ort.__version__.split("."))
+    v21, v22, v23 = tuple(int(v) for v in ver.split("."))
+
+    return (v11 > v21) or (v11 == v21 and v12 > v22) or ((v11, v12) == (v21, v22) and v13 > v23)
+
+
 class ConvTranspose(OnnxOpConverter):
     """Operator converter for ConvTranspose."""
 
@@ -963,12 +987,15 @@ class ConvTranspose(OnnxOpConverter):
                         )
                 left = [p // 2 for p in total_pad]
                 right = [total_pad[i] - left[i] for i in range(kndim)]
+
                 if "output_shape" in attr and "auto_pad" not in attr:
                     pad = right + left
-                elif "LOWER" in attr["auto_pad"]:
-                    pad = left + right
-                else:
+                elif ("LOWER" in attr["auto_pad"] and is_ort_version_greater_than("1.12.1")) or (
+                    ("UPPER" in attr["auto_pad"] and not is_ort_version_greater_than("1.12.1"))
+                ):
                     pad = right + left
+                else:
+                    pad = left + right
                 attr["pads"] = pad
             elif attr["auto_pad"] == "VALID":
                 attr["pads"] = tuple([0 for i in range(ndim - 2)])
@@ -2392,7 +2419,7 @@ class Upsample(OnnxOpConverter):
         if not isinstance(scales, _expr.Expr):
             assert scales[0] == 1.0 and scales[1] == 1.0
 
-        mode = attr.get("mode")
+        mode = attr.get("mode", b"nearest")
         if mode == b"nearest":
             method = "nearest_neighbor"
         elif mode == b"linear":
@@ -3932,7 +3959,7 @@ class Resize(OnnxOpConverter):
 
     @classmethod
     def _impl_v10(cls, inputs, attr, params):
-        mode = attr.get("mode").decode("ascii")
+        mode = attr.get("mode", b"nearest").decode("ascii")
         if mode == "nearest":
             method = "nearest_neighbor"
         elif mode == "linear":
@@ -4007,7 +4034,7 @@ class Resize(OnnxOpConverter):
         if roi is not None and infer_shape(roi)[0] == 0:
             roi = None
         ndims = len(infer_shape(inputs[0]))
-        mode = attr.get("mode").decode("ascii")
+        mode = attr.get("mode", b"nearest").decode("ascii")
         if mode == "nearest":
             method = "nearest_neighbor"
         elif mode == "linear":
@@ -4538,6 +4565,23 @@ class If(OnnxOpConverter):
                     "Attempting to unify ranks but this may produce incorrect results."
                 )
                 warnings.warn(warning_msg)
+                # Skip constant If node to avoid irrational broadcast
+                if isinstance(inputs[0], tvm.relay.expr.Constant):
+                    predicate = inputs[0].data.asnumpy()[0]
+                    node_name = attr["tvm_custom"]["name"]
+                    warn_msg_begin = f"Predicate of If node {node_name} is always "
+                    if predicate == np.bool_(True):
+                        warnings.warn(
+                            warn_msg_begin
+                            + "true so only then branch would be executed. Removing else branch. "
+                        )
+                        else_expr = then_expr
+                    elif predicate == np.bool_(False):
+                        warnings.warn(
+                            warn_msg_begin
+                            + "false so only else branch would be executed. Removing then branch. "
+                        )
+                        then_expr = else_expr
                 if len(then_shape) < len(else_shape):
                     then_expr = _op.broadcast_to_like(then_expr, else_expr)
                 else:
@@ -4809,9 +4853,9 @@ class DFT(OnnxOpConverter):
     @classmethod
     def _impl_v17(cls, inputs, attr, params):
         # ************************* Read attrs *************************
-        axis = attr.get("axis")
-        inverse = attr.get("inverse")
-        onesided = attr.get("onesided")
+        axis = attr.get("axis", 1)
+        inverse = attr.get("inverse", 0)
+        onesided = attr.get("onesided", 0)
 
         # ************************* Read inputs ************************
         input_tensor = inputs[0]
@@ -6021,7 +6065,7 @@ class Multinomial(OnnxOpConverter):
 
     @classmethod
     def _impl_v7(cls, inputs, attr, params):
-        dtype = attr.get("dtype", "int64")
+        dtype = attr.get("dtype", "int32")
         sample_size = attr.get("sample_size", 1)
         seed = attr.get("seed", None)
         if seed is None:
@@ -6501,6 +6545,7 @@ class SequenceAt(OnnxOpConverter):
 
 # compatible operators that do NOT require any conversion.
 _identity_list = []
+
 
 # _convert_map defines maps of name to converter functor(callable)
 # for 1 to 1 mapping, use Renamer if nothing but name is different

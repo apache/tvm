@@ -30,14 +30,14 @@
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
-ci_lint = 'tlcpack/ci-lint:20240105-165030-51bdaec6'
-ci_gpu = 'tlcpack/ci-gpu:20240105-165030-51bdaec6'
-ci_cpu = 'tlcpack/ci-cpu:20240105-165030-51bdaec6'
+ci_lint = 'tlcpack/ci_lint:20240917-153130-9f281758'
+ci_gpu = 'tlcpack/ci_gpu:20240917-153130-9f281758'
+ci_cpu = 'tlcpack/ci_cpu:20240917-153130-9f281758'
 ci_wasm = 'tlcpack/ci-wasm:v0.72'
 ci_i386 = 'tlcpack/ci-i386:v0.75'
 ci_qemu = 'tlcpack/ci-qemu:v0.11'
 ci_arm = 'tlcpack/ci-arm:v0.08'
-ci_hexagon = 'tlcpack/ci-hexagon:20240105-165030-51bdaec6'
+ci_hexagon = 'tlcpack/ci_hexagon:20240917-153130-9f281758'
 // <--- End of regex-scanned config.
 
 // Parameters to allow overriding (in Jenkins UI), the images
@@ -55,6 +55,10 @@ properties([
     string(name: 'ci_hexagon_param', defaultValue: '')
   ])
 ])
+
+// Global variable assigned during Sanity Check that holds the sha1 which should be
+// merged into the PR in all branches.
+upstream_revision = null
 
 // tvm libraries
 tvm_runtime = 'build/libtvm_runtime.so, build/config.cmake'
@@ -76,6 +80,28 @@ def per_exec_ws(folder) {
   return "workspace/exec_${env.EXECUTOR_NUMBER}/" + folder
 }
 
+def update_upstream_revision(git_ref) {
+  if (upstream_revision == null) {
+    upstream_revision = sh(
+      script: "git log -1 ${git_ref} --format=\'%H\'",
+      label: 'Determine upstream revision',
+      returnStdout: true,
+    ).trim()
+  }
+}
+
+def merge_with_main() {
+  sh (
+    script: 'git fetch origin main',
+    label: 'Fetch upstream',
+  )
+  update_upstream_revision("FETCH_HEAD")
+  sh (
+    script: "git -c user.name=TVM-Jenkins -c user.email=jenkins@tvm.apache.org merge ${upstream_revision}",
+    label: 'Merge to origin/main'
+  )
+}
+
 // initialize source codes
 def init_git() {
   checkout scm
@@ -84,8 +110,18 @@ def init_git() {
     script: './tests/scripts/task_show_node_info.sh',
     label: 'Show executor node info',
   )
-  retry(5) {
-    timeout(time: 2, unit: 'MINUTES') {
+
+  // Determine merge commit to use for all stages
+  if (env.BRANCH_NAME == 'main') {
+    // Only set upstream_revision to HEAD and skip merging to avoid a race with another commit merged to main.
+    update_upstream_revision("HEAD")
+  } else {
+    // This is PR branch so merge with latest main.
+    merge_with_main()
+  }
+
+  retry(3) {
+    timeout(time: 5, unit: 'MINUTES') {
       sh (script: 'git submodule update --init --recursive -f', label: 'Update git submodules')
     }
   }
@@ -174,14 +210,6 @@ def lint(node_type) {
           )
           skip_ci = should_skip_ci(env.CHANGE_ID)
           skip_slow_tests = should_skip_slow_tests(env.CHANGE_ID)
-          sh(
-            script: "${docker_run} ${ci_lint}  ./tests/scripts/task_lint.sh",
-            label: 'Run lint',
-          )
-          sh(
-            script: "${docker_run} ${ci_lint}  ./tests/scripts/unity/task_extra_lint.sh",
-            label: 'Run extra lint',
-          )
         }
       }
     }

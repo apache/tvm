@@ -246,6 +246,42 @@ class IRConvertSSA final : public StmtExprMutator {
     return std::move(decl);
   }
 
+  Stmt VisitStmt_(const BlockNode* op) final {
+    Block block = GetRef<Block>(op);
+
+    // The BlockNode is the point of definition for the IterVar
+    // instances.  These re-defines must be present before visiting
+    // the body of the BlockNode.
+    std::vector<ScopedRedefine> redefines;
+    Array<IterVar> iter_vars = op->iter_vars.Map([&](IterVar iter_var) {
+      if (defined_.count(iter_var->var.get())) {
+        redefines.emplace_back(this, iter_var->var);
+        iter_var.CopyOnWrite()->var = redefines.back().new_var;
+      } else {
+        defined_.insert(iter_var->var.get());
+      }
+      return iter_var;
+    });
+    Array<BufferRegion> reads =
+        block->reads.Map([&](const auto& region) { return VisitBufferAccess(region); });
+    Array<BufferRegion> writes =
+        block->writes.Map([&](const auto& region) { return VisitBufferAccess(region); });
+
+    if (!reads.same_as(block->reads) || !writes.same_as(block->writes) ||
+        !iter_vars.same_as(op->iter_vars)) {
+      auto write_ptr = block.CopyOnWrite();
+      write_ptr->reads = reads;
+      write_ptr->writes = writes;
+      write_ptr->iter_vars = iter_vars;
+    }
+
+    Stmt output = Downcast<Block>(StmtExprMutator::VisitStmt_(block.get()));
+
+    while (redefines.size()) redefines.pop_back();
+
+    return output;
+  }
+
   template <typename Node>
   Node VisitBufferAccess(Node node) {
     Buffer new_buf = GetRemappedBuffer(node->buffer);
@@ -358,6 +394,7 @@ class IRConvertSSA final : public StmtExprMutator {
       }
 
       Var var = iter_var->var;
+      bool delayed_define = false;
       if (auto it = function_scope_var_remap_.find(var.get());
           it != function_scope_var_remap_.end()) {
         var = it->second;
@@ -373,8 +410,23 @@ class IRConvertSSA final : public StmtExprMutator {
         function_scope_var_remap_.insert({var.get(), new_var});
         var = new_var;
       } else {
-        function_scope_var_remap_.insert({var.get(), var});
-        defined_.insert(var.get());
+        // The AttrStmt refers to an undefined variable.  This is
+        // allowed for some attributes, such as
+        // "pragma_parallel_launch_point", which annotates a variable
+        // that is about to occur in a ForNode.  In these cases, the
+        // ForNode and the AttrStmt must continue using the same
+        // variable defintion.
+        //
+        // However, other AttrStmt, such as "thread_extent", act as
+        // points of definition for the variable they annotate.  If
+        // the variable has not been defined after visiting the body,
+        // we should mark it as defined before exiting.  This ensures
+        // correct de-duplication between multiple functions.
+        //
+        // This implementation may be simplified in the future by
+        // moving "pragma_parallel_launch_point" to be an annotation
+        // on the `ForNode`, rather than an `AttrStmt`.
+        delayed_define = true;
       }
 
       IterVar new_iter_var;
@@ -387,11 +439,21 @@ class IRConvertSSA final : public StmtExprMutator {
       auto value = VisitExpr(op->value);
       auto body = VisitStmt(op->body);
 
+      Stmt output;
       if (new_iter_var.get() == iter_var && body.same_as(op->body) && value.same_as(op->value)) {
-        return GetRef<Stmt>(op);
+        output = GetRef<Stmt>(op);
       } else {
-        return AttrStmt(new_iter_var, op->attr_key, value, body, iter_var->span);
+        output = AttrStmt(new_iter_var, op->attr_key, value, body, iter_var->span);
       }
+
+      if (delayed_define) {
+        if (!defined_.count(var.get())) {
+          function_scope_var_remap_.insert({var.get(), var});
+          defined_.insert(var.get());
+        }
+      }
+
+      return output;
 
     } else if (const VarNode* v = op->node.as<VarNode>()) {
       Stmt stmt = StmtExprMutator::VisitStmt_(op);
@@ -409,10 +471,19 @@ class IRConvertSSA final : public StmtExprMutator {
  private:
   struct ScopedRedefine {
     ScopedRedefine(IRConvertSSA* parent, Var old_var) : parent(parent), old_var(old_var) {
+      bool is_size_var = old_var->IsInstance<SizeVarNode>();
       if (old_var->type_annotation.defined()) {
-        new_var = Var(old_var->name_hint, old_var->type_annotation);
+        if (is_size_var) {
+          new_var = SizeVar(old_var->name_hint, old_var->type_annotation);
+        } else {
+          new_var = Var(old_var->name_hint, old_var->type_annotation);
+        }
       } else {
-        new_var = Var(old_var->name_hint, old_var->dtype);
+        if (is_size_var) {
+          new_var = SizeVar(old_var->name_hint, old_var->dtype);
+        } else {
+          new_var = Var(old_var->name_hint, old_var->dtype);
+        }
       }
       parent->scope_[old_var.get()].push_back(new_var);
     }
@@ -677,8 +748,8 @@ std::pair<PrimExpr, PrimExpr> GetAsyncWaitAttributes(const AttrStmtNode* op) {
 /*! \brief Collect storage alignment information from annotations. */
 class StorageAlignCollector : public StmtVisitor {
  private:
-  friend std::unordered_map<Var, StorageAlignAnnotation, ObjectPtrHash, ObjectPtrEqual>
-  CollectStorageAlignAnnotation(const Stmt& body);
+  friend std::unordered_map<Var, StorageAlignAnnotation> CollectStorageAlignAnnotation(
+      const Stmt& body);
 
   /*! \brief For s-stir, the alignment annotations reside in block annotations. */
   void VisitStmt_(const BlockNode* op) final {
@@ -711,11 +782,10 @@ class StorageAlignCollector : public StmtVisitor {
   }
 
   /*! \brief The map from buffer var to its storage alignment information. */
-  std::unordered_map<Var, StorageAlignAnnotation, ObjectPtrHash, ObjectPtrEqual> storage_align_;
+  std::unordered_map<Var, StorageAlignAnnotation> storage_align_;
 };
 
-std::unordered_map<Var, StorageAlignAnnotation, ObjectPtrHash, ObjectPtrEqual>
-CollectStorageAlignAnnotation(const Stmt& body) {
+std::unordered_map<Var, StorageAlignAnnotation> CollectStorageAlignAnnotation(const Stmt& body) {
   StorageAlignCollector collector;
   collector(body);
   return std::move(collector.storage_align_);

@@ -167,7 +167,7 @@ class TvmVMModulePack {
     const auto runtime_create = *tvm::runtime::Registry::Get("runtime._VirtualMachine");
     vm_ = runtime_create(exe_);
     auto init_func = vm_.GetFunction("init", false);
-    auto alloc_type = static_cast<int>(tvm::runtime::vm::AllocatorType::kPooled);
+    auto alloc_type = static_cast<int>(tvm::runtime::memory::AllocatorType::kPooled);
     if (device_type != kDLCPU) {
       // CPU is required for executing shape functions
       init_func(static_cast<int>(kDLCPU), 0, alloc_type, device_type, device_id, alloc_type);

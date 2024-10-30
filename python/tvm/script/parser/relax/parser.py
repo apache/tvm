@@ -30,7 +30,12 @@ from ...ir_builder import ir as I
 from ...ir_builder import relax as R
 from ...ir_builder.base import IRBuilder
 from .._core import Parser, dispatch, doc
-from .entry import MatchCastPair, StructInfoProxy, TupleProxy
+from .entry import (
+    MatchCastPair,
+    StructInfoProxy,
+    _normalize_struct_info_proxy,
+    _normalize_struct_info,
+)
 
 
 def bind_assign_value(
@@ -63,7 +68,14 @@ def bind_assign_value(
                     "Expected the same dtype for TIR vars "
                     f"but got {value.dtype} vs {prev_value.dtype}",
                 )
-            return prev_value
+            if not isinstance(value, type(prev_value)):
+                self.report_error(
+                    node,
+                    f"Expected the same IR type for TIR vars "
+                    f"but existing value {type(value)} is mismatched "
+                    f"to previous {type(prev_value)}",
+                )
+            value = prev_value
         IRBuilder.name(var_name, value)
         return value
 
@@ -91,25 +103,20 @@ def bind_assign_value(
 def eval_struct_info_proxy(self: Parser, node: doc.expr) -> StructInfoProxy:
     try:
         annotation = self.eval_expr(node)
-        if annotation is None:
-            return TupleProxy([])
-        if callable(annotation):
-            annotation = annotation()
-        if isinstance(annotation, StructInfoProxy):
-            return annotation
-        raise TypeError(f"Expected StructInfoProxy but got {type(annotation)}.")
-    except Exception as err:
-        self.report_error(node, str(err))
-        raise err
+        return _normalize_struct_info_proxy(annotation)
+    except Exception as err:  # pylint: disable=broad-except
+        self.report_error(node, err)
+        raise
 
 
 def eval_struct_info(self: Parser, node: doc.expr, eval_str: bool = False) -> StructInfo:
     var_table = self.var_table.get() if eval_str else None
     try:
-        return eval_struct_info_proxy(self, node).as_struct_info(var_table)
-    except Exception as err:
-        self.report_error(node, str(err))
-        raise err
+        struct_info = self.eval_expr(node)
+        return _normalize_struct_info(struct_info, var_table)
+    except Exception as err:  # pylint: disable=broad-except
+        self.report_error(node, err)
+        raise
 
 
 def is_called(node: Any, func_name: str) -> bool:
@@ -144,18 +151,47 @@ def is_recursive(node: doc.FunctionDef) -> bool:
     return False
 
 
+def collect_symbolic_var_from_prelude(
+    self: Parser, node: doc.FunctionDef, symbolic_vars: Dict[str, tir.Var]
+) -> Dict[str, tir.Var]:
+    prelude_vars = {}
+    for stmt in node.body:
+        if isinstance(stmt, doc.Assign) and all(
+            isinstance(target, doc.Name) and target.id in symbolic_vars for target in stmt.targets
+        ):
+            values = self.eval_expr(stmt.value)
+
+            try:
+                iter(values)
+            except TypeError:
+                values = [values]
+
+            assert len(stmt.targets) == len(values)
+            for target, value in zip(stmt.targets, values):
+                name = target.id
+                prelude_vars[name] = value
+
+    return {**symbolic_vars, **prelude_vars}
+
+
 def collect_symbolic_var_from_params(self: Parser, node: doc.FunctionDef) -> None:
     # Collect symbolic vars from parameters
-    symbolic_vars = set()
+    symbolic_vars = {}
     for arg in node.args.args:
         if arg.annotation is None:
             self.report_error(arg, "Type annotation is required for function parameters.")
         param_sinfo_proxy = eval_struct_info_proxy(self, arg.annotation)
-        symbolic_vars.update(param_sinfo_proxy.get_symbolic_vars())
+
+        for var_name in param_sinfo_proxy.get_symbolic_vars():
+            if var_name not in symbolic_vars:
+                symbolic_vars[var_name] = tir.Var(var_name, "int64")
+
+    # Update symbolic vars based on
+    symbolic_vars = collect_symbolic_var_from_prelude(self, node, symbolic_vars)
 
     # Define symbolic vars to the current var_table frame
-    for var_name in symbolic_vars:
-        self.var_table.add(var_name, tir.Var(var_name, "int64"), allow_shadowing=False)
+    for var_name, var in symbolic_vars.items():
+        self.var_table.add(var_name, var, allow_shadowing=False)
 
 
 @dispatch.register(token="relax", type_name="FunctionDef")
@@ -274,7 +310,21 @@ def post_visit_local_function(self: Parser, node: doc.Expr) -> None:
 @dispatch.register(token="relax", type_name="Expr")
 def visit_expr_stmt(self: Parser, node: doc.Expr) -> None:
     value = self.eval_expr(node.value)
-    if value is not None:
+    if isinstance(value, relax.Expr):
+        var = R.emit(value)
+        IRBuilder.name("_", var)
+        is_void_value = (
+            isinstance(var.struct_info, relax.TupleStructInfo) and len(var.struct_info.fields) == 0
+        )
+
+        if not is_void_value:
+            self.report_error(
+                node,
+                f"Non-void relax expressions must be bound to a variable, "
+                f"but expression of type {var.struct_info} was used as a statement.",
+            )
+
+    elif value is not None:
         self.report_error(node, f"Unsupported Expr stmt type {value}.")
 
 
@@ -367,7 +417,6 @@ def visit_if(self: Parser, node: doc.If) -> None:
 @dispatch.register(token="relax", type_name="enter_token")
 def enter_token(self: Parser) -> Dict[str, Any]:
     def relax_call(self, *args) -> Expr:
-
         args = [convert_to_expr(arg) if isinstance(arg, tuple) else arg for arg in args]
 
         if all(isinstance(x, Expr) for x in args):

@@ -1864,7 +1864,7 @@ class PyTorchOpConverter:
         order = inputs[1]
         if order == np.inf:
             return _op.reduce.max(_op.abs(data), axis=axis, keepdims=keepdims)
-        elif order == np.NINF:
+        elif order == -np.inf:
             return _op.reduce.min(_op.abs(data), axis=axis, keepdims=keepdims)
         else:
             reci_order = _expr.const(1.0 / order, dtype=dtype)
@@ -3910,7 +3910,7 @@ class PyTorchOpConverter:
             )
         elif ord == np.inf:
             return _op.reduce.max(_op.abs(data), axis=dim, keepdims=keepdim)
-        elif ord == np.NINF:
+        elif ord == -np.inf:
             return _op.reduce.min(_op.abs(data), axis=dim, keepdims=keepdim)
         reci_ord = _expr.const(1.0 / ord, dtype=dtype)
         ord = _expr.const(ord, dtype=dtype)
@@ -4021,6 +4021,16 @@ class PyTorchOpConverter:
         if len(aw_shape) == 4 or len(value_shape) == 4:
             attn_weight = _op.reshape(attn_weight, newshape=[-4, batch_size, -1, -2])
         return attn_weight
+
+    def tile(self, inputs, input_types):
+        data = inputs[0]
+        reps = []
+        for r in inputs[1]:
+            if isinstance(r, int):
+                reps.append(r)
+            else:
+                reps.append(int(_infer_value(r, {}).numpy()))
+        return _op.tile(data, reps)
 
     # Operator mappings
     def create_convert_map(self):
@@ -4302,6 +4312,7 @@ class PyTorchOpConverter:
             "aten::swapaxes": self.transpose,
             "aten::linalg_vector_norm": self.linalg_vector_norm,
             "aten::scaled_dot_product_attention": self.scaled_dot_product_attention,
+            "aten::tile": self.tile,
         }
 
     def update_convert_map(self, custom_map):

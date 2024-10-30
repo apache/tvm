@@ -17,6 +17,7 @@
 # pylint: disable=unused-import
 """tvm.contrib.msc.framework.tensorrt.runtime.runner"""
 
+import os
 from typing import Any, List, Dict
 
 import tvm
@@ -56,7 +57,7 @@ class TensorRTRunner(BYOCRunner):
 
         raise Exception("TensorRT only support eval")
 
-    def apply_tool(self, tool_type: str, data_loader: Any = None) -> dict:
+    def make_plan(self, tool_type: str, data_loader: Any = None) -> dict:
         """Execute tool and get plan
 
         Parameters
@@ -76,7 +77,7 @@ class TensorRTRunner(BYOCRunner):
             self._generate_model(self._graphs, self._weights)
             quantizer.calibrate()
             assert quantizer.calibrated, "Failed to calibrate the tenosrrt quantizer"
-        return super().apply_tool(tool_type, data_loader)
+        return super().make_plan(tool_type, data_loader)
 
     def _generate_model(self, graphs: List[MSCGraph], weights: Dict[str, tvm.nd.array]) -> Any:
         """Codegen the model according to framework
@@ -101,6 +102,29 @@ class TensorRTRunner(BYOCRunner):
             self._generate_config = tool.config_generate(self._generate_config)
 
         return super()._generate_model(graphs, weights)
+
+    def export_runnable(self, folder: msc_utils.MSCDirectory) -> dict:
+        """Export the runnable
+
+        Parameters
+        -------
+        folder: MSCDirectory
+            The export folder.
+
+        Returns
+        -------
+        info: dict
+            The runnable info.
+        """
+
+        def _get_engine(graph: MSCGraph) -> str:
+            engine_file = msc_utils.get_output_dir().relpath(graph.name + ".trt")
+            assert os.path.isfile(engine_file), "Missing engine file " + engine_file
+            return engine_file
+
+        info = super().export_runnable(folder)
+        info["engines"] = {g.name: _get_engine(g) for g in self._graphs}
+        return info
 
     @classmethod
     def target_transform(cls, mod: tvm.IRModule):

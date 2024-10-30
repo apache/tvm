@@ -275,6 +275,10 @@ class Module(object):
         return (self.get_property_mask() & ModulePropertyMask.RUNNABLE) != 0
 
     @property
+    def is_device_module(self):
+        return self.type_key in ["cuda", "opencl", "metal", "hip", "vulkan", "webgpu"]
+
+    @property
     def is_dso_exportable(self):
         """Returns true if module is 'DSO exportable', ie can be included in result of
         export_library by the external compiler directly.

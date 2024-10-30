@@ -116,7 +116,7 @@ class NameSupply : public ObjectRef {
    * \param prefix The prefix to be used with this NameSupply.
    * \param name_map An optional map.
    */
-  TVM_DLL explicit NameSupply(const String& prefix,
+  TVM_DLL explicit NameSupply(const String& prefix = "",
                               std::unordered_map<std::string, int> name_map = {});
 
   /*!
@@ -129,7 +129,7 @@ class NameSupply : public ObjectRef {
   TVM_DLL explicit NameSupply(Iter begin, Iter end, Lambda f)
       : NameSupply("", GetNameMap(begin, end, f)) {}
 
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(NameSupply, ObjectRef, NameSupplyNode);
+  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(NameSupply, ObjectRef, NameSupplyNode);
 
  private:
   template <typename Iter, typename Lambda>

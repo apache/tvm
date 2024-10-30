@@ -20,6 +20,7 @@ from typing import Any
 from typing import Callable as _Callable
 from typing import Dict, List, Optional, Set, TypeVar, Union
 
+import tvm
 from tvm.relax import (
     Expr,
     SeqExpr,
@@ -47,11 +48,12 @@ FType = TypeVar("FType", bound=_Callable)
 
 ############################## R.function ##############################
 
+
 # this formulation allows us to support having @R.function
 # appear as a decorator by itself or to have optional arguments
 # like @R.function(pure=False)
 def function(
-    f: Optional[FType] = None, pure: bool = True, private: bool = False
+    f: Optional[FType] = None, pure: bool = True, private: bool = False, check_well_formed=True
 ) -> Union[Function, FType]:
     # pylint: disable=unused-argument
     # (pure and private aren't used here, but are used later in parsing)
@@ -65,7 +67,7 @@ def function(
             raise TypeError(f"Expect a function, but got: {f}")
         if utils.is_defined_in_class(orig_stack, f):
             return f
-        return parse(f, utils.inspect_function_capture(f))
+        return parse(f, utils.inspect_function_capture(f), check_well_formed=check_well_formed)
 
     if f is not None:
         # if there are no optional args given, this will directly invoke the wrapper
@@ -126,8 +128,11 @@ def macro(*args, hygienic: bool = True) -> _Callable:
     def _decorator(func: _Callable) -> ScriptMacro:
         source, closure_vars = scan_macro(func, utils.inspect_function_capture(func))
         obj = RelaxMacro(source, closure_vars, func, hygienic)
-        obj.__name__ = func.__name__
-        return obj
+
+        def wrapper(*args, **kwargs):
+            return obj(*args, **kwargs)
+
+        return wrapper
 
     if len(args) == 0:
         return _decorator
@@ -276,6 +281,7 @@ class CallableProxy(StructInfoProxy):
     params: List[StructInfoProxy]
     ret: StructInfoProxy
     purity: bool
+    derive_func: Optional[Union[str, tvm.ir.EnvFunc]]
 
     """Function type.
 
@@ -295,6 +301,13 @@ class CallableProxy(StructInfoProxy):
     purity : bool
         Whether the callable is pure.
 
+    derive_func: Optional[Union[str, tvm.ir.EnvFunc]]
+        The derivation function to determine the output StructInfo,
+        based on the arguments provided to the function.  The
+        specified function should be accessible using
+        `tvm.get_global_func`, and should have a signature
+        `Callable[[relax.Call, relax.BlockBuilder], relax.StructInfo]`.
+
     """
 
     def __init__(
@@ -302,6 +315,7 @@ class CallableProxy(StructInfoProxy):
         params: Optional[Union[StructInfoProxy, List[StructInfoProxy]]] = None,
         ret: Optional[StructInfoProxy] = None,
         purity: Optional[bool] = None,
+        derive_func: Optional[Union[str, tvm.ir.EnvFunc]] = None,
     ) -> None:
         if params is None:
             self.params = params
@@ -319,6 +333,7 @@ class CallableProxy(StructInfoProxy):
 
         self.ret = ret() if callable(ret) else ret
         self.purity = purity
+        self.derive_func = derive_func
 
     def get_symbolic_vars(self) -> Set[str]:
         if self.params is None:
@@ -338,7 +353,9 @@ class CallableProxy(StructInfoProxy):
             params = [param.as_struct_info(dict_globals) for param in self.params]
 
         if params is None:
-            return FuncStructInfo.opaque_func(ret=ret, purity=self.purity)
+            return FuncStructInfo.opaque_func(
+                ret=ret, derive_func=self.derive_func, purity=self.purity
+            )
         else:
             return FuncStructInfo(params, ret, purity=self.purity)
 
@@ -347,8 +364,9 @@ def Callable(
     params: Optional[Union[StructInfoProxy, List[StructInfoProxy]]] = None,
     ret: Optional[StructInfoProxy] = None,
     purity: Optional[bool] = None,
+    derive_func: Optional[Union[str, tvm.ir.EnvFunc]] = None,
 ) -> CallableProxy:
-    return CallableProxy(params, ret, purity=purity)
+    return CallableProxy(params, ret, purity=purity, derive_func=derive_func)
 
 
 ############################### R.Tuple ################################
@@ -488,8 +506,31 @@ class MatchCastPair:
 
 
 def match_cast(value: Expr, struct_info: StructInfo):
+    struct_info = _normalize_struct_info(struct_info)
+
     if value is None:
         raise ValueError("value of match_cast cannot be None")
     if struct_info is None:
         raise ValueError("struct_info of match_cast cannot be None")
     return MatchCastPair(value, struct_info)
+
+
+def _normalize_struct_info_proxy(annotation) -> StructInfoProxy:
+    if annotation is None:
+        return TupleProxy([])
+    elif callable(annotation):
+        return annotation()
+    elif isinstance(annotation, StructInfoProxy):
+        return annotation
+    else:
+        raise TypeError(f"Expected StructInfoProxy but got {type(annotation)}.")
+
+
+def _normalize_struct_info(
+    struct_info, dict_globals: Optional[Dict[str, Any]] = None
+) -> StructInfo:
+    if isinstance(struct_info, StructInfo):
+        return struct_info
+    else:
+        proxy = _normalize_struct_info_proxy(struct_info)
+        return proxy.as_struct_info(dict_globals)

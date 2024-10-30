@@ -81,7 +81,7 @@ FlattenUnwrapResult FlattenUnwrap(const Stmt& stmt) {
       for (const auto& sub_stmt : ptr->seq) {
         flatten_unwrap(sub_stmt);
       }
-    } else if (auto* ptr = stmt.as<EvaluateNode>(); ptr && ptr->value.as<IntImmNode>()) {
+    } else if (auto* ptr1 = stmt.as<EvaluateNode>(); ptr1 && ptr1->value.as<IntImmNode>()) {
       // Skip
     } else {
       seq_stmt.push_back(stmt);
@@ -718,7 +718,8 @@ class MergeConstantsMutator : public StmtExprMutator {
                             buffer->axis_separators,
                             buffer->span};
           old_to_new_read_buffers[buffer.as<BufferNode>()] = new_buffer;
-          new_args.push_back(BufferLoad(new_buffer, buffer_load->indices, buffer_load->span));
+          new_args.push_back(BufferLoad(new_buffer, buffer_load->indices, buffer_load->predicate,
+                                        buffer_load->span));
           break;
         }
         case 2: /* length */ {

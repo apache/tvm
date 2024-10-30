@@ -17,7 +17,7 @@
 """The core infra for nn.Module, which includes the following pieces:
 - Tensor, a wrapper on top of relax.Expr whose struct_info is a TensorStructInfo,
   providing more convenient access shape and dtype information.
-  Tensor is always symbolc and not bound to any concrete values.
+  Tensor is always symbolic and not bound to any concrete values.
 - Parameter, a special tensor which could be bound or not bound to concrete values.
 - Module, a container of nn.Parameters and sub nn.Modules.
 - Effect, a non-user-facing class that encloses potential side effects, for example, IO,
@@ -48,7 +48,7 @@ from tvm.runtime import ndarray
 from tvm.runtime.relax_vm import VirtualMachine
 from tvm.target import Target
 
-from ... import expr as rx
+from .... import relax as rx
 from ...block_builder import BlockBuilder
 from ...struct_info import (
     ObjectStructInfo,
@@ -125,6 +125,16 @@ class Tensor(_TensorOp):
     def from_scalar(data: Union[int, float], dtype: str) -> "Tensor":
         """Construct a tensor from a scalar with dtype specified."""
         return Tensor(_expr=rx.const(data, dtype=dtype))
+
+    @staticmethod
+    def from_struct_info(struct_info: rx.TensorStructInfo, name: str = "tensor") -> "Tensor":
+        """Construct a nn.Tensor from relax TensorStructInfo"""
+        return Tensor(
+            _expr=rx.Var(
+                name_hint=name,
+                struct_info=struct_info,
+            )
+        )
 
     @staticmethod
     def placeholder(
@@ -465,10 +475,10 @@ class Module(SubroutineMixin):
         -------
         irmodule : tvm.ir.IRModule
             The converted tvm IR representation of the model.
-        params : Dict[str, tvm.nd.array]
-            A dictionary of parameters corresponding to the weights of
-            the model.
+        params : List[Tuple[str, Parameter]]
+            A list of Parameters corresponding to the weights of the model.
         ext_mods : List[nn.ExternModule]
+            A list of ExternModules that are used in the model.
         """
         # pylint: disable=import-outside-toplevel
         from . import spec as _spec
@@ -539,16 +549,16 @@ class ModuleList(Module):
     def __iter__(self):
         return iter(self.modules)
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx: int) -> Module:
         return self.modules[idx]
 
-    def __setitem__(self, idx, module):
+    def __setitem__(self, idx: int, module: Module) -> None:
         self.modules[idx] = module
 
     def __len__(self):
         return len(self.modules)
 
-    def append(self, module):
+    def append(self, module: Module):
         """Add a module to the end of the ModuleList"""
         self.modules.append(module)
 
@@ -597,16 +607,19 @@ def wrap_nested(expr: rx.Expr, name: str) -> Union[Tensor, Sequence[Tensor]]:
 
 def _attribute_finder(root: Module, prefix: str, condition_yield: Callable[[Any], bool]):
     """Find attributes that satisfy the condition recursively"""
+    if isinstance(root, ModuleList):
+        for i, subitem in enumerate(root):
+            yield from _attribute_finder(subitem, prefix + f"{i}.", condition_yield)
+        return
     for name, item in root.__dict__.items():
         if condition_yield(item):
             yield prefix + name, item
         elif isinstance(item, ModuleList):
-            for i, subitem in enumerate(item):
-                yield from _attribute_finder(
-                    subitem,
-                    prefix + name + f".{i}.",
-                    condition_yield,
-                )
+            yield from _attribute_finder(
+                item,
+                prefix + name + ".",
+                condition_yield,
+            )
         elif isinstance(item, Module):
             yield from _attribute_finder(
                 item,

@@ -36,7 +36,6 @@ struct MrvlCompilerConfigNode : public tvm::AttrsNode<MrvlCompilerConfigNode> {
   String mcpu;
   IntImm num_tiles;
   String mattr;
-  String working_dir;
 
   TVM_DECLARE_ATTRS(MrvlCompilerConfigNode, "ext.attrs.MrvlCompilerConfigNode") {
     TVM_ATTR_FIELD(mcpu)

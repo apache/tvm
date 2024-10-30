@@ -42,7 +42,6 @@ namespace tvm {
 namespace runtime {
 namespace json {
 
-using namespace tvm::runtime;
 using JSONGraphAttrs = std::unordered_map<std::string, dmlc::any>;
 
 /*!

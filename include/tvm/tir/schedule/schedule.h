@@ -224,8 +224,9 @@ class ScheduleNode : public runtime::Object {
    * \param decision The sampling decision
    * \return The random variable sampled from candidates
    */
-  virtual ExprRV SampleCategorical(const Array<Integer>& candidates, const Array<FloatImm>& probs,
-                                   Optional<Integer> decision = NullOpt) = 0;
+  virtual ExprRV SampleCategorical(const Array<runtime::Int>& candidates,
+                                   const Array<runtime::Float>& probs,
+                                   Optional<runtime::Int> decision = NullOpt) = 0;
   /*!
    * \brief Sample the factors to perfect tile a specific loop
    * \param loop_rv The loop to be tiled
@@ -349,11 +350,16 @@ class ScheduleNode : public runtime::Object {
    * \param loop_rv The loop to be split
    * \param factors The positive tiling factors, and at most one of which is `NullOpt`, which means
    * that factor is inferred.
-   * \param preserve_unit_iters Whether or not to preserve unit iterators in block bindings
-   * \return The new loops after split
+   * \param preserve_unit_iters Whether or not to preserve unit iterators in block bindings.
+   * \param disable_predication If enabled, don't create a predicate for guarding the
+   * loop. This can be useful when splitting with scalable factors that the schedule writer
+   * knows are divisible by the loop bound.
+   * Warning: enabling this feature may result in incorrect code generation if not used carefully.
+   * \return The new loops after split.
    */
   virtual Array<LoopRV> Split(const LoopRV& loop_rv, const Array<Optional<ExprRV>>& factors,
-                              bool preserve_unit_iters = true) = 0;
+                              bool preserve_unit_iters = true,
+                              bool disable_predication = false) = 0;
   /*!
    * \brief Partition the loops into sequence of multiple loops
    * 1) The loop can't have annotation or thread binding.
@@ -827,6 +833,17 @@ class ScheduleNode : public runtime::Object {
    * \param write_buffer_index The index of the buffer in block's write region.
    */
   virtual void RollingBuffer(const BlockRV& block_rv, int write_buffer_index) = 0;
+
+  /*!
+   * \brief Annotate the buffer access of a block
+   * \param block_rv The block to be annotated
+   * \param buffer_index The index of the buffer in block's read or write region
+   * \param buffer_index_type The type of the buffer index, kRead or kWrite.
+   * \param index_map The index map that defines the new read or write region
+   */
+  virtual void AnnotateBufferAccess(const BlockRV& block_rv, int buffer_index,
+                                    BufferIndexType buffer_index_type,
+                                    const IndexMap& index_map) = 0;
 
   /******** Schedule: Misc ********/
   /*! \brief A no-op that marks the start of postprocessing phase of scheduling */

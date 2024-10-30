@@ -29,7 +29,7 @@ def compare_expected_fac(expr, expected_expr, args):
     mod_exp = tvm.relay.transform.InferType()(tvm.IRModule.from_expr(expected_expr))
 
     assert expr is expected_expr or not tvm.ir.structural_equal(mod_def, mod_flat)
-    assert tvm.ir.structural_equal(mod_flat, mod_exp)
+    tvm.ir.assert_structural_equal(mod_flat, mod_exp)
 
     result_def = (
         relay.create_executor("vm", mod=mod_def, device=tvm.cpu(), target="llvm")

@@ -16,17 +16,17 @@
 # under the License.
 """A rule for reduction. """
 # TODO: combine reduction rule and general reduction rule into one file.
-from typing import List, Optional, Tuple, Union
+from typing import List, Mapping, Optional, Tuple, Union
 
 from tvm import arith, ir, tir
 from tvm.target import Target
 
 from ..base import (
     BlockInfo,
-    normalize_prim_func,
-    try_inline_contiguous_spatial,
     detect_dominant_read,
     is_broadcast_epilogue,
+    normalize_prim_func,
+    try_inline_contiguous_spatial,
 )
 from . import utils
 from .base import GPUScheduleRule
@@ -111,9 +111,9 @@ class Reduction(GPUScheduleRule):
         sch: tir.Schedule,
         block_info: BlockInfo,
         access: arith.IterSumExpr,
-    ) -> Tuple[Optional[bool], Optional[int]]:
+    ) -> Tuple[Optional[bool], Optional[int], Optional[Mapping[int, int]], Optional[int]]:
         if access.base != 0:
-            return None, None
+            return None, None, None, None
         iter_to_info = {i.var: i for i in block_info.iters}
         s_loops, r_loops, c_loops, c_factor = [], [], [], None
         s_split_loop, s_split_index = None, None
@@ -124,7 +124,7 @@ class Reduction(GPUScheduleRule):
             is_inner_reduction = info.kind == "R"
             if split_expr.lower_factor > 1:
                 if c_loops:
-                    return None, None
+                    return None, None, None, None
                 s_split_loop = loop
                 s_split_index = len(s_loops)
                 loop, c_loop = sch.split(loop, factors=[None, split_expr.lower_factor])
@@ -141,7 +141,7 @@ class Reduction(GPUScheduleRule):
                 if info.kind == "S" and info.dom == 1:
                     s_loops.append(info.loop_rv)
                 else:
-                    return None, None
+                    return None, None, None, None
 
         loop_order = {}
         s_block_var_loops = []
@@ -161,7 +161,7 @@ class Reduction(GPUScheduleRule):
         assert s_loops
         assert r_loops
         if len(s_loops) != len([i for i in block_info.iters if i.kind == "S"]):
-            return None, None
+            return None, None, None, None
         if not c_loops:
             c_loops = [sch.add_unit_loop(block_info.block_rv)]
         sch.reorder(*s_loops, *r_loops, *c_loops)
@@ -217,7 +217,7 @@ class Reduction(GPUScheduleRule):
         # Schedule epilogue
         if epilogue_info is not None:
             epilogue = epilogue_info.block_rv
-            sch.reverse_compute_at(epilogue, bx)
+            sch.reverse_compute_at(epilogue, bx, preserve_unit_loops=True)
             if is_broadcast_epilogue(sch, block, epilogue):
                 sch.set_scope(block, 0, "shared")
                 _, *s = sch.get_loops(epilogue)  # pylint: disable=invalid-name

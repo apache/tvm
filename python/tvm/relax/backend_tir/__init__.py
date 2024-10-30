@@ -17,4 +17,6 @@
 """Relax backends, tir based"""
 
 from . import contrib
+from .cumsum import gpu_2d_continuous_cumsum
 from .pattern import get_tir_pattern
+from .sampling import gpu_multinomial_from_uniform, generic_get_sample_index

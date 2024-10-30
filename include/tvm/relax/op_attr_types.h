@@ -56,12 +56,39 @@ using FCallPacked = String;
  * expressed in multiple syntactically valid and semantically
  * equivalent forms, to normalize to a single representation.
  *
+ * Note: `FNormalize` is applied for each expression as part of the
+ *    `relax::BlockBuilder`.  While operator-specific validation may
+ *    be performed within the `FNormalize` implementation, ensuring
+ *    that errors are caught as early as possible, this should only be
+ *    used when validation is fast to apply.  If the validation logic
+ *    may be slow, it should instead be implemented in `FValidate`,
+ *    which is only run as part of the well-formed checker.
+ *
  * \param bb The BlockBuilder context.
  *
  * \param call The call to be normalized.  It is provided by-value, to
  * avoid copies for the common case where the call is already normalized.
  */
 using FNormalize = runtime::TypedPackedFunc<Expr(const BlockBuilder& bb, Call call)>;
+
+/*!
+ * \brief The function type of a validation function.
+ *
+ * A validation function is used to define constraints that should be
+ * verified for an operator as part of the well-formed checker.
+ *
+ * Note: `FValidate` is only applied as part of the well-formed
+ *    checker.  While this minimizes overhead while compiling Relax,
+ *    this delay between generating an ill-formed `relax::Call` and
+ *    identifying the ill-formed call may complicate debugging.  If
+ *    the validation logic is very fast to check, and doing so would
+ *    not introduce a signficant overhead, consider validating as part
+ *    of `FNormalize`, which is applied by the block builder for each
+ *    `relax::Call`.
+ *
+ * \param call The call to be validated.
+ */
+using FValidate = runtime::TypedPackedFunc<void(const Call& call)>;
 
 /*! \brief The function type of a legalization function.
  *
@@ -78,6 +105,15 @@ using FNormalize = runtime::TypedPackedFunc<Expr(const BlockBuilder& bb, Call ca
  * \param call The call to be legalized.
  */
 using FLegalize = runtime::TypedPackedFunc<Expr(const BlockBuilder& bb, const Call& call)>;
+
+/*! \brief The function type of a function to lower the runtime builtin.
+ *
+ * A builtin function may be lowered to a lowered form in `LowerRuntimeBuiltin`.
+ *
+ * \param bb The BlockBuilder context.
+ * \param call The call to be lowered.
+ */
+using FLowerBuiltin = runtime::TypedPackedFunc<Expr(const BlockBuilder& bb, const Call& call)>;
 
 /*!
  * \brief Gradient for a specific op.

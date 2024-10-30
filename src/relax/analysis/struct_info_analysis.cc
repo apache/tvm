@@ -609,6 +609,206 @@ TVM_REGISTER_GLOBAL("relax.StructInfoIsBaseOf")
       return IsBaseOf(base, derived);
     });
 
+class StructInfoBasePreconditionCollector
+    : public StructInfoFunctor<PrimExpr(const StructInfo&, const StructInfo&)> {
+ public:
+  explicit StructInfoBasePreconditionCollector() {}
+
+  PrimExpr VisitStructInfo(const StructInfo& lhs, const StructInfo& other) override {
+    if (lhs.same_as(other)) {
+      // Early bail-out if the StructInfo has reference equality.
+      return Bool(true);
+    } else {
+      return StructInfoFunctor::VisitStructInfo(lhs, other);
+    }
+  }
+
+  PrimExpr VisitStructInfo_(const ObjectStructInfoNode* lhs, const StructInfo& other) final {
+    return Bool(true);
+  }
+
+  PrimExpr VisitStructInfo_(const PrimStructInfoNode* lhs, const StructInfo& other) final {
+    auto* rhs = other.as<PrimStructInfoNode>();
+    if (rhs == nullptr) {
+      return Bool(false);
+    }
+
+    if (lhs->dtype != rhs->dtype) {
+      return Bool(false);
+    }
+
+    if (lhs->value.defined() && rhs->value.defined()) {
+      return lhs->value.value() == rhs->value.value();
+    } else if (lhs->value.defined() && !rhs->value.defined()) {
+      return Bool(false);
+    } else {
+      return Bool(true);
+    }
+  }
+
+  PrimExpr VisitStructInfo_(const ShapeStructInfoNode* lhs, const StructInfo& other) final {
+    auto* rhs = other.as<ShapeStructInfoNode>();
+    if (rhs == nullptr) {
+      return Bool(false);
+    }
+    // lhs have unknown ndim
+    if (lhs->IsUnknownNdim()) {
+      return Bool(true);
+    }
+
+    // ndim must match
+    if (lhs->ndim != rhs->ndim) {
+      return Bool(false);
+    }
+
+    if (lhs->values.defined() && rhs->values.defined()) {
+      return ArrayCheck(lhs->values.value(), rhs->values.value());
+    } else if (lhs->values.defined() && !rhs->values.defined()) {
+      return Bool(false);
+    } else {
+      return Bool(true);
+    }
+  }
+
+  PrimExpr VisitStructInfo_(const TensorStructInfoNode* lhs, const StructInfo& other) final {
+    auto* rhs = other.as<TensorStructInfoNode>();
+    if (rhs == nullptr) {
+      return Bool(false);
+    }
+    // dtype mismatch
+    if (!lhs->IsUnknownDtype() && lhs->dtype != rhs->dtype) {
+      return Bool(false);
+    }
+
+    // ndim mismatch
+    if (!lhs->IsUnknownNdim() && lhs->ndim != rhs->ndim) {
+      return Bool(false);
+    }
+
+    // vdevice mismatch
+    if (lhs->vdevice.defined() && !rhs->vdevice.defined()) {
+      return Bool(false);
+    }
+    if (lhs->vdevice.defined() && rhs->vdevice.defined()) {
+      VDevice lhs_vdevice = lhs->vdevice.value();
+      VDevice rhs_vdevice = rhs->vdevice.value();
+      if (lhs_vdevice->target.defined() && !rhs_vdevice->target.defined()) {
+        return Bool(false);
+      }
+      // mismatch in either the target, vdevice_id, or memory_scope
+      if ((lhs_vdevice->target.defined() && rhs_vdevice->target.defined()) &&
+          (lhs_vdevice->target != rhs_vdevice->target ||
+           lhs_vdevice->vdevice_id != rhs_vdevice->vdevice_id ||
+           lhs_vdevice->memory_scope != rhs_vdevice->memory_scope)) {
+        return Bool(false);
+      }
+    }
+
+    if (lhs->shape.same_as(rhs->shape)) {
+      return Bool(true);
+    } else if (lhs->shape.defined() && !rhs->shape.defined()) {
+      return Bool(false);
+    }
+
+    auto* lhs_shape = lhs->shape.as<ShapeExprNode>();
+    auto* rhs_shape = rhs->shape.as<ShapeExprNode>();
+    if (lhs_shape && rhs_shape) {
+      return ArrayCheck(lhs_shape->values, rhs_shape->values);
+    } else if (lhs_shape && !rhs_shape) {
+      return Bool(false);
+    }
+
+    return Bool(true);
+  }
+
+  PrimExpr VisitStructInfo_(const distributed::DTensorStructInfoNode* lhs,
+                            const StructInfo& other) final {
+    auto* rhs = other.as<distributed::DTensorStructInfoNode>();
+    if (rhs == nullptr) {
+      return Bool(false);
+    }
+
+    StructuralEqual struct_equal;
+    if (!struct_equal(lhs->device_mesh, rhs->device_mesh) ||
+        !struct_equal(lhs->placement, rhs->placement)) {
+      return Bool(false);
+    }
+
+    return this->VisitStructInfo(lhs->tensor_sinfo, rhs->tensor_sinfo);
+  }
+
+  PrimExpr VisitStructInfo_(const TupleStructInfoNode* lhs, const StructInfo& other) final {
+    auto* rhs = other.as<TupleStructInfoNode>();
+    if (rhs == nullptr) {
+      return Bool(false);
+    }
+    return ArrayCheck(lhs->fields, rhs->fields);
+  }
+
+  PrimExpr VisitStructInfo_(const FuncStructInfoNode* lhs, const StructInfo& other) override {
+    auto* rhs = other.as<FuncStructInfoNode>();
+    if (rhs == nullptr) {
+      return Bool(false);
+    }
+
+    // Check purity: Pure functions are a subtype of impure functions
+    if (lhs->purity && !rhs->purity) {
+      return Bool(false);
+    }
+
+    if (lhs->derive_func.defined() && !lhs->derive_func.same_as(rhs->derive_func)) {
+      return Bool(false);
+    }
+    if (lhs->params.defined() && !rhs->params.defined()) {
+      return Bool(false);
+    }
+
+    PrimExpr all_match = VisitStructInfo(lhs->ret, rhs->ret);
+
+    PrimExpr param_check;
+    if (lhs->params.defined()) {
+      param_check = ArrayCheck(lhs->params.value(), rhs->params.value());
+    } else {
+      param_check = Bool(true);
+    }
+
+    PrimExpr ret_check = VisitStructInfo(lhs->ret, rhs->ret);
+
+    return param_check && ret_check;
+  }
+
+ private:
+  PrimExpr ArrayCheck(const Array<PrimExpr>& lhs, const Array<PrimExpr>& rhs) {
+    if (lhs.size() != rhs.size()) {
+      return Bool(false);
+    }
+
+    PrimExpr all_equal = Bool(true);
+    for (size_t i = 0; i < lhs.size(); i++) {
+      all_equal = all_equal && (lhs[i] == rhs[i]);
+    }
+    return all_equal;
+  }
+
+  PrimExpr ArrayCheck(const Array<StructInfo>& lhs, const Array<StructInfo>& rhs) {
+    if (lhs.size() != rhs.size()) {
+      return Bool(false);
+    }
+
+    PrimExpr all_pass = Bool(true);
+
+    for (size_t i = 0; i < lhs.size(); ++i) {
+      all_pass = all_pass && VisitStructInfo(lhs[i], rhs[i]);
+    }
+    return all_pass;
+  }
+};
+
+PrimExpr StructInfoBaseCheckPrecondition(const StructInfo& base, const StructInfo& derived) {
+  StructInfoBasePreconditionCollector visitor;
+  return visitor(base, derived);
+}
+
 //--------------------------
 // DeriveStructInfo
 //--------------------------
@@ -640,8 +840,10 @@ class CallRetStructInfoDeriver : public StructInfoBaseChecker {
     auto params = finfo->params.value();
     if (params.size() != call->args.size()) {
       ctx->ReportFatal(Diagnostic::Error(call->span)
-                       << "number of arguments and parameters mismatch:"
-                       << " expected " << params.size() << ", given " << call->args.size());
+                       << "Number of arguments and parameters mismatch:"
+                       << " Function " << call->op << " has struct info " << finfo
+                       << " and accepts " << params.size() << " parameters, but was called with "
+                       << call->args.size() << " arguments (" << call->args << ")");
     }
     // Visit each param arg pair, check and populate the var map
     for (size_t i = 0; i < params.size(); ++i) {
@@ -780,10 +982,25 @@ class StructInfoLCAFinder
   StructInfo VisitStructInfo_(const PrimStructInfoNode* lhs, const StructInfo& other) final {
     auto* rhs = other.as<PrimStructInfoNode>();
     if (rhs == nullptr) return ObjectStructInfo(lhs->span);
-    if (lhs->dtype == rhs->dtype) return GetRef<StructInfo>(lhs);
-    // PrimType will be treated as their boxed(object) values
-    // as a result we can unify to object.
-    return ObjectStructInfo(lhs->span);
+    if (lhs->dtype != rhs->dtype) {
+      // PrimType will be treated as their boxed(object) values
+      // as a result we can unify to object.
+      return ObjectStructInfo(lhs->span);
+    }
+    if (!lhs->value.defined() || !rhs->value.defined() ||
+        !analyzer_->CanProveEqual(lhs->value.value(), rhs->value.value())) {
+      // The two values are known to contain the same dtype, but may
+      // contain different values.
+      if (!lhs->value.defined()) {
+        // If the mismatch was due to extra information in the RHS,
+        // prefer to avoid constructing a new object.
+        return GetRef<StructInfo>(lhs);
+      } else {
+        return PrimStructInfo(lhs->dtype, lhs->span);
+      }
+    }
+
+    return GetRef<StructInfo>(lhs);
   }
 
   StructInfo VisitStructInfo_(const ShapeStructInfoNode* lhs, const StructInfo& other) final {
@@ -961,19 +1178,29 @@ class TIRVarsDetector : public StructInfoVisitor {
   Array<tir::Var> GetTIRVars() const { return tir_vars_; }
 
  private:
-  void VisitShape(Array<PrimExpr> shape) {
-    for (const PrimExpr& value : shape) {
-      if (collection_type == VarType::Definition) {
-        if (auto opt = value.as<tir::Var>()) {
-          RecordTIRVar(opt.value());
-        }
-      } else if (collection_type == VarType::Usage) {
-        for (const tir::Var& tir_var : tir::UndefinedVars(value)) {
-          RecordTIRVar(tir_var);
-        }
-      } else {
-        LOG(FATAL) << "Invalid value for VarType enum, " << static_cast<int>(collection_type);
+  void VisitPrimExpr(PrimExpr expr) {
+    if (collection_type == VarType::Definition) {
+      if (auto opt = expr.as<tir::Var>()) {
+        RecordTIRVar(opt.value());
       }
+    } else if (collection_type == VarType::Usage) {
+      for (const tir::Var& tir_var : tir::UndefinedVars(expr)) {
+        RecordTIRVar(tir_var);
+      }
+    } else {
+      LOG(FATAL) << "Invalid value for VarType enum, " << static_cast<int>(collection_type);
+    }
+  }
+
+  void VisitShape(Array<PrimExpr> shape) {
+    for (const PrimExpr& expr : shape) {
+      VisitPrimExpr(expr);
+    }
+  }
+
+  void VisitStructInfo_(const PrimStructInfoNode* prim_sinfo) final {
+    if (prim_sinfo->value.defined()) {
+      VisitPrimExpr(prim_sinfo->value.value());
     }
   }
 
@@ -1018,6 +1245,51 @@ TVM_REGISTER_GLOBAL("relax.analysis.TIRVarsInStructInfo").set_body_typed(TIRVars
 
 TVM_REGISTER_GLOBAL("relax.analysis.DefinableTIRVarsInStructInfo")
     .set_body_typed(DefinableTIRVarsInStructInfo);
+
+class NonNegativeExpressionCollector : relax::StructInfoVisitor {
+ public:
+  static Array<PrimExpr> Collect(const StructInfo& sinfo) {
+    NonNegativeExpressionCollector visitor;
+    visitor(sinfo);
+    return visitor.expressions_;
+  }
+
+ private:
+  void VisitStructInfo_(const TensorStructInfoNode* op) override {
+    if (op->shape.defined()) {
+      VisitStructInfo(GetStructInfo(op->shape.value()));
+    }
+  }
+
+  void VisitStructInfo_(const PrimStructInfoNode* op) override {
+    // Unlike the expressions in TensorStructInfo or ShapeStructInfo,
+    // PrimStructInfo may contain negative values.  This override
+    // prevents calling VisitStructInfoExprField from the default
+    // StructInfoVisitor implementation.
+  }
+
+  void VisitStructInfoExprField(const PrimExpr& size_expr) override {
+    if (auto size_int = size_expr.as<IntImmNode>(); size_int && size_int->value >= 0) {
+      // Avoid cluttering the result with non-negative integers
+      return;
+    }
+
+    if (!dedup_lookup_.count(size_expr)) {
+      expressions_.push_back(size_expr);
+      dedup_lookup_.insert(size_expr);
+    }
+  }
+
+  Array<PrimExpr> expressions_;
+  std::unordered_set<PrimExpr, StructuralHash, StructuralEqual> dedup_lookup_;
+};
+
+Array<PrimExpr> CollectNonNegativeExpressions(const StructInfo& sinfo) {
+  return NonNegativeExpressionCollector::Collect(sinfo);
+}
+
+TVM_REGISTER_GLOBAL("relax.analysis.CollectNonNegativeExpressions")
+    .set_body_typed(CollectNonNegativeExpressions);
 
 class SymbolicVarCollector : public relax::ExprVisitor,
                              public relax::StructInfoVisitor,
@@ -1154,9 +1426,9 @@ class SymbolicVarCollector : public relax::ExprVisitor,
   /*! \brief The current visit mode. */
   VisitMode mode_ = VisitMode::kRequireDefinition;
   /*! \brief The set of defined symbolic vars. */
-  std::unordered_set<tir::Var, ObjectPtrHash, ObjectPtrEqual> defined_symbolic_var_;
+  std::unordered_set<tir::Var> defined_symbolic_var_;
   /*! \brief The set of free/undefined symbolic vars. */
-  std::unordered_set<tir::Var, ObjectPtrHash, ObjectPtrEqual> free_symbolic_var_;
+  std::unordered_set<tir::Var> free_symbolic_var_;
 };
 
 Array<tir::Var> DefinedSymbolicVars(const Expr& expr) {

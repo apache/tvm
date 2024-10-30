@@ -15,16 +15,196 @@
 # specific language governing permissions and limitations
 # under the License.
 """APIs for pattern-based rewriting."""
-from typing import Dict, Callable
+
+from typing import Dict, Callable, Union
+
+from tvm.ir import IRModule
+from tvm.runtime import Object
+from tvm._ffi import register_object
+
 from .pattern import DFPattern
 from .context import PatternContext
-
 from ..expr import Expr, Function, Var
 from . import _ffi as ffi
 
 
+@register_object("relax.dpl.PatternMatchingRewriter")
+class PatternMatchingRewriter(Object):
+    """A pattern-matching rewriter for Relax"""
+
+    @staticmethod
+    def from_pattern(
+        pattern: DFPattern,
+        func: Callable[[Expr, Dict[DFPattern, Expr]], Expr],
+    ) -> "PatternMatchingRewriter":
+        """Construct from a pattern and rewriter-function
+
+        The replacements performed by the rewriter will be equivalent
+        to using the `pattern` and `func` as arguments to
+        `rewrite_call`.
+
+        Parameters
+        ----------
+        pattern: DFPattern
+
+            The pattern to be matched against.
+
+        func: Callable[[Expr, Dict[DFPattern, Expr]], Expr]
+
+            A function that returns the rewritten expression.  See
+            `rewrite_call` for details and examples.
+
+
+        Returns
+        -------
+        rewriter_obj: PatternMatchingRewriter
+
+            The rewriter object
+
+        """
+        return ffi.PatternMatchingRewriterFromPattern(
+            pattern,
+            func,
+        )  # type: ignore
+
+    @staticmethod
+    def from_module(mod: IRModule) -> "PatternMatchingRewriter":
+        """Construct a rewriter from an IRModule
+
+        The IRModule must have two publicly-exposed functions,
+        `pattern` and `replacement`, where `pattern` and `replacement`
+        have the same function signature, as shown in the example
+        below.
+
+        .. code-block:: python
+
+            @I.ir_module
+            class RewriteAddIntoMultiply:
+                @R.function
+                def pattern(A: R.Tensor):
+                    B = A + A
+                    return B
+
+                @R.function
+                def replacement(A: R.Tensor):
+                    B = A * 2
+                    return B
+
+            rewriter = PatternMatchingRewriter.from_module(RewriteAddIntoMultiply)
+            rewritten_ir_module = rewriter(ir_module)
+
+        To support the common case of defining an IRModule with
+        TVMScript, then immediately turning it into a rewriter, the
+        `@R.rewriter` annotation can be used.
+
+        .. code-block:: python
+
+            @R.rewriter
+            class RewriteAddIntoMultiply:
+                @R.function
+                def pattern(A: R.Tensor):
+                    B = A + A
+                    return B
+
+                @R.function
+                def replacement(A: R.Tensor):
+                    B = A * 2
+                    return B
+
+            rewritten_ir_module = RewriteAddIntoMultiply(ir_module)
+
+        Parameters
+        ----------
+        mod: IRModule
+
+            A module with `pattern` and `replacement` functions,
+            defining a rewrite rule.
+
+
+        Returns
+        -------
+        rewriter_obj: PatternMatchingRewriter
+
+            The rewriter object
+
+        """
+        return ffi.PatternMatchingRewriterFromModule(mod)  # type: ignore
+
+    def __call__(self, obj: Union[Expr, IRModule]) -> Union[Expr, IRModule]:
+        """Apply the rewriter
+
+        Parameters
+        ----------
+        obj: Union[Expr, IRModule])
+
+            The object to be rewritten.  May be applied to either a
+            relax expression, or an IRModule.
+
+        Returns
+        -------
+        updated: Union[Expr, IRModule]
+
+            The rewritten object
+
+        """
+        return ffi.PatternMatchingRewriterApply(self, obj)
+
+    def __or__(self, other: "PatternMatchingRewriter") -> "PatternMatchingRewriter":
+        """Compose two rewriters
+
+        Composing two rewrite rules together allows them to be applied
+        in a single Relax-level transformation.
+
+        Parameters
+        ----------
+        other: PatternMatchingRewriter
+
+            Another rewrite rule
+
+        Returns
+        -------
+        PatternMatchingRewriter
+
+            A rewriter that will apply either rewrite pattern
+
+        """
+        return OrRewriter(self, other)
+
+
+@register_object("relax.dpl.ExprPatternRewriter")
+class ExprPatternRewriter(PatternMatchingRewriter):
+    def __init__(self, pattern, func):
+        self.__init_handle_by_constructor__(
+            ffi.PatternRewriter,
+            pattern,
+            func,
+        )  # type: ignore
+
+
+@register_object("relax.dpl.OrRewriter")
+class OrRewriter(PatternMatchingRewriter):
+    def __init__(self, lhs, rhs):
+        self.__init_handle_by_constructor__(
+            ffi.OrRewriter,
+            lhs,
+            rhs,
+        )  # type: ignore
+
+
+@register_object("relax.dpl.TupleRewriter")
+class TupleRewriter(PatternMatchingRewriter):
+    def __init__(self, patterns, func):
+        self.__init_handle_by_constructor__(
+            ffi.TupleRewriter,
+            patterns,
+            func,
+        )  # type: ignore
+
+
 def rewrite_call(
-    pattern: DFPattern, rewriter: Callable[[Expr, Dict[DFPattern, Expr]], Expr], func: Function
+    pattern: DFPattern,
+    rewriter: Callable[[Expr, Dict[DFPattern, Expr]], Expr],
+    func: Function,
 ) -> Function:
     """
     Rewrite a function with the given pattern and the rewriter function.

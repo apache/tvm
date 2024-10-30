@@ -249,7 +249,8 @@ class IRModuleNode : public Object {
   TVM_DLL GlobalVar GetGlobalVar(const String& str) const;
 
   /*!
-   * \brief Collect all global vars defined in this module.
+   * \brief Collect all global vars defined in this module, ordered by
+   *        the global variable name.
    * \returns An array of global vars
    */
   TVM_DLL Array<GlobalVar> GetGlobalVars() const;
@@ -376,7 +377,8 @@ class IRModule : public ObjectRef {
   TVM_DLL explicit IRModule(Map<GlobalVar, BaseFunc> functions,
                             Map<GlobalTypeVar, TypeData> type_definitions = {},
                             std::unordered_set<String> import_set = {}, SourceMap map = {},
-                            DictAttrs attrs = {}, Map<String, Array<GlobalInfo>> global_infos = {});
+                            DictAttrs attrs = DictAttrs(),
+                            Map<String, Array<GlobalInfo>> global_infos = {});
 
   /*! \brief default constructor */
   IRModule() : IRModule(Map<GlobalVar, BaseFunc>({})) {}

@@ -164,6 +164,11 @@ def _serving(sock, addr, opts, load_library):
             # package and maybe hard to be installed on some platforms.
             pass
         server_proc.terminate()
+    elif server_proc.exitcode != 0:
+        raise RuntimeError(
+            f"Child process {server_proc.pid} exited unsuccessfully "
+            f"with error code {server_proc.exitcode}"
+        )
 
     logger.info(f"finish serving {addr}")
     os.chdir(old_cwd)
@@ -469,6 +474,11 @@ class Server(object):
 
     Note
     ----
+    TVM RPC server assumes that the user is trusted and needs to be
+    used in a trusted network environment and encrypted channels.
+    It allows writings of arbitrary files into the server and provide
+    full remote code execution capabilities to anyone who can access this API.
+
     The RPC server only sees functions in the tvm namespace.
     To bring additional custom functions to the server env, you can use server_init_callback.
 

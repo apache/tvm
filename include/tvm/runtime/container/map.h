@@ -38,12 +38,12 @@
 namespace tvm {
 namespace runtime {
 
-#if TVM_LOG_DEBUG
+#if TVM_DEBUG_WITH_ABI_CHANGE
 #define TVM_MAP_FAIL_IF_CHANGED() \
   ICHECK(state_marker == self->state_marker) << "Concurrent modification of the Map";
 #else
 #define TVM_MAP_FAIL_IF_CHANGED()
-#endif  // TVM_LOG_DEBUG
+#endif  // TVM_DEBUG_WITH_ABI_CHANGE
 
 #if (USE_FALLBACK_STL_MAP != 0)
 
@@ -241,11 +241,11 @@ class MapNode : public Object {
     using pointer = KVType*;
     using reference = KVType&;
 /*! \brief Default constructor */
-#if TVM_LOG_DEBUG
+#if TVM_DEBUG_WITH_ABI_CHANGE
     iterator() : state_marker(0), index(0), self(nullptr) {}
 #else
     iterator() : index(0), self(nullptr) {}
-#endif  // TVM_LOG_DEBUG
+#endif  // TVM_DEBUG_WITH_ABI_CHANGE
     /*! \brief Compare iterators */
     bool operator==(const iterator& other) const {
       TVM_MAP_FAIL_IF_CHANGED()
@@ -280,7 +280,7 @@ class MapNode : public Object {
     }
 
    protected:
-#if TVM_LOG_DEBUG
+#if TVM_DEBUG_WITH_ABI_CHANGE
     uint64_t state_marker;
     /*! \brief Construct by value */
     iterator(uint64_t index, const MapNode* self)
@@ -288,7 +288,7 @@ class MapNode : public Object {
 
 #else
     iterator(uint64_t index, const MapNode* self) : index(index), self(self) {}
-#endif  // TVM_LOG_DEBUG
+#endif  // TVM_DEBUG_WITH_ABI_CHANGE
     /*! \brief The position on the array */
     uint64_t index;
     /*! \brief The container it points to */
@@ -304,9 +304,9 @@ class MapNode : public Object {
   static inline ObjectPtr<MapNode> Empty();
 
  protected:
-#if TVM_LOG_DEBUG
+#if TVM_DEBUG_WITH_ABI_CHANGE
   uint64_t state_marker;
-#endif  // TVM_LOG_DEBUG
+#endif  // TVM_DEBUG_WITH_ABI_CHANGE
   /*!
    * \brief Create the map using contents from the given iterators.
    * \param first Begin of iterator
@@ -1233,9 +1233,9 @@ inline ObjectPtr<Object> MapNode::CreateFromRange(IterType first, IterType last)
 inline void MapNode::InsertMaybeReHash(const KVType& kv, ObjectPtr<Object>* map) {
   constexpr uint64_t kSmallMapMaxSize = SmallMapNode::kMaxSize;
   MapNode* base = static_cast<MapNode*>(map->get());
-#if TVM_LOG_DEBUG
+#if TVM_DEBUG_WITH_ABI_CHANGE
   base->state_marker++;
-#endif  // TVM_LOG_DEBUG
+#endif  // TVM_DEBUG_WITH_ABI_CHANGE
   if (base->slots_ < kSmallMapMaxSize) {
     SmallMapNode::InsertMaybeReHash(kv, map);
   } else if (base->slots_ == kSmallMapMaxSize) {

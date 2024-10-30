@@ -1275,6 +1275,13 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
     auto it = info_map_.find(buffer);
     ICHECK(it != info_map_.end()) << "Load/Store of buffer " << buffer->name_hint << " (" << buffer
                                   << ") occurred before its declaration.";
+
+    if (value_dtype.is_scalable_vector()) {
+      // Scalable types are not currently supported in storage_rewrite. Scalable buffer
+      // accesses are not currently checked and therefore are not rewritten.
+      return;
+    }
+
     BufferVarInfo& var_info = it->second;
 
     if (value_dtype.element_of() == DataType::Bool()) {
@@ -1466,6 +1473,13 @@ class VectorTypeRewriter : public StmtExprMutator {
     Array<PrimExpr> indices = node->indices;
     const PrimExpr& last_dim_index = indices[indices.size() - 1];
     const RampNode* ramp_index = indices[indices.size() - 1].as<RampNode>();
+
+    if (node->buffer->dtype.is_scalable_vector() || last_dim_index.dtype().is_scalable_vector()) {
+      // Scalable types are not currently supported in storage_rewrite. Scalable buffer
+      // accesses are not currently checked and therefore are not rewritten.
+      return {node, shuffle_index};
+    }
+
     if (ramp_index && is_one(ramp_index->stride) && ramp_index->lanes->IsInstance<IntImmNode>()) {
       int lanes = static_cast<int>(Downcast<IntImm>(ramp_index->lanes)->value);
       PrimExpr new_index = ramp_index->base / make_const(ramp_index->base.dtype(), lanes);
@@ -1479,7 +1493,7 @@ class VectorTypeRewriter : public StmtExprMutator {
       arith::ModularSet me = analyzer_.modular_set(last_dim_index);
       ICHECK(me->coeff == 0 || info.factor() % me->coeff == 0);
       PrimExpr new_index = last_dim_index / make_const(last_dim_index.dtype(), info.factor());
-      shuffle_index = me->base;
+      shuffle_index = me->base % info.factor();
       indices.Set(indices.size() - 1, new_index);
     }
 

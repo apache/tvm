@@ -165,8 +165,14 @@ void VulkanDeviceAPI::GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) 
       break;
 
     case kTotalGlobalMemory: {
+      *rv = device(index).compute_memory_size;
       return;
     }
+
+    case kAvailableGlobalMemory:
+      // Not currently implemented.  Will only be implementable for
+      // devices that support the VK_EXT_memory_budget extension.
+      break;
   }
 }
 
@@ -326,6 +332,8 @@ void VulkanDeviceAPI::StreamSync(Device dev, TVMStreamHandle stream) {
 void VulkanDeviceAPI::SetStream(Device dev, TVMStreamHandle stream) {
   ICHECK_EQ(stream, static_cast<void*>(nullptr));
 }
+
+TVMStreamHandle VulkanDeviceAPI::GetCurrentStream(Device dev) { return nullptr; }
 
 void VulkanDeviceAPI::CopyDataFromTo(const void* from, size_t from_offset, void* to,
                                      size_t to_offset, size_t size, Device dev_from, Device dev_to,

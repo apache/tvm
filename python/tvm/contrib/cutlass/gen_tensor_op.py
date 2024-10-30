@@ -566,7 +566,10 @@ def instantiate_template(func_name, annotations, func_args):
         transposed = "transposed" in func_name or "dense" in func_name
         lhs_arg_idx = _get_optional_int_annotation(annotations, "lhs_arg_idx", 0)
         rhs_arg_idx = _get_optional_int_annotation(annotations, "rhs_arg_idx", 1)
-        bias_arg_idx = _get_optional_int_annotation(annotations, "bias_arg_idx", None)
+        if "bias" in func_name:
+            bias_arg_idx = _get_optional_int_annotation(annotations, "bias_arg_idx", 2)
+        else:
+            bias_arg_idx = _get_optional_int_annotation(annotations, "bias_arg_idx", None)
         residual_arg_idx = _get_optional_int_annotation(annotations, "residual_arg_idx", None)
 
         lhs_arg = func_args[lhs_arg_idx]
@@ -742,8 +745,8 @@ def instantiate_template(func_name, annotations, func_args):
             attrs["qkv"] = func_args[0]
             attrs["num_queries"] = s = annotations["num_queries"]
             attrs["num_keys"] = annotations["num_keys"]
-            if len(func_args) > 5 and not is_var_len:  # +1 for workspace, the last arg
-                attrs["bias"] = func_args[4]
+            if len(func_args) > 2 and not is_var_len:  # +1 for workspace, the last arg
+                attrs["bias"] = func_args[1]
         else:
             raise NotImplementedError()
 

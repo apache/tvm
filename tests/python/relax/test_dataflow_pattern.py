@@ -72,7 +72,7 @@ class Module:
             lv0 = R.call_tir(cls.tir_matmul, (x, w), R.Tensor((32, 32), dtype="float32"))
             lv1 = R.call_tir(cls.tir_relu, (lv0), R.Tensor((32, 32), dtype="float32"))
             lv2 = R.call_tir(
-                cls.tir_zeros, (lv1), R.Tensor((32,), dtype="float32"), tir_vars=R.ShapeExpr([32])
+                cls.tir_zeros, [], R.Tensor((32,), dtype="float32"), tir_vars=R.ShapeExpr([32])
             )
             gv = (lv1, lv2)
             R.output(gv)
@@ -314,7 +314,7 @@ def test_is_call_tir():
     assert is_call_tir("tir_zeros", wildcard(), wildcard()).match(lv2_val, var2val=var2val)
 
 
-@R.function
+@R.function(pure=False)
 def simple_call_packed(
     x: R.Tensor((32, 32), "float32"), w: R.Tensor((32, 32), "float32")
 ) -> R.Tensor:
@@ -1053,9 +1053,17 @@ def test_attention_fake_qkv():
         assert ctx.match_dfb(dfb) is None
 
 
-def get_qkv_proj_rewriter(
-    inp_pat, Q_weight_pat, K_weight_pat, V_weight_pat, matmul1, matmul2, matmul3
-):
+def get_qkv_proj_rewriter():
+    with PatternContext() as ctx:
+        inp_pat = wildcard()
+        Q_weight_pat = wildcard()
+        K_weight_pat = wildcard()
+        V_weight_pat = wildcard()
+
+        matmul1 = is_op("relax.matmul")(inp_pat, Q_weight_pat)
+        matmul2 = is_op("relax.matmul")(inp_pat, K_weight_pat)
+        matmul3 = is_op("relax.matmul")(inp_pat, V_weight_pat)
+
     def qkv_proj_rewriter(matchings, _):
         inp = matchings[inp_pat]
         Q_weight = matchings[Q_weight_pat]
@@ -1071,7 +1079,7 @@ def get_qkv_proj_rewriter(
 
         return {matchings[matmul1]: Q, matchings[matmul2]: K, matchings[matmul3]: V}
 
-    return qkv_proj_rewriter
+    return ctx, qkv_proj_rewriter
 
 
 def test_combine_matmul_twice():
@@ -1123,21 +1131,63 @@ def test_combine_matmul_twice():
             R.output(out)
         return out
 
-    with PatternContext() as ctx:
-        inp_pat = wildcard()
-        Q_weight_pat = wildcard()
-        K_weight_pat = wildcard()
-        V_weight_pat = wildcard()
+    ctx, rewriter = get_qkv_proj_rewriter()
+    rewritten = rewrite_bindings(ctx, rewriter, qkv_x2)
+    tvm.ir.assert_structural_equal(rewritten, expected)
 
-        matmul1 = is_op("relax.matmul")(inp_pat, Q_weight_pat)
-        matmul2 = is_op("relax.matmul")(inp_pat, K_weight_pat)
-        matmul3 = is_op("relax.matmul")(inp_pat, V_weight_pat)
 
-        rewriter = get_qkv_proj_rewriter(
-            inp_pat, Q_weight_pat, K_weight_pat, V_weight_pat, matmul1, matmul2, matmul3
-        )
-        rewritten = rewrite_bindings(ctx, rewriter, qkv_x2)
-        tvm.ir.assert_structural_equal(rewritten, expected)
+def test_dataflow_may_start_with_match_cast():
+    """Inputs to rewrite_bindings may contain R.match_cast
+
+    This is a regression test.  In previous implementations, applying
+    `rewrite_bindings` when `R.match_cast` is the first binding of a
+    `R.dataflow` block would cause a segfault.
+
+    """
+
+    @R.function(private=True)
+    def before(
+        x_untyped: R.Tensor,
+        w0_untyped: R.Tensor,
+        w1_untyped: R.Tensor,
+        w2_untyped: R.Tensor,
+    ):
+        with R.dataflow():
+            x = R.match_cast(x_untyped, R.Tensor((2, 1024, 640), "float32"))
+            w0 = R.match_cast(w0_untyped, R.Tensor((640, 640), "float32"))
+            w1 = R.match_cast(w1_untyped, R.Tensor((640, 640), "float32"))
+            w2 = R.match_cast(w2_untyped, R.Tensor((640, 640), "float32"))
+            out_0 = R.matmul(x, w0)
+            out_1 = R.matmul(x, w1)
+            out_2 = R.matmul(x, w2)
+            out = (out_0, out_1, out_2)
+            R.output(out)
+        return out
+
+    @R.function(private=True)
+    def expected(
+        x_untyped: R.Tensor,
+        w0_untyped: R.Tensor,
+        w1_untyped: R.Tensor,
+        w2_untyped: R.Tensor,
+    ):
+        with R.dataflow():
+            x = R.match_cast(x_untyped, R.Tensor((2, 1024, 640), "float32"))
+            w0 = R.match_cast(w0_untyped, R.Tensor((640, 640), "float32"))
+            w1 = R.match_cast(w1_untyped, R.Tensor((640, 640), "float32"))
+            w2 = R.match_cast(w2_untyped, R.Tensor((640, 640), "float32"))
+            w_concat = R.concat((w0, w1, w2), axis=1)
+            out_concat = R.matmul(x, w_concat)
+            out_0 = R.strided_slice(out_concat, axes=[2], begin=[0], end=[640])
+            out_1 = R.strided_slice(out_concat, axes=[2], begin=[640], end=[1280])
+            out_2 = R.strided_slice(out_concat, axes=[2], begin=[1280], end=[1920])
+            out = (out_0, out_1, out_2)
+            R.output(out)
+        return out
+
+    ctx, rewriter = get_qkv_proj_rewriter()
+    rewritten = rewrite_bindings(ctx, rewriter, before)
+    tvm.ir.assert_structural_equal(rewritten, expected)
 
 
 def test_combine_matmul_emit_order():
@@ -1181,27 +1231,16 @@ def test_combine_matmul_emit_order():
             R.output(out)
         return out
 
-    with PatternContext() as ctx:
-        inp_pat = wildcard()
-        Q_weight_pat = wildcard()
-        K_weight_pat = wildcard()
-        V_weight_pat = wildcard()
+    ctx, rewriter = get_qkv_proj_rewriter()
 
-        matmul1 = is_op("relax.matmul")(inp_pat, Q_weight_pat)
-        matmul2 = is_op("relax.matmul")(inp_pat, K_weight_pat)
-        matmul3 = is_op("relax.matmul")(inp_pat, V_weight_pat)
+    rewritten = rewrite_bindings(ctx, rewriter, main)
+    tvm.ir.assert_structural_equal(rewritten, expected)
 
-        rewriter = get_qkv_proj_rewriter(
-            inp_pat, Q_weight_pat, K_weight_pat, V_weight_pat, matmul1, matmul2, matmul3
-        )
-        rewritten = rewrite_bindings(ctx, rewriter, main)
-        tvm.ir.assert_structural_equal(rewritten, expected)
+    # make sure it builds
+    mod = tvm.IRModule()
+    mod["main"] = rewritten
 
-        # make sure it builds
-        mod = tvm.IRModule()
-        mod["main"] = rewritten
-
-        rx.build(mod, target="llvm")
+    rx.build(mod, target="llvm")
 
 
 def test_combine_transposed_matmul_twice():
@@ -1563,23 +1602,37 @@ def test_iterative_rewrite_without_trivial_binding():
         return c
 
     pattern_arg = wildcard()
-    pattern = is_op("relax.strided_slice")(pattern_arg).has_attr(
-        {
-            "axes": [0],
-            "strides": [T.int64(1)],
-        }
+    pattern_axes = wildcard()
+    pattern_begin = wildcard()
+    pattern_end = wildcard()
+    pattern_strides = wildcard()
+    pattern = is_op("relax.strided_slice")(
+        pattern_arg, pattern_axes, pattern_begin, pattern_end, pattern_strides
     )
 
     def rewriter(expr, matches):
         arg = matches[pattern_arg]
+        axes = matches[pattern_axes]
+        begin = matches[pattern_begin]
+        end = matches[pattern_end]
+        strides = matches[pattern_strides]
         strided_slice = matches[pattern]
 
         if arg.struct_info.shape is None:
             return expr
 
+        if len(axes) != 1:
+            return expr
+
+        axis = axes[0].value
+        begin = begin[0].value
+        end = end[0].value
+        stride = strides[0].value
+
+        if stride != 1:
+            return expr
+
         size = arg.struct_info.shape[0]
-        begin = strided_slice.attrs.begin[0]
-        end = strided_slice.attrs.end[0]
         if (
             isinstance(size, tir.IntImm)
             and isinstance(begin, tir.IntImm)
@@ -1717,6 +1770,271 @@ def test_iterative_rewrite_with_removed_intermediates():
         return expr
 
     after = rewrite_call(pattern, rewriter, before)
+    tvm.ir.assert_structural_equal(expected, after)
+
+
+def test_wildcard_with_struct_info_updates_when_matching():
+    """A DFPattern may be restricted to a specific StructInfo"""
+
+    pat_lhs = wildcard().has_struct_info(R.Tensor([2, 3]))
+    pat_rhs = wildcard().has_struct_info(R.Tensor([2, 3]))
+    pat = is_op("relax.add")(pat_lhs, pat_rhs)
+
+    def rewriter(expr, matches):
+        lhs = matches[pat_lhs]
+        rhs = matches[pat_rhs]
+        return rx.op.multiply(lhs, rhs)
+
+    @R.function(private=True)
+    def before():
+        with R.dataflow():
+            A = R.zeros([2, 3], "int32")
+            B = R.ones([2, 3], "int32")
+            C = R.add(A, B)
+
+            R.output(C)
+        return C
+
+    @R.function(private=True)
+    def expected():
+        with R.dataflow():
+            A = R.zeros([2, 3], "int32")
+            B = R.ones([2, 3], "int32")
+            C = R.multiply(A, B)
+
+            R.output(C)
+        return C
+
+    after = rewrite_call(pat, rewriter, before)
+    tvm.ir.assert_structural_equal(expected, after)
+
+
+def test_wildcard_with_struct_info_is_no_op_when_not_matching():
+    """StructInfoPattern requires the StructInfo provided
+
+    Here, the pattern would match, expect that the function has
+    `R.Tensor([16,32])`, and the pattern requires `R.Tensor([2,3])`.
+    """
+
+    pat_lhs = wildcard().has_struct_info(R.Tensor([2, 3]))
+    pat_rhs = wildcard().has_struct_info(R.Tensor([2, 3]))
+    pat = is_op("relax.add")(pat_lhs, pat_rhs)
+
+    def rewriter(expr, matches):
+        lhs = matches[pat_lhs]
+        rhs = matches[pat_rhs]
+        return rx.op.multiply(lhs, rhs)
+
+    @R.function(private=True)
+    def before():
+        with R.dataflow():
+            # This R.add has the same shape as the pattern, and will
+            # be updated.
+            A = R.zeros([16, 32], "int32")
+            B = R.ones([16, 32], "int32")
+            C = R.add(A, B)
+
+            R.output(C)
+        return C
+
+    expected = before
+
+    after = rewrite_call(pat, rewriter, before)
+    tvm.ir.assert_structural_equal(expected, after)
+
+
+def test_wildcard_struct_info_for_unknown_dtype():
+    """TensorStructInfo with unknown dtype allows any dtype"""
+
+    pat_lhs = wildcard().has_struct_info(R.Tensor([2, 3]))
+    pat_rhs = wildcard().has_struct_info(R.Tensor([2, 3]))
+    pat = is_op("relax.add")(pat_lhs, pat_rhs)
+
+    def rewriter(expr, matches):
+        lhs = matches[pat_lhs]
+        rhs = matches[pat_rhs]
+        return rx.op.multiply(lhs, rhs)
+
+    @R.function(private=True)
+    def before():
+        with R.dataflow():
+            A = R.zeros([2, 3], "int32")
+            B = R.ones([2, 3], "int32")
+            C = R.add(A, B)
+
+            D = R.zeros([2, 3], "float32")
+            E = R.ones([2, 3], "float32")
+            F = R.add(D, E)
+
+            output = (C, F)
+            R.output(output)
+        return output
+
+    @R.function(private=True)
+    def expected():
+        with R.dataflow():
+            A = R.zeros([2, 3], "int32")
+            B = R.ones([2, 3], "int32")
+            C = R.multiply(A, B)
+
+            D = R.zeros([2, 3], "float32")
+            E = R.ones([2, 3], "float32")
+            F = R.multiply(D, E)
+
+            output = (C, F)
+            R.output(output)
+        return output
+
+    after = rewrite_call(pat, rewriter, before)
+    tvm.ir.assert_structural_equal(expected, after)
+
+
+def test_wildcard_struct_info_with_symbolic_vars():
+    """StructInfoPattern may define symbolic vars
+
+    This test finds an elementwise `R.add`, while ignoring a
+    broadcasted `R.add`.
+    """
+
+    m = tir.Var("m", "int64")
+    n = tir.Var("n", "int64")
+
+    pat_lhs = wildcard().has_struct_info(R.Tensor([m, n]))
+    pat_rhs = wildcard().has_struct_info(R.Tensor([m, n]))
+    pat = is_op("relax.add")(pat_lhs, pat_rhs)
+
+    def rewriter(expr, matches):
+        lhs = matches[pat_lhs]
+        rhs = matches[pat_rhs]
+        return rx.op.multiply(lhs, rhs)
+
+    @R.function(private=True)
+    def before():
+        with R.dataflow():
+            A = R.zeros([64, 128], "int32")
+            B = R.ones([64, 128], "int32")
+            C = R.add(A, B)
+
+            D = R.zeros([64, 128], "float32")
+            E = R.ones([1, 128], "float32")
+            F = R.add(D, E)
+
+            output = (C, F)
+            R.output(output)
+        return output
+
+    @R.function(private=True)
+    def expected():
+        with R.dataflow():
+            A = R.zeros([64, 128], "int32")
+            B = R.ones([64, 128], "int32")
+            C = R.multiply(A, B)
+
+            D = R.zeros([64, 128], "float32")
+            E = R.ones([1, 128], "float32")
+            F = R.add(D, E)
+
+            output = (C, F)
+            R.output(output)
+        return output
+
+    after = rewrite_call(pat, rewriter, before)
+    tvm.ir.assert_structural_equal(expected, after)
+
+
+def test_backtrack_if_rewriter_returns_no_op():
+    """Rewriter participates in the pattern matching
+
+    Sometimes, the pattern-matching syntax is insufficient to check if
+    a replacement may be performed.  In this case, the `rewriter`
+    function may perform additional validation.  If this validation
+    fails, the `rewriter` function can return the original expression,
+    and no replacement is performed.
+
+    In addition, when the `rewriter` returns the original expression,
+    the pattern match should backtrack to determine if another branch
+    of the match may have produced a replacement.
+
+    This functionality allows pattern replacements to be composed.
+    """
+
+    pat_match_no_rewrite = is_op("relax.add")(wildcard(), wildcard())
+
+    pat_arg = wildcard()
+    pat_zeros = is_op("relax.zeros")(wildcard())
+    pat_add = is_op("relax.add")(pat_arg, pat_zeros)
+
+    # OR conditions are checked in the order that they occur.  Because
+    # `pat_match_no_rewrite` is a superset of `pat_add`, it will
+    # always match first.
+    pat = pat_match_no_rewrite | pat_add
+
+    def rewriter(expr, matches):
+        if pat_match_no_rewrite in matches:
+            # This branch simulates a rewrite whose precondition has
+            # failed.  If the pattern-matching treats this as a
+            # successful match with no replacemen required, then no
+            # rewrite would be performed.  On the other hand, if the
+            # pattern-matching treats this as an unsuccessful match,
+            # then it can backtrack and attempt `pat_add` instead.
+            return expr
+        elif pat_add in matches:
+            return matches[pat_arg]
+        else:
+            raise RuntimeError("Pattern matched, but neither branch matched")
+
+    @R.function(private=True)
+    def before():
+        with R.dataflow():
+            A = R.ones([64, 128], "int32")
+            B = R.zeros([64, 128], "int32")
+            C = R.add(A, B)
+
+            R.output(C)
+        return C
+
+    @R.function(private=True)
+    def expected():
+        with R.dataflow():
+            C = R.ones([64, 128], "int32")
+
+            R.output(C)
+        return C
+
+    after = rewrite_call(pat, rewriter, before)
+    tvm.ir.assert_structural_equal(expected, after)
+
+
+def test_backtrack_for_no_op_rewriter_does_not_match_on_var():
+    """The matches should always contain the bound value
+
+    This is a regression test.  In versions from
+    https://github.com/apache/tvm/pull/16732 to
+    https://github.com/apache/tvm/pull/16828, the `rewrite_call`
+    function could erroneously call the rewriter with `expr` and
+    `matches[pat]` set to a variable (`C`) instead of the value to
+    which it is bound (`R.add(A,B)`).
+    """
+    pat_a = is_op("relax.add")(wildcard(), wildcard())
+    pat_b = is_op("relax.add")(wildcard(), wildcard())
+    pat = pat_a | pat_b
+
+    def rewriter(expr, matches):
+        assert isinstance(matches[pat], rx.Call)
+        return expr
+
+    @R.function(private=True)
+    def before():
+        with R.dataflow():
+            A = R.ones([64, 128], "int32")
+            B = R.zeros([64, 128], "int32")
+            C = R.add(A, B)
+
+            R.output(C)
+        return C
+
+    expected = before
+    after = rewrite_call(pat, rewriter, before)
     tvm.ir.assert_structural_equal(expected, after)
 
 

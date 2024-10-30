@@ -28,6 +28,7 @@
 #include <tvm/runtime/container/array.h>
 #include <tvm/runtime/data_type.h>
 
+#include <cmath>
 #include <string>
 
 namespace tvm {
@@ -38,11 +39,21 @@ namespace tvm {
 class BaseValueEqual {
  public:
   bool operator()(const double& lhs, const double& rhs) const {
-    // fuzzy float pt comparison
-    constexpr double atol = 1e-9;
-    if (lhs == rhs) return true;
-    double diff = lhs - rhs;
-    return diff > -atol && diff < atol;
+    if (std::isnan(lhs) && std::isnan(rhs)) {
+      // IEEE floats do not compare as equivalent to each other.
+      // However, for the purpose of comparing IR representation, two
+      // NaN values are equivalent.
+      return true;
+    } else if (std::isnan(lhs) || std::isnan(rhs)) {
+      return false;
+    } else if (lhs == rhs) {
+      return true;
+    } else {
+      // fuzzy float pt comparison
+      constexpr double atol = 1e-9;
+      double diff = lhs - rhs;
+      return diff > -atol && diff < atol;
+    }
   }
 
   bool operator()(const int64_t& lhs, const int64_t& rhs) const { return lhs == rhs; }
@@ -108,9 +119,11 @@ class StructuralEqual : public BaseValueEqual {
    * \brief Compare objects via strutural equal.
    * \param lhs The left operand.
    * \param rhs The right operand.
+   * \param map_free_params Whether or not to map free variables.
    * \return The comparison result.
    */
-  TVM_DLL bool operator()(const ObjectRef& lhs, const ObjectRef& rhs) const;
+  TVM_DLL bool operator()(const ObjectRef& lhs, const ObjectRef& rhs,
+                          const bool map_free_params = false) const;
 };
 
 /*!

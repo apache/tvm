@@ -91,7 +91,7 @@ int component_for_device(Device dev) {
  * PAPI (Performance Application Programming Interface) collects metrics on a
  * variety of platforms including cpu, cuda and rocm.
  *
- * PAPI is avaliable at https://bitbucket.org/icl/papi/src/master/.
+ * PAPI is avaliable at https://github.com/icl-utk-edu/papi.
  */
 struct PAPIMetricCollectorNode final : public MetricCollectorNode {
   /*! \brief Construct a metric collector that collects a specific set of metrics.

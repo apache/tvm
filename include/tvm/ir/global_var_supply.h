@@ -41,7 +41,7 @@ class GlobalVarSupplyNode : public Object {
   /*!
    * \brief Empty constructor. Will use an empty NameSupply.
    */
-  GlobalVarSupplyNode() : GlobalVarSupplyNode(NameSupply("")) {}
+  GlobalVarSupplyNode() : GlobalVarSupplyNode(NameSupply()) {}
 
   /*!
    * \brief Constructor.
@@ -100,7 +100,7 @@ class GlobalVarSupply : public ObjectRef {
    * \param name_supply The NameSupply to be used when generating new GlobalVars.
    * \param name_to_var_map An optional map.
    */
-  TVM_DLL explicit GlobalVarSupply(const NameSupply& name_supply,
+  TVM_DLL explicit GlobalVarSupply(const NameSupply& name_supply = NameSupply(),
                                    std::unordered_map<std::string, GlobalVar> name_to_var_map = {});
 
   /*!
@@ -117,7 +117,8 @@ class GlobalVarSupply : public ObjectRef {
    */
   TVM_DLL explicit GlobalVarSupply(const IRModule module);
 
-  TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS(GlobalVarSupply, ObjectRef, GlobalVarSupplyNode);
+  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(GlobalVarSupply, ObjectRef,
+                                                    GlobalVarSupplyNode);
 };
 
 }  // namespace tvm

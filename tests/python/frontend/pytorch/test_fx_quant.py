@@ -44,7 +44,7 @@ def quantize_and_build(model, in_size):
             mod, _ = relay.frontend.from_pytorch(script_module, [(input_name, inp.shape)])
         with tvm.testing.enable_span_filling():
             mod_with_span, _ = relay.frontend.from_pytorch(script_module, [(input_name, inp.shape)])
-        assert tvm.ir.structural_equal(mod, mod_with_span, map_free_vars=True)
+        tvm.ir.assert_structural_equal(mod, mod_with_span, map_free_vars=True)
         mod = relay.transform.InferType()(mod)
 
         # Make sure that the model is quantized
@@ -87,6 +87,9 @@ def test_deeplab_v3():
     quantize_and_build(model, 300)
 
 
+@pytest.mark.skip(
+    reason="Model binary isn't uploaded to S3. See https://github.com/apache/tvm/pull/17397"
+)
 def test_imagenet():
     for model_func in [resnet50, efficientnet_b4]:
         quantize_and_build(model_func(pretrained=True).eval(), 224)
