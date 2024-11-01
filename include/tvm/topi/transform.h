@@ -43,7 +43,11 @@
 #include <unordered_set>
 #include <vector>
 
+#include "tvm/ir/expr.h"
+#include "tvm/runtime/data_type.h"
 #include "tvm/tir/expr.h"
+#include "tvm/tir/op.h"
+#include "tvm/tir/var.h"
 
 namespace tvm {
 namespace topi {
@@ -649,9 +653,59 @@ inline Array<Tensor> split(const Tensor& x, Array<PrimExpr> split_indices, int a
  *
  * \return A Tensor whose op member is the dynamic_strided_slice operation
  */
+
+inline PrimExpr DynamicCanonicalizeIndex(PrimExpr index, PrimExpr extent, PrimExpr stride) {
+  auto idx_var = index.as<tvm::tir::VarNode>();
+  auto extent_var = extent.as<tvm::tir::VarNode>();
+
+  if (idx_var && extent_var && idx_var->name_hint == extent_var->name_hint) {
+    return index;
+  }
+
+  PrimExpr begin_range = tvm::if_then_else(stride < 0, -1, 0);
+  PrimExpr end_range = tvm::if_then_else(stride < 0, extent - 1, extent);
+
+  if (!(index->IsInstance<tvm::IntImmNode>() && GetConstInt(index) >= 0)) {
+    index = tvm::if_then_else(index < 0, index + extent, index);
+  }
+
+  return tvm::min(tvm::max(index, begin_range), end_range);
+}
+
+inline int64_t StaticCanonicalizeIndex(int64_t index, int64_t extent, int64_t stride) {
+  int64_t begin_range = stride < 0 ? -1 : 0;
+  int64_t end_range = stride < 0 ? extent - 1 : extent;
+  if (index < 0) {
+    index += extent;
+  }
+  return std::min(std::max(index, begin_range), end_range);
+}
+
+inline PrimExpr CanonicalizeIndex(PrimExpr index, PrimExpr extent, PrimExpr stride) {
+  if (index->IsInstance<tvm::IntImmNode>() && extent->IsInstance<tvm::IntImmNode>() &&
+      stride->IsInstance<tvm::IntImmNode>()) {
+    return tvm::IntImm(
+        tvm::DataType::Int(64),
+        StaticCanonicalizeIndex(GetConstInt(index), GetConstInt(extent), GetConstInt(stride)));
+  }
+  return DynamicCanonicalizeIndex(index, extent, stride);
+}
+
+inline PrimExpr GetLength(PrimExpr begin, PrimExpr end, PrimExpr stride, PrimExpr extent,
+                          bool assume_inbound = false) {
+  if (assume_inbound) {
+    return ceildiv(end - begin, stride);
+  } else {
+    begin = CanonicalizeIndex(begin, extent, stride);
+    end = CanonicalizeIndex(end, extent, stride);
+    return tvm::if_then_else(stride < 0, ceildiv(begin - end, -stride),
+                             ceildiv(end - begin, stride));
+  }
+}
+
 inline Tensor dynamic_strided_slice_with_axes(
     const Tensor& x, const Array<PrimExpr>& begin, const Array<PrimExpr>& end,
-    const Array<PrimExpr>& strides, const Array<Integer>& axes,
+    const Array<PrimExpr>& strides, const Array<Integer>& axes, bool assume_inbound = false,
     std::string name = "T_dynamic_strided_slice_with_axes", std::string tag = kInjective) {
   const size_t src_tensor_dim = x->shape.size();
   ICHECK_EQ(begin.size(), end.size());
@@ -669,7 +723,8 @@ inline Tensor dynamic_strided_slice_with_axes(
   Array<PrimExpr> out_shape = x->shape;
   for (size_t i = 0; i < begin.size(); i++) {
     int axis = axes[i]->value;
-    PrimExpr new_shape = analyzer.Simplify(ceildiv(end[i] - begin[i], strides[i]));
+    PrimExpr new_shape =
+        analyzer.Simplify(GetLength(begin[i], end[i], strides[i], out_shape[axis], assume_inbound));
     out_shape.Set(axis, new_shape);
   }
 
@@ -704,8 +759,10 @@ inline Tensor dynamic_strided_slice_with_axes(
  */
 inline Tensor dynamic_strided_slice(const Tensor& x, const Array<PrimExpr>& begin,
                                     const Array<PrimExpr>& end, const Array<PrimExpr>& strides,
+                                    bool assume_inbound = true,
                                     std::string name = "T_dynamic_strided_slice",
                                     std::string tag = kInjective) {
+  std::cout << "dynamic_strided_slice" << std::endl;
   const size_t src_tensor_dim = x->shape.size();
   ICHECK_LE(begin.size(), src_tensor_dim);
   ICHECK_LE(end.size(), src_tensor_dim);
@@ -721,7 +778,8 @@ inline Tensor dynamic_strided_slice(const Tensor& x, const Array<PrimExpr>& begi
     // Check ProducerLoad to keep backward compatibility for Relay.
     if (!begin[i]->IsInstance<ProducerLoadNode>() && !end[i]->IsInstance<ProducerLoadNode>() &&
         !strides[i]->IsInstance<ProducerLoadNode>()) {
-      out_shape.push_back(analyzer.Simplify(ceildiv(end[i] - begin[i], strides[i])));
+      out_shape.push_back(
+          analyzer.Simplify(GetLength(begin[i], end[i], strides[i], x->shape[i], assume_inbound)));
     } else {
       out_shape.push_back(tvm::tir::Var("dim"));
     }
@@ -762,6 +820,7 @@ inline Tensor dynamic_strided_slice(const Tensor& x, const Array<PrimExpr>& begi
  */
 inline te::Tensor dynamic_strided_slice(const te::Tensor& x, const te::Tensor& begin,
                                         const te::Tensor& end, const te::Tensor& strides,
+                                        bool assume_inbound = true,
                                         std::string name = "T_strided_slice_dynamic",
                                         std::string tag = topi::kInjective) {
   DataType index_dtype = begin->shape[0]->dtype;
@@ -776,7 +835,7 @@ inline te::Tensor dynamic_strided_slice(const te::Tensor& x, const te::Tensor& b
     end_expr.push_back(end(ind));
     strides_expr.push_back(strides(ind));
   }
-  return dynamic_strided_slice(x, begin_expr, end_expr, strides_expr, name, tag);
+  return dynamic_strided_slice(x, begin_expr, end_expr, strides_expr, assume_inbound, name, tag);
 }
 
 /*!
@@ -796,6 +855,7 @@ inline te::Tensor dynamic_strided_slice(const te::Tensor& x, const te::Tensor& b
 inline Array<PrimExpr> StridedSliceOutputShape(
     const Array<PrimExpr>& ishape, const Array<Integer>& begin, const Array<Integer>& end,
     const Array<Integer>& strides, const Array<Integer>& axes, const std::string& slice_mode) {
+  std::cout << "StridedSliceOutputShape" << std::endl;
   ICHECK(axes.size() == begin.size() && axes.size() == end.size() && axes.size() == strides.size());
   std::vector<int64_t> begin_vec, end_vec, strides_vec;
   std::tie(begin_vec, end_vec, strides_vec) = ConvertToVec(begin, end, strides, slice_mode);
