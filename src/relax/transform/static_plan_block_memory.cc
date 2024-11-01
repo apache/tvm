@@ -730,6 +730,15 @@ class StorageAllocator : public StorageAllocatorBaseVisitor {
     }
   }
 
+  void VisitBindingBlock_(const DataflowBlockNode* block) override {
+    // We maintain a block stack for token allocation-site and use-site check.
+    block_stack_.push_back(block);
+    ExprVisitor::VisitBindingBlock_(block);
+    ICHECK(!block_stack_.empty());
+    ICHECK(block_stack_.back() == block);
+    block_stack_.pop_back();
+  }
+
   void VisitBinding_(const VarBindingNode* binding, const CallNode* call) final {
     static const Op& alloc_tensor_op = Op::Get("relax.builtin.alloc_tensor");
     if (call->op == alloc_tensor_op) {
