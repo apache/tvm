@@ -203,7 +203,14 @@ def CPUAccessRewrite():
                     ),
                     op.body,
                 )
-                alloc = tvm.tir.Allocate(buffer_var, op.dtype, op.extents, op.condition, let_stmt)
+                alloc = tvm.tir.Allocate(
+                    buffer_var,
+                    op.dtype,
+                    op.extents,
+                    op.condition,
+                    let_stmt,
+                    annotations={"disable_lower_builtin": True},
+                )
                 del var_remap[buffer_var]
                 bufs_to_delete = [
                     old_buf for old_buf in buf_remap if old_buf.data.same_as(buffer_var)
