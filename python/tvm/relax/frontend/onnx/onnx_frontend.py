@@ -1746,11 +1746,11 @@ class Expand(OnnxOpConverter):
         data = inputs[0]
         shape = inputs[1]
         if isinstance(shape, relax.ShapeExpr):
-            data_shape = [dim for dim in data.struct_info.shape]
-            target_shape = [dim for dim in shape.values]
+            data_shape = list(data.struct_info.shape)
+            target_shape = list(shape.values)
             data_shape = [1] * (len(target_shape) - len(data_shape)) + data_shape
             assert len(data_shape) == len(target_shape)
-            # Fix small target shapes
+            # Fix small target shapes or target shapes assigned to -1
             for i, s in enumerate(target_shape):
                 if isinstance(s, tvm.tir.IntImm) and (
                     (isinstance(data_shape[i], tvm.tir.IntImm) and s < data_shape[i])
@@ -2715,11 +2715,15 @@ class DepthToSpace(OnnxOpConverter):
         mode = attr.get("mode", b"DCR").decode("utf-8")
         b, c, h, w = inputs[0].struct_info.shape
         if mode == "DCR":
-            x = relax.op.reshape(inputs[0], (b, block_size, block_size, c // (block_size**2), h, w))
+            x = relax.op.reshape(
+                inputs[0], (b, block_size, block_size, c // (block_size**2), h, w)
+            )
             x = relax.op.permute_dims(x, [0, 3, 4, 1, 5, 2])
             return relax.op.reshape(x, (b, c // (block_size**2), h * block_size, w * block_size))
         elif mode == "CRD":
-            x = relax.op.reshape(inputs[0], (b, c // (block_size**2), block_size, block_size, h, w))
+            x = relax.op.reshape(
+                inputs[0], (b, c // (block_size**2), block_size, block_size, h, w)
+            )
             x = relax.op.permute_dims(x, [0, 1, 4, 2, 5, 3])
             return relax.op.reshape(x, (b, c // (block_size**2), h * block_size, w * block_size))
         else:
