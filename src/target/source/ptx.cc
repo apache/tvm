@@ -136,6 +136,8 @@ inline DataType DTypeFromString(const std::string str) {
  */
 inline std::string CUDADTypeFromDType(DataType dtype) {
     switch (dtype) {
+        case DataType::kInt4: return "signed char";
+        case DataType::kUInt4: return "unsigned char";
         case DataType::kInt8: return "signed char";
         case DataType::kUInt8: return "unsigned char";
         case DataType::kInt16: return "int16";
@@ -151,8 +153,8 @@ inline std::string CUDADTypeFromDType(DataType dtype) {
         case DataType::kFloat16x2: return "half2";
         case DataType::kFloat32: return "float32";
         case DataType::kFloat64: return "float64";
-        default: 
-            throw std::runtime_error("Unrecognized DataType");
+        default:
+          throw std::runtime_error("CUDADTypeFromDType: Unrecognized DataType");
     }
 }
 
@@ -529,7 +531,7 @@ inline std::tuple<std::string, std::string, std::string> GetMMAOperands(int m, i
   templates << "}";
   // templates of metadata and sparse selector for sparse mma.
   if (sparse) {
-    templates << ", %" << (arg_counter++) << ", F";
+    templates << ", %" << (arg_counter++) << ", {F}";
   }
 
   // generate inputs
@@ -537,20 +539,20 @@ inline std::tuple<std::string, std::string, std::string> GetMMAOperands(int m, i
     if (i != 0) {
       inputs << ", ";
     }
-    inputs << "\"" << frag_attr_a.reg_type << "\"((" << frag_attr_a.ptr_type << "(A))[" << i
+    inputs << "\"" << frag_attr_a.reg_type << "\"((" << frag_attr_a.ptr_type << "({A}))[" << i
            << "])";
   }
   for (int i = 0; i < num_operands_b; ++i) {
-    inputs << ", \"" << frag_attr_b.reg_type << "\"((" << frag_attr_b.ptr_type << "(B))[" << i
+    inputs << ", \"" << frag_attr_b.reg_type << "\"((" << frag_attr_b.ptr_type << "({B}))[" << i
            << "])";
   }
   for (int i = 0; i < num_operands_c; ++i) {
-    inputs << ", \"" << frag_attr_c.reg_type << "\"((" << frag_attr_c.ptr_type << "(C))[" << i
+    inputs << ", \"" << frag_attr_c.reg_type << "\"((" << frag_attr_c.ptr_type << "({C}))[" << i
            << "])";
   }
   // input of metadata for sparse mma.
   if (sparse) {
-    inputs << ", \"r\"(((unsigned *)(E))[0])";
+    inputs << ", \"r\"(((unsigned *)({E}))[0])";
   }
 
   // generate outputs
@@ -558,7 +560,7 @@ inline std::tuple<std::string, std::string, std::string> GetMMAOperands(int m, i
     if (i != 0) {
       outputs << ",";
     }
-    outputs << " \"=" << frag_attr_c.reg_type << "\"((" << frag_attr_c.ptr_type << "(D))[" << i
+    outputs << " \"=" << frag_attr_c.reg_type << "\"((" << frag_attr_c.ptr_type << "({D}))[" << i
             << "])";
   }
   return std::make_tuple(templates.str(), inputs.str(), outputs.str());
@@ -609,12 +611,12 @@ std::string PrintMMAAssembly(const std::string& shape, const std::string& A_layo
   replacer.register_rule("{inputs}", inputs_str);
   asm_code = replacer.rewrite(asm_code);
   replacer.empty_rules();
-  replacer.register_rule("A", "(" + CUDADTypeFromDType(dtype_a) + "*)" + a_ptr + " + " + a_elem_offset);
-  replacer.register_rule("B", "(" + CUDADTypeFromDType(dtype_b) + "*)" + b_ptr + " + " + b_elem_offset);
-  replacer.register_rule("C", c_ptr + " + " + c_elem_offset);
-  replacer.register_rule("D", c_ptr + " + " + c_elem_offset);
-  replacer.register_rule("E", metadata + " + " + metadata_offset);
-  replacer.register_rule("F", sparsity_selector);
+  replacer.register_rule("{A}", "(" + CUDADTypeFromDType(dtype_a) + "*)" + a_ptr + " + " + a_elem_offset);
+  replacer.register_rule("{B}", "(" + CUDADTypeFromDType(dtype_b) + "*)" + b_ptr + " + " + b_elem_offset);
+  replacer.register_rule("{C}", c_ptr + " + " + c_elem_offset);
+  replacer.register_rule("{D}", c_ptr + " + " + c_elem_offset);
+  replacer.register_rule("{E}", metadata + " + " + metadata_offset);
+  replacer.register_rule("{F}", sparsity_selector);
   asm_code = replacer.rewrite(asm_code);
   return asm_code;
 }
@@ -690,7 +692,7 @@ std::string PrintCpAsyncAssembly(const std::string& shared_ptr,
                                  const std::string& global_elem_offset, const std::string& bytes) {
   std::string asm_code = R"(
   {
-        unsigned int addr;
+    unsigned int addr;
 #if TVM_ENBALE_EFFICIENT_SMEM_PTR_CAST
     addr = static_cast<unsigned int>(__cvta_generic_to_shared((void *)({smem_addr})));
 #else
