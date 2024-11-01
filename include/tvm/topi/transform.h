@@ -762,7 +762,6 @@ inline Tensor dynamic_strided_slice(const Tensor& x, const Array<PrimExpr>& begi
                                     bool assume_inbound = true,
                                     std::string name = "T_dynamic_strided_slice",
                                     std::string tag = kInjective) {
-  std::cout << "dynamic_strided_slice" << std::endl;
   const size_t src_tensor_dim = x->shape.size();
   ICHECK_LE(begin.size(), src_tensor_dim);
   ICHECK_LE(end.size(), src_tensor_dim);
@@ -855,7 +854,6 @@ inline te::Tensor dynamic_strided_slice(const te::Tensor& x, const te::Tensor& b
 inline Array<PrimExpr> StridedSliceOutputShape(
     const Array<PrimExpr>& ishape, const Array<Integer>& begin, const Array<Integer>& end,
     const Array<Integer>& strides, const Array<Integer>& axes, const std::string& slice_mode) {
-  std::cout << "StridedSliceOutputShape" << std::endl;
   ICHECK(axes.size() == begin.size() && axes.size() == end.size() && axes.size() == strides.size());
   std::vector<int64_t> begin_vec, end_vec, strides_vec;
   std::tie(begin_vec, end_vec, strides_vec) = ConvertToVec(begin, end, strides, slice_mode);
