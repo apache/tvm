@@ -272,6 +272,8 @@ def add_attributes(mod, annotate_target_str, **kwargs):
     mod : module with attributes
     """
     working_dir = mrvl_contrib.get_working_dir()
+    sim_attr_found = False
+    hw_attr_found = False
 
     if "mattr" in kwargs:
         base_opts_str = kwargs.get("mattr")
@@ -286,6 +288,14 @@ def add_attributes(mod, annotate_target_str, **kwargs):
         if "wb_pin_ocm" not in base_opts_str:
             base_opts_str = f"{base_opts_str} -wb_pin_ocm=0"
 
+        if "sim" in base_opts_str:
+            sim_attr_found = True
+            base_opts_str = base_opts_str.replace("sim", "")
+
+        if "hw" in base_opts_str:
+            hw_attr_found = True
+            base_opts_str = base_opts_str.replace("hw", "")
+
     else:
         base_opts_str = "-arch=mlip -quantize=fp16 -wb_pin_ocm=0"
 
@@ -294,6 +304,12 @@ def add_attributes(mod, annotate_target_str, **kwargs):
     elif "num_tiles" not in base_opts_str:
         base_opts_str = f"{base_opts_str} -num_tiles=8"
 
+    mode_string = "sim"
+    if sim_attr_found:
+        mode_string = "sim"
+    elif hw_attr_found:
+        mode_string = "hw"
+
     for var in mod.get_global_vars():
         func_name = var.name_hint
         func = mod[func_name]
@@ -301,6 +317,7 @@ def add_attributes(mod, annotate_target_str, **kwargs):
         if annotate_target_str in func_name:
             func = func.with_attr("working_dir", working_dir)
             func = func.with_attr("compiler_opts_string", base_opts_str)
+            func = func.with_attr("mode", mode_string)
             mod.update_func(var, func)
 
     return mod
