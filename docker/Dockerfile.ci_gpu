@@ -48,7 +48,6 @@ RUN bash /install/ubuntu_install_python.sh 3.9
 ENV PATH ${TVM_VENV}/bin:$PATH
 ENV PYTHONNOUSERSITE 1  # Disable .local directory from affecting CI.
 
-COPY install/ubuntu_install_cmake_source.sh /install/ubuntu_install_cmake_source.sh
 # Globally disable pip cache
 RUN bash /install/ubuntu_install_cmake_source.sh
 
