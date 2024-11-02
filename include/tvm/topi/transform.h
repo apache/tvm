@@ -813,6 +813,7 @@ inline Tensor dynamic_strided_slice(const Tensor& x, const Array<PrimExpr>& begi
  * \param end Indices indicating end of the slice
  * \param strides Specifies the stride values, it can be negative
  * in that case, the input tensor will be reversed in that particular axis
+ * \param assume_inbound Specifies if all indices are assumed to be inbound
  * \param name The name of the operation
  * \param tag The tag to mark the operation
  *
