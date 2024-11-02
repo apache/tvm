@@ -639,21 +639,6 @@ inline Array<Tensor> split(const Tensor& x, Array<PrimExpr> split_indices, int a
   return result;
 }
 
-/*!
- * \brief strided_slice of a tensor where begin/end/stride can be mixed static and dynamic
- *
- * \param x The input tensor
- * \param begin The indices to begin with in the slicing
- * \param end Indices indicating end of the slice
- * \param strides Specifies the stride values, it can be negative
- * in that case, the input tensor will be reversed in that particular axis
- * \param axes Specifies which axes will be updated.
- * \param name The name of the operation
- * \param tag The tag to mark the operation
- *
- * \return A Tensor whose op member is the dynamic_strided_slice operation
- */
-
 inline PrimExpr DynamicCanonicalizeIndex(PrimExpr index, PrimExpr extent, PrimExpr stride) {
   auto idx_var = index.as<tvm::tir::VarNode>();
   auto extent_var = extent.as<tvm::tir::VarNode>();
@@ -692,7 +677,7 @@ inline PrimExpr CanonicalizeIndex(PrimExpr index, PrimExpr extent, PrimExpr stri
 }
 
 inline PrimExpr GetLength(PrimExpr begin, PrimExpr end, PrimExpr stride, PrimExpr extent,
-                          bool assume_inbound = false) {
+                          bool assume_inbound = true) {
   if (assume_inbound) {
     return ceildiv(end - begin, stride);
   } else {
@@ -703,9 +688,24 @@ inline PrimExpr GetLength(PrimExpr begin, PrimExpr end, PrimExpr stride, PrimExp
   }
 }
 
+/*!
+ * \brief strided_slice of a tensor where begin/end/stride can be mixed static and dynamic
+ *
+ * \param x The input tensor
+ * \param begin The indices to begin with in the slicing
+ * \param end Indices indicating end of the slice
+ * \param strides Specifies the stride values, it can be negative
+ * in that case, the input tensor will be reversed in that particular axis
+ * \param axes Specifies which axes will be updated.
+ * \param assume_inbound Specifies if all indices are assumed to be inbound
+ * \param name The name of the operation
+ * \param tag The tag to mark the operation
+ *
+ * \return A Tensor whose op member is the dynamic_strided_slice operation
+ */
 inline Tensor dynamic_strided_slice_with_axes(
     const Tensor& x, const Array<PrimExpr>& begin, const Array<PrimExpr>& end,
-    const Array<PrimExpr>& strides, const Array<Integer>& axes, bool assume_inbound = false,
+    const Array<PrimExpr>& strides, const Array<Integer>& axes, bool assume_inbound = true,
     std::string name = "T_dynamic_strided_slice_with_axes", std::string tag = kInjective) {
   const size_t src_tensor_dim = x->shape.size();
   ICHECK_EQ(begin.size(), end.size());
@@ -752,6 +752,7 @@ inline Tensor dynamic_strided_slice_with_axes(
  * \param end Indices indicating end of the slice
  * \param strides Specifies the stride values, it can be negative
  * in that case, the input tensor will be reversed in that particular axis
+ * \param assume_inbound Specifies if all indices are assumed to be inbound
  * \param name The name of the operation
  * \param tag The tag to mark the operation
  *

@@ -170,7 +170,7 @@ def reverse_sequence(a, seq_lengths, seq_axis=1, batch_axis=0):
     return cpp.reverse_sequence(a, seq_lengths, seq_axis, batch_axis)
 
 
-def strided_slice(a, begin, end, strides=None, axes=None, slice_mode="end", assume_inbound=False):
+def strided_slice(a, begin, end, strides=None, axes=None, slice_mode="end", assume_inbound=True):
     """Slice of an array.
 
     Parameters
