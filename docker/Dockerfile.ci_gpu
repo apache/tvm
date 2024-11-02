@@ -49,7 +49,7 @@ ENV PATH ${TVM_VENV}/bin:$PATH
 ENV PYTHONNOUSERSITE 1  # Disable .local directory from affecting CI.
 
 # Globally disable pip cache
-RUN bash /install/ubuntu_install_cmake_source.sh
+RUN pip config set global.no-cache-dir false
 
 COPY install/ubuntu2204_install_llvm.sh /install/ubuntu2204_install_llvm.sh
 RUN bash /install/ubuntu2204_install_llvm.sh
