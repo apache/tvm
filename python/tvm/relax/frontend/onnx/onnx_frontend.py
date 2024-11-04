@@ -35,6 +35,8 @@ Not all TVM kernels currently support dynamic shapes, please file an issue on
 github.com/apache/tvm/issues if you hit an error with dynamic kernels.
 """
 import math
+import operator
+import re
 import warnings
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
@@ -101,6 +103,44 @@ def get_constant(
         return var
 
 
+def get_value(token, value_dict: Dict[str, tvm.tir.SizeVar]):
+    try:
+        return int(token)
+    except ValueError:
+        if token not in value_dict or token == "?":
+            value_dict[token] = tvm.tir.SizeVar(token, "int64")
+        value = value_dict[token]
+        return value
+
+
+def parse_shape_name(name: str, value_dict: Dict[str, tvm.tir.SizeVar]):
+
+    tokens = re.split(r"(\+|\-|\*|\/)", name.replace(" ", ""))
+
+    operators = {"+": operator.add, "-": operator.sub, "*": operator.mul, "/": operator.truediv}
+
+    value_stack = []
+    operator_stack = []
+
+    for token in tokens:
+        if token in operators:
+            operator_stack.append(token)
+        else:
+            value = get_value(token, value_dict)
+            if value_stack and operator_stack:
+                prev_value = value_stack.pop()
+                op = operator_stack.pop()
+                result = operators[op](prev_value, value)
+                value_stack.append(result)
+            else:
+                value_stack.append(value)
+
+    if value_stack:
+        return value_stack[0]
+    else:
+        raise Exception("Shape dimension could not be inferred")
+
+
 def get_info(
     info_proto: onnx.onnx_ml_pb2.ValueInfoProto, value_dict: Dict[str, tvm.tir.SizeVar]
 ) -> Tuple[str, List, str, List, Dict]:
@@ -126,9 +166,7 @@ def get_info(
         name = dim.dim_param
         value = dim.dim_value
         if value is None or value == 0:
-            if name not in value_dict or name == "?":
-                value_dict[name] = tvm.tir.SizeVar(name, "int64")
-            value = value_dict[name]
+            value = parse_shape_name(name, value_dict)
             shape_name.append(name)
         else:
             shape_name.append(value)
@@ -145,9 +183,7 @@ def get_info(
 def get_numpy(tensor_proto: onnx.onnx_ml_pb2.TensorProto) -> _np.ndarray:
     """Grab data in TensorProto and convert to numpy array."""
     try:
-        from onnx.numpy_helper import (  # pylint: disable=import-outside-toplevel
-            to_array,
-        )
+        from onnx.numpy_helper import to_array  # pylint: disable=import-outside-toplevel
     except ImportError as exception:
         raise ImportError("Unable to import onnx which is required {}".format(exception))
     return to_array(tensor_proto)
