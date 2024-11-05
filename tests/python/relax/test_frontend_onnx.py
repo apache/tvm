@@ -2754,7 +2754,6 @@ def test_params_names_start_with_onnx():
 
 
 def test_shape_dim_string_expression():
-
     def _verify(x_shape, example_shape):
 
         identity_node = helper.make_node("Identity", ["x"], ["y"])
