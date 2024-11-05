@@ -1507,10 +1507,6 @@ def test_topk(axis: int, largest: int):
 
 @pytest.mark.parametrize("dynamic", [False, True])
 def test_expand(dynamic):
-    if dynamic:
-        # TODO: Support dynamic shape for Expand
-        pytest.skip("Dynamic expand is not supported yet")
-
     def _test_expand(name, data, shape, ref_data):
         shape_array = np.array(shape)
         shape_node = onnx.helper.make_node(
@@ -1541,17 +1537,43 @@ def test_expand(dynamic):
         model = helper.make_model(graph, producer_name=name)
         check_correctness(model, inputs={"in": data})
 
-    in_shape = (3, 1)
-    shape = (3, 4)
-    data = np.random.uniform(size=in_shape).astype(np.float32)
-    ref_data = np.tile(data, 4)
-    _test_expand("expand_with_dim_unchanged_test", data, shape, ref_data)
+    def _test_expand_dynamic_shapeexpr(name, data, shape_data, shape, ref_data):
+        shape_node = onnx.helper.make_node("Shape", inputs=["in_2"], outputs=["shape"])
+        expand_node = helper.make_node("Expand", ["in", "shape"], ["out"])
+        in_shape = list(data.shape)
+        out_shape = list(ref_data.shape)
+        graph = helper.make_graph(
+            [shape_node, expand_node],
+            "expand_test",
+            inputs=[
+                helper.make_tensor_value_info("in", TensorProto.FLOAT, in_shape),
+                helper.make_tensor_value_info("in_2", TensorProto.FLOAT, shape),
+            ],
+            outputs=[helper.make_tensor_value_info("out", TensorProto.FLOAT, out_shape)],
+        )
 
-    in_shape = (3, 1)
-    shape = (1, 3, 4)
-    data = np.random.uniform(size=in_shape).astype(np.float32)
-    ref_data = np.tile(data, (1, 1, 4))
-    _test_expand("expand_with_diff_dim", data, shape, ref_data)
+        model = helper.make_model(graph, producer_name=name)
+        check_correctness(model, inputs={"in": data, "in_2": shape_data})
+
+    if not dynamic:
+        in_shape = (3, 1)
+        shape = (3, 4)
+        data = np.random.uniform(size=in_shape).astype(np.float32)
+        ref_data = np.tile(data, 4)
+        _test_expand("expand_with_dim_unchanged_test", data, shape, ref_data)
+
+        in_shape = (3, 1)
+        shape = (1, 3, 4)
+        data = np.random.uniform(size=in_shape).astype(np.float32)
+        ref_data = np.tile(data, (1, 1, 4))
+        _test_expand("expand_with_diff_dim", data, shape, ref_data)
+    else:
+        in_shape = (1, 32, 32)
+        shape = ("batch", 32, 32)
+        data = np.random.uniform(size=in_shape).astype(np.float32)
+        shape_data = np.random.uniform(size=(64, 32, 32)).astype(np.float32)
+        ref_data = np.tile(data, (64, 1, 1))
+        _test_expand_dynamic_shapeexpr("expand_with_dynamic_dim", data, shape_data, shape, ref_data)
 
 
 # TODO(jwfromm) Current approach to dynamic expand is technically not well formed. Reenable once fixed.
