@@ -262,6 +262,9 @@ def llama_rope(  # pylint: disable=too-many-arguments
     num_kv_heads : int
         The number of key/value heads. It differs from `num_q_heads` in group-query attention.
 
+    rope_scaling : Dict
+        The configuration of RoPE scaling.
+
     rotary_dim : Optional[int]
         The number of dimensions in the embedding that RoPE is applied to. By default, the
         rotary_dim is the same as head_dim.
@@ -395,6 +398,9 @@ def llama_rope_with_position_map(  # pylint: disable=too-many-arguments
 
     dtype : str
         The dtype of qkv data.
+
+    rope_scaling : Dict
+        The configuration of RoPE scaling.
 
     rotary_dim : int
         The number of dimensions in the embedding that RoPE is applied to. By default, the
@@ -539,4 +545,3 @@ def llama_rope_with_position_map(  # pylint: disable=too-many-arguments
     if is_longrope_scaling:
         return fused_rope_longrope_scaling
     return fused_rope
-    
