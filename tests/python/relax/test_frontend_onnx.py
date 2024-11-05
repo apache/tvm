@@ -35,6 +35,7 @@ from tvm import relax
 from tvm.relax.frontend.onnx import from_onnx
 from tvm.script import relax as R
 from tvm.script import tir as T
+from tvm.script import ir as I
 
 bg = np.random.MT19937(0)
 rg = np.random.Generator(bg)
@@ -2750,6 +2751,209 @@ def test_params_names_start_with_onnx():
     )
     model = helper.make_model(graph, producer_name="test_params_names_start_with_onnx")
     check_correctness(model)
+
+
+def test_shape_dim_string_expression():
+
+    def _verify(x_shape, example_shape):
+
+        identity_node = helper.make_node("Identity", ["x"], ["y"])
+
+        graph = helper.make_graph(
+            [identity_node],
+            "test_var_shape_dim_containing_expressions_onnx",
+            inputs=[
+                helper.make_tensor_value_info("x", TensorProto.FLOAT, x_shape),
+            ],
+            outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, x_shape)],
+        )
+        model = helper.make_model(
+            graph, producer_name="test_var_shape_dim_containing_expressions_onnx"
+        )
+
+        inputs = {"x": generate_random_value(example_shape, TensorProto.FLOAT)}
+        check_correctness(model, inputs)
+
+    _verify(["A", "B", "A + B"], [3, 9, 12])
+    _verify(["A", "B", "A - B"], [9, 3, 6])
+    _verify(["A", "B", "A * B"], [9, 3, 27])
+    _verify(["A", "B", "A // B"], [9, 3, 3])
+
+
+def test_shape_dim_string_expression_graph_add():
+
+    identity_node = helper.make_node("Identity", ["x"], ["y"])
+
+    x_shape = ["A", "B", "A + B"]
+
+    graph = helper.make_graph(
+        [identity_node],
+        "test_var_shape_dim_containing_expressions_onnx",
+        inputs=[
+            helper.make_tensor_value_info("x", TensorProto.FLOAT, x_shape),
+        ],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, x_shape)],
+    )
+    model = helper.make_model(graph, producer_name="test_var_shape_dim_containing_expressions_onnx")
+
+    tvm_model = from_onnx(model, opset=14, keep_params_in_input=True)
+
+    # fmt: off
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor(("A", "B", "A + B"), dtype="float32")) -> R.Tensor(("A", "B", "A + B"), dtype="float32"):
+            A = T.int64(is_size_var=True)
+            B = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((A, B, A + B), dtype="float32") = x
+                R.output(gv)
+            return gv
+    # fmt: on
+
+    tvm.ir.assert_structural_equal(tvm_model, Expected)
+
+
+def test_shape_dim_string_expression_graph_subtract():
+
+    identity_node = helper.make_node("Identity", ["x"], ["y"])
+
+    x_shape = ["A", "B", "A - B"]
+
+    graph = helper.make_graph(
+        [identity_node],
+        "test_var_shape_dim_containing_expressions_onnx",
+        inputs=[
+            helper.make_tensor_value_info("x", TensorProto.FLOAT, x_shape),
+        ],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, x_shape)],
+    )
+    model = helper.make_model(graph, producer_name="test_var_shape_dim_containing_expressions_onnx")
+
+    tvm_model = from_onnx(model, opset=14, keep_params_in_input=True)
+
+    # fmt: off
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor(("A", "B", "A - B"), dtype="float32")) -> R.Tensor(("A", "B", "A - B"), dtype="float32"):
+            A = T.int64(is_size_var=True)
+            B = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((A, B, A - B), dtype="float32") = x
+                R.output(gv)
+            return gv
+    # fmt: on
+
+    tvm.ir.assert_structural_equal(tvm_model, Expected)
+
+
+def test_shape_dim_string_expression_graph_mul():
+
+    identity_node = helper.make_node("Identity", ["x"], ["y"])
+
+    x_shape = ["A", "B", "A * B"]
+
+    graph = helper.make_graph(
+        [identity_node],
+        "test_var_shape_dim_containing_expressions_onnx",
+        inputs=[
+            helper.make_tensor_value_info("x", TensorProto.FLOAT, x_shape),
+        ],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, x_shape)],
+    )
+    model = helper.make_model(graph, producer_name="test_var_shape_dim_containing_expressions_onnx")
+
+    tvm_model = from_onnx(model, opset=14, keep_params_in_input=True)
+
+    # fmt: off
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor(("A", "B", "A * B"), dtype="float32")) -> R.Tensor(("A", "B", "A * B"), dtype="float32"):
+            A = T.int64(is_size_var=True)
+            B = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((A, B, A * B), dtype="float32") = x
+                R.output(gv)
+            return gv
+    # fmt: on
+
+    tvm.ir.assert_structural_equal(tvm_model, Expected)
+
+
+def test_shape_dim_string_expression_graph_div_1():
+
+    identity_node = helper.make_node("Identity", ["x"], ["y"])
+
+    # this will result in a floordiv despite not using // since the operands are always int
+    x_shape = ["A", "B", "A / B"]
+
+    graph = helper.make_graph(
+        [identity_node],
+        "test_var_shape_dim_containing_expressions_onnx",
+        inputs=[
+            helper.make_tensor_value_info("x", TensorProto.FLOAT, x_shape),
+        ],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, x_shape)],
+    )
+    model = helper.make_model(graph, producer_name="test_var_shape_dim_containing_expressions_onnx")
+
+    tvm_model = from_onnx(model, opset=14, keep_params_in_input=True)
+
+    # fmt: off
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor(("A", "B", "A // B"), dtype="float32")) -> R.Tensor(("A", "B", "A // B"), dtype="float32"):
+            A = T.int64(is_size_var=True)
+            B = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((A, B, A // B), dtype="float32") = x
+                R.output(gv)
+            return gv
+    # fmt: on
+
+    tvm.ir.assert_structural_equal(tvm_model, Expected)
+
+
+def test_shape_dim_string_expression_graph_div_2():
+
+    identity_node = helper.make_node("Identity", ["x"], ["y"])
+
+    x_shape = ["A", "B", "A // B"]
+
+    graph = helper.make_graph(
+        [identity_node],
+        "test_var_shape_dim_containing_expressions_onnx",
+        inputs=[
+            helper.make_tensor_value_info("x", TensorProto.FLOAT, x_shape),
+        ],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, x_shape)],
+    )
+    model = helper.make_model(graph, producer_name="test_var_shape_dim_containing_expressions_onnx")
+
+    tvm_model = from_onnx(model, opset=14, keep_params_in_input=True)
+
+    # fmt: off
+    @I.ir_module
+    class Expected:
+        @R.function
+        def main(x: R.Tensor(("A", "B", "A // B"), dtype="float32")) -> R.Tensor(("A", "B", "A // B"), dtype="float32"):
+            A = T.int64(is_size_var=True)
+            B = T.int64(is_size_var=True)
+            R.func_attr({"num_input": 1})
+            with R.dataflow():
+                gv: R.Tensor((A, B, A // B), dtype="float32") = x
+                R.output(gv)
+            return gv
+    # fmt: on
+
+    tvm.ir.assert_structural_equal(tvm_model, Expected)
 
 
 if __name__ == "__main__":

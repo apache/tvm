@@ -103,7 +103,23 @@ def get_constant(
         return var
 
 
-def get_value(token, value_dict: Dict[str, tvm.tir.SizeVar]):
+def get_value(token, value_dict: Dict[str, tvm.tir.SizeVar]) -> Union[int, tvm.tir.SizeVar]:
+    """Converts to token to an integer value if it a constant, otherwise it generates a SizeVar
+
+    Parameters
+    ----------
+    token: str
+        current token to decode.
+
+    value_dict: Dict
+        The Dictionary mapping from the name of ValueInfoProto to SizeVar.
+
+    Returns
+    -------
+    Union[int, tvm.tir.SizeVar]
+        The decoded token
+    """
+
     try:
         return int(token)
     except ValueError:
@@ -113,11 +129,34 @@ def get_value(token, value_dict: Dict[str, tvm.tir.SizeVar]):
         return value
 
 
-def parse_shape_name(name: str, value_dict: Dict[str, tvm.tir.SizeVar]):
+def parse_shape_name(
+    name: str, value_dict: Dict[str, tvm.tir.SizeVar]
+) -> Union[tir.PrimExpr, tvm.tir.SizeVar]:
+    """Converts expressions in the shape dimension name to prim expressions.
 
-    tokens = re.split(r"(\+|\-|\*|\/)", name.replace(" ", ""))
+    Parameters
+    ----------
+    name: str
+        name of shape dimension.
 
-    operators = {"+": operator.add, "-": operator.sub, "*": operator.mul, "/": operator.truediv}
+    value_dict: Dict
+        The Dictionary mapping from the name of ValueInfoProto to SizeVar.
+
+    Returns
+    -------
+    Union[tir.PrimExpr, tvm.tir.SizeVar]
+        The expression of the shape dimension.
+    """
+
+    tokens = re.split(r"(\+|\-|\*|\/\/|\/)", name.replace(" ", ""))
+
+    operators = {
+        "+": operator.add,
+        "-": operator.sub,
+        "*": operator.mul,
+        "/": operator.floordiv,  # is floordiv since the operands are always int
+        "//": operator.floordiv,
+    }
 
     value_stack = []
     operator_stack = []
@@ -273,6 +312,16 @@ class MatMul(OnnxOpConverter):
         return relax.op.matmul(inputs[0], inputs[1])
 
 
+def _to_numpy(x):
+    if isinstance(x, relax.PrimValue):
+        x = x.value
+        if isinstance(x, (tir.IntImm, tir.FloatImm)):
+            x = x.value
+        return _np.array(x)
+    else:
+        return x.data.numpy()
+
+
 class BinaryBase(OnnxOpConverter):
     """Converts an onnx BinaryBase node into an equivalent Relax expression."""
 
@@ -290,16 +339,8 @@ class BinaryBase(OnnxOpConverter):
             )
             return relax.const(output, inputs[0].struct_info.dtype)
         if any([isinstance(inp, relax.PrimValue) for inp in inputs]):
-            x = (
-                _np.array(inputs[0].value)
-                if isinstance(inputs[0], relax.PrimValue)
-                else inputs[0].data.numpy()
-            )
-            y = (
-                _np.array(inputs[1].value)
-                if isinstance(inputs[1], relax.PrimValue)
-                else inputs[1].data.numpy()
-            )
+            x = _to_numpy(inputs[0])
+            y = _to_numpy(inputs[1])
             return relax.PrimValue(cls.numpy_op(x, y))  # pylint: disable=not-callable
 
         return cls.relax_op(inputs[0], inputs[1])  # pylint: disable=not-callable
