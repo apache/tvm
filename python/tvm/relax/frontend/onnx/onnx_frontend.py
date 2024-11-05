@@ -945,7 +945,7 @@ class Trilu(OnnxOpConverter):
         if len(inputs) > 1:
             k = get_constant(inputs[1], params)
             if isinstance(k, relax.Constant):
-                k = int(k.data.numpy()[0])
+                k = int(k.data.numpy().item())
             else:
                 raise ValueError("Currently only support constant k for Trilu op.")
         else:
@@ -1624,6 +1624,16 @@ class Split(OnnxOpConverter):
         return bb.emit_te(topi.split, inputs[0], indices, axis=attr.get("axis", 0))
 
 
+def get_prim_value_list(values):
+    new_values = []
+    for v in list(values):
+        if isinstance(v, relax.expr.PrimExpr):
+            new_values.append(relax.PrimValue(v))
+        else:
+            new_values.append(v)
+    return new_values
+
+
 class Slice(OnnxOpConverter):
     """Converts an onnx Splice node into an equivalent Relax expression."""
 
@@ -1677,7 +1687,12 @@ class Slice(OnnxOpConverter):
         assume_inbound = not all(
             [isinstance(param, (tir.IntImm, int)) for param in [*starts, *ends, *steps]]
         )
-        # return relax.op.strided_slice(data, axes, starts, ends, steps)
+
+        # Converting PrimExpr to PrimValue since relax.op.strided_slice does not accept PrimExpr
+        starts = get_prim_value_list(starts)
+        ends = get_prim_value_list(ends)
+        steps = get_prim_value_list(steps)
+
         return relax.op.strided_slice(
             data, axes, starts, ends, steps, assume_inbound=assume_inbound
         )
@@ -1766,9 +1781,21 @@ class Expand(OnnxOpConverter):
     def _impl_v13(cls, bb, inputs, attr, params):
         data = inputs[0]
         shape = inputs[1]
-
         if isinstance(shape, relax.ShapeExpr):
-            return relax.op.broadcast_to(data, shape)
+            data_shape = list(data.struct_info.shape)
+            target_shape = list(shape.values)
+            data_shape = [1] * (len(target_shape) - len(data_shape)) + data_shape
+            assert len(data_shape) == len(target_shape)
+            # Fix small target shapes or target shapes assigned to -1
+            for i, s in enumerate(target_shape):
+                if isinstance(s, tvm.tir.IntImm) and (
+                    (isinstance(data_shape[i], tvm.tir.IntImm) and s < data_shape[i])
+                    or s.value == -1
+                ):
+                    target_shape[i] = data_shape[i]
+            if target_shape == data_shape:
+                return data
+            return relax.op.broadcast_to(data, relax.ShapeExpr(target_shape))
 
         # If possible, directly expand to constant shape.
         if isinstance(shape, relax.Constant):

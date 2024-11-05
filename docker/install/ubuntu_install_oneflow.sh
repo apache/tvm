@@ -20,6 +20,6 @@ set -e
 set -u
 set -o pipefail
 
-pip3 install flowvision==0.1.0
-
-python3 -m pip install oneflow==0.8.0
+pip3 install \
+    oneflow==0.9.0 \
+    flowvision==0.1.0

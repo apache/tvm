@@ -100,11 +100,11 @@ integrated MLIP cn10ka processor, using only 4 tiles in the block.
     python3 -m tvm.driver.tvmc compile --target="mrvl, llvm" \
         --target-llvm-mtriple=aarch64-linux-gnu --target-llvm-mcpu=neoverse-n2 \
         --target-mrvl-num_tiles=4 \
+        --target-mrvl-mattr="hw -quantize=fp16 -wb_pin_ocm=1" \
         --cross-compiler aarch64-linux-gnu-gcc \
         --output model.tar \
         mnist-12.onnx
 
-The runtime support for hardware acceleration is a WIP, it will be added in future PR.
 
 3.3. TVMC Compiler: mrvl specific Command Line Options
 ------------------------------------------------------
@@ -125,7 +125,7 @@ The runtime support for hardware acceleration is a WIP, it will be added in futu
     Maximum number of tiles that may be used, possible values = {1,2,4,8}, defaults to 8
 
 * mattr:
-    Attributes for mrvl; possible values = {quantize, wb_pin_ocm}
+    Attributes for mrvl; possible values = {quantize, wb_pin_ocm, run_mode}
 
     mattr specifies the data type, code generation options and optimizations.
 
@@ -141,14 +141,22 @@ The runtime support for hardware acceleration is a WIP, it will be added in futu
     Optimize runtime by preloading a model's weights and bias into
     the on chip memory. Possible values = {0, 1}. Default is 0 (no preload)
 
-4. Compile ONNX model for Simulator + LLVM / x86_64 target
-----------------------------------------------------------
+    **3. run_mode**
+
+    Specify whether to compile for the simulator or for the target hardware (Octeon).
+    Possible values = {sim, hw}. Default is sim (software simulator).
+
+4. Compile ONNX model using the TVMC flow
+-----------------------------------------
 
 In the TVMC mrvl flow, the model is partitioned into Marvell and LLVM regions.
 Building each partitioned Marvell subgraph generates serialized nodes.json and
 const.json. Partitioned nodes.json is the representation of the model graph which is
 suitable for the Marvell compiler (mrvl-tmlc). The compiler compiles the model graph to
 generate the model binary with MLIP instructions.
+
+4.1 Compile and Run ONNX model for Simulator + LLVM / x86_64 target
+--------------------------------------------------------------------
 
 **Model Compilation for Simulator + LLVM / x86_64 target**
 
@@ -164,6 +172,23 @@ Generated model binary is simulated using Marvell's MLIP Simulator(mrvl-mlsim).
 .. code:: python
 
     python3 -m tvm.driver.tvmc run --inputs infer.npz --outputs predict.npz model.tar --number=0
+
+4.2 Compile and Run ONNX model for Octeon target
+----------------------------------------------------------
+
+**Model Compilation for Octeon target**
+
+Please refer to section 3.2 for the example command line.
+
+**Run TVM models on the Octeon Target**
+
+The cross compiled binary can be run on the target hardware using the tvmc run command.
+Alternatively, the RPC flow enables remote execution on the target device from your
+local machine: https://tvm.apache.org/docs/how_to/tutorials/cross_compilation_and_rpc.html
+
+.. code:: python
+
+    python3 -m tvm.driver.tvmc run --inputs infer.npz --outputs predict.npz model.tar
 
 5. Compiling a model using Python APIs
 --------------------------------------
