@@ -65,16 +65,16 @@ Array<ScheduleRule> ScheduleRule::DefaultLLVM() {
           /*disallow_op=*/Array<String>{"tir.exp"}),
       ScheduleRule::AddRFactor(
           /*max_jobs_per_core=*/16,
-          /*max_innermost_factor=*/Integer(64)),
+          /*max_innermost_factor=*/runtime::Int(64)),
       ScheduleRule::MultiLevelTiling(
           /*structure=*/"SSRSRS",
           /*tile_binds=*/NullOpt,
-          /*max_innermost_factor=*/Integer(64),
+          /*max_innermost_factor=*/runtime::Int(64),
           /*vector_load_lens=*/NullOpt,
           /*reuse_read=*/NullOpt,
           /*reuse_write=*/
           Map<String, ObjectRef>{{"req", String("may")},
-                                 {"levels", Array<Integer>{1, 2}},
+                                 {"levels", Array<runtime::Int>{1, 2}},
                                  {"scope", String("global")}}),
       ScheduleRule::ParallelizeVectorizeUnroll(
           /*max_jobs_per_core=*/16,
@@ -101,27 +101,27 @@ Array<ScheduleRule> ScheduleRule::DefaultX86(const String& type) {
           /*disallow_op=*/Array<String>{"tir.exp"}),
       ScheduleRule::AddRFactor(
           /*max_jobs_per_core=*/16,
-          /*max_innermost_factor=*/Integer(64)),
+          /*max_innermost_factor=*/runtime::Int(64)),
       ScheduleRule::MultiLevelTilingWithIntrin(
           /*intrin_name=*/intrins[type],
           /*structure=*/"SSRSRS",
           /*tile_binds=*/NullOpt,
-          /*max_innermost_factor=*/Integer(64),
+          /*max_innermost_factor=*/runtime::Int(64),
           /*vector_load_lens=*/NullOpt,
           /*reuse_read=*/NullOpt,
           /*reuse_write=*/
           Map<String, ObjectRef>{{"req", String("may")},
-                                 {"levels", Array<Integer>{1, 2}},
+                                 {"levels", Array<runtime::Int>{1, 2}},
                                  {"scope", String("global")}}),
       ScheduleRule::MultiLevelTiling(
           /*structure=*/"SSRSRS",
           /*tile_binds=*/NullOpt,
-          /*max_innermost_factor=*/Integer(64),
+          /*max_innermost_factor=*/runtime::Int(64),
           /*vector_load_lens=*/NullOpt,
           /*reuse_read=*/NullOpt,
           /*reuse_write=*/
           Map<String, ObjectRef>{{"req", String("may")},
-                                 {"levels", Array<Integer>{1, 2}},
+                                 {"levels", Array<runtime::Int>{1, 2}},
                                  {"scope", String("global")}}),
       ScheduleRule::ParallelizeVectorizeUnroll(
           /*max_jobs_per_core=*/16,
@@ -138,15 +138,15 @@ Array<ScheduleRule> ScheduleRule::DefaultCUDA() {
       ScheduleRule::MultiLevelTiling(
           /*structure=*/"SSSRRSRS",
           /*tile_binds=*/Array<String>{"blockIdx.x", "vthread.x", "threadIdx.x"},
-          /*max_innermost_factor=*/Integer(64),
-          /*vector_load_lens=*/Array<Integer>{1, 2, 3, 4, 8, 16},
+          /*max_innermost_factor=*/runtime::Int(64),
+          /*vector_load_lens=*/Array<runtime::Int>{1, 2, 3, 4, 8, 16},
           /*reuse_read=*/
           Map<String, ObjectRef>{{"req", String("must")},
-                                 {"levels", Array<Integer>{4}},  //
+                                 {"levels", Array<runtime::Int>{4}},  //
                                  {"scope", String("shared")}},
           /*reuse_write=*/
           Map<String, ObjectRef>{{"req", String("must")},
-                                 {"levels", Array<Integer>{3}},  //
+                                 {"levels", Array<runtime::Int>{3}},  //
                                  {"scope", String("local")}}),
       ScheduleRule::InlineConstantScalars(),
       ScheduleRule::AutoInline(
@@ -166,7 +166,7 @@ Array<ScheduleRule> ScheduleRule::DefaultCUDA() {
           /*unroll_explicit=*/true),
       ScheduleRule::AutoBind(
           /*max_threadblocks=*/256,
-          /*thread_extents*/ Array<Integer>{32, 64, 128, 256, 512, 1024}),
+          /*thread_extents*/ Array<runtime::Int>{32, 64, 128, 256, 512, 1024}),
   };
 }
 
@@ -241,30 +241,30 @@ Array<ScheduleRule> ScheduleRule::DefaultCUDATensorCore() {
           /*intrin_groups=*/wmma_intrin_groups,
           /*structure=*/"SSSRRSRS",
           /*tile_binds=*/Array<String>{"blockIdx.y", "blockIdx.x", "threadIdx.y"},
-          /*max_innermost_factor=*/Integer(4),
-          /*vector_load_lens=*/Array<Integer>{1, 2, 3, 4, 8, 16},
+          /*max_innermost_factor=*/runtime::Int(4),
+          /*vector_load_lens=*/Array<runtime::Int>{1, 2, 3, 4, 8, 16},
           /*reuse_read=*/
           Map<String, ObjectRef>{{"req", String("must")},
-                                 {"levels", Array<Integer>{4}},  //
+                                 {"levels", Array<runtime::Int>{4}},  //
                                  {"scope", String("shared.dyn")}},
           /*reuse_write=*/
           Map<String, ObjectRef>{{"req", String("must")},
-                                 {"levels", Array<Integer>{2}},  //
+                                 {"levels", Array<runtime::Int>{2}},  //
                                  {"scope", String("shared.dyn")}},
           /*use_software_pipeline=*/false),  //
       ScheduleRule::MultiLevelTilingTensorCore(
           /*intrin_groups=*/mma_intrin_groups,
           /*structure=*/"SSSRRSRS",
           /*tile_binds=*/Array<String>{"blockIdx.y", "blockIdx.x", "threadIdx.y"},
-          /*max_innermost_factor=*/Integer(4),
-          /*vector_load_lens=*/Array<Integer>{1, 2, 3, 4, 8, 16},
+          /*max_innermost_factor=*/runtime::Int(4),
+          /*vector_load_lens=*/Array<runtime::Int>{1, 2, 3, 4, 8, 16},
           /*reuse_read=*/
           Map<String, ObjectRef>{{"req", String("must")},
-                                 {"levels", Array<Integer>{4}},  //
+                                 {"levels", Array<runtime::Int>{4}},  //
                                  {"scope", String("shared.dyn")}},
           /*reuse_write=*/
           Map<String, ObjectRef>{{"req", String("no")},
-                                 {"levels", Array<Integer>{2}},  //
+                                 {"levels", Array<runtime::Int>{2}},  //
                                  {"scope", String("shared.dyn")}},
           /*use_software_pipeline=*/true)  //
   };
@@ -288,11 +288,11 @@ Array<ScheduleRule> ScheduleRule::DefaultHexagon() {
       ScheduleRule::MultiLevelTilingWideVector(
           /*structure=*/"SRSRS",
           /*vector_length_in_bits=*/1024,
-          /*max_innermost_factor=*/Integer(128),
+          /*max_innermost_factor=*/runtime::Int(128),
           /*reuse_read=*/NullOpt,
           /*reuse_write=*/
           Map<String, ObjectRef>{{"req", String("may")},
-                                 {"levels", Array<Integer>{1, 2}},
+                                 {"levels", Array<runtime::Int>{1, 2}},
                                  {"scope", String("global")}}),
       ScheduleRule::ParallelizeVectorizeUnroll(
           /*max_jobs_per_core=*/16,
@@ -317,12 +317,12 @@ Array<ScheduleRule> ScheduleRule::DefaultMicro() {
       ScheduleRule::MultiLevelTiling(
           /*structure=*/"SSRSRS",
           /*tile_binds=*/NullOpt,
-          /*max_innermost_factor=*/Integer(64),
+          /*max_innermost_factor=*/runtime::Int(64),
           /*vector_load_lens=*/NullOpt,
           /*reuse_read=*/NullOpt,
           /*reuse_write=*/
           Map<String, ObjectRef>{{"req", String("may")},
-                                 {"levels", Array<Integer>{1, 2}},
+                                 {"levels", Array<runtime::Int>{1, 2}},
                                  {"scope", String("global")}}),
   };
 }
@@ -333,12 +333,12 @@ Array<ScheduleRule> GetARMNeonSpecificRules() {
           /*intrin_name=*/String("dot_4x4_i8i8s32_neon"),
           /*structure=*/"SSRSRS",
           /*tile_binds=*/NullOpt,
-          /*max_innermost_factor=*/Integer(32),
+          /*max_innermost_factor=*/runtime::Int(32),
           /*vector_load_lens=*/NullOpt,
           /*reuse_read=*/NullOpt,
           /*reuse_write=*/
           Map<String, ObjectRef>{{"req", String("may")},
-                                 {"levels", Array<Integer>{1, 2}},
+                                 {"levels", Array<runtime::Int>{1, 2}},
                                  {"scope", String("global")}}),
   };
 }
@@ -349,34 +349,34 @@ Array<ScheduleRule> GetARMDotprodSpecificRules() {
           /*intrin_name=*/String("dot_4x4_i8i8s32_sdot"),
           /*structure=*/"SSRSRS",
           /*tile_binds=*/NullOpt,
-          /*max_innermost_factor=*/Integer(32),
+          /*max_innermost_factor=*/runtime::Int(32),
           /*vector_load_lens=*/NullOpt,
           /*reuse_read=*/NullOpt,
           /*reuse_write=*/
           Map<String, ObjectRef>{{"req", String("may")},
-                                 {"levels", Array<Integer>{1, 2}},
+                                 {"levels", Array<runtime::Int>{1, 2}},
                                  {"scope", String("global")}}),
       ScheduleRule::MultiLevelTilingWithIntrin(
           /*intrin_name=*/String("dot_4x4_u8u8u32_udot"),
           /*structure=*/"SSRSRS",
           /*tile_binds=*/NullOpt,
-          /*max_innermost_factor=*/Integer(32),
+          /*max_innermost_factor=*/runtime::Int(32),
           /*vector_load_lens=*/NullOpt,
           /*reuse_read=*/NullOpt,
           /*reuse_write=*/
           Map<String, ObjectRef>{{"req", String("may")},
-                                 {"levels", Array<Integer>{1, 2}},
+                                 {"levels", Array<runtime::Int>{1, 2}},
                                  {"scope", String("global")}}),
       ScheduleRule::MultiLevelTilingWithIntrin(
           /*intrin_name=*/String("dot_4x4_u8u8i32_hdot"),
           /*structure=*/"SSRSRS",
           /*tile_binds=*/NullOpt,
-          /*max_innermost_factor=*/Integer(32),
+          /*max_innermost_factor=*/runtime::Int(32),
           /*vector_load_lens=*/NullOpt,
           /*reuse_read=*/NullOpt,
           /*reuse_write=*/
           Map<String, ObjectRef>{{"req", String("may")},
-                                 {"levels", Array<Integer>{1, 2}},
+                                 {"levels", Array<runtime::Int>{1, 2}},
                                  {"scope", String("global")}}),
   };
 }
@@ -394,18 +394,18 @@ Array<ScheduleRule> ScheduleRule::DefaultARM(const String& type) {
           /*disallow_op=*/Array<String>{"tir.exp"}),
       ScheduleRule::AddRFactor(
           /*max_jobs_per_core=*/8,
-          /*max_innermost_factor=*/Integer(32)),
+          /*max_innermost_factor=*/runtime::Int(32)),
       "neon" == type ? GetARMNeonSpecificRules() : Array<ScheduleRule>{},
       "dotprod" == type ? GetARMDotprodSpecificRules() : Array<ScheduleRule>{},
       ScheduleRule::MultiLevelTiling(
           /*structure=*/"SSRSRS",
           /*tile_binds=*/NullOpt,
-          /*max_innermost_factor=*/Integer(32),
+          /*max_innermost_factor=*/runtime::Int(32),
           /*vector_load_lens=*/NullOpt,
           /*reuse_read=*/NullOpt,
           /*reuse_write=*/
           Map<String, ObjectRef>{{"req", String("may")},
-                                 {"levels", Array<Integer>{1, 2}},
+                                 {"levels", Array<runtime::Int>{1, 2}},
                                  {"scope", String("global")}}),
       ScheduleRule::ParallelizeVectorizeUnroll(
           /*max_jobs_per_core=*/8,

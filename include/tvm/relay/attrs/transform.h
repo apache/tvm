@@ -530,6 +530,9 @@ struct MatrixSetDiagAttrs : public tvm::AttrsNode<MatrixSetDiagAttrs> {
   }
 };  // struct MatrixSetDiagAttrs
 
+template <typename U, typename T>
+using Identity = T;
+
 /*! \brief Attributes used in cumsum and cumprod operator */
 struct ScanopAttrs : public tvm::AttrsNode<ScanopAttrs> {
   Integer axis;
@@ -542,7 +545,7 @@ struct ScanopAttrs : public tvm::AttrsNode<ScanopAttrs> {
     // Default is 0 which is "false"
     TVM_ATTR_FIELD(exclusive)
         .describe("The first element is not included")
-        .set_default(Bool(false));
+        .set_default(Identity<FVisit, Bool>(false));
   }
 };  // struct ScanopAttrs
 

@@ -154,11 +154,11 @@ class ScheduleRule : public runtime::ObjectRef {
    * ignored  by default. This function should return True for a block that should be tiled.
    * \return The schedule rule created
    */
-  TVM_DLL static ScheduleRule MultiLevelTiling(String structure,                             //
-                                               Optional<Array<String>> tile_binds,           //
-                                               Optional<Integer> max_innermost_factor,       //
-                                               Optional<Array<Integer>> vector_load_lens,    //
-                                               Optional<Map<String, ObjectRef>> reuse_read,  //
+  TVM_DLL static ScheduleRule MultiLevelTiling(String structure,                                //
+                                               Optional<Array<String>> tile_binds,              //
+                                               Optional<runtime::Int> max_innermost_factor,     //
+                                               Optional<Array<runtime::Int>> vector_load_lens,  //
+                                               Optional<Map<String, ObjectRef>> reuse_read,     //
                                                Optional<Map<String, ObjectRef>> reuse_write,
                                                Optional<runtime::PackedFunc> filter_fn = NullOpt);
 
@@ -181,7 +181,7 @@ class ScheduleRule : public runtime::ObjectRef {
    */
   TVM_DLL static ScheduleRule MultiLevelTilingWithIntrin(
       String intrin_name, String structure, Optional<Array<String>> tile_binds,
-      Optional<Integer> max_innermost_factor, Optional<Array<Integer>> vector_load_lens,
+      Optional<runtime::Int> max_innermost_factor, Optional<Array<runtime::Int>> vector_load_lens,
       Optional<Map<String, ObjectRef>> reuse_read, Optional<Map<String, ObjectRef>> reuse_write);
 
   /*!
@@ -206,8 +206,8 @@ class ScheduleRule : public runtime::ObjectRef {
    */
   TVM_DLL static ScheduleRule MultiLevelTilingTensorCore(
       Array<Map<String, String>> intrin_groups, String structure,
-      Optional<Array<String>> tile_binds, Optional<Integer> max_innermost_factor,
-      Optional<Array<Integer>> vector_load_lens, Optional<Map<String, ObjectRef>> reuse_read,
+      Optional<Array<String>> tile_binds, Optional<runtime::Int> max_innermost_factor,
+      Optional<Array<runtime::Int>> vector_load_lens, Optional<Map<String, ObjectRef>> reuse_read,
       Optional<Map<String, ObjectRef>> reuse_write, bool use_software_pipeline);
 
   /*!
@@ -222,8 +222,9 @@ class ScheduleRule : public runtime::ObjectRef {
    * \return The schedule rule created
    */
   TVM_DLL static ScheduleRule MultiLevelTilingWideVector(
-      String structure, Integer vector_length_in_bits, Optional<Integer> max_innermost_factor,
-      Optional<Map<String, ObjectRef>> reuse_read, Optional<Map<String, ObjectRef>> reuse_write);
+      String structure, runtime::Int vector_length_in_bits,
+      Optional<runtime::Int> max_innermost_factor, Optional<Map<String, ObjectRef>> reuse_read,
+      Optional<Map<String, ObjectRef>> reuse_write);
 
   /*!
    * \brief Create a rule: add-rfactor to some blocks if needed
@@ -234,7 +235,7 @@ class ScheduleRule : public runtime::ObjectRef {
    * \return The schedule rule created
    */
   TVM_DLL static ScheduleRule AddRFactor(int max_jobs_per_core,  //
-                                         Optional<Integer> max_innermost_factor);
+                                         Optional<runtime::Int> max_innermost_factor);
   /*!
    * \brief Create a schedule rule which applies cross-thread reduction to some reduction blocks
    * correspondingly when needed
@@ -272,7 +273,7 @@ class ScheduleRule : public runtime::ObjectRef {
    * when this schedule rule is created.
    * \return The schedule rule created
    */
-  TVM_DLL static ScheduleRule AutoBind(int max_threadblocks, Array<Integer> thread_extents,
+  TVM_DLL static ScheduleRule AutoBind(int max_threadblocks, Array<runtime::Int> thread_extents,
                                        int max_threads_per_block = -1);
   /*!
    * \brief Create a schedule rule with customized methods on the python-side.

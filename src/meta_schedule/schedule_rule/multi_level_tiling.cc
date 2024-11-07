@@ -392,8 +392,8 @@ void MultiLevelTilingNode::AnnotateCooperativeFetching(Schedule* sch,
 // Constructor
 
 ScheduleRule ScheduleRule::MultiLevelTiling(String structure, Optional<Array<String>> tile_binds,
-                                            Optional<Integer> max_innermost_factor,
-                                            Optional<Array<Integer>> vector_load_lens,
+                                            Optional<runtime::Int> max_innermost_factor,
+                                            Optional<Array<runtime::Int>> vector_load_lens,
                                             Optional<Map<String, ObjectRef>> reuse_read,
                                             Optional<Map<String, ObjectRef>> reuse_write,
                                             Optional<runtime::PackedFunc> filter_fn) {
