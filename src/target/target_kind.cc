@@ -213,7 +213,6 @@ TargetJSON UpdateHIPAttrs(TargetJSON target) {
     }
   }
   target.Set("mcpu", String(arch));
-  LOG(INFO) << "HIP target uses -mcpu=" << arch;
   return target;
 }
 

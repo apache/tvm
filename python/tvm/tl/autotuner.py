@@ -109,12 +109,12 @@ def jit(
     out_idx: List[int], 
     supply_type: tl.TensorSupplyType = tl.TensorSupplyType.Normal, 
     ref_prog: Callable = None,
-    check_close: bool = True,
     rtol: float = 1e-5,
     atol: float = 1e-5,
     skip_check: bool = False, 
-    profiler: Literal['torch', 'tvm']='torch'
-    ) -> Callable:
+    profiler: Literal['torch', 'tvm']='torch',
+    target: Literal['cuda', 'hip']='cuda'
+) -> Callable:
     
     def wrapper(fn: Callable):
         ref_latency_cache = None
@@ -125,7 +125,7 @@ def jit(
             with tvm.transform.PassContext(config={
                 "tir.merge_static_smem": True
             }):
-                mod, params = tl.lower(fn(*args, **kwargs))
+                mod, params = tl.lower(fn(*args, **kwargs), target=target)
             
             mod = tl.Profiler(mod, params, out_idx, supply_type)
             if (not skip_check) and (ref_prog is not None):
