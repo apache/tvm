@@ -423,7 +423,7 @@ class FallbackContext(DispatchContext):
         key = (str(target), workload_key)
         if key in self.memory:
             return self.memory[key]
-
+        
         if self.verbose == 2 or (has_complex_op and self.verbose == 1):
             msg = (
                 f"-----------------------------------\n"
@@ -433,6 +433,9 @@ class FallbackContext(DispatchContext):
                 f"which may bring great performance regression or even compilation failure. "
                 f"Compute DAG info:\n{dag}"
             )
+            with open('/work/tmp_get_error_from_tvm.txt', 'at+') as f:
+                f.write(workload_key + '\n')
+                
             if msg not in self.messages:
                 self.messages.add(msg)
                 logger.warning(msg)
