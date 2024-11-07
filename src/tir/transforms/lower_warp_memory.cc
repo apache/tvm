@@ -340,10 +340,10 @@ class WarpAccessRewriter : protected StmtExprMutator {
     return StmtExprMutator::VisitExpr_(op);
   }
 
-  PrimExpr VisitExpr_(const VarNode* op) override {
-    ICHECK(op != buffer_) << "Cannot access address of warp memory directly";
-    return StmtExprMutator::VisitExpr_(op);
-  }
+  // PrimExpr VisitExpr_(const VarNode* op) override {
+  //   ICHECK(op != buffer_) << "Cannot access address of warp memory directly";
+  //   return StmtExprMutator::VisitExpr_(op);
+  // }
 
   Stmt VisitStmt_(const BufferStoreNode* op) override {
     auto store = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(op));
