@@ -7,103 +7,97 @@
 namespace ck_tile {
 
 template <int M, int N, int K, int num_warp_m, int num_warp_n, bool TransposeA, bool TransposeB,
-          typename A_type_raw, typename B_type_raw, typename C_type_raw>
+          typename A_type, typename B_type, typename C_type, typename AccDataType = float>
 class GemmTensorOp {
  public:
-  using A_type = A_type_raw;
-  using B_type = B_type_raw;
-  using C_type = C_type_raw;
-  using AccDataType = float;
+  static constexpr int micro_size_x = 16;
+  static constexpr int micro_size_y = 16;
+  static constexpr int micro_size_k = 16;
 
-  // The Matrix Multiplication goes with Matrix A (M, K), Matrix B (N, K) = Matrix C (M, N).
-  using matrix_a_layout = ck_tile::tensor_layout::gemm::RowMajor;
-  using matrix_b_layout = ck_tile::tensor_layout::gemm::ColumnMajor;
-  using matrix_c_layout = ck_tile::tensor_layout::gemm::RowMajor;
   // This part comes from the Codegen
-  static constexpr ck_tile::index_t M_Tile = M;
-  static constexpr ck_tile::index_t N_Tile = N;
-  static constexpr ck_tile::index_t K_Tile = K;
+  static constexpr int M_Tile = M;
+  static constexpr int N_Tile = N;
+  static constexpr int K_Tile = K;
 
-  static constexpr ck_tile::index_t M_Warp = num_warp_m;
-  static constexpr ck_tile::index_t N_Warp = num_warp_n;
-  static constexpr ck_tile::index_t K_Warp = 1;
+  static constexpr int block_row_warps = num_warp_m;
+  static constexpr int block_col_warps = num_warp_n;
 
-  static constexpr ck_tile::index_t M_Warp_Tile = 16;
-  static constexpr ck_tile::index_t N_Warp_Tile = 16;
-  static constexpr ck_tile::index_t K_Warp_Tile = 16;
+  static constexpr int inner_k = K_Tile / micro_size_k;
+  static constexpr int warp_rows = M_Tile / (block_row_warps * micro_size_x);
+  static constexpr int warp_cols = N_Tile / (block_col_warps * micro_size_y);
 
   // The kPadA, kPadB, kPadC & kBlockPerCu should also come from the Codegen part.
   static constexpr bool kPadA = true;
   static constexpr bool kPadB = true;
   static constexpr bool kPadC = true;
 
-  using CodegenGemmShape =
-      ck_tile::TileGemmShape<ck_tile::sequence<M_Tile, N_Tile, K_Tile>,
-                             ck_tile::sequence<M_Warp, N_Warp, K_Warp>,
-                             ck_tile::sequence<M_Warp_Tile, N_Warp_Tile, K_Warp_Tile>>;
+  static constexpr int warp_size = 64;
 
-  using CodegenGemmTraits = ck_tile::TileGemmTraits<kPadA, kPadB, kPadC, matrix_a_layout,
-                                                    matrix_b_layout, matrix_c_layout>;
+  CK_TILE_DEVICE static constexpr auto reverse_index_map(int thread_id, int local_id) {
+    return std::make_pair(thread_id % 16, (thread_id / 16) * 4 + local_id);
+  }
 
-  using Problem = ck_tile::GemmPipelineProblem<A_type, B_type, AccDataType, CodegenGemmShape,
-                                               CodegenGemmTraits>;
+  CK_TILE_DEVICE static constexpr auto reverse_index_map_transposed(int thread_id, int local_id) {
+    return std::make_pair((thread_id / 16) * 4 + local_id, thread_id % 16);
+  }
 
-  static CK_TILE_DEVICE void body(A_type* pA, B_type* pB, C_type* pC) {
-    static constexpr auto I0 = ck_tile::number<0>{};
-    static constexpr auto I1 = ck_tile::number<1>{};
-    static constexpr auto I2 = ck_tile::number<2>{};
+  static CK_TILE_DEVICE void body(A_type* A_shared, B_type* B_shared, C_type* C_local) {
+    auto tid = threadIdx.x;
+    auto warp_id = tid / warp_size;
+    auto warp_m = warp_id / block_col_warps;
+    auto warp_n = warp_id % block_col_warps;
+    auto warp_row_tiles = warp_rows * micro_size_x;
+    auto warp_col_tiles = warp_cols * micro_size_y;
 
-    // Load A and B from Shared memory
-    using AccDataType = float;
-    using BlockWarps = typename Problem::BlockGemmShape::BlockWarps;
-    using WarpTile = typename Problem::BlockGemmShape::WarpTile;
-    using WarpGemm =
-        ck_tile::WarpGemmMfmaDispatcher<typename Problem::ADataType, typename Problem::BDataType,
-                                        AccDataType, WarpTile::at(I0), WarpTile::at(I1),
-                                        WarpTile::at(I2), false>;
-    using BlockGemmPolicy = ck_tile::BlockGemmASmemBSmemCRegV1CustomPolicy<
-        typename Problem::ADataType, typename Problem::BDataType, typename Problem::CDataType,
-        BlockWarps, WarpGemm>;
-    auto block_gemm = ck_tile::BlockGemmASmemBSmemCRegV1<Problem, BlockGemmPolicy>{};
-    // Then do GEMM and store the result to C
-    // Create Tile Window
+    auto lane_id = tid % warp_size;
+    auto tz = warp_m;
+    auto ty = warp_n;
+    auto tx = lane_id;
 
-    constexpr index_t kMPerBlock = Problem::BlockGemmShape::kM;
-    constexpr index_t kNPerBlock = Problem::BlockGemmShape::kN;
-    constexpr index_t kKPerBlock = Problem::BlockGemmShape::kK;
+    constexpr auto local_size_a = (micro_size_x * micro_size_k) / warp_size;
+    constexpr auto local_size_b = (micro_size_y * micro_size_k) / warp_size;
+    constexpr auto local_size_c = (micro_size_x * micro_size_y) / warp_size;
 
-    constexpr auto a_lds_block_desc =
-        make_naive_tensor_descriptor_packed(make_tuple(kMPerBlock, kKPerBlock));
+    A_type A_local[warp_rows * local_size_a];
+    B_type B_local[warp_cols * local_size_b];
 
-    auto a_lds_block = make_tensor_view<address_space_enum::lds>(pA, a_lds_block_desc);
+    // if (tid == 0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0) {
+    //     printf("allocating %d for A_local\n", warp_rows * local_size_a);
+    //     printf("allocating %d for B_local\n", warp_cols * local_size_b);
+    //     printf("warp_rows: %d, warp_cols: %d\n", warp_rows, warp_cols);
+    //     printf("local_size_a: %d, local_size_b: %d\n", local_size_a, local_size_b);
+    // }
 
-    constexpr auto b_lds_block_desc =
-        make_naive_tensor_descriptor_packed(make_tuple(kNPerBlock, kKPerBlock));
+    for (int ki = 0; ki < inner_k; ki++) {
+      // Fetch A into register
+      for (int i = 0; i < warp_rows; i++) {
+        for (int local_id = 0; local_id < local_size_a; local_id++) {
+          const auto l = tz * warp_row_tiles + i * micro_size_x;
+          const auto r = ki * micro_size_k;
+          auto [row, col] = reverse_index_map(lane_id, local_id);
+          A_local[i * local_size_a + local_id] = A_shared[(l + row) * K_Tile + r + col];
+        }
+      }
 
-    auto b_lds_block = make_tensor_view<address_space_enum::lds>(pB, b_lds_block_desc);
+      // Fetch B into register
+      for (int j = 0; j < warp_cols; j++) {
+        for (int local_id = 0; local_id < local_size_b; local_id++) {
+          const auto l = ty * warp_col_tiles + j * micro_size_y;
+          const auto r = ki * micro_size_k;
+          auto [row, col] = reverse_index_map(lane_id, local_id);
+          B_local[j * local_size_b + local_id] = B_shared[(l + row) * K_Tile + r + col];
+        }
+      }
 
-    // A LDS tile for block SMEM
-    auto a_lds_gemm_window = make_tile_window(
-        a_lds_block, make_tuple(number<kMPerBlock>{}, number<kKPerBlock>{}), {0, 0});
-
-    // B LDS tile for block SMEM
-    auto b_lds_gemm_window = make_tile_window(
-        b_lds_block, make_tuple(number<kNPerBlock>{}, number<kKPerBlock>{}), {0, 0});
-
-    // we should use MakeCBlockTile() to link the C block tensor with ptrC
-    // Acc register tile
-    auto c_block_tile = decltype(block_gemm(a_lds_gemm_window, b_lds_gemm_window)){};
-    using CVec = ext_vector_t<typename Problem::CDataType, c_block_tile.get_thread_buffer_size()>;
-    auto c_vec = *c_style_pointer_cast<const CVec*>(pC);
-    c_block_tile.get_thread_buffer().template set_as(number<0>{}, c_vec);
-    block_gemm(c_block_tile, a_lds_gemm_window, b_lds_gemm_window);
-
-    c_vec = c_block_tile.get_thread_buffer().template get_as<CVec>(number<0>{});
-
-    for (int j = 0; j < c_block_tile.get_thread_buffer_size(); j++) {
-      pC[j] = c_block_tile.get_thread_buffer()[j];
+      // Compute
+      for (int i = 0; i < warp_rows; ++i) {
+        for (int j = 0; j < warp_cols; ++j) {
+          *(((float32x4*)C_local) + ((i * warp_cols) + j)) = __builtin_amdgcn_mfma_f32_16x16x16f16(
+              *(((float16x4*)A_local) + i), *(((float16x4*)B_local) + j),
+              *(((float32x4*)C_local) + ((i * warp_cols) + j)), 0, 0, 0);
+        }
+      }
     }
-
   }
 };
 

@@ -101,8 +101,8 @@ Fragment makeGemmFragmentCCDNA(const int block_m, const int block_n, const int w
   ICHECK(warp_m % 16 == 0) << "warp_m=" << warp_m;
   ICHECK(warp_n % 16 == 0) << "warp_n=" << warp_n;
   auto base_layout = makeGemmFragmentCDNA16x16()->Repeat({1, 1}, false);
-  auto warp_layout = base_layout->Repeat({block_m / warp_m, block_n / warp_n}, true, true);
-  auto block_layout = warp_layout->Repeat({warp_m / 16, warp_n / 16}, false, true);
+  auto warp_layout = base_layout->Repeat({block_m / warp_m, block_n / warp_n}, false, false);
+  auto block_layout = warp_layout->Repeat({warp_m / 16, warp_n / 16}, true, true);
   return block_layout;
 }
 
