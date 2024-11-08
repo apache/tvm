@@ -2,7 +2,6 @@
 
 #include <hip/hip_runtime.h>
 #include <hip/hip_fp16.h>
-#include <hip/hcc_detail/hip_fp16_math_fwd.h>
 #include <rocwmma/rocwmma.hpp>
 #include <ck_tile/core.hpp>
 
