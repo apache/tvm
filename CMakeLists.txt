@@ -578,6 +578,10 @@ else()
   set(CMAKE_CUDA_STANDARD 17)
 endif()
 
+if(USE_ROCM)
+check_cxx_compiler_flag("-std=c++17" SUPPORT_CXX17)
+set(CMAKE_CXX_FLAGS "-D__HIP_PLATFORM_AMD__ ${CMAKE_CXX_FLAGS}")
+endif()
 # Module rules
 include(cmake/modules/VTA.cmake)
 include(cmake/modules/StandaloneCrt.cmake)
