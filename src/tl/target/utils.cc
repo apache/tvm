@@ -75,11 +75,24 @@ bool TargetIsCDNA(Target target) {
 }
 
 bool TargetHasAsyncCopy(Target target) {
-  if (!TargetIsCuda(target)) return false;
-  int arch = GetArchInt(target);
-  return arch >= 80;
-}
+  if (TargetIsCuda(target)) {
+    int arch = GetArchInt(target);
+    return arch >= 80;
+  } else if (TargetIsCDNA(target)) {
+    if (target->attrs.count("mcpu")) {
+      std::string mcpu = Downcast<String>(target->attrs.at("mcpu"));
+      if (mcpu.rfind("gfx9", 0) == 0) {
+        int gfx_version = std::stoi(mcpu.substr(3, 2));
+        return gfx_version >= 94;
+      }
+      return false;
+    } else {
+      return false;
+    }
+  }
 
+  return false;
+}
 bool TargetHasLdmatrix(Target target) {
   if (!TargetIsCuda(target)) return false;
   int arch = GetArchInt(target);
