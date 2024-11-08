@@ -190,8 +190,17 @@ class Profiler(ConvertTorch):
             )
         elif profiler == "tvm":
             ins = self._get_inputs(with_output=True)
+            target = "cuda"
+            try:
+                target = self.mod.imported_modules[0].type_key
+            except:
+                pass
+            
+            assert target in ["cuda", "hip"], f"Unknown target: {target}"
+
+            device = tvm.cuda(0) if target == "cuda" else tvm.rocm(0)
             time_evaluator = self.mod.time_evaluator(
-                self.mod.entry_name, tvm.cuda(0), number=rep, repeat=n_repeat
+                self.mod.entry_name, device, number=rep, repeat=n_repeat
             )
             tvm_inputs = [ndarray.from_dlpack(to_dlpack(inp)) for inp in ins]
             # Transform Latency to ms
