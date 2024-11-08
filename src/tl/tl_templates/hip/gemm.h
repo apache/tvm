@@ -6,8 +6,8 @@
 
 namespace ck_tile {
 
-template <int M, int N, int K, int num_warp_m, int num_warp_n, bool TransposeA, bool TransposeB, typename A_type_raw,
-          typename B_type_raw, typename C_type_raw>
+template <int M, int N, int K, int num_warp_m, int num_warp_n, bool TransposeA, bool TransposeB,
+          typename A_type_raw, typename B_type_raw, typename C_type_raw>
 class GemmTensorOp {
  public:
   using A_type = A_type_raw;
@@ -95,44 +95,15 @@ class GemmTensorOp {
     auto c_block_tile = decltype(block_gemm(a_lds_gemm_window, b_lds_gemm_window)){};
     using CVec = ext_vector_t<typename Problem::CDataType, c_block_tile.get_thread_buffer_size()>;
     auto c_vec = *c_style_pointer_cast<const CVec*>(pC);
-    c_block_tile.get_thread_buffer().template set_as(
-                number<0>{}, c_vec);
-    // if(threadIdx.x == 0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0) {
-    //     printf("============c_vec========\n");
-    //     printf("pC[0]: %f\n", pC[0]);
-    //     pC[0] = 1.0;
-    //     printf("pC[0]: %f\n", pC[0]);
-    //     printf("c_block_tile[0]: %f\n", (float)c_block_tile.get_thread_buffer()[0]);
-    //     printf("c_block_tile.get_thread_buffer_size(): %d\n", c_block_tile.get_thread_buffer_size());
-    //     c_block_tile.get_thread_buffer().template set_as(
-    //             number<0>{}, c_vec);
-    //     printf("c_vec[0]: %f\n", (float)c_vec[0]);
-    //     printf("c_block_tile[0]: %f\n", (float)c_block_tile.get_thread_buffer()[0]);
-    //     c_block_tile.get_thread_buffer()[0] = 2.0;
-    //     printf("c_block_tile[0]: %f\n", (float)c_block_tile.get_thread_buffer()[0]);
-    //     printf("c_vec[0]: %f\n", (float)c_vec[0]);
-    //     // c_block_tile.get_thread_buffer().data_ptr = pC;
-    //     printf("c_block_tile[0]: %f\n", (float)c_block_tile.get_thread_buffer()[0]);
-    //     printf("c_block_tile[0].data: %f\n", (float)c_block_tile.get_thread_buffer().data[0]);
-    //     // printf("c_block_tile[0].data.data: %d\n", &(c_block_tile.get_thread_buffer().data[0]));
-    // }
-    // // c_block_tile.get_thread_buffer().
-
+    c_block_tile.get_thread_buffer().template set_as(number<0>{}, c_vec);
     block_gemm(c_block_tile, a_lds_gemm_window, b_lds_gemm_window);
-   
+
     c_vec = c_block_tile.get_thread_buffer().template get_as<CVec>(number<0>{});
-   
-    for(int j = 0; j < c_block_tile.get_thread_buffer_size(); j++) {
-        pC[j] = c_block_tile.get_thread_buffer()[j];
+
+    for (int j = 0; j < c_block_tile.get_thread_buffer_size(); j++) {
+      pC[j] = c_block_tile.get_thread_buffer()[j];
     }
-    
-    // print c
-    if(threadIdx.x == 0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0) {
-        printf("============pC========\n");
-        for(int j = 0; j < c_block_tile.get_thread_buffer_size(); j++) {
-            printf("%d: %f \n", j, pC[j]);
-        }
-    }
+
   }
 };
 
@@ -143,7 +114,8 @@ namespace tl {
 template <int M, int N, int K, int num_warp_m, int num_warp_n, bool trans_A, bool trans_B,
           typename A_type, typename B_type, typename C_type>
 CK_TILE_DEVICE void gemm_ss(A_type* pA, B_type* pB, C_type* accum) {
-  using Compute = ck_tile::GemmTensorOp<M, N, K, num_warp_m, num_warp_n, trans_A, trans_B, A_type, B_type, C_type>;
+  using Compute = ck_tile::GemmTensorOp<M, N, K, num_warp_m, num_warp_n, trans_A, trans_B, A_type,
+                                        B_type, C_type>;
   Compute::body(pA, pB, accum);
 }
 
