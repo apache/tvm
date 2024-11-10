@@ -110,7 +110,7 @@ def from_torch(
     if via_relax:
         try:
             graph_model = torch.fx.symbolic_trace(model)
-        except:
+        except:  # pylint: disable=bare-except
             via_relax = False
 
     if via_relax:

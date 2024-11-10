@@ -21,7 +21,6 @@ import os
 import json
 from typing import Any, Union, List, Tuple
 import traceback
-import numpy as np
 
 from tvm.contrib.msc.core.tools import get_tool_cls, BaseTool
 from tvm.contrib.msc.core.utils.namespace import MSCFramework, MSCMap, MSCKey
