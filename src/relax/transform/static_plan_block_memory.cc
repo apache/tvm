@@ -314,6 +314,15 @@ class StorageAllocatorBaseVisitor : public ExprVisitor {
     SetTokens(binding->var.get(), token_map_[binding->value.get()]);
   }
 
+  void VisitBindingBlock_(const DataflowBlockNode* block) override {
+    // We maintain a block stack for token allocation-site and use-site check.
+    block_stack_.push_back(block);
+    ExprVisitor::VisitBindingBlock_(block);
+    ICHECK(!block_stack_.empty());
+    ICHECK(block_stack_.back() == block);
+    block_stack_.pop_back();
+  }
+
   void VisitExpr_(const TupleNode* tuple) final {
     Array<Tokens> tokens;
     tokens.reserve(tuple->fields.size());
@@ -728,15 +737,6 @@ class StorageAllocator : public StorageAllocatorBaseVisitor {
     for (const StorageTokenNode* token : block2tokens[block]) {
       ICHECK_EQ(token->ref_counter, 0);
     }
-  }
-
-  void VisitBindingBlock_(const DataflowBlockNode* block) override {
-    // We maintain a block stack for token allocation-site and use-site check.
-    block_stack_.push_back(block);
-    ExprVisitor::VisitBindingBlock_(block);
-    ICHECK(!block_stack_.empty());
-    ICHECK(block_stack_.back() == block);
-    block_stack_.pop_back();
   }
 
   void VisitBinding_(const VarBindingNode* binding, const CallNode* call) final {
