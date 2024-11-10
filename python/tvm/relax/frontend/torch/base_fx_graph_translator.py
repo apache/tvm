@@ -37,9 +37,9 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         self.env: Dict[fx.Node, relax.Expr] = {}
         self.params: Dict[torch.Tensor, relax.Expr] = {}
         self.block_builder: relax.BlockBuilder = None
-        self.convert_map: Dict[
-            Union[torch.nn.Module, str], Callable[[fx.Node], relax.Var]
-        ] = self.create_convert_map()
+        self.convert_map: Dict[Union[torch.nn.Module, str], Callable[[fx.Node], relax.Var]] = (
+            self.create_convert_map()
+        )
 
     ########## Utilities ##########
 
@@ -783,6 +783,20 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         dims = args[1] if isinstance(args[1], (torch.Size, tuple, list)) else args[1:]
         return self.block_builder.emit(relax.op.reshape(x, dims))
 
+    def _scatter(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        if len(node.args) == 1:
+            dim = node.kwargs["dim"]
+            index = self.env[node.kwargs["index"]]
+            src = self.env[node.kwargs["src"]]
+        elif len(node.args) == 4:
+            dim = node.args[1]
+            index = self.env[node.args[2]]
+            src = self.env[node.args[3]]
+        else:
+            raise Exception("Unexpected args " + str(node.args))
+        return self.block_builder.emit(relax.op.scatter_elements(x, index, src, axis=dim))
+
     def _split(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         split_size = node.args[1]
@@ -800,6 +814,24 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         x = self.env[node.args[0]]
         dim = node.args[1] if len(node.args) > 1 else node.kwargs.get("dim", None)
         return self.block_builder.emit(relax.op.squeeze(x, dim))
+
+    def _stack(self, node: fx.Node) -> relax.Var:
+        args = self.retrieve_args(node)
+        axis = args[1] if len(node.args) > 1 else node.kwargs.get("dim", 0)
+        in_args = args[0]
+        assert all(
+            a.struct_info.shape[axis] == in_args[0].struct_info.shape[axis] for a in in_args[1:]
+        ), "Expect all dim at {} to be the same, get {}".format(
+            axis, [a.struct_info.shape for a in args]
+        )
+        cat = self.block_builder.emit(relax.op.concat(in_args, axis=axis))
+        s_shape = []
+        for idx, s in enumerate(cat.struct_info.shape):
+            if idx == axis:
+                s_shape.extend([len(in_args), in_args[0].struct_info.shape[axis]])
+            else:
+                s_shape.append(s)
+        return self.block_builder.emit(relax.op.reshape(cat, s_shape))
 
     def _tile(self, node: fx.Node) -> relax.Var:
         import torch  # type: ignore

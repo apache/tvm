@@ -18,27 +18,26 @@
 """ Test translate from relax. """
 
 import torch
-from torch import fx
 from torch.nn import Module
 
 import numpy as np
 
 import tvm.testing
-from tvm.relax.frontend.torch import from_fx
-from tvm.contrib.msc.core.frontend import translate
+from tvm.contrib.msc.framework.torch.frontend import translate as torch_translate
+
 from tvm.contrib.msc.framework.tvm import codegen as tvm_codegen
+from tvm.contrib.msc.core.frontend import translate as core_translate
+from tvm.contrib.msc.core.utils.namespace import MSCFramework
+from tvm.contrib.msc.core import utils as msc_utils
 
 
 def verify_model(torch_model, input_info, opt_config=None):
     """Compare torch module IR"""
 
-    graph_model = fx.symbolic_trace(torch_model)
-    with torch.no_grad():
-        orig_mod = from_fx(graph_model, input_info)
-
+    orig_mod, _ = torch_translate.from_torch(torch_model, input_info, as_msc=False)
     target = "llvm"
     dev = tvm.cpu()
-    args = [tvm.nd.array(np.random.random(size=shape).astype(dtype)) for shape, dtype in input_info]
+    args = [msc_utils.random_data(i, MSCFramework.TVM) for i in input_info]
 
     def _tvm_runtime_to_np(obj):
         if isinstance(obj, tvm.runtime.NDArray):
@@ -60,7 +59,7 @@ def verify_model(torch_model, input_info, opt_config=None):
         return _tvm_runtime_to_np(res)
 
     rt_mod = tvm_codegen.to_relax(
-        *translate.from_relax(orig_mod, opt_config=opt_config),
+        *core_translate.from_relax(orig_mod, opt_config=opt_config),
         codegen_config={"explicit_name": False},
     )
 
@@ -1151,6 +1150,64 @@ def test_cat():
     ]
     verify_model(Cat1(), input_info)
     verify_model(Cat2(), [([1, 3, 10, 10], "float32")])
+
+
+def test_stack():
+    """test relax translator for stack"""
+
+    class Stack1(Module):
+        def forward(self, data, data1, data2):
+            return torch.stack((data, data1, data2), dim=0)
+
+    class Stack2(Module):
+        def forward(self, data):
+            const1 = torch.ones((1, 3, 10, 10), dtype=torch.float32)
+            const2 = torch.ones((1, 3, 10, 10), dtype=torch.float32)
+            return torch.stack((data, const1, const2), dim=1)
+
+    input_info = [
+        ([1, 3, 10, 10], "float32"),
+        ([1, 3, 10, 10], "float32"),
+        ([1, 3, 10, 10], "float32"),
+    ]
+    verify_model(Stack1(), input_info)
+    verify_model(Stack2(), [([1, 3, 10, 10], "float32")])
+
+
+def test_scatter():
+    """test relax translator for scatter"""
+
+    class Scatter1(Module):
+        def __init__(self):
+            super().__init__()
+            self.index = msc_utils.random_data([(2, 5), "int64"], MSCFramework.TORCH, max_val=5)
+
+        def forward(self, data, src):
+            return data.scatter(dim=0, index=self.index, src=src)
+
+    class Scatter2(Module):
+
+        def forward(self, data, index, src):
+            return data.scatter(0, index, src)
+
+    verify_model(Scatter1(), [([20, 20], "float32"), ([2, 5], "float32")])
+    verify_model(Scatter2(), [([20, 20], "float32"), ([2, 5], "int64"), ([2, 5], "float32")])
+
+
+def test_put():
+    """test relax translator for index_put"""
+
+    class IndexPut(Module):
+        def __init__(self):
+            super().__init__()
+            self.index = msc_utils.random_data([(5), "int64"], MSCFramework.TORCH, max_val=5)
+
+        def forward(self, data, src):
+            data[self.index] = src
+            return data
+
+    input_info = [([10, 20], "float32"), ([5, 20], "float32")]
+    verify_model(IndexPut(), input_info)
 
 
 def test_attention():

@@ -2809,9 +2809,7 @@ def test_split():
     @tvm.script.ir_module
     class expected1:
         @R.function
-        def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tuple(
+        def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tuple(
             R.Tensor((1, 1, 10, 10), dtype="float32"),
             R.Tensor((1, 1, 10, 10), dtype="float32"),
             R.Tensor((1, 1, 10, 10), dtype="float32"),
@@ -2870,9 +2868,7 @@ def test_unbind():
     @tvm.script.ir_module
     class expected1:
         @R.function
-        def main(
-            input_1: R.Tensor((3, 3, 10, 10), dtype="float32")
-        ) -> R.Tuple(
+        def main(input_1: R.Tensor((3, 3, 10, 10), dtype="float32")) -> R.Tuple(
             R.Tensor((3, 10, 10), dtype="float32"),
             R.Tensor((3, 10, 10), dtype="float32"),
             R.Tensor((3, 10, 10), dtype="float32"),
@@ -2907,9 +2903,7 @@ def test_unbind():
     @tvm.script.ir_module
     class expected2:
         @R.function
-        def main(
-            input_1: R.Tensor((3, 3, 10, 10), dtype="float32")
-        ) -> R.Tuple(
+        def main(input_1: R.Tensor((3, 3, 10, 10), dtype="float32")) -> R.Tuple(
             R.Tensor((3, 10, 10), dtype="float32"),
             R.Tensor((3, 10, 10), dtype="float32"),
             R.Tensor((3, 10, 10), dtype="float32"),
@@ -2978,9 +2972,7 @@ def test_chunk():
     @tvm.script.ir_module
     class Expected:
         @R.function
-        def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tuple(
+        def main(input_1: R.Tensor((1, 3, 10, 10), dtype="float32")) -> R.Tuple(
             R.Tensor((1, 1, 10, 10), dtype="float32"),
             R.Tensor((1, 1, 10, 10), dtype="float32"),
             R.Tensor((1, 1, 10, 10), dtype="float32"),
@@ -3961,6 +3953,66 @@ def test_sym_size_int():
 
     verify_model(SymSizeInt1(dim=1), [([1, 3, 4], "float32")], {}, Expected1)
     verify_model(SymSizeInt1(dim=-2), [([1, 3, 4], "float32")], {}, Expected1)
+
+
+def test_stack():
+
+    input_info = [
+        ([1, 3, 10, 10], "float32"),
+        ([1, 3, 10, 10], "float32"),
+        ([1, 3, 10, 10], "float32"),
+    ]
+
+    class Stack(Module):
+        def forward(self, data, data1, data2):
+            return torch.stack((data, data1, data2), dim=0)
+
+    @tvm.script.ir_module
+    class expected:
+        @R.function
+        def main(
+            inp_0: R.Tensor((1, 3, 10, 10), dtype="float32"),
+            inp_1: R.Tensor((1, 3, 10, 10), dtype="float32"),
+            inp_2: R.Tensor((1, 3, 10, 10), dtype="float32"),
+        ) -> R.Tensor((3, 1, 3, 10, 10), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((3, 3, 10, 10), dtype="float32") = R.concat(
+                    (inp_0, inp_1, inp_2), axis=0
+                )
+                lv1: R.Tensor((3, 1, 3, 10, 10), dtype="float32") = R.reshape(
+                    lv, R.shape([3, 1, 3, 10, 10])
+                )
+                gv: R.Tensor((3, 1, 3, 10, 10), dtype="float32") = lv1
+                R.output(gv)
+            return gv
+
+    verify_model(Stack(), input_info, {}, expected)
+
+
+def test_scatter():
+    input_info = [([20, 20], "float32"), ([2, 5], "int64"), ([2, 5], "float32")]
+
+    class Scatter(Module):
+        def forward(self, data, index, src):
+            return data.scatter(dim=0, index=index, src=src)
+
+    @tvm.script.ir_module
+    class expected:
+        @R.function
+        def main(
+            inp_0: R.Tensor((20, 20), dtype="float32"),
+            inp_1: R.Tensor((2, 5), dtype="int64"),
+            inp_2: R.Tensor((2, 5), dtype="float32"),
+        ) -> R.Tensor((20, 20), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((20, 20), dtype="float32") = R.scatter_elements(
+                    inp_0, inp_1, inp_2, axis=0, reduction="update"
+                )
+                gv: R.Tensor((20, 20), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    verify_model(Scatter(), input_info, {}, expected)
 
 
 if __name__ == "__main__":
