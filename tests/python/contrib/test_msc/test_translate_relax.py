@@ -1186,7 +1186,6 @@ def test_scatter():
             return data.scatter(dim=0, index=self.index, src=src)
 
     class Scatter2(Module):
-
         def forward(self, data, index, src):
             return data.scatter(0, index, src)
 
