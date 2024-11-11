@@ -18,8 +18,6 @@
 
 """ Test translate from relay. """
 
-import numpy as np
-
 import torch
 from torch import fx
 from torch.nn import Module
@@ -66,7 +64,7 @@ def verify_model(torch_model, input_info, opt_config=None, codegen_config=None, 
     expected = tvm.relax.transform.CanonicalizeBindings()(expected)
 
     # graph from relay
-    datas = [np.random.rand(*i[0]).astype(i[1]) for i in input_info]
+    datas = [msc_utils.random_data(i) for i in input_info]
     torch_datas = [torch.from_numpy(i) for i in datas]
     with torch.no_grad():
         scripted_model = torch.jit.trace(torch_model, tuple(torch_datas)).eval()  # type: ignore
