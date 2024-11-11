@@ -235,6 +235,8 @@ static const TVMBackendPackedCFunc graph_executor_registry_funcs[] = {
     &TVMGraphExecutorModule_Run,
     &TVMGraphExecutorModule_SetInput,
     &TVMGraphExecutorModule_NotImplemented,  // share_params
+    &TVMGraphExecutorModule_NotImplemented,  // get_output_index
+    &TVMGraphExecutorModule_NotImplemented,  // get_output_info
 };
 
 static const TVMFuncRegistry graph_executor_registry = {
@@ -247,7 +249,9 @@ static const TVMFuncRegistry graph_executor_registry = {
     "load_params\0"
     "run\0"
     "set_input\0"
-    "share_params\0",
+    "share_params\0"
+    "get_output_index\0"
+    "get_output_info\0",
     graph_executor_registry_funcs};
 
 tvm_crt_error_t TVMGraphExecutorModule_Register() {
