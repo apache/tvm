@@ -163,7 +163,7 @@ def convert_graph_layout(mod, desired_layouts, ops=None):
         raise TVMCException("Error converting layouts: {}".format(str(err)))
 
 
-def apply_graph_transforms(mod, params, args):
+def apply_graph_transforms(mod, args, params=None):
     """Alter the layout of the input graph.
 
     Parameters
@@ -172,6 +172,8 @@ def apply_graph_transforms(mod, params, args):
         The relay module to convert.
     args : dict
         The transform arguments.
+    params: dict
+        Module params
 
     Returns
     -------

@@ -402,7 +402,7 @@ def compile_model(
         instruments=instruments,
     ):
         transform_args = parse_graph_transform_args(locals())
-        mod = apply_graph_transforms(mod, params, transform_args)
+        mod = apply_graph_transforms(mod, transform_args, params)
 
         for partition_function, opts in zip(partition_functions, partition_opts):
             mod = partition_function(mod, params, mod_name=mod_name, **opts)
