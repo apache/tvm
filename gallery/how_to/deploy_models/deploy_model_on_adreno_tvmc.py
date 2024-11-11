@@ -72,7 +72,7 @@ cross_compiler = (
 
 #######################################################################
 # Make a PyTorch Resnet50 Model
-# ---------------------------
+# -----------------------------
 
 import torch
 import torchvision.models as models
