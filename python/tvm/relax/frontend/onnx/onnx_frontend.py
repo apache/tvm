@@ -833,6 +833,32 @@ class ScatterND(OnnxOpConverter):
         return relax.op.scatter_nd(inputs[0], inputs[1], inputs[2], reduction)
 
 
+class Compress(OnnxOpConverter):
+    """Convert an onnx Compress node into an equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v11(cls, bb, inputs, attr, params):
+        tensor, condition = inputs
+        axis = attr.get("axis", None)
+
+        # Change one hot tensor to indices e.g. [0, 1, 1, 0, 1] -> [1, 2, 4]
+        if condition.struct_info.dtype != "bool":
+            raise ValueError("Condition tensor is expected to be a boolean tensor")
+        if condition.struct_info.ndim != 1:
+            raise ValueError("Condition tensor is expected to be a 1D boolean tensor")
+        indices = relax.op.nonzero(condition)
+        num_nonzero = tir.Var("num_nonzero", "int64")
+        indices = bb.match_cast(indices, relax.TensorStructInfo([1, num_nonzero], "int64"))
+        indices = relax.op.reshape(indices, [-1])
+
+        if axis is not None:
+            return relax.op.take(tensor, indices, axis=axis)
+
+        # if axis is None, flatten input tensor before selection
+        tensor = relax.op.reshape(tensor, (-1,))
+        return relax.op.take(tensor, indices, axis=0)
+
+
 class Size(OnnxOpConverter):
     """Convert an onnx Size node into an equivalent Relax expression."""
 
@@ -2726,7 +2752,22 @@ class Unique(OnnxOpConverter):
         axis = attr.get("axis", None)
         sorted = bool(attr.get("sorted", 1))
         # TODO(tvm-team): Add support for return_index, return_inverse, return_counts
-        return relax.op.unique(data, sorted=sorted, axis=axis)
+        unique = relax.op.unique(data, sorted=sorted, axis=axis)
+        unique_numbers = tir.Var("unique_numbers", "int64")
+        input_shape = data.struct_info.shape
+        dtype = data.struct_info.dtype
+
+        if axis is None:
+            # flatten the input tensor
+            return bb.match_cast(unique, relax.TensorStructInfo((unique_numbers,), dtype))
+
+        axis = axis if axis >= 0 else len(input_shape) + axis
+        if axis < 0 or axis >= len(input_shape):
+            raise ValueError(f"Axis {axis} is out of bounds")
+        output_shape = [
+            input_shape[i] if i != axis else unique_numbers for i in range(len(input_shape))
+        ]
+        return bb.match_cast(unique, relax.TensorStructInfo(output_shape, dtype))
 
 
 class NonZero(OnnxOpConverter):
@@ -2734,7 +2775,12 @@ class NonZero(OnnxOpConverter):
 
     @classmethod
     def _impl_v9(cls, bb, inputs, attr, params):
-        return relax.op.nonzero(inputs[0])
+        ndim = inputs[0].struct_info.ndim
+        ndim = 1 if ndim == 0 else ndim
+        nonzero_numbers = tir.Var("nonzero_numbers", "int64")
+        return bb.match_cast(
+            relax.op.nonzero(inputs[0]), relax.TensorStructInfo((ndim, nonzero_numbers), "int64")
+        )
 
 
 class HardSigmoid(OnnxOpConverter):
@@ -3075,7 +3121,7 @@ def _get_convert_map():
         "Scatter": Scatter,
         "ScatterElements": ScatterElements,
         "ScatterND": ScatterND,
-        # "Compress": Compress,
+        "Compress": Compress,
         "Size": Size,
         "EyeLike": EyeLike,
         # Normalization

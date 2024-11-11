@@ -601,6 +601,34 @@ def test_scatter_nd(reduction):
     verify_scatter_nd([10], [5, 1], [5])
 
 
+@pytest.mark.parametrize("tensor_shape", [[32, 32]])
+@pytest.mark.parametrize("condition_shape", [None, [8], [16]])
+@pytest.mark.parametrize("axis", [None, 0, 1])
+def test_compress(
+    tensor_shape: List[int],
+    condition_shape: Optional[List[int]],
+    axis: Optional[int],
+):
+    if condition_shape is None and axis is None:
+        pytest.skip("Either condition_shape or axis must be specified")
+    if condition_shape is None:
+        condition_shape = [tensor_shape[axis]]
+    compress_node = helper.make_node("Compress", ["tensor", "condition"], ["output"], axis=axis)
+    graph = helper.make_graph(
+        [compress_node],
+        "compress_test",
+        inputs=[
+            helper.make_tensor_value_info("tensor", TensorProto.FLOAT, tensor_shape),
+            helper.make_tensor_value_info("condition", TensorProto.BOOL, condition_shape),
+        ],
+        outputs=[
+            helper.make_tensor_value_info("output", TensorProto.FLOAT, [])
+        ],  # shape is unknown
+    )
+    model = helper.make_model(graph, producer_name="compress_test")
+    check_correctness(model, opset=11)
+
+
 def test_size():
     test_node = helper.make_node("Size", ["x"], ["y"])
     graph = helper.make_graph(
@@ -2478,7 +2506,7 @@ def test_unique(axis: Optional[int], sorted: int):
     check_correctness(model)
 
 
-@pytest.mark.parametrize("shape", [(), (1,), (2, 3), (4, 5, 6)])
+@pytest.mark.parametrize("shape", [(), (1,), (2, 3), (4, 5, 6), (7, 8, 9, 10)])
 def test_nonzero(shape):
     verify_unary("NonZero", shape, input_dtype=TensorProto.BOOL, output_dtype=TensorProto.INT64)
 
