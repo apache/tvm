@@ -57,7 +57,7 @@ class Fallback(GPUScheduleRule):
             dom_kind = block.dom_kind()
             block = block.block_rv
 
-            if (
+            """if (
                 any(
                     [
                         sch.get(loop_rv).thread_binding is not None
@@ -66,6 +66,11 @@ class Fallback(GPUScheduleRule):
                 )
                 or len(sch.get_loops(block)) == 0
             ):
+                continue"""
+            if len(sch.get_loops(block)) == 0:
+                unit_loop = sch.add_unit_loop(block)
+                # Bind this unit loop to a GPU thread
+                sch.bind(unit_loop, "threadIdx.x")
                 continue
 
             for loop, iter_type in zip(sch.get_loops(block), dom_kind):
