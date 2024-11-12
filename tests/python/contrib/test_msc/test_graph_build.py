@@ -30,6 +30,7 @@ from tvm.contrib.msc.core import utils as msc_utils
 
 def verify_model(torch_model, input_info, expected):
     graph, _ = translate.from_torch(torch_model, input_info)
+    print("[TMINFO] graph " + str(graph))
     inspect = graph.inspect()
     assert msc_utils.dict_equal(inspect, expected), "Inspect {} mismatch with expected {}".format(
         inspect, expected
@@ -2469,6 +2470,91 @@ def test_scatter(dynamic):
     verify_model(Scatter1(), [([bz, 20], "float32"), ([2, 5], "float32")], expected1)
     verify_model(
         Scatter2(), [([bz, 20], "float32"), ([2, 5], "int64"), ([2, 5], "float32")], expected2
+    )
+
+
+@pytest.mark.parametrize("dynamic", [True, False])
+def test_masked_scatter(dynamic):
+    """test graph builder for masked_scatter"""
+
+    dim = "dim" if dynamic else 5
+
+    class MaskedScatter1(Module):
+        def forward(self, data, mask, src):
+            return data.masked_scatter(mask, src)
+
+    class MaskedScatter2(Module):
+        def forward(self, data, mask, src):
+            return data.masked_scatter(mask, src)
+
+    expected1 = {
+        "inputs": [
+            {"name": "inp_0", "shape": [dim], "dtype": "float32", "layout": "A"},
+            {"name": "inp_1", "shape": [dim], "dtype": "bool", "layout": "A"},
+            {"name": "inp_2", "shape": [10], "dtype": "float32", "layout": "A"},
+        ],
+        "outputs": [{"name": "where", "shape": [dim], "dtype": "float32", "layout": "A"}],
+        "nodes": {
+            "total": 8,
+            "input": 3,
+            "cumsum": 1,
+            "constant": 1,
+            "subtract": 1,
+            "take": 1,
+            "where": 1,
+        },
+    }
+    expected2 = {
+        "inputs": [
+            {
+                "name": "inp_0",
+                "shape": [2, dim],
+                "dtype": "float32",
+                "layout": "" if dynamic else "BA",
+            },
+            {
+                "name": "inp_1",
+                "shape": [2, dim],
+                "dtype": "bool",
+                "layout": "" if dynamic else "BA",
+            },
+            {
+                "name": "inp_2",
+                "shape": [3, dim],
+                "dtype": "float32",
+                "layout": "" if dynamic else "BA",
+            },
+        ],
+        "outputs": [
+            {
+                "name": "where",
+                "shape": [2, dim],
+                "dtype": "float32",
+                "layout": "" if dynamic else "BA",
+            }
+        ],
+        "nodes": {
+            "total": 11,
+            "input": 3,
+            "reshape": 3,
+            "cumsum": 1,
+            "constant": 1,
+            "subtract": 1,
+            "take": 1,
+            "where": 1,
+        },
+    }
+    if dynamic:
+        expected1["prims"] = {"total": 1, "shape": 1}
+        expected2["prims"] = {"total": 5, "shape": 1, "Int": 2, "Mul": 2}
+
+    verify_model(
+        MaskedScatter1(), [([dim], "float32"), ([dim], "bool"), ([10], "float32")], expected1
+    )
+    verify_model(
+        MaskedScatter2(),
+        [([2, dim], "float32"), ([2, dim], "bool"), ([3, dim], "float32")],
+        expected2,
     )
 
 

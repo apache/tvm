@@ -4023,5 +4023,66 @@ def test_scatter():
     verify_model(Scatter(), input_info, {}, expected)
 
 
+def test_masked_scatter():
+    class MaskedScatter1(Module):
+        def forward(self, data, mask, src):
+            return data.masked_scatter(mask, src)
+
+    class MaskedScatter2(Module):
+        def forward(self, data, mask, src):
+            return data.masked_scatter(mask, src)
+
+    @tvm.script.ir_module
+    class expected1:
+        @R.function
+        def main(
+            inp_0: R.Tensor((5,), dtype="float32"),
+            inp_1: R.Tensor((5,), dtype="bool"),
+            inp_2: R.Tensor((10,), dtype="float32"),
+        ) -> R.Tensor((5,), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((5,), dtype="int32") = R.cumsum(
+                    inp_1, axis=0, dtype="int32", exclusive=False
+                )
+                lv1: R.Tensor((5,), dtype="int32") = R.subtract(lv, R.const(1, "int32"))
+                lv2: R.Tensor((5,), dtype="float32") = R.take(inp_2, lv1, axis=0)
+                lv3: R.Tensor((5,), dtype="float32") = R.where(inp_1, lv2, inp_0)
+                gv: R.Tensor((5,), dtype="float32") = lv3
+                R.output(gv)
+            return gv
+
+    @tvm.script.ir_module
+    class expected2:
+        @R.function
+        def main(
+            inp_0: R.Tensor((2, 5), dtype="float32"),
+            inp_1: R.Tensor((2, 5), dtype="bool"),
+            inp_2: R.Tensor((3, 5), dtype="float32"),
+        ) -> R.Tensor((2, 5), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((10,), dtype="bool") = R.reshape(inp_1, R.shape([10]))
+                lv1: R.Tensor((10,), dtype="int32") = R.cumsum(
+                    lv, axis=0, dtype="int32", exclusive=False
+                )
+                lv2: R.Tensor((10,), dtype="int32") = R.subtract(lv1, R.const(1, "int32"))
+                lv3: R.Tensor((15,), dtype="float32") = R.reshape(inp_2, R.shape([15]))
+                lv4: R.Tensor((10,), dtype="float32") = R.take(lv3, lv2, axis=0)
+                lv5: R.Tensor((2, 5), dtype="float32") = R.reshape(lv4, R.shape([2, 5]))
+                lv6: R.Tensor((2, 5), dtype="float32") = R.where(inp_1, lv5, inp_0)
+                gv: R.Tensor((2, 5), dtype="float32") = lv6
+                R.output(gv)
+            return gv
+
+    verify_model(
+        MaskedScatter1(), [([5], "float32"), ([5], "bool"), ([10], "float32")], {}, expected1
+    )
+    verify_model(
+        MaskedScatter2(),
+        [([2, 5], "float32"), ([2, 5], "bool"), ([3, 5], "float32")],
+        {},
+        expected2,
+    )
+
+
 if __name__ == "__main__":
     tvm.testing.main()

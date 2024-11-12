@@ -224,6 +224,12 @@ class TorchConstantCodeGen : public TorchOpCode {
       } else if (dtype == "float32") {
         stack_.assign(module_ref(), node()->GetTypeAttr<float>("scalar"));
       }
+    } else if (dtype == "bool") {
+      stack_.func_call("register_buffer", "", "self")
+          .call_arg(DocUtils::ToStr(ref_name))
+          .inplace_start("torch.BoolTensor")
+          .call_arg(DocUtils::ToDocList(node()->OutputAt(0)->shape))
+          .inplace_end();
     } else if (dtype == "int32") {
       stack_.func_call("register_buffer", "", "self")
           .call_arg(DocUtils::ToStr(ref_name))
@@ -658,6 +664,18 @@ class TorchStridedSliceCodeGen : public TorchOpCode {
   }
 };
 
+class TorchTakeCodeGen : public TorchOpCode {
+  TORCH_OP_CODEGEN_METHODS(TorchTakeCodeGen)
+
+ protected:
+  void CodeGenForward() final {
+    if (node()->InputAt(1)->DTypeName() == "int32") {
+      stack_.func_call("to", IdxInput(1), IdxInput(1)).call_arg("torch.int64");
+    }
+    stack_.assign(IdxNode(), DocUtils::ToIndex(IdxInput(0), IdxInput(1)));
+  }
+};
+
 class TorchTriCodeGen : public TorchOpCode {
   TORCH_OP_CODEGEN_METHODS(TorchTriCodeGen)
 
@@ -738,6 +756,7 @@ const std::shared_ptr<std::unordered_map<String, std::shared_ptr<TorchOpCode>>> 
   map->emplace("subtract", std::make_shared<TorchSimpleCodeGen>("", "torch.subtract"));
   map->emplace("tan", std::make_shared<TorchSimpleCodeGen>("", "torch.tan"));
   map->emplace("tanh", std::make_shared<TorchSimpleCodeGen>("", "torch.tanh"));
+  map->emplace("where", std::make_shared<TorchSimpleCodeGen>("", "torch.where"));
 
   // reduce ops
   map->emplace("max", std::make_shared<TorchReduceAxesCodeGen>("", "torch.max"));
@@ -771,6 +790,7 @@ const std::shared_ptr<std::unordered_map<String, std::shared_ptr<TorchOpCode>>> 
   map->emplace("scatter_nd", std::make_shared<TorchScatterNDCodeGen>("", ""));
   map->emplace("split", std::make_shared<TorchSplitCodeGen>("", "torch.split"));
   map->emplace("strided_slice", std::make_shared<TorchStridedSliceCodeGen>("", ""));
+  map->emplace("take", std::make_shared<TorchTakeCodeGen>("", ""));
 
   // create ops
   map->emplace("constant", std::make_shared<TorchConstantCodeGen>("nn.Parameter", ""));

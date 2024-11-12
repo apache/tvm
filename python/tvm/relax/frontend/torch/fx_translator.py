@@ -472,6 +472,31 @@ class TorchFXImporter(BaseFXGraphImporter):
         values = self.block_builder.emit(relax.op.full_like(x, rx_value))
         return self.block_builder.emit(relax.op.where(mask, values, x))
 
+    def _masked_scatter(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        mask = self.env[node.args[1]]
+        source = self.env[node.args[2]]
+        ndim = len(mask.struct_info.shape)
+        if ndim == 1:
+            index = self.block_builder.emit(relax.op.cumsum(mask, 0, dtype="int32"))
+            index = self.block_builder.emit(relax.op.subtract(index, relax.const(1, "int32")))
+            gathered_source = self.block_builder.emit(relax.op.take(source, index, axis=0))
+        else:
+            f_mask = self.block_builder.emit(relax.op.reshape(mask, [-1]))
+            index = self.block_builder.emit(relax.op.cumsum(f_mask, 0, dtype="int32"))
+            index = self.block_builder.emit(relax.op.subtract(index, relax.const(1, "int32")))
+            source_shape = [-1] + [
+                s for idx, s in enumerate(source.struct_info.shape) if idx >= ndim
+            ]
+            f_source = self.block_builder.emit(relax.op.reshape(source, source_shape))
+            gathered_source = self.block_builder.emit(relax.op.take(f_source, index, axis=0))
+            gathered_source = self.block_builder.emit(
+                relax.op.reshape(gathered_source, x.struct_info.shape)
+            )
+        if ndim != len(x.struct_info.shape):
+            mask = self.block_builder.emit(relax.op.broadcast_to(mask, x.struct_info.shape))
+        return self.block_builder.emit(relax.op.where(mask, gathered_source, x))
+
     def _ones(self, node: fx.Node) -> relax.Var:
         import torch
 
@@ -695,6 +720,7 @@ class TorchFXImporter(BaseFXGraphImporter):
             "index_select": self._index_select,
             "masked_fill_": self._inplace_masked_fill,
             "masked_fill": self._masked_fill,
+            "masked_scatter": self._masked_scatter,
             "new_ones": self._new_ones,
             "ones": self._ones,
             "tensor": self._tensor,
