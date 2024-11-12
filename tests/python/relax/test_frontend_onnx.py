@@ -544,6 +544,68 @@ def test_gather():
     _verify_gather([3, 3], [[0, 2]], [3, 1, 2], 1)
 
 
+@pytest.mark.parametrize(
+    "data_shape, indices_shape, axis",
+    [
+        ([3, 4, 5], [1, 4, 5], 0),
+        ([3, 4, 5], [3, 2, 5], 1),
+        ([3, 4, 5], [3, 4, 2], 2),
+    ],
+)
+def test_gather_elements(data_shape, indices_shape, axis):
+    gather_elements_node = helper.make_node("GatherElements", ["data", "indices"], ["y"], axis=axis)
+
+    graph = helper.make_graph(
+        [gather_elements_node],
+        "gather_elements_test",
+        inputs=[
+            helper.make_tensor_value_info("data", TensorProto.FLOAT, data_shape),
+            helper.make_tensor_value_info("indices", TensorProto.INT64, indices_shape),
+        ],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, indices_shape)],
+    )
+
+    model = helper.make_model(graph, producer_name="gather_elements_test")
+    input_values = {
+        "data": np.random.randn(*data_shape).astype("float32"),
+        "indices": np.random.randint(0, data_shape[axis], indices_shape).astype("int64"),
+    }
+    check_correctness(model, inputs=input_values)
+
+
+@pytest.mark.parametrize(
+    "data_shape, indices_shape, batch_dims",
+    [
+        ([2, 2], [2, 2], 0),
+        ([2, 2], [2, 1], 0),
+        ([2, 2, 2], [1], 0),
+        ([2, 2, 2], [2, 2], 0),
+        ([2, 2, 2], [2, 1, 2], 0),
+        ([2, 2, 2], [2, 2], 1),
+        ([2, 2, 2], [2, 1], 1),
+    ],
+)
+def test_gather_nd(data_shape, indices_shape, batch_dims):
+    gather_nd_node = helper.make_node("GatherND", ["data", "indices"], ["y"], batch_dims=batch_dims)
+
+    graph = helper.make_graph(
+        [gather_nd_node],
+        "gather_nd_test",
+        inputs=[
+            helper.make_tensor_value_info("data", TensorProto.FLOAT, data_shape),
+            helper.make_tensor_value_info("indices", TensorProto.INT64, indices_shape),
+        ],
+        outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, None)],
+    )
+
+    model = helper.make_model(graph, producer_name="gather_nd_test")
+    input_values = {
+        "data": np.random.randn(*data_shape).astype("float32"),
+        "indices": np.random.randint(0, 2, indices_shape).astype("int64"),
+    }
+    check_correctness(model, inputs=input_values)
+
+
 @pytest.mark.parametrize("axis", [0, 1, 2])
 @pytest.mark.parametrize(("name", "opset"), [("Scatter", 10), ("ScatterElements", 11)])
 def test_scatter(axis: int, name: str, opset: int):

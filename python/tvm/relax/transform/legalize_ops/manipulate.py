@@ -156,6 +156,22 @@ def _flip(bb: BlockBuilder, call: Call) -> Expr:
     return bb.call_te(topi.flip, call.args[0], int(call.attrs.axis))
 
 
+@register_legalize("relax.gather_elements")
+def _gather_elements(bb: BlockBuilder, call: Call) -> Expr:
+    return bb.call_te(topi.gather, call.args[0], int(call.attrs.axis), call.args[1])
+
+
+@register_legalize("relax.gather_nd")
+def _gather_nd(bb: BlockBuilder, call: Call) -> Expr:
+    def te_gather_nd(data, indices, batch_dims):
+        indices_ndim = len(indices.shape)
+        axes = [indices_ndim - 1] + list(range(indices_ndim - 1))
+        indices = topi.transpose(indices, axes)
+        return topi.gather_nd(data, indices, batch_dims)
+
+    return bb.call_te(te_gather_nd, call.args[0], call.args[1], int(call.attrs.batch_dims))
+
+
 @register_legalize("relax.scatter_elements")
 def _scatter_elements(bb: BlockBuilder, call: Call) -> Expr:
     return bb.call_te(

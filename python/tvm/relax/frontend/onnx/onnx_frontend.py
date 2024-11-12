@@ -781,6 +781,24 @@ class Gather(OnnxOpConverter):
         return relax.op.take(data, indices, axis)
 
 
+class GatherElements(OnnxOpConverter):
+    """Convert an onnx GatherElements node into an equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v13(cls, bb, inputs, attr, params):
+        axis = attr.get("axis", 0)
+        return relax.op.gather_elements(inputs[0], inputs[1], axis)
+
+
+class GatherND(OnnxOpConverter):
+    """Convert an onnx GatherND node into an equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v13(cls, bb, inputs, attr, params):
+        batch_dims = attr.get("batch_dims", 0)
+        return relax.op.gather_nd(inputs[0], inputs[1], batch_dims)
+
+
 class Scatter(OnnxOpConverter):
     """Convert an onnx Scatter node into an equivalent Relax expression."""
 
@@ -3070,8 +3088,8 @@ def _get_convert_map():
         "Squeeze": Squeeze,
         "Constant": Constant,
         "Gather": Gather,
-        # "GatherElements": GatherElements,
-        # "GatherND": GatherND,
+        "GatherElements": GatherElements,
+        "GatherND": GatherND,
         "Scatter": Scatter,
         "ScatterElements": ScatterElements,
         "ScatterND": ScatterND,

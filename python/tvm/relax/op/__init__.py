@@ -92,6 +92,8 @@ from .manipulate import (
     expand_dims,
     flatten,
     flip,
+    gather_elements,
+    gather_nd,
     layout_transform,
     one_hot,
     permute_dims,
