@@ -30,7 +30,6 @@ from tvm.contrib.msc.core import utils as msc_utils
 
 def verify_model(torch_model, input_info, expected):
     graph, _ = translate.from_torch(torch_model, input_info)
-    print("[TMINFO] graph " + str(graph))
     inspect = graph.inspect()
     assert msc_utils.dict_equal(inspect, expected), "Inspect {} mismatch with expected {}".format(
         inspect, expected
