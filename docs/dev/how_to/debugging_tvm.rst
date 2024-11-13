@@ -49,7 +49,7 @@ optimization). To enable VLOGging, do the following:
 
 1. In ``config/cmake``, ensure you ``set(USE_RELAY_DEBUG ON)``. This flag is used to enable
    VLOGging.
-2. Launch Python passing ``TVM_LOG_DEBUG=<spec>``, where ``<spec>>`` is a comma-separated list of
+2. Launch Python passing ``TVM_LOG_DEBUG=<spec>``, where ``<spec>`` is a comma-separated list of
    level assignments of the form ``<file_name>=<level>``. Here are some specializations:
 
     - The special filename ``DEFAULT`` sets the VLOG level setting for all files.
