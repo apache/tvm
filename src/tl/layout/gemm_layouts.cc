@@ -101,8 +101,8 @@ Fragment makeGemmFragmentCCDNA(const int block_m, const int block_n, const int w
   ICHECK(warp_m % 16 == 0) << "warp_m=" << warp_m;
   ICHECK(warp_n % 16 == 0) << "warp_n=" << warp_n;
   auto base_layout = makeGemmFragmentCDNA16x16()->Repeat({1, 1}, false);
-  auto warp_layout = base_layout->Repeat({block_m / warp_m, block_n / warp_n}, false, false);
-  auto block_layout = warp_layout->Repeat({warp_m / 16, warp_n / 16}, true, true);
+  auto warp_layout = base_layout->Repeat({warp_m / 16, warp_n / 16}, false, true);
+  auto block_layout = warp_layout->Repeat({block_m / warp_m, block_n / warp_n}, true, true);
   return block_layout;
 }
 
@@ -370,6 +370,17 @@ Layout makeGemmABLayout(int stride, int continuous, int element_size, int kfacto
   if (kfactor == 1 && element_size == 8)  // int8 KxN
     return makeGemmABLayoutPadded(stride, continuous, element_size);
   else if (continuous % (vector_size * 8) == 0)
+    return makeFullBankSwizzleLayout(stride, continuous, element_size);
+  else if (continuous % (vector_size * 4) == 0)
+    return makeHalfBankSwizzleLayout(stride, continuous, element_size);
+  else {
+    return makeGemmABLayoutPadded(stride, continuous, element_size);
+  }
+}
+
+Layout makeGemmABLayoutCDNA(int stride, int continuous, int element_size, int kfactor) {
+  int vector_size = 128 / element_size;
+  if (continuous % (vector_size * 8) == 0)
     return makeFullBankSwizzleLayout(stride, continuous, element_size);
   else if (continuous % (vector_size * 4) == 0)
     return makeHalfBankSwizzleLayout(stride, continuous, element_size);

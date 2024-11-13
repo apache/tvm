@@ -85,7 +85,7 @@ def compile_hip(code, target_format="hsaco", arch=None, options=None, path_targe
 
     cmd += ["-o", file_target]
     cmd += [temp_code]
-    print(" ".join(cmd))
+
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE,
                             stderr=subprocess.STDOUT)
 

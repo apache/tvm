@@ -31,17 +31,73 @@ class GemmTensorOp {
   static constexpr bool kPadB = true;
   static constexpr bool kPadC = true;
 
+  static constexpr int BANK_SIZE_BYTES = 128;
+
   static constexpr int warp_size = 64;
 
-  CK_TILE_DEVICE static constexpr auto reverse_index_map(int thread_id, int local_id) {
+  TL_DEVICE static constexpr auto reverse_index_map(int thread_id, int local_id) {
     return std::make_pair(thread_id % 16, (thread_id / 16) * 4 + local_id);
   }
 
-  CK_TILE_DEVICE static constexpr auto reverse_index_map_transposed(int thread_id, int local_id) {
+  TL_DEVICE static constexpr auto reverse_index_map_transposed(int thread_id, int local_id) {
     return std::make_pair((thread_id / 16) * 4 + local_id, thread_id % 16);
   }
 
-  static CK_TILE_DEVICE void body(A_type* A_shared, B_type* B_shared, C_type* C_local) {
+  /*
+   * Detailed Implementation please
+   * checkout bitblas/tl/utils.py:get_swizzle_layout
+   */
+  template <int continuous = 32, int element_size = 2>
+  TL_DEVICE static auto make_full_bank_swizzle_layout(const int row, const int col) {
+    const auto dtype_bits = element_size * 8;
+    const auto bank_elems = BANK_SIZE_BYTES / dtype_bits;
+
+    const auto col_idx_outer = col / bank_elems;
+    const auto col_idx_inner = col % bank_elems;
+    const auto row_idx_sub = row % bank_elems;
+    const auto new_col_idx_outer = col_idx_outer ^ row_idx_sub;
+
+    return std::make_pair(row, new_col_idx_outer * bank_elems + col_idx_inner);
+  }
+
+  template <int continuous = 32, int element_size = 2>
+  TL_DEVICE static auto make_half_bank_swizzle_layout(const int row, const int col) {
+    const auto dtype_bits = element_size * 8;
+    const auto bank_elems = BANK_SIZE_BYTES / dtype_bits;
+
+    const auto col_idx_outer = col / bank_elems;
+    const auto col_idx_inner = col % bank_elems;
+
+    const auto row_idx_sub = row % bank_elems;
+    const auto interleave_elems = 32 / dtype_bits;
+    const auto new_col_idx_outer = col_idx_outer ^ (row_idx_sub / interleave_elems);
+
+    return std::make_pair(row, new_col_idx_outer * bank_elems + col_idx_inner);
+  }
+
+  template <int continuous = 32, int element_size = 2>
+  TL_DEVICE static constexpr auto make_layout_padded(const int row, const int col) {
+    return std::make_pair(row, col);
+  }
+
+  template <int continuous = 32, int element_size = 2>
+  TL_DEVICE static constexpr auto make_swizzle_layout(const int row, const int col) {
+    constexpr auto vector_size = BANK_SIZE_BYTES / (element_size * 8);
+
+    if (continuous % (vector_size * 8) == 0) {
+      auto [n_row, n_col] = make_full_bank_swizzle_layout<continuous, element_size>(row, col);
+      return n_row * continuous + n_col;
+    } else if (continuous % (vector_size * 4) == 0) {
+      auto [n_row, n_col] = make_half_bank_swizzle_layout<continuous, element_size>(row, col);
+      return n_row * continuous + n_col;
+    }
+    else {
+      auto [n_row, n_col] = make_layout_padded(row, col);
+      return n_row * (continuous + continuous / 4) + n_col;
+    }
+  }
+
+  static TL_DEVICE void body(A_type* A_shared, B_type* B_shared, C_type* C_local) {
     auto tid = threadIdx.x;
     auto warp_id = tid / warp_size;
     auto warp_m = warp_id / block_col_warps;
@@ -58,34 +114,30 @@ class GemmTensorOp {
     constexpr auto local_size_b = (micro_size_y * micro_size_k) / warp_size;
     constexpr auto local_size_c = (micro_size_x * micro_size_y) / warp_size;
 
+    constexpr auto last_dim_a = TransposeA ? M_Tile : K_Tile;
+    constexpr auto last_dim_b = TransposeB ? K_Tile : N_Tile;
+
     A_type A_local[warp_rows * local_size_a];
     B_type B_local[warp_cols * local_size_b];
-
-    // if (tid == 0 && blockIdx.x == 0 && blockIdx.y == 0 && blockIdx.z == 0) {
-    //     printf("allocating %d for A_local\n", warp_rows * local_size_a);
-    //     printf("allocating %d for B_local\n", warp_cols * local_size_b);
-    //     printf("warp_rows: %d, warp_cols: %d\n", warp_rows, warp_cols);
-    //     printf("local_size_a: %d, local_size_b: %d\n", local_size_a, local_size_b);
-    // }
 
     for (int ki = 0; ki < inner_k; ki++) {
       // Fetch A into register
       for (int i = 0; i < warp_rows; i++) {
+        const auto l = tz * warp_row_tiles + i * micro_size_x;
+        const auto r = ki * micro_size_k;
         for (int local_id = 0; local_id < local_size_a; local_id++) {
-          const auto l = tz * warp_row_tiles + i * micro_size_x;
-          const auto r = ki * micro_size_k;
           auto [row, col] = reverse_index_map(lane_id, local_id);
-          A_local[i * local_size_a + local_id] = A_shared[(l + row) * K_Tile + r + col];
+          A_local[i * local_size_a + local_id] = A_shared[make_swizzle_layout<last_dim_a, sizeof(A_type)>(l + row, r + col)];
         }
       }
 
       // Fetch B into register
       for (int j = 0; j < warp_cols; j++) {
+        const auto l = ty * warp_col_tiles + j * micro_size_y;
+        const auto r = ki * micro_size_k;
         for (int local_id = 0; local_id < local_size_b; local_id++) {
-          const auto l = ty * warp_col_tiles + j * micro_size_y;
-          const auto r = ki * micro_size_k;
           auto [row, col] = reverse_index_map(lane_id, local_id);
-          B_local[j * local_size_b + local_id] = B_shared[(l + row) * K_Tile + r + col];
+          B_local[j * local_size_b + local_id] = B_shared[make_swizzle_layout<last_dim_b, sizeof(B_type)>(l + row, r + col)];
         }
       }
 
@@ -107,7 +159,7 @@ namespace tl {
 
 template <int M, int N, int K, int num_warp_m, int num_warp_n, bool trans_A, bool trans_B,
           typename A_type, typename B_type, typename C_type>
-CK_TILE_DEVICE void gemm_ss(A_type* pA, B_type* pB, C_type* accum) {
+TL_DEVICE void gemm_ss(A_type* pA, B_type* pB, C_type* accum) {
   using Compute = ck_tile::GemmTensorOp<M, N, K, num_warp_m, num_warp_n, trans_A, trans_B, A_type,
                                         B_type, C_type>;
   Compute::body(pA, pB, accum);

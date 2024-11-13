@@ -218,9 +218,14 @@ LayoutMap Gemm::InferLayout(const LayoutInferArgs& T, InferLevel level) {
     results.Set(C, fragment);
 
     if (A.scope() == "shared" || A.scope() == "shared.dyn") {
-      auto shared_layout =
-          makeGemmLayoutLinear(*as_const_int(A->shape[0]), *as_const_int(A->shape[1]));
-      // TODO(lei): Handle Pad and CK Tile Swizzle
+      
+      // Make Linear Memory Access Layout
+      // auto shared_layout =
+      //     makeGemmLayoutLinear(*as_const_int(A->shape[0]), *as_const_int(A->shape[1]));
+      
+      // Make Swizzle or Pad Layout
+      auto shared_layout = makeGemmABLayoutCDNA(*as_const_int(A->shape[0]), *as_const_int(A->shape[1]),
+                                      A->dtype.bits(), trans_A ? 1 : 2);
       results.Set(A, shared_layout);
     } else if (A.scope() == "local.fragment") {
       ICHECK(trans_A == false);
@@ -229,9 +234,14 @@ LayoutMap Gemm::InferLayout(const LayoutInferArgs& T, InferLevel level) {
       ICHECK(0);
     }
     if (B.scope() == "shared" || B.scope() == "shared.dyn") {
-      auto shared_layout =
-          makeGemmLayoutLinear(*as_const_int(B->shape[0]), *as_const_int(B->shape[1]));
-      // TODO(lei): Handle Pad and CK Tile Swizzle
+      // Make Linear Memory Access Layout
+      // auto shared_layout =
+      //     makeGemmLayoutLinear(*as_const_int(B->shape[0]), *as_const_int(B->shape[1]));
+
+      // Make Swizzle or Pad Layout
+      auto shared_layout = makeGemmABLayoutCDNA(*as_const_int(B->shape[0]), *as_const_int(B->shape[1]),
+                                      B->dtype.bits(), trans_B ? 1 : 2);
+
       results.Set(B, shared_layout);
     } else if (B.scope() == "local.fragment") {
       ICHECK(trans_B == false);
