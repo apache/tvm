@@ -175,6 +175,32 @@ Expr tile(Expr data, Array<Integer> repeats);
 Expr flip(Expr data, Integer axis);
 
 /*!
+ * \brief Gather elements from a tensor using indices.
+ * \param data The input tensor.
+ * \param indices The indices tensor, must have integer type.
+ * \param axis The axis along which to index. Default is 0.
+ * \return The computed result.
+ *
+ * \note The shape of indices must match the shape of data, except at dimension axis
+ *       where it must just be not null. The output will have the same shape as indices.
+ */
+Expr gather_elements(Expr data, Expr indices, int axis = 0);
+
+/*!
+ * \brief Gather values from a tensor using N-dimensional indices.
+ * \param data The input tensor.
+ * \param indices The indices tensor, must have integer type.
+ * \param batch_dims The number of batch dimensions. Default is 0.
+ * \return The computed result.
+ *
+ * \note For batch_dims > 0, the first batch_dims dimensions of data and indices must be equal.
+ *       The last dimension of indices indicates the depth of each index vector.
+ *       The output shape is batch_dims + indices.shape[:-1] + data.shape[batch_dims +
+ * indices.shape[-1]:]
+ */
+Expr gather_nd(Expr data, Expr indices, int batch_dims = 0);
+
+/*!
  * \brief Scatter updates into an array according to indices.
  * \param data The input tensor.
  * \param indices The index positions to update in `data`.

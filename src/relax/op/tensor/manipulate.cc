@@ -1418,6 +1418,169 @@ TVM_REGISTER_OP("relax.flip")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoFlip)
     .set_attr<Bool>("FPurity", Bool(true));
 
+/* relax.gather_elements */
+TVM_REGISTER_NODE_TYPE(GatherElementsAttrs);
+
+Expr gather_elements(Expr data, Expr indices, int axis) {
+  auto attrs = make_object<GatherElementsAttrs>();
+  attrs->axis = Integer(axis);
+  static const Op& op = Op::Get("relax.gather_elements");
+  return Call(op, {data, indices}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relax.op.gather_elements").set_body_typed(gather_elements);
+
+StructInfo InferStructInfoGatherElements(const Call& call, const BlockBuilder& ctx) {
+  const auto* data_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
+  const auto* indices_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[1]);
+  const auto* attrs = call->attrs.as<GatherElementsAttrs>();
+
+  if (data_sinfo == nullptr) {
+    ctx->ReportFatal(
+        Diagnostic::Error(call)
+        << "GatherElements requires the input data to be a Tensor. However, the given one is "
+        << call->args[0]->struct_info_->GetTypeKey());
+  }
+  if (indices_sinfo == nullptr) {
+    ctx->ReportFatal(
+        Diagnostic::Error(call)
+        << "GatherElements requires the input indices to be a Tensor. However, the given one is "
+        << call->args[1]->struct_info_->GetTypeKey());
+  }
+
+  if (!indices_sinfo->IsUnknownDtype() && !indices_sinfo->dtype.is_int()) {
+    ctx->ReportFatal(
+        Diagnostic::Error(call)
+        << "GatherElements requires the input indices to have int64 dtype. However, the "
+        << "given indices dtype is " << indices_sinfo->dtype);
+  }
+
+  if (data_sinfo->IsUnknownNdim() || indices_sinfo->IsUnknownNdim()) {
+    return TensorStructInfo(data_sinfo->dtype, kUnknownNDim, data_sinfo->vdevice);
+  }
+
+  int axis = attrs->axis.IntValue();
+  if (axis < -data_sinfo->ndim || axis >= data_sinfo->ndim) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "GatherElements requires axis to be within the input dimension range ["
+                     << -data_sinfo->ndim << ", " << data_sinfo->ndim - 1 << "]. However, the "
+                     << "given axis is " << axis);
+  }
+
+  if (data_sinfo->ndim != indices_sinfo->ndim) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "GatherElements requires data and indices to have the same rank. However, "
+                     << "data rank is " << data_sinfo->ndim << " while indices rank is "
+                     << indices_sinfo->ndim);
+  }
+  if (indices_sinfo->shape.defined()) {
+    return TensorStructInfo(indices_sinfo->shape.value(), data_sinfo->dtype, data_sinfo->vdevice);
+  }
+  return TensorStructInfo(data_sinfo->dtype, indices_sinfo->ndim, data_sinfo->vdevice);
+}
+
+TVM_REGISTER_OP("relax.gather_elements")
+    .set_attrs_type<GatherElementsAttrs>()
+    .set_num_inputs(2)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .add_argument("indices", "Tensor", "The indices tensor.")
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoGatherElements)
+    .set_attr<Bool>("FPurity", Bool(true));
+
+/* relax.gather_nd */
+TVM_REGISTER_NODE_TYPE(GatherNDAttrs);
+
+Expr gather_nd(Expr data, Expr indices, int batch_dims) {
+  auto attrs = make_object<GatherNDAttrs>();
+  attrs->batch_dims = Integer(batch_dims);
+  static const Op& op = Op::Get("relax.gather_nd");
+  return Call(op, {data, indices}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relax.op.gather_nd").set_body_typed(gather_nd);
+
+StructInfo InferStructInfoGatherND(const Call& call, const BlockBuilder& ctx) {
+  const auto* data_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
+  const auto* indices_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[1]);
+  const auto* attrs = call->attrs.as<GatherNDAttrs>();
+
+  if (data_sinfo == nullptr) {
+    ctx->ReportFatal(
+        Diagnostic::Error(call)
+        << "GatherND requires the input data to be a Tensor. However, the given one is "
+        << call->args[0]->struct_info_->GetTypeKey());
+  }
+  if (indices_sinfo == nullptr) {
+    ctx->ReportFatal(
+        Diagnostic::Error(call)
+        << "GatherND requires the input indices to be a Tensor. However, the given one is "
+        << call->args[1]->struct_info_->GetTypeKey());
+  }
+  ICHECK_GE(attrs->batch_dims.IntValue(), 0);
+  int batch_dims = attrs->batch_dims.IntValue();
+  int input_dims = data_sinfo->ndim;
+  if (!indices_sinfo->IsUnknownDtype() && indices_sinfo->dtype != DataType::Int(64)) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "GatherND requires the input indices to have int64 dtype. However, the "
+                     << "given indices dtype is " << indices_sinfo->dtype);
+  }
+
+  if (data_sinfo->IsUnknownNdim() || indices_sinfo->IsUnknownNdim()) {
+    return TensorStructInfo(data_sinfo->dtype, kUnknownNDim, data_sinfo->vdevice);
+  }
+
+  if (batch_dims < 0 || batch_dims > data_sinfo->ndim) {
+    ctx->ReportFatal(
+        Diagnostic::Error(call)
+        << "GatherND batch_dims must be in range [0, data.ndim]. However, got batch_dims="
+        << batch_dims << ", data.ndim=" << input_dims);
+  }
+
+  if (batch_dims > indices_sinfo->ndim - 1) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "GatherND batch_dims cannot exceed indices.ndim-1. However, got batch_dims="
+                     << batch_dims << ", indices.ndim=" << indices_sinfo->ndim);
+  }
+
+  // Check if indices shape is known
+  const auto* indices_shape = indices_sinfo->shape.as<ShapeExprNode>();
+  const auto* data_shape = data_sinfo->shape.as<ShapeExprNode>();
+  if (!indices_shape || !indices_shape->values.back()->IsInstance<IntImmNode>()) {
+    return TensorStructInfo(data_sinfo->dtype, kUnknownNDim, data_sinfo->vdevice);
+  }
+  int l = indices_shape->values.back().as<IntImmNode>()->value;
+  int output_ndim = indices_sinfo->ndim + input_dims - l - 1 - batch_dims;
+  if (!data_shape) {
+    return TensorStructInfo(data_sinfo->dtype, output_ndim, data_sinfo->vdevice);
+  }
+
+  // In this condition, all input shapes are known
+  Array<PrimExpr> out_shape;
+  if (l > input_dims - batch_dims) {
+    ctx->ReportFatal(Diagnostic::Error(call)
+                     << "GatherND requires the last dimension of indices to be less than or "
+                        "equal to the rank of data minus batch_dims. However, the given shapes are "
+                     << "indices: " << ShapeExpr(indices_shape->values) << ", data: "
+                     << ShapeExpr(data_shape->values) << ", with batch_dims=" << batch_dims);
+  }
+  for (int i = 0; i < indices_sinfo->ndim - 1; ++i) {
+    out_shape.push_back(indices_shape->values[i]);
+  }
+  for (int i = batch_dims + l; i < input_dims; ++i) {
+    out_shape.push_back(data_shape->values[i]);
+  }
+  ICHECK_EQ(out_shape.size(), output_ndim);
+  return TensorStructInfo(ShapeExpr(out_shape), data_sinfo->dtype, data_sinfo->vdevice);
+}
+
+TVM_REGISTER_OP("relax.gather_nd")
+    .set_attrs_type<GatherNDAttrs>()
+    .set_num_inputs(2)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .add_argument("indices", "Tensor", "The indices tensor.")
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoGatherND)
+    .set_attr<Bool>("FPurity", Bool(true));
+
 /* relax.scatter_elements */
 TVM_REGISTER_NODE_TYPE(ScatterElementsAttrs);
 
