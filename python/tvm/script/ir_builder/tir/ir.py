@@ -522,6 +522,11 @@ def _as_range(dom: Union[ir.Range, List[PrimExpr]]) -> ir.Range:
     if isinstance(dom, ir.Range):
         return dom
     if isinstance(dom, (list, tuple)):
+        from tvm.arith import Analyzer  # pylint: disable=import-outside-toplevel
+
+        extent = Analyzer().simplify(dom[1] - dom[0])
+        if isinstance(extent, tir.IntImm):
+            return ir.Range.from_min_extent(dom[0], extent)
         return ir.Range(dom[0], dom[1])
     if hasattr(dom, "dtype"):
         return ir.Range(IntImm(dom.dtype, 0), dom)
