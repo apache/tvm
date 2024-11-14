@@ -46,7 +46,7 @@ macro(find_opencl use_opencl)
    endif()
 
    if(__opencl_sdk)
-     set(OpenCL_INCLUDE_DIRS ${__opencl_sdk}/include)
+     set(OpenCL_INCLUDE_DIRS ${__opencl_sdk}/include ${__opencl_sdk})
      if (CMAKE_FIND_ROOT_PATH_MODE_LIBRARY STREQUAL "ONLY")
        set(CMAKE_FIND_ROOT_PATH_MODE_LIBRARY BOTH)
      endif()
