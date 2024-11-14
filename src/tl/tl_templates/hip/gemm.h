@@ -1,10 +1,8 @@
 #pragma once
 
-#include "ck_tile/core.hpp"
-#include "ck_tile/ops/gemm.hpp"
 #include "common.h"
 
-namespace ck_tile {
+namespace tl {
 
 template <int M, int N, int K, int num_warp_m, int num_warp_n, bool TransposeA, bool TransposeB,
           typename A_type, typename B_type, typename C_type, typename AccDataType = float>
@@ -153,14 +151,14 @@ class GemmTensorOp {
   }
 };
 
-}  // namespace ck_tile
+}  // namespace tl
 
 namespace tl {
 
 template <int M, int N, int K, int num_warp_m, int num_warp_n, bool trans_A, bool trans_B,
           typename A_type, typename B_type, typename C_type>
 TL_DEVICE void gemm_ss(A_type* pA, B_type* pB, C_type* accum) {
-  using Compute = ck_tile::GemmTensorOp<M, N, K, num_warp_m, num_warp_n, trans_A, trans_B, A_type,
+  using Compute = GemmTensorOp<M, N, K, num_warp_m, num_warp_n, trans_A, trans_B, A_type,
                                         B_type, C_type>;
   Compute::body(pA, pB, accum);
 }

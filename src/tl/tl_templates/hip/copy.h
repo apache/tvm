@@ -11,92 +11,73 @@ using u32 = std::uint32_t;
 
 using index_t = u32;
 
-typedef uint32_t u32x4 __attribute__((ext_vector_type(4)));
-typedef uint32_t u32x2 __attribute__((ext_vector_type(2)));
-typedef uint32_t u32x1 __attribute__((ext_vector_type(1)));
+using ck_tile::int32x4_t;
 
-typedef f32 f32x8 __attribute__((ext_vector_type(8)));
-typedef f32 f32x4 __attribute__((ext_vector_type(4)));
-typedef f32 f32x2 __attribute__((ext_vector_type(2)));
-typedef f32 f32x1 __attribute__((ext_vector_type(1)));
+struct __attribute__((packed)) buffer_resource {
+  const void* ptr;
+  uint32_t range;
+  uint32_t config;
+};
 
-typedef u32x4 dwordx4_t;
-typedef u32x2 dwordx2_t;
-typedef u32 dword_t;
+CK_TILE_DEVICE int32x4_t make_wave_buffer_resource(const void* ptr, uint32_t size = 0xffffffff) {
+  buffer_resource res{ptr, size, CK_TILE_BUFFER_RESOURCE_3RD_DWORD};
+  int32x4_t r = __builtin_bit_cast(int32x4_t, res);
+  r.x = __builtin_amdgcn_readfirstlane(r.x);
+  r.y = __builtin_amdgcn_readfirstlane(r.y);
+  r.z = __builtin_amdgcn_readfirstlane(r.z);
+  r.w = __builtin_amdgcn_readfirstlane(r.w);
+  return r;
+}
 
-typedef uint8_t u8x16 __attribute__((ext_vector_type(16)));
-typedef uint8_t u8x8 __attribute__((ext_vector_type(8)));
-typedef uint8_t u8x4 __attribute__((ext_vector_type(4)));
-typedef uint8_t u8x2 __attribute__((ext_vector_type(2)));
-typedef uint8_t u8x1 __attribute__((ext_vector_type(1)));
+__device__ void init_m0(uint32_t m0_value) {
+  asm volatile("s_mov_b32 m0, %0" : : "s"(m0_value) : "memory");
+}
 
+__device__ void inc_m0(uint32_t m0_inc) {
+  asm volatile("s_add_u32 m0, %0, m0" : : "n"(m0_inc) : "memory");
+}
 
 namespace tl {
 
+// AMDGPU automatically commit memory fence
 TL_DEVICE void cp_async_commit() {}
 
+// Global Memory only fence
 __device__ void async_gld_fence(index_t cnt) {
   asm volatile("s_waitcnt vmcnt(%0)" : : "n"(cnt) : "memory");
 }
 
+// Global Memory and Shared Memory fence
+__device__ void async_gld_sld_fence(index_t cnt) {
+  asm volatile("s_waitcnt lgkmcnt(%0)" : : "n"(cnt) : "memory");
+}
+
+__device__ void wave_barrier() { asm volatile("s_barrier" : : : "memory"); }
+
 template <int N = 0>
 TL_DEVICE void cp_async_wait() {
-  async_gld_fence(0);
+  async_gld_fence(N);
+  // async_gld_sld_fence(N);
 }
 
-#define BUFFER_LOAD_DWORD3 0x00020000  // This is valid for
-struct buffer_resource {
-  const void* ptr;
-  dword_t range;
-  dword_t config;
-};
-__device__ dwordx4_t make_buffer_resource(const void* ptr) {
-  buffer_resource res{ptr, 0xffffffff, BUFFER_LOAD_DWORD3};
-  return __builtin_bit_cast(dwordx4_t, res);
+template <bool pre_nop = false>
+CK_TILE_DEVICE void async_buffer_load_dword_v(void* smem, int32x4_t rsrc, index_t voffset) {
+  auto const lds_ptr_sgpr = __builtin_amdgcn_readfirstlane((reinterpret_cast<uintptr_t>(smem)));
+  asm volatile(
+      "buffer_load_dword %1, %2, 0 offen lds;\n\t" ::"s"(lds_ptr_sgpr),
+      "v"(voffset), "s"(rsrc)
+      : "memory");
 }
-
-__device__ void llvm_amdgcn_raw_buffer_load_lds(
-    dwordx4_t rsrc, __attribute__((address_space(3))) uint32_t* lds_ptr, index_t size,
-    index_t voffset, index_t soffset, index_t offset,
-    index_t aux) __asm("llvm.amdgcn.raw.buffer.load.lds");
-
-#define SPTR(_ptr_) \
-  reinterpret_cast<__attribute__((address_space(3))) uint32_t*>(reinterpret_cast<uintptr_t>(_ptr_))
 
 template <int N, bool pre_nop = false>
 TL_DEVICE void cp_async_gs(void* lds_base_ptr, void* global_base_ptr) {
-// *(uint4*)lds_base_ptr = *(uint4*)global_base_ptr;
-constexpr auto force_buffer_size = N * sizeof(char);
-llvm_amdgcn_raw_buffer_load_lds(make_buffer_resource(global_base_ptr),
-                                SPTR(lds_base_ptr), sizeof(uint32_t), 0, 0, 0, 0);
-
-//   // Direct loads require that each thread reads and writes exactly a single DWORD.
-//   constexpr auto dword_bytes = 4;
-//   constexpr auto src_element_space_size = 16;
-//   const uint32_t* global_ptr =
-//       reinterpret_cast<uint32_t*>(reinterpret_cast<uintptr_t>(global_base_ptr));
-//   const int32x4_t src_resource =
-//       ck_tile::make_wave_buffer_resource(global_ptr, src_element_space_size);
-//   const index_t global_offset_bytes = 16;
-
-//   // LDS pointer must be attributed with the LDS address space.
-//   __attribute__((address_space(3))) uint32_t* lds_ptr =
-//       reinterpret_cast<__attribute__((address_space(3))) uint32_t*>(
-//           reinterpret_cast<uintptr_t>(lds_base_ptr));
-//   llvm_amdgcn_raw_buffer_load_lds(src_resource, lds_ptr, sizeof(uint32_t), global_offset_bytes, 0,
-//                                   0, 0);
-//   cp_async_wait();
-  if (threadIdx.x == 0) {
-//     // print A
-    // for (int i = 0; i < 16; i++) {
-    //   printf("%f ", ((float)((half*)global_base_ptr)[i]));
-    // }
-        printf("\n");
-// print A_shared
-        for (int i = 0; i < 16; i++) {
-        printf("%f ", (float)(((half*)lds_base_ptr)[i]));
-        }
-        printf("\n");
+  if constexpr(N == 16) {
+    *(uint4*)lds_base_ptr = *(uint4*)global_base_ptr;
+  } else if constexpr(N == 8) {
+    *(uint2*)lds_base_ptr = *(uint2*)global_base_ptr;
+  } else if constexpr(N == 4) {
+    const int32x4_t src_wave_buffer_resource = make_wave_buffer_resource(global_base_ptr);
+    async_buffer_load_dword_v(lds_base_ptr, src_wave_buffer_resource, 0);
   }
 }
 

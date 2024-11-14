@@ -7,8 +7,6 @@
 
 using ck_tile::half_t;
 
-using Row = ck_tile::tensor_layout::gemm::RowMajor;
-using Col = ck_tile::tensor_layout::gemm::ColumnMajor;
 
 template <int BlockSize>
 struct GemmMPerBlock {
