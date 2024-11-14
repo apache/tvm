@@ -277,6 +277,47 @@ void* OpenCLWorkspace::GetNativePtr(const tvm::runtime::NDArray& narr) {
   return desc->host_ptr;
 }
 
+void OpenCLWorkspace::SetNativePtr(const tvm::runtime::NDArray& narr, void* host_ptr,
+                                   size_t buf_size) {
+  cl::BufferDescriptor* desc = static_cast<cl::BufferDescriptor*>(narr.operator->()->data);
+
+  this->Init();
+  if (desc->layout == cl::BufferDescriptor::MemoryLayout::kBuffer1D) {
+#ifdef USE_OPENCL_EXTN_QCOM
+    Device dev = narr.operator->()->device;
+    cl_device_id device_id = GetCLDeviceID(dev.device_id);
+    auto platform = device_info[device_id].platform_id;
+
+    OPENCL_CALL(clFinish(this->GetQueue(dev)));
+    if (desc->host_ptr) {
+      OPENCL_CALL(clEnqueueUnmapMemObject(this->GetQueue(dev), desc->buffer,
+                                          reinterpret_cast<void*>(desc->host_ptr), 0, nullptr,
+                                          nullptr));
+      desc->host_ptr = nullptr;
+    }
+    OPENCL_CALL(clReleaseMemObject(desc->buffer));
+
+    cl_int err_code;
+    desc->buffer =
+        clCreateBuffer(this->contexts[platform],
+                       CL_MEM_READ_WRITE | CL_MEM_USE_HOST_PTR | CL_MEM_EXT_HOST_PTR_QCOM, buf_size,
+                       host_ptr, &err_code);
+    desc->layout = cl::BufferDescriptor::MemoryLayout::kBuffer1D;
+    OPENCL_CHECK_ERROR(err_code);
+#endif
+  } else {
+    LOG(FATAL) << "Native Ptr not enabled over image objects";
+  }
+}
+
+void OpenCLWorkspace::SetPerfHint(Device dev, cl_uint perf_hint) {
+#ifdef CL_CONTEXT_PERF_HINT_QCOM
+  cl_device_id device_id = GetCLDeviceID(dev.device_id);
+  auto platform = device_info[device_id].platform_id;
+  OPENCL_CALL(clSetPerfHintQCOM(this->contexts[platform], perf_hint));
+#endif
+}
+
 void OpenCLWorkspace::FreeDataSpace(Device dev, void* ptr) {
   // We have to make sure that the memory object is not in the command queue
   // for some OpenCL platforms.
@@ -284,8 +325,9 @@ void OpenCLWorkspace::FreeDataSpace(Device dev, void* ptr) {
 
   cl::BufferDescriptor* desc = static_cast<cl::BufferDescriptor*>(ptr);
   if (desc->host_ptr) {
-    clEnqueueUnmapMemObject(this->GetQueue(dev), desc->buffer,
-                            reinterpret_cast<void*>(desc->host_ptr), 0, nullptr, nullptr);
+    OPENCL_CALL(clEnqueueUnmapMemObject(this->GetQueue(dev), desc->buffer,
+                                        reinterpret_cast<void*>(desc->host_ptr), 0, nullptr,
+                                        nullptr));
   }
   OPENCL_CALL(clReleaseMemObject(desc->buffer));
   delete desc;
@@ -473,7 +515,7 @@ bool MatchPlatformInfo(cl_platform_id pid, cl_platform_info param_name, std::str
 }
 
 void OpenCLWorkspace::Init(const std::string& type_key, const std::string& device_type,
-                           const std::string& platform_name) {
+                           const std::string& platform_name, cl_context_properties ctx_props[]) {
   if (initialized_) return;
   std::lock_guard<std::mutex> lock(this->mu);
   if (initialized_) return;
@@ -539,7 +581,7 @@ void OpenCLWorkspace::Init(const std::string& type_key, const std::string& devic
   for (auto& [platform, devices] : device_map) {
     this->platform_ids.push_back(platform);
     this->contexts[platform] =
-        clCreateContext(nullptr, devices.size(), &(devices[0]), nullptr, nullptr, &err_code);
+        clCreateContext(ctx_props, devices.size(), &(devices[0]), nullptr, nullptr, &err_code);
     this->devices.insert(this->devices.end(), devices.begin(), devices.end());
     for (size_t i = 0; i < devices.size(); ++i) {
       cl_device_id did = devices[i];
