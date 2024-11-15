@@ -118,9 +118,7 @@ def lower(func, target="cuda", target_host="llvm", runtime_only=False):
     mod = tl.transform.FrontendLegalize()(mod)
     mod = tir.transform.Simplify()(mod)
     mod = tl.transform.LayoutInference()(mod)
-    print("Before LowerTileOp \n", mod)
     mod = tl.transform.LowerTileOp()(mod)
-    print("Before Simplify \n", mod)
     mod = tir.transform.Simplify()(mod)
 
     if target.arch == "sm_90":
