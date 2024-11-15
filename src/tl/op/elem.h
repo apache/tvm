@@ -60,6 +60,7 @@ class Copy : public Operator {
 
   Buffer src, dst;
   Array<Range> src_range, dst_range;
+  IntImm coalesced_width;
 
   std::unique_ptr<ParallelOp> par_op_;
 };

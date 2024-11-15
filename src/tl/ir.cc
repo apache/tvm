@@ -30,7 +30,7 @@ namespace tl {
 
 using namespace script::ir_builder::tir;
 
-ForFrame ParallelFor(Array<PrimExpr> extents) {
+ForFrame ParallelFor(Array<PrimExpr> extents, Map<String, ObjectRef> annotations) {
   using namespace tvm::tir;
   ObjectPtr<ForFrameNode> n = make_object<ForFrameNode>();
   n->vars.reserve(extents.size());
@@ -40,14 +40,14 @@ ForFrame ParallelFor(Array<PrimExpr> extents) {
     n->vars.push_back(Var("v", extent.dtype()));
     n->doms.push_back(Range(make_const(dtype, 0), extent));
   }
-  n->f_make_for_loop = [](Array<Var> vars, Array<Range> doms, Stmt body) -> Stmt {
+  n->f_make_for_loop = [annotations](Array<Var> vars, Array<Range> doms, Stmt body) -> Stmt {
     ICHECK_EQ(vars.size(), doms.size());
     int n = vars.size();
     for (int i = n - 1; i >= 0; --i) {
       Range dom = doms[i];
       Var var = vars[i];
       body = For(var, dom->min, dom->extent, ForKind::kParallel, std::move(body),
-                 /*thread_binding=*/NullOpt, /*annotations=*/{});
+                 /*thread_binding=*/NullOpt, /*annotations=*/annotations);
     }
     return body;
   };

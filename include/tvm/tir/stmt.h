@@ -1540,6 +1540,9 @@ constexpr const char* pipeline_stage_scope = "pipeline_stage_scope";
 /*! \brief pipeline execution scope, implies the scope can be pipelined. */
 constexpr const char* pipeline_exec_scope = "pipeline_exec_scope";
 
+/*! \brief Mark that how the loop is vectorized. */
+constexpr const char* coalesced_width = "coalesced_width";
+
 /*!
  * \brief Mark that it is in the device scope.
  */

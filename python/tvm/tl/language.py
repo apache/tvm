@@ -16,7 +16,7 @@
 # under the License.
 """The language interface for tl programs."""
 
-from typing import Union, List, Optional, Tuple
+from typing import Union, List, Optional, Tuple, Dict, Any
 from tvm import tir
 from tvm.script import tir as T
 from tvm.script.parser.tir import *
@@ -26,7 +26,7 @@ from . import _ffi_api
 from .layout import Layout, Fragment
 
 
-def Parallel(*extents: tir.PrimExpr):
+def Parallel(*extents: tir.PrimExpr, coalesced_width: Optional[int] = None):
     """Tools to construct nested parallel for loop.
        This can be used to create element-wise tensor expression.
 
@@ -40,7 +40,10 @@ def Parallel(*extents: tir.PrimExpr):
     res : frame.ForFrame
         The ForFrame.
     """
-    return _ffi_api.Parallel(extents)  # type: ignore[attr-defined] # pylint: disable=no-member
+    annotations: Dict[str, Any] = {}
+    if coalesced_width is not None:
+        annotations.update({"coalesced_width": coalesced_width})
+    return _ffi_api.Parallel(extents, annotations)  # type: ignore[attr-defined] # pylint: disable=no-member
 
 
 def Pipelined(
@@ -190,6 +193,7 @@ def buffer_region_to_tile_region(buffer_region: tir.BufferRegion, access_type: s
 def copy(
     src: Union[tir.Buffer, tir.BufferLoad, tir.BufferRegion],
     dst: Union[tir.Buffer, tir.BufferLoad],
+    coalesced_width: Optional[int] = None,
 ):
     def get_extent(data):
         if isinstance(data, tir.Buffer):
@@ -220,8 +224,10 @@ def copy(
 
     src = _to_region(src, "r")
     dst = _to_region(dst, "w")
-
-    return tir.call_intrin("handle", tir.op.Op.get("tl.copy"), src, dst)
+    if coalesced_width is not None:
+        return tir.call_intrin("handle", tir.op.Op.get("tl.copy"), src, dst, coalesced_width)
+    else:
+        return tir.call_intrin("handle", tir.op.Op.get("tl.copy"), src, dst)
 
 
 def c2d_im2col(

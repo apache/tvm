@@ -119,6 +119,22 @@ LayoutMap ParallelOp::InferLayout(const LayoutInferArgs& T, InferLevel level) {
       }
     } else {
       int vector_size = GetVectorizeSize(root_);
+
+      // Check if coalesced_width is defined
+      if (auto coalesced_width = root_->annotations.Get(tir::attr::coalesced_width)) {
+        if (const auto* imm = coalesced_width.as<IntImmNode>()) {
+          int expected = imm->value;
+          // Verify that vector_size is divisible by expected
+          if (vector_size % expected != 0) {
+            LOG(FATAL) << "Vector size " << vector_size << " is not divisible by coalesced width "
+                       << expected;
+          }
+          vector_size = expected;
+        } else {
+          LOG(FATAL) << "coalesced_width should be an IntImmNode.";
+        }
+      }
+
       loop_layout_ = PlanLoopPartition(root_, T.block_size, vector_size);
     }
     PrimExpr loop_thread_extent = loop_layout_->ThreadExtent();

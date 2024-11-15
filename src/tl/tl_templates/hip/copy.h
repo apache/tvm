@@ -64,22 +64,23 @@ template <bool pre_nop = false>
 CK_TILE_DEVICE void async_buffer_load_dword_v(void* smem, int32x4_t rsrc, index_t voffset) {
   auto const lds_ptr_sgpr = __builtin_amdgcn_readfirstlane((reinterpret_cast<uintptr_t>(smem)));
   asm volatile(
+      "s_mov_b32 m0, %0; \n\t"
       "buffer_load_dword %1, %2, 0 offen lds;\n\t" ::"s"(lds_ptr_sgpr),
       "v"(voffset), "s"(rsrc)
       : "memory");
 }
 
-template <int N, bool pre_nop = false>
+template <int N>
 TL_DEVICE void cp_async_gs(void* lds_base_ptr, void* global_base_ptr) {
   if constexpr(N == 16) {
     *(uint4*)lds_base_ptr = *(uint4*)global_base_ptr;
   } else if constexpr(N == 8) {
     *(uint2*)lds_base_ptr = *(uint2*)global_base_ptr;
   } else if constexpr(N == 4) {
-    const int32x4_t src_wave_buffer_resource = make_wave_buffer_resource(global_base_ptr);
-    async_buffer_load_dword_v(lds_base_ptr, src_wave_buffer_resource, 0);
+    async_buffer_load_dword_v(lds_base_ptr, make_wave_buffer_resource(((int32_t *)global_base_ptr) - threadIdx.x), threadIdx.x * N /*assume 4 bytes*/);
   }
 }
+
 
 template <int N>
 TL_DEVICE void cp_async_gs_conditional(void const* const smem_addr, void* global_ptr, bool cond) {

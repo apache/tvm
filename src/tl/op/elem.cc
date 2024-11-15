@@ -52,6 +52,9 @@ Copy::Copy(Array<PrimExpr> args, BufferMap vmap) : args_(args) {
   }
   std::tie(this->src, this->dst) = std::tie(bf[0], bf[1]);
   std::tie(this->src_range, this->dst_range) = std::tie(rgs[0], rgs[1]);
+  if (args.size() >= 3){
+    coalesced_width = Downcast<IntImm>(args[2]);
+  }
 }
 
 Array<IterVar> Copy::MakeIterVars() const {
@@ -129,7 +132,11 @@ For Copy::MakeSIMTLoop(arith::Analyzer* analyzer) const {
   if (dst_predicate.defined()) body = IfThenElse(dst_predicate, body);
 
   for (int i = loop_vars.size() - 1; i >= 0; i--) {
-    body = For(loop_vars[i]->var, 0, loop_vars[i]->dom->extent, ForKind::kParallel, body);
+    Map<String, ObjectRef> annotations = {};
+    if (coalesced_width.defined()){
+      annotations.Set("coalesced_width", coalesced_width);
+    }
+    body = For(loop_vars[i]->var, 0, loop_vars[i]->dom->extent, ForKind::kParallel, body, NullOpt, annotations);
   }
   return Downcast<For>(body);
 }
@@ -352,7 +359,7 @@ Stmt Fill::Lower(const LowerArgs& T, arith::Analyzer* analyzer) const {
 }
 
 TIR_REGISTER_TL_OP(Copy, copy)
-    .set_num_inputs(2)
+    .set_num_inputs(3)
     .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
 
 TIR_REGISTER_TL_OP(Fill, fill)
