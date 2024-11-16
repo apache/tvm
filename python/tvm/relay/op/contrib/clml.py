@@ -562,7 +562,6 @@ def clml_pattern_table():
         if "relay.ext.clml.target_version" in pass_context.config
         else 3
     )
-    print("CLML Target Version: ", target_version)
 
     return [
         ("clml.pad_conv2d", pad_conv_pattern(), check_conv),
