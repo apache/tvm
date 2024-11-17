@@ -88,10 +88,12 @@ class GemmTensorOp {
     } else if (continuous % (vector_size * 4) == 0) {
       auto [n_row, n_col] = make_half_bank_swizzle_layout<continuous, element_size>(row, col);
       return n_row * continuous + n_col;
-    }
-    else {
+    } else {
       auto [n_row, n_col] = make_layout_padded(row, col);
-      return n_row * (continuous + continuous / 4) + n_col;
+      int padded = continuous;
+      if ((element_size * 8 * continuous) % 256 == 0)
+        padded += BANK_SIZE_BYTES / (element_size * 8);
+      return n_row * padded + n_col;
     }
   }
 
@@ -125,7 +127,8 @@ class GemmTensorOp {
         const auto r = ki * micro_size_k;
         for (int local_id = 0; local_id < local_size_a; local_id++) {
           auto [row, col] = reverse_index_map(lane_id, local_id);
-          A_local[i * local_size_a + local_id] = A_shared[make_swizzle_layout<last_dim_a, sizeof(A_type)>(l + row, r + col)];
+          A_local[i * local_size_a + local_id] =
+              A_shared[make_swizzle_layout<last_dim_a, sizeof(A_type)>(l + row, r + col)];
         }
       }
 
@@ -135,7 +138,8 @@ class GemmTensorOp {
         const auto r = ki * micro_size_k;
         for (int local_id = 0; local_id < local_size_b; local_id++) {
           auto [row, col] = reverse_index_map(lane_id, local_id);
-          B_local[j * local_size_b + local_id] = B_shared[make_swizzle_layout<last_dim_b, sizeof(B_type)>(l + row, r + col)];
+          B_local[j * local_size_b + local_id] =
+              B_shared[make_swizzle_layout<last_dim_b, sizeof(B_type)>(l + row, r + col)];
         }
       }
 
@@ -144,6 +148,51 @@ class GemmTensorOp {
         for (int j = 0; j < warp_cols; ++j) {
           *(((float32x4*)C_local) + ((i * warp_cols) + j)) = __builtin_amdgcn_mfma_f32_16x16x16f16(
               *(((float16x4*)A_local) + i), *(((float16x4*)B_local) + j),
+              *(((float32x4*)C_local) + ((i * warp_cols) + j)), 0, 0, 0);
+        }
+      }
+    }
+  }
+
+  static TL_DEVICE void body_rs(A_type* A_local, B_type* B_shared, C_type* C_local) {
+    auto tid = threadIdx.x;
+    auto warp_id = tid / warp_size;
+    auto warp_m = warp_id / block_col_warps;
+    auto warp_n = warp_id % block_col_warps;
+    auto warp_row_tiles = warp_rows * micro_size_x;
+    auto warp_col_tiles = warp_cols * micro_size_y;
+
+    auto lane_id = tid % warp_size;
+    auto tz = warp_m;
+    auto ty = warp_n;
+    auto tx = lane_id;
+
+    constexpr auto local_size_a = (micro_size_x * micro_size_k) / warp_size;
+    constexpr auto local_size_b = (micro_size_y * micro_size_k) / warp_size;
+    constexpr auto local_size_c = (micro_size_x * micro_size_y) / warp_size;
+
+    constexpr auto last_dim_a = TransposeA ? M_Tile : K_Tile;
+    constexpr auto last_dim_b = TransposeB ? K_Tile : N_Tile;
+
+    B_type B_local[warp_cols * local_size_b];
+
+    for (int ki = 0; ki < inner_k; ki++) {
+      // Fetch B into register
+      for (int j = 0; j < warp_cols; j++) {
+        const auto l = ty * warp_col_tiles + j * micro_size_y;
+        const auto r = ki * micro_size_k;
+        for (int local_id = 0; local_id < local_size_b; local_id++) {
+          auto [row, col] = reverse_index_map(lane_id, local_id);
+          B_local[j * local_size_b + local_id] =
+              B_shared[make_swizzle_layout<last_dim_b, sizeof(B_type)>(l + row, r + col)];
+        }
+      }
+
+      // Compute
+      for (int i = 0; i < warp_rows; ++i) {
+        for (int j = 0; j < warp_cols; ++j) {
+          *(((float32x4*)C_local) + ((i * warp_cols) + j)) = __builtin_amdgcn_mfma_f32_16x16x16f16(
+              *(((float16x4*)A_local) + ki * warp_rows + i), *(((float16x4*)B_local) + j),
               *(((float32x4*)C_local) + ((i * warp_cols) + j)), 0, 0, 0);
         }
       }
@@ -158,9 +207,17 @@ namespace tl {
 template <int M, int N, int K, int num_warp_m, int num_warp_n, bool trans_A, bool trans_B,
           typename A_type, typename B_type, typename C_type>
 TL_DEVICE void gemm_ss(A_type* pA, B_type* pB, C_type* accum) {
-  using Compute = GemmTensorOp<M, N, K, num_warp_m, num_warp_n, trans_A, trans_B, A_type,
-                                        B_type, C_type>;
+  using Compute =
+      GemmTensorOp<M, N, K, num_warp_m, num_warp_n, trans_A, trans_B, A_type, B_type, C_type>;
   Compute::body(pA, pB, accum);
+}
+
+template <int M, int N, int K, int num_warp_m, int num_warp_n, bool trans_A, bool trans_B,
+          typename A_type, typename B_type, typename C_type>
+TL_DEVICE void gemm_rs(A_type* pA, B_type* pB, C_type* accum) {
+  using Compute =
+      GemmTensorOp<M, N, K, num_warp_m, num_warp_n, trans_A, trans_B, A_type, B_type, C_type>;
+  Compute::body_rs(pA, pB, accum);
 }
 
 }  // namespace tl
