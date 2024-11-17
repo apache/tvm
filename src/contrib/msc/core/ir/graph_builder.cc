@@ -704,7 +704,9 @@ const MSCPrim RelaxGraphBuilder::MatchOrCreatePrim(const PrimExpr& prim, const S
 }
 
 void RelaxGraphBuilder::VisitExpr_(const relax::ConstantNode* op) {
-  AddNode(GetRef<relax::Constant>(op));
+  if (!expr_tensor_map_.count(GetRef<relax::Constant>(op))) {
+    AddNode(GetRef<relax::Constant>(op));
+  }
 }
 
 void RelaxGraphBuilder::VisitBinding_(const relax::VarBindingNode* binding,

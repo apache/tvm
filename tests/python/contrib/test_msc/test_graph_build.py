@@ -2472,6 +2472,91 @@ def test_scatter(dynamic):
     )
 
 
+@pytest.mark.parametrize("dynamic", [True, False])
+def test_masked_scatter(dynamic):
+    """test graph builder for masked_scatter"""
+
+    dim = "dim" if dynamic else 5
+
+    class MaskedScatter1(Module):
+        def forward(self, data, mask, src):
+            return data.masked_scatter(mask, src)
+
+    class MaskedScatter2(Module):
+        def forward(self, data, mask, src):
+            return data.masked_scatter(mask, src)
+
+    expected1 = {
+        "inputs": [
+            {"name": "inp_0", "shape": [dim], "dtype": "float32", "layout": "A"},
+            {"name": "inp_1", "shape": [dim], "dtype": "bool", "layout": "A"},
+            {"name": "inp_2", "shape": [10], "dtype": "float32", "layout": "A"},
+        ],
+        "outputs": [{"name": "where", "shape": [dim], "dtype": "float32", "layout": "A"}],
+        "nodes": {
+            "total": 8,
+            "input": 3,
+            "cumsum": 1,
+            "constant": 1,
+            "subtract": 1,
+            "take": 1,
+            "where": 1,
+        },
+    }
+    expected2 = {
+        "inputs": [
+            {
+                "name": "inp_0",
+                "shape": [2, dim],
+                "dtype": "float32",
+                "layout": "" if dynamic else "BA",
+            },
+            {
+                "name": "inp_1",
+                "shape": [2, dim],
+                "dtype": "bool",
+                "layout": "" if dynamic else "BA",
+            },
+            {
+                "name": "inp_2",
+                "shape": [3, dim],
+                "dtype": "float32",
+                "layout": "" if dynamic else "BA",
+            },
+        ],
+        "outputs": [
+            {
+                "name": "where",
+                "shape": [2, dim],
+                "dtype": "float32",
+                "layout": "" if dynamic else "BA",
+            }
+        ],
+        "nodes": {
+            "total": 11,
+            "input": 3,
+            "reshape": 3,
+            "cumsum": 1,
+            "constant": 1,
+            "subtract": 1,
+            "take": 1,
+            "where": 1,
+        },
+    }
+    if dynamic:
+        expected1["prims"] = {"total": 1, "shape": 1}
+        expected2["prims"] = {"total": 5, "shape": 1, "Int": 2, "Mul": 2}
+
+    verify_model(
+        MaskedScatter1(), [([dim], "float32"), ([dim], "bool"), ([10], "float32")], expected1
+    )
+    verify_model(
+        MaskedScatter2(),
+        [([2, dim], "float32"), ([2, dim], "bool"), ([3, dim], "float32")],
+        expected2,
+    )
+
+
 def test_put():
     """test graph builder for index_put"""
 

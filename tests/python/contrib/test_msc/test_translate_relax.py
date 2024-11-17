@@ -1193,6 +1193,29 @@ def test_scatter():
     verify_model(Scatter2(), [([20, 20], "float32"), ([2, 5], "int64"), ([2, 5], "float32")])
 
 
+def test_masked_scatter():
+    """test relax translator for masked_scatter"""
+
+    class MaskedScatter1(Module):
+        def __init__(self):
+            super().__init__()
+            self.mask = msc_utils.random_data([(5,), "bool"], MSCFramework.TORCH)
+
+        def forward(self, data, src):
+            return data.masked_scatter(self.mask, src)
+
+    class MaskedScatter2(Module):
+        def __init__(self):
+            super().__init__()
+            self.mask = msc_utils.random_data([(2, 5), "bool"], MSCFramework.TORCH)
+
+        def forward(self, data, src):
+            return data.masked_scatter(self.mask, src)
+
+    verify_model(MaskedScatter1(), [([5], "float32"), ([10], "float32")])
+    verify_model(MaskedScatter2(), [([2, 5], "float32"), ([3, 5], "float32")])
+
+
 def test_put():
     """test relax translator for index_put"""
 
