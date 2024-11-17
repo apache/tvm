@@ -181,15 +181,16 @@ class Profiler(ConvertTorch):
         n_warmup=1,
         n_repeat=1,
         profiler: Literal["torch", "tvm"] = "torch",
+        input_tensors: List[torch.Tensor] = None,
     ):
         if profiler == "torch":
-            ins = self._get_inputs()
+            ins = self._get_inputs() if input_tensors is None else input_tensors
             bench_func = partial(func, *ins)
             return do_bench(
                 bench_func, warmup=warmup, rep=rep, _n_warmup=n_warmup, _n_repeat=n_repeat
             )
         elif profiler == "tvm":
-            ins = self._get_inputs(with_output=True)
+            ins = self._get_inputs(with_output=True) if input_tensors is None else input_tensors
             target = "cuda"
             try:
                 target = self.mod.imported_modules[0].type_key
