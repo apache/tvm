@@ -147,6 +147,10 @@ Fragment makeGemmFragmentA(const int block_m, const int block_n, const int block
                            const int warp_m, const int warp_n);
 Fragment makeGemmFragmentB(const int block_m, const int block_n, const int block_k,
                            const int warp_m, const int warp_n);
+
+Fragment makeGemmFragmentACDNA(const int block_m, const int block_n, const int block_k,
+                           const int warp_m, const int warp_n);
+
 // Default Memory Layout
 Layout makeGemmLayoutLinear(int stride, int continuous);
 Layout makeGemmABLayoutPadded(int stride, int continuous, int element_size);
