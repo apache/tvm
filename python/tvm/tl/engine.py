@@ -20,7 +20,8 @@ import os
 import os.path as osp
 import tvm
 from tvm import tir, tl, relay
-from tvm.contrib import nvcc, hipcc
+from tvm.contrib import nvcc, hipcc, rocm
+from typing import Literal
 try:
     from tvm.tl.code_replace import replace_code
 except ImportError:
@@ -104,12 +105,55 @@ def extrac_params(func: tir.PrimFunc):
     tensor_types = [relay.TensorType(buffer.shape, buffer.dtype) for buffer in buffers]
     return tensor_types
 
+def detect_target(target: str = "auto") -> str:
+    """Detect the computing target (CUDA or ROCm) based on the environment.
+
+    Args:
+        target (str): The target to detect. Use "auto" for automatic detection.
+                      Can also specify "cuda" or "hip" explicitly.
+
+    Returns:
+        str: The detected target, either "cuda" or "hip".
+
+    Raises:
+        ValueError: If auto-detection is enabled and no valid target is found.
+    """
+
+    def is_cuda_available() -> bool:
+        """Check if CUDA is available."""
+        try:
+            nvcc.find_cuda_path()
+            return True
+        except RuntimeError:
+            return False
+
+    def is_rocm_available() -> bool:
+        """Check if ROCm is available."""
+        try:
+            rocm.find_rocm_path()
+            return True
+        except RuntimeError:
+            return False
+
+    if target == "auto":
+        if is_cuda_available():
+            return "cuda"
+        if is_rocm_available():
+            return "hip"
+        raise ValueError("Cannot detect the target: no CUDA or ROCm installation found.")
+
+    if target not in {"cuda", "hip"}:
+        raise ValueError(f"Invalid target: {target}. Must be 'cuda', 'hip', or 'auto'.")
+    
+    return target
+
 # TODO(lei): Should enhance to support IRModule with multiple functions
-def lower(func, target="cuda", target_host="llvm", runtime_only=False):
+def lower(func, target: Literal["auto", "cuda", "hip"]="auto", target_host="llvm", runtime_only=False):
     # TODO(lei): Append C Source code host generation to the runtime
     params = extrac_params(func) if not runtime_only else None
     mod = tvm.IRModule({func.attrs["global_symbol"]: func})
     
+    target = detect_target(target)
     target_host = tvm.target.Target.canon_target(target_host)
     target = tvm.target.Target(target, target_host)
 
