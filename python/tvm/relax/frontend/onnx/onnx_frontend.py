@@ -49,6 +49,8 @@ from tvm.ir import IRModule
 from tvm.ir.supply import NameSupply
 from tvm.tir.generic import cast
 
+from ..common import autopad
+
 
 def get_type(elem_type: Union[str, int]) -> str:
     """Converts onnx integer datatype to numpy datatype"""
@@ -1208,10 +1210,14 @@ class Conv(OnnxOpConverter):
 
     @classmethod
     def _impl_v11(cls, bb, inputs, attr, params):
+        data = inputs[0]
         if hasattr(inputs[0].struct_info, "ndim"):
             ndim = inputs[0].struct_info.ndim
         else:
             ndim = len(inputs[0].struct_info.shape)
+
+        if "kernel_shape" not in attr:
+            attr["kernel_shape"] = inputs[1].struct_info.shape.values[2:]
 
         if ndim == 3:
             op = relax.op.nn.conv1d
@@ -1227,10 +1233,34 @@ class Conv(OnnxOpConverter):
             kernel_layout = "OIDHW"
         else:
             raise NotImplementedError("Ndim > 5 not supported for convolution.")
+        
+        if "auto_pad" in attr:
+            attr["auto_pad"] = attr["auto_pad"].decode("utf-8")
+            if attr["auto_pad"] in ("SAME_UPPER", "SAME_LOWER"):
+                data = autopad(
+                    bb,
+                    inputs[0],
+                    attr.get("strides", [1] * (ndim - 2)),
+                    attr["kernel_shape"],
+                    attr.get("dilations", [1] * (ndim - 2)),
+                    mode=attr["auto_pad"],
+                    deconv=False,
+                )
+            elif attr["auto_pad"] == "VALID":
+                attr["pads"] = [0 for _ in range(ndim - 2)]
+            elif attr["auto_pad"] == "NOTSET":
+                pass
+            else:
+                msg = (
+                    f'Value {attr["auto_pad"]} in attribute "auto_pad" of operator Conv '
+                    f"is invalid."
+                )
+                raise tvm.error.OpAttributeInvalid(msg)
+            attr.pop("auto_pad")
 
         conv_out = bb.normalize(
             op(
-                data=inputs[0],
+                data=data,
                 weight=inputs[1],
                 strides=attr.get("strides", 1),
                 padding=attr.get("pads", 0),

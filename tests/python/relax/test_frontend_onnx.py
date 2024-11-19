@@ -1025,6 +1025,58 @@ def test_conv(stride: int, dilation: int, pad: int, bias: bool):
 @pytest.mark.parametrize("stride", [1, 2])
 @pytest.mark.parametrize("dilation", [1])
 @pytest.mark.parametrize("bias", [True, False])
+@pytest.mark.parametrize("auto_pad", ["SAME_UPPER", "SAME_LOWER", "VALID"])
+def test_conv_auto_pad(stride: int, dilation: int, bias: bool, auto_pad: str):
+    def _verify_conv(input_shape, weight_shape):
+        nd = len(weight_shape) - 2
+        if auto_pad == "VALID":
+            output_shape = [input_shape[0], weight_shape[0]] + [
+                (input_shape[i] - dilation * (weight_shape[i] - 1) - 1) // stride + 1
+                for i in range(2, len(input_shape))
+            ]
+        else:
+            output_shape = [input_shape[0], weight_shape[0]] + [
+                (input_shape[i] + stride - 1) // stride
+                for i in range(2, len(input_shape))
+            ]
+        bias_shape = [output_shape[1]]
+        conv_node = helper.make_node(
+            "Conv",
+            inputs=["x", "w"] + (["b"] if bias else []),
+            outputs=["y"],
+            strides=[stride] * nd,
+            dilations=[dilation] * nd,
+            auto_pad=auto_pad,
+            group=input_shape[1] // weight_shape[1],
+        )
+        graph = helper.make_graph(
+            [conv_node],
+            "conv_test",
+            inputs=[
+                helper.make_tensor_value_info("x", TensorProto.FLOAT, input_shape),
+                helper.make_tensor_value_info("w", TensorProto.FLOAT, weight_shape),
+            ]
+            + ([helper.make_tensor_value_info("b", TensorProto.FLOAT, bias_shape)] if bias else []),
+            outputs=[helper.make_tensor_value_info("y", TensorProto.FLOAT, output_shape)],
+        )
+
+        model = helper.make_model(graph, producer_name="conv_test")
+        check_correctness(model, atol=1e-4)
+
+    # Conv1D
+    _verify_conv([3, 4, 32], [4, 4, 3])
+    _verify_conv([3, 4, 32], [2, 4, 3])  # group=2
+    # Conv2D
+    _verify_conv([3, 4, 32, 32], [4, 4, 3, 3])
+    _verify_conv([3, 4, 32, 32], [2, 4, 3, 3])  # group=2
+    # Conv3D
+    _verify_conv([3, 4, 32, 32, 32], [4, 4, 3, 3, 3])
+    _verify_conv([3, 4, 32, 32, 32], [2, 4, 3, 3, 3])  # group=2
+
+
+@pytest.mark.parametrize("stride", [1, 2])
+@pytest.mark.parametrize("dilation", [1])
+@pytest.mark.parametrize("bias", [True, False])
 @pytest.mark.parametrize("pad", [0, 2])
 def test_conv_transpose(stride: int, dilation: int, pad: int, bias: bool):
     def _verify_conv_transpose(input_shape, weight_shape):
