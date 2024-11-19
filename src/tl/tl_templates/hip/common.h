@@ -7,36 +7,18 @@
 
 using ck_tile::half_t;
 
+#define HIPRT_INF_F __int_as_float(0x7f800000)
+#define HIPRT_NEGINF_F __int_as_float(0xff800000)
+#define HIPRT_NAN_F __int_as_float(0x7fffffff)
+#define HIPRT_MIN_DENORM_F __int_as_float(0x00000001)
+#define HIPRT_MAX_NORMAL_F __int_as_float(0x7f7fffff)
+#define HIPRT_NEG_ZERO_F __int_as_float(0x80000000)
+#define HIPRT_ZERO_F 0.0f
+#define HIPRT_ONE_F 1.0f
 
-template <int BlockSize>
-struct GemmMPerBlock {
-    static constexpr int value = BlockSize;
-};
-
-template <int BlockSize>
-struct GemmNPerBlock {
-    static constexpr int value = BlockSize;
-};
-
-template <int BlockSize>
-struct GemmKPerBlock {
-    static constexpr int value = BlockSize;
-};
-
-template <int BlockSize>
-struct GemmMPerWave {
-    static constexpr int value = BlockSize;
-};
-
-template <int BlockSize>
-struct GemmNPerWave {
-    static constexpr int value = BlockSize;
-};
-
-template <int BlockSize>
-struct GemmKPerWave {
-    static constexpr int value = BlockSize;
-};
+/* double precision constants */
+#define HIPRT_INF __hiloint2double(0x7ff00000, 0x00000000)
+#define HIPRT_NAN __hiloint2double(0xfff80000, 0x00000000)
 
 #define uint unsigned int
 #define uchar unsigned char
@@ -62,9 +44,6 @@ using float32x4 = __attribute__((__vector_size__(4 * sizeof(float)))) float;
 using float32x16 = __attribute__((__vector_size__(16 * sizeof(float)))) float;
 
 using int8x4 = __attribute__((__vector_size__(4 * sizeof(int8_t)))) int8_t;
-
-#define max(a, b) (((a) > (b)) ? (a) : (b))
-#define min(a, b) (((a) < (b)) ? (a) : (b))
 
 // Pack two half_t values.
 TL_DEVICE unsigned __pack_half2(const half_t x, const half_t y) {

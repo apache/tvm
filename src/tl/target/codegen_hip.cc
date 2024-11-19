@@ -1109,9 +1109,9 @@ inline void PrintConst(const FloatImmNode* op, std::ostream& os, CodeGenTileLang
         if (op->value < 0) {
           temp << "-";
         }
-        temp << ((op->dtype.bits() == 32) ? "CUDART_INF_F" : "CUDART_INF");
+        temp << ((op->dtype.bits() == 32) ? "HIPRT_INF_F" : "HIPRT_INF");
       } else if (std::isnan(op->value)) {
-        temp << ((op->dtype.bits() == 32) ? "CUDART_NAN_F" : "CUDART_NAN");
+        temp << ((op->dtype.bits() == 32) ? "HIPRT_NAN_F" : "HIPRT_NAN");
       } else {
         temp << std::scientific << op->value;
         if (op->dtype.bits() == 32) temp << 'f';

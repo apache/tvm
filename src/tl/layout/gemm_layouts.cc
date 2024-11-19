@@ -59,12 +59,21 @@ Fragment makeGemmFragmentAB16x16CDNA() {
   return Fragment({i, j}, {index}, forward_thread, rep);
 }
 
-Fragment makeGemmFragmentC16x16CDNA() {
+Fragment makeGemmFragmentAB16x16CDNATransposed() {
   IterVar i = make_itervar("i", 16);
   IterVar j = make_itervar("j", 16);
   IterVar rep = make_itervar("rep", 1);
   PrimExpr forward_thread = 16 * FloorDiv(i->var, 4) + j;
   PrimExpr index = FloorMod(i->var, 4);
+  return Fragment({i, j}, {index}, forward_thread, rep);
+}
+
+Fragment makeGemmFragmentC16x16CDNA() {
+  IterVar i = make_itervar("i", 16);
+  IterVar j = make_itervar("j", 16);
+  IterVar rep = make_itervar("rep", 1);
+  PrimExpr forward_thread = 16 * FloorDiv(j->var, 4) + i;
+  PrimExpr index = FloorMod(j->var, 4);
   return Fragment({i, j}, {index}, forward_thread, rep);
 }
 
@@ -141,22 +150,24 @@ Fragment makeGemmFragmentA(const int block_m, const int block_n, const int block
 }
 
 Fragment makeGemmFragmentACDNA(const int block_m, const int block_n, const int block_k,
-                           const int warp_m, const int warp_n) {
+                           const int warp_m, const int warp_n, bool transposed) {
   // assume not transposed
   ICHECK(block_m % warp_m == 0);
   ICHECK(block_n % warp_n == 0);
   ICHECK(warp_m % 16 == 0);
   ICHECK(block_k % 16 == 0);
-  auto base_layout = makeGemmFragmentAB16x16CDNA()->Repeat({1, 1}, false, false);
-  auto warp_layout = base_layout->Repeat({warp_m / 16, block_k / 16}, false, false);
-  auto block_layout = warp_layout->Repeat({block_m / warp_m, 1}, true, true)->Replicate(block_n / warp_n);
-
-  // auto warp_layout = base_layout->Repeat({block_m / warp_m, 1}, false, false);
-  // auto block_layout = warp_layout->Repeat({warp_m / 16, block_k / 16}, true, true)->Replicate(block_n / warp_n);
-
-  // auto warp_layout = base_layout->Repeat({warp_m / 16, block_k / 16}, false, false);
-  // auto block_layout = warp_layout->Repeat({block_m / warp_m, 1}, false)->Replicate(block_n / warp_n);
-  return block_layout;
+  if (transposed) {
+    auto base_layout = makeGemmFragmentAB16x16CDNATransposed()->Repeat({1, 1}, false, false);
+    auto warp_layout = base_layout->Repeat({warp_m / 16, block_k / 16}, false, false);
+    auto block_layout = warp_layout->Repeat({block_m / warp_m, 1}, true, true)->Replicate(block_n / warp_n);
+    return block_layout;
+  } else {
+    auto base_layout = makeGemmFragmentAB16x16CDNA()->Repeat({1, 1}, false, false);
+    auto warp_layout = base_layout->Repeat({warp_m / 16, block_k / 16}, false, false);
+    auto block_layout =
+        warp_layout->Repeat({block_m / warp_m, 1}, true, true)->Replicate(block_n / warp_n);
+    return block_layout;
+  }
 }
 
 

@@ -228,8 +228,7 @@ LayoutMap Gemm::InferLayout(const LayoutInferArgs& T, InferLevel level) {
                                       A->dtype.bits(), trans_A ? 1 : 2);
       results.Set(A, shared_layout);
     } else if (A.scope() == "local.fragment") {
-      ICHECK(trans_A == false);
-      results.Set(A, makeGemmFragmentACDNA(M, N, K, M / warp_m, N / warp_n));
+      results.Set(A, makeGemmFragmentACDNA(M, N, K, M / warp_m, N / warp_n, trans_A));
     } else {
       ICHECK(0);
     }

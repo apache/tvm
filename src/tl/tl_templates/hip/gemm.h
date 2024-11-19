@@ -145,7 +145,7 @@ class GemmTensorOp {
       for (int i = 0; i < warp_rows; ++i) {
         for (int j = 0; j < warp_cols; ++j) {
           *(((float32x4*)C_local) + ((i * warp_cols) + j)) = __builtin_amdgcn_mfma_f32_16x16x16f16(
-              *(((float16x4*)A_local) + i), *(((float16x4*)B_local) + j),
+              *(((float16x4*)B_local) + j), *(((float16x4*)A_local) + i),
               *(((float32x4*)C_local) + ((i * warp_cols) + j)), 0, 0, 0);
         }
       }
@@ -155,14 +155,12 @@ class GemmTensorOp {
   static TL_DEVICE void body_rs(A_type* A_local, B_type* B_shared, C_type* C_local) {
     auto tid = threadIdx.x;
     auto warp_id = tid / warp_size;
-    auto warp_m = warp_id / block_col_warps;
-    auto warp_n = warp_id % block_col_warps;
+    auto warp_n = warp_id / block_row_warps;
+    auto warp_m = warp_id % block_row_warps;
     auto warp_row_tiles = warp_rows * micro_size_x;
     auto warp_col_tiles = warp_cols * micro_size_y;
 
     auto lane_id = tid % warp_size;
-    auto tz = warp_m;
-    auto ty = warp_n;
     auto tx = lane_id;
 
     constexpr auto local_size_a = (micro_size_x * micro_size_k) / warp_size;
@@ -177,7 +175,7 @@ class GemmTensorOp {
     for (int ki = 0; ki < inner_k; ki++) {
       // Fetch B into register
       for (int j = 0; j < warp_cols; j++) {
-        const auto l = ty * warp_col_tiles + j * micro_size_y;
+        const auto l = warp_n * warp_col_tiles + j * micro_size_y;
         const auto r = ki * micro_size_k;
         for (int local_id = 0; local_id < local_size_b; local_id++) {
           auto [row, col] = reverse_index_map(lane_id, local_id);
@@ -190,7 +188,7 @@ class GemmTensorOp {
       for (int i = 0; i < warp_rows; ++i) {
         for (int j = 0; j < warp_cols; ++j) {
           *(((float32x4*)C_local) + ((i * warp_cols) + j)) = __builtin_amdgcn_mfma_f32_16x16x16f16(
-              *(((float16x4*)A_local) + ki * warp_rows + i), *(((float16x4*)B_local) + j),
+              *(((float16x4*)B_local) + j), *(((float16x4*)A_local) + ki * warp_rows + i), 
               *(((float32x4*)C_local) + ((i * warp_cols) + j)), 0, 0, 0);
         }
       }
