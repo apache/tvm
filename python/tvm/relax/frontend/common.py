@@ -74,8 +74,8 @@ def autopad(
     # get attributes as constants
     strides = _np.array(strides)
     dilated_kernel_shape = _np.array(
-            [(kernel - 1) * dilation + 1 for kernel, dilation in zip(kernel_shape, dilations)]
-        )
+        [(kernel - 1) * dilation + 1 for kernel, dilation in zip(kernel_shape, dilations)]
+    )
     # get input shape
     ndim = data.struct_info.ndim
     data_shape = [s for s in data.struct_info.shape]
@@ -112,16 +112,18 @@ def autopad(
 
     # pad N and C with zeros
     pad = _np.concatenate([_np.zeros([2, 2], dtype="int64"), pad], axis=0)
-    
+
     if not pad_type in ["constant", "edge", "reflect"]:
         raise tvm.error.OpAttributeInvalid(
             "Value " + pad_type + ' in attribute "mode" is invalid for operator Pad.'
         )
 
     if pad_type == "constant":
-        return bb.emit_te(topi.nn.pad, data, pad[:,0].tolist(), pad[:,1].tolist(), pad_value)
+        return bb.emit_te(topi.nn.pad, data, pad[:, 0].tolist(), pad[:, 1].tolist(), pad_value)
     elif pad_type == "reflect":
-        return bb.emit_te(topi.nn.mirror_pad, data, pad[:,0].tolist(), pad[:,1].tolist(), "REFLECT")
+        return bb.emit_te(
+            topi.nn.mirror_pad, data, pad[:, 0].tolist(), pad[:, 1].tolist(), "REFLECT"
+        )
     else:
         # TODO(gigiblender) Support edge mode.
-        raise NotImplementedError("Pad mode {} not implemented".format(pad_type))   
+        raise NotImplementedError("Pad mode {} not implemented".format(pad_type))
