@@ -16,9 +16,11 @@
 # under the License.
 # pylint: disable=invalid-name
 """Commons for Relax frontend."""
+import numpy as _np
 from typing import Dict, List, Tuple
 
 import tvm
+from tvm import topi
 
 
 def detach_params(mod: tvm.IRModule) -> Tuple[tvm.IRModule, Dict[str, List[tvm.nd.NDArray]]]:
@@ -53,3 +55,73 @@ def detach_params(mod: tvm.IRModule) -> Tuple[tvm.IRModule, Dict[str, List[tvm.n
         else:
             detached_mod[gv] = func
     return detached_mod, params_dict
+
+
+def autopad(
+    bb,
+    data,
+    strides,
+    kernel_shape,
+    dilations=(1, 1),
+    pad_type="constant",
+    deconv=False,
+    mode="SAME_UPPER",
+    pad_value=0.0,
+):
+    """
+    Perform autopadding with dynamic input shapes
+    """
+    # get attributes as constants
+    strides = _np.array(strides)
+    dilated_kernel_shape = _np.array(
+            [(kernel - 1) * dilation + 1 for kernel, dilation in zip(kernel_shape, dilations)]
+        )
+    # get input shape
+    ndim = data.struct_info.ndim
+    data_shape = [s for s in data.struct_info.shape]
+    shape = data_shape[2:ndim]
+
+    # set up integer constants
+    zero = 0
+    one = 1
+    two = 2
+
+    # Calculate total padding
+    mod = shape % strides
+
+    left = _np.maximum(dilated_kernel_shape - strides, zero)
+    right = _np.maximum(dilated_kernel_shape - mod, zero)
+
+    total_pad = _np.where(_np.equal(mod, zero), left, right)
+    if deconv:
+        total_pad = _np.array(kernel_shape) - one - total_pad
+
+    # split total padding into before and after
+    pad_before = _np.floor_divide(total_pad, two)
+    pad_after = total_pad - pad_before
+
+    # combine
+    if "LOWER" in mode:
+        pad = _np.concatenate(
+            [_np.reshape(pad_after, [-1, 1]), _np.reshape(pad_before, [-1, 1])], axis=1
+        )
+    else:
+        pad = _np.concatenate(
+            [_np.reshape(pad_before, [-1, 1]), _np.reshape(pad_after, [-1, 1])], axis=1
+        )
+
+    # pad N and C with zeros
+    pad = _np.concatenate([_np.zeros([2, 2], dtype="int64"), pad], axis=0)
+    
+    if not pad_type in ["constant", "edge", "reflect"]:
+        raise tvm.error.OpAttributeInvalid(
+            "Value " + pad_type + ' in attribute "mode" is invalid for operator Pad.'
+        )
+
+    if pad_type == "constant":
+        return bb.emit_te(topi.nn.pad, data, pad[:,0].tolist(), pad[:,1].tolist(), pad_value)
+    elif pad_type == "reflect":
+        return bb.emit_te(topi.nn.mirror_pad, data, pad[:,0].tolist(), pad[:,1].tolist(), "REFLECT")
+    else:
+        # TODO(gigiblender) Support edge mode.
+        raise NotImplementedError("Pad mode {} not implemented".format(pad_type))   
