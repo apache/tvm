@@ -1036,8 +1036,7 @@ def test_conv_auto_pad(stride: int, dilation: int, bias: bool, auto_pad: str):
             ]
         else:
             output_shape = [input_shape[0], weight_shape[0]] + [
-                (input_shape[i] + stride - 1) // stride
-                for i in range(2, len(input_shape))
+                (input_shape[i] + stride - 1) // stride for i in range(2, len(input_shape))
             ]
         bias_shape = [output_shape[1]]
         conv_node = helper.make_node(
