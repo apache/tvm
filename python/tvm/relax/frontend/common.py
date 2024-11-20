@@ -16,8 +16,8 @@
 # under the License.
 # pylint: disable=invalid-name
 """Commons for Relax frontend."""
-import numpy as _np
 from typing import Dict, List, Tuple
+import numpy as _np
 
 import tvm
 from tvm import topi
@@ -78,7 +78,7 @@ def autopad(
     )
     # get input shape
     ndim = data.struct_info.ndim
-    data_shape = [s for s in data.struct_info.shape]
+    data_shape = list(data.struct_info.shape)
     shape = data_shape[2:ndim]
 
     # set up integer constants
@@ -113,7 +113,7 @@ def autopad(
     # pad N and C with zeros
     pad = _np.concatenate([_np.zeros([2, 2], dtype="int64"), pad], axis=0)
 
-    if not pad_type in ["constant", "edge", "reflect"]:
+    if pad_type not in ["constant", "edge", "reflect"]:
         raise tvm.error.OpAttributeInvalid(
             "Value " + pad_type + ' in attribute "mode" is invalid for operator Pad.'
         )
