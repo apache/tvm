@@ -1233,7 +1233,7 @@ class Conv(OnnxOpConverter):
             kernel_layout = "OIDHW"
         else:
             raise NotImplementedError("Ndim > 5 not supported for convolution.")
-        
+
         if "auto_pad" in attr:
             attr["auto_pad"] = attr["auto_pad"].decode("utf-8")
             if attr["auto_pad"] in ("SAME_UPPER", "SAME_LOWER"):
