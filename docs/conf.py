@@ -53,7 +53,6 @@ else:
     tvm_path = Path(os.pardir)
 
 sys.path.insert(0, str(tvm_path.resolve() / "python"))
-sys.path.insert(0, str(tvm_path.resolve() / "vta" / "python"))
 sys.path.insert(0, str(tvm_path.resolve() / "docs"))
 
 # -- General configuration ------------------------------------------------
@@ -420,7 +419,6 @@ examples_dirs = [
     tvm_path.joinpath("gallery", "how_to", "tune_with_autoscheduler"),
     tvm_path.joinpath("gallery", "how_to", "work_with_microtvm"),
     tvm_path.joinpath("gallery", "how_to", "extend_tvm"),
-    tvm_path.joinpath("vta", "tutorials"),
     # New tutorial structure under docs folder
     tvm_path.joinpath("docs", "get_started", "tutorials"),
     tvm_path.joinpath("docs", "how_to", "tutorials"),
@@ -440,22 +438,12 @@ gallery_dirs = [
     "how_to/tune_with_autoscheduler",
     "how_to/work_with_microtvm",
     "how_to/extend_tvm",
-    "topic/vta/tutorials",
     # New tutorial structure under docs folder
     "get_started/tutorials/",
     "how_to/tutorials/",
     "deep_dive/relax/tutorials/",
     "deep_dive/tensor_ir/tutorials/",
 ]
-
-
-subsection_order = ExplicitOrder(
-    str(p)
-    for p in [
-        tvm_path / "vta" / "tutorials" / "frontend",
-        tvm_path / "vta" / "tutorials" / "optimize",
-    ]
-)
 
 # Explicitly define the order within a subsection.
 # The listed files are sorted according to the list.
@@ -575,7 +563,6 @@ sphinx_gallery_conf = {
     "examples_dirs": examples_dirs,
     "within_subsection_order": WithinSubsectionOrder,
     "gallery_dirs": gallery_dirs,
-    "subsection_order": subsection_order,
     "filename_pattern": os.environ.get("TVM_TUTORIAL_EXEC_PATTERN", filename_pattern_default),
     "download_all_examples": False,
     "min_reported_time": 60,
@@ -769,9 +756,6 @@ def process_docstring(app, what, name, obj, options, lines):
         distinguish_class_name(name, lines)
 
 
-from legacy_redirect import build_legacy_redirect
-
-
 def strip_ipython_magic(app, docname, source):
     """Prevents IPython magic commands from being rendered in HTML files.
 
@@ -784,4 +768,3 @@ def strip_ipython_magic(app, docname, source):
 def setup(app):
     app.connect("source-read", strip_ipython_magic)
     app.connect("autodoc-process-docstring", process_docstring)
-    app.connect("build-finished", build_legacy_redirect(tvm_path))

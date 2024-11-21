@@ -35,4 +35,3 @@ schedule with tesor expressions?"
    work_with_microtvm/index
    extend_tvm/index
    profile/index
-   ../faq

@@ -24,9 +24,6 @@ BUILD_DIR=$1
 source tests/scripts/setup-pytest-env.sh
 
 export LD_LIBRARY_PATH="lib:${LD_LIBRARY_PATH:-}"
-# NOTE: important to use abspath, when VTA is enabled.
-VTA_HW_PATH=$(pwd)/3rdparty/vta-hw
-export VTA_HW_PATH
 
 # to avoid CI thread throttling.
 export TVM_BIND_THREADS=0
