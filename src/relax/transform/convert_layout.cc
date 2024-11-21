@@ -90,7 +90,7 @@ class LayoutConvertMutator : public ExprMutator {
   Expr RewriteExpr(const Expr& expr, const NLayout& to) {
     auto fvisitleaf = [&](const Expr& expr, std::array<NLayout, 2> layouts) -> Expr {
       NLayout from = layouts[0], to = layouts[1];
-      if (NLayoutEqual()(from, to) || layouts[0].LeafValue()->layout->name == "") return expr;
+      if (NLayoutEqual()(from, to) || layouts[0].LeafValue()->layout.name() == "") return expr;
       // If not both from and to are unknown, then none of them can be unknown.
       ICHECK(!NLayoutEqual()(from, LayoutDecision::InitUnknownDim()) &&
              !NLayoutEqual()(to, LayoutDecision::InitUnknownDim()))
