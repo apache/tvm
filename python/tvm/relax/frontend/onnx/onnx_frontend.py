@@ -2254,6 +2254,7 @@ class Pool(OnnxOpConverter):
         kernel_shape = attr.get("kernel_shape")
         pads = attr.get("pads", 0)
         strides = attr.get("strides", [1] * (ndim - 2))
+        count_include_pad = attr.get("count_include_pad", False)
 
         assert len(kernel_shape) in [1, 2, 3], "Currently only 1D/2D/3D/ pooling is supported."
 
@@ -2298,7 +2299,7 @@ class Pool(OnnxOpConverter):
             pads = tuple([val for pair in zip(*pads) for val in pair])
 
         op = getattr(relax.op.nn, cls.name + str(len(kernel_shape)) + "d")
-        return op(data, kernel_shape, strides, pads, dilations, ceil_mode)
+        return op(data, kernel_shape, strides, pads, dilations, ceil_mode, count_include_pad)
 
     @classmethod
     def _get_input_spatial_shape(cls, tensor):
@@ -2316,6 +2317,23 @@ class AveragePool(Pool):
     """Converts an onnx MaxPool node into an equivalent Relax expression."""
 
     name = "avg_pool"
+
+
+class LpPool(OnnxOpConverter):
+    """Converts an onnx LpPool node into an equivalent Relax expression."""
+
+    @classmethod
+    def _impl_v1(cls, bb, inputs, attr, params):
+        dtype = inputs[0].struct_info.dtype
+        p = attr.get("p", 2.0)
+        reci_p = relax.const(1.0 / p, dtype=dtype)
+        # emit for get struct_info
+        data = bb.emit(relax.op.power(inputs[0], relax.const(p, dtype=dtype)))
+        attr.update({"count_include_pad": True})
+        avg_pool = AveragePool._impl_v1(bb, [data], attr, params)
+        kernels = attr["kernel_shape"]
+        out = avg_pool * relax.const(_np.prod(kernels).astype(dtype))
+        return relax.op.power(out, reci_p)
 
 
 class GlobalAveragePool(OnnxOpConverter):
@@ -3172,7 +3190,7 @@ def _get_convert_map():
         "Tile": Tile,
         "AveragePool": AveragePool,
         "MaxPool": MaxPool,
-        # "LpPool": LpPool,
+        "LpPool": LpPool,
         "GlobalAveragePool": GlobalAveragePool,
         "GlobalMaxPool": GlobalMaxPool,
         "GlobalLpPool": GlobalLpPool,
