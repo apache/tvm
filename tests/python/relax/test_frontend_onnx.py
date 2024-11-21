@@ -980,23 +980,57 @@ def test_shrink():
 @pytest.mark.parametrize("dilation", [1, 2])
 @pytest.mark.parametrize("bias", [True, False])
 @pytest.mark.parametrize("pad", [0, 2])
-def test_conv(stride: int, dilation: int, pad: int, bias: bool):
+@pytest.mark.parametrize("auto_pad", ["SAME_UPPER", "SAME_LOWER", "VALID"])
+def test_conv(stride: int, dilation: int, pad: int, bias: bool, auto_pad: str):
     def _verify_conv(input_shape, weight_shape):
         nd = len(weight_shape) - 2
-        output_shape = [input_shape[0], weight_shape[0]] + [
-            (input_shape[i] + 2 * pad - dilation * (weight_shape[i] - 1) - 1) // stride + 1
-            for i in range(2, len(input_shape))
-        ]
-        bias_shape = [output_shape[1]]
-        conv_node = helper.make_node(
-            "Conv",
-            inputs=["x", "w"] + (["b"] if bias else []),
-            outputs=["y"],
-            strides=[stride] * nd,
-            dilations=[dilation] * nd,
-            pads=[pad] * nd * 2,
-            group=input_shape[1] // weight_shape[1],
-        )
+        if auto_pad == "VALID":
+            output_shape = [input_shape[0], weight_shape[0]] + [
+                (input_shape[i] - dilation * (weight_shape[i] - 1) - 1) // stride + 1
+                for i in range(2, len(input_shape))
+            ]
+            bias_shape = [output_shape[1]]
+            conv_node = helper.make_node(
+                "Conv",
+                inputs=["x", "w"] + (["b"] if bias else []),
+                outputs=["y"],
+                strides=[stride] * nd,
+                dilations=[dilation] * nd,
+                auto_pad=auto_pad,
+                group=input_shape[1] // weight_shape[1],
+            )
+        elif auto_pad in ("SAME_UPPER", "SAME_LOWER"):
+            if dilation == 2:
+                # auto_pad = "SAME" and dilation = 2 is not supported in ONNX
+                return
+            output_shape = [input_shape[0], weight_shape[0]] + [
+                (input_shape[i] + stride - 1) // stride for i in range(2, len(input_shape))
+            ]
+            bias_shape = [output_shape[1]]
+            conv_node = helper.make_node(
+                "Conv",
+                inputs=["x", "w"] + (["b"] if bias else []),
+                outputs=["y"],
+                strides=[stride] * nd,
+                dilations=[dilation] * nd,
+                auto_pad=auto_pad,
+                group=input_shape[1] // weight_shape[1],
+            )
+        else:
+            output_shape = [input_shape[0], weight_shape[0]] + [
+                (input_shape[i] + 2 * pad - dilation * (weight_shape[i] - 1) - 1) // stride + 1
+                for i in range(2, len(input_shape))
+            ]
+            bias_shape = [output_shape[1]]
+            conv_node = helper.make_node(
+                "Conv",
+                inputs=["x", "w"] + (["b"] if bias else []),
+                outputs=["y"],
+                strides=[stride] * nd,
+                dilations=[dilation] * nd,
+                pads=[pad] * nd * 2,
+                group=input_shape[1] // weight_shape[1],
+            )
         graph = helper.make_graph(
             [conv_node],
             "conv_test",
