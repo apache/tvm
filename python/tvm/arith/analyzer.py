@@ -218,7 +218,7 @@ class Analyzer:
         expr : PrimExpr
             The expression.
 
-        dom_map : Dict[Var, tvm.arith.IntSet]
+        dom_map : Dict[tvm.tir.Var, tvm.arith.IntSet]
             The domain for variables to be relaxed.
 
         Returns
