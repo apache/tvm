@@ -480,13 +480,6 @@ def python_unittest(image) {
   )
 }
 
-def fsim_test(image) {
-  sh (
-    script: "${docker_run} ${image} ./tests/scripts/task_python_vta_fsim.sh",
-    label: 'Run VTA tests in FSIM',
-  )
-}
-
 def make_standalone_crt(image, build_dir) {
   sh (
     script: """
@@ -812,11 +805,6 @@ def shard_run_unittest_CPU_1_of_1(node_type='CPU-SMALL-SPOT', on_demand=false) {
               cpp_unittest(ci_cpu)
               micro_cpp_unittest(ci_cpu)
               python_unittest(ci_cpu)
-              fsim_test(ci_cpu)
-              sh (
-                script: "${docker_run} ${ci_cpu} ./tests/scripts/task_python_vta_tsim.sh",
-                label: 'Run VTA tests in TSIM',
-              )
             })
           }
         } finally {

@@ -7,9 +7,6 @@
 [submodule "3rdparty/rang"]
 	path = 3rdparty/rang
 	url = https://github.com/agauniyal/rang.git
-[submodule "3rdparty/vta-hw"]
-	path = 3rdparty/vta-hw
-	url = https://github.com/apache/tvm-vta.git
 [submodule "3rdparty/libbacktrace"]
 	path = 3rdparty/libbacktrace
 	url = https://github.com/tlc-pack/libbacktrace.git

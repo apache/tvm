@@ -12,13 +12,6 @@ def python_unittest(image) {
   )
 }
 
-def fsim_test(image) {
-  sh (
-    script: "${docker_run} ${image} ./tests/scripts/task_python_vta_fsim.sh",
-    label: 'Run VTA tests in FSIM',
-  )
-}
-
 def make_standalone_crt(image, build_dir) {
   sh (
     script: """

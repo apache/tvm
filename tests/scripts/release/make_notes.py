@@ -71,7 +71,6 @@ TAG_DICT = {
     "rpc": "Misc",
     "transform": "Misc",
     "tophub": "Misc",
-    "vta": "Misc",
     "ux": "Misc",
     "APP": "Misc",
     "docker": "Docker",

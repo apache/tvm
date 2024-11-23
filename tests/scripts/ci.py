@@ -622,8 +622,6 @@ generated = [
                 "run unit tests",
                 [
                     "./tests/scripts/task_python_unittest.sh",
-                    "./tests/scripts/task_python_vta_fsim.sh",
-                    "./tests/scripts/task_python_vta_tsim.sh",
                 ],
             ),
             "frontend": ("run frontend tests", ["./tests/scripts/task_python_frontend_cpu.sh"]),
