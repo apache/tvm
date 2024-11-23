@@ -569,7 +569,6 @@ else()
 endif()
 
 # Module rules
-include(cmake/modules/VTA.cmake)
 include(cmake/modules/StandaloneCrt.cmake)
 include(cmake/modules/CUDA.cmake)
 include(cmake/modules/Hexagon.cmake) # This must come before logging.cmake
