@@ -607,12 +607,6 @@ def rasp(options=None):
     return arm_cpu("rasp3b", options)
 
 
-def vta(model="unknown", options=None):
-    opts = ["-device=vta", "-keys=vta,cpu", "-model=%s" % model]
-    opts = _merge_opts(opts, options)
-    return Target(" ".join(["ext_dev"] + opts))
-
-
 def bifrost(model="unknown", options=None):
     """Return an ARM Mali GPU target (Bifrost architecture).
 
