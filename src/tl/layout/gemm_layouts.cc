@@ -286,6 +286,29 @@ Layout makeFullBankSwizzleLayout(int stride, int continuous, int element_size) {
   return Layout(Array<PrimExpr>{stride, continuous}, {tc, ts, index});
 }
 
+// Detail implementation please ref to bitblas::tl::mfma_layout::make_mfma_swizzle_layout
+Layout makeMatrixCoreSwizzleLayout(int stride, int continuous, int element_size, int kPack=1) {
+  const int numBanks = 32;
+  const int bankBitWidth = 32;
+  const int SIMDWidth = 16;
+  const int vecSize = 4 * kPack;
+  const int innerDimLength = continuous;
+  const int typeWidthInBit = element_size;
+
+  const int elemsPerOneBanksRow = (numBanks * bankBitWidth) / typeWidthInBit;
+  const int perPhase = std::max(1, elemsPerOneBanksRow / innerDimLength);
+  const int maxPhase = std::min(SIMDWidth / perPhase, innerDimLength / vecSize);
+
+  IterVar row = make_itervar("row", stride);
+  IterVar col = make_itervar("col", continuous);
+  PrimExpr phase = FloorMod(row / perPhase, maxPhase);
+  PrimExpr colOffSwizzled = ((col / vecSize) ^ phase) * vecSize;
+  PrimExpr colOffOrdered = FloorMod(col, vecSize);
+  PrimExpr colOff = colOffSwizzled + colOffOrdered;
+
+  return Layout(Array{row, col}, {row, colOff});
+}
+
 Layout makeGemmABLayoutF64_Kinner(int stride, int continuous) {
   // Swizzle<2, 0, 4>
   Var i = InputPlaceholder(0);
@@ -419,12 +442,10 @@ Layout makeGemmABLayout(int stride, int continuous, int element_size, int kfacto
   }
 }
 
-Layout makeGemmABLayoutCDNA(int stride, int continuous, int element_size, int kfactor) {
+Layout makeGemmABLayoutCDNA(int stride, int continuous, int element_size, int kPack) {
   int vector_size = 128 / element_size;
-  if (continuous % (vector_size * 8) == 0)
-    return makeFullBankSwizzleLayout(stride, continuous, element_size);
-  else if (continuous % (vector_size * 4) == 0)
-    return makeHalfBankSwizzleLayout(stride, continuous, element_size);
+  if (continuous % (vector_size * 4) == 0)
+    return makeMatrixCoreSwizzleLayout(stride, continuous, element_size, kPack);
   else {
     return makeGemmABLayoutPadded(stride, continuous, element_size);
   }

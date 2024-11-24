@@ -267,7 +267,13 @@ def gemm(
     transpose_A: bool = False,
     transpose_B: bool = False,
     policy: GemmWarpPolicy = GemmWarpPolicy.Square,
+    k_pack: int = 1,
 ):
+    '''
+    k_pack: int
+        The number of k dimension that is packed into a single warp.
+        please ref to mfma macro generator for the detail information.
+    '''
     M = C.shape[0]
     N = C.shape[1]
     K = A.shape[0] if transpose_A else A.shape[1]
@@ -288,6 +294,7 @@ def gemm(
         N,
         K,
         policy,
+        k_pack,
     )
 
 

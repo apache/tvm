@@ -52,7 +52,9 @@ class Gemm : public Operator {
   tir::Buffer A, B, C;
   bool trans_A, trans_B;
   int M, N, K;
-
+  // k_pack please ref to bitblas/tl/mfma_macro_generator.py::k_pack
+  // only will be enabled under cdna mfma instructions
+  int kPack = 1; 
   bool completed_ = false;
 };
 

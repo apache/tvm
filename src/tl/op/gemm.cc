@@ -51,7 +51,6 @@ static std::vector<int> toPrimeFactors(int x) {
 }
 
 Gemm::Gemm(Array<PrimExpr> args, BufferMap vmap) {
-  call_args = args;
   A = vmap[GetVarFromAccessPtr(args[0])];
   B = vmap[GetVarFromAccessPtr(args[1])];
   C = vmap[GetVarFromAccessPtr(args[2])];
@@ -59,8 +58,14 @@ Gemm::Gemm(Array<PrimExpr> args, BufferMap vmap) {
   trans_B = args[4].as<Bool>().value();
   M = args[5].as<IntImm>().value()->value;
   N = args[6].as<IntImm>().value()->value;
-  K = args[7].as<IntImm>().value()->value;
+  K = args[7].as<IntImm>().value()->value;  
   policy = static_cast<GemmWarpPolicy>(args[8].as<IntImm>().value()->value);
+  if (args.size() > 9) {
+    kPack = args[9].as<IntImm>().value()->value;
+    if (kPack != 1 && kPack != 2) {
+      ICHECK(false) << "kPack must be 1 or 2";
+    }
+  }
 }
 
 std::pair<int, int> Gemm::ComputeWarpPartition(int num_warps, Target target) const {
@@ -129,8 +134,12 @@ Stmt Gemm::Lower(const LowerArgs& T, arith::Analyzer* analyzer) const {
   }
   ss << op_name << "<" << M << ", " << N << ", " << K << ", ";
   ss << warp_m << ", " << warp_n << ", ";
-  ss << trans_A << ", " << trans_B << ">";
-
+  ss << trans_A << ", " << trans_B;
+  if (TargetIsCDNA(T.target)) {
+    // for cdna gemm, we need to specify kPack
+    ss << ", " << kPack;
+  }
+  ss << ">";
   auto A_buffer = T.buffer_remap.count(A) ? T.buffer_remap[A] : A;
   auto B_buffer = T.buffer_remap.count(B) ? T.buffer_remap[B] : B;
   auto C_buffer = T.buffer_remap[C];
@@ -222,10 +231,10 @@ LayoutMap Gemm::InferLayout(const LayoutInferArgs& T, InferLevel level) {
       // Make Linear Memory Access Layout
       // auto shared_layout =
       //     makeGemmLayoutLinear(*as_const_int(A->shape[0]), *as_const_int(A->shape[1]));
-      
+
       // Make Swizzle or Pad Layout
       auto shared_layout = makeGemmABLayoutCDNA(*as_const_int(A->shape[0]), *as_const_int(A->shape[1]),
-                                      A->dtype.bits(), trans_A ? 1 : 2);
+                                      A->dtype.bits(), kPack);
       results.Set(A, shared_layout);
     } else if (A.scope() == "local.fragment") {
       results.Set(A, makeGemmFragmentACDNA(M, N, K, M / warp_m, N / warp_n, trans_A));
@@ -239,7 +248,7 @@ LayoutMap Gemm::InferLayout(const LayoutInferArgs& T, InferLevel level) {
 
       // Make Swizzle or Pad Layout
       auto shared_layout = makeGemmABLayoutCDNA(*as_const_int(B->shape[0]), *as_const_int(B->shape[1]),
-                                      B->dtype.bits(), trans_B ? 1 : 2);
+                                      B->dtype.bits(), kPack);
 
       results.Set(B, shared_layout);
     } else if (B.scope() == "local.fragment") {
