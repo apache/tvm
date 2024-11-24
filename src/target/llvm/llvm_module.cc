@@ -34,6 +34,7 @@
 #include <llvm/ExecutionEngine/Orc/LLJIT.h>
 #include <llvm/ExecutionEngine/Orc/ObjectLinkingLayer.h>
 #include <llvm/ExecutionEngine/Orc/RTDyldObjectLinkingLayer.h>
+#include <llvm/ExecutionEngine/SectionMemoryManager.h>
 #include <llvm/IR/DataLayout.h>
 #include <llvm/IR/Function.h>
 #include <llvm/IR/Intrinsics.h>
@@ -512,8 +513,17 @@ void LLVMModuleNode::InitORCJIT() {
 
 #if TVM_LLVM_VERSION >= 130
   // linker
-  const auto linkerBuilder = [&](llvm::orc::ExecutionSession& session, const llvm::Triple&) {
-    return std::make_unique<llvm::orc::ObjectLinkingLayer>(session);
+  const auto linkerBuilder =
+      [&](llvm::orc::ExecutionSession& session,
+          const llvm::Triple& triple) -> std::unique_ptr<llvm::orc::ObjectLayer> {
+    auto GetMemMgr = []() { return std::make_unique<llvm::SectionMemoryManager>(); };
+    auto ObjLinkingLayer =
+        std::make_unique<llvm::orc::RTDyldObjectLinkingLayer>(session, std::move(GetMemMgr));
+    if (triple.isOSBinFormatCOFF()) {
+      ObjLinkingLayer->setOverrideObjectFlagsWithResponsibilityFlags(true);
+      ObjLinkingLayer->setAutoClaimResponsibilityForObjectSymbols(true);
+    }
+    return ObjLinkingLayer;
   };
 #endif
 
@@ -755,7 +765,7 @@ TVM_REGISTER_GLOBAL("target.llvm_version_major").set_body_typed([]() -> int {
 TVM_REGISTER_GLOBAL("runtime.module.loadfile_ll")
     .set_body_typed([](std::string filename, std::string fmt) -> runtime::Module {
       auto n = make_object<LLVMModuleNode>();
-      n->SetJITEngine("mcjit");
+      n->SetJITEngine("orcjit");
       n->LoadIR(filename);
       return runtime::Module(n);
     });
