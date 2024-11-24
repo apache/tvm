@@ -18,9 +18,10 @@
 
 import os
 import os.path as osp
+from typing import Literal
 import tvm
 from tvm import tir, tl, relay
-from tvm.contrib import nvcc, hipcc
+from tvm.contrib import nvcc, hipcc, rocm
 try:
     from tvm.tl.code_replace import replace_code
 except ImportError:
@@ -105,12 +106,36 @@ def extrac_params(func: tir.PrimFunc):
     return tensor_types
 
 # TODO(lei): Should enhance to support IRModule with multiple functions
-def lower(func, target="cuda", target_host="llvm", runtime_only=False):
+def lower(func, target:Literal["auto", "cuda", "hip"]="auto", target_host="llvm", runtime_only=False):
     # TODO(lei): Append C Source code host generation to the runtime
     params = extrac_params(func) if not runtime_only else None
     mod = tvm.IRModule({func.attrs["global_symbol"]: func})
     
     target_host = tvm.target.Target.canon_target(target_host)
+    if target == "auto":
+        is_cuda_available = False
+        is_hip_available = False
+        try:
+            nvcc.find_cuda_path()
+            is_cuda_available = True
+        except:
+            is_cuda_available = False
+        
+        try:
+            rocm.find_rocm_path()
+            is_hip_available = True
+        except:
+            is_hip_available = False
+
+        if is_cuda_available:
+            target = "cuda"
+        elif is_hip_available:
+            target = "hip"
+        else:
+            raise ValueError("No CUDA or HIP available")
+    else:
+        assert target in ["cuda", "hip"], f"Target {target} is not supported"
+
     target = tvm.target.Target(target, target_host)
 
     mod = tir.transform.BindTarget(target)(mod)
