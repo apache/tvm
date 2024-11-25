@@ -31,9 +31,6 @@ find . -type f -path "*.pyc" | xargs rm -f
 make cython3
 
 
-echo "Running relay MXNet frontend test..."
-run_pytest cython python-frontend-mxnet tests/python/frontend/mxnet
-
 echo "Running relay ONNX frontend test..."
 run_pytest cython python-frontend-onnx tests/python/frontend/onnx
 
