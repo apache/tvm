@@ -235,9 +235,6 @@ def test_vulkan_bool_load(target, dev):
 
 def check_mod(target, dev, mod, x_np, res_np):
     res = relay.create_executor("vm", mod=mod, device=dev, target=target).evaluate()(x_np).numpy()
-    print("x_np: ", x_np)
-    print("res: ", res)
-    print("res_np: ", res_np)
     tvm.testing.assert_allclose(res, res_np, atol=1e-5)
 
 
