@@ -306,7 +306,7 @@ def _verify_average(input_dim1, input_dim2, axis=0):
     a_np1 = np.random.uniform(size=input_dim1).astype(dtype)
     a_np2 = np.random.uniform(size=input_dim2).astype(dtype)
 
-    b_np = np.mean((a_np1, a_np2), axis=axis)
+    b_np = np.mean((a_np1, a_np2), axis=axis, dtype=float)
 
     inputs = [("input1", datatypes.Array(*input_dim1)), ("input2", datatypes.Array(*input_dim2))]
     output = [("output", datatypes.Array(*b_np.shape))]
