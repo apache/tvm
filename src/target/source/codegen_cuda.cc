@@ -1413,6 +1413,7 @@ inline void PrintConst(const FloatImmNode* op, std::ostream& os, CodeGenCUDA* p)
       } else {
         temp << std::scientific << op->value << 'f';
       }
+    }
     case 16: {
       os << "__float2half_rn" << '(';
       FloatImm const_f32 = FloatImm(DataType::Float(32), op->value);
