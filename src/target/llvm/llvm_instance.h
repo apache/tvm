@@ -232,7 +232,7 @@ class LLVMTargetInfo {
   llvm::FastMathFlags GetFastMathFlags() const { return fast_math_flags_; }
   /*!
    * \brief Get the LLVM JIT engine type
-   * \return the type name of the JIT engine (default "mcjit" or "orcjit")
+   * \return the type name of the JIT engine (default "orcjit" or "mcjit")
    */
   const std::string GetJITEngine() const { return jit_engine_; }
   /*!
@@ -348,7 +348,7 @@ class LLVMTargetInfo {
   llvm::Reloc::Model reloc_model_ = llvm::Reloc::PIC_;
   llvm::CodeModel::Model code_model_ = llvm::CodeModel::Small;
   std::shared_ptr<llvm::TargetMachine> target_machine_;
-  std::string jit_engine_ = "mcjit";
+  std::string jit_engine_ = "orcjit";
 };
 
 /*!
