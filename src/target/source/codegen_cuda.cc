@@ -1413,6 +1413,9 @@ inline void PrintConst(const FloatImmNode* op, std::ostream& os, CodeGenCUDA* p)
       } else {
         temp << std::scientific << op->value << 'f';
       }
+      p->MarkConst(temp.str());
+      os << temp.str();
+      break;
     }
     case 16: {
       os << "__float2half_rn" << '(';
