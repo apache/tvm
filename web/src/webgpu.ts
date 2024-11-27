@@ -35,7 +35,7 @@ export interface GPUDeviceDetectOutput {
  */
 export async function detectGPUDevice(powerPreference: "low-power" | "high-performance" = "high-performance"): Promise<GPUDeviceDetectOutput | undefined> {
   if (typeof navigator !== "undefined" && navigator.gpu !== undefined) {
-    const adapter = await navigator.gpu.requestAdapter({ "powerPreference": "high-performance" });
+    const adapter = await navigator.gpu.requestAdapter({ powerPreference });
     if (adapter == null) {
       throw Error(
         "Unable to find a compatible GPU. This issue might be because your computer doesn't have a GPU, or your system settings are not configured properly. " +
