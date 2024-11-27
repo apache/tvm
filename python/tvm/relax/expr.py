@@ -1152,6 +1152,12 @@ def const(
     - bool maps to "bool"
     - other using the same default rule as numpy.
     """
+    if isinstance(dtype, StructInfo):
+        sinfo = dtype
+        dtype = sinfo.dtype
+    else:
+        sinfo = None
+
     if isinstance(value, (_base.numeric_types, (bool, list))):
         value = _np.array(value, dtype=dtype)
 
@@ -1172,7 +1178,7 @@ def const(
     if not isinstance(value, _nd.NDArray):
         raise ValueError("value has to be scalar or NDArray")
 
-    return Constant(value)
+    return Constant(value, sinfo)
 
 
 def te_tensor(
