@@ -18,9 +18,10 @@
 
 import os
 import os.path as osp
-from typing import Literal
+from typing import Literal, Union
 import tvm
 from tvm import tir, tl, relay
+from tvm.target import Target
 from tvm.contrib import nvcc, hipcc, rocm
 from typing import Literal
 try:
@@ -149,12 +150,14 @@ def detect_target(target: str = "auto") -> str:
     return target
 
 # TODO(lei): Should enhance to support IRModule with multiple functions
-def lower(func, target: Literal["auto", "cuda", "hip"]="auto", target_host="llvm", runtime_only=False):
+def lower(func, target: Union[Literal["auto", "cuda", "hip"], Target]="auto", target_host="llvm", runtime_only=False):
     # TODO(lei): Append C Source code host generation to the runtime
     params = extrac_params(func) if not runtime_only else None
     mod = tvm.IRModule({func.attrs["global_symbol"]: func})
     
-    target = detect_target(target)
+    if isinstance(target, str):
+        target = detect_target(target)
+
     target_host = tvm.target.Target.canon_target(target_host)
     if target == "auto":
         is_cuda_available = False
@@ -178,7 +181,7 @@ def lower(func, target: Literal["auto", "cuda", "hip"]="auto", target_host="llvm
         else:
             raise ValueError("No CUDA or HIP available")
     else:
-        assert target in ["cuda", "hip"], f"Target {target} is not supported"
+        assert isinstance(target, Target) or target in ["cuda", "hip"], f"Target {target} is not supported"
 
     target = tvm.target.Target(target, target_host)
 
