@@ -150,7 +150,12 @@ def detect_target(target: str = "auto") -> str:
     return target
 
 # TODO(lei): Should enhance to support IRModule with multiple functions
-def lower(func, target: Union[Literal["auto", "cuda", "hip"], Target]="auto", target_host="llvm", runtime_only=False):
+def lower(
+    func, 
+    target: Union[Literal["auto", "cuda", "hip"], Target]="auto", 
+    target_host="llvm", 
+    runtime_only=False
+):
     # TODO(lei): Append C Source code host generation to the runtime
     params = extrac_params(func) if not runtime_only else None
     mod = tvm.IRModule({func.attrs["global_symbol"]: func})
@@ -262,7 +267,7 @@ def lower(func, target: Union[Literal["auto", "cuda", "hip"], Target]="auto", ta
     device_mod = tir.transform.LowerDeviceStorageAccessInfo()(device_mod)
     device_mod = tir.transform.LowerIntrin()(device_mod)
     device_mod = tir.transform.Simplify()(device_mod)
-    
+
     if target.kind.name == "cuda":
         # Debug to get the code
         # code = tvm._ffi.get_global_func("target.build.tl_debug_codegen")(device_mod, target)
