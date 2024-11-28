@@ -57,6 +57,7 @@ __device__ void wave_barrier() { asm volatile("s_barrier" : : : "memory"); }
 template <int N = 0>
 TL_DEVICE void cp_async_wait() {
   async_gld_fence(N);
+  // or
   // async_gld_sld_fence(N);
 }
 
@@ -83,8 +84,18 @@ TL_DEVICE void cp_async_gs(void* lds_base_ptr, void* global_base_ptr) {
 
 
 template <int N>
-TL_DEVICE void cp_async_gs_conditional(void const* const smem_addr, void* global_ptr, bool cond) {
-  static_assert(false, "Not implemented");
+TL_DEVICE void cp_async_gs_conditional(void* lds_base_ptr, void* global_base_ptr, bool cond) {
+  if constexpr(N == 16){
+    *(uint4*)lds_base_ptr = cond? *(uint4*)global_base_ptr: make_uint4(0,0,0,0);
+  }else if constexpr(N == 8){
+    *(uint2*)lds_base_ptr = cond? *(uint2*)global_base_ptr: make_uint2(0,0);
+  }else{
+    if (cond) {
+      async_buffer_load_dword_v(lds_base_ptr, make_wave_buffer_resource(((int32_t *)global_base_ptr) - threadIdx.x), threadIdx.x * N /*assume 4 bytes*/);
+    }else{
+      *(uint4*)lds_base_ptr = make_uint4(0,0,0,0);
+    }
+  }
 }
 
 }  // namespace tl

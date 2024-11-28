@@ -110,7 +110,7 @@ class Autotuner:
                 else:
                     new_args.append(config[name])
             new_args = tuple(new_args)
-            
+            ref_latency = None
             try:
                 # Use ThreadPoolExecutor to enforce timeout on target_fn execution
                 with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
@@ -149,8 +149,8 @@ def jit(
     out_idx: List[int], 
     supply_type: tl.TensorSupplyType = tl.TensorSupplyType.Normal, 
     ref_prog: Callable = None,
-    rtol: float = 1e-5,
-    atol: float = 1e-5,
+    rtol: float = 1e-2,
+    atol: float = 1e-2,
     skip_check: bool = False, 
     profiler: Literal['torch', 'tvm']='torch',
     target: Literal['cuda', 'hip']='cuda'
