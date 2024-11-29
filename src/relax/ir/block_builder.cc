@@ -218,11 +218,11 @@ class BlockBuilderImpl : public BlockBuilderNode {
         // of shape inference.  In many cases, knowning that the
         // shape variable is non-negative allows for simpler
         // expressions for dynamic shapes.
-        analyzer_.MarkGlobalNonNegValue(shape_var);
+        analyzer_->MarkGlobalNonNegValue(shape_var);
       } else {
         const PrimExpr& old_shape_expr = (*it).second;
         CHECK(old_shape_expr.same_as(shape_expr) ||
-              analyzer_.CanProveEqual(old_shape_expr, shape_expr))
+              analyzer_->CanProveEqual(old_shape_expr, shape_expr))
             << "Inconsistent shape var " << shape_var << " in scope: " << old_shape_expr << " vs "
             << shape_expr;
       }
@@ -305,7 +305,11 @@ class BlockBuilderImpl : public BlockBuilderNode {
     }
   }
 
-  arith::Analyzer* GetAnalyzer() final { return &analyzer_; }
+  arith::Analyzer* GetAnalyzer() final { return analyzer_.get(); }
+
+  runtime::TypedPackedFunc<PackedFunc(std::string)> GetAnalyzerAsFunc() final {
+    return arith::Analyzer::AsFunc(analyzer_);
+  }
 
  protected:
   /*!
@@ -362,7 +366,7 @@ class BlockBuilderImpl : public BlockBuilderNode {
   IRModule context_mod_;
 
   /*! \brief Internal analzyer */
-  arith::Analyzer analyzer_;
+  std::shared_ptr<arith::Analyzer> analyzer_ = std::make_shared<arith::Analyzer>();
 
   /*!
    * \return The current frame.
@@ -853,7 +857,7 @@ class Normalizer : public BlockBuilderImpl, private ExprFunctor<Expr(const Expr&
       auto opt = MatchStructInfo<FuncStructInfo>(call->op);
       ICHECK(opt) << "Call->op must contains a function struct info";
       FuncStructInfo finfo = opt.value();
-      return DeriveCallRetStructInfo(finfo, call, GetRef<BlockBuilder>(this), &analyzer_);
+      return DeriveCallRetStructInfo(finfo, call, GetRef<BlockBuilder>(this), analyzer_.get());
     }
   }
 
@@ -1100,7 +1104,7 @@ TVM_REGISTER_GLOBAL("relax.BlockBuilderGetUniqueName")
 
 TVM_REGISTER_GLOBAL("relax.BlockBuilderGetAnalyzer").set_body([](TVMArgs args, TVMRetValue* ret) {
   BlockBuilder block_builder = args[0];
-  *ret = block_builder->GetAnalyzer()->AsFunc();
+  *ret = block_builder->GetAnalyzerAsFunc();
 });
 
 TVM_REGISTER_GLOBAL("relax.BlockBuilderAddFunction")
