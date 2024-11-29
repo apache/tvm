@@ -39,6 +39,7 @@
 #include <vector>
 
 #include "../../node/ndarray_hash_equal.h"
+#include "tvm/runtime/packed_func.h"
 
 // Block builder have three categories of logics that are interdependent with each other.
 //
@@ -1096,6 +1097,11 @@ TVM_REGISTER_GLOBAL("relax.BlockBuilderGetUniqueName")
       return builder->name_supply()->FreshName(name_hint, /*add_prefix*/ false,
                                                /*add_underscore*/ false);
     });
+
+TVM_REGISTER_GLOBAL("relax.BlockBuilderGetAnalyzer").set_body([](TVMArgs args, TVMRetValue* ret) {
+  BlockBuilder block_builder = args[0];
+  *ret = block_builder->GetAnalyzer()->AsFunc();
+});
 
 TVM_REGISTER_GLOBAL("relax.BlockBuilderAddFunction")
     .set_body_method<BlockBuilder>(&BlockBuilderNode::AddFunction);

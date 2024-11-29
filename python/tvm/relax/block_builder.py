@@ -22,6 +22,7 @@ from typing import Any, Callable, Dict, List, Optional, Sequence, Union
 import tvm
 from tvm import relax as rx
 from tvm import tir
+from tvm.arith.analyzer import Analyzer
 from tvm.ir.module import IRModule
 from tvm.runtime import Object
 
@@ -163,6 +164,7 @@ class BlockBuilder(Object):
         # Which functions are currently being defined
         self._func_stack: List[FunctionScope] = []
         self.__init_handle_by_constructor__(_ffi_api.BlockBuilderCreate, mod)  # type: ignore
+        self._analyzer = Analyzer(_ffi_api.BlockBuilderGetAnalyzer(self))
 
     def _begin_dataflow_block(self) -> None:
         _ffi_api.BlockBuilderBeginDataflowBlock(self)  # type: ignore
@@ -797,3 +799,6 @@ class BlockBuilder(Object):
         """End the current scope. Please see `begin_scope` for details"""
 
         return _ffi_api.BlockBuilderEndScope(self)  # type: ignore
+
+    def get_analyzer(self) -> Analyzer:
+        return self._analyzer

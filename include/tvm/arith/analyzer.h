@@ -779,6 +779,13 @@ class TVM_DLL Analyzer {
    * \note Analyzer will call into sub-analyzers to get the result.
    */
   PrimExpr Simplify(const PrimExpr& expr, int steps = 2);
+
+  /*!
+   * \brief Returns the instance wrapped in a closure, suitable for FFI purposes.
+   *
+   * \return A function that exposes the methods of the underlying Analyzer instance.
+   */
+  runtime::TypedPackedFunc<PackedFunc(std::string)> AsFunc();
 };
 
 }  // namespace arith

@@ -990,5 +990,14 @@ def test_deduplication_when_input_contains_duplicates():
     bb.update_func(gvar_b, subroutine_c)
 
 
+def test_analyzer_ref():
+    bb = rx.BlockBuilder()
+    analyzer = bb.get_analyzer()
+    x, y = te.var("x"), te.var("y")
+    m = analyzer.modular_set(x * 6 + y * 4)
+    assert m.coeff == 2
+    assert m.base == 0
+
+
 if __name__ == "__main__":
     tvm.testing.main()

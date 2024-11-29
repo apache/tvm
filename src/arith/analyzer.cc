@@ -268,10 +268,11 @@ PrimExpr Analyzer::Simplify(const PrimExpr& expr, int steps) {
   return res;
 }
 
-TVM_REGISTER_GLOBAL("arith.CreateAnalyzer").set_body([](TVMArgs args, TVMRetValue* ret) {
+namespace {
+template <typename Ptr>
+TypedPackedFunc<PackedFunc(std::string)> GetAnalyzerFunc(Ptr self) {
   using runtime::PackedFunc;
   using runtime::TypedPackedFunc;
-  auto self = std::make_shared<Analyzer>();
   auto f = [self](std::string name) -> PackedFunc {
     if (name == "const_int_bound") {
       return PackedFunc(
@@ -347,7 +348,23 @@ TVM_REGISTER_GLOBAL("arith.CreateAnalyzer").set_body([](TVMArgs args, TVMRetValu
     }
     return PackedFunc();
   };
-  *ret = TypedPackedFunc<PackedFunc(std::string)>(f);
+  return TypedPackedFunc<PackedFunc(std::string)>(f);
+}
+
+// Duck typed smart pointer interface, allowing us to pass a non-smart ptr to GetAnalyzerFunc
+template <typename T>
+struct Ptr {
+  Ptr(T* ptr) : ptr(ptr) {}
+  T* get() const { return ptr; }
+  T* operator->() const { return this->ptr; }
+  T* ptr;
+};
+}  // namespace
+
+TypedPackedFunc<PackedFunc(std::string)> Analyzer::AsFunc() { return GetAnalyzerFunc(Ptr(this)); }
+
+TVM_REGISTER_GLOBAL("arith.CreateAnalyzer").set_body([](TVMArgs args, TVMRetValue* ret) {
+  *ret = GetAnalyzerFunc(std::make_shared<Analyzer>());
 });
 
 }  // namespace arith
