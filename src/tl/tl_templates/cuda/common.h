@@ -67,3 +67,12 @@ TL_DEVICE void atomicAdd(half_t* address, float val) {
   // Use atomicCAS with built-in cuda_fp16 support
   atomicAdd(reinterpret_cast<half*>(address), __float2half(val));
 }
+
+// DP4A
+template<typename InDatatype, typename OutDatatype>
+TL_DEVICE void DP4A(InDatatype* a, InDatatype* b, OutDatatype* c) {
+  const int a_int = *((int*)a);
+  const int b_int = *((int*)b);
+  const int c_int = *((int*)c);
+  *c = __dp4a(a_int, b_int, c_int);
+}
