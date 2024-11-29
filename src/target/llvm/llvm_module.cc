@@ -652,7 +652,11 @@ TVM_REGISTER_GLOBAL("codegen.LLVMModuleCreate")
 
 TVM_REGISTER_GLOBAL("target.llvm_lookup_intrinsic_id")
     .set_body_typed([](std::string name) -> int64_t {
+#if TVM_LLVM_VERSION >= 200
+      return static_cast<int64_t>(llvm::Intrinsic::lookupIntrinsicID(name));
+#else
       return static_cast<int64_t>(llvm::Function::lookupIntrinsicID(name));
+#endif
     });
 
 TVM_REGISTER_GLOBAL("target.llvm_get_intrinsic_name").set_body_typed([](int64_t id) -> String {

@@ -169,7 +169,11 @@ void CodeGenLLVM::InitTarget() {
   llvm::TargetMachine* tm = llvm_target_->GetOrCreateTargetMachine();
   module_->setTargetTriple(tm->getTargetTriple().str());
   module_->setDataLayout(tm->createDataLayout());
+#if TVM_LLVM_VERSION >= 200
+  data_layout_ = std::make_unique<llvm::DataLayout>(module_->getDataLayout());
+#else
   data_layout_.reset(new llvm::DataLayout(module_.get()));
+#endif
   if (native_vector_bits_ == 0) {
     const auto& arch = tm->getTargetTriple().getArch();
     if (arch == llvm::Triple::x86_64) {

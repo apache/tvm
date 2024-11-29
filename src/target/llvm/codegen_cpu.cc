@@ -731,7 +731,11 @@ void CodeGenCPU::CreateStaticInit(const std::string& init_fname, const Stmt& bod
 llvm::Value* CodeGenCPU::GetPackedFuncHandle(const std::string& fname) {
   // We will store the packed function handle in global space.
   // Initialize it during the first call.
+#if TVM_LLVM_VERSION >= 200
+  llvm::DataLayout layout = module_->getDataLayout();
+#else
   llvm::DataLayout layout(module_.get());
+#endif
   uint64_t align = layout.getTypeAllocSize(t_tvm_func_handle_);
   auto it = func_handle_map_.find(fname);
 
@@ -1297,7 +1301,11 @@ void CodeGenCPU::DefineFunctionRegistry(Array<String> func_names) {
   }
   llvm::ArrayType* t_tvm_crt_func_ptrs =
       llvm::ArrayType::get(ftype_tvm_backend_packed_c_func_->getPointerTo(), funcs.size());
+#if TVM_LLVM_VERSION >= 200
+  llvm::DataLayout layout = module_->getDataLayout();
+#else
   llvm::DataLayout layout(module_.get());
+#endif
 
   llvm::GlobalVariable* func_registry_ptrs = new llvm::GlobalVariable(
       *module_, t_tvm_crt_func_ptrs, true, llvm::GlobalValue::InternalLinkage,
