@@ -130,7 +130,7 @@ class CodeGenNVPTX : public CodeGenLLVM {
     }
 
     buf = builder_->CreatePointerCast(
-        buf, DTypeToLLVMType(op->dtype)->getPointerTo(buf->getType()->getPointerAddressSpace()));
+        buf, llvmGetPointerTo(DTypeToLLVMType(op->dtype), buf->getType()->getPointerAddressSpace()));
     ICHECK(!var_map_.count(op->buffer_var.get()));
     var_map_[op->buffer_var.get()] = buf;
     this->VisitStmt(op->body);
@@ -170,7 +170,12 @@ class CodeGenNVPTX : public CodeGenLLVM {
           LOG(FATAL) << "unknown thread idx";
       }
     }
+#if TVM_LLVM_VERSION >= 200
+    llvm::Function* f = llvm::cast<llvm::Function>(
+        llvm::Intrinsic::getOrInsertDeclaration(module_.get(), intrin_id, {}));
+#else
     llvm::Function* f = llvm::Intrinsic::getDeclaration(module_.get(), intrin_id);
+#endif
     return builder_->CreateCall(f, {});
   }
 
@@ -180,8 +185,12 @@ class CodeGenNVPTX : public CodeGenLLVM {
       // TODO(tqchen) warp sync in CUDA9
       return nullptr;
     } else if (sync == "shared" || sync == "shared.dyn") {
-      llvm::Function* f =
-          llvm::Intrinsic::getDeclaration(module_.get(), llvm::Intrinsic::nvvm_barrier0);
+#if TVM_LLVM_VERSION >= 200
+      llvm::Function* f = llvm::cast<llvm::Function>(
+          llvm::Intrinsic::getOrInsertDeclaration(module_.get(), llvm::Intrinsic::nvvm_barrier0, {}));
+#else
+      llvm::Function* f = llvm::Intrinsic::getDeclaration(module_.get(), llvm::Intrinsic::nvvm_barrier0);
+#endif
       return builder_->CreateCall(f, {});
     } else {
       LOG(FATAL) << "Do not support sync " << sync;

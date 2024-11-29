@@ -148,7 +148,7 @@ void CodeGenLLVM::Init(const std::string& module_name, LLVMTarget* llvm_target,
   md_builder_.reset(new llvm::MDBuilder(*ctx));
   // types
   t_void_ = llvm::Type::getVoidTy(*ctx);
-  t_void_p_ = llvm::Type::getInt8Ty(*ctx)->getPointerTo(GetGlobalAddressSpace());
+  t_void_p_ = llvmGetPointerTo(llvm::Type::getInt8Ty(*ctx), GetGlobalAddressSpace());
   t_int_ = llvm::Type::getInt32Ty(*ctx);
   t_char_ = llvm::Type::getInt8Ty(*ctx);
   t_int8_ = llvm::Type::getInt8Ty(*ctx);
@@ -170,7 +170,7 @@ void CodeGenLLVM::InitTarget() {
   module_->setTargetTriple(tm->getTargetTriple().str());
   module_->setDataLayout(tm->createDataLayout());
 #if TVM_LLVM_VERSION >= 200
-  data_layout_ = std::make_unique<llvm::DataLayout>(module_->getDataLayout());
+  data_layout_.reset(new llvm::DataLayout(module_.get()->getDataLayout()));
 #else
   data_layout_.reset(new llvm::DataLayout(module_.get()));
 #endif
@@ -628,7 +628,7 @@ llvm::Type* CodeGenLLVM::GetLLVMType(const Type& type) const {
       }
     }
     // TODO(tvm-team) consider put storage scope into the pointer type.
-    return GetLLVMType(ptr->element_type)->getPointerTo(GetGlobalAddressSpace());
+    return llvmGetPointerTo(GetLLVMType(ptr->element_type),GetGlobalAddressSpace());
   } else if (IsVoidType(type)) {
     return t_void_;
   } else {
@@ -971,9 +971,9 @@ CodeGenLLVM::TypedPointer CodeGenLLVM::CreateBufferPtr(llvm::Value* buffer_ptr,
 
   llvm::Type* element_type = DTypeToLLVMType(buffer_element_dtype);
   llvm::PointerType* element_ptr_type =
-      DTypeToLLVMType(buffer_element_dtype)->getPointerTo(address_space);
+      llvmGetPointerTo(DTypeToLLVMType(buffer_element_dtype), address_space);
   llvm::Type* value_type = DTypeToLLVMType(value_dtype);
-  llvm::PointerType* value_ptr_type = value_type->getPointerTo(address_space);
+  llvm::PointerType* value_ptr_type = llvmGetPointerTo(value_type, address_space);
 
   ICHECK(index->getType()->isIntegerTy()) << "Expected buffer index to be an integer";
 
@@ -1016,7 +1016,11 @@ void CodeGenLLVM::CreatePrintf(const std::string& format,
         llvm::Function::Create(ftype, llvm::Function::ExternalLinkage, "fflush", module_.get());
   }
 
+#if TVM_LLVM_VERSION >= 200
+  llvm::Value* str = builder_->CreateGlobalString(format);
+#else
   llvm::Value* str = builder_->CreateGlobalStringPtr(format);
+#endif
   str->setName("printf_format_str");
 
   std::vector<llvm::Value*> printf_args = {str};
@@ -1034,8 +1038,13 @@ void CodeGenLLVM::CreatePrintf(const std::string& format,
 llvm::Value* CodeGenLLVM::CreateLookupReturnAddress(unsigned int level) {
   EmitDebugLocation();
   llvm::Value* level_val = llvm::ConstantInt::get(t_int32_, level);
+#if TVM_LLVM_VERSION >= 200
+  llvm::Function* builtin = llvm::cast<llvm::Function>(
+      llvm::Intrinsic::getOrInsertDeclaration(module_.get(), llvm::Intrinsic::returnaddress, {}));
+#else
   llvm::Function* builtin =
       llvm::Intrinsic::getDeclaration(module_.get(), llvm::Intrinsic::returnaddress);
+#endif
   llvm::Value* call = builder_->CreateCall(builtin, level_val);
   call->setName("return_addr");
 
@@ -1065,7 +1074,12 @@ llvm::Function* CodeGenLLVM::GetIntrinsicDecl(llvm::Intrinsic::ID id, llvm::Type
   llvm::Module* module = module_.get();
 
   if (!llvm::Intrinsic::isOverloaded(id)) {
+  #if TVM_LLVM_VERSION >= 200
+    return llvm::cast<llvm::Function>(
+        llvm::Intrinsic::getOrInsertDeclaration(module, id, {})); 
+  #else
     return llvm::Intrinsic::getDeclaration(module, id, {});
+  #endif
   }
 
   llvm::SmallVector<llvm::Intrinsic::IITDescriptor, 4> infos;
@@ -1093,7 +1107,12 @@ llvm::Function* CodeGenLLVM::GetIntrinsicDecl(llvm::Intrinsic::ID id, llvm::Type
       // The return type doesn't match, there is nothing else to do.
       return nullptr;
     case llvm::Intrinsic::MatchIntrinsicTypes_Match:
+#if TVM_LLVM_VERSION >= 200
+      return llvm::cast<llvm::Function>(
+          llvm::Intrinsic::getOrInsertDeclaration(module, id, overload_types));
+#else
       return llvm::Intrinsic::getDeclaration(module, id, overload_types);
+#endif
     case llvm::Intrinsic::MatchIntrinsicTypes_NoMatchArg:
       break;
   }
@@ -1105,7 +1124,12 @@ llvm::Function* CodeGenLLVM::GetIntrinsicDecl(llvm::Intrinsic::ID id, llvm::Type
     if (i > 0) var_types.push_back(arg_types[i - 1]);
     auto* ft = llvm::FunctionType::get(ret_type, var_types, true);
     if (try_match(ft, true) == llvm::Intrinsic::MatchIntrinsicTypes_Match) {
+#if TVM_LLVM_VERSION >= 200
+      return llvm::cast<llvm::Function>(
+          llvm::Intrinsic::getOrInsertDeclaration(module, id, overload_types));
+#else
       return llvm::Intrinsic::getDeclaration(module, id, overload_types);
+#endif
     }
   }
   // Failed to identify the type.
@@ -1122,7 +1146,12 @@ llvm::Function* CodeGenLLVM::GetIntrinsicDecl(llvm::Intrinsic::ID id, llvm::Type
       return nullptr;
     }
   }
+#if TVM_LLVM_VERSION >= 200
+  return llvm::cast<llvm::Function>(
+      llvm::Intrinsic::getOrInsertDeclaration(module, id, overload_types));
+#else
   return llvm::Intrinsic::getDeclaration(module, id, overload_types);
+#endif
 #endif  // TVM_LLVM_VERSION
 }
 
@@ -1358,7 +1387,7 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
       if (param_type != arg_value[0]->getType()) {
         unsigned addrspace =
             llvm::dyn_cast<llvm::PointerType>(arg_value[0]->getType())->getAddressSpace();
-        arg_value[0] = builder_->CreatePointerCast(arg_value[0], t_char_->getPointerTo(addrspace));
+        arg_value[0] = builder_->CreatePointerCast(arg_value[0], llvmGetPointerTo(t_char_, addrspace));
       }
     }
 
@@ -2068,7 +2097,7 @@ void CodeGenLLVM::VisitStmt_(const AllocateNode* op) {
   buf = alloca;
 
   buf = builder_->CreatePointerCast(
-      buf, DTypeToLLVMType(op->dtype)->getPointerTo(buf->getType()->getPointerAddressSpace()));
+      buf, llvmGetPointerTo(DTypeToLLVMType(op->dtype), buf->getType()->getPointerAddressSpace()));
   AddDebugInformation(buf, op->buffer_var);
 
   ICHECK(!var_map_.count(op->buffer_var.get()));

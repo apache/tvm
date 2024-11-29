@@ -97,29 +97,29 @@ void CodeGenCPU::Init(const std::string& module_name, LLVMTarget* llvm_target,
   // Defined in 3rdparty/dlpack/include/dlpack/dlpack.h:
   // typedef struct { ... } DLTensor;
   t_tvm_array_ = llvm::StructType::create({t_void_p_, t_tvm_device_, t_int_, t_tvm_type_,
-                                           t_tvm_shape_index_->getPointerTo(),
-                                           t_tvm_shape_index_->getPointerTo(), t_int64_});
+                                           llvmGetPointerTo(t_tvm_shape_index_, 0),
+                                           llvmGetPointerTo(t_tvm_shape_index_, 0), t_int64_});
   // Defined in include/tvm/runtime/c_runtime_api.h:
   // typedef union { ... } TVMValue;
   t_tvm_value_ = llvm::StructType::create({t_float64_});
   // Defined in include/tvm/runtime/c_backend_api.h:
   // typedef struct { void* sync_handle; int32_t num_task; } TVMParallelGroupEnv;
-  t_tvm_parallel_group_env_ = llvm::StructType::create({t_int32_->getPointerTo(), t_int32_});
+  t_tvm_parallel_group_env_ = llvm::StructType::create({llvmGetPointerTo(t_int32_, 0), t_int32_});
   // Defined in include/tvm/runtime/c_backend_api.h:
   // typedef int (*TVMBackendPackedCFunc)(TVMValue* args, int* type_codes, int num_args,
   //                                      TVMValue* out_ret_value, int* out_ret_tcode,
   //                                      void* resource_handle);
   ftype_tvm_backend_packed_c_func_ = llvm::FunctionType::get(
       t_int_,
-      {t_void_p_, t_int_->getPointerTo(), t_int_, t_void_p_, t_int_->getPointerTo(), t_void_p_},
+      {t_void_p_, llvmGetPointerTo(t_int_, 0), t_int_, t_void_p_, llvmGetPointerTo(t_int_, 0), t_void_p_},
       false);
   t_tvm_crt_func_registry_ = llvm::StructType::create(
-      {t_char_->getPointerTo(), ftype_tvm_backend_packed_c_func_->getPointerTo()});
-  t_tvm_crt_module_ = llvm::StructType::create({t_tvm_crt_func_registry_->getPointerTo()});
+      {llvmGetPointerTo(t_char_, 0), llvmGetPointerTo(ftype_tvm_backend_packed_c_func_, 0)});
+  t_tvm_crt_module_ = llvm::StructType::create({llvmGetPointerTo(t_tvm_crt_func_registry_, 0)});
   // Defined in include/tvm/runtime/c_backend_api.h:
   // typedef int (*FTVMParallelLambda)(int task_id, TVMParallelGroupEnv* penv, void* cdata);
   ftype_tvm_parallel_lambda_ = llvm::FunctionType::get(
-      t_int_, {t_int_, t_tvm_parallel_group_env_->getPointerTo(), t_void_p_}, false);
+      t_int_, {t_int_, llvmGetPointerTo(t_tvm_parallel_group_env_, 0), t_void_p_}, false);
   md_tbaa_ctx_ptr_ = md_builder_->createTBAAScalarTypeNode("ctx_ptr", md_tbaa_root_);
 
   // Runtime functions.
@@ -129,30 +129,30 @@ void CodeGenCPU::Init(const std::string& module_name, LLVMTarget* llvm_target,
   //                 TVMValue* ret_val, int* ret_type_code);
   ftype_tvm_func_call_ = llvm::FunctionType::get(
       t_int_,
-      {t_tvm_func_handle_, t_tvm_value_->getPointerTo(), t_int_->getPointerTo(), t_int_,
-       t_tvm_value_->getPointerTo(), t_int_->getPointerTo()},
+      {t_tvm_func_handle_, llvmGetPointerTo(t_tvm_value_, 0), llvmGetPointerTo(t_int_, 0), t_int_,
+       llvmGetPointerTo(t_tvm_value_, 0), llvmGetPointerTo(t_int_, 0)},
       false);
   // Defined in include/tvm/runtime/c_backend_api.h:
   // int TVMBackendGetFuncFromEnv(void* mod_node, const char* func_name, TVMFunctionHandle* out);
   ftype_tvm_get_func_from_env_ = llvm::FunctionType::get(
-      t_int_, {t_void_p_, t_char_->getPointerTo(), t_tvm_func_handle_->getPointerTo()}, false);
+      t_int_, {t_void_p_, llvmGetPointerTo(t_char_, 0), llvmGetPointerTo(t_tvm_func_handle_, 0)}, false);
   // Defined in include/tvm/runtime/c_runtime_api.h:
   // void TVMAPISetLastError(const char* msg);
   ftype_tvm_api_set_last_error_ =
-      llvm::FunctionType::get(t_void_, {t_char_->getPointerTo()}, false);
+      llvm::FunctionType::get(t_void_, {llvmGetPointerTo(t_char_, 0)}, false);
   // Defined in include/tvm/runtime/c_backend_api.h:
   // int TVMBackendParallelLaunch(FTVMParallelLambda flambda, void* cdata, int num_task);
   ftype_tvm_parallel_launch_ = llvm::FunctionType::get(
-      t_int_, {ftype_tvm_parallel_lambda_->getPointerTo(), t_void_p_, t_int_}, false);
+      t_int_, {llvmGetPointerTo(ftype_tvm_parallel_lambda_, 0), t_void_p_, t_int_}, false);
   // Defined in include/tvm/runtime/c_backend_api.h:
   // int TVMBackendParallelBarrier(int task_id, TVMParallelGroupEnv* penv);
   ftype_tvm_parallel_barrier_ =
-      llvm::FunctionType::get(t_int_, {t_int_, t_tvm_parallel_group_env_->getPointerTo()}, false);
+      llvm::FunctionType::get(t_int_, {t_int_, llvmGetPointerTo(t_tvm_parallel_group_env_, 0)}, false);
   ftype_tvm_static_init_callback_ = llvm::FunctionType::get(t_int_, {t_void_p_}, false);
   ftype_tvm_static_init_ =
       llvm::FunctionType::get(t_int_,
-                              {t_void_p_->getPointerTo(),
-                               ftype_tvm_static_init_callback_->getPointerTo(), t_void_p_, t_int_},
+                              {llvmGetPointerTo(t_void_p_, 0),
+                               llvmGetPointerTo(ftype_tvm_static_init_callback_, 0), t_void_p_, t_int_},
                               false);
   // initialize TVM runtime API
   if (system_lib_prefix_.defined() && !target_c_runtime) {
@@ -160,7 +160,7 @@ void CodeGenCPU::Init(const std::string& module_name, LLVMTarget* llvm_target,
     // Defined in include/tvm/runtime/c_backend_api.h:
     // int TVMBackendRegisterSystemLibSymbol(const char* name, void* ptr);
     f_tvm_register_system_symbol_ = llvm::Function::Create(
-        llvm::FunctionType::get(t_int_, {t_char_->getPointerTo(), t_void_p_}, false),
+        llvm::FunctionType::get(t_int_, {llvmGetPointerTo(t_char_, 0), t_void_p_}, false),
         llvm::Function::ExternalLinkage, "TVMBackendRegisterSystemLibSymbol", module_.get());
   } else {
     f_tvm_register_system_symbol_ = nullptr;
@@ -276,9 +276,9 @@ CodeGenLLVM::TypedPointer CodeGenCPU::CreateStructRefPtr(DataType t, llvm::Value
                                                          llvm::Value* index, int kind) {
   if (kind < builtin::kArrKindBound_) {
     if (buf->getType() == t_void_p_) {
-      buf = builder_->CreatePointerCast(buf, t_tvm_array_->getPointerTo());
+      buf = builder_->CreatePointerCast(buf, llvmGetPointerTo(t_tvm_array_, 0));
     } else {
-      ICHECK_EQ(buf->getType(), t_tvm_array_->getPointerTo());
+      ICHECK_EQ(buf->getType(), llvmGetPointerTo(t_tvm_array_, 0));
     }
   }
   switch (kind) {
@@ -351,20 +351,20 @@ CodeGenLLVM::TypedPointer CodeGenCPU::CreateStructRefPtr(DataType t, llvm::Value
         // The stride between adjacent entries is still
         // `sizeof(TVMValue)==64`, even if the enum currently holds a
         // boolean.
-        buf = builder_->CreatePointerCast(buf, t_int64_->getPointerTo());
+        buf = builder_->CreatePointerCast(buf, llvmGetPointerTo(t_int64_, 0));
         buf = builder_->CreateInBoundsGEP(t_int64_, buf, index);
-        buf = builder_->CreatePointerCast(buf, DTypeToLLVMType(t)->getPointerTo());
+        buf = builder_->CreatePointerCast(buf, llvmGetPointerTo(DTypeToLLVMType(t), 0));
         return TypedPointer(t_int8_, buf);
       } else if (t.is_int() && t.bits() == 64) {
-        buf = builder_->CreatePointerCast(buf, t_int64_->getPointerTo());
+        buf = builder_->CreatePointerCast(buf, llvmGetPointerTo(t_int64_, 0));
         return TypedPointer(t_int64_, builder_->CreateInBoundsGEP(t_int64_, buf, index));
       } else if (t.is_float() && t.bits() == 64) {
-        buf = builder_->CreatePointerCast(buf, t_float64_->getPointerTo());
+        buf = builder_->CreatePointerCast(buf, llvmGetPointerTo(t_float64_, 0));
         return TypedPointer(t_float64_, builder_->CreateInBoundsGEP(t_float64_, buf, index));
       } else if (t.is_handle()) {
-        buf = builder_->CreatePointerCast(buf, t_tvm_value_->getPointerTo());
+        buf = builder_->CreatePointerCast(buf, llvmGetPointerTo(t_tvm_value_, 0));
         buf = builder_->CreateInBoundsGEP(t_tvm_value_, buf, index);
-        return TypedPointer(t_void_p_, builder_->CreatePointerCast(buf, t_void_p_->getPointerTo()));
+        return TypedPointer(t_void_p_, builder_->CreatePointerCast(buf, llvmGetPointerTo(t_void_p_, 0)));
       } else {
         LOG(DEBUG) << "DataType " << t << " cannot be stored into a TVMValue";
       }
@@ -390,7 +390,7 @@ llvm::Value* CodeGenCPU::CreateCallExtern(Type ret_type, String global_symbol,
   auto callee = [&]() -> llvm::Value* {
     if (auto it = gv_func_map_.find(global_symbol); it != gv_func_map_.end()) {
       if (it->second == nullptr) {
-        it->second = InitContextPtr(ftype->getPointerTo(), "__" + global_symbol);
+        it->second = InitContextPtr(llvmGetPointerTo(ftype, 0), "__" + global_symbol);
       }
       return GetContextPtr(it->second);
     } else if (llvm::Function* f = module_->getFunction(MakeStringRef(global_symbol))) {
@@ -401,8 +401,8 @@ llvm::Value* CodeGenCPU::CreateCallExtern(Type ret_type, String global_symbol,
     }
   }();
 
-  if (callee->getType() != ftype->getPointerTo()) {
-    callee = builder_->CreatePointerCast(callee, ftype->getPointerTo());
+  if (callee->getType() != llvmGetPointerTo(ftype, 0)) {
+    callee = builder_->CreatePointerCast(callee, llvmGetPointerTo(ftype, 0));
   }
   return builder_->CreateCall(ftype, callee, arg_values);
 }
@@ -451,14 +451,14 @@ void CodeGenCPU::InitGlobalContext(bool dynamic_lookup) {
     export_system_symbols_.emplace_back(std::make_pair(ctx_symbol, gv_mod_ctx_));
   } else {
     if (!dynamic_lookup) {
-      gv_tvm_func_call_ = InitContextPtr(ftype_tvm_func_call_->getPointerTo(), "__TVMFuncCall");
-      gv_tvm_get_func_from_env_ = InitContextPtr(ftype_tvm_get_func_from_env_->getPointerTo(),
+      gv_tvm_func_call_ = InitContextPtr(llvmGetPointerTo(ftype_tvm_func_call_, 0), "__TVMFuncCall");
+      gv_tvm_get_func_from_env_ = InitContextPtr(llvmGetPointerTo(ftype_tvm_get_func_from_env_, 0),
                                                  "__TVMBackendGetFuncFromEnv");
       gv_tvm_api_set_last_error_ =
-          InitContextPtr(ftype_tvm_api_set_last_error_->getPointerTo(), "__TVMAPISetLastError");
+          InitContextPtr(llvmGetPointerTo(ftype_tvm_api_set_last_error_, 0), "__TVMAPISetLastError");
       gv_tvm_parallel_launch_ =
-          InitContextPtr(ftype_tvm_parallel_launch_->getPointerTo(), "__TVMBackendParallelLaunch");
-      gv_tvm_parallel_barrier_ = InitContextPtr(ftype_tvm_parallel_barrier_->getPointerTo(),
+          InitContextPtr(llvmGetPointerTo(ftype_tvm_parallel_launch_, 0), "__TVMBackendParallelLaunch");
+      gv_tvm_parallel_barrier_ = InitContextPtr(llvmGetPointerTo(ftype_tvm_parallel_barrier_, 0),
                                                 "__TVMBackendParallelBarrier");
       // Mark as context functions
       gv_func_map_["TVMBackendAllocWorkspace"] = nullptr;
@@ -732,7 +732,7 @@ llvm::Value* CodeGenCPU::GetPackedFuncHandle(const std::string& fname) {
   // We will store the packed function handle in global space.
   // Initialize it during the first call.
 #if TVM_LLVM_VERSION >= 200
-  llvm::DataLayout layout = module_->getDataLayout();
+  llvm::DataLayout layout(module_.get()->getDataLayout());
 #else
   llvm::DataLayout layout(module_.get());
 #endif
@@ -829,12 +829,12 @@ CodeGenCPU::PackedCall CodeGenCPU::MakeCallPackedLowered(const Array<PrimExpr>& 
   llvm::Value* stack_value = MakeValue(args[1]);
   llvm::Value* stack_tcode = MakeValue(args[2]);
   llvm::Value* arg_value = builder_->CreateInBoundsGEP(
-      t_tvm_value_, builder_->CreatePointerCast(stack_value, t_tvm_value_->getPointerTo()),
+      t_tvm_value_, builder_->CreatePointerCast(stack_value, llvmGetPointerTo(t_tvm_value_, 0)),
       ConstInt32(begin));
   TypedPointer arg_tcode =
       CreateBufferPtr(stack_tcode, DataType::Int(32), {ConstInt32(begin)}, DataType::Int(32));
   llvm::Value* ret_value = builder_->CreateInBoundsGEP(
-      t_tvm_value_, builder_->CreatePointerCast(stack_value, t_tvm_value_->getPointerTo()),
+      t_tvm_value_, builder_->CreatePointerCast(stack_value, llvmGetPointerTo(t_tvm_value_, 0)),
       ConstInt32(end));
   TypedPointer ret_tcode =
       CreateBufferPtr(stack_tcode, DataType::Int(32), {ConstInt32(end)}, DataType::Int(32));
@@ -886,7 +886,7 @@ CodeGenCPU::PackedCall CodeGenCPU::MakeCallPackedLowered(const Array<PrimExpr>& 
     // Load the return value and cast it to the designated type (r_type).
     DataType r_api_type = tir::APIType(r_type);
     llvm::Type* llvm_r_api_type = DTypeToLLVMType(r_api_type);
-    llvm::Value* load_ptr = builder_->CreatePointerCast(ret_value, llvm_r_api_type->getPointerTo());
+    llvm::Value* load_ptr = builder_->CreatePointerCast(ret_value, llvmGetPointerTo(llvm_r_api_type, 0));
 #if TVM_LLVM_VERSION >= 110
     llvm::Value* rvalue = builder_->CreateAlignedLoad(llvm_r_api_type, load_ptr, llvm::Align(8));
 #elif TVM_LLVM_VERSION >= 80
@@ -1238,7 +1238,7 @@ void CodeGenCPU::DefineMetadata(runtime::metadata::Metadata metadata) {
       llvm::Type::getInt8Ty(*ctx) /* t_uint8 */,
       t_int64_ /* t_int64 */,
       llvm::Type::getInt8Ty(*ctx) /* t_bool */,
-      t_char_->getPointerTo() /* t_cstring */,
+      llvmGetPointerTo(t_char_, 0) /* t_cstring */,
       t_void_p_ /* t_void_p */,
       llvm::StructType::create(*ctx, {t_int8_, t_int8_, t_int8_}, "DLDataType") /* t_data_type */,
   };
@@ -1277,10 +1277,10 @@ void CodeGenCPU::DefineMetadata(runtime::metadata::Metadata metadata) {
   llvm::BasicBlock* entry_point_entry = llvm::BasicBlock::Create(*ctx, "entry", function_);
   builder_->SetInsertPoint(entry_point_entry);
 
-  auto ret_values_p = builder_->CreateBitCast(GetArg(function_, 3), t_void_p_->getPointerTo());
+  auto ret_values_p = builder_->CreateBitCast(GetArg(function_, 3), llvmGetPointerTo(t_void_p_, 0));
   builder_->CreateStore(builder_->CreateBitCast(metadata_constant_gv, t_void_p_), ret_values_p);
 
-  auto ret_tcode = builder_->CreateBitCast(GetArg(function_, 4), t_int_->getPointerTo());
+  auto ret_tcode = builder_->CreateBitCast(GetArg(function_, 4), llvmGetPointerTo(t_int_, 0));
   builder_->CreateStore(llvm::ConstantInt::get(t_int_, kTVMOpaqueHandle), ret_tcode);
 
   builder_->CreateRet(ConstInt32(0));
@@ -1300,9 +1300,9 @@ void CodeGenCPU::DefineFunctionRegistry(Array<String> func_names) {
     funcs.emplace_back(sym_func);
   }
   llvm::ArrayType* t_tvm_crt_func_ptrs =
-      llvm::ArrayType::get(ftype_tvm_backend_packed_c_func_->getPointerTo(), funcs.size());
+      llvm::ArrayType::get(llvmGetPointerTo(ftype_tvm_backend_packed_c_func_, 0), funcs.size());
 #if TVM_LLVM_VERSION >= 200
-  llvm::DataLayout layout = module_->getDataLayout();
+  llvm::DataLayout layout(module_.get()->getDataLayout());
 #else
   llvm::DataLayout layout(module_.get());
 #endif
@@ -1311,7 +1311,7 @@ void CodeGenCPU::DefineFunctionRegistry(Array<String> func_names) {
       *module_, t_tvm_crt_func_ptrs, true, llvm::GlobalValue::InternalLinkage,
       llvm::ConstantArray::get(t_tvm_crt_func_ptrs, funcs), "_tvm_func_registry_ptrs");
 
-  uint64_t align = layout.getTypeAllocSize(ftype_tvm_backend_packed_c_func_->getPointerTo());
+  uint64_t align = layout.getTypeAllocSize(llvmGetPointerTo(ftype_tvm_backend_packed_c_func_, 0));
 #if TVM_LLVM_VERSION >= 100
   func_registry_ptrs->setAlignment(llvm::Align(align));
 #else
@@ -1323,7 +1323,7 @@ void CodeGenCPU::DefineFunctionRegistry(Array<String> func_names) {
           t_tvm_crt_func_registry_,
           {GetConstString(::tvm::target::GenerateFuncRegistryNames(symbols)),
            llvm::ConstantExpr::getBitCast(func_registry_ptrs,
-                                          ftype_tvm_backend_packed_c_func_->getPointerTo())}),
+                                          llvmGetPointerTo(ftype_tvm_backend_packed_c_func_, 0))}),
       "_tvm_crt_func_registry");
   llvm::GlobalVariable* module = new llvm::GlobalVariable(
       *module_, t_tvm_crt_module_, true, llvm::GlobalValue::InternalLinkage,

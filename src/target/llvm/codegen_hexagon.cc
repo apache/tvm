@@ -211,7 +211,12 @@ llvm::Value* CodeGenHexagon::CreateIntrinsic(const CallNode* op) {
       op->op.same_as(builtin::end_profile_intrinsic())) {
     llvm::Value* id = MakeValue(op->args[0]);
     auto instrprof_id = llvm::Intrinsic::hexagon_instrprof_custom;
+#if TVM_LLVM_VERSION >= 200
+    llvm::Function* func = llvm::cast<llvm::Function>(
+        llvm::Intrinsic::getOrInsertDeclaration(module_.get(), instrprof_id, {}));
+#else
     llvm::Function* func = llvm::Intrinsic::getDeclaration(module_.get(), instrprof_id);
+#endif
     llvm::GlobalVariable* name_var = module_->getGlobalVariable("handler_name");
     if (!name_var) {
       llvm::StringRef init_str = "lwp_handler";
@@ -220,7 +225,7 @@ llvm::Value* CodeGenHexagon::CreateIntrinsic(const CallNode* op) {
       name_var = new llvm::GlobalVariable(*module_, init->getType(), true,
                                           llvm::GlobalValue::InternalLinkage, init, "handler_name");
     }
-    llvm::Type* t_int8_p_ = t_int8_->getPointerTo();
+    llvm::Type* t_int8_p_ = llvmGetPointerTo(t_int8_, 0);
     return builder_->CreateCall(func, {llvm::ConstantExpr::getBitCast(name_var, t_int8_p_), id});
   }
 #endif
@@ -237,17 +242,22 @@ void CodeGenHexagon::CreatePrintf(const std::string& format,
   llvm::Function* func = module_->getFunction(func_name);
   if (func == nullptr) {
     llvm::FunctionType* ftype = llvm::FunctionType::get(
-        t_void_, {t_int32_, t_char_->getPointerTo(), t_int32_, t_char_->getPointerTo()}, true);
+        t_void_, {t_int32_, llvmGetPointerTo(t_char_, 0), t_int32_, llvmGetPointerTo(t_char_, 0)}, true);
     func = llvm::Function::Create(ftype, llvm::Function::ExternalLinkage, func_name, module_.get());
   }
 
+  // There is no such filename/line number for this print statement
+#if TVM_LLVM_VERSION >= 200
+  llvm::Value* filename = builder_->CreateGlobalString("generated-LLVM-code", "dummy_filename");
+  llvm::Value* format_str = builder_->CreateGlobalString(format, "printf_format_str");
+#else
+  llvm::Value* filename = builder_->CreateGlobalStringPtr("generated-LLVM-code", "dummy_filename");
   llvm::Value* format_str = builder_->CreateGlobalStringPtr(format, "printf_format_str");
+#endif
 
   // The value of FARF_ALWAYS_LEVEL, defined as HAP_LEVEL_HIGH
   llvm::Value* level = ConstInt32(2);
 
-  // There is no such filename/line number for this print statement
-  llvm::Value* filename = builder_->CreateGlobalStringPtr("generated-LLVM-code", "dummy_filename");
   llvm::Value* line_number = ConstInt32(1);
 
   std::vector<llvm::Value*> func_args = {level, filename, line_number, format_str};
@@ -295,9 +305,9 @@ CodeGenLLVM::TypedPointer CodeGenHexagon::CreateStructRefPtr(DataType t, llvm::V
 
   if (kind < builtin::kArrKindBound_) {
     if (buf->getType() == t_void_p_) {
-      buf = builder_->CreatePointerCast(buf, t_tvm_array_->getPointerTo());
+      buf = builder_->CreatePointerCast(buf, llvmGetPointerTo(t_tvm_array_, 0));
     } else {
-      ICHECK_EQ(buf->getType(), t_tvm_array_->getPointerTo());
+      ICHECK_EQ(buf->getType(), llvmGetPointerTo(t_tvm_array_, 0));
     }
     /* The following "kinds" are accessing the members of DLTensor:
        typedef struct {
@@ -350,16 +360,16 @@ CodeGenLLVM::TypedPointer CodeGenHexagon::CreateStructRefPtr(DataType t, llvm::V
     ICHECK_EQ(t.lanes(), 1);
     ICHECK(t.is_handle() || t.bits() == 64);
     if (t.is_int()) {
-      buf = builder_->CreatePointerCast(buf, t_int64_->getPointerTo());
+      buf = builder_->CreatePointerCast(buf, llvmGetPointerTo(t_int64_, 0));
       return TypedPointer(t_int64_, builder_->CreateInBoundsGEP(t_int64_, buf, index));
     } else if (t.is_float()) {
-      buf = builder_->CreatePointerCast(buf, t_float64_->getPointerTo());
+      buf = builder_->CreatePointerCast(buf, llvmGetPointerTo(t_float64_, 0));
       return TypedPointer(t_float64_, builder_->CreateInBoundsGEP(t_float64_, buf, index));
     } else {
       ICHECK(t.is_handle());
-      buf = builder_->CreatePointerCast(buf, t_tvm_value_->getPointerTo());
+      buf = builder_->CreatePointerCast(buf, llvmGetPointerTo(t_tvm_value_, 0));
       buf = builder_->CreateInBoundsGEP(t_tvm_value_, buf, index);
-      return TypedPointer(t_void_p_, builder_->CreatePointerCast(buf, t_void_p_->getPointerTo()));
+      return TypedPointer(t_void_p_, builder_->CreatePointerCast(buf, llvmGetPointerTo(t_void_p_, 0)));
     }
   }
 
@@ -369,7 +379,12 @@ CodeGenLLVM::TypedPointer CodeGenHexagon::CreateStructRefPtr(DataType t, llvm::V
 
 llvm::Value* CodeGenHexagon::Intrinsic(llvm::Intrinsic::ID IntID,
                                        llvm::ArrayRef<llvm::Value*> args) {
+#if TVM_LLVM_VERSION >= 200
+  llvm::Function* intf = llvm::cast<llvm::Function>(
+      llvm::Intrinsic::getOrInsertDeclaration(module_.get(), IntID, {}));
+#else
   llvm::Function* intf = llvm::Intrinsic::getDeclaration(module_.get(), IntID);
+#endif
 #if TVM_LLVM_VERSION >= 90
   auto intf_callee = llvm::FunctionCallee(intf);
 #else
