@@ -628,7 +628,7 @@ llvm::Type* CodeGenLLVM::GetLLVMType(const Type& type) const {
       }
     }
     // TODO(tvm-team) consider put storage scope into the pointer type.
-    return llvmGetPointerTo(GetLLVMType(ptr->element_type),GetGlobalAddressSpace());
+    return llvmGetPointerTo(GetLLVMType(ptr->element_type), GetGlobalAddressSpace());
   } else if (IsVoidType(type)) {
     return t_void_;
   } else {
@@ -1387,7 +1387,8 @@ llvm::Value* CodeGenLLVM::CreateIntrinsic(const CallNode* op) {
       if (param_type != arg_value[0]->getType()) {
         unsigned addrspace =
             llvm::dyn_cast<llvm::PointerType>(arg_value[0]->getType())->getAddressSpace();
-        arg_value[0] = builder_->CreatePointerCast(arg_value[0], llvmGetPointerTo(t_char_, addrspace));
+        arg_value[0] =
+            builder_->CreatePointerCast(arg_value[0], llvmGetPointerTo(t_char_, addrspace));
       }
     }
 

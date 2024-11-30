@@ -242,7 +242,8 @@ void CodeGenHexagon::CreatePrintf(const std::string& format,
   llvm::Function* func = module_->getFunction(func_name);
   if (func == nullptr) {
     llvm::FunctionType* ftype = llvm::FunctionType::get(
-        t_void_, {t_int32_, llvmGetPointerTo(t_char_, 0), t_int32_, llvmGetPointerTo(t_char_, 0)}, true);
+        t_void_, {t_int32_, llvmGetPointerTo(t_char_, 0),
+        t_int32_, llvmGetPointerTo(t_char_, 0)}, true);
     func = llvm::Function::Create(ftype, llvm::Function::ExternalLinkage, func_name, module_.get());
   }
 
@@ -369,7 +370,8 @@ CodeGenLLVM::TypedPointer CodeGenHexagon::CreateStructRefPtr(DataType t, llvm::V
       ICHECK(t.is_handle());
       buf = builder_->CreatePointerCast(buf, llvmGetPointerTo(t_tvm_value_, 0));
       buf = builder_->CreateInBoundsGEP(t_tvm_value_, buf, index);
-      return TypedPointer(t_void_p_, builder_->CreatePointerCast(buf, llvmGetPointerTo(t_void_p_, 0)));
+      return TypedPointer(
+        t_void_p_, builder_->CreatePointerCast(buf, llvmGetPointerTo(t_void_p_, 0)));
     }
   }
 

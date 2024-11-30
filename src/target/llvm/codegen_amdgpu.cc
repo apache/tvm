@@ -147,7 +147,8 @@ class CodeGenAMDGPU : public CodeGenLLVM {
     }
 
     buf = builder_->CreatePointerCast(
-        buf, llvmGetPointerTo(DTypeToLLVMType(op->dtype), buf->getType()->getPointerAddressSpace()));
+        buf,
+        llvmGetPointerTo(DTypeToLLVMType(op->dtype), buf->getType()->getPointerAddressSpace()));
     ICHECK(!var_map_.count(op->buffer_var.get()));
     var_map_[op->buffer_var.get()] = buf;
     this->VisitStmt(op->body);
@@ -204,7 +205,8 @@ class CodeGenAMDGPU : public CodeGenLLVM {
     } else if (sync == "shared") {
 #if TVM_LLVM_VERSION >= 200
       llvm::Function* f = llvm::cast<llvm::Function>(
-          llvm::Intrinsic::getOrInsertDeclaration(module_.get(), llvm::Intrinsic::amdgcn_s_barrier, {}));
+          llvm::Intrinsic::getOrInsertDeclaration(
+            module_.get(), llvm::Intrinsic::amdgcn_s_barrier, {}));
 #else
       llvm::Function* f =
           llvm::Intrinsic::getDeclaration(module_.get(), llvm::Intrinsic::amdgcn_s_barrier);
