@@ -1076,7 +1076,7 @@ llvm::Function* CodeGenLLVM::GetIntrinsicDecl(llvm::Intrinsic::ID id, llvm::Type
   if (!llvm::Intrinsic::isOverloaded(id)) {
   #if TVM_LLVM_VERSION >= 200
     return llvm::cast<llvm::Function>(
-        llvm::Intrinsic::getOrInsertDeclaration(module, id, {})); 
+        llvm::Intrinsic::getOrInsertDeclaration(module, id, {}));
   #else
     return llvm::Intrinsic::getDeclaration(module, id, {});
   #endif
