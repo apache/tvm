@@ -237,6 +237,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
 
     size_t nmatch = 0;
     std::vector<ThreadEntry> vred, vpar;
+    int reduce_dim_index = -1;
     for (const AttrStmtNode* attr : thread_extents_) {
       ThreadEntry e;
       IterVar iv = Downcast<IterVar>(attr->node);
@@ -254,13 +255,42 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
         }
 
         if (reduce_set.count(iv->var.get())) {
-          vred.push_back(e);
-          ++nmatch;
+          bool already_exists = false;
+          for (const auto& entry : vred) {
+            if (entry.scope.dim_index == e.scope.dim_index) {
+              already_exists = true;
+              break;
+            }
+          }
+          if (!already_exists) {
+            vred.push_back(e);
+            ++nmatch;
+            reduce_dim_index = e.scope.dim_index;
+          }
         } else {
-          vpar.push_back(e);
+          bool already_exists = false;
+          for (const auto& entry : vpar) {
+            if (entry.scope.dim_index == e.scope.dim_index) {
+              already_exists = true;
+              break;
+            }
+          }
+          if (!already_exists) {
+            vpar.push_back(e);
+          }
         }
       }
     }
+
+    // remove reduce thread from parallel thread
+    for (size_t i = 0; i < vpar.size(); ++i) {
+      if (vpar[i].scope.dim_index == reduce_dim_index) {
+        vpar.erase(vpar.begin() + i);
+        break;
+      }
+    }
+
+    ICHECK_NE(reduce_dim_index, -1) << "Cannot find reduce dimension";
     ICHECK_EQ(nmatch, reduce_set.size()) << "Not all reduce index are presented in the context";
     std::sort(vred.begin(), vred.end());
     std::sort(vpar.begin(), vpar.end());
@@ -326,12 +356,21 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     // the remaining elements, and this reduction can also be optimized by
     // shuffle_down warp-level primitives.
     PrimExpr zero_index = make_const(reduce_index->dtype, 0);
+    LOG(INFO) << "contiguous_reduce_extent: " << contiguous_reduce_extent;
+    LOG(INFO) << "group_extent: " << group_extent;
+    LOG(INFO) << "reduce_extent: " << reduce_extent;
+    LOG(INFO) << "IsWarpReduction: " << IsWarpReduction(types, group_extent, reduce_extent, contiguous_reduce_extent);
+    
     if (IsWarpReduction(types, group_extent, reduce_extent, contiguous_reduce_extent)) {
       std::vector<PrimExpr> reduce_results;
       DataType mask_dtype = DataType::UInt(32);
       PrimExpr mask = Call(mask_dtype, builtin::tvm_warp_activemask(), {});
 
       if (reduce_extent <= warp_size_) {
+        LOG(INFO) << "Warp reduction " << reduce_extent << " is less than warp size " << warp_size_;
+        LOG(INFO) << "reduce_extent " << reduce_extent << " group_index " << group_index;
+        LOG(INFO) << "reduce_extent * group_index " << reduce_extent * group_index;
+        
         std::tie(reduce_results, new_alloc_bufs) = MakeWarpAllreduce(
             values, types, combiner, reduce_index, reduce_extent, group_index, mask, NullOpt, &seq);
 
@@ -835,6 +874,7 @@ namespace transform {
 
 Pass LowerThreadAllreduce() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+    LOG(INFO) << "Before LowerThreadAllreduce: " << f;
     AllocateCollector collector;
     collector(f->body);
     bool is_dynamic = collector.dyn_shmem_allocs_.size() > 1;
@@ -845,6 +885,7 @@ Pass LowerThreadAllreduce() {
     const TargetNode* target_node = target.as<TargetNode>();
     ThreadAllreduceBuilder thread_all_reduce(target_node, is_dynamic);
     n->body = thread_all_reduce(n->body);
+    LOG(INFO) << "After LowerThreadAllreduce: " << f;
     return f;
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.LowerThreadAllreduce", {});
