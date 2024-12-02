@@ -823,7 +823,8 @@ CodeGenCPU::PackedCall CodeGenCPU::MakeCallPackedLowered(const Array<PrimExpr>& 
   std::string func_name = [&]() {
     auto ptr = args[0].as<StringImmNode>();
     ICHECK(ptr) << "Expected first argument of tir::Call to be "
-                << "a string containing the callee's name, " << "but instead contained " << args[0];
+                << "a string containing the callee's name, "
+                << "but instead contained " << args[0];
     return ptr->value;
   }();
   // call the function

@@ -1910,8 +1910,8 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const ShuffleNode* op) {
   std::vector<uint32_t> idx(op->indices.size());
   for (int i = 0, e = op->indices.size(); i < e; ++i) {
     const int64_t* val = as_const_int(op->indices[i]);
-    ICHECK(val && *val >= 0 && *val < total_lanes)
-        << "Shuffled indeces are suppose to be int, " << "but get " << op->indices[i] << "\n";
+    ICHECK(val && *val >= 0 && *val < total_lanes) << "Shuffled indeces are suppose to be int, "
+                                                   << "but get " << op->indices[i] << "\n";
     idx[i] = *val;
   }
   llvm::Value* mask = llvm::ConstantDataVector::get(builder_->getContext(), idx);
