@@ -23,6 +23,7 @@ This tuning loop is repeated.
 
 from . import callback
 from .ga_tuner import GATuner
+from .pso_tuner import PSOTuner
 from .index_based_tuner import GridSearchTuner, RandomTuner
 from .tuner import Tuner
 from .xgboost_tuner import XGBTuner
