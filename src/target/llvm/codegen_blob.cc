@@ -106,7 +106,7 @@ std::unique_ptr<llvm::Module> CodeGenBlob(const std::string& data, bool system_l
     auto void_ty = llvm::Type::getVoidTy(*ctx);
     auto int32_ty = llvm::Type::getInt32Ty(*ctx);
     auto int8_ty = llvm::Type::getInt8Ty(*ctx);
-    auto int8_ptr_ty = int8_ty->getPointerTo(0);
+    auto int8_ptr_ty = llvmGetPointerTo(int8_ty, 0);
 
     llvm::Constant* constant_zero = llvm::Constant::getNullValue(int32_ty);
     auto* tvm_dev_mblob_reg =
