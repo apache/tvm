@@ -30,6 +30,7 @@ from . import (
     task_scheduler,
     utils,
     workload_registry,
+    dynamic_gradient_search,
 )
 
 # Shortcut
@@ -76,5 +77,6 @@ from .search_task import (
     auto_schedule,
     create_task,
 )
+from .dynamic_gradient_search import DynamicGradientSearchTuner
 from .task_scheduler import TaskScheduler
 from .workload_registry import make_workload_key, register_workload
