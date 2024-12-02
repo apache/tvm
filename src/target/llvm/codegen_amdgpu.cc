@@ -204,9 +204,8 @@ class CodeGenAMDGPU : public CodeGenLLVM {
       return nullptr;
     } else if (sync == "shared") {
 #if TVM_LLVM_VERSION >= 200
-      llvm::Function* f = llvm::cast<llvm::Function>(
-          llvm::Intrinsic::getOrInsertDeclaration(
-            module_.get(), llvm::Intrinsic::amdgcn_s_barrier, {}));
+      llvm::Function* f = llvm::cast<llvm::Function>(llvm::Intrinsic::getOrInsertDeclaration(
+          module_.get(), llvm::Intrinsic::amdgcn_s_barrier, {}));
 #else
       llvm::Function* f =
           llvm::Intrinsic::getDeclaration(module_.get(), llvm::Intrinsic::amdgcn_s_barrier);

@@ -1074,12 +1074,11 @@ llvm::Function* CodeGenLLVM::GetIntrinsicDecl(llvm::Intrinsic::ID id, llvm::Type
   llvm::Module* module = module_.get();
 
   if (!llvm::Intrinsic::isOverloaded(id)) {
-  #if TVM_LLVM_VERSION >= 200
-    return llvm::cast<llvm::Function>(
-        llvm::Intrinsic::getOrInsertDeclaration(module, id, {}));
-  #else
+#if TVM_LLVM_VERSION >= 200
+    return llvm::cast<llvm::Function>(llvm::Intrinsic::getOrInsertDeclaration(module, id, {}));
+#else
     return llvm::Intrinsic::getDeclaration(module, id, {});
-  #endif
+#endif
   }
 
   llvm::SmallVector<llvm::Intrinsic::IITDescriptor, 4> infos;
@@ -1135,7 +1134,7 @@ llvm::Function* CodeGenLLVM::GetIntrinsicDecl(llvm::Intrinsic::ID id, llvm::Type
   // Failed to identify the type.
   return nullptr;
 
-#else   // TVM_LLVM_VERSION
+#else  // TVM_LLVM_VERSION
   llvm::ArrayRef<llvm::Intrinsic::IITDescriptor> ref(infos);
   // matchIntrinsicType returns true on error.
   if (llvm::Intrinsic::matchIntrinsicType(ret_type, ref, overload_types)) {
@@ -1911,8 +1910,8 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const ShuffleNode* op) {
   std::vector<uint32_t> idx(op->indices.size());
   for (int i = 0, e = op->indices.size(); i < e; ++i) {
     const int64_t* val = as_const_int(op->indices[i]);
-    ICHECK(val && *val >= 0 && *val < total_lanes) << "Shuffled indeces are suppose to be int, "
-                                                   << "but get " << op->indices[i] << "\n";
+    ICHECK(val && *val >= 0 && *val < total_lanes)
+        << "Shuffled indeces are suppose to be int, " << "but get " << op->indices[i] << "\n";
     idx[i] = *val;
   }
   llvm::Value* mask = llvm::ConstantDataVector::get(builder_->getContext(), idx);

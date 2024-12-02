@@ -94,8 +94,8 @@ llvm::Value* CodeGenX86_64::CallVectorIntrin(llvm::Intrinsic::ID id, size_t intr
                                              llvm::Type* result_ty,
                                              const std::vector<llvm::Value*>& args) {
 #if TVM_LLVM_VERSION >= 200
-  llvm::Function* f = llvm::cast<llvm::Function>(
-      llvm::Intrinsic::getOrInsertDeclaration(module_.get(), id, {}));
+  llvm::Function* f =
+      llvm::cast<llvm::Function>(llvm::Intrinsic::getOrInsertDeclaration(module_.get(), id, {}));
 #else
   llvm::Function* f = llvm::Intrinsic::getDeclaration(module_.get(), id);
 #endif
