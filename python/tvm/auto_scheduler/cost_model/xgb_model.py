@@ -28,6 +28,9 @@ from tvm.autotvm.tuner.metric import max_curve
 from .cost_model import PythonBasedModel
 from ..feature import get_per_store_features_from_measure_pairs, get_per_store_features_from_states
 from ..measure_record import RecordReader
+# from ..search_task import SearchTask
+import tvm.te as te
+import tvm
 
 try:
     from xgboost.callback import TrainingCallback  # type: ignore
@@ -235,6 +238,36 @@ class XGBModel(PythonBasedModel):
         scores: List[float]
             The predicted scores for all states
         """
+
+        # print tasks and states
+        print("XGBModel: predict")
+        print("task")
+        print(type(task))
+        # print(len(task))
+        print("states")
+        print(type(states))
+        print(len(states))
+        print("states[0]")
+        print(type(states[0]))
+        # print(states[0])
+
+        # apply the state transformations
+        task: SearchTask
+        schedule, args = task.compute_dag.apply_steps_from_state(states[0])
+        schedule: te.Schedule
+        mod = tvm.lower(schedule, args)
+        print("mod")
+        print(type(mod))
+        print(mod)
+
+        print("schedule")
+        print(type(schedule))
+        print(schedule)
+
+
+
+
+
         features = get_per_store_features_from_states(states, task)
         if self.bst is not None and len(self.inputs) > self.num_warmup_sample:
             dtest, pack_ids = feature_to_pack_sum_xgbmatrix(features)
