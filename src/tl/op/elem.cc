@@ -149,16 +149,14 @@ Stmt Copy::Lower(const LowerArgs& T, arith::Analyzer* analyzer) const {
   if (bulk_copy_stmt.defined()) return bulk_copy_stmt;
 
   auto par_op = std::make_unique<ParallelOp>(MakeSIMTLoop(analyzer));
-  par_op->InferLayout({T.target, T.block_size, T.layout_map}, InferLevel::kFree);
+  par_op->InferLayout({T.target, T.block_size, T.layout_map, T.buffer_remap}, InferLevel::kFree);
   auto thread_loop =
       PartitionLoop(par_op->GetRoot(), T.thread_var, analyzer, par_op->GetLoopLayout());
-
   auto vectorized_thread_loop = VectorizeLoop(thread_loop);
   if (par_op->GetPredicate(T.thread_var).defined()) {
     return IfThenElse(par_op->GetPredicate(T.thread_var).value(), vectorized_thread_loop);
-  } else {
-    return vectorized_thread_loop;
   }
+
   return vectorized_thread_loop;
 }
 

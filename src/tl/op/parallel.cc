@@ -36,6 +36,44 @@ namespace tl {
 
 using namespace tir;
 
+class IfBufferRemapLoopGenerator : public StmtExprMutator {
+ public:
+  static For run(Stmt stmt, Map<Buffer, Buffer> buffer_remap,
+                 Map<Buffer, Layout> layout_map) {
+    IfBufferRemapLoopGenerator generator(buffer_remap, layout_map);
+    return Downcast<For>(generator(std::move(stmt)));
+  }
+
+ private:
+  IfBufferRemapLoopGenerator(Map<Buffer, Buffer> buffer_remap, Map<Buffer, Layout> layout_map)
+      : buffer_remap_(buffer_remap), layout_map_(layout_map) {}
+
+  PrimExpr VisitExpr_(const BufferLoadNode* op) final {
+    auto load = Downcast<BufferLoad>(StmtExprMutator::VisitExpr_(op));
+
+    if (buffer_remap_.count(load->buffer)) {
+      auto new_indices = layout_map_[load->buffer]->Forward(load->indices);
+      auto new_buffer = buffer_remap_[load->buffer];
+
+      return BufferLoad(new_buffer, new_indices);
+    }
+    return load;
+  }
+
+  Stmt VisitStmt_(const BufferStoreNode* op) final {
+    auto store = Downcast<BufferStore>(StmtExprMutator::VisitStmt_(op));
+    if (buffer_remap_.count(store->buffer)) {
+      auto new_indices = layout_map_[store->buffer]->Forward(store->indices);
+      auto new_buffer = buffer_remap_[store->buffer];
+      return BufferStore(new_buffer, store->value, new_indices);
+    }
+    return store;
+  }
+
+  Map<Buffer, Buffer> buffer_remap_;
+  Map<Buffer, Layout> layout_map_;
+};
+
 void ParallelLoopNestVisitor::VisitStmt_(const ForNode* op) {
   ICHECK(op->kind == ForKind::kParallel);
   p->loop_vars_.push_back(IterVar(Range(op->min, op->extent), op->loop_var, IterVarType::kDataPar));
@@ -118,7 +156,10 @@ LayoutMap ParallelOp::InferLayout(const LayoutInferArgs& T, InferLevel level) {
         AddPredicate(EQ(rep, 0));
       }
     } else {
-      int vector_size = GetVectorizeSize(root_);
+      // Vectorize Size must be aware of the buffer_remap
+      // As the pass will do post processing to the layout
+      auto maybe_remapped_root_ = IfBufferRemapLoopGenerator::run(root_, T.buffer_remap, T.layout_map);
+      int vector_size = GetVectorizeSize(maybe_remapped_root_);
 
       // Check if coalesced_width is defined
       if (auto coalesced_width = root_->annotations.Get(tir::attr::coalesced_width)) {

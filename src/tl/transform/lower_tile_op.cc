@@ -119,8 +119,6 @@ class LowerTileOpPass : arith::IRMutatorWithAnalyzer {
 
     auto dim = buffer->shape.size();
     auto buffer_row_size = buffer->shape[dim - 1].as<IntImmNode>()->value;
-    // auto buffer_col_size = buffer->shape[dim - 2].as<IntImmNode>()->value;
-
     return buffer_row_size;
   }
 
@@ -201,7 +199,6 @@ class LowerTileOpPass : arith::IRMutatorWithAnalyzer {
         new_call->args.Set(6, IntImm(smem_offset->dtype, 0));
       }
     } else if (call->op.same_as(builtin::mma_store())) {
-      // TODO(yixin): mma_store is not fully tested yet
       // because we will directly store result to Buffer instead of calling mma_store now
       auto access_ptr = call->args[2];
       auto new_access_ptr = HandleAccessPtrAndOffset(access_ptr, NullOpt, call->dtype);
@@ -229,7 +226,6 @@ class LowerTileOpPass : arith::IRMutatorWithAnalyzer {
 
   Stmt VisitStmt_(const BufferStoreNode* op) final {
     auto store = Downcast<BufferStore>(IRMutatorWithAnalyzer::VisitStmt_(op));
-
     if (buffer_remap_.count(store->buffer)) {
       auto new_indices = layout_map_[store->buffer]->Forward(store->indices);
       auto new_buffer = buffer_remap_[store->buffer];
@@ -252,6 +248,7 @@ class LowerTileOpPass : arith::IRMutatorWithAnalyzer {
     // Do not analysis the call node to the global function.
     if (call && call->op.as<GlobalVarNode>())
         return Downcast<Evaluate>(IRMutatorWithAnalyzer::VisitStmt_(op));
+
     auto tile_op = ParseOperator(GetRef<Stmt>(op), buffer_data_to_buffer_);
     if (tile_op == nullptr) return IRMutatorWithAnalyzer::VisitStmt_(op);
     AddWorkspaceCallback callback = [this](int num_elem, DataType dtype) {
@@ -259,6 +256,7 @@ class LowerTileOpPass : arith::IRMutatorWithAnalyzer {
       workspaces_.push_back(workspace);
       return workspace.access_ptr(2);  // write
     };
+
     auto lowered = tile_op->Lower(
         LowerArgs{target_, thread_block_size_, thread_var_, callback, layout_map_, buffer_remap_},
         analyzer_);

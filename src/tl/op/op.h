@@ -72,6 +72,7 @@ struct LayoutInferArgs {
   Target target;
   size_t block_size;
   LayoutMap layout_map;
+  Map<Buffer, Buffer> buffer_remap;
 };
 
 struct CanonializeArgs {
