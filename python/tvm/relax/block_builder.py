@@ -17,6 +17,7 @@
 # pylint: disable=no-else-return, invalid-name, unused-argument, import-outside-toplevel
 """Developer API of constructing Relax AST."""
 
+from functools import partial
 from typing import Any, Callable, Dict, List, Optional, Sequence, Union
 
 import tvm
@@ -164,7 +165,7 @@ class BlockBuilder(Object):
         # Which functions are currently being defined
         self._func_stack: List[FunctionScope] = []
         self.__init_handle_by_constructor__(_ffi_api.BlockBuilderCreate, mod)  # type: ignore
-        self._analyzer = Analyzer(_ffi_api.BlockBuilderGetAnalyzer(self))
+        self._analyzer = Analyzer(partial(_ffi_api.BlockBuilderGetAnalyzer, self))
 
     def _begin_dataflow_block(self) -> None:
         _ffi_api.BlockBuilderBeginDataflowBlock(self)  # type: ignore
