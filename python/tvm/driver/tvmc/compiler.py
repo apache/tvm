@@ -482,7 +482,7 @@ def compile_model(
                             dumps[smod.type_key] += "\n"
                         dumps[smod.type_key] += smod.get_source()
                     except tvm.TVMError:
-                        pass
+                        print(f"Imported module {smod.type_key} doesn't support source dump")
 
         # Create a new tvmc model package object from the graph definition.
         package_path = tvmc_model.export_package(
