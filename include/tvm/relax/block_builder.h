@@ -30,6 +30,8 @@
 #include <tvm/relax/utils.h>
 #include <tvm/runtime/object.h>
 
+#include <string>
+
 namespace tvm {
 namespace relax {
 
