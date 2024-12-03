@@ -248,6 +248,10 @@ class LowerTileOpPass : arith::IRMutatorWithAnalyzer {
   }
 
   Stmt VisitStmt_(const EvaluateNode* op) final {
+    const CallNode* call = op->value.as<CallNode>();
+    // Do not analysis the call node to the global function.
+    if (call && call->op.as<GlobalVarNode>())
+        return Downcast<Evaluate>(IRMutatorWithAnalyzer::VisitStmt_(op));
     auto tile_op = ParseOperator(GetRef<Stmt>(op), buffer_data_to_buffer_);
     if (tile_op == nullptr) return IRMutatorWithAnalyzer::VisitStmt_(op);
     AddWorkspaceCallback callback = [this](int num_elem, DataType dtype) {

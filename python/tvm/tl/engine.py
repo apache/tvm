@@ -151,15 +151,18 @@ def detect_target(target: str = "auto") -> str:
 
 # TODO(lei): Should enhance to support IRModule with multiple functions
 def lower(
-    func, 
+    func_or_mod: Union[tir.PrimFunc, tvm.IRModule],
     target: Union[Literal["auto", "cuda", "hip"], Target]="auto", 
     target_host="llvm", 
     runtime_only=False
 ):
     # TODO(lei): Append C Source code host generation to the runtime
-    params = extrac_params(func) if not runtime_only else None
-    mod = tvm.IRModule({func.attrs["global_symbol"]: func})
-    
+    mod = func_or_mod
+    if isinstance(func_or_mod, tir.PrimFunc):
+        func = func_or_mod
+        params = extrac_params(func) if not runtime_only else None
+        mod = tvm.IRModule({func.attrs["global_symbol"]: func})
+
     if isinstance(target, str):
         target = detect_target(target)
 
@@ -172,7 +175,7 @@ def lower(
             is_cuda_available = True
         except:
             is_cuda_available = False
-        
+
         try:
             rocm.find_rocm_path()
             is_hip_available = True

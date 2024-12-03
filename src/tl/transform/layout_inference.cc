@@ -141,6 +141,9 @@ class BufferUseDefCollector : public StmtExprVisitor {
  private:
   void VisitExpr_(const CallNode* op) final {
     StmtExprVisitor::VisitExpr_(op);
+    // Do not analysis the call node to the global function.
+    if (op->op.as<GlobalVarNode>()) return;
+
     auto p = ParseOperator(GetRef<Call>(op), buffer_data_to_buffer_);
     if (p != nullptr) {
       for (const auto& arg : op->args) {
@@ -279,7 +282,7 @@ class LayoutInferencer : public IRMutatorWithAnalyzer {
 
 tvm::transform::Pass LayoutInference() {
   using namespace tir::transform;
-  auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
+  auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {    
     return LayoutInferencer::Substitute(std::move(f));
   };
   return CreatePrimFuncPass(pass_func, 0, "tl.LayoutInference", {});
