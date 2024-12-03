@@ -327,6 +327,56 @@ static std::vector<int> GetTransposeAxisOrder(const Call& call, int ndim) {
 }
 
 /*!
+ * \brief SimplifyClipCastClip matches the pattern clip->cast->clip and fuse clips based on Clip
+ *    min/max values.
+ *
+ * Example:
+ *   %1 = clip(%0, a_min=0f, a_max=255f) [type=int32]
+ *   %2 = cast(%1, dtype="uint8") [type=uint8]
+ *   %3 = clip(%2, a_min=20f, a_max=66f) [type=uint8]
+ *
+ * Optimized to (fuse Clips):
+ *   %1 = clip(%0, a_min=20f, a_max=66f) [type=int32]
+ *   %2 = cast(%1, dtype="uint8") [type=uint8]
+ */
+class SimplifyClipCastClip : public DFPatternRewrite {
+ public:
+  SimplifyClipCastClip() {
+    data_ = IsWildcard();
+    clip1_ = IsOp("clip")({data_});
+    cast_ = IsOp("cast")({clip1_});
+    pattern_ = IsOp("clip")({cast_});
+  }
+
+  Expr Callback(const Expr& pre, const Expr& post,
+                const Map<DFPattern, Array<Expr>>& node_map) const override {
+    auto clip1 = Downcast<Call>(node_map[clip1_][0]);
+    const CallNode* clip1_node = clip1.as<CallNode>();
+    const ClipAttrs* clip1_attrs = clip1_node->attrs.as<ClipAttrs>();
+
+    auto cast = Downcast<Call>(node_map[cast_][0]);
+    const CallNode* cast_node = cast.as<CallNode>();
+    DataType cast_type = Downcast<TensorType>(cast_node->checked_type())->dtype;
+
+    auto clip2 = Downcast<Call>(post);
+    const CallNode* clip2_node = clip2.as<CallNode>();
+    const ClipAttrs* clip2_attrs = clip2_node->attrs.as<ClipAttrs>();
+
+    auto data = node_map[data_][0];
+    auto clip_fuse_attrs = make_object<ClipAttrs>();
+    clip_fuse_attrs->a_min =
+        (clip1_attrs->a_min < clip2_attrs->a_min) ? clip2_attrs->a_min : clip1_attrs->a_min;
+    clip_fuse_attrs->a_max =
+        (clip1_attrs->a_max < clip2_attrs->a_max) ? clip1_attrs->a_max : clip2_attrs->a_max;
+    Expr clip_fuse = Call(Op::Get("clip"), {data}, Attrs(clip_fuse_attrs), {});
+    return MakeCast(clip_fuse, cast_type);
+  }
+
+ protected:
+  DFPattern data_, clip1_, cast_;
+};
+
+/*!
  * \brief SimplifyTranspose matches the pattern of consecutive transpose op,
  *   and merges or cancels them.
  */
@@ -1120,6 +1170,7 @@ Expr SimplifyExpr(const Expr& expr, const IRModule& mod) {
   composer.AddRewrite<SimplifyDQArgSort>();
   composer.AddRewrite<SimplifyClipAndConsecutiveCast>();
   composer.AddRewrite<SimplifyClip>();
+  composer.AddRewrite<SimplifyClipCastClip>();
   composer.AddRewrite<SimplifyBinomial>();
   return RewritePatterns(composer.MakeCallbacks(), expr, mod);
 }
@@ -1134,6 +1185,7 @@ Expr SimplifyExprPostAlterOp(const Expr& expr, const IRModule& mod) {
   composer.AddRewrite<SimplifyConsecutiveCast>();
   composer.AddRewrite<SimplifyClipAndConsecutiveCast>();
   composer.AddRewrite<SimplifyClip>();
+  composer.AddRewrite<SimplifyClipCastClip>();
   return RewritePatterns(composer.MakeCallbacks(), expr, mod);
 }
 
