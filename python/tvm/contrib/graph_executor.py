@@ -173,7 +173,9 @@ class GraphModule(object):
         self._get_input = module["get_input"]
         self._get_num_outputs = module["get_num_outputs"]
         self._get_input_index = module["get_input_index"]
+        self._get_output_index = module["get_output_index"]
         self._get_input_info = module["get_input_info"]
+        self._get_output_info = module["get_output_info"]
         self._get_num_inputs = module["get_num_inputs"]
         self._load_params = module["load_params"]
         self._share_params = module["share_params"]
@@ -315,6 +317,21 @@ class GraphModule(object):
         """
         return self._get_input_index(name)
 
+    def get_output_index(self, name):
+        """Get outputs index via output name.
+
+        Parameters
+        ----------
+        name : str
+           The output key name
+
+        Returns
+        -------
+        index: int
+            The output index. -1 will be returned if the given output name is not found.
+        """
+        return self._get_output_index(name)
+
     def get_input_info(self):
         """Return the 'shape' and 'dtype' dictionaries of the graph.
 
@@ -338,6 +355,24 @@ class GraphModule(object):
         shape_dict = input_info["shape"]
         assert "dtype" in input_info
         dtype_dict = input_info["dtype"]
+
+        return shape_dict, dtype_dict
+
+    def get_output_info(self):
+        """Return the 'shape' and 'dtype' dictionaries of the graph.
+
+        Returns
+        -------
+        shape_dict : Map
+            Shape dictionary - {output_name: tuple}.
+        dtype_dict : Map
+            dtype dictionary - {output_name: dtype}.
+        """
+        output_info = self._get_output_info()
+        assert "shape" in output_info
+        shape_dict = output_info["shape"]
+        assert "dtype" in output_info
+        dtype_dict = output_info["dtype"]
 
         return shape_dict, dtype_dict
 

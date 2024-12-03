@@ -210,6 +210,8 @@ static const TVMBackendPackedCFunc aot_executor_registry_funcs[] = {
     &TVMAotExecutorModule_NotImplemented,  // set_input (implemented via python wrapper)
     &TVMAotExecutorModule_NotImplemented,  // share_params (do not implement)
     &TVMAotExecutorModule_GetInputName,    // get_input_name
+    &TVMAotExecutorModule_NotImplemented,  // get_output_index
+    &TVMAotExecutorModule_NotImplemented,  // get_output_info
 };
 
 static const TVMFuncRegistry aot_executor_registry = {
@@ -223,7 +225,9 @@ static const TVMFuncRegistry aot_executor_registry = {
     "run\0"
     "set_input\0"
     "share_params\0"
-    "get_input_name\0",
+    "get_input_name\0"
+    "get_output_index\0"
+    "get_output_info\0",
     aot_executor_registry_funcs};
 
 tvm_crt_error_t TVMAotExecutorModule_Register() {
