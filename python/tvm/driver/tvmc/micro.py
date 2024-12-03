@@ -46,7 +46,7 @@ except (ImportError, NameError):
 
 
 @register_parser
-def add_micro_parser(subparsers, main_parser, json_params):
+def add_micro_parser(subparsers, main_parser, json_params, argv):
     """Includes parser for 'micro' context and associated subcommands:
     create-project (create), build, and flash.
     """
@@ -163,7 +163,7 @@ def add_micro_parser(subparsers, main_parser, json_params):
 
     disposable_parser = TVMCSuppressedArgumentParser(main_parser)
     try:
-        known_args, _ = disposable_parser.parse_known_args()
+        known_args, _ = disposable_parser.parse_known_args(argv)
     except TVMCException:
         return
 
