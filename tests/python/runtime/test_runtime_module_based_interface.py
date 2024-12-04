@@ -54,7 +54,7 @@ def verify(data):
 
 
 @tvm.testing.requires_llvm
-@pytest.mark.parametrize("target", ["llvm", "llvm -jit=orcjit"])
+@pytest.mark.parametrize("target", ["llvm", "llvm -jit=mcjit"])
 def test_legacy_compatibility(target):
     mod, params = relay.testing.synthetic.get_workload()
     with relay.build_config(opt_level=3):
@@ -70,7 +70,7 @@ def test_legacy_compatibility(target):
 
 
 @tvm.testing.requires_llvm
-@pytest.mark.parametrize("target", ["llvm", "llvm -jit=orcjit"])
+@pytest.mark.parametrize("target", ["llvm", "llvm -jit=mcjit"])
 def test_cpu(target):
     mod, params = relay.testing.synthetic.get_workload()
     with relay.build_config(opt_level=3):
@@ -113,7 +113,7 @@ def test_cpu_get_graph_json():
 
 
 @tvm.testing.requires_llvm
-@pytest.mark.parametrize("target", ["llvm", "llvm -jit=orcjit"])
+@pytest.mark.parametrize("target", ["llvm", "llvm -jit=mcjit"])
 def test_cpu_get_graph_params_run(target):
     mod, params = relay.testing.synthetic.get_workload()
     with tvm.transform.PassContext(opt_level=3):
@@ -592,7 +592,7 @@ def test_remove_package_params():
 
 
 @tvm.testing.requires_llvm
-@pytest.mark.parametrize("target", ["llvm", "llvm -jit=orcjit"])
+@pytest.mark.parametrize("target", ["llvm", "llvm -jit=mcjit"])
 def test_debug_graph_executor(target):
     mod, params = relay.testing.synthetic.get_workload()
     with relay.build_config(opt_level=3):

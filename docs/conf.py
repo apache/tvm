@@ -159,7 +159,9 @@ BUTTON = (
 
 
 @monkey_patch("sphinx_gallery.gen_rst", "save_rst_example")
-def save_rst_example(example_rst, example_file, time_elapsed, memory_used, gallery_conf, real_func):
+def save_rst_example(
+    example_rst, example_file, time_elapsed, memory_used, gallery_conf, language, real_func
+):
     """Monkey-patch save_rst_example to include the "Open in Colab" button."""
 
     # The url is the md5 hash of the notebook path.
@@ -178,7 +180,9 @@ def save_rst_example(example_rst, example_file, time_elapsed, memory_used, galle
         python_file=example_fname, ref_name=ref_fname, colab_url=colab_url, button_svg=BUTTON
     )
     with patch("sphinx_gallery.gen_rst.EXAMPLE_HEADER", new_header):
-        real_func(example_rst, example_file, time_elapsed, memory_used, gallery_conf)
+        real_func(
+            example_rst, example_file, time_elapsed, memory_used, gallery_conf, language=language
+        )
 
 
 INCLUDE_DIRECTIVE_RE = re.compile(r"^([ \t]*)\.\. include::\s*(.+)\n", flags=re.M)
@@ -365,10 +369,7 @@ html_theme = os.environ.get("TVM_THEME", "rtd")
 on_rtd = os.environ.get("READTHEDOCS", None) == "True"
 # only import rtd theme and set it if want to build docs locally
 if not on_rtd and html_theme == "rtd":
-    import sphinx_rtd_theme
-
     html_theme = "sphinx_rtd_theme"
-    html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,

@@ -82,8 +82,8 @@ def verify_matmul_add_igemm(in_dtype, out_dtype, rtol=1e-5):
         b_old = np.random.uniform(0, 128, size=(l, m))
 
         # Transform a to become CUBLASLT_ORDER_COL4_4R2_8C layout
-        a_new = np.hstack((a_old.astype(A.dtype), np.zeros([n, L - l])))
-        a_new = np.vstack((a_new.astype(A.dtype), np.zeros([N - n, L])))
+        a_new = np.hstack([a_old.astype(A.dtype), np.zeros([n, L - l])])
+        a_new = np.vstack([a_new.astype(A.dtype), np.zeros([N - n, L])])
         a_even = np.vsplit(a_new[::2], N / 8)
         a_odd = np.vsplit(a_new[1::2], N / 8)
         a_new = [None] * (len(a_even) + len(a_odd))
@@ -91,13 +91,17 @@ def verify_matmul_add_igemm(in_dtype, out_dtype, rtol=1e-5):
         a_new[1::2] = a_odd
         a_new = np.vstack(a_new)
         a_new = np.vstack(
-            np.vstack(np.vstack(np.hsplit(i, 8)).reshape([4, 32]) for i in np.vsplit(j, N / 4))
-            for j in np.hsplit(a_new, L / 32)
+            [
+                np.vstack(
+                    [np.vstack(np.hsplit(i, 8)).reshape([4, 32]) for i in np.vsplit(j, N / 4)]
+                )
+                for j in np.hsplit(a_new, L / 32)
+            ]
         )
         a_new = a_new.reshape([N, L])
         # Transform b to become CUBLASLT_ORDER_COL32 layout
         b_new = np.vstack(
-            np.hsplit(np.hstack((b_old.T.astype(B.dtype), np.zeros([m, L - l]))), L / 32)
+            np.hsplit(np.hstack([b_old.T.astype(B.dtype), np.zeros([m, L - l])]), L / 32)
         )
         b_new = b_new.reshape([m, L])
 
