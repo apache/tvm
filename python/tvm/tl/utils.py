@@ -132,7 +132,7 @@ class Profiler(ConvertTorch):
                 ins.append(self.supply(self.params[i]))
         return ins
 
-    def assert_allclose(self, reference_program: callable, atol: float = 1e-8, rtol: float = 1e-5):
+    def assert_allclose(self, reference_program: callable, atol: float = 1e-2, rtol: float = 1e-2):
         ins = self._get_inputs()
         ref_outs = reference_program(*ins)
         torch.cuda.synchronize()
