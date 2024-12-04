@@ -33,7 +33,10 @@ import tvm.te as te
 import tvm
 import networkx as nx
 import matplotlib.pyplot as plt
-from tvm.relay import ExprVisitor
+from ...relay.expr_functor import ExprVisitor
+import uuid
+from ...tir import *
+from pyvis.network import Network
 
 
 try:
@@ -48,18 +51,40 @@ xgb = None
 
 logger = logging.getLogger("auto_scheduler")
 
-class GraphBuilder(ExprVisitor):
-    def __init__(self):
-        super().__init__()
-        self.graph = nx.DiGraph()  # Create a directed graph
-        self.current_node = None  # To keep track of the current node being visited
+def extract_attr_stmt_features(node: AttrStmt) -> List[float]:
+    # Extract features from AttrStmt
+    return [len(node.attr_key), len(node.value), len(node.body)]
 
-    def visit(self, expr):
-        # to start just print the type of the expression
-        print(type(expr))
-        super().visit(expr)
+def extract_int_imm_features(node: IntImm) -> List[float]:
+    # Extract features from IntImm
+    return [node.value]
 
-class GNNCostModel(PythonBasedModel):
+def extract_allocate_features(node: Allocate) -> List[float]:
+    # Extract features from Allocate
+    return [len(node.buffer_var), len(node.dtype), len(node.extents)]
+
+def extract_seq_stmt_features(node: SeqStmt) -> List[float]:
+    # Extract features from SeqStmt
+    return [len(node.seq)]
+
+def extract_for_features(node: For) -> List[float]:
+    # Extract features from For
+    return [len(node.loop_var), node.min.value, node.extent.value, node.kind]
+
+def extract_buffer_store_features(node: BufferStore) -> List[float]:
+    # Extract features from BufferStore
+    return [len(node.buffer), len(node.indices)]
+
+def extract_float_imm_features(node: FloatImm) -> List[float]:
+    # Extract features from FloatImm
+    return [node.value]
+
+def extract_call_features(node: Call) -> List[float]:
+    # Extract features from Call
+    return [len(node.args), len(node.dtype)]
+
+
+class GNNModel(PythonBasedModel):
     """Train a GNN model that learns from the AST representation of a TIR program
     and predicts the performance of the program.
 
@@ -201,20 +226,49 @@ class GNNCostModel(PythonBasedModel):
         print(type(task))
         task: SearchTask
 
-
         # we will convert the AST into a networkx graph
         graph = nx.DiGraph()
-        
-    
+        parent_stack = []
+        types = []
 
-        ## node visiting using tvm.tir.stmt_functor.post_order_visit
-        def visit_node(op):
-            """Split can vectorize the loops found in `find_width8`."""
+        def preorder(node):
+            current_node_id = graph.number_of_nodes()
+            current_node_content = str(node)
+            # Add the current node to the graph if it's not already present
+            if node not in graph:
+                if type(node) not in types:
+                    types.append(type(node))
+                graph.add_node(str(current_node_id), title=current_node_content)
+            # If there's a parent, add an edge from the parent to the current node
+            if parent_stack:
+                parent = parent_stack[-1]
+                graph.add_edge(str(current_node_id), str(parent))
+            # Push the current node onto the stack
+            parent_stack.append(str(current_node_id))
+
+            # Return None to continue recursion
+            return None
+
+        def postorder(node):
+            # Pop the current node off the stack after processing
+            if parent_stack:
+                parent_stack.pop()
+
+            # Return None to continue postorder processing
             return None
 
         @tvm.tir.transform.prim_func_pass(opt_level=0)
         def ast_extractor(f, mod, ctx):
-            tvm.tir.stmt_functor.post_order_visit(f.body, visit_node)
+            # clear the graph
+            graph.clear()
+            # clear the parent stack
+            parent_stack.clear()
+            
+            # add in root node to graph and parent stack
+            graph.add_node("root")
+            parent_stack.append("root")
+            
+            tvm.tir.stmt_functor.ir_transform(f.body, preorder, postorder)
             return f
 
         for state in states:
@@ -222,15 +276,32 @@ class GNNCostModel(PythonBasedModel):
             schedule, args = task.compute_dag.apply_steps_from_state(state)
             schedule: te.Schedule
 
-            #   with tvm.transform.PassContext(config={"tir.add_lower_pass": [(3, ast_extractor)]}):
-            mod: tvm.ir.module.IRModule = tvm.lower(schedule, args)
-            
-            ## node visiting using ExprVisitor
-            visitor = GraphBuilder()
-            visitor.visit(mod["main"])
-            
-            print('exiting')
-            exit()
+            with tvm.transform.PassContext(config={"tir.add_lower_pass": [(3, ast_extractor)]}):
+                mod: tvm.ir.module.IRModule = tvm.lower(schedule, args)
+                
+                # print the graph
+                print(graph)
+                print(types)
+                print("LEN TYPES:", len(types))
+                # visualize the graph
+                # nx.draw(graph, with_labels=True)
+                nt = Network('100%', '100%', directed=True, notebook=False)
+                nt.show_buttons(filter_=['physics'])
+                
+                nt.options.physics.use_repulsion = True
+                
+                nt.from_nx(graph)
+                nt.show("graph" + str(uuid.uuid4()) + ".html")
+
+                # plt.savefig("graph" + str(uuid.uuid4()) + ".png")
+                # clear the graph
+                graph.clear()
+                # clear the parent stack
+                parent_stack.clear()
+                types.clear()
+                
+        print('exiting')
+        exit(-1)
 
 
         features = get_per_store_features_from_states(states, task)
