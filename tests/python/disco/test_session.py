@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Basic tests for a Disco session"""
+
 # pylint: disable=missing-docstring
 import tempfile
 
@@ -260,7 +261,6 @@ def test_vm_multi_func(session_kind):
         def transpose_1(
             A: R.Tensor((8, 16), dtype="float32")
         ) -> R.Tensor((16, 8), dtype="float32"):
-            R.func_attr({"global_symbol": "transpose_1"})
             cls = TestMod
             with R.dataflow():
                 B = R.call_tir(cls.t1, (A,), out_sinfo=R.Tensor((16, 8), dtype="float32"))
@@ -271,7 +271,6 @@ def test_vm_multi_func(session_kind):
         def transpose_2(
             A: R.Tensor((16, 8), dtype="float32")
         ) -> R.Tensor((8, 16), dtype="float32"):
-            R.func_attr({"global_symbol": "transpose_2"})
             cls = TestMod
             with R.dataflow():
                 B = R.call_tir(cls.t2, (A,), out_sinfo=R.Tensor((8, 16), dtype="float32"))

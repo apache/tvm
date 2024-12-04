@@ -39,6 +39,7 @@ TEST_FILES=(
   "auto_scheduler"
   "autotvm"
   "codegen"
+  "disco"
   "ir"
   "meta_schedule"
   "micro"
