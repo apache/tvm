@@ -19,13 +19,16 @@
 """Cost model based on xgboost"""
 import multiprocessing
 import logging
+import multiprocessing.context
 import multiprocessing.pool
 from typing import Dict, List, Tuple
 from collections import defaultdict
 import time
+import json
 
 import numpy as np
 
+import tvm.auto_scheduler
 from tvm.autotvm.tuner.metric import max_curve
 from .cost_model import PythonBasedModel
 from ..feature import get_per_store_features_from_measure_pairs, get_per_store_features_from_states
@@ -39,10 +42,9 @@ from ...relay.expr_functor import ExprVisitor
 from ..search_task import SearchTask
 from ..loop_state import State
 import uuid
-from ...tir import *
+
+from ..measure import MeasureInput
 from pyvis.network import Network
-from concurrent.futures import ProcessPoolExecutor
-from pathos.multiprocessing import ProcessingPool
 
 try:
     from xgboost.callback import TrainingCallback  # type: ignore
@@ -67,8 +69,10 @@ def vizgraph(graph: nx.DiGraph):
 def node2vec():
     pass
 
-def gnn_feature_extractor_tup(task_state: Tuple):
-    gnn_feature_extractor(task_state[0], task_state[1])
+def gnn_feature_extractor_tup(ser):
+    minput: MeasureInput = MeasureInput.deserialize(ser)
+
+    gnn_feature_extractor(minput.task, minput.state)
     
 def gnn_feature_extractor(task: SearchTask, state: State):
     graph = nx.DiGraph()
@@ -124,10 +128,16 @@ def gnn_feature_extractor(task: SearchTask, state: State):
 
 def get_gnn_features(task: SearchTask, states: List[State]):
     # parallel process all the states
-    args = list(zip([task]*len(states), states))
+    args = list(zip([(task)]*len(states), states))
     
-    with ProcessingPool() as pool:
-        features = list(pool.map(gnn_feature_extractor_tup, args))
+    # make measureinputs
+    inputs = [MeasureInput(task, s).serialize() for s in states]
+    
+    
+    # ctx = multiprocessing.get_context('fork')
+
+    with multiprocessing.pool.Pool(multiprocessing.cpu_count()) as executor:
+        features = list(executor.map(gnn_feature_extractor_tup, inputs))
     
     return features
 
