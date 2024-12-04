@@ -353,6 +353,138 @@ export class ArtifactIndexedDBCache implements ArtifactCacheTemplate {
   }
 }
 
+/**
+ * Cache by storing results as files in OPFS file system
+ * https://developer.mozilla.org/en-US/docs/Web/API/File_System_API/Origin_private_file_system
+ */
+export class ArtifactOPFSCache implements ArtifactCacheTemplate {
+  private dirName?: string;
+  private fileVersion = 1;
+  private dirHandle: FileSystemDirectoryHandle | null = null;
+
+  constructor(dirName: string) {
+    // use the version suffix to allow upgrade if needed
+    this.dirName = `${dirName}-v${this.fileVersion}`;
+  }
+
+  /**
+   * Init the OPFS directory and file handlers if not created
+   */
+  private async initOPFS() {
+    const opfsRoot = await navigator.storage.getDirectory()
+    this.dirHandle = await opfsRoot.getDirectoryHandle(this.dirName, {create: true})
+  }
+
+  private resolveFileName(url: string) {
+    // TODO: a method that creates a valid filename from url
+    return `${url}`
+  }
+
+  private async isUrlInDir(url: string) {
+    const fileName = this.resolveFileName(url);
+    try {
+      await this.dirHandle?.getFileHandle(fileName)
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  private async getFromCache(url: string, storetype?: string): Promise<any> {
+    const fileName = await this.resolveFileName(url)
+    const fileHandle = await this.dirHandle?.getFileHandle(fileName)
+    const file = await fileHandle.getFile()
+    if (storetype === "json") {
+      const text = await file.text()
+      return JSON.parse(text)
+    }
+    if (storetype === "arraybuffer") {
+      const buffer = await file.arrayBuffer()
+      return buffer;
+    }
+    return null
+  }
+
+  async addToFileSystem(url: string, response: any, storetype?: string) {
+    await this.initOPFS();
+    const fileName: string = this.resolveFileName(url)
+    let data: any;
+    // OPFS, similarly to IndexedDB, stores the actual data object, so we convert reponse here.
+    if (storetype != undefined) {
+      if (storetype.toLowerCase() === "json") {
+        data = await response.json();
+      } else if (storetype.toLocaleLowerCase() === "arraybuffer") {
+        data = await response.arrayBuffer();
+      } else {
+        throw Error("Unsupported storetyp for IndexedDB: " + storetype);
+      }
+    }
+    const fileHandle = await this.dirHandle.getFileHandle(fileName, {create: true})
+    const writable = await fileHandle.createWritable()
+    await writable.write({
+      type: "write",
+      // store json as string, otherwise store data as binary
+      data: storetype === "json" ? JSON.stringify(data) : data
+    })
+  }
+
+  async addToCache(url: string, storetype?: string, signal?: AbortSignal): Promise<void> {
+    await this.initOPFS(); // await the initOPFS process
+    // If already cached, nothing to do
+    const isInFS = await this.isUrlInDir(url);
+    if (isInFS) {
+      return;
+    }
+    try {
+      const response = await fetch(url, signal ? { signal } : undefined);
+      if (!response.ok) {
+        throw new Error('Network response was not ok');
+      }
+      const response_copy = response.clone();
+      await this.addToFileSystem(url, response_copy, storetype);
+    } catch (error) {
+      throw Error("Failed to store " + url + " with error: " + error);
+    }
+  }
+
+  async fetchWithCache(url: string, storetype?: string, signal?: AbortSignal): Promise<any> {
+    await this.addToCache(url, storetype, signal);
+    let result = await this.getFromCache(url, storetype);
+    if (result === null) {
+      // previously null data in cache or somehow failed to add to cache, delete and retry
+      await this.deleteInCache(url);
+      await this.addToCache(url, storetype);
+      result = await this.getFromCache(url, storetype);
+    }
+    if (result != null && typeof result === "object" && "data" in result) {
+      // `storetype` not used here because the data stored in indexedDB is already in that type
+      return result.data;
+    }
+    throw Error("ArtifactIndexedDBCache failed to fetch: " + url);
+  }
+
+  async hasAllKeys(keys: string[]): Promise<boolean> {
+    await this.initOPFS(); // Ensure the FS is initialized
+    for (const url in keys) {
+      const exists = await this.isUrlInDir(url)
+      // return false on 1st missing key
+      if (!exists) {
+        return false
+      }
+    }
+    // if didn't return false it means all urls are in cache
+    return true
+  }
+
+  async deleteInCache(url: string) {
+    await this.initOPFS(); // Make sure the FS is initalized
+    const fileName = await this.resolveFileName(url)
+    if (this.isUrlInDir(url)) {
+      this.dirHandle.removeEntry(fileName)
+    }
+    return;
+  }
+}
 
 /**
  * Function to check if NDarray is in Cache or not
