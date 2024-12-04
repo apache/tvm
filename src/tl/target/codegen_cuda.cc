@@ -1101,7 +1101,15 @@ void CodeGenTileLangCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
 }
 
 void CodeGenTileLangCUDA::VisitStmt_(const AttrStmtNode* op) {
-  if (op->attr_key == tir::attr::async_commit_queue_scope) {
+  if (op->attr_key == tir::attr::fragment_shape) {
+    const VarNode* buffer = op->node.as<VarNode>();
+    const StringImmNode* shape_str = op->value.as<StringImmNode>();
+    fragment_shapes[buffer] = shape_str->value;
+  } else if (op->attr_key == tir::attr::fragment_layout) {
+    const VarNode* buffer = op->node.as<VarNode>();
+    const StringImmNode* layout_str = op->value.as<StringImmNode>();
+    fragment_layouts[buffer] = layout_str->value;
+  } else if (op->attr_key == tir::attr::async_commit_queue_scope) {
     const IntImmNode* queue_id = op->value.as<IntImmNode>();
     ICHECK(queue_id && queue_id->value == 0) << "For CUDA, the index of an async queue must be 0.";
     this->VisitStmt(op->body);
@@ -1136,15 +1144,34 @@ void CodeGenTileLangCUDA::VisitStmt_(const AllocateNode* op) {
 
   this->PrintIndent();
   std::string scope = GetPtrStorageScope(op->buffer_var);
-  PrintStorageScope(scope, stream);
-  PrintType(op->dtype, stream);
+  const VarNode* buffer = op->buffer_var.as<VarNode>();
+  if (scope.find("wmma.") == 0) {
+    if (scope == "wmma.matrix_a" || scope == "wmma.matrix_b") {
+      ICHECK(op->dtype == DataType::Float(16) || op->dtype == DataType::Int(8) ||
+             op->dtype == DataType::UInt(8) || op->dtype == DataType::Int(4) ||
+             op->dtype == DataType::UInt(4) || op->dtype == DataType::Int(1) ||
+             op->dtype == DataType::BFloat(16))
+          << "Matrix_a and matrix_b only support half or char or unsigned char "
+          << "or uint4 or int4 or int1 type for now";
+    } else {
+      ICHECK(op->dtype == DataType::Float(16) || op->dtype == DataType::Float(32) ||
+             op->dtype == DataType::Int(32))
+          << "Accumulator only support half, float and int type for now";
+    }
+    PrintWmmaScope(scope, op->dtype, buffer, stream);
+  } else{
+    PrintStorageScope(scope, stream);
+    PrintType(op->dtype, stream);
+  }
 
   if (scope == "shared.dyn") {
     stream << ' ' << vid << "[];\n";
   } else {
     size_t constant_size = op->ConstantAllocationSize();
     ICHECK_GT(constant_size, 0) << "Can only handle constant size stack allocation for now";
-
+    if (scope.find("wmma.") == 0) {
+      constant_size = GetWmmaFragmentSize(scope, buffer, constant_size);
+    }
     if ((op->dtype == DataType::Int(4) || op->dtype == DataType::UInt(4) ||
          op->dtype == DataType::Int(1)) &&
         scope == "shared") {
@@ -1159,7 +1186,7 @@ void CodeGenTileLangCUDA::VisitStmt_(const AllocateNode* op) {
 
 void CodeGenTileLangCUDA::VisitExpr_(const RampNode* op, std::ostream& os) {
   int lanes = static_cast<int>(Downcast<IntImm>(op->lanes)->value);
-  CHECK_LE(lanes, 4) << "ValueError: Ramp of more than 4 lanes is not allowed.";
+  // CHECK_LE(lanes, 4) << "ValueError: Ramp of more than 4 lanes is not allowed.";
   os << "(make_";
   PrintType(op->dtype, os);
   os << "(";
@@ -1320,6 +1347,59 @@ inline void PrintConst(const FloatImmNode* op, std::ostream& os, CodeGenTileLang
 
 void CodeGenTileLangCUDA::VisitExpr_(const FloatImmNode* op, std::ostream& os) {  // NOLINT(*)
   PrintConst(op, os, this);
+}
+
+void CodeGenTileLangCUDA::PrintWmmaScope(const std::string& scope, DataType t,
+                                         const VarNode* variable, std::ostream& os) {
+  std::stringstream type;
+  PrintType(t, type);
+  ICHECK(fragment_shapes.count(variable)) << "Cannot find shape of the wmma fragment "
+                                          << variable->name_hint;
+  std::string shape_str = fragment_shapes.at(variable);
+  if ((t.is_int() || t.is_uint()) && t.bits() < 8 && t.lanes() == 1) {
+    type.str(std::string());
+    if (t.is_int()) {
+      if (t.bits() == 4) {
+        type << "nvcuda::wmma::experimental::precision::s4";
+      } else if (t.bits() == 1) {
+        type << "nvcuda::wmma::experimental::precision::b1";
+      } else {
+        LOG(FATAL) << "Unhandled interger type for wmma fragment!";
+      }
+    } else if (t.is_uint()) {
+      if (t.bits() == 4) {
+        type << "nvcuda::wmma::experimental::precision::u4";
+      } else {
+        LOG(FATAL) << "Unhandled interger type for wmma fragment!";
+      }
+    }
+  }
+  if (scope == "wmma.matrix_a") {
+    std::string layout_str = fragment_layouts[variable];
+    ICHECK_NE(layout_str, "") << "Layout must be defined for matrix_a";
+    os << "nvcuda::wmma::fragment<nvcuda::wmma::matrix_a, " << shape_str << ", " << type.str()
+       << ", nvcuda::wmma::" << layout_str << ">";
+  } else if (scope == "wmma.matrix_b") {
+    std::string layout_str = fragment_layouts[variable];
+    ICHECK_NE(layout_str, "") << "Layout must be defined for matrix_b";
+    os << "nvcuda::wmma::fragment<nvcuda::wmma::matrix_b, " << shape_str << ", " << type.str()
+       << ", nvcuda::wmma::" << layout_str << ">";
+  } else if (scope == "wmma.accumulator") {
+    os << "nvcuda::wmma::fragment<nvcuda::wmma::accumulator, " << shape_str << ", " << type.str()
+       << ">";
+  }
+}
+
+int32_t CodeGenTileLangCUDA::GetWmmaFragmentSize(const std::string& scope, const VarNode* variable,
+                                                 int32_t size) {
+  ICHECK(fragment_shapes.count(variable)) << "Cannot find shape of the wmma fragment "
+                                          << variable->name_hint;
+  std::string shape_str = fragment_shapes.at(variable);
+  std::pair<int32_t, int32_t> dim = GetWmmaFragmentDimSize(shape_str, scope);
+  if (dim.first * dim.second != 0)
+    return size / dim.first / dim.second;
+  else
+    return 0;
 }
 
 void CodeGenTileLangCUDA::HandleVolatileLoads(const std::string& value, const BufferLoadNode* op,

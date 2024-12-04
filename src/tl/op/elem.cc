@@ -347,10 +347,9 @@ Stmt Fill::Lower(const LowerArgs& T, arith::Analyzer* analyzer) const {
     return vectorized_thread_loop;
   } else if (dst.scope() == "local") {
     auto init_loop = MakeSIMTLoop(analyzer);
-    // CHECK(false) << "Unsupported scope " << dst.scope();
     auto vectorized_thread_loop = VectorizeLoop(init_loop);
     return vectorized_thread_loop;
-  } else{
+  } else {
     LOG(FATAL) << "Unsupported scope " << dst.scope();
   }
 

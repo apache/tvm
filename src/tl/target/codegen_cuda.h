@@ -92,6 +92,13 @@ class CodeGenTileLangCUDA final : public CodeGenC {
   // The alignment of the barrier array in shared memory
   // Set to 16 to maintain minimum alignment requirements for async bulk copy
   const int barrier_alignment_bytes_ = 16;
+
+  std::unordered_map<const VarNode*, std::string> fragment_shapes;
+  std::unordered_map<const VarNode*, std::string> fragment_layouts;
+  friend void PrintConst(const FloatImmNode* op, std::ostream& os, CodeGenTileLangCUDA* p);
+  void PrintWmmaScope(const std::string& scope, DataType t, const VarNode* variable,
+                      std::ostream& os);
+  int32_t GetWmmaFragmentSize(const std::string& scope, const VarNode* variable, int32_t size);
 };
 
 }  // namespace codegen

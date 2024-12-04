@@ -239,6 +239,7 @@ def lower(
     # of putting the LowerThreadAllreduce before
     # the Legalization.
     mod = tir.transform.ThreadPartialSync("shared.dyn")(mod)
+    mod = tir.transform.InferFragment()(mod)
     mod = tir.transform.LowerThreadAllreduce()(mod)
     mod = tl.transform.LowerHopperIntrin()(mod)
     mod = tir.transform.InjectPTXAsyncCopy()(mod)
@@ -272,7 +273,7 @@ def lower(
     device_mod = tir.transform.Simplify()(device_mod)
 
     if target.kind.name == "cuda":
-        # Debug to get the code
+        # Debug comments to get the code
         # code = tvm._ffi.get_global_func("target.build.tl_debug_codegen")(device_mod, target)
         device_mod = tvm._ffi.get_global_func("target.build.tilelang_cuda")(device_mod, target)
     elif target.kind.name == "hip":
