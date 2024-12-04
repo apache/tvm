@@ -19,8 +19,10 @@
 """Cost model based on xgboost"""
 import multiprocessing
 import logging
-from typing import Dict
+import multiprocessing.pool
+from typing import Dict, List, Tuple
 from collections import defaultdict
+import time
 
 import numpy as np
 
@@ -34,10 +36,13 @@ import tvm
 import networkx as nx
 import matplotlib.pyplot as plt
 from ...relay.expr_functor import ExprVisitor
+from ..search_task import SearchTask
+from ..loop_state import State
 import uuid
 from ...tir import *
 from pyvis.network import Network
-
+from concurrent.futures import ProcessPoolExecutor
+from pathos.multiprocessing import ProcessingPool
 
 try:
     from xgboost.callback import TrainingCallback  # type: ignore
@@ -51,38 +56,80 @@ xgb = None
 
 logger = logging.getLogger("auto_scheduler")
 
-def extract_attr_stmt_features(node: AttrStmt) -> List[float]:
-    # Extract features from AttrStmt
-    return [len(node.attr_key), len(node.value), len(node.body)]
+def vizgraph(graph: nx.DiGraph):
+    nt = Network('100%', '100%', directed=True, notebook=False)
+    nt.show_buttons(filter_=['physics'])
+    nt.options.physics.use_repulsion = True
+    nt.from_nx(graph)
+    nt.show("graph" + str(uuid.uuid4()) + ".html")
+    plt.savefig("graph" + str(uuid.uuid4()) + ".png")
 
-def extract_int_imm_features(node: IntImm) -> List[float]:
-    # Extract features from IntImm
-    return [node.value]
+def node2vec():
+    pass
 
-def extract_allocate_features(node: Allocate) -> List[float]:
-    # Extract features from Allocate
-    return [len(node.buffer_var), len(node.dtype), len(node.extents)]
+def gnn_feature_extractor_tup(task_state: Tuple):
+    gnn_feature_extractor(task_state[0], task_state[1])
+    
+def gnn_feature_extractor(task: SearchTask, state: State):
+    graph = nx.DiGraph()
+    parent_stack = []
+    types = []
 
-def extract_seq_stmt_features(node: SeqStmt) -> List[float]:
-    # Extract features from SeqStmt
-    return [len(node.seq)]
+    def preorder(node):
+        current_node_id = graph.number_of_nodes()
+        current_node_content = str(node)
+        # Add the current node to the graph if it's not already present
+        if node not in graph:
+            if type(node) not in types:
+                types.append(type(node))
+            graph.add_node(str(current_node_id), title=current_node_content)
+        # If there's a parent, add an edge from the parent to the current node
+        if parent_stack:
+            parent = parent_stack[-1]
+            graph.add_edge(str(current_node_id), str(parent))
+        # Push the current node onto the stack
+        parent_stack.append(str(current_node_id))
 
-def extract_for_features(node: For) -> List[float]:
-    # Extract features from For
-    return [len(node.loop_var), node.min.value, node.extent.value, node.kind]
+        # Return None to continue recursion
+        return None
 
-def extract_buffer_store_features(node: BufferStore) -> List[float]:
-    # Extract features from BufferStore
-    return [len(node.buffer), len(node.indices)]
+    def postorder(node):
+        # Pop the current node off the stack after processing
+        if parent_stack:
+            parent_stack.pop()
 
-def extract_float_imm_features(node: FloatImm) -> List[float]:
-    # Extract features from FloatImm
-    return [node.value]
+        # Return None to continue postorder processing
+        return None
 
-def extract_call_features(node: Call) -> List[float]:
-    # Extract features from Call
-    return [len(node.args), len(node.dtype)]
+    @tvm.tir.transform.prim_func_pass(opt_level=3)
+    def ast_extractor(f, mod, ctx):
+        # clear the graph
+        graph.clear()
+        # clear the parent stack
+        parent_stack.clear()
+        
+        # add in root node to graph and parent stack
+        graph.add_node("root")
+        parent_stack.append("root")
+        
+        tvm.tir.stmt_functor.ir_transform(f.body, preorder, postorder)
+        return f
 
+    # apply the state transformations
+    schedule, args = task.compute_dag.apply_steps_from_state(state)
+    schedule: te.Schedule
+
+    with tvm.transform.PassContext(config={"tir.add_lower_pass": [(3, ast_extractor)]}):
+        mod: tvm.ir.module.IRModule = tvm.lower(schedule, args)
+
+def get_gnn_features(task: SearchTask, states: List[State]):
+    # parallel process all the states
+    args = list(zip([task]*len(states), states))
+    
+    with ProcessingPool() as pool:
+        features = list(pool.map(gnn_feature_extractor_tup, args))
+    
+    return features
 
 class GNNModel(PythonBasedModel):
     """Train a GNN model that learns from the AST representation of a TIR program
@@ -135,6 +182,14 @@ class GNNModel(PythonBasedModel):
         self.verbose_eval = verbose_eval
         self.model_file = model_file
         self.adaptive_training = adaptive_training
+        
+        self.predictcounter = 0
+        self.predictstagecounter = 0
+        self.updatecounter = 0
+        
+        self.average_pred_time = 0
+        self.average_pred_count = 0
+        
 
         super().__init__()
 
@@ -145,12 +200,18 @@ class GNNModel(PythonBasedModel):
         self.inputs_feature_cache = []
 
     def update(self, inputs, results):
+        self.updatecounter += len(inputs)
+        print("Update ", self.updatecounter)
+        
         """Update the cost model according to new measurement results (training data).
         XGBoost does not support incremental training, so we re-train a new model every time.
         Parameters
         ----------
         inputs : List[MeasureInput]
             The measurement inputs
+            **** this containts
+            - task
+            - state
         results : List[MeasureResult]
             The measurement results
         """
@@ -207,6 +268,9 @@ class GNNModel(PythonBasedModel):
             self.save(self.model_file)
 
     def predict(self, task, states):
+        self.predictcounter += len(states)
+        print("Predict ", self.predictcounter)
+
         """Predict the scores of states
         Parameters
         ----------
@@ -220,91 +284,17 @@ class GNNModel(PythonBasedModel):
             The predicted scores for all states
         """
 
-        # print tasks and states
-        print("XGBModel: predict")
-        print("task")
-        print(type(task))
-        task: SearchTask
+        # Timing the first function call
+        start_time_gnn = time.time()
+        features = get_gnn_features(task, states)        
+        end_time_gnn = time.time()
+        print(f"Time taken for get_gnn_features: {end_time_gnn - start_time_gnn:.6f} seconds")
 
-        # we will convert the AST into a networkx graph
-        graph = nx.DiGraph()
-        parent_stack = []
-        types = []
-
-        def preorder(node):
-            current_node_id = graph.number_of_nodes()
-            current_node_content = str(node)
-            # Add the current node to the graph if it's not already present
-            if node not in graph:
-                if type(node) not in types:
-                    types.append(type(node))
-                graph.add_node(str(current_node_id), title=current_node_content)
-            # If there's a parent, add an edge from the parent to the current node
-            if parent_stack:
-                parent = parent_stack[-1]
-                graph.add_edge(str(current_node_id), str(parent))
-            # Push the current node onto the stack
-            parent_stack.append(str(current_node_id))
-
-            # Return None to continue recursion
-            return None
-
-        def postorder(node):
-            # Pop the current node off the stack after processing
-            if parent_stack:
-                parent_stack.pop()
-
-            # Return None to continue postorder processing
-            return None
-
-        @tvm.tir.transform.prim_func_pass(opt_level=0)
-        def ast_extractor(f, mod, ctx):
-            # clear the graph
-            graph.clear()
-            # clear the parent stack
-            parent_stack.clear()
-            
-            # add in root node to graph and parent stack
-            graph.add_node("root")
-            parent_stack.append("root")
-            
-            tvm.tir.stmt_functor.ir_transform(f.body, preorder, postorder)
-            return f
-
-        for state in states:
-            # apply the state transformations
-            schedule, args = task.compute_dag.apply_steps_from_state(state)
-            schedule: te.Schedule
-
-            with tvm.transform.PassContext(config={"tir.add_lower_pass": [(3, ast_extractor)]}):
-                mod: tvm.ir.module.IRModule = tvm.lower(schedule, args)
-                
-                # print the graph
-                print(graph)
-                print(types)
-                print("LEN TYPES:", len(types))
-                # visualize the graph
-                # nx.draw(graph, with_labels=True)
-                nt = Network('100%', '100%', directed=True, notebook=False)
-                nt.show_buttons(filter_=['physics'])
-                
-                nt.options.physics.use_repulsion = True
-                
-                nt.from_nx(graph)
-                nt.show("graph" + str(uuid.uuid4()) + ".html")
-
-                # plt.savefig("graph" + str(uuid.uuid4()) + ".png")
-                # clear the graph
-                graph.clear()
-                # clear the parent stack
-                parent_stack.clear()
-                types.clear()
-                
-        print('exiting')
-        exit(-1)
-
-
+        # Timing the second function call
+        start_time_per_store = time.time()
         features = get_per_store_features_from_states(states, task)
+        end_time_per_store = time.time()
+        print(f"Time taken for get_per_store_features_from_states: {end_time_per_store - start_time_per_store:.6f} seconds")
         if self.bst is not None and len(self.inputs) > self.num_warmup_sample:
             dtest, pack_ids = feature_to_pack_sum_xgbmatrix(features)
             raw_preds = self.bst.predict(dtest)
@@ -320,6 +310,10 @@ class GNNModel(PythonBasedModel):
         return ret
 
     def predict_stages(self, task, states):
+        self.predictstagecounter += len(states)
+        print("Predict stage ", self.predictstagecounter)
+
+        
         """Predict the scores of all stages in states. This is the breakdown version of `predict`.
 
         Parameters
