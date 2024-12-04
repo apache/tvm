@@ -150,3 +150,14 @@ def Simplify():
         The result pass
     """
     return _ffi_api.Simplify()  # type: ignore
+
+
+def LegalizeVectorizedLoop():
+    """LegalizeLoopVectorize
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.LegalizeVectorizedLoop()  # type: ignore

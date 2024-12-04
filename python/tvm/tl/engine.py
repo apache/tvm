@@ -199,6 +199,7 @@ def lower(
     mod = tir.transform.Simplify()(mod)
     mod = tl.transform.LayoutInference()(mod)
     mod = tl.transform.LowerTileOp()(mod)
+    mod = tl.transform.LegalizeVectorizedLoop()(mod)
     mod = tir.transform.Simplify()(mod)
 
     if target.arch == "sm_90":
@@ -217,7 +218,6 @@ def lower(
     mod = tir.transform.FlattenBuffer()(mod)
     mod = tir.transform.NarrowDataType(32)(mod)
     mod = tir.transform.Simplify()(mod)
-
     mod = tir.transform.VectorizeLoop()(mod)
     mod = tir.transform.StorageRewrite()(mod)
     mod = tir.transform.UnrollLoop()(mod)

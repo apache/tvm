@@ -233,7 +233,7 @@ class LayoutInferencer : public IRMutatorWithAnalyzer {
 
  private:
   LayoutInferencer(const LayoutInferenceResult result, arith::Analyzer* analyzer)
-      : arith::IRMutatorWithAnalyzer(analyzer), result_(result){};
+      : arith::IRMutatorWithAnalyzer(analyzer), result_(result) {};
 
   Stmt VisitStmt_(const BlockNode* op) final {
     Block block = Downcast<Block>(IRMutatorWithAnalyzer::VisitStmt_(op));
@@ -282,7 +282,7 @@ class LayoutInferencer : public IRMutatorWithAnalyzer {
 
 tvm::transform::Pass LayoutInference() {
   using namespace tir::transform;
-  auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {    
+  auto pass_func = [=](PrimFunc f, IRModule m, PassContext ctx) {
     return LayoutInferencer::Substitute(std::move(f));
   };
   return CreatePrimFuncPass(pass_func, 0, "tl.LayoutInference", {});

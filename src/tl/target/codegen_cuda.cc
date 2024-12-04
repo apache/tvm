@@ -1186,7 +1186,7 @@ void CodeGenTileLangCUDA::VisitStmt_(const AllocateNode* op) {
 
 void CodeGenTileLangCUDA::VisitExpr_(const RampNode* op, std::ostream& os) {
   int lanes = static_cast<int>(Downcast<IntImm>(op->lanes)->value);
-  // CHECK_LE(lanes, 4) << "ValueError: Ramp of more than 4 lanes is not allowed.";
+  CHECK_LE(lanes, 4) << "ValueError: Ramp of more than 4 lanes is not allowed.";
   os << "(make_";
   PrintType(op->dtype, os);
   os << "(";
