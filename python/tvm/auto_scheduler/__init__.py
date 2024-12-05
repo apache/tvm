@@ -38,7 +38,7 @@ from .compute_dag import (
     LayoutRewriteOption,
     get_shape_from_rewritten_layout,
 )
-from .cost_model import RandomModel, XGBModel
+from .cost_model import RandomModel, XGBModel, GNNModel
 from .dispatcher import ApplyHistoryBest, ApplyHistoryBestOrSample, DispatchContext
 from .measure import (
     LocalBuilder,
