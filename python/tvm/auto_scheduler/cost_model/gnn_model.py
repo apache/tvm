@@ -35,6 +35,7 @@ from ..feature import get_per_store_features_from_measure_pairs, get_per_store_f
 from ..measure_record import RecordReader
 # from ..search_task import SearchTask
 import tvm.te as te
+import tvm.tir as tir
 import tvm
 import networkx as nx
 import matplotlib.pyplot as plt
@@ -44,7 +45,11 @@ from ..loop_state import State
 import uuid
 
 from ..measure import MeasureInput
+from ...ir.supply import GlobalVarSupply
 from pyvis.network import Network
+import inspect
+
+from tqdm import tqdm
 
 try:
     from xgboost.callback import TrainingCallback  # type: ignore
@@ -105,7 +110,7 @@ def gnn_feature_extractor(task: SearchTask, state: State):
         # Return None to continue postorder processing
         return None
 
-    @tvm.tir.transform.prim_func_pass(opt_level=3)
+    @tvm.tir.transform.prim_func_pass(opt_level=1)
     def ast_extractor(f, mod, ctx):
         # clear the graph
         graph.clear()
@@ -117,16 +122,79 @@ def gnn_feature_extractor(task: SearchTask, state: State):
         parent_stack.append("root")
         
         tvm.tir.stmt_functor.ir_transform(f.body, preorder, postorder)
+        print(graph)
+        
+        print("types:", len(types), types)
         return f
 
     # apply the state transformations
     schedule, args = task.compute_dag.apply_steps_from_state(state)
     schedule: te.Schedule
 
-    with tvm.transform.PassContext(config={"tir.add_lower_pass": [(3, ast_extractor)]}):
+    ctx = tvm.transform.PassContext(opt_level=1, config={
+        "tir.disable_vectorize": False,
+        "tir.instrument_bound_checkers": False,
+        "tir.add_lower_pass": [
+            (0, tvm.tir.transform.InjectPrefetch()),
+            (0, tvm.tir.transform.StorageFlatten(64, False)),
+            (1, tvm.tir.transform.NarrowDataType(32)),
+            (1, tvm.tir.transform.Simplify()),
+            (1, tvm.tir.transform.VectorizeLoop(False)),
+            (1, tvm.tir.transform.InjectVirtualThread()),
+            (1, tvm.tir.transform.StorageRewrite()),
+            (1, tvm.tir.transform.Simplify()), # skipped verifygpucode
+            (1, ast_extractor)
+        ]
+    })
+    
+    with ctx:
         mod: tvm.ir.module.IRModule = tvm.lower(schedule, args)
 
+lbb = tvm.get_global_func("auto_scheduler.local_builder.build")
+schtomod = tvm.get_global_func("driver.schedule_to_module")
+lowersched = tvm.get_global_func("driver.lower_schedule")
+
+
 def get_gnn_features(task: SearchTask, states: List[State]):
+    # Prepare MeasureInputs for all states
+    # inputs = [MeasureInput(task, s).serialize() for s in states]
+    inputs = [MeasureInput(task, s) for s in states]
+
+    # Use the local_builder_build function to build in parallel
+    features = lbb(inputs, 10, multiprocessing.cpu_count(), "default", 1)
+
+    # Extract features from the build results
+    # features = [extract_features_from_build_result(res) for res in build_results]  # Implement this function as needed
+    return features
+
+def get_gnn_features_sch2mod(task: SearchTask, states: List[State]):
+    # Serialize the inputs for parallel processing
+    serialized_inputs = [MeasureInput(task, s).serialize() for s in states]
+
+    # Convert each serialized input to a module in parallel
+    ctx = multiprocessing.get_context('fork')
+    with multiprocessing.pool.Pool(multiprocessing.cpu_count(), context=ctx) as executor:
+        # Use tqdm to wrap the iterable for progress tracking
+        modules = list(tqdm(executor.imap(sched_to_mod, serialized_inputs), total=len(serialized_inputs)))
+
+    # Extract features from the modules
+    features = []
+    for module in modules:
+        # Assuming there's a function to extract features from a module
+        # feature = extract_features_from_module(module)
+        features.append("e")
+
+    return features
+
+def sched_to_mod(serialized_arg):    
+    minput = MeasureInput.deserialize(serialized_arg)
+    task, state = minput.task, minput.state
+    schedule, args = task.compute_dag.apply_steps_from_state(state)
+    # module = schtomod(schedule, args, "tmp_func", {})
+    module = lowersched(schedule, args, "tmp_func", {}, False)
+    return module
+
+def get_gnn_features_old(task: SearchTask, states: List[State]):
     # parallel process all the states
     args = list(zip([(task)]*len(states), states))
     
@@ -134,12 +202,12 @@ def get_gnn_features(task: SearchTask, states: List[State]):
     inputs = [MeasureInput(task, s).serialize() for s in states]
     
     
-    # ctx = multiprocessing.get_context('fork')
-
-    with multiprocessing.pool.Pool(multiprocessing.cpu_count()) as executor:
+    ctx = multiprocessing.get_context('fork')
+    with multiprocessing.pool.Pool(multiprocessing.cpu_count(), context=ctx) as executor:
         features = list(executor.map(gnn_feature_extractor_tup, inputs))
     
     return features
+
 
 class GNNModel(PythonBasedModel):
     """Train a GNN model that learns from the AST representation of a TIR program
@@ -293,18 +361,32 @@ class GNNModel(PythonBasedModel):
         scores: List[float]
             The predicted scores for all states
         """
+        
+        # start_time_sch2mod = time.time()
+        # features = get_gnn_features_sch2mod(task, states)
+        # end_time_sch2mod = time.time()
+        # print(f"Time taken for get_gnn_features_sch2mod: {end_time_sch2mod - start_time_sch2mod:.6f} seconds")        
 
-        # Timing the first function call
-        start_time_gnn = time.time()
-        features = get_gnn_features(task, states)        
-        end_time_gnn = time.time()
-        print(f"Time taken for get_gnn_features: {end_time_gnn - start_time_gnn:.6f} seconds")
+
+        # # Timing the first function call
+        # start_time_gnn = time.time()
+        # features = get_gnn_features(task, states)
+        # end_time_gnn = time.time()
+        # print(f"Time taken for get_gnn_features: {end_time_gnn - start_time_gnn:.6f} seconds")
+
+        # start_time_gnn_old = time.time()
+        # features = get_gnn_features_old(task, states[:1])
+        # end_time_gnn_old = time.time()
+        # print(f"Time taken for get_gnn_features_old: {end_time_gnn_old - start_time_gnn_old:.6f} seconds")
+
 
         # Timing the second function call
         start_time_per_store = time.time()
         features = get_per_store_features_from_states(states, task)
         end_time_per_store = time.time()
         print(f"Time taken for get_per_store_features_from_states: {end_time_per_store - start_time_per_store:.6f} seconds")
+        
+        print("model?", self.bst is not None and len(self.inputs) > self.num_warmup_sample)
         if self.bst is not None and len(self.inputs) > self.num_warmup_sample:
             dtest, pack_ids = feature_to_pack_sum_xgbmatrix(features)
             raw_preds = self.bst.predict(dtest)
