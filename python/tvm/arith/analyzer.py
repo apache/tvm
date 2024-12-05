@@ -105,7 +105,9 @@ class Analyzer:
     be used to perform various symbolic integer analysis.
     """
 
-    def __init__(self, _mod_ctor=_ffi_api.CreateAnalyzer):
+    def __init__(self, _mod_ctor=None):
+        if _mod_ctor is None:
+            _mod_ctor = _ffi_api.CreateAnalyzer
         _mod = _mod_ctor()
         self._const_int_bound = _mod("const_int_bound")
         self._const_int_bound_update = _mod("const_int_bound_update")
