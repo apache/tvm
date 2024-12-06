@@ -480,25 +480,6 @@ def python_unittest(image) {
   )
 }
 
-def make_standalone_crt(image, build_dir) {
-  sh (
-    script: """
-      set -eux
-      ${docker_run} ${image} python3 ./tests/scripts/task_build.py \
-        --sccache-bucket tvm-sccache-prod \
-        --sccache-region us-west-2 \
-        --cmake-target standalone_crt \
-        --build-dir build
-      ${docker_run} ${image} python3 ./tests/scripts/task_build.py \
-        --sccache-bucket tvm-sccache-prod \
-        --sccache-region us-west-2 \
-        --cmake-target crttest \
-        --build-dir build
-      """,
-    label: 'Make standalone CRT',
-  )
-}
-
 def make_cpp_tests(image, build_dir) {
   sh (
     script: """
@@ -526,13 +507,6 @@ def cpp_unittest(image) {
   )
 }
 
-def micro_cpp_unittest(image) {
-  sh (
-    script: "${docker_run} --env CI_NUM_EXECUTORS ${image} ./tests/scripts/task_microtvm_cpp_tests.sh build",
-    label: 'Run microTVM C++ tests',
-  )
-}
-
 cancel_previous_build()
 
 try {
@@ -557,10 +531,9 @@ def build(node_type) {
           label: 'Create Cortex-M cmake config',
         )
         cmake_build(ci_cortexm, 'build', '-j2')
-        make_standalone_crt(ci_cortexm, 'build')
         make_cpp_tests(ci_cortexm, 'build')
         sh(
-            script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/cortexm --items build/libtvm.so build/libtvm_runtime.so build/config.cmake build/libtvm_allvisible.so build/crttest build/standalone_crt build/build.ninja build/cpptest build/build.ninja build/CMakeFiles/rules.ninja build/microtvm_template_projects",
+            script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/cortexm --items build/libtvm.so build/libtvm_runtime.so build/config.cmake build/libtvm_allvisible.so build/crttest build/build.ninja build/cpptest build/build.ninja build/CMakeFiles/rules.ninja build/microtvm_template_projects",
             label: 'Upload artifacts to S3',
           )
             })
@@ -604,7 +577,6 @@ def shard_run_test_Cortex_M_1_of_12(node_type='CPU-SMALL-SPOT', on_demand=false)
 
               ci_setup(ci_cortexm)
               cpp_unittest(ci_cortexm)
-              micro_cpp_unittest(ci_cortexm)
               sh (
                 script: "${docker_run} ${ci_cortexm} ./tests/scripts/task_demo_microtvm.sh",
                 label: 'Run microTVM demos',

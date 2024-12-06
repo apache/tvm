@@ -1,4 +1,0 @@
-*.box
-.vagrant
-/output-packer-*
-/packer.json

@@ -24,8 +24,6 @@ cd "$BUILD_DIR"
 cp ../cmake/config.cmake .
 
 echo set\(USE_SORT ON\) >> config.cmake
-echo set\(USE_MICRO ON\) >> config.cmake
-echo set\(USE_CMSISNN ON\) >> config.cmake
 echo set\(USE_UMA ON\) >> config.cmake
 echo set\(USE_PROFILER ON\) >> config.cmake
 echo set\(USE_LLVM llvm-config-15\) >> config.cmake

@@ -27,7 +27,6 @@ from tvm import relay, IRModule
 from utils.external_codegen import (
     parametrize_external_codegen_checks,
     set_external_func_attr,
-    check_aot_executor_result,
     check_graph_executor_result,
     check_vm_result,
 )
@@ -99,7 +98,7 @@ def test_tir_external_generation_outline_with_target_instance(check_result):
     )
 
 
-@pytest.mark.parametrize("check_result", [check_aot_executor_result, check_graph_executor_result])
+@pytest.mark.parametrize("check_result", [check_graph_executor_result])
 def test_runtime_module_generation(check_result):
     shape = (8,)
     x_data = np.random.randint(255, size=shape).astype("float32")

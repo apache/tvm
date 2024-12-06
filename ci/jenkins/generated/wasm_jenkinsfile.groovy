@@ -480,25 +480,6 @@ def python_unittest(image) {
   )
 }
 
-def make_standalone_crt(image, build_dir) {
-  sh (
-    script: """
-      set -eux
-      ${docker_run} ${image} python3 ./tests/scripts/task_build.py \
-        --sccache-bucket tvm-sccache-prod \
-        --sccache-region us-west-2 \
-        --cmake-target standalone_crt \
-        --build-dir build
-      ${docker_run} ${image} python3 ./tests/scripts/task_build.py \
-        --sccache-bucket tvm-sccache-prod \
-        --sccache-region us-west-2 \
-        --cmake-target crttest \
-        --build-dir build
-      """,
-    label: 'Make standalone CRT',
-  )
-}
-
 def make_cpp_tests(image, build_dir) {
   sh (
     script: """
@@ -526,13 +507,6 @@ def cpp_unittest(image) {
   )
 }
 
-def micro_cpp_unittest(image) {
-  sh (
-    script: "${docker_run} --env CI_NUM_EXECUTORS ${image} ./tests/scripts/task_microtvm_cpp_tests.sh build",
-    label: 'Run microTVM C++ tests',
-  )
-}
-
 cancel_previous_build()
 
 try {
@@ -557,7 +531,6 @@ def build(node_type) {
           label: 'Create WASM cmake config',
         )
         cmake_build(ci_wasm, 'build', '-j2')
-        make_standalone_crt(ci_wasm, 'build')
         make_cpp_tests(ci_wasm, 'build')
         cpp_unittest(ci_wasm)
         ci_setup(ci_wasm)

@@ -35,7 +35,6 @@ TAG_DICT = {
     "cuda": "cuda & cutlass & tensorrt",
     "cutlass": "cuda & cutlass & tensorrt",
     "tensorrt": "cuda & cutlass & tensorrt",
-    "ethosn": "Ethosn",
     "hexagon": "Hexagon",
     "metal": "Metal",
     "vulkan": "Vulkan",

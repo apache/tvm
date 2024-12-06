@@ -18,10 +18,5 @@
 
 set -euxo pipefail
 
-source tests/scripts/setup-pytest-env.sh
-
-make cython3
-
-# NOTE: this exists to ensure some tests run on RISC-V image. Without it, Jenkins reports a configuration error.
-# This line can be removed when RISC-V tests are added.
-run_pytest ctypes riscv-platform-minimal-test-0 tests/python/all-platform-minimal-test
+# Skip this script for now.
+exit 0

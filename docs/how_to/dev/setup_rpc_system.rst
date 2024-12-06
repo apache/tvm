@@ -108,7 +108,6 @@ After executing commands like something below under the root directory of TVM re
   # You maybe need to enable other options, e.g., USE_OPENCL, USE_xPU.
   $ sed -i "s|USE_LLVM.*)|USE_LLVM OFF)|" config.cmake
   $ sed -i "s|USE_LIBBACKTRACE.*)|USE_LIBBACKTRACE OFF)|" config.cmake
-  $ sed -i "s|USE_MICRO.*)|USE_MICRO OFF)|" config.cmake
 
   $ cmake -DCMAKE_TOOLCHAIN_FILE=/YYY/aarch64-linux-gnu.cmake -DCMAKE_BUILD_TYPE=Release ..
   $ cmake --build . -j -- runtime

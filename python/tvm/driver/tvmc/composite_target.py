@@ -23,9 +23,6 @@ import logging
 import tvm.contrib.target.vitis_ai  # pylint: disable=unused-import
 
 from tvm.relay.op.contrib.arm_compute_lib import partition_for_arm_compute_lib
-from tvm.relay.op.contrib.ethosn import partition_for_ethosn
-from tvm.relay.op.contrib.cmsisnn import partition_for_cmsisnn
-from tvm.relay.op.contrib.ethosu import partition_for_ethosu
 from tvm.relay.op.contrib.bnns import partition_for_bnns
 from tvm.relay.op.contrib.vitis_ai import partition_for_vitis_ai
 from tvm.relay.op.contrib.clml import partition_for_clml
@@ -54,24 +51,6 @@ REGISTERED_CODEGEN = {
         "pass_default": False,
         "default_target": None,
         "pass_pipeline": partition_for_arm_compute_lib,
-    },
-    "cmsis-nn": {
-        "config_key": "relay.ext.cmsisnn.options",
-        "pass_default": False,
-        "default_target": None,
-        "pass_pipeline": partition_for_cmsisnn,
-    },
-    "ethos-n": {
-        "config_key": "relay.ext.ethos-n.options",
-        "pass_default": False,
-        "default_target": None,
-        "pass_pipeline": partition_for_ethosn,
-    },
-    "ethos-u": {
-        "config_key": "relay.ext.ethos-u.options",
-        "pass_default": False,
-        "default_target": None,
-        "pass_pipeline": partition_for_ethosu,
     },
     "bnns": {
         "config_key": None,
