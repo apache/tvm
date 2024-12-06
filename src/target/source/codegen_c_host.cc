@@ -24,7 +24,6 @@
 
 #include <tvm/relay/executor.h>
 #include <tvm/relay/runtime.h>
-#include <tvm/runtime/crt/error_codes.h>
 #include <tvm/runtime/module.h>
 #include <tvm/target/codegen.h>
 
@@ -55,17 +54,6 @@ void CodeGenCHost::Init(bool output_ssa, bool emit_asserts, bool emit_fwd_func_d
   decl_stream << "#include \"tvm/runtime/c_backend_api.h\"\n";
   decl_stream << "#include <math.h>\n";
   decl_stream << "#include <stdbool.h>\n";
-  if (devices.find("ethos-u") != devices.end()) {
-    decl_stream << "#include <tvm_ethosu_runtime.h>\n";
-  }
-  if (devices.find("cmsis-nn") != devices.end()) {
-    decl_stream << "#include <stdio.h>\n";
-    decl_stream << "#include <stdlib.h>\n";
-    decl_stream << "#include <dlpack/dlpack.h>\n";
-    decl_stream << "#include <arm_nnfunctions.h>\n";
-    decl_stream << "#include <arm_nn_types.h>\n";
-    decl_stream << "#include <arm_nn_math_types.h>\n";
-  }
   CodeGenC::Init(output_ssa);
 }
 

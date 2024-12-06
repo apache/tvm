@@ -28,7 +28,6 @@ class TVMCImportError(TVMCException):
     """TVMC TVMCImportError"""
 
 
-from . import micro
 from . import runner
 from . import autotuner
 from . import compiler

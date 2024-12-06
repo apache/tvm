@@ -302,31 +302,6 @@ Array<ScheduleRule> ScheduleRule::DefaultHexagon() {
   };
 }
 
-Array<ScheduleRule> ScheduleRule::DefaultMicro() {
-  return {
-      ScheduleRule::ApplyCustomRule(),
-      ScheduleRule::InlineConstantScalars(),
-      ScheduleRule::AutoInline(
-          /*into_producer=*/false,
-          /*into_consumer=*/true,
-          /*inline_const_tensor=*/true,
-          /*disallow_if_then_else=*/true,
-          /*require_injective=*/true,
-          /*require_ordered=*/true,
-          /*disallow_op=*/Array<String>{"tir.exp"}),
-      ScheduleRule::MultiLevelTiling(
-          /*structure=*/"SSRSRS",
-          /*tile_binds=*/NullOpt,
-          /*max_innermost_factor=*/Integer(64),
-          /*vector_load_lens=*/NullOpt,
-          /*reuse_read=*/NullOpt,
-          /*reuse_write=*/
-          Map<String, ObjectRef>{{"req", String("may")},
-                                 {"levels", Array<Integer>{1, 2}},
-                                 {"scope", String("global")}}),
-  };
-}
-
 Array<ScheduleRule> GetARMNeonSpecificRules() {
   return {
       ScheduleRule::MultiLevelTilingWithIntrin(
@@ -443,8 +418,6 @@ TVM_REGISTER_GLOBAL("meta_schedule.ScheduleRuleDefaultCUDATensorCore")
     .set_body_typed(ScheduleRule::DefaultCUDATensorCore);
 TVM_REGISTER_GLOBAL("meta_schedule.ScheduleRuleDefaultHexagon")
     .set_body_typed(ScheduleRule::DefaultHexagon);
-TVM_REGISTER_GLOBAL("meta_schedule.ScheduleRuleDefaultMicro")
-    .set_body_typed(ScheduleRule::DefaultMicro);
 TVM_REGISTER_GLOBAL("meta_schedule.ScheduleRuleDefaultARM")
     .set_body_typed(ScheduleRule::DefaultARM);
 

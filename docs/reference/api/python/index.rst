@@ -102,5 +102,4 @@ Python API
     relay/testing
     autotvm
     auto_scheduler
-    micro
     graph_executor

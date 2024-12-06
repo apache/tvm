@@ -46,9 +46,7 @@ and finally run.
 """
 import os
 import tarfile
-import json
 from typing import Optional, Union, Dict, Callable, TextIO
-from pathlib import Path
 import numpy as np
 
 import tvm
@@ -59,12 +57,6 @@ from tvm.driver.tvmc import TVMCException
 from tvm.relay.backend.executor_factory import GraphExecutorFactoryModule
 from tvm.runtime.module import BenchmarkResult
 from tvm.runtime.vm import Executable
-
-
-try:
-    from tvm.micro import export_model_library_format
-except ImportError:
-    export_model_library_format = None
 
 
 class TVMCModel(object):
@@ -308,18 +300,15 @@ class TVMCModel(object):
             Command line options to be passed to the cross compiler.
         output_format : str
             How to save the modules function library. Must be one of "so" and "tar" to save
-            using the classic format or "mlf" to save using the Model Library Format.
+            using the classic forma.
 
         Returns
         -------
         package_path : str
             The path that the package was saved to.
         """
-        if output_format not in ["so", "tar", "mlf"]:
-            raise TVMCException("Only 'so', 'tar', and 'mlf' output formats are supported.")
-
-        if output_format == "mlf" and cross:
-            raise TVMCException("Specifying the MLF output and a cross compiler is not supported.")
+        if output_format not in ["so", "tar"]:
+            raise TVMCException("Only 'so' and 'tar' output formats are supported.")
 
         if isinstance(executor_factory, Executable):
             package_path = self.export_vm_format(executor_factory, package_path, output_format)
@@ -327,11 +316,6 @@ class TVMCModel(object):
             package_path = self.export_classic_format(
                 executor_factory, package_path, cross, cross_options, output_format
             )
-        elif output_format == "mlf":
-            if export_model_library_format:
-                package_path = export_model_library_format(executor_factory, package_path)
-            else:
-                raise Exception("micro tvm is not enabled. Set USE_MICRO to ON in config.cmake")
 
         return package_path
 
@@ -354,25 +338,14 @@ class TVMCPackage(object):
     package_path : str
         The path to the saved TVMCPackage that will be loaded.
 
-    project_dir : Path, str
-        If given and loading a MLF file, the path to the project directory that contains the file.
-
     use_vm : bool
         Whether the graph module was compiled with vm or not.
     """
 
-    def __init__(
-        self,
-        package_path: str,
-        project_dir: Optional[Union[Path, str]] = None,
-    ):
+    def __init__(self, package_path: str):
         self._tmp_dir = utils.tempdir()
         self.package_path = package_path
         self.import_package(self.package_path)
-
-        if project_dir and self.type != "mlf":
-            raise TVMCException("Setting 'project_dir' is only allowed when importing a MLF.!")
-        self.project_dir = project_dir
 
     def import_package(self, package_path: str):
         """Load a TVMCPackage from a previously exported TVMCModel.
@@ -386,71 +359,37 @@ class TVMCPackage(object):
         t = tarfile.open(package_path)
         t.extractall(temp.relpath("."))
 
-        if os.path.exists(temp.relpath("metadata.json")):
-            # Model Library Format (MLF)
-            self.lib_name = None
-            self.lib_path = None
-            with open(temp.relpath("metadata.json")) as metadata_json:
-                metadata = json.load(metadata_json)
+        # Classic format
+        classic_lib_name_so = "mod.so"
+        classic_lib_name_tar = "mod.tar"
 
-            all_module_names = []
-            for name in metadata["modules"].keys():
-                all_module_names.append(name)
-            assert len(all_module_names) == 1, "Multiple modules in MLF is not supported."
+        # VM format
+        vm_lib_name_so = "lib.so"
+        vm_lib_name_tar = "lib.tar"
 
-            module_name = all_module_names[0]
-            module_metdata = metadata["modules"][module_name]
-            has_graph_executor = "graph" in module_metdata["executors"]
-            graph = (
-                temp.relpath(f"executor-config/graph/{module_name}.graph")
-                if has_graph_executor
-                else None
-            )
-            params = temp.relpath(f"parameters/{module_name}.params")
-
-            self.type = "mlf"
-
-            # Set executor type
-            if len(metadata["modules"][module_name]["executors"]) > 1:
-                executor_types_msg = ",".join(metadata["modules"][module_name]["executors"])
-                raise TVMCException(
-                    f"Found multiple executors with these types: {executor_types_msg}. "
-                    "Currently, only one executor type (aot or graph) is supported."
-                )
-            self.executor_type = metadata["modules"][module_name]["executors"][0]
-
+        if os.path.exists(temp.relpath(classic_lib_name_so)):
+            self.lib_name = classic_lib_name_so
+            self.type = "classic"
+        elif os.path.exists(temp.relpath(classic_lib_name_tar)):
+            self.lib_name = classic_lib_name_tar
+            self.type = "classic"
+        elif os.path.exists(temp.relpath(vm_lib_name_so)):
+            self.lib_name = vm_lib_name_so
+            self.type = "vm"
+        elif os.path.exists(temp.relpath(vm_lib_name_tar)):
+            self.lib_name = vm_lib_name_tar
+            self.type = "vm"
         else:
-            # Classic format
-            classic_lib_name_so = "mod.so"
-            classic_lib_name_tar = "mod.tar"
+            raise TVMCException("Couldn't find exported library in the package.")
 
-            # VM format
-            vm_lib_name_so = "lib.so"
-            vm_lib_name_tar = "lib.tar"
+        self.lib_path = temp.relpath(self.lib_name)
 
-            if os.path.exists(temp.relpath(classic_lib_name_so)):
-                self.lib_name = classic_lib_name_so
-                self.type = "classic"
-            elif os.path.exists(temp.relpath(classic_lib_name_tar)):
-                self.lib_name = classic_lib_name_tar
-                self.type = "classic"
-            elif os.path.exists(temp.relpath(vm_lib_name_so)):
-                self.lib_name = vm_lib_name_so
-                self.type = "vm"
-            elif os.path.exists(temp.relpath(vm_lib_name_tar)):
-                self.lib_name = vm_lib_name_tar
-                self.type = "vm"
-            else:
-                raise TVMCException("Couldn't find exported library in the package.")
-
-            self.lib_path = temp.relpath(self.lib_name)
-
-            graph, params = None, None
-            self.executor_type = "vm"
-            if self.type == "classic":
-                graph = temp.relpath("mod.json")
-                params = temp.relpath("mod.params")
-                self.executor_type = "graph"
+        graph, params = None, None
+        self.executor_type = "vm"
+        if self.type == "classic":
+            graph = temp.relpath("mod.json")
+            params = temp.relpath("mod.params")
+            self.executor_type = "graph"
 
         if params is not None:
             with open(params, "rb") as param_file:

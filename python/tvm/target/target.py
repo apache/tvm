@@ -511,29 +511,6 @@ MICRO_SUPPORTED_MODELS = {
 }
 
 
-def micro(model="unknown", options=None):
-    """Returns a microTVM target.
-
-    Parameters
-    ----------
-    model : str
-        Canonically identifies the target device. This is typically a device board level name.
-        The allowed values are MICRO_SUPPORTED_MODELS.keys().
-    options : str or list of str
-        Additional options
-    """
-    if model not in MICRO_SUPPORTED_MODELS:
-        raise ValueError(f"Model {model} not supported by tvm.target.micro.")
-    opts = _merge_opts(
-        MICRO_SUPPORTED_MODELS[model] + [f"-model={model}"],
-        options,
-    )
-
-    # NOTE: in the future, the default micro target will be LLVM except when
-    # external dependencies are present.
-    return Target(" ".join(["c"] + opts))
-
-
 def arm_cpu(model="unknown", options=None):
     """Returns a ARM CPU target.
     This function will also download pre-tuned op parameters when there is none.
