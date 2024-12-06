@@ -47,6 +47,7 @@ def _test_mobilenet_v1(remote, target, calc_dtype, executor_type, acc_dtype):
                 "mixed_precision_calculation_type": calc_dtype,
                 "mixed_precision_acc_type": acc_dtype,
             },
+            params,
         )
 
     if executor_type == "ge":
