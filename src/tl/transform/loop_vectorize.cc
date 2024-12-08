@@ -206,15 +206,6 @@ class VectorizeRewriter : public StmtExprMutator {
           return body;
         }
       } else {
-        if (extent == vector_size_) {
-          // add condition ifthenelse here
-          For vectorize_for = fnode;
-          vectorize_for.CopyOnWrite()->kind = ForKind::kVectorized;
-          For serial_for = fnode;
-          serial_for.CopyOnWrite()->kind = ForKind::kSerial;
-          Stmt body = IfThenElse(condition_, vectorize_for, serial_for);
-          return body;
-        } else {
           Var inner_var = Var("vec");
           Var outer_var = Var(old_var->name_hint);
           Map<Var, PrimExpr> vmap;
@@ -234,7 +225,6 @@ class VectorizeRewriter : public StmtExprMutator {
           body = For(outer_var, 0, extent / vector_size_, fnode->kind, body, fnode->thread_binding,
                     fnode->annotations, fnode->span);
           return body;
-        }
       }
     } else {
       return ret;

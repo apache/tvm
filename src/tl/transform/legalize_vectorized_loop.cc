@@ -71,7 +71,7 @@ class LoopVectorizedLegalizer : IRMutatorWithAnalyzer {
     // Change the loop kind from vectorized to serial
     for_node.CopyOnWrite()->kind = ForKind::kSerial;
     // Apply vectorization transformation to the loop
-    return VectorizeLoop(for_node);
+    return VectorizeLoop(std::move(for_node));
   }
 };
 
