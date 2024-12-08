@@ -373,6 +373,7 @@ class Upsample(OneFlowOpConverter):
         input_shape = infer_shape(data)
         dims = len(input_shape)
 
+        scales = attrs.get("scales", 1.0)
         width_scale = attrs.get("width_scale", 1.0)
         height_scale = attrs.get("height_scale", 1.0)
         align_corners = attrs.get("align_corners", False)
