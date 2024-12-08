@@ -530,7 +530,6 @@ For VectorizeLoop(const For& loop, int vectorize_hint) {
   if (vectorize_hint <= 0) {
     res = GetVectorizePlanResult(loop);
     vectorize_hint = res.vector_size;
-    // vectorize_hint = GetVectorizeSize(loop);
   }
   if (vectorize_hint == 1) return loop;
   auto rewriter = VectorizeRewriter(res);
