@@ -33,7 +33,6 @@ from tvm.driver.tvmc import TVMCException
 def test_get_codegen_names():
     names = tvmc.composite_target.get_codegen_names()
 
-    assert "ethos-n" in names
     assert "vitis-ai" in names
     assert "mrvl" in names
     assert len(names) > 0

@@ -266,8 +266,6 @@ def docs(
                 f"mkdir -p {build_dir}",
                 f"pushd {build_dir}",
                 "cp ../cmake/config.cmake .",
-                # The docs import tvm.micro, so it has to be enabled in the build
-                "echo set\(USE_MICRO ON\) >> config.cmake",
                 "popd",
             ]
         )
@@ -663,20 +661,6 @@ generated = [
         },
     ),
     generate_command(
-        name="cortexm",
-        help="Run Cortex-M build and test(s)",
-        options={
-            "cpp": CPP_UNITTEST,
-            "test": (
-                "run microTVM tests",
-                [
-                    "./tests/scripts/task_python_microtvm.sh",
-                    "./tests/scripts/task_demo_microtvm.sh",
-                ],
-            ),
-        },
-    ),
-    generate_command(
         name="hexagon",
         help="Run Hexagon build and test(s)",
         post_build=["./tests/scripts/task_build_hexagon_api.sh --output build-hexagon"],
@@ -701,19 +685,6 @@ generated = [
                 [
                     "./tests/scripts/task_python_unittest.sh",
                     "./tests/scripts/task_python_arm_compute_library.sh",
-                ],
-            ),
-        },
-    ),
-    generate_command(
-        name="riscv",
-        help="Run RISC-V build and test(s)",
-        options={
-            "cpp": CPP_UNITTEST,
-            "python": (
-                "run full Python tests",
-                [
-                    "./tests/scripts/task_riscv_microtvm.sh",
                 ],
             ),
         },

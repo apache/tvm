@@ -41,6 +41,10 @@ if __name__ == "__main__":
     args = parser.parse_args()
     sccache_exe = shutil.which("sccache")
 
+    if args.cmake_target in ["standalone_crt", "crttest"]:
+        logging.info("Skipping standalone_crt build")
+        exit(0)
+
     use_sccache = sccache_exe is not None
     build_dir = Path(os.getcwd()) / args.build_dir
     build_dir = build_dir.relative_to(REPO_ROOT)

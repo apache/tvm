@@ -18,4 +18,4 @@
 set -euxo pipefail
 
 echo "Cleanup data..."
-cd $1 && rm -rf standalone_crt && rm -rf host_standalone_crt && rm -rf CMake* && cd ..
+cd $1 && rm -rf CMake* && cd ..

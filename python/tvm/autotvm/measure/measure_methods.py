@@ -551,15 +551,7 @@ class _WrappedBuildFunc:
             )
             # TODO(tvm-team) consider linline _build_func_common
             func, arg_info = _build_func_common(measure_input, self.runtime, **kwargs)
-            if self.build_func.output_format == ".model-library-format":
-                # Late import to preserve autoTVM with USE_MICRO OFF
-                try:
-                    from tvm import micro  # pylint: disable=import-outside-toplevel
-                except ImportError:
-                    raise ImportError("Requires USE_MICRO")
-                micro.export_model_library_format(func, filename)
-            else:
-                func.export_library(filename, fcompile=self.build_func)
+            func.export_library(filename, fcompile=self.build_func)
         except Exception as e:  # pylint: disable=broad-except
             tb = traceback.format_exc()
             return BuildResult(None, None, (tb, e), time.time() - tic)

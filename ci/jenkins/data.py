@@ -27,12 +27,6 @@ files_to_stash = {
     "hexagon_api": [
         "build/hexagon_api_output",
     ],
-    # Folder for microtvm build
-    "microtvm_template_projects": [
-        "build/microtvm_template_projects",
-    ],
-    # Folders and build files for c runtime
-    "standalone_crt": ["build/standalone_crt", "build/build.ninja"],
     # This library is produced with HIDE_PRIVATE_SYMBOLS=ON
     "tvm_allvisible": ["build/libtvm_allvisible.so"],
     # runtime files
@@ -41,14 +35,6 @@ files_to_stash = {
     "tvm_lib": ["build/libtvm.so", "build/libtvm_runtime.so", "build/config.cmake"],
     # compiler files and fsim
     "tvm_multilib": [
-        "build/libtvm.so",
-        "build/libvta_fsim.so",
-        "build/libtvm_runtime.so",
-        "build/config.cmake",
-    ],
-    # compiler files, fsim, and tsim
-    "tvm_multilib_tsim": [
-        "build/libvta_tsim.so",
         "build/libtvm.so",
         "build/libvta_fsim.so",
         "build/libtvm_runtime.so",

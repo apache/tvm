@@ -34,8 +34,6 @@
  *    is run to respect that assumption. So this pass is mostly just to undo that Pass after modules
  *    have passed through the 'codegen' keyhole.
  *
- *    See also OutlineCompilerFunctionsMutator in src/relay/backend/contrib/ethosu/codegen.cc.
- *
  *  - (The \p OutlineCompilerFunctions pass is a more general version of the above which can use
  *    a custom cache to both allocate "global_symbol" names and ensure two structurally equal
  *    functions are assigned the same name, and thus lowered only once. This is used by Collage
