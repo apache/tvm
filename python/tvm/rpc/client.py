@@ -43,6 +43,12 @@ class RPCSession(object):
         self._tbl_index = _ffi_api.SessTableIndex(sess)
         self._remote_funcs = {}
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+
     def system_lib(self):
         """Get system-wide library module.
 
@@ -213,6 +219,11 @@ class RPCSession(object):
                 "tvm.rpc.server.download_linked_module"
             )
         return self._remote_funcs["download_linked_module"](path)
+
+    def close(self):
+        """Close RPC session."""
+        shutdown_func = self._sess.get_function("CloseRPCConnection")
+        shutdown_func()
 
     def cpu(self, dev_id=0):
         """Construct CPU device."""

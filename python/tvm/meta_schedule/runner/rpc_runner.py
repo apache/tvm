@@ -532,3 +532,4 @@ def default_cleanup(
         session.remove(remote_path)
         session.remove(remote_path + ".so")
         session.remove("")
+        session.close()

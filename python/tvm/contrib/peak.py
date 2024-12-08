@@ -365,30 +365,36 @@ def measure_peak_all(target, target_host, host, port):
     """
 
     target, target_host = Target.canon_target_and_host(target, target_host)
-    remote = rpc.connect(host, port)
-    n_times = 20
+    with rpc.connect(host, port) as remote:
+        n_times = 20
 
-    bandwidth_total_item = 1 << 25
-    bandwidth_item_per_thread = 32
+        bandwidth_total_item = 1 << 25
+        bandwidth_item_per_thread = 32
 
-    compute_total_item = 1 << 21
-    compute_item_per_thread = 4096
+        compute_total_item = 1 << 21
+        compute_item_per_thread = 4096
 
-    if str(target).startswith("opencl"):
-        dev = remote.cl()
-    elif str(target).startswith("cuda"):
-        dev = remote.cuda()
-    elif str(target).startswith("metal"):
-        dev = remote.metal()
-    else:
-        raise RuntimeError("Unsupported target")
+        if str(target).startswith("opencl"):
+            dev = remote.cl()
+        elif str(target).startswith("cuda"):
+            dev = remote.cuda()
+        elif str(target).startswith("metal"):
+            dev = remote.metal()
+        else:
+            raise RuntimeError("Unsupported target")
 
-    logging.info("========== measure memory bandwidth ==========")
-    measure_bandwidth_all_types(
-        bandwidth_total_item, bandwidth_item_per_thread, n_times, target, target_host, remote, dev
-    )
+        logging.info("========== measure memory bandwidth ==========")
+        measure_bandwidth_all_types(
+            bandwidth_total_item,
+            bandwidth_item_per_thread,
+            n_times,
+            target,
+            target_host,
+            remote,
+            dev,
+        )
 
-    logging.info("========== measure peak compute ==========")
-    measure_compute_all_types(
-        compute_total_item, compute_item_per_thread, n_times, target, target_host, remote, dev
-    )
+        logging.info("========== measure peak compute ==========")
+        measure_compute_all_types(
+            compute_total_item, compute_item_per_thread, n_times, target, target_host, remote, dev
+        )
