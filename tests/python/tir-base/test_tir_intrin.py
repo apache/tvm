@@ -19,7 +19,7 @@ import tvm.testing
 from tvm import te, tir
 from tvm import topi
 from tvm.contrib import utils, clang
-from tvm.script import tir as T
+from tvm.script import ir as I, tir as T
 import numpy as np
 import ctypes
 import math
@@ -187,59 +187,60 @@ def test_clz(target, dev, dtype):
         np.testing.assert_equal(b.numpy(), ref)
 
 
-@tvm.script.ir_module
-class Module:
-    @T.prim_func
-    def test_tir_fma(A: T.handle, B: T.handle, C: T.handle, d: T.handle) -> None:
-        # function attr dict
-        T.func_attr({"global_symbol": "test_fma", "tir.noalias": True})
-        n = T.int32()
-        stride = T.int32()
-        stride_1 = T.int32()
-        stride_2 = T.int32()
-        stride_3 = T.int32()
-        A_1 = T.match_buffer(
-            A,
-            [n],
-            strides=[stride],
-            elem_offset=0,
-            align=64,
-            offset_factor=1,
-            buffer_type="auto",
-        )
-        B_1 = T.match_buffer(
-            B,
-            [n],
-            strides=[stride_1],
-            elem_offset=0,
-            align=64,
-            offset_factor=1,
-            buffer_type="auto",
-        )
-        C_1 = T.match_buffer(
-            C,
-            [n],
-            strides=[stride_2],
-            elem_offset=0,
-            align=64,
-            offset_factor=1,
-            buffer_type="auto",
-        )
-        d_1 = T.match_buffer(
-            d,
-            [n],
-            strides=[stride_3],
-            elem_offset=0,
-            align=64,
-            offset_factor=1,
-            buffer_type="auto",
-        )
-        # body
-        for i in T.serial(0, n):
-            d_1[(i * stride_3)] = (A_1[(i * stride)] * B_1[(i * stride_1)]) + C_1[(i * stride_2)]
-
-
 def test_fma():
+    @I.ir_module
+    class Module:
+        @T.prim_func
+        def test_tir_fma(A: T.handle, B: T.handle, C: T.handle, d: T.handle) -> None:
+            # function attr dict
+            T.func_attr({"tir.noalias": True})
+            n = T.int32()
+            stride = T.int32()
+            stride_1 = T.int32()
+            stride_2 = T.int32()
+            stride_3 = T.int32()
+            A_1 = T.match_buffer(
+                A,
+                [n],
+                strides=[stride],
+                elem_offset=0,
+                align=64,
+                offset_factor=1,
+                buffer_type="auto",
+            )
+            B_1 = T.match_buffer(
+                B,
+                [n],
+                strides=[stride_1],
+                elem_offset=0,
+                align=64,
+                offset_factor=1,
+                buffer_type="auto",
+            )
+            C_1 = T.match_buffer(
+                C,
+                [n],
+                strides=[stride_2],
+                elem_offset=0,
+                align=64,
+                offset_factor=1,
+                buffer_type="auto",
+            )
+            d_1 = T.match_buffer(
+                d,
+                [n],
+                strides=[stride_3],
+                elem_offset=0,
+                align=64,
+                offset_factor=1,
+                buffer_type="auto",
+            )
+            # body
+            for i in T.serial(0, n):
+                d_1[(i * stride_3)] = (A_1[(i * stride)] * B_1[(i * stride_1)]) + C_1[
+                    (i * stride_2)
+                ]
+
     opt = tvm.transform.Sequential(
         [
             tvm.tir.transform.Apply(lambda f: f.with_attr("target", tvm.target.Target("llvm"))),

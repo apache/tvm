@@ -77,7 +77,7 @@ def test_matmul():
             B: T.Buffer((32, 32), "float16"),
             C: T.Buffer((32, 32), "float16"),
         ):
-            T.func_attr({"global_symbol": "main", "tir.noalias": True})
+            T.func_attr({"tir.noalias": True})
             # with T.block("root"):
             for i, j, k in T.grid(32, 32, 32):
                 with T.block("C"):
@@ -94,8 +94,7 @@ def test_matmul():
             B: T.Buffer((32, 32), "float16"),
             C: T.Buffer((32, 32), "float16"),
         ):
-            T.func_attr({"global_symbol": "main",
-                         "target": T.target({"arch": "sm_86",
+            T.func_attr({"target": T.target({"arch": "sm_86",
                                              "keys": ["cuda", "gpu"],
                                              "kind": "cuda",
                                              "max_num_threads": 1024,
@@ -118,8 +117,7 @@ def test_matmul():
             B: T.Buffer((32, 32), "float16"),
             C: T.Buffer((32, 32), "float16"),
         ):
-            T.func_attr({"global_symbol": "main",
-                         "target": T.target({"keys": ["cpu"], "kind": "llvm", "tag": ""}),
+            T.func_attr({"target": T.target({"keys": ["cpu"], "kind": "llvm", "tag": ""}),
                         "tir.noalias": True})
             # with T.block("root"):
             for i, j, k in T.grid(32, 32, 32):
@@ -139,7 +137,7 @@ def test_matmul():
             B: T.Buffer((32, 32), "float16"),
             C: T.Buffer((32, 32), "float16"),
         ):
-            T.func_attr({"tir.is_scheduled": True, "global_symbol": "main", "tir.noalias": True})
+            T.func_attr({"tir.is_scheduled": True, "tir.noalias": True})
             # with T.block("root"):
             for i_j_fused_0 in T.thread_binding(1, thread="blockIdx.x"):
                 for i_j_fused_1 in T.thread_binding(1024, thread="threadIdx.x"):
@@ -160,7 +158,7 @@ def test_matmul():
 
         @T.prim_func
         def matmul_cpu(A: T.Buffer((32, 32), "float16"), B: T.Buffer((32, 32), "float16"), C: T.Buffer((32, 32), "float16")):
-            T.func_attr({"global_symbol": "main", "target": T.target({"keys": ["cpu"], "kind": "llvm", "tag": ""}), "tir.is_scheduled": T.bool(True), "tir.noalias": T.bool(True)})
+            T.func_attr({"target": T.target({"keys": ["cpu"], "kind": "llvm", "tag": ""}), "tir.is_scheduled": T.bool(True), "tir.noalias": T.bool(True)})
             # with T.block("root"):
             for i, j, k in T.grid(32, 32, 32):
                 with T.block("C"):
@@ -173,7 +171,7 @@ def test_matmul():
 
         @T.prim_func
         def matmul_gpu(A: T.Buffer((32, 32), "float16"), B: T.Buffer((32, 32), "float16"), C: T.Buffer((32, 32), "float16")):
-            T.func_attr({"global_symbol": "main", "target": T.target({"arch": "sm_86", "keys": ["cuda", "gpu"], "kind": "cuda", "max_num_threads": 1024, "tag": "", "thread_warp_size": 32}), "tir.is_scheduled": T.bool(True), "tir.noalias": T.bool(True)})
+            T.func_attr({"target": T.target({"arch": "sm_86", "keys": ["cuda", "gpu"], "kind": "cuda", "max_num_threads": 1024, "tag": "", "thread_warp_size": 32}), "tir.is_scheduled": T.bool(True), "tir.noalias": T.bool(True)})
             # with T.block("root"):
             for i_j_fused_0 in T.thread_binding(1, thread="blockIdx.x"):
                 for i_j_fused_1 in T.thread_binding(1024, thread="threadIdx.x"):
