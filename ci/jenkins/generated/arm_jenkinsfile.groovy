@@ -480,25 +480,6 @@ def python_unittest(image) {
   )
 }
 
-def make_standalone_crt(image, build_dir) {
-  sh (
-    script: """
-      set -eux
-      ${docker_run} ${image} python3 ./tests/scripts/task_build.py \
-        --sccache-bucket tvm-sccache-prod \
-        --sccache-region us-west-2 \
-        --cmake-target standalone_crt \
-        --build-dir build
-      ${docker_run} ${image} python3 ./tests/scripts/task_build.py \
-        --sccache-bucket tvm-sccache-prod \
-        --sccache-region us-west-2 \
-        --cmake-target crttest \
-        --build-dir build
-      """,
-    label: 'Make standalone CRT',
-  )
-}
-
 def make_cpp_tests(image, build_dir) {
   sh (
     script: """
@@ -526,13 +507,6 @@ def cpp_unittest(image) {
   )
 }
 
-def micro_cpp_unittest(image) {
-  sh (
-    script: "${docker_run} --env CI_NUM_EXECUTORS ${image} ./tests/scripts/task_microtvm_cpp_tests.sh build",
-    label: 'Run microTVM C++ tests',
-  )
-}
-
 cancel_previous_build()
 
 try {
@@ -557,10 +531,9 @@ def build(node_type) {
           label: 'Create ARM cmake config',
         )
         cmake_build(ci_arm, 'build', '-j4')
-        make_standalone_crt(ci_arm, 'build')
         make_cpp_tests(ci_arm, 'build')
         sh(
-            script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/arm --items build/libtvm.so build/libvta_fsim.so build/libtvm_runtime.so build/config.cmake build/cpptest build/build.ninja build/CMakeFiles/rules.ninja build/crttest build/standalone_crt build/build.ninja build/microtvm_template_projects",
+            script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/arm --items build/libtvm.so build/libvta_fsim.so build/libtvm_runtime.so build/config.cmake build/cpptest build/build.ninja build/CMakeFiles/rules.ninja build/crttest build/build.ninja build/microtvm_template_projects",
             label: 'Upload artifacts to S3',
           )
             })
@@ -802,7 +775,6 @@ def shard_run_topi_aarch64_1_of_2(node_type='ARM-GRAVITON3-SPOT', on_demand=fals
 
               ci_setup(ci_arm)
               cpp_unittest(ci_arm)
-              micro_cpp_unittest(ci_arm)
               sh (
                 script: "${docker_run} ${ci_arm} ./tests/scripts/task_python_arm_compute_library.sh",
                 label: 'Run test_arm_compute_lib test',

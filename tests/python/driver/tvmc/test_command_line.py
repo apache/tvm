@@ -25,7 +25,6 @@ from unittest import mock
 
 import tvm
 from tvm.driver.tvmc.main import _main
-from tvm.driver.tvmc.model import TVMCException
 from tvm.driver.tvmc import compiler
 from unittest.mock import MagicMock
 

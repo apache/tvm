@@ -33,15 +33,6 @@ def test_csource_module():
     assert new_mod.is_binary_serializable
 
 
-def test_aot_module():
-    mod = tvm.get_global_func("relay.build_module._AOTExecutorCodegen")()
-    # aot module that is not binary serializable.
-    # Thus, it would raise an error.
-    assert not mod.is_binary_serializable
-    with pytest.raises(TVMError):
-        tvm.ir.load_json(tvm.ir.save_json(mod))
-
-
 def get_test_mod():
     x = relay.var("x", shape=(1, 10), dtype="float32")
     y = relay.var("y", shape=(1, 10), dtype="float32")

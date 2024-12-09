@@ -28,7 +28,7 @@ from tvm.topi.nn.utils import get_pad_tuple
 from tvm.topi.utils import get_const_tuple
 from tvm.topi.nn.conv2d import _get_workload
 from tvm.topi.generic.conv2d import fallback_schedule_cpu_common_int8
-from tvm.testing.aot import get_dtype_range
+from tvm.testing.utils import get_dtype_range
 
 from common import Int8Fallback
 import tvm.testing

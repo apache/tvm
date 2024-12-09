@@ -123,9 +123,6 @@ set(USE_SPIRV_KHR_INTEGER_DOT_PRODUCT OFF)
 # Whether enable OpenGL runtime
 set(USE_OPENGL OFF)
 
-# Whether enable MicroTVM runtime
-set(USE_MICRO OFF)
-
 # Whether enable RPC runtime
 set(USE_RPC ON)
 
@@ -152,9 +149,6 @@ set(USE_PIPELINE_EXECUTOR OFF)
 
 # Whether to enable the profiler for the graph executor and vm
 set(USE_PROFILER ON)
-
-# Whether enable microTVM standalone runtime
-set(USE_MICRO_STANDALONE_RUNTIME OFF)
 
 # Whether build with LLVM support
 # Requires LLVM version >= 4.0
@@ -280,23 +274,6 @@ set(USE_SORT ON)
 #                                     runtime. OFF/ON/"path/to/ACL"
 set(USE_ARM_COMPUTE_LIB OFF)
 set(USE_ARM_COMPUTE_LIB_GRAPH_EXECUTOR OFF)
-
-# Whether to build with Arm Ethos-N support
-# Possible values:
-# - OFF: disable Arm Ethos-N support
-# - path/to/arm-ethos-N-stack: use a specific version of the
-#   Ethos-N driver stack
-set(USE_ETHOSN OFF)
-# If USE_ETHOSN is enabled, use ETHOSN_HW (ON) if Ethos-N hardware is available on this machine
-# otherwise use ETHOSN_HW (OFF) to use the software test infrastructure
-set(USE_ETHOSN_HW OFF)
-
-# Whether to build with Arm(R) Ethos(TM)-U NPU codegen support
-set(USE_ETHOSU OFF)
-
-# Whether to build with CMSIS-NN external library support.
-# See https://github.com/ARM-software/CMSIS_5
-set(USE_CMSISNN OFF)
 
 # Whether to build with TensorRT codegen or runtime
 # Examples are available here: docs/deploy/tensorrt.rst.

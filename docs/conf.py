@@ -418,7 +418,6 @@ examples_dirs = [
     tvm_path.joinpath("gallery", "how_to", "optimize_operators"),
     tvm_path.joinpath("gallery", "how_to", "tune_with_autotvm"),
     tvm_path.joinpath("gallery", "how_to", "tune_with_autoscheduler"),
-    tvm_path.joinpath("gallery", "how_to", "work_with_microtvm"),
     tvm_path.joinpath("gallery", "how_to", "extend_tvm"),
     # New tutorial structure under docs folder
     tvm_path.joinpath("docs", "get_started", "tutorials"),
@@ -437,7 +436,6 @@ gallery_dirs = [
     "how_to/optimize_operators",
     "how_to/tune_with_autotvm",
     "how_to/tune_with_autoscheduler",
-    "how_to/work_with_microtvm",
     "how_to/extend_tvm",
     # New tutorial structure under docs folder
     "get_started/tutorials/",
@@ -510,16 +508,6 @@ within_subsection_order = {
         "use_pass_infra.py",
         "use_pass_instrument.py",
         "bring_your_own_datatypes.py",
-    ],
-    "work_with_microtvm": [
-        "micro_tvmc.py",
-        "micro_tflite.py",
-        "micro_aot.py",
-        "micro_pytorch.py",
-        "micro_train.py",
-        "micro_autotune.py",
-        "micro_ethosu.py",
-        "micro_mlperftiny.py",
     ],
 }
 

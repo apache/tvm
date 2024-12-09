@@ -189,67 +189,6 @@ def check_result(
     check_graph_executor_result()
 
 
-def test_multi_node_compiler():
-    x = relay.var("x", shape=(10, 10))
-    w0 = relay.var("w0", shape=(10, 10))
-    w1 = relay.var("w1", shape=(10, 10))
-    w2 = relay.var("w2", shape=(10, 10))
-    w3 = relay.var("w3", shape=(10, 10))
-    w4 = relay.var("w4", shape=(10, 10))
-    w5 = relay.var("w5", shape=(10, 10))
-    w6 = relay.var("w6", shape=(10, 10))
-    w7 = relay.var("w7", shape=(10, 10))
-
-    # C compiler
-    # FIXME: We generate two compilers for this case but they should be merged to one
-    # due to the common input (x).
-    z0 = relay.add(x, w0)
-    p0 = relay.subtract(z0, w1)
-    q0 = relay.multiply(p0, w2)
-
-    z1 = relay.add(x, w3)
-    p1 = relay.subtract(z1, w4)
-    q1 = relay.multiply(p1, w5)
-
-    # Other parts on TVM
-    z2 = relay.add(x, w6)
-    q2 = relay.subtract(z2, w7)
-
-    r = relay.concatenate((q0, q1, q2), axis=0)
-    f = relay.Function([x, w0, w1, w2, w3, w4, w5, w6, w7], r)
-    mod = tvm.IRModule()
-    ann = byoc.CcompilerAnnotator()
-    mod["main"] = ann.visit(f)
-    mod = transform.PartitionGraph()(mod)
-    mod = transform.InferType()(mod)
-
-    x_data = np.random.rand(10, 10).astype("float32")
-    w_data = []
-    for _ in range(8):
-        w_data.append(np.random.rand(10, 10).astype("float32"))
-
-    map_inputs = {"w{}".format(i): w_data[i] for i in range(8)}
-    map_inputs["x"] = x_data
-
-    targets = [("llvm", Runtime("cpp")), ("c", Runtime("crt", {"system-lib": True}))]
-    for tgt, rt in targets:
-        check_result(
-            mod,
-            map_inputs,
-            (30, 10),
-            np.concatenate(
-                (
-                    ((x_data + w_data[0]) - w_data[1]) * w_data[2],
-                    ((x_data + w_data[3]) - w_data[4]) * w_data[5],
-                    x_data + w_data[6] - w_data[7],
-                ),
-                axis=0,
-            ),
-            target=tgt,
-            runtime=rt,
-        )
-
-
 def test_extern_ccompiler_single_op():
     @transform.function_pass(opt_level=0)
     class MyAnnotator:

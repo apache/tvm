@@ -22,7 +22,7 @@ from tvm import nd, relay
 
 from tvm.relay import transform
 from tvm.relay.testing.temp_op_attr import TempOpAttr
-from tvm.testing.aot import generate_ref_data
+from tvm.testing.utils import generate_ref_data
 
 from tvm.topi.arm_cpu.qnn_legalize import legalize_bias_add
 
