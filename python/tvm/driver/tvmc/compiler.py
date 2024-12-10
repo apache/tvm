@@ -99,10 +99,9 @@ def add_compile_parser(subparsers, _, json_params):
     parser.add_argument(
         "-f",
         "--output-format",
-        choices=["so", "mlf"],
+        choices=["so"],
         default="so",
-        help="output format. Use 'so' for shared object or 'mlf' for Model Library Format "
-        "(only for microTVM targets). Defaults to 'so'.",
+        help="output format. Use 'so' for shared object. Defaults to 'so'.",
     )
     parser.add_argument(
         "--pass-config",

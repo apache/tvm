@@ -23,8 +23,6 @@ import logging
 import pathlib
 from typing import Dict, Optional, Union
 from tarfile import ReadError
-import argparse
-import sys
 import json
 
 import numpy as np
@@ -38,37 +36,20 @@ from tvm.contrib.debugger import debug_executor
 from tvm.runtime import profiler_vm
 from tvm.relay.param_dict import load_param_dict
 from . import TVMCException
-from .arguments import TVMCSuppressedArgumentParser
-from .project import (
-    get_project_options,
-    get_and_check_options,
-    get_project_dir,
-)
 
 from .main import register_parser
 from .model import TVMCPackage, TVMCResult
 from .result_utils import get_top_results
 from .tracker import tracker_host_port_from_cli
 
-try:
-    import tvm.micro.project as project
-    from tvm.micro.project import TemplateProjectError
-    from tvm.micro.project_api.client import ProjectAPIServerNotFoundError
-
-    SUPPORT_MICRO = True
-except (ImportError, AttributeError) as exception:
-    SUPPORT_MICRO = False
-
 # pylint: disable=invalid-name
 logger = logging.getLogger("TVMC")
 
 
 @register_parser
-def add_run_parser(subparsers, main_parser, json_params):
+def add_run_parser(subparsers, main_parser, json_params):  # pylint: disable=unused-argument
     """Include parser for 'run' subcommand"""
 
-    # Use conflict_handler='resolve' to allow '--list-options' option to be properly overriden when
-    # augmenting the parser with the micro device options (i.e. when '--device micro').
     parser = subparsers.add_parser("run", help="run a compiled module", conflict_handler="resolve")
     parser.set_defaults(func=drive_run)
 
@@ -76,7 +57,7 @@ def add_run_parser(subparsers, main_parser, json_params):
     #      like 'webgpu', etc (@leandron)
     parser.add_argument(
         "--device",
-        choices=["cpu", "cuda", "cl", "metal", "vulkan", "rocm", "micro"],
+        choices=["cpu", "cuda", "cl", "metal", "vulkan", "rocm"],
         default="cpu",
         help="target device to run the compiled module. Defaults to 'cpu'",
     )
@@ -94,7 +75,7 @@ def add_run_parser(subparsers, main_parser, json_params):
         "--print-time",
         action="store_true",
         help="record and print the execution time(s). Enabling print-time will result "
-        " in (1 + repeat * number) executions of the model. (non-micro devices only)",
+        " in (1 + repeat * number) executions of the model.",
     )
     parser.add_argument(
         "--print-top",
@@ -108,7 +89,7 @@ def add_run_parser(subparsers, main_parser, json_params):
         help="generate profiling data from the runtime execution. "
         "Using --profile requires the Graph Executor Debug enabled on TVM. "
         "Profiling may also have an impact on inference time, "
-        "making it take longer to be generated. (non-micro devices only)",
+        "making it take longer to be generated.",
     )
     parser.add_argument("-v", "--verbose", action="count", default=0, help="increase verbosity.")
     parser.add_argument(
@@ -136,80 +117,18 @@ def add_run_parser(subparsers, main_parser, json_params):
     )
     parser.add_argument(
         "--rpc-key",
-        help="the RPC tracker key of the target device. (non-micro devices only)",
+        help="the RPC tracker key of the target device.",
     )
     parser.add_argument(
         "--rpc-tracker",
         help="hostname (required) and port (optional, defaults to 9090) of the RPC tracker, "
-        "e.g. '192.168.0.100:9999'. (non-micro devices only)",
+        "e.g. '192.168.0.100:9999'.",
     )
     parser.add_argument(
         "PATH",
         help="path to the compiled module file or to the project directory if '--device micro' "
         "is selected.",
     )
-    parser.add_argument(
-        "--list-options",
-        action="store_true",
-        help="show all run options and option choices when '--device micro' is selected. "
-        "(micro devices only)",
-    )
-
-    disposable_parser = TVMCSuppressedArgumentParser(main_parser)
-    try:
-        known_args, _ = disposable_parser.parse_known_args()
-    except TVMCException:
-        return
-
-    if vars(known_args).get("device") != "micro":
-        # No need to augment the parser for micro targets.
-        return
-
-    if SUPPORT_MICRO is False:
-        sys.exit(
-            "'--device micro' is not supported. "
-            "Please build TVM with micro support (USE_MICRO ON)!"
-        )
-
-    project_dir = get_project_dir(known_args.PATH)
-
-    try:
-        project_ = project.GeneratedProject.from_directory(project_dir, None)
-    except ProjectAPIServerNotFoundError:
-        sys.exit(f"Error: Project API server not found in {project_dir}!")
-    except TemplateProjectError:
-        sys.exit(
-            "Error: Project directory error. That usually happens when model.tar is not found."
-        )
-
-    project_info = project_.info()
-    options_by_method = get_project_options(project_info)
-    mlf_path = project_info["model_library_format_path"]
-
-    parser.formatter_class = (
-        argparse.RawTextHelpFormatter
-    )  # Set raw help text so customized help_text format works
-
-    parser.set_defaults(valid_options=options_by_method["open_transport"], mlf_path=mlf_path)
-
-    required = any([opt["required"] for opt in options_by_method["open_transport"]])
-    nargs = "+" if required else "*"
-
-    help_text_by_option = [opt["help_text"] for opt in options_by_method["open_transport"]]
-    help_text = "\n\n".join(help_text_by_option) + "\n\n"
-
-    parser.add_argument(
-        "--project-option", required=required, metavar="OPTION=VALUE", nargs=nargs, help=help_text
-    )
-
-    parser.add_argument(
-        "--list-options",
-        action="help",
-        help="show this help message with platform-specific options and exit.",
-    )
-
-    for one_entry in json_params:
-        parser.set_defaults(**one_entry)
 
 
 def drive_run(args):
@@ -222,49 +141,9 @@ def drive_run(args):
     """
 
     path = pathlib.Path(args.PATH)
-    options = None
-    project_dir = None
-    if args.device == "micro":
-        # If it's a micro device, then grab the model.tar path from Project API instead.
-        # args.PATH will be used too since it points to the project directory. N.B.: there is no
-        # way to determine the model.tar path from the project dir or vice-verse (each platform
-        # is free to put model.tar whereever it's convenient).
-        project_dir = path
-        path = pathlib.Path(args.mlf_path)
-
-        # Check for options unavailable for micro targets.
-
-        if args.rpc_key or args.rpc_tracker:
-            raise TVMCException(
-                "--rpc-key and/or --rpc-tracker can't be specified for micro targets."
-            )
-
-        if args.device != "micro":
-            raise TVMCException(
-                f"Device '{args.device}' not supported. "
-                "Only device 'micro' is supported to run a model in MLF, "
-                "i.e. when '--device micro'."
-            )
-
-        if args.profile:
-            raise TVMCException("--profile is not currently supported for micro devices.")
-
-        if args.print_time:
-            raise TVMCException("--print-time is not currently supported for micro devices.")
-
-        # Get and check options for micro targets.
-        options = get_and_check_options(args.project_option, args.valid_options)
-
-    else:
-        # Check for options only availabe for micro targets.
-
-        if args.list_options:
-            raise TVMCException(
-                "--list-options is only availabe on micro targets, i.e. when '--device micro'."
-            )
 
     try:
-        tvmc_package = TVMCPackage(package_path=path, project_dir=project_dir)
+        tvmc_package = TVMCPackage(package_path=path)
     except IsADirectoryError:
         raise TVMCException(f"File {path} must be an archive, not a directory.")
     except FileNotFoundError:
@@ -292,7 +171,6 @@ def drive_run(args):
         number=args.number,
         profile=args.profile,
         end_to_end=args.end_to_end,
-        options=options,
     )
 
     if args.print_time:
@@ -482,7 +360,6 @@ def run_module(
     number: int = 10,
     profile: bool = False,
     end_to_end: bool = False,
-    options: dict = None,
 ):
     """Run a compiled graph executor module locally or remotely with
     optional input values.
@@ -539,24 +416,6 @@ def run_module(
         )
 
     with ExitStack() as stack:
-        # Currently only two package formats are supported: "classic" and
-        # "mlf". The later can only be used for micro targets, i.e. with microTVM.
-        if device == "micro":
-            if tvmc_package.type != "mlf":
-                raise TVMCException(f"Model {tvmc_package.package_path} is not a MLF archive.")
-
-            project_dir = get_project_dir(tvmc_package.project_dir)
-
-            # This is guaranteed to work since project_dir was already checked when
-            # building the dynamic parser to accommodate the project options, so no
-            # checks are in place when calling GeneratedProject.
-            project_ = project.GeneratedProject.from_directory(project_dir, options)
-        else:
-            if tvmc_package.type == "mlf":
-                raise TVMCException(
-                    "You're trying to run a model saved using the Model Library Format (MLF). "
-                    "MLF can only be used to run micro device ('--device micro')."
-                )
 
         if hostname:
             if isinstance(port, str):
@@ -581,12 +440,8 @@ def run_module(
             logger.debug("Running a local session.")
             session = rpc.LocalSession()
 
-        # Micro targets don't support uploading a model. The model to be run
-        # must be already flashed into the micro target before one tries
-        # to run it. Hence skip model upload for micro targets.
-        if device != "micro":
-            session.upload(tvmc_package.lib_path)
-            lib = session.load_module(tvmc_package.lib_name)
+        session.upload(tvmc_package.lib_path)
+        lib = session.load_module(tvmc_package.lib_name)
 
         # TODO expand to other supported devices, as listed in tvm.rpc.client (@leandron)
         logger.debug("Device is %s.", device)
@@ -600,9 +455,6 @@ def run_module(
             dev = session.vulkan()
         elif device == "rocm":
             dev = session.rocm()
-        elif device == "micro":
-            dev = session.device
-            lib = session.get_system_lib()
         else:
             assert device == "cpu"
             dev = session.cpu()
@@ -652,15 +504,8 @@ def run_module(
                 logger.debug("Creating runtime with profiling enabled.")
                 module = debug_executor.create(tvmc_package.graph, lib, dev, dump_root="./prof")
             else:
-                if device == "micro":
-                    logger.debug("Creating runtime (micro) with profiling disabled.")
-                    if tvmc_package.executor_type == "aot":
-                        module = tvm.micro.create_local_aot_executor(session)
-                    else:
-                        module = tvm.micro.create_local_graph_executor(tvmc_package.graph, lib, dev)
-                else:
-                    logger.debug("Creating runtime with profiling disabled.")
-                    module = executor.create(tvmc_package.graph, lib, dev)
+                logger.debug("Creating runtime with profiling disabled.")
+                module = executor.create(tvmc_package.graph, lib, dev)
 
             if tvmc_package.executor_type == "graph":
                 logger.debug("Loading params into the runtime module.")

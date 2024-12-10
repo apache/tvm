@@ -30,9 +30,8 @@
     label: 'Create RISC-V cmake config',
   )
   cmake_build(ci_riscv, 'build', '-j2')
-  make_standalone_crt(ci_riscv, 'build')
   make_cpp_tests(ci_riscv, 'build')
-  {{ m.upload_artifacts(tag='riscv', filenames=tvm_lib + tvm_allvisible + standalone_crt + crttest + cpptest + microtvm_template_projects) }}
+  {{ m.upload_artifacts(tag='riscv', filenames=tvm_lib + tvm_allvisible + crttest + cpptest + microtvm_template_projects) }}
 {% endcall %}
 
 
@@ -52,7 +51,6 @@
   ci_setup(ci_riscv)
   {% if shard_index == 1%}
   cpp_unittest(ci_riscv)
-  micro_cpp_unittest(ci_riscv)
   {% endif %}
   sh (
     script: "${docker_run} ${ci_riscv} ./tests/scripts/task_riscv_microtvm.sh",

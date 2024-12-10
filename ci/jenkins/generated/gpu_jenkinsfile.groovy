@@ -480,25 +480,6 @@ def python_unittest(image) {
   )
 }
 
-def make_standalone_crt(image, build_dir) {
-  sh (
-    script: """
-      set -eux
-      ${docker_run} ${image} python3 ./tests/scripts/task_build.py \
-        --sccache-bucket tvm-sccache-prod \
-        --sccache-region us-west-2 \
-        --cmake-target standalone_crt \
-        --build-dir build
-      ${docker_run} ${image} python3 ./tests/scripts/task_build.py \
-        --sccache-bucket tvm-sccache-prod \
-        --sccache-region us-west-2 \
-        --cmake-target crttest \
-        --build-dir build
-      """,
-    label: 'Make standalone CRT',
-  )
-}
-
 def make_cpp_tests(image, build_dir) {
   sh (
     script: """
@@ -526,13 +507,6 @@ def cpp_unittest(image) {
   )
 }
 
-def micro_cpp_unittest(image) {
-  sh (
-    script: "${docker_run} --env CI_NUM_EXECUTORS ${image} ./tests/scripts/task_microtvm_cpp_tests.sh build",
-    label: 'Run microTVM C++ tests',
-  )
-}
-
 cancel_previous_build()
 
 try {
@@ -554,9 +528,8 @@ def build(node_type) {
               ], {
               sh "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_config_build_gpu.sh build"
         cmake_build("${ci_gpu} --no-gpu", 'build', '-j2')
-        make_standalone_crt("${ci_gpu} --no-gpu", 'build')
         sh(
-            script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/gpu --items build/libtvm.so build/libvta_fsim.so build/libtvm_runtime.so build/config.cmake build/libtvm_allvisible.so build/microtvm_template_projects build/crttest build/standalone_crt build/build.ninja build/3rdparty/libflash_attn/src/libflash_attn.so build/3rdparty/cutlass_fpA_intB_gemm/cutlass_kernels/libfpA_intB_gemm.so",
+            script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/gpu --items build/libtvm.so build/libvta_fsim.so build/libtvm_runtime.so build/config.cmake build/libtvm_allvisible.so build/microtvm_template_projects build/crttest build/build.ninja build/3rdparty/libflash_attn/src/libflash_attn.so build/3rdparty/cutlass_fpA_intB_gemm/cutlass_kernels/libfpA_intB_gemm.so",
             label: 'Upload artifacts to S3',
           )
 
@@ -565,9 +538,8 @@ def build(node_type) {
         sh "rm -rf build"
         sh "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_config_build_gpu_other.sh build"
         cmake_build("${ci_gpu} --no-gpu", 'build', '-j2')
-        make_standalone_crt("${ci_gpu} --no-gpu", 'build')
         sh(
-            script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/gpu2 --items build/libtvm.so build/libtvm_runtime.so build/config.cmake build/crttest build/standalone_crt build/build.ninja build/3rdparty/libflash_attn/src/libflash_attn.so build/3rdparty/cutlass_fpA_intB_gemm/cutlass_kernels/libfpA_intB_gemm.so",
+            script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/gpu2 --items build/libtvm.so build/libtvm_runtime.so build/config.cmake build/crttest build/build.ninja build/3rdparty/libflash_attn/src/libflash_attn.so build/3rdparty/cutlass_fpA_intB_gemm/cutlass_kernels/libfpA_intB_gemm.so",
             label: 'Upload artifacts to S3',
           )
             })
@@ -611,7 +583,6 @@ def shard_run_unittest_GPU_1_of_3(node_type='GPU-SPOT', on_demand=false) {
 
               sh "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_config_build_gpu_other.sh build"
               // These require a GPU to finish the build (i.e. CUDA needs to be load-able)
-              make_standalone_crt(ci_gpu, 'build')
               // make_cpp_tests(ci_gpu, 'build')
               // cpp_unittest(ci_gpu)
 
@@ -623,7 +594,6 @@ def shard_run_unittest_GPU_1_of_3(node_type='GPU-SPOT', on_demand=false) {
 
               ci_setup(ci_gpu)
               sh "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_config_build_gpu.sh build"
-              make_standalone_crt(ci_gpu, 'build')
               make_cpp_tests(ci_gpu, 'build')
               cpp_unittest(ci_gpu)
               sh (
@@ -634,7 +604,6 @@ def shard_run_unittest_GPU_1_of_3(node_type='GPU-SPOT', on_demand=false) {
                 script: "${docker_run} ${ci_gpu} ./tests/scripts/task_opencl_cpp_unittest.sh",
                 label: 'Run OpenCL cpp unit tests',
               )
-              micro_cpp_unittest(ci_gpu)
               sh (
                 script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_unittest_gpuonly.sh",
                 label: 'Run Python GPU unit tests',

@@ -30,9 +30,8 @@
     label: 'Create i386 cmake config',
   )
   cmake_build(ci_i386, 'build', '-j2')
-  make_standalone_crt(ci_i386, 'build')
   make_cpp_tests(ci_i386, 'build')
-  {{ m.upload_artifacts(tag='i386', filenames=tvm_multilib_tsim + standalone_crt + crttest + cpptest + microtvm_template_projects) }}
+  {{ m.upload_artifacts(tag='i386', filenames=tvm_multilib_tsim + crttest + cpptest + microtvm_template_projects) }}
 {% endcall %}
 
 
@@ -51,7 +50,6 @@
   ci_setup(ci_i386)
   {% if shard_index == 1 %}
   cpp_unittest(ci_i386)
-  micro_cpp_unittest(ci_i386)
   {% endif %}
   python_unittest(ci_i386)
   sh (

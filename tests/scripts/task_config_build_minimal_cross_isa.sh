@@ -24,7 +24,6 @@ cd "$BUILD_DIR"
 cp ../cmake/config.cmake .
 
 echo set\(USE_SORT ON\) >> config.cmake
-echo set\(USE_MICRO ON\) >> config.cmake
 echo set\(USE_RELAY_DEBUG ON\) >> config.cmake
 echo set\(CMAKE_BUILD_TYPE=Debug\) >> config.cmake
 echo set\(CMAKE_CXX_FLAGS \"-Werror -Wp,-D_GLIBCXX_ASSERTIONS\"\) >> config.cmake

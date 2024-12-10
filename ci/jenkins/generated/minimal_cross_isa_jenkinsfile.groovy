@@ -480,25 +480,6 @@ def python_unittest(image) {
   )
 }
 
-def make_standalone_crt(image, build_dir) {
-  sh (
-    script: """
-      set -eux
-      ${docker_run} ${image} python3 ./tests/scripts/task_build.py \
-        --sccache-bucket tvm-sccache-prod \
-        --sccache-region us-west-2 \
-        --cmake-target standalone_crt \
-        --build-dir build
-      ${docker_run} ${image} python3 ./tests/scripts/task_build.py \
-        --sccache-bucket tvm-sccache-prod \
-        --sccache-region us-west-2 \
-        --cmake-target crttest \
-        --build-dir build
-      """,
-    label: 'Make standalone CRT',
-  )
-}
-
 def make_cpp_tests(image, build_dir) {
   sh (
     script: """
@@ -523,13 +504,6 @@ def cpp_unittest(image) {
   sh (
     script: "${docker_run} --env CI_NUM_EXECUTORS ${image} ./tests/scripts/task_cpp_unittest.sh",
     label: 'Run C++ tests',
-  )
-}
-
-def micro_cpp_unittest(image) {
-  sh (
-    script: "${docker_run} --env CI_NUM_EXECUTORS ${image} ./tests/scripts/task_microtvm_cpp_tests.sh build",
-    label: 'Run microTVM C++ tests',
   )
 }
 
@@ -558,7 +532,7 @@ def build(node_type) {
         )
         cmake_build(ci_minimal, 'build', '-j2')
         sh(
-            script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/cpu-minimal-cross-isa --items build/libtvm.so build/libtvm_runtime.so build/config.cmake build/libtvm_allvisible.so build/standalone_crt build/build.ninja build/microtvm_template_projects",
+            script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/cpu-minimal-cross-isa --items build/libtvm.so build/libtvm_runtime.so build/config.cmake build/libtvm_allvisible.so build/build.ninja build/microtvm_template_projects",
             label: 'Upload artifacts to S3',
           )
             })

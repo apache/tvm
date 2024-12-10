@@ -4,10 +4,3 @@ def cpp_unittest(image) {
     label: 'Run C++ tests',
   )
 }
-
-def micro_cpp_unittest(image) {
-  sh (
-    script: "${docker_run} --env CI_NUM_EXECUTORS ${image} ./tests/scripts/task_microtvm_cpp_tests.sh build",
-    label: 'Run microTVM C++ tests',
-  )
-}
