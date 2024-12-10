@@ -55,3 +55,6 @@ run_pytest cython python-frontend-paddlepaddle tests/python/frontend/paddlepaddl
 
 echo "Running relay CoreML frontend test..."
 run_pytest cython python-frontend-coreml tests/python/frontend/coreml
+
+echo "Running relay NNEF frontend test..."
+run_pytest cython python-frontend-nnef tests/python/frontend/nnef
