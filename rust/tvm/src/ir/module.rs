@@ -62,7 +62,7 @@ external! {
     #[name("relay.parser.ParseExpr")]
     fn parse_expression(file_name: TVMString, source: TVMString) -> IRModule;
     #[name("ir.IRModule")]
-    fn module_new(funcs: Map<GlobalVar, BaseFunc>, types: Map<GlobalTypeVar, TypeData>, attrs: Map<TVMString, ObjectRef>, global_infos: Map<TVMString, Array<ObjectRef>>) -> IRModule;
+    fn module_new(funcs: Map<GlobalVar, BaseFunc>, types: Map<GlobalTypeVar, TypeData>, attrs: Map<TVMString, ObjectRef>, global_infos: Map<TVMString, ObjectRef>) -> IRModule;
     // Module methods
     #[name("ir.Module_Add")]
     fn module_add(module: IRModule, type_name: GlobalVar, expr: BaseFunc, update: bool) -> IRModule;
@@ -104,7 +104,7 @@ impl IRModule {
         F: IntoIterator<Item = (&'a GlobalVar, &'a BaseFunc)>,
         T: IntoIterator<Item = (&'a GlobalTypeVar, &'a TypeData)>,
         A: IntoIterator<Item = (&'a TVMString, &'a ObjectRef)>,
-        G: IntoIterator<Item = (&'a TVMString, &'a Array<ObjectRef>)>,
+        G: IntoIterator<Item = (&'a TVMString, &'a ObjectRef)>,
     {
         module_new(
             Map::from_iter(funcs),
@@ -118,7 +118,7 @@ impl IRModule {
         let funcs = HashMap::<GlobalVar, BaseFunc>::new();
         let types = HashMap::<GlobalTypeVar, TypeData>::new();
         let attrs = HashMap::<TVMString, ObjectRef>::new();
-        let global_infos = HashMap::<TVMString, Array<ObjectRef>>::new();
+        let global_infos = HashMap::<TVMString, ObjectRef>::new();
         IRModule::new(
             funcs.iter(),
             types.iter(),
