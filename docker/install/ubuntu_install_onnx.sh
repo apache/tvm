@@ -27,9 +27,9 @@ set -o pipefail
 # https://github.com/onnx/onnx/pull/2834).  When updating the CI image
 # to onnx>=1.9, onnxoptimizer should also be installed.
 pip3 install \
-    onnx==1.12.0 \
-    onnxruntime==1.12.1 \
-    onnxoptimizer==0.2.7
+    onnx==1.15.0 \
+    onnxruntime==1.15.1 \
+    onnxoptimizer==0.3.13
 
 # torch depends on a number of other packages, but unhelpfully, does
 # not expose that in the wheel!!!
