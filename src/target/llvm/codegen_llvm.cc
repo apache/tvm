@@ -91,7 +91,6 @@
 #include <llvm/Transforms/IPO.h>
 #include <llvm/Transforms/Utils/ModuleUtils.h>
 #include <tvm/runtime/c_runtime_api.h>
-#include <tvm/runtime/crt/error_codes.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/tir/op.h>
 

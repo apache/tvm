@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# pylint: disable=invalid-name,unnecessary-comprehension
+# pylint: disable=invalid-name,unnecessary-comprehension,redefined-outer-name
 """TVM testing utilities
 
 Organization
@@ -90,11 +90,13 @@ import tvm.tir
 import tvm.te
 import tvm._ffi
 
+from tvm import relay
 from tvm.target import codegen
-from tvm.contrib import nvcc, cudnn, rocm
+from tvm.contrib import nvcc, cudnn, rocm, graph_executor
 import tvm.contrib.hexagon._ci_env_check as hexagon
 from tvm.driver.tvmc.frontends import load_model
 from tvm.error import TVMError
+import tvm.contrib.utils
 
 
 SKIP_SLOW_TESTS = os.getenv("SKIP_SLOW_TESTS", "").lower() in {"true", "1", "yes"}
@@ -987,20 +989,11 @@ requires_nnapi = Feature(
     cmake_flag="USE_NNAPI_CODEGEN",
 )
 
-# Mark a test as requiring microTVM to run
-requires_micro = Feature("micro", "MicroTVM", cmake_flag="USE_MICRO")
-
 # Mark a test as requiring CUTLASS to run
 requires_cutlass = Feature("cutlass", "CUTLASS", cmake_flag="USE_CUTLASS")
 
 # Mark a test as requiring rpc to run
 requires_rpc = Feature("rpc", "RPC", cmake_flag="USE_RPC")
-
-# Mark a test as requiring Arm(R) Ethos(TM)-N to run
-requires_ethosn = Feature("ethosn", "Arm(R) Ethos(TM)-N", cmake_flag="USE_ETHOSN")
-
-# Mark a test as requiring Arm(R) Ethos(TM)-U to run
-requires_ethosu = Feature("ethosu", "Arm(R) Ethos(TM)-U", cmake_flag="USE_ETHOSU")
 
 # Mark a test as requiring libtorch to run
 requires_libtorch = Feature("libtorch", "LibTorch", cmake_flag="USE_LIBTORCH")
@@ -1017,24 +1010,6 @@ requires_hexagon = Feature(
     compile_time_check=hexagon._compile_time_check,
     run_time_check=hexagon._run_time_check,
     parent_features="llvm",
-)
-
-# Mark a test as requiring the CMSIS NN library
-requires_cmsisnn = Feature("cmsisnn", "CMSIS NN", cmake_flag="USE_CMSISNN")
-
-
-def _corstone300_compile_time_check():
-    if shutil.which("arm-none-eabi-gcc") is None:
-        return "ARM embedded toolchain unavailable"
-    return True
-
-
-# Mark a test as requiring the corstone300 FVP
-requires_corstone300 = Feature(
-    "corstone300",
-    "Corstone-300",
-    compile_time_check=_corstone300_compile_time_check,
-    parent_features="cmsisnn",
 )
 
 
@@ -1641,6 +1616,64 @@ def fixture(func=None, *, cache_return_value=False):
         return wraps
 
     return wraps(func)
+
+
+def get_dtype_range(dtype: str) -> Tuple[int, int]:
+    """
+    Produces the min,max for a give data type.
+
+    Parameters
+    ----------
+    dtype : str
+        a type string (e.g., int8, float64)
+
+    Returns
+    -------
+    type_info.min : int
+        the minimum of the range
+    type_info.max : int
+        the maximum of the range
+    """
+    type_info = None
+    np_dtype = np.dtype(dtype)
+    kind = np_dtype.kind
+
+    if kind == "f":
+        type_info = np.finfo(np_dtype)
+    elif kind in ["i", "u"]:
+        type_info = np.iinfo(np_dtype)
+    else:
+        raise TypeError(f"dtype ({dtype}) must indicate some floating-point or integral data type.")
+    return type_info.min, type_info.max
+
+
+def generate_ref_data(mod, input_data, params=None, target="llvm"):
+    """Generate reference data through executing the relay module"""
+    with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
+        lib = relay.build(mod, target=target, params=params)
+
+    lib_name = "mod.so"
+    temp = tvm.contrib.utils.tempdir()
+    lib_path = temp.relpath(lib_name)
+    lib.export_library(lib_path)
+    lib = tvm.runtime.load_module(lib_path)
+    grt_mod = graph_executor.GraphModule(lib["default"](tvm.cpu()))
+    grt_mod.set_input(**input_data)
+    grt_mod.run()
+    output_count = grt_mod.get_num_outputs()
+    out = [grt_mod.get_output(i).numpy() for i in range(output_count)]
+    if isinstance(mod, tvm.relay.Function):
+        main = mod
+    else:
+        main = mod["main"]
+    if "output_tensor_names" in main.attrs:
+        output_tensor_names = main.attrs["output_tensor_names"]
+    else:
+        output_tensor_names = (
+            ["output"] if output_count == 1 else [f"output{i}" for i in range(output_count)]
+        )
+
+    return dict(zip(output_tensor_names, out))
 
 
 class _DeepCopyAllowedClasses(dict):
