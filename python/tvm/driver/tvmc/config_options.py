@@ -59,6 +59,12 @@ def get_configs_json_dir() -> str:
         candidate_paths.extend(
             [os.path.abspath(os.path.join(lib_path, "..")) for lib_path in libinfo.find_lib_path()]
         )
+        candidate_paths.extend(
+            [
+                os.path.abspath(os.path.join(lib_path, "../.."))
+                for lib_path in libinfo.find_lib_path()
+            ]
+        )
         for path in candidate_paths:
             configs_path = os.path.join(os.path.dirname(path), "configs")
             if os.path.isdir(configs_path):
