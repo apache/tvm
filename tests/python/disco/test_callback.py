@@ -30,16 +30,17 @@ from tvm.script import relax as R, tir as T
 
 @tvm.testing.requires_nccl
 def test_callback():
+    """Simulate lazy loading of parameters in a callback
+
+    The output of a lazy parameter loading, which would accept a
+    callback to load the parameters.
+    """
+
     @R.function
     def transform_params(
         rank_arg: R.Prim(value="rank"),
         fget_item: R.Callable([R.Object, R.Prim("int64")], R.Object),
     ):
-        """Simulate lazy loading of parameters in a callback
-
-        The output of a lazy parameter loading, which would accept a
-        callback to load the parameters.
-        """
         rank = T.int64()
 
         A = fget_item(R.str("A"), R.prim_value(0))

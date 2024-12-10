@@ -47,9 +47,9 @@ release=$(lsb_release -sc)
 if [ "${release}" == "bionic" ]; then
      python_cmd="python3"
 elif [ "${release}" == "focal" ]; then
-     python_cmd="python3.8"
+     python_cmd="python3.9"
 elif [ "${release}" == "jammy" ]; then
-     python_cmd="python3.8"
+     python_cmd="python3.9"
 else
     echo "Don't know which version of python to use for Zephyr."
     exit 2
@@ -64,7 +64,7 @@ $python_cmd -m pip install west
 
 # Init ZephyrProject
 ZEPHYR_PROJECT_PATH=/opt/zephyrproject
-bash /install/ubuntu_init_zephyr_project.sh ${ZEPHYR_PROJECT_PATH}
+bash /install/ubuntu_init_zephyr_project.sh ${ZEPHYR_PROJECT_PATH} --branch v3.6-branch
 cd ${ZEPHYR_PROJECT_PATH}
 
 # As part of the build process, Zephyr needs to touch some symlinks in zephyr/misc/generated/syscalls_links (this path is relative to the

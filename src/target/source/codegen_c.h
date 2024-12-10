@@ -340,7 +340,7 @@ class CodeGenC : public ExprFunctor<void(const PrimExpr&, std::ostream&)>,
   std::unordered_map<GlobalVar, String> internal_functions_;
 
   /* \brief Name supply to generate unique function names */
-  NameSupply func_name_supply_{""};
+  NameSupply func_name_supply_;
 };
 
 }  // namespace codegen

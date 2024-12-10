@@ -18,8 +18,7 @@
 
 set -e
 
-echo "Running 2 cpplints (VTA and TVM)..."
-python3 3rdparty/dmlc-core/scripts/lint.py --quiet vta cpp vta/include vta/src
+echo "Running 2 cpplints..."
 python3 3rdparty/dmlc-core/scripts/lint.py --quiet tvm cpp \
 	include src \
 	examples/extension/src examples/graph_executor/src \

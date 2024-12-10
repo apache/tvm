@@ -81,7 +81,11 @@ class ReturnRewriter : public StmtMutator {
 
     // convert val's data type to FFI data type, return type code
     DataType dtype = val.dtype();
-    if (dtype.is_int() || dtype.is_uint()) {
+    if (dtype.is_bool()) {
+      info.tcode = kTVMArgBool;
+      info.expr = Cast(DataType::Int(64), val);
+
+    } else if (dtype.is_int() || dtype.is_uint()) {
       info.tcode = kTVMArgInt;
       info.expr = Cast(DataType::Int(64), val);
     } else if (dtype.is_float()) {
@@ -263,15 +267,15 @@ PrimFunc MakePackedAPI(PrimFunc func) {
   // ---------------------------
   // local function definitions
   // load i-th argument as type t
-  auto f_arg_value = [&](DataType t, int i) {
+  auto f_arg_value = [&](DataType arg_type, int i) {
     Array<PrimExpr> call_args{v_packed_args, IntImm(DataType::Int(32), i),
                               IntImm(DataType::Int(32), builtin::kTVMValueContent)};
     // load 64 bit version
-    DataType api_type = APIType(t);
+    DataType api_type = APIType(arg_type);
     PrimExpr res = Call(api_type, builtin::tvm_struct_get(), call_args);
     // cast to the target version.
-    if (api_type != t) {
-      res = Cast(t, res);
+    if (api_type != arg_type) {
+      res = Cast(arg_type, res);
     }
     return res;
   };
@@ -319,10 +323,7 @@ PrimFunc MakePackedAPI(PrimFunc func) {
       continue;
     }
 
-    var_def.emplace_back(f_arg_value(param.dtype(), i), param);
-    if (func_ptr->buffer_map.count(param)) {
-      buffer_def.emplace_back(param, func_ptr->buffer_map[param]);
-    }
+    PrimExpr arg_value;
 
     // type code checks
     Var tcode(param->name_hint + ".code", DataType::Int(32));
@@ -335,15 +336,35 @@ PrimFunc MakePackedAPI(PrimFunc func) {
       seq_init.emplace_back(AssertStmt(tcode == kTVMOpaqueHandle || tcode == kTVMNDArrayHandle ||
                                            tcode == kTVMDLTensorHandle || tcode == kTVMNullptr,
                                        tvm::tir::StringImm(msg.str()), nop));
+
+      arg_value = f_arg_value(param.dtype(), i);
+    } else if (t.is_bool()) {
+      std::ostringstream msg;
+      msg << name_hint << ": Expect arg[" << i << "] to be boolean";
+      seq_init.emplace_back(
+          AssertStmt(tcode == kTVMArgBool || tcode == kDLInt, tvm::tir::StringImm(msg.str()), nop));
+
+      arg_value = cast(DataType::Bool(), f_arg_value(DataType::Int(64), i));
+
     } else if (t.is_int() || t.is_uint()) {
       std::ostringstream msg;
       msg << name_hint << ": Expect arg[" << i << "] to be int";
-      seq_init.emplace_back(AssertStmt(tcode == kDLInt, tvm::tir::StringImm(msg.str()), nop));
+      seq_init.emplace_back(
+          AssertStmt(tcode == kDLInt || tcode == kTVMArgBool, tvm::tir::StringImm(msg.str()), nop));
+
+      arg_value = f_arg_value(t, i);
     } else {
       ICHECK(t.is_float());
       std::ostringstream msg;
       msg << name_hint << ": Expect arg[" << i << "] to be float";
       seq_init.emplace_back(AssertStmt(tcode == kDLFloat, tvm::tir::StringImm(msg.str()), nop));
+
+      arg_value = f_arg_value(param.dtype(), i);
+    }
+
+    var_def.emplace_back(arg_value, param);
+    if (func_ptr->buffer_map.count(param)) {
+      buffer_def.emplace_back(param, func_ptr->buffer_map[param]);
     }
   }
 

@@ -245,6 +245,13 @@ set(USE_EDGETPU OFF)
 # - /path/to/cudnn: use specific path to cuDNN path
 set(USE_CUDNN OFF)
 
+# Whether use cuDNN frontend
+# Possible values:
+# - ON: enable cuDNN frontend
+# - /path/to/cudnn_frontend: use specific path to cuDNN frontend
+# - OFF: disable cuDNN frontend
+set(USE_CUDNN_FRONTEND OFF)
+
 # Whether use cuBLAS
 set(USE_CUBLAS OFF)
 
@@ -367,7 +374,7 @@ set(USE_HEXAGON_RPC OFF)
 # compiling _by_ TVM). This applies to components like the TVM runtime, but is
 # also used to select correct include/library paths from the Hexagon SDK when
 # building runtime for Android.
-# Valid values are v65, v66, v68, v69, v73.
+# Valid values are v65, v66, v68, v69, v73, v75.
 set(USE_HEXAGON_ARCH "v68")
 
 # Whether use MRVL codegen
@@ -476,3 +483,6 @@ SET(CMAKE_VS_PLATFORM_NAME_DEFAULT "x64")
 
 # Set Windows Visual Studio default host (equivalent to -Thost=x64)
 SET(CMAKE_VS_PLATFORM_TOOLSET_HOST_ARCHITECTURE "x64")
+
+# Enable Qualcomm OpenCL extension support
+set(USE_OPENCL_EXTN_QCOM OFF)

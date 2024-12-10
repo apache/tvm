@@ -39,6 +39,7 @@ from pathlib import Path
 import re
 import sys
 from textwrap import dedent, indent
+from typing import List
 from unittest.mock import patch
 
 # If extensions (or modules to document with autodoc) are in another directory,
@@ -52,7 +53,6 @@ else:
     tvm_path = Path(os.pardir)
 
 sys.path.insert(0, str(tvm_path.resolve() / "python"))
-sys.path.insert(0, str(tvm_path.resolve() / "vta" / "python"))
 sys.path.insert(0, str(tvm_path.resolve() / "docs"))
 
 # -- General configuration ------------------------------------------------
@@ -159,7 +159,9 @@ BUTTON = (
 
 
 @monkey_patch("sphinx_gallery.gen_rst", "save_rst_example")
-def save_rst_example(example_rst, example_file, time_elapsed, memory_used, gallery_conf, real_func):
+def save_rst_example(
+    example_rst, example_file, time_elapsed, memory_used, gallery_conf, language, real_func
+):
     """Monkey-patch save_rst_example to include the "Open in Colab" button."""
 
     # The url is the md5 hash of the notebook path.
@@ -178,7 +180,9 @@ def save_rst_example(example_rst, example_file, time_elapsed, memory_used, galle
         python_file=example_fname, ref_name=ref_fname, colab_url=colab_url, button_svg=BUTTON
     )
     with patch("sphinx_gallery.gen_rst.EXAMPLE_HEADER", new_header):
-        real_func(example_rst, example_file, time_elapsed, memory_used, gallery_conf)
+        real_func(
+            example_rst, example_file, time_elapsed, memory_used, gallery_conf, language=language
+        )
 
 
 INCLUDE_DIRECTIVE_RE = re.compile(r"^([ \t]*)\.\. include::\s*(.+)\n", flags=re.M)
@@ -365,10 +369,7 @@ html_theme = os.environ.get("TVM_THEME", "rtd")
 on_rtd = os.environ.get("READTHEDOCS", None) == "True"
 # only import rtd theme and set it if want to build docs locally
 if not on_rtd and html_theme == "rtd":
-    import sphinx_rtd_theme
-
     html_theme = "sphinx_rtd_theme"
-    html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
@@ -408,6 +409,7 @@ intersphinx_mapping = {
 from sphinx_gallery.sorting import ExplicitOrder
 
 examples_dirs = [
+    # legacy tutorial structure under gallery folder
     tvm_path.joinpath("gallery", "tutorial"),
     tvm_path.joinpath("gallery", "how_to", "compile_models"),
     tvm_path.joinpath("gallery", "how_to", "deploy_models"),
@@ -418,10 +420,15 @@ examples_dirs = [
     tvm_path.joinpath("gallery", "how_to", "tune_with_autoscheduler"),
     tvm_path.joinpath("gallery", "how_to", "work_with_microtvm"),
     tvm_path.joinpath("gallery", "how_to", "extend_tvm"),
-    tvm_path.joinpath("vta", "tutorials"),
+    # New tutorial structure under docs folder
+    tvm_path.joinpath("docs", "get_started", "tutorials"),
+    tvm_path.joinpath("docs", "how_to", "tutorials"),
+    tvm_path.joinpath("docs", "deep_dive", "relax", "tutorials"),
+    tvm_path.joinpath("docs", "deep_dive", "tensor_ir", "tutorials"),
 ]
 
 gallery_dirs = [
+    # legacy tutorial structure under gallery folder
     "tutorial",
     "how_to/compile_models",
     "how_to/deploy_models",
@@ -432,17 +439,12 @@ gallery_dirs = [
     "how_to/tune_with_autoscheduler",
     "how_to/work_with_microtvm",
     "how_to/extend_tvm",
-    "topic/vta/tutorials",
+    # New tutorial structure under docs folder
+    "get_started/tutorials/",
+    "how_to/tutorials/",
+    "deep_dive/relax/tutorials/",
+    "deep_dive/tensor_ir/tutorials/",
 ]
-
-
-subsection_order = ExplicitOrder(
-    str(p)
-    for p in [
-        tvm_path / "vta" / "tutorials" / "frontend",
-        tvm_path / "vta" / "tutorials" / "optimize",
-    ]
-)
 
 # Explicitly define the order within a subsection.
 # The listed files are sorted according to the list.
@@ -479,7 +481,6 @@ within_subsection_order = {
     "work_with_schedules": [
         "schedule_primitives.py",
         "reduction.py",
-        "intrin_math.py",
         "scan.py",
         "extern_op.py",
         "tensorize.py",
@@ -563,7 +564,6 @@ sphinx_gallery_conf = {
     "examples_dirs": examples_dirs,
     "within_subsection_order": WithinSubsectionOrder,
     "gallery_dirs": gallery_dirs,
-    "subsection_order": subsection_order,
     "filename_pattern": os.environ.get("TVM_TUTORIAL_EXEC_PATTERN", filename_pattern_default),
     "download_all_examples": False,
     "min_reported_time": 60,
@@ -588,10 +588,10 @@ tvm_alias_check_map = {
 ## Setup header and other configs
 import tlcpack_sphinx_addon
 
-footer_copyright = "© 2023 Apache Software Foundation | All rights reserved"
+footer_copyright = "© 2024 Apache Software Foundation | All rights reserved"
 footer_note = " ".join(
     """
-Copyright © 2023 The Apache Software Foundation. Apache TVM, Apache, the Apache feather,
+Copyright © 2024 The Apache Software Foundation. Apache TVM, Apache, the Apache feather,
 and the Apache TVM project logo are either trademarks or registered trademarks of
 the Apache Software Foundation.""".split(
         "\n"
@@ -604,7 +604,6 @@ header_logo_link = "https://tvm.apache.org/"
 header_links = [
     ("Community", "https://tvm.apache.org/community"),
     ("Download", "https://tvm.apache.org/download"),
-    ("VTA", "https://tvm.apache.org/vta"),
     ("Blog", "https://tvm.apache.org/blog"),
     ("Docs", "https://tvm.apache.org/docs"),
     ("Conference", "https://tvmconf.org"),
@@ -617,7 +616,7 @@ header_dropdown = {
         ("Apache Homepage", "https://apache.org/"),
         ("License", "https://www.apache.org/licenses/"),
         ("Sponsorship", "https://www.apache.org/foundation/sponsorship.html"),
-        ("Security", "https://www.apache.org/security/"),
+        ("Security", "https://tvm.apache.org/docs/reference/security.html"),
         ("Thanks", "https://www.apache.org/foundation/thanks.html"),
         ("Events", "https://www.apache.org/events/current-event"),
     ],
@@ -712,13 +711,50 @@ def update_alias_docstring(name, obj, lines):
             lines.append(".. rubric:: Alias of %s:`%s.%s`" % (obj_type, amod, target_name))
 
 
+tvm_class_name_rewrite_map = {
+    "tvm.tir": ["Var", "Call"],
+    "tvm.relax": ["Var", "Call"],
+    "tvm.relax.frontend.nn": ["Module"],
+}
+
+
+def distinguish_class_name(name: str, lines: List[str]):
+    """Distinguish the docstring of type annotations.
+
+    In the whole TVM, there are many classes with the same name but in different modules,
+    e.g. ``tir.Var``, ``relax.Var``. This function is used to distinguish them in the docstring,
+    by adding the module name as prefix.
+
+    To be specific, this function will check the current object name, and if it in the specific
+    module with specific name, it will add the module name as prefix to the class name to prevent
+    the confusion. Further, we only add the prefix to those standalone class name, but skip
+    the pattern of `xx.Var`, `Var.xx` and `xx.Var.xx`.
+
+    Parameters
+    ----------
+    name : str
+        The full name of the object in the doc.
+
+    lines : list
+        The docstring lines, need to be modified inplace.
+    """
+    remap = {}
+    for module_name in tvm_class_name_rewrite_map:
+        if name.startswith(module_name):
+            short_name = module_name[4:] if module_name.startswith("tvm.") else module_name
+            for class_name in tvm_class_name_rewrite_map[module_name]:
+                remap.update({class_name: f"{short_name}.{class_name}"})
+
+    for k, v in remap.items():
+        for i in range(len(lines)):
+            lines[i] = re.sub(rf"(?<!\.)\b{k}\b(?!\.)", v, lines[i])
+
+
 def process_docstring(app, what, name, obj, options, lines):
     """Sphinx callback to process docstring"""
     if callable(obj) or inspect.isclass(obj):
         update_alias_docstring(name, obj, lines)
-
-
-from legacy_redirect import build_legacy_redirect
+        distinguish_class_name(name, lines)
 
 
 def strip_ipython_magic(app, docname, source):
@@ -733,4 +769,3 @@ def strip_ipython_magic(app, docname, source):
 def setup(app):
     app.connect("source-read", strip_ipython_magic)
     app.connect("autodoc-process-docstring", process_docstring)
-    app.connect("build-finished", build_legacy_redirect(tvm_path))

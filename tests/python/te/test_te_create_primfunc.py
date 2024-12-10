@@ -45,8 +45,12 @@ def test_unique_name_reduction_block():
     assert isinstance(s.get_sref(s.get_block("sum_1")), tir.schedule.StmtSRef)
 
 
-def _check_workload(te_workload, tir_workload, index_dtype_override=None):
+def _check_workload(te_workload, tir_workload, index_dtype_override=None, do_simplify=False):
     func = te.create_prim_func(te_workload(), index_dtype_override)
+    if do_simplify:
+        simplify = tir.transform.Simplify()
+        func = simplify(tvm.IRModule.from_expr(func))["main"]
+        tir_workload = simplify(tvm.IRModule.from_expr(tir_workload))["main"]
     tvm.ir.assert_structural_equal(func, tir_workload)
     # make sure that we can create schedule from the func
     s = tir.Schedule(func, debug_mask="all")
@@ -812,6 +816,176 @@ def tir_slice_with_var_input(var_tensor: T.handle, idx: T.int64, var_slice: T.ha
 
 def test_with_var_input():
     _check_workload(te_slice_with_var_input, tir_slice_with_var_input, index_dtype_override="int64")
+
+
+def test_loop_aware_initial_value():
+    """Test initial value aware of spatial iter position"""
+
+    @T.prim_func
+    def tir_workload(var_a: T.handle, var_b: T.handle, var_sum_red: T.handle):
+        T.func_attr({"tir.noalias": T.bool(True), "global_symbol": "main"})
+        a = T.match_buffer(var_a, (5, 5))
+        b = T.match_buffer(var_b, (5,))
+        sum_red = T.match_buffer(var_sum_red, (5,))
+        for i, ax in T.grid(5, 5):
+            with T.block("sum_red"):
+                v_i, v_ax = T.axis.remap("SR", [i, ax])
+                T.reads(b[v_i], a[v_i, v_ax])
+                T.writes(sum_red[v_i])
+                with T.init():
+                    sum_red[v_i] = b[v_i]
+                sum_red[v_i] = sum_red[v_i] + a[v_i, v_ax]
+
+    def te_workload():
+        data = te.placeholder((5, 5), "float32", "a")
+        init = te.placeholder((5,), "float32", "b")
+        ax = te.reduce_axis((0, 5), "ax")
+        sum_red = te.compute(
+            (5,),
+            lambda i: te.comm_reducer(
+                lambda x, y: x + y,
+                lambda t: init[i],
+            )(data[i, ax], axis=[ax]),
+            name="sum_red",
+        )
+        return [data, init, sum_red]
+
+    _check_workload(te_workload, tir_workload)
+
+
+def test_loop_aware_reducer_combiner():
+    """Test combiner aware of spatial iter position"""
+
+    @T.prim_func
+    def tir_workload(var_a: T.handle, var_b: T.handle, var_sum_red: T.handle):
+        T.func_attr({"tir.noalias": T.bool(True), "global_symbol": "main"})
+        a = T.match_buffer(var_a, (5, 5))
+        b = T.match_buffer(var_b, (5,))
+        sum_red = T.match_buffer(var_sum_red, (5,))
+        for i, ax in T.grid(5, 5):
+            with T.block("sum_red"):
+                v_i = T.axis.spatial(5, i)
+                v_ax = T.axis.reduce(5, ax)
+                T.reads(a[v_i, 0:5])
+                T.writes(sum_red[v_i])
+                with T.init():
+                    sum_red[v_i] = T.float32(0.0)
+                sum_red[v_i] = T.if_then_else(
+                    a[v_i, sum_red[v_i]] < a[v_i, v_ax], sum_red[v_i], T.Cast("float32", v_ax)
+                )
+
+    def te_workload():
+        data = te.placeholder((5, 5), "float32", "a")
+        init = te.placeholder((5,), "float32", "b")
+        ax = te.reduce_axis((0, 5), "ax")
+        sum_red = te.compute(
+            (5,),
+            lambda i: te.comm_reducer(
+                lambda x, y: te.if_then_else(data[i, x] < y, x, ax),
+                lambda _: te.const(0, "float32"),
+            )(data[i, ax], axis=[ax]),
+            name="sum_red",
+        )
+        return [data, init, sum_red]
+
+    _check_workload(te_workload, tir_workload)
+
+
+def test_adaptive_pooling_window():
+    @T.prim_func
+    def tir_workload(
+        x: T.Buffer((1, 1024, 16, 40), "float32"),
+        adaptive_pool_avg: T.Buffer((1, 1024, 12, 30), "float32"),
+    ):
+        T.func_attr({"tir.noalias": T.bool(True), "global_symbol": "main"})
+        # fmt: off
+        adaptive_pool_sum = T.alloc_buffer((1, 1024, 12, 30))
+        for ax0, ax1, ax2, ax3 in T.grid(1, 1024, 12, 30):
+            with T.block("adaptive_pool_sum_1"):
+                v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                T.reads(x[v_ax0, v_ax1, v_ax2 * 16 // 12:v_ax2 * 16 // 12 + ((v_ax2 % 3 * 4 + 16) // 12 + 1), v_ax3 * 40 // 30:v_ax3 * 40 // 30 + ((v_ax3 % 3 * 10 + 40) // 30 + 1)])
+                T.writes(adaptive_pool_sum[v_ax0, v_ax1, v_ax2, v_ax3])
+                for rv0, rv1 in T.grid(T.Select((v_ax2 * 4 + 4) % 12 == 0, (v_ax2 * 16 + 16) // 12, (v_ax2 * 16 + 16) // 12 + 1) - v_ax2 * 16 // 12, T.Select((v_ax3 * 10 + 10) % 30 == 0, (v_ax3 * 40 + 40) // 30, (v_ax3 * 40 + 40) // 30 + 1) - v_ax3 * 40 // 30):
+                    with T.block("adaptive_pool_sum"):
+                        v_ax0_1 = T.axis.spatial((v_ax0, v_ax0 + 1), v_ax0)
+                        v_ax1_1 = T.axis.spatial((v_ax1, v_ax1 + 1), v_ax1)
+                        v_ax2_1 = T.axis.spatial((v_ax2, v_ax2 + 1), v_ax2)
+                        v_ax3_1 = T.axis.spatial((v_ax3, v_ax3 + 1), v_ax3)
+                        v_rv0, v_rv1 = T.axis.remap("RR", [rv0, rv1])
+                        T.reads(x[v_ax0_1, v_ax1_1, v_ax2_1 * 16 // 12 + v_rv0, v_ax3_1 * 40 // 30 + v_rv1])
+                        T.writes(adaptive_pool_sum[v_ax0_1, v_ax1_1, v_ax2_1, v_ax3_1])
+                        with T.init():
+                            adaptive_pool_sum[v_ax0_1, v_ax1_1, v_ax2_1, v_ax3_1] = T.float32(0.0)
+                        adaptive_pool_sum[v_ax0_1, v_ax1_1, v_ax2_1, v_ax3_1] = adaptive_pool_sum[v_ax0_1, v_ax1_1, v_ax2_1, v_ax3_1] + x[v_ax0_1, v_ax1_1, v_ax2_1 * 16 // 12 + v_rv0, v_ax3_1 * 40 // 30 + v_rv1]
+        for ax0, ax1, ax2, ax3 in T.grid(1, 1024, 12, 30):
+            with T.block("adaptive_pool_avg"):
+                v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                T.reads(adaptive_pool_sum[v_ax0, v_ax1, v_ax2, v_ax3])
+                T.writes(adaptive_pool_avg[v_ax0, v_ax1, v_ax2, v_ax3])
+                T.block_attr({"schedule_rule": "meta_schedule.adaptive_pool_avg"})
+                adaptive_pool_avg[v_ax0, v_ax1, v_ax2, v_ax3] = adaptive_pool_sum[v_ax0, v_ax1, v_ax2, v_ax3] / (T.Cast("float32", T.Select((v_ax2 * 4 + 4) % 12 == 0, (v_ax2 * 16 + 16) // 12, (v_ax2 * 16 + 16) // 12 + 1) - v_ax2 * 16 // 12) * T.Cast("float32", T.Select((v_ax3 * 10 + 10) % 30 == 0, (v_ax3 * 40 + 40) // 30, (v_ax3 * 40 + 40) // 30 + 1) - v_ax3 * 40 // 30))
+        # fmt: on
+
+    def te_workload():
+        x = te.placeholder([1, 1024, 16, 40], "float32", "x")
+        y = topi.nn.adaptive_pool(x, [12, 30], pool_type="avg")
+        f = te.create_prim_func([x, y])
+        return [x, y]
+
+    _check_workload(te_workload, tir_workload)
+
+
+def test_nested_reduce_domain_dependency():
+    @T.prim_func
+    def tir_workload(
+        x: T.Buffer((8, 8, 8, 8, 8), "float32"), compute: T.Buffer((8, 8, 8), "float32")
+    ):
+        T.func_attr({"tir.noalias": T.bool(True), "global_symbol": "main"})
+        for i0, i1, i2 in T.grid(8, 8, 8):
+            with T.block("compute_2"):
+                v_i0, v_i1, v_i2 = T.axis.remap("SSS", [i0, i1, i2])
+                T.reads(x[v_i0, v_i1, v_i2, 0:v_i1, 0 : v_i1 - 1])
+                T.writes(compute[v_i0, v_i1, v_i2])
+                for rv in range(v_i1):
+                    with T.block("compute_1"):
+                        v_i0_1 = T.axis.spatial((v_i0, v_i0 + 1), v_i0)
+                        v_i1_1 = T.axis.spatial((v_i1, v_i1 + 1), v_i1)
+                        v_i2_1 = T.axis.spatial((v_i2, v_i2 + 1), v_i2)
+                        v_rv = T.axis.reduce(v_i1, rv)
+                        T.reads(x[v_i0_1, v_i1_1, v_i2_1, v_rv, 0:v_rv])
+                        T.writes(compute[v_i0_1, v_i1_1, v_i2_1])
+                        with T.init():
+                            compute[v_i0_1, v_i1_1, v_i2_1] = T.float32(0.0)
+                        for rv_1 in range(v_rv):
+                            with T.block("compute"):
+                                v_i0_2 = T.axis.spatial((v_i0_1, v_i0_1 + 1), v_i0_1)
+                                v_i1_2 = T.axis.spatial((v_i1_1, v_i1_1 + 1), v_i1_1)
+                                v_i2_2 = T.axis.spatial((v_i2_1, v_i2_1 + 1), v_i2_1)
+                                v_rv_1 = T.axis.reduce((v_rv, v_rv + 1), v_rv)
+                                v_rv_2 = T.axis.reduce(v_rv, rv_1)
+                                T.reads(x[v_i0_2, v_i1_2, v_i2_2, v_rv_1, v_rv_2])
+                                T.writes(compute[v_i0_2, v_i1_2, v_i2_2])
+                                with T.init():
+                                    compute[v_i0_2, v_i1_2, v_i2_2] = T.float32(0.0)
+                                compute[v_i0_2, v_i1_2, v_i2_2] = (
+                                    compute[v_i0_2, v_i1_2, v_i2_2]
+                                    + x[v_i0_2, v_i1_2, v_i2_2, v_rv_1, v_rv_2]
+                                )
+
+    def te_workload():
+        x = te.placeholder([8, 8, 8, 8, 8], "float32", "x")
+
+        def fcompute(*axes):
+            r1 = te.reduce_axis(tvm.ir.Range.from_min_extent(0, axes[1]))
+            r2 = te.reduce_axis(tvm.ir.Range.from_min_extent(0, r1))
+            all_axes = [*axes, r1, r2]
+            return te.sum(x(*all_axes), [r1, r2])
+
+        y = te.compute([8, 8, 8], fcompute)
+        f = te.create_prim_func([x, y])
+        return [x, y]
+
+    _check_workload(te_workload, tir_workload)
 
 
 if __name__ == "__main__":

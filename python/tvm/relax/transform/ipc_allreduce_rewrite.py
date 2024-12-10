@@ -97,8 +97,8 @@ class _Visitor(PyExprVisitor):  # pylint: disable=abstract-method
             # Return if the call is not a summation all-reduce.
             return
 
-        assert len(call.args) == 3
-        allreduce_input = call.args[0]
+        assert len(call.args) == 4
+        allreduce_input, _strategy, _ingroup, allreduce_output = call.args
         alloc_tensor = self.alloc_map.get(allreduce_input, None)
         if alloc_tensor is None or alloc_tensor.args[3].value != "global":
             # Return if the allocation of all-reduce input is not recorded,
@@ -113,9 +113,13 @@ class _Visitor(PyExprVisitor):  # pylint: disable=abstract-method
             alloc_tensor.args[2],
             relax.StringImm("ipc_memory"),
         )
+
         self.binding_replacement_map[call] = relax.Call(
             relax.ExternFunc("runtime.disco.cuda_ipc.custom_allreduce"),
-            args=[call.args[0], relax.PrimValue(self.allreduce_strategy), call.args[2]],
+            # The "cuda_ipc.custom_allreduce" implementation does not
+            # yet support num_groups>1, and therefore does not use the
+            # `in_group` argument.
+            [allreduce_input, relax.PrimValue(self.allreduce_strategy), allreduce_output],
         )
 
 

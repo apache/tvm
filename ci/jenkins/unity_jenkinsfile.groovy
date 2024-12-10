@@ -30,14 +30,14 @@
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
-ci_lint = 'tlcpack/ci-lint:20240105-165030-51bdaec6'
-ci_gpu = 'tlcpack/ci-gpu:20240105-165030-51bdaec6'
-ci_cpu = 'tlcpack/ci-cpu:20240105-165030-51bdaec6'
+ci_lint = 'tlcpack/ci_lint:20241119-020227-6fc0598c'
+ci_gpu = 'tlcpack/ci_gpu:20241119-020227-6fc0598c'
+ci_cpu = 'tlcpack/ci_cpu:20241119-020227-6fc0598c'
 ci_wasm = 'tlcpack/ci-wasm:v0.72'
 ci_i386 = 'tlcpack/ci-i386:v0.75'
 ci_qemu = 'tlcpack/ci-qemu:v0.11'
 ci_arm = 'tlcpack/ci-arm:v0.08'
-ci_hexagon = 'tlcpack/ci-hexagon:20240105-165030-51bdaec6'
+ci_hexagon = 'tlcpack/ci_hexagon:20241119-020227-6fc0598c'
 // <--- End of regex-scanned config.
 
 // Parameters to allow overriding (in Jenkins UI), the images
@@ -210,14 +210,6 @@ def lint(node_type) {
           )
           skip_ci = should_skip_ci(env.CHANGE_ID)
           skip_slow_tests = should_skip_slow_tests(env.CHANGE_ID)
-          sh(
-            script: "${docker_run} ${ci_lint}  ./tests/scripts/task_lint.sh",
-            label: 'Run lint',
-          )
-          sh(
-            script: "${docker_run} ${ci_lint}  ./tests/scripts/unity/task_extra_lint.sh",
-            label: 'Run extra lint',
-          )
         }
       }
     }
@@ -317,12 +309,6 @@ def python_unittest(image) {
   )
 }
 
-def fsim_test(image) {
-  sh (
-    script: "${docker_run} ${image} ./tests/scripts/task_python_vta_fsim.sh",
-    label: 'Run VTA tests in FSIM',
-  )
-}
 
 def cmake_build(image, path, make_flag) {
   sh (

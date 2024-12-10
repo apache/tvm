@@ -875,7 +875,7 @@ def test_layer_norm_silu():
         def main(x: R.Tensor((1, 512, 64, 64), "float32"), mean: R.Tensor((64, 64), "float32"), var: R.Tensor((64, 64), "float32")):
             cls = Module
             with R.dataflow():
-                gv0 = R.call_tir(cls.layer_norm, (x, mean, var), out_sinfo=R.Tensor((1, 512, 64, 64)))
+                gv0 = R.call_tir(cls.layer_norm, (x, mean, var), out_sinfo=R.Tensor((1, 512, 64, 64), 'float32'))
                 gv1 = R.call_tir(cls.relu, gv0, out_sinfo=R.Tensor((1, 512, 64, 64), "float32"))
                 R.output(gv1)
             return gv1
@@ -955,7 +955,7 @@ def test_layer_norm_silu():
             R.func_attr({"Primitive": 1})
             cls = Expected
             with R.dataflow():
-                gv0 = R.call_tir(cls.layer_norm, (x, mean, var), out_sinfo=R.Tensor((1, 512, 64, 64)))
+                gv0 = R.call_tir(cls.layer_norm, (x, mean, var), out_sinfo=R.Tensor((1, 512, 64, 64), 'float32'))
                 gv = R.call_tir(cls.relu, (gv0,), out_sinfo=R.Tensor((1, 512, 64, 64), dtype="float32"))
                 R.output(gv)
             return gv
@@ -1452,7 +1452,7 @@ def test_partially_used_tuple_param():
                 R.Tensor((2,), "float32"),
                 R.Tensor((2,), "float32"),
                 R.Tensor((2,), "float32"),
-            )
+            ),
         ):
             with R.dataflow():
                 x0 = x[0]
@@ -1486,7 +1486,7 @@ def test_partially_used_tuple_param():
                 R.Tensor((2,), dtype="float32"),
                 R.Tensor((2,), dtype="float32"),
                 R.Tensor((2,), dtype="float32"),
-            )
+            ),
         ) -> R.Tensor((2,), dtype="float32"):
             cls = Expected
             with R.dataflow():
@@ -1640,6 +1640,54 @@ def test_call_tir_inplace():
             return gv1
 
     _check(Module, Expected)
+
+
+def test_packed_params():
+    # fmt: off
+    @I.ir_module
+    class Before:
+        @T.prim_func(private=True)
+        def cast(lv: T.Buffer((T.int64(16), T.int64(16)), "float16"), compute: T.Buffer((T.int64(16), T.int64(16)), "float32")):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            # with T.block("root"):
+            for i0, i1 in T.grid(T.int64(16), T.int64(16)):
+                with T.block("compute"):
+                    v_i0, v_i1 = T.axis.remap("SS", [i0, i1])
+                    T.reads(lv[v_i0, v_i1])
+                    T.writes(compute[v_i0, v_i1])
+                    compute[v_i0, v_i1] = T.Cast("float32", lv[v_i0, v_i1])
+
+        @T.prim_func(private=True)
+        def matmul(x: T.Buffer((T.int64(16), T.int64(16)), "float32"), lv2: T.Buffer((T.int64(16), T.int64(16)), "float32"), T_matmul: T.Buffer((T.int64(16), T.int64(16)), "float32")):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            # with T.block("root"):
+            for ax0, ax1, k in T.grid(T.int64(16), T.int64(16), T.int64(16)):
+                with T.block("T_matmul"):
+                    v_ax0, v_ax1, v_k = T.axis.remap("SSR", [ax0, ax1, k])
+                    T.reads(x[v_ax0, v_k], lv2[v_k, v_ax1])
+                    T.writes(T_matmul[v_ax0, v_ax1])
+                    with T.init():
+                        T_matmul[v_ax0, v_ax1] = T.float32(0)
+                    T_matmul[v_ax0, v_ax1] = T_matmul[v_ax0, v_ax1] + x[v_ax0, v_k] * lv2[v_k, v_ax1]
+
+        @R.function
+        def main(x: R.Tensor((16, 16), dtype="float32"), packed_params: R.Tuple(R.Tensor((16, 16), dtype="float16"), R.Tensor((16, 16), dtype="float16"))) -> R.Tensor((16, 16), dtype="float32"):
+            R.func_attr({"num_input": 1})
+            cls = Before
+            with R.dataflow():
+                lv: R.Tensor((16, 16), dtype="float16") = packed_params[0]
+                lv1: R.Tensor((16, 16), dtype="float16") = packed_params[1]
+                lv2 = R.call_tir(cls.cast, (lv,), out_sinfo=R.Tensor((16, 16), dtype="float32"))
+                lv3 = R.call_tir(cls.matmul, (x, lv2), out_sinfo=R.Tensor((16, 16), dtype="float32"))
+                lv4 = R.call_tir(cls.cast, (lv1,), out_sinfo=R.Tensor((16, 16), dtype="float32"))
+                lv5 = R.call_tir(cls.matmul, (lv3, lv4), out_sinfo=R.Tensor((16, 16), dtype="float32"))
+                gv: R.Tensor((16, 16), dtype="float32") = lv5
+                R.output(gv)
+            return gv
+    # fmt: on
+
+    Expected = Before
+    _check(Before, Expected)
 
 
 if __name__ == "__main__":

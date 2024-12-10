@@ -180,9 +180,10 @@ def to_relax(
 
     def _to_var(tensor: MSCTensor):
         v_name = tensor.alias if use_alias else graph.find_producer(tensor).name
-        return tvm.relax.Var(
-            v_name, tvm.relax.TensorStructInfo(tensor.get_shape(), tensor.dtype_name)
-        )
+        dims = [
+            d if isinstance(d, int) else tvm.tir.Var(d, "int64") for d in tensor.get_shape(True)
+        ]
+        return tvm.relax.Var(v_name, tvm.relax.TensorStructInfo(dims, tensor.dtype_name))
 
     def _save_weights(folder: msc_utils.MSCDirectory):
         if weights:
@@ -223,6 +224,7 @@ def relay_to_relax(
     trans_config: Optional[Dict[str, str]] = None,
     build_config: Optional[Dict[str, str]] = None,
     opt_config: Optional[Dict[str, str]] = None,
+    build_folder: msc_utils.MSCDirectory = None,
 ) -> tvm.IRModule:
     """Change relay IRModule to relax MSCGraph.
 
@@ -238,6 +240,8 @@ def relay_to_relax(
         The config for build MSCGraph.
     opt_config: dict
         The config for optimize the relay before translate.
+    build_folder: MSCDirectory
+        The folder for saving scripts and datas.
 
     Returns
     -------
@@ -253,4 +257,4 @@ def relay_to_relax(
         opt_config=opt_config,
     )
 
-    return to_relax(graph, weights, codegen_config={"from_relay": True})
+    return to_relax(graph, weights, codegen_config={"from_relay": True}, build_folder=build_folder)

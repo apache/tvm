@@ -84,7 +84,7 @@ std::tuple<Map<Var, Expr>, Map<tir::Var, PrimExpr>> NormalizeNamedBindings(
     if (auto opt = obj.as<relax::Expr>()) {
       return opt.value();
     } else if (auto opt = obj.as<runtime::NDArray>()) {
-      const auto& span = SpanUtils::SetAttr(Span(), msc_attr::kName, key->name_hint());
+      const auto& span = SpanUtils::CreateWithAttr(msc_attr::kName, key->name_hint());
       return Constant(opt.value(), StructInfo(), span);
     } else {
       LOG(FATAL) << "Cannot coerce object of type " << obj->GetTypeKey()

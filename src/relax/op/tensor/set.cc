@@ -24,6 +24,7 @@
 
 #include "set.h"
 
+#include <algorithm>
 #include <utility>
 #include <vector>
 
@@ -135,6 +136,26 @@ TVM_REGISTER_OP("relax.unique")
         "are returned.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoUnique)
     .set_attr<FCallPacked>("FCallPacked", "relax.run.unique")
+    .set_attr<Bool>("FPurity", Bool(true));
+
+/* relax.nonzero */
+Expr nonzero(Expr x) {
+  static const Op& op = Op::Get("relax.nonzero");
+  return Call(op, {std::move(x)});
+}
+
+TVM_REGISTER_GLOBAL("relax.op.nonzero").set_body_typed(nonzero);
+
+StructInfo InferStructInfoNonzero(const Call& call, const BlockBuilder& ctx) {
+  TensorStructInfo data_sinfo = GetInputTensorStructInfo(call, 0, ctx);
+  return TensorStructInfo(DataType::Int(64), 2, data_sinfo->vdevice);
+}
+
+TVM_REGISTER_OP("relax.nonzero")
+    .set_num_inputs(1)
+    .add_argument("x", "Tensor", "The input tensor")
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoNonzero)
+    .set_attr<FCallPacked>("FCallPacked", "relax.run.nonzero")
     .set_attr<Bool>("FPurity", Bool(true));
 
 }  // namespace relax

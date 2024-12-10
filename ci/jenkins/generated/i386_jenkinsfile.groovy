@@ -480,13 +480,6 @@ def python_unittest(image) {
   )
 }
 
-def fsim_test(image) {
-  sh (
-    script: "${docker_run} ${image} ./tests/scripts/task_python_vta_fsim.sh",
-    label: 'Run VTA tests in FSIM',
-  )
-}
-
 def make_standalone_crt(image, build_dir) {
   sh (
     script: """
@@ -667,7 +660,6 @@ def shard_run_python_i386_2_of_3(node_type='CPU-SMALL-SPOT', on_demand=false) {
                 script: "${docker_run} ${ci_i386} ./tests/scripts/task_python_integration_i386only.sh",
                 label: 'Run i386 integration tests',
               )
-              fsim_test(ci_i386)
             })
           }
         } finally {

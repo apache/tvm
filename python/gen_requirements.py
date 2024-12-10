@@ -68,6 +68,7 @@ REQUIREMENTS_BY_PIECE: RequirementsByPieceType = [
                 "decorator",
                 "ml_dtypes",
                 "numpy",
+                "packaging",
                 "psutil",
                 "scipy",
                 "tornado",

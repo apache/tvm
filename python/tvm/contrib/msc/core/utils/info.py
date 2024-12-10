@@ -17,7 +17,7 @@
 """tvm.contrib.msc.core.utils.info"""
 
 from typing import List, Tuple, Dict, Any, Union
-from distutils.version import LooseVersion
+from packaging.version import parse
 import numpy as np
 
 import tvm
@@ -409,8 +409,8 @@ def get_version(framework: str) -> List[int]:
             raw_version = "1.0.0"
     except:  # pylint: disable=bare-except
         raw_version = "1.0.0"
-    raw_version = raw_version or "1.0.0"
-    return LooseVersion(raw_version).version
+    version = parse(raw_version or "1.0.0")
+    return [version.major, version.minor, version.micro]
 
 
 def compare_version(given_version: List[int], target_version: List[int]) -> int:

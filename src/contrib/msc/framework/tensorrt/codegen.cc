@@ -544,7 +544,7 @@ const Array<Doc> TensorRTCodeGen::GetOpCodes(const MSCJoint& node) {
   const auto& ops_map = GetTensorRTOpCodes();
   auto it = ops_map->find(GetOpType(node));
   ICHECK(it != ops_map->end()) << "Unsupported tensorrt op(" << node->optype << "): " << node;
-  it->second->Config(node, config());
+  it->second->Config(node, config(), prims());
   try {
     return it->second->GetDocs();
   } catch (runtime::InternalError& err) {
@@ -578,6 +578,7 @@ TVM_REGISTER_GLOBAL("msc.framework.tensorrt.GetTensorRTSources")
     .set_body_typed([](const MSCGraph& graph, const String& codegen_config,
                        const String& print_config) -> Map<String, String> {
       TensorRTCodeGen codegen = TensorRTCodeGen(graph, codegen_config);
+      codegen.Init();
       return codegen.GetSources(print_config);
     });
 

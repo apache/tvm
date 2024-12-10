@@ -326,20 +326,61 @@ Optional<LoopRV> TileWithTensorIntrin(const tir::Schedule& sch, const tir::Block
   if (!opt_tensorize_info) return NullOpt;
   const tir::TensorizeInfoNode* info = opt_tensorize_info.value().get();
   if (info->block_iter_paddings.defined()) {
+    // We have to track whether each producer or consumer is padded.
+    // To do so, we first record all the Block's.
+    std::unordered_set<const StmtSRefNode*> original_producers, original_consumers;
+    {
+      for (const auto& p : GetProducers(sch->state(), sch->GetSRef(block_rv)))
+        original_producers.insert(p.get());
+      for (const auto& c : GetConsumers(sch->state(), sch->GetSRef(block_rv)))
+        original_consumers.insert(c.get());
+    }
+
+    // Pad. Maybe we can make PadEinsum return the changes it made, to avoid bookkeeping?
     sch->PadEinsum(block_rv, info->block_iter_paddings.value());
+
+    // Now we need to find out all the padded Block's.
+    Array<BlockRV> inlined_producers, inlined_consumers;
+    for (const auto& producer : sch->GetProducers(block_rv)) {
+      // PadEinsum will not modify the producer if it does not need padding.
+      if (original_producers.count(sch->GetSRef(producer).get())) {
+        // Producer not padded. No inlining.
+        continue;
+      }
+      auto the_original_producers = sch->GetProducers(producer);
+      if (the_original_producers.empty()) {
+        // The original producer is input.
+        continue;
+      }
+      ICHECK_EQ(the_original_producers.size(), 1u);
+      auto the_original_producer = the_original_producers[0];
+      ICHECK(original_producers.count(sch->GetSRef(the_original_producer).get()));
+      inlined_producers.push_back(the_original_producer);
+    }
+    for (const auto& consumer : sch->GetConsumers(block_rv)) {
+      // PadEinsum will not modify the consumer if it does not need padding.
+      if (original_consumers.count(sch->GetSRef(consumer).get())) {
+        // Consumer not padded. No inlining.
+        continue;
+      }
+      auto the_original_consumers = sch->GetConsumers(consumer);
+      if (the_original_consumers.empty()) {
+        // The original consumer is output.
+        continue;
+      }
+      ICHECK_EQ(the_original_consumers.size(), 1u);
+      auto the_original_consumer = the_original_consumers[0];
+      ICHECK(original_consumers.count(sch->GetSRef(the_original_consumer).get()));
+      inlined_consumers.push_back(consumer);
+    }
+
     // Inline the producer and consumer padding blocks
-    auto producers = sch->GetProducers(block_rv);
-    for (const auto& producer : producers) {
-      auto original_producers = sch->GetProducers(producer);
-      // NOTICE: there may not all producers padded.
+    for (const auto& the_original_producer : inlined_producers) {
       // Inline the original producer into the padding block. This ensures that the new producer
       // has the padded shape.
-      if (original_producers.size() == 1u) {
-        sch->ComputeInline(original_producers[0]);
-      }
+      sch->ComputeInline(the_original_producer);
     }
-    auto consumers = sch->GetConsumers(block_rv);
-    for (const auto& consumer : consumers) {
+    for (const auto& consumer : inlined_consumers) {
       sch->ComputeInline(consumer);
     }
   }

@@ -44,14 +44,17 @@ class DiscoWorker {
    * \brief Construct a worker.
    * \param worker_id The id of the worker.
    * \param num_workers The number of the workers.
+   * \param num_groups The number of the worker groups.
    * \param worker_zero_data The data shared between worker-0 and the controler. It's a nullptr if
    * the worker is not worker-0.
    * \param channel The communication channel between the worker and the controler.
    */
-  explicit DiscoWorker(int worker_id, int num_workers, WorkerZeroData* worker_zero_data,
-                       DiscoChannel* channel)
+  explicit DiscoWorker(int worker_id, int num_workers, int num_groups,
+                       WorkerZeroData* worker_zero_data, DiscoChannel* channel)
       : worker_id(worker_id),
+        local_worker_id(worker_id),
         num_workers(num_workers),
+        num_groups(num_groups),
         default_device(Device{DLDeviceType::kDLCPU, 0}),
         worker_zero_data(worker_zero_data),
         channel(channel),
@@ -66,8 +69,13 @@ class DiscoWorker {
 
   /*! \brief The id of the worker.*/
   int worker_id;
+  /*! \brief The local id of the worker. This can be different from worker_id if the session is
+   * consisted with multiple sub-sessions. */
+  int local_worker_id;
   /*! \brief Total number of workers */
   int num_workers;
+  /*! \brief Total number of workers */
+  int num_groups;
   /*! \brief The default device to allocate data if not specified */
   Device default_device;
   /*! \brief The name of the underlying collective communication library. */
@@ -88,6 +96,21 @@ class DiscoWorker {
 
   struct Impl;
   friend struct DiscoWorker::Impl;
+};
+/*!
+ * \brief A threadlocal wrapper of DiscoWorker.
+ */
+struct ThreadLocalDiscoWorker {
+  /*! \brief The Disco worker */
+  DiscoWorker* worker;
+
+  /*!
+   * \brief Get the threadlocal Disco worker.
+   */
+  static ThreadLocalDiscoWorker* Get() {
+    thread_local static ThreadLocalDiscoWorker worker;
+    return &worker;
+  }
 };
 
 }  // namespace runtime

@@ -240,6 +240,9 @@ class TorchWrapper(BaseWrapper):
     """Wrapper of torch models"""
 
     def __call__(self, *inputs):
+        return self.forward(*inputs)
+
+    def forward(self, *inputs):
         framework = self._get_framework()
         if framework != MSCFramework.TORCH:
             inputs = [msc_utils.cast_array(i, framework, self.device) for i in inputs]

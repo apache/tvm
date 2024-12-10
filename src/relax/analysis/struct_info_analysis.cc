@@ -982,10 +982,25 @@ class StructInfoLCAFinder
   StructInfo VisitStructInfo_(const PrimStructInfoNode* lhs, const StructInfo& other) final {
     auto* rhs = other.as<PrimStructInfoNode>();
     if (rhs == nullptr) return ObjectStructInfo(lhs->span);
-    if (lhs->dtype == rhs->dtype) return GetRef<StructInfo>(lhs);
-    // PrimType will be treated as their boxed(object) values
-    // as a result we can unify to object.
-    return ObjectStructInfo(lhs->span);
+    if (lhs->dtype != rhs->dtype) {
+      // PrimType will be treated as their boxed(object) values
+      // as a result we can unify to object.
+      return ObjectStructInfo(lhs->span);
+    }
+    if (!lhs->value.defined() || !rhs->value.defined() ||
+        !analyzer_->CanProveEqual(lhs->value.value(), rhs->value.value())) {
+      // The two values are known to contain the same dtype, but may
+      // contain different values.
+      if (!lhs->value.defined()) {
+        // If the mismatch was due to extra information in the RHS,
+        // prefer to avoid constructing a new object.
+        return GetRef<StructInfo>(lhs);
+      } else {
+        return PrimStructInfo(lhs->dtype, lhs->span);
+      }
+    }
+
+    return GetRef<StructInfo>(lhs);
   }
 
   StructInfo VisitStructInfo_(const ShapeStructInfoNode* lhs, const StructInfo& other) final {

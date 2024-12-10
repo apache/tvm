@@ -48,6 +48,7 @@ struct JsonMSCTensor {
   std::string dtype;
   std::string layout;
   std::vector<int64_t> shape;
+  std::vector<std::string> prims;
 
   void Save(dmlc::JSONWriter* writer) const {
     writer->BeginObject();
@@ -56,6 +57,7 @@ struct JsonMSCTensor {
     writer->WriteObjectKeyValue("dtype", dtype);
     writer->WriteObjectKeyValue("layout", layout);
     writer->WriteObjectKeyValue("shape", shape);
+    writer->WriteObjectKeyValue("prims", prims);
     writer->EndObject();
   }
 
@@ -77,6 +79,8 @@ struct JsonMSCTensor {
       } else if (key == "shape") {
         reader->Read(&shape);
         bitmask |= 4;
+      } else if (key == "prims") {
+        reader->Read(&prims);
       }
     }
     ICHECK_EQ(bitmask, 1 | 2 | 4) << "name, dtype and shape should be given";
@@ -144,6 +148,51 @@ struct JsonMSCJoint {
       }
     }
     ICHECK_EQ(bitmask, 1 | 2 | 4 | 8) << "index, name, optype and outputs should be given";
+  }
+};
+
+/*!
+ * \brief Json serialize and deserialize for MSCPrim.
+ *  MSCPrim is node in MSCGraph with name, op and attrbutes.
+ */
+struct JsonMSCPrim {
+  size_t index;
+  std::string name;
+  std::string optype;
+  std::vector<std::string> parents;
+  std::unordered_map<std::string, std::string> attrs;
+
+  void Save(dmlc::JSONWriter* writer) const {
+    writer->BeginObject();
+    writer->WriteObjectKeyValue("index", index);
+    writer->WriteObjectKeyValue("name", name);
+    writer->WriteObjectKeyValue("optype", optype);
+    writer->WriteObjectKeyValue("parents", parents);
+    writer->WriteObjectKeyValue("attrs", attrs);
+    writer->EndObject();
+  }
+
+  void Load(dmlc::JSONReader* reader) {
+    int bitmask = 0;
+    std::string key;
+    reader->BeginObject();
+    while (reader->NextObjectItem(&key)) {
+      if (key == "index") {
+        reader->Read(&index);
+        bitmask |= 1;
+      } else if (key == "name") {
+        reader->Read(&name);
+        bitmask |= 2;
+      } else if (key == "optype") {
+        reader->Read(&optype);
+        bitmask |= 4;
+      } else if (key == "parents") {
+        reader->Read(&parents);
+      } else if (key == "attrs") {
+        reader->Read(&attrs);
+      }
+    }
+    ICHECK_EQ(bitmask, 1 | 2 | 4) << "index, name and optype should be given";
   }
 };
 
@@ -216,6 +265,7 @@ struct JsonMSCGraph {
   std::vector<std::string> inputs;
   std::vector<std::string> outputs;
   std::vector<JsonMSCJoint> nodes;
+  std::vector<JsonMSCPrim> prims;
 
   void Save(dmlc::JSONWriter* writer) const {
     writer->BeginObject();
@@ -223,6 +273,7 @@ struct JsonMSCGraph {
     writer->WriteObjectKeyValue("inputs", inputs);
     writer->WriteObjectKeyValue("outputs", outputs);
     writer->WriteObjectKeyValue("nodes", nodes);
+    writer->WriteObjectKeyValue("prims", prims);
     writer->EndObject();
   }
 
@@ -243,6 +294,8 @@ struct JsonMSCGraph {
       } else if (key == "nodes") {
         reader->Read(&nodes);
         bitmask |= 8;
+      } else if (key == "prims") {
+        reader->Read(&prims);
       }
     }
     ICHECK_EQ(bitmask, 1 | 2 | 4 | 8) << "name, inputs, outputs and nodes should be given";
@@ -297,6 +350,8 @@ class MSCTensorNode : public Object {
   tvm::tir::Layout layout;
   /*! \brief The shape of tensor. */
   Array<Integer> shape;
+  /*! \brief The prims of tensor. */
+  Array<String> prims;
   /*! \brief Export tensor to json. */
   const JsonMSCTensor ToJson() const;
   /*! \brief Load tensor from json struct. */
@@ -309,6 +364,10 @@ class MSCTensorNode : public Object {
   const Integer DimAt(int index) const;
   /*! \brief Get dim at given axis. */
   const Integer DimAt(const String& axis) const;
+  /*! \brief Get prim at given index. */
+  const String PrimAt(int index) const;
+  /*! \brief Get prim at given axis. */
+  const String PrimAt(const String& axis) const;
   /*! \brief Get layout index of given axis. */
   int32_t LayoutOf(const String& axis) const;
   /*! \brief Get size of the tensor. */
@@ -322,11 +381,12 @@ class MSCTensorNode : public Object {
     v->Visit("dtype", &dtype);
     v->Visit("layout", &layout);
     v->Visit("shape", &shape);
+    v->Visit("prims", &prims);
   }
 
   bool SEqualReduce(const MSCTensorNode* other, SEqualReducer equal) const {
     return equal(name, other->name) && equal(dtype, other->dtype) && equal(shape, other->shape) &&
-           equal(layout, other->layout);
+           equal(layout, other->layout) && equal(prims, other->prims);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
@@ -334,6 +394,7 @@ class MSCTensorNode : public Object {
     hash_reduce(dtype);
     hash_reduce(shape);
     hash_reduce(layout);
+    hash_reduce(prims);
   }
 
   static constexpr const char* _type_key = "msc.core.MSCTensor";
@@ -353,9 +414,11 @@ class MSCTensor : public ObjectRef {
    * \param layout The layout of the tensor.
    * \param shape The shape of the tensor.
    * \param alias The alias of the tensor.
+   * \param prims The prims of the tensor shape.
    */
   TVM_DLL MSCTensor(const String& name, const DataType& dtype, const String& layout,
-                    const Array<Integer>& shape, const String& alias = "");
+                    const Array<Integer>& shape, const String& alias = "",
+                    const Array<String>& prims = Array<String>());
 
   /*!
    * \brief The json constructor.
@@ -577,6 +640,76 @@ class MSCJoint : public BaseJoint {
 };
 
 /*!
+ * \brief MSCPrim in MSCGraph.
+ */
+class MSCPrim;
+class MSCPrimNode : public BaseJointNode {
+ public:
+  /*! \brief The op of prim. */
+  String optype;
+  /*! \brief Export prim to json. */
+  const JsonMSCPrim ToJson() const;
+  /*! \brief Load prim from json struct. */
+  void FromJson(const JsonMSCPrim& j_prim, const Map<String, BaseJoint>& prims);
+  /*! \brief Load prim from json string. */
+  void FromJson(const std::string& json_str, const Map<String, BaseJoint>& prims);
+  /*! \brief Get parent from the prim. */
+  const MSCPrim ParentAt(int index) const;
+  /*! \brief Get child from the prim. */
+  const MSCPrim ChildAt(int index) const;
+
+  void VisitAttrs(AttrVisitor* v) {
+    BaseJointNode::VisitAttrs(v);
+    v->Visit("optype", &optype);
+  }
+
+  bool SEqualReduce(const MSCPrimNode* other, SEqualReducer equal) const {
+    return BaseJointNode::SEqualReduce(other, equal) && equal(optype, other->optype);
+  }
+
+  void SHashReduce(SHashReducer hash_reduce) const {
+    BaseJointNode::SHashReduce(hash_reduce);
+    hash_reduce(optype);
+  }
+
+  static constexpr const char* _type_key = "msc.core.MSCPrim";
+  TVM_DECLARE_FINAL_OBJECT_INFO(MSCPrimNode, BaseJointNode);
+};
+
+/*!
+ * \brief Managed reference to MSCPrimNode.
+ * \sa MSCPrimNode
+ */
+class MSCPrim : public BaseJoint {
+ public:
+  /*!
+   * \brief The constructor.
+   * \param index The index of the prim.
+   * \param name The name of the prim.
+   * \param optype The optype of the prim.
+   * \param parents The parents of the prim.
+   * \param attrs The attributes of the prim.
+   */
+  TVM_DLL MSCPrim(int index, const String& name, const String& optype,
+                  const Array<BaseJoint>& parents,
+                  const Map<String, String>& attrs = Map<String, String>());
+
+  /*!
+   * \brief The json constructor.
+   * \param j_prim The json describe of the prim.
+   */
+  TVM_DLL MSCPrim(const JsonMSCPrim& j_prim, const Map<String, BaseJoint>& prims);
+
+  /*!
+   * \brief The json constructor.
+   * \param json_str The json describe of the prim.
+   */
+  TVM_DLL MSCPrim(const std::string& json_str, const Map<String, BaseJoint>& prims);
+
+  TVM_DEFINE_OBJECT_REF_METHODS(MSCPrim, BaseJoint, MSCPrimNode);
+};
+
+/*!
  * \brief Node in WeightGraph.
  */
 class WeightJoint;
@@ -713,6 +846,10 @@ class BaseGraph : public ObjectRef {
 class MSCGraph;
 class MSCGraphNode : public BaseGraphNode {
  public:
+  /*! \brief The shape node names in graph. */
+  Array<String> prim_names;
+  /*! \brief The shape nodes in graph. */
+  Map<String, MSCPrim> prims;
   /*! \brief The input names of graph. */
   Array<String> input_names;
   /*! \brief The output names of graph. */
@@ -731,6 +868,8 @@ class MSCGraphNode : public BaseGraphNode {
   const String ToPrototxt() const;
   /*! \brief Find node in graph. */
   const MSCJoint FindNode(const String& name) const;
+  /*! \brief Find prim in graph. */
+  const MSCPrim FindPrim(const String& name) const;
   /*! \brief Get input from the graph. */
   const MSCTensor InputAt(int index) const;
   /*! \brief Get inputs from the graph. */
@@ -769,18 +908,23 @@ class MSCGraphNode : public BaseGraphNode {
 
   void VisitAttrs(AttrVisitor* v) {
     BaseGraphNode::VisitAttrs(v);
+    v->Visit("prims", &prims);
+    v->Visit("prim_names", &prim_names);
     v->Visit("input_names", &input_names);
     v->Visit("output_names", &output_names);
     v->Visit("weight_holders", &weight_holders);
   }
 
   bool SEqualReduce(const MSCGraphNode* other, SEqualReducer equal) const {
-    return BaseGraphNode::SEqualReduce(other, equal) && equal(input_names, other->input_names) &&
+    return BaseGraphNode::SEqualReduce(other, equal) && equal(prims, other->prims) &&
+           equal(prim_names, other->prim_names) && equal(input_names, other->input_names) &&
            equal(output_names, other->output_names) && equal(weight_holders, other->weight_holders);
   }
 
   void SHashReduce(SHashReducer hash_reduce) const {
     BaseGraphNode::SHashReduce(hash_reduce);
+    hash_reduce(prims);
+    hash_reduce(prim_names);
     hash_reduce(input_names);
     hash_reduce(output_names);
     hash_reduce(weight_holders);
@@ -799,14 +943,14 @@ class MSCGraph : public BaseGraph {
   /*!
    * \brief The constructor.
    * \param name The name of the node.
-   * \param node_names The node names in the graph
    * \param nodes The nodes in the graph.
    * \param input_names The input names of the graph.
    * \param output_names The output names of the graph.
-   * \param weight_holders The weights info of the graph.
+   * \param prims The prims in the graph.
    */
   TVM_DLL MSCGraph(const String& name, const Array<MSCJoint>& nodes,
-                   const Array<String>& input_names, const Array<String>& output_names);
+                   const Array<String>& input_names, const Array<String>& output_names,
+                   const Array<MSCPrim>& prims = Array<MSCPrim>());
 
   /*!
    * \brief The json constructor.

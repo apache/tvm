@@ -65,6 +65,22 @@ bool ReflectionVTable::SEqualReduce(const Object* self, const Object* other,
   return fsequal_reduce_[tindex](self, other, equal);
 }
 
+namespace {
+ObjectPath GetAttrPath(const ObjectRef& obj, const void* attr_address, const ObjectPath& path) {
+  if (obj->IsInstance<runtime::Int::ContainerType>() ||
+      obj->IsInstance<runtime::Bool::ContainerType>() ||
+      obj->IsInstance<runtime::Float::ContainerType>()) {
+    // Special case for containers that contain boxed primitives.  The
+    // "value" attribute containing the boxed value should not be part
+    // of the reported mismatched path.
+    return path;
+  } else {
+    Optional<String> attr_key = GetAttrKeyByAddress(obj.get(), attr_address);
+    return path->Attr(attr_key);
+  }
+}
+}  // namespace
+
 struct SEqualReducer::PathTracingData {
   ObjectPathPair current_paths;
   ObjectRef lhs_object;
@@ -72,10 +88,9 @@ struct SEqualReducer::PathTracingData {
   Optional<ObjectPathPair>* first_mismatch;
 
   ObjectPathPair GetPathsForAttrs(const ObjectRef& lhs, const ObjectRef& rhs) const {
-    Optional<String> lhs_attr_key = GetAttrKeyByAddress(lhs_object.get(), &lhs);
-    Optional<String> rhs_attr_key = GetAttrKeyByAddress(rhs_object.get(), &rhs);
-    return ObjectPathPair(current_paths->lhs_path->Attr(lhs_attr_key),
-                          current_paths->rhs_path->Attr(rhs_attr_key));
+    ObjectPath lhs_attr_path = GetAttrPath(lhs_object, &lhs, current_paths->lhs_path);
+    ObjectPath rhs_attr_path = GetAttrPath(rhs_object, &rhs, current_paths->rhs_path);
+    return ObjectPathPair(lhs_attr_path, rhs_attr_path);
   }
 };
 
@@ -98,13 +113,12 @@ bool SEqualReducer::DefEqual(const ObjectRef& lhs, const ObjectRef& rhs) {
 /* static */ void SEqualReducer::GetPathsFromAttrAddressesAndStoreMismatch(
     const void* lhs_address, const void* rhs_address, const PathTracingData* tracing_data) {
   if (tracing_data != nullptr && !tracing_data->first_mismatch->defined()) {
-    Optional<String> lhs_attr_key =
-        GetAttrKeyByAddress(tracing_data->lhs_object.get(), lhs_address);
-    Optional<String> rhs_attr_key =
-        GetAttrKeyByAddress(tracing_data->rhs_object.get(), rhs_address);
-    *tracing_data->first_mismatch =
-        ObjectPathPair(tracing_data->current_paths->lhs_path->Attr(lhs_attr_key),
-                       tracing_data->current_paths->rhs_path->Attr(rhs_attr_key));
+    ObjectPath lhs_attr_path =
+        GetAttrPath(tracing_data->lhs_object, lhs_address, tracing_data->current_paths->lhs_path);
+    ObjectPath rhs_attr_path =
+        GetAttrPath(tracing_data->rhs_object, rhs_address, tracing_data->current_paths->rhs_path);
+
+    *tracing_data->first_mismatch = ObjectPathPair(lhs_attr_path, rhs_attr_path);
   }
 }
 
@@ -200,7 +214,6 @@ bool SEqualReducer::ObjectAttrsEqual(const ObjectRef& lhs, const ObjectRef& rhs,
   }
 
   // Slow path: tracing object paths for better error reporting
-
   ObjectPathPair new_paths = paths == nullptr ? tracing_data_->GetPathsForAttrs(lhs, rhs) : *paths;
 
   if (handler_->SEqualReduce(lhs, rhs, map_free_vars, new_paths)) {

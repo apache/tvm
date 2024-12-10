@@ -174,6 +174,7 @@ class RuntimeContext implements Disposable {
   applyRepetitionPenalty: PackedFunc;
   applyPresenceAndFrequencyPenalty: PackedFunc;
   applySoftmaxWithTemperature: PackedFunc;
+  concatEmbeddings: PackedFunc | undefined;
 
   private autoDisposeScope: Array<Array<Disposable | undefined>> = [];
 
@@ -199,6 +200,11 @@ class RuntimeContext implements Disposable {
     this.applyRepetitionPenalty = getGlobalFunc("vm.builtin.apply_repetition_penalty");
     this.applyPresenceAndFrequencyPenalty = getGlobalFunc("vm.builtin.apply_presence_and_frequency_penalty");
     this.applySoftmaxWithTemperature = getGlobalFunc("vm.builtin.apply_softmax_with_temperature");
+    try {
+      this.concatEmbeddings = getGlobalFunc("tvmjs.runtime.ConcatEmbeddings");
+    } catch {
+      // TODO: remove soon. Older artifacts do not have this, try-catch for backward compatibility.
+    }
   }
 
   dispose(): void {
@@ -223,6 +229,7 @@ class RuntimeContext implements Disposable {
     this.applyRepetitionPenalty.dispose();
     this.applyPresenceAndFrequencyPenalty.dispose();
     this.applySoftmaxWithTemperature.dispose();
+    this.concatEmbeddings?.dispose();
   }
 
   beginScope(): void {
@@ -575,7 +582,10 @@ export class NDArray implements Disposable {
    * @param data The source data array.
    * @returns this
    */
-  copyFrom(data: NDArray | Array<number> | Float32Array): this {
+  copyFrom(
+    data: NDArray | Array<number> | Float32Array | Float64Array |
+      Int32Array | Int8Array | Uint8Array | Uint8ClampedArray
+  ): this {
     if (data instanceof NDArray) {
       this.lib.checkCall(
         (this.lib.exports.TVMArrayCopyFromTo as ctypes.FTVMArrayCopyFromTo)(
@@ -608,6 +618,8 @@ export class NDArray implements Disposable {
         buffer = Int8Array.from(data).buffer;
       } else if (this.dtype === "uint8") {
         buffer = Uint8Array.from(data).buffer;
+      } else if (this.dtype === "uint32") {
+        buffer = Uint32Array.from(data).buffer;
       } else {
         throw new Error("Unsupported data type " + this.dtype);
       }
@@ -1122,7 +1134,7 @@ export class Instance implements Disposable {
     // ctx release goes back into lib.
     this.ctx.dispose();
     this.lib.dispose();
-    this.deviceLostIsError = true;
+    // Cannot set deviceLostIsError back to true here because GPUDevice.destroy() is asynchronous.
   }
 
   /**
@@ -1444,13 +1456,15 @@ export class Instance implements Disposable {
    * @param device The device to be fetched to.
    * @param cacheScope The scope identifier of the cache
    * @param cacheType The type of the cache: "cache" or "indexedDB"
+   * @param signal An optional AbortSignal to abort the fetch
    * @returns The meta data
    */
   async fetchNDArrayCache(
     ndarrayCacheUrl: string,
     device: DLDevice,
     cacheScope = "tvmjs",
-    cacheType = "cache"
+    cacheType = "cache",
+    signal?: AbortSignal,
   ): Promise<any> {
     let artifactCache: ArtifactCacheTemplate;
     if (cacheType === undefined || cacheType.toLowerCase() === "cache") {
@@ -1465,7 +1479,8 @@ export class Instance implements Disposable {
     const list = await artifactCache.fetchWithCache(jsonUrl, "json");
     await this.fetchNDArrayCacheInternal(
       ndarrayCacheUrl,
-      list["records"] as Array<NDArrayShardEntry>, device, artifactCache);
+      list["records"] as Array<NDArrayShardEntry>, device, artifactCache,
+      signal);
     this.cacheMetadata = { ...this.cacheMetadata, ...(list["metadata"] as Record<string, any>) };
   }
 
@@ -1477,12 +1492,14 @@ export class Instance implements Disposable {
    * @param list The list of array data.
    * @param device The device to store the data to.
    * @param artifactCache The artifact cache
+   * @param signal An optional AbortSignal to abort the fetch
    */
   private async fetchNDArrayCacheInternal(
     ndarrayCacheUrl: string,
     list: Array<NDArrayShardEntry>,
     device: DLDevice,
-    artifactCache: ArtifactCacheTemplate
+    artifactCache: ArtifactCacheTemplate,
+    signal?: AbortSignal,
   ) {
     const perf = compact.getPerformance();
     const tstart = perf.now();
@@ -1537,7 +1554,7 @@ export class Instance implements Disposable {
         const shard = list[i];
         const dataUrl = new URL(shard.dataPath, ndarrayCacheUrl).href;
         try {
-          await artifactCache.addToCache(dataUrl, "arraybuffer");
+          await artifactCache.addToCache(dataUrl, "arraybuffer", signal);
         } catch (err) {
           this.env.logger("Error: Cannot fetch " + dataUrl + " err= " + err);
           throw err;
@@ -1902,6 +1919,30 @@ export class Instance implements Disposable {
   }
 
   /**
+   * Join a sequence of NDArrays that represent embeddings.
+   * @param inputs A list of embeddings in NDArrays, each array i has shape (m_i, hidden_size).
+   * @returns An NDArray of shape (\sum_{i} {m}, hidden_size)
+   */
+  concatEmbeddings(embeddings: Array<NDArray>): NDArray {
+    // 1. Check shape validity
+    const hidden_size = embeddings[0].shape[1];
+    embeddings.forEach((input) => {
+      if (input.shape.length !== 2 || input.shape[1] !== hidden_size) {
+        throw new Error("Expect embeddings to concatenate have shape (m_i, hidden_size).");
+      }
+    })
+
+    // 2. Call global func
+    if (this.ctx.concatEmbeddings === undefined) {
+      throw new Error(
+        "Global function tvmjs.runtime.ConcatEmbeddings was " +
+        "not found, but called concatEmbeddings."
+      );
+    }
+    return this.ctx.concatEmbeddings(...embeddings) as NDArray;
+  }
+
+  /**
    * Create a {@link TVMString} that can be consumed by runtime.
    *
    * @param input The string.
@@ -2117,6 +2158,7 @@ export class Instance implements Disposable {
         this.dispose();
       }
     });
+    this.deviceLostIsError = true;
 
     const webGPUContext = new WebGPUContext(
       this.memory, device
@@ -2468,6 +2510,7 @@ export class Instance implements Disposable {
     switch (tcode) {
       case ArgTypeCode.Int:
       case ArgTypeCode.UInt:
+      case ArgTypeCode.TVMArgBool:
         return this.memory.loadI64(rvaluePtr);
       case ArgTypeCode.Float:
         return this.memory.loadF64(rvaluePtr);

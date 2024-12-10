@@ -36,7 +36,7 @@ def is_version_greater_than(ver):
     than the one given as an argument.
     """
     import torch
-    from distutils.version import LooseVersion
+    from packaging.version import parse
 
     torch_ver = torch.__version__
     # PT version numbers can include +cu[cuda version code]
@@ -44,7 +44,7 @@ def is_version_greater_than(ver):
     if "+cu" in torch_ver:
         torch_ver = torch_ver.split("+cu")[0]
 
-    return LooseVersion(torch_ver) > ver
+    return parse(torch_ver) > parse(ver)
 
 
 def getattr_attr_name(node):

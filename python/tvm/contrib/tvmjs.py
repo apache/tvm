@@ -35,6 +35,7 @@ except ImportError:
 
 import tvm
 from tvm._ffi.libinfo import find_lib_path
+from tvm.runtime import DataType
 
 from .emcc import create_tvmjs_wasm
 
@@ -276,7 +277,13 @@ def dump_ndarray_cache(
             v = v.numpy()
 
         # prefer to preserve original dtype, especially if the format was bfloat16
-        dtype = str(origin_v.dtype) if isinstance(origin_v, tvm.nd.NDArray) else str(v.dtype)
+        dtype = origin_v.dtype if isinstance(origin_v, tvm.nd.NDArray) else v.dtype
+
+        if dtype in DataType.NUMPY2STR:
+            dtype = DataType.NUMPY2STR[dtype]
+        else:
+            dtype = str(dtype)
+
         total_bytes += math.prod(v.shape) * np.dtype(v.dtype).itemsize
 
         # convert fp32 to bf16

@@ -32,42 +32,60 @@ driving its costs down.
    :maxdepth: 1
    :caption: Getting Started
 
+   get_started/overview
    install/index
-   contribute/index
+   get_started/tutorials/quick_start
+   get_started/tutorials/ir_module
 
 .. toctree::
    :maxdepth: 1
-   :caption: User Guide
+   :caption: How To
 
-   tutorial/index
-   how_to/index
+   how_to/tutorials/e2e_opt_model
+   how_to/tutorials/customize_opt
+   how_to/tutorials/optimize_llm
+   how_to/tutorials/cross_compilation_and_rpc
+   how_to/dev/index
+
+.. The Deep Dive content is comprehensive
+.. we maintain a ``maxdepth`` of 2 to display more information on the main page.
 
 .. toctree::
-   :maxdepth: 1
-   :caption: Developer Guide
-
-   dev/tutorial/index
-   dev/how_to/how_to.rst
-
-.. toctree::
-   :maxdepth: 1
-   :caption: Architecture  Guide
+   :maxdepth: 2
+   :caption: Deep Dive
 
    arch/index
+   deep_dive/tensor_ir/index
+   deep_dive/relax/index
 
 .. toctree::
    :maxdepth: 1
-   :caption: Topic Guides
+   :caption: API Reference
 
-   topic/microtvm/index
-   topic/vta/index
-
-.. toctree::
-   :maxdepth: 1
-   :caption: Reference Guide
-
-   reference/langref/index
    reference/api/python/index
    reference/api/links
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Legacy
+
+   tutorial/index
+   how_to/legacy_index
+   dev/tutorial/index
+   dev/how_to/how_to.rst
+   reference/langref/index
+   topic/microtvm/index
+
+.. toctree::
+   :maxdepth: 1
+   :caption: About
+
+   contribute/index
    reference/publications
+   reference/security
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Index
+
    genindex

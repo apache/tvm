@@ -86,7 +86,10 @@ inline ncclDataType_t AsNCCLDataType(runtime::DataType dtype) {
   if (dtype == DataType::Int(8)) {
     return ncclInt8;
   }
-  if (dtype == DataType::UInt(8)) {
+  if (dtype == DataType::UInt(8) || dtype == DataType::NVFloat8E4M3() ||
+      dtype == DataType::NVFloat8E5M2()) {
+    // For float8 data type, pretend to be uint8 in nccl.
+    // And will throw error when allreduce, as it makes no sense in this case.
     return ncclUint8;
   }
   if (dtype == DataType::Int(32)) {
@@ -121,14 +124,22 @@ struct CCLThreadLocalContext {
   DiscoWorker* worker = nullptr;
   int device_id;
   deviceStream_t default_stream = nullptr;
-  ncclComm_t comm = nullptr;
+  ncclComm_t global_comm = nullptr;
+  ncclComm_t group_comm = nullptr;
 
   ~CCLThreadLocalContext() { Clear(); }
 
   void Clear() {
-    if (comm) {
-      NCCL_CALL(ncclCommDestroy(comm));
-      comm = nullptr;
+    if (group_comm) {
+      NCCL_CALL(ncclCommDestroy(group_comm));
+      if (global_comm == group_comm) {
+        global_comm = nullptr;
+      }
+      group_comm = nullptr;
+    }
+    if (global_comm) {
+      NCCL_CALL(ncclCommDestroy(global_comm));
+      global_comm = nullptr;
     }
     if (default_stream) {
       StreamDestroy(default_stream);

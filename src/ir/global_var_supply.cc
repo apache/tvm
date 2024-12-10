@@ -40,7 +40,7 @@ std::string GetModuleName(const IRModule& module) {
   return module->GetAttr<String>(tvm::attr::kModuleName).value_or("tvmgen_default");
 }
 
-GlobalVarSupply::GlobalVarSupply(const Array<IRModule>& modules) : GlobalVarSupply(NameSupply("")) {
+GlobalVarSupply::GlobalVarSupply(const Array<IRModule>& modules) : GlobalVarSupply() {
   if (!modules.empty()) {
     IRModule first_mod = modules.front();
     this->operator->()->name_supply_->prefix_ = GetModuleName(first_mod);

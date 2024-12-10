@@ -452,7 +452,9 @@ def test_applying_unknown_relative_byte_offset_is_legal():
     tvm.ir.assert_structural_equal(explicit_sinfo, inferred_sinfo)
 
 
-def test_legalize_without_any_changes_is_no_op():
+def test_legalize_is_no_op():
+    """R.memory.view is not legalized until LowerRuntimeBuiltin"""
+
     @I.ir_module
     class Before:
         @R.function
@@ -460,18 +462,13 @@ def test_legalize_without_any_changes_is_no_op():
             B = R.memory.view(A)
             return B
 
-    @I.ir_module
-    class Expected:
-        @R.function
-        def main(A: R.Tensor([4096], "float32")):
-            B = A
-            return B
+    Expected = Before
 
     After = tvm.relax.transform.LegalizeOps()(Before)
     tvm.ir.assert_structural_equal(Expected, After)
 
 
-def test_legalize_shape_change():
+def test_lower_runtime_builtin_shape_change():
     @I.ir_module
     class Before:
         @R.function
@@ -497,11 +494,11 @@ def test_legalize_shape_change():
             )
             return B
 
-    After = tvm.relax.transform.LegalizeOps()(Before)
+    After = tvm.relax.transform.LowerRuntimeBuiltin()(Before)
     tvm.ir.assert_structural_equal(Expected, After)
 
 
-def test_legalize_view_shape_from_unknown():
+def test_lower_runtime_builtin_view_shape_from_unknown():
     """R.memory.view does not require the input tensor to have a known shape"""
 
     @I.ir_module
@@ -529,11 +526,11 @@ def test_legalize_view_shape_from_unknown():
             )
             return B
 
-    After = tvm.relax.transform.LegalizeOps()(Before)
+    After = tvm.relax.transform.LowerRuntimeBuiltin()(Before)
     tvm.ir.assert_structural_equal(Expected, After)
 
 
-def test_legalize_dtype_change():
+def test_lower_runtime_builtin_dtype_change():
     @I.ir_module
     class Before:
         @R.function
@@ -559,11 +556,11 @@ def test_legalize_dtype_change():
             )
             return B
 
-    After = tvm.relax.transform.LegalizeOps()(Before)
+    After = tvm.relax.transform.LowerRuntimeBuiltin()(Before)
     tvm.ir.assert_structural_equal(Expected, After)
 
 
-def test_legalize_byte_offset():
+def test_lower_runtime_builtin_byte_offset():
     @I.ir_module
     class Before:
         @R.function
@@ -589,11 +586,11 @@ def test_legalize_byte_offset():
             )
             return B
 
-    After = tvm.relax.transform.LegalizeOps()(Before)
+    After = tvm.relax.transform.LowerRuntimeBuiltin()(Before)
     tvm.ir.assert_structural_equal(Expected, After)
 
 
-def test_legalize_view_with_multiple_updated_fields():
+def test_lower_runtime_builtin_view_with_multiple_updated_fields():
     """R.memory.view may update more than one field in the view
 
     In this test case, a 4-kilobyte buffer is provided.  The first
@@ -650,7 +647,7 @@ def test_legalize_view_with_multiple_updated_fields():
             )
             return (B, C)
 
-    After = tvm.relax.transform.LegalizeOps()(Before)
+    After = tvm.relax.transform.LowerRuntimeBuiltin()(Before)
     tvm.ir.assert_structural_equal(Expected, After)
 
 

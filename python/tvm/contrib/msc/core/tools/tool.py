@@ -1620,6 +1620,9 @@ class WeightTool(BaseTool):
         in_axis, out_axis = w_node.weight.layout_of("I"), w_node.weight.layout_of("O")
         if in_axis >= 0 and out_axis >= 0:
             return in_axis, out_axis
+        if w_node.weight.ndim == 2 and w_node.weight.dim_at("N") > 0:
+            io_axis = 1 - w_node.weight.layout_of("N")
+            return io_axis, io_axis
         if w_node.weight.layout_of("C") >= 0:
             return w_node.weight.layout_of("C"), w_node.weight.layout_of("C")
         raise Exception("Can not infer in_axis/out_axis from " + str(w_node))

@@ -267,8 +267,8 @@ class ExprEvaluator:
                 value = self._eval_slice(fields)
             else:
                 value = self._eval_expr(node.__class__(**fields))
-        except Exception as e:  # pylint: disable=broad-except,invalid-name
-            self.parser.report_error(node, e)
+        except Exception as err:  # pylint: disable=broad-except
+            self.parser.report_error(node, err)
         return self._add_intermediate_result(value)
 
     def _eval_lambda(self, node: doc.Lambda) -> Any:
@@ -286,8 +286,8 @@ class ExprEvaluator:
         """
         try:
             value = self._eval_expr(node)
-        except Exception as e:  # pylint: disable=broad-except,invalid-name
-            self.parser.report_error(node, str(e))
+        except Exception as err:  # pylint: disable=broad-except
+            self.parser.report_error(node, err)
         return self._add_intermediate_result(value)
 
     def _eval_bool_op(self, fields: Dict[str, Any]) -> Any:
@@ -463,8 +463,8 @@ def eval_assign(
     """
     try:
         return _eval_assign(target, source)
-    except Exception as e:  # pylint: disable=broad-except,invalid-name
-        parser.report_error(target, f"Failed to evaluate assignment: {str(e)}")
+    except Exception as err:  # pylint: disable=broad-except
+        parser.report_error(target, err)
         raise
 
 

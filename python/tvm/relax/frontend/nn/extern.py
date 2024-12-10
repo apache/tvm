@@ -228,7 +228,10 @@ class SourceModule(ExternModule):  # pylint: disable=too-few-public-methods
                     path = Path(source_code)
                 except:  # pylint: disable=bare-except
                     return source_code
-                if not path.is_file():
+                try:
+                    if not path.is_file():
+                        return source_code
+                except:  # pylint: disable=bare-except
                     return source_code
             with path.open("r", encoding="utf-8") as file:
                 return file.read()

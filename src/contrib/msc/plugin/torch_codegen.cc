@@ -219,7 +219,7 @@ void TorchPluginCodeGen::CodeGenCmake(const std::set<String>& devices) {
   flags.Set("PLUGIN_SUPPORT_TORCH", "");
   CodeGenPreCmake(devices, flags);
   stack_.line()
-      .line("set(CMAKE_CXX_STANDARD 14)")
+      .line("set(CMAKE_CXX_STANDARD 17)")
       .line("list(APPEND CMAKE_PREFIX_PATH \"" + config()->torch_prefix + "\")")
       .line("find_package(Torch REQUIRED)");
   Array<String> includes, libs;

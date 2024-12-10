@@ -464,6 +464,8 @@ class TVM_DLL GraphExecutor : public ModuleNode {
   std::vector<std::vector<DLTensor*>> output_dltensors_;
   /*! \brief Used for quick node(both model output and op input) DLTensor* lookup given an eid. */
   std::vector<std::vector<DLTensor*>> both_output_opinput_dltensors_;
+  /*! \brief Used for quick node output DLTensor* lookup given a nop's input eid. */
+  std::unordered_map<int, std::vector<DLTensor*>> node_output_dltensors_;
   /*! \brief Used for quick entry_id lookup given an storage_id. */
   std::vector<std::vector<uint32_t>> sid_to_eid_;
   /*! \brief Used for quick entry indexing. */

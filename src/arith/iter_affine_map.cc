@@ -696,7 +696,7 @@ class IterMapRewriter : public ExprMutator {
       // the delta of iter_min when it is updated when the lower bound predicate is present
       PrimExpr iter_min_delta = make_const(iter_min.dtype(), 0);
       if (predicate_induced_min.defined()) {
-        iter_min_delta = predicate_induced_min.value() - iter_min;
+        iter_min_delta = max(predicate_induced_min.value(), iter_min) - iter_min;
         iter_min = max(predicate_induced_min.value(), iter_min);
       }
       if (predicate_induced_max.defined()) {

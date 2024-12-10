@@ -20,7 +20,7 @@ import tvm
 from tvm import relax
 import tvm.testing
 from tvm.relax.transform import ToMixedPrecision
-from tvm.script.parser import ir as I, relax as R
+from tvm.script.parser import ir as I, relax as R, tir as T
 
 
 def _assert_test(input, expected=None, expected2=None):
@@ -614,8 +614,8 @@ def test_conv2d_softmax():
             x: R.Tensor((2, 3, 28, 28), "float32"), w: R.Tensor((3, 3, 3, 3), "float32")
         ) -> R.Tensor(None, "float32", ndim=4):
             with R.dataflow():
-                gv: R.Tensor((2, 3, 26, 26), "float32") = R.nn.conv2d(x, w, padding=(1, 1))
-                gv1: R.Tensor((2, 3, 26, 26), "float32") = R.nn.softmax(x, axis=1)
+                gv: R.Tensor((2, 3, 28, 28), "float32") = R.nn.conv2d(x, w, padding=(1, 1))
+                gv1: R.Tensor((2, 3, 28, 28), "float32") = R.nn.softmax(x, axis=1)
                 gv2 = R.add(gv, gv1)
                 R.output(gv2)
             return gv2
@@ -906,15 +906,15 @@ def test_conv2d_bias_fp32():
         ) -> R.Tensor((1, 512, 64, 64), dtype="float32"):
             # block 0
             with R.dataflow():
-                lv142: R.Tensor((1, 4, 64, 64), dtype="float32") = R.nn.conv2d(
+                lv142: R.Tensor((1, 512, 62, 62), dtype="float32") = R.nn.conv2d(
                     x,
                     w,
                     strides=[1, 1],
                     padding=[0, 0, 0, 0],
                     out_dtype="float32",
                 )
-                lv143: R.Tensor((1, 4, 1, 1), dtype="float32") = R.reshape(bias, (1, 512, 1, 1))
-                lv144: R.Tensor((1, 4, 64, 64), dtype="float32") = R.add(lv142, lv143)
+                lv143: R.Tensor((1, 512, 1, 1), dtype="float32") = R.reshape(bias, (1, 512, 1, 1))
+                lv144: R.Tensor((1, 512, 62, 62), dtype="float32") = R.add(lv142, lv143)
                 R.output(lv144)
             return lv144
 
@@ -1001,15 +1001,15 @@ def test_convert_sig():
         ) -> R.Tensor((1, 512, 64, 64), dtype="float32"):
             # block 0
             with R.dataflow():
-                lv142: R.Tensor((1, 4, 64, 64), dtype="float32") = R.nn.conv2d(
+                lv142: R.Tensor((1, 512, 62, 62), dtype="float32") = R.nn.conv2d(
                     x,
                     w,
                     strides=[1, 1],
                     padding=[0, 0, 0, 0],
                     out_dtype="float32",
                 )
-                lv143: R.Tensor((1, 4, 1, 1), dtype="float32") = R.reshape(bias, (1, 512, 1, 1))
-                lv144: R.Tensor((1, 4, 64, 64), dtype="float32") = R.add(lv142, lv143)
+                lv143: R.Tensor((1, 512, 1, 1), dtype="float32") = R.reshape(bias, (1, 512, 1, 1))
+                lv144: R.Tensor((1, 512, 62, 62), dtype="float32") = R.add(lv142, lv143)
                 R.output(lv144)
             return lv144
 
@@ -1034,6 +1034,34 @@ def test_convert_sig():
 
     mod = ToMixedPrecision(out_dtype="float16", fp16_input_names=["w", "bias"])(Input)
     tvm.ir.assert_structural_equal(mod, Expected)
+
+
+def test_call_tir_with_float16_args():
+    @I.ir_module
+    class Before:
+        @R.function
+        def main(A: R.Tensor([64], "float16")):
+            cls = Before
+            with R.dataflow():
+                B = R.call_tir(cls.tir_identity, [A], out_sinfo=R.Tensor([64], "float16"))
+                C = R.call_tir(cls.tir_identity, [B], out_sinfo=R.Tensor([64], "float16"))
+                R.output(C)
+            return C
+
+        @T.prim_func
+        def tir_identity(
+            Input: T.Buffer(64, "float16"),
+            Output: T.Buffer(64, "float16"),
+        ):
+            for i in range(64):
+                with T.block("copy"):
+                    vi = T.axis.remap("S", [i])
+                    Output[vi] = Input[vi]
+
+    Expected = Before
+
+    After = ToMixedPrecision()(Before)
+    tvm.ir.assert_structural_equal(Expected, After)
 
 
 if __name__ == "__main__":

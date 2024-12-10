@@ -66,6 +66,12 @@ struct LayoutTransformAttrs : public tvm::AttrsNode<LayoutTransformAttrs> {
    * first input axis that is part of a new flattened axis.
    */
   Optional<Array<IntImm>> axis_separators;
+  /*!
+   * axis_separators for input buffers.
+   * Needed to identify if the input buffer to layout_transform
+   * contains axis separator.
+   */
+  Optional<Array<IntImm>> input_axis_separators;
 
   TVM_DECLARE_ATTRS(LayoutTransformAttrs, "relax.attrs.LayoutTransformAttrs") {
     TVM_ATTR_FIELD(index_map).describe("The layout transformation to apply.");
@@ -74,6 +80,8 @@ struct LayoutTransformAttrs : public tvm::AttrsNode<LayoutTransformAttrs> {
         "padding. If not specified, the compiler is free to choose any value.");
     TVM_ATTR_FIELD(axis_separators)
         .describe("The separators between input axes when generating flat output axes");
+    TVM_ATTR_FIELD(input_axis_separators)
+        .describe("The separators between axes to regenerate output");
   }
 };  // struct LayoutTransformAttrs
 
@@ -144,6 +152,23 @@ struct FlipAttrs : public tvm::AttrsNode<FlipAttrs> {
   }
 };  // struct FlipAttrs
 
+/*! \brief Attributes used in gather_elements operators */
+struct GatherElementsAttrs : public tvm::AttrsNode<GatherElementsAttrs> {
+  Integer axis;
+
+  TVM_DECLARE_ATTRS(GatherElementsAttrs, "relax.attrs.GatherElementsAttrs") {
+    TVM_ATTR_FIELD(axis).set_default(0).describe("The axis along which to index.");
+  }
+};  // struct GatherElementsAttrs
+
+/*! \brief Attributes used in gather_nd operators */
+struct GatherNDAttrs : public tvm::AttrsNode<GatherNDAttrs> {
+  Integer batch_dims;
+  TVM_DECLARE_ATTRS(GatherNDAttrs, "relax.attrs.GatherNDAttrs") {
+    TVM_ATTR_FIELD(batch_dims).set_default(Integer(0)).describe("The number of batch dims.");
+  }
+};  // struct GatherNDAttrs
+
 /*! \brief Attributes used in scatter_elements operators */
 struct ScatterElementsAttrs : public tvm::AttrsNode<ScatterElementsAttrs> {
   Integer axis;
@@ -156,6 +181,29 @@ struct ScatterElementsAttrs : public tvm::AttrsNode<ScatterElementsAttrs> {
         "either \"update\", \"add\", \"mul\", \"mean\", \"min\" or \"max\".");
   }
 };  // struct ScatterElementsAttrs
+
+/*! \brief Attributes used in scatter_nd operators */
+struct ScatterNDAttrs : public tvm::AttrsNode<ScatterNDAttrs> {
+  String reduction;
+
+  TVM_DECLARE_ATTRS(ScatterNDAttrs, "relax.attrs.ScatterNDAttrs") {
+    TVM_ATTR_FIELD(reduction).set_default("update").describe(
+        "Accumulation mode of the ScatterND, "
+        "either \"update\", \"add\", \"mul\", \"min\" or \"max\".");
+  }
+};  // struct ScatterNDAttrs
+
+/*! \brief Attributes used in one_hot operator */
+struct OneHotAttrs : public tvm::AttrsNode<OneHotAttrs> {
+  int depth;
+  int axis;
+
+  TVM_DECLARE_ATTRS(OneHotAttrs, "relax.attrs.OneHotAttrs") {
+    TVM_ATTR_FIELD(depth).describe("Depth of the one hot dimension.");
+    TVM_ATTR_FIELD(axis).set_default(-1).describe("Axis to fill.");
+  }
+};  // struct OneHotAttrs
+
 }  // namespace relax
 }  // namespace tvm
 

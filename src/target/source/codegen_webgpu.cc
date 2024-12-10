@@ -125,6 +125,7 @@ runtime::FunctionInfo CodeGenWebGPU::AddFunction(const PrimFunc& f, bool skip_re
   name_supply_->ReserveName("var");
   name_supply_->ReserveName("let");
   name_supply_->ReserveName("const");
+  name_supply_->ReserveName("std");
 
   // skip the first underscore, so SSA variable starts from
   name_supply_->FreshName("v_");
@@ -410,6 +411,14 @@ void CodeGenWebGPU::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLIN
       this->EndScope(else_scope);
     }
     os << result;
+  } else if (op->op.same_as(builtin::dp4a())) {
+    // generate `dot4I8Packed(vec1, vec2) + acc` for the builtin `dp4a`
+    os << "dot4I8Packed(";
+    this->PrintExpr(op->args[0], os);
+    os << ", ";
+    this->PrintExpr(op->args[1], os);
+    os << ") + ";
+    this->PrintExpr(op->args[2], os);
   } else {
     CodeGenC::VisitExpr_(op, os);
   }
@@ -423,6 +432,27 @@ void CodeGenWebGPU::VisitExpr_(const CastNode* op, std::ostream& os) {  // NOLIN
 void CodeGenWebGPU::VisitExpr_(const SelectNode* op, std::ostream& os) {  // NOLINT(*)
   os << "select(" << PrintExpr(op->false_value) << ", " << PrintExpr(op->true_value) << ", "
      << PrintExpr(op->condition) << ")";
+}
+
+void CodeGenWebGPU::VisitExpr_(const LetNode* op, std::ostream& os) {  // NOLINT(*)
+  // use ssa form.
+  if (print_ssa_form_) {
+    std::string value = PrintExpr(op->value);
+    ICHECK(!var_idmap_.count(op->var.get()));
+    var_idmap_[op->var.get()] = value;
+  } else {
+    PrintIndent();
+    std::string value = PrintExpr(op->value);
+    this->stream << "let " << AllocVarID(op->var.get()) << " : ";
+    PrintType(op->var.dtype(), this->stream);
+    this->stream << " = " << value << ";\n";
+  }
+  os << PrintExpr(op->body);
+  // Pop the defined var from var_idmap when exiting its scope.
+  // We do this because it is hard to completely avoid a same LetNode appearing
+  // at different places.
+  bool removed = var_idmap_.erase(op->var.get());
+  ICHECK(removed);
 }
 
 void CodeGenWebGPU::VisitExpr_(const IntImmNode* op, std::ostream& os) {  // NOLINT(*)

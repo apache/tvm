@@ -86,10 +86,14 @@ IGNORED_WARNINGS=(
     'autotvm:Cannot find config for target=llvm -keys=cpu'
     'autotvm:One or more operators have not been tuned. Please tune your model for better performance. Use DEBUG logging level to see more details.'
     'autotvm:Cannot find config for target=cuda -keys=cuda,gpu'
+    'cannot cache unpickable configuration value:'
+    'Invalid configuration value found: 'language = None'.'
     # Warning is thrown during TFLite quantization for micro_train tutorial
     'absl:For model inputs containing unsupported operations which cannot be quantized, the `inference_input_type` attribute will default to the original type.'
     'absl:Found untraced functions such as _jit_compiled_convolution_op'
     'You are using pip version'
+    # Tutorial READMEs can be ignored, but other docs should be included
+    "tutorials/README.rst: WARNING: document isn't included in any toctree"
 )
 
 JOINED_WARNINGS=$(join_by '|' "${IGNORED_WARNINGS[@]}")

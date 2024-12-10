@@ -34,6 +34,7 @@
 #include <llvm/ExecutionEngine/Orc/LLJIT.h>
 #include <llvm/ExecutionEngine/Orc/ObjectLinkingLayer.h>
 #include <llvm/ExecutionEngine/Orc/RTDyldObjectLinkingLayer.h>
+#include <llvm/ExecutionEngine/SectionMemoryManager.h>
 #include <llvm/IR/DataLayout.h>
 #include <llvm/IR/Function.h>
 #include <llvm/IR/Intrinsics.h>
@@ -482,6 +483,14 @@ void LLVMModuleNode::InitORCJIT() {
   tm_builder.setCodeGenOptLevel(llvm::CodeGenOptLevel::Aggressive);
 #endif
 
+  // Default is no explicit JIT code & reloc model
+  // Propagate instance code & reloc for RISCV case.
+  auto arch = tm_builder.getTargetTriple().getArch();
+  if (arch == llvm::Triple::riscv32 || arch == llvm::Triple::riscv64) {
+    tm_builder.setRelocationModel(llvm_target->GetTargetRelocModel());
+    tm_builder.setCodeModel(llvm_target->GetTargetCodeModel());
+  }
+
   // create the taget machine
   std::unique_ptr<llvm::TargetMachine> tm = llvm::cantFail(tm_builder.createTargetMachine());
   if (!IsCompatibleWithHost(tm.get())) {
@@ -504,8 +513,17 @@ void LLVMModuleNode::InitORCJIT() {
 
 #if TVM_LLVM_VERSION >= 130
   // linker
-  const auto linkerBuilder = [&](llvm::orc::ExecutionSession& session, const llvm::Triple&) {
-    return std::make_unique<llvm::orc::ObjectLinkingLayer>(session);
+  const auto linkerBuilder =
+      [&](llvm::orc::ExecutionSession& session,
+          const llvm::Triple& triple) -> std::unique_ptr<llvm::orc::ObjectLayer> {
+    auto GetMemMgr = []() { return std::make_unique<llvm::SectionMemoryManager>(); };
+    auto ObjLinkingLayer =
+        std::make_unique<llvm::orc::RTDyldObjectLinkingLayer>(session, std::move(GetMemMgr));
+    if (triple.isOSBinFormatCOFF()) {
+      ObjLinkingLayer->setOverrideObjectFlagsWithResponsibilityFlags(true);
+      ObjLinkingLayer->setAutoClaimResponsibilityForObjectSymbols(true);
+    }
+    return ObjLinkingLayer;
   };
 #endif
 
@@ -634,7 +652,11 @@ TVM_REGISTER_GLOBAL("codegen.LLVMModuleCreate")
 
 TVM_REGISTER_GLOBAL("target.llvm_lookup_intrinsic_id")
     .set_body_typed([](std::string name) -> int64_t {
+#if TVM_LLVM_VERSION >= 200
+      return static_cast<int64_t>(llvm::Intrinsic::lookupIntrinsicID(name));
+#else
       return static_cast<int64_t>(llvm::Function::lookupIntrinsicID(name));
+#endif
     });
 
 TVM_REGISTER_GLOBAL("target.llvm_get_intrinsic_name").set_body_typed([](int64_t id) -> String {
@@ -747,7 +769,7 @@ TVM_REGISTER_GLOBAL("target.llvm_version_major").set_body_typed([]() -> int {
 TVM_REGISTER_GLOBAL("runtime.module.loadfile_ll")
     .set_body_typed([](std::string filename, std::string fmt) -> runtime::Module {
       auto n = make_object<LLVMModuleNode>();
-      n->SetJITEngine("mcjit");
+      n->SetJITEngine("orcjit");
       n->LoadIR(filename);
       return runtime::Module(n);
     });

@@ -65,7 +65,11 @@ class NormalizeMutator : public ExprMutatorBase {
 
   Expr VisitWithNewScope(const Expr& expr, Optional<Array<Var>> params = NullOpt) {
     builder_->BeginBindingBlock();
-    builder_->BeginScope(params);
+    if (params.defined()) {
+      builder_->BeginScope(params);
+    } else {
+      builder_->BeginInnerScope();
+    }
     Expr ret = this->VisitExpr(expr);
     BindingBlock prologue = builder_->EndBlock();
     if (!prologue->bindings.empty()) {
@@ -178,7 +182,7 @@ class GlobalVarNormalizer : private ExprMutator {
   }
 
  private:
-  explicit GlobalVarNormalizer(const IRModule& m) : ExprMutator(), module_(m), name_supply_("") {}
+  explicit GlobalVarNormalizer(const IRModule& m) : ExprMutator(), module_(m) {}
 
   using ExprMutator::VisitExpr_;
 

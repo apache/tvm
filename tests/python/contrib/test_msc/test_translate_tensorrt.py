@@ -18,7 +18,6 @@
 """ Test translate for TensorrRT. """
 
 import pytest
-import numpy as np
 
 import torch
 from torch import fx
@@ -87,11 +86,11 @@ def check_names(mod):
         NameChecker().check(func)
 
 
-def verify_model(torch_model, input_info, allow_incomplete=False):
+def verify_model(torch_model, input_info, **trans_config):
     """Build model and verify results"""
 
     graph_model = fx.symbolic_trace(torch_model)
-    datas = [np.random.rand(*i[0]).astype(i[1]) for i in input_info]
+    datas = [msc_utils.random_data(i) for i in input_info]
     torch_datas = [torch.from_numpy(i) for i in datas]
     with torch.no_grad():
         golden = torch_model(*torch_datas)
@@ -100,9 +99,7 @@ def verify_model(torch_model, input_info, allow_incomplete=False):
         golden = [golden]
     golden = [g.detach().cpu().numpy() for g in golden]
     # partition module for tensorrt
-    mod, graphs, weights = translate.partition_for_tensorrt(
-        mod, trans_config={"allow_incomplete": allow_incomplete}
-    )
+    mod, graphs, weights = translate.partition_for_tensorrt(mod, trans_config=trans_config)
     check_names(mod)
     output_folder = msc_utils.msc_dir()
     # tranalte to tensorrt
@@ -191,6 +188,8 @@ def test_linear():
     input_info = [([1, 3, 10, 10], "float32")]
     verify_model(Dense1(), input_info)
     verify_model(Dense2(), input_info)
+    verify_model(Dense1(), input_info, linear_to_conv=True)
+    verify_model(Dense2(), input_info, linear_to_conv=True)
     verify_model(MatMul1(), [([10, 10], "float32"), ([10, 10], "float32")])
 
 
@@ -368,10 +367,10 @@ def test_embedding():
             self.embedding = torch.nn.Embedding(10, 3)
 
         def forward(self, data):
-            return self.embedding(data)
+            return self.embedding(data.to(torch.int64))
 
-    verify_model(Embedding(), [([4], "int64")], allow_incomplete=True)
-    verify_model(Embedding(), [([4, 5], "int64")], allow_incomplete=True)
+    verify_model(Embedding(), [([4], "int32")])
+    verify_model(Embedding(), [([4, 5], "int32")])
 
 
 @requires_tensorrt
@@ -673,12 +672,34 @@ def test_addmm():
 def test_split():
     """test tensorrt translator for split"""
 
-    class Split(Module):
+    class Split1(Module):
         def forward(self, data):
             return torch.split(data, 1, dim=1)
 
+    class Split2(Module):
+        def forward(self, data):
+            return torch.split(data, [1, 2], dim=1)
+
     input_info = [([1, 3, 10, 10], "float32")]
-    verify_model(Split(), input_info)
+    verify_model(Split1(), input_info)
+    verify_model(Split2(), input_info)
+
+
+@requires_tensorrt
+def test_unbind():
+    """test tensorrt to relax for unbind"""
+
+    class Unbind1(Module):
+        def forward(self, data):
+            return torch.unbind(data)
+
+    class Unbind2(Module):
+        def forward(self, data):
+            return torch.unbind(data, dim=1)
+
+    input_info = [([3, 3, 10, 10], "float32")]
+    verify_model(Unbind1(), input_info)
+    verify_model(Unbind2(), input_info)
 
 
 @requires_tensorrt
@@ -697,13 +718,19 @@ def test_chunk():
 def test_expand():
     """test tensorrt translator for expand"""
 
-    class Expand(Module):
+    class Expand1(Module):
         def forward(self, x):
             x = x + 1.0
             return x.expand(4, 2, 3, 4)
 
+    class Expand2(Module):
+        def forward(self, x):
+            x = x + 1.0
+            return x.expand(4, -1, -1, 4)
+
     input_info = [([1, 2, 3, 4], "float32")]
-    verify_model(Expand(), input_info)
+    verify_model(Expand1(), input_info)
+    verify_model(Expand2(), input_info)
 
 
 @requires_tensorrt
@@ -773,14 +800,14 @@ def test_argmax():
 
     class Argmax1(Module):
         def forward(self, data):
-            return torch.argmax(data, dim=-1)
+            return torch.argmax(data, dim=-1).to(torch.int32)
 
     class Argmax2(Module):
         def forward(self, data):
-            return torch.argmax(data, dim=-1, keepdim=True)
+            return torch.argmax(data, dim=-1, keepdim=True).to(torch.int32)
 
-    verify_model(Argmax1(), [([256, 256], "float32")], allow_incomplete=True)
-    verify_model(Argmax2(), [([256, 256], "float32")], allow_incomplete=True)
+    verify_model(Argmax1(), [([256, 256], "float32")])
+    verify_model(Argmax2(), [([256, 256], "float32")])
 
 
 @requires_tensorrt
@@ -789,14 +816,14 @@ def test_argmin():
 
     class Argmin1(Module):
         def forward(self, data):
-            return torch.argmin(data, dim=-1)
+            return torch.argmin(data, dim=-1).to(torch.int32)
 
     class Argmin2(Module):
         def forward(self, data):
-            return torch.argmin(data, dim=-1, keepdim=True)
+            return torch.argmin(data, dim=-1, keepdim=True).to(torch.int32)
 
-    verify_model(Argmin1(), [([256, 256], "float32")], allow_incomplete=True)
-    verify_model(Argmin2(), [([256, 256], "float32")], allow_incomplete=True)
+    verify_model(Argmin1(), [([256, 256], "float32")])
+    verify_model(Argmin2(), [([256, 256], "float32")])
 
 
 @requires_tensorrt
@@ -846,6 +873,46 @@ def test_max():
             return torch.max(x, y)
 
     verify_model(Max(), [([256, 256], "float32"), ([256, 256], "float32")])
+
+
+@requires_tensorrt
+def test_gelu():
+    """test tensorrt translator for gelu"""
+
+    class Gelu1(Module):
+        def forward(self, data):
+            return torch.nn.functional.gelu(data)
+
+    class Gelu2(Module):
+        def forward(self, data):
+            return torch.nn.functional.gelu(data, approximate="tanh")
+
+    input_info = [([1, 3, 10, 10], "float32")]
+    verify_model(Gelu1(), input_info)
+    verify_model(Gelu2(), input_info)
+
+
+@requires_tensorrt
+def test_cat():
+    """test tensorrt translator for cat"""
+
+    class Cat1(Module):
+        def forward(self, data, data1, data2):
+            return torch.cat((data, data1, data2), dim=1)
+
+    class Cat2(Module):
+        def forward(self, data):
+            const1 = torch.ones((1, 3, 10, 10), dtype=torch.float32)
+            const2 = torch.ones((1, 3, 10, 10), dtype=torch.float32)
+            return torch.cat((data, const1, const2), dim=1)
+
+    input_info = [
+        ([1, 3, 10, 10], "float32"),
+        ([1, 3, 10, 10], "float32"),
+        ([1, 3, 10, 10], "float32"),
+    ]
+    verify_model(Cat1(), input_info)
+    verify_model(Cat2(), [([1, 3, 10, 10], "float32")])
 
 
 if __name__ == "__main__":

@@ -22,3 +22,4 @@ tvm.relay.transform
     :members:
     :imported-members:
     :autosummary:
+    :exclude-members: FunctionPass

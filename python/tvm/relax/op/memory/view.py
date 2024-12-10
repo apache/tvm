@@ -92,3 +92,20 @@ def view(
     relative_byte_offset = _normalize(relative_byte_offset, PrimValue)
 
     return _ffi_api.view(data, shape, dtype, relative_byte_offset)  # type: ignore
+
+
+def ensure_zero_offset(data: Expr) -> Expr:
+    """
+    Ensure the tensor has elem_offset == 0. A copy will be made if necessary.
+
+    Parameters
+    ----------
+    data : relax.Expr
+        The input tensor
+
+    Results
+    -------
+    result : relax.Expr
+        The tensor with elem_offset == 0
+    """
+    return _ffi_api.ensure_zero_offset(data)  # type: ignore

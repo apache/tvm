@@ -44,6 +44,13 @@
 #include <utility>
 #include <vector>
 
+// LLVM compatibility macro
+#if TVM_LLVM_VERSION >= 200
+#define llvmGetPointerTo(arg, offset) (llvm::PointerType::get((arg), (offset)))
+#else
+#define llvmGetPointerTo(arg, offset) (arg->getPointerTo(offset))
+#endif
+
 namespace llvm {
 class LLVMContext;
 class MemoryBuffer;
@@ -216,13 +223,23 @@ class LLVMTargetInfo {
    */
   const llvm::TargetOptions& GetTargetOptions() const { return target_options_; }
   /*!
+   * \brief Get the LLVM target reloc model
+   * \return `llvm::Reloc::Model` object for this target
+   */
+  const llvm::Reloc::Model& GetTargetRelocModel() const { return reloc_model_; }
+  /*!
+   * \brief Get the LLVM target code model
+   * \return `llvm::CodeModel::Model` object for this target
+   */
+  const llvm::CodeModel::Model& GetTargetCodeModel() const { return code_model_; }
+  /*!
    * \brief Get fast math flags
    * \return `llvm::FastMathFlags` for this target
    */
   llvm::FastMathFlags GetFastMathFlags() const { return fast_math_flags_; }
   /*!
    * \brief Get the LLVM JIT engine type
-   * \return the type name of the JIT engine (default "mcjit" or "orcjit")
+   * \return the type name of the JIT engine (default "orcjit" or "mcjit")
    */
   const std::string GetJITEngine() const { return jit_engine_; }
   /*!
@@ -338,7 +355,7 @@ class LLVMTargetInfo {
   llvm::Reloc::Model reloc_model_ = llvm::Reloc::PIC_;
   llvm::CodeModel::Model code_model_ = llvm::CodeModel::Small;
   std::shared_ptr<llvm::TargetMachine> target_machine_;
-  std::string jit_engine_ = "mcjit";
+  std::string jit_engine_ = "orcjit";
 };
 
 /*!

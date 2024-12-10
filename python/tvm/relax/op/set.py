@@ -77,7 +77,7 @@ def unique(
         return_inverse = PrimValue(return_inverse)
     if isinstance(return_counts, bool):
         return_counts = PrimValue(return_counts)
-    if axis and isinstance(axis, int):
+    if axis is not None and isinstance(axis, int):
         axis = PrimValue(axis)
     return _ffi_api.unique(  # type: ignore
         x, sorted, return_index, return_inverse, return_counts, axis
@@ -91,6 +91,7 @@ def numpy_unique(
     return_index: int,
     return_inverse: int,
     return_counts: int,
+    axis: Optional[int] = None,
 ) -> tvm.nd.array:
     """Returns the unique elements of the input tensor.
 
@@ -103,8 +104,46 @@ def numpy_unique(
         raise NotImplementedError("missing support return_inverse or return_counts set to true")
     x_numpy = x.numpy()
     # TODO(prakalp): use torch.unique instead of numpy when torch is installed in ci.
-    output_sorted_numpy, indices = np.unique(x_numpy, return_index=True)
+    output_sorted_numpy, indices = np.unique(x_numpy, return_index=True, axis=axis)
+
     if sorted:
         return tvm.nd.array(output_sorted_numpy)
-    output_numpy = [x_numpy.flatten()[index] for index in builtins.sorted(indices, reverse=True)]
+    output_numpy = np.take(x_numpy, builtins.sorted(indices), axis=axis)
     return tvm.nd.array(output_numpy)
+
+
+def nonzero(x: Expr) -> Expr:
+    """Find the indices of elements of a tensor that are non-zero.
+
+    Parameters
+    ----------
+    x : relax.Expr
+        The input data tensor.
+
+    Returns
+    -------
+    result : relax.Expr
+        A 2-D tensor containing indices of non-zero elements.
+
+    Note
+    ----
+    This function is equivalent to `onnx.nonzero`.
+
+    Examples
+    --------
+
+    .. code-block:: python
+
+        x = [[0, 1],
+             [2, 0]]
+        nonzero(x) = [[0, 1],
+                      [1, 0]]
+
+    """
+    return _ffi_api.nonzero(x)  # type: ignore
+
+
+@tvm.register_func("relax.run.nonzero")
+def numpy_nonzero(x: tvm.nd.array) -> tvm.nd.array:
+    np_result = np.atleast_1d(x.numpy()).nonzero()
+    return tvm.nd.array(np.stack(np_result, axis=0))

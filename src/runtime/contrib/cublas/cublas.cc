@@ -194,11 +194,13 @@ void CallCublasLt(cublasLtHandle_t hdl, cudaStream_t stream,
                                                       &bias->data, sizeof(float*)));
   }
 
-  if (scaleA != nullptr && scaleB != nullptr) {
+  if (scaleA != nullptr) {
     auto scaleA_data = static_cast<char*>(scaleA->data) + scaleA->byte_offset;
-    auto scaleB_data = static_cast<char*>(scaleB->data) + scaleB->byte_offset;
     CHECK_CUBLAS_ERROR(cublasLtMatmulDescSetAttribute(op_desc, CUBLASLT_MATMUL_DESC_A_SCALE_POINTER,
                                                       &scaleA_data, sizeof(float*)));
+  }
+  if (scaleB != nullptr) {
+    auto scaleB_data = static_cast<char*>(scaleB->data) + scaleB->byte_offset;
     CHECK_CUBLAS_ERROR(cublasLtMatmulDescSetAttribute(op_desc, CUBLASLT_MATMUL_DESC_B_SCALE_POINTER,
                                                       &scaleB_data, sizeof(float*)));
   }

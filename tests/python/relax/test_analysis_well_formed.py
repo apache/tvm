@@ -14,15 +14,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+
 import pytest
+
 import tvm
 import tvm.testing
+
 from tvm import relax as rx
 from tvm import tir
-from tvm.script import relax as R
-from tvm.script import ir as I
-from tvm.script import tir as T
-from tvm.script import ir as I
+from tvm.script import ir as I, relax as R, tir as T
 
 m = tir.Var("m", "int64")
 n = tir.Var("n", "int64")
@@ -700,6 +700,684 @@ def test_pass_dltensor_arg_to_tir():
             return is_bfloat16
 
     assert rx.analysis.well_formed(Module)
+
+
+def test_call_tir_with_matching_arguments():
+    """R.call_tir is well-formed when called with matching arguments"""
+
+    @I.ir_module
+    class Module:
+        @R.function
+        def main(A: R.Tensor([16], "float16")):
+            B = R.call_tir(Module.add_one, A, out_sinfo=R.Tensor([16], "float16"))
+            return B
+
+        @T.prim_func
+        def add_one(A: T.Buffer(16, "float16"), B: T.Buffer(16, "float16")):
+            for i in range(16):
+                with T.block("compute"):
+                    vi = T.axis.remap("S", [i])
+                    B[vi] = A[vi] + T.float16(1.0)
+
+    assert rx.analysis.well_formed(Module)
+
+
+def test_call_tir_input_ndim():
+    """Arguments to R.call_tir must have the correct dimensionality
+
+    Here, the `add_one` function expects a 1-d input tensor, but is
+    called with a 2-d tensor.
+
+    """
+
+    @I.ir_module(check_well_formed=False)
+    class Module:
+        @R.function
+        def main(A: R.Tensor([4, 4], "float16")):
+            B = R.call_tir(Module.add_one, A, out_sinfo=R.Tensor([16], "float16"))
+            return B
+
+        @T.prim_func
+        def add_one(A: T.Buffer(16, "float16"), B: T.Buffer(16, "float16")):
+            for i in range(16):
+                with T.block("compute"):
+                    vi = T.axis.remap("S", [i])
+                    B[vi] = A[vi] + T.float16(1.0)
+
+    assert not rx.analysis.well_formed(Module)
+
+
+def test_call_tir_output_ndim():
+    """Output shape R.call_tir must have the correct dimensionality
+
+    Here, the `add_one` function requires a 1-d output tensor, but is
+    provided with a 2-d tensor.
+    """
+
+    @I.ir_module(check_well_formed=False)
+    class Module:
+        @R.function
+        def main(A: R.Tensor([16], "float16")):
+            B = R.call_tir(Module.add_one, A, out_sinfo=R.Tensor([4, 4], "float16"))
+            return B
+
+        @T.prim_func
+        def add_one(A: T.Buffer(16, "float16"), B: T.Buffer(16, "float16")):
+            for i in range(16):
+                with T.block("compute"):
+                    vi = T.axis.remap("S", [i])
+                    B[vi] = A[vi] + T.float16(1.0)
+
+    assert not rx.analysis.well_formed(Module)
+
+
+def test_call_tir_input_shape():
+    """Arguments to R.call_tir must have the correct shape
+
+    Here, the `add_one` function expects an input tensor with 16
+    elements, but is called with an input tensor with 32 elements.
+
+    """
+
+    @I.ir_module(check_well_formed=False)
+    class Module:
+        @R.function
+        def main(A: R.Tensor([32], "float16")):
+            B = R.call_tir(Module.add_one, A, out_sinfo=R.Tensor([16], "float16"))
+            return B
+
+        @T.prim_func
+        def add_one(A: T.Buffer(16, "float16"), B: T.Buffer(16, "float16")):
+            for i in range(16):
+                with T.block("compute"):
+                    vi = T.axis.remap("S", [i])
+                    B[vi] = A[vi] + T.float16(1.0)
+
+    assert not rx.analysis.well_formed(Module)
+
+
+def test_call_tir_output_shape():
+    """Output shape R.call_tir must have the correct shape
+
+    Here, the `add_one` function requires an output tensor with 16
+    elements, but is provided an output tensor with 32 elements.
+    """
+
+    @I.ir_module(check_well_formed=False)
+    class Module:
+        @R.function
+        def main(A: R.Tensor([16], "float16")):
+            B = R.call_tir(Module.add_one, A, out_sinfo=R.Tensor([32], "float16"))
+            return B
+
+        @T.prim_func
+        def add_one(A: T.Buffer(16, "float16"), B: T.Buffer(16, "float16")):
+            for i in range(16):
+                with T.block("compute"):
+                    vi = T.axis.remap("S", [i])
+                    B[vi] = A[vi] + T.float16(1.0)
+
+    assert not rx.analysis.well_formed(Module)
+
+
+def test_call_tir_input_dtype():
+    """Arguments to R.call_tir must have the correct dtype
+
+    Here, the `add_one` function expects an input tensor containing
+    float16 value, but is called with an input tensor containing
+    float32 values.
+
+    """
+
+    @I.ir_module(check_well_formed=False)
+    class Module:
+        @R.function
+        def main(A: R.Tensor([16], "float32")):
+            B = R.call_tir(Module.add_one, A, out_sinfo=R.Tensor([16], "float16"))
+            return B
+
+        @T.prim_func
+        def add_one(A: T.Buffer(16, "float16"), B: T.Buffer(16, "float16")):
+            for i in range(16):
+                with T.block("compute"):
+                    vi = T.axis.remap("S", [i])
+                    B[vi] = A[vi] + T.float16(1.0)
+
+    assert not rx.analysis.well_formed(Module)
+
+
+def test_call_tir_output_dtype():
+    """Output shape R.call_tir must have the correct shape
+
+    Here, the `add_one` function requires an output tensor that may be
+    populated with float16 values, but is provided an output tensor
+    that may be populated with float32 elements.
+
+    """
+
+    @I.ir_module(check_well_formed=False)
+    class Module:
+        @R.function
+        def main(A: R.Tensor([16], "float16")):
+            B = R.call_tir(Module.add_one, A, out_sinfo=R.Tensor([16], "float32"))
+            return B
+
+        @T.prim_func
+        def add_one(A: T.Buffer(16, "float16"), B: T.Buffer(16, "float16")):
+            for i in range(16):
+                with T.block("compute"):
+                    vi = T.axis.remap("S", [i])
+                    B[vi] = A[vi] + T.float16(1.0)
+
+    assert not rx.analysis.well_formed(Module)
+
+
+def test_call_tir_with_correct_dynamic_output_shape():
+    """Output shape R.call_tir may not be verifiable
+
+    Here, the input arguments to the `reshape` function are not
+    sufficient to infer the shape of the outputs.  This is legal,
+    since the output shape is determined by the `out_sinfo` parameter.
+
+    Inability to verify the output shape does not mean that the output
+    shape is invalid.
+
+    """
+
+    @I.ir_module
+    class Module:
+        @R.function
+        def main(A: R.Tensor([16], "float16")):
+            B = R.call_tir(Module.reshape, A, out_sinfo=R.Tensor([2, 8], "float16"))
+            return B
+
+        @T.prim_func
+        def reshape(A: T.Buffer(16, "float16"), B_handle: T.handle):
+            M = T.int64()
+            N = T.int64()
+            B = T.match_buffer(B_handle, [M, N], dtype="float16")
+
+            for i, j in T.grid(M, N):
+                with T.block("compute"):
+                    vi, vj = T.axis.remap("SS", [i, j])
+                    B[vi, vj] = A[vi * N + vj]
+
+    assert rx.analysis.well_formed(Module)
+
+
+@pytest.mark.xfail(reason="Not supported")
+def test_call_tir_with_incorrect_dynamic_output_shape():
+    """Output shape R.call_tir may not be verifiable
+
+    Here, the input arguments to the `reshape` function are not
+    sufficient to infer the shape of the outputs.  Even though the
+    IRModule will not provide well-defined output due to the
+    out-of-bounds read from buffer A, catching this error is beyond
+    the current scope of the Relax well-formed checker.
+
+    """
+
+    @I.ir_module(check_well_formed=False)
+    class Module:
+        @R.function
+        def main(A: R.Tensor([16], "float16")):
+            B = R.call_tir(Module.reshape, A, out_sinfo=R.Tensor([16, 16], "float16"))
+            return B
+
+        @T.prim_func
+        def reshape(A: T.Buffer(16, "float16"), B_handle: T.handle):
+            M = T.int64()
+            N = T.int64()
+            B = T.match_buffer(B_handle, [M, N], dtype="float16")
+
+            for i, j in T.grid(M, N):
+                with T.block("compute"):
+                    vi, vj = T.axis.remap("SS", [i, j])
+                    B[vi, vj] = A[vi * N + vj]
+
+    assert not rx.analysis.well_formed(Module)
+
+
+def test_call_tir_incorrect_dimensionality_of_output_shape():
+    """Dimensionality may be verified
+
+    Here, the input arguments to the `reshape` function are not
+    sufficient to infer the shape of the outputs.
+
+    Even though the output shape may not be inferred from the input
+    arguments, the output dimensionality can still be inferred from
+    the PrimFunc signature.  The IRModule below is ill-formed, because
+    the PrimFunc requires a 2-d output argument, but is provided with
+    a 3-d output argument.
+
+    """
+
+    @I.ir_module(check_well_formed=False)
+    class Module:
+        @R.function
+        def main(A: R.Tensor([16], "float16")):
+            B = R.call_tir(Module.reshape, A, out_sinfo=R.Tensor([2, 4, 2], "float16"))
+            return B
+
+        @T.prim_func
+        def reshape(A: T.Buffer(16, "float16"), B_handle: T.handle):
+            M = T.int64()
+            N = T.int64()
+            B = T.match_buffer(B_handle, [M, N], dtype="float16")
+
+            for i, j in T.grid(M, N):
+                with T.block("compute"):
+                    vi, vj = T.axis.remap("SS", [i, j])
+                    B[vi, vj] = A[vi * N + vj]
+
+    assert not rx.analysis.well_formed(Module)
+
+
+@pytest.mark.xfail(reason="Not yet supported")
+def test_call_tir_output_shape_with_mixed_static_and_dynamic():
+    """Some dimensions of the R.call_tir output shape may be verifiable
+
+    Here, the input arguments to the `reshape` function are not
+    sufficient to infer the shape of the outputs.  This is legal,
+    since the output shape is taken from the `out_sinfo` parameter.
+
+    Identifying this failure mode is not yet supported in the current
+    implementation.  This is because the output is inferred as
+    `R.Tensor(ndim=3, dtype="float16")`, and the explicit `out_sinfo`
+    is a 3-d tensor.  The mismatch in the first dimension is not yet
+    counted, because the entire tensor shape is removed by
+    `EraseToWellDefined`.
+
+    """
+
+    @I.ir_module(check_well_formed=False)
+    class Module:
+        @R.function
+        def main(A: R.Tensor([256], "float16")):
+            B = R.call_tir(Module.reshape, A, out_sinfo=R.Tensor([8, 16, 2], "float16"))
+            return B
+
+        @T.prim_func
+        def reshape(A: T.Buffer(256, "float16"), B_handle: T.handle):
+            M = T.int64()
+            N = T.int64()
+            B = T.match_buffer(B_handle, [16, M, N], dtype="float16")
+
+            for i, j, k in T.grid(16, M, N):
+                with T.block("compute"):
+                    vi, vj, vk = T.axis.remap("SSS", [i, j, k])
+                    B[vi, vj, vk] = A[vi * N * M + vj * N + vk]
+
+    assert not rx.analysis.well_formed(Module)
+
+
+def test_call_tir_with_correct_inferred_dynamic_output_shape():
+    """Some dynamic output shapes of R.call_tir may be inferred
+
+    Here, the `flatten` function is dynamic, and will flatten any 2-d
+    TIR buffer.  Even though it is dynamic, the input shapes are
+    sufficient to infer that `M==8` and `N==4`.  As a result, the
+    output shape of `[M*N]` can be inferred to be `[32]`, and the
+    shape specified in `out_sinfo` can be validated.
+
+    """
+
+    @I.ir_module
+    class Module:
+        @R.function
+        def main(A: R.Tensor([8, 4], "float16")):
+            B = R.call_tir(Module.flatten, A, out_sinfo=R.Tensor([32], "float16"))
+            return B
+
+        @T.prim_func
+        def flatten(A_handle: T.handle, B_handle: T.handle):
+            M = T.int64()
+            N = T.int64()
+            A = T.match_buffer(A_handle, [M, N], dtype="float16")
+            B = T.match_buffer(B_handle, [M * N], dtype="float16")
+
+            for i in T.grid(M * N):
+                with T.block("compute"):
+                    vi = T.axis.remap("S", [i])
+                    B[vi] = A[vi // N, vi % N]
+
+    assert rx.analysis.well_formed(Module)
+
+
+def test_call_tir_with_incorrect_inferred_dynamic_output_shape():
+    """Some dynamic output shapes of R.call_tir may be inferred
+
+    Here, the `flatten` function is dynamic, and will flatten any 2-d
+    TIR buffer.  Even though it is dynamic, the input shapes are
+    sufficient to infer that `M==8` and `N==4`.  As a result, the
+    output shape of `[M*N]` can be inferred to be `[32]`, and the
+    shape specified in `out_sinfo` can be validated.
+
+    This unit test is identical to the above test
+    `test_call_tir_with_correct_inferred_dynamic_output_shape`, except
+    that the output shape is explicitly specified as `[64]`, which is
+    caught as a mismatch from the expected output shape.
+
+    """
+
+    @I.ir_module(check_well_formed=False)
+    class Module:
+        @R.function
+        def main(A: R.Tensor([8, 4], "float16")):
+            B = R.call_tir(Module.flatten, A, out_sinfo=R.Tensor([64], "float16"))
+            return B
+
+        @T.prim_func
+        def flatten(A_handle: T.handle, B_handle: T.handle):
+            M = T.int64()
+            N = T.int64()
+            A = T.match_buffer(A_handle, [M, N], dtype="float16")
+            B = T.match_buffer(B_handle, [M * N], dtype="float16")
+
+            for i in T.grid(M * N):
+                with T.block("compute"):
+                    vi = T.axis.remap("S", [i])
+                    B[vi] = A[vi // N, vi % N]
+
+    assert not rx.analysis.well_formed(Module)
+
+
+def test_call_tir_with_dtensor_arguments():
+    """R.call_tir and R.dist.call_tir share the same operation
+
+    Both `R.call_tir` and `R.dist.call_tir` produce the same
+    "relax.call_tir" operation, differing only in the StructInfo of
+    their arguments.  Normalization of "relax.call_tir" must handle
+    `R.DTensor` arguments.
+
+    """
+
+    # from tvm.script.parser import relax as R
+
+    @I.ir_module
+    class Module:
+        I.module_attrs({"device_num": 4})
+        I.module_global_infos({"mesh": [R.dist.device_mesh([4], I.Range(0, 4))]})
+
+        @R.function
+        def main(A: R.dist.DTensor([8, 4], "float16", "mesh[0]", "S[0]")):
+            B = R.dist.call_tir(
+                Module.flatten, A, out_sinfo=R.dist.DTensor([64], "float16", "mesh[0]", "S[0]")
+            )
+            return B
+
+        @T.prim_func
+        def flatten(A_handle: T.handle, B_handle: T.handle):
+            M = T.int64()
+            N = T.int64()
+            A = T.match_buffer(A_handle, [M, N], dtype="float16")
+            B = T.match_buffer(B_handle, [M * N], dtype="float16")
+
+            for i in T.grid(M * N):
+                with T.block("compute"):
+                    vi = T.axis.remap("S", [i])
+                    B[vi] = A[vi // N, vi % N]
+
+    assert rx.analysis.well_formed(Module)
+
+
+def test_call_tir_inplace_with_correct_shapes():
+    """R.call_tir_inplace is well-formed when called with matching arguments"""
+
+    @I.ir_module
+    class Module:
+        @R.function
+        def main(A: R.Tensor([16], "float16")):
+            B = R.call_tir_inplace(
+                Module.add_one,
+                A,
+                inplace_indices=[0],
+                out_sinfo=R.Tensor([16], "float16"),
+            )
+            return B
+
+        @T.prim_func
+        def add_one(A: T.Buffer(16, "float16")):
+            for i in range(16):
+                with T.block("compute"):
+                    vi = T.axis.remap("S", [i])
+                    A[vi] = A[vi] + T.float16(1.0)
+
+    assert rx.analysis.well_formed(Module)
+
+
+def test_call_tir_inplace_with_incorrect_shapes():
+    """R.call_tir_inplace is ill-formed when output shape does not match input"""
+
+    @I.ir_module(check_well_formed=False)
+    class Module:
+        @R.function
+        def main(A: R.Tensor([16], "float16")):
+            B = R.call_tir_inplace(
+                Module.add_one,
+                A,
+                inplace_indices=[0],
+                out_sinfo=R.Tensor([32], "float16"),
+            )
+            return B
+
+        @T.prim_func
+        def add_one(A: T.Buffer(16, "float16")):
+            for i in range(16):
+                with T.block("compute"):
+                    vi = T.axis.remap("S", [i])
+                    A[vi] = A[vi] + T.float16(1.0)
+
+    assert not rx.analysis.well_formed(Module)
+
+
+def test_call_tir_inplace_with_some_allocated_outputs():
+    """R.call_tir_inplace may contain some non-inplace outputs"""
+
+    @I.ir_module
+    class Module:
+        @R.function
+        def main(A: R.Tensor([16], "float16"), B: R.Tensor([32], "float16")):
+            out = R.call_tir_inplace(
+                Module.add_one,
+                (A, B),
+                inplace_indices=[-1, 1],
+                out_sinfo=[
+                    R.Tensor([16], "float16"),
+                    R.Tensor([32], "float16"),
+                ],
+            )
+            return out
+
+        @T.prim_func
+        def add_one(
+            A: T.Buffer(16, "float16"),
+            B: T.Buffer(32, "float16"),
+            C: T.Buffer(16, "float16"),
+        ):
+            for i in range(32):
+                with T.block("inplace_B"):
+                    vi = T.axis.remap("S", [i])
+                    B[vi] = B[vi] + T.float16(1.0)
+
+            for i in range(16):
+                with T.block("output_C"):
+                    vi = T.axis.remap("S", [i])
+                    C[vi] = A[vi] + T.float16(1.0)
+
+    assert rx.analysis.well_formed(Module)
+
+
+def test_var_binding_must_have_compatible_struct_info():
+    """Variables must accurately describe their contents
+
+    To be well-formed, the inferred struct info must not conflict with
+    the StructInfo annotations.
+
+    """
+
+    # The function is equivalent to the TVMScript below.  However,
+    # TVMScript applies additional checks that would catch this error
+    # while parsing.  In order to validate the well-formed checker
+    # itself, this test directly constructs the function withoutusing
+    # TVMScript, skipping the TVMScript-specific checks.
+    #
+    # @R.function
+    # def main(
+    #     A: R.Tensor(shape=[128, 32], dtype="float32"),
+    # ):
+    #     B: R.Tensor(shape=[128, 32], dtype="int32") = A
+    #     return B
+
+    param = tvm.relax.Var("A", R.Tensor(shape=[128, 32], dtype="float32"))
+    var = tvm.relax.Var("B", R.Tensor(shape=[128, 32], dtype="int32"))
+    binding = tvm.relax.VarBinding(var, param)
+    body = tvm.relax.SeqExpr([tvm.relax.BindingBlock([binding])], var)
+    tvm.relax.expr._update_struct_info(body, var.struct_info)
+    main = tvm.relax.Function([param], body)
+
+    assert not rx.analysis.well_formed(main)
+
+
+def test_var_binding_may_have_less_constrained_struct_info():
+    """StructInfo of variable may be less specific than expression
+
+    The StructInfo annotation of a variable is not required to be an
+    exact match to the expression's StructInfo, and may provide less
+    specific information than the inference would provide.
+
+    """
+
+    @I.ir_module
+    class Module:
+        @R.function
+        def main(
+            A: R.Tensor(shape=[128, 32], dtype="float32"),
+        ):
+            B: R.Object = R.add(A, A)
+            return B
+
+    assert isinstance(
+        Module["main"].body.blocks[0].bindings[0].var.struct_info, tvm.relax.ObjectStructInfo
+    ), "Validity of this test requires a variable with R.Object struct info"
+
+    assert rx.analysis.well_formed(Module)
+
+
+def test_var_binding_with_incomplete_struct_info_must_be_consistent():
+    """StructInfo of variable must be accurate
+
+    Even though StructInfo annotation may be less specific, the
+    information that they do contain must be correct.
+
+    """
+
+    # The function is equivalent to the TVMScript below.  However,
+    # TVMScript applies additional checks that would catch this error
+    # while parsing.  In order to validate the well-formed checker
+    # itself, this test directly constructs the function withoutusing
+    # TVMScript, skipping the TVMScript-specific checks.
+    #
+    #   @R.function
+    #   def main(
+    #       A: R.Tensor(shape=[128, 32], dtype="float32"),
+    #   ):
+    #       B: R.Tensor(ndim=3) = A
+    #       return B
+
+    param = tvm.relax.Var("A", R.Tensor(shape=[128, 32], dtype="float32"))
+    var = tvm.relax.Var("B", R.Tensor(ndim=3, dtype="int32"))
+    binding = tvm.relax.VarBinding(var, param)
+    body = tvm.relax.SeqExpr([tvm.relax.BindingBlock([binding])], var)
+    tvm.relax.expr._update_struct_info(body, var.struct_info)
+    main = tvm.relax.Function([param], body)
+
+    assert not rx.analysis.well_formed(main)
+
+
+def test_incomplete_struct_info_must_be_consistent():
+    """StructInfo annotations must be accurate
+
+    Even though StructInfo annotation may be less specific, the
+    information that they do contain must be correct.
+
+    """
+
+    @I.ir_module(check_well_formed=False)
+    class Module:
+        @R.function
+        def main(
+            A: R.Tensor(shape=[128, 32], dtype="float32"),
+            B: R.Tensor(shape=[128, 32], dtype="float32"),
+        ):
+            C: R.Tensor(ndim=3) = R.add(A, B)
+            return C
+
+    assert not rx.analysis.well_formed(Module)
+
+
+def test_struct_info_annotations_must_be_correct():
+    """StructInfo annotations must be correct
+
+    To be well-formed, the inferred struct info must not conflict with
+    the StructInfo annotations.
+
+    """
+
+    @I.ir_module(check_well_formed=False)
+    class Module:
+        @R.function
+        def main(
+            A: R.Tensor(shape=[128, 32], dtype="float32"),
+            B: R.Tensor(shape=[128, 32], dtype="float32"),
+        ):
+            C: R.Tensor(shape=[128, 32], dtype="int32") = R.add(A, B)
+            return C
+
+    assert not rx.analysis.well_formed(Module)
+
+
+def test_struct_info_may_be_incomplete():
+    """StructInfo annotations may be less specific
+
+    The StructInfo annotations are not required to be an exact match
+    to the inferred StructInfo, and may provide less specific
+    information than the inference would provide.
+
+    """
+
+    @I.ir_module
+    class Module:
+        @R.function
+        def main(
+            A: R.Tensor(shape=[128, 32], dtype="float32"),
+            B: R.Tensor(shape=[128, 32], dtype="float32"),
+        ):
+            C: R.Object = R.add(A, B)
+            return C
+
+    assert rx.analysis.well_formed(Module)
+
+
+def test_incomplete_struct_info_must_be_consistent():
+    """StructInfo annotations must be accurate
+
+    Even though StructInfo annotation may be less specific, the
+    information that they do contain must be correct.
+
+    """
+
+    @I.ir_module(check_well_formed=False)
+    class Module:
+        @R.function
+        def main(
+            A: R.Tensor(shape=[128, 32], dtype="float32"),
+            B: R.Tensor(shape=[128, 32], dtype="float32"),
+        ):
+            C: R.Tensor(ndim=3) = R.add(A, B)
+            return C
+
+    assert not rx.analysis.well_formed(Module)
 
 
 if __name__ == "__main__":

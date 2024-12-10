@@ -67,6 +67,7 @@ def _strided_slice(bb: BlockBuilder, call: Call) -> Expr:
         strides,
         axes,
         slice_mode="end",
+        assume_inbound=call.attrs.assume_inbound,
     )
 
 

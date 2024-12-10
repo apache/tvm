@@ -254,6 +254,27 @@ TVM_DLL Pass LegalizeOps(Optional<Map<String, PackedFunc>> cmap, bool enable_war
 TVM_DLL Pass RealizeVDevice();
 
 /*!
+ * \brief Attach layout free buffers to the tir::PrimFunc.
+ *
+ * This pass is used to attach layout free buffers to the tir::PrimFunc according to
+ * the function usage in the relax function. Currently, the layout free buffers are the model
+ * weights and relax constants.
+ *
+ * \note We recommend applying CanonicalizeBindings before this pass.
+ * \return The Pass.
+ */
+TVM_DLL Pass AttachAttrLayoutFreeBuffers();
+
+/*!
+ * \brief Split the layout rewrite preproc block to a separate tir::PrimFunc.
+ *
+ * This pass is used in the prepack weight after meta_schedule tuning.
+ *
+ * \return The Pass.
+ */
+TVM_DLL Pass SplitLayoutRewritePreproc();
+
+/*!
  * \brief Lift transformation of the parameters of a function.
  *
  * When some inputs of the function is marked as 'parameters' (the model weights), this pass
@@ -559,11 +580,13 @@ TVM_DLL Pass DecomposeOpsForTraining(Optional<String> func_name);
  * \param op_buffer_transforms Map from kOperatorName attr to layout transformations on each of the
  * PrimFunc i/o buffers.
  * \param axis_separators Map from kOperatorName attr to axis_separators of each buffer_transforms
+ * \param input_axis_separators Map from kOperatorName attr to axis_separator for input buffer
  * \return The Pass.
  */
 TVM_DLL Pass AlterOpImpl(const Map<String, tir::PrimFunc>& op_impl_map,
                          const Map<String, Array<tir::IndexMap>>& op_buffer_transforms,
-                         const Map<String, Array<Array<IntImm>>>& axis_separators);
+                         const Map<String, Array<Array<IntImm>>>& axis_separators,
+                         const Map<String, Array<Array<IntImm>>>& input_axis_separators);
 
 /*!
  * \brief Layout conversion pass.

@@ -17,26 +17,24 @@
 
 """ Test translate from torch. """
 
-import pytest
-
-import numpy as np
-
 import torch
 from torch.nn import Module
 
 import tvm.testing
 from tvm.contrib.msc.framework.torch.frontend import translate
 from tvm.contrib.msc.framework.torch import codegen
+from tvm.contrib.msc.core.utils.namespace import MSCFramework
+from tvm.contrib.msc.core import utils as msc_utils
 
 
 def verify_model(torch_model, input_info, via_relax=True):
     """Compare torch module results"""
 
-    graph, weights = translate.from_torch(torch_model, input_info, via_relax=via_relax)
-    model = codegen.to_torch(graph, weights)
-    torch_datas = [torch.from_numpy(np.random.rand(*i[0]).astype(i[1])) for i in input_info]
+    torch_datas = [msc_utils.random_data(i, MSCFramework.TORCH) for i in input_info]
     with torch.no_grad():
         golden = torch_model(*torch_datas)
+    graph, weights = translate.from_torch(torch_model, input_info, via_relax=via_relax)
+    model = codegen.to_torch(graph, weights)
     with torch.no_grad():
         if not graph.get_inputs():
             result = model()
@@ -589,7 +587,6 @@ def test_getattr():
     verify_model(GetAttr1(), input_info)
 
 
-@pytest.mark.xfail(reason="MSC does not support Tuple of PrimValue")
 def test_getitem():
     """test torch translator for getitem"""
 
@@ -728,13 +725,35 @@ def test_addmm():
 def test_split():
     """test torch translator for split"""
 
-    class Split(Module):
+    class Split1(Module):
         def forward(self, data):
             return torch.split(data, 1, dim=1)
 
+    class Split2(Module):
+        def forward(self, data):
+            return torch.split(data, [1, 2], dim=1)
+
     input_info = [([1, 3, 10, 10], "float32")]
     for via_relax in [True, False]:
-        verify_model(Split(), input_info, via_relax)
+        verify_model(Split1(), input_info, via_relax)
+        verify_model(Split2(), input_info, via_relax)
+
+
+def test_unbind():
+    """test torch translator for unbind"""
+
+    class Unbind1(Module):
+        def forward(self, data):
+            return torch.unbind(data)
+
+    class Unbind2(Module):
+        def forward(self, data):
+            return torch.unbind(data, dim=1)
+
+    input_info = [([3, 3, 10, 10], "float32")]
+    for via_relax in [True, False]:
+        verify_model(Unbind1(), input_info, via_relax)
+        verify_model(Unbind2(), input_info, via_relax)
 
 
 def test_cumsum():
@@ -835,13 +854,18 @@ def test_new_ones():
 def test_expand():
     """test torch translator for expand"""
 
-    class Expand(Module):
+    class Expand1(Module):
         def forward(self, x):
             return x.expand(4, 2, 3, 4)
 
+    class Expand2(Module):
+        def forward(self, x):
+            return x.expand(4, -1, -1, 4)
+
     input_info = [([1, 2, 3, 4], "float32")]
     for via_relax in [True, False]:
-        verify_model(Expand(), input_info, via_relax)
+        verify_model(Expand1(), input_info, via_relax)
+        verify_model(Expand2(), input_info, via_relax)
 
 
 def test_reduce():
@@ -1079,6 +1103,113 @@ def test_max():
 
     for via_relax in [True, False]:
         verify_model(Max(), [([256, 256], "float32"), ([256, 256], "float32")], via_relax)
+
+
+def test_cat():
+    """test torch translator for cat"""
+
+    class Cat1(Module):
+        def forward(self, data, data1, data2):
+            return torch.cat((data, data1, data2), dim=1)
+
+    class Cat2(Module):
+        def forward(self, data):
+            const1 = torch.ones((1, 3, 10, 10), dtype=torch.float32)
+            const2 = torch.ones((1, 3, 10, 10), dtype=torch.float32)
+            return torch.cat((data, const1, const2), dim=1)
+
+    input_info = [
+        ([1, 3, 10, 10], "float32"),
+        ([1, 3, 10, 10], "float32"),
+        ([1, 3, 10, 10], "float32"),
+    ]
+    for via_relax in [True, False]:
+        verify_model(Cat1(), input_info, via_relax)
+        verify_model(Cat2(), [([1, 3, 10, 10], "float32")], via_relax)
+
+
+def test_stack():
+    """test torch translator for stack"""
+
+    class Stack1(Module):
+        def forward(self, data, data1, data2):
+            return torch.stack((data, data1, data2), dim=0)
+
+    class Stack2(Module):
+        def forward(self, data):
+            const1 = torch.ones((1, 3, 10, 10), dtype=torch.float32)
+            const2 = torch.ones((1, 3, 10, 10), dtype=torch.float32)
+            return torch.stack((data, const1, const2), dim=1)
+
+    input_info = [
+        ([1, 3, 10, 10], "float32"),
+        ([1, 3, 10, 10], "float32"),
+        ([1, 3, 10, 10], "float32"),
+    ]
+    for via_relax in [True, False]:
+        verify_model(Stack1(), input_info, via_relax)
+        verify_model(Stack2(), [([1, 3, 10, 10], "float32")], via_relax)
+
+
+def test_scatter():
+    """test torch translator for scatter"""
+
+    class Scatter1(Module):
+        def __init__(self):
+            super().__init__()
+            self.index = msc_utils.random_data([(2, 5), "int64"], MSCFramework.TORCH, max_val=5)
+
+        def forward(self, data, src):
+            return data.scatter(dim=0, index=self.index, src=src)
+
+    class Scatter2(Module):
+        def forward(self, data, index, src):
+            return data.scatter(0, index, src)
+
+    for via_relax in [True, False]:
+        verify_model(Scatter1(), [([20, 20], "float32"), ([2, 5], "float32")], via_relax)
+        verify_model(
+            Scatter2(), [([20, 20], "float32"), ([2, 5], "int64"), ([2, 5], "float32")], via_relax
+        )
+
+
+def test_masked_scatter():
+    """test torch translator for masked_scatter"""
+
+    class MaskedScatter1(Module):
+        def __init__(self):
+            super().__init__()
+            self.mask = msc_utils.random_data([(5,), "bool"], MSCFramework.TORCH)
+
+        def forward(self, data, src):
+            return data.masked_scatter(self.mask, src)
+
+    class MaskedScatter2(Module):
+        def __init__(self):
+            super().__init__()
+            self.mask = msc_utils.random_data([(2, 5), "bool"], MSCFramework.TORCH)
+
+        def forward(self, data, src):
+            return data.masked_scatter(self.mask, src)
+
+    verify_model(MaskedScatter1(), [([5], "float32"), ([10], "float32")], True)
+    verify_model(MaskedScatter2(), [([2, 5], "float32"), ([3, 5], "float32")], True)
+
+
+def test_put():
+    """test torch translator for index_put"""
+
+    class IndexPut(Module):
+        def __init__(self):
+            super().__init__()
+            self.index = msc_utils.random_data([(5), "int64"], MSCFramework.TORCH, max_val=5)
+
+        def forward(self, data, src):
+            data[self.index] = src
+            return data
+
+    input_info = [([10, 20], "float32"), ([5, 20], "float32")]
+    verify_model(IndexPut(), input_info, False)
 
 
 def test_attention():

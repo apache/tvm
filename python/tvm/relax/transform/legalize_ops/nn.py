@@ -171,21 +171,16 @@ def _nn_conv1d_transpose(bb: BlockBuilder, call: Call) -> Expr:
             "and thus cannot be legalized by TOPI"
         )
         return call
-    if call.attrs.groups != 1:
-        logging.info(
-            "TOPI conv1d_transpose does not support groups other than 1, "
-            "and thus cannot be legalized by TOPI"
-        )
-        return call
 
     return bb.call_te(
-        topi.nn.conv1d_transpose_ncw,
+        topi.nn.group_conv1d_transpose_ncw,
         call.args[0],
         call.args[1],
         stride=call.attrs.strides,
         padding=call.attrs.padding,
         out_dtype=call.struct_info.dtype,
         output_padding=call.attrs.output_padding,
+        groups=call.attrs.groups,
         primfunc_name_hint="conv1d_transpose",
     )
 

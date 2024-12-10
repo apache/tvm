@@ -282,6 +282,10 @@ def test_minimum():
 
 
 @tvm.testing.requires_gpu
+@pytest.mark.skip(
+    reason="jaxlib.xla_extension.XlaRuntimeError: FAILED_PRECONDITION: DNN library initialization failed."
+)
+# TODO(mshr-h): may be fixed by upgrading jax to >=0.4.33
 def test_reduce():
     import jax
     import jax.numpy as jnp
@@ -293,6 +297,10 @@ def test_reduce():
 
 
 @tvm.testing.requires_gpu
+@pytest.mark.skip(
+    reason="jaxlib.xla_extension.XlaRuntimeError: FAILED_PRECONDITION: DNN library initialization failed."
+)
+# TODO(mshr-h): may be fixed by upgrading jax to >=0.4.33
 def test_reduce_window():
     import jax
     from flax import linen as nn
@@ -314,8 +322,10 @@ def test_dot_general():
     check_correctness(jax.jit(fn), input_shapes)
 
 
-@pytest.mark.skip()
 @tvm.testing.requires_gpu
+@pytest.mark.skip(
+    reason="jaxlib.xla_extension.XlaRuntimeError: FAILED_PRECONDITION: DNN library initialization failed."
+)
 # TODO(yongwww): fix flaky error of "invalid device ordinal"
 def test_conv():
     import jax

@@ -1385,6 +1385,7 @@ class TestConv2dWCHNcCRSKk(BaseConv2DValidator):
     test_func = tvm.testing.parameter(conv2d_1x1_WCHNc_CRSKk)
 
 
+@pytest.mark.skip("AttributeError: module 'numpy' has no attribute 'bool' raised from mxnet")
 class TestConv2dNCHWcKCRSk(BaseConv2DValidator):
     input_shapes = tvm.testing.parameter(
         [(1, 32, 56, 56, 4), (32, 128, 1, 1, 4)], [(1, 32, 112, 112, 4), (32, 128, 3, 3, 4)]
@@ -1392,6 +1393,7 @@ class TestConv2dNCHWcKCRSk(BaseConv2DValidator):
     test_func = tvm.testing.parameter(conv2d_NCHWc_KCRSk, conv2d_NCHWc_KCRSk_fp32_acc)
 
 
+@pytest.mark.skip("AttributeError: module 'numpy' has no attribute 'bool' raised from mxnet")
 class TestDepthwiseConv2dNCHWcKCRSk(BaseConv2DValidator):
     input_shapes = tvm.testing.parameter([(1, 24, 257, 257, 4), (24, 1, 3, 3, 4)])
     test_func = tvm.testing.parameter(depthwise_conv2d_NCHWc_KCRSk_acc32)

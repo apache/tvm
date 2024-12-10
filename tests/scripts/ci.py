@@ -370,6 +370,7 @@ def generate_command(
     precheck: Optional[Callable[[], None]] = None,
     post_build: Optional[List[str]] = None,
     additional_flags: Optional[Dict[str, str]] = None,
+    env: Optional[Dict[str, str]] = None,
 ):
     """
     Helper to generate CLIs that:
@@ -424,17 +425,22 @@ def generate_command(
             if kwargs.get(option_name, False):
                 scripts.extend(script.format(build_dir=build_dir) for script in extra_scripts)
 
+        docker_env = {
+            # Need to specify the library path manually or else TVM can't
+            # determine which build directory to use (i.e. if there are
+            # multiple copies of libtvm.so laying around)
+            "TVM_LIBRARY_PATH": str(REPO_ROOT / get_build_dir(name)),
+            "VERBOSE": "true" if verbose else "false",
+        }
+
+        if env is not None:
+            docker_env.update(env)
+
         docker(
             name=gen_name(f"ci-{name}"),
             image=f"ci_{name}" if docker_image is None else docker_image,
             scripts=scripts,
-            env={
-                # Need to specify the library path manually or else TVM can't
-                # determine which build directory to use (i.e. if there are
-                # multiple copies of libtvm.so laying around)
-                "TVM_LIBRARY_PATH": str(REPO_ROOT / get_build_dir(name)),
-                "VERBOSE": "true" if verbose else "false",
-            },
+            env=docker_env,
             interactive=interactive,
             additional_flags=additional_flags,
         )
@@ -616,8 +622,6 @@ generated = [
                 "run unit tests",
                 [
                     "./tests/scripts/task_python_unittest.sh",
-                    "./tests/scripts/task_python_vta_fsim.sh",
-                    "./tests/scripts/task_python_vta_tsim.sh",
                 ],
             ),
             "frontend": ("run frontend tests", ["./tests/scripts/task_python_frontend_cpu.sh"]),
@@ -719,9 +723,12 @@ generated = [
         help="Run Adreno build and test(s)",
         post_build=["./tests/scripts/task_build_adreno_bins.sh"],
         additional_flags={
-            "--volume": os.environ.get("ADRENO_OPENCL", "") + ":/adreno-opencl",
-            "--env": "ADRENO_OPENCL=/adreno-opencl",
+            "--volume": os.environ.get("ADRENO_OPENCL", "/tmp/") + ":/adreno-opencl",
             "--net": "host",
+        },
+        env={
+            "ADRENO_OPENCL": "/adreno-opencl",
+            "ADRENO_TARGET_CLML_VERSION": os.environ.get("ADRENO_TARGET_CLML_VERSION", "3"),
         },
         options={
             "test": (

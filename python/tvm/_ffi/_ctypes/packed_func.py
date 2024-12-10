@@ -134,6 +134,11 @@ def _make_tvm_args(args, temp_args):
         elif isinstance(arg, _nd._TVM_COMPATS):
             values[i].v_handle = ctypes.c_void_p(arg._tvm_handle)
             type_codes[i] = arg.__class__._tvm_tcode
+        elif isinstance(arg, bool):
+            # A python `bool` is a subclass of `int`, so this check
+            # must occur before `Integral`.
+            values[i].v_bool = arg
+            type_codes[i] = ArgTypeCode.BOOL
         elif isinstance(arg, Integral):
             values[i].v_int64 = arg
             type_codes[i] = ArgTypeCode.INT
@@ -147,7 +152,7 @@ def _make_tvm_args(args, temp_args):
             values[i].v_int64 = _device_to_int64(arg)
             type_codes[i] = ArgTypeCode.DLDEVICE
         elif isinstance(arg, (bytearray, bytes)):
-            # from_buffer only taeks in bytearray.
+            # from_buffer only takes in bytearray.
             if isinstance(arg, bytes):
                 byte_arr = bytearray(arg)
                 temp_args.append(byte_arr)
@@ -195,6 +200,7 @@ class PackedFuncBase(object):
     """Function base."""
 
     __slots__ = ["handle", "is_global"]
+
     # pylint: disable=no-member
     def __init__(self, handle, is_global):
         """Initialize the function with handle
@@ -342,6 +348,7 @@ def _init_pythonapi_inc_def_ref():
     register_func(c_str("Py_DecRef"), ctypes.pythonapi.Py_DecRef)
     register_func(c_str("PyGILState_Ensure"), ctypes.pythonapi.PyGILState_Ensure)
     register_func(c_str("PyGILState_Release"), ctypes.pythonapi.PyGILState_Release)
+    register_func(c_str("PyErr_CheckSignals"), ctypes.pythonapi.PyErr_CheckSignals)
 
 
 _init_pythonapi_inc_def_ref()

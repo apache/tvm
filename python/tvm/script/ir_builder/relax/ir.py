@@ -20,11 +20,11 @@
 import builtins
 import functools
 import inspect
-from typing import Any, Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union, Type
 
 import tvm
 from tvm import DataType, relax
-from tvm.ir import PrimExpr, VDevice
+from tvm.ir import PrimExpr, VDevice, IRModule
 from tvm.relax import (
     Call,
     Expr,
@@ -35,6 +35,7 @@ from tvm.relax import (
     VarBinding,
     const,
 )
+from tvm.relax.dpl import PatternMatchingRewriter
 
 ############################### Operators ###############################
 from tvm.relax.op import (
@@ -84,12 +85,17 @@ from tvm.relax.op import (
     ewise_fma,
     exp,
     expand_dims,
+    eye,
+    eye_like,
     flatten,
     flip,
     floor,
     floor_divide,
+    floor_mod,
     full,
     full_like,
+    gather_elements,
+    gather_nd,
     grad,
     greater,
     greater_equal,
@@ -101,6 +107,7 @@ from tvm.relax.op import (
     isinf,
     isnan,
     layout_transform,
+    left_shift,
     less,
     less_equal,
     linear,
@@ -117,6 +124,7 @@ from tvm.relax.op import (
     memory,
     min,
     minimum,
+    mod,
     multinomial_from_uniform,
     multiply,
     negative,
@@ -125,6 +133,7 @@ from tvm.relax.op import (
     null_value,
     ones,
     ones_like,
+    one_hot,
     permute_dims,
     power,
     print,
@@ -132,9 +141,11 @@ from tvm.relax.op import (
     quantize,
     repeat,
     reshape,
+    right_shift,
     round,
     rsqrt,
     scatter_elements,
+    scatter_nd,
     shape_of,
     shape_to_tensor,
     sigmoid,
@@ -304,6 +315,48 @@ def func_ret_value(value: Expr) -> None:
         The function return value.
     """
     return _ffi_api.FuncRetValue(value)  # type: ignore[attr-defined] # pylint: disable=no-member
+
+
+def rewriter(rewriter_mod: Union[IRModule, Type]) -> PatternMatchingRewriter:
+    """Define a pattern-rewrite rule
+
+    The IRModule must have two publicly-exposed functions, `pattern`
+    and `replacement`, where `pattern` and `replacement` have the same
+    function signature.
+
+    .. code-block:: python
+
+        @R.rewriter
+        class RewriteAddIntoMultiply:
+            @R.function
+            def pattern(A: R.Tensor):
+                B = A + A
+                return B
+
+            @R.function
+            def replacement(A: R.Tensor):
+                B = A * 2
+                return B
+
+    Parameters
+    ----------
+    rewriter_mod: Union[IRModule, Type]
+
+        Either an IRModule that defines a rewrite pattern, or a
+        TVMScript class that can be parsed into an IRModule.
+
+    Returns
+    -------
+    rewriter: PatternMatchingRewriter
+
+        A rewriter object, which can be applied either to a Relax
+        function or to an entire IRModule.
+
+    """
+    if not isinstance(rewriter_mod, IRModule):
+        rewriter_mod = tvm.script.ir_module(rewriter_mod)
+
+    return PatternMatchingRewriter.from_module(rewriter_mod)
 
 
 ############################# BindingBlock ##############################
@@ -693,6 +746,7 @@ __all__ = [
     "cumsum",
     "einsum",
     "scatter_elements",
+    "scatter_nd",
     "dataflow",
     "device",
     "divide",
@@ -706,10 +760,13 @@ __all__ = [
     "exp",
     "expand_dims",
     "ext_dev",
+    "eye",
+    "eye_like",
     "flatten",
     "flip",
     "floor",
     "floor_divide",
+    "floor_mod",
     "full",
     "full_like",
     "func_attr",
@@ -717,6 +774,8 @@ __all__ = [
     "func_ret_struct_info",
     "func_ret_value",
     "function",
+    "gather_elements",
+    "gather_nd",
     "gpu",
     "grad",
     "greater",
@@ -730,6 +789,7 @@ __all__ = [
     "isinf",
     "isnan",
     "layout_transform",
+    "left_shift",
     "less",
     "less_equal",
     "linear",
@@ -747,6 +807,7 @@ __all__ = [
     "metal",
     "min",
     "minimum",
+    "mod",
     "multinomial_from_uniform",
     "multiply",
     "negative",
@@ -754,6 +815,7 @@ __all__ = [
     "null_value",
     "ones",
     "ones_like",
+    "one_hot",
     "opencl",
     "output",
     "permute_dims",
@@ -765,6 +827,8 @@ __all__ = [
     "dequantize",
     "repeat",
     "reshape",
+    "rewriter",
+    "right_shift",
     "tensor_to_shape",
     "shape_to_tensor",
     "rocm",

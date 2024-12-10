@@ -163,6 +163,74 @@ def zeros_like(x: Expr, dtype: Optional[Union[str, DataType]] = None) -> Expr:
     return _ffi_api.zeros_like(x, dtype)  # type: ignore
 
 
+def eye(
+    n: Union[PrimExprLike, PrimValue],
+    m: Optional[Union[PrimExprLike, PrimValue]] = None,
+    k: Union[PrimExprLike, PrimValue] = 0,
+    dtype: Union[str, DataType] = "float32",
+) -> Expr:
+    """Construct a 2-D tensor with ones on the diagonal and zeros elsewhere.
+
+    Parameters
+    ----------
+    n : Union[PrimExprLike, PrimValue]
+        Number of rows in the output.
+
+    m : Optional[Union[PrimExprLike, PrimValue]]
+        Number of columns in the output. If None, defaults to n.
+
+    k : Union[PrimExprLike, PrimValue]
+        Index of the diagonal: 0 (the default) refers to the main diagonal,
+        a positive value refers to an upper diagonal, and a negative value
+        to a lower diagonal.
+
+    dtype : Union[str, DataType]
+        The data type of the created tensor.
+
+    Returns
+    -------
+    result : relax.Expr
+        The result tensor.
+    """
+    m = n if m is None else m
+    n = n if isinstance(n, PrimValue) else PrimValue(n)
+    m = m if isinstance(m, PrimValue) else PrimValue(m)
+    k = k if isinstance(k, PrimValue) else PrimValue(k)
+    return _ffi_api.eye(n, m, k, dtype)  # type: ignore
+
+
+def eye_like(
+    x: Expr,
+    k: Union[PrimExprLike, PrimValue] = 0,
+    dtype: Optional[Union[str, DataType]] = None,
+) -> Expr:
+    """Return a 2-D tensor with ones on the diagonal and zeros elsewhere,
+    with the same shape as the input tensor.
+
+    Parameters
+    ----------
+    x : relax.Expr
+        The input tensor, which provides the shape, and dtype
+        when the `dtype` field is not specified.
+
+    k : Union[PrimExprLike, PrimValue]
+        Index of the diagonal: 0 (the default) refers to the main diagonal,
+        a positive value refers to an upper diagonal, and a negative value
+        to a lower diagonal.
+
+    dtype : Optional[Union[str, DataType]]
+        The data type of the created tensor.
+        If dtype is not given, it will by default use the dtype of the input tensor.
+
+    Returns
+    -------
+    result : relax.Expr
+        The result tensor.
+    """
+    k = k if isinstance(k, PrimValue) else PrimValue(k)
+    return _ffi_api.eye_like(x, k, dtype)  # type: ignore
+
+
 def arange(
     start: Union[PrimExprLike, PrimValue],
     end: Optional[Union[PrimExprLike, PrimValue]] = None,
@@ -241,7 +309,7 @@ def tril(x: Expr, k: Union[int, PrimExpr, Expr] = 0) -> Expr:
     return _ffi_api.tril(x, k)  # type: ignore
 
 
-def triu(x: Expr, k: [int, PrimExpr, Expr] = 0) -> Expr:
+def triu(x: Expr, k: Union[int, PrimExpr, Expr] = 0) -> Expr:
     """Return the upper triangular part of a matrix or a batch of matrices.
 
     Parameters

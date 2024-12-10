@@ -139,6 +139,16 @@ class SymbolicMatcher : ExprFunctor<void(const PrimExpr& n, const PrimExpr& othe
     }
   }
 
+  void VisitExpr_(const SelectNode* op, const PrimExpr& other) {
+    const auto* rhs = other.as<SelectNode>();
+    if (rhs) {
+      VisitExpr(op->true_value, rhs->true_value);
+      VisitExpr(op->false_value, rhs->false_value);
+    } else {
+      must_prove_ = must_prove_ && (GetRef<PrimExpr>(op) == other);
+    }
+  }
+
   arith::Analyzer* analyzer_;
   Map<tir::Var, PrimExpr>* var_remap_;
   PrimExpr must_prove_ = Bool(true);
@@ -1088,8 +1098,7 @@ class TIRFuseMutator : public ExprMutator {
       const auto& [prim_func, indices] = FusedTIRConstructor::GetFusedTIR(mod, old_gvar);
 
       GlobalVar new_gvar(old_gvar->name_hint);
-      UpdateStructInfo(new_gvar,
-                       FuncStructInfo::OpaqueFunc(StructInfoFromType(prim_func->ret_type)));
+      UpdateStructInfo(new_gvar, GetStructInfo(prim_func));
 
       mod->Remove(old_gvar);
       updates->Add(new_gvar, prim_func);

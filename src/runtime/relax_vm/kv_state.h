@@ -167,6 +167,7 @@ class AttentionKVCacheObj : public KVStateObj {
    * `(total_length, num_qo_heads + 2 * num_kv_heads, head_dim)`.
    * \param mask The input mask data, in layout `(total_sqr_length)`.
    * \param o_data The output O data, in layout `(total_length, num_qo_heads, head_dim)`.
+   * \param attn_score_scaling_factor The additional attention scaling factor.
    * \sa AttentionKVCache::Attention
    */
   virtual void AttentionWithFusedQKV(int64_t layer_id, NDArray qkv_data, Optional<NDArray> mask,

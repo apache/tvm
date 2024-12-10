@@ -27,6 +27,7 @@
 #include <tvm/relax/attrs/manipulate.h>
 
 #include "../op_common.h"
+#include "tvm/relax/expr.h"
 
 namespace tvm {
 namespace relax {
@@ -67,10 +68,12 @@ Expr flatten(Expr x);
  * not specified, any value can be used.
  * \param axis_separators Array of values to differentiate between input axes
  * when generating flattened output axes.
+ * \param input axis_separators Array of values for input buffer.
  * \return The transformed result.
  */
 Expr layout_transform(Expr x, tir::IndexMap index_map, Optional<PrimValue> pad_value,
-                      Optional<Array<IntImm>> axis_separators);
+                      Optional<Array<IntImm>> axis_separators,
+                      Optional<Array<IntImm>> input_axis_separators = NullOpt);
 
 /*!
  * \brief Permutes the dimensions of an array.
@@ -88,7 +91,7 @@ Expr permute_dims(Expr x, Optional<Array<Integer>> axes);
  * It is required to be either an Array of PrimExpr, or a Shape in Relax
  * \return The reshaped result.
  */
-Expr reshape(Expr x, ObjectRef shape);
+Expr reshape(Expr x, Variant<Expr, Array<PrimExpr>> shape);
 
 /*!
  * \brief Split input tensor along axis by sections or indices.
@@ -103,7 +106,7 @@ Expr reshape(Expr x, ObjectRef shape);
  * \param axis The axis over which to split.
  * \return The computed result.
  */
-Expr split(Expr x, ObjectRef indices_or_sections, int axis);
+Expr split(Expr x, Variant<IntImm, Array<IntImm>> indices_or_sections, int axis);
 
 /*!
  * \brief Squeeze axes in the array.
@@ -170,6 +173,76 @@ Expr tile(Expr data, Array<Integer> repeats);
  * \return The computed result.
  */
 Expr flip(Expr data, Integer axis);
+
+/*!
+ * \brief Gather elements from a tensor using indices.
+ * \param data The input tensor.
+ * \param indices The indices tensor, must have integer type.
+ * \param axis The axis along which to index. Default is 0.
+ * \return The computed result.
+ *
+ * \note The shape of indices must match the shape of data, except at dimension axis
+ *       where it must just be not null. The output will have the same shape as indices.
+ */
+Expr gather_elements(Expr data, Expr indices, int axis = 0);
+
+/*!
+ * \brief Gather values from a tensor using N-dimensional indices.
+ * \param data The input tensor.
+ * \param indices The indices tensor, must have integer type.
+ * \param batch_dims The number of batch dimensions. Default is 0.
+ * \return The computed result.
+ *
+ * \note For batch_dims > 0, the first batch_dims dimensions of data and indices must be equal.
+ *       The last dimension of indices indicates the depth of each index vector.
+ *       The output shape is batch_dims + indices.shape[:-1] + data.shape[batch_dims +
+ * indices.shape[-1]:]
+ */
+Expr gather_nd(Expr data, Expr indices, int batch_dims = 0);
+
+/*!
+ * \brief Scatter updates into an array according to indices.
+ * \param data The input tensor.
+ * \param indices The index positions to update in `data`.
+ * \param updates The values to replace to.
+ * \param axis The axis along which to scatter the elements.
+ * \param reduction The reduction mode of the scatter elements,
+ * either "update", "add", "mul", "mean", "max" or "min".
+ * \return The computed result.
+ */
+Expr scatter_elements(Expr data, Expr indices, Expr updates, int axis, String reduction);
+
+/*!
+ * \brief Scatter updates into an array according to indices.
+ * \param data The input tensor to be updated.
+ * \param indices The index positions to update in `data`.
+ * \param updates The values to replace to.
+ * \param reduction The reduction mode of the scatter operation.
+ *        Supported modes are:
+ *        - "update": Replace the values at the indices with the update values.
+ *        - "add": Add the update values to the existing values at the indices.
+ *        - "mul": Multiply the existing values at the indices by the update values.
+ *        - "max": Take the maximum of the existing value and the update value at each index.
+ *        - "min": Take the minimum of the existing value and the update value at each index.
+ * \return The computed result tensor with the same shape as `data`.
+ *
+ * \note The shape of `indices` defines the shape of the scattered tensor.
+ *       The last dimension of `indices` corresponds to the depth of each index vector.
+ *       The shape of `updates` must match the shape of `indices` except for the last dimension,
+ *       which must match the slice shape at each index.
+ */
+Expr scatter_nd(Expr data, Expr indices, Expr updates, String reduction);
+
+/*!
+ * \brief Returns a one-hot tensor.
+ * \param indices The indices to set to `on_value`.
+ * \param on_value The value to fill at `indices`.
+ * \param off_value The value to fill at other locations.
+ * \param depth The depth of the one hot dimension.
+ * \param axis The axis to fill.
+ * \return The computed result.
+ */
+Expr one_hot(Expr indices, PrimValue on_value, PrimValue off_value, int depth, int axis);
 
 }  // namespace relax
 }  // namespace tvm

@@ -122,11 +122,7 @@ tvm::Map<tir::Var, PrimExpr> InferSymbolicVarMap(
     if (!var_sinfo) return;
 
     auto expr_sinfo = expr.as<PrimStructInfoNode>();
-    CHECK(expr_sinfo) << "Cannot bind expression with struct type " << expr
-                      << " to variable with struct type " << var;
-    CHECK_EQ(var_sinfo->dtype, expr_sinfo->dtype)
-        << "Cannot bind expression with struct type " << expr << " to variable with struct type "
-        << var << ", due to conflicting PrimExpr DataType";
+    if (!expr_sinfo) return;
 
     if (!var_sinfo->value.defined() || !expr_sinfo->value.defined()) return;
 
@@ -139,15 +135,12 @@ tvm::Map<tir::Var, PrimExpr> InferSymbolicVarMap(
     if (!var_shape->values.defined()) return;
 
     auto expr_shape = expr.as<ShapeStructInfoNode>();
-    CHECK(expr_shape) << "Cannot bind expression with struct type " << expr
-                      << " to variable with struct type " << var;
+    if (!expr_shape) return;
     if (!expr_shape->values.defined()) return;
 
     auto var_shape_arr = var_shape->values.value();
     auto expr_shape_arr = expr_shape->values.value();
-    CHECK_EQ(var_shape_arr.size(), expr_shape_arr.size())
-        << "Cannot bind shape " << expr_shape_arr << " of dimension " << expr_shape_arr.size()
-        << " to variable with shape " << var_shape_arr << " of dimension " << var_shape_arr.size();
+    if (var_shape_arr.size() != expr_shape_arr.size()) return;
     for (size_t i = 0; i < var_shape_arr.size(); i++) {
       bind_from_prim_expr(var_shape_arr[i], expr_shape_arr[i]);
     }
@@ -159,21 +152,39 @@ tvm::Map<tir::Var, PrimExpr> InferSymbolicVarMap(
     if (!var_tensor->shape.defined()) return;
 
     auto expr_tensor = expr.as<TensorStructInfoNode>();
-    CHECK(expr_tensor) << "Cannot bind expression with struct type " << expr
-                       << " to variable with struct type " << var;
+    if (!expr_tensor) return;
     if (!expr_tensor->shape.defined()) return;
 
     bind_from_shape(GetStructInfo(var_tensor->shape.value()),
                     GetStructInfo(expr_tensor->shape.value()));
   };
 
+  std::function<void(const StructInfo&, const StructInfo&)> bind_from_struct_info = nullptr;
+  auto bind_from_tuple = [&bind_from_struct_info](const StructInfo& var, const StructInfo& expr) {
+    auto var_tuple = var.as<TupleStructInfoNode>();
+    if (!var_tuple) return;
+
+    auto expr_tuple = expr.as<TupleStructInfoNode>();
+    if (!expr_tuple) return;
+
+    if (var_tuple->fields.size() != expr_tuple->fields.size()) return;
+
+    for (size_t i = 0; i < var_tuple->fields.size(); i++) {
+      bind_from_struct_info(var_tuple->fields[i], expr_tuple->fields[i]);
+    }
+  };
+
+  bind_from_struct_info = [&](const StructInfo& var, const StructInfo& expr) {
+    bind_from_tensor(var, expr);
+    bind_from_shape(var, expr);
+    bind_from_prim_value(var, expr);
+    bind_from_tuple(var, expr);
+  };
+
   for (const auto& [relax_var, relax_expr] : relax_var_remap) {
     auto var_sinfo = GetStructInfo(relax_var);
     auto expr_sinfo = GetStructInfo(relax_expr);
-
-    bind_from_tensor(var_sinfo, expr_sinfo);
-    bind_from_shape(var_sinfo, expr_sinfo);
-    bind_from_prim_value(var_sinfo, expr_sinfo);
+    bind_from_struct_info(var_sinfo, expr_sinfo);
   }
 
   return tir_var_remap;

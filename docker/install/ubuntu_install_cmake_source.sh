@@ -20,19 +20,21 @@ set -e
 set -u
 set -o pipefail
 
-if [ -z ${1+x} ]; then
-    version=3.24.0
-else
-    version=$1
-fi
+CMAKE_VERSION="3.30.4"
+CMAKE_SHA256="c759c97274f1e7aaaafcb1f0d261f9de9bf3a5d6ecb7e2df616324a46fe704b2"
 
-v=$(echo $version | sed 's/\(.*\)\..*/\1/g')
-echo "Installing cmake $version ($v)"
-wget https://cmake.org/files/v${v}/cmake-${version}.tar.gz
-tar xvf cmake-${version}.tar.gz
-cd cmake-${version}
-./bootstrap
-make -j$(nproc)
-make install
-cd ..
-rm -rf cmake-${version} cmake-${version}.tar.gz
+# parse argument
+CMAKE_VERSION=${1:-$CMAKE_VERSION}
+CMAKE_SHA256=${2:-$CMAKE_SHA256}
+
+v=$(echo $CMAKE_VERSION | sed 's/\(.*\)\..*/\1/g')
+echo "Installing cmake $CMAKE_VERSION ($v)"
+wget https://cmake.org/files/v${v}/cmake-${CMAKE_VERSION}.tar.gz
+echo "$CMAKE_SHA256" cmake-${CMAKE_VERSION}.tar.gz | sha256sum -c
+tar xvf cmake-${CMAKE_VERSION}.tar.gz
+pushd cmake-${CMAKE_VERSION}
+  ./bootstrap
+  make -j$(nproc)
+  make install
+popd
+rm -rf cmake-${CMAKE_VERSION} cmake-${CMAKE_VERSION}.tar.gz

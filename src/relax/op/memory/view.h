@@ -32,6 +32,9 @@ namespace relax {
 /*! \brief View a tensor with different properties. */
 Expr view(Expr x, Optional<Expr> shape, Optional<Expr> dtype, Optional<Expr> relative_byte_offset);
 
+/*! \brief Ensure the tensor has elem_offset == 0. A copy will be made if necessary. */
+Expr ensure_aligned(const Expr& x);
+
 }  // namespace relax
 }  // namespace tvm
 

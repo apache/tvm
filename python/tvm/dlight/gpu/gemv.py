@@ -11,7 +11,7 @@
 # Unless required by applicable law or agreed to in writing,
 # software distributed under the License is distributed on an
 # "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
-# KIND, either express or implied.  See the License for the
+# KIND, either express or implied. See the License for the
 # specific language governing permissions and limitations
 # under the License.
 """A rule for GEMV and DecodeGEMV."""
@@ -478,7 +478,9 @@ class GEMV(GPUScheduleRule):
                     TS, TR = 8, 64
             else:
                 TS, TR = 1, 64
-        elif target.kind.name == "opencl" and "android" in str(target.host):
+        elif target.kind.name == "opencl" and (
+            ("android" in str(target.host)) or ("adreno" in str(target.attrs))
+        ):
             TAG_S, TAG_R = "threadIdx.x", "threadIdx.y"
             VEC_C = 8
             LOAD_V_SHARED = False
@@ -686,7 +688,9 @@ class GEMV(GPUScheduleRule):
         DEC_PACK = 8
         SCALE_PACK = 4
 
-        if target.kind.name == "opencl" and "android" in str(target.host):
+        if target.kind.name == "opencl" and (
+            ("android" in str(target.host)) or ("adreno" in str(target.attrs))
+        ):
             TAG_S, TAG_R = "threadIdx.x", "threadIdx.y"
             VEC_C = 8
             UNROLL = 8
@@ -756,7 +760,10 @@ class GEMV(GPUScheduleRule):
     ):
         """Schedule the outer reduction block."""
         # NOTE: Only Android is supported so far
-        if not (target.kind.name == "opencl" and "android" in str(target.host)):
+        if not (
+            target.kind.name == "opencl"
+            and (("android" in str(target.host)) or ("adreno" in str(target.attrs)))
+        ):
             return None
         batch, s, r, c = sch.get_loops(block)
         len_s = get_extent(sch, s)

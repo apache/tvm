@@ -142,7 +142,7 @@ const Array<Doc> TorchCodeGen::GetOpCodes(const MSCJoint& node) {
   const auto& ops_map = GetTorchOpCodes();
   auto it = ops_map->find(GetOpType(node));
   ICHECK(it != ops_map->end()) << "Unsupported torch op(" << node->optype << "): " << node;
-  it->second->Config(node, config(), is_init_);
+  it->second->Config(node, config(), is_init_, prims());
   try {
     return it->second->GetDocs();
   } catch (runtime::InternalError& err) {
@@ -155,6 +155,7 @@ TVM_REGISTER_GLOBAL("msc.framework.torch.GetTorchSources")
     .set_body_typed([](const MSCGraph& graph, const String& codegen_config,
                        const String& print_config) -> Map<String, String> {
       TorchCodeGen codegen = TorchCodeGen(graph, codegen_config);
+      codegen.Init();
       return codegen.GetSources(print_config);
     });
 

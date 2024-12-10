@@ -107,6 +107,7 @@ class RelaxAttentionCodeGen : public RelaxOpCode {
           .op_list_arg<int>(axes_key, "axes");
     }
     stack_.op_call().op_inputs_arg(false).op_arg<float>("scale").op_str_arg("causal_mask");
+    stack_.op_call("relax.op.permute_dims").op_output_arg().op_list_arg<int>("axes_3", "axes");
   }
 };
 
@@ -562,12 +563,36 @@ class RelaxReshapeCodeGen : public RelaxOpCode {
 
  protected:
   void CodeGenBuild() final {
-    stack_.op_call().op_input_arg();
+    const auto& out_shape = GetPrims(node()->OutputAt(0));
+    stack_.op_call().op_input_arg().call_arg(DocUtils::ToList(out_shape), "shape");
+  }
+};
+
+class RelaxScatterElementsCodeGen : public RelaxOpCode {
+  RELAX_OP_CODEGEN_METHODS(RelaxScatterElementsCodeGen)
+
+ protected:
+  void CodeGenBuild() final { stack_.op_call().op_inputs_arg(false).op_arg<int>("axis"); }
+};
+
+class RelaxScatterNDCodeGen : public RelaxOpCode {
+  RELAX_OP_CODEGEN_METHODS(RelaxScatterNDCodeGen)
+
+ protected:
+  void CodeGenBuild() final {
     if (config()->from_relay) {
-      stack_.op_list_arg<int>("newshape", "shape");
-    } else {
-      stack_.op_list_arg<int>("shape");
+      size_t ndim = node()->InputAt(1)->Ndim();
+      std::vector<size_t> axes;
+      axes.push_back(ndim - 1);
+      for (size_t i = 0; i < ndim - 1; i++) {
+        axes.push_back(i);
+      }
+      stack_.func_call("relax.op.permute_dims", IdxInput(1))
+          .call_arg(IdxInput(1))
+          .call_arg(DocUtils::ToList(axes));
+      BuilderEmit(IdxInput(1), "permute_" + std::to_string(node()->index));
     }
+    stack_.op_call().op_inputs_arg(false).op_str_arg("mode", "reduction");
   }
 };
 
@@ -626,6 +651,20 @@ class RelaxSplitCodeGen : public RelaxOpCode {
       stack_.op_list_arg<int>("indices_or_sections");
     }
     stack_.op_arg<int>("axis");
+  }
+};
+
+class RelaxStackCodeGen : public RelaxOpCode {
+  RELAX_OP_CODEGEN_METHODS(RelaxStackCodeGen)
+
+ protected:
+  void CodeGenBuild() final {
+    stack_.op_call().op_inputs_arg().op_arg<int>("axis");
+    BuilderEmit(IdxNode(), "cat_" + std::to_string(node()->index));
+    const auto& out_shape = GetPrims(node()->OutputAt(0));
+    stack_.func_call("relax.op.reshape", IdxNode())
+        .call_arg(IdxNode())
+        .call_arg(DocUtils::ToList(out_shape), "shape");
   }
 };
 
@@ -766,7 +805,11 @@ const std::shared_ptr<std::unordered_map<String, std::shared_ptr<RelaxOpCode>>> 
   map->emplace("permute_dims", std::make_shared<RelaxPermuteDimsCodeGen>("relax.op.permute_dims"));
   map->emplace("repeat", std::make_shared<RelaxRepeatCodeGen>("relax.op.repeat"));
   map->emplace("reshape", std::make_shared<RelaxReshapeCodeGen>("relax.op.reshape"));
+  map->emplace("scatter_elements",
+               std::make_shared<RelaxScatterElementsCodeGen>("relax.op.scatter_elements"));
+  map->emplace("scatter_nd", std::make_shared<RelaxScatterNDCodeGen>("relax.op.scatter_nd"));
   map->emplace("split", std::make_shared<RelaxSplitCodeGen>("relax.op.split"));
+  map->emplace("stack", std::make_shared<RelaxStackCodeGen>("relax.op.concat"));
   map->emplace("strided_slice",
                std::make_shared<RelaxStridedSliceCodeGen>("relax.op.strided_slice"));
   map->emplace("take", std::make_shared<RelaxTakeCodeGen>("relax.op.take"));

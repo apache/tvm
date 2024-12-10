@@ -224,8 +224,9 @@ class ScheduleNode : public runtime::Object {
    * \param decision The sampling decision
    * \return The random variable sampled from candidates
    */
-  virtual ExprRV SampleCategorical(const Array<Integer>& candidates, const Array<FloatImm>& probs,
-                                   Optional<Integer> decision = NullOpt) = 0;
+  virtual ExprRV SampleCategorical(const Array<runtime::Int>& candidates,
+                                   const Array<runtime::Float>& probs,
+                                   Optional<runtime::Int> decision = NullOpt) = 0;
   /*!
    * \brief Sample the factors to perfect tile a specific loop
    * \param loop_rv The loop to be tiled
@@ -832,6 +833,17 @@ class ScheduleNode : public runtime::Object {
    * \param write_buffer_index The index of the buffer in block's write region.
    */
   virtual void RollingBuffer(const BlockRV& block_rv, int write_buffer_index) = 0;
+
+  /*!
+   * \brief Annotate the buffer access of a block
+   * \param block_rv The block to be annotated
+   * \param buffer_index The index of the buffer in block's read or write region
+   * \param buffer_index_type The type of the buffer index, kRead or kWrite.
+   * \param index_map The index map that defines the new read or write region
+   */
+  virtual void AnnotateBufferAccess(const BlockRV& block_rv, int buffer_index,
+                                    BufferIndexType buffer_index_type,
+                                    const IndexMap& index_map) = 0;
 
   /******** Schedule: Misc ********/
   /*! \brief A no-op that marks the start of postprocessing phase of scheduling */

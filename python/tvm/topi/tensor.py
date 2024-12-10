@@ -16,7 +16,11 @@
 # under the License.
 # pylint: disable=invalid-name,consider-using-enumerate,unused-argument,len-as-condition
 """Elementwise operators"""
-from __future__ import absolute_import as _abs
+
+from typing import Optional
+
+from tvm import te
+
 from . import cpp
 
 
@@ -73,3 +77,32 @@ def full_like(x, fill_value):
         The result.
     """
     return cpp.full_like(x, fill_value)
+
+
+def eye(n: int, m: Optional[int] = None, k: int = 0, dtype: str = "float32") -> te.Tensor:
+    """Generate an identity matrix or a matrix with ones on the k-th diagonal.
+
+    Parameters
+    ----------
+    n : int
+        Number of rows
+    m : int, optional
+        Number of columns. If None, defaults to n.
+    k : int, optional
+        Index of the diagonal. 0 (default) refers to the main diagonal.
+        A positive value refers to an upper diagonal, and a negative value
+        to a lower diagonal.
+    dtype : str, optional
+        Data type of the returned array.
+
+    Returns
+    -------
+    y : tvm.te.Tensor
+        The result.
+    """
+    m = m if m is not None else n
+    return te.compute(
+        (n, m),
+        lambda i, j: te.if_then_else(i == j - k, te.const(1, dtype), te.const(0, dtype)),
+        name="eye",
+    )

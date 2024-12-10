@@ -95,7 +95,7 @@ class CSRNDArray(object):
         """Construct a full matrix and convert it to numpy array."""
         full = _np.zeros(self.shape, self.dtype)
         ridx = _np.diff(self.indptr.numpy())
-        ridx = _np.hstack((_np.ones((v,), itype) * i for i, v in enumerate(ridx)))
+        ridx = _np.hstack([_np.ones((v,), itype) * i for i, v in enumerate(ridx)])
         full[ridx, self.indices.numpy().astype(itype)] = self.data.numpy()
         return full
 
