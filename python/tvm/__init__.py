@@ -81,9 +81,6 @@ if not _RUNTIME_ONLY:
     from . import relay
     from . import relax
 
-if not _RUNTIME_ONLY and support.libinfo().get("USE_MICRO", "OFF") == "ON":
-    from . import micro
-
 # NOTE: This file should be python2 compatible so we can
 # raise proper error message when user run the package using
 # an older version of the python
