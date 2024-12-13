@@ -25,8 +25,8 @@
 #include <thread>
 
 #include "../../cuda/cuda_common.h"
-#include "../../memory/pooled_allocator.h"
 #include "../../disco/utils.h"
+#include "../../memory/pooled_allocator.h"
 
 namespace tvm {
 namespace runtime {
