@@ -200,8 +200,10 @@ def lower(
     mod = tl.transform.LayoutInference()(mod)
     mod = tl.transform.LowerTileOp()(mod)
     mod = tl.transform.LegalizeVectorizedLoop()(mod)
+    mod = tl.transform.LegalizeSafeMemoryAccess()(mod)
+    # Inject Simplify to remove the duplicated conditions
+    # which may be introduced by the LegalizeSafeMemoryAccess
     mod = tir.transform.Simplify()(mod)
-
     if target.arch == "sm_90":
         mod = tl.transform.MultiVersionBuffer()(mod)
         mod = tl.transform.WarpSpecialized()(mod)

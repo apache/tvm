@@ -124,7 +124,9 @@ class VectorizePlanner : public arith::IRVisitorWithAnalyzer {
     // when dynamic shape like [m, k]: coeff=1, base=0, GCD will block conditionally tail vectorize
     if (buffer->shape.back().as<IntImmNode>()) {
       max_vector_size = arith::ZeroAwareGCD(max_vector_size, mod_set->coeff);
-      max_vector_size = arith::ZeroAwareGCD(max_vector_size, mod_set->base);
+      // comment as this solution doesn't
+      // not worked well with multi-index vectorization
+      // max_vector_size = arith::ZeroAwareGCD(max_vector_size, mod_set->base);
       vector_size_ = arith::ZeroAwareGCD(max_vector_size, vector_size_);
       while (!IndiceCanVectorize(buffer.OffsetOf(indices).back(), inner_for_->loop_var,
                                 inner_for_->extent, vector_size_, &analyzer_)) {
