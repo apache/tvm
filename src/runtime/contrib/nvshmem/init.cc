@@ -18,13 +18,12 @@
  */
 #include <nvshmem.h>
 #include <nvshmemx.h>
+#include <picojson.h>
 #include <tvm/runtime/disco/disco_worker.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
 
 #include "../../cuda/cuda_common.h"
-
-#include <picojson.h>
 
 namespace tvm {
 namespace runtime {
@@ -106,15 +105,14 @@ void InitNVSHMEMWrapper(String args) {
   int worker_id_start = static_cast<int>(obj["pe_start"].get<int64_t>());
 
   InitNVSHMEM(uid_64, num_workers, worker_id_start);
-
 }
 
 TVM_REGISTER_GLOBAL("runtime.disco.nvshmem.init_nvshmem_uid").set_body_typed(InitNVSHMEMUID);
 
 TVM_REGISTER_GLOBAL("runtime.disco.nvshmem.init_nvshmem").set_body_typed(InitNVSHMEM);
 
-TVM_REGISTER_GLOBAL("runtime.disco.nvshmem.init_nvshmem_wrapper").set_body_typed(InitNVSHMEMWrapper);
-
+TVM_REGISTER_GLOBAL("runtime.disco.nvshmem.init_nvshmem_wrapper")
+    .set_body_typed(InitNVSHMEMWrapper);
 
 }  // namespace runtime
 }  // namespace tvm
