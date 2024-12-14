@@ -21,7 +21,6 @@ from typing import Dict, List, Optional, Tuple, Union
 import numpy as np
 import pytest
 import scipy.special
-from mpi4py import MPI
 
 import tvm
 import tvm.testing
@@ -41,8 +40,19 @@ from tvm.relax.frontend.nn.llm.kv_cache import (
 )
 from tvm.runtime import ShapeTuple
 
-comm = MPI.COMM_WORLD
-rank = comm.Get_rank()
+
+def get_comm_rank():
+    try:
+        from mpi4py import MPI
+
+        comm = MPI.COMM_WORLD
+        rank = comm.Get_rank()
+        return comm, rank
+    except ImportError:
+        return None, 0
+
+
+comm, rank = get_comm_rank()
 
 reserved_nseq = 32
 maximum_total_seq_length = 2048

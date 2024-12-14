@@ -16,7 +16,6 @@
 # under the License.
 import numpy as np
 import pytest
-from mpi4py import MPI
 
 import tvm
 import tvm.testing
@@ -24,8 +23,6 @@ from tvm._ffi.runtime_ctypes import Device
 from tvm.runtime import ShapeTuple
 from tvm.runtime import disco as di
 
-comm = MPI.COMM_WORLD
-rank = comm.Get_rank()
 
 page_size = 4
 num_layers = 4
@@ -35,8 +32,17 @@ num_pages = 100
 ntokens = 16
 
 
+def get_comm_rank():
+    from mpi4py import MPI
+
+    comm = MPI.COMM_WORLD
+    rank = comm.Get_rank()
+    return comm, rank
+
+
 @pytest.mark.skip(reason="Require NVSHMEM")
 def test_kv_transfer_without_disco():
+    comm, rank = get_comm_rank()
     layer_id = 1
     dev = tvm.cuda(rank)
     if rank == 0:
@@ -90,6 +96,7 @@ def test_kv_transfer_without_disco():
 
 @pytest.mark.skip(reason="Require NVSHMEM")
 def test_kv_transfer_page_to_page_without_disco():
+    comm, rank = get_comm_rank()
     layer_id = 1
     dev = tvm.cuda(rank)
     if rank == 0:
@@ -155,6 +162,7 @@ def test_kv_transfer_page_to_page_without_disco():
 
 @pytest.mark.skip(reason="Require NVSHMEM")
 def test_kv_transfer_with_disco():
+    comm, rank = get_comm_rank()
     layer_id = 1
     if rank == 0:
         f_init_nvshmem_uid = tvm.get_global_func("runtime.disco.nvshmem.init_nvshmem_uid")
