@@ -570,8 +570,7 @@ def apply_attention(
         verify_cached_kv(kv_cache, seq_ids, cached_k, cached_v)
 
 
-@tvm.testing.requires_gpu
-@tvm.testing.requires_cuda
+@pytest.mark.skip(reason="Require NVSHMEM")
 def test_paged_attention_kv_cache_prefill_and_decode(kv_cache_and_config):
     kv_cache, rope_mode, support_sliding_window = kv_cache_and_config
     if support_sliding_window and rope_mode == RopeMode.NORMAL:
@@ -595,8 +594,7 @@ def test_paged_attention_kv_cache_prefill_and_decode(kv_cache_and_config):
         apply_attention(kv_cache, rope_mode, batch, cached_k, cached_v)
 
 
-@tvm.testing.requires_gpu
-@tvm.testing.requires_cuda
+@pytest.mark.skip(reason="Require NVSHMEM")
 def test_paged_attention_kv_cache_transfer(kv_cache_and_config):
     kv_cache, rope_mode, support_sliding_window = kv_cache_and_config
     if support_sliding_window:
