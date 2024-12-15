@@ -481,7 +481,7 @@ inline std::tuple<std::string, std::string, std::string> GetMMAOperands(int m, i
   templates << "}";
   // templates of metadata and sparse selector for sparse mma.
   if (sparse) {
-    templates << ", %" << (arg_counter++) << ", F";
+    templates << ", %" << (arg_counter++) << ", {F}";
   }
 
   // generate inputs
@@ -489,20 +489,20 @@ inline std::tuple<std::string, std::string, std::string> GetMMAOperands(int m, i
     if (i != 0) {
       inputs << ", ";
     }
-    inputs << "\"" << frag_attr_a.reg_type << "\"((" << frag_attr_a.ptr_type << "(A))[" << i
+    inputs << "\"" << frag_attr_a.reg_type << "\"((" << frag_attr_a.ptr_type << "({A}))[" << i
            << "])";
   }
   for (int i = 0; i < num_operands_b; ++i) {
-    inputs << ", \"" << frag_attr_b.reg_type << "\"((" << frag_attr_b.ptr_type << "(B))[" << i
+    inputs << ", \"" << frag_attr_b.reg_type << "\"((" << frag_attr_b.ptr_type << "({B}))[" << i
            << "])";
   }
   for (int i = 0; i < num_operands_c; ++i) {
-    inputs << ", \"" << frag_attr_c.reg_type << "\"((" << frag_attr_c.ptr_type << "(C))[" << i
+    inputs << ", \"" << frag_attr_c.reg_type << "\"((" << frag_attr_c.ptr_type << "({C}))[" << i
            << "])";
   }
   // input of metadata for sparse mma.
   if (sparse) {
-    inputs << ", \"r\"(((unsigned *)(E))[0])";
+    inputs << ", \"r\"(((unsigned *)({E}))[0])";
   }
 
   // generate outputs
@@ -510,7 +510,7 @@ inline std::tuple<std::string, std::string, std::string> GetMMAOperands(int m, i
     if (i != 0) {
       outputs << ",";
     }
-    outputs << " \"=" << frag_attr_c.reg_type << "\"((" << frag_attr_c.ptr_type << "(D))[" << i
+    outputs << " \"=" << frag_attr_c.reg_type << "\"((" << frag_attr_c.ptr_type << "({D}))[" << i
             << "])";
   }
   return std::make_tuple(templates.str(), inputs.str(), outputs.str());
@@ -561,12 +561,12 @@ std::string PrintMMAAssembly(const std::string& shape, const std::string& A_layo
   replacer.register_rule("{inputs}", inputs_str);
   asm_code = replacer.rewrite(asm_code);
   replacer.empty_rules();
-  replacer.register_rule("A", a_ptr + " + " + a_elem_offset);
-  replacer.register_rule("B", b_ptr + " + " + b_elem_offset);
-  replacer.register_rule("C", c_ptr + " + " + c_elem_offset);
-  replacer.register_rule("D", c_ptr + " + " + c_elem_offset);
-  replacer.register_rule("E", metadata + " + " + metadata_offset);
-  replacer.register_rule("F", sparsity_selector);
+  replacer.register_rule("{A}", a_ptr + " + " + a_elem_offset);
+  replacer.register_rule("{B}", b_ptr + " + " + b_elem_offset);
+  replacer.register_rule("{C}", c_ptr + " + " + c_elem_offset);
+  replacer.register_rule("{D}", c_ptr + " + " + c_elem_offset);
+  replacer.register_rule("{E}", metadata + " + " + metadata_offset);
+  replacer.register_rule("{F}", sparsity_selector);
   asm_code = replacer.rewrite(asm_code);
   return asm_code;
 }
