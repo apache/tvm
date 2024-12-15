@@ -19,18 +19,37 @@
 """Cost model based on xgboost"""
 import multiprocessing
 import logging
-from typing import Dict
+import multiprocessing.context
+import multiprocessing.pool
+from typing import Dict, List, Tuple
 from collections import defaultdict
+import time
+import json
 
 import numpy as np
 
+import tvm.auto_scheduler
 from tvm.autotvm.tuner.metric import max_curve
 from .cost_model import PythonBasedModel
 from ..feature import get_per_store_features_from_measure_pairs, get_per_store_features_from_states
 from ..measure_record import RecordReader
 # from ..search_task import SearchTask
 import tvm.te as te
+import tvm.tir as tir
 import tvm
+import networkx as nx
+import matplotlib.pyplot as plt
+from ...relay.expr_functor import ExprVisitor
+from ..search_task import SearchTask
+from ..loop_state import State
+import uuid
+
+from ..measure import MeasureInput
+from ...ir.supply import GlobalVarSupply
+from pyvis.network import Network
+import inspect
+
+from tqdm import tqdm
 
 try:
     from xgboost.callback import TrainingCallback  # type: ignore
@@ -44,75 +63,162 @@ xgb = None
 
 logger = logging.getLogger("auto_scheduler")
 
+def vizgraph(graph: nx.DiGraph):
+    nt = Network('100%', '100%', directed=True, notebook=False)
+    nt.show_buttons(filter_=['physics'])
+    nt.options.physics.use_repulsion = True
+    nt.from_nx(graph)
+    nt.show("graph" + str(uuid.uuid4()) + ".html")
+    plt.savefig("graph" + str(uuid.uuid4()) + ".png")
 
-class XGBDMatrixContext:
-    """A global context to hold additional attributes of xgb.DMatrix"""
+def node2vec():
+    pass
 
-    def __init__(self):
-        self.context_dict = defaultdict(dict)
+def gnn_feature_extractor_tup(ser):
+    minput: MeasureInput = MeasureInput.deserialize(ser)
 
-    def get(self, key, matrix, default=None):
-        """
-        Get an attribute of a xgb.DMatrix
-        Parameters
-        ----------
-        key: str
-            The name of the attribute
-        matrix: xgb.DMatrix
-            The matrix
-        default: Optional[Any]
-            The default value if the item does not exist
-        """
-        return self.context_dict[key].get(matrix.handle.value, default)
+    gnn_feature_extractor(minput.task, minput.state)
+    
+def gnn_feature_extractor(task: SearchTask, state: State):
+    graph = nx.DiGraph()
+    parent_stack = []
+    types = []
 
-    def set(self, key, matrix, value):
-        """
-        Set an attribute for a xgb.DMatrix
-        Parameters
-        ----------
-        key: str
-            The name of the attribute
-        matrix: xgb.DMatrix
-            The matrix
-        value: Optional[Any]
-            The new value
-        """
-        self.context_dict[key][matrix.handle.value] = value
+    def preorder(node):
+        current_node_id = graph.number_of_nodes()
+        current_node_content = str(node)
+        # Add the current node to the graph if it's not already present
+        if node not in graph:
+            if type(node) not in types:
+                types.append(type(node))
+            graph.add_node(str(current_node_id), title=current_node_content)
+        # If there's a parent, add an edge from the parent to the current node
+        if parent_stack:
+            parent = parent_stack[-1]
+            graph.add_edge(str(current_node_id), str(parent))
+        # Push the current node onto the stack
+        parent_stack.append(str(current_node_id))
+
+        # Return None to continue recursion
+        return None
+
+    def postorder(node):
+        # Pop the current node off the stack after processing
+        if parent_stack:
+            parent_stack.pop()
+
+        # Return None to continue postorder processing
+        return None
+
+    @tvm.tir.transform.prim_func_pass(opt_level=1)
+    def ast_extractor(f, mod, ctx):
+        # clear the graph
+        graph.clear()
+        # clear the parent stack
+        parent_stack.clear()
+        
+        # add in root node to graph and parent stack
+        graph.add_node("root")
+        parent_stack.append("root")
+        
+        tvm.tir.stmt_functor.ir_transform(f.body, preorder, postorder)
+        print(graph)
+        
+        print("types:", len(types), types)
+        return f
+
+    # apply the state transformations
+    schedule, args = task.compute_dag.apply_steps_from_state(state)
+    schedule: te.Schedule
+
+    ctx = tvm.transform.PassContext(opt_level=1, config={
+        "tir.disable_vectorize": False,
+        "tir.instrument_bound_checkers": False,
+        "tir.add_lower_pass": [
+            (0, tvm.tir.transform.InjectPrefetch()),
+            (0, tvm.tir.transform.StorageFlatten(64, False)),
+            (1, tvm.tir.transform.NarrowDataType(32)),
+            (1, tvm.tir.transform.Simplify()),
+            (1, tvm.tir.transform.VectorizeLoop(False)),
+            (1, tvm.tir.transform.InjectVirtualThread()),
+            (1, tvm.tir.transform.StorageRewrite()),
+            (1, tvm.tir.transform.Simplify()), # skipped verifygpucode
+            (1, ast_extractor)
+        ]
+    })
+    
+    with ctx:
+        mod: tvm.ir.module.IRModule = tvm.lower(schedule, args)
+
+lbb = tvm.get_global_func("auto_scheduler.local_builder.build")
+schtomod = tvm.get_global_func("driver.schedule_to_module")
+lowersched = tvm.get_global_func("driver.lower_schedule")
 
 
-dmatrix_context = XGBDMatrixContext()
+def get_gnn_features(task: SearchTask, states: List[State]):
+    # Prepare MeasureInputs for all states
+    # inputs = [MeasureInput(task, s).serialize() for s in states]
+    inputs = [MeasureInput(task, s) for s in states]
+
+    # Use the local_builder_build function to build in parallel
+    features = lbb(inputs, 10, multiprocessing.cpu_count(), "default", 1)
+
+    # Extract features from the build results
+    # features = [extract_features_from_build_result(res) for res in build_results]  # Implement this function as needed
+    return features
+
+def get_gnn_features_sch2mod(task: SearchTask, states: List[State]):
+    # Serialize the inputs for parallel processing
+    serialized_inputs = [MeasureInput(task, s).serialize() for s in states]
+
+    # Convert each serialized input to a module in parallel
+    ctx = multiprocessing.get_context('fork')
+    with multiprocessing.pool.Pool(multiprocessing.cpu_count(), context=ctx) as executor:
+        # Use tqdm to wrap the iterable for progress tracking
+        modules = list(tqdm(executor.imap(sched_to_mod, serialized_inputs), total=len(serialized_inputs)))
+
+    # Extract features from the modules
+    features = []
+    for module in modules:
+        # Assuming there's a function to extract features from a module
+        # feature = extract_features_from_module(module)
+        features.append("e")
+
+    return features
+
+def sched_to_mod(serialized_arg):    
+    minput = MeasureInput.deserialize(serialized_arg)
+    task, state = minput.task, minput.state
+    schedule, args = task.compute_dag.apply_steps_from_state(state)
+    # module = schtomod(schedule, args, "tmp_func", {})
+    module = lowersched(schedule, args, "tmp_func", {}, False)
+    return module
+
+def get_gnn_features_old(task: SearchTask, states: List[State]):
+    # parallel process all the states
+    args = list(zip([(task)]*len(states), states))
+    
+    # make measureinputs
+    inputs = [MeasureInput(task, s).serialize() for s in states]
+    
+    
+    ctx = multiprocessing.get_context('fork')
+    with multiprocessing.pool.Pool(multiprocessing.cpu_count(), context=ctx) as executor:
+        features = list(executor.map(gnn_feature_extractor_tup, inputs))
+    
+    return features
 
 
-class XGBModel(PythonBasedModel):
-    """Train a XGBoost model to predict the normalized throughputs of programs.
-    Let the normalized throughput be the score of a program (higher is better). We predict
-    the (approximate) score of a program = the sum of the scores of all stages in this program.
-    i.e. score(P) = score_s0 + score_s1 + ... + score_sn,
-    where score_si is the score of Stage i in Program P.
-    We extract feature for each stage and let the xgboost predict the score for each stage.
-    We then sum up the predictions as the score of the whole program.
-    We use RMSE as the loss function.  i.e. loss(P, y) = 1/2 * (score(P) - y)^2,
-    where P is the program and y is the normalized throughput according to
-    the ground truth (measurement).
-    XGBoost does not support this loss function because `score(P)` is a sum of the prediction
-    of several samples, so we implemented a custom loss function and call it pack-sum-rmse.
-    It is called "pack-sum" because we combine several samples into a "pack" and sum up
-    their predictions.
+class GNNModel(PythonBasedModel):
+    """Train a GNN model that learns from the AST representation of a TIR program
+    and predicts the performance of the program.
 
-    Parameters
-    ----------
-    verbose_eval: int = 25
-        Print training log every `verbose_eval` iterations.
-    num_warmup_sample: int = 100
-        The minimum number of samples to start to use the trained model.
-        If the number of samples is less than this number, the model outputs random predictions.
-    seed: Optional[int]
-        The random seed
-    model_file: Optional[str]
-        If is not None, save model to this file after every update.
-    adaptive_training: bool = False
-        Whether to use adaptive training, which reduces the training frequency when there are
-        too many logs.
+    This model takes in a state and a task, and instead of computing the features from the state, it will
+    convert the state into TE, lower it to TIR, then parse the TIR to get the AST representation.
+
+    Then we take each node in the AST, and convert it into a learned embedding.
+
+    We then pass these embeddings into a GNN model, which will output a prediction of the performance of the program.
     """
 
     def __init__(
@@ -154,6 +260,14 @@ class XGBModel(PythonBasedModel):
         self.verbose_eval = verbose_eval
         self.model_file = model_file
         self.adaptive_training = adaptive_training
+        
+        self.predictcounter = 0
+        self.predictstagecounter = 0
+        self.updatecounter = 0
+        
+        self.average_pred_time = 0
+        self.average_pred_count = 0
+        
 
         super().__init__()
 
@@ -164,12 +278,18 @@ class XGBModel(PythonBasedModel):
         self.inputs_feature_cache = []
 
     def update(self, inputs, results):
+        self.updatecounter += len(inputs)
+        print("Update ", self.updatecounter)
+        
         """Update the cost model according to new measurement results (training data).
         XGBoost does not support incremental training, so we re-train a new model every time.
         Parameters
         ----------
         inputs : List[MeasureInput]
             The measurement inputs
+            **** this containts
+            - task
+            - state
         results : List[MeasureResult]
             The measurement results
         """
@@ -226,6 +346,9 @@ class XGBModel(PythonBasedModel):
             self.save(self.model_file)
 
     def predict(self, task, states):
+        self.predictcounter += len(states)
+        print("Predict ", self.predictcounter)
+
         """Predict the scores of states
         Parameters
         ----------
@@ -238,37 +361,32 @@ class XGBModel(PythonBasedModel):
         scores: List[float]
             The predicted scores for all states
         """
-
-        # print tasks and states
-        print("XGBModel: predict")
-        print("task")
-        print(type(task))
-        # print(len(task))
-        print("states")
-        print(type(states))
-        print(len(states))
-        print("states[0]")
-        print(type(states[0]))
-        # print(states[0])
-
-        # apply the state transformations
-        task: SearchTask
-        schedule, args = task.compute_dag.apply_steps_from_state(states[0])
-        schedule: te.Schedule
-        mod = tvm.lower(schedule, args)
-        print("mod")
-        print(type(mod))
-        print(mod)
-
-        print("schedule")
-        print(type(schedule))
-        print(schedule)
+        
+        # start_time_sch2mod = time.time()
+        # features = get_gnn_features_sch2mod(task, states)
+        # end_time_sch2mod = time.time()
+        # print(f"Time taken for get_gnn_features_sch2mod: {end_time_sch2mod - start_time_sch2mod:.6f} seconds")        
 
 
+        # # Timing the first function call
+        # start_time_gnn = time.time()
+        # features = get_gnn_features(task, states)
+        # end_time_gnn = time.time()
+        # print(f"Time taken for get_gnn_features: {end_time_gnn - start_time_gnn:.6f} seconds")
+
+        # start_time_gnn_old = time.time()
+        # features = get_gnn_features_old(task, states[:1])
+        # end_time_gnn_old = time.time()
+        # print(f"Time taken for get_gnn_features_old: {end_time_gnn_old - start_time_gnn_old:.6f} seconds")
 
 
-
+        # Timing the second function call
+        start_time_per_store = time.time()
         features = get_per_store_features_from_states(states, task)
+        end_time_per_store = time.time()
+        print(f"Time taken for get_per_store_features_from_states: {end_time_per_store - start_time_per_store:.6f} seconds")
+        
+        print("model?", self.bst is not None and len(self.inputs) > self.num_warmup_sample)
         if self.bst is not None and len(self.inputs) > self.num_warmup_sample:
             dtest, pack_ids = feature_to_pack_sum_xgbmatrix(features)
             raw_preds = self.bst.predict(dtest)
@@ -284,6 +402,10 @@ class XGBModel(PythonBasedModel):
         return ret
 
     def predict_stages(self, task, states):
+        self.predictstagecounter += len(states)
+        print("Predict stage ", self.predictstagecounter)
+
+        
         """Predict the scores of all stages in states. This is the breakdown version of `predict`.
 
         Parameters
