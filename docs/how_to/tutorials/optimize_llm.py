@@ -303,6 +303,7 @@ class LlamaForCasualLM(nn.Module):
             rotary_dim=self.head_dim,
             dtype=self.dtype,
             target=target,
+            enable_disaggregation=False,
         )
 
     def get_default_spec(self):
