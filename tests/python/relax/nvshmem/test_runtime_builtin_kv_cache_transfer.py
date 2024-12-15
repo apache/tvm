@@ -40,6 +40,20 @@ from tvm.relax.frontend.nn.llm.kv_cache import (
 )
 from tvm.runtime import ShapeTuple
 
+
+def get_comm_rank():
+    try:
+        from mpi4py import MPI
+
+        comm = MPI.COMM_WORLD
+        rank = comm.Get_rank()
+        return comm, rank
+    except ImportError:
+        return None, 0
+
+
+comm, rank = get_comm_rank()
+
 reserved_nseq = 32
 maximum_total_seq_length = 2048
 prefill_chunk_size = 512
@@ -52,7 +66,7 @@ rope_scale = 1.0
 rope_theta = 1e4
 rope_scaling = {}
 dtype = None
-device = tvm.cuda()
+device = tvm.cuda(rank)
 
 fclear = None
 fadd_sequence = None
@@ -66,6 +80,10 @@ fcommit_accepted_token_tree_nodes = None
 fattention_with_fuse_qkv = None
 fis_empty = None
 fdebug_get_kv = None
+fnvshmem_get_uid = None
+fnvshmem_init = None
+fdisagg_mark_send = None
+fdisagg_prepare_recv = None
 
 ftranspose_append = None
 fcopy_cache = None
@@ -91,6 +109,7 @@ def set_global_func(head_dim, dtype):
     global fattn_prefill_ragged, fattn_prefill_with_tree_mask, fattn_prefill_with_tree_mask_paged_kv_cache
     global fattn_prefill_sliding_window, fattn_decode_sliding_window
     global fmerge_state, fsplit_rotary, fattention_rotary, fcopy_single_page, fcompact_copy
+    global fnvshmem_get_uid, fnvshmem_init, fdisagg_mark_send, fdisagg_prepare_recv
 
     fclear = tvm.get_global_func("vm.builtin.kv_state_clear")
     fadd_sequence = tvm.get_global_func("vm.builtin.kv_state_add_sequence")
@@ -110,6 +129,11 @@ def set_global_func(head_dim, dtype):
     )
     fis_empty = tvm.get_global_func("vm.builtin.attention_kv_cache_empty")
     fdebug_get_kv = tvm.get_global_func("vm.builtin.attention_kv_cache_debug_get_kv")
+
+    fnvshmem_get_uid = tvm.get_global_func("runtime.disco.nvshmem.init_nvshmem_uid")
+    fnvshmem_init = tvm.get_global_func("runtime.disco.nvshmem.init_nvshmem")
+    fdisagg_mark_send = tvm.get_global_func("vm.builtin.kv_cache_disagg_mark_send")
+    fdisagg_prepare_recv = tvm.get_global_func("vm.builtin.kv_cache_disagg_prepare_recv")
 
     target = tvm.target.Target.from_device(device)
     builts = []
@@ -193,7 +217,7 @@ def create_kv_cache(head_dim, dtype, rope_mode, support_sliding_window):
         fattn_prefill_with_tree_mask,
         fattn_prefill_with_tree_mask_paged_kv_cache,
         None,
-        False,
+        True,
     )
     return cache
 
@@ -278,6 +302,8 @@ def apply_attention(
     attn_sink_sizes: Optional[List[int]] = None,
     token_tree_parent_ptr_list: Optional[List[List[int]]] = None,
     accepted_leaf_indices: Optional[List[int]] = None,
+    only_update_host=False,
+    skip_add_sequence=False,
 ) -> None:
     seq_ids = []
     append_lengths = []
@@ -292,7 +318,8 @@ def apply_attention(
         if fork_parent_id is not None:
             assert fork_parent_id in cached_k
             assert seq_id not in cached_k
-            ffork_sequence(kv_cache, fork_parent_id, seq_id, fork_pos)
+            if not only_update_host:
+                ffork_sequence(kv_cache, fork_parent_id, seq_id, fork_pos)
             if fork_pos == -1:
                 cached_k[seq_id] = cached_k[fork_parent_id]
                 cached_v[seq_id] = cached_v[fork_parent_id]
@@ -300,7 +327,8 @@ def apply_attention(
                 cached_k[seq_id] = cached_k[fork_parent_id][::, :fork_pos]
                 cached_v[seq_id] = cached_v[fork_parent_id][::, :fork_pos]
         elif seq_id not in cached_k:
-            fadd_sequence(kv_cache, seq_id)
+            if not only_update_host and not skip_add_sequence:
+                fadd_sequence(kv_cache, seq_id)
             cached_k[seq_id] = np.zeros((num_layers, 0, num_kv_heads, head_dim), dtype)
             cached_v[seq_id] = np.zeros((num_layers, 0, num_kv_heads, head_dim), dtype)
 
@@ -325,17 +353,17 @@ def apply_attention(
                 )
             # depth of each node in the tree (this contains more than the last `append_length` nodes)
             token_tree_node_depths_list[i] = token_tree_node_depths
-
-    fbegin_forward(
-        kv_cache,
-        ShapeTuple(seq_ids),
-        ShapeTuple(append_lengths),
-        (
-            ShapeTuple(flattened_token_tree_parent_ptr)
-            if flattened_token_tree_parent_ptr is not None
-            else None
-        ),
-    )
+    if not only_update_host:
+        fbegin_forward(
+            kv_cache,
+            ShapeTuple(seq_ids),
+            ShapeTuple(append_lengths),
+            (
+                ShapeTuple(flattened_token_tree_parent_ptr)
+                if flattened_token_tree_parent_ptr is not None
+                else None
+            ),
+        )
 
     global_new_q = np.zeros((num_layers, 0, num_qo_heads, head_dim), dtype)
     global_new_k = np.zeros((num_layers, 0, num_kv_heads, head_dim), dtype)
@@ -366,9 +394,11 @@ def apply_attention(
                                 rope_offset,
                                 rope_scale,
                                 rope_theta,
-                                token_tree_node_depths_list[i][-append_length:]
-                                if token_tree_node_depths_list[i] is not None
-                                else None,
+                                (
+                                    token_tree_node_depths_list[i][-append_length:]
+                                    if token_tree_node_depths_list[i] is not None
+                                    else None
+                                ),
                             )
                         )
                         for l in range(num_layers)
@@ -389,7 +419,8 @@ def apply_attention(
         values_np = global_new_v[layer_id]
         qkv = tvm.nd.array(np.concatenate([queries_np, keys_np, values_np], axis=1), device)
         outputs = tvm.nd.empty(queries_np.shape, dtype, device=device)
-        fattention_with_fuse_qkv(kv_cache, layer_id, 1.0, qkv, outputs)
+        if not only_update_host:
+            fattention_with_fuse_qkv(kv_cache, layer_id, 1.0, qkv, outputs)
 
         # Compute attention expected results.
         outputs = np.expand_dims(outputs.numpy(), axis=0)
@@ -410,9 +441,11 @@ def apply_attention(
                     rope_offset,
                     rope_scale,
                     rope_theta,
-                    token_tree_node_depths_list[i][-append_length:]
-                    if token_tree_node_depths_list[i] is not None
-                    else None,
+                    (
+                        token_tree_node_depths_list[i][-append_length:]
+                        if token_tree_node_depths_list[i] is not None
+                        else None
+                    ),
                 )
             ).transpose(1, 0, 2)
             k_seq = (
@@ -465,21 +498,23 @@ def apply_attention(
                 ),
                 axis=0,
             ).astype(dtype)
-
-            tvm.testing.assert_allclose(
-                outputs[:, sum_length : sum_length + append_length, ...],
-                results,
-                rtol=1e-3,
-                atol=1e-3,
-            )
+            if not only_update_host:
+                tvm.testing.assert_allclose(
+                    outputs[:, sum_length : sum_length + append_length, ...],
+                    results,
+                    rtol=1e-3,
+                    atol=1e-3,
+                )
             sum_length += append_length
-    fend_forward(kv_cache)
+    if not only_update_host:
+        fend_forward(kv_cache)
 
     if accepted_leaf_indices is not None:
         seq_ids = [seq_id for seq_id, _ in batch]
-        fcommit_accepted_token_tree_nodes(
-            kv_cache, ShapeTuple(seq_ids), ShapeTuple(accepted_leaf_indices)
-        )
+        if not only_update_host:
+            fcommit_accepted_token_tree_nodes(
+                kv_cache, ShapeTuple(seq_ids), ShapeTuple(accepted_leaf_indices)
+            )
         for i, (accepted_leaf_idx, (seq_id, append_length)) in enumerate(
             zip(accepted_leaf_indices, batch)
         ):
@@ -531,11 +566,11 @@ def apply_attention(
                 assert cached_k[seq_id].shape[1] == sliding_window_size
 
     # Verify
-    verify_cached_kv(kv_cache, seq_ids, cached_k, cached_v)
+    if not only_update_host:
+        verify_cached_kv(kv_cache, seq_ids, cached_k, cached_v)
 
 
-@tvm.testing.requires_gpu
-@tvm.testing.requires_cuda
+@pytest.mark.skip(reason="Require NVSHMEM")
 def test_paged_attention_kv_cache_prefill_and_decode(kv_cache_and_config):
     kv_cache, rope_mode, support_sliding_window = kv_cache_and_config
     if support_sliding_window and rope_mode == RopeMode.NORMAL:
@@ -559,413 +594,92 @@ def test_paged_attention_kv_cache_prefill_and_decode(kv_cache_and_config):
         apply_attention(kv_cache, rope_mode, batch, cached_k, cached_v)
 
 
-@tvm.testing.requires_gpu
-@tvm.testing.requires_cuda
-def test_paged_attention_kv_cache_remove_sequence(kv_cache_and_config):
-    kv_cache, rope_mode, support_sliding_window = kv_cache_and_config
-    if support_sliding_window and rope_mode == RopeMode.NORMAL:
-        # Normal RoPE mode under sliding window settings is not supported.
-        return
-    fclear(kv_cache)
-
-    num_sequences = 5
-    batch = [(seq_id, 1) for seq_id in range(num_sequences)]
-    cached_k = {}
-    cached_v = {}
-    for seq_id_to_remove in range(num_sequences):
-        apply_attention(kv_cache, rope_mode, batch, cached_k, cached_v)
-        # Remove sequence.
-        fremove_sequence(kv_cache, seq_id_to_remove)
-        cached_k.pop(seq_id_to_remove)
-        cached_v.pop(seq_id_to_remove)
-        verify_cached_kv(
-            kv_cache,
-            seq_ids=[seq_id for seq_id in range(num_sequences) if seq_id != seq_id_to_remove],
-            expected_k=cached_k,
-            expected_v=cached_v,
-        )
-
-
-@tvm.testing.requires_gpu
-@tvm.testing.requires_cuda
-def test_paged_attention_kv_cache_fork_sequence(kv_cache_and_config):
-    kv_cache, rope_mode, support_sliding_window = kv_cache_and_config
-    if support_sliding_window and rope_mode == RopeMode.NORMAL:
-        # Normal RoPE mode under sliding window settings is not supported.
-        return
-    fclear(kv_cache)
-
-    cached_k = {}
-    cached_v = {}
-    batch = [(0, 60), (1, 88), (2, 17), (3, 4)]
-    apply_attention(kv_cache, rope_mode, batch, cached_k, cached_v)
-    # Fork existing sequences.
-    apply_attention(kv_cache, rope_mode, [((4, 3, -1), 35)], cached_k, cached_v)
-    apply_attention(kv_cache, rope_mode, [((5, 0, -1), 20)], cached_k, cached_v)
-    apply_attention(kv_cache, rope_mode, [((6, 5, -1), 102)], cached_k, cached_v)
-    apply_attention(kv_cache, rope_mode, [((7, 0, -1), 3)], cached_k, cached_v)
-    apply_attention(kv_cache, rope_mode, [((8, 5, -1), 71), ((9, 5, -1), 20)], cached_k, cached_v)
-    # 0 <- 5 <- 6,8,9
-    # 0 <- 7
-    # 3 <- 4
-    # Mixture of decode and prefill.
-    operation_seq = [
-        [(2, 1), (4, 1), (7, 1), (6, 1), (8, 1), (9, 1)],
-        [(7, 1), (6, 1), (8, 1), (9, 1)],
-        [(7, 1), (1, 1), (6, 1), (2, 1), (8, 1), (4, 1), (9, 1)],
-        [(7, 10), (6, 2), (8, 3), (9, 4)],
-    ]
-    for batch in operation_seq:
-        apply_attention(kv_cache, rope_mode, batch, cached_k, cached_v)
-
-    apply_attention(kv_cache, rope_mode, [((10, 1, 33), 11)], cached_k, cached_v)
-    apply_attention(kv_cache, rope_mode, [((11, 0, 60), 45), ((12, 0, 15), 14)], cached_k, cached_v)
-    apply_attention(kv_cache, rope_mode, [((13, 0, 16), 19), ((14, 0, 17), 19)], cached_k, cached_v)
-    apply_attention(kv_cache, rope_mode, [((15, 5, 60), 8), ((16, 5, 80), 10)], cached_k, cached_v)
-    apply_attention(
-        kv_cache,
-        rope_mode,
-        [((17, 5, 75), 11), ((18, 5, 76), 45), ((19, 5, 77), 14)],
-        cached_k,
-        cached_v,
-    )
-
-    operation_seq = [
-        [(6, 1), (11, 1), (13, 1), (9, 1)],
-        [(10, 1), (16, 1), (18, 1), (19, 1)],
-        [(8, 1), (15, 1), (17, 1), (12, 1), (14, 1)],
-        [(10, 10), (6, 2), (8, 3), (19, 4)],
-    ]
-    for batch in operation_seq:
-        apply_attention(kv_cache, rope_mode, batch, cached_k, cached_v)
-
-    num_sequence = 20
-    for i in range(num_sequence):
-        fremove_sequence(kv_cache, i)
-        cached_k.pop(i)
-        cached_v.pop(i)
-        verify_cached_kv(
-            kv_cache,
-            seq_ids=list(range(i + 1, num_sequence)),
-            expected_k=cached_k,
-            expected_v=cached_v,
-        )
-
-    assert fis_empty(kv_cache), "The KV cache is not empty after removing all sequences"
-
-    # Test fork after page recycle
-    apply_attention(kv_cache, rope_mode, [(0, 7), (1, 24)], cached_k, cached_v)
-    apply_attention(kv_cache, rope_mode, [((2, 1, -1), 10)], cached_k, cached_v)
-    apply_attention(kv_cache, rope_mode, [((3, 0, -1), 20)], cached_k, cached_v)
-    apply_attention(kv_cache, rope_mode, [(2, 1), (3, 1)], cached_k, cached_v)
-
-    apply_attention(kv_cache, rope_mode, [(10, 7), (11, 24)], cached_k, cached_v)
-    apply_attention(kv_cache, rope_mode, [((12, 11, -1), 200)], cached_k, cached_v)
-    apply_attention(kv_cache, rope_mode, [(10, 1), (12, 1)], cached_k, cached_v)
-
-
-@tvm.testing.requires_gpu
-@tvm.testing.requires_cuda
-def test_paged_attention_kv_cache_unlimited_depth(kv_cache_and_config):
-    kv_cache, rope_mode, support_sliding_window = kv_cache_and_config
-    if support_sliding_window and rope_mode == RopeMode.NORMAL:
-        # Normal RoPE mode under sliding window settings is not supported.
-        return
-    fclear(kv_cache)
-
-    cached_k = {}
-    cached_v = {}
-    apply_attention(kv_cache, rope_mode, [(0, 30)], cached_k, cached_v)
-    # Fork existing sequences.
-    apply_attention(kv_cache, rope_mode, [((1, 0, -1), 15)], cached_k, cached_v)
-    apply_attention(kv_cache, rope_mode, [((2, 1, -1), 5)], cached_k, cached_v)
-    apply_attention(kv_cache, rope_mode, [((3, 2, -1), 20)], cached_k, cached_v)
-    apply_attention(kv_cache, rope_mode, [((4, 3, -1), 26)], cached_k, cached_v)
-    apply_attention(kv_cache, rope_mode, [((5, 3, -1), 18)], cached_k, cached_v)
-    apply_attention(kv_cache, rope_mode, [((6, 5, -1), 22)], cached_k, cached_v)
-    apply_attention(kv_cache, rope_mode, [((7, 5, -1), 12)], cached_k, cached_v)
-    apply_attention(kv_cache, rope_mode, [((8, 7, -1), 29)], cached_k, cached_v)
-    apply_attention(kv_cache, rope_mode, [((9, 7, -1), 9)], cached_k, cached_v)
-    apply_attention(kv_cache, rope_mode, [((10, 9, -1), 31)], cached_k, cached_v)
-    apply_attention(kv_cache, rope_mode, [((11, 9, -1), 4)], cached_k, cached_v)
-    # 0 <- 1 <- 2 <- 3 <- 5 <- 7 <- 9 <- 11
-    #                |    |    |    |
-    #                4    6    8    10
-    # Decode.
-    operation_seq = [
-        [(3, 1), (6, 1), (9, 1)],
-        [(4, 1), (8, 1), (10, 1)],
-        [(5, 1), (7, 1), (11, 1)],
-    ]
-    for batch in operation_seq:
-        apply_attention(kv_cache, rope_mode, batch, cached_k, cached_v)
-
-    num_sequence = 12
-    for i in range(num_sequence):
-        fremove_sequence(kv_cache, i)
-        cached_k.pop(i)
-        cached_v.pop(i)
-        verify_cached_kv(
-            kv_cache,
-            seq_ids=list(range(i + 1, num_sequence)),
-            expected_k=cached_k,
-            expected_v=cached_v,
-        )
-
-    assert fis_empty(kv_cache), "The KV cache is not empty after removing all sequences"
-
-
-@tvm.testing.requires_gpu
-@tvm.testing.requires_cuda
-def test_paged_attention_kv_cache_popn(kv_cache_and_config):
-    kv_cache, rope_mode, support_sliding_window = kv_cache_and_config
-    if support_sliding_window and rope_mode == RopeMode.NORMAL:
-        return
-    fclear(kv_cache)
-
-    cached_k = {}
-    cached_v = {}
-    batch = [(0, 35), (1, 88), (2, 17), (3, 4)]
-    apply_attention(kv_cache, rope_mode, batch, cached_k, cached_v)
-    apply_attention(kv_cache, rope_mode, [((4, 3, -1), 35)], cached_k, cached_v)
-
-    popn_operations = [(0, 17), (1, 57), (2, 16), (3, 0), (4, 37)]
-    for seq_id, pop_length in popn_operations:
-        fpopn(kv_cache, seq_id, pop_length)
-        if pop_length != 0:
-            cached_k[seq_id] = cached_k[seq_id][:, :-pop_length, ...]
-            cached_v[seq_id] = cached_v[seq_id][:, :-pop_length, ...]
-        verify_cached_kv(kv_cache, seq_ids=list(range(4)), expected_k=cached_k, expected_v=cached_v)
-
-    num_sequence = 5
-    for seq_id in range(num_sequence):
-        fremove_sequence(kv_cache, seq_id)
-        verify_cached_kv(
-            kv_cache,
-            seq_ids=list(range(seq_id + 1, num_sequence)),
-            expected_k=cached_k,
-            expected_v=cached_v,
-        )
-
-    assert fis_empty(kv_cache), "The KV cache is not empty after removing all sequences"
-
-
-@tvm.testing.requires_gpu
-@tvm.testing.requires_cuda
-def test_paged_attention_kv_cache_sliding_window(kv_cache_and_config):
-    kv_cache, rope_mode, support_sliding_window = kv_cache_and_config
-    if not support_sliding_window or rope_mode == RopeMode.NORMAL:
-        return
-    fclear(kv_cache)
-
-    cached_k = {}
-    cached_v = {}
-    sliding_window_sizes = [20, 25, 30, 35, 40]
-    attn_sink_sizes = [6, 4, 8, 3, 7]
-    for seq_id, (sliding_window_size, attn_sink_size) in enumerate(
-        zip(sliding_window_sizes, attn_sink_sizes)
-    ):
-        fadd_sequence(kv_cache, seq_id)
-        fenable_sliding_window_for_seq(kv_cache, seq_id, sliding_window_size, attn_sink_size)
-        cached_k[seq_id] = np.zeros((num_layers, 0, num_kv_heads, head_dim), dtype)
-        cached_v[seq_id] = np.zeros((num_layers, 0, num_kv_heads, head_dim), dtype)
-
-    # Prefill.
-    operation_seq = [[(0, 4)], [(1, 6)], [(2, 6), (3, 7), (4, 7)]]
-    operation_seq += [[(0, 20), (1, 19), (2, 30), (3, 35), (4, 40)]]
-    operation_seq += [[(0, 6), (1, 5), (2, 4), (3, 3), (4, 2)]]
-    for batch in operation_seq:
-        apply_attention(
-            kv_cache,
-            rope_mode,
-            batch,
-            cached_k,
-            cached_v,
-            sliding_window_sizes,
-            attn_sink_sizes,
-        )
-    # Decode
-    batch = [(0, 1), (1, 1), (2, 1), (3, 1), (4, 1)]
-    for _ in range(20):
-        apply_attention(
-            kv_cache,
-            rope_mode,
-            batch,
-            cached_k,
-            cached_v,
-            sliding_window_sizes,
-            attn_sink_sizes,
-        )
-
-
-@tvm.testing.requires_gpu
-@tvm.testing.requires_cuda
-def test_paged_attention_kv_cache_sliding_window_fork(kv_cache_and_config):
-    kv_cache, rope_mode, support_sliding_window = kv_cache_and_config
-    if not support_sliding_window or rope_mode == RopeMode.NORMAL:
-        return
-    fclear(kv_cache)
-
-    cached_k = {}
-    cached_v = {}
-    sliding_window_sizes = [30, 35, 40]
-    attn_sink_sizes = [15, 20, 25]
-    for seq_id, (sliding_window_size, attn_sink_size) in enumerate(
-        zip(sliding_window_sizes, attn_sink_sizes)
-    ):
-        fadd_sequence(kv_cache, seq_id)
-        fenable_sliding_window_for_seq(kv_cache, seq_id, sliding_window_size, attn_sink_size)
-        cached_k[seq_id] = np.zeros((num_layers, 0, num_kv_heads, head_dim), dtype)
-        cached_v[seq_id] = np.zeros((num_layers, 0, num_kv_heads, head_dim), dtype)
-    apply_attention(
-        kv_cache,
-        rope_mode,
-        [(0, 12), (1, 18), (2, 28)],
-        cached_k,
-        cached_v,
-        sliding_window_sizes,
-        attn_sink_sizes,
-    )
-    # seq_len: [12, 18, 25+3]
-    sliding_window_sizes += [0, 0, 0]
-    attn_sink_sizes += [0, 0, 0]
-    apply_attention(
-        kv_cache,
-        rope_mode,
-        [((3, 0, 10), 8), ((4, 1, -1), 20), ((5, 2, 18), 18)],
-        cached_k,
-        cached_v,
-        sliding_window_sizes,
-        attn_sink_sizes,
-    )
-    # seq_len: [12, 18, 25+3, 18, 38, 36]
-    apply_attention(
-        kv_cache,
-        rope_mode,
-        [(0, 9), (1, 15), (2, 4), (3, 10), (4, 3), (5, 7)],
-        cached_k,
-        cached_v,
-        sliding_window_sizes,
-        attn_sink_sizes,
-    )
-    # seq_len: [15+6, 20+13, 25+7, 28, 41, 43]
-    sliding_window_sizes += [25]
-    attn_sink_sizes += [24]
-    ffork_sequence(kv_cache, 3, 6, 18)
-    fenable_sliding_window_for_seq(kv_cache, 6, sliding_window_sizes[-1], attn_sink_sizes[-1])
-    cached_k[6] = cached_k[3][::, :18]
-    cached_v[6] = cached_v[3][::, :18]
-    apply_attention(
-        kv_cache,
-        rope_mode,
-        [(3, 10), (6, 12)],
-        cached_k,
-        cached_v,
-        sliding_window_sizes,
-        attn_sink_sizes,
-    )
-    # seq_len: [15+6, 20+13, 25+7, 38, 41, 43, 24+6]
-
-
-@tvm.testing.requires_gpu
-@tvm.testing.requires_cuda
-def test_paged_attention_kv_cache_tree_attn(kv_cache_and_config):
+@pytest.mark.skip(reason="Require NVSHMEM")
+def test_paged_attention_kv_cache_transfer(kv_cache_and_config):
     kv_cache, rope_mode, support_sliding_window = kv_cache_and_config
     if support_sliding_window:
         # Normal RoPE mode under sliding window settings is not supported.
         return
-    if rope_mode == RopeMode.INLINE:
-        # Inline RoPE mode is not supported for tree attention.
-        return
+    np.random.seed(0)
     fclear(kv_cache)
+    # Prefill.
+    prefill_operation_seq = [[(0, 6)], [(1, 8)], [(2, 11)], [(3, 16)], [(4, 19), (5, 20)]]
+    prefill_operation_seq += [[(6, 21), (7, 24)], [(2, 5), (4, 7), (8, 24)]]
+    prefill_operation_seq += [[(6, 13)], [(8, 19)], [(0, 1)], [(1, 3), (3, 8), (5, 12), (7, 11)]]
+    prefill_len = {i: 0 for i in range(9)}
+    for batch in prefill_operation_seq:
+        for seq_id, append_length in batch:
+            prefill_len[seq_id] += append_length
+    # Decode
+    decode_operation_seq = [
+        [(0, 1), (1, 1), (2, 1), (3, 1), (4, 1), (5, 1), (6, 1), (7, 1), (8, 1)]
+    ]
+    decode_operation_seq += [
+        [(0, 1), (1, 1), (2, 1), (3, 1), (4, 1), (5, 1), (6, 1), (7, 1), (8, 1)]
+    ]
+    decode_operation_seq += [[(0, 1), (2, 1), (4, 1), (6, 1), (8, 1)]]
+    decode_operation_seq += [[(4, 1), (5, 1), (6, 1), (7, 1), (8, 1)]]
 
     cached_k = {}
     cached_v = {}
-    # Prefill 4 sequences
-    apply_attention(kv_cache, rope_mode, [(0, 10), (1, 20), (2, 30), (3, 40)], cached_k, cached_v)
-    # Tree attention
-    apply_attention(
-        kv_cache,
-        rope_mode,
-        [(0, 7), (1, 15), (2, 10), (3, 14)],
-        cached_k,
-        cached_v,
-        token_tree_parent_ptr_list=[
-            [-1, 0, 0, 1, 1, 2, 2],  # complete binary tree of height 3
-            [-1, 0, 0, 1, 1, 2, 2, 3, 3, 4, 4, 5, 5, 6, 6],  # complete binary tree of height 4
-            [-1, 0, 1, 2, 3, 4, 5, 6, 7, 8],  # chain of length 10
-            [-1, 0, 0, 1, 1, 2, 2, -1, 7, 7, 8, 8, 9, 9],  # two complete binary trees of height 3
-        ],
-        accepted_leaf_indices=[6, 11, 6, 13],
-    )
-    # Do 5 rounds of decode.
-    for _ in range(5):
-        apply_attention(kv_cache, rope_mode, [(0, 1), (1, 1), (2, 1), (3, 1)], cached_k, cached_v)
+    if rank == 0:
+        for seq_id, _ in prefill_len.items():
+            fadd_sequence(kv_cache, seq_id)
+        remote_pos_maps = None
+        remote_pos_maps = comm.bcast(remote_pos_maps, root=1)
+        comm.Barrier()
+        for seq_id in prefill_len.keys():
+            fdisagg_mark_send(kv_cache, seq_id, 0, ShapeTuple(remote_pos_maps[seq_id]), 1)
+        for batch in prefill_operation_seq:
+            apply_attention(kv_cache, rope_mode, batch, cached_k, cached_v, skip_add_sequence=True)
+        device.sync()
+        comm.Barrier()
+    else:
+        remote_pos_maps = []
+        for seq_id, len in prefill_len.items():
+            fadd_sequence(kv_cache, seq_id)
+            compressed_pos_map = list(fdisagg_prepare_recv(kv_cache, seq_id, len))
+            remote_pos_maps.append(compressed_pos_map)
+        remote_pos_maps = comm.bcast(remote_pos_maps, root=1)
+        comm.Barrier()
+        for batch in prefill_operation_seq:
+            apply_attention(
+                kv_cache,
+                rope_mode,
+                batch,
+                cached_k,
+                cached_v,
+                only_update_host=True,
+                skip_add_sequence=True,
+            )
+        comm.Barrier()
+        for batch in decode_operation_seq:
+            apply_attention(kv_cache, rope_mode, batch, cached_k, cached_v, skip_add_sequence=True)
 
-    # Test the cases where all trees are chains.
-    fclear(kv_cache)
-    cached_k = {}
-    cached_v = {}
-    # Prefill 4 sequences
-    apply_attention(kv_cache, rope_mode, [(0, 10), (1, 20), (2, 30), (3, 40)], cached_k, cached_v)
-    # Tree attention
-    apply_attention(
-        kv_cache,
-        rope_mode,
-        [(0, 7), (1, 15), (2, 10), (3, 14)],
-        cached_k,
-        cached_v,
-        token_tree_parent_ptr_list=[
-            [-1, 0, 1, 2, 3, 4, 5],  # complete binary tree of height 7
-            [-1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13],  # chain of length 15
-            [-1, 0, 1, 2, 3, 4, 5, 6, 7, 8],  # chain of length 10
-            [-1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],  # chain of length 14
-        ],
-        accepted_leaf_indices=[2, 6, -1, 4],
-    )
-    # Do 5 rounds of decode.
-    for _ in range(5):
-        apply_attention(kv_cache, rope_mode, [(0, 1), (1, 1), (2, 1), (3, 1)], cached_k, cached_v)
 
-    # Test the cases of tree attn with cached kv.
-    fclear(kv_cache)
-    cached_k = {}
-    cached_v = {}
-    # Prefill 4 sequences
-    apply_attention(kv_cache, rope_mode, [(0, 10), (1, 20), (2, 30), (3, 40)], cached_k, cached_v)
-    # Do 5 rounds of tree decode.
-    num_seq = 4
-    for i in range(5):
-        num_leaf_nodes = 2**i
-        parent_ptr = [(k - 1) // 2 for k in range(0, 2 * num_leaf_nodes - 1)]
-        apply_attention(
-            kv_cache,
-            rope_mode,
-            [(seq_id, num_leaf_nodes) for seq_id in range(num_seq)],
-            cached_k,
-            cached_v,
-            token_tree_parent_ptr_list=[parent_ptr for _ in range(num_seq)],
-            accepted_leaf_indices=(
-                None if i != 4 else [2, 6, -1, 4]
-            ),  # Leaf nodes are committed all at once at the end.
-        )
+def init_nvshmem(num_workers, pe_offset):
+    if rank == 0:
+        f_init_nvshmem_uid = tvm.get_global_func("runtime.disco.nvshmem.init_nvshmem_uid")
+        uid = f_init_nvshmem_uid()
+    else:
+        uid = None
+    uid = comm.bcast(uid, root=0)
+    init_func = tvm.get_global_func("runtime.disco.nvshmem.init_nvshmem")
+    init_func(uid, num_workers, pe_offset)
 
 
 if __name__ == "__main__":
-    HEAD_DIMS = [64, 128]
-    DTYPES = ["float16", "float32"]
-    ROPE_MODES = [RopeMode.NONE, RopeMode.NORMAL, RopeMode.INLINE]
-    SUPPORT_SLIDING_WINDOW = [False, True]
+    # To run this test, install mpi4py first, and then run
+    # mpirun -np 2 python tests/python/relax/nvshmem/test_runtime_builtin_kv_cache_transfer.py
+    HEAD_DIMS = [128]
+    DTYPES = ["float16"]
+    ROPE_MODES = [RopeMode.NONE]
+    SUPPORT_SLIDING_WINDOW = [False]
+    init_nvshmem(2, rank)
     for head_dim, dtype, rope_mode, support_sliding_window in itertools.product(
         HEAD_DIMS, DTYPES, ROPE_MODES, SUPPORT_SLIDING_WINDOW
     ):
         set_global_func(head_dim, dtype)
         cache = create_kv_cache(head_dim, dtype, rope_mode, support_sliding_window)
         cache_and_config = (cache, rope_mode, support_sliding_window)
-        test_paged_attention_kv_cache_prefill_and_decode(cache_and_config)
-        test_paged_attention_kv_cache_remove_sequence(cache_and_config)
-        test_paged_attention_kv_cache_fork_sequence(cache_and_config)
-        test_paged_attention_kv_cache_popn(cache_and_config)
-        test_paged_attention_kv_cache_sliding_window(cache_and_config)
-        test_paged_attention_kv_cache_tree_attn(cache_and_config)
-        test_paged_attention_kv_cache_unlimited_depth(cache_and_config)
+        test_paged_attention_kv_cache_transfer(cache_and_config)
