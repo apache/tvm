@@ -42,12 +42,12 @@ namespace tir {
 using runtime::StorageRank;
 using runtime::StorageScope;
 
-bool IsDynamicSharedMemory(Var buffer_var) {
+static bool IsDynamicSharedMemory(Var buffer_var) {
   StorageScope storage_scope = runtime::StorageScope::Create(GetPtrStorageScope(buffer_var));
   return storage_scope.rank == runtime::StorageRank::kShared && storage_scope.tag == ".dyn";
 }
 
-bool IsStaticSharedMemory(Var buffer_var) {
+static bool IsStaticSharedMemory(Var buffer_var) {
   StorageScope storage_scope = runtime::StorageScope::Create(GetPtrStorageScope(buffer_var));
   return storage_scope.rank == runtime::StorageRank::kShared && storage_scope.tag == "";
 }
@@ -125,7 +125,7 @@ class SharedMemLinearAccessPatternFinder final : public StmtExprVisitor {
     if (it != alloc_info_.end() && it->second.alloc) {
       ICHECK_LT(it->second.level, scope_.size());
       if (IsAppropriateSharedMemory(GetRef<Var>(buf))) {
-        scope_[it->second.level].touched.push_back(buf);
+        scope_[scope_.size() - 1].touched.push_back(buf);
       }
     }
     StmtEntry e = scope_.back();
@@ -156,19 +156,8 @@ class SharedMemLinearAccessPatternFinder final : public StmtExprVisitor {
     if (it != alloc_info_.end() && it->second.alloc) {
       ICHECK_LT(it->second.level, scope_.size()) << "Load memory in places other than store.";
       if (IsAppropriateSharedMemory(GetRef<Var>(buf))) {
-        scope_[it->second.level].touched.push_back(buf);
+        scope_[scope_.size() - 1].touched.push_back(buf);
       }
-    }
-  }
-
-  void VisitExpr_(const CallNode* op) final {
-    if (op->op.same_as(builtin::address_of())) {
-      const BufferLoadNode* load = op->args[0].as<BufferLoadNode>();
-      for (const auto& index : load->indices) {
-        this->VisitExpr(index);
-      }
-    } else {
-      StmtExprVisitor::VisitExpr_(op);
     }
   }
 
@@ -178,7 +167,7 @@ class SharedMemLinearAccessPatternFinder final : public StmtExprVisitor {
     if (it != alloc_info_.end() && it->second.alloc) {
       ICHECK_LT(it->second.level, scope_.size());
       if (IsAppropriateSharedMemory(GetRef<Var>(buf))) {
-        scope_[it->second.level].touched.push_back(buf);
+        scope_[scope_.size() - 1].touched.push_back(buf);
       }
     }
   }
@@ -291,7 +280,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
         for (int i = 0; i < static_cast<int>(e->allocs.size()); i++) {
           for (const VarNode* buffer : e->allocs[i]) {
             const AllocateNode* alloc = shmem_allocs_[buffer];
-            align[i] = std::max(align[i], alloc->dtype.bytes());
+            align[i] = std::max(align[i], alloc->dtype.bytes() * alloc->dtype.lanes());
           }
         }
       }
@@ -303,7 +292,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
           for (const VarNode* buffer : e->allocs[i]) {
             const AllocateNode* alloc = shmem_allocs_[buffer];
             buffer_byte_offsets_[buffer] = merged_alloc_size_ + inner_offset;
-            inner_offset += alloc->extents[0] * alloc->dtype.bytes();
+            inner_offset += alloc->extents[0] * alloc->dtype.bytes() * alloc->dtype.lanes();
             inner_offset += indexmod(align[i] - indexmod(inner_offset, align[i]), align[i]);
           }
           max_inner_offset = max(max_inner_offset, inner_offset);
@@ -426,7 +415,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
   PrimExpr GetBufferOffset(Var buffer_var, DataType dtype) {
     auto it = buffer_byte_offsets_.find(buffer_var.get());
     ICHECK(it != buffer_byte_offsets_.end());
-    return indexdiv(it->second, dtype.bytes());
+    return indexdiv(it->second, dtype.bytes() * dtype.lanes());
   }
 
   // Wrapper function to determine if the shared memory allocation for a variable is appropriate.
