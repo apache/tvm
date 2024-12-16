@@ -120,14 +120,19 @@ class VectorizePlanner : public arith::IRVisitorWithAnalyzer {
     // so we should disable this GCD optimization
     max_vector_size = arith::ZeroAwareGCD(max_vector_size, extent_ptr->value);
 
-    auto mod_set = analyzer_.modular_set(buffer->shape.back());
+    auto last_dim = buffer->shape.back();
+    auto mod_set = analyzer_.modular_set(last_dim);
     // when dynamic shape like [m, k]: coeff=1, base=0, GCD will block conditionally tail vectorize
     if (buffer->shape.back().as<IntImmNode>()) {
       max_vector_size = arith::ZeroAwareGCD(max_vector_size, mod_set->coeff);
 
-      // comment as this solution doesn't
-      // work well with multi-index vectorization
-      // max_vector_size = arith::ZeroAwareGCD(max_vector_size, mod_set->base);
+      auto gcd_base = arith::ZeroAwareGCD(max_vector_size, mod_set->base);
+      // If gcd_base is equal to the last dimension,
+      // we should analyze the second-to-last dimension
+      // in relation to the last dimension.
+      if (gcd_base < Downcast<IntImm>(last_dim)->value) {
+        max_vector_size = gcd_base;
+      }
 
       vector_size_ = arith::ZeroAwareGCD(max_vector_size, vector_size_);
 
