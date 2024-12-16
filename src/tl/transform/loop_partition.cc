@@ -67,7 +67,6 @@ For PartitionLoop(For op, Var thread_var, arith::Analyzer* analyzer, Fragment lo
     vars.push_back(var);
   }
   vars.push_back(thread_var);
-
   // create the substitute map, and the loop body
   Map<Var, PrimExpr> vmap;
   Stmt body = op;

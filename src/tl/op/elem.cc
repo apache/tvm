@@ -32,6 +32,7 @@
 #include "../target/utils.h"
 #include "../transform/loop_partition.h"
 #include "../transform/loop_vectorize.h"
+#include "../transform/common/loop_fusion_utils.h"
 #include "builtin.h"
 
 namespace tvm {
@@ -147,8 +148,11 @@ Stmt Copy::Lower(const LowerArgs& T, arith::Analyzer* analyzer) const {
 
   Stmt bulk_copy_stmt = LowerBulkCopy(T, analyzer);
   if (bulk_copy_stmt.defined()) return bulk_copy_stmt;
+  auto simt_loop = MakeSIMTLoop(analyzer);
+  ParallelLoopFuser fuser;
+  auto fused_loop = Downcast<For>(fuser(simt_loop));
 
-  auto par_op = std::make_unique<ParallelOp>(MakeSIMTLoop(analyzer));
+  auto par_op = std::make_unique<ParallelOp>(fused_loop);
   par_op->InferLayout({T.target, T.block_size, T.layout_map, T.buffer_remap}, InferLevel::kFree);
   auto thread_loop =
       PartitionLoop(par_op->GetRoot(), T.thread_var, analyzer, par_op->GetLoopLayout());
