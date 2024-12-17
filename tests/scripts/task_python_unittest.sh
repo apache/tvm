@@ -51,7 +51,6 @@ TEST_FILES=(
   "tir-transform"
   "tir-usmp"
   "tvmscript"
-  "usmp"
 )
 
 for TEST_FILE in ${TEST_FILES[@]}; do
