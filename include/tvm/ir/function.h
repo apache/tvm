@@ -63,6 +63,51 @@ enum class CallingConv : int {
    * - Implementation: defined by device runtime(e.g. runtime/cuda)
    */
   kDeviceKernelLaunch = 2,
+  /*!
+   * \brief For functions only called by other functions within the same IR module.
+   *
+   * This calling convention exists to support one PrimFunc calling another PrimFunc
+   * within the same IRModule.
+   *
+   * Overview / Purpose:
+   *
+   *   - This calling convention is intended only for PrimFuncs whose callers reside in
+   *     the same IRModule.  This is the only supported use case.
+   *
+   *   - The details of the calling convention may change frequently as TVM evolves.
+   *     Therefore users are discouraged from attempting to use this calling convention
+   *     outside of the supported use case(s).
+   *
+   * Background: Why the other calling conventions aren't sufficent.
+   *    - kDefault and kCPackedFunc both involve the PackedFunc signature standard, which
+   *      is not compatible with the current approach for intra-module PrimFunc calls.
+   *
+   *    - kDeviceKernelLaunch indicates a split between host-side caller and device-side
+   *      callee.  This is similar to kIntraModule, but kIntraModule is intended for
+   *      both caller and callee residing in the same runtime module.
+   *
+   * Current mechanics / usage requirements:
+   *
+   *   - A PrimFunc with this calling convention will NOT undergo any of the signature
+   *     transformations provided by the MakePackedAPI pass.
+   *
+   *   - Supported use cases, and their corresponding unit tests, are all expressed as
+   *     TVMScript.
+   *
+   *   - The callsite must use `T.call_extern`.
+   *
+   *   - There's a 1:1 correspondence between the caller argument list and the callee
+   *     parameter list.  That is, the n'th call argument maps to the n'th callee parameter.
+   *
+   *   - For a given argument / parameter, the following mappings are supported.  Other mappings
+   *     may work but are not verified in TVM's unit tests.
+   *
+   *     - (caller: 'T.int8') --> (callee: 'T.int8')
+   *
+   *     - (caller: 'A.data', where A is a Buffer with dtype=int8 and axis_separators=[]) -->
+   *       (callee: 'T.Ptr[T.int8]')
+   */
+  kIntraModule = 3,
 };
 
 /*!
