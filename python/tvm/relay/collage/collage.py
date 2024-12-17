@@ -28,19 +28,30 @@ import numpy as np
 import tvm
 from tvm._ffi.registry import register_func, register_object
 from tvm.runtime import Object
+from tvm import rpc
 from . import _ffi_api
 
 # Parameters to use when estimating latency (of both partitions and overall models).
 MEASURE_NUMBER = 20
 MEASURE_REPEAT = 5
-WARMUP_MIN_REPEAT_MS = 250
+WARMUP_MIN_REPEAT_MS = 10
 
 
 @register_object("relay.collage.CostEstimator")
 class CostEstimator(Object):
     """CostEstimator class"""
 
-    def __init__(self):
+    TRACKER_HOST = None
+    TRACKER_PORT = None
+    DEVICE_KEY = None
+    NDK_CC = None
+
+    def __init__(self, host=None, port=None, rpc_key="", ndk_cc="nvcc"):
+        """RPC device config settings"""
+        CostEstimator.TRACKER_HOST = host
+        CostEstimator.TRACKER_PORT = port
+        CostEstimator.DEVICE_KEY = rpc_key
+        CostEstimator.NDK_CC = ndk_cc
         self.__init_handle_by_constructor__(_ffi_api.CostEstimator)
 
 
@@ -105,15 +116,22 @@ def estimate_seconds(mod, target):
 
     # Finalize compilation
     tmp_dir = tempfile.mkdtemp()
-    code, lib = exe.save()
+    lib = exe.mod
     lib_path = os.path.join(tmp_dir, "library.so")
-    # TODO(mbs): Avoid nvcc dependency?
-    lib.export_library(lib_path, workspace_dir=tmp_dir, cc="nvcc")
-    lib = tvm.runtime.load_module(lib_path)
-    exe = tvm.runtime.vm.Executable.load_exec(code, lib)
+
+    lib.export_library(lib_path, workspace_dir=tmp_dir, cc=CostEstimator.NDK_CC)
+    if CostEstimator.TRACKER_PORT:
+        # Prepare the lib for RPC device
+        tracker = rpc.connect_tracker(CostEstimator.TRACKER_HOST, CostEstimator.TRACKER_PORT)
+        remote = tracker.request(CostEstimator.DEVICE_KEY, priority=0, session_timeout=600)
+        device = remote.cl(0)
+        remote.upload(lib_path, target="library.so")
+        lib = remote.load_module("library.so")
+    else:
+        lib = tvm.runtime.load_module(lib_path)
 
     # Benchmark the module.
-    the_vm = tvm.runtime.vm.VirtualMachine(exe, device)
+    the_vm = tvm.runtime.vm.VirtualMachine(lib, device)
     func_name = "main"
     main_args = {v.name_hint: arg_for(v.checked_type, device) for v in mod[func_name].params}
     logging.info("Benchmarking module to estimate")
