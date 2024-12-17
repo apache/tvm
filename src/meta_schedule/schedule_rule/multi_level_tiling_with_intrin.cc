@@ -17,10 +17,14 @@
  * under the License.
  */
 
+#include "multi_level_tiling_with_intrin.h"
+
+#include <string>
+#include <utility>
+#include <vector>
+
 #include "../../tir/schedule/analysis.h"
-#include "../../tir/schedule/transform.h"
 #include "../utils.h"
-#include "multi_level_tiling.h"
 
 namespace tvm {
 namespace meta_schedule {
@@ -41,55 +45,35 @@ Optional<tir::BlockRV> TileForIntrin(tir::Schedule sch, tir::BlockRV block,
   return outer_block;
 }
 
-/*!
- * \brief Extension of MultiLevelTiling for auto-tensorizing with a single intrinsic.
- */
-class MultiLevelTilingWithIntrinNode : public MultiLevelTilingNode {
- protected:
-  Array<tir::Schedule> Apply(const tir::Schedule& sch, const tir::BlockRV& block_rv) final {
-    auto desc_func = tir::TensorIntrin::Get(intrin_name).value()->desc;
-    if (!CheckAutoTensorizeApplicable(sch, block_rv, desc_func)) {
-      TVM_PY_LOG(INFO, logger) << "The workload cannot be tensorized.";
-      return {sch};
+Array<tir::Schedule> MultiLevelTilingWithIntrinNode::Apply(const tir::Schedule& sch,
+                                                           const tir::BlockRV& block_rv) {
+  auto desc_func = tir::TensorIntrin::Get(intrin_name).value()->desc;
+  if (!CheckAutoTensorizeApplicable(sch, block_rv, desc_func)) {
+    TVM_PY_LOG(INFO, logger) << "The workload cannot be tensorized.";
+    return {sch};
+  }
+
+  auto res = MultiLevelTilingNode::Apply(sch->Copy(), block_rv);
+
+  if (res.empty()) {
+    TVM_PY_LOG(INFO, logger) << "The workload cannot be tensorized.";
+    return {sch};
+  }
+  TVM_PY_LOG(INFO, logger) << "Tensorizing with " << intrin_name;
+  return res;
+}
+
+std::vector<State> MultiLevelTilingWithIntrinNode::ApplySubRules(std::vector<State> states) {
+  states = SubRule(std::move(states), [&](State state) {
+    if (auto block_rv = TileForIntrin(state->sch, state->block_rv, intrin_name)) {
+      state->block_rv = block_rv.value();
+      return std::vector<State>(1, state);
     }
+    return std::vector<State>();
+  });
 
-    auto res = MultiLevelTilingNode::Apply(sch->Copy(), block_rv);
-
-    if (res.empty()) {
-      TVM_PY_LOG(INFO, logger) << "The workload cannot be tensorized.";
-      return {sch};
-    }
-    TVM_PY_LOG(INFO, logger) << "Tensorizing with " << intrin_name;
-    return res;
-  }
-
-  // Inherited from ScheduleRuleNode
-  ScheduleRule Clone() const final {
-    ObjectPtr<MultiLevelTilingWithIntrinNode> n =
-        make_object<MultiLevelTilingWithIntrinNode>(*this);
-    return ScheduleRule(n);
-  }
-
-  // Override ApplySubRules to tile the inner loops according to the given tensor intrinsic, then
-  // tile the outerloops.
-  virtual std::vector<State> ApplySubRules(std::vector<State> states) {
-    states = SubRule(std::move(states), [&](State state) {
-      if (auto block_rv = TileForIntrin(state->sch, state->block_rv, intrin_name)) {
-        state->block_rv = block_rv.value();
-        return std::vector<State>(1, state);
-      }
-      return std::vector<State>();
-    });
-    return MultiLevelTilingNode::ApplySubRules(states);
-  }
-
- public:
-  /*! \brief The name of a tensor intrinsic. */
-  String intrin_name;
-
-  static constexpr const char* _type_key = "meta_schedule.MultiLevelTilingWithIntrin";
-  TVM_DECLARE_FINAL_OBJECT_INFO(MultiLevelTilingWithIntrinNode, MultiLevelTilingNode);
-};
+  return MultiLevelTilingNode::ApplySubRules(states);
+}
 
 ScheduleRule ScheduleRule::MultiLevelTilingWithIntrin(
     String intrin_name, String structure, Optional<Array<String>> tile_binds,
@@ -106,6 +90,5 @@ ScheduleRule ScheduleRule::MultiLevelTilingWithIntrin(
 TVM_REGISTER_NODE_TYPE(MultiLevelTilingWithIntrinNode);
 TVM_REGISTER_GLOBAL("meta_schedule.ScheduleRuleMultiLevelTilingWithIntrin")
     .set_body_typed(ScheduleRule::MultiLevelTilingWithIntrin);
-
 }  // namespace meta_schedule
 }  // namespace tvm
