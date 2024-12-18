@@ -469,9 +469,19 @@ def compile_model(
                 lib = graph_module.lib if use_vm else graph_module.get_lib()
                 # TODO lib.get_source call have inconsistent behavior for unsupported
                 #      formats (@leandron).
-                dumps[source_type] = lib.get_source(source_type)
+                try:
+                    dumps[source_type] = lib.get_source(source_type)
+                except tvm.TVMError:
+                    pass
                 for smod in lib.imported_modules:
-                    dumps[smod.type_key] = smod.get_source()
+                    try:
+                        if smod.type_key not in dumps:
+                            dumps[smod.type_key] = ""
+                        else:
+                            dumps[smod.type_key] += "\n"
+                        dumps[smod.type_key] += smod.get_source()
+                    except tvm.TVMError:
+                        print(f"Imported module {smod.type_key} doesn't support source dump")
 
         # Create a new tvmc model package object from the graph definition.
         package_path = tvmc_model.export_package(
