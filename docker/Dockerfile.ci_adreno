@@ -16,7 +16,7 @@
 # under the License.
 
 # CI docker GPU env
-FROM tlcpack/ci-gpu
+FROM tlcpack/ci_gpu:20241119-020227-6fc0598c
 
 COPY utils/apt-install-and-clear.sh /usr/local/bin/apt-install-and-clear
 
