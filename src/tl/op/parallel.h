@@ -76,7 +76,7 @@ class ParallelOp : public Operator {
   Array<IterVar> loop_vars_;
 
   Fragment loop_layout_;
-  arith::Analyzer analyzer_;
+  mutable arith::Analyzer analyzer_;
   Optional<PrimExpr> predicate_;
 
   friend class ParallelLoopNestVisitor;

@@ -222,13 +222,12 @@ class BufferUseDefCollector : public StmtExprVisitor {
 class LayoutInferencer : public IRMutatorWithAnalyzer {
  public:
   static PrimFunc Substitute(PrimFunc f) {
-    ParallelLoopFuser fuser;
+    arith::Analyzer analyzer;
     PrimFuncNode* fptr = f.CopyOnWrite();
-    fptr->body = fuser(f->body);
+    fptr->body = ParallelLoopFuser::Fuse(f->body);
     BufferUseDefCollector collector;
     collector.Collect(f);
     auto result = collector.Run();
-    arith::Analyzer analyzer;
     LayoutInferencer substituter(result, &analyzer);
     fptr->body = substituter.VisitStmt(f->body);
     return f;

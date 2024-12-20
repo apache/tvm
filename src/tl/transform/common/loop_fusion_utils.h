@@ -39,26 +39,76 @@ namespace tvm {
 namespace tl {
 
 using namespace tir;
+using arith::IRMutatorWithAnalyzer;
+
+class FragmentAccessDetector : public StmtExprVisitor {
+ public:
+  FragmentAccessDetector() = default;
+
+  void Collect(Stmt stmt) { VisitStmt(stmt); }
+
+  bool HasFragmentAccess() { return has_fragment_access_; }
+
+ private:
+  void VisitExpr_(const BufferLoadNode* op) final {
+    // Check if the buffer is in global scope
+    if (IsFragementBuffer(op->buffer)) {
+      has_fragment_access_ = true;
+    }
+    StmtExprVisitor::VisitExpr_(op);
+  }
+
+  void VisitStmt_(const BufferStoreNode* op) final {
+    // Check if the buffer is in global scope
+    if (IsFragementBuffer(op->buffer)) {
+      has_fragment_access_ = true;
+    }
+    StmtExprVisitor::VisitStmt_(op);
+  }
+
+  // Helper function to determine if a buffer is local.fragement
+  bool IsFragementBuffer(const Buffer& buffer) {
+    // The storage scope is often encoded in the buffer->data var name or associated attributes.
+    String scope = buffer.scope();
+    return scope == "local.fragment";
+  }
+
+  bool has_fragment_access_{false};
+};
 
 /*!
  * \brief ParallelLoopFuser
- * This class is used to fuse a chain of parallel loops into one loop. 
+ * This class is used to fuse a chain of parallel loops into one loop.
  * The loops must:
  *  - All be parallel (ForKind::kParallel)
  *  - Have bounds from 0 to their extent
- * Once fused, a single loop variable will replace the chain, and the 
+ * Once fused, a single loop variable will replace the chain, and the
  * original loop variables will be derived by division and modulo operations.
  *
  * This can be helpful for inferring layout for the fragment in a subsequent pass.
  */
-class ParallelLoopFuser : public StmtExprMutator {
+class ParallelLoopFuser : public IRMutatorWithAnalyzer {
  public:
-  ParallelLoopFuser() {}
+  static Stmt Fuse(Stmt stmt) {
+    arith::Analyzer analyzer;
+    ParallelLoopFuser substituter(&analyzer);
+    return substituter.VisitStmt(stmt);
+  }
+
+ private:
+  ParallelLoopFuser(arith::Analyzer* analyzer) : IRMutatorWithAnalyzer(analyzer) {};
 
   Stmt VisitStmt_(const ForNode* op) final {
     // Gather consecutive parallel loops
     std::vector<const ForNode*> loop_chain;
     const ForNode* current = op;
+    // check if has fragment access
+    FragmentAccessDetector detector;
+    detector.Collect(op->body);
+    // Do not fuse if there is a fragment access
+    if (detector.HasFragmentAccess()) {
+      return IRMutatorWithAnalyzer::VisitStmt_(op);
+    }
 
     while (true) {
       if (current->kind != ForKind::kParallel) break;
@@ -74,7 +124,7 @@ class ParallelLoopFuser : public StmtExprMutator {
 
     // If only one loop found or loop chain size is 1, no fusion needed.
     if (loop_chain.size() <= 1) {
-      return StmtExprMutator::VisitStmt_(op);
+      return IRMutatorWithAnalyzer::VisitStmt_(op);
     }
 
     // At this point we have multiple nested parallel loops starting at zero
@@ -85,7 +135,7 @@ class ParallelLoopFuser : public StmtExprMutator {
     }
 
     std::string fused_name;
-    for(auto it = loop_chain.begin(); it != loop_chain.end(); ++it) {
+    for (auto it = loop_chain.begin(); it != loop_chain.end(); ++it) {
       fused_name += (*it)->loop_var->name_hint + "_";
     }
 
@@ -138,7 +188,7 @@ class ParallelLoopFuser : public StmtExprMutator {
     Map<Var, PrimExpr> var_map;
     for (size_t i = 0; i < loop_chain.size(); i++) {
       const ForNode* loop = loop_chain[i];
-      var_map.Set(loop->loop_var, create_index_expr(static_cast<int>(i)));
+      var_map.Set(loop->loop_var, analyzer_->Simplify(create_index_expr(static_cast<int>(i))));
     }
 
     // Perform the substitution
@@ -150,7 +200,6 @@ class ParallelLoopFuser : public StmtExprMutator {
     return fused_for;
   }
 };
-
 
 }  // namespace tl
 }  // namespace tvm

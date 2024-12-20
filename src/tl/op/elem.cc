@@ -149,8 +149,7 @@ Stmt Copy::Lower(const LowerArgs& T, arith::Analyzer* analyzer) const {
   Stmt bulk_copy_stmt = LowerBulkCopy(T, analyzer);
   if (bulk_copy_stmt.defined()) return bulk_copy_stmt;
   auto simt_loop = MakeSIMTLoop(analyzer);
-  ParallelLoopFuser fuser;
-  auto fused_loop = Downcast<For>(fuser(simt_loop));
+  auto fused_loop = Downcast<For>(ParallelLoopFuser::Fuse(simt_loop));
 
   auto par_op = std::make_unique<ParallelOp>(fused_loop);
   par_op->InferLayout({T.target, T.block_size, T.layout_map, T.buffer_remap}, InferLevel::kFree);
