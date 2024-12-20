@@ -1526,6 +1526,8 @@ class Neg(OnnxOpConverter):
         if isinstance(inputs[0], relax.Constant):
             data_np = inputs[0].data.numpy()
             return relax.const(_np.negative(data_np), inputs[0].struct_info.dtype)
+        if isinstance(inputs[0], relax.PrimValue):
+            return relax.PrimValue(-inputs[0].value)
         return relax.op.negative(inputs[0])
 
 
@@ -2189,7 +2191,7 @@ class Range(OnnxOpConverter):
             return relax.const(out_range, out_dtype)
 
         # Otherwise compute in graph.
-        return bb.emit_te(topi.arange, start, limit, step, out_dtype)
+        return relax.op.arange(start, limit, step, out_dtype)
 
 
 class InstanceNormalization(OnnxOpConverter):
