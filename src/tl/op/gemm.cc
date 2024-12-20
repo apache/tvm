@@ -187,7 +187,7 @@ LayoutMap Gemm::InferLayout(const LayoutInferArgs& T, InferLevel level) {
                                       A->dtype.bits(), trans_A ? 1 : 2));
     } else if (A.scope() == "local.fragment") {
       ICHECK(trans_A == false);
-      results.Set(A, makeGemmFragmentA(M, N, K, M / warp_m, N / warp_n));
+      results.Set(A, makeGemmFragmentA(M, N, K, M / warp_m, N / warp_n, A->dtype.bits()));
     } else {
       ICHECK(0);
     }
@@ -210,7 +210,7 @@ LayoutMap Gemm::InferLayout(const LayoutInferArgs& T, InferLevel level) {
                                       A->dtype.bits(), trans_A ? 1 : 2));
     } else {
       ICHECK(trans_A == false);
-      results.Set(A, makeGemmFragmentA(M, N, K, M / warp_m, N / warp_n));
+      results.Set(A, makeGemmFragmentA(M, N, K, M / warp_m, N / warp_n, A->dtype.bits()));
     }
     if (B.scope() == "shared" || B.scope() == "shared.dyn") {
       results.Set(B, makeGemmABLayout(*as_const_int(B->shape[0]), *as_const_int(B->shape[1]),

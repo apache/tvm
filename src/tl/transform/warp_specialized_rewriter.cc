@@ -825,8 +825,9 @@ class WarpSpecializedRewriter : public StmtExprMutator {
     if (op->attr_key == tir::attr::thread_extent &&
         Downcast<IterVar>(op->node)->thread_tag == "threadIdx.x") {
       thread_iv_ = Downcast<IterVar>(op->node);
+      need_update_thread_extent_ = false;
       AttrStmt attr_stmt = Downcast<AttrStmt>(StmtExprMutator::VisitStmt_(op));
-      if (updated_thread_extent_.defined()) {
+      if (need_update_thread_extent_) {
         thread_iv_.CopyOnWrite()->dom = {0, updated_thread_extent_.value()};
         attr_stmt.CopyOnWrite()->node = thread_iv_;
         attr_stmt.CopyOnWrite()->value = updated_thread_extent_.value();
@@ -859,7 +860,6 @@ class WarpSpecializedRewriter : public StmtExprMutator {
     if (!thread_iv_.defined()) {
       return block_realize;
     }
-    ICHECK(!updated_thread_extent_.defined());
 
     Block block = block_realize->block;
     WarpSpecializedRoleMarker marker(buffer_data_to_buffer_);
@@ -889,6 +889,7 @@ class WarpSpecializedRewriter : public StmtExprMutator {
     producer_code = ThreadIdxRewriter::Rewrite(producer_code, thread_iv_->var,
                                                thread_iv_->var - consumer_thread_extent);
     updated_thread_extent_ = consumer_thread_extent + producer_thread_extent;
+    need_update_thread_extent_ = true;
 
     ICHECK(producer.num_barriers_ == consumer.num_barriers_)
         << producer.num_barriers_ << " " << consumer.num_barriers_;
@@ -922,6 +923,7 @@ class WarpSpecializedRewriter : public StmtExprMutator {
   Map<Buffer, Buffer> buffer_remap_;
   IterVar thread_iv_;
   Optional<PrimExpr> updated_thread_extent_;
+  bool need_update_thread_extent_ = false;
 };
 
 using namespace tir::transform;

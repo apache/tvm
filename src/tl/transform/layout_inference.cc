@@ -63,8 +63,9 @@ class BufferUseDefCollector : public StmtExprVisitor {
 
     auto run_infer_step = [&](int cur_infer_id, InferLevel level, bool update_queue) {
       auto& next = infer_list_[cur_infer_id];
+      auto iter_var = thread_var_vec_[cur_infer_id];
       auto updates = next->InferLayout(
-          LayoutInferArgs{target_, static_cast<size_t>(*as_const_int(thread_var_->dom->extent)),
+          LayoutInferArgs{target_, static_cast<size_t>(*as_const_int(iter_var->dom->extent)),
                           layout_map},
           level);
       for (const auto& [buffer, layout] : updates) {
@@ -153,6 +154,7 @@ class BufferUseDefCollector : public StmtExprVisitor {
         }
       }
       infer_list_.push_back(std::move(p));
+      thread_var_vec_.push_back(thread_var_);
     }
   }
 
@@ -180,6 +182,7 @@ class BufferUseDefCollector : public StmtExprVisitor {
         addToUseList(buffer);
       }
       infer_list_.push_back(std::move(infer));
+      thread_var_vec_.push_back(thread_var_);
     } else {
       StmtExprVisitor::VisitStmt(op->body);
     }
@@ -215,6 +218,7 @@ class BufferUseDefCollector : public StmtExprVisitor {
   std::vector<std::unique_ptr<Operator>> infer_list_;
   std::unordered_map<Buffer, std::vector<int>, ObjectPtrHash, ObjectPtrEqual> use_list_;
   IterVar thread_var_;
+  std::vector<IterVar> thread_var_vec_;
   Target target_;
   LayoutMap annotated_layout_map_;
 };

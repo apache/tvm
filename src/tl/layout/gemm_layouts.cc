@@ -87,6 +87,15 @@ Fragment makeGemmFragment8x8Transposed() {
   return Fragment({i, j}, {index}, forward_thread, rep);
 }
 
+Fragment makeGemmFragment8x16() {
+  IterVar i = make_itervar("i", 8);
+  IterVar j = make_itervar("j", 16);
+  IterVar rep = make_itervar("rep", 1);
+  PrimExpr forward_thread = FloorDiv(j->var, 4) + 4 * i;
+  PrimExpr index = FloorMod(j->var, 4);
+  return Fragment({i, j}, {index}, forward_thread, rep);
+}
+
 Fragment makeGemmFragmentC_F64(const int block_m, const int block_n, const int warp_m,
                                const int warp_n) {
   ICHECK(block_m % warp_m == 0);
@@ -137,16 +146,28 @@ Fragment makeGemmFragmentCHopper(const int block_m, const int block_n, const int
 }
 
 Fragment makeGemmFragmentA(const int block_m, const int block_n, const int block_k,
-                           const int warp_m, const int warp_n) {
+                           const int warp_m, const int warp_n, const int element_size) {
   // assume not transposed
   ICHECK(block_m % warp_m == 0);
   ICHECK(block_n % warp_n == 0);
   ICHECK(warp_m % 16 == 0);
   ICHECK(block_k % 16 == 0);
-  auto base_layout = makeGemmFragment8x8()->Repeat({2, 2}, false, false);
-  auto warp_layout = base_layout->Repeat({block_m / warp_m, 1}, true)->Replicate(block_n / warp_n);
-  auto block_layout = warp_layout->Repeat({warp_m / 16, block_k / 16}, false, false);
-  return block_layout;
+  // Only support 8-bit and 16-bit
+  ICHECK(element_size == 8 || element_size == 16);
+  if (element_size == 8) {
+    auto base_layout = makeGemmFragment8x16()->Repeat({2, 2}, false, false);
+    auto warp_layout = base_layout->Repeat({block_m / warp_m, 1}, true)->Replicate(block_n / warp_n);
+    auto block_layout = warp_layout->Repeat({warp_m / 16, block_k / 32}, false, false);
+    return block_layout;
+  } else if (element_size == 16) {
+    auto base_layout = makeGemmFragment8x8()->Repeat({2, 2}, false, false);
+    auto warp_layout = base_layout->Repeat({block_m / warp_m, 1}, true)->Replicate(block_n / warp_n);
+    auto block_layout = warp_layout->Repeat({warp_m / 16, block_k / 16}, false, false);
+    return block_layout;
+  } else {
+    ICHECK(0);
+    return Fragment();
+  }
 }
 
 Fragment makeGemmFragmentACDNA(const int block_m, const int block_n, const int block_k,

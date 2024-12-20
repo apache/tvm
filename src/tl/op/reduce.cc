@@ -184,7 +184,7 @@ Stmt ReduceOp::Lower(const LowerArgs& T, arith::Analyzer* analyzer) const {
       BufferStore(dst_buffer, BufferLoad(dst_buffer, dst_indices), dst_indices);
 
   // make the outer spatial loop
-  Stmt body = SeqStmt(stmts);
+  Stmt body = stmts.size() > 1 ? SeqStmt(stmts) : stmts[0];
   for (int i = dst_layout->InputDim() - 1; i >= 0; i--) {
     body = For(dst_vars[i]->var, 0, dst_vars[i]->dom->extent, ForKind::kParallel, body);
   }

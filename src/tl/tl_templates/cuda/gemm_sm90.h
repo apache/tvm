@@ -1,5 +1,7 @@
 #pragma once
 
+#include <cutlass/cutlass.h>
+#include <cutlass/arch/barrier.h>
 #include <cute/algorithm/copy.hpp>
 
 #include "common.h"
@@ -89,14 +91,13 @@ class GemmTensorOp {
                              partition_shape_C(tiled_mma, Shape<Int<M>, Int<N>>{}));
 
     warpgroup_fence_operand(acc);
+    warpgroup_arrive();
     CUTLASS_PRAGMA_UNROLL
     for (int k_block = 0; k_block < size<2>(tCrA); ++k_block) {
-      warpgroup_arrive();
+      // warpgroup_arrive();
       // (V,M) x (V,N) => (V,M,N)
       gemm(tiled_mma, tCrA(_, _, k_block), tCrB(_, _, k_block), acc);
-      if(k_block == 0) {
-        tiled_mma.accumulate_ = GMMA::ScaleOut::One;
-      }
+      tiled_mma.accumulate_ = GMMA::ScaleOut::One;
     }
 
     warpgroup_commit_batch();
@@ -134,14 +135,13 @@ class GemmTensorOp {
 
     warpgroup_fence_operand(tCrA);
     warpgroup_fence_operand(acc);
+    warpgroup_arrive();
     CUTLASS_PRAGMA_UNROLL
     for (int k_block = 0; k_block < size<2>(tCrA); ++k_block) {
-      warpgroup_arrive();
+      // warpgroup_arrive();
       // (V,M) x (V,N) => (V,M,N)
       gemm(tiled_mma, tCrA(_, _, k_block), tCrB(_, _, k_block), acc);
-      if(k_block == 0) {
-        tiled_mma.accumulate_ = GMMA::ScaleOut::One;
-      }
+      tiled_mma.accumulate_ = GMMA::ScaleOut::One;
     }
     warpgroup_commit_batch();
     if constexpr (wg_wait >= 0) { warpgroup_wait<wg_wait>(); }
@@ -183,5 +183,36 @@ TL_DEVICE void gemm_rs(A_type* pA, B_type* pB, C_type* accum) {
 template <int num_mma>
 TL_DEVICE void wait_wgmma() {
   warpgroup_wait<num_mma>();
+}
+
+template <int NumMmaThreads>
+TL_DEVICE void warp_scheduler_barrier_sync() {
+  cutlass::arch::NamedBarrier::sync(
+    NumMmaThreads, 
+    cutlass::canonical_warp_group_idx() /*id*/);
+}
+
+template <int NumMmaThreads>
+TL_DEVICE void warp_scheduler_barrier_arrive() {
+  static_assert(NumMmaThreads == 256 || NumMmaThreads == 384);
+  if constexpr (NumMmaThreads == 256) {
+    cutlass::arch::NamedBarrier::arrive(NumMmaThreads, (1 - cutlass::canonical_warp_group_idx()) /*id*/);
+  } else {
+    cutlass::arch::NamedBarrier::arrive(NumMmaThreads, (cutlass::canonical_warp_group_idx() <= 1 ? cutlass::canonical_warp_group_idx() + 1 : cutlass::canonical_warp_group_idx() + 1 - 3)  /*id*/);
+    cutlass::arch::NamedBarrier::arrive(NumMmaThreads, (cutlass::canonical_warp_group_idx() <= 0 ? cutlass::canonical_warp_group_idx() + 2 : cutlass::canonical_warp_group_idx() + 2 - 3)  /*id*/);
+  }
+}
+
+template <int NumMmaThreads>
+TL_DEVICE void mma_init() {
+  static_assert(NumMmaThreads == 256 || NumMmaThreads == 384);
+  if (cutlass::canonical_warp_group_idx() > 0) {
+    cutlass::arch::NamedBarrier::arrive(NumMmaThreads, 0);
+  }
+  if constexpr (NumMmaThreads == 384) {
+    if (cutlass::canonical_warp_group_idx() > 1) {
+      cutlass::arch::NamedBarrier::arrive(NumMmaThreads, 1 /*id*/);
+    }
+  }
 }
 }  // namespace tl
