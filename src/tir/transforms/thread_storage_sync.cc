@@ -31,7 +31,6 @@
 #include <unordered_set>
 
 #include "../../runtime/thread_storage_scope.h"
-#include "../../tl/op/builtin.h"
 #include "ir_utils.h"
 #include "storage_access.h"
 
@@ -359,9 +358,6 @@ class ThreadSyncInserter : public StmtExprMutator {
       if (sync_scope_.rank == StorageRank::kGlobal) {
         barrier = MakeGlobalBarrier();
       } else if (partial_syncs_.count(stmt.get())) {
-        // auto iter = partial_syncs_.find(stmt.get());
-        // ICHECK(sync_scope_.rank == StorageRank::kShared);
-        // barrier = Evaluate(Call(DataType::Int(32), tl::SyncThreadsPartialOp(), {iter->second}));
         return StmtExprMutator::VisitStmt(stmt);
       } else {
         barrier = Evaluate(Call(DataType::Int(32), builtin::tvm_storage_sync(),

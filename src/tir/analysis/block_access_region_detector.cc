@@ -26,7 +26,6 @@
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt_functor.h>
 
-#include "../../tl/op/op.h"
 #include "../transforms/ir_utils.h"
 namespace tvm {
 namespace tir {
@@ -213,23 +212,6 @@ void BlockReadWriteDetector::VisitExpr_(const CallNode* op) {
       }
     } else {
       StmtExprVisitor::VisitExpr_(op);
-    }
-    return;
-  }
-  if (op->op.same_as(tl::RegionOp::Get())) {
-    auto R = tl::RegionOp(op->args, buffer_var_map_);
-    std::vector<arith::IntSet> int_set;
-    auto& region = R.GetRanges();
-    int_set.reserve(region.size());
-    for (const Range& range : region) {
-      int_set.push_back(arith::EvalSet(range, dom_map_));
-    }
-    if ((R.GetAccessMask() & 1) && (R.GetAccessMask() & 2)) {
-      Update(&opaque_buffers_, &opaque_regions_, R.GetBuffer(), int_set);
-    } else if (R.GetAccessMask() & 1) {
-      Update(&read_buffers_, &read_regions_, R.GetBuffer(), int_set);
-    } else if (R.GetAccessMask() & 2) {
-      Update(&writes_buffers_, &write_regions_, R.GetBuffer(), int_set);
     }
     return;
   }
