@@ -234,6 +234,23 @@ InferLayoutOutput InferLayoutPool2d(const Call& call,
 
   LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
   ObjectPtr<Pool2DAttrs> new_attrs = make_object<Pool2DAttrs>(*attrs);
+
+  if (layout->layout.ndim() != layout->layout.ndim_primal()) {
+    tir::Layout in_layout(attrs->layout, DataType::Int(64));
+    auto desired_layout = TransposeSubLayoutLike(attrs->layout, InitialLayout(4), layout->layout);
+    auto data_si = GetStructInfo(call->args[0]);
+    TensorStructInfo data_sinfo = data_si.as<TensorStructInfo>().value();
+    Optional<ShapeExpr> data_shape = GetRef<ShapeExpr>(data_sinfo->shape.as<ShapeExprNode>());
+    if (CanProveLayoutTransform(in_layout, desired_layout, data_shape.value()->values)) {
+      // Not handling out_layout being different from in_layout now. Any use case ?
+      new_attrs->layout = desired_layout.name();
+      new_attrs->out_layout = desired_layout.name();
+      return InferLayoutOutput({layout}, {layout}, Attrs(new_attrs));
+    } else {
+      layout = InitialLayout(4);
+    }
+  }
+
   new_attrs->layout = TransposeLike(attrs->layout, InitialLayout(4), layout->layout).name();
   new_attrs->out_layout = TransposeLike(attrs->out_layout, InitialLayout(4), layout->layout).name();
   return InferLayoutOutput({layout}, {layout}, Attrs(new_attrs));
@@ -583,6 +600,21 @@ InferLayoutOutput InferLayoutAdaptiveAvgPool2D(const Call& call,
 
   LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
   ObjectPtr<AdaptivePool2DAttrs> new_attrs = make_object<AdaptivePool2DAttrs>(*attrs);
+  if (layout->layout.ndim() != layout->layout.ndim_primal()) {
+    tir::Layout in_layout(attrs->layout, DataType::Int(64));
+    auto desired_layout = TransposeSubLayoutLike(attrs->layout, InitialLayout(4), layout->layout);
+    auto data_si = GetStructInfo(call->args[0]);
+    TensorStructInfo data_sinfo = data_si.as<TensorStructInfo>().value();
+    Optional<ShapeExpr> data_shape = GetRef<ShapeExpr>(data_sinfo->shape.as<ShapeExprNode>());
+    if (CanProveLayoutTransform(in_layout, desired_layout, data_shape.value()->values)) {
+      // Not handling out_layout being different from in_layout now. Any use case ?
+      new_attrs->layout = desired_layout.name();
+      new_attrs->out_layout = desired_layout.name();
+      return InferLayoutOutput({layout}, {layout}, Attrs(new_attrs));
+    } else {
+      layout = InitialLayout(4);
+    }
+  }
   new_attrs->layout = TransposeLike(attrs->layout, InitialLayout(4), layout->layout).name();
   new_attrs->out_layout = TransposeLike(attrs->out_layout, InitialLayout(4), layout->layout).name();
   return InferLayoutOutput({layout}, {layout}, Attrs(new_attrs));

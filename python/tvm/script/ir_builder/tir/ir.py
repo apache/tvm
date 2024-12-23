@@ -1688,9 +1688,10 @@ def index_map(
     mapping: Callable,
     *,
     inverse_index_map: Optional[Callable] = None,
+    index_dtype: str = "int64",
 ) -> IndexMap:
     """Create a TIR Index mapping"""
-    return IndexMap.from_func(mapping, inverse_index_map=inverse_index_map)
+    return IndexMap.from_func(mapping, inverse_index_map=inverse_index_map, index_dtype=index_dtype)
 
 
 def target(
