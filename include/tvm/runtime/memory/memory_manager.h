@@ -42,6 +42,7 @@ namespace memory {
 enum AllocatorType {
   kNaive = 1,
   kPooled,
+  kAny,
 };
 
 struct Buffer {
@@ -87,7 +88,7 @@ class Allocator {
    *  \return A sized allocation in the form of a buffer.
    */
   TVM_DLL virtual Buffer Alloc(Device dev, ShapeTuple shape, DLDataType type_hint,
-                               const std::string& mem_scope = "") = 0;
+                               const std::string& mem_scope = "");
   /*! \brief Free a buffer allocated by the allocator.
    *  \param buffer The buffer to free.
    */
@@ -102,6 +103,7 @@ class Allocator {
  protected:
   /*! \brief Check if the given memory scope is allowed to allocate by the allocator. */
   TVM_DLL virtual bool AllowMemoryScope(const std::string& mem_scope) const;
+  std::atomic<size_t> used_memory_;
 
  private:
   AllocatorType type_;
@@ -123,7 +125,7 @@ class MemoryManager {
    * \param type The allocator type
    * \return The memory allocator.
    */
-  TVM_DLL static Allocator* GetAllocator(Device dev, AllocatorType type);
+  TVM_DLL static Allocator* GetAllocator(Device dev, AllocatorType type = AllocatorType::kAny);
   /*! \brief Clear the allocators. */
   static void Clear();
 
@@ -170,6 +172,12 @@ class Storage : public ObjectRef {
 };
 
 }  // namespace memory
+
+using memory::Allocator;
+using memory::AllocatorType;
+using memory::MemoryManager;
+using memory::StorageObj;
+
 }  // namespace runtime
 }  // namespace tvm
 

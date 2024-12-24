@@ -26,6 +26,7 @@
 #include <tvm/runtime/container/string.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/device_api.h>
+#include <tvm/runtime/memory/memory_manager.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/profiling.h>
@@ -424,36 +425,31 @@ void GraphExecutor::SetupStorage() {
     }
     pool_entry[sid].param_data_entry = i;
     pool_entry[sid].device_type = device_type;
-    pool_entry[sid].scope = storage_scope;
 
     DLDataType t = vtype[i];
-    if (!details::Is2DStorage(storage_scope)) {
-      size_t size = 1;
-      for (int64_t sz : attrs_.shape[i]) {
-        size *= static_cast<size_t>(sz);
-      }
-      size_t bits = t.bits * t.lanes;
-      ICHECK(bits % 8U == 0U || bits == 1U || bits == 4U);
-      int64_t bytes = ((bits + 7U) / 8U) * size;
-      pool_entry[sid].shape[0] = std::max(pool_entry[sid].shape[0], bytes);
-      pool_entry[sid].dtype = DLDataType{kDLFloat, 32, 1};
-    } else {
-      if (pool_entry[sid].shape.size() == 1) {
-        pool_entry[sid].shape.resize(3, 0);
-      }
-      size_t axis = runtime::DefaultTextureLayoutSeparator(attrs_.shape[i].size(), storage_scope);
-      auto shape = ApplyTexture2DFlattening<int64_t>(attrs_.shape[i], attrs_.shape[i].size(), axis);
-      pool_entry[sid].shape[0] = std::max(pool_entry[sid].shape[0], shape.height);
-      pool_entry[sid].shape[1] = std::max(pool_entry[sid].shape[1], shape.width);
-      CHECK(pool_entry[sid].shape[2] == 0 || pool_entry[sid].shape[2] == shape.channel)
-          << pool_entry[sid].shape[2] << " != " << shape.channel
-          << ",  texture channel length must be consistent within a storage pool";
-      pool_entry[sid].shape[2] = shape.channel;
-      CHECK(pool_entry[sid].dtype.bits == 0 || TypeEqual(pool_entry[sid].dtype, t))
-          << DLDataType2String(pool_entry[sid].dtype) << " != " << DLDataType2String(t)
-          << ", pool entry for 2d texure allocations must be of the same type;"
-          << " downstream error from memory planner likely";
+
+    auto dev_type = pool_entry[sid].device_type;
+    const auto& cit = std::find_if(devices_.begin(), devices_.end(), [&dev_type](const Device& d) {
+      return dev_type == static_cast<int>(d.device_type);
+    });
+    Device dev = cit == devices_.end() ? devices_[0] : *cit;
+
+    DLTensor temp;
+    temp.data = nullptr;
+    temp.device = dev;
+    temp.ndim = attrs_.shape[i].size();
+    temp.dtype = t;
+    temp.shape = static_cast<int64_t*>(attrs_.shape[i].data());
+    temp.strides = nullptr;
+    temp.byte_offset = 0;
+
+    int64_t alloc_size = DeviceAPI::Get(dev)->GetDataSize(temp, String(storage_scope));
+
+    if (pool_entry[sid].alloc_size < alloc_size) {
       pool_entry[sid].dtype = t;
+      pool_entry[sid].shape = attrs_.shape[i];
+      pool_entry[sid].alloc_size = alloc_size;
+      pool_entry[sid].scope = storage_scope;
     }
   }
 
@@ -469,9 +465,6 @@ void GraphExecutor::SetupStorage() {
       storage_pool_.push_back(pit.linked_param);
     } else {
       std::vector<int64_t> shape = pit.shape;
-      if (shape.size() == 1) {
-        shape[0] = (shape[0] + 3) / 4;
-      }
       Optional<String> mem_scope;
       if (!pit.scope.empty()) {
         mem_scope = String(pit.scope);
@@ -494,8 +487,12 @@ void GraphExecutor::SetupStorage() {
     sid_to_eid_[storage_id].push_back(i);
 
     ICHECK_LT(static_cast<size_t>(storage_id), storage_pool_.size());
-    data_entry_[i] = storage_pool_[storage_id].CreateView(attrs_.shape[i], vtype[i]);
-
+    std::string storage_scope = attrs_.storage_scope.empty() ? "" : attrs_.storage_scope[i];
+    Optional<String> mem_scope;
+    if (!storage_scope.empty()) {
+      mem_scope = String(storage_scope);
+    }
+    data_entry_[i] = storage_pool_[storage_id].CreateView(attrs_.shape[i], vtype[i], 0, mem_scope);
     const DLTensor* tmp = data_entry_[i].operator->();
     data_alignment_[i] = details::GetDataAlignment(*tmp);
   }

@@ -225,7 +225,7 @@ cl_kernel OpenCLModuleNode::InstallKernel(cl::OpenCLWorkspace* w, cl::OpenCLThre
   std::lock_guard<std::mutex> lock(build_lock_);
   int device_id = t->device.device_id;
   auto did = w->GetCLDeviceID(device_id);
-  auto platform = w->device_to_platform[did];
+  auto platform = w->device_info[did].platform_id;
   if (!IsProgramCreated(func_name, device_id)) {
     // create program
     if (fmt_ == "cl") {
@@ -294,7 +294,7 @@ void OpenCLModuleNode::SetPreCompiledPrograms(const std::string& bytes) {
       const unsigned char* programBinary = bin_vector.data();
 
       cl_device_id dev = workspace_->GetCLDeviceID(device_id);
-      auto platform = workspace_->device_to_platform[dev];
+      auto platform = workspace_->device_info[dev].platform_id;
       programs_[name][device_id] =
           clCreateProgramWithBinary(workspace_->contexts[platform], 1, &dev, &binarySize,
                                     &programBinary, &binaryStatus, &err);

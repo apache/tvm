@@ -102,6 +102,8 @@ struct NDArray::Internal {
     auto* ptr = static_cast<NDArray::Container*>(ptr_obj);
     if (ptr->manager_ctx != nullptr) {
       static_cast<NDArray::Container*>(ptr->manager_ctx)->DecRef();
+      tvm::runtime::DeviceAPI::Get(ptr->dl_tensor.device)
+          ->FreeDataSpaceView(ptr->dl_tensor.device, ptr->dl_tensor.data);
     } else if (ptr->dl_tensor.data != nullptr) {
       tvm::runtime::DeviceAPI::Get(ptr->dl_tensor.device)
           ->FreeDataSpace(ptr->dl_tensor.device, ptr->dl_tensor.data);
@@ -179,7 +181,8 @@ struct NDArray::Internal {
   }
 };
 
-NDArray NDArray::CreateView(ShapeTuple shape, DLDataType dtype, uint64_t relative_byte_offset) {
+NDArray NDArray::CreateView(ShapeTuple shape, DLDataType dtype, uint64_t relative_byte_offset,
+                            Optional<String> mem_scope) {
   ICHECK(data_ != nullptr);
 
   const DLTensor& orig = get_mutable()->dl_tensor;
@@ -223,7 +226,10 @@ NDArray NDArray::CreateView(ShapeTuple shape, DLDataType dtype, uint64_t relativ
   // increase ref count
   get_mutable()->IncRef();
   ret.get_mutable()->manager_ctx = get_mutable();
-  ret.get_mutable()->dl_tensor.data = get_mutable()->dl_tensor.data;
+  ret.get_mutable()->dl_tensor.data =
+      DeviceAPI::Get(get_mutable()->dl_tensor.device)
+          ->AllocDataSpaceView(get_mutable()->dl_tensor.device, get_mutable()->dl_tensor.data,
+                               shape, dtype, mem_scope);
   ret.get_mutable()->dl_tensor.byte_offset =
       get_mutable()->dl_tensor.byte_offset + relative_byte_offset;
   return ret;

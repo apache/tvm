@@ -52,6 +52,7 @@ enum DeviceAttrKind : int {
   kL2CacheSizeBytes = 13,
   kTotalGlobalMemory = 14,
   kAvailableGlobalMemory = 15,
+  kImagePitchAlignment = 16,
 };
 
 #ifdef TVM_KALLOC_ALIGNMENT
@@ -135,12 +136,32 @@ class TVM_DLL DeviceAPI {
    */
   virtual void* AllocDataSpace(Device dev, int ndim, const int64_t* shape, DLDataType dtype,
                                Optional<String> mem_scope = NullOpt);
+
+  /*!
+   * \brief Create a new view with given spec over existing tensor.
+   * \param dev The device device to perform operation.
+   * \param data The source array.
+   * \param shape The shape of allocated tensor.
+   * \param dtype The type of elements.
+   * \param mem_scope The memory scope of allocated tensor.
+   * \return The allocated device pointer.
+   */
+  virtual void* AllocDataSpaceView(Device dev, void* data, ShapeTuple shape, DLDataType dtype,
+                                   Optional<String> mem_scope = NullOpt);
   /*!
    * \brief Free a data space on device.
    * \param dev The device device to perform operation.
    * \param ptr The data space.
    */
   virtual void FreeDataSpace(Device dev, void* ptr) = 0;
+
+  /*!
+   * \brief Free a view data space on device.
+   * \param dev The device device to perform operation.
+   * \param ptr The data space view.
+   */
+  virtual void FreeDataSpaceView(Device dev, void* ptr);
+
   /*!
    * \brief copy data from one place to another
    * \note This API is designed to support special memory with shape dependent layout.
