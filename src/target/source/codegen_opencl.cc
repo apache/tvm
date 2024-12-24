@@ -674,5 +674,19 @@ runtime::Module BuildOpenCL(IRModule mod, Target target) {
 }
 
 TVM_REGISTER_GLOBAL("target.build.opencl").set_body_typed(BuildOpenCL);
+
+String DeviceScopeCompatibilityFromTarget(Target target, String memory_scope) {
+  auto prototype_keys = target->GetKeys();
+  bool is_adreno =
+      std::find(prototype_keys.begin(), prototype_keys.end(), "adreno") != prototype_keys.end();
+  if (is_adreno) {
+    return String("global");
+  }
+  return memory_scope;
+}
+
+TVM_REGISTER_GLOBAL("DeviceScopeCompatibility.opencl")
+    .set_body_typed(DeviceScopeCompatibilityFromTarget);
+
 }  // namespace codegen
 }  // namespace tvm

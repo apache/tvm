@@ -37,7 +37,7 @@ TEST(OpenCLTimerNode, nested_timers) {
   int64_t nested_time_sum = 0;
 
   auto did = workspace->GetCLDeviceID(thr->device.device_id);
-  auto platform = workspace->device_to_platform[did];
+  auto platform = workspace->device_info[did].platform_id;
   Timer init_timer = Timer::Start(thr->device);
   for (int i = 0; i < NUM_REPEAT; ++i) {
     Timer nested_timer = Timer::Start(thr->device);
