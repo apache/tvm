@@ -48,6 +48,26 @@ class TvmVMMemoryManagerTest : public ::testing::Test {
   }
 };
 
+TEST_F(TvmVMMemoryManagerTest, AnyAllocatorNaiveAutoCreate) {
+  Device dev = {kDLCPU, 0};
+  Allocator* allocator = MemoryManagerWrapper::GetOrCreateAllocator(dev, kAny);
+  EXPECT_EQ(allocator->type(), kNaive);
+}
+
+TEST_F(TvmVMMemoryManagerTest, AnyAllocatorNaiveReuse) {
+  Device dev = {kDLCPU, 0};
+  Allocator* allocator = MemoryManagerWrapper::GetOrCreateAllocator(dev, kNaive);
+  allocator = MemoryManagerWrapper::GetOrCreateAllocator(dev, kAny);
+  EXPECT_EQ(allocator->type(), kNaive);
+}
+
+TEST_F(TvmVMMemoryManagerTest, AnyAllocatorPooled) {
+  Device dev = {kDLCPU, 0};
+  Allocator* allocator = MemoryManagerWrapper::GetOrCreateAllocator(dev, kPooled);
+  allocator = MemoryManagerWrapper::GetOrCreateAllocator(dev, kAny);
+  EXPECT_EQ(allocator->type(), kPooled);
+}
+
 TEST_F(TvmVMMemoryManagerTest, NaiveAllocBasic) {
   Device dev = {kDLCPU, 0};
   Allocator* allocator = MemoryManagerWrapper::GetOrCreateAllocator(dev, kNaive);
@@ -83,6 +103,38 @@ TEST_F(TvmVMMemoryManagerTest, NaiveEmptyBasic) {
     EXPECT_EQ(allocator->UsedMemory(), nbytes);
   }
   EXPECT_EQ(allocator->UsedMemory(), 0);
+}
+
+TEST_F(TvmVMMemoryManagerTest, BothAllocatorsCoexists) {
+  Device dev = {kDLCPU, 0};
+  // Initialize and use Naive allocator
+  Allocator* nallocator = MemoryManagerWrapper::GetOrCreateAllocator(dev, kNaive);
+  EXPECT_EQ(nallocator->UsedMemory(), 0);
+  auto dt = DataType::Float(32);
+  size_t nbytes = 1 * 3 * 6 * 6 * dt.bytes();
+  ShapeTuple shape = {1, 3, 6, 6};
+  {
+    auto ndarray = nallocator->Empty(shape, dt, dev);
+    EXPECT_EQ(nallocator->UsedMemory(), nbytes);
+  }
+  EXPECT_EQ(nallocator->UsedMemory(), 0);
+  auto naive_buff = nallocator->Alloc(dev, shape, dt);
+  EXPECT_EQ(nallocator->UsedMemory(), nbytes);
+
+  // Initialize and use Pooled allocator
+  Allocator* pallocator = MemoryManagerWrapper::GetOrCreateAllocator(dev, kPooled);
+  EXPECT_EQ(pallocator->UsedMemory(), 0);
+  auto pooled_buff = pallocator->Alloc(dev, shape, dt);
+  EXPECT_NE(pallocator->UsedMemory(), 0);
+
+  // Operate on Naive allocator
+  EXPECT_EQ(nallocator->UsedMemory(), nbytes);
+  nallocator->Free(naive_buff);
+  EXPECT_EQ(nallocator->UsedMemory(), 0);
+
+  // Operate on Pooled allocator
+  pallocator->Free(pooled_buff);
+  EXPECT_NE(pallocator->UsedMemory(), 0);
 }
 
 TEST_F(TvmVMMemoryManagerTest, PooledEmptyBasic) {
@@ -144,7 +196,8 @@ TEST_F(TvmVMMemoryManagerTest, PooledAllocWithShape) {
     (void)texture;
     FAIL();
   } catch (std::exception& e) {
-    std::string pattern = "This alloc should be implemented";
+    std::string pattern =
+        "Device does not support allocate data space with specified memory scope: global.texture";
     std::string what = e.what();
     EXPECT_NE(what.find(pattern), std::string::npos) << what;
   }
@@ -192,15 +245,8 @@ TEST_F(TvmVMMemoryManagerTest, PooledAllocOpenCLTexture) {
   allocator->Free(buff);
   EXPECT_EQ(allocator->UsedMemory(), size);
 
-  try {
-    auto texture = allocator->Alloc(dev, shape, dt, "global.texture");
-    (void)texture;
-    FAIL();
-  } catch (std::exception& e) {
-    std::string pattern = "This alloc should be implemented";
-    std::string what = e.what();
-    EXPECT_NE(what.find(pattern), std::string::npos) << what;
-  }
+  auto texture = allocator->Alloc(dev, shape, dt, "global.texture");
+  allocator->Free(texture);
 }
 }  // namespace memory
 }  // namespace runtime
