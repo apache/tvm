@@ -51,27 +51,40 @@ enum TVMFFITypeIndex : int32_t {
 #else
 typedef enum {
 #endif
-  // [Section] On-stack POD Types: [0, kTVMFFIStaticObjectBegin)
+  // [Section] On-stack POD and special types: [0, kTVMFFIStaticObjectBegin)
   // N.B. `kTVMFFIRawStr` is a string backed by a `\0`-terminated char array,
   // which is not owned by TVMFFIAny. It is required that the following
   // invariant holds:
   // - `Any::type_index` is never `kTVMFFIRawStr`
   // - `AnyView::type_index` can be `kTVMFFIRawStr`
+  //
+  // NOTE: kTVMFFIAny is a root type of everything
+  // we include it so TypeIndex captures all possible runtime values.
+  // `kTVMFFIAny` code will never appear in Any::type_index.
+  // However, it may appear in field annotations during reflection.
+  //
+  kTVMFFIAny = -1,
   kTVMFFINone = 0,
   kTVMFFIInt = 1,
-  kTVMFFIFloat = 2,
-  kTVMFFIOpaquePtr = 3,
-  kTVMFFIDataType = 4,
-  kTVMFFIDevice = 5,
-  kTVMFFIRawStr = 6,
+  kTVMFFIBool = 2,
+  kTVMFFIFloat = 3,
+  kTVMFFIOpaquePtr = 4,
+  kTVMFFIDataType = 5,
+  kTVMFFIDevice = 6,
+  kTVMFFIDLTensorPtr = 7,
+  kTVMFFIRawStr = 8,
   // [Section] Static Boxed: [kTVMFFIStaticObjectBegin, kTVMFFIDynObjectBegin)
+  // roughly order in terms of their ptential dependencies
   kTVMFFIStaticObjectBegin = 64,
   kTVMFFIObject = 64,
-  kTVMFFIArray = 65,
-  kTVMFFIMap = 66,
-  kTVMFFIError = 67,
-  kTVMFFIFunc = 68,
-  kTVMFFIStr = 69,
+  kTVMFFIStr = 65,
+  kTVMFFIError = 66,
+  kTVMFFIFunc = 67,
+  kTVMFFIArray = 68,
+  kTVMFFIMap = 69,
+  kTVMFFIShapeTuple = 70,
+  kTVMFFINDArray = 71,
+  kTVMFFIRuntimeModule = 72,
   // [Section] Dynamic Boxed: [kTVMFFIDynObjectBegin, +oo)
   // kTVMFFIDynObject is used to indicate that the type index
   // is dynamic and needs to be looked up at runtime
@@ -113,7 +126,10 @@ typedef struct TVMFFIAny {
    * \note The type index of Object and Any are shared in FFI.
    */
   int32_t type_index;
-  /*! \brief length for on-stack Any object, such as small-string */
+  /*!
+   * \brief length for on-stack Any object, such as small-string
+   * \note This field is reserved for future compact.
+   */
   int32_t small_len;
   union {                  // 8 bytes
     int64_t v_int64;       // integers
@@ -133,6 +149,99 @@ typedef struct {
   int64_t num_bytes;
   const char* bytes;
 } TVMFFIByteArray;
+
+/*!
+ * \brief Type that defines C-style safe call convention
+ *
+ * Safe call explicitly catches exception on function boundary.
+ *
+ * \param self The function handle
+ * \param num_args Number if input arguments
+ * \param args The input arguments to the call.
+ * \param result Store output result
+ *
+ * \return The call return 0 if call is successful.
+ *  It returns non-zero value if there is an error.
+ *
+ *  Possible return error of the API functions:
+ *  * 0: success
+ *  * -1: error happens, can be retrieved by TVMFFIGetLastError
+ *  * -2: a frontend error occurred and recorded in the frontend.
+ *
+ * \note We decided to leverage TVMFFIGetLastError and TVMFFISetLastError
+ *  for C function error propagation. This design choice, while
+ *  introducing a dependency for TLS runtime, simplifies error
+ *  propgation in chains of calls in compiler codegen.
+ *  As we do not need to propagate error through argument but simply
+ *  set them in the runtime environment.
+ */
+typedef int (*TVMFFISafeCallType)(void* self, int32_t num_args, const TVMFFIAny* args,
+                                  TVMFFIAny* result);
+
+/*!
+ * \brief Getter that can take address of a field and set the result.
+ * \param field The raw address of the field.
+ * \param result Stores the result.
+ */
+typedef int (*TVMFFIFieldGetter)(void* field, TVMFFIAny* result);
+
+/*!
+ * \brief Getter that can take address of a field and set to value.
+ * \param field The raw address of the field.
+ * \param value The value to set.
+ */
+typedef int (*TVMFFIFieldSetter)(void* field, const TVMFFIAny* value);
+
+/*!
+ * \brief Information support for optional object reflection.
+ */
+typedef struct {
+  /*! \brief The name of the field. */
+  const char* name;
+  /*!
+   * \brief Records the static type kind of the field.
+   *
+   * Possible values:
+   *
+   *  - TVMFFITypeIndex::kTVMFFIObject for general objects
+   *    - The value is nullable when kTVMFFIObject is chosen
+   * - static object type kinds such as Map, Dict, String
+   * - POD type index
+   * - TVMFFITypeIndex::kTVMFFIAny if we don't have specialized info
+   *   about the field.
+   *
+   * \note This information is helpful in designing serializer
+   * of the field. As it helps to narrow down the type of the
+   * object. It also helps to provide opportunities to enable
+   * short-cut access to the field.
+   */
+  int32_t field_static_type_index;
+  /*!
+   * \brief Mark whether field is readonly.
+   */
+  int32_t readonly;
+  /*!
+   * \brief Byte offset of the field.
+   */
+  int64_t byte_offset;
+  /*! \brief The getter to access the field. */
+  TVMFFIFieldGetter getter;
+  /*! \brief The setter to access the field. */
+  TVMFFIFieldSetter setter;
+} TVMFFIFieldInfo;
+
+/*!
+ * \brief Method information that can appear in reflection table.
+ */
+typedef struct {
+  /*! \brief The name of the field. */
+  const char* name;
+  /*!
+   * \brief The method wrapped as Function
+   * \note The first argument to the method is always the self.
+   */
+  TVMFFIObjectHandle method;
+} TVMFFIMethodInfo;
 
 /*!
  * \brief Runtime type information for object type checking.
@@ -155,38 +264,27 @@ typedef struct {
    *       hieracy stays as a tree
    */
   const int32_t* type_acenstors;
+  /*! \brief number of reflection accessible fields. */
+  int32_t num_fields;
+  /*! \brief number of reflection acccesible methods. */
+  int32_t num_methods;
+  /*! \brief The reflection field information. */
+  TVMFFIFieldInfo* fields;
+  /*! \brief The reflection method. */
+  TVMFFIMethodInfo* methods;
 } TVMFFITypeInfo;
 
 //------------------------------------------------------------
 // Section: User APIs to interact with the FFI
 //------------------------------------------------------------
 /*!
- * \brief Type that defines C-style safe call convention
- *
- * Safe call explicitly catches exception on function boundary.
- *
- * \param func The function handle
- * \param num_args Number if input arguments
- * \param args The input arguments to the call.
- * \param result Store output result
- *
- * \return The call return 0 if call is successful.
- *  It returns non-zero value if there is an error.
- *
- *  Possible return error of the API functions:
- *  * 0: success
- *  * -1: error happens, can be retrieved by TVMFFIGetLastError
- *  * -2: a frontend error occurred and recorded in the frontend.
- *
- * \note We decided to leverage TVMFFIGetLastError and TVMFFISetLastError
- *  for C function error propagation. This design choice, while
- *  introducing a dependency for TLS runtime, simplifies error
- *  propgation in chains of calls in compiler codegen.
- *  As we do not need to propagate error through argument but simply
- *  set them in the runtime environment.
+ * \brief Free an object handle by decreasing reference
+ * \param obj The object handle.
+ * \note Internally we decrease the reference counter of the object.
+ *       The object will be freed when every reference to the object are removed.
+ * \return 0 when success, nonzero when failure happens
  */
-typedef int (*TVMFFISafeCallType)(void* func, int32_t num_args, const TVMFFIAny* args,
-                                  TVMFFIAny* result);
+TVM_FFI_DLL int TVMFFIObjectFree(TVMFFIObjectHandle obj);
 
 /*!
  * \brief Create a FFIFunc by passing in callbacks from C callback.
@@ -224,15 +322,6 @@ TVM_FFI_DLL int TVMFFIFuncSetGlobal(const char* name, TVMFFIObjectHandle f, int 
 TVM_FFI_DLL int TVMFFIFuncGetGlobal(const char* name, TVMFFIObjectHandle* out);
 
 /*!
- * \brief Free an object handle by decreasing reference
- * \param obj The object handle.
- * \note Internally we decrease the reference counter of the object.
- *       The object will be freed when every reference to the object are removed.
- * \return 0 when success, nonzero when failure happens
- */
-TVM_FFI_DLL int TVMFFIObjectFree(TVMFFIObjectHandle obj);
-
-/*!
  * \brief Move the last error from the environment to result.
  *
  * \param result The result error.
@@ -248,6 +337,30 @@ TVM_FFI_DLL void TVMFFIMoveFromLastError(TVMFFIAny* result);
  *        It can be an object, or simply a raw c_str.
  */
 TVM_FFI_DLL void TVMFFISetLastError(const TVMFFIAny* error_view);
+
+/*!
+ * \brief Convert type key to type index.
+ * \param type_key The key of the type.
+ * \param out_tindex the corresponding type index.
+ * \return 0 when success, nonzero when failure happens
+ */
+TVM_FFI_DLL int TVMFFITypeKey2Index(const char* type_key, int32_t* out_tindex);
+
+/*!
+ * \brief Register type field information for rutnime reflection.
+ * \param type_index The type index
+ * \param info The field info to be registered.
+ * \return 0 when success, nonzero when failure happens
+ */
+TVM_FFI_DLL int TVMFFIRegisterTypeField(int32_t type_index, const TVMFFIFieldInfo* info);
+
+/*!
+ * \brief Register type method information for rutnime reflection.
+ * \param type_index The type index
+ * \param info The method info to be registered.
+ * \return 0 when success, nonzero when failure happens 
+ */
+TVM_FFI_DLL int TVMFFIRegisterTypeMethod(int32_t type_index, const TVMFFIMethodInfo* info);
 
 //------------------------------------------------------------
 // Section: Backend noexcept functions for internal use
@@ -292,13 +405,13 @@ TVM_FFI_DLL int32_t TVMFFIGetOrAllocTypeIndex(const char* type_key, int32_t stat
                                               int32_t type_depth, int32_t num_child_slots,
                                               int32_t child_slots_can_overflow,
                                               int32_t parent_type_index);
+
 /*!
  * \brief Get dynamic type info by type index.
  *
  * \param type_index The type index
  * \param result The output type information
- *
- * \return 0 when success, nonzero when failure happens
+ * \return The type info
  */
 TVM_FFI_DLL const TVMFFITypeInfo* TVMFFIGetTypeInfo(int32_t type_index);
 

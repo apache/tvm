@@ -52,6 +52,8 @@ class TypeTable {
     std::string type_key_data;
     /*! \brief acenstor information */
     std::vector<int32_t> type_acenstors_data;
+    /*! \brief type fields informaton */
+    std::vector<TVMFFIFieldInfo> type_fields_data;
     // NOTE: the indices in [index, index + num_reserved_slots) are
     // reserved for the child-class of this type.
     /*! \brief Total number of slots reserved for the type and its children. */
@@ -87,6 +89,11 @@ class TypeTable {
       this->type_key = this->type_key_data.c_str();
       this->type_key_hash = std::hash<std::string>()(this->type_key_data);
       this->type_acenstors = type_acenstors_data.data();
+      // initialize the reflection information
+      this->num_fields = 0;
+      this->num_methods = 0;
+      this->fields = nullptr;
+      this->methods = nullptr;
     }
   };
 
@@ -165,13 +172,23 @@ class TypeTable {
     return it->second;
   }
 
-  const TypeInfo* GetTypeInfo(int32_t type_index) {
-    const TypeInfo* info = nullptr;
+  Entry* GetTypeEntry(int32_t type_index) { 
+    Entry* entry = nullptr;
     if (type_index >= 0 && static_cast<size_t>(type_index) < type_table_.size()) {
-      info = type_table_[type_index].get();
+      entry = type_table_[type_index].get();
     }
-    TVM_FFI_ICHECK(info != nullptr) << "Cannot find type info for type_index=" << type_index;
-    return info;
+    TVM_FFI_ICHECK(entry != nullptr) << "Cannot find type info for type_index=" << type_index;
+    return entry;
+  }
+
+  void RegisterTypeField(int32_t type_index, const TVMFFIFieldInfo* info) {
+    Entry* entry = GetTypeEntry(type_index);
+    TVMFFIFieldInfo field_data = *info;
+    field_data.name = this->CopyString(info->name);
+    entry->type_fields_data.push_back(field_data);
+    // refresh ptr as the data can change
+    entry->fields = entry->type_fields_data.data();
+    entry->num_fields = static_cast<int32_t>(entry->type_fields_data.size());
   }
 
   void Dump(int min_children_count) {
@@ -217,9 +234,17 @@ class TypeTable {
                               -1);
   }
 
+  const char* CopyString(const char* c_str) {
+    std::unique_ptr<std::string> val = std::make_unique<std::string>(c_str);
+    const char* c_val = val->c_str();
+    string_pool_.emplace_back(std::move(val));
+    return c_val;
+  }
+
   int32_t type_counter_{TypeIndex::kTVMFFIDynObjectBegin};
   std::vector<std::unique_ptr<Entry>> type_table_;
   std::unordered_map<std::string, int32_t> type_key2index_;
+  std::vector<std::unique_ptr<std::string>> string_pool_;
 };
 }  // namespace ffi
 }  // namespace tvm
@@ -227,6 +252,18 @@ class TypeTable {
 int TVMFFIObjectFree(TVMFFIObjectHandle handle) {
   TVM_FFI_SAFE_CALL_BEGIN();
   tvm::ffi::details::ObjectUnsafe::DecRefObjectHandle(handle);
+  TVM_FFI_SAFE_CALL_END();
+}
+
+int TVMFFITypeKey2Index(const char* type_key, int32_t* out_tindex) {
+  TVM_FFI_SAFE_CALL_BEGIN();
+  out_tindex[0] = tvm::ffi::TypeTable::Global()->TypeKey2Index(type_key);
+  TVM_FFI_SAFE_CALL_END();
+}
+
+int TVMFFIRegisterTypeField(int32_t type_index, const TVMFFIFieldInfo* info) {
+  TVM_FFI_SAFE_CALL_BEGIN();
+  tvm::ffi::TypeTable::Global()->RegisterTypeField(type_index, info);
   TVM_FFI_SAFE_CALL_END();
 }
 
@@ -242,6 +279,6 @@ int32_t TVMFFIGetOrAllocTypeIndex(const char* type_key, int32_t static_type_inde
 
 const TVMFFITypeInfo* TVMFFIGetTypeInfo(int32_t type_index) {
   TVM_FFI_LOG_EXCEPTION_CALL_BEGIN();
-  return tvm::ffi::TypeTable::Global()->GetTypeInfo(type_index);
+  return tvm::ffi::TypeTable::Global()->GetTypeEntry(type_index);
   TVM_FFI_LOG_EXCEPTION_CALL_END(TVMFFIGetTypeInfo);
 }
