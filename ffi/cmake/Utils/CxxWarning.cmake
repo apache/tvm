@@ -1,7 +1,7 @@
 function(add_cxx_warning target_name)
   # GNU, Clang, or AppleClang
   if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang|AppleClang")
-    target_compile_options(${target_name} PRIVATE "-Werror" "-Wall" "-Wextra" "-Wpedantic")
+    target_compile_options(${target_name} PRIVATE "-Werror" "-Wall" "-Wextra" "-Wpedantic" "-Wno-unused-parameter")
     return()
   endif()
   # MSVC

@@ -39,7 +39,7 @@ using TypeInfo = TVMFFITypeInfo;
 namespace details {
 // Helper to perform
 // unsafe operations related to object
-struct ObjectUnsafe;
+class ObjectUnsafe;
 
 /*!
  * Check if the type_index is an instance of TargetObjectType.
@@ -445,32 +445,6 @@ inline ObjectPtr<BaseType> GetObjectPtr(ObjectType* ptr);
   static int32_t RuntimeTypeIndex() { return TypeName::_type_index; } \
   TVM_FFI_OBJECT_STATIC_DEFS(TypeName, ParentType)
 
-/*!
- * \brief helper macro to declare a base object type that can be inherited.
- * \param TypeName The name of the current type.
- * \param ParentType The name of the ParentType
- */
-#define TVM_FFI_DECLARE_BASE_OBJECT_INFO(TypeName, ParentType)                                \
-  TVM_FFI_OBJECT_STATIC_DEFS(TypeName, ParentType);                                           \
-  static int32_t _GetOrAllocRuntimeTypeIndex() {                                              \
-    static int32_t tindex = TVMFFIGetOrAllocTypeIndex(                                        \
-        TypeName::_type_key, -1, TypeName::_type_depth, TypeName::_type_child_slots,          \
-        TypeName::_type_child_slots_can_overflow, ParentType::_GetOrAllocRuntimeTypeIndex()); \
-    return tindex;                                                                            \
-  }                                                                                           \
-  static int32_t RuntimeTypeIndex() { return _GetOrAllocRuntimeTypeIndex(); }                 \
-  static inline int32_t _type_index = _GetOrAllocRuntimeTypeIndex()
-
-/*!
- * \brief helper macro to declare type information in a final class.
- * \param TypeName The name of the current type.
- * \param ParentType The name of the ParentType
- */
-#define TVM_FFI_DECLARE_FINAL_OBJECT_INFO(TypeName, ParentType) \
-  static const constexpr int _type_child_slots = 0;             \
-  static const constexpr bool _type_final = true;               \
-  TVM_FFI_DECLARE_BASE_OBJECT_INFO(TypeName, ParentType)
-
 /*
  * \brief Define object reference methods.
  * \param TypeName The object type name
@@ -539,7 +513,8 @@ TVM_FFI_INLINE bool IsObjectInstance(int32_t object_type_index) {
  * \note These functions are only supposed to be used by internal
  * implementations and not external users of the tvm::ffi
  */
-struct ObjectUnsafe {
+class ObjectUnsafe {
+ public:
   // NOTE: get ffi header from an object
   static TVM_FFI_INLINE TVMFFIObject* GetHeader(const Object* src) {
     return const_cast<TVMFFIObject*>(&(src->header_));

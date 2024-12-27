@@ -19,8 +19,10 @@
 
 #ifndef TVM_FFI_TESTING_OBJECT_H_
 #define TVM_FFI_TESTING_OBJECT_H_
+
 #include <tvm/ffi/memory.h>
 #include <tvm/ffi/object.h>
+#include <tvm/ffi/reflection.h>
 
 namespace tvm {
 namespace ffi {
@@ -46,7 +48,8 @@ class TIntObj : public TNumberObj {
   TIntObj(int64_t value) : value(value) {}
 
   static constexpr const char* _type_key = "test.Int";
-  TVM_FFI_DECLARE_FINAL_OBJECT_INFO(TIntObj, TNumberObj);
+
+  TVM_FFI_DECLARE_FINAL_OBJECT_INFO(TIntObj, TNumberObj).def_readonly("value", &TIntObj::value);
 };
 
 class TInt : public TNumber {

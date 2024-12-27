@@ -107,6 +107,8 @@ struct TypeTraitsBase {
 // None
 template <>
 struct TypeTraits<std::nullptr_t> : public TypeTraitsBase {
+  static constexpr int32_t field_static_type_index = TypeIndex::kTVMFFINone;
+
   static TVM_FFI_INLINE void CopyToAnyView(const std::nullptr_t&, TVMFFIAny* result) {
     result->type_index = TypeIndex::kTVMFFINone;
     // invariant: the pointer field also equals nullptr
@@ -142,6 +144,8 @@ struct TypeTraits<std::nullptr_t> : public TypeTraitsBase {
 // Integer POD values
 template <typename Int>
 struct TypeTraits<Int, std::enable_if_t<std::is_integral_v<Int>>> : public TypeTraitsBase {
+  static constexpr int32_t field_static_type_index = TypeIndex::kTVMFFIInt;
+
   static TVM_FFI_INLINE void CopyToAnyView(const Int& src, TVMFFIAny* result) {
     result->type_index = TypeIndex::kTVMFFIInt;
     result->v_int64 = static_cast<int64_t>(src);
@@ -171,6 +175,8 @@ struct TypeTraits<Int, std::enable_if_t<std::is_integral_v<Int>>> : public TypeT
 template <typename Float>
 struct TypeTraits<Float, std::enable_if_t<std::is_floating_point_v<Float>>>
     : public TypeTraitsBase {
+  static constexpr int32_t field_static_type_index = TypeIndex::kTVMFFIFloat;
+
   static TVM_FFI_INLINE void CopyToAnyView(const Float& src, TVMFFIAny* result) {
     result->type_index = TypeIndex::kTVMFFIFloat;
     result->v_float64 = static_cast<double>(src);
@@ -205,6 +211,8 @@ struct TypeTraits<Float, std::enable_if_t<std::is_floating_point_v<Float>>>
 // void*
 template <>
 struct TypeTraits<void*> : public TypeTraitsBase {
+  static constexpr int32_t field_static_type_index = TypeIndex::kTVMFFIOpaquePtr;
+
   static TVM_FFI_INLINE void CopyToAnyView(void* src, TVMFFIAny* result) {
     result->type_index = TypeIndex::kTVMFFIOpaquePtr;
     // maintain padding zero in 32bit platform
@@ -241,6 +249,7 @@ template <typename TObjRef>
 struct TypeTraits<TObjRef, std::enable_if_t<std::is_base_of_v<ObjectRef, TObjRef> &&
                                             use_default_type_traits_v<TObjRef>>>
     : public TypeTraitsBase {
+  static constexpr int32_t field_static_type_index = TypeIndex::kTVMFFIObject;
   using ContainerType = typename TObjRef::ContainerType;
 
   static TVM_FFI_INLINE void CopyToAnyView(const TObjRef& src, TVMFFIAny* result) {
