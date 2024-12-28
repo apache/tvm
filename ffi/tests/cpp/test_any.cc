@@ -60,6 +60,37 @@ TEST(Any, Int) {
   EXPECT_EQ(view0.CopyToTVMFFIAny().v_int64, 2);
 }
 
+TEST(Any, bool) {
+  AnyView view0;
+  std::optional<bool> opt_v0 = view0.TryAs<bool>();
+  EXPECT_TRUE(!opt_v0.has_value());
+
+  EXPECT_THROW(
+      {
+        try {
+          [[maybe_unused]] bool v0 = view0;
+        } catch (const Error& error) {
+          EXPECT_EQ(error->kind, "TypeError");
+          std::string what = error.what();
+          EXPECT_NE(what.find("Cannot convert from type `None` to `bool`"), std::string::npos);
+          throw;
+        }
+      },
+      ::tvm::ffi::Error);
+
+  AnyView view1 = true;
+  EXPECT_EQ(view1.CopyToTVMFFIAny().type_index, TypeIndex::kTVMFFIBool);
+  EXPECT_EQ(view1.CopyToTVMFFIAny().v_int64, 1);
+
+  int32_t int_v1 = view1;
+  EXPECT_EQ(int_v1, 1);
+
+  bool v1 = false;
+  view0 = v1;
+  EXPECT_EQ(view0.CopyToTVMFFIAny().type_index, TypeIndex::kTVMFFIBool);
+  EXPECT_EQ(view0.CopyToTVMFFIAny().v_int64, 0);
+}
+
 TEST(Any, Float) {
   AnyView view0;
   EXPECT_EQ(view0.CopyToTVMFFIAny().type_index, TypeIndex::kTVMFFINone);
@@ -92,6 +123,104 @@ TEST(Any, Float) {
   view0 = v1;
   EXPECT_EQ(view0.CopyToTVMFFIAny().type_index, TypeIndex::kTVMFFIFloat);
   EXPECT_EQ(view0.CopyToTVMFFIAny().v_float64, 2);
+}
+
+TEST(Any, DataType) {
+  AnyView view0;
+  EXPECT_EQ(view0.CopyToTVMFFIAny().type_index, TypeIndex::kTVMFFINone);
+
+  std::optional<DLDataType> opt_v0 = view0.TryAs<DLDataType>();
+  EXPECT_TRUE(!opt_v0.has_value());
+
+  EXPECT_THROW(
+      {
+        try {
+          [[maybe_unused]] DLDataType v0 = view0;
+        } catch (const Error& error) {
+          EXPECT_EQ(error->kind, "TypeError");
+          std::string what = error.what();
+          EXPECT_NE(what.find("Cannot convert from type `None` to `DataType`"), std::string::npos);
+          throw;
+        }
+      },
+      ::tvm::ffi::Error);
+
+  DLDataType dtype{kDLFloat, 32, 1};
+
+  AnyView view1_dtype = dtype;
+  DLDataType dtype_v1 = view1_dtype;
+  EXPECT_EQ(dtype_v1.code, kDLFloat);
+  EXPECT_EQ(dtype_v1.bits, 32);
+  EXPECT_EQ(dtype_v1.lanes, 1);
+
+  Any view2 = DLDataType{kDLInt, 16, 2};
+  TVMFFIAny ffi_v2;
+  view2.MoveToTVMFFIAny(&ffi_v2);
+  EXPECT_EQ(ffi_v2.type_index, TypeIndex::kTVMFFIDataType);
+  EXPECT_EQ(ffi_v2.v_dtype.code, kDLInt);
+  EXPECT_EQ(ffi_v2.v_dtype.bits, 16);
+  EXPECT_EQ(ffi_v2.v_dtype.lanes, 2);
+}
+
+TEST(Any, Device) {
+  AnyView view0;
+  EXPECT_EQ(view0.CopyToTVMFFIAny().type_index, TypeIndex::kTVMFFINone);
+
+  std::optional<DLDevice> opt_v0 = view0.TryAs<DLDevice>();
+  EXPECT_TRUE(!opt_v0.has_value());
+
+  EXPECT_THROW(
+      {
+        try {
+          [[maybe_unused]] DLDevice v0 = view0;
+        } catch (const Error& error) {
+          EXPECT_EQ(error->kind, "TypeError");
+          std::string what = error.what();
+          EXPECT_NE(what.find("Cannot convert from type `None` to `Device`"), std::string::npos);
+          throw;
+        }
+      },
+      ::tvm::ffi::Error);
+
+  DLDevice device{kDLCUDA, 1};
+
+  AnyView view1_device = device;
+  DLDevice dtype_v1 = view1_device;
+  EXPECT_EQ(dtype_v1.device_type, kDLCUDA);
+  EXPECT_EQ(dtype_v1.device_id, 1);
+
+  Any view2 = DLDevice{kDLCPU, 0};
+  TVMFFIAny ffi_v2;
+  view2.MoveToTVMFFIAny(&ffi_v2);
+  EXPECT_EQ(ffi_v2.type_index, TypeIndex::kTVMFFIDevice);
+  EXPECT_EQ(ffi_v2.v_device.device_type, kDLCPU);
+  EXPECT_EQ(ffi_v2.v_device.device_id, 0);
+}
+
+TEST(Any, DLTensor) {
+  AnyView view0;
+
+  std::optional<DLTensor*> opt_v0 = view0.TryAs<DLTensor*>();
+  EXPECT_TRUE(!opt_v0.has_value());
+
+  EXPECT_THROW(
+      {
+        try {
+          [[maybe_unused]] DLTensor* v0 = view0;
+        } catch (const Error& error) {
+          EXPECT_EQ(error->kind, "TypeError");
+          std::string what = error.what();
+          EXPECT_NE(what.find("Cannot convert from type `None` to `DLTensor*`"), std::string::npos);
+          throw;
+        }
+      },
+      ::tvm::ffi::Error);
+
+  DLTensor dltensor;
+
+  AnyView view1_dl = &dltensor;
+  DLTensor* dl_v1 = view1_dl;
+  EXPECT_EQ(dl_v1, &dltensor);
 }
 
 TEST(Any, Object) {

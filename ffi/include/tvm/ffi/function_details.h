@@ -161,7 +161,7 @@ class MovableArgValueWithContext {
   template <typename Type>
   TVM_FFI_INLINE operator Type() {
     using TypeWithoutCR = std::remove_const_t<std::remove_reference_t<Type>>;
-  std::optional<TypeWithoutCR> opt = TryAs<TypeWithoutCR>(args_[arg_index_]);
+    std::optional<TypeWithoutCR> opt = TryAs<TypeWithoutCR>(args_[arg_index_]);
     if (opt.has_value()) {
       return std::move(*opt);
     }
@@ -210,9 +210,8 @@ struct unpack_call_dispatcher<R, 0, index, F> {
 template <int index, typename F>
 struct unpack_call_dispatcher<void, 0, index, F> {
   template <typename... Args>
-  TVM_FFI_INLINE static void run(const std::string*, FGetFuncSignature ,
-                                 const F& , int32_t , const AnyView* , Any* ,
-                                 Args&&... unpacked_args) {
+  TVM_FFI_INLINE static void run(const std::string*, FGetFuncSignature, const F&, int32_t,
+                                 const AnyView*, Any*, Args&&... unpacked_args) {
     f(std::forward<Args>(unpacked_args)...);
   }
 };

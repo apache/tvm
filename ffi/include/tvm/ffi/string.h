@@ -28,6 +28,7 @@
 #include <tvm/ffi/error.h>
 #include <tvm/ffi/memory.h>
 #include <tvm/ffi/object.h>
+#include <tvm/ffi/type_traits.h>
 
 #include <cstddef>
 #include <cstring>
@@ -305,6 +306,30 @@ class String : public ObjectRef {
   friend struct AnyEqual;
 };
 
+template <>
+inline constexpr bool use_default_type_traits_v<String> = false;
+
+// specialize to enable implicit conversion from const char*
+template <>
+struct TypeTraits<String> : public ObjectRefTypeTraitsBase<String> {
+  static TVM_FFI_INLINE bool CheckAnyView(const TVMFFIAny* src) {
+    if (src->type_index == TypeIndex::kTVMFFIRawStr) return true;
+    return ObjectRefTypeTraitsBase<String>::CheckAnyView(src);
+  }
+
+  static TVM_FFI_INLINE String CopyFromAnyViewAfterCheck(const TVMFFIAny* src) {
+    if (src->type_index == TypeIndex::kTVMFFIRawStr) {
+      return String(src->v_c_str);
+    }
+    return ObjectRefTypeTraitsBase<String>::CopyFromAnyViewAfterCheck(src);
+  }
+
+  static TVM_FFI_INLINE std::optional<String> TryCopyFromAnyView(const TVMFFIAny* src) {
+    if (src->type_index == TypeIndex::kTVMFFIRawStr) return String(src->v_c_str);
+    return ObjectRefTypeTraitsBase<String>::TryCopyFromAnyView(src);
+  }
+};
+
 inline String operator+(const String& lhs, const String& rhs) {
   size_t lhs_size = lhs.size();
   size_t rhs_size = rhs.size();
@@ -421,6 +446,7 @@ inline int String::memncmp(const char* lhs, const char* rhs, size_t lhs_count, s
     return 0;
   }
 }
+
 }  // namespace ffi
 }  // namespace tvm
 

@@ -52,7 +52,7 @@ struct Type2FieldStaticTypeIndex<T, std::enable_if_t<TypeTraits<T>::enabled>> {
  * \returns The byteoffset
  */
 template <typename Class, typename T>
-inline int64_t GetFieldByteOffset(T Class::*field_ptr) {
+inline int64_t GetFieldByteOffset(T Class::* field_ptr) {
   return reinterpret_cast<int64_t>(&(static_cast<Class*>(nullptr)->*field_ptr));
 }
 
@@ -61,13 +61,13 @@ class ReflectionDef {
   explicit ReflectionDef(int32_t type_index) : type_index_(type_index) {}
 
   template <typename Class, typename T>
-  ReflectionDef& def_readonly(const char* name, T Class::*field_ptr) {
+  ReflectionDef& def_readonly(const char* name, T Class::* field_ptr) {
     RegisterField(name, field_ptr, true);
     return *this;
   }
 
   template <typename Class, typename T>
-  ReflectionDef& def_readwrite(const char* name, T Class::*field_ptr) {
+  ReflectionDef& def_readwrite(const char* name, T Class::* field_ptr) {
     RegisterField(name, field_ptr, false);
     return *this;
   }
@@ -76,7 +76,7 @@ class ReflectionDef {
 
  private:
   template <typename Class, typename T>
-  void RegisterField(const char* name, T Class::*field_ptr, bool readonly) {
+  void RegisterField(const char* name, T Class::* field_ptr, bool readonly) {
     TVMFFIFieldInfo info;
     info.name = name;
     info.field_static_type_index = Type2FieldStaticTypeIndex<T>::value;
@@ -126,23 +126,19 @@ inline const TVMFFIFieldInfo* GetReflectionFieldInfo(const char* type_key, const
  */
 class ReflectionFieldGetter {
  public:
-  explicit ReflectionFieldGetter(const TVMFFIFieldInfo* field_info) : field_info_(field_info) {
-  }
+  explicit ReflectionFieldGetter(const TVMFFIFieldInfo* field_info) : field_info_(field_info) {}
 
-  Any operator()(const Object* obj_ptr) const { 
+  Any operator()(const Object* obj_ptr) const {
     Any result;
     const void* addr = reinterpret_cast<const char*>(obj_ptr) + field_info_->byte_offset;
-    TVM_FFI_CHECK_SAFE_CALL(field_info_->getter(const_cast<void*>(addr), reinterpret_cast<TVMFFIAny*>(&result)));
+    TVM_FFI_CHECK_SAFE_CALL(
+        field_info_->getter(const_cast<void*>(addr), reinterpret_cast<TVMFFIAny*>(&result)));
     return result;
   }
 
-  Any operator()(const ObjectPtr<Object>& obj_ptr) const { 
-    return operator()(obj_ptr.get());
-  }
+  Any operator()(const ObjectPtr<Object>& obj_ptr) const { return operator()(obj_ptr.get()); }
 
-  Any operator()(const ObjectRef& obj) const { 
-    return operator()(obj.get());
-  }  
+  Any operator()(const ObjectRef& obj) const { return operator()(obj.get()); }
 
  private:
   const TVMFFIFieldInfo* field_info_;

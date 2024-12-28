@@ -172,7 +172,7 @@ class TypeTable {
     return it->second;
   }
 
-  Entry* GetTypeEntry(int32_t type_index) { 
+  Entry* GetTypeEntry(int32_t type_index) {
     Entry* entry = nullptr;
     if (type_index >= 0 && static_cast<size_t>(type_index) < type_table_.size()) {
       entry = type_table_[type_index].get();
