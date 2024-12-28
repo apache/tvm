@@ -358,7 +358,7 @@ TVM_FFI_DLL int TVMFFIRegisterTypeField(int32_t type_index, const TVMFFIFieldInf
  * \brief Register type method information for rutnime reflection.
  * \param type_index The type index
  * \param info The method info to be registered.
- * \return 0 when success, nonzero when failure happens 
+ * \return 0 when success, nonzero when failure happens
  */
 TVM_FFI_DLL int TVMFFIRegisterTypeMethod(int32_t type_index, const TVMFFIMethodInfo* info);
 

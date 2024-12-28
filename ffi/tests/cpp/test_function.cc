@@ -112,6 +112,10 @@ TEST(Func, FromUnpacked) {
         }
       },
       ::tvm::ffi::Error);
+
+  Function fconcact =
+      Function::FromUnpacked([](const String& a, const String& b) -> String { return a + b; });
+  EXPECT_EQ(fconcact("abc", "def").operator String(), "abcdef");
 }
 
 TEST(Func, Global) {

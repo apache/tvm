@@ -20,6 +20,7 @@
 #include <gtest/gtest.h>
 #include <tvm/ffi/object.h>
 #include <tvm/ffi/reflection.h>
+
 #include "./testing_object.h"
 
 namespace {
@@ -38,12 +39,9 @@ TEST(Reflection, GetFieldByteOffset) {
   EXPECT_EQ(details::GetFieldByteOffset(&A::y), 12);
 }
 
-
 TEST(Reflection, FieldGetter) {
   ObjectRef a = TInt(10);
-  details::ReflectionFieldGetter getter(
-    details::GetReflectionFieldInfo("test.Int", "value")
-  );
+  details::ReflectionFieldGetter getter(details::GetReflectionFieldInfo("test.Int", "value"));
   EXPECT_EQ(getter(a).operator int(), 10);
 }
 }  // namespace
