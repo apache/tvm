@@ -2145,6 +2145,9 @@ TVM_FFI_REGISTER_GLOBAL("tir.schedule.GetLoopIterType")
         return "O";
       }
     });
+TVM_REGISTER_GLOBAL("tir.schedule.HasIfThenElse").set_body_typed([](const Stmt& stmt) -> bool {
+  return HasIfThenElse(stmt);
+});
 
 }  // namespace tir
 }  // namespace tvm
