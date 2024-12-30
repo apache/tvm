@@ -30,6 +30,7 @@ from tvm.relax import Expr, Var, StructInfo
 from tvm.relax.dpl import DFPattern
 from tvm.runtime import Tensor, Object
 from tvm.tir import IndexMap, PrimFunc
+from tvm.target import Target
 
 from . import _ffi_api
 from .legalize_ops.common import LegalizeFunc
@@ -1603,6 +1604,30 @@ def AllocateWorkspace() -> tvm.ir.transform.Pass:
         The registered pass for allocating workspace.
     """
     return _ffi_api.AllocateWorkspace()  # type: ignore
+
+
+def AnnotateCustomMemoryScope(target: Optional[Target] = None) -> tvm.ir.transform.Pass:
+    """Allocate the memory scope information. This is Adreno specific pass to annotate
+    The memory scope information and realize the same with RealizeVDevice pass followed by
+    updating the Prim Function var_buffer mapping using SpecializeTIRParams.
+
+    Returns
+    -------
+    ret: tvm.ir.transform.Pass
+        The registered pass for allocating workspace.
+    """
+    return _ffi_api.AnnotateCustomMemoryScope(target)  # type: ignore
+
+
+def SpecializeTIRParams() -> tvm.ir.transform.Pass:
+    """Map modified tir_call params to prim_func buffers.
+
+    Returns
+    -------
+    ret: tvm.ir.transform.Pass
+        The registered pass for allocating workspace.
+    """
+    return _ffi_api.SpecializeTIRParams()  # type: ignore
 
 
 def _wrap_class_function_pass(pass_cls, pass_info):

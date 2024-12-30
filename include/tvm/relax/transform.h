@@ -679,6 +679,24 @@ TVM_DLL Pass RewriteCUDAGraph();
  */
 TVM_DLL Pass FewShotTuning(int valid_count, bool benchmark);
 
+/*!
+ * \brief This pass is designed to annotate the memory scope information via VDevice attribute.
+ * This pass need operator attrbutes which in general vanish aftre legalization.
+ * FuseOps and FuseTIR are modified to pass on the operator specific attributes and also
+ * op_pattern details as part of the PrimFunc. This pass is Adreno specific and annotates each
+ * BindingVar with appropriate HintInDevice. RealizeVDevice pass followed by handles these hints.
+ * Followed by this pass we also invoke SpecializeTIRParams which updates the var_buffer_map
+ * based on this new VDevice information.
+ */
+TVM_DLL Pass AnnotateCustomMemoryScope(Target target);
+
+/*!
+ * \brief This pass updates the var_buffer mapping of PrimFunctions from the call_tir info.
+ * Primarily used to update the VDevice information is any changes occured from the caller.
+ * This pass recreated the buffers and updates the map.
+ */
+TVM_DLL Pass SpecializeTIRParams();
+
 }  // namespace transform
 }  // namespace relax
 }  // namespace tvm

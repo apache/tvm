@@ -154,6 +154,32 @@ class LegalizeMutator : public ExprMutator {
     return std::nullopt;
   }
 
+  Expr AttributeOpAttrs(Expr expr, Attrs attrs) {
+    if (!expr->IsInstance<CallNode>()) {
+      return expr;
+    }
+
+    auto call = Downcast<Call>(expr);
+    if (call->args.empty()) {
+      return expr;
+    }
+
+    auto gvar = call->args[0].as<GlobalVar>();
+    if (!gvar.defined()) {
+      return expr;
+    }
+
+    auto base_func = builder_->GetContextIRModule()->Lookup(gvar.value());
+    auto opt_prim_func = base_func.as<tir::PrimFunc>();
+    if (!opt_prim_func) {
+      return expr;
+    }
+    auto prim_func = opt_prim_func.value();
+    auto new_prim_func = WithAttr(prim_func, "op_attrs", attrs);
+    builder_->UpdateFunction(gvar.value(), new_prim_func);
+    return call;
+  }
+
   Expr BindTarget(Expr expr) {
     if (!expr->IsInstance<CallNode>()) {
       // FLegalize returned something other than a relax::Call.  This
@@ -343,6 +369,8 @@ class LegalizeMutator : public ExprMutator {
       builder_->BeginBindingBlock();
     }
     Expr legalized = legalization_func(builder_, visited_call);
+
+    legalized = AttributeOpAttrs(legalized, call->attrs);
 
     // Append the target attribute to any PrimFunc generated in
     // legalization.

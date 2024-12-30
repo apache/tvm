@@ -83,6 +83,8 @@ from .transform import (
     UpdateVDevice,
     VMBuiltinLower,
     VMShapeLower,
+    AnnotateCustomMemoryScope,
+    SpecializeTIRParams,
     dataflowblock_pass,
     function_pass,
 )

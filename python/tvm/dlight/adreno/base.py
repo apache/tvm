@@ -14,18 +14,28 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""DLight package provides efficient schedules out-of-box for deep learning workloads."""
-from . import gpu
-from . import adreno
-from . import cpu
-from .analysis import (
-    BlockInfo,
-    IterInfo,
-    normalize_prim_func,
-)
-from .base import (
-    ApplyDefaultSchedule,
-    ScheduleRule,
-    try_inline,
-    try_inline_contiguous_spatial,
-)
+"""Base schedule rule for Adreno operators."""
+
+from tvm.target import Target
+
+from ..base import ScheduleRule
+
+
+class AdrenoScheduleRule(ScheduleRule):  # pylint: disable=too-few-public-methods
+    """The Schedule Rule specific to Adreno targets,
+    will return None if the target is not Adreno."""
+
+    def is_target_available(self, target: Target) -> bool:
+        """Check whether the target is available for Adreno rule.
+
+        Parameters
+        ----------
+        target : Target
+            The compilation target to check.
+
+        Returns
+        -------
+        available : bool
+            Whether the target is available for this rule.
+        """
+        return super().is_target_available(target) and "adreno" in target.keys

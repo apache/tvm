@@ -2164,6 +2164,7 @@ TVM_FFI_STATIC_INIT_BLOCK() {
         } else {
           return "O";
         }
+        return HasIfThenElse(stmt);
       });
 }
 

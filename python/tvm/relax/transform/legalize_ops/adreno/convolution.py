@@ -14,18 +14,22 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""DLight package provides efficient schedules out-of-box for deep learning workloads."""
-from . import gpu
-from . import adreno
-from . import cpu
-from .analysis import (
-    BlockInfo,
-    IterInfo,
-    normalize_prim_func,
-)
-from .base import (
-    ApplyDefaultSchedule,
-    ScheduleRule,
-    try_inline,
-    try_inline_contiguous_spatial,
-)
+# pylint: disable=missing-docstring, invalid-name
+"""A Convolution impl for Adreno GPU."""
+
+from tvm import relax
+from tvm import topi
+
+def conv2d_NCHWc_OIHWo(bb: relax.BlockBuilder, call: relax.Call) -> relax.Expr:
+    return bb.call_te(
+        topi.nn.conv2d_NCHWc_OIHWo,
+        data=call.args[0],
+        kernel=call.args[1],
+        stride=call.attrs.strides,
+        padding=call.attrs.padding,
+        dilation=call.attrs.dilation,
+        layout=call.attrs.data_layout,
+        out_layout=call.attrs.out_layout,
+        #out_dtype=call.attrs.out_dtype,
+        primfunc_name_hint="conv2d_NCHWc_OIHWo",
+    )

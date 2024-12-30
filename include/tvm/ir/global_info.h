@@ -87,6 +87,15 @@ class VDeviceNode : public GlobalInfoNode {
 class VDevice : public GlobalInfo {
  public:
   TVM_DLL explicit VDevice(Target tgt, int dev_id, MemoryScope mem_scope);
+  /*!
+   * \brief Equal comparator.
+   * \param other The data type to compare against.
+   * \return The comparison result.
+   */
+  bool operator==(const VDevice& other) const {
+    return this->get()->target == other->target && this->get()->vdevice_id == other->vdevice_id &&
+           this->get()->memory_scope == other->memory_scope;
+  }
   TVM_FFI_DEFINE_OBJECT_REF_METHODS_NULLABLE(VDevice, GlobalInfo, VDeviceNode);
 };
 

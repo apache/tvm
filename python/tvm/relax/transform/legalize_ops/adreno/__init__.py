@@ -14,18 +14,5 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""DLight package provides efficient schedules out-of-box for deep learning workloads."""
-from . import gpu
-from . import adreno
-from . import cpu
-from .analysis import (
-    BlockInfo,
-    IterInfo,
-    normalize_prim_func,
-)
-from .base import (
-    ApplyDefaultSchedule,
-    ScheduleRule,
-    try_inline,
-    try_inline_contiguous_spatial,
-)
+"""Legalize high-level operator calls in Relax functions to call_tir."""
+from .convolution import conv2d_NCHWc_OIHWo

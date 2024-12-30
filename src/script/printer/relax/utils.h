@@ -142,7 +142,7 @@ inline int FindVDeviceIndexByTargetKind(const VDevice& vdevice, const IRDocsifie
   int kind_index = 0;
   for (size_t i = 0; i < vdevices.size(); ++i) {
     auto vdev = Downcast<VDevice>(vdevices[i]);
-    if (vdev.same_as(vdevice)) {
+    if (vdev == vdevice) {
       return kind_index;
     }
     if (vdev->target->kind->name == vdevice->target->kind->name) {

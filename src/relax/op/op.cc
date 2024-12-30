@@ -1506,11 +1506,12 @@ TVM_REGISTER_OP("relax.hint_on_device")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferHintOnDeviceStructInfo)
     .set_attr<Bool>("FPurity", Bool(true));
 
-Expr MakeHintOnDevice(Expr data, Device device) {
+Expr MakeHintOnDevice(Expr data, VDevice vdevice) {
   static const Op& op = Op::Get("relax.hint_on_device");
   ObjectPtr<HintOnDeviceAttrs> attrs = ffi::make_object<HintOnDeviceAttrs>();
   attrs->device_type = static_cast<int32_t>(device.device_type);
   attrs->index = device.device_id;
+  attrs->memory_scope = vdevice->memory_scope;
   return Call(op, {data}, Attrs(attrs), {});
 }
 
