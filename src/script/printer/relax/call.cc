@@ -242,7 +242,8 @@ Optional<ExprDoc> PrintToVDevice(const relax::Call& n, const ObjectPath& n_p,
     int dev_index = FindVDeviceIndexByTargetKind(vdev, d);
     kwargs_keys.push_back("dst_vdevice");
     kwargs_values.push_back(
-        LiteralDoc::Str(dev_kind + ":" + std::to_string(dev_index), n_p->Attr("dst_vdevice")));
+        LiteralDoc::Str(dev_kind + ":" + std::to_string(dev_index) + ":" + vdev->memory_scope,
+                        n_p->Attr("dst_vdevice")));
   }
   return Relax(d, "to_vdevice")->Call(args, kwargs_keys, kwargs_values);
 }
