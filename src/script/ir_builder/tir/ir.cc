@@ -243,6 +243,8 @@ Buffer AllocBuffer(Array<PrimExpr> shape, DataType dtype, Optional<Var> data,
   IRBuilder builder = IRBuilder::Current();
   if (Optional<BlockFrame> frame = builder->GetLastFrame<BlockFrame>()) {
     frame.value()->alloc_buffers.push_back(buffer);
+  } else if (Optional<BlockFrame> frame = builder->FindFrame<BlockFrame>()){
+    frame.value()->alloc_buffers.push_back(buffer);
   } else if (Optional<PrimFuncFrame> frame = builder->GetLastFrame<PrimFuncFrame>()) {
     frame.value()->root_alloc_buffers.push_back(buffer);
   } else {
