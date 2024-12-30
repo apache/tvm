@@ -14,23 +14,22 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Legalize high-level operator calls in Relax functions to call_tir."""
-from . import binary
-from . import ccl
-from . import create
-from . import datatype
-from . import distributed
-from . import grad
-from . import image
-from . import index
-from . import inspect_op
-from . import linear_algebra
-from . import manipulate
-from . import nn
-from . import qdq
-from . import search
-from . import statistical
-from . import unary
+# pylint: disable=missing-docstring, invalid-name
+"""A Convolution impl for Adreno GPU."""
 
-# Device specific legalizations
-from . import adreno
+from tvm import relax
+from tvm import topi
+
+def conv2d_NCHWc_OIHWo(bb: relax.BlockBuilder, call: relax.Call) -> relax.Expr:
+    return bb.call_te(
+        topi.nn.conv2d_NCHWc_OIHWo,
+        data=call.args[0],
+        kernel=call.args[1],
+        stride=call.attrs.strides,
+        padding=call.attrs.padding,
+        dilation=call.attrs.dilation,
+        layout=call.attrs.data_layout,
+        out_layout=call.attrs.out_layout,
+        #out_dtype=call.attrs.out_dtype,
+        primfunc_name_hint="conv2d_NCHWc_OIHWo",
+    )
