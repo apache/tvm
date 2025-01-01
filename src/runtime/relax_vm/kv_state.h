@@ -157,6 +157,14 @@ class AttentionKVCacheObj : public KVStateObj {
   virtual void CommitAcceptedTokenTreeNodes(const IntTuple& seq_ids,
                                             const IntTuple& leaf_indices) = 0;
 
+  /*! \brief Prepare for the disaggregation KV data receive for the specified sequence and length.*/
+  virtual IntTuple DisaggPrepareRecv(int64_t seq_id, int length) = 0;
+
+  /*! \brief Mark which tokens' KV cache needs to be sent to other devices */
+  virtual void DisaggMarkSend(int64_t seq_id, int64_t begin,
+                              const IntTuple& compressed_remote_position_map,
+                              int32_t recver_pe_offset) = 0;
+
   /************** Attention **************/
 
   /*!

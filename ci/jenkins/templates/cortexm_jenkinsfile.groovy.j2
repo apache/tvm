@@ -30,9 +30,8 @@
     label: 'Create Cortex-M cmake config',
   )
   cmake_build(ci_cortexm, 'build', '-j2')
-  make_standalone_crt(ci_cortexm, 'build')
   make_cpp_tests(ci_cortexm, 'build')
-  {{ m.upload_artifacts(tag='cortexm', filenames=tvm_lib + tvm_allvisible + crttest + standalone_crt + cpptest + microtvm_template_projects) }}
+  {{ m.upload_artifacts(tag='cortexm', filenames=tvm_lib + tvm_allvisible + crttest + cpptest + microtvm_template_projects) }}
 {% endcall %}
 
 {% set test_method_names = [] %}
@@ -50,7 +49,6 @@
   ci_setup(ci_cortexm)
   {% if shard_index == 1%}
   cpp_unittest(ci_cortexm)
-  micro_cpp_unittest(ci_cortexm)
   sh (
     script: "${docker_run} ${ci_cortexm} ./tests/scripts/task_demo_microtvm.sh",
     label: 'Run microTVM demos',

@@ -27,10 +27,6 @@ from tvm.contrib import utils
 
 
 skip_windows = pytest.mark.skipif(sys.platform == "win32", reason="Skip test on Windows for now")
-skip_micro = pytest.mark.skipif(
-    tvm.support.libinfo().get("USE_MICRO", "OFF") != "ON",
-    reason="MicroTVM support not enabled. Set USE_MICRO=ON in config.cmake to enable.",
-)
 
 
 def parametrize_external_codegen_checks(test):
@@ -38,7 +34,6 @@ def parametrize_external_codegen_checks(test):
     return pytest.mark.parametrize(
         "check_result",
         [
-            pytest.param(check_aot_executor_result, marks=[skip_windows, skip_micro]),
             pytest.param(check_graph_executor_result, marks=[skip_windows]),
             pytest.param(check_vm_result, marks=[skip_windows]),
         ],
@@ -98,24 +93,6 @@ def check_graph_executor_result(
     out = rt_mod.get_output(0, out)
 
     tvm.testing.assert_allclose(out.numpy(), result, rtol=tol, atol=tol)
-
-
-def check_aot_executor_result(
-    mod, map_inputs, out_shape, result, tol=1e-5, target="llvm", device=tvm.cpu()
-):
-    # Late import to avoid breaking test with USE_MICRO=OFF.
-    from tvm.testing.aot import AOTTestModel, compile_and_run
-    from tvm.micro.testing.aot_test_utils import AOT_DEFAULT_RUNNER
-
-    interface_api = "packed"
-    use_unpacked_api = False
-    test_runner = AOT_DEFAULT_RUNNER
-    compile_and_run(
-        AOTTestModel(module=mod, inputs=map_inputs, outputs={"output": result}),
-        test_runner,
-        interface_api,
-        use_unpacked_api,
-    )
 
 
 def set_external_func_attr(func, compiler, ext_symbol):

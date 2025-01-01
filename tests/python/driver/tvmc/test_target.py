@@ -112,30 +112,6 @@ def test_parse_multiple_target():
     assert "llvm" == targets[1]["name"]
 
 
-def test_parse_hybrid_target():
-    """Hybrid Target and external codegen"""
-    targets = parse_target("cmsis-nn -accelerator_config=ethos-u55-256, llvm -device=arm_cpu")
-
-    assert len(targets) == 2
-    assert "cmsis-nn" == targets[0]["name"]
-    assert not targets[0]["is_tvm_target"]
-    assert "llvm" == targets[1]["name"]
-    assert targets[1]["is_tvm_target"]
-
-
-def test_parse_multiple_hybrid_target():
-    """Hybrid Target and multiple external codegen"""
-    targets = parse_target("ethos-u,cmsis-nn,c")
-
-    assert len(targets) == 3
-    assert "ethos-u" == targets[0]["name"]
-    assert not targets[0]["is_tvm_target"]
-    assert "cmsis-nn" == targets[1]["name"]
-    assert not targets[1]["is_tvm_target"]
-    assert "c" == targets[2]["name"]
-    assert targets[2]["is_tvm_target"]
-
-
 def test_parse_quotes_and_separators_on_options():
     targets_no_quote = parse_target("foo -option1=+v1.0x,+value,+bar")
     targets_single_quote = parse_target("foo -option1='+v1.0x,+value'")
@@ -149,16 +125,6 @@ def test_parse_quotes_and_separators_on_options():
 
     assert len(targets_double_quote) == 1
     assert "+v1.0x,+value" == targets_double_quote[0]["opts"]["option1"]
-
-
-def test_parse_multiple_target_with_opts_ethos_n78():
-    targets = parse_target("ethos-n -myopt=value, llvm -device=arm_cpu")
-
-    assert len(targets) == 2
-    assert "ethos-n" == targets[0]["name"]
-    assert "myopt" in targets[0]["opts"]
-    assert "value" == targets[0]["opts"]["myopt"]
-    assert "llvm" == targets[1]["name"]
 
 
 if __name__ == "__main__":

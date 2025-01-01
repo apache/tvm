@@ -32,4 +32,3 @@ echo set\(HIDE_PRIVATE_SYMBOLS ON\) >> config.cmake
 echo set\(USE_LIBBACKTRACE COMPILE\) >> config.cmake
 echo set\(USE_CCACHE OFF\) >> config.cmake
 echo set\(SUMMARIZE ON\) >> config.cmake
-echo set\(USE_MICRO ON\) >> config.cmake

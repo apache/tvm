@@ -25,6 +25,7 @@
 #include <thread>
 
 #include "../../cuda/cuda_common.h"
+#include "../../disco/utils.h"
 #include "../../memory/pooled_allocator.h"
 
 namespace tvm {
@@ -88,7 +89,7 @@ class NVSHMEMAllocator final : public PooledAllocator {
 };
 
 NDArray NVSHMEMEmpty(ShapeTuple shape, DataType dtype, Device device) {
-  return NVSHMEMAllocator::Global()->Empty(shape, dtype, device);
+  return NVSHMEMAllocator::Global()->Empty(shape, dtype, UseDefaultDeviceIfNone(device));
 }
 
 TVM_REGISTER_GLOBAL("runtime.disco.nvshmem.empty").set_body_typed(NVSHMEMEmpty);

@@ -875,7 +875,7 @@ def test_nonzero_infer_struct_info(shape):
     _check_inference(
         bb,
         relax.op.nonzero(x0),
-        relax.TensorStructInfo(ndim=len(shape) + 1, dtype="int64"),
+        relax.TensorStructInfo(ndim=2, dtype="int64"),
     )
 
 

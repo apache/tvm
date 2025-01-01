@@ -123,7 +123,7 @@ def nonzero(x: Expr) -> Expr:
     Returns
     -------
     result : relax.Expr
-        A (n+1)-D tensor containing indices of non-zero elements.
+        A 2-D tensor containing indices of non-zero elements.
 
     Note
     ----

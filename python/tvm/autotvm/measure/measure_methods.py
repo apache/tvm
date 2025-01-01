@@ -480,41 +480,29 @@ def _build_func_common(measure_input, runtime=None, checks=None, build_option=No
         if not config.valid():
             raise InstantiationError(config.errors)
 
-        # if target is vta, we need to use vta build
-        if (
-            hasattr(measure_input.target, "device_name")
-            and measure_input.target.device_name == "vta"
-        ):
-            # pylint: disable=import-outside-toplevel
-            import vta
+        current_pass_context: tvm.ir.transform.PassContext = tvm.ir.transform.PassContext.current()
+        current_config = dict(current_pass_context.config)
+        if build_option is not None:
+            current_config.update(build_option)
 
-            func = vta.build(s, args, target_host=task.target_host)
+        if "tir.add_lower_pass" in current_config:
+            current_add_lower_pass = list(current_config["tir.add_lower_pass"])
         else:
-            current_pass_context: tvm.ir.transform.PassContext = (
-                tvm.ir.transform.PassContext.current()
-            )
-            current_config = dict(current_pass_context.config)
-            if build_option is not None:
-                current_config.update(build_option)
+            current_add_lower_pass = []
+        if checks.get("gpu"):
+            current_add_lower_pass.append((2, gpu_verify_pass(**checks.get("gpu"))))
+        if checks.get("hexagon"):
+            current_add_lower_pass.append((2, vtcm_verify_pass(**checks.get("hexagon"))))
+        current_config["tir.add_lower_pass"] = current_add_lower_pass
 
-            if "tir.add_lower_pass" in current_config:
-                current_add_lower_pass = list(current_config["tir.add_lower_pass"])
-            else:
-                current_add_lower_pass = []
-            if checks.get("gpu"):
-                current_add_lower_pass.append((2, gpu_verify_pass(**checks.get("gpu"))))
-            if checks.get("hexagon"):
-                current_add_lower_pass.append((2, vtcm_verify_pass(**checks.get("hexagon"))))
-            current_config["tir.add_lower_pass"] = current_add_lower_pass
-
-            with tvm.ir.transform.PassContext(
-                opt_level=current_pass_context.opt_level,
-                required_pass=current_pass_context.required_pass,
-                disabled_pass=current_pass_context.disabled_pass,
-                instruments=current_pass_context.instruments,
-                config=current_config,
-            ):
-                func = build(s, args, target=target, runtime=runtime)
+        with tvm.ir.transform.PassContext(
+            opt_level=current_pass_context.opt_level,
+            required_pass=current_pass_context.required_pass,
+            disabled_pass=current_pass_context.disabled_pass,
+            instruments=current_pass_context.instruments,
+            config=current_config,
+        ):
+            func = build(s, args, target=target, runtime=runtime)
     return func, tuple((get_const_tuple(x.shape), x.dtype) for x in args)
 
 
@@ -563,15 +551,7 @@ class _WrappedBuildFunc:
             )
             # TODO(tvm-team) consider linline _build_func_common
             func, arg_info = _build_func_common(measure_input, self.runtime, **kwargs)
-            if self.build_func.output_format == ".model-library-format":
-                # Late import to preserve autoTVM with USE_MICRO OFF
-                try:
-                    from tvm import micro  # pylint: disable=import-outside-toplevel
-                except ImportError:
-                    raise ImportError("Requires USE_MICRO")
-                micro.export_model_library_format(func, filename)
-            else:
-                func.export_library(filename, fcompile=self.build_func)
+            func.export_library(filename, fcompile=self.build_func)
         except Exception as e:  # pylint: disable=broad-except
             tb = traceback.format_exc()
             return BuildResult(None, None, (tb, e), time.time() - tic)

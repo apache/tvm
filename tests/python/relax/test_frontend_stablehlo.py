@@ -196,10 +196,6 @@ def test_add_dynamic():
 
 
 @tvm.testing.requires_gpu
-@pytest.mark.skip(
-    reason="jaxlib.xla_extension.XlaRuntimeError: FAILED_PRECONDITION: DNN library initialization failed."
-)
-# TODO(mshr-h): may be fixed by upgrading jax to >=0.4.33
 def test_unary():
     import jax
 
@@ -233,10 +229,6 @@ def test_unary():
 
 
 @tvm.testing.requires_gpu
-@pytest.mark.skip(
-    reason="jaxlib.xla_extension.XlaRuntimeError: FAILED_PRECONDITION: DNN library initialization failed."
-)
-# TODO(mshr-h): may be fixed by upgrading jax to >=0.4.33
 def test_binary():
     import jax
 
@@ -258,10 +250,6 @@ def test_binary():
 
 
 @tvm.testing.requires_gpu
-@pytest.mark.skip(
-    reason="jaxlib.xla_extension.XlaRuntimeError: FAILED_PRECONDITION: DNN library initialization failed."
-)
-# TODO(mshr-h): may be fixed by upgrading jax to >=0.4.33
 def test_const():
     import jax
 
@@ -272,10 +260,6 @@ def test_const():
 
 
 @tvm.testing.requires_gpu
-@pytest.mark.skip(
-    reason="jaxlib.xla_extension.XlaRuntimeError: FAILED_PRECONDITION: DNN library initialization failed."
-)
-# TODO(mshr-h): may be fixed by upgrading jax to >=0.4.33
 def test_maximum():
     import jax
     import jax.numpy as jnp
@@ -287,10 +271,6 @@ def test_maximum():
 
 
 @tvm.testing.requires_gpu
-@pytest.mark.skip(
-    reason="jaxlib.xla_extension.XlaRuntimeError: FAILED_PRECONDITION: DNN library initialization failed."
-)
-# TODO(mshr-h): may be fixed by upgrading jax to >=0.4.33
 def test_minimum():
     import jax
     import jax.numpy as jnp
@@ -332,10 +312,6 @@ def test_reduce_window():
 
 
 @tvm.testing.requires_gpu
-@pytest.mark.skip(
-    reason="jaxlib.xla_extension.XlaRuntimeError: FAILED_PRECONDITION: DNN library initialization failed."
-)
-# TODO(mshr-h): may be fixed by upgrading jax to >=0.4.33
 def test_dot_general():
     import jax
 

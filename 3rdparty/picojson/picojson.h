@@ -273,6 +273,10 @@ class object_with_ordered_keys : private std::unordered_map<std::string, value> 
     return std::unordered_map<std::string, value>::operator[](key);
   }
 
+  const value& operator[](const std::string& key) const {
+    return std::unordered_map<std::string, value>::at(key);
+  }
+
   void clear() {
     std::unordered_map<std::string, value>::clear();
     ordered_keys_.clear();

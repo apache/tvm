@@ -246,8 +246,10 @@ Array<ExprRV> ConcreteScheduleNode::SamplePerfectTile(const LoopRV& loop_rv, int
                                                       int max_innermost_factor,
                                                       Optional<Array<Integer>> decision) {
   TVM_TIR_SCHEDULE_BEGIN();
+  // use None RV object to denotes auto-infer tile factors.
   return CreateRV(tir::SamplePerfectTile(&this->rand_state_, this->GetSRef(loop_rv), n,
-                                         max_innermost_factor, &decision));
+                                         max_innermost_factor, &decision),
+                  /*convert_negone_to_none=*/true);
   TVM_TIR_SCHEDULE_END("sample-perfect-tile", this->error_render_level_);
   throw;
 }
@@ -1056,6 +1058,16 @@ void ConcreteScheduleNode::UnsafeHideBufferAccess(const BlockRV& block_rv, const
   TVM_TIR_SCHEDULE_BEGIN();
   tir::UnsafeHideBufferAccess(state_, this->GetSRef(block_rv), buf_type, buf_index_array);
   TVM_TIR_SCHEDULE_END("hide-buffer-access", this->error_render_level_);
+  this->state_->DebugVerify();
+}
+
+void ConcreteScheduleNode::AnnotateBufferAccess(const BlockRV& block_rv, int buffer_index,
+                                                BufferIndexType buffer_index_type,
+                                                const IndexMap& index_map) {
+  TVM_TIR_SCHEDULE_BEGIN();
+  tir::AnnotateBufferAccess(state_, this->GetSRef(block_rv), buffer_index, buffer_index_type,
+                            index_map);
+  TVM_TIR_SCHEDULE_END("annotate-buffer-access", this->error_render_level_);
   this->state_->DebugVerify();
 }
 

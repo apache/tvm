@@ -19,26 +19,4 @@
 set -euxo pipefail
 
 BUILD_DIR=$1
-
-# Python is required by apps/bundle_deploy
-source tests/scripts/setup-pytest-env.sh
-
-export LD_LIBRARY_PATH="lib:${LD_LIBRARY_PATH:-}"
-# NOTE: important to use abspath, when VTA is enabled.
-VTA_HW_PATH=$(pwd)/3rdparty/vta-hw
-export VTA_HW_PATH
-
-# to avoid CI thread throttling.
-export TVM_BIND_THREADS=0
-export OMP_NUM_THREADS=1
-
-# crttest requries USE_MICRO to be enabled.
-./build/crttest
-
-# Test MISRA-C runtime. It requires USE_MICRO to be enabled.
-pushd apps/bundle_deploy
-rm -rf build
-make test_dynamic VERBOSE=1
-make cleanall
-make test_static VERBOSE=1
-popd
+# Keep this script to pass the CI.

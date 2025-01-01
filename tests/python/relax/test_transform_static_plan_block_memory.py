@@ -1504,5 +1504,46 @@ def test_view():
     tvm.ir.assert_structural_equal(after, Expected)
 
 
+def test_with_dataflow():
+    @I.ir_module
+    class Before:
+        @T.prim_func
+        def exp(A: T.handle, B: T.handle):
+            T.evaluate(0)
+
+        @R.function
+        def main(x: R.Tensor((10,), dtype="float32")) -> R.Tensor((10,), dtype="float32"):
+            cls = Before
+            with R.dataflow():
+                alloc: R.Tensor((10,), dtype="float32") = R.builtin.alloc_tensor(
+                    R.shape([10]), R.dtype("float32"), runtime_device_index=0
+                )
+                _: R.Tuple() = cls.exp(x, alloc)
+                gv: R.Tensor((10,), dtype="float32") = alloc
+                R.output(gv)
+            return gv
+
+    @I.ir_module
+    class Expected:
+        @T.prim_func
+        def exp(A: T.handle, B: T.handle):
+            T.evaluate(0)
+
+        @R.function
+        def main(x: R.Tensor((10,), dtype="float32")) -> R.Tensor((10,), dtype="float32"):
+            cls = Expected
+            with R.dataflow():
+                alloc: R.Tensor((10,), dtype="float32") = R.builtin.alloc_tensor(
+                    R.shape([10]), R.dtype("float32"), R.prim_value(0), R.str("global")
+                )
+                cls.exp(x, alloc)
+                gv: R.Tensor((10,), dtype="float32") = alloc
+                R.output(gv)
+            return gv
+
+    after = relax.transform.StaticPlanBlockMemory()(Before)
+    tvm.ir.assert_structural_equal(after, Expected)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

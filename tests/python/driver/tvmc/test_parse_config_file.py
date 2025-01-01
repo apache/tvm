@@ -129,32 +129,6 @@ def test_parse_json_config_file_runtime():
     assert tokens == expected_tokens
 
 
-@tvm.testing.requires_cmsisnn
-def test_tvmc_cl_compile_run_config_file(tflite_mobilenet_v1_1_quant, tmpdir_factory):
-    compile_config_file = "compile_config_test.json"
-    pytest.importorskip("tflite")
-
-    output_dir = tmpdir_factory.mktemp("mlf")
-    input_model = tflite_mobilenet_v1_1_quant
-    output_file = os.path.join(output_dir, "mock.tar")
-
-    # Compile the input model and generate a Model Library Format (MLF) archive.
-    tvmc_cmd = (
-        f"tvmc compile --config {compile_config_file} {input_model} --output {output_file} "
-        f"--output-format mlf"
-    )
-    tvmc_args = shlex.split(tvmc_cmd)[1:]
-    _main(tvmc_args)
-    assert os.path.exists(output_file), "Could not find the exported MLF archive."
-
-    # Run the MLF archive. It must fail since it's only supported on micro targets.
-    tvmc_cmd = f"tvmc run {output_file}"
-    tvmc_args = tvmc_cmd.split(" ")[1:]
-    exit_code = _main(tvmc_args)
-    on_error = "Trying to run a MLF archive must fail because it's only supported on micro targets."
-    assert exit_code != 0, on_error
-
-
 def test_tvmc_get_configs_json_dir(tmpdir_factory, monkeypatch):
     # Reset global state
     monkeypatch.setattr(tvm.driver.tvmc.config_options, "CONFIGS_JSON_DIR", None)

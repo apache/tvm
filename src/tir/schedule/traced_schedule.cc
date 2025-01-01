@@ -70,9 +70,11 @@ ExprRV TracedScheduleNode::SampleCategorical(const Array<runtime::Int>& candidat
 Array<ExprRV> TracedScheduleNode::SamplePerfectTile(const LoopRV& loop_rv, int n,
                                                     int max_innermost_factor,
                                                     Optional<Array<Integer>> decision) {
-  Array<ExprRV> results = CreateRV(tir::SamplePerfectTile(
-      &this->rand_state_, this->GetSRef(loop_rv), n, max_innermost_factor, &decision));
-
+  // use None RV object to denotes auto-infer tile factors.
+  Array<ExprRV> results =
+      CreateRV(tir::SamplePerfectTile(&this->rand_state_, this->GetSRef(loop_rv), n,
+                                      max_innermost_factor, &decision),
+               /*convert_negone_to_none=*/true);
   static const InstructionKind& kind = InstructionKind::Get("SamplePerfectTile");
   trace_->Append(/*inst=*/Instruction(/*kind=*/kind,  //
                                       /*inputs=*/{loop_rv},
@@ -765,6 +767,18 @@ void TracedScheduleNode::UnsafeHideBufferAccess(const BlockRV& block_rv, const S
   trace_->Append(/*inst=*/Instruction(
       /*kind=*/kind,
       /*inputs=*/{block_rv, buf_type, buf_index_array},
+      /*attrs=*/{},
+      /*outputs=*/{}));
+}
+
+void TracedScheduleNode::AnnotateBufferAccess(const BlockRV& block_rv, int buffer_index,
+                                              BufferIndexType buffer_index_type,
+                                              const IndexMap& index_map) {
+  ConcreteScheduleNode::AnnotateBufferAccess(block_rv, buffer_index, buffer_index_type, index_map);
+  static const InstructionKind& kind = InstructionKind::Get("AnnotateBufferAccess");
+  trace_->Append(/*inst=*/Instruction(
+      /*kind=*/kind,
+      /*inputs=*/{block_rv, Integer(buffer_index), Integer(buffer_index_type), index_map},
       /*attrs=*/{},
       /*outputs=*/{}));
 }

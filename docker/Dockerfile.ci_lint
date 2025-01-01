@@ -38,7 +38,7 @@ ENV PYTHONNOUSERSITE 1  # Disable .local directory from affecting CI.
 
 RUN apt-get update && apt-install-and-clear -y doxygen graphviz curl shellcheck
 
-RUN pip3 install cpplint pylint==2.17.2 mypy==0.902 black==22.12.0 flake8==3.9.2 blocklint==0.2.3 jinja2==3.0.3
+RUN pip3 install cpplint==1.6.1 pylint==2.17.2 mypy==0.902 black==22.12.0 flake8==3.9.2 blocklint==0.2.3 jinja2==3.0.3
 
 # Rust env (build early; takes a while)
 COPY install/ubuntu_install_rust.sh /install/ubuntu_install_rust.sh
