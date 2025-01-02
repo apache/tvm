@@ -224,7 +224,25 @@ void BlockAttrs(Map<String, ObjectRef> attrs) {
     Map<String, ObjectRef> annotations = Downcast<Map<String, ObjectRef>>(frame->annotations);
     for (const auto& kv : attrs) {
       if (annotations.count(kv.first)) {
-        LOG(FATAL) << "ValueError: Duplicate block annotations, previous one is " << frame->annotations;
+        // check if the value is also a dict
+        // if so, check if the keys are the same
+        // if not, merge two annotations
+        if (kv.second.as<MapNode>()) {
+          auto dict_attrs = Downcast<Map<String, ObjectRef>>(kv.second);
+          auto old_attrs = Downcast<Map<String, ObjectRef>>(annotations[kv.first]);
+          for (const auto& kv : dict_attrs) {
+            if (old_attrs.count(kv.first)) {
+              LOG(FATAL) << "ValueError: Duplicate block annotations, previous one is "
+                         << frame->annotations;
+            } else {
+              old_attrs.Set(kv.first, kv.second);
+            }
+          }
+          annotations.Set(kv.first, old_attrs);
+        } else {
+          LOG(FATAL) << "ValueError: Duplicate block annotations, previous one is "
+                     << frame->annotations;
+        }
       } else {
         annotations.Set(kv.first, kv.second);
       }
@@ -243,7 +261,7 @@ Buffer AllocBuffer(Array<PrimExpr> shape, DataType dtype, Optional<Var> data,
   IRBuilder builder = IRBuilder::Current();
   if (Optional<BlockFrame> frame = builder->GetLastFrame<BlockFrame>()) {
     frame.value()->alloc_buffers.push_back(buffer);
-  } else if (Optional<BlockFrame> frame = builder->FindFrame<BlockFrame>()){
+  } else if (Optional<BlockFrame> frame = builder->FindFrame<BlockFrame>()) {
     frame.value()->alloc_buffers.push_back(buffer);
   } else if (Optional<PrimFuncFrame> frame = builder->GetLastFrame<PrimFuncFrame>()) {
     frame.value()->root_alloc_buffers.push_back(buffer);
@@ -605,9 +623,7 @@ void Prefetch(Buffer buffer, Array<Range> bounds) {
   AddToParent(tvm::tir::Prefetch(buffer, bounds));
 }
 
-void CustomizedCode(String code) { 
-  AddToParent(tvm::tir::Evaluate(tvm::tir::StringImm(code))); 
-}
+void CustomizedCode(String code) { AddToParent(tvm::tir::Evaluate(tvm::tir::StringImm(code))); }
 
 DeclBufferFrame DeclBuffer(Array<PrimExpr> shape, DataType dtype, String buffer_name,
                            Optional<Var> data, Optional<Array<PrimExpr>> strides,
