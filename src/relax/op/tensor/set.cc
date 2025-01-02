@@ -148,9 +148,7 @@ TVM_REGISTER_GLOBAL("relax.op.nonzero").set_body_typed(nonzero);
 
 StructInfo InferStructInfoNonzero(const Call& call, const BlockBuilder& ctx) {
   TensorStructInfo data_sinfo = GetInputTensorStructInfo(call, 0, ctx);
-  // Cheat zero dim scalar as 1-dim.
-  int dim = data_sinfo->IsUnknownNdim() ? kUnknownNDim : std::max(1, data_sinfo->ndim) + 1;
-  return TensorStructInfo(DataType::Int(64), dim, data_sinfo->vdevice);
+  return TensorStructInfo(DataType::Int(64), 2, data_sinfo->vdevice);
 }
 
 TVM_REGISTER_OP("relax.nonzero")

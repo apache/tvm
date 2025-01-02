@@ -193,6 +193,7 @@ def create_kv_cache(head_dim, dtype, rope_mode, support_sliding_window):
         fattn_prefill_with_tree_mask,
         fattn_prefill_with_tree_mask_paged_kv_cache,
         None,
+        False,
     )
     return cache
 

@@ -19,7 +19,7 @@ import json
 import pytest
 import tvm
 import tvm.testing
-from tvm.target import Target, arm_cpu, bifrost, cuda, intel_graphics, mali, rocm, vta
+from tvm.target import Target, arm_cpu, bifrost, cuda, intel_graphics, mali, rocm
 
 
 @tvm.target.generic_func
@@ -179,7 +179,7 @@ def test_target_llvm_jit_options():
 
 
 def test_target_create():
-    targets = [cuda(), rocm(), mali(), intel_graphics(), arm_cpu("rk3399"), vta(), bifrost()]
+    targets = [cuda(), rocm(), mali(), intel_graphics(), arm_cpu("rk3399"), bifrost()]
     for tgt in targets:
         assert tgt is not None
 

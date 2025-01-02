@@ -214,14 +214,34 @@ class TorchConstantCodeGen : public TorchOpCode {
 
  protected:
   void CodeGenInit() final {
+    const auto& dtype = node()->OutputAt(0)->DTypeName();
+    const auto& ref_name = StringUtils::Replace(node()->name, ".", "_");
     if (node()->HasAttr("scalar")) {
-      if (node()->OutputAt(0)->DTypeName() == "int32") {
+      if (dtype == "int32") {
         stack_.assign(module_ref(), node()->GetTypeAttr<int>("scalar"));
-      } else if (node()->OutputAt(0)->DTypeName() == "int64") {
+      } else if (dtype == "int64") {
         stack_.assign(module_ref(), node()->GetTypeAttr<int64_t>("scalar"));
-      } else if (node()->OutputAt(0)->DTypeName() == "float32") {
+      } else if (dtype == "float32") {
         stack_.assign(module_ref(), node()->GetTypeAttr<float>("scalar"));
       }
+    } else if (dtype == "bool") {
+      stack_.func_call("register_buffer", "", "self")
+          .call_arg(DocUtils::ToStr(ref_name))
+          .inplace_start("torch.BoolTensor")
+          .call_arg(DocUtils::ToDocList(node()->OutputAt(0)->shape))
+          .inplace_end();
+    } else if (dtype == "int32") {
+      stack_.func_call("register_buffer", "", "self")
+          .call_arg(DocUtils::ToStr(ref_name))
+          .inplace_start("torch.IntTensor")
+          .call_arg(DocUtils::ToDocList(node()->OutputAt(0)->shape))
+          .inplace_end();
+    } else if (dtype == "int64") {
+      stack_.func_call("register_buffer", "", "self")
+          .call_arg(DocUtils::ToStr(ref_name))
+          .inplace_start("torch.LongTensor")
+          .call_arg(DocUtils::ToDocList(node()->OutputAt(0)->shape))
+          .inplace_end();
     } else {
       stack_.func_call("torch.Tensor", "data")
           .call_arg(DocUtils::ToDocList(node()->OutputAt(0)->shape))
@@ -565,6 +585,39 @@ class TorchSimpleCodeGen : public TorchOpCode {
   TORCH_OP_CODEGEN_METHODS(TorchSimpleCodeGen);
 };
 
+class TorchScatterElementsCodeGen : public TorchOpCode {
+  TORCH_OP_CODEGEN_METHODS(TorchScatterElementsCodeGen)
+
+ protected:
+  void CodeGenForward() final {
+    if (node()->InputAt(1)->DTypeName() == "int32") {
+      stack_.func_call("to", IdxInput(1), IdxInput(1)).call_arg("torch.int64");
+    }
+    stack_.op_call()
+        .op_input_arg()
+        .op_arg<int>("axis", "dim")
+        .op_input_arg(1, "index")
+        .op_input_arg(2, "src");
+  }
+};
+
+class TorchScatterNDCodeGen : public TorchOpCode {
+  TORCH_OP_CODEGEN_METHODS(TorchScatterNDCodeGen)
+
+ protected:
+  void CodeGenForward() final {
+    if (node()->InputAt(1)->DTypeName() == "int32") {
+      stack_.func_call("to", IdxInput(1), IdxInput(1)).call_arg("torch.int64");
+    }
+    // relax add extra dim for indices
+    if (node()->InputAt(1)->Ndim() == node()->OutputAt(0)->Ndim()) {
+      stack_.func_call("squeeze", IdxInput(1), IdxInput(1)).call_arg(-1);
+    }
+    stack_.assign(DocUtils::ToIndex(IdxInput(0), IdxInput(1)), IdxInput(2))
+        .assign(IdxNode(), IdxInput(0));
+  }
+};
+
 class TorchSplitCodeGen : public TorchOpCode {
   TORCH_OP_CODEGEN_METHODS(TorchSplitCodeGen)
 
@@ -608,6 +661,18 @@ class TorchStridedSliceCodeGen : public TorchOpCode {
       }
     }
     stack_.assign(IdxNode(), DocUtils::ToIndices(IdxInput(), slice));
+  }
+};
+
+class TorchTakeCodeGen : public TorchOpCode {
+  TORCH_OP_CODEGEN_METHODS(TorchTakeCodeGen)
+
+ protected:
+  void CodeGenForward() final {
+    if (node()->InputAt(1)->DTypeName() == "int32") {
+      stack_.func_call("to", IdxInput(1), IdxInput(1)).call_arg("torch.int64");
+    }
+    stack_.assign(IdxNode(), DocUtils::ToIndex(IdxInput(0), IdxInput(1)));
   }
 };
 
@@ -691,6 +756,7 @@ const std::shared_ptr<std::unordered_map<String, std::shared_ptr<TorchOpCode>>> 
   map->emplace("subtract", std::make_shared<TorchSimpleCodeGen>("", "torch.subtract"));
   map->emplace("tan", std::make_shared<TorchSimpleCodeGen>("", "torch.tan"));
   map->emplace("tanh", std::make_shared<TorchSimpleCodeGen>("", "torch.tanh"));
+  map->emplace("where", std::make_shared<TorchSimpleCodeGen>("", "torch.where"));
 
   // reduce ops
   map->emplace("max", std::make_shared<TorchReduceAxesCodeGen>("", "torch.max"));
@@ -719,8 +785,12 @@ const std::shared_ptr<std::unordered_map<String, std::shared_ptr<TorchOpCode>>> 
   map->emplace("permute_dims", std::make_shared<TorchPermuteDimsCodeGen>("", "torch.permute"));
   map->emplace("repeat", std::make_shared<TorchRepeatCodeGen>("", "repeat"));
   map->emplace("reshape", std::make_shared<TorchReshapeCodeGen>("", "torch.reshape"));
+  map->emplace("scatter_elements",
+               std::make_shared<TorchScatterElementsCodeGen>("", "torch.scatter"));
+  map->emplace("scatter_nd", std::make_shared<TorchScatterNDCodeGen>("", ""));
   map->emplace("split", std::make_shared<TorchSplitCodeGen>("", "torch.split"));
   map->emplace("strided_slice", std::make_shared<TorchStridedSliceCodeGen>("", ""));
+  map->emplace("take", std::make_shared<TorchTakeCodeGen>("", ""));
 
   // create ops
   map->emplace("constant", std::make_shared<TorchConstantCodeGen>("nn.Parameter", ""));

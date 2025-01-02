@@ -263,7 +263,7 @@ def test_strided_slice_symbolic_sliced_axis():
         @R.function
         def main(x: R.Tensor(("m", "n"), "float32")) -> R.Tensor((2, "n"), "float32"):
             n = T.int64()
-            gv: R.Tensor((2, n), "float32") = R.strided_slice(x, axes=[0], begin=[1], end=[8], strides=[3])
+            gv: R.Tensor((3, n), "float32") = R.strided_slice(x, axes=[0], begin=[1], end=[8], strides=[3], assume_inbound=True)
             return gv
 
     @I.ir_module

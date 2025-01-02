@@ -30,7 +30,6 @@
     label: 'Create WASM cmake config',
   )
   cmake_build(ci_wasm, 'build', '-j2')
-  make_standalone_crt(ci_wasm, 'build')
   make_cpp_tests(ci_wasm, 'build')
   cpp_unittest(ci_wasm)
   ci_setup(ci_wasm)

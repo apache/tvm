@@ -20,21 +20,16 @@
 
 import pytest
 import torch
-from torch import fx
 from torch.nn import Module
 
 import tvm.testing
-from tvm.relax.frontend.torch import from_fx
-from tvm.contrib.msc.core.frontend import translate, normalize_inputs
+from tvm.contrib.msc.framework.torch.frontend import translate
+from tvm.contrib.msc.core.utils.namespace import MSCFramework
 from tvm.contrib.msc.core import utils as msc_utils
 
 
 def verify_model(torch_model, input_info, expected):
-    input_info = normalize_inputs(input_info)
-    graph_model = fx.symbolic_trace(torch_model)
-    with torch.no_grad():
-        mod = from_fx(graph_model, input_info)
-    graph, _ = translate.from_relax(mod)
+    graph, _ = translate.from_torch(torch_model, input_info)
     inspect = graph.inspect()
     assert msc_utils.dict_equal(inspect, expected), "Inspect {} mismatch with expected {}".format(
         inspect, expected
@@ -2387,6 +2382,204 @@ def test_cat(dynamic):
 
     verify_model(Cat1(), input_info, expected1)
     verify_model(Cat2(), [([1, 3, 10, 10], "float32")], expected2)
+
+
+@pytest.mark.parametrize("dynamic", [True, False])
+def test_stack(dynamic):
+    """test graph builder for stack"""
+
+    bz = "bz" if dynamic else 1
+
+    class Stack(Module):
+        def forward(self, data, data1, data2):
+            return torch.stack((data, data1, data2), dim=0)
+
+    input_info = [
+        ([bz, 3, 10, 10], "float32"),
+        ([bz, 3, 10, 10], "float32"),
+        ([bz, 3, 10, 10], "float32"),
+    ]
+
+    expected = {
+        "inputs": [
+            {"name": "inp_0", "shape": [bz, 3, 10, 10], "dtype": "float32", "layout": ""},
+            {"name": "inp_1", "shape": [bz, 3, 10, 10], "dtype": "float32", "layout": ""},
+            {"name": "inp_2", "shape": [bz, 3, 10, 10], "dtype": "float32", "layout": ""},
+        ],
+        "outputs": [
+            {
+                "name": "reshape",
+                "shape": [3, bz, 3, 10, 10],
+                "dtype": "float32",
+                "layout": "" if dynamic else "EABCD",
+            }
+        ],
+        "nodes": {"total": 5, "input": 3, "concat": 1, "reshape": 1},
+    }
+
+    if dynamic:
+        expected["prims"] = {"total": 3, "shape": 1, "Int": 1, "Mul": 1}
+
+    verify_model(Stack(), input_info, expected)
+
+
+@pytest.mark.parametrize("dynamic", [True, False])
+def test_scatter(dynamic):
+    """test graph builder for scatter"""
+
+    bz = "bz" if dynamic else 20
+
+    class Scatter1(Module):
+        def __init__(self):
+            super().__init__()
+            self.index = msc_utils.random_data([(2, 5), "int64"], MSCFramework.TORCH, max_val=5)
+
+        def forward(self, data, src):
+            return data.scatter(dim=0, index=self.index, src=src)
+
+    class Scatter2(Module):
+        def forward(self, data, index, src):
+            return data.scatter(0, index, src)
+
+    expected1 = {
+        "inputs": [
+            {"name": "inp_0", "shape": [bz, 20], "dtype": "float32", "layout": ""},
+            {"name": "inp_1", "shape": [2, 5], "dtype": "float32", "layout": ""},
+        ],
+        "outputs": [
+            {"name": "scatter_elements", "shape": [bz, 20], "dtype": "float32", "layout": ""}
+        ],
+        "nodes": {"total": 4, "input": 2, "constant": 1, "scatter_elements": 1},
+    }
+    expected2 = {
+        "inputs": [
+            {"name": "inp_0", "shape": [bz, 20], "dtype": "float32", "layout": ""},
+            {"name": "inp_1", "shape": [2, 5], "dtype": "int64", "layout": ""},
+            {"name": "inp_2", "shape": [2, 5], "dtype": "float32", "layout": ""},
+        ],
+        "outputs": [
+            {"name": "scatter_elements", "shape": [bz, 20], "dtype": "float32", "layout": ""}
+        ],
+        "nodes": {"total": 4, "input": 3, "scatter_elements": 1},
+    }
+    if dynamic:
+        expected1["prims"] = {"total": 1, "shape": 1}
+        expected2["prims"] = {"total": 1, "shape": 1}
+
+    verify_model(Scatter1(), [([bz, 20], "float32"), ([2, 5], "float32")], expected1)
+    verify_model(
+        Scatter2(), [([bz, 20], "float32"), ([2, 5], "int64"), ([2, 5], "float32")], expected2
+    )
+
+
+@pytest.mark.parametrize("dynamic", [True, False])
+def test_masked_scatter(dynamic):
+    """test graph builder for masked_scatter"""
+
+    dim = "dim" if dynamic else 5
+
+    class MaskedScatter1(Module):
+        def forward(self, data, mask, src):
+            return data.masked_scatter(mask, src)
+
+    class MaskedScatter2(Module):
+        def forward(self, data, mask, src):
+            return data.masked_scatter(mask, src)
+
+    expected1 = {
+        "inputs": [
+            {"name": "inp_0", "shape": [dim], "dtype": "float32", "layout": "A"},
+            {"name": "inp_1", "shape": [dim], "dtype": "bool", "layout": "A"},
+            {"name": "inp_2", "shape": [10], "dtype": "float32", "layout": "A"},
+        ],
+        "outputs": [{"name": "where", "shape": [dim], "dtype": "float32", "layout": "A"}],
+        "nodes": {
+            "total": 8,
+            "input": 3,
+            "cumsum": 1,
+            "constant": 1,
+            "subtract": 1,
+            "take": 1,
+            "where": 1,
+        },
+    }
+    expected2 = {
+        "inputs": [
+            {
+                "name": "inp_0",
+                "shape": [2, dim],
+                "dtype": "float32",
+                "layout": "" if dynamic else "BA",
+            },
+            {
+                "name": "inp_1",
+                "shape": [2, dim],
+                "dtype": "bool",
+                "layout": "" if dynamic else "BA",
+            },
+            {
+                "name": "inp_2",
+                "shape": [3, dim],
+                "dtype": "float32",
+                "layout": "" if dynamic else "BA",
+            },
+        ],
+        "outputs": [
+            {
+                "name": "where",
+                "shape": [2, dim],
+                "dtype": "float32",
+                "layout": "" if dynamic else "BA",
+            }
+        ],
+        "nodes": {
+            "total": 11,
+            "input": 3,
+            "reshape": 3,
+            "cumsum": 1,
+            "constant": 1,
+            "subtract": 1,
+            "take": 1,
+            "where": 1,
+        },
+    }
+    if dynamic:
+        expected1["prims"] = {"total": 1, "shape": 1}
+        expected2["prims"] = {"total": 5, "shape": 1, "Int": 2, "Mul": 2}
+
+    verify_model(
+        MaskedScatter1(), [([dim], "float32"), ([dim], "bool"), ([10], "float32")], expected1
+    )
+    verify_model(
+        MaskedScatter2(),
+        [([2, dim], "float32"), ([2, dim], "bool"), ([3, dim], "float32")],
+        expected2,
+    )
+
+
+def test_put():
+    """test graph builder for index_put"""
+
+    class IndexPut(Module):
+        def __init__(self):
+            super().__init__()
+            self.index = msc_utils.random_data([(5), "int64"], MSCFramework.TORCH, max_val=5)
+
+        def forward(self, data, src):
+            data[self.index] = src
+            return data
+
+    expected = {
+        "inputs": [
+            {"name": "input0", "shape": [10, 20], "dtype": "float32", "layout": ""},
+            {"name": "input1", "shape": [5, 20], "dtype": "float32", "layout": ""},
+        ],
+        "outputs": [{"name": "scatter_nd", "shape": [10, 20], "dtype": "float32", "layout": ""}],
+        "nodes": {"total": 4, "input": 2, "constant": 1, "scatter_nd": 1},
+    }
+
+    input_info = [([10, 20], "float32"), ([5, 20], "float32")]
+    verify_model(IndexPut(), input_info, expected)
 
 
 @pytest.mark.parametrize("dynamic", [True, False])

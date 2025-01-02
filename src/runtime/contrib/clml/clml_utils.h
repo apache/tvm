@@ -45,7 +45,7 @@ void CopyDataFromCLMLTensor(std::shared_ptr<cl_ml_tensor_memory_desc_qcom> tenso
 cl_ml_tensor_qcom DeviceMakeCLMLTensor(
     cl_context context, tensor_dims_t dims,
     cl_ml_tensor_layout_qcom layout = CL_TENSOR_LAYOUT_OPTIMAL_QCOM,
-    cl_channel_type dtype = CL_FLOAT);
+    cl_channel_type dtype = CL_FLOAT, cl_ml_tensor_usage_qcom usage = CL_TENSOR_USAGE_INVALID_QCOM);
 
 cl_mem AllocateOnChipTensorMemory(size_t size, cl_uint on_chip_mem_offset);
 
@@ -58,15 +58,13 @@ cl_channel_type MakeCLDataType(const DLDataType& data_type);
 cl_arithmetic_mode_qcom MakeCLArithMode(const cl_channel_type& data_type,
                                         const cl_channel_type& acc_type = CL_FLOAT);
 
-std::shared_ptr<cl_ml_tensor_memory_desc_qcom> MakeCLMLTensor(const JSONGraphNode& tensor_rep,
-                                                              void* data,
-                                                              std::vector<size_t> c_shape,
-                                                              cl_ml_tensor_layout_qcom layout,
-                                                              cl_uint dtype);
+std::shared_ptr<cl_ml_tensor_memory_desc_qcom> MakeCLMLTensor(
+    const JSONGraphNode& tensor_rep, void* data, std::vector<size_t> c_shape,
+    cl_ml_tensor_layout_qcom layout, cl_uint dtype, cl_ml_tensor_usage_qcom usage);
 
 std::shared_ptr<cl_ml_tensor_memory_desc_qcom> MakeCLMLTensorFromJSONNode(
-    const JSONGraphNode& node, cl_ml_tensor_layout_qcom layout, cl_uint dtype, void* data = nullptr,
-    std::vector<size_t> shape = {});
+    const JSONGraphNode& node, cl_ml_tensor_layout_qcom layout, cl_ml_tensor_usage_qcom usage,
+    cl_uint dtype, void* data = nullptr, std::vector<size_t> shape = {});
 
 std::vector<cl_uint> GetVectorValues(const std::vector<std::string>& val);
 

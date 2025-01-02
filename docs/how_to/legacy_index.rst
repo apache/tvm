@@ -32,7 +32,5 @@ schedule with tesor expressions?"
    optimize_operators/index
    tune_with_autotvm/index
    tune_with_autoscheduler/index
-   work_with_microtvm/index
    extend_tvm/index
    profile/index
-   ../faq

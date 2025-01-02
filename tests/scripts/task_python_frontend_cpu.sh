@@ -36,6 +36,3 @@ run_pytest cython python-frontend-tflite tests/python/frontend/tflite
 
 echo "Running relay Keras frontend test..."
 run_pytest cython python-frontend-keras tests/python/frontend/keras
-
-echo "Running relay Caffe frontend test..."
-run_pytest cython python-frontend-caffe tests/python/frontend/caffe

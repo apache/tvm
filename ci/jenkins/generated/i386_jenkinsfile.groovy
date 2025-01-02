@@ -480,32 +480,6 @@ def python_unittest(image) {
   )
 }
 
-def fsim_test(image) {
-  sh (
-    script: "${docker_run} ${image} ./tests/scripts/task_python_vta_fsim.sh",
-    label: 'Run VTA tests in FSIM',
-  )
-}
-
-def make_standalone_crt(image, build_dir) {
-  sh (
-    script: """
-      set -eux
-      ${docker_run} ${image} python3 ./tests/scripts/task_build.py \
-        --sccache-bucket tvm-sccache-prod \
-        --sccache-region us-west-2 \
-        --cmake-target standalone_crt \
-        --build-dir build
-      ${docker_run} ${image} python3 ./tests/scripts/task_build.py \
-        --sccache-bucket tvm-sccache-prod \
-        --sccache-region us-west-2 \
-        --cmake-target crttest \
-        --build-dir build
-      """,
-    label: 'Make standalone CRT',
-  )
-}
-
 def make_cpp_tests(image, build_dir) {
   sh (
     script: """
@@ -533,12 +507,6 @@ def cpp_unittest(image) {
   )
 }
 
-def micro_cpp_unittest(image) {
-  sh (
-    script: "${docker_run} --env CI_NUM_EXECUTORS ${image} ./tests/scripts/task_microtvm_cpp_tests.sh build",
-    label: 'Run microTVM C++ tests',
-  )
-}
 
 cancel_previous_build()
 
@@ -564,10 +532,9 @@ def build(node_type) {
           label: 'Create i386 cmake config',
         )
         cmake_build(ci_i386, 'build', '-j2')
-        make_standalone_crt(ci_i386, 'build')
         make_cpp_tests(ci_i386, 'build')
         sh(
-            script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/i386 --items build/libvta_tsim.so build/libtvm.so build/libvta_fsim.so build/libtvm_runtime.so build/config.cmake build/standalone_crt build/build.ninja build/crttest build/cpptest build/build.ninja build/CMakeFiles/rules.ninja build/microtvm_template_projects",
+            script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/i386 --items build/libvta_tsim.so build/libtvm.so build/libvta_fsim.so build/libtvm_runtime.so build/config.cmake build/build.ninja build/crttest build/cpptest build/build.ninja build/CMakeFiles/rules.ninja build/microtvm_template_projects",
             label: 'Upload artifacts to S3',
           )
             })
@@ -612,7 +579,6 @@ def shard_run_python_i386_1_of_3(node_type='CPU-SMALL-SPOT', on_demand=false) {
 
               ci_setup(ci_i386)
               cpp_unittest(ci_i386)
-              micro_cpp_unittest(ci_i386)
               python_unittest(ci_i386)
               sh (
                 script: "${docker_run} ${ci_i386} ./tests/scripts/task_python_integration_i386only.sh",
@@ -667,7 +633,6 @@ def shard_run_python_i386_2_of_3(node_type='CPU-SMALL-SPOT', on_demand=false) {
                 script: "${docker_run} ${ci_i386} ./tests/scripts/task_python_integration_i386only.sh",
                 label: 'Run i386 integration tests',
               )
-              fsim_test(ci_i386)
             })
           }
         } finally {

@@ -20,6 +20,7 @@ if(USE_MRVL)
   message(STATUS "Build with Mrvl support")
   file(GLOB RUNTIME_MRVL_SRCS
     src/runtime/contrib/mrvl/mrvl_runtime.cc
+    src/runtime/contrib/mrvl/mrvl_hw_runtime.cc
     src/runtime/contrib/mrvl/mrvl_sw_runtime_lib.cc
   )
   list(APPEND RUNTIME_SRCS ${RUNTIME_MRVL_SRCS})

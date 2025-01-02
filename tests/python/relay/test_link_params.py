@@ -328,60 +328,6 @@ def test_c_link_params(linkable_dtype):
         np.testing.assert_allclose(unlinked_output.numpy(), linked_output.numpy())
 
 
-@tvm.testing.requires_micro
-def test_crt_link_params(linkable_dtype):
-    from tvm import micro
-
-    mod, param_init = _make_mod_and_params(linkable_dtype)
-    rand_input = _make_random_tensor(linkable_dtype, INPUT_SHAPE)
-    main_func = mod["main"]
-    target = "c"
-    runtime = Runtime("crt", {"system-lib": True})
-    executor = Executor("graph", {"link-params": True})
-    with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
-        factory = tvm.relay.build(
-            mod, target, runtime=runtime, executor=executor, params=param_init
-        )
-        assert len(factory.get_params().keys()) == 0  # NOTE: params became tir.constants
-
-        temp_dir = tvm.contrib.utils.tempdir()
-        template_project_dir = tvm.micro.get_microtvm_template_projects("crt")
-        project = tvm.micro.generate_project(
-            template_project_dir, factory, temp_dir / "project", {"verbose": 1}
-        )
-        project.build()
-        project.flash()
-        with tvm.micro.Session(project.transport()) as sess:
-            graph_rt = tvm.micro.session.create_local_graph_executor(
-                factory.get_graph_json(), sess.get_system_lib(), sess.device
-            )
-
-            assert len(factory.params.keys()) == 0  # NOTE: params became tir.constants
-
-            # NOTE: not setting params here.
-            graph_rt.set_input("rand_input", rand_input)
-            graph_rt.run()
-            linked_output = graph_rt.get_output(0).numpy()
-
-    runtime = Runtime("cpp", {"system-lib": True})
-    with tvm.transform.PassContext(opt_level=3):
-        lib = tvm.relay.build(mod, "llvm", runtime=runtime, params=param_init)
-
-        def _run_unlinked(lib):
-            graph_json, mod, lowered_params = lib
-            graph_rt = tvm.contrib.graph_executor.create(graph_json, mod, tvm.cpu(0))
-            graph_rt.set_input("rand_input", rand_input, **lowered_params)
-            graph_rt.run()
-            return graph_rt.get_output(0).numpy()
-
-        unlinked_output = _run_unlinked(lib)
-
-    if "int" in linkable_dtype:
-        np.testing.assert_equal(unlinked_output, linked_output)
-    else:
-        np.testing.assert_allclose(unlinked_output, linked_output)
-
-
 def test_tir_link_params():
     def get_dense(data_shape, weight_shape):
         data = relay.var("data", shape=data_shape, dtype="float32")

@@ -20,18 +20,16 @@ set -e
 set -u
 set -o pipefail
 
-JAX_VERSION=0.4.30
-
-# Install jaxlib
+# Install jax and jaxlib
 if [ "$1" == "cuda" ]; then
-    pip install -U \
-        "jax[cuda12]~=${JAX_VERSION}" \
-        jaxlib~=${JAX_VERSION}
+    pip3 install --upgrade \
+        jaxlib~=0.4.9 \
+        "jax[cuda11_pip]~=0.4.9" -f https://storage.googleapis.com/jax-releases/jax_cuda_releases.html
 else
-    pip3 install -U \
-        jax~=${JAX_VERSION} \
-        jaxlib~=${JAX_VERSION}
+    pip3 install --upgrade \
+        jaxlib~=0.4.9 \
+        "jax[cpu]~=0.4.9"
 fi
 
 # Install flax
-pip3 install flax~=0.8.5
+pip3 install flax~=0.6.9

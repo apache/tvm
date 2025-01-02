@@ -1467,6 +1467,7 @@ runtime::Module MrvlCompiler(const ObjectRef& ref) {
 
   Function func = Downcast<Function>(ref);
   std::string func_name = backend::GetExtSymbol(func);
+  const std::string mrvl_run_mode = func->GetAttr<String>("mode").value();
   runtime::Module runtime_lib;
 
   // Extract attributes from the frontend to be passed to the runtime
@@ -1485,13 +1486,32 @@ runtime::Module MrvlCompiler(const ObjectRef& ref) {
   std::string modified_json = (*modifyConsts)(nodes_json_string, consts_json_string);
   auto json_vec = split(modified_json, '|');
 
+  // Extract attributes from the nodes_json by key-value lookup using Python API
+  // These are passed to hardware runtime module for initialization
+  const tvm::runtime::PackedFunc* json_lookup;
+  json_lookup = runtime::Registry::Get("tvm.mrvl.find_value_in_KV_pair");
+  const std::string string_inp = (*json_lookup)(nodes_json_string, "num_subgraph_inputs");
+  const int num_inputs = std::stoi(string_inp);
+  const std::string string_out = (*json_lookup)(nodes_json_string, "num_subgraph_outputs");
+  const int num_outputs = std::stoi(string_out);
+  const std::string string_bsize = (*json_lookup)(nodes_json_string, "batch_size");
+  const int batch_size = std::stoi(string_bsize);
+
   // Invoke Marvell Backend compiler to generate binary for sub graph
   const auto* compile = runtime::Registry::Get("tvm.mrvl.CompileModel");
   std::string bin = (*compile)(func_name, json_vec[0], json_vec[1], compiler_opt);
 
-  const auto* pf = runtime::Registry::Get("runtime.mrvl_runtime_create");
-  ICHECK(pf != nullptr) << "Cannot find software simulator runtime module to create";
-  runtime_lib = (*pf)(func_name, json_vec[0], bin);
+  if (mrvl_run_mode == "sim") {
+    const auto* pf = runtime::Registry::Get("runtime.mrvl_runtime_create");
+    ICHECK(pf != nullptr) << "Cannot find software simulator runtime module to create";
+    runtime_lib = (*pf)(func_name, json_vec[0], bin);
+  } else if (mrvl_run_mode == "hw") {
+    const auto* pf = runtime::Registry::Get("runtime.mrvl_hw_runtime_create");
+    ICHECK(pf != nullptr) << "Cannot find hardware runtime module to create";
+    runtime_lib = (*pf)(func_name, json_vec[0], bin, num_inputs, num_outputs, batch_size);
+  } else {
+    ICHECK(0) << "Unrecognized Marvell Run Mode! " << mrvl_run_mode;
+  }
 
   return runtime_lib;
 }

@@ -56,6 +56,10 @@ TVM_REGISTER_GLOBAL("vm.builtin.kv_state_end_forward")
     .set_body_method<KVState>(&KVStateObj::EndForward);
 
 // Attention KV Cache methods
+TVM_REGISTER_GLOBAL("vm.builtin.kv_cache_disagg_prepare_recv")
+    .set_body_method<AttentionKVCache>(&AttentionKVCacheObj::DisaggPrepareRecv);
+TVM_REGISTER_GLOBAL("vm.builtin.kv_cache_disagg_mark_send")
+    .set_body_method<AttentionKVCache>(&AttentionKVCacheObj::DisaggMarkSend);
 TVM_REGISTER_GLOBAL("vm.builtin.attention_kv_cache_enable_sliding_window_for_seq")
     .set_body_method<AttentionKVCache>(&AttentionKVCacheObj::EnableSlidingWindowForSeq);
 TVM_REGISTER_GLOBAL("vm.builtin.attention_kv_cache_commit_accepted_token_tree_nodes")

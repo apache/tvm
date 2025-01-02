@@ -224,6 +224,7 @@ def relay_to_relax(
     trans_config: Optional[Dict[str, str]] = None,
     build_config: Optional[Dict[str, str]] = None,
     opt_config: Optional[Dict[str, str]] = None,
+    build_folder: msc_utils.MSCDirectory = None,
 ) -> tvm.IRModule:
     """Change relay IRModule to relax MSCGraph.
 
@@ -239,6 +240,8 @@ def relay_to_relax(
         The config for build MSCGraph.
     opt_config: dict
         The config for optimize the relay before translate.
+    build_folder: MSCDirectory
+        The folder for saving scripts and datas.
 
     Returns
     -------
@@ -254,4 +257,4 @@ def relay_to_relax(
         opt_config=opt_config,
     )
 
-    return to_relax(graph, weights, codegen_config={"from_relay": True})
+    return to_relax(graph, weights, codegen_config={"from_relay": True}, build_folder=build_folder)

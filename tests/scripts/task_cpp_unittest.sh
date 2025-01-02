@@ -28,11 +28,6 @@ else
     BUILD_DIR=build
 fi
 
-
-# NOTE: important to use abspath, when VTA is enabled.
-VTA_HW_PATH=$(pwd)/3rdparty/vta-hw
-export VTA_HW_PATH
-
 # to avoid CI thread throttling.
 export TVM_BIND_THREADS=0
 export OMP_NUM_THREADS=1

@@ -36,8 +36,8 @@ def verify_depthwise_conv2d_back_input(
     stride_w = stride_h
     padding_w = padding_h
 
-    out_h = np.int((in_h + 2 * padding_h - filter_h) / stride_h + 1)
-    out_w = np.int((in_w + 2 * padding_w - filter_w) / stride_w + 1)
+    out_h = np.int32((in_h + 2 * padding_h - filter_h) / stride_h + 1)
+    out_w = np.int32((in_w + 2 * padding_w - filter_w) / stride_w + 1)
     out_channel = in_channel * channel_multiplier
 
     ishape = [batch, in_h, in_w, in_channel]

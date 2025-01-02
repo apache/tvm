@@ -269,7 +269,7 @@ LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance, const TargetJSON& target)
     if ((value == "mcjit") || (value == "orcjit")) {
       jit_engine_ = value;
     } else {
-      LOG(FATAL) << "invalid jit option " << value << " (can be `mcjit` or `orcjit`).";
+      LOG(FATAL) << "invalid jit option " << value << " (can be `orcjit` or `mcjit`).";
     }
   }
 
@@ -530,7 +530,7 @@ std::string LLVMTargetInfo::str() const {
     os << quote << Join(",", opts) << quote;
   }
 
-  if (jit_engine_ != "mcjit") {
+  if (jit_engine_ != "orcjit") {
     os << " -jit=" << jit_engine_;
   }
 

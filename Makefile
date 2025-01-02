@@ -17,8 +17,8 @@
 
 
 .PHONY: all \
-        runtime vta cpptest crttest \
-        lint pylint cpplint scalalint \
+        runtime cpptest crttest \
+        lint pylint cpplint \
 	cppdoc docs \
 	web webclean \
 	cython cython3 cyclean \
@@ -39,15 +39,10 @@ TVM_BUILD_PATH := $(abspath $(TVM_BUILD_PATH))
 # packaged version.
 DMLC_CORE_PATH ?= $(ROOTDIR)/3rdparty/dmlc-core
 DLPACK_PATH ?= $(ROOTDIR)/3rdparty/dlpack
-VTA_HW_PATH ?= $(ROOTDIR)/3rdparty/vta-hw
-
-
-
 
 all: $(addsuffix /all,$(TVM_BUILD_PATH))
 
 runtime: $(addsuffix /runtime,$(TVM_BUILD_PATH))
-vta: $(addsuffix /vta,$(TVM_BUILD_PATH))
 cpptest: $(addsuffix /cpptest,$(TVM_BUILD_PATH))
 crttest: $(addsuffix /crttest,$(TVM_BUILD_PATH))
 
@@ -78,7 +73,7 @@ FORCE:
 # Since the pattern stem is already being used for the directory name,
 # cannot also have it refer to the command passed to cmake.
 # Therefore, explicitly listing out the delegated.
-CMAKE_TARGETS = all runtime vta cpptest crttest clean
+CMAKE_TARGETS = all runtime cpptest crttest clean
 
 define GEN_CMAKE_RULE
 %/$(CMAKE_TARGET): %/CMakeCache.txt FORCE
@@ -106,10 +101,6 @@ pylint:
 
 jnilint:
 	python3 3rdparty/dmlc-core/scripts/lint.py tvm4j-jni cpp jvm/native/src
-
-scalalint:
-	make -C $(VTA_HW_PATH)/hardware/chisel lint
-
 
 mypy:
 	tests/scripts/task_mypy.sh

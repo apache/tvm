@@ -18,7 +18,6 @@
 """ Test translate for TensorrRT. """
 
 import pytest
-import numpy as np
 
 import torch
 from torch import fx
@@ -91,7 +90,7 @@ def verify_model(torch_model, input_info, **trans_config):
     """Build model and verify results"""
 
     graph_model = fx.symbolic_trace(torch_model)
-    datas = [np.random.rand(*i[0]).astype(i[1]) for i in input_info]
+    datas = [msc_utils.random_data(i) for i in input_info]
     torch_datas = [torch.from_numpy(i) for i in datas]
     with torch.no_grad():
         golden = torch_model(*torch_datas)

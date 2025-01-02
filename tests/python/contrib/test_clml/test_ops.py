@@ -1313,5 +1313,50 @@ def test_batch_flatten(remote, dtype, target, executor_type):
     _verify(*(_get_model((1, 128, 4, 4))))
 
 
+@pytest.mark.parametrize("dtype", ["float16", "float32"])
+@pytest.mark.parametrize(
+    "trials",
+    [
+        [(1, 32, 256, 256), -1, 1],
+        [(1, 8, 64, 64), 0, 1],
+    ],
+)
+@tvm.testing.requires_openclml
+@tvm.testing.parametrize_targets("opencl -device=adreno")
+def test_clip(remote, dtype, target, executor_type, trials):
+    def _verify(shape, a_min, a_max):
+        np.random.seed(0)
+        a = relay.var("a", shape=(shape), dtype=dtype)
+        out = relay.clip(a, a_min, a_max)
+        inputs = {"a": tvm.nd.array(np.random.uniform(-1, 1, shape).astype(dtype))}
+        params = {}
+        mod = IRModule.from_expr(out)
+        outputs = _build_and_run_network(remote, mod, params, inputs, target, executor_type)
+        out_tol = 1e-3 if dtype == "float16" else 1e-5
+        tvm.testing.assert_allclose(
+            outputs[0].asnumpy(), outputs[1].asnumpy(), rtol=out_tol, atol=out_tol
+        )
+        exp_codegen = [
+            {"attrs": {"dtype": [[dtype]], "shape": [[shape]]}, "name": "", "op": "input"},
+            {
+                "attrs": {
+                    "a_max": [[str(a_max)]],
+                    "a_min": [[str(a_min)]],
+                    "dtype": [[dtype]],
+                    "num_inputs": "1",
+                    "num_outputs": "1",
+                    "shape": [[shape]],
+                },
+                "inputs": [[0, 0, 0]],
+                "name": "clip",
+                "op": "kernel",
+            },
+        ]
+
+        verify_codegen(remote, mod, params, exp_codegen, target)
+
+    _verify(trials[0], trials[1], trials[2])
+
+
 if __name__ == "__main__":
     tvm.testing.main()
