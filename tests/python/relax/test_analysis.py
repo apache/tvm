@@ -37,6 +37,7 @@ from tvm.script import tir as T
 
 
 def var_name_set(vars: List[Union[rx.Var, rx.GlobalVar]]) -> Set[str]:
+    """set the var name"""
     return set(map(lambda v: v.name_hint, vars))
 
 
