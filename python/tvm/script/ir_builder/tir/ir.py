@@ -1910,6 +1910,7 @@ anylist_resetitem = _op_wrapper(_tir_op.anylist_resetitem)
 anylist_setitem_call_packed = _op_wrapper(_tir_op.anylist_setitem_call_packed)
 anylist_setitem_call_cpacked = _op_wrapper(_tir_op.anylist_setitem_call_cpacked)
 vscale = _op_wrapper(_tir_op.vscale)
+ignore_loop_partition = _op_wrapper(_tir_op.ignore_loop_partition)
 
 
 def _dtype_forward(func):
@@ -2262,4 +2263,5 @@ __all__ = [
     "vscale",
     "get_active_lane_mask",
     "call_kernel",
+    "ignore_loop_partition",
 ]
