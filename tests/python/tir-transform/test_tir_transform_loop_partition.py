@@ -570,11 +570,12 @@ def test_explicit_partition_hint():
     tvm.ir.assert_structural_equal(mod["main"], partitioned_concat)
 
 
-def partition_from_scheduled_tir(prim_func, pass_cfg):
+def partition_from_scheduled_tir(prim_func, pass_cfg, do_flatten=True):
     with tvm.transform.PassContext(config=pass_cfg):
         mod = IRModule.from_expr(prim_func.with_attr("global_symbol", "main"))
         mod = tvm.tir.transform.LowerOpaqueBlock()(mod)
-        mod = tvm.tir.transform.FlattenBuffer()(mod)
+        if do_flatten:
+            mod = tvm.tir.transform.FlattenBuffer()(mod)
         mod = tvm.tir.transform.LoopPartition()(mod)
         mod = tvm.tir.transform.Simplify()(mod)
         mod = tvm.tir.transform.RemoveNoOp()(mod)
@@ -1037,6 +1038,29 @@ def concat_five_buffers_with_equalities_expected(
         T_concat_1[i0 * 129 + 129] = buffer_e_1[i0]
 
 
+@T.prim_func
+def nested_partition_with_single_points(A: T.Buffer[(25,), "int32"]):
+    for i in T.serial(5, annotations={"pragma_loop_partition_hint": 1}):
+        if i == 1:
+            for j in T.serial(5, annotations={"pragma_loop_partition_hint": 1}):
+                if j > 2:
+                    A[i * 5 + j] = i * 5 + j
+        else:
+            for j in T.serial(5, annotations={"pragma_loop_partition_hint": 1}):
+                if j > 2:
+                    A[i * 5 + j] = i * 15 + j
+
+
+@T.prim_func
+def nested_partition_with_single_points_expected(A: T.Buffer[(25,), "int32"]):
+    for j in range(2):
+        A[j + 3] = j + 3
+    for j in range(2):
+        A[j + 8] = j + 8
+    for i, j in T.grid(3, 2):
+        A[i * 5 + j + 13] = i * 15 + j + 33
+
+
 @pytest.mark.parametrize(
     "origin,expected",
     [
@@ -1045,6 +1069,7 @@ def concat_five_buffers_with_equalities_expected(
         (concat_func_end_point_equality, concat_func_end_point_equality_expected),
         (concat_func_edge_equalities, concat_func_edge_equalities_expected),
         (concat_five_buffers_with_equalities, concat_five_buffers_with_equalities_expected),
+        (nested_partition_with_single_points, nested_partition_with_single_points_expected),
     ],
 )
 def test_single_point_partition(origin, expected):
@@ -1060,6 +1085,64 @@ def test_single_point_partition(origin, expected):
         },
     )
     tvm.ir.assert_structural_equal(mod["main"], expected)
+
+
+def test_equation_on_floordiv():
+    @T.prim_func
+    def before(A: T.Buffer[(2, 2, 20), "int32"]):
+        for i in T.serial(5, annotations={"pragma_loop_partition_hint": 1}):
+            if i == 1:
+                for vv in T.vectorized(640, annotations={"pragma_loop_partition_hint": 1}):
+                    if i * 2 + vv // 320 == 3:
+                        A[i - 1, i * 2 + vv // 320 - 3, vv % 320 // 16] = 1
+
+    @T.prim_func
+    def expected(A: T.Buffer[(2, 2, 20), "int32"]):
+        for vv in T.vectorized(320):
+            A[0, 0, vv // 16] = 1
+
+    expected = expected.with_attr({"global_symbol": "main"})
+    after = partition_from_scheduled_tir(
+        before.with_attr("global_symbol", "main"), {}, do_flatten=False
+    )
+    tvm.ir.assert_structural_equal(after["main"], expected)
+
+
+def test_ignore_loop_partition_hint():
+    """Skip unroll body and prologue for pipeline case"""
+
+    @T.prim_func
+    def before(A: T.Buffer[(10), "float32"], D: T.Buffer[(10), "float32"]):
+        B = T.decl_buffer([2], "float32")
+        C = T.decl_buffer([2], "float32")
+        for i in T.serial(12, annotations={"pragma_loop_partition_hint": 1}):
+            if T.ignore_loop_partition(i < 10):
+                B[i % 2] = A[i] + 1.0
+            if T.ignore_loop_partition(1 <= i and i < 11):
+                C[(i - 1) % 2] = B[(i - 1) % 2] + 2.0
+            if 2 <= i:
+                D[i - 2] = C[i % 2] + 3.0
+
+    @T.prim_func
+    def expected(A: T.Buffer[(10), "float32"], D: T.Buffer[(10), "float32"]):
+        B = T.decl_buffer([2], "float32")
+        C = T.decl_buffer([2], "float32")
+        for i in range(2):
+            B[i] = A[i] + 1.0
+            if i == 1:
+                C[i - 1] = B[i - 1] + 2.0
+        for i in T.serial(10):
+            if i < 8:
+                B[i % 2] = A[i + 2] + 1.0
+            if i < 9:
+                C[(i + 1) % 2] = B[(i + 1) % 2] + 2.0
+            D[i] = C[i % 2] + 3.0
+
+    expected = expected.with_attr({"global_symbol": "main"})
+    after = partition_from_scheduled_tir(
+        before.with_attr({"global_symbol": "main"}), {}, do_flatten=False
+    )
+    tvm.ir.assert_structural_equal(after["main"], expected)
 
 
 if __name__ == "__main__":

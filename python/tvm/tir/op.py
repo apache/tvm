@@ -3581,6 +3581,18 @@ def get_vscale_expr(dtype: Union[str, tvm.DataType], min_size: int = 128) -> Pri
     return min_size // dtype.bits * vscale()
 
 
+def ignore_loop_partition(predicate) -> PrimExpr:
+    """
+    Annotate a predicate not be considered as target condition of loop partition.
+
+    Parameters
+    ----------
+    predicate : PrimExpr
+        The annotated predicate expression.
+    """
+    return call_intrin("bool", "tir.ignore_loop_partition", predicate)
+
+
 # pylint: disable=unnecessary-lambda
 sum = comm_reducer(lambda x, y: x + y, lambda t: const(0, dtype=t), name="sum")
 min = comm_reducer(lambda x, y: _ffi_api._OpMin(x, y, None), max_value, name="min")  # type: ignore
