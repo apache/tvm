@@ -119,6 +119,10 @@ def extract_from_multiple_program(mods, params, target, target_host=None, ops=No
             assert isinstance(
                 mod, tvm.IRModule
             ), "only support relay Module or Function to be tuned"
+
+            with target:
+                mod = tvm.relay.transform.AlterOpLayout()(mod)
+
             relay.backend.te_compiler.get().clear()
             # wrap build call in thread to avoid multiprocessing problems
             build_thread = threading.Thread(target=_lower, args=(mod, target, param))
