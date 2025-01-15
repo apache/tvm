@@ -178,7 +178,8 @@ class TaskSchedulerNode : public runtime::Object {
    */
   virtual void Tune(Array<TuneContext> tasks,                  //
                     Array<FloatImm> task_weights,              //
-                    int max_trials_global,                     //
+                    int max_trials_global, 
+                    int tuning_time,                      //
                     int max_trials_per_task,                   //
                     int num_trials_per_iter,                   //
                     Builder builder,                           //
@@ -221,12 +222,14 @@ class PyTaskSchedulerNode : public TaskSchedulerNode {
   /*! \brief The function type of `Tune` method. */
   using FTune = runtime::TypedPackedFunc<void(Array<TuneContext> tasks,                  //
                                               Array<FloatImm> task_weights,              //
-                                              int max_trials_global,                     //
+                                              int max_trials_global, 
+                                              int tuning_time,                     //
                                               int max_trials_per_task,                   //
                                               int num_trials_per_iter,                   //
                                               Builder builder,                           //
                                               Runner runner,                             //
                                               Array<MeasureCallback> measure_callbacks,  //
+                                                           //
                                               Optional<Database> database,               //
                                               Optional<CostModel> cost_model)>;
 
@@ -246,7 +249,7 @@ class PyTaskSchedulerNode : public TaskSchedulerNode {
 
   int NextTaskId() final;
   Array<RunnerResult> JoinRunningTask(int task_id) final;
-  void Tune(Array<TuneContext> tasks, Array<FloatImm> task_weights, int max_trials_global,
+  void Tune(Array<TuneContext> tasks, Array<FloatImm> task_weights, int max_trials_global, int tuning_time, 
             int max_trials_per_task, int num_trials_per_iter, Builder builder, Runner runner,
             Array<MeasureCallback> measure_callbacks, Optional<Database> database,
             Optional<CostModel> cost_model) final;

@@ -39,12 +39,36 @@ from .tune import tune_tasks
 from .tune_context import TuneContext, _normalize_mod
 from .utils import fork_seed
 
+@staticmethod
+def has_sample_instruction(traces) -> bool:
+    """
+    Returns if a list of traces includes any sample instructions
+
+    Parameters
+    ----------
+    traces: tvm.schedule.Trace
+        The traces to check for sample instructions
+
+    Returns
+    -------
+    found_sample_inst: bool
+        If a sample instruction was found
+    """
+    # Function could potentially be moved to tvm.schedule.Trace
+    sample_instructions = ["SampleComputeLocation", "SampleCategorical", "SamplePerfectTile"]
+
+    for trace in traces:
+        for inst in trace.insts:
+            if inst.kind.name in sample_instructions:
+                return True
+    return False
 
 def tune_tir(  # pylint: disable=too-many-locals
     mod: Union[ir.IRModule, tir.PrimFunc],
     target: Union[str, Target],
     work_dir: str,
     max_trials_global: int,
+    tuning_time: int,
     *,
     max_trials_per_task: Optional[int] = None,
     num_trials_per_iter: int = 64,
@@ -142,11 +166,20 @@ def tune_tir(  # pylint: disable=too-many-locals
                 logger=logger,
             ).clone()
         )
+
+    # Some workloads have no sample instructions, 
+    # so we can skip tuning and reduce population
+    spaces = tasks[0].generate_design_space()
+    design_spaces = [space.trace.simplified(remove_postproc=True) for space in spaces]
+    if not has_sample_instruction(traces=design_spaces):
+        max_trials_global = num_trials_per_iter = len(design_spaces)
+
     return tune_tasks(
         tasks=tasks,
         task_weights=[1.0] * len(tasks),
         work_dir=work_dir,
         max_trials_global=max_trials_global,
+        tuning_time=tuning_time,
         max_trials_per_task=max_trials_per_task,
         num_trials_per_iter=num_trials_per_iter,
         builder=builder,
@@ -165,6 +198,7 @@ def _tune_tir(
     target: Union[str, Target],
     work_dir: str,
     max_trials_global: int,
+    tuning_time: int,
     *,
     num_trials_per_iter: int = 64,
     builder: Builder.BuilderType = "local",
@@ -225,6 +259,7 @@ def _tune_tir(
         target,
         work_dir,
         max_trials_global,
+        tuning_time,
         num_trials_per_iter=num_trials_per_iter,
         builder=builder,
         runner=runner,

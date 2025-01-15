@@ -16,6 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <iostream>  
+#include <chrono>  
 #include "../utils.h"
 
 namespace tvm {
@@ -32,7 +34,7 @@ TaskRecord::TaskRecord(TuneContext ctx, double task_weight) {
       << "ValueError: Require `context.space_generator`, but it is not defined";
   CHECK(ctx->search_strategy.defined())
       << "ValueError: Require `context.search_strategy`, but it is not defined";
-  TVM_PY_LOG(INFO, ctx->logger) << "\n" << ctx->mod;
+  // TVM_PY_LOG(INFO, ctx->logger) << "\n" << ctx->mod;
   ctx->Initialize();
   n->flop = std::max(1.0, tir::EstimateTIRFlops(ctx->mod.value()));
   this->data_ = std::move(n);
@@ -99,13 +101,13 @@ void TaskCleanUp(TaskRecordNode* self, int task_id, const Array<RunnerResult>& r
   ICHECK_EQ(self->runner_futures.value().size(), results.size());
   int n = results.size();
   std::string name = self->ctx->task_name.value();
-  const PackedFunc& logger = self->ctx->logger;
+  // const PackedFunc& logger = self->ctx->logger;
   for (int i = 0; i < n; ++i) {
     const BuilderResult& builder_result = self->builder_results.value()[i];
     const MeasureCandidate& candidate = self->measure_candidates.value()[i];
     const RunnerResult& runner_result = results[i];
     Optional<String> error_msg = NullOpt;
-    int trials = self->latency_ms.size() + 1;
+    // int trials = self->latency_ms.size() + 1;
     double run_ms = 1e9;
     if ((error_msg = builder_result->error_msg)) {
       ++self->build_error_count;
@@ -115,25 +117,25 @@ void TaskCleanUp(TaskRecordNode* self, int task_id, const Array<RunnerResult>& r
       run_ms = GetRunMsMedian(runner_result);
     }
     self->latency_ms.push_back(run_ms);
-    if (error_msg) {
-      const tir::Schedule& sch = candidate->sch;
-      std::string err = error_msg.value();
-      TVM_PY_LOG(INFO, logger) << std::fixed << std::setprecision(4)  //
-                               << "[Task #" << task_id << ": " << name << "] Trial #" << trials
-                               << ": Error in "
-                               << (builder_result->error_msg.defined() ? "building" : "running")
-                               << ":\n"
-                               << err << "\n"
-                               << sch->mod() << "\n"
-                               << Concat(sch->trace().value()->AsPython(false), "\n");
-    } else {
-      double best_ms = *std::min_element(self->latency_ms.begin(), self->latency_ms.end());
-      TVM_PY_LOG(INFO, logger) << std::fixed << std::setprecision(4)  //
-                               << "[Task #" << task_id << ": " << name << "] Trial #" << trials
-                               << ": GFLOPs: " << (self->flop / run_ms / 1e6)
-                               << ". Time: " << (run_ms * 1e3) << " us"
-                               << ". Best GFLOPs: " << (self->flop / best_ms / 1e6);
-    }
+    // if (error_msg) {
+    //   const tir::Schedule& sch = candidate->sch;
+    //   std::string err = error_msg.value();
+    //   TVM_PY_LOG(INFO, logger) << std::fixed << std::setprecision(4)  //
+    //                            << "[Task #" << task_id << ": " << name << "] Trial #" << trials
+    //                            << ": Error in "
+    //                            << (builder_result->error_msg.defined() ? "building" : "running")
+    //                            << ":\n"
+    //                            << err << "\n"
+    //                            << sch->mod() << "\n"
+    //                            << Concat(sch->trace().value()->AsPython(false), "\n");
+    // } else {
+    //   double best_ms = *std::min_element(self->latency_ms.begin(), self->latency_ms.end());
+    //   TVM_PY_LOG(INFO, logger) << std::fixed << std::setprecision(4)  //
+    //                            << "[Task #" << task_id << ": " << name << "] Trial #" << trials
+    //                            << ": GFLOPs: " << (self->flop / run_ms / 1e6)
+    //                            << ". Time: " << (run_ms * 1e3) << " us"
+    //                            << ". Best GFLOPs: " << (self->flop / best_ms / 1e6);
+    // }
   }
   self->measure_candidates = NullOpt;
   self->builder_results = NullOpt;
@@ -141,10 +143,10 @@ void TaskCleanUp(TaskRecordNode* self, int task_id, const Array<RunnerResult>& r
 }
 
 void TaskSchedulerNode::Tune(Array<TuneContext> ctxs, Array<FloatImm> task_weights,
-                             int max_trials_global, int max_trials_per_task,
+                             int max_trials_global, int tuning_time, int max_trials_per_task,
                              int num_trials_per_iter, Builder builder, Runner runner,
-                             Array<MeasureCallback> measure_callbacks, Optional<Database> database,
-                             Optional<CostModel> cost_model) {
+                             Array<MeasureCallback> measure_callbacks, 
+                             Optional<Database> database, Optional<CostModel> cost_model) {
   CHECK_EQ(ctxs.size(), task_weights.size()) << "ValueError: `task_weights` must have the same "
                                                 "length as `ctxs`";
   int n_tasks = this->remaining_tasks_ = ctxs.size();
@@ -153,23 +155,24 @@ void TaskSchedulerNode::Tune(Array<TuneContext> ctxs, Array<FloatImm> task_weigh
   this->cost_model_ = cost_model;
   this->tasks_.clear();
   this->tasks_.reserve(n_tasks);
+  auto start = std::chrono::high_resolution_clock::now();
   for (int i = 0; i < n_tasks; ++i) {
     const TuneContext& ctx = ctxs[i];
     double weight = task_weights[i]->value;
-    TVM_PY_LOG(INFO, this->logger) << "Initializing Task #" << i << ": " << ctx->task_name;
-    TVM_PY_LOG(INFO, ctx->logger) << "Initializing Task #" << i << ": " << ctx->task_name;
+    // TVM_PY_LOG(INFO, this->logger) << "Initializing Task #" << i << ": " << ctx->task_name;
+    // TVM_PY_LOG(INFO, ctx->logger) << "Initializing Task #" << i << ": " << ctx->task_name;
     this->tasks_.push_back(TaskRecord(ctx, weight));
     Array<tir::Schedule> design_spaces =
         ctx->space_generator.value()->GenerateDesignSpace(ctx->mod.value());
-    TVM_PY_LOG(INFO, ctx->logger) << "Total " << design_spaces.size()
-                                  << " design space(s) generated";
+    // TVM_PY_LOG(INFO, ctx->logger) << "Total " << design_spaces.size()
+                                  // << " design space(s) generated";
     for (int i = 0, n = design_spaces.size(); i < n; ++i) {
       tir::Schedule sch = design_spaces[i];
       tir::Trace trace = sch->trace().value();
       trace = trace->Simplified(true);
-      TVM_PY_LOG(INFO, ctx->logger) << "Design space #" << i << ":\n"
-                                    << sch->mod() << "\n"
-                                    << Concat(trace->AsPython(false), "\n");
+      // TVM_PY_LOG(INFO, ctx->logger) << "Design space #" << i << ":\n"
+      //                               << sch->mod() << "\n"
+      //                               << Concat(trace->AsPython(false), "\n");
     }
     ctx->search_strategy.value()->PreTuning(max_trials_per_task, num_trials_per_iter, design_spaces,
                                             database, cost_model);
@@ -177,8 +180,8 @@ void TaskSchedulerNode::Tune(Array<TuneContext> ctxs, Array<FloatImm> task_weigh
 
   int num_trials_already = 0;
   for (int task_id; num_trials_already < max_trials_global && (task_id = NextTaskId()) != -1;) {
-    TVM_PY_LOG(INFO, this->logger)
-        << "TaskScheduler picks Task #" << task_id << ": " << tasks_[task_id]->ctx->task_name;
+    // TVM_PY_LOG(INFO, this->logger)
+        // << "TaskScheduler picks Task #" << task_id << ": " << tasks_[task_id]->ctx->task_name;
     TaskRecordNode* task = tasks_[task_id].get();
     ICHECK(!task->is_terminated);
     ICHECK(!task->runner_futures.defined());
@@ -190,12 +193,19 @@ void TaskSchedulerNode::Tune(Array<TuneContext> ctxs, Array<FloatImm> task_weigh
             task->ctx->search_strategy.value()->GenerateMeasureCandidates()) {
       int num_candidates = candidates.value().size();
       num_trials_already += num_candidates;
-      TVM_PY_LOG(INFO, this->logger) << "Sending " << num_candidates << " sample(s) to builder";
+      // TVM_PY_LOG(INFO, this->logger) << "Sending " << num_candidates << " sample(s) to builder";
       SendToBuilder(task, builder);
-      TVM_PY_LOG(INFO, this->logger) << "Sending " << num_candidates << " sample(s) to runner";
+      // TVM_PY_LOG(INFO, this->logger) << "Sending " << num_candidates << " sample(s) to runner";
       SendToRunner(task, runner);
     } else {
       TerminateTask(task_id);
+    }
+    auto end = std::chrono::high_resolution_clock::now();  
+    // 计算持续时间  
+    std::chrono::duration<double> duration = end - start;  
+    int seconds = static_cast<int>(duration.count()); 
+    if (seconds >= tuning_time) {
+      return;
     }
   }
   for (int task_id = 0; task_id < n_tasks; ++task_id) {
@@ -233,8 +243,8 @@ Array<RunnerResult> TaskSchedulerNode::JoinRunningTask(int task_id) {
                     task->builder_results.value(), results);
   }
   TaskCleanUp(task, task_id, results);
-  TVM_PY_LOG_CLEAR_SCREEN(this->logger);
-  TVM_PY_LOG(INFO, this->logger) << "[Updated] Task #" << task_id << ": " << task->ctx->task_name;
+  // TVM_PY_LOG_CLEAR_SCREEN(this->logger);
+  // TVM_PY_LOG(INFO, this->logger) << "[Updated] Task #" << task_id << ": " << task->ctx->task_name;
   this->PrintTuningStatistics();
   return results;
 }
@@ -256,10 +266,10 @@ void TaskSchedulerNode::TerminateTask(int task_id) {
   ICHECK(!task->is_terminated);
   task->is_terminated = true;
   --this->remaining_tasks_;
-  TVM_PY_LOG_CLEAR_SCREEN(this->logger);
-  TVM_PY_LOG(INFO, this->logger) << "Task #" << task_id
-                                 << " has finished. Remaining task(s): " << this->remaining_tasks_;
-  this->PrintTuningStatistics();
+  // TVM_PY_LOG_CLEAR_SCREEN(this->logger);
+  // TVM_PY_LOG(INFO, this->logger) << "Task #" << task_id
+  //                                << " has finished. Remaining task(s): " << this->remaining_tasks_;
+  // this->PrintTuningStatistics();
 }
 
 void TaskSchedulerNode::PrintTuningStatistics() {
@@ -312,13 +322,13 @@ void TaskSchedulerNode::PrintTuningStatistics() {
      << "\nTotal latency (us): " << total_latency  //
      << "\n";
 
-  if (using_ipython()) {
-    print_interactive_table(p.AsStr());
-    std::cout << os.str() << std::endl << std::flush;
-    TVM_PY_LOG(DEBUG, this->logger) << "\n" << p.AsStr() << os.str();
-  } else {
-    TVM_PY_LOG(INFO, this->logger) << "\n" << p.AsStr() << os.str();
-  }
+  // if (using_ipython()) {
+  //   print_interactive_table(p.AsStr());
+  //   std::cout << os.str() << std::endl << std::flush;
+  //   TVM_PY_LOG(DEBUG, this->logger) << "\n" << p.AsStr() << os.str();
+  // } else {
+  //   TVM_PY_LOG(INFO, this->logger) << "\n" << p.AsStr() << os.str();
+  // }
 }
 
 TaskScheduler TaskScheduler::PyTaskScheduler(
@@ -347,16 +357,16 @@ Array<RunnerResult> PyTaskSchedulerNode::JoinRunningTask(int task_id) {
 }
 
 void PyTaskSchedulerNode::Tune(Array<TuneContext> tasks, Array<FloatImm> task_weights,
-                               int max_trials_global, int max_trials_per_task,
+                               int max_trials_global, int tuning_time, int max_trials_per_task,
                                int num_trials_per_iter, Builder builder, Runner runner,
-                               Array<MeasureCallback> measure_callbacks,
+                               Array<MeasureCallback> measure_callbacks, 
                                Optional<Database> database, Optional<CostModel> cost_model) {
   if (f_tune == nullptr) {
-    TaskSchedulerNode::Tune(tasks, task_weights, max_trials_global, max_trials_per_task,
+    TaskSchedulerNode::Tune(tasks, task_weights, max_trials_global, tuning_time, max_trials_per_task,
                             num_trials_per_iter, builder, runner, measure_callbacks, database,
                             cost_model);
   } else {
-    f_tune(tasks, task_weights, max_trials_global, max_trials_per_task, num_trials_per_iter,
+    f_tune(tasks, task_weights, max_trials_global, tuning_time, max_trials_per_task, num_trials_per_iter,
            builder, runner, measure_callbacks, database, cost_model);
   }
 }

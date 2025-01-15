@@ -606,6 +606,7 @@ transform::Sequential MixedModulePassManager(IRModule mixed_mod, Target target) 
   }
 
   mixed_pass_list.push_back(tir::transform::AnnotateDeviceRegions());
+  mixed_pass_list.push_back(tir::transform::FuseThreadBindings());
   mixed_pass_list.push_back(tir::transform::SplitHostDevice());
   // MergeSharedMemoryAllocations must be applied after SplitHostDevice
   // because the merged allocation site is at the beginning of each device function

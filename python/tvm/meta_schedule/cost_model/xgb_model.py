@@ -503,17 +503,17 @@ class XGBModel(PyCostModel):
             return
 
         # Steps 3. Run validation
-        if group is not None and self.booster is not None:
-            logger.debug(
-                "XGB validation: %s",
-                "\t".join(
-                    f"{key}: {score:.6f}"
-                    for key, score in self._validate(
-                        xs=new_features,
-                        ys=group.min_cost / new_mean_costs_np,
-                    )
-                ),
-            )
+        # if group is not None and self.booster is not None:
+        #     logger.debug(
+        #         "XGB validation: %s",
+        #         "\t".join(
+        #             f"{key}: {score:.6f}"
+        #             for key, score in self._validate(
+        #                 xs=new_features,
+        #                 ys=group.min_cost / new_mean_costs_np,
+        #             )
+        #         ),
+        #     )
 
         # Step 4. Add the features into the data points
         if group is None:
@@ -818,7 +818,7 @@ def _get_custom_call_back(
                 for key, score in eval_result:
                     if "null" not in key:
                         info.append(f"{key}: {score:.6f}")
-                logger.debug("XGB iter %3d: %s", iteration, "\t".join(info))
+                # logger.debug("XGB iter %3d: %s", iteration, "\t".join(info))
 
             ##### Choose score and do early stopping #####
             score = None
@@ -846,8 +846,8 @@ def _get_custom_call_back(
             elif epoch - best_iteration >= self.early_stopping_rounds:
                 best_msg = self.state["best_msg"]
 
-                if self.verbose_eval and collective.get_rank() == 0:
-                    logger.debug("XGB stopped. Best iteration: %s ", best_msg)
+                # if self.verbose_eval and collective.get_rank() == 0:
+                #     logger.debug("XGB stopped. Best iteration: %s ", best_msg)
                 # instead of raising EarlyStopException, returning True to end the training
                 return True
             # False to indicate training should not stop.

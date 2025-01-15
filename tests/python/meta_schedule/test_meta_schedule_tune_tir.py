@@ -48,10 +48,11 @@ def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
 
 
 @T.prim_func
-def two_step(a: T.handle, c: T.handle) -> None:
+def two_step(a: T.handle, d: T.handle) -> None:
     A = T.match_buffer(a, (1024, 1024), "float32")
     B = T.alloc_buffer((1024, 1024), "float32")
-    C = T.match_buffer(c, (1024, 1024), "float32")
+    C = T.alloc_buffer((1024, 1024), "float32")
+    D = T.match_buffer(d, (1024, 1024), "float32")
     for i, j in T.grid(1024, 1024):
         with T.block("A"):
             vi, vj = T.axis.remap("SS", [i, j])
@@ -60,6 +61,10 @@ def two_step(a: T.handle, c: T.handle) -> None:
         with T.block("B"):
             vi, vj = T.axis.remap("SS", [i, j])
             C[vi, vj] = B[vi, vj] + 3.0
+    for i, j in T.grid(1024, 1024):
+        with T.block("C"):
+            vi, vj = T.axis.remap("SS", [i, j])
+            D[vi, vj] = C[vi, vj] + 6.0
 
 
 @pytest.mark.skip("Integration test")
@@ -170,6 +175,7 @@ def test_tune_block_cpu():
             work_dir=work_dir,
             max_trials_global=32,
             num_trials_per_iter=16,
+            tuning_time=1000000,
             space=ms.space_generator.PostOrderApply(
                 f_block_filter=lambda block: block.name_hint == "A",
                 sch_rules=[RemoveBlock()],
@@ -184,7 +190,7 @@ def test_tune_block_cpu():
 
 
 if __name__ == """__main__""":
-    test_tune_matmul_cpu()
-    test_tune_matmul_cuda()
-    test_tune_run_module_via_rpc()
+    # test_tune_matmul_cpu()
+    # test_tune_matmul_cuda()
+    # test_tune_run_module_via_rpc()
     test_tune_block_cpu()

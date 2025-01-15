@@ -530,8 +530,8 @@ std::vector<Schedule> EvolutionarySearchNode::State::SampleInitPopulation(int nu
       }
     }
     fail_count += !found_new;
-    TVM_PY_LOG(INFO, self->ctx_->logger) << "Sample-Init-Population summary:\n"
-                                         << pp.SummarizeFailures();
+    // TVM_PY_LOG(INFO, self->ctx_->logger) << "Sample-Init-Population summary:\n"
+    //                                      << pp.SummarizeFailures();
   }
   return out_schs;
 }
@@ -783,6 +783,21 @@ Array<Schedule> EvolutionarySearchSampleInitPopulation(EvolutionarySearch self, 
   return Array<Schedule>(results.begin(), results.end());
 }
 
+Array<Schedule> EvolutionarySearchPickBestFromDatabase(EvolutionarySearch self, int num) {
+  std::vector<Schedule> results = self->state_->PickBestFromDatabase(num);
+  return Array<Schedule>(results.begin(), results.end());
+}
+
+Array<Schedule> EvolutionarySearchPickWithEpsGreedy(EvolutionarySearch self, Array<Schedule> unmeasured,
+                                                    Array<Schedule> bests, int num) {
+  std::vector<Schedule> unmeasured_vec =
+    std::vector<Schedule>(unmeasured.begin(), unmeasured.end());
+  std::vector<Schedule> bests_vec =
+    std::vector<Schedule>(bests.begin(), bests.end());
+  std::vector<Schedule> results = self->state_->PickWithEpsGreedy(unmeasured_vec, bests_vec, num);
+  return Array<Schedule>(results.begin(), results.end());
+}
+
 Array<Schedule> EvolutionarySearchEvolveWithCostModel(EvolutionarySearch self,
                                                       Array<Schedule> population, int num) {
   Array<Schedule> result;
@@ -807,6 +822,9 @@ TVM_REGISTER_GLOBAL("meta_schedule.SearchStrategyEvolutionarySearchSampleInitPop
     .set_body_typed(EvolutionarySearchSampleInitPopulation);
 TVM_REGISTER_GLOBAL("meta_schedule.SearchStrategyEvolutionarySearchEvolveWithCostModel")
     .set_body_typed(EvolutionarySearchEvolveWithCostModel);
-
+TVM_REGISTER_GLOBAL("meta_schedule.SearchStrategyEvolutionarySearchPickBestFromDatabase")
+    .set_body_typed(EvolutionarySearchPickBestFromDatabase);
+TVM_REGISTER_GLOBAL("meta_schedule.SearchStrategyEvolutionarySearchPickWithEpsGreedy")
+    .set_body_typed(EvolutionarySearchPickWithEpsGreedy);
 }  // namespace meta_schedule
 }  // namespace tvm

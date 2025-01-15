@@ -158,7 +158,7 @@ set(USE_PROFILER ON)
 # - OFF: disable llvm, note this will disable CPU codegen
 #        which is needed for most cases
 # - /path/to/llvm-config: enable specific LLVM when multiple llvm-dev is available.
-set(USE_LLVM OFF)
+set(USE_LLVM "/projs/AE/dongshouyang/clang+llvm-11.0.0-x86_64-linux-gnu-ubuntu-20.04/bin/llvm-config")
 
 # Whether use MLIR to help analyze, requires USE_LLVM is enabled
 # Possible values: ON/OFF

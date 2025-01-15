@@ -1212,3 +1212,6 @@ def UseAssumeToReduceBranches():
         The result pass
     """
     return _ffi_api.UseAssumeToReduceBranches()  # type: ignore
+
+def FuseThreadBindings():
+    return _ffi_api.FuseThreadBindings()

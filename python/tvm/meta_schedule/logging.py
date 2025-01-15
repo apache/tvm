@@ -171,7 +171,7 @@ def create_loggers(
             " or logging.DEBUG to view full log.",
             logging._levelToName[global_logger.level],  # pylint: disable=protected-access
         )
-    global_logger.info("Logging directory: %s", log_dir)
+    # global_logger.info("Logging directory: %s", log_dir)
 
 
 def _batch_parameterize_config(
