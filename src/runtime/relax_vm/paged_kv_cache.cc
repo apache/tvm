@@ -83,7 +83,7 @@ ShapeTuple GetKVCacheShape(AttnKind attn_kind, int64_t num_total_pages, int num_
     // Ignore v_head_dim since multi-head attention requires K/V to have the same head dim.
     return {num_total_pages, 2, num_kv_heads, page_size, qk_head_dim};
   } else if (attn_kind == AttnKind::kMLA) {
-    return {num_total_pages, num_kv_heads, page_size, qk_head_dim + qk_rope_head_dim};
+    return {num_total_pages, page_size, qk_head_dim};
   } else if (attn_kind == AttnKind::kLinearAttn) {
     return {num_sequence, num_kv_heads, qk_head_dim, v_head_dim};
   }
@@ -1148,7 +1148,6 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
   PackedFunc f_mla_prefill_ragged_absorbed_;
   PackedFunc f_merge_inplace_;
   PackedFunc f_split_rotary_;
-  PackedFunc f_separate_rotary_;
   PackedFunc f_copy_single_page_;
   Optional<PackedFunc> f_debug_get_kv_;
 
@@ -1183,8 +1182,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
       Optional<PackedFunc> f_attention_decode_end_forward, PackedFunc f_mla_prefill,
       PackedFunc f_mla_decode, PackedFunc f_mla_prefill_ragged_normal,
       PackedFunc f_mla_prefill_ragged_absorbed, PackedFunc f_merge_inplace,
-      PackedFunc f_split_rotary, PackedFunc f_separate_rotary, PackedFunc f_copy_single_page,
-      Optional<PackedFunc> f_debug_get_kv)
+      PackedFunc f_split_rotary, PackedFunc f_copy_single_page, Optional<PackedFunc> f_debug_get_kv)
       : page_size_(page_size),
         num_layers_(num_layers),
         layer_id_begin_offset_(layer_id_begin_offset),
@@ -1226,10 +1224,15 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
         f_mla_prefill_ragged_absorbed_(std::move(f_mla_prefill_ragged_absorbed)),
         f_merge_inplace_(std::move(f_merge_inplace)),
         f_split_rotary_(std::move(f_split_rotary)),
-        f_separate_rotary_(std::move(f_separate_rotary)),
         f_copy_single_page_(std::move(f_copy_single_page)),
         f_debug_get_kv_(std::move(f_debug_get_kv)),
         device_(device) {
+    // Note: For MLA, sliding window and disaggregation are disabled for now.
+    if (std::find(attn_kinds_.begin(), attn_kinds_.end(), AttnKind::kMLA) != attn_kinds_.end()) {
+      CHECK(!support_sliding_window_) << "Sliding window not supported yet for MLA";
+      CHECK(!enable_kv_transfer) << "KV transfer not supported yet for MLA";
+    }
+
     pages_.reserve(num_layers);
     if (enable_kv_transfer) {
       // For now, KV transfer only supports MHA.
@@ -1337,14 +1340,16 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
           NDArray::Empty({kFloatAttnWorkspaceByte / 4}, DataType::Float(32), device);
     }
 
-    temp_attn_q_device_ =
-        NDArray::Empty({prefill_chunk_size_, num_qo_heads, qk_head_dim}, dtype, device);
-    temp_attn_k_device_ =
-        NDArray::Empty({prefill_chunk_size_, num_kv_heads, qk_head_dim}, dtype, device);
-    temp_attn_v_device_ =
-        NDArray::Empty({prefill_chunk_size_, num_kv_heads, v_head_dim}, dtype, device);
+    if (std::find(attn_kinds_.begin(), attn_kinds_.end(), AttnKind::kMHA) != attn_kinds_.end()) {
+      temp_attn_q_device_ =
+          NDArray::Empty({prefill_chunk_size_, num_qo_heads, qk_head_dim}, dtype, device);
+      temp_attn_k_device_ =
+          NDArray::Empty({prefill_chunk_size_, num_kv_heads, qk_head_dim}, dtype, device);
+      temp_attn_v_device_ =
+          NDArray::Empty({prefill_chunk_size_, num_kv_heads, v_head_dim}, dtype, device);
+    }
     temp_attn_output_device_ =
-        NDArray::Empty({prefill_chunk_size_, num_qo_heads, qk_head_dim}, dtype, device);
+        NDArray::Empty({prefill_chunk_size_, num_qo_heads, v_head_dim}, dtype, device);
     temp_attn_scores_device_ =
         NDArray::Empty({prefill_chunk_size_, num_qo_heads}, DataType::Float(32), device);
     merged_attn_scores_device_ =
@@ -1714,6 +1719,11 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
 
   void BeginForward(const IntTuple& seq_ids, const IntTuple& append_lengths,
                     const Optional<IntTuple>& opt_token_tree_parent_ptr) final {
+    // Note: MLA does not supported tree attention for now.
+    if (attn_kinds_[0] == AttnKind::kMLA) {
+      CHECK(!opt_token_tree_parent_ptr.defined()) << "Tree attention is not supported yet for MLA";
+    }
+
     CHECK_EQ(seq_ids.size(), append_lengths.size())
         << "The seq_ids size (" << seq_ids.size() << ") and append_lengths size ("
         << append_lengths.size() << ") mismatch.";
@@ -2083,8 +2093,8 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     NDArray pages = pages_[local_layer_id];
     CHECK(qkv_data.DataType() == pages.DataType());
     CHECK(o_data.DataType() == pages.DataType());
-
     CHECK(attn_kinds_[layer_id] == AttnKind::kMHA);
+
     // qkv_data: (num_total_length, num_qo_heads + 2 * num_kv_heads, qk_head_dim)
     // o_data: (num_total_length, num_qo_heads, qk_head_dim)
 
@@ -2171,15 +2181,61 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     }
   }
 
-  void AttentionWithSeparateQKV(int64_t layer_id, NDArray q_data, NDArray k_data, NDArray v_data,
-                                Optional<NDArray> mask, NDArray o_data,
-                                double attn_score_scaling_factor) final {
-    // Todo(ruihang): implement it
-  }
-
   void MLAAbsorbed(int64_t layer_id, NDArray q_data, NDArray compressed_kv_data, NDArray k_pe_data,
                    NDArray o_data, double attn_score_scaling_factor) {
-    // Todo(ruihang): implement it
+    // Part 1. Shape and dtype check.
+    int64_t local_layer_id = layer_id - layer_id_begin_offset_;
+    CHECK_GE(local_layer_id, 0);
+    CHECK_LT(local_layer_id, num_layers_);
+    NDArray pages = pages_[local_layer_id];
+    CHECK(q_data.DataType() == pages.DataType());
+    CHECK(compressed_kv_data.DataType() == pages.DataType());
+    CHECK(k_pe_data.DataType() == pages.DataType());
+    CHECK(o_data.DataType() == pages.DataType());
+    CHECK(attn_kinds_[layer_id] == AttnKind::kMLA);
+
+    // q_data: (num_total_length, num_qo_heads, qk_head_dim)
+    // compressed_kv_data: (num_total_length, qk_head_dim - qk_rope_head_dim)
+    // k_pe_data: (num_total_length, qk_rope_head_dim)
+    // o_data: (num_total_length, num_qo_heads, v_head_dim)
+    CHECK_EQ(q_data->ndim, 3);
+    CHECK_EQ(compressed_kv_data->ndim, 2);
+    CHECK_EQ(k_pe_data->ndim, 2);
+    CHECK_EQ(o_data->ndim, 3);
+
+    int64_t total_seq_length = 0;
+    for (int64_t seq_id = 0; seq_id < cur_batch_size_; ++seq_id) {
+      total_seq_length += cur_append_lengths_[seq_id];
+    }
+    CHECK_LE(q_data->shape[0], total_seq_length);
+    CHECK_LE(compressed_kv_data->shape[0], total_seq_length);
+    CHECK_LE(k_pe_data->shape[0], total_seq_length);
+    CHECK_LE(o_data->shape[0], total_seq_length);
+    CHECK_EQ(q_data->shape[1], num_qo_heads_);
+    CHECK_EQ(o_data->shape[1], num_qo_heads_);
+    CHECK_EQ(q_data->shape[2], qk_head_dim_);
+    CHECK_EQ(compressed_kv_data->shape[1], qk_head_dim_ - qk_rope_head_dim_);
+    CHECK_EQ(k_pe_data->shape[1], qk_rope_head_dim_);
+    CHECK_EQ(o_data->shape[2], v_head_dim_);
+
+    // Sync the copy stream and the compute stream.
+    ComputeStreamWaitForCopyStream();
+    // The auxiliary data structure on device must have been synchronized.
+    ICHECK(!dirty_aux_data_device_);
+
+    // Append k/v data to kv-cache if flag "append_before_attn" is set.
+    if (append_before_attn_) {
+      f_transpose_append_mla_(pages_[local_layer_id], compressed_kv_data, k_pe_data,
+                              append_position_map_view_);
+    }
+    // Perform MLA with weight absorption.
+    MLAAbsorbedInternal(layer_id, q_data, compressed_kv_data, k_pe_data, o_data,
+                        attn_score_scaling_factor);
+    // Append k/v data to kv-cache if flag "append_before_attn" is not set.
+    if (!append_before_attn_) {
+      f_transpose_append_mla_(pages_[local_layer_id], compressed_kv_data, k_pe_data,
+                              append_position_map_view_);
+    }
   }
 
   void MLANormal(int64_t layer_id, NDArray q_data, NDArray k_data, NDArray v_data,
@@ -2341,6 +2397,49 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     for (int64_t layer_id = 0; layer_id < num_layers_; ++layer_id) {
       CHECK(attn_kinds_[layer_id] == AttnKind::kMHA) << "Only MHA is supported for DebugGetKV";
       f_debug_get_kv_.value()(pages_[layer_id], position_map_device, k_data, v_data, layer_id);
+    }
+  }
+
+  void DebugGetKVMLA(int64_t seq_id, int64_t start_pos, int64_t end_pos, NDArray kv_data) final {
+    CHECK(f_debug_get_kv_.defined())
+        << "PageAttentionKVCache requires the `f_debug_get_kv` to be explicitly passed in when "
+           "initialization. Please construct the KV cache with `f_debug_get_kv`.";
+
+    const Sequence& seq = seq_map_.at(seq_id);
+    CHECK_GE(start_pos, 0) << "DebugGetKV does not accept negative start_pos " << start_pos;
+    CHECK_LE(end_pos, seq.seq_length) << "DebugGetKV does not accept out-of-range end_pos";
+    CHECK_LT(start_pos, end_pos) << "DebugGetKV does not accept \"start_pos >= end_pos\"";
+
+    // kv_data: (num_layers, seq_length, qk_head_dim)
+    static constexpr const char* error_msg =
+        "DebugGetKV expects the kv_data in layout (num_layers, seq_length, qk_head_dim).";
+    CHECK_EQ(kv_data->ndim, 3) << error_msg;
+    CHECK_EQ(kv_data->shape[0], num_layers_) << error_msg << " The number of layers mismatches.";
+    CHECK_EQ(kv_data->shape[1], end_pos - start_pos)
+        << error_msg << " The sequence length mismatches.";
+    CHECK_EQ(kv_data->shape[2], qk_head_dim_)
+        << error_msg << " The number of head features mismatches.";
+
+    std::vector<int32_t> trace = seq.GetBlockTrace(global_block_pool_);
+    std::vector<int32_t> append_position_map;
+    append_position_map.reserve(seq.seq_length);
+    for (int32_t block_id : trace) {
+      const Block& block = global_block_pool_[block_id];
+      for (int i = 0; i < block.seq_length; ++i) {
+        int32_t offset =
+            i < block.sink_length ? i : i - block.sink_length + block.sliding_window_offset;
+        int page_id = block.page_ids[offset / page_size_];
+        int page_offset = offset % page_size_;
+        append_position_map.push_back(page_id * page_size_ + page_offset);
+      }
+    }
+    NDArray position_map_device = NDArray::Empty({end_pos - start_pos}, dtype_aux_, device_);
+    position_map_device.CopyFromBytes(
+        append_position_map.data() + start_pos,
+        (end_pos - start_pos) * ((dtype_aux_.bits * dtype_aux_.lanes + 7) / 8));
+    for (int64_t layer_id = 0; layer_id < num_layers_; ++layer_id) {
+      CHECK(attn_kinds_[layer_id] == AttnKind::kMLA) << "Only MHA is supported for DebugGetKVMLA";
+      f_debug_get_kv_.value()(pages_[layer_id], position_map_device, kv_data, layer_id);
     }
   }
 
@@ -2853,6 +2952,63 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     }
   }
 
+  void MLAAbsorbedInternal(int64_t layer_id, NDArray q_data, NDArray compressed_kv_data,
+                           NDArray k_pe_data, NDArray output, double attn_score_scaling_factor) {
+    int64_t local_layer_id = layer_id - layer_id_begin_offset_;
+    CHECK_GE(local_layer_id, 0);
+    CHECK_LT(local_layer_id, num_layers_);
+    PackedFunc f_prefill = f_mla_prefill_;
+    PackedFunc f_decode = f_mla_decode_;
+    CHECK_GE(num_depths_, 1) << "The number of effective depths must be greater or equal to 1.";
+
+    bool is_first_kernel = true;
+    if (!append_before_attn_) {
+      // The first part of attention, which only involves the q and the newly appended k/v.
+      is_first_kernel = false;
+      CHECK(is_chain_on_depths_[0]) << "Tree attn not able for MLA for now.";
+      // If the batch does not form a tree, use raggedness prefill kernel.
+      f_mla_prefill_ragged_absorbed_(q_data, cur_append_length_indptr_view_, compressed_kv_data,
+                                     k_pe_data, cur_append_length_indptr_view_, output,
+                                     merged_attn_scores_view_,
+                                     /*causal=*/1, attn_score_scaling_factor);
+    }
+
+    for (int d = 0; d < num_depths_; ++d) {
+      if (page_indices_on_depths_view_[d]->shape[0] == 0) {
+        continue;
+      }
+      NDArray attn_output;
+      NDArray attn_scores;
+      if (is_first_kernel) {
+        attn_output = output;
+        attn_scores = merged_attn_scores_view_;
+      } else {
+        attn_output = temp_attn_output_view_;
+        attn_scores = temp_attn_scores_view_;
+      }
+      CHECK(is_chain_on_depths_[d]) << "Tree attn not able for MLA for now.";
+      if (use_decode_kernel_[d]) {
+        // Use decode kernel for depth d
+        f_decode(/*depth=*/d, q_data, pages_[local_layer_id], page_indptr_on_depths_view_[d],
+                 page_indices_on_depths_view_[d], length_info_on_depths_view_[d], attn_output,
+                 attn_scores, attn_score_scaling_factor);
+      } else {
+        // Use prefill kernel for depth d
+        f_prefill(/*depth=*/d, q_data, qo_indptr_on_depths_view_[d], pages_[local_layer_id],
+                  page_indptr_on_depths_view_[d], page_indices_on_depths_view_[d],
+                  length_info_on_depths_view_[d], attn_output, attn_scores, /*causal=*/0,
+                  attn_score_scaling_factor);
+      }
+
+      if (!is_first_kernel) {
+        f_merge_inplace_(output, merged_attn_scores_view_, temp_attn_output_view_,
+                         temp_attn_scores_view_);
+      } else {
+        is_first_kernel = false;
+      }
+    }
+  }
+
   /*! \brief Synchronize the copy stream and the compute stream. */
   void ComputeStreamWaitForCopyStream() {
     if (!dirty_aux_data_device_) {
@@ -2983,7 +3139,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     }
     // 16. Create view for temporary arrays for attention computation.
     temp_attn_output_view_ = temp_attn_output_device_.CreateView(
-        {total_append_length, num_qo_heads_, qk_head_dim_}, temp_attn_output_device_->dtype);
+        {total_append_length, num_qo_heads_, v_head_dim_}, temp_attn_output_device_->dtype);
     temp_attn_scores_view_ = temp_attn_scores_device_.CreateView(
         {total_append_length, num_qo_heads_}, temp_attn_scores_device_->dtype);
     merged_attn_scores_view_ = merged_attn_scores_device_.CreateView(
@@ -3088,8 +3244,7 @@ TVM_REGISTER_GLOBAL("vm.builtin.paged_attention_kv_cache_create")
           std::move(f_attention_prefill_begin_forward), std::move(f_attention_prefill_end_forward),
           std::move(f_attention_decode_begin_forward), std::move(f_attention_decode_end_forward),
           PackedFunc(), PackedFunc(), PackedFunc(), PackedFunc(), std::move(f_merge_inplace),
-          std::move(f_split_rotary), PackedFunc(), std::move(f_copy_single_page),
-          std::move(f_debug_get_kv));
+          std::move(f_split_rotary), std::move(f_copy_single_page), std::move(f_debug_get_kv));
       *rv = AttentionKVCache(std::move(n));
     });
 
@@ -3170,14 +3325,13 @@ TVM_REGISTER_GLOBAL("vm.builtin.paged_attention_kv_cache_create_reduced")
           std::move(f_attention_prefill_with_tree_mask_paged_kv),  //
           NullOpt, NullOpt, NullOpt, NullOpt, NullOpt, NullOpt,    //
           PackedFunc(), PackedFunc(), PackedFunc(), PackedFunc(), std::move(f_merge_inplace),
-          std::move(f_split_rotary), PackedFunc(), std::move(f_copy_single_page),
-          std::move(f_debug_get_kv));
+          std::move(f_split_rotary), std::move(f_copy_single_page), std::move(f_debug_get_kv));
       *rv = AttentionKVCache(std::move(n));
     });
 
 TVM_REGISTER_GLOBAL("vm.builtin.paged_attention_kv_cache_create_reduced_mla")
     .set_body([](TVMArgs args, TVMRetValue* rv) {
-      CHECK(args.size() == 39) << "Invalid number of KV cache constructor args.";
+      CHECK(args.size() == 38) << "Invalid number of KV cache constructor args.";
       ShapeTuple cache_config = args[0];
       ShapeTuple layer_indptr_tuple = args[1];
       int num_groups = 1;
@@ -3219,19 +3373,18 @@ TVM_REGISTER_GLOBAL("vm.builtin.paged_attention_kv_cache_create_reduced_mla")
       PackedFunc f_mla_prefill_ragged_absorbed = args[28];
       PackedFunc f_merge_inplace = args[29];
       PackedFunc f_split_rotary = args[30];
-      PackedFunc f_separate_rotary = args[31];
-      PackedFunc f_copy_single_page = args[32];
-      Optional<PackedFunc> f_debug_get_kv = args[33];
-      PackedFunc f_compact_copy = args[34];
-      PackedFunc f_attention_prefill_with_tree_mask = args[35];
-      PackedFunc f_attention_prefill_with_tree_mask_paged_kv = args[36];
+      PackedFunc f_copy_single_page = args[31];
+      Optional<PackedFunc> f_debug_get_kv = args[32];
+      PackedFunc f_compact_copy = args[33];
+      PackedFunc f_attention_prefill_with_tree_mask = args[34];
+      PackedFunc f_attention_prefill_with_tree_mask_paged_kv = args[35];
       Optional<NDArray> rope_ext_factors = NullOpt;
       bool enable_kv_transfer = false;
 
-      if (args[37].IsObjectRef<NDArray>()) {
-        rope_ext_factors = args[37].AsObjectRef<NDArray>();
+      if (args[36].IsObjectRef<NDArray>()) {
+        rope_ext_factors = args[36].AsObjectRef<NDArray>();
       }
-      enable_kv_transfer = args[38];
+      enable_kv_transfer = args[37];
 
       auto f_convert_optional_packed_func = [&args](int arg_idx) -> Optional<PackedFunc> {
         if (args[arg_idx].IsObjectRef<PackedFunc>()) {
@@ -3284,8 +3437,7 @@ TVM_REGISTER_GLOBAL("vm.builtin.paged_attention_kv_cache_create_reduced_mla")
           std::move(f_attention_decode_begin_forward), std::move(f_attention_decode_end_forward),
           std::move(f_mla_prefill), std::move(f_mla_decode), std::move(f_mla_prefill_ragged_normal),
           std::move(f_mla_prefill_ragged_absorbed), std::move(f_merge_inplace),
-          std::move(f_split_rotary), std::move(f_separate_rotary), std::move(f_copy_single_page),
-          std::move(f_debug_get_kv));
+          std::move(f_split_rotary), std::move(f_copy_single_page), std::move(f_debug_get_kv));
       *rv = AttentionKVCache(std::move(n));
     });
 
