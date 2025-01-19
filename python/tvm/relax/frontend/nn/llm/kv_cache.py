@@ -855,7 +855,7 @@ def _attention_prefill(
         cnt = (x * y) // t
         assert (x * y) % t == 0
         tile_y = (int)(math.ceil(math.sqrt(cnt)))
-        while (cnt % tile_y != 0 or y % tile_y != 0) and tile_y <= cnt:
+        while (cnt % tile_y != 0 or y % tile_y != 0 or x % (cnt // tile_y) != 0) and tile_y <= cnt:
             tile_y += 1
         assert tile_y <= cnt
         tile_x = cnt // tile_y
@@ -1509,7 +1509,7 @@ def _attention_sequence_prefill(
         cnt = (x * y) // t
         assert (x * y) % t == 0
         tile_y = (int)(math.ceil(math.sqrt(cnt)))
-        while (cnt % tile_y != 0 or y % tile_y != 0) and tile_y <= cnt:
+        while (cnt % tile_y != 0 or y % tile_y != 0 or x % (cnt // tile_y) != 0) and tile_y <= cnt:
             tile_y += 1
         assert tile_y <= cnt
         tile_x = cnt // tile_y
@@ -1867,7 +1867,7 @@ def _attention_prefill_ragged(h_kv, h_q, d, dtype, rope_scaling: Dict[str, Any],
         cnt = (x * y) // t
         assert (x * y) % t == 0
         tile_y = (int)(math.ceil(math.sqrt(cnt)))
-        while (cnt % tile_y != 0 or y % tile_y != 0) and tile_y <= cnt:
+        while (cnt % tile_y != 0 or y % tile_y != 0 or x % (cnt // tile_y) != 0) and tile_y <= cnt:
             tile_y += 1
         assert tile_y <= cnt
         tile_x = cnt // tile_y
