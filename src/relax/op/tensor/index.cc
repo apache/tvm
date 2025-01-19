@@ -438,6 +438,10 @@ InferLayoutOutput InferLayoutStridedSlice(const Call& call,
                                         << "but expression " << call << " has argument "
                                         << call->args[0] << " of unknown dimensionality.";
   LayoutDecision existing_layout = GetLayoutDecision(var_layout_map, call->args[0]);
+  // Can't handle sub indexed layouts.
+  if (existing_layout->layout.ndim() != existing_layout->layout.ndim_primal()) {
+    existing_layout = LayoutDecision(InitialLayout(tensor_sinfo->ndim));
+  }
 
   auto opt_axes_tuple = UnpackTupleOfPrimValue<Integer>(GetStructInfo(call->args[1]));
   CHECK(opt_axes_tuple) << "Layout inference of " << call->op

@@ -121,6 +121,10 @@ InferLayoutOutput InferLayoutResize2d(const Call& call,
   } else {
     // We dont have a desired layout for resize2d, propagate from the input instead.
     data_layout = GetLayoutDecision(var_layout_map, call->args[0]);
+    // Not handling sub indexing now.
+    if (data_layout->layout.ndim() != data_layout->layout.ndim_primal()) {
+      data_layout = LayoutDecision(InitialLayout(4));
+    }
     new_attrs->layout = TransposeLike(attrs->layout, InitialLayout(4), data_layout->layout).name();
   }
   return InferLayoutOutput({data_layout, InitialNLayout(call->args[1])}, {data_layout},

@@ -185,5 +185,27 @@ InferLayoutOutput InferLayoutUnaryEwise(const Call& call,
   return InferLayoutOutput({layout}, {layout}, Attrs(call->attrs));
 }
 
+bool CanProveLayoutTransform(const Layout& input_layout, const Layout& desired_layout,
+                             Array<PrimExpr> shape) {
+  bool can_prove = true;
+  try {
+    tir::BijectiveLayout todesired(input_layout, desired_layout);
+    Array<PrimExpr> desired_shape = todesired.ForwardShape(shape);
+    Array<PrimExpr> back_shape = todesired.BackwardShape(desired_shape);
+    arith::Analyzer analyzer;
+    for (size_t i = 0; i < shape.size(); ++i) {
+      if (tir::is_const_int(shape[i])) {
+        if (!analyzer.CanProveEqual(shape[i], back_shape[i])) {
+          can_prove = false;
+          break;
+        }
+      }
+    }
+  } catch (std::exception& err) {
+    return false;
+  }
+  return can_prove;
+}
+
 }  // namespace relax
 }  // namespace tvm
