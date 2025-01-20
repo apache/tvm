@@ -23,7 +23,7 @@ import numpy as np
 from tvm.relay import testing
 from tvm.relay.build_module import bind_params_by_name
 from tvm import autotvm
-from tvm.relay.collage.collage import *
+from tvm.relay.collage.collage import CostEstimator
 from test_clml.infrastructure import compile_and_run
 import pytest
 

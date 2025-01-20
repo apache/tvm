@@ -48,8 +48,6 @@ from tvm.contrib import graph_runtime
 from tvm.runtime.vm import VirtualMachine
 import json
 
-from tvm.relay.collage.collage import *
-
 
 def get_cpu_op_count(mod):
     """Traverse graph counting ops offloaded to TVM."""
@@ -248,9 +246,6 @@ def verify_codegen(
             f"Actual={codegen_str} \n"
             f"Expected={known_good_codegen_str}"
         )
-
-
-########### Collage Drivers ###########
 
 
 def compile_and_run(remote, label, model, targets, inputs):
