@@ -108,25 +108,35 @@ InferLayoutOutput InferLayoutStatistical(const Call& call,
 
   std::string axis_str(ndim, '0');
   for (const auto& iter : axis) {
-    axis_str[(iter->value + ndim) % ndim] = '1';
+    axis_str[(iter->value + ndim) % ndim] = '#';
   }
   for (int i = 0, j = 0; i < ndim; ++i) {
-    if (axis_str[i] != '1') {
+    if (axis_str[i] != '#') {
       axis_str[i] = 'A' + j++;
     }
   }
 
   LayoutDecision exisiting_layout = GetLayoutDecision(var_layout_map, call->args[0]);
-  String new_axis_str = TransposeStrLike(axis_str, InitialLayout(ndim), exisiting_layout->layout);
+  auto new_axis_str = TransposeSubLayoutStrLike(axis_str, InitialLayout(ndim).name(),
+                                                exisiting_layout->layout.name());
+  std::string output_layout_ref = new_axis_str;
+  new_axis_str.erase(std::remove_if(new_axis_str.begin(), new_axis_str.end(),
+                                    [](unsigned char c) { return std::isdigit(c); }),
+                     new_axis_str.end());
+
   Array<Integer> new_axis;
   for (size_t i = 0; i < new_axis_str.size(); ++i) {
-    if (new_axis_str.at(i) == '1') {
+    if (new_axis_str.at(i) == '#') {
       new_axis.push_back(Integer(i));
     }
   }
-  std::string output_layout = new_axis_str;
-  output_layout.erase(std::remove(output_layout.begin(), output_layout.end(), '1'),
-                      output_layout.end());
+  std::string output_layout;
+  for (size_t i = 0; i < output_layout_ref.length(); ++i) {
+    if ((isdigit(output_layout_ref[i]) && (output_layout_ref[i + 1] == '#')) ||
+        (output_layout_ref[i] == '#'))
+      continue;
+    output_layout.push_back(output_layout_ref[i]);
+  }
 
   ObjectPtr<StatisticalAttrs> new_attrs = make_object<StatisticalAttrs>(*attrs);
   new_attrs->axis = new_axis;

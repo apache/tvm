@@ -308,30 +308,59 @@ InferLayoutOutput InferLayoutConv2d(const Call& call,
     Layout desired_data_layout = (*it).second[0];
     Layout desired_weight_layout = (*it).second[1];
     Layout desired_output_layout = (*it).second.size() == 3 ? (*it).second[2] : (*it).second[0];
-    ICHECK_EQ(desired_data_layout.ndim(), desired_data_layout.ndim_primal()) << "Axis swap only";
-    ICHECK_EQ(desired_weight_layout.ndim(), desired_weight_layout.ndim_primal())
-        << "Axis swap only";
-    ICHECK_EQ(desired_output_layout.ndim(), desired_output_layout.ndim_primal())
-        << "Axis swap only";
-    data_layout = TransposeLike(InitialLayout(4), attrs->data_layout, desired_data_layout);
-    weight_layout = TransposeLike(InitialLayout(4), attrs->kernel_layout, desired_weight_layout);
-    output_layout = TransposeLike(InitialLayout(4), attrs->out_layout, desired_output_layout);
-    new_attrs->data_layout = (*it).second[0];
-    new_attrs->kernel_layout = (*it).second[1];
-    new_attrs->out_layout = (*it).second.size() == 3 ? (*it).second[2] : (*it).second[0];
-  } else {
-    // We don't have a desired layout for conv2d.
-    // We can just propagate the layout from the input.
-    data_layout = GetLayoutDecision(var_layout_map, call->args[0]);
-    weight_layout = GetLayoutDecision(var_layout_map, call->args[1]);
-    output_layout = data_layout;
-    new_attrs->data_layout =
-        TransposeLike(attrs->data_layout, InitialLayout(4), data_layout->layout).name();
-    new_attrs->kernel_layout =
-        TransposeLike(attrs->kernel_layout, InitialLayout(4), weight_layout->layout).name();
-    new_attrs->out_layout =
-        TransposeLike(attrs->out_layout, InitialLayout(4), output_layout->layout).name();
+    tir::Layout input_layout(attrs->data_layout, DataType::Int(64));
+    tir::Layout kernel_layout(attrs->kernel_layout, DataType::Int(64));
+    tir::Layout out_layout(attrs->out_layout, DataType::Int(64));
+
+    if ((desired_data_layout.ndim() == input_layout.ndim()) &&
+        (desired_weight_layout.ndim() == kernel_layout.ndim()) &&
+        (desired_output_layout.ndim() == out_layout.ndim())) {
+      // Just a transpose
+      data_layout = TransposeLike(InitialLayout(4), attrs->data_layout, desired_data_layout);
+      weight_layout = TransposeLike(InitialLayout(4), attrs->kernel_layout, desired_weight_layout);
+      output_layout = TransposeLike(InitialLayout(4), attrs->out_layout, desired_output_layout);
+      new_attrs->data_layout = (*it).second[0];
+      new_attrs->kernel_layout = (*it).second[1];
+      new_attrs->out_layout = (*it).second.size() == 3 ? (*it).second[2] : (*it).second[0];
+      return InferLayoutOutput({data_layout, weight_layout}, {output_layout}, Attrs(new_attrs));
+    } else {
+      // Layout Transform
+      auto data_si = GetStructInfo(call->args[0]);
+      auto kernel_si = GetStructInfo(call->args[1]);
+      TensorStructInfo data_sinfo = data_si.as<TensorStructInfo>().value();
+      TensorStructInfo kernel_sinfo = kernel_si.as<TensorStructInfo>().value();
+      Optional<ShapeExpr> data_shape = GetRef<ShapeExpr>(data_sinfo->shape.as<ShapeExprNode>());
+      Optional<ShapeExpr> kernel_shape = GetRef<ShapeExpr>(kernel_sinfo->shape.as<ShapeExprNode>());
+
+      bool can_data_proved =
+          CanProveLayoutTransform(input_layout, desired_data_layout, data_shape.value()->values);
+      bool can_kernel_proved = CanProveLayoutTransform(kernel_layout, desired_weight_layout,
+                                                       kernel_shape.value()->values);
+
+      if (can_data_proved && can_kernel_proved) {
+        data_layout = TransposeSubLayoutLike(InitialLayout(4), input_layout, desired_data_layout);
+        weight_layout =
+            TransposeSubLayoutLike(InitialLayout(4), kernel_layout, desired_weight_layout);
+        output_layout = TransposeSubLayoutLike(InitialLayout(4), out_layout, desired_output_layout);
+        new_attrs->data_layout = (*it).second[0];
+        new_attrs->kernel_layout = (*it).second[1];
+        new_attrs->out_layout = (*it).second.size() == 3 ? (*it).second[2] : (*it).second[0];
+        return InferLayoutOutput({data_layout, weight_layout}, {output_layout}, Attrs(new_attrs));
+      }
+    }
   }
+
+  // We don't have a desired layout for conv2d or desired layouts not compatible.
+  // We can just propagate the layout from the input.
+  data_layout = GetLayoutDecision(var_layout_map, call->args[0]);
+  weight_layout = GetLayoutDecision(var_layout_map, call->args[1]);
+  output_layout = data_layout;
+  new_attrs->data_layout =
+      TransposeLike(attrs->data_layout, InitialLayout(4), data_layout->layout).name();
+  new_attrs->kernel_layout =
+      TransposeLike(attrs->kernel_layout, InitialLayout(4), weight_layout->layout).name();
+  new_attrs->out_layout =
+      TransposeLike(attrs->out_layout, InitialLayout(4), output_layout->layout).name();
   return InferLayoutOutput({data_layout, weight_layout}, {output_layout}, Attrs(new_attrs));
 }
 

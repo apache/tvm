@@ -393,6 +393,10 @@ InferLayoutOutput InferLayoutExpandDims(const Call& call,
 
   LayoutDecision existing_layout = GetLayoutDecision(var_layout_map, call->args[0]);
   int ndim = tensor_sinfo->ndim;
+  // Can't handle sub indexed layouts.
+  if (existing_layout->layout.ndim() != existing_layout->layout.ndim_primal()) {
+    existing_layout = LayoutDecision(InitialLayout(ndim));
+  }
   int n_new_dim = attrs->axis.size();
   int output_ndim = ndim + n_new_dim;
   std::vector<bool> is_new_dim(output_ndim, false);
@@ -622,6 +626,12 @@ InferLayoutOutput InferLayoutPermuteDims(const Call& call,
   int ndim = tensor_sinfo->ndim;
 
   LayoutDecision existing_layout = GetLayoutDecision(var_layout_map, call->args[0]);
+
+  // permute_dims can't handle sub indexed layouts.
+  if (existing_layout->layout.ndim() != existing_layout->layout.ndim_primal()) {
+    existing_layout = LayoutDecision(InitialLayout(ndim));
+  }
+
   Array<Integer> order;
   if (attrs->axes.defined()) {
     order = attrs->axes.value();
@@ -942,10 +952,33 @@ InferLayoutOutput InferLayoutSplit(const Call& call,
   ICHECK(!tensor_sinfo->IsUnknownNdim()) << "Only support known ndim";
 
   LayoutDecision existing_layout = GetLayoutDecision(var_layout_map, call->args[0]);
-  ObjectPtr<SplitAttrs> new_attrs = make_object<SplitAttrs>(*attrs);
-  new_attrs->axis = FindAxis(existing_layout->layout, attrs->axis);
   StructInfo out_sinfo = InferStructInfoSplit(call, BlockBuilder::Create(IRModule()));
   const auto* out_tuple = out_sinfo.as<TupleStructInfoNode>();
+
+  /*
+   * Fallback if the outputs can't be represented in input sub indexed layout
+   * This can happen after sub indexing, if we can't split the corresponding primal axis
+   */
+  if (existing_layout->layout.ndim() != existing_layout->layout.ndim_primal()) {
+    for (const auto& si : out_tuple->fields) {
+      ICHECK(si->IsInstance<TensorStructInfoNode>())
+          << "Fields of TupleStructInfo must be TensorStructInfo"
+             "output structinfo, but got "
+          << si;
+      auto sinfo = Downcast<TensorStructInfo>(si);
+      Optional<ShapeExpr> shape_expr = GetRef<ShapeExpr>(sinfo->shape.as<ShapeExprNode>());
+      CHECK(shape_expr.defined());
+      auto shape_arr = shape_expr.value();
+      if (!CanProveLayoutTransform(InitialLayout(tensor_sinfo->ndim), existing_layout->layout,
+                                   shape_arr->values)) {
+        existing_layout = InitialLayout(tensor_sinfo->ndim);
+        break;
+      }
+    }
+  }
+
+  ObjectPtr<SplitAttrs> new_attrs = make_object<SplitAttrs>(*attrs);
+  new_attrs->axis = FindAxis(existing_layout->layout, attrs->axis);
   ICHECK(out_tuple != nullptr) << "Invalid Call";
   NLayout tuple_layouts(Array<NLayout>(out_tuple->fields.size(), existing_layout));
   return InferLayoutOutput({existing_layout}, {tuple_layouts}, Attrs(new_attrs));
@@ -1092,6 +1125,10 @@ InferLayoutOutput InferLayoutSqueeze(const Call& call,
   }
 
   LayoutDecision existing_layout = GetLayoutDecision(var_layout_map, call->args[0]);
+  // Can't handle sub indexed layouts.
+  if (existing_layout->layout.ndim() != existing_layout->layout.ndim_primal()) {
+    existing_layout = LayoutDecision(InitialLayout(ndim));
+  }
   String new_axis_str = TransposeStrLike(axis_str, InitialLayout(ndim), existing_layout->layout);
   Array<Integer> new_axis;
   for (size_t i = 0; i < new_axis_str.size(); ++i) {

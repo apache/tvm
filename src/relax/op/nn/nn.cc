@@ -93,6 +93,16 @@ InferLayoutOutput InferLayoutSoftmax(const Call& call,
   ICHECK(attrs) << "Invalid Call";
 
   LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
+
+  // TODO(Siva): We could handle if the axis is not the sub indexed one.
+  if (layout->layout.ndim() != layout->layout.ndim_primal()) {
+    const auto* tensor_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
+    ICHECK(tensor_sinfo != nullptr) << "Invalid Call";
+    ICHECK(!tensor_sinfo->IsUnknownNdim()) << "Only support static ndim for now";
+    int ndim = tensor_sinfo->ndim;
+    layout = LayoutDecision(InitialLayout(ndim));
+  }
+
   ObjectPtr<SoftmaxAttrs> new_attrs = make_object<SoftmaxAttrs>(*attrs);
   new_attrs->axis = FindAxis(layout->layout, attrs->axis);
   return InferLayoutOutput({layout}, {layout}, Attrs(new_attrs));
@@ -290,8 +300,18 @@ InferLayoutOutput InferLayoutBatchNorm(const Call& call,
   ICHECK(attrs) << "Invalid Call";
 
   LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
+
+  // While dealing with sub layouts, its adviced to deal with batchnorm
+  // on other ways like decomposing or fusion methods.
+  // This handling is fail safe fallback.
+  const auto* input_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
+  int ndim = input_sinfo->ndim;
+  if (layout->layout.ndim() != layout->layout.ndim_primal()) {
+    layout = LayoutDecision(InitialLayout(ndim));
+  }
+
   ObjectPtr<BatchNormAttrs> new_attrs = make_object<BatchNormAttrs>(*attrs);
-  new_attrs->axis = FindAxis(layout->layout, attrs->axis);
+  new_attrs->axis = FindAxis(layout->layout, (attrs->axis + ndim) % ndim);
   return InferLayoutOutput(
       {layout, initial_layouts[1], initial_layouts[2], initial_layouts[3], initial_layouts[4]},
       {{layout, initial_layouts[3], initial_layouts[4]}}, Attrs(new_attrs));
@@ -353,9 +373,11 @@ InferLayoutOutput InferLayoutLayerNorm(const Call& call,
 
   LayoutDecision layout = GetLayoutDecision(var_layout_map, call->args[0]);
   ObjectPtr<LayerNormAttrs> new_attrs = make_object<LayerNormAttrs>(*attrs);
+  const auto* input_sinfo = GetStructInfoAs<TensorStructInfoNode>(call->args[0]);
+  int ndim = input_sinfo->ndim;
   std::vector<Integer> new_axis;
   for (const auto& axis : attrs->axes) {
-    new_axis.push_back(FindAxis(layout->layout, axis->value));
+    new_axis.push_back(FindAxis(layout->layout, (axis->value + ndim) % ndim));
   }
   new_attrs->axes = std::move(new_axis);
   return InferLayoutOutput({layout, initial_layouts[1], initial_layouts[2]}, {layout},
