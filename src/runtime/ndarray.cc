@@ -390,7 +390,18 @@ int TVMArrayAlloc(const tvm_index_t* shape, int ndim, int dtype_code, int dtype_
 
 TVM_REGISTER_GLOBAL("runtime.TVMArrayAllocWithScope").set_body_typed(NDArray::Empty);
 
-TVM_REGISTER_GLOBAL("runtime.TVMArrayCreateView").set_body_method(&NDArray::CreateView);
+TVM_REGISTER_GLOBAL("runtime.TVMArrayCreateView").set_body([](TVMArgs args, TVMRetValue* rv) {
+  NDArray narray = args[0];
+  ShapeTuple shape = args[1];
+  DLDataType dtype = args[2];
+  int64_t offset = args[3];
+  if (args.size() == 5) {
+    String scope = args[4];
+    *rv = narray.CreateView(shape, dtype, offset, scope);
+  } else {
+    *rv = narray.CreateView(shape, dtype, offset);
+  }
+});
 
 int TVMArrayFree(TVMArrayHandle handle) {
   API_BEGIN();
