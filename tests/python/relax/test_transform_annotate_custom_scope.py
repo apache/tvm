@@ -929,7 +929,7 @@ def test_injective_inputs1():
                       conv2d (1)                 /
                          |                      /
                       conv2d (2)       mean    /
-                  /         \                 / 
+                  /         \                 /
                  |           |      \        /
                  |           |       (3) add
                  |           |         |
@@ -976,12 +976,12 @@ def test_injective_inputs1():
 def test_injective_nwo_inputs2():
     """
                                      Input
-                               /             \  
+                               /             \
                          |                    \
                       conv2d                   \
                          |                     /
                       conv2d           mean    /
-                  /         \                 / 
+                  /         \                 /
                 add         |   \             |
                  |           |    \           |
                  |           |      \        /
