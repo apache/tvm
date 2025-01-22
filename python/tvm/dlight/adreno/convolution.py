@@ -221,7 +221,7 @@ class Conv2d(AdrenoScheduleRule):
                             sch.compute_inline(blk)
                         else:
                             sch.reverse_compute_inline(blk)
-                    except: # pylint: disable=W0702
+                    except:  # pylint: disable=W0702
                         pass
                 else:
                     raise TypeError("Can't Schedule this Block", sch.get(blk))
