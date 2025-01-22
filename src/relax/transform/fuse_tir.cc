@@ -967,12 +967,14 @@ class FusedTIRConstructor : public ExprVisitor {
   tir::PrimFunc ConstructFunc() {
     ffi::Map<ffi::String, Any> attr_map;
     attr_map.Set(tir::attr::kNoAlias, true);
-    attr_map.Set("op_attrs", func_info_.op_attrs);
-    int op_pattern = relay::kOpaque;
-    if (!func_info_.op_pattern.empty()) {
-      op_pattern = *max_element(func_info_.op_pattern.begin(), func_info_.op_pattern.end());
+    if (!func_info_.op_attrs.empty()) {
+      attr_map.Set("op_attrs", func_info_.op_attrs);
     }
-    attr_map.Set("op_pattern", Integer(static_cast<int>(op_pattern)));
+    if (!func_info_.op_pattern.empty()) {
+      int op_pattern = relay::kOpaque;
+      op_pattern = *max_element(func_info_.op_pattern.begin(), func_info_.op_pattern.end());
+      attr_map.Set("op_pattern", Integer(static_cast<int>(op_pattern)));
+    }
     tir::FuseTIRBufferSubstitutor subst(func_info_.buffer_subst_map, func_info_.symbolic_var_remap);
     ICHECK(func_info_.global_name != "fused");
     // Remove output buffers from func_info_.alloc_buffers

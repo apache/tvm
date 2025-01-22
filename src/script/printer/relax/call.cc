@@ -194,7 +194,11 @@ ffi::Optional<ExprDoc> PrintHintOnDevice(const relax::Call& n, const AccessPath&
   ICHECK(n->attrs.defined());
   if (n->attrs.as<relax::HintOnDeviceAttrs>()) {
     AttrPrinter(n_p->Attr("attrs"), d, &kwargs_keys, &kwargs_values)(n->attrs);
+    ExprDoc scope_val = kwargs_values.back();
+    kwargs_keys.pop_back();
+    kwargs_values.pop_back();
     args.push_back(Relax(d, "device")->Call({}, kwargs_keys, kwargs_values));
+    args.push_back(scope_val);
   }
   return Relax(d, "hint_on_device")->Call(args);
 }

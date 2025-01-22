@@ -24,6 +24,7 @@ from tvm.relax.transform.legalize_ops import adreno as legalize_adreno
 from tvm.ir.module import IRModule
 from tvm.relax.expr_functor import PyExprMutator, PyExprVisitor, mutator, visitor
 
+
 @visitor
 class ValidateScope(PyExprVisitor):  # pylint: disable=abstract-method
     def __init__(self, scope_info: dict) -> None:
@@ -38,25 +39,32 @@ class ValidateScope(PyExprVisitor):  # pylint: disable=abstract-method
                 self.visit_expr(func)
         return self.matched
 
-
     def visit_call_(self, call: relax.Call) -> None:  # pylint: disable=arguments-renamed
-        if (call.op.name == "relax.call_tir"):
-          #if call.args[0].name_hint in self.scope_info:
-          for idx, arg in enumerate(call.args[1]):
-              arg_sinfo = arg.struct_info
-              assert isinstance(arg_sinfo, relax.TensorStructInfo
-              ), f"Expected TensorStructInfo but git {type(arg_sinfo)}"
-              assert (arg_sinfo.vdevice.memory_scope == self.scope_info[call.args[0].name_hint][0][idx]
-              ), f"Scope mispatched for argument {idx} in {call.args[0].name_hint}"
-          if isinstance(call.sinfo_args[0], relax.TensorStructInfo):
-              assert(call.sinfo_args[0].vdevice.memory_scope == self.scope_info[call.args[0].name_hint][1][0]
-              ), f"Scope mispatched for return scope: {call.args[0].name_hint}"
-          else:
-              assert isinstance(call.sinfo_args[0], relax.TupleStructInfo
-              ), f"Expected TupleStructInfo but git {type(call.sinfo_args[0])}"
-              for idx, sinfo in enumerate(call.sinfo_args[0].fields):
-                  assert (sinfo.vdevice.memory_scope == self.scope_info[call.args[0].name_hint][1][idx]
-                  ), f"Scope mispatched for return scope for {idx} in {call.args[0].name_hint}"
+        if call.op.name == "relax.call_tir":
+            # if call.args[0].name_hint in self.scope_info:
+            for idx, arg in enumerate(call.args[1]):
+                arg_sinfo = arg.struct_info
+                assert isinstance(
+                    arg_sinfo, relax.TensorStructInfo
+                ), f"Expected TensorStructInfo but git {type(arg_sinfo)}"
+                assert (
+                    arg_sinfo.vdevice.memory_scope
+                    == self.scope_info[call.args[0].name_hint][0][idx]
+                ), f"Scope mispatched for argument {idx} in {call.args[0].name_hint}"
+            if isinstance(call.sinfo_args[0], relax.TensorStructInfo):
+                assert (
+                    call.sinfo_args[0].vdevice.memory_scope
+                    == self.scope_info[call.args[0].name_hint][1][0]
+                ), f"Scope mispatched for return scope: {call.args[0].name_hint}"
+            else:
+                assert isinstance(
+                    call.sinfo_args[0], relax.TupleStructInfo
+                ), f"Expected TupleStructInfo but git {type(call.sinfo_args[0])}"
+                for idx, sinfo in enumerate(call.sinfo_args[0].fields):
+                    assert (
+                        sinfo.vdevice.memory_scope
+                        == self.scope_info[call.args[0].name_hint][1][idx]
+                    ), f"Scope mispatched for return scope for {idx} in {call.args[0].name_hint}"
 
 
 def verify(mod, expected):
@@ -71,8 +79,11 @@ def verify(mod, expected):
         mod = tvm.relax.transform.ConvertLayout(desired_layouts)(mod)
         mod = tvm.relax.transform.Normalize()(mod)
         mod = tvm.relax.transform.FoldConstant()(mod)
-        mod = tvm.relax.transform.LegalizeOps()(mod)
-        mod = tvm.relax.transform.LegalizeOps({"relax.nn.conv2d": legalize_adreno.conv2d_NCHWc_OIHWo})(mod)
+        mod = tvm.relax.transform.LegalizeOps(add_attributes=True)(mod)
+        mod = tvm.relax.transform.LegalizeOps(
+            {"relax.nn.conv2d": legalize_adreno.conv2d_NCHWc_OIHWo},
+            add_attributes=True,
+        )(mod)
         mod = tvm.relax.transform.AnnotateTIROpPattern()(mod)
         mod = tvm.relax.transform.FoldConstant()(mod)
         mod = tvm.relax.transform.FuseOps()(mod)
@@ -82,6 +93,7 @@ def verify(mod, expected):
         mod = Normalize()(mod)
 
     ValidateScope(expected).visit(mod)
+
 
 def test_conv2d():
     @I.ir_module
@@ -95,15 +107,15 @@ def test_conv2d():
                 R.output(gv)
             return gv
 
-
     Expected = {
-        'te_layout_transform': (["global"], ["global.texture-nhwc"]),
-        'te_layout_transform1': (["global"], ["global.texture-weight"]),
-        'conv2d_NCHWc_OIHWo': (["global.texture-nhwc", "global.texture-weight"], ["global"]),
-        'te_layout_transform2': (["global"], ["global"]),
+        "te_layout_transform": (["global"], ["global.texture-nhwc"]),
+        "te_layout_transform1": (["global"], ["global.texture-weight"]),
+        "conv2d_NCHWc_OIHWo": (["global.texture-nhwc", "global.texture-weight"], ["global"]),
+        "te_layout_transform2": (["global"], ["global"]),
     }
 
     verify(Input, Expected)
+
 
 def test_conv2d_NCHW_sub_indexed():
     @I.ir_module
@@ -124,10 +136,10 @@ def test_conv2d_NCHW_sub_indexed():
             return gv
 
     Expected = {
-        'te_layout_transform': (["global"], ["global.texture-weight"]),
-        'te_layout_transform1': (["global"], ["global.texture-weight"]),
-        'conv2d_NCHWc_OIHWo': (["global.texture-weight", "global.texture-weight"], ["global"]),
-        'te_layout_transform2': (["global"], ["global"]),
+        "te_layout_transform": (["global"], ["global.texture-weight"]),
+        "te_layout_transform1": (["global"], ["global.texture-weight"]),
+        "conv2d_NCHWc_OIHWo": (["global.texture-weight", "global.texture-weight"], ["global"]),
+        "te_layout_transform2": (["global"], ["global"]),
     }
 
     verify(Input, Expected)
@@ -152,13 +164,14 @@ def test_conv2d_NHWC_sub_indexed():
             return gv
 
     Expected = {
-        'te_layout_transform': (["global"], ["global.texture-weight"]),
-        'te_layout_transform1': (["global"], ["global.texture-weight"]),
-        'conv2d_NCHWc_OIHWo': (["global.texture-weight", "global.texture-weight"], ["global"]),
-        'te_layout_transform2': (["global"], ["global"]),
+        "te_layout_transform": (["global"], ["global.texture-weight"]),
+        "te_layout_transform1": (["global"], ["global.texture-weight"]),
+        "conv2d_NCHWc_OIHWo": (["global.texture-weight", "global.texture-weight"], ["global"]),
+        "te_layout_transform2": (["global"], ["global"]),
     }
 
     verify(Input, Expected)
+
 
 def _test_conv2d_symbolic_sub_indexed():
     @I.ir_module
@@ -179,10 +192,10 @@ def _test_conv2d_symbolic_sub_indexed():
             return gv
 
     Expected = {
-        'te_layout_transform': (["global"], ["global.texture-weight"]),
-        'te_layout_transform1': (["global"], ["global.texture-weight"]),
-        'conv2d_NCHWc_OIHWo': (["global.texture-weight", "global.texture-weight"], ["global"]),
-        'te_layout_transform2': (["global"], ["global"]),
+        "te_layout_transform": (["global"], ["global.texture-weight"]),
+        "te_layout_transform1": (["global"], ["global.texture-weight"]),
+        "conv2d_NCHWc_OIHWo": (["global.texture-weight", "global.texture-weight"], ["global"]),
+        "te_layout_transform2": (["global"], ["global"]),
     }
 
     verify(Input, Expected)
@@ -202,10 +215,13 @@ def test_conv2d_relu_sub_indexed():
             return gv2
 
     Expected = {
-        'te_layout_transform': (["global"], ["global.texture-weight"]),
-        'te_layout_transform1': (["global"], ["global.texture-weight"]),
-        'fused_conv2d_NCHWc_OIHWo_relu': (["global.texture-weight", "global.texture-weight"], ["global"]),
-        'te_layout_transform2': (["global"], ["global"]),
+        "te_layout_transform": (["global"], ["global.texture-weight"]),
+        "te_layout_transform1": (["global"], ["global.texture-weight"]),
+        "fused_conv2d_NCHWc_OIHWo_relu": (
+            ["global.texture-weight", "global.texture-weight"],
+            ["global"],
+        ),
+        "te_layout_transform2": (["global"], ["global"]),
     }
 
     verify(Input, Expected)
@@ -226,11 +242,14 @@ def test_relu_conv2d_relu_sub_indexed():
             return gv2
 
     Expected = {
-        'relu': (["global"], ["global"]),
-        'te_layout_transform': (["global"], ["global.texture-weight"]),
-        'te_layout_transform1': (["global"], ["global.texture-weight"]),
-        'fused_conv2d_NCHWc_OIHWo_relu1': (["global.texture-weight", "global.texture-weight"], ["global"]),
-        'te_layout_transform2': (["global"], ["global"]),
+        "relu": (["global"], ["global"]),
+        "te_layout_transform": (["global"], ["global.texture-weight"]),
+        "te_layout_transform1": (["global"], ["global.texture-weight"]),
+        "fused_conv2d_NCHWc_OIHWo_relu1": (
+            ["global.texture-weight", "global.texture-weight"],
+            ["global"],
+        ),
+        "te_layout_transform2": (["global"], ["global"]),
     }
 
     verify(Input, Expected)
@@ -251,10 +270,13 @@ def test_conv2d_relu_tanh_sub_indexed():
             return gv3
 
     Expected = {
-        'te_layout_transform': (["global"], ["global.texture-weight"]),
-        'te_layout_transform1': (["global"], ["global.texture-weight"]),
-        'fused_conv2d_NCHWc_OIHWo_relu_tir_tanh': (["global.texture-weight", "global.texture-weight"], ["global"]),
-        'te_layout_transform2': (["global"], ["global"]),
+        "te_layout_transform": (["global"], ["global.texture-weight"]),
+        "te_layout_transform1": (["global"], ["global.texture-weight"]),
+        "fused_conv2d_NCHWc_OIHWo_relu_tir_tanh": (
+            ["global.texture-weight", "global.texture-weight"],
+            ["global"],
+        ),
+        "te_layout_transform2": (["global"], ["global"]),
     }
     verify(Input, Expected)
 
@@ -275,11 +297,14 @@ def test_conv2d_add_sub_indexed():
             return gv2
 
     Expected = {
-        'te_layout_transform': (["global"], ["global.texture-weight"]),
-        'te_layout_transform1': (["global"], ["global.texture-weight"]),
-        'te_layout_transform2': (["global"], ["global.texture-weight"]),
-        'fused_conv2d_NCHWc_OIHWo_add': (["global.texture-weight", "global.texture-weight", "global.texture-weight"], ["global"]),
-        'te_layout_transform3': (["global"], ["global"]),
+        "te_layout_transform": (["global"], ["global.texture-weight"]),
+        "te_layout_transform1": (["global"], ["global.texture-weight"]),
+        "te_layout_transform2": (["global"], ["global.texture-weight"]),
+        "fused_conv2d_NCHWc_OIHWo_add": (
+            ["global.texture-weight", "global.texture-weight", "global.texture-weight"],
+            ["global"],
+        ),
+        "te_layout_transform3": (["global"], ["global"]),
     }
     verify(Input, Expected)
 
@@ -303,15 +328,15 @@ def test_conv2d_fma_relu_conv2d_sub_indexed():
             return gv4
 
     Expected = {
-        'te_layout_transform': (["global"], ["global.texture-weight"]),
-        'te_layout_transform1': (["global"], ["global.texture-weight"]),
-        'conv2d_NCHWc_OIHWo': (["global.texture-weight", "global.texture-weight"], ["global"]),
-        'relu': (["global"], ["global"]),
-        'te_layout_transform2': (["global"], ["global"]),
-        'te_layout_transform3': (["global"], ["global.texture-weight"]),
-        'te_layout_transform4': (["global"], ["global.texture-weight"]),
-        'conv2d_NCHWc_OIHWo1': (["global.texture-weight", "global.texture-weight"], ["global"]),
-        'te_layout_transform5': (["global"], ["global"]),
+        "te_layout_transform": (["global"], ["global.texture-weight"]),
+        "te_layout_transform1": (["global"], ["global.texture-weight"]),
+        "conv2d_NCHWc_OIHWo": (["global.texture-weight", "global.texture-weight"], ["global"]),
+        "relu": (["global"], ["global"]),
+        "te_layout_transform2": (["global"], ["global"]),
+        "te_layout_transform3": (["global"], ["global.texture-weight"]),
+        "te_layout_transform4": (["global"], ["global.texture-weight"]),
+        "conv2d_NCHWc_OIHWo1": (["global.texture-weight", "global.texture-weight"], ["global"]),
+        "te_layout_transform5": (["global"], ["global"]),
     }
     verify(Input, Expected)
 
@@ -330,13 +355,14 @@ def test_conv2d_sum_sub_indexed():
             return gv2
 
     Expected = {
-        'te_layout_transform': (["global"], ["global.texture-weight"]),
-        'te_layout_transform1': (["global"], ["global.texture-weight"]),
-        'conv2d_NCHWc_OIHWo': (["global.texture-weight", "global.texture-weight"], ["global"]),
-        'sum': (["global"], ["global"]),
-        'te_layout_transform2': (["global"], ["global"]),
+        "te_layout_transform": (["global"], ["global.texture-weight"]),
+        "te_layout_transform1": (["global"], ["global.texture-weight"]),
+        "conv2d_NCHWc_OIHWo": (["global.texture-weight", "global.texture-weight"], ["global"]),
+        "sum": (["global"], ["global"]),
+        "te_layout_transform2": (["global"], ["global"]),
     }
     verify(Input, Expected)
+
 
 def test_conv2d_sum_keepdims_sub_indexed():
     @I.ir_module
@@ -352,11 +378,11 @@ def test_conv2d_sum_keepdims_sub_indexed():
             return gv2
 
     Expected = {
-        'te_layout_transform': (["global"], ["global.texture-weight"]),
-        'te_layout_transform1': (["global"], ["global.texture-weight"]),
-        'conv2d_NCHWc_OIHWo': (["global.texture-weight", "global.texture-weight"], ["global"]),
-        'sum': (["global"], ["global"]),
-        'te_layout_transform2': (["global"], ["global"]),
+        "te_layout_transform": (["global"], ["global.texture-weight"]),
+        "te_layout_transform1": (["global"], ["global.texture-weight"]),
+        "conv2d_NCHWc_OIHWo": (["global.texture-weight", "global.texture-weight"], ["global"]),
+        "sum": (["global"], ["global"]),
+        "te_layout_transform2": (["global"], ["global"]),
     }
     verify(Input, Expected)
 
@@ -375,11 +401,11 @@ def test_conv2d_sum_reduce_sub_indexed():
             return gv2
 
     Expected = {
-        'te_layout_transform': (["global"], ["global.texture-weight"]),
-        'te_layout_transform1': (["global"], ["global.texture-weight"]),
-        'conv2d_NCHWc_OIHWo': (["global.texture-weight", "global.texture-weight"], ["global"]),
-        'sum': (["global"], ["global"]),
-        'te_layout_transform2': (["global"], ["global"]),
+        "te_layout_transform": (["global"], ["global.texture-weight"]),
+        "te_layout_transform1": (["global"], ["global.texture-weight"]),
+        "conv2d_NCHWc_OIHWo": (["global.texture-weight", "global.texture-weight"], ["global"]),
+        "sum": (["global"], ["global"]),
+        "te_layout_transform2": (["global"], ["global"]),
     }
     verify(Input, Expected)
 
@@ -398,13 +424,14 @@ def test_conv2d_transpose_sub_indexed():
             return gv2
 
     Expected = {
-        'te_layout_transform': (["global"], ["global.texture-weight"]),
-        'te_layout_transform1': (["global"], ["global.texture-weight"]),
-        'conv2d_NCHWc_OIHWo': (["global.texture-weight", "global.texture-weight"], ["global"]),
-        'te_layout_transform2': (["global"], ["global"]),
-        'transpose': (["global"], ["global"]),
+        "te_layout_transform": (["global"], ["global.texture-weight"]),
+        "te_layout_transform1": (["global"], ["global.texture-weight"]),
+        "conv2d_NCHWc_OIHWo": (["global.texture-weight", "global.texture-weight"], ["global"]),
+        "te_layout_transform2": (["global"], ["global"]),
+        "transpose": (["global"], ["global"]),
     }
     verify(Input, Expected)
+
 
 def test_conv2d_expand_dims_sub_indexed():
     @I.ir_module
@@ -420,11 +447,11 @@ def test_conv2d_expand_dims_sub_indexed():
             return gv2
 
     Expected = {
-        'te_layout_transform': (["global"], ["global.texture-weight"]),
-        'te_layout_transform1': (["global"], ["global.texture-weight"]),
-        'conv2d_NCHWc_OIHWo': (["global.texture-weight", "global.texture-weight"], ["global"]),
-        'te_layout_transform2': (["global"], ["global"]),
-        'expand_dims': (["global"], ["global"]),
+        "te_layout_transform": (["global"], ["global.texture-weight"]),
+        "te_layout_transform1": (["global"], ["global.texture-weight"]),
+        "conv2d_NCHWc_OIHWo": (["global.texture-weight", "global.texture-weight"], ["global"]),
+        "te_layout_transform2": (["global"], ["global"]),
+        "expand_dims": (["global"], ["global"]),
     }
     verify(Input, Expected)
 
@@ -443,11 +470,11 @@ def test_conv2d_squeeze_sub_indexed():
             return gv2
 
     Expected = {
-        'te_layout_transform': (["global"], ["global.texture-weight"]),
-        'te_layout_transform1': (["global"], ["global.texture-weight"]),
-        'conv2d_NCHWc_OIHWo': (["global.texture-weight", "global.texture-weight"], ["global"]),
-        'te_layout_transform2': (["global"], ["global"]),
-        'squeeze': (["global"], ["global"]),
+        "te_layout_transform": (["global"], ["global.texture-weight"]),
+        "te_layout_transform1": (["global"], ["global.texture-weight"]),
+        "conv2d_NCHWc_OIHWo": (["global.texture-weight", "global.texture-weight"], ["global"]),
+        "te_layout_transform2": (["global"], ["global"]),
+        "squeeze": (["global"], ["global"]),
     }
     verify(Input, Expected)
 
@@ -468,11 +495,11 @@ def test_conv2d_strided_slice_sub_indexed():
             return gv2
 
     Expected = {
-        'te_layout_transform': (["global"], ["global.texture-weight"]),
-        'te_layout_transform1': (["global"], ["global.texture-weight"]),
-        'conv2d_NCHWc_OIHWo': (["global.texture-weight", "global.texture-weight"], ["global"]),
-        'te_layout_transform2': (["global"], ["global"]),
-        'strided_slice': (["global"], ["global"]),
+        "te_layout_transform": (["global"], ["global.texture-weight"]),
+        "te_layout_transform1": (["global"], ["global.texture-weight"]),
+        "conv2d_NCHWc_OIHWo": (["global.texture-weight", "global.texture-weight"], ["global"]),
+        "te_layout_transform2": (["global"], ["global"]),
+        "strided_slice": (["global"], ["global"]),
     }
     verify(Input, Expected)
 
@@ -492,11 +519,14 @@ def test_conv2d_relu_concat_sub_indexed():
             return gv3
 
     Expected = {
-        'te_layout_transform': (["global"], ["global.texture-weight"]),
-        'te_layout_transform1': (["global"], ["global.texture-weight"]),
-        'conv2d_NCHWc_OIHWo': (["global.texture-weight", "global.texture-weight"], ["global.texture-weight"]),
-        'fused_relu_concatenate': (["global.texture-weight"], ["global"]),
-        'te_layout_transform2': (["global"], ["global"]),
+        "te_layout_transform": (["global"], ["global.texture-weight"]),
+        "te_layout_transform1": (["global"], ["global.texture-weight"]),
+        "conv2d_NCHWc_OIHWo": (
+            ["global.texture-weight", "global.texture-weight"],
+            ["global.texture-weight"],
+        ),
+        "fused_relu_concatenate": (["global.texture-weight"], ["global"]),
+        "te_layout_transform2": (["global"], ["global"]),
     }
     verify(Input, Expected)
 
@@ -515,12 +545,15 @@ def test_conv2d_relu_concat_split_sub_indexed():
             return gv4
 
     Expected = {
-        'te_layout_transform': (["global"], ["global.texture-weight"]),
-        'te_layout_transform1': (["global"], ["global.texture-weight"]),
-        'conv2d_NCHWc_OIHWo': (["global.texture-weight", "global.texture-weight"], ["global.texture-weight"]),
-        'fused_relu_concatenate_split': (["global.texture-weight"], ["global", "global"]),
-        'te_layout_transform2': (["global"], ["global"]),
-        'te_layout_transform3': (["global"], ["global"]),
+        "te_layout_transform": (["global"], ["global.texture-weight"]),
+        "te_layout_transform1": (["global"], ["global.texture-weight"]),
+        "conv2d_NCHWc_OIHWo": (
+            ["global.texture-weight", "global.texture-weight"],
+            ["global.texture-weight"],
+        ),
+        "fused_relu_concatenate_split": (["global.texture-weight"], ["global", "global"]),
+        "te_layout_transform2": (["global"], ["global"]),
+        "te_layout_transform3": (["global"], ["global"]),
     }
     verify(Input, Expected)
 
@@ -542,13 +575,16 @@ def test_conv2d_relu_concat_split_transpose_concat_sub_indexed():
             return gv7
 
     Expected = {
-        'te_layout_transform': (["global"], ["global.texture-weight"]),
-        'te_layout_transform1': (["global"], ["global.texture-weight"]),
-        'conv2d_NCHWc_OIHWo': (["global.texture-weight", "global.texture-weight"], ["global.texture-weight"]),
-        'fused_relu_concatenate_split': (["global.texture-weight"], ["global", "global"]),
-        'te_layout_transform2': (["global"], ["global"]),
-        'te_layout_transform3': (["global"], ["global"]),
-        'fused_transpose_transpose1_concatenate1': (["global", "global"], ["global"]),
+        "te_layout_transform": (["global"], ["global.texture-weight"]),
+        "te_layout_transform1": (["global"], ["global.texture-weight"]),
+        "conv2d_NCHWc_OIHWo": (
+            ["global.texture-weight", "global.texture-weight"],
+            ["global.texture-weight"],
+        ),
+        "fused_relu_concatenate_split": (["global.texture-weight"], ["global", "global"]),
+        "te_layout_transform2": (["global"], ["global"]),
+        "te_layout_transform3": (["global"], ["global"]),
+        "fused_transpose_transpose1_concatenate1": (["global", "global"], ["global"]),
     }
     verify(Input, Expected)
 
@@ -574,11 +610,14 @@ def test_conv2d_maxpool2d_sub_indexed():
             return gv2
 
     Expected = {
-        'te_layout_transform': (["global"], ["global.texture-weight"]),
-        'te_layout_transform1': (["global"], ["global.texture-weight"]),
-        'conv2d_NCHWc_OIHWo': (["global.texture-weight", "global.texture-weight"], ["global.texture-weight"]),
-        'max_pool2d': (["global.texture-weight"], ["global"]),
-        'te_layout_transform2': (["global"], ["global"]),
+        "te_layout_transform": (["global"], ["global.texture-weight"]),
+        "te_layout_transform1": (["global"], ["global.texture-weight"]),
+        "conv2d_NCHWc_OIHWo": (
+            ["global.texture-weight", "global.texture-weight"],
+            ["global.texture-weight"],
+        ),
+        "max_pool2d": (["global.texture-weight"], ["global"]),
+        "te_layout_transform2": (["global"], ["global"]),
     }
     verify(Input, Expected)
 
@@ -597,11 +636,14 @@ def test_conv2d_avgpool2d_sub_indexed():
             return gv2
 
     Expected = {
-        'te_layout_transform': (["global"], ["global.texture-weight"]),
-        'te_layout_transform1': (["global"], ["global.texture-weight"]),
-        'conv2d_NCHWc_OIHWo': (["global.texture-weight", "global.texture-weight"], ["global.texture-weight"]),
-        'adaptive_avg_pool2d': (["global.texture-weight"], ["global"]),
-        'te_layout_transform2': (["global"], ["global"]),
+        "te_layout_transform": (["global"], ["global.texture-weight"]),
+        "te_layout_transform1": (["global"], ["global.texture-weight"]),
+        "conv2d_NCHWc_OIHWo": (
+            ["global.texture-weight", "global.texture-weight"],
+            ["global.texture-weight"],
+        ),
+        "adaptive_avg_pool2d": (["global.texture-weight"], ["global"]),
+        "te_layout_transform2": (["global"], ["global"]),
     }
     verify(Input, Expected)
 
@@ -620,11 +662,11 @@ def test_conv2d_softmax_sub_indexed():
             return gv2
 
     Expected = {
-        'te_layout_transform': (["global"], ["global.texture-weight"]),
-        'te_layout_transform1': (["global"], ["global.texture-weight"]),
-        'conv2d_NCHWc_OIHWo': (["global.texture-weight", "global.texture-weight"], ["global"]),
-        'te_layout_transform2': (["global"], ["global"]),
-        'softmax': (["global"], ["global"]),
+        "te_layout_transform": (["global"], ["global.texture-weight"]),
+        "te_layout_transform1": (["global"], ["global.texture-weight"]),
+        "conv2d_NCHWc_OIHWo": (["global.texture-weight", "global.texture-weight"], ["global"]),
+        "te_layout_transform2": (["global"], ["global"]),
+        "softmax": (["global"], ["global"]),
     }
     verify(Input, Expected)
 
@@ -648,11 +690,14 @@ def test_conv2d_layernorm_sub_indexed():
             return gv2
 
     Expected = {
-        'te_layout_transform': (["global"], ["global.texture-weight"]),
-        'te_layout_transform1': (["global"], ["global.texture-weight"]),
-        'conv2d_NCHWc_OIHWo': (["global.texture-weight", "global.texture-weight"], ["global.texture-weight"]),
-        'layer_norm': (["global.texture-weight", "global", "global"], ["global"]),
-        'te_layout_transform2': (["global"], ["global"]),
+        "te_layout_transform": (["global"], ["global.texture-weight"]),
+        "te_layout_transform1": (["global"], ["global.texture-weight"]),
+        "conv2d_NCHWc_OIHWo": (
+            ["global.texture-weight", "global.texture-weight"],
+            ["global.texture-weight"],
+        ),
+        "layer_norm": (["global.texture-weight", "global", "global"], ["global"]),
+        "te_layout_transform2": (["global"], ["global"]),
     }
     verify(Input, Expected)
 
@@ -673,11 +718,11 @@ def test_binary_broadcast_sub_indexed():
             return gv2
 
     Expected = {
-        'te_layout_transform': (["global"], ["global.texture-weight"]),
-        'te_layout_transform1': (["global"], ["global.texture-weight"]),
-        'conv2d_NCHWc_OIHWo': (["global.texture-weight", "global.texture-weight"], ["global"]),
-        'te_layout_transform2': (["global"], ["global"]),
-        'add': (["global", "global"], ["global"]),
+        "te_layout_transform": (["global"], ["global.texture-weight"]),
+        "te_layout_transform1": (["global"], ["global.texture-weight"]),
+        "conv2d_NCHWc_OIHWo": (["global.texture-weight", "global.texture-weight"], ["global"]),
+        "te_layout_transform2": (["global"], ["global"]),
+        "add": (["global", "global"], ["global"]),
     }
     verify(Input, Expected)
 
@@ -696,12 +741,16 @@ def test_binary_ewise_scalar_sub_indexed():
             return gv2
 
     Expected = {
-        'te_layout_transform': (["global"], ["global.texture-weight"]),
-        'te_layout_transform1': (["global"], ["global.texture-weight"]),
-        'fused_conv2d_NCHWc_OIHWo_add': (["global.texture-weight", "global.texture-weight"], ["global"]),
-        'te_layout_transform2': (["global"], ["global"]),
+        "te_layout_transform": (["global"], ["global.texture-weight"]),
+        "te_layout_transform1": (["global"], ["global.texture-weight"]),
+        "fused_conv2d_NCHWc_OIHWo_add": (
+            ["global.texture-weight", "global.texture-weight"],
+            ["global"],
+        ),
+        "te_layout_transform2": (["global"], ["global"]),
     }
     verify(Input, Expected)
+
 
 def test_residual_block():
     """
@@ -747,17 +796,26 @@ def test_residual_block():
             return gv7
 
     Expected = {
-        'te_layout_transform': (["global"], ["global.texture-weight"]),
-        'te_layout_transform1': (["global"], ["global.texture-weight"]),
-        'te_layout_transform2': (["global"], ["global.texture-weight"]),
-        'fused_conv2d_NCHWc_OIHWo_add_relu': (["global.texture-weight", "global.texture-weight", "global.texture-weight"], ["global.texture-weight"]),
-        'te_layout_transform3': (["global"], ["global.texture-weight"]),
-        'multiply': (["global"], ["global"]),
-        'te_layout_transform4': (["global"], ["global.texture-weight"]),
-        'fused_conv2d_NCHWc_OIHWo1_add1_relu1': (["global.texture-weight", "global.texture-weight", "global.texture-weight"], ["global.texture-weight"]),
-        'te_layout_transform5': (["global"], ["global.texture-weight"]),
-        'fused_conv2d_NCHWc_OIHWo2_relu2': (["global.texture-weight", "global.texture-weight"], ["global"]),
-        'te_layout_transform6': (["global"], ["global"]),
+        "te_layout_transform": (["global"], ["global.texture-weight"]),
+        "te_layout_transform1": (["global"], ["global.texture-weight"]),
+        "te_layout_transform2": (["global"], ["global.texture-weight"]),
+        "fused_conv2d_NCHWc_OIHWo_add_relu": (
+            ["global.texture-weight", "global.texture-weight", "global.texture-weight"],
+            ["global.texture-weight"],
+        ),
+        "te_layout_transform3": (["global"], ["global.texture-weight"]),
+        "multiply": (["global"], ["global"]),
+        "te_layout_transform4": (["global"], ["global.texture-weight"]),
+        "fused_conv2d_NCHWc_OIHWo1_add_relu": (
+            ["global.texture-weight", "global.texture-weight", "global.texture-weight"],
+            ["global.texture-weight"],
+        ),
+        "te_layout_transform5": (["global"], ["global.texture-weight"]),
+        "fused_conv2d_NCHWc_OIHWo2_relu1": (
+            ["global.texture-weight", "global.texture-weight"],
+            ["global"],
+        ),
+        "te_layout_transform6": (["global"], ["global"]),
     }
     verify(Input, Expected)
 
@@ -774,6 +832,7 @@ def test_conv2d_conv2d_fallback_to_buffer_conv2d():
                      |                   <- buffer
                layout_transform (NCHW4c->NCHW)
     """
+
     @I.ir_module
     class Input:
         @R.function
@@ -798,16 +857,19 @@ def test_conv2d_conv2d_fallback_to_buffer_conv2d():
             return gv7
 
     Expected = {
-        'te_layout_transform': (["global"], ["global.texture-weight"]),
-        'te_layout_transform1': (["global"], ["global.texture-weight"]),
-        'te_layout_transform2': (["global"], ["global.texture-weight"]),
-        'fused_conv2d_NCHWc_OIHWo_add_relu': (["global.texture-weight", "global.texture-weight", "global.texture-weight"], ["global"]),
-        'te_layout_transform3': (["global"], ["global.texture-weight"]),
-        'conv2d_NCHWc_OIHWo1': (["global.texture-weight", "global.texture-weight"], ["global"]),
-        'te_layout_transform4': (["global"], ["global"]),
-        'conv2d': (["global", "global"], ["global"]),
-        'te_layout_transform5': (["global"], ["global"]),
-        'concatenate': (["global", "global"], ["global"]),
+        "te_layout_transform": (["global"], ["global.texture-weight"]),
+        "te_layout_transform1": (["global"], ["global.texture-weight"]),
+        "te_layout_transform2": (["global"], ["global.texture-weight"]),
+        "fused_conv2d_NCHWc_OIHWo_add_relu": (
+            ["global.texture-weight", "global.texture-weight", "global.texture-weight"],
+            ["global"],
+        ),
+        "te_layout_transform3": (["global"], ["global.texture-weight"]),
+        "conv2d_NCHWc_OIHWo1": (["global.texture-weight", "global.texture-weight"], ["global"]),
+        "te_layout_transform4": (["global"], ["global"]),
+        "conv2d": (["global", "global"], ["global"]),
+        "te_layout_transform5": (["global"], ["global"]),
+        "concatenate": (["global", "global"], ["global"]),
     }
     verify(Input, Expected)
 
@@ -824,6 +886,7 @@ def test_conv2d_conv2d_conv2d_concat():
                      |                   <- buffer
                layout_transform (NCHW4c->NCHW)
     """
+
     @I.ir_module
     class Input:
         @R.function
@@ -848,16 +911,25 @@ def test_conv2d_conv2d_conv2d_concat():
             return gv7
 
     Expected = {
-        'te_layout_transform': (["global"], ["global.texture-weight"]),
-        'te_layout_transform1': (["global"], ["global.texture-weight"]),
-        'te_layout_transform2': (["global"], ["global.texture-weight"]),
-        'fused_conv2d_NCHWc_OIHWo_add_relu': (["global.texture-weight", "global.texture-weight", "global.texture-weight"], ["global.texture-weight"]),
-        'te_layout_transform3': (["global"], ["global.texture-weight"]),
-        'conv2d_NCHWc_OIHWo1': (["global.texture-weight", "global.texture-weight"], ["global.texture-weight"]),
-        'te_layout_transform4': (["global"], ["global.texture-weight"]),
-        'conv2d_NCHWc_OIHWo2': (["global.texture-weight", "global.texture-weight"], ["global.texture-weight"]),
-        'concatenate': (["global.texture-weight", "global.texture-weight"], ["global"]),
-        'te_layout_transform5': (["global"], ["global"]),
+        "te_layout_transform": (["global"], ["global.texture-weight"]),
+        "te_layout_transform1": (["global"], ["global.texture-weight"]),
+        "te_layout_transform2": (["global"], ["global.texture-weight"]),
+        "fused_conv2d_NCHWc_OIHWo_add_relu": (
+            ["global.texture-weight", "global.texture-weight", "global.texture-weight"],
+            ["global.texture-weight"],
+        ),
+        "te_layout_transform3": (["global"], ["global.texture-weight"]),
+        "conv2d_NCHWc_OIHWo1": (
+            ["global.texture-weight", "global.texture-weight"],
+            ["global.texture-weight"],
+        ),
+        "te_layout_transform4": (["global"], ["global.texture-weight"]),
+        "conv2d_NCHWc_OIHWo2": (
+            ["global.texture-weight", "global.texture-weight"],
+            ["global.texture-weight"],
+        ),
+        "concatenate": (["global.texture-weight", "global.texture-weight"], ["global"]),
+        "te_layout_transform5": (["global"], ["global"]),
     }
     verify(Input, Expected)
 
@@ -879,6 +951,7 @@ def test_pooling_branching_texture_params():
                              |                   <- buffer
                     layout_transform (NCHW4c->NCHW)
     """
+
     @I.ir_module
     class Input:
         @R.function
@@ -893,11 +966,17 @@ def test_pooling_branching_texture_params():
             with R.dataflow():
                 gv = R.nn.conv2d(x, w1, strides=[1, 1], out_dtype="float32")
                 gv1 = R.nn.max_pool2d(gv, pool_size=[2, 2], strides=[2, 2])
-                gv2 = R.nn.conv2d(gv1, w2, padding=[0, 0, 1, 1], strides=[1, 1], out_dtype="float32")
+                gv2 = R.nn.conv2d(
+                    gv1, w2, padding=[0, 0, 1, 1], strides=[1, 1], out_dtype="float32"
+                )
                 gv3 = R.add(gv2, bias1)
                 gv4 = R.nn.relu(gv3)
-                gv5 = R.nn.conv2d(gv1, w3, padding=[0, 0, 0, 0], strides=[1, 1], out_dtype="float32")
-                gv6 = R.nn.conv2d(gv1, w4, padding=[0, 1, 1, 0], strides=[1, 1], out_dtype="float32")
+                gv5 = R.nn.conv2d(
+                    gv1, w3, padding=[0, 0, 0, 0], strides=[1, 1], out_dtype="float32"
+                )
+                gv6 = R.nn.conv2d(
+                    gv1, w4, padding=[0, 1, 1, 0], strides=[1, 1], out_dtype="float32"
+                )
                 gv7 = R.nn.relu(gv6)
                 gv8 = R.add(gv2, gv5)
                 gv9 = R.add(gv8, gv6)
@@ -905,17 +984,29 @@ def test_pooling_branching_texture_params():
             return gv9
 
     Expected = {
-        'te_layout_transform': (["global"], ["global.texture-weight"]),
-        'te_layout_transform1': (["global"], ["global.texture-weight"]),
-        'conv2d_NCHWc_OIHWo': (["global.texture-weight", "global.texture-weight"], ["global.texture-weight"]),
-        'max_pool2d': (["global.texture-weight"], ["global.texture-weight"]),
-        'te_layout_transform2': (["global"], ["global.texture-weight"]),
-        'te_layout_transform3': (["global"], ["global.texture-weight"]),
-        'conv2d_NCHWc_OIHWo2': (["global.texture-weight", "global.texture-weight"], ["global.texture-weight"]),
-        'fused_conv2d_NCHWc_OIHWo1_add': (["global.texture-weight", "global.texture-weight", "global.texture-weight"], ["global.texture-weight"]),
-        'te_layout_transform4': (["global"], ["global.texture-weight"]),
-        'fused_conv2d_NCHWc_OIHWo3_add1': (["global.texture-weight", "global.texture-weight", "global.texture-weight"], ["global"]),
-        'te_layout_transform5': (["global"], ["global"]),
+        "te_layout_transform": (["global"], ["global.texture-weight"]),
+        "te_layout_transform1": (["global"], ["global.texture-weight"]),
+        "conv2d_NCHWc_OIHWo": (
+            ["global.texture-weight", "global.texture-weight"],
+            ["global.texture-weight"],
+        ),
+        "max_pool2d": (["global.texture-weight"], ["global.texture-weight"]),
+        "te_layout_transform2": (["global"], ["global.texture-weight"]),
+        "te_layout_transform3": (["global"], ["global.texture-weight"]),
+        "conv2d_NCHWc_OIHWo2": (
+            ["global.texture-weight", "global.texture-weight"],
+            ["global.texture-weight"],
+        ),
+        "fused_conv2d_NCHWc_OIHWo1_add": (
+            ["global.texture-weight", "global.texture-weight", "global.texture-weight"],
+            ["global.texture-weight"],
+        ),
+        "te_layout_transform4": (["global"], ["global.texture-weight"]),
+        "fused_conv2d_NCHWc_OIHWo3_add": (
+            ["global.texture-weight", "global.texture-weight", "global.texture-weight"],
+            ["global"],
+        ),
+        "te_layout_transform5": (["global"], ["global"]),
     }
     verify(Input, Expected)
 
@@ -939,6 +1030,7 @@ def test_injective_inputs1():
                         add
 
     """
+
     @I.ir_module
     class Input:
         @R.function
@@ -950,8 +1042,12 @@ def test_injective_inputs1():
         ) -> R.Tensor(None, "float32", ndim=4):
             with R.dataflow():
                 mean = R.mean(x, axis=1, keepdims=True)
-                conv1 = R.nn.conv2d(x, w1, padding=[1, 1, 1, 1], strides=[1, 1], out_dtype="float32")
-                conv2 = R.nn.conv2d(conv1, w2, padding=[1, 1, 1, 1], strides=[1, 1], out_dtype="float32")
+                conv1 = R.nn.conv2d(
+                    x, w1, padding=[1, 1, 1, 1], strides=[1, 1], out_dtype="float32"
+                )
+                conv2 = R.nn.conv2d(
+                    conv1, w2, padding=[1, 1, 1, 1], strides=[1, 1], out_dtype="float32"
+                )
                 ad3 = R.add(conv1, conv2)
                 ad1 = R.add(mean, conv1)
                 ad2 = R.multiply(ad1, conv1)
@@ -960,15 +1056,21 @@ def test_injective_inputs1():
             return gv
 
     Expected = {
-        'te_layout_transform': (["global"], ["global.texture-weight"]),
-        'te_layout_transform1': (["global"], ["global.texture-weight"]),
-        'conv2d_NCHWc_OIHWo': (["global.texture-weight", "global.texture-weight"], ["global.texture-weight"]),
-        'te_layout_transform3': (["global"], ["global"]),
-        'fused_mean_add1': (["global", "global"], ["global"]),
-        'te_layout_transform2': (["global"], ["global.texture-weight"]),
-        'te_layout_transform4': (["global"], ["global.texture-weight"]),
-        'fused_conv2d_NCHWc_OIHWo1_add_multiply_add2': (["global.texture-weight", "global.texture-weight", "global.texture-weight"], ["global"]),
-        'te_layout_transform5': (["global"], ["global"]),
+        "te_layout_transform": (["global"], ["global.texture-weight"]),
+        "te_layout_transform1": (["global"], ["global.texture-weight"]),
+        "conv2d_NCHWc_OIHWo": (
+            ["global.texture-weight", "global.texture-weight"],
+            ["global.texture-weight"],
+        ),
+        "te_layout_transform3": (["global"], ["global"]),
+        "fused_mean_add1": (["global", "global"], ["global"]),
+        "te_layout_transform2": (["global"], ["global.texture-weight"]),
+        "te_layout_transform4": (["global"], ["global.texture-weight"]),
+        "fused_conv2d_NCHWc_OIHWo1_add_multiply_add": (
+            ["global.texture-weight", "global.texture-weight", "global.texture-weight"],
+            ["global"],
+        ),
+        "te_layout_transform5": (["global"], ["global"]),
     }
     verify(Input, Expected)
 
@@ -994,6 +1096,7 @@ def test_injective_nwo_inputs2():
                         add
 
     """
+
     @I.ir_module
     class Input:
         @R.function
@@ -1005,8 +1108,12 @@ def test_injective_nwo_inputs2():
         ) -> R.Tensor(None, "float32", ndim=4):
             with R.dataflow():
                 mean = R.mean(x, axis=1, keepdims=True)
-                conv1 = R.nn.conv2d(x, w1, padding=[1, 1, 1, 1], strides=[1, 1], out_dtype="float32")
-                conv2 = R.nn.conv2d(conv1, w2, padding=[1, 1, 1, 1], strides=[1, 1], out_dtype="float32")
+                conv1 = R.nn.conv2d(
+                    x, w1, padding=[1, 1, 1, 1], strides=[1, 1], out_dtype="float32"
+                )
+                conv2 = R.nn.conv2d(
+                    conv1, w2, padding=[1, 1, 1, 1], strides=[1, 1], out_dtype="float32"
+                )
                 ad3 = R.add(conv1, conv2)
                 ad1 = R.add(mean, conv1)
                 ad2 = R.multiply(ad1, conv2)
@@ -1015,15 +1122,21 @@ def test_injective_nwo_inputs2():
             return gv
 
     Expected = {
-        'te_layout_transform': (["global"], ["global.texture-weight"]),
-        'te_layout_transform1': (["global"], ["global.texture-weight"]),
-        'conv2d_NCHWc_OIHWo': (["global.texture-weight", "global.texture-weight"], ["global.texture-weight"]),
-        'te_layout_transform3': (["global"], ["global"]),
-        'fused_mean_add1': (["global", "global"], ["global"]),
-        'te_layout_transform2': (["global"], ["global.texture-weight"]),
-        'te_layout_transform4': (["global"], ["global.texture-weight"]),
-        'fused_conv2d_NCHWc_OIHWo1_add_multiply_add2': (["global.texture-weight", "global.texture-weight", "global.texture-weight"], ["global"]),
-        'te_layout_transform5': (["global"], ["global"]),
+        "te_layout_transform": (["global"], ["global.texture-weight"]),
+        "te_layout_transform1": (["global"], ["global.texture-weight"]),
+        "conv2d_NCHWc_OIHWo": (
+            ["global.texture-weight", "global.texture-weight"],
+            ["global.texture-weight"],
+        ),
+        "te_layout_transform3": (["global"], ["global"]),
+        "fused_mean_add1": (["global", "global"], ["global"]),
+        "te_layout_transform2": (["global"], ["global.texture-weight"]),
+        "te_layout_transform4": (["global"], ["global.texture-weight"]),
+        "fused_conv2d_NCHWc_OIHWo1_add_multiply_add": (
+            ["global.texture-weight", "global.texture-weight", "global.texture-weight"],
+            ["global"],
+        ),
+        "te_layout_transform5": (["global"], ["global"]),
     }
     verify(Input, Expected)
 
