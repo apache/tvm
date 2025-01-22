@@ -1063,7 +1063,9 @@ def BundleModelParams(param_tuple_name: Optional[str] = None) -> tvm.ir.transfor
 
 
 def LegalizeOps(
-    customize_legalize_map: Optional[Dict[str, LegalizeFunc]] = None, enable_warning: bool = False
+    customize_legalize_map: Optional[Dict[str, LegalizeFunc]] = None,
+    enable_warning: bool = False,
+    add_attributes: bool = False,
 ):
     """Legalize high-level operator calls in Relax functions to call_tir
     with corresponding low-level TIR PrimFuncs.
@@ -1093,6 +1095,10 @@ def LegalizeOps(
         A boolean value indicating if to print warnings for CallNode whose op's
         legalization function is not registered. By default we don't print
         warnings.
+
+    add_attributes : bool
+        A boolean value indicating if we want legalize ops to add operator attributes to legalized
+        prim function attributes. By default it's false.
 
     Returns
     -------
@@ -1168,7 +1174,9 @@ def LegalizeOps(
                         T_multiply[v_ax0, v_ax1] = A[v_ax0, v_ax1] * B[v_ax0, v_ax1]
     """
 
-    return _ffi_api.LegalizeOps(customize_legalize_map, enable_warning)  # type: ignore
+    return _ffi_api.LegalizeOps(
+        customize_legalize_map, enable_warning, add_attributes  # type: ignore
+    )
 
 
 def RealizeVDevice() -> tvm.ir.transform.Pass:
