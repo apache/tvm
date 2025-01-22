@@ -243,9 +243,11 @@ TVM_DLL Pass FoldConstant();
  * will override the default one.
  * \param enable_warning A boolean value indicating if to print warnings for TIR functions not
  * showing up in the database.
+ * \param add_attributes A boolean value indicating adding of call attributes to TIR functions
  * \return The Pass.
  */
-TVM_DLL Pass LegalizeOps(Optional<Map<String, PackedFunc>> cmap, bool enable_warning = false);
+TVM_DLL Pass LegalizeOps(Optional<Map<String, PackedFunc>> cmap, bool enable_warning = false,
+                         bool add_attributes = false);
 
 /*!
  * \brief Propagate virtual device information.
