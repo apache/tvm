@@ -20,6 +20,7 @@
 from tvm import relax
 from tvm import topi
 
+
 def conv2d_NCHWc_OIHWo(bb: relax.BlockBuilder, call: relax.Call) -> relax.Expr:
     return bb.call_te(
         topi.nn.conv2d_NCHWc_OIHWo,
@@ -30,6 +31,6 @@ def conv2d_NCHWc_OIHWo(bb: relax.BlockBuilder, call: relax.Call) -> relax.Expr:
         dilation=call.attrs.dilation,
         layout=call.attrs.data_layout,
         out_layout=call.attrs.out_layout,
-        #out_dtype=call.attrs.out_dtype,
+        # out_dtype=call.attrs.out_dtype,
         primfunc_name_hint="conv2d_NCHWc_OIHWo",
     )
