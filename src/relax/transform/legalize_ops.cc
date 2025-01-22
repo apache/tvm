@@ -60,8 +60,11 @@ bool KnowAllShapeValues(const StructInfo& sinfo) {
 class LegalizeMutator : public ExprMutator {
  public:
   explicit LegalizeMutator(const IRModule& mod, const Optional<Map<String, ffi::Function>>& cmap,
-                           bool enable_warning)
-      : ExprMutator(mod), mod_(std::move(mod)), enable_warning_(enable_warning) {
+                           bool enable_warning, bool add_attributes)
+      : ExprMutator(mod),
+        mod_(std::move(mod)),
+        enable_warning_(enable_warning),
+        add_attributes_(add_attributes) {
     if (cmap) {
       cmap_ = std::move(cmap.value());
     }
@@ -368,7 +371,9 @@ class LegalizeMutator : public ExprMutator {
     }
     Expr legalized = legalization_func(builder_, visited_call);
 
-    legalized = AttributeOpAttrs(legalized, call->attrs);
+    if (call->attrs.as<Attrs>() && add_attributes_) {
+      legalized = AttributeOpAttrs(legalized, call->attrs);
+    }
 
     // Append the target attribute to any PrimFunc generated in
     // legalization.
@@ -413,16 +418,20 @@ class LegalizeMutator : public ExprMutator {
    * legalization function is not registered.
    */
   bool enable_warning_;
+  /*!
+   * \brief Boolean indicating this pass to add operator attributes to prim function attr
+   */
+  bool add_attributes_;
 };
 
 namespace transform {
 
-Pass LegalizeOps(Optional<Map<String, ffi::Function>> cmap, bool enable_warning) {
+Pass LegalizeOps(Optional<Map<String, ffi::Function>> cmap, bool enable_warning, bool add_attributes) {
   auto pass_func = [=](IRModule mod, PassContext pc) {
     bool apply_legalize_ops =
         pc->GetConfig<Bool>("relax.transform.apply_legalize_ops").value_or(Bool(true))->value;
     if (apply_legalize_ops) {
-      mod = LegalizeMutator(mod, cmap, enable_warning).Transform();
+      mod = LegalizeMutator(mod, cmap, enable_warning, add_attributes).Transform();
     }
     return mod;
   };
