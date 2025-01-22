@@ -40,11 +40,7 @@ class OptimizeBatchnorm:
         self.mean = is_const()
         self.variance = is_const()
         self.pattern_bn = is_op("relax.nn.batch_norm")(
-            self.pattern_conv2d,
-            self.bn_weight,
-            self.bias,
-            self.mean,
-            self.variance
+            self.pattern_conv2d, self.bn_weight, self.bias, self.mean, self.variance
         )
 
         self.pattern = TupleGetItemPattern(self.pattern_bn, 0)
@@ -85,8 +81,7 @@ class OptimizeBatchnorm:
             bn_attrs = bn_op.attrs
 
             bn_variance = relax.op.add(
-                bn_variance,
-                relax.PrimValue(tir.FloatImm("float32", bn_attrs['epsilon']))
+                bn_variance, relax.PrimValue(tir.FloatImm("float32", bn_attrs["epsilon"]))
             )
             dino = relax.op.sqrt(bn_variance)
             wt = relax.op.divide(bn_weight, dino)
@@ -98,7 +93,7 @@ class OptimizeBatchnorm:
             else:
                 return expr
             wt_conv = relax.op.multiply(conv_weight, wt)
-            bs_args = relax.op.reshape(bs, shape=(1, bn_bias.struct_info.shape[0] , 1, 1))
+            bs_args = relax.op.reshape(bs, shape=(1, bn_bias.struct_info.shape[0], 1, 1))
 
             conv_out = relax.Call(conv_op.op, (conv_input, wt_conv), conv_attrs)
             return relax.op.add(conv_out, bs_args)
