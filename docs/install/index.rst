@@ -29,8 +29,7 @@ Installing TVM
 Visit the :ref:`install TVM from source <install-from-source>` page to install TVM from the source code. Installing
 from source gives you the maximum flexibility to configure the build effectively from the official source releases.
 If you are interested in deploying to mobile or embedded devices, you do not need to
-install the entire TVM stack on your device. Instead, you only need the runtime and can install using the
-:ref:`deployment and integration guide <deploy-and-integration>`.
+install the entire TVM stack on your device. Instead, you only need the runtime.
 
 If you would like to quickly try out TVM or run some demo and tutorials, you
 can :ref:`install from Docker <docker-images>`. You can also use TVM locally through ``pip``.
