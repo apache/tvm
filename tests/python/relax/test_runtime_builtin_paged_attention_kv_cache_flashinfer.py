@@ -382,6 +382,8 @@ def create_kv_cache(rope_mode):
         None,
         None,
         None,
+        None,
+        False
     )
     return cache
 
