@@ -22,7 +22,6 @@ export TVM_TEST_TARGETS="opencl"
 export TVM_RELAY_OPENCL_TEXTURE_TARGETS="opencl -device=adreno"
 
 source tests/scripts/setup-pytest-env.sh
-export PYTHONPATH=${PYTHONPATH}:${TVM_PATH}/apps/extension/python
 export LD_LIBRARY_PATH="build:${LD_LIBRARY_PATH:-}"
 export TVM_INTEGRATION_TESTSUITE_NAME=python-integration-adreno
 

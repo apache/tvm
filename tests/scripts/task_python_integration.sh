@@ -19,7 +19,6 @@
 set -euxo pipefail
 
 source tests/scripts/setup-pytest-env.sh
-export PYTHONPATH=${PYTHONPATH}:${TVM_PATH}/apps/extension/python
 export LD_LIBRARY_PATH="build:${LD_LIBRARY_PATH:-}"
 
 # to avoid CI CPU thread throttling.
@@ -36,27 +35,6 @@ find . -type f -path "*.pyc" | xargs rm -f
 
 # Test TVM
 make cython3
-
-# Test extern package
-cd apps/extension
-rm -rf lib
-make
-cd ../..
-
-run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-extensions-0 apps/extension/tests
-run_pytest cython ${TVM_INTEGRATION_TESTSUITE_NAME}-extensions-1 apps/extension/tests
-
-# Test dso plugin
-cd apps/dso_plugin_module
-rm -rf lib
-make
-cd ../..
-run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-dso_plugin_module-0 apps/dso_plugin_module
-run_pytest cython ${TVM_INTEGRATION_TESTSUITE_NAME}-dso_plugin_module-1 apps/dso_plugin_module
-
-# Do not enable TensorFlow op
-# TVM_FFI=cython sh prepare_and_test_tfop_module.sh
-# TVM_FFI=ctypes sh prepare_and_test_tfop_module.sh
 
 run_pytest ctypes ${TVM_INTEGRATION_TESTSUITE_NAME}-integration tests/python/integration
 
