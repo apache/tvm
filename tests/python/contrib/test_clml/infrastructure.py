@@ -49,9 +49,6 @@ from tvm.runtime.vm import VirtualMachine
 import json
 
 
-NDK_CROSS_COMPILER = os.getenv("TVM_NDK_CC", "aarch64-linux-android-g++")
-
-
 def get_cpu_op_count(mod):
     """Traverse graph counting ops offloaded to TVM."""
 
@@ -172,7 +169,8 @@ def build_and_run_vm(
         dso_binary = "dev_lib_cl.so"
         dso_binary_path = temp.relpath(dso_binary)
         dev = remote.cl(0)
-        vmc.mod.export_library(dso_binary_path, cc=NDK_CROSS_COMPILER)
+        ndk_cc = os.getenv("TVM_NDK_CC", "aarch64-linux-android-g++")
+        vmc.mod.export_library(dso_binary_path, cc=ndk_cc)
         remote.upload(dso_binary_path)
         rlib = remote.load_module(dso_binary)
         vm = VirtualMachine(rlib, dev, "naive")
@@ -248,3 +246,30 @@ def verify_codegen(
             f"Actual={codegen_str} \n"
             f"Expected={known_good_codegen_str}"
         )
+
+
+def compile_and_run(remote, label, model, targets, inputs):
+    """Compile model for target and run it with profiling."""
+    logging.info(f"Compiling {model['name']} using {label} with {targets}...")
+    mod = model["mod"]
+    exe = tvm.relay.vm.compile(mod, target=targets, params=model["params"])
+    lib = exe.mod
+    temp = utils.tempdir()
+    dso_binary = "dev_lib_cl.so"
+    dso_binary_path = temp.relpath(dso_binary)
+    logging.info(f"Exporting library to {dso_binary_path}...")
+    ndk_cc = os.getenv("TVM_NDK_CC", "aarch64-linux-android-g++")
+    lib.export_library(dso_binary_path, cc=ndk_cc)
+    ctx = remote.cl(0)
+    remote.upload(dso_binary_path)
+    rlib = remote.load_module(dso_binary)
+    vm_factory = tvm.runtime.vm.VirtualMachine(rlib, ctx, "naive")
+    inputs_data = {}
+    for key in inputs.keys():
+        inputs_data[key] = tvm.nd.array(inputs[key], ctx)
+    for k, v in model["params"].items():
+        inputs_data[k] = tvm.nd.array(v, ctx)
+    vm_factory.set_input("main", **inputs_data)
+    vm_factory.invoke_stateful("main")
+    out = vm_factory.get_outputs()[0]
+    return out.numpy()

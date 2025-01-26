@@ -388,6 +388,32 @@ def clml_pattern_table():
             return False
         return True
 
+    def check_batchnorm(extract):
+        call = extract
+        if isinstance(call, tvm.relay.expr.TupleGetItem):
+            call = call.tuple_value
+            call_shape = call.checked_type.fields[0].shape
+            call_dtype = call.checked_type.fields[0].dtype
+        else:
+            call_shape = call.checked_type.shape
+            call_dtype = call.checked_type.dtype
+
+        # int64, int32 dtypes are not Supported in CLML
+        if call_dtype in ["int64", "int32"]:
+            return False
+
+        # Supports only upto 4 dim shapes
+        if len(call_shape) == 0 or len(call_shape) > 4:
+            return False
+        # Only support batch dim = 1
+        if isinstance(call_shape[0], tvm.tir.expr.Any) or call_shape[0] > 1:
+            return False
+        # Checking buffer indexing limit
+        for shape in call_shape:
+            if shape > 32768:
+                return False
+        return True
+
     def check_conv_transpose(extract):
         """Check transposed conv pattern is supported by CLML."""
         call = extract
@@ -471,7 +497,7 @@ def clml_pattern_table():
             return False
 
         # Supports only upto 4 dim shapes
-        if len(call_shape) > 4:
+        if len(call_shape) == 0 or len(call_shape) > 4:
             return False
         # Only support batch dim = 1
         if isinstance(call_shape[0], tvm.tir.expr.Any) or call_shape[0] > 1:
@@ -564,7 +590,7 @@ def clml_pattern_table():
         ("clml.dense2d", dense2d_pattern(), check_dense2d_op),
         ("clml.pad", pad_pattern(), check_pad_op),
         ("clml.concat", concat_pattern(), check_concat_op),
-        ("clml.batch_norm", batch_norm_pattern()),
+        ("clml.batch_norm", batch_norm_pattern(), check_batchnorm),
         ("clml.add", is_op("add")(wildcard(), wildcard()), check_binary_op),
         ("clml.subtract", is_op("subtract")(wildcard(), wildcard()), check_binary_op),
         ("clml.multiply", is_op("multiply")(wildcard(), wildcard()), check_binary_op),
