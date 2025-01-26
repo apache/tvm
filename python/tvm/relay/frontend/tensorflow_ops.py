@@ -2359,7 +2359,7 @@ def _pad(name):
         else:
             paddings = tuple(tuple(l) for l in padlist)
         attr["pad_width"] = paddings
-        attr["pad_value"] = 0
+        attr["pad_value"] = _expr.const(0)
         new_inputs = [inputs[0]]
         if name == "PadV2":
             try:
