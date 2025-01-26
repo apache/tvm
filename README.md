@@ -22,9 +22,6 @@
 [Community](https://tvm.apache.org/community) |
 [Release Notes](NEWS.md)
 
-[![Build Status](https://ci.tlcpack.ai/buildStatus/icon?job=tvm/main)](https://ci.tlcpack.ai/job/tvm/job/main/)
-[![WinMacBuild](https://github.com/apache/tvm/workflows/WinMacBuild/badge.svg)](https://github.com/apache/tvm/actions?query=workflow%3AWinMacBuild)
-
 Apache TVM is a compiler stack for deep learning systems. It is designed to close the gap between the
 productivity-focused deep learning frameworks, and the performance- and efficiency-focused hardware backends.
 TVM works with deep learning frameworks to provide end to end compilation to different backends.
@@ -44,10 +41,23 @@ Contribute to TVM
 TVM adopts apache committer model, we aim to create an open source project that is maintained and owned by the community.
 Check out the [Contributor Guide](https://tvm.apache.org/docs/contribute/).
 
-Acknowledgement
----------------
-We learned a lot from the following projects when building TVM.
+History and Acknowledgement
+---------------------------
+TVM started as a research project for deep learning compiler.
+The first version of the project benefited a lot from following projects:
+
 - [Halide](https://github.com/halide/Halide): Part of TVM's TIR and arithmetic simplification module
-  originates from Halide. We also learned and adapted some part of lowering pipeline from Halide.
+ originates from Halide. We also learned and adapted some part of lowering pipeline from Halide.
 - [Loopy](https://github.com/inducer/loopy): use of integer set analysis and its loop transformation primitives.
 - [Theano](https://github.com/Theano/Theano): the design inspiration of symbolic scan operator for recurrence.
+
+Since then, the project has gone through several rounds of redesigns.
+The current design is also drastically different from the initial design, following the
+development trend of ML compiler community.
+
+The most recent version focuses on a cross-level design with TensorIR as tensor-level representation
+and Relax as graph level representation, and python-first transformations.
+The current design goal of the project is to make the ML compiler accessible by enabling most
+transformations to be customizable in Python and bringing a cross-level representation that can jointly
+optimize computational graphs, tensor programs, and libraries. The project also serves as a foundation
+infra to build python-first vertical compilers for various domains, such as LLMs.
