@@ -226,6 +226,7 @@ def test_layout_transform_to_mixed_precision_pass_args_graph():
             "mixed_precision_calculation_type": "float16",
             "mixed_precision_acc_type": "float16",
         },
+        params,
     )
     ret = CheckOpMutator("float16", "float16", "nn.conv2d").check(mod["main"])
     assert ret
@@ -240,6 +241,7 @@ def test_layout_transform_to_mixed_precision_pass_args_graph():
             "mixed_precision_calculation_type": "float16",
             "mixed_precision_acc_type": "float32",
         },
+        params,
     )
     ret = CheckOpMutator("float16", "float32", "nn.conv2d").check(mod["main"])
     assert ret

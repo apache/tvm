@@ -970,6 +970,9 @@ TVM_DLL const Op& vscale();
  */
 TVM_DLL const Op& get_active_lane_mask();
 
+/*! \brief Annotate a predicate not be considered as target condition of loop partition. */
+TVM_DLL const Op& ignore_loop_partition();
+
 /*! \brief The kind of structure field info used in intrinsic */
 enum TVMStructFieldKind : int {
   // array head address

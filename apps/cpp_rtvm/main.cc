@@ -39,10 +39,6 @@
 #include "../../src/support/utils.h"
 #include "tvm_runner.h"
 
-#if defined(_WIN32)
-#include "../cpp_rpc/win32_process.h"
-#endif
-
 using namespace std;
 using namespace tvm::runtime;
 using namespace tvm::support;

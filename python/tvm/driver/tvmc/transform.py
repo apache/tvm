@@ -162,7 +162,7 @@ def convert_graph_layout(mod, desired_layouts, ops=None):
         raise TVMCException("Error converting layouts: {}".format(str(err)))
 
 
-def apply_graph_transforms(mod, args):
+def apply_graph_transforms(mod, args, params=None):
     """Alter the layout of the input graph.
 
     Parameters
@@ -171,6 +171,8 @@ def apply_graph_transforms(mod, args):
         The relay module to convert.
     args : dict
         The transform arguments.
+    params: dict
+        Module params
 
     Returns
     -------
@@ -188,6 +190,7 @@ def apply_graph_transforms(mod, args):
 
     # ToMixedPrecision
     if args.get("mixed_precision", False):
+        mod = relay.quantize.prerequisite_optimize(mod, params)
         mod = convert_to_mixed_precision(
             mod,
             args.get("mixed_precision_ops"),

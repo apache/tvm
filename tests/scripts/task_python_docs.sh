@@ -119,12 +119,6 @@ fi
 
 
 clean_files
-# prepare auto scheduler tutorials
-rm -rf gallery/how_to/tune_with_auto_scheduler/*.json
-rm -rf gallery/tutorial/*.json
-cp -f gallery/how_to/tune_with_autoscheduler/ci_logs/*.json gallery/how_to/tune_with_autoscheduler
-cp -f gallery/how_to/tune_with_autoscheduler/ci_logs/*.json gallery/tutorial
-
 
 # cleanup stale log files
 find . -type f -path "*.log" | xargs rm -f
