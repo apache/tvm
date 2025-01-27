@@ -154,16 +154,17 @@ class SpecializeTIRCallArgs : ExprMutator {
 
 namespace transform {
 
-Pass SpecializeTIRParams() {
+Pass SpecializePrimFuncBasedOnCallSite() {
   runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
       [=](IRModule mod, PassContext pc) { return relax::SpecializeTIRCallArgs().Run(mod); };
   return CreateModulePass(/*pass_function=*/pass_func,
                           /*opt_level=*/0,
-                          /*pass_name=*/"SpecializeTIRParams",
+                          /*pass_name=*/"SpecializePrimFuncBasedOnCallSite",
                           /*required=*/{});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.SpecializeTIRParams").set_body_typed(SpecializeTIRParams);
+TVM_REGISTER_GLOBAL("relax.transform.SpecializePrimFuncBasedOnCallSite")
+    .set_body_typed(SpecializePrimFuncBasedOnCallSite);
 
 }  // namespace transform
 }  // namespace relax
