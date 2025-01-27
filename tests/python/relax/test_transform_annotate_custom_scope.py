@@ -18,7 +18,6 @@
 import tvm
 from tvm import relax
 import tvm.testing
-from tvm.relax.transform import ConvertLayout, Normalize
 from tvm.script.parser import ir as I, relax as R, tir as T
 from tvm.relax.transform.legalize_ops import adreno as legalize_adreno
 from tvm.ir.module import IRModule
@@ -33,7 +32,6 @@ class ValidateScope(PyExprVisitor):  # pylint: disable=abstract-method
 
     def visit(self, mod: IRModule) -> None:
         """Entry point"""
-        print("Mod:", mod["main"])
         for _, func in mod.functions_items():
             if isinstance(func, relax.Function):
                 self.visit_expr(func)
@@ -90,7 +88,7 @@ def verify(mod, expected):
         mod = tvm.relax.transform.FuseTIR()(mod)
         mod = tvm.relax.transform.DeadCodeElimination()(mod)
         mod = tvm.relax.transform.AnnotateCustomMemoryScope(tgt)(mod)
-        mod = Normalize()(mod)
+        mod = tvm.relax.transform.Normalize()(mod)
 
     ValidateScope(expected).visit(mod)
 
