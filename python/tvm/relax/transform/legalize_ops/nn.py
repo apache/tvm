@@ -656,27 +656,10 @@ def _nn_attention(bb: BlockBuilder, call: Call) -> Expr:
         call.args[0],
         call.args[1],
         call.args[2],
-        None,
-        call.attrs.scale,
-        call.attrs.causal_mask,
-        primfunc_name_hint="attention",
-    )
-
-
-@register_legalize("relax.nn.attention_bias")
-def _nn_attention_bias(bb: BlockBuilder, call: Call) -> Expr:
-    assert (
-        call.attrs.window_size is None
-    ), "Legalization for sliding-window attention is not supported yet."
-    return bb.call_te(
-        _te_attention,
-        call.args[0],
-        call.args[1],
-        call.args[2],
         call.args[3],
         call.attrs.scale,
         call.attrs.causal_mask,
-        primfunc_name_hint="attention_bias",
+        primfunc_name_hint="attention",
     )
 
 
