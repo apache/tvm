@@ -84,7 +84,7 @@ from .transform import (
     VMBuiltinLower,
     VMShapeLower,
     AnnotateCustomMemoryScope,
-    SpecializeTIRParams,
+    SpecializePrimFuncBasedOnCallSite,
     dataflowblock_pass,
     function_pass,
 )
