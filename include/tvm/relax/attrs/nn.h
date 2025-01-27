@@ -546,7 +546,7 @@ struct DropoutAttrs : public tvm::AttrsNode<DropoutAttrs> {
 
 /*! \brief Attributes used in Attention operator */
 struct AttentionAttrs : public tvm::AttrsNode<AttentionAttrs> {
-  Optional<FloatImm> bias;
+  Optional<Expr> bias;
   Optional<FloatImm> scale;
   Optional<String> causal_mask;
   Optional<IntImm> window_size;

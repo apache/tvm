@@ -28,7 +28,7 @@ namespace relax {
 /* relax.nn.attention */
 TVM_REGISTER_NODE_TYPE(AttentionAttrs);
 
-Expr attention(Expr query, Expr key, Expr value, Optional<FloatImm> bias, Optional<FloatImm> scale,
+Expr attention(Expr query, Expr key, Expr value, Optional<Expr> bias, Optional<FloatImm> scale,
                Optional<String> causal_mask, Optional<IntImm> window_size) {
   ObjectPtr<AttentionAttrs> attrs = make_object<AttentionAttrs>();
   attrs->scale = scale;
