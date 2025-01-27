@@ -1617,7 +1617,7 @@ def AllocateWorkspace() -> tvm.ir.transform.Pass:
 def AnnotateCustomMemoryScope(target: Optional[Target] = None) -> tvm.ir.transform.Pass:
     """Allocate the memory scope information. This is Adreno specific pass to annotate
     The memory scope information and realize the same with RealizeVDevice pass followed by
-    updating the Prim Function var_buffer mapping using SpecializeTIRParams.
+    updating the Prim Function var_buffer mapping using SpecializePrimFuncBasedOnCallSite.
 
     Returns
     -------
@@ -1627,15 +1627,17 @@ def AnnotateCustomMemoryScope(target: Optional[Target] = None) -> tvm.ir.transfo
     return _ffi_api.AnnotateCustomMemoryScope(target)  # type: ignore
 
 
-def SpecializeTIRParams() -> tvm.ir.transform.Pass:
-    """Map modified tir_call params to prim_func buffers.
+def SpecializePrimFuncBasedOnCallSite() -> tvm.ir.transform.Pass:
+    """This pass updates the var_buffer mapping of PrimFunctions from the call_tir info.
+    Primarily used to update the VDevice information if any changes occured from the caller.
+    This pass recreates the buffers and updates the map.
 
     Returns
     -------
     ret: tvm.ir.transform.Pass
         The registered pass for allocating workspace.
     """
-    return _ffi_api.SpecializeTIRParams()  # type: ignore
+    return _ffi_api.SpecializePrimFuncBasedOnCallSite()  # type: ignore
 
 
 def _wrap_class_function_pass(pass_cls, pass_info):

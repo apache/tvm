@@ -686,17 +686,17 @@ TVM_DLL Pass FewShotTuning(int valid_count, bool benchmark);
  * FuseOps and FuseTIR are modified to pass on the operator specific attributes and also
  * op_pattern details as part of the PrimFunc. This pass is Adreno specific and annotates each
  * BindingVar with appropriate HintInDevice. RealizeVDevice pass followed by handles these hints.
- * Followed by this pass we also invoke SpecializeTIRParams which updates the var_buffer_map
- * based on this new VDevice information.
+ * Followed by this pass we also invoke SpecializePrimFuncBasedOnCallSite which updates the
+ * var_buffer_map based on this new VDevice information.
  */
 TVM_DLL Pass AnnotateCustomMemoryScope(Target target);
 
 /*!
  * \brief This pass updates the var_buffer mapping of PrimFunctions from the call_tir info.
- * Primarily used to update the VDevice information is any changes occured from the caller.
- * This pass recreated the buffers and updates the map.
+ * Primarily used to update the VDevice information if any changes occured from the caller.
+ * This pass recreates the buffers and updates the map.
  */
-TVM_DLL Pass SpecializeTIRParams();
+TVM_DLL Pass SpecializePrimFuncBasedOnCallSite();
 
 }  // namespace transform
 }  // namespace relax
