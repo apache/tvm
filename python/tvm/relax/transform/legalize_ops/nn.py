@@ -656,7 +656,7 @@ def _nn_attention(bb: BlockBuilder, call: Call) -> Expr:
         call.args[0],
         call.args[1],
         call.args[2],
-        call.args[3],
+        call.attrs.bias,
         call.attrs.scale,
         call.attrs.causal_mask,
         primfunc_name_hint="attention",

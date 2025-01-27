@@ -546,11 +546,13 @@ struct DropoutAttrs : public tvm::AttrsNode<DropoutAttrs> {
 
 /*! \brief Attributes used in Attention operator */
 struct AttentionAttrs : public tvm::AttrsNode<AttentionAttrs> {
+  Optional<FloatImm> bias;
   Optional<FloatImm> scale;
   Optional<String> causal_mask;
   Optional<IntImm> window_size;
 
   TVM_DECLARE_ATTRS(AttentionAttrs, "relax.attrs.AttentionAttrs") {
+    TVM_ATTR_FIELD(bias).describe("The input bias tensor.");
     TVM_ATTR_FIELD(scale).describe(
         "The custom scale applied before the softmax. The default value is 1 / sqrt(head_dim).");
     TVM_ATTR_FIELD(causal_mask)

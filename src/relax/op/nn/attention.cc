@@ -28,20 +28,16 @@ namespace relax {
 /* relax.nn.attention */
 TVM_REGISTER_NODE_TYPE(AttentionAttrs);
 
-Expr attention(Expr query, Expr key, Expr value, Optional<Expr> bias, Optional<FloatImm> scale,
+Expr attention(Expr query, Expr key, Expr value, Optional<FloatImm> bias, Optional<FloatImm> scale,
                Optional<String> causal_mask, Optional<IntImm> window_size) {
   ObjectPtr<AttentionAttrs> attrs = make_object<AttentionAttrs>();
   attrs->scale = scale;
   attrs->causal_mask = causal_mask;
   attrs->window_size = window_size;
-
-  if (bias) {
-    return Call(Op::Get("relax.nn.attention"), {std::move(query), std::move(key), std::move(value), std::move(bias.value())},
-                Attrs(attrs), {});
-  }
+  attrs->bias = bias;
 
   return Call(Op::Get("relax.nn.attention"), {std::move(query), std::move(key), std::move(value)},
-                Attrs(attrs), {});
+              Attrs(attrs), {});
 }
 
 Expr attention_var_len(Expr query, Expr key, Expr value, Expr seqstart_q, Expr seqstart_k,
@@ -143,11 +139,10 @@ Call InferMixedPrecisionAttention(const Call& call, const DataType& out_dtype) {
 
 TVM_REGISTER_OP("relax.nn.attention")
     .set_attrs_type<AttentionAttrs>()
-    .set_num_inputs(4)
+    .set_num_inputs(3)
     .add_argument("query", "Tensor", "The input queries tensor.")
     .add_argument("key", "Tensor", "The input keys tensor.")
     .add_argument("value", "Tensor", "The input values tensor.")
-    .add_argument("bias", "Tensor", "The input bias tensor.")
     .set_attr<TMixedPrecisionPolicy>("TMixedPrecisionPolicy", MixedPrecisionPolicyKind::kAlways)
     .set_attr<FInferMixedPrecision>("FInferMixedPrecision", InferMixedPrecisionAttention)
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoAttention)
