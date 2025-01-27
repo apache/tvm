@@ -353,6 +353,45 @@ class DefineVDevice : ExprMutator {
     Array<Expr> new_args;
     StructInfo updated_ret_sinfo = producer_sinfo_[GetRef<Expr>(call_node)];
 
+    if (updated_ret_sinfo->IsInstance<TensorStructInfoNode>()) {
+      auto tensor_sinfo = Downcast<TensorStructInfo>(updated_ret_sinfo);
+      auto shape = tensor_sinfo->shape.value();
+      auto dtype = tensor_sinfo->dtype;
+      if (tensor_sinfo->vdevice.defined()) {
+        auto vdev = tensor_sinfo->vdevice.value();
+        const VDevice& vdev_global = MakeGlobalVDevice(vdev);
+        updated_ret_sinfo = TensorStructInfo(shape, dtype, vdev_global);
+      }
+    } else {
+      ICHECK(updated_ret_sinfo->IsInstance<TupleStructInfoNode>())
+          << "Expect output struct info of call_tir to be either TupleStructInfo or "
+             "TensorStructInfo, but got "
+          << updated_ret_sinfo;
+
+      const auto& tuple_sinfo = Downcast<TupleStructInfo>(updated_ret_sinfo);
+      Array<StructInfo> sinfo_fields;
+      for (const auto& si : tuple_sinfo->fields) {
+        ICHECK(si->IsInstance<TensorStructInfoNode>())
+            << "Fields of TupleStructInfo must be TensorStructInfo for call_tir "
+               "output structinfo, but got "
+            << si;
+        auto sinfo = Downcast<TensorStructInfo>(si);
+
+        auto shape_arr = GetShapeFromTensorStructInfo(sinfo);
+
+        auto shape = sinfo->shape.value();
+        auto dtype = sinfo->dtype;
+        if (sinfo->vdevice.defined()) {
+          auto vdev = sinfo->vdevice.value();
+          const VDevice& vdev_global = MakeGlobalVDevice(vdev);
+          sinfo_fields.push_back(TensorStructInfo(shape, dtype, vdev_global));
+        } else {
+          sinfo_fields.push_back(sinfo);
+        }
+      }
+      updated_ret_sinfo = TupleStructInfo(sinfo_fields);
+    }
+
     int arg_idx = 0;
     for (auto arg : func_args->fields) {
       auto sinfo = GetStructInfo(arg);
@@ -368,35 +407,29 @@ class DefineVDevice : ExprMutator {
       }
     }
 
-    if (call->op == call_tir_op) {
-      auto updated_call =
-          Call(call_tir_op, {gv, Tuple(new_args)}, call->attrs, {updated_ret_sinfo});
-      return builder_->Normalize(updated_call);
-    } else {
-      auto updated_call = Call(call->op, new_args, call->attrs, {updated_ret_sinfo});
-      return builder_->Normalize(updated_call);
-    }
+    auto updated_call = Call(call_tir_op, {gv, Tuple(new_args)}, call->attrs, {updated_ret_sinfo});
+    return builder_->Normalize(updated_call);
   }
 
  private:
-  void AppendToVDevices(VDevice vdev) {
+  VDevice MakeGlobalVDevice(VDevice vdev) {
     int device_type = vdev->target->GetTargetDeviceType();
-    for (auto vdevice : vdevices_) {
-      int dev_type = vdevice->target->GetTargetDeviceType();
-      if (dev_type == device_type && vdevice->vdevice_id == vdev->vdevice_id &&
-          vdevice->memory_scope == vdev->memory_scope) {
-        return;
+    for (size_t i = 0; i < vdevices_.size(); ++i) {
+      int dev_type = vdevices_[i]->target->GetTargetDeviceType();
+      if (dev_type == device_type && vdevices_[i]->vdevice_id == vdev->vdevice_id &&
+          vdevices_[i]->memory_scope == vdev->memory_scope) {
+        return vdevices_[i];
       }
     }
     vdevices_.push_back(vdev);
-    return;
+    return (vdevices_.back());
   }
 
-  Expr HintArg(const Expr& arg, const String& scope) {
+  Expr HintArg(const Expr& arg, String scope) {
     if (arg->IsInstance<ConstantNode>()) {
       if (auto tsinfo = arg->struct_info_.as<TensorStructInfoNode>()) {
         if (!tsinfo->vdevice.defined()) {
-          VDevice vdev = VDevice(target_, 0, scope);
+          const VDevice& vdev = MakeGlobalVDevice(VDevice(target_, 0, scope));
           CHECK(tsinfo->shape.defined()) << "Shape not defined for a constant tensor ..!";
           arg->struct_info_ =
               TensorStructInfo(tsinfo->shape.value(), tsinfo->dtype, vdev, tsinfo->span);
@@ -405,13 +438,13 @@ class DefineVDevice : ExprMutator {
       }
     }
     ObjectPtr<HintOnDeviceAttrs> attrs = make_object<HintOnDeviceAttrs>();
-    attrs->dev_type = target_->GetTargetDeviceType();
-    attrs->dev_id = 0;
-    attrs->memory_scope = scope;
+    const VDevice& vdev = MakeGlobalVDevice(VDevice(target_, 0, scope));
+    attrs->dev_type = vdev->target->GetTargetDeviceType();
+    attrs->dev_id = vdev->vdevice_id;
+    attrs->memory_scope = vdev->memory_scope;
 
     Expr new_arg = Call(hint_on_device_op_, {arg}, Attrs{std::move(attrs)}, {});
 
-    AppendToVDevices(VDevice(target_, 0, scope));
     return std::move(new_arg);
   }
 
