@@ -73,7 +73,6 @@ echo "DEVICE LISTEN POPRT    = ${LISTEN_PORT}"
 
 function def_environment() {
     source tests/scripts/setup-pytest-env.sh
-    export PYTHONPATH=${PYTHONPATH}:${TVM_PATH}/apps/extension/python
     export LD_LIBRARY_PATH="${TVM_PATH}/build:${LD_LIBRARY_PATH}"
     export TVM_TRACKER_HOST=0.0.0.0
     export TVM_TRACKER_PORT=$RPC_PORT

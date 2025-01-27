@@ -1,5 +1,0 @@
-keras==2.9
-scipy
-tensorflow==2.9.3
-torch
-torchvision
