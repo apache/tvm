@@ -322,10 +322,10 @@ class DefineVDevice : ExprMutator {
     }
     mod_.CopyOnWrite()->global_infos.Set("vdevice", global_vdevices_);
 
-    mod_ = relax::transform::SpecializeTIRParams()(mod_);
+    mod_ = relax::transform::SpecializePrimFuncBasedOnCallSite()(mod_);
     mod_ = relax::transform::DeadCodeElimination()(mod_);
     mod_ = relax::transform::RealizeVDevice()(mod_);
-    mod_ = relax::transform::SpecializeTIRParams()(mod_);
+    mod_ = relax::transform::SpecializePrimFuncBasedOnCallSite()(mod_);
 
     return mod_;
   }
