@@ -105,6 +105,7 @@ def _assign_targets_to_primfuncs_irmodule(mod, target):
 # These are test IRModules that contains varied topologies of operator graphs
 # that includes a main TIR function that includes call to such operators.
 
+
 # fmt: off
 @tvm.script.ir_module
 class LinearStructure:
@@ -163,7 +164,7 @@ class LinearStructure:
     @T.prim_func
     def run_model(input: T.handle, output: T.handle) -> None:
         # function attr dict
-        T.func_attr({"global_symbol": "tvmgen_default_run_model", "runner_function": True})
+        T.func_attr({"runner_function": True})
         # body
         T.attr("default", "device_id", 0)
         T.attr("default", "device_type", 1)
@@ -238,7 +239,7 @@ class ParallelSerialMixedForLoops:
     @T.prim_func
     def run_model(input: T.handle, output: T.handle) -> None:
         # function attr dict
-        T.func_attr({"global_symbol": "tvmgen_default_run_model", "runner_function": True})
+        T.func_attr({"runner_function": True})
         # body
         T.attr("default", "device_id", 0)
         T.attr("default", "device_type", 1)
@@ -278,7 +279,7 @@ class AllSerialForLoops:
     @T.prim_func
     def run_model(input: T.handle, output: T.handle) -> None:
         # function attr dict
-        T.func_attr({"global_symbol": "tvmgen_default_run_model", "runner_function": True})
+        T.func_attr({"runner_function": True})
         # body
         T.attr("default", "device_id", 0)
         T.attr("default", "device_type", 1)
@@ -618,7 +619,7 @@ class InceptionStructure:
     @T.prim_func
     def run_model(input: T.handle, output: T.handle) -> None:
         # function attr dict
-        T.func_attr({"global_symbol": "tvmgen_default_run_model", "runner_function": True})
+        T.func_attr({"runner_function": True})
         # body
         T.attr("default", "device_id", 0)
         T.attr("default", "device_type", 1)
@@ -1334,7 +1335,7 @@ class MultipleCallsToSamePrimFuncModule:
     @T.prim_func
     def run_model(data: T.handle, output: T.handle) -> None:
         # function attr dict
-        T.func_attr({"global_symbol": "tvmgen_default_run_model", "runner_function": True})
+        T.func_attr({"runner_function": True})
         data_buffer = T.match_buffer(data, [864], dtype="float32", align=16)
         output_buffer = T.match_buffer(output, [864], dtype="float32", align=16)
         # body
