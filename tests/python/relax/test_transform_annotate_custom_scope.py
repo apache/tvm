@@ -69,8 +69,6 @@ def verify(mod, expected):
     tgt = tvm.target.Target("opencl --device=adreno", host="llvm")
     with tgt:
         mod = tvm.tir.transform.BindTarget(tvm.target.Target.current(allow_none=False))(mod)
-        mod = tvm.relax.transform.OptimizeBatchnorm()(mod)
-        mod = tvm.relax.transform.FoldConstant()(mod)
         mod = tvm.relax.transform.DecomposeOpsForInference()(mod)
         mod = tvm.relax.transform.FoldConstant()(mod)
         desired_layouts = {"relax.nn.conv2d": ["NCHW4c", "OIHW4o", "NCHW4c"]}
