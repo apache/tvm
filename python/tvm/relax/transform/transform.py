@@ -385,6 +385,19 @@ def LazySetOutput() -> tvm.ir.transform.Pass:
     return _ffi_api.LazySetOutput()
 
 
+def InjectDebugCallback() -> tvm.ir.transform.Pass:
+    """A pass that adds a callback that is called after each variable
+    binding.
+
+    Returns
+    -------
+    ret: tvm.ir.transform.Pass
+        The pass.
+
+    """
+    return _ffi_api.InjectDebugCallback()
+
+
 def ConvertToDataflow(min_size: int = 2) -> tvm.ir.transform.Pass:
     """A pass that converts consecutive dataflow operations
     inside binding blocks into dataflow blocks.
