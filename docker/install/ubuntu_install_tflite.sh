@@ -54,7 +54,7 @@ cd -
 mkdir tflite
 if [ -f tensorflow/tensorflow/compiler/mlir/lite/schema/schema.fbs ] ; then
   cp tensorflow/tensorflow/compiler/mlir/lite/schema/schema.fbs tflite
-else 
+else
   cp tensorflow/tensorflow/lite/schema/schema.fbs tflite
 fi
 
