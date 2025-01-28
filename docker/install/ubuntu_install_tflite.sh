@@ -52,7 +52,12 @@ cd -
 
 # Setup tflite from schema
 mkdir tflite
-cp tensorflow/tensorflow/compiler/mlir/lite/schema/schema.fbs tflite
+if [ -f tensorflow/tensorflow/compiler/mlir/lite/schema/schema.fbs ] ; then
+  cp tensorflow/tensorflow/compiler/mlir/lite/schema/schema.fbs tflite
+else 
+  cp tensorflow/tensorflow/lite/schema/schema.fbs tflite
+fi
+
 cd tflite
 flatc --python schema.fbs
 
