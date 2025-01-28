@@ -26,7 +26,7 @@ set -o pipefail
 TENSORFLOW_VERSION=$(python3 -c "import tensorflow; print(tensorflow.__version__)" 2> /dev/null)
 
 # Download, build and install flatbuffers
-git clone --branch=v1.12.0 --depth=1 --recursive https://github.com/google/flatbuffers.git
+git clone --branch=v25.1.24 --depth=1 --recursive https://github.com/google/flatbuffers.git
 cd flatbuffers
 cmake -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_FLAGS="-Wno-class-memaccess"
 make install -j8
@@ -52,7 +52,7 @@ cd -
 
 # Setup tflite from schema
 mkdir tflite
-cp tensorflow/tensorflow/lite/schema/schema.fbs tflite
+cp tensorflow/tensorflow/compiler/mlir/lite/schema/schema.fbs tflite
 cd tflite
 flatc --python schema.fbs
 
