@@ -231,7 +231,7 @@ def _nn_pad(bb: BlockBuilder, call: Call) -> Expr:
         call.args[0],
         pad_before=pad_before,
         pad_after=pad_after,
-        pad_value=float(call.args[1].data.numpy()),
+        pad_value=call.attrs.pad_value,
         primfunc_name_hint="pad",
     )
 
