@@ -13,8 +13,11 @@ set(TVM_RUNNER_SOURCES
 set(RTVM_LINKER_LIBS "")
 
 if(WIN32)
-  list(APPEND RTVM_SOURCES ../cpp_rpc/win32_process.cc)
-  list(APPEND TVM_RUNNER_SOURCES ../cpp_rpc/win32_process.cc)
+  file(GLOB ZLIB_SRC
+       "../../3rdparty/zlib/*.c"
+  )
+  list(APPEND RTVM_SOURCES ${ZLIB_SRC})
+  list(APPEND TVM_RUNNER_SOURCES ${ZLIB_SRC})
 endif()
 
 # Set output to same directory as the other TVM libs
@@ -55,6 +58,7 @@ target_include_directories(
   rtvm
   PUBLIC "../../include"
   PUBLIC "../../3rdparty/cnpy"
+  PUBLIC "../../3rdparty/zlib"
   PUBLIC DLPACK_PATH
   PUBLIC DMLC_PATH
 )
@@ -71,18 +75,14 @@ if (BUILD_FOR_ANDROID AND USE_HEXAGON)
   list(APPEND RTVM_LINKER_LIBS cdsprpc log)
 endif()
 
-if(USE_ETHOSN)
-  if (ETHOSN_RUNTIME_LIBRARY)
-    list(APPEND RTVM_LINKER_LIBS ${ETHOSN_RUNTIME_LIBRARY})
-  else()
-    message(WARNING "Could not locate Arm(R) Ethos(TM)-N runtime library components")
-  endif()
+if(BUILD_STATIC_RUNTIME)
+  list(APPEND RTVM_LINKER_LIBS -Wl,--whole-archive tvm_runtime -Wl,--no-whole-archive)
+else()
+  list(APPEND RTVM_LINKER_LIBS tvm_runtime)
 endif()
 
-if(BUILD_STATIC_RUNTIME)
-  list(APPEND RTVM_LINKER_LIBS -Wl,--whole-archive tvm_runtime -Wl,--no-whole-archive z)
-else()
-  list(APPEND RTVM_LINKER_LIBS tvm_runtime z)
+if(NOT WIN32)
+  list(APPEND RTVM_LINKER_LIBS z)
 endif()
 
 target_link_libraries(rtvm ${RTVM_LINKER_LIBS})
@@ -92,6 +92,7 @@ target_include_directories(
   tvm_runner_objs
   PUBLIC "../../include"
   PUBLIC "../../3rdparty/cnpy"
+  PUBLIC "../../3rdparty/zlib"
   PUBLIC DLPACK_PATH
   PUBLIC DMLC_PATH
 )

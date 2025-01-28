@@ -492,9 +492,16 @@ InferLayoutOutput ForwardInferLayoutTake(const Call& call,
     return InferLayoutOutput({input_layout, indices_layout}, {output_layout}, Attrs());
   }
   if (indices_layout->layout.defined()) {
-    size_t indices_size = indices_layout->layout.ndim();
-    LayoutDecision output_layout =
-        LayoutUtils::ExpandLayout(indices_layout, std::vector<size_t>{indices_size});
+    std::vector<size_t> expand_axes;
+    for (size_t i = indices_layout->layout.ndim(); i < output_shape.size(); i++) {
+      expand_axes.push_back(i);
+    }
+    LayoutDecision output_layout;
+    if (expand_axes.size() == 0) {
+      output_layout = indices_layout;
+    } else {
+      output_layout = LayoutUtils::ExpandLayout(indices_layout, expand_axes);
+    }
     return InferLayoutOutput({input_layout, indices_layout}, {output_layout}, Attrs());
   }
   return InferLayoutOutput();

@@ -32,21 +32,10 @@ from .topi_integration import TaskExtractEnv
 logger = logging.getLogger("autotvm")
 
 
-# TODO(moreau89) find a more elegant way to lower for VTAs
 def _lower(mod, target, params, opt_level=3):
     """Helper to lower VTA properly."""
     # pylint: disable=import-outside-toplevel
     from tvm import relay
-    from tvm.relay.backend import graph_executor_codegen
-
-    if hasattr(target, "device_name") and target.device_name == "vta":
-        import vta
-
-        with vta.build_config(opt_level=opt_level, disabled_pass={"AlterOpLayout"}):
-            mod, _ = relay.optimize(mod, target=target, params=params)
-            grc = graph_executor_codegen.GraphExecutorCodegen(None, target)
-            grc.codegen(mod, mod["main"])
-            return
 
     # Alter op layout code has been written expecting that tuning is applied
     # without it, so we disable AlterOpLayout to maintain that behavior.

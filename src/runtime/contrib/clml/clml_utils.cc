@@ -40,14 +40,10 @@ using JSONGraphNode = tvm::runtime::json::JSONGraphNode;
  */
 void CopyDataToCLMLTensor(std::shared_ptr<cl_ml_tensor_memory_desc_qcom> tensor, void* data,
                           cl_ml_tensor_layout_qcom layout) {
-  cl_int result = 0;
   cl_event evt = nullptr;
-  result = CLML_INTF->clEnqueueWriteMLTensorDataQCOM(CLML_QUEUE, data, layout, tensor->tensor,
-                                                     tensor->memory,
-                                                     0,        // n waitlist
-                                                     nullptr,  // waitlist
-                                                     &evt);    // event
-  ICHECK((evt != nullptr) && result == CL_SUCCESS) << "clEnqueueWriteMLTensorDataQCOM:" << result;
+  CLML_CALL(clEnqueueWriteMLTensorDataQCOM, CLML_QUEUE, data, layout, tensor->tensor,
+            tensor->memory, 0, nullptr, &evt);
+  ICHECK(evt != nullptr) << "clEnqueueWriteMLTensorDataQCOM";
 }
 
 /*!
@@ -62,13 +58,8 @@ void CopyDataFromCLMLTensor(std::shared_ptr<cl_ml_tensor_memory_desc_qcom> tenso
   cl_int result = 0;
   cl_event readEvent = nullptr;
   // Read the output tensor
-  result = CLML_INTF->clEnqueueReadMLTensorDataQCOM(CLML_QUEUE, tensor->tensor, tensor->memory,
-                                                    data, layout,
-                                                    0,            // n waitlist
-                                                    nullptr,      // waitlist
-                                                    &readEvent);  // event
-  ICHECK(result == CL_SUCCESS) << "clEnqueueReadMLTensorDataQCOM:" << result;
-
+  CLML_CALL(clEnqueueReadMLTensorDataQCOM, CLML_QUEUE, tensor->tensor, tensor->memory, data, layout,
+            0, nullptr, &readEvent);
   result = clWaitForEvents(1, &readEvent);
   ICHECK(result == CL_SUCCESS) << "clWaitForEvents:" << result;
 }
@@ -83,14 +74,14 @@ void CopyDataFromCLMLTensor(std::shared_ptr<cl_ml_tensor_memory_desc_qcom> tenso
  * \return CLML tensor
  */
 cl_ml_tensor_qcom DeviceMakeCLMLTensor(cl_context context, tensor_dims_t dims,
-                                       cl_ml_tensor_layout_qcom layout, cl_channel_type dtype) {
+                                       cl_ml_tensor_layout_qcom layout, cl_channel_type dtype,
+                                       cl_ml_tensor_usage_qcom usage) {
   cl_ml_tensor_qcom tensor;
-  cl_int result = CL_OUT_OF_RESOURCES;
 
   cl_ml_tensor_desc_qcom desc = {
       dtype, layout, dims.n, dims.c, dims.h, dims.w, 0, CL_TENSOR_DIMENSIONS_4D_QCOM, {0}};
-  result = CLML_INTF->clCreateMLTensorQCOM(CLML_CTX, nullptr, &desc, &tensor);
-  ICHECK(tensor && result == CL_SUCCESS) << "clCreateMLTensorQCOM:" << result;
+  CLML_CALL_clCreateMLTensorQCOM(CLML_CTX, nullptr, &desc, usage, &tensor);
+  ICHECK(tensor) << "clCreateMLTensorQCOM";
   return tensor;
 }
 
@@ -195,11 +186,9 @@ cl_arithmetic_mode_qcom MakeCLArithMode(const cl_channel_type& data_type,
  * \param dtype tensor data type
  * \return CLML Tensor descriptor.
  */
-std::shared_ptr<cl_ml_tensor_memory_desc_qcom> MakeCLMLTensor(const JSONGraphNode& tensor_rep,
-                                                              void* data,
-                                                              std::vector<size_t> c_shape,
-                                                              cl_ml_tensor_layout_qcom layout,
-                                                              cl_uint dtype) {
+std::shared_ptr<cl_ml_tensor_memory_desc_qcom> MakeCLMLTensor(
+    const JSONGraphNode& tensor_rep, void* data, std::vector<size_t> c_shape,
+    cl_ml_tensor_layout_qcom layout, cl_uint dtype, cl_ml_tensor_usage_qcom usage) {
   std::vector<int64_t> shape = tensor_rep.GetOpShape()[0];
   std::vector<size_t> clml_shape(shape.begin(), shape.end());
   if (c_shape.size() > 0) {
@@ -217,7 +206,7 @@ std::shared_ptr<cl_ml_tensor_memory_desc_qcom> MakeCLMLTensor(const JSONGraphNod
   dims.w = clml_shape[3];
 
   auto tensor_dsc = std::make_shared<cl_ml_tensor_memory_desc_qcom>();
-  tensor_dsc->tensor = DeviceMakeCLMLTensor(CLML_CTX, dims, layout, dtype);
+  tensor_dsc->tensor = DeviceMakeCLMLTensor(CLML_CTX, dims, layout, dtype, usage);
   return tensor_dsc;
 }
 
@@ -232,9 +221,9 @@ std::shared_ptr<cl_ml_tensor_memory_desc_qcom> MakeCLMLTensor(const JSONGraphNod
  * \return CLML Tensor descriptor.
  */
 std::shared_ptr<cl_ml_tensor_memory_desc_qcom> MakeCLMLTensorFromJSONNode(
-    const JSONGraphNode& node, cl_ml_tensor_layout_qcom layout, cl_uint dtype, void* data,
-    std::vector<size_t> shape) {
-  return MakeCLMLTensor(node, data, shape, layout, dtype);
+    const JSONGraphNode& node, cl_ml_tensor_layout_qcom layout, cl_ml_tensor_usage_qcom usage,
+    cl_uint dtype, void* data, std::vector<size_t> shape) {
+  return MakeCLMLTensor(node, data, shape, layout, dtype, usage);
 }
 
 /*!

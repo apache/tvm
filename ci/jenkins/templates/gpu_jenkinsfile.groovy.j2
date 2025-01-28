@@ -27,15 +27,13 @@
 ) %}
   sh "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_config_build_gpu.sh build"
   cmake_build("${ci_gpu} --no-gpu", 'build', '-j2')
-  make_standalone_crt("${ci_gpu} --no-gpu", 'build')
-  {{ m.upload_artifacts(tag='gpu', filenames=tvm_multilib + tvm_allvisible + microtvm_template_projects + crttest + standalone_crt) }}
+  {{ m.upload_artifacts(tag='gpu', filenames=tvm_multilib + tvm_allvisible + microtvm_template_projects + crttest) }}
 
   // compiler test
   sh "rm -rf build"
   sh "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_config_build_gpu_other.sh build"
   cmake_build("${ci_gpu} --no-gpu", 'build', '-j2')
-  make_standalone_crt("${ci_gpu} --no-gpu", 'build')
-  {{ m.upload_artifacts(tag='gpu2', filenames=tvm_lib + crttest + standalone_crt) }}
+  {{ m.upload_artifacts(tag='gpu2', filenames=tvm_lib + crttest) }}
 {% endcall %}
 
 {% set test_method_names = [] %}
@@ -53,7 +51,6 @@
   {{ m.download_artifacts(tag='gpu2') }}
   sh "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_config_build_gpu_other.sh build"
   // These require a GPU to finish the build (i.e. CUDA needs to be load-able)
-  make_standalone_crt(ci_gpu, 'build')
   // make_cpp_tests(ci_gpu, 'build')
   // cpp_unittest(ci_gpu)
 
@@ -61,7 +58,6 @@
   {{ m.download_artifacts(tag='gpu') }}
   ci_setup(ci_gpu)
   sh "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_config_build_gpu.sh build"
-  make_standalone_crt(ci_gpu, 'build')
   make_cpp_tests(ci_gpu, 'build')
   cpp_unittest(ci_gpu)
   sh (
@@ -72,7 +68,6 @@
     script: "${docker_run} ${ci_gpu} ./tests/scripts/task_opencl_cpp_unittest.sh",
     label: 'Run OpenCL cpp unit tests',
   )
-  micro_cpp_unittest(ci_gpu)
   {% else %}
   {{ m.download_artifacts(tag='gpu') }}
   ci_setup(ci_gpu)

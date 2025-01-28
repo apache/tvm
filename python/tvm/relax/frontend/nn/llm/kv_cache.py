@@ -169,6 +169,7 @@ class FlashInferPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-me
         rope_scaling: Dict[str, Any],
         rope_ext_factors: rx.Expr,
         rotary_dim: int,
+        enable_disaggregation: bool,
         dtype: str,
         target: Target,
         name: str = "paged_kv_cache",
@@ -214,6 +215,8 @@ class FlashInferPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-me
             The RoPE extension factors when "longrope" mode RoPE scaling is enabled.
         rotary_dim : int
             The number of dimensions in the embedding that RoPE is applied to.
+        enable_disaggregation : bool
+            Whether to enable disaggregation in the KV cache.
         """
         if rope_mode == RopeMode.INLINE:
             assert rotary_dim == head_dim, "FlashInfer RoPE does not support partial rotary dim."
@@ -259,6 +262,7 @@ class FlashInferPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-me
             bb.add_func(tree_attn(num_key_value_heads, num_attention_heads, head_dim, dtype, rope_scaling, target), "tir_attention_prefill_with_tree_mask"),
             bb.add_func(tree_attn_with_paged_kv_cache(num_key_value_heads, num_attention_heads, head_dim, dtype, rope_scaling, target), "tir_attention_prefill_with_tree_mask_with_paged_kv_cache"),
             rope_ext_factors,
+            rx.PrimValue(enable_disaggregation),
             # fmt: on
             # pylint: enable=line-too-long
         ]
@@ -293,6 +297,7 @@ class TIRPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-methods
         rope_scaling: Dict[str, Any],
         rope_ext_factors: rx.Expr,
         rotary_dim: int,
+        enable_disaggregation: bool,
         dtype: str,
         target: Target,
         name: str = "paged_kv_cache",
@@ -338,6 +343,8 @@ class TIRPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-methods
             The RoPE extension factors when "longrope" mode RoPE scaling is enabled.
         rotary_dim : int
             The number of dimensions in the embedding that RoPE is applied to.
+        enable_disaggregation : bool
+            Whether to enable disaggregation in the KV cache.
         target : Target
             The target to build the model to.
         """
@@ -377,6 +384,7 @@ class TIRPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-methods
             bb.add_func(tree_attn(num_key_value_heads, num_attention_heads, head_dim, dtype, rope_scaling, target), "tir_attention_prefill_with_tree_mask"),
             bb.add_func(tree_attn_with_paged_kv_cache(num_key_value_heads, num_attention_heads, head_dim, dtype, rope_scaling, target), "tir_attention_prefill_with_tree_mask_with_paged_kv_cache"),
             rope_ext_factors,
+            rx.PrimValue(enable_disaggregation),
             # fmt: on
             # pylint: enable=line-too-long
         ]
@@ -409,8 +417,9 @@ def _kv_cache_transpose_append(num_key_value_heads, head_dim, dtype):
         T.func_attr({"tir.noalias": T.bool(True)})
         ntoken = T.SizeVar("num_tokens_excluding_cache", "int64")
         num_pages = T.int64()
+        pages_elem_offset = T.int64()
         position_map_elem_offset = T.int32()
-        pages = T.match_buffer(var_pages, (num_pages, 2, num_key_value_heads, 16, head_dim), dtype)
+        pages = T.match_buffer(var_pages, (num_pages, 2, num_key_value_heads, 16, head_dim), dtype, elem_offset=pages_elem_offset)
         k_data = T.match_buffer(var_k_data, (ntoken, num_key_value_heads, head_dim), dtype)
         v_data = T.match_buffer(var_v_data, (ntoken, num_key_value_heads, head_dim), dtype)
         position_map = T.match_buffer(
@@ -453,8 +462,9 @@ def _kv_cache_debug_get_kv(num_hidden_layers, num_key_value_heads, head_dim, dty
         seqlen = T.SizeVar("num_tokens_including_cache", "int64")
         page_size = T.SizeVar("page_size", "int64")
         num_pages = T.int64()
+        pages_elem_offset = T.int64()
         position_map_elem_offset = T.int64()
-        pages = T.match_buffer(var_pages, (num_pages, 2, num_key_value_heads, page_size, head_dim), dtype)
+        pages = T.match_buffer(var_pages, (num_pages, 2, num_key_value_heads, page_size, head_dim), dtype,elem_offset=pages_elem_offset)
         position_map = T.match_buffer(
             var_position_map, (seqlen,), "int32", elem_offset=position_map_elem_offset
         )
@@ -594,6 +604,7 @@ def _attention_prefill(
         total_len = T.int32(is_size_var=True)
         nnz_pages = T.int32(is_size_var=True)
         max_num_pages = T.int32(is_size_var=True)
+        pages_elem_offset = T.int64(is_size_var=True)
         q_indptr_elem_offset = T.int32(is_size_var=True)
         page_indptr_elem_offset = T.int32(is_size_var=True)
         page_values_elem_offset = T.int32(is_size_var=True)
@@ -603,7 +614,7 @@ def _attention_prefill(
 
         q = T.match_buffer(var_q, (total_len, h_q, d), dtype)
         q_indptr = T.match_buffer(var_q_indptr, (batch_size + 1,), "int32", elem_offset=q_indptr_elem_offset)
-        pages = T.match_buffer(var_pages, (max_num_pages, 2, h_kv, 16, d), dtype)
+        pages = T.match_buffer(var_pages, (max_num_pages, 2, h_kv, 16, d), dtype, elem_offset=pages_elem_offset)
         page_indptr = T.match_buffer(var_page_indptr, (batch_size + 1,), "int32", elem_offset=page_indptr_elem_offset)
         page_values = T.match_buffer(var_page_values, (nnz_pages,), "int32", elem_offset=page_values_elem_offset)
         k_rope_pos_offset = T.match_buffer(var_k_rope_pos_offset, (batch_size,), "int32", elem_offset=k_rope_pos_offset_elem_offset)
@@ -844,7 +855,7 @@ def _attention_prefill(
         cnt = (x * y) // t
         assert (x * y) % t == 0
         tile_y = (int)(math.ceil(math.sqrt(cnt)))
-        while (cnt % tile_y != 0 or y % tile_y != 0) and tile_y <= cnt:
+        while (cnt % tile_y != 0 or y % tile_y != 0 or x % (cnt // tile_y) != 0) and tile_y <= cnt:
             tile_y += 1
         assert tile_y <= cnt
         tile_x = cnt // tile_y
@@ -975,6 +986,7 @@ def _attention_decode(
         B = T.int32(is_size_var=True)
         nnz_pages = T.int32(is_size_var=True)
         max_num_pages = T.int32(is_size_var=True)
+        pages_elem_offset = T.int64(is_size_var=True)
         page_indptr_elem_offset = T.int32(is_size_var=True)
         page_values_elem_offset = T.int32(is_size_var=True)
         k_rope_pos_offset_elem_offset = T.int32(is_size_var=True)
@@ -983,7 +995,7 @@ def _attention_decode(
 
         Q = T.match_buffer(Q_handle, (B, H_qo, D), qkv_dtype)
         pages = T.match_buffer(
-            pages_handle, (max_num_pages, 2, H_kv, 16, D), qkv_dtype
+            pages_handle, (max_num_pages, 2, H_kv, 16, D), qkv_dtype, elem_offset=pages_elem_offset
         )
         page_table_indptr = T.match_buffer(page_table_indptr_handle, (B + 1,), "int32", elem_offset=page_indptr_elem_offset)
         page_table_values = T.match_buffer(page_table_values_handle, (nnz_pages,), "int32", elem_offset=page_values_elem_offset)
@@ -1497,7 +1509,7 @@ def _attention_sequence_prefill(
         cnt = (x * y) // t
         assert (x * y) % t == 0
         tile_y = (int)(math.ceil(math.sqrt(cnt)))
-        while (cnt % tile_y != 0 or y % tile_y != 0) and tile_y <= cnt:
+        while (cnt % tile_y != 0 or y % tile_y != 0 or x % (cnt // tile_y) != 0) and tile_y <= cnt:
             tile_y += 1
         assert tile_y <= cnt
         tile_x = cnt // tile_y
@@ -1579,6 +1591,12 @@ def _attention_prefill_ragged(h_kv, h_q, d, dtype, rope_scaling: Dict[str, Any],
         d,
         64 // ((DataType(dtype).bits + 7) // 8) // max(d // 128, 1),
     )
+    original_tile_y = tile_y
+    original_tile_z = tile_z
+    while (tile_x * tile_z) % (bdx * num_warps) != 0:
+        tile_z += original_tile_z
+    while (tile_x * tile_y) % (bdx * num_warps) != 0:
+        tile_y += original_tile_y
 
     # Otherwise we would exceed maxComputeWorkgroupStorageSize
     if (
@@ -1849,7 +1867,7 @@ def _attention_prefill_ragged(h_kv, h_q, d, dtype, rope_scaling: Dict[str, Any],
         cnt = (x * y) // t
         assert (x * y) % t == 0
         tile_y = (int)(math.ceil(math.sqrt(cnt)))
-        while (cnt % tile_y != 0 or y % tile_y != 0) and tile_y <= cnt:
+        while (cnt % tile_y != 0 or y % tile_y != 0 or x % (cnt // tile_y) != 0) and tile_y <= cnt:
             tile_y += 1
         assert tile_y <= cnt
         tile_x = cnt // tile_y
@@ -1876,7 +1894,6 @@ def _attention_prefill_ragged(h_kv, h_q, d, dtype, rope_scaling: Dict[str, Any],
         xo, xi = sch.split(loop_x, factors=[None, tile[0]])
         yo, yi = sch.split(loop_y, factors=[None, tile[1]])
         sch.reorder(xo, yo, xi, yi)
-        sch.unroll(xi)
         yiv_extent = get_vecsize(tile[1])
         yio, yiv = sch.split(yi, [None, yiv_extent])
         sch.unroll(yio)
@@ -1908,7 +1925,6 @@ def _attention_prefill_ragged(h_kv, h_q, d, dtype, rope_scaling: Dict[str, Any],
         sch.unroll(yio)
         sch.vectorize(yiv)
         sch.unroll(xi)
-        sch.unroll(ki)
         sch.decompose_reduction(block, ty)
 
     def apply_to_md(sch, block):
@@ -1945,7 +1961,13 @@ def _copy_single_page(num_heads, page_size, head_dim, dtype, target: Target):
     ):
         T.func_attr({"tir.is_scheduled": 1})
         num_pages = T.int32()
-        pages = T.match_buffer(var_pages, (num_pages, 2, num_heads, page_size, head_dim), dtype)
+        pages_elem_offset = T.int64()
+        pages = T.match_buffer(
+            var_pages,
+            (num_pages, 2, num_heads, page_size, head_dim),
+            dtype,
+            elem_offset=pages_elem_offset,
+        )
 
         for b in T.thread_binding(
             (copy_length * num_heads * head_dim + tx - 1) // tx, thread="blockIdx.x"
@@ -1989,7 +2011,10 @@ def _compact_kv_copy(num_heads, head_dim, dtype, target: Target):
         total_copy_length = T.int32()
         copy_length_indptr_elem_offset = T.int32()
         copy_src_dst_pos_elem_offset = T.int32()
-        pages = T.match_buffer(var_pages, (num_pages, 2, num_heads, 16, head_dim), dtype)
+        pages_elem_offset = T.int64()
+        pages = T.match_buffer(
+            var_pages, (num_pages, 2, num_heads, 16, head_dim), dtype, elem_offset=pages_elem_offset
+        )
         copy_length_indptr = T.match_buffer(
             var_copy_length_indptr,
             (batch_size + 1,),

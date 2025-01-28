@@ -25,6 +25,7 @@ from tvm.relax.frontend.torch import from_fx
 from tvm.contrib.msc.core.ir.graph import MSCGraph
 from tvm.contrib.msc.core.frontend import from_relax, normalize_inputs
 from tvm.contrib.msc.core.codegen import relay_to_relax
+from tvm.contrib.msc.core import utils as msc_utils
 
 
 def set_weight_alias(graph: MSCGraph) -> MSCGraph:
@@ -70,6 +71,7 @@ def from_torch(
     opt_config: Optional[Dict[str, str]] = None,
     as_msc: bool = True,
     custom_convert_map: dict = None,
+    build_folder: msc_utils.MSCDirectory = None,
 ) -> Tuple[Union[MSCGraph, tvm.IRModule], Dict[str, tvm.nd.array]]:
     """Change torch nn.Module to MSCGraph.
 
@@ -93,6 +95,8 @@ def from_torch(
         Set to to return msc graph, otherwise relax mod
     custom_convert_map: dict
         The convert map for plugin
+    build_folder: MSCDirectory
+        The folder for saving scripts and datas.
 
     Returns
     -------
@@ -102,9 +106,15 @@ def from_torch(
         The weights from the IRModule.
     """
 
+    # try to symbolic_trace
     if via_relax:
-        input_info = normalize_inputs(input_info)
-        graph_model, params = torch.fx.symbolic_trace(model), None
+        try:
+            graph_model = torch.fx.symbolic_trace(model)
+        except:  # pylint: disable=bare-except
+            via_relax = False
+
+    if via_relax:
+        input_info, params = normalize_inputs(input_info), None
         with torch.no_grad():
             relax_mod = from_fx(graph_model, input_info, custom_convert_map=custom_convert_map)
     else:
@@ -122,7 +132,9 @@ def from_torch(
         relay_mod, params = tvm.relay.frontend.from_pytorch(
             scripted_model, shape_list, custom_convert_map=custom_convert_map
         )
-        relax_mod = relay_to_relax(relay_mod, params, trans_config, build_config, opt_config)
+        relax_mod = relay_to_relax(
+            relay_mod, params, trans_config, build_config, opt_config, build_folder=build_folder
+        )
     if not as_msc:
         return relax_mod, params
     graph, weights = from_relax(relax_mod, trans_config=trans_config, build_config=build_config)

@@ -257,7 +257,7 @@ def test_argsort(target, dev):
     mod = tvm.IRModule()
     mod["main"] = relay.Function([x], relay.argsort(x))
     x_np = np.random.randint(0, high=10, size=(10,)).astype(dtype)
-    res_np = np.argsort(x_np)
+    res_np = np.argsort(x_np, kind="stable")
 
     check_mod(target, dev, mod, x_np, res_np)
 

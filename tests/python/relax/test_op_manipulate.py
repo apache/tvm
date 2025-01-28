@@ -3205,6 +3205,133 @@ def test_flip_infer_struct_info_wrong_inputs():
         bb.normalize(relax.op.flip(x0, axis=3))
 
 
+def test_gather_elements_infer_struct_info():
+    bb = relax.BlockBuilder()
+    vdev0 = VDevice("llvm")
+    x0 = relax.Var("x", R.Tensor((2, 3, 4), "float32"))
+    x1 = relax.Var("x", R.Tensor("float32", ndim=3))
+    x2 = relax.Var("x", R.Tensor("float32"))
+    x3 = relax.Var("x", R.Tensor((2, 3, 4), "float32", vdev0))
+    i0 = relax.Var("i", R.Tensor((2, 3, 4), "int64"))
+    i1 = relax.Var("i", R.Tensor((2, 3, 4)))
+    i2 = relax.Var("i", R.Tensor("int64", ndim=3))
+    i3 = relax.Var("i", R.Tensor(ndim=3))
+    i4 = relax.Var("i", R.Tensor((2, 3, 4), "int64", vdev0))
+
+    _check_inference(
+        bb, relax.op.gather_elements(x0, i0, axis=1), relax.TensorStructInfo((2, 3, 4), "float32")
+    )
+    _check_inference(
+        bb,
+        relax.op.gather_elements(x3, i4, axis=1),
+        relax.TensorStructInfo((2, 3, 4), "float32", vdev0),
+    )
+    _check_inference(
+        bb,
+        relax.op.gather_elements(x1, i0, axis=1),
+        relax.TensorStructInfo((2, 3, 4), dtype="float32"),
+    )
+    _check_inference(
+        bb,
+        relax.op.gather_elements(x2, i0, axis=0),
+        relax.TensorStructInfo(dtype="float32", ndim=-1),
+    )
+    _check_inference(
+        bb, relax.op.gather_elements(x0, i1, axis=1), relax.TensorStructInfo((2, 3, 4), "float32")
+    )
+    _check_inference(
+        bb,
+        relax.op.gather_elements(x1, i2, axis=1),
+        relax.TensorStructInfo(dtype="float32", ndim=3),
+    )
+    _check_inference(
+        bb,
+        relax.op.gather_elements(x2, i3, axis=0),
+        relax.TensorStructInfo(dtype="float32", ndim=-1),
+    )
+
+
+def test_gather_elements_infer_struct_info_shape_symbolic():
+    bb = relax.BlockBuilder()
+    a = tir.Var("a", "int64")
+    b = tir.Var("b", "int64")
+    x = relax.Var("x", R.Tensor((a, b), "float32"))
+    i = relax.Var("i", R.Tensor((a, b), "int64"))
+
+    _check_inference(
+        bb, relax.op.gather_elements(x, i, axis=1), relax.TensorStructInfo((a, b), "float32")
+    )
+
+
+def test_gather_elements_infer_struct_info_wrong_inputs():
+    bb = relax.BlockBuilder()
+    x0 = relax.Var("x", R.Tensor((2, 3, 4), "float32"))
+    x1 = relax.Var("x", R.Tensor((2, 3), "float32"))
+    i0 = relax.Var("i", R.Tensor((2, 3, 4), "int64"))
+    i1 = relax.Var("i", R.Tensor((2, 3), "int64"))
+    i2 = relax.Var("i", R.Tensor((2, 3, 4), "float32"))
+
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.gather_elements(x0, i0, axis=3))
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.gather_elements(x0, i1))
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.gather_elements(x1, i0))
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.gather_elements(x0, i2))
+
+
+def test_gather_nd_infer_struct_info():
+    bb = relax.BlockBuilder()
+    vdev0 = VDevice("llvm")
+    x0 = relax.Var("x", R.Tensor((2, 3, 4), "float32"))
+    x1 = relax.Var("x", R.Tensor("float32", ndim=3))
+    x2 = relax.Var("x", R.Tensor("float32"))
+    x3 = relax.Var("x", R.Tensor((2, 3, 4), "float32", vdev0))
+    i0 = relax.Var("i", R.Tensor((2, 2), "int64"))
+    i1 = relax.Var("i", R.Tensor((2, 2)))
+    i2 = relax.Var("i", R.Tensor("int64", ndim=2))
+    i3 = relax.Var("i", R.Tensor(ndim=2))
+    i4 = relax.Var("i", R.Tensor((2, 2), "int64", vdev0))
+
+    _check_inference(bb, relax.op.gather_nd(x0, i0), relax.TensorStructInfo((2, 4), "float32"))
+    _check_inference(
+        bb, relax.op.gather_nd(x3, i4), relax.TensorStructInfo((2, 4), "float32", vdev0)
+    )
+    _check_inference(
+        bb, relax.op.gather_nd(x1, i0), relax.TensorStructInfo(dtype="float32", ndim=2)
+    )
+    _check_inference(
+        bb, relax.op.gather_nd(x2, i0), relax.TensorStructInfo(dtype="float32", ndim=-1)
+    )
+    _check_inference(bb, relax.op.gather_nd(x0, i1), relax.TensorStructInfo((2, 4), "float32"))
+    _check_inference(bb, relax.op.gather_nd(x1, i2), relax.TensorStructInfo(dtype="float32"))
+    _check_inference(bb, relax.op.gather_nd(x2, i3), relax.TensorStructInfo(dtype="float32"))
+
+
+def test_gather_nd_infer_struct_info_shape_symbolic():
+    bb = relax.BlockBuilder()
+    a = tir.Var("a", "int64")
+    b = tir.Var("b", "int64")
+    c = tir.Var("c", "int64")
+    x = relax.Var("x", R.Tensor((a, b, c), "float32"))
+    i = relax.Var("i", R.Tensor((2, 2), "int64"))
+
+    _check_inference(bb, relax.op.gather_nd(x, i), relax.TensorStructInfo((2, c), "float32"))
+
+
+def test_gather_nd_infer_struct_info_wrong_inputs():
+    bb = relax.BlockBuilder()
+    x0 = relax.Var("x", R.Tensor((2, 3, 4), "float32"))
+    i0 = relax.Var("i", R.Tensor((2, 4), "int64"))  # indices too long
+    i1 = relax.Var("i", R.Tensor((2, 2), "float32"))  # wrong dtype
+
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.gather_nd(x0, i0))
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.gather_nd(x0, i1))
+
+
 def test_scatter_elements_infer_struct_info():
     bb = relax.BlockBuilder()
     vdev0 = VDevice("llvm")
@@ -3375,6 +3502,58 @@ def test_scatter_nd_infer_struct_info():
         relax.op.scatter_nd(d1, i1, u1, "update"),
         relax.TensorStructInfo((4, 4, 4), dtype="float32"),
     )
+
+
+def test_one_hot_infer_struct_info():
+    bb = relax.BlockBuilder()
+
+    # Test case 1: Basic usage
+    i0 = relax.Var("indices", R.Tensor((3,), "int32"))
+    _check_inference(
+        bb,
+        relax.op.one_hot(i0, relax.PrimValue(1.0), relax.PrimValue(0.0), 5),
+        relax.TensorStructInfo((3, 5), "float32"),
+    )
+
+    # Test case 2: With specified axis
+    i1 = relax.Var("indices", R.Tensor((2, 2), "int32"))
+    _check_inference(
+        bb,
+        relax.op.one_hot(i1, relax.PrimValue(1), relax.PrimValue(0), 3, axis=1),
+        relax.TensorStructInfo((2, 3, 2), "int64"),
+    )
+
+    # Test case 3: With symbolic shape
+    n = tir.Var("n", "int64")
+    i2 = relax.Var("indices", R.Tensor((n,), "int32"))
+    _check_inference(
+        bb,
+        relax.op.one_hot(i2, relax.PrimValue(1.0), relax.PrimValue(0.0), 4),
+        relax.TensorStructInfo((n, 4), "float32"),
+    )
+
+    # Test case 4: With unknown shape
+    i3 = relax.Var("indices", R.Tensor("int32"))
+    _check_inference(
+        bb,
+        relax.op.one_hot(i3, relax.PrimValue(1.0), relax.PrimValue(0.0), 6),
+        relax.TensorStructInfo(dtype="float32"),
+    )
+
+    # Test case 5: With different on_value and off_value dtypes
+    i3 = relax.Var("indices", R.Tensor((2, 3), "int32"))
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.one_hot(i3, relax.PrimValue(1.0), relax.PrimValue(0), 5))
+
+    # Test case 6: With invalid indices dtype
+    i4 = relax.Var("indices", R.Tensor((2, 3), "float32"))
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.one_hot(i4, relax.PrimValue(1.0), relax.PrimValue(0.0), 5))
+
+    # Test case 7: With invalid depth
+    i5 = relax.Var("indices", R.Tensor((2, 3), "int32"))
+    with pytest.raises(TVMError):
+        bb.normalize(relax.op.one_hot(i5, relax.PrimValue(1.0), relax.PrimValue(0.0), -1))
 
 
 if __name__ == "__main__":

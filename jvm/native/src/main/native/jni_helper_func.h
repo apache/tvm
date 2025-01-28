@@ -214,4 +214,25 @@ jobject tvmRetValueToJava(JNIEnv* env, TVMValue value, int tcode) {
   return NULL;
 }
 
+// Helper function to pack two int32_t values into an int64_t
+inline int64_t deviceToInt64(const int32_t device_type, const int32_t device_id) {
+  int64_t result;
+  int32_t* parts = reinterpret_cast<int32_t*>(&result);
+
+  // Lambda function to check endianness
+  const auto isLittleEndian = []() -> bool {
+    uint32_t i = 1;
+    return *reinterpret_cast<char*>(&i) == 1;
+  };
+
+  if (isLittleEndian()) {
+    parts[0] = device_type;
+    parts[1] = device_id;
+  } else {
+    parts[1] = device_type;
+    parts[0] = device_id;
+  }
+  return result;
+}
+
 #endif  // TVM4J_JNI_MAIN_NATIVE_JNI_HELPER_FUNC_H_

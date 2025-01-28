@@ -522,6 +522,11 @@ def _as_range(dom: Union[ir.Range, List[PrimExpr]]) -> ir.Range:
     if isinstance(dom, ir.Range):
         return dom
     if isinstance(dom, (list, tuple)):
+        from tvm.arith import Analyzer  # pylint: disable=import-outside-toplevel
+
+        extent = Analyzer().simplify(dom[1] - dom[0])
+        if isinstance(extent, tir.IntImm):
+            return ir.Range.from_min_extent(dom[0], extent)
         return ir.Range(dom[0], dom[1])
     if hasattr(dom, "dtype"):
         return ir.Range(IntImm(dom.dtype, 0), dom)
@@ -1683,9 +1688,10 @@ def index_map(
     mapping: Callable,
     *,
     inverse_index_map: Optional[Callable] = None,
+    index_dtype: str = "int64",
 ) -> IndexMap:
     """Create a TIR Index mapping"""
-    return IndexMap.from_func(mapping, inverse_index_map=inverse_index_map)
+    return IndexMap.from_func(mapping, inverse_index_map=inverse_index_map, index_dtype=index_dtype)
 
 
 def target(
@@ -1904,6 +1910,7 @@ anylist_resetitem = _op_wrapper(_tir_op.anylist_resetitem)
 anylist_setitem_call_packed = _op_wrapper(_tir_op.anylist_setitem_call_packed)
 anylist_setitem_call_cpacked = _op_wrapper(_tir_op.anylist_setitem_call_cpacked)
 vscale = _op_wrapper(_tir_op.vscale)
+ignore_loop_partition = _op_wrapper(_tir_op.ignore_loop_partition)
 
 
 def _dtype_forward(func):
@@ -2256,4 +2263,5 @@ __all__ = [
     "vscale",
     "get_active_lane_mask",
     "call_kernel",
+    "ignore_loop_partition",
 ]

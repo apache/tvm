@@ -50,12 +50,17 @@
  * files.  This also allows us to expose the OpenCL version through
  * tvm.runtime.Device.
  */
+#if !defined(CL_TARGET_OPENCL_VERSION)
 #define CL_TARGET_OPENCL_VERSION 120
+#endif
 
 #ifdef __APPLE__
 #include <OpenCL/opencl.h>
 #else
 #include <CL/opencl.h>
+#ifdef USE_OPENCL_EXTN_QCOM
+#include <CL/cl_ext_qcom.h>
+#endif
 #endif
 
 #include <memory>
@@ -171,6 +176,8 @@ inline const char* CLGetErrorString(cl_int error) {
       return "CL_INVALID_BUFFER_SIZE";
     case CL_INVALID_MIP_LEVEL:
       return "CL_INVALID_MIP_LEVEL";
+    case CL_EXEC_STATUS_ERROR_FOR_EVENTS_IN_WAIT_LIST:
+      return "CL_EXEC_STATUS_ERROR_FOR_EVENTS_IN_WAIT_LIST";
     default:
       return "Unknown OpenCL error code";
   }
@@ -252,8 +259,13 @@ class OpenCLWorkspace : public DeviceAPI {
   }
   // Initialize the device.
   void Init(const std::string& type_key, const std::string& device_type,
-            const std::string& platform_name = "");
+            const std::string& platform_name = "", cl_context_properties properties[] = nullptr);
   virtual void Init() { Init(this->type_key, "gpu"); }
+  virtual bool Init(cl_context_properties ctx_props[]) {
+    if (!contexts.empty()) return false;
+    Init(this->type_key, "gpu", "", ctx_props);
+    return true;
+  }
   // Check whether the context is OpenCL or not.
   virtual bool IsOpenCLDevice(Device dev) { return dev.device_type == kDLOpenCL; }
   // get the queue of the device
@@ -312,6 +324,8 @@ class OpenCLWorkspace : public DeviceAPI {
   void* AllocDataSpace(Device dev, int ndim, const int64_t* shape, DLDataType dtype,
                        Optional<String> mem_scope = NullOpt) final;
   void* GetNativePtr(const tvm::runtime::NDArray& narr);
+  void SetNativePtr(const tvm::runtime::NDArray& narr, void* host_ptr, size_t buf_size);
+  void SetPerfHint(Device dev, cl_uint perf_hint);
   void FreeDataSpace(Device dev, void* ptr) final;
   void StreamSync(Device dev, TVMStreamHandle stream) final;
   void* AllocWorkspace(Device dev, size_t size, DLDataType type_hint) final;

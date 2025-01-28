@@ -181,7 +181,115 @@ def test_dense():
     run_and_verify_func(get_graph())
 
 
+@requires_mrvl
+def test_maxpool2d():
+    """Test maxpool2d operator for "mrvl" targets"""
+
+    def get_graph():
+        x = relay.var("x", shape=(1, 3, 224, 224))
+        arr = np.random.rand(16, 3, 3, 3).astype("float32")
+        w = relay.const(arr)
+        y = relay.nn.conv2d(x, w, strides=[2, 2], padding=[1, 1, 1, 1], kernel_size=[3, 3])
+        y = relay.nn.max_pool2d(y)
+        func = relay.Function([x], y)
+        mod = tvm.IRModule()
+        mod["main"] = func
+        option_dict = {"num_tiles": 1}
+        verify_codegen(mod, params={}, tvm_ops=1, contains="mrvl.maxpool2d_nhwc2nhwc")
+        return func, {"x": (1, 3, 224, 224)}, [], option_dict
+
+    run_and_verify_func(get_graph())
+
+
+@requires_mrvl
+def test_avgpool2d():
+    """Test avgpool2d operator for "mrvl" targets"""
+
+    def get_graph():
+        x = relay.var("x", shape=(1, 3, 224, 224))
+        arr = np.random.rand(16, 3, 3, 3).astype("float32")
+        w = relay.const(arr)
+        y = relay.nn.conv2d(x, w, strides=[2, 2], padding=[1, 1, 1, 1], kernel_size=[3, 3])
+        y = relay.nn.avg_pool2d(y)
+        func = relay.Function([x], y)
+        mod = tvm.IRModule()
+        mod["main"] = func
+        option_dict = {"num_tiles": 1}
+        verify_codegen(mod, params={}, tvm_ops=1, contains="mrvl.avgpool2d_nhwc2nhwc")
+        return func, {"x": (1, 3, 224, 224)}, [], option_dict
+
+    run_and_verify_func(get_graph())
+
+
+@requires_mrvl
+def test_globalavgpool2d():
+    """Test globalavgpool2d operator for "mrvl" targets"""
+
+    def get_graph():
+        x = relay.var("x", shape=(1, 3, 224, 224))
+        arr = np.random.rand(16, 3, 3, 3).astype("float32")
+        w = relay.const(arr)
+        y = relay.nn.conv2d(x, w, strides=[2, 2], padding=[1, 1, 1, 1], kernel_size=[3, 3])
+        y = relay.nn.global_avg_pool2d(y)
+        func = relay.Function([x], y)
+        mod = tvm.IRModule()
+        mod["main"] = func
+        option_dict = {"num_tiles": 1}
+        verify_codegen(mod, params={}, tvm_ops=1, contains="mrvl.globalavgpool2d_nhwc2nhwc")
+        return func, {"x": (1, 3, 224, 224)}, [], option_dict
+
+    run_and_verify_func(get_graph())
+
+
+@requires_mrvl
+def test_globalmaxpool2d():
+    """Test globalmaxpool2d operator for "mrvl" targets"""
+
+    def get_graph():
+        x = relay.var("x", shape=(1, 3, 224, 224))
+        arr = np.random.rand(16, 3, 3, 3).astype("float32")
+        w = relay.const(arr)
+        y = relay.nn.conv2d(x, w, strides=[2, 2], padding=[1, 1, 1, 1], kernel_size=[3, 3])
+        y = relay.nn.global_max_pool2d(y)
+        func = relay.Function([x], y)
+        params = {}
+        params["w"] = arr
+        mod = tvm.IRModule()
+        mod["main"] = func
+        option_dict = {"num_tiles": 1}
+        verify_codegen(mod, params=params, tvm_ops=2, contains="mrvl.globalmaxpool2d_nhwc2nhwc")
+        return func, {"x": (1, 3, 224, 224), "w": (16, 3, 3, 3)}, ["w"], option_dict
+
+    run_and_verify_func(get_graph())
+
+
+@requires_mrvl
+def test_squeeze():
+    """Test squeeze operator for "mrvl" targets"""
+
+    def get_graph():
+        x = relay.var("x", shape=(1, 3, 224, 224))
+        arr = np.random.rand(16, 3, 3, 3).astype("float32")
+        w = relay.const(arr)
+        y = relay.nn.conv2d(x, w, strides=[2, 2], padding=[1, 1, 1, 1], kernel_size=[3, 3])
+        y = relay.reshape(y, newshape=(1, 1, 16, 112, 112))
+        y = relay.squeeze(y, axis=[0, 1])
+        func = relay.Function([x], y)
+        mod = tvm.IRModule()
+        mod["main"] = func
+        option_dict = {"num_tiles": 1}
+        verify_codegen(mod, params={}, tvm_ops=3, contains="mrvl.squeeze")
+        return func, {"x": (1, 3, 224, 224)}, [], option_dict
+
+    run_and_verify_func(get_graph())
+
+
 if __name__ == "__main__":
     test_mrvl_fuse()
     test_conv2d()
     test_dense()
+    test_maxpool2d()
+    test_avgpool2d()
+    test_globalavgpool2d()
+    test_globalmaxpool2d()
+    test_squeeze()

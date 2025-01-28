@@ -154,7 +154,8 @@ void TVMRunner::UsePreCompiledPrograms(std::string file_name) {
   if (f_get != nullptr && f_set != nullptr) {
     std::ifstream ifs(file_name, std::ios::in | std::ios::binary);
     if (ifs.fail()) {
-      auto bytes = String(f_get());
+      std::string ss = f_get();
+      auto bytes = tvm::String(ss);
       std::ofstream fs(file_name, std::ofstream::binary);
       fs.write(bytes.c_str(), bytes.size());
     } else {

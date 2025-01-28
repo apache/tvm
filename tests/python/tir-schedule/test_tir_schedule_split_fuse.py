@@ -389,6 +389,41 @@ def test_split_with_inferred_factor():
     verify_trace_roundtrip(sch=sch, mod=elementwise)
 
 
+def test_split_with_dynamic_inferred_factor():
+    @T.prim_func
+    def before(a: T.handle, b: T.handle) -> None:
+        N = T.int32()
+        M = T.int32()
+        A = T.match_buffer(a, (N, 128, M))
+        B = T.match_buffer(b, (N, 128, M))
+        for i, j, k in T.grid(N, 128, M):
+            with T.block("B"):
+                vi, vj, vk = T.axis.remap("SSS", [i, j, k])
+                B[vi, vj, vk] = A[vi, vj, vk] * 2.0
+
+    @T.prim_func
+    def expected(a: T.handle, b: T.handle) -> None:
+        N, M = T.int32(), T.int32()
+        A = T.match_buffer(a, (N, 128, M))
+        B = T.match_buffer(b, (N, 128, M))
+        for i_0, i_1, j_0, j_1, k_0, k_1 in T.grid((N + 15) // 16, 16, 4, 32, 16, (M + 15) // 16):
+            with T.block("B"):
+                vi = T.axis.spatial(N, i_0 * 16 + i_1)
+                vj = T.axis.spatial(128, j_0 * 32 + j_1)
+                vk = T.axis.spatial(M, k_0 * ((M + 15) // 16) + k_1)
+                T.where(i_0 * 16 + i_1 < N and k_0 * ((M + 15) // 16) + k_1 < M)
+                B[vi, vj, vk] = A[vi, vj, vk] * T.float32(2.0)
+
+    sch = tir.Schedule(before, debug_mask="all")
+    block_b = sch.get_block("B")
+    i, j, k = sch.get_loops(block_b)
+    sch.split(i, factors=[None, 16])
+    sch.split(j, factors=[4, 32])
+    sch.split(k, factors=[16, None])
+    assert_structural_equal_ignore_global_symbol(expected, sch.mod["main"])
+    verify_trace_roundtrip(sch=sch, mod=before)
+
+
 def test_split_with_predicate():
     sch = tir.Schedule(elementwise, debug_mask="all")
     block_b = sch.get_block("B")

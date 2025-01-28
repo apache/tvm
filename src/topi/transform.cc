@@ -27,6 +27,10 @@
 #include <tvm/topi/transform.h>
 #include <tvm/topi/utils.h>
 
+#include <iostream>
+
+#include "tvm/ir/expr.h"
+
 namespace tvm {
 namespace topi {
 
@@ -135,7 +139,8 @@ TVM_REGISTER_GLOBAL("topi.gather").set_body([](TVMArgs args, TVMRetValue* rv) {
 });
 
 TVM_REGISTER_GLOBAL("topi.gather_nd").set_body([](TVMArgs args, TVMRetValue* rv) {
-  *rv = gather_nd(args[0], args[1]);
+  int batch_dims = args[2];
+  *rv = gather_nd(args[0], args[1], batch_dims);
 });
 
 TVM_REGISTER_GLOBAL("topi.unravel_index").set_body([](TVMArgs args, TVMRetValue* rv) {
@@ -179,6 +184,7 @@ TVM_REGISTER_GLOBAL("topi.strided_slice").set_body([](TVMArgs args, TVMRetValue*
   Array<PrimExpr> end = args[2];
   Array<PrimExpr> strides = args[3];
   Array<Integer> axes = args[4];
+  bool assume_inbound = args[6];
   if (IsConstIntArray(begin) && IsConstIntArray(end) && IsConstIntArray(strides) &&
       IsConstIntArray(x->shape)) {
     Array<Integer> begin_static = args[1];
@@ -192,9 +198,9 @@ TVM_REGISTER_GLOBAL("topi.strided_slice").set_body([](TVMArgs args, TVMRetValue*
     }
   } else {
     if (axes.size()) {
-      *rv = dynamic_strided_slice_with_axes(x, begin, end, strides, axes);
+      *rv = dynamic_strided_slice_with_axes(x, begin, end, strides, axes, assume_inbound);
     } else {
-      *rv = dynamic_strided_slice(x, begin, end, strides);
+      *rv = dynamic_strided_slice(x, begin, end, strides, assume_inbound);
     }
   }
 });

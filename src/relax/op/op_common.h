@@ -570,6 +570,16 @@ Expr MakeAllocTensor(Expr shape, DataTypeImm dtype, PrimValue runtime_device_ind
  */
 Array<Expr> GetCallArgs(const Call& call);
 
+/**
+ * \brief Checks the given shape can be proved from the source layout to dst layout
+ * \param input_layout is the layout of given shape
+ * \param desired_layout is the target layout the shape to be transformed
+ * \param shape array
+ * \return true or false depending on the compatibility
+ */
+bool CanProveLayoutTransform(const Layout& input_layout, const Layout& desired_layout,
+                             Array<PrimExpr> shape);
+
 }  // namespace relax
 }  // namespace tvm
 

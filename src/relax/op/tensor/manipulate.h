@@ -27,6 +27,7 @@
 #include <tvm/relax/attrs/manipulate.h>
 
 #include "../op_common.h"
+#include "tvm/relax/expr.h"
 
 namespace tvm {
 namespace relax {
@@ -174,6 +175,32 @@ Expr tile(Expr data, Array<Integer> repeats);
 Expr flip(Expr data, Integer axis);
 
 /*!
+ * \brief Gather elements from a tensor using indices.
+ * \param data The input tensor.
+ * \param indices The indices tensor, must have integer type.
+ * \param axis The axis along which to index. Default is 0.
+ * \return The computed result.
+ *
+ * \note The shape of indices must match the shape of data, except at dimension axis
+ *       where it must just be not null. The output will have the same shape as indices.
+ */
+Expr gather_elements(Expr data, Expr indices, int axis = 0);
+
+/*!
+ * \brief Gather values from a tensor using N-dimensional indices.
+ * \param data The input tensor.
+ * \param indices The indices tensor, must have integer type.
+ * \param batch_dims The number of batch dimensions. Default is 0.
+ * \return The computed result.
+ *
+ * \note For batch_dims > 0, the first batch_dims dimensions of data and indices must be equal.
+ *       The last dimension of indices indicates the depth of each index vector.
+ *       The output shape is batch_dims + indices.shape[:-1] + data.shape[batch_dims +
+ * indices.shape[-1]:]
+ */
+Expr gather_nd(Expr data, Expr indices, int batch_dims = 0);
+
+/*!
  * \brief Scatter updates into an array according to indices.
  * \param data The input tensor.
  * \param indices The index positions to update in `data`.
@@ -205,6 +232,17 @@ Expr scatter_elements(Expr data, Expr indices, Expr updates, int axis, String re
  *       which must match the slice shape at each index.
  */
 Expr scatter_nd(Expr data, Expr indices, Expr updates, String reduction);
+
+/*!
+ * \brief Returns a one-hot tensor.
+ * \param indices The indices to set to `on_value`.
+ * \param on_value The value to fill at `indices`.
+ * \param off_value The value to fill at other locations.
+ * \param depth The depth of the one hot dimension.
+ * \param axis The axis to fill.
+ * \return The computed result.
+ */
+Expr one_hot(Expr indices, PrimValue on_value, PrimValue off_value, int depth, int axis);
 
 }  // namespace relax
 }  // namespace tvm

@@ -435,6 +435,79 @@ def flip(data, axis):
     return _ffi_api.flip(data, axis)  # type: ignore
 
 
+def gather_elements(data: Expr, indices: Expr, axis: int = 0) -> Expr:
+    """Gather elements from data according to indices along the specified axis.
+
+    Parameters
+    ----------
+    data : relax.Expr
+        The input data to the operator.
+
+    indices : relax.Expr
+        The indices tensor, must have integer type.
+
+    axis : int
+        The axis along which to index. Default is 0.
+
+    Returns
+    -------
+    ret : relax.Expr
+        The computed result.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        data = [[1, 2], [3, 4]]
+        indices = [[0, 0], [1, 0]]
+        axis = 1
+        output = [[1, 1], [4, 3]]
+
+        data = [[1, 2, 3], [4, 5, 6]]
+        indices = [[1, 1, 1]]
+        axis = 0
+        output = [[4, 5, 6]]
+    """
+    return _ffi_api.gather_elements(data, indices, axis)  # type: ignore
+
+
+def gather_nd(data: Expr, indices: Expr, batch_dims: int = 0) -> Expr:
+    """Update data at positions defined by indices with values in updates.
+
+    Parameters
+    ----------
+    data : relax.Expr
+        The input data to the operator.
+
+    indices : relax.Expr
+        The indices tensor, must have integer type.
+
+    batch_dims : int
+        The number of batch dimensions. Default is 0.
+
+    Returns
+    -------
+    ret : relax.Expr
+        The computed result.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        batch_dims = 0
+        data    = [[0,1],[2,3]]   # data_shape    = [2, 2]
+        indices = [[0,0],[1,1]]   # indices_shape = [2, 2]
+        output  = [0,3]           # output_shape  = [2]
+
+        batch_dims = 1
+        data    = [[[0,1],[2,3]],[[4,5],[6,7]]] # data_shape    = [2, 2, 2]
+        indices = [[1],[0]]                     # indices_shape = [2, 1]
+        output  = [[2,3],[4,5]]                 # output_shape  = [2, 2]
+
+    """
+    return _ffi_api.gather_nd(data, indices, batch_dims)  # type: ignore
+
+
 def scatter_elements(
     data: Expr, indices: Expr, updates: Expr, axis: int = 0, reduction: str = "update"
 ):
@@ -550,3 +623,47 @@ def scatter_nd(data: Expr, indices: Expr, updates: Expr, reduction: str = "updat
 
     """
     return _ffi_api.scatter_nd(data, indices, updates, reduction)  # type: ignore
+
+
+def one_hot(
+    indices: Expr, on_value: PrimValue, off_value: PrimValue, depth: int, axis: int = -1
+) -> Expr:
+    """Returns a one-hot tensor.
+
+    Parameters
+    ----------
+    indices : relax.Expr
+        The indices to set to `on_value`.
+
+    on_value : relax.PrimValue
+        The value to fill at `indices`.
+
+    off_value : relax.PrimValue
+        The value to fill at other locations.
+
+    depth : int
+        The depth of the one-hot dimension.
+
+    axis : int, optional
+        The axis to fill. Default is -1 which adds a new dimension at the end.
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+
+    Examples
+    --------
+    .. code-block:: python
+
+        indices = [0, 1, 2]
+        depth = 3
+        on_value = 1
+        off_value = 0
+
+        one_hot(indices, on_value, off_value, depth) =
+            [[1, 0, 0],
+             [0, 1, 0],
+             [0, 0, 1]]
+    """
+    return _ffi_api.one_hot(indices, on_value, off_value, depth, axis)  # type: ignore

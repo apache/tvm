@@ -480,32 +480,6 @@ def python_unittest(image) {
   )
 }
 
-def fsim_test(image) {
-  sh (
-    script: "${docker_run} ${image} ./tests/scripts/task_python_vta_fsim.sh",
-    label: 'Run VTA tests in FSIM',
-  )
-}
-
-def make_standalone_crt(image, build_dir) {
-  sh (
-    script: """
-      set -eux
-      ${docker_run} ${image} python3 ./tests/scripts/task_build.py \
-        --sccache-bucket tvm-sccache-prod \
-        --sccache-region us-west-2 \
-        --cmake-target standalone_crt \
-        --build-dir build
-      ${docker_run} ${image} python3 ./tests/scripts/task_build.py \
-        --sccache-bucket tvm-sccache-prod \
-        --sccache-region us-west-2 \
-        --cmake-target crttest \
-        --build-dir build
-      """,
-    label: 'Make standalone CRT',
-  )
-}
-
 def make_cpp_tests(image, build_dir) {
   sh (
     script: """
@@ -533,13 +507,6 @@ def cpp_unittest(image) {
   )
 }
 
-def micro_cpp_unittest(image) {
-  sh (
-    script: "${docker_run} --env CI_NUM_EXECUTORS ${image} ./tests/scripts/task_microtvm_cpp_tests.sh build",
-    label: 'Run microTVM C++ tests',
-  )
-}
-
 cancel_previous_build()
 
 try {
@@ -564,10 +531,9 @@ def build(node_type) {
           label: 'Create CPU minimal cmake config',
         )
         cmake_build(ci_minimal, 'build', '-j2')
-        make_standalone_crt(ci_minimal, 'build')
         make_cpp_tests(ci_minimal, 'build')
         sh(
-            script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/cpu-minimal --items build/libtvm.so build/libtvm_runtime.so build/config.cmake build/libtvm_allvisible.so build/crttest build/cpptest build/build.ninja build/CMakeFiles/rules.ninja build/standalone_crt build/build.ninja build/microtvm_template_projects",
+            script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/cpu-minimal --items build/libtvm.so build/libtvm_runtime.so build/config.cmake build/libtvm_allvisible.so build/crttest build/cpptest build/build.ninja build/CMakeFiles/rules.ninja build/build.ninja build/microtvm_template_projects",
             label: 'Upload artifacts to S3',
           )
             })

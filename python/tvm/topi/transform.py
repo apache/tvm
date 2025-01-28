@@ -170,7 +170,7 @@ def reverse_sequence(a, seq_lengths, seq_axis=1, batch_axis=0):
     return cpp.reverse_sequence(a, seq_lengths, seq_axis, batch_axis)
 
 
-def strided_slice(a, begin, end, strides=None, axes=None, slice_mode="end"):
+def strided_slice(a, begin, end, strides=None, axes=None, slice_mode="end", assume_inbound=True):
     """Slice of an array.
 
     Parameters
@@ -200,6 +200,9 @@ def strided_slice(a, begin, end, strides=None, axes=None, slice_mode="end"):
         the sizeof a slice starting at the location specified by begin. If end[i]
         is -1, all remaining elements in that dimension are included in the slice.
 
+    assume_inbound: bool, optional
+        A flag to indicate if all indices are assumed to be inbound
+
     Returns
     -------
     ret : tvm.te.Tensor
@@ -223,7 +226,7 @@ def strided_slice(a, begin, end, strides=None, axes=None, slice_mode="end"):
         strides = []
     if axes is None:
         axes = []
-    return cpp.strided_slice(a, begin, end, strides, axes, slice_mode)
+    return cpp.strided_slice(a, begin, end, strides, axes, slice_mode, assume_inbound)
 
 
 def dynamic_strided_slice(a, begin, end, strides, output_shape):
@@ -525,7 +528,7 @@ def gather(data, axis, indices):
     return cpp.gather(data, axis, indices)
 
 
-def gather_nd(a, indices):
+def gather_nd(a, indices, batch_dims=0):
     """Gather elements from a n-dimension array..
 
     Parameters
@@ -540,7 +543,7 @@ def gather_nd(a, indices):
     -------
     ret : tvm.te.Tensor
     """
-    return cpp.gather_nd(a, indices)
+    return cpp.gather_nd(a, indices, batch_dims)
 
 
 def matmul(a, b, transp_a=False, transp_b=False):

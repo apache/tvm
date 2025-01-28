@@ -53,7 +53,6 @@ else:
     tvm_path = Path(os.pardir)
 
 sys.path.insert(0, str(tvm_path.resolve() / "python"))
-sys.path.insert(0, str(tvm_path.resolve() / "vta" / "python"))
 sys.path.insert(0, str(tvm_path.resolve() / "docs"))
 
 # -- General configuration ------------------------------------------------
@@ -160,7 +159,9 @@ BUTTON = (
 
 
 @monkey_patch("sphinx_gallery.gen_rst", "save_rst_example")
-def save_rst_example(example_rst, example_file, time_elapsed, memory_used, gallery_conf, real_func):
+def save_rst_example(
+    example_rst, example_file, time_elapsed, memory_used, gallery_conf, language, real_func
+):
     """Monkey-patch save_rst_example to include the "Open in Colab" button."""
 
     # The url is the md5 hash of the notebook path.
@@ -179,7 +180,9 @@ def save_rst_example(example_rst, example_file, time_elapsed, memory_used, galle
         python_file=example_fname, ref_name=ref_fname, colab_url=colab_url, button_svg=BUTTON
     )
     with patch("sphinx_gallery.gen_rst.EXAMPLE_HEADER", new_header):
-        real_func(example_rst, example_file, time_elapsed, memory_used, gallery_conf)
+        real_func(
+            example_rst, example_file, time_elapsed, memory_used, gallery_conf, language=language
+        )
 
 
 INCLUDE_DIRECTIVE_RE = re.compile(r"^([ \t]*)\.\. include::\s*(.+)\n", flags=re.M)
@@ -366,10 +369,7 @@ html_theme = os.environ.get("TVM_THEME", "rtd")
 on_rtd = os.environ.get("READTHEDOCS", None) == "True"
 # only import rtd theme and set it if want to build docs locally
 if not on_rtd and html_theme == "rtd":
-    import sphinx_rtd_theme
-
     html_theme = "sphinx_rtd_theme"
-    html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,
@@ -409,19 +409,6 @@ intersphinx_mapping = {
 from sphinx_gallery.sorting import ExplicitOrder
 
 examples_dirs = [
-    # legacy tutorial structure under gallery folder
-    tvm_path.joinpath("gallery", "tutorial"),
-    tvm_path.joinpath("gallery", "how_to", "compile_models"),
-    tvm_path.joinpath("gallery", "how_to", "deploy_models"),
-    tvm_path.joinpath("gallery", "how_to", "work_with_relay"),
-    tvm_path.joinpath("gallery", "how_to", "work_with_schedules"),
-    tvm_path.joinpath("gallery", "how_to", "optimize_operators"),
-    tvm_path.joinpath("gallery", "how_to", "tune_with_autotvm"),
-    tvm_path.joinpath("gallery", "how_to", "tune_with_autoscheduler"),
-    tvm_path.joinpath("gallery", "how_to", "work_with_microtvm"),
-    tvm_path.joinpath("gallery", "how_to", "extend_tvm"),
-    tvm_path.joinpath("vta", "tutorials"),
-    # New tutorial structure under docs folder
     tvm_path.joinpath("docs", "get_started", "tutorials"),
     tvm_path.joinpath("docs", "how_to", "tutorials"),
     tvm_path.joinpath("docs", "deep_dive", "relax", "tutorials"),
@@ -429,110 +416,17 @@ examples_dirs = [
 ]
 
 gallery_dirs = [
-    # legacy tutorial structure under gallery folder
-    "tutorial",
-    "how_to/compile_models",
-    "how_to/deploy_models",
-    "how_to/work_with_relay",
-    "how_to/work_with_schedules",
-    "how_to/optimize_operators",
-    "how_to/tune_with_autotvm",
-    "how_to/tune_with_autoscheduler",
-    "how_to/work_with_microtvm",
-    "how_to/extend_tvm",
-    "topic/vta/tutorials",
-    # New tutorial structure under docs folder
     "get_started/tutorials/",
     "how_to/tutorials/",
     "deep_dive/relax/tutorials/",
     "deep_dive/tensor_ir/tutorials/",
 ]
 
-
-subsection_order = ExplicitOrder(
-    str(p)
-    for p in [
-        tvm_path / "vta" / "tutorials" / "frontend",
-        tvm_path / "vta" / "tutorials" / "optimize",
-    ]
-)
-
 # Explicitly define the order within a subsection.
 # The listed files are sorted according to the list.
 # The unlisted files are sorted by filenames.
 # The unlisted files always appear after listed files.
-within_subsection_order = {
-    "tutorial": [
-        "introduction.py",
-        "install.py",
-        "tvmc_command_line_driver.py",
-        "tvmc_python.py",
-        "autotvm_relay_x86.py",
-        "tensor_expr_get_started.py",
-        "autotvm_matmul_x86.py",
-        "auto_scheduler_matmul_x86.py",
-        "tensor_ir_blitz_course.py",
-        "topi.pi",
-        "cross_compilation_and_rpc.py",
-        "relay_quick_start.py",
-        "uma.py",
-    ],
-    "compile_models": [
-        "from_pytorch.py",
-        "from_tensorflow.py",
-        "from_mxnet.py",
-        "from_onnx.py",
-        "from_keras.py",
-        "from_tflite.py",
-        "from_coreml.py",
-        "from_darknet.py",
-        "from_caffe2.py",
-        "from_paddle.py",
-    ],
-    "work_with_schedules": [
-        "schedule_primitives.py",
-        "reduction.py",
-        "scan.py",
-        "extern_op.py",
-        "tensorize.py",
-        "tuple_inputs.py",
-        "tedd.py",
-    ],
-    "optimize_operators": [
-        "opt_gemm.py",
-        "opt_conv_cuda.py",
-        "opt_conv_tensorcore.py",
-    ],
-    "tune_with_autotvm": [
-        "tune_conv2d_cuda.py",
-        "tune_relay_cuda.py",
-        "tune_relay_x86.py",
-        "tune_relay_arm.py",
-        "tune_relay_mobile_gpu.py",
-    ],
-    "tune_with_autoscheduler": [
-        "tune_matmul_x86.py",
-        "tune_conv2d_layer_cuda.py",
-        "tune_network_x86.py",
-        "tune_network_cuda.py",
-    ],
-    "extend_tvm": [
-        "low_level_custom_pass.py",
-        "use_pass_infra.py",
-        "use_pass_instrument.py",
-        "bring_your_own_datatypes.py",
-    ],
-    "work_with_microtvm": [
-        "micro_tvmc.py",
-        "micro_tflite.py",
-        "micro_aot.py",
-        "micro_pytorch.py",
-        "micro_train.py",
-        "micro_autotune.py",
-        "micro_ethosu.py",
-        "micro_mlperftiny.py",
-    ],
-}
+within_subsection_order = {}
 
 
 class WithinSubsectionOrder:
@@ -575,7 +469,6 @@ sphinx_gallery_conf = {
     "examples_dirs": examples_dirs,
     "within_subsection_order": WithinSubsectionOrder,
     "gallery_dirs": gallery_dirs,
-    "subsection_order": subsection_order,
     "filename_pattern": os.environ.get("TVM_TUTORIAL_EXEC_PATTERN", filename_pattern_default),
     "download_all_examples": False,
     "min_reported_time": 60,
@@ -769,9 +662,6 @@ def process_docstring(app, what, name, obj, options, lines):
         distinguish_class_name(name, lines)
 
 
-from legacy_redirect import build_legacy_redirect
-
-
 def strip_ipython_magic(app, docname, source):
     """Prevents IPython magic commands from being rendered in HTML files.
 
@@ -784,4 +674,3 @@ def strip_ipython_magic(app, docname, source):
 def setup(app):
     app.connect("source-read", strip_ipython_magic)
     app.connect("autodoc-process-docstring", process_docstring)
-    app.connect("build-finished", build_legacy_redirect(tvm_path))

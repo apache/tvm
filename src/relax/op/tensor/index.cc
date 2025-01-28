@@ -25,6 +25,7 @@
 #include "index.h"
 
 #include <tvm/relax/analysis.h>
+#include <tvm/topi/transform.h>
 
 #include <algorithm>
 #include <optional>
@@ -170,29 +171,6 @@ Expr strided_slice(Expr x, Expr axes, Expr begin, Expr end, Optional<Expr> strid
 }
 
 TVM_REGISTER_GLOBAL("relax.op.strided_slice").set_body_typed(strided_slice);
-
-inline PrimExpr CanonicalizeIndex(PrimExpr index, PrimExpr extent, PrimExpr stride) {
-  // Handle Python-style negative indices
-  index = if_then_else(index < 0, index + extent, index);
-  // Clamp the result to valid indices
-  PrimExpr lower_bound = tvm::if_then_else(stride < 0, -1, 0);
-  PrimExpr upper_bound = tvm::if_then_else(stride < 0, extent - 1, extent);
-  index = tvm::min(tvm::max(index, lower_bound), upper_bound);
-
-  return index;
-}
-
-PrimExpr GetLength(PrimExpr begin, PrimExpr end, PrimExpr stride, PrimExpr extent,
-                   bool assume_inbound) {
-  if (assume_inbound) {
-    return ceildiv(end - begin, stride);
-  } else {
-    begin = CanonicalizeIndex(begin, extent, stride);
-    end = CanonicalizeIndex(end, extent, stride);
-    return tvm::if_then_else(stride < 0, ceildiv(begin - end, -stride),
-                             ceildiv(end - begin, stride));
-  }
-}
 
 /* \brief Helper function to unpack a relax::Tuple
  *
@@ -424,7 +402,7 @@ StructInfo InferStructInfoStridedSlice(const Call& call, const BlockBuilder& ctx
       PrimExpr end = end_tuple[i];
 
       PrimExpr output_dim =
-          GetLength(begin, end, strides_tuple[i], input_dim, attrs->assume_inbound);
+          topi::GetLength(begin, end, strides_tuple[i], input_dim, attrs->assume_inbound);
 
       arith::Analyzer* analyzer = ctx->GetAnalyzer();
       std::optional<With<arith::ConstraintContext>> context;
@@ -460,6 +438,10 @@ InferLayoutOutput InferLayoutStridedSlice(const Call& call,
                                         << "but expression " << call << " has argument "
                                         << call->args[0] << " of unknown dimensionality.";
   LayoutDecision existing_layout = GetLayoutDecision(var_layout_map, call->args[0]);
+  // Can't handle sub indexed layouts.
+  if (existing_layout->layout.ndim() != existing_layout->layout.ndim_primal()) {
+    existing_layout = LayoutDecision(InitialLayout(tensor_sinfo->ndim));
+  }
 
   auto opt_axes_tuple = UnpackTupleOfPrimValue<Integer>(GetStructInfo(call->args[1]));
   CHECK(opt_axes_tuple) << "Layout inference of " << call->op
