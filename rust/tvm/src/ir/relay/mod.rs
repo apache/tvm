@@ -17,7 +17,7 @@
  * under the License.
  */
 use crate::runtime::array::Array;
-use crate::runtime::{self, object::*, IsObjectRef, String as TString};
+use crate::runtime::{object::*, IsObjectRef, String as TString};
 
 use super::attrs::Attrs;
 use super::expr::BaseExprNode;
@@ -40,7 +40,7 @@ pub mod attrs;
 pub struct ExprNode {
     pub base: BaseExprNode,
     pub checked_type: Type,
-    pub struct_info: ObjectRef,
+    pub struct_info: ObjectRef, // FIXME: this is actually an Optional
     pub virtual_device: ObjectRef,
 }
 
@@ -527,7 +527,7 @@ mod tests {
     fn test_id() -> Result<()> {
         let string = TString::from("foo");
         let id = Id::new(string);
-        let text = as_text(id.clone());
+        let text = as_text(id.clone(), 0);
         assert!(text.contains("relay.Id"));
         Ok(())
     }
@@ -535,7 +535,7 @@ mod tests {
     #[test]
     fn test_global() -> Result<()> {
         let gv = GlobalVar::new("main".to_string(), Span::null());
-        let text = as_text(gv.clone());
+        let text = as_text(gv.clone(), 0);
         assert!(text.contains("@main"));
         Ok(())
     }
@@ -543,7 +543,7 @@ mod tests {
     #[test]
     fn test_var() -> Result<()> {
         let var = Var::new("local".to_string(), Type::null(), Span::null());
-        let text = as_text(var.clone());
+        let text = as_text(var.clone(), 0);
         assert!(text.contains("%local"));
         Ok(())
     }
