@@ -1171,7 +1171,6 @@ class MrvlJSONSerializer : public backend::contrib::JSONSerializer {
     auto json_node = std::make_shared<JSONGraphNode>(name, "kernel", inputs, 1);
     SetMrvlLayerCommonAttrs(json_node, cn, layer_name_, name, data_layout,
                             "" /* no kernel_layout */, out_layout);
-    SetMrvlQuantAttrs(json_node, nodes.instrument_1, "1");
     return json_node;
   }
 
