@@ -157,18 +157,6 @@ def qnn_dense_legalize(attrs, inputs, types):
 ###################
 
 
-def get_scalar_from_constant(expr):
-    """Returns scalar value from Relay constant scalar."""
-    assert (
-        isinstance(expr, relay.Constant) and not expr.data.shape
-    ), "Expr is not a constant scalar."
-    value = expr.data.numpy()
-    assert value.dtype == np.dtype(np.int32) or value.dtype == np.dtype(
-        np.float32
-    ), "value must be float32/int32"
-    return value.item(0)
-
-
 def _shift(data, zero_point, out_dtype):
     """Shifts (add/subtracts) the qnn tensor with +/-128)"""
     if out_dtype == "uint8":
@@ -181,7 +169,7 @@ def _shift(data, zero_point, out_dtype):
     data_modified = relay.add(data_modified, relay.const(shift, "int32"))
     data_modified = relay.cast(data_modified, out_dtype)
     if isinstance(zero_point, relay.Constant):
-        zero_point_val = get_scalar_from_constant(zero_point)
+        zero_point_val = zero_point.data.numpy()
         zero_point_modified = relay.const(zero_point_val + shift, "int32")
     else:
         zero_point_modified = zero_point + relay.const(shift, "int32")
@@ -443,7 +431,7 @@ def helper_change_dtypes_to_be_same(attrs, inputs, types, relay_op):
         data_modified = relay.cast(data, "int32")
         data_modified = relay.add(data_modified, relay.const(shift, "int32"))
         data_modified = relay.cast(data_modified, out_dtype)
-        zero_point_val = get_scalar_from_constant(zero_point)
+        zero_point_val = zero_point.data.numpy()
         zero_point_modified = relay.const(zero_point_val + shift, "int32")
         return (data_modified, zero_point_modified)
 
