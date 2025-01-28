@@ -203,15 +203,25 @@ Array<Range> IndexMapNode::MapRanges(const Array<Range>& ranges, arith::Analyzer
     // For example, [N] mapped through i=>[i//4,i%4] should have shape
     // [ceildiv(N,4), 4].  However, for N<4, this method instead
     // results in a shape [1, N].
+    PrimExpr total_sz(1);
     std::unordered_map<const VarNode*, arith::IntSet> dom_map;
     for (size_t i = 0; i < initial_indices.size(); i++) {
       dom_map[initial_indices[i].get()] = arith::IntSet::FromRange(ranges[i]);
+      auto set = arith::IntSet::FromRange(ranges[i]);
+      dom_map[initial_indices[i].get()] = set;
+      total_sz *= (set.max() - set.min() + 1);
     }
-
+    // Array size check added to avoid buffer creation with higher size
+    // in comparison with original one.  Otherwise it may lead to incorrect
+    // weights mapping on RewriteLayout() pass.
+    auto total_size = analyzer->Simplify(total_sz);
     for (const auto& final_index : final_indices) {
       auto int_set = arith::EvalSet(final_index, dom_map);
-      output.push_back(Range::FromMinExtent(analyzer->Simplify(int_set.min()),
-                                            analyzer->Simplify(int_set.max() - int_set.min() + 1)));
+      auto mx = analyzer->Simplify(int_set.max() - int_set.min() + 1);
+      mx = analyzer->Simplify(min(total_size, mx));
+
+      output.push_back(Range::FromMinExtent(analyzer->Simplify(int_set.min()), mx));
+      total_size = analyzer->Simplify(max(div(total_size, mx), PrimExpr(1)));
     }
   }
   auto output_dtype = [&]() {
