@@ -99,6 +99,15 @@ class GraphExecutorDebug : public GraphExecutor {
   void ExecuteNode(int node);
 
   /*!
+   * \brief debug external comilers if supported.
+   *
+   * This method invokes the external compilers to generate any debug trace info.
+   *
+   * \return Returns serialized debug trace information to the caller
+   */
+  std::string DebugRunExtCompiler(void);
+
+  /*!
    * \brief Returns index-th output of node.
    *
    * This method will return index-th out_ind output
