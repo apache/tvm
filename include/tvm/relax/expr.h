@@ -956,7 +956,25 @@ class FunctionNode : public BaseFuncNode {
   /*! \brief The return type of the function. */
   StructInfo ret_struct_info;
   /*! \brief Whether the function is annotated as pure or not. */
-  bool is_pure;
+  Optional<Bool> is_pure;
+
+  /*! \brief Whether the function is known to be pure. */
+  bool IsPure() const {
+    if (is_pure.defined()) {
+      return is_pure.value()->value;
+    } else {
+      return false;
+    }
+  }
+
+  /*! \brief Whether the function is known to be impure. */
+  bool IsImpure() const {
+    if (is_pure.defined()) {
+      return !is_pure.value()->value;
+    } else {
+      return false;
+    }
+  }
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("params", &params);
@@ -1015,16 +1033,35 @@ class Function : public BaseFunc {
    *
    * \param span The source span of the expression.
    */
+  TVM_DLL explicit Function(Array<Var> params, Expr body,
+                            Optional<StructInfo> ret_struct_info = NullOpt,
+                            Optional<Bool> is_pure = NullOpt, DictAttrs attrs = DictAttrs(),
+                            Span span = Span());
+
   TVM_DLL explicit Function(Array<Var> params, Expr body, Optional<StructInfo> ret_struct_info,
-                            bool is_pure = true, DictAttrs attrs = DictAttrs(), Span span = Span());
+                            bool is_pure, DictAttrs attrs = DictAttrs(), Span span = Span())
+      : Function(params, body, ret_struct_info, Optional<Bool>(Bool(is_pure)), attrs, span) {}
 
   /*!
    * \brief Mimics the constructor but without body Expr.
-   * \note ret_struct_info is required, since it can not deduced by the body.
+   *
+   * \note ret_struct_info is required, since it cannot be deduced by
+   * the body.
    */
   TVM_DLL static Function CreateEmpty(Array<Var> params, StructInfo ret_struct_info,
-                                      bool is_pure = true, DictAttrs attrs = DictAttrs(),
+                                      Optional<Bool> is_pure, DictAttrs attrs = DictAttrs(),
                                       Span span = Span());
+
+  /*!
+   * \brief Mimics the constructor but without body Expr.
+   *
+   * \note ret_struct_info is required, since it cannot be deduced by
+   * the body.
+   */
+  TVM_DLL static Function CreateEmpty(Array<Var> params, StructInfo ret_struct_info, bool is_pure,
+                                      DictAttrs attrs = DictAttrs(), Span span = Span()) {
+    return CreateEmpty(params, ret_struct_info, Optional<Bool>(Bool(is_pure)), attrs, span);
+  }
 
   TVM_DEFINE_OBJECT_REF_METHODS(Function, BaseFunc, FunctionNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(FunctionNode);

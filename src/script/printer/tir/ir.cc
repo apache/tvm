@@ -32,8 +32,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       if (dtype == d->cfg->int_dtype) {
         return LiteralDoc::Int(imm->value, imm_p->Attr("value"));
       } else if (dtype == DataType::Bool()) {
-        return TIR(d, DType2Str(dtype))
-            ->Call({LiteralDoc::Boolean(imm->value, imm_p->Attr("value"))});
+        return LiteralDoc::Boolean(imm->value, imm_p->Attr("value"));
       } else {
         return TIR(d, DType2Str(dtype))->Call({LiteralDoc::Int(imm->value, imm_p->Attr("value"))});
       }

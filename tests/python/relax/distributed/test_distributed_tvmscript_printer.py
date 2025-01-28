@@ -134,7 +134,7 @@ def test_module():
 @I.ir_module
 class Module:
     I.module_attrs({"device_num": 10})
-    I.module_global_infos({"mesh": [R.device_mesh((2, 2), I.Range(0, 4)), R.device_mesh((1,), I.Range(4, 5))]})
+    I.module_global_infos({"mesh": [R.device_mesh((2, 2), I.Range(T.int64(0), T.int64(4))), R.device_mesh((1,), I.Range(T.int64(4), T.int64(5)))]})
     @T.prim_func
     def tir_func(x: T.Buffer((T.int64(128), T.int64(128)), "float32"), y: T.Buffer((T.int64(128), T.int64(128)), "float32")):
         T.func_attr({"tir.noalias": T.bool(True)})
@@ -149,7 +149,7 @@ class Module:
     @R.function
     def foo(x: R.DTensor((128, 128), "float32", "mesh[0]", "S[0], R")) -> R.DTensor((128, 128), "float32", "mesh[0]", "S[0], R"):
         cls = Module
-        gv0 = R.dist.call_tir(cls.tir_func, (x,), out_sinfo=R.DTensor((128, 128), "float32", "mesh[0]", "S[0], R"))
+        gv0 = R.dist.call_tir(cls.tir_func, (x,), out_sinfo=R.DTensor((T.int64(128), T.int64(128)), "float32", "mesh[0]", "S[0], R"))
         return gv0
     """,
     )

@@ -29,6 +29,8 @@
 #include <tvm/relax/expr.h>
 #include <tvm/runtime/logging.h>
 
+#include <optional>
+
 namespace tvm {
 namespace relax {
 
@@ -121,6 +123,19 @@ TVM_DLL bool IsLeafOrTuple(const Expr& expr);
  *   That is, a call is considered pure only if definitely does not result in a visible side effect.
  */
 TVM_DLL bool IsImpureCall(const Call& call);
+
+/*!
+ * \brief Return the purity of the given Call node. If the callee is a
+ * general expression, this simply requires checking the purity field
+ * of the FuncStructInfo. If it is an Op, then this checks the
+ * `fPurity` field.
+ *
+ * \param call The input call
+ *
+ * \return True if the call is known to be pure.  False if the call is
+ * known to be impure.  std::nullopt if the call's purity is unknown.
+ */
+TVM_DLL std::optional<bool> GetPurity(const Call& call);
 
 /*!
  * \brief Copy the given function. All variables that are bound inside the original function
