@@ -17,6 +17,7 @@
 """Graph debug runtime executes TVM debug packed functions."""
 
 import logging
+import json
 import os
 import shutil
 import struct
@@ -117,6 +118,7 @@ class GraphModuleDebug(graph_executor.GraphModule):
         self._run_individual_node = module["run_individual_node"]
         self._debug_get_output = module["debug_get_output"]
         self._execute_node = module["execute_node"]
+        self._debug_run_ext_compiler = module["debug_run_ext_compiler"]
         self._get_node_output = module["get_node_output"]
         self._profile = module["profile"]
         self._profile_rpc = module["profile_rpc"]
@@ -223,6 +225,14 @@ class GraphModuleDebug(graph_executor.GraphModule):
                 output_tensors.append(self._get_node_output(i, j))
         self.debug_datum.update_output_tensors(output_tensors)
 
+    def _run_external_debug(self):
+        ext_trace = self._debug_run_ext_compiler()
+        ext_json = json.loads(ext_trace)
+        for op in ext_json:
+            ext_debug = tvm.get_global_func("runtime.ext.debug." + op["compiler"], True)
+            if isinstance(ext_debug, tvm.runtime.packed_func.PackedFunc):
+                ext_debug(op["op"], op["dump"], self._dump_path)
+
     def _run_debug(
         self,
         number,
@@ -248,6 +258,9 @@ class GraphModuleDebug(graph_executor.GraphModule):
 
         # Get outputs.
         self._run_per_layer()
+
+        # Run external compiler debug if supported
+        self._run_external_debug()
 
     def debug_get_output(self, node, out=None):
         """Run graph up to node and get the output to out

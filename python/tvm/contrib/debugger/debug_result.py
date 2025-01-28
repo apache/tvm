@@ -150,6 +150,10 @@ class DebugResult(object):
         self._cleanup_tensors()
         output_tensors = self.get_output_tensors()
 
+        np_tensors = {}
+        for key, val in output_tensors.items():
+            np_tensors[key] = val.asnumpy()
+        np.savez(os.path.join(self._dump_path, "output_tensors.npz"), **np_tensors)
         with open(os.path.join(self._dump_path, "output_tensors.params"), "wb") as param_f:
             param_f.write(save_tensors(output_tensors))
 
