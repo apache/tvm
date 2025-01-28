@@ -1633,5 +1633,183 @@ def test_async_nested_pipeline_mma_gemm_ideal_annotation():
     build_and_run(sch)
 
 
+def test_less_loop_than_num_stage():
+    @T.prim_func
+    def before(A: T.Buffer((2,), "float32"), E: T.Buffer((2,), "float32")):
+        for i in T.serial(
+            0,
+            2,
+            annotations={
+                "software_pipeline_stage": [0, 1, 2, 3],
+                "software_pipeline_order": [0, 1, 2, 3],
+            },
+        ):
+            with T.block("compute"):
+                B = T.alloc_buffer((1), dtype="float32", scope="shared")
+                C = T.alloc_buffer((1), dtype="float32", scope="shared")
+                D = T.alloc_buffer((1), dtype="float32", scope="shared")
+                with T.block():
+                    B[0] = A[i] * T.float32(2)
+                with T.block():
+                    C[0] = B[0] + T.float32(3)
+                with T.block():
+                    D[0] = C[0] + T.float32(4)
+                with T.block():
+                    E[i] = D[0] + T.float32(5)
+
+    @T.prim_func
+    def after(A: T.Buffer((2,), "float32"), E: T.Buffer((2,), "float32")):
+        with T.block("root"):
+            T.reads()
+            T.writes()
+            with T.block(""):
+                T.reads(A[0:3])
+                T.writes(E[0:2])
+                B = T.alloc_buffer((2, 1), scope="shared")
+                C = T.alloc_buffer((2, 1), scope="shared")
+                D = T.alloc_buffer((2, 1), scope="shared")
+                with T.block(""):
+                    T.reads(A[0:3], B[0:2, 0], C[0:2, 0])
+                    T.writes(B[0:2, 0], C[0:2, 0], D[0:2, 0])
+                    for i in T.unroll(3):
+                        with T.block(""):
+                            T.where(i < 2)
+                            T.reads(A[i])
+                            T.writes(B[0:2, 0])
+                            B[i % 2, 0] = A[i] * T.float32(2.0)
+                        with T.block(""):
+                            T.where(1 <= i)
+                            T.reads(B[0:2, 0])
+                            T.writes(C[0:2, 0])
+                            C[(i + 1) % 2, 0] = B[(i + 1) % 2, 0] + T.float32(3.0)
+                        with T.block(""):
+                            T.where(i == 2)
+                            T.reads(C[0:2, 0])
+                            T.writes(D[0:2, 0])
+                            D[i % 2, 0] = C[i % 2, 0] + T.float32(4.0)
+                with T.block(""):
+                    T.reads()
+                    T.writes()
+                    T.evaluate(0)
+                with T.block(""):
+                    T.reads(C[0:2, 0], D[0:2, 0])
+                    T.writes(D[0:2, 0], E[0:2])
+                    for i in T.unroll(2):
+                        with T.block(""):
+                            T.where(i < 1)
+                            T.reads(C[0:2, 0])
+                            T.writes(D[0:2, 0])
+                            D[(i + 1) % 2, 0] = C[(i + 1) % 2, 0] + T.float32(4.0)
+                        with T.block(""):
+                            T.reads(D[0:2, 0])
+                            T.writes(E[i])
+                            E[i] = D[i, 0] + T.float32(5.0)
+
+    _check(before, after)
+
+
+def test_less_loop_than_num_stage_dynamic():
+    @T.prim_func
+    def before(a: T.handle, b: T.handle):
+        K = T.int32()
+        A = T.match_buffer(a, [K], "float32")
+        E = T.match_buffer(b, [K], "float32")
+        for i in T.serial(
+            0,
+            K,
+            annotations={
+                "software_pipeline_stage": [0, 1, 2, 3],
+                "software_pipeline_order": [0, 1, 2, 3],
+            },
+        ):
+            with T.block("compute"):
+                B = T.alloc_buffer((1), dtype="float32", scope="shared")
+                C = T.alloc_buffer((1), dtype="float32", scope="shared")
+                D = T.alloc_buffer((1), dtype="float32", scope="shared")
+                with T.block():
+                    B[0] = A[i] * T.float32(2)
+                with T.block():
+                    C[0] = B[0] + T.float32(3)
+                with T.block():
+                    D[0] = C[0] + T.float32(4)
+                with T.block():
+                    E[i] = D[0] + T.float32(5)
+
+    @T.prim_func
+    def after(a: T.handle, b: T.handle):
+        K = T.int32()
+        A = T.match_buffer(a, [K], "float32")
+        E = T.match_buffer(b, [K], "float32")
+        with T.block("root"):
+            T.reads()
+            T.writes()
+            with T.block(""):
+                T.reads(A[0 : T.max(3, K)])
+                T.writes(E[T.min(0, K - 3) : T.min(0, K - 3) + T.max(K, 3)])
+                B = T.alloc_buffer((2, 1), scope="shared")
+                C = T.alloc_buffer((2, 1), scope="shared")
+                D = T.alloc_buffer((2, 1), scope="shared")
+                with T.block(""):
+                    T.reads(A[0:3], B[0:2, 0], C[0:2, 0])
+                    T.writes(B[0:2, 0], C[0:2, 0], D[0:2, 0])
+                    for i in T.unroll(3):
+                        with T.block(""):
+                            T.where(i < K)
+                            T.reads(A[i])
+                            T.writes(B[0:2, 0])
+                            B[i % 2, 0] = A[i] * T.float32(2.0)
+                        with T.block(""):
+                            T.where(1 <= i and i <= K)
+                            T.reads(B[0:2, 0])
+                            T.writes(C[0:2, 0])
+                            C[(i + 1) % 2, 0] = B[(i + 1) % 2, 0] + T.float32(3.0)
+                        with T.block(""):
+                            T.where(i == 2 and i < K + 2)
+                            T.reads(C[0:2, 0])
+                            T.writes(D[0:2, 0])
+                            D[i % 2, 0] = C[i % 2, 0] + T.float32(4.0)
+                with T.block(""):
+                    T.reads(A[3 : 3 + (K - 3)], B[0:2, 0], C[0:2, 0], D[0:2, 0])
+                    T.writes(B[0:2, 0], C[0:2, 0], D[0:2, 0], E[0 : K - 3])
+                    for i in range(K - 3):
+                        with T.block(""):
+                            T.reads(A[i + 3])
+                            T.writes(B[0:2, 0])
+                            B[(i + 1) % 2, 0] = A[i + 3] * T.float32(2.0)
+                        with T.block(""):
+                            T.reads(B[0:2, 0])
+                            T.writes(C[0:2, 0])
+                            C[i % 2, 0] = B[i % 2, 0] + T.float32(3.0)
+                        with T.block(""):
+                            T.reads(C[0:2, 0])
+                            T.writes(D[0:2, 0])
+                            D[(i + 1) % 2, 0] = C[(i + 1) % 2, 0] + T.float32(4.0)
+                        with T.block(""):
+                            T.reads(D[0:2, 0])
+                            T.writes(E[i])
+                            E[i] = D[i % 2, 0] + T.float32(5.0)
+                with T.block(""):
+                    T.reads(B[0:2, 0], C[0:2, 0], D[0:2, 0])
+                    T.writes(C[0:2, 0], D[0:2, 0], E[K - 3 : K - 3 + 3])
+                    for i in T.unroll(3):
+                        with T.block(""):
+                            T.where(1 <= i + K and i + K == K and 3 <= i + K)
+                            T.reads(B[0:2, 0])
+                            T.writes(C[0:2, 0])
+                            C[(i + K + 1) % 2, 0] = B[(i + K + 1) % 2, 0] + T.float32(3.0)
+                        with T.block(""):
+                            T.where(2 <= i + K and i < 2 and 3 <= i + K)
+                            T.reads(C[0:2, 0])
+                            T.writes(D[0:2, 0])
+                            D[(i + K) % 2, 0] = C[(i + K) % 2, 0] + T.float32(4.0)
+                        with T.block(""):
+                            T.where(3 <= i + K and 3 <= i + K)
+                            T.reads(D[0:2, 0])
+                            T.writes(E[i + K - 3])
+                            E[i + K - 3] = D[(i + K + 1) % 2, 0] + T.float32(5.0)
+
+    _check(before, after)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
