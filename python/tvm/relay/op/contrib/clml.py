@@ -161,13 +161,6 @@ def partition_for_clml(mod, params=None, **opts):
     if params:
         mod["main"] = bind_params_by_name(mod["main"], params)
 
-    pass_context = tvm.get_global_func("transform.GetCurrentPassContext")()
-    target_version = (
-        pass_context.config["relay.ext.clml.target_version"]
-        if "relay.ext.clml.target_version" in pass_context.config
-        else 3
-    )
-
     seq = tvm.transform.Sequential(
         [
             transform.InferType(),
