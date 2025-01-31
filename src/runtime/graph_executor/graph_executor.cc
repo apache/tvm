@@ -503,6 +503,7 @@ void GraphExecutor::SetupStorage() {
 
 void GraphExecutor::SetupOpExecs() {
   op_execs_.resize(this->GetNumOfNodes());
+  op_profile_execs_.resize(this->GetNumOfNodes());
   input_dltensors_.resize(num_node_entries());
   output_dltensors_.resize(num_node_entries());
   both_output_opinput_dltensors_.resize(num_node_entries());
@@ -532,7 +533,7 @@ void GraphExecutor::SetupOpExecs() {
     ICHECK(inode.op_type == "tvm_op") << "Can only take tvm_op as op";
 
     std::shared_ptr<OpArgs> op_args = nullptr;
-    std::tie(op_execs_[nid], op_args) = CreateTVMOp(inode.param, args);
+    std::tie(op_execs_[nid], op_profile_execs_[nid], op_args) = CreateTVMOp(inode.param, args);
 
     for (size_t i = 0; i < inode.inputs.size(); i++) {
       uint32_t input_eid = this->entry_id(inode.inputs[i]);
@@ -581,8 +582,9 @@ void GraphExecutor::SetupOpExecs() {
   }
 }
 
-std::pair<std::function<void()>, std::shared_ptr<GraphExecutor::OpArgs>> GraphExecutor::CreateTVMOp(
-    const TVMOpParam& param, const std::vector<DLTensor*>& args) {
+std::tuple<std::function<void()>, std::function<void(TVMRetValue*)>,
+           std::shared_ptr<GraphExecutor::OpArgs>>
+GraphExecutor::CreateTVMOp(const TVMOpParam& param, const std::vector<DLTensor*>& args) {
   std::shared_ptr<GraphExecutor::OpArgs> arg_ptr = std::make_shared<GraphExecutor::OpArgs>();
   // setup address.
   arg_ptr->args = args;
@@ -604,7 +606,7 @@ std::pair<std::function<void()>, std::shared_ptr<GraphExecutor::OpArgs>> GraphEx
   }
 
   if (param.func_name == "__nop") {
-    return {[]() {}, arg_ptr};
+    return {[]() {}, [](TVMRetValue* rv) {}, arg_ptr};
   } else if (param.func_name == "__copy") {
     // Perform cross device data copy.
     // Directly copy data from the input to the output.
@@ -614,21 +616,31 @@ std::pair<std::function<void()>, std::shared_ptr<GraphExecutor::OpArgs>> GraphEx
       DLTensor* to = static_cast<DLTensor*>(arg_ptr->arg_values[1].v_handle);
       TVM_CCALL(TVMArrayCopyFromTo(from, to, nullptr));
     };
-    return {fexec, arg_ptr};
+    return {fexec, [](TVMRetValue* rv) {}, arg_ptr};
   }
 
   // Get compiled function from the module that contains both host and device
   // code.
   tvm::runtime::PackedFunc pf = module_.GetFunction(param.func_name, true);
   ICHECK(pf != nullptr) << "no such function in module: " << param.func_name;
-
   auto fexec = [arg_ptr, pf]() {
     TVMRetValue rv;
     TVMArgs targs(arg_ptr->arg_values.data(), arg_ptr->arg_tcodes.data(),
                   static_cast<int>(arg_ptr->arg_values.size()));
     pf.CallPacked(targs, &rv);
   };
-  return {fexec, arg_ptr};
+
+  pf = module_.GetFunction(param.func_name + "_debug", true);
+  std::function<void(TVMRetValue*)> fexec_profile = nullptr;
+  if (pf != nullptr) {
+    fexec_profile = [arg_ptr, pf](TVMRetValue* rv) {
+      TVMArgs targs(arg_ptr->arg_values.data(), arg_ptr->arg_tcodes.data(),
+                    static_cast<int>(arg_ptr->arg_values.size()));
+      pf.CallPacked(targs, rv);
+    };
+  }
+
+  return {fexec, fexec_profile, arg_ptr};
 }
 
 PackedFunc GraphExecutor::GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) {

@@ -671,7 +671,7 @@ Report Profiler::Report() {
     rows.push_back(row);
   }
 
-  // the last couple of call frames are the overall times
+  // the last frames are the overall times
   double overall_time_us = 0;
   std::unordered_map<String, Map<String, ObjectRef>> device_metrics;
   for (size_t i = 0; i < devs_.size(); i++) {
@@ -776,7 +776,6 @@ Report Report::FromJSON(String json) {
       configuration = parse_metrics(&reader);
     }
   }
-
   return Report(calls, device_metrics, configuration);
 }
 

@@ -213,6 +213,9 @@ PackedFunc GraphExecutorDebug::GetFunction(const String& name,
   } else if (name == "execute_node") {
     return PackedFunc(
         [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { this->ExecuteNode(args[0]); });
+  } else if (name == "debug_run_ext_compiler") {
+    return PackedFunc(
+        [sptr_to_self, this](TVMArgs args, TVMRetValue* rv) { *rv = this->DebugRunExtCompiler(); });
   } else if (name == "get_node_output") {
     return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
       *rv = this->GetNodeOutput(args[0], args[1]);
@@ -320,6 +323,31 @@ void GraphExecutorDebug::ExecuteNode(int node) {
   last_executed_node_ = end_ind;
 }
 
+std::string GraphExecutorDebug::DebugRunExtCompiler(void) {
+  std::ostringstream os;
+  dmlc::JSONWriter writer(&os);
+  writer.BeginArray();
+  for (size_t i = 0; i < op_execs_.size(); ++i) {
+    if (!nodes_[i].param.compiler.empty() && op_profile_execs_[i]) {
+      TVMRetValue rv;
+      rv = String("debug_dump");
+      this->op_profile_execs_[i](&rv);
+      std::string debug_ret = rv;
+
+      writer.BeginObject();
+      writer.WriteObjectKeyValue("compiler", nodes_[i].param.compiler);
+      writer.WriteObjectKeyValue("op", nodes_[i].param.func_name);
+      writer.WriteObjectKeyValue("dump", debug_ret);
+      writer.EndObject();
+    } else {
+      if (op_execs_[i]) op_execs_[i]();
+    }
+  }
+  writer.EndArray();
+
+  return os.str();
+}
+
 void GraphExecutorDebug::DebugGetNodeOutput(int index, DLTensor* data_out) {
   ICHECK_LT(static_cast<size_t>(index), op_execs_.size());
   uint32_t eid = index;
@@ -386,9 +414,15 @@ profiling::Report GraphExecutorDebug::Profile(Array<profiling::MetricCollector> 
         metrics["Hash"] = Downcast<String>(nodes_[i].param.attrs.at("hash"));
       }
       metrics["Argument Shapes"] = profiling::ShapeString(shapes);
-      prof.StartCall(nodes_[i].param.func_name, dev, metrics);
-      op_execs_[i]();
-      prof.StopCall();
+      if (!nodes_[i].param.compiler.empty() && op_profile_execs_[i]) {
+        TVMRetValue rv;
+        rv = static_cast<void*>(&prof);
+        this->op_profile_execs_[i](&rv);
+      } else {
+        prof.StartCall(nodes_[i].param.func_name, dev, metrics);
+        op_execs_[i]();
+        prof.StopCall();
+      }
     }
   }
   prof.Stop();

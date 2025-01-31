@@ -23,10 +23,14 @@
  */
 #include "clml_runtime.h"
 
+#include <unordered_map>
+
 #ifdef TVM_GRAPH_EXECUTOR_CLML
 #include "clml_memory_planner.h"
 #include "clml_utils.h"
 #endif
+
+#include <tvm/runtime/profiling.h>
 
 namespace tvm {
 namespace runtime {
@@ -60,23 +64,28 @@ CLMLWorkspace::CLMLWorkspace() {
   result = clGetDeviceInfo(device_id, CL_DEVICE_EXTENSIONS, reqd_size, extn_buf.data(), nullptr);
   ICHECK(result == CL_SUCCESS) << "clGetDeviceInfo:" << result;
   std::string extensions(extn_buf.data());
-  LOG(WARNING) << "OpenCL Extensions:" << extensions;
+  LOG_CLML << "OpenCL Extensions:" << extensions;
 
   if (extensions.find("cl_qcom_ml_ops") == std::string::npos) {
     LOG(FATAL) << "CLML Runtime Init: Qualcomm extn not present.\n";
     return;
   }
-  is_recordable_queue = (extensions.find("cl_qcom_recordable_queues") != std::string::npos);
-  is_on_chip_memory = (extensions.find("cl_qcom_onchip_global_memory") != std::string::npos);
-  LOG(WARNING) << "Recordable Queues Support :" << is_recordable_queue;
-  LOG(WARNING) << "On chip Memory Support :" << is_on_chip_memory;
+  if (getenv("CLML_DISABLE_RECORDABLE_QUEUE")) {
+    is_recordable_queue = 0;
+    is_on_chip_memory = 0;
+  } else {
+    is_recordable_queue = (extensions.find("cl_qcom_recordable_queues") != std::string::npos);
+    is_on_chip_memory = (extensions.find("cl_qcom_onchip_global_memory") != std::string::npos);
+    LOG_CLML << "Recordable Queues Support :" << is_recordable_queue;
+    LOG_CLML << "On chip Memory Support :" << is_on_chip_memory;
+  }
 
   if (is_on_chip_memory) {
     result = clGetDeviceInfo(device_id, CL_DEVICE_ONCHIP_GLOBAL_MEM_SIZE_QCOM,
                              sizeof(onchip_mem_size), &onchip_mem_size, nullptr);
     ICHECK(result == CL_SUCCESS) << "clGetDeviceInfo(CL_DEVICE_ONCHIP_GLOBAL_MEM_SIZE_QCOM):"
                                  << result;
-    LOG(WARNING) << "On chip memory size:" << onchip_mem_size;
+    LOG_CLML << "On chip memory size:" << onchip_mem_size;
   }
 
   // Query and Get CLML Interface
@@ -105,10 +114,6 @@ CLMLWorkspace::CLMLWorkspace() {
     target_major = CL_QCOM_ML_OPS_H_MAJOR_VERSION;
     target_minor = 0;
   }
-
-  // ICHECK(target_minor <= CL_QCOM_ML_OPS_H_MINOR_VERSION)
-  //    << "CLML runtime compiled with minor version " << CL_QCOM_ML_OPS_H_MINOR_VERSION
-  //    << " where as the target supports higher version " << target_minor;
 
   clGetMLInterfaceQCOM(&h_ClmlIntf, target_major, target_minor);
 
@@ -257,6 +262,167 @@ class CLMLRuntime : public JSONRuntimeBase {
     }
   }
 
+  std::string DebugDump(void) override {
+    if (cws->is_recordable_queue) {
+      LOG(FATAL) << "Debugging over recordable queues is not supported yet. You may disable the "
+                    "same by exporting CLML_DISABLE_RECORDABLE_QUEUE at runtime.";
+    }
+    cl_command_queue queue = CLML_QUEUE;
+    Map<String, NDArray> dump_tensors;
+    std::ostringstream os;
+    dmlc::JSONWriter writer(&os);
+    writer.BeginObject();
+
+    writer.WriteObjectKeyValue("graph", graph_json_);
+
+    int op_index = 0;
+    for (auto it = this->layer_.storage_map.begin(); it != this->layer_.storage_map.end(); it++) {
+      int nid = it->first;
+      auto clml_desc = it->second.first;
+      auto node = it->second.second;
+
+      if ("kernel" == node.GetOpType()) {
+        CLML_CALL(clEnqueueMLOpQCOM, queue, this->layer_.function[op_index],
+                  this->layer_.descriptorSet, 0, nullptr, nullptr);
+        OPENCL_CALL(clFinish(queue));
+        op_index++;
+      }
+
+      // Dump tensor to CPU
+      std::vector<int64_t> shape = node.GetOpShape()[0];
+      DLDataType tvm_dtype = node.GetOpDataType()[0];
+      NDArray narr = NDArray::Empty(ShapeTuple(shape), tvm_dtype, {kDLCPU, 0});
+      CopyDataFromCLMLTensor(clml_desc, narr.operator->()->data);
+
+      // Naming convention
+      std::string node_name;
+      bool is_out = false;
+      for (size_t i = 0; i < outputs_.size(); ++i) {
+        uint32_t eid = EntryID(outputs_[i]);
+        is_out = (eid == nid);
+      }
+      if (is_out) {
+        node_name = clml_symbol + "_layer_out_" + std::to_string(nid);
+      } else if (("const" == node.GetOpType()) || ("input" == node.GetOpType())) {
+        node_name = node.GetOpName();
+      } else {
+        node_name = node.GetOpName() + "____topo-index:" + std::to_string(nid);
+      }
+      dump_tensors.Set(node_name, narr);
+    }
+
+    const PackedFunc* f = Registry::Get("runtime.SaveParams");
+    if (nullptr != f) {
+      std::string dump_bytes = (*f)(dump_tensors);
+      std::ostringstream oss;
+      /*TODO(Siva) HEX encoding doubles the size, look for better encode that can cross the RPC. */
+      for (size_t i = 0; i < dump_bytes.size(); ++i) {
+        oss << std::setw(2) << std::setfill('0') << std::hex << static_cast<int>(dump_bytes[i]);
+      }
+      writer.WriteObjectKeyValue("tensors", oss.str());
+    }
+
+    writer.EndObject();
+    return os.str();
+  }
+
+  void RunProfile(profiling::Profiler* prof) override {
+    cl_command_queue queue = CLML_QUEUE;
+    std::vector<cl_event>& evts = cws->workspace->GetEventQueue(cws->tentry->device);
+    std::vector<profiling::MetricCollector> cs;
+    std::vector<Device> devices;
+    devices.push_back(cws->tentry->device);
+
+    for (size_t i = 0; i < input_nodes_.size(); ++i) {
+      auto nid = input_nodes_[i];
+      uint32_t eid = EntryID(nid, 0);
+      if (nodes_[nid].GetOpType() == "input") {
+        // Assuming all inputs are from OpenCL
+        if (kDLOpenCL == data_entry_[eid]->device.device_type) {
+          layer_.in_placeholder[nid]->memory = static_cast<cl_mem>(
+              ((cl::BufferDescriptor*)const_cast<DLTensor*>(data_entry_[eid])->data)->buffer);
+          cl_event cpy_evt = nullptr;
+          cl_event* evt = &cpy_evt;
+          if (cws->workspace->IsProfiling(cws->tentry->device)) {
+            evts.resize(evts.size() + 1);
+            evt = &(evts.back());
+          }
+          std::unordered_map<std::string, ObjectRef> metrics;
+          std::string shape_str;
+          std::vector<int64_t> shape = nodes_[nid].GetOpShape()[0];
+          DLDataType tvm_dtype = nodes_[nid].GetOpDataType()[0];
+          shape_str.append(profiling::ShapeString(shape, tvm_dtype));
+          metrics["Argument Shapes"] = String(shape_str);
+
+          prof->StartCall("CopyIn", cws->tentry->device, metrics);
+          CLML_CALL(clEnqueueCopyMLTensorDataQCOM, queue, layer_.in_placeholder[nid]->tensor,
+                    layer_.in_placeholder[nid]->memory, layer_.inputs[nid]->tensor,
+                    layer_.inputs[nid]->memory, 0, nullptr, evt);
+          prof->StopCall();
+        }
+      }
+    }
+
+    for (size_t i = 0; i < this->layer_.function.size(); ++i) {
+      std::unordered_map<std::string, ObjectRef> metrics;
+      auto node = this->layer_.op_node_map[this->layer_.function[i]].second;
+      std::string shape_str;
+      for (uint32_t j = 0; j < node.GetInputs().size(); ++j) {
+        const JSONGraphNode in_node = nodes_[node.GetInputs()[j].id_];
+        std::vector<int64_t> shape = in_node.GetOpShape()[0];
+        DLDataType tvm_dtype = in_node.GetOpDataType()[0];
+        shape_str.append(profiling::ShapeString(shape, tvm_dtype));
+        shape_str.append(", ");
+      }
+      // Assuming one output per operation
+      std::vector<int64_t> shape = node.GetOpShape()[0];
+      DLDataType tvm_dtype = node.GetOpDataType()[0];
+      shape_str.append(profiling::ShapeString(shape, tvm_dtype));
+      metrics["Argument Shapes"] = String(shape_str);
+
+      // Launch call
+      prof->StartCall(clml_symbol + "-" + this->layer_.layer_names[i], cws->tentry->device,
+                      metrics);
+      queue = CLML_QUEUE;
+      evts.resize(evts.size() + 1);
+      cl_event* evt = &(evts.back());
+      CLML_CALL(clEnqueueMLOpQCOM, queue, this->layer_.function[i], this->layer_.descriptorSet, 0,
+                nullptr, evt);
+      prof->StopCall();
+    }
+
+    for (size_t i = 0; i < outputs_.size(); ++i) {
+      uint32_t eid = EntryID(outputs_[i]);
+
+      // Assuming all outputs are to OpenCL
+      if (kDLOpenCL == data_entry_[eid]->device.device_type) {
+        layer_.out_placeholder[i]->memory = static_cast<cl_mem>(
+            ((cl::BufferDescriptor*)const_cast<DLTensor*>(data_entry_[eid])->data)->buffer);
+        cl_event cpy_evt = nullptr;
+        cl_event* evt = &cpy_evt;
+        if (cws->workspace->IsProfiling(cws->tentry->device)) {
+          evts.resize(evts.size() + 1);
+          evt = &(evts.back());
+        }
+
+        std::unordered_map<std::string, ObjectRef> metrics;
+        std::string shape_str;
+        std::vector<int64_t> shape = nodes_[eid].GetOpShape()[0];
+        DLDataType tvm_dtype = nodes_[eid].GetOpDataType()[0];
+        shape_str.append(profiling::ShapeString(shape, tvm_dtype));
+        metrics["Argument Shapes"] = String(shape_str);
+
+        prof->StartCall("CopyOut", cws->tentry->device, metrics);
+        CLML_CALL(clEnqueueCopyMLTensorDataQCOM, queue, layer_.outputs[i]->tensor,
+                  layer_.outputs[i]->memory, layer_.out_placeholder[i]->tensor,
+                  layer_.out_placeholder[i]->memory, 0, nullptr, evt);
+        prof->StopCall();
+      }
+    }
+
+    return;
+  }
+
   /*!
    * \brief Unpack inputs and outputs and run inference on a given layer.
    *
@@ -305,7 +471,7 @@ class CLMLRuntime : public JSONRuntimeBase {
 
     int64_t duration = 0;
     if (cws->is_recordable_queue) {
-      if (getenv("CLML_PROFILING")) {
+      if (cws->workspace->IsProfiling(cws->tentry->device)) {
         Timer t;
         auto f = Registry::Get(std::string("profiling.timer.opencl"));
         t = f->operator()(cws->tentry->device);
@@ -324,7 +490,7 @@ class CLMLRuntime : public JSONRuntimeBase {
     } else {
       for (size_t i = 0; i < this->layer_.function.size(); ++i) {
         // Make CLML subgraphs accounted by OpenCLTimerNode.
-        if (getenv("CLML_PROFILING")) {
+        if (cws->workspace->IsProfiling(cws->tentry->device)) {
           Timer t;
           auto f = Registry::Get(std::string("profiling.timer.opencl"));
           t = f->operator()(cws->tentry->device);
@@ -336,16 +502,16 @@ class CLMLRuntime : public JSONRuntimeBase {
                     0, nullptr, evt);
           t->Stop();
           duration += t->SyncAndGetElapsedNanos();
-          LOG(WARNING) << "Layer:" << this->layer_.layer_names[i]
-                       << " Duration:" << t->SyncAndGetElapsedNanos();
+          LOG_CLML << "Layer:" << this->layer_.layer_names[i]
+                   << " Duration:" << t->SyncAndGetElapsedNanos();
         } else {
           CLML_CALL(clEnqueueMLOpQCOM, queue, this->layer_.function[i], this->layer_.descriptorSet,
                     0, nullptr, nullptr);
         }
       }
     }
-    if (getenv("CLML_PROFILING")) {
-      LOG(WARNING) << "Total Duration for " << clml_symbol << " is:" << duration;
+    if (cws->workspace->IsProfiling(cws->tentry->device)) {
+      LOG_CLML << "Total Duration for " << clml_symbol << " is:" << duration;
     }
 
     for (size_t i = 0; i < outputs_.size(); ++i) {
@@ -616,6 +782,8 @@ class CLMLRuntime : public JSONRuntimeBase {
         else
           LOG(FATAL) << "Unsupported op: " << op_name;
         this->layer_.layer_names.push_back(op_name);
+        // Keep map of function and Node to use in profiling
+        this->layer_.op_node_map.insert({this->layer_.function.back(), std::make_pair(nid, node)});
       } else if (node.GetOpType() != "const") {
         LOG(WARNING) << "Build Engine: Unknown Node:" << node.GetOpType();
       }
@@ -710,11 +878,11 @@ class CLMLRuntime : public JSONRuntimeBase {
               this->layer_.tensorMemDescs.data());
 
     if (cws->is_tuning_run) {
-      LOG(WARNING) << "CLML Tunning In Progress:";
+      LOG_CLML << "CLML Tunning In Progress:";
       // Let the command queue recreated in profiling mode.
       cl::OpenCLWorkspace::Global()->EnableQueueProfiling(cws->tentry->device, true);
       for (size_t i = 0; i < this->layer_.function.size(); ++i) {
-        LOG(WARNING) << "CLML Tunning:" << this->layer_.layer_names[i];
+        LOG_CLML << "CLML Tunning:" << this->layer_.layer_names[i];
         CLML_CALL(clTuneMLOpQCOM, CLML_QUEUE, this->layer_.function[i], this->layer_.descriptorSet,
                   this->layer_.tuning_cache, nullptr);
       }
@@ -741,8 +909,8 @@ class CLMLRuntime : public JSONRuntimeBase {
       std::ofstream fs(cws->tuning_file, std::ios::app | std::ios::binary);
       ICHECK(!fs.fail()) << "Cannot open " << cws->tuning_file;
       fs.write(&tune_str[0], tune_str.length());
-      LOG(WARNING) << "CLML: Tuning cache dumped to:" << cws->tuning_file << " size"
-                   << tune_str.length() << " with tuning blob len " << saved_cache.size();
+      LOG_CLML << "CLML: Tuning cache dumped to:" << cws->tuning_file << " size"
+               << tune_str.length() << " with tuning blob len " << saved_cache.size();
     }
     if (cws->is_recordable_queue) {
       for (size_t i = 0; i < this->layer_.function.size(); ++i) {
@@ -1591,6 +1759,8 @@ class CLMLRuntime : public JSONRuntimeBase {
                  << "Please build with USE_CLML_GRAPH_EXECUTOR.";
   }
 #endif
+  bool CanDebug() override { return true; }
+
   /*! CLML sub graph symbol in TVM main module */
   std::string clml_symbol;
 };
