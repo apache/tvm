@@ -126,7 +126,7 @@ find . -type f -path "*.pyc" | xargs rm -f
 make cython3
 
 cd docs
-PYTHONPATH=$(pwd)/../python make html SPHINXOPTS='-j auto' |& tee /tmp/$$.log.txt
+PYTHONPATH=$(pwd)/../python make htmldepoly SPHINXOPTS='-j auto' |& tee /tmp/$$.log.txt
 if grep -E "failed to execute|Segmentation fault" < /tmp/$$.log.txt; then
     echo "Some of sphinx-gallery item example failed to execute."
     exit 1

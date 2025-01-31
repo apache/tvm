@@ -111,6 +111,10 @@ html: staging
 	@echo
 	@echo "Build finished. The HTML pages are in $(BUILDDIR)/html."
 
+htmldepoly: html
+	python3 $(PWD)/download_3rdparty_embeds.py -v
+	@echo "Replaced external URLs with local files."
+
 dirhtml: staging
 	cd $(STAGINGDIR) && $(SPHINXBUILD) -b dirhtml $(ALLSPHINXOPTS) $(PWD)/$(BUILDDIR)/dirhtml
 	@echo
