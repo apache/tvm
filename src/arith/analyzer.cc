@@ -268,10 +268,9 @@ PrimExpr Analyzer::Simplify(const PrimExpr& expr, int steps) {
   return res;
 }
 
-TVM_REGISTER_GLOBAL("arith.CreateAnalyzer").set_body([](TVMArgs args, TVMRetValue* ret) {
+TypedPackedFunc<PackedFunc(std::string)> Analyzer::AsFunc(std::shared_ptr<Analyzer> self) {
   using runtime::PackedFunc;
   using runtime::TypedPackedFunc;
-  auto self = std::make_shared<Analyzer>();
   auto f = [self](std::string name) -> PackedFunc {
     if (name == "const_int_bound") {
       return PackedFunc(
@@ -347,7 +346,11 @@ TVM_REGISTER_GLOBAL("arith.CreateAnalyzer").set_body([](TVMArgs args, TVMRetValu
     }
     return PackedFunc();
   };
-  *ret = TypedPackedFunc<PackedFunc(std::string)>(f);
+  return TypedPackedFunc<PackedFunc(std::string)>(f);
+}
+
+TVM_REGISTER_GLOBAL("arith.CreateAnalyzer").set_body([](TVMArgs args, TVMRetValue* ret) {
+  *ret = Analyzer::AsFunc(std::make_shared<Analyzer>());
 });
 
 }  // namespace arith
