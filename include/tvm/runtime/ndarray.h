@@ -137,6 +137,8 @@ class NDArray : public ObjectRef {
    * \param relative_byte_offset The offset of the output NDArray,
    *     relative to the current byte offset.
    *
+   * \param mem_scope The memory scope of the array.
+   *
    *     By default, the offset of the view is the same as the offset
    *     of the current array.
    *
@@ -147,7 +149,8 @@ class NDArray : public ObjectRef {
    *       outside the bounds of the current array, this function will
    *       raise an exception.
    */
-  TVM_DLL NDArray CreateView(ShapeTuple shape, DLDataType dtype, uint64_t relative_byte_offset = 0);
+  TVM_DLL NDArray CreateView(ShapeTuple shape, DLDataType dtype, uint64_t relative_byte_offset = 0,
+                             Optional<String> mem_scope = NullOpt);
 
   /*!
    * \brief Create a reference view of NDArray that
