@@ -1302,7 +1302,8 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     // Create the auxiliary data manager for attention.
     // We only use the merged aux data for CUDA, since direct pointer
     // operations may have issues on other platforms.
-    if (device_.device_type == DLDeviceType::kDLCUDA) {
+    if (device_.device_type == DLDeviceType::kDLCUDA ||
+        device_.device_type == DLDeviceType::kDLCPU) {
       aux_data_manager_ = std::make_unique<CachedPagedKVCacheAuxDataManager>(
           reserved_num_seqs, num_total_pages, prefill_chunk_size, dtype_aux_, device,
           preferred_host_device, copy_stream_);
