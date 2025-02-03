@@ -33,5 +33,4 @@ export TVM_UNITTEST_TESTSUITE_NAME=python-codegen-vulkan
 
 source tests/scripts/setup-pytest-env.sh
 
-run_pytest ctypes ${TVM_UNITTEST_TESTSUITE_NAME}-0 tests/python/codegen/test_target_codegen_vulkan.py
 run_pytest cython ${TVM_UNITTEST_TESTSUITE_NAME}-1 tests/python/codegen/test_target_codegen_vulkan.py

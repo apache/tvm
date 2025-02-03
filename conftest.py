@@ -31,23 +31,17 @@ REPO_ROOT = Path(__file__).resolve().parent
 # taken from the 20 (arbitrary number) of tests as from
 # https://ci.tlcpack.ai/job/tvm/job/main/2907/testReport
 _slowest_tests = [
-    "tests/python/frontend/tensorflow/test_forward.py::test_forward_broadcast_args",
-    "tests/python/frontend/tensorflow/test_forward.py::test_forward_broadcast_to",
     "tests/python/topi/python/test_topi_conv2d_int8.py::test_conv2d_nchw[int8]",
     "tests/python/topi/python/test_topi_conv2d_int8.py::test_conv2d_nchw[uint8]",
     "tests/python/topi/python/test_topi_upsampling.py::test_upsampling3d",
     "tests/python/topi/python/test_topi_upsampling.py::test_upsampling3d",
     "tests/python/topi/python/test_topi_conv2d_int8.py::test_conv2d_nchw[int8]",
-    "tests/python/frontend/tflite/test_forward.py::test_all_elemwise",
-    "tests/python/frontend/pytorch/test_object_detection.py::test_detection_models",
     "tests/python/topi/python/test_topi_conv2d_int8.py::test_conv2d_nchw[uint8]",
     "tests/python/topi/python/test_topi_conv2d_NCHWc.py::test_conv2d_NCHWc",
     "tests/python/topi/python/test_topi_conv2d_hwnc_tensorcore.py::test_conv2d_hwnc_tensorcore",
     "tests/python/contrib/test_tensorrt.py::test_binary[compile]",
-    "tests/python/frontend/pytorch/test_forward.py::test_segmentation_models",
     "tests/python/topi/python/test_topi_conv2d_NCHWc.py::test_conv2d_NCHWc",
     "tests/python/relay/test_py_converter.py::test_global_recursion",
-    "tests/python/frontend/tensorflow/test_forward.py::test_forward_ptb",
     "tests/python/relay/test_op_level6.py::test_topk",
     "tests/python/topi/python/test_topi_conv2d_winograd.py::test_conv2d_nchw",
     "tests/python/relay/test_py_converter.py::test_global_recursion",

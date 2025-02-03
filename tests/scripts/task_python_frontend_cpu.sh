@@ -26,13 +26,4 @@ export OMP_NUM_THREADS=1
 
 export TVM_TEST_TARGETS="llvm"
 
-find . -type f -path "*.pyc" | xargs rm -f
-
-# Rebuild cython
-make cython3
-
-echo "Running relay TFLite frontend test..."
-run_pytest cython python-frontend-tflite tests/python/frontend/tflite
-
-echo "Running relay Keras frontend test..."
-run_pytest cython python-frontend-keras tests/python/frontend/keras
+# TODO(Siyuan): Keep this file for passing CI

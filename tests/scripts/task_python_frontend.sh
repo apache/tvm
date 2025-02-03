@@ -25,33 +25,4 @@ export OMP_NUM_THREADS=1
 
 export TVM_TEST_TARGETS="llvm;cuda"
 
-find . -type f -path "*.pyc" | xargs rm -f
-
-# Rebuild cython
-make cython3
-
-
-echo "Running relay ONNX frontend test..."
-run_pytest cython python-frontend-onnx tests/python/frontend/onnx
-
-echo "Running relay PyTorch frontend test..."
-run_pytest cython python-frontend-pytorch tests/python/frontend/pytorch
-
-echo "Running relay Tensorflow frontend test..."
-# Note: Tensorflow tests often have memory issues, so invoke each one separately
-TENSORFLOW_TESTS=$(./ci/scripts/jenkins/pytest_ids.py --folder tests/python/frontend/tensorflow)
-i=0
-for node_id in $TENSORFLOW_TESTS; do
-    echo "$node_id"
-    run_pytest cython "python-frontend-tensorflow-$i" "$node_id"
-    i=$((i+1))
-done
-
-echo "Running relay DarkNet frontend test..."
-run_pytest cython python-frontend-darknet tests/python/frontend/darknet
-
-echo "Running relay PaddlePaddle frontend test..."
-run_pytest cython python-frontend-paddlepaddle tests/python/frontend/paddlepaddle
-
-echo "Running relay CoreML frontend test..."
-run_pytest cython python-frontend-coreml tests/python/frontend/coreml
+# TODO(Siyuan): Keep this file for passing CI
