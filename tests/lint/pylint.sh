@@ -41,17 +41,5 @@ python3 -m pylint tests/python/contrib/test_hexagon/conv2d/*.py --rcfile="$(dirn
 python3 -m pylint tests/python/contrib/test_hexagon/topi/*.py --rcfile="$(dirname "$0")"/pylintrc
 python3 -m pylint tests/python/contrib/test_hexagon/metaschedule_e2e/*.py --rcfile="$(dirname "$0")"/pylintrc
 
-# tests/python/frontend tests
-python3 -m pylint tests/python/frontend/caffe/test_forward.py --rcfile="$(dirname "$0")"/pylintrc
-python3 -m pylint tests/python/frontend/caffe2/*.py --rcfile="$(dirname "$0")"/pylintrc
-python3 -m pylint tests/python/frontend/darknet/test_forward.py --rcfile="$(dirname "$0")"/pylintrc
-python3 -m pylint tests/python/frontend/coreml/*.py --rcfile="$(dirname "$0")"/pylintrc
-python3 -m pylint tests/python/frontend/keras/test_forward.py --rcfile="$(dirname "$0")"/pylintrc
-python3 -m pylint tests/python/frontend/darknet/test_forward.py --rcfile="$(dirname "$0")"/pylintrc
-python3 -m pylint tests/python/frontend/oneflow/*.py --rcfile="$(dirname "$0")"/pylintrc
-python3 -m pylint tests/python/frontend/tensorflow/test_forward.py --rcfile="$(dirname "$0")"/pylintrc
-python3 -m pylint tests/python/frontend/pytorch/test_forward.py --rcfile="$(dirname "$0")"/pylintrc
-python3 -m pylint tests/python/frontend/tflite/test_forward.py --rcfile="$(dirname "$0")"/pylintrc
-
 # tests/python/contrib/test_msc tests
 python3 -m pylint tests/python/contrib/test_msc/*.py --rcfile="$(dirname "$0")"/pylintrc
