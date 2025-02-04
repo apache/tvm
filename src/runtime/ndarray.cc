@@ -179,42 +179,53 @@ struct NDArray::Internal {
   }
 };
 
-NDArray NDArray::CreateView(ShapeTuple shape, DLDataType dtype) {
+NDArray NDArray::CreateView(ShapeTuple shape, DLDataType dtype, uint64_t relative_byte_offset) {
   ICHECK(data_ != nullptr);
 
   const DLTensor& orig = get_mutable()->dl_tensor;
-  ICHECK(IsContiguous()) << "Can only create view for compact tensor, but found strides " <<
-      [&orig]() {
-        std::stringstream ss;
-        ss << "[";
-        for (int i = 0; i < orig.ndim; i++) {
-          if (i) ss << ", ";
-          ss << orig.strides[i];
-        }
-        ss << "]";
-        return ss.str();
-      }() << ", for shape "
-                         << [&]() {
-                              std::stringstream ss;
-                              ss << "[";
-                              for (int i = 0; i < orig.ndim; i++) {
-                                if (i) ss << ", ";
-                                ss << orig.shape[i];
-                              }
-                              ss << "]";
-                              return ss.str();
-                            }();
+  CHECK(IsContiguous()) << [&orig]() {
+    std::stringstream ss;
+    ss << "Can only create view for compact tensor, but found strides ";
 
-  NDArray ret = Internal::Create(shape, dtype, get_mutable()->dl_tensor.device);
-  ret.get_mutable()->dl_tensor.byte_offset = this->get_mutable()->dl_tensor.byte_offset;
+    ss << "[";
+    for (int i = 0; i < orig.ndim; i++) {
+      if (i) ss << ", ";
+      ss << orig.strides[i];
+    }
+    ss << "]";
+
+    ss << ", for shape ";
+    ss << "[";
+    for (int i = 0; i < orig.ndim; i++) {
+      if (i) ss << ", ";
+      ss << orig.shape[i];
+    }
+    ss << "]";
+    return ss.str();
+  }();
+
+  const auto& curr_dl_tensor = get_mutable()->dl_tensor;
+
+  NDArray ret = Internal::Create(shape, dtype, curr_dl_tensor.device);
+
   size_t curr_size = GetDataSize(this->get_mutable()->dl_tensor);
   size_t view_size = GetDataSize(ret.get_mutable()->dl_tensor);
-  ICHECK_LE(view_size, curr_size)
-      << "Tries to create a view that has bigger memory than current one";
+  CHECK_LE(relative_byte_offset + view_size, curr_size)
+      << "ValueError: "
+      << "View with shape " << shape << " and datatype " << dtype << " would have a size of "
+      << view_size << " bytes.  "
+      << "This would occupy bytes " << relative_byte_offset << " <= i_byte < "
+      << (relative_byte_offset + view_size) << " within the backing array.  "
+      << "However, the NDArray being viewed only contains " << curr_size << " bytes (shape = "
+      << ShapeTuple(curr_dl_tensor.shape, curr_dl_tensor.shape + curr_dl_tensor.ndim)
+      << ", dtype= " << curr_dl_tensor.dtype << ").";
+
   // increase ref count
   get_mutable()->IncRef();
   ret.get_mutable()->manager_ctx = get_mutable();
   ret.get_mutable()->dl_tensor.data = get_mutable()->dl_tensor.data;
+  ret.get_mutable()->dl_tensor.byte_offset =
+      get_mutable()->dl_tensor.byte_offset + relative_byte_offset;
   return ret;
 }
 
@@ -275,41 +286,6 @@ NDArray NDArray::FromDLPack(DLManagedTensor* tensor) {
   return NDArray(GetObjectPtr<Object>(data));
 }
 
-NDArray NDArray::FromDLAttributes(void* data, DLDataType dtype, DLDevice dev, int ndim,
-                                  int64_t* shape, int64_t* strides, int64_t byte_offset) {
-  NDArray::Container* container = new NDArray::Container();
-  container->manager_ctx = nullptr;
-  // construct deleter
-  container->SetDeleter(Internal::SelfDeleter);
-  // fill up content.
-  DLTensor from;
-  from.data = const_cast<void*>(data);
-  from.device = dev;
-  from.ndim = ndim;
-  from.dtype = dtype;
-  from.shape = shape;
-  from.strides = strides;
-  from.byte_offset = byte_offset;
-  container->dl_tensor = from;
-  ICHECK(IsAligned(container->dl_tensor))
-      << "Data in DLManagedTensor is not aligned as required by NDArray";
-  // update shape_
-  std::vector<ShapeTuple::index_type> container_shape;
-  container_shape.resize(from.ndim);
-  container_shape.assign(from.shape, from.shape + from.ndim);
-  container->shape_ = ShapeTuple(container_shape);
-  container->dl_tensor.shape = const_cast<ShapeTuple::index_type*>(container->shape_.data());
-  return NDArray(GetObjectPtr<Object>(container));
-}
-
-NDArray NDArray::FromDataPointerOnly(void* data, DLDevice dev) {
-  NDArray::Container* container = new NDArray::Container();
-  container->dl_tensor.data = data;
-  container->dl_tensor.device = dev;
-  return NDArray(GetObjectPtr<Object>(container));
-}
-
-
 void NDArray::CopyToBytes(void* data, size_t nbytes) const {
   ICHECK(data != nullptr);
   ICHECK(data_ != nullptr);
@@ -340,7 +316,8 @@ void NDArray::CopyFromTo(const DLTensor* from, DLTensor* to, TVMStreamHandle str
 
   ICHECK(from->device.device_type == to->device.device_type || from->device.device_type == kDLCPU ||
          to->device.device_type == kDLCPU || from->device.device_type == kDLCUDAHost ||
-         to->device.device_type == kDLCUDAHost)
+         to->device.device_type == kDLCUDAHost || from->device.device_type == kDLROCMHost ||
+         to->device.device_type == kDLROCMHost)
       << "Can not copy across different device types directly. From device type: "
       << from->device.device_type << " to device type: " << to->device.device_type;
 
@@ -407,10 +384,7 @@ int TVMArrayAlloc(const tvm_index_t* shape, int ndim, int dtype_code, int dtype_
 
 TVM_REGISTER_GLOBAL("runtime.TVMArrayAllocWithScope").set_body_typed(NDArray::Empty);
 
-TVM_REGISTER_GLOBAL("runtime.TVMArrayCreateView").set_body_typed([](NDArray arr, ShapeTuple shape) {
-  NDArray view = arr.CreateView(shape, arr->dtype);
-  return view;
-});
+TVM_REGISTER_GLOBAL("runtime.TVMArrayCreateView").set_body_method(&NDArray::CreateView);
 
 int TVMArrayFree(TVMArrayHandle handle) {
   API_BEGIN();
@@ -427,21 +401,6 @@ int TVMArrayCopyFromTo(TVMArrayHandle from, TVMArrayHandle to, TVMStreamHandle s
 int TVMArrayFromDLPack(DLManagedTensor* from, TVMArrayHandle* out) {
   API_BEGIN();
   *out = NDArray::Internal::MoveToFFIHandle(NDArray::FromDLPack(from));
-  API_END();
-}
-
-int TVMArrayFromDLAttributes(void* data, DLDataType dtype, DLDevice dev, int ndim, int64_t* shape,
-                             int64_t* strides, int64_t byte_offset, TVMArrayHandle* out) {
-  API_BEGIN();
-  *out = NDArray::Internal::MoveToFFIHandle(
-      NDArray::FromDLAttributes(data, dtype, dev, ndim, shape, strides, byte_offset));
-  API_END();
-}
-
-int TVMArrayFromDataPointerOnly(void* data, DLDevice dev, TVMArrayHandle* out) {
-  API_BEGIN();
-  *out = NDArray::Internal::MoveToFFIHandle(
-      NDArray::FromDataPointerOnly(data, dev));
   API_END();
 }
 

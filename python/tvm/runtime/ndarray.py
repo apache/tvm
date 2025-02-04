@@ -18,6 +18,7 @@
 """Runtime NDArray API"""
 import ctypes
 import warnings
+from typing import Optional
 
 import numpy as np
 
@@ -287,7 +288,46 @@ class NDArray(NDArrayBase):
             return self._copyto(res)
         raise ValueError(f"Unsupported target type {type(target)}")
 
-    def _create_view(self, shape):
+    def view(self, shape:Optional[list]=None, dtype:Optional[str]=None):
+        """
+        Return a new NDArray view with a possibly different shape (and optional dtype),
+        sharing the underlying storage with the original NDArray.
+
+        Parameters
+        ----------
+        shape : int...
+            The desired new shape. You may pass multiple int arguments (e.g. view(2, 3))
+            or a single tuple/list (e.g. view((2, 3))).
+            One (and only one) dimension can be -1, which will be inferred based on
+            the total number of elements.
+
+        dtype : Optional[str]
+            The new data type of the view. If None, the view will have the same dtype
+            as the original NDArray. If specified, you must ensure that the total
+            number of bytes remains consistent (i.e., shape * itemsize(new_dtype) must
+            match the original array's total bytes).
+
+        Returns
+        -------
+        NDArray
+            A new NDArray that shares the underlying storage with this array.
+
+        Examples
+        --------
+        >>> x = tvm.nd.array(np.arange(6, dtype="float32").reshape((2, 3)))
+        >>> y = x.view(3, 2)         # Reshapes to (3,2), shares memory
+        >>> z = x.view(-1)          # Flattens into shape (6,)
+        >>> w = x.view(1, -1, 3)    # Partial reshape with one dimension inferred
+        >>> w2 = x.view(1, 3, dtype="float16")  # Changes dtype (non-standard PyTorch behavior)
+        """
+        # If shape is None, use the original shape.
+        if shape is None:
+            shape = self.shape
+
+        # Create and return the view. The 'relative_byte_offset' is 0 for a simple reshape.
+        return self._create_view(shape, dtype=dtype, relative_byte_offset=0)
+
+    def _create_view(self, shape, dtype: Optional[str] = None, relative_byte_offset: int = 0):
         """Create a view into an existing array.
 
         The view shares the same allocation and datatype as the
@@ -307,12 +347,32 @@ class NDArray(NDArrayBase):
         shape: Union[tvm.runtime.ShapeTuple, Sequence[typing.SupportsInt]]
 
             The shape of the view.
+
+        dtype: Optional[str]
+
+            The datatype of the view.  If None (default), the view
+            will be the same data type as the current array.
+
+        relative_byte_offset: int
+
+            The location of the view, relative to the location of the current
+            array.
+
+            Note: While the `DLTensor.byte_offset` field of the returned view
+            is usually the same as `relative_byte_offset`, this is not
+            guaranteed.  The `DLTensor.byte_offset` field is relative to the
+            start of the backing allocation, while the `relative_byte_offset`
+            is relative to the start of `self`.
+
         """
 
         if not isinstance(shape, tvm.runtime.ShapeTuple):
             shape = tvm.runtime.ShapeTuple([int(dim) for dim in shape])
 
-        return _ffi_api.TVMArrayCreateView(self, shape)
+        if dtype is None:
+            dtype = self.dtype
+
+        return _ffi_api.TVMArrayCreateView(self, shape, dtype, relative_byte_offset)
 
 
 def device(dev_type, dev_id=0):
