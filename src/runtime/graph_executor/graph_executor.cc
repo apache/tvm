@@ -462,15 +462,14 @@ void GraphExecutor::SetupStorage() {
     });
     Device dev = cit == devices_.end() ? devices_[0] : *cit;
     if (pit.linked_param.defined()) {
-      storage_pool_.push_back(pit.linked_param);
+      ndarray_pool_.push_back(pit.linked_param);
     } else {
       std::vector<int64_t> shape = pit.shape;
-      Optional<String> mem_scope;
-      if (!pit.scope.empty()) {
-        mem_scope = String(pit.scope);
-      }
-      storage_pool_.push_back(MemoryManager::GetOrCreateAllocator(dev, AllocatorType::kNaive)
-                                  ->Empty(shape, pit.dtype, dev, mem_scope));
+      String mem_scope = pit.scope.empty() ? "global" : String(pit.scope);
+      auto allocator = MemoryManager::GetOrCreateAllocator(dev, AllocatorType::kPooled);
+      auto buffer = allocator->Alloc(dev, pit.alloc_size, kAllocAlignment, pit.dtype);
+      auto stor = Storage(buffer, allocator);
+      storage_pool_.push_back(stor);
     }
   }
 
@@ -479,20 +478,22 @@ void GraphExecutor::SetupStorage() {
   // is mapped to this pool.
   data_entry_.resize(num_node_entries());
   data_alignment_.resize(num_node_entries());
-  // sid_to_eid has a size of storage_id's size, which is the size of storage_pool_.
-  sid_to_eid_.resize(storage_pool_.size());
-  for (size_t i = 0; i < data_entry_.size(); ++i) {
+  // sid_to_eid has a size of storage_id's size, which is the size of pool_entry.
+  sid_to_eid_.resize(pool_entry.size());
+  for (size_t i = 0, j = 0; i < data_entry_.size(); ++i) {
     int storage_id = attrs_.storage_id[i];
     // Update "storage_id -> entry_id" pair.
     sid_to_eid_[storage_id].push_back(i);
 
-    ICHECK_LT(static_cast<size_t>(storage_id), storage_pool_.size());
-    std::string storage_scope = attrs_.storage_scope.empty() ? "" : attrs_.storage_scope[i];
-    Optional<String> mem_scope;
-    if (!storage_scope.empty()) {
-      mem_scope = String(storage_scope);
+    ICHECK_LT(static_cast<size_t>(storage_id), pool_entry.size());
+
+    if (pool_entry[storage_id].linked_param.defined()) {
+      data_entry_[i] = ndarray_pool_[j++];
+    } else {
+      std::string storage_scope = attrs_.storage_scope.empty() ? "global" : attrs_.storage_scope[i];
+      data_entry_[i] = storage_pool_[storage_id]->AllocNDArrayScoped(0, ShapeTuple(attrs_.shape[i]),
+                                                                     vtype[i], storage_scope);
     }
-    data_entry_[i] = storage_pool_[storage_id].CreateView(attrs_.shape[i], vtype[i], 0, mem_scope);
     const DLTensor* tmp = data_entry_[i].operator->();
     data_alignment_[i] = details::GetDataAlignment(*tmp);
   }

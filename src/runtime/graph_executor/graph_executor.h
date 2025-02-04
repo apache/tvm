@@ -45,6 +45,7 @@ namespace runtime {
 
 using memory::AllocatorType;
 using memory::MemoryManager;
+using tvm::runtime::memory::Storage;
 
 /*! \brief macro to do C API call */
 #define TVM_CCALL(func)                     \
@@ -484,7 +485,9 @@ class TVM_DLL GraphExecutor : public ModuleNode {
   /*! \brief Execution context of all devices including the host. */
   std::vector<Device> devices_;
   /*! \brief Common storage pool for all devices. */
-  std::vector<NDArray> storage_pool_;
+  std::vector<Storage> storage_pool_;
+  /*! \brief Common NDArray pool for all devices. */
+  std::vector<NDArray> ndarray_pool_;
   /*! \brief Data entry of each node. */
   std::vector<NDArray> data_entry_;
   /*! \brief Data alignment of each node. */

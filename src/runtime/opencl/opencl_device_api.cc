@@ -269,7 +269,7 @@ void* OpenCLWorkspace::AllocDataSpace(Device dev, size_t width, size_t height, D
   // Alloc back buffer from pool
   cl::BufferDescriptor* back_buffer = nullptr;
   if (IsBufferToImageSupported(dev.device_id)) {
-    auto buf = MemoryManager::GetOrCreateAllocator(dev, AllocatorType::kAny)
+    auto buf = MemoryManager::GetOrCreateAllocator(dev, AllocatorType::kPooled)
                    ->Alloc(dev, mem_size, kTempAllocaAlignment, type_hint);
     back_buffer = static_cast<cl::BufferDescriptor*>(buf.data);
     back_buffer->mbuf = buf;
@@ -287,7 +287,7 @@ void* OpenCLWorkspace::AllocDataSpace(Device dev, int ndim, const int64_t* shape
   if (!mem_scope.defined() || mem_scope.value().empty() || mem_scope.value() == "global") {
     size_t size = GetMemObjectSize(dev, ndim, shape, dtype);
     cl::BufferDescriptor* ret_buffer = nullptr;
-    auto buf = MemoryManager::GetOrCreateAllocator(dev, AllocatorType::kAny)
+    auto buf = MemoryManager::GetOrCreateAllocator(dev, AllocatorType::kPooled)
                    ->Alloc(dev, size, kTempAllocaAlignment, dtype);
     ret_buffer = static_cast<cl::BufferDescriptor*>(buf.data);
     ret_buffer->mbuf = buf;
@@ -602,7 +602,7 @@ void OpenCLWorkspace::StreamSync(Device dev, TVMStreamHandle stream) {
 void* OpenCLWorkspace::AllocWorkspace(Device dev, size_t size, DLDataType type_hint) {
   this->Init();
   cl::BufferDescriptor* ret_buffer = nullptr;
-  auto buf = MemoryManager::GetOrCreateAllocator(dev, AllocatorType::kAny)
+  auto buf = MemoryManager::GetOrCreateAllocator(dev, AllocatorType::kPooled)
                  ->Alloc(dev, size, kTempAllocaAlignment, type_hint);
   ret_buffer = static_cast<cl::BufferDescriptor*>(buf.data);
   ret_buffer->mbuf = buf;

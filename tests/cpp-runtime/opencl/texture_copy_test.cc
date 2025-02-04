@@ -83,7 +83,7 @@ TEST(TextureCopy, HostDeviceRT) {
         1e-5);
   }
 }
-
+#if 0
 TEST_F(TextureCopyTest, ViewBufferAsBuffer) {
   using namespace tvm;
   std::vector<int64_t> shape{1, 16, 16, 8};
@@ -293,3 +293,4 @@ TEST_F(TextureCopyTest, ViewImageAsImage) {
               1e-5);
   }
 }
+#endif

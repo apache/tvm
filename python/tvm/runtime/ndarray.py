@@ -288,13 +288,7 @@ class NDArray(NDArrayBase):
             return self._copyto(res)
         raise ValueError(f"Unsupported target type {type(target)}")
 
-    def _create_view(
-        self,
-        shape,
-        dtype: Optional[str] = None,
-        relative_byte_offset: int = 0,
-        scope: str = "global",
-    ):
+    def _create_view(self, shape, dtype: Optional[str] = None, relative_byte_offset: int = 0):
         """Create a view into an existing array.
 
         The view shares the same allocation and datatype as the
@@ -331,9 +325,6 @@ class NDArray(NDArrayBase):
             start of the backing allocation, while the `relative_byte_offset`
             is relative to the start of `self`.
 
-        scope: str
-            Memory scope of the requesting view
-
         """
 
         if not isinstance(shape, tvm.runtime.ShapeTuple):
@@ -342,7 +333,7 @@ class NDArray(NDArrayBase):
         if dtype is None:
             dtype = self.dtype
 
-        return _ffi_api.TVMArrayCreateView(self, shape, dtype, relative_byte_offset, scope)
+        return _ffi_api.TVMArrayCreateView(self, shape, dtype, relative_byte_offset)
 
 
 def device(dev_type, dev_id=0):
