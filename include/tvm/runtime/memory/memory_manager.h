@@ -42,7 +42,6 @@ namespace memory {
 enum AllocatorType {
   kNaive = 1,
   kPooled,
-  kAny,
 };
 
 struct Buffer {
@@ -89,6 +88,17 @@ class Allocator {
    */
   TVM_DLL virtual Buffer Alloc(Device dev, ShapeTuple shape, DLDataType type_hint,
                                const std::string& mem_scope = "");
+
+  /*! \brief Create a view for the buffer given a shape, type and scope.
+   *  \param buffer The existing buffer upon which we need to create a view.
+   *  \param shape The shape of the view.
+   *  \param type_hint A type hint to the view.
+   *  \param mem_scope A memory scope of the view.
+   *  \return A device pointer to the created view.
+   */
+  TVM_DLL virtual void* CreateView(Buffer& buffer, ShapeTuple shape, DLDataType type_hint,
+                                   const std::string& mem_scope = "");
+
   /*! \brief Free a buffer allocated by the allocator.
    *  \param buffer The buffer to free.
    */
@@ -125,7 +135,7 @@ class MemoryManager {
    * \param type The allocator type
    * \return The memory allocator.
    */
-  TVM_DLL static Allocator* GetAllocator(Device dev, AllocatorType type = AllocatorType::kAny);
+  TVM_DLL static Allocator* GetAllocator(Device dev, AllocatorType type);
   /*! \brief Clear the allocators. */
   static void Clear();
 
@@ -148,6 +158,13 @@ class StorageObj : public Object {
 
   /*! \brief Allocate an NDArray from a given piece of storage. */
   TVM_DLL NDArray AllocNDArray(int64_t offset, ShapeTuple shape, DLDataType dtype);
+
+  /*! \brief Allocate an NDArray with memory scope from a given piece of storage. */
+  TVM_DLL NDArray AllocNDArrayScoped(int64_t offset, ShapeTuple shape, DLDataType dtype,
+                                     String scope = "global");
+
+  /*! \brief The deleter for an NDArray when allocated from underlying storage. */
+  static void ScopedDeleter(Object* ptr);
 
   /*! \brief The deleter for an NDArray when allocated from underlying storage. */
   static void Deleter(Object* ptr);
