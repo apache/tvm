@@ -4084,5 +4084,85 @@ def test_masked_scatter():
     )
 
 
+def test_abs():
+    class Abs(Module):
+        def forward(self, input):
+            return torch.abs(input)
+
+    @I.ir_module
+    class Expected1:
+        @R.function
+        def main(
+            inp_0: R.Tensor((256, 256), dtype="float32")
+        ) -> R.Tensor((256, 256), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((256, 256), dtype="float32") = R.abs(inp_0)
+                gv: R.Tensor((256, 256), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    verify_model(Abs(), [([256, 256], "float32")], {}, Expected1)
+
+
+def test_ceil():
+    class Ceil(Module):
+        def forward(self, input):
+            return torch.ceil(input)
+
+    @I.ir_module
+    class Expected1:
+        @R.function
+        def main(
+            inp_0: R.Tensor((256, 256), dtype="float32")
+        ) -> R.Tensor((256, 256), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((256, 256), dtype="float32") = R.ceil(inp_0)
+                gv: R.Tensor((256, 256), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    verify_model(Ceil(), [([256, 256], "float32")], {}, Expected1)
+
+
+def test_floor():
+    class Floor(Module):
+        def forward(self, input):
+            return torch.floor(input)
+
+    @I.ir_module
+    class Expected1:
+        @R.function
+        def main(
+            inp_0: R.Tensor((256, 256), dtype="float32")
+        ) -> R.Tensor((256, 256), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((256, 256), dtype="float32") = R.floor(inp_0)
+                gv: R.Tensor((256, 256), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    verify_model(Floor(), [([256, 256], "float32")], {}, Expected1)
+
+
+def test_log():
+    class Log(Module):
+        def forward(self, input):
+            return torch.log(input)
+
+    @I.ir_module
+    class Expected1:
+        @R.function
+        def main(
+            inp_0: R.Tensor((256, 256), dtype="float32")
+        ) -> R.Tensor((256, 256), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((256, 256), dtype="float32") = R.log(inp_0)
+                gv: R.Tensor((256, 256), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    verify_model(Log(), [([256, 256], "float32")], {}, Expected1)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
