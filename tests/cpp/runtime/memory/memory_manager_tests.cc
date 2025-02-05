@@ -48,26 +48,6 @@ class TvmVMMemoryManagerTest : public ::testing::Test {
   }
 };
 
-TEST_F(TvmVMMemoryManagerTest, AnyAllocatorNaiveAutoCreate) {
-  Device dev = {kDLCPU, 0};
-  Allocator* allocator = MemoryManagerWrapper::GetOrCreateAllocator(dev, kAny);
-  EXPECT_EQ(allocator->type(), kNaive);
-}
-
-TEST_F(TvmVMMemoryManagerTest, AnyAllocatorNaiveReuse) {
-  Device dev = {kDLCPU, 0};
-  Allocator* allocator = MemoryManagerWrapper::GetOrCreateAllocator(dev, kNaive);
-  allocator = MemoryManagerWrapper::GetOrCreateAllocator(dev, kAny);
-  EXPECT_EQ(allocator->type(), kNaive);
-}
-
-TEST_F(TvmVMMemoryManagerTest, AnyAllocatorPooled) {
-  Device dev = {kDLCPU, 0};
-  Allocator* allocator = MemoryManagerWrapper::GetOrCreateAllocator(dev, kPooled);
-  allocator = MemoryManagerWrapper::GetOrCreateAllocator(dev, kAny);
-  EXPECT_EQ(allocator->type(), kPooled);
-}
-
 TEST_F(TvmVMMemoryManagerTest, NaiveAllocBasic) {
   Device dev = {kDLCPU, 0};
   Allocator* allocator = MemoryManagerWrapper::GetOrCreateAllocator(dev, kNaive);

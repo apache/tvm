@@ -83,6 +83,7 @@ TEST(TextureCopy, HostDeviceRT) {
         1e-5);
   }
 }
+
 #if 0
 TEST_F(TextureCopyTest, ViewBufferAsBuffer) {
   using namespace tvm;

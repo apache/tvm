@@ -136,14 +136,12 @@ class TVM_DLL DeviceAPI {
    */
   virtual void* AllocDataSpace(Device dev, int ndim, const int64_t* shape, DLDataType dtype,
                                Optional<String> mem_scope = NullOpt);
-
   /*!
    * \brief Free a data space on device.
    * \param dev The device device to perform operation.
    * \param ptr The data space.
    */
   virtual void FreeDataSpace(Device dev, void* ptr) = 0;
-
   /*!
    * \brief copy data from one place to another
    * \note This API is designed to support special memory with shape dependent layout.

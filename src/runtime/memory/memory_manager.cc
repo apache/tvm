@@ -159,29 +159,56 @@ MemoryManager* MemoryManager::Global() {
   return inst;
 }
 
+std::string DeviceTypeStr(DLDeviceType type) {
+  switch (type) {
+    case kDLOpenCL:
+      return "opencl";
+      break;
+    case kDLVulkan:
+      return "vulkan";
+      break;
+    default:
+      return "";
+  }
+}
+
+Allocator* GetDeviceSpecificAllocator(Device dev, AllocatorType type) {
+  std::string dev_str = DeviceTypeStr(dev.device_type);
+  auto* device_alloc_helper = tvm::runtime::Registry::Get("DeviceAllocator." + dev_str);
+  void* valloc;
+  Allocator* allocator = nullptr;
+  if (device_alloc_helper) {
+    valloc = (*device_alloc_helper)(dev, static_cast<int>(type));
+    allocator = static_cast<Allocator*>(valloc);
+  }
+  if (nullptr == allocator) {
+    switch (type) {
+      case kNaive: {
+        VLOG(1) << "New naive allocator for " << dev;
+        allocator = new NaiveAllocator();
+        break;
+      }
+      case kPooled: {
+        VLOG(1) << "New pooled allocator for " << dev;
+        allocator = new PooledAllocator();
+        break;
+      }
+      default:
+        LOG(FATAL) << "Unknown allocator type: " << type;
+    }
+  }
+  return allocator;
+}
+
 Allocator* MemoryManager::GetOrCreateAllocator(Device dev, AllocatorType type) {
   MemoryManager* m = MemoryManager::Global();
   std::lock_guard<std::mutex> lock(m->mu_);
   if (m->allocators_.find(dev) == m->allocators_.end()) {
     m->allocators_.emplace(dev, std::unordered_map<AllocatorType, std::unique_ptr<Allocator>>());
   }
-
   if (m->allocators_.at(dev).find(type) == m->allocators_.at(dev).end()) {
     std::unique_ptr<Allocator> alloc;
-    switch (type) {
-      case kNaive: {
-        VLOG(1) << "New naive allocator for " << dev;
-        alloc.reset(new NaiveAllocator());
-        break;
-      }
-      case kPooled: {
-        VLOG(1) << "New pooled allocator for " << dev;
-        alloc.reset(new PooledAllocator());
-        break;
-      }
-      default:
-        LOG(FATAL) << "Unknown allocator type: " << type;
-    }
+    alloc.reset(GetDeviceSpecificAllocator(dev, type));
     auto ret = alloc.get();
     m->allocators_.at(dev).emplace(type, std::move(alloc));
     return ret;
@@ -222,9 +249,13 @@ NDArray Allocator::Empty(ShapeTuple shape, DLDataType dtype, DLDevice dev,
   size_t size = DeviceAPI::Get(dev)->GetDataSize(container->dl_tensor, mem_scope);
   size_t alignment = GetDataAlignment(container->dl_tensor);
   Buffer* buffer = new Buffer;
-  *buffer = this->Alloc(dev, size, alignment, dtype);
-  container->dl_tensor.data = buffer->data;
+  if (!mem_scope.defined() || mem_scope.value().empty() || mem_scope.value() == "global") {
+    *buffer = this->Alloc(dev, size, alignment, dtype);
+  } else {
+    *buffer = this->Alloc(dev, shape, dtype, mem_scope.value());
+  }
   container->manager_ctx = reinterpret_cast<void*>(buffer);
+  container->dl_tensor.data = buffer->data;
   return NDArray(GetObjectPtr<Object>(container));
 }
 
@@ -232,56 +263,18 @@ bool Allocator::AllowMemoryScope(const std::string& mem_scope) const {
   return mem_scope.empty() || mem_scope == "global";
 }
 
-std::string DeviceTypeStr(DLDeviceType type) {
-  switch (type) {
-    case kDLOpenCL:
-      return "opencl";
-      break;
-    case kDLVulkan:
-      return "vulkan";
-      break;
-    default:
-      return "";
-  }
-}
-
-void* Allocator::CreateView(const Buffer& buffer, ShapeTuple shape, DLDataType type_hint,
-                            const std::string& mem_scope) {
-  std::string dev_str = DeviceTypeStr(buffer.device.device_type);
-  auto* device_view_helper = tvm::runtime::Registry::Get("DeviceCreateView." + dev_str);
-  if (device_view_helper) {
-    void* view_ptr = (*device_view_helper)(buffer.device, buffer.data, shape, type_hint, mem_scope);
-    return view_ptr;
-  }
-  return buffer.data;
-}
-
-void Allocator::FreeView(Device dev, void* data) {
-  std::string dev_str = DeviceTypeStr(dev.device_type);
-  auto* device_view_helper = tvm::runtime::Registry::Get("DeviceFreeView." + dev_str);
-  if (device_view_helper) {
-    (*device_view_helper)(dev, data);
-  }
-}
-
 Buffer Allocator::Alloc(Device dev, ShapeTuple shape, DLDataType type_hint,
                         const std::string& mem_scope) {
-  NDArray::Container container(nullptr, shape, type_hint, dev);
-  size_t size = DeviceAPI::Get(dev)->GetDataSize(container.dl_tensor);
-
   if (AllowMemoryScope(mem_scope)) {
+    // by default, we can always redirect to the flat memory allocations
+    NDArray::Container container(nullptr, shape, type_hint, dev);
+    size_t size = DeviceAPI::Get(dev)->GetDataSize(container.dl_tensor);
     size_t alignment = GetDataAlignment(container.dl_tensor);
     return Alloc(dev, size, alignment, type_hint);
   }
-  Buffer buf;
-  buf.device = dev;
-  buf.size = size;
-  buf.alloc_type = type_;
-  buf.data = DeviceAPI::Get(dev)->AllocDataSpace(dev, shape.size(), shape.data(), type_hint,
-                                                 String(mem_scope));
-  used_memory_.fetch_add(size, std::memory_order_relaxed);
-  DLOG(INFO) << "allocate " << size << " B, used memory " << used_memory_ << " B";
-  return buf;
+  LOG(FATAL) << "Allocator cannot allocate data space with "
+             << "specified memory scope: " << mem_scope;
+  return {};
 }
 
 void Allocator::Clear() {

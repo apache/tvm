@@ -242,7 +242,7 @@ class OpenCLWorkspace : public DeviceAPI {
   std::unordered_map<cl_platform_id, cl_context> contexts;
   // whether the workspace it initialized.
   bool initialized_{false};
-  // map device to varius device informations
+  // map device to various device informations
   std::unordered_map<cl_device_id, CLDeviceInfo> device_info;
   // the devices
   std::vector<cl_device_id> devices;
