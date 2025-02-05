@@ -27,6 +27,7 @@
 
 #include <sstream>
 
+#include "../memory/pooled_allocator.h"
 #include "opencl_common.h"
 
 #ifdef OPENCL_ENABLE_HOST_PTR
@@ -821,16 +822,88 @@ TVM_REGISTER_GLOBAL("profiling.timer.opencl").set_body_typed([](Device dev) {
   return Timer(make_object<OpenCLTimerNode>(dev));
 });
 
-TVM_REGISTER_GLOBAL("DeviceCreateView.opencl")
-    .set_body_typed([](Device dev, void* data, ShapeTuple shape, DLDataType dtype,
-                       Optional<String> mem_scope) {
-      OpenCLWorkspace* ws_ = OpenCLWorkspace::Global();
-      return ws_->AllocDataSpaceView(dev, data, shape, dtype, Optional<String>(mem_scope));
-    });
+class OpenCLPooledAllocator final : public memory::PooledAllocator {
+ public:
+  explicit OpenCLPooledAllocator() : PooledAllocator() {}
 
-TVM_REGISTER_GLOBAL("DeviceFreeView.opencl").set_body_typed([](Device dev, void* data) {
-  OpenCLWorkspace* ws_ = OpenCLWorkspace::Global();
-  return ws_->FreeDataSpaceView(dev, data);
+  bool AllowMemoryScope(const std::string& mem_scope) const final {
+    return ((mem_scope.find("texture") != std::string::npos) || mem_scope.empty() ||
+            ("global" == mem_scope));
+  }
+
+  Buffer Alloc(Device dev, size_t nbytes, size_t alignment, DLDataType type_hint) override {
+    std::lock_guard<std::recursive_mutex> lock(mu_);
+    size_t size = ((nbytes + page_size_ - 1) / page_size_) * page_size_;
+    auto&& it = memory_pool_.find(size);
+    if (it != memory_pool_.end() && !it->second.empty()) {
+      auto&& pool = it->second;
+      auto ret = pool.back();
+      pool.pop_back();
+      return ret;
+    }
+    Buffer buf;
+    buf.device = dev;
+    buf.size = size;
+    buf.alloc_type = AllocatorType::kPooled;
+    try {
+      buf.data = DeviceAllocDataSpace(dev, size, alignment, type_hint);
+    } catch (InternalError& err) {
+      LOG(WARNING) << "PooledAllocator got InternalError during allocation: " << err.message();
+      LOG(WARNING) << "Trying to release all unused memory and reallocate...";
+      ReleaseAll();
+      buf.data = DeviceAllocDataSpace(dev, size, alignment, type_hint);
+    }
+
+    used_memory_.fetch_add(size, std::memory_order_relaxed);
+    VLOG(1) << "allocate " << size << " B, used memory " << used_memory_ << " B";
+    return buf;
+  }
+
+  Buffer Alloc(Device dev, ShapeTuple shape, DLDataType type_hint,
+               const std::string& mem_scope) override {
+    if (AllowMemoryScope(mem_scope)) {
+      NDArray::Container container(nullptr, shape, type_hint, dev);
+      size_t size = DeviceAPI::Get(dev)->GetDataSize(container.dl_tensor);
+      Buffer buf;
+      buf.device = dev;
+      buf.size = size;
+      buf.alloc_type = AllocatorType::kPooled;
+      buf.data = DeviceAPI::Get(dev)->AllocDataSpace(dev, shape.size(), shape.data(), type_hint,
+                                                     String(mem_scope));
+      used_memory_.fetch_add(size, std::memory_order_relaxed);
+      DLOG(INFO) << "allocate " << size << " B, used memory " << used_memory_ << " B";
+      return buf;
+    }
+    LOG(FATAL) << "Unsupported memory scope for this Allocator:" << mem_scope;
+    return {};
+  }
+
+  void Free(const Buffer& buffer) override {
+    std::lock_guard<std::recursive_mutex> lock(mu_);
+    if (memory_pool_.find(buffer.size) == memory_pool_.end()) {
+      memory_pool_.emplace(buffer.size, std::vector<Buffer>{});
+    }
+    memory_pool_.at(buffer.size).push_back(buffer);
+    VLOG(1) << "reclaim buffer " << buffer.size;
+  }
+
+  void* CreateView(const Buffer& buffer, ShapeTuple shape, DLDataType type_hint,
+                   const std::string& mem_scope) final {
+    LOG(WARNING) << "OpenCL View:" << mem_scope;
+    OpenCLWorkspace* ws_ = OpenCLWorkspace::Global();
+    return ws_->AllocDataSpaceView(buffer.device, buffer.data, shape, type_hint,
+                                   Optional<String>(mem_scope));
+  }
+
+  void FreeView(Device dev, void* data) final {
+    OpenCLWorkspace* ws_ = OpenCLWorkspace::Global();
+    return ws_->FreeDataSpaceView(dev, data);
+  }
+};
+
+TVM_REGISTER_GLOBAL("DeviceAllocator.opencl").set_body([](TVMArgs args, TVMRetValue* rv) {
+  Allocator* alloc = new OpenCLPooledAllocator();
+  *rv = static_cast<void*>(alloc);
 });
 
 }  // namespace cl

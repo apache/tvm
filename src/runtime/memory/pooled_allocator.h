@@ -41,9 +41,7 @@ class PooledAllocator : public Allocator {
   static constexpr size_t kDefaultPageSize = 4096;
 
   explicit PooledAllocator(size_t page_size = kDefaultPageSize)
-      : Allocator(kPooled), page_size_(page_size) {
-    used_memory_ = 0;
-  }
+      : Allocator(kPooled), page_size_(page_size), used_memory_(0) {}
 
   ~PooledAllocator() { ReleaseAll(); }
 
@@ -73,6 +71,15 @@ class PooledAllocator : public Allocator {
     used_memory_.fetch_add(size, std::memory_order_relaxed);
     VLOG(1) << "allocate " << size << " B, used memory " << used_memory_ << " B";
     return buf;
+  }
+
+  Buffer Alloc(Device dev, ShapeTuple shape, DLDataType type_hint,
+               const std::string& mem_scope) override {
+    if (AllowMemoryScope(mem_scope)) {
+      return Allocator::Alloc(dev, shape, type_hint, mem_scope);
+    }
+    LOG(FATAL) << "This alloc should be implemented";
+    return {};
   }
 
   void Free(const Buffer& buffer) override {
@@ -113,6 +120,7 @@ class PooledAllocator : public Allocator {
 
  protected:
   size_t page_size_;
+  std::atomic<size_t> used_memory_;
   std::unordered_map<size_t, std::vector<Buffer>> memory_pool_;
   std::recursive_mutex mu_;
 };

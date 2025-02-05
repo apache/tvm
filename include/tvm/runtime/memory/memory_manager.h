@@ -97,13 +97,15 @@ class Allocator {
    *  \return A device pointer to the created view.
    */
   TVM_DLL virtual void* CreateView(const Buffer& buffer, ShapeTuple shape, DLDataType type_hint,
-                                   const std::string& mem_scope = "");
+                                   const std::string& mem_scope = "global") {
+    return buffer.data;
+  };
 
   /*! \brief Release the view .
    *  \param dev is the device where this view is created
    *  \param data The view pointer to be freed.
    */
-  TVM_DLL virtual void FreeView(Device dev, void* data);
+  TVM_DLL virtual void FreeView(Device dev, void* data){};
 
   /*! \brief Free a buffer allocated by the allocator.
    *  \param buffer The buffer to free.
@@ -119,7 +121,6 @@ class Allocator {
  protected:
   /*! \brief Check if the given memory scope is allowed to allocate by the allocator. */
   TVM_DLL virtual bool AllowMemoryScope(const std::string& mem_scope) const;
-  std::atomic<size_t> used_memory_;
 
  private:
   AllocatorType type_;
