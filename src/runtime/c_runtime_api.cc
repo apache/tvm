@@ -187,11 +187,6 @@ void* DeviceAPI::AllocDataSpace(Device dev, int ndim, const int64_t* shape, DLDa
   return nullptr;
 }
 
-void* DeviceAPI::AllocDataSpaceView(Device dev, void* data, ShapeTuple shape, DLDataType dtype,
-                                    Optional<String> mem_scope) {
-  return data;
-}
-
 void DeviceAPI::CopyDataFromTo(DLTensor* from, DLTensor* to, TVMStreamHandle stream) {
   // by default, we can always redirect to the flat memory copy operation.
   size_t nbytes = GetDataSize(*from);
@@ -210,8 +205,6 @@ void DeviceAPI::CopyDataFromTo(const void* from, size_t from_offset, void* to, s
 }
 
 void DeviceAPI::FreeWorkspace(Device dev, void* ptr) { FreeDataSpace(dev, ptr); }
-
-void DeviceAPI::FreeDataSpaceView(Device dev, void* ptr) {}
 
 TVMStreamHandle DeviceAPI::CreateStream(Device dev) { return nullptr; }
 

@@ -821,6 +821,18 @@ TVM_REGISTER_GLOBAL("profiling.timer.opencl").set_body_typed([](Device dev) {
   return Timer(make_object<OpenCLTimerNode>(dev));
 });
 
+TVM_REGISTER_GLOBAL("DeviceCreateView.opencl")
+    .set_body_typed([](Device dev, void* data, ShapeTuple shape, DLDataType dtype,
+                       Optional<String> mem_scope) {
+      OpenCLWorkspace* ws_ = OpenCLWorkspace::Global();
+      return ws_->AllocDataSpaceView(dev, data, shape, dtype, Optional<String>(mem_scope));
+    });
+
+TVM_REGISTER_GLOBAL("DeviceFreeView.opencl").set_body_typed([](Device dev, void* data) {
+  OpenCLWorkspace* ws_ = OpenCLWorkspace::Global();
+  return ws_->FreeDataSpaceView(dev, data);
+});
+
 }  // namespace cl
 size_t OpenCLTimerNode::count_timer_execs = 0;
 std::vector<size_t> OpenCLTimerNode::event_start_idxs;
