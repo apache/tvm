@@ -182,20 +182,6 @@ class AttentionKVCacheObj : public KVStateObj {
                                      NDArray o_data, double attn_score_scaling_factor) = 0;
 
   /*!
-   * \brief Compute attention with Q/K/V data.
-   * \param layer_id The model layer where the attention compute happens.
-   * \param q_data The input Q data, in layout `(total_length, num_qo_heads, head_dim)`
-   * \param k_data The input K data, in layout `(total_length, num_kv_heads, head_dim)`
-   * \param v_data The input V data, in layout `(total_length, num_kv_heads, head_dim)`
-   * \param mask The input mask data, in layout `(total_sqr_length)`.
-   * \param o_data The output O data, in layout `(total_length, num_qo_heads, head_dim)`.
-   * \param attn_score_scaling_factor The additional attention scaling factor.
-   */
-  virtual void AttentionWithSeparateQKV(int64_t layer_id, NDArray q_data, NDArray k_data,
-                                        NDArray v_data, Optional<NDArray> mask, NDArray o_data,
-                                        double attn_score_scaling_factor) = 0;
-
-  /*!
    * \brief Compute multi-head latent attention after applying weight absorption.
    * \param layer_id The model layer where the attention compute happens.
    * \param q_data The input Q data, in layout `(total_length, num_qo_heads, qk_head_dim)`
@@ -274,6 +260,16 @@ class AttentionKVCacheObj : public KVStateObj {
    */
   virtual void DebugGetKV(int64_t seq_id,  //
                           int64_t start_pos, int64_t end_pos, NDArray k_data, NDArray v_data) = 0;
+
+  /*!
+   * \brief Fetch the compact K/V data of the given sequence for MLA cache.
+   * \param seq_id The sequence whose K/V data is to be fetched.
+   * \param start_pos The start position (inclusive) of the K/V data to fetch.
+   * \param end_pos The end position (exclusive) of the K/V data to fetch.
+   * \param kv_data The output KV data of the given sequence in layout elaborated above.
+   */
+  virtual void DebugGetKVMLA(int64_t seq_id, int64_t start_pos, int64_t end_pos,
+                             NDArray kv_data) = 0;
 
   /*!
    * \brief Set the K/V data of the given sequence from input K/V data.

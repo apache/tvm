@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import enum
 from typing import Dict, List, Tuple, Union
 
 import numpy as np
@@ -24,9 +23,14 @@ import scipy.special
 import tvm
 import tvm.testing
 from tvm import dlight as dl
-from tvm import tir
+from tvm.relax.frontend.nn.llm.kv_cache import (
+    RopeMode,
+    _copy_single_page,
+    _kv_cache_debug_get_kv,
+    _kv_cache_transpose_append,
+    llama_rope_with_position_map,
+)
 from tvm.runtime import ShapeTuple
-from tvm.script import tir as T
 
 reserved_nseq = 32
 maximum_total_seq_length = 2048
@@ -68,207 +72,6 @@ ftranspose_append = None
 fsplit_rotary = None
 fcopy_single_page = None
 fcopy_cache = None
-
-
-@T.prim_func
-def kv_cache_transpose_append(
-    var_pages: T.handle,
-    var_k_data: T.handle,
-    var_v_data: T.handle,
-    var_position_map: T.handle,
-):
-    ntoken = T.SizeVar("ntoken", "int64")
-    page_size = T.SizeVar("page_size", "int64")
-    num_pages = T.int64()
-    position_map_elem_offset = T.int32()
-    pages = T.match_buffer(var_pages, (num_pages, 2, num_kv_heads, page_size, head_dim), dtype)
-    k_data = T.match_buffer(var_k_data, (ntoken, num_kv_heads, head_dim), dtype)
-    v_data = T.match_buffer(var_v_data, (ntoken, num_kv_heads, head_dim), dtype)
-    position_map = T.match_buffer(
-        var_position_map, (ntoken,), "int32", elem_offset=position_map_elem_offset
-    )
-
-    for global_pos, h, f in T.grid(ntoken, num_kv_heads, head_dim):
-        with T.block("k_transpose_append"):
-            vgpos, vh, vf = T.axis.remap("SSS", [global_pos, h, f])
-            T.reads(position_map[vgpos], k_data[vgpos, vh, vf])
-            T.writes(
-                pages[position_map[vgpos] // page_size, 0, vh, position_map[vgpos] % page_size, vf]
-            )
-            position: T.int64 = T.Cast("int64", position_map[vgpos])
-            pages[
-                T.floordiv(position, page_size), 0, vh, T.floormod(position, page_size), vf
-            ] = k_data[vgpos, vh, vf]
-        with T.block("v_transpose_append"):
-            vgpos, vh, vf = T.axis.remap("SSS", [global_pos, h, f])
-            T.reads(position_map[vgpos], k_data[vgpos, vh, vf])
-            T.writes(
-                pages[position_map[vgpos] // page_size, 1, vh, position_map[vgpos] % page_size, vf]
-            )
-            position: T.int64 = T.Cast("int64", position_map[vgpos])
-            pages[
-                T.floordiv(position, page_size), 1, vh, T.floormod(position, page_size), vf
-            ] = v_data[vgpos, vh, vf]
-
-
-def llama_rope_with_position_map(  # pylint: disable=too-many-arguments
-    theta: float,
-    scale: float,
-    head_dim: int,
-    num_q_heads: int,
-    num_kv_heads: int,
-    dtype: float = "float16",
-    rotary_dim: int = None,
-):
-    fused_heads = num_q_heads + num_kv_heads * 2
-    if rotary_dim is None:
-        rotary_dim = head_dim
-    scale = tir.const(scale, dtype)
-
-    def _rope_freq(s: tir.Var, d: tir.Var, d_range: int, theta: float, dtype: str):
-        freq = s / tir.power(theta, d * 2 % d_range / tir.const(d_range, "float32"))
-        cos_freq = tir.cos(freq).astype(dtype)
-        sin_freq = tir.sin(freq).astype(dtype)
-        return cos_freq, sin_freq
-
-    def _rope(  # pylint: disable=too-many-arguments
-        x: T.Buffer,
-        s: tir.Var,
-        h: tir.Var,
-        d: tir.Var,
-        pos: tir.Var,
-    ):
-        cos_freq, sin_freq = _rope_freq(pos * scale, d, rotary_dim, theta, dtype)
-        cos = cos_freq * x[s, h, d]
-        sin = sin_freq * tir.if_then_else(
-            d < rotary_dim // 2,
-            -x[s, h, d + rotary_dim // 2],
-            x[s, h, d - rotary_dim // 2],
-        )
-        return cos + sin
-
-    @T.prim_func(private=True)
-    def fused_rope(  # pylint: disable=too-many-locals
-        var_qkv: T.handle,
-        var_position_map: T.handle,
-        var_q: T.handle,
-        var_k: T.handle,
-        var_v: T.handle,
-        apply_rope: T.int32,
-    ):
-        T.func_attr(
-            {
-                "op_pattern": 8,  # 2 means injective, 8 means opaque
-                "tir.noalias": T.bool(True),
-            }
-        )
-        seq_len = T.int64()
-        position_map_elem_offset = T.int64()
-        qkv = T.match_buffer(var_qkv, (seq_len, fused_heads, head_dim), dtype)
-        q = T.match_buffer(var_q, (seq_len, num_q_heads, head_dim), dtype)
-        k = T.match_buffer(var_k, (seq_len, num_kv_heads, head_dim), dtype)
-        v = T.match_buffer(var_v, (seq_len, num_kv_heads, head_dim), dtype)
-        position_map = T.match_buffer(
-            var_position_map, (seq_len,), "int32", elem_offset=position_map_elem_offset
-        )
-        for iters in T.grid(seq_len, fused_heads, head_dim):
-            with T.block("llama_fused_rope"):
-                s, h, d = T.axis.remap("SSS", iters)
-                if h < num_q_heads:
-                    q[s, h, d] = T.if_then_else(
-                        apply_rope > 0 and d < rotary_dim,
-                        _rope(qkv, s, h, d, position_map[s]),
-                        qkv[s, h, d],
-                    )
-                elif h < num_q_heads + num_kv_heads:
-                    k[s, h - num_q_heads, d] = T.if_then_else(
-                        apply_rope > 0 and d < rotary_dim,
-                        _rope(qkv, s, h, d, position_map[s]),
-                        qkv[s, h, d],
-                    )
-                else:
-                    v[s, h - (num_q_heads + num_kv_heads), d] = qkv[s, h, d]
-
-    return fused_rope
-
-
-@T.prim_func
-def copy_cache(
-    var_pages: T.handle,
-    var_position_map: T.handle,
-    var_k_data: T.handle,
-    var_v_data: T.handle,
-    layer_id: T.int64,
-):
-    num_kv_heads = T.int64()
-    head_dim = T.int64()
-    seqlen = T.SizeVar("seqlen", "int64")
-    page_size = T.int64()
-    num_pages = T.int64()
-    position_map_elem_offset = T.int64()
-    pages = T.match_buffer(var_pages, (num_pages, 2, num_kv_heads, page_size, head_dim), "float16")
-    position_map = T.match_buffer(
-        var_position_map, (seqlen,), "int32", elem_offset=position_map_elem_offset
-    )
-    k_data = T.match_buffer(var_k_data, (num_layers, seqlen, num_kv_heads, head_dim), "float16")
-    v_data = T.match_buffer(var_v_data, (num_layers, seqlen, num_kv_heads, head_dim), "float16")
-
-    for p, h, d in T.grid(seqlen, num_kv_heads, head_dim):
-        with T.block("copy0"):
-            vp, vh, vd = T.axis.remap("SSS", [p, h, d])
-            T.reads(
-                position_map[vp],
-                pages[position_map[vp] // page_size, 0:2, vh, position_map[vp] % page_size, vd],
-            )
-            T.writes(k_data[layer_id, vp, vh, vd], v_data[layer_id, vp, vh, vd])
-            position: T.int64 = T.Cast("int64", position_map[vp])
-            k_data[layer_id, vp, vh, vd] = pages[
-                T.floordiv(position, page_size), 0, vh, T.floormod(position, page_size), vd
-            ]
-            v_data[layer_id, vp, vh, vd] = pages[
-                T.floordiv(position, page_size), 1, vh, T.floormod(position, page_size), vd
-            ]
-
-
-def _copy_single_page(num_heads, page_size, head_dim, dtype, target):
-    tx = 256 if str(target.kind) == "webgpu" else 1024
-
-    @T.prim_func
-    def copy_single_page(
-        pages: T.handle,
-        src_page_id: T.int64,
-        tgt_page_id: T.int64,
-        copy_length: T.int64,
-    ):
-        T.func_attr({"tir.is_scheduled": 1})
-        num_pages = T.int32()
-        P = T.match_buffer(pages, (num_pages, 2, num_heads, page_size, head_dim), dtype)
-
-        for b in T.thread_binding(
-            (copy_length * num_heads * head_dim + tx - 1) // tx, thread="blockIdx.x"
-        ):
-            for t in T.thread_binding(tx, thread="threadIdx.x"):
-                with T.block("copy"):
-                    T.where(b * tx + t < copy_length * num_heads * head_dim)
-                    vh = T.axis.spatial(
-                        num_heads,
-                        T.Cast("int32", (b * tx + t) // (copy_length * head_dim)),
-                    )
-                    vp = T.axis.spatial(
-                        copy_length,
-                        (b * tx + t) % (copy_length * head_dim) // head_dim,
-                    )
-                    vd = T.axis.spatial(
-                        head_dim,
-                        T.Cast(
-                            "int32",
-                            (b * tx + t) % head_dim,
-                        ),
-                    )
-                    P[tgt_page_id, 0, vh, vp, vd] = P[src_page_id, 0, vh, vp, vd]
-                    P[tgt_page_id, 1, vh, vp, vd] = P[src_page_id, 1, vh, vp, vd]
-
-    return copy_single_page
 
 
 def set_global_func():
@@ -327,12 +130,12 @@ def set_global_func():
     target = tvm.target.Target.from_device(device)
     builts = []
     for tir_func in [
-        kv_cache_transpose_append,
+        _kv_cache_transpose_append(num_kv_heads, head_dim, dtype),
         llama_rope_with_position_map(
-            rope_theta, rope_scale, head_dim, num_qo_heads, num_kv_heads, dtype
+            rope_theta, rope_scale, head_dim, num_qo_heads, num_kv_heads, dtype, {}
         ),
         _copy_single_page(num_kv_heads, page_size, head_dim, dtype, target),
-        copy_cache,
+        _kv_cache_debug_get_kv(num_layers, num_kv_heads, head_dim, dtype),
     ]:
         mod = tvm.IRModule({"main": tir_func})
         with target:
@@ -386,18 +189,6 @@ def create_kv_cache(rope_mode):
         False,
     )
     return cache
-
-
-class RopeMode(enum.IntEnum):
-    """The RoPE mode of the Paged KV cache.
-    If it is none, the KV cache will not apply RoPE to q and k.
-    If it is normal, RoPE will be applied to k before adding k to cache.
-    Otherwise, RoPE will be applied to q/k in attention kernel on-the-fly.
-    """
-
-    NONE = 0
-    NORMAL = 1
-    INLINE = 2
 
 
 @pytest.fixture(params=[RopeMode.NONE, RopeMode.NORMAL, RopeMode.INLINE])

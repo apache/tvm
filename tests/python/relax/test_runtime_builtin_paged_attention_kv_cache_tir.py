@@ -14,7 +14,6 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import enum
 import itertools
 from typing import Dict, List, Optional, Tuple, Union
 
@@ -26,6 +25,7 @@ import tvm
 import tvm.testing
 from tvm import dlight as dl
 from tvm.relax.frontend.nn.llm.kv_cache import (
+    RopeMode,
     _attention_decode,
     _attention_prefill,
     _attention_prefill_ragged,
@@ -198,18 +198,6 @@ def create_kv_cache(head_dim, dtype, rope_mode, support_sliding_window):
     return cache
 
 
-class RopeMode(enum.IntEnum):
-    """The RoPE mode of the Paged KV cache.
-    If it is none, the KV cache will not apply RoPE to q and k.
-    If it is normal, RoPE will be applied to k before adding k to cache.
-    Otherwise, RoPE will be applied to q/k in attention kernel on-the-fly.
-    """
-
-    NONE = 0
-    NORMAL = 1
-    INLINE = 2
-
-
 @pytest.fixture(
     params=itertools.chain(
         itertools.product(
@@ -366,9 +354,11 @@ def apply_attention(
                                 rope_offset,
                                 rope_scale,
                                 rope_theta,
-                                token_tree_node_depths_list[i][-append_length:]
-                                if token_tree_node_depths_list[i] is not None
-                                else None,
+                                (
+                                    token_tree_node_depths_list[i][-append_length:]
+                                    if token_tree_node_depths_list[i] is not None
+                                    else None
+                                ),
                             )
                         )
                         for l in range(num_layers)
@@ -410,9 +400,11 @@ def apply_attention(
                     rope_offset,
                     rope_scale,
                     rope_theta,
-                    token_tree_node_depths_list[i][-append_length:]
-                    if token_tree_node_depths_list[i] is not None
-                    else None,
+                    (
+                        token_tree_node_depths_list[i][-append_length:]
+                        if token_tree_node_depths_list[i] is not None
+                        else None
+                    ),
                 )
             ).transpose(1, 0, 2)
             k_seq = (
