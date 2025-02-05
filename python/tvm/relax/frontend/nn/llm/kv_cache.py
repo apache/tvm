@@ -2418,8 +2418,10 @@ def _attention_prefill_ragged_cpu(h_kv, h_q, d, dtype, rope_scaling: Dict[str, A
 
     return batch_prefill_ragged_kv
 
-
 def _attention_prefill_ragged(h_kv, h_q, d, dtype, rope_scaling: Dict[str, Any], target: Target):
+    return _attention_prefill_ragged_generic(h_kv, h_q, d, d, dtype, rope_scaling, target)
+
+def _attention_prefill_ragged_generic(h_kv, h_q, d_qk, d_v, dtype, rope_scaling: Dict[str, Any], target: Target):
     # pylint: disable=line-too-long
     (
         NUM_BLKS,
@@ -2459,14 +2461,14 @@ def _attention_prefill_ragged(h_kv, h_q, d, dtype, rope_scaling: Dict[str, Any],
         q_rope_position_elem_offset = T.int32(is_size_var=True)
         k_rope_pos_offset_elem_offset = T.int32(is_size_var=True)
 
-        q = T.match_buffer(var_q, (qo_len, h_q, d), dtype)
+        q = T.match_buffer(var_q, (qo_len, h_q, d_qk), dtype)
         q_indptr = T.match_buffer(var_q_indptr, (batch_size + 1,), "int32", elem_offset=q_indptr_elem_offset)
-        k = T.match_buffer(var_k, (kv_len, h_kv, d), dtype)
-        v = T.match_buffer(var_v, (kv_len, h_kv, d), dtype)
+        k = T.match_buffer(var_k, (kv_len, h_kv, d_qk), dtype)
+        v = T.match_buffer(var_v, (kv_len, h_kv, d_v), dtype)
         kv_indptr = T.match_buffer(var_kv_indptr, (batch_size + 1,), "int32", elem_offset=kv_indptr_elem_offset)
         q_rope_position = T.match_buffer(var_q_rope_position, (qo_len,), "int32", elem_offset=q_rope_position_elem_offset)
         k_rope_pos_offset = T.match_buffer(var_k_rope_pos_offset, (batch_size,), "int32", elem_offset=k_rope_pos_offset_elem_offset)
-        output = T.match_buffer(var_output, (qo_len, h_q, d), dtype)
+        output = T.match_buffer(var_output, (qo_len, h_q, d_v), dtype)
         lse = T.match_buffer(var_lse, (qo_len, h_q), "float32")  # pylint: disable=unused-variable
 
         # kernel code
@@ -2485,13 +2487,13 @@ def _attention_prefill_ragged(h_kv, h_q, d, dtype, rope_scaling: Dict[str, Any],
                             iterator = _var("int32")
                             kv_chunk_len = _var("int32")
 
-                            Q_smem = T.alloc_buffer((tile_x, d), dtype, scope="shared")
-                            K_smem = T.alloc_buffer((tile_z, d), dtype, scope="shared")
-                            V_smem = T.alloc_buffer((tile_z, d), dtype, scope="shared")
+                            Q_smem = T.alloc_buffer((tile_x, d_qk), dtype, scope="shared")
+                            K_smem = T.alloc_buffer((tile_z, d_qk), dtype, scope="shared")
+                            V_smem = T.alloc_buffer((tile_z, d_v), dtype, scope="shared")
                             S_smem = T.alloc_buffer((tile_x, tile_z), "float32", scope="shared")
 
                             S_local = T.alloc_buffer((tile_x, tile_z), "float32", scope="local")
-                            O_local = T.alloc_buffer((tile_x, d), "float32", scope="local")
+                            O_local = T.alloc_buffer((tile_x, d_v), "float32", scope="local")
 
                             m_smem = T.alloc_buffer((tile_x, ), "float32", scope="shared")
                             m_prev_smem = T.alloc_buffer((tile_x, ), "float32", scope="shared")
@@ -2548,7 +2550,7 @@ def _attention_prefill_ragged(h_kv, h_q, d, dtype, rope_scaling: Dict[str, Any],
                                             if cur_L < q_indptr[b_idx + 1]:
                                                 Q_smem[i, j] = T.if_then_else(
                                                     rotary_mode == 1,
-                                                    _rope(q, q_rope_position[cur_L], d, rope_theta, rope_scale, (cur_L, cur_H_qo, j), dtype, rope_scaling),
+                                                    _rope(q, q_rope_position[cur_L], d_qk, rope_theta, rope_scale, (cur_L, cur_H_qo, j), dtype, rope_scaling),
                                                     q[cur_L, cur_H_qo, j]
                                                 )
                                             else:
@@ -2565,7 +2567,7 @@ def _attention_prefill_ragged(h_kv, h_q, d, dtype, rope_scaling: Dict[str, Any],
                                                 if cur_L < kv_chunk_len[0]:
                                                     K_smem[i, j] = T.if_then_else(
                                                         rotary_mode == 1,
-                                                        _rope(k, k_rope_pos_offset[b_idx] + cur_L, d, rope_theta, rope_scale, (L_kv_base + cur_L, by, j), dtype, rope_scaling),
+                                                        _rope(k, k_rope_pos_offset[b_idx] + cur_L, d_qk, rope_theta, rope_scale, (L_kv_base + cur_L, by, j), dtype, rope_scaling),
                                                         k[L_kv_base + cur_L, by, j]
                                                     )
                                                 else:
