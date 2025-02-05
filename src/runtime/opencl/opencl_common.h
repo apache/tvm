@@ -340,6 +340,10 @@ class OpenCLWorkspace : public DeviceAPI {
     return device_info[GetCLDeviceID(device_id)].image_from_buffer_support;
   }
 
+  void* AllocDataSpaceView(Device dev, void* data, ShapeTuple shape, DLDataType dtype,
+                           Optional<String> mem_scope = NullOpt);
+  void FreeDataSpaceView(Device dev, void* ptr);
+
   cl_device_id GetCLDeviceID(int device_id);
   // override device API
   void SetDevice(Device dev) final;
@@ -349,13 +353,10 @@ class OpenCLWorkspace : public DeviceAPI {
                        Optional<String> mem_scope = NullOpt) final;
   void* AllocDataSpace(Device dev, size_t width, size_t height, DLDataType type_hint,
                        Optional<String> mem_scope = NullOpt);
-  void* AllocDataSpaceView(Device dev, void* data, ShapeTuple shape, DLDataType dtype,
-                           Optional<String> mem_scope = NullOpt) final;
   void* GetNativePtr(const tvm::runtime::NDArray& narr);
   void SetNativePtr(const tvm::runtime::NDArray& narr, void* host_ptr, size_t buf_size);
   void SetPerfHint(Device dev, cl_uint perf_hint);
   void FreeDataSpace(Device dev, void* ptr) final;
-  void FreeDataSpaceView(Device dev, void* ptr) final;
   void StreamSync(Device dev, TVMStreamHandle stream) final;
   void* AllocWorkspace(Device dev, size_t size, DLDataType type_hint) final;
   void FreeWorkspace(Device dev, void* data) final;

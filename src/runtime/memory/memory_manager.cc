@@ -86,10 +86,10 @@ inline size_t GetDataAlignment(const DLTensor& arr) {
 
 void StorageObj::ScopedDeleter(Object* obj) {
   auto* ptr = static_cast<NDArray::Container*>(obj);
-  // Let Device API handle proper cleanup of view
-  tvm::runtime::DeviceAPI::Get(ptr->dl_tensor.device)
-      ->FreeDataSpaceView(ptr->dl_tensor.device, ptr->dl_tensor.data);
   StorageObj* storage = reinterpret_cast<StorageObj*>(ptr->manager_ctx);
+
+  // Let the device handle proper cleanup of view
+  storage->allocator->FreeView(ptr->dl_tensor.device, ptr->dl_tensor.data);
   storage->DecRef();
   delete ptr;
 }
@@ -100,9 +100,7 @@ NDArray StorageObj::AllocNDArrayScoped(int64_t offset, ShapeTuple shape, DLDataT
     return AllocNDArray(offset, shape, dtype);
   }
   VerifyDataType(dtype);
-  void* data =
-      DeviceAPI::Get(this->buffer.device)
-          ->AllocDataSpaceView(this->buffer.device, this->buffer.data, shape, dtype, scope);
+  void* data = this->allocator->CreateView(this->buffer, shape, dtype, scope);
   NDArray::Container* container = new NDArray::Container(data, shape, dtype, this->buffer.device);
   container->dl_tensor.byte_offset = offset;
   container->SetDeleter(StorageObj::ScopedDeleter);
@@ -234,9 +232,36 @@ bool Allocator::AllowMemoryScope(const std::string& mem_scope) const {
   return mem_scope.empty() || mem_scope == "global";
 }
 
-void* Allocator::CreateView(Buffer& buffer, ShapeTuple shape, DLDataType type_hint,
+std::string DeviceTypeStr(DLDeviceType type) {
+  switch (type) {
+    case kDLOpenCL:
+      return "opencl";
+      break;
+    case kDLVulkan:
+      return "vulkan";
+      break;
+    default:
+      return "";
+  }
+}
+
+void* Allocator::CreateView(const Buffer& buffer, ShapeTuple shape, DLDataType type_hint,
                             const std::string& mem_scope) {
+  std::string dev_str = DeviceTypeStr(buffer.device.device_type);
+  auto* device_view_helper = tvm::runtime::Registry::Get("DeviceCreateView." + dev_str);
+  if (device_view_helper) {
+    void* view_ptr = (*device_view_helper)(buffer.device, buffer.data, shape, type_hint, mem_scope);
+    return view_ptr;
+  }
   return buffer.data;
+}
+
+void Allocator::FreeView(Device dev, void* data) {
+  std::string dev_str = DeviceTypeStr(dev.device_type);
+  auto* device_view_helper = tvm::runtime::Registry::Get("DeviceFreeView." + dev_str);
+  if (device_view_helper) {
+    (*device_view_helper)(dev, data);
+  }
 }
 
 Buffer Allocator::Alloc(Device dev, ShapeTuple shape, DLDataType type_hint,
