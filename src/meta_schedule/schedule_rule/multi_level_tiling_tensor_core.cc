@@ -276,7 +276,7 @@ std::vector<State> MultiLevelTilingTensorCoreNode::ApplySubRules(std::vector<Sta
 void MultiLevelTilingTensorCoreNode::TileAndAnnotateTensorize(
     Schedule* sch, const BlockRV& block_rv, const String& intrin_name,
     const String& permuted_layout_annotate_value) const {
-  Optional<LoopRV> loop = TileWithTensorIntrin(*sch, block_rv, intrin_name).value();
+  Optional<LoopRV> loop = TileWithTensorIntrin(*sch, block_rv, intrin_name);
   ICHECK(loop.defined());
   BlockRV blockized_outer = (*sch)->Blockize(loop.value());
   (*sch)->Annotate(blockized_outer, tir::attr::meta_schedule_auto_tensorize, intrin_name);
