@@ -348,7 +348,7 @@ stage('Build and Test') {
       }
     },
     'BUILD: CPU': {
-      node('CPU-SMALL-SPOT') {
+      node('CPU-SMALL') {
         ws(per_exec_ws('tvm/build-cpu')) {
           init_git()
           sh "${docker_run} ${ci_cpu} ./tests/scripts/task_config_build_cpu.sh build"

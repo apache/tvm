@@ -43,7 +43,6 @@
 
 {% call(shard_index, num_shards) m.sharded_test_step(
   name="test: Hexagon",
-  node="CPU-SMALL",
   ws="tvm/test-hexagon",
   platform="hexagon",
   docker_image="ci_hexagon",
@@ -61,4 +60,4 @@
   )
 {% endcall %}
 
-{{ m.invoke_tests(test_method_names) -}}
+{{ m.invoke_tests(node="CPU-SMALL", test_method_names=test_method_names) -}}

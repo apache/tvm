@@ -60,7 +60,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2024-01-10T13:15:25.155555
+// Generated at 2025-02-06T20:53:50.442520
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // These are set at runtime from data in ci/jenkins/docker-images.yml, update
@@ -514,19 +514,19 @@ try {
 } catch(Exception ex) {
   prepare('CPU-SMALL')
 }
-def build(node_type) {
-  stage('Build') {
-    if (!skip_ci && is_docs_only_build != 1) {
-      node(node_type) {
-        ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/build-wasm") {
-          init_git()
-          docker_init(ci_wasm)
-          timeout(time: max_time, unit: 'MINUTES') {
+def run_build(node_type) {
+  if (!skip_ci && is_docs_only_build != 1) {
+    echo 'Begin running node_type ' + node_type
+    node(node_type) {
+      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/build-wasm") {
+        init_git()
+        docker_init(ci_wasm)
+        timeout(time: max_time, unit: 'MINUTES') {
 
-            withEnv([
-              'PLATFORM=wasm',
-              ], {
-              sh (
+          withEnv([
+            'PLATFORM=wasm',
+            ], {
+            sh (
           script: "${docker_run} ${ci_wasm} ./tests/scripts/task_config_build_wasm.sh build",
           label: 'Create WASM cmake config',
         )
@@ -538,17 +538,26 @@ def build(node_type) {
           script: "${docker_run} ${ci_wasm} ./tests/scripts/task_web_wasm.sh",
           label: 'Run WASM lint and tests',
         )
-            })
-          }
+          })
         }
       }
-    } else {
-      Utils.markStageSkippedForConditional('BUILD: WASM')
+    }
+    echo 'End running node_type ' + node_type
+  } else {
+    Utils.markStageSkippedForConditional('BUILD: WASM')
+  }
+}
+def build() {
+  stage('Build') {
+    try {
+        run_build('CPU-SMALL-SPOT')
+    } catch (Throwable ex) {
+        // mark the current stage as success
+        // and try again via on demand node
+        echo 'Exception during SPOT run ' + ex.toString() + ' retry on-demand'
+        currentBuild.result = 'SUCCESS'
+        run_build('CPU-SMALL')
     }
   }
 }
-try {
-    build('CPU-SMALL-SPOT')
-} catch (Exception ex) {
-    build('CPU-SMALL')
-}
+build()

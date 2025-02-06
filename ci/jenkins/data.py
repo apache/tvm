@@ -21,8 +21,6 @@ import sys
 files_to_stash = {
     # Executables and build files needed to run c++ tests
     "cpptest": ["build/cpptest", "build/build.ninja", "build/CMakeFiles/rules.ninja"],
-    # Executables and build files needed to c runtime tests
-    "crttest": ["build/crttest"],
     # Folder for hexagon build
     "hexagon_api": [
         "build/hexagon_api_output",
@@ -33,12 +31,10 @@ files_to_stash = {
     "tvm_runtime": ["build/libtvm_runtime.so", "build/config.cmake"],
     # compiler files
     "tvm_lib": ["build/libtvm.so", "build/libtvm_runtime.so", "build/config.cmake"],
-    # compiler files and fsim
-    "tvm_multilib": [
-        "build/libtvm.so",
-        "build/libvta_fsim.so",
-        "build/libtvm_runtime.so",
-        "build/config.cmake",
+    # gpu related compiler files
+    "tvm_lib_gpu_extra": [
+        "build/3rdparty/libflash_attn/src/libflash_attn.so",
+        "build/3rdparty/cutlass_fpA_intB_gemm/cutlass_kernels/libfpA_intB_gemm.so",
     ],
 }
 
