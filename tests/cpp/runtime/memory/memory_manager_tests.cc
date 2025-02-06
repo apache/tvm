@@ -177,7 +177,7 @@ TEST_F(TvmVMMemoryManagerTest, PooledAllocWithShape) {
     FAIL();
   } catch (std::exception& e) {
     std::string pattern =
-        "Device does not support allocate data space with specified memory scope: global.texture";
+        "This alloc should be implemented";
     std::string what = e.what();
     EXPECT_NE(what.find(pattern), std::string::npos) << what;
   }
