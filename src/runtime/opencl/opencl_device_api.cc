@@ -870,7 +870,10 @@ class OpenCLPooledAllocator final : public memory::PooledAllocator {
       buf.alloc_type = AllocatorType::kPooled;
       buf.data = DeviceAPI::Get(dev)->AllocDataSpace(dev, shape.size(), shape.data(), type_hint,
                                                      String(mem_scope));
-      used_memory_.fetch_add(size, std::memory_order_relaxed);
+      if (mem_scope.find("texture") == std::string::npos) {
+        // All textures are backed by buffers - don't count in total memory
+        used_memory_.fetch_add(size, std::memory_order_relaxed);
+      }
       DLOG(INFO) << "allocate " << size << " B, used memory " << used_memory_ << " B";
       return buf;
     }
@@ -889,7 +892,6 @@ class OpenCLPooledAllocator final : public memory::PooledAllocator {
 
   void* CreateView(const Buffer& buffer, ShapeTuple shape, DLDataType type_hint,
                    const std::string& mem_scope) final {
-    LOG(WARNING) << "OpenCL View:" << mem_scope;
     OpenCLWorkspace* ws_ = OpenCLWorkspace::Global();
     return ws_->AllocDataSpaceView(buffer.device, buffer.data, shape, type_hint,
                                    Optional<String>(mem_scope));

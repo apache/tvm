@@ -105,7 +105,7 @@ class Allocator {
    *  \param dev is the device where this view is created
    *  \param data The view pointer to be freed.
    */
-  TVM_DLL virtual void FreeView(Device dev, void* data){}
+  TVM_DLL virtual void FreeView(Device dev, void* data) {}
 
   /*! \brief Free a buffer allocated by the allocator.
    *  \param buffer The buffer to free.
