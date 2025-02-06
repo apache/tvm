@@ -26,6 +26,12 @@
 
 #include "../src/runtime/opencl/opencl_common.h"
 
+using tvm::runtime::kAllocAlignment;
+using tvm::runtime::memory::AllocatorType;
+using tvm::runtime::memory::Buffer;
+using tvm::runtime::memory::MemoryManager;
+using tvm::runtime::memory::Storage;
+
 class TextureCopyTest : public ::testing::Test {
  protected:
   void SetUp() override {
@@ -40,7 +46,7 @@ class TextureCopyTest : public ::testing::Test {
       GTEST_SKIP() << "Skip test case as BufferToImage is not supported \n";
     }
     (void)tvm::runtime::memory::MemoryManager::GetOrCreateAllocator(
-        thr->device, tvm::runtime::memory::AllocatorType::kNaive);
+        thr->device, tvm::runtime::memory::AllocatorType::kPooled);
   }
 };
 
@@ -53,7 +59,7 @@ TEST(TextureCopy, HostDeviceRT) {
   tvm::runtime::cl::OpenCLWorkspace* workspace = tvm::runtime::cl::OpenCLWorkspace::Global();
   tvm::runtime::cl::OpenCLThreadEntry* thr = workspace->GetThreadEntry();
   (void)tvm::runtime::memory::MemoryManager::GetOrCreateAllocator(
-      thr->device, tvm::runtime::memory::AllocatorType::kNaive);
+      thr->device, tvm::runtime::memory::AllocatorType::kPooled);
   std::vector<int64_t> shape{16, 16, 4};
   auto cpu_arr0 = runtime::NDArray::Empty(shape, {kDLFloat, 32, 1}, {kDLCPU, 0});
   auto cpu_arr1 = runtime::NDArray::Empty(shape, {kDLFloat, 32, 1}, {kDLCPU, 0});
@@ -84,7 +90,6 @@ TEST(TextureCopy, HostDeviceRT) {
   }
 }
 
-#if 0
 TEST_F(TextureCopyTest, ViewBufferAsBuffer) {
   using namespace tvm;
   std::vector<int64_t> shape{1, 16, 16, 8};
@@ -93,8 +98,15 @@ TEST_F(TextureCopyTest, ViewBufferAsBuffer) {
   auto cpu_arr_ret = runtime::NDArray::Empty(shape, {kDLFloat, 32, 1}, {kDLCPU, 0});
 
   String mem_scope = "global";
-  auto opencl_memobj = runtime::NDArray::Empty(shape, {kDLFloat, 32, 1}, {kDLOpenCL, 0}, mem_scope);
-  auto opencl_memview = opencl_memobj.CreateView(same_shape, {kDLFloat, 32, 1});
+
+  DLDevice cl_dev = {kDLOpenCL, 0};
+  auto allocator = MemoryManager::GetOrCreateAllocator(cl_dev, AllocatorType::kPooled);
+  auto buffer = allocator->Alloc(cl_dev, ShapeTuple(shape), {kDLFloat, 32, 1});
+  auto stor = Storage(buffer, allocator);
+
+  auto opencl_memobj = stor->AllocNDArrayScoped(0, ShapeTuple(shape), {kDLFloat, 32, 1}, mem_scope);
+  auto opencl_memview =
+      stor->AllocNDArrayScoped(0, ShapeTuple(same_shape), {kDLFloat, 32, 1}, mem_scope);
 
   std::random_device dev;
   std::mt19937 mt(dev());
@@ -144,10 +156,14 @@ TEST_F(TextureCopyTest, ViewBufferAsImage) {
   auto cpu_arr = runtime::NDArray::Empty(shape, {kDLFloat, 32, 1}, {kDLCPU, 0});
   auto cpu_arr_ret = runtime::NDArray::Empty(shape, {kDLFloat, 32, 1}, {kDLCPU, 0});
 
-  auto opencl_buf_obj =
-      runtime::NDArray::Empty(shape, {kDLFloat, 32, 1}, {kDLOpenCL, 0}, String("global"));
+  DLDevice cl_dev = {kDLOpenCL, 0};
+  auto allocator = MemoryManager::GetOrCreateAllocator(cl_dev, AllocatorType::kPooled);
+  auto buffer = allocator->Alloc(cl_dev, ShapeTuple(shape), {kDLFloat, 32, 1});
+  auto stor = Storage(buffer, allocator);
+
+  auto opencl_buf_obj = stor->AllocNDArrayScoped(0, ShapeTuple(shape), {kDLFloat, 32, 1}, "global");
   auto opencl_img_obj =
-      opencl_buf_obj.CreateView(same_shape, {kDLFloat, 32, 1}, 0, String("global.texture"));
+      stor->AllocNDArrayScoped(0, ShapeTuple(same_shape), {kDLFloat, 32, 1}, "global.texture");
 
   std::random_device dev;
   std::mt19937 mt(dev());
@@ -197,10 +213,15 @@ TEST_F(TextureCopyTest, ViewImageAsBuffer) {
   auto cpu_arr = runtime::NDArray::Empty(shape, {kDLFloat, 32, 1}, {kDLCPU, 0});
   auto cpu_arr_ret = runtime::NDArray::Empty(shape, {kDLFloat, 32, 1}, {kDLCPU, 0});
 
+  DLDevice cl_dev = {kDLOpenCL, 0};
+  auto allocator = MemoryManager::GetOrCreateAllocator(cl_dev, AllocatorType::kPooled);
+  auto buffer = allocator->Alloc(cl_dev, ShapeTuple(shape), {kDLFloat, 32, 1});
+  auto stor = Storage(buffer, allocator);
+
   auto opencl_img_obj =
-      runtime::NDArray::Empty(shape, {kDLFloat, 32, 1}, {kDLOpenCL, 0}, String("global.texture"));
+      stor->AllocNDArrayScoped(0, ShapeTuple(shape), {kDLFloat, 32, 1}, "global.texture");
   auto opencl_buf_obj =
-      opencl_img_obj.CreateView(same_shape, {kDLFloat, 32, 1}, 0, String("global"));
+      stor->AllocNDArrayScoped(0, ShapeTuple(same_shape), {kDLFloat, 32, 1}, "global");
 
   std::random_device dev;
   std::mt19937 mt(dev());
@@ -250,10 +271,15 @@ TEST_F(TextureCopyTest, ViewImageAsImage) {
   auto cpu_arr = runtime::NDArray::Empty(shape, {kDLFloat, 32, 1}, {kDLCPU, 0});
   auto cpu_arr_ret = runtime::NDArray::Empty(shape, {kDLFloat, 32, 1}, {kDLCPU, 0});
 
+  DLDevice cl_dev = {kDLOpenCL, 0};
+  auto allocator = MemoryManager::GetOrCreateAllocator(cl_dev, AllocatorType::kPooled);
+  auto buffer = allocator->Alloc(cl_dev, ShapeTuple(shape), {kDLFloat, 32, 1});
+  auto stor = Storage(buffer, allocator);
+
   auto opencl_img_obj_1 =
-      runtime::NDArray::Empty(shape, {kDLFloat, 32, 1}, {kDLOpenCL, 0}, String("global.texture"));
+      stor->AllocNDArrayScoped(0, ShapeTuple(shape), {kDLFloat, 32, 1}, "global.texture");
   auto opencl_img_obj_2 =
-      opencl_img_obj_1.CreateView(same_shape, {kDLFloat, 32, 1}, 0, String("global.texture"));
+      stor->AllocNDArrayScoped(0, ShapeTuple(same_shape), {kDLFloat, 32, 1}, "global.texture");
 
   std::random_device dev;
   std::mt19937 mt(dev());
@@ -294,4 +320,3 @@ TEST_F(TextureCopyTest, ViewImageAsImage) {
               1e-5);
   }
 }
-#endif
