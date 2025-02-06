@@ -176,8 +176,7 @@ TEST_F(TvmVMMemoryManagerTest, PooledAllocWithShape) {
     (void)texture;
     FAIL();
   } catch (std::exception& e) {
-    std::string pattern =
-        "This alloc should be implemented";
+    std::string pattern = "This alloc should be implemented";
     std::string what = e.what();
     EXPECT_NE(what.find(pattern), std::string::npos) << what;
   }
