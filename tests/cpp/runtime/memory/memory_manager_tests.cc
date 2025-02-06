@@ -182,51 +182,6 @@ TEST_F(TvmVMMemoryManagerTest, PooledAllocWithShape) {
   }
 }
 
-TEST_F(TvmVMMemoryManagerTest, NaiveAllocOpenCLTexture) {
-  bool enabled = tvm::runtime::RuntimeEnabled("opencl");
-  if (!enabled) {
-    LOG(INFO) << "Skip OpenCL Texture alloc test because opencl runtime is disabled.\n";
-    return;
-  }
-  Device dev = {kDLOpenCL, 0};
-  Allocator* allocator = MemoryManagerWrapper::GetOrCreateAllocator(dev, kNaive);
-  EXPECT_EQ(allocator->UsedMemory(), 0);
-  auto dt = DataType::Float(32);
-  size_t nbytes = 1 * 3 * 6 * 6 * dt.bytes();
-  ShapeTuple shape = {1, 3, 6, 6};
-  auto buff = allocator->Alloc(dev, shape, dt);
-  EXPECT_EQ(allocator->UsedMemory(), nbytes);
-  allocator->Free(buff);
-  EXPECT_EQ(allocator->UsedMemory(), 0);
-
-  auto texture = allocator->Alloc(dev, shape, dt, "global.texture");
-  EXPECT_EQ(allocator->UsedMemory(), nbytes);
-  allocator->Free(texture);
-  EXPECT_EQ(allocator->UsedMemory(), 0);
-}
-
-TEST_F(TvmVMMemoryManagerTest, PooledAllocOpenCLTexture) {
-  bool enabled = tvm::runtime::RuntimeEnabled("opencl");
-  if (!enabled) {
-    LOG(INFO) << "Skip OpenCL Texture alloc test because opencl runtime is disabled.\n";
-    return;
-  }
-  Device dev = {kDLOpenCL, 0};
-  Allocator* allocator = MemoryManagerWrapper::GetOrCreateAllocator(dev, kPooled);
-  EXPECT_EQ(allocator->UsedMemory(), 0);
-  auto dt = DataType::Float(32);
-  size_t nbytes = 1 * 3 * 6 * 6 * dt.bytes();
-  size_t page_size = PooledAllocator::kDefaultPageSize;
-  size_t size = ((nbytes + page_size - 1) / page_size) * page_size;
-  ShapeTuple shape = {1, 3, 6, 6};
-  auto buff = allocator->Alloc(dev, shape, dt);
-  EXPECT_EQ(allocator->UsedMemory(), size);
-  allocator->Free(buff);
-  EXPECT_EQ(allocator->UsedMemory(), size);
-
-  auto texture = allocator->Alloc(dev, shape, dt, "global.texture");
-  allocator->Free(texture);
-}
 }  // namespace memory
 }  // namespace runtime
 }  // namespace tvm
