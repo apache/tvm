@@ -4098,5 +4098,6 @@ def test_masked_scatter():
         expected2,
     )
 
+
 if __name__ == "__main__":
     tvm.testing.main()
