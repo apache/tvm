@@ -2112,6 +2112,7 @@ def test_unary():
                 gv: R.Tensor((1, 3, 10, 10), dtype="float32") = lv
                 R.output(gv)
             return gv
+
     verify_model(Ceil(), input_info, {}, expected_ceil)
 
     # clamp
@@ -2262,6 +2263,7 @@ def test_unary():
                 gv: R.Tensor((1, 3, 10, 10), dtype="float32") = lv
                 R.output(gv)
             return gv
+
     verify_model(Floor(), input_info, {}, expected_floor)
 
     # gelu
