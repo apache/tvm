@@ -31,7 +31,7 @@
   )
   cmake_build(ci_arm, 'build', '-j4')
   make_cpp_tests(ci_arm, 'build')
-  {{ m.upload_artifacts(tag='arm', filenames=tvm_multilib + cpptest + crttest + microtvm_template_projects) }}
+  {{ m.upload_artifacts(tag='arm', filenames=tvm_lib + cpptest) }}
 {% endcall %}
 
 {% set test_method_names = [] %}
@@ -39,7 +39,6 @@
 {% call(shard_index, num_shards) m.sharded_test_step(
   name="integration: aarch64",
   num_shards=4,
-  node="ARM-GRAVITON3",
   ws="tvm/ut-python-arm",
   platform="arm",
   docker_image="ci_arm",
@@ -56,7 +55,6 @@
 
 {% call(shard_index, num_shards) m.sharded_test_step(
   name="topi: aarch64",
-  node="ARM-GRAVITON3",
   ws="tvm/ut-python-arm",
   platform="arm",
   docker_image="ci_arm",
@@ -80,7 +78,6 @@
 
 {% call(shard_index, num_shards) m.sharded_test_step(
   name="frontend: aarch64",
-  node="ARM-GRAVITON3",
   ws="tvm/frontend-python-arm",
   platform="arm",
   docker_image="ci_arm",
@@ -95,4 +92,4 @@
   )
 {% endcall %}
 
-{{ m.invoke_tests(test_method_names) -}}
+{{ m.invoke_tests(node="ARM-GRAVITON3", test_method_names=test_method_names) -}}

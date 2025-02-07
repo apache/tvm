@@ -60,7 +60,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2024-01-10T13:15:25.169799
+// Generated at 2025-02-07T09:50:07.135264
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // These are set at runtime from data in ci/jenkins/docker-images.yml, update
@@ -507,7 +507,6 @@ def cpp_unittest(image) {
   )
 }
 
-
 cancel_previous_build()
 
 try {
@@ -515,64 +514,71 @@ try {
 } catch(Exception ex) {
   prepare('CPU-SMALL')
 }
-def build(node_type) {
-  stage('Build') {
-    if (!skip_ci && is_docs_only_build != 1) {
-      node(node_type) {
-        ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/build-i386") {
-          init_git()
-          docker_init(ci_i386)
-          timeout(time: max_time, unit: 'MINUTES') {
+def run_build(node_type) {
+  if (!skip_ci && is_docs_only_build != 1) {
+    echo 'Begin running node_type ' + node_type
+    node(node_type) {
+      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/build-i386") {
+        init_git()
+        docker_init(ci_i386)
+        timeout(time: max_time, unit: 'MINUTES') {
 
-            withEnv([
-              'PLATFORM=i386',
-              ], {
-              sh (
+          withEnv([
+            'PLATFORM=i386',
+            ], {
+            sh (
           script: "${docker_run} ${ci_i386} ./tests/scripts/task_config_build_i386.sh build",
           label: 'Create i386 cmake config',
         )
         cmake_build(ci_i386, 'build', '-j2')
         make_cpp_tests(ci_i386, 'build')
         sh(
-            script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/i386 --items build/libvta_tsim.so build/libtvm.so build/libvta_fsim.so build/libtvm_runtime.so build/config.cmake build/build.ninja build/crttest build/cpptest build/build.ninja build/CMakeFiles/rules.ninja build/microtvm_template_projects",
+            script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/i386 --items build/libtvm.so build/libtvm_runtime.so build/config.cmake build/cpptest build/build.ninja build/CMakeFiles/rules.ninja",
             label: 'Upload artifacts to S3',
           )
-            })
-          }
+          })
         }
       }
-    } else {
-      Utils.markStageSkippedForConditional('BUILD: i386')
+    }
+    echo 'End running node_type ' + node_type
+  } else {
+    Utils.markStageSkippedForConditional('BUILD: i386')
+  }
+}
+def build() {
+  stage('Build') {
+    try {
+        run_build('CPU-SMALL-SPOT')
+    } catch (Throwable ex) {
+        // mark the current stage as success
+        // and try again via on demand node
+        echo 'Exception during SPOT run ' + ex.toString() + ' retry on-demand'
+        currentBuild.result = 'SUCCESS'
+        run_build('CPU-SMALL')
     }
   }
 }
-try {
-    build('CPU-SMALL-SPOT')
-} catch (Exception ex) {
-    build('CPU-SMALL')
-}
+build()
 
 
 
 
-def shard_run_python_i386_1_of_3(node_type='CPU-SMALL-SPOT', on_demand=false) {
+def shard_run_python_i386_1_of_3(node_type) {
+  echo 'Begin running on node_type ' + node_type
   if (!skip_ci && is_docs_only_build != 1) {
-    if (on_demand==true || node_type.contains('ARM')) {
-        node_type = 'CPU-SMALL'
-    }
     node(node_type) {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-i386") {
-        try {
-          init_git()
-          docker_init(ci_i386)
-          timeout(time: max_time, unit: 'MINUTES') {
-            withEnv([
-              'PLATFORM=i386',
-              'TEST_STEP_NAME=python: i386',
-              'TVM_NUM_SHARDS=3',
-              'TVM_SHARD_INDEX=0',
-              "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
-              sh(
+        // NOTE: if exception happens, it will be caught outside
+        init_git()
+        docker_init(ci_i386)
+        timeout(time: max_time, unit: 'MINUTES') {
+          withEnv([
+            'PLATFORM=i386',
+            'TEST_STEP_NAME=python: i386',
+            'TVM_NUM_SHARDS=3',
+            'TVM_SHARD_INDEX=0',
+            "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
+            sh(
                   script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/i386",
                   label: 'Download artifacts from S3',
                 )
@@ -584,45 +590,43 @@ def shard_run_python_i386_1_of_3(node_type='CPU-SMALL-SPOT', on_demand=false) {
                 script: "${docker_run} ${ci_i386} ./tests/scripts/task_python_integration_i386only.sh",
                 label: 'Run i386 integration tests',
               )
-            })
-          }
-        } finally {
-          try {
-            sh(
+          })
+        }
+        // only run upload if things are successful
+        try {
+          sh(
             script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/pytest-results/python_i386 --items build/pytest-results",
             label: 'Upload JUnits to S3',
           )
 
-            junit 'build/pytest-results/*.xml'
-          } catch (Exception e) {
-            echo 'Exception during JUnit upload: ' + e.toString()
-          }
+          junit 'build/pytest-results/*.xml'
+        } catch (Exception e) {
+          echo 'Exception during JUnit upload: ' + e.toString()
         }
       }
     }
+    echo 'End running on node_type ' + node_type
   } else {
     Utils.markStageSkippedForConditional('python: i386 1 of 3')
   }
 }
 
-def shard_run_python_i386_2_of_3(node_type='CPU-SMALL-SPOT', on_demand=false) {
+def shard_run_python_i386_2_of_3(node_type) {
+  echo 'Begin running on node_type ' + node_type
   if (!skip_ci && is_docs_only_build != 1) {
-    if (on_demand==true || node_type.contains('ARM')) {
-        node_type = 'CPU-SMALL'
-    }
     node(node_type) {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-i386") {
-        try {
-          init_git()
-          docker_init(ci_i386)
-          timeout(time: max_time, unit: 'MINUTES') {
-            withEnv([
-              'PLATFORM=i386',
-              'TEST_STEP_NAME=python: i386',
-              'TVM_NUM_SHARDS=3',
-              'TVM_SHARD_INDEX=1',
-              "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
-              sh(
+        // NOTE: if exception happens, it will be caught outside
+        init_git()
+        docker_init(ci_i386)
+        timeout(time: max_time, unit: 'MINUTES') {
+          withEnv([
+            'PLATFORM=i386',
+            'TEST_STEP_NAME=python: i386',
+            'TVM_NUM_SHARDS=3',
+            'TVM_SHARD_INDEX=1',
+            "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
+            sh(
                   script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/i386",
                   label: 'Download artifacts from S3',
                 )
@@ -633,45 +637,43 @@ def shard_run_python_i386_2_of_3(node_type='CPU-SMALL-SPOT', on_demand=false) {
                 script: "${docker_run} ${ci_i386} ./tests/scripts/task_python_integration_i386only.sh",
                 label: 'Run i386 integration tests',
               )
-            })
-          }
-        } finally {
-          try {
-            sh(
+          })
+        }
+        // only run upload if things are successful
+        try {
+          sh(
             script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/pytest-results/python_i386 --items build/pytest-results",
             label: 'Upload JUnits to S3',
           )
 
-            junit 'build/pytest-results/*.xml'
-          } catch (Exception e) {
-            echo 'Exception during JUnit upload: ' + e.toString()
-          }
+          junit 'build/pytest-results/*.xml'
+        } catch (Exception e) {
+          echo 'Exception during JUnit upload: ' + e.toString()
         }
       }
     }
+    echo 'End running on node_type ' + node_type
   } else {
     Utils.markStageSkippedForConditional('python: i386 2 of 3')
   }
 }
 
-def shard_run_python_i386_3_of_3(node_type='CPU-SMALL-SPOT', on_demand=false) {
+def shard_run_python_i386_3_of_3(node_type) {
+  echo 'Begin running on node_type ' + node_type
   if (!skip_ci && is_docs_only_build != 1) {
-    if (on_demand==true || node_type.contains('ARM')) {
-        node_type = 'CPU-SMALL'
-    }
     node(node_type) {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/integration-python-i386") {
-        try {
-          init_git()
-          docker_init(ci_i386)
-          timeout(time: max_time, unit: 'MINUTES') {
-            withEnv([
-              'PLATFORM=i386',
-              'TEST_STEP_NAME=python: i386',
-              'TVM_NUM_SHARDS=3',
-              'TVM_SHARD_INDEX=2',
-              "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
-              sh(
+        // NOTE: if exception happens, it will be caught outside
+        init_git()
+        docker_init(ci_i386)
+        timeout(time: max_time, unit: 'MINUTES') {
+          withEnv([
+            'PLATFORM=i386',
+            'TEST_STEP_NAME=python: i386',
+            'TVM_NUM_SHARDS=3',
+            'TVM_SHARD_INDEX=2',
+            "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
+            sh(
                   script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/i386",
                   label: 'Download artifacts from S3',
                 )
@@ -682,22 +684,22 @@ def shard_run_python_i386_3_of_3(node_type='CPU-SMALL-SPOT', on_demand=false) {
                 script: "${docker_run} ${ci_i386} ./tests/scripts/task_python_integration_i386only.sh",
                 label: 'Run i386 integration tests',
               )
-            })
-          }
-        } finally {
-          try {
-            sh(
+          })
+        }
+        // only run upload if things are successful
+        try {
+          sh(
             script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/pytest-results/python_i386 --items build/pytest-results",
             label: 'Upload JUnits to S3',
           )
 
-            junit 'build/pytest-results/*.xml'
-          } catch (Exception e) {
-            echo 'Exception during JUnit upload: ' + e.toString()
-          }
+          junit 'build/pytest-results/*.xml'
+        } catch (Exception e) {
+          echo 'Exception during JUnit upload: ' + e.toString()
         }
       }
     }
+    echo 'End running on node_type ' + node_type
   } else {
     Utils.markStageSkippedForConditional('python: i386 3 of 3')
   }
@@ -712,23 +714,35 @@ def test() {
     parallel(
     'python: i386 1 of 3': {
       try {
-      shard_run_python_i386_1_of_3()
-      } catch (Exception ex) {
-        shard_run_python_i386_1_of_3(on_demand = true)
+      shard_run_python_i386_1_of_3('CPU-SMALL-SPOT')
+      } catch (Throwable ex) {
+        // mark the current stage as success
+        // and try again via on demand node
+        echo 'Exception during SPOT run ' + ex.toString() + ' retry on-demand'
+        currentBuild.result = 'SUCCESS'
+        shard_run_python_i386_1_of_3('CPU-SMALL')
       }
     },
     'python: i386 2 of 3': {
       try {
-      shard_run_python_i386_2_of_3()
-      } catch (Exception ex) {
-        shard_run_python_i386_2_of_3(on_demand = true)
+      shard_run_python_i386_2_of_3('CPU-SMALL-SPOT')
+      } catch (Throwable ex) {
+        // mark the current stage as success
+        // and try again via on demand node
+        echo 'Exception during SPOT run ' + ex.toString() + ' retry on-demand'
+        currentBuild.result = 'SUCCESS'
+        shard_run_python_i386_2_of_3('CPU-SMALL')
       }
     },
     'python: i386 3 of 3': {
       try {
-      shard_run_python_i386_3_of_3()
-      } catch (Exception ex) {
-        shard_run_python_i386_3_of_3(on_demand = true)
+      shard_run_python_i386_3_of_3('CPU-SMALL-SPOT')
+      } catch (Throwable ex) {
+        // mark the current stage as success
+        // and try again via on demand node
+        echo 'Exception during SPOT run ' + ex.toString() + ' retry on-demand'
+        currentBuild.result = 'SUCCESS'
+        shard_run_python_i386_3_of_3('CPU-SMALL')
       }
     },
     )
