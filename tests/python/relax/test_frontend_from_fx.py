@@ -1957,7 +1957,7 @@ def test_getitem():
 def test_unary():
     input_info = [([1, 3, 10, 10], "float32")]
 
-    #abs
+    # abs
     class Abs(Module):
         def forward(self, input):
             return torch.abs(input)
@@ -1973,6 +1973,7 @@ def test_unary():
                 gv: R.Tensor((1, 3, 10, 10), dtype="float32") = lv
                 R.output(gv)
             return gv
+
     verify_model(Abs(), input_info, {}, expected_abs)
 
     # acos
@@ -2095,7 +2096,7 @@ def test_unary():
 
     verify_model(Atanh(), input_info, {}, expected_atanh)
 
-    #ceil
+    # ceil
     class Ceil(Module):
         def forward(self, input):
             return torch.ceil(input)
@@ -2113,7 +2114,7 @@ def test_unary():
             return gv
     verify_model(Ceil(), input_info, {}, expected_ceil)
 
-    #clamp
+    # clamp
     class Clamp(Module):
         def forward(self, input):
             return torch.clamp(input, min=0.1, max=0.5)
@@ -2197,7 +2198,7 @@ def test_unary():
 
     verify_model(Cosh(), input_info, {}, expected_cosh)
 
-    #dropout
+    # dropout
     class Dropout1(Module):
         def __init__(self):
             super().__init__()
@@ -2245,7 +2246,7 @@ def test_unary():
 
     verify_model(Exp(), input_info, {}, expected_exp)
 
-    #floor
+    # floor
     class Floor(Module):
         def forward(self, input):
             return torch.floor(input)
@@ -2263,7 +2264,7 @@ def test_unary():
             return gv
     verify_model(Floor(), input_info, {}, expected_floor)
 
-    #gelu
+    # gelu
     class Gelu(Module):
         def __init__(self):
             super().__init__()
@@ -2292,7 +2293,7 @@ def test_unary():
     verify_model(Gelu(), input_info, {}, expected_gelu)
     verify_model(Gelu2(), input_info, {}, expected_gelu)
 
-    #hardsigmoid
+    # hardsigmoid
     class Hardsigmoid(torch.nn.Module):
         def __init__(self):
             super().__init__()
@@ -2324,7 +2325,7 @@ def test_unary():
     verify_model(Hardsigmoid(), input_info, {}, expected_hardsigmoid)
     verify_model(Hardsigmoid2(), input_info, {}, expected_hardsigmoid)
 
-    #hardswish
+    # hardswish
     class Hardswish(torch.nn.Module):
         def __init__(self):
             super().__init__()
@@ -2357,7 +2358,7 @@ def test_unary():
     verify_model(Hardswish(), input_info, {}, expected_hardswish)
     verify_model(Hardswish2(), input_info, {}, expected_hardswish)
 
-    #log
+    # log
     class Log(Module):
         def forward(self, input):
             return torch.log(input)
@@ -2373,9 +2374,10 @@ def test_unary():
                 gv: R.Tensor((1, 3, 10, 10), dtype="float32") = lv
                 R.output(gv)
             return gv
+
     verify_model(Log(), input_info, {}, expected_log)
 
-    #log_softmax
+    # log_softmax
     class LogSoftmax(Module):
         def __init__(self):
             super().__init__()
@@ -2392,7 +2394,7 @@ def test_unary():
     class expected_log_softmax:
         @R.function
         def main(
-                input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
+            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
         ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
             # block 0
             with R.dataflow():
@@ -2404,7 +2406,7 @@ def test_unary():
     verify_model(LogSoftmax(), input_info, {}, expected_log_softmax)
     verify_model(LogSoftmax2(), input_info, {}, expected_log_softmax)
 
-    #neg
+    # neg
     class Neg(Module):
         def forward(self, input):
             return -input
@@ -2423,7 +2425,7 @@ def test_unary():
 
     verify_model(Neg(), input_info, {}, expected_neg)
 
-    #relu
+    # relu
     class ReLU0(Module):
         def __init__(self):
             super().__init__()
@@ -2440,7 +2442,7 @@ def test_unary():
     class expected_relu:
         @R.function
         def main(
-                input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
+            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
         ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
             # block 0
             with R.dataflow():
@@ -2472,7 +2474,7 @@ def test_unary():
 
     verify_model(Round(), input_info, {}, expected_round)
 
-    #rsqrt
+    # rsqrt
     class Rsqrt(Module):
         def forward(self, input):
             return torch.rsqrt(input)
@@ -2481,7 +2483,7 @@ def test_unary():
     class expected_rsqrt:
         @R.function
         def main(
-                input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
+            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
         ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
             with R.dataflow():
                 lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.rsqrt(input_1)
@@ -2520,7 +2522,7 @@ def test_unary():
     verify_model(Sigmoid(), input_info, {}, expected_sigmoid)
     verify_model(Sigmoid2(), input_info, {}, expected_sigmoid)
 
-    #selu
+    # silu
     class SiLU(Module):
         def __init__(self):
             super().__init__()
@@ -2606,7 +2608,7 @@ def test_unary():
     class expected_softmax:
         @R.function
         def main(
-                input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
+            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
         ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
             # block 0
             with R.dataflow():
@@ -2658,7 +2660,7 @@ def test_unary():
 
     verify_model(Tan(), input_info, {}, expected_tan)
 
-    #tanh
+    # tanh
     class Tanh(Module):
         def __init__(self):
             super().__init__()
@@ -2687,7 +2689,7 @@ def test_unary():
     verify_model(Tanh(), input_info, {}, expected_tanh)
     verify_model(Tanh2(), input_info, {}, expected_tanh)
 
-    #tril
+    # tril
     class Tril(Module):
         def forward(self, input):
             return torch.tril(input, 1)
@@ -2712,7 +2714,7 @@ def test_unary():
     verify_model(Tril(), input_info, {}, expected_tril)
     verify_model(InplaceTril(), input_info, {}, expected_tril)
 
-    #triu
+    # triu
     class Triu(Module):
         def forward(self, input):
             return torch.triu(input, 1)
@@ -3759,6 +3761,7 @@ def test_mean():
     verify_model(Mean(), [([256, 256], "float32")], {}, Expected1)
     verify_model(MeanKeepDim(), [([256, 256], "float32")], {}, Expected2)
 
+
 def test_cat():
     class Cat0(Module):
         def forward(self, x, y):
@@ -3806,9 +3809,6 @@ def test_cat():
     verify_model(Cat1(), [([2, 3], "float32"), ([2, 3], "float32")], {}, Expected2)
     verify_model(Cat2(), [([2, 3], "float32"), ([2, 3], "float32")], {}, Expected2)
     verify_model(Cat3(), [([2, 3], "float32"), ([2, 3], "float32")], {}, Expected1)
-
-
-
 
 
 def test_max():
