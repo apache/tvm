@@ -15,17 +15,21 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import pytest
 import os
+import tempfile
+
+import numpy as np
+import pytest
+
 import tvm
 import tvm.testing
 from tvm import relax, tir
-import numpy as np
-from tvm.script import relax as R, ir as I, tir as T
-from tvm.relax.testing import transform
-import tempfile
-from tvm.relax.transform.tuning_api import Trace
 from tvm.relax.dpl import is_op, wildcard
+from tvm.relax.testing import transform
+from tvm.relax.transform.tuning_api import Trace
+from tvm.script import ir as I
+from tvm.script import relax as R
+from tvm.script import tir as T
 
 env_checker_codegen = tvm.get_global_func("relax.ext.tensorrt", True)
 env_checker_runtime = tvm.get_global_func("relax.is_tensorrt_runtime_enabled", True)
@@ -280,7 +284,7 @@ def test_default_entry_func():
 
 
 def test_dynamic_shape():
-    import tvm.relax.backend.contrib.cublas
+    import tvm.relax.backend.cuda.cublas
 
     @I.ir_module
     class Before:

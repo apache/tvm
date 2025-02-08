@@ -19,6 +19,8 @@ import pytest
 
 import tvm
 from tvm import relax
+from tvm.relax.backend.cuda.cublas import partition_for_cublas
+from tvm.relax.backend.cuda.cutlass import partition_for_cutlass
 from tvm.relax.dpl.pattern import (
     is_op,
     is_tuple_get_item,
@@ -26,8 +28,6 @@ from tvm.relax.dpl.pattern import (
     wildcard,
 )
 from tvm.relax.transform import PatternCheckContext
-from tvm.relax.backend.contrib.cutlass import partition_for_cutlass
-from tvm.relax.backend.contrib.cublas import partition_for_cublas
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tir as T
@@ -57,7 +57,8 @@ class Conv2dReLU_composite_annotated:
         cls = Conv2dReLU_composite_annotated
         with R.dataflow():
             gv: R.Tensor(
-                (1, 64, 56, 56), dtype="float32"
+                (1, 64, 56, 56),
+                dtype="float32",
             ) = cls.fused_relax_nn_conv2d_relax_nn_relu_dnnl(data, weight1)
             R.output(gv)
         return gv
@@ -121,10 +122,12 @@ class Conv2dReLUx2Partitioned:
         cls = Conv2dReLUx2Partitioned
         with R.dataflow():
             lv: R.Tensor(
-                (1, 64, 56, 56), dtype="float32"
+                (1, 64, 56, 56),
+                dtype="float32",
             ) = cls.fused_relax_nn_conv2d_relax_nn_relu(data, weight1)
             gv: R.Tensor(
-                (1, 64, 54, 54), dtype="float32"
+                (1, 64, 54, 54),
+                dtype="float32",
             ) = cls.fused_relax_nn_conv2d_relax_nn_relu1(lv, weight2)
             R.output(gv)
         return gv
@@ -236,7 +239,8 @@ class Conv2dConv2dReLUPartitioned:
                 data, weight1
             )
             gv: R.Tensor(
-                (1, 64, 54, 54), dtype="float32"
+                (1, 64, 54, 54),
+                dtype="float32",
             ) = cls.fused_relax_nn_conv2d_relax_nn_relu(lv, weight2)
             R.output(gv)
         return gv
