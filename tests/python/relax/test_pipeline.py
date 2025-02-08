@@ -25,7 +25,7 @@ from tvm.script import tir as T
 
 def test_pipeline_compile():
     target = tvm.target.Target("llvm", host="llvm")
-    pipeline = relax.backend.get_default_pipeline(target)
+    pipeline = relax.pipeline.get_default_pipeline(target)
 
     @tvm.script.ir_module
     class Mod:
@@ -51,7 +51,7 @@ def test_pipeline_compile():
 def test_pipeline_with_kv_cache():
     """A dummy pipline that simulates KV update."""
     target = tvm.target.Target("llvm", host="llvm")
-    pipeline = relax.backend.get_default_pipeline(target)
+    pipeline = relax.pipeline.get_default_pipeline(target)
 
     @tvm.script.ir_module
     class Mod:
