@@ -446,6 +446,7 @@ def have_fp8(compute_version):
         return True
     return False
 
+
 @tvm._ffi.register_func("tvm.contrib.nvcc.supports_fp4")
 def have_fp4(compute_version):
     """Whether fp4 support is provided in the specified compute capability or not

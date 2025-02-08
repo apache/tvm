@@ -200,7 +200,7 @@ class NDArray(NDArrayBase):
         if dtype.startswith("e2m1_float4"):
             data_bits = source_array.view(dtype="uint8")
             if data_bits.size % 2:
-                data_bits = np.pad(data_bits, (0, 1), mode='constant', constant_values=0)
+                data_bits = np.pad(data_bits, (0, 1), mode="constant", constant_values=0)
             data_bits = data_bits.reshape(-1, 2)
             packed = ((data_bits[:, 0] & 0x0F) << 4) | (data_bits[:, 1] & 0x0F)
             source_array = packed.astype(np.int8)
@@ -286,7 +286,7 @@ class NDArray(NDArrayBase):
             np_arr_ret[1::2] = old_index[0 : length // 2]
             np_arr_ret[0::2] = even_index[0 : length // 2]
             return np_arr_ret.reshape(shape).view(dtype)
-            
+
         return np_arr
 
     def copyto(self, target, mem_scope=None):

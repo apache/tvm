@@ -33,7 +33,7 @@ native_dtype, promoted_dtype = tvm.testing.parameters(
 )
 
 
-# @tvm.testing.requires_cuda_compute_version(9)
+@tvm.testing.requires_cuda_compute_version(9)
 def test_e2m1_vector_conversions(native_dtype, promoted_dtype):
     vector_length = 64
 
