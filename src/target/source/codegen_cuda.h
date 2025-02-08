@@ -42,7 +42,7 @@ class CodeGenCUDA final : public CodeGenC {
   void Init(bool output_ssa);
   std::string Finish();
   bool need_include_path() {
-    return (enable_fp16_ || enable_bf16_ || enable_int8_ || enable_fp8_ || need_math_constants_h_ ||
+    return (enable_fp16_ || enable_bf16_ || enable_int8_ || enable_fp8_ || enable_fp4_ || need_math_constants_h_ ||
             need_mma_h_);
   }
   // override behavior
@@ -96,6 +96,8 @@ class CodeGenCUDA final : public CodeGenC {
   bool enable_bf16_{false};
   // whether enable fp8
   bool enable_fp8_{false};
+  // whether enable fp4
+  bool enable_fp4_{false};
   // whether enable int8
   bool enable_int8_{false};
   // whether enable warp shuffle intrinsics

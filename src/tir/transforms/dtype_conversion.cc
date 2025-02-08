@@ -39,7 +39,7 @@ PrimExpr DTypeConversion(PrimExpr src_value, DataType tgt_dtype, RoundingMode ro
   CHECK_EQ(src_dtype.lanes(), tgt_dtype.lanes())
       << "The lanes for data type for source value must matches the target datatype.";
   auto is_floating_point = [](DataType dtype) {
-    return dtype.is_float() || dtype.is_float8() || dtype.is_bfloat16();
+    return dtype.is_float() || dtype.is_float8() || dtype.is_bfloat16() || dtype.is_float4();
   };
   // Both source dtype and target dtype should be floating point.
   CHECK(is_floating_point(src_dtype) && is_floating_point(tgt_dtype));

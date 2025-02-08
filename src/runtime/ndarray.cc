@@ -28,6 +28,7 @@
 #include <tvm/runtime/registry.h>
 
 #include "runtime_base.h"
+#include "tvm/runtime/data_type.h"
 
 extern "C" {
 // C-mangled dlpack deleter.
@@ -52,6 +53,8 @@ inline void VerifyDataType(DLDataType dtype) {
     else if (dtype.bits == 4 && dtype.code == kDLUInt)
       return;
     else if (dtype.bits == 4 && dtype.code == kDLInt)
+      return;
+    else if(dtype.bits ==4 && dtype.code == DataType::kE2M1Float)
       return;
     else
       ICHECK_EQ(dtype.bits % 8, 0);

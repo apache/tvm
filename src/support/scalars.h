@@ -69,6 +69,9 @@ constexpr double kMaxE4M3 = 448;
 // See https://arxiv.org/pdf/2209.05433.pdf
 constexpr double kMaxE5M2 = 57344;
 
+// 2^2 * (1 + 1/2)
+constexpr double kMaxE2M1 = 6.0;
+
 }  // namespace support
 }  // namespace tvm
 

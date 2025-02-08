@@ -99,7 +99,7 @@ class FloatConfig {
    * \return The FloatConfig class containing internal floating point representation.
    */
   static FloatConfig FromDataType(DataType dtype) {
-    CHECK(dtype.is_float() || dtype.is_bfloat16() || dtype.is_float8())
+    CHECK(dtype.is_float() || dtype.is_bfloat16() || dtype.is_float8() || dtype.is_float4())
         << "FloatConfig is only applicable to floating point data types, got " << dtype
         << " instead.";
     if (dtype.is_float()) {
@@ -117,7 +117,7 @@ class FloatConfig {
     } else if (dtype.is_bfloat16()) {
       // bfloat16,
       return FloatConfig(8, 7, 127, InftyStyle::kIEEE, NaNStyle::kIEEE);
-    } else {  // float8
+    } else if(dtype.is_float8()){  // float8
       // NVIDIA/Arm/Intel's FP8 formats for Deep Learning
       // Reference: https://arxiv.org/abs/2209.05433
       switch (dtype.code()) {
@@ -128,6 +128,10 @@ class FloatConfig {
           // E5M2 format, consistent with IEEE-754
           return FloatConfig(5, 2, 15, InftyStyle::kIEEE, NaNStyle::kIEEE);
       }
+    } else {
+      // float4
+      // E2M1 format, not consistent with IEEE-754
+      return FloatConfig(2, 1, 1, InftyStyle::kNone, NaNStyle::kNone);
     }
   }
 };

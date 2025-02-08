@@ -445,3 +445,18 @@ def have_fp8(compute_version):
     if major >= 9:
         return True
     return False
+
+@tvm._ffi.register_func("tvm.contrib.nvcc.supports_fp4")
+def have_fp4(compute_version):
+    """Whether fp4 support is provided in the specified compute capability or not
+
+    Parameters
+    ----------
+    compute_version : str
+        GPU capability
+    """
+    major, minor = parse_compute_version(compute_version)
+    # fp4 is suppored in Blackwell (10.0) or later architectures.
+    if major == 10 and minor == 0:
+        return True
+    return False
