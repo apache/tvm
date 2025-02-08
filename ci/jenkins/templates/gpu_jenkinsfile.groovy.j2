@@ -26,13 +26,13 @@
   platform="gpu",
 ) %}
   sh "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_config_build_gpu.sh build"
-  cmake_build("${ci_gpu} --no-gpu", 'build', '-j2')
+  cmake_build("${ci_gpu} --no-gpu", 'build')
   {{ m.upload_artifacts(tag='gpu', filenames=tvm_lib + tvm_allvisible + tvm_lib_gpu_extra) }}
 
   // compiler test
   sh "rm -rf build"
   sh "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_config_build_gpu_other.sh build"
-  cmake_build("${ci_gpu} --no-gpu", 'build', '-j2')
+  cmake_build("${ci_gpu} --no-gpu", 'build')
   {{ m.upload_artifacts(tag='gpu2', filenames=tvm_lib) }}
 {% endcall %}
 

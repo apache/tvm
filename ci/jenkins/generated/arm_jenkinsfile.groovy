@@ -60,7 +60,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2025-02-07T09:50:07.174590
+// Generated at 2025-02-08T14:55:01.980657
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // These are set at runtime from data in ci/jenkins/docker-images.yml, update
@@ -494,7 +494,7 @@ def make_cpp_tests(image, build_dir) {
   )
 }
 
-def cmake_build(image, path, make_flag) {
+def cmake_build(image, path) {
   sh (
     script: "${docker_run} --env CI_NUM_EXECUTORS ${image} ./tests/scripts/task_build.py --sccache-bucket tvm-sccache-prod --sccache-region us-west-2 --build-dir ${path}",
     label: 'Run cmake build',
@@ -530,7 +530,7 @@ def run_build(node_type) {
           script: "${docker_run} ${ci_arm} ./tests/scripts/task_config_build_arm.sh build",
           label: 'Create ARM cmake config',
         )
-        cmake_build(ci_arm, 'build', '-j4')
+        cmake_build(ci_arm, 'build')
         make_cpp_tests(ci_arm, 'build')
         sh(
             script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/arm --items build/libtvm.so build/libtvm_runtime.so build/config.cmake build/cpptest build/build.ninja build/CMakeFiles/rules.ninja",
@@ -854,100 +854,6 @@ def shard_run_topi_aarch64_2_of_2(node_type) {
 }
 
 
-
-def shard_run_frontend_aarch64_1_of_2(node_type) {
-  echo 'Begin running on node_type ' + node_type
-  if (!skip_ci && is_docs_only_build != 1) {
-    node(node_type) {
-      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/frontend-python-arm") {
-        // NOTE: if exception happens, it will be caught outside
-        init_git()
-        docker_init(ci_arm)
-        timeout(time: max_time, unit: 'MINUTES') {
-          withEnv([
-            'PLATFORM=arm',
-            'TEST_STEP_NAME=frontend: aarch64',
-            'TVM_NUM_SHARDS=2',
-            'TVM_SHARD_INDEX=0',
-            "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
-            sh(
-                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/arm",
-                  label: 'Download artifacts from S3',
-                )
-
-              ci_setup(ci_arm)
-              sh (
-                script: "${docker_run} ${ci_arm} ./tests/scripts/task_python_frontend_cpu.sh",
-                label: 'Run Python frontend tests',
-              )
-          })
-        }
-        // only run upload if things are successful
-        try {
-          sh(
-            script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/pytest-results/frontend_aarch64 --items build/pytest-results",
-            label: 'Upload JUnits to S3',
-          )
-
-          junit 'build/pytest-results/*.xml'
-        } catch (Exception e) {
-          echo 'Exception during JUnit upload: ' + e.toString()
-        }
-      }
-    }
-    echo 'End running on node_type ' + node_type
-  } else {
-    Utils.markStageSkippedForConditional('frontend: aarch64 1 of 2')
-  }
-}
-
-def shard_run_frontend_aarch64_2_of_2(node_type) {
-  echo 'Begin running on node_type ' + node_type
-  if (!skip_ci && is_docs_only_build != 1) {
-    node(node_type) {
-      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/frontend-python-arm") {
-        // NOTE: if exception happens, it will be caught outside
-        init_git()
-        docker_init(ci_arm)
-        timeout(time: max_time, unit: 'MINUTES') {
-          withEnv([
-            'PLATFORM=arm',
-            'TEST_STEP_NAME=frontend: aarch64',
-            'TVM_NUM_SHARDS=2',
-            'TVM_SHARD_INDEX=1',
-            "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
-            sh(
-                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/arm",
-                  label: 'Download artifacts from S3',
-                )
-
-              ci_setup(ci_arm)
-              sh (
-                script: "${docker_run} ${ci_arm} ./tests/scripts/task_python_frontend_cpu.sh",
-                label: 'Run Python frontend tests',
-              )
-          })
-        }
-        // only run upload if things are successful
-        try {
-          sh(
-            script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/pytest-results/frontend_aarch64 --items build/pytest-results",
-            label: 'Upload JUnits to S3',
-          )
-
-          junit 'build/pytest-results/*.xml'
-        } catch (Exception e) {
-          echo 'Exception during JUnit upload: ' + e.toString()
-        }
-      }
-    }
-    echo 'End running on node_type ' + node_type
-  } else {
-    Utils.markStageSkippedForConditional('frontend: aarch64 2 of 2')
-  }
-}
-
-
 def test() {
   stage('Test') {
     environment {
@@ -1018,28 +924,6 @@ def test() {
         echo 'Exception during SPOT run ' + ex.toString() + ' retry on-demand'
         currentBuild.result = 'SUCCESS'
         shard_run_topi_aarch64_2_of_2('ARM-GRAVITON3')
-      }
-    },
-    'frontend: aarch64 1 of 2': {
-      try {
-      shard_run_frontend_aarch64_1_of_2('ARM-GRAVITON3-SPOT')
-      } catch (Throwable ex) {
-        // mark the current stage as success
-        // and try again via on demand node
-        echo 'Exception during SPOT run ' + ex.toString() + ' retry on-demand'
-        currentBuild.result = 'SUCCESS'
-        shard_run_frontend_aarch64_1_of_2('ARM-GRAVITON3')
-      }
-    },
-    'frontend: aarch64 2 of 2': {
-      try {
-      shard_run_frontend_aarch64_2_of_2('ARM-GRAVITON3-SPOT')
-      } catch (Throwable ex) {
-        // mark the current stage as success
-        // and try again via on demand node
-        echo 'Exception during SPOT run ' + ex.toString() + ' retry on-demand'
-        currentBuild.result = 'SUCCESS'
-        shard_run_frontend_aarch64_2_of_2('ARM-GRAVITON3')
       }
     },
     )

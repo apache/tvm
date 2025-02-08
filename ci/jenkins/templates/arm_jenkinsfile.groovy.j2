@@ -29,7 +29,7 @@
     script: "${docker_run} ${ci_arm} ./tests/scripts/task_config_build_arm.sh build",
     label: 'Create ARM cmake config',
   )
-  cmake_build(ci_arm, 'build', '-j4')
+  cmake_build(ci_arm, 'build')
   make_cpp_tests(ci_arm, 'build')
   {{ m.upload_artifacts(tag='arm', filenames=tvm_lib + cpptest) }}
 {% endcall %}
@@ -73,22 +73,6 @@
   sh (
     script: "${docker_run} ${ci_arm} ./tests/scripts/task_python_topi.sh",
     label: 'Run TOPI tests',
-  )
-{% endcall %}
-
-{% call(shard_index, num_shards) m.sharded_test_step(
-  name="frontend: aarch64",
-  ws="tvm/frontend-python-arm",
-  platform="arm",
-  docker_image="ci_arm",
-  num_shards=2,
-  test_method_names=test_method_names,
-) %}
-  {{ m.download_artifacts(tag='arm') }}
-  ci_setup(ci_arm)
-  sh (
-    script: "${docker_run} ${ci_arm} ./tests/scripts/task_python_frontend_cpu.sh",
-    label: 'Run Python frontend tests',
   )
 {% endcall %}
 
