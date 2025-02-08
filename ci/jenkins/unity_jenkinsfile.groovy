@@ -225,10 +225,10 @@ try {
 // Run make. First try to do an incremental make from a previous workspace in hope to
 // accelerate the compilation. If something is wrong, clean the workspace and then
 // build from scratch.
-def make(docker_type, path, make_flag) {
+def make(docker_type, path) {
   timeout(time: max_time, unit: 'MINUTES') {
     try {
-      cmake_build(docker_type, path, make_flag)
+      cmake_build(docker_type, path)
       // always run cpp test when build
       // sh "${docker_run} ${docker_type} ./tests/scripts/task_cpp_unittest.sh"
     } catch (hudson.AbortException ae) {
@@ -241,7 +241,7 @@ def make(docker_type, path, make_flag) {
         script: "${docker_run} ${docker_type} ./tests/scripts/task_clean.sh ${path}",
         label: 'Clear old cmake workspace',
       )
-      cmake_build(docker_type, path, make_flag)
+      cmake_build(docker_type, path)
       cpp_unittest(docker_type)
     }
   }
@@ -310,7 +310,7 @@ def python_unittest(image) {
 }
 
 
-def cmake_build(image, path, make_flag) {
+def cmake_build(image, path) {
   sh (
     script: "${docker_run} ${image} ./tests/scripts/task_build.py --sccache-bucket tvm-sccache-prod --sccache-region us-west-2",
     label: 'Run cmake build',
@@ -342,17 +342,17 @@ stage('Build and Test') {
           init_git()
           sh "${docker_run} ${ci_gpu} nvidia-smi"
           sh "${docker_run}  ${ci_gpu} ./tests/scripts/task_config_build_gpu.sh build"
-          make("${ci_gpu}", 'build', '-j2')
+          make("${ci_gpu}", 'build')
           sh "${docker_run} ${ci_gpu} ./tests/scripts/unity/task_python_relax_gpuonly.sh"
         }
       }
     },
     'BUILD: CPU': {
-      node('CPU-SMALL') {
+      node('CPU') {
         ws(per_exec_ws('tvm/build-cpu')) {
           init_git()
           sh "${docker_run} ${ci_cpu} ./tests/scripts/task_config_build_cpu.sh build"
-          make(ci_cpu, 'build', '-j2')
+          make(ci_cpu, 'build')
           sh "${docker_run} ${ci_cpu} ./tests/scripts/unity/task_python_relax.sh"
         }
       }

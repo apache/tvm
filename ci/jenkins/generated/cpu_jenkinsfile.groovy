@@ -60,7 +60,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2025-02-07T09:50:07.191497
+// Generated at 2025-02-08T14:55:01.994339
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // These are set at runtime from data in ci/jenkins/docker-images.yml, update
@@ -494,7 +494,7 @@ def make_cpp_tests(image, build_dir) {
   )
 }
 
-def cmake_build(image, path, make_flag) {
+def cmake_build(image, path) {
   sh (
     script: "${docker_run} --env CI_NUM_EXECUTORS ${image} ./tests/scripts/task_build.py --sccache-bucket tvm-sccache-prod --sccache-region us-west-2 --build-dir ${path}",
     label: 'Run cmake build',
@@ -530,7 +530,7 @@ def run_build(node_type) {
           script: "${docker_run} ${ci_cpu} ./tests/scripts/task_config_build_cpu.sh build",
           label: 'Create CPU cmake config',
         )
-        cmake_build(ci_cpu, 'build', '-j2')
+        cmake_build(ci_cpu, 'build')
         make_cpp_tests(ci_cpu, 'build')
         sh(
             script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/cpu --items build/libtvm.so build/libtvm_runtime.so build/config.cmake build/libtvm_allvisible.so build/cpptest build/build.ninja build/CMakeFiles/rules.ninja",
@@ -553,13 +553,13 @@ def run_build(node_type) {
 def build() {
   stage('Build') {
     try {
-        run_build('CPU-SMALL-SPOT')
+        run_build('CPU-SPOT')
     } catch (Throwable ex) {
         // mark the current stage as success
         // and try again via on demand node
         echo 'Exception during SPOT run ' + ex.toString() + ' retry on-demand'
         currentBuild.result = 'SUCCESS'
-        run_build('CPU-SMALL')
+        run_build('CPU')
     }
   }
 }
@@ -798,53 +798,6 @@ def shard_run_unittest_CPU_1_of_1(node_type) {
 }
 
 
-def shard_run_frontend_CPU_1_of_1(node_type) {
-  echo 'Begin running on node_type ' + node_type
-  if (!skip_ci && is_docs_only_build != 1) {
-    node(node_type) {
-      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/frontend-python-cpu") {
-        // NOTE: if exception happens, it will be caught outside
-        init_git()
-        docker_init(ci_cpu)
-        timeout(time: max_time, unit: 'MINUTES') {
-          withEnv([
-            'PLATFORM=cpu',
-            'TEST_STEP_NAME=frontend: CPU',
-            'TVM_NUM_SHARDS=1',
-            'TVM_SHARD_INDEX=0',
-            "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
-            sh(
-                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/cpu",
-                  label: 'Download artifacts from S3',
-                )
-
-              ci_setup(ci_cpu)
-              sh (
-                script: "${docker_run} ${ci_cpu} ./tests/scripts/task_python_frontend_cpu.sh",
-                label: 'Run Python frontend tests',
-              )
-          })
-        }
-        // only run upload if things are successful
-        try {
-          sh(
-            script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/pytest-results/frontend_CPU --items build/pytest-results",
-            label: 'Upload JUnits to S3',
-          )
-
-          junit 'build/pytest-results/*.xml'
-        } catch (Exception e) {
-          echo 'Exception during JUnit upload: ' + e.toString()
-        }
-      }
-    }
-    echo 'End running on node_type ' + node_type
-  } else {
-    Utils.markStageSkippedForConditional('frontend: CPU 1 of 1')
-  }
-}
-
-
 def test() {
   stage('Test') {
     environment {
@@ -904,17 +857,6 @@ def test() {
         echo 'Exception during SPOT run ' + ex.toString() + ' retry on-demand'
         currentBuild.result = 'SUCCESS'
         shard_run_unittest_CPU_1_of_1('CPU-SMALL')
-      }
-    },
-    'frontend: CPU 1 of 1': {
-      try {
-      shard_run_frontend_CPU_1_of_1('CPU-SMALL-SPOT')
-      } catch (Throwable ex) {
-        // mark the current stage as success
-        // and try again via on demand node
-        echo 'Exception during SPOT run ' + ex.toString() + ' retry on-demand'
-        currentBuild.result = 'SUCCESS'
-        shard_run_frontend_CPU_1_of_1('CPU-SMALL')
       }
     },
     )

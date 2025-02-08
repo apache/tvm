@@ -19,7 +19,7 @@
 
 {% call m.invoke_build(
   name='BUILD: Hexagon',
-  node='CPU-SMALL',
+  node='CPU',
   condition='!skip_ci && is_docs_only_build != 1',
   ws='tvm/build-hexagon',
   docker_image='ci_hexagon',
@@ -29,7 +29,7 @@
     script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_config_build_hexagon.sh build",
     label: 'Create Hexagon cmake config',
   )
-  cmake_build(ci_hexagon, 'build', '-j2')
+  cmake_build(ci_hexagon, 'build')
   make_cpp_tests(ci_hexagon, 'build')
   sh (
     script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_build_hexagon_api.sh",
