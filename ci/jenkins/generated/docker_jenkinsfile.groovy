@@ -60,7 +60,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2025-02-08T12:31:09.767578
+// Generated at 2025-02-09T12:21:01.715947
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // These are set at runtime from data in ci/jenkins/docker-images.yml, update
@@ -82,14 +82,11 @@ ci_riscv = ''
 properties([
   parameters([
     string(name: 'ci_arm_param', defaultValue: ''),
-    string(name: 'ci_cortexm_param', defaultValue: ''),
     string(name: 'ci_cpu_param', defaultValue: ''),
     string(name: 'ci_gpu_param', defaultValue: ''),
     string(name: 'ci_hexagon_param', defaultValue: ''),
     string(name: 'ci_i386_param', defaultValue: ''),
     string(name: 'ci_lint_param', defaultValue: ''),
-    string(name: 'ci_minimal_param', defaultValue: ''),
-    string(name: 'ci_riscv_param', defaultValue: ''),
     string(name: 'ci_wasm_param', defaultValue: ''),
   ])
 ])
@@ -97,14 +94,11 @@ properties([
 // Placeholders for newly built Docker image names (if rebuild_docker_images
 // is used)
   built_ci_arm = null;
-  built_ci_cortexm = null;
   built_ci_cpu = null;
   built_ci_gpu = null;
   built_ci_hexagon = null;
   built_ci_i386 = null;
   built_ci_lint = null;
-  built_ci_minimal = null;
-  built_ci_riscv = null;
   built_ci_wasm = null;
 
 // Global variable assigned during Sanity Check that holds the sha1 which should be
@@ -364,18 +358,13 @@ def prepare(node_type) {
 
         if (env.DETERMINE_DOCKER_IMAGES == 'yes') {
           sh(
-            script: "./${jenkins_scripts_root}/determine_docker_images.py ci_arm ci_cortexm ci_cpu ci_gpu ci_hexagon ci_i386 ci_lint ci_minimal ci_riscv ci_wasm ",
+            script: "./${jenkins_scripts_root}/determine_docker_images.py ci_arm ci_cpu ci_gpu ci_hexagon ci_i386 ci_lint ci_wasm ",
             label: 'Decide whether to use tlcpack or tlcpackstaging for Docker images',
           )
           // Pull image names from the results of should_rebuild_docker.py
           ci_arm = sh(
             script: "cat .docker-image-names/ci_arm",
             label: "Find docker image name for ci_arm",
-            returnStdout: true,
-          ).trim()
-          ci_cortexm = sh(
-            script: "cat .docker-image-names/ci_cortexm",
-            label: "Find docker image name for ci_cortexm",
             returnStdout: true,
           ).trim()
           ci_cpu = sh(
@@ -403,16 +392,6 @@ def prepare(node_type) {
             label: "Find docker image name for ci_lint",
             returnStdout: true,
           ).trim()
-          ci_minimal = sh(
-            script: "cat .docker-image-names/ci_minimal",
-            label: "Find docker image name for ci_minimal",
-            returnStdout: true,
-          ).trim()
-          ci_riscv = sh(
-            script: "cat .docker-image-names/ci_riscv",
-            label: "Find docker image name for ci_riscv",
-            returnStdout: true,
-          ).trim()
           ci_wasm = sh(
             script: "cat .docker-image-names/ci_wasm",
             label: "Find docker image name for ci_wasm",
@@ -421,27 +400,21 @@ def prepare(node_type) {
         }
 
         ci_arm = params.ci_arm_param ?: ci_arm
-        ci_cortexm = params.ci_cortexm_param ?: ci_cortexm
         ci_cpu = params.ci_cpu_param ?: ci_cpu
         ci_gpu = params.ci_gpu_param ?: ci_gpu
         ci_hexagon = params.ci_hexagon_param ?: ci_hexagon
         ci_i386 = params.ci_i386_param ?: ci_i386
         ci_lint = params.ci_lint_param ?: ci_lint
-        ci_minimal = params.ci_minimal_param ?: ci_minimal
-        ci_riscv = params.ci_riscv_param ?: ci_riscv
         ci_wasm = params.ci_wasm_param ?: ci_wasm
 
         sh (script: """
           echo "Docker images being used in this build:"
           echo " ci_arm = ${ci_arm}"
-          echo " ci_cortexm = ${ci_cortexm}"
           echo " ci_cpu = ${ci_cpu}"
           echo " ci_gpu = ${ci_gpu}"
           echo " ci_hexagon = ${ci_hexagon}"
           echo " ci_i386 = ${ci_i386}"
           echo " ci_lint = ${ci_lint}"
-          echo " ci_minimal = ${ci_minimal}"
-          echo " ci_riscv = ${ci_riscv}"
           echo " ci_wasm = ${ci_wasm}"
         """, label: 'Docker image names')
 
@@ -621,14 +594,11 @@ def deploy() {
                       ).trim()
                       def tag = "${date_Ymd_HMS}-${upstream_revision.substring(0, 8)}"
                       update_docker(built_ci_arm, "tlcpackstaging/ci_arm:${tag}")
-                      update_docker(built_ci_cortexm, "tlcpackstaging/ci_cortexm:${tag}")
                       update_docker(built_ci_cpu, "tlcpackstaging/ci_cpu:${tag}")
                       update_docker(built_ci_gpu, "tlcpackstaging/ci_gpu:${tag}")
                       update_docker(built_ci_hexagon, "tlcpackstaging/ci_hexagon:${tag}")
                       update_docker(built_ci_i386, "tlcpackstaging/ci_i386:${tag}")
                       update_docker(built_ci_lint, "tlcpackstaging/ci_lint:${tag}")
-                      update_docker(built_ci_minimal, "tlcpackstaging/ci_minimal:${tag}")
-                      update_docker(built_ci_riscv, "tlcpackstaging/ci_riscv:${tag}")
                       update_docker(built_ci_wasm, "tlcpackstaging/ci_wasm:${tag}")
                     } finally {
                       sh(
@@ -670,20 +640,6 @@ def deploy() {
                               retry 5 docker push tlcpack/ci-arm:${tag}
                             """,
                             label: 'Tag tlcpackstaging/ci_arm image to tlcpack',
-                          )
-                        }
-                        if (ci_cortexm.contains("tlcpackstaging")) {
-                          // Push image to tlcpack
-                          def tag = ci_cortexm.split(":")[1]
-                          sh(
-                            script: """
-                              set -eux
-                              . ${jenkins_scripts_root}/retry.sh
-                              docker pull tlcpackstaging/ci_cortexm:${tag}
-                              docker tag tlcpackstaging/ci_cortexm:${tag} tlcpack/ci-cortexm:${tag}
-                              retry 5 docker push tlcpack/ci-cortexm:${tag}
-                            """,
-                            label: 'Tag tlcpackstaging/ci_cortexm image to tlcpack',
                           )
                         }
                         if (ci_cpu.contains("tlcpackstaging")) {
@@ -756,34 +712,6 @@ def deploy() {
                             label: 'Tag tlcpackstaging/ci_lint image to tlcpack',
                           )
                         }
-                        if (ci_minimal.contains("tlcpackstaging")) {
-                          // Push image to tlcpack
-                          def tag = ci_minimal.split(":")[1]
-                          sh(
-                            script: """
-                              set -eux
-                              . ${jenkins_scripts_root}/retry.sh
-                              docker pull tlcpackstaging/ci_minimal:${tag}
-                              docker tag tlcpackstaging/ci_minimal:${tag} tlcpack/ci-minimal:${tag}
-                              retry 5 docker push tlcpack/ci-minimal:${tag}
-                            """,
-                            label: 'Tag tlcpackstaging/ci_minimal image to tlcpack',
-                          )
-                        }
-                        if (ci_riscv.contains("tlcpackstaging")) {
-                          // Push image to tlcpack
-                          def tag = ci_riscv.split(":")[1]
-                          sh(
-                            script: """
-                              set -eux
-                              . ${jenkins_scripts_root}/retry.sh
-                              docker pull tlcpackstaging/ci_riscv:${tag}
-                              docker tag tlcpackstaging/ci_riscv:${tag} tlcpack/ci-riscv:${tag}
-                              retry 5 docker push tlcpack/ci-riscv:${tag}
-                            """,
-                            label: 'Tag tlcpackstaging/ci_riscv image to tlcpack',
-                          )
-                        }
                         if (ci_wasm.contains("tlcpackstaging")) {
                           // Push image to tlcpack
                           def tag = ci_wasm.split(":")[1]
@@ -830,17 +758,6 @@ if (rebuild_docker_images) {
             // are not yet being uploaded to tlcpack
             // ci_arm = build_image('ci_arm')
             built_ci_arm = build_image('ci_arm');
-          }
-        }
-      },
-      'ci_cortexm': {
-        node('CPU') {
-          timeout(time: max_time, unit: 'MINUTES') {
-            init_git()
-            // We're purposefully not setting the built image here since they
-            // are not yet being uploaded to tlcpack
-            // ci_cortexm = build_image('ci_cortexm')
-            built_ci_cortexm = build_image('ci_cortexm');
           }
         }
       },
@@ -896,28 +813,6 @@ if (rebuild_docker_images) {
             // are not yet being uploaded to tlcpack
             // ci_lint = build_image('ci_lint')
             built_ci_lint = build_image('ci_lint');
-          }
-        }
-      },
-      'ci_minimal': {
-        node('CPU') {
-          timeout(time: max_time, unit: 'MINUTES') {
-            init_git()
-            // We're purposefully not setting the built image here since they
-            // are not yet being uploaded to tlcpack
-            // ci_minimal = build_image('ci_minimal')
-            built_ci_minimal = build_image('ci_minimal');
-          }
-        }
-      },
-      'ci_riscv': {
-        node('CPU') {
-          timeout(time: max_time, unit: 'MINUTES') {
-            init_git()
-            // We're purposefully not setting the built image here since they
-            // are not yet being uploaded to tlcpack
-            // ci_riscv = build_image('ci_riscv')
-            built_ci_riscv = build_image('ci_riscv');
           }
         }
       },

@@ -49,10 +49,6 @@ docker_images = {
         "tag": "tlcpack/ci-arm:20221013-060115-61c9742ea",
         "platform": "ARM",
     },
-    "ci_cortexm": {
-        "tag": "tlcpack/ci-cortexm:20221013-060115-61c9742ea",
-        "platform": "CPU",
-    },
     "ci_cpu": {
         "tag": "tlcpack/ci-cpu:20221013-060115-61c9742ea",
         "platform": "CPU",
@@ -71,14 +67,6 @@ docker_images = {
     },
     "ci_lint": {
         "tag": "tlcpack/ci-lint:20221013-060115-61c9742ea",
-        "platform": "CPU",
-    },
-    "ci_minimal": {
-        "tag": "tlcpack/ci-minimal:20221013-060115-61c9742ea",
-        "platform": "CPU",
-    },
-    "ci_riscv": {
-        "tag": "tlcpack/ci-riscv:20221013-060115-61c9742ea",
         "platform": "CPU",
     },
     "ci_wasm": {
