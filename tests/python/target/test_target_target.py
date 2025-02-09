@@ -178,6 +178,13 @@ def test_target_llvm_jit_options():
     assert target.attrs["jit"] == "orcjit"
 
 
+def test_target_llvm_vector_width():
+    target = tvm.target.Target("llvm -vector-width=256")
+    assert target.attrs["vector-width"] == 256
+    target = tvm.target.Target("llvm -vector-width=1024")
+    assert target.attrs["vector-width"] == 1024
+
+
 def test_target_create():
     targets = [cuda(), rocm(), mali(), intel_graphics(), arm_cpu("rk3399"), bifrost()]
     for tgt in targets:
