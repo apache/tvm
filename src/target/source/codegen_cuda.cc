@@ -187,7 +187,7 @@ std::string CodeGenCUDA::Finish() {
     decl_stream << "struct fp8_e5x16_t {\n fp8_e5_t data[16]; \n};\n";
     decl_stream << "#endif\n\n";
   }
-  if(enable_fp4_){
+  if (enable_fp4_) {
     decl_stream << "#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 800)\n";
     decl_stream << "#include <cuda_fp4.h>\n";
     decl_stream << "#endif\n\n";

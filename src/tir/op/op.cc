@@ -278,7 +278,7 @@ PrimExpr max_value(const DataType& dtype, Span span) {
     } else if (dtype.code() == DataType::TypeCode::kE4M3Float) {
       return FloatImm(dtype, 448.0, span);
     }
-  } else if(dtype.is_float4()) {
+  } else if (dtype.is_float4()) {
     return FloatImm(dtype, 6.0, span);
   }
   LOG(FATAL) << "Cannot decide max_value for type" << dtype;
@@ -321,7 +321,7 @@ PrimExpr min_value(const DataType& dtype, Span span) {
     } else if (dtype.code() == DataType::TypeCode::kE4M3Float) {
       return FloatImm(dtype, -448.0, span);
     }
-  } else if(dtype.is_float4()) {
+  } else if (dtype.is_float4()) {
     return FloatImm(dtype, -6.0, span);
   }
   LOG(FATAL) << "Cannot decide min_value for type" << dtype;

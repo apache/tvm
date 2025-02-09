@@ -54,7 +54,7 @@ inline void VerifyDataType(DLDataType dtype) {
       return;
     else if (dtype.bits == 4 && dtype.code == kDLInt)
       return;
-    else if(dtype.bits ==4 && dtype.code == DataType::kE2M1Float)
+    else if (dtype.bits == 4 && dtype.code == DataType::kE2M1Float)
       return;
     else
       ICHECK_EQ(dtype.bits % 8, 0);

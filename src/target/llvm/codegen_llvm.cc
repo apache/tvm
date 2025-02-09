@@ -581,7 +581,7 @@ llvm::Type* CodeGenLLVM::DTypeToLLVMType(const DataType& dtype) const {
     }
   } else if (dtype.code() == DataType::kE4M3Float || dtype.code() == DataType::kE5M2Float) {
     etype = llvm::Type::getInt8Ty(*ctx);
-  } else if (dtype.code() == DataType::kE2M1Float){
+  } else if (dtype.code() == DataType::kE2M1Float) {
     etype = llvm::Type::getIntNTy(*ctx, 4);
   }
   if (!dtype.is_scalar()) {

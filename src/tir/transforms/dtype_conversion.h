@@ -117,7 +117,7 @@ class FloatConfig {
     } else if (dtype.is_bfloat16()) {
       // bfloat16,
       return FloatConfig(8, 7, 127, InftyStyle::kIEEE, NaNStyle::kIEEE);
-    } else if(dtype.is_float8()){  // float8
+    } else if (dtype.is_float8()) {  // float8
       // NVIDIA/Arm/Intel's FP8 formats for Deep Learning
       // Reference: https://arxiv.org/abs/2209.05433
       switch (dtype.code()) {

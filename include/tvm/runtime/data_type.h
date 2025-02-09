@@ -88,7 +88,7 @@ class DataType {
     if (code == kE4M3Float || code == kE5M2Float) {
       ICHECK_EQ(bits, 8);
     }
-    if(code == kE2M1Float) {
+    if (code == kE2M1Float) {
       ICHECK_EQ(bits, 4);
     }
   }
@@ -131,9 +131,7 @@ class DataType {
            bits() == 8;
   }
   /*! \return whether type is a float4 type. */
-  bool is_float4() const {
-    return code() == DataType::kE2M1Float && bits() == 4;
-  }
+  bool is_float4() const { return code() == DataType::kE2M1Float && bits() == 4; }
   bool is_e4m3_float8() const { return (code() == DataType::kE4M3Float && bits() == 8); }
 
   bool is_e5m2_float8() const { return (code() == DataType::kE5M2Float && bits() == 8); }
