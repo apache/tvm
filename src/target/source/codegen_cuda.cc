@@ -156,8 +156,12 @@ std::string CodeGenCUDA::Finish() {
                 << "{\n  return __hlt(__half(a), __half(b)) ? a : b;\n}\n";
     decl_stream << "#else\n";
     decl_stream << _cuda_half_t_def;
-    decl_stream << _cuda_half_util;
     decl_stream << "#endif\n\n";
+
+    decl_stream << "#include <cuda.h>\n";
+    decl_stream << "#if (CUDA_VERSION <12080)\n";
+    decl_stream << _cuda_half_util;
+    decl_stream << "#endif\n";
   }
 
   if (enable_bf16_) {
