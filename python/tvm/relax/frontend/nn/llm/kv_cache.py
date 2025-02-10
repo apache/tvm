@@ -2433,7 +2433,7 @@ def _attention_prefill_ragged_generic(h_kv, h_q, d_qk, d_v, dtype, rope_scaling:
         tile_x,
         tile_y,
         tile_z,
-    ) = _get_prefill_kernel_config(h_kv, h_q, d, dtype, target)
+    ) = _get_prefill_kernel_config(h_kv, h_q, d_qk, dtype, target)
 
     # fmt: off
     @T.prim_func
