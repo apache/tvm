@@ -20,7 +20,6 @@ import os
 import pathlib
 import shutil
 import sys
-import sysconfig
 
 from setuptools import find_packages
 from setuptools.dist import Distribution
@@ -133,24 +132,17 @@ __version__ = git_describe_version(__version__)
 
 def config_cython():
     """Try to configure cython and return cython configuration"""
-    if FFI_MODE not in ("cython"):
-        if os.name == "nt" and not CONDA_BUILD:
-            print("WARNING: Cython is not supported on Windows, will compile without cython module")
-            return []
-        sys_cflags = sysconfig.get_config_var("CFLAGS")
-        if sys_cflags and "i386" in sys_cflags and "x86_64" in sys_cflags:
-            print("WARNING: Cython library may not be compiled correctly with both i386 and x64")
-            return []
+    # Enforce cython unless FFI_MODE is explicitly set to ctypes
+    # we might consider fully converge to cython later
+    if FFI_MODE == "ctypes":
+        return []
     try:
         from Cython.Build import cythonize
 
-        # from setuptools.extension import Extension
-        if sys.version_info >= (3, 0):
-            subdir = "_cy3"
-        else:
-            subdir = "_cy2"
+        subdir = "_cy3"
+
         ret = []
-        path = "tvm/_ffi/_cython"
+        cython_source = "tvm/_ffi/_cython"
         extra_compile_args = ["-std=c++17", "-DDMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>"]
         if os.name == "nt":
             library_dirs = ["tvm", "../build/Release", "../build"]
@@ -166,7 +158,7 @@ def config_cython():
             library_dirs = None
             libraries = None
 
-        for fn in os.listdir(path):
+        for fn in os.listdir(cython_source):
             if not fn.endswith(".pyx"):
                 continue
             ret.append(
@@ -186,10 +178,7 @@ def config_cython():
             )
         return cythonize(ret, compiler_directives={"language_level": 3})
     except ImportError as error:
-        if FFI_MODE == "cython":
-            raise error
-        print("WARNING: Cython is not installed, will compile without cython module")
-        return []
+        raise RuntimeError("Cython is not installed, please pip install cython")
 
 
 class BinaryDistribution(Distribution):
