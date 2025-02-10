@@ -43,4 +43,4 @@ pip3 install --upgrade \
     junitparser==2.4.2 \
     six \
     tornado \
-    git+https://github.com/jax-ml/ml_dtypes.git@v0.2.0
+    ml_dtypes
