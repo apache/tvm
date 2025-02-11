@@ -421,8 +421,6 @@ void OpenCLWorkspace::FreeDataSpaceView(Device dev, void* ptr) {
   // Handle the fall back
   if (!IsBufferToImageSupported(dev.device_id)) {
     if (desc->is_compat_view) {
-      // TODO(Siva): Do we need this waiting for entire queue ?
-      OPENCL_CALL(clFinish(this->GetQueue(dev)));
       OPENCL_CALL(clReleaseMemObject(desc->buffer));
       delete desc;
     }
@@ -430,8 +428,6 @@ void OpenCLWorkspace::FreeDataSpaceView(Device dev, void* ptr) {
   }
 
   if (desc->layout != cl::BufferDescriptor::MemoryLayout::kBuffer1D) {
-    // TODO(Siva): Do we need this waiting for entire queue ?
-    OPENCL_CALL(clFinish(this->GetQueue(dev)));
     OPENCL_CALL(clReleaseMemObject(desc->buffer));
     delete desc;
   }
@@ -453,7 +449,6 @@ void OpenCLWorkspace::SetNativePtr(const tvm::runtime::NDArray& narr, void* host
     cl_device_id device_id = GetCLDeviceID(dev.device_id);
     auto platform = device_info[device_id].platform_id;
 
-    OPENCL_CALL(clFinish(this->GetQueue(dev)));
     if (desc->host_ptr) {
       OPENCL_CALL(clEnqueueUnmapMemObject(this->GetQueue(dev), desc->buffer,
                                           reinterpret_cast<void*>(desc->host_ptr), 0, nullptr,
@@ -484,10 +479,6 @@ void OpenCLWorkspace::SetPerfHint(Device dev, cl_uint perf_hint) {
 }
 
 void OpenCLWorkspace::FreeDataSpace(Device dev, void* ptr) {
-  // We have to make sure that the memory object is not in the command queue
-  // for some OpenCL platforms.
-  OPENCL_CALL(clFinish(this->GetQueue(dev)));
-
   cl::BufferDescriptor* desc = static_cast<cl::BufferDescriptor*>(ptr);
   if (desc->back_buffer) {
     // 2D Image w/ back buffer allocated from pool
@@ -502,7 +493,6 @@ void OpenCLWorkspace::FreeDataSpace(Device dev, void* ptr) {
         clEnqueueUnmapMemObject(this->GetQueue(dev), desc->buffer,
                                 reinterpret_cast<void*>(desc->host_ptr), 0, nullptr, nullptr);
       }
-      OPENCL_CALL(clFinish(this->GetQueue(dev)));
       OPENCL_CALL(clReleaseMemObject(desc->buffer));
       delete desc;
     } else if (!IsBufferToImageSupported(dev.device_id)) {
