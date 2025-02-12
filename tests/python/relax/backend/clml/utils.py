@@ -26,7 +26,7 @@ from tvm import relax, rpc
 from tvm.relax import transform
 from tvm import dlight as dl
 from tvm.contrib import utils, ndk
-from tvm.relax.backend.contrib.clml import clml_pipeline
+from tvm.relax.backend.adreno.clml import OpenCLMLOffLoad
 
 
 def verify_codegen(clml_mod, clml_codegen):
@@ -58,36 +58,8 @@ def build_and_run(
 ):
 
     tgt = tvm.target.Target(target, host="llvm -mtriple=aarch64-linux-gnu")
-    with tgt:
-        seq = tvm.transform.Sequential(
-            [
-                tvm.tir.transform.BindTarget(tvm.target.Target.current(allow_none=False)),
-                tvm.relax.transform.LegalizeOps(),
-                tvm.relax.transform.AnnotateTIROpPattern(),
-                tvm.relax.transform.FoldConstant(),
-                tvm.relax.transform.FuseOps(),
-                tvm.relax.transform.FuseTIR(),
-                tvm.relax.transform.DeadCodeElimination(),
-                dl.ApplyDefaultSchedule(
-                    dl.gpu.Reduction(),
-                    dl.gpu.GeneralReduction(),
-                    dl.gpu.Fallback(),
-                ),
-                tvm.relax.transform.RewriteDataflowReshape(),
-                tvm.relax.transform.ToNonDataflow(),
-                tvm.relax.transform.RemovePurityChecking(),
-                tvm.relax.transform.CallTIRRewrite(),
-                tvm.relax.transform.StaticPlanBlockMemory(),
-                tvm.relax.transform.RewriteCUDAGraph(),
-                tvm.relax.transform.LowerAllocTensor(),
-                tvm.relax.transform.KillAfterLastUse(),
-                tvm.relax.transform.VMBuiltinLower(),
-                tvm.relax.transform.VMShapeLower(),
-                tvm.relax.transform.AttachGlobalSymbol(),
-            ]
-        )
-        mod = seq(mod)
-
+    pipeline = relax.pipeline.get_default_pipeline(tgt)
+    mod = pipeline(mod)
     if rpc:
         ex = relax.build(mod, tgt)
         temp = utils.tempdir()
@@ -114,10 +86,15 @@ def build_and_run(
     return tvm_output.numpy()
 
 
-def run_compare(mod, clml_mod, inputs, params_np, rpc=None, clml_codegen=None):
+def run_compare(mod, inputs, params_np, rpc=None, clml_codegen=None):
+    clml_mod = copy.deepcopy(mod)
+    clml_run_mod = copy.deepcopy(mod)
     mod = tvm.relax.transform.BindParams("main", params_np)(mod)
+    clml_mod = tvm.relax.transform.BindParams("main", params_np)(clml_mod)
+    clml_run_mod = tvm.relax.transform.BindParams("main", params_np)(clml_run_mod)
 
-    clml_mod = clml_pipeline(params_np)(clml_mod)
+    # Verify codegen
+    clml_mod = OpenCLMLOffLoad()(clml_mod)
     verify_codegen(clml_mod, clml_codegen)
 
     # On Mainline CI
@@ -125,13 +102,17 @@ def run_compare(mod, clml_mod, inputs, params_np, rpc=None, clml_codegen=None):
         return None
 
     ref = build_and_run(
-        mod, inputs, "opencl", rpc=rpc, params_np=params_np, load_path="vm_library_opencl.so"
-    )
-
-    out = build_and_run(
-        clml_mod,
+        mod,
         inputs,
-        "opencl",
+        tvm.target.adreno(),
+        rpc=rpc,
+        params_np=params_np,
+        load_path="vm_library_opencl.so",
+    )
+    out = build_and_run(
+        clml_run_mod,
+        inputs,
+        tvm.target.adreno(clml=True),
         rpc=rpc,
         params_np=params_np,
         load_path="vm_library_clml.so",

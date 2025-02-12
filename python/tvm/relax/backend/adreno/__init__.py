@@ -14,25 +14,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
-import os
-import sys
-import tvm
-import pytest
-from tvm.autotvm.measure import request_remote
-
-
-@pytest.fixture(scope="session")
-def rpc():
-    rpc_target = os.getenv("RPC_TARGET", None)
-    if rpc_target:
-        connection_type = "tracker"
-        host = os.getenv("TVM_TRACKER_HOST", "localhost")
-        port = int(os.getenv("TVM_TRACKER_PORT", 9090))
-        target = "opencl"
-        target_host = "llvm -mtriple=aarch64-linux-gnu"
-        device_key = os.getenv("RPC_DEVICE_KEY", "android")
-        cross_compile = os.getenv("TVM_NDK_CC", "aarch64-linux-android-g++")
-        return request_remote(device_key, host, port, timeout=1000)
-    else:
-        return None
+"""The Relax Adreno backend compilation pipeline and other passes."""
+from .pipeline import (
+    finalize_passes,
+    get_default_pipeline,
+    legalize_passes,
+    library_dispatch_passes,
+)

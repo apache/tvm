@@ -18,6 +18,7 @@
 """Pattern table for CLML backend"""
 import tvm
 from tvm import relax, IRModule
+from tvm.ir.transform import PassContext, module_pass
 from tvm.relax import transform
 from tvm.relax.expr_functor import PyExprMutator, mutator
 from tvm.relax.expr import TupleGetItem, VarBinding
@@ -597,25 +598,21 @@ clml_patterns = clml_pattern_table()
 register_patterns(clml_patterns)
 
 
-def clml_pipeline(params=None, **opts):
+@module_pass(opt_level=0, name="OpenCLMLOffLoad")
+class OpenCLMLOffLoad:
+    """The pass sequence used for CLML offload"""
 
-    """The pass pipeline used for CLML Mod Transformations"""
+    def transform_module(self, mod: IRModule, ctx: PassContext) -> IRModule:
+        """The transform"""
 
-    clml_layouts = {
-        "relax.nn.conv2d": ["NCHW", "OIHW"],
-        "relax.nn.conv2d_transpose": ["NCHW", "OIHW"],
-    }
-
-    if not params:
-        params = {}
-
-    @tvm.transform.module_pass(opt_level=0)
-    def _pipeline(mod: tvm.ir.IRModule, _ctx: tvm.transform.PassContext) -> tvm.ir.IRModule:
+        clml_layouts = {
+            "relax.nn.conv2d": ["NCHW", "OIHW"],
+            "relax.nn.conv2d_transpose": ["NCHW", "OIHW"],
+        }
         seq = tvm.transform.Sequential(
             [
                 transform.ConvertLayout(clml_layouts),
                 transform.Normalize(),
-                transform.BindParams("main", params),
                 transform.OptimizeBatchnorm(),
                 AppendReshapeToBNRewriterPass(),
                 transform.FoldConstant(),
@@ -626,5 +623,3 @@ def clml_pipeline(params=None, **opts):
         )
         mod = seq(mod)
         return mod
-
-    return _pipeline

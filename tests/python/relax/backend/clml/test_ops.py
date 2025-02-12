@@ -20,7 +20,6 @@ import numpy as np
 import tvm
 import tvm.testing
 import json
-import copy
 
 from tvm import relax, rpc
 from tvm.script import relax as R
@@ -28,9 +27,9 @@ from tvm.script import ir as I
 from tvm.script import tir as T
 from tvm.script.ir_builder import IRBuilder
 from tvm.script.ir_builder import relax as relax_builder
-from tvm.relax.backend.contrib import clml
+from tvm.relax.backend.adreno import clml
 
-from utils import build_and_run, run_compare
+from utils import build_and_run, run_compare, verify_codegen
 
 
 def get_relax_conv2d_module(
@@ -280,10 +279,6 @@ def test_conv2d_offload(
         is_depthwise=is_depthwise,
     )
 
-    clml_mod = copy.deepcopy(mod)
-    mod = relax.transform.DecomposeOpsForInference()(mod)
-    mod = tvm.relax.transform.FoldConstant()(mod)
-
     clml_codegen = get_clml_conv2d_codegen(
         data_shape,
         weight_shape,
@@ -300,7 +295,7 @@ def test_conv2d_offload(
         is_depthwise=is_depthwise,
     )
 
-    run_compare(mod, clml_mod, inputs, params_np, rpc, clml_codegen)
+    run_compare(mod, inputs, params_np, rpc, clml_codegen)
 
 
 def get_relax_conv2d_transpose_module(
@@ -406,7 +401,6 @@ def test_conv2d_transpose(
         padding=padding,
         dtype=dtype,
     )
-    clml_mod = copy.deepcopy(mod)
 
     exp_codegen = _get_conv2d_transpose_expected_codegen(
         dshape=dshape,
@@ -420,22 +414,9 @@ def test_conv2d_transpose(
         output_shape=out_shape,
     )
 
-    clml_mod = clml.clml_pipeline(params_np)(clml_mod)
-    source = clml_mod.attrs["external_mods"][0].get_source()
-    codegen = json.loads(source)["nodes"]
-    for node in range(len(codegen)):
-        if codegen[node]["op"] == "input" or codegen[node]["op"] == "const":
-            codegen[node]["name"] = ""
-        if codegen[node]["op"] == "kernel":
-            codegen[node]["name"] = ""
-    codegen_str = json.dumps(codegen, sort_keys=True, indent=2)
-    known_good_codegen_str = json.dumps(exp_codegen, sort_keys=True, indent=2)
-
-    assert codegen_str == known_good_codegen_str, (
-        f"The JSON produced by codegen does not match the expected result. \n"
-        f"Actual={codegen_str} \n"
-        f"Expected={known_good_codegen_str}"
-    )
+    mod = tvm.relax.transform.BindParams("main", params_np)(mod)
+    clml_mod = clml.OpenCLMLOffLoad()(mod)
+    verify_codegen(clml_mod, exp_codegen)
 
 
 @pytest.mark.parametrize("dtype", ["float32"])
@@ -497,9 +478,6 @@ def test_batchnorm(dtype, trials, rpc):
     inputs = [data]
     params_np = {"gamma": gamma, "beta": beta, "moving_mean": mean, "moving_var": variance}
     mod = _get_batchnorm_model(input_shape, channels, axis, epsilon, dtype)
-    clml_mod = copy.deepcopy(mod)
-    mod = relax.transform.DecomposeOpsForInference()(mod)
-    mod = tvm.relax.transform.FoldConstant()(mod)
     exp_codegen = [
         {
             "attrs": {"dtype": [[dtype]], "shape": [[input_shape]]},
@@ -528,7 +506,7 @@ def test_batchnorm(dtype, trials, rpc):
             "op": "kernel",
         },
     ]
-    run_compare(mod, clml_mod, inputs, params_np, rpc, exp_codegen)
+    run_compare(mod, inputs, params_np, rpc, exp_codegen)
 
 
 @pytest.mark.parametrize("dtype", ["float32"])
@@ -573,7 +551,7 @@ def test_binary_ops(a_shape, b_shape, op, rpc, dtype):
 
         return (tvm.IRModule({"main": func}), (a_data, b_data))
 
-    def _verify(mod, clml_mod, inputs):
+    def _verify(mod, inputs):
         expected_codegen_str = [
             {
                 "attrs": {
@@ -604,12 +582,11 @@ def test_binary_ops(a_shape, b_shape, op, rpc, dtype):
                 "op": "kernel",
             },
         ]
-        run_compare(mod, clml_mod, inputs, {}, rpc, expected_codegen_str)
+        run_compare(mod, inputs, {}, rpc, expected_codegen_str)
 
     (mod, inputs) = _get_model(a_shape, b_shape, op)
-    clml_mod = copy.deepcopy(mod)
 
-    _verify(mod, clml_mod, inputs)
+    _verify(mod, inputs)
 
 
 @pytest.mark.parametrize(
@@ -649,7 +626,7 @@ def test_unary_ops(a_shape, op, rpc, dtype):
 
         return (tvm.IRModule({"main": func}), (a_data,))
 
-    def _verify(mod, clml_mod, inputs):
+    def _verify(mod, inputs):
         expected_codegen_str = [
             {
                 "attrs": {
@@ -673,12 +650,11 @@ def test_unary_ops(a_shape, op, rpc, dtype):
                 "op": "kernel",
             },
         ]
-        run_compare(mod, clml_mod, inputs, {}, rpc, expected_codegen_str)
+        run_compare(mod, inputs, {}, rpc, expected_codegen_str)
 
     (mod, inputs) = _get_model(a_shape, op)
-    clml_mod = copy.deepcopy(mod)
 
-    _verify(mod, clml_mod, inputs)
+    _verify(mod, inputs)
 
 
 def get_relax_maxpool_module(
@@ -796,13 +772,12 @@ def test_max_pool(dtype, trials, rpc):
     mod = get_relax_maxpool_module(
         input_shape, dtype, pool_size, stride, dilation, padding, has_pad
     )
-    clml_mod = copy.deepcopy(mod)
     params_np = {}
 
     expected_codegen_str = get_maxpool_expected_codegen(
         input_shape, pool_size, stride, padding, "maxpool2d", dtype
     )
-    run_compare(mod, clml_mod, inputs, params_np, rpc, expected_codegen_str)
+    run_compare(mod, inputs, params_np, rpc, expected_codegen_str)
 
 
 def get_relax_avgpool_module(data_shape, dtype, pool_size, stride, dilation, padding, has_pad):
@@ -919,12 +894,11 @@ def test_avg_pool(dtype, trials, rpc):
     mod = get_relax_avgpool_module(
         input_shape, dtype, pool_size, stride, dilation, padding, has_pad
     )
-    clml_mod = copy.deepcopy(mod)
     params_np = {}
     exp_codegen_str = get_avgpool_expected_codegen(
         input_shape, pool_size, stride, padding, "avg_pool2d", dtype
     )
-    run_compare(mod, clml_mod, inputs, params_np, rpc, exp_codegen_str)
+    run_compare(mod, inputs, params_np, rpc, exp_codegen_str)
 
 
 def get_relax_reshape_module(input_shape, output_shape, dtype):
@@ -1001,10 +975,9 @@ def test_reshape(dtype, trials, rpc):
     data = np.random.uniform(low, high, size=input_shape).astype(dtype)
     inputs = [data]
     mod = get_relax_reshape_module(input_shape, output_shape, dtype)
-    clml_mod = copy.deepcopy(mod)
     params_np = {}
     expected_codegen = get_relax_reshape_codegen(input_shape, output_shape, dtype)
-    run_compare(mod, clml_mod, inputs, params_np, rpc, expected_codegen)
+    run_compare(mod, inputs, params_np, rpc, expected_codegen)
 
 
 def get_relax_global_avgpool_module(data_shape, keepdims, dtype):
@@ -1087,10 +1060,9 @@ def test_global_avg_pool(dtype, trials, rpc):
     data = np.random.uniform(low, high, size=input_shape).astype(dtype)
     inputs = [data]
     mod = get_relax_global_avgpool_module(input_shape, keep_dims, dtype)
-    clml_mod = copy.deepcopy(mod)
     params_np = {}
     exp_codegen_str = get_global_avgpool_expected_codegen(input_shape, keep_dims, dtype)
-    run_compare(mod, clml_mod, inputs, params_np, rpc, exp_codegen_str)
+    run_compare(mod, inputs, params_np, rpc, exp_codegen_str)
 
 
 def get_relax_global_maxpool_module(data_shape, keepdims, dtype):
@@ -1191,12 +1163,11 @@ def test_global_max_pool(dtype, trials, rpc):
     data = np.random.uniform(low, high, size=input_shape).astype(dtype)
     inputs = [data]
     mod = get_relax_global_maxpool_module(input_shape, keep_dims, dtype)
-    clml_mod = copy.deepcopy(mod)
     params_np = {}
     exp_codegen_str = get_global_maxpool_expected_codegen(
         input_shape, pool_size, stride, padding, "global_max", dtype
     )
-    run_compare(mod, clml_mod, inputs, params_np, rpc, exp_codegen_str)
+    run_compare(mod, inputs, params_np, rpc, exp_codegen_str)
 
 
 if __name__ == "__main__":
