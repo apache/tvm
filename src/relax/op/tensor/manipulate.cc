@@ -1895,8 +1895,8 @@ StructInfo InferStructInfoOneHot(const Call& call, const BlockBuilder& ctx) {
   PrimValue off_value = Downcast<PrimValue>(call->args[2]);
   // Check if on_value and off_value have the same dtype
   ICHECK(on_value->value->dtype == off_value->value->dtype)
-      << "one_hot: on_value and off_value must have the same dtype, " << "but got "
-      << on_value->value->dtype << " and " << off_value->value->dtype;
+      << "one_hot: on_value and off_value must have the same dtype, "
+      << "but got " << on_value->value->dtype << " and " << off_value->value->dtype;
   DataType dtype = on_value->value->dtype;
 
   // Check if indices has an integer dtype
@@ -1924,8 +1924,8 @@ StructInfo InferStructInfoOneHot(const Call& call, const BlockBuilder& ctx) {
     axis += output_shape.size() + 1;
   }
   ICHECK(0 <= axis && axis <= static_cast<int>(output_shape.size()))
-      << "one_hot: axis must be in the range of [0, " << output_shape.size() << "], " << "but got "
-      << axis;
+      << "one_hot: axis must be in the range of [0, " << output_shape.size() << "], "
+      << "but got " << axis;
   output_shape.insert(output_shape.begin() + axis, attrs->depth);
 
   return TensorStructInfo(ShapeExpr(output_shape), dtype, indices_sinfo->vdevice);
