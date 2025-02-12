@@ -819,6 +819,18 @@ endif()
 # Custom targets
 add_custom_target(runtime DEPENDS tvm_runtime)
 
+# By default add cython to all build
+find_package(Python)
+if(NOT DEFINED ENV{CONDA_BUILD})
+  message(STATUS ${CMAKE_CURRENT_BINARY_DIR})
+  add_custom_target(
+    tvm_cython ALL
+    ${Python_EXECUTABLE} setup.py build_ext --inplace
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/python
+  )
+  add_dependencies(tvm_cython tvm)
+endif()
+
 # Installation rules
 install(TARGETS tvm EXPORT ${PROJECT_NAME}Targets DESTINATION lib${LIB_SUFFIX})
 install(TARGETS tvm_runtime EXPORT ${PROJECT_NAME}Targets DESTINATION lib${LIB_SUFFIX})
