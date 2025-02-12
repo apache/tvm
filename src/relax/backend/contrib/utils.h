@@ -111,17 +111,29 @@ inline bool IsOp(const CallNode* call, const std::string& op_name) {
  * The function must contain exactly one call to such op.
  * \param f The function to look for an op.
  * \param op_name The name of the op
- * \return A call node which calls an op with the given name
+ * \return A call node which calls an op with the given name or nullptr if not
  */
-inline const CallNode* GetOpInFunction(Function f, const std::string& op_name) {
+inline const CallNode* TryGetOpInFunction(Function f, const std::string& op_name) {
   auto local_bindings = AnalyzeVar2Value(f);
   for (const auto& entry : local_bindings) {
     if (auto call = entry.second.as<CallNode>(); call && backend::IsOp(call, op_name)) {
       return call;
     }
   }
-  LOG(FATAL) << op_name << " not found in the function:\n" << f;
   return nullptr;
+}
+
+/*!
+ * \brief Return a call node within the function which calls an op with the given name
+ * The function must contain exactly one call to such op.
+ * \param f The function to look for an op.
+ * \param op_name The name of the op
+ * \return A call node which calls an op with the given name
+ */
+inline const CallNode* GetOpInFunction(Function f, const std::string& op_name) {
+  const CallNode* op = TryGetOpInFunction(f, op_name);
+  ICHECK(op) << op_name << " not found in the function:\n" << f;
+  return op;
 }
 
 /*!
@@ -148,6 +160,14 @@ std::string to_str(const Type& value) {
   os << std::setprecision(12) << value;
   return os.str();
 }
+
+/*!
+ * \brief Utility function to find the string pattern in string str
+ * \param str the main string to check the pattern
+ * \param pattern the pattern to check in the main string
+ * \return return true if the main string ends with pattern, false otherwise
+ */
+bool EndsWithPattern(const std::string& str, const std::string& pattern);
 
 }  // namespace backend
 }  // namespace relax

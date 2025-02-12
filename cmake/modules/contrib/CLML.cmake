@@ -16,7 +16,7 @@
 # under the License.
 
 if(USE_CLML)
-    file(GLOB CLML_RELAY_CONTRIB_SRC src/relay/backend/contrib/clml/*.cc)
+    file(GLOB CLML_RELAY_CONTRIB_SRC src/relay/backend/contrib/clml/*.cc src/relax/backend/contrib/clml/*.cc)
     file(GLOB CLML_RUNTIME_MODULE src/runtime/contrib/clml/clml_runtime.cc)
     include_directories(SYSTEM "3rdparty/OpenCL-Headers")
     list(APPEND COMPILER_SRCS ${CLML_RELAY_CONTRIB_SRC})
