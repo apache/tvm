@@ -2163,7 +2163,7 @@ def test_split_infer_struct_info_single_output():
     _check_inference(
         bb,
         relax.op.split(x5, 1, axis=1),
-       relax.TensorStructInfo(s2, "float32"),
+        relax.TensorStructInfo(s2, "float32"),
     )
 
 
