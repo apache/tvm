@@ -615,10 +615,8 @@ def clml_pipeline(params=None, **opts):
             [
                 transform.ConvertLayout(clml_layouts),
                 transform.Normalize(),
-                transform.FoldConstant(),
                 transform.BindParams("main", params),
                 transform.OptimizeBatchnorm(),
-                transform.FoldConstant(),
                 AppendReshapeToBNRewriterPass(),
                 transform.FoldConstant(),
                 transform.FuseOpsByPattern(clml_pattern_table()),

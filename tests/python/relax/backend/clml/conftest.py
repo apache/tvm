@@ -21,7 +21,6 @@ import tvm
 import pytest
 from tvm.autotvm.measure import request_remote
 
-
 @pytest.fixture(scope="session")
 def rpc():
     rpc_target = os.getenv("RPC_TARGET", None)
