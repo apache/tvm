@@ -64,7 +64,6 @@ REQUIREMENTS_BY_PIECE: RequirementsByPieceType = [
             "Base requirements needed to install tvm",
             [
                 "cloudpickle",
-                "decorator",
                 "ml_dtypes",
                 "numpy",
                 "packaging",
@@ -241,7 +240,6 @@ CONSTRAINTS = [
     ("commonmark", ">=0.7.3"),  # From PR #213.
     ("coremltools", None),
     ("cpplint", None),
-    ("decorator", None),
     (
         "docutils",
         "<0.17",

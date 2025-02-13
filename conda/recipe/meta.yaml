@@ -82,7 +82,6 @@ outputs:
         - {{ pin_subpackage(pkg_name + '-libs', exact=True) }}
       run:
         - python
-        - decorator
         - psutil
         - scipy
         - typing_extensions

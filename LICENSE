@@ -222,6 +222,7 @@ BSD 2-clause License
 
 3rdparty/picojson
 3rdparty/dmlc-core/include/dmlc/concurrentqueue.h
+python/tvm/_ffi/decorator.py
 
 
 BSD 2-clause License + zlib License

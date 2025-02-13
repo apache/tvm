@@ -3,3 +3,19 @@ Copyright 2019-2023 The Apache Software Foundation
 
 This product includes software developed at
 The Apache Software Foundation (http://www.apache.org/).
+
+This product includes software from the decorator project
+(https://github.com/micheles/decorator)
+Copyright (c) 2005-2021, Michele Simionato
+Licensed under the BSD license.
+
+The text of the BSD license:
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are
+met:
+  * Redistributions of source code must retain the above copyright
+    notice, this list of conditions and the following disclaimer.
+  * Redistributions in bytecode form must reproduce the above copyright
+    notice, this list of conditions and the following disclaimer in
+    the documentation and/or other materials provided with the
+    distribution.

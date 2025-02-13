@@ -132,9 +132,9 @@ def decorate(func, fwrapped):
     fwrapped : function
         The wrapped function
     """
-    import decorator
+    from .decorator import decorate as _decorate
 
-    return decorator.decorate(func, fwrapped)
+    return _decorate(func, fwrapped)
 
 
 # -----------------------------------------

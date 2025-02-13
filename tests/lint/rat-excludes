@@ -52,3 +52,6 @@ poetry.lock
 
 # Template files for Jenkins
 .*\.groovy\.j2
+
+# 3rdparty packages
+decorator.py
