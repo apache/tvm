@@ -24,17 +24,19 @@ import torch
 import tvm
 import tvm.testing
 from tvm import dlight as dl
+from tvm import relax
+from tvm.contrib import utils
 from tvm.relax.frontend.nn.llm.kv_cache import (
     AttnKind,
     RopeMode,
-    _attention_prefill_mla,
-    _attention_prefill_ragged,
     _copy_single_page_mla,
     _kv_cache_debug_get_kv_mla,
     _kv_cache_transpose_append_mla,
     _merge_state_inplace,
 )
 from tvm.runtime import ShapeTuple
+
+np.random.seed(0)
 
 reserved_nseq = 32
 maximum_total_seq_length = 2048
@@ -69,8 +71,11 @@ fdebug_get_kv = None
 ftranspose_append = None
 fcopy_cache = None
 fmla_prefill = None
-fmla_prefill_ragged = None
+fmla_prefill_plan = None
+fattn_prefill_ragged = None
+fattn_prefill_ragged_plan = None
 fmerge_state = None
+fmerge_state_additional = None
 fcopy_single_page = None
 
 w_kv = None
@@ -89,7 +94,8 @@ def set_global_func(dtype):
     global fpopn, fbegin_forward, fend_forward
     global fself_attn, fcross_attn, fappend_mla_kv, fkv_merge_attn_output
     global fis_empty, fdebug_get_kv
-    global ftranspose_append, fcopy_cache, fmla_prefill, fmla_prefill_ragged
+    global ftranspose_append, fcopy_cache, fmla_prefill, fmla_prefill_plan
+    global fattn_prefill_ragged, fattn_prefill_ragged_plan
     global fmerge_state, fmerge_state_additional, fcopy_single_page
     global w_kv, w_uk, w_uv
 
@@ -109,23 +115,52 @@ def set_global_func(dtype):
     fis_empty = tvm.get_global_func("vm.builtin.attention_kv_cache_empty")
     fdebug_get_kv = tvm.get_global_func("vm.builtin.attention_kv_cache_debug_get_kv_mla")
 
+    def load_module(name: str, static_modules: List[tvm.runtime.Module]):
+        assert len(static_modules) > 0
+        if len(static_modules) == 1:
+            return static_modules[0]
+        static_mod = static_modules[0]
+        for mod in static_modules[1:]:
+            static_mod.import_module(mod)
+        temp = utils.tempdir()
+        mod_path = temp.relpath(f"{name}.so")
+        static_mod.export_library(mod_path)
+        return tvm.runtime.load_module(mod_path)
+
     target = tvm.target.Target.from_device(device)
+    flashinfer_prefill_mod = load_module(
+        "flashinfer_prefill",
+        relax.backend.cuda.flashinfer.gen_flashinfer_prefill_module(
+            dtype_q=dtype,
+            dtype_kv=dtype,
+            dtype_o=dtype,
+            qk_head_dim=qk_nope_head_dim + qk_rope_head_dim,
+            v_head_dim=v_head_dim,
+            target=target,
+            enable_inline_rope=False,
+        ),
+    )
+    flashinfer_mla_mod = load_module(
+        "flashinfer_mla",
+        relax.backend.cuda.flashinfer.gen_flashinfer_mla_module(
+            dtype_q=dtype,
+            dtype_kv=dtype,
+            dtype_o=dtype,
+            head_dim_ckv=kv_lora_rank,
+            head_dim_kpe=qk_rope_head_dim,
+            target=target,
+        ),
+    )
+
+    fattn_prefill_ragged = flashinfer_prefill_mod["batch_prefill_with_ragged_kv_cache_run"]
+    fattn_prefill_ragged_plan = flashinfer_prefill_mod["batch_prefill_with_kv_cache_plan"]
+    fmla_prefill = flashinfer_mla_mod["batch_mla_paged_attention_run"]
+    fmla_prefill_plan = flashinfer_mla_mod["batch_mla_paged_attention_plan"]
+
     builts = []
     for tir_func in [
         _kv_cache_transpose_append_mla(kv_lora_rank + qk_rope_head_dim, dtype),
         _kv_cache_debug_get_kv_mla(num_layers, kv_lora_rank + qk_rope_head_dim, dtype),
-        _attention_prefill_mla(
-            num_attention_heads, kv_lora_rank, qk_rope_head_dim, dtype, False, target
-        ),
-        _attention_prefill_ragged(
-            num_attention_heads,
-            num_attention_heads,
-            qk_nope_head_dim + qk_rope_head_dim,
-            v_head_dim,
-            dtype,
-            {},
-            target,
-        ),
         _merge_state_inplace(num_attention_heads, kv_lora_rank, dtype, target),
         _merge_state_inplace(num_attention_heads, v_head_dim, dtype, target),
         _copy_single_page_mla(page_size, kv_lora_rank + qk_rope_head_dim, dtype, target),
@@ -139,8 +174,6 @@ def set_global_func(dtype):
     (
         ftranspose_append,
         fcopy_cache,
-        fmla_prefill,
-        fmla_prefill_ragged,
         fmerge_state,
         fmerge_state_additional,
         fcopy_single_page,
@@ -188,14 +221,14 @@ def create_kv_cache(dtype):
         tvm.nd.empty((), dtype, device=device),
         None,  # f_transpose_append_mha
         ftranspose_append,
-        ["tir", fmla_prefill_ragged],  # fattn_prefill_ragged
+        ["flashinfer", fattn_prefill_ragged, fattn_prefill_ragged_plan],  # fattn_prefill_ragged
         [],  # fattn_prefill
         [],  # fattn_decode
         [],  # fattn_prefill_sliding_window
         [],  # fattn_decode_sliding_window
         [],  # fattn_prefill_with_tree_mask_paged_kv_cache
         [],  # fattn_prefill_with_tree_mask
-        ["tir", fmla_prefill],
+        ["flashinfer", fmla_prefill, fmla_prefill_plan],
         [fmerge_state, fmerge_state_additional],
         fdumb,  # fsplit_rotary
         fcopy_single_page,
@@ -412,8 +445,7 @@ def apply_attention(
     verify_cached_kv(kv_cache, seq_ids, cached_kv)
 
 
-@tvm.testing.requires_gpu
-@tvm.testing.requires_cuda
+@pytest.mark.skip(reason="Require FlashInfer enabled")
 def test_paged_attention_kv_cache_prefill_and_decode(kv_cache_and_config):
     (kv_cache,) = kv_cache_and_config
     fclear(kv_cache)
@@ -433,8 +465,7 @@ def test_paged_attention_kv_cache_prefill_and_decode(kv_cache_and_config):
         apply_attention(kv_cache, batch, cached_kv)
 
 
-@tvm.testing.requires_gpu
-@tvm.testing.requires_cuda
+@pytest.mark.skip(reason="Require FlashInfer enabled")
 def test_paged_attention_kv_cache_remove_sequence(kv_cache_and_config):
     (kv_cache,) = kv_cache_and_config
     fclear(kv_cache)
@@ -454,8 +485,7 @@ def test_paged_attention_kv_cache_remove_sequence(kv_cache_and_config):
         )
 
 
-@tvm.testing.requires_gpu
-@tvm.testing.requires_cuda
+@pytest.mark.skip(reason="Require FlashInfer enabled")
 def test_paged_attention_kv_cache_fork_sequence(kv_cache_and_config):
     (kv_cache,) = kv_cache_and_config
     fclear(kv_cache)
@@ -524,8 +554,7 @@ def test_paged_attention_kv_cache_fork_sequence(kv_cache_and_config):
     apply_attention(kv_cache, [(10, 1), (12, 1)], cached_kv)
 
 
-@tvm.testing.requires_gpu
-@tvm.testing.requires_cuda
+@pytest.mark.skip(reason="Require FlashInfer enabled")
 def test_paged_attention_kv_cache_popn(kv_cache_and_config):
     (kv_cache,) = kv_cache_and_config
     fclear(kv_cache)

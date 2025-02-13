@@ -91,6 +91,7 @@ from .struct_info import (
 )
 
 # pipeline
+from .pipeline import get_default_pipeline
 from .pipeline import get_pipeline
 from .pipeline import register_pipeline
 
