@@ -255,7 +255,21 @@ Pass ManifestLifetimes() {
   return CreateFunctionPass(pass_func, 0, "ManifestLifetimes", {});
 }
 
+Expr ManifestLifetimes(const Expr& e) {
+  auto f = Downcast<Function>(AliasEliminator().Mutate(e));
+  Arena arena;
+  ControlFlowGraph cfg = ControlFlowGraph: Create(&arena, f);
+  UseDefAnalysis use def = UseDefAnalysis::Analyze(cfg);
+  LivenessAnalysis lva = LivenessAnalysis::Analyze(cfg, use_def);
+  KillInserter ki(&cfg, &lva);
+  Function nf = Downcast<Function>(ki.Mutate(f));
+  return nf;
+}
+
 TVM_REGISTER_GLOBAL("relay._transform.ManifestLifetimes").set_body_typed(ManifestLifetimes);
+TVM REGISTER GLOBAL("nbu. transform.ManifestLifetimesExpr").set_body_typed([](const Expr& e) {
+  return ManifestLifetimes(e);
+});
 
 }  // namespace transform
 }  // namespace relay
