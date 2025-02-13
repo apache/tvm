@@ -119,6 +119,9 @@ class AnnotatedRegionSet::Creator : protected MixedModeVisitor {
       if (end && end->op == end_op_) {  // Ignore closed regions.
         continue;
       }
+      if(arg.as<ConstantNode>()) {  // Ignore ConstantNode
+        continue;
+      }
 
       auto arg_region = region_set_->GetRegion(arg);
       ICHECK_EQ(region.defined(), arg_region.defined())
