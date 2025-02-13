@@ -33,7 +33,7 @@ TVM is licensed under the [Apache-2.0](LICENSE) license.
 Getting Started
 ---------------
 Check out the [TVM Documentation](https://tvm.apache.org/docs/) site for installation instructions, tutorials, examples, and more.
-The [Getting Started with TVM](https://tvm.apache.org/docs/tutorial/introduction.html) tutorial is a great
+The [Getting Started with TVM](https://tvm.apache.org/docs/get_started/overview.html) tutorial is a great
 place to start.
 
 Contribute to TVM
