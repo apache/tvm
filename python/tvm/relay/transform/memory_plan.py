@@ -49,6 +49,7 @@ class Region:
     The below pass groups sets of allocations into regions,
     then replaces the region with a single allocation.
     """
+
     var: expr.Var
     size: expr.Expr
     alignment: Optional[expr.Expr]
