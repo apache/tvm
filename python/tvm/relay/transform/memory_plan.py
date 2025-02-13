@@ -20,7 +20,7 @@ A pass for manifesting explicit memory allocations.
 """
 from typing import Optional, Dict, List, Tuple
 from collections import defaultdict
-import attr
+from dataclasses import dataclass
 
 from ..expr_functor import ExprMutator
 from .. import op, expr
@@ -41,7 +41,7 @@ def is_primitive(call):
     )
 
 
-@attr.s(auto_attribs=True)
+@dataclass
 class Region:
     """
     Represents a control-free allocation region.
@@ -49,7 +49,6 @@ class Region:
     The below pass groups sets of allocations into regions,
     then replaces the region with a single allocation.
     """
-
     var: expr.Var
     size: expr.Expr
     alignment: Optional[expr.Expr]
