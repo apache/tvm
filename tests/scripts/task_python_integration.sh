@@ -43,8 +43,13 @@ TVM_TEST_TARGETS="${TVM_RELAY_TEST_TARGETS:-llvm;cuda}" \
     run_pytest ${TVM_INTEGRATION_TESTSUITE_NAME}-relay tests/python/relay --ignore=tests/python/relay/aot
 
 # OpenCL texture test. Deselected specific tests that fails  in CI
-TVM_TEST_TARGETS="${TVM_RELAY_OPENCL_TEXTURE_TARGETS:-opencl}" \
-    run_pytest ${TVM_INTEGRATION_TESTSUITE_NAME}-opencl-texture tests/python/relay/opencl_texture/test_conv2d_transpose_nchw_texture.py
+TEXTURE_TESTS=$(ls tests/python/relay/opencl_texture/test_*)
+i=0
+for TEST in $TEXTURE_TESTS; do
+    TVM_TEST_TARGETS="${TVM_RELAY_OPENCL_TEXTURE_TARGETS:-opencl}" \
+        run_pytest "${TVM_INTEGRATION_TESTSUITE_NAME}-opencl-texture-$i" "$TEST"
+    i=$((i+1))
+done
 # Command line driver test
 run_pytest ${TVM_INTEGRATION_TESTSUITE_NAME}-driver tests/python/driver
 
