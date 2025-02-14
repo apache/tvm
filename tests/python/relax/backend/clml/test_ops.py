@@ -206,6 +206,7 @@ def get_clml_conv2d_codegen(
     return nodes
 
 
+@tvm.testing.requires_openclml
 @pytest.mark.parametrize("dtype", ["float32"])
 @pytest.mark.parametrize(
     "kernel_h, kernel_w, padding, stride, dilation, out_channels, shape, has_bias, has_bn, has_activation, has_pad, is_depthwise",
@@ -373,6 +374,7 @@ def _get_conv2d_transpose_expected_codegen(
     return exp_codegen
 
 
+@tvm.testing.requires_openclml
 @pytest.mark.parametrize("dtype", ["float32"])
 @pytest.mark.parametrize(
     "dshape, kshape, channels, kernel_size, strides, padding, out_shape",
@@ -419,6 +421,7 @@ def test_conv2d_transpose(
     verify_codegen(clml_mod, exp_codegen)
 
 
+@tvm.testing.requires_openclml
 @pytest.mark.parametrize("dtype", ["float32"])
 @pytest.mark.parametrize(
     "trials",
@@ -509,6 +512,7 @@ def test_batchnorm(dtype, trials, rpc):
     run_compare(mod, inputs, params_np, rpc, exp_codegen)
 
 
+@tvm.testing.requires_openclml
 @pytest.mark.parametrize("dtype", ["float32"])
 @pytest.mark.parametrize(
     "a_shape, b_shape, op",
@@ -589,6 +593,7 @@ def test_binary_ops(a_shape, b_shape, op, rpc, dtype):
     _verify(mod, inputs)
 
 
+@tvm.testing.requires_openclml
 @pytest.mark.parametrize(
     "dtype",
     [
@@ -751,6 +756,7 @@ def get_maxpool_expected_codegen(input_shape, pool_size, stride, padding, pool_t
     return exp_codegen
 
 
+@tvm.testing.requires_openclml
 @pytest.mark.parametrize("dtype", ["float32"])
 @pytest.mark.parametrize(
     "trials",
@@ -873,6 +879,7 @@ def get_avgpool_expected_codegen(input_shape, pool_size, stride, padding, pool_t
     return exp_codegen
 
 
+@tvm.testing.requires_openclml
 @pytest.mark.parametrize("dtype", ["float32"])
 @pytest.mark.parametrize(
     "trials",
@@ -960,6 +967,7 @@ def get_relax_reshape_codegen(input_shape, output_shape, dtype):
     return expected_codegen_str
 
 
+@tvm.testing.requires_openclml
 @pytest.mark.parametrize("dtype", ["float32"])
 @pytest.mark.parametrize(
     "trials",
@@ -1043,6 +1051,7 @@ def get_global_avgpool_expected_codegen(input_shape, keep_dims, dtype):
     return exp_codegen
 
 
+@tvm.testing.requires_openclml
 @pytest.mark.parametrize("dtype", ["float32"])
 @pytest.mark.parametrize(
     "trials",
@@ -1142,6 +1151,7 @@ def get_global_maxpool_expected_codegen(input_shape, pool_size, stride, padding,
     return exp_codegen
 
 
+@tvm.testing.requires_openclml
 @pytest.mark.parametrize("dtype", ["float32"])
 @pytest.mark.parametrize(
     "trials",
