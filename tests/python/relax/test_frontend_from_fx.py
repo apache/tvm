@@ -1954,166 +1954,57 @@ def test_getitem():
     verify_model(Slice2(), [([8, 16], "float32")], {}, expected2)
 
 
-def test_unary():
+operator_basic_unary = [
+    (torch.abs, R.abs, "abs"),
+    (torch.acos, R.acos, "acos"),
+    (torch.acosh, R.acosh, "acosh"),
+    (torch.asin, R.asin, "asin"),
+    (torch.asinh, R.asinh, "asinh"),
+    (torch.atan, R.atan, "atan"),
+    (torch.atanh, R.atanh, "atanh"),
+    (torch.ceil, R.ceil, "ceil"),
+    (torch.cos, R.cos, "cos"),
+    (torch.cosh, R.cosh, "cosh"),
+    (torch.erf, R.erf, "erf"),
+    (torch.exp, R.exp, "exp"),
+    (torch.floor, R.floor, "floor"),
+    (torch.log, R.log, "log"),
+    (torch.neg, R.negative, "neg"),
+    (torch.round, R.round, "round"),
+    (torch.rsqrt, R.rsqrt, "rsqrt"),
+    (torch.sin, R.sin, "sin"),
+    (torch.sinh, R.sinh, "sinh"),
+    (torch.sqrt, R.sqrt, "sqrt"),
+    (torch.tan, R.tan, "tan"),
+    (torch.tanh, R.tanh, "tanh"),
+]
+
+
+@pytest.mark.parametrize("pytorch_op, relax_op, test_name", operator_basic_unary)
+def test_basic_unary_ops(pytorch_op, relax_op, test_name):
     input_info = [([1, 3, 10, 10], "float32")]
 
-    # abs
-    class Abs(Module):
+    class Unary(Module):
         def forward(self, input):
-            return torch.abs(input)
+            return pytorch_op(input)
 
     @tvm.script.ir_module
-    class expected_abs:
+    class expected_unary:
         @R.function
         def main(
             input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
         ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
             with R.dataflow():
-                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.abs(input_1)
+                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = relax_op(input_1)
                 gv: R.Tensor((1, 3, 10, 10), dtype="float32") = lv
                 R.output(gv)
             return gv
 
-    verify_model(Abs(), input_info, {}, expected_abs)
+    verify_model(Unary(), input_info, {}, expected_unary)
 
-    # acos
-    class Acos(Module):
-        def forward(self, input):
-            return torch.acos(input)
 
-    @tvm.script.ir_module
-    class expected_acos:
-        @R.function
-        def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
-            # block 0
-            with R.dataflow():
-                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.acos(input_1)
-                gv: R.Tensor((1, 3, 10, 10), dtype="float32") = lv
-                R.output(gv)
-            return gv
-
-    verify_model(Acos(), input_info, {}, expected_acos)
-
-    # acosh
-    class Acosh(Module):
-        def forward(self, input):
-            return torch.acosh(input)
-
-    @tvm.script.ir_module
-    class expected_acosh:
-        @R.function
-        def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
-            # block 0
-            with R.dataflow():
-                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.acosh(input_1)
-                gv: R.Tensor((1, 3, 10, 10), dtype="float32") = lv
-                R.output(gv)
-            return gv
-
-    verify_model(Acosh(), input_info, {}, expected_acosh)
-
-    # asin
-    class Asin(Module):
-        def forward(self, input):
-            return torch.asin(input)
-
-    @tvm.script.ir_module
-    class expected_asin:
-        @R.function
-        def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
-            # block 0
-            with R.dataflow():
-                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.asin(input_1)
-                gv: R.Tensor((1, 3, 10, 10), dtype="float32") = lv
-                R.output(gv)
-            return gv
-
-    verify_model(Asin(), input_info, {}, expected_asin)
-
-    # asinh
-    class Asinh(Module):
-        def forward(self, input):
-            return torch.asinh(input)
-
-    @tvm.script.ir_module
-    class expected_asinh:
-        @R.function
-        def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
-            # block 0
-            with R.dataflow():
-                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.asinh(input_1)
-                gv: R.Tensor((1, 3, 10, 10), dtype="float32") = lv
-                R.output(gv)
-            return gv
-
-    verify_model(Asinh(), input_info, {}, expected_asinh)
-
-    # atan
-    class Atan(Module):
-        def forward(self, input):
-            return torch.atan(input)
-
-    @tvm.script.ir_module
-    class expected_atan:
-        @R.function
-        def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
-            # block 0
-            with R.dataflow():
-                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.atan(input_1)
-                gv: R.Tensor((1, 3, 10, 10), dtype="float32") = lv
-                R.output(gv)
-            return gv
-
-    verify_model(Atan(), input_info, {}, expected_atan)
-
-    # atanh
-    class Atanh(Module):
-        def forward(self, input):
-            return torch.atanh(input)
-
-    @tvm.script.ir_module
-    class expected_atanh:
-        @R.function
-        def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
-            # block 0
-            with R.dataflow():
-                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.atanh(input_1)
-                gv: R.Tensor((1, 3, 10, 10), dtype="float32") = lv
-                R.output(gv)
-            return gv
-
-    verify_model(Atanh(), input_info, {}, expected_atanh)
-
-    # ceil
-    class Ceil(Module):
-        def forward(self, input):
-            return torch.ceil(input)
-
-    @tvm.script.ir_module
-    class expected_ceil:
-        @R.function
-        def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
-            with R.dataflow():
-                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.ceil(input_1)
-                gv: R.Tensor((1, 3, 10, 10), dtype="float32") = lv
-                R.output(gv)
-            return gv
-
-    verify_model(Ceil(), input_info, {}, expected_ceil)
+def test_extended_unary_ops():
+    input_info = [([1, 3, 10, 10], "float32")]
 
     # clamp
     class Clamp(Module):
@@ -2159,46 +2050,6 @@ def test_unary():
         gm = fx.symbolic_trace(Clamp_Error())
         from_fx(gm, input_info)
 
-    # cos
-    class Cos(Module):
-        def forward(self, input):
-            return torch.cos(input)
-
-    @tvm.script.ir_module
-    class expected_cos:
-        @R.function
-        def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
-            # block 0
-            with R.dataflow():
-                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.cos(input_1)
-                gv: R.Tensor((1, 3, 10, 10), dtype="float32") = lv
-                R.output(gv)
-            return gv
-
-    verify_model(Cos(), input_info, {}, expected_cos)
-
-    # cosh
-    class Cosh(Module):
-        def forward(self, input):
-            return torch.cosh(input)
-
-    @tvm.script.ir_module
-    class expected_cosh:
-        @R.function
-        def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
-            # block 0
-            with R.dataflow():
-                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.cosh(input_1)
-                gv: R.Tensor((1, 3, 10, 10), dtype="float32") = lv
-                R.output(gv)
-            return gv
-
-    verify_model(Cosh(), input_info, {}, expected_cosh)
-
     # dropout
     class Dropout1(Module):
         def __init__(self):
@@ -2226,45 +2077,6 @@ def test_unary():
 
     verify_model(Dropout1(), input_info, {}, expected_dropout)
     verify_model(Dropout2(), input_info, {}, expected_dropout)
-
-    # exp
-    class Exp(Module):
-        def forward(self, input):
-            return torch.exp(input)
-
-    @tvm.script.ir_module
-    class expected_exp:
-        @R.function
-        def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
-            # block 0
-            with R.dataflow():
-                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.exp(input_1)
-                gv: R.Tensor((1, 3, 10, 10), dtype="float32") = lv
-                R.output(gv)
-            return gv
-
-    verify_model(Exp(), input_info, {}, expected_exp)
-
-    # floor
-    class Floor(Module):
-        def forward(self, input):
-            return torch.floor(input)
-
-    @tvm.script.ir_module
-    class expected_floor:
-        @R.function
-        def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
-            with R.dataflow():
-                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.floor(input_1)
-                gv: R.Tensor((1, 3, 10, 10), dtype="float32") = lv
-                R.output(gv)
-            return gv
-
-    verify_model(Floor(), input_info, {}, expected_floor)
 
     # gelu
     class Gelu(Module):
@@ -2294,6 +2106,9 @@ def test_unary():
 
     verify_model(Gelu(), input_info, {}, expected_gelu)
     verify_model(Gelu2(), input_info, {}, expected_gelu)
+
+    # leaky_relu
+    test_leakyrelu()
 
     # hardsigmoid
     class Hardsigmoid(torch.nn.Module):
@@ -2360,25 +2175,6 @@ def test_unary():
     verify_model(Hardswish(), input_info, {}, expected_hardswish)
     verify_model(Hardswish2(), input_info, {}, expected_hardswish)
 
-    # log
-    class Log(Module):
-        def forward(self, input):
-            return torch.log(input)
-
-    @tvm.script.ir_module
-    class expected_log:
-        @R.function
-        def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
-            with R.dataflow():
-                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.log(input_1)
-                gv: R.Tensor((1, 3, 10, 10), dtype="float32") = lv
-                R.output(gv)
-            return gv
-
-    verify_model(Log(), input_info, {}, expected_log)
-
     # log_softmax
     class LogSoftmax(Module):
         def __init__(self):
@@ -2408,25 +2204,6 @@ def test_unary():
     verify_model(LogSoftmax(), input_info, {}, expected_log_softmax)
     verify_model(LogSoftmax2(), input_info, {}, expected_log_softmax)
 
-    # neg
-    class Neg(Module):
-        def forward(self, input):
-            return -input
-
-    @tvm.script.ir_module
-    class expected_neg:
-        @R.function
-        def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
-            with R.dataflow():
-                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.negative(input_1)
-                gv: R.Tensor((1, 3, 10, 10), dtype="float32") = lv
-                R.output(gv)
-            return gv
-
-    verify_model(Neg(), input_info, {}, expected_neg)
-
     # relu
     class ReLU0(Module):
         def __init__(self):
@@ -2455,45 +2232,6 @@ def test_unary():
 
     verify_model(ReLU0(), input_info, {}, expected_relu)
     verify_model(ReLU1(), input_info, {}, expected_relu)
-
-    # round
-    class Round(Module):
-        def forward(self, input):
-            return torch.round(input)
-
-    @tvm.script.ir_module
-    class expected_round:
-        @R.function
-        def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
-            # block 0
-            with R.dataflow():
-                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.round(input_1)
-                gv: R.Tensor((1, 3, 10, 10), dtype="float32") = lv
-                R.output(gv)
-            return gv
-
-    verify_model(Round(), input_info, {}, expected_round)
-
-    # rsqrt
-    class Rsqrt(Module):
-        def forward(self, input):
-            return torch.rsqrt(input)
-
-    @tvm.script.ir_module
-    class expected_rsqrt:
-        @R.function
-        def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
-            with R.dataflow():
-                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.rsqrt(input_1)
-                gv: R.Tensor((1, 3, 10, 10), dtype="float32") = lv
-                R.output(gv)
-            return gv
-
-    verify_model(Rsqrt(), input_info, {}, expected_rsqrt)
 
     # sigmoid
     class Sigmoid(Module):
@@ -2553,46 +2291,6 @@ def test_unary():
     verify_model(SiLU(), input_info, {}, expected_silu)
     verify_model(SiLU2(), input_info, {}, expected_silu)
 
-    # sin
-    class Sin(Module):
-        def forward(self, input):
-            return torch.sin(input)
-
-    @tvm.script.ir_module
-    class expected_sin:
-        @R.function
-        def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
-            # block 0
-            with R.dataflow():
-                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.sin(input_1)
-                gv: R.Tensor((1, 3, 10, 10), dtype="float32") = lv
-                R.output(gv)
-            return gv
-
-    verify_model(Sin(), input_info, {}, expected_sin)
-
-    # sinh
-    class Sinh(Module):
-        def forward(self, input):
-            return torch.sinh(input)
-
-    @tvm.script.ir_module
-    class expected_sinh:
-        @R.function
-        def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
-            # block 0
-            with R.dataflow():
-                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.sinh(input_1)
-                gv: R.Tensor((1, 3, 10, 10), dtype="float32") = lv
-                R.output(gv)
-            return gv
-
-    verify_model(Sinh(), input_info, {}, expected_sinh)
-
     # softmax
     class Softmax(Module):
         def __init__(self):
@@ -2621,75 +2319,6 @@ def test_unary():
 
     verify_model(Softmax(), input_info, {}, expected_softmax)
     verify_model(Softmax2(), input_info, {}, expected_softmax)
-
-    # sqrt
-    class Sqrt(Module):
-        def forward(self, input):
-            return torch.sqrt(input)
-
-    @tvm.script.ir_module
-    class expected_sqrt:
-        @R.function
-        def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
-            # block 0
-            with R.dataflow():
-                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.sqrt(input_1)
-                gv: R.Tensor((1, 3, 10, 10), dtype="float32") = lv
-                R.output(gv)
-            return gv
-
-    verify_model(Sqrt(), input_info, {}, expected_sqrt)
-
-    # tan
-    class Tan(Module):
-        def forward(self, input):
-            return torch.tan(input)
-
-    @tvm.script.ir_module
-    class expected_tan:
-        @R.function
-        def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
-            # block 0
-            with R.dataflow():
-                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.tan(input_1)
-                gv: R.Tensor((1, 3, 10, 10), dtype="float32") = lv
-                R.output(gv)
-            return gv
-
-    verify_model(Tan(), input_info, {}, expected_tan)
-
-    # tanh
-    class Tanh(Module):
-        def __init__(self):
-            super().__init__()
-            self.tanh = torch.nn.Tanh()
-
-        def forward(self, input):
-            return self.tanh(input)
-
-    class Tanh2(Module):
-        def forward(self, input):
-            return torch.tanh(input)
-
-    @tvm.script.ir_module
-    class expected_tanh:
-        @R.function
-        def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
-            # block 0
-            with R.dataflow():
-                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.tanh(input_1)
-                gv: R.Tensor((1, 3, 10, 10), dtype="float32") = lv
-                R.output(gv)
-            return gv
-
-    verify_model(Tanh(), input_info, {}, expected_tanh)
-    verify_model(Tanh2(), input_info, {}, expected_tanh)
 
     # tril
     class Tril(Module):
