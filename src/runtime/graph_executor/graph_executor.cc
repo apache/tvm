@@ -26,6 +26,7 @@
 #include <tvm/runtime/container/string.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/device_api.h>
+#include <tvm/runtime/memory/memory_manager.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/profiling.h>
@@ -424,36 +425,31 @@ void GraphExecutor::SetupStorage() {
     }
     pool_entry[sid].param_data_entry = i;
     pool_entry[sid].device_type = device_type;
-    pool_entry[sid].scope = storage_scope;
 
     DLDataType t = vtype[i];
-    if (!details::Is2DStorage(storage_scope)) {
-      size_t size = 1;
-      for (int64_t sz : attrs_.shape[i]) {
-        size *= static_cast<size_t>(sz);
-      }
-      size_t bits = t.bits * t.lanes;
-      ICHECK(bits % 8U == 0U || bits == 1U || bits == 4U);
-      int64_t bytes = ((bits + 7U) / 8U) * size;
-      pool_entry[sid].shape[0] = std::max(pool_entry[sid].shape[0], bytes);
-      pool_entry[sid].dtype = DLDataType{kDLFloat, 32, 1};
-    } else {
-      if (pool_entry[sid].shape.size() == 1) {
-        pool_entry[sid].shape.resize(3, 0);
-      }
-      size_t axis = runtime::DefaultTextureLayoutSeparator(attrs_.shape[i].size(), storage_scope);
-      auto shape = ApplyTexture2DFlattening<int64_t>(attrs_.shape[i], attrs_.shape[i].size(), axis);
-      pool_entry[sid].shape[0] = std::max(pool_entry[sid].shape[0], shape.height);
-      pool_entry[sid].shape[1] = std::max(pool_entry[sid].shape[1], shape.width);
-      CHECK(pool_entry[sid].shape[2] == 0 || pool_entry[sid].shape[2] == shape.channel)
-          << pool_entry[sid].shape[2] << " != " << shape.channel
-          << ",  texture channel length must be consistent within a storage pool";
-      pool_entry[sid].shape[2] = shape.channel;
-      CHECK(pool_entry[sid].dtype.bits == 0 || TypeEqual(pool_entry[sid].dtype, t))
-          << DLDataType2String(pool_entry[sid].dtype) << " != " << DLDataType2String(t)
-          << ", pool entry for 2d texure allocations must be of the same type;"
-          << " downstream error from memory planner likely";
+
+    auto dev_type = pool_entry[sid].device_type;
+    const auto& cit = std::find_if(devices_.begin(), devices_.end(), [&dev_type](const Device& d) {
+      return dev_type == static_cast<int>(d.device_type);
+    });
+    Device dev = cit == devices_.end() ? devices_[0] : *cit;
+
+    DLTensor temp;
+    temp.data = nullptr;
+    temp.device = dev;
+    temp.ndim = attrs_.shape[i].size();
+    temp.dtype = t;
+    temp.shape = static_cast<int64_t*>(attrs_.shape[i].data());
+    temp.strides = nullptr;
+    temp.byte_offset = 0;
+
+    int64_t alloc_size = DeviceAPI::Get(dev)->GetDataSize(temp, String(storage_scope));
+
+    if (pool_entry[sid].alloc_size < alloc_size) {
       pool_entry[sid].dtype = t;
+      pool_entry[sid].shape = attrs_.shape[i];
+      pool_entry[sid].alloc_size = alloc_size;
+      pool_entry[sid].scope = storage_scope;
     }
   }
 
@@ -466,18 +462,14 @@ void GraphExecutor::SetupStorage() {
     });
     Device dev = cit == devices_.end() ? devices_[0] : *cit;
     if (pit.linked_param.defined()) {
-      storage_pool_.push_back(pit.linked_param);
+      ndarray_pool_.push_back(pit.linked_param);
     } else {
       std::vector<int64_t> shape = pit.shape;
-      if (shape.size() == 1) {
-        shape[0] = (shape[0] + 3) / 4;
-      }
-      Optional<String> mem_scope;
-      if (!pit.scope.empty()) {
-        mem_scope = String(pit.scope);
-      }
-      storage_pool_.push_back(MemoryManager::GetOrCreateAllocator(dev, AllocatorType::kNaive)
-                                  ->Empty(shape, pit.dtype, dev, mem_scope));
+      String mem_scope = pit.scope.empty() ? "global" : String(pit.scope);
+      auto allocator = MemoryManager::GetOrCreateAllocator(dev, AllocatorType::kPooled);
+      auto buffer = allocator->Alloc(dev, pit.alloc_size, kAllocAlignment, pit.dtype);
+      auto stor = Storage(buffer, allocator);
+      storage_pool_.push_back(stor);
     }
   }
 
@@ -486,16 +478,22 @@ void GraphExecutor::SetupStorage() {
   // is mapped to this pool.
   data_entry_.resize(num_node_entries());
   data_alignment_.resize(num_node_entries());
-  // sid_to_eid has a size of storage_id's size, which is the size of storage_pool_.
-  sid_to_eid_.resize(storage_pool_.size());
-  for (size_t i = 0; i < data_entry_.size(); ++i) {
+  // sid_to_eid has a size of storage_id's size, which is the size of pool_entry.
+  sid_to_eid_.resize(pool_entry.size());
+  for (size_t i = 0, j = 0; i < data_entry_.size(); ++i) {
     int storage_id = attrs_.storage_id[i];
     // Update "storage_id -> entry_id" pair.
     sid_to_eid_[storage_id].push_back(i);
 
-    ICHECK_LT(static_cast<size_t>(storage_id), storage_pool_.size());
-    data_entry_[i] = storage_pool_[storage_id].CreateView(attrs_.shape[i], vtype[i]);
+    ICHECK_LT(static_cast<size_t>(storage_id), pool_entry.size());
 
+    if (pool_entry[storage_id].linked_param.defined()) {
+      data_entry_[i] = ndarray_pool_[j++];
+    } else {
+      std::string storage_scope = attrs_.storage_scope.empty() ? "global" : attrs_.storage_scope[i];
+      data_entry_[i] = storage_pool_[storage_id]->AllocNDArrayScoped(0, ShapeTuple(attrs_.shape[i]),
+                                                                     vtype[i], storage_scope);
+    }
     const DLTensor* tmp = data_entry_[i].operator->();
     data_alignment_[i] = details::GetDataAlignment(*tmp);
   }
