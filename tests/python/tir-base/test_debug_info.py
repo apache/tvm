@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 """Test line-level debug info for TIR"""
+
 import tvm
 import tvm.testing
 from tvm import tir
@@ -104,7 +105,7 @@ def test_tir_debug_info_with_subroutine():
     class module_before:
         @T.prim_func
         def main(a: T.handle, b: T.handle):
-            T.func_attr({"global_symbol": "main", "tir.noalias": True, "target": T.target("llvm")})
+            T.func_attr({"tir.noalias": True, "target": T.target("llvm")})
             A = T.match_buffer(a, (8,), dtype="float32")
             B = T.match_buffer(b, (8,), dtype="float32")
             for i in range(8):
@@ -114,7 +115,7 @@ def test_tir_debug_info_with_subroutine():
 
         @T.prim_func
         def subroutine(a_ptr: T.handle("float32"), b_ptr: T.handle("float32")):
-            T.func_attr({"global_symbol": "main", "tir.noalias": True})
+            T.func_attr({"tir.noalias": True})
             A = T.decl_buffer(1, "float32", data=a_ptr)
             B = T.decl_buffer(1, "float32", data=b_ptr)
             B[0] = A[1] + 1.0

@@ -43,7 +43,7 @@ class TestLowerDeviceKernelLaunch(BaseCompare):
                 T.func_attr({"target": T.target("llvm")})
                 mod.kernel(A.data)
 
-            @T.prim_func
+            @T.prim_func(private=True)
             def kernel(A_data: T.handle("float32")):
                 T.func_attr({"target": T.target("cuda")})
                 A = T.decl_buffer(1, dtype="float32", data=A_data)
@@ -66,7 +66,6 @@ class TestLowerDeviceKernelLaunch(BaseCompare):
                         "target": T.target("cuda"),
                         "calling_conv": 2,
                         "tir.kernel_launch_params": [],
-                        "global_symbol": "kernel",
                         "tir.is_global_func": True,
                     }
                 )
@@ -99,7 +98,7 @@ class TestExternallyVisibleKernelLaunch(BaseCompare):
 
             @T.prim_func
             def kernel(A_data: T.handle("float32")):
-                T.func_attr({"target": T.target("cuda"), "global_symbol": "kernel_by_another_name"})
+                T.func_attr({"target": T.target("cuda")})
                 A = T.decl_buffer(1, dtype="float32", data=A_data)
                 A[0] = 0.0
 
@@ -111,7 +110,7 @@ class TestExternallyVisibleKernelLaunch(BaseCompare):
             @T.prim_func
             def main(A: T.Buffer(1, "float32")):
                 T.func_attr({"target": T.target("llvm")})
-                T.call_packed("kernel_by_another_name", A.data)
+                T.call_packed("kernel", A.data)
 
             @T.prim_func
             def kernel(A_data: T.handle("float32")):
@@ -120,7 +119,6 @@ class TestExternallyVisibleKernelLaunch(BaseCompare):
                         "target": T.target("cuda"),
                         "calling_conv": 2,
                         "tir.kernel_launch_params": [],
-                        "global_symbol": "kernel_by_another_name",
                         "tir.is_global_func": True,
                     }
                 )
