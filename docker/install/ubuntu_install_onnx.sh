@@ -36,20 +36,19 @@ pip3 install future
 if [ "$PYTHON_VERSION" == "3.9" ]; then
     pip3 install \
         onnx==1.16.0 \
-        onnxruntime==1.19.1 \
+        onnxruntime==1.19.2 \
         onnxoptimizer==0.2.7
-    
+
     pip3 install \
         torch==2.6.0 \
         torchvision==0.21.0 \
         --extra-index-url https://download.pytorch.org/whl/cpu
-    
 elif [ "$PYTHON_VERSION" == "3.11" ]; then
     pip3 install \
         onnx==1.17.0 \
         onnxruntime==1.20.1 \
         onnxoptimizer==0.2.7
-    
+
     pip3 install \
         torch==2.6.0 \
         torchvision==0.21.0 \
