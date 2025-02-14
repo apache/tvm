@@ -628,6 +628,7 @@ class TorchFXImporter(BaseFXGraphImporter):
             "cos": self._unary_op(relax.op.cos),
             "cosh": self._unary_op(relax.op.cosh),
             "dropout": lambda node: self.env[node.args[0]],
+            "erf": self._unary_op(relax.op.erf),
             "exp": self._unary_op(relax.op.exp),
             "floor": self._unary_op(relax.op.floor),
             "gelu": self._gelu,
