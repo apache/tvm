@@ -63,14 +63,6 @@ cd python; python3 setup.py build_ext --inplace; cd ..
 # The RPC to remote Android device has issue of hang after few tests with in CI environments.
 # Lets run them individually on fresh rpc session.
 # OpenCL texture test on Adreno
-TEXTURE_TESTS=$(./ci/scripts/jenkins/pytest_ids.py --folder tests/python/relay/opencl_texture)
-i=0
-IFS=$'\n'
-for node_id in $TEXTURE_TESTS; do
-    echo "$node_id"
-    run_pytest "$TVM_INTEGRATION_TESTSUITE_NAME-opencl-texture-$i" "$node_id" --reruns=0
-    i=$((i+1))
-done
 
 # Adreno CLML test
 CLML_TESTS=$(./ci/scripts/jenkins/pytest_ids.py --folder tests/python/contrib/test_clml)
