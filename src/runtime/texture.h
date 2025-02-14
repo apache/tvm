@@ -30,6 +30,8 @@
 #include <string>
 #include <vector>
 
+#define ALIGN_UP(num, align) (((num) + ((align)-1)) & ~((align)-1))
+
 namespace tvm {
 namespace runtime {
 
@@ -94,74 +96,26 @@ inline bool IsTextureStorage(std::string scope) {
   return scope.find("texture") != std::string::npos;
 }
 
-class TVM_DLL Pool2D {
- public:
-  Pool2D() = default;
-  void* Alloc(Device dev, DeviceAPI* device, size_t width, size_t height, DLDataType type_hint);
-  void Free(void* data);
-  // Release all resources immediately
-  void Release(Device dev, DeviceAPI* device);
-
- protected:
-  struct Entry {
-    void* data;
-    size_t x;
-    size_t y;
-    DLDataType type;
-  };
-  std::vector<Entry> free_list_;
-  std::vector<Entry> allocated_;
-};
-
 /*!
- * \brief A two dimensional storage pool that recycles temporal workspace
- * allocations for dynamically allocated texture. See AllocTexture docstring
- * for approach to allocation and reuse.
+ * \brief Returns the physical backing memory size required for given specification
+ * \param shape shape of tensor
+ * \param bits dtype bits
+ * \param lanes vectorization lanes
+ * \param mem_scope the memory scope info
+ * \param image_row_align image rowwise alignment size
+ * \return returns the backing memory size
  */
-class TVM_DLL TexturePool {
- public:
-  /*!
-   * \brief Create pool with specific device type and device.
-   * \param device_type The device type.
-   * \param device_api The device API.
-   */
-  TexturePool(DLDeviceType device_type, DeviceAPI* device_api);
-  /*! \brief destructor */
-  ~TexturePool();
+template <typename T>
+size_t GetTextureMemorySize(T shape, int bits, int lanes, std::string mem_scope,
+                            int image_row_align) {
+  size_t axis = DefaultTextureLayoutSeparator(shape.size(), mem_scope);
+  auto tshape = ApplyTexture2DFlattening<int64_t>(shape, shape.size(), axis);
 
-  /*!
-   * \brief Allocate a two dimensional temporal texture workspace on device
-   *
-   * \note Two dimensional texture workspaces will be grown and reused
-   * according to the following strategy:
-   *  - Choose the workspace which minimizes the amount of memory required to
-   *    grow the workspace to fit the request.
-   *  - If a set of workspaces exist that fit the current request without
-   *    expansion, choose the workspace of that set which most closely
-   *    matches the request size, minimizing wasted space.
-   *
-   * \param dev The context of allocation.
-   * \param width The width of the 2d texture to be allocated.
-   * \param height The height of the 2d texture to be allocated.
-   * \param type_hint The type of elements.
-   */
-  void* AllocTexture(Device dev, size_t width, size_t height, DLDataType type_hint);
-  /*!
-   * \brief Free temporal texture in backend execution.
-   *
-   * \param dev The context of allocation.
-   * \param ptr The pointer to be freed.
-   */
-  void FreeTexture(Device dev, void* ptr);
-
- private:
-  /*! \brief pool of device local array */
-  std::vector<Pool2D*> array_;
-  /*! \brief device type this pool support */
-  DLDeviceType device_type_;
-  /*! \brief The device API */
-  DeviceAPI* device_;
-};
+  auto pack_size = shape[shape.size() - 1];
+  auto pixel_size = (bits * lanes + 7) / 8;
+  size_t row_pitch = ALIGN_UP(tshape.width * pixel_size * pack_size, image_row_align);
+  return row_pitch * tshape.height;
+}
 
 }  // namespace runtime
 }  // namespace tvm

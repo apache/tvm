@@ -136,7 +136,8 @@ class ROCMDeviceAPI final : public DeviceAPI {
         *rv = total_global_memory;
         return;
       }
-
+      case kImagePitchAlignment:
+        return;
       case kAvailableGlobalMemory:
         // Not currently implemented.
         *rv = nullptr;
