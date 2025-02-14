@@ -257,7 +257,7 @@ def build(
             target_input_mod = {}
             for tgt in target_mod.keys():
                 tir_mod = tvm.IRModule(target_mod[tgt])
-                tir_mod.with_attrs(input_mod.attrs)
+                tir_mod = tir_mod.with_attrs(input_mod.attrs)
                 target_input_mod[tgt] = tir_mod
         else:
             target_input_mod = {target: input_mod}
@@ -293,7 +293,6 @@ def build(
         target_host = "llvm" if tvm.runtime.enabled("llvm") else "stackvm"
 
     annotated_mods, target_host = Target.canon_target_map_and_host(annotated_mods, target_host)
-
     rt_mod_host = _driver_ffi.tir_to_runtime(annotated_mods, target_host)
 
     annotated_mods, target_host = Target.canon_target_map_and_host(annotated_mods, target_host)
