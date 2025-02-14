@@ -1942,7 +1942,7 @@ operator_basic_unary = [
     (torch.cos, R.cos),
     (torch.cosh, R.cosh),
     (torch.erf, R.erf),
-    (torch.exp, R.exp,),
+    (torch.exp, R.exp),
     (torch.floor, R.floor),
     (torch.log, R.log),
     (torch.neg, R.negative),
