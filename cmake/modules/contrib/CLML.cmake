@@ -16,10 +16,12 @@
 # under the License.
 
 if(USE_CLML)
-    file(GLOB CLML_RELAY_CONTRIB_SRC src/relay/backend/contrib/clml/*.cc src/relax/backend/contrib/clml/*.cc)
+    file(GLOB CLML_RELAY_CONTRIB_SRC src/relay/backend/contrib/clml/*.cc)
+    file(GLOB CLML_RELAX_CONTRIB_SRC src/relax/backend/contrib/clml/*.cc)
     file(GLOB CLML_RUNTIME_MODULE src/runtime/contrib/clml/clml_runtime.cc)
     include_directories(SYSTEM "3rdparty/OpenCL-Headers")
     list(APPEND COMPILER_SRCS ${CLML_RELAY_CONTRIB_SRC})
+    list(APPEND COMPILER_SRCS ${CLML_RELAX_CONTRIB_SRC})
     if(NOT USE_CLML_GRAPH_EXECUTOR)
         list(APPEND COMPILER_SRCS ${CLML_RUNTIME_MODULE})
     endif()
