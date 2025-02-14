@@ -457,68 +457,6 @@ def test_cuda_const_float_to_half():
 
 @tvm.testing.requires_gpu
 @tvm.testing.requires_cuda
-def test_cuda_reduction():
-    def check(device, dtype, m=32, n=32):
-        if not tvm.testing.device_enabled(device):
-            print("Skipping", device)
-            return
-        dev = tvm.device(device, 0)
-        a = te.placeholder((m, n), name="a", dtype=dtype)
-        b = te.placeholder((m, n), name="b", dtype=dtype)
-        c = a + b
-        d = a * b
-        e = topi.elemwise_sum([c, d])
-        g = topi.sum(e)
-        with tvm.target.Target(device):
-            sg = topi.cuda.schedule_reduce(g)
-            func = tvm.build(sg, [a, b, g], device)
-            a_np = np.random.uniform(size=(m, n)).astype(a.dtype)
-            b_np = np.random.uniform(size=(m, n)).astype(b.dtype)
-            g_np = np.sum(np.add(a_np * b_np, a_np + b_np))
-            a_nd = tvm.nd.array(a_np, dev)
-            b_nd = tvm.nd.array(b_np, dev)
-            g_nd = tvm.nd.array(np.zeros(g_np.shape, dtype=g_np.dtype), dev)
-            func(a_nd, b_nd, g_nd)
-            tvm.testing.assert_allclose(g_nd.numpy(), g_np, rtol=1e-3)
-
-    check("cuda", "float32")
-    check("rocm", "float32")
-    check("cuda", "float16")
-
-
-@tvm.testing.requires_gpu
-@tvm.testing.requires_cuda
-def test_cuda_mix_threaded_and_normal_reduction():
-    def check(device, dtype, m=32, n=32):
-        if not tvm.testing.device_enabled(device):
-            print("Skipping", device)
-            return
-        dev = tvm.device(device, 0)
-        if dtype == "float16" and not have_fp16(dev.compute_version):
-            print("Skip because gpu does not have fp16 support")
-            return
-
-        a = tvm.te.placeholder((m, n), name="a", dtype=dtype)
-        b = topi.sum(a)
-        with tvm.target.Target(device):
-            sb = tvm.te.create_schedule(b.op)
-            i, _ = b.op.reduce_axis
-            sb[b].bind(i, tvm.te.thread_axis("threadIdx.x"))
-            func = tvm.build(sb, [a, b], device)
-            a_np = np.random.uniform(size=(m, n)).astype(a.dtype)
-            b_np = np.sum(a_np)
-            a_nd = tvm.nd.array(a_np, dev)
-            b_nd = tvm.nd.array(np.zeros(b_np.shape, dtype=b_np.dtype), dev)
-            func(a_nd, b_nd)
-            tvm.testing.assert_allclose(b_nd.numpy(), b_np, rtol=1e-3)
-
-    check("cuda", "float32")
-    check("rocm", "float32")
-    check("cuda", "float16")
-
-
-@tvm.testing.requires_gpu
-@tvm.testing.requires_cuda
 def test_cuda_floordiv_with_vectorization():
     with tvm.target.cuda():
         # B[i] = A[floordiv(i, k)]

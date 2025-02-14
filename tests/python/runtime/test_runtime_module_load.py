@@ -229,7 +229,7 @@ def test_combine_module_llvm():
 
     if sys.platform != "win32":
         check_system_lib()
-    # check_llvm()
+    check_llvm()
 
 
 if __name__ == "__main__":

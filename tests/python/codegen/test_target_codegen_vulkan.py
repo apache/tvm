@@ -26,7 +26,7 @@ import pytest
 
 import tvm
 import tvm.testing
-from tvm import relay, te
+from tvm import te
 from tvm.topi.math import cast
 from tvm.script import tir as T, ir as I
 from tvm.tir import TensorIntrin, IntImm, Cast, Schedule
@@ -231,59 +231,6 @@ def test_vulkan_bool_load(target, dev):
     func(a, b)
     ref = a_np.astype(np.int32)
     tvm.testing.assert_allclose(b.numpy(), ref)
-
-
-def check_mod(target, dev, mod, x_np, res_np):
-    res = relay.create_executor("vm", mod=mod, device=dev, target=target).evaluate()(x_np).numpy()
-    tvm.testing.assert_allclose(res, res_np, atol=1e-5)
-
-
-def test_sqrt(target, dev):
-    # Three 32 bit pushconstants: any_dim, stride, stride
-    dtype = "float32"
-    x = relay.var("x", shape=(relay.Any(),), dtype=dtype)
-    mod = tvm.IRModule()
-    mod["main"] = relay.Function([x], relay.sqrt(x))
-    x_np = np.random.uniform(size=(10,)).astype(dtype)
-    res_np = np.sqrt(x_np)
-
-    check_mod(target, dev, mod, x_np, res_np)
-
-
-def test_argsort(target, dev):
-    # One 64 bit and one 32 bit constants
-    dtype = "int32"
-    x = relay.var("x", shape=(relay.Any(),), dtype=dtype)
-    mod = tvm.IRModule()
-    mod["main"] = relay.Function([x], relay.argsort(x))
-    x_np = np.random.randint(0, high=10, size=(10,)).astype(dtype)
-    res_np = np.argsort(x_np, kind="stable")
-
-    check_mod(target, dev, mod, x_np, res_np)
-
-
-def test_cumsum(target, dev):
-    # One 64 bit and one 32 bit constants
-    dtype = "int32"
-    x = relay.var("x", shape=(relay.Any(),), dtype=dtype)
-    mod = tvm.IRModule()
-    mod["main"] = relay.Function([x], relay.cumsum(x))
-    x_np = np.random.randint(0, high=10, size=(10,)).astype(dtype)
-    res_np = np.cumsum(x_np)
-
-    check_mod(target, dev, mod, x_np, res_np)
-
-
-@tvm.testing.skip_if_wheel_test
-def test_unique(target, dev):
-    dtype = "int32"
-    x = relay.var("x", shape=(relay.Any(),), dtype=dtype)
-    mod = tvm.IRModule()
-    [unique, _, _, num_unique] = relay.unique(x, is_sorted=True)
-    mod["main"] = relay.Function([x], relay.op.strided_slice(unique, begin=[0], end=num_unique))
-    x_np = np.random.randint(0, high=10, size=(10,)).astype(dtype)
-    res_np = np.unique(x_np)
-    check_mod(target, dev, mod, x_np, res_np)
 
 
 vulkan_parameter_impl = tvm.testing.parameter("push_constants", "ubo")

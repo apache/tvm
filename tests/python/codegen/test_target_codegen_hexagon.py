@@ -21,7 +21,6 @@ import pytest
 import re
 import sys
 import tvm
-import tvm.relay
 import tvm.testing
 import tvm.contrib.hexagon as hexagon
 

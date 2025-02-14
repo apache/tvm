@@ -829,6 +829,7 @@ if(NOT DEFINED ENV{CONDA_BUILD})
     WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/python
   )
   add_dependencies(tvm_cython tvm)
+  message("Add Cython build into the default build step")
 endif()
 
 # Installation rules
