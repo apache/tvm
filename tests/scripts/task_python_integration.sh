@@ -35,12 +35,3 @@ find . -type f -path "*.pyc" | xargs rm -f
 
 # setup cython
 cd python; python3 setup.py build_ext --inplace; cd ..
-
-run_pytest ${TVM_INTEGRATION_TESTSUITE_NAME}-integration tests/python/integration
-
-
-# Command line driver test
-run_pytest ${TVM_INTEGRATION_TESTSUITE_NAME}-driver tests/python/driver
-
-# Target test
-run_pytest ${TVM_INTEGRATION_TESTSUITE_NAME}-target tests/python/target

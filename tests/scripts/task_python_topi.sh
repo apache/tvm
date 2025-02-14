@@ -25,11 +25,3 @@ export TVM_TEST_TARGETS="llvm; cuda"
 # to avoid CI thread throttling.
 export TVM_BIND_THREADS=0
 export OMP_NUM_THREADS=1
-
-# setup cython
-cd python; python3 setup.py build_ext --inplace; cd ..
-
-# cleanup pycache
-find . -type f -path "*.pyc" | xargs rm -f
-
-run_pytest python-topi tests/python/topi/

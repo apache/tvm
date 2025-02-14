@@ -22,7 +22,7 @@ import pytest
 
 import tvm.testing
 from tvm import relax as rx
-from tvm import relay, tir
+from tvm import tir
 from tvm.relax.analysis import get_var2val
 from tvm.relax.dpl import *
 from tvm.script import relax as R
@@ -278,7 +278,7 @@ def test_extern_fn_pattern():
 def test_op_attr():
     x = rx.Var("x", R.Tensor("float32"))
     y = rx.Var("y", R.Tensor("float32"))
-    conv2d = relay.nn.conv2d(x, y, kernel_size=(3, 3))
+    conv2d = rx.nn.conv2d(x, y, kernel_size=(3, 3))
     xp = is_var("x")
     yp = is_var("y")
     # TODO(@yuchen): reenable the assert after figuring out why it fails

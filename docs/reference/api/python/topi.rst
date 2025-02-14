@@ -37,11 +37,3 @@ tvm.topi.image
    :members:
    :imported-members:
    :autosummary:
-
-
-tvm.topi.sparse
-~~~~~~~~~~~~~~~
-.. automodule:: tvm.topi.sparse
-   :members:
-   :imported-members:
-   :autosummary:

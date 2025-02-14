@@ -80,14 +80,14 @@ def batch_matmul(
         XB, XI, XK = get_const_tuple(tensor_a.shape)
     if auto_scheduler_rewritten_layout:
         raise RuntimeError("LEGACY-FLOW triggered, to be removed")
-    elif meta_schedule_original_shape:
+    if meta_schedule_original_shape:
         raise RuntimeError("LEGACY-FLOW triggered, to be removed")
+
+    assert len(tensor_b.shape) == 3, "tensor_b only support 3-dim"
+    if transpose_b:
+        YB, YJ, YK = get_const_tuple(tensor_b.shape)
     else:
-        assert len(tensor_b.shape) == 3, "tensor_b only support 3-dim"
-        if transpose_b:
-            YB, YJ, YK = get_const_tuple(tensor_b.shape)
-        else:
-            YB, YK, YJ = get_const_tuple(tensor_b.shape)
+        YB, YK, YJ = get_const_tuple(tensor_b.shape)
 
     assert XK == YK or isinstance(YK, tvm.tir.expr.Var), "shapes of x and y are inconsistent"
     k = te.reduce_axis((0, XK), name="k")

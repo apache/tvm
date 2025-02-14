@@ -87,21 +87,6 @@
   )
 {% endcall %}
 
-{% call(shard_index, num_shards) m.sharded_test_step(
-  name="topi: GPU",
-  num_shards=3,
-  ws="tvm/topi-python-gpu",
-  platform="gpu",
-  docker_image="ci_gpu",
-  test_method_names=test_method_names,
-) %}
-  {{ m.download_artifacts(tag='gpu') }}
-  ci_setup(ci_gpu)
-  sh (
-    script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_topi.sh",
-    label: 'Run TOPI tests',
-  )
-{% endcall %}
 
 {% call(shard_index, num_shards) m.sharded_test_step(
   name="docs: GPU",

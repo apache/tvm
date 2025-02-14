@@ -84,9 +84,10 @@ def matmul(
     if auto_scheduler_rewritten_layout:
         # Infer shape for the rewritten layout
         raise RuntimeError("LEGACY-FLOW triggered, to be removed")
-    elif meta_schedule_original_shape:
+    if meta_schedule_original_shape:
         raise RuntimeError("LEGACY-FLOW triggered, to be removed")
-    elif transpose_b:
+
+    if transpose_b:
         out_dim, reduce_dim_b = tensor_b.shape[-2:]
     else:
         reduce_dim_b, out_dim = tensor_b.shape[-2:]
@@ -302,4 +303,3 @@ def dense_pack(data, weight, bias=None, out_dtype=None):
     if bias is not None:
         C = te.compute((M, N), lambda i, j: C[i, j] + bias[j].astype(out_dtype), tag=tag.BROADCAST)
     return C
-

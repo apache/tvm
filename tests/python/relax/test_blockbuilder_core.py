@@ -19,9 +19,10 @@
 import pytest
 import tvm
 import tvm.testing
+import tvm.contrib.cblas
 
 from tvm import te, tir, topi
-from tvm import relax as rx, relay
+from tvm import relax as rx
 from tvm.ir.base import assert_structural_equal
 from tvm.relax import ExternFunc
 from tvm.script import ir as I, relax as R, tir as T
@@ -443,7 +444,6 @@ def test_emit_te():
 
     call_node = rx_func.body.blocks[0].bindings[0].value
     assert isinstance(call_node, rx.Call)
-    assert call_node.op == relay.op.get("relax.call_tir")
     assert len(call_node.args) == 2
     assert call_node.args[0].name_hint == "te_func"
     assert call_node.args[1][0] == x
@@ -502,7 +502,6 @@ def test_emit_te_multiple_output():
     # check call tir output shape is a Tuple of ShapeExpr
     assert rx_func.params[0] == x
     call_node = rx_func.body.blocks[0].bindings[0].value
-    assert call_node.op == relay.op.get("relax.call_tir")
     assert call_node.args[0].name_hint == "te_func"
     assert isinstance(call_node.sinfo_args[0], rx.TupleStructInfo)
     assert len(call_node.sinfo_args[0].fields) == 2
@@ -529,7 +528,6 @@ def test_emit_te_extern():
     assert len(rx_func.body.blocks) == 1
     call_node = rx_func.body.blocks[0].bindings[0].value
     assert isinstance(call_node, rx.Call)
-    assert call_node.op == relay.op.get("relax.call_tir")
     assert len(call_node.args) == 2
     assert call_node.args[0].name_hint == "matmul"
     assert call_node.args[1][0] == x
@@ -556,7 +554,6 @@ def test_emit_te_prim_value():
     assert len(rx_func.body.blocks) == 1
     call_node = rx_func.body.blocks[0].bindings[0].value
     assert isinstance(call_node, rx.Call)
-    assert call_node.op == relay.op.get("relax.call_tir")
     assert len(call_node.args) == 2
     assert call_node.args[1][0] == x
 

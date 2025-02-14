@@ -162,10 +162,10 @@ def test_vulkan_stress(target, dev):
             a = tvm.nd.empty((n,), A.dtype, dev).copyfrom(np.random.uniform(size=(n,)))
             b = tvm.nd.empty((n,), B.dtype, dev).copyfrom(np.random.uniform(size=(n,)))
             cs = [tvm.nd.empty((n,), A.dtype, dev) for _ in fs]
-            for ((f, _), c) in zip(fs, cs):
+            for (f, _), c in zip(fs, cs):
                 f(a, b, c)
 
-            for ((_, ref), c) in zip(fs, cs):
+            for (_, ref), c in zip(fs, cs):
                 tvm.testing.assert_allclose(c.numpy(), ref(a.numpy(), b.numpy()))
 
         ts = [threading.Thread(target=worker) for _ in range(np.random.randint(1, 10))]
@@ -235,6 +235,7 @@ def test_vulkan_bool_load(target, dev):
 
 vulkan_parameter_impl = tvm.testing.parameter("push_constants", "ubo")
 vulkan_parameter_dtype = tvm.testing.parameter("int32", "float32", "int64")
+
 
 # Only run on vulkan because extremely large numbers of input
 # parameters can crash cuda/llvm compiler.

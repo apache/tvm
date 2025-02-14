@@ -903,7 +903,6 @@ def conv(
     if auto_scheduler_rewritten_layout:
         raise RuntimeError("LEGACY-FLOW triggered, to be removed")
 
-
     assert in_channel % groups == 0, "input channels must divide group size"
     assert num_filter % groups == 0, "output channels must divide group size"
 

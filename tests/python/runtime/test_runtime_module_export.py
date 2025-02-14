@@ -225,6 +225,7 @@ def test_mod_export():
 @tvm.testing.requires_llvm
 def test_import_static_library():
     from tvm import te
+
     # Generate two LLVM modules.
     A = te.placeholder((1024,), name="A")
     B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name="B")

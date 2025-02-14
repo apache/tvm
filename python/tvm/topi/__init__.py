@@ -47,12 +47,10 @@ from .einsum import *
 from .unique import *
 from .searchsorted import *
 from .signal import *
-from . import generic
 from . import nn
 from . import utils
 from . import vision
 from . import image
-from . import sparse
 from . import random
 
 # error reporting

@@ -25,5 +25,3 @@ find . -type f -path "*.pyc" | xargs rm -f
 
 # setup cython
 cd python; python3 setup.py build_ext --inplace; cd ..
-
-run_pytest python-arm_compute_lib tests/python/contrib/test_arm_compute_lib

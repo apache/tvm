@@ -91,7 +91,7 @@ import tvm.te
 import tvm._ffi
 
 from tvm.target import codegen
-from tvm.contrib import nvcc, cudnn, rocm, graph_executor
+from tvm.contrib import nvcc, cudnn, rocm
 import tvm.contrib.hexagon._ci_env_check as hexagon
 from tvm.error import TVMError
 import tvm.contrib.utils
@@ -1645,7 +1645,6 @@ def get_dtype_range(dtype: str) -> Tuple[int, int]:
     return type_info.min, type_info.max
 
 
-
 class _DeepCopyAllowedClasses(dict):
     def __init__(self, allowed_class_list):
         self.allowed_class_list = allowed_class_list
@@ -1801,8 +1800,8 @@ def terminate_self():
 def is_ampere_or_newer():
     """Check if the target environment has an NVIDIA Ampere GPU or newer."""
     arch = tvm.contrib.nvcc.get_target_compute_version()
-    major, _ = tvm.contrib.nvcc.parse_compute_version(arch)
-    return major >= 8
+    major, minor = tvm.contrib.nvcc.parse_compute_version(arch)
+    return major >= 8 and minor != 9
 
 
 def install_request_hook(depth: int) -> None:

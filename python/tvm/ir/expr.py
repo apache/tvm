@@ -106,14 +106,9 @@ class GlobalVar(RelayExpr):
 
         # TODO(@relax-team): replace with Relax base class after it's introduced
         if all(isinstance(x, RelayExpr) for x in args):
-            if all(is_relax_expr(x) for x in args):
-                from tvm import relax
+            from tvm import relax
 
-                return relax.Call(self, args)
-            else:
-                from tvm import relay
-
-                return relay.Call(self, args)
+            return relax.Call(self, args)
 
         elif all(isinstance(x, (Number, PrimExpr)) for x in args):
             return tvm.tir.call_tir(self, *args)

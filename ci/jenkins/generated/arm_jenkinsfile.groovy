@@ -60,7 +60,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2025-02-09T12:21:01.773823
+// Generated at 2025-02-14T17:21:20.745906
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // These are set at runtime from data in ci/jenkins/docker-images.yml, update
@@ -725,108 +725,6 @@ def shard_run_integration_aarch64_4_of_4(node_type) {
 
 
 
-def shard_run_topi_aarch64_1_of_2(node_type) {
-  echo 'Begin running on node_type ' + node_type
-  if (!skip_ci && is_docs_only_build != 1) {
-    node(node_type) {
-      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/ut-python-arm") {
-        // NOTE: if exception happens, it will be caught outside
-        init_git()
-        docker_init(ci_arm)
-        timeout(time: max_time, unit: 'MINUTES') {
-          withEnv([
-            'PLATFORM=arm',
-            'TEST_STEP_NAME=topi: aarch64',
-            'TVM_NUM_SHARDS=2',
-            'TVM_SHARD_INDEX=0',
-            "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
-            sh(
-                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/arm",
-                  label: 'Download artifacts from S3',
-                )
-
-              ci_setup(ci_arm)
-              cpp_unittest(ci_arm)
-              sh (
-                script: "${docker_run} ${ci_arm} ./tests/scripts/task_python_arm_compute_library.sh",
-                label: 'Run test_arm_compute_lib test',
-              )
-              sh (
-                script: "${docker_run} ${ci_arm} ./tests/scripts/task_python_topi.sh",
-                label: 'Run TOPI tests',
-              )
-          })
-        }
-        // only run upload if things are successful
-        try {
-          sh(
-            script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/pytest-results/topi_aarch64 --items build/pytest-results",
-            label: 'Upload JUnits to S3',
-          )
-
-          junit 'build/pytest-results/*.xml'
-        } catch (Exception e) {
-          echo 'Exception during JUnit upload: ' + e.toString()
-        }
-      }
-    }
-    echo 'End running on node_type ' + node_type
-  } else {
-    Utils.markStageSkippedForConditional('topi: aarch64 1 of 2')
-  }
-}
-
-def shard_run_topi_aarch64_2_of_2(node_type) {
-  echo 'Begin running on node_type ' + node_type
-  if (!skip_ci && is_docs_only_build != 1) {
-    node(node_type) {
-      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/ut-python-arm") {
-        // NOTE: if exception happens, it will be caught outside
-        init_git()
-        docker_init(ci_arm)
-        timeout(time: max_time, unit: 'MINUTES') {
-          withEnv([
-            'PLATFORM=arm',
-            'TEST_STEP_NAME=topi: aarch64',
-            'TVM_NUM_SHARDS=2',
-            'TVM_SHARD_INDEX=1',
-            "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
-            sh(
-                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/arm",
-                  label: 'Download artifacts from S3',
-                )
-
-              ci_setup(ci_arm)
-              sh (
-                script: "${docker_run} ${ci_arm} ./tests/scripts/task_python_arm_compute_library.sh",
-                label: 'Run test_arm_compute_lib test',
-              )
-              sh (
-                script: "${docker_run} ${ci_arm} ./tests/scripts/task_python_topi.sh",
-                label: 'Run TOPI tests',
-              )
-          })
-        }
-        // only run upload if things are successful
-        try {
-          sh(
-            script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/pytest-results/topi_aarch64 --items build/pytest-results",
-            label: 'Upload JUnits to S3',
-          )
-
-          junit 'build/pytest-results/*.xml'
-        } catch (Exception e) {
-          echo 'Exception during JUnit upload: ' + e.toString()
-        }
-      }
-    }
-    echo 'End running on node_type ' + node_type
-  } else {
-    Utils.markStageSkippedForConditional('topi: aarch64 2 of 2')
-  }
-}
-
-
 def test() {
   stage('Test') {
     environment {
@@ -875,28 +773,6 @@ def test() {
         echo 'Exception during SPOT run ' + ex.toString() + ' retry on-demand'
         currentBuild.result = 'SUCCESS'
         shard_run_integration_aarch64_4_of_4('ARM-GRAVITON3')
-      }
-    },
-    'topi: aarch64 1 of 2': {
-      try {
-      shard_run_topi_aarch64_1_of_2('ARM-GRAVITON3-SPOT')
-      } catch (Throwable ex) {
-        // mark the current stage as success
-        // and try again via on demand node
-        echo 'Exception during SPOT run ' + ex.toString() + ' retry on-demand'
-        currentBuild.result = 'SUCCESS'
-        shard_run_topi_aarch64_1_of_2('ARM-GRAVITON3')
-      }
-    },
-    'topi: aarch64 2 of 2': {
-      try {
-      shard_run_topi_aarch64_2_of_2('ARM-GRAVITON3-SPOT')
-      } catch (Throwable ex) {
-        // mark the current stage as success
-        // and try again via on demand node
-        echo 'Exception during SPOT run ' + ex.toString() + ' retry on-demand'
-        currentBuild.result = 'SUCCESS'
-        shard_run_topi_aarch64_2_of_2('ARM-GRAVITON3')
       }
     },
     )

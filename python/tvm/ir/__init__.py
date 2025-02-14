@@ -18,7 +18,6 @@
 """Common data structures across all IR variants."""
 
 from . import diagnostics, instrument, transform
-from .adt import Constructor, TypeData
 from .affine_type import TensorAffineType, TupleAffineType
 from .attrs import Attrs, DictAttrs, make_node
 from .base import (

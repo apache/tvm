@@ -16,7 +16,6 @@
 # under the License.
 import tvm
 from tvm import te
-from tvm import relay
 import numpy as np
 import pytest
 from tvm.testing import enabled_targets
@@ -743,69 +742,6 @@ def test_hoisting_block_scope_7():
     ):
         new_stmt = tvm.tir.transform.HoistIfThenElse()(mod)["main"].body
     assert not tvm.ir.structural_equal(new_stmt, stmt)
-
-
-@pytest.mark.skip()
-def test_hoisting_op_conv():
-    dtype = "float32"
-    dshape = (1, 80, 73, 73)
-    kshape = (192, 80, 3, 3)
-    padding = (1, 1)
-    groups = 1
-    dilation = (1, 1)
-    kernel_size = (3, 3)
-    channels = 192
-    scale = 1
-    x = relay.var("x", shape=dshape, dtype=dtype)
-    w = relay.var("w", shape=kshape, dtype=dtype)
-    y = relay.nn.conv2d(
-        x,
-        w,
-        padding=padding,
-        dilation=dilation,
-        groups=groups,
-        channels=channels,
-        kernel_size=kernel_size,
-    )
-
-    func = relay.Function([x, w], y)
-    mod = tvm.IRModule()
-    mod["main"] = func
-    mod = relay.transform.InferType()(mod)
-
-    data = np.random.uniform(-scale, scale, size=dshape).astype(dtype)
-    kernel = np.random.uniform(-scale, scale, size=kshape).astype(dtype)
-
-    params = {"w": tvm.nd.array(kernel)}
-    for target, dev in enabled_targets():
-        with tvm.transform.PassContext(opt_level=3):
-            lib = relay.build_module.build(mod, target=target, params=params)
-            m = tvm.contrib.graph_executor.GraphModule(lib["default"](dev))
-            x = np.random.uniform(size=dshape)
-            data_tvm = tvm.nd.array(data)
-            m.set_input("x", data_tvm)
-            m.run()
-            e = m.module.time_evaluator("run", dev, number=300, repeat=3)
-            t1 = e(data_tvm).results
-            t1 = np.array(t1) * 1000
-            print("{} ms".format(t1.mean()))
-
-        with tvm.transform.PassContext(
-            opt_level=3, config={"tir.HoistIfThenElse": {"support_block_scope_hosting": True}}
-        ):
-            lib = relay.build_module.build(mod, target=target, params=params)
-            m = tvm.contrib.graph_executor.GraphModule(lib["default"](dev))
-            x = np.random.uniform(size=dshape)
-            data_tvm = tvm.nd.array(data)
-            m.set_input("x", data_tvm)
-            m.set_input(**params)
-            m.run()
-            e = m.module.time_evaluator("run", dev, number=300, repeat=3)
-            t2 = e(data_tvm).results
-            t2 = np.array(t2) * 1000
-
-            print("{} ms".format(t2.mean()))
-        tvm.testing.assert_allclose(t1.mean(), t2.mean(), atol=1, rtol=1e-1)
 
 
 if __name__ == "__main__":

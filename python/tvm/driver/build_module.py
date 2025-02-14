@@ -293,6 +293,7 @@ def build(
         target_host = "llvm" if tvm.runtime.enabled("llvm") else "stackvm"
 
     annotated_mods, target_host = Target.canon_target_map_and_host(annotated_mods, target_host)
+
     rt_mod_host = _driver_ffi.tir_to_runtime(annotated_mods, target_host)
 
     annotated_mods, target_host = Target.canon_target_map_and_host(annotated_mods, target_host)

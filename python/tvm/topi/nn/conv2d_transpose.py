@@ -18,7 +18,6 @@
 """Transposed 2D convolution operators (sometimes called Deconvolution)."""
 import collections
 
-import tvm
 from tvm import te
 
 from ..utils import simplify

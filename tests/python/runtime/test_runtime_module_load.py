@@ -132,7 +132,6 @@ def test_device_module_dump():
             f1(a, b)
             np.testing.assert_equal(b.numpy(), a.numpy() + 1)
 
-
         # system lib should be loaded in different process
         worker = popen_pool.PopenWorker()
         worker.send(popen_check)
@@ -211,6 +210,7 @@ def test_combine_module_llvm():
         def popen_check():
             import tvm.runtime
             import ctypes
+
             # Load dll, will trigger system library registration
             ctypes.CDLL(path_dso)
             # Load the system wide library
