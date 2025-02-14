@@ -23,9 +23,7 @@ from tvm import relax
 def library_dispatch_passes(target: tvm.target.Target):  # pylint: disable=unused-argument
     """The default library dispatch passes for Adreno GPU backend."""
     if "clml" in target.keys:
-        return [
-            tvm.relax.backend.adreno.clml.OpenCLMLOffLoad()
-        ]
+        return [tvm.relax.backend.adreno.clml.OpenCLMLOffLoad()]
     else:
         return []
 
