@@ -783,30 +783,6 @@ def test_leakyrelu():
     verify_model(LeakyReLU1(), input_info, {}, expected)
 
 
-def test_relu6():
-    class ReLU6(Module):
-        def __init__(self):
-            super().__init__()
-            self.relu6 = torch.nn.ReLU6()
-
-        def forward(self, input):
-            return self.relu6(input)
-
-    @tvm.script.ir_module
-    class expected:
-        @R.function
-        def main(input: R.Tensor((10, 10), dtype="float32")) -> R.Tensor((10, 10), dtype="float32"):
-            # block 0
-            with R.dataflow():
-                lv: R.Tensor((10, 10), dtype="float32") = R.clip(input, 0, 6)
-                gv: R.Tensor((10, 10), dtype="float32") = lv
-                R.output(gv)
-            return gv
-
-    input_info = [([10, 10], "float32")]
-    verify_model(ReLU6(), input_info, {}, expected)
-
-
 def test_maxpool2d():
     input_info = [([1, 3, 10, 10], "float32")]
 
@@ -1976,7 +1952,6 @@ operator_basic_unary = [
     (torch.sinh, R.sinh, "sinh"),
     (torch.sqrt, R.sqrt, "sqrt"),
     (torch.tan, R.tan, "tan"),
-    (torch.tanh, R.tanh, "tanh"),
 ]
 
 
@@ -2233,6 +2208,29 @@ def test_extended_unary_ops():
     verify_model(ReLU0(), input_info, {}, expected_relu)
     verify_model(ReLU1(), input_info, {}, expected_relu)
 
+    # relu6
+    class ReLU6(Module):
+        def __init__(self):
+            super().__init__()
+            self.relu6 = torch.nn.ReLU6()
+
+        def forward(self, input):
+            return self.relu6(input)
+
+    @tvm.script.ir_module
+    class expected_relu6:
+        @R.function
+        def main(
+            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
+        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.clip(input_1, 0, 6)
+                gv: R.Tensor((1, 3, 10, 10), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    verify_model(ReLU6(), input_info, {}, expected_relu6)
+
     # sigmoid
     class Sigmoid(Module):
         def __init__(self):
@@ -2319,6 +2317,35 @@ def test_extended_unary_ops():
 
     verify_model(Softmax(), input_info, {}, expected_softmax)
     verify_model(Softmax2(), input_info, {}, expected_softmax)
+
+    # tanh
+    class Tanh(Module):
+        def __init__(self):
+            super().__init__()
+            self.tanh = torch.nn.Tanh()
+
+        def forward(self, input):
+            return self.tanh(input)
+
+    class Tanh2(Module):
+        def forward(self, input):
+            return torch.tanh(input)
+
+    @tvm.script.ir_module
+    class expected_tanh:
+        @R.function
+        def main(
+            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
+        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
+            # block 0
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.tanh(input_1)
+                gv: R.Tensor((1, 3, 10, 10), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    verify_model(Tanh(), input_info, {}, expected_tanh)
+    verify_model(Tanh2(), input_info, {}, expected_tanh)
 
     # tril
     class Tril(Module):
