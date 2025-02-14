@@ -1931,32 +1931,32 @@ def test_getitem():
 
 
 operator_basic_unary = [
-    (torch.abs, R.abs, "abs"),
-    (torch.acos, R.acos, "acos"),
-    (torch.acosh, R.acosh, "acosh"),
-    (torch.asin, R.asin, "asin"),
-    (torch.asinh, R.asinh, "asinh"),
-    (torch.atan, R.atan, "atan"),
-    (torch.atanh, R.atanh, "atanh"),
-    (torch.ceil, R.ceil, "ceil"),
-    (torch.cos, R.cos, "cos"),
-    (torch.cosh, R.cosh, "cosh"),
-    (torch.erf, R.erf, "erf"),
-    (torch.exp, R.exp, "exp"),
-    (torch.floor, R.floor, "floor"),
-    (torch.log, R.log, "log"),
-    (torch.neg, R.negative, "neg"),
-    (torch.round, R.round, "round"),
-    (torch.rsqrt, R.rsqrt, "rsqrt"),
-    (torch.sin, R.sin, "sin"),
-    (torch.sinh, R.sinh, "sinh"),
-    (torch.sqrt, R.sqrt, "sqrt"),
-    (torch.tan, R.tan, "tan"),
+    (torch.abs, R.abs),
+    (torch.acos, R.acos),
+    (torch.acosh, R.acosh),
+    (torch.asin, R.asin),
+    (torch.asinh, R.asinh),
+    (torch.atan, R.atan),
+    (torch.atanh, R.atanh),
+    (torch.ceil, R.ceil),
+    (torch.cos, R.cos),
+    (torch.cosh, R.cosh),
+    (torch.erf, R.erf),
+    (torch.exp, R.exp,),
+    (torch.floor, R.floor),
+    (torch.log, R.log),
+    (torch.neg, R.negative),
+    (torch.round, R.round),
+    (torch.rsqrt, R.rsqrt),
+    (torch.sin, R.sin),
+    (torch.sinh, R.sinh),
+    (torch.sqrt, R.sqrt),
+    (torch.tan, R.tan),
 ]
 
 
-@pytest.mark.parametrize("pytorch_op, relax_op, test_name", operator_basic_unary)
-def test_basic_unary_ops(pytorch_op, relax_op, test_name):
+@pytest.mark.parametrize("pytorch_op, relax_op", operator_basic_unary)
+def test_basic_unary_ops(pytorch_op, relax_op):
     input_info = [([1, 3, 10, 10], "float32")]
 
     class Unary(Module):
