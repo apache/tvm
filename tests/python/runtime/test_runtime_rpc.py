@@ -30,7 +30,6 @@ import tvm.testing
 
 from tvm import te
 from tvm import rpc
-from tvm.relay.backend import Runtime
 from tvm.contrib import utils, cc
 from tvm.rpc.tracker import Tracker
 from tvm.rpc.proxy import Proxy
@@ -251,7 +250,7 @@ def test_rpc_remote_module():
     n = tvm.runtime.convert(102)
     A = te.placeholder((n,), name="A")
     B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name="B")
-    s = te.create_schedule(B.op)
+    mod = tvm.ir.IRModule({"main": te.create_prim_func([A, B])})
 
     server0 = rpc.Server(key="x0")
     server1 = rpc.Server(key="x1")
@@ -266,7 +265,7 @@ def test_rpc_remote_module():
     def check_remote(remote):
         temp = utils.tempdir()
         dev = remote.cpu(0)
-        f = tvm.build(s, [A, B], "llvm", name="myadd")
+        f = tvm.build(mod, [A, B], "llvm", name="myadd")
         path_dso = temp.relpath("dev_lib.so")
         f.export_library(path_dso)
         remote.upload(path_dso)
@@ -296,8 +295,8 @@ def test_rpc_remote_module():
             return
         # export to minrpc
         temp = utils.tempdir()
-        runtime = Runtime("cpp", {"system-lib": True})
-        f = tvm.build(s, [A, B], "llvm", name="myadd", runtime=runtime)
+        # system lib prefix will trigger system lib build
+        f = tvm.build(mod.with_attr("system_lib_prefix", ""), [A, B], "llvm", name="myadd")
         path_minrpc = temp.relpath("dev_lib.minrpc")
         f.export_library(path_minrpc, fcompile=rpc.with_minrpc(cc.create_executable))
 
@@ -333,10 +332,13 @@ def test_rpc_remote_module():
             return
         temp = utils.tempdir()
         dev = remote.cl(0)
-        s = te.create_schedule(B.op)
-        xo, xi = s[B].split(B.op.axis[0], factor=32)
-        s[B].bind(xo, te.thread_axis("blockIdx.x"))
-        s[B].bind(xi, te.thread_axis("threadIdx.x"))
+
+        s = tvm.tir.Schedule(mod)
+
+        x = s.get_loops(s.get_block("B"))
+        xo, xi = s.split(x, factors=[None ,32])
+        s.bind(xo, "blockIdx.x")
+        s.bind(xi, "threadIdx.x")
         f = tvm.build(s, [A, B], "opencl --host=llvm", name="myadd")
         # Option 1: save modules separately and rely on remote compiler
         path_o = temp.relpath("myadd.o")

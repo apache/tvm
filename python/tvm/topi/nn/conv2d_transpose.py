@@ -19,7 +19,7 @@
 import collections
 
 import tvm
-from tvm import relay, te
+from tvm import te
 
 from ..utils import simplify
 from .dilate import dilate
@@ -243,91 +243,3 @@ def group_conv2d_transpose_nchw(data, kernel, stride, padding, out_dtype, output
         ),
         tag="group_conv2d_transpose_nchw",
     )
-
-
-def layout_transform(tensor: "relay.Expr", current_layout: str, desired_layout: str):
-    """Transform a tensor with the current layout to the desired layout.
-
-    E.g. layout_transform(t, "NCHW", "CNHW") --> relay.transpose(t, [1, 0, 2, 3])
-
-    Parameters
-    ----------
-    tensor: relay.Expr
-        The Tensor to transpose
-
-    current_layout: str
-        The current layout e.g. NCHW or OIHW
-
-    desired_layout: str
-        The desired layout, must be compatible with current_layout
-
-    Returns
-    -------
-    The layout_transformed tensor.
-    """
-    if sorted(current_layout) != sorted(desired_layout):
-        raise ValueError(f"Incompatible layouts: {current_layout} vs {desired_layout}")
-
-    if current_layout == desired_layout:
-        return tensor
-
-    current_layout_map = {c: i for i, c in enumerate(current_layout)}
-    desired_layout_map = {c: i for i, c in enumerate(desired_layout)}
-
-    axes = [None] * len(current_layout)
-    for c, i in desired_layout_map.items():
-        axes[i] = current_layout_map[c]
-    return relay.transpose(tensor, axes=axes)
-
-
-@tvm.target.generic_func
-def conv2d_transpose_legalize(attrs, inputs, types):
-    """Legalizes Transposed 2D convolution op.
-
-    Parameters
-    ----------
-    attrs : tvm.ir.Attrs
-        Attributes of current Transposed 2D convolution
-    inputs : list of tvm.relay.Expr
-        The args of the Relay expr to be legalized
-    types : list of types
-        List of input and output types
-
-    Returns
-    -------
-    result : tvm.relay.Expr
-        The legalized expr
-    """
-    data, kernel = inputs
-    kernel_layout = attrs["kernel_layout"]
-
-    target = tvm.target.Target.current(allow_none=True)
-    if target and "cudnn" in target.libs:
-        # cuDNN backend can directly operate on NHWC layout.
-        return None
-
-    if attrs["data_layout"] == "NHWC":
-        kernel = layout_transform(kernel, kernel_layout, "IOHW")
-
-        # Set new attrs for conv2d_transpose.
-        new_attrs = {k: attrs[k] for k in attrs.keys()}
-        new_attrs["data_layout"] = "NCHW"
-        # layout of kernel should be IOHW, but kernel_layout will be swapped - OIHW
-        new_attrs["kernel_layout"] = "IOHW"
-
-        # Convert data to NCHW.
-        data = relay.transpose(data, axes=(0, 3, 1, 2))
-        deconv = relay.nn.conv2d_transpose(data, kernel, **new_attrs)
-        # Convert back to original NHWC layout.
-        out = relay.transpose(deconv, axes=(0, 2, 3, 1))
-        return out
-
-    if attrs["data_layout"] == "NCHW":
-        kernel = layout_transform(kernel, kernel_layout, "IOHW")
-        new_attrs = {k: attrs[k] for k in attrs.keys()}
-
-        # layout of kernel should be IOHW, but kernel_layout will be swapped - OIHW
-        new_attrs["kernel_layout"] = "IOHW"
-        return relay.nn.conv2d_transpose(data, kernel, **new_attrs)
-
-    return None

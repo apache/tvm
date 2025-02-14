@@ -49,22 +49,11 @@ from .searchsorted import *
 from .signal import *
 from . import generic
 from . import nn
-from . import x86
-from . import cuda
-from . import gpu
-from . import arm_cpu
-from . import mali
-from . import bifrost
-from . import intel_graphics
 from . import utils
-from . import rocm
 from . import vision
 from . import image
 from . import sparse
-from . import hls
 from . import random
-from . import hexagon
-from . import adreno
 
 # error reporting
 from .utils import InvalidShapeError
