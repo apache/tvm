@@ -60,7 +60,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2024-01-10T13:15:25.087221
+// Generated at 2025-02-09T12:21:01.760323
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // These are set at runtime from data in ci/jenkins/docker-images.yml, update
@@ -82,14 +82,11 @@ ci_riscv = ''
 properties([
   parameters([
     string(name: 'ci_arm_param', defaultValue: ''),
-    string(name: 'ci_cortexm_param', defaultValue: ''),
     string(name: 'ci_cpu_param', defaultValue: ''),
     string(name: 'ci_gpu_param', defaultValue: ''),
     string(name: 'ci_hexagon_param', defaultValue: ''),
     string(name: 'ci_i386_param', defaultValue: ''),
     string(name: 'ci_lint_param', defaultValue: ''),
-    string(name: 'ci_minimal_param', defaultValue: ''),
-    string(name: 'ci_riscv_param', defaultValue: ''),
     string(name: 'ci_wasm_param', defaultValue: ''),
   ])
 ])
@@ -97,14 +94,11 @@ properties([
 // Placeholders for newly built Docker image names (if rebuild_docker_images
 // is used)
   built_ci_arm = null;
-  built_ci_cortexm = null;
   built_ci_cpu = null;
   built_ci_gpu = null;
   built_ci_hexagon = null;
   built_ci_i386 = null;
   built_ci_lint = null;
-  built_ci_minimal = null;
-  built_ci_riscv = null;
   built_ci_wasm = null;
 
 // Global variable assigned during Sanity Check that holds the sha1 which should be
@@ -364,18 +358,13 @@ def prepare(node_type) {
 
         if (env.DETERMINE_DOCKER_IMAGES == 'yes') {
           sh(
-            script: "./${jenkins_scripts_root}/determine_docker_images.py ci_arm ci_cortexm ci_cpu ci_gpu ci_hexagon ci_i386 ci_lint ci_minimal ci_riscv ci_wasm ",
+            script: "./${jenkins_scripts_root}/determine_docker_images.py ci_arm ci_cpu ci_gpu ci_hexagon ci_i386 ci_lint ci_wasm ",
             label: 'Decide whether to use tlcpack or tlcpackstaging for Docker images',
           )
           // Pull image names from the results of should_rebuild_docker.py
           ci_arm = sh(
             script: "cat .docker-image-names/ci_arm",
             label: "Find docker image name for ci_arm",
-            returnStdout: true,
-          ).trim()
-          ci_cortexm = sh(
-            script: "cat .docker-image-names/ci_cortexm",
-            label: "Find docker image name for ci_cortexm",
             returnStdout: true,
           ).trim()
           ci_cpu = sh(
@@ -403,16 +392,6 @@ def prepare(node_type) {
             label: "Find docker image name for ci_lint",
             returnStdout: true,
           ).trim()
-          ci_minimal = sh(
-            script: "cat .docker-image-names/ci_minimal",
-            label: "Find docker image name for ci_minimal",
-            returnStdout: true,
-          ).trim()
-          ci_riscv = sh(
-            script: "cat .docker-image-names/ci_riscv",
-            label: "Find docker image name for ci_riscv",
-            returnStdout: true,
-          ).trim()
           ci_wasm = sh(
             script: "cat .docker-image-names/ci_wasm",
             label: "Find docker image name for ci_wasm",
@@ -421,27 +400,21 @@ def prepare(node_type) {
         }
 
         ci_arm = params.ci_arm_param ?: ci_arm
-        ci_cortexm = params.ci_cortexm_param ?: ci_cortexm
         ci_cpu = params.ci_cpu_param ?: ci_cpu
         ci_gpu = params.ci_gpu_param ?: ci_gpu
         ci_hexagon = params.ci_hexagon_param ?: ci_hexagon
         ci_i386 = params.ci_i386_param ?: ci_i386
         ci_lint = params.ci_lint_param ?: ci_lint
-        ci_minimal = params.ci_minimal_param ?: ci_minimal
-        ci_riscv = params.ci_riscv_param ?: ci_riscv
         ci_wasm = params.ci_wasm_param ?: ci_wasm
 
         sh (script: """
           echo "Docker images being used in this build:"
           echo " ci_arm = ${ci_arm}"
-          echo " ci_cortexm = ${ci_cortexm}"
           echo " ci_cpu = ${ci_cpu}"
           echo " ci_gpu = ${ci_gpu}"
           echo " ci_hexagon = ${ci_hexagon}"
           echo " ci_i386 = ${ci_i386}"
           echo " ci_lint = ${ci_lint}"
-          echo " ci_minimal = ${ci_minimal}"
-          echo " ci_riscv = ${ci_riscv}"
           echo " ci_wasm = ${ci_wasm}"
         """, label: 'Docker image names')
 
@@ -494,7 +467,7 @@ def make_cpp_tests(image, build_dir) {
   )
 }
 
-def cmake_build(image, path, make_flag) {
+def cmake_build(image, path) {
   sh (
     script: "${docker_run} --env CI_NUM_EXECUTORS ${image} ./tests/scripts/task_build.py --sccache-bucket tvm-sccache-prod --sccache-region us-west-2 --build-dir ${path}",
     label: 'Run cmake build',
@@ -514,23 +487,23 @@ try {
 } catch(Exception ex) {
   prepare('CPU-SMALL')
 }
-def build(node_type) {
-  stage('Build') {
-    if (!skip_ci && is_docs_only_build != 1) {
-      node(node_type) {
-        ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/build-hexagon") {
-          init_git()
-          docker_init(ci_hexagon)
-          timeout(time: max_time, unit: 'MINUTES') {
+def run_build(node_type) {
+  if (!skip_ci && is_docs_only_build != 1) {
+    echo 'Begin running node_type ' + node_type
+    node(node_type) {
+      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/build-hexagon") {
+        init_git()
+        docker_init(ci_hexagon)
+        timeout(time: max_time, unit: 'MINUTES') {
 
-            withEnv([
-              'PLATFORM=hexagon',
-              ], {
-              sh (
+          withEnv([
+            'PLATFORM=hexagon',
+            ], {
+            sh (
           script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_config_build_hexagon.sh build",
           label: 'Create Hexagon cmake config',
         )
-        cmake_build(ci_hexagon, 'build', '-j2')
+        cmake_build(ci_hexagon, 'build')
         make_cpp_tests(ci_hexagon, 'build')
         sh (
           script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_build_hexagon_api.sh",
@@ -540,42 +513,49 @@ def build(node_type) {
             script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/hexagon --items build/libtvm.so build/libtvm_runtime.so build/config.cmake build/cpptest build/build.ninja build/CMakeFiles/rules.ninja build/hexagon_api_output",
             label: 'Upload artifacts to S3',
           )
-            })
-          }
+          })
         }
       }
-    } else {
-      Utils.markStageSkippedForConditional('BUILD: Hexagon')
+    }
+    echo 'End running node_type ' + node_type
+  } else {
+    Utils.markStageSkippedForConditional('BUILD: Hexagon')
+  }
+}
+def build() {
+  stage('Build') {
+    try {
+        run_build('CPU-SPOT')
+    } catch (Throwable ex) {
+        // mark the current stage as success
+        // and try again via on demand node
+        echo 'Exception during SPOT run ' + ex.toString() + ' retry on-demand'
+        currentBuild.result = 'SUCCESS'
+        run_build('CPU')
     }
   }
 }
-try {
-    build('CPU-SMALL-SPOT')
-} catch (Exception ex) {
-    build('CPU-SMALL')
-}
+build()
 
 
 
 
-def shard_run_test_Hexagon_1_of_8(node_type='CPU-SMALL-SPOT', on_demand=false) {
+def shard_run_test_Hexagon_1_of_8(node_type) {
+  echo 'Begin running on node_type ' + node_type
   if (!skip_ci && is_docs_only_build != 1) {
-    if (on_demand==true || node_type.contains('ARM')) {
-        node_type = 'CPU-SMALL'
-    }
     node(node_type) {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-hexagon") {
-        try {
-          init_git()
-          docker_init(ci_hexagon)
-          timeout(time: max_time, unit: 'MINUTES') {
-            withEnv([
-              'PLATFORM=hexagon',
-              'TEST_STEP_NAME=test: Hexagon',
-              'TVM_NUM_SHARDS=8',
-              'TVM_SHARD_INDEX=0',
-              "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
-              sh(
+        // NOTE: if exception happens, it will be caught outside
+        init_git()
+        docker_init(ci_hexagon)
+        timeout(time: max_time, unit: 'MINUTES') {
+          withEnv([
+            'PLATFORM=hexagon',
+            'TEST_STEP_NAME=test: Hexagon',
+            'TVM_NUM_SHARDS=8',
+            'TVM_SHARD_INDEX=0',
+            "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
+            sh(
                   script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/hexagon",
                   label: 'Download artifacts from S3',
                 )
@@ -586,45 +566,43 @@ def shard_run_test_Hexagon_1_of_8(node_type='CPU-SMALL-SPOT', on_demand=false) {
                 script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_python_hexagon.sh",
                 label: 'Run Hexagon tests',
               )
-            })
-          }
-        } finally {
-          try {
-            sh(
+          })
+        }
+        // only run upload if things are successful
+        try {
+          sh(
             script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/pytest-results/test_Hexagon --items build/pytest-results",
             label: 'Upload JUnits to S3',
           )
 
-            junit 'build/pytest-results/*.xml'
-          } catch (Exception e) {
-            echo 'Exception during JUnit upload: ' + e.toString()
-          }
+          junit 'build/pytest-results/*.xml'
+        } catch (Exception e) {
+          echo 'Exception during JUnit upload: ' + e.toString()
         }
       }
     }
+    echo 'End running on node_type ' + node_type
   } else {
     Utils.markStageSkippedForConditional('test: Hexagon 1 of 8')
   }
 }
 
-def shard_run_test_Hexagon_2_of_8(node_type='CPU-SMALL-SPOT', on_demand=false) {
+def shard_run_test_Hexagon_2_of_8(node_type) {
+  echo 'Begin running on node_type ' + node_type
   if (!skip_ci && is_docs_only_build != 1) {
-    if (on_demand==true || node_type.contains('ARM')) {
-        node_type = 'CPU-SMALL'
-    }
     node(node_type) {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-hexagon") {
-        try {
-          init_git()
-          docker_init(ci_hexagon)
-          timeout(time: max_time, unit: 'MINUTES') {
-            withEnv([
-              'PLATFORM=hexagon',
-              'TEST_STEP_NAME=test: Hexagon',
-              'TVM_NUM_SHARDS=8',
-              'TVM_SHARD_INDEX=1',
-              "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
-              sh(
+        // NOTE: if exception happens, it will be caught outside
+        init_git()
+        docker_init(ci_hexagon)
+        timeout(time: max_time, unit: 'MINUTES') {
+          withEnv([
+            'PLATFORM=hexagon',
+            'TEST_STEP_NAME=test: Hexagon',
+            'TVM_NUM_SHARDS=8',
+            'TVM_SHARD_INDEX=1',
+            "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
+            sh(
                   script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/hexagon",
                   label: 'Download artifacts from S3',
                 )
@@ -634,45 +612,43 @@ def shard_run_test_Hexagon_2_of_8(node_type='CPU-SMALL-SPOT', on_demand=false) {
                 script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_python_hexagon.sh",
                 label: 'Run Hexagon tests',
               )
-            })
-          }
-        } finally {
-          try {
-            sh(
+          })
+        }
+        // only run upload if things are successful
+        try {
+          sh(
             script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/pytest-results/test_Hexagon --items build/pytest-results",
             label: 'Upload JUnits to S3',
           )
 
-            junit 'build/pytest-results/*.xml'
-          } catch (Exception e) {
-            echo 'Exception during JUnit upload: ' + e.toString()
-          }
+          junit 'build/pytest-results/*.xml'
+        } catch (Exception e) {
+          echo 'Exception during JUnit upload: ' + e.toString()
         }
       }
     }
+    echo 'End running on node_type ' + node_type
   } else {
     Utils.markStageSkippedForConditional('test: Hexagon 2 of 8')
   }
 }
 
-def shard_run_test_Hexagon_3_of_8(node_type='CPU-SMALL-SPOT', on_demand=false) {
+def shard_run_test_Hexagon_3_of_8(node_type) {
+  echo 'Begin running on node_type ' + node_type
   if (!skip_ci && is_docs_only_build != 1) {
-    if (on_demand==true || node_type.contains('ARM')) {
-        node_type = 'CPU-SMALL'
-    }
     node(node_type) {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-hexagon") {
-        try {
-          init_git()
-          docker_init(ci_hexagon)
-          timeout(time: max_time, unit: 'MINUTES') {
-            withEnv([
-              'PLATFORM=hexagon',
-              'TEST_STEP_NAME=test: Hexagon',
-              'TVM_NUM_SHARDS=8',
-              'TVM_SHARD_INDEX=2',
-              "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
-              sh(
+        // NOTE: if exception happens, it will be caught outside
+        init_git()
+        docker_init(ci_hexagon)
+        timeout(time: max_time, unit: 'MINUTES') {
+          withEnv([
+            'PLATFORM=hexagon',
+            'TEST_STEP_NAME=test: Hexagon',
+            'TVM_NUM_SHARDS=8',
+            'TVM_SHARD_INDEX=2',
+            "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
+            sh(
                   script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/hexagon",
                   label: 'Download artifacts from S3',
                 )
@@ -682,45 +658,43 @@ def shard_run_test_Hexagon_3_of_8(node_type='CPU-SMALL-SPOT', on_demand=false) {
                 script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_python_hexagon.sh",
                 label: 'Run Hexagon tests',
               )
-            })
-          }
-        } finally {
-          try {
-            sh(
+          })
+        }
+        // only run upload if things are successful
+        try {
+          sh(
             script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/pytest-results/test_Hexagon --items build/pytest-results",
             label: 'Upload JUnits to S3',
           )
 
-            junit 'build/pytest-results/*.xml'
-          } catch (Exception e) {
-            echo 'Exception during JUnit upload: ' + e.toString()
-          }
+          junit 'build/pytest-results/*.xml'
+        } catch (Exception e) {
+          echo 'Exception during JUnit upload: ' + e.toString()
         }
       }
     }
+    echo 'End running on node_type ' + node_type
   } else {
     Utils.markStageSkippedForConditional('test: Hexagon 3 of 8')
   }
 }
 
-def shard_run_test_Hexagon_4_of_8(node_type='CPU-SMALL-SPOT', on_demand=false) {
+def shard_run_test_Hexagon_4_of_8(node_type) {
+  echo 'Begin running on node_type ' + node_type
   if (!skip_ci && is_docs_only_build != 1) {
-    if (on_demand==true || node_type.contains('ARM')) {
-        node_type = 'CPU-SMALL'
-    }
     node(node_type) {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-hexagon") {
-        try {
-          init_git()
-          docker_init(ci_hexagon)
-          timeout(time: max_time, unit: 'MINUTES') {
-            withEnv([
-              'PLATFORM=hexagon',
-              'TEST_STEP_NAME=test: Hexagon',
-              'TVM_NUM_SHARDS=8',
-              'TVM_SHARD_INDEX=3',
-              "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
-              sh(
+        // NOTE: if exception happens, it will be caught outside
+        init_git()
+        docker_init(ci_hexagon)
+        timeout(time: max_time, unit: 'MINUTES') {
+          withEnv([
+            'PLATFORM=hexagon',
+            'TEST_STEP_NAME=test: Hexagon',
+            'TVM_NUM_SHARDS=8',
+            'TVM_SHARD_INDEX=3',
+            "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
+            sh(
                   script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/hexagon",
                   label: 'Download artifacts from S3',
                 )
@@ -730,45 +704,43 @@ def shard_run_test_Hexagon_4_of_8(node_type='CPU-SMALL-SPOT', on_demand=false) {
                 script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_python_hexagon.sh",
                 label: 'Run Hexagon tests',
               )
-            })
-          }
-        } finally {
-          try {
-            sh(
+          })
+        }
+        // only run upload if things are successful
+        try {
+          sh(
             script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/pytest-results/test_Hexagon --items build/pytest-results",
             label: 'Upload JUnits to S3',
           )
 
-            junit 'build/pytest-results/*.xml'
-          } catch (Exception e) {
-            echo 'Exception during JUnit upload: ' + e.toString()
-          }
+          junit 'build/pytest-results/*.xml'
+        } catch (Exception e) {
+          echo 'Exception during JUnit upload: ' + e.toString()
         }
       }
     }
+    echo 'End running on node_type ' + node_type
   } else {
     Utils.markStageSkippedForConditional('test: Hexagon 4 of 8')
   }
 }
 
-def shard_run_test_Hexagon_5_of_8(node_type='CPU-SMALL-SPOT', on_demand=false) {
+def shard_run_test_Hexagon_5_of_8(node_type) {
+  echo 'Begin running on node_type ' + node_type
   if (!skip_ci && is_docs_only_build != 1) {
-    if (on_demand==true || node_type.contains('ARM')) {
-        node_type = 'CPU-SMALL'
-    }
     node(node_type) {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-hexagon") {
-        try {
-          init_git()
-          docker_init(ci_hexagon)
-          timeout(time: max_time, unit: 'MINUTES') {
-            withEnv([
-              'PLATFORM=hexagon',
-              'TEST_STEP_NAME=test: Hexagon',
-              'TVM_NUM_SHARDS=8',
-              'TVM_SHARD_INDEX=4',
-              "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
-              sh(
+        // NOTE: if exception happens, it will be caught outside
+        init_git()
+        docker_init(ci_hexagon)
+        timeout(time: max_time, unit: 'MINUTES') {
+          withEnv([
+            'PLATFORM=hexagon',
+            'TEST_STEP_NAME=test: Hexagon',
+            'TVM_NUM_SHARDS=8',
+            'TVM_SHARD_INDEX=4',
+            "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
+            sh(
                   script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/hexagon",
                   label: 'Download artifacts from S3',
                 )
@@ -778,45 +750,43 @@ def shard_run_test_Hexagon_5_of_8(node_type='CPU-SMALL-SPOT', on_demand=false) {
                 script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_python_hexagon.sh",
                 label: 'Run Hexagon tests',
               )
-            })
-          }
-        } finally {
-          try {
-            sh(
+          })
+        }
+        // only run upload if things are successful
+        try {
+          sh(
             script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/pytest-results/test_Hexagon --items build/pytest-results",
             label: 'Upload JUnits to S3',
           )
 
-            junit 'build/pytest-results/*.xml'
-          } catch (Exception e) {
-            echo 'Exception during JUnit upload: ' + e.toString()
-          }
+          junit 'build/pytest-results/*.xml'
+        } catch (Exception e) {
+          echo 'Exception during JUnit upload: ' + e.toString()
         }
       }
     }
+    echo 'End running on node_type ' + node_type
   } else {
     Utils.markStageSkippedForConditional('test: Hexagon 5 of 8')
   }
 }
 
-def shard_run_test_Hexagon_6_of_8(node_type='CPU-SMALL-SPOT', on_demand=false) {
+def shard_run_test_Hexagon_6_of_8(node_type) {
+  echo 'Begin running on node_type ' + node_type
   if (!skip_ci && is_docs_only_build != 1) {
-    if (on_demand==true || node_type.contains('ARM')) {
-        node_type = 'CPU-SMALL'
-    }
     node(node_type) {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-hexagon") {
-        try {
-          init_git()
-          docker_init(ci_hexagon)
-          timeout(time: max_time, unit: 'MINUTES') {
-            withEnv([
-              'PLATFORM=hexagon',
-              'TEST_STEP_NAME=test: Hexagon',
-              'TVM_NUM_SHARDS=8',
-              'TVM_SHARD_INDEX=5',
-              "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
-              sh(
+        // NOTE: if exception happens, it will be caught outside
+        init_git()
+        docker_init(ci_hexagon)
+        timeout(time: max_time, unit: 'MINUTES') {
+          withEnv([
+            'PLATFORM=hexagon',
+            'TEST_STEP_NAME=test: Hexagon',
+            'TVM_NUM_SHARDS=8',
+            'TVM_SHARD_INDEX=5',
+            "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
+            sh(
                   script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/hexagon",
                   label: 'Download artifacts from S3',
                 )
@@ -826,45 +796,43 @@ def shard_run_test_Hexagon_6_of_8(node_type='CPU-SMALL-SPOT', on_demand=false) {
                 script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_python_hexagon.sh",
                 label: 'Run Hexagon tests',
               )
-            })
-          }
-        } finally {
-          try {
-            sh(
+          })
+        }
+        // only run upload if things are successful
+        try {
+          sh(
             script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/pytest-results/test_Hexagon --items build/pytest-results",
             label: 'Upload JUnits to S3',
           )
 
-            junit 'build/pytest-results/*.xml'
-          } catch (Exception e) {
-            echo 'Exception during JUnit upload: ' + e.toString()
-          }
+          junit 'build/pytest-results/*.xml'
+        } catch (Exception e) {
+          echo 'Exception during JUnit upload: ' + e.toString()
         }
       }
     }
+    echo 'End running on node_type ' + node_type
   } else {
     Utils.markStageSkippedForConditional('test: Hexagon 6 of 8')
   }
 }
 
-def shard_run_test_Hexagon_7_of_8(node_type='CPU-SMALL-SPOT', on_demand=false) {
+def shard_run_test_Hexagon_7_of_8(node_type) {
+  echo 'Begin running on node_type ' + node_type
   if (!skip_ci && is_docs_only_build != 1) {
-    if (on_demand==true || node_type.contains('ARM')) {
-        node_type = 'CPU-SMALL'
-    }
     node(node_type) {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-hexagon") {
-        try {
-          init_git()
-          docker_init(ci_hexagon)
-          timeout(time: max_time, unit: 'MINUTES') {
-            withEnv([
-              'PLATFORM=hexagon',
-              'TEST_STEP_NAME=test: Hexagon',
-              'TVM_NUM_SHARDS=8',
-              'TVM_SHARD_INDEX=6',
-              "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
-              sh(
+        // NOTE: if exception happens, it will be caught outside
+        init_git()
+        docker_init(ci_hexagon)
+        timeout(time: max_time, unit: 'MINUTES') {
+          withEnv([
+            'PLATFORM=hexagon',
+            'TEST_STEP_NAME=test: Hexagon',
+            'TVM_NUM_SHARDS=8',
+            'TVM_SHARD_INDEX=6',
+            "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
+            sh(
                   script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/hexagon",
                   label: 'Download artifacts from S3',
                 )
@@ -874,45 +842,43 @@ def shard_run_test_Hexagon_7_of_8(node_type='CPU-SMALL-SPOT', on_demand=false) {
                 script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_python_hexagon.sh",
                 label: 'Run Hexagon tests',
               )
-            })
-          }
-        } finally {
-          try {
-            sh(
+          })
+        }
+        // only run upload if things are successful
+        try {
+          sh(
             script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/pytest-results/test_Hexagon --items build/pytest-results",
             label: 'Upload JUnits to S3',
           )
 
-            junit 'build/pytest-results/*.xml'
-          } catch (Exception e) {
-            echo 'Exception during JUnit upload: ' + e.toString()
-          }
+          junit 'build/pytest-results/*.xml'
+        } catch (Exception e) {
+          echo 'Exception during JUnit upload: ' + e.toString()
         }
       }
     }
+    echo 'End running on node_type ' + node_type
   } else {
     Utils.markStageSkippedForConditional('test: Hexagon 7 of 8')
   }
 }
 
-def shard_run_test_Hexagon_8_of_8(node_type='CPU-SMALL-SPOT', on_demand=false) {
+def shard_run_test_Hexagon_8_of_8(node_type) {
+  echo 'Begin running on node_type ' + node_type
   if (!skip_ci && is_docs_only_build != 1) {
-    if (on_demand==true || node_type.contains('ARM')) {
-        node_type = 'CPU-SMALL'
-    }
     node(node_type) {
       ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/test-hexagon") {
-        try {
-          init_git()
-          docker_init(ci_hexagon)
-          timeout(time: max_time, unit: 'MINUTES') {
-            withEnv([
-              'PLATFORM=hexagon',
-              'TEST_STEP_NAME=test: Hexagon',
-              'TVM_NUM_SHARDS=8',
-              'TVM_SHARD_INDEX=7',
-              "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
-              sh(
+        // NOTE: if exception happens, it will be caught outside
+        init_git()
+        docker_init(ci_hexagon)
+        timeout(time: max_time, unit: 'MINUTES') {
+          withEnv([
+            'PLATFORM=hexagon',
+            'TEST_STEP_NAME=test: Hexagon',
+            'TVM_NUM_SHARDS=8',
+            'TVM_SHARD_INDEX=7',
+            "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
+            sh(
                   script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/hexagon",
                   label: 'Download artifacts from S3',
                 )
@@ -922,22 +888,22 @@ def shard_run_test_Hexagon_8_of_8(node_type='CPU-SMALL-SPOT', on_demand=false) {
                 script: "${docker_run} ${ci_hexagon} ./tests/scripts/task_python_hexagon.sh",
                 label: 'Run Hexagon tests',
               )
-            })
-          }
-        } finally {
-          try {
-            sh(
+          })
+        }
+        // only run upload if things are successful
+        try {
+          sh(
             script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/pytest-results/test_Hexagon --items build/pytest-results",
             label: 'Upload JUnits to S3',
           )
 
-            junit 'build/pytest-results/*.xml'
-          } catch (Exception e) {
-            echo 'Exception during JUnit upload: ' + e.toString()
-          }
+          junit 'build/pytest-results/*.xml'
+        } catch (Exception e) {
+          echo 'Exception during JUnit upload: ' + e.toString()
         }
       }
     }
+    echo 'End running on node_type ' + node_type
   } else {
     Utils.markStageSkippedForConditional('test: Hexagon 8 of 8')
   }
@@ -952,58 +918,90 @@ def test() {
     parallel(
     'test: Hexagon 1 of 8': {
       try {
-      shard_run_test_Hexagon_1_of_8()
-      } catch (Exception ex) {
-        shard_run_test_Hexagon_1_of_8(on_demand = true)
+      shard_run_test_Hexagon_1_of_8('CPU-SMALL-SPOT')
+      } catch (Throwable ex) {
+        // mark the current stage as success
+        // and try again via on demand node
+        echo 'Exception during SPOT run ' + ex.toString() + ' retry on-demand'
+        currentBuild.result = 'SUCCESS'
+        shard_run_test_Hexagon_1_of_8('CPU-SMALL')
       }
     },
     'test: Hexagon 2 of 8': {
       try {
-      shard_run_test_Hexagon_2_of_8()
-      } catch (Exception ex) {
-        shard_run_test_Hexagon_2_of_8(on_demand = true)
+      shard_run_test_Hexagon_2_of_8('CPU-SMALL-SPOT')
+      } catch (Throwable ex) {
+        // mark the current stage as success
+        // and try again via on demand node
+        echo 'Exception during SPOT run ' + ex.toString() + ' retry on-demand'
+        currentBuild.result = 'SUCCESS'
+        shard_run_test_Hexagon_2_of_8('CPU-SMALL')
       }
     },
     'test: Hexagon 3 of 8': {
       try {
-      shard_run_test_Hexagon_3_of_8()
-      } catch (Exception ex) {
-        shard_run_test_Hexagon_3_of_8(on_demand = true)
+      shard_run_test_Hexagon_3_of_8('CPU-SMALL-SPOT')
+      } catch (Throwable ex) {
+        // mark the current stage as success
+        // and try again via on demand node
+        echo 'Exception during SPOT run ' + ex.toString() + ' retry on-demand'
+        currentBuild.result = 'SUCCESS'
+        shard_run_test_Hexagon_3_of_8('CPU-SMALL')
       }
     },
     'test: Hexagon 4 of 8': {
       try {
-      shard_run_test_Hexagon_4_of_8()
-      } catch (Exception ex) {
-        shard_run_test_Hexagon_4_of_8(on_demand = true)
+      shard_run_test_Hexagon_4_of_8('CPU-SMALL-SPOT')
+      } catch (Throwable ex) {
+        // mark the current stage as success
+        // and try again via on demand node
+        echo 'Exception during SPOT run ' + ex.toString() + ' retry on-demand'
+        currentBuild.result = 'SUCCESS'
+        shard_run_test_Hexagon_4_of_8('CPU-SMALL')
       }
     },
     'test: Hexagon 5 of 8': {
       try {
-      shard_run_test_Hexagon_5_of_8()
-      } catch (Exception ex) {
-        shard_run_test_Hexagon_5_of_8(on_demand = true)
+      shard_run_test_Hexagon_5_of_8('CPU-SMALL-SPOT')
+      } catch (Throwable ex) {
+        // mark the current stage as success
+        // and try again via on demand node
+        echo 'Exception during SPOT run ' + ex.toString() + ' retry on-demand'
+        currentBuild.result = 'SUCCESS'
+        shard_run_test_Hexagon_5_of_8('CPU-SMALL')
       }
     },
     'test: Hexagon 6 of 8': {
       try {
-      shard_run_test_Hexagon_6_of_8()
-      } catch (Exception ex) {
-        shard_run_test_Hexagon_6_of_8(on_demand = true)
+      shard_run_test_Hexagon_6_of_8('CPU-SMALL-SPOT')
+      } catch (Throwable ex) {
+        // mark the current stage as success
+        // and try again via on demand node
+        echo 'Exception during SPOT run ' + ex.toString() + ' retry on-demand'
+        currentBuild.result = 'SUCCESS'
+        shard_run_test_Hexagon_6_of_8('CPU-SMALL')
       }
     },
     'test: Hexagon 7 of 8': {
       try {
-      shard_run_test_Hexagon_7_of_8()
-      } catch (Exception ex) {
-        shard_run_test_Hexagon_7_of_8(on_demand = true)
+      shard_run_test_Hexagon_7_of_8('CPU-SMALL-SPOT')
+      } catch (Throwable ex) {
+        // mark the current stage as success
+        // and try again via on demand node
+        echo 'Exception during SPOT run ' + ex.toString() + ' retry on-demand'
+        currentBuild.result = 'SUCCESS'
+        shard_run_test_Hexagon_7_of_8('CPU-SMALL')
       }
     },
     'test: Hexagon 8 of 8': {
       try {
-      shard_run_test_Hexagon_8_of_8()
-      } catch (Exception ex) {
-        shard_run_test_Hexagon_8_of_8(on_demand = true)
+      shard_run_test_Hexagon_8_of_8('CPU-SMALL-SPOT')
+      } catch (Throwable ex) {
+        // mark the current stage as success
+        // and try again via on demand node
+        echo 'Exception during SPOT run ' + ex.toString() + ' retry on-demand'
+        currentBuild.result = 'SUCCESS'
+        shard_run_test_Hexagon_8_of_8('CPU-SMALL')
       }
     },
     )

@@ -22,7 +22,9 @@ source tests/scripts/setup-pytest-env.sh
 
 # cleanup pycache
 find . -type f -path "*.pyc" | xargs rm -f
-make cython3
+
+# setup cython
+cd python; python3 setup.py build_ext --inplace; cd ..
 
 # NOTE: also set by task_python_unittest_gpuonly.sh.
 if [ -z "${TVM_UNITTEST_TESTSUITE_NAME:-}" ]; then
@@ -30,8 +32,7 @@ if [ -z "${TVM_UNITTEST_TESTSUITE_NAME:-}" ]; then
 fi
 
 # First run minimal test on both ctypes and cython.
-run_pytest ctypes ${TVM_UNITTEST_TESTSUITE_NAME}-platform-minimal-test-0 tests/python/all-platform-minimal-test
-run_pytest cython ${TVM_UNITTEST_TESTSUITE_NAME}-platform-minimal-test-1 tests/python/all-platform-minimal-test
+run_pytest ${TVM_UNITTEST_TESTSUITE_NAME}-platform-minimal-test tests/python/all-platform-minimal-test
 
 # Then run all unittests on both ctypes and cython.
 TEST_FILES=(
@@ -52,11 +53,9 @@ TEST_FILES=(
   "tir-usmp"
   "tvmscript"
   "usmp"
+  "ci"
 )
 
 for TEST_FILE in ${TEST_FILES[@]}; do
-    run_pytest cython ${TEST_FILE}-1, tests/python/${TEST_FILE}
+    run_pytest ${TEST_FILE}, tests/python/${TEST_FILE}
 done
-
-# Then run CI tests
-run_pytest ctypes ${TVM_UNITTEST_TESTSUITE_NAME}-ci tests/python/ci

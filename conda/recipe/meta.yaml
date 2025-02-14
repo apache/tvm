@@ -86,7 +86,6 @@ outputs:
         - psutil
         - scipy
         - typing_extensions
-        - attrs
         - ml_dtypes
         - tornado
         - cloudpickle

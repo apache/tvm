@@ -1,4 +1,3 @@
-#!/usr/bin/env bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -15,15 +14,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
-# Test frontends that only need CPU resources
-set -euxo pipefail
-
-source tests/scripts/setup-pytest-env.sh
-# to avoid openblas threading error
-export TVM_BIND_THREADS=0
-export OMP_NUM_THREADS=1
-
-export TVM_TEST_TARGETS="llvm"
-
-# TODO(Siyuan): Keep this file for passing CI
+"""The Relax CPU backend compilation pipeline and other passes."""
+from .pipeline import (
+    finalize_passes,
+    get_default_pipeline,
+    legalize_passes,
+    library_dispatch_passes,
+)

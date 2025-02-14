@@ -514,7 +514,7 @@ class OpenCLTimerNode : public TimerNode {
       cl::OpenCLWorkspace::Global()->GetEventQueue(dev_).clear();
       // Very first call of Start() leads to the recreation of
       // OpenCL command queue in profiling mode. This allows to run profile after inference.
-      recreateCommandQueue();
+      cl::OpenCLWorkspace::Global()->EnableQueueProfiling(dev_, true);
     }
     ++count_timer_execs;
     // set new first idx in event queue
@@ -549,7 +549,7 @@ class OpenCLTimerNode : public TimerNode {
     // Profiling session ends, recreate clCommandQueue in non-profiling mode
     // This will disable collection of cl_events in case of executing inference after profile
     if (count_timer_execs == 0) {
-      recreateCommandQueue();
+      cl::OpenCLWorkspace::Global()->EnableQueueProfiling(dev_, false);
       event_start_idxs.clear();
     }
   }
@@ -565,11 +565,6 @@ class OpenCLTimerNode : public TimerNode {
  private:
   int64_t duration;
   Device dev_;
-
-  void recreateCommandQueue() {
-    cl::OpenCLWorkspace::Global()->EnableQueueProfiling(
-        dev_, !cl::OpenCLWorkspace::Global()->IsProfiling(dev_));
-  }
 };
 }  // namespace runtime
 }  // namespace tvm

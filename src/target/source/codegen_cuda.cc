@@ -51,8 +51,12 @@ std::string GetFP8Type(DataType type) {
     vec = "x2";
   } else if (lanes == 4) {
     vec = "x4";
+  } else if (lanes == 8) {
+    vec = "x8";
+  } else if (lanes == 16) {
+    vec = "x16";
   } else {
-    LOG(FATAL) << "Only support scalar and vector types of width (2, 4, 8) for FP8";
+    LOG(FATAL) << "Only support scalar and vector types of width (2, 4, 8, 16) for FP8";
   }
   stream << "__nv_fp8";
   std::string suffix;
@@ -147,6 +151,16 @@ std::string CodeGenCUDA::Finish() {
   if (enable_fp8_) {
     decl_stream << "#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 890)\n";
     decl_stream << "#include <cuda_fp8.h>\n";
+    decl_stream << "using fp8_e4_t = __nv_fp8_e4m3;\n";
+    decl_stream << "using fp8_e4x2_t = __nv_fp8x2_e4m3;\n";
+    decl_stream << "using fp8_e4x4_t = __nv_fp8x4_e4m3;\n";
+    decl_stream << "struct fp8_e4x8_t {\n fp8_e4_t data[8]; \n};\n";
+    decl_stream << "struct fp8_e4x16_t {\n fp8_e4_t data[16]; \n};\n";
+    decl_stream << "using fp8_e5_t = __nv_fp8_e5m2;\n";
+    decl_stream << "using fp8_e5x2_t = __nv_fp8x2_e5m2;\n";
+    decl_stream << "using fp8_e5x4_t = __nv_fp8x4_e5m2;\n";
+    decl_stream << "struct fp8_e5x8_t {\n fp8_e5_t data[8]; \n};\n";
+    decl_stream << "struct fp8_e5x16_t {\n fp8_e5_t data[16]; \n};\n";
     decl_stream << "#endif\n\n";
   }
   declare_vector_type_extensions(decl_stream, enable_fp16_, enable_fp8_);

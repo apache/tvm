@@ -14,11 +14,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
-# CI docker CPU env
-# tag: v0.62
-FROM ubuntu:22.04
-
-COPY utils/apt-install-and-clear.sh /usr/local/bin/apt-install-and-clear
-
-# Keep it for now
+"""The Relax ROCm backend compilation pipeline and other passes."""
+from .pipeline import (
+    finalize_passes,
+    get_default_pipeline,
+    legalize_passes,
+    library_dispatch_passes,
+)

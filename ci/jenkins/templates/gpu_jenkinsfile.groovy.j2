@@ -19,21 +19,21 @@
 
 {% call m.invoke_build(
   name='BUILD: GPU',
-  node='CPU-SMALL',
+  node='CPU',
   condition='!skip_ci',
   ws='tvm/build-gpu',
   docker_image='ci_gpu',
   platform="gpu",
 ) %}
   sh "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_config_build_gpu.sh build"
-  cmake_build("${ci_gpu} --no-gpu", 'build', '-j2')
-  {{ m.upload_artifacts(tag='gpu', filenames=tvm_multilib + tvm_allvisible + microtvm_template_projects + crttest) }}
+  cmake_build("${ci_gpu} --no-gpu", 'build')
+  {{ m.upload_artifacts(tag='gpu', filenames=tvm_lib + tvm_allvisible + tvm_lib_gpu_extra) }}
 
   // compiler test
   sh "rm -rf build"
   sh "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_config_build_gpu_other.sh build"
-  cmake_build("${ci_gpu} --no-gpu", 'build', '-j2')
-  {{ m.upload_artifacts(tag='gpu2', filenames=tvm_lib + crttest) }}
+  cmake_build("${ci_gpu} --no-gpu", 'build')
+  {{ m.upload_artifacts(tag='gpu2', filenames=tvm_lib) }}
 {% endcall %}
 
 {% set test_method_names = [] %}
@@ -41,7 +41,6 @@
 {% call(shard_index, num_shards) m.sharded_test_step(
   name="unittest: GPU",
   num_shards=3,
-  node="GPU",
   ws="tvm/ut-python-gpu",
   platform="gpu",
   docker_image="ci_gpu",
@@ -90,7 +89,6 @@
 
 {% call(shard_index, num_shards) m.sharded_test_step(
   name="topi: GPU",
-  node="GPU",
   num_shards=3,
   ws="tvm/topi-python-gpu",
   platform="gpu",
@@ -106,25 +104,7 @@
 {% endcall %}
 
 {% call(shard_index, num_shards) m.sharded_test_step(
-  name="frontend: GPU",
-  node="GPU",
-  num_shards=6,
-  ws="tvm/frontend-python-gpu",
-  platform="gpu",
-  docker_image="ci_gpu",
-  test_method_names=test_method_names,
-) %}
-  {{ m.download_artifacts(tag='gpu') }}
-  ci_setup(ci_gpu)
-  sh (
-    script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_frontend.sh",
-    label: 'Run Python frontend tests',
-  )
-{% endcall %}
-
-{% call(shard_index, num_shards) m.sharded_test_step(
   name="docs: GPU",
-  node="GPU",
   num_shards=1,
   ws="tvm/docs-python-gpu",
   platform="gpu",
@@ -146,7 +126,7 @@
 {% endcall %}
 
 
-{{ m.invoke_tests(test_method_names) }}
+{{ m.invoke_tests(node="GPU", test_method_names=test_method_names) }}
 
 
 def deploy_docs() {

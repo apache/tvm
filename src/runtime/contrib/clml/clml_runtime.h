@@ -164,8 +164,10 @@ static const uint64_t kTVMCLMLTuningCacheMagic = 0x434C4D4C54554E45;
 
 #define DEBUG_MEMORY_ALLOC false
 #define DEBUG_STATS false
+#define DEBUG_CLML false
 #define LOG_MEM LOG_IF(WARNING, DEBUG_MEMORY_ALLOC)
 #define LOG_STATS LOG_IF(WARNING, DEBUG_STATS)
+#define LOG_CLML LOG_IF(WARNING, DEBUG_CLML)
 
 namespace tvm {
 namespace runtime {
@@ -235,6 +237,8 @@ class CLMLThreadEntry {
 struct CachedLayer {
   /* List of all created CLML operation handles in graph */
   std::vector<cl_ml_op_qcom> function;
+  /* Map of function and original JsonNode */
+  std::map<cl_ml_op_qcom, std::pair<int, JSONGraphNode>> op_node_map;
   /* The input tensor map  */
   std::map<int, std::shared_ptr<cl_ml_tensor_memory_desc_qcom>> inputs;
   /* A place holder Tensor representing TVM NDArray as CLML Tensor */

@@ -320,7 +320,17 @@ def tree_attn(
 
     bdx = 32
     num_warps = 4
-    tile_x, tile_y, tile_z = 64 // ((DataType(dtype).bits + 7) // 8) // max(d // 128, 1), d, 16
+    tile_x, tile_y, tile_z = (
+        64 // ((DataType(dtype).bits + 7) // 8) // max(d // 128, 1),
+        d,
+        64 // ((DataType(dtype).bits + 7) // 8) // max(d // 128, 1),
+    )
+    original_tile_y = tile_y
+    original_tile_z = tile_z
+    while (tile_x * tile_z) % (bdx * num_warps) != 0:
+        tile_z += original_tile_z
+    while (tile_x * tile_y) % (bdx * num_warps) != 0:
+        tile_y += original_tile_y
 
     # Otherwise we would exceed maxComputeWorkgroupStorageSize
     if (
@@ -881,7 +891,17 @@ def tree_attn_with_paged_kv_cache(
 
     bdx = 32
     num_warps = 4
-    tile_x, tile_y, tile_z = 64 // ((DataType(dtype).bits + 7) // 8) // max(d // 128, 1), d, 16
+    tile_x, tile_y, tile_z = (
+        64 // ((DataType(dtype).bits + 7) // 8) // max(d // 128, 1),
+        d,
+        64 // ((DataType(dtype).bits + 7) // 8) // max(d // 128, 1),
+    )
+    original_tile_y = tile_y
+    original_tile_z = tile_z
+    while (tile_x * tile_z) % (bdx * num_warps) != 0:
+        tile_z += original_tile_z
+    while (tile_x * tile_y) % (bdx * num_warps) != 0:
+        tile_y += original_tile_y
 
     # Otherwise we would exceed maxComputeWorkgroupStorageSize
     if (

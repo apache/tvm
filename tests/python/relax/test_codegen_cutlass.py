@@ -23,10 +23,10 @@ import tvm.topi.testing
 from tvm import relax
 from tvm.contrib.cutlass.build import is_shape_valid_for_cutlass_matmul
 from tvm.contrib.pickle_memoize import memoize
-from tvm.relax.backend.contrib.cutlass import partition_for_cutlass
+from tvm.relax.backend.cuda.cutlass import partition_for_cutlass
 from tvm.relax.testing import (
-    get_relax_matmul_module,
     get_relax_attention_module,
+    get_relax_matmul_module,
     get_relax_stacked_attention_module,
 )
 from tvm.script import ir as I
@@ -1909,9 +1909,7 @@ def test_fp16A_int8B_gemm_batched():
     ex = relax.build(mod_transform, target="llvm")
     vm = relax.vm.VirtualMachine(ex, tvm.cpu(0))
 
-    (packed_weight, scales,) = vm[
-        transform_func_name
-    ]((tvm.nd.array(y),))
+    packed_weight, scales = vm[transform_func_name]((tvm.nd.array(y),))
 
     dev = tvm.device("cuda", 0)
     ex = relax.build(mod_deploy, target="cuda")
@@ -2066,9 +2064,7 @@ def test_fp16A_int8B_gemm_batched_finegrained():
     ex = relax.build(mod_transform, target="llvm")
     vm = relax.vm.VirtualMachine(ex, tvm.cpu(0))
 
-    (packed_weight, scales,) = vm[
-        transform_func_name
-    ]((tvm.nd.array(y),))
+    packed_weight, scales = vm[transform_func_name]((tvm.nd.array(y),))
 
     dev = tvm.device("cuda", 0)
     ex = relax.build(mod_deploy, target="cuda")

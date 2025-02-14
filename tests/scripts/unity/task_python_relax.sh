@@ -25,7 +25,8 @@ export LD_LIBRARY_PATH="build:${LD_LIBRARY_PATH:-}"
 export TVM_BIND_THREADS=0
 export TVM_NUM_THREADS=2
 
-make cython3
+# setup cython
+cd python; python3 setup.py build_ext --inplace; cd ..
 
 # Run Relax tests
 TVM_TEST_TARGETS="${TVM_RELAY_TEST_TARGETS:-llvm}" pytest tests/python/relax

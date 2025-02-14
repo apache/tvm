@@ -1,4 +1,6 @@
-#!/usr/bin/env bash
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -16,19 +18,34 @@
 # specific language governing permissions and limitations
 # under the License.
 
-set -euxo pipefail
+import os
+import sys
+import json
+import numpy as np
 
-BUILD_DIR=$1
-mkdir -p "$BUILD_DIR"
-cd "$BUILD_DIR"
-cp ../cmake/config.cmake .
+import tvm
+from tvm import relay
+from tvm.driver import tvmc
+from tvm.relay.op.contrib import clml
+from tvm.contrib import utils
+from string import Template
 
-echo set\(USE_SORT ON\) >> config.cmake
-echo set\(USE_LLVM llvm-config\) >> config.cmake
-echo set\(USE_RELAY_DEBUG ON\) >> config.cmake
-echo set\(CMAKE_BUILD_TYPE=Debug\) >> config.cmake
-echo set\(CMAKE_CXX_FLAGS \"-Werror -Wp,-D_GLIBCXX_ASSERTIONS\"\) >> config.cmake
-echo set\(HIDE_PRIVATE_SYMBOLS ON\) >> config.cmake
-echo set\(USE_LIBBACKTRACE COMPILE\) >> config.cmake
-echo set\(USE_CCACHE OFF\) >> config.cmake
-echo set\(SUMMARIZE ON\) >> config.cmake
+
+def main():
+    print("CLML Codegen From JSON")
+    if len(sys.argv) != 3:
+        print("Usage: python clml_codegen_json.py <json path> <outfile path>")
+        return
+
+    with open(sys.argv[1], "r") as file:
+        codegen = json.load(file)
+        (_, gen_src) = clml.CLMLGenSrc(codegen).get_artifacts()
+
+        f_src = open(sys.argv[2], "w")
+        f_src.write("\n".join(gen_src))
+        f_src.close()
+        os.popen("clang-format-15 -i " + sys.argv[2])
+
+
+if __name__ == "__main__":
+    main()

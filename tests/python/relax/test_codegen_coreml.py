@@ -41,7 +41,7 @@ pytestmark = pytest.mark.skipif(
 
 
 def verify(mod, inputs):
-    from tvm.relax.backend.contrib.coreml import partition_for_coreml
+    from tvm.relax.backend.metal.coreml import partition_for_coreml
 
     mod1 = partition_for_coreml(mod)
     mod1 = relax.transform.RunCodegen()(mod1)

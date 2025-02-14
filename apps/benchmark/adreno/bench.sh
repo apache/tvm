@@ -48,8 +48,6 @@ trap "{ kill ${TRACKER_PID}; kill ${DEVICE_PID}; }" 0
 
 # cleanup pycache
 find . -type f -path "*.pyc" | xargs rm -f
-# Test TVM
-make cython3
 
 if [ "texture" == $1 ] ; then
     python3 apps/benchmark/adreno/adreno_gpu_bench_texture.py --host ${TVM_TRACKER_HOST} --port ${TVM_TRACKER_PORT} --rpc-key ${RPC_DEVICE_KEY}

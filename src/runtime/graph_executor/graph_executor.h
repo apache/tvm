@@ -56,6 +56,7 @@ using memory::MemoryManager;
 /*! \brief operator attributes about tvm op */
 struct TVMOpParam {
   std::string func_name;
+  std::string compiler;
   std::unordered_map<std::string, ObjectRef> attrs;
   uint32_t num_inputs;
   uint32_t num_outputs;
@@ -272,6 +273,9 @@ class TVM_DLL GraphExecutor : public ModuleNode {
         if (key == "func_name") {
           param->func_name = value;
           bitmask |= 1;
+        }
+        if (key == "Compiler") {
+          param->compiler = value;
         } else if (key == "num_inputs") {
           param->num_inputs = strtoul(value.c_str(), nullptr, 10);
           bitmask |= 2;
@@ -440,8 +444,8 @@ class TVM_DLL GraphExecutor : public ModuleNode {
    * \param args The arguments to the functor, including inputs and outputs.
    * \return The created executor.
    */
-  std::pair<std::function<void()>, std::shared_ptr<OpArgs>> CreateTVMOp(
-      const TVMOpParam& attrs, const std::vector<DLTensor*>& args);
+  std::tuple<std::function<void()>, std::function<void(TVMRetValue*)>, std::shared_ptr<OpArgs>>
+  CreateTVMOp(const TVMOpParam& attrs, const std::vector<DLTensor*>& args);
   // Get node entry index.
   uint32_t entry_id(uint32_t nid, uint32_t index) const { return node_row_ptr_[nid] + index; }
   // Get node entry index.
@@ -486,6 +490,8 @@ class TVM_DLL GraphExecutor : public ModuleNode {
   std::vector<size_t> data_alignment_;
   /*! \brief Operator on each node. */
   std::vector<std::function<void()>> op_execs_;
+  /*! \brief Profilable Operator on each node. */
+  std::vector<std::function<void(TVMRetValue*)>> op_profile_execs_;
   /*! \brief Linked parameter lookup function. */
   PackedFunc lookup_linked_param_;
   /*! \brief Module's _lookup_linked_param function, used by DefaultLookupLinkedParam. */

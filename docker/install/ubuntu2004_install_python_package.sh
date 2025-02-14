@@ -23,7 +23,6 @@ set -o pipefail
 # install libraries for python package on ubuntu
 pip3 install --upgrade \
     "Pygments>=2.4.0" \
-    attrs \
     cloudpickle \
     cython \
     decorator \
@@ -35,7 +34,7 @@ pip3 install --upgrade \
     psutil \
     pytest \
     git+https://github.com/tlc-pack/tlcpack-sphinx-addon.git@768ec1dce349fe4708f6ad68be1ebb3f3dabafa1 \
-    pytest-profiling==1.7.0 \
+    pytest-profiling \
     pytest-xdist \
     pytest-rerunfailures==10.2 \
     requests \
@@ -43,4 +42,4 @@ pip3 install --upgrade \
     junitparser==2.4.2 \
     six \
     tornado \
-    git+https://github.com/jax-ml/ml_dtypes.git@v0.2.0
+    "ml_dtypes>=0.5.1"

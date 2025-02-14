@@ -1,4 +1,6 @@
-#!/usr/bin/env bash
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -16,13 +18,24 @@
 # specific language governing permissions and limitations
 # under the License.
 
-set -euxo pipefail
+import sys
+import numpy as np
 
-source tests/scripts/setup-pytest-env.sh
-# to avoid openblas threading error
-export TVM_BIND_THREADS=0
-export OMP_NUM_THREADS=1
 
-export TVM_TEST_TARGETS="llvm;cuda"
+def main():
+    print("Compare given numpy array in npz files")
+    if len(sys.argv) != 4:
+        print("Usage: python compare_npy.py <npz file 1> <npz file 2> <np array to cpmpare>")
+        return
 
-# TODO(Siyuan): Keep this file for passing CI
+    in1 = np.load(sys.argv[1])
+    in2 = np.load(sys.argv[2])
+
+    print(sys.argv[1] + "->" + sys.argv[3] + ":", in1[sys.argv[3]].shape)
+    print(sys.argv[2] + "->" + sys.argv[3] + ":", in1[sys.argv[3]].shape)
+
+    np.testing.assert_allclose(in1[sys.argv[3]], in2[sys.argv[3]], rtol=1e-5, atol=1e-5)
+
+
+if __name__ == "__main__":
+    main()

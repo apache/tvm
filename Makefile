@@ -21,7 +21,6 @@
         lint pylint cpplint \
 	cppdoc docs \
 	web webclean \
-	cython cython3 cyclean \
         clean
 
 .SECONDEXPANSION:
