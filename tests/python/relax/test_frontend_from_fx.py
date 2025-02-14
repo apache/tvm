@@ -1954,6 +1954,7 @@ operator_basic_unary = [
     (torch.tan, R.tan),
 ]
 
+
 @pytest.mark.parametrize("pytorch_op, relax_op", operator_basic_unary)
 def test_basic_unary_ops(pytorch_op, relax_op):
     input_info = [([1, 3, 10, 10], "float32")]
