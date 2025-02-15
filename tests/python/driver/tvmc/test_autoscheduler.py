@@ -60,9 +60,7 @@ def _autoscheduler_test_helper(model, tmpdir_name, early_stopping=1, prior_recor
     return log_file
 
 
-@pytest.mark.skip(
-    reason="Failed due to tf and tflite upgrade."
-)
+@pytest.mark.skip(reason="Failed due to tf and tflite upgrade.")
 def test_get_tuning_tasks(keras_simple):
     pytest.importorskip("tensorflow")
 
@@ -84,9 +82,7 @@ def test_tune_tasks(keras_simple, tmpdir_factory):
     _autoscheduler_test_helper(keras_simple, tmpdir_name)
 
 
-@pytest.mark.skip(
-    reason="Failed due to tf and tflite upgrade."
-)
+@pytest.mark.skip(reason="Failed due to tf and tflite upgrade.")
 def test_tune_tasks__tuning_records(keras_simple, tmpdir_factory):
     pytest.importorskip("tensorflow")
 
@@ -97,9 +93,7 @@ def test_tune_tasks__tuning_records(keras_simple, tmpdir_factory):
     _autoscheduler_test_helper(keras_simple, tmpdir_name, prior_records=output_log_phase_1)
 
 
-@pytest.mark.skip(
-    reason="Failed due to tf and tflite upgrade."
-)
+@pytest.mark.skip(reason="Failed due to tf and tflite upgrade.")
 def test_tune_tasks__no_early_stopping(keras_simple, tmpdir_factory):
     pytest.importorskip("tensorflow")
 

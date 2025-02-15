@@ -14,106 +14,84 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+# pylint: disable=unused-argument
 
-"""Test translate for TensorrRT."""
-
-import pytest
+"""Test translate from relay."""
 
 import torch
 from torch import fx
 from torch.nn import Module
 
 import tvm.testing
-from tvm.relax import PyExprVisitor
 from tvm.relax.frontend.torch import from_fx
-from tvm.contrib.msc.framework.tensorrt.frontend import translate
-from tvm.contrib.msc.framework.tensorrt import codegen
+from tvm.relay.frontend import from_pytorch
+from tvm import relay
+from tvm.ir.module import IRModule
+from tvm.contrib.msc.core.frontend import translate
+from tvm.contrib.msc.framework.tvm import codegen as tvm_codegen
 from tvm.contrib.msc.core import utils as msc_utils
 
-requires_tensorrt = pytest.mark.skipif(
-    tvm.get_global_func("relax.ext.tensorrt", True) is None,
-    reason="TENSORRT is not enabled",
-)
+
+def _valid_target(target):
+    if not target:
+        return target
+    if target == "ignore":
+        return None
+    if target == "cuda" and not tvm.cuda().exist:
+        return None
+    if isinstance(target, str):
+        target = tvm.target.Target(target)
+    return target
 
 
-def build_and_run(mod, inputs):
-    """Build and run the virtual machine"""
-
-    target = tvm.target.Target("cuda")
-    mod = tvm.relax.transform.LegalizeOps()(mod)
-    with target:
-        mod = tvm.tir.transform.DefaultGPUSchedule()(mod)
+def _run_relax(relax_mod, target, datas):
+    relax_mod = tvm.relax.transform.LegalizeOps()(relax_mod)
     with tvm.transform.PassContext(opt_level=3):
-        rt_mod = tvm.relax.build(mod, target)
-        runnable = tvm.relax.VirtualMachine(rt_mod, tvm.cuda())
-    res = runnable["main"](*inputs)
+        relax_exec = tvm.relax.build(relax_mod, target)
+        runnable = tvm.relax.VirtualMachine(relax_exec, tvm.cpu())
+    res = runnable["main"](*datas)
     if isinstance(res, tvm.runtime.NDArray):
         return [res.asnumpy()]
     return [e.asnumpy() for e in res]
 
 
-def check_names(mod):
-    """Check the byoc name and unique_name"""
-
-    @tvm.relax.expr_functor.visitor
-    class NameChecker(PyExprVisitor):
-        """Checker to check if any non-target ops exist"""
-
-        def check(self, expr):
-            self._recorded_names = set()
-            if isinstance(expr, tvm.relax.Expr):
-                self.visit_expr(expr)
-            elif isinstance(expr, tvm.relax.BindingBlock):
-                self.visit_binding_block(expr)
-
-        def visit_function_(self, op: tvm.relax.Function) -> None:
-            if "Composite" in op.attrs:
-                assert "Unique" in op.attrs, "Can not find unique_name for func " + str(op)
-                name = str(op.attrs["Unique"])
-                assert name not in self._recorded_names, "Name {} is already in use".format(name)
-                self._recorded_names.add(name)
-            super().visit_function_(op)
-
-    def _is_target_func(func):
-        if "Codegen" not in func.attrs:
-            return False
-        return func.attrs["Codegen"] == "msc_tensorrt"
-
-    for _, func in mod.functions.items():
-        if not _is_target_func(func):
-            continue
-        assert "Unique" in func.attrs, "Can not find Unique from function attributes"
-        NameChecker().check(func)
-
-
-def verify_model(torch_model, input_info, **trans_config):
-    """Build model and verify results"""
+def verify_model(torch_model, input_info, opt_config=None, codegen_config=None, build_target=None):
+    """Compare relax with relay"""
 
     graph_model = fx.symbolic_trace(torch_model)
+    with torch.no_grad():
+        expected = from_fx(graph_model, input_info)
+    expected = tvm.relax.transform.CanonicalizeBindings()(expected)
+
+    # graph from relay
     datas = [msc_utils.random_data(i) for i in input_info]
     torch_datas = [torch.from_numpy(i) for i in datas]
     with torch.no_grad():
-        golden = torch_model(*torch_datas)
-        mod = from_fx(graph_model, input_info)
-    if not isinstance(golden, (list, tuple)):
-        golden = [golden]
-    golden = [g.detach().cpu().numpy() for g in golden]
-    # partition module for tensorrt
-    mod, graphs, weights = translate.partition_for_tensorrt(mod, trans_config=trans_config)
-    check_names(mod)
-    output_folder = msc_utils.msc_dir()
-    # tranalte to tensorrt
-    mod = codegen.to_tensorrt(mod, graphs, weights, output_folder=output_folder)
-    tvm_datas = [tvm.nd.array(i, device=tvm.cuda()) for i in datas]
-    results = build_and_run(mod, tvm_datas)
-    for gol, res in zip(golden, results):
-        tvm.testing.assert_allclose(gol, res, atol=1e-3, rtol=1e-3)
-    output_folder.destory()
+        scripted_model = torch.jit.trace(torch_model, tuple(torch_datas)).eval()  # type: ignore
+    shape_list = [("input" + str(idx), i) for idx, i in enumerate(input_info)]
+    relay_mod, params = from_pytorch(scripted_model, shape_list)
+    graph, weights = translate.from_relay(relay_mod, params, opt_config=opt_config)
+    # to relax
+    codegen_config = codegen_config or {}
+    codegen_config.update({"explicit_name": False, "from_relay": True})
+    mod = tvm_codegen.to_relax(graph, weights, codegen_config)
+    if build_target:
+        build_target = _valid_target(build_target)
+        if not build_target:
+            return
+        tvm_datas = [tvm.nd.array(i) for i in datas]
+        expected_res = _run_relax(expected, build_target, tvm_datas)
+        if not graph.get_inputs():
+            tvm_datas = []
+        res = _run_relax(mod, build_target, tvm_datas)
+        for exp_r, new_r in zip(expected_res, res):
+            tvm.testing.assert_allclose(exp_r, new_r, atol=1e-5, rtol=1e-5)
+    else:
+        tvm.ir.assert_structural_equal(mod, expected)
 
 
-@requires_tensorrt
 def test_conv1d():
-    """test tensorrt translator for conv1d"""
+    """test relay to relax for conv1d"""
 
     class Conv1D1(Module):
         def __init__(self):
@@ -136,9 +114,8 @@ def test_conv1d():
     verify_model(Conv1D2(), input_info)
 
 
-@requires_tensorrt
 def test_conv2d():
-    """test tensorrt translator for conv2d"""
+    """test relay to relax for conv2d"""
 
     class Conv2D1(Module):
         def __init__(self):
@@ -161,9 +138,8 @@ def test_conv2d():
     verify_model(Conv2D2(), input_info)
 
 
-@requires_tensorrt
 def test_linear():
-    """test tensorrt translator for linear"""
+    """test relay to relax for linear"""
 
     class Dense1(Module):
         def __init__(self):
@@ -186,28 +162,24 @@ def test_linear():
             return torch.matmul(x, y)
 
     input_info = [([1, 3, 10, 10], "float32")]
-    verify_model(Dense1(), input_info)
-    verify_model(Dense2(), input_info)
-    verify_model(Dense1(), input_info, linear_to_conv=True)
-    verify_model(Dense2(), input_info, linear_to_conv=True)
-    verify_model(MatMul1(), [([10, 10], "float32"), ([10, 10], "float32")])
+    verify_model(Dense1(), input_info, build_target="llvm")
+    verify_model(Dense2(), input_info, build_target="llvm")
+    verify_model(MatMul1(), [([10, 10], "float32"), ([10, 10], "float32")], build_target="llvm")
 
 
-@requires_tensorrt
 def test_bmm():
-    """test tensorrt translator for bmm"""
+    """test relay to relax for bmm"""
 
     class BMM(Module):
         def forward(self, x, y):
             return torch.bmm(x, y)
 
     input_info = [((4, 128, 256), "float32"), ((4, 256, 512), "float32")]
-    verify_model(BMM(), input_info)
+    verify_model(BMM(), input_info, opt_config={"opt_level": 3})
 
 
-@requires_tensorrt
 def test_baddbmm():
-    """test tensorrt translator for baddbmm"""
+    """test relay to relax for baddbmm"""
 
     class BAddBMM1(Module):
         def forward(self, c, x, y):
@@ -222,13 +194,12 @@ def test_baddbmm():
         ((4, 128, 256), "float32"),
         ((4, 256, 512), "float32"),
     ]
-    verify_model(BAddBMM1(), input_info)
-    verify_model(BAddBMM2(), input_info)
+    verify_model(BAddBMM1(), input_info, opt_config={"opt_level": 3}, build_target="llvm")
+    verify_model(BAddBMM2(), input_info, opt_config={"opt_level": 3}, build_target="llvm")
 
 
-@requires_tensorrt
 def test_relu():
-    """test tensorrt translator for relu"""
+    """test relay to relax for relu"""
 
     class ReLU(Module):
         def __init__(self):
@@ -238,13 +209,17 @@ def test_relu():
         def forward(self, data):
             return self.relu(data)
 
+    class ReLU1(Module):
+        def forward(self, data):
+            return torch.nn.functional.relu(data)
+
     input_info = [([10, 10], "float32")]
     verify_model(ReLU(), input_info)
+    verify_model(ReLU1(), input_info)
 
 
-@requires_tensorrt
 def test_relu6():
-    """test tensorrt translator for relu6"""
+    """test relay to relax for relu6"""
 
     class ReLU6(Module):
         def __init__(self):
@@ -258,9 +233,8 @@ def test_relu6():
     verify_model(ReLU6(), input_info)
 
 
-@requires_tensorrt
 def test_maxpool2d():
-    """test tensorrt translator for maxpool2d"""
+    """test relay to relax for maxpool2d"""
 
     class MaxPool2d(Module):
         def __init__(self):
@@ -273,6 +247,14 @@ def test_maxpool2d():
     class MaxPool2d2(Module):
         def __init__(self):
             super().__init__()
+            self.pool = torch.nn.MaxPool2d(kernel_size=[2, 2], dilation=[2, 3])
+
+        def forward(self, data):
+            return self.pool(data)
+
+    class MaxPool2d3(Module):
+        def __init__(self):
+            super().__init__()
             self.pool = torch.nn.MaxPool2d(kernel_size=[4, 4], padding=2, stride=2)
 
         def forward(self, data):
@@ -281,11 +263,11 @@ def test_maxpool2d():
     input_info = [([1, 3, 10, 10], "float32")]
     verify_model(MaxPool2d(), input_info)
     verify_model(MaxPool2d2(), input_info)
+    verify_model(MaxPool2d3(), input_info)
 
 
-@requires_tensorrt
 def test_avgpool2d():
-    """test tensorrt translator for avgpool2d"""
+    """test relay to relax for avgpool2d"""
 
     class AvgPool2d(Module):
         def __init__(self):
@@ -308,9 +290,8 @@ def test_avgpool2d():
     verify_model(AvgPool2d2(), input_info)
 
 
-@requires_tensorrt
 def test_adaptive_avgpool2d():
-    """test tensorrt translator for adaptive_avgpool2d"""
+    """test relay to relax for adaptive_avgpool2d"""
 
     class AdaptiveAvgPool2d0(Module):
         def __init__(self):
@@ -324,9 +305,8 @@ def test_adaptive_avgpool2d():
     verify_model(AdaptiveAvgPool2d0(), input_info)
 
 
-@requires_tensorrt
 def test_flatten():
-    """test tensorrt translator for flatten"""
+    """test relay to relax for flatten"""
 
     class Flatten(Module):
         def __init__(self):
@@ -337,13 +317,14 @@ def test_flatten():
             return self.f(data)
 
     input_info = [([1, 3, 10, 10], "float32")]
-    verify_model(Flatten(), input_info)
-    verify_model(torch.nn.Flatten(2, -1), input_info)
+    verify_model(Flatten(), input_info, opt_config={"opt_level": 3}, build_target="llvm")
+    verify_model(
+        torch.nn.Flatten(2, -1), input_info, opt_config={"opt_level": 3}, build_target="llvm"
+    )
 
 
-@requires_tensorrt
 def test_batchnorm2d():
-    """test tensorrt translator for batchnorm2d"""
+    """test relay to relax for batchnorm2d"""
 
     class BatchNorm2d(Module):
         def __init__(self):
@@ -354,12 +335,11 @@ def test_batchnorm2d():
             return self.batchnorm(data)
 
     input_info = [([1, 3, 10, 10], "float32")]
-    verify_model(BatchNorm2d().eval(), input_info)
+    verify_model(BatchNorm2d(), input_info, build_target="llvm")
 
 
-@requires_tensorrt
 def test_embedding():
-    """test tensorrt translator for embedding"""
+    """test relay to relax for embedding"""
 
     class Embedding(Module):
         def __init__(self):
@@ -367,31 +347,92 @@ def test_embedding():
             self.embedding = torch.nn.Embedding(10, 3)
 
         def forward(self, data):
-            return self.embedding(data.to(torch.int64))
+            return self.embedding(data)
 
-    verify_model(Embedding(), [([4], "int32")])
-    verify_model(Embedding(), [([4, 5], "int32")])
+    verify_model(Embedding(), [([4], "int64")])
+    verify_model(Embedding(), [([4, 5], "int64")])
 
 
-@requires_tensorrt
 def test_layernorm():
-    """test tensorrt translator for layernorm"""
+    """test relay to relax for layernorm"""
 
     class LayerNorm(Module):
         def __init__(self):
             super().__init__()
-            self.layernorm = torch.nn.LayerNorm((10, 10))
+            self.layernorm = torch.nn.LayerNorm(10)
 
         def forward(self, data):
             return self.layernorm(data)
 
-    input_info = [([1, 3, 10, 10], "float32")]
+    input_info = [([1, 10, 10], "float32")]
     verify_model(LayerNorm(), input_info)
 
 
-@requires_tensorrt
+def test_functional_layernorm():
+    """test relay to relax for functional_layernorm"""
+
+    class LayerNorm(Module):
+        def __init__(self, shape):
+            super().__init__()
+            self.weight = torch.nn.Parameter(torch.ones(shape))
+            self.bias = torch.nn.Parameter(torch.zeros(shape))
+
+        def forward(self, data):
+            return torch.nn.functional.layer_norm(
+                data, self.weight.shape, self.weight, self.bias, 1e-5
+            )
+
+    input_info = [([1, 10, 10], "float32")]
+    verify_model(LayerNorm((10)), input_info)
+
+
+def test_cross_entropy():
+    """test relay to relax for cross_entropy"""
+
+    class CrossEntropy1(Module):
+        def __init__(self):
+            super().__init__()
+            self.loss = torch.nn.CrossEntropyLoss()
+
+        def forward(self, logits, targets):
+            return self.loss(logits, targets)
+
+    class CrossEntropy2(Module):
+        def __init__(self):
+            super().__init__()
+            self.weight = torch.nn.Parameter(torch.ones((2,)))
+            self.loss = torch.nn.CrossEntropyLoss(weight=self.weight)
+
+        def forward(self, logits, targets):
+            return self.loss(logits, targets)
+
+    class CrossEntropy3(Module):
+        def __init__(self):
+            super().__init__()
+            self.loss = torch.nn.CrossEntropyLoss(ignore_index=1, reduction="sum")
+
+        def forward(self, logits, targets):
+            return self.loss(logits, targets)
+
+    input_info = [([3, 2], "float32"), ([3], "int64")]
+    verify_model(CrossEntropy1(), input_info, opt_config={"opt_level": 3}, build_target="llvm")
+    verify_model(CrossEntropy2(), input_info, opt_config={"opt_level": 3}, build_target="llvm")
+    verify_model(CrossEntropy3(), input_info, opt_config={"opt_level": 3}, build_target="llvm")
+
+
+def test_functional_cross_entropy():
+    """test relay to relax for functional_cross_entropy"""
+
+    class CrossEntropy(Module):
+        def forward(self, logits, targets):
+            return torch.nn.functional.cross_entropy(logits, targets)
+
+    input_info = [([3, 10], "float32"), ([3], "int64")]
+    verify_model(CrossEntropy(), input_info, opt_config={"opt_level": 3}, build_target="llvm")
+
+
 def test_silu():
-    """test tensorrt translator for silu"""
+    """test relay to relax for silu"""
 
     class SiLU(Module):
         def __init__(self):
@@ -401,13 +442,17 @@ def test_silu():
         def forward(self, data):
             return self.silu(data)
 
+    class SiLU2(Module):
+        def forward(self, data):
+            return torch.nn.functional.silu(data)
+
     input_info = [([1, 3, 10, 10], "float32")]
-    verify_model(SiLU(), input_info)
+    verify_model(SiLU(), input_info, build_target="llvm")
+    verify_model(SiLU2(), input_info, build_target="llvm")
 
 
-@requires_tensorrt
 def test_groupnorm():
-    """test tensorrt translator for groupnorm"""
+    """test relay to relax for groupnorm"""
 
     class GroupNorm(Module):
         def __init__(self):
@@ -421,9 +466,8 @@ def test_groupnorm():
     verify_model(GroupNorm(), input_info)
 
 
-@requires_tensorrt
 def test_softmax():
-    """test tensorrt translator for softmax"""
+    """test relay to relax for softmax"""
 
     class Softmax(Module):
         def __init__(self):
@@ -437,9 +481,8 @@ def test_softmax():
     verify_model(Softmax(), input_info)
 
 
-@requires_tensorrt
 def test_binary():
-    """test tensorrt translator for binary"""
+    """test relay to relax for binary"""
 
     input_info1 = [([1, 3, 10, 10], "float32"), ([1, 3, 10, 10], "float32")]
     input_info2 = [([1, 3, 10, 10], "float32")]
@@ -453,8 +496,8 @@ def test_binary():
         def forward(self, lhs):
             return lhs + 1.0
 
-    verify_model(Add1(), input_info1)
-    verify_model(Add2(), input_info2)
+    verify_model(Add1(), input_info1, opt_config={"opt_level": 3})
+    verify_model(Add2(), input_info2, opt_config={"opt_level": 3})
 
     # Sub
     class Sub1(Module):
@@ -465,8 +508,8 @@ def test_binary():
         def forward(self, lhs):
             return lhs - 1.0
 
-    verify_model(Sub1(), input_info1)
-    verify_model(Sub2(), input_info2)
+    verify_model(Sub1(), input_info1, opt_config={"opt_level": 3})
+    verify_model(Sub2(), input_info2, opt_config={"opt_level": 3})
 
     # Mul
     class Mul1(Module):
@@ -477,7 +520,7 @@ def test_binary():
         def forward(self, lhs):
             return lhs * 1.0
 
-    verify_model(Mul1(), input_info1)
+    verify_model(Mul1(), input_info1, opt_config={"opt_level": 3})
     verify_model(Mul2(), input_info2)
 
     # True div
@@ -489,7 +532,7 @@ def test_binary():
         def forward(self, lhs):
             return lhs / 1.0
 
-    verify_model(TrueDiv1(), input_info1)
+    verify_model(TrueDiv1(), input_info1, opt_config={"opt_level": 3})
     verify_model(TrueDiv2(), input_info2)
 
     # Floor div
@@ -501,8 +544,8 @@ def test_binary():
         def forward(self, lhs):
             return lhs // 1.0
 
-    verify_model(FloorDiv1(), input_info1)
-    verify_model(FloorDiv2(), input_info2)
+    verify_model(FloorDiv1(), input_info1, opt_config={"opt_level": 3})
+    verify_model(FloorDiv2(), input_info2, opt_config={"opt_level": 3})
 
     # Power
     class Power1(Module):
@@ -513,13 +556,24 @@ def test_binary():
         def forward(self, lhs):
             return lhs**1.0
 
-    verify_model(Power1(), input_info1)
-    verify_model(Power2(), input_info2)
+    verify_model(Power1(), input_info1, opt_config={"opt_level": 3})
+    verify_model(Power2(), input_info2, opt_config={"opt_level": 3})
+
+    # LT
+    class LT1(Module):
+        def forward(self, lhs, rhs):
+            return lhs < rhs
+
+    class LT2(Module):
+        def forward(self, lhs):
+            return lhs < 1.0
+
+    verify_model(LT1(), input_info1, opt_config={"opt_level": 3})
+    verify_model(LT2(), input_info2, opt_config={"opt_level": 3})
 
 
-@requires_tensorrt
 def test_squeeze():
-    """test tensorrt translator for squeeze"""
+    """test relay to relax for squeeze"""
 
     class Squeeze1(Module):
         def forward(self, data):
@@ -534,9 +588,8 @@ def test_squeeze():
     verify_model(Squeeze2(), input_info)
 
 
-@requires_tensorrt
 def test_unsqueeze():
-    """test tensorrt translator for unsqueeze"""
+    """test relay to relax for unsqueeze"""
 
     class Unsqueeze1(Module):
         def forward(self, data):
@@ -551,25 +604,23 @@ def test_unsqueeze():
     verify_model(Unsqueeze2(), input_info)
 
 
-@requires_tensorrt
 def test_getitem():
-    """test tensorrt translator for getitem"""
+    """test relay to relax for getitem"""
 
     class Slice1(Module):
         def forward(self, x):
-            return x[0:1, 1::2, :, :3]
+            return x[0, 1::2, :, :3]
 
     class Slice2(Module):
         def forward(self, x):
             return x[:, None, None, :, None]
 
-    verify_model(Slice1(), [([1, 3, 10, 10], "float32")])
-    verify_model(Slice2(), [([8, 16], "float32")])
+    verify_model(Slice1(), [([1, 3, 10, 10], "float32")], build_target="ignore")
+    verify_model(Slice2(), [([8, 16], "float32")], build_target="llvm")
 
 
-@requires_tensorrt
 def test_unary():
-    """test tensorrt translator for unary"""
+    """test relay to relax for unary"""
 
     input_info = [([1, 3, 10, 10], "float32")]
 
@@ -616,9 +667,19 @@ def test_unary():
     verify_model(Round(), input_info)
 
 
-@requires_tensorrt
+def test_gelu():
+    """test relay to relax for gelu"""
+
+    class Gelu(Module):
+        def forward(self, data):
+            return torch.nn.functional.gelu(data)
+
+    input_info = [([1, 3, 10, 10], "float32")]
+    verify_model(Gelu(), input_info)
+
+
 def test_tanh():
-    """test tensorrt translator for tanh"""
+    """test relay to relax for tanh"""
 
     class Tanh(Module):
         def forward(self, data):
@@ -628,9 +689,8 @@ def test_tanh():
     verify_model(Tanh(), input_info)
 
 
-@requires_tensorrt
 def test_clamp():
-    """test tensorrt translator for clamp"""
+    """test relay to relax for clamp"""
 
     class Clamp(Module):
         def forward(self, data):
@@ -640,21 +700,19 @@ def test_clamp():
     verify_model(Clamp(), input_info)
 
 
-@requires_tensorrt
 def test_interpolate():
-    """test tensorrt translator for interpolate"""
+    """test relay to relax for interpolate"""
 
     class Interpolate(Module):
         def forward(self, data):
             return torch.nn.functional.interpolate(data, (5, 5))
 
     input_info = [([1, 3, 10, 10], "float32")]
-    verify_model(Interpolate(), input_info)
+    verify_model(Interpolate(), input_info, build_target="llvm")
 
 
-@requires_tensorrt
 def test_addmm():
-    """test tensorrt translator for addmm"""
+    """test relay to relax for addmm"""
 
     class Addmm(Module):
         def forward(self, x_1, x_2, x_3):
@@ -665,12 +723,11 @@ def test_addmm():
         ([10, 10], "float32"),
         ([10, 10], "float32"),
     ]
-    verify_model(Addmm(), input_info)
+    verify_model(Addmm(), input_info, build_target="llvm")
 
 
-@requires_tensorrt
 def test_split():
-    """test tensorrt translator for split"""
+    """test relay to relax for split"""
 
     class Split1(Module):
         def forward(self, data):
@@ -681,13 +738,12 @@ def test_split():
             return torch.split(data, [1, 2], dim=1)
 
     input_info = [([1, 3, 10, 10], "float32")]
-    verify_model(Split1(), input_info)
-    verify_model(Split2(), input_info)
+    verify_model(Split1(), input_info, build_target="llvm")
+    verify_model(Split2(), input_info, build_target="llvm")
 
 
-@requires_tensorrt
 def test_unbind():
-    """test tensorrt to relax for unbind"""
+    """test relay to relax for unbind"""
 
     class Unbind1(Module):
         def forward(self, data):
@@ -698,44 +754,145 @@ def test_unbind():
             return torch.unbind(data, dim=1)
 
     input_info = [([3, 3, 10, 10], "float32")]
-    verify_model(Unbind1(), input_info)
-    verify_model(Unbind2(), input_info)
+    verify_model(Unbind1(), input_info, build_target="llvm")
+    verify_model(Unbind2(), input_info, build_target="llvm")
 
 
-@requires_tensorrt
+def test_cumsum():
+    """test relay to relax for cumsum"""
+
+    class Cumsum(Module):
+        def forward(self, data):
+            return torch.cumsum(data, dim=1, dtype=torch.int32)
+
+    input_info = [([1, 2, 3, 4], "float32")]
+    verify_model(Cumsum(), input_info)
+
+
 def test_chunk():
-    """test tensorrt translator for chunk"""
+    """test relay to relax for chunk"""
 
     class Chunk(Module):
         def forward(self, data):
             return torch.chunk(data, 3, dim=1)
 
     input_info = [([1, 3, 10, 10], "float32")]
-    verify_model(Chunk(), input_info)
+    verify_model(Chunk(), input_info, build_target="llvm")
 
 
-@requires_tensorrt
+def test_inplace_fill():
+    """test relay to relax for inplace_fill"""
+
+    class InplaceFill(Module):
+        def forward(self, data):
+            data.fill_(1.5)
+            return data
+
+    verify_model(InplaceFill(), [([10, 10], "float32")], build_target="llvm")
+
+
+def test_arange():
+    """test relay to relax for arange"""
+
+    class Arange(Module):
+        def forward(self, data):
+            return torch.arange(0, 20, dtype=torch.int32)
+
+    verify_model(
+        Arange(), [([10, 10], "float32")], opt_config={"opt_level": 3}, build_target="llvm"
+    )
+
+
+def test_empty():
+    """test relay to relax for empty"""
+
+    class Empty(Module):
+        def forward(self, data):
+            return torch.empty((10, 10), dtype=torch.float32)
+
+    verify_model(
+        Empty(), [([10, 10], "float32")], opt_config={"opt_level": 3}, build_target="ignore"
+    )
+
+
+def test_tensor():
+    """test relay to relax for tensor"""
+
+    class Empty1(Module):
+        def forward(self, data):
+            return torch.tensor(3, dtype=torch.float32)
+
+    class Empty2(Module):
+        def forward(self, data):
+            return torch.tensor(3)
+
+    verify_model(Empty1(), [([10, 10], "float32")], build_target="llvm")
+    verify_model(Empty2(), [([10, 10], "float32")], build_target="llvm")
+
+
+def test_tril():
+    """test relay to relax for tril"""
+
+    class Tril(Module):
+        def forward(self, data):
+            return torch.tril(data, 1)
+
+    class InplaceTril(Module):
+        def forward(self, data):
+            data.tril_(1)
+            return data
+
+    input_info = [([10, 10], "float32")]
+    verify_model(Tril(), input_info)
+    verify_model(InplaceTril(), input_info)
+
+
+def test_triu():
+    """test relay to relax for triu"""
+
+    class Triu(Module):
+        def forward(self, data):
+            return torch.triu(data, 1)
+
+    class InplaceTriu(Module):
+        def forward(self, data):
+            data.triu_(1)
+            return data
+
+    input_info = [([10, 10], "float32")]
+    verify_model(Triu(), input_info)
+    verify_model(InplaceTriu(), input_info)
+
+
+def test_new_ones():
+    """test relay to relax for new_ones"""
+
+    class NewOnes(Module):
+        def forward(self, x):
+            return x.new_ones(1, 2, 3)
+
+    input_info = [([1, 2, 3], "float32")]
+    verify_model(NewOnes(), input_info, build_target="llvm")
+
+
 def test_expand():
-    """test tensorrt translator for expand"""
+    """test relay to relax for expand"""
 
     class Expand1(Module):
         def forward(self, x):
-            x = x + 1.0
             return x.expand(4, 2, 3, 4)
 
     class Expand2(Module):
         def forward(self, x):
-            x = x + 1.0
             return x.expand(4, -1, -1, 4)
 
     input_info = [([1, 2, 3, 4], "float32")]
-    verify_model(Expand1(), input_info)
-    verify_model(Expand2(), input_info)
+    verify_model(Expand1(), input_info, build_target="llvm")
+    verify_model(Expand2(), input_info, build_target="llvm")
 
 
-@requires_tensorrt
 def test_reduce():
-    """test tensorrt translator for reduce"""
+    """test relay to relax for reduce"""
 
     # sum
     class Sum(Module):
@@ -746,9 +903,35 @@ def test_reduce():
     verify_model(Sum(), input_info)
 
 
-@requires_tensorrt
+def test_datatype():
+    """test relay to relax for datatype"""
+
+    input_info = [([1, 2, 3, 4], "float32")]
+
+    # float
+    class ToFloat(Module):
+        def forward(self, x):
+            return x.float()
+
+    verify_model(ToFloat(), input_info, build_target="llvm")
+
+    # half
+    class ToHalf(Module):
+        def forward(self, x):
+            return x.half()
+
+    verify_model(ToHalf(), input_info)
+
+    # type
+    class Type(Module):
+        def forward(self, x):
+            return x.type(torch.float32)
+
+    verify_model(Type(), input_info, build_target="llvm")
+
+
 def test_permute():
-    """test tensorrt translator for permute"""
+    """test relay to relax for permute"""
 
     class Permute(Module):
         def forward(self, x):
@@ -758,9 +941,8 @@ def test_permute():
     verify_model(Permute(), input_info)
 
 
-@requires_tensorrt
 def test_reshape():
-    """test tensorrt translator for reshape"""
+    """test relay to relax for reshape"""
 
     class Reshape(Module):
         def forward(self, x):
@@ -770,9 +952,8 @@ def test_reshape():
     verify_model(Reshape(), input_info)
 
 
-@requires_tensorrt
 def test_transpose():
-    """test tensorrt translator for transpose"""
+    """test relay to relax for transpose"""
 
     class Transpose(Module):
         def forward(self, x):
@@ -782,9 +963,8 @@ def test_transpose():
     verify_model(Transpose(), input_info)
 
 
-@requires_tensorrt
 def test_view():
-    """test tensorrt translator for view"""
+    """test relay to relax for view"""
 
     class View(Module):
         def forward(self, x):
@@ -794,41 +974,73 @@ def test_view():
     verify_model(View(), input_info)
 
 
-@requires_tensorrt
+def test_keep_params():
+    """test relay to relax for keep_params"""
+
+    class Conv2D1(Module):
+        def __init__(self):
+            super().__init__()
+            self.conv = torch.nn.Conv2d(3, 6, 7, bias=True)
+
+        def forward(self, data):
+            return self.conv(data)
+
+    verify_model(Conv2D1(), [([1, 3, 10, 10], "float32")])
+
+
+def test_unwrap_unit_return_tuple():
+    """test relay to relax for unwrap_unit_return_tuple"""
+
+    class Identity(Module):
+        def forward(self, x):
+            return (x,)
+
+    verify_model(Identity(), [([256, 256], "float32")], build_target="llvm")
+
+
+def test_no_bind_return_tuple():
+    """test relay to relax for no_bind_return_tuple"""
+
+    class Identity(Module):
+        def forward(self, x, y):
+            return (x, y)
+
+    input_info = [([256, 256], "float32"), ([256, 256], "float32")]
+    verify_model(Identity(), input_info)
+
+
 def test_argmax():
-    """test tensorrt translator for argmax"""
+    """test relay to relax for argmax"""
 
     class Argmax1(Module):
         def forward(self, data):
-            return torch.argmax(data, dim=-1).to(torch.int32)
+            return torch.argmax(data, dim=-1)
 
     class Argmax2(Module):
         def forward(self, data):
-            return torch.argmax(data, dim=-1, keepdim=True).to(torch.int32)
+            return torch.argmax(data, dim=-1, keepdim=True)
 
     verify_model(Argmax1(), [([256, 256], "float32")])
     verify_model(Argmax2(), [([256, 256], "float32")])
 
 
-@requires_tensorrt
-def test_argmin():
-    """test tensorrt translator for argmin"""
+def test_to():
+    """test relay to relax for to"""
 
-    class Argmin1(Module):
+    class To1(Module):
         def forward(self, data):
-            return torch.argmin(data, dim=-1).to(torch.int32)
+            return data.to(torch.float16)
 
-    class Argmin2(Module):
+    class To2(Module):
         def forward(self, data):
-            return torch.argmin(data, dim=-1, keepdim=True).to(torch.int32)
+            return data.to("cpu")
 
-    verify_model(Argmin1(), [([256, 256], "float32")])
-    verify_model(Argmin2(), [([256, 256], "float32")])
+    verify_model(To1(), [([256, 256], "float32")])
+    verify_model(To2(), [([256, 256], "float32")])
 
 
-@requires_tensorrt
 def test_mean():
-    """test tensorrt translator for mean"""
+    """test relay to relax for mean"""
 
     class Mean(Module):
         def forward(self, data):
@@ -842,9 +1054,8 @@ def test_mean():
     verify_model(MeanKeepDim(), [([256, 256], "float32")])
 
 
-@requires_tensorrt
 def test_rsqrt():
-    """test tensorrt translator for rsqrt"""
+    """test relay to relax for rsqrt"""
 
     class Rsqrt(Module):
         def forward(self, data):
@@ -853,9 +1064,8 @@ def test_rsqrt():
     verify_model(Rsqrt(), [([256, 256], "float32")])
 
 
-@requires_tensorrt
 def test_neg():
-    """test tensorrt translator for neg"""
+    """test relay to relax for neg"""
 
     class Neg(Module):
         def forward(self, data):
@@ -864,9 +1074,8 @@ def test_neg():
     verify_model(Neg(), [([256, 256], "float32")])
 
 
-@requires_tensorrt
 def test_max():
-    """test tensorrt translator for max"""
+    """test relay to relax for max"""
 
     class Max(Module):
         def forward(self, x, y):
@@ -875,26 +1084,8 @@ def test_max():
     verify_model(Max(), [([256, 256], "float32"), ([256, 256], "float32")])
 
 
-@requires_tensorrt
-def test_gelu():
-    """test tensorrt translator for gelu"""
-
-    class Gelu1(Module):
-        def forward(self, data):
-            return torch.nn.functional.gelu(data)
-
-    class Gelu2(Module):
-        def forward(self, data):
-            return torch.nn.functional.gelu(data, approximate="tanh")
-
-    input_info = [([1, 3, 10, 10], "float32")]
-    verify_model(Gelu1(), input_info)
-    verify_model(Gelu2(), input_info)
-
-
-@requires_tensorrt
 def test_cat():
-    """test tensorrt translator for cat"""
+    """test relay to relax for cat"""
 
     class Cat1(Module):
         def forward(self, data, data1, data2):
@@ -911,8 +1102,41 @@ def test_cat():
         ([1, 3, 10, 10], "float32"),
         ([1, 3, 10, 10], "float32"),
     ]
-    verify_model(Cat1(), input_info)
-    verify_model(Cat2(), [([1, 3, 10, 10], "float32")])
+    verify_model(Cat1(), input_info, build_target="llvm")
+    verify_model(Cat2(), [([1, 3, 10, 10], "float32")], build_target="llvm")
+
+
+def test_name_string_with_colon():
+    """test name string with colons,
+    e.g., TFLite default input name 'serving_default_input:0'
+    """
+
+    dtype = "float32"
+    x_var = relay.var("input_0:0", shape=(3, 5), dtype=dtype)
+    y_var = relay.var("input_1:0", shape=(3, 5), dtype=dtype)
+    z_add = relay.add(x_var, y_var)
+    func = relay.Function([x_var, y_var], z_add)
+    mod = IRModule()
+    mod["main"] = func
+
+    try:
+        graph, _ = translate.from_relay(mod)
+    except Exception as err:
+        raise RuntimeError(f"Translation from relay to graph failed: {err}")
+    inspect = graph.inspect()
+
+    expected = {
+        "inputs": [
+            {"name": "input_0:0", "shape": [3, 5], "dtype": dtype, "layout": ""},
+            {"name": "input_1:0", "shape": [3, 5], "dtype": dtype, "layout": ""},
+        ],
+        "outputs": [{"name": "add", "shape": [3, 5], "dtype": dtype, "layout": ""}],
+        "nodes": {"total": 3, "input": 2, "add": 1},
+    }
+
+    assert msc_utils.dict_equal(inspect, expected), "Inspect {} mismatch with expected {}".format(
+        inspect, expected
+    )
 
 
 if __name__ == "__main__":

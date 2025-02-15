@@ -16,7 +16,7 @@
 # under the License.
 # pylint: disable=deprecated-module
 
-""" Test translate from tensorflow. """
+"""Test translate from tensorflow."""
 
 from packaging import version as package_version
 import numpy as np
@@ -408,9 +408,7 @@ def test_argx():
         _test_argx(tf.argmin, data=data, axis=1, output_type=output_type)
 
 
-@pytest.mark.skip(
-    reason="Failed due to tf and tflite upgrade."
-)
+@pytest.mark.skip(reason="Failed due to tf and tflite upgrade.")
 def _test_matmul(i, j, k, transpose_a=False, transpose_b=False):
     """One iteration of matmul"""
 

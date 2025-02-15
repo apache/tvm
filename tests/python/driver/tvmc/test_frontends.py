@@ -150,9 +150,7 @@ def test_load_model__tflite(tflite_mobilenet_v1_1_quant):
     assert "_param_1" in tvmc_model.params.keys()
 
 
-@pytest.mark.skip(
-    reason="Failed due to tf and tflite upgrade."
-)
+@pytest.mark.skip(reason="Failed due to tf and tflite upgrade.")
 @pytest.mark.parametrize("load_model_kwargs", [{}, {"layout": "NCHW"}])
 def test_load_model__keras(keras_resnet50, load_model_kwargs):
     # some CI environments wont offer TensorFlow/Keras, so skip in case it is not present
@@ -214,6 +212,7 @@ def test_load_model__relay(relay_text_conv2d):
     assert type(tvmc_model.params) is dict
 
 
+@pytest.mark.skip(reason="Failed due to tf and tflite upgrade.")
 def test_load_model___wrong_language__to_keras(tflite_mobilenet_v1_1_quant):
     # some CI environments wont offer TensorFlow/Keras, so skip in case it is not present
     pytest.importorskip("tensorflow")

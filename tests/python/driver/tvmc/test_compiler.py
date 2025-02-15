@@ -166,6 +166,7 @@ def test_cross_compile_options_aarch64_tflite_module(tflite_mobilenet_v1_1_quant
     assert os.path.exists(dumps_path)
 
 
+@pytest.mark.skip(reason="Failed due to tf and tflite upgrade.")
 def test_compile_keras__save_module(keras_resnet50, tmpdir_factory):
     # some CI environments wont offer tensorflow/Keras, so skip in case it is not present
     pytest.importorskip("tensorflow")
@@ -187,9 +188,7 @@ def test_compile_keras__save_module(keras_resnet50, tmpdir_factory):
 
 
 # This test will be skipped if the AArch64 cross-compilation toolchain is not installed.
-@pytest.mark.skip(
-    reason="Failed due to tf and tflite upgrade"
-)
+@pytest.mark.skip(reason="Failed due to tf and tflite upgrade")
 def test_cross_compile_aarch64_keras_module(keras_resnet50):
     # some CI environments wont offer tensorflow/Keras, so skip in case it is not present
     pytest.importorskip("tensorflow")
@@ -212,9 +211,7 @@ def test_cross_compile_aarch64_keras_module(keras_resnet50):
 
 
 # This test will be skipped if the AArch64 cross-compilation toolchain is not installed.
-@pytest.mark.skip(
-    reason="Failed due to tf and tflite upgrade."
-)
+@pytest.mark.skip(reason="Failed due to tf and tflite upgrade.")
 def test_cross_compile_options_aarch64_keras_module(keras_resnet50):
     # some CI environments wont offer tensorflow/Keras, so skip in case it is not present
     pytest.importorskip("tensorflow")
@@ -501,9 +498,7 @@ def test_compile_check_workspace_pools(mock_pkg, mock_fe, mock_relay):
     assert mock_relay.call_args_list[0][1]["workspace_memory_pools"] == memory_pools
 
 
-@pytest.mark.skip(
-    reason="Failed due to tf and tflite upgrade."
-)
+@pytest.mark.skip(reason="Failed due to tf and tflite upgrade.")
 def test_compile_check_pass_instrument(keras_resnet50):
     pytest.importorskip("tensorflow")
 

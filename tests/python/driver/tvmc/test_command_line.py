@@ -65,9 +65,7 @@ def test_tvmc_cl_workflow(keras_simple, tmpdir_factory):
     assert os.path.exists(output_path)
 
 
-@pytest.mark.skip(
-    reason="Failed after keras and tensorflow are upgraded"
-)
+@pytest.mark.skip(reason="Failed after keras and tensorflow are upgraded")
 def test_tvmc_cl_workflow_json_config(keras_simple, tmpdir_factory):
     pytest.importorskip("tensorflow")
     tune_config_file = "tune_config_test"
@@ -164,9 +162,7 @@ def test_tvmc_tune_file_check(capsys, invalid_input, request):
 
 @mock.patch("tvm.relay.build", side_effect=tvm.relay.build)
 @mock.patch("tvm.driver.tvmc.model.TVMCPackage.__init__", return_value=None)
-@pytest.mark.skip(
-    reason="Failed after keras and tensorflow were upgraded"
-)
+@pytest.mark.skip(reason="Failed after keras and tensorflow were upgraded")
 def test_tvmc_workspace_pools_check(mock_pkg, mock_relay, keras_simple, tmpdir_factory):
     pytest.importorskip("tensorflow")
     tmpdir = tmpdir_factory.mktemp("data")
@@ -217,9 +213,7 @@ def test_tvmc_compile_input_model(mock_compile_model, tmpdir_factory, model, req
     mock_compile_model.assert_called_once()
 
 
-@pytest.mark.skip(
-    reason="Failed after keras and tensorflow were upgraded"
-)
+@pytest.mark.skip(reason="Failed after keras and tensorflow were upgraded")
 def test_tvmc_logger(caplog, tmpdir_factory, keras_simple):
     pytest.importorskip("tensorflow")
     tmpdir = tmpdir_factory.mktemp("out")
@@ -264,9 +258,7 @@ def test_tvmc_logger(caplog, tmpdir_factory, keras_simple):
 # Unfortunately pytest seems to intercept the logging output, so we can't test whether it
 # actually writes the logging output to sys.stdout, but we can test that we call
 # logging.basicConfig with the correct arguments
-@pytest.mark.skip(
-    reason="Failed after keras and tensorflow were upgraded"
-)
+@pytest.mark.skip(reason="Failed after keras and tensorflow were upgraded")
 def test_tvmc_logger_set_basicConfig(monkeypatch, tmpdir_factory, keras_simple):
     pytest.importorskip("tensorflow")
     mock_basicConfig = MagicMock()
@@ -282,9 +274,7 @@ def test_tvmc_logger_set_basicConfig(monkeypatch, tmpdir_factory, keras_simple):
     mock_basicConfig.assert_called_with(stream=sys.stdout)
 
 
-@pytest.mark.skip(
-    reason="Failed after keras and tensorflow were upgraded"
-)
+@pytest.mark.skip(reason="Failed after keras and tensorflow were upgraded")
 def test_tvmc_print_pass_times(capsys, keras_simple, tmpdir_factory):
     pytest.importorskip("tensorflow")
     tmpdir = tmpdir_factory.mktemp("out")
@@ -302,9 +292,7 @@ def test_tvmc_print_pass_times(capsys, keras_simple, tmpdir_factory):
         assert exp_str in captured_out
 
 
-@pytest.mark.skip(
-    reason="Failed after keras and tensorflow were upgraded"
-)
+@pytest.mark.skip(reason="Failed after keras and tensorflow were upgraded")
 @pytest.mark.parametrize(
     "print_cmd, out_str",
     [

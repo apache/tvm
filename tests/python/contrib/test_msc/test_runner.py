@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-""" Test Runners in MSC. """
+"""Test Runners in MSC."""
 
 import pytest
 import numpy as np
@@ -142,9 +142,7 @@ def test_tensorrt_runner():
     _test_from_torch(TensorRTRunner, "cuda", atol=1e-1, rtol=1e-1)
 
 
-@pytest.mark.skip(
-    reason="Failed due to tf and tflite upgrade."
-)
+@pytest.mark.skip(reason="Failed due to tf and tflite upgrade.")
 def test_tensorflow_runner():
     """Test runner from tf graph"""
 
