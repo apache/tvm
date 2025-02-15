@@ -18,6 +18,7 @@
 
 """Test translate from tensorflow."""
 
+import pytest
 from packaging import version as package_version
 import numpy as np
 
