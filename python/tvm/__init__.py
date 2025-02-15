@@ -63,9 +63,6 @@ from . import te
 # tvm.driver
 from .driver import build, lower
 
-# tvm.parser
-from . import parser
-
 # others
 from . import arith
 
@@ -78,7 +75,6 @@ from .contrib import rocm as _rocm, nvcc as _nvcc, sdaccel as _sdaccel
 # Relay and Relax contain modules that are only available in compiler package
 # Do not import them if TVM is built with runtime only
 if not _RUNTIME_ONLY:
-    from . import relay
     from . import relax
 
 # NOTE: This file should be python2 compatible so we can
