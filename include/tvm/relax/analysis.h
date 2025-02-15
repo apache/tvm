@@ -29,7 +29,7 @@
 #include <tvm/ir/module.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/struct_info.h>
-#include <tvm/relay/op_attr_types.h>
+#include <tvm/relax/op_attr_types.h>
 #include <tvm/tir/function.h>
 
 #include <functional>
@@ -511,7 +511,7 @@ TVM_DLL Expr RemoveAllUnused(Expr expr);
  * \note This analysis applies on TIR function but is primarily used by relax passes.
  *       As a result we place it under the relax namespace.
  */
-TVM_DLL relay::OpPatternKind AnalyzeOpPatternKind(const tir::PrimFunc& func);
+TVM_DLL OpPatternKind AnalyzeOpPatternKind(const tir::PrimFunc& func);
 
 /*!
  * \brief Check if the given PrimFunc is essentially doing a reshape operation.

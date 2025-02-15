@@ -26,7 +26,6 @@
  * conflicts between other tir.allocate nodes.
  */
 #include <tvm/arith/analyzer.h>
-#include <tvm/relay/executor.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/function.h>
@@ -244,14 +243,7 @@ void BufferInfoExtractor::RecordAllocateNodeInfo(const AllocateNode* op) {
              "user-given arguments for memory pools, the default behaviour is a single size "
              "un-restricted pool is assigned";
       PrimFunc func = scope_stack_.top().func;
-      Optional<tvm::relay::Executor> executor_config =
-          module_->GetAttr<tvm::relay::Executor>(tvm::attr::kExecutor);
       Integer workspace_alignment = 16;
-      if (executor_config) {
-        workspace_alignment =
-            executor_config.value()->GetAttr<Integer>("workspace-byte-alignment").value_or(16);
-      }
-
       BufferInfoKind bi_kind = BufferInfoKind::kIntermediate;
       String buffer_info_name = op->buffer_var->name_hint;
       if (op->annotations.find(kInputTensorAllocate) != op->annotations.end()) {
@@ -328,13 +320,7 @@ void BufferInfoExtractor::RecordAllocateConstNodeInfo(const AllocateConstNode* o
            "user-given arguments for memory pools, the default behaviour is a single size "
            "un-restricted pool is assigned";
     PrimFunc func = scope_stack_.top().func;
-    Optional<tvm::relay::Executor> executor_config =
-        module_->GetAttr<tvm::relay::Executor>(tvm::attr::kExecutor);
     Integer alignment = 16;
-    if (executor_config) {
-      alignment =
-          executor_config.value()->GetAttr<Integer>("constant-byte-alignment").value_or(alignment);
-    }
     auto buffer_info = BufferInfo(GetUniqueBufferName(buffer_var->name_hint), size_bytes,
                                   pool_candidates, alignment);
     auto allocate = GetRef<AllocateConst>(op);

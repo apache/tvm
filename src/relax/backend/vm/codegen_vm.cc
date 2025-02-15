@@ -33,7 +33,6 @@
 #include <unordered_map>
 #include <vector>
 
-#include "../../../target/metadata_module.h"
 #include "../../../target/source/codegen_source_base.h"
 
 namespace tvm {
@@ -442,15 +441,7 @@ Module VMLink(ExecBuilder builder, Target target, Optional<Module> lib, Array<Mo
   for (const auto& [name, param] : params) {
     conv_params[name] = param;
   }
-  Module combined_lib = codegen::CreateMetadataModule(
-      conv_params, lib.value(), ext_libs, target,
-
-      // TODO(@sunggg): Currently, CRT uses relay-specific executor for uTVM support.
-      // Before jumping into details, only support cpp runtime for now.
-      relay::Runtime::Create("cpp"),
-      relay::Executor::Create("graph"),  // TODO(@sunggg): pass arbitrarily executor. CPP runtime
-                                         // won't use this anyways.
-      relay::backend::ExecutorCodegenMetadata());
+  Module combined_lib = codegen::CreateMetadataModule(conv_params, lib.value(), ext_libs, target);
   executable->Import(combined_lib);
   return Module(executable);
 }

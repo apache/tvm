@@ -18,14 +18,14 @@
  */
 
 /*!
- * \file src/relay/analysis/graph_partitioner.h
+ * \file src/relax/analysis/graph_partitioner.h
  * \brief The helper function for op fusion.
  */
 
-#ifndef TVM_RELAY_ANALYSIS_GRAPH_PARTITIONER_H_
-#define TVM_RELAY_ANALYSIS_GRAPH_PARTITIONER_H_
+#ifndef TVM_RELAX_ANALYSIS_GRAPH_PARTITIONER_H_
+#define TVM_RELAX_ANALYSIS_GRAPH_PARTITIONER_H_
 
-#include <tvm/relay/op_attr_types.h>
+#include <tvm/relax/op_attr_types.h>
 
 #include <unordered_map>
 #include <unordered_set>
@@ -34,7 +34,7 @@
 #include "../../support/arena.h"
 
 namespace tvm {
-namespace relay {
+namespace relax {
 
 using support::LinkedList;
 using support::LinkNode;
@@ -304,6 +304,6 @@ class GraphPartitioner {
   void RunFuse(const IndexedForwardGraph& graph, const DominatorTree& post_dom_tree, int phase);
 };
 
-}  // namespace relay
+}  // namespace relax
 }  // namespace tvm
-#endif  // TVM_RELAY_ANALYSIS_GRAPH_PARTITIONER_H_
+#endif  // TVM_RELAX_ANALYSIS_GRAPH_PARTITIONER_H_

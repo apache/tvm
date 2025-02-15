@@ -479,22 +479,16 @@ TVM_REGISTER_TARGET_KIND("test_external_codegen_1", kDLCUDA)
 TVM_REGISTER_TARGET_KIND("test_external_codegen_2", kDLMetal)
     .set_attr<runtime::Bool>(tvm::attr::kIsExternalCodegen, runtime::Bool(true));
 
-TVM_REGISTER_TARGET_KIND("test_external_codegen_3", kDLCPU)
-    .set_attr<tvm::relay::transform::FTVMRelayToTIR>(tvm::attr::kRelayToTIR,
-                                                     tvm::relay::transform::InferType());
-
 TEST(Target, ExternalCodegen) {
   Target regular("cuda");
   Target external0("test_external_codegen_0");
   Target external1("test_external_codegen_1");
   Target external2("test_external_codegen_2");
-  Target external3("test_external_codegen_3");
 
   ASSERT_FALSE(regular.IsExternalCodegen());
   ASSERT_TRUE(external0.IsExternalCodegen());
   ASSERT_TRUE(external1.IsExternalCodegen());
   ASSERT_TRUE(external2.IsExternalCodegen());
-  ASSERT_TRUE(external3.IsExternalCodegen());
 
   ASSERT_TRUE(external0.IsExternalCodegenFor(regular));
   ASSERT_FALSE(regular.IsExternalCodegenFor(external0));

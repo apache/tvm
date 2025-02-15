@@ -65,8 +65,6 @@
 namespace tvm {
 namespace relax {
 
-using relay::GraphPartitioner;
-
 namespace {
 
 using Group = GraphPartitioner::Group;

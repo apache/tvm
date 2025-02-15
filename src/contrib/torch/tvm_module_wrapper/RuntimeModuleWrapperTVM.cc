@@ -24,11 +24,9 @@
 #include <tvm/target/target.h>
 
 #include <cstdio>
-#include <map>
 #include <string>
 #include <vector>
 
-#include "../../../runtime/graph_executor/graph_executor_factory.h"
 #include "../../../support/base64.h"
 #include "runtime_bridge.h"
 

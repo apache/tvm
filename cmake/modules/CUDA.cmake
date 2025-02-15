@@ -135,18 +135,6 @@ if(USE_CUDA)
     list(APPEND TVM_RUNTIME_LINKER_LIBS ${CUDA_NVTX_LIBRARY})
   endif(USE_NVTX)
 
-  if(USE_GRAPH_EXECUTOR_CUDA_GRAPH)
-    if(NOT USE_GRAPH_EXECUTOR)
-      message(FATAL_ERROR "CUDA Graph is only supported by graph executor, please set USE_GRAPH_EXECUTOR=ON")
-    endif()
-    if(CUDAToolkit_VERSION_MAJOR LESS "10")
-      message(FATAL_ERROR "CUDA Graph requires CUDA 10 or above, got=" ${CUDAToolkit_VERSION})
-    endif()
-    message(STATUS "Build with Graph executor with CUDA Graph support...")
-    tvm_file_glob(GLOB RUNTIME_CUDA_GRAPH_SRCS src/runtime/graph_executor/cuda_graph/*.cc)
-    list(APPEND RUNTIME_SRCS ${RUNTIME_CUDA_GRAPH_SRCS})
-  endif()
-
   # Add CUDA builtins to RelaxVM
   tvm_file_glob(GLOB RELAX_VM_CUDA_BUILTIN_SRC_CC src/runtime/relax_vm/cuda/*.cc)
   list(APPEND RUNTIME_SRCS ${RELAX_VM_CUDA_BUILTIN_SRC_CC})

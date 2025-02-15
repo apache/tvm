@@ -162,12 +162,11 @@ runtime::Module CSourceModuleCreate(const String& code, const String& fmt,
  * \param target_module The main TIR-lowered internal runtime module
  * \param modules All the external modules that needs to be imported inside the metadata module(s).
  * \param target The target that all the modules are compiled for
- * \param metadata Metadata which should be exported to the runtime.
  * \return The wrapped module.
  */
 runtime::Module CreateMetadataModule(
     const std::unordered_map<std::string, runtime::NDArray>& params, runtime::Module target_module,
-    const Array<runtime::Module>& ext_modules, Target target, runtime::metadata::Metadata metadata);
+    const Array<runtime::Module>& ext_modules, Target target);
 
 /*!
  * \brief Create a source module for viewing and limited saving for device.

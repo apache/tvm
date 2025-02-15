@@ -22,8 +22,6 @@
  */
 #include "codegen_c_host.h"
 
-#include <tvm/relay/executor.h>
-#include <tvm/relay/runtime.h>
 #include <tvm/runtime/module.h>
 #include <tvm/target/codegen.h>
 
@@ -458,22 +456,6 @@ runtime::Module BuildCHost(IRModule mod, Target target) {
   // arguments provided to it.
   for (const auto& [gvar, prim_func] : funcs) {
     cg.AddFunction(gvar, prim_func, emit_fwd_func_decl);
-  }
-
-  // NOTE: it's possible that kRuntime attr is not attached when the mod was built with tvm.build().
-  // See issue #10373.
-  auto opt_runtime = mod->GetAttr<relay::Runtime>(tvm::attr::kRuntime);
-  relay::Runtime runtime;
-  if (opt_runtime.get() != nullptr) {
-    runtime = opt_runtime.value();
-  } else {
-    runtime = relay::Runtime::Create("cpp", {});
-  }
-
-  bool has_aot_executor_fn = std::any_of(
-      funcs.begin(), funcs.end(), [&](const auto& kv) { return is_aot_executor_fn(kv.second); });
-  if (has_aot_executor_fn && runtime->name == relay::kTvmRuntimeCpp) {
-    cg.InitGlobalContext();
   }
 
   if (target->GetAttr<Bool>("system-lib").value_or(Bool(false))) {

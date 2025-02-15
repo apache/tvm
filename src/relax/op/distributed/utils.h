@@ -28,8 +28,6 @@
 #include <tvm/arith/analyzer.h>
 #include <tvm/relax/distributed/axis_group_graph.h>
 #include <tvm/relax/op_attr_types.h>
-#include <tvm/relay/expr.h>
-#include <tvm/relay/op.h>
 
 #include "../op_common.h"
 

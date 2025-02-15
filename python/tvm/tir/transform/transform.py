@@ -1171,18 +1171,6 @@ def InstrumentProfileIntrinsics():
     return _ffi_api.InstrumentProfileIntrinsics()  # type: ignore
 
 
-def InstallDebugSpans():
-    """Add line information from the TIR printer as spans on each statement and
-    expression.
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.InstallDebugSpans()  # type: ignore
-
-
 def DefaultGPUSchedule():
     """The pass sets default thread bindings for PrimFuncs, including symbolic shape functions,
     allowing their build and execution on GPU devices. It examines all the blocks within the

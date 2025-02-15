@@ -22,7 +22,7 @@
 #include <vector>
 
 namespace tvm {
-namespace relay {
+namespace relax {
 
 DominatorTree DominatorTree::PostDom(support::Arena* arena, const IndexedForwardGraph& graph) {
   DominatorTree tree;
@@ -156,7 +156,7 @@ bool GraphPartitioner::CheckPath(IndexedForwardGraph::Node* src, IndexedForwardG
 }
 
 OpPatternKind CombinePattern(OpPatternKind lhs, OpPatternKind rhs) {
-  if (lhs > relay::kBroadcast && rhs > relay::kBroadcast) {
+  if (lhs > kBroadcast && rhs > kBroadcast) {
     LOG(FATAL) << "Cannot merge two complex group together";
   }
   if (lhs > rhs) return lhs;
@@ -226,14 +226,8 @@ size_t GraphPartitioner::CountFusedNodesWithNewChild(IndexedForwardGraph::Node* 
 }
 
 size_t GraphPartitioner::CountAdditionalArgs_(const TensorTypeNode* ttype, bool with_strides) {
-  size_t any_dims = 0;
-  for (const auto& dim : ttype->shape) {
-    if (dim.as<AnyNode>()) {
-      any_dims++;
-    }
-  }
-  if (with_strides && any_dims > 0) any_dims += ttype->shape.size();
-  return any_dims;
+  // TODO(@syfeng): need to clean this up
+  return 0;
 }
 
 size_t GraphPartitioner::CountArgs_(IndexedForwardGraph::Node* src,
@@ -244,7 +238,7 @@ size_t GraphPartitioner::CountArgs_(IndexedForwardGraph::Node* src,
   auto sum = gnode->args_num;
   visited_groups.insert(gnode->FindRoot());
   auto calc_args_number = [this, src, &graph, &visited_groups,
-                           update_postpone](const relay::Expr& arg) -> size_t {
+                           update_postpone](const Expr& arg) -> size_t {
     if (arg.as<VarNode>()) return 0;
     auto* node = graph.node_map.at(arg.get());
     Group* prev_group = groups_[node->index]->FindRoot();
@@ -339,7 +333,7 @@ void GraphPartitioner::InitGroups(const IndexedForwardGraph& graph) {
     group_node->pattern = graph_node->pattern;
     group_node->root_ref = graph_node->ref;
     // set anchor ref if necessary.
-    if (group_node->pattern == relay::kOutEWiseFusable) {
+    if (group_node->pattern == kOutEWiseFusable) {
       group_node->anchor_ref = graph_node->ref;
     }
     group_node->args_num = args_counter(graph_node->ref);
@@ -393,12 +387,12 @@ void GraphPartitioner::RunFuse(const IndexedForwardGraph& graph,    //
 
     if (phase == 2) {
       // Fuse injective ops into intermediate tuples, if any
-      if (group_node->pattern > relay::kInjective) continue;
+      if (group_node->pattern > kInjective) continue;
       Group* dom_parent_group = groups_[dom_parent_gindex];
       Group* dom_root_group = dom_parent_group->FindRoot();
       // If dom node group has a tuple as its root, we do not fuse tuple fields into it
-      if (dom_root_group->pattern == relay::kTuple) continue;
-      if (dom_parent_group->pattern == kTuple && dom_root_group->pattern <= relay::kInjective) {
+      if (dom_root_group->pattern == kTuple) continue;
+      if (dom_parent_group->pattern == kTuple && dom_root_group->pattern <= kInjective) {
         // Now we know the tuple has been fused into subsequent injective ops
         auto fcond = [](OpPatternKind kind, bool is_sink) { return kind <= kInjective; };
         // dom_root_group can also be tuple, as in inception layers
@@ -466,5 +460,5 @@ void GraphPartitioner::RunFuse(const IndexedForwardGraph& graph,    //
   }
 }
 
-}  // namespace relay
+}  // namespace relax
 }  // namespace tvm

@@ -35,7 +35,7 @@
 #include <unordered_map>
 #include <vector>
 
-#include "../../relay/analysis/graph_partitioner.h"
+#include "../analysis/graph_partitioner.h"
 #include "../../support/array.h"
 #include "../op/nn/convolution.h"
 #include "../op/nn/nn.h"
@@ -142,7 +142,7 @@ inline std::string GetExtSymbol(const Function& func) {
  */
 IRModule MakeGroupedFunctions(
     IRModule mod,
-    const std::unordered_map<const Object*, relay::GraphPartitioner::Group*>& partition,
+    const std::unordered_map<const Object*, GraphPartitioner::Group*>& partition,
     bool lift_constants = true, const Array<String>& entry_function_names = {});
 
 /*!

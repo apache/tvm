@@ -30,17 +30,52 @@
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/usmp/utils.h>
 
-#include <numeric>
 #include <string>
 
-#include "../../relay/backend/name_transforms.h"
 #include "codegen_params.h"
 
 namespace tvm {
 namespace codegen {
 
 using runtime::PackedFunc;
-using namespace tvm::relay::backend;
+
+/*!
+ * \brief Apply generated TVM-specific prefix to a name
+ * \param names Vector of names to combine to form a combined name
+ * \return Name with prefix applied or prefix-only if no name passed
+ */
+std::string PrefixGeneratedName(const Array<String>& names) {
+  std::stringstream combine_stream;
+  ICHECK(!names.empty()) << "Name segments empty";
+
+  for (const String& name : names) {
+    ICHECK(!name.empty()) << "Name segment is empty";
+    combine_stream << name << "_";
+  }
+
+  std::string combined_name = combine_stream.str();
+  combined_name.pop_back();
+  return "TVMGen_" + combined_name;
+}
+
+std::string ToCVariableStyle(const std::string& original_name) {
+  ICHECK(!original_name.empty()) << "Variable name is empty";
+  ICHECK_EQ(original_name.find("TVM"), 0) << "Variable not TVM prefixed";
+
+  std::string variable_name;
+  variable_name.resize(original_name.size());
+
+  std::transform(original_name.begin(), original_name.end(), variable_name.begin(), ::tolower);
+  return variable_name;
+}
+
+std::string ToCConstantStyle(const std::string& original_name) {
+  ICHECK_EQ(original_name.find("TVM"), 0) << "Constant not TVM prefixed";
+  std::string constant_name = ToCVariableStyle(original_name);
+
+  std::transform(constant_name.begin(), constant_name.end(), constant_name.begin(), ::toupper);
+  return constant_name;
+}
 
 class InterfaceCNode : public runtime::ModuleNode {
  public:

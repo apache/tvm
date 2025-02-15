@@ -23,8 +23,6 @@
  * a single composite pass.
  */
 
-#include <tvm/relay/executor.h>
-#include <tvm/relay/runtime.h>
 #include <tvm/target/target.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
@@ -33,7 +31,6 @@
 #include <tvm/tir/usmp/transform.h>
 #include <tvm/tir/usmp/utils.h>
 
-#include <algorithm>
 #include <string>
 
 namespace tvm {
@@ -112,17 +109,6 @@ tvm::transform::Pass UnifiedStaticMemoryPlanner() {
     auto algorithm_str = ctx->GetConfig(kUSMPAlgorithmOption, String(usmp::kDefaultAlgo));
     auto use_workspace_io = ctx->GetConfig(kUSMPUseWorkspaceIO, Bool(false));
     auto custom_algorithm_str = ctx->GetConfig<String>(kUSMPCustomAlgorithmOption);
-    tvm::relay::Executor executor_config =
-        m->GetAttr<tvm::relay::Executor>(tvm::attr::kExecutor).value();
-    String interface_api = executor_config->GetAttr<String>("interface-api").value_or("packed");
-    tvm::relay::Runtime runtime_config =
-        m->GetAttr<tvm::relay::Runtime>(tvm::attr::kRuntime).value();
-    if (use_workspace_io.value()) {
-      CHECK(interface_api == "c") << kUSMPUseWorkspaceIO
-                                  << " option is only compatible with interface_api c.\n"
-                                  << "Please use interface_api c to be able to enable "
-                                  << kUSMPUseWorkspaceIO << "\n";
-    }
     return Downcast<IRModule>(
         usmp::PlanMemory(m, algorithm_str.value_or(String(usmp::kDefaultAlgo)),
                          use_workspace_io.value_or(Bool(false)), custom_algorithm_str));

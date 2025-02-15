@@ -24,7 +24,6 @@
  */
 #include <tvm/arith/analyzer.h>
 #include <tvm/ir/type.h>
-#include <tvm/relay/expr.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/target/target_info.h>
 #include <tvm/tir/analysis.h>
@@ -34,11 +33,6 @@
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
 
-#include <map>
-#include <unordered_map>
-#include <unordered_set>
-
-#include "../../runtime/thread_storage_scope.h"
 #include "ir_utils.h"
 
 namespace tvm {

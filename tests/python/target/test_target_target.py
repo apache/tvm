@@ -39,7 +39,7 @@ def rocm_func(data):
 
 
 @mygeneric.register("cpu")
-def rocm_func(data):
+def cpu_func(data):
     return data + 10
 
 
@@ -49,10 +49,7 @@ def test_all_targets_device_type_verify():
 
     for tgt in all_targets:
         # skip targets with hooks or otherwise intended to be used with external codegen
-        relay_to_tir = tgt.get_kind_attr("RelayToTIR")
-        tir_to_runtime = tgt.get_kind_attr("TIRToRuntime")
-        is_external_codegen = tgt.get_kind_attr("is_external_codegen")
-        if relay_to_tir is not None or tir_to_runtime is not None or is_external_codegen:
+        if tgt.get_kind_attr("is_external_codegen"):
             continue
 
         if tgt.kind.name not in tvm._ffi.runtime_ctypes.Device.STR2MASK:
