@@ -206,8 +206,6 @@ promote_dtype = tvm.testing.parameter("float16", "float32")
 
 
 def test_fp8_compute_legalize(dtype, promote_dtype):
-    if tvm.contrib.nvcc.have_fp8(tvm.contrib.nvcc.get_target_compute_version()):
-        return
     target = Target("cuda")
     before = BindTarget(target)(get_before(dtype))
     expected = BindTarget(target)(get_after_compute_legalize(dtype, promote_dtype))
@@ -219,8 +217,6 @@ def test_fp8_compute_legalize(dtype, promote_dtype):
 
 
 def test_fp8_storage_legalize(dtype, promote_dtype):
-    if tvm.contrib.nvcc.have_fp8(tvm.contrib.nvcc.get_target_compute_version()):
-        return
     target = Target("cuda")
     before = BindTarget(target)(get_after_compute_legalize(dtype, promote_dtype))
     after = tvm.tir.transform.FP8StorageLegalize()(before)

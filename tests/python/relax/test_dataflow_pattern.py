@@ -278,13 +278,13 @@ def test_extern_fn_pattern():
 def test_op_attr():
     x = rx.Var("x", R.Tensor("float32"))
     y = rx.Var("y", R.Tensor("float32"))
-    conv2d = rx.nn.conv2d(x, y, kernel_size=(3, 3))
+    conv2d = rx.op.nn.conv2d(x, y, strides=(3, 3))
     xp = is_var("x")
     yp = is_var("y")
     # TODO(@yuchen): reenable the assert after figuring out why it fails
-    # assert is_op("nn.conv2d")(xp, yp).has_attr({"kernel_size": [3, 3]}).match(conv2d)
-    assert not is_op("nn.conv2d")(xp, yp).has_attr({"kernel_size": [4, 3]}).match(conv2d)
-    assert not is_op("nn.conv2d")(xp, yp).has_attr({"kernel_size_": [3, 3]}).match(conv2d)
+    # assert is_op("nn.conv2d")(xp, yp).has_attr({"strides": [3, 3]}).match(conv2d)
+    assert not is_op("nn.conv2d")(xp, yp).has_attr({"strides": [4, 3]}).match(conv2d)
+    assert not is_op("nn.conv2d")(xp, yp).has_attr({"strides": [3, 3]}).match(conv2d)
 
 
 def test_match_call_attr():

@@ -432,7 +432,6 @@ def test_rfactor_predicates(target, dev):
 def test_cuda_const_float_to_half():
     # This import is required to use nvcc to perform code gen;
     # otherwise it is found that the code gen is done by nvrtc.
-    from tvm import autotvm
 
     shape = (2, 3, 4)
     a = te.placeholder(shape, dtype="float16", name="a")

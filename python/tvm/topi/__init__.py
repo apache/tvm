@@ -52,6 +52,7 @@ from . import utils
 from . import vision
 from . import image
 from . import random
+from . import gpu
 
 # error reporting
 from .utils import InvalidShapeError
