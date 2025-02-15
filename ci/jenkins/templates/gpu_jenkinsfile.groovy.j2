@@ -46,6 +46,8 @@
   docker_image="ci_gpu",
   test_method_names=test_method_names,
 ) %}
+  {{ m.download_artifacts(tag='gpu') }}
+  ci_setup(ci_gpu)
   {% if shard_index == 2 or num_shards < 2 %}
   sh (
     script: "${docker_run} ${ci_gpu} ./tests/scripts/task_java_unittest.sh",

@@ -60,7 +60,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2025-02-15T10:14:10.120180
+// Generated at 2025-02-15T12:03:28.800680
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // These are set at runtime from data in ci/jenkins/docker-images.yml, update
@@ -569,7 +569,13 @@ def shard_run_unittest_GPU_1_of_2(node_type) {
             'TVM_NUM_SHARDS=2',
             'TVM_SHARD_INDEX=0',
             "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
-            sh (
+            sh(
+                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/gpu",
+                  label: 'Download artifacts from S3',
+                )
+
+              ci_setup(ci_gpu)
+              sh (
                 script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_unittest_gpuonly.sh",
                 label: 'Run Python GPU unit tests',
               )
@@ -613,7 +619,13 @@ def shard_run_unittest_GPU_2_of_2(node_type) {
             'TVM_NUM_SHARDS=2',
             'TVM_SHARD_INDEX=1',
             "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
-            sh (
+            sh(
+                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/gpu",
+                  label: 'Download artifacts from S3',
+                )
+
+              ci_setup(ci_gpu)
+              sh (
                 script: "${docker_run} ${ci_gpu} ./tests/scripts/task_java_unittest.sh",
                 label: 'Run Java unit tests',
               )
