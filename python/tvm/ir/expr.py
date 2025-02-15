@@ -16,7 +16,7 @@
 # under the License.
 """Common expressions data structures in the IR."""
 from numbers import Number
-from typing import Callable, Optional
+from typing import Optional
 
 import tvm._ffi
 
