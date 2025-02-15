@@ -349,15 +349,6 @@ def test_symbolic_strided_buffer():
     _check(compacted_symbolic_strided_buffer_func, transformed_symbolic_strided_buffer_func)
 
 
-def test_lower_te():
-    x = te.placeholder((1,))
-    y = te.compute((1,), lambda i: x[i] + 2)
-    s = te.create_schedule(y.op)
-    orig_mod = tvm.driver.build_module.schedule_to_module(s, [x, y])
-    mod = tvm.tir.transform.LowerOpaqueBlock()(orig_mod)
-    tvm.ir.assert_structural_equal(mod, orig_mod)  # LowerOpaqueBlock should do nothing on TE
-
-
 def test_annotated_loops():
     mod = tvm.IRModule.from_expr(annotated_loops.with_attr("global_symbol", "main"))
     mod = tvm.tir.transform.LowerOpaqueBlock()(mod)

@@ -18,7 +18,6 @@
 import numpy as np
 
 import tvm
-from tvm import te
 from tvm.ir.module import IRModule
 from tvm.script import tir as T
 import tvm.testing
@@ -92,22 +91,6 @@ class LoweredTIRModule:
                 C_flat[x * 128 + y] = (
                     C_flat[x * 128 + y] + A_flat[x * 128 + k] * B_flat[y * 128 + k]
                 )
-
-
-def test_lower_build_te_schedule():
-    m, n, k = 128, 128, 128
-    axis_k = te.reduce_axis((0, k), "k")
-    A = te.placeholder((m, k), name="A")
-    B = te.placeholder((k, n), name="B")
-    C = te.compute((m, n), lambda x, y: te.sum(A[x, axis_k] * B[y, axis_k], axis=axis_k), name="C")
-    s = te.create_schedule(C.op)
-    # check lowering with the CSE pass disabled as otherwise it would do some commoning
-    with tvm.transform.PassContext(opt_level=3, disabled_pass=["tir.CommonSubexprElimTIR"]):
-        ir_mod = tvm.lower(s, [A, B, C])
-    tvm.ir.assert_structural_equal(ir_mod, LoweredModule)
-    # check building
-    mod = tvm.build(s, [A, B, C], target="llvm")
-    _check_module_with_numpy(mod)
 
 
 def test_lower_build_tir_func():

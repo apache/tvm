@@ -200,12 +200,7 @@ class TestElementWise:
         working_scope,
     ):
         """Create and return the schedule and input args after applying layout transform"""
-        if schedule_type == "TE":
-
-            return self._te_schedule_args(
-                input_shape, dtype, input_layout, output_layout, working_layout, working_scope
-            )
-        elif schedule_type == "TIR":
+        if schedule_type == "TIR":
             return self._tir_schedule_args(
                 input_shape, dtype, input_layout, output_layout, working_layout, working_scope
             )
@@ -221,40 +216,6 @@ class TestElementWise:
             name="Output",
         )
         return input_tensor, output_tensor
-
-    def _te_schedule_args(
-        self,
-        input_shape,
-        dtype,
-        input_layout,
-        output_layout,
-        working_layout,
-        working_scope,
-    ):
-        input_tensor, output_tensor = self._te_tensors(input_shape, dtype)
-
-        schedule = te.create_schedule(output_tensor.op)
-
-        write_cache = schedule.cache_write(output_tensor, working_scope)
-        read_cache = schedule.cache_read(input_tensor, working_scope, [write_cache])
-
-        def apply_transform(tensor, layout):
-            if layout == "nhwc":
-                return None
-            if layout == "nchw-8h8w32c-1d":
-                return schedule[tensor].transform_layout(layout_transform_1d)
-            if layout == "nchw-8h8w32c-2d":
-                return schedule[tensor].transform_layout(layout_transform_2d)
-            raise RuntimeError(f"Unexpected layout '{layout}'")
-
-        apply_transform(input_tensor, input_layout)
-        compute_loopnest = apply_transform(output_tensor, output_layout) or output_tensor.op.axis
-        schedule[write_cache].compute_at(schedule[output_tensor], compute_loopnest[0])
-
-        apply_transform(read_cache, working_layout)
-        apply_transform(write_cache, working_layout)
-
-        return [schedule, [input_tensor, output_tensor]]
 
     def _tir_schedule_args(
         self, input_shape, dtype, input_layout, output_layout, working_layout, working_scope

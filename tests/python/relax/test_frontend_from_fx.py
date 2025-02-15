@@ -3637,7 +3637,6 @@ def test_sym_size_int():
 
 
 def test_stack():
-
     input_info = [
         ([1, 3, 10, 10], "float32"),
         ([1, 3, 10, 10], "float32"),

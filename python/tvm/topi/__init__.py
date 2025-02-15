@@ -39,9 +39,7 @@ from .broadcast import *
 from .sort import *
 from .scatter import *
 from .scatter_elements import *
-from .sparse_fill_empty_rows import *
 from .sparse_reshape import *
-from .argwhere import *
 from .scan import *
 from .einsum import *
 from .unique import *
@@ -49,9 +47,7 @@ from .searchsorted import *
 from .signal import *
 from . import nn
 from . import utils
-from . import vision
 from . import image
-from . import random
 from . import gpu
 
 # error reporting

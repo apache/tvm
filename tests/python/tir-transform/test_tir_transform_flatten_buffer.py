@@ -259,19 +259,6 @@ class TestBoolean(BaseCompare):
             B[i0] = T.cast(T.cast(A[i0], "bool"), "int8")
 
 
-class TestLowerTE(BaseCompare):
-    """FlattenBuffer should do nothing on TE-based functions"""
-
-    def before(self):
-        x = te.placeholder((1,))
-        y = te.compute((1,), lambda i: x[i] + 2)
-        s = te.create_schedule(y.op)
-        mod = tvm.driver.build_module.schedule_to_module(s, [x, y])
-        return mod["main"]
-
-    expected = before
-
-
 class TestFlattenInsideBlock(BaseCompare):
     """Flattening access inside a block flattens the accessed region."""
 

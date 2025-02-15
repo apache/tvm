@@ -236,17 +236,6 @@ def test_opaque_access():
     _check(opaque_access, transformed_opaque_access)
 
 
-def test_lower_te():
-    x = te.placeholder((1,))
-    y = te.compute((1,), lambda i: x[i] + 2)
-    s = te.create_schedule(y.op)
-    orig_mod = tvm.driver.build_module.schedule_to_module(s, [x, y])
-    mod = tvm.tir.transform.PlanAndUpdateBufferAllocationLocation()(orig_mod)
-    tvm.ir.assert_structural_equal(
-        mod, orig_mod
-    )  # PlanAndUpdateBufferAllocationLocation should do nothing on TE
-
-
 def test_loop_carried_dependency():
     """The buffer allocation should be above opaque iter var's loop scopes
     such that buffer accesses with loop carried dependencies are covered,

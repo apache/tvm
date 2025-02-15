@@ -179,10 +179,12 @@ def _vmcodegen(
     raise ValueError(f"Unknown exec_mode {exec_mode}")
 
 
-def _autodetect_system_lib_req(
-    target: Optional[tvm.target.Target] = None, system_lib: Optional[bool] = None
+def _auto_attach_system_lib_prefix(
+    tir_mod: tvm.IRModule,
+    target: Optional[tvm.target.Target] = None,
+    system_lib: Optional[bool] = None,
 ):
-    """Automatically detect system lib requirement"""
+    """Automatically detect system lib req and attach prefix attr"""
     if target is not None:
         host = target if target.host is None else target.host
         if system_lib is None:
@@ -191,9 +193,9 @@ def _autodetect_system_lib_req(
                 system_lib = True
 
     if system_lib:
-        # use packed-func to avoid relay dep.
-        return tvm.get_global_func("relay.backend.CreateRuntime")("cpp", {"system-lib": system_lib})
-    return None
+        if tir_mod.get_attr("system_lib_prefix") is None:
+            return tir_mod.with_attr("system_lib_prefix", "")
+    return tir_mod
 
 
 def _vmlink(
@@ -246,11 +248,8 @@ def _vmlink(
     relax_ext_libs = []
     tir_ext_libs = []
     if tir_mod is not None and len(tir_mod.get_global_vars()) > 0:
-        lib = tvm.build(
-            tir_mod,
-            target=target,
-            runtime=_autodetect_system_lib_req(target, system_lib),
-        )
+        tir_mod = _auto_attach_system_lib_prefix(tir_mod, target, system_lib)
+        lib = tvm.build(tir_mod, target=target)
     for ext_mod in ext_libs:
         if ext_mod.is_device_module:
             tir_ext_libs.append(ext_mod)

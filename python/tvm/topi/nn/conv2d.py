@@ -615,68 +615,6 @@ def conv2d_NCHWc_int8(
     )
 
 
-def conv2d_gemm_weight_transform(kernel, tile_N, tile_K, use_scalable_vectors=False, use_sme=False):
-    """Weight transformation for winograd
-
-    Parameters
-    ----------
-    kernel: Tensor
-        The raw kernel tensor with layout "NHWC".
-    tile_N: int
-        Tile size across N axis of the weight transformation for ConvGemm. (N = OC)
-    tile_K: int
-        Tile size across K axis of the weight transformation for ConvGemm. (K = KW * KH * IC)
-    use_scalable_vectors : bool
-        determines if operations on scalable vectors are expected
-    use_sme : bool
-        determines if SME operations on scalable vectors are expected
-
-    Returns
-    -------
-    output : tvm.te.Tensor
-        2-D with shape [CI*KH*KW,CO]
-    """
-    KH, KW, IC, OC = get_const_tuple(kernel.shape)
-    K = KH * KW * IC
-    N = OC
-
-    kernel_flat = te.compute(
-        (K, N), lambda x, y: kernel[(x // IC) // KW, (x // IC) % KW, x % IC, y], "weight_flatten"
-    )
-
-    pad_N, pad_K = tvm.topi.arm_cpu.arm_utils.get_conv2d_weights_padding(N, K, tile_N, tile_K)
-
-    N_padded = N + pad_N
-    K_padded = K + pad_K
-
-    if pad_K != 0 or pad_N != 0:
-        kernel_flat = pad(
-            kernel_flat, pad_before=(0, 0), pad_after=(pad_K, pad_N), name="weight_padding"
-        )
-
-    if use_sme and kernel.dtype == "float16":
-        return te.compute(
-            (N_padded, K_padded), lambda x, y: kernel_flat[y, x], name="weight_transpose"
-        )
-
-    if use_scalable_vectors or use_sme:
-        return kernel_flat
-
-    if kernel.dtype in ["int8", "uint8"]:
-        B_inter_t = te.compute(
-            (N_padded // tile_N, K_padded // tile_K, tile_N, tile_K),
-            lambda x, y, z, w: kernel_flat[w + tile_K * y, z + tile_N * x],
-            name="weight_block_reshape",
-        )
-    else:
-        B_inter_t = te.compute(
-            (N_padded // tile_N, K_padded // tile_K, tile_K, tile_N),
-            lambda x, y, z, w: kernel_flat[z + tile_K * y, w + tile_N * x],
-            name="weight_block_reshape",
-        )
-    return B_inter_t
-
-
 def conv2d_winograd_weight_transform(kernel, tile_size):
     """Weight transformation for winograd
 
@@ -709,29 +647,6 @@ def conv2d_winograd_weight_transform(kernel, tile_size):
             kernel[co][ci][r_kh][r_kw] * G[eps][r_kh] * G[nu][r_kw], axis=[r_kh, r_kw]
         ),
         name="transform_weight",
-    )
-
-
-def conv2d_winograd_nnpack_weight_transform(kernel, convolution_algorithm, out_dtype):
-    """Weight transformation for winograd
-
-    Parameters
-    ----------
-    kernel: Tensor
-        The raw kernel tensor with layout "NCHW". Only 3x3 kernel is supported for now.
-    convolution_algorithm: int
-        The convolution algorithm for Winograd NNPACK.
-
-    Returns
-    -------
-    output : tvm.te.Tensor
-        4-D with shape [alpha, alpha, CO, CI]
-    """
-    # pylint: disable=import-outside-toplevel
-    from tvm.contrib import nnpack
-
-    return nnpack.convolution_inference_weight_transform(
-        kernel, algorithm=convolution_algorithm, dtype=out_dtype
     )
 
 

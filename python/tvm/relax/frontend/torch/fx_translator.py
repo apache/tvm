@@ -99,7 +99,6 @@ class TorchFXImporter(BaseFXGraphImporter):
     ########## Neural Network ##########
 
     def _adaptive_avg_pool2d_module(self, node: fx.Node) -> relax.Var:
-
         module = self.named_modules[node.target]
         x = self.env[node.args[0]]
         output_size = module.output_size
