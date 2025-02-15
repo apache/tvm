@@ -60,7 +60,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2025-02-14T17:21:20.745906
+// Generated at 2025-02-15T10:14:10.162250
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // These are set at runtime from data in ci/jenkins/docker-images.yml, update
@@ -277,6 +277,13 @@ def cancel_previous_build() {
     if (buildNumber > 1) milestone(buildNumber - 1)
     milestone(buildNumber)
   }
+}
+
+def is_last_build() {
+  // whether it is last build
+  def job = Jenkins.instance.getItem(env.JOB_NAME)
+  def lastBuild = job.getLastBuild()
+  return lastBuild.getNumber() == env.BUILD_NUMBER
 }
 
 def checkout_trusted_files() {
@@ -523,11 +530,17 @@ def build() {
     try {
         run_build('ARM-GRAVITON3-SPOT')
     } catch (Throwable ex) {
-        // mark the current stage as success
-        // and try again via on demand node
-        echo 'Exception during SPOT run ' + ex.toString() + ' retry on-demand'
-        currentBuild.result = 'SUCCESS'
-        run_build('ARM-GRAVITON3')
+        if (is_last_build()) {
+          // retry if we are currently at last build
+          // mark the current stage as success
+          // and try again via on demand node
+          echo 'Exception during SPOT run ' + ex.toString() + ' retry on-demand'
+          currentBuild.result = 'SUCCESS'
+          run_build('ARM-GRAVITON3')
+        } else {
+          echo 'Exception during SPOT run ' + ex.toString() + ' exit since it is not last build'
+          throw ex
+        }
     }
   }
 }
@@ -735,44 +748,68 @@ def test() {
       try {
       shard_run_integration_aarch64_1_of_4('ARM-GRAVITON3-SPOT')
       } catch (Throwable ex) {
-        // mark the current stage as success
-        // and try again via on demand node
-        echo 'Exception during SPOT run ' + ex.toString() + ' retry on-demand'
-        currentBuild.result = 'SUCCESS'
-        shard_run_integration_aarch64_1_of_4('ARM-GRAVITON3')
+        if (is_last_build()) {
+          // retry if at last build
+          // mark the current stage as success
+          // and try again via on demand node
+          echo 'Exception during SPOT run ' + ex.toString() + ' retry on-demand'
+          currentBuild.result = 'SUCCESS'
+          shard_run_integration_aarch64_1_of_4('ARM-GRAVITON3')
+        } else {
+          echo 'Exception during SPOT run ' + ex.toString() + ' exit since it is not last build'
+          throw ex
+        }
       }
     },
     'integration: aarch64 2 of 4': {
       try {
       shard_run_integration_aarch64_2_of_4('ARM-GRAVITON3-SPOT')
       } catch (Throwable ex) {
-        // mark the current stage as success
-        // and try again via on demand node
-        echo 'Exception during SPOT run ' + ex.toString() + ' retry on-demand'
-        currentBuild.result = 'SUCCESS'
-        shard_run_integration_aarch64_2_of_4('ARM-GRAVITON3')
+        if (is_last_build()) {
+          // retry if at last build
+          // mark the current stage as success
+          // and try again via on demand node
+          echo 'Exception during SPOT run ' + ex.toString() + ' retry on-demand'
+          currentBuild.result = 'SUCCESS'
+          shard_run_integration_aarch64_2_of_4('ARM-GRAVITON3')
+        } else {
+          echo 'Exception during SPOT run ' + ex.toString() + ' exit since it is not last build'
+          throw ex
+        }
       }
     },
     'integration: aarch64 3 of 4': {
       try {
       shard_run_integration_aarch64_3_of_4('ARM-GRAVITON3-SPOT')
       } catch (Throwable ex) {
-        // mark the current stage as success
-        // and try again via on demand node
-        echo 'Exception during SPOT run ' + ex.toString() + ' retry on-demand'
-        currentBuild.result = 'SUCCESS'
-        shard_run_integration_aarch64_3_of_4('ARM-GRAVITON3')
+        if (is_last_build()) {
+          // retry if at last build
+          // mark the current stage as success
+          // and try again via on demand node
+          echo 'Exception during SPOT run ' + ex.toString() + ' retry on-demand'
+          currentBuild.result = 'SUCCESS'
+          shard_run_integration_aarch64_3_of_4('ARM-GRAVITON3')
+        } else {
+          echo 'Exception during SPOT run ' + ex.toString() + ' exit since it is not last build'
+          throw ex
+        }
       }
     },
     'integration: aarch64 4 of 4': {
       try {
       shard_run_integration_aarch64_4_of_4('ARM-GRAVITON3-SPOT')
       } catch (Throwable ex) {
-        // mark the current stage as success
-        // and try again via on demand node
-        echo 'Exception during SPOT run ' + ex.toString() + ' retry on-demand'
-        currentBuild.result = 'SUCCESS'
-        shard_run_integration_aarch64_4_of_4('ARM-GRAVITON3')
+        if (is_last_build()) {
+          // retry if at last build
+          // mark the current stage as success
+          // and try again via on demand node
+          echo 'Exception during SPOT run ' + ex.toString() + ' retry on-demand'
+          currentBuild.result = 'SUCCESS'
+          shard_run_integration_aarch64_4_of_4('ARM-GRAVITON3')
+        } else {
+          echo 'Exception during SPOT run ' + ex.toString() + ' exit since it is not last build'
+          throw ex
+        }
       }
     },
     )
