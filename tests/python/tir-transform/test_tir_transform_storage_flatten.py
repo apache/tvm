@@ -19,7 +19,6 @@ import tvm.testing
 from tvm import te
 from tvm.driver.build_module import schedule_to_module
 from tvm.script import tir as T
-from tvm.relay import GlobalVar
 
 
 def test_flatten2():
@@ -158,7 +157,7 @@ def tir_func(a: T.handle, b: T.handle) -> None:
 
 
 def test_flatten_tir():
-    orig_mod = tvm.IRModule({GlobalVar("main"): tir_func})
+    orig_mod = tvm.IRModule({"main": tir_func})
     mod = tvm.tir.transform.StorageFlatten(64)(orig_mod)
     tvm.ir.assert_structural_equal(
         orig_mod, mod

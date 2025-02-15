@@ -37,12 +37,9 @@ run_pytest ${TVM_UNITTEST_TESTSUITE_NAME}-platform-minimal-test tests/python/all
 # Then run all unittests on both ctypes and cython.
 TEST_FILES=(
   "arith"
-  "auto_scheduler"
-  "autotvm"
   "codegen"
   "ir"
   "meta_schedule"
-  "micro"
   "runtime"
   "te"
   "testing"
@@ -54,6 +51,7 @@ TEST_FILES=(
   "tvmscript"
   "usmp"
   "ci"
+  "target"
 )
 
 for TEST_FILE in ${TEST_FILES[@]}; do

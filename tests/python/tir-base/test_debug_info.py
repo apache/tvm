@@ -18,7 +18,6 @@
 import tvm
 import tvm.testing
 from tvm import tir
-from tvm import relay
 from tvm.script import tir as T, ir as I
 
 from typing import List, Dict

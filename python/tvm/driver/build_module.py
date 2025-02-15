@@ -257,7 +257,7 @@ def build(
             target_input_mod = {}
             for tgt in target_mod.keys():
                 tir_mod = tvm.IRModule(target_mod[tgt])
-                tir_mod.with_attrs(input_mod.attrs)
+                tir_mod = tir_mod.with_attrs(input_mod.attrs)
                 target_input_mod[tgt] = tir_mod
         else:
             target_input_mod = {target: input_mod}

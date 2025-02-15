@@ -16,7 +16,6 @@
 # under the License.
 # pylint: disable=invalid-name
 """Utility to invoke Xcode compiler toolchain"""
-from __future__ import absolute_import as _abs
 
 import os
 import sys

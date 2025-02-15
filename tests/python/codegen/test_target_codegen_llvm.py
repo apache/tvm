@@ -27,7 +27,6 @@ import tvm
 import tvm.testing
 from tvm import te
 from tvm.contrib import clang, utils
-from tvm.relay.backend import Runtime
 from tvm.script import tir as T, ir as I
 from tvm.target.codegen import llvm_get_intrinsic_name, llvm_lookup_intrinsic_id
 
@@ -754,12 +753,10 @@ def test_llvm_crt_static_lib():
     A = te.placeholder((32,), dtype="bfloat16")
     B = te.placeholder((32,), dtype="bfloat16")
     d = te.compute((32,), lambda x: A[x] + B[x])
-    sch = te.create_schedule(d.op)
+    mod = tvm.IRModule.from_expr(te.create_prim_func([A, B, d]))
     module = tvm.build(
-        sch,
-        [A, B, d],
+        mod.with_attr("system_lib_prefix", ""),
         target=tvm.target.Target("llvm"),
-        runtime=Runtime("crt", {"system-lib": True}),
     )
     print(module.get_source())
     module.save("test.o")

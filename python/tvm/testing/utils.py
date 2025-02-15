@@ -90,11 +90,9 @@ import tvm.tir
 import tvm.te
 import tvm._ffi
 
-from tvm import relay
 from tvm.target import codegen
-from tvm.contrib import nvcc, cudnn, rocm, graph_executor
+from tvm.contrib import nvcc, cudnn, rocm
 import tvm.contrib.hexagon._ci_env_check as hexagon
-from tvm.driver.tvmc.frontends import load_model
 from tvm.error import TVMError
 import tvm.contrib.utils
 
@@ -1647,35 +1645,6 @@ def get_dtype_range(dtype: str) -> Tuple[int, int]:
     return type_info.min, type_info.max
 
 
-def generate_ref_data(mod, input_data, params=None, target="llvm"):
-    """Generate reference data through executing the relay module"""
-    with tvm.transform.PassContext(opt_level=3, config={"tir.disable_vectorize": True}):
-        lib = relay.build(mod, target=target, params=params)
-
-    lib_name = "mod.so"
-    temp = tvm.contrib.utils.tempdir()
-    lib_path = temp.relpath(lib_name)
-    lib.export_library(lib_path)
-    lib = tvm.runtime.load_module(lib_path)
-    grt_mod = graph_executor.GraphModule(lib["default"](tvm.cpu()))
-    grt_mod.set_input(**input_data)
-    grt_mod.run()
-    output_count = grt_mod.get_num_outputs()
-    out = [grt_mod.get_output(i).numpy() for i in range(output_count)]
-    if isinstance(mod, tvm.relay.Function):
-        main = mod
-    else:
-        main = mod["main"]
-    if "output_tensor_names" in main.attrs:
-        output_tensor_names = main.attrs["output_tensor_names"]
-    else:
-        output_tensor_names = (
-            ["output"] if output_count == 1 else [f"output{i}" for i in range(output_count)]
-        )
-
-    return dict(zip(output_tensor_names, out))
-
-
 class _DeepCopyAllowedClasses(dict):
     def __init__(self, allowed_class_list):
         self.allowed_class_list = allowed_class_list
@@ -1831,8 +1800,8 @@ def terminate_self():
 def is_ampere_or_newer():
     """Check if the target environment has an NVIDIA Ampere GPU or newer."""
     arch = tvm.contrib.nvcc.get_target_compute_version()
-    major, _ = tvm.contrib.nvcc.parse_compute_version(arch)
-    return major >= 8
+    major, minor = tvm.contrib.nvcc.parse_compute_version(arch)
+    return major >= 8 and minor != 9
 
 
 def install_request_hook(depth: int) -> None:

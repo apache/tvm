@@ -14,11 +14,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-from tvm import relay
-from tvm.relay import testing
+
 import tvm
-from tvm import te
 import tvm.testing
+import pytest
 
 from tvm.contrib import utils
 import os
@@ -62,6 +61,7 @@ def generate_engine_module():
     return csource_module
 
 
+@pytest.mark.skip("LEGACY-TEST: test to be replaced by relax")
 @tvm.testing.uses_gpu
 def test_mod_export():
     def verify_gpu_mod_export(obj_format):
@@ -221,8 +221,11 @@ def test_mod_export():
     verify_multi_c_mod_export()
 
 
+@pytest.mark.skip("LEGACY-TEST: test to be replaced by TensorIR")
 @tvm.testing.requires_llvm
 def test_import_static_library():
+    from tvm import te
+
     # Generate two LLVM modules.
     A = te.placeholder((1024,), name="A")
     B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name="B")

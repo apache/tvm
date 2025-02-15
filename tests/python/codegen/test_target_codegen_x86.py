@@ -64,48 +64,5 @@ def test_fp16_to_fp32():
 is_32bit = platform.architecture()[0] == "32bit"
 
 
-@tvm.testing.requires_llvm
-@pytest.mark.skipif(is_32bit, reason=f"Fails in CI due to architecture mismatch in JIT")
-@pytest.mark.parametrize("feature_string", ["-sse2", "+sse2"])
-def test_fp16_fp32_conversions(feature_string):
-    relay_model = textwrap.dedent(
-        """
-        #[version = "0.0.5"]
-        def @main(%inp : Tensor[(3), float32], %cst : Tensor[(3), float32]) {
-            %1 = cast(%inp, dtype="float16");
-            %2 = cast(%cst, dtype="float16");
-            %3 = add(%1, %2);
-            %4 = cast(%3, dtype="float32");
-            %4
-        }
-        """
-    )
-
-    ir_mod = tvm.relay.fromtext(relay_model)
-
-    arch = "i386" if machine == "i386" else "x86_64"
-    aot_factory = tvm.relay.build(
-        ir_mod,
-        params={"cst": np.array([1.0, 2.0, 3.0], dtype="float32")},
-        target=f"llvm --mtriple={arch} --mattr={feature_string}",
-        executor=tvm.relay.backend.Executor(
-            "aot", {"interface-api": "packed", "unpacked-api": False}
-        ),
-    )
-
-    mod_name = aot_factory["list_module_names"]()[0]
-    executor = aot_factory[mod_name]
-    mod = executor(tvm.cpu(0))
-
-    inp = tvm.nd.array(np.array([1.1, 2.1, 3.1], dtype="float32"), device=tvm.cpu(0))
-
-    mod.get_function("set_input")(0, inp)
-    mod.get_function("run")()
-    out = mod.get_function("get_output")(0)
-
-    expected = np.array([2.1, 4.1, 6.1], dtype="float32")
-    np.testing.assert_allclose(out.asnumpy(), expected, rtol=1e-3)
-
-
 if __name__ == "__main__":
     test_fp16_to_fp32()

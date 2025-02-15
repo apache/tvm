@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
-from tvm import relay, te
+from tvm import te
 from tvm.driver.build_module import schedule_to_module
 from tvm.script import tir as T
 from tvm.tir import const
@@ -205,76 +205,6 @@ def test_slice():
     # The maximum index is (2**15 * 2**15 - 1 + 2**15) * 2 > 2**31 - 1
     check(
         const(2**15, "int64"), const((2**15 + 1), "int64"), target_bits=32, target_dtype="int64"
-    )
-
-
-def test_relay_basic():
-    engine = relay.backend.te_compiler.get()
-
-    def check(shapex, shapey, target_bits, target_dtype):
-        x = relay.var("x", shape=shapex)
-        y = relay.var("y", shape=shapey)
-        z = relay.add(x, y)
-        func = relay.Function([x, y], z)
-        mod = tvm.IRModule.from_expr(func)
-        mod = relay.transform.InferType()(mod)
-        func = mod["main"]
-        z = engine.lower(func, "llvm")
-        stmt = lower_sch(z.schedule, tuple(z.inputs) + tuple(z.outputs), 32)
-        # outer loop
-        assert stmt.loop_var.dtype == target_dtype
-        # inner loop
-        if len(shapex) > 1 or len(shapey) > 1:
-            assert stmt.body.loop_var.dtype == target_dtype
-
-    check(
-        (const(2**16, "int64"), const(2**15 + 1, "int64")),
-        (1, const(2**15 + 1, "int64")),
-        target_bits=32,
-        target_dtype="int64",
-    )
-    check(
-        (const(2**16, "int64"), const(2**15, "int64")),
-        (1, const(2**15, "int64")),
-        target_bits=32,
-        target_dtype="int32",
-    )
-    check(
-        (const(2**31, "int64"),), (const(2**31, "int64"),), target_bits=32, target_dtype="int32"
-    )
-    check(
-        (const(2**31 + 1, "int64"),),
-        (const(2**31 + 1, "int64"),),
-        target_bits=32,
-        target_dtype="int64",
-    )
-
-
-def test_relay_take():
-    engine = relay.backend.te_compiler.get()
-
-    def check(shape, index, target_bits, target_dtype):
-        x = relay.var("x", shape=shape)
-        y = relay.op.take(x, indices=index)
-        func = relay.Function([x], y)
-        mod = tvm.IRModule.from_expr(func)
-        mod = relay.transform.InferType()(mod)
-        func = mod["main"]
-        z = engine.lower(func, "llvm")
-        stmt = lower_sch(z.schedule, tuple(z.inputs) + tuple(z.outputs), 32)
-        assert stmt.value.indices[0].dtype == target_dtype
-
-    check(
-        (const(2**16, "int64"), const(2**15 + 1, "int64")),
-        relay.const(0, dtype="int64"),
-        target_bits=32,
-        target_dtype="int32",
-    )
-    check(
-        (const(2**16, "int64"), const(2**15 + 1, "int64")),
-        relay.const(2**31, dtype="int64"),
-        target_bits=32,
-        target_dtype="int64",
     )
 
 

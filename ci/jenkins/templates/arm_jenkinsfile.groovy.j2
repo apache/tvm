@@ -53,27 +53,5 @@
   )
 {% endcall %}
 
-{% call(shard_index, num_shards) m.sharded_test_step(
-  name="topi: aarch64",
-  ws="tvm/ut-python-arm",
-  platform="arm",
-  docker_image="ci_arm",
-  num_shards=2,
-  test_method_names=test_method_names,
-) %}
-  {{ m.download_artifacts(tag='arm') }}
-  ci_setup(ci_arm)
-  {% if shard_index == 1 %}
-  cpp_unittest(ci_arm)
-  {% endif %}
-  sh (
-    script: "${docker_run} ${ci_arm} ./tests/scripts/task_python_arm_compute_library.sh",
-    label: 'Run test_arm_compute_lib test',
-  )
-  sh (
-    script: "${docker_run} ${ci_arm} ./tests/scripts/task_python_topi.sh",
-    label: 'Run TOPI tests',
-  )
-{% endcall %}
 
 {{ m.invoke_tests(node="ARM-GRAVITON3", test_method_names=test_method_names) -}}
