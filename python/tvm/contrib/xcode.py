@@ -16,7 +16,6 @@
 # under the License.
 # pylint: disable=invalid-name
 """Utility to invoke Xcode compiler toolchain"""
-from __future__ import absolute_import as _abs
 
 import os
 import sys
@@ -50,7 +49,7 @@ def __get_min_os_version(sdk):
         return None
     if sdk in ("iphoneos", "iphonesimulator"):
         return "13.0"
-    raise RuntimeError("Unsupported sdk: %s" % sdk)
+    raise RuntimeError(f"Unsupported sdk: {sdk}")
 
 
 def __get_min_os_version_cmd(sdk, min_os_version):
@@ -146,7 +145,7 @@ def compile_metal(code, path_target=None, sdk="macosx", min_os_version=None):
     elif sdk in ("iphoneos", "iphonesimulator"):
         language_version = "-std=ios-metal2.3"
     else:
-        raise RuntimeError("Unsupported sdk: %s" % sdk)
+        raise RuntimeError(f"Unsupported sdk: {sdk}")
     cmd1 = ["xcrun", "-sdk", sdk, "metal", language_version, min_target, "-O3"]
     cmd1 += ["-c", temp_code, "-o", temp_ir]
     cmd2 = ["xcrun", "-sdk", sdk, "metallib"]
@@ -179,6 +178,6 @@ def compile_coreml(model, model_name="main", out_dir="."):
 
     res = xcrun(["coremlcompiler", "compile", mlmodel_path, out_dir])
     if not os.path.isdir(mlmodelc_path):
-        raise RuntimeError("Compile failed: %s" % res)
+        raise RuntimeError(f"Compile failed: {res}")
 
     return mlmodelc_path

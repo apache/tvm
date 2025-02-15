@@ -39,7 +39,6 @@ from .params import (
     load_param_dict_from_file,
 )
 
-from . import executor
 from . import disco
 
 from .support import _regex_match

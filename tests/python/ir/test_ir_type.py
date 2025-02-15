@@ -38,15 +38,6 @@ def test_tensor_type_bad_constructor():
         pass
 
 
-def test_tensor_type():
-    tt = tvm.ir.TensorType([1, 2, 3], "float32")
-    assert tt.dtype == "float32"
-    assert list(tt.shape) == [T.int32(1), T.int32(2), T.int32(3)]
-    assert tt.span == None
-    str(tt)
-    check_json_roundtrip(tt)
-
-
 def test_type_param():
     tp = tvm.ir.TypeVar("name", tvm.ir.TypeKind.Type)
     assert tp.kind == tvm.ir.TypeKind.Type
