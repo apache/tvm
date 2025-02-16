@@ -136,11 +136,11 @@ TVM_REGISTER_OP("relax.nn.log_softmax")
 /* relax.nn.pad */
 TVM_REGISTER_NODE_TYPE(PadAttrs);
 
-Expr pad(Expr data, Array<Integer> pad_width, runtime::Float pad_value, String pad_mode) {
+Expr pad(Expr data, Array<Integer> pad_width, String pad_mode, runtime::Float pad_value) {
   auto attrs = make_object<PadAttrs>();
   attrs->pad_width = std::move(pad_width);
-  attrs->pad_value = pad_value;
   attrs->pad_mode = std::move(pad_mode);
+  attrs->pad_value = pad_value;
   static const Op& op = Op::Get("relax.nn.pad");
   return Call(op, {data}, Attrs(attrs), {});
 }

@@ -3614,7 +3614,7 @@ def test_pad():
     class Pad:
         @R.function
         def main(x: R.Tensor((2, 128, 28), "float32")) -> R.Tensor((2, 130, 30), "float32"):
-            gv: R.Tensor((2, 130, 30), "float32") = R.nn.pad(x, 0, (0, 0, 1, 1, 1, 1))
+            gv: R.Tensor((2, 130, 30), "float32") = R.nn.pad(x, (0, 0, 1, 1, 1, 1))
             return gv
 
     @tvm.script.ir_module

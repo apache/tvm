@@ -1438,7 +1438,7 @@ def pad(
     x: Tensor,
     pad: List[int],
     mode: str = "constant",
-    value: int = 0,
+    value: float = 0.0,
     name: str = "pad",
 ) -> Tensor:
     """
@@ -1454,7 +1454,7 @@ def pad(
     mod : str
         Padding mode to use, constant implies padded elements will use
         value argument.
-    value : int
+    value : float
         What to pad with in constant mode.
     name : str
         Name hint for this operator.
@@ -1464,7 +1464,7 @@ def pad(
     result : Tensor
         Padded output tensor.
     """
-    return wrap_nested(_op.nn.pad(x._expr, pad_value=value, pad_width=pad, pad_mode=mode), name)
+    return wrap_nested(_op.nn.pad(x._expr, pad_width=pad, pad_mode=mode, pad_value=value), name)
 
 
 def square(x: Tensor, name: str = "square") -> Tensor:
