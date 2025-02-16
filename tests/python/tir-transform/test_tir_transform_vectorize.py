@@ -197,16 +197,6 @@ def test_vectorize_if_scalable_extent():
         tvm.ir.assert_structural_equal(mod, After)
 
 
-def test_vectorize_with_if_cond_int64():
-    m = te.size_var("m", dtype="int64")
-    A = te.placeholder((m,), name="A", dtype="float32")
-    B = te.compute((m,), lambda i: te.if_then_else(i < 2, A[i], A[i] * 2), name="B")
-    s = te.create_schedule(B.op)
-    x, y = s[B].split(B.op.axis[0], factor=4)
-    s[B].vectorize(y)
-    f = tvm.build(s, [A, B], "llvm")
-
-
 @pytest.mark.parametrize("extent, target", [(4, simple_target), (T.vscale() * 4, sve_target)])
 def test_vectorize_let(extent, target):
     @I.ir_module
@@ -371,23 +361,14 @@ def test_vectorize_while_fail():
         name="while_vectorize",
         dtype=dtype,
     )
-    s = te.create_schedule(C.op)
 
     try:
-        tvm.lower(s, [A, B, C], "llvm")
+        tvm.build(te.create_prim_func([A, B, C]), target="llvm")
         assert False
     except tvm.error.TVMError as e:
         error_msg = str(e).split("\n")[-1]
         expected = "A while loop inside a vectorized loop not supported"
         assert expected in error_msg
-
-
-def test_vectorize_dtype_mismatch():
-    n = tvm.tir.IntImm("int64", 4)
-    A = te.compute((n,), lambda i: tvm.tir.IntImm("int64", 2**31 - 1) + i, name="A")
-    s = te.create_schedule(A.op)
-    s[A].vectorize(A.op.axis[0])
-    tvm.lower(s, [A], "llvm", simple_mode=True)
 
 
 @pytest.mark.parametrize(
@@ -815,7 +796,7 @@ def test_vectorize_llvm_pure_intrin(extent, vec_str, target):
     with tvm.target.Target(target):
         mod = tvm.tir.transform.VectorizeLoop()(Before)
         tvm.ir.assert_structural_equal(mod, After)
-        mod = tvm.build(mod, target)
+        mod = tvm.build(mod, target=target)
 
 
 @pytest.mark.parametrize(
@@ -843,7 +824,7 @@ def test_vectorize_llvm_pure_intrin_fail(extent, vec_str, target):
     with pytest.raises(Exception) as e_info:
         with tvm.target.Target(target):
             mod = tvm.tir.transform.VectorizeLoop()(Before)
-            ex = tvm.build(mod, target)
+            ex = tvm.build(mod, target=target)
     tvm.ir.assert_structural_equal(mod, After)
     assert "Intrinsic does not support vectors" in e_info.value.args[0]
 

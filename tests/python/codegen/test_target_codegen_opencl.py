@@ -135,9 +135,12 @@ def test_opencl_erf():
     def check_erf(dev, n, dtype):
         A = te.placeholder((n,), name="A", dtype=dtype)
         C = te.compute(A.shape, lambda *i: te.erf(A(*i)), name="C")
-        s = te.create_schedule(C.op)
-        s[C].bind(s[C].op.axis[0], te.thread_axis("threadIdx.x"))
-        fun = tvm.build(s, [A, C], target)
+        func = te.create_prim_func([A, C])
+        sch = tvm.tir.Schedule(func)
+        (x,) = sch.get_loops(sch.get_block("C"))
+        sch.bind(x, "threadIdx.x")
+        fun = tvm.build(sch.mod, target=target)
+
         source_str = fun.imported_modules[0].get_source()
         matches = re.findall("erf", source_str)
         error_matches = re.findall("erff", source_str)
