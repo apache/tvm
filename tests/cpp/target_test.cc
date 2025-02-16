@@ -17,10 +17,9 @@
  * under the License.
  */
 
-#include <dmlc/logging.h>
 #include <gtest/gtest.h>
 #include <tvm/ir/expr.h>
-#include <tvm/relay/transform.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/target/target.h>
 
 #include <cmath>
@@ -469,34 +468,6 @@ TEST(TargetCreation, DetectSystemTriple) {
 }
 
 #endif
-
-TVM_REGISTER_TARGET_KIND("test_external_codegen_0", kDLCUDA)
-    .set_attr<runtime::Bool>(tvm::attr::kIsExternalCodegen, runtime::Bool(true));
-
-TVM_REGISTER_TARGET_KIND("test_external_codegen_1", kDLCUDA)
-    .set_attr<runtime::Bool>(tvm::attr::kIsExternalCodegen, runtime::Bool(true));
-
-TVM_REGISTER_TARGET_KIND("test_external_codegen_2", kDLMetal)
-    .set_attr<runtime::Bool>(tvm::attr::kIsExternalCodegen, runtime::Bool(true));
-
-TEST(Target, ExternalCodegen) {
-  Target regular("cuda");
-  Target external0("test_external_codegen_0");
-  Target external1("test_external_codegen_1");
-  Target external2("test_external_codegen_2");
-
-  ASSERT_FALSE(regular.IsExternalCodegen());
-  ASSERT_TRUE(external0.IsExternalCodegen());
-  ASSERT_TRUE(external1.IsExternalCodegen());
-  ASSERT_TRUE(external2.IsExternalCodegen());
-
-  ASSERT_TRUE(external0.IsExternalCodegenFor(regular));
-  ASSERT_FALSE(regular.IsExternalCodegenFor(external0));
-  ASSERT_TRUE(external1.IsExternalCodegenFor(regular));
-  ASSERT_FALSE(regular.IsExternalCodegenFor(external1));
-  ASSERT_FALSE(external2.IsExternalCodegenFor(regular));
-  ASSERT_FALSE(regular.IsExternalCodegenFor(external2));
-}
 
 TEST(TargetCreation, DeduplicateKeys) {
   Map<String, ObjectRef> config = {

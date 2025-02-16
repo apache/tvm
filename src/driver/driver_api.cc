@@ -477,7 +477,7 @@ runtime::Module TIRToRuntime(const Map<Target, IRModule>& inputs_arg,
   // Take the attrs from the first module so the eventual modules have them.
   // Ideally this would just be one unified module all the way through;
   IRModule first_module = (*inputs.begin()).second;
-  IRModule mhost_all = IRModule(Map<GlobalVar, BaseFunc>(), {}, {}, {}, first_module->attrs);
+  IRModule mhost_all = IRModule(Map<GlobalVar, BaseFunc>(), {}, first_module->attrs);
 
   ICHECK(mhost_all.defined()) << "The host module must be defined";
 

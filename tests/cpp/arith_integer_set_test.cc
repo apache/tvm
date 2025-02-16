@@ -18,9 +18,9 @@
  */
 
 #if TVM_MLIR_VERSION >= 150
-#include <dmlc/logging.h>
 #include <gtest/gtest.h>
 #include <tvm/arith/analyzer.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/te/operation.h>
 
 #include "../src/arith/presburger_set.h"

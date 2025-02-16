@@ -98,94 +98,6 @@ def conv2d(
     return conv(input, filter, strides, padding, dilation, 1, data_layout, kernel_layout, out_dtype)
 
 
-@tvm.target.generic_func
-def conv2d_legalize(attrs, inputs, types):
-    """Legalizes Conv2D op.
-
-    Parameters
-    ----------
-    attrs : tvm.ir.Attrs
-        Attributes of current convolution
-    inputs : list of tvm.relay.Expr
-        The args of the Relay expr to be legalized
-    types : list of types
-        List of input and output types
-
-    Returns
-    -------
-    result : tvm.relay.Expr
-        The legalized expr
-    """
-    # not to change by default
-    return None
-
-
-@tvm.target.generic_func
-def conv2d_alter_layout(attrs, inputs, tinfos, out_type):
-    """Change Conv2D layout.
-
-    Parameters
-    ----------
-    attrs : tvm.ir.Attrs
-        Attributes of current convolution
-    inputs : tvm.relay.Expr
-        Grouped input symbols
-    tinfos : list
-        Input shape and dtype
-    out_type: type
-        The output type
-
-    Note
-    ----
-    Unlike other TOPI functions, this function operates on both graph level and operator level.
-    """
-    # not to change by default
-    return None
-
-
-@tvm.target.generic_func
-def conv2d_transpose_alter_layout(attrs, inputs, tinfos, out_type):
-    """Change Conv2D_Transpose layout.
-
-    Parameters
-    ----------
-    attrs : tvm.ir.Attrs
-        Attributes of current convolution
-    inputs : tvm.relay.Expr
-        Grouped input symbols
-    tinfos : list
-        Input shape and dtype
-    out_type: type
-        The output type
-
-    Note
-    ----
-    Unlike other TOPI functions, this function operates on both graph level and operator level.
-    """
-    # not to change by default
-    return None
-
-
-@tvm.target.generic_func
-def conv2d_infer_layout(workload, cfg):
-    """Infer input/output shapes and layouts from a workload and cfg.
-
-    Parameters
-    ----------
-    workload : tuple
-        conv2d workload
-
-    cfg : tuple
-        tvm.autotvm config
-
-    Returns
-    -------
-    Output : [tuple of tuple and str, tuple of tuple and str]
-        Input shapes and layouts, and output shapes and layouts
-    """
-    raise ValueError("missing register for topi.nn.conv2d_infer_layout")
-
-
 def _get_workload(data, kernel, stride, padding, dilation, out_dtype, data_layout="NCHW"):
     """Get the workload structure."""
     if data_layout == "NCHW":
@@ -953,7 +865,6 @@ def unpack_NCHWc_to_nchw(packed_out, out_dtype):
     return unpacked_out
 
 
-@tvm.target.generic_func
 def conv2d_winograd_nhwc(
     data,
     weight,
@@ -1010,7 +921,6 @@ def conv2d_winograd_nhwc(
     )
 
 
-@tvm.target.generic_func
 def conv2d_winograd_nchw(
     data,
     weight,

@@ -22,116 +22,17 @@ import tvm.testing
 from tvm.target import Target, arm_cpu, bifrost, cuda, intel_graphics, mali, rocm
 
 
-@tvm.target.generic_func
-def mygeneric(data):
-    # default generic function
-    return data + 1
-
-
-@mygeneric.register(["cuda", "gpu"])
-def cuda_func(data):
-    return data + 2
-
-
-@mygeneric.register("rocm")
-def rocm_func(data):
-    return data + 3
-
-
-@mygeneric.register("cpu")
-def cpu_func(data):
-    return data + 10
-
-
 def test_all_targets_device_type_verify():
     """Consistency verification for all targets' device type"""
     all_targets = [tvm.target.Target(t) for t in tvm.target.Target.list_kinds()]
 
     for tgt in all_targets:
-        # skip targets with hooks or otherwise intended to be used with external codegen
-        if tgt.get_kind_attr("is_external_codegen"):
-            continue
-
         if tgt.kind.name not in tvm._ffi.runtime_ctypes.Device.STR2MASK:
             raise KeyError("Cannot find target kind: %s in Device.STR2MASK" % tgt.kind.name)
 
         assert (
             tgt.get_target_device_type() == tvm._ffi.runtime_ctypes.Device.STR2MASK[tgt.kind.name]
         )
-
-
-def test_target_dispatch():
-    with tvm.target.cuda():
-        assert mygeneric(1) == 3
-        assert mygeneric.get_packed_func()(1) == 3
-
-    with tvm.target.rocm():
-        assert mygeneric(1) == 4
-        assert mygeneric.get_packed_func()(1) == 4
-
-    with tvm.target.Target("cuda"):
-        assert mygeneric(1) == 3
-        assert mygeneric.get_packed_func()(1) == 3
-
-    with tvm.target.arm_cpu():
-        assert mygeneric(1) == 11
-        assert mygeneric.get_packed_func()(1) == 11
-
-    with tvm.target.Target("metal"):
-        assert mygeneric(1) == 3
-        assert mygeneric.get_packed_func()(1) == 3
-
-    assert tvm.target.Target.current() is None
-
-
-@tvm.target.override_native_generic_func("test_target_temp_strategy")
-def target_generic(data):
-    # default generic function
-    return data + 1
-
-
-@target_generic.register(["cuda", "gpu"])
-def target_cuda_func(data):
-    return data + 2
-
-
-def temp_target_cuda_func(data):
-    return data + 3
-
-
-def test_target_temp_strategy():
-    class TempStrategy(object):
-        def __init__(self, name, target, fstrategy):
-            generic_fstrategy = tvm.target.get_native_generic_func(name)
-            self.target = target
-            self.name = name
-            self.origin_func = {}
-            with tvm.target.Target(target) as target_obj:
-                for tgt_key in target_obj.keys:
-                    self.origin_func[tgt_key] = generic_fstrategy.get_packed_func()
-                    generic_fstrategy.register(fstrategy, tgt_key, allow_override=True)
-
-        def __enter__(self):
-            return self
-
-        def __exit__(self, typ, value, traceback):
-            generic_fstrategy = tvm.target.get_native_generic_func(self.name)
-            with tvm.target.Target(self.target) as target_obj:
-                for tgt_key in target_obj.keys:
-                    generic_fstrategy.register(
-                        self.origin_func[tgt_key], tgt_key, allow_override=True
-                    )
-
-    with tvm.target.Target("cuda"):
-        assert target_generic(1) == 3
-
-    # The strategy func change to temp_target_cuda_func.
-    with TempStrategy("test_target_temp_strategy", "cuda", temp_target_cuda_func):
-        with tvm.target.Target("cuda"):
-            assert target_generic(1) == 4
-
-    with tvm.target.Target("cuda"):
-        assert target_generic(1) == 3
 
 
 def test_target_string_parse():

@@ -163,29 +163,6 @@ def matmul(
     return mat
 
 
-@tvm.target.generic_func
-def matmul_legalize(attrs, inputs, types):
-    """Legalizes matmul op.
-
-    Parameters
-    ----------
-    attrs : tvm.ir.Attrs
-        Attributes of current matmul
-    inputs : list of tvm.relay.Expr
-        The args of the Relay expr to be legalized
-    types : list of types
-        List of input and output types
-
-    Returns
-    -------
-    result : tvm.relay.Expr
-        The legalized expr
-    """
-    # not to change by default
-    # pylint: disable=unused-argument
-    return None
-
-
 def dense(
     data,
     weight,
@@ -234,29 +211,6 @@ def dense(
         auto_scheduler_rewritten_layout,
         meta_schedule_original_shape,
     )
-
-
-@tvm.target.generic_func
-def dense_legalize(attrs, inputs, types):
-    """Legalizes dense op.
-
-    Parameters
-    ----------
-    attrs : tvm.ir.Attrs
-        Attributes of current dense
-    inputs : list of tvm.relay.Expr
-        The args of the Relay expr to be legalized
-    types : list of types
-        List of input and output types
-
-    Returns
-    -------
-    result : tvm.relay.Expr
-        The legalized expr
-    """
-    # not to change by default
-    # pylint: disable=unused-argument
-    return None
 
 
 def dense_pack(data, weight, bias=None, out_dtype=None):

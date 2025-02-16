@@ -20,7 +20,6 @@ if(USE_CUDA AND USE_CUTLASS)
   set(CUTLASS_RUNTIME_OBJS "")
 
   tvm_file_glob(GLOB CUTLASS_CONTRIB_SRC
-    src/relay/backend/contrib/cutlass/*.cc
     src/relax/backend/contrib/cutlass/*.cc
   )
   list(APPEND COMPILER_SRCS ${CUTLASS_CONTRIB_SRC})

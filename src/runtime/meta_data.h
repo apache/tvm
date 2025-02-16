@@ -27,7 +27,6 @@
 #include <dmlc/io.h>
 #include <dmlc/json.h>
 #include <tvm/runtime/executor_info.h>
-#include <tvm/runtime/metadata.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
@@ -49,15 +48,6 @@ inline String get_name_mangled(const String& module_name, const String& name) {
   ss << module_name << "_" << name;
   return ss.str();
 }
-
-/*!
- * \brief Create a metadata module object.
- *
- * \param metadata Exported metadata structure.
- *
- * \return The created metadata module.
- */
-Module MetadataModuleCreate(metadata::Metadata metadata);
 
 namespace launch_param {
 

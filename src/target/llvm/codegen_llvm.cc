@@ -104,7 +104,6 @@
 
 #include "../../arith/pattern_match.h"
 #include "../build_common.h"
-#include "../func_registry_generator.h"
 #include "codegen_params.h"
 #include "llvm_instance.h"
 

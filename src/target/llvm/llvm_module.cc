@@ -57,7 +57,6 @@
 #include <tvm/runtime/container/array.h>
 #include <tvm/runtime/container/string.h>
 #include <tvm/runtime/logging.h>
-#include <tvm/runtime/metadata.h>
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/packed_func.h>
@@ -77,7 +76,6 @@
 
 #include "../../runtime/file_utils.h"
 #include "../../runtime/library_module.h"
-#include "../func_registry_generator.h"
 #include "codegen_blob.h"
 #include "codegen_cpu.h"
 #include "codegen_llvm.h"
@@ -782,28 +780,6 @@ TVM_REGISTER_GLOBAL("codegen.codegen_blob")
       n->SetJITEngine(llvm_target->GetJITEngine());
       return runtime::Module(n);
     });
-
-runtime::Module CreateLLVMCppMetadataModule(runtime::metadata::Metadata metadata, Target target) {
-  auto llvm_instance = std::make_unique<LLVMInstance>();
-  With<LLVMTarget> llvm_target(*llvm_instance, target);
-  Optional<String> system_lib_prefix = NullOpt;
-  auto cg = std::make_unique<CodeGenCPU>();
-  cg->Init("TVMMetadataMod", llvm_target.get(), system_lib_prefix, system_lib_prefix.defined(),
-           /*target_c_runtime=*/false);
-  cg->DefineMetadata(metadata);
-  auto mod = cg->Finish();
-  llvm_target->SetTargetMetadata(mod.get());
-  mod->addModuleFlag(llvm::Module::Override, "Debug Info Version", llvm::DEBUG_METADATA_VERSION);
-  mod->addModuleFlag(
-      llvm::Module::Override, "Dwarf Version",
-      llvm_target->GetOrCreateTargetMachine()->getTargetTriple().isOSDarwin() ? 2 : 4);
-  auto n = make_object<LLVMModuleNode>();
-  n->Init(std::move(mod), std::move(llvm_instance));
-  n->SetJITEngine(llvm_target->GetJITEngine());
-  auto meta_mod = MetadataModuleCreate(metadata);
-  meta_mod->Import(runtime::Module(n));
-  return meta_mod;
-}
 
 }  // namespace codegen
 }  // namespace tvm

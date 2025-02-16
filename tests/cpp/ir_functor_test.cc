@@ -17,10 +17,10 @@
  * under the License.
  */
 
-#include <dmlc/logging.h>
 #include <gtest/gtest.h>
 #include <tvm/ir/module.h>
 #include <tvm/node/functor.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/tir/analysis.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
@@ -54,7 +54,6 @@ TEST(IRF, CountVar) {
   });
   ICHECK_EQ(n_var, 2);
 }
-
 
 TEST(IRF, PreOrderVisit) {
   using namespace tvm;

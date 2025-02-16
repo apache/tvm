@@ -17,8 +17,8 @@
  * under the License.
  */
 
-#include <dmlc/logging.h>
 #include <gtest/gtest.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/te/operation.h>
 
 TEST(Tensor, Basic) {
@@ -47,7 +47,6 @@ TEST(Tensor, Reduce) {
 
   auto C = te::compute(
       {m, n}, [&](Var i, Var j) { return sum(max(1 + A[i][rv] + 1, B[j][rv]), {rv}); }, "C");
-  LOG(INFO) << C->op.as<te::ComputeOpNode>()->body;
 }
 
 TEST(Tensor, Indexing) {
@@ -56,7 +55,4 @@ TEST(Tensor, Indexing) {
 
   Var x("x"), y("y");
   te::Tensor A = te::placeholder({x, y}, DataType::Float(32), "A");
-  LOG(INFO) << A(0, 0);
-  LOG(INFO) << A.IndexWithNegativeIndices(-1, -1);
-  LOG(INFO) << A.IndexWithNegativeIndices(0, -1);
 }
