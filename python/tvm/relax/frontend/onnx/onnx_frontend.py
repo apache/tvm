@@ -1717,7 +1717,7 @@ class Split(OnnxOpConverter):
         # When splits isnt specified divide evenly over axis.
         else:
             indices = attr["tvm_custom"]["num_outputs"]
-        return bb.emit_te(topi.split, inputs[0], indices, attr.get("axis", 0))
+        return relax.op.split(inputs[0], indices, attr.get("axis", 0))
 
     @classmethod
     def _impl_v13(cls, bb, inputs, attr, params):
@@ -1738,7 +1738,7 @@ class Split(OnnxOpConverter):
         # When splits isnt specified divide evenly over axis.
         else:
             indices = attr["tvm_custom"]["num_outputs"]
-        return bb.emit_te(topi.split, inputs[0], indices, axis=attr.get("axis", 0))
+        return relax.op.split(inputs[0], indices, attr.get("axis", 0))
 
 
 def get_prim_value_list(values):
