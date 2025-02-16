@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-""" Test Plugin in MSC. """
+"""Test Plugin in MSC."""
 
 import numpy as np
 

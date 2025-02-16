@@ -178,7 +178,7 @@ To update a tag, a new image needs to be built and uploaded to Docker Hub, then
 the image tags in  `docker-images.ini <https://github.com/apache/tvm/tree/main/ci/jenkins/docker-images.ini>`_
 need to be updated to match the image tags on Docker Hub.
 
-Docker images are built automatically nightly via the `docker-images-ci <https://ci.tlcpack.ai/job/docker-images-ci/>`_,
+Docker images are built automatically nightly via the `tvm-docker <https://ci.tlcpack.ai/job/tvm-docker/>`_,
 which uploads the built images to https://hub.docker.com/u/tlcpackstaging once
 they have passed CI. Post-merge CI runs on ``main`` build Docker images ad-hoc
 and upload them to the ``tlcpackstaging`` Docker Hub account as well. There is an

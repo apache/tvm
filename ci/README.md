@@ -66,7 +66,7 @@ https://github.com/apache/tvm/actions has the logs for each of these workflows. 
 
 Each CI job runs most of its work inside a Docker container, built from files
 in the [`docker/`](../docker) folder. These
-files are built nightly in Jenkins via the [docker-images-ci](https://ci.tlcpack.ai/job/docker-images-ci/) job.
+files are built nightly in Jenkins via the [tvm-docker](https://ci.tlcpack.ai/job/tvm-docker/) job.
 The images for these containers are hosted in the [tlcpack Docker Hub](https://hub.docker.com/u/tlcpack)
 and referenced in the [`jenkins/templates`](/ci/jenkins/templates/). These can be inspected and run
 locally via standard Docker commands.
