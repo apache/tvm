@@ -1792,7 +1792,9 @@ def test_pad_infer_struct_info():
     pad_width1 = (1, 1, 1, 1)
     pad_width2 = (0, 1, 1, 0)
 
-    _check_inference(bb, relax.op.nn.pad(x, 0, pad_width0), relax.TensorStructInfo((2, 3), "float32"))
+    _check_inference(
+        bb, relax.op.nn.pad(x, 0, pad_width0), relax.TensorStructInfo((2, 3), "float32")
+    )
     _check_inference(
         bb,
         relax.op.nn.pad(x, 0, pad_width1),

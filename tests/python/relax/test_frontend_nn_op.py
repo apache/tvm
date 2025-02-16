@@ -234,7 +234,9 @@ def test_image():
     ):
         R.func_attr({"num_input": 4})
         with R.dataflow():
-            lv0: R.Tensor((1, 3, 34, 34), dtype="float32") = R.nn.pad(x, 0, (0, 0, 0, 0, 1, 1, 1, 1))
+            lv0: R.Tensor((1, 3, 34, 34), dtype="float32") = R.nn.pad(
+                x, 0, (0, 0, 0, 0, 1, 1, 1, 1)
+            )
             lv1: R.Tensor((1, 32, 32, 32), dtype="float32") = R.nn.conv2d(
                 lv0,
                 weight,
@@ -293,9 +295,7 @@ def test_chunk():
             return chunk
 
     @R.function
-    def test(
-        x: R.Tensor((8,), dtype="float32"), _io: R.Object
-    ) -> R.Tuple(
+    def test(x: R.Tensor((8,), dtype="float32"), _io: R.Object) -> R.Tuple(
         R.Tuple(
             R.Tensor((2,), dtype="float32"),
             R.Tensor((2,), dtype="float32"),
@@ -490,9 +490,9 @@ def test_scaled_dot_product_attention():
     ) -> R.Tuple(R.Tensor((1, 32, 32, 32), dtype="float32"), R.Tuple(R.Object)):
         R.func_attr({"num_input": 4})
         with R.dataflow():
-            scaled_dot_product_attention: R.Tensor(
-                (1, 32, 32, 32), dtype="float32"
-            ) = R.nn.attention(query, key, value, scale=None, causal_mask=None)
+            scaled_dot_product_attention: R.Tensor((1, 32, 32, 32), dtype="float32") = (
+                R.nn.attention(query, key, value, scale=None, causal_mask=None)
+            )
             gv1: R.Tuple(R.Tensor((1, 32, 32, 32), dtype="float32"), R.Tuple(R.Object)) = (
                 scaled_dot_product_attention,
                 (_io,),
