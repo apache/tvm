@@ -1938,6 +1938,7 @@ operator_basic_unary = [
     (torch.asinh, R.asinh),
     (torch.atan, R.atan),
     (torch.atanh, R.atanh),
+    (torch.bitwise_not, R.bitwise_not),
     (torch.ceil, R.ceil),
     (torch.cos, R.cos),
     (torch.cosh, R.cosh),
@@ -1950,7 +1951,9 @@ operator_basic_unary = [
     (torch.rsqrt, R.rsqrt),
     (torch.sin, R.sin),
     (torch.sinh, R.sinh),
+    (torch.sign, R.sign),
     (torch.sqrt, R.sqrt),
+    (torch.square, R.square),
     (torch.tan, R.tan),
 ]
 
@@ -2150,6 +2153,25 @@ def test_extended_unary_ops():
     verify_model(Hardswish(), input_info, {}, expected_hardswish)
     verify_model(Hardswish2(), input_info, {}, expected_hardswish)
 
+    # logical_not
+    class LogicalNot(Module):
+        def forward(self, input):
+            return torch.logical_not(input)
+
+    @tvm.script.ir_module
+    class expected_logical_not:
+        @R.function
+        def main(
+            inp_0: R.Tensor((1, 3, 10, 10), dtype="float32")
+        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.logical_not(inp_0)
+                gv: R.Tensor((1, 3, 10, 10), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    verify_model(LogicalNot(), input_info, {}, expected_logical_not)
+
     # log_softmax
     class LogSoftmax(Module):
         def __init__(self):
@@ -2178,6 +2200,63 @@ def test_extended_unary_ops():
 
     verify_model(LogSoftmax(), input_info, {}, expected_log_softmax)
     verify_model(LogSoftmax2(), input_info, {}, expected_log_softmax)
+
+    # isfinite
+    class IsFinite(Module):
+        def forward(self, input):
+            return torch.isfinite(input)
+
+    @tvm.script.ir_module
+    class expected_isfinite:
+        @R.function
+        def main(
+            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
+        ) -> R.Tensor((1, 3, 10, 10), dtype="bool"):
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10, 10), dtype="bool") = R.isfinite(input_1)
+                gv: R.Tensor((1, 3, 10, 10), dtype="bool") = lv
+                R.output(gv)
+            return gv
+
+    verify_model(IsFinite(), input_info, {}, expected_isfinite)
+
+    # isinf
+    class IsInf(Module):
+        def forward(self, input):
+            return torch.isinf(input)
+
+    @tvm.script.ir_module
+    class expected_isinf:
+        @R.function
+        def main(
+            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
+        ) -> R.Tensor((1, 3, 10, 10), dtype="bool"):
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10, 10), dtype="bool") = R.isinf(input_1)
+                gv: R.Tensor((1, 3, 10, 10), dtype="bool") = lv
+                R.output(gv)
+            return gv
+
+    verify_model(IsInf(), input_info, {}, expected_isinf)
+
+    # isnan
+    class IsNan(Module):
+        def forward(self, input):
+            return torch.isnan(input)
+
+    @tvm.script.ir_module
+    class expected_isnan:
+        @R.function
+        def main(
+            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
+        ) -> R.Tensor((1, 3, 10, 10), dtype="bool"):
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10, 10), dtype="bool") = R.isnan(input_1)
+                gv: R.Tensor((1, 3, 10, 10), dtype="bool") = lv
+                R.output(gv)
+            return gv
+
+    verify_model(IsNan(), input_info, {}, expected_isnan)
 
     # relu
     class ReLU0(Module):
