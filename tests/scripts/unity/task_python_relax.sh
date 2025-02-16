@@ -39,3 +39,6 @@ TVM_TEST_TARGETS="${TVM_RELAY_TEST_TARGETS:-llvm}" pytest tests/python/dlight
 
 # Test for MSC
 # pytest tests/python/contrib/test_msc
+
+# Test for OpenCLML
+pytest tests/python/relax/backend/clml/

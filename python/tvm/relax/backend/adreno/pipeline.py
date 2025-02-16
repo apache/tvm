@@ -49,25 +49,12 @@ def legalize_passes(target: tvm.target.Target):  # pylint: disable=unused-argume
 
 def dataflow_lower_passes(target: tvm.target.Target):  # pylint: disable=unused-argument
     """The default dataflow lowering passes for Adreno GPU backend."""
-    return [
-        relax.transform.RewriteDataflowReshape(),
-        relax.transform.ToNonDataflow(),
-        relax.transform.RemovePurityChecking(),
-        relax.transform.CallTIRRewrite(),
-    ]
+    return tvm.relax.backend.gpu_generic.library_dispatch_passes(target)
 
 
 def finalize_passes(target: tvm.target.Target):  # pylint: disable=unused-argument
     """The default finalization passes for Adreno GPU backend."""
-    return [
-        relax.transform.StaticPlanBlockMemory(),
-        relax.transform.LowerAllocTensor(),
-        relax.transform.KillAfterLastUse(),
-        relax.transform.LowerRuntimeBuiltin(),
-        relax.transform.ComputePrimValue(),
-        relax.transform.VMShapeLower(),
-        relax.transform.AttachGlobalSymbol(),
-    ]
+    return tvm.relax.backend.gpu_generic.finalize_passes(target)
 
 
 def get_default_pipeline(target: tvm.target.Target):
