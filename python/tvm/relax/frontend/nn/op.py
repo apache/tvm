@@ -1464,7 +1464,7 @@ def pad(
     result : Tensor
         Padded output tensor.
     """
-    return wrap_nested(_op.nn.pad(x._expr, pad_width=pad, pad_value=value, pad_mode=mode), name)
+    return wrap_nested(_op.nn.pad(x._expr, pad_value=value, pad_width=pad, pad_mode=mode), name)
 
 
 def square(x: Tensor, name: str = "square") -> Tensor:
@@ -1567,7 +1567,7 @@ def get_timestep_embedding(
 
     # Zero pad
     if embedding_dim % 2 == 1:
-        emb = _op.nn.pad(emb, (0, 1, 0, 0))
+        emb = _op.nn.pad(emb, 0, (0, 1, 0, 0))
 
     # Cast to proper output type
     emb = _op.astype(emb, dtype)
