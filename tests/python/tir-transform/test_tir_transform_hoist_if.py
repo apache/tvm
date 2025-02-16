@@ -515,34 +515,6 @@ def test_no_hoisting_7():
     tvm.ir.assert_structural_equal(new_stmt, stmt)
 
 
-def test_hoisting_block_scope_1():
-    n = te.size_var("n")
-    m = te.size_var("m")
-    A = te.placeholder((n, m), name="A")
-    k = te.reduce_axis((0, m), "k")
-    B = te.compute((n,), lambda i: te.sum(A[i, k], axis=k), name="B")
-    s = te.create_schedule(B.op)
-    ko, ki = s[B].split(B.op.reduce_axis[0], factor=16)
-    BF = s.rfactor(B, ki)
-    xo, xi = s[B].split(s[B].op.axis[0], factor=32)
-    s[B.op].bind(xo, te.thread_axis("blockIdx.x"))
-    s[B.op].bind(xi, te.thread_axis("threadIdx.y"))
-    s[B].bind(s[B].op.reduce_axis[0], te.thread_axis("threadIdx.x"))
-    s[BF].compute_at(s[B], s[B].op.reduce_axis[0])
-    mod = tvm.driver.build_module.schedule_to_module(s, [A, B], "main", None)
-    mod = tvm.tir.transform.Simplify()(mod)
-    mod = tvm.tir.transform.RemoveNoOp()(mod)
-    stmt = mod["main"].body
-    new_stmt = tvm.tir.transform.HoistIfThenElse()(mod)["main"].body
-    tvm.ir.assert_structural_equal(new_stmt, stmt)
-
-    with tvm.transform.PassContext(
-        config={"tir.HoistIfThenElse": {"support_block_scope_hosting": True}}
-    ):
-        new_stmt = tvm.tir.transform.HoistIfThenElse()(mod)["main"].body
-    assert not tvm.ir.structural_equal(new_stmt, stmt)
-
-
 def test_hoisting_block_scope_2():
     ib = tvm.tir.ir_builder.create()
     dshape = (32, 64)
@@ -607,37 +579,6 @@ def test_hoisting_block_scope_3():
 
     stmt = ib.get()
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt))
-    new_stmt = tvm.tir.transform.HoistIfThenElse()(mod)["main"].body
-    tvm.ir.assert_structural_equal(new_stmt, stmt)
-
-    with tvm.transform.PassContext(
-        config={"tir.HoistIfThenElse": {"support_block_scope_hosting": True}}
-    ):
-        new_stmt = tvm.tir.transform.HoistIfThenElse()(mod)["main"].body
-    assert not tvm.ir.structural_equal(new_stmt, stmt)
-
-
-def test_hoisting_block_scope_4():
-    nn = 1024
-    n = tvm.runtime.convert(nn)
-    A = te.placeholder((n,), name="A")
-    B = te.placeholder((n,), name="B")
-    AA = te.compute((n,), lambda *i: A(*i), name="A")
-    BB = te.compute((n,), lambda *i: B(*i), name="B")
-    T = te.compute(A.shape, lambda *i: AA(*i) + BB(*i), name="T")
-    C = te.compute(A.shape, lambda *i: T(*i), name="C")
-    s = te.create_schedule(C.op)
-    xo, xi = s[C].split(C.op.axis[0], factor=4)
-    xo1, xo2 = s[C].split(xo, factor=13)
-    s[C].parallel(xo2)
-    s[C].pragma(xo1, "parallel_launch_point")
-    s[C].pragma(xo2, "parallel_stride_pattern")
-    s[C].pragma(xo2, "parallel_barrier_when_finish")
-    s[C].vectorize(xi)
-    mod = tvm.driver.build_module.schedule_to_module(s, [A, B, C], "main", None)
-    mod = tvm.tir.transform.Simplify()(mod)
-
-    stmt = mod["main"].body
     new_stmt = tvm.tir.transform.HoistIfThenElse()(mod)["main"].body
     tvm.ir.assert_structural_equal(new_stmt, stmt)
 

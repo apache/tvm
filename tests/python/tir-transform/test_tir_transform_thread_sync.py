@@ -36,67 +36,6 @@ def run_passes(func: tvm.tir.PrimFunc):
 
 
 @tvm.testing.requires_cuda
-def test_thread_storage_sync():
-    m = te.size_var("m")
-    l = te.size_var("l")
-    A = te.placeholder((m, l), name="A")
-
-    A1 = te.compute((m, l), lambda i, j: A[i, j], name="A1")
-    A2 = te.compute((m, l), lambda i, j: A1[i, j] + 3, name="A2")
-
-    s = te.create_schedule(A2.op)
-    xo, xi = s[A2].split(A2.op.axis[0], factor=8)
-    s[A2].bind(xo, te.thread_axis("blockIdx.x"))
-    s[A1].compute_at(s[A2], xo)
-    s[A1].set_scope("shared")
-
-    bounds = tvm.te.schedule.InferBound(s)
-    assert isinstance(bounds, tvm.container.Map)
-    stmt = tvm.te.schedule.ScheduleOps(s, bounds)
-
-    func = tvm.te.schedule.SchedulePostProcToPrimFunc([A, A2], stmt, None)
-    mod = run_passes(func)
-    f = mod["test_kernel"]
-    body_list = tvm.tir.stmt_list(f.body.body.body.body.body.body)
-    assert body_list[1].value.op.same_as(tvm.ir.Op.get("tir.tvm_storage_sync"))
-
-
-@tvm.testing.requires_cuda
-def test_sync_else_branch():
-    def ir(A, B):
-        ib = tvm.tir.ir_builder.create()
-        Aptr = ib.buffer_ptr(A)
-        Bptr = ib.buffer_ptr(B)
-
-        tx = te.thread_axis("threadIdx.x")
-        ib.scope_attr(tx, "thread_extent", 1)
-
-        local = ib.allocate(A.dtype, (8,), name="buf_local", scope="local")
-        shared = ib.allocate(A.dtype, (8,), name="buf_shared", scope="shared")
-
-        with ib.for_range(0, 8) as i:
-            with ib.if_scope(Aptr[i] < 0):
-                local[i] = Aptr[i]
-            with ib.else_scope():
-                shared[i] = Aptr[i]
-
-        with ib.for_range(0, 8) as i:
-            with ib.if_scope(Aptr[i] < 0):
-                Bptr[i] = local[i]
-            with ib.else_scope():
-                Bptr[i] = shared[i]
-
-        return ib.get()
-
-    A = tvm.tir.decl_buffer((8,), "float32")
-    B = tvm.tir.decl_buffer((8,), "float32")
-    stmt = ir(A, B)
-    func = tvm.te.schedule.SchedulePostProcToPrimFunc([A, B], stmt, None)
-    mod = run_passes(func)
-    assert "T.tvm_storage_sync" in str(mod)
-
-
-@tvm.testing.requires_cuda
 def test_sync_read_thread_id_independent_location():
     @T.prim_func
     def func(p0_arg: T.Buffer((1, 2, 1, 1), "float32"), p1: T.Buffer(2, "float32")) -> None:

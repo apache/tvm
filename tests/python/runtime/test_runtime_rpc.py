@@ -73,8 +73,7 @@ def test_bigendian_rpc():
     def verify_rpc(remote, target, shape, dtype):
         A = te.placeholder(shape, dtype=dtype)
         B = te.compute(A.shape, lambda i: A[i] + tvm.tir.const(1, A.dtype))
-        s = te.create_schedule(B.op)
-        f = tvm.build(s, [A, B], target, name="myadd")
+        f = tvm.build(te.create_prim_func([A, B]), target=target)
 
         dev = remote.cpu(0)
         a = tvm.nd.array(np.random.randint(0, 256, size=shape).astype(A.dtype), device=dev)

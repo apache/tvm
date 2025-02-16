@@ -47,9 +47,7 @@ def check_value(expr, vx, vy, data, fref):
         return x
 
     C = te.compute((n,), make_binds)
-    s = te.create_schedule([C.op])
-
-    f = tvm.build(s, [A, B, C], "llvm")
+    f = tvm.build(te.create_prim_func([A, B, C]), "llvm")
     a = tvm.nd.array(np.array([x for x, y in data], dtype=expr.dtype))
     b = tvm.nd.array(np.array([y for x, y in data], dtype=expr.dtype))
     c = tvm.nd.array(np.zeros(len(data), dtype=expr.dtype))

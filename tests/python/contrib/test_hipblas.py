@@ -29,14 +29,13 @@ def verify_matmul_add(in_dtype, out_dtype, rtol=1e-5):
     A = te.placeholder((n, l), name="A", dtype=in_dtype)
     B = te.placeholder((l, m), name="B", dtype=in_dtype)
     C = hipblas.matmul(A, B, dtype=out_dtype)
-    s = te.create_schedule(C.op)
 
     def verify(target="rocm"):
         if not tvm.get_global_func("tvm.contrib.hipblas.matmul", True):
             print("skip because extern function is not available")
             return
         dev = tvm.rocm(0)
-        f = tvm.build(s, [A, B, C], target)
+        f = tvm.build(te.create_prim_func([A, B, C]), target=target)
         a = tvm.nd.array(np.random.uniform(0, 128, size=(n, l)).astype(A.dtype), dev)
         b = tvm.nd.array(np.random.uniform(0, 128, size=(l, m)).astype(B.dtype), dev)
         c = tvm.nd.array(np.zeros((n, m), dtype=C.dtype), dev)
@@ -56,10 +55,9 @@ def verify_batch_matmul(Ashape, Bshape, Cshape, in_dtype, out_dtype, rtol=1e-5):
     A = te.placeholder(Ashape, name="A", dtype=in_dtype)
     B = te.placeholder(Bshape, name="B", dtype=in_dtype)
     C = hipblas.batch_matmul(A, B, dtype=out_dtype)
-    s = te.create_schedule(C.op)
 
     dev = tvm.rocm(0)
-    f = tvm.build(s, [A, B, C], "rocm")
+    f = tvm.build(te.create_prim_func([A, B, C]), target="rocm")
 
     if "int" in in_dtype:
         a = tvm.nd.array(np.random.uniform(1, 10, size=Ashape).astype(in_dtype), dev)

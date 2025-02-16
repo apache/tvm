@@ -64,8 +64,8 @@ RUN bash /install/ubuntu_install_emscripten.sh
 ENV EMSDK=/emsdk
 ENV PATH=${PATH}:${EMSDK}:${EMSDK}/upstream/emscripten
 ENV EMSCRIPTEN=${EMSDK}/upstream/emscripten
-ENV BINARYEN=${EMSDK}/upstream
-ENV LLVM=${EMSDK}/upstream/bin
+ENV EM_BINARYEN_ROOT=${EMSDK}/upstream
+ENV EM_LLVM_ROOT=${EMSDK}/upstream/bin
 
 # sccache
 COPY install/ubuntu_install_sccache.sh /install/ubuntu_install_sccache.sh

@@ -30,7 +30,7 @@ import re
 @tvm.testing.requires_llvm
 def test_llvm_add_pipeline():
     """all-platform-minimal-test: Check LLVM enablement."""
-    nn = 1024
+    nn = 128
     n = tvm.runtime.convert(nn)
     A = te.placeholder((n,), name="A")
     B = te.placeholder((n,), name="B")
@@ -38,23 +38,15 @@ def test_llvm_add_pipeline():
     BB = te.compute((n,), lambda *i: B(*i), name="B")
     T = te.compute(A.shape, lambda *i: AA(*i) + BB(*i), name="T")
     C = te.compute(A.shape, lambda *i: T(*i), name="C")
-    s = te.create_schedule(C.op)
-    xo, xi = s[C].split(C.op.axis[0], factor=4)
-    xo1, xo2 = s[C].split(xo, factor=13)
-    s[C].parallel(xo2)
-    s[C].pragma(xo1, "parallel_launch_point")
-    s[C].pragma(xo2, "parallel_stride_pattern")
-    s[C].pragma(xo2, "parallel_barrier_when_finish")
-    s[C].vectorize(xi)
+
+    sch = tvm.tir.Schedule(te.create_prim_func([A, B, C]))
+    xo, xi = sch.split(sch.get_loops("C")[0], factors=[None, 4])
+    sch.parallel(xo)
+    sch.vectorize(xi)
 
     def check_llvm():
-        # Specifically allow offset to test codepath when offset is available
-        Ab = tvm.tir.decl_buffer(
-            A.shape, A.dtype, elem_offset=te.size_var("Aoffset"), offset_factor=8, name="A"
-        )
-        binds = {A: Ab}
         # BUILD and invoke the kernel.
-        f = tvm.build(s, [A, B, C], "llvm", binds=binds)
+        f = tvm.build(sch.mod, target="llvm")
         dev = tvm.cpu(0)
         # launch the kernel.
         n = nn

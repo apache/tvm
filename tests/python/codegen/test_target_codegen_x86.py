@@ -38,9 +38,9 @@ def test_fp16_to_fp32():
         n = tvm.runtime.convert(elements)
         A = te.placeholder((n, width), dtype="float16", name="A")
         B = te.compute(A.shape, lambda *i: A(*i).astype("float32"), name="B")
-        s = te.create_schedule(B.op)
-        s[B].vectorize(s[B].op.axis[1])
-        f = tvm.build(s, [A, B], target)
+        sch = tvm.tir.Schedule(te.create_prim_func([A, B]))
+        sch.vectorize(sch.get_loops("B")[1])
+        f = tvm.build(sch.mod, target=target)
 
         assembly = f.get_source("asm").splitlines()
         if match:

@@ -101,12 +101,13 @@ def test_device_module_dump():
     n = tvm.runtime.convert(1024)
     A = te.placeholder((n,), name="A")
     B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name="B")
-    s = te.create_schedule(B.op)
+
+    sch = tvm.tir.Schedule(te.create_prim_func([A, B]))
     # create iter var and assign them tags.
     num_thread = 8
-    bx, tx = s[B].split(B.op.axis[0], factor=num_thread)
-    s[B].bind(bx, te.thread_axis("blockIdx.x"))
-    s[B].bind(tx, te.thread_axis("threadIdx.x"))
+    bx, tx = sch.split(sch.get_loops("B")[0], factors=[None, num_thread])
+    sch.bind(bx, "blockIdx.x")
+    sch.bind(tx, "threadIdx.x")
 
     def check_device(device):
         dev = tvm.device(device, 0)
@@ -114,9 +115,7 @@ def test_device_module_dump():
             print("Skip because %s is not enabled" % device)
             return
         temp = utils.tempdir()
-        name = "myadd_%s" % device
-
-        f = tvm.build(s, [A, B], device, "llvm", name=name)
+        f = tvm.build(sch.mod, target=device)
 
         path_dso = temp.relpath("dev_lib.so")
         # test cross compiler function
@@ -143,8 +142,7 @@ def test_device_module_dump():
             print("Skip because %s is not enabled" % device)
             return
         temp = utils.tempdir()
-        name = "myadd_%s" % device
-        f = tvm.build(s, [A, B], device, "stackvm", name=name)
+        f = tvm.build(sch.mod, target=tvm.target.Target(device, host="stackvm"))
         path_dso = temp.relpath("dev_lib.stackvm")
         f.export_library(path_dso)
         f1 = tvm.runtime.load_module(path_dso)

@@ -23,8 +23,7 @@ def test_trace_default_action():
     n = 2
     x = te.placeholder((n, n, n), name="X", dtype="float32")
     y = te.compute(x.shape, lambda i, j, k: tvm.tir.trace([i, j, k, x[i][j][k]]))
-    s = te.create_schedule(y.op)
-    f = tvm.build(s, [x, y], target="llvm")
+    f = tvm.build(te.create_prim_func([x, y]), target="llvm")
     xnd = tvm.nd.array(np.ones((n, n, n), dtype=x.dtype))
     ynd = tvm.nd.array(np.zeros((n, n, n), dtype=y.dtype))
     f(xnd, ynd)
@@ -44,8 +43,7 @@ def test_trace_expr_assign():
         z = te.compute(
             x.shape, lambda i, j, k: tvm.tir.trace([y[i][j][k]], "tvm.tir.trace_callback2")
         )
-        s = te.create_schedule(z.op)
-        f = tvm.build(s, [x, y, z], "llvm")
+        f = tvm.build(te.create_prim_func([x, y, z]), "llvm")
 
         xnd = tvm.nd.array(np.ones((n, n, n), dtype=x.dtype))
         ynd = tvm.nd.array(np.zeros((n, n, n), dtype=y.dtype))
@@ -74,8 +72,7 @@ def test_trace_expr_sum_generated():
             lambda i, j, k: tvm.tir.trace([a[i][j][k]], "tvm.tir.trace_callback3")
             + tvm.tir.trace([b[i][j][k]], "tvm.tir.trace_callback3"),
         )
-        s = te.create_schedule(c.op)
-        f = tvm.build(s, [a, b, c])
+        f = tvm.build(te.create_prim_func([a, b, c]))
         xnd = tvm.nd.array(np.array(np.ones((n, n, n), dtype=a.dtype)))
         ynd = tvm.nd.array(np.array(np.ones((n, n, n), dtype=b.dtype)))
         znd = tvm.nd.array(np.zeros((n, n, n), dtype=c.dtype))
@@ -105,8 +102,7 @@ def test_trace_expr_sum_args():
             + tvm.tir.trace([i, j, k, d[i][j][k]], "tvm.tir.trace_silent")
             + tvm.tir.trace([i, j, k, e[i][j][k]], "tvm.tir.trace_silent"),
         )
-        s = te.create_schedule(c.op)
-        f = tvm.build(s, [a, b, d, e, c])
+        f = tvm.build(te.create_prim_func([a, b, d, e, c]))
         a_nd = tvm.nd.array(np.array(np.ones((n, n, n), dtype=a.dtype)))
         b_nd = tvm.nd.array(np.array(np.ones((n, n, n), dtype=b.dtype)))
         d_nd = tvm.nd.array(np.array(np.ones((n, n, n), dtype=d.dtype)))
@@ -135,8 +131,7 @@ def test_trace_expr_sum_custom():
             lambda i, j: tvm.tir.trace([a[i][j]], "tvm.tir.trace_callback4")
             + tvm.tir.trace([b[i][j]], "tvm.tir.trace_callback4"),
         )
-        s = te.create_schedule(c.op)
-        f = tvm.build(s, [a, b, c])
+        f = tvm.build(te.create_prim_func([a, b, c]))
         npa = np.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]], dtype=a.dtype)
         npb = np.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]], dtype=a.dtype)
         xnd = tvm.nd.array(npa)
@@ -163,8 +158,7 @@ def test_trace_can_change_traced_value_int():
         x = te.placeholder((n,), name="X", dtype=dtype)
         y = te.compute(x.shape, lambda i: tvm.tir.trace([x[i]], "tvm.tir.trace_change_int_first"))
         z = te.compute(x.shape, lambda i: tvm.tir.trace([y[i]], "tvm.tir.trace_change_int_second"))
-        s = te.create_schedule(z.op)
-        f = tvm.build(s, [x, y, z], "llvm")
+        f = tvm.build(te.create_prim_func([x, y, z]))
 
         xnd = tvm.nd.array(np.ones((n,), dtype=x.dtype))
         ynd = tvm.nd.array(np.zeros((n,), dtype=y.dtype))
@@ -195,8 +189,7 @@ def test_trace_can_change_traced_value_float():
         z = te.compute(
             x.shape, lambda i: tvm.tir.trace([y[i]], "tvm.tir.trace_change_float_second")
         )
-        s = te.create_schedule(z.op)
-        f = tvm.build(s, [x, y, z], "llvm")
+        f = tvm.build(te.create_prim_func([x, y, z]), target="llvm")
 
         xnd = tvm.nd.array(np.ones((n,), dtype=x.dtype))
         ynd = tvm.nd.array(np.zeros((n,), dtype=y.dtype))

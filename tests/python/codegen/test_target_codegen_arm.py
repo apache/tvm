@@ -28,10 +28,9 @@ def test_popcount():
         n = tvm.runtime.convert(elements)
         A = te.placeholder(n, dtype=type, name="A")
         B = te.compute(A.shape, lambda i: tvm.tir.popcount(A[i]), name="B")
-        s = te.create_schedule(B.op)
-        s[B].vectorize(s[B].op.axis[0])
-        f = tvm.build(s, [A, B], target)
-
+        sch = tvm.tir.Schedule(te.create_prim_func([A, B]))
+        sch.vectorize(sch.get_loops("B")[0])
+        f = tvm.build(sch.mod, target=target)
         # Verify we see the correct number of vpaddl and vcnt instructions in the assembly
         assembly = f.get_source("asm")
         matches = re.findall("vpaddl", assembly)
@@ -59,9 +58,9 @@ def test_vmlal_s16():
             lambda n: te.sum(A[k, n].astype("int32") * B[k, n].astype("int32"), axis=[k]),
             name="C",
         )
-        s = te.create_schedule(C.op)
-        s[C].vectorize(s[C].op.axis[0])
-        f = tvm.build(s, [A, B, C], target)
+        sch = tvm.tir.Schedule(te.create_prim_func([A, B, C]))
+        sch.vectorize(sch.get_loops("C")[0])
+        f = tvm.build(sch.mod, target=target)
 
         # Verify we see the correct number of vmlal.s16 instructions
         assembly = f.get_source("asm")
@@ -83,9 +82,9 @@ def test_vmlal_s16():
             lambda n: te.sum(A[k, n].astype("int32") * B[k].astype("int32"), axis=[k]),
             name="C",
         )
-        s = te.create_schedule(C.op)
-        s[C].vectorize(s[C].op.axis[0])
-        f = tvm.build(s, [A, B, C], target)
+        sch = tvm.tir.Schedule(te.create_prim_func([A, B, C]))
+        sch.vectorize(sch.get_loops("C")[0])
+        f = tvm.build(sch.mod, target=target)
 
         # Verify we see the correct number of vmlal.s16 instructions
         assembly = f.get_source("asm")

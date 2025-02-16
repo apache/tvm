@@ -683,7 +683,6 @@ generated = [
                 "run full Python tests",
                 [
                     "./tests/scripts/task_python_unittest.sh",
-                    "./tests/scripts/task_python_arm_compute_library.sh",
                 ],
             ),
         },
