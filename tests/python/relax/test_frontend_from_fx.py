@@ -2162,7 +2162,7 @@ def test_extended_unary_ops():
     class expected_logical_not:
         @R.function
         def main(
-                inp_0: R.Tensor((1, 3, 10, 10), dtype="float32")
+            inp_0: R.Tensor((1, 3, 10, 10), dtype="float32")
         ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
             with R.dataflow():
                 lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.logical_not(inp_0)
