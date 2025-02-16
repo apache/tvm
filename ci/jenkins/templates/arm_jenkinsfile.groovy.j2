@@ -33,25 +33,3 @@
   make_cpp_tests(ci_arm, 'build')
   {{ m.upload_artifacts(tag='arm', filenames=tvm_lib + cpptest) }}
 {% endcall %}
-
-{% set test_method_names = [] %}
-
-{% call(shard_index, num_shards) m.sharded_test_step(
-  name="integration: aarch64",
-  num_shards=4,
-  ws="tvm/ut-python-arm",
-  platform="arm",
-  docker_image="ci_arm",
-  test_method_names=test_method_names,
-) %}
-  {{ m.download_artifacts(tag='arm') }}
-  ci_setup(ci_arm)
-  python_unittest(ci_arm)
-  sh (
-    script: "${docker_run} ${ci_arm} ./tests/scripts/task_python_integration.sh",
-    label: 'Run CPU integration tests',
-  )
-{% endcall %}
-
-
-{{ m.invoke_tests(node="ARM-GRAVITON3", test_method_names=test_method_names) -}}
