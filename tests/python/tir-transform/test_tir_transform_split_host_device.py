@@ -21,45 +21,6 @@ from tvm.script import ir as I
 from tvm.script import tir as T
 
 
-@tvm.testing.requires_cuda
-def test_split_host_device_func_attr():
-    m = te.size_var("m")
-    l = te.size_var("l")
-    A = te.placeholder((m, l), name="A")
-
-    A1 = te.compute((m, l), lambda i, j: A[i, j], name="A1")
-    A2 = te.compute((m, l), lambda i, j: A1[i, j] + 3, name="A2")
-
-    s = te.create_schedule(A2.op)
-    xo, xi = s[A2].split(A2.op.axis[0], factor=8)
-    s[A2].bind(xo, te.thread_axis("blockIdx.x"))
-    s[A1].compute_at(s[A2], xo)
-    s[A1].set_scope("shared")
-
-    mod = tvm.lower(s, [A, A2])
-
-    cuda_target = tvm.target.Target("cuda", host="llvm")
-    mod = tvm.tir.transform.Apply(
-        lambda f: f.with_attr({"global_symbol": "test", "target": cuda_target})
-    )(mod)
-
-    mod = tvm.ir.transform.Sequential(
-        [
-            tvm.tir.transform.AnnotateDeviceRegions(),
-            tvm.tir.transform.SplitHostDevice(),
-            tvm.tir.transform.MakePackedAPI(),
-            tvm.tir.transform.LowerDeviceKernelLaunch(),
-        ]
-    )(mod)
-
-    fdevice = mod["test_kernel"]
-
-    assert fdevice.attrs["global_symbol"] == "test_kernel"
-    assert fdevice.attrs["calling_conv"].value == 2
-    assert str(fdevice.attrs["target"]) == str(tvm.target.Target("cuda"))
-    assert fdevice.attrs["tir.is_global_func"].value
-
-
 def test_ssa_across_entire_module():
     """The host and device functions should not share TIR vars
 

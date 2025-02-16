@@ -73,69 +73,6 @@ def test_if_likely():
     assert not isinstance(body.body.body.then_case, tvm.tir.IfThenElse)
 
 
-def test_basic_likely_elimination():
-    n = te.size_var("n")
-    X = te.placeholder(shape=(n,), name="x")
-    W = te.placeholder(shape=(n + 1,), dtype="int32", name="w")
-
-    def f(i):
-        start = W[i]
-        extent = W[i + 1] - W[i]
-        rv = te.reduce_axis((0, extent))
-        return te.sum(X[rv + start], axis=rv)
-
-    Y = te.compute(X.shape, f, name="y")
-    s = te.create_schedule([Y.op])
-    stmt = tvm.lower(s, [X, W, Y], simple_mode=True)
-    assert "if" not in str(stmt)
-
-
-def test_complex_likely_elimination():
-    def cumsum(X):
-        """
-        Y[i] = sum(X[:i])
-        """
-        (m,) = X.shape
-        s_state = te.placeholder((m + 1,), dtype="int32", name="state")
-        s_init = te.compute((1,), lambda _: tvm.tir.const(0, "int32"))
-        s_update = te.compute((m + 1,), lambda l: s_state[l - 1] + X[l - 1])
-        return tvm.te.scan(s_init, s_update, s_state, inputs=[X], name="cumsum")
-
-    def sparse_lengths_sum(data, indices, lengths):
-        oshape = list(data.shape)
-        oshape[0] = lengths.shape[0]
-        length_offsets = cumsum(lengths)
-
-        def sls(n, d):
-            gg = te.reduce_axis((0, lengths[n]))
-            indices_idx = length_offsets[n] + gg
-            data_idx = indices[indices_idx]
-            data_val = data[data_idx, d]
-            return te.sum(data_val, axis=gg)
-
-        return te.compute(oshape, sls)
-
-    m, n, d, i, l = (
-        te.size_var("m"),
-        te.size_var("n"),
-        te.size_var("d"),
-        te.size_var("i"),
-        te.size_var("l"),
-    )
-    data_ph = te.placeholder((m, d * 32), name="data")
-    indices_ph = te.placeholder((i,), name="indices", dtype="int32")
-    lengths_ph = te.placeholder((n,), name="lengths", dtype="int32")
-    Y = sparse_lengths_sum(data_ph, indices_ph, lengths_ph)
-    s = te.create_schedule([Y.op])
-    (n, d) = s[Y].op.axis
-    (do, di) = s[Y].split(d, factor=32)
-    (gg,) = s[Y].op.reduce_axis
-    s[Y].reorder(n, do, gg, di)
-    s[Y].vectorize(di)
-    stmt = tvm.lower(s, [data_ph, indices_ph, lengths_ph, Y], simple_mode=True)
-    assert "if" not in str(stmt)
-
-
 class BaseBeforeAfter(tvm.testing.CompareBeforeAfter):
     transitively_prove_inequalities = False
     convert_boolean_to_and_of_ors = False
@@ -668,7 +605,6 @@ class TestRemoveTransitivelyProvableCondition(BaseBeforeAfter):
         priors = analyzer.canonical_simplify(priors)
 
         if provable:
-
             # well formed checker complains of undefined variables in condition
             @T.prim_func(check_well_formed=False)
             def func(A: T.Buffer(1, "bool")):
