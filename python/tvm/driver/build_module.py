@@ -24,7 +24,6 @@ import tvm.tir
 
 
 from tvm.runtime import ndarray
-from tvm.ir import container
 from tvm.tir import PrimFunc
 from tvm.ir.module import IRModule
 from tvm.target import Target
