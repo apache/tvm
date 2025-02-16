@@ -25,9 +25,8 @@ cd web
 make clean
 npm install
 npm run lint
-# TODO(@tqchen, @siyuan): re-enable the following tests
-# npm run prepwasm
-# npm run bundle
-# npm run test
-# npm run typedoc
+npm run prepwasm
+npm run bundle
+npm run test
+npm run typedoc
 cd ..
