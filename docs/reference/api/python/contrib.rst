@@ -104,11 +104,6 @@ tvm.contrib.rocm
 .. automodule:: tvm.contrib.rocm
     :members:
 
-tvm.contrib.sparse
-~~~~~~~~~~~~~~~~~~
-.. automodule:: tvm.contrib.sparse
-    :members:
-
 
 tvm.contrib.spirv
 ~~~~~~~~~~~~~~~~~
