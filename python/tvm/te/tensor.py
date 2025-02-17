@@ -49,11 +49,6 @@ class TensorSlice(ObjectGeneric, _expr.ExprOp):
 
 
 @tvm._ffi.register_object
-class TensorIntrinCall(Object):
-    """Intermediate structure for calling a tensor intrinsic."""
-
-
-@tvm._ffi.register_object
 class Tensor(DataProducer, _expr.ExprOp):
     """Tensor object, to construct, see function.Tensor"""
 
@@ -170,11 +165,6 @@ class BaseComputeOp(Operation):
 @tvm._ffi.register_object
 class ComputeOp(BaseComputeOp):
     """Scalar operation."""
-
-
-@tvm._ffi.register_object
-class TensorComputeOp(BaseComputeOp):
-    """Tensor operation."""
 
 
 @tvm._ffi.register_object

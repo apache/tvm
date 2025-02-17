@@ -18,37 +18,27 @@
  */
 
 /*!
- * \file rocm/reduction.h
- * \brief rocm schedule for reduction operations
+ * \brief Registration of utils operators
+ * \file utils.cc
  */
-#ifndef TVM_TOPI_ROCM_REDUCTION_H_
-#define TVM_TOPI_ROCM_REDUCTION_H_
 
-#include <tvm/target/generic_func.h>
-#include <tvm/te/operation.h>
-#include <tvm/topi/cuda/reduction.h>
-#include <tvm/topi/detail/fuse.h>
-#include <tvm/topi/tags.h>
+#include <tvm/runtime/packed_func.h>
+#include <tvm/runtime/registry.h>
+#include <tvm/topi/detail/tensor_utils.h>
 
 namespace tvm {
 namespace topi {
+TVM_REGISTER_GLOBAL("topi.utils.is_empty_shape").set_body([](TVMArgs args, TVMRetValue* rv) {
+  *rv = topi::detail::is_empty_shape(args[0]);
+});
 
-using namespace tvm::te;
+TVM_REGISTER_GLOBAL("topi.utils.bilinear_sample_nchw").set_body([](TVMArgs args, TVMRetValue* rv) {
+  *rv = detail::bilinear_sample_nchw(args[0], args[1], args[2], args[3]);
+});
 
-namespace rocm {
-/*!
- * \brief Create a rocm schedule for a reduce operation.
- *
- * \param target The target to generate a schedule for.
- * \param outs The output tensors.
- *
- * \return A schedule for the given ops.
- */
-Schedule schedule_reduce(const Target& target, Array<Tensor> outs) {
-  return topi::cuda::schedule_reduce(target, outs);
-}
+TVM_REGISTER_GLOBAL("topi.utils.bilinear_sample_nhwc").set_body([](TVMArgs args, TVMRetValue* rv) {
+  *rv = detail::bilinear_sample_nhwc(args[0], args[1], args[2], args[3]);
+});
 
-}  // namespace rocm
 }  // namespace topi
 }  // namespace tvm
-#endif  // TVM_TOPI_ROCM_REDUCTION_H_

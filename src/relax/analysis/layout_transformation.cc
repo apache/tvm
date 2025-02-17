@@ -26,6 +26,7 @@
 #include <tvm/arith/iter_affine_map.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/tir/analysis.h>
+#include <tvm/tir/index_map.h>
 #include <tvm/tir/stmt_functor.h>
 
 #include "../../support/array.h"
