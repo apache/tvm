@@ -1,6 +1,23 @@
-from functools import reduce
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied. See the License for the
+# specific language governing permissions and limitations
+# under the License.
+"""A rule for GEMV and DecodeGEMV."""
 from typing import List, Optional, Union
 
+from tvm import arith, ir, tir
 from tvm.target import Target
 
 from ..base import (
@@ -8,17 +25,11 @@ from ..base import (
     collect_block_iter_vars_used_in_access_region,
     collect_vars_used_in_prim_expr,
     detect_dominant_read,
-    is_broadcast_epilogue,
     normalize_prim_func,
     try_inline_contiguous_spatial,
 )
-
-from tvm import arith, ir, tir
 from .base import CPUScheduleRule
-
-from tvm.target import Target
-
-from .utils import auto_vectorize, get_bytes, get_extent
+from .utils import get_extent
 
 
 def _get_reduction_expr(block: tir.Block) -> Optional[tir.PrimExpr]:
@@ -79,7 +90,7 @@ def is_gemv(sch: tir.Schedule, block_info: BlockInfo) -> Optional[List[tir.Buffe
     return ret if 0 < len(ret) < len(block_stmt.reads) else None
 
 
-def normalize(
+def normalize(  # pylint: disable=too-many-locals, use-a-generator
     sch: tir.Schedule,
     block_info: BlockInfo,
 ) -> Optional[bool]:
@@ -144,11 +155,11 @@ def normalize(
 class GEMV(CPUScheduleRule):
     """A rule for GEMV and DecodeGEMV."""
 
-    def apply(  # pylint: disable=too-many-locals,too-many-branches,too-many-return-statements
-            self,
-            func: tir.PrimFunc,
-            target: Target,
-            _: bool,
+    def apply(  # pylint: disable=too-many-locals,too-many-branches,too-many-return-statements, no-else-return
+        self,
+        func: tir.PrimFunc,
+        target: Target,
+        _: bool,
     ) -> Union[None, tir.Schedule, List[tir.Schedule]]:
         if not isinstance(func, tir.PrimFunc) or not self.is_target_available(target):
             return None
@@ -189,7 +200,7 @@ class GEMV(CPUScheduleRule):
             # sch_outer reduction
             return None
 
-    def sch_inner_reduction(  # pylint: disable=too-many-arguments, invalid-name, unused-argument
+    def sch_inner_reduction(  # pylint: disable=too-many-arguments, too-many-positional-arguments, invalid-name, unused-argument
         self,
         sch: tir.Schedule,
         target: Target,
@@ -199,19 +210,12 @@ class GEMV(CPUScheduleRule):
     ):
         """Schedule the inner reduction block."""
 
-        def get_max_factor(n, factors):
-            factors = sorted(factors, reverse=True)
-            for factor in factors:
-                if n % factor == 0:
-                    return factor
-            return 1
-
-        def apply(
+        def apply(  # pylint: disable=unused-variable, too-many-locals
             sch: tir.Schedule,
             gemv,
             vector_width: int = 8,
             parallel_threads: int = 8,
-            unroll_factor: int = 256
+            unroll_factor: int = 256,
         ):
             batch, s, r, c = sch.get_loops(block)
             len_batch, len_s, len_r, len_c = (

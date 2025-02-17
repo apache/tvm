@@ -16,10 +16,9 @@
 # under the License.
 # pylint: disable=missing-docstring
 """Utility methods for generic CPU."""
-from typing import List, Optional, Union
+from typing import Union
 
 from tvm import DataType, tir
-from tvm.target import Target
 
 
 def get_bytes(dtype: Union[DataType, str]) -> int:
@@ -40,4 +39,3 @@ def auto_vectorize(sch: tir.Schedule, loop: tir.schedule.LoopRV, max_vec: int):
         return
     v = loop if extent <= max_vec else sch.split(loop, factors=[None, max_vec])[-1]
     sch.vectorize(v)
-
