@@ -31,16 +31,9 @@ def test_prim_type():
     assert x.dtype == "int32"
 
 
-def test_tensor_type_bad_constructor():
-    try:
-        x = tvm.ir.TensorType("xx", "xx")
-    except tvm.error.TVMError:
-        pass
-
-
 def test_func_type():
     arg_types = tvm.runtime.convert([])
-    ret_type = tvm.ir.TensorType((1, 2, 3), "float32")
+    ret_type = tvm.ir.PrimType("float32")
     tf = tvm.ir.FuncType(arg_types, ret_type)
     assert tf.arg_types == arg_types
     assert tf.ret_type == ret_type
@@ -52,7 +45,7 @@ def test_func_type():
 
 def test_tuple_type():
     tf = tvm.ir.FuncType([], tvm.ir.TupleType([]))
-    tt = tvm.ir.TensorType(tvm.runtime.convert([1, 2, 3]), "float32")
+    tt = tvm.ir.PrimType("float32")
     fields = tvm.runtime.convert([tf, tt])
 
     tup_ty = tvm.ir.TupleType(fields)

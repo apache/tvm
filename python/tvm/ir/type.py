@@ -94,10 +94,10 @@ class FuncType(Type):
 
     Parameters
     ----------
-    arg_types : List[tvm.relay.Type]
+    arg_types : List[tvm.ir.Type]
         The argument types
 
-    ret_type : tvm.relay.Type
+    ret_type : tvm.ir.Type
         The return type.
     """
 

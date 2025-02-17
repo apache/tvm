@@ -19,7 +19,6 @@
 from typing import Dict, List, Optional, Union
 
 import tvm
-from tvm import Object
 from tvm.ir import IRModule
 from tvm.tir.expr import Var
 from tvm.tir.stmt import Block, BufferRegion, PrimExpr
@@ -165,7 +164,7 @@ def get_block_read_write_region(
 
 
 def calculate_allocated_bytes(
-    func_or_mod: Union[PrimFunc, IRModule]
+    func_or_mod: Union[PrimFunc, IRModule],
 ) -> Union[Dict[str, int], Dict[str, Dict[str, int]]]:
     """Calculate allocated memory per memory scope required by TIR PrimFuncs.
 
@@ -246,34 +245,6 @@ def undefined_vars(node: Union[Stmt, PrimExpr], defs: Optional[List[Var]] = None
     """
     defs = defs or []
     return _ffi_api.UndefinedVars(node, defs)  # type: ignore # pylint: disable=no-member
-
-
-def get_prim_func_arg_and_result_memory_constraints(
-    func: PrimFunc, relay_func_type: Object
-) -> List[str]:
-    """Returns the memory (aka storage) scope constraints for all the arguments and result
-    of func. However the result will be w.r.t. the func's representation as a Relay Function
-    of relay_func_type before lowering and conversion to DPS.
-
-    Visible for testing.
-
-    Parameters
-    ----------
-    func: tvm.tir.PrimFunc
-        The function to retrieve constraints from.
-
-    relay_func_type: tvm.relay.FuncType
-        The type of the Relay Function from which the func was derived.
-
-    Returns
-    -------
-    result: List[AnyStr]
-        Memory scope constraints for funcs args and result in Relay form. The empty string
-        denotes 'no constraint'.
-    """
-    return _ffi_api.GetPrimFuncArgAndResultMemoryConstraints(  # type: ignore # pylint: disable=no-member
-        func, relay_func_type
-    )
 
 
 def verify_well_formed(obj: Union[PrimFunc, IRModule], assert_mode: bool = True) -> bool:

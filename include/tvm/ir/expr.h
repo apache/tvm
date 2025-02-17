@@ -353,13 +353,13 @@ TVM_DLL PrimExpr operator~(PrimExpr a);
 /*!
  * \brief Base node of all non-primitive expressions.
  *
- * RelayExpr supports tensor types, functions and ADT as
- * first class citizens. The life-cycle of the corresponding
+ * RelaxExpr supports tensor and functions as first class citizen.
+ * The life-cycle of the corresponding
  * objects are implicitly managed by the language.
  *
- * \sa RelayExpr
+ * \sa RelaxExpr
  */
-class RelayExprNode : public BaseExprNode {
+class RelaxExprNode : public BaseExprNode {
  public:
   /*!
    * \brief Stores the result of type inference(type checking).
@@ -393,55 +393,18 @@ class RelayExprNode : public BaseExprNode {
   template <typename TTypeNode>
   inline const TTypeNode* type_as() const;
 
-  /*!
-   * \brief The virtual device (VirtualDevice) for this node (the result of device planning).
-   * For first-order expressions (non functions), this describes where the result of evaluating the
-   * expression should be stored. Note that currently, all composite first-order values (tuples,
-   * references, ADTs) must be stored on the same virtual device. This means that it is not possible
-   * to store two tuple fields on different devices, so we only need one virtual device for these
-   * types.
-   *
-   * For expressions that have the function type, the virtual device describes where the result of
-   * the call to the function or closure is stored (instead of where the function itself is stored).
-   * For example, the virtual device of f = fn(x) { body } is the virtual device of f(y), not where
-   * the function itself is stored. Note that f(y)'s virtual device will be the same as the virtual
-   * device of body. For more details, see the documentation in
-   * src/relay/transforms/device_planner.cc.
-   *
-   * The VirtualDevice's Target field describes how the body of the function should be compiled.
-   *
-   * Set to VirtualDevice::FullyUnconstrained by default.
-   *
-   * \note Unfortunately, the type of virtual_device_ needs to be ObjectRef to avoid a circular
-   * import.
-   */
-  mutable ObjectRef virtual_device_;
-
-  /*!
-   * \return The virtual device (VirtualDevice).
-   * If the virtual device is not defined, returns VirtualDevice::FullyUnconstrained().
-   * Note that for function types, the virtual device is the device where the result of a
-   * call to the function is stored, not where the function itself lives.
-   * For example, the virtual device of f = fn(x) { body } is the virtual device of f(y), not where
-   * the function itself is stored. Note that f(y)'s virtual device will be the same as the virtual
-   * device of body.
-   *
-   * See the documentation of the virtual_device_ field (above) for more details.
-   */
-  VirtualDevice virtual_device() const;
-
-  static constexpr const char* _type_key = "RelayExpr";
+  static constexpr const char* _type_key = "RelaxExpr";
   static constexpr const uint32_t _type_child_slots = 22;
-  TVM_DECLARE_BASE_OBJECT_INFO(RelayExprNode, BaseExprNode);
+  TVM_DECLARE_BASE_OBJECT_INFO(RelaxExprNode, BaseExprNode);
 };
 
 /*!
- * \brief Managed reference to RelayExprNode.
- * \sa RelayExprNode
+ * \brief Managed reference to RelaxExprNode.
+ * \sa RelaxExprNode
  */
-class RelayExpr : public BaseExpr {
+class RelaxExpr : public BaseExpr {
  public:
-  TVM_DEFINE_OBJECT_REF_METHODS(RelayExpr, BaseExpr, RelayExprNode);
+  TVM_DEFINE_OBJECT_REF_METHODS(RelaxExpr, BaseExpr, RelaxExprNode);
 };
 
 class GlobalVar;
@@ -453,14 +416,13 @@ class GlobalVar;
  *
  * \sa GlobalVarNode
  */
-class GlobalVarNode : public RelayExprNode {
+class GlobalVarNode : public RelaxExprNode {
  public:
   /*! \brief The name of the variable, this only acts as a hint. */
   String name_hint;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("name_hint", &name_hint);
-    v->Visit("virtual_device_", &virtual_device_);
     v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
     v->Visit("struct_info_", &struct_info_);
@@ -477,18 +439,18 @@ class GlobalVarNode : public RelayExprNode {
   }
 
   static constexpr const char* _type_key = "GlobalVar";
-  TVM_DECLARE_FINAL_OBJECT_INFO(GlobalVarNode, RelayExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(GlobalVarNode, RelaxExprNode);
 };
 
 /*!
  * \brief Managed reference to GlobalVarNode.
  * \sa GlobalVarNode
  */
-class GlobalVar : public RelayExpr {
+class GlobalVar : public RelaxExpr {
  public:
   TVM_DLL explicit GlobalVar(String name_hint, Type type = {}, Span span = {});
 
-  TVM_DEFINE_OBJECT_REF_METHODS(GlobalVar, RelayExpr, GlobalVarNode);
+  TVM_DEFINE_OBJECT_REF_METHODS(GlobalVar, RelaxExpr, GlobalVarNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(GlobalVarNode);
 };
 
@@ -747,15 +709,15 @@ class Range : public ObjectRef {
 };
 
 // implementations
-inline const Type& RelayExprNode::checked_type() const {
+inline const Type& RelaxExprNode::checked_type() const {
   ICHECK(checked_type_.defined()) << "internal error: the type checker has "
                                   << "not populated the checked_type "
-                                  << "field for " << GetRef<RelayExpr>(this);
+                                  << "field for " << GetRef<RelaxExpr>(this);
   return this->checked_type_;
 }
 
 template <typename TTypeNode>
-inline const TTypeNode* RelayExprNode::type_as() const {
+inline const TTypeNode* RelaxExprNode::type_as() const {
   static_assert(std::is_base_of<TypeNode, TTypeNode>::value,
                 "TType must be a special case of type");
   ICHECK(checked_type_.defined())
@@ -872,7 +834,7 @@ struct PackedFuncValueConverter<tvm::FloatImm> {
  * integer arguments, instead of runtime::Int.  For backwards
  * compatibility where the callee has been updated to expected a
  * runtime::Int, the caller has not been updated to provide a
- * runtime::Int (e.g. relay script parsing), and the auto-unboxing of
+ * runtime::Int, and the auto-unboxing of
  * runtime::Int does not apply (e.g. making an `Array<runtime::Int>`),
  * allow the IntImm to be generated.
  */

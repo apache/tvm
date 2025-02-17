@@ -19,11 +19,11 @@
 import tvm._ffi
 
 from . import _ffi_api
-from .expr import RelayExpr
+from .expr import RelaxExpr
 
 
 @tvm._ffi.register_object("Op")
-class Op(RelayExpr):
+class Op(RelaxExpr):
     """Primitive operator in the IR."""
 
     def __init__(self):

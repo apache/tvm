@@ -211,7 +211,7 @@ IRModule IRModuleNode::ShallowCopy() {
   return IRModule(this->functions, this->source_map, this->attrs, this->global_infos);
 }
 
-IRModule IRModule::FromExpr(const RelayExpr& expr,
+IRModule IRModule::FromExpr(const RelaxExpr& expr,
                             const tvm::Map<GlobalVar, BaseFunc>& global_funcs) {
   auto mod = IRModule(global_funcs);
   String gv_name;
@@ -266,10 +266,7 @@ TVM_REGISTER_GLOBAL("ir.Module_Clone").set_body_typed([](IRModule mod) -> IRModu
 
 TVM_REGISTER_GLOBAL("ir.Module_Add")
     .set_body_typed([](IRModule mod, GlobalVar var, ObjectRef val, bool update) -> IRModule {
-      ICHECK(val->IsInstance<RelayExprNode>());
-      if (const auto* f = runtime::Registry::Get("relay.ir.IRModuleAdd")) {
-        return (*f)(mod, var, val, update);
-      }
+      ICHECK(val->IsInstance<RelaxExprNode>());
       mod->Add(var, Downcast<BaseFunc>(val), update);
       return mod;
     });

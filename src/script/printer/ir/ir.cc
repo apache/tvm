@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-#include <tvm/ir/tensor_type.h>
+#include <tvm/ir/type.h>
 
 #include "./utils.h"
 
@@ -143,13 +143,6 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<TensorType>("", [](TensorType type, ObjectPath p, IRDocsifier d) -> Doc {
-      return IR(d, "TensorType")
-          ->Call({d->AsDoc<ExprDoc>(type->shape, p->Attr("shape")),
-                  LiteralDoc::DataType(type->dtype, p->Attr("dtype"))});
-    });
-
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<FuncType>("", [](FuncType func_type, ObjectPath p, IRDocsifier d) -> Doc {
       return IR(d, "FuncType")
           ->Call({
@@ -168,11 +161,6 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     });
 
 std::string ReprPrintIRModule(const ObjectRef& mod, const PrinterConfig& cfg) {
-  if (const auto* f = runtime::Registry::Get("relay.ir.PrintRelayModule")) {
-    if (Optional<String> s = (*f)(mod)) {
-      return s.value();
-    }
-  }
   return ReprPrintIR(mod, cfg);
 }
 
