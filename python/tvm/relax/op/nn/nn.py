@@ -20,7 +20,7 @@ from typing import List, Optional, Tuple, Union
 from tvm import DataType
 from tvm.tir import FloatImm
 
-from ...expr import Expr, const
+from ...expr import Expr
 from . import _ffi_api
 
 
@@ -513,7 +513,12 @@ def conv2d_transpose(
     )
 
 
-def pad(data, pad_width, pad_value=0, pad_mode="constant"):
+def pad(
+    data: Expr,
+    pad_width: Tuple[Tuple[int, int], ...],
+    pad_mode: Optional[str] = "constant",
+    pad_value: Optional[Union[float, Expr]] = 0.0,
+):
     r"""Padding
 
     This operator takes in a tensor and pads each axis by the specified
@@ -523,23 +528,24 @@ def pad(data, pad_width, pad_value=0, pad_mode="constant"):
     ----------
     data: relax.Expr
         The input data to the operator
-    pad_width: tuple of <tuple of <int>>, required
+    pad_width: Tuple[Tuple[int, int], ...], required
         Number of values padded to the edges of each axis, in the format
         of ((before_1, after_1), ..., (before_N, after_N))
-    pad_value: float
-        The value used for padding
-    pad_mode: 'constant', 'edge', 'reflect'
+    pad_mode: Optional[str]
+        'constant', 'edge', or 'reflect'
         'constant' pads with constant_value pad_value
         'edge' pads using the edge values of the input array
         'reflect' pads by reflecting values with respect to the edge
+        Default is 'constant'
+    pad_value: Optional[Union[float, Expr]]
+        The value used for padding. Default is 0.
+
     Returns
     -------
     result : relax.Expr
         The computed result.
     """
-    if not isinstance(pad_value, Expr):
-        pad_value = const(pad_value)
-    return _ffi_api.pad(data, pad_width, pad_value, pad_mode)
+    return _ffi_api.pad(data, pad_width, pad_mode, pad_value)
 
 
 def max_pool1d(
