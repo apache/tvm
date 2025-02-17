@@ -26,16 +26,41 @@ set -o pipefail
 # onnx 1.9 removed onnx optimizer from the main repo (see
 # https://github.com/onnx/onnx/pull/2834).  When updating the CI image
 # to onnx>=1.9, onnxoptimizer should also be installed.
-pip3 install \
-    onnx==1.12.0 \
-    onnxruntime==1.12.1 \
-    onnxoptimizer==0.2.7
 
-# torch depends on a number of other packages, but unhelpfully, does
-# not expose that in the wheel!!!
+# Get the Python version
+PYTHON_VERSION=$(python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')")
+
+# Install the onnx package
 pip3 install future
 
-pip3 install \
-    torch==2.4.1 \
-    torchvision==0.19.1 \
-    --extra-index-url https://download.pytorch.org/whl/cpu
+if [ "$PYTHON_VERSION" == "3.9" ]; then
+    pip3 install \
+        onnx==1.16.0 \
+        onnxruntime==1.19.2 \
+        onnxoptimizer==0.2.7
+
+    pip3 install \
+        torch==2.6.0 \
+        torchvision==0.21.0 \
+        --extra-index-url https://download.pytorch.org/whl/cpu
+elif [ "$PYTHON_VERSION" == "3.11" ]; then
+    pip3 install \
+        onnx==1.17.0 \
+        onnxruntime==1.20.1 \
+        onnxoptimizer==0.2.7
+
+    pip3 install \
+        torch==2.6.0 \
+        torchvision==0.21.0 \
+        --extra-index-url https://download.pytorch.org/whl/cpu
+else
+    pip3 install \
+        onnx==1.12.0 \
+        onnxruntime==1.12.1 \
+        onnxoptimizer==0.2.7
+
+    pip3 install \
+        torch==2.4.1 \
+        torchvision==0.19.1 \
+        --extra-index-url https://download.pytorch.org/whl/cpu
+fi
