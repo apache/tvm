@@ -290,7 +290,6 @@ class TorchFXImporter(BaseFXGraphImporter):
         #   input, size=None, scale_factor=None, mode='nearest', align_corners=None,
         #   recompute_scale_factor=None, antialias=False)
         # (TODO) this is a temporary implementation for interpolate that only considers NCHW layout
-        # it basically replicates the implementation in tvm.relay.frontend.pytorch
         data = self.env[node.args[0]]
         size = (
             node.args[1]

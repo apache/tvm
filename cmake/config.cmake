@@ -78,12 +78,6 @@ set(USE_ROCM OFF)
 # - /path/to/rccl: use specific path to rccl
 set(USE_RCCL OFF)
 
-# Whether enable SDAccel runtime
-set(USE_SDACCEL OFF)
-
-# Whether enable Intel FPGA SDK for OpenCL (AOCL) runtime
-set(USE_AOCL OFF)
-
 # Whether enable OpenCL runtime
 #
 # Possible values:
@@ -120,9 +114,6 @@ set(USE_KHRONOS_SPIRV OFF)
 # whether enable SPIRV_KHR_DOT_PRODUCT
 set(USE_SPIRV_KHR_INTEGER_DOT_PRODUCT OFF)
 
-# Whether enable OpenGL runtime
-set(USE_OPENGL OFF)
-
 # Whether enable RPC runtime
 set(USE_RPC ON)
 
@@ -137,12 +128,6 @@ set(USE_IOS_RPC OFF)
 
 # Whether embed stackvm into the runtime
 set(USE_STACKVM_RUNTIME OFF)
-
-# Whether enable tiny embedded graph executor.
-set(USE_GRAPH_EXECUTOR ON)
-
-# Whether enable tiny graph executor with CUDA Graph
-set(USE_GRAPH_EXECUTOR_CUDA_GRAPH OFF)
 
 # Whether enable pipeline executor.
 set(USE_PIPELINE_EXECUTOR OFF)
@@ -285,12 +270,6 @@ set(USE_ARM_COMPUTE_LIB_GRAPH_EXECUTOR OFF)
 set(USE_TENSORRT_CODEGEN OFF)
 set(USE_TENSORRT_RUNTIME OFF)
 
-# Whether use VITIS-AI codegen
-set(USE_VITIS_AI OFF)
-
-# Build Verilator codegen and runtime
-set(USE_VERILATOR OFF)
-
 # Whether to use the Multi-System Compiler
 set(USE_MSC OFF)
 
@@ -298,16 +277,6 @@ set(USE_MSC OFF)
 set(USE_CLML OFF)
 # USE_CLML_GRAPH_EXECUTOR - CLML SDK PATH or ON or OFF
 set(USE_CLML_GRAPH_EXECUTOR OFF)
-
-# Build ANTLR parser for Relay text format
-# Possible values:
-# - ON: enable ANTLR by searching default locations (cmake find_program for antlr4 and /usr/local for jar)
-# - OFF: disable ANTLR
-# - /path/to/antlr-*-complete.jar: path to specific ANTLR jar file
-set(USE_ANTLR OFF)
-
-# Whether use Relay debug mode
-set(USE_RELAY_DEBUG OFF)
 
 # Whether to enable debug code that may cause ABI changes
 set(TVM_DEBUG_WITH_ABI_CHANGE OFF)
@@ -359,9 +328,6 @@ set(USE_MRVL OFF)
 
 # Whether to use QHL library
 set(USE_HEXAGON_QHL OFF)
-
-# Whether to use ONNX codegen
-set(USE_TARGET_ONNX OFF)
 
 # Whether enable BNNS runtime
 set(USE_BNNS OFF)

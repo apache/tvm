@@ -48,7 +48,7 @@ def test_var() -> None:
     assert v1.name_hint == "v1"
     for s0, s1 in zip(v1.struct_info.shape, shape):
         assert s0 == s1
-    assert v1.checked_type == rx.DynTensorType(2, "float32")
+    assert v1.checked_type == rx.TensorType(2, "float32")
     tvm.ir.assert_structural_equal(v1.struct_info, rx.TensorStructInfo(shape, "float32"))
 
 
@@ -62,7 +62,7 @@ def test_dataflow_var() -> None:
     v1 = rx.DataflowVar("v1", R.Tensor(shape, "float16"))
     assert v1.name_hint == "v1"
 
-    assert v1._checked_type_ == rx.DynTensorType(2, "float16")
+    assert v1._checked_type_ == rx.TensorType(2, "float16")
     assert isinstance(v1, rx.DataflowVar)
     tvm.ir.assert_structural_equal(v1.struct_info, rx.TensorStructInfo(shape, "float16"))
 
@@ -128,7 +128,7 @@ def test_match_cast() -> None:
     assert b1.pattern[0] == m
     assert b1.pattern[1] == n
     assert b1.var is not None
-    assert b1.var.checked_type == rx.DynTensorType(2, "float32")
+    assert b1.var.checked_type == rx.TensorType(2, "float32")
 
 
 def test_match_cast() -> None:

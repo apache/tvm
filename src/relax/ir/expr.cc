@@ -337,7 +337,7 @@ Constant::Constant(runtime::NDArray data, Optional<StructInfo> struct_info_annot
   } else {
     TensorStructInfo tinfo(ShapeExpr(values), n->data.DataType(), VDevice(), span);
     n->struct_info_ = tinfo;
-    n->checked_type_ = DynTensorType(tinfo->ndim, tinfo->dtype);
+    n->checked_type_ = TensorType(tinfo->ndim, tinfo->dtype);
   }
 
   data_ = std::move(n);

@@ -248,13 +248,13 @@ class ASTPrinter(ExprFunctor):
             return self.build_ast_node("PackedFuncType")
         if isinstance(type_node, tvm.ir.PrimType):
             return self.build_ast_node("PrimType", dtype=type_node.dtype)
-        if isinstance(type_node, relax.DynTensorType):
+        if isinstance(type_node, relax.TensorType):
             fields = {}
             if type_node.ndim is not None:
                 fields["ndim"] = str(type_node.ndim)
             if type_node.dtype != "":
                 fields["dtype"] = type_node.dtype
-            return self.build_ast_node("DynTensorType", **fields)
+            return self.build_ast_node("TensorType", **fields)
         if isinstance(type_node, relax.TupleType):
             return self.build_ast_node(
                 "TupleType", fields=self.build_list(map(self.visit_type_, type_node.fields))

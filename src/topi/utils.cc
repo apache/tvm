@@ -18,19 +18,27 @@
  */
 
 /*!
- *  Optional module when build opencl is switched to off
+ * \brief Registration of utils operators
+ * \file utils.cc
  */
-#include "../../runtime/opencl/opencl_module.h"
-#include "../source/codegen_source_base.h"
+
+#include <tvm/runtime/packed_func.h>
+#include <tvm/runtime/registry.h>
+#include <tvm/topi/detail/tensor_utils.h>
 
 namespace tvm {
-namespace runtime {
+namespace topi {
+TVM_REGISTER_GLOBAL("topi.utils.is_empty_shape").set_body([](TVMArgs args, TVMRetValue* rv) {
+  *rv = topi::detail::is_empty_shape(args[0]);
+});
 
-Module SDAccelModuleCreate(std::string data, std::string fmt,
-                           std::unordered_map<std::string, FunctionInfo> fmap, std::string source) {
-  LOG(WARNING) << "OpenCL runtime not enabled, return a source module...";
-  return codegen::DeviceSourceModuleCreate(data, fmt, fmap, "sdaccel");
-}
+TVM_REGISTER_GLOBAL("topi.utils.bilinear_sample_nchw").set_body([](TVMArgs args, TVMRetValue* rv) {
+  *rv = detail::bilinear_sample_nchw(args[0], args[1], args[2], args[3]);
+});
 
-}  // namespace runtime
+TVM_REGISTER_GLOBAL("topi.utils.bilinear_sample_nhwc").set_body([](TVMArgs args, TVMRetValue* rv) {
+  *rv = detail::bilinear_sample_nhwc(args[0], args[1], args[2], args[3]);
+});
+
+}  // namespace topi
 }  // namespace tvm

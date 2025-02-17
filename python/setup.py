@@ -208,7 +208,7 @@ if not CONDA_BUILD and not INPLACE_BUILD:
 
 def get_package_data_files():
     # Relay standard libraries
-    return ["relay/std/prelude.rly", "relay/std/core.rly"]
+    return []
 
 
 def long_description_contents():

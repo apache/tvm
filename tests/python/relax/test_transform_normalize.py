@@ -190,7 +190,7 @@ def test_normalize_if_branches():
     # an if node's branches must be seq exprs
     x = relax.Var("x", R.Tensor([], "int32"))
     y = relax.Var("y", R.Tensor([], "int32"))
-    # TODO(@relax-team): z has a shape of () and type of DynTensorType(ndim=0),
+    # TODO(@relax-team): z has a shape of () and type of TensorType(ndim=0),
     # but normalization fails to infer these even though it should
     z = relax.Var("z")
     cond = relax.Var("cond", R.Tensor([], "bool"))

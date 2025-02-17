@@ -25,7 +25,7 @@ COPY utils/apt-install-and-clear.sh /usr/local/bin/apt-install-and-clear
 RUN pip3 install matplotlib Image Pillow jupyter[notebook]
 
 # Deep learning frameworks
-RUN pip3 install mxnet tensorflow keras gluoncv dgl
+RUN pip3 install tensorflow keras gluoncv dgl
 
 # Build TVM
 COPY install/install_tvm_cpu.sh /install/install_tvm_cpu.sh

@@ -53,7 +53,7 @@ def SetExprName(
         var_names = var_names or {}
         var_names = {k: msc_utils.legalize_expr_name(v) for k, v in var_names.items()}
         return relax_api.SetRelaxExprName(entry_name, target, var_names)  # type: ignore
-    return relay_api.SetRelayExprName(entry_name)  # type: ignore
+    return relay_api.SetRelaxExprName(entry_name)  # type: ignore
 
 
 def BindExprName(
@@ -75,7 +75,7 @@ def BindExprName(
     ret: tvm.ir.transform.Pass
     """
 
-    return relay_api.BindRelayExprName(name_key, seperator, entry_name)  # type: ignore
+    return relay_api.BindRelaxExprName(name_key, seperator, entry_name)  # type: ignore
 
 
 def SetExprLayout(allow_missing: bool = True, entry_name: str = "main") -> tvm.ir.transform.Pass:

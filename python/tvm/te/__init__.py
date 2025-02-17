@@ -35,4 +35,4 @@ from .operation import thread_axis, reduce_axis, AXIS_SEPARATOR
 from .operation import create_prim_func
 from .operation import extern_primfunc
 
-from .tensor import PlaceholderOp, ComputeOp, TensorComputeOp, ScanOp, ExternOp
+from .tensor import PlaceholderOp, ComputeOp, ScanOp, ExternOp

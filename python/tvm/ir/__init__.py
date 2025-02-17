@@ -18,7 +18,6 @@
 """Common data structures across all IR variants."""
 
 from . import diagnostics, instrument, transform
-from .affine_type import TensorAffineType, TupleAffineType
 from .attrs import Attrs, DictAttrs, make_node
 from .base import (
     EnvFunc,
@@ -33,12 +32,11 @@ from .base import (
     structural_hash,
 )
 from .container import Array, Map
-from .expr import BaseExpr, GlobalVar, PrimExpr, Range, RelayExpr
+from .expr import BaseExpr, GlobalVar, PrimExpr, Range, RelaxExpr
 from .function import BaseFunc, CallingConv
 from .global_info import GlobalInfo, DummyGlobalInfo, VDevice
 from .module import IRModule
 from .op import Op, register_intrin_lowering, register_op_attr
-from .tensor_type import TensorType
 from .type import (
     FuncType,
     PointerType,

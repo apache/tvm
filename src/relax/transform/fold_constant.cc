@@ -185,7 +185,7 @@ class ConstantFolder : public ExprMutator {
     bool output_not_tuple = call->sinfo_args.size() == 1;
     // Pattern 0: call constant function, const argument with const shape.
     if (func && arr_args && shape && output_not_tuple) {
-      DynTensorType ret_type = Downcast<DynTensorType>(call->checked_type());
+      TensorType ret_type = Downcast<TensorType>(call->checked_type());
       // value_or will return value if it is not null, otherwise return or
       return ConstEvaluateCallTIR(func.value(), arr_args.value(), shape.value(), ret_type->dtype)
           .value_or({});

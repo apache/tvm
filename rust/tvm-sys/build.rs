@@ -102,9 +102,6 @@ fn find_using_tvm_build() -> Result<TVMInstall> {
     if cfg!(feature = "use-openmp") {
         build_config.settings.use_openmp = Some(true);
     }
-    if cfg!(feature = "use-relay-debug") {
-        build_config.settings.use_relay_debug = Some(true);
-    }
     if cfg!(feature = "use-rtti") {
         build_config.settings.use_rtti = Some(true);
     }
@@ -185,9 +182,6 @@ fn find_using_tvm_build() -> Result<TVMInstall> {
     }
     if cfg!(feature = "use-tensorrt-runtime") {
         build_config.settings.use_tensorrt_runtime = CMakeSetting::from_str("on").ok();
-    }
-    if cfg!(feature = "use-vitis-ai") {
-        build_config.settings.use_vitis_ai = Some(true);
     }
     if cfg!(any(
         feature = "static-linking",

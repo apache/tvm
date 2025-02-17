@@ -31,6 +31,7 @@
 #include <tvm/relax/op_attr_types.h>
 #include <tvm/relax/struct_info.h>
 #include <tvm/tir/function.h>
+#include <tvm/tir/index_map.h>
 
 #include <functional>
 #include <utility>

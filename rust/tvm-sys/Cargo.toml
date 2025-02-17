@@ -67,7 +67,6 @@ use-arm-compute-lib = []
 use-arm-compute-lib-graph-runtime = []
 use-tensorrt-codegen = []
 use-tensorrt-runtime = []
-use-vitis-ai = []
 build-static-runtime = []
 
 [dependencies]

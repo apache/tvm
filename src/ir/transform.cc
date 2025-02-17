@@ -465,8 +465,6 @@ Pass GetPass(const String& pass_name) {
   if (pass_name.operator std::string().find("transform.") != std::string::npos) {
     f = Registry::Get(pass_name);
   } else if ((f = Registry::Get("transform." + pass_name))) {
-    // pass
-  } else if ((f = Registry::Get("relay._transform." + pass_name))) {
   }
   ICHECK(f != nullptr) << "Cannot use " << pass_name << " to create the pass";
   return (*f)();
@@ -686,11 +684,6 @@ TVM_REGISTER_GLOBAL("transform.OverrideInstruments")
 
 Pass PrintIR(String header, bool show_meta_data) {
   auto pass_func = [header, show_meta_data](IRModule mod, const PassContext& ctx) {
-    if (const auto* f = runtime::Registry::Get("relay.ir.PrintIR")) {
-      if ((*f)(mod, header, show_meta_data)) {
-        return mod;
-      }
-    }
     LOG(INFO) << "PrintIR(" << header << "):\n" << mod;
     return mod;
   };

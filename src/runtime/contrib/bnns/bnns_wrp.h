@@ -287,7 +287,7 @@ class TView {
     return res;
   }
 
-  /** Check if view is empty and doesn't relay to any tensor */
+  /** Check if view is empty and doesn't map to any tensor */
   operator bool() const { return origin_ != nullptr; }
 
   /** Get BNNS descriptor for particular View. Batch and Party attributed are ignored. */

@@ -973,7 +973,7 @@ class FusedTIRConstructor : public ExprVisitor {
 
   /*! \brief Get DynTensor numbers from recursive Tuples. */
   static size_t GetTotalTensorSize(const Type& type) {
-    if (type.as<DynTensorTypeNode>()) {
+    if (type.as<TensorTypeNode>()) {
       return 1;
     } else if (const auto* tuple_type = type.as<TupleTypeNode>()) {
       size_t num = 0;
@@ -982,7 +982,7 @@ class FusedTIRConstructor : public ExprVisitor {
       }
       return num;
     } else {
-      LOG(FATAL) << "DynTensorType and TupleType are expect, but got: " << type;
+      LOG(FATAL) << "TensorType and TupleType are expect, but got: " << type;
       return 0;
     }
   }

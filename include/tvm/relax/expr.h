@@ -35,8 +35,8 @@
 namespace tvm {
 namespace relax {
 
-using Expr = RelayExpr;
-using ExprNode = RelayExprNode;
+using Expr = RelaxExpr;
+using ExprNode = RelaxExprNode;
 /*!
  * \brief The unique identifier of variables.
  *

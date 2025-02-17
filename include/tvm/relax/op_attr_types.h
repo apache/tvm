@@ -26,7 +26,6 @@
 
 #include <tvm/relax/expr.h>
 #include <tvm/relax/struct_info.h>
-#include <tvm/te/schedule.h>
 #include <tvm/te/tensor.h>
 
 namespace tvm {

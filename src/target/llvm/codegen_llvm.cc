@@ -1819,7 +1819,7 @@ llvm::Value* CodeGenLLVM::VisitExpr_(const BufferLoadNode* op) {
   auto make_load = [this, &loads](TypedPointer buffer_ptr, int /* subelement_i */,
                                   llvm::Value* predicate, int alignment, bool is_volatile) {
     llvm::Instruction* load = nullptr;
-    if (predicate != NULL) {
+    if (predicate != nullptr) {
       ICHECK(!is_volatile)
           << "The masked load intrinsic does not support declaring load as volatile.";
 #if TVM_LLVM_VERSION >= 130
@@ -1972,7 +1972,7 @@ void CodeGenLLVM::VisitStmt_(const BufferStoreNode* op) {
       to_store = builder_->CreateExtractElement(value, subelement_i);
     }
 
-    if (predicate != NULL) {
+    if (predicate != nullptr) {
       ICHECK(!is_volatile)
           << "The masked store intrinsic does not support declaring store as volatile.";
 #if TVM_LLVM_VERSION >= 110

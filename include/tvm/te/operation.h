@@ -25,7 +25,6 @@
 #define TVM_TE_OPERATION_H_
 
 #include <tvm/arith/analyzer.h>
-#include <tvm/te/schedule.h>
 #include <tvm/te/tensor.h>
 #include <tvm/tir/buffer.h>
 #include <tvm/tir/expr.h>
@@ -66,11 +65,6 @@ class TVM_DLL OperationNode : public Object {
   /*! \return number of outputs */
   virtual int num_outputs() const = 0;
   /*!
-   * \return The list of iteration variable at root
-   * \note root_iter_vars decides the shape of the outputs.
-   */
-  virtual Array<IterVar> root_iter_vars() const = 0;
-  /*!
    * \brief Get data type. i-th output tensor.
    * \param i The output index.
    * \return type of i-th output.
@@ -87,59 +81,6 @@ class TVM_DLL OperationNode : public Object {
    * \return List of input tensors.
    */
   virtual Array<Tensor> InputTensors() const = 0;
-  /*!
-   * \brief Replace the input of the operation by pattern specified by rmap.
-   *
-   * \param self The reference to self.
-   * \param rmap The replacement map.
-   * \return self if nothing is replaced, otherwise return replaced op.
-   */
-  virtual Operation ReplaceInputs(const Operation& self,
-                                  const std::unordered_map<Tensor, Tensor>& rmap) const = 0;
-  /*!
-   * \brief Propagate the bounds to inputs
-   * \param self The reference to self.
-   * \param analyzer The analyzer to be used in the function.
-   * \param dom_map the domain map of Variables(corresponds to root_iter_vars)
-   * \param out_dom_map The output domain.
-   *  The function is only asked to fill the bounds for Tensors that
-   *  is already in the out_dom_map
-   */
-  virtual void PropBoundToInputs(const Operation& self, arith::Analyzer* analyzer,
-                                 const std::unordered_map<const VarNode*, IntSet>& dom_map,
-                                 std::unordered_map<Tensor, TensorDom>* out_dom_map) const = 0;
-  /*!
-   * \brief Gather the bound from output tensor.
-   *  Set the range of each root_iter_vars in the op to out_dom_map
-   *
-   * \param self The reference to self.
-   * \param tensor_dom Domain map of Tensor->access set of each dimension.
-   * \param out_dom_map The output domain map of each IterVar to be setted.
-   */
-  virtual void GatherBound(const Operation& self,
-                           const std::unordered_map<Tensor, TensorDom>& tensor_dom,
-                           std::unordered_map<IterVar, Range>* out_dom_map) const = 0;
-  /*!
-   * \brief Build the Realize statement that realizes
-   *   the op's output tensors.
-   * \param stage the op's stage.
-   * \param realize_map The realization domain map of the operators.
-   * \param body The body that is going to get
-   * \param storage_scope The storage scope associated with this realization
-   * \return A realization statement that wraps body.
-   */
-  virtual Stmt BuildRealize(const Stage& stage,
-                            const std::unordered_map<IterVar, Range>& realize_map, const Stmt& body,
-                            String storage_scope = "") const = 0;
-  /*!
-   * \brief Build the statement that provide the output tensors.
-   * \param stage The schedule stage of the op.
-   * \param dom_map The domain map of all iteration domains.
-   * \param debug_keep_trivial_loop Whether keep trivial loops with extent of 1
-   * \return A statement that add production and wraps consumer.
-   */
-  virtual Stmt BuildProvide(const Stage& stage, const std::unordered_map<IterVar, Range>& dom_map,
-                            bool debug_keep_trivial_loop) const = 0;
 
   static constexpr const char* _type_key = "Operation";
 
@@ -157,21 +98,9 @@ class PlaceholderOpNode : public OperationNode {
   DataType dtype;
   // override behavior.
   int num_outputs() const final;
-  Array<IterVar> root_iter_vars() const final;
   DataType output_dtype(size_t i) const final;
   Array<PrimExpr> output_shape(size_t i) const final;
   Array<Tensor> InputTensors() const final;
-  Operation ReplaceInputs(const Operation& self,
-                          const std::unordered_map<Tensor, Tensor>& rmap) const final;
-  void PropBoundToInputs(const Operation& self, arith::Analyzer* analyzer,
-                         const std::unordered_map<const VarNode*, IntSet>& dom_map,
-                         std::unordered_map<Tensor, TensorDom>* out_dom_map) const final;
-  void GatherBound(const Operation& self, const std::unordered_map<Tensor, TensorDom>& tensor_dom,
-                   std::unordered_map<IterVar, Range>* out_dom_map) const final;
-  Stmt BuildRealize(const Stage& stage, const std::unordered_map<IterVar, Range>& realize_map,
-                    const Stmt& body, String storage_scope = "") const final;
-  Stmt BuildProvide(const Stage& stage, const std::unordered_map<IterVar, Range>& dom_map,
-                    bool debug_keep_trivial_loop) const final;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("name", &name);
@@ -198,8 +127,7 @@ class PlaceholderOp : public Operation {
 
 /*!
  * \brief A Compute op that compute a tensor on certain domain.
- * This is the base class for ComputeOp (operating on a scalar at a time) and
- * TensorComputeOp (operating on a TensorSlice at a time)
+ * This is the base class for ComputeOp (operating on a scalar at a time)
  */
 class TVM_DLL BaseComputeOpNode : public OperationNode {
  public:
@@ -208,13 +136,7 @@ class TVM_DLL BaseComputeOpNode : public OperationNode {
   /*! \brief IterVar on each reduction axis, if the body is a Reduce */
   Array<IterVar> reduce_axis;
   // override functions
-  Array<IterVar> root_iter_vars() const final;
   Array<PrimExpr> output_shape(size_t idx) const final;
-  void GatherBound(const Operation& self, const std::unordered_map<Tensor, TensorDom>& tensor_dom,
-                   std::unordered_map<IterVar, Range>* out_dom_map) const final;
-  Stmt BuildRealize(const Stage& stage, const std::unordered_map<IterVar, Range>& realize_map,
-                    const Stmt& body, String storage_scope = "") const final;
-  virtual size_t num_schedulable_dims() const = 0;
 
   static constexpr const char* _type_key = "BaseComputeOp";
   TVM_DECLARE_BASE_OBJECT_INFO(BaseComputeOpNode, OperationNode);
@@ -233,14 +155,6 @@ class TVM_DLL ComputeOpNode : public BaseComputeOpNode {
   int num_outputs() const final;
   DataType output_dtype(size_t i) const final;
   Array<Tensor> InputTensors() const final;
-  Operation ReplaceInputs(const Operation& self,
-                          const std::unordered_map<Tensor, Tensor>& rmap) const final;
-  void PropBoundToInputs(const Operation& self, arith::Analyzer* analyzer,
-                         const std::unordered_map<const VarNode*, IntSet>& dom_map,
-                         std::unordered_map<Tensor, TensorDom>* out_dom_map) const final;
-  Stmt BuildProvide(const Stage& stage, const std::unordered_map<IterVar, Range>& dom_map,
-                    bool debug_keep_trivial_loop) const final;
-  size_t num_schedulable_dims() const final;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("name", &name);
@@ -266,66 +180,6 @@ class ComputeOp : public Operation {
 
   TVM_DEFINE_OBJECT_REF_METHODS(ComputeOp, Operation, ComputeOpNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ComputeOpNode);
-};
-
-/*!
- * \brief A TenorCompute op that compute a tensor with an tensor intrinsic.
- */
-class TensorComputeOpNode : public BaseComputeOpNode {
- public:
-  /*! \brief number of axes that can be scheduled */
-  int schedulable_ndim;
-  /*! \brief TensorIntrin used to compute */
-  TensorIntrin intrin;
-  /*! \brief input tensors of intrin */
-  Array<Tensor> inputs;
-  /*! \brief region of input tensors */
-  Array<Region> input_regions;
-  /*! \brief scalar expression inputs */
-  Array<PrimExpr> scalar_inputs;
-  /*! \brief constructor */
-  TensorComputeOpNode() {}
-  // override functions
-  int num_outputs() const final;
-  DataType output_dtype(size_t i) const final;
-  Array<Tensor> InputTensors() const final;
-  Operation ReplaceInputs(const Operation& self,
-                          const std::unordered_map<Tensor, Tensor>& rmap) const final;
-  void PropBoundToInputs(const Operation& self, arith::Analyzer* analyzer,
-                         const std::unordered_map<const VarNode*, IntSet>& dom_map,
-                         std::unordered_map<Tensor, TensorDom>* out_dom_map) const final;
-  Stmt BuildProvide(const Stage& stage, const std::unordered_map<IterVar, Range>& dom_map,
-                    bool debug_keep_trivial_loop) const final;
-  size_t num_schedulable_dims() const final;
-
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("name", &name);
-    v->Visit("tag", &tag);
-    v->Visit("axis", &axis);
-    v->Visit("reduce_axis", &reduce_axis);
-    v->Visit("schedulable_ndim", &schedulable_ndim);
-    v->Visit("intrin", &intrin);
-    v->Visit("inputs", &inputs);
-    v->Visit("input_regions", &input_regions);
-    v->Visit("scalar_inputs", &scalar_inputs);
-  }
-
-  static constexpr const char* _type_key = "TensorComputeOp";
-  TVM_DECLARE_FINAL_OBJECT_INFO(TensorComputeOpNode, BaseComputeOpNode);
-};
-
-/*!
- * \brief Managed reference to TensorComputeOpNode
- * \sa TensorComputeOpNode
- */
-class TensorComputeOp : public Operation {
- public:
-  TVM_DLL TensorComputeOp(std::string name, std::string tag, Array<IterVar> axis,
-                          Array<IterVar> reduce_axis, int schedulable_ndim, TensorIntrin intrin,
-                          Array<Tensor> tensors, Array<Region> regions,
-                          Array<PrimExpr> scalar_inputs);
-
-  TVM_DEFINE_OBJECT_REF_METHODS(TensorComputeOp, Operation, TensorComputeOpNode);
 };
 
 /*!
@@ -360,21 +214,9 @@ class ScanOpNode : public OperationNode {
   ScanOpNode() {}
   // override behavior.
   int num_outputs() const final;
-  Array<IterVar> root_iter_vars() const final;
   DataType output_dtype(size_t i) const final;
   Array<PrimExpr> output_shape(size_t i) const final;
   Array<Tensor> InputTensors() const final;
-  Operation ReplaceInputs(const Operation& self,
-                          const std::unordered_map<Tensor, Tensor>& rmap) const final;
-  void PropBoundToInputs(const Operation& self, arith::Analyzer* analyzer,
-                         const std::unordered_map<const VarNode*, IntSet>& dom_map,
-                         std::unordered_map<Tensor, TensorDom>* out_dom_map) const final;
-  void GatherBound(const Operation& self, const std::unordered_map<Tensor, TensorDom>& tensor_dom,
-                   std::unordered_map<IterVar, Range>* out_dom_map) const final;
-  Stmt BuildRealize(const Stage& stage, const std::unordered_map<IterVar, Range>& realize_map,
-                    const Stmt& body, String storage_scope = "") const final;
-  Stmt BuildProvide(const Stage& stage, const std::unordered_map<IterVar, Range>& dom_map,
-                    bool debug_keep_trivial_loop) const final;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("name", &name);
@@ -423,21 +265,9 @@ class ExternOpNode : public OperationNode {
   ExternOpNode() {}
   // override functions
   int num_outputs() const final;
-  Array<IterVar> root_iter_vars() const final;
   DataType output_dtype(size_t i) const final;
   Array<PrimExpr> output_shape(size_t i) const final;
   Array<Tensor> InputTensors() const final;
-  Operation ReplaceInputs(const Operation& self,
-                          const std::unordered_map<Tensor, Tensor>& rmap) const final;
-  void PropBoundToInputs(const Operation& self, arith::Analyzer* analyzer,
-                         const std::unordered_map<const VarNode*, IntSet>& dom_map,
-                         std::unordered_map<Tensor, TensorDom>* out_dom_map) const final;
-  void GatherBound(const Operation& self, const std::unordered_map<Tensor, TensorDom>& tensor_dom,
-                   std::unordered_map<IterVar, Range>* out_dom_map) const final;
-  Stmt BuildRealize(const Stage& stage, const std::unordered_map<IterVar, Range>& realize_map,
-                    const Stmt& body, String storage_scope = "") const final;
-  Stmt BuildProvide(const Stage& stage, const std::unordered_map<IterVar, Range>& dom_map,
-                    bool debug_keep_trivial_loop) const final;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("name", &name);
@@ -464,70 +294,6 @@ class ExternOp : public Operation {
                    Array<Buffer> output_placeholders, Stmt body);
 
   TVM_DEFINE_OBJECT_REF_METHODS(ExternOp, Operation, ExternOpNode);
-};
-
-/*!
- * \brief A computation operator that generated by hybrid script.
- */
-class HybridOpNode : public OperationNode {
- public:
-  /*! \brief The input tensors */
-  Array<Tensor> inputs;
-  /*! \brief Symbolic placeholder representation of outputs */
-  Array<Tensor> outputs;
-  /*! \brief The axis of iterations */
-  Array<IterVar> axis;
-  /*! \brief the statement that generates the computation. This is
-   * slightly different from the body in ExternOpNode. All the output
-   * tensors keep its own name specified by users in the script.
-   * However, when compilation, these tensors will be placed by those
-   * actual output tensors. */
-  Stmt body;
-
-  /*! \brief constructor */
-  HybridOpNode() {}
-  // override functions
-  int num_outputs() const final;
-  Array<IterVar> root_iter_vars() const final;
-  DataType output_dtype(size_t i) const final;
-  Array<PrimExpr> output_shape(size_t i) const final;
-  Array<Tensor> InputTensors() const final;
-  Operation ReplaceInputs(const Operation& self,
-                          const std::unordered_map<Tensor, Tensor>& rmap) const final;
-  void PropBoundToInputs(const Operation& self, arith::Analyzer* analyzer,
-                         const std::unordered_map<const VarNode*, IntSet>& dom_map,
-                         std::unordered_map<Tensor, TensorDom>* out_dom_map) const final;
-  void GatherBound(const Operation& self, const std::unordered_map<Tensor, TensorDom>& tensor_dom,
-                   std::unordered_map<IterVar, Range>* out_dom_map) const final;
-  Stmt BuildRealize(const Stage& stage, const std::unordered_map<IterVar, Range>& realize_map,
-                    const Stmt& body, String storage_scope = "") const final;
-  Stmt BuildProvide(const Stage& stage, const std::unordered_map<IterVar, Range>& dom_map,
-                    bool debug_keep_trivial_loop) const final;
-
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("name", &name);
-    v->Visit("tag", &tag);
-    v->Visit("attrs", &attrs);
-    v->Visit("inputs", &inputs);
-    v->Visit("outputs", &outputs);
-    v->Visit("axis", &axis);
-    v->Visit("body", &body);
-  }
-
-  static constexpr const char* _type_key = "HybridOp";
-  TVM_DECLARE_FINAL_OBJECT_INFO(HybridOpNode, OperationNode);
-};
-
-/*!
- * \brief Managed reference to HybridOpNode
- * \sa HybridOpNode
- */
-class HybridOp : public Operation {
- public:
-  TVM_DLL HybridOp(std::string name, std::string tag, Map<String, ObjectRef> attrs,
-                   Array<Tensor> inputs, Array<Tensor> outputs, Stmt body);
-
-  TVM_DEFINE_OBJECT_REF_METHODS(HybridOp, Operation, HybridOpNode);
 };
 
 /*!

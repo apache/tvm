@@ -26,6 +26,7 @@
 #define TVM_RELAX_ANALYSIS_GRAPH_PARTITIONER_H_
 
 #include <tvm/relax/op_attr_types.h>
+#include <tvm/relax/type.h>
 
 #include <unordered_map>
 #include <unordered_set>
@@ -266,11 +267,6 @@ class GraphPartitioner {
   void CommitFuse(IndexedForwardGraph::Node* src, IndexedForwardGraph::Node* sink);
 
   size_t CountNodesUptoSink_(IndexedForwardGraph::Node* src, IndexedForwardGraph::Node* sink);
-  // Count the number of additional arguments. In the case of dynamic shape,
-  // generated function takes several additional arguments, such as the sizes of
-  // the dynamic dimensions and strides.
-  // This function calculates the number of such additional arguments.
-  size_t CountAdditionalArgs_(const TensorTypeNode* ttype, bool with_strides = true);
   // Calculate the number of arguments for the node.
   size_t CountArgs_(IndexedForwardGraph::Node* src, const IndexedForwardGraph& graph,
                     bool update_postpone = true);

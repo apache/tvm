@@ -41,12 +41,8 @@ var KDLMetal                = int32(C.kDLMetal)
 var KDLVPI                  = int32(C.kDLVPI)
 // KDLROCM is golang enum correspond to TVM device type kDLROCM.
 var KDLROCM                 = int32(C.kDLROCM)
-// KDLSDAccel is golang enum correspond to TVM device type kDLSDAccel.
-var KDLSDAccel              = int32(C.kDLSDAccel)
 // KDLVulkan is golang enum correspond to TVM device type kDLVulkan.
 var KDLVulkan               = int32(C.kDLVulkan)
-// KOpenGL is golang enum correspond to TVM device type kOpenGL.
-var KOpenGL                 = int32(C.kOpenGL)
 // KExtDev is golang enum correspond to TVM device type kDLExtDev.
 var KExtDev                 = int32(C.kDLExtDev)
 
@@ -91,17 +87,7 @@ func ROCM(index int32) Device {
     return Device{KDLROCM, index}
 }
 
-// SDAccel returns the Device object for SDAccel target on given index
-func SDAccel(index int32) Device {
-    return Device{KDLSDAccel, index}
-}
-
 // Vulkan returns the Device object for Vulkan target on given index
 func Vulkan(index int32) Device {
     return Device{KDLVulkan, index}
-}
-
-// OpenGL returns the Device object for OpenGL target on given index
-func OpenGL(index int32) Device {
-    return Device{KOpenGL, index}
 }

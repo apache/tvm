@@ -225,11 +225,6 @@ size_t GraphPartitioner::CountFusedNodesWithNewChild(IndexedForwardGraph::Node* 
   return target->FindRoot()->num_nodes + CountNodesUptoSink_(child, dom_parent);
 }
 
-size_t GraphPartitioner::CountAdditionalArgs_(const TensorTypeNode* ttype, bool with_strides) {
-  // TODO(@syfeng): need to clean this up
-  return 0;
-}
-
 size_t GraphPartitioner::CountArgs_(IndexedForwardGraph::Node* src,
                                     const IndexedForwardGraph& graph, bool update_postpone) {
   std::unordered_set<Group*> visited_groups;
@@ -274,11 +269,6 @@ size_t GraphPartitioner::CountArgsLimit_(const IndexedForwardGraph::Node* child)
   size_t output_args = 0;
   while (outputs_list != nullptr) {
     output_args++;
-    if (auto call_node = GetRef<ObjectRef>(outputs_list->value.node->ref).as<CallNode>()) {
-      if (const auto* ttype = call_node->checked_type().as<TensorTypeNode>()) {
-        output_args += CountAdditionalArgs_(ttype, false);
-      }
-    }
     outputs_list = outputs_list->next;
   }
   return (max_function_args_ > output_args) ? max_function_args_ - output_args : 0;
@@ -302,26 +292,16 @@ void GraphPartitioner::InitGroups(const IndexedForwardGraph& graph) {
       for (auto& it : call_node->args) {
         if (it.as<VarNode>() || it.as<TupleGetItemNode>()) {
           args_num++;
-          if (const auto* ttype = it.as<ExprNode>()->checked_type().as<TensorTypeNode>()) {
-            args_num += CountAdditionalArgs_(ttype);
-          }
         }
       }
     } else if (auto tuple_node = GetRef<ObjectRef>(obj).as<TupleNode>()) {
       for (auto& it : tuple_node->fields) {
         if (it.as<VarNode>() || it.as<TupleGetItemNode>()) {
           args_num++;
-          if (const auto* ttype = it.as<ExprNode>()->checked_type().as<TensorTypeNode>()) {
-            args_num += CountAdditionalArgs_(ttype);
-          }
         }
       }
     } else if (GetRef<ObjectRef>(obj).as<VarNode>()) {
       args_num++;
-      if (const auto* ttype =
-              GetRef<ObjectRef>(obj).as<ExprNode>()->checked_type().as<TensorTypeNode>()) {
-        args_num += CountAdditionalArgs_(ttype);
-      }
     }
     return args_num;
   };
