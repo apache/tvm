@@ -425,15 +425,6 @@ TVM_REGISTER_TARGET_KIND("webgpu", kDLWebGPU)
     .add_attr_option<runtime::Int>("max_num_threads", runtime::Int(256))
     .set_default_keys({"webgpu", "gpu"});
 
-TVM_REGISTER_TARGET_KIND("sdaccel", kDLOpenCL)  // line break
-    .set_default_keys({"sdaccel", "hls"});
-
-TVM_REGISTER_TARGET_KIND("aocl", kDLAOCL)  // line break
-    .set_default_keys({"aocl", "hls"});
-
-TVM_REGISTER_TARGET_KIND("aocl_sw_emu", kDLAOCL)  // line break
-    .set_default_keys({"aocl", "hls"});
-
 TVM_REGISTER_TARGET_KIND("hexagon", kDLHexagon)
     .add_attr_option<Array<String>>("mattr")
     .add_attr_option<String>("mcpu")

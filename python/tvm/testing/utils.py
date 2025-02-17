@@ -456,7 +456,7 @@ DEFAULT_TEST_TARGETS = [
     "nvptx",
     "vulkan -from_device=0",
     "opencl",
-    "opencl -device=mali,aocl_sw_emu",
+    "opencl -device=mali",
     "opencl -device=intel_graphics",
     "metal",
     "rocm",

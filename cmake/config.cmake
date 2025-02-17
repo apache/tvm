@@ -78,12 +78,6 @@ set(USE_ROCM OFF)
 # - /path/to/rccl: use specific path to rccl
 set(USE_RCCL OFF)
 
-# Whether enable SDAccel runtime
-set(USE_SDACCEL OFF)
-
-# Whether enable Intel FPGA SDK for OpenCL (AOCL) runtime
-set(USE_AOCL OFF)
-
 # Whether enable OpenCL runtime
 #
 # Possible values:
@@ -293,9 +287,6 @@ set(USE_CLML_GRAPH_EXECUTOR OFF)
 # - OFF: disable ANTLR
 # - /path/to/antlr-*-complete.jar: path to specific ANTLR jar file
 set(USE_ANTLR OFF)
-
-# Whether use Relay debug mode
-set(USE_RELAY_DEBUG OFF)
 
 # Whether to enable debug code that may cause ABI changes
 set(TVM_DEBUG_WITH_ABI_CHANGE OFF)

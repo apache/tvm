@@ -64,7 +64,7 @@ from . import arith
 from . import support
 
 # Contrib initializers
-from .contrib import rocm as _rocm, nvcc as _nvcc, sdaccel as _sdaccel
+from .contrib import rocm as _rocm, nvcc as _nvcc
 
 # Relay and Relax contain modules that are only available in compiler package
 # Do not import them if TVM is built with runtime only
