@@ -22,7 +22,7 @@ import os
 import pathlib
 import sys
 
-from decorator import decorate
+import functools
 from .._ffi.base import string_types
 
 try:
@@ -139,6 +139,6 @@ def memoize(key, save_at_exit=False):
             cache.dirty = True
             return res
 
-        return decorate(f, _memoized_f)
+        return functools.wraps(f)(_memoized_f)
 
     return _register

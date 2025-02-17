@@ -121,24 +121,6 @@ def c_array(ctype, values):
     return (ctype * len(values))(*values)
 
 
-def decorate(func, fwrapped):
-    """A wrapper call of decorator package, differs to call time
-
-    Parameters
-    ----------
-    func : function
-        The original function
-
-    fwrapped : function
-        The wrapped function
-    """
-    @functools.wraps(func)
-    def wrapper(*args, **kwargs):
-        return fwrapped(func, *args, **kwargs)
-
-    return wrapper
-
-
 # -----------------------------------------
 # Base code for structured error handling.
 # -----------------------------------------

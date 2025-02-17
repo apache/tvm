@@ -16,7 +16,7 @@
 # under the License.
 """Tag class for TVM operators."""
 import warnings
-from tvm._ffi.base import decorate
+import functools
 
 
 class TagScope(object):
@@ -55,7 +55,7 @@ class TagScope(object):
             with self:
                 return func(*args, **kwargs)
 
-        return decorate(fdecl, tagged_fdecl)
+        return functools.wraps(fdecl)(tagged_fdecl)
 
 
 def tag_scope(tag):

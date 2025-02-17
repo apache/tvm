@@ -18,12 +18,7 @@
 
 import tvm._ffi
 
-try:
-    from decorator import decorate
-except ImportError:
-    # Allow decorator to be missing in runtime
-    if not tvm._ffi.base._RUNTIME_ONLY:
-        raise
+import functools
 
 from tvm.runtime import Object
 from .target import Target
@@ -197,7 +192,7 @@ def override_native_generic_func(func_name):
                 )
             return generic_func_node(*args)
 
-        fresult = decorate(fdefault, dispatch_func)
+        fresult = functools.wraps(fdefault)(dispatch_func)
         fresult.fdefault = fdefault
         fresult.register = register
         fresult.generic_func_node = generic_func_node
@@ -296,7 +291,7 @@ def generic_func(fdefault):
                 return dispatch_dict[k]
         return fdefault
 
-    fdecorate = decorate(fdefault, dispatch_func)
+    fdecorate = functools.wraps(fdefault)(dispatch_func)
     fdecorate.register = register
     fdecorate.fdefault = fdefault
     fdecorate.dispatch_dict = dispatch_dict
