@@ -114,9 +114,6 @@ set(USE_KHRONOS_SPIRV OFF)
 # whether enable SPIRV_KHR_DOT_PRODUCT
 set(USE_SPIRV_KHR_INTEGER_DOT_PRODUCT OFF)
 
-# Whether enable OpenGL runtime
-set(USE_OPENGL OFF)
-
 # Whether enable RPC runtime
 set(USE_RPC ON)
 
