@@ -38,11 +38,9 @@
 #include <vector>
 
 #include "../runtime/library_module.h"
-#include "../support/base64.h"
 
 namespace tvm {
 namespace codegen {
-
 
 runtime::Module Build(IRModule mod, Target target) {
   if (transform::PassContext::Current()

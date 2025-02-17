@@ -21,8 +21,8 @@
  * \file graph.h
  * \brief Utilities to get information about schedule graph.
  */
-#ifndef TVM_TE_SCHEDULE_GRAPH_H_
-#define TVM_TE_SCHEDULE_GRAPH_H_
+#ifndef TVM_TE_OPERATION_GRAPH_H_
+#define TVM_TE_OPERATION_GRAPH_H_
 
 #include <tvm/te/operation.h>
 #include <tvm/tir/expr.h>
@@ -59,4 +59,4 @@ Array<Operation> PostDFSOrder(const Array<Operation>& roots, const ReadGraph& g)
 }  // namespace te
 }  // namespace tvm
 
-#endif  // TVM_TE_SCHEDULE_GRAPH_H_
+#endif  // TVM_TE_OPERATION_GRAPH_H_

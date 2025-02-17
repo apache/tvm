@@ -89,18 +89,6 @@ TVM_DLL IRModule LowerPrimFunc(tvm::tir::PrimFunc func, const std::string& name,
                                bool simple_mode = false);
 
 /*!
- * \brief Build an IRModule given a TE schedule, args and binds. This function also applies
- * the lowering passes defined in CreatePassList.
- * \param sch The TE schedule to lower.
- * \param args The arguments to the function.
- * \param name The name of the lowered function.
- * \param binds Buffer assignments.
- * \param global_var_supply The GlobalVarSupply to be used in the module.
- * \param simple_mode Disables the loop partition pass. Defaults to false.
- * \return The result module.
- */
-
-/*!
  * \brief Build a device and host module for a specific target from an IRModule.
  * \param funcs The functions to be built.
  * \param target The target device to build for.

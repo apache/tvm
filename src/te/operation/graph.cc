@@ -29,6 +29,7 @@
 #include <tvm/tir/stmt_functor.h>
 
 #include <unordered_set>
+#include <vector>
 
 namespace tvm {
 namespace te {
