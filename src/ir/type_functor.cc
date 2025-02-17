@@ -27,8 +27,6 @@
 
 namespace tvm {
 
-void TypeVisitor::VisitType_(const TensorTypeNode* op) {}
-
 void TypeVisitor::VisitType_(const FuncTypeNode* op) {
   for (auto arg_type : op->arg_types) {
     this->VisitType(arg_type);
@@ -55,11 +53,6 @@ Array<Type> TypeMutator::MutateArray(Array<Type> arr) {
   // The array will do copy on write
   // If no changes are made, the original array will be returned.
   return arr.Map([this](const Type& ty) { return VisitType(ty); });
-}
-
-Type TypeMutator::VisitType_(const TensorTypeNode* op) {
-  // TODO(tvm-team) recursively visit to replace Var
-  return GetRef<Type>(op);
 }
 
 Type TypeMutator::VisitType_(const FuncTypeNode* op) {

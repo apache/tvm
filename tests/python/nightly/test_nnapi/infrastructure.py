@@ -79,7 +79,7 @@ def decompose_clip(mod: tvm.IRModule) -> tvm.IRModule:
 
 
 def _build(mod, enable_nnapi):
-    if isinstance(mod, tvm.relay.expr.Call):
+    if isinstance(mod, tvm.relax.expr.Call):
         mod = tvm.IRModule.from_expr(mod)
 
     if enable_nnapi:

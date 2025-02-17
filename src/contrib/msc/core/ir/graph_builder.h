@@ -48,9 +48,9 @@ namespace tvm {
 namespace contrib {
 namespace msc {
 
-using Expr = tvm::RelayExpr;
+using Expr = tvm::RelaxExpr;
 using RelaxExprVisitor = tvm::relax::ExprVisitor;
-using RelayExprVisitor = tvm::relay::ExprVisitor;
+using RelaxExprVisitor = tvm::relay::ExprVisitor;
 
 using tvm::runtime::NDArray;
 
@@ -348,7 +348,7 @@ class RelaxWeightsExtractor : public RelaxExprVisitor {
   IRModule ref_module_;
 };
 
-class RelayFuncAttrGetter : public RelayExprVisitor {
+class RelayFuncAttrGetter : public RelaxExprVisitor {
  public:
   /*! \brief Get the attributes as Map<String, String>*/
   Map<String, String> GetAttrs(const Expr& expr) {
@@ -381,7 +381,7 @@ class RelayFuncScope {
   Array<String> func_weights_;
 };
 
-class RelayGraphBuilder : public RelayExprVisitor {
+class RelayGraphBuilder : public RelaxExprVisitor {
  public:
   /*!
    * \brief The constructor of RelayGraphBuilder
@@ -391,7 +391,7 @@ class RelayGraphBuilder : public RelayExprVisitor {
    */
   explicit RelayGraphBuilder(const IRModule& ref_module, const String& name,
                              const std::string& options = "")
-      : RelayExprVisitor() {
+      : RelaxExprVisitor() {
     ref_module_ = ref_module;
     if (options.size() > 0) {
       std::istringstream is(options);
@@ -444,7 +444,7 @@ class RelayGraphBuilder : public RelayExprVisitor {
   std::stack<RelayFuncScope> func_scopes_;
 };
 
-class RelayWeightsExtractor : public RelayExprVisitor {
+class RelayWeightsExtractor : public RelaxExprVisitor {
  public:
   /*! \brief Visit the constant and save weights*/
   Map<MSCTensor, NDArray> GetWeights(const relay::Function& func);

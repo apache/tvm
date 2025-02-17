@@ -329,9 +329,6 @@ set(USE_MRVL OFF)
 # Whether to use QHL library
 set(USE_HEXAGON_QHL OFF)
 
-# Whether to use ONNX codegen
-set(USE_TARGET_ONNX OFF)
-
 # Whether enable BNNS runtime
 set(USE_BNNS OFF)
 

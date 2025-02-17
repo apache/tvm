@@ -339,9 +339,9 @@ namespace relay {
 /*!
  * \brief Name setter for Relay
  */
-class RelayExprNameSetter : public ExprVisitor {
+class RelaxExprNameSetter : public ExprVisitor {
  public:
-  explicit RelayExprNameSetter(const IRModule& ref_module) : ref_module_(ref_module) {}
+  explicit RelaxExprNameSetter(const IRModule& ref_module) : ref_module_(ref_module) {}
 
   void VisitExpr_(const ConstantNode* op) final {
     ExprVisitor::VisitExpr_(op);
@@ -460,16 +460,16 @@ class RelayExprNameSetter : public ExprVisitor {
   IRModule ref_module_;
 };  // class ExprNameSetter
 
-void SetRelayExprName(const IRModule& ref_module, const Expr& e) {
-  RelayExprNameSetter(ref_module).VisitExpr(e);
+void SetRelaxExprName(const IRModule& ref_module, const Expr& e) {
+  RelaxExprNameSetter(ref_module).VisitExpr(e);
 }
 
 /*!
  * \brief Name binder for Relay
  */
-class RelayExprNameBinder : public ExprVisitor {
+class RelaxExprNameBinder : public ExprVisitor {
  public:
-  explicit RelayExprNameBinder(const String& name_key, const String& seperator)
+  explicit RelaxExprNameBinder(const String& name_key, const String& seperator)
       : name_key_(name_key), seperator_(seperator) {}
 
   void VisitExpr_(const ConstantNode* op) final {
@@ -523,33 +523,33 @@ class RelayExprNameBinder : public ExprVisitor {
   String seperator_;
 };  // class ExprNameBinder
 
-void BindRelayExprName(const Expr& e, const String& name_key, const String& seperator) {
-  RelayExprNameBinder(name_key, seperator).VisitExpr(e);
+void BindRelaxExprName(const Expr& e, const String& name_key, const String& seperator) {
+  RelaxExprNameBinder(name_key, seperator).VisitExpr(e);
 }
 
 namespace transform {
 
-Pass SetRelayExprName(const String& entry_name) {
+Pass SetRelaxExprName(const String& entry_name) {
   runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func = [=](IRModule m,
                                                                             PassContext pc) {
-    relay::SetRelayExprName(m, m->Lookup(entry_name));
+    relay::SetRelaxExprName(m, m->Lookup(entry_name));
     return m;
   };
-  return CreateModulePass(pass_func, 0, "SetRelayExprName", {});
+  return CreateModulePass(pass_func, 0, "SetRelaxExprName", {});
 }
 
-TVM_REGISTER_GLOBAL("relay._transform.SetRelayExprName").set_body_typed(SetRelayExprName);
+TVM_REGISTER_GLOBAL("relay._transform.SetRelaxExprName").set_body_typed(SetRelaxExprName);
 
-Pass BindRelayExprName(const String& name_key, const String& seperator, const String& entry_name) {
+Pass BindRelaxExprName(const String& name_key, const String& seperator, const String& entry_name) {
   runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func = [=](IRModule m,
                                                                             PassContext pc) {
-    relay::BindRelayExprName(m->Lookup(entry_name), name_key, seperator);
+    relay::BindRelaxExprName(m->Lookup(entry_name), name_key, seperator);
     return m;
   };
-  return CreateModulePass(pass_func, 0, "BindRelayExprName", {});
+  return CreateModulePass(pass_func, 0, "BindRelaxExprName", {});
 }
 
-TVM_REGISTER_GLOBAL("relay._transform.BindRelayExprName").set_body_typed(BindRelayExprName);
+TVM_REGISTER_GLOBAL("relay._transform.BindRelaxExprName").set_body_typed(BindRelaxExprName);
 
 }  // namespace transform
 }  // namespace relay

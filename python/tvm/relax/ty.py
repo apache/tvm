@@ -17,7 +17,7 @@
 # pylint: disable=invalid-name, unused-import
 """The type nodes of the Relax language."""
 import tvm._ffi
-from tvm.ir import Type, TensorType, TupleType, FuncType, Span
+from tvm.ir import Type, TupleType, FuncType, Span
 
 from . import _ffi_api
 
@@ -47,7 +47,7 @@ class ObjectType(Type):
 
 
 @tvm._ffi.register_object("relax.DynTensorType")
-class DynTensorType(Type):
+class TensorType(Type):
     """A dynamic tensor type in Relax.
 
     This is the type assigned to tensors with a known dtype and unknown shape.
@@ -62,9 +62,7 @@ class DynTensorType(Type):
     """
 
     def __init__(self, ndim=-1, dtype="float32", span: Span = None) -> None:
-        self.__init_handle_by_constructor__(
-            _ffi_api.DynTensorType, ndim, dtype, span  # type: ignore
-        )
+        self.__init_handle_by_constructor__(_ffi_api.TensorType, ndim, dtype, span)  # type: ignore
 
 
 @tvm._ffi.register_object("relax.PackedFuncType")

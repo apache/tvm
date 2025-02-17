@@ -48,7 +48,7 @@ def one_hot(indices, on_value, off_value, depth, axis, dtype):
 
     Returns
     -------
-    ret : relay.Expr
+    ret : tvm.te.Tensor
         The one-hot tensor.
     """
     oshape = []

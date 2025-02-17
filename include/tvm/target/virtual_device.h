@@ -76,12 +76,8 @@ constexpr int kInvalidDeviceType = -1;
  * device_type must equal \p target->GetTargetDeviceType().
  *
  * Note that currently we assume if a function returns its result on a particular (virtual) device
- * then the function body is also executed on that device. See the overview comment in
- * src/relay/transforms/device_planner.cc for more details.
+ * then the function body is also executed on that device.
  *
- * By 'data' we include both tensors and additional supporting datastructures such as shapes,
- * Relay ADT items (including tuples), Relay references, and Relay closures. Typically non-tensor
- * data must reside on a 'CPU'-like host device with good support for scalars.
  *
  * By 'execution' we include both (fused) primitive operators, and all the Relay expressions
  * surrounding them which coordinates data and control flow. Again, typically non-primitive

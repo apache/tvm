@@ -1022,6 +1022,7 @@ requires_aprofile_aem_fvp = Feature(
     compile_time_check=_aprofile_aem_fvp_compile_time_check,
 )
 
+
 # check cpu features
 def _has_cpu_feat(features):
     cpu = codegen.llvm_get_system_cpu()
@@ -2182,25 +2183,3 @@ class CompareBeforeAfter:
                 f"or an instance of `tvm.tir.PrimFunc`.  "
                 f"Instead, received {type(expected)}."
             )
-
-
-class _control_span_filling:
-    def __init__(self, on=True):
-        self._on = on
-        self._pass_ctx = tvm.transform.PassContext(config={"relay.frontend.fill_span": self._on})
-
-    def __enter__(self):
-        self._pass_ctx.__enter__()
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self._pass_ctx.__exit__(exc_type, exc_val, exc_tb)
-
-
-class enable_span_filling(_control_span_filling):
-    def __init__(self):
-        super().__init__()
-
-
-class disable_span_filling(_control_span_filling):
-    def __init__(self):
-        super().__init__(on=False)

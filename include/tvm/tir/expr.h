@@ -886,7 +886,7 @@ class CallNode : public PrimExprNode {
    *  - It can be tvm::Op which corresponds to the primitive operators(intrinsics).
    *  - It can also be another function in the IRModule (GlobalVar).
    */
-  RelayExpr op;
+  RelaxExpr op;
 
   /*! \brief The arguments. */
   Array<PrimExpr> args;
@@ -917,7 +917,7 @@ class CallNode : public PrimExprNode {
  */
 class Call : public PrimExpr {
  public:
-  TVM_DLL Call(DataType dtype, RelayExpr op, Array<PrimExpr> args, Span span = Span());
+  TVM_DLL Call(DataType dtype, RelaxExpr op, Array<PrimExpr> args, Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(Call, PrimExpr, CallNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(CallNode);
 };

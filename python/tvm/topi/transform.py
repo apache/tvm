@@ -793,12 +793,12 @@ def one_hot(indices, on_value, off_value, depth, axis, dtype):
     axis : int
         Axis to fill.
 
-    dtype : relay.DataType
+    dtype : str
         Data type of the output tensor.
 
     Returns
     -------
-    ret : relay.Expr
+    ret : tvm.te.Tensor
         The one-hot tensor.
 
     Examples
@@ -807,7 +807,7 @@ def one_hot(indices, on_value, off_value, depth, axis, dtype):
 
         indices = [0, 1, 2]
 
-        relay.one_hot(indices, 3) =
+        topi.one_hot(indices, 3) =
             [[1, 0, 0],
              [0, 1, 0],
              [0, 0, 1]]
@@ -823,15 +823,15 @@ def unravel_index(indices, shape):
 
     Parameters
     ----------
-    indices : relay.Expr
+    indices : tvm.te.Tensor
         An integer array containing indices.
 
-    shape : relay.Expr
+    shape : tvm.te.Tensor
         The shape of the array.
 
     Returns
     -------
-    result : relay.Expr
+    result : tvm.te.Tensor
         The tuple of coordinate arrays.
     """
 
@@ -874,10 +874,10 @@ def matrix_set_diag(data, diagonal, k=0, align="RIGHT_LEFT"):
 
     Parameters
     ----------
-    data : relay.Expr
+    data : tvm.te.Tensor
         Input Tensor.
 
-    diagonal : relay.Expr
+    diagonal : tvm.te.Tensor
         Values to be filled in the diagonal.
 
     k : int or tuple of int, optional
@@ -897,7 +897,7 @@ def matrix_set_diag(data, diagonal, k=0, align="RIGHT_LEFT"):
 
     Returns
     -------
-    result : relay.Expr
+    result : tvm.te.Tensor
         New tensor with given diagonal values.
 
     Examples
@@ -964,7 +964,7 @@ def sliding_window(data, axis, window_shape, strides):
 
     Parameters
     ----------
-    data : relay.Expr
+    data : tvm.te.Tensor
         The input data to the operator.
 
     axis : int
@@ -983,7 +983,7 @@ def sliding_window(data, axis, window_shape, strides):
 
     Returns
     -------
-    result : relay.Expr
+    result : tvm.te.Tensor
         The resulting tensor.
     """
     return cpp.sliding_window(data, axis, window_shape, strides)
@@ -1011,7 +1011,7 @@ def trilu(data, k, upper):
 
     Returns
     -------
-    ret : relay.Expr
+    ret : tvm.te.Tensor
         The new tensor with appropriate diagonals set to zero.
 
     Examples
@@ -1022,7 +1022,7 @@ def trilu(data, k, upper):
              [3, 4, 5],
              [6, 7, 8]]
 
-        relay.trilu(x, True, 0) =
+        topi.trilu(x, True, 0) =
             [[0, 1, 2],
              [0, 4, 5],
              [0, 0, 8]]

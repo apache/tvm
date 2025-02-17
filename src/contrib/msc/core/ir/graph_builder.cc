@@ -844,7 +844,7 @@ void RelaxWeightsExtractor::VisitExpr_(const relax::CallNode* op) {
 }
 
 void RelayFuncAttrGetter::VisitExpr_(const relay::CallNode* op) {
-  RelayExprVisitor::VisitExpr_(op);
+  RelaxExprVisitor::VisitExpr_(op);
   if (op->attrs.defined()) {
     Map<String, String> attrs;
     AttrGetter getter(&attrs);
@@ -1107,7 +1107,7 @@ void RelayGraphBuilder::VisitExpr_(const relay::FunctionNode* op) {
   if (name_opt.defined()) {
     StartFuncScope(SpanUtils::GetAttr(op->span, msc_attr::kName));
   }
-  RelayExprVisitor::VisitExpr_(op);
+  RelaxExprVisitor::VisitExpr_(op);
   if (HasFuncScope()) {
     AddNode(GetRef<relay::Function>(op));
     EndFuncScope();
@@ -1120,7 +1120,7 @@ void RelayGraphBuilder::VisitExpr_(const relay::CallNode* op) {
     if (name_opt.defined()) {
       for (size_t i = 0; i < op->args.size(); i++) {
         if (!expr_tensor_map_.count(op->args[i])) {
-          RelayExprVisitor::VisitExpr(op->args[i]);
+          RelaxExprVisitor::VisitExpr(op->args[i]);
         }
         ICHECK(expr_tensor_map_.count(op->args[i]))
             << "Can not find argument " << relay::PrettyPrint(op->args[i]);
@@ -1128,7 +1128,7 @@ void RelayGraphBuilder::VisitExpr_(const relay::CallNode* op) {
       }
     }
   }
-  RelayExprVisitor::VisitExpr_(op);
+  RelaxExprVisitor::VisitExpr_(op);
   if (!HasFuncScope() && op->op->IsInstance<OpNode>()) {
     try {
       AddNode(GetRef<relay::Call>(op));
@@ -1144,12 +1144,12 @@ void RelayGraphBuilder::VisitExpr_(const relay::CallNode* op) {
 }
 
 void RelayGraphBuilder::VisitExpr_(const relay::TupleNode* val) {
-  RelayExprVisitor::VisitExpr_(val);
+  RelaxExprVisitor::VisitExpr_(val);
   AddNode(GetRef<relay::Tuple>(val));
 }
 
 void RelayGraphBuilder::VisitExpr_(const relay::TupleGetItemNode* val) {
-  RelayExprVisitor::VisitExpr_(val);
+  RelaxExprVisitor::VisitExpr_(val);
   AddNode(GetRef<relay::TupleGetItem>(val));
 }
 

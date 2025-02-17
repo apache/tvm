@@ -30,22 +30,7 @@ REPO_ROOT = Path(__file__).resolve().parent
 # that should be allocated to test shards in a round-robin fashion. These are
 # taken from the 20 (arbitrary number) of tests as from
 # https://ci.tlcpack.ai/job/tvm/job/main/2907/testReport
-_slowest_tests = [
-    "tests/python/topi/python/test_topi_conv2d_int8.py::test_conv2d_nchw[int8]",
-    "tests/python/topi/python/test_topi_conv2d_int8.py::test_conv2d_nchw[uint8]",
-    "tests/python/topi/python/test_topi_upsampling.py::test_upsampling3d",
-    "tests/python/topi/python/test_topi_upsampling.py::test_upsampling3d",
-    "tests/python/topi/python/test_topi_conv2d_int8.py::test_conv2d_nchw[int8]",
-    "tests/python/topi/python/test_topi_conv2d_int8.py::test_conv2d_nchw[uint8]",
-    "tests/python/topi/python/test_topi_conv2d_NCHWc.py::test_conv2d_NCHWc",
-    "tests/python/topi/python/test_topi_conv2d_hwnc_tensorcore.py::test_conv2d_hwnc_tensorcore",
-    "tests/python/contrib/test_tensorrt.py::test_binary[compile]",
-    "tests/python/topi/python/test_topi_conv2d_NCHWc.py::test_conv2d_NCHWc",
-    "tests/python/relay/test_py_converter.py::test_global_recursion",
-    "tests/python/relay/test_op_level6.py::test_topk",
-    "tests/python/topi/python/test_topi_conv2d_winograd.py::test_conv2d_nchw",
-    "tests/python/relay/test_py_converter.py::test_global_recursion",
-]
+_slowest_tests = []
 HARDCODED_ALLOCATIONS = {}
 for idx, test in enumerate(_slowest_tests):
     HARDCODED_ALLOCATIONS[test] = idx

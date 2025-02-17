@@ -16,7 +16,7 @@
  * under the License.
 
  * file runtime/contrib/tensorrt/tensorrt_builder.h
- * brief Contains TensorRTBuilder class which can be used to convert a relay
+ * brief Contains TensorRTBuilder class which can be used to convert a graph
  * program into a TRT engine which can be used for inference.
 */
 

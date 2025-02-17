@@ -461,7 +461,7 @@ class CallPatternNode : public DFPatternNode {
  public:
   /*!
    * \note The op field can be:
-   *  - relay::Op which corresponds to the primitive operators.
+   *  - relax::Op which corresponds to the primitive operators.
    *  - user defined functions (Function, GlobalVar, Var).
    */
   DFPattern op;               /*!< The operator (function) being invoked */

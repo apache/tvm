@@ -24,7 +24,7 @@
 #ifndef TVM_IR_TYPE_FUNCTOR_H_
 #define TVM_IR_TYPE_FUNCTOR_H_
 
-#include <tvm/ir/tensor_type.h>
+#include <tvm/ir/type.h>
 #include <tvm/node/functor.h>
 
 #include <string>
@@ -75,7 +75,6 @@ class TypeFunctor<R(const Type& n, Args...)> {
     return vtable(n, this, std::forward<Args>(args)...);
   }
   // Functions that can be overriden by subclass
-  virtual R VisitType_(const TensorTypeNode* op, Args... args) TYPE_FUNCTOR_DEFAULT;
   virtual R VisitType_(const FuncTypeNode* op, Args... args) TYPE_FUNCTOR_DEFAULT;
   virtual R VisitType_(const TupleTypeNode* op, Args... args) TYPE_FUNCTOR_DEFAULT;
   virtual R VisitType_(const PrimTypeNode* op, Args... args) TYPE_FUNCTOR_DEFAULT;
@@ -90,7 +89,6 @@ class TypeFunctor<R(const Type& n, Args...)> {
   static FType InitVTable() {
     FType vtable;
     // Set dispatch
-    TVM_TYPE_FUNCTOR_DISPATCH(TensorTypeNode);
     TVM_TYPE_FUNCTOR_DISPATCH(FuncTypeNode);
     TVM_TYPE_FUNCTOR_DISPATCH(TupleTypeNode);
     TVM_TYPE_FUNCTOR_DISPATCH(PrimTypeNode);
@@ -106,7 +104,6 @@ class TypeFunctor<R(const Type& n, Args...)> {
  */
 class TVM_DLL TypeVisitor : public TypeFunctor<void(const Type& n)> {
  public:
-  void VisitType_(const TensorTypeNode* op) override;
   void VisitType_(const FuncTypeNode* op) override;
   void VisitType_(const TupleTypeNode* op) override;
   void VisitType_(const PrimTypeNode* op) override;
@@ -119,7 +116,6 @@ class TVM_DLL TypeVisitor : public TypeFunctor<void(const Type& n)> {
 class TVM_DLL TypeMutator : public TypeFunctor<Type(const Type& n)> {
  public:
   Type VisitType(const Type& t) override;
-  Type VisitType_(const TensorTypeNode* op) override;
   Type VisitType_(const FuncTypeNode* op) override;
   Type VisitType_(const TupleTypeNode* op) override;
   Type VisitType_(const PrimTypeNode* op) override;

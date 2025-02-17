@@ -2426,7 +2426,7 @@ class MaxUnpool(OnnxOpConverter):
             total_output_shape = output_shape
 
         elif pads is not None:
-            # Get pads in the proper format for relay.
+            # Get pads in the proper format
             pads = _np.concatenate([[0, 0, 0, 0], list(pads)], axis=0)
             pads = _np.reshape(pads, [-1, 2])
             # Compute the total padding per axis.

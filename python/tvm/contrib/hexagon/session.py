@@ -28,11 +28,6 @@ from tvm import relax
 from tvm import rpc as _rpc
 from tvm.contrib import utils
 import tvm.contrib.hexagon as hexagon
-from tvm.relay.backend.executor_factory import (
-    ExecutorFactoryModule,
-    AOTExecutorFactoryModule,
-    GraphExecutorFactoryModule,
-)
 from .tools import export_module, HEXAGON_SIMULATOR_NAME
 
 
@@ -206,86 +201,6 @@ class Session:
         )
         return self._rpc.get_function("tvm.hexagon.load_module")(str(remote_file_path))
 
-    def get_graph_executor(
-        self,
-        graph_json: str,
-        module_name: Union[str, pathlib.Path, tvm.runtime.Module],
-    ):
-        """Create a local GraphModule which consumes a remote libmod.
-
-        The session must be established (via __enter__) prior to
-        calling this function.
-
-        Parameters
-        ----------
-        module_name : Union[str, pathlib.Path, tvm.runtime.Module]
-            The remote module filename, following the same restrictions
-            as `load_module`.
-        graph_json : str
-            The string with the graph JSON.
-
-        Returns
-        -------
-        GraphModule :
-            Runtime graph module that can be used to execute the graph.
-
-        """
-        graph_mod = self.load_module(module_name)
-        self._set_device_type(graph_mod)
-        return tvm.contrib.graph_executor.create(graph_json, graph_mod, self.device)
-
-    def get_aot_executor(
-        self,
-        module_file: Union[str, pathlib.Path],
-    ):
-        """Create a local GraphModule which consumes a remote libmod.
-        The session must be established (via __enter__) prior to
-        calling this function.
-        Parameters
-        ----------
-        module_file : Union[str, pathlib.Path]
-            The remote module filename, following the same restrictions
-            as `load_module`. The filename should be an absolute path.
-        Returns
-        -------
-        GraphModule :
-            Runtime graph module that can be used to execute the graph.
-        """
-        # Temporary workaround for https://github.com/apache/tvm/issues/13741
-        self.aot_mod = self.load_module(module_file)
-        return tvm.runtime.executor.AotModule(self.aot_mod["default"](self.device))
-
-    def get_graph_debug_executor(
-        self,
-        graph_json: str,
-        module_name: Union[str, pathlib.Path, tvm.runtime.Module],
-        dump_root: Union[str, pathlib.Path] = None,
-    ):
-        """Create a local GraphModuleDebug which consumes a remote libmod.
-
-        Parameters
-        ----------
-        graph_json : str
-            The string with the graph JSON.
-         module_name : Union[str, pathlib.Path, tvm.runtime.Module]
-            The remote module filename, following the same restrictions
-            as `load_module`.
-        session : Session
-            Remote session. The session must be established (via __enter__)
-            prior to calling this function.
-
-        Returns
-        -------
-        GraphModuleDebug :
-            Runtime debug graph module that can be used to debug the graph.
-        """
-
-        graph_debug_mod = self.load_module(module_name)
-        self._set_device_type(graph_debug_mod)
-        return tvm.contrib.debugger.debug_executor.create(
-            graph_json, graph_debug_mod, self.device, dump_root=str(dump_root)
-        )
-
     def get_executor_from_factory(
         self, module: Union[ExecutorFactoryModule, relax.Executable, str], hexagon_arch: str = "v68"
     ):
@@ -294,17 +209,13 @@ class Session:
         Parameters
         ----------
 
-        module : Union[ExecutorFactoryModule, relax.Executable, str]
+        module : Union[relax.Executable]
 
             The module to upload to the remote
             session and load.
         hexagon_arch : str
             The hexagon arch to be used
         """
-        if isinstance(module, AOTExecutorFactoryModule):
-            return self._aot_executor_from_factory(module)
-        if isinstance(module, GraphExecutorFactoryModule):
-            return self._graph_executor_from_factory(module)
         if isinstance(module, (relax.Executable, str)):
             return self._relax_vm_executable_executor(module, hexagon_arch=hexagon_arch)
 
@@ -331,32 +242,6 @@ class Session:
                 self._requires_cpu_device = True
             else:
                 self._requires_cpu_device = False
-
-    def _graph_executor_from_factory(
-        self,
-        module: Union[str, pathlib.Path, GraphExecutorFactoryModule],
-    ):
-        """Create a local GraphModule which consumes a remote libmod.
-
-        The session must be established (via __enter__) prior to
-        calling this function.
-
-        Parameters
-        ----------
-
-        module : GraphExecutorFactoryModule
-
-            The graph executor module to upload to the remote and load.
-            This will typically be the output of `tvm.relay.build`,
-            when passing `executor=Executor("graph")`.
-
-        Returns
-        -------
-        GraphModule :
-            Runtime graph module that can be used to execute the graph.
-
-        """
-        return self.get_graph_executor(module.get_graph_json(), module.get_lib())
 
     def _relax_vm_executable_executor(
         self, vm_exec: Union[relax.Executable, str], hexagon_arch: str
@@ -396,75 +281,6 @@ class Session:
 
         path = self.upload(path_exec, "exec.so")
         return self._rpc.get_function("tvm.hexagon.load_module")(str(path))
-
-    def _aot_executor_from_factory(
-        self,
-        module: Union[str, pathlib.Path, AOTExecutorFactoryModule],
-    ):
-        """Create a local GraphModule which consumes a remote libmod.
-
-        The session must be established (via __enter__) prior to
-        calling this function.
-
-        Parameters
-        ----------
-
-        module : AOTExecutorFactoryModule
-
-            The graph executor module to upload to the remote and load.
-            This will typically be the output of `tvm.relay.build`,
-            when passing `executor=Executor("aot")`.
-
-        Returns
-        -------
-        GraphModule :
-            Runtime graph module that can be used to execute the graph.
-
-        """
-
-        hexagon_arch = set(
-            target.mcpu.replace("hexagon", "")
-            for target in module.target
-            if "hexagon" in target.keys
-        )
-
-        self._set_device_type(module)
-
-        for target in module.target:
-            target_type = str(target).split()[0]
-
-        assert hexagon_arch, "No hexagon target architecture found"
-        assert len(hexagon_arch) == 1, f"Inconsistent hexagon architecture found, {hexagon_arch}"
-        hexagon_arch = hexagon_arch.pop()
-
-        with tempfile.TemporaryDirectory() as temp_dir:
-            temp_dir = pathlib.Path(temp_dir)
-            binary_name = "test_binary.so"
-            binary_path = temp_dir / binary_name
-
-            if target_type == "hexagon":
-                module.export_library(
-                    str(binary_path),
-                    fcompile=hexagon.create_aot_shared,
-                    fpack_imports=hexagon.pack_imports,
-                    hexagon_arch=hexagon_arch,
-                )
-            elif target_type == "llvm":
-                module.export_library(
-                    str(binary_path),
-                    fcompile=hexagon.create_shared,
-                    fpack_imports=hexagon.pack_imports,
-                    cc=hexagon.hexagon_clang_plus(),
-                )
-            else:
-                raise ValueError(
-                    "Incorrect Target kind.\n"
-                    "Target kind should be from these options: [hexagon, llvm]."
-                )
-
-            remote_file_path = self.upload(binary_path, binary_name)
-
-        return self.get_aot_executor(remote_file_path)
 
     def get_profile_output(self, mode: str, path: str):
         assert isinstance(mode, str), f"Invalid mode type, {type(mode)} != str"

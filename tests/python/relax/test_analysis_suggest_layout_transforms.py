@@ -476,7 +476,7 @@ def test_op_reduce():
 
 
 def test_op_upsampling():
-    # relay materializes the layout if H, W or D dimensions are moved or tiled.
+    # relax materializes the layout if H, W or D dimensions are moved or tiled.
     @T.prim_func(private=True)
     def before(
         arg: T.Buffer((32, 64, 224, 224), "float32"),

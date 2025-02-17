@@ -55,7 +55,7 @@ from .ty import (
     Type,
     ObjectType,
     ShapeType,
-    DynTensorType,
+    TensorType,
     TupleType,
     FuncType,
     PackedFuncType,

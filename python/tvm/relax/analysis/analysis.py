@@ -334,7 +334,7 @@ def post_order_visit(expr, fvisit):
 
     Parameters
     ----------
-    expr : tvm.relay.Expr
+    expr : tvm.relax.Expr
         The input expression.
 
     fvisit : function

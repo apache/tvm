@@ -206,7 +206,7 @@ def test_binary_shape_type_deduction():
             gv0 = bb.emit_output(lv3)
         bb.emit_func_output(gv0)
 
-        assert isinstance(gv0.checked_type, rx.DynTensorType)
+        assert isinstance(gv0.checked_type, rx.TensorType)
         assert gv0.checked_type.ndim == 1
         assert gv0.checked_type.dtype == "float16"
 
