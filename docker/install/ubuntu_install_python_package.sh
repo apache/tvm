@@ -25,7 +25,6 @@ pip3 install --upgrade \
     "Pygments>=2.4.0" \
     cloudpickle \
     cython \
-    decorator \
     mypy \
     numpy==1.21.* \
     orderedset \
