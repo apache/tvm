@@ -76,9 +76,6 @@ COPY install/ubuntu_install_rocm.sh /install/ubuntu_install_rocm.sh
 RUN bash /install/ubuntu_install_rocm.sh
 
 # DL Frameworks
-COPY install/ubuntu_install_mxnet.sh /install/ubuntu_install_mxnet.sh
-RUN bash /install/ubuntu_install_mxnet.sh
-
 COPY install/ubuntu_install_gluoncv.sh /install/ubuntu_install_gluoncv.sh
 RUN bash /install/ubuntu_install_gluoncv.sh
 
@@ -91,9 +88,6 @@ RUN bash /install/ubuntu_install_tensorflow.sh
 COPY install/ubuntu_install_jax.sh /install/ubuntu_install_jax.sh
 RUN bash /install/ubuntu_install_jax.sh "cuda"
 
-COPY install/ubuntu_install_darknet.sh /install/ubuntu_install_darknet.sh
-RUN bash /install/ubuntu_install_darknet.sh
-
 COPY install/ubuntu_install_onnx.sh /install/ubuntu_install_onnx.sh
 RUN bash /install/ubuntu_install_onnx.sh
 
@@ -103,22 +97,12 @@ RUN bash /install/ubuntu_install_libtorch.sh
 COPY install/ubuntu_install_tflite.sh /install/ubuntu_install_tflite.sh
 RUN bash /install/ubuntu_install_tflite.sh
 
-COPY install/ubuntu_install_nnef.sh /install/ubuntu_install_nnef.sh
-RUN bash /install/ubuntu_install_nnef.sh
-
 COPY install/ubuntu_install_dgl.sh /install/ubuntu_install_dgl.sh
 RUN bash /install/ubuntu_install_dgl.sh
 
 ENV NVIDIA_DRIVER_CAPABILITIES compute,graphics,utility
 COPY install/ubuntu_install_vulkan.sh /install/ubuntu_install_vulkan.sh
 RUN bash /install/ubuntu_install_vulkan.sh
-
-COPY install/ubuntu_install_paddle.sh /install/ubuntu_install_paddle.sh
-RUN bash /install/ubuntu_install_paddle.sh
-
-# OneFlow deps
-COPY install/ubuntu_install_oneflow.sh /install/ubuntu_install_oneflow.sh
-RUN bash /install/ubuntu_install_oneflow.sh
 
 # Rust env (build early; takes a while)
 COPY install/ubuntu_install_rust.sh /install/ubuntu_install_rust.sh

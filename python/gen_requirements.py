@@ -75,41 +75,8 @@ REQUIREMENTS_BY_PIECE: RequirementsByPieceType = [
             ],
         ),
     ),
-    # Provide support for Arm(R) Ethos(TM)-U NPU.
-    (
-        "ethosu",
-        (
-            "Requirements for using Arm(R) Ethos(TM)-U NPU",
-            [
-                "ethos-u-vela",
-            ],
-        ),
-    ),
     # Relay frontends.
-    (
-        "importer-caffe",
-        (
-            "Requirements for the Caffe importer",
-            [
-                "numpy",
-                "protobuf",
-                "scikit-image",
-                "six",
-            ],
-        ),
-    ),
-    (
-        "importer-caffe2",
-        (
-            "Requirements for the Caffe2 importer",
-            [
-                "future",  # Hidden dependency of torch.
-                "torch",
-            ],
-        ),
-    ),
     ("importer-coreml", ("Requirements for the CoreML importer", ["coremltools"])),
-    ("importer-darknet", ("Requirements for the DarkNet importer", ["opencv-python"])),
     (
         "importer-keras",
         ("Requirements for the Keras importer", ["tensorflow", "tensorflow-estimator"]),
@@ -127,10 +94,6 @@ REQUIREMENTS_BY_PIECE: RequirementsByPieceType = [
                 "torchvision",
             ],
         ),
-    ),
-    (
-        "importer-paddle",
-        ("Requirements for the PaddlePaddle importer", ["paddlepaddle"]),
     ),
     (
         "importer-pytorch",
@@ -161,7 +124,6 @@ REQUIREMENTS_BY_PIECE: RequirementsByPieceType = [
                 "onnx",
                 "onnxoptimizer",
                 "onnxruntime",
-                "paddlepaddle",
                 "tensorflow",
                 "tflite",
                 "torch",
@@ -245,7 +207,6 @@ CONSTRAINTS = [
     ("onnxoptimizer", None),
     ("onnxruntime", None),
     ("opencv-python", None),
-    ("paddlepaddle", None),
     ("pillow", None),
     ("progressbar", None),
     ("protobuf", None),
