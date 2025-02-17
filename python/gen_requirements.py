@@ -170,17 +170,6 @@ REQUIREMENTS_BY_PIECE: RequirementsByPieceType = [
             ],
         ),
     ),
-    # Vitis AI requirements
-    (
-        "vitis-ai",
-        (
-            "Requirements for the Vitis AI codegen",
-            [
-                "h5py",
-                "progressbar",
-            ],
-        ),
-    ),
     # XGBoost, useful for autotuning on some targets.
     (
         "xgboost",

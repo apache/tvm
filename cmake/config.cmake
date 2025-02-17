@@ -138,12 +138,6 @@ set(USE_IOS_RPC OFF)
 # Whether embed stackvm into the runtime
 set(USE_STACKVM_RUNTIME OFF)
 
-# Whether enable tiny embedded graph executor.
-set(USE_GRAPH_EXECUTOR ON)
-
-# Whether enable tiny graph executor with CUDA Graph
-set(USE_GRAPH_EXECUTOR_CUDA_GRAPH OFF)
-
 # Whether enable pipeline executor.
 set(USE_PIPELINE_EXECUTOR OFF)
 
@@ -284,9 +278,6 @@ set(USE_ARM_COMPUTE_LIB_GRAPH_EXECUTOR OFF)
 #                        TensorRT library. OFF/ON/"path/to/TensorRT"
 set(USE_TENSORRT_CODEGEN OFF)
 set(USE_TENSORRT_RUNTIME OFF)
-
-# Whether use VITIS-AI codegen
-set(USE_VITIS_AI OFF)
 
 # Build Verilator codegen and runtime
 set(USE_VERILATOR OFF)

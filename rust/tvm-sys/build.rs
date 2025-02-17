@@ -186,9 +186,6 @@ fn find_using_tvm_build() -> Result<TVMInstall> {
     if cfg!(feature = "use-tensorrt-runtime") {
         build_config.settings.use_tensorrt_runtime = CMakeSetting::from_str("on").ok();
     }
-    if cfg!(feature = "use-vitis-ai") {
-        build_config.settings.use_vitis_ai = Some(true);
-    }
     if cfg!(any(
         feature = "static-linking",
         feature = "build-static-runtime"

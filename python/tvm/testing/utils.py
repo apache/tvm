@@ -1022,10 +1022,6 @@ requires_aprofile_aem_fvp = Feature(
     compile_time_check=_aprofile_aem_fvp_compile_time_check,
 )
 
-# Mark a test as requiring Vitis AI to run
-requires_vitis_ai = Feature("vitis_ai", "Vitis AI", cmake_flag="USE_VITIS_AI")
-
-
 # check cpu features
 def _has_cpu_feat(features):
     cpu = codegen.llvm_get_system_cpu()

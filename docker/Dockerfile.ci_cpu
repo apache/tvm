@@ -101,10 +101,6 @@ RUN bash /install/ubuntu_install_jax.sh "cpu"
 COPY install/ubuntu_download_arm_compute_lib_binaries.sh /install/ubuntu_download_arm_compute_lib_binaries.sh
 RUN bash /install/ubuntu_download_arm_compute_lib_binaries.sh
 
-# Vitis-AI PyXIR CI deps
-COPY install/ubuntu_install_vitis_ai_packages_ci.sh /install/ubuntu_install_vitis_ai_packages_ci.sh
-RUN bash /install/ubuntu_install_vitis_ai_packages_ci.sh
-
 # PaddlePaddle deps
 COPY install/ubuntu_install_paddle.sh /install/ubuntu_install_paddle.sh
 RUN bash /install/ubuntu_install_paddle.sh
