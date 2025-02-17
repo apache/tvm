@@ -90,6 +90,14 @@ TVM_REGISTER_GLOBAL("vm.builtin.attention_kv_cache_mla_absorbed")
                             std::move(k_pe_data), std::move(o_data), attn_score_scaling_factor);
     });
 
+    TVM_REGISTER_GLOBAL("vm.builtin.attention_kv_cache_mla_normal")
+    .set_body_typed([](AttentionKVCache kv_cache, int64_t layer_id,
+                       double attn_score_scaling_factor, NDArray q_data, NDArray k_data, NDArray v_data, NDArray compressed_kv_data,
+                       NDArray k_pe_data, NDArray o_data) {
+      kv_cache->MLANormal(layer_id, std::move(q_data), std::move(k_data), std::move(v_data), std::move(compressed_kv_data),
+                            std::move(k_pe_data), std::move(o_data), attn_score_scaling_factor);
+    });
+
 // RNN State methods
 TVM_REGISTER_GLOBAL("vm.builtin.rnn_state_get").set_body_method<RNNState>(&RNNStateObj::Get);
 TVM_REGISTER_GLOBAL("vm.builtin.rnn_state_set")

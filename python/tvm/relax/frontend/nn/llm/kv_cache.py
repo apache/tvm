@@ -180,6 +180,49 @@ class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
             )
         ).reshape(b, s, h_qo, kv_lora_rank)
 
+    def mla_normal(
+        self,
+        layer_id: int,
+        q: Tensor,
+        k: Tensor,
+        v: Tensor,
+        compressed_kv: Tensor,
+        k_pe: Tensor,
+        attn_score_scaling_factor: float = 1.0,
+    ) -> Tensor:
+        """Compute multi-head latent attention with the given data
+        on the specified layer using the normal flow(WITHOUT weight absorption).
+        """
+        # pylint: disable=protected-access
+        b, s, h_qo, d_qk = q._expr.struct_info.shape
+        d_v = v._expr.struct_info.shape[3]
+        kv_lora_rank = compressed_kv._expr.struct_info.shape[3]
+        qk_rope_head_dim = k_pe._expr.struct_info.shape[3]
+        q = q.reshape(b * s, h_qo, d_qk)
+        k = k.reshape(b * s, h_qo, d_qk)
+        v = v.reshape(b * s, h_qo, d_v)
+        compressed_kv = compressed_kv.reshape(b * s, kv_lora_rank)
+        k_pe = k_pe.reshape(b * s, qk_rope_head_dim)
+
+        return Tensor(
+            _expr=rx.BlockBuilder.current().emit(
+                rx.call_dps_packed(
+                    "vm.builtin.attention_kv_cache_mla_normal",
+                    [
+                        self._expr,
+                        rx.PrimValue(layer_id),  # type: ignore[arg-type]
+                        rx.PrimValue(attn_score_scaling_factor),
+                        q._expr,
+                        k._expr,
+                        v._expr,
+                        compressed_kv._expr,
+                        k_pe._expr,
+                    ],
+                    out_sinfo=rx.TensorStructInfo((b * s, h_qo, d_v), q.dtype),
+                )
+            )
+        ).reshape(b, s, h_qo, d_v)
+
     def get_query_positions(self, total_length: tir.PrimExpr) -> Tensor:
         """Get the in-sequence positions of each slot in the query,
         which are needed for applying positional embeddings in some models.
@@ -591,7 +634,7 @@ class TIRPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-methods
             rx.PrimValue(0),
             bb.add_func(_attention_prefill_mla(num_attention_heads, kv_lora_rank, qk_rope_head_dim, dtype, False, target), "tir_attention_prefill_mla"),
             bb.add_func(_attention_decode_mla(num_attention_heads, kv_lora_rank, qk_rope_head_dim, dtype, False, target), "tir_attention_decode_mla"),
-            bb.add_func(_attention_prefill_ragged(num_key_value_heads, num_attention_heads, v_head_dim, dtype, {}, target), "tir_attention_prefill_ragged_mla_normal"),
+            bb.add_func(_attention_prefill_ragged_generic(num_key_value_heads, num_attention_heads, qk_rope_head_dim, v_head_dim, dtype, {}, target), "tir_attention_prefill_ragged_mla_normal"),
             bb.add_func(_attention_prefill_ragged_mla_absorbed(num_attention_heads, kv_lora_rank, qk_rope_head_dim, dtype, target), "tir_attention_prefill_ragged_mla_absorbed"),
             bb.add_func(_merge_state_inplace(num_attention_heads, kv_lora_rank, dtype, target), "tir_attention_merge_state"),
             bb.add_func(llama_rope_with_position_map(10000, 1, qk_rope_head_dim, num_attention_heads, num_key_value_heads, dtype, {}, None), "tir_split_rotary"),
