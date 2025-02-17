@@ -122,7 +122,7 @@ def c_array(ctype, values):
 
 
 def decorate(func, fwrapped):
-    """A wrapper call of decorator package, differs to call time
+    """A wrapper call using functools.wraps
 
     Parameters
     ----------
@@ -132,9 +132,7 @@ def decorate(func, fwrapped):
     fwrapped : function
         The wrapped function
     """
-    import decorator
-
-    return decorator.decorate(func, fwrapped)
+    return functools.wraps(func)(fwrapped)
 
 
 # -----------------------------------------
