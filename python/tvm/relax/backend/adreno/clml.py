@@ -134,11 +134,6 @@ def clml_pattern_table():
             if weight_dtype not in ["float32", "float16"]:
                 return False
 
-        if "pad_val" in context.annotated_expr:
-            pad_expr = context.annotated_expr["pad_val"]
-            if 0 != pad_expr.data.numpy():
-                return False
-
         return True
 
     def populate_patterns(patterns, name, op, annotations, *args):
@@ -159,7 +154,6 @@ def clml_pattern_table():
         bn_bias = is_const()
         bn_mean = is_const()
         bn_var = is_const()
-        pad_val = is_const()
 
         annotations = {
             "data": data,
@@ -173,9 +167,8 @@ def clml_pattern_table():
         }
 
         pad_annotations = annotations.copy()
-        pad_annotations.update({"pad_val": pad_val})
         patterns["pad.nn.conv2d"] = {
-            "pattern": is_op("relax.nn.conv2d")(is_op("relax.nn.pad")(data, pad_val), weight),
+            "pattern": is_op("relax.nn.conv2d")(is_op("relax.nn.pad")(data), weight),
             "annotation": pad_annotations,
         }
 

@@ -23,7 +23,7 @@ from tvm import relax
 def library_dispatch_passes(target: tvm.target.Target):  # pylint: disable=unused-argument
     """The default library dispatch passes for Adreno GPU backend."""
     if "clml" in target.keys:
-        return [tvm.relax.backend.adreno.clml.OpenCLMLOffLoad()]
+        return [relax.backend.adreno.clml.OpenCLMLOffLoad()]
     else:
         return []
 
@@ -31,14 +31,14 @@ def library_dispatch_passes(target: tvm.target.Target):  # pylint: disable=unuse
 def legalize_passes(target: tvm.target.Target):  # pylint: disable=unused-argument
     """The default legalization passes for Adreno GPU backend."""
     return [
-        tvm.relax.transform.DecomposeOpsForInference(),
-        tvm.relax.transform.FoldConstant(),
-        tvm.relax.transform.LegalizeOps(),
-        tvm.relax.transform.AnnotateTIROpPattern(),
-        tvm.relax.transform.FoldConstant(),
-        tvm.relax.transform.FuseOps(),
-        tvm.relax.transform.FuseTIR(),
-        tvm.relax.transform.DeadCodeElimination(),
+        relax.transform.DecomposeOpsForInference(),
+        relax.transform.FoldConstant(),
+        relax.transform.LegalizeOps(),
+        relax.transform.AnnotateTIROpPattern(),
+        relax.transform.FoldConstant(),
+        relax.transform.FuseOps(),
+        relax.transform.FuseTIR(),
+        relax.transform.DeadCodeElimination(),
         dl.ApplyDefaultSchedule(
             dl.gpu.Reduction(),
             dl.gpu.GeneralReduction(),
@@ -49,12 +49,12 @@ def legalize_passes(target: tvm.target.Target):  # pylint: disable=unused-argume
 
 def dataflow_lower_passes(target: tvm.target.Target):  # pylint: disable=unused-argument
     """The default dataflow lowering passes for Adreno GPU backend."""
-    return tvm.relax.backend.gpu_generic.library_dispatch_passes(target)
+    return relax.backend.gpu_generic.library_dispatch_passes(target)
 
 
 def finalize_passes(target: tvm.target.Target):  # pylint: disable=unused-argument
     """The default finalization passes for Adreno GPU backend."""
-    return tvm.relax.backend.gpu_generic.finalize_passes(target)
+    return relax.backend.gpu_generic.finalize_passes(target)
 
 
 def get_default_pipeline(target: tvm.target.Target):

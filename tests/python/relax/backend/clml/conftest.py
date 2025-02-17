@@ -19,7 +19,7 @@ import os
 import sys
 import tvm
 import pytest
-from tvm.autotvm.measure import request_remote
+from tvm import rpc as _rpc
 
 
 @pytest.fixture(scope="session")
@@ -33,6 +33,7 @@ def rpc():
         target_host = "llvm -mtriple=aarch64-linux-gnu"
         device_key = os.getenv("RPC_DEVICE_KEY", "android")
         cross_compile = os.getenv("TVM_NDK_CC", "aarch64-linux-android-g++")
-        return request_remote(device_key, host, port, timeout=1000)
+        tracker = _rpc.connect_tracker(host, port)
+        return tracker.request(device_key, priority=1, session_timeout=1000)
     else:
         return None
