@@ -613,20 +613,6 @@ Target::Target(TargetKind kind, Optional<ObjectRef> host, String tag, Array<Stri
   data_ = std::move(data);
 }
 
-bool Target::IsExternalCodegen() const {
-  TargetKindAttrMap<Bool> is_external_codegen_map =
-      TargetKind::GetAttrMap<Bool>(tvm::attr::kIsExternalCodegen);
-  TargetKindAttrMap<tvm::transform::Pass> relay_to_tir_map =
-      TargetKind::GetAttrMap<tvm::transform::Pass>(tvm::attr::kRelayToTIR);
-  return is_external_codegen_map.get(get()->kind, Bool(false)) ||
-         relay_to_tir_map.count(get()->kind);
-}
-
-bool Target::IsExternalCodegenFor(const Target& that) const {
-  return get()->GetTargetDeviceType() == that->GetTargetDeviceType() && IsExternalCodegen() &&
-         !that.IsExternalCodegen();
-}
-
 std::vector<std::string> TargetNode::GetKeys() const {
   std::vector<std::string> result;
   for (auto& expr : keys) {

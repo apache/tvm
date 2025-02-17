@@ -26,20 +26,12 @@
 #define TVM_SUPPORT_SCALARS_H_
 
 #include <string>
-#include <utility>
 
 #include "tvm/ir/expr.h"
-#include "tvm/relay/expr.h"
 #include "tvm/runtime/ndarray.h"
 
 namespace tvm {
 namespace support {
-
-/*! \brief Returns true if a tensor of empty shape and given dtype is considered a Relay scalar. */
-bool IsSimpleScalarDtype(DataType dtype);
-
-/*! \brief Returns true if \p constant_node is a float/int/bool scalar. */
-bool IsSimpleScalar(const relay::ConstantNode* constant_node);
 
 /*! \brief Returns NDArray 'scalar' for given TIR immediate. */
 runtime::NDArray IntImmToNDArray(const IntImm& int_imm);
@@ -64,6 +56,18 @@ FloatImm ValueToFloatImm(double value, int width);
 // 2^15 * (1 + 1023/1024)
 // See https://en.wikipedia.org/wiki/Half-precision_floating-point_format
 constexpr double kMaxFloat16 = 65504.0;
+
+// 2^127 * (1 + 127/128)
+// See https://en.wikipedia.org/wiki/Bfloat16_floating-point_format
+constexpr double kMaxBFloat16 = 3.895313892515354759047080037148786688e38;
+
+// 2^8 * (1 + 6/8)
+// See https://arxiv.org/pdf/2209.05433.pdf
+constexpr double kMaxE4M3 = 448;
+
+// 2^15 * (1 + 3/4)
+// See https://arxiv.org/pdf/2209.05433.pdf
+constexpr double kMaxE5M2 = 57344;
 
 }  // namespace support
 }  // namespace tvm

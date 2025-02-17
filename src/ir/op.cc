@@ -112,45 +112,6 @@ TVM_REGISTER_GLOBAL("ir.RegisterOp").set_body_typed([](String op_name, String de
   op.describe(descr);
 });
 
-// This is exposed FFI api for prototyping using in python.
-// Note: it is not full of the C++ type relation,
-// since in python side we don't have access to the type reporter,
-// and cannot propagate constraints to the inputs, only to the output.
-TVM_REGISTER_GLOBAL("ir.OpAddTypeRel")
-    .set_body_typed([](Op op, String rel_name, runtime::TVMArgValue value) {
-      auto& reg = OpRegistry::Global()->RegisterOrGet(op->name).set_name();
-      if (value.type_code() == kTVMPackedFuncHandle) {
-        // do an eager copy of the PackedFunc to avoid deleting function from frontend.
-        PackedFunc fcopy = value;
-        auto f = [=](const Array<Type>& args, int num_inputs, const Attrs& attrs,
-                     const TypeReporter& reporter) -> bool {
-          Array<Type> input_types(args.begin(), args.end() - 1);
-          // call customized relation functions
-          // *fcopy's signature: function (args: List[Type], attrs: Attrs) -> Type
-          Type ret_type = fcopy(input_types, attrs);
-          // when defined ret_type, inference of output type is ok, do type assign
-          // otherwise, inference failure happens
-          if (ret_type.defined()) {
-            // the last argument is output
-            // TODO(xqdan): support multiple outputs
-            reporter->Assign(args.back(), ret_type);
-            return true;
-          }
-          return false;
-        };
-        // adjust function call to call conventions of relay type system with TypeReporter
-        auto type_rel = runtime::TypedPackedFunc<bool(const Array<Type>&, int, const Attrs&,
-                                                      const TypeReporter&)>(f);
-        reg.add_type_rel(rel_name, type_rel);
-      } else if (value.type_code() == kTVMNullptr) {
-        // Call relation functions of relay
-        auto func_name = std::string("tvm.relay.type_relation.") + rel_name;
-        auto* f = runtime::Registry::Get(func_name);
-        ICHECK(f != nullptr) << "AddTypeRel error: no type_relation registered.";
-        reg.add_type_rel(rel_name, *f);
-      }
-    });
-
 TVM_REGISTER_GLOBAL("ir.OpAddArgument")
     .set_body_typed([](Op op, String name, String type, String description) {
       auto& reg = OpRegistry::Global()->RegisterOrGet(op->name).set_name();

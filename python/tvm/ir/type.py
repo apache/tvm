@@ -15,8 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 """Unified type system in the project."""
-from enum import IntEnum
-
 import tvm
 import tvm._ffi
 from tvm.runtime import Scriptable
@@ -38,17 +36,6 @@ class Type(Node, Scriptable):
     def same_as(self, other):
         """Compares two Relay types by referential equality."""
         return super().__eq__(other)
-
-
-class TypeKind(IntEnum):
-    """Possible kinds of TypeVars."""
-
-    Type = 0
-    ShapeVar = 1
-    BaseType = 2
-    Constraint = 4
-    AdtHandle = 5
-    TypeData = 6
 
 
 @tvm._ffi.register_object("PrimType")
@@ -82,82 +69,6 @@ class PointerType(Type):
         self.__init_handle_by_constructor__(_ffi_api.PointerType, element_type, storage_scope)
 
 
-@tvm._ffi.register_object("TypeVar")
-class TypeVar(Type):
-    """Type parameter in functions.
-
-    A type variable represents a type placeholder which will
-    be filled in later on. This allows the user to write
-    functions which are generic over types.
-
-    Parameters
-    ----------
-    name_hint: str
-        The name of the type variable. This name only acts as a hint, and
-        is not used for equality.
-
-    kind : Optional[TypeKind]
-        The kind of the type parameter.
-    """
-
-    def __init__(self, name_hint, kind=TypeKind.Type):
-        self.__init_handle_by_constructor__(_ffi_api.TypeVar, name_hint, kind)
-
-    def __call__(self, *args):
-        """Create a type call from this type.
-
-        Parameters
-        ----------
-        args: List[Type]
-            The arguments to the type call.
-
-        Returns
-        -------
-        call: Type
-            The result type call.
-        """
-        # pylint: disable=import-outside-toplevel
-        from .type_relation import TypeCall
-
-        return TypeCall(self, args)
-
-
-@tvm._ffi.register_object("GlobalTypeVar")
-class GlobalTypeVar(Type):
-    """A global type variable that is used for defining new types or type aliases.
-
-    Parameters
-    ----------
-    name_hint: str
-        The name of the type variable. This name only acts as a hint, and
-        is not used for equality.
-
-    kind : Optional[TypeKind]
-        The kind of the type parameter.
-    """
-
-    def __init__(self, name_hint, kind=TypeKind.AdtHandle):
-        self.__init_handle_by_constructor__(_ffi_api.GlobalTypeVar, name_hint, kind)
-
-    def __call__(self, *args):
-        """Create a type call from this type.
-
-        Parameters
-        ----------
-        args: List[Type]
-            The arguments to the type call.
-
-        Returns
-        -------
-        call: Type
-            The result type call.
-        """
-        # pylint: disable=import-outside-toplevel
-        from .type_relation import TypeCall
-
-        return TypeCall(self, args)
-
-
 @tvm._ffi.register_object("TupleType")
 class TupleType(Type):
     """The type of tuple values.
@@ -172,11 +83,6 @@ class TupleType(Type):
         self.__init_handle_by_constructor__(_ffi_api.TupleType, fields)
 
 
-@tvm._ffi.register_object("TypeConstraint")
-class TypeConstraint(Type):
-    """Abstract class representing a type constraint."""
-
-
 @tvm._ffi.register_object("FuncType")
 class FuncType(Type):
     """Function type.
@@ -186,9 +92,6 @@ class FuncType(Type):
     a set of type constraints which we omit for the time being,
     a sequence of argument types, and a return type.
 
-    We can informally write them as:
-    `forall (type_params), (arg_types) -> ret_type where type_constraints`
-
     Parameters
     ----------
     arg_types : List[tvm.relay.Type]
@@ -196,45 +99,11 @@ class FuncType(Type):
 
     ret_type : tvm.relay.Type
         The return type.
-
-    type_params : Optional[List[tvm.relay.TypeVar]]
-        The type parameters
-
-    type_constraints : Optional[List[tvm.relay.TypeConstraint]]
-        The type constraints.
     """
 
-    def __init__(self, arg_types, ret_type, type_params=None, type_constraints=None):
-        if type_params is None:
-            type_params = []
-        if type_constraints is None:
-            type_constraints = []
+    def __init__(self, arg_types, ret_type):
         self.__init_handle_by_constructor__(
-            _ffi_api.FuncType, arg_types, ret_type, type_params, type_constraints
+            _ffi_api.FuncType,
+            arg_types,
+            ret_type,
         )
-
-
-@tvm._ffi.register_object("IncompleteType")
-class IncompleteType(Type):
-    """Incomplete type during type inference.
-
-    kind : Optional[TypeKind]
-        The kind of the incomplete type.
-    """
-
-    def __init__(self, kind=TypeKind.Type):
-        self.__init_handle_by_constructor__(_ffi_api.IncompleteType, kind)
-
-
-@tvm._ffi.register_object("relay.RefType")
-class RelayRefType(Type):
-    """Reference Type in relay.
-
-    Parameters
-    ----------
-    value: Type
-        The value type.
-    """
-
-    def __init__(self, value):
-        self.__init_handle_by_constructor__(_ffi_api.RelayRefType, value)

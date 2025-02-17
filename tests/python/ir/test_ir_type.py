@@ -38,22 +38,10 @@ def test_tensor_type_bad_constructor():
         pass
 
 
-def test_type_param():
-    tp = tvm.ir.TypeVar("name", tvm.ir.TypeKind.Type)
-    assert tp.kind == tvm.ir.TypeKind.Type
-    # assert tp.span  # TODO allow us to set span
-    str(tp)
-    check_json_roundtrip(tp)
-
-
 def test_func_type():
-    type_params = tvm.runtime.convert([])
-    type_constraints = tvm.runtime.convert([])  # TODO: fill me in
     arg_types = tvm.runtime.convert([])
     ret_type = tvm.ir.TensorType((1, 2, 3), "float32")
-    tf = tvm.ir.FuncType(arg_types, ret_type, type_params, type_constraints)
-    assert tf.type_params == type_params
-    assert tf.type_constraints == type_constraints
+    tf = tvm.ir.FuncType(arg_types, ret_type)
     assert tf.arg_types == arg_types
     assert tf.ret_type == ret_type
     assert tf.span == None
@@ -63,10 +51,9 @@ def test_func_type():
 
 
 def test_tuple_type():
-    tp = tvm.ir.TypeVar("tp", tvm.ir.TypeKind.Type)
-    tf = tvm.ir.FuncType([], tvm.ir.TupleType([]), [], [])
+    tf = tvm.ir.FuncType([], tvm.ir.TupleType([]))
     tt = tvm.ir.TensorType(tvm.runtime.convert([1, 2, 3]), "float32")
-    fields = tvm.runtime.convert([tp, tf, tt])
+    fields = tvm.runtime.convert([tf, tt])
 
     tup_ty = tvm.ir.TupleType(fields)
     assert tup_ty.fields == fields
@@ -74,27 +61,7 @@ def test_tuple_type():
     check_json_roundtrip(tup_ty)
 
 
-def test_type_relation():
-    tp = tvm.ir.TypeVar("tp", tvm.ir.TypeKind.Type)
-    tf = tvm.ir.FuncType([], None, [], [])
-    tt = tvm.ir.TensorType(tvm.runtime.convert([1, 2, 3]), "float32")
-    args = tvm.runtime.convert([tp, tf, tt])
-
-    num_inputs = 2
-    func = tvm.ir.EnvFunc.get("tvm.relay.type_relation.Broadcast")
-    attrs = tvm.ir.make_node("attrs.TestAttrs", name="attr", padding=(3, 4))
-
-    tr = tvm.ir.TypeRelation(func, args, num_inputs, attrs)
-    assert tr.args == args
-    assert tr.num_inputs == num_inputs
-    str(tr)
-    check_json_roundtrip(tr)
-
-
 if __name__ == "__main__":
     test_tensor_type_bad_constructor()
-    test_tensor_type()
-    test_type_param()
     test_func_type()
     test_tuple_type()
-    test_type_relation()

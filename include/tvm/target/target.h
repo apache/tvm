@@ -238,30 +238,6 @@ class Target : public ObjectRef {
   /*! \return The target with the host stripped out */
   Target WithoutHost() const;
 
-  /*!
-   * \brief Returns true if \p this target represents an external codegen. If so,
-   * \p this->kind->name can be used as the "Compiler" attribute on partitioned functions,
-   * and can be used to retrieve a partitioning pattern table using
-   * \p get_pattern_table.
-   */
-  bool IsExternalCodegen() const;
-
-  /*!
-   * \brief Returns true if \p this target represents an external codegen which is compatible
-   * with \p that target. In particular:
-   *  - \p this has a true ::tvm::attr::kIsExternalCodegen attribute
-   *  - \p that does not have a true ::tvm::attr::kIsExternalCodegen attribute
-   *  - \p this and \p that have the same GetTargetDeviceType()
-   *
-   * After partitioning, the external codegen compilation path may use \p that to guide it's
-   * compilation to a \p runtime::Module. Given \p this, an appropriate \p that can be
-   * found using \p CompilationConfig::FindPrimitiveTargetOrFail(this->GetTargetDeviceType()).
-   *
-   * The \p CollagePartition pass uses this method to guide it's search over candidate partitions
-   * using external codegen.
-   */
-  bool IsExternalCodegenFor(const Target& that) const;
-
  private:
   Target(TargetKind kind, Optional<ObjectRef> host, String tag, Array<String> keys,
          Map<String, ObjectRef> attrs);

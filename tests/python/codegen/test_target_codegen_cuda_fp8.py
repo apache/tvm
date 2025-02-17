@@ -218,7 +218,7 @@ def test_half_broadcast(bcast_length):
     dtype = "float16"
 
     @T.prim_func
-    def vector_broadcast(a: T.Buffer[(), dtype], vec: T.Buffer[(bcast_length,), dtype]):
+    def vector_broadcast(a: T.Buffer((), dtype), vec: T.Buffer((bcast_length,), dtype)):
         for t in range(1):
             with T.block("broadcast"):
                 vec[0:bcast_length] = T.broadcast(a[()], bcast_length)
@@ -256,7 +256,7 @@ def test_half_misaligned_vector_load(vector_length):
 
     @T.prim_func
     def vector_load(
-        A: T.Buffer[(length,), dtype], B: T.Buffer[(length // vector_length,), vec_dtype]
+        A: T.Buffer((length,), dtype), B: T.Buffer((length // vector_length,), vec_dtype)
     ):
         for b in T.thread_binding(1, thread="blockIdx.x"):
             for i in T.thread_binding(length // vector_length, thread="threadIdx.x"):
