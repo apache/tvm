@@ -56,7 +56,7 @@ GlobalVar DeclFunction(const String& func_name, const BaseFunc& func_signature) 
   auto gvar_type = [&]() -> Type {
     if (auto prim_func = func_signature.as<tir::PrimFuncNode>()) {
       Array<Type> arg_types = prim_func->params.Map([](const auto& var) { return GetType(var); });
-      return FuncType(arg_types, prim_func->ret_type, {}, {});
+      return FuncType(arg_types, prim_func->ret_type);
     }
 
     return {};

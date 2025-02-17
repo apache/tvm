@@ -108,4 +108,3 @@ from . import ir_builder
 from . import transform
 from . import analysis
 from . import stmt_functor
-from . import usmp

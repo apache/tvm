@@ -143,26 +143,6 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<TypeVar>("", [](TypeVar var, ObjectPath p, IRDocsifier d) -> Doc {
-      return IR(d, "TypeVar")
-          ->Call({LiteralDoc::Str(var->name_hint, p->Attr("name_hint")),  //
-                  LiteralDoc::Str(TypeKind2String(var->kind), p->Attr("kind"))});
-    });
-
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<GlobalTypeVar>(  //
-        "", [](GlobalTypeVar var, ObjectPath p, IRDocsifier d) -> Doc {
-          return IR(d, "GlobalTypeVar")
-              ->Call({LiteralDoc::Str(var->name_hint, p->Attr("name_hint")),
-                      LiteralDoc::Str(TypeKind2String(var->kind), p->Attr("kind"))});
-        });
-
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<RelayRefType>("", [](RelayRefType ref, ObjectPath p, IRDocsifier d) -> Doc {
-      return IR(d, "RelayRef")->Call({d->AsDoc<ExprDoc>(ref->value, p->Attr("value"))});
-    });
-
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<TensorType>("", [](TensorType type, ObjectPath p, IRDocsifier d) -> Doc {
       return IR(d, "TensorType")
           ->Call({d->AsDoc<ExprDoc>(type->shape, p->Attr("shape")),
@@ -173,15 +153,9 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<FuncType>("", [](FuncType func_type, ObjectPath p, IRDocsifier d) -> Doc {
       return IR(d, "FuncType")
           ->Call({
-              d->AsDoc<ExprDoc>(func_type->type_params, p->Attr("type_params")),
               d->AsDoc<ExprDoc>(func_type->arg_types, p->Attr("arg_types")),
               d->AsDoc<ExprDoc>(func_type->ret_type, p->Attr("ret_type")),
           });
-    });
-
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<IncompleteType>("", [](IncompleteType ty, ObjectPath p, IRDocsifier d) -> Doc {
-      return IR(d, "IncompleteType")->Call({});
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
@@ -202,13 +176,9 @@ std::string ReprPrintIRModule(const ObjectRef& mod, const PrinterConfig& cfg) {
   return ReprPrintIR(mod, cfg);
 }
 
-TVM_SCRIPT_REPR(TypeVarNode, ReprPrintIR);
-TVM_SCRIPT_REPR(GlobalTypeVarNode, ReprPrintIR);
 TVM_SCRIPT_REPR(GlobalVarNode, ReprPrintIR);
 TVM_SCRIPT_REPR(DictAttrsNode, ReprPrintIR);
-TVM_SCRIPT_REPR(RelayRefTypeNode, ReprPrintIR);
 TVM_SCRIPT_REPR(FuncTypeNode, ReprPrintIR);
-TVM_SCRIPT_REPR(IncompleteTypeNode, ReprPrintIR);
 TVM_SCRIPT_REPR(RangeNode, ReprPrintIR);
 TVM_SCRIPT_REPR(IRModuleNode, ReprPrintIRModule);
 

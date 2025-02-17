@@ -25,6 +25,7 @@
 #define TVM_IR_ENV_FUNC_H_
 
 #include <tvm/node/reflection.h>
+#include <tvm/runtime/packed_func.h>
 
 #include <string>
 #include <utility>
