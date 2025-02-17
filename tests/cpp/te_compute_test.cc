@@ -20,15 +20,39 @@
 #include <gtest/gtest.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/te/operation.h>
-#include <tvm/tir/analysis.h>
-#include <tvm/tir/builtin.h>
 
-TEST(SimplePasses, SideEffect) {
+TEST(Tensor, Basic) {
   using namespace tvm;
-  auto buf = tir::decl_buffer({16}, DataType::Float(32));
-  auto i = tir::Var("i", DataType::Int(32));
-  ICHECK(tir::SideEffect(tir::BufferLoad(buf, {i})) == tir::CallEffectKind::kReadState);
-  ICHECK(tir::SideEffect(exp(tir::Cast(DataType::Float(32), i + 1))) == tir::CallEffectKind::kPure);
-  ICHECK(tir::SideEffect(tir::Call(DataType::Handle(), tir::builtin::tvm_storage_sync(), {})) ==
-         tir::CallEffectKind::kUpdateState);
+  using namespace tvm::te;
+
+  Var m("m"), n("n"), l("l");
+
+  Tensor A = placeholder({m, l}, DataType::Float(32), "A");
+  Tensor B = placeholder({n, l}, DataType::Float(32), "B");
+
+  auto C = compute(
+      {m, n}, [&](Var i, Var j) { return A[i][j]; }, "C");
+
+  Tensor::Slice x = A[n];
+}
+
+TEST(Tensor, Reduce) {
+  using namespace tvm;
+  using namespace tvm::te;
+
+  Var m("m"), n("n"), l("l");
+  te::Tensor A = te::placeholder({m, l}, DataType::Float(32), "A");
+  te::Tensor B = te::placeholder({n, l}, DataType::Float(32), "B");
+  IterVar rv = reduce_axis(Range{0, l}, "k");
+
+  auto C = te::compute(
+      {m, n}, [&](Var i, Var j) { return sum(max(1 + A[i][rv] + 1, B[j][rv]), {rv}); }, "C");
+}
+
+TEST(Tensor, Indexing) {
+  using namespace tvm;
+  using namespace tvm::te;
+
+  Var x("x"), y("y");
+  te::Tensor A = te::placeholder({x, y}, DataType::Float(32), "A");
 }

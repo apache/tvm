@@ -100,7 +100,7 @@ StructInfo InferStructInfoCallTIRLocalView(const Call& call, const BlockBuilder&
   return call->sinfo_args[0];
 }
 
-RELAY_REGISTER_OP("relax.dist.call_tir_local_view")
+TVM_REGISTER_OP("relax.dist.call_tir_local_view")
     .set_num_inputs(3)
     .add_argument("func", "Expr", "The destination-passing-style function.")
     .add_argument("args", "Tuple", "The input arguments.")

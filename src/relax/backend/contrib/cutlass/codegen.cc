@@ -21,7 +21,6 @@
  * \file src/relax/backend/contrib/cutlass/codegen.cc
  * \brief Implementation of the CUTLASS code generator for Relax.
  */
-#include "../../../../relay/backend/contrib/cutlass/codegen.h"
 
 #include <tvm/ir/module.h>
 #include <tvm/ir/name_supply.h>
@@ -34,22 +33,116 @@
 #include <unordered_map>
 #include <vector>
 
-#include "../../../../relay/backend/contrib/codegen_c/codegen_c.h"
+#include "../codegen_c/codegen_c.h"
 #include "../utils.h"
 
 namespace tvm {
 namespace relax {
 namespace contrib {
 
-using namespace relay::contrib::cutlass;
+std::string EmitSignature(const std::vector<Output>& out, const std::string& func_id,
+                          const std::vector<std::string>& arg_names) {
+  std::ostringstream code_stream_;
+  code_stream_ << "void " << func_id << "_(";
+  for (const auto& arg_name : arg_names) {
+    code_stream_ << "DLTensor* " << arg_name << ", ";
+  }
+  for (size_t i = 0; i < out.size() - 1; ++i) {
+    code_stream_ << "DLTensor* out" << i << ", ";
+  }
+  code_stream_ << "DLTensor* out" << out.size() - 1 << ")";
+  return code_stream_.str();
+}
 
-using Output = relay::contrib::Output;
-using GenerateBodyOutput = relay::contrib::GenerateBodyOutput;
-using relay::contrib::cutlass::GenerateBody;
+runtime::Module Finalize(const std::string& code, const Array<String>& func_names) {
+  ICHECK(!func_names.empty())
+      << "Should only create CUTLASS CSourceModule if there is at least one CUTLASS partition";
+
+  std::ostringstream default_headers;
+  default_headers << "#include <tvm/runtime/packed_func.h>\n";
+  default_headers << "#include <dlpack/dlpack.h>\n";
+  default_headers << "#include <cuda_fp16.h>\n";
+  default_headers << "#include <cutlass/cutlass.h>\n";
+  default_headers << "#include <cutlass/coord.h>\n";
+  default_headers << "#include <cutlass/tensor_ref.h>\n";
+  default_headers << "#include <cutlass/util/host_tensor.h>\n";
+
+  const auto* pf = runtime::Registry::Get("runtime.CSourceModuleCreate");
+  ICHECK(pf != nullptr) << "Cannot find CSource module to create the external runtime module";
+  VLOG(1) << "Generated CUTLASS code:" << std::endl << code;
+  return (*pf)(default_headers.str() + code, "cu", func_names, /*const_vars=*/Array<String>());
+}
+
+class CodegenResultNode : public Object {
+ public:
+  String code;
+  Array<String> headers;
+
+  void VisitAttrs(AttrVisitor* v) {
+    v->Visit("code", &code);
+    v->Visit("headers", &headers);
+  }
+  static constexpr const char* _type_key = "contrib.cutlass.CodegenResult";
+  TVM_DECLARE_FINAL_OBJECT_INFO(CodegenResultNode, Object);
+};
+
+class CodegenResult : public ObjectRef {
+ public:
+  CodegenResult(String code, Array<String> headers) {
+    auto n = make_object<CodegenResultNode>();
+    n->code = std::move(code);
+    n->headers = std::move(headers);
+    data_ = std::move(n);
+  }
+
+  TVM_DEFINE_OBJECT_REF_METHODS(CodegenResult, ObjectRef, CodegenResultNode)
+};
+
+TVM_REGISTER_NODE_TYPE(CodegenResultNode);
+
+TVM_REGISTER_GLOBAL("contrib.cutlass.CodegenResult")
+    .set_body_typed([](String code, Array<String> headers) {
+      return CodegenResult(code, headers);
+    });
+
+GenerateBodyOutput GenerateBody(const std::string& func_name, const std::string& ext_func_id,
+                                const std::vector<std::string>& output_types,
+                                const Array<String>& func_args, const Map<String, ObjectRef>& attrs,
+                                int* buf_idx) {
+  // Make function call with input buffers when visiting arguements
+  ICHECK_GT(func_args.size(), 0);
+  std::ostringstream decl_stream;
+  decl_stream << "(" << func_args[0];
+  for (size_t i = 1; i < func_args.size(); ++i) {
+    decl_stream << ", " << func_args[i];
+  }
+  GenerateBodyOutput ret;
+  for (const auto& out_type : output_types) {
+    const std::string out = "out" + std::to_string(*buf_idx++);
+    decl_stream << ", " << out;
+    Output output;
+    output.name = out;
+    output.dtype = out_type;
+    output.need_copy = false;
+    ret.outputs.push_back(output);
+  }
+  decl_stream << ");";
+
+  const auto* instantiate_template_func =
+      runtime::Registry::Get("contrib.cutlass.instantiate_template");
+  ICHECK(instantiate_template_func);
+
+  CodegenResult codegen_res = (*instantiate_template_func)(func_name, attrs, func_args);
+  ret.decl = codegen_res->code;
+  ret.headers = codegen_res->headers;
+
+  return ret;
+}
+
 using OutputType = std::vector<Output>;
 
 class CodegenCutlass : public relax::MemoizedExprTranslator<OutputType>,
-                       public relay::contrib::CodegenCBase {
+                       public relax::contrib::CodegenCBase {
  public:
   CodegenCutlass(const std::string& id, const Map<Var, Expr>& bindings)
       : ext_func_id_(id), bindings_(bindings) {}
@@ -119,7 +212,7 @@ class CodegenCutlass : public relax::MemoizedExprTranslator<OutputType>,
     return ret.outputs;
   }
 
-  OutputType VisitExpr_(const FunctionNode* fn) {
+  OutputType VisitExpr_(const FunctionNode* fn) final {
     ICHECK(fn->GetAttr<String>(attr::kComposite).defined())
         << "JSON runtime only supports composite functions";
     // FunctionNode should be handled by the caller.
@@ -169,7 +262,7 @@ class CodegenCutlass : public relax::MemoizedExprTranslator<OutputType>,
     return outputs;
   }
 
-  OutputType VisitExpr_(const SeqExprNode* op) {
+  OutputType VisitExpr_(const SeqExprNode* op) final {
     OutputType outputs;
 
     for (BindingBlock block : op->blocks) {

@@ -400,7 +400,7 @@ class LambdaLifter : public ExprMutator {
       if (auto it = nested_closure_map_.find(var); it != nested_closure_map_.end()) {
         Call nested_call = it->second;
 
-        Array<relay::Expr> new_args = call->args;
+        Array<Expr> new_args = call->args;
         for (const auto arg : nested_call->args) {
           new_args.push_back(arg);
         }

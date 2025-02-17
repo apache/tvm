@@ -127,7 +127,7 @@ webclean:
 
 # JVM build rules
 INCLUDE_FLAGS = -Iinclude -I$(DLPACK_PATH)/include -I$(DMLC_CORE_PATH)/include
-PKG_CFLAGS = -std=c++11 -Wall -O2 $(INCLUDE_FLAGS) -fPIC
+PKG_CFLAGS = -Wall -O3 $(INCLUDE_FLAGS) -fPIC
 PKG_LDFLAGS =
 
 ifeq ($(OS),Windows_NT)

@@ -23,7 +23,7 @@
 #ifndef TVM_NODE_FUNCTOR_H_
 #define TVM_NODE_FUNCTOR_H_
 
-#include <dmlc/logging.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/runtime/object.h>
 
 #include <type_traits>

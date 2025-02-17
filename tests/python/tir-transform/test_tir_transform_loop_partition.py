@@ -714,7 +714,7 @@ def concat_five_buffers_with_equalities_expected(
 
 
 @T.prim_func
-def nested_partition_with_single_points(A: T.Buffer[(25,), "int32"]):
+def nested_partition_with_single_points(A: T.Buffer((25,), "int32")):
     for i in T.serial(5, annotations={"pragma_loop_partition_hint": 1}):
         if i == 1:
             for j in T.serial(5, annotations={"pragma_loop_partition_hint": 1}):
@@ -727,7 +727,7 @@ def nested_partition_with_single_points(A: T.Buffer[(25,), "int32"]):
 
 
 @T.prim_func
-def nested_partition_with_single_points_expected(A: T.Buffer[(25,), "int32"]):
+def nested_partition_with_single_points_expected(A: T.Buffer((25,), "int32")):
     for j in range(2):
         A[j + 3] = j + 3
     for j in range(2):
@@ -764,7 +764,7 @@ def test_single_point_partition(origin, expected):
 
 def test_equation_on_floordiv():
     @T.prim_func
-    def before(A: T.Buffer[(2, 2, 20), "int32"]):
+    def before(A: T.Buffer((2, 2, 20), "int32")):
         for i in T.serial(5, annotations={"pragma_loop_partition_hint": 1}):
             if i == 1:
                 for vv in T.vectorized(640, annotations={"pragma_loop_partition_hint": 1}):
@@ -772,7 +772,7 @@ def test_equation_on_floordiv():
                         A[i - 1, i * 2 + vv // 320 - 3, vv % 320 // 16] = 1
 
     @T.prim_func
-    def expected(A: T.Buffer[(2, 2, 20), "int32"]):
+    def expected(A: T.Buffer((2, 2, 20), "int32")):
         for vv in T.vectorized(320):
             A[0, 0, vv // 16] = 1
 
@@ -787,7 +787,7 @@ def test_ignore_loop_partition_hint():
     """Skip unroll body and prologue for pipeline case"""
 
     @T.prim_func
-    def before(A: T.Buffer[(10), "float32"], D: T.Buffer[(10), "float32"]):
+    def before(A: T.Buffer((10), "float32"), D: T.Buffer((10), "float32")):
         B = T.decl_buffer([2], "float32")
         C = T.decl_buffer([2], "float32")
         for i in T.serial(12, annotations={"pragma_loop_partition_hint": 1}):
@@ -799,7 +799,7 @@ def test_ignore_loop_partition_hint():
                 D[i - 2] = C[i % 2] + 3.0
 
     @T.prim_func
-    def expected(A: T.Buffer[(10), "float32"], D: T.Buffer[(10), "float32"]):
+    def expected(A: T.Buffer((10), "float32"), D: T.Buffer((10), "float32")):
         B = T.decl_buffer([2], "float32")
         C = T.decl_buffer([2], "float32")
         for i in range(2):

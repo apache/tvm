@@ -16,6 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ir/module.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt.h>
@@ -175,12 +176,6 @@ TVM_STATIC_IR_FUNCTOR(ReprLegacyPrinter, vtable)
     });
 
 TVM_STATIC_IR_FUNCTOR(ReprLegacyPrinter, vtable)
-    .set_dispatch<IncompleteTypeNode>([](const ObjectRef& ref, ReprLegacyPrinter* p) {
-      auto* node = static_cast<const IncompleteTypeNode*>(ref.get());
-      (*p) << "IncompleteTypeNode(" << node->kind << ", " << node << ")";
-    });
-
-TVM_STATIC_IR_FUNCTOR(ReprLegacyPrinter, vtable)
     .set_dispatch<DictAttrsNode>([](const ObjectRef& node, ReprLegacyPrinter* p) {
       auto* op = static_cast<const DictAttrsNode*>(node.get());
       (*p) << op->dict;
@@ -199,28 +194,9 @@ TVM_STATIC_IR_FUNCTOR(ReprLegacyPrinter, vtable)
     });
 
 TVM_STATIC_IR_FUNCTOR(ReprLegacyPrinter, vtable)
-    .set_dispatch<TypeVarNode>([](const ObjectRef& ref, ReprLegacyPrinter* p) {
-      auto* node = static_cast<const TypeVarNode*>(ref.get());
-      (*p) << "TypeVar(" << node->name_hint << ", " << node->kind << ")";
-    });
-
-TVM_STATIC_IR_FUNCTOR(ReprLegacyPrinter, vtable)
-    .set_dispatch<GlobalTypeVarNode>([](const ObjectRef& ref, ReprLegacyPrinter* p) {
-      auto* node = static_cast<const GlobalTypeVarNode*>(ref.get());
-      (*p) << "GlobalTypeVar(" << node->name_hint << ", " << node->kind << ")";
-    });
-
-TVM_STATIC_IR_FUNCTOR(ReprLegacyPrinter, vtable)
     .set_dispatch<FuncTypeNode>([](const ObjectRef& ref, ReprLegacyPrinter* p) {
       auto* node = static_cast<const FuncTypeNode*>(ref.get());
-      (*p) << "FuncType(" << node->type_params << ", " << node->arg_types << ", " << node->ret_type
-           << ", " << node->type_constraints << ")";
-    });
-
-TVM_STATIC_IR_FUNCTOR(ReprLegacyPrinter, vtable)
-    .set_dispatch<RelayRefTypeNode>([](const ObjectRef& ref, ReprLegacyPrinter* p) {
-      auto* node = static_cast<const RelayRefTypeNode*>(ref.get());
-      (*p) << "RelayRefTypeNode(" << node->value << ")";
+      (*p) << "FuncType(" << node->arg_types << ", " << node->ret_type << ")";
     });
 
 }  // namespace tvm

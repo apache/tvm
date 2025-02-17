@@ -221,7 +221,6 @@ for learning-based optimizations.
 .. toctree::
    :maxdepth: 1
 
-   debugger
    introduction_to_module_serialization
    device_target_interactions
 

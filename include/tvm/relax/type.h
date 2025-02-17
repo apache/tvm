@@ -28,7 +28,6 @@
 #include <tvm/ir/env_func.h>
 #include <tvm/ir/tensor_type.h>
 #include <tvm/ir/type.h>
-#include <tvm/ir/type_relation.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/expr.h>
 

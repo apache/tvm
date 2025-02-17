@@ -454,7 +454,7 @@ class BlockAnalyzer : public StmtExprVisitor {
         spatial_dom_.Set(v->var, v->dom);
         continue;
       }
-      if (v->iter_type == kCommReduce) continue;
+      if (v->iter_type == tir::kCommReduce) continue;
       LOG(WARNING) << "[LayoutInference] Cannot compute block spatial domain in presence of "
                       "unknown block iter_type : "
                    << v->iter_type;

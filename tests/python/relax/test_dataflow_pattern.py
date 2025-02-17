@@ -283,8 +283,8 @@ def test_op_attr():
     yp = is_var("y")
     # TODO(@yuchen): reenable the assert after figuring out why it fails
     # assert is_op("nn.conv2d")(xp, yp).has_attr({"strides": [3, 3]}).match(conv2d)
-    assert not is_op("nn.conv2d")(xp, yp).has_attr({"strides": [4, 3]}).match(conv2d)
-    assert not is_op("nn.conv2d")(xp, yp).has_attr({"strides": [3, 3]}).match(conv2d)
+    assert not is_op("relax.nn.conv2d")(xp, yp).has_attr({"strides": [4, 3]}).match(conv2d)
+    assert not is_op("relax.nn.conv2d")(xp, yp).has_attr({"strides": [3, 3]}).match(conv2d)
 
 
 def test_match_call_attr():

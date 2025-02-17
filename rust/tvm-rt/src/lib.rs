@@ -53,7 +53,6 @@ pub mod array;
 pub mod device;
 pub mod errors;
 pub mod function;
-pub mod graph_rt;
 pub mod map;
 pub mod module;
 pub mod ndarray;

@@ -27,7 +27,6 @@
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/struct_info_functor.h>
 #include <tvm/relax/transform.h>
-#include <tvm/relay/function.h>
 #include <tvm/runtime/registry.h>
 namespace tvm {
 namespace relax {
@@ -82,14 +81,6 @@ class FunctionPassNode : public tvm::transform::PassNode {
   TVM_DECLARE_FINAL_OBJECT_INFO(FunctionPassNode, PassNode);
 
  private:
-  /*
-   * \brief Check if a function should be skipped for optimization.
-   *
-   * \param func The target function to be checked.
-   *
-   * \return Return true if the function will be skipped, otherwise false.
-   */
-  bool SkipFunction(const Function& func) const;
 };
 
 class FunctionPass : public Pass {
@@ -145,7 +136,7 @@ IRModule FunctionPassNode::operator()(IRModule mod, const PassContext& pass_ctx)
     // only picks up relax::Function
     if (auto* n = it.second.as<FunctionNode>()) {
       Function func = GetRef<Function>(n);
-      auto updated_func = SkipFunction(func) ? func : pass_func(func, updated_mod, pass_ctx);
+      auto updated_func = pass_func(func, updated_mod, pass_ctx);
       updates.push_back({it.first, updated_func});
     }
   }
@@ -163,12 +154,6 @@ IRModule FunctionPassNode::operator()(IRModule mod, const PassContext& pass_ctx)
   VLOG(1) << "Output module:" << std::endl << updated_mod;
 
   return updated_mod;
-}
-
-bool FunctionPassNode::SkipFunction(const Function& func) const {
-  // TODO(@yuchen): will need to revisit in the future
-  return (func->GetAttr<String>(relay::attr::kCompiler).defined()) ||
-         func->GetAttr<Integer>(relay::attr::kSkipOptimization, 0) != 0;
 }
 
 Pass CreateFunctionPass(

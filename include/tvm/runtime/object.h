@@ -339,8 +339,8 @@ class TVM_DLL Object {
  * \tparam ObjectType The object type
  * \return The corresponding RefType
  */
-template <typename RelayRefType, typename ObjectType>
-inline RelayRefType GetRef(const ObjectType* ptr);
+template <typename ObjectRefType, typename ObjectType>
+inline ObjectRefType GetRef(const ObjectType* ptr);
 
 /*!
  * \brief Downcast a base reference type to a more specific type.
@@ -505,8 +505,8 @@ class ObjectPtr {
   friend class TVMRetValue;
   friend class TVMArgValue;
   friend class TVMMovableArgValue_;
-  template <typename RelayRefType, typename ObjType>
-  friend RelayRefType GetRef(const ObjType* ptr);
+  template <typename ObjectRefType, typename ObjType>
+  friend ObjectRefType GetRef(const ObjType* ptr);
   template <typename BaseType, typename ObjType>
   friend ObjectPtr<BaseType> GetObjectPtr(ObjType* ptr);
 };

@@ -17,7 +17,6 @@
 # pylint: disable=invalid-name, unused-variable, too-many-locals
 # pylint: disable=unused-argument, redefined-builtin, no-else-return
 """Conv3D operators"""
-import tvm
 from tvm import te
 
 from ..utils import get_const_tuple
@@ -167,26 +166,3 @@ def conv3d_winograd_weight_transform(kernel, tile_size):
             ),
             name="transform_weight",
         )
-
-
-@tvm.target.generic_func
-def conv3d_alter_layout(attrs, inputs, tinfos, out_type):
-    """Change Conv3D layout.
-
-    Parameters
-    ----------
-    attrs : tvm.ir.Attrs
-        Attributes of current convolution
-    inputs : tvm.relay.Expr
-        Grouped input symbols
-    tinfos : list
-        Input shape and dtype
-    out_type: type
-        The output type
-
-    Note
-    ----
-    Unlike other TOPI functions, this function operates on both graph level and operator level.
-    """
-    # not to change by default
-    return None
