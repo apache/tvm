@@ -23,7 +23,6 @@
 #include "codegen_vhls.h"
 
 #include <string>
-#include <vector>
 
 #include "../../runtime/opencl/sdaccel/sdaccel_module.h"
 #include "../build_common.h"

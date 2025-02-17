@@ -23,7 +23,6 @@
  */
 #include <tvm/ir/function.h>
 #include <tvm/relax/expr.h>
-#include <tvm/relay/function.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/function.h>
 
@@ -37,8 +36,6 @@ TVM_REGISTER_GLOBAL("ir.BaseFuncWithAttr")
     .set_body_typed([](BaseFunc func, String key, ObjectRef value) -> BaseFunc {
       if (func->IsInstance<tir::PrimFuncNode>()) {
         return WithAttr(Downcast<tir::PrimFunc>(std::move(func)), key, value);
-      } else if (func->IsInstance<relay::FunctionNode>()) {
-        return WithAttr(Downcast<relay::Function>(std::move(func)), key, value);
       } else if (func->IsInstance<relax::FunctionNode>()) {
         return WithAttr(Downcast<relax::Function>(std::move(func)), key, value);
       } else {
@@ -68,8 +65,6 @@ TVM_REGISTER_GLOBAL("ir.BaseFuncWithoutAttr")
     .set_body_typed([](BaseFunc func, String key) -> BaseFunc {
       if (func->IsInstance<tir::PrimFuncNode>()) {
         return WithoutAttr(Downcast<tir::PrimFunc>(std::move(func)), key);
-      } else if (func->IsInstance<relay::FunctionNode>()) {
-        return WithoutAttr(Downcast<relay::Function>(std::move(func)), key);
       } else if (func->IsInstance<relax::FunctionNode>()) {
         return WithoutAttr(Downcast<relax::Function>(std::move(func)), key);
       } else {

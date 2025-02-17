@@ -17,8 +17,8 @@
  * under the License.
  */
 
-#include <dmlc/logging.h>
 #include <gtest/gtest.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/expr.h>

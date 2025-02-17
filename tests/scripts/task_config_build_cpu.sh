@@ -24,7 +24,6 @@ cd "$BUILD_DIR"
 cp ../cmake/config.cmake .
 
 echo set\(USE_SORT ON\) >> config.cmake
-echo set\(USE_PROFILER ON\) >> config.cmake
 echo set\(USE_DNNL ON\) >> config.cmake
 echo set\(USE_ARM_COMPUTE_LIB ON\) >> config.cmake
 echo set\(USE_LLVM \"/usr/bin/llvm-config-17 --link-static\"\) >> config.cmake

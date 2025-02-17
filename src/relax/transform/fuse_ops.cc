@@ -38,10 +38,9 @@
 #include <tvm/tir/function.h>
 
 #include <optional>
-#include <unordered_map>
 
-#include "../../relay/analysis/graph_partitioner.h"
 #include "../../support/arena.h"
+#include "../analysis/graph_partitioner.h"
 #include "tvm/relax/expr.h"
 #include "utils.h"
 
@@ -88,9 +87,6 @@ namespace relax {
   - We use an Union-Find data structure to manage the groups.
 */
 
-using relay::GraphPartitioner;
-using relay::IndexedForwardGraph;
-using relay::OpPatternKind;
 using support::LinkNode;
 
 constexpr uint32_t kMaxFusedOps = 256;

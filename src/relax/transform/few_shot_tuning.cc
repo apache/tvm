@@ -167,11 +167,9 @@ Pass FewShotTuning(int valid_count, bool benchmark) {
             result.Set(gv, func);
           }
         }
-        return IRModule(result,               // functions
-                        m->type_definitions,  // type_definitions
-                        m->import_set_,       // import_set
-                        m->source_map,        // map
-                        m->attrs);            // attrs);
+        return IRModule(result,         // functions
+                        m->source_map,  // map
+                        m->attrs);      // attrs);
       };
   return CreateModulePass(/*pass_function=*/pass_func,    //
                           /*opt_level=*/0,                //

@@ -26,8 +26,6 @@
 #include <unordered_map>
 #include <unordered_set>
 
-#include "../../relay/analysis/graph_partitioner.h"
-#include "../../support/arena.h"
 #include "../../tir/ir/functor_common.h"
 
 namespace tvm {

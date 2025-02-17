@@ -169,8 +169,6 @@ Pass MetaScheduleApplyDatabase(Optional<String> work_dir, bool enable_warning = 
       result.Set(gv, base_func);
     }
     return IRModule(result,       // functions
-                    {},           // type_definitions
-                    {},           // import_set
                     {},           // map
                     mod->attrs);  // attrs);
   };

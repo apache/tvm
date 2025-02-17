@@ -24,8 +24,6 @@
 #include <dmlc/thread_local.h>
 #include <tvm/driver/driver_api.h>
 #include <tvm/ir/transform.h>
-#include <tvm/relay/executor.h>
-#include <tvm/relay/runtime.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/target/codegen.h>
 #include <tvm/te/operation.h>
@@ -33,8 +31,6 @@
 #include <tvm/tir/transform.h>
 
 #include <algorithm>
-#include <mutex>
-#include <stack>
 
 namespace tvm {
 
@@ -481,7 +477,7 @@ runtime::Module TIRToRuntime(const Map<Target, IRModule>& inputs_arg,
   // Take the attrs from the first module so the eventual modules have them.
   // Ideally this would just be one unified module all the way through;
   IRModule first_module = (*inputs.begin()).second;
-  IRModule mhost_all = IRModule(Map<GlobalVar, BaseFunc>(), {}, {}, {}, first_module->attrs);
+  IRModule mhost_all = IRModule(Map<GlobalVar, BaseFunc>(), {}, first_module->attrs);
 
   ICHECK(mhost_all.defined()) << "The host module must be defined";
 
@@ -611,15 +607,7 @@ transform::Sequential MixedModulePassManager(IRModule mixed_mod, Target target) 
   // because the merged allocation site is at the beginning of each device function
   mixed_pass_list.push_back(tir::transform::MergeSharedMemoryAllocations());
 
-  bool unpacked_api = mixed_mod->GetAttr<relay::Executor>(tvm::attr::kExecutor)
-                          .value_or(relay::Executor::Create("graph", {}))
-                          ->GetAttr<Bool>("unpacked-api")
-                          .value_or(Bool(false));
-  if (unpacked_api) {
-    mixed_pass_list.push_back(tir::transform::MakeUnpackedAPI());
-  } else {
-    mixed_pass_list.push_back(tir::transform::MakePackedAPI());
-  }
+  mixed_pass_list.push_back(tir::transform::MakePackedAPI());
   mixed_pass_list.push_back(tir::transform::FP8StorageLegalize());
   mixed_pass_list.push_back(tir::transform::BF16StorageLegalize());
 
@@ -635,7 +623,6 @@ TVM_REGISTER_GLOBAL("driver.mixed_mod_passes")
 
 transform::Sequential HostModulePassManager(IRModule mixed_mod, Target target_host) {
   transform::PassContext pass_ctx = transform::PassContext::Current();
-  bool enable_debug = pass_ctx->GetConfig<Bool>("tir.enable_debug", Bool(false)).value();
 
   Array<tvm::transform::Pass> host_pass_list;
 
@@ -654,10 +641,6 @@ transform::Sequential HostModulePassManager(IRModule mixed_mod, Target target_ho
   host_pass_list.push_back(tir::transform::LowerIntrin());
   host_pass_list.push_back(tir::transform::LowerDeviceStorageAccessInfo());
   host_pass_list.push_back(tir::transform::CombineContextCall());
-
-  if (enable_debug) {
-    host_pass_list.push_back(tir::transform::InstallDebugSpans());
-  }
 
   return transform::Sequential(host_pass_list);
 }

@@ -66,7 +66,7 @@ class StaticTypeDeriver : public StructInfoFunctor<Type(const StructInfo&)> {
     Array<Type> params = op->params.value().Map(
         [this](const StructInfo& sinfo) { return this->VisitStructInfo(sinfo); });
     Type ret = this->VisitStructInfo(op->ret);
-    return FuncType(params, ret, {}, {}, op->span);
+    return FuncType(params, ret, op->span);
   }
 };
 

@@ -20,6 +20,7 @@
 #define TVM_RELAX_EXPR_H_
 
 #include <tvm/ir/expr.h>
+#include <tvm/ir/function.h>
 #include <tvm/ir/source_map.h>
 #include <tvm/node/node.h>
 #include <tvm/relax/type.h>

@@ -21,7 +21,6 @@
 #include <tvm/relax/distributed/struct_info.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/utils.h>
-#include <tvm/relay/op.h>
 
 #include "op_common.h"
 
@@ -102,7 +101,7 @@ StructInfo InferStructInfoCallPurePacked(const Call& call, const BlockBuilder& c
   }
 }
 
-RELAY_REGISTER_OP("relax.call_pure_packed")
+TVM_REGISTER_OP("relax.call_pure_packed")
     .set_num_inputs(-1)
     .add_argument("args", "Array<Expr>",
                   "The first argument is the function being called. The rest are the "
@@ -215,7 +214,7 @@ StructInfo InferStructInfoCallInplacePacked(const Call& call, const BlockBuilder
 
 TVM_REGISTER_NODE_TYPE(CallInplacePackedAttrs);
 
-RELAY_REGISTER_OP("relax.call_inplace_packed")
+TVM_REGISTER_OP("relax.call_inplace_packed")
     .set_num_inputs(-1)
     .set_attrs_type<CallInplacePackedAttrs>()
     .add_argument("args", "Array<Expr>",
@@ -562,7 +561,7 @@ void ValidateCallTIR(Call call) {
   }
 }
 
-RELAY_REGISTER_OP("relax.call_tir")
+TVM_REGISTER_OP("relax.call_tir")
     .set_num_inputs(3)
     .add_argument("func", "Expr", "The destination-passing-style function.")
     .add_argument("args", "Tuple", "The input arguments.")
@@ -607,7 +606,7 @@ TVM_REGISTER_GLOBAL("relax.op.call_tir").set_body_typed(MakeCallTIR);
 
 TVM_REGISTER_NODE_TYPE(CallTIRWithGradAttrs);
 
-RELAY_REGISTER_OP("relax.call_tir_with_grad")
+TVM_REGISTER_OP("relax.call_tir_with_grad")
     .set_num_inputs(3)
     .set_attrs_type<CallTIRWithGradAttrs>()
     .add_argument("func", "Expr", "The destination-passing-style function.")
@@ -748,7 +747,7 @@ Expr NormalizeCallTIRInPlace(const BlockBuilder& ctx, Call call) {
 
 TVM_REGISTER_NODE_TYPE(CallTIRInplaceAttrs);
 
-RELAY_REGISTER_OP("relax.call_tir_inplace")
+TVM_REGISTER_OP("relax.call_tir_inplace")
     .set_num_inputs(3)
     .set_attrs_type<CallTIRInplaceAttrs>()
     .add_argument("func", "Expr", "The destination-passing-style function.")
@@ -806,7 +805,7 @@ StructInfo InferStructInfoCallDPSPacked(const Call& call, const BlockBuilder& ct
   return call->sinfo_args[0];
 }
 
-RELAY_REGISTER_OP("relax.call_dps_packed")
+TVM_REGISTER_OP("relax.call_dps_packed")
     .set_num_inputs(2)
     .add_argument("func", "Expr", "The destination-passing-style function.")
     .add_argument("args", "Tuple", "The input arguments.")
@@ -877,7 +876,7 @@ TVM_REGISTER_GLOBAL("relax.op.null_value").set_body_typed(MakeCallNullValue);
 
 // print
 
-RELAY_REGISTER_OP("relax.print")
+TVM_REGISTER_OP("relax.print")
     .set_num_inputs(-1)
     .add_argument("vals", "Array<Expr>",
                   "The first value is Python-style format string to use to print. The others "
@@ -919,7 +918,7 @@ StructInfo InferAssertStructInfo(const Call& call, const BlockBuilder& ctx) {
   return ReturnVoidStructInfo(call, ctx);
 }
 
-RELAY_REGISTER_OP("relax.assert_op")
+TVM_REGISTER_OP("relax.assert_op")
     .set_num_inputs(-1)
     .add_argument("vals", "Array<Expr>",
                   "The first value is used as the assertion condition. The second value is "
@@ -943,7 +942,7 @@ TVM_REGISTER_GLOBAL("relax.op.assert_op").set_body_typed(MakeAssertOp);
 
 // make_closure
 
-RELAY_REGISTER_OP("relax.make_closure")
+TVM_REGISTER_OP("relax.make_closure")
     .set_num_inputs(2)
     .add_argument("func", "Expr", "The closure.")
     .add_argument("args", "Tuple", "The captured variables.")
@@ -969,7 +968,7 @@ StructInfo InferStructInfoInvokeClosure(const Call& call, const BlockBuilder& ct
   }
 }
 
-RELAY_REGISTER_OP("relax.invoke_closure")
+TVM_REGISTER_OP("relax.invoke_closure")
     .set_num_inputs(2)
     .add_argument("closure", "Expr", "The VMClosure.")
     .add_argument("args", "Tuple", "The captured variables.")
@@ -986,7 +985,7 @@ TVM_REGISTER_GLOBAL("relax.op.invoke_closure").set_body_typed(InvokeClosure);
 
 // invoke_pure_closure
 
-RELAY_REGISTER_OP("relax.invoke_pure_closure")
+TVM_REGISTER_OP("relax.invoke_pure_closure")
     .set_num_inputs(2)
     .add_argument("closure", "Expr", "The VMClosure.")
     .add_argument("args", "Tuple", "The captured variables.")
@@ -1002,7 +1001,7 @@ TVM_REGISTER_GLOBAL("relax.op.invoke_pure_closure").set_body_typed(InvokePureClo
 
 // shape_of
 
-RELAY_REGISTER_OP("relax.shape_of")
+TVM_REGISTER_OP("relax.shape_of")
     .set_num_inputs(1)
     .add_argument("input", "Expr", "The input expression")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoShapeOf)
@@ -1036,7 +1035,7 @@ StructInfo ReturnTensorToShapeStructInfo(const Call& call, const BlockBuilder& c
   return ShapeStructInfo(kUnknownNDim);
 }
 
-RELAY_REGISTER_OP("relax.tensor_to_shape")
+TVM_REGISTER_OP("relax.tensor_to_shape")
     .set_num_inputs(1)
     .add_argument("input", "Expr", "The input expression")
     .set_attr<FInferStructInfo>("FInferStructInfo", ReturnTensorToShapeStructInfo)
@@ -1059,7 +1058,7 @@ StructInfo ReturnShapeToTensorStructInfo(const Call& call, const BlockBuilder& c
   return TensorStructInfo(ShapeExpr({PrimExpr(ndim)}), DataType::Int(64));
 }
 
-RELAY_REGISTER_OP("relax.shape_to_tensor")
+TVM_REGISTER_OP("relax.shape_to_tensor")
     .set_num_inputs(1)
     .add_argument("input", "Expr", "The input expression")
     .set_attr<FInferStructInfo>("FInferStructInfo", ReturnShapeToTensorStructInfo)
@@ -1088,7 +1087,7 @@ StructInfo InferStructInfoAllocateTensor(const Call& call, const BlockBuilder& c
   return TensorStructInfo(call->args[0], out_dtype);
 }
 
-RELAY_REGISTER_OP("relax.builtin.alloc_tensor")
+TVM_REGISTER_OP("relax.builtin.alloc_tensor")
     .set_num_inputs(4)
     .add_argument("shape", "Expr", "The shape of the tensor to allocate.")
     .add_argument("dtype", "DataTypeImm", "The dtype of the tensor to allocate.")
@@ -1112,7 +1111,7 @@ TVM_REGISTER_GLOBAL("relax.op.builtin.alloc_tensor").set_body_typed(MakeAllocTen
 
 // memory planning alloc_storage
 
-RELAY_REGISTER_OP("relax.memory.alloc_storage")
+TVM_REGISTER_OP("relax.memory.alloc_storage")
     .set_num_inputs(4)
     .add_argument("total_space", "Expr", "The total space of the storage to allocate.")
     .add_argument(
@@ -1148,7 +1147,7 @@ StructInfo InferStructInfoMemAllocTensor(const Call& call, const BlockBuilder& c
   return TensorStructInfo(call->args[2], out_dtype);
 }
 
-RELAY_REGISTER_OP("relax.memory.alloc_tensor")
+TVM_REGISTER_OP("relax.memory.alloc_tensor")
     .set_num_inputs(4)
     .add_argument("storage", "Expr", "The storage to allocate the tensor to.")
     .add_argument("offset", "PrimValue", "Storage offset to allocate the tensor.")
@@ -1168,7 +1167,7 @@ TVM_REGISTER_GLOBAL("relax.op.memory.alloc_tensor").set_body_typed(MakeMemAllocT
 
 // memory planning kill_storage
 
-RELAY_REGISTER_OP("relax.memory.kill_storage")
+TVM_REGISTER_OP("relax.memory.kill_storage")
     .set_num_inputs(1)
     .add_argument("storage", "Expr", "The storage to be killed.")
     .set_attr<FInferStructInfo>("FInferStructInfo", ReturnVoidStructInfo)
@@ -1184,7 +1183,7 @@ TVM_REGISTER_GLOBAL("relax.op.memory.kill_storage").set_body_typed(MakeMemKillSt
 
 // memory planning kill_tensor
 
-RELAY_REGISTER_OP("relax.memory.kill_tensor")
+TVM_REGISTER_OP("relax.memory.kill_tensor")
     .set_num_inputs(1)
     .add_argument("tensor", "Expr", "The tensor to be killed.")
     .set_attr<FInferStructInfo>("FInferStructInfo", ReturnVoidStructInfo)
@@ -1200,7 +1199,7 @@ TVM_REGISTER_GLOBAL("relax.op.memory.kill_tensor").set_body_typed(MakeMemKillTen
 
 // vm alloc_storage
 
-RELAY_REGISTER_OP("relax.vm.alloc_storage")
+TVM_REGISTER_OP("relax.vm.alloc_storage")
     .set_num_inputs(4)
     .add_argument("size", "Expr", "The size of the storage to allocate.")
     .add_argument("dtype", "DataTypeImm", "The dtype of the tensor to allocate.")
@@ -1242,7 +1241,7 @@ StructInfo InferStructInfoVMAllocTensor(const Call& call, const BlockBuilder& ct
   return TensorStructInfo(out_dtype, kUnknownNDim);
 }
 
-RELAY_REGISTER_OP("relax.vm.alloc_tensor")
+TVM_REGISTER_OP("relax.vm.alloc_tensor")
     .set_num_inputs(4)
     .add_argument("storage", "Expr", "The storage to allocate the tensor to.")
     .add_argument("offset", "PrimValue", "Storage offset to allocate the tensor.")
@@ -1278,7 +1277,7 @@ TVM_REGISTER_GLOBAL("relax.op.vm.kill_object").set_body_typed(MakeVMKillObject);
 
 // vm call_tir_dyn
 
-RELAY_REGISTER_OP("relax.vm.call_tir_dyn")
+TVM_REGISTER_OP("relax.vm.call_tir_dyn")
     .set_num_inputs(2)
     .add_argument("func", "Expr", "The destination-passing-style function.")
     .add_argument("args", "Tuple",
@@ -1299,7 +1298,7 @@ StructInfo InferStructInfoStopLiftParams(const Call& call, const BlockBuilder& c
   return InferStructInfoUnaryArith<false>(call, ctx);
 }
 
-RELAY_REGISTER_OP("relax.builtin.stop_lift_params")
+TVM_REGISTER_OP("relax.builtin.stop_lift_params")
     .set_num_inputs(1)
     .add_argument("x", "Expr", "The input data")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoStopLiftParams)
@@ -1327,7 +1326,7 @@ StructInfo InferToVDeviceStructInfo(const Call& call, const BlockBuilder& ctx) {
   return TensorStructInfo(data_sinfo->dtype, data_sinfo->ndim, vdev, data_sinfo->span);
 }
 
-RELAY_REGISTER_OP("relax.to_vdevice")
+TVM_REGISTER_OP("relax.to_vdevice")
     .set_num_inputs(1)
     .set_attrs_type<ToVDeviceAttrs>()
     .add_argument("data", "Expr", "The input expression to be copied")
@@ -1353,7 +1352,7 @@ StructInfo InferHintOnDeviceStructInfo(const Call& call, const BlockBuilder& ctx
   return data_sinfo;
 }
 
-RELAY_REGISTER_OP("relax.hint_on_device")
+TVM_REGISTER_OP("relax.hint_on_device")
     .set_num_inputs(1)
     .set_attrs_type<HintOnDeviceAttrs>()
     .add_argument("data", "Expr", "The input expression")

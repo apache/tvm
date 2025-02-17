@@ -23,7 +23,6 @@
  */
 
 #include <tvm/ir/memory_pools.h>
-#include <tvm/relay/executor.h>
 
 namespace tvm {
 

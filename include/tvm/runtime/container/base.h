@@ -24,7 +24,6 @@
 #ifndef TVM_RUNTIME_CONTAINER_BASE_H_
 #define TVM_RUNTIME_CONTAINER_BASE_H_
 
-#include <dmlc/logging.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/memory.h>
 #include <tvm/runtime/object.h>

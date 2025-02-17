@@ -22,6 +22,7 @@
  * \brief Implementation of the TensorRT JSON serializer.
  */
 #include <tvm/ir/module.h>
+#include <tvm/ir/transform.h>
 // TODO(sunggg): add operator attribute when it's ready
 // #include <tvm/relax/attrs/nn.h>
 #include <tvm/relax/type.h>

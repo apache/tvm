@@ -33,9 +33,7 @@ echo set\(USE_OPENCL_GTEST \"/googletest\"\) >> config.cmake
 echo set\(USE_LLVM \"/usr/bin/llvm-config-15 --link-static\"\) >> config.cmake
 echo set\(USE_RPC ON\) >> config.cmake
 echo set\(USE_SORT ON\) >> config.cmake
-echo set\(USE_GRAPH_EXECUTOR ON\) >> config.cmake
 echo set\(USE_STACKVM_RUNTIME ON\) >> config.cmake
-echo set\(USE_PROFILER ON\) >> config.cmake
 echo set\(USE_ANTLR ON\) >> config.cmake
 echo set\(USE_BLAS openblas\) >> config.cmake
 echo set\(CMAKE_CXX_FLAGS -Werror\) >> config.cmake

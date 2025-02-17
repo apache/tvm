@@ -28,8 +28,6 @@
 #include <tvm/target/target.h>
 #include <tvm/tir/expr.h>
 
-#include <string>
-
 #include "codegen_c.h"
 
 namespace tvm {

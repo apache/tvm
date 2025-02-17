@@ -29,7 +29,6 @@
 #include <tvm/relax/struct_info_functor.h>
 #include <tvm/relax/transform.h>
 #include <tvm/relax/type.h>
-#include <tvm/relay/op.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/function.h>
 
