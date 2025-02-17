@@ -229,6 +229,16 @@ class StorageAllocator : public StorageAllocaBaseVisitor {
     VLOG_CONTEXT << "StorageAllocator";
     VLOG(1) << "planning:" << std::endl << PrettyPrint(func);
     prototype_ = StorageAllocaInit(&arena_).GetInitTokenMap(func);
+    // Backup the virtual devices as token reuse might lost the original memory scope
+    std::unordered_map<const ExprNode*, std::vector<VirtualDevice>> virtual_device_map_;
+    for (const auto& kv : prototype_) {
+      std::vector<VirtualDevice> virtual_devices;
+      virtual_devices.reserve(kv.second.size());
+      for (StorageToken* tok : kv.second) {
+        virtual_devices.push_back(tok->virtual_device);
+      }
+      virtual_device_map_.insert({kv.first, virtual_devices});
+    }
     this->Run(func);
 
     // The value of smap contains two integer arrays where the first array
@@ -252,8 +262,12 @@ class StorageAllocator : public StorageAllocaBaseVisitor {
         }
         num_nodes++;
         storage_ids.push_back(tok->storage_id);
-        virtual_devices.push_back(tok->virtual_device);
         sid_sizes_byte.push_back(allocator_.GetMemorySize(tok));
+      }
+      ICHECK(kv.second.size() == virtual_device_map_[kv.first].size())
+          << "Mismatch of tokens and virtual devices";
+      for (auto vdev : virtual_device_map_[kv.first]) {
+        virtual_devices.push_back(vdev);
       }
       auto storage_info = backend::StorageInfo(std::move(storage_ids), std::move(virtual_devices),
                                                std::move(sid_sizes_byte));
@@ -356,25 +370,19 @@ class StorageAllocator : public StorageAllocaBaseVisitor {
 
   class TokenAllocator {
    public:
-    StorageToken* Alloc(StorageToken* proto) {
-      return Is2DStorage(proto) ? token_2d_.Alloc(proto, storage_ids_++)
-                                : token_1d_.Alloc(proto, storage_ids_++);
-    }
+    StorageToken* Alloc(StorageToken* proto) { return token_mixed_.Alloc(proto, storage_ids_++); }
     StorageToken* Request(StorageToken* proto) {
-      StorageToken* token =
-          Is2DStorage(proto) ? token_2d_.Request(proto) : token_1d_.Request(proto);
+      StorageToken* token = token_mixed_.Request(proto);
       return token ? token : this->Alloc(proto);
     }
-    void CheckForRelease(StorageToken* tok) {
-      return Is2DStorage(tok) ? token_2d_.CheckForRelease(tok) : token_1d_.CheckForRelease(tok);
-    }
+    void CheckForRelease(StorageToken* tok) { return token_mixed_.CheckForRelease(tok); }
 
     size_t GetMemorySize(StorageToken* tok) {
       // TODO(amalyshe): figure out who requries sizes and for what
       // size in case of texture is not enough - we can return any value if it
       // assumed to be used for memory allocatoion or we can return real size
       // if it is just for information
-      return Is2DStorage(tok) ? 0 : token_1d_.GetMemorySize(tok);
+      return token_mixed_.GetMemorySize(tok);
     }
     static bool Is2DStorage(StorageToken* tok) {
       return relay::Is2DStorage(tok->virtual_device->memory_scope);
@@ -382,8 +390,7 @@ class StorageAllocator : public StorageAllocaBaseVisitor {
 
    private:
     int64_t storage_ids_{0};
-    TokenAllocator1D token_1d_;
-    TokenAllocator2D token_2d_;
+    TokenAllocatorMixed token_mixed_;
   };
 
  private:

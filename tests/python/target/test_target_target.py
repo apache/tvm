@@ -578,7 +578,7 @@ def test_module_dict_from_deserialized_targets():
     func = func.with_attr("Target", target)
     target2 = tvm.ir.load_json(tvm.ir.save_json(target))
     mod = tvm.IRModule({"main": func})
-    lib = tvm.build({target2: mod}, target_host=target)
+    lib = tvm.build(mod, target=target2)
     lib["func"]()
 
 

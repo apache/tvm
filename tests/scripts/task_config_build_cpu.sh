@@ -49,4 +49,5 @@ echo set\(BACKTRACE_ON_SEGFAULT ON\) >> config.cmake
 echo set\(USE_CCACHE OFF\) >> config.cmake
 echo set\(USE_UMA ON\) >> config.cmake
 echo set\(SUMMARIZE ON\) >> config.cmake
-echo set\(USE_MSC ON\) >> config.cmake
+# Temporary disable MSC
+# echo set\(USE_MSC ON\) >> config.cmake

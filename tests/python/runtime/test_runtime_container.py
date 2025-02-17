@@ -22,38 +22,8 @@ import numpy as np
 
 import tvm
 import tvm.testing
-from tvm import nd, relay
+from tvm import nd
 from tvm.runtime import container as _container
-
-
-def test_adt_constructor():
-    arr = nd.array([1, 2, 3])
-    fields = [arr, arr]
-    y = _container.ADT(0, [arr, arr])
-
-    assert len(y) == 2
-    assert isinstance(y, _container.ADT)
-    y[0:1][-1] == arr
-    assert y.tag == 0
-    assert isinstance(arr, nd.NDArray)
-
-
-def test_tuple_object():
-    x = relay.var(
-        "x",
-        type_annotation=relay.ty.TupleType(
-            [relay.ty.TensorType((), "int32"), relay.ty.TensorType((), "int32")]
-        ),
-    )
-
-    fn = relay.Function([x], relay.expr.TupleGetItem(x, 0))
-    mod = tvm.IRModule.from_expr(fn)
-
-    f = relay.create_executor(kind="vm", mod=mod, device=nd.cpu(), target="llvm").evaluate()
-    value_tuple = _container.tuple_object([nd.array(np.array(11)), nd.array(np.array(12))])
-    # pass an ADT object to evaluate
-    out = f(value_tuple)
-    tvm.testing.assert_allclose(out.numpy(), np.array(11))
 
 
 def test_string():

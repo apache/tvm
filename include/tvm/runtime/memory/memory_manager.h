@@ -87,7 +87,26 @@ class Allocator {
    *  \return A sized allocation in the form of a buffer.
    */
   TVM_DLL virtual Buffer Alloc(Device dev, ShapeTuple shape, DLDataType type_hint,
-                               const std::string& mem_scope = "") = 0;
+                               const std::string& mem_scope = "");
+
+  /*! \brief Create a view for the buffer given a shape, type and scope.
+   *  \param buffer The existing buffer upon which we need to create a view.
+   *  \param shape The shape of the view.
+   *  \param type_hint A type hint to the view.
+   *  \param mem_scope A memory scope of the view.
+   *  \return A device pointer to the created view.
+   */
+  TVM_DLL virtual void* CreateView(const Buffer& buffer, ShapeTuple shape, DLDataType type_hint,
+                                   const std::string& mem_scope = "global") {
+    return buffer.data;
+  }
+
+  /*! \brief Release the view .
+   *  \param dev is the device where this view is created
+   *  \param data The view pointer to be freed.
+   */
+  TVM_DLL virtual void FreeView(Device dev, void* data) {}
+
   /*! \brief Free a buffer allocated by the allocator.
    *  \param buffer The buffer to free.
    */
@@ -147,6 +166,13 @@ class StorageObj : public Object {
   /*! \brief Allocate an NDArray from a given piece of storage. */
   TVM_DLL NDArray AllocNDArray(int64_t offset, ShapeTuple shape, DLDataType dtype);
 
+  /*! \brief Allocate an NDArray with memory scope from a given piece of storage. */
+  TVM_DLL NDArray AllocNDArrayScoped(int64_t offset, ShapeTuple shape, DLDataType dtype,
+                                     String scope = "global");
+
+  /*! \brief The deleter for an NDArray when allocated from underlying storage. */
+  static void ScopedDeleter(Object* ptr);
+
   /*! \brief The deleter for an NDArray when allocated from underlying storage. */
   static void Deleter(Object* ptr);
 
@@ -170,6 +196,12 @@ class Storage : public ObjectRef {
 };
 
 }  // namespace memory
+
+using memory::Allocator;
+using memory::AllocatorType;
+using memory::MemoryManager;
+using memory::StorageObj;
+
 }  // namespace runtime
 }  // namespace tvm
 

@@ -18,7 +18,6 @@
 """The Relax testing namespace containing nn and translator."""
 
 from .nn import *
-from .relay_translator import *
 from .ast_printer import dump_ast
 from .matmul import *
 from .attention import *

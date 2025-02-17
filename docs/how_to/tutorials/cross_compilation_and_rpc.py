@@ -104,7 +104,7 @@ from tvm.contrib import utils
 n = tvm.runtime.convert(1024)
 A = te.placeholder((n,), name="A")
 B = te.compute((n,), lambda i: A[i] + 1.0, name="B")
-s = te.create_schedule(B.op)
+mod = tvm.IRModule.from_expr(te.create_prim_func([A, B]).with_attr("global_symbol", "add_one"))
 
 ######################################################################
 # Then we cross compile the kernel.
@@ -119,7 +119,7 @@ if local_demo:
 else:
     target = "llvm -mtriple=armv7l-linux-gnueabihf"
 
-func = tvm.build(s, [A, B], target=target, name="add_one")
+func = tvm.build(mod, target=target, name="add_one")
 # save the lib at a local temp folder
 temp = utils.tempdir()
 path = temp.relpath("lib.tar")
@@ -231,11 +231,13 @@ def run_opencl():
     target = tvm.target.Target("opencl", host="llvm -mtriple=aarch64-linux-gnu")
 
     # create schedule for the above "add one" compute declaration
-    s = te.create_schedule(B.op)
-    xo, xi = s[B].split(B.op.axis[0], factor=32)
-    s[B].bind(xo, te.thread_axis("blockIdx.x"))
-    s[B].bind(xi, te.thread_axis("threadIdx.x"))
-    func = tvm.build(s, [A, B], target=target)
+    mod = tvm.IRModule.from_expr(te.create_prim_func([A, B]))
+    sch = tvm.tir.Schedule(mod)
+    (x,) = sch.get_loops(block=sch.get_block("B"))
+    xo, xi = sch.split(i, [None, 32])
+    sch.bind(x, "blockIdx.x")
+    sch.bind(x, "threadIdx.x")
+    func = tvm.build(sch.mod, target=target)
 
     remote = rpc.connect(opencl_device_host, opencl_device_port)
 

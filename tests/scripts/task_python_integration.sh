@@ -35,18 +35,3 @@ find . -type f -path "*.pyc" | xargs rm -f
 
 # setup cython
 cd python; python3 setup.py build_ext --inplace; cd ..
-
-run_pytest ${TVM_INTEGRATION_TESTSUITE_NAME}-integration tests/python/integration
-
-# forked is needed because the global registry gets contaminated
-TVM_TEST_TARGETS="${TVM_RELAY_TEST_TARGETS:-llvm;cuda}" \
-    run_pytest ${TVM_INTEGRATION_TESTSUITE_NAME}-relay tests/python/relay --ignore=tests/python/relay/aot
-
-# OpenCL texture test. Deselected specific tests that fails  in CI
-TVM_TEST_TARGETS="${TVM_RELAY_OPENCL_TEXTURE_TARGETS:-opencl}" \
-    run_pytest ${TVM_INTEGRATION_TESTSUITE_NAME}-opencl-texture tests/python/relay/opencl_texture
-# Command line driver test
-run_pytest ${TVM_INTEGRATION_TESTSUITE_NAME}-driver tests/python/driver
-
-# Target test
-run_pytest ${TVM_INTEGRATION_TESTSUITE_NAME}-target tests/python/target

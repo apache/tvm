@@ -112,12 +112,13 @@ def _split(bb: BlockBuilder, call: Call) -> Expr:
         modulo = tvm.arith.Analyzer().simplify(
             call.args[0].struct_info.shape.values[call.attrs.axis] % indices_or_sections
         )
-        if modulo != 0:
-            logging.info(
-                "Split cannot be legalized by TOPI when the axis being split has "
-                "length that not divisible by the input number of section."
-            )
-            return call
+        if isinstance(modulo, tir.IntImm):
+            if modulo != 0:
+                logging.info(
+                    "Split cannot be legalized by TOPI when the axis being split has "
+                    "length that not divisible by the input number of section."
+                )
+                return call
     else:
         indices_or_sections = call.attrs.indices_or_sections
     return bb.call_te(topi.split, call.args[0], indices_or_sections, call.attrs.axis)

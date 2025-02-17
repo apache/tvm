@@ -24,7 +24,6 @@ import numpy as np
 
 import tvm
 from tvm.script import tir as T
-from tvm.topi.arm_cpu.conv2d_int8 import is_int8_hw_support
 from tvm.target import codegen
 
 llvm_version, arm_target, input_dtype, kernel_dtype, is_supported = tvm.testing.parameters(
@@ -47,27 +46,6 @@ llvm_version, arm_target, input_dtype, kernel_dtype, is_supported = tvm.testing.
     (8, "llvm -mtriple=aarch64-linux-gnu -mattr=+neon", "int8", "int16", False),
     (8, "llvm -mtriple=aarch64-linux-gnu -mattr=+neon", "int16", "int16", False),
 )
-
-
-def test_arm_conv2d_int8_support(
-    monkeypatch, llvm_version, arm_target, input_dtype, kernel_dtype, is_supported
-):
-    """Test ARM conv2d int8 support for different targets.
-
-    Parameters
-    ----------
-    arm_target : str
-        ARM CPU target.
-    input_dtype : str
-        Conv2d input data type.
-    kernel_dtype : Session
-        Conv2d kernel data type.
-    is_supported : bool
-        Expected result.
-    """
-    with tvm.target.Target(arm_target):
-        monkeypatch.setattr(codegen, "llvm_version_major", lambda: llvm_version)
-        assert is_int8_hw_support(input_dtype, kernel_dtype) == is_supported
 
 
 @pytest.fixture(scope="session")

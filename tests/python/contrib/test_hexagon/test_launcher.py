@@ -39,11 +39,9 @@ def test_add(hexagon_session: Session):
     compute_c = tvm.te.compute(
         placeholder_a.shape, lambda i: placeholder_a[i] + placeholder_b[0], name="C"
     )
-    sched = tvm.te.create_schedule(compute_c.op)
 
     func = tvm.build(
-        sched,
-        [placeholder_a, placeholder_b, compute_c],
+        te.create_prim_func([placeholder_a, placeholder_b, compute_c]),
         get_hexagon_target("v68"),
         name="add",
     )
@@ -69,11 +67,9 @@ def test_add_vtcm(hexagon_session: Session):
     compute_c = tvm.te.compute(
         placeholder_a.shape, lambda i: placeholder_a[i] + placeholder_b[0], name="C"
     )
-    sched = tvm.te.create_schedule(compute_c.op)
 
     func = tvm.build(
-        sched,
-        [placeholder_a, placeholder_b, compute_c],
+        te.create_prim_func([placeholder_a, placeholder_b, compute_c]),
         get_hexagon_target("v68"),
         name="add",
     )
@@ -117,11 +113,9 @@ class TestMatMul:
                 placeholder_x[i, reduce_k1] * placeholder_y[reduce_k1, j], axis=[reduce_k1]
             ),
         )
-        schedule = te.create_schedule(compute_z.op)
 
         func = tvm.build(
-            schedule,
-            [placeholder_x, placeholder_y, compute_z],
+            te.create_prim_func([placeholder_x, placeholder_y, compute_z]),
             get_hexagon_target("v68"),
         )
 

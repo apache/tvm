@@ -99,7 +99,6 @@ class TorchFXImporter(BaseFXGraphImporter):
     ########## Neural Network ##########
 
     def _adaptive_avg_pool2d_module(self, node: fx.Node) -> relax.Var:
-
         module = self.named_modules[node.target]
         x = self.env[node.args[0]]
         output_size = module.output_size
@@ -616,32 +615,44 @@ class TorchFXImporter(BaseFXGraphImporter):
             nn.Flatten: self._flatten_module,
             ## call_function and call_method
             # unary
+            "abs": self._unary_op(relax.op.abs),
             "acos": self._unary_op(relax.op.acos),
             "acosh": self._unary_op(relax.op.acosh),
             "asin": self._unary_op(relax.op.asin),
             "asinh": self._unary_op(relax.op.asinh),
             "atan": self._unary_op(relax.op.atan),
             "atanh": self._unary_op(relax.op.atanh),
+            "bitwise_not": self._unary_op(relax.op.bitwise_not),
+            "ceil": self._unary_op(relax.op.ceil),
             "clamp": self._clamp,
             "cos": self._unary_op(relax.op.cos),
             "cosh": self._unary_op(relax.op.cosh),
             "dropout": lambda node: self.env[node.args[0]],
+            "erf": self._unary_op(relax.op.erf),
             "exp": self._unary_op(relax.op.exp),
+            "floor": self._unary_op(relax.op.floor),
             "gelu": self._gelu,
             "hardsigmoid": self._hardsigmoid,
             "hardswish": self._hardswish,
+            "isfinite": self._unary_op(relax.op.isfinite),
+            "isinf": self._unary_op(relax.op.isinf),
+            "isnan": self._unary_op(relax.op.isnan),
             "leaky_relu": self._leakyrelu,
+            "log": self._unary_op(relax.op.log),
+            "logical_not": self._unary_op(relax.op.logical_not),
             "log_softmax": self._log_softmax,
             "neg": self._unary_op(relax.op.negative),
             "relu": self._unary_op(relax.op.nn.relu),
             "round": self._round,
             "rsqrt": self._unary_op(relax.op.rsqrt),
             "sigmoid": self._unary_op(relax.op.sigmoid),
+            "sign": self._unary_op(relax.op.sign),
             "silu": self._unary_op(relax.op.nn.silu),
             "sin": self._unary_op(relax.op.sin),
             "sinh": self._unary_op(relax.op.sinh),
             "softmax": self._softmax,
             "sqrt": self._unary_op(relax.op.sqrt),
+            "square": self._unary_op(relax.op.square),
             "tan": self._unary_op(relax.op.tan),
             "tanh": self._unary_op(relax.op.tanh),
             "tril_": self._inplace_tril_triu(relax.op.tril),

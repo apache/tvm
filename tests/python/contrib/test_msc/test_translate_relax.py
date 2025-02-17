@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-""" Test translate from relax. """
+"""Test translate from relax."""
 
 import torch
 from torch.nn import Module

@@ -20,7 +20,6 @@ import numpy as np
 import tvm
 import tvm.testing
 from tvm import te
-from tvm.topi.cuda import sort_by_key
 
 
 def test_sort():
@@ -53,8 +52,7 @@ def test_sort():
 
     dev = tvm.cpu(0)
     target = "llvm"
-    s = te.create_schedule(out.op)
-    f = tvm.build(s, [data, sort_num, out], target)
+    f = tvm.build(te.create_prim_func([data, sort_num, out]), target=target)
     a = tvm.nd.array(np.array(input_data).astype(data.dtype), dev)
     b = tvm.nd.array(np.array(sort_num_input).astype(sort_num.dtype), dev)
     c = tvm.nd.array(np.zeros(a.shape, dtype=out.dtype), dev)
@@ -82,8 +80,7 @@ def test_sort_np():
 
     dev = tvm.cpu(0)
     target = "llvm"
-    s = te.create_schedule(out.op)
-    f = tvm.build(s, [data, sort_num, out], target)
+    f = tvm.build(te.create_prim_func([data, sort_num, out]), target=target)
 
     np_data = np.random.uniform(size=dshape)
     np_out = np.argsort(np_data, axis=axis)
@@ -95,40 +92,6 @@ def test_sort_np():
     tvm.testing.assert_allclose(c.numpy(), np_out, rtol=1e-5)
 
 
-def test_sort_by_key_gpu():
-    """Tests sort function using gpu"""
-    size = 6
-    keys = te.placeholder((size,), name="keys", dtype="int32")
-    values = te.placeholder((size,), name="values", dtype="int32")
-
-    for target in ["cuda", "nvptx", "opencl", "rocm"]:
-        if not tvm.testing.device_enabled(target):
-            print("Skip because %s is not enabled" % target)
-            continue
-
-        with tvm.target.Target(target):
-            keys_out, values_out = sort_by_key(keys, values)
-            dev = tvm.device(target)
-            s = te.create_schedule([keys_out.op, values_out.op])
-            f = tvm.build(s, [keys, values, keys_out, values_out], target)
-
-            keys_np = np.array([1, 4, 2, 8, 2, 7], np.int32)
-            values_np = np.random.randint(0, 10, size=(size,)).astype(np.int32)
-            keys_np_out = np.zeros(keys_np.shape, np.int32)
-            values_np_out = np.zeros(values_np.shape, np.int32)
-            keys_in = tvm.nd.array(keys_np, dev)
-            values_in = tvm.nd.array(values_np, dev)
-            keys_out = tvm.nd.array(keys_np_out, dev)
-            values_out = tvm.nd.array(values_np_out, dev)
-            f(keys_in, values_in, keys_out, values_out)
-
-            ref_keys_out = np.sort(keys_np)
-            ref_values_out = np.array([values_np[i] for i in np.argsort(keys_np)])
-            tvm.testing.assert_allclose(keys_out.numpy(), ref_keys_out, rtol=1e-5)
-            tvm.testing.assert_allclose(values_out.numpy(), ref_values_out, rtol=1e-5)
-
-
 if __name__ == "__main__":
     test_sort()
     test_sort_np()
-    test_sort_by_key_gpu()

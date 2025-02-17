@@ -1135,7 +1135,6 @@ def run_on_rpc(
     # Use local rpc server for testing.
     # Server must use popen so it doesn't inherit the current process state. It
     # will crash otherwise.
-    # Adapted from relay/test_vm.py
     def check_remote(server):
         remote = rpc.connect(server.host, server.port, session_timeout=10)
 

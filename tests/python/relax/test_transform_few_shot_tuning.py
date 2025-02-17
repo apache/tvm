@@ -373,7 +373,7 @@ def _assert_allclose(mod: tvm.ir.IRModule, actual: tvm.ir.IRModule) -> None:
     inputs, output_shape, output_dtype = _get_input_output_info(_get_single_prim_func(mod))
     expected_output = _expected_results(mod, inputs, output_shape, output_dtype)
     actual_output = _actual_results(actual, inputs, output_shape, output_dtype)
-    tvm.testing.assert_allclose(expected_output, actual_output, rtol=_acc(), atol=_acc())
+    tvm.testing.assert_allclose(expected_output, actual_output, rtol=1e-3, atol=1e-3)
 
 
 # Fused_Variance_Cast1 not added due to https://github.com/apache/tvm/issues/14791

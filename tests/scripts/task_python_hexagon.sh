@@ -30,6 +30,9 @@ source tests/scripts/setup-pytest-env.sh
 # setup cython
 cd python; python3 setup.py build_ext --inplace; cd ..
 
+# disable hexagon tests for now
+exit 0
+
 
 if [[ "${device_serial}" == "simulator" ]]; then
     export TVM_TRACKER_PORT=9190

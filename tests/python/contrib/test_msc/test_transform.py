@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-""" Test MSC basic Pass. """
+"""Test MSC basic Pass."""
 
 import tvm.testing
 from tvm.relax.frontend.torch import from_fx

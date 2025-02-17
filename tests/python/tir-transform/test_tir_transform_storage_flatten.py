@@ -17,71 +17,7 @@
 import tvm
 import tvm.testing
 from tvm import te
-from tvm.driver.build_module import schedule_to_module
 from tvm.script import tir as T
-from tvm.relay import GlobalVar
-
-
-def test_flatten2():
-    m = te.size_var("m")
-    l = te.size_var("l")
-    A = te.placeholder((m, l), name="A")
-    A1 = te.compute((m, l), lambda i, j: A[i, j], name="A1")
-    A2 = te.compute((m, l), lambda i, j: A1[i, j] + 3, name="A2")
-
-    s = te.create_schedule(A2.op)
-    xo, xi = s[A2].split(A2.op.axis[0], 8)
-    s[A1].compute_at(s[A2], xo)
-    Ab = tvm.tir.decl_buffer(A.shape, A.dtype, name="A")
-    A2b = tvm.tir.decl_buffer(A2.shape, A2.dtype, name="A2")
-
-    mod = schedule_to_module(s, [Ab, A2b], binds={A: Ab, A2: A2b})
-    mod = tvm.tir.transform.StorageFlatten(64)(mod)
-
-
-def test_flatten_prefetch():
-    A = te.placeholder((25, 100, 4), name="A")
-    _A = tvm.tir.decl_buffer(A.shape, A.dtype, name="A")
-    i = te.size_var("i")
-    j = te.size_var("j")
-    region = [tvm.ir.Range.from_min_extent(i[0], i[1]) for i in [(i, 2), (j, 8), (0, 4)]]
-    stmt = tvm.tir.Prefetch(_A, region)
-
-    func = tvm.te.schedule.SchedulePostProcToPrimFunc([_A], stmt, {A: _A})
-
-    mod = tvm.IRModule.from_expr(func)
-    mod = tvm.transform.Sequential(
-        [tvm.tir.transform.StorageFlatten(64), tvm.tir.transform.Simplify()]
-    )(mod)
-    stmt = mod["main"].body
-    assert stmt.extent.value == 2
-    assert isinstance(stmt.body, tvm.tir.For)
-    assert stmt.body.extent.value == 2
-
-    def assert_flat_loads(stmt):
-        if isinstance(stmt, tvm.tir.BufferLoad):
-            assert len(stmt.indices) == 1, "All prefetch indices should be flattened"
-
-    tvm.tir.stmt_functor.post_order_visit(stmt, assert_flat_loads)
-
-
-def test_flatten_storage_align():
-    m = 8
-    l = 16
-    A = te.placeholder((m, l), name="A")
-    A1 = te.compute((m, l), lambda i, j: A[i, j], name="A1")
-    A2 = te.compute((m, l), lambda i, j: A1[i, j] + 3, name="A2")
-
-    s = te.create_schedule(A2.op)
-    s[A1].storage_align(A1.op.axis[0], 2, 1)
-
-    mod = schedule_to_module(s, [A, A2])
-    mod = tvm.transform.Sequential(
-        [tvm.tir.transform.StorageFlatten(64), tvm.tir.transform.Simplify()]
-    )(mod)
-
-    stmt = mod["main"].body
-    assert stmt.extents[0].value == 17 * 8
 
 
 def test_flatten_double_buffer():
@@ -158,7 +94,7 @@ def tir_func(a: T.handle, b: T.handle) -> None:
 
 
 def test_flatten_tir():
-    orig_mod = tvm.IRModule({GlobalVar("main"): tir_func})
+    orig_mod = tvm.IRModule({"main": tir_func})
     mod = tvm.tir.transform.StorageFlatten(64)(orig_mod)
     tvm.ir.assert_structural_equal(
         orig_mod, mod

@@ -18,10 +18,13 @@ import numpy as np
 import tvm
 import tvm.testing
 from tvm import relax
-from tvm.relay.testing import rand
 from tvm.testing import assert_allclose
 from tvm.testing.utils import check_numerical_grads
 from tvm.script.parser import ir as I, relax as R
+
+
+def rand(dtype, *shape):
+    return tvm.nd.array(np.random.rand(*shape).astype(dtype))
 
 
 def _legalize_and_build(mod, target, dev):

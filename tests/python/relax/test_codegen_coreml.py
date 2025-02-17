@@ -27,6 +27,8 @@ target, dev = "llvm", tvm.cpu()
 
 def _has_xcode():
     try:
+        import tvm.contrib.xcode
+
         tvm.contrib.xcode.xcrun([])
         return True
     except FileNotFoundError:

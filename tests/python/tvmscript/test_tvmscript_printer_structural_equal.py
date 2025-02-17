@@ -19,7 +19,6 @@ import pytest
 
 import tvm
 from tvm.ir import assert_structural_equal
-from tvm.relay.op.transform import split
 from tvm.runtime import ObjectPath
 from tvm.script import ir as I, tir as T
 

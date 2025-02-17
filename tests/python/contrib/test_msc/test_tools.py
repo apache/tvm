@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-""" Test Tools in MSC. """
+"""Test Tools in MSC."""
 
 import json
 import pytest

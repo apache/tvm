@@ -93,13 +93,13 @@ def test_dispatch_scanop_cuda():
         with bb.function("main", (x,), {"global_symbol": "main"}):
             with bb.dataflow():
                 lv = bb.emit_te(
-                    topi.cuda.cumsum,
+                    topi.gpu.cumsum,
                     x,
                     axis=1,
                     exclusive=True,
                 )
                 out = bb.emit_te(
-                    topi.cuda.cumprod,
+                    topi.gpu.cumprod,
                     lv,
                     axis=1,
                 )
@@ -178,7 +178,7 @@ def test_dispatch_sort_cuda():
         with bb.function("foo", (x,), {"global_symbol": "foo"}):
             with bb.dataflow():
                 out = bb.emit_te(
-                    topi.cuda.sort,
+                    topi.gpu.sort,
                     x,
                     axis=1,
                 )
@@ -193,14 +193,14 @@ def test_dispatch_sort_cuda():
                         )
                     )
                     out = bb.emit_te(
-                        topi.cuda.sort_thrust,
+                        topi.gpu.sort_thrust,
                         y,
                         axis=0,
                         is_ascend=False,
                         workspace=workspace,
                     )
                 else:
-                    out = bb.emit_te(topi.cuda.sort, y, axis=0, is_ascend=False)
+                    out = bb.emit_te(topi.gpu.sort, y, axis=0, is_ascend=False)
                 out = bb.emit_output(out)
             bb.emit_func_output(out)
     expected_mod = bb.finalize()
@@ -273,7 +273,7 @@ def test_dispatch_argsort_cuda():
     with target:
         with bb.function("foo", (x,), {"global_symbol": "foo"}):
             with bb.dataflow():
-                out = bb.emit_te(topi.cuda.argsort, x, axis=1, is_ascend=True, dtype="int32")
+                out = bb.emit_te(topi.gpu.argsort, x, axis=1, is_ascend=True, dtype="int32")
                 out = bb.emit_output(out)
             bb.emit_func_output(out)
         with bb.function("foo2", (y,), {"global_symbol": "foo2"}):
@@ -285,7 +285,7 @@ def test_dispatch_argsort_cuda():
                         )
                     )
                     out = bb.emit_te(
-                        topi.cuda.argsort_thrust,
+                        topi.gpu.argsort_thrust,
                         y,
                         axis=0,
                         is_ascend=False,
@@ -293,7 +293,7 @@ def test_dispatch_argsort_cuda():
                         workspace=workspace,
                     )
                 else:
-                    out = bb.emit_te(topi.cuda.argsort, y, axis=0, is_ascend=False, dtype="int64")
+                    out = bb.emit_te(topi.gpu.argsort, y, axis=0, is_ascend=False, dtype="int64")
                 out = bb.emit_output(out)
             bb.emit_func_output(out)
     expected_mod = bb.finalize()
@@ -357,7 +357,7 @@ def test_dispatch_topk_cuda():
     with target:
         with bb.function("foo", (x,), {"global_symbol": "foo"}):
             with bb.dataflow():
-                out = bb.emit_te(topi.cuda.topk, x, k=2, axis=1, is_ascend=False, dtype="int32")
+                out = bb.emit_te(topi.gpu.topk, x, k=2, axis=1, is_ascend=False, dtype="int32")
                 out = bb.emit_output(out)
             bb.emit_func_output(out)
     expected_mod = bb.finalize()
@@ -393,8 +393,8 @@ def test_dispatch_topk_gpu():
     with target:
         with bb.function("foo", (x,), {"global_symbol": "foo"}):
             with bb.dataflow():
-                lv0 = bb.emit_te(topi.cuda.topk, x, k=2, axis=1, is_ascend=False, dtype="int32")
-                lv1 = bb.emit_te(topi.cuda.topk, x, k=2, axis=1, is_ascend=False, dtype="int32")
+                lv0 = bb.emit_te(topi.gpu.topk, x, k=2, axis=1, is_ascend=False, dtype="int32")
+                lv1 = bb.emit_te(topi.gpu.topk, x, k=2, axis=1, is_ascend=False, dtype="int32")
                 out = (lv0, lv1)
                 out = bb.emit_output(out)
             bb.emit_func_output(out)
