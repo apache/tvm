@@ -762,6 +762,8 @@ def tree_attn_with_paged_kv_cache_cpu(h_kv, h_q, d, dtype, rope_scaling: Dict[st
         for h_qo in T.serial(h_q):
             for b_idx in T.serial(batch_size):
                 with T.block("attn"):
+                    T.reads()
+                    T.writes()
                     O_local = T.alloc_buffer((d, ), "float32")
                     Q_local = T.alloc_buffer((d, ), "float32")
                     K_local = T.alloc_buffer((d, ), "float32")
