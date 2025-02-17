@@ -1567,7 +1567,7 @@ def get_timestep_embedding(
 
     # Zero pad
     if embedding_dim % 2 == 1:
-        emb = _op.nn.pad(emb, 0, (0, 1, 0, 0))
+        emb = _op.nn.pad(emb, (0, 1, 0, 0))
 
     # Cast to proper output type
     emb = _op.astype(emb, dtype)

@@ -20,7 +20,7 @@ from typing import List, Optional, Tuple, Union
 from tvm import DataType
 from tvm.tir import FloatImm
 
-from ...expr import Expr, const
+from ...expr import Expr
 from . import _ffi_api
 
 
