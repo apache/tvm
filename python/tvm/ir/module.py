@@ -97,7 +97,7 @@ class IRModule(Node, Scriptable):
         return self._add(var, val, True)
 
     def _add(self, var, val, update=True):
-        if isinstance(val, _expr.RelayExpr):
+        if isinstance(val, _expr.RelaxExpr):
             if isinstance(var, string_types):
                 if _ffi_api.Module_ContainGlobalVar(self, var):
                     var = _ffi_api.Module_GetGlobalVar(self, var)
@@ -151,7 +151,7 @@ class IRModule(Node, Scriptable):
         var: GlobalVar
             The global variable.
 
-        func: tvm.relay.Function
+        func: tvm.ir.BaseFunc
             The function to be inserted.
         """
         return _ffi_api.Module_UpdateFunction(self, var, func)
@@ -231,7 +231,7 @@ class IRModule(Node, Scriptable):
 
         Parameters
         ----------
-        expr: RelayExpr
+        expr: RelaxExpr
             The starting expression
 
         global_funcs: Optional[dict]

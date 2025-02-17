@@ -57,7 +57,7 @@ class MemoryAccessVerifier final : protected StmtExprVisitor {
 
   /// Interface to perform memory access verification
   void Run() {
-    if (!IsGPUDevice(dev_type_) && !IsFPGADevice(dev_type_)) return;
+    if (!IsGPUDevice(dev_type_)) return;
     StmtExprVisitor::VisitStmt(func_->body);
   }
 
@@ -150,10 +150,8 @@ class MemoryAccessVerifier final : protected StmtExprVisitor {
   /// Check if a given DLDeviceType/TVMDeviceExtType value denotes GPU device.
   static bool IsGPUDevice(int dev_type) {
     return kDLCUDA == dev_type || kDLOpenCL == dev_type || kDLVulkan == dev_type ||
-           kDLMetal == dev_type || kDLROCM == dev_type || kOpenGL == dev_type;
+           kDLMetal == dev_type || kDLROCM == dev_type;
   }
-  /// Check if a given DLDeviceType/TVMDeviceExtType value denotes FPGA device.
-  static bool IsFPGADevice(int dev_type) { return kDLSDAccel == dev_type || kDLAOCL == dev_type; }
 
  private:
   /// Status of visitor
@@ -195,9 +193,8 @@ namespace transform {
 Pass VerifyMemory() {
   auto pass_func = [=](IRModule mod, PassContext ctx) {
     for (auto kv : mod->functions) {
-      if (auto* n = kv.second.as<PrimFuncNode>()) {
-        auto func = GetRef<PrimFunc>(n);
-        auto errs = VerifyMemory_(func);
+      if (auto func = kv.second.as<PrimFunc>()) {
+        auto errs = VerifyMemory_(func.value());
         if (errs.size() > 0) {
           std::stringstream s;
           for (auto& err : errs) {

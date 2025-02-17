@@ -42,16 +42,16 @@ class PrimExpr(BaseExpr):
     dtype: str
 
 
-class RelayExpr(BaseExpr):
+class RelaxExpr(BaseExpr):
     """Base class of all non-primitive expressions."""
 
     @property
     def checked_type(self):
-        """Get the checked type of tvm.relay.Expr.
+        """Get the checked type of tvm.relax.Expr.
 
         Returns
         -------
-        checked_type : tvm.relay.Type
+        checked_type : tvm.ir.Type
             The checked type.
         """
         ret = self._checked_type_
@@ -72,7 +72,7 @@ class RelayExpr(BaseExpr):
 
 
 @tvm._ffi.register_object("GlobalVar")
-class GlobalVar(RelayExpr):
+class GlobalVar(RelaxExpr):
     """A global variable in the IR.
 
     GlobalVar is used to refer to the global functions
@@ -89,12 +89,12 @@ class GlobalVar(RelayExpr):
     def __init__(self, name_hint: str, type_annot: Optional[Type] = None):
         self.__init_handle_by_constructor__(_ffi_api.GlobalVar, name_hint, type_annot)
 
-    def __call__(self, *args: RelayExpr) -> BaseExpr:
+    def __call__(self, *args: RelaxExpr) -> BaseExpr:
         """Call the global variable.
 
         Parameters
         ----------
-        args: List[RelayExpr]
+        args: List[RelaxExpr]
             The arguments to the call.
 
         Returns
@@ -105,7 +105,7 @@ class GlobalVar(RelayExpr):
         # pylint: disable=import-outside-toplevel
 
         # TODO(@relax-team): replace with Relax base class after it's introduced
-        if all(isinstance(x, RelayExpr) for x in args):
+        if all(isinstance(x, RelaxExpr) for x in args):
             from tvm import relax
 
             return relax.Call(self, args)
@@ -185,12 +185,12 @@ class Range(Node, Scriptable):
 
 
 # TODO(@relax-team): remove when we have a RelaxExpr base class
-def is_relax_expr(expr: RelayExpr) -> bool:
-    """check if a RelayExpr is a Relax expresssion.
+def is_relax_expr(expr: RelaxExpr) -> bool:
+    """check if a RelaxExpr is a Relax expresssion.
 
     Parameters
     ----------
-    expr : RelayExpr
+    expr : RelaxExpr
         The expression to check.
 
     Returns

@@ -488,9 +488,9 @@ inline bool DebugLoggingEnabled() {
  * Filenames are canonicalized to be w.r.t. the src/ dir of the TVM tree. (VLOG's should not
  * appear under include/).
  *
- * To enable file \p relay/foo.cc up to level 2 and \p ir/bar.cc for level 0 only set:
+ * To enable file \p ir/bar.cc for level 0 only set:
  * \code
- * TVM_LOG_DEBUG="relay/foo.cc=2,ir/bar.cc=0"
+ * TVM_LOG_DEBUG="ir/bar.cc=0"
  * \endcode
  *
  * To enable all files up to level 3 but disable \p ir/bar.cc set:

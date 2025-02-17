@@ -277,7 +277,7 @@ class IRModule : public ObjectRef {
    * \brief As for \p FromExprInContext, but assuming \p expr is bound to 'main' and no
    * imports.
    */
-  TVM_DLL static IRModule FromExpr(const RelayExpr& expr,
+  TVM_DLL static IRModule FromExpr(const RelaxExpr& expr,
                                    const Map<GlobalVar, BaseFunc>& global_funcs = {});
 
   /*!
@@ -309,42 +309,6 @@ namespace attr {
  * \sa tvm::runtime::String
  */
 constexpr const char* kModuleName = "mod_name";
-
-/*!
- * \brief Executor targeted by the module
- *
- * Type: Executor
- *
- * \sa tvm::relay::Executor
- */
-constexpr const char* kExecutor = "executor";
-
-/*!
- * \brief Runtime target of the module
- *
- * Type: Runtime
- *
- * \sa tvm::relay::Runtime
- */
-constexpr const char* kRuntime = "runtime";
-
-/*!
- * \brief workspace memory pools of the module
- *
- * Type: WorkspaceMemoryPools
- *
- * \sa tvm::WorkspaceMemoryPools
- */
-constexpr const char* kWorkspaceMemoryPools = "workspace_memory_pools";
-
-/*!
- * \brief constant memory pools of the module
- *
- * Type: ConstantMemoryPools
- *
- * \sa tvm::ConstantMemoryPools
- */
-constexpr const char* kConstantMemoryPools = "constant_memory_pools";
 
 /*
  * \brief All the runtime::NDArrays extracted from PrimFunc tir::AllocateConst nodes. The

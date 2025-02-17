@@ -55,7 +55,7 @@ class OpAttrMap;
  *
  * \sa Op
  */
-class OpNode : public RelayExprNode {
+class OpNode : public RelaxExprNode {
  public:
   /*! \brief name of the operator */
   String name;
@@ -111,7 +111,7 @@ class OpNode : public RelayExprNode {
   }
 
   static constexpr const char* _type_key = "Op";
-  TVM_DECLARE_FINAL_OBJECT_INFO(OpNode, RelayExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(OpNode, RelaxExprNode);
 
  private:
   /*! \return the internal attr registry index. */
@@ -135,7 +135,7 @@ class OpNode : public RelayExprNode {
  * \brief Managed reference class to OpNode.
  * \sa OpNode
  */
-class Op : public RelayExpr {
+class Op : public RelaxExpr {
  public:
   /*!
    * \brief Get additional registered attribute about operators.
@@ -160,7 +160,7 @@ class Op : public RelayExpr {
    */
   TVM_DLL static const Op& Get(const String& op_name);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(Op, RelayExpr, OpNode)
+  TVM_DEFINE_OBJECT_REF_METHODS(Op, RelaxExpr, OpNode)
 
  private:
   /*!
@@ -286,7 +286,7 @@ class OpAttrMap : public AttrRegistryMap<Op, ValueType> {
    *         or if expr is not an Op.
    * \return the const reference to the content value.
    */
-  inline ValueType get(const RelayExpr& expr, ValueType def_value) const;
+  inline ValueType get(const RelaxExpr& expr, ValueType def_value) const;
 
   using TParent = AttrRegistryMap<Op, ValueType>;
   using TParent::count;
@@ -381,7 +381,7 @@ inline OpRegEntry& OpRegEntry::set_attr(  // NOLINT(*)
 // member functions of OpAttrMap
 
 template <typename ValueType>
-inline ValueType OpAttrMap<ValueType>::get(const RelayExpr& expr, ValueType def_value) const {
+inline ValueType OpAttrMap<ValueType>::get(const RelaxExpr& expr, ValueType def_value) const {
   ICHECK(expr.defined());
   if (const OpNode* op = expr.as<OpNode>()) {
     return this->map_.get(GetRef<Op>(op), def_value);
