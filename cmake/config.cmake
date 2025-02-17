@@ -279,9 +279,6 @@ set(USE_ARM_COMPUTE_LIB_GRAPH_EXECUTOR OFF)
 set(USE_TENSORRT_CODEGEN OFF)
 set(USE_TENSORRT_RUNTIME OFF)
 
-# Build Verilator codegen and runtime
-set(USE_VERILATOR OFF)
-
 # Whether to use the Multi-System Compiler
 set(USE_MSC OFF)
 
