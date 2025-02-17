@@ -288,7 +288,6 @@ IRModule ApplyPasses(IRModule mod, transform::Sequential seq) {
   return mod;
 }
 
-
 IRModule LowerModule(IRModule mod, bool simple_mode) {
   Array<transform::Pass> pass_list = CreatePassList(simple_mode);
   return LowerWithPassList(std::move(mod), pass_list);
@@ -379,8 +378,7 @@ runtime::Module TIRToRuntime(const Map<Target, IRModule>& inputs_arg,
 
   if (!target_host.defined()) {
     for (const auto& it : inputs) {
-      if (it.first->GetTargetDeviceType() == kDLCPU ||
-          it.first->GetTargetDeviceType() == kDLMicroDev) {
+      if (it.first->GetTargetDeviceType() == kDLCPU) {
         target_host = it.first;
         break;
       }

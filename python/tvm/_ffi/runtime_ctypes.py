@@ -264,7 +264,6 @@ class Device(ctypes.Structure):
     kDLOneAPI = 14
     kDLWebGPU = 15
     kDLHexagon = 16
-    kDLMicroDev = 35
 
     _fields_ = [("device_type", ctypes.c_int), ("device_id", ctypes.c_int)]
     MASK2STR = {
@@ -282,7 +281,6 @@ class Device(ctypes.Structure):
         kDLOneAPI: "oneapi",
         kDLWebGPU: "webgpu",
         kDLHexagon: "hexagon",
-        kDLMicroDev: "microdev",
     }
 
     STR2MASK = {

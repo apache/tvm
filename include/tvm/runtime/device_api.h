@@ -237,9 +237,7 @@ class TVM_DLL DeviceAPI {
    *        before launching the kernel function.
    * \param device_type The device type.
    */
-  static bool NeedSetDevice(int device_type) {
-    return device_type != kDLCPU && device_type != kDLMicroDev;
-  }
+  static bool NeedSetDevice(int device_type) { return device_type != kDLCPU; }
 
   /*!
    * \brief Whether pointer arithmetics on a device owned pointer may be performed on the host.

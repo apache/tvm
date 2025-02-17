@@ -27,7 +27,6 @@ echo set\(USE_SORT ON\) >> config.cmake
 echo set\(USE_DNNL ON\) >> config.cmake
 echo set\(USE_ARM_COMPUTE_LIB ON\) >> config.cmake
 echo set\(USE_LLVM \"/usr/bin/llvm-config-17 --link-static\"\) >> config.cmake
-echo set\(USE_ANTLR ON\) >> config.cmake
 echo set\(CMAKE_CXX_FLAGS \"-Wno-error=range-loop-construct -Wno-error=comment\"\) >> config.cmake
 echo set\(HIDE_PRIVATE_SYMBOLS ON\) >> config.cmake
 

@@ -278,13 +278,6 @@ set(USE_CLML OFF)
 # USE_CLML_GRAPH_EXECUTOR - CLML SDK PATH or ON or OFF
 set(USE_CLML_GRAPH_EXECUTOR OFF)
 
-# Build ANTLR parser for Relay text format
-# Possible values:
-# - ON: enable ANTLR by searching default locations (cmake find_program for antlr4 and /usr/local for jar)
-# - OFF: disable ANTLR
-# - /path/to/antlr-*-complete.jar: path to specific ANTLR jar file
-set(USE_ANTLR OFF)
-
 # Whether to enable debug code that may cause ABI changes
 set(TVM_DEBUG_WITH_ABI_CHANGE OFF)
 

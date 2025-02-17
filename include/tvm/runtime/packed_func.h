@@ -1478,8 +1478,6 @@ inline const char* DLDeviceType2Str(int type) {
       return "webgpu";
     case kDLHexagon:
       return "hexagon";
-    case kDLMicroDev:
-      return "microdev";
     default:
       LOG(FATAL) << "unknown type = " << type;
   }
