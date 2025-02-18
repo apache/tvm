@@ -44,13 +44,13 @@ def create_pass_list(disable_loop_partition: bool):
     pass_ctx = tvm.transform.PassContext.current()
     config = pass_ctx.config
     # Retrieve configuration flags.
-    disable_vectorize = config.get("tir.disable_vectorize", False)
-    disable_storage_rewrite = config.get("tir.disable_storage_rewrite", False)
-    instrument_bound_checkers = config.get("tir.instrument_bound_checkers", False)
-    disable_cse_tir = config.get("tir.disable_cse_tir", False)
-    enable_equiv_terms_in_cse_tir = config.get("tir.enable_equiv_terms_in_cse_tir", False)
-    ptx_ldg32 = config.get("tir.ptx_ldg32", False)
-    instrument_lwp = config.get("tir.instrument_lwp", False)
+    disable_vectorize = bool(config.get("tir.disable_vectorize", False))
+    disable_storage_rewrite = bool(config.get("tir.disable_storage_rewrite", False))
+    instrument_bound_checkers = bool(config.get("tir.instrument_bound_checkers", False))
+    disable_cse_tir = bool(config.get("tir.disable_cse_tir", False))
+    enable_equiv_terms_in_cse_tir = bool(config.get("tir.enable_equiv_terms_in_cse_tir", False))
+    ptx_ldg32 = bool(config.get("tir.ptx_ldg32", False))
+    instrument_lwp = bool(config.get("tir.instrument_lwp", False))
     add_lower_pass = config.get("tir.add_lower_pass", [])
 
     # Group user passes by phase (phases 0, 1, 2, and 3 where phase>=3 goes to 3)
