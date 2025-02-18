@@ -123,7 +123,8 @@ def memoize(key, save_at_exit=False):
         cargs = tuple(x.cell_contents for x in f.__closure__) if f.__closure__ else ()
         cargs = (len(cargs),) + cargs
 
-        def _memoized_f(func, *args, **kwargs):
+        @functools.wraps(f)
+        def _memoized_f(*args, **kwargs):
             assert not kwargs, "Only allow positional call"
             key = cargs + args
             for arg in key:
@@ -134,11 +135,11 @@ def memoize(key, save_at_exit=False):
                     assert isinstance(arg, allow_types)
             if key in cache.cache:
                 return cache.cache[key]
-            res = func(*args)
+            res = f(*args)
             cache.cache[key] = res
             cache.dirty = True
             return res
 
-        return functools.wraps(f)(_memoized_f)
+        return _memoized_f
 
     return _register
