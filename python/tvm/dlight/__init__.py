@@ -16,6 +16,7 @@
 # under the License.
 """DLight package provides efficient schedules out-of-box for deep learning workloads."""
 from . import gpu
+from . import cpu
 from .base import (
     ApplyDefaultSchedule,
     BlockInfo,
