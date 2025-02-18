@@ -17,7 +17,6 @@
  * under the License.
  */
 
-#include <tvm/driver/driver_api.h>
 #include <tvm/ir/function.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
@@ -116,8 +115,9 @@ class ConstantFolder : public ExprMutator {
       // already scheduled to only work on GPU, we will need to skip this in the const folder for
       // now
       // TODO(Hongyi): further check and narrow the scope of foldable function
-      runtime::Module rt_module =
-          build(LowerPrimFunc(func, "tir_function"), eval_cpu_target, eval_cpu_target);
+      auto* pf = runtime::Registry::Get("tir.build");
+      ICHECK(pf != nullptr) << "Cannot find tir.build in registry";
+      runtime::Module rt_module = (*pf)(func, eval_cpu_target, "tir_function");
       build_func = rt_module.GetFunction("tir_function");
     } catch (const tvm::Error& err) {
       // build failure may happen in which case we skip

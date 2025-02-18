@@ -547,3 +547,6 @@ def build(
     annotated_mods, target_host = Target.canon_target_map_and_host(annotated_mods, target_host)
 
     return tir_to_runtime(annotated_mods, target_host)
+
+
+tvm.register_func("tir.build", build)
