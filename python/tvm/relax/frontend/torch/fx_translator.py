@@ -662,13 +662,18 @@ class TorchFXImporter(BaseFXGraphImporter):
             "add": self._binary_op(relax.op.add, operator.add),
             "eq": self._binary_op(relax.op.equal, operator.eq),
             "floordiv": self._binary_op(relax.op.floor_divide, operator.floordiv),
+            "ge": self._binary_op(relax.op.greater_equal, operator.ge),
+            "gt": self._binary_op(relax.op.greater, operator.gt),
             "iadd": self._binary_op(relax.op.add, operator.add),
+            "le": self._binary_op(relax.op.less_equal, operator.le),
             "lt": self._binary_op(relax.op.less, operator.lt),
             "matmul": self._binary_op(
                 partial(relax.op.linear_algebra.matmul, out_dtype="float32"), operator.matmul
             ),
             "max": self._binary_op(relax.op.maximum, max),
+            "mod": self._binary_op(relax.op.mod, operator.mod),
             "mul": self._binary_op(relax.op.multiply, operator.mul),
+            "ne": self._binary_op(relax.op.not_equal, operator.ne),
             "pow": self._binary_op(relax.op.power, operator.pow),
             "sub": self._binary_op(relax.op.subtract, operator.sub),
             "truediv": self._binary_op(relax.op.divide, operator.truediv),
