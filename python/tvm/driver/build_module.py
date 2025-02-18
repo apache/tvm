@@ -17,7 +17,7 @@
 
 # pylint: disable=invalid-name
 """The build utils in python."""
-from typing import Union, Optional, Dict, List, Tuple
+from typing import Union, Optional, Dict, Tuple
 import enum
 import tvm
 from tvm import tir, ir
@@ -381,7 +381,8 @@ def split_mixed_module(
     # Warn if target is GPU but no device code was generated.
     if "gpu" in target.keys and len(device_mod.functions) == 0:
         print(
-            f"Warning: Specified target {target} but cannot find device code. Did you forget to bind?"
+            f"Warning: Specified target {target} but cannot find device code. "
+            "Did you forget to bind?"
         )
 
     return host_mod, device_mod
