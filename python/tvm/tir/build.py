@@ -427,14 +427,14 @@ def codegen_build(mod: IRModule, target: Target) -> tvm.runtime.Module:
     return bf(mod, target)
 
 
-def tir_to_runtime(inputs: Dict[Target, IRModule], target_host: Target):
+def tir_to_runtime(inputs: Dict[Target, Tuple[IRModule, IRModule]], target_host: Target):
     """
     Convert a collection of TIR IRModules (keyed by Target) into a single runtime Module.
 
     Parameters
     ----------
     inputs : dict
-        Mapping from Target to IRModule.
+        Mapping from Target to Tuple[IRModule, IRModule].
     target_host : Target
         The initial host target.
 
@@ -443,38 +443,22 @@ def tir_to_runtime(inputs: Dict[Target, IRModule], target_host: Target):
     tvm.runtime.Module
         The final runtime module.
     """
-    if not inputs:
-        raise ValueError("TIRToRuntime expects at least one IRModule as input.")
 
-    check_and_update_host_consistency(inputs, target_host)
-    if not target_host:
-        for tgt in inputs:
-            if tgt.get_target_device_type() == Device.kDLCPU:
-                target_host = tgt
-                break
-    if not target_host:
-        target_host = default_target_host(target_host)
-    check_and_update_host_consistency(inputs, target_host)
-
-    first_module = next(iter(inputs.values()))
+    # Get the first module to get the attributes
+    # necessary for tests/python/codegen/test_target_codegen_blob.py::test_cuda_multi_lib
+    first_module = next(iter(inputs.values()))[0]
     mhost_all = ir.IRModule({}, attrs=first_module.attrs)
-    if mhost_all is None:
-        raise ValueError("The host module must be defined")
 
     device_modules = []
-    for tgt, ir_module in inputs.items():
-        if ir_module:
-            host_mod, device_mod = split_mixed_module(ir_module, tgt, target_host)
-            overrides_host_target = (
-                tgt.get_target_device_type() == target_host.get_target_device_type()
-            )
-            non_host_target_kind = tgt.kind != target_host.kind
-            if overrides_host_target and non_host_target_kind:
-                device_modules.append(codegen_build(host_mod, tgt))
-            else:
-                mhost_all.update(host_mod)
-            if len(device_mod.functions) != 0:
-                device_modules.append(codegen_build(device_mod, tgt))
+    for tgt, (host_mod, device_mod) in inputs.items():
+        overrides_host_target = tgt.get_target_device_type() == target_host.get_target_device_type()
+        non_host_target_kind = tgt.kind != target_host.kind
+        if overrides_host_target and non_host_target_kind:
+            device_modules.append(codegen_build(host_mod, tgt))
+        else:
+            mhost_all.update(host_mod)
+        if len(device_mod.functions) != 0:
+            device_modules.append(codegen_build(device_mod, tgt))
 
     mhost = codegen_build(mhost_all, target_host)
     for dev_mod in device_modules:
@@ -520,9 +504,9 @@ def build(
 
     # Get target and target_host
     target = Target.current() if target is None else target
-    if target is None and isinstance(inputs, tvm.IRModule):
+    if target is None and isinstance(input_mod, tvm.IRModule):
         target_mod = {}
-        for gvar, func in inputs.functions.items():
+        for gvar, func in input_mod.functions.items():
             tgt = func.attrs.get("target", "llvm")
             target_mod.setdefault(tgt, {})[gvar] = func
         target_input_mod = {
@@ -550,7 +534,16 @@ def build(
         target_host = "llvm" if tvm.runtime.enabled("llvm") else "stackvm"
     annotated_mods, target_host = Target.canon_target_map_and_host(annotated_mods, target_host)
 
-    input_mod = lower_module(input_mod, simple_mode=False)
+    assert annotated_mods is not None and target_host is not None
+    check_and_update_host_consistency(annotated_mods, target_host)
+
+    # Lower the module
+    for tgt, mod in annotated_mods.items():
+        mod = lower_module(mod, simple_mode=False)
+        host_mod, device_mod = split_mixed_module(mod, tgt, target_host)
+        annotated_mods[tgt] = (host_mod, device_mod)
+
+    # Convert TIR IRModules to runtime Module by calling target.build
     return tir_to_runtime(annotated_mods, target_host)
 
 

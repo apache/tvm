@@ -557,9 +557,6 @@ def test_llvm_div():
             print("dtype: {}".format(dtype))
             print("dividend range: [{}, {}]".format(start, end))
             print("divisor range: [{}, {}]".format(dstart, dend))
-            lowered = tvm.lower(sch.mod, simple_mode=True)
-            print("Lowered code:")
-            print(lowered)
 
         # Check that the computed values are correct
         for i in range(start, end + 1):
@@ -793,7 +790,6 @@ def test_llvm_shuffle():
         return tvm.tir.transform.prim_func_pass(_transform, opt_level=0, name="my_vectorize")
 
     with tvm.transform.PassContext(config={"tir.add_lower_pass": [(1, my_vectorize())]}):
-        ir = tvm.lower(sch.mod, simple_mode=True)
         module = tvm.build(sch.mod)
         a_ = tvm.nd.array(np.arange(1, 9, dtype="int32"))
         b_ = tvm.nd.array(np.arange(8, 0, -1, dtype="int32"))
