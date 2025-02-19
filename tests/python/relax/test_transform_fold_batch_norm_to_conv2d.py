@@ -64,6 +64,7 @@ def get_conv2d_batchnorm_sample():
 
     return tvm.IRModule({"main": func})
 
+
 def test_fold_batchnorm_info_conv2d():
     mod = get_conv2d_batchnorm_sample()
     mod_fold = get_conv2d_batchnorm_sample()
@@ -81,7 +82,7 @@ def test_fold_batchnorm_info_conv2d():
         "gamma": gamma_data,
         "beta": beta_data,
         "mean": mean_data,
-        "variance": variance_data
+        "variance": variance_data,
     }
 
     mod = tvm.relax.transform.BindParams("main", params_np)(mod)
@@ -130,7 +131,7 @@ def test_fold_batchnorm_info_conv2d_transform():
         "gamma": gamma_data,
         "beta": beta_data,
         "mean": mean_data,
-        "variance": variance_data
+        "variance": variance_data,
     }
     mod = tvm.relax.transform.BindParams("main", params_np)(mod)
     mod = relax.transform.FoldBatchnormToConv2D()(mod)

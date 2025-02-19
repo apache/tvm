@@ -67,6 +67,7 @@ def compare_codegen(clml_mod, clml_codegen):
         f"Expected={known_good_codegen_str}"
     )
 
+
 def verify(mod, params_np, clml_codegen):
     mod = tvm.relax.transform.BindParams("main", params_np)(mod)
     clml_mod = OpenCLMLOffLoad()(mod)
@@ -399,9 +400,7 @@ def test_unary_ops(a_shape, op, dtype):
 def test_max_pool(dtype, trials):
     low, high = -1, 1
     (input_shape, pool_size, stride, dilation, padding, has_pad) = trials
-    mod = get_relax_maxpool_mod(
-        input_shape, dtype, pool_size, stride, dilation, padding, has_pad
-    )
+    mod = get_relax_maxpool_mod(input_shape, dtype, pool_size, stride, dilation, padding, has_pad)
     params_np = {}
 
     expected_codegen_str = get_maxpool_expected_codegen(
@@ -427,9 +426,7 @@ def test_max_pool(dtype, trials):
 def test_avg_pool(dtype, trials):
     low, high = -1, 1
     (input_shape, pool_size, stride, dilation, padding, has_pad) = trials
-    mod = get_relax_avgpool_mod(
-        input_shape, dtype, pool_size, stride, dilation, padding, has_pad
-    )
+    mod = get_relax_avgpool_mod(input_shape, dtype, pool_size, stride, dilation, padding, has_pad)
     params_np = {}
     exp_codegen_str = get_avgpool_expected_codegen(
         input_shape, pool_size, stride, padding, "avg_pool2d", dtype

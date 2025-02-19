@@ -228,9 +228,7 @@ def test_max_pool(dtype, trials, rpc):
     (input_shape, pool_size, stride, dilation, padding, has_pad) = trials
     data = np.random.uniform(low, high, size=input_shape).astype(dtype)
     inputs = [data]
-    mod = get_relax_maxpool_mod(
-        input_shape, dtype, pool_size, stride, dilation, padding, has_pad
-    )
+    mod = get_relax_maxpool_mod(input_shape, dtype, pool_size, stride, dilation, padding, has_pad)
     params_np = {}
     run_compare(mod, inputs, params_np, rpc)
 
@@ -254,9 +252,7 @@ def test_avg_pool(dtype, trials, rpc):
     (input_shape, pool_size, stride, dilation, padding, has_pad) = trials
     data = np.random.uniform(low, high, size=input_shape).astype(dtype)
     inputs = [data]
-    mod = get_relax_avgpool_mod(
-        input_shape, dtype, pool_size, stride, dilation, padding, has_pad
-    )
+    mod = get_relax_avgpool_mod(input_shape, dtype, pool_size, stride, dilation, padding, has_pad)
     params_np = {}
     run_compare(mod, inputs, params_np, rpc)
 
