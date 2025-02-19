@@ -676,6 +676,19 @@ TVM_REGISTER_GLOBAL("target.llvm_get_system_x86_vendor").set_body_typed([]() -> 
   return "unimplemented";
 });
 
+TVM_REGISTER_GLOBAL("target.llvm_get_vector_width").set_body_typed([](const Target& target) -> int {
+  auto use_target = target.defined() ? target : Target::Current(false);
+  // ignore non "llvm" target
+  if (target.defined()) {
+    if (target->kind->name != "llvm") {
+      return -1;
+    }
+  }
+  auto llvm_instance = std::make_unique<LLVMInstance>();
+  LLVMTargetInfo llvm_backend(*llvm_instance, use_target);
+  return llvm_backend.GetVectorWidth();
+});
+
 TVM_REGISTER_GLOBAL("target.llvm_get_system_triple").set_body_typed([]() -> String {
   return llvm::sys::getDefaultTargetTriple();
 });
