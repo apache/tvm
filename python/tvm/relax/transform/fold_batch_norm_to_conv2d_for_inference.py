@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, unused-argument, redefined-argument-from-local
-"""Relax Optimize Batchnorm to fold it into previous Conv pass."""
+"""Relax Fold Batchnorm into Conv2D."""
 from tvm.ir.module import IRModule
 from tvm.ir.transform import PassContext
 from tvm.relax import Expr
@@ -26,9 +26,11 @@ from . import function_pass
 
 
 @function_pass(opt_level=0)
-class OptimizeBatchnorm:
+class FoldBatchnormToConv2D:
     """
     Fuse Batchnorm to its previous Conv2D
+    This optimization is a special case of FoldScaleAxis that folds scale into conv2d weights.
+    This pass can be removed when FoldScaleAcis enhances to support this case.
     """
 
     def __init__(self):
@@ -47,7 +49,7 @@ class OptimizeBatchnorm:
 
     def transform_function(self, func: Expr, mod: IRModule, ctx: PassContext) -> IRModule:
         """
-        Tranformation function to pattern Conv2D+BatchNorm+TupleGetItem pattern
+        Tranformation function for pattern Conv2D+BatchNorm+TupleGetItem pattern
         Parameters
         ----------
         func: Expr

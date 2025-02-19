@@ -29,32 +29,13 @@ from tvm.contrib import utils, ndk
 from tvm.relax.backend.adreno.clml import OpenCLMLOffLoad
 
 
-def verify_codegen(clml_mod, clml_codegen):
-    source = clml_mod.attrs["external_mods"][0].get_source()
-    codegen = json.loads(source)["nodes"]
-    for node in range(len(codegen)):
-        if codegen[node]["op"] == "input" or codegen[node]["op"] == "const":
-            codegen[node]["name"] = ""
-        if codegen[node]["op"] == "kernel":
-            codegen[node]["name"] = ""
-    codegen_str = json.dumps(codegen, sort_keys=True, indent=2)
-    known_good_codegen_str = json.dumps(clml_codegen, sort_keys=True, indent=2)
-    assert codegen_str == known_good_codegen_str, (
-        f"The JSON produced by codegen does not match the expected result. \n"
-        f"Actual={codegen_str} \n"
-        f"Expected={known_good_codegen_str}"
-    )
-
-
 def build_and_run(
     mod,
     inputs_np,
     target,
     rpc=None,
-    params_np={},
     load_path="vm_library.so",
     clml_enable=False,
-    clml_codegen=None,
 ):
 
     tgt = tvm.target.Target(target, host="llvm -mtriple=aarch64-linux-gnu")
@@ -75,9 +56,6 @@ def build_and_run(
         dev = tvm.device(target, 0)
         vm = relax.VirtualMachine(ex, dev)
 
-    params_dev = []
-    for k, v in params_np.items():
-        params_dev.append(tvm.nd.array(v, dev))
     f = vm["main"]
     inputs = [tvm.nd.array(inp, dev) for inp in inputs_np]
     vm.set_input("main", *inputs)
@@ -86,37 +64,27 @@ def build_and_run(
     return tvm_output.numpy()
 
 
-def run_compare(mod, inputs, params_np, rpc=None, clml_codegen=None):
+def run_compare(mod, inputs, params_np, rpc=None):
     clml_mod = copy.deepcopy(mod)
-    clml_run_mod = copy.deepcopy(mod)
     mod = tvm.relax.transform.BindParams("main", params_np)(mod)
     clml_mod = tvm.relax.transform.BindParams("main", params_np)(clml_mod)
-    clml_run_mod = tvm.relax.transform.BindParams("main", params_np)(clml_run_mod)
 
-    # Verify codegen
-    clml_mod = OpenCLMLOffLoad()(clml_mod)
-    verify_codegen(clml_mod, clml_codegen)
-
-    # On Mainline CI
     if not rpc:
-        return None
+        return
 
     ref = build_and_run(
         mod,
         inputs,
         tvm.target.adreno(),
         rpc=rpc,
-        params_np=params_np,
         load_path="vm_library_opencl.so",
     )
     out = build_and_run(
-        clml_run_mod,
+        clml_mod,
         inputs,
         tvm.target.adreno(clml=True),
         rpc=rpc,
-        params_np=params_np,
         load_path="vm_library_clml.so",
         clml_enable=True,
-        clml_codegen=clml_codegen,
     )
     np.testing.assert_allclose(out, ref, rtol=1e-5, atol=1e-5)

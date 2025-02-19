@@ -16,7 +16,7 @@
 # under the License.
 """Relax backends"""
 
-from . import contrib, cpu_generic, cuda, gpu_generic, metal, rocm
+from . import contrib, cpu_generic, cuda, gpu_generic, metal, rocm, adreno
 from .dispatch_sampling import DispatchSampling
 from .dispatch_sort_scan import DispatchSortScan
 from .pattern_registry import get_pattern, get_patterns_with_prefix

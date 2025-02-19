@@ -49,7 +49,7 @@ def legalize_passes(target: tvm.target.Target):  # pylint: disable=unused-argume
 
 def dataflow_lower_passes(target: tvm.target.Target):  # pylint: disable=unused-argument
     """The default dataflow lowering passes for Adreno GPU backend."""
-    return relax.backend.gpu_generic.library_dispatch_passes(target)
+    return relax.backend.gpu_generic.dataflow_lower_passes(target)
 
 
 def finalize_passes(target: tvm.target.Target):  # pylint: disable=unused-argument

@@ -606,7 +606,7 @@ class OpenCLMLOffLoad:
             [
                 transform.ConvertLayout(clml_layouts),
                 transform.Normalize(),
-                transform.OptimizeBatchnorm(),
+                transform.FoldBatchnormToConv2D(),
                 AppendReshapeToBNRewriterPass(),
                 transform.FoldConstant(),
                 transform.FuseOpsByPattern(clml_pattern_table()),
