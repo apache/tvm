@@ -550,9 +550,7 @@ def build(
         target_host = "llvm" if tvm.runtime.enabled("llvm") else "stackvm"
     annotated_mods, target_host = Target.canon_target_map_and_host(annotated_mods, target_host)
 
-    for tgt, mod in annotated_mods.items():
-        mod = lower_module(mod, simple_mode=False)
-        annotated_mods[tgt] = mod
+    input_mod = lower_module(input_mod, simple_mode=False)
     return tir_to_runtime(annotated_mods, target_host)
 
 
