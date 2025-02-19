@@ -90,11 +90,10 @@ bool TargetHasSVE(Optional<Target> target) {
   if (!target.defined()) {
     target = Target::Current();
   }
-  bool has_sve{false};
   if (target.defined()) {
-    has_sve = target->GetFeature<Bool>("has_sve").value_or(Bool(false));
+    return Downcast<Target>(target)->GetFeature<Bool>("has_sve").value_or(Bool(false));
   }
-  return has_sve;
+  return false;
 }
 
 }  // namespace arith
