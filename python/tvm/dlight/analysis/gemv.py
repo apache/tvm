@@ -28,7 +28,22 @@ from .common_analysis import (
 
 
 def get_reduction_expr(block: tir.Block) -> Optional[tir.PrimExpr]:
-    # Detect and return `Y` in `X[...] = X[...] + Y`
+    """Extracts the reduction expression from a TIR block.
+
+    This function checks whether the given TIR block follows a reduction pattern
+    of the form `X[...] = X[...] + Y` and returns `Y` as the reduction expression.
+
+    Parameters:
+    ----------
+    block : tir.Block
+        The TIR block to analyze.
+
+    Returns:
+    -------
+    Optional[tir.PrimExpr]
+        The reduction expression (`Y`) if detected, otherwise None.
+    """
+
     buffer_store = block.body
     if not isinstance(buffer_store, tir.BufferStore):
         return None

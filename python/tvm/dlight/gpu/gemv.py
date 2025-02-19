@@ -18,14 +18,11 @@
 from functools import reduce
 from typing import List, Optional, Union
 
-from tvm import arith, ir, tir
+from tvm import tir
 from tvm.target import Target
 
 from ..analysis import (
     BlockInfo,
-    collect_block_iter_vars_used_in_access_region,
-    collect_vars_used_in_prim_expr,
-    detect_dominant_read,
     is_broadcast_epilogue,
     is_gemv,
     normalize,
