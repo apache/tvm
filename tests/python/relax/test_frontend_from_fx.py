@@ -1485,6 +1485,8 @@ def test_groupnorm():
 def test_binary():
     input_info1 = [([1, 3, 10, 10], "float32"), ([1, 3, 10, 10], "float32")]
     input_info2 = [([1, 3, 10, 10], "float32")]
+    input_info3 = [([1, 3, 10, 10], "int32"), ([1, 3, 10, 10], "int32")]
+    input_info4 = [([1, 3, 10, 10], "int32")]
 
     # Add
     class Add1(Module):
@@ -1961,6 +1963,211 @@ def test_binary():
 
     verify_model(Ne1(), input_info1, {}, expected23)
     verify_model(Ne2(), input_info2, {}, expected24)
+
+    # Lshift
+    class LShift1(Module):
+        def forward(self, lhs, rhs):
+            return lhs << rhs
+
+    @tvm.script.ir_module
+    class expected25:
+        @R.function
+        def main(
+            lhs_1: R.Tensor((1, 3, 10, 10), dtype="int32"),
+            rhs_1: R.Tensor((1, 3, 10, 10), dtype="int32"),
+        ) -> R.Tensor((1, 3, 10, 10), dtype="int32"):
+            # block 0
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10, 10), dtype="int32") = R.left_shift(lhs_1, rhs_1)
+                gv: R.Tensor((1, 3, 10, 10), dtype="int32") = lv
+                R.output(gv)
+
+            return gv
+
+    class LShift2(Module):
+        def forward(self, lhs):
+            return lhs << 1
+
+    @tvm.script.ir_module
+    class expected26:
+        @R.function
+        def main(
+            lhs_1: R.Tensor((1, 3, 10, 10), dtype="int32"),
+        ) -> R.Tensor((1, 3, 10, 10), dtype="int32"):
+            # block 0
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10, 10), dtype="int32") = R.left_shift(lhs_1, R.const(1))
+                gv: R.Tensor((1, 3, 10, 10), dtype="int32") = lv
+                R.output(gv)
+
+            return gv
+
+    verify_model(LShift1(), input_info3, {}, expected25)
+    verify_model(LShift2(), input_info4, {}, expected26)
+
+    # Rshift
+    class RShift1(Module):
+        def forward(self, lhs, rhs):
+            return lhs >> rhs
+
+    @tvm.script.ir_module
+    class expected27:
+        @R.function
+        def main(
+            lhs_1: R.Tensor((1, 3, 10, 10), dtype="int32"),
+            rhs_1: R.Tensor((1, 3, 10, 10), dtype="int32"),
+        ) -> R.Tensor((1, 3, 10, 10), dtype="int32"):
+            # block 0
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10, 10), dtype="int32") = R.right_shift(lhs_1, rhs_1)
+                gv: R.Tensor((1, 3, 10, 10), dtype="int32") = lv
+                R.output(gv)
+
+            return gv
+
+    class RShift2(Module):
+        def forward(self, lhs):
+            return lhs >> 1
+
+    @tvm.script.ir_module
+    class expected28:
+        @R.function
+        def main(
+            lhs_1: R.Tensor((1, 3, 10, 10), dtype="int32"),
+        ) -> R.Tensor((1, 3, 10, 10), dtype="int32"):
+            # block 0
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10, 10), dtype="int32") = R.right_shift(lhs_1, R.const(1))
+                gv: R.Tensor((1, 3, 10, 10), dtype="int32") = lv
+                R.output(gv)
+
+            return gv
+
+    verify_model(RShift1(), input_info3, {}, expected27)
+    verify_model(RShift2(), input_info4, {}, expected28)
+
+    # Bitwise and
+    class BitwiseAnd1(Module):
+        def forward(self, lhs, rhs):
+            return lhs & rhs
+
+    @tvm.script.ir_module
+    class expected29:
+        @R.function
+        def main(
+            lhs_1: R.Tensor((1, 3, 10, 10), dtype="int32"),
+            rhs_1: R.Tensor((1, 3, 10, 10), dtype="int32"),
+        ) -> R.Tensor((1, 3, 10, 10), dtype="int32"):
+            # block 0
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10, 10), dtype="int32") = R.bitwise_and(lhs_1, rhs_1)
+                gv: R.Tensor((1, 3, 10, 10), dtype="int32") = lv
+                R.output(gv)
+
+            return gv
+
+    class BitwiseAnd2(Module):
+        def forward(self, lhs):
+            return lhs & 1
+
+    @tvm.script.ir_module
+    class expected30:
+        @R.function
+        def main(
+            lhs_1: R.Tensor((1, 3, 10, 10), dtype="int32"),
+        ) -> R.Tensor((1, 3, 10, 10), dtype="int32"):
+            # block 0
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10, 10), dtype="int32") = R.bitwise_and(lhs_1, R.const(1))
+                gv: R.Tensor((1, 3, 10, 10), dtype="int32") = lv
+                R.output(gv)
+
+            return gv
+
+    verify_model(BitwiseAnd1(), input_info3, {}, expected29)
+    verify_model(BitwiseAnd2(), input_info4, {}, expected30)
+
+    # Bitwise or
+    class BitwiseOr1(Module):
+        def forward(self, lhs, rhs):
+            return lhs | rhs
+
+    @tvm.script.ir_module
+    class expected31:
+        @R.function
+        def main(
+            lhs_1: R.Tensor((1, 3, 10, 10), dtype="int32"),
+            rhs_1: R.Tensor((1, 3, 10, 10), dtype="int32"),
+        ) -> R.Tensor((1, 3, 10, 10), dtype="int32"):
+            # block 0
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10, 10), dtype="int32") = R.bitwise_or(lhs_1, rhs_1)
+                gv: R.Tensor((1, 3, 10, 10), dtype="int32") = lv
+                R.output(gv)
+
+            return gv
+
+    class BitwiseOr2(Module):
+        def forward(self, lhs):
+            return lhs | 1
+
+    @tvm.script.ir_module
+    class expected32:
+        @R.function
+        def main(
+            lhs_1: R.Tensor((1, 3, 10, 10), dtype="int32"),
+        ) -> R.Tensor((1, 3, 10, 10), dtype="int32"):
+            # block 0
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10, 10), dtype="int32") = R.bitwise_or(lhs_1, R.const(1))
+                gv: R.Tensor((1, 3, 10, 10), dtype="int32") = lv
+                R.output(gv)
+
+            return gv
+
+    verify_model(BitwiseOr1(), input_info3, {}, expected31)
+    verify_model(BitwiseOr2(), input_info4, {}, expected32)
+
+    # Bitwise xor
+    class BitwiseXor1(Module):
+        def forward(self, lhs, rhs):
+            return lhs ^ rhs
+
+    @tvm.script.ir_module
+    class expected33:
+        @R.function
+        def main(
+            lhs_1: R.Tensor((1, 3, 10, 10), dtype="int32"),
+            rhs_1: R.Tensor((1, 3, 10, 10), dtype="int32"),
+        ) -> R.Tensor((1, 3, 10, 10), dtype="int32"):
+            # block 0
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10, 10), dtype="int32") = R.bitwise_xor(lhs_1, rhs_1)
+                gv: R.Tensor((1, 3, 10, 10), dtype="int32") = lv
+                R.output(gv)
+
+            return gv
+
+    class BitwiseXor2(Module):
+        def forward(self, lhs):
+            return lhs ^ 1
+
+    @tvm.script.ir_module
+    class expected34:
+        @R.function
+        def main(
+            lhs_1: R.Tensor((1, 3, 10, 10), dtype="int32"),
+        ) -> R.Tensor((1, 3, 10, 10), dtype="int32"):
+            # block 0
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10, 10), dtype="int32") = R.bitwise_xor(lhs_1, R.const(1))
+                gv: R.Tensor((1, 3, 10, 10), dtype="int32") = lv
+                R.output(gv)
+
+            return gv
+
+    verify_model(BitwiseXor1(), input_info3, {}, expected33)
+    verify_model(BitwiseXor2(), input_info4, {}, expected34)
 
 
 def test_size():
