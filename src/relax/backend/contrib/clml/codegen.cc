@@ -22,6 +22,7 @@
  * \brief Implementation of the OpenCLML JSON serializer.
  */
 #include <tvm/ir/module.h>
+#include <tvm/ir/transform.h>
 #include <tvm/relax/type.h>
 
 #include <memory>
