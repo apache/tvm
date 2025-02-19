@@ -22,13 +22,13 @@ from typing import Dict, List, Optional, Set, Tuple
 
 from tvm import tir
 from tvm.ir import Range
+from tvm.script import tir as T
 from tvm.target import Target
 from tvm.tir import IterVar, PrimExpr, Var
 from tvm.tir.analysis import undefined_vars
 from tvm.tir.schedule.schedule import BlockRV
-from tvm.script import tir as T
 
-from ..base import analysis, BlockInfo, IterInfo
+from ..analysis import BlockInfo, IterInfo, get_root_block
 from .base import GPUScheduleRule
 
 
@@ -358,7 +358,7 @@ class MetalMatmul(GPUScheduleRule):
         if not isinstance(func, tir.PrimFunc) or not self.is_target_available(target):
             return None
         sch = tir.Schedule(func)
-        root_block = analysis.get_root_block(sch)
+        root_block = get_root_block(sch)
         blocks = sch.get_child_blocks(root_block)
 
         reduction_blocks = get_reduction_blocks(sch, blocks)
@@ -499,7 +499,7 @@ class MatmulTensorization(GPUScheduleRule):
         if not isinstance(func, tir.PrimFunc) or not self.is_target_available(target):
             return None
         sch = tir.Schedule(func)
-        root_block = analysis.get_root_block(sch)
+        root_block = get_root_block(sch)
         blocks = sch.get_child_blocks(root_block)
 
         if "dlight.do_not_tensorize" in func.attrs.keys():
@@ -720,7 +720,7 @@ class MatmulInt8Tensorization(GPUScheduleRule):
         if not isinstance(func, tir.PrimFunc) or not self.is_target_available(target):
             return None
         sch = tir.Schedule(func)
-        root_block = analysis.get_root_block(sch)
+        root_block = get_root_block(sch)
         blocks = sch.get_child_blocks(root_block)
 
         if "dlight.do_not_tensorize" in func.attrs.keys():
@@ -971,7 +971,7 @@ class Matmul(GPUScheduleRule):
             return None
         sch = tir.Schedule(func)
         config = self.get_configs(target)
-        root_block = analysis.get_root_block(sch)
+        root_block = get_root_block(sch)
         blocks = sch.get_child_blocks(root_block)
 
         reduction_blocks = get_reduction_blocks(sch, blocks)
@@ -1130,7 +1130,6 @@ class Matmul(GPUScheduleRule):
         reduction_block: tir.schedule.BlockRV,
         blocks: List[tir.schedule.BlockRV],
     ) -> Optional[tir.Schedule]:
-
         """Get vectorization factor"""
 
         def get_max_factor(n, factors):

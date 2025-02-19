@@ -21,7 +21,8 @@ from typing import List, Union
 from tvm import arith, tir
 from tvm.target import Target
 
-from ..base import normalize_prim_func, try_inline_contiguous_spatial
+from ..analysis import normalize_prim_func
+from ..base import try_inline_contiguous_spatial
 from .base import GPUScheduleRule
 
 

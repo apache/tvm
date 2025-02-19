@@ -21,7 +21,8 @@ from typing import List, Tuple
 from tvm import tir
 from tvm.target import Target
 
-from ..base import normalize_prim_func, try_inline
+from ..analysis import normalize_prim_func
+from ..base import try_inline
 from . import utils
 from .base import GPUScheduleRule
 
