@@ -70,6 +70,7 @@ from .target import (
     riscv_cpu,
     hexagon,
     stm32,
+    adreno,
 )
 from .virtual_device import VirtualDevice
 from .compilation_config import make_compilation_config
