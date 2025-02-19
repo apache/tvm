@@ -830,7 +830,7 @@ def stm32(series="unknown", options=None):
     return Target(" ".join(["c"] + opts))
 
 
-def adreno(model="unknown", options=None):
+def adreno(model="unknown", options=None, clml=False):
     """Returns a Qualcomm GPU target.
     Parameters
     ----------
@@ -839,7 +839,10 @@ def adreno(model="unknown", options=None):
     options : str or list of str
         Additional options
     """
-    opts = ["-device=adreno", "-model=%s" % model]
+    if clml:
+        opts = ["-device=adreno", "--keys=adreno,opencl,gpu,clml", "-model=%s" % model]
+    else:
+        opts = ["-device=adreno", "--keys=adreno,opencl,gpu", "-model=%s" % model]
     opts = _merge_opts(opts, options)
     return Target(" ".join(["opencl"] + opts))
 

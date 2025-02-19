@@ -1,4 +1,3 @@
-#!/usr/bin/env bash
 # Licensed to the Apache Software Foundation (ASF) under one
 # or more contributor license agreements.  See the NOTICE file
 # distributed with this work for additional information
@@ -16,29 +15,25 @@
 # specific language governing permissions and limitations
 # under the License.
 
-set -euxo pipefail
+import os
+import sys
+import tvm
+import pytest
+from tvm import rpc as _rpc
 
-source tests/scripts/setup-pytest-env.sh
-export LD_LIBRARY_PATH="build:${LD_LIBRARY_PATH:-}"
 
-# to avoid CI CPU thread throttling.
-export TVM_BIND_THREADS=0
-export TVM_NUM_THREADS=2
-
-# setup cython
-cd python; python3 setup.py build_ext --inplace; cd ..
-
-# Run Relax tests
-TVM_TEST_TARGETS="${TVM_RELAY_TEST_TARGETS:-llvm}" pytest tests/python/relax
-TVM_TEST_TARGETS="${TVM_RELAY_TEST_TARGETS:-llvm}" pytest tests/python/dlight
-
-# Run Relax examples
-# python3 ./apps/relax_examples/mlp.py
-# python3 ./apps/relax_examples/nn_module.py
-# python3 ./apps/relax_examples/resnet.py
-
-# Test for MSC
-# pytest tests/python/contrib/test_msc
-
-# Test for OpenCLML
-pytest tests/python/relax/backend/clml/
+@pytest.fixture(scope="session")
+def rpc():
+    rpc_target = os.getenv("RPC_TARGET", None)
+    if rpc_target:
+        connection_type = "tracker"
+        host = os.getenv("TVM_TRACKER_HOST", "localhost")
+        port = int(os.getenv("TVM_TRACKER_PORT", 9090))
+        target = "opencl"
+        target_host = "llvm -mtriple=aarch64-linux-gnu"
+        device_key = os.getenv("RPC_DEVICE_KEY", "android")
+        cross_compile = os.getenv("TVM_NDK_CC", "aarch64-linux-android-g++")
+        tracker = _rpc.connect_tracker(host, port)
+        return tracker.request(device_key, priority=1, session_timeout=1000)
+    else:
+        return None
