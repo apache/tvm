@@ -146,15 +146,16 @@ def build(
             if f_target is not None:
                 target = f_target
                 break
-    assert target is not None
-    target = Target.canon_target(target)
+    if target is not None:
+        target = Target.canon_target(target)
 
     # Step 2: Determine the host target
     target_host = "llvm" if tvm.runtime.enabled("llvm") else "stackvm"
-    if target.host is not None:
-        target_host = target.host
-    elif ndarray.device(target.kind.name, 0).device_type == ndarray.cpu(0).device_type:
-        target_host = target
+    if target is not None:
+        if target.host is not None:
+            target_host = target.host
+        elif ndarray.device(target.kind.name, 0).device_type == ndarray.cpu(0).device_type:
+            target_host = target
     target_host = Target.canon_target(target_host)
     target_to_bind = target_to_bind.with_host(target_host)
 
