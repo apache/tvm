@@ -25,8 +25,8 @@ from tvm.target import Target
 
 
 def build(
-    inputs: Union[PrimFunc, IRModule],
+    mod: Union[PrimFunc, IRModule],
     target: Optional[Union[str, Target]] = None,
-    name: str = "main",
+    pipeline: Optional[Union[str, tvm.transform.Pass]] = "default_tir",
 ):
-    return tvm.tir.build(inputs, target, name)
+    return tvm.tir.build(mod, target, pipeline)

@@ -713,7 +713,7 @@ def VerifyMemory():
     return _ffi_api.VerifyMemory()  # type: ignore
 
 
-def VerifyVTCMLimit(limit: int):
+def VerifyVTCMLimit(limit=None):
     """Verify if the size of the allocated vtcm memory satisfies the limit.
 
     Returns

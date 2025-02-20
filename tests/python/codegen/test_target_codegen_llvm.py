@@ -761,43 +761,6 @@ def test_dwarf_debug_information():
     check_llvm_ir()
 
 
-@tvm.testing.requires_llvm
-def test_llvm_shuffle():
-    a = te.placeholder((8,), "int32")
-    b = te.placeholder((8,), "int32")
-    c = te.compute((8,), lambda x: a[x] + b[7 - x])
-
-    # Convert to TIR and create schedule
-    mod = te.create_prim_func([a, b, c])
-    sch = tir.Schedule(mod)
-
-    def my_vectorize():
-        def vectorizer(op):
-            store = op.body
-            idx = tvm.tir.Ramp(tvm.tir.const(0, "int32"), tvm.tir.const(1, "int32"), 8)
-            value = store.value
-            b_idx = tvm.tir.Shuffle([idx], [tvm.tir.const(i, "int32") for i in range(7, -1, -1)])
-            new_a = tvm.tir.BufferLoad(value.a.buffer, [idx])
-            new_b = tvm.tir.BufferLoad(value.b.buffer, [b_idx])
-            value = new_a + new_b
-            return tvm.tir.BufferStore(store.buffer, new_a + new_b, [idx])
-
-        def _transform(f, *_):
-            return f.with_body(
-                tvm.tir.stmt_functor.ir_transform(f.body, None, vectorizer, ["tir.For"])
-            )
-
-        return tvm.tir.transform.prim_func_pass(_transform, opt_level=0, name="my_vectorize")
-
-    with tvm.transform.PassContext(config={"tir.add_lower_pass": [(1, my_vectorize())]}):
-        module = tvm.build(sch.mod)
-        a_ = tvm.nd.array(np.arange(1, 9, dtype="int32"))
-        b_ = tvm.nd.array(np.arange(8, 0, -1, dtype="int32"))
-        c_ = tvm.nd.array(np.zeros((8,), dtype="int32"))
-        module(a_, b_, c_)
-        tvm.testing.assert_allclose(c_.numpy(), (a_.numpy() * 2).astype("int32"))
-
-
 def np_float2np_bf16(arr):
     """Convert a numpy array of float to a numpy array
     of bf16 in uint16"""

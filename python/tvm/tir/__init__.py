@@ -109,3 +109,4 @@ from . import transform
 from . import analysis
 from . import stmt_functor
 from .build import build
+from .pipeline import get_pipeline
