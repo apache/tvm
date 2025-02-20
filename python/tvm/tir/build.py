@@ -17,7 +17,9 @@
 
 # pylint: disable=invalid-name
 """The build utils in python."""
-from typing import Union, Optional
+from typing import Union, Optional, Dict
+import enum
+
 import tvm
 from tvm import ir
 from tvm.runtime import ndarray
@@ -26,25 +28,49 @@ from tvm.ir.module import IRModule
 from tvm.target import Target
 
 
-def codegen_build(mod: IRModule, target: Target) -> tvm.runtime.Module:
-    """
-    Build a runtime module from an IRModule and a Target.
-
-    If the "tir.disable_assert" flag is set in the pass context,
-    the SkipAssert transformation is applied.
+def split_host_device_mods(mod):
+    """Split an IRModule into host and device modules.
 
     Parameters
     ----------
-    mod : IRModule
-        The input IRModule.
-    target : Target
-        The target for which to build the module.
+    mod : tvm.IRModule
+        The input module to split
 
     Returns
     -------
-    tvm.runtime.Module
-        The built runtime module.
+    host_mod : tvm.IRModule
+        The module containing host functions
+    device_mod_dict : Dict[Target, tvm.IRModule]
+        A dict mapping targets to device modules
     """
+
+    class CallConv(enum.IntEnum):
+        """Enum representing different calling conventions.
+        Corresponds to the C++ tvm::ir::CallingConv enum.
+        """
+
+        kDefault = 0
+        kCPackedFunc = 1
+        kDeviceKernelLaunch = 2
+
+    host_mod = tvm.tir.transform.Filter(
+        lambda f: int(f.attrs.get("calling_conv", CallConv.kDefault))
+        != int(CallConv.kDeviceKernelLaunch)
+    )(mod)
+    device_mod = tvm.tir.transform.Filter(
+        lambda f: int(f.attrs.get("calling_conv", CallConv.kDefault))
+        == int(CallConv.kDeviceKernelLaunch)
+    )(mod)
+    device_mod_dict = {}
+    for gv, func in device_mod.functions.items():
+        device_mod_dict.setdefault(func.attrs.get("target", None), dict()).update({gv: func})
+    for target, funcs in device_mod_dict.items():
+        device_mod_dict[target] = tvm.IRModule(funcs, attrs=device_mod.attrs)
+    return host_mod, device_mod_dict
+
+
+def codegen_build(mod: IRModule, target: Target) -> tvm.runtime.Module:
+    """Build a runtime module from an IRModule and a Target."""
     if tvm.ir.transform.PassContext.current().config.get("tir.disable_assert", False):
         mod = tvm.tir.transform.SkipAssert()(mod)
     build_f_name = "target.build." + target.kind.name
@@ -54,38 +80,18 @@ def codegen_build(mod: IRModule, target: Target) -> tvm.runtime.Module:
     return bf(mod, target)
 
 
-def tir_to_runtime(host_mod: IRModule, device_mod: IRModule, target, target_host: Target):
-    """
-    Convert a collection of TIR IRModules (keyed by Target) into a single runtime Module.
-
-    Parameters
-    ----------
-    host_mod : IRModule
-        The host module.
-    device_mod : IRModule
-        The device module.
-    target : Target
-        The target.
-    target_host : Target
-        The initial host target.
-
-    Returns
-    -------
-    tvm.runtime.Module
-        The final runtime module.
-    """
+def tir_to_runtime(
+    host_mod: IRModule, device_mod_dict: Dict[Target, IRModule], target_host: Target
+):
+    """Convert a collection of TIR IRModules (keyed by Target) into a single runtime Module."""
 
     # Get the first module to get the attributes
     # necessary for tests/python/codegen/test_target_codegen_blob.py::test_cuda_multi_lib
     mhost_all = ir.IRModule({}, attrs=host_mod.attrs)
 
+    mhost_all.update(host_mod)
     device_modules = []
-    overrides_host_target = target.get_target_device_type() == target_host.get_target_device_type()
-    non_host_target_kind = target.kind != target_host.kind
-    if overrides_host_target and non_host_target_kind:
-        device_modules.append(codegen_build(host_mod, target))
-    else:
-        mhost_all.update(host_mod)
+    for target, device_mod in device_mod_dict.items():
         if len(device_mod.functions) != 0:
             device_modules.append(codegen_build(device_mod, target))
 
@@ -149,18 +155,25 @@ def build(
 
     # Step 2: Bind the target to the input module
     mod = tvm.tir.transform.BindTarget(target)(mod)
+
     # Step 3: Apply the pipeline
     if pipeline is not None:
         if isinstance(pipeline, str):
             pipeline = tvm.tir.get_pipeline(pipeline)
         mod = pipeline(mod)
 
-    # Step 4: Finalize the host and device modules
-    host_mod = tvm.tir.pipeline.finalize_host_passes()(mod)
-    device_mod = tvm.tir.pipeline.finalize_device_passes()(mod)
+    # Step 4: Get host and device modules
+    host_mod, device_mod_dict = split_host_device_mods(mod)
+
+    # Step 5: Apply finalization passes
+    host_mod = tvm.tir.pipeline.finalize_host_passes()(host_mod)
+    device_mod_dict = {
+        target: tvm.tir.pipeline.finalize_device_passes()(device_mod)
+        for target, device_mod in device_mod_dict.items()
+    }
 
     # Convert TIR IRModules to runtime Module by calling target.build
-    return tir_to_runtime(host_mod, device_mod, target, target_host)
+    return tir_to_runtime(host_mod, device_mod_dict, target_host)
 
 
 tvm.register_func("tir.build", build)

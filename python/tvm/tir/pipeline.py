@@ -131,25 +131,9 @@ def default_tir_pipeline():
     return _pipeline
 
 
-class CallConv(enum.IntEnum):
-    """
-    Enum representing different calling conventions.
-    Corresponds to the C++ tvm::ir::CallingConv enum.
-    """
-
-    kDefault = 0
-    kCPackedFunc = 1
-    kDeviceKernelLaunch = 2
-
-
 def finalize_host_passes():  # pylint: disable=unused-argument
     """The default finalization passes for TIR backend."""
     host_pass_list = [
-        # Filter out device kernel launches.
-        tir.transform.Filter(
-            lambda f: int(f.attrs.get("calling_conv", CallConv.kDefault))
-            != int(CallConv.kDeviceKernelLaunch)
-        ),
         tir.transform.LowerTVMBuiltin(),
         tir.transform.LowerCustomDatatypes(),
         tir.transform.LowerIntrin(),
@@ -162,11 +146,6 @@ def finalize_host_passes():  # pylint: disable=unused-argument
 def finalize_device_passes():  # pylint: disable=unused-argument
     """The default finalization passes for TIR backend."""
     device_pass_list = [
-        # Select only device kernel launches.
-        tir.transform.Filter(
-            lambda f: int(f.attrs.get("calling_conv", CallConv.kDefault))
-            == int(CallConv.kDeviceKernelLaunch)
-        ),
         tir.transform.LowerWarpMemory(),
         tir.transform.Simplify(),
         tir.transform.LowerCustomDatatypes(),
