@@ -154,7 +154,9 @@ def test_slice():
     # The maximum index is (2**15 * 2**15 - 1) * 2 <= 2**31 - 1
     check(const(2**15, "int64"), const(2**15, "int64"), target_bits=32, target_dtype="int32")
     # The maximum index is (2**15 * 2**15 - 1 + 2**15) * 2 > 2**31 - 1
-    check(const(2**15, "int64"), const((2**15 + 1), "int64"), target_bits=32, target_dtype="int64")
+    check(
+        const(2**15, "int64"), const((2**15 + 1), "int64"), target_bits=32, target_dtype="int64"
+    )
 
 
 def test_condition():
