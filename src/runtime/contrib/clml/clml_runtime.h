@@ -231,6 +231,18 @@ class CLMLThreadEntry {
 };
 
 /*!
+ * \brief Node descriptor to hold various information related to a Node.
+ */
+struct NodeDescriptor {
+  std::shared_ptr<cl_ml_tensor_memory_desc_qcom> tensor_desc = nullptr;
+  JSONGraphNode node;
+  // Check the flag and them pick the layout.
+  bool custom_layout = false;
+  cl_ml_tensor_layout_qcom layout;
+  cl_ml_tensor_usage_qcom usage = CL_TENSOR_USAGE_INVALID_QCOM;
+};
+
+/*!
  * \brief CLML objects we cache in order to avoid needing to construct
  * a new layer each time.
  */
@@ -249,9 +261,8 @@ struct CachedLayer {
   std::vector<std::shared_ptr<cl_ml_tensor_memory_desc_qcom>> out_placeholder;
   /* Tensor shape exception list while returning from CLML Subgraph */
   std::map<int, std::vector<size_t>> out_shapes;
-  /* Map of all tensors which need backing memory allocation */
-  std::map<int, std::pair<std::shared_ptr<cl_ml_tensor_memory_desc_qcom>, JSONGraphNode>>
-      storage_map;
+  /* Map of nodeid and descriptors */
+  std::map<int, struct NodeDescriptor> storage_map;
   /* Tensor memory descriptors list to set after backing memory allocation */
   std::vector<cl_ml_tensor_memory_desc_qcom> tensorMemDescs;
   cl_ml_tensor_mem_desc_set_qcom descriptorSet;

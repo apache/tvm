@@ -19,5 +19,6 @@ from .pipeline import (
     finalize_passes,
     get_default_pipeline,
     legalize_passes,
+    dataflow_lower_passes,
     library_dispatch_passes,
 )
