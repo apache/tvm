@@ -3952,6 +3952,27 @@ def test_max():
     verify_model(Max(), [([256, 256], "float32"), ([256, 256], "float32")], {}, Expected1)
 
 
+def test_min():
+    class Min(Module):
+        def forward(self, x, y):
+            return torch.min(x, y)
+
+    @I.ir_module
+    class Expected1:
+        @R.function
+        def main(
+            inp_0: R.Tensor((256, 256), dtype="float32"),
+            inp_1: R.Tensor((256, 256), dtype="float32"),
+        ) -> R.Tensor((256, 256), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((256, 256), dtype="float32") = R.minimum(inp_0, inp_1)
+                gv: R.Tensor((256, 256), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    verify_model(Min(), [([256, 256], "float32"), ([256, 256], "float32")], {}, Expected1)
+
+
 def test_attention():
     @I.ir_module
     class Expected1:
