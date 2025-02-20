@@ -17,15 +17,13 @@
 
 # pylint: disable=invalid-name
 """The build utils in python."""
-from typing import Union, Optional, Dict, Tuple
-import enum
+from typing import Union, Optional
 import tvm
-from tvm import tir, ir
+from tvm import ir
 from tvm.runtime import ndarray
 from tvm.tir import PrimFunc
 from tvm.ir.module import IRModule
 from tvm.target import Target
-from tvm._ffi.runtime_ctypes import Device
 
 
 def codegen_build(mod: IRModule, target: Target) -> tvm.runtime.Module:
