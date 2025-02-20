@@ -2313,7 +2313,7 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
                                 o_data,                  // output tensor
                                 merged_attn_scores_view_,
                                 /*causal=*/1,
-                                RoPEMode::kNone,        // Rope changes have already been applied before the kernel
+                                static_cast<int>(RoPEMode::kNone),        // Rope changes have already been applied before the kernel
                                 0,                      // Rope param, not important
                                 0,                      // Rope param, not important
                                 attn_score_scaling_factor);
