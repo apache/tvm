@@ -173,32 +173,8 @@ void CodeGenLLVM::InitTarget() {
   data_layout_.reset(new llvm::DataLayout(module_.get()));
 #endif
   if (native_vector_bits_ == 0) {
-    const int vwidth = llvm_target_->GetVectorWidth();
-    const auto& arch = tm->getTargetTriple().getArch();
-    const std::string arch_name = std::string(tm->getTargetTriple().getArchName());
-    if (vwidth > 0) {
-      // override from target options
-      // e.g. llvm -vector-width=xxx
-      native_vector_bits_ = vwidth;
-    } else if (arch == llvm::Triple::x86_64) {
-      // for avx512
-      native_vector_bits_ = 512;
-    } else if (arch == llvm::Triple::x86) {
-      native_vector_bits_ = 256;
-    } else if (arch == llvm::Triple::arm || arch == llvm::Triple::aarch64) {
-      native_vector_bits_ = 128;
-    } else if (arch == llvm::Triple::riscv32 || arch == llvm::Triple::riscv64) {
-      native_vector_bits_ = 256;
-      LOG(WARNING) << "LLVM RVV VLEN inference failed, "
-                   << "using 256 bits, set -vector-width=XXX to override";
-      // fallback default
-    } else {
-      native_vector_bits_ = 128;
-      LOG(WARNING) << "Set native vector bits to be 128 for `" << arch_name
-                   << "`, use -vector-width=XXX to override.";
-    }
+    native_vector_bits_ = llvm_target_->GetVectorWidth();
   }
-
 #if TVM_LLVM_VERSION >= 60
   bool use_float16_abi = false;
 #if TVM_LLVM_VERSION >= 150
