@@ -2461,10 +2461,14 @@ def _attention_prefill_ragged_cpu(h_kv, h_q, d, dtype, rope_scaling: Dict[str, A
 
     return batch_prefill_ragged_kv
 
+
 def _attention_prefill_ragged(h_kv, h_q, d, dtype, rope_scaling: Dict[str, Any], target: Target):
     return _attention_prefill_ragged_generic(h_kv, h_q, d, d, dtype, rope_scaling, target)
 
-def _attention_prefill_ragged_generic(h_kv, h_q, d_qk, d_v, dtype, rope_scaling: Dict[str, Any], target: Target):
+
+def _attention_prefill_ragged_generic(
+    h_kv, h_q, d_qk, d_v, dtype, rope_scaling: Dict[str, Any], target: Target
+):
     # pylint: disable=line-too-long
     (
         NUM_BLKS,

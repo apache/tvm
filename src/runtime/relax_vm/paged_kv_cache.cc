@@ -2288,7 +2288,6 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     CHECK_EQ(v_data->shape[2], v_head_dim_);
     CHECK_EQ(o_data->shape[2], v_head_dim_);
 
-    
     // Part 2: Synchronize streams and update auxiliary data.
     ComputeStreamWaitForCopyStream();
     ICHECK(!dirty_aux_data_device_);
@@ -2303,27 +2302,21 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     // Here, we use f_mla_prefill_ragged_normal_, which is designed to work for both decode
     // and normal prefill cases. Optionally, you could check a flag like `use_decode_kernel_[0]`
     // to adjust parameters; here we assume the kernel internally supports both cases.
-    f_mla_prefill_ragged_normal_(q_data, 
-                                cur_append_length_indptr_view_,
-                                k_data,
-                                v_data,
-                                cur_append_length_indptr_view_,
-                                q_rope_position_map_view_,
-                                k_ragged_rope_pos_offset_view_,
-                                o_data,                  // output tensor
-                                merged_attn_scores_view_,
-                                /*causal=*/1,
-                                static_cast<int>(RoPEMode::kNone),        // Rope changes have already been applied before the kernel
-                                0,                      // Rope param, not important
-                                0,                      // Rope param, not important
-                                attn_score_scaling_factor);
+    f_mla_prefill_ragged_normal_(q_data, cur_append_length_indptr_view_, k_data, v_data,
+                                 cur_append_length_indptr_view_, q_rope_position_map_view_,
+                                 k_ragged_rope_pos_offset_view_,
+                                 o_data,  // output tensor
+                                 merged_attn_scores_view_,
+                                 /*causal=*/1, static_cast<int>(RoPEMode::kNone),
+                                 0,  // Rope param, not important
+                                 0,  // Rope param, not important
+                                 attn_score_scaling_factor);
 
     // Part 5: If appending is to occur after attention, call the append kernel.
     if (!append_before_attn_) {
       f_transpose_append_mla_(pages_[local_layer_id], compressed_kv_data, k_pe_data,
                               append_position_map_view_);
     }
-
   }
 
   void LinearAttention(int64_t layer_id, NDArray q_data, NDArray k_data, NDArray v_data,
