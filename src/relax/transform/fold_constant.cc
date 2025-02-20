@@ -117,7 +117,8 @@ class ConstantFolder : public ExprMutator {
       // TODO(Hongyi): further check and narrow the scope of foldable function
       auto* pf = runtime::Registry::Get("tir.build");
       ICHECK(pf != nullptr) << "Cannot find tir.build in registry";
-      runtime::Module rt_module = (*pf)(func, eval_cpu_target, "tir_function");
+      func = WithAttr(func, tvm::attr::kGlobalSymbol, String("tir_function"));
+      runtime::Module rt_module = (*pf)(func, eval_cpu_target);
       build_func = rt_module.GetFunction("tir_function");
     } catch (const tvm::Error& err) {
       // build failure may happen in which case we skip
