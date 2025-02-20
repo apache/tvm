@@ -42,7 +42,7 @@ def test_llvm_intrin():
     body = ib.get()
 
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([A], body).with_attr("global_symbol", "prefetch"))
-    fcode = tvm.build(mod, None, "llvm")
+    fcode = tvm.build(mod, None)
 
 
 @tvm.testing.requires_llvm
@@ -54,7 +54,7 @@ def test_llvm_void_intrin():
     ib.emit(x)
     body = ib.get()
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([A], body).with_attr("global_symbol", "main"))
-    fcode = tvm.build(mod, None, "llvm")
+    fcode = tvm.build(mod, None)
 
 
 @tvm.testing.requires_llvm
@@ -106,7 +106,7 @@ def test_llvm_lookup_intrin():
     ib.emit(x)
     body = ib.get()
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([A], body).with_attr("global_symbol", "main"))
-    fcode = tvm.build(mod, None, "llvm")
+    fcode = tvm.build(mod, None)
 
 
 @tvm.testing.requires_llvm
