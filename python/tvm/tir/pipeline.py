@@ -18,7 +18,6 @@
 # pylint: disable=invalid-name
 """The TIR backend compilation pipeline."""
 
-import enum
 import tvm
 from tvm import tir
 
