@@ -179,7 +179,7 @@ def test_call_packed_return_non_i32():
         )
 
     mod = build_tir()
-    f = tvm.build(mod, None, "llvm")
+    f = tvm.build(mod, None)
     a = tvm.nd.array(np.zeros(2, dtype="float32"))
     f(a)
     tvm.testing.assert_allclose(a.numpy(), expected_value)

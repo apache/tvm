@@ -22,7 +22,6 @@
  * \brief Passes that serve as helper functions.
  */
 
-#include <tvm/driver/driver_api.h>
 #include <tvm/tir/transform.h>
 
 namespace tvm {
