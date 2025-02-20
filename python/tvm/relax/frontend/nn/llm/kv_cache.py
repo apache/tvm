@@ -180,6 +180,49 @@ class PagedKVCache(Object):  # pylint: disable=too-few-public-methods
             )
         ).reshape(b, s, h_qo, kv_lora_rank)
 
+    def mla_normal(
+        self,
+        layer_id: int,
+        q: Tensor,
+        k: Tensor,
+        v: Tensor,
+        compressed_kv: Tensor,
+        k_pe: Tensor,
+        attn_score_scaling_factor: float = 1.0,
+    ) -> Tensor:
+        """Compute multi-head latent attention with the given data
+        on the specified layer using the normal flow(WITHOUT weight absorption).
+        """
+        # pylint: disable=protected-access
+        b, s, h_qo, d_qk = q._expr.struct_info.shape
+        d_v = v._expr.struct_info.shape[3]
+        kv_lora_rank = compressed_kv._expr.struct_info.shape[3]
+        qk_rope_head_dim = k_pe._expr.struct_info.shape[3]
+        q = q.reshape(b * s, h_qo, d_qk)
+        k = k.reshape(b * s, h_qo, d_qk)
+        v = v.reshape(b * s, h_qo, d_v)
+        compressed_kv = compressed_kv.reshape(b * s, kv_lora_rank)
+        k_pe = k_pe.reshape(b * s, qk_rope_head_dim)
+
+        return Tensor(
+            _expr=rx.BlockBuilder.current().emit(
+                rx.call_dps_packed(
+                    "vm.builtin.attention_kv_cache_mla_normal",
+                    [
+                        self._expr,
+                        rx.PrimValue(layer_id),  # type: ignore[arg-type]
+                        rx.PrimValue(attn_score_scaling_factor),
+                        q._expr,
+                        k._expr,
+                        v._expr,
+                        compressed_kv._expr,
+                        k_pe._expr,
+                    ],
+                    out_sinfo=rx.TensorStructInfo((b * s, h_qo, d_v), q.dtype),
+                )
+            )
+        ).reshape(b, s, h_qo, d_v)
+
     def get_query_positions(self, total_length: tir.PrimExpr) -> Tensor:
         """Get the in-sequence positions of each slot in the query,
         which are needed for applying positional embeddings in some models.
@@ -591,7 +634,7 @@ class TIRPagedKVCache(PagedKVCache):  # pylint: disable=too-few-public-methods
             rx.PrimValue(0),
             bb.add_func(_attention_prefill_mla(num_attention_heads, kv_lora_rank, qk_rope_head_dim, dtype, False, target), "tir_attention_prefill_mla"),
             bb.add_func(_attention_decode_mla(num_attention_heads, kv_lora_rank, qk_rope_head_dim, dtype, False, target), "tir_attention_decode_mla"),
-            bb.add_func(_attention_prefill_ragged(num_key_value_heads, num_attention_heads, v_head_dim, dtype, {}, target), "tir_attention_prefill_ragged_mla_normal"),
+            bb.add_func(_attention_prefill_ragged_generic(num_key_value_heads, num_attention_heads, qk_rope_head_dim, v_head_dim, dtype, {}, target), "tir_attention_prefill_ragged_mla_normal"),
             bb.add_func(_attention_prefill_ragged_mla_absorbed(num_attention_heads, kv_lora_rank, qk_rope_head_dim, dtype, target), "tir_attention_prefill_ragged_mla_absorbed"),
             bb.add_func(_merge_state_inplace(num_attention_heads, kv_lora_rank, dtype, target), "tir_attention_merge_state"),
             bb.add_func(llama_rope_with_position_map(10000, 1, qk_rope_head_dim, num_attention_heads, num_key_value_heads, dtype, {}, None), "tir_split_rotary"),
@@ -2420,6 +2463,12 @@ def _attention_prefill_ragged_cpu(h_kv, h_q, d, dtype, rope_scaling: Dict[str, A
 
 
 def _attention_prefill_ragged(h_kv, h_q, d, dtype, rope_scaling: Dict[str, Any], target: Target):
+    return _attention_prefill_ragged_generic(h_kv, h_q, d, d, dtype, rope_scaling, target)
+
+
+def _attention_prefill_ragged_generic(
+    h_kv, h_q, d_qk, d_v, dtype, rope_scaling: Dict[str, Any], target: Target
+):
     # pylint: disable=line-too-long
     (
         NUM_BLKS,
@@ -2431,7 +2480,7 @@ def _attention_prefill_ragged(h_kv, h_q, d, dtype, rope_scaling: Dict[str, Any],
         tile_x,
         tile_y,
         tile_z,
-    ) = _get_prefill_kernel_config(h_kv, h_q, d, dtype, target)
+    ) = _get_prefill_kernel_config(h_kv, h_q, d_qk, dtype, target)
 
     # fmt: off
     @T.prim_func
@@ -2459,14 +2508,14 @@ def _attention_prefill_ragged(h_kv, h_q, d, dtype, rope_scaling: Dict[str, Any],
         q_rope_position_elem_offset = T.int32(is_size_var=True)
         k_rope_pos_offset_elem_offset = T.int32(is_size_var=True)
 
-        q = T.match_buffer(var_q, (qo_len, h_q, d), dtype)
+        q = T.match_buffer(var_q, (qo_len, h_q, d_qk), dtype)
         q_indptr = T.match_buffer(var_q_indptr, (batch_size + 1,), "int32", elem_offset=q_indptr_elem_offset)
-        k = T.match_buffer(var_k, (kv_len, h_kv, d), dtype)
-        v = T.match_buffer(var_v, (kv_len, h_kv, d), dtype)
+        k = T.match_buffer(var_k, (kv_len, h_kv, d_qk), dtype)
+        v = T.match_buffer(var_v, (kv_len, h_kv, d_v), dtype)
         kv_indptr = T.match_buffer(var_kv_indptr, (batch_size + 1,), "int32", elem_offset=kv_indptr_elem_offset)
         q_rope_position = T.match_buffer(var_q_rope_position, (qo_len,), "int32", elem_offset=q_rope_position_elem_offset)
         k_rope_pos_offset = T.match_buffer(var_k_rope_pos_offset, (batch_size,), "int32", elem_offset=k_rope_pos_offset_elem_offset)
-        output = T.match_buffer(var_output, (qo_len, h_q, d), dtype)
+        output = T.match_buffer(var_output, (qo_len, h_q, d_v), dtype)
         lse = T.match_buffer(var_lse, (qo_len, h_q), "float32")  # pylint: disable=unused-variable
 
         # kernel code
@@ -2485,13 +2534,13 @@ def _attention_prefill_ragged(h_kv, h_q, d, dtype, rope_scaling: Dict[str, Any],
                             iterator = _var("int32")
                             kv_chunk_len = _var("int32")
 
-                            Q_smem = T.alloc_buffer((tile_x, d), dtype, scope="shared")
-                            K_smem = T.alloc_buffer((tile_z, d), dtype, scope="shared")
-                            V_smem = T.alloc_buffer((tile_z, d), dtype, scope="shared")
+                            Q_smem = T.alloc_buffer((tile_x, d_qk), dtype, scope="shared")
+                            K_smem = T.alloc_buffer((tile_z, d_qk), dtype, scope="shared")
+                            V_smem = T.alloc_buffer((tile_z, d_v), dtype, scope="shared")
                             S_smem = T.alloc_buffer((tile_x, tile_z), "float32", scope="shared")
 
                             S_local = T.alloc_buffer((tile_x, tile_z), "float32", scope="local")
-                            O_local = T.alloc_buffer((tile_x, d), "float32", scope="local")
+                            O_local = T.alloc_buffer((tile_x, d_v), "float32", scope="local")
 
                             m_smem = T.alloc_buffer((tile_x, ), "float32", scope="shared")
                             m_prev_smem = T.alloc_buffer((tile_x, ), "float32", scope="shared")
@@ -2548,7 +2597,7 @@ def _attention_prefill_ragged(h_kv, h_q, d, dtype, rope_scaling: Dict[str, Any],
                                             if cur_L < q_indptr[b_idx + 1]:
                                                 Q_smem[i, j] = T.if_then_else(
                                                     rotary_mode == 1,
-                                                    _rope(q, q_rope_position[cur_L], d, rope_theta, rope_scale, (cur_L, cur_H_qo, j), dtype, rope_scaling),
+                                                    _rope(q, q_rope_position[cur_L], d_qk, rope_theta, rope_scale, (cur_L, cur_H_qo, j), dtype, rope_scaling),
                                                     q[cur_L, cur_H_qo, j]
                                                 )
                                             else:
@@ -2565,7 +2614,7 @@ def _attention_prefill_ragged(h_kv, h_q, d, dtype, rope_scaling: Dict[str, Any],
                                                 if cur_L < kv_chunk_len[0]:
                                                     K_smem[i, j] = T.if_then_else(
                                                         rotary_mode == 1,
-                                                        _rope(k, k_rope_pos_offset[b_idx] + cur_L, d, rope_theta, rope_scale, (L_kv_base + cur_L, by, j), dtype, rope_scaling),
+                                                        _rope(k, k_rope_pos_offset[b_idx] + cur_L, d_qk, rope_theta, rope_scale, (L_kv_base + cur_L, by, j), dtype, rope_scaling),
                                                         k[L_kv_base + cur_L, by, j]
                                                     )
                                                 else:

@@ -2241,7 +2241,82 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
   void MLANormal(int64_t layer_id, NDArray q_data, NDArray k_data, NDArray v_data,
                  NDArray compressed_kv_data, NDArray k_pe_data, NDArray o_data,
                  double attn_score_scaling_factor) {
-    // Todo(ruihang): implement it
+    // Part 1: Basic Checks and Setup.
+    int64_t local_layer_id = layer_id - layer_id_begin_offset_;
+    CHECK_GE(local_layer_id, 0);
+    CHECK_LT(local_layer_id, num_layers_);
+    NDArray pages = pages_[local_layer_id];
+    CHECK(q_data.DataType() == pages.DataType());
+    CHECK(k_data.DataType() == pages.DataType());
+    CHECK(v_data.DataType() == pages.DataType());
+    CHECK(compressed_kv_data.DataType() == pages.DataType());
+    CHECK(k_pe_data.DataType() == pages.DataType());
+    CHECK(o_data.DataType() == pages.DataType());
+    CHECK(attn_kinds_[layer_id] == AttnKind::kMLA);
+
+    // Expected shapes:
+    //   q_data:             (num_total_length, num_qo_heads, qk_head_dim)
+    //   k_data:             (num_total_length, num_qo_heads, qk_head_dim)
+    //   v_data:             (num_total_length, num_qo_heads, v_head_dim)
+    //   compressed_kv_data: (num_total_length, qk_head_dim - qk_rope_head_dim)
+    //   k_pe_data:          (num_total_length, qk_rope_head_dim)
+    //   o_data:             (num_total_length, num_qo_heads, v_head_dim)
+    CHECK_EQ(q_data->ndim, 3);
+    CHECK_EQ(k_data->ndim, 3);
+    CHECK_EQ(v_data->ndim, 3);
+    CHECK_EQ(compressed_kv_data->ndim, 2);
+    CHECK_EQ(k_pe_data->ndim, 2);
+    CHECK_EQ(o_data->ndim, 3);
+
+    int64_t total_seq_length = 0;
+    for (int64_t i = 0; i < cur_batch_size_; ++i) {
+      total_seq_length += cur_append_lengths_[i];
+    }
+    CHECK_LE(q_data->shape[0], total_seq_length);
+    CHECK_LE(k_data->shape[0], total_seq_length);
+    CHECK_LE(v_data->shape[0], total_seq_length);
+    CHECK_LE(compressed_kv_data->shape[0], total_seq_length);
+    CHECK_LE(k_pe_data->shape[0], total_seq_length);
+    CHECK_EQ(k_pe_data->shape[1], qk_rope_head_dim_);
+    CHECK_LE(o_data->shape[0], total_seq_length);
+    CHECK_EQ(q_data->shape[1], num_qo_heads_);
+    CHECK_EQ(o_data->shape[1], num_qo_heads_);
+    CHECK_EQ(k_data->shape[1], num_qo_heads_);
+    CHECK_EQ(v_data->shape[1], num_qo_heads_);
+    CHECK_EQ(q_data->shape[2], qk_head_dim_);
+    CHECK_EQ(k_data->shape[2], qk_head_dim_);
+    CHECK_EQ(v_data->shape[2], v_head_dim_);
+    CHECK_EQ(o_data->shape[2], v_head_dim_);
+
+    // Part 2: Synchronize streams and update auxiliary data.
+    ComputeStreamWaitForCopyStream();
+    ICHECK(!dirty_aux_data_device_);
+
+    // Append k/v data to kv-cache if flag "append_before_attn" is set.
+    if (append_before_attn_) {
+      f_transpose_append_mla_(pages_[local_layer_id], compressed_kv_data, k_pe_data,
+                              append_position_map_view_);
+    }
+
+    // Part 4: Call the ragged kernel.
+    // Here, we use f_mla_prefill_ragged_normal_, which is designed to work for both decode
+    // and normal prefill cases. Optionally, you could check a flag like `use_decode_kernel_[0]`
+    // to adjust parameters; here we assume the kernel internally supports both cases.
+    f_mla_prefill_ragged_normal_(q_data, cur_append_length_indptr_view_, k_data, v_data,
+                                 cur_append_length_indptr_view_, q_rope_position_map_view_,
+                                 k_ragged_rope_pos_offset_view_,
+                                 o_data,  // output tensor
+                                 merged_attn_scores_view_,
+                                 /*causal=*/1, static_cast<int>(RoPEMode::kNone),
+                                 0,  // Rope param, not important
+                                 0,  // Rope param, not important
+                                 attn_score_scaling_factor);
+
+    // Part 5: If appending is to occur after attention, call the append kernel.
+    if (!append_before_attn_) {
+      f_transpose_append_mla_(pages_[local_layer_id], compressed_kv_data, k_pe_data,
+                              append_position_map_view_);
+    }
   }
 
   void LinearAttention(int64_t layer_id, NDArray q_data, NDArray k_data, NDArray v_data,
