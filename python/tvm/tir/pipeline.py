@@ -160,7 +160,7 @@ PIPELINE_MAP = {
 }
 
 
-def get_pipeline(name: str = "default_tir", **kwargs) -> tvm.transform.Pass:
+def get_tir_pipeline(name: str = "default_tir", **kwargs) -> tvm.transform.Pass:
     """Get pre-build pipeline by name
 
     Parameters
@@ -173,3 +173,8 @@ def get_pipeline(name: str = "default_tir", **kwargs) -> tvm.transform.Pass:
             f"Unknown pre-built pipeline {name}," f"candidates are {list(PIPELINE_MAP.keys())}"
         )
     return PIPELINE_MAP[name](**kwargs)
+
+
+def get_default_tir_pipeline(target: tvm.target.Target) -> tvm.transform.Pass:
+    """Get the default TIR pipeline for the given target."""
+    return default_tir_pipeline()
