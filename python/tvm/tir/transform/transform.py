@@ -713,7 +713,7 @@ def VerifyMemory():
     return _ffi_api.VerifyMemory()  # type: ignore
 
 
-def VerifyVTCMLimit(limit: int):
+def VerifyVTCMLimit(limit=None):
     """Verify if the size of the allocated vtcm memory satisfies the limit.
 
     Returns
@@ -1200,3 +1200,36 @@ def UseAssumeToReduceBranches():
         The result pass
     """
     return _ffi_api.UseAssumeToReduceBranches()  # type: ignore
+
+
+def LowerAsyncDMA():
+    """Lower async DMA to DMA.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.LowerAsyncDMA()  # type: ignore
+
+
+def InjectPTXLDG32(enable_inject_ptx_intrin: bool = True):
+    """Inject ptx.ldg.32 intrinsics.
+
+    Parameters
+    ----------
+    enable_inject_ptx_intrin : bool
+        If True, inject ptx.ldg.32 intrinsics.
+    """
+    return _ffi_api.InjectPTXLDG32(enable_inject_ptx_intrin)  # type: ignore
+
+
+def LowerVtcmAlloc():
+    """Lower vtcm allocation.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.LowerVtcmAlloc()  # type: ignore

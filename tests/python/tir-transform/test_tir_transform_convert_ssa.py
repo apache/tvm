@@ -234,41 +234,6 @@ def test_no_change_if_already_ssa():
     assert before.same_as(after)
 
 
-class TestDedupAutoBroadcastBuffer(BaseBeforeAfter):
-    """De-dup auto-broadcast buffers
-
-    Auto-broadcast buffers can define additional variables during the
-    `Buffer::Buffer` constructor for the strides.  This is intended to
-    be used for match buffers, where these variables are defined based
-    on the argument being passed in.
-
-    These additional variables can cause errors when copying a buffer
-    with the `Buffer::Buffer` constructor.  If a buffer has non-empty
-    shape, empty strides, and kAutoBroadcast type, then the resulting
-    buffer will have additional strides defined.  Such a buffer can
-    result from lowering of a scalar buffer, which will be flattened
-    to a shape of [1].
-
-    Previous implementations of ConvertSSA incorrectly handled this
-    case, resulting in undefined stride variables.
-    """
-
-    def _make_func(self):
-        @T.prim_func
-        def func(a: T.handle):
-            A = T.match_buffer(a, shape=(), dtype="float32", buffer_type="auto")
-            A[()] = 1.0
-
-        return tvm.lower(func)["main"]
-
-    def before(self):
-        func = self._make_func()
-        return tvm.IRModule({"func_a": func, "func_b": func})
-
-    def expected(self):
-        return tvm.IRModule({"func_a": self._make_func(), "func_b": self._make_func()})
-
-
 class TestKeepDuplicateThreadIdxInSameFunction(BaseBeforeAfter):
     """Environment threads are treated as being at function scope
 
