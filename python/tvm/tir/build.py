@@ -131,41 +131,51 @@ def build(
         assert isinstance(mod, tvm.IRModule)
 
     # Step 0: Determine the target in environment
+    # It's used to bind the PrimFunc without target attr to serve as a default target
+    target_to_bind = Target.current() if target is None else target
+    if target_to_bind is None:
+        target_to_bind = "llvm"
+    assert target_to_bind is not None
+    target_to_bind = Target.canon_target(target_to_bind)
+
+    # Step 1: Determine the target to search for tir pipeline
     target = Target.current() if target is None else target
     if target is None:
-        target = "llvm"
-    assert target is not None
-    target = Target.canon_target(target)
+        for func in mod.functions.values():
+            f_target = func.attrs.get("target", None)
+            if f_target is not None:
+                target = f_target
+                break
+    if target is not None:
+        target = Target.canon_target(target)
 
-    # Step 1: Determine the host
+    # Step 2: Determine the host target
     target_host = "llvm" if tvm.runtime.enabled("llvm") else "stackvm"
     if target is not None:
         if target.host is not None:
             target_host = target.host
         elif ndarray.device(target.kind.name, 0).device_type == ndarray.cpu(0).device_type:
             target_host = target
-    else:
-        for func in mod.functions.values():
-            f_target = func.attrs.get("target", None)
-            if f_target is not None and f_target.host is not None:
-                target_host = f_target.host
-    assert target_host is not None
     target_host = Target.canon_target(target_host)
-    target = target.with_host(target_host)
+    target_to_bind = target_to_bind.with_host(target_host)
 
-    # Step 2: Bind the target to the input module
-    mod = tvm.tir.transform.BindTarget(target)(mod)
+    # Step 3: Bind the target to the input module
+    mod = tvm.tir.transform.BindTarget(target_to_bind)(mod)
 
-    # Step 3: Apply the pipeline
+    # Step 4: Apply the tir  pipeline
     if pipeline is not None:
+        # custom pipeline
         if isinstance(pipeline, str):
-            pipeline = tvm.tir.get_pipeline(pipeline)
-        mod = pipeline(mod)
+            pipeline = tvm.tir.get_tir_pipeline(pipeline)
+    else:
+        # default pipeline depends on the target
+        pipeline = tvm.tir.get_default_tir_pipeline(target)
+    mod = pipeline(mod)
 
-    # Step 4: Get host and device modules
+    # Step 5: Get host and device modules
     host_mod, device_mod_dict = split_host_device_mods(mod)
 
-    # Step 5: Apply finalization passes
+    # Step 6: Apply finalization passes
     host_mod = tvm.tir.pipeline.finalize_host_passes()(host_mod)
     device_mod_dict = {
         target: tvm.tir.pipeline.finalize_device_passes()(device_mod)
