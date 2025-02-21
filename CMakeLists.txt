@@ -57,20 +57,13 @@ tvm_option(USE_THREADS "Build with thread support" ON)
 tvm_option(USE_LLVM "Build with LLVM, can be set to specific llvm-config path" OFF)
 tvm_option(USE_MLIR "Build with MLIR support" OFF)
 tvm_option(USE_STACKVM_RUNTIME "Include stackvm into the runtime" OFF)
-tvm_option(USE_GRAPH_EXECUTOR "Build with tiny graph executor" ON)
-tvm_option(USE_GRAPH_EXECUTOR_CUDA_GRAPH "Build with tiny graph executor with CUDA Graph for GPUs" OFF)
-tvm_option(USE_AOT_EXECUTOR "Build with AOT executor" ON)
-tvm_option(USE_PROFILER "Build profiler for the VM and graph executor" ON)
 tvm_option(USE_OPENMP "Build with OpenMP thread pool implementation" OFF)
-tvm_option(USE_RELAY_DEBUG "Building Relay in debug mode..." OFF)
 tvm_option(TVM_DEBUG_WITH_ABI_CHANGE "Enable debug code that may cause ABI changes" OFF)
 tvm_option(TVM_LOG_BEFORE_THROW "Whether log before throw, for debugging purposes" OFF)
 tvm_option(USE_RTTI "Build with RTTI" ON)
 tvm_option(USE_MSVC_MT "Build with MT" OFF)
 tvm_option(INSTALL_DEV "Install compiler infrastructure" OFF)
 tvm_option(HIDE_PRIVATE_SYMBOLS "Compile with -fvisibility=hidden." OFF)
-tvm_option(USE_TF_TVMDSOOP "Build with TensorFlow TVMDSOOp" OFF)
-tvm_option(USE_PT_TVMDSOOP "Build with PyTorch TVMDSOOp" OFF)
 tvm_option(USE_FALLBACK_STL_MAP "Use TVM's POD compatible Map" OFF)
 tvm_option(INDEX_DEFAULT_I64 "Defaults the index datatype to int64" ON)
 tvm_option(USE_LIBBACKTRACE "Use libbacktrace to supply linenumbers on stack traces" AUTO)
@@ -115,7 +108,6 @@ tvm_option(USE_TFLITE "Build with tflite support" OFF)
 tvm_option(USE_TENSORFLOW_PATH "TensorFlow root path when use TFLite" none)
 tvm_option(USE_COREML "Build with coreml support" OFF)
 tvm_option(USE_BNNS "Build with BNNS support" OFF)
-tvm_option(USE_TARGET_ONNX "Build with ONNX Codegen support" OFF)
 tvm_option(USE_ARM_COMPUTE_LIB "Build with Arm Compute Library" OFF)
 tvm_option(USE_ARM_COMPUTE_LIB_GRAPH_EXECUTOR "Build with Arm Compute Library graph executor" OFF)
 tvm_option(USE_TENSORRT_CODEGEN "Build with TensorRT Codegen support" OFF)
@@ -123,12 +115,10 @@ tvm_option(USE_TENSORRT_RUNTIME "Build with TensorRT runtime" OFF)
 tvm_option(USE_NNAPI_CODEGEN "Build with NNAPI Codegen support" OFF)
 tvm_option(USE_NNAPI_RUNTIME "Build with NNAPI runtime" OFF)
 tvm_option(USE_RUST_EXT "Build with Rust based compiler extensions, STATIC, DYNAMIC, or OFF" OFF)
-tvm_option(USE_VITIS_AI "Build with VITIS-AI Codegen support" OFF)
 tvm_option(SUMMARIZE "Print CMake option summary after configuring" OFF)
 tvm_option(USE_CLML "Build with CLML Codegen support" OFF)
 tvm_option(USE_CLML_GRAPH_EXECUTOR "Build with CLML graph runtime" OFF)
 tvm_option(USE_UMA "Build with UMA support" OFF)
-tvm_option(USE_VERILATOR "Build with Verilator support" OFF)
 tvm_option(USE_MSC "Enable Multi-System Compiler" OFF)
 tvm_option(USE_MRVL "Build with MRVL TVM support" OFF)
 tvm_option(USE_NVSHMEM "Build with NVSHMEM support" OFF)
@@ -335,34 +325,6 @@ tvm_file_glob(GLOB CODEGEN_SRCS
 
 list(APPEND COMPILER_SRCS ${CODEGEN_SRCS})
 
-tvm_file_glob(GLOB_RECURSE RELAY_OP_SRCS
-    src/relay/op/*.cc
-    )
-tvm_file_glob(GLOB_RECURSE RELAY_PASS_SRCS
-    src/relay/analysis/*.cc
-    src/relay/collage/*.cc
-    src/relay/transforms/*.cc
-    src/relay/quantize/*.cc
-    )
-tvm_file_glob(GLOB RELAY_BACKEND_SRCS
-    src/relay/backend/*.cc
-    src/relay/backend/vm/*.cc
-    src/relay/backend/aot/*.cc
-    )
-tvm_file_glob(GLOB_RECURSE RELAY_IR_SRCS
-    src/relay/ir/*.cc
-    src/relay/printer/*.cc
-    src/relay/parser/*.cc
-    )
-tvm_file_glob(GLOB_RECURSE RELAY_QNN_SRCS
-    src/relay/qnn/*.cc
-)
-list(APPEND COMPILER_SRCS ${RELAY_OP_SRCS})
-list(APPEND COMPILER_SRCS ${RELAY_PASS_SRCS})
-list(APPEND COMPILER_SRCS ${RELAY_BACKEND_SRCS})
-list(APPEND COMPILER_SRCS ${RELAY_IR_SRCS})
-list(APPEND COMPILER_SRCS ${RELAY_QNN_SRCS})
-
 tvm_file_glob(GLOB DATATYPE_SRCS src/target/datatype/*.cc)
 list(APPEND COMPILER_SRCS ${DATATYPE_SRCS})
 list(APPEND COMPILER_SRCS "src/target/datatype/myfloat/myfloat.cc")
@@ -418,51 +380,6 @@ else()
   list(APPEND COMPILER_SRCS ${STACKVM_RUNTIME_SRCS})
 endif(USE_STACKVM_RUNTIME)
 
-# NOTE(areusch): USE_GRAPH_RUNTIME will be deleted in a future release
-if(USE_GRAPH_RUNTIME AND NOT DEFINED USE_GRAPH_EXECUTOR)
-  message(WARNING "USE_GRAPH_RUNTIME renamed to USE_GRAPH_EXECUTOR. Please update your config.cmake")
-  set(USE_GRAPH_EXECUTOR ${USE_GRAPH_RUNTIME})
-  unset(USE_GRAPH_RUNTIME CACHE)
-endif(USE_GRAPH_RUNTIME AND NOT DEFINED USE_GRAPH_EXECUTOR)
-
-# NOTE(areusch): USE_GRAPH_RUNTIME_DEBUG will be deleted in a future release
-if(USE_GRAPH_RUNTIME_DEBUG AND NOT DEFINED USE_PROFILER)
-  message(WARNING "USE_GRAPH_RUNTIME_DEBUG renamed to USE_PROFILER. Please update your config.cmake")
-  set(USE_PROFILER ${USE_GRAPH_RUNTIME_DEBUG})
-  unset(USE_GRAPH_RUNTIME_DEBUG CACHE)
-endif(USE_GRAPH_RUNTIME_DEBUG AND NOT DEFINED USE_PROFILER)
-
-if(USE_GRAPH_EXECUTOR)
-  message(STATUS "Build with Graph Executor support...")
-  tvm_file_glob(GLOB RUNTIME_GRAPH_EXECUTOR_SRCS src/runtime/graph_executor/*.cc)
-  list(APPEND RUNTIME_SRCS ${RUNTIME_GRAPH_EXECUTOR_SRCS})
-
-endif(USE_GRAPH_EXECUTOR)
-
-# convert old options for profiler
-if(USE_GRAPH_EXECUTOR_DEBUG)
-  message(WARNING "USE_GRAPH_EXECUTOR_DEBUG renamed to USE_PROFILER. Please update your config.cmake")
-  unset(USE_GRAPH_EXECUTOR_DEBUG CACHE)
-  set(USE_PROFILER ON)
-endif()
-if(USE_VM_PROFILER)
-  message(WARNING "USE_VM_PROFILER renamed to USE_PROFILER. Please update your config.cmake")
-  unset(USE_VM_PROFILER CACHE)
-  set(USE_PROFILER ON)
-endif()
-
-if(USE_PROFILER)
-  message(STATUS "Build with profiler...")
-
-  tvm_file_glob(GLOB RUNTIME_GRAPH_EXECUTOR_DEBUG_SRCS src/runtime/graph_executor/debug/*.cc)
-  list(APPEND RUNTIME_SRCS ${RUNTIME_GRAPH_EXECUTOR_DEBUG_SRCS})
-  set_source_files_properties(${RUNTIME_GRAPH_EXECUTOR_SRCS}
-    PROPERTIES COMPILE_DEFINITIONS "TVM_GRAPH_EXECUTOR_DEBUG")
-
-  tvm_file_glob(GLOB RUNTIME_VM_PROFILER_SRCS src/runtime/vm/profiler/*.cc)
-  list(APPEND RUNTIME_SRCS ${RUNTIME_VM_PROFILER_SRCS})
-endif(USE_PROFILER)
-
 if(USE_CUDA AND USE_NCCL)
   message(STATUS "Build with NCCL...")
   find_nccl(${USE_NCCL})
@@ -492,13 +409,6 @@ if(USE_ROCM AND USE_RCCL)
   set_source_files_properties(src/runtime/disco/nccl/nccl.cc PROPERTIES COMPILE_DEFINITIONS "TVM_NCCL_RCCL_SWITCH=1")
   list(APPEND RUNTIME_SRCS ${RUNTIME_RCCL_SRC})
 endif()
-
-if(USE_AOT_EXECUTOR)
-  message(STATUS "Build with AOT Executor support...")
-  file(GLOB RUNTIME_AOT_EXECUTOR_SRCS src/runtime/aot_executor/*.cc)
-  list(APPEND RUNTIME_SRCS ${RUNTIME_AOT_EXECUTOR_SRCS})
-
-endif(USE_AOT_EXECUTOR)
 
 # Enable ctest if gtest is available
 if(USE_GTEST)
@@ -538,12 +448,6 @@ if(USE_GTEST)
   endif()
 endif()
 
-if(USE_PIPELINE_EXECUTOR)
-  message(STATUS "Build with Pipeline Executor support...")
-  tvm_file_glob(GLOB RUNTIME_PIPELINE_SRCS src/runtime/pipeline/*.cc)
-  list(APPEND RUNTIME_SRCS ${RUNTIME_PIPELINE_SRCS})
-endif(USE_PIPELINE_EXECUTOR)
-
 if(USE_KALLOC_ALIGNMENT)
   message(STATUS "Build Alloc alignment set to ${USE_KALLOC_ALIGNMENT}")
   add_definitions(-DTVM_KALLOC_ALIGNMENT=${USE_KALLOC_ALIGNMENT})
@@ -576,7 +480,6 @@ include(cmake/modules/Metal.cmake)
 include(cmake/modules/ROCM.cmake)
 include(cmake/modules/LLVM.cmake)
 include(cmake/modules/contrib/BLAS.cmake)
-include(cmake/modules/contrib/CODEGENC.cmake)
 include(cmake/modules/contrib/DNNL.cmake)
 include(cmake/modules/contrib/AMX.cmake)
 include(cmake/modules/contrib/CUTLASS.cmake)
@@ -587,24 +490,17 @@ include(cmake/modules/contrib/MSCCLPP.cmake)
 include(cmake/modules/contrib/Sort.cmake)
 include(cmake/modules/contrib/NNPack.cmake)
 include(cmake/modules/contrib/LibTorch.cmake)
-include(cmake/modules/contrib/HybridDump.cmake)
 include(cmake/modules/contrib/TFLite.cmake)
-include(cmake/modules/contrib/TF_TVMDSOOP.cmake)
-include(cmake/modules/contrib/PT_TVMDSOOP.cmake)
 include(cmake/modules/contrib/CoreML.cmake)
 include(cmake/modules/contrib/BNNS.cmake)
-include(cmake/modules/contrib/ONNX.cmake)
 include(cmake/modules/contrib/ArmComputeLib.cmake)
 include(cmake/modules/contrib/TensorRT.cmake)
 include(cmake/modules/contrib/NNAPI.cmake)
-include(cmake/modules/contrib/VitisAI.cmake)
-include(cmake/modules/contrib/Verilator.cmake)
 include(cmake/modules/contrib/UMA.cmake)
 include(cmake/modules/contrib/MSC.cmake)
 include(cmake/modules/contrib/vllm.cmake)
 include(cmake/modules/Git.cmake)
 include(cmake/modules/LibInfo.cmake)
-include(cmake/modules/RustExt.cmake)
 include(cmake/modules/contrib/Mrvl.cmake)
 
 set(LIBINFO_FILE ${CMAKE_CURRENT_LIST_DIR}/src/support/libinfo.cc)
@@ -684,20 +580,6 @@ endif()
 if(USE_IOS_RPC)
   add_subdirectory("apps/ios_rpc")
 endif()
-
-if(USE_RELAY_DEBUG)
-  message(STATUS "Building Relay in debug mode...")
-  target_compile_definitions(tvm_objs PRIVATE "USE_RELAY_DEBUG")
-  target_compile_definitions(tvm_objs PRIVATE "TVM_LOG_DEBUG")
-  target_compile_definitions(tvm_runtime_objs PRIVATE "USE_RELAY_DEBUG")
-  target_compile_definitions(tvm_runtime_objs PRIVATE "TVM_LOG_DEBUG")
-  target_compile_definitions(tvm_libinfo_objs PRIVATE "USE_RELAY_DEBUG")
-  target_compile_definitions(tvm_libinfo_objs PRIVATE "TVM_LOG_DEBUG")
-else()
-  target_compile_definitions(tvm_objs PRIVATE "NDEBUG")
-  target_compile_definitions(tvm_runtime_objs PRIVATE "NDEBUG")
-  target_compile_definitions(tvm_libinfo_objs PRIVATE "NDEBUG")
-endif(USE_RELAY_DEBUG)
 
 if(TVM_DEBUG_WITH_ABI_CHANGE)
   message(STATUS "Building with debug code that may cause ABI changes...")
@@ -801,12 +683,7 @@ if(GTEST_FOUND)
   endif()
   set_target_properties(cpptest PROPERTIES EXCLUDE_FROM_ALL 1)
   set_target_properties(cpptest PROPERTIES EXCLUDE_FROM_DEFAULT_BUILD 1)
-  if(USE_RELAY_DEBUG)
-    target_compile_definitions(cpptest PRIVATE "USE_RELAY_DEBUG")
-    target_compile_definitions(cpptest PRIVATE "TVM_LOG_DEBUG")
-  else()
-    target_compile_definitions(cpptest PRIVATE "NDEBUG")
-  endif()
+  target_compile_definitions(cpptest PRIVATE "NDEBUG")
   if(TVM_DEBUG_WITH_ABI_CHANGE)
     target_compile_definitions(cpptest PRIVATE "TVM_DEBUG_WITH_ABI_CHANGE")
   endif(TVM_DEBUG_WITH_ABI_CHANGE)
@@ -818,6 +695,19 @@ endif()
 
 # Custom targets
 add_custom_target(runtime DEPENDS tvm_runtime)
+
+# By default add cython to all build
+find_package(Python)
+if(NOT DEFINED ENV{CONDA_BUILD})
+  message(STATUS ${CMAKE_CURRENT_BINARY_DIR})
+  add_custom_target(
+    tvm_cython ALL
+    ${Python_EXECUTABLE} setup.py build_ext --inplace
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/python
+  )
+  add_dependencies(tvm_cython tvm)
+  message("Add Cython build into the default build step")
+endif()
 
 # Installation rules
 install(TARGETS tvm EXPORT ${PROJECT_NAME}Targets DESTINATION lib${LIB_SUFFIX})

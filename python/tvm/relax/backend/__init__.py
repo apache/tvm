@@ -16,26 +16,7 @@
 # under the License.
 """Relax backends"""
 
-from tvm.target import Target
-
-from . import contrib
+from . import contrib, cpu_generic, cuda, gpu_generic, metal, rocm, adreno
 from .dispatch_sampling import DispatchSampling
 from .dispatch_sort_scan import DispatchSortScan
 from .pattern_registry import get_pattern, get_patterns_with_prefix
-
-
-def get_default_pipeline(target: Target):
-    """Get the default Relax compilation pipeline for the given target."""
-    if target.kind.name == "cuda":
-        from . import cuda  # pylint: disable=import-outside-toplevel
-
-        return cuda.get_default_pipeline(target)
-    if target.kind.name == "llvm":
-        from . import cpu_generic  # pylint: disable=import-outside-toplevel
-
-        return cpu_generic.get_default_pipeline(target)
-    # Todo(tvm-team): support gpu-generic
-    raise ValueError(
-        f"Target {target} is not yet supported by default pipeline. "
-        "Please lower and build the IRModule manually."
-    )

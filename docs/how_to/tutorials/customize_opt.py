@@ -103,7 +103,7 @@ mod.show()
 
 
 # Import cublas pattern
-import tvm.relax.backend.contrib.cublas as _cublas
+import tvm.relax.backend.cuda.cublas as _cublas
 
 
 # Define a new pass for CUBLAS dispatch

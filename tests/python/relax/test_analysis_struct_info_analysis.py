@@ -54,7 +54,7 @@ def test_get_static_type_tensor():
     s4 = rx.TensorStructInfo([1, n + 1, m], "int64")
 
     tvm.ir.assert_structural_equal(
-        rx.analysis.get_static_type(s4), rx.DynTensorType(ndim=3, dtype="int64")
+        rx.analysis.get_static_type(s4), rx.TensorType(ndim=3, dtype="int64")
     )
 
 
@@ -71,7 +71,7 @@ def test_get_static_type_tuple():
         rx.analysis.get_static_type(t1),
         rx.TupleType(
             [
-                rx.TupleType([rx.DynTensorType(ndim=3, dtype="int64"), rx.ObjectType()]),
+                rx.TupleType([rx.TensorType(ndim=3, dtype="int64"), rx.ObjectType()]),
                 rx.ShapeType(ndim=3),
             ]
         ),
@@ -88,9 +88,9 @@ def test_get_static_type_func():
         return rx.FuncStructInfo([x, y], z)
 
     def fn_type():
-        x = rx.DynTensorType(ndim=3, dtype="float32")
-        y = rx.DynTensorType(ndim=3, dtype="float32")
-        z = rx.DynTensorType(ndim=2, dtype="float32")
+        x = rx.TensorType(ndim=3, dtype="float32")
+        y = rx.TensorType(ndim=3, dtype="float32")
+        z = rx.TensorType(ndim=2, dtype="float32")
         return rx.FuncType([x, y], z)
 
     f0 = fn_info(1)

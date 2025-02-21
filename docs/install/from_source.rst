@@ -209,7 +209,7 @@ The following commands can be used to install the extra Python dependencies:
 
 .. code:: bash
 
-    pip3 install numpy decorator attrs
+    pip3 install numpy
 
 * If you want to use RPC Tracker
 

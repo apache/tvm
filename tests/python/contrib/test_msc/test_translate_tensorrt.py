@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-""" Test translate for TensorrRT. """
+"""Test translate for TensorrRT."""
 
 import pytest
 

@@ -28,8 +28,6 @@
 
 namespace tvm {
 
-TVM_REGISTER_PASS_CONFIG_OPTION("relay.frontend.fill_span", Bool);
-
 ObjectPtr<Object> GetSourceNameNode(const String& name) {
   // always return pointer as the reference can change as map re-allocate.
   // or use another level of indirection by creating a unique_ptr

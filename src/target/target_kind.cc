@@ -283,10 +283,11 @@ TVM_REGISTER_TARGET_KIND("llvm", kDLCPU)
     .add_attr_option<Array<String>>("cl-opt")
     // LLVM JIT engine mcjit/orcjit
     .add_attr_option<String>("jit")
+    // TVM & LLVM custom vector bit width
+    .add_attr_option<runtime::Int>("vector-width")
     .set_default_keys({"cpu"})
     // Force the external codegen kind attribute to be registered, even if no external
     // codegen targets are enabled by the TVM build.
-    .set_attr<runtime::Bool>(tvm::attr::kIsExternalCodegen, runtime::Bool(false))
     .set_target_parser(tvm::target::parsers::cpu::ParseTarget);
 
 // Note regarding the "cl-opt" attribute:
@@ -364,6 +365,7 @@ TVM_REGISTER_TARGET_KIND("opencl", kDLOpenCL)
     // specify any limitations on the number of kernel arguments. max_function_args
     // equals to 128 looks like a reasonable number of kernel arguments.
     .add_attr_option<runtime::Int>("max_function_args", runtime::Int(128))
+    .add_attr_option<runtime::Int>("image_base_address_alignment", runtime::Int(64))
     .set_default_keys({"opencl", "gpu"});
 
 // The metal has some limitations on the number of input parameters. This is why attribute
@@ -422,15 +424,6 @@ TVM_REGISTER_TARGET_KIND("vulkan", kDLVulkan)
 TVM_REGISTER_TARGET_KIND("webgpu", kDLWebGPU)
     .add_attr_option<runtime::Int>("max_num_threads", runtime::Int(256))
     .set_default_keys({"webgpu", "gpu"});
-
-TVM_REGISTER_TARGET_KIND("sdaccel", kDLOpenCL)  // line break
-    .set_default_keys({"sdaccel", "hls"});
-
-TVM_REGISTER_TARGET_KIND("aocl", kDLAOCL)  // line break
-    .set_default_keys({"aocl", "hls"});
-
-TVM_REGISTER_TARGET_KIND("aocl_sw_emu", kDLAOCL)  // line break
-    .set_default_keys({"aocl", "hls"});
 
 TVM_REGISTER_TARGET_KIND("hexagon", kDLHexagon)
     .add_attr_option<Array<String>>("mattr")

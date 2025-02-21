@@ -313,16 +313,5 @@ def test_inner_binding_with_annotation():
     _check(inner_binding_with_annotation, unified_inner_binding_with_annotation)
 
 
-def test_lower_te():
-    a = te.placeholder((32, 2, 2))
-    b = te.compute((32, 2, 2), lambda i, j, k: a[i, j, k] * 2.0)
-    s = te.create_schedule(b.op)
-    s[b].bind(b.op.axis[1], te.thread_axis("threadIdx.x"))
-    s[b].bind(b.op.axis[2], te.thread_axis("threadIdx.x"))
-    orig_mod = tvm.driver.build_module.schedule_to_module(s, [a, b])
-    mod = tvm.tir.transform.UnifyThreadBinding()(orig_mod)
-    tvm.ir.assert_structural_equal(mod, orig_mod)  # UnifyThreadBinding should do nothing on TE
-
-
 if __name__ == "__main__":
     tvm.testing.main()

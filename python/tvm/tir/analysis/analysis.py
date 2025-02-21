@@ -19,7 +19,6 @@
 from typing import Dict, List, Optional, Union
 
 import tvm
-from tvm import Object
 from tvm.ir import IRModule
 from tvm.tir.expr import Var
 from tvm.tir.stmt import Block, BufferRegion, PrimExpr
@@ -164,46 +163,8 @@ def get_block_read_write_region(
     return _ffi_api.GetBlockReadWriteRegion(block, buffer_var_map)  # type: ignore
 
 
-def calculate_workspace_bytes(func: PrimFunc, workspace_byte_alignment: int) -> int:
-    """Calculate the workspace size in bytes needed by the TIR allocates inside the TIR
-    PrimFunc.
-
-    Parameters
-    ----------
-    func: tvm.tir.PrimFunc
-        The function to be detected.
-    workspace_byte_alignment : int
-        The byte alignment required for each tensor
-
-    Returns
-    -------
-    result : int
-        Workspace size in bytes.
-    """
-    return _ffi_api.calculate_workspace_bytes(func, workspace_byte_alignment)  # type: ignore
-
-
-def calculate_constant_bytes(func: PrimFunc, constant_byte_alignment: int) -> int:
-    """Calculate the constant size in bytes needed by the TIR allocates inside the TIR
-    PrimFunc.
-
-    Parameters
-    ----------
-    func: tvm.tir.PrimFunc
-        The function to be detected.
-    constant_byte_alignment : int
-        The byte alignment required for each tensor
-
-    Returns
-    -------
-    result : int
-        Workspace size in bytes.
-    """
-    return _ffi_api.calculate_constant_bytes(func, constant_byte_alignment)  # type: ignore
-
-
 def calculate_allocated_bytes(
-    func_or_mod: Union[PrimFunc, IRModule]
+    func_or_mod: Union[PrimFunc, IRModule],
 ) -> Union[Dict[str, int], Dict[str, Dict[str, int]]]:
     """Calculate allocated memory per memory scope required by TIR PrimFuncs.
 
@@ -284,69 +245,6 @@ def undefined_vars(node: Union[Stmt, PrimExpr], defs: Optional[List[Var]] = None
     """
     defs = defs or []
     return _ffi_api.UndefinedVars(node, defs)  # type: ignore # pylint: disable=no-member
-
-
-def get_prim_func_arg_and_result_memory_constraints(
-    func: PrimFunc, relay_func_type: Object
-) -> List[str]:
-    """Returns the memory (aka storage) scope constraints for all the arguments and result
-    of func. However the result will be w.r.t. the func's representation as a Relay Function
-    of relay_func_type before lowering and conversion to DPS.
-
-    Visible for testing.
-
-    Parameters
-    ----------
-    func: tvm.tir.PrimFunc
-        The function to retrieve constraints from.
-
-    relay_func_type: tvm.relay.FuncType
-        The type of the Relay Function from which the func was derived.
-
-    Returns
-    -------
-    result: List[AnyStr]
-        Memory scope constraints for funcs args and result in Relay form. The empty string
-        denotes 'no constraint'.
-    """
-    return _ffi_api.GetPrimFuncArgAndResultMemoryConstraints(  # type: ignore # pylint: disable=no-member
-        func, relay_func_type
-    )
-
-
-def apply_prim_func_arg_and_result_memory_constraints(
-    func: PrimFunc, relay_func_type: Object, arg_and_result_memory_scopes: List[str]
-) -> PrimFunc:
-    """Returns func written to capture the memory (aka storage) scope constraints
-    for each of the func's parameters given by arg_and_result_memory_scopes. However,
-    arg_and_result_memory_scopes should be w.r.t. the func's representation as a Relay
-    Function of relay_func_type before lowering and conversion to DPS.
-
-    Visible for testing.
-
-    CAUTION: This is experimental. The resulting PrimFunc may not have fully accounted
-    for all new memory scopes.
-
-    Parameters
-    ----------
-    func: tvm.tir.PrimFunc
-        The function to retrieve constraints from.
-
-    relay_func_type: tvm.relay.FuncType
-        The type of the Relay Function from which the func was derived.
-
-    arg_and_result_memory_scopes: Array[AnyStr]
-        Memory constraints for funcs args and result in Relay form. The empty string denotes
-        'no constraint'.
-
-    Returns
-    -------
-    result: tvm.tir.PrimFunc
-        The rewritten func.
-    """
-    return _ffi_api.ApplyPrimFuncArgAndResultMemoryConstraints(  # type: ignore # pylint: disable=no-member
-        func, relay_func_type, arg_and_result_memory_scopes
-    )
 
 
 def verify_well_formed(obj: Union[PrimFunc, IRModule], assert_mode: bool = True) -> bool:

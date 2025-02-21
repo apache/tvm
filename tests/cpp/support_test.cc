@@ -17,8 +17,8 @@
  * under the License.
  */
 
-#include <dmlc/logging.h>
 #include <gtest/gtest.h>
+#include <tvm/runtime/logging.h>
 
 #include "../../src/support/hexdump.h"
 #include "../../src/support/utils.h"

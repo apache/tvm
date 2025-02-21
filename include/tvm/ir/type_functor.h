@@ -24,8 +24,7 @@
 #ifndef TVM_IR_TYPE_FUNCTOR_H_
 #define TVM_IR_TYPE_FUNCTOR_H_
 
-#include <tvm/ir/tensor_type.h>
-#include <tvm/ir/type_relation.h>
+#include <tvm/ir/type.h>
 #include <tvm/node/functor.h>
 
 #include <string>
@@ -76,17 +75,8 @@ class TypeFunctor<R(const Type& n, Args...)> {
     return vtable(n, this, std::forward<Args>(args)...);
   }
   // Functions that can be overriden by subclass
-  virtual R VisitType_(const TensorTypeNode* op, Args... args) TYPE_FUNCTOR_DEFAULT;
-  virtual R VisitType_(const TypeVarNode* op, Args... args) TYPE_FUNCTOR_DEFAULT;
-  virtual R VisitType_(const TypeConstraintNode* op, Args... args) TYPE_FUNCTOR_DEFAULT;
   virtual R VisitType_(const FuncTypeNode* op, Args... args) TYPE_FUNCTOR_DEFAULT;
-  virtual R VisitType_(const TypeRelationNode* op, Args... args) TYPE_FUNCTOR_DEFAULT;
   virtual R VisitType_(const TupleTypeNode* op, Args... args) TYPE_FUNCTOR_DEFAULT;
-  virtual R VisitType_(const IncompleteTypeNode* op, Args... args) TYPE_FUNCTOR_DEFAULT;
-  virtual R VisitType_(const RelayRefTypeNode* op, Args... args) TYPE_FUNCTOR_DEFAULT;
-  virtual R VisitType_(const GlobalTypeVarNode* op, Args... args) TYPE_FUNCTOR_DEFAULT;
-  virtual R VisitType_(const TypeCallNode* op, Args... args) TYPE_FUNCTOR_DEFAULT;
-  virtual R VisitType_(const TypeDataNode* op, Args... args) TYPE_FUNCTOR_DEFAULT;
   virtual R VisitType_(const PrimTypeNode* op, Args... args) TYPE_FUNCTOR_DEFAULT;
   virtual R VisitType_(const PointerTypeNode* op, Args... args) TYPE_FUNCTOR_DEFAULT;
   virtual R VisitTypeDefault_(const Object* op, Args...) {
@@ -99,17 +89,8 @@ class TypeFunctor<R(const Type& n, Args...)> {
   static FType InitVTable() {
     FType vtable;
     // Set dispatch
-    TVM_TYPE_FUNCTOR_DISPATCH(TensorTypeNode);
-    TVM_TYPE_FUNCTOR_DISPATCH(TypeVarNode);
-    TVM_TYPE_FUNCTOR_DISPATCH(TypeConstraintNode);
     TVM_TYPE_FUNCTOR_DISPATCH(FuncTypeNode);
-    TVM_TYPE_FUNCTOR_DISPATCH(TypeRelationNode);
     TVM_TYPE_FUNCTOR_DISPATCH(TupleTypeNode);
-    TVM_TYPE_FUNCTOR_DISPATCH(IncompleteTypeNode);
-    TVM_TYPE_FUNCTOR_DISPATCH(RelayRefTypeNode);
-    TVM_TYPE_FUNCTOR_DISPATCH(GlobalTypeVarNode);
-    TVM_TYPE_FUNCTOR_DISPATCH(TypeCallNode);
-    TVM_TYPE_FUNCTOR_DISPATCH(TypeDataNode);
     TVM_TYPE_FUNCTOR_DISPATCH(PrimTypeNode);
     TVM_TYPE_FUNCTOR_DISPATCH(PointerTypeNode);
     return vtable;
@@ -123,16 +104,8 @@ class TypeFunctor<R(const Type& n, Args...)> {
  */
 class TVM_DLL TypeVisitor : public TypeFunctor<void(const Type& n)> {
  public:
-  void VisitType_(const TypeVarNode* op) override;
-  void VisitType_(const IncompleteTypeNode* op) override;
-  void VisitType_(const TensorTypeNode* op) override;
   void VisitType_(const FuncTypeNode* op) override;
   void VisitType_(const TupleTypeNode* op) override;
-  void VisitType_(const TypeRelationNode* op) override;
-  void VisitType_(const RelayRefTypeNode* op) override;
-  void VisitType_(const GlobalTypeVarNode* op) override;
-  void VisitType_(const TypeCallNode* op) override;
-  void VisitType_(const TypeDataNode* op) override;
   void VisitType_(const PrimTypeNode* op) override;
   void VisitType_(const PointerTypeNode* op) override;
 };
@@ -143,29 +116,14 @@ class TVM_DLL TypeVisitor : public TypeFunctor<void(const Type& n)> {
 class TVM_DLL TypeMutator : public TypeFunctor<Type(const Type& n)> {
  public:
   Type VisitType(const Type& t) override;
-  Type VisitType_(const TypeVarNode* op) override;
-  Type VisitType_(const TensorTypeNode* op) override;
-  Type VisitType_(const IncompleteTypeNode* op) override;
   Type VisitType_(const FuncTypeNode* op) override;
   Type VisitType_(const TupleTypeNode* op) override;
-  Type VisitType_(const TypeRelationNode* type_rel) override;
-  Type VisitType_(const RelayRefTypeNode* op) override;
-  Type VisitType_(const GlobalTypeVarNode* op) override;
-  Type VisitType_(const TypeCallNode* op) override;
-  Type VisitType_(const TypeDataNode* op) override;
   Type VisitType_(const PrimTypeNode* op) override;
   Type VisitType_(const PointerTypeNode* op) override;
 
  private:
   Array<Type> MutateArray(Array<Type> arr);
 };
-
-/*!
- * \brief Bind free type variables in the type.
- * \param type The type to be updated.
- * \param args_map The binding map.
- */
-Type Bind(const Type& type, const Map<TypeVar, Type>& args_map);
 
 }  // namespace tvm
 #endif  // TVM_IR_TYPE_FUNCTOR_H_

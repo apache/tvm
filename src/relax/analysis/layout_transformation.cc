@@ -26,6 +26,7 @@
 #include <tvm/arith/iter_affine_map.h>
 #include <tvm/relax/analysis.h>
 #include <tvm/tir/analysis.h>
+#include <tvm/tir/index_map.h>
 #include <tvm/tir/stmt_functor.h>
 
 #include "../../support/array.h"
@@ -454,7 +455,7 @@ class BlockAnalyzer : public StmtExprVisitor {
         spatial_dom_.Set(v->var, v->dom);
         continue;
       }
-      if (v->iter_type == kCommReduce) continue;
+      if (v->iter_type == tir::kCommReduce) continue;
       LOG(WARNING) << "[LayoutInference] Cannot compute block spatial domain in presence of "
                       "unknown block iter_type : "
                    << v->iter_type;

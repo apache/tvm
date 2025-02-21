@@ -43,7 +43,7 @@ from . import _ffi_api
 # It is a workaround for mypy: https://github.com/python/mypy/issues/7866#issuecomment-549454370
 # This feature is not supported until python 3.10:
 # https://docs.python.org/3.10/whatsnew/3.10.html#pep-613-typealias
-Expr = Union[tvm.ir.RelayExpr]
+Expr = Union[tvm.ir.RelaxExpr]
 Type = Union[tvm.ir.Type]  # pylint: disable=invalid-name
 GlobalVar = Union[tvm.ir.GlobalVar]
 
@@ -832,9 +832,11 @@ class DataflowVar(Var):
                 )
 
         self.__init_handle_by_constructor__(
-            _ffi_api.DataflowVar  # type: ignore
-            if isinstance(name_hint, str)
-            else _ffi_api.DataflowVarFromId,  # type: ignore
+            (
+                _ffi_api.DataflowVar  # type: ignore
+                if isinstance(name_hint, str)
+                else _ffi_api.DataflowVarFromId
+            ),  # type: ignore
             name_hint,
             struct_info,
             span,

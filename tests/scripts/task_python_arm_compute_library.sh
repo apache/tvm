@@ -21,10 +21,7 @@ set -euxo pipefail
 source tests/scripts/setup-pytest-env.sh
 
 
-# Rebuild cython
-# TODO(u99127): Enable cython tests.
-
 find . -type f -path "*.pyc" | xargs rm -f
-make cython3
 
-run_pytest ctypes python-arm_compute_lib tests/python/contrib/test_arm_compute_lib
+# setup cython
+cd python; python3 setup.py build_ext --inplace; cd ..

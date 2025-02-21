@@ -83,7 +83,7 @@ enum class LinkageType : int {
 /*!
  * \brief Generic attribute names that can be attached to any function.
  *
- * \sa tvm::tir::attr, tvm::relay::attr
+ * \sa tvm::tir::attr, tvm::relax::attr
  */
 namespace attr {
 /*!
@@ -136,7 +136,7 @@ constexpr const char* kGlobalSymbol = "global_symbol";
  *
  * \sa BaseFunc
  */
-class BaseFuncNode : public RelayExprNode {
+class BaseFuncNode : public RelaxExprNode {
  public:
   /*! \brief Additional attributes storing the meta-data */
   DictAttrs attrs;
@@ -220,16 +220,16 @@ class BaseFuncNode : public RelayExprNode {
 
   static constexpr const char* _type_key = "BaseFunc";
   static constexpr const uint32_t _type_child_slots = 2;
-  TVM_DECLARE_BASE_OBJECT_INFO(BaseFuncNode, RelayExprNode);
+  TVM_DECLARE_BASE_OBJECT_INFO(BaseFuncNode, RelaxExprNode);
 };
 
 /*!
  * \brief Managed reference to BaseFuncNode.
  * \sa BaseFuncNode
  */
-class BaseFunc : public RelayExpr {
+class BaseFunc : public RelaxExpr {
  public:
-  TVM_DEFINE_OBJECT_REF_METHODS(BaseFunc, RelayExpr, BaseFuncNode);
+  TVM_DEFINE_OBJECT_REF_METHODS(BaseFunc, RelaxExpr, BaseFuncNode);
 };
 
 }  // namespace tvm

@@ -303,7 +303,7 @@ def create_lower_func(extern_func_map):
             key = (src_bits, t.bits)
 
         if key not in extern_func_map:
-            raise RuntimeError(f"missing key {key} in extern_func_map for {op.astext()}")
+            raise RuntimeError(f"missing key {key} in extern_func_map for {op}")
 
         if isinstance(op, _Cast):
             return call_pure_extern(dtype, extern_func_map[key], op.value)
@@ -314,7 +314,7 @@ def create_lower_func(extern_func_map):
         if isinstance(op, _BinaryOpExpr):
             return call_pure_extern(dtype, extern_func_map[key], op.a, op.b)
 
-        raise RuntimeError(f"lowering unsupported op: {op.astext()}")
+        raise RuntimeError(f"lowering unsupported op: {op}")
 
     return lower
 

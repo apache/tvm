@@ -170,7 +170,7 @@ Summary and Discussions
 
 In summary, the key data structures in the compilation flows are:
 
-- IRModule: contains relay.Function and tir.PrimFunc
+- IRModule: contains relax.Function and tir.PrimFunc
 - runtime.Module: contains runtime.PackedFunc
 
 Most parts of the compilation are transformations among the key data structures.
@@ -221,7 +221,6 @@ for learning-based optimizations.
 .. toctree::
    :maxdepth: 1
 
-   debugger
    introduction_to_module_serialization
    device_target_interactions
 
@@ -255,7 +254,7 @@ The components in `tvm/ir` are shared by `tvm/relay` and `tvm/tir`, notable ones
 - PassContext and Pass
 - Op
 
-Different variants of functions(e.g. relay.Function and tir.PrimFunc) can co-exist in an IRModule.
+Different variants of functions(e.g. relax.Function and tir.PrimFunc) can co-exist in an IRModule.
 While these variants may not have the same content representation, they use the same data structure to represent types.
 As a consequence, we use the same data structure to represent function (type) signatures of these variants.
 The unified type system allows one function variant to call another function

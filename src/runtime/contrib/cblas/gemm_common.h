@@ -120,7 +120,7 @@ inline void CallU8S8S32Gemm(TVMArgs args, TVMRetValue* ret, TGemmOp op) {
   bool transb = args[4];
 
   // Set the sgemm attributes. Currently, support is limited to CblasFixOffset with all offsets
-  // equal to 0. This is sufficient for relay dense.
+  // equal to 0. This is sufficient for  dense.
   std::string offset_ctype = "CblasFixOffset";
   int16_t offset_a = 0;
   int16_t offset_b = 0;

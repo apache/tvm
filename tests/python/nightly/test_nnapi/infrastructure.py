@@ -20,7 +20,6 @@ import numpy as np
 import tvm
 import tvm.script.relax as R
 
-# from tvm.contrib.debugger import debug_runtime as graph_executor
 from tvm.contrib import ndk, utils
 from tvm.relax.backend.contrib.nnapi import partition_for_nnapi
 
@@ -80,7 +79,7 @@ def decompose_clip(mod: tvm.IRModule) -> tvm.IRModule:
 
 
 def _build(mod, enable_nnapi):
-    if isinstance(mod, tvm.relay.expr.Call):
+    if isinstance(mod, tvm.relax.expr.Call):
         mod = tvm.IRModule.from_expr(mod)
 
     if enable_nnapi:
@@ -96,7 +95,6 @@ def _build(mod, enable_nnapi):
 
 
 def _run(remote, tracker, ex, inputs):
-
     tmp = utils.tempdir()
     so_name = "test_mod.so"
     so_path = tmp / so_name
@@ -106,7 +104,6 @@ def _run(remote, tracker, ex, inputs):
     dev = remote.cpu(0)
 
     try:
-
         # Execute the model on the remote.
         remote_ex = remote.load_module(so_name)
         vm = tvm.relax.VirtualMachine(remote_ex, device=dev)

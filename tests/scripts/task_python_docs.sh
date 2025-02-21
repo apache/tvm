@@ -46,7 +46,9 @@ clean_files() {
 sphinx_precheck() {
     clean_files
     echo "PreCheck sphinx doc generation WARNINGS.."
-    make cython3
+
+    # setup cython
+    cd python; python3 setup.py build_ext --inplace; cd ..
 
     pushd docs
     make clean
@@ -123,7 +125,10 @@ clean_files
 # cleanup stale log files
 find . -type f -path "*.log" | xargs rm -f
 find . -type f -path "*.pyc" | xargs rm -f
-make cython3
+
+# setup cython
+cd python; python3 setup.py build_ext --inplace; cd ..
+
 
 cd docs
 PYTHONPATH=$(pwd)/../python make htmldepoly SPHINXOPTS='-j auto' |& tee /tmp/$$.log.txt

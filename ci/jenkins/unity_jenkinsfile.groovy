@@ -30,14 +30,14 @@
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
-ci_lint = 'tlcpack/ci_lint:20241119-020227-6fc0598c'
-ci_gpu = 'tlcpack/ci_gpu:20241119-020227-6fc0598c'
-ci_cpu = 'tlcpack/ci_cpu:20241119-020227-6fc0598c'
+ci_lint = 'tlcpack/ci_lint:20250214-034537-bd1411f8'
+ci_gpu = 'tlcpack/ci_gpu:20250214-034537-bd1411f8'
+ci_cpu = 'tlcpack/ci_cpu:20250214-034537-bd1411f8'
 ci_wasm = 'tlcpack/ci-wasm:v0.72'
 ci_i386 = 'tlcpack/ci-i386:v0.75'
 ci_qemu = 'tlcpack/ci-qemu:v0.11'
 ci_arm = 'tlcpack/ci-arm:v0.08'
-ci_hexagon = 'tlcpack/ci_hexagon:20241119-020227-6fc0598c'
+ci_hexagon = 'tlcpack/ci_hexagon:20250214-034537-bd1411f8'
 // <--- End of regex-scanned config.
 
 // Parameters to allow overriding (in Jenkins UI), the images
@@ -225,10 +225,10 @@ try {
 // Run make. First try to do an incremental make from a previous workspace in hope to
 // accelerate the compilation. If something is wrong, clean the workspace and then
 // build from scratch.
-def make(docker_type, path, make_flag) {
+def make(docker_type, path) {
   timeout(time: max_time, unit: 'MINUTES') {
     try {
-      cmake_build(docker_type, path, make_flag)
+      cmake_build(docker_type, path)
       // always run cpp test when build
       // sh "${docker_run} ${docker_type} ./tests/scripts/task_cpp_unittest.sh"
     } catch (hudson.AbortException ae) {
@@ -241,7 +241,7 @@ def make(docker_type, path, make_flag) {
         script: "${docker_run} ${docker_type} ./tests/scripts/task_clean.sh ${path}",
         label: 'Clear old cmake workspace',
       )
-      cmake_build(docker_type, path, make_flag)
+      cmake_build(docker_type, path)
       cpp_unittest(docker_type)
     }
   }
@@ -310,7 +310,7 @@ def python_unittest(image) {
 }
 
 
-def cmake_build(image, path, make_flag) {
+def cmake_build(image, path) {
   sh (
     script: "${docker_run} ${image} ./tests/scripts/task_build.py --sccache-bucket tvm-sccache-prod --sccache-region us-west-2",
     label: 'Run cmake build',
@@ -342,17 +342,17 @@ stage('Build and Test') {
           init_git()
           sh "${docker_run} ${ci_gpu} nvidia-smi"
           sh "${docker_run}  ${ci_gpu} ./tests/scripts/task_config_build_gpu.sh build"
-          make("${ci_gpu}", 'build', '-j2')
+          make("${ci_gpu}", 'build')
           sh "${docker_run} ${ci_gpu} ./tests/scripts/unity/task_python_relax_gpuonly.sh"
         }
       }
     },
     'BUILD: CPU': {
-      node('CPU-SMALL') {
+      node('CPU') {
         ws(per_exec_ws('tvm/build-cpu')) {
           init_git()
           sh "${docker_run} ${ci_cpu} ./tests/scripts/task_config_build_cpu.sh build"
-          make(ci_cpu, 'build', '-j2')
+          make(ci_cpu, 'build')
           sh "${docker_run} ${ci_cpu} ./tests/scripts/unity/task_python_relax.sh"
         }
       }

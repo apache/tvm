@@ -60,7 +60,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2025-02-07T09:50:07.217941
+// Generated at 2025-02-15T12:03:28.800680
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // These are set at runtime from data in ci/jenkins/docker-images.yml, update
@@ -82,14 +82,11 @@ ci_riscv = ''
 properties([
   parameters([
     string(name: 'ci_arm_param', defaultValue: ''),
-    string(name: 'ci_cortexm_param', defaultValue: ''),
     string(name: 'ci_cpu_param', defaultValue: ''),
     string(name: 'ci_gpu_param', defaultValue: ''),
     string(name: 'ci_hexagon_param', defaultValue: ''),
     string(name: 'ci_i386_param', defaultValue: ''),
     string(name: 'ci_lint_param', defaultValue: ''),
-    string(name: 'ci_minimal_param', defaultValue: ''),
-    string(name: 'ci_riscv_param', defaultValue: ''),
     string(name: 'ci_wasm_param', defaultValue: ''),
   ])
 ])
@@ -97,14 +94,11 @@ properties([
 // Placeholders for newly built Docker image names (if rebuild_docker_images
 // is used)
   built_ci_arm = null;
-  built_ci_cortexm = null;
   built_ci_cpu = null;
   built_ci_gpu = null;
   built_ci_hexagon = null;
   built_ci_i386 = null;
   built_ci_lint = null;
-  built_ci_minimal = null;
-  built_ci_riscv = null;
   built_ci_wasm = null;
 
 // Global variable assigned during Sanity Check that holds the sha1 which should be
@@ -285,6 +279,13 @@ def cancel_previous_build() {
   }
 }
 
+def is_last_build() {
+  // whether it is last build
+  def job = Jenkins.instance.getItem(env.JOB_NAME)
+  def lastBuild = job.getLastBuild()
+  return lastBuild.getNumber() == env.BUILD_NUMBER
+}
+
 def checkout_trusted_files() {
   // trust everything from branch builds
   if (env.BRANCH_NAME == null || !env.BRANCH_NAME.startsWith('PR-')) {
@@ -364,18 +365,13 @@ def prepare(node_type) {
 
         if (env.DETERMINE_DOCKER_IMAGES == 'yes') {
           sh(
-            script: "./${jenkins_scripts_root}/determine_docker_images.py ci_arm ci_cortexm ci_cpu ci_gpu ci_hexagon ci_i386 ci_lint ci_minimal ci_riscv ci_wasm ",
+            script: "./${jenkins_scripts_root}/determine_docker_images.py ci_arm ci_cpu ci_gpu ci_hexagon ci_i386 ci_lint ci_wasm ",
             label: 'Decide whether to use tlcpack or tlcpackstaging for Docker images',
           )
           // Pull image names from the results of should_rebuild_docker.py
           ci_arm = sh(
             script: "cat .docker-image-names/ci_arm",
             label: "Find docker image name for ci_arm",
-            returnStdout: true,
-          ).trim()
-          ci_cortexm = sh(
-            script: "cat .docker-image-names/ci_cortexm",
-            label: "Find docker image name for ci_cortexm",
             returnStdout: true,
           ).trim()
           ci_cpu = sh(
@@ -403,16 +399,6 @@ def prepare(node_type) {
             label: "Find docker image name for ci_lint",
             returnStdout: true,
           ).trim()
-          ci_minimal = sh(
-            script: "cat .docker-image-names/ci_minimal",
-            label: "Find docker image name for ci_minimal",
-            returnStdout: true,
-          ).trim()
-          ci_riscv = sh(
-            script: "cat .docker-image-names/ci_riscv",
-            label: "Find docker image name for ci_riscv",
-            returnStdout: true,
-          ).trim()
           ci_wasm = sh(
             script: "cat .docker-image-names/ci_wasm",
             label: "Find docker image name for ci_wasm",
@@ -421,27 +407,21 @@ def prepare(node_type) {
         }
 
         ci_arm = params.ci_arm_param ?: ci_arm
-        ci_cortexm = params.ci_cortexm_param ?: ci_cortexm
         ci_cpu = params.ci_cpu_param ?: ci_cpu
         ci_gpu = params.ci_gpu_param ?: ci_gpu
         ci_hexagon = params.ci_hexagon_param ?: ci_hexagon
         ci_i386 = params.ci_i386_param ?: ci_i386
         ci_lint = params.ci_lint_param ?: ci_lint
-        ci_minimal = params.ci_minimal_param ?: ci_minimal
-        ci_riscv = params.ci_riscv_param ?: ci_riscv
         ci_wasm = params.ci_wasm_param ?: ci_wasm
 
         sh (script: """
           echo "Docker images being used in this build:"
           echo " ci_arm = ${ci_arm}"
-          echo " ci_cortexm = ${ci_cortexm}"
           echo " ci_cpu = ${ci_cpu}"
           echo " ci_gpu = ${ci_gpu}"
           echo " ci_hexagon = ${ci_hexagon}"
           echo " ci_i386 = ${ci_i386}"
           echo " ci_lint = ${ci_lint}"
-          echo " ci_minimal = ${ci_minimal}"
-          echo " ci_riscv = ${ci_riscv}"
           echo " ci_wasm = ${ci_wasm}"
         """, label: 'Docker image names')
 
@@ -494,7 +474,7 @@ def make_cpp_tests(image, build_dir) {
   )
 }
 
-def cmake_build(image, path, make_flag) {
+def cmake_build(image, path) {
   sh (
     script: "${docker_run} --env CI_NUM_EXECUTORS ${image} ./tests/scripts/task_build.py --sccache-bucket tvm-sccache-prod --sccache-region us-west-2 --build-dir ${path}",
     label: 'Run cmake build',
@@ -527,7 +507,7 @@ def run_build(node_type) {
             'PLATFORM=gpu',
             ], {
             sh "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_config_build_gpu.sh build"
-        cmake_build("${ci_gpu} --no-gpu", 'build', '-j2')
+        cmake_build("${ci_gpu} --no-gpu", 'build')
         sh(
             script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/gpu --items build/libtvm.so build/libtvm_runtime.so build/config.cmake build/libtvm_allvisible.so build/3rdparty/libflash_attn/src/libflash_attn.so build/3rdparty/cutlass_fpA_intB_gemm/cutlass_kernels/libfpA_intB_gemm.so",
             label: 'Upload artifacts to S3',
@@ -537,7 +517,7 @@ def run_build(node_type) {
         // compiler test
         sh "rm -rf build"
         sh "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_config_build_gpu_other.sh build"
-        cmake_build("${ci_gpu} --no-gpu", 'build', '-j2')
+        cmake_build("${ci_gpu} --no-gpu", 'build')
         sh(
             script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/gpu2 --items build/libtvm.so build/libtvm_runtime.so build/config.cmake",
             label: 'Upload artifacts to S3',
@@ -556,11 +536,17 @@ def build() {
     try {
         run_build('CPU-SPOT')
     } catch (Throwable ex) {
-        // mark the current stage as success
-        // and try again via on demand node
-        echo 'Exception during SPOT run ' + ex.toString() + ' retry on-demand'
-        currentBuild.result = 'SUCCESS'
-        run_build('CPU')
+        if (is_last_build()) {
+          // retry if we are currently at last build
+          // mark the current stage as success
+          // and try again via on demand node
+          echo 'Exception during SPOT run ' + ex.toString() + ' retry on-demand'
+          currentBuild.result = 'SUCCESS'
+          run_build('CPU')
+        } else {
+          echo 'Exception during SPOT run ' + ex.toString() + ' exit since it is not last build'
+          throw ex
+        }
     }
   }
 }
@@ -568,7 +554,7 @@ build()
 
 
 
-def shard_run_unittest_GPU_1_of_3(node_type) {
+def shard_run_unittest_GPU_1_of_2(node_type) {
   echo 'Begin running on node_type ' + node_type
   if (!skip_ci && is_docs_only_build != 1) {
     node(node_type) {
@@ -580,37 +566,15 @@ def shard_run_unittest_GPU_1_of_3(node_type) {
           withEnv([
             'PLATFORM=gpu',
             'TEST_STEP_NAME=unittest: GPU',
-            'TVM_NUM_SHARDS=3',
+            'TVM_NUM_SHARDS=2',
             'TVM_SHARD_INDEX=0',
             "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
             sh(
-                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/gpu2",
-                  label: 'Download artifacts from S3',
-                )
-
-              sh "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_config_build_gpu_other.sh build"
-              // These require a GPU to finish the build (i.e. CUDA needs to be load-able)
-              // make_cpp_tests(ci_gpu, 'build')
-              // cpp_unittest(ci_gpu)
-
-              sh "rm -rf build"
-              sh(
                   script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/gpu",
                   label: 'Download artifacts from S3',
                 )
 
               ci_setup(ci_gpu)
-              sh "${docker_run} --no-gpu ${ci_gpu} ./tests/scripts/task_config_build_gpu.sh build"
-              make_cpp_tests(ci_gpu, 'build')
-              cpp_unittest(ci_gpu)
-              sh (
-                script: "${docker_run} ${ci_gpu} python3 ./tests/scripts/task_build.py --sccache-bucket tvm-sccache-prod --sccache-region us-west-2 --cmake-target opencl-cpptest --build-dir build",
-                label: 'Make OpenCL cpp unit tests',
-              )
-              sh (
-                script: "${docker_run} ${ci_gpu} ./tests/scripts/task_opencl_cpp_unittest.sh",
-                label: 'Run OpenCL cpp unit tests',
-              )
               sh (
                 script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_unittest_gpuonly.sh",
                 label: 'Run Python GPU unit tests',
@@ -636,11 +600,11 @@ def shard_run_unittest_GPU_1_of_3(node_type) {
     }
     echo 'End running on node_type ' + node_type
   } else {
-    Utils.markStageSkippedForConditional('unittest: GPU 1 of 3')
+    Utils.markStageSkippedForConditional('unittest: GPU 1 of 2')
   }
 }
 
-def shard_run_unittest_GPU_2_of_3(node_type) {
+def shard_run_unittest_GPU_2_of_2(node_type) {
   echo 'Begin running on node_type ' + node_type
   if (!skip_ci && is_docs_only_build != 1) {
     node(node_type) {
@@ -652,7 +616,7 @@ def shard_run_unittest_GPU_2_of_3(node_type) {
           withEnv([
             'PLATFORM=gpu',
             'TEST_STEP_NAME=unittest: GPU',
-            'TVM_NUM_SHARDS=3',
+            'TVM_NUM_SHARDS=2',
             'TVM_SHARD_INDEX=1',
             "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
             sh(
@@ -690,199 +654,10 @@ def shard_run_unittest_GPU_2_of_3(node_type) {
     }
     echo 'End running on node_type ' + node_type
   } else {
-    Utils.markStageSkippedForConditional('unittest: GPU 2 of 3')
+    Utils.markStageSkippedForConditional('unittest: GPU 2 of 2')
   }
 }
 
-def shard_run_unittest_GPU_3_of_3(node_type) {
-  echo 'Begin running on node_type ' + node_type
-  if (!skip_ci && is_docs_only_build != 1) {
-    node(node_type) {
-      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/ut-python-gpu") {
-        // NOTE: if exception happens, it will be caught outside
-        init_git()
-        docker_init(ci_gpu)
-        timeout(time: max_time, unit: 'MINUTES') {
-          withEnv([
-            'PLATFORM=gpu',
-            'TEST_STEP_NAME=unittest: GPU',
-            'TVM_NUM_SHARDS=3',
-            'TVM_SHARD_INDEX=2',
-            "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
-            sh(
-                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/gpu",
-                  label: 'Download artifacts from S3',
-                )
-
-              ci_setup(ci_gpu)
-              sh (
-                script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_unittest_gpuonly.sh",
-                label: 'Run Python GPU unit tests',
-              )
-              sh (
-                script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_integration_gpuonly.sh",
-                label: 'Run Python GPU integration tests',
-              )
-          })
-        }
-        // only run upload if things are successful
-        try {
-          sh(
-            script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/pytest-results/unittest_GPU --items build/pytest-results",
-            label: 'Upload JUnits to S3',
-          )
-
-          junit 'build/pytest-results/*.xml'
-        } catch (Exception e) {
-          echo 'Exception during JUnit upload: ' + e.toString()
-        }
-      }
-    }
-    echo 'End running on node_type ' + node_type
-  } else {
-    Utils.markStageSkippedForConditional('unittest: GPU 3 of 3')
-  }
-}
-
-
-
-def shard_run_topi_GPU_1_of_3(node_type) {
-  echo 'Begin running on node_type ' + node_type
-  if (!skip_ci && is_docs_only_build != 1) {
-    node(node_type) {
-      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/topi-python-gpu") {
-        // NOTE: if exception happens, it will be caught outside
-        init_git()
-        docker_init(ci_gpu)
-        timeout(time: max_time, unit: 'MINUTES') {
-          withEnv([
-            'PLATFORM=gpu',
-            'TEST_STEP_NAME=topi: GPU',
-            'TVM_NUM_SHARDS=3',
-            'TVM_SHARD_INDEX=0',
-            "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
-            sh(
-                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/gpu",
-                  label: 'Download artifacts from S3',
-                )
-
-              ci_setup(ci_gpu)
-              sh (
-                script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_topi.sh",
-                label: 'Run TOPI tests',
-              )
-          })
-        }
-        // only run upload if things are successful
-        try {
-          sh(
-            script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/pytest-results/topi_GPU --items build/pytest-results",
-            label: 'Upload JUnits to S3',
-          )
-
-          junit 'build/pytest-results/*.xml'
-        } catch (Exception e) {
-          echo 'Exception during JUnit upload: ' + e.toString()
-        }
-      }
-    }
-    echo 'End running on node_type ' + node_type
-  } else {
-    Utils.markStageSkippedForConditional('topi: GPU 1 of 3')
-  }
-}
-
-def shard_run_topi_GPU_2_of_3(node_type) {
-  echo 'Begin running on node_type ' + node_type
-  if (!skip_ci && is_docs_only_build != 1) {
-    node(node_type) {
-      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/topi-python-gpu") {
-        // NOTE: if exception happens, it will be caught outside
-        init_git()
-        docker_init(ci_gpu)
-        timeout(time: max_time, unit: 'MINUTES') {
-          withEnv([
-            'PLATFORM=gpu',
-            'TEST_STEP_NAME=topi: GPU',
-            'TVM_NUM_SHARDS=3',
-            'TVM_SHARD_INDEX=1',
-            "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
-            sh(
-                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/gpu",
-                  label: 'Download artifacts from S3',
-                )
-
-              ci_setup(ci_gpu)
-              sh (
-                script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_topi.sh",
-                label: 'Run TOPI tests',
-              )
-          })
-        }
-        // only run upload if things are successful
-        try {
-          sh(
-            script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/pytest-results/topi_GPU --items build/pytest-results",
-            label: 'Upload JUnits to S3',
-          )
-
-          junit 'build/pytest-results/*.xml'
-        } catch (Exception e) {
-          echo 'Exception during JUnit upload: ' + e.toString()
-        }
-      }
-    }
-    echo 'End running on node_type ' + node_type
-  } else {
-    Utils.markStageSkippedForConditional('topi: GPU 2 of 3')
-  }
-}
-
-def shard_run_topi_GPU_3_of_3(node_type) {
-  echo 'Begin running on node_type ' + node_type
-  if (!skip_ci && is_docs_only_build != 1) {
-    node(node_type) {
-      ws("workspace/exec_${env.EXECUTOR_NUMBER}/tvm/topi-python-gpu") {
-        // NOTE: if exception happens, it will be caught outside
-        init_git()
-        docker_init(ci_gpu)
-        timeout(time: max_time, unit: 'MINUTES') {
-          withEnv([
-            'PLATFORM=gpu',
-            'TEST_STEP_NAME=topi: GPU',
-            'TVM_NUM_SHARDS=3',
-            'TVM_SHARD_INDEX=2',
-            "SKIP_SLOW_TESTS=${skip_slow_tests}"], {
-            sh(
-                  script: "./${jenkins_scripts_root}/s3.py --action download --bucket ${s3_bucket} --prefix ${s3_prefix}/gpu",
-                  label: 'Download artifacts from S3',
-                )
-
-              ci_setup(ci_gpu)
-              sh (
-                script: "${docker_run} ${ci_gpu} ./tests/scripts/task_python_topi.sh",
-                label: 'Run TOPI tests',
-              )
-          })
-        }
-        // only run upload if things are successful
-        try {
-          sh(
-            script: "./${jenkins_scripts_root}/s3.py --action upload --bucket ${s3_bucket} --prefix ${s3_prefix}/pytest-results/topi_GPU --items build/pytest-results",
-            label: 'Upload JUnits to S3',
-          )
-
-          junit 'build/pytest-results/*.xml'
-        } catch (Exception e) {
-          echo 'Exception during JUnit upload: ' + e.toString()
-        }
-      }
-    }
-    echo 'End running on node_type ' + node_type
-  } else {
-    Utils.markStageSkippedForConditional('topi: GPU 3 of 3')
-  }
-}
 
 
 
@@ -949,81 +724,55 @@ def test() {
       SKIP_SLOW_TESTS = "${skip_slow_tests}"
     }
     parallel(
-    'unittest: GPU 1 of 3': {
+    'unittest: GPU 1 of 2': {
       try {
-      shard_run_unittest_GPU_1_of_3('GPU-SPOT')
+      shard_run_unittest_GPU_1_of_2('GPU-SPOT')
       } catch (Throwable ex) {
-        // mark the current stage as success
-        // and try again via on demand node
-        echo 'Exception during SPOT run ' + ex.toString() + ' retry on-demand'
-        currentBuild.result = 'SUCCESS'
-        shard_run_unittest_GPU_1_of_3('GPU')
+        if (is_last_build()) {
+          // retry if at last build
+          // mark the current stage as success
+          // and try again via on demand node
+          echo 'Exception during SPOT run ' + ex.toString() + ' retry on-demand'
+          currentBuild.result = 'SUCCESS'
+          shard_run_unittest_GPU_1_of_2('GPU')
+        } else {
+          echo 'Exception during SPOT run ' + ex.toString() + ' exit since it is not last build'
+          throw ex
+        }
       }
     },
-    'unittest: GPU 2 of 3': {
+    'unittest: GPU 2 of 2': {
       try {
-      shard_run_unittest_GPU_2_of_3('GPU-SPOT')
+      shard_run_unittest_GPU_2_of_2('GPU-SPOT')
       } catch (Throwable ex) {
-        // mark the current stage as success
-        // and try again via on demand node
-        echo 'Exception during SPOT run ' + ex.toString() + ' retry on-demand'
-        currentBuild.result = 'SUCCESS'
-        shard_run_unittest_GPU_2_of_3('GPU')
-      }
-    },
-    'unittest: GPU 3 of 3': {
-      try {
-      shard_run_unittest_GPU_3_of_3('GPU-SPOT')
-      } catch (Throwable ex) {
-        // mark the current stage as success
-        // and try again via on demand node
-        echo 'Exception during SPOT run ' + ex.toString() + ' retry on-demand'
-        currentBuild.result = 'SUCCESS'
-        shard_run_unittest_GPU_3_of_3('GPU')
-      }
-    },
-    'topi: GPU 1 of 3': {
-      try {
-      shard_run_topi_GPU_1_of_3('GPU-SPOT')
-      } catch (Throwable ex) {
-        // mark the current stage as success
-        // and try again via on demand node
-        echo 'Exception during SPOT run ' + ex.toString() + ' retry on-demand'
-        currentBuild.result = 'SUCCESS'
-        shard_run_topi_GPU_1_of_3('GPU')
-      }
-    },
-    'topi: GPU 2 of 3': {
-      try {
-      shard_run_topi_GPU_2_of_3('GPU-SPOT')
-      } catch (Throwable ex) {
-        // mark the current stage as success
-        // and try again via on demand node
-        echo 'Exception during SPOT run ' + ex.toString() + ' retry on-demand'
-        currentBuild.result = 'SUCCESS'
-        shard_run_topi_GPU_2_of_3('GPU')
-      }
-    },
-    'topi: GPU 3 of 3': {
-      try {
-      shard_run_topi_GPU_3_of_3('GPU-SPOT')
-      } catch (Throwable ex) {
-        // mark the current stage as success
-        // and try again via on demand node
-        echo 'Exception during SPOT run ' + ex.toString() + ' retry on-demand'
-        currentBuild.result = 'SUCCESS'
-        shard_run_topi_GPU_3_of_3('GPU')
+        if (is_last_build()) {
+          // retry if at last build
+          // mark the current stage as success
+          // and try again via on demand node
+          echo 'Exception during SPOT run ' + ex.toString() + ' retry on-demand'
+          currentBuild.result = 'SUCCESS'
+          shard_run_unittest_GPU_2_of_2('GPU')
+        } else {
+          echo 'Exception during SPOT run ' + ex.toString() + ' exit since it is not last build'
+          throw ex
+        }
       }
     },
     'docs: GPU 1 of 1': {
       try {
       shard_run_docs_GPU_1_of_1('GPU-SPOT')
       } catch (Throwable ex) {
-        // mark the current stage as success
-        // and try again via on demand node
-        echo 'Exception during SPOT run ' + ex.toString() + ' retry on-demand'
-        currentBuild.result = 'SUCCESS'
-        shard_run_docs_GPU_1_of_1('GPU')
+        if (is_last_build()) {
+          // retry if at last build
+          // mark the current stage as success
+          // and try again via on demand node
+          echo 'Exception during SPOT run ' + ex.toString() + ' retry on-demand'
+          currentBuild.result = 'SUCCESS'
+          shard_run_docs_GPU_1_of_1('GPU')
+        } else {
+          echo 'Exception during SPOT run ' + ex.toString() + ' exit since it is not last build'
+          throw ex
+        }
       }
     },
     )

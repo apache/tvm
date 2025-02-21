@@ -22,40 +22,6 @@ When to deploy TVM runtime module, no matter whether it is CPU or GPU, TVM only 
 shared library. The key is our unified module serialization mechanism. This document will introduce TVM module
 serialization format standard and implementation details.
 
-*********************
-Module Export Example
-*********************
-
-Let us build one ResNet-18 workload for GPU as an example first.
-
-.. code:: python
-
-   from tvm import relay
-   from tvm.relay import testing
-   from tvm.contrib import utils
-   import tvm
-
-   # Resnet18 workload
-   resnet18_mod, resnet18_params = relay.testing.resnet.get_workload(num_layers=18)
-
-   # build
-   with relay.build_config(opt_level=3):
-       _, resnet18_lib, _ = relay.build_module.build(resnet18_mod, "cuda", params=resnet18_params)
-
-   # create one tempory directory
-   temp = utils.tempdir()
-
-   # path lib
-   file_name = "deploy.so"
-   path_lib = temp.relpath(file_name)
-
-   # export library
-   resnet18_lib.export_library(path_lib)
-
-   # load it back
-   loaded_lib = tvm.runtime.load_module(path_lib)
-   assert loaded_lib.type_key == "library"
-   assert loaded_lib.imported_modules[0].type_key == "cuda"
 
 *************
 Serialization

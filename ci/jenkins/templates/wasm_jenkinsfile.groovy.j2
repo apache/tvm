@@ -19,7 +19,7 @@
 
 {% call m.invoke_build(
   name='BUILD: WASM',
-  node='CPU-SMALL',
+  node='CPU',
   condition='!skip_ci && is_docs_only_build != 1',
   ws='tvm/build-wasm',
   docker_image='ci_wasm',
@@ -29,7 +29,7 @@
     script: "${docker_run} ${ci_wasm} ./tests/scripts/task_config_build_wasm.sh build",
     label: 'Create WASM cmake config',
   )
-  cmake_build(ci_wasm, 'build', '-j2')
+  cmake_build(ci_wasm, 'build')
   make_cpp_tests(ci_wasm, 'build')
   cpp_unittest(ci_wasm)
   ci_setup(ci_wasm)

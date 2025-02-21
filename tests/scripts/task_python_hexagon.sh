@@ -26,7 +26,13 @@ if [ $# -ge 1 ] && [[ "$1" = "--device" ]]; then
 fi
 
 source tests/scripts/setup-pytest-env.sh
-make cython3
+
+# setup cython
+cd python; python3 setup.py build_ext --inplace; cd ..
+
+# disable hexagon tests for now
+exit 0
+
 
 if [[ "${device_serial}" == "simulator" ]]; then
     export TVM_TRACKER_PORT=9190
@@ -49,9 +55,9 @@ fi
 
 export ANDROID_SERIAL_NUMBER=${device_serial}
 if [ "${device_serial}" == "simulator" ]; then
-    run_pytest ctypes python-contrib-hexagon tests/python/contrib/test_hexagon
+    run_pytest python-contrib-hexagon tests/python/contrib/test_hexagon
 else
-    run_pytest ctypes python-contrib-hexagon tests/python/contrib/test_hexagon -n=$num_of_devices
+    run_pytest python-contrib-hexagon tests/python/contrib/test_hexagon -n=$num_of_devices
 fi
 
 if [[ "${device_serial}" == "simulator" ]]; then

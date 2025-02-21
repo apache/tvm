@@ -569,7 +569,6 @@ class TestMemAccessInBranch(BaseCompactTest):
 
 
 class TestAnnotatedOpaqueAccess(BaseCompactTest):
-
     is_lower_order_free = False
 
     @T.prim_func
@@ -1154,7 +1153,6 @@ class TestTileAwareCompaction(BaseCompactTest):
 
 
 class TestNonStrictCompactionForPaddedMatmul(BaseCompactTest):
-
     is_strict_mode = False
 
     @T.prim_func
@@ -1231,7 +1229,6 @@ class TestNonStrictCompactionForPaddedMatmul(BaseCompactTest):
 
 
 class TestNotCompactAliasBuffer(BaseCompactTest):
-
     # it is not testcase on block form
     is_lower_order_free = False
 
@@ -1251,7 +1248,6 @@ class TestNotCompactAliasBuffer(BaseCompactTest):
 
 
 class TestNotCompactBufferWithDifferentDtype(BaseCompactTest):
-
     # it is not testcase on block form
     is_lower_order_free = False
 
@@ -1268,7 +1264,6 @@ class TestNotCompactBufferWithDifferentDtype(BaseCompactTest):
 
 
 class TestNonBoolCondition(BaseCompactTest):
-
     # it is not testcase on block form
     is_lower_order_free = False
 
@@ -1287,15 +1282,6 @@ class TestNonBoolCondition(BaseCompactTest):
         for i in range(10):
             if i:
                 A[i - 1] = A[i - 1] + 1
-
-
-def test_lower_te():
-    x = te.placeholder((1,))
-    y = te.compute((1,), lambda i: x[i] + 2)
-    s = te.create_schedule(y.op)
-    orig_mod = tvm.driver.build_module.schedule_to_module(s, [x, y])
-    mod = tvm.tir.transform.CompactBufferAllocation()(orig_mod)
-    tvm.ir.assert_structural_equal(mod, orig_mod)  # CompactBufferAllocation should do nothing on TE
 
 
 class TestCompactSymbolicBound0:

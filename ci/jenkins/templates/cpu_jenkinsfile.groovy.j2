@@ -19,7 +19,7 @@
 
 {% call m.invoke_build(
   name='BUILD: CPU',
-  node='CPU-SMALL',
+  node='CPU',
   condition='!skip_ci && is_docs_only_build != 1',
   ws='tvm/build-cpu',
   docker_image='ci_cpu',
@@ -29,7 +29,7 @@
     script: "${docker_run} ${ci_cpu} ./tests/scripts/task_config_build_cpu.sh build",
     label: 'Create CPU cmake config',
   )
-  cmake_build(ci_cpu, 'build', '-j2')
+  cmake_build(ci_cpu, 'build')
   make_cpp_tests(ci_cpu, 'build')
   {{ m.upload_artifacts(tag='cpu', filenames=tvm_lib + tvm_allvisible + cpptest) }}
   ci_setup(ci_cpu)
@@ -40,27 +40,12 @@
 
 {% set test_method_names = [] %}
 
-{% call(shard_index, num_shards) m.sharded_test_step(
-  name="integration: CPU",
-  num_shards=4,
-  ws="tvm/integration-python-cpu",
-  platform="cpu",
-  docker_image="ci_cpu",
-  test_method_names=test_method_names,
-) %}
-  {{ m.download_artifacts(tag='cpu') }}
-  ci_setup(ci_cpu)
-  sh (
-    script: "${docker_run} ${ci_cpu} ./tests/scripts/task_python_integration.sh",
-    label: 'Run CPU integration tests',
-  )
-{% endcall %}
 
 {% call(shard_index, num_shards) m.sharded_test_step(
   name="unittest: CPU",
   ws="tvm/ut-python-cpu",
   platform="cpu",
-  num_shards=1,
+  num_shards=2,
   docker_image="ci_cpu",
   test_method_names=test_method_names,
 ) %}
@@ -68,21 +53,6 @@
   ci_setup(ci_cpu)
   cpp_unittest(ci_cpu)
   python_unittest(ci_cpu)
-{% endcall %}
-{% call(shard_index, num_shards) m.sharded_test_step(
-  name="frontend: CPU",
-  ws="tvm/frontend-python-cpu",
-  platform="cpu",
-  num_shards=1,
-  docker_image="ci_cpu",
-  test_method_names=test_method_names,
-) %}
-  {{ m.download_artifacts(tag='cpu') }}
-  ci_setup(ci_cpu)
-  sh (
-    script: "${docker_run} ${ci_cpu} ./tests/scripts/task_python_frontend_cpu.sh",
-    label: 'Run Python frontend tests',
-  )
 {% endcall %}
 
 {{ m.invoke_tests(node="CPU-SMALL", test_method_names=test_method_names) -}}

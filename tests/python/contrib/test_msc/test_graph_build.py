@@ -16,7 +16,7 @@
 # under the License.
 # pylint: disable=invalid-name
 
-""" Test graph builder && graph. """
+"""Test graph builder && graph."""
 
 import pytest
 import torch

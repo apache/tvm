@@ -28,8 +28,7 @@ public class Device {
    */
   static final int kDLCPU = 1, kDLCUDA = 2, kDLCUDAHost = 3, kDLOpenCL = 4, kDLVulkan = 7,
                    kDLMetal = 8, kDLVPI = 9, kDLROCM = 10, kDLROCMHost = 11, kDLExtDev = 12,
-                   kDLCUDAManaged = 13, kDLOneAPI = 14, kDLWebGPU = 15, kDLHexagon = 16,
-                   kDLAOCL = 32, kDLSDAccel = 33, kOpenGL = 34, kDLMicroDev = 35;
+                   kDLCUDAManaged = 13, kDLOneAPI = 14, kDLWebGPU = 15, kDLHexagon = 16;
 
   private static final Map<Integer, String> MASK2STR = new HashMap<Integer, String>();
   private static final Map<String, Integer> STR2MASK = new HashMap<String, Integer>();

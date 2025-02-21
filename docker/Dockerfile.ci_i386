@@ -66,10 +66,6 @@ RUN bash /install/ubuntu2004_install_redis.sh
 COPY install/ubuntu_install_sbt.sh /install/ubuntu_install_sbt.sh
 RUN bash /install/ubuntu_install_sbt.sh
 
-# Verilator deps
-COPY install/ubuntu_install_verilator.sh /install/ubuntu_install_verilator.sh
-RUN bash /install/ubuntu_install_verilator.sh
-
 # sccache
 COPY install/ubuntu_install_sccache.sh /install/ubuntu_install_sccache.sh
 RUN bash /install/ubuntu_install_sccache.sh

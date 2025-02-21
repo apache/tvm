@@ -18,7 +18,7 @@
 
 set -exo pipefail
 
-export TVM_TEST_TARGETS="cuda;opencl;metal;rocm;nvptx;opencl -device=mali,aocl_sw_emu,adreno"
+export TVM_TEST_TARGETS="cuda;opencl;metal;rocm;nvptx;opencl -device=mali,adreno"
 export PYTEST_ADDOPTS="-m gpu $PYTEST_ADDOPTS"
 export TVM_RELAY_TEST_TARGETS="cuda"
 export TVM_RELAY_OPENCL_TEXTURE_TARGETS="opencl -device=adreno"

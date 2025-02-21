@@ -20,6 +20,7 @@
 #define TVM_RELAX_EXPR_H_
 
 #include <tvm/ir/expr.h>
+#include <tvm/ir/function.h>
 #include <tvm/ir/source_map.h>
 #include <tvm/node/node.h>
 #include <tvm/relax/type.h>
@@ -34,8 +35,8 @@
 namespace tvm {
 namespace relax {
 
-using Expr = RelayExpr;
-using ExprNode = RelayExprNode;
+using Expr = RelaxExpr;
+using ExprNode = RelaxExprNode;
 /*!
  * \brief The unique identifier of variables.
  *

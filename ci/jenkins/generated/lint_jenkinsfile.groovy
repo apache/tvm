@@ -60,7 +60,7 @@
 // 'python3 jenkins/generate.py'
 // Note: This timestamp is here to ensure that updates to the Jenkinsfile are
 // always rebased on main before merging:
-// Generated at 2025-02-06T12:16:02.571072
+// Generated at 2025-02-15T10:12:51.981152
 
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 // These are set at runtime from data in ci/jenkins/docker-images.yml, update
@@ -82,14 +82,11 @@ ci_riscv = ''
 properties([
   parameters([
     string(name: 'ci_arm_param', defaultValue: ''),
-    string(name: 'ci_cortexm_param', defaultValue: ''),
     string(name: 'ci_cpu_param', defaultValue: ''),
     string(name: 'ci_gpu_param', defaultValue: ''),
     string(name: 'ci_hexagon_param', defaultValue: ''),
     string(name: 'ci_i386_param', defaultValue: ''),
     string(name: 'ci_lint_param', defaultValue: ''),
-    string(name: 'ci_minimal_param', defaultValue: ''),
-    string(name: 'ci_riscv_param', defaultValue: ''),
     string(name: 'ci_wasm_param', defaultValue: ''),
   ])
 ])
@@ -97,14 +94,11 @@ properties([
 // Placeholders for newly built Docker image names (if rebuild_docker_images
 // is used)
   built_ci_arm = null;
-  built_ci_cortexm = null;
   built_ci_cpu = null;
   built_ci_gpu = null;
   built_ci_hexagon = null;
   built_ci_i386 = null;
   built_ci_lint = null;
-  built_ci_minimal = null;
-  built_ci_riscv = null;
   built_ci_wasm = null;
 
 // Global variable assigned during Sanity Check that holds the sha1 which should be
@@ -285,6 +279,13 @@ def cancel_previous_build() {
   }
 }
 
+def is_last_build() {
+  // whether it is last build
+  def job = Jenkins.instance.getItem(env.JOB_NAME)
+  def lastBuild = job.getLastBuild()
+  return lastBuild.getNumber() == env.BUILD_NUMBER
+}
+
 def checkout_trusted_files() {
   // trust everything from branch builds
   if (env.BRANCH_NAME == null || !env.BRANCH_NAME.startsWith('PR-')) {
@@ -364,18 +365,13 @@ def prepare(node_type) {
 
         if (env.DETERMINE_DOCKER_IMAGES == 'yes') {
           sh(
-            script: "./${jenkins_scripts_root}/determine_docker_images.py ci_arm ci_cortexm ci_cpu ci_gpu ci_hexagon ci_i386 ci_lint ci_minimal ci_riscv ci_wasm ",
+            script: "./${jenkins_scripts_root}/determine_docker_images.py ci_arm ci_cpu ci_gpu ci_hexagon ci_i386 ci_lint ci_wasm ",
             label: 'Decide whether to use tlcpack or tlcpackstaging for Docker images',
           )
           // Pull image names from the results of should_rebuild_docker.py
           ci_arm = sh(
             script: "cat .docker-image-names/ci_arm",
             label: "Find docker image name for ci_arm",
-            returnStdout: true,
-          ).trim()
-          ci_cortexm = sh(
-            script: "cat .docker-image-names/ci_cortexm",
-            label: "Find docker image name for ci_cortexm",
             returnStdout: true,
           ).trim()
           ci_cpu = sh(
@@ -403,16 +399,6 @@ def prepare(node_type) {
             label: "Find docker image name for ci_lint",
             returnStdout: true,
           ).trim()
-          ci_minimal = sh(
-            script: "cat .docker-image-names/ci_minimal",
-            label: "Find docker image name for ci_minimal",
-            returnStdout: true,
-          ).trim()
-          ci_riscv = sh(
-            script: "cat .docker-image-names/ci_riscv",
-            label: "Find docker image name for ci_riscv",
-            returnStdout: true,
-          ).trim()
           ci_wasm = sh(
             script: "cat .docker-image-names/ci_wasm",
             label: "Find docker image name for ci_wasm",
@@ -421,27 +407,21 @@ def prepare(node_type) {
         }
 
         ci_arm = params.ci_arm_param ?: ci_arm
-        ci_cortexm = params.ci_cortexm_param ?: ci_cortexm
         ci_cpu = params.ci_cpu_param ?: ci_cpu
         ci_gpu = params.ci_gpu_param ?: ci_gpu
         ci_hexagon = params.ci_hexagon_param ?: ci_hexagon
         ci_i386 = params.ci_i386_param ?: ci_i386
         ci_lint = params.ci_lint_param ?: ci_lint
-        ci_minimal = params.ci_minimal_param ?: ci_minimal
-        ci_riscv = params.ci_riscv_param ?: ci_riscv
         ci_wasm = params.ci_wasm_param ?: ci_wasm
 
         sh (script: """
           echo "Docker images being used in this build:"
           echo " ci_arm = ${ci_arm}"
-          echo " ci_cortexm = ${ci_cortexm}"
           echo " ci_cpu = ${ci_cpu}"
           echo " ci_gpu = ${ci_gpu}"
           echo " ci_hexagon = ${ci_hexagon}"
           echo " ci_i386 = ${ci_i386}"
           echo " ci_lint = ${ci_lint}"
-          echo " ci_minimal = ${ci_minimal}"
-          echo " ci_riscv = ${ci_riscv}"
           echo " ci_wasm = ${ci_wasm}"
         """, label: 'Docker image names')
 
@@ -494,7 +474,7 @@ def make_cpp_tests(image, build_dir) {
   )
 }
 
-def cmake_build(image, path, make_flag) {
+def cmake_build(image, path) {
   sh (
     script: "${docker_run} --env CI_NUM_EXECUTORS ${image} ./tests/scripts/task_build.py --sccache-bucket tvm-sccache-prod --sccache-region us-west-2 --build-dir ${path}",
     label: 'Run cmake build',

@@ -24,8 +24,6 @@
 #include <dmlc/thread_local.h>
 #include <tvm/driver/driver_api.h>
 #include <tvm/ir/transform.h>
-#include <tvm/relay/executor.h>
-#include <tvm/relay/runtime.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/target/codegen.h>
 #include <tvm/te/operation.h>
@@ -33,8 +31,6 @@
 #include <tvm/tir/transform.h>
 
 #include <algorithm>
-#include <mutex>
-#include <stack>
 
 namespace tvm {
 
@@ -292,55 +288,6 @@ IRModule ApplyPasses(IRModule mod, transform::Sequential seq) {
   return mod;
 }
 
-// Convert te schedule to IRModule
-IRModule ScheduleToModule(te::Schedule sch, const Array<ObjectRef>& args, const std::string& name,
-                          const std::unordered_map<te::Tensor, tir::Buffer>& binds,
-                          GlobalVarSupply global_var_supply) {
-  sch = sch.normalize();
-
-  transform::PassContext pass_ctx = transform::PassContext::Current();
-  bool debug_keep_trivial_loop =
-      pass_ctx->GetConfig<Bool>("tir.debug_keep_trivial_loop", Bool(false)).value();
-
-  // Before TIR transformation.
-  tir::Stmt stmt = te::ScheduleOps(sch, te::InferBound(sch), debug_keep_trivial_loop);
-  bool compact = te::VerifyCompactBuffer(stmt);
-
-  Map<te::Tensor, tir::Buffer> out_binds;
-  Array<ObjectRef> out_arg_list;
-  GetBinds(args, compact, binds, &out_binds, &out_arg_list);
-
-  // Build the function, converting from te::Tensor to tir::Buffer
-  tir::PrimFunc f = te::SchedulePostProcToPrimFunc(out_arg_list, std::move(stmt), out_binds);
-  f = WithAttr(std::move(f), "global_symbol", runtime::String(name));
-
-  // Mark this schedule as being converted from an TE schedule. Makes sure that
-  // the correct TE passes are run.
-  f = WithAttr(std::move(f), "from_legacy_te_schedule", Bool(true));
-
-  bool noalias = pass_ctx->GetConfig<Bool>("tir.noalias", Bool(true)).value();
-
-  if (noalias) {
-    f = WithAttr(std::move(f), "tir.noalias", Bool(true));
-  }
-  GlobalVar global_var = global_var_supply->UniqueGlobalFor(name, false);
-  return IRModule(Map<GlobalVar, BaseFunc>({{global_var, f}}));
-}
-
-TVM_REGISTER_GLOBAL("driver.schedule_to_module")
-    .set_body_typed([](te::Schedule sch, const Array<ObjectRef>& args, const String& name,
-                       const Map<te::Tensor, tir::Buffer>& binds) {
-      std::unordered_map<te::Tensor, tir::Buffer> c_binds;
-      // Check to make sure binds is not null before doing the conversion;
-      if (binds.defined()) {
-        for (auto kv : binds) {
-          c_binds.insert({kv.first, kv.second});
-        }
-      }
-      IRModule mod = ScheduleToModule(std::move(sch), args, name, c_binds, GlobalVarSupply());
-      return mod;
-    });
-
 IRModule LowerModule(IRModule mod, bool simple_mode) {
   Array<transform::Pass> pass_list = CreatePassList(simple_mode);
   return LowerWithPassList(std::move(mod), pass_list);
@@ -369,38 +316,6 @@ IRModule LowerPrimFunc(tir::PrimFunc func, const std::string& name, bool simple_
 TVM_REGISTER_GLOBAL("driver.lower_primfunc")
     .set_body_typed([](te::PrimFunc func, const String& name, bool simple_mode) {
       return LowerPrimFunc(std::move(func), name, simple_mode);
-    });
-
-IRModule LowerSchedule(te::Schedule sch, const Array<te::Tensor>& args, const std::string& name,
-                       const std::unordered_map<te::Tensor, tir::Buffer>& binds,
-                       GlobalVarSupply global_var_supply, bool simple_mode) {
-  Array<ObjectRef> ref_args;
-  for (ObjectRef x : args) {
-    ref_args.push_back(x);
-  }
-  return LowerSchedule(std::move(sch), ref_args, name, binds, global_var_supply, simple_mode);
-}
-
-IRModule LowerSchedule(te::Schedule sch, const Array<ObjectRef>& args, const std::string& name,
-                       const std::unordered_map<te::Tensor, tir::Buffer>& binds,
-                       GlobalVarSupply global_var_supply, bool simple_mode) {
-  IRModule mod = ScheduleToModule(std::move(sch), args, name, binds, global_var_supply);
-  // Get the legacy TE pass list
-  Array<transform::Pass> pass_list = CreatePassList(simple_mode);
-  return LowerWithPassList(mod, pass_list);
-}
-
-TVM_REGISTER_GLOBAL("driver.lower_schedule")
-    .set_body_typed([](te::Schedule sch, const Array<ObjectRef>& args, const String& name,
-                       const Map<te::Tensor, tir::Buffer>& binds, bool simple_mode) {
-      std::unordered_map<te::Tensor, tir::Buffer> c_binds;
-      // Check to make sure binds is not null before doing the conversion;
-      if (binds.get() != nullptr) {
-        for (auto kv : binds) {
-          c_binds.insert({kv.first, kv.second});
-        }
-      }
-      return LowerSchedule(std::move(sch), args, name, c_binds, GlobalVarSupply(), simple_mode);
     });
 
 /**
@@ -463,8 +378,7 @@ runtime::Module TIRToRuntime(const Map<Target, IRModule>& inputs_arg,
 
   if (!target_host.defined()) {
     for (const auto& it : inputs) {
-      if (it.first->GetTargetDeviceType() == kDLCPU ||
-          it.first->GetTargetDeviceType() == kDLMicroDev) {
+      if (it.first->GetTargetDeviceType() == kDLCPU) {
         target_host = it.first;
         break;
       }
@@ -481,7 +395,7 @@ runtime::Module TIRToRuntime(const Map<Target, IRModule>& inputs_arg,
   // Take the attrs from the first module so the eventual modules have them.
   // Ideally this would just be one unified module all the way through;
   IRModule first_module = (*inputs.begin()).second;
-  IRModule mhost_all = IRModule(Map<GlobalVar, BaseFunc>(), {}, {}, {}, first_module->attrs);
+  IRModule mhost_all = IRModule(Map<GlobalVar, BaseFunc>(), {}, first_module->attrs);
 
   ICHECK(mhost_all.defined()) << "The host module must be defined";
 
@@ -611,15 +525,7 @@ transform::Sequential MixedModulePassManager(IRModule mixed_mod, Target target) 
   // because the merged allocation site is at the beginning of each device function
   mixed_pass_list.push_back(tir::transform::MergeSharedMemoryAllocations());
 
-  bool unpacked_api = mixed_mod->GetAttr<relay::Executor>(tvm::attr::kExecutor)
-                          .value_or(relay::Executor::Create("graph", {}))
-                          ->GetAttr<Bool>("unpacked-api")
-                          .value_or(Bool(false));
-  if (unpacked_api) {
-    mixed_pass_list.push_back(tir::transform::MakeUnpackedAPI());
-  } else {
-    mixed_pass_list.push_back(tir::transform::MakePackedAPI());
-  }
+  mixed_pass_list.push_back(tir::transform::MakePackedAPI());
   mixed_pass_list.push_back(tir::transform::FP8StorageLegalize());
   mixed_pass_list.push_back(tir::transform::BF16StorageLegalize());
 
@@ -635,7 +541,6 @@ TVM_REGISTER_GLOBAL("driver.mixed_mod_passes")
 
 transform::Sequential HostModulePassManager(IRModule mixed_mod, Target target_host) {
   transform::PassContext pass_ctx = transform::PassContext::Current();
-  bool enable_debug = pass_ctx->GetConfig<Bool>("tir.enable_debug", Bool(false)).value();
 
   Array<tvm::transform::Pass> host_pass_list;
 
@@ -654,10 +559,6 @@ transform::Sequential HostModulePassManager(IRModule mixed_mod, Target target_ho
   host_pass_list.push_back(tir::transform::LowerIntrin());
   host_pass_list.push_back(tir::transform::LowerDeviceStorageAccessInfo());
   host_pass_list.push_back(tir::transform::CombineContextCall());
-
-  if (enable_debug) {
-    host_pass_list.push_back(tir::transform::InstallDebugSpans());
-  }
 
   return transform::Sequential(host_pass_list);
 }

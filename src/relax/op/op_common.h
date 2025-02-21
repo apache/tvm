@@ -27,8 +27,6 @@
 
 #include <tvm/arith/analyzer.h>
 #include <tvm/relax/op_attr_types.h>
-#include <tvm/relay/expr.h>
-#include <tvm/relay/op.h>
 #include <tvm/tir/data_layout.h>
 
 #include <optional>

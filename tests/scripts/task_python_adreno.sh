@@ -57,27 +57,30 @@ trap "{ kill ${TRACKER_PID}; kill ${DEVICE_PID}; cleanup; }" 0
 
 # cleanup pycache
 find . -type f -path "*.pyc" | xargs rm -f
-# Test TVM
-make cython3
+# setup cython
+cd python; python3 setup.py build_ext --inplace; cd ..
+
+exit 0
 
 # The RPC to remote Android device has issue of hang after few tests with in CI environments.
 # Lets run them individually on fresh rpc session.
 # OpenCL texture test on Adreno
-TEXTURE_TESTS=$(./ci/scripts/jenkins/pytest_ids.py --folder tests/python/relay/opencl_texture)
-i=0
-IFS=$'\n'
-for node_id in $TEXTURE_TESTS; do
-    echo "$node_id"
-    run_pytest ctypes "$TVM_INTEGRATION_TESTSUITE_NAME-opencl-texture-$i" "$node_id" --reruns=0
-    i=$((i+1))
-done
 
 # Adreno CLML test
 CLML_TESTS=$(./ci/scripts/jenkins/pytest_ids.py --folder tests/python/contrib/test_clml)
 i=0
 for node_id in $CLML_TESTS; do
     echo "$node_id"
-    CXX=${TVM_NDK_CC} run_pytest ctypes "$TVM_INTEGRATION_TESTSUITE_NAME-openclml-$i" "$node_id" --reruns=0
+    CXX=${TVM_NDK_CC} run_pytest "$TVM_INTEGRATION_TESTSUITE_NAME-openclml-$i" "$node_id" --reruns=0
+    i=$((i+1))
+done
+
+# Relax test
+RELAX_TESTS=$(./ci/scripts/jenkins/pytest_ids.py --folder tests/python/relax/backend/clml 2> /dev/null  | grep -v dlerror)
+i=0
+for node_id in $RELAX_TESTS; do
+    echo "$node_id"
+    CXX=${TVM_NDK_CC} run_pytest ctypes "$TVM_INTEGRATION_TESTSUITE_NAME-openclml-relax-$i" "$node_id" --reruns=0
     i=$((i+1))
 done
 

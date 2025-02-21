@@ -562,12 +562,14 @@ struct AttentionAttrs : public tvm::AttrsNode<AttentionAttrs> {
 /*! \brief Attributes used for the padding operator */
 struct PadAttrs : public tvm::AttrsNode<PadAttrs> {
   Array<Integer> pad_width;
+  runtime::Float pad_value = 0.0;
   tvm::String pad_mode;
 
-  TVM_DECLARE_ATTRS(PadAttrs, "relay.attrs.PadAttrs") {
+  TVM_DECLARE_ATTRS(PadAttrs, "relax.attrs.PadAttrs") {
     TVM_ATTR_FIELD(pad_width).describe(
         "Number of values padded to the edges of each axis, "
         "in the format of (before_1, after_1, ..., before_N, after_N)");
+    TVM_ATTR_FIELD(pad_value).set_default(0.0).describe("The value to fill in padded area with");
     TVM_ATTR_FIELD(pad_mode)
         .set_default("constant")
         .describe(

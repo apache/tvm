@@ -549,41 +549,6 @@ def conv2d_winograd_nhwc(  # pylint: disable=invalid-name,missing-docstring
     return (data, weight, out)
 
 
-def conv2d_winograd_nchw(  # pylint: disable=invalid-name,missing-docstring
-    N: int,
-    H: int,
-    W: int,
-    CI: int,
-    CO: int,
-    kernel_size: int,
-    stride: int = 1,
-    padding: int = 1,
-    dilation: int = 1,
-) -> Tuple[te.Tensor, te.Tensor, te.Tensor]:
-    from tvm.topi.cuda.conv2d_winograd import (  # pylint: disable=import-outside-toplevel
-        _infer_tile_size,
-    )
-    from tvm.topi.nn.conv2d import (  # pylint: disable=import-outside-toplevel
-        _conv2d_winograd_nchw_impl,
-    )
-
-    data = te.placeholder((N, CI, H, W), "float32", name="data")
-    weight = te.placeholder((kernel_size, kernel_size, CI, CO), "float32", name="weight")
-    out = _conv2d_winograd_nchw_impl(
-        data,
-        weight,
-        stride,
-        padding,
-        dilation,
-        "float32",
-        pre_computed=True,
-        auto_scheduler_rewritten_layout="",
-        meta_schedule_original_shape=None,
-        tile_size=_infer_tile_size(data, weight),
-    )
-    return (data, weight, out)
-
-
 def matmul(
     n: int, m: int, k: int, in_dtype: str = "float32", out_dtype: str = "float32"
 ) -> Tuple[te.Tensor, te.Tensor, te.Tensor]:
@@ -866,12 +831,6 @@ CONFIGS = {
         conv2d_winograd_nhwc,
         [
             (1, 14, 14, 128, 128, 6),
-        ],
-    ),
-    "C2D_WIN_NCHW": (
-        conv2d_winograd_nchw,
-        [
-            (1, 56, 56, 64, 64, 6),
         ],
     ),
 }

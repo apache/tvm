@@ -24,7 +24,7 @@ FROM ubuntu:22.04
 COPY utils/apt-install-and-clear.sh /usr/local/bin/apt-install-and-clear
 
 RUN echo "Labelling this image"
-LABEL Description="Docker image for TVM built with OpenCL & OpenGL support"
+LABEL Description="Docker image for TVM built with OpenCL support"
 
 RUN echo "Preparing to install dependencies"
 RUN apt-get update
@@ -40,7 +40,7 @@ RUN apt-install-and-clear -y apt-utils sudo cmake g++ llvm git libopenblas-dev
 
 RUN echo "Installing Python"
 RUN apt-install-and-clear -y python3-dev python3-pip
-RUN pip3 install setuptools numpy pytest cython decorator scipy tornado psutil xgboost
+RUN pip3 install setuptools numpy pytest cython scipy tornado psutil xgboost
 
 RUN echo "Installing Jupyter notebook"
 RUN pip3 install matplotlib Image "Pillow<7" jupyter[notebook]
@@ -48,10 +48,6 @@ RUN pip3 install matplotlib Image "Pillow<7" jupyter[notebook]
 RUN echo "Installing OpenCL libraries"
 RUN apt-install-and-clear -y libviennacl-dev mesa-opencl-icd ocl-icd-opencl-dev clinfo
 RUN apt-install-and-clear -y libclblas-dev libclfft-dev libclsparse-dev
-
-RUN echo "Installing OpenGL libraries"
-RUN apt-install-and-clear -y libcogl-dev libegl1 libgles1 libglfw3-dev
-# libglew-dev
 
 RUN echo "Upgrading dependencies"
 RUN apt-get upgrade -y
@@ -70,7 +66,7 @@ ENV TVM_HOME="/usr/tvm"
 ENV TVM_BUILD_DIR="${TVM_HOME}/build"
 RUN mkdir -p ${TVM_BUILD_DIR} && \
 	cd ${TVM_BUILD_DIR} && \
-	cmake .. -DUSE_BLAS=openblas -DUSE_LLVM=ON -DUSE_OPENCL=ON -DUSE_OPENGL=ON && \
+	cmake .. -DUSE_BLAS=openblas -DUSE_LLVM=ON -DUSE_OPENCL=ON && \
 	make -j6
 
 RUN echo "Building Python package"

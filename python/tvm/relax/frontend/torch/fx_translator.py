@@ -99,7 +99,6 @@ class TorchFXImporter(BaseFXGraphImporter):
     ########## Neural Network ##########
 
     def _adaptive_avg_pool2d_module(self, node: fx.Node) -> relax.Var:
-
         module = self.named_modules[node.target]
         x = self.env[node.args[0]]
         output_size = module.output_size
@@ -291,7 +290,6 @@ class TorchFXImporter(BaseFXGraphImporter):
         #   input, size=None, scale_factor=None, mode='nearest', align_corners=None,
         #   recompute_scale_factor=None, antialias=False)
         # (TODO) this is a temporary implementation for interpolate that only considers NCHW layout
-        # it basically replicates the implementation in tvm.relay.frontend.pytorch
         data = self.env[node.args[0]]
         size = (
             node.args[1]
@@ -616,32 +614,44 @@ class TorchFXImporter(BaseFXGraphImporter):
             nn.Flatten: self._flatten_module,
             ## call_function and call_method
             # unary
+            "abs": self._unary_op(relax.op.abs),
             "acos": self._unary_op(relax.op.acos),
             "acosh": self._unary_op(relax.op.acosh),
             "asin": self._unary_op(relax.op.asin),
             "asinh": self._unary_op(relax.op.asinh),
             "atan": self._unary_op(relax.op.atan),
             "atanh": self._unary_op(relax.op.atanh),
+            "bitwise_not": self._unary_op(relax.op.bitwise_not),
+            "ceil": self._unary_op(relax.op.ceil),
             "clamp": self._clamp,
             "cos": self._unary_op(relax.op.cos),
             "cosh": self._unary_op(relax.op.cosh),
             "dropout": lambda node: self.env[node.args[0]],
+            "erf": self._unary_op(relax.op.erf),
             "exp": self._unary_op(relax.op.exp),
+            "floor": self._unary_op(relax.op.floor),
             "gelu": self._gelu,
             "hardsigmoid": self._hardsigmoid,
             "hardswish": self._hardswish,
+            "isfinite": self._unary_op(relax.op.isfinite),
+            "isinf": self._unary_op(relax.op.isinf),
+            "isnan": self._unary_op(relax.op.isnan),
             "leaky_relu": self._leakyrelu,
+            "log": self._unary_op(relax.op.log),
+            "logical_not": self._unary_op(relax.op.logical_not),
             "log_softmax": self._log_softmax,
             "neg": self._unary_op(relax.op.negative),
             "relu": self._unary_op(relax.op.nn.relu),
             "round": self._round,
             "rsqrt": self._unary_op(relax.op.rsqrt),
             "sigmoid": self._unary_op(relax.op.sigmoid),
+            "sign": self._unary_op(relax.op.sign),
             "silu": self._unary_op(relax.op.nn.silu),
             "sin": self._unary_op(relax.op.sin),
             "sinh": self._unary_op(relax.op.sinh),
             "softmax": self._softmax,
             "sqrt": self._unary_op(relax.op.sqrt),
+            "square": self._unary_op(relax.op.square),
             "tan": self._unary_op(relax.op.tan),
             "tanh": self._unary_op(relax.op.tanh),
             "tril_": self._inplace_tril_triu(relax.op.tril),
@@ -652,13 +662,18 @@ class TorchFXImporter(BaseFXGraphImporter):
             "add": self._binary_op(relax.op.add, operator.add),
             "eq": self._binary_op(relax.op.equal, operator.eq),
             "floordiv": self._binary_op(relax.op.floor_divide, operator.floordiv),
+            "ge": self._binary_op(relax.op.greater_equal, operator.ge),
+            "gt": self._binary_op(relax.op.greater, operator.gt),
             "iadd": self._binary_op(relax.op.add, operator.add),
+            "le": self._binary_op(relax.op.less_equal, operator.le),
             "lt": self._binary_op(relax.op.less, operator.lt),
             "matmul": self._binary_op(
                 partial(relax.op.linear_algebra.matmul, out_dtype="float32"), operator.matmul
             ),
             "max": self._binary_op(relax.op.maximum, max),
+            "mod": self._binary_op(relax.op.mod, operator.mod),
             "mul": self._binary_op(relax.op.multiply, operator.mul),
+            "ne": self._binary_op(relax.op.not_equal, operator.ne),
             "pow": self._binary_op(relax.op.power, operator.pow),
             "sub": self._binary_op(relax.op.subtract, operator.sub),
             "truediv": self._binary_op(relax.op.divide, operator.truediv),

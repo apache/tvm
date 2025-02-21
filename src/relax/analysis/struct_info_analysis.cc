@@ -48,7 +48,7 @@ class StaticTypeDeriver : public StructInfoFunctor<Type(const StructInfo&)> {
   }
 
   Type VisitStructInfo_(const TensorStructInfoNode* op) final {
-    return DynTensorType(op->ndim, op->dtype);
+    return TensorType(op->ndim, op->dtype);
   }
 
   // module: distributed
@@ -66,7 +66,7 @@ class StaticTypeDeriver : public StructInfoFunctor<Type(const StructInfo&)> {
     Array<Type> params = op->params.value().Map(
         [this](const StructInfo& sinfo) { return this->VisitStructInfo(sinfo); });
     Type ret = this->VisitStructInfo(op->ret);
-    return FuncType(params, ret, {}, {}, op->span);
+    return FuncType(params, ret, op->span);
   }
 };
 
@@ -87,7 +87,7 @@ StructInfo StructInfoFromType(const Type& type) {
     return PrimStructInfo(prim_type->dtype, prim_type->span);
   } else if (const ShapeTypeNode* shape_type = type.as<ShapeTypeNode>()) {
     return ShapeStructInfo(shape_type->ndim, type->span);
-  } else if (const DynTensorTypeNode* tensor_type = type.as<DynTensorTypeNode>()) {
+  } else if (const TensorTypeNode* tensor_type = type.as<TensorTypeNode>()) {
     return TensorStructInfo(tensor_type->dtype, tensor_type->ndim);
   } else if (const TupleTypeNode* tuple_type = type.as<TupleTypeNode>()) {
     Array<StructInfo> fields;

@@ -68,6 +68,8 @@ std::shared_ptr<cl_ml_tensor_memory_desc_qcom> MakeCLMLTensorFromJSONNode(
 
 std::vector<cl_uint> GetVectorValues(const std::vector<std::string>& val);
 
+bool PatternMatch(const std::string& str, const std::string& pattern);
+
 }  // namespace contrib
 }  // namespace runtime
 }  // namespace tvm

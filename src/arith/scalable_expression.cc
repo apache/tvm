@@ -86,12 +86,14 @@ bool CanProveVscaleExpressionFromKnownValues(arith::Analyzer* analyzer, const Pr
   return can_prove_expr;
 }
 
-bool TargetHasSVE(Target current_target) {
-  bool has_sve{false};
-  if (current_target.defined()) {
-    has_sve = current_target->GetFeature<Bool>("has_sve").value_or(Bool(false));
+bool TargetHasSVE(Optional<Target> target) {
+  if (!target.defined()) {
+    target = Target::Current();
   }
-  return has_sve;
+  if (target.defined()) {
+    return Downcast<Target>(target)->GetFeature<Bool>("has_sve").value_or(Bool(false));
+  }
+  return false;
 }
 
 }  // namespace arith

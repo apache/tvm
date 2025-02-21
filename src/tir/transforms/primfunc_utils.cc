@@ -23,7 +23,6 @@
  */
 
 #include <tvm/driver/driver_api.h>
-#include <tvm/relay/executor.h>
 #include <tvm/tir/transform.h>
 
 namespace tvm {
@@ -63,13 +62,6 @@ transform::Pass BindTarget(Target target) {
 
 transform::Pass AnnotateEntryFunc() {
   auto fpass = [](IRModule mod, transform::PassContext ctx) -> IRModule {
-    // AOT tracks the entry function, no annotation required
-    auto executor = mod->GetAttr<tvm::relay::Executor>("executor");
-    const bool is_aot_executor = executor.defined() && executor.value()->name == "aot";
-    if (is_aot_executor) {
-      return mod;
-    }
-
     // If only a single function exists, that function must be the entry
     if (mod->functions.size() == 1) {
       auto [gvar, base_func] = *mod->functions.begin();

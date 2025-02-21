@@ -34,9 +34,9 @@ fi
 PYTHON_VERSION=$1
 
 case "$PYTHON_VERSION" in
-    3.7|3.8|3.9) ;;
+    3.7|3.8|3.9|3.10|3.11) ;;
     *)
-        echo "Only 3.7, 3.8, and 3.9 versions are supported in this script."
+        echo "Only 3.7, 3.8, 3.9, 3.10 and 3.11 versions are supported in this script."
         exit -1
         ;;
 esac
@@ -58,7 +58,10 @@ case "${release}" in
         [ "${PYTHON_VERSION}" == "3.7" ] && add-apt-repository -y ppa:deadsnakes/ppa
         ;;
     jammy)
-        if [ "${PYTHON_VERSION}" == "3.8" ] || [ "${PYTHON_VERSION}" == "3.9" ]; then
+        if [ "${PYTHON_VERSION}" == "3.8" ] || \
+           [ "${PYTHON_VERSION}" == "3.9" ] || \
+           [ "${PYTHON_VERSION}" == "3.10" ] || \
+           [ "${PYTHON_VERSION}" == "3.11" ]; then
             add-apt-repository -y ppa:deadsnakes/ppa
         fi
         ;;
@@ -98,17 +101,19 @@ fi
 
 # Update pip to match version used to produce requirements-hashed.txt. This step
 # is necessary so that pip's dependency solver is recent.
-pip_spec=$(tac /install/python/bootstrap/lockfiles/constraints-${PYTHON_VERSION}.txt | grep -m 1 'pip==')
-${TVM_VENV}/bin/pip install -U --require-hashes -r <(echo "${pip_spec}") \
-     -c /install/python/bootstrap/lockfiles/constraints-${PYTHON_VERSION}.txt
+if [ -f "/install/python/bootstrap/lockfiles/constraints-${PYTHON_VERSION}.txt" ]; then
+    pip_spec=$(tac /install/python/bootstrap/lockfiles/constraints-${PYTHON_VERSION}.txt | grep -m 1 'pip==')
+    ${TVM_VENV}/bin/pip install -U --require-hashes -r <(echo "${pip_spec}") \
+        -c /install/python/bootstrap/lockfiles/constraints-${PYTHON_VERSION}.txt
 
-# Python configuration
-${TVM_VENV}/bin/pip config set global.no-cache-dir true  # Never cache packages
+    # Python configuration
+    ${TVM_VENV}/bin/pip config set global.no-cache-dir true  # Never cache packages
 
-# Now install the remaining base packages.
-${TVM_VENV}/bin/pip install \
-     --require-hashes \
-     -r /install/python/bootstrap/lockfiles/constraints-${PYTHON_VERSION}.txt
+    # Now install the remaining base packages.
+    ${TVM_VENV}/bin/pip install \
+        --require-hashes \
+        -r /install/python/bootstrap/lockfiles/constraints-${PYTHON_VERSION}.txt
+fi
 
 addgroup tvm-venv
 chgrp -R tvm-venv "${TVM_VENV}"

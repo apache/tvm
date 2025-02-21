@@ -21,11 +21,10 @@ import tvm
 import tvm.testing
 import tvm.topi.testing
 from tvm import relax
-from tvm.relax.backend.contrib.cudnn import partition_for_cudnn
-from tvm.relax.testing import get_relax_matmul_module, get_relax_stacked_attention_module
 from tvm.contrib.pickle_memoize import memoize
+from tvm.relax.backend.cuda.cudnn import partition_for_cudnn
+from tvm.relax.testing import get_relax_stacked_attention_module
 from tvm.script import relax as R
-
 from tvm.script.ir_builder import IRBuilder
 from tvm.script.ir_builder import relax as relax_builder
 

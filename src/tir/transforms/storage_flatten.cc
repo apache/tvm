@@ -31,6 +31,7 @@
 #include <tvm/tir/buffer.h>
 #include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
+#include <tvm/tir/index_map.h>
 #include <tvm/tir/op.h>
 #include <tvm/tir/stmt.h>
 #include <tvm/tir/stmt_functor.h>

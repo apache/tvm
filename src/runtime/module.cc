@@ -143,7 +143,7 @@ bool RuntimeEnabled(const String& target_str) {
     return true;
   } else if (target == "cuda" || target == "gpu") {
     f_name = "device_api.cuda";
-  } else if (target == "cl" || target == "opencl" || target == "sdaccel") {
+  } else if (target == "cl" || target == "opencl") {
     f_name = "device_api.opencl";
   } else if (target == "mtl" || target == "metal") {
     f_name = "device_api.metal";

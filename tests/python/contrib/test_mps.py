@@ -29,33 +29,20 @@ def test_matmul():
     A = te.placeholder((n, l), name="A")
     B = te.placeholder((l, m), name="B")
     C = mps.matmul(A, B)
-    D = te.compute(C.shape, lambda *i: C(*i) + 1.0)
-    s = te.create_schedule(D.op)
-    yo, xo = D.op.axis
-    block_y = te.thread_axis("blockIdx.y")
-    block_x = te.thread_axis("blockIdx.x")
-    thread_y = te.thread_axis("threadIdx.y")
-    thread_x = te.thread_axis("threadIdx.x")
-    by, ty = s[D].split(yo, factor=16)
-    bx, tx = s[D].split(xo, factor=16)
-    s[D].bind(by, block_y)
-    s[D].bind(bx, block_x)
-    s[D].bind(ty, thread_y)
-    s[D].bind(tx, thread_x)
 
-    def verify(A, B, D, s, target="metal"):
+    def verify(A, B, C):
         if not tvm.get_global_func("tvm.contrib.mps.matmul", True):
             print("skip because extern function is not available")
             return
         dev = tvm.metal(0)
-        f = tvm.build(s, [A, B, D], "metal")
+        f = tvm.build(te.create_prim_func([A, B, C]), target="metal")
         a = tvm.nd.array(np.random.uniform(size=(n, l)).astype(A.dtype), dev)
         b = tvm.nd.array(np.random.uniform(size=(l, m)).astype(B.dtype), dev)
         c = tvm.nd.array(np.zeros((n, m), dtype=C.dtype), dev)
         f(a, b, c)
-        tvm.testing.assert_allclose(c.numpy(), np.dot(a.numpy(), b.numpy()) + 1, rtol=1e-5)
+        tvm.testing.assert_allclose(c.numpy(), np.dot(a.numpy(), b.numpy()), rtol=1e-5)
 
-    verify(A, B, D, s)
+    verify(A, B, C)
 
 
 @tvm.testing.requires_metal
@@ -71,20 +58,17 @@ def test_conv2d():
     A = te.placeholder((n, h, w, ci), name="x")
     B = te.placeholder((co, kh, kw, ci), name="w")
     C = mps.conv2d(A, B, "SAME", 2)
-    s1 = te.create_schedule(C.op)
 
     def verify(A, B, C, target="llvm"):
         if not tvm.get_global_func("tvm.contrib.mps.conv2d", True):
             print("skip because extern function is not available")
             return
         dev = tvm.metal(0)
-        f = tvm.build(s1, [A, B, C], "metal")
+        f = tvm.build(te.create_prim_func([A, B, C]), target="metal")
         a = tvm.nd.array(np.random.uniform(size=(n, h, w, ci)).astype(A.dtype), dev)
         b = tvm.nd.array(np.random.uniform(size=(co, kh, kw, ci)).astype(B.dtype), dev)
         c = tvm.nd.array(np.zeros((n, h // stride, w // stride, co), dtype=C.dtype), dev)
         f(a, b, c)
-        # print(c.numpy())
-        # print(c.shape)
 
     verify(A, B, C, s1)
 

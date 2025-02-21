@@ -2108,62 +2108,62 @@ def test_split_infer_struct_info_single_output():
     _check_inference(
         bb,
         relax.op.split(x0, [], axis=1),
-        relax.TupleStructInfo([relax.TensorStructInfo((a, b), "float32")]),
+        relax.TensorStructInfo((a, b), "float32"),
     )
     _check_inference(
         bb,
         relax.op.split(x1, [], axis=1),
-        relax.TupleStructInfo([relax.TensorStructInfo(dtype="float32", ndim=2)]),
+        relax.TensorStructInfo(dtype="float32", ndim=2),
     )
     _check_inference(
         bb,
         relax.op.split(x2, [], axis=1),
-        relax.TupleStructInfo([relax.TensorStructInfo(dtype="float32")]),
+        relax.TensorStructInfo(dtype="float32"),
     )
     _check_inference(
         bb,
         relax.op.split(x3, [], axis=1),
-        relax.TupleStructInfo([relax.TensorStructInfo(s0, "float32")]),
+        relax.TensorStructInfo(s0, "float32"),
     )
     _check_inference(
         bb,
         relax.op.split(x4, [], axis=1),
-        relax.TupleStructInfo([relax.TensorStructInfo(s1, "float32")]),
+        relax.TensorStructInfo(s1, "float32"),
     )
     _check_inference(
         bb,
         relax.op.split(x5, [], axis=1),
-        relax.TupleStructInfo([relax.TensorStructInfo(s2, "float32")]),
+        relax.TensorStructInfo(s2, "float32"),
     )
     _check_inference(
         bb,
         relax.op.split(x0, 1, axis=1),
-        relax.TupleStructInfo([relax.TensorStructInfo((a, b), "float32")]),
+        relax.TensorStructInfo((a, b), "float32"),
     )
     _check_inference(
         bb,
         relax.op.split(x1, 1, axis=1),
-        relax.TupleStructInfo([relax.TensorStructInfo(dtype="float32", ndim=2)]),
+        relax.TensorStructInfo(dtype="float32", ndim=2),
     )
     _check_inference(
         bb,
         relax.op.split(x2, 1, axis=1),
-        relax.TupleStructInfo([relax.TensorStructInfo(dtype="float32")]),
+        relax.TensorStructInfo(dtype="float32"),
     )
     _check_inference(
         bb,
         relax.op.split(x3, 1, axis=1),
-        relax.TupleStructInfo([relax.TensorStructInfo(s0, "float32")]),
+        relax.TensorStructInfo(s0, "float32"),
     )
     _check_inference(
         bb,
         relax.op.split(x4, 1, axis=1),
-        relax.TupleStructInfo([relax.TensorStructInfo(s1, "float32")]),
+        relax.TensorStructInfo(s1, "float32"),
     )
     _check_inference(
         bb,
         relax.op.split(x5, 1, axis=1),
-        relax.TupleStructInfo([relax.TensorStructInfo(s2, "float32")]),
+        relax.TensorStructInfo(s2, "float32"),
     )
 
 
@@ -2200,9 +2200,7 @@ def test_split_infer_struct_info():
     _check_inference(
         bb,
         relax.op.split(x, 1),
-        R.Tuple(
-            R.Tensor([16, 4]),
-        ),
+        R.Tensor([16, 4]),
     )
     _check_inference(
         bb,

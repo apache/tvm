@@ -264,10 +264,6 @@ class Device(ctypes.Structure):
     kDLOneAPI = 14
     kDLWebGPU = 15
     kDLHexagon = 16
-    kDLAOCL = 32
-    kDLSDAccel = 33
-    kOpenGL = 34
-    kDLMicroDev = 35
 
     _fields_ = [("device_type", ctypes.c_int), ("device_id", ctypes.c_int)]
     MASK2STR = {
@@ -285,10 +281,6 @@ class Device(ctypes.Structure):
         kDLOneAPI: "oneapi",
         kDLWebGPU: "webgpu",
         kDLHexagon: "hexagon",
-        kDLAOCL: "aocl",
-        kDLSDAccel: "sdaccel",
-        kOpenGL: "opengl",
-        kDLMicroDev: "microdev",
     }
 
     STR2MASK = {
@@ -303,9 +295,6 @@ class Device(ctypes.Structure):
         "nvptx": kDLCUDA,
         "cl": kDLOpenCL,
         "opencl": kDLOpenCL,
-        "sdaccel": kDLOpenCL,
-        "aocl": kDLAOCL,
-        "aocl_sw_emu": kDLAOCL,
         "vulkan": kDLVulkan,
         "metal": kDLMetal,
         "vpi": kDLVPI,

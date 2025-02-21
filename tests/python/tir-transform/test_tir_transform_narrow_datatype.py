@@ -15,8 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
-from tvm import relay, te
-from tvm.driver.build_module import schedule_to_module
+from tvm import te
 from tvm.script import tir as T
 from tvm.tir import const
 import tvm.testing
@@ -163,27 +162,6 @@ def test_multilanes():
     check(const(2**16, dtype="int32"), 2, target_bits=16, target_dtype="int32")
 
 
-def test_reduce():
-    def check(m, target_bits, target_dtype):
-        A = te.placeholder((m,), name="A", dtype="float32")
-        k = te.reduce_axis((0, m), "k")
-        B = te.compute((), lambda *idx: te.sum(A[k], axis=k), name="B")
-        s = te.create_schedule(B.op)
-        stmt = lower_sch(s, [A, B], target_bits)
-        assert stmt[1].loop_var.dtype == target_dtype
-
-    # i32 -> i32
-    check(const(64, dtype="int32"), 32, "int32")
-    # i64 -> i32
-    check(const(64, dtype="int64"), 32, "int32")
-    # i32 -> i16
-    check(const(64, dtype="int32"), 16, "int16")
-    check(const(2**16, dtype="int32"), 16, "int32")
-    # symbolic
-    check(te.var("n", dtype="int32"), 32, "int32")
-    check(te.var("n", dtype="int64"), 32, "int64")
-
-
 def test_slice():
     def check(m, n, target_bits, target_dtype):
         # The index may overflow in B, while not in A
@@ -206,95 +184,6 @@ def test_slice():
     check(
         const(2**15, "int64"), const((2**15 + 1), "int64"), target_bits=32, target_dtype="int64"
     )
-
-
-def test_relay_basic():
-    engine = relay.backend.te_compiler.get()
-
-    def check(shapex, shapey, target_bits, target_dtype):
-        x = relay.var("x", shape=shapex)
-        y = relay.var("y", shape=shapey)
-        z = relay.add(x, y)
-        func = relay.Function([x, y], z)
-        mod = tvm.IRModule.from_expr(func)
-        mod = relay.transform.InferType()(mod)
-        func = mod["main"]
-        z = engine.lower(func, "llvm")
-        stmt = lower_sch(z.schedule, tuple(z.inputs) + tuple(z.outputs), 32)
-        # outer loop
-        assert stmt.loop_var.dtype == target_dtype
-        # inner loop
-        if len(shapex) > 1 or len(shapey) > 1:
-            assert stmt.body.loop_var.dtype == target_dtype
-
-    check(
-        (const(2**16, "int64"), const(2**15 + 1, "int64")),
-        (1, const(2**15 + 1, "int64")),
-        target_bits=32,
-        target_dtype="int64",
-    )
-    check(
-        (const(2**16, "int64"), const(2**15, "int64")),
-        (1, const(2**15, "int64")),
-        target_bits=32,
-        target_dtype="int32",
-    )
-    check(
-        (const(2**31, "int64"),), (const(2**31, "int64"),), target_bits=32, target_dtype="int32"
-    )
-    check(
-        (const(2**31 + 1, "int64"),),
-        (const(2**31 + 1, "int64"),),
-        target_bits=32,
-        target_dtype="int64",
-    )
-
-
-def test_relay_take():
-    engine = relay.backend.te_compiler.get()
-
-    def check(shape, index, target_bits, target_dtype):
-        x = relay.var("x", shape=shape)
-        y = relay.op.take(x, indices=index)
-        func = relay.Function([x], y)
-        mod = tvm.IRModule.from_expr(func)
-        mod = relay.transform.InferType()(mod)
-        func = mod["main"]
-        z = engine.lower(func, "llvm")
-        stmt = lower_sch(z.schedule, tuple(z.inputs) + tuple(z.outputs), 32)
-        assert stmt.value.indices[0].dtype == target_dtype
-
-    check(
-        (const(2**16, "int64"), const(2**15 + 1, "int64")),
-        relay.const(0, dtype="int64"),
-        target_bits=32,
-        target_dtype="int32",
-    )
-    check(
-        (const(2**16, "int64"), const(2**15 + 1, "int64")),
-        relay.const(2**31, dtype="int64"),
-        target_bits=32,
-        target_dtype="int64",
-    )
-
-
-def test_ramp_dtype_consistency():
-    """
-    for (i :int64, (int64)0, (int64)4) {
-        A[ramp(i*(int64)2, (int64)1, 2)] = cast(int64, 2 ** 31 - 1) * i;
-    }
-    The infer result:
-        base:   int64 -> int64 (since i is involved in another int64 expr)
-        stride: int64 -> int32
-
-    Thus ramp should still use int64 for both stride and base after rewrite.
-    """
-    n = tvm.tir.IntImm("int64", 4)
-    m = tvm.tir.IntImm("int64", 2)
-    A = te.compute((n, m), lambda i, j: tvm.tir.Cast("int64", 2**31 - 1) * i, name="A")
-    s = te.create_schedule(A.op)
-    s[A].vectorize(A.op.axis[1])
-    lower_sch(s, [A], 32, extra_passes=[tvm.tir.transform.VectorizeLoop()])
 
 
 def test_condition():

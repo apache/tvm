@@ -130,26 +130,10 @@ def compute(shape, fcompute, name="compute", tag="", attrs=None, varargs_names=N
     dim_var = [tvm.tir.IterVar((0, s), x, 0) for x, s in zip(arg_names, shape[:out_ndim])]
     body = fcompute(*[v.var for v in dim_var])
 
-    if isinstance(body, _tensor.TensorIntrinCall):
-        for i, s in enumerate(shape[out_ndim:]):
-            var_name = "ax" + str(i)
-            dim_var.append(tvm.tir.IterVar((0, s), var_name, 4))
-        op_node = _ffi_api.TensorComputeOp(
-            name,
-            tag,
-            dim_var,
-            body.reduce_axis,
-            out_ndim,
-            body.intrin,
-            body.tensors,
-            body.regions,
-            body.scalar_inputs,
-        )
-    else:
-        if not isinstance(body, (list, tuple)):
-            body = [body]
-        body = convert(body)
-        op_node = _ffi_api.ComputeOp(name, tag, attrs, dim_var, body)
+    if not isinstance(body, (list, tuple)):
+        body = [body]
+    body = convert(body)
+    op_node = _ffi_api.ComputeOp(name, tag, attrs, dim_var, body)
 
     num = op_node.num_outputs
     outputs = tuple(op_node.output(i) for i in range(num))
@@ -620,3 +604,6 @@ def create_prim_func(
     if not isinstance(ops, (list, tuple, Array)):
         ops = [ops]
     return _ffi_api.CreatePrimFunc(ops, index_dtype_override)
+
+
+AXIS_SEPARATOR = tvm.tir.IndexMap.AXIS_SEPARATOR

@@ -3621,7 +3621,7 @@ def test_pad():
     class Expected:
         @R.function
         def main(
-            x: R.Tensor((2, 128, 28), dtype="float32")
+            x: R.Tensor((2, 128, 28), dtype="float32"),
         ) -> R.Tensor((2, 130, 30), dtype="float32"):
             gv = R.call_tir(Expected.pad, (x), out_sinfo=R.Tensor((2, 130, 30), dtype="float32"))
             return gv

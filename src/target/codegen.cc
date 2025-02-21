@@ -38,32 +38,15 @@
 #include <vector>
 
 #include "../runtime/library_module.h"
-#include "../support/base64.h"
 
 namespace tvm {
 namespace codegen {
-
-/*!
- * \brief TIRToRuntime conversion specific to a TargetKind
- *
- * This function is responsible for scanning an IRModule for appropriate Target-specific functions
- and generating a Runtime module representing the compiled output
- *
- * \param ir_module Unified IRModule
- * \param target Target to filter on or retrieve arguments from
- * \return Runtime Module containing compiled functions
- */
-using FTVMTIRToRuntime = tvm::runtime::TypedPackedFunc<runtime::Module(IRModule, Target)>;
 
 runtime::Module Build(IRModule mod, Target target) {
   if (transform::PassContext::Current()
           ->GetConfig<Bool>("tir.disable_assert", Bool(false))
           .value()) {
     mod = tir::transform::SkipAssert()(mod);
-  }
-  auto target_attr_map = tvm::TargetKind::GetAttrMap<FTVMTIRToRuntime>("TIRToRuntime");
-  if (target_attr_map.count(target->kind)) {
-    return target_attr_map[target->kind](mod, target);
   }
 
   // the build function.

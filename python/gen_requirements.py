@@ -63,9 +63,7 @@ REQUIREMENTS_BY_PIECE: RequirementsByPieceType = [
         (
             "Base requirements needed to install tvm",
             [
-                "attrs",
                 "cloudpickle",
-                "decorator",
                 "ml_dtypes",
                 "numpy",
                 "packaging",
@@ -76,41 +74,8 @@ REQUIREMENTS_BY_PIECE: RequirementsByPieceType = [
             ],
         ),
     ),
-    # Provide support for Arm(R) Ethos(TM)-U NPU.
-    (
-        "ethosu",
-        (
-            "Requirements for using Arm(R) Ethos(TM)-U NPU",
-            [
-                "ethos-u-vela",
-            ],
-        ),
-    ),
     # Relay frontends.
-    (
-        "importer-caffe",
-        (
-            "Requirements for the Caffe importer",
-            [
-                "numpy",
-                "protobuf",
-                "scikit-image",
-                "six",
-            ],
-        ),
-    ),
-    (
-        "importer-caffe2",
-        (
-            "Requirements for the Caffe2 importer",
-            [
-                "future",  # Hidden dependency of torch.
-                "torch",
-            ],
-        ),
-    ),
     ("importer-coreml", ("Requirements for the CoreML importer", ["coremltools"])),
-    ("importer-darknet", ("Requirements for the DarkNet importer", ["opencv-python"])),
     (
         "importer-keras",
         ("Requirements for the Keras importer", ["tensorflow", "tensorflow-estimator"]),
@@ -128,10 +93,6 @@ REQUIREMENTS_BY_PIECE: RequirementsByPieceType = [
                 "torchvision",
             ],
         ),
-    ),
-    (
-        "importer-paddle",
-        ("Requirements for the PaddlePaddle importer", ["paddlepaddle"]),
     ),
     (
         "importer-pytorch",
@@ -162,23 +123,11 @@ REQUIREMENTS_BY_PIECE: RequirementsByPieceType = [
                 "onnx",
                 "onnxoptimizer",
                 "onnxruntime",
-                "paddlepaddle",
                 "tensorflow",
                 "tflite",
                 "torch",
                 "torchvision",
                 "xgboost",
-            ],
-        ),
-    ),
-    # Vitis AI requirements
-    (
-        "vitis-ai",
-        (
-            "Requirements for the Vitis AI codegen",
-            [
-                "h5py",
-                "progressbar",
             ],
         ),
     ),
@@ -236,37 +185,27 @@ ConstraintsType = typing.List[typing.Tuple[str, typing.Union[None, str]]]
 #    here. Include a comment linking to context or explaining why the constraint is in place.
 CONSTRAINTS = [
     ("astroid", None),
-    ("attrs", None),
     ("autodocsumm", None),
     ("black", "==20.8b1"),
     ("cloudpickle", None),
     ("commonmark", ">=0.7.3"),  # From PR #213.
     ("coremltools", None),
     ("cpplint", None),
-    ("decorator", None),
     (
         "docutils",
         "<0.17",
     ),  # Work around https://github.com/readthedocs/sphinx_rtd_theme/issues/1115
-    ("ethos-u-vela", "==3.8.0"),
     ("future", None),
-    ("h5py", "==2.10.0"),
     ("image", None),
     ("matplotlib", None),
     ("numpy", None),
     ("onnx", None),
     ("onnxoptimizer", None),
     ("onnxruntime", None),
-    ("opencv-python", None),
-    ("paddlepaddle", None),
     ("pillow", None),
-    ("progressbar", None),
-    ("protobuf", None),
     ("psutil", None),
     ("pylint", None),
-    ("scikit-image", None),
     ("scipy", None),
-    ("six", None),
     ("sphinx", None),
     ("sphinx_autodoc_annotation", None),
     ("sphinx_gallery", None),

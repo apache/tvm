@@ -24,12 +24,10 @@ cd "$BUILD_DIR"
 cp ../cmake/config.cmake .
 
 echo set\(USE_SORT ON\) >> config.cmake
-echo set\(USE_PROFILER ON\) >> config.cmake
 echo set\(USE_DNNL ON\) >> config.cmake
 echo set\(USE_ARM_COMPUTE_LIB ON\) >> config.cmake
 echo set\(USE_LLVM \"/usr/bin/llvm-config-17 --link-static\"\) >> config.cmake
-echo set\(USE_ANTLR ON\) >> config.cmake
-echo set\(CMAKE_CXX_FLAGS \"-Werror -Wno-error=range-loop-construct\"\) >> config.cmake
+echo set\(CMAKE_CXX_FLAGS \"-Wno-error=range-loop-construct -Wno-error=comment\"\) >> config.cmake
 echo set\(HIDE_PRIVATE_SYMBOLS ON\) >> config.cmake
 
 # This conditional is just to support the transition to cope
@@ -43,10 +41,10 @@ fi
 
 echo set\(USE_TENSORFLOW_PATH \"/tensorflow\"\) >> config.cmake
 echo set\(USE_FLATBUFFERS_PATH \"/flatbuffers\"\) >> config.cmake
-echo set\(USE_VITIS_AI ON\) >> config.cmake
 echo set\(USE_LIBBACKTRACE COMPILE\) >> config.cmake
 echo set\(BACKTRACE_ON_SEGFAULT ON\) >> config.cmake
 echo set\(USE_CCACHE OFF\) >> config.cmake
 echo set\(USE_UMA ON\) >> config.cmake
 echo set\(SUMMARIZE ON\) >> config.cmake
-echo set\(USE_MSC ON\) >> config.cmake
+# Temporary disable MSC
+# echo set\(USE_MSC ON\) >> config.cmake

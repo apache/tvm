@@ -25,7 +25,7 @@ from typing import Optional, Sequence, Union
 
 import numpy as np
 import tvm
-from tvm import auto_scheduler, te
+from tvm import te
 
 from ..utils import get_const_int, get_const_tuple, simplify, tag
 from .pad import pad
@@ -96,94 +96,6 @@ def conv2d(
     # search platform specific declaration first
     # default declaration
     return conv(input, filter, strides, padding, dilation, 1, data_layout, kernel_layout, out_dtype)
-
-
-@tvm.target.generic_func
-def conv2d_legalize(attrs, inputs, types):
-    """Legalizes Conv2D op.
-
-    Parameters
-    ----------
-    attrs : tvm.ir.Attrs
-        Attributes of current convolution
-    inputs : list of tvm.relay.Expr
-        The args of the Relay expr to be legalized
-    types : list of types
-        List of input and output types
-
-    Returns
-    -------
-    result : tvm.relay.Expr
-        The legalized expr
-    """
-    # not to change by default
-    return None
-
-
-@tvm.target.generic_func
-def conv2d_alter_layout(attrs, inputs, tinfos, out_type):
-    """Change Conv2D layout.
-
-    Parameters
-    ----------
-    attrs : tvm.ir.Attrs
-        Attributes of current convolution
-    inputs : tvm.relay.Expr
-        Grouped input symbols
-    tinfos : list
-        Input shape and dtype
-    out_type: type
-        The output type
-
-    Note
-    ----
-    Unlike other TOPI functions, this function operates on both graph level and operator level.
-    """
-    # not to change by default
-    return None
-
-
-@tvm.target.generic_func
-def conv2d_transpose_alter_layout(attrs, inputs, tinfos, out_type):
-    """Change Conv2D_Transpose layout.
-
-    Parameters
-    ----------
-    attrs : tvm.ir.Attrs
-        Attributes of current convolution
-    inputs : tvm.relay.Expr
-        Grouped input symbols
-    tinfos : list
-        Input shape and dtype
-    out_type: type
-        The output type
-
-    Note
-    ----
-    Unlike other TOPI functions, this function operates on both graph level and operator level.
-    """
-    # not to change by default
-    return None
-
-
-@tvm.target.generic_func
-def conv2d_infer_layout(workload, cfg):
-    """Infer input/output shapes and layouts from a workload and cfg.
-
-    Parameters
-    ----------
-    workload : tuple
-        conv2d workload
-
-    cfg : tuple
-        tvm.autotvm config
-
-    Returns
-    -------
-    Output : [tuple of tuple and str, tuple of tuple and str]
-        Input shapes and layouts, and output shapes and layouts
-    """
-    raise ValueError("missing register for topi.nn.conv2d_infer_layout")
 
 
 def _get_workload(data, kernel, stride, padding, dilation, out_dtype, data_layout="NCHW"):
@@ -615,68 +527,6 @@ def conv2d_NCHWc_int8(
     )
 
 
-def conv2d_gemm_weight_transform(kernel, tile_N, tile_K, use_scalable_vectors=False, use_sme=False):
-    """Weight transformation for winograd
-
-    Parameters
-    ----------
-    kernel: Tensor
-        The raw kernel tensor with layout "NHWC".
-    tile_N: int
-        Tile size across N axis of the weight transformation for ConvGemm. (N = OC)
-    tile_K: int
-        Tile size across K axis of the weight transformation for ConvGemm. (K = KW * KH * IC)
-    use_scalable_vectors : bool
-        determines if operations on scalable vectors are expected
-    use_sme : bool
-        determines if SME operations on scalable vectors are expected
-
-    Returns
-    -------
-    output : tvm.te.Tensor
-        2-D with shape [CI*KH*KW,CO]
-    """
-    KH, KW, IC, OC = get_const_tuple(kernel.shape)
-    K = KH * KW * IC
-    N = OC
-
-    kernel_flat = te.compute(
-        (K, N), lambda x, y: kernel[(x // IC) // KW, (x // IC) % KW, x % IC, y], "weight_flatten"
-    )
-
-    pad_N, pad_K = tvm.topi.arm_cpu.arm_utils.get_conv2d_weights_padding(N, K, tile_N, tile_K)
-
-    N_padded = N + pad_N
-    K_padded = K + pad_K
-
-    if pad_K != 0 or pad_N != 0:
-        kernel_flat = pad(
-            kernel_flat, pad_before=(0, 0), pad_after=(pad_K, pad_N), name="weight_padding"
-        )
-
-    if use_sme and kernel.dtype == "float16":
-        return te.compute(
-            (N_padded, K_padded), lambda x, y: kernel_flat[y, x], name="weight_transpose"
-        )
-
-    if use_scalable_vectors or use_sme:
-        return kernel_flat
-
-    if kernel.dtype in ["int8", "uint8"]:
-        B_inter_t = te.compute(
-            (N_padded // tile_N, K_padded // tile_K, tile_N, tile_K),
-            lambda x, y, z, w: kernel_flat[w + tile_K * y, z + tile_N * x],
-            name="weight_block_reshape",
-        )
-    else:
-        B_inter_t = te.compute(
-            (N_padded // tile_N, K_padded // tile_K, tile_K, tile_N),
-            lambda x, y, z, w: kernel_flat[z + tile_K * y, w + tile_N * x],
-            name="weight_block_reshape",
-        )
-    return B_inter_t
-
-
 def conv2d_winograd_weight_transform(kernel, tile_size):
     """Weight transformation for winograd
 
@@ -709,29 +559,6 @@ def conv2d_winograd_weight_transform(kernel, tile_size):
             kernel[co][ci][r_kh][r_kw] * G[eps][r_kh] * G[nu][r_kw], axis=[r_kh, r_kw]
         ),
         name="transform_weight",
-    )
-
-
-def conv2d_winograd_nnpack_weight_transform(kernel, convolution_algorithm, out_dtype):
-    """Weight transformation for winograd
-
-    Parameters
-    ----------
-    kernel: Tensor
-        The raw kernel tensor with layout "NCHW". Only 3x3 kernel is supported for now.
-    convolution_algorithm: int
-        The convolution algorithm for Winograd NNPACK.
-
-    Returns
-    -------
-    output : tvm.te.Tensor
-        4-D with shape [alpha, alpha, CO, CI]
-    """
-    # pylint: disable=import-outside-toplevel
-    from tvm.contrib import nnpack
-
-    return nnpack.convolution_inference_weight_transform(
-        kernel, algorithm=convolution_algorithm, dtype=out_dtype
     )
 
 
@@ -890,7 +717,7 @@ def conv(
     kernel_permutation_from = np.argsort(kernel_permutation_to)
 
     if meta_schedule_original_shape:
-        auto_scheduler.rewrite_tensor_shape(filt, meta_schedule_original_shape)
+        raise RuntimeError("LEGACY-FLOW triggered, to be removed")
     batch, in_channel, *dimensions = np.array(get_const_tuple(inp.shape))[
         data_permutation_to
     ].tolist()
@@ -901,11 +728,7 @@ def conv(
     # Autoscheduler may have messed with the input layout, so we extract the
     # dimensions that it gives us
     if auto_scheduler_rewritten_layout:
-        num_filter, _, *kernel_dimensions = auto_scheduler.get_shape_from_rewritten_layout(
-            auto_scheduler_rewritten_layout,
-            ["ff", "rc"] + [f"r{i}" for i in ["y", "x", "z"][: len(kernel_dimensions)]],
-        )
-        auto_scheduler.remove_index_check(filt)
+        raise RuntimeError("LEGACY-FLOW triggered, to be removed")
 
     assert in_channel % groups == 0, "input channels must divide group size"
     assert num_filter % groups == 0, "output channels must divide group size"
@@ -967,7 +790,7 @@ def conv(
     # if we used autoscheduler's changed layout we need to rewrite the ordering
     # of the output dimensions
     if auto_scheduler_rewritten_layout:
-        out = auto_scheduler.rewrite_compute_body(out, auto_scheduler_rewritten_layout)
+        raise RuntimeError("LEGACY-FLOW triggered, to be removed")
     return out
 
 
@@ -1042,7 +865,6 @@ def unpack_NCHWc_to_nchw(packed_out, out_dtype):
     return unpacked_out
 
 
-@tvm.target.generic_func
 def conv2d_winograd_nhwc(
     data,
     weight,
@@ -1099,7 +921,6 @@ def conv2d_winograd_nhwc(
     )
 
 
-@tvm.target.generic_func
 def conv2d_winograd_nchw(
     data,
     weight,
@@ -1207,23 +1028,13 @@ def _conv2d_winograd_nhwc_impl(
     else:
         dilation_h, dilation_w = dilation
     if meta_schedule_original_shape:
-        auto_scheduler.rewrite_tensor_shape(weight, meta_schedule_original_shape)
+        raise RuntimeError("LEGACY-FLOW triggered, to be removed")
 
     assert (dilation_h, dilation_w) == (1, 1), "Does not support dilation"
     if not pre_computed:
         KH, KW, CI, CO = get_const_tuple(weight.shape)
     else:
-        if auto_scheduler_rewritten_layout:
-            H_CAT, W_CAT, CO, CI = get_const_tuple(
-                auto_scheduler.get_shape_from_rewritten_layout(
-                    auto_scheduler_rewritten_layout, ["eps", "nu", "co", "ci"]
-                )
-            )
-            auto_scheduler.remove_index_check(weight)
-        else:
-            H_CAT, W_CAT, CO, CI = get_const_tuple(weight.shape)
-
-        KH, KW = H_CAT - tile_size + 1, W_CAT - tile_size + 1
+        raise RuntimeError("LEGACY-FLOW triggered, to be removed")
 
     pad_t, pad_l, pad_b, pad_r = get_pad_tuple(padding, (KH, KW))
     HSTR, WSTR = (strides, strides) if isinstance(strides, int) else strides
@@ -1305,7 +1116,7 @@ def _conv2d_winograd_nhwc_impl(
     )
 
     if auto_scheduler_rewritten_layout:
-        bgemm = auto_scheduler.rewrite_compute_body(bgemm, auto_scheduler_rewritten_layout)
+        raise RuntimeError("LEGACY-FLOW triggered, to be removed")
 
     # inverse transform
 
@@ -1358,7 +1169,7 @@ def _conv2d_winograd_nchw_impl(
     else:
         dilation_h, dilation_w = dilation
     if meta_schedule_original_shape:
-        auto_scheduler.rewrite_tensor_shape(weight, meta_schedule_original_shape)
+        raise RuntimeError("LEGACY-FLOW triggered, to be removed")
 
     assert (dilation_h, dilation_w) == (1, 1), "Does not support dilation"
     HSTR, WSTR = (strides, strides) if isinstance(strides, int) else strides

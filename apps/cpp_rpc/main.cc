@@ -27,7 +27,7 @@
 #if defined(__linux__) || defined(__ANDROID__)
 #include <unistd.h>
 #endif
-#include <dmlc/logging.h>
+#include <tvm/runtime/logging.h>
 
 #include <cstring>
 #include <iostream>

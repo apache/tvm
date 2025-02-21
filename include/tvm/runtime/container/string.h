@@ -25,7 +25,6 @@
 #define TVM_RUNTIME_CONTAINER_STRING_H_
 
 #include <dmlc/endian.h>
-#include <dmlc/logging.h>
 #include <tvm/runtime/container/base.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/memory.h>

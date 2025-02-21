@@ -864,7 +864,7 @@ StructInfo InferStructInfoSplit(const Call& call, const BlockBuilder& ctx) {
     auto p_indices = opt_indices.value();
     // When there is not index, return the input tensor's struct info.
     if (p_indices.size() == 0) {
-      return TupleStructInfo({data_sinfo});
+      return data_sinfo;
     }
     // Fall back to unknown shape when the input tensor doesn't have ShapeExpr as shape.
     if (data_shape == nullptr) {
@@ -911,7 +911,7 @@ StructInfo InferStructInfoSplit(const Call& call, const BlockBuilder& ctx) {
     int n_section = p_n_section->value;
     // When the number of section is one, return the input tensor's struct info.
     if (n_section == 1) {
-      return TupleStructInfo({data_sinfo});
+      return data_sinfo;
     }
     // Fall back to unknown shape when the input tensor doesn't have ShapeExpr as shape.
     if (data_shape == nullptr) {

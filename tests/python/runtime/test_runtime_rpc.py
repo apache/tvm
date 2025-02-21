@@ -30,7 +30,6 @@ import tvm.testing
 
 from tvm import te
 from tvm import rpc
-from tvm.relay.backend import Runtime
 from tvm.contrib import utils, cc
 from tvm.rpc.tracker import Tracker
 from tvm.rpc.proxy import Proxy
@@ -74,8 +73,7 @@ def test_bigendian_rpc():
     def verify_rpc(remote, target, shape, dtype):
         A = te.placeholder(shape, dtype=dtype)
         B = te.compute(A.shape, lambda i: A[i] + tvm.tir.const(1, A.dtype))
-        s = te.create_schedule(B.op)
-        f = tvm.build(s, [A, B], target, name="myadd")
+        f = tvm.build(te.create_prim_func([A, B]), target=target)
 
         dev = remote.cpu(0)
         a = tvm.nd.array(np.random.randint(0, 256, size=shape).astype(A.dtype), device=dev)
@@ -251,7 +249,7 @@ def test_rpc_remote_module():
     n = tvm.runtime.convert(102)
     A = te.placeholder((n,), name="A")
     B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name="B")
-    s = te.create_schedule(B.op)
+    mod = tvm.ir.IRModule.from_expr(te.create_prim_func([A, B]).with_attr("global_symbol", "myadd"))
 
     server0 = rpc.Server(key="x0")
     server1 = rpc.Server(key="x1")
@@ -266,7 +264,7 @@ def test_rpc_remote_module():
     def check_remote(remote):
         temp = utils.tempdir()
         dev = remote.cpu(0)
-        f = tvm.build(s, [A, B], "llvm", name="myadd")
+        f = tvm.build(mod, "llvm")
         path_dso = temp.relpath("dev_lib.so")
         f.export_library(path_dso)
         remote.upload(path_dso)
@@ -296,8 +294,8 @@ def test_rpc_remote_module():
             return
         # export to minrpc
         temp = utils.tempdir()
-        runtime = Runtime("cpp", {"system-lib": True})
-        f = tvm.build(s, [A, B], "llvm", name="myadd", runtime=runtime)
+        # system lib prefix will trigger system lib build
+        f = tvm.build(mod.with_attr("system_lib_prefix", ""), "llvm")
         path_minrpc = temp.relpath("dev_lib.minrpc")
         f.export_library(path_minrpc, fcompile=rpc.with_minrpc(cc.create_executable))
 
@@ -333,29 +331,14 @@ def test_rpc_remote_module():
             return
         temp = utils.tempdir()
         dev = remote.cl(0)
-        s = te.create_schedule(B.op)
-        xo, xi = s[B].split(B.op.axis[0], factor=32)
-        s[B].bind(xo, te.thread_axis("blockIdx.x"))
-        s[B].bind(xi, te.thread_axis("threadIdx.x"))
-        f = tvm.build(s, [A, B], "opencl --host=llvm", name="myadd")
-        # Option 1: save modules separately and rely on remote compiler
-        path_o = temp.relpath("myadd.o")
-        path_cl = temp.relpath("myadd.cl")
-        path_json = temp.relpath("myadd.tvm_meta.json")
-        f.save(path_o)
-        f.imported_modules[0].save(path_cl)
-        remote.upload(path_o)
-        remote.upload(path_cl)
-        # upload meta data
-        remote.upload(path_json)
-        fhost = remote.load_module("myadd.o")
-        fdev = remote.load_module("myadd.cl")
-        fhost.import_module(fdev)
-        a = tvm.nd.array(np.random.uniform(size=102).astype(A.dtype), dev)
-        b = tvm.nd.array(np.zeros(102, dtype=A.dtype), dev)
-        fhost(a, b)
-        np.testing.assert_equal(b.numpy(), a.numpy() + 1)
-        # Option 2: export library as a tar ball then handled by remote compiler
+
+        s = tvm.tir.Schedule(mod)
+
+        x = s.get_loops(s.get_block("B"))
+        xo, xi = s.split(x, factors=[None, 32])
+        s.bind(xo, "blockIdx.x")
+        s.bind(xi, "threadIdx.x")
+        f = tvm.build(s.mod, "opencl --host=llvm")
         path_tar = temp.relpath("myadd.tar")
         f.export_library(path_tar)
         remote.upload(path_tar)
