@@ -350,6 +350,9 @@ class ComputeLegalizer : public StmtExprMutator {
       if (it != var_remap_.end()) {
         return AttrStmt(it->second, op->attr_key, op->value, op->body);
       }
+    } else if (auto reducer = op->node.as<CommReducerNode>()) {
+      auto identity_elements = reducer->identity_element.Map([this](PrimExpr expr) { return this->VisitExpr(expr); });
+      return AttrStmt(CommReducer(reducer->lhs, reducer->rhs, reducer->result, identity_elements, reducer->span), op->attr_key, op->value, op->body);
     }
     return ret;
   }
@@ -586,6 +589,9 @@ class StorageLegalizer : public StmtExprMutator {
       if (it != var_remap_.end()) {
         return AttrStmt(it->second, op->attr_key, op->value, op->body);
       }
+    } else if (auto reducer = op->node.as<CommReducerNode>()) {
+      auto identity_elements = reducer->identity_element.Map([this](PrimExpr expr) { return this->VisitExpr(expr); });
+      return AttrStmt(CommReducer(reducer->lhs, reducer->rhs, reducer->result, identity_elements, reducer->span), op->attr_key, op->value, op->body);
     }
     return ret;
   }
@@ -714,6 +720,10 @@ bool CheckDataTypeSupport(const Target& target, const std::string& support_func_
 
 Pass BF16ComputeLegalize() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+    auto target = f->GetAttr<Target>(tvm::attr::kTarget).value();
+    if (CheckDataTypeSupport(target, "tvm.contrib.nvcc.supports_bf16")) {
+      return f;
+    }
     // TODO(tvm-team): skip if the target supports bf16
     return BF16ComputeLegalizer().Legalize(f);
   };
@@ -724,6 +734,10 @@ TVM_REGISTER_GLOBAL("tir.transform.BF16ComputeLegalize").set_body_typed(BF16Comp
 
 Pass BF16StorageLegalize() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+    auto target = f->GetAttr<Target>(tvm::attr::kTarget).value();
+    if (CheckDataTypeSupport(target, "tvm.contrib.nvcc.supports_bf16")) {
+      return f;
+    }
     // TODO(tvm-team): skip if the target supports bf16
     return BF16StorageLegalizer().Legalize(f);
   };
