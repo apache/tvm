@@ -218,7 +218,7 @@ def test_func_struct_info():
         "a = T.int64()\n"
         "b = T.int64()\n"
         'R.Callable((R.Prim("float32"), R.Object, R.Shape([1, a, 3]), R.Prim(value=b)), '
-        'R.Tensor((1, 2, 3), dtype="float32"), True)',
+        'R.Tensor((1, 2, 3), dtype="float32"))',
     )
 
 
@@ -756,7 +756,7 @@ class Module:
         y: R.Tensor((), dtype="int32") = R.multiply(x, x)
         return y
 
-    @R.function
+    @R.function(pure=True)
     def baz(x: R.Tensor((), dtype="int32")) -> R.Tensor((), dtype="int32"):
         R.func_attr({"relax.force_pure": True})
         R.print(format=R.str("Hi there!"))
@@ -768,7 +768,7 @@ class Module:
         y: R.Tensor((), dtype="int32") = R.add(x, x)
         return y
 
-    @R.function(private=True)
+    @R.function(pure=True, private=True)
     def quux(x: R.Tensor((), dtype="int32")) -> R.Tensor((), dtype="int32"):
         R.func_attr({"relax.force_pure": True})
         R.print(format=R.str("Lol"))
