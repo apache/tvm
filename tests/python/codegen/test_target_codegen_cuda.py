@@ -766,6 +766,7 @@ def test_cuda_thread_sync_inside_condition():
     tvm.build(mod, target="cuda")
 
 
+@tvm.testing.requires_cuda
 def test_invalid_reinterpret():
     @T.prim_func
     def func(A: T.Buffer((4,), "uint32"), B: T.Buffer((4,), "uint8")) -> None:

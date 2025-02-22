@@ -156,7 +156,7 @@ def schedule_dense(sch, block, m_size, do_tune):
 
 def verify_dense(sch, target, m_size, n_size, k_size, hexagon_session):
     """Verify dense operator."""
-    f = tvm.build(sch.mod["main"], target=target, name="dense")
+    f = tvm.build(sch.mod["main"], target=target)
     mod = hexagon_session.load_module(f)
     dev = hexagon_session.device
 

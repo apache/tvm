@@ -38,7 +38,7 @@ def test_tir_print_all_passes(capsys):
                 B[vi, vj, vk, vl] = A[vi, vj, vk, vl] * 2.0
 
     with tvm.transform.PassContext(opt_level=3, instruments=[PrintBeforeAll(), PrintAfterAll()]):
-        tvm.lower(func)
+        tvm.build(func)
     all_passes_output = capsys.readouterr().out
     assert "Before Running Pass:" in all_passes_output
     assert "After Running Pass:" in all_passes_output

@@ -1118,6 +1118,39 @@ slow = pytest.mark.skipif(
 )
 
 
+def requires_llvm_minimum_version(major_version):
+    """Mark a test as requiring at least a specific version of LLVM.
+
+    Unit test marked with this decorator will run only if the
+    installed version of LLVM is at least `major_version`.
+
+    This also marks the test as requiring LLVM backend support.
+
+    Parameters
+    ----------
+    major_version: int
+
+
+    """
+
+    try:
+        llvm_version = tvm.target.codegen.llvm_version_major()
+    except RuntimeError:
+        llvm_version = 0
+
+    requires = [
+        pytest.mark.skipif(
+            llvm_version < major_version, reason=f"Requires LLVM >= {major_version}"
+        ),
+        *requires_llvm.marks(),
+    ]
+
+    def inner(func):
+        return _compose([func], requires)
+
+    return inner
+
+
 def requires_nvcc_version(major_version, minor_version=0, release_version=0):
     """Mark a test as requiring at least a specific version of nvcc.
 

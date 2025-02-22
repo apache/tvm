@@ -119,7 +119,7 @@ if local_demo:
 else:
     target = "llvm -mtriple=armv7l-linux-gnueabihf"
 
-func = tvm.build(mod, target=target, name="add_one")
+func = tvm.build(mod, target=target)
 # save the lib at a local temp folder
 temp = utils.tempdir()
 path = temp.relpath("lib.tar")

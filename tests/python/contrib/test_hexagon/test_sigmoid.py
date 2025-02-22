@@ -92,7 +92,7 @@ class TestSigmoid(BaseSigmoid):
 
         func_name = "sigmoid"
         with tvm.transform.PassContext(opt_level=3):
-            runtime_module = tvm.build(tir_s.mod, target=get_hexagon_target("v69"), name=func_name)
+            runtime_module = tvm.build(tir_s.mod, target=get_hexagon_target("v69"))
 
         assert "hvx_sigmoid" in runtime_module.get_source("asm")
         assert "vmin" in runtime_module.get_source("asm")

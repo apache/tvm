@@ -245,15 +245,6 @@ class TestElementWise:
         return [sch.mod]
 
     @tvm.testing.fixture
-    def ir_module(self, schedule_args):
-        # If the two buffers are accessed with the same indices, CSE
-        # will replace them with a Let binding.  Since this makes it
-        # harder to test what the transformed indices are, disabling
-        # the CSE pass for this test.
-        with tvm.transform.PassContext(disabled_pass=["tir.CommonSubexprElimTIR"]):
-            return tvm.lower(*schedule_args)
-
-    @tvm.testing.fixture
     def uses_unsupported_physical_dimensions(  # pylint: disable=invalid-name
         self, target_host, input_layout, working_layout, output_layout
     ):
@@ -290,9 +281,6 @@ class TestElementWise:
             }[buffer_layout]
 
             assert len(buffer.shape) == expected_physical_dimensions
-
-    def test_lower(self, schedule_args):
-        assert tvm.lower(*schedule_args)
 
     @requires_hexagon_toolchain
     def test_build(self, schedule_args, target_host, input_layout, working_layout, output_layout):
