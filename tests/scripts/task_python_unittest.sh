@@ -38,6 +38,7 @@ run_pytest ${TVM_UNITTEST_TESTSUITE_NAME}-platform-minimal-test tests/python/all
 TEST_FILES=(
   "arith"
   "codegen"
+  "disco"
   "ir"
   "meta_schedule"
   "runtime"
