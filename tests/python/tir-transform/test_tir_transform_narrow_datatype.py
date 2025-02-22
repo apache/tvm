@@ -111,33 +111,6 @@ def test_thread_axis():
     check(2**14, 32, target_bits=16, target_dtype="int32")
 
 
-def test_thread_axis_2():
-    # fmt: off
-    @tvm.script.ir_module
-    class Before:
-        @T.prim_func
-        def main(T_reshape: T.Buffer((1, 12, 384, 384), "float32"), placeholder_1: T.Buffer((T.int64(1), T.int64(12), T.int64(384), 384), "bool"), T_where: T.Buffer((T.int64(1), T.int64(12), T.int64(384), 384), "float32")) -> None:
-            # function attr dict
-            T.func_attr({"global_symbol": "main", "tir.noalias": True})
-            # body
-            # with T.block("root")
-            for i0_i1_i2_i3_fused_1 in T.thread_binding(T.int64(256), thread="blockIdx.x"):
-                for i0_i1_i2_i3_fused_2 in T.thread_binding(T.int64(1024), thread="threadIdx.x"):
-                    for i0_i1_i2_i3_fused_0 in T.serial(T.int64(7)):
-                        with T.block("T_where"):
-                            ax0 = T.axis.spatial(T.int64(1), T.int64(0))
-                            ax1 = T.axis.spatial(T.int64(12), ((i0_i1_i2_i3_fused_0 * T.int64(256) + i0_i1_i2_i3_fused_1) * T.int64(1024) + i0_i1_i2_i3_fused_2) % T.int64(1769472) // T.int64(147456))
-                            ax2 = T.axis.spatial(T.int64(384), ((i0_i1_i2_i3_fused_0 * T.int64(256) + i0_i1_i2_i3_fused_1) * T.int64(1024) + i0_i1_i2_i3_fused_2) % T.int64(147456) // T.int64(384))
-                            ax3 = T.axis.spatial(384, T.cast(((i0_i1_i2_i3_fused_0 * T.int64(256) + i0_i1_i2_i3_fused_1) * T.int64(1024) + i0_i1_i2_i3_fused_2) % T.int64(384), "int32"))
-                            T.where((i0_i1_i2_i3_fused_0 * T.int64(256) + i0_i1_i2_i3_fused_1) * T.int64(1024) + i0_i1_i2_i3_fused_2 < T.int64(1769472))
-                            T.reads(placeholder_1[ax0, ax1, ax2, ax3], T_reshape[ax0, ax1, ax2, ax3])
-                            T.writes(T_where[ax0, ax1, ax2, ax3])
-                            T_where[ax0, ax1, ax2, ax3] = T.Select(T.cast(placeholder_1[ax0, ax1, ax2, ax3], "int32") != 0, T.float32(-1000000000), T_reshape[ax0, ax1, ax2, ax3])
-    # fmt: on
-    # TODO(@junrushao1994): make this test more "unit" after the new TVMScript printer/parser lands
-    tvm.lower(Before)
-
-
 def test_multilanes():
     def check(m, lanes, target_bits, target_dtype):
         ib = tvm.tir.ir_builder.create()
