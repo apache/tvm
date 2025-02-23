@@ -177,7 +177,198 @@ def test_bf16_storage_compute_scope_wont_legalize():
     tvm.ir.assert_structural_equal(after_compute, BindTarget(target)(after_compute_legalize()))
     tvm.ir.assert_structural_equal(after_storage, BindTarget(target)(after_storage_legalize()))
 
+def test_bf16_reduce_will_legalize():
+    def get_before():
+        @tvm.script.ir_module
+        class Before:
+            @T.prim_func(private=True)
+            def main(
+                Aptr: T.handle("bfloat16", storage_scope="shared"),
+            ):
+                A_flat = T.decl_buffer(4096, "bfloat16", data=Aptr)
+
+                for i in range(128):
+                    threadIdx_x = T.launch_thread("threadIdx.x", 32)
+
+                    reduce = T.decl_buffer(1, dtype="bfloat16", scope="local")
+
+                    with T.attr(
+                        T.comm_reducer(lambda x, y: x + y, [T.bfloat16(0)]),
+                        "reduce_scope",
+                        T.reinterpret("handle", T.uint64(0)),
+                    ):
+                        T.tvm_thread_allreduce(
+                            T.uint32(1),
+                            A_flat[0],
+                            T.bool(True),
+                            reduce[0],
+                            threadIdx_x,
+                        )
+
+        return Before
+
+    def after_compute_legalize():
+        @tvm.script.ir_module
+        class After:
+            @T.prim_func(private=True)
+            def main(
+                Aptr: T.handle("bfloat16", storage_scope="shared"),
+            ):
+                A_flat_1 = T.decl_buffer(4096, "bfloat16", data=Aptr)
+
+                for i in range(128):
+                    threadIdx_x = T.launch_thread("threadIdx.x", 32)
+
+                    reduce = T.decl_buffer(1, dtype="float32", scope="local")
+
+                    with T.attr(
+                        T.comm_reducer(lambda x, y: x + y, [T.float32(0)]),
+                        "reduce_scope",
+                        T.reinterpret("handle", T.uint64(0)),
+                    ):
+                        T.tvm_thread_allreduce(
+                            T.uint32(1),
+                            T.reinterpret("float32", T.shift_left(T.Cast("uint32", T.reinterpret("uint16", A_flat_1[0])), T.uint32(16))),
+                            T.bool(True),
+                            reduce[0],
+                            threadIdx_x,
+                        )
+
+        return After
+
+    def after_storage_legalize():
+        @tvm.script.ir_module
+        class After:
+            @T.prim_func(private=True)
+            def main(
+                Aptr: T.handle("uint16", storage_scope="shared"),
+            ):
+                A_flat_1 = T.decl_buffer(4096, "uint16", data=Aptr)
+
+                for i in range(128):
+                    threadIdx_x = T.launch_thread("threadIdx.x", 32)
+
+                    reduce = T.decl_buffer(1, dtype="float32", scope="local")
+
+                    with T.attr(
+                        T.comm_reducer(lambda x, y: x + y, [T.float32(0)]),
+                        "reduce_scope",
+                        T.reinterpret("handle", T.uint64(0)),
+                    ):
+                        T.tvm_thread_allreduce(
+                            T.uint32(1),
+                            T.reinterpret("float32", T.shift_left(T.Cast("uint32", T.reinterpret("uint16", A_flat_1[0])), T.uint32(16))),
+                            T.bool(True),
+                            reduce[0],
+                            threadIdx_x,
+                        )
+
+        return After
+
+    target = Target("nvidia/geforce-rtx-2080-ti")
+    before = BindTarget(target)(get_before())
+    after_compute = tvm.tir.transform.BF16ComputeLegalize()(before)
+    after_storage = tvm.tir.transform.BF16StorageLegalize()(after_compute)
+    tvm.ir.assert_structural_equal(after_compute, BindTarget(target)(after_compute_legalize()))
+    tvm.ir.assert_structural_equal(after_storage, BindTarget(target)(after_storage_legalize()))
+
+def test_bf16_reduce_wont_legalize():
+    def get_before():
+        @tvm.script.ir_module
+        class Before:
+            @T.prim_func(private=True)
+            def main(
+                Aptr: T.handle("bfloat16", storage_scope="shared"),
+            ):
+                A_flat = T.decl_buffer(4096, "bfloat16", data=Aptr)
+
+                for i in range(128):
+                    threadIdx_x = T.launch_thread("threadIdx.x", 32)
+
+                    reduce = T.decl_buffer(1, dtype="bfloat16", scope="local")
+
+                    with T.attr(
+                        T.comm_reducer(lambda x, y: x + y, [T.bfloat16(0)]),
+                        "reduce_scope",
+                        T.reinterpret("handle", T.uint64(0)),
+                    ):
+                        T.tvm_thread_allreduce(
+                            T.uint32(1),
+                            A_flat[0],
+                            T.bool(True),
+                            reduce[0],
+                            threadIdx_x,
+                        )
+
+        return Before
+
+    def after_compute_legalize():
+        @tvm.script.ir_module
+        class After:
+            @T.prim_func(private=True)
+            def main(
+                Aptr: T.handle("bfloat16", storage_scope="shared"),
+            ):
+                A_flat = T.decl_buffer(4096, "bfloat16", data=Aptr)
+
+                for i in range(128):
+                    threadIdx_x = T.launch_thread("threadIdx.x", 32)
+
+                    reduce = T.decl_buffer(1, dtype="bfloat16", scope="local")
+
+                    with T.attr(
+                        T.comm_reducer(lambda x, y: x + y, [T.bfloat16(0)]),
+                        "reduce_scope",
+                        T.reinterpret("handle", T.uint64(0)),
+                    ):
+                        T.tvm_thread_allreduce(
+                            T.uint32(1),
+                            A_flat[0],
+                            T.bool(True),
+                            reduce[0],
+                            threadIdx_x,
+                        )
+
+        return After
+
+    def after_storage_legalize():
+        @tvm.script.ir_module
+        class After:
+            @T.prim_func(private=True)
+            def main(
+                Aptr: T.handle("bfloat16", storage_scope="shared"),
+            ):
+                A_flat = T.decl_buffer(4096, "bfloat16", data=Aptr)
+
+                for i in range(128):
+                    threadIdx_x = T.launch_thread("threadIdx.x", 32)
+
+                    reduce = T.decl_buffer(1, dtype="bfloat16", scope="local")
+
+                    with T.attr(
+                        T.comm_reducer(lambda x, y: x + y, [T.bfloat16(0)]),
+                        "reduce_scope",
+                        T.reinterpret("handle", T.uint64(0)),
+                    ):
+                        T.tvm_thread_allreduce(
+                            T.uint32(1),
+                            A_flat[0],
+                            T.bool(True),
+                            reduce[0],
+                            threadIdx_x,
+                        )
+
+        return After
+
+    target = Target("nvidia/geforce-rtx-3090-ti")
+    before = BindTarget(target)(get_before())
+    after_compute = tvm.tir.transform.BF16ComputeLegalize()(before)
+    after_storage = tvm.tir.transform.BF16StorageLegalize()(after_compute)
+    tvm.ir.assert_structural_equal(after_compute, BindTarget(target)(after_compute_legalize()))
+    tvm.ir.assert_structural_equal(after_storage, BindTarget(target)(after_storage_legalize()))
 
 if __name__ == "__main__":
     test_bf16_storage_compute_scope_will_legalize()
     test_bf16_storage_compute_scope_wont_legalize()
+    test_bf16_reduce_will_legalize()
+    test_bf16_reduce_wont_legalize()
