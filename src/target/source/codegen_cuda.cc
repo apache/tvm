@@ -1542,7 +1542,7 @@ void CodeGenCUDA::PrintVecElemLoadExpr(DataType t, int i, const std::string& val
       os << '(';
     }
     if (i % 2 == 0) {
-      os << "__pack_bfloat162(" << value;
+      os << "__pack_nv_bfloat162(" << value;
     } else {
       os << "," << value << ")";
       if (i != t.lanes() - 1) {
