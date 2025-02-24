@@ -514,7 +514,9 @@ void CodeGenCUDA::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
 }
 
 void CodeGenCUDA::PrintVecConstructor(DataType t, std::ostream& os) {
-  os << "make_";
+  if (!t.is_float8()) {
+    os << "make_";  // There is no make___nv_fp8 (/usr/local/cuda/include/vector_functions.hpp)
+  }
   PrintType(t, os);
 }
 
@@ -1592,6 +1594,19 @@ void CodeGenCUDA::PrintVecElemLoadExpr(DataType t, int i, const std::string& val
       } else {
         os << ")";
       }
+    }
+    return;
+  }
+
+  if (t.is_float8()) {
+    if (i == 0) {
+      PrintVecConstructor(t, os);
+      os << "(make_float" << t.lanes() << "(";
+    }
+    if (i != 0) os << ", ";
+    os << "static_cast<float>(" << value << ")";
+    if (i == t.lanes() - 1) {
+      os << "))";
     }
     return;
   }
