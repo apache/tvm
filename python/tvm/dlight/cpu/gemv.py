@@ -20,14 +20,10 @@ from typing import List, Optional, Union
 from tvm import tir
 from tvm.target import Target
 
-from ..analysis import (
-    BlockInfo,
-    normalize_prim_func,
-)
+from ..analysis import BlockInfo, normalize_prim_func
 from ..analysis.gemv import is_gemv, normalize
-from ..base import try_inline_contiguous_spatial
+from ..base import get_extent, try_inline_contiguous_spatial
 from .base import CPUScheduleRule
-from .utils import get_extent
 
 
 class GEMV(CPUScheduleRule):
@@ -41,7 +37,6 @@ class GEMV(CPUScheduleRule):
     ) -> Union[None, tir.Schedule, List[tir.Schedule]]:
         if not isinstance(func, tir.PrimFunc) or not self.is_target_available(target):
             return None
-        sch = tir.Schedule(func)
         sch = tir.Schedule(func)
         block_infos = normalize_prim_func(sch)
         block_infos = try_inline_contiguous_spatial(sch, block_infos)

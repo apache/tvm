@@ -18,3 +18,10 @@
 from .common_schedules import try_inline, try_inline_contiguous_spatial
 from .schedule_rule import ScheduleRule
 from .transform import ApplyDefaultSchedule
+from .utils import (
+    auto_vectorize,
+    get_bytes,
+    get_extent,
+    max_threads_per_block,
+    suggest_threads_per_block,
+)

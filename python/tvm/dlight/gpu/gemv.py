@@ -28,9 +28,8 @@ from ..analysis import (
     normalize,
     normalize_prim_func,
 )
-from ..base import try_inline_contiguous_spatial
+from ..base import auto_vectorize, get_bytes, get_extent, try_inline_contiguous_spatial
 from .base import GPUScheduleRule
-from .utils import auto_vectorize, get_bytes, get_extent
 
 
 class GEMV(GPUScheduleRule):

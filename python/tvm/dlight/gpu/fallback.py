@@ -21,9 +21,9 @@ from typing import List, Tuple
 from tvm import tir
 from tvm.target import Target
 
+from .. import base
 from ..analysis import normalize_prim_func
 from ..base import try_inline
-from . import utils
 from .base import GPUScheduleRule
 
 
@@ -41,7 +41,7 @@ class Fallback(GPUScheduleRule):
     ) -> tir.Schedule:
         if not isinstance(func, tir.PrimFunc) or not self.is_target_available(target):
             return None
-        max_threads_per_block = utils.max_threads_per_block(target)
+        max_threads_per_block = base.max_threads_per_block(target)
 
         sch = tir.Schedule(func)
         block_infos = normalize_prim_func(sch)

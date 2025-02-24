@@ -27,8 +27,7 @@ from ..analysis import (
     is_broadcast_epilogue,
     normalize_prim_func,
 )
-from ..base import try_inline_contiguous_spatial
-from . import utils
+from ..base import suggest_threads_per_block, try_inline_contiguous_spatial
 from .base import GPUScheduleRule
 
 
@@ -181,7 +180,7 @@ class Reduction(GPUScheduleRule):
     ):
         # pylint: disable=invalid-name
         _, r, _ = sch.get_loops(block)
-        (len_tx,) = utils.suggest_threads_per_block(  # pylint: disable=unbalanced-tuple-unpacking
+        (len_tx,) = suggest_threads_per_block(  # pylint: disable=unbalanced-tuple-unpacking
             target, [sch.get(r)]
         )
 
