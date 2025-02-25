@@ -246,8 +246,8 @@ TVM_DLL Pass FoldConstant();
  * \param add_attributes A boolean value indicating adding of call attributes to TIR functions
  * \return The Pass.
  */
-TVM_DLL Pass LegalizeOps(Optional<Map<String, PackedFunc>> cmap, bool enable_warning = false,
-                         bool add_attributes = false);
+TVM_DLL Pass LegalizeOps(Optional<Map<String, PackedFunc>> cmap, Optional<Array<String>> skip_ops,
+                         bool enable_warning = false);
 
 /*!
  * \brief Propagate virtual device information.
@@ -685,6 +685,11 @@ TVM_DLL Pass AnnotateCustomMemoryScope(Target target);
  * This pass recreates the buffers and updates the map.
  */
 TVM_DLL Pass SpecializePrimFuncBasedOnCallSite();
+
+
+TVM_DLL Pass RemoveRedundantAssignments();
+
+TVM_DLL Pass RemoveToDeviceForScopeChange();
 
 }  // namespace transform
 }  // namespace relax
