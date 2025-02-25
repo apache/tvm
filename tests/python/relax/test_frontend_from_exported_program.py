@@ -62,6 +62,7 @@ operator_basic_unary = [
     (torch.sqrt, R.sqrt),
     (torch.square, R.square),
     (torch.tan, R.tan),
+    (torch.tanh, R.tanh),
 ]
 
 
@@ -89,9 +90,9 @@ def test_basic_unary_ops(pytorch_op, relax_op):
 
 
 operator_bool_unary = [
-    (torch.isnan, R.isnan),
-    (torch.isinf, R.isinf),
     (torch.isfinite, R.isfinite),
+    (torch.isinf, R.isinf),
+    (torch.isnan, R.isnan),
 ]
 
 
@@ -265,6 +266,9 @@ def test_extended_unary_ops():
 
     # hardtanh
     test_hardtanh()
+
+    # leakyrelu
+    test_leakyrelu()
 
     # log_softmax
     test_logsoftmax()
