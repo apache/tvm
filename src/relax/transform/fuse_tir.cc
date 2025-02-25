@@ -405,6 +405,7 @@ class RelaxToTIRVarMapCollector : public ExprVisitor {
 
  private:
   void VisitBinding_(const VarBindingNode* binding) final {
+    LOG(WARNING) << "Var binding:" << binding->var;
     current_var_ = binding->var;
     ExprVisitor::VisitBinding_(binding);
   }
@@ -420,6 +421,7 @@ class RelaxToTIRVarMapCollector : public ExprVisitor {
   }
 
   void CollectVarMapping(const CallNode* call, const Expr& lhs_var, bool in_place) {
+    LOG(WARNING) << "CollectVarMapping:" << call->args[0];
     GlobalVar gv = Downcast<GlobalVar>(call->args[0]);
     tir::PrimFunc prim_func_ = Downcast<tir::PrimFunc>(mod_->Lookup(gv));
     const auto& buffer_map = prim_func_->buffer_map;
@@ -454,8 +456,8 @@ class RelaxToTIRVarMapCollector : public ExprVisitor {
     auto ValidateBufferCompatibility = [this](tir::Buffer new_buf, Expr expr) {
       if (auto it = relax_to_tir_var_map_.find(expr); it != relax_to_tir_var_map_.end()) {
         ICHECK(StructuralEqual()((*it).second, new_buf))
-            << "Inconsistent buffers " << (*it).second << " and " << new_buf
-            << " mapped to the same relax var: " << expr;
+            << "Inconsistent buffers " << (*it).second << " and " << new_buf.scope()
+            << " mapped to the same relax var: " << (*it).second.scope();
       }
     };
     for (size_t i = 0; i < tir_args.size(); ++i) {

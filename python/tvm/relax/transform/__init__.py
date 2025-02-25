@@ -85,6 +85,7 @@ from .transform import (
     VMShapeLower,
     AnnotateCustomMemoryScope,
     SpecializePrimFuncBasedOnCallSite,
+    RemoveToDeviceForScopeChange,
     dataflowblock_pass,
     function_pass,
 )
@@ -98,6 +99,7 @@ from .lower_gpu_ipc_alloc_storage import LowerGPUIPCAllocStorage
 from .optimize_layout_transform import OptimizeLayoutTransform
 from .fold_batch_norm_to_conv2d_for_inference import FoldBatchnormToConv2D
 from .remove_redundant_reshape import RemoveRedundantReshape
+#from .remove_to_device_for_scope_change import RemoveToDeviceForScopeChange
 
 # Import to register the legalization functions.
 from . import legalize_ops

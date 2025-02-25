@@ -60,13 +60,12 @@ bool KnowAllShapeValues(const StructInfo& sinfo) {
 
 class LegalizeMutator : public ExprMutator {
  public:
-  explicit LegalizeMutator(const IRModule& mod,
-                           const ffi::Optional<ffi::Map<ffi::String, ffi::Function>>& cmap,
-                           bool enable_warning, bool add_attributes)
+  explicit LegalizeMutator(const IRModule& mod, const ffi::Optional<ffi::Map<ffi::String, ffi::Function>>& cmap,
+                           const ffi::Optional<ffi::Array<ffi::String>> skip_ops, bool enable_warning)
       : ExprMutator(mod),
         mod_(std::move(mod)),
         enable_warning_(enable_warning),
-        add_attributes_(add_attributes) {
+        skip_ops_(skip_ops) {
     if (cmap) {
       cmap_ = cmap.value();
     }
@@ -157,30 +156,32 @@ class LegalizeMutator : public ExprMutator {
     return std::nullopt;
   }
 
-  Expr AttributeOpAttrs(Expr expr, Attrs attrs) {
+  Expr UpdateOutStructInfo(Expr expr, Call& visited_call) {
+    static const auto& infer_struct_info_map = Op::GetAttrMap<FInferStructInfo>("FInferStructInfo");
+    static const Op& call_tir_op = Op::Get("relax.call_tir");
+    auto* op_node = visited_call->op.as<OpNode>();
+
+    // Not an OpNode
+    if (op_node == nullptr) {
+      return expr;
+    }
+    auto op = GetRef<Op>(op_node);
+
+    if (!infer_struct_info_map.count(op)) {
+      return expr;
+    }
+
     if (!expr->IsInstance<CallNode>()) {
       return expr;
     }
 
     auto call = Downcast<Call>(expr);
-    if (call->args.empty()) {
+    if (call->op != call_tir_op) {
       return expr;
     }
 
-    auto gvar = call->args[0].as<GlobalVar>();
-    if (!gvar.defined()) {
-      return expr;
-    }
-
-    auto base_func = builder_->GetContextIRModule()->Lookup(gvar.value());
-    auto opt_prim_func = base_func.as<tir::PrimFunc>();
-    if (!opt_prim_func) {
-      return expr;
-    }
-    auto prim_func = opt_prim_func.value();
-    auto new_prim_func = WithAttr(prim_func, "op_attrs", attrs);
-    builder_->UpdateFunction(gvar.value(), new_prim_func);
-    return call;
+    StructInfo updated_ret_sinfo = infer_struct_info_map[op](visited_call, builder_);
+    return Call(call_tir_op, call->args, call->attrs, {updated_ret_sinfo});
   }
 
   Expr BindTarget(Expr expr) {
@@ -267,6 +268,14 @@ class LegalizeMutator : public ExprMutator {
       return visited_call;
     }
     auto op = ffi::GetRef<Op>(op_node);
+
+    if (skip_ops_.defined()) {
+      for (const auto name: skip_ops_.value()) {
+        if (name == op->name) {
+          return visited_call;
+        }
+      }
+    }
 
     bool shapes_are_known_if_required = [&]() -> bool {
       bool requires_arg_shapes = requires_arg_shapes_map.get(op, Bool(true))->value;
@@ -373,9 +382,7 @@ class LegalizeMutator : public ExprMutator {
     }
     Expr legalized = legalization_func(builder_, visited_call);
 
-    if (call->attrs.as<Attrs>() && add_attributes_) {
-      legalized = AttributeOpAttrs(legalized, call->attrs);
-    }
+    legalized = UpdateOutStructInfo(legalized, visited_call);
 
     // Append the target attribute to any PrimFunc generated in
     // legalization.
@@ -421,19 +428,20 @@ class LegalizeMutator : public ExprMutator {
    */
   bool enable_warning_;
   /*!
-   * \brief Boolean indicating this pass to add operator attributes to prim function attr
+   * \brief List of ops to be skipped from legalization
    */
-  bool add_attributes_;
+  Optional<Array<String>> skip_ops_;
 };
 
 namespace transform {
 
-Pass LegalizeOps(ffi::Optional<ffi::Map<ffi::String, ffi::Function>> cmap, bool enable_warning, bool add_attributes) {
+Pass LegalizeOps(ffi::Optional<ffi::Map<ffi::String, ffi::Function>> cmap, ffi::Optional<ffi::Array<ffi::String>> skip_ops, 
+                 bool enable_warning) {
   auto pass_func = [=](IRModule mod, PassContext pc) {
     bool apply_legalize_ops =
         pc->GetConfig<Bool>("relax.transform.apply_legalize_ops").value_or(Bool(true))->value;
     if (apply_legalize_ops) {
-      mod = LegalizeMutator(mod, cmap, enable_warning, add_attributes).Transform();
+      mod = LegalizeMutator(mod, cmap, skip_ops, enable_warning).Transform();
     }
     return mod;
   };
