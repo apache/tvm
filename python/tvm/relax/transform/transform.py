@@ -1063,8 +1063,8 @@ def BundleModelParams(param_tuple_name: Optional[str] = None) -> tvm.ir.transfor
 
 def LegalizeOps(
     customize_legalize_map: Optional[Dict[str, LegalizeFunc]] = None,
+    skip_ops: Optional[List[str]] = None,
     enable_warning: bool = False,
-    add_attributes: bool = False,
 ):
     """Legalize high-level operator calls in Relax functions to call_tir
     with corresponding low-level TIR PrimFuncs.
@@ -1090,14 +1090,13 @@ def LegalizeOps(
         The customized operator legalization function map. The customized function will override
         the default one.
 
+    skip_ops : Optional,List[str]]
+        List of ops that need to be skipped from legalization
+
     enable_warning : bool
         A boolean value indicating if to print warnings for CallNode whose op's
         legalization function is not registered. By default we don't print
         warnings.
-
-    add_attributes : bool
-        A boolean value indicating if we want legalize ops to add operator attributes to legalized
-        prim function attributes. By default it's false.
 
     Returns
     -------
@@ -1174,7 +1173,7 @@ def LegalizeOps(
     """
 
     return _ffi_api.LegalizeOps(
-        customize_legalize_map, enable_warning, add_attributes  # type: ignore
+        customize_legalize_map, skip_ops, enable_warning # type: ignore
     )
 
 
@@ -1637,6 +1636,17 @@ def SpecializePrimFuncBasedOnCallSite() -> tvm.ir.transform.Pass:
         The registered pass for allocating workspace.
     """
     return _ffi_api.SpecializePrimFuncBasedOnCallSite()  # type: ignore
+
+
+def RemoveToDeviceForScopeChange() -> tvm.ir.transform.Pass:
+    """This pass 
+
+    Returns
+    -------
+    ret: tvm.ir.transform.Pass
+        The registered pass for allocating workspace.
+    """
+    return _ffi_api.RemoveToDeviceForScopeChange()  # type: ignore
 
 
 def _wrap_class_function_pass(pass_cls, pass_info):
