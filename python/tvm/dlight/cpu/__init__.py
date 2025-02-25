@@ -14,14 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Base infra"""
-from .common_schedules import try_inline, try_inline_contiguous_spatial
-from .schedule_rule import ScheduleRule
-from .transform import ApplyDefaultSchedule
-from .utils import (
-    auto_vectorize,
-    get_bytes,
-    get_extent,
-    max_threads_per_block,
-    suggest_threads_per_block,
-)
+"""
+CPU-generic schedule rules.
+"""
+from .gemv import GEMV

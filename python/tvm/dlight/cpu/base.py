@@ -14,14 +14,27 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Base infra"""
-from .common_schedules import try_inline, try_inline_contiguous_spatial
-from .schedule_rule import ScheduleRule
-from .transform import ApplyDefaultSchedule
-from .utils import (
-    auto_vectorize,
-    get_bytes,
-    get_extent,
-    max_threads_per_block,
-    suggest_threads_per_block,
-)
+"""Base schedule rule for CPU operators."""
+
+from tvm.target import Target
+
+from ..base import ScheduleRule
+
+
+class CPUScheduleRule(ScheduleRule):  # pylint: disable=too-few-public-methods
+    """The Schedule Rule specific to CPU targets, will return None if the target is not CPU."""
+
+    def is_target_available(self, target: Target) -> bool:
+        """Check whether the target is available for gpu rule.
+
+        Parameters
+        ----------
+        target : Target
+            The compilation target to check.
+
+        Returns
+        -------
+        available : bool
+            Whether the target is available for this rule.
+        """
+        return super().is_target_available(target) and "llvm" == target.kind.name

@@ -19,9 +19,9 @@
 
 import tvm
 from tvm import tir
-from tvm.tir import Block, BufferStore
-from tvm.tir.expr import Cast, BufferLoad, Call
 from tvm.target import Target
+from tvm.tir import Block, BufferStore
+from tvm.tir.expr import BufferLoad, Call, Cast
 
 from ..base import ScheduleRule
 
