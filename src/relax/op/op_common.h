@@ -349,6 +349,10 @@ inline Optional<VDevice> InferBinaryArithOpOutVDevice(const Call& call, const Bl
     }
   };
 
+  if (call->sinfo_args.size() > 0) {
+    return get_vdevice(call->sinfo_args[0]);
+  }
+
   auto lhs_vdevice = get_vdevice(lhs_sinfo);
   auto rhs_vdevice = get_vdevice(rhs_sinfo);
 
@@ -358,6 +362,7 @@ inline Optional<VDevice> InferBinaryArithOpOutVDevice(const Call& call, const Bl
   if (!rhs_vdevice.defined() || !rhs_vdevice.value()->target.defined()) {
     return lhs_vdevice;
   }
+
   if (lhs_vdevice.value() != rhs_vdevice.value()) {
     ctx->ReportFatal(Diagnostic::Error(call)
                      << "TypeErorr: "
