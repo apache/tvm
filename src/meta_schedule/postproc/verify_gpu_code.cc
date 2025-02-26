@@ -153,10 +153,6 @@ class VerifyGPUCodeNode : public PostprocNode {
         try {
           auto pass_list = Array<tvm::transform::Pass>();
           // Phase 1
-          // First three passes are not needed in TIR schedule.
-          // pass_list.push_back(tir::transform::InjectPrefetch());
-          // pass_list.push_back(tir::transform::TextureFlatten());
-          // pass_list.push_back(tir::transform::StorageFlatten(64, instrument_bound_checkers));
           pass_list.push_back(tir::transform::LowerCrossThreadReduction());
           pass_list.push_back(tir::transform::LowerInitBlock());
           pass_list.push_back(tir::transform::PlanAndUpdateBufferAllocationLocation());

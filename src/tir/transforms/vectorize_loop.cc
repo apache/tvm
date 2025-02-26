@@ -236,7 +236,7 @@ class VecAllocAccess : public StmtExprMutator {
       shape.Set(shape.size() - 1, analyzer_.Simplify(shape[shape.size() - 1] * var_lanes_));
 
       // TODO(Lunderberg): Move this pass to be prior to
-      // StorageFlatten/FlattenBuffer, implement by appending a
+      // FlattenBuffer, implement by appending a
       // dimension to the buffer.  Since it is currently after the
       // flattening, the strides are not technically necessary, but
       // are updated for consistency.
@@ -780,7 +780,7 @@ class Vectorizer : public StmtMutator, public ExprFunctor<PrimExpr(const PrimExp
     }
 
     // TODO(Lunderberg): Move this pass to be prior to
-    // StorageFlatten/FlattenBuffer.  That will allow this pass to be
+    // FlattenBuffer.  That will allow this pass to be
     // implemented as adding a new buffer dimension, which is later
     // flattened.
 
