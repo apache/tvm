@@ -27,13 +27,13 @@ from tvm.contrib.msc.core.utils.namespace import MSCFramework
 from tvm.contrib.msc.core import utils as msc_utils
 
 
-def verify_model(torch_model, input_info, via_relax=True):
+def verify_model(torch_model, input_info):
     """Compare torch module results"""
 
     torch_datas = [msc_utils.random_data(i, MSCFramework.TORCH) for i in input_info]
     with torch.no_grad():
         golden = torch_model(*torch_datas)
-    graph, weights = translate.from_torch(torch_model, input_info, via_relax=via_relax)
+    graph, weights = translate.from_torch(torch_model, input_info)
     model = codegen.to_torch(graph, weights)
     with torch.no_grad():
         if not graph.get_inputs():
@@ -76,9 +76,8 @@ def test_conv1d():
             return self.conv(data)
 
     input_info = [([1, 3, 10], "float32")]
-    for via_relax in [True, False]:
-        verify_model(Conv1D1(), input_info, via_relax)
-        verify_model(Conv1D2(), input_info, via_relax)
+    verify_model(Conv1D1(), input_info)
+    verify_model(Conv1D2(), input_info)
 
 
 def test_conv2d():
@@ -101,9 +100,8 @@ def test_conv2d():
             return self.conv(data)
 
     input_info = [([1, 3, 10, 10], "float32")]
-    for via_relax in [True, False]:
-        verify_model(Conv2D1(), input_info, via_relax)
-        verify_model(Conv2D2(), input_info, via_relax)
+    verify_model(Conv2D1(), input_info)
+    verify_model(Conv2D2(), input_info)
 
 
 def test_linear():
@@ -130,10 +128,9 @@ def test_linear():
             return torch.matmul(x, y)
 
     input_info = [([1, 3, 10, 10], "float32")]
-    for via_relax in [True, False]:
-        verify_model(Dense1(), input_info, via_relax)
-        verify_model(Dense2(), input_info, via_relax)
-        verify_model(MatMul1(), [([10, 10], "float32"), ([10, 10], "float32")], via_relax)
+    verify_model(Dense1(), input_info)
+    verify_model(Dense2(), input_info)
+    verify_model(MatMul1(), [([10, 10], "float32"), ([10, 10], "float32")])
 
 
 def test_bmm():
@@ -144,8 +141,7 @@ def test_bmm():
             return torch.bmm(x, y)
 
     input_info = [((4, 128, 256), "float32"), ((4, 256, 512), "float32")]
-    for via_relax in [True, False]:
-        verify_model(BMM(), input_info, via_relax)
+    verify_model(BMM(), input_info)
 
 
 def test_baddbmm():
@@ -164,9 +160,8 @@ def test_baddbmm():
         ((4, 128, 256), "float32"),
         ((4, 256, 512), "float32"),
     ]
-    for via_relax in [True, False]:
-        verify_model(BAddBMM1(), input_info, via_relax)
-        verify_model(BAddBMM2(), input_info, via_relax)
+    verify_model(BAddBMM1(), input_info)
+    verify_model(BAddBMM2(), input_info)
 
 
 def test_relu():
@@ -185,9 +180,8 @@ def test_relu():
             return torch.nn.functional.relu(data)
 
     input_info = [([10, 10], "float32")]
-    for via_relax in [True, False]:
-        verify_model(ReLU(), input_info, via_relax)
-        verify_model(ReLU1(), input_info, via_relax)
+    verify_model(ReLU(), input_info)
+    verify_model(ReLU1(), input_info)
 
 
 def test_relu6():
@@ -202,8 +196,7 @@ def test_relu6():
             return self.relu6(data)
 
     input_info = [([10, 10], "float32")]
-    for via_relax in [True, False]:
-        verify_model(ReLU6(), input_info, via_relax)
+    verify_model(ReLU6(), input_info)
 
 
 def test_maxpool2d():
@@ -234,10 +227,9 @@ def test_maxpool2d():
             return self.pool(data)
 
     input_info = [([1, 3, 10, 10], "float32")]
-    for via_relax in [True, False]:
-        verify_model(MaxPool2d(), input_info, via_relax)
-        verify_model(MaxPool2d2(), input_info, via_relax)
-        verify_model(MaxPool2d3(), input_info, via_relax)
+    verify_model(MaxPool2d(), input_info)
+    verify_model(MaxPool2d2(), input_info)
+    verify_model(MaxPool2d3(), input_info)
 
 
 def test_avgpool2d():
@@ -260,9 +252,8 @@ def test_avgpool2d():
             return self.pool(data)
 
     input_info = [([1, 3, 10, 10], "float32")]
-    for via_relax in [True, False]:
-        verify_model(AvgPool2d(), input_info, via_relax)
-        verify_model(AvgPool2d2(), input_info, via_relax)
+    verify_model(AvgPool2d(), input_info)
+    verify_model(AvgPool2d2(), input_info)
 
 
 def test_adaptive_avgpool2d():
@@ -277,8 +268,7 @@ def test_adaptive_avgpool2d():
             return self.pool(data)
 
     input_info = [([1, 3, 10, 10], "float32")]
-    for via_relax in [True, False]:
-        verify_model(AdaptiveAvgPool2d0(), input_info, via_relax)
+    verify_model(AdaptiveAvgPool2d0(), input_info)
 
 
 def test_flatten():
@@ -293,9 +283,8 @@ def test_flatten():
             return self.f(data)
 
     input_info = [([1, 3, 10, 10], "float32")]
-    for via_relax in [True, False]:
-        verify_model(Flatten(), input_info, via_relax)
-        verify_model(torch.nn.Flatten(2, -1), input_info, via_relax)
+    verify_model(Flatten(), input_info)
+    verify_model(torch.nn.Flatten(2, -1), input_info)
 
 
 def test_batchnorm2d():
@@ -310,8 +299,7 @@ def test_batchnorm2d():
             return self.batchnorm(data)
 
     input_info = [([1, 3, 10, 10], "float32")]
-    for via_relax in [True, False]:
-        verify_model(BatchNorm2d(), input_info, via_relax)
+    verify_model(BatchNorm2d(), input_info)
 
 
 def test_embedding():
@@ -325,9 +313,8 @@ def test_embedding():
         def forward(self, data):
             return self.embedding(data)
 
-    for via_relax in [True, False]:
-        verify_model(Embedding(), [([4], "int64")], via_relax)
-        verify_model(Embedding(), [([4, 5], "int64")], via_relax)
+    verify_model(Embedding(), [([4], "int64")])
+    verify_model(Embedding(), [([4, 5], "int64")])
 
 
 def test_layernorm():
@@ -374,10 +361,9 @@ def test_cross_entropy():
             return self.loss(logits, targets)
 
     input_info = [([3, 2], "float32"), ([3], "int64")]
-    for via_relax in [True, False]:
-        verify_model(CrossEntropy1(), input_info, via_relax)
-        verify_model(CrossEntropy2(), input_info, via_relax)
-        verify_model(CrossEntropy3(), input_info, via_relax)
+    verify_model(CrossEntropy1(), input_info)
+    verify_model(CrossEntropy2(), input_info)
+    verify_model(CrossEntropy3(), input_info)
 
 
 def test_silu():
@@ -396,9 +382,8 @@ def test_silu():
             return torch.nn.functional.silu(data)
 
     input_info = [([1, 3, 10, 10], "float32")]
-    for via_relax in [True, False]:
-        verify_model(SiLU(), input_info, via_relax)
-        verify_model(SiLU2(), input_info, via_relax)
+    verify_model(SiLU(), input_info)
+    verify_model(SiLU2(), input_info)
 
 
 def test_groupnorm():
@@ -413,8 +398,7 @@ def test_groupnorm():
             return self.groupnorm(data)
 
     input_info = [([1, 3, 10, 10], "float32")]
-    for via_relax in [True, False]:
-        verify_model(GroupNorm(), input_info, via_relax)
+    verify_model(GroupNorm(), input_info)
 
 
 def test_softmax():
@@ -429,8 +413,7 @@ def test_softmax():
             return self.softmax(data)
 
     input_info = [([1, 3, 10, 10], "float32")]
-    for via_relax in [True, False]:
-        verify_model(Softmax(), input_info, via_relax)
+    verify_model(Softmax(), input_info)
 
 
 def test_binary():
@@ -448,9 +431,8 @@ def test_binary():
         def forward(self, lhs):
             return lhs + 1.0
 
-    for via_relax in [True, False]:
-        verify_model(Add1(), input_info1, via_relax)
-        verify_model(Add2(), input_info2, via_relax)
+    verify_model(Add1(), input_info1)
+    verify_model(Add2(), input_info2)
 
     # Sub
     class Sub1(Module):
@@ -461,9 +443,8 @@ def test_binary():
         def forward(self, lhs):
             return lhs - 1.0
 
-    for via_relax in [True, False]:
-        verify_model(Sub1(), input_info1, via_relax)
-        verify_model(Sub2(), input_info2, via_relax)
+    verify_model(Sub1(), input_info1)
+    verify_model(Sub2(), input_info2)
 
     # Mul
     class Mul1(Module):
@@ -474,9 +455,8 @@ def test_binary():
         def forward(self, lhs):
             return lhs * 1.0
 
-    for via_relax in [True, False]:
-        verify_model(Mul1(), input_info1, via_relax)
-        verify_model(Mul2(), input_info2, via_relax)
+    verify_model(Mul1(), input_info1)
+    verify_model(Mul2(), input_info2)
 
     # True div
     class TrueDiv1(Module):
@@ -487,9 +467,8 @@ def test_binary():
         def forward(self, lhs):
             return lhs / 1.0
 
-    for via_relax in [True, False]:
-        verify_model(TrueDiv1(), input_info1, via_relax)
-        verify_model(TrueDiv2(), input_info2, via_relax)
+    verify_model(TrueDiv1(), input_info1)
+    verify_model(TrueDiv2(), input_info2)
 
     # Floor div
     class FloorDiv1(Module):
@@ -500,9 +479,8 @@ def test_binary():
         def forward(self, lhs):
             return lhs // 1.0
 
-    for via_relax in [True, False]:
-        verify_model(FloorDiv1(), input_info1, via_relax)
-        verify_model(FloorDiv2(), input_info2, via_relax)
+    verify_model(FloorDiv1(), input_info1)
+    verify_model(FloorDiv2(), input_info2)
 
     # Power
     class Power1(Module):
@@ -513,9 +491,8 @@ def test_binary():
         def forward(self, lhs):
             return lhs**1.0
 
-    for via_relax in [True, False]:
-        verify_model(Power1(), input_info1, via_relax)
-        verify_model(Power2(), input_info2, via_relax)
+    verify_model(Power1(), input_info1)
+    verify_model(Power2(), input_info2)
 
     # LT
     class LT1(Module):
@@ -526,9 +503,8 @@ def test_binary():
         def forward(self, lhs):
             return lhs < 1.0
 
-    for via_relax in [True, False]:
-        verify_model(LT1(), input_info1, via_relax)
-        verify_model(LT2(), input_info2, via_relax)
+    verify_model(LT1(), input_info1)
+    verify_model(LT2(), input_info2)
 
 
 def test_size():
@@ -554,9 +530,8 @@ def test_squeeze():
             return data.squeeze()
 
     input_info = [([3, 1, 4, 1], "float32")]
-    for via_relax in [True, False]:
-        verify_model(Squeeze1(), input_info, via_relax)
-        verify_model(Squeeze2(), input_info, via_relax)
+    verify_model(Squeeze1(), input_info)
+    verify_model(Squeeze2(), input_info)
 
 
 def test_unsqueeze():
@@ -571,9 +546,8 @@ def test_unsqueeze():
             return data.unsqueeze(-1)
 
     input_info = [([1, 3, 10, 10], "float32")]
-    for via_relax in [True, False]:
-        verify_model(Unsqueeze1(), input_info, via_relax)
-        verify_model(Unsqueeze2(), input_info, via_relax)
+    verify_model(Unsqueeze1(), input_info)
+    verify_model(Unsqueeze2(), input_info)
 
 
 def test_getattr():
@@ -599,9 +573,8 @@ def test_getitem():
         def forward(self, x):
             return x[:, None, None, :, None]
 
-    for via_relax in [True, False]:
-        verify_model(Slice1(), [([1, 3, 10, 10], "float32")], via_relax)
-        verify_model(Slice2(), [([8, 16], "float32")], via_relax)
+    verify_model(Slice1(), [([1, 3, 10, 10], "float32")])
+    verify_model(Slice2(), [([8, 16], "float32")])
 
 
 def test_unary():
@@ -614,48 +587,42 @@ def test_unary():
         def forward(self, data):
             return torch.sin(data)
 
-    for via_relax in [True, False]:
-        verify_model(Sin(), input_info, via_relax)
+    verify_model(Sin(), input_info)
 
     # cos
     class Cos(Module):
         def forward(self, data):
             return torch.cos(data)
 
-    for via_relax in [True, False]:
-        verify_model(Cos(), input_info, via_relax)
+    verify_model(Cos(), input_info)
 
     # exp
     class Exp(Module):
         def forward(self, data):
             return torch.exp(data)
 
-    for via_relax in [True, False]:
-        verify_model(Exp(), input_info, via_relax)
+    verify_model(Exp(), input_info)
 
     # sqrt
     class Sqrt(Module):
         def forward(self, data):
             return torch.sqrt(data)
 
-    for via_relax in [True, False]:
-        verify_model(Sqrt(), input_info, via_relax)
+    verify_model(Sqrt(), input_info)
 
     # sigmoid
     class Sigmoid(Module):
         def forward(self, data):
             return torch.sigmoid(data)
 
-    for via_relax in [True, False]:
-        verify_model(Sigmoid(), input_info, via_relax)
+    verify_model(Sigmoid(), input_info)
 
     # round
     class Round(Module):
         def forward(self, data):
             return torch.round(data)
 
-    for via_relax in [True, False]:
-        verify_model(Round(), input_info, via_relax)
+    verify_model(Round(), input_info)
 
 
 def test_gelu():
@@ -666,8 +633,7 @@ def test_gelu():
             return torch.nn.functional.gelu(data)
 
     input_info = [([1, 3, 10, 10], "float32")]
-    for via_relax in [True, False]:
-        verify_model(Gelu(), input_info, via_relax)
+    verify_model(Gelu(), input_info)
 
 
 def test_tanh():
@@ -678,8 +644,7 @@ def test_tanh():
             return torch.tanh(data)
 
     input_info = [([1, 3, 10, 10], "float32")]
-    for via_relax in [True, False]:
-        verify_model(Tanh(), input_info, via_relax)
+    verify_model(Tanh(), input_info)
 
 
 def test_clamp():
@@ -690,8 +655,7 @@ def test_clamp():
             return torch.clamp(data, min=0.1, max=0.5)
 
     input_info = [([1, 3, 10, 10], "float32")]
-    for via_relax in [True, False]:
-        verify_model(Clamp(), input_info, via_relax)
+    verify_model(Clamp(), input_info)
 
 
 def test_interpolate():
@@ -702,8 +666,7 @@ def test_interpolate():
             return torch.nn.functional.interpolate(data, (5, 5))
 
     input_info = [([1, 3, 10, 10], "float32")]
-    for via_relax in [True, False]:
-        verify_model(Interpolate(), input_info, via_relax)
+    verify_model(Interpolate(), input_info)
 
 
 def test_addmm():
@@ -718,8 +681,7 @@ def test_addmm():
         ([10, 10], "float32"),
         ([10, 10], "float32"),
     ]
-    for via_relax in [True, False]:
-        verify_model(Addmm(), input_info, via_relax)
+    verify_model(Addmm(), input_info)
 
 
 def test_split():
@@ -734,9 +696,8 @@ def test_split():
             return torch.split(data, [1, 2], dim=1)
 
     input_info = [([1, 3, 10, 10], "float32")]
-    for via_relax in [True, False]:
-        verify_model(Split1(), input_info, via_relax)
-        verify_model(Split2(), input_info, via_relax)
+    verify_model(Split1(), input_info)
+    verify_model(Split2(), input_info)
 
 
 def test_unbind():
@@ -751,9 +712,8 @@ def test_unbind():
             return torch.unbind(data, dim=1)
 
     input_info = [([3, 3, 10, 10], "float32")]
-    for via_relax in [True, False]:
-        verify_model(Unbind1(), input_info, via_relax)
-        verify_model(Unbind2(), input_info, via_relax)
+    verify_model(Unbind1(), input_info)
+    verify_model(Unbind2(), input_info)
 
 
 def test_cumsum():
@@ -764,8 +724,7 @@ def test_cumsum():
             return torch.cumsum(data, dim=1, dtype=torch.int32)
 
     input_info = [([1, 2, 3, 4], "float32")]
-    for via_relax in [True, False]:
-        verify_model(Cumsum(), input_info, via_relax)
+    verify_model(Cumsum(), input_info)
 
 
 def test_chunk():
@@ -776,8 +735,7 @@ def test_chunk():
             return torch.chunk(data, 3, dim=1)
 
     input_info = [([1, 3, 10, 10], "float32")]
-    for via_relax in [True, False]:
-        verify_model(Chunk(), input_info, via_relax)
+    verify_model(Chunk(), input_info)
 
 
 def test_inplace_fill():
@@ -788,8 +746,7 @@ def test_inplace_fill():
             data.fill_(1.5)
             return data
 
-    for via_relax in [True, False]:
-        verify_model(InplaceFill(), [([10, 10], "float32")], via_relax)
+    verify_model(InplaceFill(), [([10, 10], "float32")])
 
 
 def test_arange():
@@ -816,9 +773,8 @@ def test_tril():
             return data
 
     input_info = [([10, 10], "float32")]
-    for via_relax in [True, False]:
-        verify_model(Tril(), input_info, via_relax)
-        verify_model(InplaceTril(), input_info, via_relax)
+    verify_model(Tril(), input_info)
+    verify_model(InplaceTril(), input_info)
 
 
 def test_triu():
@@ -834,9 +790,8 @@ def test_triu():
             return data
 
     input_info = [([10, 10], "float32")]
-    for via_relax in [True, False]:
-        verify_model(Triu(), input_info, via_relax)
-        verify_model(InplaceTriu(), input_info, via_relax)
+    verify_model(Triu(), input_info)
+    verify_model(InplaceTriu(), input_info)
 
 
 def test_new_ones():
@@ -847,8 +802,7 @@ def test_new_ones():
             return x.new_ones(1, 2, 3)
 
     input_info = [([1, 2, 3], "float32")]
-    for via_relax in [True, False]:
-        verify_model(NewOnes(), input_info, via_relax)
+    verify_model(NewOnes(), input_info)
 
 
 def test_expand():
@@ -863,9 +817,8 @@ def test_expand():
             return x.expand(4, -1, -1, 4)
 
     input_info = [([1, 2, 3, 4], "float32")]
-    for via_relax in [True, False]:
-        verify_model(Expand1(), input_info, via_relax)
-        verify_model(Expand2(), input_info, via_relax)
+    verify_model(Expand1(), input_info)
+    verify_model(Expand2(), input_info)
 
 
 def test_reduce():
@@ -887,10 +840,9 @@ def test_reduce():
             return torch.min(x)
 
     input_info = [([1, 2, 3, 4], "float32")]
-    for via_relax in [True, False]:
-        verify_model(Sum(), input_info, via_relax)
-    verify_model(Max(), input_info, False)
-    verify_model(Min(), input_info, False)
+    verify_model(Sum(), input_info)
+    verify_model(Max(), input_info)
+    verify_model(Min(), input_info)
 
 
 def test_datatype():
@@ -903,24 +855,21 @@ def test_datatype():
         def forward(self, x):
             return x.float()
 
-    for via_relax in [True, False]:
-        verify_model(ToFloat(), input_info, via_relax)
+    verify_model(ToFloat(), input_info)
 
     # half
     class ToHalf(Module):
         def forward(self, x):
             return x.half()
 
-    for via_relax in [True, False]:
-        verify_model(ToHalf(), input_info, via_relax)
+    verify_model(ToHalf(), input_info)
 
     # type
     class Type(Module):
         def forward(self, x):
             return x.type(torch.float32)
 
-    for via_relax in [True, False]:
-        verify_model(Type(), input_info, via_relax)
+    verify_model(Type(), input_info)
 
 
 def test_permute():
@@ -931,8 +880,7 @@ def test_permute():
             return x.permute(0, 3, 2, 1)
 
     input_info = [([1, 2, 3, 4], "float32")]
-    for via_relax in [True, False]:
-        verify_model(Permute(), input_info, via_relax)
+    verify_model(Permute(), input_info)
 
 
 def test_reshape():
@@ -943,8 +891,7 @@ def test_reshape():
             return x.reshape(2, 12)
 
     input_info = [([1, 2, 3, 4], "float32")]
-    for via_relax in [True, False]:
-        verify_model(Reshape(), input_info, via_relax)
+    verify_model(Reshape(), input_info)
 
 
 def test_transpose():
@@ -955,8 +902,7 @@ def test_transpose():
             return x.transpose(1, 3)
 
     input_info = [([1, 2, 3, 4], "float32")]
-    for via_relax in [True, False]:
-        verify_model(Transpose(), input_info, via_relax)
+    verify_model(Transpose(), input_info)
 
 
 def test_view():
@@ -967,8 +913,7 @@ def test_view():
             return x.view(2, 12)
 
     input_info = [([1, 2, 3, 4], "float32")]
-    for via_relax in [True, False]:
-        verify_model(View(), input_info, via_relax)
+    verify_model(View(), input_info)
 
 
 def test_keep_params():
@@ -982,8 +927,7 @@ def test_keep_params():
         def forward(self, data):
             return self.conv(data)
 
-    for via_relax in [True, False]:
-        verify_model(Conv2D1(), [([1, 3, 10, 10], "float32")], via_relax)
+    verify_model(Conv2D1(), [([1, 3, 10, 10], "float32")])
 
 
 def test_unwrap_unit_return_tuple():
@@ -993,8 +937,7 @@ def test_unwrap_unit_return_tuple():
         def forward(self, x):
             return (x,)
 
-    for via_relax in [True, False]:
-        verify_model(Identity(), [([256, 256], "float32")], via_relax)
+    verify_model(Identity(), [([256, 256], "float32")])
 
 
 def test_no_bind_return_tuple():
@@ -1005,8 +948,7 @@ def test_no_bind_return_tuple():
             return (x, y)
 
     input_info = [([256, 256], "float32"), ([256, 256], "float32")]
-    for via_relax in [True, False]:
-        verify_model(Identity(), input_info, via_relax)
+    verify_model(Identity(), input_info)
 
 
 def test_argmax():
@@ -1020,9 +962,8 @@ def test_argmax():
         def forward(self, data):
             return torch.argmax(data, dim=-1, keepdim=True)
 
-    for via_relax in [True, False]:
-        verify_model(Argmax1(), [([256, 256], "float32")], via_relax)
-        verify_model(Argmax2(), [([256, 256], "float32")], via_relax)
+    verify_model(Argmax1(), [([256, 256], "float32")])
+    verify_model(Argmax2(), [([256, 256], "float32")])
 
 
 def test_argmin():
@@ -1051,9 +992,8 @@ def test_to():
         def forward(self, data):
             return data.to("cpu")
 
-    for via_relax in [True, False]:
-        verify_model(To1(), [([256, 256], "float32")], via_relax)
-        verify_model(To2(), [([256, 256], "float32")], via_relax)
+    verify_model(To1(), [([256, 256], "float32")])
+    verify_model(To2(), [([256, 256], "float32")])
 
 
 def test_mean():
@@ -1067,9 +1007,8 @@ def test_mean():
         def forward(self, data):
             return data.mean(-1, keepdim=True)
 
-    for via_relax in [True, False]:
-        verify_model(Mean(), [([256, 256], "float32")], via_relax)
-        verify_model(MeanKeepDim(), [([256, 256], "float32")], via_relax)
+    verify_model(Mean(), [([256, 256], "float32")])
+    verify_model(MeanKeepDim(), [([256, 256], "float32")])
 
 
 def test_rsqrt():
@@ -1079,8 +1018,7 @@ def test_rsqrt():
         def forward(self, data):
             return torch.rsqrt(data)
 
-    for via_relax in [True, False]:
-        verify_model(Rsqrt(), [([256, 256], "float32")], via_relax)
+    verify_model(Rsqrt(), [([256, 256], "float32")])
 
 
 def test_neg():
@@ -1090,8 +1028,7 @@ def test_neg():
         def forward(self, data):
             return -data
 
-    for via_relax in [True, False]:
-        verify_model(Neg(), [([256, 256], "float32")], via_relax)
+    verify_model(Neg(), [([256, 256], "float32")])
 
 
 def test_max():
@@ -1101,8 +1038,7 @@ def test_max():
         def forward(self, x, y):
             return torch.max(x, y)
 
-    for via_relax in [True, False]:
-        verify_model(Max(), [([256, 256], "float32"), ([256, 256], "float32")], via_relax)
+    verify_model(Max(), [([256, 256], "float32"), ([256, 256], "float32")])
 
 
 def test_cat():
@@ -1123,9 +1059,8 @@ def test_cat():
         ([1, 3, 10, 10], "float32"),
         ([1, 3, 10, 10], "float32"),
     ]
-    for via_relax in [True, False]:
-        verify_model(Cat1(), input_info, via_relax)
-        verify_model(Cat2(), [([1, 3, 10, 10], "float32")], via_relax)
+    verify_model(Cat1(), input_info)
+    verify_model(Cat2(), [([1, 3, 10, 10], "float32")])
 
 
 def test_stack():
@@ -1146,9 +1081,8 @@ def test_stack():
         ([1, 3, 10, 10], "float32"),
         ([1, 3, 10, 10], "float32"),
     ]
-    for via_relax in [True, False]:
-        verify_model(Stack1(), input_info, via_relax)
-        verify_model(Stack2(), [([1, 3, 10, 10], "float32")], via_relax)
+    verify_model(Stack1(), input_info)
+    verify_model(Stack2(), [([1, 3, 10, 10], "float32")])
 
 
 def test_scatter():
@@ -1166,11 +1100,8 @@ def test_scatter():
         def forward(self, data, index, src):
             return data.scatter(0, index, src)
 
-    for via_relax in [True, False]:
-        verify_model(Scatter1(), [([20, 20], "float32"), ([2, 5], "float32")], via_relax)
-        verify_model(
-            Scatter2(), [([20, 20], "float32"), ([2, 5], "int64"), ([2, 5], "float32")], via_relax
-        )
+    verify_model(Scatter1(), [([20, 20], "float32"), ([2, 5], "float32")])
+    verify_model(Scatter2(), [([20, 20], "float32"), ([2, 5], "int64"), ([2, 5], "float32")])
 
 
 def test_masked_scatter():
