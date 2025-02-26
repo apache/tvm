@@ -1173,9 +1173,7 @@ def LegalizeOps(
                         T_multiply[v_ax0, v_ax1] = A[v_ax0, v_ax1] * B[v_ax0, v_ax1]
     """
 
-    return _ffi_api.LegalizeOps(
-        customize_legalize_map, skip_ops, enable_warning # type: ignore
-    )
+    return _ffi_api.LegalizeOps(customize_legalize_map, skip_ops, enable_warning)  # type: ignore
 
 
 def RealizeVDevice() -> tvm.ir.transform.Pass:
@@ -1640,7 +1638,7 @@ def SpecializePrimFuncBasedOnCallSite() -> tvm.ir.transform.Pass:
 
 
 def RemoveToDeviceForScopeChange() -> tvm.ir.transform.Pass:
-    """This pass 
+    """This pass
 
     Returns
     -------
