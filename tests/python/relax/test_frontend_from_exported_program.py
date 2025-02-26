@@ -26,6 +26,9 @@ from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tir as T
 from tvm.relax.frontend.torch import from_exported_program
+from packaging import version
+
+torch_version = torch.__version__
 
 
 def verify_model(torch_model, example_args, binding, expected):
@@ -905,6 +908,10 @@ def test_binary():
     verify_model(Sub2(), example_args2, {}, expected_sub2)
 
 
+@pytest.mark.skipif(
+    version.parse(torch_version) >= version.parse("2.6.0"),
+    reason="Tests not compatible with PyTorch >= 2.6",
+)
 def test_batchnorm2d():
     class BatchNorm2d(Module):
         def __init__(self):
@@ -2582,6 +2589,10 @@ def test_expand():
     verify_model(Expand2(), example_args, {}, expected1)
 
 
+@pytest.mark.skipif(
+    version.parse(torch_version) >= version.parse("2.6.0"),
+    reason="Tests not compatible with PyTorch >= 2.6",
+)
 def test_flatten():
     class Flatten(Module):
         def __init__(self):
@@ -2783,6 +2794,10 @@ def test_select_slice():
     verify_model(Slice2(), example_args, {}, expected2)
 
 
+@pytest.mark.skipif(
+    version.parse(torch_version) >= version.parse("2.6.0"),
+    reason="Tests not compatible with PyTorch >= 2.6",
+)
 def test_split():
     class Chunk(Module):
         def forward(self, input):
@@ -3192,6 +3207,10 @@ def test_new_ones():
     verify_model(NewOnes(), example_args, {}, expected1)
 
 
+@pytest.mark.skipif(
+    version.parse(torch_version) >= version.parse("2.6.0"),
+    reason="Tests not compatible with PyTorch >= 2.6",
+)
 def test_to_copy():
     # float
     class ToFloat(Module):
