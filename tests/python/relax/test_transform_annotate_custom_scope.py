@@ -71,7 +71,7 @@ def verify(mod, expected):
         "relax.nn.conv2d",
         "relax.nn.max_pool2d",
         "relax.nn.adaptive_avg_pool2d",
-        #"relax.nn.layer_norm",
+        # "relax.nn.layer_norm",
     ]
     with tgt:
         mod = tvm.tir.transform.BindTarget(tvm.target.Target.current(allow_none=False))(mod)
@@ -84,7 +84,7 @@ def verify(mod, expected):
         mod = tvm.relax.transform.LegalizeOps(skip_ops=skip_ops)(mod)
         mod = tvm.relax.transform.AnnotateTIROpPattern()(mod)
         mod = tvm.relax.transform.AnnotateCustomMemoryScope(tgt)(mod)
-        mod = tvm.relax.transform.LegalizeOps()(mod) # To handle any fallback ops
+        mod = tvm.relax.transform.LegalizeOps()(mod)  # To handle any fallback ops
         mod = tvm.relax.transform.LegalizeOps(
             {"relax.nn.conv2d": legalize_adreno.conv2d_NCHWc_OIHWo},
         )(mod)
@@ -93,6 +93,7 @@ def verify(mod, expected):
         mod = tvm.relax.transform.FuseOps()(mod)
         mod = tvm.relax.transform.FuseTIR()(mod)
         mod = tvm.relax.transform.DeadCodeElimination()(mod)
+        mod = tvm.relax.transform.AnnotateTIROpPattern()(mod)
         mod = tvm.relax.transform.RemoveToDeviceForScopeChange()(mod)
         mod = tvm.relax.transform.DeadCodeElimination()(mod)
         mod = tvm.relax.transform.SpecializePrimFuncBasedOnCallSite()(mod)
@@ -144,7 +145,10 @@ def test_conv2d_NCHW_sub_indexed():
     Expected = {
         "te_layout_transform": (["global"], ["global.texture-weight"]),
         "te_layout_transform1": (["global"], ["global.texture-weight"]),
-        "conv2d_NCHWc_OIHWo_opencl": (["global.texture-weight", "global.texture-weight"], ["global"]),
+        "conv2d_NCHWc_OIHWo_opencl": (
+            ["global.texture-weight", "global.texture-weight"],
+            ["global"],
+        ),
         "te_layout_transform2": (["global"], ["global"]),
     }
 
@@ -172,7 +176,10 @@ def test_conv2d_NHWC_sub_indexed():
     Expected = {
         "te_layout_transform": (["global"], ["global.texture-weight"]),
         "te_layout_transform1": (["global"], ["global.texture-weight"]),
-        "conv2d_NCHWc_OIHWo_opencl": (["global.texture-weight", "global.texture-weight"], ["global"]),
+        "conv2d_NCHWc_OIHWo_opencl": (
+            ["global.texture-weight", "global.texture-weight"],
+            ["global"],
+        ),
         "te_layout_transform2": (["global"], ["global"]),
     }
 
@@ -200,7 +207,10 @@ def _test_conv2d_symbolic_sub_indexed():
     Expected = {
         "te_layout_transform": (["global"], ["global.texture-weight"]),
         "te_layout_transform1": (["global"], ["global.texture-weight"]),
-        "conv2d_NCHWc_OIHWo_opencl": (["global.texture-weight", "global.texture-weight"], ["global"]),
+        "conv2d_NCHWc_OIHWo_opencl": (
+            ["global.texture-weight", "global.texture-weight"],
+            ["global"],
+        ),
         "te_layout_transform2": (["global"], ["global"]),
     }
 
@@ -336,11 +346,17 @@ def test_conv2d_fma_relu_conv2d_sub_indexed():
     Expected = {
         "te_layout_transform": (["global"], ["global.texture-weight"]),
         "te_layout_transform1": (["global"], ["global.texture-weight"]),
-        "conv2d_NCHWc_OIHWo_opencl": (["global.texture-weight", "global.texture-weight"], ["global"]),
+        "conv2d_NCHWc_OIHWo_opencl": (
+            ["global.texture-weight", "global.texture-weight"],
+            ["global"],
+        ),
         "te_layout_transform2": (["global"], ["global"]),
         "relu": (["global"], ["global"]),
         "te_layout_transform3": (["global"], ["global.texture-weight"]),
-        "conv2d_NCHWc_OIHWo1_opencl": (["global.texture-weight", "global.texture-weight"], ["global"]),
+        "conv2d_NCHWc_OIHWo1_opencl": (
+            ["global.texture-weight", "global.texture-weight"],
+            ["global"],
+        ),
         "te_layout_transform4": (["global"], ["global"]),
     }
     verify(Input, Expected)
@@ -362,7 +378,10 @@ def test_conv2d_sum_sub_indexed():
     Expected = {
         "te_layout_transform": (["global"], ["global.texture-weight"]),
         "te_layout_transform1": (["global"], ["global.texture-weight"]),
-        "conv2d_NCHWc_OIHWo_opencl": (["global.texture-weight", "global.texture-weight"], ["global"]),
+        "conv2d_NCHWc_OIHWo_opencl": (
+            ["global.texture-weight", "global.texture-weight"],
+            ["global"],
+        ),
         "sum": (["global"], ["global"]),
         "te_layout_transform2": (["global"], ["global"]),
     }
@@ -385,7 +404,10 @@ def test_conv2d_sum_keepdims_sub_indexed():
     Expected = {
         "te_layout_transform": (["global"], ["global.texture-weight"]),
         "te_layout_transform1": (["global"], ["global.texture-weight"]),
-        "conv2d_NCHWc_OIHWo_opencl": (["global.texture-weight", "global.texture-weight"], ["global"]),
+        "conv2d_NCHWc_OIHWo_opencl": (
+            ["global.texture-weight", "global.texture-weight"],
+            ["global"],
+        ),
         "sum": (["global"], ["global"]),
         "te_layout_transform2": (["global"], ["global"]),
     }
@@ -408,7 +430,10 @@ def test_conv2d_sum_reduce_sub_indexed():
     Expected = {
         "te_layout_transform": (["global"], ["global.texture-weight"]),
         "te_layout_transform1": (["global"], ["global.texture-weight"]),
-        "conv2d_NCHWc_OIHWo_opencl": (["global.texture-weight", "global.texture-weight"], ["global"]),
+        "conv2d_NCHWc_OIHWo_opencl": (
+            ["global.texture-weight", "global.texture-weight"],
+            ["global"],
+        ),
         "sum": (["global"], ["global"]),
         "te_layout_transform2": (["global"], ["global"]),
     }
@@ -431,7 +456,10 @@ def test_conv2d_transpose_sub_indexed():
     Expected = {
         "te_layout_transform": (["global"], ["global.texture-weight"]),
         "te_layout_transform1": (["global"], ["global.texture-weight"]),
-        "conv2d_NCHWc_OIHWo_opencl": (["global.texture-weight", "global.texture-weight"], ["global"]),
+        "conv2d_NCHWc_OIHWo_opencl": (
+            ["global.texture-weight", "global.texture-weight"],
+            ["global"],
+        ),
         "te_layout_transform2": (["global"], ["global"]),
         "transpose": (["global"], ["global"]),
     }
@@ -454,7 +482,10 @@ def test_conv2d_expand_dims_sub_indexed():
     Expected = {
         "te_layout_transform": (["global"], ["global.texture-weight"]),
         "te_layout_transform1": (["global"], ["global.texture-weight"]),
-        "conv2d_NCHWc_OIHWo_opencl": (["global.texture-weight", "global.texture-weight"], ["global"]),
+        "conv2d_NCHWc_OIHWo_opencl": (
+            ["global.texture-weight", "global.texture-weight"],
+            ["global"],
+        ),
         "te_layout_transform2": (["global"], ["global"]),
         "expand_dims": (["global"], ["global"]),
     }
@@ -477,7 +508,10 @@ def test_conv2d_squeeze_sub_indexed():
     Expected = {
         "te_layout_transform": (["global"], ["global.texture-weight"]),
         "te_layout_transform1": (["global"], ["global.texture-weight"]),
-        "conv2d_NCHWc_OIHWo_opencl": (["global.texture-weight", "global.texture-weight"], ["global"]),
+        "conv2d_NCHWc_OIHWo_opencl": (
+            ["global.texture-weight", "global.texture-weight"],
+            ["global"],
+        ),
         "te_layout_transform2": (["global"], ["global"]),
         "squeeze": (["global"], ["global"]),
     }
@@ -502,7 +536,10 @@ def test_conv2d_strided_slice_sub_indexed():
     Expected = {
         "te_layout_transform": (["global"], ["global.texture-weight"]),
         "te_layout_transform1": (["global"], ["global.texture-weight"]),
-        "conv2d_NCHWc_OIHWo_opencl": (["global.texture-weight", "global.texture-weight"], ["global"]),
+        "conv2d_NCHWc_OIHWo_opencl": (
+            ["global.texture-weight", "global.texture-weight"],
+            ["global"],
+        ),
         "te_layout_transform2": (["global"], ["global"]),
         "strided_slice": (["global"], ["global"]),
     }
@@ -669,7 +706,10 @@ def test_conv2d_softmax_sub_indexed():
     Expected = {
         "te_layout_transform": (["global"], ["global.texture-weight"]),
         "te_layout_transform1": (["global"], ["global.texture-weight"]),
-        "conv2d_NCHWc_OIHWo_opencl": (["global.texture-weight", "global.texture-weight"], ["global"]),
+        "conv2d_NCHWc_OIHWo_opencl": (
+            ["global.texture-weight", "global.texture-weight"],
+            ["global"],
+        ),
         "te_layout_transform2": (["global"], ["global"]),
         "softmax": (["global"], ["global"]),
     }
@@ -725,7 +765,10 @@ def test_binary_broadcast_sub_indexed():
     Expected = {
         "te_layout_transform": (["global"], ["global.texture-weight"]),
         "te_layout_transform1": (["global"], ["global.texture-weight"]),
-        "conv2d_NCHWc_OIHWo_opencl": (["global.texture-weight", "global.texture-weight"], ["global"]),
+        "conv2d_NCHWc_OIHWo_opencl": (
+            ["global.texture-weight", "global.texture-weight"],
+            ["global"],
+        ),
         "te_layout_transform2": (["global"], ["global"]),
         "add": (["global", "global"], ["global"]),
     }
@@ -868,7 +911,10 @@ def test_conv2d_conv2d_fallback_to_buffer_conv2d():
             ["global"],
         ),
         "te_layout_transform3": (["global"], ["global.texture-weight"]),
-        "conv2d_NCHWc_OIHWo1_opencl": (["global.texture-weight", "global.texture-weight"], ["global"]),
+        "conv2d_NCHWc_OIHWo1_opencl": (
+            ["global.texture-weight", "global.texture-weight"],
+            ["global"],
+        ),
         "te_layout_transform4": (["global"], ["global"]),
         "conv2d_opencl": (["global", "global"], ["global"]),
         "te_layout_transform5": (["global"], ["global"]),
@@ -1066,7 +1112,13 @@ def test_injective_inputs1():
         "te_layout_transform2": (["global"], ["global"]),
         "fused_mean_add1": (["global", "global"], ["global"]),
         "fused_conv2d_NCHWc_OIHWo_opencl_add_multiply_add": (
-            ["global.texture-weight", "global.texture-weight", "global.texture-weight", "global.texture-weight", "global.texture-weight"],
+            [
+                "global.texture-weight",
+                "global.texture-weight",
+                "global.texture-weight",
+                "global.texture-weight",
+                "global.texture-weight",
+            ],
             ["global"],
         ),
     }
@@ -1129,7 +1181,12 @@ def test_injective_nwo_inputs2():
         "te_layout_transform2": (["global"], ["global"]),
         "fused_mean_add1": (["global", "global"], ["global"]),
         "fused_conv2d_NCHWc_OIHWo_opencl_add_multiply_add": (
-            ["global.texture-weight", "global.texture-weight", "global.texture-weight", "global.texture-weight"],
+            [
+                "global.texture-weight",
+                "global.texture-weight",
+                "global.texture-weight",
+                "global.texture-weight",
+            ],
             ["global"],
         ),
     }
@@ -1138,3 +1195,4 @@ def test_injective_nwo_inputs2():
 
 if __name__ == "__main__":
     tvm.testing.main()
+    # test_conv2d_relu_sub_indexed()
