@@ -1637,7 +1637,7 @@ def SpecializePrimFuncBasedOnCallSite() -> tvm.ir.transform.Pass:
     return _ffi_api.SpecializePrimFuncBasedOnCallSite()  # type: ignore
 
 
-def OptimizeToDeviceForScopeChange() -> tvm.ir.transform.Pass:
+def OptimizeToVDeviceForScopeChange() -> tvm.ir.transform.Pass:
     """This pass is a texture specific pass that can optimize unnecessary to_device copies.
     Like texture_scope -> ToVDevice -> global scope. In this case the producer can directly
     store into global scope avoiding unnecessary device copy.
@@ -1647,7 +1647,7 @@ def OptimizeToDeviceForScopeChange() -> tvm.ir.transform.Pass:
     ret: tvm.ir.transform.Pass
         The registered pass for allocating workspace.
     """
-    return _ffi_api.OptimizeToDeviceForScopeChange()  # type: ignore
+    return _ffi_api.OptimizeToVDeviceForScopeChange()  # type: ignore
 
 
 def RemoveRedundantAssignments() -> tvm.ir.transform.Pass:
