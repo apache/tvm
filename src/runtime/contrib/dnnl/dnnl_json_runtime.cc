@@ -325,7 +325,7 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     // dst_layout == "" means to use data_layout
     if (dst_layout.empty()) dst_layout = src_layout;
 
-    // Minus one for DNNL representation. No dilation for DNNL is 0, for relay is 1.
+    // Minus one for DNNL representation. No dilation for DNNL is 0
     for (auto& d : dilates) d--;
 
     // Take into account provided layout strings
@@ -684,7 +684,7 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     std::vector<int64_t> padding_l(padding.begin(), padding.begin() + padding.size() / 2);
     std::vector<int64_t> padding_r(padding.begin() + padding.size() / 2, padding.end());
 
-    // Minus one for DNNL representation. No dilation for DNNL is 0, for relay is 1.
+    // Minus one for DNNL representation. No dilation for DNNL is 0
     for (auto& d : dilates) d--;
 
     // Attributes related to AvgPool
