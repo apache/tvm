@@ -44,7 +44,7 @@ class RemoveRedundantAssignments : public ExprMutator {
  public:
   using ExprMutator::VisitExpr_;
 
-  IRModule Run(IRModule& mod) {
+  IRModule Run(const IRModule& mod) {
     mod_ = mod;
     for (const auto& [gv, func] : mod_->functions) {
       if (func->IsInstance<relax::FunctionNode>()) {
