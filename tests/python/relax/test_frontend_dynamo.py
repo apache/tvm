@@ -525,7 +525,9 @@ def test_getitem():
 
     class Select2(Module):
         def forward(self, input1):
-            result = input1[torch.arange(1),]
+            result = input1[
+                torch.arange(1),
+            ]
             return result
 
     verify_dynamo_model(
