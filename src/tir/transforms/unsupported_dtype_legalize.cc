@@ -351,21 +351,23 @@ class ComputeLegalizer : public StmtExprMutator {
         return AttrStmt(it->second, op->attr_key, op->value, op->body);
       }
     } else if (auto reducer = op->node.as<CommReducerNode>()) {
-      auto legalized_identity_elements = reducer->identity_element.Map([this](PrimExpr expr) { return this->VisitExpr(expr); });
+      auto legalized_identity_elements =
+          reducer->identity_element.Map([this](PrimExpr expr) { return this->VisitExpr(expr); });
 
       // Remap input variables
       for (size_t i = 0; i < legalized_identity_elements.size(); i++) {
-          Var lhs_var = reducer->lhs[i];
-          if (lhs_var.dtype() != legalized_identity_elements[i].dtype()) {
-            var_remap_[lhs_var] = lhs_var.copy_with_dtype(legalized_identity_elements[i].dtype());
-          }
-          Var rhs_var = reducer->rhs[i];
-          if (rhs_var.dtype() != legalized_identity_elements[i].dtype()) {
-            var_remap_[rhs_var] = rhs_var.copy_with_dtype(legalized_identity_elements[i].dtype());
-          }
+        Var lhs_var = reducer->lhs[i];
+        if (lhs_var.dtype() != legalized_identity_elements[i].dtype()) {
+          var_remap_[lhs_var] = lhs_var.copy_with_dtype(legalized_identity_elements[i].dtype());
+        }
+        Var rhs_var = reducer->rhs[i];
+        if (rhs_var.dtype() != legalized_identity_elements[i].dtype()) {
+          var_remap_[rhs_var] = rhs_var.copy_with_dtype(legalized_identity_elements[i].dtype());
+        }
       }
 
-      auto legalized_results = reducer->result.Map([this](PrimExpr expr) { return this->VisitExpr(expr); });
+      auto legalized_results =
+          reducer->result.Map([this](PrimExpr expr) { return this->VisitExpr(expr); });
 
       auto legalized_lhs = reducer->lhs.Map([this](Var var) {
         auto it = var_remap_.find(var);
@@ -382,7 +384,9 @@ class ComputeLegalizer : public StmtExprMutator {
         }
         return var;
       });
-      return AttrStmt(CommReducer(legalized_lhs, legalized_rhs, legalized_results, legalized_identity_elements, reducer->span), op->attr_key, op->value, op->body);
+      return AttrStmt(CommReducer(legalized_lhs, legalized_rhs, legalized_results,
+                                  legalized_identity_elements, reducer->span),
+                      op->attr_key, op->value, op->body);
     }
     return ret;
   }

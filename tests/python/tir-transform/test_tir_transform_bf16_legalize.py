@@ -16,9 +16,10 @@
 # under the License.
 import tvm
 import tvm.script
-from tvm.target import Target
 from tvm.script import tir as T
+from tvm.target import Target
 from tvm.tir.transform.transform import BindTarget
+
 
 def u16tof32(v):
     uint32_v = v.astype("uint32")
@@ -40,6 +41,7 @@ def f32tou16(v):
 
 def f32tobf16(v):
     return T.reinterpret("bfloat16", f32tou16(v))
+
 
 def test_bf16_storage_compute_scope_will_legalize():
     def get_before():
@@ -109,6 +111,7 @@ def test_bf16_storage_compute_scope_will_legalize():
     tvm.ir.assert_structural_equal(after_compute, BindTarget(target)(after_compute_legalize()))
     tvm.ir.assert_structural_equal(after_storage, BindTarget(target)(after_storage_legalize()))
 
+
 def test_bf16_storage_compute_scope_wont_legalize():
     def get_before():
         @tvm.script.ir_module
@@ -177,6 +180,7 @@ def test_bf16_storage_compute_scope_wont_legalize():
     tvm.ir.assert_structural_equal(after_compute, BindTarget(target)(after_compute_legalize()))
     tvm.ir.assert_structural_equal(after_storage, BindTarget(target)(after_storage_legalize()))
 
+
 def test_bf16_reduce_will_legalize():
     def get_before():
         @tvm.script.ir_module
@@ -228,7 +232,13 @@ def test_bf16_reduce_will_legalize():
                     ):
                         T.tvm_thread_allreduce(
                             T.uint32(1),
-                            T.reinterpret("float32", T.shift_left(T.Cast("uint32", T.reinterpret("uint16", A_flat_1[0])), T.uint32(16))),
+                            T.reinterpret(
+                                "float32",
+                                T.shift_left(
+                                    T.Cast("uint32", T.reinterpret("uint16", A_flat_1[0])),
+                                    T.uint32(16),
+                                ),
+                            ),
                             T.bool(True),
                             reduce[0],
                             threadIdx_x,
@@ -257,7 +267,13 @@ def test_bf16_reduce_will_legalize():
                     ):
                         T.tvm_thread_allreduce(
                             T.uint32(1),
-                            T.reinterpret("float32", T.shift_left(T.Cast("uint32", T.reinterpret("uint16", A_flat_1[0])), T.uint32(16))),
+                            T.reinterpret(
+                                "float32",
+                                T.shift_left(
+                                    T.Cast("uint32", T.reinterpret("uint16", A_flat_1[0])),
+                                    T.uint32(16),
+                                ),
+                            ),
                             T.bool(True),
                             reduce[0],
                             threadIdx_x,
@@ -271,6 +287,7 @@ def test_bf16_reduce_will_legalize():
     after_storage = tvm.tir.transform.BF16StorageLegalize()(after_compute)
     tvm.ir.assert_structural_equal(after_compute, BindTarget(target)(after_compute_legalize()))
     tvm.ir.assert_structural_equal(after_storage, BindTarget(target)(after_storage_legalize()))
+
 
 def test_bf16_reduce_wont_legalize():
     def get_before():
@@ -366,6 +383,7 @@ def test_bf16_reduce_wont_legalize():
     after_storage = tvm.tir.transform.BF16StorageLegalize()(after_compute)
     tvm.ir.assert_structural_equal(after_compute, BindTarget(target)(after_compute_legalize()))
     tvm.ir.assert_structural_equal(after_storage, BindTarget(target)(after_storage_legalize()))
+
 
 if __name__ == "__main__":
     test_bf16_storage_compute_scope_will_legalize()
