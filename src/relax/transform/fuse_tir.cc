@@ -644,14 +644,6 @@ class FusedTIRConstructor : public ExprVisitor {
     // Step 1. Get Global var and PrimFunc
     GlobalVar gv = Downcast<GlobalVar>(call->args[0]);
     tir::PrimFunc prim_func_ = Downcast<tir::PrimFunc>(mod_->Lookup(gv));
-    if (prim_func_->GetAttr<Attrs>("op_attrs")) {
-      func_info_.op_attrs.push_back(prim_func_->GetAttr<Attrs>("op_attrs").value());
-    }
-
-    if (prim_func_->GetAttr<Integer>("op_pattern")) {
-      auto op_pattern = prim_func_->GetAttr<Integer>("op_pattern").value();
-      func_info_.op_pattern.push_back(static_cast<int>(op_pattern.IntValue()));
-    }
 
     // Step 2. Renew all vars/buffer definitions and blocks to avoid duplication
     tir::PrimFunc prim_func = tir::RenewDefs(prim_func_);
@@ -969,14 +961,6 @@ class FusedTIRConstructor : public ExprVisitor {
   tir::PrimFunc ConstructFunc() {
     ffi::Map<ffi::String, Any> attr_map;
     attr_map.Set(tir::attr::kNoAlias, true);
-    if (!func_info_.op_attrs.empty()) {
-      attr_map.Set("op_attrs", func_info_.op_attrs);
-    }
-    if (!func_info_.op_pattern.empty()) {
-      int op_pattern = relay::kOpaque;
-      op_pattern = *max_element(func_info_.op_pattern.begin(), func_info_.op_pattern.end());
-      attr_map.Set("op_pattern", Integer(static_cast<int>(op_pattern)));
-    }
     tir::FuseTIRBufferSubstitutor subst(func_info_.buffer_subst_map, func_info_.symbolic_var_remap);
     ICHECK(func_info_.global_name != "fused");
     // Remove output buffers from func_info_.alloc_buffers
@@ -1028,8 +1012,6 @@ class FusedTIRConstructor : public ExprVisitor {
     ffi::Array<tir::Buffer> alloc_buffers;
     /*! \brief The bodies of the original funcs, which is also the body of the fused func. */
     ffi::Array<tir::Stmt> bodies;
-    ffi::Array<Attrs> op_attrs;
-    std::vector<int> op_pattern;
     /*! \brief The params of the fused function*/
     ffi::Array<tir::Var> params;
     /*!
