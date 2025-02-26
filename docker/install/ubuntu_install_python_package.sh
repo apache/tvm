@@ -42,4 +42,4 @@ pip3 install --upgrade \
     junitparser==2.4.2 \
     six \
     tornado \
-    ml_dtypes
+    "ml_dtypes>=0.5.1"
