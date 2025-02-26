@@ -94,7 +94,7 @@ def verify(mod, expected):
         mod = tvm.relax.transform.FuseTIR()(mod)
         mod = tvm.relax.transform.DeadCodeElimination()(mod)
         mod = tvm.relax.transform.AnnotateTIROpPattern()(mod)
-        mod = tvm.relax.transform.OptimizeToDeviceForScopeChange()(mod)
+        mod = tvm.relax.transform.OptimizeToVDeviceForScopeChange()(mod)
         mod = tvm.relax.transform.DeadCodeElimination()(mod)
         mod = tvm.relax.transform.SpecializePrimFuncBasedOnCallSite()(mod)
         mod = tvm.relax.transform.Normalize()(mod)
