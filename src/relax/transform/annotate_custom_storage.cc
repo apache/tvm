@@ -619,7 +619,7 @@ class DefineVDevice : ExprMutator {
 
 namespace transform {
 
-Pass RemoveToDeviceForScopeChange() {
+Pass OptimizeToDeviceForScopeChange() {
   auto pass_func = [=](Function func, IRModule mod, PassContext pc) {
     /* here Target doesn't matter as the scope_info we use only to find multiple consumers */
     auto info = CollectConsumerScopeInfo().Collect(mod, Downcast<Function>(func), Target("opencl"));
@@ -627,10 +627,10 @@ Pass RemoveToDeviceForScopeChange() {
     auto [pattern, rewriter] = CreatePatterns(scope_info);
     return RewriteCall(pattern, rewriter, func);
   };
-  return CreateFunctionPass(pass_func, 1, "RemoveToDeviceForScopeChange", {});
+  return CreateFunctionPass(pass_func, 1, "OptimizeToDeviceForScopeChange", {});
 }
-TVM_REGISTER_GLOBAL("relax.transform.RemoveToDeviceForScopeChange")
-    .set_body_typed(RemoveToDeviceForScopeChange);
+TVM_REGISTER_GLOBAL("relax.transform.OptimizeToDeviceForScopeChange")
+    .set_body_typed(OptimizeToDeviceForScopeChange);
 
 Pass RemoveRedundantAssignments() {
   runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =

@@ -1637,15 +1637,30 @@ def SpecializePrimFuncBasedOnCallSite() -> tvm.ir.transform.Pass:
     return _ffi_api.SpecializePrimFuncBasedOnCallSite()  # type: ignore
 
 
-def RemoveToDeviceForScopeChange() -> tvm.ir.transform.Pass:
-    """This pass
+def OptimizeToDeviceForScopeChange() -> tvm.ir.transform.Pass:
+    """This pass is a texture specific pass that can optimize unnecessary to_device copies.
+    Like texture_scope -> ToVDevice -> global scope. In this case the producer can directly
+    store into global scope avoiding unnecessary device copy.
 
     Returns
     -------
     ret: tvm.ir.transform.Pass
         The registered pass for allocating workspace.
     """
-    return _ffi_api.RemoveToDeviceForScopeChange()  # type: ignore
+    return _ffi_api.OptimizeToDeviceForScopeChange()  # type: ignore
+
+
+def RemoveRedundantAssignments() -> tvm.ir.transform.Pass:
+    """ This pass removes redundant assignment statements. These stmts are result of other pass
+    like hint_on_device processed by RealizeVDevice may leave them. The subsequent pass like
+    fuse_ops fail to fuse in this case
+
+    Returns
+    -------
+    ret: tvm.ir.transform.Pass
+        The registered pass for allocating workspace.
+    """
+    return _ffi_api.RemoveRedundantAssignments()  # type: ignore
 
 
 def _wrap_class_function_pass(pass_cls, pass_info):
