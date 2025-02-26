@@ -84,16 +84,17 @@ def verify(mod, expected):
         mod = tvm.relax.transform.LegalizeOps(skip_ops=skip_ops)(mod)
         mod = tvm.relax.transform.AnnotateTIROpPattern()(mod)
         mod = tvm.relax.transform.AnnotateCustomMemoryScope(tgt)(mod)
-        mod = tvm.relax.transform.LegalizeOps()(mod)  # To handle any fallback ops
+        # There is apossibility of some skipped ops above might not use 5D layouts. 
+        mod = tvm.relax.transform.LegalizeOps()(mod)
         mod = tvm.relax.transform.LegalizeOps(
             {"relax.nn.conv2d": legalize_adreno.conv2d_NCHWc_OIHWo},
         )(mod)
+        # Lets get pattern info for newly legalized ops
         mod = tvm.relax.transform.AnnotateTIROpPattern()(mod)
         mod = tvm.relax.transform.FoldConstant()(mod)
         mod = tvm.relax.transform.FuseOps()(mod)
         mod = tvm.relax.transform.FuseTIR()(mod)
         mod = tvm.relax.transform.DeadCodeElimination()(mod)
-        mod = tvm.relax.transform.AnnotateTIROpPattern()(mod)
         mod = tvm.relax.transform.OptimizeToVDeviceForScopeChange()(mod)
         mod = tvm.relax.transform.DeadCodeElimination()(mod)
         mod = tvm.relax.transform.SpecializePrimFuncBasedOnCallSite()(mod)
