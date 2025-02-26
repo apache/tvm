@@ -699,7 +699,7 @@ TVM_DLL Pass AnnotateCustomMemoryScope(Target target);
 TVM_DLL Pass SpecializePrimFuncBasedOnCallSite();
 
 /*!
- *\brief This pass removes redundant assignment statements. These stmts are result of other pass
+ * \brief This pass removes redundant assignment statements. These stmts are result of other pass
  * like hint_on_device processed by RealizeVDevice may leave them. The subsequent pass like
  * fuse_ops fail to fuse in this case.
  */
@@ -710,7 +710,7 @@ TVM_DLL Pass RemoveRedundantAssignments();
  * Like texture_scope -> ToVDevice -> global scope. In this case the producer can directly
  * store into global scope avoiding unnecessary device copy.
  */
-TVM_DLL Pass OptimizeToDeviceForScopeChange();
+TVM_DLL Pass OptimizeToVDeviceForScopeChange();
 
 }  // namespace transform
 }  // namespace relax
