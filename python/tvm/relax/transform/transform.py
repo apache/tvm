@@ -1651,7 +1651,7 @@ def OptimizeToVDeviceForScopeChange() -> tvm.ir.transform.Pass:
 
 
 def RemoveRedundantAssignments() -> tvm.ir.transform.Pass:
-    """ This pass removes redundant assignment statements. These stmts are result of other pass
+    """This pass removes redundant assignment statements. These stmts are result of other pass
     like hint_on_device processed by RealizeVDevice may leave them. The subsequent pass like
     fuse_ops fail to fuse in this case
 

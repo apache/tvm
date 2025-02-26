@@ -18,7 +18,9 @@
  */
 /*!
  * \file src/relax/transform/annotate_texture_storage.cc
- * \brief Texture Storage Annotation Pass.
+ * \brief Texture Storage Annotation Pass for Adreno GPU targets.
+ *
+ * Texture scope annotation and realization for Adreno GPU targets goes by
  */
 
 #include <tvm/node/serialization.h>
@@ -47,105 +49,12 @@ static Array<PrimExpr> GetShapeFromTensorStructInfo(const TensorStructInfo& tens
   return shape.value();
 }
 
-class CollectProduserScopeInfo : public ExprVisitor {
- public:
-  using ExprVisitor::VisitExpr_;
-
-  Map<Expr, StructInfo> Collect(const IRModule& mod, Function func,
-                                const Map<Expr, Map<Expr, Array<String>>>& scope_info,
-                                const Target& target, const BlockBuilder& builder) {
-    mod_ = mod;
-    scope_info_ = scope_info;
-    target_ = target;
-    builder_ = builder;
-    VisitExpr(func->body);
-
-    return producer_sinfo;
-  }
-
-  void VisitBinding_(const VarBindingNode* binding, const CallNode* call) final {
-    ExprVisitor::VisitBinding_(binding, call);
-
-    static const Op& call_tir_op = Op::Get("relax.call_tir");
-    StructInfo out_sinfo;
-
-    if (call->op == call_tir_op) {
-      out_sinfo = call->sinfo_args[0];
-    } else {
-      tvm::OpAttrMap<FInferStructInfo> op_map_infer_struct_info_ =
-          Op::GetAttrMap<FInferStructInfo>("FInferStructInfo");
-
-      auto* op_ptr = call->op.as<OpNode>();
-      Op op = GetRef<Op>(op_ptr);
-      ICHECK(op_map_infer_struct_info_.count(op))
-          << " Cannot find the FInferStructInfo attribute registered to op: " << op->name;
-      out_sinfo = op_map_infer_struct_info_[op](GetRef<Call>(call), builder_);
-    }
-
-    std::unordered_map<String, int> scope_count;
-
-    // Decide the final scope based on the max consumer demand. Rest will use to_device.
-    auto arg_var = binding->var.as<VarNode>();
-    if (scope_info_.find(GetRef<Expr>(arg_var)) != scope_info_.end()) {
-      for (const auto& val : scope_info_[GetRef<Expr>(arg_var)]) {
-        auto call_node = Downcast<Call>(val.first);
-        if (scope_count.find(val.second[0]) == scope_count.end()) {
-          scope_count.insert({val.second[0], 1});
-        } else {
-          auto curr_count = scope_count[val.second[0]];
-          scope_count.emplace(val.second[0], curr_count + 1);
-        }
-      }
-    }
-    String final_scope = "global";
-    int count = 0;
-    for (const auto& sval : scope_count) {
-      if (sval.second > count) {
-        final_scope = sval.first;
-        count = sval.second;
-      }
-    }
-    // Applying same scope for outputs
-    StructInfo updated_ret_sinfo = UpdateStructInfo(out_sinfo, {final_scope});
-    producer_sinfo.Set(GetRef<Expr>(call), updated_ret_sinfo);
-  }
-
- private:
-  StructInfo UpdateStructInfo(const StructInfo& out_sinfo, Array<String> scope) {
-    if (out_sinfo->IsInstance<TensorStructInfoNode>()) {
-      auto tensor_sinfo = Downcast<TensorStructInfo>(out_sinfo);
-      auto shape_arr = GetShapeFromTensorStructInfo(tensor_sinfo);
-      return TensorStructInfo(ShapeExpr(shape_arr), tensor_sinfo->dtype,
-                              VDevice(target_, 0, scope[0]));
-    }
-
-    ICHECK(out_sinfo->IsInstance<TupleStructInfoNode>())
-        << "Expect output struct info of call_tir to be either TupleStructInfo or "
-           "TensorStructInfo, but got "
-        << out_sinfo;
-
-    const auto& tuple_sinfo = Downcast<TupleStructInfo>(out_sinfo);
-    Array<StructInfo> sinfo_fields;
-    for (const auto& si : tuple_sinfo->fields) {
-      ICHECK(si->IsInstance<TensorStructInfoNode>())
-          << "Fields of TupleStructInfo must be TensorStructInfo for call_tir "
-             "output structinfo, but got "
-          << si;
-      auto sinfo = Downcast<TensorStructInfo>(si);
-      auto shape_arr = GetShapeFromTensorStructInfo(sinfo);
-      sinfo_fields.push_back(
-          TensorStructInfo(ShapeExpr(shape_arr), sinfo->dtype, VDevice(target_, 0, scope[0])));
-    }
-    return TupleStructInfo(sinfo_fields);
-  }
-
-  Map<Expr, Map<Expr, Array<String>>> scope_info_;
-  Map<Expr, StructInfo> producer_sinfo;
-  IRModule mod_;
-  Target target_;
-  BlockBuilder builder_;
-};
-
+/*
+ * \brief generates consumer information for each var
+ * \return scope_info is a map which contain for each var the corresponding call nodes that
+ * consume it and corresponding scope it expects this input to be.
+ * \return call_scope_info is a map of each call_node and array holding scope infor for each input.
+ */
 class CollectConsumerScopeInfo : public ExprVisitor {
  public:
   using ExprVisitor::VisitExpr_;
@@ -305,12 +214,124 @@ class CollectConsumerScopeInfo : public ExprVisitor {
 
   /* Map of each Var consumption by a call node and its scope */
   Map<Expr, Map<Expr, Array<String>>> scope_info;
-  /* A map of call node and cope infor for each argument it consunes */
+  /* A map of call node and scope info for each argument it consunes */
   Map<Expr, Array<String>> call_scope_info;
   Map<Expr, Expr> arg_to_binding;
   IRModule mod_;
   Target target_;
 };
+
+/*
+ * \brief producer scope information consolidated based on consumer demands.
+ * \return producer_info which is a map of each call node and corresponding out StructInfo
+ * This pass considers all consumers and their scope demand.
+ * Any mismatches here introduces copies as needed.
+ */
+class CollectProduserScopeInfo : public ExprVisitor {
+ public:
+  using ExprVisitor::VisitExpr_;
+
+  Map<Expr, StructInfo> Collect(const IRModule& mod, Function func,
+                                const Map<Expr, Map<Expr, Array<String>>>& scope_info,
+                                const Target& target, const BlockBuilder& builder) {
+    mod_ = mod;
+    scope_info_ = scope_info;
+    target_ = target;
+    builder_ = builder;
+    VisitExpr(func->body);
+
+    return producer_sinfo;
+  }
+
+  void VisitBinding_(const VarBindingNode* binding, const CallNode* call) final {
+    ExprVisitor::VisitBinding_(binding, call);
+
+    static const Op& call_tir_op = Op::Get("relax.call_tir");
+    StructInfo out_sinfo;
+
+    if (call->op == call_tir_op) {
+      out_sinfo = call->sinfo_args[0];
+    } else {
+      tvm::OpAttrMap<FInferStructInfo> op_map_infer_struct_info_ =
+          Op::GetAttrMap<FInferStructInfo>("FInferStructInfo");
+
+      auto* op_ptr = call->op.as<OpNode>();
+      Op op = GetRef<Op>(op_ptr);
+      ICHECK(op_map_infer_struct_info_.count(op))
+          << " Cannot find the FInferStructInfo attribute registered to op: " << op->name;
+      out_sinfo = op_map_infer_struct_info_[op](GetRef<Call>(call), builder_);
+    }
+
+    std::unordered_map<String, int> scope_count;
+
+    // Decide the final scope based on the max consumer demand. Rest will use to_device.
+    auto arg_var = binding->var.as<VarNode>();
+    if (scope_info_.find(GetRef<Expr>(arg_var)) != scope_info_.end()) {
+      for (const auto& val : scope_info_[GetRef<Expr>(arg_var)]) {
+        auto call_node = Downcast<Call>(val.first);
+        if (scope_count.find(val.second[0]) == scope_count.end()) {
+          scope_count.insert({val.second[0], 1});
+        } else {
+          auto curr_count = scope_count[val.second[0]];
+          scope_count.emplace(val.second[0], curr_count + 1);
+        }
+      }
+    }
+    String final_scope = "global";
+    int count = 0;
+    for (const auto& sval : scope_count) {
+      if (sval.second > count) {
+        final_scope = sval.first;
+        count = sval.second;
+      }
+    }
+    // Applying same scope for outputs
+    StructInfo updated_ret_sinfo = UpdateStructInfo(out_sinfo, {final_scope});
+    producer_sinfo.Set(GetRef<Expr>(call), updated_ret_sinfo);
+  }
+
+ private:
+  StructInfo UpdateStructInfo(const StructInfo& out_sinfo, Array<String> scope) {
+    if (out_sinfo->IsInstance<TensorStructInfoNode>()) {
+      auto tensor_sinfo = Downcast<TensorStructInfo>(out_sinfo);
+      auto shape_arr = GetShapeFromTensorStructInfo(tensor_sinfo);
+      return TensorStructInfo(ShapeExpr(shape_arr), tensor_sinfo->dtype,
+                              VDevice(target_, 0, scope[0]));
+    }
+
+    ICHECK(out_sinfo->IsInstance<TupleStructInfoNode>())
+        << "Expect output struct info of call_tir to be either TupleStructInfo or "
+           "TensorStructInfo, but got "
+        << out_sinfo;
+
+    const auto& tuple_sinfo = Downcast<TupleStructInfo>(out_sinfo);
+    Array<StructInfo> sinfo_fields;
+    for (const auto& si : tuple_sinfo->fields) {
+      ICHECK(si->IsInstance<TensorStructInfoNode>())
+          << "Fields of TupleStructInfo must be TensorStructInfo for call_tir "
+             "output structinfo, but got "
+          << si;
+      auto sinfo = Downcast<TensorStructInfo>(si);
+      auto shape_arr = GetShapeFromTensorStructInfo(sinfo);
+      sinfo_fields.push_back(
+          TensorStructInfo(ShapeExpr(shape_arr), sinfo->dtype, VDevice(target_, 0, scope[0])));
+    }
+    return TupleStructInfo(sinfo_fields);
+  }
+
+  Map<Expr, Map<Expr, Array<String>>> scope_info_;
+  Map<Expr, StructInfo> producer_sinfo;
+  IRModule mod_;
+  Target target_;
+  BlockBuilder builder_;
+};
+
+/*
+ * \brief main pass that injects hint_on_device for each argument based on producer,
+ * consumer indormations. This also attributes ret StructInfo for each call node.
+ * This pass also calls the ReliaseVdevice that formalizes the hints by appropriately injecting
+ * Vdevice copies as needed.
+ */
 
 class DefineVDevice : ExprMutator {
  public:
