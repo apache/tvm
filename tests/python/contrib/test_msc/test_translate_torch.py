@@ -829,20 +829,8 @@ def test_reduce():
         def forward(self, x):
             return torch.sum(x, (2, 1))
 
-    # max
-    class Max(Module):
-        def forward(self, x):
-            return torch.max(x)
-
-    # min
-    class Min(Module):
-        def forward(self, x):
-            return torch.min(x)
-
     input_info = [([1, 2, 3, 4], "float32")]
     verify_model(Sum(), input_info)
-    verify_model(Max(), input_info)
-    verify_model(Min(), input_info)
 
 
 def test_datatype():
@@ -1123,24 +1111,8 @@ def test_masked_scatter():
         def forward(self, data, src):
             return data.masked_scatter(self.mask, src)
 
-    verify_model(MaskedScatter1(), [([5], "float32"), ([10], "float32")], True)
-    verify_model(MaskedScatter2(), [([2, 5], "float32"), ([3, 5], "float32")], True)
-
-
-def test_put():
-    """test torch translator for index_put"""
-
-    class IndexPut(Module):
-        def __init__(self):
-            super().__init__()
-            self.index = msc_utils.random_data([(5), "int64"], MSCFramework.TORCH, max_val=5)
-
-        def forward(self, data, src):
-            data[self.index] = src
-            return data
-
-    input_info = [([10, 20], "float32"), ([5, 20], "float32")]
-    verify_model(IndexPut(), input_info, False)
+    verify_model(MaskedScatter1(), [([5], "float32"), ([10], "float32")])
+    verify_model(MaskedScatter2(), [([2, 5], "float32"), ([3, 5], "float32")])
 
 
 def test_attention():

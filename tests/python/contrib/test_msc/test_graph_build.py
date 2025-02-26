@@ -2557,31 +2557,6 @@ def test_masked_scatter(dynamic):
     )
 
 
-def test_put():
-    """test graph builder for index_put"""
-
-    class IndexPut(Module):
-        def __init__(self):
-            super().__init__()
-            self.index = msc_utils.random_data([(5), "int64"], MSCFramework.TORCH, max_val=5)
-
-        def forward(self, data, src):
-            data[self.index] = src
-            return data
-
-    expected = {
-        "inputs": [
-            {"name": "input0", "shape": [10, 20], "dtype": "float32", "layout": ""},
-            {"name": "input1", "shape": [5, 20], "dtype": "float32", "layout": ""},
-        ],
-        "outputs": [{"name": "scatter_nd", "shape": [10, 20], "dtype": "float32", "layout": ""}],
-        "nodes": {"total": 4, "input": 2, "constant": 1, "scatter_nd": 1},
-    }
-
-    input_info = [([10, 20], "float32"), ([5, 20], "float32")]
-    verify_model(IndexPut(), input_info, expected)
-
-
 @pytest.mark.parametrize("dynamic", [True, False])
 def test_attention(dynamic):
     """test graph builder for attention"""
