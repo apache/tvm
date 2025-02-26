@@ -31,11 +31,6 @@ def default_tir_pipeline():
         pass_ctx = tvm.transform.PassContext.current()
         config = pass_ctx.config
         passes = [
-            tir.transform.InjectPrefetch(),
-            tir.transform.TextureFlatten(),
-            tir.transform.StorageFlatten(
-                64, bool(config.get("tir.instrument_bound_checkers", False))
-            ),
             tir.transform.LowerCrossThreadReduction(),
             tir.transform.LowerInitBlock(),
             tir.transform.PlanAndUpdateBufferAllocationLocation(),

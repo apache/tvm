@@ -141,8 +141,7 @@ int CodeGenStackVM::GetVarID(const VarNode* v) const {
 
 void CodeGenStackVM::VisitExpr_(const BufferLoadNode* op) {
   ICHECK_EQ(op->indices.size(), 1) << "StackVM expects flat 1-d buffers.  "
-                                   << "Has StorageFlatten (TE-based schedules) or "
-                                   << "FlattenBuffer (TIR-based schedules) been run?";
+                                   << "Has FlattenBuffer  been run?";
   auto index = op->indices[0];
 
   this->Push(op->buffer->data);
@@ -160,8 +159,7 @@ void CodeGenStackVM::VisitExpr_(const BufferLoadNode* op) {
 
 void CodeGenStackVM::VisitStmt_(const BufferStoreNode* op) {
   ICHECK_EQ(op->indices.size(), 1) << "StackVM expects flat 1-d buffers.  "
-                                   << "Has StorageFlatten (TE-based schedules) or "
-                                   << "FlattenBuffer (TIR-based schedules) been run?";
+                                   << "Has FlattenBuffer been run?";
   auto index = op->indices[0];
 
   this->Push(op->buffer->data);

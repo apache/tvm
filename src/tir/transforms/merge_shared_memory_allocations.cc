@@ -350,7 +350,7 @@ class SharedMemoryRewriter : public StmtExprMutator {
       ICHECK_EQ(node->indices.size(), 1)
           << "MergeSharedMemoryAllocations expects flat memory buffers, "
           << "and is to be run after "
-          << "StorageFlatten (TE schedules) or FlattenBuffer (TIR schedules)";
+          << "FlattenBuffer";
       Array<PrimExpr> indices = {node->indices[0] +
                                  this->GetBufferOffset(node->buffer->data, node->buffer->dtype)};
 

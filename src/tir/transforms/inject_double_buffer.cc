@@ -110,8 +110,7 @@ class DoubleBufferInjector : public StmtExprMutator {
       entry.scope = GetPtrStorageScope(op->buffer_var);
 
       ICHECK_EQ(op->extents.size(), 1) << "InjectDoubleBuffer expects flat 1-d buffers.  "
-                                       << "Has StorageFlatten (TE-based schedules) or "
-                                       << "FlattenBuffer (TIR-based schedules) been run?";
+                                       << "Has FlattenBuffer (TIR-based schedules) been run?";
       entry.stride = op->extents[0];
       Stmt stmt = StmtExprMutator::VisitStmt_(op);
       op = stmt.as<AllocateNode>();
@@ -188,8 +187,7 @@ class DoubleBufferInjector : public StmtExprMutator {
       ICHECK(e.switch_write_var.defined());
 
       ICHECK_EQ(node->indices.size(), 1) << "InjectDoubleBuffer expects flat 1-d buffers.  "
-                                         << "Has StorageFlatten (TE-based schedules) or "
-                                         << "FlattenBuffer (TIR-based schedules) been run?";
+                                         << "Has FlattenBuffer (TIR-based schedules) been run?";
 
       auto writer = node.CopyOnWrite();
       writer->buffer = GetRemappedBuffer(node->buffer, e.stride);
@@ -208,8 +206,7 @@ class DoubleBufferInjector : public StmtExprMutator {
       ICHECK(e.switch_read_var.defined());
 
       ICHECK_EQ(node->indices.size(), 1) << "InjectDoubleBuffer expects flat 1-d buffers.  "
-                                         << "Has StorageFlatten (TE-based schedules) or "
-                                         << "FlattenBuffer (TIR-based schedules) been run?";
+                                         << "Has FlattenBuffer (TIR-based schedules) been run?";
 
       auto writer = node.CopyOnWrite();
       writer->buffer = GetRemappedBuffer(node->buffer, e.stride);
@@ -228,12 +225,11 @@ class DoubleBufferInjector : public StmtExprMutator {
 
     ICHECK(stride.defined());
     // TODO(Lunderberg): Move this pass to before
-    // StorageFlatten/FlattenBuffer.  That will simplify the
+    // FlattenBuffer.  That will simplify the
     // implementation, to be the insertion of a new dimension for the
     // buffer, rather than adjusting the other indices.
     ICHECK_EQ(buf->shape.size(), 1) << "InjectDoubleBuffer expects flat 1-d buffers.  "
-                                    << "Has StorageFlatten (TE-based schedules) or "
-                                    << "FlattenBuffer (TIR-based schedules) been run?";
+                                    << "Has FlattenBuffer (TIR-based schedules) been run?";
 
     // Stride gives the distance between the two halves of the
     // double-buffer, not the stride of the buffer's index.

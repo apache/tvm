@@ -48,112 +48,6 @@ def Apply(ftransform):
     return _fpass.prim_func_pass(_transform, opt_level=0, name="Apply")  # type: ignore
 
 
-def InjectPrefetch():
-    """Inject prefetch instructions into stmt.
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.InjectPrefetch()  # type: ignore
-
-
-def ApplyLayoutTransforms():
-    """Reshape buffers that appear in the "layout_transform_map"
-    fucntion attribute.
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-
-    """
-    return _ffi_api.ApplyLayoutTransforms()  # type: ignore
-
-
-def StorageFlatten(cache_line_size, create_bound_attribute: bool = False):
-    """Flatten the multi-dimensional read/write to 1D.
-
-
-    Parameters
-    ----------
-    cache_line_size: int
-        The size of CPU cache line.
-
-    create_bound_attribute:
-        Whether to create bound attributes.
-
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.StorageFlatten(cache_line_size, create_bound_attribute)  # type: ignore
-
-
-def TextureFlatten():
-    """Flatten the multi-dimensional read/write to 2D.
-
-
-    Parameters
-    ----------
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.TextureFlatten()  # type: ignore
-
-
-def InjectCopyIntrin(pragma_key: str, fintrin):
-    """Inject virtual thread loops.
-
-    Parameters
-    ----------
-    pragma_key : str
-        The pragma key for hint of copy.
-
-    fintrin : function
-        The function with signature copyintrin(src, dst, pad_before, pad_after, pad_value)
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.InjectCopyIntrin(pragma_key, fintrin)  # type: ignore
-
-
-def CoProcSync():
-    """Detect and insert sync points to co-processor.
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.CoProcSync()  # type: ignore
-
-
-def LiftAttrScope(attr_key: str):
-    """Lift common attrs with attr_key to outer scope.
-
-    Parameters
-    ----------
-    attr_key : str
-        The attribute key to be checked.
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.LiftAttrScope(attr_key)  # type: ignore
-
-
 def LoopPartition():
     """Inject virtual thread loops.
 
@@ -682,7 +576,7 @@ def NarrowDataType(target_bits: int):
 
     Note
     ----
-    Run this pass after StorageFlatten.
+    Run this pass after FlattenBuffer.
     """
     return _ffi_api.NarrowDataType(target_bits)  # type: ignore
 
