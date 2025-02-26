@@ -24,7 +24,7 @@ from tvm.target import Target
 from tvm.tir import IterVar
 from tvm.tir.schedule.schedule import BlockRV
 
-from ..base import analysis, BlockInfo, IterInfo
+from ..analysis import BlockInfo, IterInfo
 from .base import AdrenoScheduleRule
 
 
