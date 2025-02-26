@@ -23,11 +23,11 @@
 
 #include <tvm/node/serialization.h>
 #include <tvm/relax/attrs/op.h>
+#include <tvm/relax/dataflow_matcher.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/nested_msg.h>
 #include <tvm/relax/op_attr_types.h>
 #include <tvm/relax/transform.h>
-#include <tvm/relax/dataflow_matcher.h>
 #include <tvm/tir/index_map.h>
 
 #include <tuple>
@@ -48,7 +48,8 @@ static Array<PrimExpr> GetShapeFromTensorStructInfo(const TensorStructInfo& tens
 }
 
 namespace {
-std::tuple<DFPattern, TypedPackedFunc<Expr(Expr, Map<DFPattern, Expr>)>> CreatePatterns(Map<Expr, Map<Expr, Array<String>>> scope_info) {
+std::tuple<DFPattern, TypedPackedFunc<Expr(Expr, Map<DFPattern, Expr>)>> CreatePatterns(
+    Map<Expr, Map<Expr, Array<String>>> scope_info) {
   auto pat_gv = WildcardPattern();
 
   auto pat_inp = WildcardPattern();
@@ -56,7 +57,7 @@ std::tuple<DFPattern, TypedPackedFunc<Expr(Expr, Map<DFPattern, Expr>)>> CreateP
   auto pattern_out = IsOp("relax.to_vdevice")(pat_call_tir);
 
   auto rewriter = [=](Expr expr, Map<DFPattern, Expr> matches) -> Expr {
-    const auto* call_tir  = matches[pat_call_tir].as<CallNode>();
+    const auto* call_tir = matches[pat_call_tir].as<CallNode>();
     ICHECK(call_tir) << "InternalError: "
                      << "Match of relax.call_tir operator should produce Call, "
                      << "but instead produces " << matches[pat_call_tir] << " with type "
@@ -71,8 +72,7 @@ std::tuple<DFPattern, TypedPackedFunc<Expr(Expr, Map<DFPattern, Expr>)>> CreateP
     const auto* vdev_attrs = out->attrs.as<ToVDeviceAttrs>();
     ICHECK(vdev_attrs) << "InternalError: "
                        << "Attributes for relax.to_vdevice operator should be ToVDeviceAttrs, "
-                       << "but were instead " << out->attrs << " with type "
-                       << out->GetTypeKey();
+                       << "but were instead " << out->attrs << " with type " << out->GetTypeKey();
 
     const auto* tir_out_sinfo = call_tir->sinfo_args[0].as<TensorStructInfoNode>();
     if (!tir_out_sinfo) return expr;
@@ -87,12 +87,12 @@ std::tuple<DFPattern, TypedPackedFunc<Expr(Expr, Map<DFPattern, Expr>)>> CreateP
       }
     }
 
-    if ((std::string(tir_out_sinfo->vdevice.value()->memory_scope).find("texture") != std::string::npos) &&
+    if ((std::string(tir_out_sinfo->vdevice.value()->memory_scope).find("texture") !=
+         std::string::npos) &&
         (vdev_attrs->dst_vdevice->memory_scope == "global")) {
-      LOG(WARNING) << "Can be optimized";
       auto shape_arr = tir_out_sinfo->GetShape().value();
-      auto new_sinfo = TensorStructInfo(ShapeExpr(shape_arr), tir_out_sinfo->dtype,
-                                        vdev_attrs->dst_vdevice);
+      auto new_sinfo =
+          TensorStructInfo(ShapeExpr(shape_arr), tir_out_sinfo->dtype, vdev_attrs->dst_vdevice);
 
       return Call(call_tir->op, call_tir->args, call_tir->attrs, {new_sinfo});
     }
@@ -126,19 +126,16 @@ class RemoveRedundantAssignments : public ExprMutator {
   }
 
   void VisitBinding_(const VarBindingNode* binding, const VarNode* var) final {
-    LOG(WARNING) << "VisitBinding_:" << binding->var.get()->name_hint() << " : " << var->name_hint();
     redundant_map.Set(GetRef<Expr>(binding->var.get()), GetRef<Expr>(var));
   }
 
   void VisitBinding_(const VarBindingNode* binding, const DataflowVarNode* val) override {
-    LOG(WARNING) << "VisitBinding_ - DataFlow:" << binding->var.get()->name_hint() << " : " << static_cast<const VarNode*>(val)->name_hint();
     redundant_map.Set(GetRef<Expr>(binding->var.get()), GetRef<Expr>(val));
   }
 
   Expr VisitExpr_(const CallNode* call_node) final {
     auto call = Downcast<Call>(ExprMutator::VisitExpr_(call_node));
     static const Op& call_tir_op = Op::Get("relax.call_tir");
-    LOG(WARNING) << "VisitExpr_:" << call->op << " Args:" << call->args;
 
     Tuple args;
 
@@ -157,7 +154,8 @@ class RemoveRedundantAssignments : public ExprMutator {
       }
     }
     if (call->op == call_tir_op) {
-      return Call(call_tir_op, {call->args[0], Tuple(new_args)}, call->attrs, {call->sinfo_args[0]});
+      return Call(call_tir_op, {call->args[0], Tuple(new_args)}, call->attrs,
+                  {call->sinfo_args[0]});
     } else {
       if (call->sinfo_args.size() > 0) {
         return Call(call->op, new_args, call->attrs, {call->sinfo_args[0]});
@@ -167,7 +165,7 @@ class RemoveRedundantAssignments : public ExprMutator {
     }
   }
 
-private:
+ private:
   Map<Expr, Expr> redundant_map;
   IRModule updates_;
   IRModule mod_;
@@ -206,7 +204,6 @@ class CollectProduserScopeInfo : public ExprVisitor {
       ICHECK(op_map_infer_struct_info_.count(op))
           << " Cannot find the FInferStructInfo attribute registered to op: " << op->name;
       out_sinfo = op_map_infer_struct_info_[op](GetRef<Call>(call), builder_);
-      LOG(WARNING) << "Got Struct Info for normal op:" << out_sinfo.as<TensorStructInfo>();
     }
 
     std::unordered_map<String, int> scope_count;
@@ -282,7 +279,6 @@ class CollectConsumerScopeInfo : public ExprVisitor {
     mod_ = mod;
     target_ = target;
     VisitExpr(func->body);
-      LOG(WARNING) << "Visit completed";
     // Extend the scope for tuple items
     for (const auto& val : arg_to_binding) {
       if (scope_info.find(val.first) != scope_info.end()) {
@@ -313,7 +309,7 @@ class CollectConsumerScopeInfo : public ExprVisitor {
     static const Op& call_tir_op = Op::Get("relax.call_tir");
     GlobalVar gv;
     Array<Attrs> op_attrs;
-    Optional<Integer> op_pattern = Integer(static_cast<int>(relay::kOpaque));
+    Optional<Integer> op_pattern = Integer(static_cast<int>(OpPatternKind::kOpaque));
     Tuple func_args;
 
     if (call->op == call_tir_op) {
@@ -323,27 +319,20 @@ class CollectConsumerScopeInfo : public ExprVisitor {
       op_pattern = ExtractPattern<tir::PrimFunc>(pfunc);
       func_args = Downcast<Tuple>(call->args[1]);
     } else {
-      LOG(WARNING) << "About to access attrs";
       op_attrs = {call->attrs};
-      op_pattern = Integer(static_cast<int>(relay::kOpaque));
+      op_pattern = Integer(static_cast<int>(OpPatternKind::kOpaque));
       func_args = Tuple(call->args);
     }
 
-      LOG(WARNING) << "About to call texture scope";
     bool is_texture_supported = SupportsTexture(op_attrs, op_pattern.value());
-      LOG(WARNING) << "returned  texture scope";
 
     Array<String> arg_scope;
     for (auto arg : func_args->fields) {
-      LOG(WARNING) << "B1";
       auto sinfo = GetStructInfo(arg);
-      LOG(WARNING) << "B2";
       if (auto tensor_sinfo = sinfo.as<TensorStructInfo>()) {
-      LOG(WARNING) << "B3:" << tensor_sinfo;
         auto scope = is_texture_supported
                          ? Scope(GetShapeFromTensorStructInfo(tensor_sinfo.value()))
                          : "global";
-      LOG(WARNING) << "B4";
         Map<Expr, Array<String>> ent_call;
         const VarNode* arg_var = arg.as<VarNode>();
         if (scope_info.find(GetRef<Expr>(arg_var)) != scope_info.end()) {
@@ -352,11 +341,9 @@ class CollectConsumerScopeInfo : public ExprVisitor {
         ent_call.Set(GetRef<Expr>(call), {scope});
         scope_info.Set(GetRef<Expr>(arg_var), ent_call);
         arg_scope.push_back(scope);
-      LOG(WARNING) << "B5";
       }
     }
     call_scope_info.Set(GetRef<Expr>(call), arg_scope);
-      LOG(WARNING) << "B6";
   }
 
  private:
@@ -381,7 +368,7 @@ class CollectConsumerScopeInfo : public ExprVisitor {
   }
 
   bool SupportsTexture(const Array<Attrs>& op_attrs, Integer op_pattern) {
-    if (op_pattern.IntValue() < relay::kCommReduce) return true;
+    if (op_pattern.IntValue() < OpPatternKind::kCommReduce) return true;
 
     for (auto attr : op_attrs) {
       if (auto conv_attr = attr.as<Conv2DAttrs>()) {
@@ -409,8 +396,8 @@ class CollectConsumerScopeInfo : public ExprVisitor {
     // 5d requirement is not limitation of textures in general, it is limitation how
     // we are representing memory scopes/layout and flattening of textures in tir
     if (shape.size() == 5 && shape[4].as<IntImmNode>()->value == 4) {
-      for (auto ind: shape) {
-        if (! ind.as<IntImmNode>()) {
+      for (auto ind : shape) {
+        if (!ind.as<IntImmNode>()) {
           // Dynamic tensors
           return "global.texture-nchw";
         }
@@ -462,11 +449,9 @@ class DefineVDevice : ExprMutator {
         if (base_func->HasNonzeroAttr(attr::kPrimitive)) {
           continue;
         }
-        LOG(WARNING) << "Ccall CollectConsumerScopeInfo";
         auto info = CollectConsumerScopeInfo().Collect(mod_, Downcast<Function>(func), target_);
         call_scope_info_ = info.first;
         scope_info_ = info.second;
-        LOG(WARNING) << "Ccall CollectProducerScopeInfo";
         producer_sinfo_ = CollectProduserScopeInfo().Collect(mod_, Downcast<Function>(func),
                                                              scope_info_, target_, builder_);
         relax::Function update_func = Downcast<Function>(VisitExpr(func));
@@ -481,13 +466,9 @@ class DefineVDevice : ExprMutator {
     }
     mod_.CopyOnWrite()->global_infos.Set("vdevice", global_vdevices_);
 
-    LOG(WARNING) << "MOd After scope:" << mod_;
     mod_ = relax::transform::DeadCodeElimination()(mod_);
     mod_ = relax::transform::RealizeVDevice()(mod_);
-    LOG(WARNING) << "Realized:" << mod_;
     mod_ = relax::transform::RemoveRedundantAssignments()(mod_);
-    LOG(WARNING) << "Redundant Assin:" << mod_;
-    //mod_ = relax::transform::SpecializePrimFuncBasedOnCallSite()(mod_);
 
     return mod_;
   }
@@ -505,12 +486,12 @@ class DefineVDevice : ExprMutator {
 
     if (call->op == call_tir_op) {
       gv = Downcast<GlobalVar>(call->args[0]);
-      //tir::PrimFunc pfunc = Downcast<tir::PrimFunc>(mod_->Lookup(gv));
-      //out_sinfo = call->sinfo_args[0];
+      // tir::PrimFunc pfunc = Downcast<tir::PrimFunc>(mod_->Lookup(gv));
+      // out_sinfo = call->sinfo_args[0];
       func_args = Downcast<Tuple>(call->args[1]);
     } else {
       func_args = Tuple(call->args);
-      //return call;
+      // return call;
     }
 
     Array<Expr> new_args;
@@ -570,10 +551,11 @@ class DefineVDevice : ExprMutator {
       }
     }
 
-    if (call->op == call_tir_op) { 
-        return builder_->Normalize(Call(call_tir_op, {gv, Tuple(new_args)}, call->attrs, {updated_ret_sinfo}));
+    if (call->op == call_tir_op) {
+      return builder_->Normalize(
+          Call(call_tir_op, {gv, Tuple(new_args)}, call->attrs, {updated_ret_sinfo}));
     } else {
-        return builder_->Normalize(Call(call->op, new_args, call->attrs, {updated_ret_sinfo}));
+      return builder_->Normalize(Call(call->op, new_args, call->attrs, {updated_ret_sinfo}));
     }
   }
 
@@ -660,7 +642,6 @@ Pass RemoveRedundantAssignments() {
 }
 TVM_REGISTER_GLOBAL("relax.transform.RemoveRedundantAssignments")
     .set_body_typed(RemoveRedundantAssignments);
-
 
 Pass AnnotateCustomMemoryScope(Target target) {
   runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
