@@ -162,7 +162,7 @@ class LegalizeMutator : public ExprMutator {
     return std::nullopt;
   }
 
-  Expr UpdateVDeviceOutStructInfo(Expr expr, Call& visited_call) {
+  Expr UpdateVDeviceOutStructInfo(Expr expr, const Call& visited_call) {
     static const auto& infer_struct_info_map = Op::GetAttrMap<FInferStructInfo>("FInferStructInfo");
     static const Op& call_tir_op = Op::Get("relax.call_tir");
     auto* op_node = visited_call->op.as<OpNode>();

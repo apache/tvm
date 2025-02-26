@@ -102,8 +102,7 @@ class CollectConsumerDetails : public ExprVisitor {
  public:
   using ExprVisitor::VisitExpr_;
 
-  Map<Expr, Array<Expr>> Collect(
-      const IRModule& mod, Function func, const Target& target) {
+  Map<Expr, Array<Expr>> Collect(const IRModule& mod, Function func, const Target& target) {
     mod_ = mod;
     target_ = target;
     VisitExpr(func->body);
@@ -159,7 +158,6 @@ class CollectConsumerDetails : public ExprVisitor {
   }
 
  private:
-
   /* Map of each Var consumption by a call node */
   Map<Expr, Array<Expr>> consumers;
   Map<Expr, Expr> arg_to_binding;
@@ -172,7 +170,8 @@ namespace transform {
 Pass OptimizeToVDeviceForScopeChange() {
   auto pass_func = [=](Function func, IRModule mod, PassContext pc) {
     /* here Target doesn't matter as the consumers we use only to find multiple consumers */
-    auto consumers = CollectConsumerDetails().Collect(mod, Downcast<Function>(func), Target("opencl"));
+    auto consumers =
+        CollectConsumerDetails().Collect(mod, Downcast<Function>(func), Target("opencl"));
     auto [pattern, rewriter] = CreatePatterns(consumers);
     return RewriteCall(pattern, rewriter, func);
   };
