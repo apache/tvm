@@ -24,7 +24,6 @@
 
 #include <dmlc/memory_io.h>
 #include <tvm/runtime/module.h>
-#include <tvm/runtime/name_transforms.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
