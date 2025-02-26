@@ -40,7 +40,7 @@ namespace tvm {
 namespace tir {
 
 // TODO(Lunderberg): Move this pass to be before
-// StorageFlatten/FlattenBuffer.  That will simplify this pass,
+// FlattenBuffer.  That will simplify this pass,
 // because it can check directly against the buffer limits.
 class BoundCollector : public StmtVisitor {
  public:
