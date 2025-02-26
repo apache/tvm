@@ -1117,7 +1117,7 @@ def test_same_buffer_multiple_read():
                 (T.int64(2), T.int64(64), T.int64(64), T.int64(4)), "float32"
             ),
         ):
-            T.func_attr({"op_pattern": 2, "tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": T.bool(True)})
             T_concat_handle_intermediate = T.alloc_buffer(
                 (T.int64(2), T.int64(4), T.int64(64), T.int64(64))
             )
@@ -1307,7 +1307,7 @@ def test_tuple_input_unused_field():
                 (T.int64(4), T.int64(8), T.int64(32), T.int64(64)), "float32"
             ),
         ):
-            T.func_attr({"op_pattern": 2, "tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": T.bool(True)})
             # with T.block("root"):
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(4), T.int64(8), T.int64(32), T.int64(64)):
                 with T.block("T_reshape"):
