@@ -59,20 +59,6 @@ The steps involved are as follows:
    can be altered using LWP config options as described above.
 2) Create `HexagonProfiler` object
 
-```
-with tvm.transform.PassContext(opt_level=3, config={"tir.instrument_lwp": True}):
-    lowered = tvm.relay.build(
-        relay_mod,
-        tvm.target.Target(target_hexagon, host=target_hexagon),
-        ...
-    )
-
-    # Create HexagonProfiler object. It sets the profiling mode based on the PassContext config.
-    # '--hexagon-debug' to pytest can be used to retain any temp or test directories to
-    # inspect the profiling data.
-    profiler = HexagonProfiler(lowered, hexagon_server_process, hexagon_debug)
-```
-
 4) Run the model and get the profiling data as a CSV file. It is done by post-processing
    'lwp.json' file generated during runtime.
 
