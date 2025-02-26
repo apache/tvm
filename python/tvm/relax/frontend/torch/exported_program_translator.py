@@ -264,6 +264,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                 relax.op.expand_dims(self.env[node.args[0]], node.args[1])
             ),
             "view.default": self._reshape,
+            "reshape.default": self._reshape,
             # tensor creation
             "_to_copy.default": self._to_copy,
             "arange.start": self._arange,
