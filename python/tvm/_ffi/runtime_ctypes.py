@@ -233,6 +233,8 @@ if ml_dtypes is not None:
     DataType.NUMPY2STR[np.dtype(ml_dtypes.float8_e4m3fn)] = "e4m3_float8"
     DataType.NUMPY2STR[np.dtype(ml_dtypes.float8_e5m2)] = "e5m2_float8"
 
+    DataType.STR2DTYPE["bfloat16"] = {"type_code": DataTypeCode.BFLOAT, "bits": 16, "lanes": 1}
+
 RPC_SESS_MASK = 128
 
 

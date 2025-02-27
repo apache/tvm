@@ -120,6 +120,8 @@ class DataType {
   bool is_bool() const { return code() == DataType::kUInt && bits() == 1; }
   /*! \return whether type is a float type. */
   bool is_float() const { return code() == DataType::kFloat; }
+  /*! \return whether type is a bfloat type. */
+  bool is_bfloat() const { return code() == DataType::kBFloat; }
   /*! \return whether type is a float8 type. */
   bool is_float8() const {
     return (code() == DataType::kFloat || code() == DataType::kE4M3Float ||

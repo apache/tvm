@@ -1457,6 +1457,7 @@ e5m2_float8x16 = func_gen(("E5M2Float8x16"))
 e5m2_float8x32 = func_gen(("E5M2Float8x32"))
 e5m2_float8x64 = func_gen(("E5M2Float8x64"))
 
+bfloat16 = func_gen(("BFloat16"))
 # pylint: enable=invalid-name
 
 
@@ -1953,7 +1954,6 @@ tvm_call_cpacked_lowered = call_cpacked_lowered
 
 # pylint: enable=invalid-name
 
-
 __all__ = [
     "int8",
     "int16",
@@ -2033,6 +2033,7 @@ __all__ = [
     "float16x64",
     "float32x64",
     "float64x64",
+    "bfloat16",
     "buffer",
     "buffer_decl",
     "prim_func",

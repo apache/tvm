@@ -994,8 +994,8 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
     var_idmap_[inverse_index_map->initial_indices[1].get()] = "local_id";
 
     os << "for (int local_id = 0; local_id < 8; ++local_id) {\n";
-    os << dst << "[" + this->PrintExpr(dst_ind) + "]"
-       << " = " << src << "[" << src_offset << " + local_id];\n";
+    os << dst << "[" + this->PrintExpr(dst_ind) + "]" << " = " << src << "[" << src_offset
+       << " + local_id];\n";
     os << "}\n";
 
   } else if (op->op.same_as(builtin::mma_fill())) {
@@ -1542,7 +1542,7 @@ void CodeGenCUDA::PrintVecElemLoadExpr(DataType t, int i, const std::string& val
       os << '(';
     }
     if (i % 2 == 0) {
-      os << "__pack_bfloat162(" << value;
+      os << "__pack_nv_bfloat162(" << value;
     } else {
       os << "," << value << ")";
       if (i != t.lanes() - 1) {
