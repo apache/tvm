@@ -191,7 +191,9 @@ class LlamaAttention(nn.Module):  # pylint: disable=too-many-instance-attributes
         qkv = op.reshape(qkv, (b, s, h_q + h_kv + h_kv, d))
         # Attention
         output = op.reshape(
-            paged_kv_cache.attention_with_fused_qkv(layer_id, qkv, self.num_q_heads),
+            paged_kv_cache.attention_with_fused_qkv(
+                layer_id, qkv, self.num_q_heads, sm_scale=self.head_dim**-0.5
+            ),
             (b, s, h_q * d),
         )
         # Output Projection
@@ -285,6 +287,7 @@ class LlamaForCasualLM(nn.Module):
         page_size: tir.Var,
     ) -> PagedKVCache:
         return TIRPagedKVCache(
+            attn_kind="mha",
             max_batch_size=max_batch_size,
             max_total_seq_len=max_total_seq_len,
             prefill_chunk_size=prefill_chunk_size,
@@ -294,7 +297,10 @@ class LlamaForCasualLM(nn.Module):
             num_hidden_layers=self.num_hidden_layers,
             num_attention_heads=self.num_attention_heads,
             num_key_value_heads=self.num_key_value_heads,
-            head_dim=self.head_dim,
+            qk_head_dim=self.head_dim,
+            v_head_dim=self.head_dim,
+            mla_original_qk_head_dim=0,
+            mla_original_v_head_dim=0,
             rope_mode=RopeMode.NORMAL,
             rope_scale=1,
             rope_theta=self.rope_theta,

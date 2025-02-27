@@ -21,11 +21,14 @@ from typing import Dict, List, Optional, Tuple, Union
 import numpy as np
 import pytest
 import scipy.special
+import torch
 
 import tvm
 import tvm.testing
 from tvm import dlight as dl
 from tvm.relax.frontend.nn.llm.kv_cache import (
+    AttnKind,
+    RopeMode,
     _attention_decode,
     _attention_prefill,
     _attention_prefill_ragged,
@@ -62,11 +65,14 @@ num_layers = 4
 num_qo_heads = 32
 num_kv_heads = 4
 head_dim = None
+sm_scale = None
 rope_scale = 1.0
 rope_theta = 1e4
 rope_scaling = {}
 dtype = None
+dtype_torch = None
 device = tvm.cuda(rank)
+device_torch = torch.device(f"cuda:{rank}")
 
 fclear = None
 fadd_sequence = None
@@ -147,7 +153,7 @@ def set_global_func(head_dim, dtype):
         _attention_prefill(num_kv_heads, num_qo_heads, head_dim, dtype, True, rope_scaling, target),
         _attention_decode(num_kv_heads, num_qo_heads, head_dim, dtype, True, rope_scaling, target),
         _attention_prefill_ragged(
-            num_kv_heads, num_qo_heads, head_dim, dtype, rope_scaling, target
+            num_kv_heads, num_qo_heads, head_dim, head_dim, dtype, rope_scaling, target
         ),
         tree_attn(num_kv_heads, num_qo_heads, head_dim, dtype, rope_scaling, target),
         tree_attn_with_paged_kv_cache(
@@ -184,7 +190,7 @@ def set_global_func(head_dim, dtype):
 
 
 def create_kv_cache(head_dim, dtype, rope_mode, support_sliding_window):
-    fcreate = tvm.get_global_func("vm.builtin.paged_attention_kv_cache_create_reduced")
+    fcreate = tvm.get_global_func("vm.builtin.paged_attention_kv_cache_create")
     cache = fcreate(
         tvm.runtime.ShapeTuple(
             [
@@ -199,39 +205,31 @@ def create_kv_cache(head_dim, dtype, rope_mode, support_sliding_window):
         num_qo_heads,
         num_kv_heads,
         head_dim,
+        head_dim,  # v_head_dim
+        tvm.runtime.ShapeTuple([int(AttnKind.MHA) for _ in range(num_layers)]),
+        False,  # enable_kv_transfer
         rope_mode,
         rope_scale,
         rope_theta,
+        None,  # rope_ext_factors
         tvm.nd.empty((), dtype, device=device),
         ftranspose_append,
-        fattn_prefill,
-        fattn_decode,
-        fattn_prefill_sliding_window,
-        fattn_decode_sliding_window,
-        fattn_prefill_ragged,
-        fmerge_state,
+        None,  # f_transpose_append_mla
+        ["tir", fattn_prefill_ragged],
+        ["tir", fattn_prefill],
+        ["tir", fattn_decode],
+        ["tir", fattn_prefill_sliding_window],
+        ["tir", fattn_decode_sliding_window],
+        ["tir", fattn_prefill_with_tree_mask_paged_kv_cache],
+        ["tir", fattn_prefill_with_tree_mask],
+        [],  # f_mla_prefill
+        [fmerge_state],
         fsplit_rotary,
         fcopy_single_page,
         fcopy_cache,
         fcompact_copy,
-        fattn_prefill_with_tree_mask,
-        fattn_prefill_with_tree_mask_paged_kv_cache,
-        None,
-        True,
     )
     return cache
-
-
-class RopeMode(enum.IntEnum):
-    """The RoPE mode of the Paged KV cache.
-    If it is none, the KV cache will not apply RoPE to q and k.
-    If it is normal, RoPE will be applied to k before adding k to cache.
-    Otherwise, RoPE will be applied to q/k in attention kernel on-the-fly.
-    """
-
-    NONE = 0
-    NORMAL = 1
-    INLINE = 2
 
 
 @pytest.fixture(
@@ -251,8 +249,9 @@ class RopeMode(enum.IntEnum):
     )
 )
 def kv_cache_and_config(request):
-    global head_dim, dtype
+    global head_dim, sm_scale, dtype
     head_dim, dtype, rope_mode, support_sliding_window = request.param
+    sm_scale = head_dim ** (-0.5)
     set_global_func(head_dim, dtype)
     return create_kv_cache(*request.param), rope_mode, support_sliding_window
 
@@ -266,8 +265,12 @@ def verify_cached_kv(kv_cache, seq_ids, expected_k, expected_v):
         keys = tvm.nd.empty(keys_expected.shape, dtype=dtype, device=device)
         values = tvm.nd.empty(values_expected.shape, dtype=dtype, device=device)
         fdebug_get_kv(kv_cache, seq_id, 0, seq_length, keys, values)
-        tvm.testing.assert_allclose(keys.numpy(), keys_expected, rtol=1e-3, atol=1e-3)
-        tvm.testing.assert_allclose(values.numpy(), values_expected, rtol=1e-3, atol=1e-3)
+        torch.testing.assert_close(
+            torch.from_numpy(keys.numpy()).to(device_torch), keys_expected, rtol=1e-3, atol=1e-3
+        )
+        torch.testing.assert_close(
+            torch.from_numpy(values.numpy()).to(device_torch), values_expected, rtol=1e-3, atol=1e-3
+        )
 
 
 def f_apply_rotary(x, offset, scale, theta, offset_list: Optional[List[int]] = None):
@@ -275,29 +278,34 @@ def f_apply_rotary(x, offset, scale, theta, offset_list: Optional[List[int]] = N
     assert len(x.shape) == 3
     nfeat = x.shape[-1]
     nfeat_half = x.shape[-1] // 2
-    x = x.astype("float32")
-    y = np.concatenate([-x[:, :, nfeat_half:], x[:, :, :nfeat_half]], axis=-1)
+    x_dtype = x.dtype
+    x = x.to(torch.float32)
+    y = torch.cat([-x[:, :, nfeat_half:], x[:, :, :nfeat_half]], dim=-1)
 
-    inv_freq = scale / (theta ** (np.arange(0, nfeat, 2).astype("float32") / nfeat))
-    t = (
-        np.arange(offset, offset + x.shape[0], dtype=inv_freq.dtype)
-        if offset_list is None
-        else (np.array(offset_list, dtype=inv_freq.dtype) + offset)
+    inv_freq = scale / (
+        theta ** (torch.arange(0, nfeat, 2, device=device_torch, dtype=torch.float32) / nfeat)
     )
-    freqs = np.einsum("i,j->ij", t, inv_freq)
-    emb = np.concatenate((freqs, freqs), axis=-1)
-    cos_values = np.cos(emb)
-    sin_values = np.sin(emb)
+    t = (
+        torch.arange(offset, offset + x.shape[0], device=device_torch, dtype=inv_freq.dtype)
+        if offset_list is None
+        else (torch.tensor(offset_list, dtype=inv_freq.dtype, device=device_torch) + offset)
+    )
+    freqs = torch.einsum("i,j->ij", t, inv_freq)
+    emb = torch.cat((freqs, freqs), dim=-1)
+    cos_values = torch.cos(emb)
+    sin_values = torch.sin(emb)
 
-    return np.einsum("ij,ikj->ikj", cos_values, x) + np.einsum("ij,ikj->ikj", sin_values, y)
+    return torch.einsum("ij,ikj->ikj", cos_values, x).to(x_dtype) + torch.einsum(
+        "ij,ikj->ikj", sin_values, y
+    ).to(x_dtype)
 
 
 def apply_attention(
     kv_cache,
     rope_mode: RopeMode,
     batch: List[Tuple[Union[int, Tuple[int, int, int]], int]],
-    cached_k: Dict[int, np.ndarray],
-    cached_v: Dict[int, np.ndarray],
+    cached_k: Dict[int, torch.Tensor],
+    cached_v: Dict[int, torch.Tensor],
     sliding_window_sizes: Optional[List[int]] = None,
     attn_sink_sizes: Optional[List[int]] = None,
     token_tree_parent_ptr_list: Optional[List[List[int]]] = None,
@@ -329,8 +337,12 @@ def apply_attention(
         elif seq_id not in cached_k:
             if not only_update_host and not skip_add_sequence:
                 fadd_sequence(kv_cache, seq_id)
-            cached_k[seq_id] = np.zeros((num_layers, 0, num_kv_heads, head_dim), dtype)
-            cached_v[seq_id] = np.zeros((num_layers, 0, num_kv_heads, head_dim), dtype)
+            cached_k[seq_id] = torch.zeros(
+                (num_layers, 0, num_kv_heads, head_dim), dtype=dtype_torch, device=device_torch
+            )
+            cached_v[seq_id] = torch.zeros(
+                (num_layers, 0, num_kv_heads, head_dim), dtype=dtype_torch, device=device_torch
+            )
 
     flattened_token_tree_parent_ptr = None
     token_tree_node_depths_list: List[Optional[List[int]]] = [None for _ in batch]
@@ -353,6 +365,7 @@ def apply_attention(
                 )
             # depth of each node in the tree (this contains more than the last `append_length` nodes)
             token_tree_node_depths_list[i] = token_tree_node_depths
+
     if not only_update_host:
         fbegin_forward(
             kv_cache,
@@ -365,15 +378,45 @@ def apply_attention(
             ),
         )
 
-    global_new_q = np.zeros((num_layers, 0, num_qo_heads, head_dim), dtype)
-    global_new_k = np.zeros((num_layers, 0, num_kv_heads, head_dim), dtype)
-    global_new_v = np.zeros((num_layers, 0, num_kv_heads, head_dim), dtype)
+    global_new_q = torch.zeros(
+        (num_layers, 0, num_qo_heads, head_dim), dtype=dtype_torch, device=device_torch
+    )
+    global_new_k = torch.zeros(
+        (num_layers, 0, num_kv_heads, head_dim), dtype=dtype_torch, device=device_torch
+    )
+    global_new_v = torch.zeros(
+        (num_layers, 0, num_kv_heads, head_dim), dtype=dtype_torch, device=device_torch
+    )
 
     q_array = []
     for i, (seq_id, append_length) in enumerate(batch):
-        new_q = np.random.rand(num_layers, append_length, num_qo_heads, head_dim).astype(dtype)
-        new_k = np.random.rand(num_layers, append_length, num_kv_heads, head_dim).astype(dtype)
-        new_v = np.random.rand(num_layers, append_length, num_kv_heads, head_dim).astype(dtype)
+        new_q = torch.rand(
+            num_layers,
+            append_length,
+            num_qo_heads,
+            head_dim,
+            dtype=dtype_torch,
+            device=device_torch,
+        )
+        new_k = torch.rand(
+            num_layers,
+            append_length,
+            num_kv_heads,
+            head_dim,
+            dtype=dtype_torch,
+            device=device_torch,
+        )
+        new_v = torch.rand(
+            num_layers,
+            append_length,
+            num_kv_heads,
+            head_dim,
+            dtype=dtype_torch,
+            device=device_torch,
+        )
+        new_q = new_q * 2 - 1
+        new_k = new_k * 2 - 1
+        new_v = new_v * 2 - 1
         q_array.append(new_q)
 
         rope_offset = cached_k[seq_id].shape[1]
@@ -381,10 +424,10 @@ def apply_attention(
             prev_tree_size = len(token_tree_parent_ptr_list[i]) - append_length
             assert prev_tree_size >= 0
             rope_offset -= prev_tree_size
-        cached_k[seq_id] = np.concatenate(
+        cached_k[seq_id] = torch.cat(
             [
                 cached_k[seq_id],
-                np.stack(
+                torch.stack(
                     [
                         (
                             new_k[l]
@@ -403,27 +446,27 @@ def apply_attention(
                         )
                         for l in range(num_layers)
                     ],
-                    axis=0,
+                    dim=0,
                 ),
             ],
-            axis=1,
+            dim=1,
         )
-        cached_v[seq_id] = np.concatenate([cached_v[seq_id], new_v], axis=1)
-        global_new_q = np.concatenate([global_new_q, new_q], axis=1)
-        global_new_k = np.concatenate([global_new_k, new_k], axis=1)
-        global_new_v = np.concatenate([global_new_v, new_v], axis=1)
+        cached_v[seq_id] = torch.cat([cached_v[seq_id], new_v], dim=1)
+        global_new_q = torch.cat([global_new_q, new_q], dim=1)
+        global_new_k = torch.cat([global_new_k, new_k], dim=1)
+        global_new_v = torch.cat([global_new_v, new_v], dim=1)
 
     for layer_id in range(num_layers):
         queries_np = global_new_q[layer_id]
         keys_np = global_new_k[layer_id]
         values_np = global_new_v[layer_id]
-        qkv = tvm.nd.array(np.concatenate([queries_np, keys_np, values_np], axis=1), device)
+        qkv = tvm.nd.array(torch.cat([queries_np, keys_np, values_np], dim=1).cpu().numpy(), device)
         outputs = tvm.nd.empty(queries_np.shape, dtype, device=device)
         if not only_update_host:
-            fattention_with_fuse_qkv(kv_cache, layer_id, 1.0, qkv, outputs)
+            fattention_with_fuse_qkv(kv_cache, layer_id, sm_scale, qkv, outputs)
 
         # Compute attention expected results.
-        outputs = np.expand_dims(outputs.numpy(), axis=0)
+        outputs = torch.from_numpy(outputs.numpy()).unsqueeze(0).to(device_torch)
         sum_length = 0
         for i, (seq_id, append_length) in enumerate(batch):
             assert cached_k[seq_id].shape[1] == cached_v[seq_id].shape[1] >= append_length
@@ -447,7 +490,7 @@ def apply_attention(
                         else None
                     ),
                 )
-            ).transpose(1, 0, 2)
+            ).permute(1, 0, 2)
             k_seq = (
                 cached_k[seq_id][layer_id]
                 if rope_mode != RopeMode.INLINE
@@ -465,41 +508,48 @@ def apply_attention(
                         else None
                     ),
                 )
-            ).transpose(1, 2, 0)
-            v_seq = cached_v[seq_id][layer_id].transpose(1, 0, 2)
+            ).permute(1, 2, 0)
+            v_seq = cached_v[seq_id][layer_id].permute(1, 0, 2)
 
-            k_seq = np.repeat(k_seq, num_qo_heads // num_kv_heads, axis=0)
-            v_seq = np.repeat(v_seq, num_qo_heads // num_kv_heads, axis=0)
-            softmax_input = (q_seq.astype("float32") @ k_seq.astype("float32")) / np.sqrt(head_dim)
+            k_seq = k_seq.repeat_interleave(num_qo_heads // num_kv_heads, dim=0)
+            v_seq = v_seq.repeat_interleave(num_qo_heads // num_kv_heads, dim=0)
+            softmax_input = (q_seq.to(torch.float32) @ k_seq.to(torch.float32)) / (head_dim**0.5)
             softmax_shape = softmax_input.shape
             assert softmax_shape[-2] == append_length
             length_diff = softmax_shape[-1] - softmax_shape[-2]
             assert length_diff >= 0
-            mask = np.tril(
-                np.full_like(softmax_input, np.finfo("float32").max), k=length_diff
-            ) + np.triu(np.full_like(softmax_input, np.finfo("float32").min), k=length_diff + 1)
+            mask = torch.tril(
+                torch.full_like(softmax_input, torch.finfo(torch.float32).max), diagonal=length_diff
+            ) + torch.triu(
+                torch.full_like(softmax_input, torch.finfo(torch.float32).min),
+                diagonal=length_diff + 1,
+            )
             if token_tree_parent_ptr_list is not None:
                 tree_size = len(token_tree_parent_ptr_list[i])
-                tree_mask = np.full(
-                    (tree_size, tree_size), np.finfo("float32").min, dtype="float32"
+                tree_mask = torch.full(
+                    (tree_size, tree_size),
+                    torch.finfo(torch.float32).min,
+                    dtype=torch.float32,
+                    device=device_torch,
                 )
                 for i, parent in enumerate(token_tree_parent_ptr_list[i]):
                     if parent != -1:
                         tree_mask[i] = tree_mask[parent]
-                    tree_mask[i, i] = np.finfo("float32").max
-                tree_mask = np.broadcast_to(tree_mask, (num_qo_heads, *tree_mask.shape))
+                    tree_mask[i, i] = torch.finfo(torch.float32).max
+                tree_mask = tree_mask.expand(num_qo_heads, *tree_mask.shape)
                 mask[:, :, -tree_size:] = tree_mask[:, -append_length:, :]
 
-            softmax_input = np.minimum(softmax_input, mask)
+            softmax_input = torch.minimum(softmax_input, mask)
 
-            results = np.expand_dims(
-                (scipy.special.softmax(softmax_input, axis=-1) @ v_seq.astype("float32")).transpose(
-                    1, 0, 2
-                ),
-                axis=0,
-            ).astype(dtype)
+            results = torch.unsqueeze(
+                (
+                    torch.nn.functional.softmax(softmax_input, dim=-1) @ v_seq.to(torch.float32)
+                ).permute(1, 0, 2),
+                dim=0,
+            ).to(dtype_torch)
+
             if not only_update_host:
-                tvm.testing.assert_allclose(
+                torch.testing.assert_close(
                     outputs[:, sum_length : sum_length + append_length, ...],
                     results,
                     rtol=1e-3,
@@ -549,19 +599,19 @@ def apply_attention(
             if cached_k[seq_id].shape[1] > sliding_window_size:
                 # Apply sliding window and sink to cached kv.
                 length_to_slide = cached_k[seq_id].shape[1] - sliding_window_size
-                cached_k[seq_id] = np.concatenate(
+                cached_k[seq_id] = torch.cat(
                     [
                         cached_k[seq_id][:, :attn_sink_size, ...],
                         cached_k[seq_id][:, attn_sink_size + length_to_slide :, ...],
                     ],
-                    axis=1,
+                    dim=1,
                 )
-                cached_v[seq_id] = np.concatenate(
+                cached_v[seq_id] = torch.cat(
                     [
                         cached_v[seq_id][:, :attn_sink_size, ...],
                         cached_v[seq_id][:, attn_sink_size + length_to_slide :, ...],
                     ],
-                    axis=1,
+                    dim=1,
                 )
                 assert cached_k[seq_id].shape[1] == sliding_window_size
 
