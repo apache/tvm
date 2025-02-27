@@ -30,9 +30,8 @@
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
-ci_lint = 'tlcpack/ci_lint:20250225-035137-aeadc31c'
-ci_gpu = 'tlcpack/ci_gpu:20250225-035137-aeadc31c'
-ci_cpu = 'tlcpack/ci_cpu:20250225-035137-aeadc31c'
+ci_gpu = 'tlcpack/ci-gpu:20250226-223225-63bc315f'
+ci_cpu = 'tlcpack/ci-cpu:20250226-223225-63bc315f'
 // <--- End of regex-scanned config.
 
 // Parameters to allow overriding (in Jenkins UI), the images
@@ -40,7 +39,6 @@ ci_cpu = 'tlcpack/ci_cpu:20250225-035137-aeadc31c'
 // over default values above.
 properties([
   parameters([
-    string(name: 'ci_lint_param', defaultValue: ''),
     string(name: 'ci_cpu_param',  defaultValue: ''),
     string(name: 'ci_gpu_param',  defaultValue: '')
   ])
@@ -165,13 +163,11 @@ def lint(node_type) {
   stage('Prepare') {
     node(node_type) {
       // When something is provided in ci_*_param, use it, otherwise default with ci_*
-      ci_lint = params.ci_lint_param ?: ci_lint
       ci_cpu = params.ci_cpu_param ?: ci_cpu
       ci_gpu = params.ci_gpu_param ?: ci_gpu
 
       sh(script: """
         echo "Docker images being used in this build:"
-        echo " ci_lint = ${ci_lint}"
         echo " ci_cpu  = ${ci_cpu}"
         echo " ci_gpu  = ${ci_gpu}"
         """, label: 'Docker image names')
