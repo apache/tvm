@@ -30,7 +30,7 @@
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
-ci_gpu = 'tlcpack/ci-gpu:20250226-223225-63bc315f'
+ci_gpu = 'tlcpack/ci-gpu:20250226-223225-63bc315f_patch'
 ci_cpu = 'tlcpack/ci-cpu:20250226-223225-63bc315f'
 // <--- End of regex-scanned config.
 
