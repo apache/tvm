@@ -577,9 +577,7 @@ class DefineVDevice : ExprMutator {
     mod_.CopyOnWrite()->global_infos.Set("vdevice", global_vdevices_);
 
     mod_ = relax::transform::DeadCodeElimination()(mod_);
-    LOG(WARNING) << "RealizeVDevice:" << mod_;
     mod_ = relax::transform::RealizeVDevice()(mod_);
-    LOG(WARNING) << "RealizeVDevice after:" << mod_;
     mod_ = relax::transform::RemoveRedundantAssignments()(mod_);
 
     return mod_;
