@@ -66,6 +66,7 @@ def test_single_buffer():
             W_rewrite: T.Buffer((4, 4, 56, 56), "float32"),
             Out: T.Buffer((224, 224), "float32"),
         ):
+            T.func_attr({"layout_free_buffers": [1]})
             for i0, j0, i1, j1 in T.grid(4, 4, 56, 56):
                 with T.block("Out"):
                     vi = T.axis.spatial(224, i0 * 56 + i1)
@@ -77,6 +78,7 @@ def test_single_buffer():
             W: T.Buffer((224, 224), "float32"),
             W_rewrite: T.Buffer((4, 4, 56, 56), "float32"),
         ):
+            T.func_attr({"layout_free_buffers": [1]})
             for i, j in T.grid(224, 224):
                 with T.block("W_rewrite"):
                     vi, vj = T.axis.remap("SS", [i, j])
