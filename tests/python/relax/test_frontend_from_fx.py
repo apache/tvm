@@ -1989,6 +1989,44 @@ def test_extended_unary_ops():
     verify_model(Dropout1(), input_info, {}, expected_dropout)
     verify_model(Dropout2(), input_info, {}, expected_dropout)
 
+    # elu
+    class Elu(Module):
+        def __init__(self):
+            super().__init__()
+            self.elu = torch.nn.ELU()
+
+        def forward(self, input):
+            return self.elu(input)
+
+    class Elu2(Module):
+        def forward(self, input):
+            return torch.nn.functional.elu(input)
+
+    @tvm.script.ir_module
+    class expected_elu:
+        @R.function
+        def main(
+                input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
+        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
+            # block 0
+            with R.dataflow():
+                lv_exp: R.Tensor((1, 3, 10, 10), dtype="float32") = R.exp(input_1)
+                lv_one_minus_exp: R.Tensor((1, 3, 10, 10), dtype="float32") = R.subtract(
+                    R.const(1.0, dtype="float32"), lv_exp
+                )
+                lv_relu_one_minus_exp: R.Tensor((1, 3, 10, 10), dtype="float32") = R.nn.relu(lv_one_minus_exp)
+                lv_scaled: R.Tensor((1, 3, 10, 10), dtype="float32") = R.multiply(
+                    R.const(1.0, dtype="float32"), lv_relu_one_minus_exp
+                )
+                lv_relu_x: R.Tensor((1, 3, 10, 10), dtype="float32") = R.nn.relu(input_1)
+                lv_elu: R.Tensor((1, 3, 10, 10), dtype="float32") = R.add(lv_scaled, lv_relu_x)
+                gv: R.Tensor((1, 3, 10, 10), dtype="float32") = lv_elu
+                R.output(gv)
+            return gv
+
+    verify_model(Elu(), input_info, {}, expected_elu)
+    verify_model(Elu2(), input_info, {}, expected_elu)
+
     # gelu
     class Gelu(Module):
         def __init__(self):
@@ -2085,6 +2123,36 @@ def test_extended_unary_ops():
 
     verify_model(Hardswish(), input_info, {}, expected_hardswish)
     verify_model(Hardswish2(), input_info, {}, expected_hardswish)
+
+    # hardtanh
+    class Hardtanh(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.ht = torch.nn.Hardtanh()
+
+        def forward(self, input):
+            return self.ht(input)
+
+    class Hardtanh2(torch.nn.Module):
+        def forward(self, input):
+            return torch.nn.functional.hardtanh(input)
+
+    @tvm.script.ir_module
+    class expected1:
+        @R.function
+        def main(
+                inp_0: R.Tensor((1, 3, 10, 10), dtype="float32")
+        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.clip(
+                    inp_0, R.prim_value(T.float64(-1.0)), R.prim_value(T.float64(1.0))
+                )
+                gv: R.Tensor((1, 3, 10, 10), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    verify_model(Hardtanh(), input_info, {}, expected1)
+    verify_model(Hardtanh2(), input_info, {}, expected1)
 
     # logical_not
     class LogicalNot(Module):
@@ -3730,6 +3798,23 @@ def test_masked_scatter():
         {},
         expected2,
     )
+
+
+def test_is_floating_point():
+    class IsFloatingPoint(Module):
+        def forward(self, x):
+            return torch.is_floating_point(x)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(inp_0: R.Tensor((2, 3), dtype="float32")) -> R.Tensor((), dtype="bool"):
+            with R.dataflow():
+                gv: R.Tensor((), dtype="bool") = R.const(True, "bool")
+                R.output(gv)
+            return gv
+
+    verify_model(IsFloatingPoint(), [([2, 3], "float32")], {}, Expected)
 
 
 if __name__ == "__main__":
