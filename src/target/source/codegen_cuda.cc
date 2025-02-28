@@ -533,22 +533,40 @@ void CodeGenCUDA::PrintVecBinaryOp(const std::string& op, DataType t, PrimExpr l
     std::string vlhs = SSAGetID(PrintExpr(lhs), lhs.dtype());
     std::string vrhs = SSAGetID(PrintExpr(rhs), rhs.dtype());
 
-    for (int i = 0, lanes = t.lanes(); i < lanes; ++i) {
+    if (t.is_float8()) {
       std::ostringstream value_temp;
-      if (isalpha(op[0])) {
-        value_temp << op << "(";
-        PrintVecElemLoad(vlhs, lhs.dtype(), i, value_temp);
-        value_temp << ", ";
-        PrintVecElemLoad(vrhs, rhs.dtype(), i, value_temp);
-        value_temp << ")";
-      } else {
-        value_temp << "(";
+      std::string fp8_type = (t.is_float8()) ? (t.is_e4m3_float8() ? "e4m3" : "e5m2") : "";
+      std::string fp8_lanes = (t.lanes() == 4) ? "x4" : ((t.lanes() == 2) ? "x2" : "");
+      ICHECK(t.is_e4m3_float8() || t.is_e5m2_float8());
+      value_temp << "__nv_fp8" << fp8_lanes << "_" << fp8_type << "(make_float" << t.lanes() << "";
+      value_temp << "(";
+      for (int i = 0, lanes = t.lanes(); i < lanes; ++i) {
         PrintVecElemLoad(vlhs, lhs.dtype(), i, value_temp);
         value_temp << op;
         PrintVecElemLoad(vrhs, rhs.dtype(), i, value_temp);
-        value_temp << ")";
+        if (i != t.lanes() - 1) {
+          value_temp << ",";
+        }
       }
-      PrintVecElemStore(sret, t, i, value_temp.str());
+      value_temp << "))";
+    } else {
+      for (int i = 0, lanes = t.lanes(); i < lanes; ++i) {
+        std::ostringstream value_temp;
+        if (isalpha(op[0])) {
+          value_temp << op << "(";
+          PrintVecElemLoad(vlhs, lhs.dtype(), i, value_temp);
+          value_temp << ", ";
+          PrintVecElemLoad(vrhs, rhs.dtype(), i, value_temp);
+          value_temp << ")";
+        } else {
+          value_temp << "(";
+          PrintVecElemLoad(vlhs, lhs.dtype(), i, value_temp);
+          value_temp << op;
+          PrintVecElemLoad(vrhs, rhs.dtype(), i, value_temp);
+          value_temp << ")";
+        }
+        PrintVecElemStore(sret, t, i, value_temp.str());
+      }
     }
   }
   EndScope(ssa_scope);
@@ -563,6 +581,7 @@ void CodeGenCUDA::PrintVecElemLoad(const std::string& vec, DataType t, int i,
   }
 
   static const char access[] = {'x', 'y', 'z', 'w'};
+  std::string fp8_type = (t.is_float8()) ? (t.is_e4m3_float8() ? "e4m3" : "e5m2") : "";
   ICHECK(i >= 0 && i < (t.bits() == 8 ? 16 : (t.bits() == 16 || t.bits() == 32) ? 8 : 4));
   if (t.bits() == 8 && (t.is_int() || t.is_uint())) {
     std::string type_name = t.is_int() ? "char" : "unsigned char";
@@ -580,6 +599,9 @@ void CodeGenCUDA::PrintVecElemLoad(const std::string& vec, DataType t, int i,
     }
   } else if (t.is_bfloat16()) {
     os << "((nv_bfloat162*)(&(" << vec << "." << access[i / 2] << ")))->" << access[i % 2];
+  } else if (t.is_float8()) {
+    os << "static_cast<float>(static_cast<__nv_fp8_" << fp8_type << ">((" << vec << ".__x  >> "
+       << i * 8 << ") & 0xFF))";
   } else if (t.lanes() > 4 && t.lanes() <= 8) {
     std::string type_name;
     if (t.bits() == 16) {
@@ -633,6 +655,8 @@ void CodeGenCUDA::PrintVecElemStore(const std::string& vec, DataType t, int i,
   } else if (t.is_bfloat16()) {
     stream << "((nv_bfloat162*)(&(" << vec << "." << access[i / 2] << ")))->" << access[i % 2]
            << " = " << value << ";\n";
+  } else if (t.is_float8()) {
+    stream << vec << ".__x = " << value << ";\n";
   } else if (t.lanes() > 4 && t.lanes() <= 8) {
     std::string type_name;
     if (t.bits() == 16) {
