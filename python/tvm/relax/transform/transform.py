@@ -659,8 +659,8 @@ def BindParams(
         if isinstance(v, np.ndarray):
             v = tvm.nd.array(v)
         assert isinstance(
-            v, tvm.runtime.NDArray
-        ), f"param values are expected to be TVM.NDArray or numpy.ndarray, but got {type(v)}"
+            v, (tvm.runtime.NDArray, tvm.relax.Constant)
+        ), f"param values are expected to be TVM.NDArray, numpy.ndarray or tvm.relax.Constant, but got {type(v)}"
         tvm_params[k] = v
 
     return _ffi_api.BindParams(func_name, tvm_params)  # type: ignore
