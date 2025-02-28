@@ -127,6 +127,30 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             )
         return self.block_builder.emit(relax.op.clip(args[0], a_min, a_max))
 
+    def _elu(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        alpha = node.args[1] if len(node.args) > 1 else node.kwargs.get("alpha", 1.0)
+        dtype = x.struct_info.dtype
+
+        if isinstance(alpha, (int, float)):
+            alpha = relax.const(alpha, dtype)
+        else:
+            if not isinstance(alpha, relax.Var):
+                alpha = self.block_builder.emit(relax.const(alpha, dtype))
+
+        # α⋅ReLU(1−exp(x))+ReLU(x)
+        return self.block_builder.emit(
+            relax.op.add(
+                relax.op.multiply(
+                    alpha,
+                    relax.op.nn.relu(
+                        relax.op.subtract(relax.const(1, dtype), relax.op.exp(x))
+                    ),
+                ),
+                relax.op.nn.relu(x),
+            )
+        )
+
     def _gelu(self, node: fx.Node) -> relax.Expr:
         approximate = node.kwargs.get("approximate", "none")
         if approximate == "none":
@@ -152,6 +176,13 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         x1 = relax.op.clip(x0, 0, 6)
         x2 = relax.op.divide(x1, relax.const(6, dtype))
         return self.block_builder.emit(relax.op.multiply(x, x2))
+
+    def _hardtanh(self, node: fx.Node) -> relax.Expr:
+        args = self.retrieve_args(node)
+        x = args[0]
+        min_val = node.kwargs.get("min_val", -1.0)
+        max_val = node.kwargs.get("max_val", 1.0)
+        return self.block_builder.emit(relax.op.clip(x, min_val, max_val))
 
     def _leakyrelu(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
