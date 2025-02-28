@@ -201,6 +201,12 @@ void BinaryOpMatchTypes(PrimExpr& lhs, PrimExpr& rhs, Span span) {  // NOLINT(*)
   } else if (ltype.is_float8() && !rtype.is_float8()) {
     // Cast int->float8 for rhs when lhs is a float8
     rhs = cast(ltype, rhs);
+  } else if (!ltype.is_float4() && rtype.is_float4()) {
+    // Cast int->float4 for lhs when rhs is a float4
+    lhs = cast(rtype, lhs);
+  } else if (ltype.is_float4() && !rtype.is_float4()) {
+    // Cast int->float4 for rhs when lhs is a float4
+    rhs = cast(ltype, rhs);
   } else if ((ltype.is_int() && rtype.is_int()) || (ltype.is_uint() && rtype.is_uint())) {
     // Promote int to higher bits e.g. int8 + int16 --> int16 + int16
     if (ltype.bits() < rtype.bits()) {
@@ -272,6 +278,8 @@ PrimExpr max_value(const DataType& dtype, Span span) {
     } else if (dtype.code() == DataType::TypeCode::kE4M3Float) {
       return FloatImm(dtype, 448.0, span);
     }
+  } else if (dtype.is_float4()) {
+    return FloatImm(dtype, 6.0, span);
   }
   LOG(FATAL) << "Cannot decide max_value for type" << dtype;
 }
@@ -313,6 +321,8 @@ PrimExpr min_value(const DataType& dtype, Span span) {
     } else if (dtype.code() == DataType::TypeCode::kE4M3Float) {
       return FloatImm(dtype, -448.0, span);
     }
+  } else if (dtype.is_float4()) {
+    return FloatImm(dtype, -6.0, span);
   }
   LOG(FATAL) << "Cannot decide min_value for type" << dtype;
 }
