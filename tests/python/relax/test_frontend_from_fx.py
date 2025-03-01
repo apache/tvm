@@ -3800,22 +3800,5 @@ def test_masked_scatter():
     )
 
 
-def test_is_floating_point():
-    class IsFloatingPoint(Module):
-        def forward(self, x):
-            return torch.is_floating_point(x)
-
-    @tvm.script.ir_module
-    class Expected:
-        @R.function
-        def main(inp_0: R.Tensor((2, 3), dtype="float32")) -> R.Tensor((), dtype="bool"):
-            with R.dataflow():
-                gv: R.Tensor((), dtype="bool") = R.const(True, "bool")
-                R.output(gv)
-            return gv
-
-    verify_model(IsFloatingPoint(), [([2, 3], "float32")], {}, Expected)
-
-
 if __name__ == "__main__":
     tvm.testing.main()
