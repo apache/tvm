@@ -2006,7 +2006,7 @@ def test_extended_unary_ops():
     class expected_elu:
         @R.function
         def main(
-                input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
+            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
         ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
             # block 0
             with R.dataflow():
@@ -2014,7 +2014,9 @@ def test_extended_unary_ops():
                 lv_one_minus_exp: R.Tensor((1, 3, 10, 10), dtype="float32") = R.subtract(
                     R.const(1.0, dtype="float32"), lv_exp
                 )
-                lv_relu_one_minus_exp: R.Tensor((1, 3, 10, 10), dtype="float32") = R.nn.relu(lv_one_minus_exp)
+                lv_relu_one_minus_exp: R.Tensor((1, 3, 10, 10), dtype="float32") = R.nn.relu(
+                    lv_one_minus_exp
+                )
                 lv_scaled: R.Tensor((1, 3, 10, 10), dtype="float32") = R.multiply(
                     R.const(1.0, dtype="float32"), lv_relu_one_minus_exp
                 )
