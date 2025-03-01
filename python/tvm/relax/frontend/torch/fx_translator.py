@@ -753,7 +753,6 @@ class TorchFXImporter(BaseFXGraphImporter):
             "astype": self._type,
             "float": self._float,
             "half": self._half,
-            "is_floating_point": self._is_floating_point,
             "to": self._to,
             "type": self._type,
             # other
