@@ -18,7 +18,6 @@
 # pylint: disable=invalid-name, inconsistent-return-statements, unidiomatic-typecheck
 # pylint: disable=import-outside-toplevel
 """PyTorch FX frontend of Relax."""
-
 from typing import Callable, Dict, List, Tuple, Union
 from functools import partial, reduce
 
