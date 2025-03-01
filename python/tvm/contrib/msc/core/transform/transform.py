@@ -20,13 +20,11 @@
 from typing import Dict
 
 import tvm
-from tvm.relax.transform import _ffi_api as relax_api
-from tvm.relay.transform import _ffi_api as relay_api
+from tvm.relax.transform import _ffi_api
 from tvm.contrib.msc.core import utils as msc_utils
 
 
 def SetExprName(
-    as_relax: bool = True,
     entry_name: str = "main",
     target: str = "",
     var_names: Dict[str, str] = None,
@@ -35,8 +33,6 @@ def SetExprName(
 
     Parameters
     ----------
-    as_relax: bool
-        Whether set names for relax, otherwise for relay.
     entry_name: str
         The entry name
     target: str
@@ -49,33 +45,9 @@ def SetExprName(
     ret: tvm.ir.transform.Pass
     """
 
-    if as_relax:
-        var_names = var_names or {}
-        var_names = {k: msc_utils.legalize_expr_name(v) for k, v in var_names.items()}
-        return relax_api.SetRelaxExprName(entry_name, target, var_names)  # type: ignore
-    return relay_api.SetRelaxExprName(entry_name)  # type: ignore
-
-
-def BindExprName(
-    name_key: str = "", seperator: str = ",", entry_name: str = "main"
-) -> tvm.ir.transform.Pass:
-    """Bind name for the call and constant in IRModule.
-
-    Parameters
-    ----------
-    name_key: str
-        The key to find name
-    seperator: str
-        The seperator
-    entry_name: str
-        The entry name
-
-    Returns
-    -------
-    ret: tvm.ir.transform.Pass
-    """
-
-    return relay_api.BindRelaxExprName(name_key, seperator, entry_name)  # type: ignore
+    var_names = var_names or {}
+    var_names = {k: msc_utils.legalize_expr_name(v) for k, v in var_names.items()}
+    return _ffi_api.SetRelaxExprName(entry_name, target, var_names)  # type: ignore
 
 
 def SetExprLayout(allow_missing: bool = True, entry_name: str = "main") -> tvm.ir.transform.Pass:
@@ -93,7 +65,7 @@ def SetExprLayout(allow_missing: bool = True, entry_name: str = "main") -> tvm.i
     ret: tvm.ir.transform.Pass
     """
 
-    return relax_api.SetExprLayout(allow_missing, entry_name)  # type: ignore
+    return _ffi_api.SetExprLayout(allow_missing, entry_name)  # type: ignore
 
 
 def InlineParams(entry_name: str = "main") -> tvm.ir.transform.Pass:
@@ -109,7 +81,7 @@ def InlineParams(entry_name: str = "main") -> tvm.ir.transform.Pass:
     ret: tvm.ir.transform.Pass
     """
 
-    return relax_api.InlineParams(entry_name)  # type: ignore
+    return _ffi_api.InlineParams(entry_name)  # type: ignore
 
 
 def FuseTuple(target, entry_name: str = "main") -> tvm.ir.transform.Pass:
@@ -127,7 +99,7 @@ def FuseTuple(target, entry_name: str = "main") -> tvm.ir.transform.Pass:
     ret: tvm.ir.transform.Pass
     """
 
-    return relax_api.FuseTuple(target, entry_name)  # type: ignore
+    return _ffi_api.FuseTuple(target, entry_name)  # type: ignore
 
 
 def SetBYOCAttrs(target, entry_name: str = "main") -> tvm.ir.transform.Pass:
@@ -145,7 +117,7 @@ def SetBYOCAttrs(target, entry_name: str = "main") -> tvm.ir.transform.Pass:
     ret: tvm.ir.transform.Pass
     """
 
-    return relax_api.SetBYOCAttrs(target, entry_name)  # type: ignore
+    return _ffi_api.SetBYOCAttrs(target, entry_name)  # type: ignore
 
 
 def BindNamedParams(
@@ -167,4 +139,4 @@ def BindNamedParams(
     ret: tvm.ir.transform.Pass
     """
 
-    return relax_api.BindNamedParams(func_name, params)  # type: ignore
+    return _ffi_api.BindNamedParams(func_name, params)  # type: ignore

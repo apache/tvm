@@ -21,10 +21,6 @@ import tvm.testing
 from tvm.relax.frontend.torch import from_fx
 from tvm.relax import PyExprVisitor
 
-from tvm.relay import testing
-from tvm.relay.expr_functor import ExprVisitor
-from tvm.relay.build_module import bind_params_by_name
-
 from tvm.contrib.msc.core import transform as msc_transform
 from tvm.contrib.msc.core import utils as msc_utils
 
@@ -71,35 +67,6 @@ def test_relax_layout():
         mod = from_fx(graph_model, input_info)
     mod = msc_transform.SetExprLayout()(mod)
     RelaxLayoutChecker().check(mod)
-
-
-def test_relay_name():
-    """Test SetExprName for relay"""
-
-    class RelayNameChecker(ExprVisitor):
-        """Check if name as span attribute is setted."""
-
-        def check(self, expr):
-            self._missing_exprs = []
-            super().visit(expr)
-            assert len(self._missing_exprs) == 0, "Missing {} names".format(
-                len(self._missing_exprs)
-            )
-
-        def visit_constant(self, expr):
-            super().visit_constant(expr)
-            if not msc_utils.get_expr_name(expr):
-                self._missing_exprs.append(expr)
-
-        def visit_call(self, expr):
-            super().visit_call(expr)
-            if not msc_utils.get_expr_name(expr):
-                self._missing_exprs.append(expr)
-
-    mod, params = testing.resnet.get_workload(num_layers=50, batch_size=1, dtype="float32")
-    mod["main"] = bind_params_by_name(mod["main"], params)
-    mod = msc_transform.SetExprName(as_relax=False)(mod)
-    RelayNameChecker().check(mod["main"])
 
 
 def test_relax():

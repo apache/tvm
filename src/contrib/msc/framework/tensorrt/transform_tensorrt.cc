@@ -22,6 +22,7 @@
  * \brief Pass for transform the function to tensorrt.
  */
 
+#include <dmlc/json.h>
 #include <tvm/relax/attrs/sorting.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>

@@ -25,7 +25,6 @@ from tvm import relax
 from tvm.relax import PyExprVisitor
 from tvm.contrib.msc.core import transform as msc_transform
 from tvm.contrib.msc.core.ir import MSCGraph, MSCTensor
-from tvm.contrib.msc.core.frontend import from_relay
 from tvm.contrib.msc.core import utils as msc_utils
 
 
@@ -216,45 +215,3 @@ def to_relax(
     if plugin:
         model_args = model_args + [plugin]
     return codegen.load(model_args, pre_load=_save_weights, post_load=_post_proc)
-
-
-def relay_to_relax(
-    relay_mod: tvm.IRModule,
-    params: Optional[Dict[str, tvm.nd.array]] = None,
-    trans_config: Optional[Dict[str, str]] = None,
-    build_config: Optional[Dict[str, str]] = None,
-    opt_config: Optional[Dict[str, str]] = None,
-    build_folder: msc_utils.MSCDirectory = None,
-) -> tvm.IRModule:
-    """Change relay IRModule to relax MSCGraph.
-
-    Parameters
-    ----------
-    relay_mod: IRModule
-        The IRModule of relay.
-    params: dict of <string:tvm.ndarray>
-        The parameters of the IRModule.
-    trans_config: dict
-        The config for transform IRModule.
-    build_config: dict
-        The config for build MSCGraph.
-    opt_config: dict
-        The config for optimize the relay before translate.
-    build_folder: MSCDirectory
-        The folder for saving scripts and datas.
-
-    Returns
-    -------
-    relax_mod: IRModule
-        The IRModule of relax.
-    """
-
-    graph, weights = from_relay(
-        relay_mod,
-        params,
-        trans_config=trans_config,
-        build_config=build_config,
-        opt_config=opt_config,
-    )
-
-    return to_relax(graph, weights, codegen_config={"from_relay": True}, build_folder=build_folder)
