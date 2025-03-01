@@ -143,9 +143,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             relax.op.add(
                 relax.op.multiply(
                     alpha,
-                    relax.op.nn.relu(
-                        relax.op.subtract(relax.const(1, dtype), relax.op.exp(x))
-                    ),
+                    relax.op.nn.relu(relax.op.subtract(relax.const(1, dtype), relax.op.exp(x))),
                 ),
                 relax.op.nn.relu(x),
             )
