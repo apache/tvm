@@ -14,6 +14,8 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+
+# pylint: disable=unused-argument
 """tvm.contrib.msc.framework.torch.frontend.translate"""
 
 from typing import Dict, Optional, Tuple, List, Union
@@ -21,18 +23,13 @@ from typing import Dict, Optional, Tuple, List, Union
 import tvm
 
 from tvm.contrib.msc.core.ir.graph import MSCGraph
-from tvm.contrib.msc.core import transform as msc_transform
-from tvm.contrib.msc.core.frontend import from_relax
-from tvm.contrib.msc.core.codegen import relay_to_relax
 from tvm.contrib.msc.framework.tensorflow import tf_v1
-from tvm.contrib.msc.core import utils as msc_utils
 
 
 def from_tensorflow(
     graph_def: tf_v1.GraphDef,
     shape_dict: Dict[str, List[int]],
     outputs: List[str],
-    via_relax: bool = False,
     trans_config: Optional[Dict[str, str]] = None,
     build_config: Optional[Dict[str, str]] = None,
     opt_config: Optional[Dict[str, str]] = None,
@@ -48,8 +45,6 @@ def from_tensorflow(
         The shape dict of inputs.
     outputs: list<str>
         The output names.
-    via_relax: bool
-        Whether translate torch to relax.
     trans_config: dict
         The config for transform IRModule.
     build_config: dict
@@ -67,16 +62,4 @@ def from_tensorflow(
         The weights from the IRModule.
     """
 
-    assert not via_relax, "Relax frontend for tensorflow is not supported"
-    relay_mod, params = tvm.relay.frontend.from_tensorflow(
-        graph_def, shape=shape_dict, outputs=outputs
-    )
-    passes = [msc_transform.BindExprName()]
-    relay_mod = tvm.transform.Sequential(passes)(relay_mod)
-    relax_mod = relay_to_relax(relay_mod, params, trans_config, build_config, opt_config)
-    if not as_msc:
-        return relax_mod, params
-    build_config = msc_utils.copy_dict(build_config)
-    build_config["use_var_name"] = True
-    graph, weights = from_relax(relax_mod, trans_config=trans_config, build_config=build_config)
-    return graph, weights
+    raise NotImplementedError("translate relax module from tensorflow is not implemented")

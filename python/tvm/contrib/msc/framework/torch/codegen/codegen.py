@@ -71,7 +71,7 @@ def to_torch(
 
     def _bind_weights(model: torch.nn.Module, folder: msc_utils.MSCDirectory) -> torch.nn.Module:
         if weights:
-            state_dict = torch.load(folder.relpath(graph.name + ".pth"))
+            state_dict = torch.load(folder.relpath(graph.name + ".pth"), weights_only=False)
             model.load_state_dict(state_dict)
         return model
 
