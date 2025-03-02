@@ -55,6 +55,7 @@
 // relax setup
 #include "src/runtime/memory/memory_manager.cc"
 #include "src/runtime/nvtx.cc"
+#include "src/runtime/relax_vm/attn_backend.cc"
 #include "src/runtime/relax_vm/builtin.cc"
 #include "src/runtime/relax_vm/bytecode.cc"
 #include "src/runtime/relax_vm/executable.cc"
