@@ -319,12 +319,7 @@ class TorchRunner(ModelRunner):
             config["parse"]["parser"] = from_torch
             parse_config = config["parse"].get("parse_config", {})
             parse_config.update(
-                {
-                    "input_info": [
-                        [i[1], "float" if len(i) < 2 else i[2]] for i in config["inputs"]
-                    ],
-                    "input_names": [i[0] for i in config["inputs"]],
-                }
+                {"input_info": [[i[1], "float" if len(i) < 2 else i[2]] for i in config["inputs"]]}
             )
             config["parse"]["parse_config"] = parse_config
         return config

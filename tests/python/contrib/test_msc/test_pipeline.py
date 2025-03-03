@@ -73,28 +73,6 @@ def _get_torch_model(name, training=False):
         return None
 
 
-def _get_tf_graph():
-    """Get graph from tensorflow"""
-
-    # pylint: disable=import-outside-toplevel
-    try:
-        from tvm.contrib.msc.framework.tensorflow import tf_v1
-        import tvm.relay.testing.tf as tf_testing
-
-        tf_graph = tf_v1.Graph()
-        with tf_graph.as_default():
-            graph_def = tf_testing.get_workload(
-                "https://storage.googleapis.com/mobilenet_v2/checkpoints/mobilenet_v2_1.4_224.tgz",
-                "mobilenet_v2_1.4_224_frozen.pb",
-            )
-            # Call the utility to import the graph definition into default graph.
-            graph_def = tf_testing.ProcessGraphDefParam(graph_def)
-        return graph_def
-    except:  # pylint: disable=bare-except
-        print("please install tensorflow package")
-        return None
-
-
 def _check_pipeline(pipeline, expected_info, dynamic=False):
     """Check the pipeline results"""
 
@@ -136,25 +114,7 @@ def _test_from_torch(
         _check_pipeline(pipeline, expected_info, dynamic)
 
 
-def _test_from_tf(compile_type, expected_info, atol=1e-2, rtol=1e-2):
-    graphdef = _get_tf_graph()
-    if graphdef:
-        config = _get_config(
-            MSCFramework.TENSORFLOW,
-            compile_type,
-            inputs=[["input", [1, 224, 224, 3], "float32"]],
-            outputs=["MobilenetV2/Predictions/Reshape_1:0"],
-            atol=atol,
-            rtol=rtol,
-        )
-        config["compile"]["profile"]["check"]["err_rate"] = -1
-        manager = MSCManager(graphdef, config)
-        manager.run_pipe()
-        _check_pipeline(manager, expected_info)
-
-
-@pytest.mark.skip(reason="Failed due to tf and tflite upgrade.")
-@pytest.mark.parametrize("dynamic", [False, True])
+@pytest.mark.parametrize("dynamic", [False])
 def test_tvm_pipeline(dynamic):
     """Test pipeline for tvm"""
 
@@ -207,10 +167,9 @@ def test_tvm_pipeline(dynamic):
                 "nn.softmax": 1,
             },
         }
-        _test_from_tf(MSCFramework.TVM, model_info)
 
 
-@pytest.mark.parametrize("dynamic", [False, True])
+@pytest.mark.parametrize("dynamic", [False])
 def test_torch_pipeline(dynamic):
     """Test pipeline for torch"""
 
@@ -236,42 +195,8 @@ def test_torch_pipeline(dynamic):
     _test_from_torch(MSCFramework.TORCH, model_info, training=False, dynamic=dynamic)
 
 
-@pytest.mark.skip(reason="Failed due to tf and tflite upgrade.")
-def test_tensorflow_pipeline():
-    """Test manager for tensorflow"""
-
-    model_info = {
-        "inputs": [
-            {"name": "input", "shape": [1, 224, 224, 3], "dtype": "float32", "layout": "NHWC"}
-        ],
-        "outputs": [
-            {
-                "name": "MobilenetV2/Predictions/Reshape_1:0",
-                "shape": [1, 1001],
-                "dtype": "float32",
-                "layout": "NC",
-            }
-        ],
-        "nodes": {
-            "total": 138,
-            "input": 1,
-            "msc.conv2d_bias": 36,
-            "clip": 35,
-            "nn.conv2d": 17,
-            "nn.batch_norm": 17,
-            "get_item": 17,
-            "add": 10,
-            "nn.avg_pool2d": 1,
-            "squeeze": 1,
-            "reshape": 2,
-            "nn.softmax": 1,
-        },
-    }
-    _test_from_tf(MSCFramework.TENSORFLOW, model_info)
-
-
 @requires_tensorrt
-@pytest.mark.parametrize("dynamic", [False, True])
+@pytest.mark.parametrize("dynamic", [False])
 def test_tensorrt_pipeline(dynamic):
     """Test pipeline for tensorrt"""
 

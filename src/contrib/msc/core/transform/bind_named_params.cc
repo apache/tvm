@@ -17,7 +17,6 @@
  * under the License.
  */
 
-#include <tvm/driver/driver_api.h>
 #include <tvm/ir/function.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>

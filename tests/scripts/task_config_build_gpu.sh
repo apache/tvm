@@ -43,7 +43,6 @@ echo set\(SUMMARIZE ON\) >> config.cmake
 echo set\(HIDE_PRIVATE_SYMBOLS ON\) >> config.cmake
 echo set\(USE_PIPELINE_EXECUTOR ON\) >> config.cmake
 echo set\(USE_CUTLASS ON\) >> config.cmake
-# Temporary disable MSC
-# echo set\(USE_MSC ON\) >> config.cmake
+echo set\(USE_MSC ON\) >> config.cmake
 echo set\(CMAKE_CUDA_ARCHITECTURES 75\) >> config.cmake
 echo set\(USE_CLML ON\) >> config.cmake
