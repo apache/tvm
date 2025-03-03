@@ -1947,7 +1947,7 @@ def test_extended_unary_ops():
                     lv_div, R.const(1.0, "float32")
                 )
                 lv_min: R.Tensor((1, 3, 10, 10), dtype="float32") = R.minimum(
-                    R.const(0.0, "float32"),lv_sub
+                    R.const(0.0, "float32"), lv_sub
                 )
                 lv_scaled: R.Tensor((1, 3, 10, 10), dtype="float32") = R.multiply(
                     R.const(1.0, "float32"), lv_min
