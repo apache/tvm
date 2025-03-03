@@ -37,13 +37,7 @@ class PreRollingBuffer:
         ),
     ) -> None:
         # function attr dict
-        T.func_attr(
-            {
-                "from_legacy_te_schedule": True,
-                "global_symbol": "main",
-                "tir.noalias": True,
-            }
-        )
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
         A_1 = T.match_buffer(
             A, [1, 12, 14, 16], dtype="int8", elem_offset=0, align=64, offset_factor=1
         )
@@ -112,13 +106,7 @@ class PostRollingBuffer:
         ),
     ) -> None:
         # function attr dict
-        T.func_attr(
-            {
-                "from_legacy_te_schedule": True,
-                "global_symbol": "main",
-                "tir.noalias": True,
-            }
-        )
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
         A_1 = T.match_buffer(
             A, [1, 12, 14, 16], dtype="int8", elem_offset=0, align=64, offset_factor=1
         )
