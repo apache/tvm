@@ -185,14 +185,9 @@ class ThreadBindingUnifier : public StmtExprMutator {
 };
 
 PrimFunc UnifyThreadBinding(PrimFunc f) {
-  // Only apply this pass to TIR that is not from TE schedules
-  if (!IsFromLegacyTESchedule(f)) {
-    PrimFuncNode* fptr = f.CopyOnWrite();
-    fptr->body = ThreadBindingUnifier::Unify(std::move(f->body));
-    return f;
-  } else {
-    return f;
-  }
+  PrimFuncNode* fptr = f.CopyOnWrite();
+  fptr->body = ThreadBindingUnifier::Unify(std::move(f->body));
+  return f;
 }
 
 namespace transform {

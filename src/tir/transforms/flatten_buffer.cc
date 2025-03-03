@@ -268,14 +268,7 @@ class BufferFlattener : public arith::IRMutatorWithAnalyzer {
   Map<Var, Buffer> updated_extern_buffer_map_;
 };
 
-PrimFunc FlattenBuffer(PrimFunc f) {
-  // Only apply this pass to TIR that is not from TE schedules
-  if (!IsFromLegacyTESchedule(f)) {
-    return BufferFlattener::Flatten(f);
-  } else {
-    return f;
-  }
-}
+PrimFunc FlattenBuffer(PrimFunc f) { return BufferFlattener::Flatten(f); }
 
 namespace transform {
 

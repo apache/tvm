@@ -3644,7 +3644,7 @@ def let_stmt_value():
 def string_stride():
     @T.prim_func
     def main(a: T.handle, b: T.handle):
-        T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
         n = T.int32()
         A = T.match_buffer(a, (n,), strides=("A_s0",), buffer_type="auto")
         B = T.match_buffer(b, (n,), strides=("B_s0",), buffer_type="auto")
@@ -3663,7 +3663,7 @@ def string_stride():
 def string_stride_int64():
     @T.prim_func
     def main(a: T.handle, b: T.handle):
-        T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
         n = T.int64()
         A_s0 = T.int64()
         B_s0 = T.int64()
@@ -3679,7 +3679,7 @@ def merge_shape_var_def():
     # uninitialized vars
     @T.prim_func(check_well_formed=False)
     def main(A: T.handle, B: T.handle):
-        T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
         m, n = T.int32(), T.int32()
         A_1 = T.match_buffer(A, (m, n), strides=("A_1_s0", "A_1_s1"), buffer_type="auto")
         B_1 = T.match_buffer(B, (m, n), strides=("B_1_s0", "B_1_s1"), buffer_type="auto")
