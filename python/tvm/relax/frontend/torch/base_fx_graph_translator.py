@@ -111,6 +111,29 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
 
         return convert
 
+    def _celu(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        alpha = node.args[1] if len(node.args) > 1 else node.kwargs.get("alpha", 1.0)
+        dtype = x.struct_info.dtype
+
+        if isinstance(alpha, (int, float)):
+            alpha = relax.const(alpha, dtype)
+        else:
+            if not isinstance(alpha, relax.Var):
+                alpha = self.block_builder.emit(relax.const(alpha, dtype))
+
+        zero = relax.const(0, dtype)
+        # alpha * min(0, exp(x / alpha) - 1) + max(0, x)
+        return self.block_builder.emit(
+            relax.op.add(
+                relax.op.multiply(
+                    alpha,
+                    relax.op.minimum(zero,relax.op.subtract(relax.op.divide(relax.op.exp(x), alpha), relax.const(1, dtype))),
+                ),
+                relax.op.nn.relu(x),
+            )
+        )
+
     def _clamp(self, node: fx.Node) -> relax.Expr:
         args = self.retrieve_args(node)
         a_min = args[1] if len(args) > 1 else node.kwargs["min"]
@@ -133,12 +156,12 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         dtype = x.struct_info.dtype
 
         if isinstance(alpha, (int, float)):
-            alpha = relax.const(alpha, dtype)
+            alpha = relax.const(-alpha, dtype)
         else:
             if not isinstance(alpha, relax.Var):
-                alpha = self.block_builder.emit(relax.const(alpha, dtype))
+                alpha = self.block_builder.emit(relax.const(-alpha, dtype))
 
-        # α⋅ReLU(1−exp(x))+ReLU(x)
+        # alpha * ReLU(1 − exp(x)) + ReLU(x)
         return self.block_builder.emit(
             relax.op.add(
                 relax.op.multiply(
@@ -202,6 +225,35 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         x = self.env[node.args[0]]
         dim = node.args[1] if len(node.args) > 1 else node.kwargs.get("dim", -1)
         return self.block_builder.emit(relax.op.nn.softmax(x, dim))
+
+    def _selu(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        alpha = node.args[1] if len(node.args) > 1 else node.kwargs.get("alpha", 1.6732631921768188)
+        gamma = node.args[2] if len(node.args) > 2 else node.kwargs.get("gamma", 1.0507009873554805)
+        dtype = x.struct_info.dtype
+
+        if isinstance(alpha, (int, float)):
+            alpha = relax.const(alpha, dtype)
+        else:
+            if not isinstance(alpha, relax.Var):
+                alpha = self.block_builder.emit(relax.const(alpha, dtype))
+
+        if isinstance(gamma, (int, float)):
+            gamma = relax.const(gamma, dtype)
+        else:
+            if not isinstance(gamma, relax.Var):
+                gamma = self.block_builder.emit(relax.const(gamma, dtype))
+
+        # gamma * (ReLU(x) + alpha * (exp(x) - 1))
+        return self.block_builder.emit(
+            relax.op.multiply(
+                gamma,
+                relax.op.add(
+                    relax.op.nn.relu(x),
+                    relax.op.multiply(alpha, relax.op.subtract(relax.op.exp(x), relax.const(1, dtype))),
+                ),
+            )
+        )
 
     def _tril_triu(self, op: Callable) -> Callable:
         from torch import fx
