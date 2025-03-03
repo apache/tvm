@@ -128,7 +128,12 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             relax.op.add(
                 relax.op.multiply(
                     alpha,
-                    relax.op.minimum(zero,relax.op.subtract(relax.op.divide(relax.op.exp(x), alpha), relax.const(1, dtype))),
+                    relax.op.minimum(
+                        zero,
+                        relax.op.subtract(
+                            relax.op.divide(relax.op.exp(x), alpha), relax.const(1, dtype)
+                        )
+                    ),
                 ),
                 relax.op.nn.relu(x),
             )
@@ -250,7 +255,9 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
                 gamma,
                 relax.op.add(
                     relax.op.nn.relu(x),
-                    relax.op.multiply(alpha, relax.op.subtract(relax.op.exp(x), relax.const(1, dtype))),
+                    relax.op.multiply(
+                        alpha, relax.op.subtract(relax.op.exp(x), relax.const(1, dtype))
+                    ),
                 ),
             )
         )
