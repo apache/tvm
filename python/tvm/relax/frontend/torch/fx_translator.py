@@ -529,7 +529,9 @@ class TorchFXImporter(BaseFXGraphImporter):
 
     def _is_floating_point(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
-        return relax.const(x.struct_info.dtype in ["float16", "float32", "float64", "bfloat16"], "bool")
+        return relax.const(
+            x.struct_info.dtype in ["float16", "float32", "float64", "bfloat16"], "bool"
+        )
 
     def _to(self, node: fx.Node) -> relax.Var:
         import torch
