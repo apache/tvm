@@ -423,6 +423,8 @@ TVM_REGISTER_TARGET_KIND("vulkan", kDLVulkan)
 
 TVM_REGISTER_TARGET_KIND("webgpu", kDLWebGPU)
     .add_attr_option<runtime::Int>("max_num_threads", runtime::Int(256))
+    // TODO(Charlie): Not all WebGPU supports this, need a control logic
+    .add_attr_option<runtime::Int>("thread_warp_size", runtime::Int(32))
     .set_default_keys({"webgpu", "gpu"});
 
 TVM_REGISTER_TARGET_KIND("hexagon", kDLHexagon)

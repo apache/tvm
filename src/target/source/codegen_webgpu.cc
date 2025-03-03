@@ -103,6 +103,8 @@ std::string CodeGenWebGPU::Finish() {
   if (enable_fp16_) {
     header_stream << "enable f16;\n\n";
   }
+  // TODO(Charlie): Add enable_subgroups_ to control
+  header_stream << "enable subgroups;\n\n";
   return header_stream.str() + decl_stream.str() + this->fwd_decl_stream.str() + stream.str();
 }
 
