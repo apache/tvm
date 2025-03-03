@@ -1917,6 +1917,42 @@ def test_bool_unary_ops(pytorch_op, relax_op):
 def test_extended_unary_ops():
     input_info = [([1, 3, 10, 10], "float32")]
 
+    # celu
+    class Celu1(Module):
+        def __init__(self):
+            super().__init__()
+            self.celu = torch.nn.CELU()
+
+        def forward(self, input):
+            return self.celu(input)
+
+    class Celu2(Module):
+        def forward(self, input):
+            return torch.nn.functional.celu(input)
+
+    # alpha * min(0, exp(x / alpha) - 1) + max(0, x)
+    @tvm.script.ir_module
+    class expected_celu:
+        @R.function
+        def main(
+                input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
+        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
+            # block 0
+            with R.dataflow():
+                lv : R.Tensor((1, 3, 10, 10), dtype="float32") = R.exp(input_1)
+                lv_div: R.Tensor((1, 3, 10, 10), dtype="float32") = R.divide(lv, R.const(1.0, "float32"))
+                lv_sub: R.Tensor((1, 3, 10, 10), dtype="float32") = R.subtract(lv_div, R.const(1.0, "float32"))
+                lv_min: R.Tensor((1, 3, 10, 10), dtype="float32") = R.minimum(R.const(0.0, "float32"),lv_sub)
+                lv_scaled: R.Tensor((1, 3, 10, 10), dtype="float32") = R.multiply(R.const(1.0, "float32"), lv_min)
+                lv_relu_x: R.Tensor((1, 3, 10, 10), dtype="float32") = R.nn.relu(input_1)
+                lv_celu: R.Tensor((1, 3, 10, 10), dtype="float32") = R.add(lv_scaled, lv_relu_x)
+                gv: R.Tensor((1, 3, 10, 10), dtype="float32") = lv_celu
+                R.output(gv)
+            return gv
+
+    verify_model(Celu1(), input_info, {}, expected_celu)
+    verify_model(Celu2(), input_info, {}, expected_celu)
+
     # clamp
     class Clamp(Module):
         def forward(self, input):
@@ -2006,7 +2042,7 @@ def test_extended_unary_ops():
     class expected_elu:
         @R.function
         def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
+                input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
         ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
             # block 0
             with R.dataflow():
@@ -2014,12 +2050,12 @@ def test_extended_unary_ops():
                 lv_one_minus_exp: R.Tensor((1, 3, 10, 10), dtype="float32") = R.subtract(
                     R.const(1.0, dtype="float32"), lv_exp
                 )
-                lv_relu_one_minus_exp: R.Tensor((1, 3, 10, 10), dtype="float32") = R.nn.relu(
-                    lv_one_minus_exp
-                )
+                lv_relu_one_minus_exp: R.Tensor((1, 3, 10, 10), dtype="float32") = R.nn.relu(lv_one_minus_exp)
+
                 lv_scaled: R.Tensor((1, 3, 10, 10), dtype="float32") = R.multiply(
-                    R.const(1.0, dtype="float32"), lv_relu_one_minus_exp
+                    R.const(-1.0, dtype="float32"), lv_relu_one_minus_exp
                 )
+
                 lv_relu_x: R.Tensor((1, 3, 10, 10), dtype="float32") = R.nn.relu(input_1)
                 lv_elu: R.Tensor((1, 3, 10, 10), dtype="float32") = R.add(lv_scaled, lv_relu_x)
                 gv: R.Tensor((1, 3, 10, 10), dtype="float32") = lv_elu
@@ -2255,6 +2291,40 @@ def test_extended_unary_ops():
             return gv
 
     verify_model(ReLU6(), input_info, {}, expected_relu6)
+
+    # selu
+    class Selu1(Module):
+        def __init__(self):
+            super().__init__()
+            self.selu = torch.nn.SELU()
+
+        def forward(self, input):
+            return self.selu(input)
+
+    class Selu2(Module):
+        def forward(self, input):
+            return torch.nn.functional.selu(input)
+
+    @tvm.script.ir_module
+    class expected_selu:
+        @R.function
+        def main(
+                input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
+        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
+            # block 0
+            with R.dataflow():
+                lv_relu: R.Tensor((1, 3, 10, 10), dtype="float32") = R.nn.relu(input_1)
+                lv_exp: R.Tensor((1, 3, 10, 10), dtype="float32") = R.exp(input_1)
+                lv_sub: R.Tensor((1, 3, 10, 10), dtype="float32") = R.subtract(lv_exp, R.const(1.0, "float32"))
+                lv_scaled: R.Tensor((1, 3, 10, 10), dtype="float32") = R.multiply(R.const(1.6732631921768188, "float32"), lv_sub)
+                lv_add: R.Tensor((1, 3, 10, 10), dtype="float32") = R.add(lv_relu, lv_scaled)
+                lv_selu: R.Tensor((1, 3, 10, 10), dtype="float32") = R.multiply(R.const(1.0507009873554805, "float32"), lv_add)
+                gv: R.Tensor((1, 3, 10, 10), dtype="float32") = lv_selu
+                R.output(gv)
+            return gv
+
+    verify_model(Selu1(), input_info, {}, expected_selu)
+    verify_model(Selu2(), input_info, {}, expected_selu)
 
     # sigmoid
     class Sigmoid(Module):
@@ -3800,6 +3870,23 @@ def test_masked_scatter():
         {},
         expected2,
     )
+
+
+def test_is_floating_point():
+    class IsFloatingPoint(Module):
+        def forward(self, x):
+            return torch.is_floating_point(x)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(inp_0: R.Tensor((2, 3), dtype="float32")) -> R.Tensor((), dtype="bool"):
+            with R.dataflow():
+                gv: R.Tensor((), dtype="bool") = R.const(True, "bool")
+                R.output(gv)
+            return gv
+
+    verify_model(IsFloatingPoint(), [([2, 3], "float32")], {}, Expected)
 
 
 if __name__ == "__main__":
