@@ -63,8 +63,6 @@ def test_const_extraction():
     for n, f in mod.functions.items():
         tvm.tir.stmt_functor.post_order_visit(f.body, _visit)
 
-    tvm.lower(mod)
-
 
 if __name__ == "__main__":
     tvm.testing.main()

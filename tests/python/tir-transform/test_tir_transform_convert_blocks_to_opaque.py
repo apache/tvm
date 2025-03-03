@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+import tvm.testing
 from tvm import tir, te
 from tvm.script import tir as T
 
@@ -73,17 +74,9 @@ def test_elementwise():
     _check(elementwise_func, substituted_elementwise_func)
 
 
-def test_lower_te():
-    x = te.placeholder((1,))
-    y = te.compute((1,), lambda i: x[i] + 2)
-    s = te.create_schedule(y.op)
-    orig_mod = tvm.driver.build_module.schedule_to_module(s, [x, y])
-    mod = tvm.tir.transform.ConvertBlocksToOpaque()(orig_mod)
-    tvm.ir.assert_structural_equal(mod, orig_mod)  # ConvertBlocksToOpaque should do nothing on TE
-
-
 class TestErrorIfPredicateUsesBlockVariables(tvm.testing.CompareBeforeAfter):
     transform = tvm.tir.transform.ConvertBlocksToOpaque()
+    check_well_formed = False
 
     def before(A: T.Buffer(8, "int32")):
         for i in T.serial(8):

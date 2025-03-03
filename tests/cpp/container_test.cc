@@ -17,13 +17,13 @@
  * under the License.
  */
 
-#include <dmlc/logging.h>
 #include <gtest/gtest.h>
 #include <tvm/runtime/container/adt.h>
 #include <tvm/runtime/container/array.h>
 #include <tvm/runtime/container/map.h>
 #include <tvm/runtime/container/string.h>
 #include <tvm/runtime/container/variant.h>
+#include <tvm/runtime/logging.h>
 #include <tvm/tir/function.h>
 #include <tvm/tir/op.h>
 
@@ -524,7 +524,7 @@ TEST(Map, Erase) {
   }
 }
 
-#if TVM_LOG_DEBUG
+#if TVM_DEBUG_WITH_ABI_CHANGE
 TEST(Map, Race) {
   using namespace tvm::runtime;
   Map<Integer, Integer> m;
@@ -537,7 +537,7 @@ TEST(Map, Race) {
   // changed. iterator should be re-obtained
   EXPECT_ANY_THROW({ auto& kv = *it; });
 }
-#endif  // TVM_LOG_DEBUG
+#endif  // TVM_DEBUG_WITH_ABI_CHANGE
 
 TEST(String, MoveFromStd) {
   using namespace std;

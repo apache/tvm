@@ -16,11 +16,11 @@
 # under the License.
 """Common expressions data structures in the IR."""
 from numbers import Number
-from typing import Callable, Optional
+from typing import Optional
 
 import tvm._ffi
 
-from ..runtime import Object, Scriptable, const, convert
+from ..runtime import Object, Scriptable
 from . import _ffi_api
 from .base import Node, Span
 from .type import Type
@@ -42,16 +42,16 @@ class PrimExpr(BaseExpr):
     dtype: str
 
 
-class RelayExpr(BaseExpr):
+class RelaxExpr(BaseExpr):
     """Base class of all non-primitive expressions."""
 
     @property
     def checked_type(self):
-        """Get the checked type of tvm.relay.Expr.
+        """Get the checked type of tvm.relax.Expr.
 
         Returns
         -------
-        checked_type : tvm.relay.Type
+        checked_type : tvm.ir.Type
             The checked type.
         """
         ret = self._checked_type_
@@ -59,9 +59,20 @@ class RelayExpr(BaseExpr):
             raise ValueError("The type checker has not populated the checked_type for this node")
         return ret
 
+    @property
+    def struct_info(self) -> Optional["tvm.relax.StructInfo"]:
+        """Get the struct info field
+
+        Returns
+        -------
+        struct_info : tvm.relax.StructInfo
+            The struct info if available.
+        """
+        return _ffi_api.ExprStructInfo(self)
+
 
 @tvm._ffi.register_object("GlobalVar")
-class GlobalVar(RelayExpr):
+class GlobalVar(RelaxExpr):
     """A global variable in the IR.
 
     GlobalVar is used to refer to the global functions
@@ -78,12 +89,12 @@ class GlobalVar(RelayExpr):
     def __init__(self, name_hint: str, type_annot: Optional[Type] = None):
         self.__init_handle_by_constructor__(_ffi_api.GlobalVar, name_hint, type_annot)
 
-    def __call__(self, *args: RelayExpr) -> BaseExpr:
+    def __call__(self, *args: RelaxExpr) -> BaseExpr:
         """Call the global variable.
 
         Parameters
         ----------
-        args: List[RelayExpr]
+        args: List[RelaxExpr]
             The arguments to the call.
 
         Returns
@@ -92,45 +103,18 @@ class GlobalVar(RelayExpr):
             A call taking the variable as a function.
         """
         # pylint: disable=import-outside-toplevel
-        if all(isinstance(x, RelayExpr) for x in args):
-            from tvm import relay
 
-            return relay.Call(self, args)
+        # TODO(@relax-team): replace with Relax base class after it's introduced
+        if all(isinstance(x, RelaxExpr) for x in args):
+            from tvm import relax
+
+            return relax.Call(self, args)
+
         elif all(isinstance(x, (Number, PrimExpr)) for x in args):
             return tvm.tir.call_tir(self, *args)
 
         arg_types = [type(x) for x in args]
         raise RuntimeError(f"Do not know how to handle GlobalVar.__call__ for types {arg_types}")
-
-    def astext(
-        self, show_meta_data: bool = True, annotate: Optional[Callable[[Object], str]] = None
-    ) -> str:
-        """Get the text format of the expression.
-
-        Parameters
-        ----------
-        show_meta_data : bool
-            Whether to include meta data section in the text
-            if there is meta data.
-
-        annotate: Optional[Object->str]
-            Optionally annotate function to provide additional
-            information in the comment block.
-
-        Returns
-        -------
-        text : str
-            The text format of the expression.
-
-        Notes
-        -----
-        The meta data section is necessary to fully parse the text format.
-        However, it can contain dumps that are big (e.g constant weights),
-        so it can be helpful to skip printing the meta data section.
-        """
-        from tvm.relay import astext  # pylint: disable=import-outside-toplevel
-
-        return astext(self, show_meta_data, annotate)
 
 
 @tvm._ffi.register_object
@@ -165,9 +149,6 @@ class Range(Node, Scriptable):
     def __init__(
         self, begin: PrimExpr, end: Optional[PrimExpr] = None, span: Optional[Span] = None
     ) -> None:
-        if end is None:
-            end = convert(begin)
-            begin = const(0, dtype=end.dtype, span=span)
         self.__init_handle_by_constructor__(_ffi_api.Range, begin, end, span)
 
     @staticmethod
@@ -201,3 +182,42 @@ class Range(Node, Scriptable):
 
     def __ne__(self, other: Object) -> bool:
         return not self.__eq__(other)
+
+
+# TODO(@relax-team): remove when we have a RelaxExpr base class
+def is_relax_expr(expr: RelaxExpr) -> bool:
+    """check if a RelaxExpr is a Relax expresssion.
+
+    Parameters
+    ----------
+    expr : RelaxExpr
+        The expression to check.
+
+    Returns
+    -------
+    res : bool
+        If the expression is Relax expression, return True; otherwise return False.
+    """
+    from tvm import relax  # pylint: disable=import-outside-toplevel
+
+    if isinstance(
+        expr,
+        (
+            relax.Call,
+            relax.Constant,
+            relax.Tuple,
+            relax.TupleGetItem,
+            relax.If,
+            relax.Var,
+            relax.DataflowVar,
+            relax.ShapeExpr,
+            relax.SeqExpr,
+            relax.Function,
+            relax.ExternFunc,
+            relax.PrimValue,
+            relax.StringImm,
+            relax.DataTypeImm,
+        ),
+    ):
+        return True
+    return False

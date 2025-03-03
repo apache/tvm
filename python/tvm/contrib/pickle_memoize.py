@@ -15,17 +15,31 @@
 # specific language governing permissions and limitations
 # under the License.
 """Memoize result of function via pickle, used for cache testcases."""
+
 # pylint: disable=broad-except,superfluous-parens
-import os
-import sys
 import atexit
-from decorator import decorate
+import os
+import pathlib
+import sys
+
+import functools
 from .._ffi.base import string_types
 
 try:
     import cPickle as pickle
 except ImportError:
     import pickle
+
+
+def _get_global_cache_dir() -> pathlib.Path:
+    if "XDG_CACHE_HOME" in os.environ:
+        cache_home = pathlib.Path(os.environ.get("XDG_CACHE_HOME"))
+    else:
+        cache_home = pathlib.Path.home().joinpath(".cache")
+    return cache_home.joinpath("tvm", f"pkl_memoize_py{sys.version_info[0]}")
+
+
+GLOBAL_CACHE_DIR = _get_global_cache_dir()
 
 
 class Cache(object):
@@ -42,28 +56,36 @@ class Cache(object):
     cache_by_key = {}
 
     def __init__(self, key, save_at_exit):
-        cache_dir = f".pkl_memoize_py{sys.version_info[0]}"
-        try:
-            os.mkdir(cache_dir)
-        except FileExistsError:
-            pass
-        else:
-            self.cache = {}
-        self.path = os.path.join(cache_dir, key)
-        if os.path.exists(self.path):
-            try:
-                self.cache = pickle.load(open(self.path, "rb"))
-            except Exception:
-                self.cache = {}
-        else:
-            self.cache = {}
+        self._cache = None
+
+        self.path = GLOBAL_CACHE_DIR.joinpath(key)
         self.dirty = False
         self.save_at_exit = save_at_exit
 
+    @property
+    def cache(self):
+        """Return the cache, initializing on first use."""
+
+        if self._cache is not None:
+            return self._cache
+
+        if self.path.exists():
+            with self.path.open("rb") as cache_file:
+                try:
+                    cache = pickle.load(cache_file)
+                except pickle.UnpicklingError:
+                    cache = {}
+        else:
+            cache = {}
+
+        self._cache = cache
+        return self._cache
+
     def save(self):
         if self.dirty:
-            print(f"Save memoize result to {self.path}")
-            with open(self.path, "wb") as out_file:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+
+            with self.path.open("wb") as out_file:
                 pickle.dump(self.cache, out_file, pickle.HIGHEST_PROTOCOL)
 
 
@@ -101,7 +123,8 @@ def memoize(key, save_at_exit=False):
         cargs = tuple(x.cell_contents for x in f.__closure__) if f.__closure__ else ()
         cargs = (len(cargs),) + cargs
 
-        def _memoized_f(func, *args, **kwargs):
+        @functools.wraps(f)
+        def _memoized_f(*args, **kwargs):
             assert not kwargs, "Only allow positional call"
             key = cargs + args
             for arg in key:
@@ -112,11 +135,11 @@ def memoize(key, save_at_exit=False):
                     assert isinstance(arg, allow_types)
             if key in cache.cache:
                 return cache.cache[key]
-            res = func(*args)
+            res = f(*args)
             cache.cache[key] = res
             cache.dirty = True
             return res
 
-        return decorate(f, _memoized_f)
+        return _memoized_f
 
     return _register

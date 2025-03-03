@@ -49,6 +49,7 @@ import threading
 import errno
 import struct
 import json
+import sys
 from tvm.contrib.popen_pool import PopenWorker
 
 try:
@@ -392,7 +393,12 @@ class PopenTrackerServerState(object):
             logger.setLevel(logging.WARN)
 
         sock = socket.socket(base.get_addr_family((host, port)), socket.SOCK_STREAM)
-        if reuse_addr:
+
+        # Never set socket SO_REUSEADDR on Windows. The SO_REUSEADDR flag allow reusing the
+        # inactivate TIME_WATI state sockets on POSIX, but on Windows it will allow two or more
+        # activate sockets to bind on the same address and port if they all set SO_REUSEADDR,
+        # and result in indeterminate behavior.
+        if reuse_addr and sys.platform != "win32":
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         if timeout is not None:
             sock.settimeout(timeout)

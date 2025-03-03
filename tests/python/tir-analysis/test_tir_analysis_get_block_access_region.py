@@ -15,10 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 import pytest
+
 import tvm
+import tvm.testing
 from tvm import tir
-from tvm.script import tir as T
 from tvm.ir import Range
+from tvm.script import tir as T
 
 
 @T.prim_func
@@ -355,14 +357,33 @@ def test_access_of_decompose_reduction():
         tvm.ir.assert_structural_equal(block.writes, ret[1])
 
 
+def test_buffer_access_with_let_binding():
+    @T.prim_func
+    def func(
+        storage: T.Buffer((16, 16, 16), "float32"),
+        seq_slot_ids: T.Buffer((16,), "int32"),
+        history_slot_ids: T.Buffer((16,), "int32"),
+        output: T.Buffer((16, 16), "float32"),
+    ):
+        for i, s in T.grid(16, 16):
+            with T.block("copy"):
+                vi, vs = T.axis.remap("SS", [i, s])
+                T.reads(
+                    seq_slot_ids[vi],
+                    history_slot_ids[vi],
+                    storage[seq_slot_ids[vi], history_slot_ids[vi], vs],
+                )
+                T.writes(output[vi, vs])
+                seq_id: T.int32 = seq_slot_ids[vi]
+                history_id: T.int32 = history_slot_ids[vi]
+                output[vi, vs] = storage[seq_id, history_id, vs]
+
+    block = func.body.block.body.body.body.block
+    buffer_var_map = {buf.data: buf for buf in func.buffer_map.values()}
+    ret = tir.analysis.get_block_access_region(block, buffer_var_map)
+    tvm.ir.assert_structural_equal(block.reads, ret[0])
+    tvm.ir.assert_structural_equal(block.writes, ret[1])
+
+
 if __name__ == "__main__":
-    test_block_access_region_detector()
-    test_opaque_block()
-    test_opaque_access()
-    test_opaque_access_with_tvm_access_ptr()
-    test_match_buffer()
-    test_access_in_if_then_else_func()
-    test_access_in_branch_func()
-    test_access_of_padding_pattern()
-    test_access_of_reduction()
-    test_access_of_decompose_reduction()
+    tvm.testing.main()

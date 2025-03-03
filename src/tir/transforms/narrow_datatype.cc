@@ -97,6 +97,13 @@ class DataTypeVisitor final : public StmtExprVisitor {
     }
   }
 
+  void VisitExpr_(const BufferLoadNode* op) {
+    int tmp = bits_;
+    bits_ = target_bits_;
+    StmtExprVisitor::VisitExpr_(op);
+    bits_ = tmp;
+  }
+
   void VisitStmt_(const ForNode* op) {
     analyzer_.Bind(op->loop_var, Range::FromMinExtent(op->min, op->extent));
     vextent_[op->loop_var.as<VarNode>()] = op->extent.dtype();
@@ -245,7 +252,12 @@ class NarrowDataTypeRewriter : public IndexDataTypeRewriter {
       const CastNode* new_op = e.as<CastNode>();
       ICHECK(new_op != nullptr) << "Expected type to be CastNode"
                                 << ", but get " << e->GetTypeKey();
-      return Cast(visitor_.vmap[op], new_op->value);
+      PrimExpr new_value = new_op->value;
+      DataType cast_type = visitor_.vmap[op];
+      if (new_value.dtype() != cast_type) {
+        new_value = Cast(cast_type, new_value);
+      }
+      return new_value;
     }
     return Parent::VisitExpr_(op);
   }

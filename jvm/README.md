@@ -89,35 +89,6 @@ It is your job to verify the types of callback arguments, as well as the type of
 
 You can register the Java function by `Function.register` and use `Function.getFunction` to get the registered function later.
 
-## Use TVM to Generate Shared Library
-
-There's nothing special for this part. The following Python snippet generate add_cpu.so which add two vectors on CPU.
-
-```python
-import os
-import tvm
-from tvm import te
-from tvm.contrib import cc, utils
-
-def test_add(target_dir):
-    n = te.var("n")
-    A = te.placeholder((n,), name='A')
-    B = te.placeholder((n,), name='B')
-    C = te.compute(A.shape, lambda i: A[i] + B[i], name="C")
-    s = te.create_schedule(C.op)
-    fadd = tvm.build(s, [A, B, C], "llvm", name="myadd")
-
-    fadd.save(os.path.join(target_dir, "add_cpu.o"))
-    cc.create_shared(os.path.join(target_dir, "add_cpu.so"),
-            [os.path.join(target_dir, "add_cpu.o")])
-
-if __name__ == "__main__":
-    import sys
-    if len(sys.argv) != 2:
-        sys.exit(-1)
-    test_add(sys.argv[1])
-```
-
 ## Run the Generated Shared Library
 
 The following code snippet demonstrate how to load generated shared library (add_cpu.so).

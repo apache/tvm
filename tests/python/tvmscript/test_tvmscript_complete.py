@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import tvm
+import tvm.testing
 from tvm.ir import Range
 from tvm.script import tir as T
 
@@ -336,11 +336,31 @@ def test_complete_alloc_buffer():
     )
 
 
+def test_access_region_for_decl_buffer():
+    @T.prim_func(private=True)
+    def automatic_access_regions(A: T.Buffer(4, "int32"), C: T.Buffer(4, "int32")):
+        B_data = T.allocate_const([1, 2, 3, 4], "int32", extents=[4])
+        B = T.decl_buffer(4, "int32", data=B_data)
+
+        for i in range(4):
+            with T.block("compute"):
+                vi = T.axis.remap("S", [i])
+                C[vi] = A[vi] + B[vi]
+
+    @T.prim_func(private=True)
+    def explicit_access_regions(A: T.Buffer(4, "int32"), C: T.Buffer(4, "int32")):
+        B_data = T.allocate_const([1, 2, 3, 4], "int32", extents=[4])
+        B = T.decl_buffer(4, "int32", data=B_data)
+
+        for i in range(4):
+            with T.block("compute"):
+                vi = T.axis.remap("S", [i])
+                T.reads(A[vi], B[vi])
+                T.writes(C[vi])
+                C[vi] = A[vi] + B[vi]
+
+    tvm.ir.assert_structural_equal(explicit_access_regions, automatic_access_regions)
+
+
 if __name__ == "__main__":
-    test_complete_matmul()
-    test_complete_matmul_original()
-    test_complete_with_root()
-    test_complete_part_region()
-    test_complete_buffer_indices()
-    test_complete_match_buffer()
-    test_complete_alloc_buffer()
+    tvm.testing.main()

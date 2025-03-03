@@ -21,7 +21,8 @@
       "rules": {
         "require-jsdoc": 0,
         "@typescript-eslint/no-explicit-any": 0,
-        "@typescript-eslint/no-empty-function": 0
+        "@typescript-eslint/no-empty-function": 0,
+        "@typescript-eslint/ban-types": "off"
       }
     },
     {

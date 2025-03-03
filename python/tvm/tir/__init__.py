@@ -21,6 +21,7 @@ from tvm.runtime import const
 
 from .buffer import Buffer, decl_buffer, DataProducer
 from .data_layout import Layout, BijectiveLayout, bijective_layout, layout
+from .expr import convert
 from .expr import Var, SizeVar, Reduce, FloatImm, IntImm, StringImm, Cast
 from .expr import Add, Sub, Mul, Div, Mod, FloorDiv, FloorMod
 from .expr import Min, Max, EQ, NE, LT, LE, GT, GE, And, Or, Not
@@ -73,6 +74,12 @@ from .op import (
     ptx_wait_barrier,
     create_barriers,
 )
+from .op import (
+    make_filled_simdgroup_matrix,
+    simdgroup_load,
+    simdgroup_multiply_accumulate,
+    simdgroup_store,
+)
 from .op import vectorlow, vectorhigh, vectorcombine
 from .op import infinity, reinterpret
 from .op import exp, exp2, exp10, log, log2, log10, log1p, ldexp, clz
@@ -88,6 +95,9 @@ from .op import comm_reducer, min, max, sum
 from .op import q_multiply_shift, q_multiply_shift_per_axis, shift_left, shift_right
 from .op import TVMBackendAllocWorkspace, TVMBackendFreeWorkspace
 from .op import start_profile_intrinsic, end_profile_intrinsic
+from .op import vscale, get_active_lane_mask, get_vscale_expr
+from .op import dp4a
+from .op import ignore_loop_partition
 from .generic import add, subtract, multiply
 
 from .schedule import StmtSRef, BlockScope, ScheduleState, Schedule, ScheduleError
@@ -98,4 +108,5 @@ from . import ir_builder
 from . import transform
 from . import analysis
 from . import stmt_functor
-from . import usmp
+from .build import build
+from .pipeline import get_tir_pipeline, get_default_tir_pipeline

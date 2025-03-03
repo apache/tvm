@@ -155,6 +155,11 @@ void ArgBinder::BindDLTensor(const Buffer& buffer, const PrimExpr& device_type,
   const DataType tvm_shape_type = DataType::ShapeIndex();
   const DataType tvm_ndim_type = DataType::Int(32);
   const Stmt nop = Evaluate(0);
+
+  init_nest_.emplace_back(AssertStmt(
+      !Call(DataType::Bool(), builtin::isnullptr(), {handle}),
+      tvm::tir::StringImm(arg_name + " is expected to have non-NULL DLTensor* pointer"), nop));
+
   // dimension checks
   PrimExpr v_ndim = TVMArrayGet(tvm_ndim_type, handle, builtin::kArrNDim);
 
@@ -173,7 +178,7 @@ void ArgBinder::BindDLTensor(const Buffer& buffer, const PrimExpr& device_type,
   std::ostringstream ndim_err_msg;
   ndim_err_msg << arg_name << ".ndim is expected to equal " << buffer->shape.size();
   auto msg = tvm::tir::StringImm(ndim_err_msg.str());
-  asserts_.emplace_back(AssertStmt(a_ndim == v_ndim, msg, nop));
+  init_nest_.emplace_back(AssertStmt(a_ndim == v_ndim, msg, nop));
   // type checks
   std::ostringstream type_err_msg;
   type_err_msg << arg_name << ".dtype is expected to be " << buffer->dtype;
@@ -186,17 +191,7 @@ void ArgBinder::BindDLTensor(const Buffer& buffer, const PrimExpr& device_type,
   if (!(buffer->dtype == DataType::Int(1) || buffer->dtype == DataType::Int(4) ||
         buffer->dtype == DataType::UInt(4))) {
     auto type_msg = tvm::tir::StringImm(type_err_msg.str());
-    asserts_.emplace_back(AssertStmt(a_ndim == v_ndim, msg, nop));
     asserts_.emplace_back(AssertStmt(cond, type_msg, nop));
-  }
-  // data field
-  if (Bind_(buffer->data, TVMArrayGet(DataType::Handle(), handle, builtin::kArrData),
-            arg_name + ".data", true)) {
-    Var vptr(buffer->data);
-    def_handle_dtype_.Set(vptr, tir::TypeAnnotation(buffer->dtype));
-    // mark alignment of external bufs
-    init_nest_.emplace_back(AttrStmt(vptr, tir::attr::storage_alignment,
-                                     IntImm(DataType::Int(32), buffer->data_alignment), nop));
   }
 
   // shape field
@@ -243,7 +238,7 @@ void ArgBinder::BindDLTensor(const Buffer& buffer, const PrimExpr& device_type,
           foldl([](PrimExpr a, PrimExpr b, Span span) { return logical_and(a, b, span); },
                 const_true(1), conds),
           stride_msg, Evaluate(0));
-      check = IfThenElse(Not(v_strides_is_null), check, Stmt());
+      check = IfThenElse(Not(v_strides_is_null), check);
       asserts_.emplace_back(SeqStmt({check, Evaluate(0)}));
     }
   } else if (buffer->buffer_type == kAutoBroadcast) {
@@ -300,6 +295,33 @@ void ArgBinder::BindDLTensor(const Buffer& buffer, const PrimExpr& device_type,
         arg_name + ".device_type", true);
   Bind_(device_id, TVMArrayGet(DataType::Int(32), handle, builtin::kArrDeviceId),
         arg_name + ".device_id", true);
+
+  // Data field.  Because the validation of the data field may depend
+  // on a dynamic size defined by the other DLTensor* parameters, this
+  // field must be generated last.
+  if (Bind_(buffer->data, TVMArrayGet(DataType::Handle(), handle, builtin::kArrData),
+            arg_name + ".data", true)) {
+    Var vptr(buffer->data);
+
+    // Check if the data pointer is NULL.  This check is skipped for
+    // size-0 arrays, since CUDA provides a NULL pointer for size-zero
+    // allocations.
+    auto alloc_size = [&]() -> PrimExpr {
+      PrimExpr product = IntImm(buffer->DefaultIndexType(), 1);
+      for (const auto& dim : buffer->shape) {
+        product *= dim;
+      }
+      return product;
+    }();
+    asserts_.emplace_back(AssertStmt(
+        alloc_size == 0 || !Call(DataType::Bool(), builtin::isnullptr(), {vptr}),
+        tvm::tir::StringImm(arg_name + " is expected to have non-NULL data pointer"), nop));
+
+    def_handle_dtype_.Set(vptr, tir::TypeAnnotation(buffer->dtype));
+    // mark alignment of external bufs
+    init_nest_.emplace_back(AttrStmt(vptr, tir::attr::storage_alignment,
+                                     IntImm(DataType::Int(32), buffer->data_alignment), nop));
+  }
 }
 
 }  // namespace tir

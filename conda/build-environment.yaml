@@ -25,8 +25,9 @@ channels:
 
 # The packages to install to the environment
 dependencies:
-  - python=3.7 # or 3.8. See https://github.com/apache/tvm/issues/8577 for more details on >= 3.9
-  - conda-build
+  - python=3.9
+  - conda < 24.9.0
+  - conda-build < 24.9.0
   - git
   - llvmdev >=11
   - numpy

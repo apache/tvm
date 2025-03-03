@@ -20,8 +20,7 @@ import tvm
 from tvm import te
 from tvm.tir import PrimExpr
 
-from . import tag
-from . import cpp
+from . import cpp, tag
 from .utils import get_const_tuple
 
 
@@ -93,28 +92,6 @@ def erf(x):
         The result.
     """
     return te.compute(x.shape, lambda *i: te.erf(x(*i)))
-
-
-@tvm.target.generic_func
-def erf_legalize(attrs, inputs, types):
-    """Legalizes ERF op.
-
-    Parameters
-    ----------
-    attrs : tvm.ir.Attrs
-        Attributes of current convolution
-    inputs : list of tvm.relay.Expr
-        The args of the Relay expr to be legalized
-    types : list of types
-        List of input and output types
-
-    Returns
-    -------
-    result : tvm.relay.Expr
-        The legalized expr.
-    """
-    # Note changed by default.
-    return None
 
 
 @tvm.te.tag_scope(tag=tag.ELEMWISE)
@@ -855,17 +832,17 @@ def ceil_log2(x):
     if "float" in x.dtype:
         return tvm.tir.ceil(tvm.tir.log2(x))
 
-    if "vulkan" in tvm.target.Target.current().kind.name:
+    target = tvm.target.Target.current()
+
+    if "vulkan" in target.kind.name:
         clz = tvm.tir.clz(x)
         bits = int(x.dtype[-2:])
         res = tvm.tir.if_then_else(x & (x - 1) == 0, bits - clz - 1, bits - clz)
-
         if res.dtype != x.dtype:
             return cast(res, x.dtype)
-
         return res
 
-    if "adreno" in tvm.target.Target.current().device_name:
+    if "adreno" in target.device_name or target.kind.name in ["metal", "rocm", "webgpu"]:
         return cast(tvm.tir.ceil(tvm.tir.log2(cast(x, "float32"))), x.dtype)
 
     return cast(tvm.tir.ceil(tvm.tir.log2(cast(x, "float64"))), x.dtype)

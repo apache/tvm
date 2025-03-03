@@ -46,7 +46,9 @@ clean_files() {
 sphinx_precheck() {
     clean_files
     echo "PreCheck sphinx doc generation WARNINGS.."
-    make cython3
+
+    # setup cython
+    cd python; python3 setup.py build_ext --inplace; cd ..
 
     pushd docs
     make clean
@@ -58,8 +60,6 @@ sphinx_precheck() {
 
 function join_by { local IFS="$1"; shift; echo "$*"; }
 
-# Convert bash tutorials to Python format
-tests/scripts/task_convert_scripts_to_python.sh
 
 # These warnings are produced during the docs build for various reasons and are
 # known to not signficantly affect the output. Don't add anything new to this
@@ -86,10 +86,14 @@ IGNORED_WARNINGS=(
     'autotvm:Cannot find config for target=llvm -keys=cpu'
     'autotvm:One or more operators have not been tuned. Please tune your model for better performance. Use DEBUG logging level to see more details.'
     'autotvm:Cannot find config for target=cuda -keys=cuda,gpu'
+    'cannot cache unpickable configuration value:'
+    'Invalid configuration value found: 'language = None'.'
     # Warning is thrown during TFLite quantization for micro_train tutorial
     'absl:For model inputs containing unsupported operations which cannot be quantized, the `inference_input_type` attribute will default to the original type.'
     'absl:Found untraced functions such as _jit_compiled_convolution_op'
     'You are using pip version'
+    # Tutorial READMEs can be ignored, but other docs should be included
+    "tutorials/README.rst: WARNING: document isn't included in any toctree"
 )
 
 JOINED_WARNINGS=$(join_by '|' "${IGNORED_WARNINGS[@]}")
@@ -117,20 +121,17 @@ fi
 
 
 clean_files
-# prepare auto scheduler tutorials
-rm -rf gallery/how_to/tune_with_auto_scheduler/*.json
-rm -rf gallery/tutorial/*.json
-cp -f gallery/how_to/tune_with_autoscheduler/ci_logs/*.json gallery/how_to/tune_with_autoscheduler
-cp -f gallery/how_to/tune_with_autoscheduler/ci_logs/*.json gallery/tutorial
-
 
 # cleanup stale log files
 find . -type f -path "*.log" | xargs rm -f
 find . -type f -path "*.pyc" | xargs rm -f
-make cython3
+
+# setup cython
+cd python; python3 setup.py build_ext --inplace; cd ..
+
 
 cd docs
-PYTHONPATH=$(pwd)/../python make html SPHINXOPTS='-j auto' |& tee /tmp/$$.log.txt
+PYTHONPATH=$(pwd)/../python make htmldepoly SPHINXOPTS='-j auto' |& tee /tmp/$$.log.txt
 if grep -E "failed to execute|Segmentation fault" < /tmp/$$.log.txt; then
     echo "Some of sphinx-gallery item example failed to execute."
     exit 1

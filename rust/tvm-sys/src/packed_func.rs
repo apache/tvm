@@ -73,6 +73,7 @@ macro_rules! TVMPODValue {
             Int(i64),
             UInt(i64),
             Float(f64),
+            Bool(bool),
             Null,
             DataType(DLDataType),
             String(*mut c_char),
@@ -95,6 +96,7 @@ macro_rules! TVMPODValue {
                         DLDataTypeCode_kDLInt => Int($value.v_int64),
                         DLDataTypeCode_kDLUInt => UInt($value.v_int64),
                         DLDataTypeCode_kDLFloat => Float($value.v_float64),
+                        TVMArgTypeCode_kTVMArgBool => Bool($value.v_int64 != 0),
                         TVMArgTypeCode_kTVMNullptr => Null,
                         TVMArgTypeCode_kTVMDataType => DataType($value.v_type),
                         TVMArgTypeCode_kDLDevice => Device($value.v_device),
@@ -117,6 +119,7 @@ macro_rules! TVMPODValue {
                     Int(val) => (TVMValue { v_int64: *val }, DLDataTypeCode_kDLInt),
                     UInt(val) => (TVMValue { v_int64: *val as i64 }, DLDataTypeCode_kDLUInt),
                     Float(val) => (TVMValue { v_float64: *val }, DLDataTypeCode_kDLFloat),
+                    Bool(val) => (TVMValue { v_int64: *val as i64 }, TVMArgTypeCode_kTVMArgBool),
                     Null => (TVMValue{ v_int64: 0 },TVMArgTypeCode_kTVMNullptr),
                     DataType(val) => (TVMValue { v_type: *val }, TVMArgTypeCode_kTVMDataType),
                     Device(val) => (TVMValue { v_device: val.clone() }, TVMArgTypeCode_kDLDevice),
@@ -263,6 +266,7 @@ macro_rules! impl_pod_value {
 impl_pod_value!(Int, i64, [i8, i16, i32, i64, isize]);
 impl_pod_value!(UInt, i64, [u8, u16, u32, u64, usize]);
 impl_pod_value!(Float, f64, [f32, f64]);
+impl_pod_value!(Bool, bool, [bool]);
 impl_pod_value!(DataType, DLDataType, [DLDataType]);
 impl_pod_value!(Device, DLDevice, [DLDevice]);
 
@@ -377,37 +381,6 @@ impl TryFrom<RetValue> for std::ffi::CString {
     fn try_from(val: RetValue) -> Result<CString, Self::Error> {
         try_downcast!(val -> std::ffi::CString,
             |RetValue::Str(val)| { val.into() })
-    }
-}
-
-// Implementations for bool.
-
-impl<'a> From<&bool> for ArgValue<'a> {
-    fn from(s: &bool) -> Self {
-        (*s as i64).into()
-    }
-}
-
-impl From<bool> for RetValue {
-    fn from(s: bool) -> Self {
-        (s as i64).into()
-    }
-}
-
-impl TryFrom<RetValue> for bool {
-    type Error = ValueDowncastError;
-
-    fn try_from(val: RetValue) -> Result<bool, Self::Error> {
-        try_downcast!(val -> bool,
-            |RetValue::Int(val)| { !(val == 0) })
-    }
-}
-
-impl<'a> TryFrom<ArgValue<'a>> for bool {
-    type Error = ValueDowncastError;
-
-    fn try_from(val: ArgValue<'a>) -> Result<bool, Self::Error> {
-        try_downcast!(val -> bool, |ArgValue::Int(val)| { !(val == 0) })
     }
 }
 

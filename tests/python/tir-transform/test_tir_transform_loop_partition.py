@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+import pytest
 import tvm
 import tvm.testing
 from tvm import te
@@ -26,74 +27,6 @@ def collect_visit(stmt, f):
     ret = []
     tvm.tir.stmt_functor.post_order_visit(stmt, lambda x: ret.append(f(x)))
     return ret
-
-
-def test_basic():
-    n = te.size_var("n")
-    A = te.placeholder((n,), name="A")
-    B = te.placeholder((n,), name="B")
-
-    T = te.compute((n,), lambda i: A[i] + B[i])
-    s = te.create_schedule(T.op)
-    xo, xi = s[T].split(T.op.axis[0], factor=4)
-
-    bounds = tvm.te.schedule.InferBound(s)
-    stmt = tvm.te.schedule.ScheduleOps(s, bounds)
-
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([n], stmt).with_attr("global_symbol", "main"))
-    mod = tvm.tir.transform.LoopPartition()(mod)
-    stmt = tvm.tir.transform.Simplify()(mod)["main"]
-
-    assert not any(collect_visit(stmt.body.body[0], lambda x: isinstance(x, tvm.tir.IfThenElse)))
-    assert any(collect_visit(stmt.body.body[1], lambda x: isinstance(x, tvm.tir.IfThenElse)))
-
-
-def test_const_loop():
-    n = 21
-    A = te.placeholder((n,), name="A")
-    B = te.placeholder((n,), name="B")
-
-    T = te.compute((n,), lambda i: A[i] + B[i])
-    s = te.create_schedule(T.op)
-    xo, xi = s[T].split(T.op.axis[0], factor=4)
-
-    bounds = tvm.te.schedule.InferBound(s)
-    stmt = tvm.te.schedule.ScheduleOps(s, bounds)
-
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt).with_attr("global_symbol", "main"))
-    with tvm.transform.PassContext(config={"tir.LoopPartition": {"partition_const_loop": True}}):
-        mod = tvm.tir.transform.LoopPartition()(mod)
-        stmt = tvm.tir.transform.Simplify()(mod)["main"].body
-
-    assert not any(collect_visit(stmt, lambda x: isinstance(x, tvm.tir.IfThenElse)))
-
-
-def test_no_unroll_loop():
-    n = 21
-    A = te.placeholder((n,), name="A")
-    B = te.placeholder((n,), name="B")
-
-    T = te.compute((n,), lambda i: A[i] + B[i])
-    s = te.create_schedule(T.op)
-    xo, xi = s[T].split(T.op.axis[0], factor=4)
-
-    bounds = tvm.te.schedule.InferBound(s)
-    stmt = tvm.te.schedule.ScheduleOps(s, bounds)
-
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt).with_attr("global_symbol", "main"))
-    with tvm.transform.PassContext(
-        config={
-            "tir.LoopPartition": {
-                "partition_const_loop": True,
-                "no_unroll_loop_with_extent_one": True,
-            }
-        }
-    ):
-        mod = tvm.tir.transform.LoopPartition()(mod)
-        mod = tvm.tir.transform.Simplify()(mod)
-        stmt = tvm.tir.transform.RemoveNoOp()(mod)["main"].body
-
-    assert sum(collect_visit(stmt, lambda x: isinstance(x, tvm.tir.For))) == 4
 
 
 def test_multi_loop():
@@ -140,52 +73,6 @@ def test_multi_if():
     assert not any(collect_visit(stmt.body[0], lambda x: isinstance(x, tvm.tir.IfThenElse)))
 
 
-def test_thread_axis():
-    m = te.size_var("m")
-    l = te.size_var("l")
-    A = te.placeholder((m, l), name="A")
-    B = te.compute((m, l), lambda i, j: A[i, j] + 3, name="B")
-    s = te.create_schedule(B.op)
-
-    s[B].set_scope("shared")
-    num_thread = 16
-    xo, xi = s[B].split(B.op.axis[0], 32)
-    xi0, xi1 = s[B].split(xi, nparts=num_thread)
-    s[B].bind(xi0, te.thread_axis("threadIdx.x"))
-
-    bounds = tvm.te.schedule.InferBound(s)
-    stmt = tvm.te.schedule.ScheduleOps(s, bounds)
-
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt).with_attr("global_symbol", "main"))
-    mod = tvm.tir.transform.LoopPartition()(mod)
-    stmt = tvm.tir.transform.Simplify()(mod)["main"]
-
-    assert not any(collect_visit(stmt.body.body[0], lambda x: isinstance(x, tvm.tir.IfThenElse)))
-
-
-def test_vectorize():
-    n = te.size_var("n")
-    A = te.placeholder((n,), name="A")
-    B = te.placeholder((n,), name="B")
-    bias = te.size_var("bias", dtype="float32")
-    scale = te.size_var("scale", dtype="float32")
-    C = te.compute(A.shape, lambda *i: A(*i) + B(*i) * scale + bias, name="C")
-    # schedule
-    s = te.create_schedule(C.op)
-    # create iter var and assign them tags.
-    num_thread = 32
-    bx, x = s[C].split(C.op.axis[0], factor=num_thread * 4)
-    tx, x = s[C].split(x, nparts=num_thread)
-    _, x = s[C].split(x, factor=4)
-    s[C].bind(bx, te.thread_axis("blockIdx.x"))
-    s[C].bind(tx, te.thread_axis("threadIdx.x"))
-    s[C].vectorize(x)
-    stmt = tvm.lower(s, [A, B], name="main")["main"]
-    body = stmt.body.body.body.body
-    assert x.var.name not in str(body.condition)
-    assert any(collect_visit(body.then_case, lambda x: isinstance(x, tvm.tir.Ramp)))
-
-
 def test_condition():
     ib = tvm.tir.ir_builder.create()
     m = te.size_var("m")
@@ -218,24 +105,6 @@ def test_condition_EQ():
     assert not any(collect_visit(stmt[0], lambda x: isinstance(x, tvm.tir.Select)))
 
 
-def test_thread_axis2():
-    n = tvm.runtime.convert(4096)
-    m = te.size_var("m")
-    A = te.placeholder((n,), name="A")
-    B = te.placeholder((n,), name="B")
-    C = te.compute(A.shape, lambda i: A[i] + B[i], name="C")
-    s = te.create_schedule(C.op)
-    num_thread = 32
-    bx, x = s[C].split(C.op.axis[0], factor=32)
-    tx, x = s[C].split(x, nparts=num_thread)
-    _, x = s[C].split(x, factor=m)
-    s[C].bind(bx, te.thread_axis("blockIdx.x"))
-    s[C].bind(tx, te.thread_axis("threadIdx.x"))
-    stmt = tvm.lower(s, [A, B], name="main")["main"]
-    for_body = stmt.body.body.body.body[0]
-    assert "threadIdx" not in str(for_body.extent)
-
-
 def test_everything_during_deduction():
     m = te.size_var("m")
     n = te.size_var("n")
@@ -252,55 +121,6 @@ def test_everything_during_deduction():
     stmt = tvm.tir.transform.Simplify()(mod)["main"].body
 
     assert isinstance(stmt.body.body, tvm.tir.IfThenElse)
-
-
-def test_single_likely():
-    n = 60
-    A = te.placeholder((n,), name="A")
-    B = te.placeholder((n,), name="B")
-
-    T = te.compute((n,), lambda i: A[i] + B[i])
-    s = te.create_schedule(T.op)
-    x = T.op.axis[0]
-    xo, xi = s[T].split(x, factor=16)
-
-    bounds = tvm.te.schedule.InferBound(s)
-    stmt = tvm.te.schedule.ScheduleOps(s, bounds)
-
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt).with_attr("global_symbol", "main"))
-
-    with tvm.transform.PassContext(config={"tir.LoopPartition": {"partition_const_loop": True}}):
-        mod = tvm.tir.transform.LoopPartition()(mod)
-        stmt = tvm.tir.transform.Simplify()(mod)["main"].body
-
-    assert not any(collect_visit(stmt, lambda x: isinstance(x, tvm.tir.IfThenElse)))
-
-
-def test_multi_likely():
-    n = 94
-    m = 62
-    A = te.placeholder((n, m), name="A")
-    B = te.placeholder((n, m), name="B")
-
-    T = te.compute((n, m), lambda i, j: A[i, j] + B[i, j])
-    s = te.create_schedule(T.op)
-    bounds = tvm.te.schedule.InferBound(s)
-    stmt = tvm.te.schedule.ScheduleOps(s, bounds)
-    x, y = T.op.axis
-    xo, xi = s[T].split(x, factor=16)
-    yo, yi = s[T].split(y, factor=16)
-    s[T].reorder(xo, yo, xi, yi)
-
-    bounds = tvm.te.schedule.InferBound(s)
-    stmt = tvm.te.schedule.ScheduleOps(s, bounds)
-
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt).with_attr("global_symbol", "main"))
-
-    with tvm.transform.PassContext(config={"tir.LoopPartition": {"partition_const_loop": True}}):
-        mod = tvm.tir.transform.LoopPartition()(mod)
-        stmt = tvm.tir.transform.Simplify()(mod)["main"].body
-
-    assert not any(collect_visit(stmt, lambda x: isinstance(x, tvm.tir.IfThenElse)))
 
 
 def test_oneD_pool():
@@ -414,135 +234,6 @@ def test_cce_loop_3():
     assert not any(collect_visit(stmt, lambda x: isinstance(x, tvm.tir.IfThenElse)))
 
 
-def test_conv_tiling():
-    HSTR = WSTR = 1
-    in_channel = 128
-    kernel_height = kernel_width = 3
-    out_channel = 64
-    batch_size = 1
-    in_height = in_width = 64
-    out_height = out_width = in_height - kernel_height + 1
-    data = te.placeholder((batch_size, in_channel, in_height, in_width), name="data")
-    kernel = te.placeholder((kernel_height, kernel_width, in_channel, out_channel), name="kernel")
-    ic = te.reduce_axis((0, in_channel), name="ic")
-    kh = te.reduce_axis((0, kernel_height), name="kh")
-    kw = te.reduce_axis((0, kernel_width), name="kw")
-    conv = te.compute(
-        (batch_size, out_channel, out_height, out_width),
-        lambda n, oc, oh, ow: te.sum(
-            data[n, ic, oh * HSTR + kh, ow * WSTR + kw] * kernel[kh, kw, ic, oc], axis=[ic, kh, kw]
-        ),
-        name="conv2d",
-    )
-    s = te.create_schedule(conv.op)
-
-    n, oc, oh, ow = conv.op.axis
-    oho, owo, ohi, owi = s[conv].tile(oh, ow, 16, 16)
-    bounds = tvm.te.schedule.InferBound(s)
-    stmt = tvm.te.schedule.ScheduleOps(s, bounds)
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt).with_attr("global_symbol", "main"))
-    with tvm.transform.PassContext(config={"tir.LoopPartition": {"partition_const_loop": True}}):
-        mod = tvm.tir.transform.LoopPartition()(mod)
-        stmt = tvm.tir.transform.Simplify()(mod)["main"].body
-
-    assert not any(collect_visit(stmt, lambda x: isinstance(x, tvm.tir.IfThenElse)))
-
-
-def test_multilevel_splitting_with_indivisble_factors():
-    from tvm import topi
-
-    A = te.placeholder((130,), dtype="float32")
-    B = topi.nn.relu(A)
-    s = te.create_schedule(B.op)
-    (y,) = s[B].op.axis
-    (yo, yi) = s[B].split(y, factor=8)
-    (yoo, yoi) = s[B].split(yo, factor=16)
-    s[B].reorder(yoo, yoi, yi)
-    s[B].unroll(yi)
-
-    ## But this does the right thing.
-    with tvm.transform.PassContext(config={"tir.LoopPartition": {"partition_const_loop": True}}):
-        lowered_body = tvm.lower(s, [A, B], name="x")["x"].body
-
-        def visit_stmt(op):
-            return isinstance(op, tvm.tir.Max)
-
-        num_max = collect_visit(lowered_body, visit_stmt)
-        assert num_max.count(True) == 10
-
-
-def test_double_splitting_with_indivisible_factors():
-    m = 48
-    dtype = "float32"
-    A = te.placeholder((m,), name="A", dtype=dtype)
-    C = te.compute((m,), lambda i: A[i], name="C")
-    D = te.compute((m,), lambda i: C[i], name="D")
-
-    s = te.create_schedule(D.op)
-    co, ci = s[C].split(C.op.axis[0], factor=10)
-    do, di = s[D].split(D.op.axis[0], 32)
-    s[C].compute_at(s[D], do)
-
-    target = "llvm"
-    with tvm.transform.PassContext(config={"tir.LoopPartition": {"partition_const_loop": True}}):
-        f = tvm.lower(s, [A, C, D], name="fadd1", simple_mode=False)
-        func = tvm.build(f, target=target)
-
-    top_produce = f["fadd1"].body
-    assert not any(collect_visit(top_produce, lambda x: isinstance(x, tvm.tir.IfThenElse)))
-
-    # check functional correctness of generated code
-    dev = tvm.device(target, 0)
-    a = tvm.nd.array(
-        numpy.ones(
-            m,
-        ).astype(dtype),
-        dev,
-    )
-    c = tvm.nd.array(
-        numpy.zeros(
-            m,
-        ).astype(dtype),
-        dev,
-    )
-    d = tvm.nd.array(
-        numpy.zeros(
-            m,
-        ).astype(dtype),
-        dev,
-    )
-    func(a, c, d)
-    tvm.testing.assert_allclose(c.numpy(), a.numpy(), rtol=1e-5)
-    tvm.testing.assert_allclose(d.numpy(), a.numpy(), rtol=1e-5)
-
-
-def test_simple_rfactor():
-    K = 16 * 4 + 4
-    k = te.reduce_axis((0, K), "k")
-
-    A = te.placeholder((1, K), name="A")
-
-    B = te.compute((1,), lambda b: te.sum(A[b, k], axis=k), name="B")
-
-    s = te.create_schedule(B.op)
-    ko, _ = s[B].split(s[B].op.reduce_axis[0], 16)
-    BF = s.rfactor(B, ko, 0)
-
-    s.normalize()
-    bounds = tvm.te.schedule.InferBound(s)
-    stmt1 = tvm.te.schedule.ScheduleOps(s, bounds)
-
-    mod1 = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt1).with_attr("global_symbol", "main"))
-    stmt1 = tvm.tir.transform.Simplify()(mod1)["main"].body
-
-    with tvm.transform.PassContext(config={"tir.LoopPartition": {"partition_const_loop": True}}):
-        mod2 = tvm.tir.transform.LoopPartition()(mod1)
-        stmt2 = tvm.tir.transform.Simplify()(mod2)["main"].body
-
-    # make sure loop partition actually did something
-    assert not tvm.ir.structural_equal(stmt1.body, stmt2.body)
-
-
 @T.prim_func
 def partitioned_concat(
     A: T.Buffer((16,), "float32"), B: T.Buffer((16,), "float32"), C: T.Buffer((32,), "float32")
@@ -554,26 +245,12 @@ def partitioned_concat(
         C[i + 16] = B[i + 16]
 
 
-def test_explicit_partition_hint():
-    A = te.placeholder((16,), name="A")
-    B = te.placeholder((16,), name="B")
-    C = te.compute((32,), lambda i: te.if_then_else(i < 16, A[i], B[i]), name="C")
-    s = te.create_schedule(C.op)
-    s.normalize()
-    s[C].pragma(s[C].op.axis[0], "loop_partition_hint", True)
-    mod = tvm.driver.build_module.schedule_to_module(s, [A, B, C], "main", None)
-    with tvm.transform.PassContext(config={"tir.LoopPartition": {"partition_const_loop": True}}):
-        mod = tvm.tir.transform.StorageFlatten(64)(mod)
-        mod = tvm.tir.transform.LoopPartition()(mod)
-        mod = tvm.tir.transform.Simplify()(mod)
-    assert tvm.ir.structural_equal(mod["main"], partitioned_concat)
-
-
-def partition_from_scheduled_tir(prim_func, pass_cfg):
+def partition_from_scheduled_tir(prim_func, pass_cfg, do_flatten=True):
     with tvm.transform.PassContext(config=pass_cfg):
         mod = IRModule.from_expr(prim_func.with_attr("global_symbol", "main"))
         mod = tvm.tir.transform.LowerOpaqueBlock()(mod)
-        mod = tvm.tir.transform.FlattenBuffer()(mod)
+        if do_flatten:
+            mod = tvm.tir.transform.FlattenBuffer()(mod)
         mod = tvm.tir.transform.LoopPartition()(mod)
         mod = tvm.tir.transform.Simplify()(mod)
         mod = tvm.tir.transform.RemoveNoOp()(mod)
@@ -628,7 +305,7 @@ def test_condition_mutually_exclusive():
     mod = partition_from_scheduled_tir(
         concat_func_3, {"tir.LoopPartition": {"partition_const_loop": True}}
     )
-    assert tvm.ir.structural_equal(
+    tvm.ir.assert_structural_equal(
         mod["main"], partitioned_concat_3.with_attr("global_symbol", "main")
     )
 
@@ -680,7 +357,7 @@ def test_loop_partition_unroll_hint():
     mod = tvm.tir.transform.UnrollLoop()(mod)
     mod = tvm.tir.transform.RemoveNoOp()(mod)
     mod = tvm.tir.transform.Simplify()(mod)
-    assert tvm.ir.structural_equal(mod["main"], partitioned_main.with_attr("global_symbol", "main"))
+    tvm.ir.assert_structural_equal(mod["main"], partitioned_main.with_attr("global_symbol", "main"))
 
 
 def test_loop_partition_recursive_unroll_hint():
@@ -749,7 +426,7 @@ def test_loop_partition_recursive_unroll_hint():
             }
         },
     )
-    assert tvm.ir.structural_equal(mod["main"], partitioned_main.with_attr("global_symbol", "main"))
+    tvm.ir.assert_structural_equal(mod["main"], partitioned_main.with_attr("global_symbol", "main"))
 
 
 def test_loop_partition_keep_loop_annotations():
@@ -783,7 +460,7 @@ def test_loop_partition_keep_loop_annotations():
             }
         },
     )
-    assert tvm.ir.structural_equal(mod["main"], after.with_attr("global_symbol", "main"))
+    tvm.ir.assert_structural_equal(mod["main"], after.with_attr("global_symbol", "main"))
 
 
 def test_loop_partition_with_unit_loop_in_condition():
@@ -831,7 +508,316 @@ def test_loop_partition_with_unit_loop_in_condition():
             }
         },
     )
-    assert tvm.ir.structural_equal(mod["main"], after.with_attr("global_symbol", "main"))
+    tvm.ir.assert_structural_equal(mod["main"], after.with_attr("global_symbol", "main"))
+
+
+@T.prim_func
+def concat_func_single_point(
+    placeholder: T.Buffer((28, 64), "int8"),
+    placeholder_1: T.Buffer((28, 1), "int8"),
+    placeholder_2: T.Buffer((28, 63), "int8"),
+    T_concat: T.Buffer((28, 128), "int8"),
+) -> None:
+    for i0 in range(28):
+        for i1 in T.serial(128, annotations={"pragma_loop_partition_hint": 1}):
+            if i1 > 63:
+                T_concat[i0, i1] = placeholder[i0, i1 - 64]
+            elif i1 == 63:
+                T_concat[i0, i1] = placeholder_1[i0, i1 - 63]
+            else:
+                T_concat[i0, i1] = placeholder_2[i0, i1]
+
+
+@T.prim_func
+def expected_partitioned_concat_single_point(
+    placeholder: T.Buffer((28, 64), "int8"),
+    placeholder_1: T.Buffer((28, 1), "int8"),
+    placeholder_2: T.Buffer((28, 63), "int8"),
+    T_concat: T.Buffer((28, 128), "int8"),
+):
+    for i0 in range(28):
+        T_concat_1 = T.Buffer((3584,), "int8", data=T_concat.data)
+        for i1 in range(63):
+            placeholder_2_1 = T.Buffer((1764,), "int8", data=placeholder_2.data)
+            T_concat_1[i0 * 128 + i1] = placeholder_2_1[i0 * 63 + i1]
+        placeholder_1_1 = T.Buffer((28,), "int8", data=placeholder_1.data)
+        T_concat_1[i0 * 128 + 63] = placeholder_1_1[i0]
+        for i1 in range(64):
+            placeholder_3 = T.Buffer((1792,), "int8", data=placeholder.data)
+            T_concat_1[i0 * 128 + i1 + 64] = placeholder_3[i0 * 64 + i1]
+
+
+@T.prim_func
+def concat_func_start_point_equality(
+    placeholder: T.Buffer((28, 64), "int8"),
+    placeholder_1: T.Buffer((28, 1), "int8"),
+    placeholder_2: T.Buffer((28, 63), "int8"),
+    T_concat: T.Buffer((28, 128), "int8"),
+) -> None:
+    for i0 in range(28):
+        for i1 in range(128, annotations={"pragma_loop_partition_hint": 1}):
+            if i1 == 0:
+                # Special case for i1 == 0
+                T_concat[i0, i1] = placeholder_1[i0, 0]
+            elif i1 < 64:
+                # Normal case for i1 in [1, 63]
+                T_concat[i0, i1] = placeholder_2[i0, i1]
+            else:
+                # Case for i1 in [64, 127]
+                T_concat[i0, i1] = placeholder[i0, i1 - 64]
+
+
+@T.prim_func
+def concat_func_start_point_equality_expected(
+    placeholder: T.Buffer((28, 64), "int8"),
+    placeholder_1: T.Buffer((28, 1), "int8"),
+    placeholder_2: T.Buffer((28, 63), "int8"),
+    T_concat: T.Buffer((28, 128), "int8"),
+):
+    for i0 in range(28):
+        T_concat_1 = T.Buffer((3584,), "int8", data=T_concat.data)
+        placeholder_1_1 = T.Buffer((28,), "int8", data=placeholder_1.data)
+        T_concat_1[i0 * 128] = placeholder_1_1[i0]
+        for i1 in range(63):
+            placeholder_2_1 = T.Buffer((1764,), "int8", data=placeholder_2.data)
+            T_concat_1[i0 * 128 + i1 + 1] = placeholder_2_1[i0 * 63 + i1 + 1]
+        for i1 in range(64):
+            placeholder_3 = T.Buffer((1792,), "int8", data=placeholder.data)
+            T_concat_1[i0 * 128 + i1 + 64] = placeholder_3[i0 * 64 + i1]
+
+
+@T.prim_func
+def concat_func_end_point_equality(
+    placeholder: T.Buffer((28, 64), "int8"),
+    placeholder_1: T.Buffer((28, 1), "int8"),
+    placeholder_2: T.Buffer((28, 63), "int8"),
+    T_concat: T.Buffer((28, 128), "int8"),
+) -> None:
+    for i0 in range(28):
+        for i1 in range(128, annotations={"pragma_loop_partition_hint": 1}):
+            if i1 == 127:
+                # Explicit equality check for the end point i1 == 127
+                T_concat[i0, i1] = placeholder_1[i0, 0]
+            elif i1 >= 64:
+                # Case for i1 in [64, 126]
+                T_concat[i0, i1] = placeholder[i0, i1 - 64]
+            else:
+                # Case for i1 in [0, 63]
+                T_concat[i0, i1] = placeholder_2[i0, i1]
+
+
+@T.prim_func
+def concat_func_end_point_equality_expected(
+    placeholder: T.Buffer((28, 64), "int8"),
+    placeholder_1: T.Buffer((28, 1), "int8"),
+    placeholder_2: T.Buffer((28, 63), "int8"),
+    T_concat: T.Buffer((28, 128), "int8"),
+):
+    for i0 in range(28):
+        T_concat_1 = T.Buffer((3584,), "int8", data=T_concat.data)
+        for i1 in range(64):
+            placeholder_2_1 = T.Buffer((1764,), "int8", data=placeholder_2.data)
+            T_concat_1[i0 * 128 + i1] = placeholder_2_1[i0 * 63 + i1]
+        for i1 in range(63):
+            placeholder_3 = T.Buffer((1792,), "int8", data=placeholder.data)
+            T_concat_1[i0 * 128 + i1 + 64] = placeholder_3[i0 * 64 + i1]
+        placeholder_1_1 = T.Buffer((28,), "int8", data=placeholder_1.data)
+        T_concat_1[i0 * 128 + 127] = placeholder_1_1[i0]
+
+
+@T.prim_func
+def concat_func_edge_equalities(
+    placeholder: T.Buffer((28, 64), "int8"),
+    placeholder_1: T.Buffer((28, 1), "int8"),
+    placeholder_2: T.Buffer((28, 1), "int8"),
+    T_concat: T.Buffer((28, 66), "int8"),
+) -> None:
+    for i0 in range(28):
+        for i1 in range(
+            66, annotations={"pragma_loop_partition_hint": 1}
+        ):  # Loop from 0 to 65 inclusive
+            if i1 == 0:
+                # Handle equality at the start of the range: i1 == 0
+                T_concat[i0, i1] = placeholder_2[i0, 0]
+            elif i1 == 65:
+                # Handle equality at the end of the range: i1 == 65
+                T_concat[i0, i1] = placeholder_1[i0, 0]
+            else:
+                # Copying from placeholder (from 0 to 63)
+                T_concat[i0, i1] = placeholder[i0, i1 - 1]
+
+
+@T.prim_func
+def concat_func_edge_equalities_expected(
+    placeholder: T.Buffer((28, 64), "int8"),
+    placeholder_1: T.Buffer((28, 1), "int8"),
+    placeholder_2: T.Buffer((28, 1), "int8"),
+    T_concat: T.Buffer((28, 66), "int8"),
+):
+    for i0 in range(28):
+        T_concat_1 = T.Buffer((1848,), "int8", data=T_concat.data)
+        placeholder_2_1 = T.Buffer((28,), "int8", data=placeholder_2.data)
+        T_concat_1[i0 * 66] = placeholder_2_1[i0]
+        for i1 in range(64):
+            placeholder_3 = T.Buffer((1792,), "int8", data=placeholder.data)
+            T_concat_1[i0 * 66 + i1 + 1] = placeholder_3[i0 * 64 + i1]
+        placeholder_1_1 = T.Buffer((28,), "int8", data=placeholder_1.data)
+        T_concat_1[i0 * 66 + 65] = placeholder_1_1[i0]
+
+
+@T.prim_func
+def concat_five_buffers_with_equalities(
+    buffer_a: T.Buffer((28, 1), "int8"),  # Used for i1 == 0
+    buffer_b: T.Buffer((28, 63), "int8"),  # Fills i1 from 1 to 63
+    buffer_c: T.Buffer((28, 1), "int8"),  # Used for i1 == 64
+    buffer_d: T.Buffer((28, 63), "int8"),  # Fills i1 from 65 to 128
+    buffer_e: T.Buffer((28, 1), "int8"),  # Used for i1 == 129
+    T_concat: T.Buffer((28, 129), "int8"),
+) -> None:
+    for i0 in range(28):
+        for i1 in range(130, annotations={"pragma_loop_partition_hint": 1}):
+            if i1 == 0:
+                T_concat[i0, i1] = buffer_a[i0, 0]
+            elif i1 == 64:
+                T_concat[i0, i1] = buffer_c[i0, 0]
+            elif i1 == 129:
+                T_concat[i0, i1] = buffer_e[i0, 0]
+            elif i1 < 64:
+                T_concat[i0, i1] = buffer_b[i0, i1 - 1]
+            else:  # i1 > 64 and i1 < 128
+                T_concat[i0, i1] = buffer_d[i0, i1 - 65]
+
+
+@T.prim_func
+def concat_five_buffers_with_equalities_expected(
+    buffer_a: T.Buffer((28, 1), "int8"),  # Used for i1 == 0
+    buffer_b: T.Buffer((28, 63), "int8"),  # Fills i1 from 1 to 63
+    buffer_c: T.Buffer((28, 1), "int8"),  # Used for i1 == 64
+    buffer_d: T.Buffer((28, 63), "int8"),  # Fills i1 from 65 to 128
+    buffer_e: T.Buffer((28, 1), "int8"),  # Used for i1 == 129
+    T_concat: T.Buffer((28, 129), "int8"),
+):
+    for i0 in range(28):
+        T_concat_1 = T.Buffer((3612,), "int8", data=T_concat.data)
+        buffer_a_1 = T.Buffer((28,), "int8", data=buffer_a.data)
+        T_concat_1[i0 * 129] = buffer_a_1[i0]
+        for i1 in range(63):
+            buffer_b_1 = T.Buffer((1764,), "int8", data=buffer_b.data)
+            T_concat_1[i0 * 129 + i1 + 1] = buffer_b_1[i0 * 63 + i1]
+        buffer_c_1 = T.Buffer((28,), "int8", data=buffer_c.data)
+        T_concat_1[i0 * 129 + 64] = buffer_c_1[i0]
+        for i1 in range(64):
+            buffer_d_1 = T.Buffer((1764,), "int8", data=buffer_d.data)
+            T_concat_1[i0 * 129 + i1 + 65] = buffer_d_1[i0 * 63 + i1]
+        buffer_e_1 = T.Buffer((28,), "int8", data=buffer_e.data)
+        T_concat_1[i0 * 129 + 129] = buffer_e_1[i0]
+
+
+@T.prim_func
+def nested_partition_with_single_points(A: T.Buffer((25,), "int32")):
+    for i in T.serial(5, annotations={"pragma_loop_partition_hint": 1}):
+        if i == 1:
+            for j in T.serial(5, annotations={"pragma_loop_partition_hint": 1}):
+                if j > 2:
+                    A[i * 5 + j] = i * 5 + j
+        else:
+            for j in T.serial(5, annotations={"pragma_loop_partition_hint": 1}):
+                if j > 2:
+                    A[i * 5 + j] = i * 15 + j
+
+
+@T.prim_func
+def nested_partition_with_single_points_expected(A: T.Buffer((25,), "int32")):
+    for j in range(2):
+        A[j + 3] = j + 3
+    for j in range(2):
+        A[j + 8] = j + 8
+    for i, j in T.grid(3, 2):
+        A[i * 5 + j + 13] = i * 15 + j + 33
+
+
+@pytest.mark.parametrize(
+    "origin,expected",
+    [
+        (concat_func_single_point, expected_partitioned_concat_single_point),
+        (concat_func_start_point_equality, concat_func_start_point_equality_expected),
+        (concat_func_end_point_equality, concat_func_end_point_equality_expected),
+        (concat_func_edge_equalities, concat_func_edge_equalities_expected),
+        (concat_five_buffers_with_equalities, concat_five_buffers_with_equalities_expected),
+        (nested_partition_with_single_points, nested_partition_with_single_points_expected),
+    ],
+)
+def test_single_point_partition(origin, expected):
+    origin = origin.with_attr({"global_symbol": "main"})
+    expected = expected.with_attr({"global_symbol": "main"})
+    mod = partition_from_scheduled_tir(
+        origin,
+        {
+            "tir.LoopPartition": {
+                "partition_const_loop": True,
+                "unroll_loop_with_partition_hint_no_interval": True,
+            }
+        },
+    )
+    tvm.ir.assert_structural_equal(mod["main"], expected)
+
+
+def test_equation_on_floordiv():
+    @T.prim_func
+    def before(A: T.Buffer((2, 2, 20), "int32")):
+        for i in T.serial(5, annotations={"pragma_loop_partition_hint": 1}):
+            if i == 1:
+                for vv in T.vectorized(640, annotations={"pragma_loop_partition_hint": 1}):
+                    if i * 2 + vv // 320 == 3:
+                        A[i - 1, i * 2 + vv // 320 - 3, vv % 320 // 16] = 1
+
+    @T.prim_func
+    def expected(A: T.Buffer((2, 2, 20), "int32")):
+        for vv in T.vectorized(320):
+            A[0, 0, vv // 16] = 1
+
+    expected = expected.with_attr({"global_symbol": "main"})
+    after = partition_from_scheduled_tir(
+        before.with_attr("global_symbol", "main"), {}, do_flatten=False
+    )
+    tvm.ir.assert_structural_equal(after["main"], expected)
+
+
+def test_ignore_loop_partition_hint():
+    """Skip unroll body and prologue for pipeline case"""
+
+    @T.prim_func
+    def before(A: T.Buffer((10), "float32"), D: T.Buffer((10), "float32")):
+        B = T.decl_buffer([2], "float32")
+        C = T.decl_buffer([2], "float32")
+        for i in T.serial(12, annotations={"pragma_loop_partition_hint": 1}):
+            if T.ignore_loop_partition(i < 10):
+                B[i % 2] = A[i] + 1.0
+            if T.ignore_loop_partition(1 <= i and i < 11):
+                C[(i - 1) % 2] = B[(i - 1) % 2] + 2.0
+            if 2 <= i:
+                D[i - 2] = C[i % 2] + 3.0
+
+    @T.prim_func
+    def expected(A: T.Buffer((10), "float32"), D: T.Buffer((10), "float32")):
+        B = T.decl_buffer([2], "float32")
+        C = T.decl_buffer([2], "float32")
+        for i in range(2):
+            B[i] = A[i] + 1.0
+            if i == 1:
+                C[i - 1] = B[i - 1] + 2.0
+        for i in T.serial(10):
+            if i < 8:
+                B[i % 2] = A[i + 2] + 1.0
+            if i < 9:
+                C[(i + 1) % 2] = B[(i + 1) % 2] + 2.0
+            D[i] = C[i % 2] + 3.0
+
+    expected = expected.with_attr({"global_symbol": "main"})
+    after = partition_from_scheduled_tir(
+        before.with_attr({"global_symbol": "main"}), {}, do_flatten=False
+    )
+    tvm.ir.assert_structural_equal(after["main"], expected)
 
 
 if __name__ == "__main__":

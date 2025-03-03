@@ -17,7 +17,6 @@
  * under the License.
  */
 
-#include <dmlc/logging.h>
 #include <gtest/gtest.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/support/parallel_for.h>

@@ -240,7 +240,7 @@ std::string CodeGenC::GetBufferRef(DataType t, const BufferNode* buffer, PrimExp
   }
 
   std::string index_str = PrintExpr(index);
-  if (t.bits() == 4 || (t.bits() == 1 && t.is_int())) {
+  if ((t.bits() == 4 && !t.is_float4()) || (t.bits() == 1 && t.is_int())) {
     // This is a special case, because CodegenCUDA::PrintType()
     // returns "int" for bool and for 4-bit integers. In most cases,
     // we divide by the number of lanes to determine the index.
@@ -631,13 +631,33 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
     } else if (op->op.same_as(builtin::shift_right())) {
       PrintBinaryIntrinsic(op, " >> ", os, this);
     } else if (op->op.same_as(builtin::if_then_else())) {
-      os << "(";
-      PrintExpr(op->args[0], os);
-      os << " ? ";
-      PrintExpr(op->args[1], os);
-      os << " : ";
-      PrintExpr(op->args[2], os);
-      os << ")";
+      // conditional that skips eval if cond evals to false
+      std::string result = name_supply_->FreshName("condval");
+      std::string cond = PrintExpr(op->args[0]);
+      this->PrintIndent();
+      PrintType(op->dtype, this->stream);
+      this->stream << " " << result << ";\n";
+      this->PrintIndent();
+      this->stream << "if (" << cond << ") {\n";
+      {
+        int then_scope = this->BeginScope();
+        std::string true_val = PrintExpr(op->args[1]);
+        this->PrintIndent();
+        this->stream << result << " = " << true_val << ";\n";
+        this->EndScope(then_scope);
+        this->PrintIndent();
+        this->stream << "} else {\n";
+      }
+      {
+        int else_scope = this->BeginScope();
+        std::string false_val = PrintExpr(op->args[2]);
+        this->PrintIndent();
+        this->stream << result << " = " << false_val << ";\n";
+        this->EndScope(else_scope);
+        this->PrintIndent();
+        this->stream << "}\n";
+      }
+      os << result;
     } else if (op->op.same_as(builtin::address_of())) {
       const BufferLoadNode* load = op->args[0].as<BufferLoadNode>();
       ICHECK(op->args.size() == 1 && load);
@@ -652,10 +672,15 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
       this->PrintExpr(op->args[0], os);
       os << " == NULL)";
     } else if (op->op.same_as(builtin::reinterpret())) {
+      auto target_dtype = op->dtype;
+      auto source_dtype = op->args[0]->dtype;
+      CHECK_EQ(target_dtype.lanes() * target_dtype.bits(),
+               source_dtype.lanes() * source_dtype.bits())
+          << "reinterpret expects source and target to have the same number of bits";
       int ssa_scope = BeginScope();
-      std::string rhs = SSAGetID(PrintExpr(op->args[0]), op->args[0]->dtype);
+      std::string rhs = SSAGetID(PrintExpr(op->args[0]), source_dtype);
       os << "(*(";
-      this->PrintType(op->dtype, os);
+      this->PrintType(target_dtype, os);
       os << " *)(&(" << rhs << ")))";
       EndScope(ssa_scope);
     } else if (op->op.same_as(builtin::isnan())) {
@@ -669,6 +694,10 @@ void CodeGenC::VisitExpr_(const CallNode* op, std::ostream& os) {  // NOLINT(*)
       const StringImmNode* str = op->args[0].as<StringImmNode>();
       ICHECK(str != nullptr);
       os << "__tvm_param__" << str->value;
+    } else if (op->op.same_as(builtin::tvm_thread_invariant())) {
+      os << "(";
+      this->PrintExpr(op->args[0], os);
+      os << ")";
     } else {
       LOG(FATAL) << "Unresolved call " << op->op;
     }
@@ -735,6 +764,7 @@ void CodeGenC::VisitStmt_(const DeclBufferNode* op) { this->PrintStmt(op->body);
 
 void CodeGenC::VisitExpr_(const BufferLoadNode* op, std::ostream& os) {  // NOLINT(*)
   ICHECK_EQ(op->indices.size(), 1) << "Load from non-flat memory not supported.";
+  ICHECK(!op->predicate.defined()) << "Predicated buffer load is not supported.";
 
   DataType value_dtype = op->dtype;
   PrimExpr index = op->indices[0];
@@ -794,6 +824,7 @@ void CodeGenC::VisitExpr_(const BufferLoadNode* op, std::ostream& os) {  // NOLI
 
 void CodeGenC::VisitStmt_(const BufferStoreNode* op) {
   ICHECK_EQ(op->indices.size(), 1) << "Store to non-flat memory not supported.";
+  ICHECK(!op->predicate.defined()) << "Predicated buffer store is not supported.";
 
   DataType value_dtype = op->value.dtype();
   DataType element_dtype = op->buffer->dtype;
@@ -856,19 +887,39 @@ void CodeGenC::VisitExpr_(const LetNode* op, std::ostream& os) {  // NOLINT(*)
     let_binding_[op->var] = op;
   }
   std::string value = PrintExpr(op->value);
-  var_idmap_[op->var.get()] = value;
+  if (print_ssa_form_) {
+    ICHECK(!var_idmap_.count(op->var.get()));
+    var_idmap_[op->var.get()] = value;
+  } else {
+    PrintIndent();
+    if (op->var.dtype() == DataType::Handle() && handle_data_type_.count(op->var.get())) {
+      PrintType(handle_data_type_.at(op->var.get()), this->stream);
+      this->stream << "* " << AllocVarID(op->var.get()) << " = (";
+      PrintType(handle_data_type_.at(op->var.get()), this->stream);
+      this->stream << "*)" << value << ";\n";
+    } else {
+      PrintType(op->var.dtype(), this->stream);
+      this->stream << ' ' << AllocVarID(op->var.get()) << " = " << value << ";\n";
+    }
+  }
   os << PrintExpr(op->body);
+  // Pop the defined var from var_idmap when exiting its scope.
+  // We do this because it is hard to completely avoid a same LetNode appearing
+  // at different places.
+  bool removed = var_idmap_.erase(op->var.get());
+  ICHECK(removed);
 }
 
 void CodeGenC::VisitExpr_(const RampNode* op, std::ostream& os) {  // NOLINT(*)
   // NOTE: C have comma expression so cannot use (int2)(v0, v1)
   // instead should use int2(v0, v1)
   PrintType(op->dtype, os);
+  int lanes = op->dtype.lanes();
   os << "(";
-  for (int i = 0; i < op->lanes; i++) {
+  for (int i = 0; i < lanes; i++) {
     os << "(" << PrintExpr(op->base) << ")"
        << "+(" << PrintExpr(op->stride) << "*" << i << ")";
-    if (i != op->lanes - 1) os << ", ";
+    if (i != lanes - 1) os << ", ";
   }
   os << ")";
 }
@@ -902,7 +953,9 @@ void CodeGenC::VisitExpr_(const ShuffleNode* op, std::ostream& os) {  // NOLINT(
   }
   if (op->indices.size() == 1) {
     // This is an extract element
-    os << concat_vec[Downcast<IntImm>(op->indices[0])->value];
+    int64_t idx = Downcast<IntImm>(op->indices[0])->value;
+    ICHECK_LT(idx, concat_vec.size());
+    os << concat_vec[idx];
   } else {
     // Print the shuffle as vector constructor
     // vec(e0, e1, e2, .. en)
@@ -1018,8 +1071,11 @@ void CodeGenC::VisitStmt_(const ForNode* op) {
 
 void CodeGenC::VisitStmt_(const WhileNode* op) {
   PrintIndent();
-  stream << "while (" << PrintExpr(op->condition) << ") {\n";
+  stream << "while (1) {\n";
   int while_scope = BeginScope();
+  std::string cond = PrintExpr(op->condition);
+  PrintIndent();
+  stream << "if (!(" << cond << ")) { break; }\n";
   PrintStmt(op->body);
   this->EndScope(while_scope);
   PrintIndent();

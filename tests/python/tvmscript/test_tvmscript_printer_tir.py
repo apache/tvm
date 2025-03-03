@@ -17,6 +17,7 @@
 # pylint: disable=missing-docstring
 
 import re
+import pytest
 
 import tvm.testing
 from tvm import ir, tir
@@ -229,7 +230,7 @@ def test_buffer_store():
         obj,
         """
 A = T.Buffer((128, 128), "float16")
-A[128, 128] = A[128, 128] + T.float16(1)
+A[128, 128] = A[128, 128] + T.float16(1.0)
 """,
     )
 
@@ -258,7 +259,7 @@ def test_let_stmt():
     _assert_print(
         obj,
         """
-with T.LetStmt(T.float32(10)) as v:
+with T.LetStmt(T.float32(10.0)) as v:
     T.evaluate(0)
 """,
     )
@@ -622,25 +623,35 @@ def test_select():
     )
 
 
-def test_ramp():
+@pytest.mark.parametrize(
+    "lanes, scripted_lanes", [(32, "32"), (tvm.tir.vscale() * 8, "T.vscale() * 8")]
+)
+def test_ramp(lanes, scripted_lanes):
     a = tir.Var("a", "int32")
-    obj = tir.Ramp(a, 1, 32)
+    obj = tir.Ramp(a, 1, lanes)
     _assert_print(
         obj,
         """
 a = T.int32()
-T.Ramp(a, 1, 32)
-""",
+T.Ramp(a, 1, {})
+""".format(
+            scripted_lanes
+        ),
     )
 
 
-def test_broadcast():
-    obj = tir.Broadcast(0, 4)
+@pytest.mark.parametrize(
+    "lanes, scripted_lanes", [(4, "4"), (tvm.tir.vscale() * 4, "T.vscale() * 4")]
+)
+def test_broadcast(lanes, scripted_lanes):
+    obj = tir.Broadcast(0, lanes)
     _assert_print(
         obj,
         """
-T.Broadcast(0, 4)
-""",
+T.Broadcast(0, {})
+""".format(
+            scripted_lanes
+        ),
     )
 
 
@@ -661,7 +672,7 @@ def test_call():
     _assert_print(
         obj,
         """
-T.atan(T.float32(1))
+T.atan(T.float32(1.0))
 """,
     )
 
@@ -671,7 +682,7 @@ def test_comm_reducer():
     _assert_print(
         obj,
         """
-T.comm_reducer(lambda x, y: x + y, [T.float32(0)])
+T.comm_reducer(lambda x, y: x + y, [T.float32(0.0)])
 """,
     )
 
@@ -701,7 +712,7 @@ def test_float_imm():
     _assert_print(
         obj,
         """
-T.float16(1)
+T.float16(1.0)
 """,
     )
 
@@ -711,7 +722,7 @@ def test_range():
     _assert_print(
         obj,
         """
-T.Range(0, 10)
+I.Range(0, 10)
 """,
     )
 
@@ -887,6 +898,172 @@ def test_variable_with_cpp_address():
         )
 
     assert re.match(expected_regex, script)
+
+
+def test_return_statement():
+    from tvm.script import tir as T
+
+    @T.prim_func
+    def func():
+        T.evaluate(T.ret(5))
+
+    expected_output = """
+# from tvm.script import tir as T
+
+@T.prim_func
+def func():
+    return 5
+    """
+    _assert_print(func, expected_output)
+
+
+@pytest.mark.parametrize("dtype", ["e4m3_float8", "e5m2_float8"])
+def test_float8(dtype):
+    from tvm.script import tir as T
+
+    def get_func(dtype):
+        if dtype == "e4m3_float8":
+
+            @T.prim_func
+            def func():
+                T.evaluate(T.e4m3_float8(0.0))
+
+            return func
+        elif dtype == "e5m2_float8":
+
+            @T.prim_func
+            def func():
+                T.evaluate(T.e5m2_float8(0.0))
+
+            return func
+
+    expected_output = f"""
+# from tvm.script import tir as T
+
+@T.prim_func
+def func():
+    T.evaluate(T.{dtype}(0.0))
+    """
+    func = get_func(dtype)
+    _assert_print(func, expected_output)
+
+
+def test_predicated_load_store():
+    from tvm.script import tir as T
+
+    @T.prim_func
+    def main(a: T.handle, b: T.handle):
+        A = T.match_buffer(a, (128, 128), "float32")
+        B = T.match_buffer(b, (256, 256), "float32")
+        T.func_attr({"global_symbol": "func"})
+        a_load = T.meta_var(A.vload([0, T.Ramp(0, 4, 4)], predicate=T.Broadcast(T.bool(False), 4)))
+        A.vstore([0, T.Ramp(0, 2, 4)], a_load, predicate=T.Broadcast(T.bool(False), 4))
+
+    expected_output = """
+# from tvm.script import tir as T
+
+@T.prim_func
+def func(A: T.Buffer((128, 128), "float32"), B: T.Buffer((256, 256), "float32")):
+    A.vstore([0, T.Ramp(0, 2, 4)], A.vload([0, T.Ramp(0, 4, 4)], predicate=T.Broadcast(T.bool(False), 4)), predicate=T.Broadcast(T.bool(False), 4))
+    """
+    _assert_print(main, expected_output)
+
+
+def test_predicated_buffer_load_store():
+    a = tir.Var("a", "handle")
+    b = tir.Var("b", "handle")
+    buffer_map = {
+        a: tir.decl_buffer(shape=[128, 128], dtype="float32", name="A"),
+        b: tir.decl_buffer(shape=[256, 256], dtype="float32", name="B"),
+    }
+    buffer_load = tir.BufferLoad(
+        buffer=buffer_map[b],
+        indices=[0, tir.Ramp(0, 4, 4)],
+        predicate=tir.Broadcast(tir.IntImm("uint1", 0), 4),
+    )
+    body = tir.BufferStore(
+        buffer=buffer_map[a],
+        value=buffer_load,
+        indices=[0, tir.Ramp(0, 2, 4)],
+        predicate=tir.Broadcast(tir.IntImm("uint1", 0), 4),
+    )
+    func = tir.PrimFunc(
+        params=[a, b],
+        ret_type=None,
+        buffer_map=buffer_map,
+        body=body,
+    )
+
+    expected_output = """
+# from tvm.script import tir as T
+
+@T.prim_func(private=True)
+def main(A: T.Buffer((128, 128), "float32"), B: T.Buffer((256, 256), "float32")):
+    A.vstore([0, T.Ramp(0, 2, 4)], B.vload([0, T.Ramp(0, 4, 4)], predicate=T.Broadcast(T.bool(False), 4)), predicate=T.Broadcast(T.bool(False), 4))
+    """
+    _assert_print(func, expected_output)
+
+
+def test_predicated_scalable_load_store():
+    from tvm.script import tir as T
+
+    @T.prim_func
+    def main(a: T.handle, b: T.handle):
+        A = T.match_buffer(a, (128, 128), "float32")
+        B = T.match_buffer(b, (256, 256), "float32")
+        T.func_attr({"global_symbol": "func"})
+        mask = T.meta_var(T.get_active_lane_mask("uint1xvscalex4", 0, 13))
+        a_load = T.meta_var(A.vload([0, T.Ramp(0, 4, T.vscale() * 4)], predicate=mask))
+        A.vstore([0, T.Ramp(0, 2, T.vscale() * 4)], a_load, predicate=mask)
+
+    expected_output = """
+# from tvm.script import tir as T
+
+@T.prim_func
+def func(A: T.Buffer((128, 128), "float32"), B: T.Buffer((256, 256), "float32")):
+    A.vstore([0, T.Ramp(0, 2, T.vscale() * 4)], A.vload([0, T.Ramp(0, 4, T.vscale() * 4)], predicate=T.get_active_lane_mask("uint1xvscalex4", 0, 13)), predicate=T.get_active_lane_mask("uint1xvscalex4", 0, 13))
+    """
+    _assert_print(main, expected_output)
+
+
+def test_vload_with_explicit_scalable_data_type():
+    from tvm.script import tir as T
+
+    @T.prim_func
+    def main(a: T.handle, b: T.handle):
+        A = T.match_buffer(a, (128,), "float32")
+        B = T.match_buffer(b, (128,), "float32")
+        B[0 : T.vscale() * 4] = A.vload([T.Ramp(0, 1, T.vscale() * 4)], dtype="float32xvscalex4")
+
+    expected_output = """
+# from tvm.script import tir as T
+
+@T.prim_func
+def main(A: T.Buffer((128,), "float32"), B: T.Buffer((128,), "float32")):
+    B[0:T.vscale() * 4] = A[0:T.vscale() * 4]
+    """
+    _assert_print(main, expected_output)
+
+
+def test_vectorize_llvm_pure_intrin():
+    from tvm.script import tir as T
+
+    @T.prim_func
+    def main(a: T.handle, b: T.handle):
+        A = T.match_buffer(a, (4,), "float32")
+        B = T.match_buffer(b, (4,), "float32")
+        A[T.Ramp(0, 1, 4)] = T.call_llvm_pure_intrin(
+            "float32x4", "llvm.sqrt", 1, B[T.Ramp(0, 1, 4)]
+        )
+
+    expected_output = """
+# from tvm.script import tir as T
+
+@T.prim_func
+def main(A: T.Buffer((4,), "float32"), B: T.Buffer((4,), "float32")):
+    A[0:4] = T.call_llvm_pure_intrin("float32x4", "llvm.sqrt", 1, B[0:4])
+    """
+    _assert_print(main, expected_output)
 
 
 if __name__ == "__main__":

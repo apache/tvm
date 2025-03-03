@@ -36,6 +36,7 @@
 #include <cstdlib>
 #include <cstring>
 #endif
+#include "errno_handling.h"
 
 namespace tvm {
 namespace support {
@@ -52,8 +53,21 @@ class Pipe : public dmlc::Stream {
 #endif
   /*! \brief destructor */
   ~Pipe() { Flush(); }
+
   using Stream::Read;
   using Stream::Write;
+
+  /*!
+   * \return last error of pipe operation
+   */
+  static int GetLastErrorCode() {
+#ifdef _WIN32
+    return GetLastError();
+#else
+    return errno;
+#endif
+  }
+
   /*!
    * \brief reads data from a file descriptor
    * \param ptr pointer to a memory buffer
@@ -63,13 +77,32 @@ class Pipe : public dmlc::Stream {
   size_t Read(void* ptr, size_t size) final {
     if (size == 0) return 0;
 #ifdef _WIN32
-    DWORD nread;
-    ICHECK(ReadFile(handle_, static_cast<TCHAR*>(ptr), size, &nread, nullptr))
-        << "Read Error: " << GetLastError();
+    auto fread = [&]() -> ssize_t {
+      DWORD nread;
+      if (!ReadFile(handle_, static_cast<TCHAR*>(ptr), size, &nread, nullptr))
+        return static_cast<ssize_t>(-1);
+      return static_cast<ssize_t>(nread);
+    };
+    DWORD nread = static_cast<DWORD>(RetryCallOnEINTR(fread, GetLastErrorCode));
+    ICHECK_EQ(static_cast<size_t>(nread), size) << "Read Error: " << GetLastError();
 #else
-    ssize_t nread;
-    nread = read(handle_, ptr, size);
-    ICHECK_GE(nread, 0) << "Write Error: " << strerror(errno);
+    size_t nread = 0;
+    while (size) {
+      ssize_t nread_chunk =
+          RetryCallOnEINTR([&]() { return read(handle_, ptr, size); }, GetLastErrorCode);
+      ICHECK_NE(nread_chunk, -1) << "Write Error: " << strerror(errno);
+
+      if (nread_chunk == 0) {
+        break;
+      }
+
+      ICHECK_GE(nread_chunk, 0);
+      ICHECK_LE(nread_chunk, size) << "Read " << nread_chunk << " bytes, "
+                                   << "but only expected to read " << size << " bytes";
+      size -= nread_chunk;
+      ptr = static_cast<char*>(ptr) + nread_chunk;
+      nread += nread_chunk;
+    }
 #endif
     return static_cast<size_t>(nread);
   }
@@ -79,18 +112,28 @@ class Pipe : public dmlc::Stream {
    * \param size block size
    * \return the size of data read
    */
-  void Write(const void* ptr, size_t size) final {
-    if (size == 0) return;
+  size_t Write(const void* ptr, size_t size) final {
+    if (size == 0) return 0;
 #ifdef _WIN32
-    DWORD nwrite;
-    ICHECK(WriteFile(handle_, static_cast<const TCHAR*>(ptr), size, &nwrite, nullptr) &&
-           static_cast<size_t>(nwrite) == size)
-        << "Write Error: " << GetLastError();
+    auto fwrite = [&]() -> ssize_t {
+      DWORD nwrite;
+      if (!WriteFile(handle_, static_cast<const TCHAR*>(ptr), size, &nwrite, nullptr))
+        return static_cast<ssize_t>(-1);
+      return static_cast<ssize_t>(nwrite);
+    };
+    DWORD nwrite = static_cast<DWORD>(RetryCallOnEINTR(fwrite, GetLastErrorCode));
+    ICHECK_EQ(static_cast<size_t>(nwrite), size) << "Write Error: " << GetLastError();
 #else
-    ssize_t nwrite;
-    nwrite = write(handle_, ptr, size);
-    ICHECK_EQ(static_cast<size_t>(nwrite), size) << "Write Error: " << strerror(errno);
+    ssize_t nwrite =
+        RetryCallOnEINTR([&]() { return write(handle_, ptr, size); }, GetLastErrorCode);
+    ICHECK_NE(nwrite, -1) << "Write Error: " << strerror(errno);
+
+    ICHECK_LE(nwrite, size) << "Wrote " << nwrite << " bytes, "
+                            << "but only expected to write " << size << " bytes";
+
 #endif
+
+    return nwrite;
   }
   /*!
    * \brief Flush the pipe;

@@ -25,17 +25,16 @@
 #define TVM_TIR_TRANSFORMS_SIMPLIFY_H_
 
 #include <tvm/arith/analyzer.h>
-#include <tvm/tir/stmt.h>
+#include <tvm/tir/function.h>
 
 namespace tvm {
 namespace tir {
 
-/* \brief Simplifies the statement
+/* \brief Simplifies the prim func
  *
- * Applies the same behavior as the tir.transform.Simplify pass, but
- * on a single statement, usable as a subroutine in other passes.
+ * Applies the same behavior as the tir.transform.Simplify pass.
  */
-Stmt Simplify(Stmt stmt, arith::Analyzer* analyzer);
+PrimFunc Simplify(PrimFunc stmt, arith::Analyzer* analyzer);
 
 }  // namespace tir
 }  // namespace tvm

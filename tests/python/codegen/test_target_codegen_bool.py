@@ -35,29 +35,24 @@ def compute(arr_size):
 
 
 @tvm.testing.fixture
-def schedule(target, compute):
+def get_module(target, compute):
     target = tvm.target.Target(target)
     A, B, C, D = compute
     if target.kind.name == "llvm":
-        s = te.create_schedule(D.op)
-        xo, xi = s[C].split(C.op.axis[0], factor=4)
-        xo1, xo2 = s[C].split(xo, factor=13)
-        s[C].parallel(xo2)
+        return tvm.IRModule.from_expr(te.create_prim_func([A, B, D]))
 
-    else:
-        s = te.create_schedule(D.op)
-        for stage in [C, D]:
-            xo, xi = s[stage].split(stage.op.axis[0], factor=4)
-            s[stage].bind(xo, te.thread_axis("blockIdx.x"))
-            s[stage].bind(xi, te.thread_axis("threadIdx.x"))
-
-    return s
+    sch = tvm.tir.Schedule(te.create_prim_func([A, B, D]))
+    for stage in ["C", "D"]:
+        xo, xi = sch.split(sch.get_loops(stage)[0], factors=[None, 4])
+        sch.bind(xo, "blockIdx.x")
+        sch.bind(xi, "blockIdx.x")
+    return sch.mod
 
 
 @tvm.testing.uses_gpu
-def test_cmp_load_store(target, dev, arr_size, compute, schedule):
+def test_cmp_load_store(target, dev, arr_size, compute, get_module):
     A, B, _, D = compute
-    f = tvm.build(schedule, [A, B, D], target)
+    f = tvm.build(get_module, target=target)
 
     a_np = np.random.uniform(size=arr_size).astype(A.dtype)
     b_np = np.random.uniform(size=arr_size).astype(B.dtype)

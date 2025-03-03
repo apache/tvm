@@ -51,7 +51,7 @@ The list of options include:
 
    Build TVM system library module. System lib is a global module that contains
    self registered functions in program startup. User can get the module using
-   :any:`tvm.runtime.system_lib`.
+   `tvm.runtime.system_lib`.
    It is useful in environments where dynamic loading api like dlopen is banned.
    The system lib will be available as long as the result code is linked by the program.
 
@@ -66,16 +66,14 @@ from .target import (
     intel_graphics,
     arm_cpu,
     rasp,
-    vta,
     bifrost,
     riscv_cpu,
     hexagon,
     stm32,
+    adreno,
 )
 from .virtual_device import VirtualDevice
 from .compilation_config import make_compilation_config
 from .tag import list_tags
-from .generic_func import GenericFunc
-from .generic_func import generic_func, get_native_generic_func, override_native_generic_func
 from . import datatype
 from . import codegen

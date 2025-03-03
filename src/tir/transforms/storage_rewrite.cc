@@ -92,7 +92,7 @@ class LinearAccessPatternFinder final : public StmtExprVisitor {
     AllocEntry entry;
     entry.alloc = op;
     entry.level = level;
-    // Since StorageRewrite occurs after StorageFlatten/FlattenBuffer,
+    // Since StorageRewrite occurs after FlattenBuffer,
     // all allocations specify the extent of physical dimensions, and
     // is 1 for flat memory spaces.
     entry.num_physical_dimensions = op->extents.size();
@@ -380,13 +380,15 @@ class StoragePlanRewriter : public StmtExprMutator {
   using StmtEntry = LinearAccessPatternFinder::StmtEntry;
   using AllocEntry = LinearAccessPatternFinder::AllocEntry;
 
-  Stmt Rewrite(Stmt stmt, bool detect_inplace) {
+  Stmt Rewrite(Stmt stmt, bool detect_inplace, bool enable_reuse,
+               bool reuse_require_exact_matched_dtype) {
     detect_inplace_ = detect_inplace;
     // plan the rewrite
     LinearAccessPatternFinder finder;
     finder(stmt);
     this->LivenessAnalysis(finder.linear_seq_);
-    this->PlanMemory(finder.linear_seq_, finder.alloc_info_);
+    this->PlanMemory(finder.linear_seq_, finder.alloc_info_, enable_reuse,
+                     reuse_require_exact_matched_dtype);
     all_buffers_accessed_ = finder.all_buffers_accessed_;
     this->PrepareNewAlloc();
     // start rewrite
@@ -540,7 +542,7 @@ class StoragePlanRewriter : public StmtExprMutator {
     // The storage scope.
     StorageScope scope;
     // The physical dimensionality of the allocations.  Since
-    // StorageRewrite is applied after StorageFlatten/FlattenBuffer,
+    // StorageRewrite is applied after FlattenBuffer,
     // this is size of `AllocateNode::extents`.  If moved
     size_t ndim;
     // Allocs that shares this entry.
@@ -816,7 +818,8 @@ class StoragePlanRewriter : public StmtExprMutator {
 
   // Memory plan algorithm
   void PlanMemory(const std::vector<StmtEntry>& seq,
-                  const std::unordered_map<const VarNode*, AllocEntry>& alloc_info) {
+                  const std::unordered_map<const VarNode*, AllocEntry>& alloc_info,
+                  bool enable_reuse, bool reuse_require_exact_matched_dtype) {
     std::unordered_set<const VarNode*> inplace_flag;
 
     for (size_t i = 0; i < seq.size(); ++i) {
@@ -864,7 +867,8 @@ class StoragePlanRewriter : public StmtExprMutator {
           }
           if (dst_entry == nullptr) {
             dst_entry =
-                FindAlloc(alloc, thread_scope_, storage_scope, entry.num_physical_dimensions);
+                FindAlloc(alloc, thread_scope_, storage_scope, entry.num_physical_dimensions,
+                          enable_reuse, reuse_require_exact_matched_dtype);
           }
           dst_entry->allocs.emplace_back(alloc);
           alloc_map_[var] = dst_entry;
@@ -917,7 +921,8 @@ class StoragePlanRewriter : public StmtExprMutator {
   }
 
   StorageEntry* FindAlloc(const AllocateNode* op, const Object* attach_scope,
-                          const StorageScope& scope, size_t num_physical_dimensions) {
+                          const StorageScope& scope, size_t num_physical_dimensions,
+                          bool enable_reuse, bool reuse_require_exact_matched_dtype) {
     ICHECK(op != nullptr);
     // skip plan for local variable,
     // compiler can do a better job with register allocation.
@@ -940,7 +945,7 @@ class StoragePlanRewriter : public StmtExprMutator {
         (scope.tag.length() == 0) && (scope.rank >= StorageRank::kWarp || op->dtype.is_handle() ||
                                       (is_known_size && const_nbits <= 32));
 
-    if (is_small_array || !is_flat_memory_space) {
+    if (!enable_reuse || is_small_array || !is_flat_memory_space) {
       return NewAlloc(op, attach_scope, scope, const_nbits);
     }
 
@@ -956,6 +961,9 @@ class StoragePlanRewriter : public StmtExprMutator {
         if (e->scope != scope) continue;
         // when not divided, no reuse, eg, float4 vs float3
         if (e->bits_offset % op_elem_bits != 0) continue;
+        if (reuse_require_exact_matched_dtype && e->elem_type != op->dtype) {
+          continue;
+        }
         e->const_nbits = std::max(const_nbits, e->const_nbits);
         const_free_map_.erase(it);
         return e;
@@ -967,6 +975,9 @@ class StoragePlanRewriter : public StmtExprMutator {
         if (e->attach_scope_ != attach_scope) continue;
         if (e->scope != scope) continue;
         if (e->elem_type != op->dtype.element_of()) continue;
+        if (reuse_require_exact_matched_dtype && e->elem_type != op->dtype) {
+          continue;
+        }
         e->const_nbits = std::max(const_nbits, e->const_nbits);
         const_free_map_.erase(it);
         return e;
@@ -1264,6 +1275,13 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
     auto it = info_map_.find(buffer);
     ICHECK(it != info_map_.end()) << "Load/Store of buffer " << buffer->name_hint << " (" << buffer
                                   << ") occurred before its declaration.";
+
+    if (value_dtype.is_scalable_vector()) {
+      // Scalable types are not currently supported in storage_rewrite. Scalable buffer
+      // accesses are not currently checked and therefore are not rewritten.
+      return;
+    }
+
     BufferVarInfo& var_info = it->second;
 
     if (value_dtype.element_of() == DataType::Bool()) {
@@ -1316,9 +1334,12 @@ class VectorTypeAccessChecker : public StmtExprVisitor {
     if (indices.size()) {
       const RampNode* ramp_index = indices[indices.size() - 1].as<RampNode>();
       if (ramp_index && is_one(ramp_index->stride)) {
-        arith::ModularSet me = analyzer_.modular_set(ramp_index->base);
-        if ((me->coeff % ramp_index->lanes == 0) && (me->base % ramp_index->lanes == 0)) {
-          lanes_used = ramp_index->lanes;
+        if (ramp_index->lanes->IsInstance<IntImmNode>()) {
+          int lanes = static_cast<int>(Downcast<IntImm>(ramp_index->lanes)->value);
+          arith::ModularSet me = analyzer_.modular_set(ramp_index->base);
+          if ((me->coeff % lanes == 0) && (me->base % lanes == 0)) {
+            lanes_used = lanes;
+          }
         }
       }
     }
@@ -1451,13 +1472,20 @@ class VectorTypeRewriter : public StmtExprMutator {
 
     Array<PrimExpr> indices = node->indices;
     const PrimExpr& last_dim_index = indices[indices.size() - 1];
-    if (const RampNode* ramp_index = last_dim_index.as<RampNode>();
-        ramp_index && is_one(ramp_index->stride)) {
-      PrimExpr new_index =
-          ramp_index->base / make_const(ramp_index->base.dtype(), ramp_index->lanes);
-      if (ramp_index->lanes != info.factor()) {
-        ICHECK(info.factor() && ramp_index->lanes % info.factor() == 0);
-        int new_lanes = ramp_index->lanes / info.factor();
+    const RampNode* ramp_index = indices[indices.size() - 1].as<RampNode>();
+
+    if (node->buffer->dtype.is_scalable_vector() || last_dim_index.dtype().is_scalable_vector()) {
+      // Scalable types are not currently supported in storage_rewrite. Scalable buffer
+      // accesses are not currently checked and therefore are not rewritten.
+      return {node, shuffle_index};
+    }
+
+    if (ramp_index && is_one(ramp_index->stride) && ramp_index->lanes->IsInstance<IntImmNode>()) {
+      int lanes = static_cast<int>(Downcast<IntImm>(ramp_index->lanes)->value);
+      PrimExpr new_index = ramp_index->base / make_const(ramp_index->base.dtype(), lanes);
+      if (lanes != info.factor()) {
+        ICHECK(info.factor() && lanes % info.factor() == 0);
+        int new_lanes = lanes / info.factor();
         new_index = Ramp(new_index * new_lanes, ramp_index->stride, new_lanes, ramp_index->span);
       }
       indices.Set(indices.size() - 1, new_index);
@@ -1465,7 +1493,7 @@ class VectorTypeRewriter : public StmtExprMutator {
       arith::ModularSet me = analyzer_.modular_set(last_dim_index);
       ICHECK(me->coeff == 0 || info.factor() % me->coeff == 0);
       PrimExpr new_index = last_dim_index / make_const(last_dim_index.dtype(), info.factor());
-      shuffle_index = me->base;
+      shuffle_index = me->base % info.factor();
       indices.Set(indices.size() - 1, new_index);
     }
 
@@ -1702,8 +1730,25 @@ namespace transform {
 
 Pass StorageRewrite() {
   auto pass_func = [](PrimFunc f, IRModule m, PassContext ctx) {
+    bool enable_reuse = true;
+    bool reuse_require_exact_matched_dtype = false;
+    bool merge_static_smem = ctx->GetConfig<Bool>("tir.merge_static_smem", Bool(false)).value();
+    if (merge_static_smem) {
+      // When `merge_static_smem` is true, we will reuse and merge shared
+      // memory in a dedicated pass `MergeSharedMemoryAllocations`.
+      // And so we don't enable reuse in this pass.
+      enable_reuse = false;
+    }
+
+    Optional<Target> target = f->GetAttr<Target>("target");
+    if (target.defined() &&
+        (target.value()->kind->name == "vulkan" || target.value()->kind->name == "webgpu")) {
+      // Require exactly same-dtype matching in smem reuse for Vulkan and WebGPU
+      reuse_require_exact_matched_dtype = true;
+    }
     auto* n = f.CopyOnWrite();
-    n->body = StoragePlanRewriter().Rewrite(std::move(n->body), true);
+    n->body = StoragePlanRewriter().Rewrite(std::move(n->body), true, enable_reuse,
+                                            reuse_require_exact_matched_dtype);
     // Parameters may not be rewritten, but internal allocations may.
     // Vectorization of AllocateConst is currently disabled, as it has
     // indexing issues for types that include padding (e.g. int8x3

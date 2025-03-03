@@ -43,12 +43,12 @@ String NameSupplyNode::ReserveName(const String& name, bool add_prefix) {
   return final_name;
 }
 
-String NameSupplyNode::FreshName(const String& name, bool add_prefix) {
+String NameSupplyNode::FreshName(const String& name, bool add_prefix, bool add_underscore) {
   String unique_name = name;
   if (add_prefix) {
     unique_name = add_prefix_to_name(name);
   }
-  unique_name = GetUniqueName(unique_name);
+  unique_name = GetUniqueName(unique_name, add_underscore);
   return unique_name;
 }
 
@@ -72,7 +72,7 @@ String NameSupplyNode::add_prefix_to_name(const String& name) {
   return ss.str();
 }
 
-std::string NameSupplyNode::GetUniqueName(std::string name) {
+std::string NameSupplyNode::GetUniqueName(std::string name, bool add_underscore) {
   for (size_t i = 0; i < name.size(); ++i) {
     if (name[i] == '.') name[i] = '_';
   }
@@ -81,7 +81,7 @@ std::string NameSupplyNode::GetUniqueName(std::string name) {
     auto new_name = name;
     while (!name_map.insert({new_name, 0}).second) {
       std::ostringstream os;
-      os << name << "_" << (++it->second);
+      os << name << (add_underscore ? "_" : "") << (++it->second);
       new_name = os.str();
     }
     return new_name;

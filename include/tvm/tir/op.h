@@ -31,6 +31,7 @@
 #include <tvm/ir/expr.h>
 #include <tvm/ir/op.h>
 #include <tvm/ir/type.h>
+#include <tvm/tir/builtin.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt.h>
 
@@ -939,7 +940,7 @@ inline PrimExpr MakeConstScalar(DataType t, ValueType value, Span span = Span())
       return LargeUIntImm(t, static_cast<int64_t>(low), static_cast<int64_t>(high), span);
     }
   }
-  if (t.is_float() || t.is_bfloat16() || t.is_float8())
+  if (t.is_float() || t.is_bfloat16() || t.is_float8() || t.is_float4())
     return FloatImm(t, static_cast<double>(value), span);
   // For now, we store const scalar values of custom datatypes within doubles; later, during the
   // datatypes lowering pass, we will lower the value to its true representation in the format
@@ -959,10 +960,16 @@ inline PrimExpr MakeConstScalar(DataType t, bool value, Span span) {
 
 template <typename ValueType, typename>
 inline PrimExpr make_const(DataType t, ValueType value, Span span) {
-  if (t.lanes() == 1) {
+  if (t.is_scalar()) {
     return MakeConstScalar(t, value, span);
   } else {
-    return tir::Broadcast(MakeConstScalar(t.element_of(), value, span), t.lanes(), span);
+    if (t.is_fixed_length_vector()) {
+      return tir::Broadcast(MakeConstScalar(t.element_of(), value, span), t.lanes(), span);
+    } else {
+      PrimExpr lanes =
+          tir::Mul(tir::Call(DataType::Int(32), tir::builtin::vscale(), {}), t.vscale_factor());
+      return tir::Broadcast(MakeConstScalar(t.element_of(), value, span), lanes, span);
+    }
   }
 }
 

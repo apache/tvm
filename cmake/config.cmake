@@ -54,6 +54,16 @@ set(USE_CUDA OFF)
 # - /path/to/nccl: use specific path to nccl
 set(USE_NCCL OFF)
 
+# Whether to enable MSCCL support:
+# - ON: enable MSCCL
+# - OFF: disable MSCCL
+set(USE_MSCCL OFF)
+
+# Whether to enable NVTX support (must have USE_CUDA enabled):
+# - ON: enable NCCL with cmake's auto search
+# - OFF: disable NCCL
+set(USE_NVTX OFF)
+
 # Whether enable ROCM runtime
 #
 # Possible values:
@@ -67,12 +77,6 @@ set(USE_ROCM OFF)
 # - OFF: disable RCCL
 # - /path/to/rccl: use specific path to rccl
 set(USE_RCCL OFF)
-
-# Whether enable SDAccel runtime
-set(USE_SDACCEL OFF)
-
-# Whether enable Intel FPGA SDK for OpenCL (AOCL) runtime
-set(USE_AOCL OFF)
 
 # Whether enable OpenCL runtime
 #
@@ -110,12 +114,6 @@ set(USE_KHRONOS_SPIRV OFF)
 # whether enable SPIRV_KHR_DOT_PRODUCT
 set(USE_SPIRV_KHR_INTEGER_DOT_PRODUCT OFF)
 
-# Whether enable OpenGL runtime
-set(USE_OPENGL OFF)
-
-# Whether enable MicroTVM runtime
-set(USE_MICRO OFF)
-
 # Whether enable RPC runtime
 set(USE_RPC ON)
 
@@ -131,20 +129,11 @@ set(USE_IOS_RPC OFF)
 # Whether embed stackvm into the runtime
 set(USE_STACKVM_RUNTIME OFF)
 
-# Whether enable tiny embedded graph executor.
-set(USE_GRAPH_EXECUTOR ON)
-
-# Whether enable tiny graph executor with CUDA Graph
-set(USE_GRAPH_EXECUTOR_CUDA_GRAPH OFF)
-
 # Whether enable pipeline executor.
 set(USE_PIPELINE_EXECUTOR OFF)
 
 # Whether to enable the profiler for the graph executor and vm
 set(USE_PROFILER ON)
-
-# Whether enable microTVM standalone runtime
-set(USE_MICRO_STANDALONE_RUNTIME OFF)
 
 # Whether build with LLVM support
 # Requires LLVM version >= 4.0
@@ -235,6 +224,13 @@ set(USE_EDGETPU OFF)
 # - /path/to/cudnn: use specific path to cuDNN path
 set(USE_CUDNN OFF)
 
+# Whether use cuDNN frontend
+# Possible values:
+# - ON: enable cuDNN frontend
+# - /path/to/cudnn_frontend: use specific path to cuDNN frontend
+# - OFF: disable cuDNN frontend
+set(USE_CUDNN_FRONTEND OFF)
+
 # Whether use cuBLAS
 set(USE_CUBLAS OFF)
 
@@ -264,23 +260,6 @@ set(USE_SORT ON)
 set(USE_ARM_COMPUTE_LIB OFF)
 set(USE_ARM_COMPUTE_LIB_GRAPH_EXECUTOR OFF)
 
-# Whether to build with Arm Ethos-N support
-# Possible values:
-# - OFF: disable Arm Ethos-N support
-# - path/to/arm-ethos-N-stack: use a specific version of the
-#   Ethos-N driver stack
-set(USE_ETHOSN OFF)
-# If USE_ETHOSN is enabled, use ETHOSN_HW (ON) if Ethos-N hardware is available on this machine
-# otherwise use ETHOSN_HW (OFF) to use the software test infrastructure
-set(USE_ETHOSN_HW OFF)
-
-# Whether to build with Arm(R) Ethos(TM)-U NPU codegen support
-set(USE_ETHOSU OFF)
-
-# Whether to build with CMSIS-NN external library support.
-# See https://github.com/ARM-software/CMSIS_5
-set(USE_CMSISNN OFF)
-
 # Whether to build with TensorRT codegen or runtime
 # Examples are available here: docs/deploy/tensorrt.rst.
 #
@@ -291,26 +270,16 @@ set(USE_CMSISNN OFF)
 set(USE_TENSORRT_CODEGEN OFF)
 set(USE_TENSORRT_RUNTIME OFF)
 
-# Whether use VITIS-AI codegen
-set(USE_VITIS_AI OFF)
-
-# Build Verilator codegen and runtime
-set(USE_VERILATOR OFF)
+# Whether to use the Multi-System Compiler
+set(USE_MSC OFF)
 
 #Whether to use CLML codegen
 set(USE_CLML OFF)
 # USE_CLML_GRAPH_EXECUTOR - CLML SDK PATH or ON or OFF
 set(USE_CLML_GRAPH_EXECUTOR OFF)
 
-# Build ANTLR parser for Relay text format
-# Possible values:
-# - ON: enable ANTLR by searching default locations (cmake find_program for antlr4 and /usr/local for jar)
-# - OFF: disable ANTLR
-# - /path/to/antlr-*-complete.jar: path to specific ANTLR jar file
-set(USE_ANTLR OFF)
-
-# Whether use Relay debug mode
-set(USE_RELAY_DEBUG OFF)
+# Whether to enable debug code that may cause ABI changes
+set(TVM_DEBUG_WITH_ABI_CHANGE OFF)
 
 # Whether to build fast VTA simulator driver
 set(USE_VTA_FSIM OFF)
@@ -322,6 +291,10 @@ set(USE_VTA_TSIM OFF)
 set(USE_VTA_FPGA OFF)
 
 # Whether use Thrust
+# Possible values:
+# - ON: enable Thrust with cmake's auto search
+# - OFF: disable Thrust
+# - /path/to/cccl: use specific path to CCCL
 set(USE_THRUST OFF)
 
 # Whether use cuRAND
@@ -347,14 +320,14 @@ set(USE_HEXAGON_RPC OFF)
 # compiling _by_ TVM). This applies to components like the TVM runtime, but is
 # also used to select correct include/library paths from the Hexagon SDK when
 # building runtime for Android.
-# Valid values are v65, v66, v68, v69, v73.
+# Valid values are v65, v66, v68, v69, v73, v75.
 set(USE_HEXAGON_ARCH "v68")
+
+# Whether use MRVL codegen
+set(USE_MRVL OFF)
 
 # Whether to use QHL library
 set(USE_HEXAGON_QHL OFF)
-
-# Whether to use ONNX codegen
-set(USE_TARGET_ONNX OFF)
 
 # Whether enable BNNS runtime
 set(USE_BNNS OFF)
@@ -421,6 +394,19 @@ set(USE_GTEST AUTO)
 # Need to have USE_CUDA=ON
 set(USE_CUTLASS OFF)
 
+# Whether to enable FlashInfer or not.
+set(USE_FLASHINFER OFF)
+# Options for FlashInfer kernel compilation.
+set(FLASHINFER_ENABLE_FP8 OFF)
+set(FLASHINFER_ENABLE_BF16 OFF)
+set(FLASHINFER_GEN_GROUP_SIZES 1 4 6 8)
+set(FLASHINFER_GEN_PAGE_SIZES 16)
+set(FLASHINFER_GEN_HEAD_DIMS 128)
+set(FLASHINFER_GEN_KV_LAYOUTS 0 1)
+set(FLASHINFER_GEN_POS_ENCODING_MODES 0 1)
+set(FLASHINFER_GEN_ALLOW_FP16_QK_REDUCTIONS "false")
+set(FLASHINFER_GEN_CASUALS "false" "true")
+
 # Enable to show a summary of TVM options
 set(SUMMARIZE OFF)
 
@@ -434,3 +420,12 @@ set(USE_UMA OFF)
 
 # Set custom Alloc Alignment for device allocated memory ndarray points to
 set(USE_KALLOC_ALIGNMENT 64)
+
+# Set Windows Visual Studio default Architecture (equivalent to -A x64)
+SET(CMAKE_VS_PLATFORM_NAME_DEFAULT "x64")
+
+# Set Windows Visual Studio default host (equivalent to -Thost=x64)
+SET(CMAKE_VS_PLATFORM_TOOLSET_HOST_ARCHITECTURE "x64")
+
+# Enable Qualcomm OpenCL extension support
+set(USE_OPENCL_EXTN_QCOM OFF)

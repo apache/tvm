@@ -280,3 +280,15 @@ def default_export(mod: Module) -> str:
     artifact_path = os.path.join(tempfile.mkdtemp(), "tvm_tmp_mod." + tar.output_format)
     mod.export_library(artifact_path, fcompile=tar)
     return artifact_path
+
+
+@register_func("meta_schedule.builder.get_local_builder")
+def get_local_builder() -> LocalBuilder:
+    """Get the local builder.
+
+    Returns
+    -------
+    builder : LocalBuilder
+        The local builder.
+    """
+    return LocalBuilder()

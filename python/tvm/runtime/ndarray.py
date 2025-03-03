@@ -18,6 +18,8 @@
 """Runtime NDArray API"""
 import ctypes
 import warnings
+from typing import Optional
+
 import numpy as np
 
 try:
@@ -25,24 +27,38 @@ try:
 except ImportError:
     ml_dtypes = None
 import tvm._ffi
+from tvm._ffi.base import _FFI_MODE, _LIB, c_array, check_call, string_types
+from tvm._ffi.runtime_ctypes import (
+    DataType,
+    DataTypeCode,
+    Device,
+    TVMArray,
+    TVMArrayHandle,
+    tvm_shape_index_t,
+)
 
-from tvm._ffi.base import _LIB, check_call, c_array, string_types, _FFI_MODE
-from tvm._ffi.runtime_ctypes import DataType, Device, TVMArray, TVMArrayHandle
-from tvm._ffi.runtime_ctypes import DataTypeCode, tvm_shape_index_t
 from . import _ffi_api
 
 try:
     # pylint: disable=wrong-import-position
     if _FFI_MODE == "ctypes":
         raise ImportError()
-    from tvm._ffi._cy3.core import _set_class_ndarray, _make_array, _from_dlpack
-    from tvm._ffi._cy3.core import NDArrayBase
+    from tvm._ffi._cy3.core import (
+        NDArrayBase,
+        _from_dlpack,
+        _make_array,
+        _set_class_ndarray,
+    )
 except (RuntimeError, ImportError) as error:
     # pylint: disable=wrong-import-position
     if _FFI_MODE == "cython":
         raise error
-    from tvm._ffi._ctypes.ndarray import _set_class_ndarray, _make_array, _from_dlpack
-    from tvm._ffi._ctypes.ndarray import NDArrayBase
+    from tvm._ffi._ctypes.ndarray import (
+        NDArrayBase,
+        _from_dlpack,
+        _make_array,
+        _set_class_ndarray,
+    )
 
 
 @tvm._ffi.register_object("runtime.NDArray")
@@ -176,9 +192,18 @@ class NDArray(NDArrayBase):
         if (not source_array.flags["C_CONTIGUOUS"]) or (
             dtype == "bfloat16" or dtype != np_dtype_str
         ):
+            if dtype == "bfloat16":
+                source_array = np.frombuffer(source_array.tobytes(), "uint16")
             source_array = np.ascontiguousarray(
                 source_array, dtype="uint16" if dtype == "bfloat16" else dtype
             )
+        if dtype.startswith("e2m1_float4"):
+            data_bits = source_array.view(dtype="uint8")
+            if data_bits.size % 2:
+                data_bits = np.pad(data_bits, (0, 1), mode="constant", constant_values=0)
+            data_bits = data_bits.reshape(-1, 2)
+            packed = ((data_bits[:, 0] & 0x0F) << 4) | (data_bits[:, 1] & 0x0F)
+            source_array = packed.astype(np.int8)
         assert source_array.flags["C_CONTIGUOUS"]
         data = source_array.ctypes.data_as(ctypes.c_void_p)
         nbytes = ctypes.c_size_t(source_array.size * source_array.dtype.itemsize)
@@ -236,20 +261,32 @@ class NDArray(NDArrayBase):
                 raise RuntimeError(
                     "ml_dtypes is not installed, cannot convert e5m2_float8 array to numpy."
                 )
+        if dtype == "e2m1_float4":
+            if ml_dtypes is not None:
+                dtype = ml_dtypes.float4_e2m1fn
+            else:
+                raise RuntimeError(
+                    "ml_dtypes is not installed, cannot convert e2m1_float4 array to numpy."
+                )
         np_arr = np.empty(shape, dtype=dtype)
         assert np_arr.flags["C_CONTIGUOUS"]
         data = np_arr.ctypes.data_as(ctypes.c_void_p)
-        nbytes = ctypes.c_size_t(np_arr.size * np_arr.dtype.itemsize)
+        if old_dtype.startswith("e2m1_float4"):
+            nbytes = ctypes.c_size_t(np_arr.size * np_arr.dtype.itemsize // 2)
+        else:
+            nbytes = ctypes.c_size_t(np_arr.size * np_arr.dtype.itemsize)
         check_call(_LIB.TVMArrayCopyToBytes(self.handle, data, nbytes))
-        if old_dtype == "int4":
+        if old_dtype == "int4" or old_dtype.startswith("e2m1_float4"):
             length = np_arr.size
+            np_arr = np_arr.view("int8")
             np_arr_ret = np.empty((length,), dtype="int8")
             np_arr = np_arr.reshape((length,))
             old_index = np.bitwise_and(np_arr, 0x0F)
             even_index = np.bitwise_and(np_arr >> 4, 0x0F)
             np_arr_ret[1::2] = old_index[0 : length // 2]
             np_arr_ret[0::2] = even_index[0 : length // 2]
-            return np_arr_ret.reshape(shape)
+            return np_arr_ret.reshape(shape).view(dtype)
+
         return np_arr
 
     def copyto(self, target, mem_scope=None):
@@ -270,7 +307,7 @@ class NDArray(NDArrayBase):
             return self._copyto(res)
         raise ValueError(f"Unsupported target type {type(target)}")
 
-    def _create_view(self, shape):
+    def _create_view(self, shape, dtype: Optional[str] = None, relative_byte_offset: int = 0):
         """Create a view into an existing array.
 
         The view shares the same allocation and datatype as the
@@ -290,12 +327,32 @@ class NDArray(NDArrayBase):
         shape: Union[tvm.runtime.ShapeTuple, Sequence[typing.SupportsInt]]
 
             The shape of the view.
+
+        dtype: Optional[str]
+
+            The datatype of the view.  If None (default), the view
+            will be the same data type as the current array.
+
+        relative_byte_offset: int
+
+            The location of the view, relative to the location of the current
+            array.
+
+            Note: While the `DLTensor.byte_offset` field of the returned view
+            is usually the same as `relative_byte_offset`, this is not
+            guaranteed.  The `DLTensor.byte_offset` field is relative to the
+            start of the backing allocation, while the `relative_byte_offset`
+            is relative to the start of `self`.
+
         """
 
         if not isinstance(shape, tvm.runtime.ShapeTuple):
             shape = tvm.runtime.ShapeTuple([int(dim) for dim in shape])
 
-        return _ffi_api.TVMArrayCreateView(self, shape)
+        if dtype is None:
+            dtype = self.dtype
+
+        return _ffi_api.TVMArrayCreateView(self, shape, dtype, relative_byte_offset)
 
 
 def device(dev_type, dev_id=0):
@@ -324,6 +381,8 @@ def device(dev_type, dev_id=0):
       assert tvm.device("cpu", 1) == tvm.cpu(1)
       assert tvm.device("cuda", 0) == tvm.cuda(0)
     """
+    if isinstance(dev_type, Device):
+        return dev_type
     if not isinstance(dev_id, int):
         raise ValueError(f"Invalid device id: {dev_id}")
 

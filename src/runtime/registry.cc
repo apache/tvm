@@ -183,10 +183,14 @@ class EnvCAPIRegistry {
   // implementation of tvm::runtime::EnvCheckSignals
   void CheckSignals() {
     // check python signal to see if there are exception raised
-    if (pyerr_check_signals != nullptr && (*pyerr_check_signals)() != 0) {
-      // The error will let FFI know that the frontend environment
-      // already set an error.
-      throw EnvErrorAlreadySet("");
+    if (pyerr_check_signals != nullptr) {
+      // The C++ env comes without gil, so we need to grab gil here
+      WithGIL context(this);
+      if ((*pyerr_check_signals)() != 0) {
+        // The error will let FFI know that the frontend environment
+        // already set an error.
+        throw EnvErrorAlreadySet("");
+      }
     }
   }
 

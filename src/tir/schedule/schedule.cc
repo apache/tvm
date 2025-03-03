@@ -162,6 +162,8 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleGetOutputBlocks")
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleMerge").set_body_method<Schedule>(&ScheduleNode::Merge);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleFuse").set_body_method<Schedule>(&ScheduleNode::Fuse);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleSplit").set_body_method<Schedule>(&ScheduleNode::Split);
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleLoopPartition")
+    .set_body_method<Schedule>(&ScheduleNode::LoopPartition);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleReorder")
     .set_body_method<Schedule>(&ScheduleNode::Reorder);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleReorderBlockIterVar")
@@ -308,6 +310,13 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleEnterPostproc")
     .set_body_method<Schedule>(&ScheduleNode::EnterPostproc);
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleUnsafeHideBufferAccess")
     .set_body_method<Schedule>(&ScheduleNode::UnsafeHideBufferAccess);
+/******** (FFI) Annotate buffer access ********/
+TVM_REGISTER_GLOBAL("tir.schedule.ScheduleAnnotateBufferAccess")
+    .set_body_typed([](Schedule self, const BlockRV& block_rv, int buffer_index,
+                       int buffer_index_type, const IndexMap& index_map) {
+      return self->AnnotateBufferAccess(block_rv, buffer_index,
+                                        static_cast<BufferIndexType>(buffer_index_type), index_map);
+    });
 
 }  // namespace tir
 }  // namespace tvm

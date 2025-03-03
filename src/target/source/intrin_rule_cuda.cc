@@ -54,6 +54,15 @@ struct CUDAMath {
       }
     } else if (t.is_bfloat16()) {
       return 'h' + name;
+    } else if (t.is_int() || t.is_uint()) {
+      switch (t.bits()) {
+        case 32:
+          return "__" + name;
+        case 64:
+          return "__" + name + "ll";
+        default:
+          return "";
+      }
     }
     return "";
   }
@@ -132,6 +141,9 @@ static PrimExpr DispatchCUDAShuffle(const PrimExpr& e) {
   Array<PrimExpr> cuda_args{{call->args[0], call->args[1], call->args[2], call->args[3]}};
   return Call(call->dtype, T()(call->dtype, Downcast<Op>(call->op)), cuda_args);
 }
+
+TVM_REGISTER_OP("tir.clz").set_attr<FLowerIntrinsic>(
+    "cuda.FLowerIntrinsic", DispatchPureExtern<CUDAMath, /*dtype_from_arg=*/true>);
 
 TVM_REGISTER_OP("tir.floor")
     .set_attr<FLowerIntrinsic>("cuda.FLowerIntrinsic", DispatchPureExtern<CUDAMath>);

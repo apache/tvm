@@ -104,17 +104,43 @@ class ArgBinder {
 
   /*! \return The defs generated in binding. */
   const std::vector<Var>& defs() const { return defs_; }
-  /*! \return The asserts generated in binding */
+
+  /*! \return The asserts generated in binding
+   *
+   * This contains statements that assert the correct value has been
+   * bound.  For example, `binder.Bind(var, expr_1)` will produce an
+   * entry mapping `var` to `expr_1` in the `binder.defs()`.  If
+   * `binder.Bind(var, expr_2)` is called later, then this will
+   * produce an assert statemtn that `expr_1 == expr_2`.
+   *
+   * Note: Some assert statements produced by BindDLTensor are located
+   * in `binder.init_nest()`, not within `binder.asserts()`.  This is
+   * deliberate, as some values may require checks prior to
+   * initialization.  (e.g. Intializing `m = dl_tensor->shape[3]`
+   * requires first asserting that `3 < dl_tensor->ndim`.)
+   */
   const std::vector<Stmt>& asserts() const { return asserts_; }
+
   /*!
    * \brief Initialization nest generated
-   *  This is only non-empty when BindDLTensor is called.
    *
-   * \note The binder may choose to generate a let statement
-   *  and simply put def_map to map Variable to itself,
-   *  or update def_map to directly map to new value and not generate let statement.
+   * This contains both variable bindings and any assert statements
+   * that are required in order to safely produce those variable
+   * bindings.
    *
-   *  Let statement is usually generated when bind to DLTensor and memory load is involved.
+   * \note Variable bindings may be implemented either as a `LetStmt`
+   *     that defines the variable, or as a variable replacement.  Any
+   *     bindings implemented as a `LetStmt` will be in the
+   *     initialization list.  Any bindings implemented as a variable
+   *     replacement will be stored in the `var_def` map.
+   *
+   *     A `tir::LetStmt` is usually generated when binding to a
+   *     `DLTensor`.  This requires loading values from memory, which
+   *     should only be performed once.  If the binding to a
+   *     `DLTensor` were implemented as a variable replacement, it
+   *     would load values from memory once for each usage of the
+   *     variable.
+   *
    * \return The initialization nest generated during binding.
    */
   const std::vector<Stmt>& init_nest() const { return init_nest_; }

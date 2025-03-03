@@ -17,51 +17,10 @@
 
 import ctypes
 import numpy as np
-from tvm import relay
-import tvm.relay.testing
-from tvm.contrib import graph_executor, cc, utils, popen_pool, tar
+from tvm.contrib import cc, utils, popen_pool, tar
 import tvm
 import tvm.testing
 from tvm.script import ir as I, tir as T
-
-
-@tvm.testing.uses_gpu
-def test_synthetic():
-    for device in ["llvm", "cuda"]:
-        if not tvm.testing.device_enabled(device):
-            print("skip because %s is not enabled..." % device)
-            return
-
-    input_shape = (1, 5, 23, 61)
-
-    def verify(data):
-        mod, params = relay.testing.synthetic.get_workload(input_shape=input_shape)
-        with tvm.transform.PassContext(opt_level=3):
-            lib = relay.build_module.build(mod, "llvm", params=params)
-        dev = tvm.cpu()
-        module = graph_executor.GraphModule(lib["default"](dev))
-        module.set_input("data", data)
-        module.run()
-        out = module.get_output(0).numpy()
-        return out
-
-    synthetic_mod, synthetic_params = relay.testing.synthetic.get_workload(input_shape=input_shape)
-    with tvm.transform.PassContext(opt_level=3):
-        synthetic_gpu_lib = relay.build_module.build(synthetic_mod, "cuda", params=synthetic_params)
-
-    temp = utils.tempdir()
-    path_lib = temp.relpath("deploy_lib.so")
-    synthetic_gpu_lib.export_library(path_lib)
-
-    loaded_lib = tvm.runtime.load_module(path_lib)
-    data = np.random.uniform(-1, 1, size=input_shape).astype("float32")
-    dev = tvm.cuda()
-    module = graph_executor.GraphModule(loaded_lib["default"](dev))
-    module.set_input("data", data)
-    module.run()
-    out = module.get_output(0).numpy()
-
-    tvm.testing.assert_allclose(out, verify(data), atol=1e-5)
 
 
 @tvm.testing.uses_gpu

@@ -230,6 +230,7 @@ def profile_function(mod, dev, collectors, func_name=None, warmup_iters=10):
     -------
 
     .. code-block: python
+
         f = tvm.build(my_func, target="llvm", name="my_func")
         prof = tvm.runtime.profiling.profile_function(
             f,
@@ -247,7 +248,7 @@ def profile_function(mod, dev, collectors, func_name=None, warmup_iters=10):
         Device to run the function on.
 
     collectors: List[MetricCollector]
-        :py:class:`MetricCollector`s which will collect performance information.
+        :py:class:`MetricCollector` which will collect performance information.
     func_name: Optional[str]
         Name of the function in `mod` to profile. Defaults to the `entry_name` of `mod`.
     warmup_iters: int

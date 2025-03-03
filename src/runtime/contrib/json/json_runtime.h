@@ -27,6 +27,7 @@
 
 #include <tvm/runtime/module.h>
 #include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/profiling.h>
 
 #include <cstddef>
 #include <string>
@@ -69,6 +70,25 @@ class JSONRuntimeBase : public ModuleNode {
   /*! \brief Invoke the execution engine to inteprete a specific json runtime. */
   virtual void Run() = 0;
 
+  /*! \brief Does the backend support debug & profiling */
+  virtual bool CanDebug() { return false; }
+
+  /*!
+   * \brief Invoke the profiler
+   * \param pointer to profiler
+   */
+  virtual void RunProfile(profiling::Profiler* prof) {
+    LOG(FATAL) << "Not expected to be here : Profiling call w/o support ?";
+  }
+
+  /*!
+   * \brief Invoke the debugger
+   * \return External compiler specific debug blob
+   */
+  virtual std::string DebugDump(void) {
+    LOG(FATAL) << "Not expected to be here : Debug dump w/o support ?";
+  }
+
   /*!
    * \brief Get a packed function.
    * \param name The name/symbol of the function.
@@ -88,8 +108,31 @@ class JSONRuntimeBase : public ModuleNode {
 
         // Bind argument tensors to data entries.
         this->SetInputOutputBuffers(args);
+
         // Execute the subgraph.
         this->Run();
+      });
+    } else if (this->symbol_name_ + "_debug" == name) {
+      if (!this->CanDebug()) {
+        return PackedFunc(nullptr);
+      }
+      return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
+        ICHECK(this->initialized_) << "The module has not been initialized";
+
+        // Bind argument tensors to data entries.
+        this->SetInputOutputBuffers(args);
+
+        if (rv->IsObjectRef<String>()) {
+          String purpose = *rv;
+          if ("debug_dump" == purpose) {
+            *rv = this->DebugDump();
+          }
+        } else {
+          // Profile the subgraph.
+          profiling::Profiler* prof = static_cast<profiling::Profiler*>(rv->value().v_handle);
+          this->RunProfile(prof);
+        }
+        // String vendor_prof = this->RunProfile(prof);
       });
     } else if ("__init_" + this->symbol_name_ == name) {
       // The function to initialize constant tensors.

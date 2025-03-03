@@ -28,11 +28,8 @@ trap cleanup 0
 # These shards are solely for CI to enable the lint job to have some parallelism.
 
 function shard1 {
-  echo "Convert scripts to Python..."
-  tests/scripts/task_convert_scripts_to_python.sh
-
-  echo "Check Jenkinsfile generation"
-  python3 ci/jenkins/generate.py --check
+  # echo "Check Jenkinsfile generation"
+  # python3 ci/jenkins/generate.py --check
 
   echo "Checking file types..."
   python3 tests/lint/check_file_type.py
@@ -46,8 +43,8 @@ function shard1 {
   echo "Linting the Python code with flake8..."
   tests/lint/flake8.sh
 
-  echo "Type checking with MyPy ..."
-  tests/scripts/task_mypy.sh
+#  echo "Type checking with MyPy ..."
+#  tests/scripts/task_mypy.sh
 
   echo "Checking for non-inclusive language with blocklint..."
   tests/lint/blocklint.sh

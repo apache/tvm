@@ -15,8 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
-from tvm import relay, te
-from tvm.driver.build_module import schedule_to_module
+from tvm import te
 from tvm.script import tir as T
 from tvm.tir import const
 import tvm.testing
@@ -27,27 +26,6 @@ def lower_stmt(params, stmt, target_bits):
     func = tvm.tir.transform.NarrowDataType(target_bits)(tvm.IRModule.from_expr(func))["main"]
     stmt = func.body
     return stmt
-
-
-def lower_sch(sch, args, target_bits, extra_passes=None):
-    binds = {}
-    arg_list = []
-    for x in args:
-        if isinstance(x, te.tensor.Tensor):
-            buf = tvm.tir.decl_buffer(x.shape, dtype=x.dtype, name=x.name)
-            assert x not in binds
-            binds[x] = buf
-            arg_list.append(buf)
-        else:
-            raise ValueError("args must be Tensor, Buffer or Var")
-    sch = sch.normalize()
-
-    mod = schedule_to_module(sch, args)
-    mod = tvm.tir.transform.StorageFlatten(64)(mod)
-    if extra_passes:
-        for p in extra_passes:
-            mod = p(mod)
-    return tvm.tir.transform.NarrowDataType(target_bits)(mod)["main"].body
 
 
 def test_basic():
@@ -112,33 +90,6 @@ def test_thread_axis():
     check(2**14, 32, target_bits=16, target_dtype="int32")
 
 
-def test_thread_axis_2():
-    # fmt: off
-    @tvm.script.ir_module
-    class Before:
-        @T.prim_func
-        def main(T_reshape: T.Buffer((1, 12, 384, 384), "float32"), placeholder_1: T.Buffer((T.int64(1), T.int64(12), T.int64(384), 384), "bool"), T_where: T.Buffer((T.int64(1), T.int64(12), T.int64(384), 384), "float32")) -> None:
-            # function attr dict
-            T.func_attr({"global_symbol": "main", "tir.noalias": True})
-            # body
-            # with T.block("root")
-            for i0_i1_i2_i3_fused_1 in T.thread_binding(T.int64(256), thread="blockIdx.x"):
-                for i0_i1_i2_i3_fused_2 in T.thread_binding(T.int64(1024), thread="threadIdx.x"):
-                    for i0_i1_i2_i3_fused_0 in T.serial(T.int64(7)):
-                        with T.block("T_where"):
-                            ax0 = T.axis.spatial(T.int64(1), T.int64(0))
-                            ax1 = T.axis.spatial(T.int64(12), ((i0_i1_i2_i3_fused_0 * T.int64(256) + i0_i1_i2_i3_fused_1) * T.int64(1024) + i0_i1_i2_i3_fused_2) % T.int64(1769472) // T.int64(147456))
-                            ax2 = T.axis.spatial(T.int64(384), ((i0_i1_i2_i3_fused_0 * T.int64(256) + i0_i1_i2_i3_fused_1) * T.int64(1024) + i0_i1_i2_i3_fused_2) % T.int64(147456) // T.int64(384))
-                            ax3 = T.axis.spatial(384, T.cast(((i0_i1_i2_i3_fused_0 * T.int64(256) + i0_i1_i2_i3_fused_1) * T.int64(1024) + i0_i1_i2_i3_fused_2) % T.int64(384), "int32"))
-                            T.where((i0_i1_i2_i3_fused_0 * T.int64(256) + i0_i1_i2_i3_fused_1) * T.int64(1024) + i0_i1_i2_i3_fused_2 < T.int64(1769472))
-                            T.reads(placeholder_1[ax0, ax1, ax2, ax3], T_reshape[ax0, ax1, ax2, ax3])
-                            T.writes(T_where[ax0, ax1, ax2, ax3])
-                            T_where[ax0, ax1, ax2, ax3] = T.Select(T.cast(placeholder_1[ax0, ax1, ax2, ax3], "int32") != 0, T.float32(-1000000000), T_reshape[ax0, ax1, ax2, ax3])
-    # fmt: on
-    # TODO(@junrushao1994): make this test more "unit" after the new TVMScript printer/parser lands
-    tvm.lower(Before)
-
-
 def test_multilanes():
     def check(m, lanes, target_bits, target_dtype):
         ib = tvm.tir.ir_builder.create()
@@ -163,27 +114,6 @@ def test_multilanes():
     check(const(2**16, dtype="int32"), 2, target_bits=16, target_dtype="int32")
 
 
-def test_reduce():
-    def check(m, target_bits, target_dtype):
-        A = te.placeholder((m,), name="A", dtype="float32")
-        k = te.reduce_axis((0, m), "k")
-        B = te.compute((), lambda *idx: te.sum(A[k], axis=k), name="B")
-        s = te.create_schedule(B.op)
-        stmt = lower_sch(s, [A, B], target_bits)
-        assert stmt[1].loop_var.dtype == target_dtype
-
-    # i32 -> i32
-    check(const(64, dtype="int32"), 32, "int32")
-    # i64 -> i32
-    check(const(64, dtype="int64"), 32, "int32")
-    # i32 -> i16
-    check(const(64, dtype="int32"), 16, "int16")
-    check(const(2**16, dtype="int32"), 16, "int32")
-    # symbolic
-    check(te.var("n", dtype="int32"), 32, "int32")
-    check(te.var("n", dtype="int64"), 32, "int64")
-
-
 def test_slice():
     def check(m, n, target_bits, target_dtype):
         # The index may overflow in B, while not in A
@@ -206,95 +136,6 @@ def test_slice():
     check(
         const(2**15, "int64"), const((2**15 + 1), "int64"), target_bits=32, target_dtype="int64"
     )
-
-
-def test_relay_basic():
-    engine = relay.backend.te_compiler.get()
-
-    def check(shapex, shapey, target_bits, target_dtype):
-        x = relay.var("x", shape=shapex)
-        y = relay.var("y", shape=shapey)
-        z = relay.add(x, y)
-        func = relay.Function([x, y], z)
-        mod = tvm.IRModule.from_expr(func)
-        mod = relay.transform.InferType()(mod)
-        func = mod["main"]
-        z = engine.lower(func, "llvm")
-        stmt = lower_sch(z.schedule, tuple(z.inputs) + tuple(z.outputs), 32)
-        # outer loop
-        assert stmt.loop_var.dtype == target_dtype
-        # inner loop
-        if len(shapex) > 1 or len(shapey) > 1:
-            assert stmt.body.loop_var.dtype == target_dtype
-
-    check(
-        (const(2**16, "int64"), const(2**15 + 1, "int64")),
-        (1, const(2**15 + 1, "int64")),
-        target_bits=32,
-        target_dtype="int64",
-    )
-    check(
-        (const(2**16, "int64"), const(2**15, "int64")),
-        (1, const(2**15, "int64")),
-        target_bits=32,
-        target_dtype="int32",
-    )
-    check(
-        (const(2**31, "int64"),), (const(2**31, "int64"),), target_bits=32, target_dtype="int32"
-    )
-    check(
-        (const(2**31 + 1, "int64"),),
-        (const(2**31 + 1, "int64"),),
-        target_bits=32,
-        target_dtype="int64",
-    )
-
-
-def test_relay_take():
-    engine = relay.backend.te_compiler.get()
-
-    def check(shape, index, target_bits, target_dtype):
-        x = relay.var("x", shape=shape)
-        y = relay.op.take(x, indices=index)
-        func = relay.Function([x], y)
-        mod = tvm.IRModule.from_expr(func)
-        mod = relay.transform.InferType()(mod)
-        func = mod["main"]
-        z = engine.lower(func, "llvm")
-        stmt = lower_sch(z.schedule, tuple(z.inputs) + tuple(z.outputs), 32)
-        assert stmt.value.indices[0].dtype == target_dtype
-
-    check(
-        (const(2**16, "int64"), const(2**15 + 1, "int64")),
-        relay.const(0, dtype="int64"),
-        target_bits=32,
-        target_dtype="int32",
-    )
-    check(
-        (const(2**16, "int64"), const(2**15 + 1, "int64")),
-        relay.const(2**31, dtype="int64"),
-        target_bits=32,
-        target_dtype="int64",
-    )
-
-
-def test_ramp_dtype_consistency():
-    """
-    for (i :int64, (int64)0, (int64)4) {
-        A[ramp(i*(int64)2, (int64)1, 2)] = cast(int64, 2 ** 31 - 1) * i;
-    }
-    The infer result:
-        base:   int64 -> int64 (since i is involved in another int64 expr)
-        stride: int64 -> int32
-
-    Thus ramp should still use int64 for both stride and base after rewrite.
-    """
-    n = tvm.tir.IntImm("int64", 4)
-    m = tvm.tir.IntImm("int64", 2)
-    A = te.compute((n, m), lambda i, j: tvm.tir.Cast("int64", 2**31 - 1) * i, name="A")
-    s = te.create_schedule(A.op)
-    s[A].vectorize(A.op.axis[1])
-    lower_sch(s, [A], 32, extra_passes=[tvm.tir.transform.VectorizeLoop()])
 
 
 def test_condition():
@@ -411,6 +252,23 @@ def test_avg_pool2d():
     )
     after = tvm.tir.transform.Simplify()(after)
     tvm.ir.assert_structural_equal(after["main"], expected_after.with_attr("global_symbol", "main"))
+
+
+def test_narrow_i64_valued_bufferload_index_to_i32():
+    @T.prim_func
+    def before(A: T.Buffer((16,), "int64")):
+        for i in range(T.int64(15)):
+            A[i + T.int64(1)] = A[i] + T.int64(1)
+
+    @T.prim_func
+    def expect(A: T.Buffer((16,), "int64")):
+        for i in range(15):
+            A[i + 1] = A[i] + T.int64(1)
+
+    after = tvm.tir.transform.NarrowDataType(32)(
+        tvm.IRModule.from_expr(before.with_attr("global_symbol", "main"))
+    )["main"]
+    tvm.ir.assert_structural_equal(after, expect.with_attr("global_symbol", "main"))
 
 
 if __name__ == "__main__":

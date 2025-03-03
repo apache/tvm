@@ -68,7 +68,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::PrimFunc>("", [](tir::PrimFunc func, ObjectPath p, IRDocsifier d) -> Doc {
       With<TIRFrame> f(d, func);
       (*f)->AddDispatchToken(d, "tir");
-      auto func_name = IdDoc(FindFunctionName(d, func).value_or("main"));
+      IdDoc func_name = IdDoc(FindFunctionName(d, func).value_or("main"));
       d->SetCommonPrefix(func, [](const ObjectRef& obj) {
         return obj->IsInstance<tir::VarNode>() || obj->IsInstance<tir::BufferNode>();
       });

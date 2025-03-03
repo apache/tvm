@@ -330,6 +330,10 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
    *
    * \param indices The indices at which the buffer is being accessed.
    *
+   * \param predicate A vector mask of boolean values indicating which lanes of a
+   * vector are to be accessed. The number lanes of the mask must be equal to the
+   * number of lanes being accessed.
+   *
    * \param value_dtype The datatype to be read from (BufferLoad) or
    * written to (BufferStore) the buffer.
    *
@@ -342,6 +346,8 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
    *         stored/loaded.  If -1, indicates that the entire type,
    *         vector or scalar, should be written.
    *
+   *       - predicate: The predicate mask of the buffer.
+   *
    *       - alignment: The alignment to be used for the read/write.
    *
    *       - is_volatile: Whether the read/write should be volatile.
@@ -349,9 +355,9 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
    *       - Should return the generated expression.
    */
   void BufferAccessHelper(
-      Buffer buffer, Array<PrimExpr> indices, DataType value_dtype,
-      std::function<llvm::Instruction*(TypedPointer buffer_ptr, int subelement_i, int alignment,
-                                       bool is_volatile)>
+      Buffer buffer, Array<PrimExpr> indices, Optional<PrimExpr> predicate, DataType value_dtype,
+      std::function<llvm::Instruction*(TypedPointer buffer_ptr, int subelement_i,
+                                       llvm::Value* predicate, int alignment, bool is_volatile)>
           make_instruction);
   // Initialize target
   virtual void InitTarget();
@@ -431,7 +437,7 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
    *
    * \param func The function to set attributes on.
    */
-  void SetTargetAttributes(llvm::Function* func);
+  virtual void SetTargetAttributes(llvm::Function* func);
   /*!
    * \brief Emit LLVM IR for conversion functions __extendhfsf2 and __truncsfhf2
    *        into the current llvm::Module.
@@ -468,7 +474,6 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   llvm::Value* CreateAdd(DataType t, llvm::Value* a, llvm::Value* b);
   llvm::Value* CreateSub(DataType t, llvm::Value* a, llvm::Value* b);
   llvm::Value* CreateMul(DataType t, llvm::Value* a, llvm::Value* b);
-  llvm::Value* CreateBroadcast(llvm::Value* value, int lanes);
   virtual TypedPointer CreateBufferPtr(llvm::Value* buffer_ptr, DataType buffer_element_dtype,
                                        llvm::ArrayRef<llvm::Value*> indices, DataType value_dtype);
   // Vector concatenation.
@@ -561,9 +566,9 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   // deep comparison of PrimExpr
   ExprDeepEqual deep_equal_;
   // binding of let variables. Enables duplicate var defs that map to same value
-  std::unordered_map<Var, const LetNode*, ObjectPtrHash, ObjectPtrEqual> let_binding_;
+  std::unordered_map<Var, const LetNode*> let_binding_;
   // debug info for function being compiled
-  llvm::DISubprogram* di_subprogram_;
+  llvm::DISubprogram* di_subprogram_{nullptr};
   // Cache potential common path ops to slightly improve lookup time.
   // global symbol table.
   OpAttrMap<TGlobalSymbol> op_attr_global_symbol_ = Op::GetAttrMap<TGlobalSymbol>("TGlobalSymbol");
@@ -575,8 +580,19 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
   const Op& builtin_tvm_call_cpacked_lowered_ = builtin::tvm_call_cpacked_lowered();
 
   void EmitDebugLocation();
-  void EmitDebugLocation(const Span& span);
+  void EmitDebugLocation(const Optional<Span>& span);
   void EmitDebugLocation(const StmtNode* op);
+
+  // Get the DWARF type corresponding to the LLVM type |ty|. The current API in practice only
+  // generates |int32|, and |int8*|.
+  llvm::DIType* GetDebugType(const Type& ty_tir);
+  llvm::DIType* GetDebugType(const Type& ty_tir, llvm::Type* ty_llvm);
+
+  // Adds the DWARF debug information for |function| to |dbg_info_|.
+  void AddDebugInformation(llvm::Function* f_llvm, const Array<Type>& tvm_param_types);
+  // Adds the DWARF debug information for |tir_var| to |dbg_info_|.
+  void AddDebugInformation(llvm::Value* llvm_value, const Var& tir_var,
+                           llvm::Instruction* insert_before = nullptr);
 
   /*! \brief Helper struct for debug infos. */
   struct DebugInfo {
@@ -585,6 +601,10 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
     llvm::DICompileUnit* compilation_unit_{nullptr};
     llvm::DIFile* file_{nullptr};
   };
+  // Internal debug information, to be populated by EmitDebugLocation
+  // and AddDebugInformation
+  std::unique_ptr<DebugInfo> dbg_info_;
+
   /*!
    * \brief Create a new DebugInfo struct from the given Module that
    *  initializes file and compilation_unit_ to TVM defaults.

@@ -287,7 +287,7 @@ inline Tensor cast(const Tensor& x, DataType type, std::string name = "T_cast",
         if (expr.dtype().code() == type.code() && expr.dtype().bits() == type.bits()) {
           if (expr.dtype().lanes() == type.lanes()) {
             return expr;
-          } else if (expr.dtype().lanes() == 1 && type.lanes() > 1) {
+          } else if (expr.dtype().lanes() == 1 && type.is_vector()) {
             return tvm::tir::Broadcast(expr, type.lanes());
           }
         }

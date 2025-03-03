@@ -27,6 +27,10 @@
 #include <tvm/tir/op.h>
 
 #include "./functor_common.h"
+#include "tvm/ir/expr.h"
+#include "tvm/tir/expr.h"
+#include "tvm/tir/stmt.h"
+#include "tvm/tir/var.h"
 
 namespace tvm {
 namespace tir {
@@ -107,25 +111,39 @@ Stmt DataTypeLegalizer::VisitStmt_(const AttrStmtNode* op) {
   return StmtExprMutator::VisitStmt_(op);
 }
 
-Stmt DataTypeLegalizer::VisitStmt_(const LetStmtNode* op) {
+PrimExpr DataTypeLegalizer::VisitExpr_(const LetNode* op) {
   PrimExpr value = this->VisitExpr(op->value);
-  auto new_var = op->var.copy_with_dtype(value.dtype());
+  Var var = op->var;
 
   if (value.dtype() != op->var->dtype) {
-    var_remap_[op->var.get()] = new_var;
+    var = op->var.copy_with_dtype(value.dtype());
+    var_remap_[op->var.get()] = var;
+  }
+
+  PrimExpr new_body = this->VisitExpr(op->body);
+
+  if (value.same_as(op->value) && new_body.same_as(op->body)) {
+    return GetRef<PrimExpr>(op);
+  } else {
+    return Let(var, value, new_body, op->span);
+  }
+}
+
+Stmt DataTypeLegalizer::VisitStmt_(const LetStmtNode* op) {
+  PrimExpr value = this->VisitExpr(op->value);
+  Var var = op->var;
+
+  if (value.dtype() != op->var->dtype) {
+    var = op->var.copy_with_dtype(value.dtype());
+    var_remap_[op->var.get()] = var;
   }
 
   Stmt new_body = this->VisitStmt(op->body);
 
   if (value.same_as(op->value) && new_body.same_as(op->body)) {
     return GetRef<Stmt>(op);
-  } else if (value.dtype() == op->var->dtype) {
-    auto n = CopyOnWrite(op);
-    n->value = std::move(value);
-    n->body = std::move(new_body);
-    return Stmt(n);
   } else {
-    return LetStmt(new_var, value, new_body, op->span);
+    return LetStmt(var, value, new_body, op->span);
   }
 }
 
@@ -201,6 +219,7 @@ TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH(GENode, operator>=);
 #undef TVM_DEFINE_BIOP_EXPR_MUTATE_WITH_TYPE_MATCH
 
 PrimExpr DataTypeLegalizer::VisitExpr_(const CallNode* op) {
+  Call before = GetRef<Call>(op);
   PrimExpr e = StmtExprMutator::VisitExpr_(op);
   op = e.as<CallNode>();
   static const Op& builtin_pow_ = Op::Get("tir.pow");
@@ -220,6 +239,18 @@ PrimExpr DataTypeLegalizer::VisitExpr_(const CallNode* op) {
     return pow(op->args[0], op->args[1]);
   } else if (op->op.same_as(builtin::if_then_else())) {
     return if_then_else(op->args[0], op->args[1], op->args[2]);
+  } else if (op->op.same_as(Op::Get("tir.clz"))) {
+    DataType before_dtype = before->args[0]->dtype;
+    DataType after_dtype = op->args[0]->dtype;
+    CHECK((before_dtype.is_int() || before_dtype.is_uint()) &&
+          (before_dtype.bits() == 32 || before_dtype.bits() == 64))
+        << "clz only supports 32 or 64 bit integer types, but get type before legalizing: "
+        << before_dtype;
+    CHECK((after_dtype.is_int() || after_dtype.is_uint()) &&
+          (after_dtype.bits() == 32 || after_dtype.bits() == 64))
+        << "clz only supports 32 or 64 bit integer types, but get type after legalizing: "
+        << after_dtype;
+    return e - after_dtype.bits() + before_dtype.bits();
   }
   return e;
 }
@@ -242,6 +273,17 @@ Stmt IndexDataTypeRewriter::VisitStmt_(const AllocateNode* op) {
   } else {
     return GetRef<Stmt>(op);
   }
+}
+
+Stmt IndexDataTypeRewriter::VisitStmt_(const AttrStmtNode* op) {
+  if (op->attr_key == attr::thread_extent || op->attr_key == attr::virtual_thread) {
+    bool is_enabled = is_enabled_;
+    is_enabled_ = true;
+    auto stmt = DataTypeLegalizer::VisitStmt_(op);
+    is_enabled_ = is_enabled;
+    return stmt;
+  }
+  return DataTypeLegalizer::VisitStmt_(op);
 }
 
 Stmt IndexDataTypeRewriter::VisitStmt_(const DeclBufferNode* op) {
@@ -426,7 +468,7 @@ Stmt IndexDataTypeRewriter::VisitStmt_(const BufferStoreNode* op) {
 
   Buffer new_buffer = GetRemappedBuffer(op->buffer);
   auto value = this->VisitExpr(op->value);
-  if (new_buffer->dtype != value->dtype && value->dtype.lanes() == 1) {
+  if (new_buffer->dtype != value->dtype && value->dtype.is_scalar()) {
     value = cast(new_buffer->dtype, value);
   }
   auto indices = VisitIndices(op->indices);
@@ -507,11 +549,32 @@ Stmt IndexDataTypeRewriter::VisitStmt_(const ForNode* op) {
     n->loop_var = new_loop_var;
     n->min = cast(new_loop_var.dtype(), min);
     n->extent = cast(new_loop_var.dtype(), extent);
+    if (op->thread_binding.defined()) {
+      auto old_thread_binding = op->thread_binding.value();
+      auto* ptr = old_thread_binding.CopyOnWrite();
+      ptr->var = old_thread_binding->var.copy_with_dtype(new_loop_var.dtype());
+      n->thread_binding = std::move(Optional<IterVar>(std::move(old_thread_binding)));
+    }
     n->body = new_body;
     return std::move(new_for);
   } else {
     return GetRef<Stmt>(op);
   }
+}
+
+Stmt IndexDataTypeRewriter::VisitStmt_(const LetStmtNode* op) {
+  LetStmt let_stmt = Downcast<LetStmt>(DataTypeLegalizer::VisitStmt_(op));
+  if (var_remap_.find(let_stmt->var.get()) == var_remap_.end()) {
+    return let_stmt;
+  }
+  bool is_enabled = is_enabled_;
+  is_enabled_ = true;
+  PrimExpr value = VisitExpr(op->value);
+  Var var = var_remap_[let_stmt->var.get()];
+  is_enabled_ = is_enabled;
+  ICHECK(value.dtype() == var.dtype());
+  // No need to re-visit body
+  return LetStmt(var, value, let_stmt->body, let_stmt->span);
 }
 
 #define TVM_DEFINE_CMPOP_EXPR_MUTATE_WITH_TYPE_MATCH(OP, FUNC)                     \
@@ -542,24 +605,66 @@ PrimExpr IndexDataTypeRewriter::VisitExpr_(const CallNode* op) {
   return Parent::VisitExpr_(op);
 }
 
+PrimExpr IndexDataTypeRewriter::VisitExpr_(const SelectNode* op) {
+  bool is_condition = true;
+  std::swap(is_condition_, is_condition);
+  PrimExpr condition = this->VisitExpr(op->condition);
+  std::swap(is_condition_, is_condition);
+  PrimExpr true_value = this->VisitExpr(op->true_value);
+  PrimExpr false_value = this->VisitExpr(op->false_value);
+
+  if (condition.same_as(op->condition) && true_value.same_as(op->true_value) &&
+      false_value.same_as(op->false_value) && true_value.dtype() == false_value.dtype()) {
+    return GetRef<PrimExpr>(op);
+  } else {
+    int bits = std::max(true_value.dtype().bits(), false_value.dtype().bits());
+    DataType dtype = true_value.dtype().with_bits(bits);
+    if (true_value.dtype() != dtype) true_value = cast(dtype, true_value);
+    if (false_value.dtype() != dtype) false_value = cast(dtype, false_value);
+    return Select(condition, true_value, false_value);
+  }
+}
+
 #undef TVM_DEFINE_CMPOP_EXPR_MUTATE_WITH_TYPE_MATCH
 
 IndexDataTypeNormalizer::IndexDataTypeNormalizer(DataType target_data_type)
     : target_data_type_(std::move(target_data_type)) {}
 
 PrimFunc IndexDataTypeNormalizer::Rewrite(PrimFunc func) {
+  // collect var remap
+  VisitStmt(std::move(func->body));
+  buffer_remap_.clear();
+  ivmap_.clear();
+  // start rewrite
   Map<Var, Buffer> new_buffer_map = func->buffer_map;
   for (const auto& [var, buffer] : func->buffer_map) {
     new_buffer_map.Set(var, VisitBuffer(buffer));
   }
+  // remap params
+  bool is_enabled = true;
+  std::swap(is_enabled_, is_enabled);
+  Array<Var> params = func->params.Map([this](Var param) {
+    if (param.dtype().is_int()) {
+      return Downcast<Var>(this->VisitExpr(param));
+    } else {
+      return param;
+    }
+  });
+  std::swap(is_enabled_, is_enabled);
+
   PrimFuncNode* new_func = func.CopyOnWrite();
+  new_func->params = std::move(params);
   new_func->buffer_map = std::move(new_buffer_map);
   new_func->body = VisitStmt(std::move(new_func->body));
   return func;
 }
 
+bool IndexDataTypeNormalizer::CanRewriteDType(DataType dtype) const {
+  return dtype.is_int() && dtype.bits() >= 32;
+}
+
 PrimExpr IndexDataTypeNormalizer::VisitExpr_(const IntImmNode* op) {
-  if (is_enabled_) {
+  if (is_enabled_ && CanRewriteDType(op->dtype)) {
     ICHECK_LE(op->value, Downcast<Integer>(max_value(target_data_type_))->value);
     return cast(target_data_type_, GetRef<IntImm>(op));
   }
@@ -567,7 +672,8 @@ PrimExpr IndexDataTypeNormalizer::VisitExpr_(const IntImmNode* op) {
 }
 
 PrimExpr IndexDataTypeNormalizer::VisitExpr_(const VarNode* op) {
-  if (is_enabled_ && op->dtype != target_data_type_ && !var_remap_.count(op)) {
+  if (is_enabled_ && CanRewriteDType(op->dtype) && op->dtype != target_data_type_ &&
+      !var_remap_.count(op)) {
     var_remap_[op] = GetRef<Var>(op).copy_with_dtype(target_data_type_);
   }
   return DataTypeLegalizer::VisitExpr_(op);
@@ -577,7 +683,7 @@ PrimExpr IndexDataTypeNormalizer::VisitExpr_(const CastNode* op) {
   // Unwrap the cast only when the dtype of this cast is integer dtype.
   // When the dtype of this cast is not integer dtype, it means that this cast
   // has some other purpose, and we should not unwrap the cast.
-  if (is_enabled_ && op->dtype.is_int()) {
+  if (is_enabled_ && CanRewriteDType(op->dtype)) {
     PrimExpr value = IndexDataTypeNormalizer::VisitExpr(op->value);
     return value->dtype == target_data_type_ ? value : Cast(target_data_type_, value);
   }

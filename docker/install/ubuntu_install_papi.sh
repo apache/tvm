@@ -27,7 +27,7 @@ apt-install-and-clear -y linux-tools-common linux-tools-generic kmod
 
 cd /
 # Pulling the latest version of this has broken the images before. Checkout the tagged version below for now.
-git clone --branch papi-6-0-0-1-t https://bitbucket.org/icl/papi.git
+git clone --branch papi-6-0-0-1-t https://github.com/icl-utk-edu/papi
 cd papi/src
 export PAPI_CUDA_ROOT=/usr/local/cuda
 export PAPI_ROCM_ROOT=/opt/rocm

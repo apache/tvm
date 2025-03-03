@@ -19,7 +19,7 @@ import inspect
 
 # pylint: disable=invalid-name
 from numbers import Integral as _Integral
-from typing import List, Optional
+from typing import List, Optional, Union
 
 import tvm._ffi
 import tvm.arith._ffi_api
@@ -53,7 +53,6 @@ def placeholder(shape, dtype=None, name="placeholder"):
     tensor: Tensor
         The created tensor
     """
-    shape = (shape,) if isinstance(shape, tvm.tir.PrimExpr) else shape
     dtype = "float32" if dtype is None else dtype
     return _ffi_api.Placeholder(shape, dtype, name)
 
@@ -131,26 +130,10 @@ def compute(shape, fcompute, name="compute", tag="", attrs=None, varargs_names=N
     dim_var = [tvm.tir.IterVar((0, s), x, 0) for x, s in zip(arg_names, shape[:out_ndim])]
     body = fcompute(*[v.var for v in dim_var])
 
-    if isinstance(body, _tensor.TensorIntrinCall):
-        for i, s in enumerate(shape[out_ndim:]):
-            var_name = "ax" + str(i)
-            dim_var.append(tvm.tir.IterVar((0, s), var_name, 4))
-        op_node = _ffi_api.TensorComputeOp(
-            name,
-            tag,
-            dim_var,
-            body.reduce_axis,
-            out_ndim,
-            body.intrin,
-            body.tensors,
-            body.regions,
-            body.scalar_inputs,
-        )
-    else:
-        if not isinstance(body, (list, tuple)):
-            body = [body]
-        body = convert(body)
-        op_node = _ffi_api.ComputeOp(name, tag, attrs, dim_var, body)
+    if not isinstance(body, (list, tuple)):
+        body = [body]
+    body = convert(body)
+    op_node = _ffi_api.ComputeOp(name, tag, attrs, dim_var, body)
 
     num = op_node.num_outputs
     outputs = tuple(op_node.output(i) for i in range(num))
@@ -333,15 +316,15 @@ def extern(
             )
         types.add(t.dtype)
 
-    if dtype is None:
-        if len(types) != 1:
-            raise ValueError("Cannot infer output type, please provide dtype argument")
-        infered_type = types.pop()
-        dtype = [infered_type for _ in shape]
-    if isinstance(dtype, str):
-        dtype = [dtype]
-
     if out_buffers is None:
+        if dtype is None:
+            if len(types) != 1:
+                raise ValueError("Cannot infer output type, please provide dtype argument")
+            infered_type = types.pop()
+            dtype = [infered_type for _ in shape]
+        if isinstance(dtype, str):
+            dtype = [dtype]
+
         for shp, dt in zip(shape, dtype):
             output_placeholders.append(
                 tvm.tir.decl_buffer(shp, dt, name, elem_offset=tvm.tir.Var("elem_offset", "int32"))
@@ -460,7 +443,7 @@ def var(name="tindex", dtype="int32", span=None):
 
     Returns
     -------
-    var : Var
+    var : tir.Var
         The result symbolic variable.
     """
     return tvm.tir.Var(name, dtype, span)
@@ -567,13 +550,13 @@ def reduce_axis(dom, name="rv", thread_tag="", span=None):
 
 
 def create_prim_func(
-    ops: List[_tensor.Tensor], index_dtype_override: Optional[str] = None
+    ops: List[Union[_tensor.Tensor, tvm.tir.Var]], index_dtype_override: Optional[str] = None
 ) -> tvm.tir.PrimFunc:
     """Create a TensorIR PrimFunc from tensor expression
 
     Parameters
     ----------
-    ops : List[Tensor]
+    ops : List[Union[_tensor.Tensor, tvm.tir.Var]]
         The source expression.
 
     Example
@@ -621,3 +604,6 @@ def create_prim_func(
     if not isinstance(ops, (list, tuple, Array)):
         ops = [ops]
     return _ffi_api.CreatePrimFunc(ops, index_dtype_override)
+
+
+AXIS_SEPARATOR = tvm.tir.IndexMap.AXIS_SEPARATOR

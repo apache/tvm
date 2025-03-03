@@ -20,9 +20,7 @@
 # which is common with arm devices, we need to be able to cross-compile
 # a relay graph on x86 for AArch and then run the graph on AArch.
 if(USE_ARM_COMPUTE_LIB)
-    tvm_file_glob(GLOB ACL_RELAY_CONTRIB_SRC src/relay/backend/contrib/arm_compute_lib/*.cc)
     tvm_file_glob(GLOB ACL_RUNTIME_MODULE src/runtime/contrib/arm_compute_lib/acl_runtime.cc)
-    list(APPEND COMPILER_SRCS ${ACL_RELAY_CONTRIB_SRC})
 
     if(NOT USE_ARM_COMPUTE_LIB_GRAPH_EXECUTOR)
         list(APPEND COMPILER_SRCS ${ACL_RUNTIME_MODULE})

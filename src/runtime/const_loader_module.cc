@@ -249,8 +249,6 @@ Module ConstLoaderModuleCreate(
   return Module(n);
 }
 
-TVM_REGISTER_GLOBAL("runtime.module.loadbinary_metadata")
-    .set_body_typed(ConstLoaderModuleNode::LoadFromBinary);
 TVM_REGISTER_GLOBAL("runtime.module.loadbinary_const_loader")
     .set_body_typed(ConstLoaderModuleNode::LoadFromBinary);
 

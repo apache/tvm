@@ -190,13 +190,13 @@ class OpaqueBlockLower : public StmtExprMutator {
   }
 
   /*! \brief Record the loop_var and loop start value of unit loops, whose extent is one. */
-  std::unordered_map<Var, PrimExpr, ObjectPtrHash, ObjectPtrEqual> unit_loop_vars_;
+  std::unordered_map<Var, PrimExpr> unit_loop_vars_;
 
   /*! \brief Attr keys to preserve into loop annotations. */
   std::unordered_set<std::string> preserved_annotations_;
 
   /*! \brief The map from buffer var to its storage alignment information. */
-  std::unordered_map<Var, StorageAlignAnnotation, ObjectPtrHash, ObjectPtrEqual> storage_align_;
+  std::unordered_map<Var, StorageAlignAnnotation> storage_align_;
 };
 
 PrimFunc LowerOpaqueBlock(PrimFunc f) {

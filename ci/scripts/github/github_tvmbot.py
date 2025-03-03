@@ -532,17 +532,14 @@ class PR:
     def rerun_jenkins_ci(self) -> None:
         job_names = [
             "tvm-arm",
-            "tvm-cortexm",
             "tvm-cpu",
             "tvm-docker",
             "tvm-gpu",
             "tvm-hexagon",
             "tvm-i386",
             "tvm-lint",
-            "tvm-minimal",
-            "tvm-minimal-cross-isa",
-            "tvm-riscv",
             "tvm-wasm",
+            "tvm-unity",
         ]
         for name in job_names:
             url = JENKINS_URL + f"job/{name}/job/PR-{self.number}/buildWithParameters"

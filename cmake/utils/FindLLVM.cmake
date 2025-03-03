@@ -44,6 +44,15 @@ macro(find_llvm use_llvm)
   endif()
 
   if(${LLVM_CONFIG} MATCHES ${IS_TRUE_PATTERN})
+    # This is a workaround for an upstream LLVM issue [0], in which
+    # the `CMAKE_INSTALL_LIBDIR` variable is used before definition.
+    # While there is an LLVM PR to resolve this fix [1], as of
+    # 2024-08-19 it has not yet been merged to LLVM.
+    #
+    # [0] https://github.com/llvm/llvm-project/issues/83802
+    # [1] https://github.com/llvm/llvm-project/pull/83807
+    include(GNUInstallDirs)
+
     find_package(LLVM ${llvm_version_required} REQUIRED CONFIG)
     llvm_map_components_to_libnames(LLVM_LIBS "all")
     if (NOT LLVM_LIBS)
@@ -64,6 +73,10 @@ macro(find_llvm use_llvm)
     endif()
     set(TVM_LLVM_VERSION ${LLVM_VERSION_MAJOR}${LLVM_VERSION_MINOR})
     set(TVM_INFO_LLVM_VERSION "${LLVM_VERSION_MAJOR}.${LLVM_VERSION_MINOR}.${LLVM_VERSION_PATCH}")
+    set(TVM_LLVM_HAS_AARCH64_TARGET 0)
+    if(DEFINED LLVM_TARGETS_TO_BUILD AND "AArch64" IN_LIST LLVM_TARGETS_TO_BUILD)
+      set(TVM_LLVM_HAS_AARCH64_TARGET 1)
+    endif()
   else()
     # use llvm config
     message(STATUS "Use llvm-config=" ${LLVM_CONFIG})
@@ -118,6 +131,13 @@ macro(find_llvm use_llvm)
     if(NOT "${__llvm_exit_code}" STREQUAL "0")
       message(FATAL_ERROR "Fatal error executing: ${LLVM_CONFIG} --cmakedir")
     endif()
+    execute_process(COMMAND ${LLVM_CONFIG} --targets-built
+      RESULT_VARIABLE __llvm_exit_code
+      OUTPUT_VARIABLE __llvm_targets_built
+      OUTPUT_STRIP_TRAILING_WHITESPACE)
+    if(NOT "${__llvm_exit_code}" STREQUAL "0")
+      message(FATAL_ERROR "Fatal error executing: ${LLVM_CONFIG} --targets-built")
+    endif()
     cmake_path(SET "__llvm_cmakedir" "${__llvm_cmakedir}")
     message(STATUS "LLVM cmakedir: ${__llvm_cmakedir}")
     # map prefix => $
@@ -152,6 +172,12 @@ macro(find_llvm use_llvm)
       string(REPLACE "$" ${__llvm_prefix} __lib_with_prefix "${__flag}")
       list(APPEND LLVM_LIBS "${__lib_with_prefix}")
     endforeach()
+    # targets built
+    set(TVM_LLVM_HAS_AARCH64_TARGET 0)
+    separate_arguments(BUILT_TARGET_LIST NATIVE_COMMAND ${__llvm_targets_built})
+    if("AArch64" IN_LIST BUILT_TARGET_LIST)
+      set(TVM_LLVM_HAS_AARCH64_TARGET 1)
+    endif()
     if (${USE_MLIR})
       if (EXISTS "${__llvm_libdir}/libMLIRPresburger.a")
         if (EXISTS "${__llvm_libdir}/libMLIRSupport.a")
@@ -203,4 +229,5 @@ macro(find_llvm use_llvm)
   if (${TVM_LLVM_VERSION} LESS 40)
     message(FATAL_ERROR "TVM requires LLVM 4.0 or higher.")
   endif()
+  message(STATUS "Found TVM_LLVM_HAS_AARCH64_TARGET=" ${TVM_LLVM_HAS_AARCH64_TARGET})
 endmacro(find_llvm)

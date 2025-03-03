@@ -78,7 +78,7 @@ class PrimFuncFrameNode : public TIRFrameNode {
   /*! \brief Maps some parameters to specific Buffer data structures. */
   Map<tvm::tir::Var, tvm::tir::Buffer> buffer_map;
   /*! \brief Additional attributes storing the meta-data */
-  Optional<Map<String, ObjectRef>> attrs;
+  Map<String, ObjectRef> attrs;
   /*! \brief The variable map bound to thread env. */
   Map<tvm::tir::Var, tvm::tir::IterVar> env_threads;
   /*! \brief The buffer allocated in root block. */

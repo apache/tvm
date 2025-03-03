@@ -49,11 +49,6 @@ class TensorSlice(ObjectGeneric, _expr.ExprOp):
 
 
 @tvm._ffi.register_object
-class TensorIntrinCall(Object):
-    """Intermediate structure for calling a tensor intrinsic."""
-
-
-@tvm._ffi.register_object
 class Tensor(DataProducer, _expr.ExprOp):
     """Tensor object, to construct, see function.Tensor"""
 
@@ -64,16 +59,7 @@ class Tensor(DataProducer, _expr.ExprOp):
                 f"Need to provide {ndim} index in tensor but {len(indices)} was provided"
             )
         indices = convert_to_object(indices)
-        args = []
-        for x in indices:
-            if isinstance(x, _expr.PrimExpr):
-                args.append(x)
-            elif isinstance(x, _expr.IterVar):
-                args.append(x.var)
-            else:
-                raise ValueError("The indices must be expression")
-
-        return _expr.ProducerLoad(self, args)
+        return _expr.ProducerLoad(self, indices)
 
     def __getitem__(self, indices):
         return TensorSlice(self, indices)
@@ -182,11 +168,6 @@ class ComputeOp(BaseComputeOp):
 
 
 @tvm._ffi.register_object
-class TensorComputeOp(BaseComputeOp):
-    """Tensor operation."""
-
-
-@tvm._ffi.register_object
 class ScanOp(Operation):
     """Scan operation."""
 
@@ -199,13 +180,3 @@ class ScanOp(Operation):
 @tvm._ffi.register_object
 class ExternOp(Operation):
     """External operation."""
-
-
-@tvm._ffi.register_object
-class HybridOp(Operation):
-    """Hybrid operation."""
-
-    @property
-    def axis(self):
-        """Represent the IterVar axis, also defined when it is a HybridOp"""
-        return self.__getattr__("axis")

@@ -511,29 +511,6 @@ MICRO_SUPPORTED_MODELS = {
 }
 
 
-def micro(model="unknown", options=None):
-    """Returns a microTVM target.
-
-    Parameters
-    ----------
-    model : str
-        Canonically identifies the target device. This is typically a device board level name.
-        The allowed values are MICRO_SUPPORTED_MODELS.keys().
-    options : str or list of str
-        Additional options
-    """
-    if model not in MICRO_SUPPORTED_MODELS:
-        raise ValueError(f"Model {model} not supported by tvm.target.micro.")
-    opts = _merge_opts(
-        MICRO_SUPPORTED_MODELS[model] + [f"-model={model}"],
-        options,
-    )
-
-    # NOTE: in the future, the default micro target will be LLVM except when
-    # external dependencies are present.
-    return Target(" ".join(["c"] + opts))
-
-
 def arm_cpu(model="unknown", options=None):
     """Returns a ARM CPU target.
     This function will also download pre-tuned op parameters when there is none.
@@ -605,12 +582,6 @@ def rasp(options=None):
         "tvm.target.rasp() is going to be deprecated. " 'Please use tvm.target.arm_cpu("rasp3b")'
     )
     return arm_cpu("rasp3b", options)
-
-
-def vta(model="unknown", options=None):
-    opts = ["-device=vta", "-keys=vta,cpu", "-model=%s" % model]
-    opts = _merge_opts(opts, options)
-    return Target(" ".join(["ext_dev"] + opts))
 
 
 def bifrost(model="unknown", options=None):
@@ -715,7 +686,7 @@ def hexagon(cpu_ver="v68", **kwargs):
         return int(m.group(1))
 
     # Check for valid codegen cpu
-    valid_hex = ["v65", "v66", "v67", "v67t", "v68", "v69", "v71", "v73"]
+    valid_hex = ["v65", "v66", "v67", "v67t", "v68", "v69", "v71", "v73", "v75"]
     try:
         cpu_ver = cpu_ver[cpu_ver.index("v") :].lower()
         assert cpu_ver in valid_hex
@@ -731,6 +702,7 @@ def hexagon(cpu_ver="v68", **kwargs):
             "v68": 4 * one_mb,
             "v69": 8 * one_mb,
             "v73": 8 * one_mb,
+            "v75": 8 * one_mb,
         }
         return default_vtcm_sizes.get(cpu_ver, 0)
 
@@ -858,7 +830,7 @@ def stm32(series="unknown", options=None):
     return Target(" ".join(["c"] + opts))
 
 
-def adreno(model="unknown", options=None):
+def adreno(model="unknown", options=None, clml=False):
     """Returns a Qualcomm GPU target.
     Parameters
     ----------
@@ -867,7 +839,10 @@ def adreno(model="unknown", options=None):
     options : str or list of str
         Additional options
     """
-    opts = ["-device=adreno", "-model=%s" % model]
+    if clml:
+        opts = ["-device=adreno", "--keys=adreno,opencl,gpu,clml", "-model=%s" % model]
+    else:
+        opts = ["-device=adreno", "--keys=adreno,opencl,gpu", "-model=%s" % model]
     opts = _merge_opts(opts, options)
     return Target(" ".join(["opencl"] + opts))
 

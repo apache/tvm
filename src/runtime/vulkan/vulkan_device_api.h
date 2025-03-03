@@ -62,6 +62,7 @@ class VulkanDeviceAPI final : public DeviceAPI {
   void SyncStreamFromTo(Device dev, TVMStreamHandle event_src, TVMStreamHandle event_dst) final;
   void StreamSync(Device dev, TVMStreamHandle stream) final;
   void SetStream(Device dev, TVMStreamHandle stream) final;
+  TVMStreamHandle GetCurrentStream(Device dev) final;
 
  protected:
   void CopyDataFromTo(const void* from, size_t from_offset, void* to, size_t to_offset, size_t size,

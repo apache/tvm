@@ -33,12 +33,7 @@ def create_csource_module():
 def create_llvm_module():
     A = te.placeholder((1024,), name="A")
     B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name="B")
-    s = te.create_schedule(B.op)
-    return tvm.build(s, [A, B], "llvm", name="myadd0")
-
-
-def create_aot_module():
-    return tvm.get_global_func("relay.build_module._AOTExecutorCodegen")()
+    return tvm.build(te.create_prim_func([A, B]), target="llvm")
 
 
 def test_property():
@@ -50,11 +45,6 @@ def test_property():
     checker(
         create_llvm_module(),
         expected={"is_binary_serializable": False, "is_runnable": True, "is_dso_exportable": True},
-    )
-
-    checker(
-        create_aot_module(),
-        expected={"is_binary_serializable": False, "is_runnable": True, "is_dso_exportable": False},
     )
 
 

@@ -19,6 +19,7 @@ import sys
 import pytest
 import tvm
 from tvm import te, arith, ir, tir, testing
+from tvm.script import tir as T
 
 
 def test_solution_consistency():
@@ -109,8 +110,8 @@ def test_unique_solution():
         [x, y],
     )
     assert list(solution.dst.variables) == []
-    assert ir.structural_equal(solution.src_to_dst[x], 15)
-    assert ir.structural_equal(solution.src_to_dst[y], 5)
+    assert ir.structural_equal(solution.src_to_dst[x], T.int32(15))
+    assert ir.structural_equal(solution.src_to_dst[y], T.int32(5))
 
 
 def test_low_rank():
@@ -128,7 +129,7 @@ def test_low_rank():
     [n0] = solution.dst.variables
     assert ir.structural_equal(solution.src_to_dst[x], n0 + 10)
     assert ir.structural_equal(solution.src_to_dst[y], -n0)
-    assert ir.structural_equal(solution.src_to_dst[z], 5)
+    assert ir.structural_equal(solution.src_to_dst[z], T.int32(5))
 
 
 def test_infer_range():
@@ -149,12 +150,12 @@ def test_infer_range():
     assert ir.structural_equal(solution.src_to_dst[x], n0)
     assert ir.structural_equal(solution.src_to_dst[y], -n0)
     # inferred from y's range
-    assert ir.structural_equal(solution.dst.ranges[n0].min, -9)
-    assert ir.structural_equal(solution.dst.ranges[n0].extent, 10)
+    assert ir.structural_equal(solution.dst.ranges[n0].min, T.int32(-9))
+    assert ir.structural_equal(solution.dst.ranges[n0].extent, T.int32(10))
     # additional inequality is added into the system for x
     [ineq] = solution.dst.relations
     assert isinstance(ineq, tvm.tir.LE)
-    assert ir.structural_equal(ineq.a, -5)
+    assert ir.structural_equal(ineq.a, T.int32(-5))
     assert ir.structural_equal(ineq.b, n0)
 
 
@@ -172,7 +173,7 @@ def test_ill_formed():
     )
     assert list(solution.dst.variables) == []
     [rel] = solution.dst.relations
-    assert ir.structural_equal(rel, False)
+    ir.assert_structural_equal(rel, tir.const(False))
     assert len(solution.src_to_dst) == 0
     assert len(solution.dst_to_src) == 0
 

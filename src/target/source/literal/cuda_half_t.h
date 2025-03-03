@@ -24,6 +24,8 @@
 #ifndef TVM_TARGET_SOURCE_LITERAL_CUDA_HALF_T_H_
 #define TVM_TARGET_SOURCE_LITERAL_CUDA_HALF_T_H_
 
+#include <string>
+
 static constexpr const char* _cuda_half_t_def = R"(
 typedef unsigned short uint16_t;
 typedef unsigned char uint8_t;
@@ -294,10 +296,6 @@ __pack_half2(const half x, const half y) {
   return (v1 << 16) | v0;
 }
 
-// Some fp16 math functions are not supported in cuda_fp16.h,
-// so we define them here to make sure the generated CUDA code
-// is valid.
-#if defined(__CUDA_ARCH__) && (__CUDA_ARCH__ >= 530)
 #define CUDA_UNSUPPORTED_HALF_MATH_BINARY(HALF_MATH_NAME, FP32_MATH_NAME) \
 static inline __device__ __host__ half HALF_MATH_NAME(half x, half y) {   \
   float tmp_x = __half2float(x);                                          \
@@ -313,16 +311,25 @@ static inline __device__ __host__ half HALF_MATH_NAME(half x) {          \
   return __float2half(result);                                           \
 }
 
+// Some fp16 math functions are not supported in cuda_fp16.h,
+// so we define them here to make sure the generated CUDA code
+// is valid.
+#if defined(__CUDA_ARCH__)
+#if (__CUDA_ARCH__ >= 530)
 CUDA_UNSUPPORTED_HALF_MATH_BINARY(hpow, powf)
+#if ((__CUDACC_VER_MAJOR__ < 12) || ((__CUDACC_VER_MAJOR__ == 12) && (__CUDACC_VER_MINOR__ < 8)))
 CUDA_UNSUPPORTED_HALF_MATH_UNARY(htanh, tanhf)
+#endif
 CUDA_UNSUPPORTED_HALF_MATH_UNARY(htan, tanf)
 CUDA_UNSUPPORTED_HALF_MATH_UNARY(hatan, atanf)
 CUDA_UNSUPPORTED_HALF_MATH_UNARY(herf, erf)
+#else
+CUDA_UNSUPPORTED_HALF_MATH_UNARY(hexp, exp)
+#endif
+#endif
 
 #undef CUDA_UNSUPPORTED_HALF_MATH_BINARY
 #undef CUDA_UNSUPPORTED_HALF_MATH_UNARY
-
-#endif
 )";
 
 static constexpr const char* _cuda_bfloat16_util = R"(
@@ -353,7 +360,9 @@ static inline __device__ __host__ nv_bfloat16 HALF_MATH_NAME(nv_bfloat16 x) {   
 }
 
 CUDA_UNSUPPORTED_HALF_MATH_BINARY(hpow, powf)
+#if ((__CUDACC_VER_MAJOR__ < 12) || ((__CUDACC_VER_MAJOR__ == 12) && (__CUDACC_VER_MINOR__ < 8)))
 CUDA_UNSUPPORTED_HALF_MATH_UNARY(htanh, tanhf)
+#endif
 CUDA_UNSUPPORTED_HALF_MATH_UNARY(htan, tanf)
 CUDA_UNSUPPORTED_HALF_MATH_UNARY(hatan, atanf)
 CUDA_UNSUPPORTED_HALF_MATH_UNARY(herf, erf)
@@ -375,5 +384,86 @@ static constexpr const char* _cuda_warp_intrinsic_util = R"(
 #endif
 
 )";
+
+void declare_vector_type_extensions(std::ostringstream& stream, bool enable_fp16, bool enable_fp8) {
+  if (enable_fp16 || enable_fp8) {
+    stream << R"(
+struct __align__(8) half4 {
+  __half x, y, z, w;
+  __host__ __device__ half4() : x(__half(0)), y(__half(0)), z(__half(0)), w(__half(0)) {}
+  __host__ __device__ half4(__half x, __half y, __half z, __half w) : x(x), y(y), z(z), w(w) {}
+)";
+    if (enable_fp8) {
+      stream << R"(
+  __host__ __device__ explicit half4(const __nv_fp8x4_e4m3& fp8x4) {
+    __nv_fp8x2_e4m3 lo_part, hi_part;
+    lo_part.__x = static_cast<__nv_fp8x2_storage_t>(fp8x4.__x & 0xFFFF);
+    hi_part.__x = static_cast<__nv_fp8x2_storage_t>((fp8x4.__x >> 16) & 0xFFFF);
+    __half2 lo_half2 = static_cast<__half2>(lo_part);
+    __half2 hi_half2 = static_cast<__half2>(hi_part);
+    x = reinterpret_cast<__half*>(&lo_half2)[0];
+    y = reinterpret_cast<__half*>(&lo_half2)[1];
+    z = reinterpret_cast<__half*>(&hi_half2)[0];
+    w = reinterpret_cast<__half*>(&hi_half2)[1];
+  }
+  __host__ __device__ explicit operator __nv_fp8x4_e4m3() const {
+    __nv_fp8x4_e4m3 result;
+    __half2 lo_half2 = *reinterpret_cast<const __half2*>(&x);
+    __half2 hi_half2 = *reinterpret_cast<const __half2*>(&z);
+    __nv_fp8x2_e4m3 lo_part(lo_half2), hi_part(hi_half2);
+    result.__x =
+        (static_cast<__uint32_t>(lo_part.__x) | (static_cast<__uint32_t>(hi_part.__x) << 16));
+    return result;
+  }
+  __host__ __device__ explicit half4(const __nv_fp8x4_e5m2& fp8x4) {
+    __nv_fp8x2_e5m2 lo_part, hi_part;
+    lo_part.__x = static_cast<__nv_fp8x2_storage_t>(fp8x4.__x & 0xFFFF);
+    hi_part.__x = static_cast<__nv_fp8x2_storage_t>((fp8x4.__x >> 16) & 0xFFFF);
+    __half2 lo_half2 = static_cast<__half2>(lo_part);
+    __half2 hi_half2 = static_cast<__half2>(hi_part);
+    x = reinterpret_cast<__half*>(&lo_half2)[0];
+    y = reinterpret_cast<__half*>(&lo_half2)[1];
+    z = reinterpret_cast<__half*>(&hi_half2)[0];
+    w = reinterpret_cast<__half*>(&hi_half2)[1];
+  }
+  __host__ __device__ explicit operator __nv_fp8x4_e5m2() const {
+    __nv_fp8x4_e5m2 result;
+    __half2 lo_half2 = *reinterpret_cast<const __half2*>(&x);
+    __half2 hi_half2 = *reinterpret_cast<const __half2*>(&z);
+    __nv_fp8x2_e5m2 lo_part(lo_half2), hi_part(hi_half2);
+    result.__x =
+        (static_cast<__uint32_t>(lo_part.__x) | (static_cast<__uint32_t>(hi_part.__x) << 16));
+    return result;
+  }
+  __device__ __nv_fp8x2_e5m2 make_fp8x2_e5m2(__nv_fp8_storage_t x, __nv_fp8_storage_t y) {
+      __nv_fp8x2_e5m2 result;
+      result.__x = (x) | (y << 8);
+      return result;
+  }
+  __device__ __nv_fp8x4_e5m2 make_fp8x4_e5m2(__nv_fp8_storage_t a, __nv_fp8_storage_t b, __nv_fp8_storage_t c, __nv_fp8_storage_t d) {
+      __nv_fp8x4_e5m2 result;
+      result.__x = (a) | (b << 8) | (c << 16) | (d << 24);
+      return result;
+  }
+  __device__ __nv_fp8x2_e4m3 make_fp8x2_e4m3(__nv_fp8_storage_t x, __nv_fp8_storage_t y) {
+      __nv_fp8x2_e4m3 result;
+      result.__x = (x) | (y << 8);
+      return result;
+  }
+  __device__ __nv_fp8x4_e4m3 make_fp8x4_e4m3(__nv_fp8_storage_t a, __nv_fp8_storage_t b, __nv_fp8_storage_t c, __nv_fp8_storage_t d) {
+      __nv_fp8x4_e4m3 result;
+      result.__x = (a) | (b << 8) | (c << 16) | (d << 24);
+      return result;
+  }
+  )";
+    }
+    stream << R"(
+};
+__host__ __device__ half4 make_half4(__half x, __half y, __half z, __half w) {
+    return half4(x, y, z, w);
+}
+)";
+  }
+}
 
 #endif  // TVM_TARGET_SOURCE_LITERAL_CUDA_HALF_T_H_

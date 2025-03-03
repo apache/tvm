@@ -101,7 +101,7 @@ class Buffer(Object, Scriptable):
             self, access_mask, ptr_type, content_lanes, offset, extent  # type: ignore
         )
 
-    def vload(self, begin, dtype=None):
+    def vload(self, begin, dtype=None, predicate=None):
         """Generate an Expr that loads dtype from begin index.
 
         Parameters
@@ -113,6 +113,10 @@ class Buffer(Object, Scriptable):
             The data type to be loaded,
             can be vector type which have lanes that is multiple of Buffer.dtype
 
+        predicate : Optional[PrimExpr]
+            A vector mask of boolean values indicating which lanes of a vector are to be
+            loaded. The number lanes of the mask must be equal to the number of lanes being loaded.
+
         Returns
         -------
         load : Expr
@@ -120,9 +124,9 @@ class Buffer(Object, Scriptable):
         """
         begin = (begin,) if isinstance(begin, (int, PrimExpr)) else begin
         dtype = dtype if dtype else self.dtype
-        return _ffi_api.BufferVLoad(self, begin, dtype)  # type: ignore
+        return _ffi_api.BufferVLoad(self, begin, dtype, predicate)  # type: ignore
 
-    def vstore(self, begin, value):
+    def vstore(self, begin, value, predicate=None):
         """Generate a Stmt that store value into begin index.
 
         Parameters
@@ -133,13 +137,18 @@ class Buffer(Object, Scriptable):
         value : Expr
             The value to be stored.
 
+        predicate : Optional[PrimExpr]
+            A vector mask of boolean values indicating which lanes of a vector are to be
+            stored. The number lanes of the mask must be equal to the number of lanes in
+            value.
+
         Returns
         -------
         store : Stmt
             The corresponding store stmt.
         """
         begin = (begin,) if isinstance(begin, (int, PrimExpr)) else begin
-        return _ffi_api.BufferVStore(self, begin, value)  # type: ignore
+        return _ffi_api.BufferVStore(self, begin, value, predicate)  # type: ignore
 
     def scope(self):
         """Return the storage scope associated with this buffer.
@@ -253,7 +262,7 @@ def decl_buffer(
     name : str, optional
         The name of the buffer.
 
-    data : Var, optional
+    data : tir.Var, optional
         The data pointer in the buffer.
 
     strides: array of Expr
@@ -294,29 +303,6 @@ def decl_buffer(
     -------
     buffer : tvm.tir.Buffer
         The created buffer
-
-    Example
-    -------
-    Here's an example of how broadcast buffer can be used to define a symbolic broadcast operation,
-
-    .. code-block:: python
-
-        m0, m1, m2 = te.var("m0"), te.var("m1"), te.var("m2")
-        n0, n1, n2 = te.var("n0"), te.var("n1"), te.var("n2")
-        o0, o1, o2 = te.var("o0"), te.var("o1"), te.var("o2")
-        A = te.placeholder((m0, m1, m2), name='A')
-        B = te.placeholder((n0, n1, n2), name='B')
-        C = te.compute((o0, o1, o2), lambda i, j, k: A[i, j, k] + B[i, j, k], name='C')
-        Ab = tvm.tir.decl_buffer(A.shape, A.dtype, name="Ab", buffer_type="auto_broadcast")
-        Bb = tvm.tir.decl_buffer(B.shape, B.dtype, name="Bb", buffer_type="auto_broadcast")
-        s = te.create_schedule(C.op)
-        fadd = tvm.build(s, [A, B, C], target='llvm', name='bcast_add', binds={A:Ab, B:Bb})
-        dev = tvm.cpu(0)
-        a = tvm.nd.array(np.random.uniform(size=(2, 4, 3)).astype(A.dtype), dev)
-        b = tvm.nd.array(np.random.uniform(size=(2, 1, 3)).astype(B.dtype), dev)
-        c = tvm.nd.array(np.zeros((2, 4, 3), dtype=C.dtype), dev)
-        fadd(a, b, c)
-        tvm.testing.assert_allclose(c.numpy(), a.numpy() + b.numpy())
 
     Note
     ----

@@ -109,7 +109,7 @@ def run_test(
         mma_store_intrin,
     )
 
-    f = tvm.build(sch.mod["main"], target="rocm", name="dense")
+    f = tvm.build(sch.mod["main"], target="rocm")
 
     dev = tvm.device("rocm", 0)
     if in_dtype == "float32":

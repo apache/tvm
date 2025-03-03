@@ -42,7 +42,7 @@ def test_prim_func_pass():
     mod = tvm.IRModule({"main": func})
     mod = TestReplaceFunc(new_func)(mod)
 
-    assert tvm.ir.structural_equal(mod["main"].body, new_func.body)
+    tvm.ir.assert_structural_equal(mod["main"].body, new_func.body)
 
 
 def test_cow_pass():

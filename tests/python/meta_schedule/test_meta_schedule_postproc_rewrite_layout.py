@@ -61,7 +61,8 @@ class BaseBeforeAfter(tvm.testing.CompareBeforeAfter):
             )
             sch = tvm.tir.Schedule(mod, debug_mask="all")
             sch.enter_postproc()
-            assert ctx.space_generator.postprocs[0].apply(sch)
+            if not ctx.space_generator.postprocs[0].apply(sch):
+                raise tvm.TVMError("RewriteLayout postproc failed")
             return sch.mod
 
         return inner

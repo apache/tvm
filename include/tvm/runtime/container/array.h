@@ -827,8 +827,13 @@ class Array : public ObjectRef {
           // consisting of any previous elements that had mapped to
           // themselves (if any), and the element that didn't map to
           // itself.
+          //
+          // We cannot use `U()` as the default object, as `U` may be
+          // a non-nullable type.  Since the default `ObjectRef()`
+          // will be overwritten before returning, all objects will be
+          // of type `U` for the calling scope.
           all_identical = false;
-          output = ArrayNode::CreateRepeated(arr->size(), U());
+          output = ArrayNode::CreateRepeated(arr->size(), ObjectRef());
           output->InitRange(0, arr->begin(), it);
           output->SetItem(it - arr->begin(), std::move(mapped));
           it++;
@@ -843,7 +848,12 @@ class Array : public ObjectRef {
       // compatible types isn't strictly necessary, as the first
       // mapped.same_as(*it) would return false, but we might as well
       // avoid it altogether.
-      output = ArrayNode::CreateRepeated(arr->size(), U());
+      //
+      // We cannot use `U()` as the default object, as `U` may be a
+      // non-nullable type.  Since the default `ObjectRef()` will be
+      // overwritten before returning, all objects will be of type `U`
+      // for the calling scope.
+      output = ArrayNode::CreateRepeated(arr->size(), ObjectRef());
     }
 
     // Normal path for incompatible types, or post-copy path for

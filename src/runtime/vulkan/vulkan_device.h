@@ -223,6 +223,8 @@ class VulkanDevice {
       queue_insert_debug_utils_label_functions{nullptr};
   // Memory type index for compute
   uint32_t compute_mtype_index{0};
+  // maximum memory size for compute
+  int64_t compute_memory_size{0};
 
   // queue family_index;
   uint32_t queue_family_index{uint32_t(-1)};

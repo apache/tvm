@@ -343,7 +343,7 @@ Block MakeCacheStage(const BufferRegion& cache_region, CacheStageInfo* info,
  * \return The reindex block.
  */
 Block MakeReIndexStage(const Block& block, CacheStageInfo* info,
-                       const std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual>& covered,
+                       const std::unordered_set<Var>& covered,
                        const Array<PrimExpr>& original_indices, int buffer_index,
                        BufferIndexType buffer_index_type) {
   // iters of the reindex block
@@ -483,9 +483,9 @@ Stmt InsertCacheStage(const Stmt& stmt, int pos, const Stmt& stage) {
     seq.insert(seq.begin() + pos, stage);
     body = SeqStmt(seq);
   } else if (pos == 0) {
-    body = SeqStmt({stage, stmt});
+    body = SeqStmt({stage, body});
   } else if (pos == 1) {
-    body = SeqStmt({stmt, stage});
+    body = SeqStmt({body, stage});
   } else {
     LOG(FATAL) << "Cannot insert at position " << pos
                << ".  When inserting adjacent to non-SeqStmt, "
@@ -958,9 +958,10 @@ class CacheReadRewriter : public StmtExprMutator {
       // Otherwise, update read regions and match_buffers
       // Only make this change if the block is one of the specified consumers.
       if (is_consumer) {
-        Array<BufferRegion> reads = update_access_regions(block->reads);
-        Array<MatchBufferRegion> match_buffers = update_match_buffers(block->match_buffers);
-        if (!reads.same_as(block->reads) || !match_buffers.same_as(block->match_buffers)) {
+        // Use the updated block stmt
+        Array<BufferRegion> reads = update_access_regions(stmt->reads);
+        Array<MatchBufferRegion> match_buffers = update_match_buffers(stmt->match_buffers);
+        if (!reads.same_as(stmt->reads) || !match_buffers.same_as(stmt->match_buffers)) {
           ObjectPtr<BlockNode> n = make_object<BlockNode>(*stmt.as<BlockNode>());
           n->reads = std::move(reads);
           n->match_buffers = std::move(match_buffers);
@@ -1396,7 +1397,7 @@ class ReindexCacheWriteRewriter : public CacheWriteRewriter {
  * \return The new buffer with target shape.
  */
 Buffer CreateReindexBuffer(const Buffer& buffer, const Array<IterVar>& block_iters,
-                           const std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual>& covered) {
+                           const std::unordered_set<Var>& covered) {
   ObjectPtr<BufferNode> new_buffer = make_object<BufferNode>(*buffer.get());
   ObjectPtr<VarNode> new_var = make_object<VarNode>(*buffer->data.get());
   std::vector<PrimExpr> new_shape;
@@ -1540,14 +1541,14 @@ class ReIndexCollector : public StmtExprVisitor {
 class ReIndexRewriter : public StmtExprMutator {
  public:
   static Stmt Rewrite(const StmtSRef& scope_sref, const StmtSRef& block_sref, CacheStageInfo* info,
-                      const std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual>& covered) {
+                      const std::unordered_set<Var>& covered) {
     ReIndexRewriter rewriter(block_sref, info, covered);
     return rewriter(GetRef<Stmt>(scope_sref->stmt));
   }
 
  private:
   explicit ReIndexRewriter(const StmtSRef& block_sref, CacheStageInfo* info,
-                           const std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual>& covered)
+                           const std::unordered_set<Var>& covered)
       : block_sref_(block_sref), info_(info), covered_(covered) {
     new_buffer_ = info->alloc.value();
     old_buffer_ = info->read_buffer.same_as(new_buffer_) ? info->write_buffer : info->read_buffer;
@@ -1623,7 +1624,7 @@ class ReIndexRewriter : public StmtExprMutator {
   /*! \brief The info for inserting reindex stage. */
   CacheStageInfo* info_;
   /*! \brief Whether old block var is covered in the indices */
-  const std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual>& covered_;
+  const std::unordered_set<Var>& covered_;
   /*! \brief Whether the current block is scope block */
   bool is_scope_{true};
   /*! \brief The  buffer to be replaced */
@@ -2252,7 +2253,7 @@ StmtSRef ReIndex(ScheduleState self, const StmtSRef& block_sref, int buffer_inde
       [&analyzer](const PrimExpr& expr) { return SimplifyNonTrivialExpr(expr, &analyzer); });
 
   // Collect block iters appearing in the original_indices
-  std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> covered;
+  std::unordered_set<Var> covered;
   for (const PrimExpr& index : original_indices) {
     PreOrderVisit(index, [&](const ObjectRef& obj) -> bool {
       if (auto var = obj.as<Var>()) {

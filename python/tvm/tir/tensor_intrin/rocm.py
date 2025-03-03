@@ -20,7 +20,7 @@ from tvm.script import tir as T
 
 from tvm.runtime import convert
 from tvm.tir.expr import Cast, IntImm
-from .dot_product_common import dp4a_desc
+from .dot_product_common import get_dp4a_intrin
 from .. import TensorIntrin
 
 
@@ -50,6 +50,7 @@ def sdot4(
 
 AMDGPU_SDOT4_INTRIN = "sdot4"
 
+dp4a_desc, _ = get_dp4a_intrin("int8", "int8", "int32")
 TensorIntrin.register(AMDGPU_SDOT4_INTRIN, dp4a_desc, sdot4)
 
 WARP_SIZE = 64

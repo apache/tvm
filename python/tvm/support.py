@@ -26,6 +26,8 @@ import tvm._ffi
 from .runtime.module import Module
 from . import get_global_func
 
+tvm._ffi._init_api("support", __name__)
+
 
 def libinfo():
     """Returns a dictionary containing compile-time info, including cmake flags and git commit hash
@@ -85,6 +87,3 @@ class FrontendTestModule(Module):
 
     def __setitem__(self, key, value):
         self.add_function(key, value)
-
-
-tvm._ffi._init_api("support", __name__)

@@ -67,6 +67,25 @@ inline Tensor rms_norm(const Tensor& data, const Tensor& weight, const Array<Int
   for (int i : real_axis) {
     reduce_extent *= data_fp32->shape[i];
   }
+  auto rsqrt_func = [&](const Array<Var>& indices) {
+    Array<Var> non_reduce_indices;
+    for (int i = 0, n = static_cast<int>(indices.size()); i < n; ++i) {
+      if (std::find(real_axis.begin(), real_axis.end(), i) == real_axis.end()) {
+        non_reduce_indices.push_back(indices[i]);
+      }
+    }
+    auto output =
+        tvm::rsqrt(square_sum(non_reduce_indices) / reduce_extent + make_const(data_type, epsilon));
+    return output;
+  };
+  auto rsqrt_shape = Array<PrimExpr>();
+  for (int i = 0, n = static_cast<int>(data_fp32->shape.size()); i < n; ++i) {
+    if (std::find(real_axis.begin(), real_axis.end(), i) == real_axis.end()) {
+      rsqrt_shape.push_back(data_fp32->shape[i]);
+    }
+  }
+  auto rsqrt = tvm::te::compute(rsqrt_shape, rsqrt_func, "rsqrt", tag);
+
   auto rms_norm_func = [&](const Array<Var>& indices) {
     Array<Var> reduce_indices, non_reduce_indices;
     for (int i = 0, n = static_cast<int>(indices.size()); i < n; ++i) {
@@ -76,12 +95,11 @@ inline Tensor rms_norm(const Tensor& data, const Tensor& weight, const Array<Int
         non_reduce_indices.push_back(indices[i]);
       }
     }
-    auto output =
-        data_fp32(indices) * weight_fp32(reduce_indices) *
-        tvm::rsqrt(square_sum(non_reduce_indices) / reduce_extent + make_const(data_type, epsilon));
+    auto output = rsqrt(non_reduce_indices) * data_fp32(indices) * weight_fp32(reduce_indices);
     return output;
   };
   auto rms_norm = tvm::te::compute(data_fp32->shape, rms_norm_func, name, tag);
+
   return cast(rms_norm, data_type);
 }
 

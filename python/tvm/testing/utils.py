@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# pylint: disable=invalid-name,unnecessary-comprehension
+# pylint: disable=invalid-name,unnecessary-comprehension,redefined-outer-name
 """TVM testing utilities
 
 Organization
@@ -93,8 +93,8 @@ import tvm._ffi
 from tvm.target import codegen
 from tvm.contrib import nvcc, cudnn, rocm
 import tvm.contrib.hexagon._ci_env_check as hexagon
-from tvm.driver.tvmc.frontends import load_model
 from tvm.error import TVMError
+import tvm.contrib.utils
 
 
 SKIP_SLOW_TESTS = os.getenv("SKIP_SLOW_TESTS", "").lower() in {"true", "1", "yes"}
@@ -327,8 +327,7 @@ def check_bool_expr_is_true(bool_expr, vranges, cond=None):
 
         A = tvm.te.compute([r.extent.value for v, r in vranges.items()], _compute_body)
         args = [tvm.nd.empty(A.shape, A.dtype)]
-        sch = tvm.te.create_schedule(A.op)
-        mod = tvm.build(sch, [A])
+        mod = tvm.build(tvm.IRModule.from_expr(tvm.te.create_prim_func([A])))
         mod(*args)
         return args[0].numpy()
 
@@ -457,7 +456,7 @@ DEFAULT_TEST_TARGETS = [
     "nvptx",
     "vulkan -from_device=0",
     "opencl",
-    "opencl -device=mali,aocl_sw_emu",
+    "opencl -device=mali",
     "opencl -device=intel_graphics",
     "metal",
     "rocm",
@@ -527,7 +526,6 @@ def enabled_targets():
 
 
 class Feature:
-
     """A feature that may be required to run a test.
 
     Parameters
@@ -832,6 +830,16 @@ def _any_gpu_exists():
     )
 
 
+def _multi_gpu_exists():
+    return (
+        (tvm.cuda(0).exist and tvm.cuda(1).exist)
+        or (tvm.rocm(0).exist and tvm.rocm(1).exist)
+        or (tvm.opencl(0).exist and tvm.opencl(1).exist)
+        or (tvm.metal(0).exist and tvm.metal(1).exist)
+        or (tvm.vulkan(0).exist and tvm.vulkan(1).exist)
+    )
+
+
 # Mark a test as requiring llvm to run
 requires_llvm = Feature(
     "llvm", "LLVM", cmake_flag="USE_LLVM", target_kind_enabled="llvm", target_kind_hardware="llvm"
@@ -847,9 +855,24 @@ requires_gpu = Feature("gpu", run_time_check=_any_gpu_exists)
 # :py:func:`tvm.testing.requires_gpu`.
 uses_gpu = requires_gpu(support_required="optional")
 
+# Mark a test as requiring multiple GPUs to run.
+requires_multi_gpu = Feature("multi_gpu", run_time_check=_multi_gpu_exists)
+
+# Mark to differentiate tests that use multiple GPUs in some capacity.
+#
+# These tests will be run on test nodes with multiple GPUs.
+# To mark a test that must have multiple GPUs present to run, use
+# :py:func:`tvm.testing.requires_multi_gpu`.
+uses_multi_gpu = requires_multi_gpu(support_required="optional")
+
 # Mark a test as requiring the x86 Architecture to run.
 requires_x86 = Feature(
     "x86", "x86 Architecture", run_time_check=lambda: platform.machine() == "x86_64"
+)
+
+# Mark a test as requiring the aarch64 Architecture to run.
+requires_aarch64 = Feature(
+    "AArch64", "AArch64 Architecture", run_time_check=lambda: platform.machine() == "aarch64"
 )
 
 # Mark a test as requiring the CUDA runtime.
@@ -875,6 +898,9 @@ requires_cudnn = Feature("cudnn", "cuDNN", cmake_flag="USE_CUDNN", parent_featur
 
 # Mark a test as requiring the cuBLAS library.
 requires_cublas = Feature("cublas", "cuBLAS", cmake_flag="USE_CUBLAS", parent_features="cuda")
+
+# Mark a test as requiring NCCL support
+requires_nccl = Feature("nccl", "NCCL", cmake_flag="USE_NCCL", parent_features="cuda")
 
 # Mark a test as requiring the NVPTX compilation on the CUDA runtime
 requires_nvptx = Feature(
@@ -922,6 +948,9 @@ requires_matrixcore = Feature(
     parent_features="rocm",
 )
 
+# Mark a test as requiring the hipBLAS library.
+requires_hipblas = Feature("hipblas", "hipBLAS", cmake_flag="USE_HIPBLAS", parent_features="rocm")
+
 # Mark a test as requiring the metal runtime
 requires_metal = Feature(
     "metal",
@@ -950,9 +979,12 @@ requires_openclml = Feature(
     target_kind_enabled="opencl",
 )
 
-
-# Mark a test as requiring microTVM to run
-requires_micro = Feature("micro", "MicroTVM", cmake_flag="USE_MICRO")
+# Mark a test as requiring NNAPI support in build.
+requires_nnapi = Feature(
+    "NNAPI",
+    "NNAPI",
+    cmake_flag="USE_NNAPI_CODEGEN",
+)
 
 # Mark a test as requiring CUTLASS to run
 requires_cutlass = Feature("cutlass", "CUTLASS", cmake_flag="USE_CUTLASS")
@@ -960,14 +992,11 @@ requires_cutlass = Feature("cutlass", "CUTLASS", cmake_flag="USE_CUTLASS")
 # Mark a test as requiring rpc to run
 requires_rpc = Feature("rpc", "RPC", cmake_flag="USE_RPC")
 
-# Mark a test as requiring Arm(R) Ethos(TM)-N to run
-requires_ethosn = Feature("ethosn", "Arm(R) Ethos(TM)-N", cmake_flag="USE_ETHOSN")
-
-# Mark a test as requiring Arm(R) Ethos(TM)-U to run
-requires_ethosu = Feature("ethosu", "Arm(R) Ethos(TM)-U", cmake_flag="USE_ETHOSU")
-
 # Mark a test as requiring libtorch to run
 requires_libtorch = Feature("libtorch", "LibTorch", cmake_flag="USE_LIBTORCH")
+
+# Mark a test as requiring the MRVL Library
+requires_mrvl = Feature("mrvl", "Marvell", cmake_flag="USE_MRVL")
 
 # Mark a test as requiring Hexagon to run
 requires_hexagon = Feature(
@@ -980,26 +1009,18 @@ requires_hexagon = Feature(
     parent_features="llvm",
 )
 
-# Mark a test as requiring the CMSIS NN library
-requires_cmsisnn = Feature("cmsisnn", "CMSIS NN", cmake_flag="USE_CMSISNN")
 
-
-def _corstone300_compile_time_check():
-    if shutil.which("arm-none-eabi-gcc") is None:
-        return "ARM embedded toolchain unavailable"
+def _aprofile_aem_fvp_compile_time_check():
+    if shutil.which("FVP_Base_RevC-2xAEMvA") is None:
+        return "AProfile AEM is not available"
     return True
 
 
-# Mark a test as requiring the corstone300 FVP
-requires_corstone300 = Feature(
-    "corstone300",
-    "Corstone-300",
-    compile_time_check=_corstone300_compile_time_check,
-    parent_features="cmsisnn",
+requires_aprofile_aem_fvp = Feature(
+    "aprofile-aem-fvp",
+    "AProfile AEM FVP",
+    compile_time_check=_aprofile_aem_fvp_compile_time_check,
 )
-
-# Mark a test as requiring Vitis AI to run
-requires_vitis_ai = Feature("vitis_ai", "Vitis AI", cmake_flag="USE_VITIS_AI")
 
 
 # check cpu features
@@ -1016,6 +1037,27 @@ requires_arm_dot = Feature(
     "arm_dot",
     "ARM dot product",
     run_time_check=lambda: _has_cpu_feat("dotprod"),
+)
+
+
+requires_arm_fp16 = Feature(
+    "arm_fp16",
+    "Arm(R) Neon(TM) instructions for FP16",
+    run_time_check=lambda: _has_cpu_feat("fullfp16"),
+)
+
+
+requires_aarch64_sve = Feature(
+    "arm_sve",
+    "AArch64 SVE",
+    run_time_check=lambda: _has_cpu_feat("sve"),
+)
+
+
+requires_aarch64_sme = Feature(
+    "arm_sme",
+    "AArch64 SME",
+    run_time_check=lambda: _has_cpu_feat("sme"),
 )
 
 
@@ -1074,6 +1116,39 @@ slow = pytest.mark.skipif(
     SKIP_SLOW_TESTS,
     reason="Skipping slow test since the SKIP_SLOW_TESTS environment variable is 'true'",
 )
+
+
+def requires_llvm_minimum_version(major_version):
+    """Mark a test as requiring at least a specific version of LLVM.
+
+    Unit test marked with this decorator will run only if the
+    installed version of LLVM is at least `major_version`.
+
+    This also marks the test as requiring LLVM backend support.
+
+    Parameters
+    ----------
+    major_version: int
+
+
+    """
+
+    try:
+        llvm_version = tvm.target.codegen.llvm_version_major()
+    except RuntimeError:
+        llvm_version = 0
+
+    requires = [
+        pytest.mark.skipif(
+            llvm_version < major_version, reason=f"Requires LLVM >= {major_version}"
+        ),
+        *requires_llvm.marks(),
+    ]
+
+    def inner(func):
+        return _compose([func], requires)
+
+    return inner
 
 
 def requires_nvcc_version(major_version, minor_version=0, release_version=0):
@@ -1171,6 +1246,10 @@ def skip_if_32bit(reason):
         return _compose(args, [])
 
     return decorator
+
+
+def skip_if_no_reference_system(func):
+    return skip_if_32bit(reason="Reference system unavailable in i386 container")(func)
 
 
 def requires_package(*packages):
@@ -1415,7 +1494,7 @@ def parameter(*values, ids=None, by_dict=None):
 
     # Optional cls parameter in case a parameter is defined inside a
     # class scope.
-    @pytest.fixture(params=values, ids=ids)
+    @pytest.fixture(params=values, ids=ids, scope="session")
     def as_fixture(*_cls, request):
         return request.param
 
@@ -1564,6 +1643,35 @@ def fixture(func=None, *, cache_return_value=False):
         return wraps
 
     return wraps(func)
+
+
+def get_dtype_range(dtype: str) -> Tuple[int, int]:
+    """
+    Produces the min,max for a give data type.
+
+    Parameters
+    ----------
+    dtype : str
+        a type string (e.g., int8, float64)
+
+    Returns
+    -------
+    type_info.min : int
+        the minimum of the range
+    type_info.max : int
+        the maximum of the range
+    """
+    type_info = None
+    np_dtype = np.dtype(dtype)
+    kind = np_dtype.kind
+
+    if kind == "f":
+        type_info = np.finfo(np_dtype)
+    elif kind in ["i", "u"]:
+        type_info = np.iinfo(np_dtype)
+    else:
+        raise TypeError(f"dtype ({dtype}) must indicate some floating-point or integral data type.")
+    return type_info.min, type_info.max
 
 
 class _DeepCopyAllowedClasses(dict):
@@ -1721,8 +1829,8 @@ def terminate_self():
 def is_ampere_or_newer():
     """Check if the target environment has an NVIDIA Ampere GPU or newer."""
     arch = tvm.contrib.nvcc.get_target_compute_version()
-    major, _ = tvm.contrib.nvcc.parse_compute_version(arch)
-    return major >= 8
+    major, minor = tvm.contrib.nvcc.parse_compute_version(arch)
+    return major >= 8 and minor != 9
 
 
 def install_request_hook(depth: int) -> None:
@@ -1845,6 +1953,21 @@ def skip_parameterizations(*skip_params, reason):
     return _mark_parameterizations(*skip_params, marker_fn=pytest.skip, reason=reason)
 
 
+def strtobool(val):
+    """Convert a string representation of truth to true (1) or false (0).
+    True values are 'y', 'yes', 't', 'true', 'on', and '1'; false values
+    are 'n', 'no', 'f', 'false', 'off', and '0'.  Raises ValueError if
+    'val' is anything else.
+    """
+    val = val.lower()
+    if val in ("y", "yes", "t", "true", "on", "1"):
+        return 1
+    elif val in ("n", "no", "f", "false", "off", "0"):
+        return 0
+    else:
+        raise ValueError(f"invalid truth value {val!r}")
+
+
 def main():
     test_file = inspect.getsourcefile(sys._getframe(1))
     sys.exit(pytest.main([test_file] + sys.argv[1:]))
@@ -1919,6 +2042,8 @@ class CompareBeforeAfter:
 
     """
 
+    check_well_formed: bool = True
+
     def __init_subclass__(cls):
         assert len([getattr(cls, name) for name in ["before", "Before"] if hasattr(cls, name)]) <= 1
         assert (
@@ -1938,7 +2063,7 @@ class CompareBeforeAfter:
 
     @classmethod
     def _normalize_ir_module(cls, func):
-        if isinstance(func, tvm.tir.PrimFunc):
+        if isinstance(func, (tvm.tir.PrimFunc, tvm.IRModule)):
 
             def inner(self):
                 # pylint: disable=unused-argument
@@ -1962,7 +2087,9 @@ class CompareBeforeAfter:
                         func_dict[name] = method.with_attr("global_symbol", name)
                     else:
                         source_code = "@T.prim_func\n" + textwrap.dedent(inspect.getsource(method))
-                        prim_func = tvm.script.from_source(source_code)
+                        prim_func = tvm.script.from_source(
+                            source_code, check_well_formed=self.check_well_formed
+                        )
                         func_dict[name] = prim_func.with_attr("global_symbol", name)
                 return tvm.IRModule(func_dict)
 
@@ -1971,7 +2098,7 @@ class CompareBeforeAfter:
             def inner(self):
                 # pylint: disable=unused-argument
                 source_code = "@T.prim_func\n" + textwrap.dedent(inspect.getsource(func))
-                return tvm.script.from_source(source_code)
+                return tvm.script.from_source(source_code, check_well_formed=self.check_well_formed)
 
         return pytest.fixture(inner)
 
@@ -2042,8 +2169,7 @@ class CompareBeforeAfter:
 
     @staticmethod
     def _is_method(func):
-        sig = inspect.signature(func)
-        return "self" in sig.parameters
+        return callable(func) and "self" in inspect.signature(func).parameters
 
     def test_compare(self, before, expected, transform):
         """Unit test to compare the expected TIR PrimFunc to actual"""
@@ -2090,25 +2216,3 @@ class CompareBeforeAfter:
                 f"or an instance of `tvm.tir.PrimFunc`.  "
                 f"Instead, received {type(expected)}."
             )
-
-
-class _control_span_filling:
-    def __init__(self, on=True):
-        self._on = on
-        self._pass_ctx = tvm.transform.PassContext(config={"relay.frontend.fill_span": self._on})
-
-    def __enter__(self):
-        self._pass_ctx.__enter__()
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self._pass_ctx.__exit__(exc_type, exc_val, exc_tb)
-
-
-class enable_span_filling(_control_span_filling):
-    def __init__(self):
-        super().__init__()
-
-
-class disable_span_filling(_control_span_filling):
-    def __init__(self):
-        super().__init__(on=False)

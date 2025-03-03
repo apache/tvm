@@ -67,6 +67,8 @@ class IntermediateStageRewriter {
     Stmt local_stage = MakeLocalStage(block, new_buffer, buffer_indices, relaxed_loops, store);
 
     // Step 3: Create BufferLoad from the intermediate buffer
+    ICHECK(!store->predicate.defined()) << "Predicated buffer store is not currently supported in "
+                                           "manifest shared memory local stage pass.";
     BufferLoad new_buffer_load = BufferLoad(new_buffer, buffer_indices);
     BufferStore new_buffer_store = Downcast<BufferStore>(block->body);
     new_buffer_store.CopyOnWrite()->value = new_buffer_load;

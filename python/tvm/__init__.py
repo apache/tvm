@@ -43,12 +43,6 @@ from .ir import IRModule
 from .ir import transform
 from .ir import instrument
 from .ir import container
-from .ir import PoolInfo
-from .ir import WorkspacePoolInfo
-from .ir import ConstantPoolInfo
-from .ir import PoolInfoProperties
-from .ir import WorkspaceMemoryPools
-from .ir import ConstantMemoryPools
 from . import ir
 
 # tvm.tir
@@ -61,10 +55,7 @@ from . import target
 from . import te
 
 # tvm.driver
-from .driver import build, lower
-
-# tvm.parser
-from . import parser
+from .driver import build
 
 # others
 from . import arith
@@ -73,10 +64,12 @@ from . import arith
 from . import support
 
 # Contrib initializers
-from .contrib import rocm as _rocm, nvcc as _nvcc, sdaccel as _sdaccel
+from .contrib import rocm as _rocm, nvcc as _nvcc
 
-if not _RUNTIME_ONLY and support.libinfo().get("USE_MICRO", "OFF") == "ON":
-    from . import micro
+# Relay and Relax contain modules that are only available in compiler package
+# Do not import them if TVM is built with runtime only
+if not _RUNTIME_ONLY:
+    from . import relax
 
 # NOTE: This file should be python2 compatible so we can
 # raise proper error message when user run the package using

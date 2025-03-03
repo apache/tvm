@@ -162,7 +162,7 @@ class MultiLevelTilingNode : public ScheduleRuleNode {
   // SubRule 1. add write cache
   std::vector<State> AddWriteReuse(State state) const;
   // SubRule 2. tile the loop nest
-  std::vector<State> TileLoopNest(State state) const;
+  std::vector<State> TileLoopNest(State state, int tile_inner_most_space_loop_num = -1) const;
   // SubRule 3. add read cache
   std::vector<State> AddReadReuse(State state) const;
   // SubRule 4. add async pipeline

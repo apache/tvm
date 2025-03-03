@@ -20,9 +20,9 @@ from tvm.script import tir as T
 
 
 def test_detect_cs():
-    x = T.Var("x", dtype="int32")
-    y = T.Var("y", dtype="int32")
-    z = T.Var("z", dtype="int32")
+    x = T.int32()
+    y = T.int32()
+    z = T.int32()
     c = T.floor(x + y + 0.5) + x + z * (T.floor(x + y + 0.5))
     m = tvm.arith.detect_common_subexpr(c, 2)
     assert c.a.a in m

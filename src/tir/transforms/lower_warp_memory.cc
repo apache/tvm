@@ -132,8 +132,7 @@ class WarpStoreCoeffFinder : private StmtExprVisitor {
     }
 
     ICHECK_EQ(op->indices.size(), 1) << "Expected flat memory to use as warp memory.  "
-                                     << "Has StorageFlatten (TE-based schedule) or "
-                                     << "FlattenBuffer (TIR-based schedules) been run?";
+                                     << "Has FlattenBuffer been run?";
 
     PrimExpr index = op->indices[0];
     if (op->value.dtype().lanes() != 1) {
@@ -294,8 +293,7 @@ class WarpAccessRewriter : protected StmtExprMutator {
 
     if (store->buffer->data.get() == buffer_) {
       ICHECK_EQ(store->indices.size(), 1) << "Expected flat memory to use as warp memory.  "
-                                          << "Has StorageFlatten (TE-based schedule) or "
-                                          << "FlattenBuffer (TIR-based schedules) been run?";
+                                          << "Has FlattenBuffer been run?";
 
       auto [local_index, group] = SplitIndexByGroup(store->indices[0]);
       (void)group;  // https://gcc.gnu.org/bugzilla/show_bug.cgi?id=81767
@@ -315,8 +313,7 @@ class WarpAccessRewriter : protected StmtExprMutator {
     }
 
     ICHECK_EQ(op->indices.size(), 1) << "Expected flat memory to use as warp memory.  "
-                                     << "Has StorageFlatten (TE-based schedule) or "
-                                     << "FlattenBuffer (TIR-based schedules) been run?";
+                                     << "Has FlattenBuffer been run?";
 
     auto [local_index, group] = SplitIndexByGroup(op->indices[0]);
     // invariance: local index must do not contain warp id

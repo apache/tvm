@@ -148,8 +148,15 @@ class AsyncLocalSession : public LocalSession {
         int code = args[0];
         TVMRetValue rv;
         rv = args[1];
-        this->EncodeReturn(std::move(rv),
-                           [&](TVMArgs encoded_args) { callback(RPCCode::kReturn, encoded_args); });
+        if (code == static_cast<int>(RPCCode::kReturn)) {
+          this->EncodeReturn(std::move(rv), [&](TVMArgs encoded_args) {
+            callback(RPCCode::kReturn, encoded_args);
+          });
+        } else {
+          // for exception, we can pass through as since this is just normal encoding.
+          ICHECK_EQ(code, static_cast<int>(RPCCode::kException));
+          callback(RPCCode::kException, args);
+        }
       });
 
       TVMRetValue temp;

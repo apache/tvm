@@ -47,14 +47,20 @@ PrimExpr PrimExpr::FromObject_(ObjectRef ref) {
   if (auto opt = ref.as<runtime::String>()) {
     return tir::StringImm(opt.value());
   }
+  if (auto opt = ref.as<runtime::Bool>()) {
+    return Bool(opt.value());
+  }
+  if (auto opt = ref.as<runtime::Int>()) {
+    return Integer(opt.value());
+  }
   if (const auto* buffer_region = ref.as<tir::BufferRegionNode>()) {
     Array<PrimExpr> indices;
     indices.reserve(buffer_region->region.size());
     for (const Range& r : buffer_region->region) {
       if (tvm::tir::is_one(r->extent)) {
         indices.push_back(r->min);
-      } else if (const auto* extent = r->extent.as<IntImmNode>()) {
-        indices.push_back(tir::Ramp(r->min, tvm::tir::make_const(r->min->dtype, 1), extent->value));
+      } else if (r->extent.as<IntImmNode>()) {
+        indices.push_back(tir::Ramp(r->min, tvm::tir::make_const(r->min->dtype, 1), r->extent));
       } else {
         LOG(FATAL) << "ValueError: Cannot convert to BufferLoad: " << ref;
       }
@@ -104,7 +110,7 @@ TVM_REGISTER_NODE_TYPE(IntImmNode);
 FloatImm::FloatImm(DataType dtype, double value, Span span) {
   ICHECK_EQ(dtype.lanes(), 1) << "ValueError: FloatImm can only take scalar.";
 
-  ICHECK(dtype.is_float() || dtype.is_bfloat16() || dtype.is_float8() ||
+  ICHECK(dtype.is_float() || dtype.is_bfloat16() || dtype.is_float8() || dtype.is_float4() ||
          dtype.code() >= DataType::kCustomBegin)
       << "ValueError: FloatImm supports only float, but " << dtype << " was supplied.";
 
@@ -131,6 +137,11 @@ FloatImm::FloatImm(DataType dtype, double value, Span span) {
                                << dtype;
       ICHECK_LE(value, bound) << "ValueError: Literal vaule " << value << " exceeds maximum of "
                               << dtype;
+    } else if (dtype.is_float4()) {
+      ICHECK_GE(value, -support::kMaxE2M1)
+          << "ValueError: Literal value " << value << " exceeds minimum of " << dtype;
+      ICHECK_LE(value, support::kMaxE2M1)
+          << "ValueError: Literal value " << value << " exceeds maximum of " << dtype;
     }
   }
   ObjectPtr<FloatImmNode> node = make_object<FloatImmNode>();
@@ -155,9 +166,14 @@ Range Range::FromMinExtent(PrimExpr min, PrimExpr extent, Span span) {
 
 TVM_REGISTER_GLOBAL("ir.Range_from_min_extent").set_body_typed(Range::FromMinExtent);
 
-TVM_REGISTER_GLOBAL("ir.Range").set_body([](TVMArgs args, TVMRetValue* ret) {
-  *ret = Range(args[0], args[1], args[2]);
-});
+TVM_REGISTER_GLOBAL("ir.Range")
+    .set_body_typed([](PrimExpr begin, Optional<PrimExpr> end, Span span) -> Range {
+      if (end.defined()) {
+        return Range(begin, end.value(), span);
+      } else {
+        return Range(IntImm(begin->dtype, 0), begin, span);
+      }
+    });
 
 TVM_REGISTER_NODE_TYPE(RangeNode);
 

@@ -34,6 +34,19 @@
 #include <android/api-level.h>
 #endif
 
+#if defined(__linux__) || defined(__ANDROID__)
+#include <sys/sysinfo.h>
+#endif
+
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
+#if defined(__APPLE__)
+#include <TargetConditionals.h>
+#include <sys/sysctl.h>
+#endif
+
 namespace tvm {
 namespace runtime {
 class CPUDeviceAPI final : public DeviceAPI {
@@ -42,6 +55,41 @@ class CPUDeviceAPI final : public DeviceAPI {
   void GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) final {
     if (kind == kExist) {
       *rv = 1;
+    }
+
+    switch (kind) {
+      case kExist:
+        break;
+      case kTotalGlobalMemory: {
+#if defined(__linux__) || defined(__ANDROID__)
+        struct sysinfo info;
+        if (sysinfo(&info) == 0) {
+          *rv = static_cast<int64_t>(info.totalram) * info.mem_unit;  // Convert to bytes
+        } else {
+          *rv = -1;
+        }
+#elif defined(_WIN32)
+        MEMORYSTATUSEX statex;
+        statex.dwLength = sizeof(statex);
+        if (GlobalMemoryStatusEx(&statex)) {
+          *rv = static_cast<int64_t>(statex.ullTotalPhys);  // Total physical memory in bytes
+        } else {
+          *rv = -1;
+        }
+#elif defined(__APPLE__)
+        int64_t mem;
+        size_t size = sizeof(mem);
+        if (sysctlbyname("hw.memsize", &mem, &size, nullptr, 0) == 0) {
+          *rv = mem;
+        } else {
+          *rv = -1;
+        }
+#else
+        *rv = -1;
+#endif
+      }
+      default:
+        break;
     }
   }
   void* AllocDataSpace(Device dev, size_t nbytes, size_t alignment, DLDataType type_hint) final {
@@ -72,6 +120,8 @@ class CPUDeviceAPI final : public DeviceAPI {
 
   void* AllocWorkspace(Device dev, size_t size, DLDataType type_hint) final;
   void FreeWorkspace(Device dev, void* data) final;
+
+  bool SupportsDevicePointerArithmeticsOnHost() final { return true; }
 
   static CPUDeviceAPI* Global() {
     // NOTE: explicitly use new to avoid exit-time destruction of global state

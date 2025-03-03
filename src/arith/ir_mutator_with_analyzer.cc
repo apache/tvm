@@ -173,8 +173,9 @@ PrimExpr IRMutatorWithAnalyzer::VisitExpr_(const CallNode* op) {
       WithRecordIterPredicate(cond, [&] { true_value = this->VisitExpr(op->args[1]); });
     }
     {
-      With<ConstraintContext> constraint(analyzer_, analyzer_->rewrite_simplify(Not(cond)));
-      false_value = this->VisitExpr(op->args[2]);
+      PrimExpr not_cond = Not(cond);
+      With<ConstraintContext> constraint(analyzer_, not_cond);
+      WithRecordIterPredicate(not_cond, [&] { false_value = this->VisitExpr(op->args[2]); });
     }
     if (is_zero(cond)) {
       return false_value;

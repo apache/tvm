@@ -23,6 +23,11 @@ to run on remote runtime which don't have a compiler available.
 
 The test program compiles the program on local server,
 upload and run remote RPC server, get the result back to verify correctness.
+
+TVM RPC server assumes that the user is trusted and needs to be
+used in a trusted network environment and encrypted channels.
+It allows writings of arbitrary files into the server and provide
+full remote code execution capabilities to anyone who can access this API.
 """
 
 from .server import Server

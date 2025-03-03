@@ -67,6 +67,19 @@ Array<BufferRegion> ReplaceBuffer(Array<BufferRegion> regions, const Buffer& sou
   return regions;
 }
 
+Array<BufferRegion> ReplaceBuffer(Array<BufferRegion> regions,
+                                  const Map<Buffer, Buffer>& buffer_map) {
+  regions.MutateByApply([&buffer_map](BufferRegion region) -> BufferRegion {
+    if (buffer_map.count(region->buffer)) {
+      ObjectPtr<BufferRegionNode> n = make_object<BufferRegionNode>(*region.get());
+      n->buffer = buffer_map[region->buffer];
+      return BufferRegion(n);
+    }
+    return region;
+  });
+  return regions;
+}
+
 Array<MatchBufferRegion> ReplaceBuffer(Array<MatchBufferRegion> match_buffers, const Buffer& source,
                                        const Buffer& target) {
   match_buffers.MutateByApply([&source,
@@ -313,18 +326,61 @@ Optional<LoopRV> TileWithTensorIntrin(const tir::Schedule& sch, const tir::Block
   if (!opt_tensorize_info) return NullOpt;
   const tir::TensorizeInfoNode* info = opt_tensorize_info.value().get();
   if (info->block_iter_paddings.defined()) {
+    // We have to track whether each producer or consumer is padded.
+    // To do so, we first record all the Block's.
+    std::unordered_set<const StmtSRefNode*> original_producers, original_consumers;
+    {
+      for (const auto& p : GetProducers(sch->state(), sch->GetSRef(block_rv)))
+        original_producers.insert(p.get());
+      for (const auto& c : GetConsumers(sch->state(), sch->GetSRef(block_rv)))
+        original_consumers.insert(c.get());
+    }
+
+    // Pad. Maybe we can make PadEinsum return the changes it made, to avoid bookkeeping?
     sch->PadEinsum(block_rv, info->block_iter_paddings.value());
+
+    // Now we need to find out all the padded Block's.
+    Array<BlockRV> inlined_producers, inlined_consumers;
+    for (const auto& producer : sch->GetProducers(block_rv)) {
+      // PadEinsum will not modify the producer if it does not need padding.
+      if (original_producers.count(sch->GetSRef(producer).get())) {
+        // Producer not padded. No inlining.
+        continue;
+      }
+      auto the_original_producers = sch->GetProducers(producer);
+      if (the_original_producers.empty()) {
+        // The original producer is input.
+        continue;
+      }
+      ICHECK_EQ(the_original_producers.size(), 1u);
+      auto the_original_producer = the_original_producers[0];
+      ICHECK(original_producers.count(sch->GetSRef(the_original_producer).get()));
+      inlined_producers.push_back(the_original_producer);
+    }
+    for (const auto& consumer : sch->GetConsumers(block_rv)) {
+      // PadEinsum will not modify the consumer if it does not need padding.
+      if (original_consumers.count(sch->GetSRef(consumer).get())) {
+        // Consumer not padded. No inlining.
+        continue;
+      }
+      auto the_original_consumers = sch->GetConsumers(consumer);
+      if (the_original_consumers.empty()) {
+        // The original consumer is output.
+        continue;
+      }
+      ICHECK_EQ(the_original_consumers.size(), 1u);
+      auto the_original_consumer = the_original_consumers[0];
+      ICHECK(original_consumers.count(sch->GetSRef(the_original_consumer).get()));
+      inlined_consumers.push_back(consumer);
+    }
+
     // Inline the producer and consumer padding blocks
-    auto producers = sch->GetProducers(block_rv);
-    for (const auto& producer : producers) {
-      auto original_producers = sch->GetProducers(producer);
-      ICHECK_EQ(original_producers.size(), 1u);
+    for (const auto& the_original_producer : inlined_producers) {
       // Inline the original producer into the padding block. This ensures that the new producer
       // has the padded shape.
-      sch->ComputeInline(original_producers[0]);
+      sch->ComputeInline(the_original_producer);
     }
-    auto consumers = sch->GetConsumers(block_rv);
-    for (const auto& consumer : consumers) {
+    for (const auto& consumer : inlined_consumers) {
       sch->ComputeInline(consumer);
     }
   }
@@ -428,6 +484,80 @@ PrimExpr BlockBufferAccessSimplifier::VisitExpr_(const BufferLoadNode* op) {
   SimplifyBufferIndices(&node.CopyOnWrite()->indices);
   return std::move(node);
 }
+
+/******** PrimFunc-level analysis and transformation ********/
+
+void GetLeafBlocksHelper(Schedule sch, BlockRV cur_block_rv, Array<BlockRV>* leaf_blocks) {
+  Array<BlockRV> blocks = sch->GetChildBlocks(cur_block_rv);
+  if (blocks.empty()) {
+    leaf_blocks->push_back(cur_block_rv);
+  } else {
+    for (const BlockRV& block : blocks) {
+      GetLeafBlocksHelper(sch, block, leaf_blocks);
+    }
+  }
+}
+
+Optional<ObjectRef> NormalizePrimFunc(Schedule sch) {
+  BlockRV root_block = sch->GetBlock("root");
+  Array<BlockRV> leaf_blocks;
+  GetLeafBlocksHelper(sch, root_block, &leaf_blocks);
+  for (const BlockRV& block : leaf_blocks) {
+    StmtSRef block_sref = sch->GetSRef(block);
+    Array<StmtSRef> loops = GetLoops(block_sref);
+    Array<PrimExpr> binds = GetBlockRealize(sch->state(), block_sref)->iter_values;
+    if (loops.size() == 0) continue;
+    if (loops.size() != binds.size()) {
+      return NullOpt;
+    }
+    for (int i = 0, n = loops.size(); i < n; ++i) {
+      const ForNode* loop = TVM_SREF_TO_FOR(loops[i]);
+      if (binds[i].get() != loop->loop_var.get()) {
+        return NullOpt;
+      }
+      if (!is_zero(loop->min)) {
+        return NullOpt;
+      }
+    }
+  }
+
+  Array<Array<LoopRV>> block_loops;
+  Array<Array<IterVar>> block_iters;
+  Array<IntImm> block_is_reduction;
+  for (const BlockRV& block : leaf_blocks) {
+    Array<IterVar> iters = sch->Get(block)->iter_vars;
+    bool has_spatial_iter = false;
+    Array<Var> index_map_inputs;
+    Array<PrimExpr> index_map_outputs;
+    for (const IterVar& iter : sch->Get(block)->iter_vars) {
+      Var var = iter->var.copy_with_suffix("");
+      index_map_inputs.push_back(var);
+      if (!is_one(iter->dom->extent)) {
+        index_map_outputs.push_back(var);
+        if (iter->iter_type == IterVarType::kDataPar) {
+          has_spatial_iter = true;
+        }
+      }
+    }
+    if (index_map_outputs.empty() || !has_spatial_iter) {
+      index_map_outputs.insert(index_map_outputs.begin(), tir::make_const(DataType::Int(64), 0));
+    }
+    try {
+      sch->TransformBlockLayout(block, IndexMap(index_map_inputs, index_map_outputs));
+    } catch (tvm::runtime::Error& e) {
+      // Skip layout transformation when not transformable.
+    }
+    block_loops.push_back(sch->GetLoops(block));
+    block_iters.push_back(sch->Get(block)->iter_vars);
+    bool is_reduction = IsReductionBlock(sch->state(),         //
+                                         sch->GetSRef(block),  //
+                                         sch->GetSRef(root_block));
+    block_is_reduction.push_back(Bool(is_reduction));
+  }
+  return Array<ObjectRef>{leaf_blocks, block_loops, block_iters, block_is_reduction};
+}
+
+TVM_REGISTER_GLOBAL("tir.schedule.NormalizePrimFunc").set_body_typed(NormalizePrimFunc);
 
 }  // namespace tir
 }  // namespace tvm

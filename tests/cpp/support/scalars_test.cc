@@ -20,7 +20,6 @@
 #include "../../../src/support/scalars.h"
 
 #include <gtest/gtest.h>
-#include <tvm/relay/expr.h>
 
 namespace tvm {
 namespace support {

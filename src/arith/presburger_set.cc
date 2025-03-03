@@ -215,7 +215,9 @@ PresburgerSet Intersect(const Array<PresburgerSet>& sets) {
 
 IntSet EvalSet(const PrimExpr& e, const PresburgerSet& set) {
   Array<PrimExpr> tvm_coeffs = DetectLinearEquation(e, set->GetVars());
-#if TVM_MLIR_VERSION >= 160
+#if TVM_MLIR_VERSION >= 190
+  SmallVector<llvm::DynamicAPInt> coeffs;
+#elif TVM_MLIR_VERSION >= 160
   SmallVector<mlir::presburger::MPInt> coeffs;
 #else
   SmallVector<int64_t> coeffs;
@@ -223,7 +225,9 @@ IntSet EvalSet(const PrimExpr& e, const PresburgerSet& set) {
 
   coeffs.reserve(tvm_coeffs.size());
   for (const PrimExpr& it : tvm_coeffs) {
-#if TVM_MLIR_VERSION >= 160
+#if TVM_MLIR_VERSION >= 190
+    coeffs.push_back(llvm::DynamicAPInt(*as_const_int(it)));
+#elif TVM_MLIR_VERSION >= 160
     coeffs.push_back(mlir::presburger::MPInt(*as_const_int(it)));
 #else
     coeffs.push_back(*as_const_int(it));

@@ -37,10 +37,12 @@ We do encourage everyone to work anything they are interested in.
 - [Wei Chen](https://github.com/wweic): @wweic - runtime, relay, vm
 - [Zhi Chen](https://github.com/zhiics) (PMC): @zhiics - relay, quantization, pass manager
 - [Egor Churaev](https://github.com/echuraev): @echuraev - metal, opencl, adreno
+- [Balint Cristian](https://github.com/cbalint13): @cbalint13
 - [Siyuan Feng](https://github.com/Hzfengsy) (PMC): @Hzfengsy - tir
 - [Josh Fromm](https://github.com/jwfromm) (PMC): @jwfromm - frontends, quantization, topi
 - [Mehrdad Hessar](https://github.com/mehrdadh): @mehrdadh - microTVM, hexagon
-- [Bohan Hou](https://github.com/spectrometerHBH): @spectrometerHBH - tir, arith, tvm-script
+- [Masahiro Hiramori](https://github.com/mshr-h): @mshr-h - relax, frontend
+- [Bohan Hou](https://github.com/spectrometerHBH) (PMC): @spectrometerHBH - tir, arith, tvm-script
 - [Yuwei Hu](https://github.com/Huyuwei): @Huyuwei - topi, frontends
 - [Luke Hutton](https://github.com/lhutton1): @lhutton1 - ethos-u, arm
 - [Nick Hynes](https://github.com/nhynes): @nhynes: - sgx, rust
@@ -52,7 +54,7 @@ We do encourage everyone to work anything they are interested in.
 - [Elen Kalda](https://github.com/ekalda): @ekalda - ethos-u, arm
 - [Marisa Kirisame](https://github.com/MarisaKirisame): @MarisaKirisame - relay
 - [Tristan Konolige](https://github.com/tkonolige): @tkonolige - profiling, relay, tir, runtime
-- [Ruihang Lai](https://github.com/MasterJH5574): @MasterJH5574 - tir, tvm-script
+- [Ruihang Lai](https://github.com/MasterJH5574) (PMC): @MasterJH5574 - tir, tvm-script
 - [Wuwei Lin](https://github.com/vinx13) (PMC): @vinx13 - relay, topi, tir, meta_schedule
 - [Yizhi Liu](https://github.com/yzhliu) (PMC): @yzhliu - jvm, topi, relay
 - [Hao Lu](https://github.com/hlu1): @hlu1 - nnpack, frontends
@@ -79,6 +81,7 @@ We do encourage everyone to work anything they are interested in.
 - [Chris Sullivan](https://github.com/csullivan): @csullivan - amd backend
 - [Siva Rama Krishna Reddy](https://github.com/srkreddy1238): @srkreddy1238 - frontends, golang
 - [Zhixun Tan](https://github.com/phisiart): @phisiart - opengl, web
+- [Tong Meng](https://github.com/Archermmt): @Archermmt - msc
 - [Andrew Tulloch](https://github.com/ajtulloch): @ajtulloch - topi, compiler, runtime
 - [Gavin Uberti](https://github.com/guberti): @guberti - microtvm, arm
 - [Luis Vega](https://github.com/vegaluisjose): @vegaluisjose - vta, chisel
@@ -89,6 +92,8 @@ We do encourage everyone to work anything they are interested in.
 - [Eddie Yan](https://github.com/eqy) (PMC): @eqy - runtime, autotvm, rpc, topi
 - [Zihao Ye](https://github.com/yzh119): @yzh119 - tir
 - [Hao Yu](https://github.com/comaniac): @comaniac (PMC) - relay, byoc, auto_scheduler
+- [Shuai Yuan](https://github.com/ysh329): @ysh329 (PMC) - ci
+- [Qiang Zhang](https://github.com/Johnson9009): @Johnson9009 - relay, tvm-script
 - [Lianmin Zheng](https://github.com/merrymercy) (PMC): @merrymercy - autotvm, auto_scheduler, topi, relay
 - [Xiyou Zhou](https://github.com/zxybazh): @zxybazh - relay
 - [wrongtest](https://github.com/wrongtest-intellif) (PMC): @wrongtest-intellif - tir, tvm-script, arith
@@ -112,6 +117,7 @@ We do encourage everyone to work anything they are interested in.
 - [Balint Cristian](https://github.com/cbalint13): @cbalint13
 - [Egor Churaev](https://github.com/echuraev): @echuraev
 - [Xiaoqiang Dan](https://github.com/xqdan): @xqdan
+- [Yixin Dong](https://github.com/Ubospica) @Ubospica
 - [Haozheng Fan](https://github.com/hzfan): @hzfan
 - [Siyuan Feng](https://github.com/Hzfengsy): @Hzfengsy
 - [Josh Fromm](https://github.com/jwfromm): @jwfromm
@@ -119,6 +125,7 @@ We do encourage everyone to work anything they are interested in.
 - [Sergei Grechanik](https://github.com/sgrechanik-h): @sgrechanik-h
 - [Altan Haan](https://github.com/altanh): @altanh
 - [Mehrdad Hessar](https://github.com/mehrdadh): @mehrdadh
+- [Masahiro Hiramori](https://github.com/mshr-h): @mshr-h
 - [Bohan Hou](https://github.com/spectrometerHBH): @spectrometerHBH
 - [Yuwei Hu](https://github.com/Huyuwei): @Huyuwei
 - [Luke Hutton](https://github.com/lhutton1): @lhutton1
@@ -188,6 +195,7 @@ We do encourage everyone to work anything they are interested in.
 - [Chris Sullivan](https://github.com/csullivan): @csullivan
 - [Anirudh Sundar Subramaniam](https://github.com/quic-sanirudh): @quic-sanirudh
 - [Zhixun Tan](https://github.com/phisiart): @phisiart
+- [Tong Meng](https://github.com/Archermmt): @Archermmt
 - [Andrew Tulloch](https://github.com/ajtulloch): @ajtulloch
 - [Jorn Tuyls](https://github.com/jtuyls): @jtuyls
 - [Gavin Uberti](https://github.com/guberti): @guberti
@@ -211,6 +219,7 @@ We do encourage everyone to work anything they are interested in.
 - [Aleksei Yazev](https://github.com/Aleksei-grovety): @Aleksei-grovety
 - [Zihao Ye](https://github.com/yzh119): @yzh119
 - [Hao Yu](https://github.com/comaniac): @comaniac
+- [Shuai Yuan](https://github.com/ysh329): @ysh329
 - [Joshua Z. Zhang](https://github.com/zhreshold): @zhreshold
 - [Lianmin Zheng](https://github.com/merrymercy): @merrymercy
 - [Min Chen](https://github.com/multiverstack-intellif): @multiverstack-intellif

@@ -94,23 +94,6 @@ def test_unroll_fake_loop():
         assert isinstance(ret[0], tvm.tir.BufferStore)
 
 
-def test_unroll_single_count_loops():
-    n = te.size_var("n")
-    A = te.placeholder((n,), name="A")
-    B = te.compute((n,), lambda *i: A(*i), name="B")
-    s = te.create_schedule(B.op)
-    s = s.normalize()
-    dom_map = tvm.te.schedule.InferBound(s)
-    stmt = tvm.te.schedule.ScheduleOps(s, dom_map)
-    # all parameters to UnrolLoops are default values except for
-    # auto_unroll_max_extent which has been set to 1 (default:0)
-    mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([], stmt))
-
-    with tvm.transform.PassContext(config={"tir.UnrollLoop": {"auto_max_step": 1}}):
-        ret = tvm.tir.transform.UnrollLoop()(mod)["main"].body
-        assert ret == stmt
-
-
 def test_unroll_allocations():
     @tvm.script.ir_module
     class before:
@@ -179,5 +162,4 @@ if __name__ == "__main__":
     test_unroll_local_access()
     test_unroll_loop()
     test_unroll_fake_loop()
-    test_unroll_single_count_loops()
     test_unroll_allocations()

@@ -20,7 +20,6 @@ import os
 import pathlib
 import shutil
 import sys
-import sysconfig
 
 from setuptools import find_packages
 from setuptools.dist import Distribution
@@ -36,6 +35,7 @@ else:
 CURRENT_DIR = os.path.dirname(__file__)
 FFI_MODE = os.environ.get("TVM_FFI", "auto")
 CONDA_BUILD = os.getenv("CONDA_BUILD") is not None
+INPLACE_BUILD = "--inplace" in sys.argv
 
 
 def get_lib_path():
@@ -46,7 +46,7 @@ def get_lib_path():
     libinfo = {"__file__": libinfo_py}
     exec(compile(open(libinfo_py, "rb").read(), libinfo_py, "exec"), libinfo, libinfo)
     version = libinfo["__version__"]
-    if not CONDA_BUILD:
+    if not CONDA_BUILD and not INPLACE_BUILD:
         lib_path = libinfo["find_lib_path"]()
         libs = [lib_path[0]]
         if "runtime" not in libs[0]:
@@ -59,20 +59,6 @@ def get_lib_path():
         for name in lib_path:
             if "3rdparty" in name:
                 libs.append(name)
-
-        # Add standalone_crt, if present
-        for name in lib_path:
-            candidate_path = os.path.join(os.path.dirname(name), "standalone_crt")
-            if os.path.isdir(candidate_path):
-                libs.append(candidate_path)
-                break
-
-        # Add microTVM template projects
-        for name in lib_path:
-            candidate_path = os.path.join(os.path.dirname(name), "microtvm_template_projects")
-            if os.path.isdir(candidate_path):
-                libs.append(candidate_path)
-                break
 
         # Add tvmc configuration json files
         for name in lib_path:
@@ -146,24 +132,17 @@ __version__ = git_describe_version(__version__)
 
 def config_cython():
     """Try to configure cython and return cython configuration"""
-    if FFI_MODE not in ("cython"):
-        if os.name == "nt" and not CONDA_BUILD:
-            print("WARNING: Cython is not supported on Windows, will compile without cython module")
-            return []
-        sys_cflags = sysconfig.get_config_var("CFLAGS")
-        if sys_cflags and "i386" in sys_cflags and "x86_64" in sys_cflags:
-            print("WARNING: Cython library may not be compiled correctly with both i386 and x64")
-            return []
+    # Enforce cython unless FFI_MODE is explicitly set to ctypes
+    # we might consider fully converge to cython later
+    if FFI_MODE == "ctypes":
+        return []
     try:
         from Cython.Build import cythonize
 
-        # from setuptools.extension import Extension
-        if sys.version_info >= (3, 0):
-            subdir = "_cy3"
-        else:
-            subdir = "_cy2"
+        subdir = "_cy3"
+
         ret = []
-        path = "tvm/_ffi/_cython"
+        cython_source = "tvm/_ffi/_cython"
         extra_compile_args = ["-std=c++17", "-DDMLC_USE_LOGGING_LIBRARY=<tvm/runtime/logging.h>"]
         if os.name == "nt":
             library_dirs = ["tvm", "../build/Release", "../build"]
@@ -179,7 +158,7 @@ def config_cython():
             library_dirs = None
             libraries = None
 
-        for fn in os.listdir(path):
+        for fn in os.listdir(cython_source):
             if not fn.endswith(".pyx"):
                 continue
             ret.append(
@@ -199,10 +178,7 @@ def config_cython():
             )
         return cythonize(ret, compiler_directives={"language_level": 3})
     except ImportError as error:
-        if FFI_MODE == "cython":
-            raise error
-        print("WARNING: Cython is not installed, will compile without cython module")
-        return []
+        raise RuntimeError("Cython is not installed, please pip install cython")
 
 
 class BinaryDistribution(Distribution):
@@ -214,7 +190,7 @@ class BinaryDistribution(Distribution):
 
 
 setup_kwargs = {}
-if not CONDA_BUILD:
+if not CONDA_BUILD and not INPLACE_BUILD:
     with open("MANIFEST.in", "w") as fo:
         for path in LIB_LIST:
             if os.path.isfile(path):
@@ -232,7 +208,7 @@ if not CONDA_BUILD:
 
 def get_package_data_files():
     # Relay standard libraries
-    return ["relay/std/prelude.rly", "relay/std/core.rly"]
+    return []
 
 
 def long_description_contents():
@@ -286,7 +262,7 @@ setup(
 )
 
 
-if not CONDA_BUILD:
+if not CONDA_BUILD and not INPLACE_BUILD:
     # Wheel cleanup
     os.remove("MANIFEST.in")
     for path in LIB_LIST:

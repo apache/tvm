@@ -43,9 +43,10 @@ static void BufferDeleter(Object* obj) {
   delete ptr;
 }
 
-Storage::Storage(Buffer buffer) {
+Storage::Storage(Buffer buffer, Allocator* allocator) {
   auto n = make_object<StorageObj>();
   n->buffer = std::move(buffer);
+  n->allocator = allocator;
   data_ = std::move(n);
 }
 
@@ -83,7 +84,38 @@ inline size_t GetDataAlignment(const DLTensor& arr) {
   return align;
 }
 
-NDArray StorageObj::AllocNDArray(size_t offset, ShapeTuple shape, DLDataType dtype) {
+void StorageObj::ScopedDeleter(Object* obj) {
+  auto* ptr = static_cast<NDArray::Container*>(obj);
+  StorageObj* storage = reinterpret_cast<StorageObj*>(ptr->manager_ctx);
+
+  // Let the device handle proper cleanup of view
+  storage->allocator->FreeView(ptr->dl_tensor.device, ptr->dl_tensor.data);
+  storage->DecRef();
+  delete ptr;
+}
+
+NDArray StorageObj::AllocNDArrayScoped(int64_t offset, ShapeTuple shape, DLDataType dtype,
+                                       String scope) {
+  if (scope == "global" || scope.empty()) {
+    return AllocNDArray(offset, shape, dtype);
+  }
+  VerifyDataType(dtype);
+  void* data = this->allocator->CreateView(this->buffer, shape, dtype, scope);
+  NDArray::Container* container = new NDArray::Container(data, shape, dtype, this->buffer.device);
+  container->dl_tensor.byte_offset = offset;
+  container->SetDeleter(StorageObj::ScopedDeleter);
+  size_t needed_size = DeviceAPI::Get(this->buffer.device)->GetDataSize(container->dl_tensor);
+  this->IncRef();
+  container->manager_ctx = reinterpret_cast<void*>(this);
+  NDArray ret(GetObjectPtr<Object>(container));
+  // RAII in effect, now run the check.
+  ICHECK(offset + needed_size <= this->buffer.size)
+      << "storage allocation failure, attempted to allocate " << needed_size << " at offset "
+      << offset << " in region that is " << this->buffer.size << "bytes";
+  return ret;
+}
+
+NDArray StorageObj::AllocNDArray(int64_t offset, ShapeTuple shape, DLDataType dtype) {
   VerifyDataType(dtype);
 
   // crtical zone: allocate header, cannot throw
@@ -102,6 +134,14 @@ NDArray StorageObj::AllocNDArray(size_t offset, ShapeTuple shape, DLDataType dty
   // buffer intact.
   container->manager_ctx = reinterpret_cast<void*>(this);
 
+  if (this->buffer.device.device_type == kDLHexagon) {
+    // For Hexagon, non-zero offset support simply requires adjusting the
+    // beginning of data pointer
+    auto offset_ptr = reinterpret_cast<uint8_t*>(this->buffer.data) + offset;
+    container->dl_tensor.data = reinterpret_cast<void*>(offset_ptr);
+    container->dl_tensor.byte_offset = 0;
+  }
+
   NDArray ret(GetObjectPtr<Object>(container));
   // RAII in effect, now run the check.
 
@@ -119,6 +159,47 @@ MemoryManager* MemoryManager::Global() {
   return inst;
 }
 
+std::string DeviceTypeStr(DLDeviceType type) {
+  switch (type) {
+    case kDLOpenCL:
+      return "opencl";
+      break;
+    case kDLVulkan:
+      return "vulkan";
+      break;
+    default:
+      return "";
+  }
+}
+
+Allocator* GetDeviceSpecificAllocator(Device dev, AllocatorType type) {
+  std::string dev_str = DeviceTypeStr(dev.device_type);
+  auto* device_alloc_helper = tvm::runtime::Registry::Get("DeviceAllocator." + dev_str);
+  void* valloc;
+  Allocator* allocator = nullptr;
+  if (device_alloc_helper) {
+    valloc = (*device_alloc_helper)(dev, static_cast<int>(type));
+    allocator = static_cast<Allocator*>(valloc);
+  }
+  if (nullptr == allocator) {
+    switch (type) {
+      case kNaive: {
+        VLOG(1) << "New naive allocator for " << dev;
+        allocator = new NaiveAllocator();
+        break;
+      }
+      case kPooled: {
+        VLOG(1) << "New pooled allocator for " << dev;
+        allocator = new PooledAllocator();
+        break;
+      }
+      default:
+        LOG(FATAL) << "Unknown allocator type: " << type;
+    }
+  }
+  return allocator;
+}
+
 Allocator* MemoryManager::GetOrCreateAllocator(Device dev, AllocatorType type) {
   MemoryManager* m = MemoryManager::Global();
   std::lock_guard<std::mutex> lock(m->mu_);
@@ -127,30 +208,13 @@ Allocator* MemoryManager::GetOrCreateAllocator(Device dev, AllocatorType type) {
   }
   if (m->allocators_.at(dev).find(type) == m->allocators_.at(dev).end()) {
     std::unique_ptr<Allocator> alloc;
-    switch (type) {
-      case kNaive: {
-        VLOG(1) << "New naive allocator for " << dev;
-        alloc.reset(new NaiveAllocator(dev));
-        break;
-      }
-      case kPooled: {
-        VLOG(1) << "New pooled allocator for " << dev;
-        alloc.reset(new PooledAllocator(dev));
-        break;
-      }
-      default:
-        LOG(FATAL) << "Unknown allocator type: " << type;
-    }
+    alloc.reset(GetDeviceSpecificAllocator(dev, type));
     auto ret = alloc.get();
     m->allocators_.at(dev).emplace(type, std::move(alloc));
     return ret;
   }
   auto alloc = m->allocators_.at(dev).at(type).get();
-  /*if (alloc->type() != type) {
-    LOG(WARNING) << "The type of existing allocator for " << dev
-                 << " is different from the request type (" << alloc->type() << " vs " << type
-                 << ")";
-  }*/
+
   return alloc;
 }
 
@@ -182,27 +246,31 @@ NDArray Allocator::Empty(ShapeTuple shape, DLDataType dtype, DLDevice dev,
   VerifyDataType(dtype);
   NDArray::Container* container = new NDArray::Container(nullptr, shape, dtype, dev);
   container->SetDeleter(BufferDeleter);
-  size_t size = DeviceAPI::Get(dev)->GetDataSize(container->dl_tensor);
+  size_t size = DeviceAPI::Get(dev)->GetDataSize(container->dl_tensor, mem_scope);
   size_t alignment = GetDataAlignment(container->dl_tensor);
   Buffer* buffer = new Buffer;
   if (!mem_scope.defined() || mem_scope.value().empty() || mem_scope.value() == "global") {
-    *buffer = this->Alloc(size, alignment, dtype);
+    *buffer = this->Alloc(dev, size, alignment, dtype);
   } else {
-    *buffer = this->Alloc(shape, dtype, mem_scope.value());
+    *buffer = this->Alloc(dev, shape, dtype, mem_scope.value());
   }
   container->manager_ctx = reinterpret_cast<void*>(buffer);
   container->dl_tensor.data = buffer->data;
   return NDArray(GetObjectPtr<Object>(container));
 }
 
+bool Allocator::AllowMemoryScope(const std::string& mem_scope) const {
+  return mem_scope.empty() || mem_scope == "global";
+}
+
 Buffer Allocator::Alloc(Device dev, ShapeTuple shape, DLDataType type_hint,
                         const std::string& mem_scope) {
-  if (mem_scope.empty() || mem_scope == "global") {
+  if (AllowMemoryScope(mem_scope)) {
     // by default, we can always redirect to the flat memory allocations
     NDArray::Container container(nullptr, shape, type_hint, dev);
     size_t size = DeviceAPI::Get(dev)->GetDataSize(container.dl_tensor);
     size_t alignment = GetDataAlignment(container.dl_tensor);
-    return Alloc(size, alignment, type_hint);
+    return Alloc(dev, size, alignment, type_hint);
   }
   LOG(FATAL) << "Allocator cannot allocate data space with "
              << "specified memory scope: " << mem_scope;

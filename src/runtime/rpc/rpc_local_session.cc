@@ -27,6 +27,7 @@
 #include <tvm/runtime/registry.h>
 
 #include <memory>
+#include <vector>
 
 namespace tvm {
 namespace runtime {
@@ -64,7 +65,8 @@ void LocalSession::EncodeReturn(TVMRetValue rv, const FEncodeReturn& encode_retu
     ret_value_pack[2].v_handle = ret_value_pack[1].v_handle;
     ret_tcode_pack[2] = kTVMOpaqueHandle;
     encode_return(TVMArgs(ret_value_pack, ret_tcode_pack, 3));
-  } else if (rv_tcode == kTVMPackedFuncHandle || rv_tcode == kTVMModuleHandle) {
+  } else if (rv_tcode == kTVMPackedFuncHandle || rv_tcode == kTVMModuleHandle ||
+             rv_tcode == kTVMObjectHandle) {
     // MoveToCHost means rv no longer manages the object.
     // return handle instead.
     rv.MoveToCHost(&ret_value_pack[1], &ret_tcode_pack[1]);
@@ -88,7 +90,21 @@ void LocalSession::CallFunc(RPCSession::PackedFuncHandle func, const TVMValue* a
                             const FEncodeReturn& encode_return) {
   PackedFuncObj* pf = static_cast<PackedFuncObj*>(func);
   TVMRetValue rv;
-  pf->CallPacked(TVMArgs(arg_values, arg_type_codes, num_args), &rv);
+
+  // unwrap RPCObjectRef in case we are directly using it to call LocalSession
+  std::vector<TVMValue> values(arg_values, arg_values + num_args);
+  std::vector<int> type_codes(arg_type_codes, arg_type_codes + num_args);
+  TVMArgs args(arg_values, arg_type_codes, num_args);
+
+  for (int i = 0; i < num_args; ++i) {
+    if (args[i].IsObjectRef<RPCObjectRef>()) {
+      RPCObjectRef obj_ref = args[i];
+      values[i].v_handle = obj_ref->object_handle();
+      continue;
+    }
+  }
+
+  pf->CallPacked(TVMArgs(values.data(), type_codes.data(), args.size()), &rv);
   this->EncodeReturn(std::move(rv), encode_return);
 }
 

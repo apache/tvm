@@ -334,6 +334,35 @@ class RewriteSimplifier {
      *   (n < 10) || (n < 5) => (n < 5)
      */
     kApplyConstraintsToBooleanBranches = (1 << 2),
+
+    /* Special handling for expressions `(A+B)*C < (A*B)*D`
+     *
+     * Expressions of the form `(A+B)*C < (A*B)*D` can occur occur
+     * when comparing the number of operations required for two
+     * different orderings in which matrix multiplications can be
+     * performed.  Proving or disproving this conditional allows an
+     * optimal order of execution to be selected, even for dynamic
+     * argument shapes.
+     *
+     * The default behavior of `ConstIntBounds` assumes that each term
+     * in an expression is independent, and is insufficient to prove
+     * these inequalities.  For example, the maximum value of `(A+B)*C
+     * - (A*B)*D` is determined by taking the maximum value of
+     * `(A+B)*C` and subtracting the minimum value of `(A*B)*D`.
+     * While this algorithm can be applied in all cases, the bound it
+     * provides is looser than strictly required.
+     *
+     * This extension adds a check for this case.  When `A`, `B`, `C`,
+     * and `D` are all positive values, as is the case for tensor
+     * shapes, the inequality can be written as `1/A + 1/B < D/C`.  If
+     * this inequality holds for the minimum values of `A`, `B`, and
+     * `D`, along with the maximum value of `C`, then the inequality
+     * holds for all values.
+     *
+     * This extension requires little to no performance overhead, and
+     * may be enabled by default in future releases.
+     */
+    kComparisonOfProductAndSum = (1 << 3),
   };
 
   /*! \brief Enable an optional extension or extensions

@@ -72,8 +72,10 @@ struct TypeIndex {
     kRuntimeShapeTuple = 6,
     /*! \brief runtime::PackedFunc. */
     kRuntimePackedFunc = 7,
-    /*! \brief runtime::DRef */
+    /*! \brief runtime::DRef for disco distributed runtime */
     kRuntimeDiscoDRef = 8,
+    /*! \brief runtime::RPCObjectRef */
+    kRuntimeRPCObjectRef = 9,
     // static assignments that may subject to change.
     kRuntimeClosure,
     kRuntimeADT,
@@ -337,8 +339,8 @@ class TVM_DLL Object {
  * \tparam ObjectType The object type
  * \return The corresponding RefType
  */
-template <typename RelayRefType, typename ObjectType>
-inline RelayRefType GetRef(const ObjectType* ptr);
+template <typename ObjectRefType, typename ObjectType>
+inline ObjectRefType GetRef(const ObjectType* ptr);
 
 /*!
  * \brief Downcast a base reference type to a more specific type.
@@ -503,8 +505,8 @@ class ObjectPtr {
   friend class TVMRetValue;
   friend class TVMArgValue;
   friend class TVMMovableArgValue_;
-  template <typename RelayRefType, typename ObjType>
-  friend RelayRefType GetRef(const ObjType* ptr);
+  template <typename ObjectRefType, typename ObjType>
+  friend ObjectRefType GetRef(const ObjType* ptr);
   template <typename BaseType, typename ObjType>
   friend ObjectPtr<BaseType> GetObjectPtr(ObjType* ptr);
 };
@@ -739,13 +741,23 @@ struct ObjectPtrEqual {
  * \param ParentType The parent type of the objectref
  * \param ObjectName The type name of the object.
  */
-#define TVM_DEFINE_OBJECT_REF_METHODS(TypeName, ParentType, ObjectName)                        \
-  TypeName() = default;                                                                        \
+#define TVM_DEFINE_OBJECT_REF_METHODS_WITHOUT_DEFAULT_CONSTRUCTOR(TypeName, ParentType,        \
+                                                                  ObjectName)                  \
   explicit TypeName(::tvm::runtime::ObjectPtr<::tvm::runtime::Object> n) : ParentType(n) {}    \
   TVM_DEFINE_DEFAULT_COPY_MOVE_AND_ASSIGN(TypeName);                                           \
   const ObjectName* operator->() const { return static_cast<const ObjectName*>(data_.get()); } \
   const ObjectName* get() const { return operator->(); }                                       \
   using ContainerType = ObjectName;
+
+/*
+ * \brief Define object reference methods.
+ * \param TypeName The object type name
+ * \param ParentType The parent type of the objectref
+ * \param ObjectName The type name of the object.
+ */
+#define TVM_DEFINE_OBJECT_REF_METHODS(TypeName, ParentType, ObjectName) \
+  TypeName() = default;                                                 \
+  TVM_DEFINE_OBJECT_REF_METHODS_WITHOUT_DEFAULT_CONSTRUCTOR(TypeName, ParentType, ObjectName)
 
 /*
  * \brief Define object reference methods that is not nullable.
@@ -811,14 +823,18 @@ struct ObjectPtrEqual {
  *
  * \endcode
  */
-#define TVM_DEFINE_OBJECT_REF_COW_METHOD(ObjectName)     \
-  ObjectName* CopyOnWrite() {                            \
-    ICHECK(data_ != nullptr);                            \
-    if (!data_.unique()) {                               \
-      auto n = make_object<ObjectName>(*(operator->())); \
-      ObjectPtr<Object>(std::move(n)).swap(data_);       \
-    }                                                    \
-    return static_cast<ObjectName*>(data_.get());        \
+#define TVM_DEFINE_OBJECT_REF_COW_METHOD(ObjectName)               \
+  static_assert(ObjectName::_type_final,                           \
+                "TVM's CopyOnWrite may only be used for "          \
+                "Object types that are declared as final, "        \
+                "using the TVM_DECLARE_FINAL_OBJECT_INFO macro."); \
+  ObjectName* CopyOnWrite() {                                      \
+    ICHECK(data_ != nullptr);                                      \
+    if (!data_.unique()) {                                         \
+      auto n = make_object<ObjectName>(*(operator->()));           \
+      ObjectPtr<Object>(std::move(n)).swap(data_);                 \
+    }                                                              \
+    return static_cast<ObjectName*>(data_.get());                  \
   }
 
 // Implementations details below

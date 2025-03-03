@@ -19,10 +19,9 @@
 
 import { SizeOf, ArgTypeCode } from "./ctypes";
 import { assert, StringToUint8Array, Uint8ArrayToString } from "./support";
-import { detectGPUDevice } from "./webgpu";
+import { detectGPUDevice, GPUDeviceDetectOutput } from "./webgpu";
 import * as compact from "./compact";
 import * as runtime from "./runtime";
-import { timeStamp } from "console";
 import { Disposable } from "./types";
 
 enum RPCServerState {
@@ -82,6 +81,10 @@ export class RPCServer {
   state: RPCServerState = RPCServerState.InitHeader;
   logger: (msg: string) => void;
   getImports: () => Record<string, unknown>;
+  private ndarrayCacheUrl: string;
+  private ndarrayCacheDevice: string;
+  private initProgressCallback?: runtime.InitProgressCallback;
+  private asyncOnServerLoad?: (inst: runtime.Instance) => Promise<void>;
   private pendingSend: Promise<void> = Promise.resolve();
   private name: string;
   private inst?: runtime.Instance = undefined;
@@ -98,14 +101,21 @@ export class RPCServer {
     url: string,
     key: string,
     getImports: () => Record<string, unknown>,
-    logger: (msg: string) => void = console.log
+    logger: (msg: string) => void = console.log,
+    ndarrayCacheUrl = "",
+    ndarrayCacheDevice = "cpu",
+    initProgressCallback: runtime.InitProgressCallback | undefined = undefined,
+    asyncOnServerLoad: ((inst: runtime.Instance) => Promise<void>) | undefined = undefined,
   ) {
     this.url = url;
     this.key = key;
     this.name = "WebSocketRPCServer[" + this.key + "]: ";
     this.getImports = getImports;
     this.logger = logger;
-
+    this.ndarrayCacheUrl = ndarrayCacheUrl;
+    this.ndarrayCacheDevice = ndarrayCacheDevice;
+    this.initProgressCallback = initProgressCallback;
+    this.asyncOnServerLoad = asyncOnServerLoad;
     this.checkLittleEndian();
     this.socket = compact.createWebSocket(url);
     this.socket.binaryType = "arraybuffer";
@@ -127,12 +137,16 @@ export class RPCServer {
       this.globalObjects.forEach(obj => {
         obj.dispose();
       });
+      this.log(this.inst.runtimeStatsText());
       this.inst.dispose();
     }
-    if (this.state == RPCServerState.ReceivePacketHeader) {
+    if (this.state === RPCServerState.ReceivePacketHeader) {
       this.log("Closing the server in clean state");
       this.log("Automatic reconnecting..");
-      new RPCServer(this.url, this.key, this.getImports, this.logger);
+      new RPCServer(
+        this.url, this.key, this.getImports, this.logger,
+        this.ndarrayCacheUrl, this.ndarrayCacheDevice,
+        this.initProgressCallback, this.asyncOnServerLoad);
     } else {
       this.log("Closing the server, final state=" + this.state);
     }
@@ -183,20 +197,20 @@ export class RPCServer {
         this.currPacketHeader = this.readFromBuffer(SizeOf.I64);
         const reader = new ByteStreamReader(this.currPacketHeader);
         this.currPacketLength = reader.readU64();
-        assert(this.pendingBytes == 0);
+        assert(this.pendingBytes === 0);
         this.requestBytes(this.currPacketLength);
         this.state = RPCServerState.ReceivePacketBody;
         break;
       }
       case RPCServerState.ReceivePacketBody: {
         const body = this.readFromBuffer(this.currPacketLength);
-        assert(this.pendingBytes == 0);
+        assert(this.pendingBytes === 0);
         assert(this.currPacketHeader !== undefined);
         this.onPacketReady(this.currPacketHeader, body);
         break;
       }
       case RPCServerState.WaitForCallback: {
-        assert(this.pendingBytes == 0);
+        assert(this.pendingBytes === 0);
         break;
       }
       default: {
@@ -222,10 +236,10 @@ export class RPCServer {
 
       for (let i = 0; i < nargs; ++i) {
         const tcode = tcodes[i];
-        if (tcode == ArgTypeCode.TVMStr) {
+        if (tcode === ArgTypeCode.TVMStr) {
           const str = Uint8ArrayToString(reader.readByteArray());
           args.push(str);
-        } else if (tcode == ArgTypeCode.TVMBytes) {
+        } else if (tcode === ArgTypeCode.TVMBytes) {
           args.push(reader.readByteArray());
         } else {
           throw new Error("cannot support type code " + tcode);
@@ -247,8 +261,8 @@ export class RPCServer {
     body: Uint8Array
   ): void {
     // start the server
-    assert(args[0] == "rpc.WasmSession");
-    assert(this.pendingBytes == 0);
+    assert(args[0] === "rpc.WasmSession");
+    assert(this.pendingBytes === 0);
 
     const asyncInitServer = async (): Promise<void> => {
       assert(args[1] instanceof Uint8Array);
@@ -257,12 +271,15 @@ export class RPCServer {
         this.getImports(),
         this.logger
       );
+
       try {
-        const gpuDevice: GPUDevice | undefined | null = await detectGPUDevice();
-        if (gpuDevice !== undefined && gpuDevice !== null) {
-          const label = gpuDevice.label?.toString() || "WebGPU";
+        const output: GPUDeviceDetectOutput | undefined = await detectGPUDevice();
+        if (output !== undefined) {
+          const label = "WebGPU: "+ output.adapterInfo.description;
           this.log("Initialize GPU device: " + label);
-          inst.initWebGPU(gpuDevice);
+          inst.initWebGPU(output.device);
+        } else {
+          this.log("Cannot find WebGPU device in the env");
         }
       } catch (err) {
         this.log("Cannnot initialize WebGPU, " + err.toString());
@@ -270,14 +287,29 @@ export class RPCServer {
 
       this.inst = inst;
       // begin scope to allow handling of objects
-      // the object should stay alive during all sessions.
       this.inst.beginScope();
-      const fcreate = this.inst.getGlobalFunc("rpc.CreateEventDrivenServer");
+      if (this.initProgressCallback !== undefined) {
+        this.inst.registerInitProgressCallback(this.initProgressCallback);
+      }
 
+      if (this.ndarrayCacheUrl.length != 0) {
+        if (this.ndarrayCacheDevice === "cpu") {
+          await this.inst.fetchNDArrayCache(this.ndarrayCacheUrl, this.inst.cpu());
+        } else {
+          assert(this.ndarrayCacheDevice === "webgpu");
+          await this.inst.fetchNDArrayCache(this.ndarrayCacheUrl, this.inst.webgpu());
+        }
+      }
+
+      assert(this.inst !== undefined);
+      if (this.asyncOnServerLoad !== undefined) {
+        await this.asyncOnServerLoad(this.inst);
+      }
+      const fcreate = this.inst.getGlobalFunc("rpc.CreateEventDrivenServer");
       const messageHandler = fcreate(
         (cbytes: Uint8Array): runtime.Scalar => {
           assert(this.inst !== undefined);
-          if (this.socket.readyState == 1) {
+          if (this.socket.readyState === 1) {
             // WebSocket will automatically close the socket
             // if we burst send data that exceeds its internal buffer
             // wait a bit before we send next one.
@@ -317,10 +349,10 @@ export class RPCServer {
       const writeFlag = this.inst.scalar(3, "int32");
 
       this.serverRecvData = (header: Uint8Array, body: Uint8Array): void => {
-        if (messageHandler(header, writeFlag) == 0) {
+        if (messageHandler(header, writeFlag) === 0) {
           this.socket.close();
         }
-        if (messageHandler(body, writeFlag) == 0) {
+        if (messageHandler(body, writeFlag) === 0) {
           this.socket.close();
         }
       };
@@ -364,14 +396,14 @@ export class RPCServer {
   private handleInitHeader(): void {
     const reader = new ByteStreamReader(this.readFromBuffer(SizeOf.I32 * 2));
     const magic = reader.readU32();
-    if (magic == RPC_MAGIC + 1) {
+    if (magic === RPC_MAGIC + 1) {
       throw new Error("key: " + this.key + " has already been used in proxy");
-    } else if (magic == RPC_MAGIC + 2) {
+    } else if (magic === RPC_MAGIC + 2) {
       throw new Error("RPCProxy do not have matching client key " + this.key);
     }
-    assert(magic == RPC_MAGIC, this.url + " is not an RPC Proxy");
+    assert(magic === RPC_MAGIC, this.url + " is not an RPC Proxy");
     this.remoteKeyLength = reader.readU32();
-    assert(this.pendingBytes == 0);
+    assert(this.pendingBytes === 0);
     this.requestBytes(this.remoteKeyLength);
     this.state = RPCServerState.InitHeaderKey;
   }
@@ -381,7 +413,7 @@ export class RPCServer {
     const remoteKey = Uint8ArrayToString(
       this.readFromBuffer(this.remoteKeyLength)
     );
-    assert(this.pendingBytes == 0);
+    assert(this.pendingBytes === 0);
     this.requestBytes(SizeOf.I64);
     this.state = RPCServerState.ReceivePacketHeader;
   }

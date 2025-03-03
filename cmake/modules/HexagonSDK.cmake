@@ -109,11 +109,12 @@ function(_get_hexagon_sdk_property_impl
   set(_hexarch_dir_v68 "computev68")
   set(_hexarch_dir_v69 "computev69")
   set(_hexarch_dir_v73 "computev73")
+  set(_hexarch_dir_v75 "computev75")
   set(_hexarch_dir_str "_hexarch_dir_${_hexagon_arch}")
   set(_hexarch_dir "${${_hexarch_dir_str}}")
 
   if(NOT _hexarch_dir)
-    message(SEND_ERROR "Please set Hexagon architecture to one of v65, v66, v68, v69, v73")
+    message(SEND_ERROR "Please set Hexagon architecture to one of v65, v66, v68, v69, v73, v75")
   endif()
 
   if(_property STREQUAL "VERSION")
@@ -160,6 +161,9 @@ function(_get_hexagon_sdk_property_impl
     elseif(_property STREQUAL "QURT_INCLUDE")
       # Set the Hexagon arch directory for runtime linker.
       set(_rtld_dir "hexagon_toolv84_${_hexagon_arch}")
+      if(_hexagon_arch STREQUAL "v75")
+        set(_rtld_dir "hexagon_toolv87_v75") # Use hexagon_toolv87_v75 for v75
+      endif()
       if(_hexagon_arch STREQUAL "v69")
         set(_rtld_dir "hexagon_toolv84_v68") # Use hexagon_toolv84_v68 for v69
       endif()

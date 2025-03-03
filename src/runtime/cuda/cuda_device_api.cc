@@ -41,10 +41,12 @@ class CUDADeviceAPI final : public DeviceAPI {
   void GetAttr(Device dev, DeviceAttrKind kind, TVMRetValue* rv) final {
     int value = 0;
     switch (kind) {
-      case kExist:
-        value = (cudaDeviceGetAttribute(&value, cudaDevAttrMaxThreadsPerBlock, dev.device_id) ==
-                 cudaSuccess);
+      case kExist: {
+        int count;
+        auto err = cudaGetDeviceCount(&count);
+        value = (err == cudaSuccess && static_cast<int>(dev.device_id < count));
         break;
+      }
       case kMaxThreadsPerBlock: {
         CUDA_CALL(cudaDeviceGetAttribute(&value, cudaDevAttrMaxThreadsPerBlock, dev.device_id));
         break;
@@ -105,11 +107,27 @@ class CUDADeviceAPI final : public DeviceAPI {
       }
       case kDriverVersion:
         return;
-      case kL2CacheSizeBytes:
+      case kL2CacheSizeBytes: {
         // Get size of device l2 cache size in bytes.
         int l2_size = 0;
         CUDA_CALL(cudaDeviceGetAttribute(&l2_size, cudaDevAttrL2CacheSize, dev.device_id));
         *rv = l2_size;
+        return;
+      }
+      case kTotalGlobalMemory: {
+        cudaDeviceProp prop;
+        CUDA_CALL(cudaGetDeviceProperties(&prop, dev.device_id));
+        int64_t total_global_memory = prop.totalGlobalMem;
+        *rv = total_global_memory;
+        return;
+      }
+      case kAvailableGlobalMemory: {
+        size_t free_mem, total_mem;
+        CUDA_CALL(cudaMemGetInfo(&free_mem, &total_mem));
+        *rv = static_cast<int64_t>(free_mem);
+        return;
+      }
+      case kImagePitchAlignment:
         return;
     }
     *rv = value;
@@ -132,6 +150,24 @@ class CUDADeviceAPI final : public DeviceAPI {
   }
 
   void FreeDataSpace(Device dev, void* ptr) final {
+    if (std::uncaught_exceptions() && cudaPeekAtLastError() == cudaErrorIllegalAddress) {
+      // For most CUDA calls, an error from an API call will be
+      // immediately reported, and raised as an exception.  However,
+      // errors raised from async kernel execution leave the CUDA
+      // driver in an inconsistent state.  These errors are "sticky",
+      // and are never cleared. (See [0] for more details.)
+      //
+      // If we are currently unwinding the stack due to a thrown
+      // exception, and the CUDA driver is in an unrecoverable error,
+      // do not attempt to free the CUDA allocations.  Performing any
+      // CUDA API call while in this state will throw an additional
+      // exception, causing a segfault.  In this case, it is better to
+      // allow the original error to continue propagating.
+      //
+      // [0] https://forums.developer.nvidia.com/t/cuda-errors-determine-sticky-ness/271625
+      return;
+    }
+
     if (dev.device_type == kDLCUDAHost) {
       VLOG(1) << "freeing host memory";
       CUDA_CALL(cudaFreeHost(ptr));
@@ -186,7 +222,7 @@ class CUDADeviceAPI final : public DeviceAPI {
   TVMStreamHandle CreateStream(Device dev) {
     CUDA_CALL(cudaSetDevice(dev.device_id));
     cudaStream_t retval;
-    CUDA_CALL(cudaStreamCreate(&retval));
+    CUDA_CALL(cudaStreamCreateWithFlags(&retval, cudaStreamNonBlocking));
     return static_cast<TVMStreamHandle>(retval);
   }
 
@@ -216,6 +252,10 @@ class CUDADeviceAPI final : public DeviceAPI {
     CUDAThreadEntry::ThreadLocal()->stream = static_cast<cudaStream_t>(stream);
   }
 
+  TVMStreamHandle GetCurrentStream(Device dev) final {
+    return static_cast<TVMStreamHandle>(CUDAThreadEntry::ThreadLocal()->stream);
+  }
+
   void* AllocWorkspace(Device dev, size_t size, DLDataType type_hint) final {
     return CUDAThreadEntry::ThreadLocal()->pool.AllocWorkspace(dev, size);
   }
@@ -223,6 +263,8 @@ class CUDADeviceAPI final : public DeviceAPI {
   void FreeWorkspace(Device dev, void* data) final {
     CUDAThreadEntry::ThreadLocal()->pool.FreeWorkspace(dev, data);
   }
+
+  bool SupportsDevicePointerArithmeticsOnHost() final { return true; }
 
   static CUDADeviceAPI* Global() {
     // NOTE: explicitly use new to avoid exit-time destruction of global state
@@ -234,11 +276,7 @@ class CUDADeviceAPI final : public DeviceAPI {
  private:
   static void GPUCopy(const void* from, void* to, size_t size, cudaMemcpyKind kind,
                       cudaStream_t stream) {
-    if (stream != nullptr) {
-      CUDA_CALL(cudaMemcpyAsync(to, from, size, kind, stream));
-    } else {
-      CUDA_CALL(cudaMemcpy(to, from, size, kind));
-    }
+    CUDA_CALL(cudaMemcpyAsync(to, from, size, kind, stream));
   }
 };
 
@@ -305,6 +343,18 @@ TVM_DLL String GetCudaFreeMemory() {
 }
 
 TVM_REGISTER_GLOBAL("runtime.GetCudaFreeMemory").set_body_typed(GetCudaFreeMemory);
+
+TVM_REGISTER_GLOBAL("runtime.get_cuda_stream").set_body_typed([]() {
+  return static_cast<void*>(CUDAThreadEntry::ThreadLocal()->stream);
+});
+
+TVM_DLL int GetCudaDeviceCount() {
+  int count;
+  CUDA_CALL(cudaGetDeviceCount(&count));
+  return count;
+}
+
+TVM_REGISTER_GLOBAL("runtime.GetCudaDeviceCount").set_body_typed(GetCudaDeviceCount);
 
 }  // namespace runtime
 }  // namespace tvm

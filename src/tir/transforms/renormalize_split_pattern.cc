@@ -63,7 +63,7 @@ class SplitPatternReNormalizer : public IRMutatorWithAnalyzer {
     // Pattern var match IntImm
     PVar<IntImm> c1, c2, c3;
     // Pattern var for lanes in broadcast and ramp
-    PVar<int> lanes;
+    PVar<PrimExpr> lanes;
 
     // floordiv(floormod(x, c1 * c2), c2) = floormod(floordiv(x, c2), c1)
     TRY_RECURSIVE_REWRITE_IF(floordiv(floormod(x, c3), c2),

@@ -20,6 +20,8 @@ import re
 import enum
 from enum import auto as enum_auto
 
+from tvm.tir.expr import IntImm, FloatImm
+
 
 class GeneratorTarget(enum.Enum):
     Library = enum_auto()
@@ -139,6 +141,12 @@ def substitute_template(template, values):
     while changed:
         changed = False
         for key, value in values.items():
+            if isinstance(value, (int, IntImm)):
+                value = str(int(value))
+            if isinstance(value, (float, FloatImm)):
+                value = str(float(value))
+            elif isinstance(value, bool):
+                value = str(value).lower()
             regex = f"\\$\\{{{key}\\}}"
             newtext = re.sub(regex, value, text)
             if newtext != text:

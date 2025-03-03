@@ -146,7 +146,11 @@ VulkanDeviceProperties::VulkanDeviceProperties(const VulkanInstance& instance,
   max_num_threads = properties.properties.limits.maxComputeWorkGroupInvocations;
 
   // Even if we can't query it, warp size must be at least 1.
-  thread_warp_size = std::max(subgroup.subgroupSize, 1U);
+  // thread_warp_size = std::max(subgroup.subgroupSize, 1U);
+  // vulkan's subgroup may not directly map to warp and atm
+  // can cause issues in softmax allreduce in NVidia GPU
+  // disable warp setting to be safe.
+  thread_warp_size = 1U;
 
   max_block_size_x = properties.properties.limits.maxComputeWorkGroupSize[0];
   max_block_size_y = properties.properties.limits.maxComputeWorkGroupSize[1];
@@ -289,7 +293,7 @@ VulkanDevice::VulkanDevice(const VulkanInstance& instance, VkPhysicalDevice phy_
 
   for (uint32_t k = 0; k < prop.memoryTypeCount; ++k) {
     VkMemoryType ty = prop.memoryTypes[k];
-    size_t heap_size = prop.memoryHeaps[ty.heapIndex].size;
+    int64_t heap_size = static_cast<int64_t>(prop.memoryHeaps[ty.heapIndex].size);
     // host visible
     if (!(ty.propertyFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT)) continue;
     // match copy requirment
@@ -308,7 +312,7 @@ VulkanDevice::VulkanDevice(const VulkanInstance& instance, VkPhysicalDevice phy_
   win_rank = -1;
   for (uint32_t k = 0; k < prop.memoryTypeCount; ++k) {
     VkMemoryType ty = prop.memoryTypes[k];
-    size_t heap_size = prop.memoryHeaps[ty.heapIndex].size;
+    int64_t heap_size = static_cast<int64_t>(prop.memoryHeaps[ty.heapIndex].size);
     // host visible
     if (!(ty.propertyFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)) continue;
     // match copy requirment
@@ -320,8 +324,10 @@ VulkanDevice::VulkanDevice(const VulkanInstance& instance, VkPhysicalDevice phy_
     if (rank > win_rank) {
       win_rank = rank;
       compute_mtype_index = k;
+      compute_memory_size = heap_size;
     }
   }
+
   ICHECK_GE(win_rank, 0) << "Cannot find suitable local memory on device.";
 
   if (device_properties.supports_push_descriptor) {
@@ -379,6 +385,7 @@ void VulkanDevice::do_swap(VulkanDevice&& other) {
   std::swap(queue_insert_debug_utils_label_functions,
             other.queue_insert_debug_utils_label_functions);
   std::swap(compute_mtype_index, other.compute_mtype_index);
+  std::swap(compute_memory_size, other.compute_memory_size);
   std::swap(queue, other.queue);
   std::swap(queue_family_index, other.queue_family_index);
   std::swap(physical_device_, other.physical_device_);

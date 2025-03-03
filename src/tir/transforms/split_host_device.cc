@@ -57,7 +57,7 @@ class HostDeviceSplitter : public StmtMutator {
  private:
   Stmt SplitDeviceFunc(Stmt body, Target device_target) {
     auto [params, buffers_to_declare] = [&]() -> std::tuple<Array<Var>, Array<Buffer>> {
-      VarUseDefAnalyzer use_def(/*defined_vars=*/{}, /*visit_thread_extent=*/false);
+      VarUseDefAnalyzer use_def(/*defined_vars=*/{}, /*visit_thread_extent=*/true);
       use_def(body);
 
       // Sort first by variable type, then by variable name

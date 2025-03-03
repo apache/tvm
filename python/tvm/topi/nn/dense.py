@@ -17,7 +17,7 @@
 # pylint: disable=invalid-name,unused-argument
 """TVM operator fully connected compute."""
 import tvm
-from tvm import auto_scheduler, te
+from tvm import te
 
 from .. import tag, add
 
@@ -70,6 +70,7 @@ def matmul(
     assert (
         len(tensor_a.shape) >= 2 and len(tensor_b.shape) >= 2
     ), "1-dim matmul is not supported yet."
+
     if bias is not None:
         assert len(bias.shape) == 1
     if out_dtype is None:
@@ -82,18 +83,11 @@ def matmul(
 
     if auto_scheduler_rewritten_layout:
         # Infer shape for the rewritten layout
-        assert len(tensor_b).shape == 2, "only support 2-dim matmul when using auto-scheduler"
-        out_dim, reduce_dim_b = auto_scheduler.get_shape_from_rewritten_layout(
-            auto_scheduler_rewritten_layout, ["j", "k"]
-        )
-        auto_scheduler.remove_index_check(tensor_b)
-    elif meta_schedule_original_shape:
-        auto_scheduler.rewrite_tensor_shape(tensor_b, meta_schedule_original_shape)
-        if transpose_b:
-            out_dim, reduce_dim_b = tensor_b.shape[-2:]
-        else:
-            reduce_dim_b, out_dim = tensor_b.shape[-2:]
-    elif transpose_b:
+        raise RuntimeError("LEGACY-FLOW triggered, to be removed")
+    if meta_schedule_original_shape:
+        raise RuntimeError("LEGACY-FLOW triggered, to be removed")
+
+    if transpose_b:
         out_dim, reduce_dim_b = tensor_b.shape[-2:]
     else:
         reduce_dim_b, out_dim = tensor_b.shape[-2:]
@@ -164,32 +158,9 @@ def matmul(
         mat = add(mat, bias.astype(out_dtype))
 
     if auto_scheduler_rewritten_layout:
-        mat = auto_scheduler.rewrite_compute_body(mat, auto_scheduler_rewritten_layout)
+        raise RuntimeError("LEGACY-FLOW triggered, to be removed")
 
     return mat
-
-
-@tvm.target.generic_func
-def matmul_legalize(attrs, inputs, types):
-    """Legalizes matmul op.
-
-    Parameters
-    ----------
-    attrs : tvm.ir.Attrs
-        Attributes of current matmul
-    inputs : list of tvm.relay.Expr
-        The args of the Relay expr to be legalized
-    types : list of types
-        List of input and output types
-
-    Returns
-    -------
-    result : tvm.relay.Expr
-        The legalized expr
-    """
-    # not to change by default
-    # pylint: disable=unused-argument
-    return None
 
 
 def dense(
@@ -229,6 +200,7 @@ def dense(
     output : tvm.te.Tensor
         2-D with shape [batch, out_dim]
     """
+
     return matmul(
         data,
         weight,
@@ -239,29 +211,6 @@ def dense(
         auto_scheduler_rewritten_layout,
         meta_schedule_original_shape,
     )
-
-
-@tvm.target.generic_func
-def dense_legalize(attrs, inputs, types):
-    """Legalizes dense op.
-
-    Parameters
-    ----------
-    attrs : tvm.ir.Attrs
-        Attributes of current dense
-    inputs : list of tvm.relay.Expr
-        The args of the Relay expr to be legalized
-    types : list of types
-        List of input and output types
-
-    Returns
-    -------
-    result : tvm.relay.Expr
-        The legalized expr
-    """
-    # not to change by default
-    # pylint: disable=unused-argument
-    return None
 
 
 def dense_pack(data, weight, bias=None, out_dtype=None):
@@ -308,45 +257,3 @@ def dense_pack(data, weight, bias=None, out_dtype=None):
     if bias is not None:
         C = te.compute((M, N), lambda i, j: C[i, j] + bias[j].astype(out_dtype), tag=tag.BROADCAST)
     return C
-
-
-@tvm.target.generic_func
-def dense_alter_layout(attrs, inputs, tinfos, out_type):
-    """Change dense layout.
-
-    Parameters
-    ----------
-    attrs : tvm.ir.Attrs
-        Attributes of current convolution
-    inputs : tvm.relay.Expr
-        Grouped input symbols
-    tinfos : list
-        Input shape and dtype
-    out_type: type
-        The output type
-
-    Note
-    ----
-    Unlike other TOPI functions, this function operates on both graph level and operator level.
-    """
-    # not to change by default
-    return None
-
-
-@tvm.target.generic_func
-def batch_matmul_legalize(attrs, inputs, types):
-    """Legalizes batch_matmul op.
-    Parameters
-    ----------
-    attrs : tvm.ir.Attrs
-        Attributes of current batch_matmul
-    inputs : list of tvm.relay.Expr
-        The args of the Relay expr to be legalized
-    types : list of types
-        List of input and output types
-    Returns
-    -------
-    result : tvm.relay.Expr
-        The legalized expr
-    """
-    return None

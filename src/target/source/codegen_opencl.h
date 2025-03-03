@@ -74,6 +74,7 @@ class CodeGenOpenCL final : public CodeGenC {
   void VisitExpr_(const AndNode* op, std::ostream& os) final;
   void VisitExpr_(const OrNode* op, std::ostream& os) final;
   void VisitExpr_(const SelectNode* op, std::ostream& os) final;
+  void VisitExpr_(const ModNode* op, std::ostream& os) final;
 
  private:
   // whether enable fp16 and fp64 extension

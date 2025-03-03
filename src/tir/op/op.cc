@@ -32,6 +32,7 @@
 #include <cmath>
 // Centralized header for constant folders.
 #include "../../arith/const_fold.h"
+#include "../../arith/scalable_expression.h"
 #include "../../target/datatype/registry.h"
 
 namespace tvm {
@@ -122,20 +123,45 @@ PrimExpr q_multiply_shift(PrimExpr x, PrimExpr y, PrimExpr q, PrimExpr s, Span s
                    {x, y, q, s}, span);
 }
 
+void BroadcastToMatchLanes(PrimExpr& op_a, PrimExpr& op_b) {  // NOLINT(*)
+  DataType dtype_a = op_a.dtype();
+  DataType dtype_b = op_b.dtype();
+
+  if (!dtype_a.is_scalable_or_fixed_length_vector() &&
+      dtype_b.is_scalable_or_fixed_length_vector()) {
+    if (dtype_b.is_scalable_vector()) {
+      op_a = tir::Broadcast(
+          op_a, tir::Mul(dtype_b.vscale_factor(), Call(DataType::Int(32), builtin::vscale(), {})));
+    } else {
+      op_a = tir::Broadcast(op_a, dtype_b.lanes());
+    }
+  }
+}
+
 // The public function with a quick checking path.
 void BinaryOpMatchTypes(PrimExpr& lhs, PrimExpr& rhs, Span span) {  // NOLINT(*)
   CHECK(lhs.defined()) << "ValueError: `lhs` is null in the binary operator";
   CHECK(rhs.defined()) << "ValueError: `rhs` is null in the binary operator";
   if (lhs.dtype() == rhs.dtype()) return;
+
+  BroadcastToMatchLanes(lhs, rhs);
+  BroadcastToMatchLanes(rhs, lhs);
+
   DataType ltype = lhs.dtype();
   DataType rtype = rhs.dtype();
-  if (ltype.lanes() == 1 && rtype.lanes() != 1) {
-    lhs = tir::Broadcast(lhs, rtype.lanes());
-  } else if (rtype.lanes() == 1 && ltype.lanes() != 1) {
-    rhs = tir::Broadcast(rhs, ltype.lanes());
+
+  ICHECK(ltype.is_scalable_vector() == rtype.is_scalable_vector())
+      << "Can't match scalable and fixed length vectors";
+
+  bool lanes_match = false;
+
+  if (ltype.is_scalable_vector()) {
+    lanes_match = ltype.vscale_factor() == rtype.vscale_factor();
   } else {
-    ICHECK(ltype.lanes() == rtype.lanes()) << "Cannot match type " << ltype << " vs " << rtype;
+    lanes_match = ltype.lanes() == rtype.lanes();
   }
+
+  ICHECK(lanes_match) << "Cannot match type " << ltype << " vs " << rtype;
   if (lhs.dtype() == rhs.dtype()) return;
 
   ltype = lhs.dtype();
@@ -175,6 +201,12 @@ void BinaryOpMatchTypes(PrimExpr& lhs, PrimExpr& rhs, Span span) {  // NOLINT(*)
   } else if (ltype.is_float8() && !rtype.is_float8()) {
     // Cast int->float8 for rhs when lhs is a float8
     rhs = cast(ltype, rhs);
+  } else if (!ltype.is_float4() && rtype.is_float4()) {
+    // Cast int->float4 for lhs when rhs is a float4
+    lhs = cast(rtype, lhs);
+  } else if (ltype.is_float4() && !rtype.is_float4()) {
+    // Cast int->float4 for rhs when lhs is a float4
+    rhs = cast(ltype, rhs);
   } else if ((ltype.is_int() && rtype.is_int()) || (ltype.is_uint() && rtype.is_uint())) {
     // Promote int to higher bits e.g. int8 + int16 --> int16 + int16
     if (ltype.bits() < rtype.bits()) {
@@ -203,8 +235,11 @@ void BinaryOpMatchTypes(PrimExpr& lhs, PrimExpr& rhs, Span span) {  // NOLINT(*)
 }
 
 PrimExpr ret(PrimExpr value, Span span) {
+  CHECK(value.defined());
   return tir::Call(value.dtype(), tir::builtin::ret(), {value}, span);
 }
+
+TVM_REGISTER_GLOBAL("tir.ret").set_body_typed(ret);
 
 // maximum and min limits
 PrimExpr max_value(const DataType& dtype, Span span) {
@@ -236,6 +271,15 @@ PrimExpr max_value(const DataType& dtype, Span span) {
     }
   } else if (dtype.is_bfloat16()) {
     return FloatImm(dtype, std::numeric_limits<float>::max(), span);
+  } else if (dtype.is_float8()) {
+    // according to https://arxiv.org/pdf/2209.05433.pdf
+    if (dtype.code() == DataType::TypeCode::kE5M2Float) {
+      return FloatImm(dtype, 57344.0, span);
+    } else if (dtype.code() == DataType::TypeCode::kE4M3Float) {
+      return FloatImm(dtype, 448.0, span);
+    }
+  } else if (dtype.is_float4()) {
+    return FloatImm(dtype, 6.0, span);
   }
   LOG(FATAL) << "Cannot decide max_value for type" << dtype;
 }
@@ -270,6 +314,15 @@ PrimExpr min_value(const DataType& dtype, Span span) {
     }
   } else if (dtype.is_bfloat16()) {
     return FloatImm(dtype, std::numeric_limits<float>::lowest(), span);
+  } else if (dtype.is_float8()) {
+    // according to https://arxiv.org/pdf/2209.05433.pdf
+    if (dtype.code() == DataType::TypeCode::kE5M2Float) {
+      return FloatImm(dtype, -57344.0, span);
+    } else if (dtype.code() == DataType::TypeCode::kE4M3Float) {
+      return FloatImm(dtype, -448.0, span);
+    }
+  } else if (dtype.is_float4()) {
+    return FloatImm(dtype, -6.0, span);
   }
   LOG(FATAL) << "Cannot decide min_value for type" << dtype;
 }
@@ -316,7 +369,7 @@ PrimExpr cast(const DataType& t, PrimExpr value, Span span) {
   using tir::FloatImmNode;
   if (value.dtype() == t) return value;
   // const fold IntImm as they are used in index computations
-  if (t.lanes() == 1) {
+  if (t.is_scalar()) {
     if (const IntImmNode* op = value.as<IntImmNode>()) {
       return make_const(t, op->value, op->span);
     } else if (const FloatImmNode* op = value.as<FloatImmNode>()) {
@@ -326,7 +379,7 @@ PrimExpr cast(const DataType& t, PrimExpr value, Span span) {
     return tir::Cast(t, value, span);
   } else {
     DataType vtype = t.element_of();
-    if (value.dtype().lanes() == 1) {
+    if (!value.dtype().is_scalable_or_fixed_length_vector()) {
       // manually unroll cast
       if (value.dtype() != vtype) {
         if (const IntImmNode* op = value.as<IntImmNode>()) {
@@ -337,11 +390,25 @@ PrimExpr cast(const DataType& t, PrimExpr value, Span span) {
           value = tir::Cast(vtype, value, span);
         }
       }
-      return tir::Broadcast(value, t.lanes(), span);
-    } else {
-      ICHECK(value.dtype().lanes() == t.lanes());
+      if (t.is_scalable_vector()) {
+        return tir::Broadcast(
+            value, tir::Mul(t.vscale_factor(), Call(DataType::Int(32), builtin::vscale(), {})),
+            span);
+      } else {
+        return tir::Broadcast(value, t.lanes(), span);
+      }
+    } else { /* value is a vector */
+      ICHECK(value.dtype().is_scalable_vector() == t.is_scalable_vector());
+
+      bool lanes_match = false;
+      if (value.dtype().is_scalable_vector()) {
+        lanes_match = value.dtype().vscale_factor() == t.vscale_factor();
+      } else {
+        lanes_match = value.dtype().lanes() == t.lanes();
+      }
+      ICHECK(lanes_match);
       if (const auto* broadcast = value.as<tir::BroadcastNode>()) {
-        return tir::Broadcast(cast(vtype, broadcast->value, span), t.lanes(), span);
+        return tir::Broadcast(cast(vtype, broadcast->value, span), broadcast->lanes, span);
       } else if (const auto* ramp = value.as<tir::RampNode>()) {
         if (t.is_int() || t.is_uint()) {
           // only cast to index data type can be folded to ramp
@@ -357,8 +424,10 @@ PrimExpr cast(const DataType& t, PrimExpr value, Span span) {
 // reinterpret
 PrimExpr reinterpret(const DataType& t, PrimExpr value, Span span) {
   if (value.dtype() == t) return value;
-  ICHECK(value.dtype().bits() * value.dtype().lanes() == t.bits() * t.lanes())
-      << "Bitcast requires size match " << t << " vs " << value.dtype();
+  if (!t.is_scalable_vector() && !value.dtype().is_scalable_vector()) {
+    ICHECK(value.dtype().bits() * value.dtype().lanes() == t.bits() * t.lanes())
+        << "Bitcast requires size match " << t << " vs " << value.dtype();
+  }
   return tir::Call(t, tir::builtin::reinterpret(), {value}, span);
 }
 
@@ -534,6 +603,7 @@ PrimExpr operator==(PrimExpr a, PrimExpr b) { return equal(a, b); }
 PrimExpr equal(PrimExpr a, PrimExpr b, Span span) {
   BinaryOpMatchTypes(a, b, span);
   if (auto ret = arith::TryConstFold<tir::EQ>(a, b)) return ret.value();
+  if (arith::IsVScaleCall(a) && arith::IsVScaleCall(b)) return true;
   return tir::EQ(a, b, span);
 }
 
@@ -688,6 +758,32 @@ TVM_REGISTER_GLOBAL("tir.bitwise_not").set_body_typed([](PrimExpr a, Span span) 
 PrimExpr pow(PrimExpr x, PrimExpr y, Span span) {
   BinaryOpMatchTypes(x, y, span);
   ICHECK(x.dtype().is_float()) << "power only applies to float";
+
+  // If we detect pow(x, 3), suggest using x * x * x
+  if (y.dtype().is_int()) {
+    using tir::IntImmNode;
+    const IntImmNode* px = y.as<IntImmNode>();
+    if (px) {
+      if (px->value >= 3) {
+        LOG(WARNING)
+            << "Detected pow(x, y) where y >= 3, it is recommended to avoid this as it may lead to "
+               "uninteded behaviors when x < 0. Perhaps with `x * x * x ...` or "
+               "`pow(x, 2) * pow(x, 2) ...`.";
+      }
+    }
+  } else if (y.dtype().is_float()) {
+    using tir::FloatImmNode;
+    const FloatImmNode* fx = y.as<FloatImmNode>();
+    if (fx) {
+      if (fx->value >= 3.0) {
+        LOG(WARNING)
+            << "Detected pow(x, y) where y >= 3, it is recommended to avoid this as it may lead to "
+               "uninteded behaviors when x < 0. Perhaps with `x * x * x ...` or "
+               "`pow(x, 2) * pow(x, 2) ...`.";
+      }
+    }
+  }
+
   static auto op = Op::Get("tir.pow");
   return tir::Call(x.dtype(), op, {x, y}, span);
 }
@@ -965,12 +1061,15 @@ TVM_TIR_REGISTER_OP("TVMBackendFreeWorkspace")
 
 // expose basic functions to node namespace
 TVM_REGISTER_GLOBAL("node._const").set_body([](TVMArgs args, TVMRetValue* ret) {
-  if (args[0].type_code() == kDLInt) {
-    *ret = tir::make_const(args[1], args[0].operator int64_t(), args[2]);
-  } else if (args[0].type_code() == kDLFloat) {
-    *ret = tir::make_const(args[1], args[0].operator double(), args[2]);
+  if (auto opt = args[0].TryAsInt()) {
+    *ret = tir::make_const(args[1], opt.value(), args[2]);
+  } else if (auto opt = args[0].TryAsBool()) {
+    *ret = tir::make_const(args[1], opt.value(), args[2]);
+  } else if (auto opt = args[0].TryAsFloat()) {
+    *ret = tir::make_const(args[1], opt.value(), args[2]);
   } else {
-    LOG(FATAL) << "only accept int or float";  // FIXME
+    LOG(FATAL) << "First argument to tvm.tir.const must be int, float, or bool, "
+               << "but instead received argument with type code " << args[0].type_code();  // FIXME
   }
 });
 
@@ -1003,6 +1102,8 @@ TVM_REGISTER_GLOBAL("tir.nearbyint").set_body_typed(tvm::nearbyint);
 TVM_REGISTER_GLOBAL("tir.trunc").set_body_typed(tvm::trunc);
 
 TVM_REGISTER_GLOBAL("tir._cast").set_body_typed(tvm::cast);
+
+TVM_REGISTER_GLOBAL("tir.reinterpret").set_body_typed(tvm::reinterpret);
 
 // operator overloading, smarter than make
 #define REGISTER_MAKE_BINARY_OP(Node, Func)                                                \

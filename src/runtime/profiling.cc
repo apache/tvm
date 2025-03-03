@@ -671,7 +671,7 @@ Report Profiler::Report() {
     rows.push_back(row);
   }
 
-  // the last couple of call frames are the overall times
+  // the last frames are the overall times
   double overall_time_us = 0;
   std::unordered_map<String, Map<String, ObjectRef>> device_metrics;
   for (size_t i = 0; i < devs_.size(); i++) {
@@ -776,7 +776,6 @@ Report Report::FromJSON(String json) {
       configuration = parse_metrics(&reader);
     }
   }
-
   return Report(calls, device_metrics, configuration);
 }
 
@@ -863,12 +862,6 @@ PackedFunc WrapTimeEvaluator(PackedFunc pf, Device dev, int number, int repeat, 
                              int limit_zero_time_iterations, int cooldown_interval_ms,
                              int repeats_to_cooldown, int cache_flush_bytes, PackedFunc f_preproc) {
   ICHECK(pf != nullptr);
-
-  if (static_cast<int>(dev.device_type) == static_cast<int>(kDLMicroDev)) {
-    auto get_micro_time_evaluator = runtime::Registry::Get("micro._GetMicroTimeEvaluator");
-    ICHECK(get_micro_time_evaluator != nullptr) << "micro backend not enabled";
-    return (*get_micro_time_evaluator)(pf, dev, number, repeat);
-  }
 
   auto ftimer = [pf, dev, number, repeat, min_repeat_ms, limit_zero_time_iterations,
                  cooldown_interval_ms, repeats_to_cooldown, cache_flush_bytes,

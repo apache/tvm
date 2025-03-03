@@ -30,7 +30,6 @@ def test_randint():
     m = 10240
     n = 10240
     A = random.randint(-127, 128, size=(m, n), dtype="int32")
-    s = te.create_schedule(A.op)
 
     def verify(target="llvm"):
         if not tvm.testing.device_enabled(target):
@@ -40,7 +39,7 @@ def test_randint():
             print("skip because extern function is not available")
             return
         dev = tvm.cpu(0)
-        f = tvm.build(s, [A], target)
+        f = tvm.build(te.create_prim_func([A]), target=target)
         a = tvm.nd.array(np.zeros((m, n), dtype=A.dtype), dev)
         f(a)
         na = a.numpy()
@@ -56,7 +55,6 @@ def test_uniform():
     m = 10240
     n = 10240
     A = random.uniform(0, 1, size=(m, n))
-    s = te.create_schedule(A.op)
 
     def verify(target="llvm"):
         if not tvm.testing.device_enabled(target):
@@ -66,7 +64,7 @@ def test_uniform():
             print("skip because extern function is not available")
             return
         dev = tvm.cpu(0)
-        f = tvm.build(s, [A], target)
+        f = tvm.build(te.create_prim_func([A]), target=target)
         a = tvm.nd.array(np.zeros((m, n), dtype=A.dtype), dev)
         f(a)
         na = a.numpy()
@@ -82,7 +80,6 @@ def test_normal():
     m = 10240
     n = 10240
     A = random.normal(3, 4, size=(m, n))
-    s = te.create_schedule(A.op)
 
     def verify(target="llvm"):
         if not tvm.testing.device_enabled(target):
@@ -92,7 +89,7 @@ def test_normal():
             print("skip because extern function is not available")
             return
         dev = tvm.cpu(0)
-        f = tvm.build(s, [A], target)
+        f = tvm.build(te.create_prim_func([A]), target=target)
         a = tvm.nd.array(np.zeros((m, n), dtype=A.dtype), dev)
         f(a)
         na = a.numpy()

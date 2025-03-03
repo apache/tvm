@@ -1227,7 +1227,7 @@ def test_compute_at_tiled_repeat_op(use_block_name):
 
 def test_compute_at_rev_iter():
     @T.prim_func
-    def before(X: T.Buffer[(10, 10), "float32"], Z: T.Buffer[(10, 10), "float32"]):
+    def before(X: T.Buffer((10, 10), "float32"), Z: T.Buffer((10, 10), "float32")):
         Y = T.alloc_buffer([10, 10], "float32")
         for i, j in T.grid(10, 10):
             with T.block("b0"):
@@ -1239,7 +1239,7 @@ def test_compute_at_rev_iter():
                 Z[vi, vj] = Y[vj, vi] + 2.0
 
     @T.prim_func
-    def after(X: T.Buffer[(10, 10), "float32"], Z: T.Buffer[(10, 10), "float32"]):
+    def after(X: T.Buffer((10, 10), "float32"), Z: T.Buffer((10, 10), "float32")):
         Y = T.alloc_buffer([10, 10], "float32")
         for i in range(10):
             for j in range(10):
@@ -1913,6 +1913,80 @@ def test_shape_var_as_bound():
     tvm.ir.assert_structural_equal(
         sch.mod["main"], expected.with_attr("global_symbol", "main"), True
     )
+
+
+def test_compute_at_sliced_concatenate():
+    @T.prim_func
+    def before():
+        X = T.alloc_buffer((1, 16, 28, 64), "float32")
+        Y = T.alloc_buffer((1, 32, 28, 64), "float32")
+        Z = T.alloc_buffer((1, 53, 28, 64), "float32")
+        Concat = T.alloc_buffer((1, 101, 28, 64), "float32")
+        Slice = T.alloc_buffer((1, 87, 28, 64), "float32")
+        for ax0, ax1, ax2, ax3 in T.grid(1, 16, 28, 64):
+            with T.block("compute"):
+                v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                X[v_ax0, v_ax1, v_ax2, v_ax3] = 1.0
+        for ax0, ax1, ax2, ax3 in T.grid(1, 101, 28, 64):
+            with T.block("T_concat"):
+                v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                Concat[v_ax0, v_ax1, v_ax2, v_ax3] = T.if_then_else(
+                    85 <= v_ax1,
+                    X[v_ax0, v_ax1 - 85, v_ax2, v_ax3],
+                    T.if_then_else(
+                        53 <= v_ax1,
+                        Y[v_ax0, v_ax1 - 53, v_ax2, v_ax3],
+                        Z[v_ax0, v_ax1, v_ax2, v_ax3],
+                    ),
+                )
+        for ax0, ax1, ax2, ax3 in T.grid(1, 87, 28, 64):
+            with T.block("T_strided_slice"):
+                v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                Slice[v_ax0, v_ax1, v_ax2, v_ax3] = Concat[v_ax0, v_ax1, v_ax2, v_ax3]
+
+    @T.prim_func
+    def expect():
+        X = T.alloc_buffer((1, 16, 28, 64))
+        Y = T.alloc_buffer((1, 32, 28, 64))
+        Z = T.alloc_buffer((1, 53, 28, 64))
+        Concat = T.alloc_buffer((1, 101, 28, 64))
+        Slice = T.alloc_buffer((1, 87, 28, 64))
+        for ax0 in range(1):
+            for ax0_1, ax1, ax2 in T.grid(2, 28, 64):
+                with T.block("compute"):
+                    v_ax0 = T.axis.spatial(1, 0)
+                    v_ax1 = T.axis.spatial(16, ax0_1)
+                    v_ax2, v_ax3 = T.axis.remap("SS", [ax1, ax2])
+                    X[v_ax0, v_ax1, v_ax2, v_ax3] = T.float32(1)
+            for ax0_1, ax1, ax2 in T.grid(87, 28, 64):
+                with T.block("T_concat"):
+                    v_ax0 = T.axis.spatial(1, 0)
+                    v_ax1 = T.axis.spatial(101, ax0_1)
+                    v_ax2, v_ax3 = T.axis.remap("SS", [ax1, ax2])
+                    Concat[v_ax0, v_ax1, v_ax2, v_ax3] = T.if_then_else(
+                        85 <= v_ax1,
+                        X[v_ax0, v_ax1 - 85, v_ax2, v_ax3],
+                        T.if_then_else(
+                            53 <= v_ax1,
+                            Y[v_ax0, v_ax1 - 53, v_ax2, v_ax3],
+                            Z[v_ax0, v_ax1, v_ax2, v_ax3],
+                        ),
+                    )
+            for ax1, ax2, ax3 in T.grid(87, 28, 64):
+                with T.block("T_strided_slice"):
+                    v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
+                    Slice[v_ax0, v_ax1, v_ax2, v_ax3] = Concat[v_ax0, v_ax1, v_ax2, v_ax3]
+
+    sch = tir.Schedule(before, debug_mask="all")
+    blk1 = sch.get_block("compute")
+    blk2 = sch.get_block("T_concat")
+    blk3 = sch.get_block("T_strided_slice")
+    loop = sch.get_loops(blk3)[0]
+    sch.compute_at(blk2, loop)
+    sch.compute_at(blk1, loop)
+    after = sch.mod["main"]
+    assert_structural_equal_ignore_global_symbol(expect, after)
+    verify_trace_roundtrip(sch=sch, mod=before)
 
 
 if __name__ == "__main__":

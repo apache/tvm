@@ -112,6 +112,12 @@ inline ExprDoc TIR(const IRDocsifier& d, const String& attr) {
   return IdDoc(d->cfg->tir_prefix)->Attr(attr);
 }
 
+/*! \brief Creates the Relax common prefix, which is by default `R` */
+inline ExprDoc Relax(const IRDocsifier& d, const String& attr) {
+  d->ir_usage.insert("relax");
+  return IdDoc(d->cfg->relax_prefix)->Attr(attr);
+}
+
 inline std::string DType2Str(const runtime::DataType& dtype) {
   return dtype.is_void() ? "void" : runtime::DLDataType2String(dtype);
 }
@@ -126,7 +132,9 @@ inline Doc HeaderWrapper(const IRDocsifier& d, const Doc& doc) {
     if (d->ir_usage.count("tir")) {
       stmts.push_back(CommentDoc("from tvm.script import tir as " + d->cfg->tir_prefix));
     }
-
+    if (d->ir_usage.count("relax")) {
+      stmts.push_back(CommentDoc("from tvm.script import relax as " + d->cfg->relax_prefix));
+    }
     stmts.push_back(CommentDoc(""));
     stmts.push_back(Downcast<StmtDoc>(doc));
     return StmtBlockDoc(stmts);

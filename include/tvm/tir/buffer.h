@@ -35,6 +35,18 @@
 namespace tvm {
 namespace tir {
 
+#ifndef TVM_INDEX_DEFAULT_I64
+#define TVM_INDEX_DEFAULT_I64 1
+#endif
+/*! \brief if TVM_INDEX_DEFAULT_I64 is set, return int64, otherwise return int32 */
+inline DataType DefaultIndexType() {
+#if TVM_INDEX_DEFAULT_I64
+  return DataType::Int(64);
+#else
+  return DataType::Int(32);
+#endif
+}
+
 // forward declare Stmt
 class Stmt;
 
@@ -136,7 +148,7 @@ class BufferNode : public Object {
 
   /*! \return preferred index type for this buffer node */
   DataType DefaultIndexType() const {
-    return shape.size() != 0 ? shape[0].dtype() : DataType::Int(32);
+    return shape.size() != 0 ? shape[0].dtype() : tvm::tir::DefaultIndexType();
   }
 
   /*! \brief Determine the offset in the buffer of the given index.
@@ -197,14 +209,20 @@ class Buffer : public ObjectRef {
    * \brief Create an Expr that does a vector load at begin index.
    * \param begin The beginning index
    * \param dtype The data type to be loaded.
+   * \param predicate A vector mask of boolean values indicating which lanes of a vector are to be
+   * loaded. The number lanes of the mask must be equal to the number of lanes in being loaded.
    */
-  TVM_DLL PrimExpr vload(Array<PrimExpr> begin, DataType dtype) const;
+  TVM_DLL PrimExpr vload(Array<PrimExpr> begin, DataType dtype,
+                         Optional<PrimExpr> predicate = NullOpt) const;
   /*!
    * \brief Create a Stmt that does a vector store at begin index.
    * \param begin The beginning index
    * \param value The value to be stored.
+   * \param predicate A vector mask of boolean values indicating which lanes of a vector are to be
+   * stored. The number lanes of the mask must be equal to the number of lanes in value.
    */
-  TVM_DLL Stmt vstore(Array<PrimExpr> begin, PrimExpr value) const;
+  TVM_DLL Stmt vstore(Array<PrimExpr> begin, PrimExpr value,
+                      Optional<PrimExpr> predicate = NullOpt) const;
 
   /*!
    * \brief Get a flattened version of the buffer

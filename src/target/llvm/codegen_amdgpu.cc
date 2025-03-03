@@ -45,6 +45,7 @@
 #if TVM_LLVM_VERSION < 170
 #include <llvm/Transforms/IPO/PassManagerBuilder.h>
 #endif
+#include <llvm/IR/Module.h>
 #include <llvm/Transforms/Utils/Cloning.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/device_api.h>
@@ -146,7 +147,8 @@ class CodeGenAMDGPU : public CodeGenLLVM {
     }
 
     buf = builder_->CreatePointerCast(
-        buf, DTypeToLLVMType(op->dtype)->getPointerTo(buf->getType()->getPointerAddressSpace()));
+        buf,
+        llvmGetPointerTo(DTypeToLLVMType(op->dtype), buf->getType()->getPointerAddressSpace()));
     ICHECK(!var_map_.count(op->buffer_var.get()));
     var_map_[op->buffer_var.get()] = buf;
     this->VisitStmt(op->body);
@@ -186,7 +188,12 @@ class CodeGenAMDGPU : public CodeGenLLVM {
           LOG(FATAL) << "unknown workgroup idx";
       }
     }
+#if TVM_LLVM_VERSION >= 200
+    llvm::Function* f = llvm::cast<llvm::Function>(
+        llvm::Intrinsic::getOrInsertDeclaration(module_.get(), intrin_id, {}));
+#else
     llvm::Function* f = llvm::Intrinsic::getDeclaration(module_.get(), intrin_id);
+#endif
     llvm::Value* result = builder_->CreateCall(f, {});
     return this->CreateCast(DataType::Int(32), iv->var->dtype, result);
   }
@@ -196,8 +203,13 @@ class CodeGenAMDGPU : public CodeGenLLVM {
     if (sync == "warp") {
       return nullptr;
     } else if (sync == "shared") {
+#if TVM_LLVM_VERSION >= 200
+      llvm::Function* f = llvm::cast<llvm::Function>(llvm::Intrinsic::getOrInsertDeclaration(
+          module_.get(), llvm::Intrinsic::amdgcn_s_barrier, {}));
+#else
       llvm::Function* f =
           llvm::Intrinsic::getDeclaration(module_.get(), llvm::Intrinsic::amdgcn_s_barrier);
+#endif
       return builder_->CreateCall(f, {});
     } else {
       LOG(FATAL) << "Do not support sync " << sync;

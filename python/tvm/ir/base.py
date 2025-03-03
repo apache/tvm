@@ -126,11 +126,8 @@ def load_json(json_str) -> Object:
         The loaded tvm node.
     """
 
-    try:
-        return _ffi_node_api.LoadJSON(json_str)
-    except tvm.error.TVMError:
-        json_str = json_compact.upgrade_json(json_str)
-        return _ffi_node_api.LoadJSON(json_str)
+    json_str = json_compact.upgrade_json(json_str)
+    return _ffi_node_api.LoadJSON(json_str)
 
 
 def save_json(node) -> str:
@@ -160,11 +157,9 @@ def structural_equal(lhs, rhs, map_free_vars=False):
     - Normal node: equality is recursively defined without the restriction
       of graph nodes.
 
-    Vars(tir::Var, TypeVar) and non-constant relay expression nodes are graph nodes.
-    For example, it means that `%1 = %x + %y; %1 + %1` is not structurally equal
-    to `%1 = %x + %y; %2 = %x + %y; %1 + %2` in relay.
+    Vars(tir::Var, relax::Var) are graph nodes.
 
-    A var-type node(e.g. tir::Var, TypeVar) can be mapped as equal to another var
+    A var-type node(e.g. tir::Var) can be mapped as equal to another var
     with the same type if one of the following condition holds:
 
     - They appear in a same definition point(e.g. function argument).

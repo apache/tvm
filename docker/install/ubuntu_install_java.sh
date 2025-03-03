@@ -20,7 +20,7 @@ set -o errexit -o nounset
 set -o pipefail
 
 apt-get update
-apt-install-and-clear -y openjdk-8-jdk maven
+apt-install-and-clear -y openjdk-17-jdk maven
 arch=$(uname -m)
 jre_arch="unknown"
 case $arch in
@@ -36,8 +36,8 @@ case $arch in
         ;;
 esac
 
-if [ ! -d "/usr/lib/jvm/java-8-openjdk-$jre_arch/jre" ]; then
+if [ ! -d "/usr/lib/jvm/java-17-openjdk-$jre_arch" ]; then
   echo "error: missing openjdk for $jre_arch" >&2
   exit 1
 fi
-echo "export JAVA_HOME=/usr/lib/jvm/java-8-openjdk-$jre_arch/jre" >> /etc/profile
+echo "export JAVA_HOME=/usr/lib/jvm/java-17-openjdk-$jre_arch" >> /etc/profile

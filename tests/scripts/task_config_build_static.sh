@@ -30,6 +30,3 @@ echo set\(BUILD_STATIC_RUNTIME ON\) >> config.cmake
 echo set\(USE_FALLBACK_STL_MAP ON\) >> config.cmake
 echo set\(USE_MSVC_MT ON\) >> config.cmake
 echo set\(USE_RPC OFF\) >> config.cmake
-echo set\(USE_GRAPH_EXECUTOR OFF\) >> config.cmake
-echo set\(USE_PROFILER OFF\) >> config.cmake
-echo set\(USE_AOT_EXECUTOR OFF\) >> config.cmake

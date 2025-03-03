@@ -14,12 +14,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import pytest
+
 import tvm
 import tvm.testing
 from tvm import te
 from tvm.tir import Buffer
+from tvm.script import tir as T
+
 import numpy as np
+import pytest
 
 
 def test_buffer():
@@ -39,7 +42,7 @@ def test_buffer_access_ptr():
     n = te.size_var("n")
     Ab = tvm.tir.decl_buffer((m, n), "float32", strides=[n + 1, 1])
     aptr = Ab.access_ptr("rw")
-    assert tvm.ir.structural_equal(aptr.args[3], Ab.strides[0] * m)
+    tvm.ir.assert_structural_equal(aptr.args[3], Ab.strides[0] * m)
     assert aptr.args[0].dtype == Ab.dtype
     assert aptr.args[4].value == Buffer.READ | Buffer.WRITE
     aptr = Ab.access_ptr("w")
@@ -69,18 +72,18 @@ def test_buffer_access_ptr_extent():
     n = te.size_var("n")
     Ab = tvm.tir.decl_buffer((m, n), "float32")
     aptr = Ab.access_ptr("rw")
-    assert tvm.ir.structural_equal(aptr.args[3], m * n)
+    tvm.ir.assert_structural_equal(aptr.args[3], m * n)
     aptr = Ab.access_ptr("rw", offset=100)
-    assert tvm.ir.structural_equal(aptr.args[3], m * n - 100)
+    tvm.ir.assert_structural_equal(aptr.args[3], m * n - 100)
     Ab = tvm.tir.decl_buffer((m, n), "float32", strides=[n + 1, 1])
     aptr = Ab.access_ptr("rw", offset=100)
-    assert tvm.ir.structural_equal(aptr.args[3], Ab.strides[0] * m - 100)
+    tvm.ir.assert_structural_equal(aptr.args[3], Ab.strides[0] * m - 100)
 
     # Test extent from input params
     aptr = Ab.access_ptr("rw", extent=200)
-    assert tvm.ir.structural_equal(aptr.args[3], 200)
+    tvm.ir.assert_structural_equal(aptr.args[3], T.int32(200))
     aptr = Ab.access_ptr("rw", offset=100, extent=100)
-    assert tvm.ir.structural_equal(aptr.args[3], 100)
+    tvm.ir.assert_structural_equal(aptr.args[3], T.int32(100))
 
 
 def test_buffer_vload():
@@ -88,7 +91,7 @@ def test_buffer_vload():
     n = te.size_var("n")
     Ab = tvm.tir.decl_buffer((m, n), "float32", elem_offset=100)
     load = Ab.vload([2, 3])
-    tvm.ir.assert_structural_equal(load.indices, [2, 3])
+    tvm.ir.assert_structural_equal(load.indices, [T.int32(2), T.int32(3)])
 
 
 def test_buffer_offset_of():
@@ -109,9 +112,10 @@ def test_buffer_index_merge_mult_mod():
     A_stride = tvm.tir.decl_buffer((m, n), "float32", strides=(s, 1))
 
     def assert_simplified_equal(index_simplified, index_direct):
-        assert tvm.ir.structural_equal(
-            index_simplified, index_direct
-        ), "index_simplified=%s, index_direct=%s" % (index_simplified, index_direct)
+        (
+            tvm.ir.assert_structural_equal(index_simplified, index_direct),
+            "index_simplified=%s, index_direct=%s" % (index_simplified, index_direct),
+        )
 
     idxd = tvm.tir.indexdiv
     idxm = tvm.tir.indexmod
@@ -174,91 +178,12 @@ def test_buffer_index_merge_mult_mod():
     assert_simplified_equal(index_simplified2, index_direct)
 
 
-@tvm.testing.requires_llvm
-def test_buffer_broadcast():
-    m0, m1, m2 = te.size_var("m0"), te.size_var("m1"), te.size_var("m2")
-    n0, n1, n2 = te.size_var("n0"), te.size_var("n1"), te.size_var("n2")
-    o0, o1, o2 = te.size_var("o0"), te.size_var("o1"), te.size_var("o2")
-
-    A = te.placeholder((m0, m1, m2), name="A")
-    B = te.placeholder((n0, n1, n2), name="B")
-
-    C = te.compute((o0, o1, o2), lambda i, j, k: A[i, j, k] + B[i, j, k], name="C")
-
-    Ab = tvm.tir.decl_buffer(A.shape, A.dtype, name="Ab", buffer_type="auto_broadcast")
-    Bb = tvm.tir.decl_buffer(B.shape, B.dtype, name="Bb", buffer_type="auto_broadcast")
-    s = te.create_schedule(C.op)
-
-    def check():
-        fadd = tvm.build(s, [A, B, C], target="llvm", name="bcast_add", binds={A: Ab, B: Bb})
-        dev = tvm.cpu(0)
-        a = tvm.nd.array(np.random.uniform(size=(2, 4, 3)).astype(A.dtype), dev)
-        b = tvm.nd.array(np.random.uniform(size=(2, 1, 1)).astype(B.dtype), dev)
-        c = tvm.nd.array(np.zeros((2, 4, 3), dtype=C.dtype), dev)
-        fadd(a, b, c)
-        tvm.testing.assert_allclose(c.numpy(), a.numpy() + b.numpy())
-
-    check()
-
-
-@tvm.testing.requires_llvm
-def test_buffer_broadcast_expr():
-    n0, m0, x = te.size_var("n0"), te.size_var("m0"), te.size_var("x")
-    n1, m1 = te.size_var("n1"), te.size_var("m1")
-    o0, o1 = te.size_var("o0"), te.size_var("o1")
-
-    A = te.placeholder((m0, n0), name="A")
-    B = te.placeholder((m1, n1), name="B")
-    C = te.compute((o0, o1 // x), lambda i, j: A[i, j] + B[i, j], name="C")
-
-    Ab = tvm.tir.decl_buffer(A.shape, A.dtype, name="Ab", buffer_type="auto_broadcast")
-    Bb = tvm.tir.decl_buffer(B.shape, B.dtype, name="Bb", buffer_type="auto_broadcast")
-    Cc = tvm.tir.decl_buffer(C.shape, C.dtype, name="Cc", buffer_type="auto_broadcast")
-    s = te.create_schedule(C.op)
-
-    def check_stride():
-        fadd = tvm.build(
-            s, [A, B, C, o1, x], target="llvm", name="bcast_add", binds={A: Ab, B: Bb, C: Cc}
-        )
-        dev = tvm.cpu(0)
-        a = tvm.nd.array(np.random.uniform(size=(2, 4)).astype(A.dtype), dev)
-        b = tvm.nd.array(np.random.uniform(size=(2, 4)).astype(B.dtype), dev)
-        c = tvm.nd.array(np.zeros((2, 4), dtype=C.dtype), dev)
-        fadd(a, b, c, 4, 1)
-        tvm.testing.assert_allclose(c.numpy(), a.numpy() + b.numpy())
-
-    def check_no_stride():
-        fadd = tvm.build(
-            s, [A, B, C, o1, x], target="llvm", name="bcast_add", binds={A: Ab, B: Bb, C: Cc}
-        )
-        dev = tvm.cpu(0)
-        a = tvm.nd.array(np.random.uniform(size=(1, 4)).astype(A.dtype), dev)
-        b = tvm.nd.array(np.random.uniform(size=(2, 4)).astype(B.dtype), dev)
-        c = tvm.nd.array(np.zeros((2, 4), dtype=C.dtype), dev)
-        fadd(a, b, c, 4, 1)
-        tvm.testing.assert_allclose(c.numpy(), a.numpy() + b.numpy())
-
-    def check_auto_bind():
-        # Let build bind buffers
-        fadd = tvm.build(s, [A, B, C, o1, x], target="llvm", name="bcast_add")
-        dev = tvm.cpu(0)
-        a = tvm.nd.array(np.random.uniform(size=(1, 4)).astype(A.dtype), dev)
-        b = tvm.nd.array(np.random.uniform(size=(2, 4)).astype(B.dtype), dev)
-        c = tvm.nd.array(np.zeros((2, 4), dtype=C.dtype), dev)
-        fadd(a, b, c, 4, 1)
-        tvm.testing.assert_allclose(c.numpy(), a.numpy() + b.numpy())
-
-    check_stride()
-    check_no_stride()
-    check_auto_bind()
-
-
 def test_buffer_flatten():
     """A buffer should flatten to a 1-d shape"""
     buf = tvm.tir.decl_buffer([16, 32])
     flat = buf.get_flattened_buffer()
     assert buf.data.same_as(flat.data)
-    tvm.ir.assert_structural_equal(flat.shape, [16 * 32])
+    tvm.ir.assert_structural_equal(flat.shape, [T.int32(16 * 32)])
 
 
 def test_buffer_flatten_preserves_identity():
@@ -272,8 +197,13 @@ def test_buffer_flatten_uses_axis_separators():
     """Flattening to N-d physical buffers uses the axis separators"""
     buf = tvm.tir.decl_buffer([4, 16, 32], axis_separators=[2])
     flat = buf.get_flattened_buffer()
-    tvm.ir.assert_structural_equal(flat.axis_separators, [1])
-    tvm.ir.assert_structural_equal(flat.shape, [4 * 16, 32])
+    tvm.ir.assert_structural_equal(flat.axis_separators, [T.int32(1)])
+    tvm.ir.assert_structural_equal(flat.shape, [T.int32(4 * 16), T.int32(32)])
+
+
+def test_invalid_axis_separators_raises_exception():
+    with pytest.raises(ValueError):
+        tvm.tir.decl_buffer([1], axis_separators=[1, 2])
 
 
 if __name__ == "__main__":

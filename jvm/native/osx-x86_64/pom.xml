@@ -115,7 +115,7 @@ under the License.
             </source>
           </sources>
           <compilerStartOptions>
-            <compilerStartOption>-std=c++0x</compilerStartOption>
+            <compilerStartOption>-std=c++17</compilerStartOption>
           </compilerStartOptions>
           <compilerEndOptions>
             <compilerEndOption>-I../../../include</compilerEndOption>

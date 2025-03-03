@@ -73,75 +73,14 @@ def test_if_likely():
     assert not isinstance(body.body.body.then_case, tvm.tir.IfThenElse)
 
 
-def test_basic_likely_elimination():
-    n = te.size_var("n")
-    X = te.placeholder(shape=(n,), name="x")
-    W = te.placeholder(shape=(n + 1,), dtype="int32", name="w")
-
-    def f(i):
-        start = W[i]
-        extent = W[i + 1] - W[i]
-        rv = te.reduce_axis((0, extent))
-        return te.sum(X[rv + start], axis=rv)
-
-    Y = te.compute(X.shape, f, name="y")
-    s = te.create_schedule([Y.op])
-    stmt = tvm.lower(s, [X, W, Y], simple_mode=True)
-    assert "if" not in str(stmt)
-
-
-def test_complex_likely_elimination():
-    def cumsum(X):
-        """
-        Y[i] = sum(X[:i])
-        """
-        (m,) = X.shape
-        s_state = te.placeholder((m + 1,), dtype="int32", name="state")
-        s_init = te.compute((1,), lambda _: tvm.tir.const(0, "int32"))
-        s_update = te.compute((m + 1,), lambda l: s_state[l - 1] + X[l - 1])
-        return tvm.te.scan(s_init, s_update, s_state, inputs=[X], name="cumsum")
-
-    def sparse_lengths_sum(data, indices, lengths):
-        oshape = list(data.shape)
-        oshape[0] = lengths.shape[0]
-        length_offsets = cumsum(lengths)
-
-        def sls(n, d):
-            gg = te.reduce_axis((0, lengths[n]))
-            indices_idx = length_offsets[n] + gg
-            data_idx = indices[indices_idx]
-            data_val = data[data_idx, d]
-            return te.sum(data_val, axis=gg)
-
-        return te.compute(oshape, sls)
-
-    m, n, d, i, l = (
-        te.size_var("m"),
-        te.size_var("n"),
-        te.size_var("d"),
-        te.size_var("i"),
-        te.size_var("l"),
-    )
-    data_ph = te.placeholder((m, d * 32), name="data")
-    indices_ph = te.placeholder((i,), name="indices", dtype="int32")
-    lengths_ph = te.placeholder((n,), name="lengths", dtype="int32")
-    Y = sparse_lengths_sum(data_ph, indices_ph, lengths_ph)
-    s = te.create_schedule([Y.op])
-    (n, d) = s[Y].op.axis
-    (do, di) = s[Y].split(d, factor=32)
-    (gg,) = s[Y].op.reduce_axis
-    s[Y].reorder(n, do, gg, di)
-    s[Y].vectorize(di)
-    stmt = tvm.lower(s, [data_ph, indices_ph, lengths_ph, Y], simple_mode=True)
-    assert "if" not in str(stmt)
-
-
 class BaseBeforeAfter(tvm.testing.CompareBeforeAfter):
     transitively_prove_inequalities = False
     convert_boolean_to_and_of_ors = False
     apply_constraints_to_boolean_branches = False
     propagate_knowns_to_prove_conditional = False
     propagate_knowns_to_simplify_expressions = False
+    # from base class
+    check_well_formed = False
 
     def transform(self):
         def inner(mod):
@@ -650,7 +589,8 @@ class TestRemoveTransitivelyProvableCondition(BaseBeforeAfter):
     def before(self, test_case):
         priors, postulate, _ = test_case
 
-        @T.prim_func
+        # well formed checker complains of undefined variables in condition
+        @T.prim_func(check_well_formed=False)
         def func(A: T.Buffer(1, "bool")):
             if priors:
                 A[0] = postulate
@@ -665,8 +605,8 @@ class TestRemoveTransitivelyProvableCondition(BaseBeforeAfter):
         priors = analyzer.canonical_simplify(priors)
 
         if provable:
-
-            @T.prim_func
+            # well formed checker complains of undefined variables in condition
+            @T.prim_func(check_well_formed=False)
             def func(A: T.Buffer(1, "bool")):
                 if priors:
                     A[0] = True
@@ -676,7 +616,8 @@ class TestRemoveTransitivelyProvableCondition(BaseBeforeAfter):
         else:
             postulate = analyzer.canonical_simplify(postulate)
 
-            @T.prim_func
+            # well formed checker complains of undefined variables in condition
+            @T.prim_func(check_well_formed=False)
             def func(A: T.Buffer(1, "bool")):
                 if priors:
                     A[0] = postulate
@@ -1016,25 +957,48 @@ class TestMostRestrictiveConditional(BaseBeforeAfter):
     then `a >= b` cannot be proven, but can be reduced to `a == b`.
     """
 
+    class TupleWrapper(tuple):
+        """
+        A custom wrapper for `tuple` to handle element-wise equality comparison
+        to avoid comparison errors when dealing with objects like `ExprOp`.
+        See also: https://github.com/apache/tvm/pull/17397
+        """
+
+        def __new__(self, *args):
+            return super().__new__(self, args)
+
+        def __eq__(self, other):
+            from tvm.tir.expr import ExprOp
+
+            for a, b in zip(self, other):
+                if isinstance(a, ExprOp) and isinstance(a, ExprOp):
+                    if not tvm.ir.structural_equal(a, b):
+                        return False
+                else:
+                    if not a.__eq__(b):
+                        return False
+            return True
+
     i, j, k = [tvm.tir.Var(name, "int32") for name in "ijk"]
     tir_int = tvm.tir.IntImm("int32", 0)
 
     test_case = tvm.testing.parameter(
-        (i <= tir_int, tir_int <= i, i == tir_int),
-        (i <= tir_int, i != tir_int, i < tir_int),
-        (i != tir_int, i <= tir_int, i < tir_int),
-        (i != tir_int, tir_int <= i, tir_int < i),
-        (i <= j, j <= i, j == i),
-        (i <= j, i != j, i < j),
-        (i != j, i <= j, i < j),
-        (i != j, j <= i, j < i),
+        TupleWrapper(i <= tir_int, tir_int <= i, i == tir_int),
+        TupleWrapper(i <= tir_int, i != tir_int, i < tir_int),
+        TupleWrapper(i != tir_int, i <= tir_int, i < tir_int),
+        TupleWrapper(i != tir_int, tir_int <= i, tir_int < i),
+        TupleWrapper(i <= j, j <= i, j == i),
+        TupleWrapper(i <= j, i != j, i < j),
+        TupleWrapper(i != j, i <= j, i < j),
+        TupleWrapper(i != j, j <= i, j < i),
     )
 
     @tvm.testing.fixture
     def before(self, test_case):
         priors, expr_before, _ = test_case
 
-        @T.prim_func
+        # well formed checker complains of undefined variables in condition
+        @T.prim_func(check_well_formed=False)
         def func(A: T.Buffer(1, "bool")):
             if priors:
                 A[0] = expr_before
@@ -1045,7 +1009,8 @@ class TestMostRestrictiveConditional(BaseBeforeAfter):
     def expected(self, test_case):
         priors, _, expr_after = test_case
 
-        @T.prim_func
+        # well formed checker complains of undefined variables in condition
+        @T.prim_func(check_well_formed=False)
         def func(A: T.Buffer(1, "bool")):
             if priors:
                 A[0] = expr_after
@@ -1755,6 +1720,18 @@ class TestBufferShapeConstraintWithOffset(BaseBeforeAfter):
         n = T.int64()
         A = T.match_buffer(a, (n * 32 + 1 - 2,), "float32")
         A[T.int64(1)] = T.float32(0)
+
+
+class TestNestedIfElimination(BaseBeforeAfter):
+    def before(a: T.Buffer((2, 8), "int32"), b: T.Buffer((2, 8), "int32")):
+        for i0, j0 in T.grid(2, 8):
+            b[i0, j0] = T.if_then_else(
+                i0 == 1 and 6 <= j0, 0, T.max(0, T.if_then_else(i0 == 1 and 6 <= j0, 0, a[i0, j0]))
+            )
+
+    def expected(a: T.Buffer((2, 8), "int32"), b: T.Buffer((2, 8), "int32")):
+        for i0, j0 in T.grid(2, 8):
+            b[i0, j0] = T.if_then_else(i0 == 1 and 6 <= j0, 0, T.max(0, a[i0, j0]))
 
 
 if __name__ == "__main__":

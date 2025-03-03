@@ -30,7 +30,21 @@ namespace script {
 namespace printer {
 
 IdDoc IRDocsifierNode::Define(const ObjectRef& obj, const Frame& frame, const String& name_hint) {
-  ICHECK(obj2info.find(obj) == obj2info.end()) << "Duplicated object: " << obj;
+  if (auto it = obj2info.find(obj); it != obj2info.end()) {
+    // TVM's IR dialects do not allow multiple definitions of the same
+    // variable within an IRModule.  This branch can only be reached
+    // when printing ill-formed inputs.
+    //
+    // However, the printer is different from most utilities, as it
+    // may neither assume that its input is well-formed, nor may it
+    // throw an exception if the input is ill-formed.  The printer is
+    // often used for debugging, where logging and printouts of an
+    // IRModule are essential.  In these cases, throwing an error
+    // would prevent a developer from determining why an IRModule is
+    // ill-formed.
+    return IdDoc(it->second.name.value());
+  }
+
   String name = name_hint;
   if (cfg->show_object_address) {
     std::stringstream stream;
@@ -69,6 +83,12 @@ ExprDoc IRDocsifierNode::AddMetadata(const ObjectRef& obj) {
     array.push_back(obj);
   }
   return IdDoc("metadata")[{LiteralDoc::Str(key, NullOpt)}][{LiteralDoc::Int(index, NullOpt)}];
+}
+
+void IRDocsifierNode::AddGlobalInfo(const String& name, const GlobalInfo& ginfo) {
+  ICHECK(ginfo.defined()) << "TypeError: Cannot add nullptr to global_infos";
+  Array<GlobalInfo>& array = global_infos[name];
+  array.push_back(ginfo);
 }
 
 bool IRDocsifierNode::IsVarDefined(const ObjectRef& obj) const { return obj2info.count(obj); }
@@ -165,6 +185,10 @@ IRDocsifier::IRDocsifier(const PrinterConfig& cfg) {
   auto n = make_object<IRDocsifierNode>();
   n->cfg = cfg;
   n->dispatch_tokens.push_back("");
+  // Define builtin keywords according to cfg.
+  for (const String& keyword : cfg->GetBuiltinKeywords()) {
+    n->defined_names.insert(keyword);
+  }
   data_ = std::move(n);
 }
 

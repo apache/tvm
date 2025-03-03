@@ -424,13 +424,22 @@ inline Array<FloatImm> AsFloatArray(const ObjectRef& obj) {
   Array<FloatImm> results;
   results.reserve(arr->size());
   for (const ObjectRef& elem : *arr) {
-    if (const auto* int_imm = elem.as<IntImmNode>()) {
-      results.push_back(FloatImm(DataType::Float(32), int_imm->value));
-    } else if (const auto* float_imm = elem.as<FloatImmNode>()) {
-      results.push_back(FloatImm(DataType::Float(32), float_imm->value));
-    } else {
-      LOG(FATAL) << "TypeError: Expect an array of float or int, but gets: " << elem->GetTypeKey();
-    }
+    auto float_value = [&]() -> double {
+      if (const auto* int_imm = elem.as<IntImmNode>()) {
+        return int_imm->value;
+      } else if (const auto* runtime_int = elem.as<runtime::Int::ContainerType>()) {
+        return runtime_int->value;
+      } else if (const auto* float_imm = elem.as<FloatImmNode>()) {
+        return float_imm->value;
+      } else if (const auto* runtime_float = elem.as<runtime::Float::ContainerType>()) {
+        return runtime_float->value;
+      } else {
+        LOG(FATAL) << "TypeError: Expect an array of float or int, but gets: "
+                   << elem->GetTypeKey();
+      }
+    }();
+
+    results.push_back(FloatImm(DataType::Float(32), float_value));
   }
   return results;
 }
@@ -446,11 +455,16 @@ inline Array<Integer> AsIntArray(const ObjectRef& obj) {
   Array<Integer> results;
   results.reserve(arr->size());
   for (const ObjectRef& elem : *arr) {
-    if (const auto* int_imm = elem.as<IntImmNode>()) {
-      results.push_back(Integer(int_imm->value));
-    } else {
-      LOG(FATAL) << "TypeError: Expect an array of integers, but gets: " << elem->GetTypeKey();
-    }
+    auto int_value = [&]() -> int64_t {
+      if (const auto* int_imm = elem.as<IntImmNode>()) {
+        return int_imm->value;
+      } else if (const auto* runtime_int = elem.as<runtime::Int::ContainerType>()) {
+        return runtime_int->value;
+      } else {
+        LOG(FATAL) << "TypeError: Expect an array of integers, but gets: " << elem->GetTypeKey();
+      }
+    }();
+    results.push_back(Integer(int_value));
   }
   return results;
 }
@@ -513,7 +527,8 @@ inline void CloneRules(const SpaceGeneratorNode* src, SpaceGeneratorNode* dst) {
 
 /*! \brief Returns true if the given target is one of the supported gpu targets. */
 inline bool IsGPUTarget(const std::string& target_name) {
-  static const std::unordered_set<std::string> gpu_targets{"cuda", "rocm", "vulkan", "metal"};
+  static const std::unordered_set<std::string> gpu_targets{"cuda", "rocm", "vulkan", "metal",
+                                                           "opencl"};
   return gpu_targets.count(target_name);
 }
 
@@ -528,8 +543,6 @@ inline ScheduleRule GetDefaultAutoInline(const std::string& target_name) {
     rules = ScheduleRule::DefaultLLVM();
   } else if (target_name == "hexagon") {
     rules = ScheduleRule::DefaultHexagon();
-  } else if (target_name == "c") {
-    rules = ScheduleRule::DefaultMicro();
   } else if (IsGPUTarget(target_name)) {
     rules = ScheduleRule::DefaultCUDA();
   } else {
@@ -557,6 +570,78 @@ inline double Sum(const Array<FloatImm>& arr) {
   }
   return sum;
 }
+
+/*! \brief Collecting all the blocks */
+class BlockCollector : public tir::StmtVisitor {
+ public:
+  static Array<tir::BlockRV> Collect(const tir::Schedule& sch,
+                                     const runtime::PackedFunc f_block_filter = nullptr) {  //
+    return BlockCollector(sch, f_block_filter).Run();
+  }
+
+ private:
+  /*! \brief Entry point */
+  Array<tir::BlockRV> Run() {
+    std::vector<tir::BlockRV> results;
+    auto f_collect = [this, &results](tir::PrimFunc func, String func_name) {
+      func_name_ = func_name;
+      block_names_.clear();
+      blocks_to_collect_.clear();
+      VisitStmt(func->body);
+      for (const String& name : blocks_to_collect_) {
+        results.push_back(sch_->GetBlock(name, func_name_));
+      }
+    };
+
+    if (sch_->func_working_on().defined()) {
+      GlobalVar gv = sch_->func_working_on().value();
+      tir::PrimFunc func = Downcast<tir::PrimFunc>(sch_->mod()->functions[gv]);
+      f_collect(func, gv->name_hint);
+    } else {
+      for (const auto& [gv, base_func] : sch_->mod()->functions) {
+        // `gv->name_hint` is the name of the function
+        // `base_func` can be PrimFunc or relax::Function
+        if (const auto* func = base_func.as<tir::PrimFuncNode>()) {
+          f_collect(GetRef<tir::PrimFunc>(func), gv->name_hint);
+        }
+      }
+    }
+    return results;
+  }
+  /*! \brief Constructor */
+  explicit BlockCollector(const tir::Schedule& sch,
+                          const runtime::PackedFunc f_block_filter = nullptr)
+      : sch_(sch), f_block_filter_(f_block_filter) {}
+  /*! \brief Override the Stmt visiting behaviour */
+  void VisitStmt_(const tir::BlockNode* block) override {
+    tir::StmtVisitor::VisitStmt_(block);
+    CHECK(block_names_.count(block->name_hint) == 0)
+        << "Duplicated block name " << block->name_hint << " in function " << func_name_
+        << " not supported!";
+    block_names_.insert(block->name_hint);
+
+    // If filter function is provided, use it to selectively collect blocks.
+    // Otherwise collect all blocks.
+    Bool collect_block = Bool(true);
+    if (f_block_filter_ != nullptr) {
+      collect_block = f_block_filter_(GetRef<tir::Block>(block));
+    }
+    if (collect_block) {
+      blocks_to_collect_.push_back(block->name_hint);
+    }
+  }
+
+  /*! \brief The schedule to be collected */
+  const tir::Schedule& sch_;
+  /*! \brief An optional packed func that allows only certain blocks to be collected. */
+  const runtime::PackedFunc f_block_filter_;
+  /*! \brief The set of func name and block name pair */
+  std::unordered_set<String> block_names_;
+  /* \brief The list of blocks to collect in order */
+  Array<String> blocks_to_collect_;
+  /*! \brief Name of the current PrimFunc */
+  String func_name_;
+};
 
 }  // namespace meta_schedule
 }  // namespace tvm

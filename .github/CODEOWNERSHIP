@@ -132,13 +132,6 @@ src/runtime/**  @vinx13 @tqchen @FronzenGene @liangfu @areusch @tmoreau89 @ajtul
 include/tvm/runtime/**  @vinx13 @tqchen @FronzenGene @liangfu @areusch @tmoreau89 @ajtulloch @masahi @kazum @ZihengJiang  @junrushao1994
 python/tvm/runtime/**  @vinx13 @tqchen @FronzenGene @liangfu @areusch @tmoreau89 @ajtulloch @masahi @kazum @ZihengJiang  @junrushao1994
 
-# runtime/micro
-src/runtime/micro/** @areusch @liangfu @tmoreau89 @manupa-arm
-src/runtime/crt/** @areusch @liangfu @tmoreau89 @manupa-arm
-include/tvm/runtime/crt/** @areusch @liangfu @tmoreau89 @manupa-arm
-include/tvm/runtime/micro/** @areusch @liangfu @tmoreau89 @manupa-arm
-python/tvm/micro/** @areusch @liangfu @tmoreau89 @manupa-arm
-
 # relay
 src/relay/** @jroesch @slyubomirsky @icemelon @MarisaKirisame @ZihengJiang @yzhliu @vinx13 @mbrookhart @jwfromm @zhiics @anijain2305 @wweic @eqy @junrushao1994
 include/tvm/relay/** @jroesch @slyubomirsky @icemelon @MarisaKirisame @ZihengJiang @yzhliu @vinx13 @mbrookhart @jwfromm @zhiics @anijain2305 @wweic @eqy @junrushao1994

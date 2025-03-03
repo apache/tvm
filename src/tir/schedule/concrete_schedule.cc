@@ -233,9 +233,9 @@ support::LinearCongruentialEngine::TRandState ConcreteScheduleNode::ForkSeed() {
   return support::LinearCongruentialEngine(&rand_state_).ForkSeed();
 }
 
-ExprRV ConcreteScheduleNode::SampleCategorical(const Array<Integer>& candidates,
-                                               const Array<FloatImm>& probs,
-                                               Optional<Integer> decision) {
+ExprRV ConcreteScheduleNode::SampleCategorical(const Array<runtime::Int>& candidates,
+                                               const Array<runtime::Float>& probs,
+                                               Optional<runtime::Int> decision) {
   TVM_TIR_SCHEDULE_BEGIN();
   return CreateRV(tir::SampleCategorical(&this->rand_state_, candidates, probs, &decision));
   TVM_TIR_SCHEDULE_END("sample-categorical", this->error_render_level_);
@@ -246,8 +246,10 @@ Array<ExprRV> ConcreteScheduleNode::SamplePerfectTile(const LoopRV& loop_rv, int
                                                       int max_innermost_factor,
                                                       Optional<Array<Integer>> decision) {
   TVM_TIR_SCHEDULE_BEGIN();
+  // use None RV object to denotes auto-infer tile factors.
   return CreateRV(tir::SamplePerfectTile(&this->rand_state_, this->GetSRef(loop_rv), n,
-                                         max_innermost_factor, &decision));
+                                         max_innermost_factor, &decision),
+                  /*convert_negone_to_none=*/true);
   TVM_TIR_SCHEDULE_END("sample-perfect-tile", this->error_render_level_);
   throw;
 }
@@ -394,71 +396,79 @@ LoopRV ConcreteScheduleNode::Fuse(const Array<LoopRV>& loop_rvs, bool preserve_u
   return CreateRV<LoopRV>(result);
 }
 
-Array<LoopRV> ConcreteScheduleNode::Split(const LoopRV& loop_rv,
-                                          const Array<Optional<ExprRV>>& factor_rvs,
-                                          bool preserve_unit_iters) {
-  class NotSingleInferFactorError : public ScheduleError {
-   public:
-    explicit NotSingleInferFactorError(IRModule mod) : mod_(mod) {}
+class NotSingleInferFactorError : public ScheduleError {
+ public:
+  explicit NotSingleInferFactorError(IRModule mod) : mod_(mod) {}
 
-    String FastErrorString() const final {
-      return "ScheduleError: only one factor can be specified as -1 or none";
-    }
+  String FastErrorString() const final {
+    return "ScheduleError: only one factor can be specified as -1 or none";
+  }
 
-    String DetailRenderTemplate() const final {
-      return "Only one factor can be specified as -1 or none";
-    }
+  String DetailRenderTemplate() const final {
+    return "Only one factor can be specified as -1 or none";
+  }
 
-    IRModule mod() const final { return mod_; }
-    Array<ObjectRef> LocationsOfInterest() const final { return {}; }
+  IRModule mod() const final { return mod_; }
+  Array<ObjectRef> LocationsOfInterest() const final { return {}; }
 
-    IRModule mod_;
-  };
+  IRModule mod_;
+};
 
-  class WrongFactorProductError : public ScheduleError {
-   public:
-    explicit WrongFactorProductError(IRModule mod, For loop) : mod_(mod), loop_(std::move(loop)) {}
+class WrongFactorError : public ScheduleError {
+ public:
+  explicit WrongFactorError(IRModule mod, For loop, bool product)
+      : mod_(mod), loop_(std::move(loop)), product_(product) {}
 
-    String FastErrorString() const final {
+  String FastErrorString() const final {
+    if (product_)
       return "ScheduleError: The product of factors is not larger than or equal to the extent of "
              "loop";
-    }
+    else
+      return "ScheduleError: The sum of factors is larger than or equal to the extent of loop";
+  }
 
-    String DetailRenderTemplate() const final {
+  String DetailRenderTemplate() const final {
+    if (product_)
       return "The product of factors is not larger than or equal to the extent of loop {0}";
-    }
+    else
+      return "The sum of factors is larger than or equal to the extent of loop {0}";
+  }
 
-    IRModule mod() const final { return mod_; }
-    Array<ObjectRef> LocationsOfInterest() const final { return {loop_}; }
+  IRModule mod() const final { return mod_; }
+  Array<ObjectRef> LocationsOfInterest() const final { return {loop_}; }
 
-    IRModule mod_;
-    For loop_;
-  };
+  IRModule mod_;
+  For loop_;
+  bool product_;
+};
 
-  class NonPositiveFactorError : public ScheduleError {
-   public:
-    explicit NonPositiveFactorError(IRModule mod, int64_t factor, size_t idx)
-        : mod_(std::move(mod)), factor_(factor), idx_(idx) {}
+class NonPositiveFactorError : public ScheduleError {
+ public:
+  explicit NonPositiveFactorError(IRModule mod, int64_t factor, size_t idx)
+      : mod_(std::move(mod)), factor_(factor), idx_(idx) {}
 
-    String FastErrorString() const final {
-      return "ScheduleError: All the constant factors are required to be positive. However, some "
-             "constant input factor is zero or negative.";
-    }
-    String DetailRenderTemplate() const final {
-      std::ostringstream os;
-      os << "All the constant factors are required to be positive. However, the factor at position "
-         << idx_ << " is " << factor_;
-      return os.str();
-    }
-    IRModule mod() const final { return mod_; }
-    Array<ObjectRef> LocationsOfInterest() const final { return {}; }
+  String FastErrorString() const final {
+    return "ScheduleError: All the constant factors are required to be positive. However, some "
+           "constant input factor is zero or negative.";
+  }
+  String DetailRenderTemplate() const final {
+    std::ostringstream os;
+    os << "All the constant factors are required to be positive. However, the factor at position "
+       << idx_ << " is " << factor_;
+    return os.str();
+  }
+  IRModule mod() const final { return mod_; }
+  Array<ObjectRef> LocationsOfInterest() const final { return {}; }
 
-   private:
-    IRModule mod_;
-    int64_t factor_;
-    size_t idx_;
-  };
+ private:
+  IRModule mod_;
+  int64_t factor_;
+  size_t idx_;
+};
 
+Array<LoopRV> ConcreteScheduleNode::Split(const LoopRV& loop_rv,
+                                          const Array<Optional<ExprRV>>& factor_rvs,
+                                          bool preserve_unit_iters, bool disable_predication) {
   // Prepare for the splitting
   StmtSRef loop_sref = this->GetSRef(loop_rv);
   const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
@@ -492,10 +502,85 @@ Array<LoopRV> ConcreteScheduleNode::Split(const LoopRV& loop_rv,
     factors.Set(infer_index,
                 this->analyzer_->Simplify(floordiv(loop->extent + tot_length - 1, tot_length)));
   } else if (!this->analyzer_->CanProve(tot_length >= loop->extent)) {
-    throw WrongFactorProductError(state_->mod, GetRef<For>(loop));
+    throw WrongFactorError(state_->mod, GetRef<For>(loop), true);
   }
-  results = tir::Split(state_, loop_sref, factors, preserve_unit_iters);
+  results = tir::Split(state_, loop_sref, factors, preserve_unit_iters, disable_predication);
   TVM_TIR_SCHEDULE_END("split", this->error_render_level_);
+  this->state_->DebugVerify();
+  return CreateRV<LoopRV>(results);
+}
+
+Array<LoopRV> ConcreteScheduleNode::LoopPartition(const LoopRV& loop_rv,
+                                                  const Array<Optional<ExprRV>>& factor_rvs,
+                                                  bool preserve_unit_iters) {
+  class SymbolicShapeError : public ScheduleError {
+   public:
+    explicit SymbolicShapeError(IRModule mod, For loop) : mod_(mod), loop_(std::move(loop)) {}
+
+    String FastErrorString() const final {
+      return "ScheduleError: The min and extent values of the loop are required to be known at "
+             "compile time. However, dynamic shape has been detected.";
+    }
+
+    String DetailRenderTemplate() const final {
+      return "Detected dynamic shape in either min or extent of a loop {0}";
+    }
+
+    IRModule mod() const final { return mod_; }
+    Array<ObjectRef> LocationsOfInterest() const final { return {loop_}; }
+
+    IRModule mod_;
+    For loop_;
+  };
+
+  // Prepare for the loop_partitioning
+  StmtSRef loop_sref = this->GetSRef(loop_rv);
+  const ForNode* loop = TVM_SREF_TO_FOR(loop_sref);
+  Array<PrimExpr> factors;
+  factors.reserve(factor_rvs.size());
+  int infer_index = -1;
+  PrimExpr tot_length = 0;
+  Array<StmtSRef> results;
+  TVM_TIR_SCHEDULE_BEGIN();
+  if (!is_const_number(loop->min) || !is_const_number(loop->extent)) {
+    throw SymbolicShapeError(state_->mod, GetRef<For>(loop));
+  }
+  // infer factor if needed and check validity of factors
+  for (size_t i = 0; i < factor_rvs.size(); i++) {
+    if (!factor_rvs[i].defined()) {
+      factors.push_back(Integer(-1));
+      if (infer_index != -1) {
+        throw NotSingleInferFactorError(state_->mod);
+      }
+      infer_index = i;
+    } else {
+      PrimExpr factor = this->Get(factor_rvs[i].value());
+      if (is_const_int(factor) && !is_positive_const(factor)) {
+        throw NonPositiveFactorError(state_->mod, factor.as<IntImmNode>()->value, i);
+      }
+      if (factor.dtype().bits() > loop->extent.dtype().bits()) {
+        factor = cast(loop->extent.dtype(), factor);
+      }
+      factors.push_back(factor);
+      tot_length += factor;
+    }
+  }
+  if (this->analyzer_->CanProve(tot_length >= loop->extent)) {
+    throw WrongFactorError(state_->mod, GetRef<For>(loop), false);
+  }
+  if (infer_index != -1) {
+    // if there is a 'None' in the factor list, 'None' becomes the difference between the extent and
+    // the sum of the factors excluding 'None' specified in the partition directive.
+    factors.Set(infer_index, loop->extent - tot_length);
+  }
+  for (size_t i = 1; i < factor_rvs.size(); i++) {
+    factors.Set(i, factors[i] + factors[i - 1]);
+  }
+  if (infer_index == -1) {
+    factors.push_back(loop->extent);
+  }
+  results = tir::LoopPartition(state_, loop_sref, factors, preserve_unit_iters);
+  TVM_TIR_SCHEDULE_END("loop_partition", this->error_render_level_);
   this->state_->DebugVerify();
   return CreateRV<LoopRV>(results);
 }
@@ -831,6 +916,14 @@ ObjectRef ConcreteScheduleNode::CheckAndGetAnnotationValue(const ObjectRef& ann_
   if (ann_val.as<StringObj>()) {
     return ann_val;
   }
+  if (auto* runtime_int = ann_val.as<runtime::Int::ContainerType>()) {
+    return IntImm(DataType::Int(32), runtime_int->value);
+  } else if (auto* runtime_float = ann_val.as<runtime::Float::ContainerType>()) {
+    return FloatImm(DataType::Float(32), runtime_float->value);
+  } else if (auto* runtime_bool = ann_val.as<runtime::Bool::ContainerType>()) {
+    return Bool(runtime_bool->value);
+  }
+
   if (const auto* expr = ann_val.as<PrimExprNode>()) {
     ICHECK(!ann_val->IsInstance<StringImmNode>())
         << "TypeError: runtime::String is expected, but gets StringImm";
@@ -965,6 +1058,16 @@ void ConcreteScheduleNode::UnsafeHideBufferAccess(const BlockRV& block_rv, const
   TVM_TIR_SCHEDULE_BEGIN();
   tir::UnsafeHideBufferAccess(state_, this->GetSRef(block_rv), buf_type, buf_index_array);
   TVM_TIR_SCHEDULE_END("hide-buffer-access", this->error_render_level_);
+  this->state_->DebugVerify();
+}
+
+void ConcreteScheduleNode::AnnotateBufferAccess(const BlockRV& block_rv, int buffer_index,
+                                                BufferIndexType buffer_index_type,
+                                                const IndexMap& index_map) {
+  TVM_TIR_SCHEDULE_BEGIN();
+  tir::AnnotateBufferAccess(state_, this->GetSRef(block_rv), buffer_index, buffer_index_type,
+                            index_map);
+  TVM_TIR_SCHEDULE_END("annotate-buffer-access", this->error_render_level_);
   this->state_->DebugVerify();
 }
 

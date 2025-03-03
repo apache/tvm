@@ -16,16 +16,27 @@
 # under the License.
 import tvm
 import tvm.testing
-from tvm import te
+from tvm import te, tir
+from tvm.script import tir as T
 
 
 class CanonicalChecker:
     def __init__(self):
         self.analyzer = tvm.arith.Analyzer()
 
+    def _convert(self, expr):
+        # TODO(Lunderberg): Make utility functions `tir.convert` and
+        # `relax.convert` that convert to their respective IR types.
+        # Implementation should be in C++, and should only consist of
+        # conversions that are applied automatically through FFI.
+        if isinstance(expr, int):
+            return T.int32(expr)
+        else:
+            return expr
+
     def verify(self, data, expected):
         res = self.analyzer.canonical_simplify(data)
-        expected = tvm.runtime.convert(expected)
+        expected = self._convert(expected)
         assert tvm.ir.structural_equal(res, expected), "\ndata={}\nres={}\nexpected={}".format(
             data, res, expected
         )
@@ -230,7 +241,7 @@ def test_reduce_combiner_simplify():
 
         # Check that the remaining components are the expected ones.
         for lhs, rhs in zip(simplified.source, reference_simplified_sources[j]):
-            assert tvm.ir.structural_equal(lhs, rhs)
+            tvm.ir.assert_structural_equal(lhs, rhs)
 
     # Test that components with side effects are not removed
     dummy = tvm.ir.GlobalVar("dummy")
@@ -377,13 +388,13 @@ def test_simplify_normalize_min_value_expr():
     x = te.var("x", "int32")
 
     ck.verify(te.min_value("int32") - x == 0, x == te.min_value("int32"))
-    ck.verify(te.min_value("int32") + x == 0, False)
+    ck.verify(te.min_value("int32") + x == 0, tir.const(False))
     ck.verify(0 == te.min_value("int32") - x, x == te.min_value("int32"))
-    ck.verify(0 == te.min_value("int32") + x, False)
+    ck.verify(0 == te.min_value("int32") + x, tir.const(False))
     ck.verify(-x + te.min_value("int32") == 0, x == te.min_value("int32"))
-    ck.verify(x + te.min_value("int32") == 0, False)
+    ck.verify(x + te.min_value("int32") == 0, tir.const(False))
     ck.verify(0 == -x + te.min_value("int32"), x == te.min_value("int32"))
-    ck.verify(0 == x + te.min_value("int32"), False)
+    ck.verify(0 == x + te.min_value("int32"), tir.const(False))
 
 
 def test_proddiv_simplify():
@@ -460,6 +471,11 @@ def test_simplify_le():
         x1 * 22 + (x2 * 8 + ty) % 22 < 43,
     )
     ck.verify(tx // 2 % 8 + vec < 8, tx % 16 // 2 + vec < 8)
+
+    # Case 3. No failure
+    x, y, z = te.var("x"), te.var("y"), te.var("z")
+    ck.analyzer.bind(y, tvm.ir.Range(0, 1024))
+    ck.verify(x * 1024 + y < z * 7168, x - z * 7 < 0)
 
 
 if __name__ == "__main__":

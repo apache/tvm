@@ -203,11 +203,21 @@ class WebSocketHandler(websocket.WebSocketHandler, ForwardHandler):
         self.close()
 
 
+MIME_MAP = {
+    "js": "text/javascript",
+    "css": "text/css",
+    "wasm": "application/wasm",
+    "json": "application/json",
+}
+
+
 class RequestHandler(tornado.web.RequestHandler):
     """Handles html request."""
 
     def __init__(self, *args, **kwargs):
         file_path = kwargs.pop("file_path")
+        self.format = file_path.split(".")[-1]
+
         if file_path.endswith("html"):
             self.page = open(file_path).read()
             web_port = kwargs.pop("rpc_web_port", None)
@@ -217,12 +227,15 @@ class RequestHandler(tornado.web.RequestHandler):
                 )
         else:
             self.page = open(file_path, "rb").read()
+
         super(RequestHandler, self).__init__(*args, **kwargs)
 
     def data_received(self, _):
         pass
 
     def get(self, *args, **kwargs):
+        if self.format in MIME_MAP:
+            self.set_header("Content-Type", MIME_MAP[self.format])
         self.write(self.page)
 
 
@@ -252,9 +265,14 @@ class ProxyServerHandler(object):
                 )
                 logging.info("Serving RPC index html page at http://localhost:%d", web_port)
             resource_files = resource_files if resource_files else []
-            for fname in resource_files:
+            for item in resource_files:
+                prefix, fname = item
+                if not prefix.endswith("/"):
+                    prefix += "/"
+                if not prefix.startswith("/"):
+                    prefix = "/" + prefix
                 basename = os.path.basename(fname)
-                pair = (rf"/{basename}", RequestHandler, {"file_path": fname})
+                pair = (rf"{prefix}{basename}", RequestHandler, {"file_path": fname})
                 handlers.append(pair)
                 logging.info(pair)
             self.app = tornado.web.Application(handlers)

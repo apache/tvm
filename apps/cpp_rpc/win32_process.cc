@@ -23,7 +23,7 @@
 #include "win32_process.h"
 
 #include <conio.h>
-#include <dmlc/logging.h>
+#include <tvm/runtime/logging.h>
 #include <winsock2.h>
 #include <ws2tcpip.h>
 

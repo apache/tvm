@@ -34,6 +34,7 @@
 #if CUDART_VERSION >= 10010
 #include <cublasLt.h>
 #endif  // CUDART_VERSION >= 10010
+#include <optional>
 
 namespace tvm {
 namespace contrib {
@@ -77,6 +78,20 @@ struct CuBlasThreadEntry {
   static CuBlasThreadEntry* ThreadLocal();
 };  // CuBlasThreadEntry
 
+struct CuBlasLtThreadEntry {
+  CuBlasLtThreadEntry();
+  ~CuBlasLtThreadEntry();
+
+  cublasLtHandle_t handle{nullptr};
+  cublasLtMatmulPreference_t matmul_pref_desc{nullptr};
+  void* workspace_ptr{nullptr};
+  // 32MB workspace as suggested by NVIDIA
+  // https://docs.nvidia.com/cuda/cublas/index.html#cublassetworkspace.
+  static constexpr const size_t workspace_size = 33554432;
+
+  static CuBlasLtThreadEntry* ThreadLocal();
+};  // CuBlasLtThreadEntry
+
 inline cudaDataType_t GetCudaDataType(DLDataType type) {
   if (type.code == kDLInt) {
     switch (type.bits) {
@@ -104,6 +119,15 @@ inline cudaDataType_t GetCudaDataType(DLDataType type) {
   }
   LOG(FATAL) << "Unsupported cuda type";
 }
+
+/*! \brief Execute matrix multiply followed by the specified epilogue, using cuBLASLt. */
+void CallCublasLt(cublasLtHandle_t hdl, cudaStream_t stream,
+                  cublasLtMatmulPreference_t matmul_pref_desc, const DLTensor* A, const DLTensor* B,
+                  const DLTensor* bias, const DLTensor* scaleA, const DLTensor* scaleB,
+                  const DLTensor* C, bool transa, bool transb, void* workspace_ptr,
+                  size_t workspace_size, cublasLtEpilogue_t epilogue = CUBLASLT_EPILOGUE_DEFAULT,
+                  std::optional<float> dq_scale = std::nullopt);
+
 }  // namespace contrib
 }  // namespace tvm
 

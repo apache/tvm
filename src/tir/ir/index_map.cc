@@ -311,7 +311,7 @@ IndexMap IndexMap::RenameVariables(
     const std::function<Optional<String>(const Var& var)>& f_name_map) const {
   std::unordered_set<std::string> used_names;
   Map<Var, Var> var_remap;
-  NameSupply name_supply{""};
+  NameSupply name_supply;
   const IndexMapNode* n = this->get();
   if (f_name_map != nullptr) {
     // Collect variables with pre-defined names provided by f_name_map.

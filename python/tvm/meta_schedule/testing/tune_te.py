@@ -17,7 +17,6 @@
 # pylint: disable=missing-docstring
 import argparse
 import logging
-from distutils.util import strtobool
 from typing import Optional
 
 import tvm
@@ -25,6 +24,7 @@ from tvm import meta_schedule as ms
 from tvm import tir
 from tvm.meta_schedule.testing.te_workload import create_te_workload
 from tvm.support import describe
+from tvm.testing.utils import strtobool
 
 
 def _parse_args():

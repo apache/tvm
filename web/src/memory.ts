@@ -251,7 +251,7 @@ export class CachedCallStack implements Disposable {
    */
   reset(): void {
     this.stackTop = 0;
-    assert(this.addressToSetTargetValue.length == 0);
+    assert(this.addressToSetTargetValue.length === 0);
     while (this.tempArgs.length != 0) {
       (this.tempArgs.pop() as Disposable).dispose();
     }
@@ -353,7 +353,8 @@ export class CachedCallStack implements Disposable {
     const low = value & 0xffffffff;
     const base = offset >> 2;
     this.viewI32[base] = low;
-    this.viewI32[base + 1] = 0;
+    // sign extend
+    this.viewI32[base + 1] = value < 0 ? -1 : 0;
   }
 
   storeF64(offset: PtrOffset, value: number): void {
@@ -374,8 +375,9 @@ export class CachedCallStack implements Disposable {
    * @param data The string content.
    */
   allocThenSetArgString(offset: PtrOffset, data: string): void {
-    const strOffset = this.allocRawBytes(data.length + 1);
-    this.storeRawBytes(strOffset, StringToUint8Array(data));
+    const dataUint8: Uint8Array = StringToUint8Array(data);
+    const strOffset = this.allocRawBytes(dataUint8.length);
+    this.storeRawBytes(strOffset, dataUint8);
     this.addressToSetTargetValue.push([offset, strOffset]);
   }
   /**

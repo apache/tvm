@@ -48,112 +48,6 @@ def Apply(ftransform):
     return _fpass.prim_func_pass(_transform, opt_level=0, name="Apply")  # type: ignore
 
 
-def InjectPrefetch():
-    """Inject prefetch instructions into stmt.
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.InjectPrefetch()  # type: ignore
-
-
-def ApplyLayoutTransforms():
-    """Reshape buffers that appear in the "layout_transform_map"
-    fucntion attribute.
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-
-    """
-    return _ffi_api.ApplyLayoutTransforms()  # type: ignore
-
-
-def StorageFlatten(cache_line_size, create_bound_attribute: bool = False):
-    """Flatten the multi-dimensional read/write to 1D.
-
-
-    Parameters
-    ----------
-    cache_line_size: int
-        The size of CPU cache line.
-
-    create_bound_attribute:
-        Whether to create bound attributes.
-
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.StorageFlatten(cache_line_size, create_bound_attribute)  # type: ignore
-
-
-def TextureFlatten():
-    """Flatten the multi-dimensional read/write to 2D.
-
-
-    Parameters
-    ----------
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.TextureFlatten()  # type: ignore
-
-
-def InjectCopyIntrin(pragma_key: str, fintrin):
-    """Inject virtual thread loops.
-
-    Parameters
-    ----------
-    pragma_key : str
-        The pragma key for hint of copy.
-
-    fintrin : function
-        The function with signature copyintrin(src, dst, pad_before, pad_after, pad_value)
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.InjectCopyIntrin(pragma_key, fintrin)  # type: ignore
-
-
-def CoProcSync():
-    """Detect and insert sync points to co-processor.
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.CoProcSync()  # type: ignore
-
-
-def LiftAttrScope(attr_key: str):
-    """Lift common attrs with attr_key to outer scope.
-
-    Parameters
-    ----------
-    attr_key : str
-        The attribute key to be checked.
-
-    Returns
-    -------
-    fpass : tvm.transform.Pass
-        The result pass
-    """
-    return _ffi_api.LiftAttrScope(attr_key)  # type: ignore
-
-
 def LoopPartition():
     """Inject virtual thread loops.
 
@@ -228,6 +122,17 @@ def StorageRewrite():
         The result pass
     """
     return _ffi_api.StorageRewrite()  # type: ignore
+
+
+def InlinePrivateFunctions():
+    """Inline calls to private functions
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.InlinePrivateFunctions()  # type: ignore
 
 
 def PointerValueTypeRewrite():
@@ -671,9 +576,24 @@ def NarrowDataType(target_bits: int):
 
     Note
     ----
-    Run this pass after StorageFlatten.
+    Run this pass after FlattenBuffer.
     """
     return _ffi_api.NarrowDataType(target_bits)  # type: ignore
+
+
+def ForceNarrowIndexToInt32():
+    """Force narrow down indexing expressions and integer buffers to int32 dtype.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+
+    Note
+    ----
+    This pass should not be used in default cases.
+    """
+    return _ffi_api.ForceNarrowIndexToInt32()  # type: ignore
 
 
 def VerifyMemory():
@@ -687,7 +607,7 @@ def VerifyMemory():
     return _ffi_api.VerifyMemory()  # type: ignore
 
 
-def VerifyVTCMLimit(limit: int):
+def VerifyVTCMLimit(limit=None):
     """Verify if the size of the allocated vtcm memory satisfies the limit.
 
     Returns
@@ -985,8 +905,8 @@ def UnifyThreadBinding():
     return _ffi_api.UnifyThreadBinding()  # type: ignore
 
 
-def MergeDynamicSharedMemoryAllocations():
-    """This pass merges multiple TIR-level dynamic shared memory allocations
+def MergeSharedMemoryAllocations():
+    """This pass merges multiple TIR-level shared memory allocations
     into one allocation.
 
     Returns
@@ -994,7 +914,7 @@ def MergeDynamicSharedMemoryAllocations():
     fpass : tvm.transform.Pass
         The result pass
     """
-    return _ffi_api.MergeDynamicSharedMemoryAllocations()  # type: ignore
+    return _ffi_api.MergeSharedMemoryAllocations()  # type: ignore
 
 
 def ConvertForLoopsToSerial():
@@ -1145,13 +1065,65 @@ def InstrumentProfileIntrinsics():
     return _ffi_api.InstrumentProfileIntrinsics()  # type: ignore
 
 
-def InstallDebugSpans():
-    """Add line information from the TIR printer as spans on each statement and
-    expression.
+def DefaultGPUSchedule():
+    """The pass sets default thread bindings for PrimFuncs, including symbolic shape functions,
+    allowing their build and execution on GPU devices. It examines all the blocks within the
+    PrimFunc and conducts loop fusion, splitting, and reordering operation based on the loop
+    extent and target information, such as the maximum thread block number and maximum thread
+    per block.
+
+    The primary objective of this pass is not to optimize performance, but rather to generate
+    a valid GPU kernel for unscheduled or symbolic shape PrimFuncs. The pass is currently only
+    working for CUDA targets.
+
+    Returns
+    -------
+    ret: tvm.transform.Pass
+    """
+    return _ffi_api.DefaultGPUSchedule()  # type: ignore
+
+
+def UseAssumeToReduceBranches():
+    """This pass attempts to eliminates layout specific pad branch by overcomputing the values
+    for padded region. Eliminating the branch will help to vectorize code,
+    and improve element wise ops performance.
 
     Returns
     -------
     fpass : tvm.transform.Pass
         The result pass
     """
-    return _ffi_api.InstallDebugSpans()  # type: ignore
+    return _ffi_api.UseAssumeToReduceBranches()  # type: ignore
+
+
+def LowerAsyncDMA():
+    """Lower async DMA to DMA.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.LowerAsyncDMA()  # type: ignore
+
+
+def InjectPTXLDG32(enable_inject_ptx_intrin: bool = True):
+    """Inject ptx.ldg.32 intrinsics.
+
+    Parameters
+    ----------
+    enable_inject_ptx_intrin : bool
+        If True, inject ptx.ldg.32 intrinsics.
+    """
+    return _ffi_api.InjectPTXLDG32(enable_inject_ptx_intrin)  # type: ignore
+
+
+def LowerVtcmAlloc():
+    """Lower vtcm allocation.
+
+    Returns
+    -------
+    fpass : tvm.transform.Pass
+        The result pass
+    """
+    return _ffi_api.LowerVtcmAlloc()  # type: ignore

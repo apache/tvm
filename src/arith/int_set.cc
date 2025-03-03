@@ -466,14 +466,23 @@ class IntervalSetEvaluator : public ExprFunctor<IntervalSet(const PrimExpr&)> {
     if (stride.Match(op->stride)) {
       DataType t = op->base.dtype();
       int64_t vstride = stride.Eval()->value;
-      if (vstride > 0) {
-        return Combine<Add>(analyzer_, base,
-                            IntervalSet(make_zero(t), make_const(t, vstride * (op->lanes - 1))),
-                            op->dtype);
-      } else {
-        return Combine<Add>(analyzer_, base,
-                            IntervalSet(make_const(t, vstride * (op->lanes - 1)), make_zero(t)),
-                            op->dtype);
+      if (op->lanes->IsInstance<IntImmNode>()) {
+        int lanes = static_cast<int>(Downcast<IntImm>(op->lanes)->value);
+        if (vstride > 0) {
+          return Combine<Add>(analyzer_, base,
+                              IntervalSet(make_zero(t), make_const(t, vstride * (lanes - 1))),
+                              op->dtype);
+        } else {
+          return Combine<Add>(analyzer_, base,
+                              IntervalSet(make_const(t, vstride * (lanes - 1)), make_zero(t)),
+                              op->dtype);
+        }
+      } else { /* Scalable vector */
+        if (vstride > 0) {
+          return Combine<Add>(analyzer_, base, IntervalSet(make_zero(t), pos_inf()), op->dtype);
+        } else {
+          return Combine<Add>(analyzer_, base, IntervalSet(neg_inf(), make_zero(t)), op->dtype);
+        }
       }
     }
     DLOG(WARNING) << "cannot evaluate set on expression " << GetRef<PrimExpr>(op);
@@ -521,6 +530,12 @@ class IntervalSetEvaluator : public ExprFunctor<IntervalSet(const PrimExpr&)> {
       }
     }
     return IntervalSet::SinglePoint(GetRef<PrimExpr>(op));
+  }
+
+  IntervalSet VisitExpr_(const CallNode* op) final {
+    if (op->op.same_as(tir::builtin::vscale()))
+      return IntervalSet(GetRef<PrimExpr>(op), GetRef<PrimExpr>(op));
+    return IntervalSet::Everything();
   }
 
   IntervalSet VisitExprDefault_(const Object* op) final {
@@ -957,7 +972,7 @@ IntSet EvalSet(PrimExpr e, const Map<Var, IntSet>& dom_map) {
 
 IntSet IntSet::Vector(PrimExpr x) {
   // short cut: simply get single point
-  if (x.dtype().lanes() == 1) {
+  if (!x.dtype().is_scalable_or_fixed_length_vector()) {
     return IntSet::SinglePoint(x);
   } else {
     // vector case.

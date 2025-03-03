@@ -15,9 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=missing-function-docstring,missing-module-docstring
-import sys
-
 import pytest
+
 import tvm
 import tvm.testing
 from tvm import tir
@@ -39,6 +38,25 @@ def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
             with T.block("update"):
                 vi, vj, vk = T.axis.remap("SSR", [i, j, k])
                 C[vi, vj] = C[vi, vj] + A[vi, vk] * B[vj, vk]
+
+
+@T.prim_func
+def two_kernels(var_A: T.handle, var_B: T.handle, seq_len: T.int32):
+    T.func_attr({"tir.noalias": T.bool(True)})
+    A = T.match_buffer(var_A, (1, seq_len * 8), "int32")
+    B = T.match_buffer(var_B, (1, seq_len * 8), "int32", align=8)
+    with T.block("exclusive_scan"):
+        T.reads()
+        T.writes()
+        s8: T.int32 = seq_len * 8
+        if s8 == 0:
+            blockIdx_x = T.launch_thread("blockIdx.x", 1)
+        else:
+            with T.launch_thread("threadIdx.x", 1024) as threadIdx_x:
+                blockIdx_x = T.launch_thread("blockIdx.x", T.ceildiv(s8, 1024))
+                i: T.int32 = blockIdx_x * 1024 + threadIdx_x
+                if i < s8:
+                    B[i // s8, i % s8] = A[i // s8, i % s8]
 
 
 # pylint: enable=no-member,invalid-name,unused-variable
@@ -72,6 +90,10 @@ def test_tir_schedule_attribute_error():
     sch = tir.Schedule(matmul)
     with pytest.raises(AttributeError):
         sch.non_existent_field()
+
+
+def test_tir_schedule_two_kernels():
+    tir.Schedule(two_kernels)
 
 
 if __name__ == "__main__":

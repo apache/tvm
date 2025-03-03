@@ -223,6 +223,16 @@ public class Function extends TVMValue {
   }
 
   /**
+   * Push argument to the function.
+   * @param arg Device.
+   * @return this
+   */
+  public Function pushArg(Device arg) {
+    Base._LIB.tvmFuncPushArgDevice(arg);
+    return this;
+  }
+
+  /**
    * Invoke function with arguments.
    * @param args Can be Integer, Long, Float, Double, String, NDArray.
    * @return the result.
@@ -255,6 +265,8 @@ public class Function extends TVMValue {
       Base._LIB.tvmFuncPushArgHandle(((Module) arg).handle, ArgTypeCode.MODULE_HANDLE.id);
     } else if (arg instanceof Function) {
       Base._LIB.tvmFuncPushArgHandle(((Function) arg).handle, ArgTypeCode.FUNC_HANDLE.id);
+    } else if (arg instanceof Device) {
+      Base._LIB.tvmFuncPushArgDevice((Device) arg);
     } else if (arg instanceof TVMValue) {
       TVMValue tvmArg = (TVMValue) arg;
       switch (tvmArg.typeCode) {

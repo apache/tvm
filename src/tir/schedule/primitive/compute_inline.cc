@@ -177,14 +177,18 @@ class NonSingleProducerError : public ScheduleError {
         self, GetRef<Block>(consumer_block), scope_root_sref);
     class ProducerFinder : public StmtVisitor {
      public:
-      static std::vector<Block> GetProducer(const Buffer& buffer, const Block& scope_block) {
-        ProducerFinder finder(buffer);
+      static std::vector<Block> GetProducer(const ScheduleState& self,
+                                            const StmtSRef& scope_root_sref, const Buffer& buffer,
+                                            const Block& scope_block) {
+        ProducerFinder finder(self, scope_root_sref, buffer);
         finder(scope_block);
         return finder.producer_across_scope_.back();
       }
 
      private:
-      explicit ProducerFinder(const Buffer& buffer) : buffer_(buffer) {
+      explicit ProducerFinder(const ScheduleState& self, const StmtSRef& scope_root_sref,
+                              const Buffer& buffer)
+          : self_(self), scope_root_sref_(scope_root_sref), buffer_(buffer) {
         producer_across_scope_.push_back({});
       }
 
@@ -204,16 +208,23 @@ class NonSingleProducerError : public ScheduleError {
         producer_across_scope_.pop_back();
         for (const auto& write : node->writes) {
           if (write->buffer.same_as(buffer_)) {
+            // Check if the producer block is a complete block
+            StmtSRef producer_block_sref = self_->stmt2ref.at(node);
+            if (!IsCompleteBlock(self_, producer_block_sref, scope_root_sref_)) {
+              throw NonSingleProducerError(self_->mod, GetRef<Block>(node));
+            }
             producer_across_scope_.back().push_back(GetRef<Block>(node));
             break;
           }
         }
       }
+      ScheduleState self_;
+      StmtSRef scope_root_sref_;
       Buffer buffer_;
       std::vector<std::vector<Block>> producer_across_scope_;
     };
-    std::vector<Block> producer_across_scope =
-        ProducerFinder::GetProducer(consumer_buffer, GetRef<Block>(scope_block));
+    std::vector<Block> producer_across_scope = ProducerFinder::GetProducer(
+        self, scope_root_sref, consumer_buffer, GetRef<Block>(scope_block));
     if (producer_across_scope.size() != 1) {
       throw NonSingleProducerError(self->mod, GetRef<Block>(consumer_block));
     }
@@ -671,11 +682,14 @@ class ReverseComputeInliner : public BaseInliner {
   using BaseInliner::VisitStmt_;
 
   /*! \brief Generate the predicate after inlining based on the consumer predicate */
-  Block BuildInlinedConsumerPredicate(const BlockNode* producer_block) {
+  BlockRealize BuildInlinedConsumerPredicate(BlockRealize producer_block_realize) {
     // Bind the producer block iter domains for simplification
     Map<Var, PrimExpr> subst_map;
+    Block producer_block = producer_block_realize->block;
     for (int i = 0, n = producer_block->iter_vars.size(); i < n; ++i) {
       const IterVar& iter = producer_block->iter_vars[i];
+      const PrimExpr& binding = producer_block_realize->iter_values[i];
+      subst_map.Set(iter->var, binding);
       analyzer_.Bind(iter->var, Range::FromMinExtent(iter->dom->min, iter->dom->extent));
     }
     if (producer_block->annotations.count(tir::attr::auto_copy) != 0) {
@@ -694,30 +708,33 @@ class ReverseComputeInliner : public BaseInliner {
     PrimExpr predicate = Substituter(this)(consumer_iter_in_bound_);
     // Simplify the predicate using the producer block iter domains
     predicate = analyzer_.Simplify(predicate);
-    ObjectPtr<BlockNode> block = make_object<BlockNode>(*producer_block);
     if (is_one(predicate)) {
-      return Block(block);
+      return producer_block_realize;
     }
-    if (const auto* if_ = producer_block->body.as<tir::IfThenElseNode>()) {
-      PrimExpr if_predicate = analyzer_.Simplify(if_->condition);
-      if (!StructuralEqual()(predicate, if_predicate)) {
-        predicate = analyzer_.Simplify(predicate && if_->condition);
+    if (const auto* if_ = producer_block->body.as<IfThenElseNode>()) {
+      if (!if_->else_case.defined()) {
+        PrimExpr if_predicate = analyzer_.Simplify(if_->condition);
+        if (!StructuralEqual()(predicate, if_predicate)) {
+          predicate = analyzer_.Simplify(predicate && if_->condition);
+          producer_block.CopyOnWrite()->body = if_->then_case;
+        }
       }
-      block->body = IfThenElse(predicate, if_->then_case);
-      return Block(block);
     }
-    block->body = IfThenElse(predicate, block->body);
-    return Block(block);
+    PrimExpr outer_predicate = Substitute(predicate, subst_map);
+    auto n = producer_block_realize.CopyOnWrite();
+    n->block = producer_block;
+    n->predicate = analyzer_.Simplify(outer_predicate);
+    return GetRef<BlockRealize>(n);
   }
 
-  Stmt VisitStmt_(const BlockNode* op) final {
-    Block src_block = GetRef<Block>(op);
-    Block tgt_block = Downcast<Block>(BaseInliner::VisitStmt_(op));
-    if (op == producer_block_) {
-      tgt_block = BuildInlinedConsumerPredicate(tgt_block.get());
-      block_reuse.Set(src_block, tgt_block);
+  Stmt VisitStmt_(const BlockRealizeNode* op) final {
+    Block src_block = op->block;
+    BlockRealize tgt_block_realize = Downcast<BlockRealize>(StmtMutator::VisitStmt_(op));
+    if (src_block.get() == producer_block_) {
+      tgt_block_realize = BuildInlinedConsumerPredicate(tgt_block_realize);
+      block_reuse.Set(src_block, tgt_block_realize->block);
     }
-    return std::move(tgt_block);
+    return std::move(tgt_block_realize);
   }
 
   Stmt VisitStmt_(const BufferStoreNode* _store) final {

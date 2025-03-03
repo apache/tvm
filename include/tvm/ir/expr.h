@@ -31,6 +31,7 @@
 #include <tvm/runtime/object.h>
 
 #include <algorithm>
+#include <functional>
 #include <limits>
 #include <string>
 #include <type_traits>
@@ -352,13 +353,13 @@ TVM_DLL PrimExpr operator~(PrimExpr a);
 /*!
  * \brief Base node of all non-primitive expressions.
  *
- * RelayExpr supports tensor types, functions and ADT as
- * first class citizens. The life-cycle of the corresponding
+ * RelaxExpr supports tensor and functions as first class citizen.
+ * The life-cycle of the corresponding
  * objects are implicitly managed by the language.
  *
- * \sa RelayExpr
+ * \sa RelaxExpr
  */
-class RelayExprNode : public BaseExprNode {
+class RelaxExprNode : public BaseExprNode {
  public:
   /*!
    * \brief Stores the result of type inference(type checking).
@@ -367,6 +368,14 @@ class RelayExprNode : public BaseExprNode {
    *       This value is discarded during serialization.
    */
   mutable Type checked_type_ = Type(nullptr);
+
+  /*!
+   * \brief Stores the result of structure information of the
+   *        expression that encapsulate both static shape and
+   *        runtime information such as shape.
+   */
+  mutable Optional<ObjectRef> struct_info_ = Optional<ObjectRef>();
+
   /*!
    * \return The checked_type
    */
@@ -384,55 +393,18 @@ class RelayExprNode : public BaseExprNode {
   template <typename TTypeNode>
   inline const TTypeNode* type_as() const;
 
-  /*!
-   * \brief The virtual device (VirtualDevice) for this node (the result of device planning).
-   * For first-order expressions (non functions), this describes where the result of evaluating the
-   * expression should be stored. Note that currently, all composite first-order values (tuples,
-   * references, ADTs) must be stored on the same virtual device. This means that it is not possible
-   * to store two tuple fields on different devices, so we only need one virtual device for these
-   * types.
-   *
-   * For expressions that have the function type, the virtual device describes where the result of
-   * the call to the function or closure is stored (instead of where the function itself is stored).
-   * For example, the virtual device of f = fn(x) { body } is the virtual device of f(y), not where
-   * the function itself is stored. Note that f(y)'s virtual device will be the same as the virtual
-   * device of body. For more details, see the documentation in
-   * src/relay/transforms/device_planner.cc.
-   *
-   * The VirtualDevice's Target field describes how the body of the function should be compiled.
-   *
-   * Set to VirtualDevice::FullyUnconstrained by default.
-   *
-   * \note Unfortunately, the type of virtual_device_ needs to be ObjectRef to avoid a circular
-   * import.
-   */
-  mutable ObjectRef virtual_device_;
-
-  /*!
-   * \return The virtual device (VirtualDevice).
-   * If the virtual device is not defined, returns VirtualDevice::FullyUnconstrained().
-   * Note that for function types, the virtual device is the device where the result of a
-   * call to the function is stored, not where the function itself lives.
-   * For example, the virtual device of f = fn(x) { body } is the virtual device of f(y), not where
-   * the function itself is stored. Note that f(y)'s virtual device will be the same as the virtual
-   * device of body.
-   *
-   * See the documentation of the virtual_device_ field (above) for more details.
-   */
-  VirtualDevice virtual_device() const;
-
-  static constexpr const char* _type_key = "RelayExpr";
+  static constexpr const char* _type_key = "RelaxExpr";
   static constexpr const uint32_t _type_child_slots = 22;
-  TVM_DECLARE_BASE_OBJECT_INFO(RelayExprNode, BaseExprNode);
+  TVM_DECLARE_BASE_OBJECT_INFO(RelaxExprNode, BaseExprNode);
 };
 
 /*!
- * \brief Managed reference to RelayExprNode.
- * \sa RelayExprNode
+ * \brief Managed reference to RelaxExprNode.
+ * \sa RelaxExprNode
  */
-class RelayExpr : public BaseExpr {
+class RelaxExpr : public BaseExpr {
  public:
-  TVM_DEFINE_OBJECT_REF_METHODS(RelayExpr, BaseExpr, RelayExprNode);
+  TVM_DEFINE_OBJECT_REF_METHODS(RelaxExpr, BaseExpr, RelaxExprNode);
 };
 
 class GlobalVar;
@@ -444,16 +416,16 @@ class GlobalVar;
  *
  * \sa GlobalVarNode
  */
-class GlobalVarNode : public RelayExprNode {
+class GlobalVarNode : public RelaxExprNode {
  public:
   /*! \brief The name of the variable, this only acts as a hint. */
   String name_hint;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("name_hint", &name_hint);
-    v->Visit("virtual_device_", &virtual_device_);
     v->Visit("span", &span);
     v->Visit("_checked_type_", &checked_type_);
+    v->Visit("struct_info_", &struct_info_);
   }
 
   bool SEqualReduce(const GlobalVarNode* other, SEqualReducer equal) const {
@@ -467,18 +439,18 @@ class GlobalVarNode : public RelayExprNode {
   }
 
   static constexpr const char* _type_key = "GlobalVar";
-  TVM_DECLARE_FINAL_OBJECT_INFO(GlobalVarNode, RelayExprNode);
+  TVM_DECLARE_FINAL_OBJECT_INFO(GlobalVarNode, RelaxExprNode);
 };
 
 /*!
  * \brief Managed reference to GlobalVarNode.
  * \sa GlobalVarNode
  */
-class GlobalVar : public RelayExpr {
+class GlobalVar : public RelaxExpr {
  public:
   TVM_DLL explicit GlobalVar(String name_hint, Type type = {}, Span span = {});
 
-  TVM_DEFINE_OBJECT_REF_METHODS(GlobalVar, RelayExpr, GlobalVarNode);
+  TVM_DEFINE_OBJECT_REF_METHODS(GlobalVar, RelaxExpr, GlobalVarNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(GlobalVarNode);
 };
 
@@ -737,15 +709,15 @@ class Range : public ObjectRef {
 };
 
 // implementations
-inline const Type& RelayExprNode::checked_type() const {
+inline const Type& RelaxExprNode::checked_type() const {
   ICHECK(checked_type_.defined()) << "internal error: the type checker has "
                                   << "not populated the checked_type "
-                                  << "field for " << GetRef<RelayExpr>(this);
+                                  << "field for " << GetRef<RelaxExpr>(this);
   return this->checked_type_;
 }
 
 template <typename TTypeNode>
-inline const TTypeNode* RelayExprNode::type_as() const {
+inline const TTypeNode* RelaxExprNode::type_as() const {
   static_assert(std::is_base_of<TypeNode, TTypeNode>::value,
                 "TType must be a special case of type");
   ICHECK(checked_type_.defined())
@@ -760,56 +732,152 @@ inline const TTypeNode* RelayExprNode::type_as() const {
 
 namespace tvm {
 namespace runtime {
-// common rule for RetValue and ArgValue
-template <>
-struct PackedFuncValueConverter<PrimExpr> {
-  static PrimExpr From(const TVMPODValue_& val) {
-    if (val.type_code() == kTVMNullptr) {
-      return PrimExpr(ObjectPtr<Object>(nullptr));
-    }
-    if (val.type_code() == kDLInt) {
-      int64_t value = val.operator int64_t();
-      if (value > std::numeric_limits<int>::max() || value < std::numeric_limits<int>::min()) {
-        return IntImm(runtime::DataType::Int(64), value);
-      }
-      return IntImm(runtime::DataType::Int(32), val.operator int());
-    }
-    if (val.type_code() == kDLFloat) {
-      return FloatImm(runtime::DataType::Float(32), val.operator double());
-    }
 
-    return PrimExpr::FromObject_(val.AsObjectRef<ObjectRef>());
+// Automatic conversion into IntImm, Integer, and Bool, when called
+// through the FFI.  Automatic conversions into PrimExpr are
+// registered in "tvm/tir/expr.h", as it includes conversions to the
+// TIR-only StringImm.
+//
+// While the FFI only requires the From() method, these
+// implementations also define a TryFrom() method to avoid duplicate
+// logic in the PrimExpr conversion.
+
+template <>
+struct PackedFuncValueConverter<tvm::IntImm> {
+  template <typename PODSubclass>
+  static Optional<tvm::IntImm> TryFrom(const PODSubclass& val) {
+    if (auto opt = val.TryAsInt()) {
+      int64_t value = opt.value();
+      auto dtype =
+          (value > std::numeric_limits<int>::max() || value < std::numeric_limits<int>::min())
+              ? DataType::Int(64)
+              : DataType::Int(32);
+      return IntImm(dtype, value);
+    } else if (auto opt = val.TryAsBool()) {
+      return IntImm(DataType::Int(32), opt.value());
+    } else {
+      return NullOpt;
+    }
+  }
+
+  template <typename PODSubclass>
+  static tvm::IntImm From(const PODSubclass& val) {
+    if (auto opt = TryFrom(val)) {
+      return opt.value();
+    } else {
+      return val.template AsObjectRef<tvm::IntImm>();
+    }
   }
 };
 
 template <>
 struct PackedFuncValueConverter<tvm::Integer> {
-  static tvm::Integer From(const TVMPODValue_& val) {
-    if (val.type_code() == kTVMNullptr) {
-      return Integer(ObjectPtr<Object>(nullptr));
+  template <typename PODSubclass>
+  static tvm::Integer From(const PODSubclass& val) {
+    if (auto opt = PackedFuncValueConverter<tvm::IntImm>::TryFrom(val)) {
+      return Integer(opt.value());
+    } else {
+      return val.template AsObjectRef<tvm::Integer>();
     }
-    if (val.type_code() == kTVMArgInt) {
-      return Integer(val.operator int());
-    }
-    return val.AsObjectRef<tvm::Integer>();
   }
 };
 
 template <>
 struct PackedFuncValueConverter<tvm::Bool> {
-  static tvm::Bool From(const TVMPODValue_& val) {
-    if (val.type_code() == kTVMNullptr) {
-      return Bool(ObjectPtr<Object>(nullptr));
+  template <typename PODSubclass>
+  static Optional<tvm::Bool> TryFrom(const PODSubclass& val) {
+    if (auto opt = val.TryAsBool()) {
+      return tvm::Bool(opt.value());
+    } else if (auto opt = val.TryAsInt()) {
+      int value = opt.value();
+      ICHECK(value == 0 || value == 1)
+          << "ValueError: boolean value can only be 0 or 1, but get " << value;
+      return tvm::Bool(static_cast<bool>(value));
+    } else {
+      return NullOpt;
     }
-    if (val.type_code() == kTVMArgInt) {
-      int v = val.operator int();
-      ICHECK(v == 0 || v == 1) << "ValueError: boolean value can only be 0 or 1, but get " << v;
-      return Bool(static_cast<bool>(v));
+  }
+
+  template <typename PODSubclass>
+  static tvm::Bool From(const PODSubclass& val) {
+    if (auto opt = TryFrom(val)) {
+      return opt.value();
+    } else {
+      return val.template AsObjectRef<tvm::Bool>();
     }
-    return val.AsObjectRef<tvm::Bool>();
+  }
+};
+
+template <>
+struct PackedFuncValueConverter<tvm::FloatImm> {
+  static Optional<tvm::FloatImm> TryFrom(const TVMPODValue_& val) {
+    if (auto opt = val.TryAsFloat()) {
+      return FloatImm(runtime::DataType::Float(32), opt.value());
+    } else {
+      return NullOpt;
+    }
+  }
+
+  template <typename PODSubclass>
+  static tvm::FloatImm From(const PODSubclass& val) {
+    if (auto opt = TryFrom(val)) {
+      return opt.value();
+    } else {
+      return val.template AsObjectRef<tvm::FloatImm>();
+    }
+  }
+};
+
+/* \brief Backwards compatibility wrapper for IntImm arguments
+ *
+ * In previous versions of TVM, IntImm was the default FFI type for
+ * integer arguments, instead of runtime::Int.  For backwards
+ * compatibility where the callee has been updated to expected a
+ * runtime::Int, the caller has not been updated to provide a
+ * runtime::Int, and the auto-unboxing of
+ * runtime::Int does not apply (e.g. making an `Array<runtime::Int>`),
+ * allow the IntImm to be generated.
+ */
+template <>
+struct PackedFuncValueConverter<runtime::Int> {
+  template <typename PODSubclass>
+  static runtime::Int From(const PODSubclass& val) {
+    if (val.template IsObjectRef<tvm::IntImm>()) {
+      return runtime::Int(val.template AsObjectRef<tvm::IntImm>()->value);
+    } else {
+      return val.template AsObjectRef<runtime::Int>();
+    }
   }
 };
 
 }  // namespace runtime
 }  // namespace tvm
+
+/* \brief Allow tvm.GLobalVar as key in STL tables
+ *
+ * For most IR expressions, it would be ambiguous whether the
+ * expression should follow reference equality or structural equality.
+ * This is not the case for variables, which do not contain nested
+ * internal structure, and are frequently used as keys in lookup
+ * tables.
+ *
+ * Providing `std::hash` and `std::equal_to` specializations for
+ * `tvm::GlobalVar` allows it to be used as a key in STL tables.  For
+ * other IR expressions, the user must specify the type of equality
+ * used (e.g. `std::unordered_set<T, StructuralHash, StructuralEqual>`
+ * or `std::unordered_set<T, ObjectPtrHash, ObjectPtrEqual>`).
+ */
+template <>
+struct std::hash<tvm::GlobalVar> {
+  std::size_t operator()(const tvm::GlobalVar& var) const {
+    return tvm::runtime::ObjectPtrHash()(var);
+  }
+};
+
+template <>
+struct std::equal_to<tvm::GlobalVar> {
+  bool operator()(const tvm::GlobalVar& var_a, const tvm::GlobalVar& var_b) const {
+    return tvm::runtime::ObjectPtrEqual()(var_a, var_b);
+  }
+};
 #endif  // TVM_IR_EXPR_H_

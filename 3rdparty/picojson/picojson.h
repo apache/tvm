@@ -27,7 +27,20 @@
  */
 #pragma once
 
+#ifndef PICOJSON_USE_INT64
+#define PICOJSON_USE_INT64
+#define __STDC_FORMAT_MACROS 1
+#endif
+
+// If PICOJSON_USE_ORDERED_OBJECT is set, picojson uses object_with_ordered_keys, which maintains
+// the insertion order of keys, i.e. the order of keys in the json string.
+// This macro is set by default.
+#ifndef PICOJSON_USE_ORDERED_OBJECT
+#define PICOJSON_USE_ORDERED_OBJECT 1
+#endif
+
 #include <algorithm>
+#include <cassert>
 #include <cstddef>
 #include <cstdio>
 #include <cstdlib>
@@ -76,7 +89,6 @@ extern "C" {
 
 // experimental support for int64_t (see README.mkdn for detail)
 #ifdef PICOJSON_USE_INT64
-#define __STDC_FORMAT_MACROS
 #include <errno.h>
 #include <inttypes.h>
 #endif
@@ -134,10 +146,17 @@ enum { INDENT_WIDTH = 2 };
 
 struct null {};
 
+class object_with_ordered_keys;
+
 class value {
  public:
   typedef std::vector<value> array;
+#ifdef PICOJSON_USE_ORDERED_OBJECT
+  typedef object_with_ordered_keys object;
+#else
   typedef std::unordered_map<std::string, value> object;
+#endif
+
   union _storage {
     bool boolean_;
     double number_;
@@ -216,6 +235,96 @@ class value {
   std::string _serialize(int indent) const;
   void clear();
 };
+
+// The ordered version of hashmap. It has the same interface as std::unordered_map, but provides
+// ordered_keys() to return the keys in the order they were inserted.
+class object_with_ordered_keys : private std::unordered_map<std::string, value> {
+ public:
+  using typename std::unordered_map<std::string, value>::value_type;
+  using typename std::unordered_map<std::string, value>::iterator;
+  using typename std::unordered_map<std::string, value>::const_iterator;
+
+  object_with_ordered_keys() = default;
+  object_with_ordered_keys(const object_with_ordered_keys&) = default;
+  object_with_ordered_keys(object_with_ordered_keys&&) = default;
+  object_with_ordered_keys(std::initializer_list<value_type> init)
+      : std::unordered_map<std::string, value>(init) {
+    for (const auto& pair : init) {
+      ordered_keys_.push_back(pair.first);
+    }
+  }
+  object_with_ordered_keys& operator=(const object_with_ordered_keys&) = default;
+  object_with_ordered_keys& operator=(object_with_ordered_keys&&) = default;
+
+  using std::unordered_map<std::string, value>::begin;
+  using std::unordered_map<std::string, value>::end;
+  using std::unordered_map<std::string, value>::cbegin;
+  using std::unordered_map<std::string, value>::cend;
+  using std::unordered_map<std::string, value>::empty;
+  using std::unordered_map<std::string, value>::size;
+  using std::unordered_map<std::string, value>::at;
+  using std::unordered_map<std::string, value>::count;
+  using std::unordered_map<std::string, value>::find;
+
+  value& operator[](const std::string& key) {
+    if (count(key) == 0) {
+      ordered_keys_.push_back(key);
+    }
+    return std::unordered_map<std::string, value>::operator[](key);
+  }
+
+  const value& operator[](const std::string& key) const {
+    return std::unordered_map<std::string, value>::at(key);
+  }
+
+  void clear() {
+    std::unordered_map<std::string, value>::clear();
+    ordered_keys_.clear();
+  }
+
+  std::pair<iterator, bool> insert(const value_type& kv) {
+    if (!count(kv.first)) {
+      ordered_keys_.push_back(kv.first);
+    }
+    return std::unordered_map<std::string, value>::insert(kv);
+  }
+
+  template <class... Args>
+  std::pair<iterator, bool> emplace(Args&&... args) {
+    return insert(value_type(std::forward<Args>(args)...));
+  }
+
+  iterator erase(const_iterator it) {
+    ordered_keys_.erase(std::find(ordered_keys_.begin(), ordered_keys_.end(), it->first));
+    return std::unordered_map<std::string, value>::erase(it);
+  }
+
+  iterator erase(iterator it) {
+    ordered_keys_.erase(std::find(ordered_keys_.begin(), ordered_keys_.end(), it->first));
+    return std::unordered_map<std::string, value>::erase(it);
+  }
+
+  size_t erase(const std::string& key) {
+    if (std::unordered_map<std::string, value>::erase(key)) {
+      ordered_keys_.erase(std::find(ordered_keys_.begin(), ordered_keys_.end(), key));
+      return 1;
+    } else {
+      return 0;
+    }
+  }
+
+  const std::vector<std::string>& ordered_keys() const { return ordered_keys_; }
+
+  friend bool operator==(const object_with_ordered_keys& lhs, const object_with_ordered_keys& rhs);
+
+ private:
+  std::vector<std::string> ordered_keys_;
+};
+
+inline bool operator==(const object_with_ordered_keys& lhs, const object_with_ordered_keys& rhs) {
+  return static_cast<const std::unordered_map<std::string, value>&>(lhs) ==
+         static_cast<const std::unordered_map<std::string, value>&>(rhs);
+}
 
 typedef value::array array;
 typedef value::object object;
@@ -622,6 +731,24 @@ void value::_serialize(Iter oi, int indent) const {
       if (indent != -1) {
         ++indent;
       }
+
+#if PICOJSON_USE_ORDERED_OBJECT
+      for (auto i = u_.object_->ordered_keys().begin(); i != u_.object_->ordered_keys().end();
+           ++i) {
+        if (i != u_.object_->ordered_keys().begin()) {
+          *oi++ = ',';
+        }
+        if (indent != -1) {
+          _indent(oi, indent);
+        }
+        serialize_str(*i, oi);
+        *oi++ = ':';
+        if (indent != -1) {
+          *oi++ = ' ';
+        }
+        u_.object_->at(*i)._serialize(oi, indent);
+      }
+#else
       for (object::const_iterator i = u_.object_->begin(); i != u_.object_->end(); ++i) {
         if (i != u_.object_->begin()) {
           *oi++ = ',';
@@ -636,6 +763,7 @@ void value::_serialize(Iter oi, int indent) const {
         }
         i->second._serialize(oi, indent);
       }
+#endif
       if (indent != -1) {
         --indent;
         if (!u_.object_->empty()) {

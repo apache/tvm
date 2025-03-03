@@ -28,6 +28,7 @@
 #include <tvm/runtime/registry.h>
 
 #include "runtime_base.h"
+#include "tvm/runtime/data_type.h"
 
 extern "C" {
 // C-mangled dlpack deleter.
@@ -52,6 +53,8 @@ inline void VerifyDataType(DLDataType dtype) {
     else if (dtype.bits == 4 && dtype.code == kDLUInt)
       return;
     else if (dtype.bits == 4 && dtype.code == kDLInt)
+      return;
+    else if (dtype.bits == 4 && dtype.code == DataType::kE2M1Float)
       return;
     else
       ICHECK_EQ(dtype.bits % 8, 0);
@@ -179,42 +182,53 @@ struct NDArray::Internal {
   }
 };
 
-NDArray NDArray::CreateView(ShapeTuple shape, DLDataType dtype) {
+NDArray NDArray::CreateView(ShapeTuple shape, DLDataType dtype, uint64_t relative_byte_offset) {
   ICHECK(data_ != nullptr);
 
   const DLTensor& orig = get_mutable()->dl_tensor;
-  ICHECK(IsContiguous()) << "Can only create view for compact tensor, but found strides " <<
-      [&orig]() {
-        std::stringstream ss;
-        ss << "[";
-        for (int i = 0; i < orig.ndim; i++) {
-          if (i) ss << ", ";
-          ss << orig.strides[i];
-        }
-        ss << "]";
-        return ss.str();
-      }() << ", for shape "
-                         << [&]() {
-                              std::stringstream ss;
-                              ss << "[";
-                              for (int i = 0; i < orig.ndim; i++) {
-                                if (i) ss << ", ";
-                                ss << orig.shape[i];
-                              }
-                              ss << "]";
-                              return ss.str();
-                            }();
+  CHECK(IsContiguous()) << [&orig]() {
+    std::stringstream ss;
+    ss << "Can only create view for compact tensor, but found strides ";
 
-  NDArray ret = Internal::Create(shape, dtype, get_mutable()->dl_tensor.device);
-  ret.get_mutable()->dl_tensor.byte_offset = this->get_mutable()->dl_tensor.byte_offset;
+    ss << "[";
+    for (int i = 0; i < orig.ndim; i++) {
+      if (i) ss << ", ";
+      ss << orig.strides[i];
+    }
+    ss << "]";
+
+    ss << ", for shape ";
+    ss << "[";
+    for (int i = 0; i < orig.ndim; i++) {
+      if (i) ss << ", ";
+      ss << orig.shape[i];
+    }
+    ss << "]";
+    return ss.str();
+  }();
+
+  const auto& curr_dl_tensor = get_mutable()->dl_tensor;
+
+  NDArray ret = Internal::Create(shape, dtype, curr_dl_tensor.device);
+
   size_t curr_size = GetDataSize(this->get_mutable()->dl_tensor);
   size_t view_size = GetDataSize(ret.get_mutable()->dl_tensor);
-  ICHECK_LE(view_size, curr_size)
-      << "Tries to create a view that has bigger memory than current one";
+  CHECK_LE(relative_byte_offset + view_size, curr_size)
+      << "ValueError: "
+      << "View with shape " << shape << " and datatype " << dtype << " would have a size of "
+      << view_size << " bytes.  "
+      << "This would occupy bytes " << relative_byte_offset << " <= i_byte < "
+      << (relative_byte_offset + view_size) << " within the backing array.  "
+      << "However, the NDArray being viewed only contains " << curr_size << " bytes (shape = "
+      << ShapeTuple(curr_dl_tensor.shape, curr_dl_tensor.shape + curr_dl_tensor.ndim)
+      << ", dtype= " << curr_dl_tensor.dtype << ").";
+
   // increase ref count
   get_mutable()->IncRef();
   ret.get_mutable()->manager_ctx = get_mutable();
   ret.get_mutable()->dl_tensor.data = get_mutable()->dl_tensor.data;
+  ret.get_mutable()->dl_tensor.byte_offset =
+      get_mutable()->dl_tensor.byte_offset + relative_byte_offset;
   return ret;
 }
 
@@ -287,14 +301,26 @@ void NDArray::CopyFromBytes(const void* data, size_t nbytes) {
   ArrayCopyFromBytes(&get_mutable()->dl_tensor, data, nbytes);
 }
 
+NDArray NDArray::CopyTo(const Device& dev, Optional<String> mem_scope) const {
+  ICHECK(data_ != nullptr);
+  const DLTensor* dptr = operator->();
+  NDArray ret =
+      Empty(ShapeTuple(dptr->shape, dptr->shape + dptr->ndim), dptr->dtype, dev, mem_scope);
+  this->CopyTo(ret);
+  Device copy_gpu_dev = dptr->device.device_type != kDLCPU ? dptr->device : dev;
+  DeviceAPI::Get(copy_gpu_dev)->StreamSync(copy_gpu_dev, nullptr);
+  return ret;
+}
+
 void NDArray::CopyFromTo(const DLTensor* from, DLTensor* to, TVMStreamHandle stream) {
   size_t from_size = GetDataSize(*from);
   size_t to_size = GetDataSize(*to);
-  ICHECK_EQ(from_size, to_size) << "TVMArrayCopyFromTo: The size must exactly match";
+  ICHECK_EQ(from_size, to_size) << "TVMArrayCopyFromTo: The size in bytes must exactly match.";
 
   ICHECK(from->device.device_type == to->device.device_type || from->device.device_type == kDLCPU ||
          to->device.device_type == kDLCPU || from->device.device_type == kDLCUDAHost ||
-         to->device.device_type == kDLCUDAHost)
+         to->device.device_type == kDLCUDAHost || from->device.device_type == kDLROCMHost ||
+         to->device.device_type == kDLROCMHost)
       << "Can not copy across different device types directly. From device type: "
       << from->device.device_type << " to device type: " << to->device.device_type;
 
@@ -305,7 +331,9 @@ void NDArray::CopyFromTo(const DLTensor* from, DLTensor* to, TVMStreamHandle str
   DeviceAPI::Get(dev)->CopyDataFromTo(const_cast<DLTensor*>(from), to, stream);
 }
 
-ShapeTuple NDArray::Shape() const { return get_mutable()->shape_; }
+ShapeTuple NDArray::Shape() const {
+  return static_cast<const NDArray::Container*>(data_.get())->shape_;
+}
 
 runtime::DataType NDArray::DataType() const {
   return runtime::DataType(get_mutable()->dl_tensor.dtype);
@@ -359,10 +387,7 @@ int TVMArrayAlloc(const tvm_index_t* shape, int ndim, int dtype_code, int dtype_
 
 TVM_REGISTER_GLOBAL("runtime.TVMArrayAllocWithScope").set_body_typed(NDArray::Empty);
 
-TVM_REGISTER_GLOBAL("runtime.TVMArrayCreateView").set_body_typed([](NDArray arr, ShapeTuple shape) {
-  NDArray view = arr.CreateView(shape, arr->dtype);
-  return view;
-});
+TVM_REGISTER_GLOBAL("runtime.TVMArrayCreateView").set_body_method(&NDArray::CreateView);
 
 int TVMArrayFree(TVMArrayHandle handle) {
   API_BEGIN();

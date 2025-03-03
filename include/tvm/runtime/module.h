@@ -217,6 +217,10 @@ class TVM_DLL ModuleNode : public Object {
    * \return The corresponding function.
    */
   const PackedFunc* GetFuncFromEnv(const String& name);
+
+  /*! \brief Clear all imports of the module. */
+  void ClearImports() { imports_.clear(); }
+
   /*! \return The module it imports from */
   const std::vector<Module>& imports() const { return imports_; }
 

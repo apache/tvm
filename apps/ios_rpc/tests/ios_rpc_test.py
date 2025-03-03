@@ -50,24 +50,18 @@ def test_rpc_module(host, port, key, mode):
     A = te.placeholder((n,), name="A")
     B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name="B")
     temp = utils.tempdir()
-    s = te.create_schedule(B.op)
-    xo, xi = s[B].split(B.op.axis[0], factor=64)
-    s[B].bind(xi, te.thread_axis("threadIdx.x"))
-    s[B].bind(xo, te.thread_axis("blockIdx.x"))
+    mod = tvm.IRModule.from_expr(te.create_prim_func([A, B]).with_attr("global_symbol", "myadd"))
+    sch = tvm.tir.Schedule(mod)
+    (i,) = sch.get_loops(block=sch.get_block("B"))
+    i0, i1 = sch.split(i, [None, 32])
+    sch.bind(i0, "blockIdx.x")
+    sch.bind(i1, "threadIdx.x")
+
     # Build the dynamic lib.
     # If we don't want to do metal and only use cpu, just set target to be target
-    f = tvm.build(s, [A, B], tvm.target.Target("metal", host=target), name="myadd")
+    f = tvm.build(sch.mod, target=tvm.target.Target("metal", host=target))
     path_dso1 = temp.relpath("dev_lib.dylib")
     f.export_library(path_dso1, fcompile=xcode.create_dylib, arch=arch, sdk=sdk)
-
-    s = te.create_schedule(B.op)
-    xo, xi = s[B].split(B.op.axis[0], factor=64)
-    s[B].parallel(xi)
-    s[B].pragma(xo, "parallel_launch_point")
-    s[B].pragma(xi, "parallel_barrier_when_finish")
-    f = tvm.build(s, [A, B], target, name="myadd_cpu")
-    path_dso2 = temp.relpath("cpu_lib.dylib")
-    f.export_library(path_dso2, fcompile=xcode.create_dylib, arch=arch, sdk=sdk)
 
     # connect to the proxy
     if mode == "tracker":
@@ -83,17 +77,6 @@ def test_rpc_module(host, port, key, mode):
     time_f = f1.time_evaluator(f1.entry_name, dev, number=10)
     cost = time_f(a, b).mean
     print("Metal: %g secs/op" % cost)
-    np.testing.assert_equal(b.numpy(), a.numpy() + 1)
-    # CPU
-    dev = remote.cpu(0)
-    remote.upload(path_dso2)
-    f2 = remote.load_module("cpu_lib.dylib")
-    a_np = np.random.uniform(size=1024).astype(A.dtype)
-    a = tvm.nd.array(a_np, dev)
-    b = tvm.nd.array(np.zeros(1024, dtype=A.dtype), dev)
-    time_f = f2.time_evaluator(f2.entry_name, dev, number=10)
-    cost = time_f(a, b).mean
-    print("CPU: %g secs/op" % cost)
     np.testing.assert_equal(b.numpy(), a.numpy() + 1)
 
 

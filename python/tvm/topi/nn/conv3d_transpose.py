@@ -16,13 +16,12 @@
 # under the License.
 # pylint: disable=invalid-name, unused-variable, unused-argument
 """Transposed 3D convolution operators (sometimes called Deconvolution)."""
-import tvm
 from tvm import te
-from tvm import relay
+
+from ..utils import simplify
 from .dilate import dilate
 from .pad import pad
 from .utils import get_pad_tuple3d
-from ..utils import simplify
 
 
 def conv3d_transpose_ncdhw(Input, Filter, strides, padding, out_dtype, output_padding):
@@ -125,59 +124,76 @@ def declaration_conv3d_transpose_impl(data, kernel, strides, padding, out_dtype,
     return Output
 
 
-@tvm.target.generic_func
-def conv3d_transpose_legalize(attrs, inputs, types):
-    """Legalizes Transposed 3D convolution op.
+def group_conv3d_transpose_ncdhw(data, kernel, strides, padding, out_dtype, output_padding, groups):
+    """Transposed group 3D convolution ncdhw forward operator.
 
     Parameters
     ----------
-    attrs : tvm.ir.Attrs
-        Attributes of current Transposed 3D convolution
-    inputs : list of tvm.relay.Expr
-        The args of the Relay expr to be legalized
-    types : list of types
-        List of input and output types
+    data : tvm.te.Tensor
+        5-D with shape [batch, in_channel, in_depth, in_height, in_width]
+
+    kernel : tvm.te.Tensor
+        5-D with shape [in_channel, num_filter, filter_depth, filter_height, filter_width]
+
+    strides : int or a list/tuple of three ints
+        The spatial stride along depth,height and width
+
+    padding : int or str
+        Padding size, or ['VALID', 'SAME']
+
+    out_dtype : str
+        The output data type. This is used for mixed precision.
+
+    output_padding : tuple of ints
+        Used to get the right output shape for gradients
+
+    groups : int
+        number of groups
 
     Returns
     -------
-    result : tvm.relay.Expr
-        The legalized expr
+    Output : tvm.te.Tensor
+        5-D with shape [batch, out_channel, out_depth, out_height, out_width]
     """
-    if attrs["data_layout"] == "NDHWC":
-        data, kernel = inputs
-        kernel_layout = attrs["kernel_layout"]
-        # Convert Kernel layout to IODHW
-        if kernel_layout == "DHWIO":
-            # input kernel layout is swapped to DHWOI
-            # output kernel layout will be IODHW
-            kernel = relay.transpose(kernel, axes=(3, 4, 0, 1, 2))
-        elif kernel_layout == "DHWOI":
-            # input kernel layout is swapped to DHWIO
-            # output kernel layout will be IODHW
-            kernel = relay.transpose(kernel, axes=(4, 3, 0, 1, 2))
-        elif kernel_layout == "OIDHW":
-            # input kernel layout is swapped to OIDHW
-            # output kernel layout will be IODHW
-            kernel = relay.transpose(kernel, axes=(1, 0, 2, 3, 4))
-        elif kernel_layout == "IODHW":
-            # input kernel layout is swapped to IODHW
-            # output kernel layout will be IODHW
-            pass
-        else:
-            # Skip legalize. Let relay.nn.conv2d_transpose to handle the case
-            return None
+    if not isinstance(strides, (tuple, list)):
+        strides = (strides, strides, strides)
 
-        # Set new attrs for conv3d_transpose.
-        new_attrs = {k: attrs[k] for k in attrs.keys()}
-        new_attrs["data_layout"] = "NCDHW"
-        # layout of kernel should be IODHW, but kernel_layout should be swapped - OIDHW
-        new_attrs["kernel_layout"] = "IODHW"
+    if groups == 1:
+        return conv3d_transpose_ncdhw(data, kernel, strides, padding, out_dtype, output_padding)
 
-        # Convert data to NCDHW.
-        data = relay.transpose(data, axes=(0, 4, 1, 2, 3))
-        deconv = relay.nn.conv3d_transpose(data, kernel, **new_attrs)
-        # Convert back to original NDHWC layout.
-        out = relay.transpose(deconv, axes=(0, 2, 3, 4, 1))
-        return out
+    data_pad, kernel_transform = conv3d_transpose_ncdhw_preprocess(
+        data, kernel, strides, padding, out_dtype, output_padding
+    )
+    batch, in_c, in_d, in_h, in_w = data_pad.shape
+    out_c, _, filter_d, filter_h, filter_w = kernel_transform.shape
+    assert in_c % groups == 0, f"input channels {in_c} must divide group size {groups}"
 
-    return None
+    # convolution stage
+    out_c = simplify(out_c * groups)
+    out_d = simplify(in_d - filter_d + 1)
+    out_h = simplify(in_h - filter_h + 1)
+    out_w = simplify(in_w - filter_w + 1)
+    dc = te.reduce_axis((0, in_c // groups), name="dc")
+    dd = te.reduce_axis((0, filter_d), name="dd")
+    dh = te.reduce_axis((0, filter_h), name="dh")
+    dw = te.reduce_axis((0, filter_w), name="dw")
+
+    # data: batch, in_channels, out_d, out_h, out_w
+    # weight: out_channels // G, in_channels, out_d, out_h, out_w
+    return te.compute(
+        (batch, out_c, out_d, out_h, out_w),
+        lambda b, c, d, h, w: te.sum(
+            data_pad[
+                b, c // (out_c // groups) * (in_c // groups) + dc, d + dd, h + dh, w + dw
+            ].astype(out_dtype)
+            * kernel_transform[
+                c % (out_c // groups),
+                c // (out_c // groups) * (in_c // groups) + dc,
+                dd,
+                dh,
+                dw,
+            ].astype(out_dtype),
+            axis=[dc, dd, dh, dw],
+        ),
+        tag="group_conv3d_transpose_ncdhw",
+    )

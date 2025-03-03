@@ -79,7 +79,7 @@ def test_const_fold3():
     ]:
         for v1 in [0, 1]:
             for v2 in [0, 1]:
-                assert tvm.ir.structural_equal(
+                tvm.ir.assert_structural_equal(
                     tvm_func(tvm.tir.const(v1, "uint1"), tvm.tir.const(v2, "uint1")),
                     tvm.tir.const(py_func(v1, v2), "uint1"),
                 )
@@ -198,13 +198,13 @@ def test_if_then_else():
             out = tvm.tir.if_then_else(cond, lhs, rhs)
             out2 = tvm.tir.if_then_else(not cond, rhs, lhs)
             out3 = tvm.tir.if_then_else(not cond, lhs, rhs)
-            assert tvm.ir.structural_equal(out, out2) == 1
+            tvm.ir.assert_structural_equal(out, out2) == 1
             if cond:
-                assert tvm.ir.structural_equal(out, lhs.astype(out_dtype)) == 1
-                assert tvm.ir.structural_equal(out3, rhs.astype(out_dtype)) == 1
+                tvm.ir.assert_structural_equal(out, lhs.astype(out_dtype)) == 1
+                tvm.ir.assert_structural_equal(out3, rhs.astype(out_dtype)) == 1
             else:
-                assert tvm.ir.structural_equal(out, rhs.astype(out_dtype)) == 1
-                assert tvm.ir.structural_equal(out3, lhs.astype(out_dtype)) == 1
+                tvm.ir.assert_structural_equal(out, rhs.astype(out_dtype)) == 1
+                tvm.ir.assert_structural_equal(out3, lhs.astype(out_dtype)) == 1
         elif cond.dtype == "bool":
             out = tvm.tir.if_then_else(cond, lhs, rhs)
             assert out.dtype == out_dtype

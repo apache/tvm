@@ -23,7 +23,7 @@ include (FindPackageHandleStandardArgs)
 
 if(USE_TENSORRT_CODEGEN)
     message(STATUS "Build with TensorRT codegen")
-    tvm_file_glob(GLOB COMPILER_TENSORRT_SRCS src/relay/backend/contrib/tensorrt/*.cc)
+    tvm_file_glob(GLOB COMPILER_TENSORRT_SRCS src/relay/backend/contrib/tensorrt/*.cc src/relax/backend/contrib/tensorrt/*.cc)
     set_source_files_properties(${COMPILER_TENSORRT_SRCS} PROPERTIES COMPILE_FLAGS "-Wno-deprecated-declarations")
     tvm_file_glob(GLOB RUNTIME_TENSORRT_SRCS src/runtime/contrib/tensorrt/tensorrt_runtime.cc)
     set_source_files_properties(${RUNTIME_TENSORRT_SRCS} PROPERTIES COMPILE_FLAGS "-Wno-deprecated-declarations")

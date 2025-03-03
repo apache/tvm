@@ -51,10 +51,11 @@ def group_norm_python(data, gamma, beta, num_groups, channel_axis, axes, epsilon
         N-D with shape (d_0, d_1, ..., d_{N-1})
     """
     old_shape = data.shape
+    old_dtype = data.dtype
     new_shape = list(old_shape)
     new_shape[channel_axis] = data.shape[channel_axis] // num_groups
     new_shape.insert(channel_axis, num_groups)
-    data = np.reshape(data, new_shape)
+    data = np.reshape(data, new_shape).astype("float32")
     new_axes = [channel_axis + 1]
     for axis in axes:
         if axis < channel_axis:
@@ -64,7 +65,7 @@ def group_norm_python(data, gamma, beta, num_groups, channel_axis, axes, epsilon
     mean = np.mean(data, axis=tuple(new_axes), keepdims=True)
     var = np.var(data, axis=tuple(new_axes), keepdims=True)
     data = (data - mean) / np.sqrt(var + epsilon)
-    data = np.reshape(data, old_shape)
+    data = np.reshape(data, old_shape).astype(old_dtype)
 
     gamma_broadcast_shape = [1 for _ in range(len(old_shape))]
     gamma_broadcast_shape[channel_axis] = gamma.shape[0]

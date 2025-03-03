@@ -1,4 +1,0 @@
-keras==2.9
-mxnet
-scipy
-tensorflow==2.9.3

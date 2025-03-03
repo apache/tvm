@@ -62,11 +62,11 @@ def image_exists(spec: str) -> bool:
     name, tag = spec.split(":")
     try:
         r = docker_api(f"repositories/{name}/tags/{tag}")
-        logging.info(f"Image exists, got response: {json.dumps(r, indent=2)}")
+        logging.debug(f"Image exists, got response: {json.dumps(r, indent=2)}")
         return True
     except urllib.error.HTTPError as e:
         # Image was not found
-        logging.exception(e)
+        logging.debug(e)
         return False
 
 

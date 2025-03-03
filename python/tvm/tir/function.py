@@ -80,6 +80,9 @@ class PrimFunc(BaseFunc, Scriptable):
             else:
                 raise TypeError("params can only contain Var or Buffer")
 
+        if attrs is None:
+            attrs = tvm.ir.make_node("DictAttrs")
+
         self.__init_handle_by_constructor__(
             _ffi_api.PrimFunc,
             param_list,

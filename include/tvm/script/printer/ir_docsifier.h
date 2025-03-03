@@ -145,6 +145,8 @@ class IRDocsifierNode : public Object {
   std::unordered_map<ObjectRef, VariableInfo, ObjectPtrHash, ObjectPtrEqual> obj2info;
   /*! \brief Metadata printing */
   std::unordered_map<String, Array<ObjectRef>> metadata;
+  /*! \brief GlobalInfo printing */
+  std::unordered_map<String, Array<GlobalInfo>> global_infos;
   /*! \brief The variable names used already */
   std::unordered_set<String> defined_names;
   /*! \brief Common prefixes of variable usages */
@@ -206,6 +208,11 @@ class IRDocsifierNode : public Object {
   Optional<ExprDoc> GetVarDoc(const ObjectRef& obj) const;
   /*! \brief Add a TVM object to the metadata section*/
   ExprDoc AddMetadata(const ObjectRef& obj);
+  /*! \brief Add a GlobalInfo to the global_infos map.
+   * \param name The name of key of global_infos.
+   * \param ginfo The GlobalInfo to be added.
+   */
+  void AddGlobalInfo(const String& name, const GlobalInfo& ginfo);
   /*!
    * \brief Check if a variable exists in the table.
    * \param obj The variable object.

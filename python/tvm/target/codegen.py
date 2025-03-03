@@ -183,7 +183,8 @@ def llvm_get_cpu_features(target=None):
         List of available CPU features.
     """
     assert isinstance(target, Target) or target is None
-    return _ffi_api.llvm_get_cpu_features(target)
+    feature_map = _ffi_api.llvm_get_cpu_features(target)
+    return set(feature_map.keys())
 
 
 def llvm_cpu_has_features(cpu_features, target=None):
@@ -208,6 +209,23 @@ def llvm_cpu_has_features(cpu_features, target=None):
     for feat in cpu_features:
         has_feats &= _ffi_api.llvm_cpu_has_feature(feat, target)
     return has_feats
+
+
+def llvm_get_vector_width(target=None):
+    """Get vector width from LLVM target's `-mtriple` and `-mcpu` and considering `-mattr`.
+
+    Parameters
+    ----------
+    target : Target
+        The TVM target.
+
+    Returns
+    -------
+    vector_width : int
+        Vector with of target in number of bits, -1 on error.
+    """
+    assert isinstance(target, Target) or target is None
+    return _ffi_api.llvm_get_vector_width(target)
 
 
 def llvm_version_major(allow_none=False):

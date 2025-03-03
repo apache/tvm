@@ -22,9 +22,6 @@
  */
 #include "codegen_c_host.h"
 
-#include <tvm/relay/executor.h>
-#include <tvm/relay/runtime.h>
-#include <tvm/runtime/crt/error_codes.h>
 #include <tvm/runtime/module.h>
 #include <tvm/target/codegen.h>
 
@@ -36,7 +33,6 @@
 
 #include "../../support/str_escape.h"
 #include "../build_common.h"
-#include "../func_registry_generator.h"
 #include "codegen_params.h"
 
 namespace tvm {
@@ -55,17 +51,6 @@ void CodeGenCHost::Init(bool output_ssa, bool emit_asserts, bool emit_fwd_func_d
   decl_stream << "#include \"tvm/runtime/c_backend_api.h\"\n";
   decl_stream << "#include <math.h>\n";
   decl_stream << "#include <stdbool.h>\n";
-  if (devices.find("ethos-u") != devices.end()) {
-    decl_stream << "#include <tvm_ethosu_runtime.h>\n";
-  }
-  if (devices.find("cmsis-nn") != devices.end()) {
-    decl_stream << "#include <stdio.h>\n";
-    decl_stream << "#include <stdlib.h>\n";
-    decl_stream << "#include <dlpack/dlpack.h>\n";
-    decl_stream << "#include <arm_nnfunctions.h>\n";
-    decl_stream << "#include <arm_nn_types.h>\n";
-    decl_stream << "#include <arm_nn_math_types.h>\n";
-  }
   CodeGenC::Init(output_ssa);
 }
 
@@ -74,6 +59,10 @@ void CodeGenCHost::InitGlobalContext() {
 }
 
 void CodeGenCHost::DefineModuleName() { decl_stream << "void* " << module_name_ << " = NULL;\n"; }
+
+void CodeGenCHost::AddFunction(const GlobalVar& gvar, const PrimFunc& func) {
+  return AddFunction(gvar, func, /*emit_fwd_func_decl=*/false);
+}
 
 void CodeGenCHost::AddFunction(const GlobalVar& gvar, const PrimFunc& func,
                                bool emit_fwd_func_decl) {
@@ -204,10 +193,11 @@ void CodeGenCHost::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
 
 void CodeGenCHost::VisitExpr_(const BroadcastNode* op, std::ostream& os) {  // NOLINT(*)
   std::string v = PrintExpr(op->value);
+  int lanes = op->dtype.lanes();
   os << "((";
   PrintType(op->dtype, os);
   os << ")(";
-  for (int i = 0; i < op->lanes; ++i) {
+  for (int i = 0; i < lanes; ++i) {
     if (i != 0) os << ", ";
     os << v;
   }
@@ -465,22 +455,6 @@ runtime::Module BuildCHost(IRModule mod, Target target) {
   // arguments provided to it.
   for (const auto& [gvar, prim_func] : funcs) {
     cg.AddFunction(gvar, prim_func, emit_fwd_func_decl);
-  }
-
-  // NOTE: it's possible that kRuntime attr is not attached when the mod was built with tvm.build().
-  // See issue #10373.
-  auto opt_runtime = mod->GetAttr<relay::Runtime>(tvm::attr::kRuntime);
-  relay::Runtime runtime;
-  if (opt_runtime.get() != nullptr) {
-    runtime = opt_runtime.value();
-  } else {
-    runtime = relay::Runtime::Create("cpp", {});
-  }
-
-  bool has_aot_executor_fn = std::any_of(
-      funcs.begin(), funcs.end(), [&](const auto& kv) { return is_aot_executor_fn(kv.second); });
-  if (has_aot_executor_fn && runtime->name == relay::kTvmRuntimeCpp) {
-    cg.InitGlobalContext();
   }
 
   if (target->GetAttr<Bool>("system-lib").value_or(Bool(false))) {

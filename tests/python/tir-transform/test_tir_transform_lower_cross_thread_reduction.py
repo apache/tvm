@@ -116,7 +116,8 @@ def no_normal_reduction(a: T.handle, b: T.handle) -> None:
                 B[vi] = B[vi] + A[vi, vk]
 
 
-@T.prim_func
+# complains that k is defined outside of a block
+@T.prim_func(check_well_formed=False)
 def lowered_no_normal_reduction(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [128, 128], dtype="float32")
     B = T.match_buffer(b, [128], dtype="float32")
@@ -162,7 +163,8 @@ def two_bound_loops(a: T.handle, b: T.handle) -> None:
                     B[vi] = B[vi] + A[vi, vk]
 
 
-@T.prim_func
+# complains that ko is defined outside of a block
+@T.prim_func(check_well_formed=False)
 def lowered_two_bound_loops(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [128, 128], dtype="float32")
     B = T.match_buffer(b, [128], dtype="float32")
@@ -497,6 +499,225 @@ def lowered_single_reduction_loop_with_block_predicate(
 
 
 @T.prim_func
+def spatial_reduction_with_shared_prefetch(
+    A: T.Buffer((128, 150528), "float32"),
+    B: T.Buffer((128, 150528), "float32"),
+    C: T.Buffer((128, 128), "float32"),
+):
+    C_local = T.alloc_buffer((128, 128), scope="local")
+    A_shared = T.alloc_buffer((128, 150528), scope="shared")
+    B_shared = T.alloc_buffer((128, 150528), scope="shared")
+    for ax0_0_ax1_0_fused in T.thread_binding(256, thread="blockIdx.x"):
+        for ax0_1_ax1_1_fused in T.thread_binding(64, thread="threadIdx.y"):
+            for ax2_1_1_fused in T.thread_binding(2, thread="threadIdx.x"):
+                for ax2_0 in range(392):
+                    for ax0_ax1_fused_0 in range(6):
+                        for ax0_ax1_fused_1 in T.thread_binding(64, thread="threadIdx.y"):
+                            for ax0_ax1_fused_2 in T.thread_binding(2, thread="threadIdx.x"):
+                                for ax0_ax1_fused_3 in T.serial(4):
+                                    with T.block("A_shared"):
+                                        v0 = T.axis.spatial(
+                                            128,
+                                            ax0_0_ax1_0_fused // 16 * 8
+                                            + (
+                                                ax0_ax1_fused_0 * 512
+                                                + ax0_ax1_fused_1 * 8
+                                                + ax0_ax1_fused_2 * 4
+                                                + ax0_ax1_fused_3
+                                            )
+                                            // 384,
+                                        )
+                                        v1 = T.axis.spatial(
+                                            150528,
+                                            ax2_0 * 384
+                                            + (
+                                                ax0_ax1_fused_0 * 512
+                                                + ax0_ax1_fused_1 * 8
+                                                + ax0_ax1_fused_2 * 4
+                                                + ax0_ax1_fused_3
+                                            )
+                                            % 384,
+                                        )
+                                        T.reads(A[v0, v1])
+                                        T.writes(A_shared[v0, v1])
+                                        A_shared[v0, v1] = A[v0, v1]
+                    for ax0_ax1_fused_0 in range(6):
+                        for ax0_ax1_fused_1 in T.thread_binding(64, thread="threadIdx.y"):
+                            for ax0_ax1_fused_2 in T.thread_binding(2, thread="threadIdx.x"):
+                                for ax0_ax1_fused_3 in T.serial(4):
+                                    with T.block("B_shared"):
+                                        v0 = T.axis.spatial(
+                                            128,
+                                            ax0_0_ax1_0_fused % 16 * 8
+                                            + (
+                                                ax0_ax1_fused_0 * 512
+                                                + ax0_ax1_fused_1 * 8
+                                                + ax0_ax1_fused_2 * 4
+                                                + ax0_ax1_fused_3
+                                            )
+                                            // 384,
+                                        )
+                                        v1 = T.axis.spatial(
+                                            150528,
+                                            ax2_0 * 384
+                                            + (
+                                                ax0_ax1_fused_0 * 512
+                                                + ax0_ax1_fused_1 * 8
+                                                + ax0_ax1_fused_2 * 4
+                                                + ax0_ax1_fused_3
+                                            )
+                                            % 384,
+                                        )
+                                        T.reads(B[v0, v1])
+                                        T.writes(B_shared[v0, v1])
+                                        B_shared[v0, v1] = B[v0, v1]
+                    for ax2_1_0 in range(192):
+                        with T.block("B"):
+                            v0 = T.axis.spatial(
+                                128, ax0_0_ax1_0_fused // 16 * 8 + ax0_1_ax1_1_fused // 8
+                            )
+                            v1 = T.axis.spatial(
+                                128, ax0_0_ax1_0_fused % 16 * 8 + ax0_1_ax1_1_fused % 8
+                            )
+                            v2 = T.axis.reduce(150528, ax2_0 * 384 + ax2_1_0 * 2 + ax2_1_1_fused)
+                            T.reads(A_shared[v0, v2], B_shared[v1, v2])
+                            T.writes(C_local[v0, v1])
+                            with T.init():
+                                C_local[v0, v1] = T.float32(0)
+                            C_local[v0, v1] = C_local[v0, v1] + A_shared[v0, v2] * B_shared[v1, v2]
+            with T.block("C_local"):
+                v0 = T.axis.spatial(128, ax0_0_ax1_0_fused // 16 * 8 + ax0_1_ax1_1_fused // 8)
+                v1 = T.axis.spatial(128, ax0_0_ax1_0_fused % 16 * 8 + ax0_1_ax1_1_fused % 8)
+                T.reads(C_local[v0, v1])
+                T.writes(C[v0, v1])
+                C[v0, v1] = C_local[v0, v1]
+
+
+@T.prim_func
+def lowered_spatial_reduction_with_shared_prefetch(
+    A: T.Buffer((128, 150528), "float32"),
+    B: T.Buffer((128, 150528), "float32"),
+    C: T.Buffer((128, 128), "float32"),
+):
+    C_local = T.alloc_buffer((128, 128), scope="local")
+    A_shared = T.alloc_buffer((128, 150528), scope="shared")
+    B_shared = T.alloc_buffer((128, 150528), scope="shared")
+    cross_thread_C_local = T.alloc_buffer((1,), strides=(1,), scope="local")
+    in_thread_C_local = T.alloc_buffer((1,), strides=(1,), scope="local")
+    for ax0_0_ax1_0_fused in T.thread_binding(256, thread="blockIdx.x"):
+        for ax0_1_ax1_1_fused in T.thread_binding(64, thread="threadIdx.y"):
+            for ax2_1_1_fused in T.thread_binding(2, thread="threadIdx.x"):
+                with T.block("B_in_thread_init"):
+                    T.reads()
+                    T.writes(in_thread_C_local[0])
+                    in_thread_C_local[0] = T.float32(0)
+                for ax2_0 in range(392):
+                    for ax0_ax1_fused_0 in range(6):
+                        for ax0_ax1_fused_1 in T.thread_binding(64, thread="threadIdx.y"):
+                            for ax0_ax1_fused_2 in T.thread_binding(2, thread="threadIdx.x"):
+                                for ax0_ax1_fused_3 in range(4):
+                                    with T.block("A_shared"):
+                                        v0 = T.axis.spatial(
+                                            128,
+                                            ax0_0_ax1_0_fused // 16 * 8
+                                            + (
+                                                ax0_ax1_fused_0 * 512
+                                                + ax0_ax1_fused_1 * 8
+                                                + ax0_ax1_fused_2 * 4
+                                                + ax0_ax1_fused_3
+                                            )
+                                            // 384,
+                                        )
+                                        v1 = T.axis.spatial(
+                                            150528,
+                                            ax2_0 * 384
+                                            + (
+                                                ax0_ax1_fused_0 * 512
+                                                + ax0_ax1_fused_1 * 8
+                                                + ax0_ax1_fused_2 * 4
+                                                + ax0_ax1_fused_3
+                                            )
+                                            % 384,
+                                        )
+                                        T.reads(A[v0, v1])
+                                        T.writes(A_shared[v0, v1])
+                                        A_shared[v0, v1] = A[v0, v1]
+                    for ax0_ax1_fused_0 in range(6):
+                        for ax0_ax1_fused_1 in T.thread_binding(64, thread="threadIdx.y"):
+                            for ax0_ax1_fused_2 in T.thread_binding(2, thread="threadIdx.x"):
+                                for ax0_ax1_fused_3 in range(4):
+                                    with T.block("B_shared"):
+                                        v0 = T.axis.spatial(
+                                            128,
+                                            ax0_0_ax1_0_fused % 16 * 8
+                                            + (
+                                                ax0_ax1_fused_0 * 512
+                                                + ax0_ax1_fused_1 * 8
+                                                + ax0_ax1_fused_2 * 4
+                                                + ax0_ax1_fused_3
+                                            )
+                                            // 384,
+                                        )
+                                        v1 = T.axis.spatial(
+                                            150528,
+                                            ax2_0 * 384
+                                            + (
+                                                ax0_ax1_fused_0 * 512
+                                                + ax0_ax1_fused_1 * 8
+                                                + ax0_ax1_fused_2 * 4
+                                                + ax0_ax1_fused_3
+                                            )
+                                            % 384,
+                                        )
+                                        T.reads(B[v0, v1])
+                                        T.writes(B_shared[v0, v1])
+                                        B_shared[v0, v1] = B[v0, v1]
+                    for ax2_1_0 in range(192):
+                        with T.block("B_in_thread"):
+                            v0 = T.axis.spatial(
+                                128, ax0_0_ax1_0_fused // 16 * 8 + ax0_1_ax1_1_fused // 8
+                            )
+                            v1 = T.axis.spatial(
+                                128, ax0_0_ax1_0_fused % 16 * 8 + ax0_1_ax1_1_fused % 8
+                            )
+                            v2 = T.axis.reduce(150528, ax2_0 * 384 + ax2_1_0 * 2 + ax2_1_1_fused)
+                            T.reads(A_shared[v0, v2], B_shared[v1, v2])
+                            T.writes(in_thread_C_local[0])
+                            in_thread_C_local[0] = (
+                                in_thread_C_local[0] + A_shared[v0, v2] * B_shared[v1, v2]
+                            )
+                with T.block("B_cross_thread"):
+                    T.reads(in_thread_C_local[0])
+                    T.writes(cross_thread_C_local[0])
+                    T.attr(
+                        T.comm_reducer(lambda x0, y0: x0 + y0, [T.float32(0)]),
+                        "reduce_scope",
+                        T.reinterpret("handle", T.uint64(0)),
+                    )
+                    T.tvm_thread_allreduce(
+                        T.uint32(1),
+                        in_thread_C_local[0],
+                        T.bool(True),
+                        cross_thread_C_local[0],
+                        ax2_1_1_fused,
+                    )
+                with T.block("B_write_back"):
+                    v0 = T.axis.spatial(128, ax0_0_ax1_0_fused // 16 * 8 + ax0_1_ax1_1_fused // 8)
+                    v1 = T.axis.spatial(128, ax0_0_ax1_0_fused % 16 * 8 + ax0_1_ax1_1_fused % 8)
+                    T.reads(cross_thread_C_local[0])
+                    T.writes(C_local[v0, v1])
+                    C_local[v0, v1] = cross_thread_C_local[0]
+            for tx in T.thread_binding(2, thread="threadIdx.x"):
+                with T.block("C_local"):
+                    v0 = T.axis.spatial(128, ax0_0_ax1_0_fused // 16 * 8 + ax0_1_ax1_1_fused // 8)
+                    v1 = T.axis.spatial(128, ax0_0_ax1_0_fused % 16 * 8 + ax0_1_ax1_1_fused % 8)
+                    T.where(tx == 0)
+                    T.reads(C_local[v0, v1])
+                    T.writes(C[v0, v1])
+                    C[v0, v1] = C_local[v0, v1]
+
+
+@T.prim_func
 def spatial_reduction_loop_predicate(A: T.Buffer((2, 32), "float32"), B: T.Buffer((2,), "float32")):
     for i_0 in range(1):
         for i_1 in T.thread_binding(16, thread="threadIdx.y"):
@@ -680,7 +901,8 @@ def reducer_max(a: T.handle, b: T.handle) -> None:
                 B[vi] = T.max(B[vi], A[vi, vk])
 
 
-@T.prim_func
+# complains that k is defined outside of a block
+@T.prim_func(check_well_formed=False)
 def lowered_reducer_max(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [128, 128], dtype="float32")
     B = T.match_buffer(b, [128], dtype="float32")
@@ -723,7 +945,8 @@ def zero_rank_buffer(a: T.handle, b: T.handle) -> None:
             B[()] = B[()] + A[vk]
 
 
-@T.prim_func
+# complains that k is defined outside of a block
+@T.prim_func(check_well_formed=False)
 def lowered_zero_rank_buffer(a: T.handle, b: T.handle) -> None:
     A = T.match_buffer(a, [128], dtype="float32")
     B = T.match_buffer(b, [], dtype="float32")
@@ -1353,7 +1576,8 @@ def thread_broadcast_1(A: T.Buffer((256, 256), "float32"), B: T.Buffer((256,), "
             B[vi] = temp_local[vi] + T.float32(1)
 
 
-@T.prim_func
+# complains that k is defined outside of a block
+@T.prim_func(check_well_formed=False)
 def lowered_thread_broadcast_1(A: T.Buffer((256, 256), "float32"), B: T.Buffer((256,), "float32")):
     temp_local = T.alloc_buffer((256,), scope="local")
     cross_thread_temp_local = T.alloc_buffer((1,), strides=(1,), scope="local")
@@ -1526,7 +1750,8 @@ def no_thread_broadcast(A: T.Buffer((256, 256), "float32"), B: T.Buffer((256, 25
                 B[vi, vj] = A[vi, vj] + temp_2_local[0]
 
 
-@T.prim_func
+# complains that k is defined outside of a block
+@T.prim_func(check_well_formed=False)
 def lowered_no_thread_broadcast(
     A: T.Buffer((256, 256), "float32"), B: T.Buffer((256, 256), "float32")
 ):
@@ -1586,6 +1811,13 @@ def test_multiple_blocks_under_reduction_loop():
 
 def test_with_block_predicate():
     _check(with_block_predicate, lowered_with_block_predicate)
+
+
+def test_single_reduction_loop_with_shared_memory_prefetch():
+    _check(
+        spatial_reduction_with_shared_prefetch,
+        lowered_spatial_reduction_with_shared_prefetch,
+    )
 
 
 def test_single_reduction_loop_with_block_predicate():
@@ -1663,21 +1895,6 @@ def test_thread_broadcast_rewrite_2():
 
 def test_no_thread_broadcast_rewrite():
     _check(no_thread_broadcast, lowered_no_thread_broadcast)
-
-
-def test_lower_te():
-    a = te.placeholder((32, 2, 2))
-    k1 = te.reduce_axis((0, 2), "k1")
-    k2 = te.reduce_axis((0, 2), "k2")
-    b = te.compute((32,), lambda i: te.sum(a[i, k1, k2], axis=[k1, k2]))
-    s = te.create_schedule(b.op)
-    s[b].bind(k1, te.thread_axis("threadIdx.x"))
-    s[b].bind(k2, te.thread_axis("threadIdx.y"))
-    orig_mod = tvm.driver.build_module.schedule_to_module(s, [a, b])
-    mod = tvm.tir.transform.LowerCrossThreadReduction()(orig_mod)
-    tvm.ir.assert_structural_equal(
-        mod, orig_mod
-    )  # LowerCrossThreadReduction should do nothing on TE
 
 
 def test_layer_norm_tuple_sum():

@@ -20,11 +20,6 @@ FROM tlcpack/ci-gpu
 
 COPY utils/apt-install-and-clear.sh /usr/local/bin/apt-install-and-clear
 
-# Android SDK
-COPY install/ubuntu_install_androidsdk.sh /install/ubuntu_install_androidsdk.sh
-RUN bash /install/ubuntu_install_androidsdk.sh 25.2.9519653 3.22.1 33.0.2 33
-ENV PATH /opt/android-sdk-linux/platform-tools:$PATH
-
 # Clang tool for CLML source codegen
 RUN apt-get update && apt-install-and-clear -y clang-format-15
 

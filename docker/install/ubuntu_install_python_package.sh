@@ -23,10 +23,8 @@ set -o pipefail
 # install libraries for python package on ubuntu
 pip3 install --upgrade \
     "Pygments>=2.4.0" \
-    attrs \
     cloudpickle \
     cython \
-    decorator \
     mypy \
     numpy==1.21.* \
     orderedset \
@@ -44,5 +42,4 @@ pip3 install --upgrade \
     junitparser==2.4.2 \
     six \
     tornado \
-    pytest-lazy-fixture \
-    ml_dtypes
+    "ml_dtypes>=0.5.1"

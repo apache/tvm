@@ -39,43 +39,49 @@ export RISCV=$1
 export PATH=$RISCV/bin:$PATH
 shift
 
-sudo apt-install-and-clear -y --no-install-recommends device-tree-compiler
+# Install dependency
+apt-install-and-clear -y --no-install-recommends device-tree-compiler
 
 # Install spike
 mkdir /tmp/spike
-cd /tmp/spike
-# TODO: freeze version?
-git clone https://github.com/riscv/riscv-isa-sim.git
-pushd riscv-isa-sim
-mkdir build
-cd build
-../configure --prefix=$RISCV --with-isa=RV32IMAC
-make -j`nproc`
-make install
+pushd /tmp/spike
+    # TODO: freeze version?
+    git clone https://github.com/riscv/riscv-isa-sim.git
+    pushd riscv-isa-sim
+        mkdir build
+        cd build
+        ../configure --prefix=$RISCV --with-isa=RV32IMAC
+        make -j`nproc`
+        make install
+    popd
+
+    # Install pk
+    git clone https://github.com/riscv/riscv-pk.git
+    pushd riscv-pk
+        # With commit 47a2e87, we get the below compilation so we'll use the specific commit
+        #   ../pk/pk.c: Assembler messages:
+        #   ../pk/pk.c:122: Error: unknown CSR `ssp'
+        git checkout 1a52fa4
+
+        # rv32imac
+        mkdir build
+        pushd build
+            ../configure --prefix=`pwd`/install --host=riscv64-unknown-elf --with-arch=rv32imac
+            make -j`nproc`
+            make install
+            cp ./pk $RISCV/riscv64-unknown-elf/bin/pk
+        popd
+
+        # rv64imac
+        mkdir build64
+        pushd build64
+            ../configure --prefix=`pwd`/install --host=riscv64-unknown-elf --with-arch=rv64imac
+            make -j`nproc`
+            make install
+            cp ./pk $RISCV/riscv64-unknown-elf/bin/pk64
+        popd
+    popd
 popd
-
-# Install pk
-git clone https://github.com/riscv/riscv-pk.git
-pushd riscv-pk
-
-# rv32imac
-mkdir build
-pushd build
-../configure --prefix=`pwd`/install --host=riscv64-unknown-elf --with-arch=rv32imac
-make -j`nproc`
-make install
-cp ./pk $RISCV/riscv64-unknown-elf/bin/pk
-popd
-
-git status
-
-# rv64imac
-mkdir build64
-pushd build64
-../configure --prefix=`pwd`/install --host=riscv64-unknown-elf --with-arch=rv64imac
-make -j`nproc`
-make install
-cp ./pk $RISCV/riscv64-unknown-elf/bin/pk64
 
 # cleanup
 rm -rf /tmp/spike

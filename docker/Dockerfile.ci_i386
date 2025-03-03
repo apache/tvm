@@ -49,7 +49,7 @@ ENV CARGO_HOME /opt/rust
 ENV PATH $PATH:$CARGO_HOME/bin
 ENV PYTHONNOUSERSITE 1  # Disable .local directory from affecting CI.
 
-ENV TVM_VENV /venv/apache-tvm-py3.8
+ENV TVM_VENV /venv/apache-tvm-py3.9
 COPY python/bootstrap/lockfiles /install/python/bootstrap/lockfiles
 COPY install/ubuntu2004_install_python.sh /install/ubuntu2004_install_python.sh
 RUN bash /install/ubuntu2004_install_python.sh
@@ -65,10 +65,6 @@ RUN bash /install/ubuntu2004_install_redis.sh
 # Chisel deps for TSIM
 COPY install/ubuntu_install_sbt.sh /install/ubuntu_install_sbt.sh
 RUN bash /install/ubuntu_install_sbt.sh
-
-# Verilator deps
-COPY install/ubuntu_install_verilator.sh /install/ubuntu_install_verilator.sh
-RUN bash /install/ubuntu_install_verilator.sh
 
 # sccache
 COPY install/ubuntu_install_sccache.sh /install/ubuntu_install_sccache.sh

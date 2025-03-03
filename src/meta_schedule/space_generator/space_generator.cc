@@ -117,10 +117,6 @@ void SpaceGeneratorNode::InitializeWithTuneContext(const TuneContext& context) {
       default_sch_rules = ScheduleRule::DefaultX86("avx512");
       default_postprocs = Postproc::DefaultCPUTensorization();
       default_mutator_probs = Mutator::DefaultLLVM();
-    } else if (kind == "c") {
-      default_sch_rules = ScheduleRule::DefaultMicro();
-      default_postprocs = Postproc::DefaultMicro();
-      default_mutator_probs = Mutator::DefaultMicro();
     } else if (kind == "asimd") {
       default_sch_rules = ScheduleRule::DefaultARM("neon");
       default_postprocs = Postproc::DefaultCPUTensorization();

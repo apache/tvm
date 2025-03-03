@@ -127,7 +127,7 @@ PrimExpr ExprMutator::VisitExpr_(const BufferLoadNode* op) {
   if (indices.same_as(op->indices)) {
     return GetRef<PrimExpr>(op);
   } else {
-    return BufferLoad(op->buffer, indices);
+    return BufferLoad(op->buffer, indices, op->predicate);
   }
 }
 
@@ -258,19 +258,21 @@ PrimExpr ExprMutator::VisitExpr_(const SelectNode* op) {
 PrimExpr ExprMutator::VisitExpr_(const RampNode* op) {
   PrimExpr base = this->VisitExpr(op->base);
   PrimExpr stride = this->VisitExpr(op->stride);
-  if (base.same_as(op->base) && stride.same_as(op->stride)) {
+  PrimExpr lanes = this->VisitExpr(op->lanes);
+  if (base.same_as(op->base) && stride.same_as(op->stride) && lanes.same_as(op->lanes)) {
     return GetRef<PrimExpr>(op);
   } else {
-    return Ramp(base, stride, op->lanes);
+    return Ramp(base, stride, lanes);
   }
 }
 
 PrimExpr ExprMutator::VisitExpr_(const BroadcastNode* op) {
   PrimExpr value = this->VisitExpr(op->value);
-  if (value.same_as(op->value)) {
+  PrimExpr lanes = this->VisitExpr(op->lanes);
+  if (value.same_as(op->value) && lanes.same_as(op->lanes)) {
     return GetRef<PrimExpr>(op);
   } else {
-    return Broadcast(value, op->lanes);
+    return Broadcast(value, lanes);
   }
 }
 

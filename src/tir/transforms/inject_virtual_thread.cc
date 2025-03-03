@@ -399,7 +399,7 @@ class VTInjector : public arith::IRMutatorWithAnalyzer {
       // place v on highest dimension.
 
       // TODO(Lunderberg): Move pass to apply before
-      // StorageFlatten/FlattenBuffer.  Would rewrite the Buffer to
+      // FlattenBuffer.  Would rewrite the Buffer to
       // add the injected virtual thread as the first index.
       ICHECK_EQ(extents.size(), 1)
           << "InjectVirtualThread expects rewritten allocations to be flat memory.";
@@ -507,9 +507,7 @@ class VirtualThreadInjector : public arith::IRMutatorWithAnalyzer {
     }
   }
 
-  Stmt VisitStmt_(const ProducerStoreNode* op) final {
-    LOG(FATAL) << "Need to call StorageFlatten first";
-  }
+  Stmt VisitStmt_(const ProducerStoreNode* op) final { LOG(FATAL) << "Should not appear in TIR"; }
 };
 
 namespace transform {

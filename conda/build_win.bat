@@ -15,4 +15,6 @@
 :: specific language governing permissions and limitations
 :: under the License.
 
-conda build --output-folder=conda/pkg conda/recipe
+echo on
+
+conda build --output-folder=conda/pkg conda/recipe || exit /b

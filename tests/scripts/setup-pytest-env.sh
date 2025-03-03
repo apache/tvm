@@ -47,15 +47,14 @@ function cleanup() {
 trap cleanup 0
 
 function run_pytest() {
+    ffi_type="cython"
     set -e
-    local ffi_type="$1"
-    shift
     local test_suite_name="$1"
     shift
     extra_args=( "$@" )
     if [ -z "${ffi_type}" -o -z "${test_suite_name}" ]; then
-        echo "error: run_pytest called incorrectly: run_pytest ${ffi_type} ${test_suite_name}" "${extra_args[@]}"
-        echo "usage: run_pytest <FFI_TYPE> <TEST_SUITE_NAME> [pytest args...]"
+        echo "error: run_pytest called incorrectly: run_pytest ${test_suite_name}" "${extra_args[@]}"
+        echo "usage: run_pytest <TEST_SUITE_NAME> [pytest args...]"
         exit 2
     fi
 
@@ -70,7 +69,9 @@ function run_pytest() {
 
     has_reruns=$(python3 -m pytest --help 2>&1 | grep 'reruns=' || true)
     if [ -n "$has_reruns" ]; then
-        extra_args+=('--reruns=3')
+        if [[ ! "${extra_args[*]}" == *"--reruns"* ]]; then
+          extra_args+=('--reruns=3')
+        fi
     fi
 
     suite_name="${test_suite_name}-${current_shard}-${ffi_type}"
@@ -83,7 +84,7 @@ function run_pytest() {
 
     exit_code=0
     set +e
-    TVM_FFI=${ffi_type} python3 -m pytest \
+    python3 -m pytest \
            -o "junit_suite_name=${suite_name}" \
            "--junit-xml=${TVM_PYTEST_RESULT_DIR}/${suite_name}.xml" \
            "--junit-prefix=${ffi_type}" \

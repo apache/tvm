@@ -65,8 +65,8 @@ def pool_grad(
     padding,
     pool_type,
     ceil_mode=False,
-    layout="NCHW",
     count_include_pad=True,
+    layout="NCHW",
 ):
     """Gradient of pooling on height and width dimension of data.
        It decides the height and width dimension according to the layout string,
@@ -99,6 +99,9 @@ def pool_grad(
     ceil_mode : bool
         Whether to use ceil when calculating output size.
 
+    count_include_pad: bool
+        Whether include padding in the calculation when pool_type is 'avg'
+
     layout: string
         Layout of the input data.
         The layout is supposed to be composed of upper cases, lower cases and numbers,
@@ -108,8 +111,6 @@ def pool_grad(
         [batch_size, channel, height, width, channel_block],
         in which channel_block=16 is a split of dimension channel.
 
-    count_include_pad: bool
-        Whether include padding in the calculation when pool_type is 'avg'
 
     Returns
     -------
@@ -166,6 +167,13 @@ def adaptive_pool(data, output_size, pool_type, layout="NCHW"):
         n-D in the same layout
     """
     return cpp.nn.adaptive_pool(data, output_size, POOL_TYPE_CODE[pool_type], layout)
+
+
+def adaptive_pool1d(data, output_size, pool_type, layout="NCW"):
+    """Perform pooling on three dimensional data.
+    See the two dimensional version above for details.
+    """
+    return cpp.nn.adaptive_pool1d(data, output_size, POOL_TYPE_CODE[pool_type], layout)
 
 
 def adaptive_pool3d(data, output_size, pool_type, layout="NCDHW"):

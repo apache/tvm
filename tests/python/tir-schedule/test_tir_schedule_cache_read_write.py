@@ -488,6 +488,19 @@ def cache_read_nested_seq_target(
             C[vi, vj] = A_global[vi, vj] * T.float32(2)
 
 
+@T.prim_func
+def nested_buffer_access(var_A: T.handle, var_B: T.handle, var_C: T.handle):
+    A = T.match_buffer(var_A, (T.int64(7), T.int64(512)), dtype="float32")
+    B = T.match_buffer(var_B, T.int64(1), dtype="int32")
+    C = T.match_buffer(var_C, (T.int64(1), T.int64(512)), dtype="float32")
+    for ax0, ax1 in T.grid(T.int64(1), T.int64(512)):
+        with T.block("C"):
+            v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+            T.reads(A[B[v_ax0], v_ax1], B[v_ax0])
+            T.writes(C[v_ax0, v_ax1])
+            C[v_ax0, v_ax1] = A[B[v_ax0], v_ax1]
+
+
 ########## Expected function after cache_read ##########
 
 
@@ -829,6 +842,26 @@ def cache_inplace_buffer(data_io: T.Buffer(64, "int32")) -> None:
             T.reads(data_io_global_1[v0])
             T.writes(data_io[v0])
             data_io[v0] = data_io_global_1[v0]
+
+
+@T.prim_func
+def cache_read_nested_buffer_access(var_A: T.handle, var_B: T.handle, var_C: T.handle):
+    A = T.match_buffer(var_A, (T.int64(7), T.int64(512)), dtype="float32")
+    B = T.match_buffer(var_B, T.int64(1), dtype="int32")
+    C = T.match_buffer(var_C, (T.int64(1), T.int64(512)), dtype="float32")
+    B_global = T.alloc_buffer((T.int64(1),), "int32")
+    for ax0 in range(T.int64(1)):
+        with T.block("B_global"):
+            v0 = T.axis.spatial(T.int64(1), ax0)
+            T.reads(B[v0])
+            T.writes(B_global[v0])
+            B_global[v0] = B[v0]
+    for ax0, ax1 in T.grid(T.int64(1), T.int64(512)):
+        with T.block("C"):
+            v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
+            T.reads(A[B_global[v_ax0], v_ax1], B_global[v_ax0])
+            T.writes(C[v_ax0, v_ax1])
+            C[v_ax0, v_ax1] = A[B_global[v_ax0], v_ax1]
 
 
 ########## Expected function after cache_write ##########
@@ -1358,6 +1391,14 @@ def test_cache_read_non_int32_shape(use_block_name):
     verify_trace_roundtrip(sch=sch, mod=elementwise_shape_int64)
 
 
+def test_cache_read_nested_buffer_access(use_block_name):
+    sch = tir.Schedule(nested_buffer_access, debug_mask="all")
+    block_c = "C" if use_block_name else sch.get_block("C")
+    sch.cache_read(block_c, 1, "global")
+    assert_structural_equal_ignore_global_symbol(cache_read_nested_buffer_access, sch.mod["main"])
+    verify_trace_roundtrip(sch=sch, mod=nested_buffer_access)
+
+
 def test_cache_read_fail_multi_producer(use_block_name):
     sch = tir.Schedule(func_multi_producer, debug_mask="all")
     block_b = "B" if use_block_name else sch.get_block("B")
@@ -1377,6 +1418,46 @@ def test_cache_read_fail_invalid_storage_scope(use_block_name):
     block_b = "B" if use_block_name else sch.get_block("B")
     with pytest.raises(tvm.tir.ScheduleError):
         sch.cache_read(block_b, 0, "test_scope")
+
+
+def test_cache_read_allocate_const():
+    @T.prim_func
+    def before(A: T.Buffer((8), "float32"), C: T.Buffer((8), "float32")):
+        B = T.allocate_const([0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7], "float32", [8])
+        B_buf = T.decl_buffer((8), dtype="float32", data=B)
+        for i in range(8):
+            with T.block("C"):
+                vi = T.axis.spatial(8, i)
+                C[vi] = A[vi] + B_buf[vi]
+
+    @T.prim_func
+    def expected(A: T.Buffer((8), "float32"), C: T.Buffer((8), "float32")):
+        B_buf_global = T.alloc_buffer((8), dtype="float32")
+        A_global = T.alloc_buffer((8), dtype="float32")
+        B = T.allocate_const([0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7], "float32", [8])
+        B_buf = T.decl_buffer((8), data=B)
+        for ax0 in range(8):
+            with T.block("A_global"):
+                v0 = T.axis.spatial(8, ax0)
+                A_global[v0] = A[v0]
+        for ax0 in range(8):
+            with T.block("B_buf_global"):
+                v0 = T.axis.spatial(8, ax0)
+                B_buf_global[v0] = B_buf[v0]
+        for i in range(8):
+            with T.block("C"):
+                vi = T.axis.spatial(8, i)
+                C[vi] = A_global[vi] + B_buf_global[vi]
+
+    sch = tir.Schedule(before)
+    block_c = sch.get_block("C")
+    sch.cache_read(block_c, 1, "global")
+    sch.cache_read(block_c, 0, "global")
+
+    after = sch.mod["main"]
+
+    assert_structural_equal_ignore_global_symbol(expected, after)
+    verify_trace_roundtrip(sch=sch, mod=before)
 
 
 def test_inplace_cache_read():

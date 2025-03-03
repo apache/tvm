@@ -125,10 +125,20 @@ if(BUILD_FOR_HEXAGON)
   file_glob_append(RUNTIME_HEXAGON_SRCS
     "${TVMRT_SOURCE_DIR}/hexagon/*.cc"
   )
+  # Add builtins to RelaxVM
+  tvm_file_glob(GLOB RELAX_VM_BUILTIN_SRC_CC src/runtime/relax_vm/hexagon/*.cc)
+  list(APPEND RUNTIME_SRCS ${RELAX_VM_BUILTIN_SRC_CC})
 else()
   file_glob_append(RUNTIME_HEXAGON_SRCS
     "${TVMRT_SOURCE_DIR}/hexagon/hexagon_module.cc"
   )
+endif()
+
+set(htp_supported_archs "v68" "v69" "v73" "v75")
+list(FIND htp_supported_archs "${USE_HEXAGON_ARCH}" supported_arch_index)
+if(${supported_arch_index} EQUAL -1)
+  # Exclude User DMA files when building for archs below v68
+  list(REMOVE_ITEM RUNTIME_HEXAGON_SRCS "${TVMRT_SOURCE_DIR}/hexagon/hexagon_user_dma.cc")
 endif()
 
 if(BUILD_FOR_HEXAGON)
@@ -136,6 +146,10 @@ if(BUILD_FOR_HEXAGON)
     file_glob_append(RUNTIME_HEXAGON_SRCS
       "${CMAKE_SOURCE_DIR}/tests/cpp-runtime/hexagon/*.cc"
     )
+    if(${supported_arch_index} EQUAL -1)
+      # Exclude User DMA files when building for archs below v68
+      list(REMOVE_ITEM RUNTIME_HEXAGON_SRCS "${TVMRT_SOURCE_DIR}/hexagon/hexagon_user_dma_tests.cc")
+    endif()
   endif()
   get_hexagon_sdk_property("${USE_HEXAGON_SDK}" "${USE_HEXAGON_ARCH}"
     SDK_INCLUDE   SDK_INCLUDE_DIRS
@@ -173,24 +187,27 @@ if(BUILD_FOR_HEXAGON)
 
   endif()
 
-  # Hand-written ops
-  file_glob_append(RUNTIME_HEXAGON_SRCS
-    "${TVMRT_SOURCE_DIR}/hexagon/ops/*.cc"
-  )
+  # Exclude HVX implementation files when building for archs below v68
+  if(${supported_arch_index} GREATER -1)
+    # Hand-written ops
+    file_glob_append(RUNTIME_HEXAGON_SRCS
+      "${TVMRT_SOURCE_DIR}/hexagon/ops/*.cc"
+    )
 
-  include_directories(
-    "${TVMRT_SOURCE_DIR}/hexagon/ops"
-  )
+    include_directories(
+      "${TVMRT_SOURCE_DIR}/hexagon/ops"
+    )
 
-  set_source_files_properties(
-    "${TVMRT_SOURCE_DIR}/hexagon/ops/conv2d_quant_hvx.cc"
-    PROPERTIES COMPILE_FLAGS "-mhvx"
-  )
+    set_source_files_properties(
+      "${TVMRT_SOURCE_DIR}/hexagon/ops/conv2d_quant_hvx.cc"
+      PROPERTIES COMPILE_FLAGS "-mhvx"
+    )
 
-  set_source_files_properties(
-    "${TVMRT_SOURCE_DIR}/hexagon/ops/conv2d_fp16_hvx.cc"
-    PROPERTIES COMPILE_FLAGS "-mhvx"
-  )
+    set_source_files_properties(
+      "${TVMRT_SOURCE_DIR}/hexagon/ops/conv2d_fp16_hvx.cc"
+      PROPERTIES COMPILE_FLAGS "-mhvx"
+    )
+  endif()
 
   # Include hexagon external library runtime sources
   if(USE_HEXAGON_EXTERNAL_LIBS)

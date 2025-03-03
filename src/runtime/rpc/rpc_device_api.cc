@@ -126,9 +126,14 @@ class RPCDeviceAPI final : public DeviceAPI {
     GetSess(dev)->GetDeviceAPI(remote_dev)->StreamSync(remote_dev, stream);
   }
 
-  void SetStream(Device dev, TVMStreamHandle stream) {
+  void SetStream(Device dev, TVMStreamHandle stream) final {
     auto remote_dev = RemoveRPCSessionMask(dev);
     GetSess(dev)->GetDeviceAPI(remote_dev)->SetStream(remote_dev, stream);
+  }
+
+  TVMStreamHandle GetCurrentStream(Device dev) final {
+    auto remote_dev = RemoveRPCSessionMask(dev);
+    return GetSess(dev)->GetDeviceAPI(remote_dev)->GetCurrentStream(remote_dev);
   }
 
  protected:

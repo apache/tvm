@@ -298,6 +298,16 @@ uint64_t StructuralHash::operator()(const ObjectRef& object) const {
   return SHashHandlerDefault().Hash(object, false);
 }
 
+void SHashHandlerIgnoreNDArray::DispatchSHash(const ObjectRef& object, bool map_free_vars) {
+  ICHECK(object.defined());
+  if (auto ndarray = object.as<runtime::NDArray::Container>()) {
+    SHashReducer hash_reduce(this, map_free_vars);
+    NDArrayHash(ndarray, &hash_reduce, false);
+  } else {
+    SHashHandlerDefault::DispatchSHash(object, map_free_vars);
+  }
+}
+
 // SEQualReduce traits for runtime containers.
 struct StringObjTrait {
   static constexpr const std::nullptr_t VisitAttrs = nullptr;

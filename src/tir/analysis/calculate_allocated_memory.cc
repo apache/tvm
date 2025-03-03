@@ -28,7 +28,6 @@
 #include <tvm/tir/function.h>
 #include <tvm/tir/stmt_functor.h>
 #include <tvm/tir/transform.h>
-#include <tvm/tir/usmp/utils.h>
 
 #include <algorithm>
 #include <map>
@@ -134,7 +133,7 @@ bool VerifyVTCMLimit(const PrimFunc& func, Integer limit) {
 int64_t GetVTCMCapacity(Target target, const transform::PassContext& pass_ctx) {
   if (!target.defined()) target = Target::Current(/*allow_not_defined=*/true);
   if (target.defined() && target->kind->name == "hexagon") {
-    auto value = Downcast<Integer>(target->attrs.at("vtcm-capacity"))->value;
+    auto value = target->GetAttr<Integer>("vtcm-capacity").value()->value;
     if (value > 0) return value;
   }
   return pass_ctx->GetConfig<Integer>("tir.vtcm_capacity", Integer(0)).value()->value;

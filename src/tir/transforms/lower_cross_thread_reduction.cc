@@ -198,6 +198,37 @@ class BufferReplacer : private StmtExprMutator {
  */
 class InThreadReducerMaker : private StmtMutator {
  public:
+  /*!
+   * \brief Visitor class to collect all reduction block variables under a loop.
+   */
+  class UnderLoopReductionBlockVarCollector : public StmtVisitor {
+   public:
+    /*!
+     * \brief Check if the given statement has any reduction blocks.
+     * \param stmt The statement to check.
+     * \return True if the statement has reduction blocks, false otherwise.
+     */
+    static bool CheckHasReductionBlocks(const Stmt& stmt) {
+      UnderLoopReductionBlockVarCollector collector;
+      collector(stmt);
+      return collector.reduction_block_vars_.size() > 0;
+    }
+
+   private:
+    void VisitStmt_(const BlockNode* block) final {
+      Array<IterVar> iter_vars = block->iter_vars;
+      for (const IterVar& iter_var : block->iter_vars) {
+        if (iter_var->iter_type == kCommReduce) {
+          reduction_block_vars_.push_back(iter_var);
+        }
+      }
+      StmtVisitor::VisitStmt_(block);
+    }
+
+    /*! \brief the map from thread tag to its extent */
+    Array<IterVar> reduction_block_vars_;
+  };
+
   static Optional<Stmt> Make(const BlockRealizeNode* src_realize,
                              Optional<BlockRealize> tgt_realize, Stmt stmt) {
     return InThreadReducerMaker(src_realize, std::move(tgt_realize))(std::move(stmt));
@@ -220,7 +251,11 @@ class InThreadReducerMaker : private StmtMutator {
     if (Optional<For> opt_res = Downcast<Optional<For>>(StmtMutator::VisitStmt_(loop))) {
       For res = opt_res.value();
       if (res->thread_binding.defined()) {
-        return res->body;
+        UnderLoopReductionBlockVarCollector collector;
+        if (!res->body.defined() || collector.CheckHasReductionBlocks(res)) {
+          return res->body;
+        }
+        return std::move(res);
       } else {
         return std::move(res);
       }

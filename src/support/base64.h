@@ -206,7 +206,7 @@ class Base64InStream : public dmlc::Stream {
     }
     return size - tlen;
   }
-  virtual void Write(const void* ptr, size_t size) {
+  size_t Write(const void* ptr, size_t size) final {
     LOG(FATAL) << "Base64InStream do not support write";
   }
 
@@ -229,7 +229,7 @@ class Base64OutStream : public dmlc::Stream {
 
   using dmlc::Stream::Write;
 
-  void Write(const void* ptr, size_t size) final {
+  size_t Write(const void* ptr, size_t size) final {
     using base64::EncodeTable;
     size_t tlen = size;
     const unsigned char* cptr = static_cast<const unsigned char*>(ptr);
@@ -247,6 +247,7 @@ class Base64OutStream : public dmlc::Stream {
         buf__top_ = 0;
       }
     }
+    return size;
   }
   virtual size_t Read(void* ptr, size_t size) {
     LOG(FATAL) << "Base64OutStream do not support read";

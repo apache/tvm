@@ -198,7 +198,7 @@ class TensorRTOpConverter {
 };
 
 /*!
- * \brief Get the map of available TensorRTOpConverters, where the key is the name of the relay op.
+ * \brief Get the map of available TensorRTOpConverters, where the key is the name of the op.
  * \return Map of TensorRTOpConverters.
  */
 const std::unordered_map<std::string, std::unique_ptr<TensorRTOpConverter>>& GetOpConverters();

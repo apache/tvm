@@ -52,7 +52,7 @@ TEST_F(TvmVMMemoryManagerTest, NaiveAllocBasic) {
   Device dev = {kDLCPU, 0};
   Allocator* allocator = MemoryManagerWrapper::GetOrCreateAllocator(dev, kNaive);
   EXPECT_EQ(allocator->UsedMemory(), 0);
-  auto buff = allocator->Alloc(64, 32, DataType::Float(32));
+  auto buff = allocator->Alloc(dev, 64, 32, DataType::Float(32));
   EXPECT_EQ(allocator->UsedMemory(), 64);
   allocator->Free(buff);
   EXPECT_EQ(allocator->UsedMemory(), 0);
@@ -65,7 +65,7 @@ TEST_F(TvmVMMemoryManagerTest, PooledAllocBasic) {
   size_t size = ((nbytes + page_size - 1) / page_size) * page_size;
   Allocator* allocator = MemoryManagerWrapper::GetOrCreateAllocator(dev, kPooled);
   EXPECT_EQ(allocator->UsedMemory(), 0);
-  auto buff = allocator->Alloc(nbytes, 32, DataType::Float(32));
+  auto buff = allocator->Alloc(dev, nbytes, 32, DataType::Float(32));
   EXPECT_EQ(allocator->UsedMemory(), size);
   allocator->Free(buff);
   EXPECT_EQ(allocator->UsedMemory(), size);
@@ -83,6 +83,38 @@ TEST_F(TvmVMMemoryManagerTest, NaiveEmptyBasic) {
     EXPECT_EQ(allocator->UsedMemory(), nbytes);
   }
   EXPECT_EQ(allocator->UsedMemory(), 0);
+}
+
+TEST_F(TvmVMMemoryManagerTest, BothAllocatorsCoexists) {
+  Device dev = {kDLCPU, 0};
+  // Initialize and use Naive allocator
+  Allocator* nallocator = MemoryManagerWrapper::GetOrCreateAllocator(dev, kNaive);
+  EXPECT_EQ(nallocator->UsedMemory(), 0);
+  auto dt = DataType::Float(32);
+  size_t nbytes = 1 * 3 * 6 * 6 * dt.bytes();
+  ShapeTuple shape = {1, 3, 6, 6};
+  {
+    auto ndarray = nallocator->Empty(shape, dt, dev);
+    EXPECT_EQ(nallocator->UsedMemory(), nbytes);
+  }
+  EXPECT_EQ(nallocator->UsedMemory(), 0);
+  auto naive_buff = nallocator->Alloc(dev, shape, dt);
+  EXPECT_EQ(nallocator->UsedMemory(), nbytes);
+
+  // Initialize and use Pooled allocator
+  Allocator* pallocator = MemoryManagerWrapper::GetOrCreateAllocator(dev, kPooled);
+  EXPECT_EQ(pallocator->UsedMemory(), 0);
+  auto pooled_buff = pallocator->Alloc(dev, shape, dt);
+  EXPECT_NE(pallocator->UsedMemory(), 0);
+
+  // Operate on Naive allocator
+  EXPECT_EQ(nallocator->UsedMemory(), nbytes);
+  nallocator->Free(naive_buff);
+  EXPECT_EQ(nallocator->UsedMemory(), 0);
+
+  // Operate on Pooled allocator
+  pallocator->Free(pooled_buff);
+  EXPECT_NE(pallocator->UsedMemory(), 0);
 }
 
 TEST_F(TvmVMMemoryManagerTest, PooledEmptyBasic) {
@@ -108,13 +140,13 @@ TEST_F(TvmVMMemoryManagerTest, NaiveAllocWithShape) {
   auto dt = DataType::Float(32);
   size_t nbytes = 1 * 3 * 6 * 6 * dt.bytes();
   ShapeTuple shape = {1, 3, 6, 6};
-  auto buff = allocator->Alloc(shape, dt);
+  auto buff = allocator->Alloc(dev, shape, dt);
   EXPECT_EQ(allocator->UsedMemory(), nbytes);
   allocator->Free(buff);
   EXPECT_EQ(allocator->UsedMemory(), 0);
 
   try {
-    auto texture = allocator->Alloc(shape, dt, "global.texture");
+    auto texture = allocator->Alloc(dev, shape, dt, "global.texture");
     (void)texture;
     FAIL();
   } catch (std::exception& e) {
@@ -134,13 +166,13 @@ TEST_F(TvmVMMemoryManagerTest, PooledAllocWithShape) {
   size_t page_size = PooledAllocator::kDefaultPageSize;
   size_t size = ((nbytes + page_size - 1) / page_size) * page_size;
   ShapeTuple shape = {1, 3, 6, 6};
-  auto buff = allocator->Alloc(shape, dt);
+  auto buff = allocator->Alloc(dev, shape, dt);
   EXPECT_EQ(allocator->UsedMemory(), size);
   allocator->Free(buff);
   EXPECT_EQ(allocator->UsedMemory(), size);
 
   try {
-    auto texture = allocator->Alloc(shape, dt, "global.texture");
+    auto texture = allocator->Alloc(dev, shape, dt, "global.texture");
     (void)texture;
     FAIL();
   } catch (std::exception& e) {
@@ -150,58 +182,6 @@ TEST_F(TvmVMMemoryManagerTest, PooledAllocWithShape) {
   }
 }
 
-TEST_F(TvmVMMemoryManagerTest, NaiveAllocOpenCLTexture) {
-  bool enabled = tvm::runtime::RuntimeEnabled("opencl");
-  if (!enabled) {
-    LOG(INFO) << "Skip OpenCL Texture alloc test because opencl runtime is disabled.\n";
-    return;
-  }
-  Device dev = {kDLOpenCL, 0};
-  Allocator* allocator = MemoryManagerWrapper::GetOrCreateAllocator(dev, kNaive);
-  EXPECT_EQ(allocator->UsedMemory(), 0);
-  auto dt = DataType::Float(32);
-  size_t nbytes = 1 * 3 * 6 * 6 * dt.bytes();
-  ShapeTuple shape = {1, 3, 6, 6};
-  auto buff = allocator->Alloc(shape, dt);
-  EXPECT_EQ(allocator->UsedMemory(), nbytes);
-  allocator->Free(buff);
-  EXPECT_EQ(allocator->UsedMemory(), 0);
-
-  auto texture = allocator->Alloc(shape, dt, "global.texture");
-  EXPECT_EQ(allocator->UsedMemory(), nbytes);
-  allocator->Free(texture);
-  EXPECT_EQ(allocator->UsedMemory(), 0);
-}
-
-TEST_F(TvmVMMemoryManagerTest, PooledAllocOpenCLTexture) {
-  bool enabled = tvm::runtime::RuntimeEnabled("opencl");
-  if (!enabled) {
-    LOG(INFO) << "Skip OpenCL Texture alloc test because opencl runtime is disabled.\n";
-    return;
-  }
-  Device dev = {kDLOpenCL, 0};
-  Allocator* allocator = MemoryManagerWrapper::GetOrCreateAllocator(dev, kPooled);
-  EXPECT_EQ(allocator->UsedMemory(), 0);
-  auto dt = DataType::Float(32);
-  size_t nbytes = 1 * 3 * 6 * 6 * dt.bytes();
-  size_t page_size = PooledAllocator::kDefaultPageSize;
-  size_t size = ((nbytes + page_size - 1) / page_size) * page_size;
-  ShapeTuple shape = {1, 3, 6, 6};
-  auto buff = allocator->Alloc(shape, dt);
-  EXPECT_EQ(allocator->UsedMemory(), size);
-  allocator->Free(buff);
-  EXPECT_EQ(allocator->UsedMemory(), size);
-
-  try {
-    auto texture = allocator->Alloc(shape, dt, "global.texture");
-    (void)texture;
-    FAIL();
-  } catch (std::exception& e) {
-    std::string pattern = "This alloc should be implemented";
-    std::string what = e.what();
-    EXPECT_NE(what.find(pattern), std::string::npos) << what;
-  }
-}
 }  // namespace memory
 }  // namespace runtime
 }  // namespace tvm

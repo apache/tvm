@@ -20,6 +20,8 @@ from .. import cpp
 
 def layer_norm(data, gamma, beta, axis, epsilon=1e-5):
     """Layer normalization operator.
+    It accepts fp16 and fp32 as input data type. It will cast the input to fp32
+    to perform the computation. The output will have the same data type as input.
 
     Parameters
     ----------

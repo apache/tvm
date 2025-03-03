@@ -101,15 +101,15 @@ class CandidateSelector final : public StmtExprVisitor {
       : partition_const_loop_(partition_const_loop) {}
 
   void VisitStmt_(const ForNode* op) final {
+    // always treat var with hint to be partitioned
+    const VarNode* var = op->loop_var.get();
+    if (partition_hint_vars.count(var)) {
+      candidates.insert(GetRef<Stmt>(op));
+      StmtExprVisitor::VisitStmt_(op);
+      return;
+    }
     // partition const loop when sets partition_const_loop_
     if (!is_const_int(op->min) || !is_const_int(op->extent) || partition_const_loop_) {
-      // always treat var with hint to be partitioned
-      const VarNode* var = op->loop_var.get();
-      if (partition_hint_vars.count(var)) {
-        candidates.insert(GetRef<Stmt>(op));
-        StmtExprVisitor::VisitStmt_(op);
-        return;
-      }
       record_.insert({var, false});
       StmtExprVisitor::VisitStmt_(op);
       if (record_.at(var) && !no_split_) {
@@ -126,14 +126,14 @@ class CandidateSelector final : public StmtExprVisitor {
       const IterVarNode* iv = op->node.as<IterVarNode>();
       ICHECK(iv);
       Var var = iv->var;
+      // always treat var with hint to be partitioned
+      if (partition_hint_vars.count(var.get())) {
+        candidates.insert(GetRef<Stmt>(op));
+        StmtExprVisitor::VisitStmt_(op);
+        return;
+      }
       runtime::ThreadScope scope = runtime::ThreadScope::Create(iv->thread_tag);
       if ((scope.rank == 0) && (!is_const_int(op->value) || partition_const_loop_)) {
-        // always treat var with hint to be partitioned
-        if (partition_hint_vars.count(var.get())) {
-          candidates.insert(GetRef<Stmt>(op));
-          StmtExprVisitor::VisitStmt_(op);
-          return;
-        }
         record_.insert({var.get(), false});
         StmtExprVisitor::VisitStmt_(op);
         if (record_.at(var.get()) && !no_split_) {
@@ -262,6 +262,8 @@ class PartitionFinder : public StmtExprVisitor {
   void VisitExpr_(const CallNode* op) final {
     if (op->op.same_as(builtin::likely())) {
       DeduceCondition(op->args[0]);
+    } else if (op->op.same_as(builtin::ignore_loop_partition())) {
+      return;
     } else {
       StmtExprVisitor::VisitExpr_(op);
     }
@@ -287,6 +289,22 @@ class PartitionFinder : public StmtExprVisitor {
         // cond is true within interval
         partitions[{cond, true}] = interval;
       }
+
+      if (interval.IsNothing()) {
+        // `DeduceBound` do not support NE now, thus when
+        // deduce l==r failed, just only try (l<=r && l>=r)
+        if (const EQNode* op = cond.as<EQNode>()) {
+          IntSet part1 = DeduceBound(current_var_, GE(op->a, op->b), hint_map_, relax_map_);
+          IntSet part2 = DeduceBound(current_var_, LE(op->a, op->b), hint_map_, relax_map_);
+          interval = arith::Intersect({part1, part2});
+          if (!interval.IsNothing()) {
+            // cond is true within interval
+            partitions[{cond, true}] = interval;
+            return;
+          }
+        }
+      }
+
       PrimExpr inverse_cond = InverseCond(cond);
       if (inverse_cond.defined()) {
         IntSet interval = DeduceBound(current_var_, inverse_cond, hint_map_, relax_map_);
@@ -469,6 +487,7 @@ std::pair<IntSet, ExpressionSet> LoopPartitioner::GetIntervalAndCondset(
     if (kv.first.second == cond_value) {
       arith::IntervalSet interval = Downcast<arith::IntervalSet>(kv.second);
       arith::IntervalSet intersection = arith::Intersect(&analyzer_, interval, for_interval);
+
       if (!intersection->IsEmpty()) {
         sets.push_back(kv.second);
         cond_set.insert(kv.first.first);
@@ -588,11 +607,45 @@ Stmt LoopPartitioner::TryPartition(const Stmt& stmt, Var var, PrimExpr min, Prim
       }
     }
 
+    bool all_singlepoints_outside = true;
+
+    // Check all partitions to see if they are single points and outside `for_interval`
+    for (const auto& partition : finder.partitions) {
+      const auto& intset = partition.second;
+      // Only proceed if the interval set is a single point
+      if (intset.IsSinglePoint()) {
+        auto single_point = intset.PointValue();
+        // Check if the single point is outside the `for_interval`
+        bool is_inside = analyzer_.CanProve(single_point >= for_interval.min()) &&
+                         analyzer_.CanProve(single_point <= for_interval.max());
+        if (is_inside) {
+          // If any single point is inside, this is an error condition
+          LOG(ERROR) << "unexpected case happened.";
+          all_singlepoints_outside = false;
+          break;
+        }
+      } else {
+        // If there is any intset that is not a single point, follow default logic
+        // For now, we set all_singlepoints_outside to false to indicate default logic was used
+        all_singlepoints_outside = false;
+        break;
+      }
+    }
+
+    if (all_singlepoints_outside) {
+      // If all single points are outside `for_interval`, return a nothing interval and false
+      return {IntSet::Nothing(), ExpressionSet(), false};
+    }
+
     // we couldn't find an interval in which the conditions are
     // provably true or false.  Therefore, we can't partition the loop
     // based on those conds
     return {{}, {}, std::nullopt};
   }();
+
+  if (middle_interval.IsNothing() && opt_cond_value == false) {
+    return Stmt();
+  }
 
   if (!opt_cond_value.has_value()) {
     if (has_partition_hint_ && unroll_loop_with_partition_hint_no_interval_ &&
@@ -713,6 +766,9 @@ class RemoveLikelyTagsAndHints : public StmtExprMutator {
  public:
   PrimExpr VisitExpr_(const CallNode* op) final {
     if (op->op.same_as(builtin::likely())) {
+      ICHECK_EQ(op->args.size(), 1);
+      return StmtExprMutator::VisitExpr(op->args[0]);
+    } else if (op->op.same_as(builtin::ignore_loop_partition())) {
       ICHECK_EQ(op->args.size(), 1);
       return StmtExprMutator::VisitExpr(op->args[0]);
     } else {

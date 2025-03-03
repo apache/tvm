@@ -16,6 +16,7 @@
 # under the License.
 
 from ..base import raise_last_ffi_error
+from libcpp cimport bool as bool_t
 from libcpp.vector cimport vector
 from cpython.version cimport PY_MAJOR_VERSION
 from cpython cimport pycapsule
@@ -38,7 +39,8 @@ cdef enum TVMArgTypeCode:
     kTVMBytes = 12
     kTVMNDArrayHandle = 13
     kTVMObjectRefArg = 14
-    kTVMExtBegin = 15
+    kTVMArgBool = 15
+    kTVMExtBegin = 16
 
 cdef extern from "tvm/runtime/c_runtime_api.h":
     ctypedef struct DLDataType:
@@ -66,6 +68,7 @@ cdef extern from "tvm/runtime/c_runtime_api.h":
 
     ctypedef struct TVMValue:
         int64_t v_int64
+        bool_t v_bool
         double v_float64
         void* v_handle
         const char* v_str
@@ -198,6 +201,10 @@ cdef inline void* c_handle(object handle):
 # python env API
 cdef extern from "Python.h":
     int PyErr_CheckSignals()
+    void* PyGILState_Ensure()
+    void PyGILState_Release(void*)
+    void Py_IncRef(void*)
+    void Py_DecRef(void*)
 
 cdef extern from "tvm/runtime/c_backend_api.h":
     int TVMBackendRegisterEnvCAPI(const char* name, void* ptr)
@@ -207,11 +214,13 @@ cdef _init_env_api():
     # so backend can call tvm::runtime::EnvCheckSignals to check
     # signal when executing a long running function.
     #
-    # This feature is only enabled in cython for now due to problems of calling
-    # these functions in ctypes.
-    #
-    # When the functions are not registered, the signals will be handled
-    # only when the FFI function returns.
+    # Also registers the gil state release and ensure as PyErr_CheckSignals
+    # function is called with gil released and we need to regrab the gil
     CHECK_CALL(TVMBackendRegisterEnvCAPI(c_str("PyErr_CheckSignals"), <void*>PyErr_CheckSignals))
+    CHECK_CALL(TVMBackendRegisterEnvCAPI(c_str("PyGILState_Ensure"), <void*>PyGILState_Ensure))
+    CHECK_CALL(TVMBackendRegisterEnvCAPI(c_str("PyGILState_Release"), <void*>PyGILState_Release))
+    CHECK_CALL(TVMBackendRegisterEnvCAPI(c_str("PyGILState_Release"), <void*>PyGILState_Release))
+    CHECK_CALL(TVMBackendRegisterEnvCAPI(c_str("Py_IncRef"), <void*>Py_IncRef))
+    CHECK_CALL(TVMBackendRegisterEnvCAPI(c_str("Py_DecRef"), <void*>Py_DecRef))
 
 _init_env_api()

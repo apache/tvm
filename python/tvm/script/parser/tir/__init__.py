@@ -30,6 +30,6 @@ if TYPE_CHECKING:
     # so most tvmscript won't trigger pylint error here.
     prim_func = staticmethod
 else:
-    from .entry import prim_func, macro
+    from .entry import macro, prim_func
 
-__all__ = _tir.__all__ + ["Buffer", "Ptr", "prim_func", "macro"]
+__all__ = _tir.__all__ + ["Buffer", "Ptr", "bool", "prim_func", "macro"]

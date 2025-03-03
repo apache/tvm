@@ -34,6 +34,11 @@ export type PtrOffset = number;
 export type FTVMGetLastError = () => Pointer;
 
 /**
+ * void TVMAPISetLastError(const char* msg);
+ */
+export type FTVMAPISetLastError = (msg: Pointer) => void;
+
+/**
  * int TVMModGetFunction(TVMModuleHandle mod,
  *                       const char* func_name,
  *                       int query_imports,
@@ -166,7 +171,7 @@ export type FTVMBackendPackedCFunc = (
 /**
  * int TVMObjectFree(TVMObjectHandle obj);
  */
- export type FTVMObjectFree = (obj: Pointer) => number;
+export type FTVMObjectFree = (obj: Pointer) => number;
 
 /**
  * int TVMObjectGetTypeIndex(TVMObjectHandle obj, unsigned* out_tindex);
@@ -247,5 +252,6 @@ export const enum ArgTypeCode {
   TVMStr = 11,
   TVMBytes = 12,
   TVMNDArrayHandle = 13,
-  TVMObjectRValueRefArg = 14
+  TVMObjectRValueRefArg = 14,
+  TVMArgBool = 15,
 }

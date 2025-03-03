@@ -198,7 +198,7 @@ PackedFunc ROCMModuleNode::GetFunction(const String& name, const ObjectPtr<Objec
   const FunctionInfo& info = it->second;
   ROCMWrappedFunc f;
   f.Init(this, sptr_to_self, name, info.arg_types.size(), info.launch_param_tags);
-  return PackFuncPackedArg(f, info.arg_types);
+  return PackFuncPackedArgAligned(f, info.arg_types);
 }
 
 Module ROCMModuleCreate(std::string data, std::string fmt,

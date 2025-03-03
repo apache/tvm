@@ -79,7 +79,7 @@ Array<ScheduleRule> ScheduleRule::DefaultLLVM() {
       ScheduleRule::ParallelizeVectorizeUnroll(
           /*max_jobs_per_core=*/16,
           /*max_vectorize_extent=*/64,
-          /*unroll_max_steps=*/Array<Integer>{0, 16, 64, 512},
+          /*unroll_max_steps=*/Array<runtime::Int>{0, 16, 64, 512},
           /*unroll_explicit=*/true),
       ScheduleRule::RandomComputeLocation(),
   };
@@ -126,7 +126,7 @@ Array<ScheduleRule> ScheduleRule::DefaultX86(const String& type) {
       ScheduleRule::ParallelizeVectorizeUnroll(
           /*max_jobs_per_core=*/16,
           /*max_vectorize_extent=*/64,
-          /*unroll_max_steps=*/Array<Integer>{0, 16, 64, 512},
+          /*unroll_max_steps=*/Array<runtime::Int>{0, 16, 64, 512},
           /*unroll_explicit=*/true),
       ScheduleRule::RandomComputeLocation(),
   };
@@ -158,11 +158,11 @@ Array<ScheduleRule> ScheduleRule::DefaultCUDA() {
           /*require_ordered=*/false,
           /*disallow_op=*/Array<String>{}),
       ScheduleRule::CrossThreadReduction(
-          /*thread_extents=*/Array<Integer>{4, 8, 16, 32, 64, 128, 256, 512}),
+          /*thread_extents=*/Array<runtime::Int>{4, 8, 16, 32, 64, 128, 256, 512}),
       ScheduleRule::ParallelizeVectorizeUnroll(
           /*max_jobs_per_core=*/-1,
           /*max_vectorize_extent=*/-1,
-          /*unroll_max_steps=*/Array<Integer>{0, 16, 64, 512, 1024},
+          /*unroll_max_steps=*/Array<runtime::Int>{0, 16, 64, 512, 1024},
           /*unroll_explicit=*/true),
       ScheduleRule::AutoBind(
           /*max_threadblocks=*/256,
@@ -297,33 +297,8 @@ Array<ScheduleRule> ScheduleRule::DefaultHexagon() {
       ScheduleRule::ParallelizeVectorizeUnroll(
           /*max_jobs_per_core=*/16,
           /*max_vectorize_extent=*/128,
-          /*unroll_max_steps=*/Array<Integer>{0, 16, 64, 512},
+          /*unroll_max_steps=*/Array<runtime::Int>{0, 16, 64, 512},
           /*unroll_explicit=*/true),
-  };
-}
-
-Array<ScheduleRule> ScheduleRule::DefaultMicro() {
-  return {
-      ScheduleRule::ApplyCustomRule(),
-      ScheduleRule::InlineConstantScalars(),
-      ScheduleRule::AutoInline(
-          /*into_producer=*/false,
-          /*into_consumer=*/true,
-          /*inline_const_tensor=*/true,
-          /*disallow_if_then_else=*/true,
-          /*require_injective=*/true,
-          /*require_ordered=*/true,
-          /*disallow_op=*/Array<String>{"tir.exp"}),
-      ScheduleRule::MultiLevelTiling(
-          /*structure=*/"SSRSRS",
-          /*tile_binds=*/NullOpt,
-          /*max_innermost_factor=*/Integer(64),
-          /*vector_load_lens=*/NullOpt,
-          /*reuse_read=*/NullOpt,
-          /*reuse_write=*/
-          Map<String, ObjectRef>{{"req", String("may")},
-                                 {"levels", Array<Integer>{1, 2}},
-                                 {"scope", String("global")}}),
   };
 }
 
@@ -410,7 +385,7 @@ Array<ScheduleRule> ScheduleRule::DefaultARM(const String& type) {
       ScheduleRule::ParallelizeVectorizeUnroll(
           /*max_jobs_per_core=*/8,
           /*max_vectorize_extent=*/32,
-          /*unroll_max_steps=*/Array<Integer>{0, 8, 32, 256},
+          /*unroll_max_steps=*/Array<runtime::Int>{0, 8, 32, 256},
           /*unroll_explicit=*/true),
       ScheduleRule::RandomComputeLocation());
 }
@@ -443,8 +418,6 @@ TVM_REGISTER_GLOBAL("meta_schedule.ScheduleRuleDefaultCUDATensorCore")
     .set_body_typed(ScheduleRule::DefaultCUDATensorCore);
 TVM_REGISTER_GLOBAL("meta_schedule.ScheduleRuleDefaultHexagon")
     .set_body_typed(ScheduleRule::DefaultHexagon);
-TVM_REGISTER_GLOBAL("meta_schedule.ScheduleRuleDefaultMicro")
-    .set_body_typed(ScheduleRule::DefaultMicro);
 TVM_REGISTER_GLOBAL("meta_schedule.ScheduleRuleDefaultARM")
     .set_body_typed(ScheduleRule::DefaultARM);
 

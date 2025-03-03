@@ -48,7 +48,8 @@ class ArgTypeCode(object):
     BYTES = 12
     NDARRAY_HANDLE = 13
     OBJECT_RVALUE_REF_ARG = 14
-    EXT_BEGIN = 15
+    BOOL = 15
+    EXT_BEGIN = 16
 
 
 class TVMByteArray(ctypes.Structure):
@@ -67,6 +68,7 @@ class DataTypeCode(object):
     BFLOAT = 4
     E4M3Float = 6
     E5M2Float = 7
+    E2M1Float = 8
 
 
 class DataType(ctypes.Structure):
@@ -81,6 +83,7 @@ class DataType(ctypes.Structure):
         DataTypeCode.BFLOAT: "bfloat",
         DataTypeCode.E4M3Float: "e4m3_float",
         DataTypeCode.E5M2Float: "e5m2_float",
+        DataTypeCode.E2M1Float: "e2m1_float",
     }
     NUMPY2STR = {
         np.dtype(np.bool_): "bool",
@@ -95,8 +98,9 @@ class DataType(ctypes.Structure):
         np.dtype(np.float16): "float16",
         np.dtype(np.float32): "float32",
         np.dtype(np.float64): "float64",
-        np.dtype(np.float_): "float64",
     }
+    if hasattr(np, "float_"):
+        NUMPY2STR[np.dtype(np.float_)] = "float64"
     STR2DTYPE = {
         "void": {"type_code": DataTypeCode.HANDLE, "bits": 0, "lanes": 0},
         "bool": {"type_code": DataTypeCode.UINT, "bits": 1, "lanes": 1},
@@ -110,6 +114,7 @@ class DataType(ctypes.Structure):
         "uint64": {"type_code": DataTypeCode.UINT, "bits": 64, "lanes": 1},
         "e4m3_float8": {"type_code": DataTypeCode.E4M3Float, "bits": 8, "lanes": 1},
         "e5m2_float8": {"type_code": DataTypeCode.E5M2Float, "bits": 8, "lanes": 1},
+        "e2m1_float4": {"type_code": DataTypeCode.E2M1Float, "bits": 4, "lanes": 1},
         "float16": {"type_code": DataTypeCode.FLOAT, "bits": 16, "lanes": 1},
         "float32": {"type_code": DataTypeCode.FLOAT, "bits": 32, "lanes": 1},
         "float64": {"type_code": DataTypeCode.FLOAT, "bits": 64, "lanes": 1},
@@ -135,7 +140,13 @@ class DataType(ctypes.Structure):
 
         arr = type_str.split("x")
         head = arr[0]
-        self.lanes = int(arr[1]) if len(arr) > 1 else 1
+        if len(arr) == 3:
+            assert arr[1] == "vscale", f"Invalid data type. Expected 'vscale' but got '{arr[1]}'"
+            self.lanes = ctypes.c_uint16(-int(arr[2]))
+        elif len(arr) > 1:
+            self.lanes = ctypes.c_uint16(int(arr[1]))
+        else:
+            self.lanes = 1
         bits = 32
 
         if head.startswith("int"):
@@ -159,6 +170,9 @@ class DataType(ctypes.Structure):
             head = head[10:]
         elif head.startswith("e5m2_float"):
             self.type_code = DataTypeCode.E5M2Float
+            head = head[10:]
+        elif head.startswith("e2m1_float"):
+            self.type_code = DataTypeCode.E2M1Float
             head = head[10:]
         elif head.startswith("custom"):
             # pylint: disable=import-outside-toplevel
@@ -188,8 +202,11 @@ class DataType(ctypes.Structure):
 
             type_name = "custom[%s]" % tvm.runtime._ffi_api._datatype_get_type_name(self.type_code)
         x = "%s%d" % (type_name, self.bits)
-        if self.lanes != 1:
+        lanes_as_int = ctypes.c_int16(self.lanes).value
+        if lanes_as_int > 1:
             x += "x%d" % self.lanes
+        elif lanes_as_int < -1:
+            x += "xvscalex%d" % -lanes_as_int
         return x
 
     def __eq__(self, other):
@@ -202,11 +219,26 @@ class DataType(ctypes.Structure):
     def __ne__(self, other):
         return not self.__eq__(other)
 
+    def itemsize(self):
+        """Get the number of bytes of a single element of this data type. When the number of lanes
+        is greater than 1, the itemsize is the size of the vector type.
+
+        Returns
+        -------
+        itemsize : int
+            The number of bytes of a single element of this data type
+        """
+        lanes_as_int = ctypes.c_int16(self.lanes).value
+        if lanes_as_int < 0:
+            raise ValueError("Cannot determine itemsize for scalable vector types")
+        return (self.bits * self.lanes + 7) // 8
+
 
 if ml_dtypes is not None:
     DataType.NUMPY2STR[np.dtype(ml_dtypes.bfloat16)] = "bfloat16"
     DataType.NUMPY2STR[np.dtype(ml_dtypes.float8_e4m3fn)] = "e4m3_float8"
     DataType.NUMPY2STR[np.dtype(ml_dtypes.float8_e5m2)] = "e5m2_float8"
+    DataType.NUMPY2STR[np.dtype(ml_dtypes.float4_e2m1fn)] = "e2m1_float4"
 
 RPC_SESS_MASK = 128
 
@@ -239,10 +271,6 @@ class Device(ctypes.Structure):
     kDLOneAPI = 14
     kDLWebGPU = 15
     kDLHexagon = 16
-    kDLAOCL = 32
-    kDLSDAccel = 33
-    kOpenGL = 34
-    kDLMicroDev = 35
 
     _fields_ = [("device_type", ctypes.c_int), ("device_id", ctypes.c_int)]
     MASK2STR = {
@@ -260,10 +288,6 @@ class Device(ctypes.Structure):
         kDLOneAPI: "oneapi",
         kDLWebGPU: "webgpu",
         kDLHexagon: "hexagon",
-        kDLAOCL: "aocl",
-        kDLSDAccel: "sdaccel",
-        kOpenGL: "opengl",
-        kDLMicroDev: "microdev",
     }
 
     STR2MASK = {
@@ -278,9 +302,6 @@ class Device(ctypes.Structure):
         "nvptx": kDLCUDA,
         "cl": kDLOpenCL,
         "opencl": kDLOpenCL,
-        "sdaccel": kDLOpenCL,
-        "aocl": kDLAOCL,
-        "aocl_sw_emu": kDLAOCL,
         "vulkan": kDLVulkan,
         "metal": kDLMetal,
         "vpi": kDLVPI,
@@ -505,6 +526,34 @@ class Device(ctypes.Structure):
         The value returned by opencl's API is smaller than actual device L2 cache size.
         """
         return self._GetDeviceAttr(self.device_type, self.device_id, 13)
+
+    @property
+    def total_global_memory(self):
+        """Return size of the total global memory.
+
+        Supported devices include CUDA/ROCm/Metal/OpenCL.
+
+        Returns
+        -------
+        total_global_memory : int or None
+            Return the total size of global memory on device in bytes.
+            Return None if the device does not support this feature.
+        """
+        return self._GetDeviceAttr(self.device_type, self.device_id, 14)
+
+    @property
+    def available_global_memory(self):
+        """Return size of the available global memory.
+
+        Supported devices include CUDA.
+
+        Returns
+        -------
+        available_global_memory : int or None
+            Return the amount of unallocated global memory on device in bytes.
+            Return None if the device does not support this feature.
+        """
+        return self._GetDeviceAttr(self.device_type, self.device_id, 15)
 
     def texture_spatial_limit(self):
         """Returns limits for textures by spatial dimensions

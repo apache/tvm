@@ -1207,17 +1207,20 @@ void TransformLayout(ScheduleState self, const StmtSRef& block_sref, int buffer_
   // Step 4: Rewrite buffer_map of the PrimFunc if necessary.
   if (!defining_site_sref.defined()) {
     GlobalVar g_var;
-    GetRootPrimFunc(self->mod, scope_block, &g_var);
+    const auto* old_func = GetRootPrimFunc(self->mod, scope_block, &g_var);
     IRModuleNode* new_mod = self->mod.CopyOnWrite();
     MapNode* new_map = new_mod->functions.CopyOnWrite();
-    PrimFunc ref_new_func = Downcast<PrimFunc>(std::move(new_map->at(g_var)));
-    PrimFuncNode* new_func = ref_new_func.CopyOnWrite();
-    MapNode* new_buffer_map = new_func->buffer_map.CopyOnWrite();
-    for (auto it = new_buffer_map->begin(); it != new_buffer_map->end(); ++it) {
-      if ((*it).second.same_as(old_buffer)) {
-        (*it).second = new_buffer;
+
+    Map<Var, Buffer> new_buffer_map;
+    for (auto [var, buffer] : old_func->buffer_map) {
+      if (buffer.same_as(old_buffer)) {
+        buffer = new_buffer;
       }
+      new_buffer_map.Set(var, buffer);
     }
+
+    PrimFunc ref_new_func(old_func->params, old_func->body, old_func->ret_type, new_buffer_map,
+                          old_func->attrs, old_func->span);
     new_map->at(g_var) = std::move(ref_new_func);
   }
 
@@ -1226,7 +1229,7 @@ void TransformLayout(ScheduleState self, const StmtSRef& block_sref, int buffer_
 }
 
 /*!
- * \brief Detect the block iter type assoicated with the expression
+ * \brief Detect the block iter type associated with the expression
  *
  * This function collects block iters in the expression and check if the block iters have the same
  * iter type. The detected iter type is the iter type of the block iters in the expression
@@ -1399,13 +1402,18 @@ void TransformBlockLayout(ScheduleState self, const StmtSRef& block_sref,
   for (size_t i = 0; i < transformed_block_iters.size(); ++i) {
     Var new_block_var{"v" + std::to_string(i), transformed_block_iters[i]->dtype};
     new_block_vars.push_back(new_block_var);
-    IterVarType iter_type = DetectNewBlockIterType(transformed_block_iters[i], block_iter_type);
+    IterVarType iter_type;
+    if (is_one(new_block_iter_range[i])) {
+      iter_type = kDataPar;
+    } else {
+      iter_type = DetectNewBlockIterType(transformed_block_iters[i], block_iter_type);
+    }
     if (iter_type == kOpaque) {
       throw OpaqueNewIterTypeError(self->mod, GetRef<Block>(block_ptr), transformed_block_iters[i]);
     }
     auto dtype = new_block_var.dtype();
     new_block_iters.push_back(IterVar(
-        /*dom=*/Range::FromMinExtent(make_zero(dtype), new_block_iter_range[i]),
+        /*dom=*/Range::FromMinExtent(make_zero(dtype), cast(dtype, new_block_iter_range[i])),
         /*var=*/std::move(new_block_var), /*iter_type=*/iter_type));
   }
 
@@ -1477,11 +1485,16 @@ class BufferAxisSeparatorMutator : private ReplaceBufferMutator {
     if (it != buffer_var_map_.end()) {
       const Buffer& new_source_buffer = it->second;
       Buffer new_target_buffer = match_buffer->buffer;
-      new_target_buffer.CopyOnWrite()->axis_separators = new_source_buffer->axis_separators;
-      if (new_target_buffer->shape.size() != new_source_buffer->shape.size()) {
-        LOG(WARNING)
-            << "Target buffer in match_buffer doesn't have the same dimensionality as its source "
-               "buffer. `axis_separators` for the target buffer might be incorrect.";
+
+      if (new_target_buffer->shape.size() == new_source_buffer->shape.size()) {
+        new_target_buffer.CopyOnWrite()->axis_separators = new_source_buffer->axis_separators;
+      } else {
+        new_target_buffer.CopyOnWrite()->axis_separators =
+            Array<IntImm>(new_source_buffer->axis_separators.size(), IntImm(DataType::Int(32), 0));
+        LOG(WARNING) << "Buffer view " << new_target_buffer
+                     << " has different dimensionality than backing buffer " << new_source_buffer
+                     << ".  The `axis_separators` for " << new_target_buffer << "."
+                     << "`axis_separators` for the view might be incorrect.";
       }
       buffer_var_map_[new_target_buffer->data.get()] = new_target_buffer;
       return MatchBufferRegion(new_target_buffer,

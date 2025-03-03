@@ -16,12 +16,11 @@
 # under the License.
 # pylint: disable=invalid-name
 
-""" Hexagon testing infrastructure """
+"""Hexagon testing infrastructure"""
 
 import numpy
 import tvm
 from tvm import te
-from tvm.relay.backend import Executor
 
 
 def ceildiv(o, d):
@@ -111,19 +110,6 @@ def build_and_run(inputs, func, target: str, target_host: str, *args, **kwargs):
     func(*tensors)
 
     return tensors[-1].asnumpy()
-
-
-def build_module(relay_mod, target):
-    """builds a relay module for a specified target"""
-    params = {}
-    executor = Executor("aot", {"link-params": True})
-    lowered = tvm.relay.build(
-        relay_mod,
-        tvm.target.Target(target, host=target),
-        executor=executor,
-        params=params,
-    )
-    return lowered
 
 
 def run_module(mod, inputs):

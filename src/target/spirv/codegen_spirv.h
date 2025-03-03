@@ -227,7 +227,7 @@ class CodeGenSPIRV : public ExprFunctor<spirv::Value(const PrimExpr&)>,
   ExprDeepEqual deep_equal_;
 
   // binding of let variables. Enables duplicate var defs that map to same value
-  std::unordered_map<Var, const LetNode*, ObjectPtrHash, ObjectPtrEqual> let_binding_;
+  std::unordered_map<Var, const LetNode*> let_binding_;
 
   // Running total of the number of bytes of shared memory used.
   // Checked against the max_shared_memory_per_group

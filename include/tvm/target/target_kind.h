@@ -387,36 +387,6 @@ inline TargetKindRegEntry& TargetKindRegEntry::set_name() {
 #define TVM_TARGET_KIND_REGISTER_VAR_DEF \
   static DMLC_ATTRIBUTE_UNUSED ::tvm::TargetKindRegEntry& __make_##TargetKind
 
-namespace attr {
-//
-// Distinguished TargetKind attribute names.
-//
-
-/*!
- * \brief A \p TargetKind attribute of type \p Bool. If true, then the target kind name also
- * corresponds to an external codegen 'compiler' name. That name may be used:
- *  - To retrieve partitioning rules using \p get_partition_table.
- *  - To attach to Relay Functions under the \p attr::kCompiler attribute to indicate
- *    the function is to be compiled by the external codegen path.
- *
- * The \p CollagePartition pass uses this attribute to guide it's search over candidate partitions
- * using external codegen.
- *
- * See also \p Target::IsExternalCodegenFor
- */
-constexpr const char* kIsExternalCodegen = "is_external_codegen";
-
-/*!
- * \brief A \p TargetKind attribute of type \p FTVMRelayToTIR. If set, then the target kind name
- * also corresponds to an external codegen 'compiler' name, and the bound value is a \p Pass
- * to apply before the TVM lowering.
- *
- * See also \p Target::IsExternalCodegenFor
- */
-constexpr const char* kRelayToTIR = "RelayToTIR";
-
-}  // namespace attr
-
 /*!
  * \def TVM_REGISTER_TARGET_KIND
  * \brief Register a new target kind, or set attribute of the corresponding target kind.
@@ -445,8 +415,8 @@ constexpr const char* kRelayToTIR = "RelayToTIR";
           .add_attr_option<String>("model")                       \
           .add_attr_option<Array<String>>("libs")                 \
           .add_attr_option<Target>("host")                        \
-          .add_attr_option<Integer>("from_device")                \
-          .add_attr_option<Integer>("target_device_type")
+          .add_attr_option<runtime::Int>("from_device")           \
+          .add_attr_option<runtime::Int>("target_device_type")
 
 }  // namespace tvm
 

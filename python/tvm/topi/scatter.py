@@ -18,9 +18,11 @@
 """ScatterND operator"""
 from tvm import te, tir  # hide redefinition of min and max
 from tvm.tir import expr
+from tvm.arith.analyzer import Analyzer
 
 
 def _verify_scatter_nd_inputs(data, indices, updates):
+    analyzer = Analyzer()
     mdim = int(indices.shape[0])
     assert mdim <= len(data.shape), (
         f"The first dimension of the indices ({mdim}) must be less than or equal to "
@@ -29,7 +31,8 @@ def _verify_scatter_nd_inputs(data, indices, updates):
     for i in range(len(indices.shape) - 1):
         if isinstance(indices.shape[i + 1], expr.Var) or isinstance(updates.shape[i], expr.Var):
             continue
-        assert indices.shape[i + 1] == updates.shape[i], (
+
+        assert analyzer.can_prove_equal(indices.shape[i + 1], updates.shape[i]), (
             f"Dimension of indices[{i+1}] ({indices.shape[i+1]}) must equal dimension of "
             f"updates[{i}] ({updates.shape[i]})."
         )

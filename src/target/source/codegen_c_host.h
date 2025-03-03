@@ -44,7 +44,8 @@ class CodeGenCHost : public CodeGenC {
             const std::unordered_set<std::string>& devices);
 
   void InitGlobalContext();
-  void AddFunction(const GlobalVar& gvar, const PrimFunc& f, bool emit_fwd_func_decl = false);
+  void AddFunction(const GlobalVar& gvar, const PrimFunc& f) override;
+  void AddFunction(const GlobalVar& gvar, const PrimFunc& f, bool emit_fwd_func_decl);
   /*!
    * \brief Add functions from the (unordered) range to the current module in a deterministic
    * order. This helps with debugging.

@@ -21,6 +21,7 @@
 #include <tvm/ir/expr.h>
 #include <tvm/runtime/container/array.h>
 
+#include <list>
 #include <vector>
 
 namespace tvm {
@@ -81,10 +82,34 @@ inline std::vector<TDst> AsVector(const Array<TSrc>& vec);
  * \brief Convert a std::vector to tvm::runtime::Array
  * \tparam TSrc The type of elements in the source vector
  * \tparam TDst The type of elements in the result Array
- * \return The result vector
+ * \return The result Array
  */
 template <class TSrc, class TDst>
 inline Array<TDst> AsArray(const std::vector<TSrc>& vec);
+
+/*!
+ * \brief Convert a tvm::runtime::Array to std::list
+ * \tparam T The type of elements in the source array
+ * \return The result list
+ */
+template <class T>
+inline std::list<T> AsList(const Array<T>& array) {
+  std::list<T> list;
+  for (const auto& v : array) list.push_back(v);
+  return list;
+}
+
+/*!
+ * \brief Convert a std::list to tvm::runtime::Array
+ * \tparam T The type of elements in the source list
+ * \return The result list
+ */
+template <class T>
+inline Array<T> AsArray(const std::list<T>& list) {
+  Array<T> array;
+  for (const auto& v : list) array.push_back(v);
+  return array;
+}
 
 /*!
  * \brief Get the shape tuple as array
@@ -139,12 +164,14 @@ struct AsVectorImpl<TSrc, TSrc> {
 
 template <class TSrcObjectRef>
 struct AsVectorImpl<TSrcObjectRef, int> {
-  inline std::vector<int> operator()(const Array<TSrcObjectRef>& vec) const {
+  inline std::vector<int> operator()(const Array<TSrcObjectRef>& array) const {
+    TVMRetValue ret_value;
+    ret_value = array;
+    Array<runtime::Int> as_int_vec = ret_value;
+
     std::vector<int> results;
-    for (const TSrcObjectRef& x : vec) {
-      const auto* n = x.template as<IntImmNode>();
-      ICHECK(n) << "TypeError: Expects IntImm, but gets: " << x->GetTypeKey();
-      results.push_back(n->value);
+    for (const auto& value : as_int_vec) {
+      results.push_back(value->value);
     }
     return results;
   }
@@ -152,12 +179,14 @@ struct AsVectorImpl<TSrcObjectRef, int> {
 
 template <class TSrcObjectRef>
 struct AsVectorImpl<TSrcObjectRef, int64_t> {
-  inline std::vector<int64_t> operator()(const Array<TSrcObjectRef>& vec) const {
+  inline std::vector<int64_t> operator()(const Array<TSrcObjectRef>& array) const {
+    TVMRetValue ret_value;
+    ret_value = array;
+    Array<runtime::Int> as_int_vec = ret_value;
+
     std::vector<int64_t> results;
-    for (const TSrcObjectRef& x : vec) {
-      const auto* n = x.template as<IntImmNode>();
-      ICHECK(n) << "TypeError: Expects IntImm, but gets: " << x->GetTypeKey();
-      results.push_back(n->value);
+    for (const auto& value : as_int_vec) {
+      results.push_back(value->value);
     }
     return results;
   }
@@ -166,11 +195,13 @@ struct AsVectorImpl<TSrcObjectRef, int64_t> {
 template <class TSrcObjectRef>
 struct AsVectorImpl<TSrcObjectRef, double> {
   inline std::vector<double> operator()(const Array<TSrcObjectRef>& array) const {
+    TVMRetValue ret_value;
+    ret_value = array;
+    Array<runtime::Float> as_int_vec = ret_value;
+
     std::vector<double> results;
-    for (const TSrcObjectRef& x : array) {
-      const auto* n = x.template as<FloatImmNode>();
-      ICHECK(n) << "TypeError: Expects FloatImm, but gets: " << x->GetTypeKey();
-      results.push_back(n->value);
+    for (const auto& value : as_int_vec) {
+      results.push_back(value->value);
     }
     return results;
   }
@@ -196,8 +227,10 @@ struct AsArrayImpl<int, TDstObjectRef> {
   inline Array<TDstObjectRef> operator()(const std::vector<int>& vec) const {
     Array<TDstObjectRef> result;
     result.reserve(vec.size());
-    for (int x : vec) {
-      result.push_back(Integer(x));
+    for (auto x : vec) {
+      TVMRetValue ret_value;
+      ret_value = x;
+      result.push_back(ret_value);
     }
     return result;
   }
@@ -208,8 +241,10 @@ struct AsArrayImpl<int64_t, TDstObjectRef> {
   inline Array<TDstObjectRef> operator()(const std::vector<int64_t>& vec) const {
     Array<TDstObjectRef> result;
     result.reserve(vec.size());
-    for (int64_t x : vec) {
-      result.push_back(Integer(x));
+    for (auto x : vec) {
+      TVMRetValue ret_value;
+      ret_value = x;
+      result.push_back(ret_value);
     }
     return result;
   }
@@ -220,8 +255,10 @@ struct AsArrayImpl<double, TDstObjectRef> {
   inline Array<TDstObjectRef> operator()(const std::vector<double>& vec) const {
     Array<TDstObjectRef> result;
     result.reserve(vec.size());
-    for (double x : vec) {
-      result.push_back(FloatImm(tvm::DataType::Float(64), x));
+    for (auto x : vec) {
+      TVMRetValue ret_value;
+      ret_value = x;
+      result.push_back(ret_value);
     }
     return result;
   }

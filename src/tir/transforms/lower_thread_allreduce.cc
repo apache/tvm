@@ -294,10 +294,6 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
       PrimExpr mask = Call(mask_dtype, builtin::tvm_warp_activemask(), {});
 
       if (reduce_extent <= warp_size_) {
-        if (group_extent > 1 && reduce_extent < warp_size_) {
-          mask = mask &
-                 (((1 << reduce_extent) - 1) << (reduce_extent * cast(mask_dtype, group_index)));
-        }
         std::tie(reduce_results, new_alloc_bufs) = MakeWarpAllreduce(
             values, types, combiner, reduce_index, reduce_extent, group_index, mask, NullOpt, &seq);
 
@@ -351,9 +347,6 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
         for (size_t i = 0; i < size; ++i) {
           values[i] = BufferLoad(/*buffer=*/staging_shared_bufs[i],
                                  /*indices=*/{group_index * n_warps + reduce_index});
-        }
-        if (n_warps < warp_size_) {
-          mask = mask & (((1 << n_warps) - 1) << (group_index * n_warps));
         }
         std::tie(reduce_results, local_bufs) = MakeWarpAllreduce(
             values, types, combiner, reduce_index, n_warps, group_index, mask,
@@ -730,7 +723,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     // rocm only supports 32 bit operands for shuffling at the moment
     if ((target_->kind->name == "rocm") &&
         (std::any_of(types.begin(), types.end(), [](DataType ty) {
-          if ((ty.is_vector()) || !ty.is_int()) return true;
+          if (ty.is_fixed_length_vector()) return ty.bits() * ty.lanes() != 32;
           return ty.bits() != 32;
         }))) {
       return false;
@@ -740,7 +733,7 @@ class ThreadAllreduceBuilder final : public StmtExprMutator {
     // {u}int, {u}long, {u}long long, float, double, half/half2
     if (std::any_of(types.begin(), types.end(), [](DataType ty) {
           if (ty.is_float16()) return ty.lanes() > 2;
-          if (ty.is_vector()) return true;
+          if (ty.is_fixed_length_vector()) return true;
           return ty.bytes() < 4 || ty.bytes() > 8;
         })) {
       return false;
