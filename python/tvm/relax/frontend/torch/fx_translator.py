@@ -527,6 +527,10 @@ class TorchFXImporter(BaseFXGraphImporter):
     def _half(self, node: fx.Node) -> relax.Var:
         return self.block_builder.emit(relax.op.astype(self.env[node.args[0]], "float16"))
 
+    def _is_floating_point(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        return relax.const(x.struct_info.dtype in ["float16", "float32", "float64", "bfloat16"], "bool")
+
     def _to(self, node: fx.Node) -> relax.Var:
         import torch
 
@@ -580,6 +584,7 @@ class TorchFXImporter(BaseFXGraphImporter):
         return {
             ## call_module
             # unary
+            nn.CELU: self._celu,
             nn.Dropout: lambda node: self.env[node.args[0]],
             nn.ELU: self._elu,
             nn.GELU: self._gelu,
@@ -594,6 +599,7 @@ class TorchFXImporter(BaseFXGraphImporter):
                 relax.op.clip(self.env[node.args[0]], 0, 6)
             ),
             nn.Sigmoid: self._unary_op(relax.op.sigmoid),
+            nn.SELU: self._selu,
             nn.SiLU: self._unary_op(relax.op.nn.silu),
             nn.Softmax: self._softmax_module,
             nn.Tanh: self._unary_op(relax.op.tanh),
@@ -625,6 +631,7 @@ class TorchFXImporter(BaseFXGraphImporter):
             "atanh": self._unary_op(relax.op.atanh),
             "bitwise_not": self._unary_op(relax.op.bitwise_not),
             "ceil": self._unary_op(relax.op.ceil),
+            "celu": self._celu,
             "clamp": self._clamp,
             "cos": self._unary_op(relax.op.cos),
             "cosh": self._unary_op(relax.op.cosh),
@@ -648,6 +655,7 @@ class TorchFXImporter(BaseFXGraphImporter):
             "relu": self._unary_op(relax.op.nn.relu),
             "round": self._round,
             "rsqrt": self._unary_op(relax.op.rsqrt),
+            "selu": self._selu,
             "sigmoid": self._unary_op(relax.op.sigmoid),
             "sign": self._unary_op(relax.op.sign),
             "silu": self._unary_op(relax.op.nn.silu),
@@ -753,6 +761,7 @@ class TorchFXImporter(BaseFXGraphImporter):
             "astype": self._type,
             "float": self._float,
             "half": self._half,
+            "is_floating_point": self._is_floating_point,
             "to": self._to,
             "type": self._type,
             # other
