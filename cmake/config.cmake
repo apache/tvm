@@ -87,7 +87,7 @@ set(USE_RCCL OFF)
 # - /path/to/opencl-sdk: use specific path to opencl-sdk
 set(USE_OPENCL OFF)
 
-# Wheather to allow OPENCL cl_mem access to host
+# Whether to allow OPENCL cl_mem access to host
 # cl_mem will be allocated with CL_MEM_ALLOC_HOST_PTR
 # OpenCLWorkspace->GetHostPtr API returns the host accessible pointer
 set(USE_OPENCL_ENABLE_HOST_PTR OFF)
@@ -265,7 +265,7 @@ set(USE_ARM_COMPUTE_LIB_GRAPH_EXECUTOR OFF)
 #
 # USE_TENSORRT_CODEGEN - Support for compiling a relay graph where supported operators are
 #                        offloaded to TensorRT. OFF/ON
-# USE_TENSORRT_RUNTIME - Support for running TensorRT compiled modules, requires presense of
+# USE_TENSORRT_RUNTIME - Support for running TensorRT compiled modules, requires presence of
 #                        TensorRT library. OFF/ON/"path/to/TensorRT"
 set(USE_TENSORRT_CODEGEN OFF)
 set(USE_TENSORRT_RUNTIME OFF)

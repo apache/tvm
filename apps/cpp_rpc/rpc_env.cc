@@ -80,7 +80,7 @@ void CleanDir(const std::string& dirname);
 std::vector<std::string> ListDir(const std::string& dirname);
 
 /*!
- * \brief buld a shared library if necessary
+ * \brief build a shared library if necessary
  *
  *        This function will automatically call
  *        cc.create_shared if the path is in format .o or .tar
