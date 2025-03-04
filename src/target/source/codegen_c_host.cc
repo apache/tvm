@@ -31,9 +31,7 @@
 #include <utility>
 #include <vector>
 
-#include "../../support/str_escape.h"
-#include "../build_common.h"
-#include "codegen_params.h"
+#include "../../runtime/c_host_module.h"
 
 namespace tvm {
 namespace codegen {
@@ -51,6 +49,7 @@ void CodeGenCHost::Init(bool output_ssa, bool emit_asserts, bool emit_fwd_func_d
   decl_stream << "#include \"tvm/runtime/c_backend_api.h\"\n";
   decl_stream << "#include <math.h>\n";
   decl_stream << "#include <stdbool.h>\n";
+  CodeGenCHost::InitGlobalContext();
   CodeGenC::Init(output_ssa);
 }
 
@@ -80,19 +79,13 @@ void CodeGenCHost::AddFunction(const GlobalVar& gvar, const PrimFunc& func,
 
     function_names_.push_back(runtime::symbol::tvm_module_main);
     stream << "// CodegenC: NOTE: Auto-generated entry function\n";
-    PrintFuncPrefix(stream);
-    PrintType(func->ret_type, stream);
-    stream << " " << tvm::runtime::symbol::tvm_module_main
-           << "(void* args, int* arg_type_ids, int num_args, void* out_ret_value, "
-           << "int* out_ret_tcode, void* resource_handle) {\n";
-    stream << "  return " << global_symbol.value()
-           << "(args, arg_type_ids, num_args, out_ret_value, out_ret_tcode, resource_handle);\n";
-    stream << "}\n";
+    // TODO: verify on windows
+    stream << "TVM_DLL extern const char " << tvm::runtime::symbol::tvm_module_main << "[] = \""
+           << global_symbol.value() << "\";\n";
   }
 }
 
 void CodeGenCHost::GenerateForwardFunctionDeclarations(String global_symbol,
-
                                                        const Array<Type>& arg_types,
                                                        const Type& ret_type) {
   if (!emit_fwd_func_decl_) {
@@ -443,9 +436,6 @@ runtime::Module BuildCHost(IRModule mod, Target target) {
     return sort_key(kv_a) < sort_key(kv_b);
   });
 
-  // Declare all functions first.  This ensures that all functions,
-  // including the __tvm_main__ used in AOT, have access to forward
-  // declarations of other functions in the IRModule.
   for (const auto& [gvar, prim_func] : funcs) {
     cg.DeclareFunction(gvar, prim_func);
   }
@@ -457,13 +447,9 @@ runtime::Module BuildCHost(IRModule mod, Target target) {
     cg.AddFunction(gvar, prim_func, emit_fwd_func_decl);
   }
 
-  if (target->GetAttr<Bool>("system-lib").value_or(Bool(false))) {
-    ICHECK_EQ(target->GetAttr<String>("runtime").value_or(""), "c")
-        << "c target only supports generating C runtime SystemLibs";
-  }
-
   std::string code = cg.Finish();
-  return CSourceModuleCreate(code, "c", cg.GetFunctionNames());
+
+  return runtime::CModuleCreate(code);
 }
 
 TVM_REGISTER_GLOBAL("target.build.c").set_body_typed(BuildCHost);

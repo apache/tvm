@@ -82,7 +82,7 @@ class CSourceModuleNode : public runtime::ModuleNode {
   CSourceModuleNode(const std::string& code, const std::string& fmt,
                     const Array<String>& func_names, const Array<String>& const_vars)
       : code_(code), fmt_(fmt), const_vars_(const_vars), func_names_(func_names) {}
-  const char* type_key() const final { return "c"; }
+  const char* type_key() const final { return "c-source"; }
 
   PackedFunc GetFunction(const String& name, const ObjectPtr<Object>& sptr_to_self) final {
     // Currently c-source module is used as demonstration purposes with binary metadata module

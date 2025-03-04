@@ -102,6 +102,7 @@ class ConstantFolder : public ExprMutator {
   Optional<PackedFunc> GetCachedBuild(tir::PrimFunc func) {
     // TODO(tvm-team): consider another way of bulk extract and build PrimFunc once
     // would be helpful for future cases where PrimFunc recursively call into each other
+    // TODO(siyuan): support c backend for constant folding
     Target eval_cpu_target{"llvm"};
 
     auto it = func_build_cache_.find(func);

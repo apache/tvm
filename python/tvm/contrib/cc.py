@@ -21,7 +21,11 @@ import subprocess
 
 # pylint: disable=invalid-name
 import sys
+import tempfile
 from typing import Dict
+
+import tvm
+from tvm._ffi.libinfo import find_include_path
 
 from .._ffi.base import py_str
 from . import tar as _tar
@@ -416,3 +420,19 @@ def _windows_compile(output, objects, options, cwd=None, ccache_env=None):
         msg += py_str(out)
 
         raise RuntimeError(msg)
+
+
+@tvm._ffi.register_func
+def tvm_callback_c_compile(code, target):
+    print("Target in tvm_callback_c_compile: ", target)
+    with tempfile.TemporaryDirectory() as temp_dir:
+        temp_file = os.path.join(temp_dir, "temp.c")
+        target_file = os.path.join(temp_dir, "temp.so")
+        options = ["-I" + path for path in find_include_path()]
+        with open(temp_file, "w") as f:
+            f.write(code)
+
+        create_shared(target_file, temp_file, options=options)
+
+        with open(target_file, "rb") as f:
+            return f.read()
