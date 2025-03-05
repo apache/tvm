@@ -214,7 +214,7 @@ std::string CodeGenC::GetBufferRef(DataType t, const BufferNode* buffer, PrimExp
   if (alloc_storage_scope_.count(buffer_var)) {
     scope = alloc_storage_scope_.at(buffer_var);
   }
-  bool is_vol = IsVolatile(buffer_var);
+  bool is_vol = IsVolatile(buffer_var) && !t.is_float8();
 
   auto ptr_cast = [this, is_vol, scope](DataType pointed_to) {
     std::ostringstream ptr_os;
@@ -840,7 +840,8 @@ void CodeGenC::VisitStmt_(const BufferStoreNode* op) {
     std::string value = this->PrintExpr(op->value);
     std::string ref = this->GetBufferRef(value_dtype, op->buffer.get(), index_expr);
     this->PrintIndent();
-    stream << ref << " = " << value << ";\n";
+    stream << ref << " = ";
+    stream << value << ";\n";
   } else {
     arith::PVar<PrimExpr> base;
 
@@ -876,7 +877,16 @@ void CodeGenC::VisitStmt_(const BufferStoreNode* op) {
         stream << '[';
         PrintVecElemLoad(index, index_expr.dtype(), i, stream);
         stream << "] = ";
-        PrintVecElemLoad(value, op->value.dtype(), i, stream);
+        if (op->value.dtype().is_float8()) {
+          ICHECK(value_dtype.lanes() == 2);
+          std::string fp8_type = op->value.dtype().is_e5m2_float8() ? "e5m2" : "e4m3";
+          static const char access[] = {'x', 'y'};
+          stream << "__nv_fp8_" << fp8_type << "(__half2(";
+          PrintVecElemLoad(value, op->value.dtype(), i, stream);
+          stream << ")." << access[i % 2] << ")";
+        } else {
+          PrintVecElemLoad(value, op->value.dtype(), i, stream);
+        }
         stream << ";\n";
       }
       EndScope(vec_scope);
