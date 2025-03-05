@@ -3903,5 +3903,139 @@ def test_is_floating_point():
     verify_model(IsFloatingPoint(), [([2, 3], "float32")], {}, Expected)
 
 
+def test_gather():
+    class Gather0(Module):
+        def forward(self, data, indices):
+            return torch.gather(data, 0, indices)
+
+    class Gather1(Module):
+        def forward(self, data, indices):
+            return torch.gather(data, 1, indices)
+
+    class Gather2(Module):
+        def forward(self, data, indices):
+            return torch.gather(data, -1, indices)
+
+    class Gather3(Module):
+        def forward(self, data, indices):
+            return torch.gather(data, -2, indices)
+
+    @tvm.script.ir_module
+    class Expected0:
+        @R.function
+        def main(
+            inp_0: R.Tensor((2, 3), dtype="float32"),
+            inp_1: R.Tensor((2, 3), dtype="int32"),
+        ) -> R.Tensor((2, 3), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((2, 3), dtype="float32") = R.gather_elements(inp_0, inp_1, axis=0)
+                gv: R.Tensor((2, 3), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    @tvm.script.ir_module
+    class Expected1:
+        @R.function
+        def main(
+            inp_0: R.Tensor((2, 3), dtype="float32"),
+            inp_1: R.Tensor((2, 3), dtype="int32"),
+        ) -> R.Tensor((2, 3), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((2, 3), dtype="float32") = R.gather_elements(inp_0, inp_1, axis=1)
+                gv: R.Tensor((2, 3), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    @tvm.script.ir_module
+    class Expected2:
+        @R.function
+        def main(
+            inp_0: R.Tensor((2, 3), dtype="float32"),
+            inp_1: R.Tensor((2, 3), dtype="int32"),
+        ) -> R.Tensor((2, 3), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((2, 3), dtype="float32") = R.gather_elements(inp_0, inp_1, axis=-1)
+                gv: R.Tensor((2, 3), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    @tvm.script.ir_module
+    class Expected3:
+        @R.function
+        def main(
+            inp_0: R.Tensor((2, 3), dtype="float32"),
+            inp_1: R.Tensor((2, 3), dtype="int32"),
+        ) -> R.Tensor((2, 3), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((2, 3), dtype="float32") = R.gather_elements(inp_0, inp_1, axis=-2)
+                gv: R.Tensor((2, 3), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    verify_model(Gather0(), [([2, 3], "float32"), ([2, 3], "int32")], {}, Expected0)
+    verify_model(Gather1(), [([2, 3], "float32"), ([2, 3], "int32")], {}, Expected1)
+    verify_model(Gather2(), [([2, 3], "float32"), ([2, 3], "int32")], {}, Expected2)
+    verify_model(Gather3(), [([2, 3], "float32"), ([2, 3], "int32")], {}, Expected3)
+
+
+def test_flip():
+    class Flip0(Module):
+        def forward(self, data):
+            return torch.flip(data, [0])
+
+    class Flip1(Module):
+        def forward(self, data):
+            return torch.flip(data, [1])
+
+    @tvm.script.ir_module
+    class Expected0:
+        @R.function
+        def main(
+            inp_0: R.Tensor((2, 2), dtype="float32"),
+        ) -> R.Tensor((2, 2), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((2, 2), dtype="float32") = R.flip(inp_0, axis=0)
+                gv: R.Tensor((2, 2), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    @tvm.script.ir_module
+    class Expected1:
+        @R.function
+        def main(
+            inp_0: R.Tensor((2, 2), dtype="float32"),
+        ) -> R.Tensor((2, 2), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((2, 2), dtype="float32") = R.flip(inp_0, axis=1)
+                gv: R.Tensor((2, 2), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    verify_model(Flip0(), [([2, 2], "float32")], {}, Expected0)
+    verify_model(Flip1(), [([2, 2], "float32")], {}, Expected1)
+
+
+def test_take():
+    class Take(Module):
+        def forward(self, data, indices):
+            return torch.take(data, indices)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            inp_0: R.Tensor((5,), dtype="float32"),
+            inp_1: R.Tensor((3,), dtype="int32"),
+        ) -> R.Tensor((3,), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((3,), dtype="int32") = R.astype(inp_1, "int32")
+                lv1: R.Tensor((3,), dtype="float32") = R.take(inp_0, lv, axis=None)
+                gv: R.Tensor((3,), dtype="float32") = lv1
+                R.output(gv)
+            return gv
+
+    verify_model(Take(), [([5], "float32"), ([3], "int32")], {}, Expected)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
