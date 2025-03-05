@@ -1458,6 +1458,7 @@ e5m2_float8x32 = func_gen(("E5M2Float8x32"))
 e5m2_float8x64 = func_gen(("E5M2Float8x64"))
 
 e2m1_float4 = func_gen(("E2M1Float4"))
+e2m1_float4x2 = func_gen(("E2M1Float4x2"))
 e2m1_float4x4 = func_gen(("E2M1Float4x4"))
 e2m1_float4x8 = func_gen(("E2M1Float4x8"))
 e2m1_float4x16 = func_gen(("E2M1Float4x16"))
@@ -2017,6 +2018,7 @@ __all__ = [
     "float16",
     "float32",
     "float64",
+    "e2m1_float4x2",
     "e4m3_float8x4",
     "e5m2_float8x4",
     "e2m1_float4x4",
