@@ -14,9 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
-if(USE_UMA)
-  file(GLOB COMPILER_UMA_SRCS
-       CONFIGURE_DEPENDS src/relay/backend/contrib/uma/*)
-  list(APPEND COMPILER_SRCS ${COMPILER_UMA_SRCS})
-endif(USE_UMA)
+"""
+CPU-generic schedule rules.
+"""
+from .gemv import GEMV

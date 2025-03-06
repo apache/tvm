@@ -81,7 +81,6 @@ TAG_DICT = {
     "fix": "BugFix",
     "bug": "BugFix",
     "hotfix": "BugFix",
-    "relay": "Relay",
     "qnn": "Relay",
     "quantization": "Relay",
     "relax": "Relax",

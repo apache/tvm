@@ -18,7 +18,7 @@
  */
 
 /*!
- * \file src/tvm/relay/dataflow_matcher.cc
+ * \file src/tvm/relax/dataflow_matcher.cc
  * \brief The dataflow pattern matcher for Relay.
  */
 

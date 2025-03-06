@@ -14,21 +14,27 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""Base schedule rule for CPU operators."""
 
-if(USE_LIBTORCH)
-  find_package(Torch REQUIRED PATHS ${USE_LIBTORCH}/share/cmake/Torch
-               )
-  list(APPEND TVM_RUNTIME_LINKER_LIBS ${TORCH_LIBRARIES})
-  include_directories(${TORCH_INCLUDE_DIRS})
+from tvm.target import Target
 
-  file(GLOB LIBTORCH_RELAY_CONTRIB_SRC
-    src/relay/backend/contrib/libtorch/libtorch_codegen.cc
-    )
-  list(APPEND COMPILER_SRCS ${LIBTORCH_RELAY_CONTRIB_SRC})
+from ..base import ScheduleRule
 
-  file(GLOB LIBTORCH_RUNTIME_CONTRIB_SRC
-    src/runtime/contrib/libtorch/libtorch_runtime.cc
-    )
-  list(APPEND RUNTIME_SRCS ${LIBTORCH_RUNTIME_CONTRIB_SRC})
 
-endif(USE_LIBTORCH)
+class CPUScheduleRule(ScheduleRule):  # pylint: disable=too-few-public-methods
+    """The Schedule Rule specific to CPU targets, will return None if the target is not CPU."""
+
+    def is_target_available(self, target: Target) -> bool:
+        """Check whether the target is available for gpu rule.
+
+        Parameters
+        ----------
+        target : Target
+            The compilation target to check.
+
+        Returns
+        -------
+        available : bool
+            Whether the target is available for this rule.
+        """
+        return super().is_target_available(target) and "llvm" == target.kind.name

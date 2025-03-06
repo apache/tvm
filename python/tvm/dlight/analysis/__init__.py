@@ -14,13 +14,18 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
-# This data file is read during when Jenkins runs job to determine docker images.
-[jenkins]
-ci_arm: tlcpack/ci-arm:20250225-035137-aeadc31c
-ci_cpu: tlcpack/ci_cpu:20250225-035137-aeadc31c
-ci_gpu: tlcpack/ci-gpu:20250225-035137-aeadc31c
-ci_hexagon: tlcpack/ci-hexagon:20250225-035137-aeadc31c
-ci_i386: tlcpack/ci-i386:20250225-035137-aeadc31c
-ci_lint: tlcpack/ci-lint:20250225-035137-aeadc31c
-ci_wasm: tlcpack/ci-wasm:20250225-035137-aeadc31c
+"""Base infra"""
+from .common_analysis import (
+    BlockInfo,
+    IterInfo,
+    collect_block_iter_vars_used_in_access_region,
+    collect_vars_used_in_prim_expr,
+    detect_dominant_read,
+    is_broadcast_epilogue,
+    normalize_prim_func,
+    get_root_block,
+)
+from .gemv import (
+    is_gemv,
+    normalize,
+)

@@ -191,7 +191,8 @@ bool NormCheckDtypeAndShape(const Call& call, const BlockBuilder& ctx,
     axes_non_neg = NormalizeAxes(call, ctx, data_sinfo->ndim, axes);
   }
   int n_axis = axes.size();
-  if (!data_sinfo->IsUnknownDtype() && (!data_sinfo->dtype.is_float() && !data_sinfo->dtype.is_bfloat())) {
+  if (!data_sinfo->IsUnknownDtype() &&
+      (!data_sinfo->dtype.is_float() && !data_sinfo->dtype.is_bfloat())) {
     ctx->ReportFatal(
         Diagnostic::Error(call)
         << op << " requires the input data to have float dtype. However, the given data dtype is "

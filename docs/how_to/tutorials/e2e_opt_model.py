@@ -72,13 +72,17 @@ from tvm.relax.frontend.torch import from_exported_program
 # Give an example argument to torch.export
 example_args = (torch.randn(1, 3, 224, 224, dtype=torch.float32),)
 
-# Convert the model to IRModule
-with torch.no_grad():
-    exported_program = export(torch_model, example_args)
-    mod = from_exported_program(exported_program, keep_params_as_input=True)
+# Skip running in CI environment
+IS_IN_CI = os.getenv("CI", "") == "true"
 
-mod, params = relax.frontend.detach_params(mod)
-mod.show()
+if not IS_IN_CI:
+    # Convert the model to IRModule
+    with torch.no_grad():
+        exported_program = export(torch_model, example_args)
+        mod = from_exported_program(exported_program, keep_params_as_input=True)
+
+    mod, params = relax.frontend.detach_params(mod)
+    mod.show()
 
 ######################################################################
 # IRModule Optimization
@@ -96,8 +100,6 @@ TOTAL_TRIALS = 8000  # Change to 20000 for better performance if needed
 target = tvm.target.Target("nvidia/geforce-rtx-3090-ti")  # Change to your target device
 work_dir = "tuning_logs"
 
-# Skip running in CI environment
-IS_IN_CI = os.getenv("CI", "") == "true"
 if not IS_IN_CI:
     mod = relax.get_pipeline("static_shape_tuning", target=target, total_trials=TOTAL_TRIALS)(mod)
 
