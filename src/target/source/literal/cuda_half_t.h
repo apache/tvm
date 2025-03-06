@@ -385,8 +385,9 @@ static constexpr const char* _cuda_warp_intrinsic_util = R"(
 
 )";
 
-void declare_vector_type_extensions(std::ostringstream& stream, bool enable_fp16, bool enable_fp8) {
-  if (enable_fp16 || enable_fp8) {
+void declare_vector_type_extensions(std::ostringstream& stream, bool enable_fp16, bool enable_fp8,
+                                    bool enable_fp4) {
+  if (enable_fp16 || enable_fp8 || enable_fp4) {
     stream << R"(
 struct __align__(8) half4 {
   __half x, y, z, w;
@@ -457,10 +458,44 @@ struct __align__(8) half4 {
   }
   )";
     }
+    if (enable_fp4) {
+      stream << R"(
+  __host__ __device__ explicit half4(const __nv_fp4x4_e2m1& fp4x4) {
+    __nv_fp4x2_storage_t lo_part, hi_part;
+    lo_part = static_cast<__nv_fp4x2_storage_t>(fp4x4.__x & 0xFF);
+    hi_part = static_cast<__nv_fp4x2_storage_t>((fp4x4.__x >> 8) & 0xFF);
+    __half2 lo_half2 = __half2(__nv_cvt_fp4x2_to_halfraw2(lo_part, __NV_E2M1));
+    __half2 hi_half2 = __half2(__nv_cvt_fp4x2_to_halfraw2(hi_part, __NV_E2M1));
+    x = reinterpret_cast<__half*>(&lo_half2)[0];
+    y = reinterpret_cast<__half*>(&lo_half2)[1];
+    z = reinterpret_cast<__half*>(&hi_half2)[0];
+    w = reinterpret_cast<__half*>(&hi_half2)[1];
+  }
+  __host__ __device__ explicit operator __nv_fp4x4_e2m1() const {
+    __half2 lo_half2 = *reinterpret_cast<const __half2*>(&x);
+    __half2 hi_half2 = *reinterpret_cast<const __half2*>(&z);
+    return __nv_fp4x4_e2m1(lo_half2, hi_half2);
+  }
+  )";
+    }
     stream << R"(
 };
 __host__ __device__ half4 make_half4(__half x, __half y, __half z, __half w) {
     return half4(x, y, z, w);
+}
+)";
+  }
+  if (enable_fp4) {
+    stream << R"(
+__device__ __nv_fp4x2_e2m1 make___nv_fp4x2_e2m1(__nv_fp4_e2m1 x, __nv_fp4_e2m1 y) {
+  __nv_fp4x2_e2m1 result;
+  result.__x = (x.__x) | (y.__x << 4);
+  return result;
+}
+__device__ __nv_fp4x4_e2m1 make___nv_fp4x4_e2m1(__nv_fp4_e2m1 a, __nv_fp4_e2m1 b, __nv_fp4_e2m1 c, __nv_fp4_e2m1 d) {
+  __nv_fp4x4_e2m1 result;
+  result.__x = (static_cast<__nv_fp4x4_storage_t>(a.__x)) | (static_cast<__nv_fp4x4_storage_t>(b.__x) << 4) | (static_cast<__nv_fp4x4_storage_t>(c.__x) << 8) | (static_cast<__nv_fp4x4_storage_t>(d.__x) << 12);
+  return result;
 }
 )";
   }
