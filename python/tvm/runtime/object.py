@@ -20,14 +20,14 @@ import ctypes
 
 from tvm._ffi.base import _LIB, _RUNTIME_ONLY, c_str, check_call
 from tvm._ffi.runtime_ctypes import ObjectRValueRef
-
-from . import _ffi_api, _ffi_node_api
 from tvm._ffi._cy3.core import (
     ObjectBase,
     PyNativeObject,
     _set_class_object,
     _set_class_object_generic,
 )
+
+from . import _ffi_api, _ffi_node_api
 
 
 def _new_object(cls):

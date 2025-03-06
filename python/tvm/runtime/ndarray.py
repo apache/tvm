@@ -36,14 +36,14 @@ from tvm._ffi.runtime_ctypes import (
     TVMArrayHandle,
     tvm_shape_index_t,
 )
-
-from . import _ffi_api
 from tvm._ffi._cy3.core import (
     NDArrayBase,
     _from_dlpack,
     _make_array,
     _set_class_ndarray,
 )
+
+from . import _ffi_api
 
 
 @tvm._ffi.register_object("runtime.NDArray")
