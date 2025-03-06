@@ -936,15 +936,11 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
                 s_shape.append(s)
         return self.block_builder.emit(relax.op.reshape(cat, s_shape))
 
-    def _take(self, node: fx.Node, axis: Optional[int] = None) -> relax.Var:
+    def _take(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         indices = self.env[node.args[1]]
         indices = self.block_builder.emit(relax.op.astype(indices, "int32"))
-        if axis is not None:
-            raise NotImplementedError(
-                "Relax's relax.op.take() does not fully support PyTorch's torch.take()."
-            )
-        return self.block_builder.emit(relax.op.take(x, indices, axis=axis))
+        return self.block_builder.emit(relax.op.take(x, indices))
 
     def _tile(self, node: fx.Node) -> relax.Var:
         import torch  # type: ignore
