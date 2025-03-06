@@ -23,7 +23,6 @@
 #ifndef TVM_RUNTIME_RELAX_VM_EXECUTABLE_H_
 #define TVM_RUNTIME_RELAX_VM_EXECUTABLE_H_
 
-#include <tvm/runtime/container/closure.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
