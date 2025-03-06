@@ -4029,7 +4029,7 @@ def test_take():
         ) -> R.Tensor((3,), dtype="float32"):
             with R.dataflow():
                 lv: R.Tensor((3,), dtype="int32") = R.astype(inp_1, "int32")
-                lv1: R.Tensor((3,), dtype="float32") = R.take(inp_0, lv, axis=None)
+                lv1: R.Tensor((3,), dtype="float32") = R.take(inp_0, lv)
                 gv: R.Tensor((3,), dtype="float32") = lv1
                 R.output(gv)
             return gv
