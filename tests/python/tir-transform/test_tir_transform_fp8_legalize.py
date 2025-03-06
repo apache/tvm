@@ -17,8 +17,8 @@
 import tvm
 import tvm.script
 import tvm.testing
-from tvm.target import Target
 from tvm.script import tir as T
+from tvm.target import Target
 from tvm.tir.transform.transform import BindTarget
 
 # pylint: disable=no-member,invalid-name,unused-variable
@@ -69,7 +69,7 @@ def get_after_compute_legalize(dtype: str, promote_dtype: str):
 
 
 def promote_uint8(f8_dtype: str, promote_dtype: str, v):
-    if f8_dtype == "e4m3_float8":
+    if f8_dtype == "float8_e4m3fn":
         if promote_dtype == "float16":
             mantissa = T.bitwise_and(
                 T.shift_left(T.Cast("uint16", v), T.uint16(7)), T.uint16(0x3FF)
@@ -96,7 +96,7 @@ def promote_uint8(f8_dtype: str, promote_dtype: str, v):
             )
             sign = T.shift_left(T.Cast("uint32", T.shift_right(v, T.uint8(7))), T.uint32(31))
             return T.reinterpret("float32", T.bitwise_or(T.bitwise_or(mantissa, exponent), sign))
-    else:  # f8_dtype == "e5m2_float8"
+    else:  # f8_dtype == "float8_e5m2"
         if promote_dtype == "float16":
             return T.reinterpret("float16", T.shift_left(T.Cast("uint16", v), T.uint16(8)))
         else:  # promote_dtype == "float32"
@@ -115,7 +115,7 @@ def promote_uint8(f8_dtype: str, promote_dtype: str, v):
 
 
 def cast_to_uint8(f8_dtype: str, promote_dtype: str, v):
-    if f8_dtype == "e4m3_float8":
+    if f8_dtype == "float8_e4m3fn":
         if promote_dtype == "float16":
             uint16_v = T.reinterpret("uint16", v)
             rounding_bias = T.bitwise_and(
@@ -154,7 +154,7 @@ def cast_to_uint8(f8_dtype: str, promote_dtype: str, v):
             return T.if_then_else(
                 round_to_zero, T.uint8(0), T.bitwise_or(T.bitwise_or(mantissa, exponent), sign)
             )
-    else:  # f8_dtype == "e5m2_float8"
+    else:  # f8_dtype == "float8_e5m2"
         if promote_dtype == "float16":
             uint16_v = T.reinterpret("uint16", v)
             rounding_bias = T.bitwise_and(
@@ -201,12 +201,12 @@ def get_after_storage_legalize(dtype: str, promote_dtype: str):
     return After
 
 
-dtype = tvm.testing.parameter("e4m3_float8", "e5m2_float8")
+dtype = tvm.testing.parameter("float8_e4m3fn", "float8_e5m2")
 promote_dtype = tvm.testing.parameter("float16", "float32")
 
 
 def test_fp8_compute_legalize(dtype, promote_dtype):
-    target = Target("cuda")
+    target = Target("nvidia/nvidia-a100")
     before = BindTarget(target)(get_before(dtype))
     expected = BindTarget(target)(get_after_compute_legalize(dtype, promote_dtype))
     # run the transform twice to ensure we can afford to deal
@@ -217,7 +217,7 @@ def test_fp8_compute_legalize(dtype, promote_dtype):
 
 
 def test_fp8_storage_legalize(dtype, promote_dtype):
-    target = Target("cuda")
+    target = Target("nvidia/nvidia-a100")
     before = BindTarget(target)(get_after_compute_legalize(dtype, promote_dtype))
     after = tvm.tir.transform.FP8StorageLegalize()(before)
     expected = BindTarget(target)(get_after_storage_legalize(dtype, promote_dtype))

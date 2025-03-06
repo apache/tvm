@@ -16,24 +16,23 @@
 # under the License.
 
 import sys
+from typing import List, Tuple
+
+import numpy as np
 import pytest
 
 import tvm
-from tvm.script import tir as T
-import numpy as np
 import tvm.testing
-
-
-from typing import List, Tuple
 from tvm import DataType, DataTypeCode, IRModule
 from tvm import dlight as dl
 from tvm import relax, te, tir, topi
 from tvm.relax.frontend import nn
 from tvm.runtime import NDArray
+from tvm.script import ir as I
+from tvm.script import relax as R
+from tvm.script import tir as T
 from tvm.target import Target
 from tvm.topi.utils import get_const_tuple
-
-from tvm.script import ir as I, relax as R, tir as T
 
 try:
     import ml_dtypes
@@ -43,7 +42,7 @@ except ImportError:
 
 @tvm.testing.requires_cuda_compute_version(8, 9)
 def test_e4m3_conversions():
-    dtype = "e4m3_float8"
+    dtype = "float8_e4m3fn"
 
     @T.prim_func
     def add(
@@ -90,7 +89,7 @@ def test_e4m3_conversions():
 def test_e4m3_packing():
     length = 64
     vector_length = 4
-    native_dtype, packed_dtype = ("e4m3_float8x4", "uint32")
+    native_dtype, packed_dtype = ("float8_e4m3fnx4", "uint32")
 
     @T.prim_func
     def add(
@@ -141,13 +140,13 @@ def test_e4m3_packing():
 
 
 native_dtype, promoted_dtype = tvm.testing.parameters(
-    ("e4m3_float8", "float32"),
-    ("e4m3_float8", "float16"),
-    ("e4m3_float8x2", "float32x2"),
-    ("e4m3_float8x2", "float16x2"),
-    ("e4m3_float8x4", "float32x4"),
+    ("float8_e4m3fn", "float32"),
+    ("float8_e4m3fn", "float16"),
+    ("float8_e4m3fnx2", "float32x2"),
+    ("float8_e4m3fnx2", "float16x2"),
+    ("float8_e4m3fnx4", "float32x4"),
     # Supported via half4 vector type extension in codegen
-    ("e4m3_float8x4", "float16x4"),
+    ("float8_e4m3fnx4", "float16x4"),
 )
 
 
@@ -343,7 +342,7 @@ class BaseFP8E4M3QuantScaleOnly:
         axis,
         output_transpose,
     ) -> IRModule:
-        if DataType(quantize_dtype).type_code == DataTypeCode.E4M3Float:
+        if DataType(quantize_dtype).type_code == DataTypeCode.Float8E4M3FN:
             quantize_func = cls.quantize_fp8x4_e4m3
         else:
             assert NotImplementedError()
@@ -387,7 +386,7 @@ class BaseFP8E4M3QuantScaleOnly:
         num_elem_per_storage,
         axis,
     ) -> IRModule:
-        if DataType(quantize_dtype).type_code == DataTypeCode.E4M3Float:
+        if DataType(quantize_dtype).type_code == DataTypeCode.Float8E4M3FN:
             dequantize_func = cls.dequantize_fp8x4_e4m3
         else:
             assert NotImplementedError()
@@ -732,7 +731,7 @@ class TestFP8e4x4QuantDequantScale(BaseFP8E4M3QuantScaleOnly):
 
     @tvm.testing.fixture
     def quantize_dtype(self):
-        return "e4m3_float8"
+        return "float8_e4m3fn"
 
     @tvm.testing.fixture
     def num_el_per_storage(self):
@@ -807,7 +806,7 @@ class TestFP8e4x4QuantDequantScale(BaseFP8E4M3QuantScaleOnly):
 
 
 @tvm.testing.requires_cuda_compute_version(8, 9)
-@pytest.mark.parametrize("dtype", ["e5m2_float8", "e4m3_float8"])
+@pytest.mark.parametrize("dtype", ["float8_e5m2", "float8_e4m3fn"])
 def test_const(dtype):
     @T.prim_func
     def func(A: T.Buffer((4,), dtype)) -> None:
@@ -822,7 +821,7 @@ def test_const(dtype):
 
 
 @tvm.testing.requires_cuda_compute_version(8, 9)
-@pytest.mark.parametrize("dtype", ["e5m2_float8", "e4m3_float8"])
+@pytest.mark.parametrize("dtype", ["float8_e5m2", "float8_e4m3fn"])
 @pytest.mark.parametrize("vec_len", [2, 4, 8, 16])
 def test_copy(dtype, vec_len):
     @T.prim_func
@@ -867,7 +866,7 @@ def test_moe_gemv_shfl_down_illegal_instr():
         @T.prim_func(private=True)
         def moe_dequantize_gemv(
             x_handle: T.handle,
-            w: T.Buffer((num_experts, spatial_size, reduce_size), "e4m3_float8"),
+            w: T.Buffer((num_experts, spatial_size, reduce_size), "float8_e4m3fn"),
             scale: T.Buffer((1,), "float16"),
             indptr: T.Buffer((1, 2), "int32"),
             o: T.Buffer((2, spatial_size), "float16"),
@@ -905,7 +904,7 @@ def test_moe_gemv_shfl_down_illegal_instr():
         def main(
             x: R.Tensor(("num_seq", reduce_size), dtype="float16"),
             indptr: R.Tensor((1, 2), dtype="int32"),
-            weight: R.Tensor((num_experts, spatial_size, reduce_size), dtype="e4m3_float8"),
+            weight: R.Tensor((num_experts, spatial_size, reduce_size), dtype="float8_e4m3fn"),
             scale: R.Tensor((1,), dtype="float32"),
         ) -> R.Tensor((2, spatial_size), dtype="float16"):
             num_seq = T.int64()
@@ -965,4 +964,5 @@ def test_moe_gemv_shfl_down_illegal_instr():
 
 
 if __name__ == "__main__":
+    # test_half_broadcast(6)
     tvm.testing.main()
