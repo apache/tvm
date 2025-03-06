@@ -86,7 +86,7 @@ std::string GetFP4Type(DataType type) {
   }
   stream << "__nv_fp4";
   std::string suffix;
-  if (type.code() == DataType::kE2M1Float) {
+  if (type.code() == DataType::kFloat4E2M1Fn) {
     suffix = "_e2m1";
   } else {
     LOG(FATAL) << "Unsupported FP8 type in CUDA codegen";
@@ -597,7 +597,7 @@ void CodeGenCUDA::PrintVecElemLoad(const std::string& vec, DataType t, int i,
     }
     ICHECK(!type_name.empty());
     os << "((" << type_name << "2*)(&(" << vec << "." << access[i / 2] << ")))->" << access[i % 2];
-  } else if (t.is_e2m1_float4()) {
+  } else if (t.is_float4_e2m1fn()) {
     os << "([](__nv_fp4_storage_t v) { __nv_fp4_e2m1 t; t.__x = v; return t; })((" << vec
        << ".__x >> " << i * 4 << ") & 0xF)";
   } else {
@@ -735,8 +735,8 @@ void CodeGenCUDA::VisitExpr_(const CastNode* op, std::ostream& os) {
   if (from_ty.is_scalar()) return CodeGenC::VisitExpr_(op, os);
 
   if (target_ty.code() == DataType::kE4M3Float || target_ty.code() == DataType::kE5M2Float ||
-      target_ty.code() == DataType::kE2M1Float || from_ty.code() == DataType::kE4M3Float ||
-      from_ty.code() == DataType::kE5M2Float || from_ty.code() == DataType::kE2M1Float) {
+      target_ty.code() == DataType::kFloat4E2M1Fn || from_ty.code() == DataType::kE4M3Float ||
+      from_ty.code() == DataType::kE5M2Float || from_ty.code() == DataType::kFloat4E2M1Fn) {
     std::ostringstream val;
     val << "(";
     PrintType(target_ty, val);
@@ -1163,8 +1163,8 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
     DataType src_dtype = op->args[0]->dtype;
     PrimExpr value = op->args[0];
 
-    // Handle e2m1_float4 reinterpret
-    if (!src_dtype.is_e2m1_float4() && !tgt_dtype.is_e2m1_float4()) {
+    // Handle float4_e2m1fn reinterpret
+    if (!src_dtype.is_float4_e2m1fn() && !tgt_dtype.is_float4_e2m1fn()) {
       return CodeGenC::VisitExpr_(op, os);
     }
     if (src_dtype == tgt_dtype ||
@@ -1189,7 +1189,7 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
       this->PrintType(tgt_dtype, os);
       os << " *)(&(" << rhs << ")))";
     } else if (lanes == 2) {
-      if (tgt_dtype.is_e2m1_float4()) {
+      if (tgt_dtype.is_float4_e2m1fn()) {
         // We view the source as an uint16, and then extract bits of two fp4 numbers,
         // and finally reinterpret the result as fp4x2.
         value = tir::Call(DataType::UInt(16), tir::builtin::reinterpret(), {value});
@@ -1208,7 +1208,7 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
       }
       os << PrintExpr(tir::Call(tgt_dtype, tir::builtin::reinterpret(), {value}));
     } else if (lanes == 4) {
-      if (tgt_dtype.is_e2m1_float4()) {
+      if (tgt_dtype.is_float4_e2m1fn()) {
         // We view the source as an uint32, and then extract bits of four fp4 numbers,
         // and finally reinterpret the result as fp4x4.
         value = tir::Call(DataType::UInt(32), tir::builtin::reinterpret(), {value});
@@ -1231,7 +1231,7 @@ void CodeGenCUDA::VisitExpr_(const CallNode* op, std::ostream& os) {
       }
       os << PrintExpr(tir::Call(tgt_dtype, tir::builtin::reinterpret(), {value}));
     } else {
-      LOG(FATAL) << "Invalid number of lanes for e2m1_float4 reinterpret: " << lanes;
+      LOG(FATAL) << "Invalid number of lanes for float4_e2m1fn reinterpret: " << lanes;
     }
     EndScope(ssa_scope);
   } else {

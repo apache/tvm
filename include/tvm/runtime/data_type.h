@@ -58,7 +58,7 @@ class DataType {
     kBFloat = kDLBfloat,
     kE4M3Float = 6U,
     kE5M2Float = 7U,
-    kE2M1Float = 8U,
+    kFloat4E2M1Fn = 8U,
     kCustomBegin = 129
   };
   /*! \brief default constructor */
@@ -88,7 +88,7 @@ class DataType {
     if (code == kE4M3Float || code == kE5M2Float) {
       ICHECK_EQ(bits, 8);
     }
-    if (code == kE2M1Float) {
+    if (code == kFloat4E2M1Fn) {
       ICHECK_EQ(bits, 4);
     }
   }
@@ -131,12 +131,10 @@ class DataType {
            bits() == 8;
   }
   /*! \return whether type is a float4 type. */
-  bool is_float4() const { return code() == DataType::kE2M1Float && bits() == 4; }
+  bool is_float4() const { return code() == DataType::kFloat4E2M1Fn && bits() == 4; }
   bool is_e4m3_float8() const { return (code() == DataType::kE4M3Float && bits() == 8); }
-
   bool is_e5m2_float8() const { return (code() == DataType::kE5M2Float && bits() == 8); }
-
-  bool is_e2m1_float4() const { return (code() == DataType::kE2M1Float && bits() == 4); }
+  bool is_float4_e2m1fn() const { return (code() == DataType::kFloat4E2M1Fn && bits() == 4); }
   /*! \return whether type is a float16 type. */
   bool is_float16() const { return is_float() && bits() == 16; }
   /*! \return whether type is a bfloat16 type. */
@@ -262,11 +260,11 @@ class DataType {
    */
   static DataType NVFloat8E5M2(int lanes = 1) { return DataType(kE5M2Float, 8, lanes); }
   /*!
-   * \brief Construct NV float4 e2m1 datatype.
+   * \brief Construct NV float4_e2m1fn datatype.
    * \param lanes The number of lanes
    * \return The constructed data type.
    */
-  static DataType NVFloat4E2M1(int lanes = 1) { return DataType(kE2M1Float, 4, lanes); }
+  static DataType NVFloat4E2M1FN(int lanes = 1) { return DataType(kFloat4E2M1Fn, 4, lanes); }
   /*!
    * \brief Construct a bool type.
    * \param lanes The number of lanes.
@@ -313,7 +311,7 @@ inline int GetVectorBytes(DataType dtype) {
   int data_bits = dtype.bits() * dtype.lanes();
   // allow bool to exist
   if (dtype == DataType::Bool() || dtype == DataType::Int(4) || dtype == DataType::UInt(4) ||
-      dtype == DataType::Int(1) || dtype == DataType::NVFloat4E2M1()) {
+      dtype == DataType::Int(1) || dtype == DataType::NVFloat4E2M1FN()) {
     return 1;
   }
   ICHECK_EQ(data_bits % 8, 0U) << "Need to load/store by multiple of bytes";
@@ -399,8 +397,8 @@ inline const char* DLDataTypeCode2Str(DLDataTypeCode type_code) {
       return "e4m3_float";
     case DataType::kE5M2Float:
       return "e5m2_float";
-    case DataType::kE2M1Float:
-      return "e2m1_float";
+    case DataType::kFloat4E2M1Fn:
+      return "float4_e2m1fn";
     default:
       LOG(FATAL) << "unknown type_code=" << static_cast<int>(type_code);
   }
@@ -458,6 +456,18 @@ inline DLDataType String2DLDataType(std::string s) {
   } else if (s.substr(0, 4) == "uint") {
     t.code = kDLUInt;
     scan = s.c_str() + 4;
+  } else if (s.substr(0, 13) == "float4_e2m1fn") {
+    // Avoid being treated as "float"
+    t.code = DataType::kFloat4E2M1Fn;
+    t.bits = 4;
+    scan = s.c_str() + 13;
+    char* endpt = nullptr;
+    if (*scan == 'x') {
+      t.lanes = static_cast<uint16_t>(strtoul(scan + 1, &endpt, 10));
+      scan = endpt;
+    }
+    ICHECK(scan == s.c_str() + s.length()) << "unknown type " << s;
+    return t;
   } else if (s.substr(0, 5) == "float") {
     t.code = kDLFloat;
     scan = s.c_str() + 5;
@@ -481,10 +491,6 @@ inline DLDataType String2DLDataType(std::string s) {
   } else if (s.substr(0, 10) == "e5m2_float") {
     t.code = DataType::kE5M2Float;
     t.bits = 8;
-    scan = s.c_str() + 10;
-  } else if (s.substr(0, 10) == "e2m1_float") {
-    t.code = DataType::kE2M1Float;
-    t.bits = 4;
     scan = s.c_str() + 10;
   } else if (s.substr(0, 6) == "custom") {
     t.code = ParseCustomDatatype(s, &scan);

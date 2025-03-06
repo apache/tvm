@@ -426,7 +426,7 @@ PrimExpr reinterpret(const DataType& t, PrimExpr value, Span span) {
   if (value.dtype() == t) return value;
   if (!t.is_scalable_vector() && !value.dtype().is_scalable_vector()) {
     ICHECK(value.dtype().bits() * value.dtype().lanes() == t.bits() * t.lanes() ||
-           ((value.dtype().is_e2m1_float4() || t.is_e2m1_float4()) &&
+           ((value.dtype().is_float4_e2m1fn() || t.is_float4_e2m1fn()) &&
             value.dtype().bytes() * value.dtype().lanes() == t.bytes() * t.lanes()))
         << "Reinterpret requires size match " << t << " vs " << value.dtype();
   }

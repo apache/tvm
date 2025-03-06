@@ -197,9 +197,9 @@ class NDArray(NDArrayBase):
             source_array = np.ascontiguousarray(
                 source_array, dtype="uint16" if dtype == "bfloat16" else dtype
             )
-        if self.dtype.startswith("e2m1_float4") and self.dtype != "e2m1_float4":
-            # e2m1_float4 in numpy is not packed.
-            # So we need to pack the input data when converting to vectorized e2m1_float4 type.
+        if self.dtype.startswith("float4_e2m1fn") and self.dtype != "float4_e2m1fn":
+            # float4_e2m1fn in numpy is not packed.
+            # So we need to pack the input data when converting to vectorized float4_e2m1fn type.
             data_bits = source_array.view(dtype="uint8")
             if data_bits.size % 2:
                 data_bits = np.pad(data_bits, (0, 1), mode="constant", constant_values=0)
@@ -263,23 +263,23 @@ class NDArray(NDArrayBase):
                 raise RuntimeError(
                     "ml_dtypes is not installed, cannot convert e5m2_float8 array to numpy."
                 )
-        if dtype == "e2m1_float4":
+        if dtype == "float4_e2m1fn":
             if ml_dtypes is not None:
                 dtype = ml_dtypes.float4_e2m1fn
             else:
                 raise RuntimeError(
-                    "ml_dtypes is not installed, cannot convert e2m1_float4 array to numpy."
+                    "ml_dtypes is not installed, cannot convert float4_e2m1fn array to numpy."
                 )
         np_arr = np.empty(shape, dtype=dtype)
         assert np_arr.flags["C_CONTIGUOUS"]
         data = np_arr.ctypes.data_as(ctypes.c_void_p)
-        if old_dtype.startswith("e2m1_float4") and old_dtype != "e2m1_float4":
+        if old_dtype.startswith("float4_e2m1fn") and old_dtype != "float4_e2m1fn":
             nbytes = ctypes.c_size_t(np_arr.size * np_arr.dtype.itemsize // 2)
         else:
             nbytes = ctypes.c_size_t(np_arr.size * np_arr.dtype.itemsize)
         check_call(_LIB.TVMArrayCopyToBytes(self.handle, data, nbytes))
         if old_dtype == "int4" or (
-            old_dtype.startswith("e2m1_float4") and old_dtype != "e2m1_float4"
+            old_dtype.startswith("float4_e2m1fn") and old_dtype != "float4_e2m1fn"
         ):
             length = np_arr.size
             np_arr = np_arr.view("int8")

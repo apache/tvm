@@ -789,8 +789,8 @@ void CodeGenC::VisitExpr_(const BufferLoadNode* op, std::ostream& os) {  // NOLI
       }
     }
 
-    if (value_dtype.is_e2m1_float4() && lanes != 1) {
-      // A e2m1_float4 element has 4 bits, which is an incomplete byte.
+    if (value_dtype.is_float4_e2m1fn() && lanes != 1) {
+      // A float4_e2m1fn element has 4 bits, which is an incomplete byte.
       // So we cannot vector load it.
       can_vector_load = false;
     }
@@ -845,7 +845,7 @@ void CodeGenC::VisitStmt_(const BufferStoreNode* op) {
     arith::PVar<PrimExpr> base;
 
     if (arith::ramp(base, 1, value_dtype.lanes()).Match(index_expr) &&
-        !value_dtype.is_e2m1_float4()) {
+        !value_dtype.is_float4_e2m1fn()) {
       std::string value = this->PrintExpr(op->value);
       this->PrintVecStore(op->buffer.get(), value_dtype, base.Eval(), value);
     } else {

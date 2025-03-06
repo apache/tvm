@@ -29,8 +29,8 @@ except ImportError:
     ml_dtypes = None
 
 native_dtype, promoted_dtype = tvm.testing.parameters(
-    ("e2m1_float4x2", "float32x2"),
-    ("e2m1_float4x2", "float16x2"),
+    ("float4_e2m1fnx2", "float32x2"),
+    ("float4_e2m1fnx2", "float16x2"),
 )
 
 
@@ -94,7 +94,7 @@ def test_e2m1_vector_conversions(native_dtype, promoted_dtype):
 
 @tvm.testing.requires_cuda_compute_version(10)
 def test_e2m1_schedule_vectorize():
-    native_dtype = "e2m1_float4"
+    native_dtype = "float4_e2m1fn"
     n = 128
 
     dev = tvm.device("cuda", 0)
@@ -186,25 +186,25 @@ def test_e2m1_reinterpret():
         sch.vectorize(vec)
         return sch.mod
 
-    # Part 1. reinterpret e2m1_float4 to uint8
+    # Part 1. reinterpret float4_e2m1fn to uint8
     for vector_length in [1, 2, 4]:
-        mod = get_reinterpret_mod("e2m1_float4", "uint8", vector_length)
+        mod = get_reinterpret_mod("float4_e2m1fn", "uint8", vector_length)
         f = tvm.build(mod, target=target)
         a_np = np.random.uniform(low=-6, high=6, size=(n,)).astype("float4_e2m1fn")
-        a = tvm.nd.empty(shape=(n,), dtype="e2m1_float4", device=dev)
+        a = tvm.nd.empty(shape=(n,), dtype="float4_e2m1fn", device=dev)
         a.copyfrom(a_np)
         b = tvm.nd.empty(shape=(n,), dtype="uint8", device=dev)
         f(a, b)
         tvm.testing.assert_allclose(b.numpy(), a_np.view("uint8"))
 
-    # Part 2. reinterpret uint8 to e2m1_float4
+    # Part 2. reinterpret uint8 to float4_e2m1fn
     for vector_length in [1, 2, 4]:
-        mod = get_reinterpret_mod("uint8", "e2m1_float4", vector_length)
+        mod = get_reinterpret_mod("uint8", "float4_e2m1fn", vector_length)
         f = tvm.build(mod, target=target)
         a_np = np.random.uniform(low=-6, high=6, size=(n,)).astype("uint8")
         a = tvm.nd.empty(shape=(n,), dtype="uint8", device=dev)
         a.copyfrom(a_np)
-        b = tvm.nd.empty(shape=(n,), dtype="e2m1_float4", device=dev)
+        b = tvm.nd.empty(shape=(n,), dtype="float4_e2m1fn", device=dev)
         f(a, b)
         tvm.testing.assert_allclose(
             b.numpy().astype("float32"), a_np.view("float4_e2m1fn").astype("float32")
