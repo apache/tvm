@@ -87,8 +87,8 @@ def create_calculator(backend: str) -> Callable:
 
         Parameters
         ----------
-        rt_mod : Union[tvm.runtime.Module, tvm.runtime.vm.Executable]
-            The runtime module or vm executable.
+        rt_mod : tvm.runtime.Module
+            The runtime module.
         dev : tvm.device
             The device type to run workload.
         input_data : Dict[str, np.ndarray]

@@ -17,21 +17,18 @@
 """Customized builder and runner methods"""
 # pylint: disable=import-outside-toplevel
 
-from typing import TYPE_CHECKING, Dict, Union, Callable
+from typing import Dict, Union, Callable
 
-if TYPE_CHECKING:
-    import numpy as np  # type: ignore
-    from tvm.ir import IRModule
-    from tvm.meta_schedule.runner import EvaluatorConfig, RPCConfig
-    from tvm.runtime import Device, Module, NDArray
-    from tvm.target import Target
+import numpy as np  # type: ignore
+from tvm.meta_schedule.runner import RPCConfig
+from tvm.runtime import Module, Executable
 
 
 def run_module_via_rpc(
-    rpc_config: "RPCConfig",
-    lib: Union["Module", "Executable"],
+    rpc_config: RPCConfig,
+    lib: Union[Module, Executable],
     dev_type: str,
-    args: Union[Dict[int, "np.ndarray"], Dict[str, "np.ndarray"]],
+    args: Union[Dict[int, np.ndarray], Dict[str, np.ndarray]],
     continuation: Callable,
 ):
     """Execute a tvm.runtime.Module on RPC remote"""

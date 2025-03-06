@@ -426,7 +426,7 @@ def _pipeline(  # pylint: disable=too-many-arguments
 
 
 with target:
-    ex = relax.build(mod, target, pipeline=relax.get_pipeline("opt_llm"))
+    ex = tvm.compile(mod, target, relax_pipeline=relax.get_pipeline("opt_llm"))
     vm = relax.VirtualMachine(ex, dev)
 
 
