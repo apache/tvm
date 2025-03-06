@@ -30,9 +30,9 @@ from ..utils import has_leaking_intermediate_variables
 
 def _is_supported_dtype(lhs_dtype, rhs_dtype, out_dtype):  # pylint: disable=unused-argument
     """Check if dtypes in the given workload are supported by hipblas BYOC."""
-    if lhs_dtype == "e4m3_float8" and rhs_dtype == "e4m3_float8":
-        # The output cannot be 'e5m2_float8' if inputs are 'e4m3_float8'
-        # return out_dtype != "e5m2_float8"
+    if lhs_dtype == "float8_e4m3fn" and rhs_dtype == "float8_e4m3fn":
+        # The output cannot be 'float8_e5m2' if inputs are 'float8_e4m3fn'
+        # return out_dtype != "float8_e5m2"
         return False
     return (lhs_dtype == "float16" and rhs_dtype == "float16") or (
         lhs_dtype == "int8" and rhs_dtype == "int8"
@@ -61,7 +61,7 @@ def _check_matmul(context: PatternCheckContext) -> bool:
 
     if lhs_dtype == "int8" and rhs_dtype == "int8":
         return False
-    elif lhs_dtype == "e4m3_float8" and rhs_dtype == "e4m3_float8":
+    elif lhs_dtype == "float8_e4m3fn" and rhs_dtype == "float8_e4m3fn":
         return False
 
     lhs_batches = reduce(operator.mul, lhs_shape[:-2], 1)

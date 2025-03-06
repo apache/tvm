@@ -164,8 +164,8 @@ void CallCublasLt(cublasLtHandle_t hdl, cudaStream_t stream,
     ab_type = CUDA_R_16F;
   } else if (TypeMatch(A->dtype, kDLInt, 8)) {
     ab_type = CUDA_R_8I;
-  } else if (TypeMatch(A->dtype, DataType::TypeCode::kE4M3Float, 8)) {
-    ICHECK(TypeMatch(B->dtype, DataType::TypeCode::kE4M3Float, 8));
+  } else if (TypeMatch(A->dtype, DataType::TypeCode::kFloat8_e4m3fn, 8)) {
+    ICHECK(TypeMatch(B->dtype, DataType::TypeCode::kFloat8_e4m3fn, 8));
     ab_type = CUDA_R_8F_E4M3;
   }
 
@@ -217,7 +217,6 @@ void CallCublasLt(cublasLtHandle_t hdl, cudaStream_t stream,
   int N = RowCount(A, transa, batch_offset_A);
   int K = ColumnCount(A, transa, batch_offset_A);
   bool use_batched_gemm = A->ndim > 2 || B->ndim > 2;
-
   // If A is batched but B is not, flatten all non-reduction axes of A to use the regular GEMM.
   // This trick is only applicable if batch axes and the other spatial axis (M or N) are
   // adjacent in both the input and the output matrix. In particular, if A is of shape (M, K)

@@ -15,22 +15,23 @@
 # specific language governing permissions and limitations
 # under the License.
 """Test data type related API"""
-import tvm
-from tvm import DataType
-import tvm.testing
 import pytest
+
+import tvm
+import tvm.testing
+from tvm import DataType
 
 
 @pytest.mark.parametrize(
     "dtype_str, expected_size",
-    [("float32", 4), ("float32x4", 16), ("e5m2_float8x4", 4), ("uint8", 1)],
+    [("float32", 4), ("float32x4", 16), ("float8_e5m2x4", 4), ("uint8", 1)],
 )
 def test_dtype_itemsize(dtype_str, expected_size):
     dtype = DataType(dtype_str)
     assert dtype.itemsize() == expected_size
 
 
-@pytest.mark.parametrize("dtype_str", [("int32xvscalex4")])
+@pytest.mark.parametrize("dtype_str", ["int32xvscalex4"])
 def test_dtype_itemmize_error(dtype_str):
     with pytest.raises(ValueError):
         size = DataType(dtype_str).itemsize()

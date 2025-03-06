@@ -249,19 +249,19 @@ class NDArray(NDArrayBase):
             dtype = "int8"
         if dtype == "bfloat16":
             dtype = "uint16"
-        if dtype == "e4m3_float8":
+        if dtype == "float8_e4m3fn":
             if ml_dtypes is not None:
                 dtype = ml_dtypes.float8_e4m3fn
             else:
                 raise RuntimeError(
-                    "ml_dtypes is not installed, cannot convert e4m3_float8 array to numpy."
+                    "ml_dtypes is not installed, cannot convert float8_e4m3fn array to numpy."
                 )
-        if dtype == "e5m2_float8":
+        if dtype == "float8_e5m2":
             if ml_dtypes is not None:
                 dtype = ml_dtypes.float8_e5m2
             else:
                 raise RuntimeError(
-                    "ml_dtypes is not installed, cannot convert e5m2_float8 array to numpy."
+                    "ml_dtypes is not installed, cannot convert float8_e5m2 array to numpy."
                 )
         if dtype == "float4_e2m1fn":
             if ml_dtypes is not None:

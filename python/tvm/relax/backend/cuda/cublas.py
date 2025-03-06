@@ -27,18 +27,18 @@ from tvm.relax.transform import PatternCheckContext
 
 from ..pattern_registry import get_patterns_with_prefix, register_patterns
 from ..patterns import (
-    make_matmul_pattern,
     make_matmul_dequantize_pattern,
     make_matmul_multiply_pattern,
+    make_matmul_pattern,
 )
 from ..utils import has_leaking_intermediate_variables
 
 
 def _is_supported_dtype(lhs_dtype, rhs_dtype, out_dtype):
     """Check if dtypes in the given workload are supported by cuBLAS BYOC."""
-    if lhs_dtype == "e4m3_float8" and rhs_dtype == "e4m3_float8":
-        # The output cannot be 'e5m2_float8' if inputs are 'e4m3_float8'
-        return out_dtype != "e5m2_float8"
+    if lhs_dtype == "float8_e4m3fn" and rhs_dtype == "float8_e4m3fn":
+        # The output cannot be 'float8_e5m2' if inputs are 'float8_e4m3fn'
+        return out_dtype != "float8_e5m2"
     return (
         (lhs_dtype == "float16" and rhs_dtype == "float16")
         or (lhs_dtype == "float32" and rhs_dtype == "float32")
@@ -83,7 +83,7 @@ def _check_matmul(context: PatternCheckContext) -> bool:
         if not isinstance(rhs_shape[-1], (tvm.tir.expr.IntImm, int)) or rhs_shape[-1] % 4 != 0:
             # Rows number must be multiples of 4 for IGEMM
             return False
-    elif lhs_dtype == "e4m3_float8" and rhs_dtype == "e4m3_float8":
+    elif lhs_dtype == "float8_e4m3fn" and rhs_dtype == "float8_e4m3fn":
         matmul_rhs_var = matmul_call.args[1]
         rhs_transposed = False
         if matmul_rhs_var in context.matched_bindings:
