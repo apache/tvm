@@ -68,7 +68,7 @@ class DataTypeCode(object):
     BFLOAT = 4
     E4M3Float = 6
     E5M2Float = 7
-    E2M1Float = 8
+    FLOAT4E2M1FN = 8
 
 
 class DataType(ctypes.Structure):
@@ -83,7 +83,7 @@ class DataType(ctypes.Structure):
         DataTypeCode.BFLOAT: "bfloat",
         DataTypeCode.E4M3Float: "e4m3_float",
         DataTypeCode.E5M2Float: "e5m2_float",
-        DataTypeCode.E2M1Float: "e2m1_float",
+        DataTypeCode.FLOAT4E2M1FN: "float4_e2m1fn",
     }
     NUMPY2STR = {
         np.dtype(np.bool_): "bool",
@@ -114,7 +114,7 @@ class DataType(ctypes.Structure):
         "uint64": {"type_code": DataTypeCode.UINT, "bits": 64, "lanes": 1},
         "e4m3_float8": {"type_code": DataTypeCode.E4M3Float, "bits": 8, "lanes": 1},
         "e5m2_float8": {"type_code": DataTypeCode.E5M2Float, "bits": 8, "lanes": 1},
-        "e2m1_float4": {"type_code": DataTypeCode.E2M1Float, "bits": 4, "lanes": 1},
+        "float4_e2m1fn": {"type_code": DataTypeCode.FLOAT4E2M1FN, "bits": 4, "lanes": 1},
         "float16": {"type_code": DataTypeCode.FLOAT, "bits": 16, "lanes": 1},
         "float32": {"type_code": DataTypeCode.FLOAT, "bits": 32, "lanes": 1},
         "float64": {"type_code": DataTypeCode.FLOAT, "bits": 64, "lanes": 1},
@@ -155,6 +155,11 @@ class DataType(ctypes.Structure):
         elif head.startswith("uint"):
             self.type_code = DataTypeCode.UINT
             head = head[4:]
+        elif head.startswith("float4_e2m1fn"):
+            # Avoid being treated as "float"
+            self.type_code = DataTypeCode.FLOAT4E2M1FN
+            bits = 4
+            head = ""
         elif head.startswith("float"):
             self.type_code = DataTypeCode.FLOAT
             head = head[5:]
@@ -170,9 +175,6 @@ class DataType(ctypes.Structure):
             head = head[10:]
         elif head.startswith("e5m2_float"):
             self.type_code = DataTypeCode.E5M2Float
-            head = head[10:]
-        elif head.startswith("e2m1_float"):
-            self.type_code = DataTypeCode.E2M1Float
             head = head[10:]
         elif head.startswith("custom"):
             # pylint: disable=import-outside-toplevel
@@ -201,7 +203,12 @@ class DataType(ctypes.Structure):
             import tvm.runtime._ffi_api
 
             type_name = "custom[%s]" % tvm.runtime._ffi_api._datatype_get_type_name(self.type_code)
-        x = "%s%d" % (type_name, self.bits)
+        if self.type_code in [
+            DataTypeCode.FLOAT4E2M1FN,
+        ]:
+            x = type_name
+        else:
+            x = "%s%d" % (type_name, self.bits)
         lanes_as_int = ctypes.c_int16(self.lanes).value
         if lanes_as_int > 1:
             x += "x%d" % self.lanes
@@ -238,7 +245,7 @@ if ml_dtypes is not None:
     DataType.NUMPY2STR[np.dtype(ml_dtypes.bfloat16)] = "bfloat16"
     DataType.NUMPY2STR[np.dtype(ml_dtypes.float8_e4m3fn)] = "e4m3_float8"
     DataType.NUMPY2STR[np.dtype(ml_dtypes.float8_e5m2)] = "e5m2_float8"
-    DataType.NUMPY2STR[np.dtype(ml_dtypes.float4_e2m1fn)] = "e2m1_float4"
+    DataType.NUMPY2STR[np.dtype(ml_dtypes.float4_e2m1fn)] = "float4_e2m1fn"
 
 RPC_SESS_MASK = 128
 
