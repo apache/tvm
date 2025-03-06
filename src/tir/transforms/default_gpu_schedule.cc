@@ -112,7 +112,7 @@ bool IsScheduledOnGPU(const BaseFunc& func) {
   if (target.defined()) {
     int dev_type = target->GetTargetDeviceType();
     if (!(dev_type == kDLCUDA || dev_type == kDLMetal || dev_type == kDLROCM ||
-          dev_type == kDLWebGPU)) {
+          dev_type == kDLVulkan || dev_type == kDLOpenCL || dev_type == kDLWebGPU)) {
       return false;
     }
   }

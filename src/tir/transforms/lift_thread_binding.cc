@@ -169,14 +169,9 @@ class ThreadBindingLifter : public StmtExprMutator {
 };
 
 PrimFunc LiftThreadBinding(PrimFunc f) {
-  // Only apply this pass to TIR that is not from TE schedules
-  if (!IsFromLegacyTESchedule(f)) {
-    PrimFuncNode* fptr = f.CopyOnWrite();
-    fptr->body = ThreadBindingLifter()(std::move(fptr->body));
-    return f;
-  } else {
-    return f;
-  }
+  PrimFuncNode* fptr = f.CopyOnWrite();
+  fptr->body = ThreadBindingLifter()(std::move(fptr->body));
+  return f;
 }
 
 namespace transform {

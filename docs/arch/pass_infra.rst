@@ -411,7 +411,7 @@ of the ``PassContext`` instance.
 
 ``InstrumentExitPassContext`` is called when leaving the scope of ``PassContext``,
 or exceptions occur during the execution of passes.
-This method is also called when instruments is being overriden by ``override_instruments`` in :py:class:`tvm.transform.PassContext`.
+This method is also called when instruments is being overridden by ``override_instruments`` in :py:class:`tvm.transform.PassContext`.
 See :ref:`pass_instrument_overriden`.
 
 ``InstrumentBeforePass`` is called before execution.

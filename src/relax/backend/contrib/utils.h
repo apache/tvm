@@ -72,10 +72,12 @@ inline std::string DType2String(const tvm::DataType dtype) {
   std::ostringstream os;
   if (dtype.is_float()) {
     os << "float";
-  } else if (dtype.is_e4m3_float8()) {
-    os << "e4m3_float";
-  } else if (dtype.is_e5m2_float8()) {
-    os << "e5m2_float";
+  } else if (dtype.is_float8_e4m3fn()) {
+    return "float8_e4m3fn";
+  } else if (dtype.is_float8_e5m2()) {
+    return "float8_e5m2";
+  } else if (dtype.is_float4_e2m1fn()) {
+    return "float4_e2m1fn";
   } else if (dtype.is_int()) {
     os << "int";
   } else if (dtype.is_uint()) {

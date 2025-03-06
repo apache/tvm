@@ -27,8 +27,6 @@
 #include <dmlc/json.h>
 #include <tvm/relax/expr.h>
 #include <tvm/relax/expr_functor.h>
-#include <tvm/relay/expr.h>
-#include <tvm/relay/expr_functor.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/tir/data_layout.h>
 
@@ -48,10 +46,9 @@ namespace tvm {
 namespace contrib {
 namespace msc {
 
-using Expr = tvm::RelaxExpr;
-using RelaxExprVisitor = tvm::relax::ExprVisitor;
-using RelaxExprVisitor = tvm::relay::ExprVisitor;
+using namespace tvm::relax;
 
+using Expr = tvm::RelaxExpr;
 using tvm::runtime::NDArray;
 
 /*!
@@ -149,7 +146,7 @@ class AttrGetter : public AttrVisitor {
   Map<String, String>* attrs_;
 };
 
-class RelaxFuncAttrGetter : public RelaxExprVisitor {
+class FuncAttrGetter : public ExprVisitor {
  public:
   /*! \brief Get the attributes as Map<String, String>*/
   Map<String, String> GetAttrs(const Expr& expr) {
@@ -157,15 +154,15 @@ class RelaxFuncAttrGetter : public RelaxExprVisitor {
     return attrs_;
   }
 
-  void VisitExpr_(const relax::CallNode* op) final;
+  void VisitExpr_(const CallNode* op) final;
 
-  void VisitExpr_(const relax::TupleGetItemNode* op) final;
+  void VisitExpr_(const TupleGetItemNode* op) final;
 
  private:
   Map<String, String> attrs_;
 };
 
-class RelaxFuncValueGetter : public RelaxExprVisitor {
+class FuncValueGetter : public ExprVisitor {
  public:
   /*! \brief Get the attributes from prim value as Map<String, String>*/
   Array<String> GetValues(const Expr& expr) {
@@ -173,19 +170,19 @@ class RelaxFuncValueGetter : public RelaxExprVisitor {
     return values_;
   }
 
-  void VisitExpr_(const relax::CallNode* op) final;
+  void VisitExpr_(const CallNode* op) final;
 
  private:
   Array<String> values_;
 };
 
-class RelaxFuncParamsFinder : public RelaxExprVisitor {
+class FuncParamsFinder : public ExprVisitor {
  public:
   /*!
-   * \brief The constructor of RelaxFuncParamsFinder
+   * \brief The constructor of FuncParamsFinder
    * \param ref_module the reference module.
    */
-  explicit RelaxFuncParamsFinder(const IRModule& ref_module) : RelaxExprVisitor() {
+  explicit FuncParamsFinder(const IRModule& ref_module) : ExprVisitor() {
     ref_module_ = ref_module;
   }
 
@@ -195,25 +192,23 @@ class RelaxFuncParamsFinder : public RelaxExprVisitor {
     return params_;
   }
 
-  void VisitBinding_(const relax::VarBindingNode* binding, const relax::FunctionNode* val) final;
+  void VisitBinding_(const VarBindingNode* binding, const FunctionNode* val) final;
 
-  void VisitExpr_(const relax::CallNode* op) final;
+  void VisitExpr_(const CallNode* op) final;
 
  private:
   IRModule ref_module_;
   Map<Expr, Expr> params_;
-  Map<Expr, relax::Function> local_funcs_;
+  Map<Expr, Function> local_funcs_;
 };
 
-class RelaxLayoutsFinder : public RelaxExprVisitor {
+class LayoutsFinder : public ExprVisitor {
  public:
   /*!
-   * \brief The constructor of RelaxLayoutsFinder
+   * \brief The constructor of LayoutsFinder
    * \param ref_module the reference module.
    */
-  explicit RelaxLayoutsFinder(const IRModule& ref_module) : RelaxExprVisitor() {
-    ref_module_ = ref_module;
-  }
+  explicit LayoutsFinder(const IRModule& ref_module) : ExprVisitor() { ref_module_ = ref_module; }
 
   /*! \brief Find the layouts form attrs*/
   Map<String, String> FindLayouts(const Expr& expr) {
@@ -221,27 +216,27 @@ class RelaxLayoutsFinder : public RelaxExprVisitor {
     return layouts_;
   }
 
-  void VisitBinding_(const relax::VarBindingNode* binding, const relax::FunctionNode* val) final;
+  void VisitBinding_(const VarBindingNode* binding, const FunctionNode* val) final;
 
-  void VisitExpr_(const relax::CallNode* op) final;
+  void VisitExpr_(const CallNode* op) final;
 
  private:
   IRModule ref_module_;
   Map<String, String> layouts_;
-  Map<Expr, relax::Function> local_funcs_;
+  Map<Expr, Function> local_funcs_;
 };
 
-class RelaxGraphBuilder : public RelaxExprVisitor {
+class GraphBuilder : public ExprVisitor {
  public:
   /*!
-   * \brief The constructor of RelaxGraphBuilder
+   * \brief The constructor of GraphBuilder
    * \param ref_module the reference module.
    * \param name the name of the graph.
    * \param options the options of build the graph.
    */
-  explicit RelaxGraphBuilder(const IRModule& ref_module, const String& name,
-                             const std::string& options = "")
-      : RelaxExprVisitor() {
+  explicit GraphBuilder(const IRModule& ref_module, const String& name,
+                        const std::string& options = "")
+      : ExprVisitor() {
     ref_module_ = ref_module;
     if (options.size() > 0) {
       std::istringstream is(options);
@@ -250,13 +245,13 @@ class RelaxGraphBuilder : public RelaxExprVisitor {
     }
     name_ = config_.graph_name.size() > 0 ? String(config_.graph_name) : name;
     if (config_.byoc_entry.size() > 0) {
-      func_params_ = RelaxFuncParamsFinder(ref_module).FindParams(ref_module->Lookup(name));
+      func_params_ = FuncParamsFinder(ref_module).FindParams(ref_module->Lookup(name));
     }
-    layouts_ = RelaxLayoutsFinder(ref_module).FindLayouts(ref_module->Lookup(name));
+    layouts_ = LayoutsFinder(ref_module).FindLayouts(ref_module->Lookup(name));
   }
 
   /*! \brief Build MSCGraph from relax function*/
-  const MSCGraph Build(const relax::Function& func);
+  const MSCGraph Build(const Function& func);
 
   /*! \brief Get the config of builder */
   const MSCRBuildConfig config() { return config_; }
@@ -272,35 +267,34 @@ class RelaxGraphBuilder : public RelaxExprVisitor {
                                   const Array<BaseJoint>& parents = Array<BaseJoint>(),
                                   const Map<String, String>& attrs = Map<String, String>());
 
-  void VisitBindingBlock(const relax::BindingBlock& block) final;
+  void VisitBindingBlock(const BindingBlock& block) final;
 
-  void VisitExpr_(const relax::ConstantNode* op) final;
+  void VisitExpr_(const ConstantNode* op) final;
 
-  void VisitBinding_(const relax::VarBindingNode* binding, const relax::ConstantNode* val) final;
+  void VisitBinding_(const VarBindingNode* binding, const ConstantNode* val) final;
 
-  void VisitBinding_(const relax::VarBindingNode* binding, const relax::ShapeExprNode* val) final;
+  void VisitBinding_(const VarBindingNode* binding, const ShapeExprNode* val) final;
 
-  void VisitBinding_(const relax::VarBindingNode* binding, const relax::CallNode* call_node) final;
+  void VisitBinding_(const VarBindingNode* binding, const CallNode* call_node) final;
 
-  void VisitBinding_(const relax::VarBindingNode* binding, const relax::TupleNode* val) final;
+  void VisitBinding_(const VarBindingNode* binding, const TupleNode* val) final;
 
-  void VisitBinding_(const relax::VarBindingNode* binding,
-                     const relax::TupleGetItemNode* val) final;
+  void VisitBinding_(const VarBindingNode* binding, const TupleGetItemNode* val) final;
 
-  void VisitBinding_(const relax::VarBindingNode* binding, const relax::VarNode* val) final;
+  void VisitBinding_(const VarBindingNode* binding, const VarNode* val) final;
 
-  void VisitBinding_(const relax::VarBindingNode* binding, const relax::DataflowVarNode* val) final;
+  void VisitBinding_(const VarBindingNode* binding, const DataflowVarNode* val) final;
 
-  void VisitBinding_(const relax::VarBindingNode* binding, const relax::FunctionNode* val) final;
+  void VisitBinding_(const VarBindingNode* binding, const FunctionNode* val) final;
 
   void VisitPrimExpr(const PrimExpr& prim) final;
 
  private:
   /*! \brief Get the node_name, optype, layout for func*/
-  const std::tuple<String, String, String> ParseFunc(const relax::Function& func);
+  const std::tuple<String, String, String> ParseFunc(const Function& func);
 
   /*! \brief Get the plugin inputs*/
-  Array<Expr> GetPluginInputs(const relax::Expr& expr);
+  Array<Expr> GetPluginInputs(const Expr& expr);
 
   String name_;
   IRModule ref_module_;
@@ -316,143 +310,36 @@ class RelaxGraphBuilder : public RelaxExprVisitor {
   std::set<String> setted_blocks_;
   Array<String> block_stack_;
   // BYOC maps
-  Map<Expr, relax::Function> target_funcs_;
+  Map<Expr, Function> target_funcs_;
   Map<Expr, Expr> func_params_;
   // prims
   Array<MSCPrim> prims_;
   Map<PrimExpr, MSCPrim> prim_map_;
 };
 
-class RelaxWeightsExtractor : public RelaxExprVisitor {
+class WeightsExtractor : public ExprVisitor {
  public:
   /*!
-   * \brief The constructor of RelaxGraphBuilder
+   * \brief The constructor of GraphBuilder
    * \param ref_module the reference module.
    * \param name the name of the graph.
    * \param options the options of build the graph.
    */
-  explicit RelaxWeightsExtractor(const IRModule& ref_module) : RelaxExprVisitor() {
+  explicit WeightsExtractor(const IRModule& ref_module) : ExprVisitor() {
     ref_module_ = ref_module;
   }
 
   /*! \brief Visit the constant and save weights */
-  Map<MSCTensor, NDArray> GetWeights(const relax::Function& func);
+  Map<MSCTensor, NDArray> GetWeights(const Function& func);
 
-  void VisitExpr_(const relax::ConstantNode* op) final;
+  void VisitExpr_(const ConstantNode* op) final;
 
-  void VisitExpr_(const relax::CallNode* op) final;
-
- private:
-  Map<MSCTensor, NDArray> weights_;
-  Map<Expr, relax::Function> local_funcs_;
-  IRModule ref_module_;
-};
-
-class RelayFuncAttrGetter : public RelaxExprVisitor {
- public:
-  /*! \brief Get the attributes as Map<String, String>*/
-  Map<String, String> GetAttrs(const Expr& expr) {
-    RelayFuncAttrGetter::VisitExpr(expr);
-    return attrs_;
-  }
-
-  void VisitExpr_(const relay::CallNode* op) final;
-
- private:
-  Map<String, String> attrs_;
-};
-
-/*!
- * \brief A Scope for recording func
- */
-class RelayFuncScope {
- public:
-  /*! \brief The constructor */
-  explicit RelayFuncScope(const String& name) : name_(name) {}
-
-  /*! \brief Add a weight */
-  void AddFuncWeight(const String& weight) { func_weights_.push_back(weight); }
-
-  /*! \brief Get weights */
-  const Array<String> GetFuncWeights() { return func_weights_; }
-
- private:
-  String name_;
-  Array<String> func_weights_;
-};
-
-class RelayGraphBuilder : public RelaxExprVisitor {
- public:
-  /*!
-   * \brief The constructor of RelayGraphBuilder
-   * \param ref_module the reference module.
-   * \param name the name of the graph.
-   * \param options the options of build the graph.
-   */
-  explicit RelayGraphBuilder(const IRModule& ref_module, const String& name,
-                             const std::string& options = "")
-      : RelaxExprVisitor() {
-    ref_module_ = ref_module;
-    if (options.size() > 0) {
-      std::istringstream is(options);
-      dmlc::JSONReader reader(&is);
-      reader.Read(&config_);
-    }
-    while (!func_scopes_.empty()) {
-      func_scopes_.pop();
-    }
-    name_ = config_.graph_name.size() > 0 ? String(config_.graph_name) : name;
-  }
-
-  /*! \brief Build MSCGraph from relax function*/
-  MSCGraph Build(const relay::Function& func);
-
-  /*! \brief Get the config of builder */
-  const MSCRBuildConfig config() { return config_; }
-
-  /*! \brief Create and add MSCJoint from expr*/
-  MSCJoint AddNode(const Expr& expr, const String& name = "");
-
-  void VisitExpr_(const relay::ConstantNode* op) final;
-
-  void VisitExpr_(const relay::FunctionNode* op) final;
-
-  void VisitExpr_(const relay::CallNode* op) final;
-
-  void VisitExpr_(const relay::TupleNode* val) final;
-
-  void VisitExpr_(const relay::TupleGetItemNode* val) final;
-
- protected:
-  /*! \brief Start a func scope */
-  void StartFuncScope(const String& scope);
-
-  /*! \brief End a func scope */
-  void EndFuncScope();
-
-  /*! \brief Check if has func scopes left */
-  bool HasFuncScope();
-
- private:
-  String name_;
-  MSCRBuildConfig config_;
-  IRModule ref_module_;
-  Array<MSCJoint> nodes_;
-  Map<String, MSCTensor> weights_;
-  Map<Expr, Array<String>> expr_tensor_map_;
-  std::unordered_map<String, std::pair<BaseJoint, size_t>> tensor_input_map_;
-  std::stack<RelayFuncScope> func_scopes_;
-};
-
-class RelayWeightsExtractor : public RelaxExprVisitor {
- public:
-  /*! \brief Visit the constant and save weights*/
-  Map<MSCTensor, NDArray> GetWeights(const relay::Function& func);
-
-  void VisitExpr_(const relay::ConstantNode* op) final;
+  void VisitExpr_(const CallNode* op) final;
 
  private:
   Map<MSCTensor, NDArray> weights_;
+  Map<Expr, Function> local_funcs_;
+  IRModule ref_module_;
 };
 
 }  // namespace msc

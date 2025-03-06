@@ -527,6 +527,12 @@ class TorchFXImporter(BaseFXGraphImporter):
     def _half(self, node: fx.Node) -> relax.Var:
         return self.block_builder.emit(relax.op.astype(self.env[node.args[0]], "float16"))
 
+    def _is_floating_point(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        return relax.const(
+            x.struct_info.dtype in ["float16", "float32", "float64", "bfloat16"], "bool"
+        )
+
     def _to(self, node: fx.Node) -> relax.Var:
         import torch
 
@@ -580,10 +586,13 @@ class TorchFXImporter(BaseFXGraphImporter):
         return {
             ## call_module
             # unary
+            nn.CELU: self._celu,
             nn.Dropout: lambda node: self.env[node.args[0]],
+            nn.ELU: self._elu,
             nn.GELU: self._gelu,
             nn.Hardsigmoid: self._hardsigmoid,
             nn.Hardswish: self._hardswish,
+            nn.Hardtanh: self._hardtanh,
             nn.Identity: lambda node: self.env[node.args[0]],
             nn.LeakyReLU: self._leakyrelu_module,
             nn.LogSoftmax: self._log_softmax_module,
@@ -592,6 +601,7 @@ class TorchFXImporter(BaseFXGraphImporter):
                 relax.op.clip(self.env[node.args[0]], 0, 6)
             ),
             nn.Sigmoid: self._unary_op(relax.op.sigmoid),
+            nn.SELU: self._selu,
             nn.SiLU: self._unary_op(relax.op.nn.silu),
             nn.Softmax: self._softmax_module,
             nn.Tanh: self._unary_op(relax.op.tanh),
@@ -623,16 +633,19 @@ class TorchFXImporter(BaseFXGraphImporter):
             "atanh": self._unary_op(relax.op.atanh),
             "bitwise_not": self._unary_op(relax.op.bitwise_not),
             "ceil": self._unary_op(relax.op.ceil),
+            "celu": self._celu,
             "clamp": self._clamp,
             "cos": self._unary_op(relax.op.cos),
             "cosh": self._unary_op(relax.op.cosh),
             "dropout": lambda node: self.env[node.args[0]],
+            "elu": self._elu,
             "erf": self._unary_op(relax.op.erf),
             "exp": self._unary_op(relax.op.exp),
             "floor": self._unary_op(relax.op.floor),
             "gelu": self._gelu,
             "hardsigmoid": self._hardsigmoid,
             "hardswish": self._hardswish,
+            "hardtanh": self._hardtanh,
             "isfinite": self._unary_op(relax.op.isfinite),
             "isinf": self._unary_op(relax.op.isinf),
             "isnan": self._unary_op(relax.op.isnan),
@@ -644,6 +657,7 @@ class TorchFXImporter(BaseFXGraphImporter):
             "relu": self._unary_op(relax.op.nn.relu),
             "round": self._round,
             "rsqrt": self._unary_op(relax.op.rsqrt),
+            "selu": self._selu,
             "sigmoid": self._unary_op(relax.op.sigmoid),
             "sign": self._unary_op(relax.op.sign),
             "silu": self._unary_op(relax.op.nn.silu),
@@ -749,6 +763,7 @@ class TorchFXImporter(BaseFXGraphImporter):
             "astype": self._type,
             "float": self._float,
             "half": self._half,
+            "is_floating_point": self._is_floating_point,
             "to": self._to,
             "type": self._type,
             # other

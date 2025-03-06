@@ -126,7 +126,7 @@ SOCKET GetSocket(const std::string& mmap_path) {
     sock_duplicated =
         WSASocket(FROM_PROTOCOL_INFO, FROM_PROTOCOL_INFO, FROM_PROTOCOL_INFO, &protocol_info, 0, 0);
 
-    // Let the parent know we are finished dupicating the socket
+    // Let the parent know we are finished duplicating the socket
     SetEvent(child_file_mapping_event.get());
   } else {
     LOG(FATAL) << "MapViewOfFile() failed: " << GetLastError();

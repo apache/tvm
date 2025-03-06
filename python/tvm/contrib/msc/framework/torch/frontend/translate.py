@@ -17,15 +17,12 @@
 """tvm.contrib.msc.framework.torch.frontend.translate"""
 
 from typing import Dict, Optional, Tuple, List, Union
-import numpy as np
 
 import torch
 import tvm
 from tvm.relax.frontend.torch import from_fx
 from tvm.contrib.msc.core.ir.graph import MSCGraph
 from tvm.contrib.msc.core.frontend import from_relax, normalize_inputs
-from tvm.contrib.msc.core.codegen import relay_to_relax
-from tvm.contrib.msc.core import utils as msc_utils
 
 
 def set_weight_alias(graph: MSCGraph) -> MSCGraph:
@@ -35,6 +32,7 @@ def set_weight_alias(graph: MSCGraph) -> MSCGraph:
     ----------
     graph: MSCGraph
         The graph.
+
 
     Returns
     -------
@@ -64,14 +62,10 @@ def set_weight_alias(graph: MSCGraph) -> MSCGraph:
 def from_torch(
     model: torch.nn.Module,
     input_info: List[Tuple[Tuple[int], str]],
-    input_names: List[str] = None,
-    via_relax: bool = True,
     trans_config: Optional[Dict[str, str]] = None,
     build_config: Optional[Dict[str, str]] = None,
-    opt_config: Optional[Dict[str, str]] = None,
     as_msc: bool = True,
     custom_convert_map: dict = None,
-    build_folder: msc_utils.MSCDirectory = None,
 ) -> Tuple[Union[MSCGraph, tvm.IRModule], Dict[str, tvm.nd.array]]:
     """Change torch nn.Module to MSCGraph.
 
@@ -83,8 +77,6 @@ def from_torch(
         The input info in format [(shape, dtype)].
     input_names: list<str>
         The input names.
-    via_relax: bool
-        Whether translate torch to relax.
     trans_config: dict
         The config for transform IRModule.
     build_config: dict
@@ -106,35 +98,10 @@ def from_torch(
         The weights from the IRModule.
     """
 
-    # try to symbolic_trace
-    if via_relax:
-        try:
-            graph_model = torch.fx.symbolic_trace(model)
-        except:  # pylint: disable=bare-except
-            via_relax = False
-
-    if via_relax:
-        input_info, params = normalize_inputs(input_info), None
-        with torch.no_grad():
-            relax_mod = from_fx(graph_model, input_info, custom_convert_map=custom_convert_map)
-    else:
-        datas = [np.random.rand(*i[0]).astype(i[1]) for i in input_info]
-        torch_datas = [torch.from_numpy(i) for i in datas]
-        with torch.no_grad():
-            scripted_model = torch.jit.trace(model, tuple(torch_datas)).eval()
-        if input_names:
-            assert len(input_names) == len(
-                input_info
-            ), "input_names {} length mismatch with input_info {}".format(input_names, input_info)
-            shape_list = list(zip(input_names, input_info))
-        else:
-            shape_list = [("input" + str(idx), i_info) for idx, i_info in enumerate(input_info)]
-        relay_mod, params = tvm.relay.frontend.from_pytorch(
-            scripted_model, shape_list, custom_convert_map=custom_convert_map
-        )
-        relax_mod = relay_to_relax(
-            relay_mod, params, trans_config, build_config, opt_config, build_folder=build_folder
-        )
+    graph_model = torch.fx.symbolic_trace(model)
+    input_info, params = normalize_inputs(input_info), None
+    with torch.no_grad():
+        relax_mod = from_fx(graph_model, input_info, custom_convert_map=custom_convert_map)
     if not as_msc:
         return relax_mod, params
     graph, weights = from_relax(relax_mod, trans_config=trans_config, build_config=build_config)

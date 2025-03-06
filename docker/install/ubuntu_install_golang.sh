@@ -20,6 +20,6 @@ set -e
 set -u
 set -o pipefail
 
-#install the necessary dependancies for golang build
+#install the necessary dependencies for golang build
 apt-get update
 apt-install-and-clear -y golang-1.18-go golang-1.18-doc golint

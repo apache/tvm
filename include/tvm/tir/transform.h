@@ -59,55 +59,6 @@ TVM_DLL Pass CreatePrimFuncPass(
     int opt_level, String name, tvm::Array<String> required, bool traceable = false);
 
 /*!
- * \brief Inject prefetch instructions into stmt.
- *
- * \return The pass.
- */
-TVM_DLL Pass InjectPrefetch();
-
-// TODO(tvm-team): consolidate configs to the PassContext
-/*!
- * \brief Flatten the multi-dimensional read/write
- *  to single dimensional Load/Store
- *
- * \param cache_line_size The size of CPU cache line.
- * \param create_bound_attribute Whether to create bound attributes.
- *
- * \return The Pass
- */
-TVM_DLL Pass StorageFlatten(int cache_line_size, bool create_bound_attribute = false);
-
-/*!
- * \brief Inject copy intrinsics with optional pad.
- *
- * \param pragma_key The pragma key for hint of copy.
- * \param fintrin The function with signature
- *
- *   Stmt fintrin(Buffer src,
- *                Buffer dst,
- *                Array<Expr> pad_before,
- *                Array<Expr> pad_after,
- *                Expr pad_value)
- * \return The pass.
- */
-TVM_DLL Pass InjectCopyIntrin(String pragma_key, runtime::PackedFunc fintrin);
-
-/*!
- * \brief Detect and insert sync points to co-processor.
- *
- * \return The pass.
- */
-TVM_DLL Pass CoProcSync();
-
-/*!
- * \brief Lift common attrs with attr_key to outer scope.
- *
- * \param attr_key The attribute key to be checked.
- * \return The pass.
- */
-TVM_DLL Pass LiftAttrScope(String attr_key);
-
-/*!
  * \brief partition loops in the stmt.
  *
  * \return The pass.
@@ -572,15 +523,6 @@ TVM_DLL Pass LowerOpaqueBlock();
  * \return The pass.
  */
 TVM_DLL Pass FlattenBuffer();
-
-/*
- * \brief Flatten the multi-dimensional read/write
- *  to two dimensional texture Load/Store and realize
- *  texture buffer allocations.
- *
- * \return The Pass
- */
-TVM_DLL Pass TextureFlatten();
 
 /*
  * \brief Lower VTCM allocations
