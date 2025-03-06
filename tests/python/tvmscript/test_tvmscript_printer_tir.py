@@ -17,6 +17,7 @@
 # pylint: disable=missing-docstring
 
 import re
+
 import pytest
 
 import tvm.testing
@@ -917,23 +918,23 @@ def func():
     _assert_print(func, expected_output)
 
 
-@pytest.mark.parametrize("dtype", ["e4m3_float8", "e5m2_float8"])
+@pytest.mark.parametrize("dtype", ["float8_e4m3fn", "float8_e5m2"])
 def test_float8(dtype):
     from tvm.script import tir as T
 
     def get_func(dtype):
-        if dtype == "e4m3_float8":
+        if dtype == "float8_e4m3fn":
 
             @T.prim_func
             def func():
-                T.evaluate(T.e4m3_float8(0.0))
+                T.evaluate(T.float8_e4m3fn(0.0))
 
             return func
-        elif dtype == "e5m2_float8":
+        elif dtype == "float8_e5m2":
 
             @T.prim_func
             def func():
-                T.evaluate(T.e5m2_float8(0.0))
+                T.evaluate(T.float8_e5m2(0.0))
 
             return func
 
