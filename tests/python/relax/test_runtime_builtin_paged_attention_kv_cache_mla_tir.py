@@ -19,7 +19,7 @@ from typing import Dict, List, Tuple, Union
 
 import numpy as np
 import pytest
-import scipy.special
+import torch
 
 import tvm
 import tvm.testing
@@ -27,9 +27,8 @@ from tvm import dlight as dl
 from tvm.relax.frontend.nn.llm.kv_cache import (
     AttnKind,
     RopeMode,
-    _attention_decode_mla,
     _attention_prefill_mla,
-    _attention_prefill_ragged_mla_absorbed,
+    _attention_prefill_ragged,
     _copy_single_page_mla,
     _kv_cache_debug_get_kv_mla,
     _kv_cache_transpose_append_mla,
@@ -45,9 +44,13 @@ num_layers = 4
 num_attention_heads = 128
 qk_nope_head_dim = 128
 qk_rope_head_dim = 64
+v_head_dim = qk_nope_head_dim
+sm_scale = (qk_nope_head_dim + qk_rope_head_dim) ** (-0.5)
 kv_lora_rank = 512
-dtype = None
+dtype = "float16"
+dtype_torch = getattr(torch, dtype)
 device = tvm.cuda()
+device_torch = torch.device("cuda")
 
 fclear = None
 fadd_sequence = None
@@ -56,32 +59,39 @@ ffork_sequence = None
 fpopn = None
 fbegin_forward = None
 fend_forward = None
-fmla_absorbed = None
+fself_attn = None
+fcross_attn = None
+fappend_mla_kv = None
+fkv_merge_attn_output = None
 fis_empty = None
 fdebug_get_kv = None
 
 ftranspose_append = None
 fcopy_cache = None
-fattn_prefill = None
-fattn_decode = None
-fattn_prefill_ragged_absorbed = None
+fmla_prefill = None
+fmla_prefill_ragged = None
 fmerge_state = None
 fcopy_single_page = None
 
+w_kv = None
+w_uk = None
+w_uv = None
+
 
 # Register a dumb function for testing purpose.
-@tvm.register_func("test.dumb_function")
+@tvm.register_func("test.dumb_function", override=True)
 def _dumb_function():
-    pass
+    raise RuntimeError("Dumb function isn't supposed to be accessed.")
 
 
 def set_global_func(dtype):
     global fclear, fadd_sequence, fremove_sequence, ffork_sequence
     global fpopn, fbegin_forward, fend_forward
-    global fmla_absorbed, fis_empty, fdebug_get_kv
-    global ftranspose_append, fcopy_cache, fattn_prefill, fattn_decode
-    global fattn_prefill_ragged_absorbed
-    global fmerge_state, fcopy_single_page
+    global fself_attn, fcross_attn, fappend_mla_kv, fkv_merge_attn_output
+    global fis_empty, fdebug_get_kv
+    global ftranspose_append, fcopy_cache, fmla_prefill, fmla_prefill_ragged
+    global fmerge_state, fmerge_state_additional, fcopy_single_page
+    global w_kv, w_uk, w_uv
 
     fclear = tvm.get_global_func("vm.builtin.kv_state_clear")
     fadd_sequence = tvm.get_global_func("vm.builtin.kv_state_add_sequence")
@@ -90,25 +100,34 @@ def set_global_func(dtype):
     fpopn = tvm.get_global_func("vm.builtin.kv_state_popn")
     fbegin_forward = tvm.get_global_func("vm.builtin.kv_state_begin_forward")
     fend_forward = tvm.get_global_func("vm.builtin.kv_state_end_forward")
-    fmla_absorbed = tvm.get_global_func("vm.builtin.attention_kv_cache_mla_absorbed")
+    fself_attn = tvm.get_global_func("vm.builtin.attention_kv_cache_self_attention")
+    fcross_attn = tvm.get_global_func("vm.builtin.attention_kv_cache_cross_attention")
+    fappend_mla_kv = tvm.get_global_func("vm.builtin.attention_kv_cache_append_mla_kv")
+    fkv_merge_attn_output = tvm.get_global_func(
+        "vm.builtin.attention_kv_cache_merge_attn_output_inplace"
+    )
     fis_empty = tvm.get_global_func("vm.builtin.attention_kv_cache_empty")
     fdebug_get_kv = tvm.get_global_func("vm.builtin.attention_kv_cache_debug_get_kv_mla")
 
     target = tvm.target.Target.from_device(device)
     builts = []
     for tir_func in [
-        _kv_cache_transpose_append_mla(kv_lora_rank, qk_rope_head_dim, dtype),
+        _kv_cache_transpose_append_mla(kv_lora_rank + qk_rope_head_dim, dtype),
         _kv_cache_debug_get_kv_mla(num_layers, kv_lora_rank + qk_rope_head_dim, dtype),
         _attention_prefill_mla(
             num_attention_heads, kv_lora_rank, qk_rope_head_dim, dtype, False, target
         ),
-        _attention_decode_mla(
-            num_attention_heads, kv_lora_rank, qk_rope_head_dim, dtype, False, target
-        ),
-        _attention_prefill_ragged_mla_absorbed(
-            num_attention_heads, kv_lora_rank, qk_rope_head_dim, dtype, target
+        _attention_prefill_ragged(
+            num_attention_heads,
+            num_attention_heads,
+            qk_nope_head_dim + qk_rope_head_dim,
+            v_head_dim,
+            dtype,
+            {},
+            target,
         ),
         _merge_state_inplace(num_attention_heads, kv_lora_rank, dtype, target),
+        _merge_state_inplace(num_attention_heads, v_head_dim, dtype, target),
         _copy_single_page_mla(page_size, kv_lora_rank + qk_rope_head_dim, dtype, target),
     ]:
         mod = tvm.IRModule({"main": tir_func})
@@ -120,16 +139,30 @@ def set_global_func(dtype):
     (
         ftranspose_append,
         fcopy_cache,
-        fattn_prefill,
-        fattn_decode,
-        fattn_prefill_ragged_absorbed,
+        fmla_prefill,
+        fmla_prefill_ragged,
         fmerge_state,
+        fmerge_state_additional,
         fcopy_single_page,
     ) = builts
 
+    w_kv = torch.empty(
+        (kv_lora_rank, num_attention_heads * (qk_nope_head_dim + v_head_dim)),
+        device=device_torch,
+        dtype=dtype_torch,
+    )
+    w_kv.uniform_(-0.1, 0.1)
+    w_uk, w_uv = torch.split(
+        w_kv.view(kv_lora_rank, num_attention_heads, qk_nope_head_dim + v_head_dim),
+        [qk_nope_head_dim, v_head_dim],
+        dim=2,
+    )
+    w_uk = w_uk.permute(1, 2, 0)
+    w_uv = w_uv.permute(1, 0, 2)
+
 
 def create_kv_cache(dtype):
-    fcreate = tvm.get_global_func("vm.builtin.paged_attention_kv_cache_create_reduced_mla")
+    fcreate = tvm.get_global_func("vm.builtin.paged_attention_kv_cache_create")
     fdumb = tvm.get_global_func("test.dumb_function")
     cache = fcreate(
         tvm.runtime.ShapeTuple(
@@ -143,49 +176,40 @@ def create_kv_cache(dtype):
         ),
         tvm.runtime.ShapeTuple([0, num_layers]),
         num_attention_heads,
-        1,
+        1,  # num_kv_heads
         kv_lora_rank + qk_rope_head_dim,
         kv_lora_rank,
-        qk_rope_head_dim,
         tvm.runtime.ShapeTuple([int(AttnKind.MLA) for _ in range(num_layers)]),
+        False,  # enable_kv_transfer
         RopeMode.NONE,
         1,
         10000,
+        None,  # rope_ext_factors
         tvm.nd.empty((), dtype, device=device),
-        fdumb,
+        None,  # f_transpose_append_mha
         ftranspose_append,
-        fdumb,
-        fdumb,
-        fdumb,
-        fdumb,
-        fdumb,
-        0,
-        0,
-        0,
-        0,
-        0,
-        0,
-        fattn_prefill,
-        fattn_decode,
-        fdumb,
-        fattn_prefill_ragged_absorbed,
-        fmerge_state,
-        fdumb,
+        ["tir", fmla_prefill_ragged],  # fattn_prefill_ragged
+        [],  # fattn_prefill
+        [],  # fattn_decode
+        [],  # fattn_prefill_sliding_window
+        [],  # fattn_decode_sliding_window
+        [],  # fattn_prefill_with_tree_mask_paged_kv_cache
+        [],  # fattn_prefill_with_tree_mask
+        ["tir", fmla_prefill],
+        [fmerge_state, fmerge_state_additional],
+        fdumb,  # fsplit_rotary
         fcopy_single_page,
         fcopy_cache,
-        fdumb,
-        fdumb,
-        fdumb,
-        None,
-        False,
+        fdumb,  # fcompact_copy
     )
     return cache
 
 
 @pytest.fixture(params=itertools.product(["float16"]))
 def kv_cache_and_config(request):
-    global dtype
+    global dtype, dtype_torch
     (dtype,) = request.param
+    dtype_torch = getattr(torch, dtype)
     set_global_func(dtype)
     return (create_kv_cache(dtype),)
 
@@ -196,13 +220,15 @@ def verify_cached_kv(kv_cache, seq_ids, expected_kv):
         seq_length = expected_kv[seq_id].shape[1]
         kv_actual = tvm.nd.empty(kv_expected.shape, dtype=dtype, device=device)
         fdebug_get_kv(kv_cache, seq_id, 0, seq_length, kv_actual)
-        tvm.testing.assert_allclose(kv_actual.numpy(), kv_expected, rtol=1e-3, atol=1e-3)
+        torch.testing.assert_close(
+            torch.from_numpy(kv_actual.numpy()).to(device_torch), kv_expected, rtol=1e-3, atol=1e-3
+        )
 
 
 def apply_attention(
     kv_cache,
     batch: List[Tuple[Union[int, Tuple[int, int, int]], int]],
-    cached_kv: Dict[int, np.ndarray],
+    cached_kv: Dict[int, torch.Tensor],
 ) -> None:
     seq_ids = []
     append_lengths = []
@@ -224,72 +250,156 @@ def apply_attention(
                 cached_kv[seq_id] = cached_kv[fork_parent_id][::, :fork_pos]
         elif seq_id not in cached_kv:
             fadd_sequence(kv_cache, seq_id)
-            cached_kv[seq_id] = np.zeros((num_layers, 0, kv_lora_rank + qk_rope_head_dim), dtype)
+            cached_kv[seq_id] = torch.zeros(
+                (num_layers, 0, kv_lora_rank + qk_rope_head_dim),
+                dtype=dtype_torch,
+                device=device_torch,
+            )
 
     fbegin_forward(kv_cache, ShapeTuple(seq_ids), ShapeTuple(append_lengths), None)
 
-    global_new_q = np.zeros(
-        (num_layers, 0, num_attention_heads, kv_lora_rank + qk_rope_head_dim), dtype
+    global_new_q = torch.zeros(
+        (num_layers, 0, num_attention_heads, qk_nope_head_dim + qk_rope_head_dim),
+        dtype=dtype_torch,
+        device=device_torch,
     )
-    global_new_kv = np.zeros((num_layers, 0, kv_lora_rank + qk_rope_head_dim), dtype)
+    global_new_kv = torch.zeros(
+        (num_layers, 0, kv_lora_rank + qk_rope_head_dim),
+        dtype=dtype_torch,
+        device=device_torch,
+    )
 
     q_array = []
+    is_decode_request = True
+    all_new_sequences = True
     for i, (seq_id, append_length) in enumerate(batch):
-        new_q = np.random.rand(
-            num_layers, append_length, num_attention_heads, kv_lora_rank + qk_rope_head_dim
+        new_q_np = np.random.uniform(
+            -0.1,
+            0.1,
+            size=(
+                num_layers,
+                append_length,
+                num_attention_heads,
+                qk_nope_head_dim + qk_rope_head_dim,
+            ),
         ).astype(dtype)
-        new_kv = np.random.rand(num_layers, append_length, kv_lora_rank + qk_rope_head_dim).astype(
-            dtype
-        )
-        q_array.append(new_q)
+        new_kv_np = np.random.uniform(
+            -0.1, 0.1, size=(num_layers, append_length, kv_lora_rank + qk_rope_head_dim)
+        ).astype(dtype)
+        q_array.append(new_q_np)
 
-        cached_kv[seq_id] = np.concatenate([cached_kv[seq_id], new_kv], axis=1)
-        global_new_q = np.concatenate([global_new_q, new_q], axis=1)
-        global_new_kv = np.concatenate([global_new_kv, new_kv], axis=1)
+        # Convert the numpy arrays to torch tensors on device.
+        new_q_tensor = torch.from_numpy(new_q_np).to(device_torch)
+        new_kv_tensor = torch.from_numpy(new_kv_np).to(device_torch)
+
+        all_new_sequences = all_new_sequences and cached_kv[seq_id].shape[1] == 0
+        cached_kv[seq_id] = torch.cat([cached_kv[seq_id], new_kv_tensor], dim=1)
+        global_new_q = torch.cat([global_new_q, new_q_tensor], dim=1)
+        global_new_kv = torch.cat([global_new_kv, new_kv_tensor], dim=1)
+
+        if append_length > 1:
+            is_decode_request = False
 
     for layer_id in range(num_layers):
-        queries_np = global_new_q[layer_id]
-        queries = tvm.nd.array(queries_np, device)
-        compressed_kv = tvm.nd.array(global_new_kv[layer_id][:, :kv_lora_rank], device)
-        k_pe = tvm.nd.array(global_new_kv[layer_id][:, kv_lora_rank:], device)
-        outputs = tvm.nd.empty(
-            (queries_np.shape[0], queries_np.shape[1], kv_lora_rank), dtype, device=device
+        queries = tvm.nd.array(global_new_q[layer_id].cpu().numpy(), device)
+        key_value = tvm.nd.array(global_new_kv[layer_id].cpu().numpy(), device)
+        total_seq_length = global_new_q[layer_id].shape[0]
+        outputs1 = tvm.nd.empty(
+            (total_seq_length, num_attention_heads, v_head_dim), dtype, device=device
         )
-        fmla_absorbed(kv_cache, layer_id, 1.0, queries, compressed_kv, k_pe, outputs)
+        lse1 = tvm.nd.empty((total_seq_length, num_attention_heads), "float32", device=device)
+        outputs2 = tvm.nd.empty(
+            (total_seq_length, num_attention_heads, kv_lora_rank), dtype, device=device
+        )
+        lse2 = tvm.nd.empty((total_seq_length, num_attention_heads), "float32", device=device)
+
+        fappend_mla_kv(kv_cache, layer_id, key_value)
+        if not is_decode_request:
+            # Part 1. self-attention
+            latent, k_pe = torch.split(
+                global_new_kv[layer_id], [kv_lora_rank, qk_rope_head_dim], dim=1
+            )
+            keys, values = torch.split(
+                (latent @ w_kv).to(dtype_torch).reshape(total_seq_length, num_attention_heads, -1),
+                [qk_nope_head_dim, v_head_dim],
+                dim=2,
+            )
+            k_pe_expanded = torch.unsqueeze(k_pe, 1).expand(
+                total_seq_length, num_attention_heads, qk_rope_head_dim
+            )
+            keys = torch.cat([keys, k_pe_expanded], dim=2)
+            keys_tvm = tvm.nd.array(keys.cpu().numpy(), device)
+            values_tvm = tvm.nd.array(values.cpu().numpy(), device)
+            fself_attn(kv_cache, layer_id, sm_scale, queries, keys_tvm, values_tvm, outputs1, lse1)
+
+        if not all_new_sequences or is_decode_request:
+            # Part 2. cross-attention
+            queries_lora_np, q_pe = torch.split(
+                global_new_q[layer_id], [qk_nope_head_dim, qk_rope_head_dim], dim=2
+            )
+            queries_lora_np = torch.cat(
+                [torch.bmm(queries_lora_np.permute(1, 0, 2), w_uk).permute(1, 0, 2), q_pe], dim=2
+            )
+            queries_lora = tvm.nd.array(queries_lora_np.cpu().numpy(), device)
+            fcross_attn(kv_cache, layer_id, sm_scale, queries_lora, outputs2, lse2)
+            cross_attn_output = tvm.nd.array(
+                torch.bmm(
+                    torch.from_numpy(outputs2.numpy()).to(device_torch).permute(1, 0, 2), w_uv
+                )
+                .permute(1, 0, 2)
+                .cpu()
+                .numpy(),
+                device,
+            )
+
+        if not is_decode_request:
+            if not all_new_sequences:
+                fkv_merge_attn_output(kv_cache, outputs1, lse1, cross_attn_output, lse2)
+        else:
+            outputs1 = cross_attn_output
 
         # Compute attention expected results.
-        outputs = np.expand_dims(outputs.numpy(), axis=0)
+        outputs = torch.unsqueeze(torch.tensor(outputs1.numpy()).to(device_torch), 0)
         sum_length = 0
         for i, (seq_id, append_length) in enumerate(batch):
             assert cached_kv[seq_id].shape[1] >= append_length
 
-            q_seq = q_array[i][layer_id].transpose(1, 0, 2)
-            k_seq = np.expand_dims(cached_kv[seq_id][layer_id], axis=1).transpose(1, 2, 0)
-            v_seq = np.expand_dims(cached_kv[seq_id][layer_id], axis=1).transpose(1, 0, 2)[
-                :, :, :kv_lora_rank
-            ]
+            q_seq = torch.from_numpy(q_array[i][layer_id]).to(device_torch).permute(1, 0, 2)
+            latent_seq, k_pe_seq = torch.split(
+                torch.unsqueeze(cached_kv[seq_id][layer_id], 1),
+                [kv_lora_rank, qk_rope_head_dim],
+                dim=2,
+            )
+            k_seq, v_seq = torch.split(
+                (latent_seq @ w_kv).reshape(k_pe_seq.shape[0], num_attention_heads, -1),
+                [qk_nope_head_dim, v_head_dim],
+                dim=2,
+            )
+            k_pe_seq = k_pe_seq.expand(k_pe_seq.shape[0], num_attention_heads, qk_rope_head_dim)
+            k_seq = torch.cat([k_seq, k_pe_seq], dim=2).permute(1, 2, 0)
+            v_seq = v_seq.permute(1, 0, 2)
 
-            k_seq = np.repeat(k_seq, num_attention_heads, axis=0)
-            v_seq = np.repeat(v_seq, num_attention_heads, axis=0)
-            softmax_input = q_seq.astype("float32") @ k_seq.astype("float32")
+            softmax_input = (q_seq.to(torch.float32) @ k_seq.to(torch.float32)) / torch.sqrt(
+                torch.tensor(qk_nope_head_dim + qk_rope_head_dim, dtype=torch.float32)
+            )
             softmax_shape = softmax_input.shape
             assert softmax_shape[-2] == append_length
             length_diff = softmax_shape[-1] - softmax_shape[-2]
             assert length_diff >= 0
-            mask = np.tril(
-                np.full_like(softmax_input, np.finfo("float32").max), k=length_diff
-            ) + np.triu(np.full_like(softmax_input, np.finfo("float32").min), k=length_diff + 1)
+            # Create a mask similar to np.tril and np.triu.
+            mask = torch.tril(
+                torch.full_like(softmax_input, float(np.finfo(np.float32).max)),
+                diagonal=length_diff,
+            ) + torch.triu(
+                torch.full_like(softmax_input, float(np.finfo(np.float32).min)),
+                diagonal=length_diff + 1,
+            )
+            softmax_input = torch.minimum(softmax_input, mask)
 
-            softmax_input = np.minimum(softmax_input, mask)
+            results = torch.nn.functional.softmax(softmax_input, dim=-1) @ v_seq.to(torch.float32)
+            results = results.permute(1, 0, 2).unsqueeze(0).to(dtype_torch)
 
-            results = np.expand_dims(
-                (scipy.special.softmax(softmax_input, axis=-1) @ v_seq.astype("float32")).transpose(
-                    1, 0, 2
-                ),
-                axis=0,
-            ).astype(dtype)
-
-            tvm.testing.assert_allclose(
+            torch.testing.assert_close(
                 outputs[:, sum_length : sum_length + append_length, ...],
                 results,
                 rtol=1e-3,
@@ -445,12 +555,10 @@ def test_paged_attention_kv_cache_popn(kv_cache_and_config):
 
 
 if __name__ == "__main__":
-    DTYPES = ["float16"]
-    for (dtype,) in itertools.product(DTYPES):
-        set_global_func(dtype)
-        cache = create_kv_cache(dtype)
-        cache_and_config = (cache,)
-        test_paged_attention_kv_cache_prefill_and_decode(cache_and_config)
-        test_paged_attention_kv_cache_remove_sequence(cache_and_config)
-        test_paged_attention_kv_cache_fork_sequence(cache_and_config)
-        test_paged_attention_kv_cache_popn(cache_and_config)
+    set_global_func(dtype)
+    cache = create_kv_cache(dtype)
+    cache_and_config = (cache,)
+    test_paged_attention_kv_cache_prefill_and_decode(cache_and_config)
+    test_paged_attention_kv_cache_remove_sequence(cache_and_config)
+    test_paged_attention_kv_cache_fork_sequence(cache_and_config)
+    test_paged_attention_kv_cache_popn(cache_and_config)

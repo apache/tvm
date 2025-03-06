@@ -315,7 +315,7 @@ def test_matmul_fp8_offload(
     transpose_y,
     out_dtype,
 ):
-    in_dtype = "e4m3_float8"
+    in_dtype = "float8_e4m3fn"
     mod = get_relax_matmul_module(
         x_shape,
         y_shape,
@@ -342,7 +342,7 @@ def test_matmul_fp8_offload(
 def test_matmul_fp8_dequantize_offload():
     x_shape = (10, 32)
     y_shape = (64, 32)
-    in_dtype = "e4m3_float8"
+    in_dtype = "float8_e4m3fn"
     mod = get_relax_matmul_dequantize_module(
         x_shape,
         y_shape,
@@ -369,7 +369,7 @@ def test_matmul_fp8_multiply_offload():
     x_shape = (10, 32)
     y_shape = (64, 32)
     z_shape = (1,)
-    in_dtype, acc_dtype = ("e4m3_float8", "float32")
+    in_dtype, acc_dtype = ("float8_e4m3fn", "float32")
 
     mod = get_relax_matmul_multiply_module(
         x_shape,
@@ -397,8 +397,8 @@ def test_matmul_fp8_multiply_offload():
     "M, N, K, out_dtype, transposed_y, partition_done",
     [
         (15, 64, 32, "float32", True, True),
-        (15, 64, 32, "e4m3_float8", True, True),
-        (15, 64, 32, "e5m2_float8", True, False),
+        (15, 64, 32, "float8_e4m3fn", True, True),
+        (15, 64, 32, "float8_e5m2", True, False),
         (16, 32, 60, "float32", True, False),
         (16, 30, 64, "float32", True, False),
         (16, 8, 16, "float16", True, True),
@@ -407,7 +407,7 @@ def test_matmul_fp8_multiply_offload():
 )
 def test_cublas_partition_fp8_matmul(M, N, K, out_dtype, transposed_y, partition_done):
     mod = get_relax_matmul_module(
-        (M, K), (N, K), "e4m3_float8", out_dtype, transposed_y=transposed_y
+        (M, K), (N, K), "float8_e4m3fn", out_dtype, transposed_y=transposed_y
     )
     mod = partition_for_cublas(mod)
     func_name = "relax_matmul_cublas" if partition_done else "R.matmul"
@@ -426,7 +426,7 @@ def test_cublas_partition_fp8_matmul_dequantize(M, N, K, scale, zp, num_bindings
     mod = get_relax_matmul_dequantize_module(
         (M, K),
         (N, K),
-        "e4m3_float8",
+        "float8_e4m3fn",
         "float16",
         transposed_y=True,
         scale_const=scale,
@@ -443,7 +443,7 @@ def test_cublas_partition_fp8_matmul_multiply():
         (M, K),
         (N, K),
         (1,),
-        "e4m3_float8",
+        "float8_e4m3fn",
         "float32",
         "float16",
         transposed_y=True,

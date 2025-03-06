@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Module container of TensorFlow TVMDSO op"""
-from . import module
-
-OpModule = module.OpModule
+"""
+CPU-generic schedule rules.
+"""
+from .gemv import GEMV

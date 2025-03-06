@@ -14,6 +14,18 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-
-tvm_file_glob(GLOB EXAMPLE_TARGET_HOOKS_SRC src/relay/backend/contrib/example_target_hooks/*.cc)
-list(APPEND COMPILER_SRCS ${EXAMPLE_TARGET_HOOKS_SRC})
+"""Base infra"""
+from .common_analysis import (
+    BlockInfo,
+    IterInfo,
+    collect_block_iter_vars_used_in_access_region,
+    collect_vars_used_in_prim_expr,
+    detect_dominant_read,
+    is_broadcast_epilogue,
+    normalize_prim_func,
+    get_root_block,
+)
+from .gemv import (
+    is_gemv,
+    normalize,
+)

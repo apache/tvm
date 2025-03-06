@@ -134,7 +134,7 @@ and ``import_tree_child_indices_`` into stream.
 
 After this step, we will pack it into a symbol
 ``runtime::symbol::tvm_dev_mblob`` that can be recovered in the dynamic
-libary.
+library.
 
 Now, we complete the serialization part. As you have seen, we could
 support arbitrary modules to import ideally.

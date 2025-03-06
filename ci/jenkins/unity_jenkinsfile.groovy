@@ -30,14 +30,8 @@
 import org.jenkinsci.plugins.pipeline.modeldefinition.Utils
 
 // NOTE: these lines are scanned by docker/dev_common.sh. Please update the regex as needed. -->
-ci_lint = 'tlcpack/ci_lint:20250214-034537-bd1411f8'
-ci_gpu = 'tlcpack/ci_gpu:20250214-034537-bd1411f8'
-ci_cpu = 'tlcpack/ci_cpu:20250214-034537-bd1411f8'
-ci_wasm = 'tlcpack/ci-wasm:v0.72'
-ci_i386 = 'tlcpack/ci-i386:v0.75'
-ci_qemu = 'tlcpack/ci-qemu:v0.11'
-ci_arm = 'tlcpack/ci-arm:v0.08'
-ci_hexagon = 'tlcpack/ci_hexagon:20250214-034537-bd1411f8'
+ci_gpu = 'tlcpack/ci-gpu:20250226-223225-63bc315f_patch'
+ci_cpu = 'tlcpack/ci-cpu:20250226-223225-63bc315f_patch'
 // <--- End of regex-scanned config.
 
 // Parameters to allow overriding (in Jenkins UI), the images
@@ -45,14 +39,8 @@ ci_hexagon = 'tlcpack/ci_hexagon:20250214-034537-bd1411f8'
 // over default values above.
 properties([
   parameters([
-    string(name: 'ci_lint_param', defaultValue: ''),
     string(name: 'ci_cpu_param',  defaultValue: ''),
-    string(name: 'ci_gpu_param',  defaultValue: ''),
-    string(name: 'ci_wasm_param', defaultValue: ''),
-    string(name: 'ci_i386_param', defaultValue: ''),
-    string(name: 'ci_qemu_param', defaultValue: ''),
-    string(name: 'ci_arm_param',  defaultValue: ''),
-    string(name: 'ci_hexagon_param', defaultValue: '')
+    string(name: 'ci_gpu_param',  defaultValue: '')
   ])
 ])
 
@@ -175,25 +163,13 @@ def lint(node_type) {
   stage('Prepare') {
     node(node_type) {
       // When something is provided in ci_*_param, use it, otherwise default with ci_*
-      ci_lint = params.ci_lint_param ?: ci_lint
       ci_cpu = params.ci_cpu_param ?: ci_cpu
       ci_gpu = params.ci_gpu_param ?: ci_gpu
-      ci_wasm = params.ci_wasm_param ?: ci_wasm
-      ci_i386 = params.ci_i386_param ?: ci_i386
-      ci_qemu = params.ci_qemu_param ?: ci_qemu
-      ci_arm = params.ci_arm_param ?: ci_arm
-      ci_hexagon = params.ci_hexagon_param ?: ci_hexagon
 
       sh(script: """
         echo "Docker images being used in this build:"
-        echo " ci_lint = ${ci_lint}"
         echo " ci_cpu  = ${ci_cpu}"
         echo " ci_gpu  = ${ci_gpu}"
-        echo " ci_wasm = ${ci_wasm}"
-        echo " ci_i386 = ${ci_i386}"
-        echo " ci_qemu = ${ci_qemu}"
-        echo " ci_arm  = ${ci_arm}"
-        echo " ci_hexagon  = ${ci_hexagon}"
         """, label: 'Docker image names')
     }
   }

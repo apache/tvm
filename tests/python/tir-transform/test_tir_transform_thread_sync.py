@@ -22,7 +22,6 @@ from tvm.script import tir as T
 
 def run_passes(func: tvm.tir.PrimFunc):
     mod = tvm.IRModule.from_expr(func)
-    mod = tvm.tir.transform.StorageFlatten(64)(mod)
 
     cuda_target = tvm.target.Target("cuda", host="llvm")
 

@@ -77,27 +77,33 @@ TVM_REGISTER_GLOBAL("vm.builtin.attention_kv_cache_debug_get_kv")
 TVM_REGISTER_GLOBAL("vm.builtin.attention_kv_cache_debug_get_kv_mla")
     .set_body_method<AttentionKVCache>(&AttentionKVCacheObj::DebugGetKVMLA);
 TVM_REGISTER_GLOBAL("vm.builtin.attention_kv_cache_attention_with_fused_qkv")
-    .set_body_typed([](AttentionKVCache kv_cache, int64_t layer_id,
-                       double attn_score_scaling_factor, NDArray qkv_data, NDArray o_data) {
+    .set_body_typed([](AttentionKVCache kv_cache, int64_t layer_id, double sm_scale,
+                       NDArray qkv_data, NDArray o_data) {
       kv_cache->AttentionWithFusedQKV(layer_id, std::move(qkv_data), NullOpt, std::move(o_data),
-                                      attn_score_scaling_factor);
+                                      sm_scale);
     });
-TVM_REGISTER_GLOBAL("vm.builtin.attention_kv_cache_mla_absorbed")
-    .set_body_typed([](AttentionKVCache kv_cache, int64_t layer_id,
-                       double attn_score_scaling_factor, NDArray q_data, NDArray compressed_kv_data,
-                       NDArray k_pe_data, NDArray o_data) {
-      kv_cache->MLAAbsorbed(layer_id, std::move(q_data), std::move(compressed_kv_data),
-                            std::move(k_pe_data), std::move(o_data), attn_score_scaling_factor);
+TVM_REGISTER_GLOBAL("vm.builtin.attention_kv_cache_self_attention")
+    .set_body_typed([](AttentionKVCache kv_cache, int64_t layer_id, double sm_scale, NDArray q_data,
+                       NDArray k_data, NDArray v_data, NDArray o_data, NDArray lse_data) {
+      kv_cache->SelfAttention(layer_id, std::move(q_data), std::move(k_data), std::move(v_data),
+                              std::move(o_data), std::move(lse_data), sm_scale);
     });
-
-TVM_REGISTER_GLOBAL("vm.builtin.attention_kv_cache_mla_normal")
-    .set_body_typed([](AttentionKVCache kv_cache, int64_t layer_id,
-                       double attn_score_scaling_factor, NDArray q_data, NDArray k_data,
-                       NDArray v_data, NDArray compressed_kv_data, NDArray k_pe_data,
-                       NDArray o_data) {
-      kv_cache->MLANormal(layer_id, std::move(q_data), std::move(k_data), std::move(v_data),
-                          std::move(compressed_kv_data), std::move(k_pe_data), std::move(o_data),
-                          attn_score_scaling_factor);
+TVM_REGISTER_GLOBAL("vm.builtin.attention_kv_cache_cross_attention")
+    .set_body_typed([](AttentionKVCache kv_cache, int64_t layer_id, double sm_scale, NDArray q_data,
+                       NDArray o_data, NDArray lse_data) {
+      kv_cache->CrossAttention(layer_id, std::move(q_data), std::move(o_data), std::move(lse_data),
+                               sm_scale);
+    });
+TVM_REGISTER_GLOBAL("vm.builtin.attention_kv_cache_append_mla_kv")
+    .set_body_typed([](AttentionKVCache kv_cache, int64_t layer_id, NDArray kv_data) {
+      kv_cache->AppendMLAKV(layer_id, std::move(kv_data));
+      return kv_cache;
+    });
+TVM_REGISTER_GLOBAL("vm.builtin.attention_kv_cache_merge_attn_output_inplace")
+    .set_body_typed([](AttentionKVCache kv_cache, NDArray o_self_attn, NDArray lse_self_attn,
+                       NDArray o_cross_attn, NDArray lse_cross_attn) {
+      return kv_cache->MergeAttnOutputInplace(std::move(o_self_attn), std::move(lse_self_attn),
+                                              std::move(o_cross_attn), std::move(lse_cross_attn));
     });
 
 // RNN State methods

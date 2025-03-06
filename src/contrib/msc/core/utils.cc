@@ -29,6 +29,8 @@ namespace tvm {
 namespace contrib {
 namespace msc {
 
+using namespace tvm::relax;
+
 size_t CommonUtils::GetIndex(int index, size_t max_size) {
   size_t v_index;
   if (index < 0) {
@@ -278,9 +280,9 @@ const String StringUtils::ToString(const runtime::ObjectRef& obj) {
         obj_string = obj_string + ",";
       }
     }
-  } else if (const auto* n = obj.as<relax::PrimValueNode>()) {
+  } else if (const auto* n = obj.as<PrimValueNode>()) {
     obj_string = ToString(n->value);
-  } else if (const auto* n = obj.as<relax::TupleNode>()) {
+  } else if (const auto* n = obj.as<TupleNode>()) {
     obj_string = ToString(n->fields);
   } else {
     std::ostringstream obj_des;
@@ -489,14 +491,9 @@ const Array<String> ExprUtils::GetInputTypes(const String& optype, size_t inputs
   return input_types;
 }
 
-const Array<String> ExprUtils::GetInputTypes(const RelaxCall& call) {
+const Array<String> ExprUtils::GetInputTypes(const Call& call) {
   const String& optype = StringUtils::Replace(Downcast<Op>(call->op)->name, "relax.", "");
   return GetInputTypes(optype, call->args.size(), true);
-}
-
-const Array<String> ExprUtils::GetInputTypes(const RelayCall& call) {
-  const String& optype = StringUtils::Replace(Downcast<Op>(call->op)->name, "relay.", "");
-  return GetInputTypes(optype, call->args.size(), false);
 }
 
 const String ExprUtils::GetSpanName(const Expr& expr, const String& suffix) {
@@ -507,7 +504,7 @@ const String ExprUtils::GetSpanName(const Expr& expr, const String& suffix) {
   return name;
 }
 
-const Array<PrimExpr> ExprUtils::GetShape(const relax::TensorStructInfo& sinfo, bool as_int) {
+const Array<PrimExpr> ExprUtils::GetShape(const TensorStructInfo& sinfo, bool as_int) {
   const auto& shape_opt = sinfo->GetShape();
   if (!shape_opt.defined()) {
     return Array<PrimExpr>();
@@ -523,11 +520,11 @@ const Array<PrimExpr> ExprUtils::GetShape(const relax::TensorStructInfo& sinfo, 
 }
 
 const Array<PrimExpr> ExprUtils::GetShape(const Expr& expr, bool as_int) {
-  return GetShape(Downcast<relax::TensorStructInfo>(relax::GetStructInfo(expr)), as_int);
+  return GetShape(Downcast<TensorStructInfo>(GetStructInfo(expr)), as_int);
 }
 
 const DataType ExprUtils::GetDataType(const Expr& expr) {
-  return Downcast<relax::TensorStructInfo>(relax::GetStructInfo(expr))->dtype;
+  return Downcast<TensorStructInfo>(GetStructInfo(expr))->dtype;
 }
 
 TVM_REGISTER_GLOBAL("msc.core.SpanGetAttr").set_body_typed(SpanUtils::GetAttr);

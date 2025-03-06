@@ -56,8 +56,9 @@ class DataType {
     kFloat = kDLFloat,
     kHandle = TVMArgTypeCode::kTVMOpaqueHandle,
     kBFloat = kDLBfloat,
-    kE4M3Float = 6U,
-    kE5M2Float = 7U,
+    kFloat8_e4m3fn = 6U,
+    kFloat8_e5m2 = 7U,
+    kFloat4_e2m1fn = 8U,
     kCustomBegin = 129
   };
   /*! \brief default constructor */
@@ -84,8 +85,11 @@ class DataType {
     if (code == kBFloat) {
       ICHECK_EQ(bits, 16);
     }
-    if (code == kE4M3Float || code == kE5M2Float) {
+    if (code == kFloat8_e4m3fn || code == kFloat8_e5m2) {
       ICHECK_EQ(bits, 8);
+    }
+    if (code == kFloat4_e2m1fn) {
+      ICHECK_EQ(bits, 4);
     }
   }
   /*! \return The type code. */
@@ -122,13 +126,15 @@ class DataType {
   bool is_float() const { return code() == DataType::kFloat; }
   /*! \return whether type is a float8 type. */
   bool is_float8() const {
-    return (code() == DataType::kFloat || code() == DataType::kE4M3Float ||
-            code() == DataType::kE5M2Float) &&
+    return (code() == DataType::kFloat || code() == DataType::kFloat8_e4m3fn ||
+            code() == DataType::kFloat8_e5m2) &&
            bits() == 8;
   }
-  bool is_e4m3_float8() const { return (code() == DataType::kE4M3Float && bits() == 8); }
-
-  bool is_e5m2_float8() const { return (code() == DataType::kE5M2Float && bits() == 8); }
+  /*! \return whether type is a float4 type. */
+  bool is_float4() const { return code() == DataType::kFloat4_e2m1fn && bits() == 4; }
+  bool is_float8_e4m3fn() const { return (code() == DataType::kFloat8_e4m3fn && bits() == 8); }
+  bool is_float8_e5m2() const { return (code() == DataType::kFloat8_e5m2 && bits() == 8); }
+  bool is_float4_e2m1fn() const { return (code() == DataType::kFloat4_e2m1fn && bits() == 4); }
   /*! \return whether type is a float16 type. */
   bool is_float16() const { return is_float() && bits() == 16; }
   /*! \return whether type is a bfloat16 type. */
@@ -246,13 +252,19 @@ class DataType {
    * \param lanes The number of lanes
    * \return The constructed data type.
    */
-  static DataType NVFloat8E4M3(int lanes = 1) { return DataType(kE4M3Float, 8, lanes); }
+  static DataType NVFloat8E4M3(int lanes = 1) { return DataType(kFloat8_e4m3fn, 8, lanes); }
   /*!
    * \brief Construct NV float8 e5m2 datatype.
    * \param lanes The number of lanes
    * \return The constructed data type.
    */
-  static DataType NVFloat8E5M2(int lanes = 1) { return DataType(kE5M2Float, 8, lanes); }
+  static DataType NVFloat8E5M2(int lanes = 1) { return DataType(kFloat8_e5m2, 8, lanes); }
+  /*!
+   * \brief Construct NV float4_e2m1fn datatype.
+   * \param lanes The number of lanes
+   * \return The constructed data type.
+   */
+  static DataType NVFloat4E2M1FN(int lanes = 1) { return DataType(kFloat4_e2m1fn, 4, lanes); }
   /*!
    * \brief Construct a bool type.
    * \param lanes The number of lanes.
@@ -299,7 +311,7 @@ inline int GetVectorBytes(DataType dtype) {
   int data_bits = dtype.bits() * dtype.lanes();
   // allow bool to exist
   if (dtype == DataType::Bool() || dtype == DataType::Int(4) || dtype == DataType::UInt(4) ||
-      dtype == DataType::Int(1)) {
+      dtype == DataType::Int(1) || dtype == DataType::NVFloat4E2M1FN()) {
     return 1;
   }
   ICHECK_EQ(data_bits % 8, 0U) << "Need to load/store by multiple of bytes";
@@ -381,10 +393,12 @@ inline const char* DLDataTypeCode2Str(DLDataTypeCode type_code) {
       return "handle";
     case kDLBfloat:
       return "bfloat";
-    case DataType::kE4M3Float:
-      return "e4m3_float";
-    case DataType::kE5M2Float:
-      return "e5m2_float";
+    case DataType::kFloat8_e4m3fn:
+      return "float8_e4m3fn";
+    case DataType::kFloat8_e5m2:
+      return "float8_e5m2";
+    case DataType::kFloat4_e2m1fn:
+      return "float4_e2m1fn";
     default:
       LOG(FATAL) << "unknown type_code=" << static_cast<int>(type_code);
   }
@@ -406,7 +420,10 @@ inline std::ostream& operator<<(std::ostream& os, DLDataType t) {  // NOLINT(*)
   }
   if (t.code == kTVMOpaqueHandle) return os;
   int16_t lanes = static_cast<int16_t>(t.lanes);
-  os << static_cast<int>(t.bits);
+  if (t.code != DataType::kFloat8_e4m3fn && t.code != DataType::kFloat8_e5m2 &&
+      t.code != DataType::kFloat4_e2m1fn) {
+    os << static_cast<int>(t.bits);
+  }
   if (lanes > 1) {
     os << 'x' << lanes;
   } else if (lanes < -1) {
@@ -442,6 +459,42 @@ inline DLDataType String2DLDataType(std::string s) {
   } else if (s.substr(0, 4) == "uint") {
     t.code = kDLUInt;
     scan = s.c_str() + 4;
+  } else if (s.substr(0, 13) == "float4_e2m1fn") {
+    // Avoid being treated as "float"
+    t.code = DataType::kFloat4_e2m1fn;
+    t.bits = 4;
+    scan = s.c_str() + 13;
+    char* endpt = nullptr;
+    if (*scan == 'x') {
+      t.lanes = static_cast<uint16_t>(strtoul(scan + 1, &endpt, 10));
+      scan = endpt;
+    }
+    ICHECK(scan == s.c_str() + s.length()) << "unknown type " << s;
+    return t;
+  } else if (s.substr(0, 13) == "float8_e4m3fn") {
+    // Avoid being treated as "float"
+    t.code = DataType::kFloat8_e4m3fn;
+    t.bits = 8;
+    scan = s.c_str() + 13;
+    char* endpt = nullptr;
+    if (*scan == 'x') {
+      t.lanes = static_cast<uint16_t>(strtoul(scan + 1, &endpt, 10));
+      scan = endpt;
+    }
+    ICHECK(scan == s.c_str() + s.length()) << "unknown type " << s;
+    return t;
+  } else if (s.substr(0, 11) == "float8_e5m2") {
+    // Avoid being treated as "float"
+    t.code = DataType::kFloat8_e5m2;
+    t.bits = 8;
+    scan = s.c_str() + 11;
+    char* endpt = nullptr;
+    if (*scan == 'x') {
+      t.lanes = static_cast<uint16_t>(strtoul(scan + 1, &endpt, 10));
+      scan = endpt;
+    }
+    ICHECK(scan == s.c_str() + s.length()) << "unknown type " << s;
+    return t;
   } else if (s.substr(0, 5) == "float") {
     t.code = kDLFloat;
     scan = s.c_str() + 5;
@@ -458,14 +511,6 @@ inline DLDataType String2DLDataType(std::string s) {
     t.code = DataType::kBFloat;
     t.bits = 16;
     scan = s.c_str() + 6;
-  } else if (s.substr(0, 10) == "e4m3_float") {
-    t.code = DataType::kE4M3Float;
-    t.bits = 8;
-    scan = s.c_str() + 10;
-  } else if (s.substr(0, 10) == "e5m2_float") {
-    t.code = DataType::kE5M2Float;
-    t.bits = 8;
-    scan = s.c_str() + 10;
   } else if (s.substr(0, 6) == "custom") {
     t.code = ParseCustomDatatype(s, &scan);
   } else {

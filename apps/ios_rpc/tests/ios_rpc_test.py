@@ -82,7 +82,7 @@ def test_rpc_module(host, port, key, mode):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Demo app demonstrates how ios_rpc works.")
-    parser.add_argument("--host", required=True, type=str, help="Adress of rpc server")
+    parser.add_argument("--host", required=True, type=str, help="Address of rpc server")
     parser.add_argument("--port", type=int, default=9090, help="rpc port (default: 9090)")
     parser.add_argument("--key", type=str, default="iphone", help="device key (default: iphone)")
     parser.add_argument(

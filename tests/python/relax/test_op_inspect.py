@@ -21,10 +21,10 @@ import numpy as np
 import pytest
 
 import tvm.testing
-
 from tvm import relax
 from tvm.ir import Op
-from tvm.script import ir as I, relax as R
+from tvm.script import ir as I
+from tvm.script import relax as R
 
 # Parameterization for reading dtype of DLTensor.  Chosen to have
 # multiple distinct type codes, number of lanes, and widths.
@@ -34,7 +34,7 @@ dtype = tvm.testing.parameter(
     "float32",
     "float32x4",
     "bfloat",
-    "e4m3_float8",
+    "float8_e4m3fn",
 )
 shape = tvm.testing.parameter(
     [],

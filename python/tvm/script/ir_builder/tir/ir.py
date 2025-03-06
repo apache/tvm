@@ -18,8 +18,8 @@
 
 import functools
 import inspect
-from numbers import Integral
 import sys
+from numbers import Integral
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
 
 # isort: off
@@ -29,8 +29,7 @@ from typing_extensions import Literal
 
 import numpy as np  # type: ignore
 
-from tvm import tir
-from tvm import ir
+from tvm import ir, tir
 from tvm.ir import Type
 from tvm.ir.base import deprecated
 from tvm.runtime import String, convert, ndarray
@@ -1443,19 +1442,28 @@ float16x64 = func_gen(("Float16x64"))
 float32x64 = func_gen(("Float32x64"))
 float64x64 = func_gen(("Float64x64"))
 
-e4m3_float8 = func_gen(("E4M3Float8"))
-e4m3_float8x4 = func_gen(("E4M3Float8x4"))
-e4m3_float8x8 = func_gen(("E4M3Float8x8"))
-e4m3_float8x16 = func_gen(("E4M3Float8x16"))
-e4m3_float8x32 = func_gen(("E4M3Float8x32"))
-e4m3_float8x64 = func_gen(("E4M3Float8x64"))
+float8_e4m3fn = func_gen(("Float8E4M3FN"))
+float8_e4m3fnx4 = func_gen(("Float8E4M3FNx4"))
+float8_e4m3fnx8 = func_gen(("Float8E4M3FNx8"))
+float8_e4m3fnx16 = func_gen(("Float8E4M3FNx16"))
+float8_e4m3fnx32 = func_gen(("Float8E4M3FNx32"))
+float8_e4m3fnx64 = func_gen(("Float8E4M3FNx64"))
 
-e5m2_float8 = func_gen(("E5M2Float8"))
-e5m2_float8x4 = func_gen(("E5M2Float8x4"))
-e5m2_float8x8 = func_gen(("E5M2Float8x8"))
-e5m2_float8x16 = func_gen(("E5M2Float8x16"))
-e5m2_float8x32 = func_gen(("E5M2Float8x32"))
-e5m2_float8x64 = func_gen(("E5M2Float8x64"))
+float8_e5m2 = func_gen(("Float8E5M2"))
+float8_e5m2x4 = func_gen(("Float8E5M2x4"))
+float8_e5m2x8 = func_gen(("Float8E5M2x8"))
+float8_e5m2x16 = func_gen(("Float8E5M2x16"))
+float8_e5m2x32 = func_gen(("Float8E5M2x32"))
+float8_e5m2x64 = func_gen(("Float8E5M2x64"))
+
+float4_e2m1fn = func_gen(("Float4E2M1FN"))
+float4_e2m1fnx2 = func_gen(("Float4E2M1FNx2"))
+float4_e2m1fnx4 = func_gen(("Float4E2M1FNx4"))
+float4_e2m1fnx8 = func_gen(("Float4E2M1FNx8"))
+float4_e2m1fnx16 = func_gen(("Float4E2M1FNx16"))
+float4_e2m1fnx32 = func_gen(("Float4E2M1FNx32"))
+float4_e2m1fnx64 = func_gen(("Float4E2M1FNx64"))
+
 
 # pylint: enable=invalid-name
 
@@ -2003,33 +2011,40 @@ __all__ = [
     "uint16x64",
     "uint32x64",
     "uint64x64",
-    "e4m3_float8",
-    "e5m2_float8",
+    "float8_e4m3fn",
+    "float8_e5m2",
+    "float4_e2m1fn",
     "float16",
     "float32",
     "float64",
-    "e4m3_float8x4",
-    "e5m2_float8x4",
+    "float4_e2m1fnx2",
+    "float8_e4m3fnx4",
+    "float8_e5m2x4",
+    "float4_e2m1fnx4",
     "float16x4",
     "float32x4",
     "float64x4",
-    "e4m3_float8x8",
-    "e5m2_float8x8",
+    "float8_e4m3fnx8",
+    "float8_e5m2x8",
+    "float4_e2m1fnx8",
     "float16x8",
     "float32x8",
     "float64x8",
-    "e4m3_float8x16",
-    "e5m2_float8x16",
+    "float8_e4m3fnx16",
+    "float8_e5m2x16",
+    "float4_e2m1fnx16",
     "float16x16",
     "float32x16",
     "float64x16",
-    "e4m3_float8x32",
-    "e5m2_float8x32",
+    "float8_e4m3fnx32",
+    "float8_e5m2x32",
+    "float4_e2m1fnx32",
     "float16x32",
     "float32x32",
     "float64x32",
-    "e4m3_float8x64",
-    "e5m2_float8x64",
+    "float8_e4m3fnx64",
+    "float8_e5m2x64",
+    "float4_e2m1fnx64",
     "float16x64",
     "float32x64",
     "float64x64",

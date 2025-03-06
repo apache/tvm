@@ -14,9 +14,27 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""Base schedule rule for CPU operators."""
 
-if(USE_UMA)
-  file(GLOB COMPILER_UMA_SRCS
-       CONFIGURE_DEPENDS src/relay/backend/contrib/uma/*)
-  list(APPEND COMPILER_SRCS ${COMPILER_UMA_SRCS})
-endif(USE_UMA)
+from tvm.target import Target
+
+from ..base import ScheduleRule
+
+
+class CPUScheduleRule(ScheduleRule):  # pylint: disable=too-few-public-methods
+    """The Schedule Rule specific to CPU targets, will return None if the target is not CPU."""
+
+    def is_target_available(self, target: Target) -> bool:
+        """Check whether the target is available for gpu rule.
+
+        Parameters
+        ----------
+        target : Target
+            The compilation target to check.
+
+        Returns
+        -------
+        available : bool
+            Whether the target is available for this rule.
+        """
+        return super().is_target_available(target) and "llvm" == target.kind.name

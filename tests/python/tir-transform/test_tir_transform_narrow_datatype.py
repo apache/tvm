@@ -28,27 +28,6 @@ def lower_stmt(params, stmt, target_bits):
     return stmt
 
 
-def lower_sch(sch, args, target_bits, extra_passes=None):
-    binds = {}
-    arg_list = []
-    for x in args:
-        if isinstance(x, te.tensor.Tensor):
-            buf = tvm.tir.decl_buffer(x.shape, dtype=x.dtype, name=x.name)
-            assert x not in binds
-            binds[x] = buf
-            arg_list.append(buf)
-        else:
-            raise ValueError("args must be Tensor, Buffer or Var")
-    sch = sch.normalize()
-
-    mod = schedule_to_module(sch, args)
-    mod = tvm.tir.transform.StorageFlatten(64)(mod)
-    if extra_passes:
-        for p in extra_passes:
-            mod = p(mod)
-    return tvm.tir.transform.NarrowDataType(target_bits)(mod)["main"].body
-
-
 def test_basic():
     def check(m, n, target_bits, target_dtype):
         ib = tvm.tir.ir_builder.create()

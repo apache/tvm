@@ -21,14 +21,13 @@ from typing import List, Mapping, Optional, Tuple, Union
 from tvm import arith, ir, tir
 from tvm.target import Target
 
-from ..base import (
+from ..analysis import (
     BlockInfo,
     detect_dominant_read,
     is_broadcast_epilogue,
     normalize_prim_func,
-    try_inline_contiguous_spatial,
 )
-from . import utils
+from ..base import suggest_threads_per_block, try_inline_contiguous_spatial
 from .base import GPUScheduleRule
 
 
@@ -181,7 +180,7 @@ class Reduction(GPUScheduleRule):
     ):
         # pylint: disable=invalid-name
         _, r, _ = sch.get_loops(block)
-        (len_tx,) = utils.suggest_threads_per_block(  # pylint: disable=unbalanced-tuple-unpacking
+        (len_tx,) = suggest_threads_per_block(  # pylint: disable=unbalanced-tuple-unpacking
             target, [sch.get(r)]
         )
 

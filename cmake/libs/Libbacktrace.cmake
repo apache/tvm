@@ -19,7 +19,7 @@
 # compiler the default SDK (usually /Library/Developer/CommandLineTools/usr/bin/ or
 # /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/). CMake
 # automatically detects what is being dispatched and uses it instead along with all the flags it
-# needs. CMake makes this second compiler avaliable through the CMAKE_C_COMPILER variable, but it
+# needs. CMake makes this second compiler available through the CMAKE_C_COMPILER variable, but it
 # does not make the necessary flags available. This leads to configuration errors in libbacktrace
 # because it can't find system libraries. Our solution is to detect if CMAKE_C_COMPILER lives in
 # /Library or /Applications and switch to the default compiler instead.
