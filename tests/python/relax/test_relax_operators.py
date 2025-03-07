@@ -378,7 +378,7 @@ def test_op_call_inplace_packed(exec_mode):
             for j in range(len(arr_a[i])):
                 arr_a[i][j] = arr_a[i][j] + arr_b[i][j]
         a.copyfrom(arr_a)
-        return tvm.runtime.container.ADT(0, [a, c])
+        return tvm.runtime.convert([a, c])
 
     @tvm.script.ir_module
     class CallInplaceTuple:

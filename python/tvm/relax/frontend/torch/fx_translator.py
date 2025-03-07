@@ -733,6 +733,8 @@ class TorchFXImporter(BaseFXGraphImporter):
             "cumsum": self._cumsum,
             "expand": self._expand,
             "flatten": self._flatten,
+            "flip": self._flip,
+            "gather": self._gather,
             "permute": self._permute,
             "repeat": self._repeat,
             "reshape": self._reshape,
@@ -741,6 +743,7 @@ class TorchFXImporter(BaseFXGraphImporter):
             "split": self._split,
             "squeeze": self._squeeze,
             "stack": self._stack,
+            "take": self._take,
             "tile": self._tile,
             "transpose": self._transpose,
             "unsqueeze": lambda node: self.block_builder.emit(

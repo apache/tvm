@@ -105,7 +105,7 @@ def tir_to_runtime(
 def build(
     mod: Union[PrimFunc, IRModule],
     target: Optional[Union[str, Target]] = None,
-    pipeline: Union[None, str, tvm.transform.Pass] = "default_tir",
+    pipeline: Union[None, str, tvm.transform.Pass] = "default",
 ):
     """Build a function with a signature, generating code for devices
     coupled with target information.

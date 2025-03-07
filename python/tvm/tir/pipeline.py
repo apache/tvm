@@ -151,11 +151,11 @@ def finalize_device_passes():  # pylint: disable=unused-argument
 
 # global map of pre-built pipelines
 PIPELINE_MAP = {
-    "default_tir": default_tir_pipeline,
+    "default": default_tir_pipeline,
 }
 
 
-def get_tir_pipeline(name: str = "default_tir", **kwargs) -> tvm.transform.Pass:
+def get_tir_pipeline(name: str = "default", **kwargs) -> tvm.transform.Pass:
     """Get pre-build pipeline by name
 
     Parameters

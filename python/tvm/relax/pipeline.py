@@ -194,6 +194,7 @@ def static_shape_tuning_pipeline(
 # global map of pre-built pipelines
 PIPELINE_MAP = {
     "zero": zero_pipeline,
+    "default": default_build_pipeline,
     "default_build": default_build_pipeline,
     "static_shape_tuning": static_shape_tuning_pipeline,
 }
