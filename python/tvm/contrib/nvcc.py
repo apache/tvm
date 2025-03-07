@@ -292,13 +292,15 @@ def get_target_compute_version(target=None):
     target = target or Target.current()
     if target and target.arch:
         arch = target.arch.split("_")[1]
-        if len(arch) == 2:
-            major, minor = arch
-            return major + "." + minor
-        elif len(arch) == 3:
+        if len(arch) < 2:
+            raise ValueError(f"The arch is not expected {target.arch}")
+        if arch[-1].isalpha():
             # This is for arch like "sm_90a"
-            major, minor, suffix = arch
+            suffix = arch[-1]
+            major = arch[:-2]
+            minor = arch[-2]
             return major + "." + minor + "." + suffix
+        return arch[:-1] + "." + arch[-1]
 
     # 3. GPU compute version
     if tvm.cuda(0).exist:
