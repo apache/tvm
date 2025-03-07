@@ -28,7 +28,6 @@ import os
 import sys
 
 os.environ["TVM_USE_RUNTIME_LIB"] = "1"
-os.environ["TVM_FFI"] = "ctypes"
 import tvm
 from tvm import te
 import numpy as np
