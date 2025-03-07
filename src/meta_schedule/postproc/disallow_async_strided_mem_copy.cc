@@ -173,6 +173,7 @@ class DisallowAsyncStridedMemCopyNode : public PostprocNode {
 
   static constexpr const char* _type_key = "meta_schedule.DisallowAsyncStridedMemCopy";
   TVM_DECLARE_FINAL_OBJECT_INFO(DisallowAsyncStridedMemCopyNode, PostprocNode);
+
  private:
   tvm::Target target;
 };
