@@ -52,7 +52,7 @@ enum ConstantType : int {
   ICHECK(val) << "Invalid VM file format in the " << section << " section." \
               << "\n";
 
-std::string Executable::Stats() const {
+std::string VMExecutable::Stats() const {
   std::ostringstream oss;
   oss << "Relax VM executable statistics:" << std::endl;
 
@@ -116,14 +116,14 @@ std::string Executable::Stats() const {
   return oss.str();
 }
 
-void Executable::SetInstructionData(Index i, Index j, ExecWord val) {
+void VMExecutable::SetInstructionData(Index i, Index j, ExecWord val) {
   ICHECK_LT(i, instr_offset.size());
   Index instr_idx = instr_offset[i];
   ICHECK_LT(instr_idx + j, instr_data.size());
   instr_data[instr_idx + j] = val;
 }
 
-Instruction Executable::GetInstruction(Index i) const {
+Instruction VMExecutable::GetInstruction(Index i) const {
   Index offset = instr_offset[i];
   Opcode op = static_cast<Opcode>(instr_data[offset]);
   switch (op) {
@@ -173,7 +173,7 @@ void LoadHeader(dmlc::Stream* strm) {
   STREAM_CHECK(version == RELAX_VM_VERSION, "version");
 }
 
-void Executable::SaveToBinary(dmlc::Stream* stream) {
+void VMExecutable::SaveToBinary(dmlc::Stream* stream) {
   std::string code;
   // Initialize the stream object.
   dmlc::MemoryStringStream strm(&code);
@@ -193,20 +193,20 @@ void Executable::SaveToBinary(dmlc::Stream* stream) {
   stream->Write(code);
 }
 
-void Executable::SaveToFile(const String& file_name, const String& format) {
+void VMExecutable::SaveToFile(const String& file_name, const String& format) {
   std::string data;
   dmlc::MemoryStringStream writer(&data);
   dmlc::SeekStream* strm = &writer;
-  Executable::SaveToBinary(strm);
+  VMExecutable::SaveToBinary(strm);
   runtime::SaveBinaryToFile(file_name, data);
 }
 
-Module Executable::LoadFromBinary(void* stream) {
+Module VMExecutable::LoadFromBinary(void* stream) {
   std::string code;
   static_cast<dmlc::Stream*>(stream)->Read(&code);
   dmlc::MemoryStringStream strm(&code);
 
-  ObjectPtr<Executable> exec = make_object<Executable>();
+  ObjectPtr<VMExecutable> exec = make_object<VMExecutable>();
 
   // Load header.
   LoadHeader(&strm);
@@ -223,19 +223,19 @@ Module Executable::LoadFromBinary(void* stream) {
   return Module(exec);
 }
 
-TVM_REGISTER_GLOBAL("runtime.module.loadbinary_relax.Executable")
-    .set_body_typed(Executable::LoadFromBinary);
+TVM_REGISTER_GLOBAL("runtime.module.loadbinary_relax.VMExecutable")
+    .set_body_typed(VMExecutable::LoadFromBinary);
 
-Module Executable::LoadFromFile(const String& file_name) {
+Module VMExecutable::LoadFromFile(const String& file_name) {
   std::string data;
   runtime::LoadBinaryFromFile(file_name, &data);
   dmlc::MemoryStringStream reader(&data);
   dmlc::Stream* strm = &reader;
-  return Executable::LoadFromBinary(reinterpret_cast<void*>(strm));
+  return VMExecutable::LoadFromBinary(reinterpret_cast<void*>(strm));
 }
 
-TVM_REGISTER_GLOBAL("runtime.module.loadfile_relax.Executable")
-    .set_body_typed(Executable::LoadFromFile);
+TVM_REGISTER_GLOBAL("runtime.module.loadfile_relax.VMExecutable")
+    .set_body_typed(VMExecutable::LoadFromFile);
 
 void VMFuncInfo::Save(dmlc::Stream* strm) const {
   int32_t temp_kind = static_cast<int32_t>(kind);
@@ -261,9 +261,9 @@ bool VMFuncInfo::Load(dmlc::Stream* strm) {
   return true;
 }
 
-void Executable::SaveGlobalSection(dmlc::Stream* strm) { strm->Write(func_table); }
+void VMExecutable::SaveGlobalSection(dmlc::Stream* strm) { strm->Write(func_table); }
 
-void Executable::SaveConstantSection(dmlc::Stream* strm) {
+void VMExecutable::SaveConstantSection(dmlc::Stream* strm) {
   strm->Write(static_cast<uint64_t>(this->constants.size()));
   for (const auto& it : this->constants) {
     if (it.IsObjectRef<runtime::NDArray>()) {
@@ -301,12 +301,12 @@ void Executable::SaveConstantSection(dmlc::Stream* strm) {
   }
 }
 
-void Executable::SaveCodeSection(dmlc::Stream* strm) {
+void VMExecutable::SaveCodeSection(dmlc::Stream* strm) {
   strm->Write(instr_offset);
   strm->Write(instr_data);
 }
 
-void Executable::LoadGlobalSection(dmlc::Stream* strm) {
+void VMExecutable::LoadGlobalSection(dmlc::Stream* strm) {
   STREAM_CHECK(strm->Read(&func_table), "Global Section");
   // setup func map
   for (size_t i = 0; i < func_table.size(); ++i) {
@@ -314,7 +314,7 @@ void Executable::LoadGlobalSection(dmlc::Stream* strm) {
   }
 }
 
-void Executable::LoadConstantSection(dmlc::Stream* strm) {
+void VMExecutable::LoadConstantSection(dmlc::Stream* strm) {
   uint64_t sz;
   // Load the number of constants.
   STREAM_CHECK(strm->Read(&sz, sizeof(sz)), "constant");
@@ -375,7 +375,7 @@ void Executable::LoadConstantSection(dmlc::Stream* strm) {
   }
 }
 
-void Executable::LoadCodeSection(dmlc::Stream* strm) {
+void VMExecutable::LoadCodeSection(dmlc::Stream* strm) {
   STREAM_CHECK(strm->Read(&(this->instr_offset)), "instr offset");
   STREAM_CHECK(strm->Read(&(this->instr_data)), "instr data");
 }
@@ -404,21 +404,21 @@ std::string RegNameToStr(RegName reg) {
   return "%" + std::to_string(reg);
 }
 
-Module Executable::VMLoadExecutable() const {
+Module VMExecutable::VMLoadExecutable() const {
   ObjectPtr<VirtualMachine> vm = VirtualMachine::Create();
-  vm->LoadExecutable(GetObjectPtr<Executable>(const_cast<Executable*>(this)));
+  vm->LoadExecutable(GetObjectPtr<VMExecutable>(const_cast<VMExecutable*>(this)));
   return Module(vm);
 }
 
-Module Executable::VMProfilerLoadExecutable() const {
+Module VMExecutable::VMProfilerLoadExecutable() const {
   ObjectPtr<VirtualMachine> vm = VirtualMachine::CreateProfiler();
-  vm->LoadExecutable(GetObjectPtr<Executable>(const_cast<Executable*>(this)));
+  vm->LoadExecutable(GetObjectPtr<VMExecutable>(const_cast<VMExecutable*>(this)));
   return Module(vm);
 }
 
-bool Executable::HasFunction(const String& name) const { return func_map.count(name); }
+bool VMExecutable::HasFunction(const String& name) const { return func_map.count(name); }
 
-String Executable::AsText() const {
+String VMExecutable::AsText() const {
   auto get_func_name = [&](Index index) -> std::string {
     if (static_cast<size_t>(index) < func_table.size()) {
       return func_table[index].name;
@@ -495,7 +495,7 @@ String Executable::AsText() const {
   return String(os.str());
 }
 
-String Executable::AsPython() const {
+String VMExecutable::AsPython() const {
   auto get_func_name = [&](Index index) -> std::string {
     if (static_cast<size_t>(index) < func_table.size()) {
       return "\"" + func_table[index].name + "\"";
@@ -573,7 +573,7 @@ String Executable::AsPython() const {
   return String(os.str());
 }
 
-TVM_REGISTER_GLOBAL("relax.ExecutableLoadFromFile").set_body_typed(Executable::LoadFromFile);
+TVM_REGISTER_GLOBAL("relax.ExecutableLoadFromFile").set_body_typed(VMExecutable::LoadFromFile);
 
 }  // namespace relax_vm
 }  // namespace runtime

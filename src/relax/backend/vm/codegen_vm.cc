@@ -170,7 +170,7 @@ class CodeGenVM : public ExprFunctor<Instruction::Arg(const Expr&)> {
     builder_->EmitCall("vm.builtin.read_if_cond", {cond_value}, cond_reg);
 
     // obtain the temp exec in progress.
-    vm::Executable* exec = builder_->exec();
+    vm::VMExecutable* exec = builder_->exec();
 
     // Record the offset of If instruction
     size_t if_offset = exec->instr_offset.size();
@@ -436,7 +436,7 @@ TVM_REGISTER_GLOBAL("relax.VMCodeGen").set_body_typed(VMCodeGen);
  * module(s).
  * \return The created module.
  */
-void LinkModules(ObjectPtr<Executable> exec, const Map<String, runtime::NDArray>& params,
+void LinkModules(ObjectPtr<VMExecutable> exec, const Map<String, runtime::NDArray>& params,
                  const tvm::runtime::Module& lib, const Array<runtime::Module>& ext_libs) {
   // query if we need const loader for ext_modules
   // Wrap all submodules in the initialization wrapper.
@@ -482,7 +482,7 @@ void LinkModules(ObjectPtr<Executable> exec, const Map<String, runtime::NDArray>
  */
 Module VMLink(ExecBuilder builder, Target target, Optional<Module> lib, Array<Module> ext_libs,
               Map<String, runtime::NDArray> params) {
-  ObjectPtr<Executable> executable = builder->Get();
+  ObjectPtr<VMExecutable> executable = builder->Get();
   if (!lib.defined()) {
     lib = codegen::CSourceModuleCreate(";", "", Array<String>{});
   }

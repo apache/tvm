@@ -24,11 +24,12 @@ import tempfile
 from typing import Union
 
 import tvm
-from tvm import relax
-from tvm import rpc as _rpc
-from tvm.contrib import utils
 import tvm.contrib.hexagon as hexagon
-from .tools import export_module, HEXAGON_SIMULATOR_NAME
+from tvm import rpc as _rpc
+from tvm import runtime
+from tvm.contrib import utils
+
+from .tools import HEXAGON_SIMULATOR_NAME, export_module
 
 
 class Session:
@@ -202,26 +203,26 @@ class Session:
         return self._rpc.get_function("tvm.hexagon.load_module")(str(remote_file_path))
 
     def get_executor_from_factory(
-        self, module: Union[ExecutorFactoryModule, relax.Executable, str], hexagon_arch: str = "v68"
+        self, module: Union[runtime.executable, str], hexagon_arch: str = "v68"
     ):
         """Create a local GraphModule which consumes a remote libmod.
 
         Parameters
         ----------
 
-        module : Union[relax.Executable]
+        module : Union[runtime.Executable, str]
 
             The module to upload to the remote
             session and load.
         hexagon_arch : str
             The hexagon arch to be used
         """
-        if isinstance(module, (relax.Executable, str)):
+        if isinstance(module, (runtime.Executable, str)):
             return self._relax_vm_executable_executor(module, hexagon_arch=hexagon_arch)
 
         raise TypeError(f"Unsupported executor type: {type(module)}")
 
-    def _set_device_type(self, module: Union[str, pathlib.Path, GraphExecutorFactoryModule]):
+    def _set_device_type(self, module: Union[str, pathlib.Path]):
         """Set session device type(hexagon, cpu) based on target in module.
 
         Parameters
@@ -244,18 +245,19 @@ class Session:
                 self._requires_cpu_device = False
 
     def _relax_vm_executable_executor(
-        self, vm_exec: Union[relax.Executable, str], hexagon_arch: str
+        self, executable: Union[runtime.Executable, str], hexagon_arch: str
     ):
         """Create a local TVM module which consumes a remote vm executable.
 
-        Paramters
-        ---------
+        Parameters
+        ----------
 
-        vm_exec : relax.Executable
-            The Relax VM Executable to upload to the remote and load. This will typically be the
-            output of `relax.build` or the path to an already built and exported shared library
+        executable : runtime.Executable
+            The Executable to upload to the remote and load. This will typically be the
+            output of `tvm.compile` or the path to an already built and exported shared library
         hexagon_arch : str
             The hexagon arch to be used
+
         Returns
         -------
         TVMModule :
@@ -263,21 +265,21 @@ class Session:
         """
         assert self._rpc is not None, "Hexagon session must be started using __enter__ prior to use"
 
-        if isinstance(vm_exec, relax.Executable):
+        if isinstance(executable, runtime.Executable):
             temp_dir = utils.tempdir()
             path_exec = temp_dir.relpath("exec.so")
 
-            vm_exec.mod.export_library(
+            executable.export_library(
                 path_exec,
                 fcompile=hexagon.create_aot_shared,
                 hexagon_arch=hexagon_arch,
             )
 
             path = self.upload(path_exec, "exec.so")
-        elif isinstance(vm_exec, str):
-            path_exec = vm_exec
+        elif isinstance(executable, str):
+            path_exec = executable
         else:
-            raise TypeError(f"Unsupported executor type: {type(vm_exec)}")
+            raise TypeError(f"Unsupported executor type: {type(executable)}")
 
         path = self.upload(path_exec, "exec.so")
         return self._rpc.get_function("tvm.hexagon.load_module")(str(path))

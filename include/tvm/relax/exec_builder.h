@@ -125,12 +125,12 @@ class ExecBuilderNode : public Object {
   /*!
    * \brief Raw access to underlying executable build in progress.
    */
-  vm::Executable* exec() const;
+  vm::VMExecutable* exec() const;
   /*!
    * \brief Finalize the build, run formalize and get the final result.
    * \note This function should not be called during construction.
    */
-  ObjectPtr<vm::Executable> Get();
+  ObjectPtr<vm::VMExecutable> Get();
   /*!
    * \brief Create an ExecBuilder.
    * \return The ExecBuilder.
@@ -165,7 +165,7 @@ class ExecBuilderNode : public Object {
   void Formalize();
 
   /*! \brief The mutable internal executable. */
-  ObjectPtr<vm::Executable> exec_;  // mutable
+  ObjectPtr<vm::VMExecutable> exec_;  // mutable
   /*! \brief internal dedup map when creating index for a new constant */
   std::unordered_map<ObjectRef, vm::Index, StructuralHash, StructuralEqual> const_dedup_map_;
 };

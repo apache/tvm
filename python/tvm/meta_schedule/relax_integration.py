@@ -382,7 +382,7 @@ def compile_relax(
     target: Union[Target, str],
     params: Optional[Dict[str, NDArray]],
     enable_warning: bool = False,
-) -> "relax.Executable":
+) -> "relax.VMExecutable":
     """Compile a relax program with a MetaSchedule database.
 
     Parameters
@@ -401,8 +401,8 @@ def compile_relax(
 
     Returns
     -------
-    lib : relax.Executable
-        The built runtime module or vm Executable for the given relax workload.
+    lib : relax.VMExecutable
+        The built runtime module or vm VMExecutable for the given relax workload.
     """
     # pylint: disable=import-outside-toplevel
     from tvm.relax.transform import BindParams, MetaScheduleApplyDatabase
