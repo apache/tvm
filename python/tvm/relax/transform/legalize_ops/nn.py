@@ -475,8 +475,8 @@ def _nn_gelu(bb: BlockBuilder, call: Call) -> Expr:
         dtype = x.dtype
         erf_inp = x * tir.const(0.5**0.5, dtype)
 
-        if dtype == "float16":
-            erf = topi.math.cast(topi.erf(topi.math.cast(erf_inp, "float32")), "float16")
+        if dtype == "float16" or dtype == "e5m2_float8" or dtype == "e4m3_float8":
+            erf = topi.math.cast(topi.erf(topi.math.cast(erf_inp, "float32")), dtype)
         else:
             erf = topi.erf(erf_inp)
 

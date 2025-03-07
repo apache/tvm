@@ -32,7 +32,8 @@ StructInfo InferDistStructInfoSoftmax(const Call& call, const BlockBuilder& ctx)
     ctx->ReportFatal(Diagnostic::Error(call)
                      << "Input of distributed operator must have known ndim");
   }
-  if (!input_tensor_sinfo->IsUnknownDtype() && !input_tensor_sinfo->dtype.is_float()) {
+  if (!input_tensor_sinfo->IsUnknownDtype() && !input_tensor_sinfo->dtype.is_float() &&
+      !input_tensor_sinfo->dtype.is_float16() && !input_tensor_sinfo->dtype.is_float8()) {
     ctx->ReportFatal(Diagnostic::Error(call) << "Softmax requires the input tensor to have float "
                                                 "dtype. However, the given input dtype is "
                                              << input_tensor_sinfo->dtype);

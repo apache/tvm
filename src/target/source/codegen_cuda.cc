@@ -544,8 +544,7 @@ void CodeGenCUDA::PrintVecBinaryOp(const std::string& op, DataType t, PrimExpr l
       }
       for (int i = 0, lanes = t.lanes() / 2; i < lanes; ++i) {
         if (isalpha(op[0]) || op[0] == '_') {
-          value_temp << op << "2"
-                     << "(__half2(";
+          value_temp << op << "2" << "(__half2(";
           PrintVecElemLoad(vlhs, lhs.dtype(), i * lanes, value_temp);
           value_temp << "), __half2(";
           PrintVecElemLoad(vrhs, rhs.dtype(), i * lanes, value_temp);
@@ -874,7 +873,23 @@ void CodeGenCUDA::PrintCallExtern(Type ret_type, String global_symbol, const Arr
     }
     os << sret;
   } else {
-    CodeGenC::PrintCallExtern(ret_type, global_symbol, args, skip_first_arg, os);
+    if (ret_dtype.is_float8()) {
+      std::string fp8_type = (ret_dtype.is_e5m2_float8() ? "__NV_E5M2" : "__NV_E4M3");
+      os << "__nv_fp8_" << (ret_dtype.is_e5m2_float8() ? "e5m2" : "e4m3") << "(";
+
+      LOG_INFO << global_symbol;
+      os << global_symbol << "(__half(__nv_cvt_fp8_to_halfraw(";
+      for (size_t i = static_cast<size_t>(skip_first_arg); i < args.size(); ++i) {
+        this->PrintExpr(args[i], os);
+        os << ".__x, " << fp8_type << "))";
+        if (i < args.size() - 1) {
+          os << ", " << "__half(__nv_cvt_fp8_to_halfraw(";
+        }
+      }
+      os << "))";
+    } else {
+      CodeGenC::PrintCallExtern(ret_type, global_symbol, args, skip_first_arg, os);
+    }
   }
 }
 

@@ -40,7 +40,8 @@ StructInfo InferDistStructInfoUnary(const Call& call, const BlockBuilder& ctx,
   TensorStructInfo input_tensor_sinfo = input_dtensor_sinfo->tensor_sinfo;
 
   if (require_float_dtype && !input_tensor_sinfo->IsUnknownDtype() &&
-      !input_tensor_sinfo->dtype.is_float()) {
+      !input_tensor_sinfo->dtype.is_float() && !input_tensor_sinfo->dtype.is_float16() &&
+      !input_tensor_sinfo->dtype.is_float8()) {
     ctx->ReportFatal(
         Diagnostic::Error(call)
         << call->op
