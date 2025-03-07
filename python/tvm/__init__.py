@@ -55,7 +55,7 @@ from . import target
 from . import te
 
 # tvm.driver
-from .driver import build
+from .driver import build, compile
 
 # others
 from . import arith
