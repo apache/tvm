@@ -339,7 +339,6 @@ class ComputeLegalizer : public StmtExprMutator {
   Stmt VisitStmt_(const AttrStmtNode* op) final {
     Stmt ret = StmtExprMutator::VisitStmt_(op);
     op = ret.as<AttrStmtNode>();
-
     if (auto buffer = op->node.as<Buffer>()) {
       auto it = buffer_remap_.find(buffer.value());
       if (it != buffer_remap_.end()) {

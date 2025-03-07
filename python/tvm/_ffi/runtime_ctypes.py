@@ -118,6 +118,7 @@ class DataType(ctypes.Structure):
         "float16": {"type_code": DataTypeCode.FLOAT, "bits": 16, "lanes": 1},
         "float32": {"type_code": DataTypeCode.FLOAT, "bits": 32, "lanes": 1},
         "float64": {"type_code": DataTypeCode.FLOAT, "bits": 64, "lanes": 1},
+        "bfloat16": {"type_code": DataTypeCode.BFLOAT, "bits": 16, "lanes": 1},
     }
 
     def __init__(self, type_str):
@@ -250,8 +251,6 @@ if ml_dtypes is not None:
     DataType.NUMPY2STR[np.dtype(ml_dtypes.float8_e4m3fn)] = "float8_e4m3fn"
     DataType.NUMPY2STR[np.dtype(ml_dtypes.float8_e5m2)] = "float8_e5m2"
     DataType.NUMPY2STR[np.dtype(ml_dtypes.float4_e2m1fn)] = "float4_e2m1fn"
-
-    DataType.STR2DTYPE["bfloat16"] = {"type_code": DataTypeCode.BFLOAT, "bits": 16, "lanes": 1}
 
 RPC_SESS_MASK = 128
 

@@ -1464,7 +1464,6 @@ float4_e2m1fnx16 = func_gen(("Float4E2M1FNx16"))
 float4_e2m1fnx32 = func_gen(("Float4E2M1FNx32"))
 float4_e2m1fnx64 = func_gen(("Float4E2M1FNx64"))
 
-
 bfloat16 = func_gen(("BFloat16"))
 # pylint: enable=invalid-name
 
