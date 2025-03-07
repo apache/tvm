@@ -21,11 +21,6 @@ from typing import Any, Callable, Dict, List, Optional, Union, Mapping
 
 import numpy as _np  # type: ignore
 
-try:
-    import ml_dtypes
-except ImportError:
-    ml_dtypes = None
-
 import tvm
 import tvm._ffi
 import tvm.ir
