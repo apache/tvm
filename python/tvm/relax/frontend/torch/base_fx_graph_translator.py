@@ -847,6 +847,21 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
                 broadcast_shape.append(i)
         return self.block_builder.emit(relax.op.broadcast_to(args[0], broadcast_shape))
 
+    def _flip(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        dims = node.args[1] if len(node.args) > 1 else node.kwargs.get("dims", None)
+        if isinstance(dims, (list, tuple)) and len(dims) > 0:
+            dims = dims[0]
+        elif not isinstance(dims, int):
+            raise TypeError(f"flip expects an integer axis, but got {type(dims)}: {dims}")
+        return self.block_builder.emit(relax.op.flip(x, dims))
+
+    def _gather(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        dim = node.args[1] if len(node.args) > 1 else node.kwargs.get("dim", 0)
+        index = self.env[node.args[2]]
+        return self.block_builder.emit(relax.op.gather_elements(x, index, axis=dim))
+
     def _permute(self, node: fx.Node) -> relax.Var:
         import torch  # type: ignore
 
@@ -920,6 +935,12 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             else:
                 s_shape.append(s)
         return self.block_builder.emit(relax.op.reshape(cat, s_shape))
+
+    def _take(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        indices = self.env[node.args[1]]
+        indices = self.block_builder.emit(relax.op.astype(indices, "int32"))
+        return self.block_builder.emit(relax.op.take(x, indices))
 
     def _tile(self, node: fx.Node) -> relax.Var:
         import torch  # type: ignore
