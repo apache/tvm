@@ -21,9 +21,7 @@
  * \file src/runtime/container.cc
  * \brief Implementations of common containers.
  */
-#include <tvm/runtime/container/adt.h>
 #include <tvm/runtime/container/array.h>
-#include <tvm/runtime/container/closure.h>
 #include <tvm/runtime/container/map.h>
 #include <tvm/runtime/container/shape_tuple.h>
 #include <tvm/runtime/container/string.h>
@@ -64,48 +62,6 @@ TVM_REGISTER_GLOBAL("runtime.ArraySize").set_body([](TVMArgs args, TVMRetValue* 
   Object* ptr = static_cast<Object*>(args[0].value().v_handle);
   ICHECK(ptr->IsInstance<ArrayNode>());
   *ret = static_cast<int64_t>(static_cast<const ArrayNode*>(ptr)->size());
-});
-
-// ADT
-
-TVM_REGISTER_OBJECT_TYPE(ADTObj);
-
-TVM_REGISTER_GLOBAL("runtime.GetADTTag").set_body([](TVMArgs args, TVMRetValue* rv) {
-  ObjectRef obj = args[0];
-  const auto& adt = Downcast<ADT>(obj);
-  *rv = static_cast<int64_t>(adt.tag());
-});
-
-TVM_REGISTER_GLOBAL("runtime.GetADTSize").set_body([](TVMArgs args, TVMRetValue* rv) {
-  ObjectRef obj = args[0];
-  const auto& adt = Downcast<ADT>(obj);
-  *rv = static_cast<int64_t>(adt.size());
-});
-
-TVM_REGISTER_GLOBAL("runtime.GetADTFields").set_body([](TVMArgs args, TVMRetValue* rv) {
-  ObjectRef obj = args[0];
-  int idx = args[1];
-  const auto& adt = Downcast<ADT>(obj);
-  ICHECK_LT(idx, adt.size());
-  *rv = adt[idx];
-});
-
-TVM_REGISTER_GLOBAL("runtime.Tuple").set_body([](TVMArgs args, TVMRetValue* rv) {
-  std::vector<ObjectRef> fields;
-  for (auto i = 0; i < args.size(); ++i) {
-    fields.push_back(args[i]);
-  }
-  *rv = ADT::Tuple(fields);
-});
-
-TVM_REGISTER_GLOBAL("runtime.ADT").set_body([](TVMArgs args, TVMRetValue* rv) {
-  int itag = args[0];
-  size_t tag = static_cast<size_t>(itag);
-  std::vector<ObjectRef> fields;
-  for (int i = 1; i < args.size(); i++) {
-    fields.push_back(args[i]);
-  }
-  *rv = ADT(tag, fields);
 });
 
 // String
@@ -179,9 +135,6 @@ TVM_REGISTER_GLOBAL("runtime.MapItems").set_body([](TVMArgs args, TVMRetValue* r
   }
   *ret = std::move(rkvs);
 });
-
-// Closure
-TVM_REGISTER_OBJECT_TYPE(ClosureObj);
 
 // ShapeTuple
 TVM_REGISTER_OBJECT_TYPE(ShapeTupleObj);

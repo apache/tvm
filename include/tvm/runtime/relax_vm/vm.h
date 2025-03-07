@@ -60,7 +60,7 @@ enum class VMInstrumentReturnKind : int {
 /*!
  * \brief An object representing a vm closure.
  */
-class VMClosureObj : public ClosureObj {
+class VMClosureObj : public Object {
  public:
   /*!
    * \brief The function name. The function could be any
@@ -78,14 +78,14 @@ class VMClosureObj : public ClosureObj {
 
   static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
   static constexpr const char* _type_key = "relax.vm.Closure";
-  TVM_DECLARE_FINAL_OBJECT_INFO(VMClosureObj, ClosureObj);
+  TVM_DECLARE_FINAL_OBJECT_INFO(VMClosureObj, Object);
 };
 
 /*! \brief reference to closure. */
-class VMClosure : public Closure {
+class VMClosure : public ObjectRef {
  public:
   VMClosure(String func_name, PackedFunc impl);
-  TVM_DEFINE_OBJECT_REF_METHODS(VMClosure, Closure, VMClosureObj);
+  TVM_DEFINE_OBJECT_REF_METHODS(VMClosure, ObjectRef, VMClosureObj);
 
   /*!
    * \brief Create another PackedFunc with last arguments already bound to last_args.
