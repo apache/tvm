@@ -23,13 +23,14 @@ from .object_path import ObjectPath, ObjectPathPair
 from .script_printer import Scriptable
 from .object_generic import ObjectGeneric, ObjectTypes
 from .ndarray import NDArray, DataType, DataTypeCode, Device
-from .module import Module, num_threads
+from .module import Module
 from .profiling import Report
+from .executable import Executable
 
 # function exposures
 from .ndarray import device, cpu, cuda, gpu, opencl, cl, vulkan, metal, mtl
 from .ndarray import vpi, rocm, ext_dev
-from .module import load_module, enabled, system_lib, load_static_library
+from .module import load_module, enabled, system_lib, load_static_library, num_threads
 from .container import String, ShapeTuple  # , BoxBool
 from .object_generic import convert_to_object, convert, const
 from .params import (
