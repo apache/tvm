@@ -143,7 +143,7 @@ class VirtualMachine : public runtime::ModuleNode {
    * \brief Load the executable for the virtual machine.
    * \param exec The executable.
    */
-  virtual void LoadExecutable(ObjectPtr<Executable> exec) = 0;
+  virtual void LoadExecutable(ObjectPtr<VMExecutable> exec) = 0;
   /*!
    * \brief Get global function in the VM.
    * \param func_name The name of the function.

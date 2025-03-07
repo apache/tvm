@@ -198,7 +198,7 @@ class VirtualMachineImpl : public VirtualMachine {
   //---------------------------------------------------
   // Public facing functions overloading
   //---------------------------------------------------
-  void LoadExecutable(ObjectPtr<Executable> exec) final;
+  void LoadExecutable(ObjectPtr<VMExecutable> exec) final;
   void Init(const std::vector<Device>& devices,
             const std::vector<AllocatorType>& alloc_types) final;
   VMClosure GetClosure(const String& func_name) final {
@@ -425,7 +425,7 @@ class VirtualMachineImpl : public VirtualMachine {
   // Internal states for execution.
   //--------------------------------------------------------
   /*! \brief The loaded executable. */
-  ObjectPtr<Executable> exec_;
+  ObjectPtr<VMExecutable> exec_;
   /*! \brief The global constant pool */
   std::vector<TVMRetValue> const_pool_;
   /*!
@@ -462,7 +462,7 @@ class VirtualMachineImpl : public VirtualMachine {
   PackedFunc instrument_ = nullptr;
 };
 
-void VirtualMachineImpl::LoadExecutable(ObjectPtr<Executable> exec) {
+void VirtualMachineImpl::LoadExecutable(ObjectPtr<VMExecutable> exec) {
   this->exec_ = exec;
   this->imports_ = exec_->imports();
 }
