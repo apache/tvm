@@ -92,7 +92,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         )
 
     def _upsample_impl(
-        self, x: relax.Expr, size, align_corners: bool, scale_factor, method: str
+        self, x: relax.Expr, size, scale_factor, method: str, align_corners: bool,  
     ) -> relax.Var:
         coord_trans = "align_corners" if align_corners else "half_pixel"
 
@@ -116,21 +116,35 @@ class ExportedProgramImporter(BaseFXGraphImporter):
     def _upsample_bilinear2d(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         size = node.args[1] if len(node.args) > 1 else node.kwargs.get("size", None)
+        # TODO do we need the condition on size like we have in _upsample_nearest2d?
+
+        # TODO HL: I am doubtful that align_corners is args[2]. The pytorch 
+        # arguments go size, scale_factor, mode, align_corner. See changes I 
+        # made to _upsample_nearest2d. Need to test for _upsample_bilinear2d
         align_corners = (
             node.args[2] if len(node.args) > 2 else node.kwargs.get("align_corners", True)
         )
-        scale_factor = node.args[3] if len(node.args) > 3 else node.kwargs.get("scale_factor", None)
-        return self._upsample_impl(x, size, align_corners, scale_factor, "linear")
+        scale_factor = node.args[3] if len(node.args) > 3 else node.kwargs.get("scale_factor", 1) # TODO non-sense to default to 1! Understand why "None" doesn't work!
+        return self._upsample_impl(x, size=size, scale_factor=scale_factor, 
+                                   method="linear", align_corners=align_corners)
 
     def _upsample_nearest2d(self, node: fx.node) -> relax.Var:
         x = self.env[node.args[0]]
         size = node.args[1] if len(node.args) > 1 else node.kwargs.get("size", None)
-        align_corners = (
-            node.args[2] if len(node.args) > 2 else node.kwargs.get("align_corners", True)
-        )
-        scale_factor = node.args[3] if len(node.args) > 3 else node.kwargs.get("scale_factor", None)
-        return self._upsample_impl(x, size, align_corners, scale_factor, "nearest_neighbor")
 
+        if size:
+            scale_factor = None # Can only define size or scale_factor, not both
+            align_corners = node.args[2] if len(node.args) > 2 else node.kwargs.get("align_corners", None) 
+                
+        else:
+            # TODO figure out why pytorch passes a list [scale_factor,scale_factor] instead of just an int. Passing first element for now
+            scale_factor = node.args[2][0] if len(node.args) > 2 else node.kwargs.get("scale_factor", 1) # TODO non-sense to default to 1! Understand why "None" doesn't work!
+            align_corners = node.args[3] if len(node.args) > 3 else node.kwargs.get("align_corners", None) # TODO pytorch defaults to None
+          
+        return self._upsample_impl(x, size=size, scale_factor=scale_factor, 
+                                   method="nearest_neighbor", 
+                                   align_corners=align_corners)
+    
     ########## Manipulation ##########
 
     def _select(self, node: fx.Node) -> relax.Var:
