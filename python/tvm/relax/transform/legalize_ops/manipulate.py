@@ -221,6 +221,11 @@ def _one_hot(bb: BlockBuilder, call: Call) -> Expr:
     )
 
 
+@register_legalize("relax.ndarray_size")
+def _ndarray_size(bb: BlockBuilder, call: Call) -> Expr:
+    return bb.call_te(topi.ndarray_size, call.args[0])
+
+
 @register_legalize("relax.layout_transform")
 def _layout_transform(bb: BlockBuilder, call: Call) -> Expr:
     def te_layout_transform(data, name):
