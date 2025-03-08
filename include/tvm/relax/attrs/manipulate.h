@@ -204,6 +204,17 @@ struct OneHotAttrs : public tvm::AttrsNode<OneHotAttrs> {
   }
 };  // struct OneHotAttrs
 
+/*! \brief Attributes used in ndarray_size operator */
+struct NDArraySizeAttrs : public tvm::AttrsNode<NDArraySizeAttrs> {
+  DataType dtype;
+
+  TVM_DECLARE_ATTRS(NDArraySizeAttrs, "relax.attrs.NDArraySizeAttrs") {
+    TVM_ATTR_FIELD(dtype)
+        .set_default(DataType(DataType::Int(64)))
+        .describe("DType of the output indices.");
+  }
+};  // struct NDArraySizeAttrs
+
 }  // namespace relax
 }  // namespace tvm
 
