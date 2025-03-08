@@ -4037,5 +4037,25 @@ def test_take():
     verify_model(Take(), [([5], "float32"), ([3], "int32")], {}, Expected)
 
 
+def test_numel():
+    class Numel(Module):
+        def forward(self, data):
+            return torch.numel(data)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+                inp_0: R.Tensor((5, 3), dtype="float32"),
+        ) -> R.Tensor((), dtype="int64"):
+            with R.dataflow():
+                lv: R.Tensor((), dtype="int64") = R.ndarray_size(inp_0, dtype="int64")
+                gv: R.Tensor((), dtype="int64") = lv
+                R.output(gv)
+            return gv
+
+    verify_model(Numel(), [([5, 3], "float32")], {}, Expected)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
