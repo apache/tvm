@@ -63,7 +63,7 @@ def test_e2m1_vector_conversions(native_dtype, promoted_dtype):
     sch.bind(tx, "threadIdx.x")
 
     target = "cuda"
-    fadd = tvm.build(sch.mod, target=target)
+    fadd = tvm.compile(sch.mod, target=target)
     dev = tvm.device(target, 0)
 
     numpytype = "float4_e2m1fn"

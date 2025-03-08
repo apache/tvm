@@ -67,7 +67,7 @@ def test_e4m3_conversions():
     sch.bind(tx, "threadIdx.x")
 
     target = "cuda"
-    fadd = tvm.build(sch.mod, target=target)
+    fadd = tvm.compile(sch.mod, target=target)
 
     cuda_src = fadd.imported_modules[0].get_source()
     assert "__nv_fp8_e4m3" in cuda_src, "FP8E4M3 (fp8_e4_t) datatype not found in generated CUDA"
@@ -125,7 +125,7 @@ def test_e4m3_packing():
     sch.bind(tx, "threadIdx.x")
 
     target = "cuda"
-    f = tvm.build(sch.mod, target=target)
+    f = tvm.compile(sch.mod, target=target)
     dev = tvm.device(target, 0)
 
     numpytype = "float8_e4m3fn"
@@ -179,7 +179,7 @@ def test_e4m3_vector_conversions(native_dtype, promoted_dtype):
     sch.bind(tx, "threadIdx.x")
 
     target = "cuda"
-    fadd = tvm.build(sch.mod, target=target)
+    fadd = tvm.compile(sch.mod, target=target)
     cuda_src = fadd.imported_modules[0].get_source()
     dev = tvm.device(target, 0)
 
@@ -230,7 +230,7 @@ def test_half_broadcast(bcast_length):
     sch.bind(tx, "threadIdx.x")
 
     target = "cuda"
-    func = tvm.build(sch.mod, target=target)
+    func = tvm.compile(sch.mod, target=target)
     dev = tvm.device(target, 0)
 
     a_np = np.random.uniform(low=0, high=4, size=()).astype(dtype)
@@ -263,7 +263,7 @@ def test_half_misaligned_vector_load(vector_length):
                 B[i] = A[vec_index]
 
     target = "cuda"
-    f = tvm.build(vector_load, target=target)
+    f = tvm.compile(vector_load, target=target)
 
     dev = tvm.device(target, 0)
     a_np = np.random.uniform(low=0, high=1, size=(length,)).astype(dtype)
@@ -312,7 +312,7 @@ def test_half4_vector_add():
     sch.bind(tx, "threadIdx.x")
 
     target = "cuda"
-    fadd = tvm.build(sch.mod, target=target)
+    fadd = tvm.compile(sch.mod, target=target)
     dev = tvm.device(target, 0)
 
     a_np = np.random.uniform(-1, 1, (length, vector_length)).astype(dtype)
@@ -700,7 +700,7 @@ class BaseFP8E4M3QuantScaleOnly:
         def print_cuda(target, mod, name=None):
             if name:
                 mod = mod[name]
-            f = tvm.build(mod, target=target)
+            f = tvm.compile(mod, target=target)
             cuda_src = f.imported_modules[0].get_source()
             print(cuda_src)
 
@@ -817,7 +817,7 @@ def test_const(dtype):
             A[tx] = A_local[tx]
 
     mod = tvm.IRModule({"main": func})
-    tvm.build(mod, target="cuda")
+    tvm.compile(mod, target="cuda")
 
 
 @tvm.testing.requires_cuda_compute_version(8, 9)
@@ -846,7 +846,7 @@ def test_copy(dtype, vec_len):
                 B[tx, i] = A[tx, i]
 
     mod = tvm.IRModule({"main": func})
-    rtmod = tvm.build(mod, target="cuda")
+    rtmod = tvm.compile(mod, target="cuda")
 
 
 num_experts = 8

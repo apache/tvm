@@ -14,12 +14,11 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import tvm
-from tvm import te
-import tvm.testing
 import re
-import pytest
-import numpy as np
+
+import tvm
+import tvm.testing
+from tvm import te
 
 target = "opencl"
 
@@ -39,7 +38,7 @@ def test_opencl_ternary_expression():
         sch = tvm.tir.Schedule(func)
         (x,) = sch.get_loops(sch.get_block("C"))
         sch.bind(x, "threadIdx.x")
-        fun = tvm.build(sch.mod, target=target)
+        fun = tvm.compile(sch.mod, target=target)
         a = tvm.nd.empty((n,), A.dtype, dev)
         c = tvm.nd.empty((n,), A.dtype, dev)
         # Only need to test compiling here
@@ -56,7 +55,7 @@ def test_opencl_ternary_expression():
         sch = tvm.tir.Schedule(func)
         (x,) = sch.get_loops(sch.get_block("C"))
         sch.bind(x, "threadIdx.x")
-        fun = tvm.build(sch.mod, target=target)
+        fun = tvm.compile(sch.mod, target=target)
 
         a = tvm.nd.empty((n,), A.dtype, dev)
         c = tvm.nd.empty((n,), A.dtype, dev)
@@ -86,7 +85,7 @@ def test_opencl_inf_nan():
         sch = tvm.tir.Schedule(func)
         (x,) = sch.get_loops(sch.get_block("C"))
         sch.bind(x, "threadIdx.x")
-        fun = tvm.build(sch.mod, target=target)
+        fun = tvm.compile(sch.mod, target=target)
         a = tvm.nd.empty((n,), A.dtype, dev)
         c = tvm.nd.empty((n,), A.dtype, dev)
         # Only need to test compiling here
@@ -114,7 +113,7 @@ def test_opencl_max():
         sch = tvm.tir.Schedule(func)
         (x,) = sch.get_loops(sch.get_block("C"))
         sch.bind(x, "threadIdx.x")
-        fun = tvm.build(sch.mod, target=target)
+        fun = tvm.compile(sch.mod, target=target)
 
         a = tvm.nd.empty((n,), A.dtype, dev)
         c = tvm.nd.empty((n,), A.dtype, dev)
@@ -139,7 +138,7 @@ def test_opencl_erf():
         sch = tvm.tir.Schedule(func)
         (x,) = sch.get_loops(sch.get_block("C"))
         sch.bind(x, "threadIdx.x")
-        fun = tvm.build(sch.mod, target=target)
+        fun = tvm.tir.build(sch.mod, target=target)
 
         source_str = fun.imported_modules[0].get_source()
         matches = re.findall("erf", source_str)
@@ -179,7 +178,7 @@ def test_opencl_type_casting():
         sch.bind(tx, "threadIdx.x")
         sch.vectorize(vx)
 
-        fun = tvm.build(sch.mod, target=target)
+        fun = tvm.compile(sch.mod, target=target)
         c = tvm.nd.empty((n,), dtype, ctx)
         assembly = fun.imported_modules[0].get_source()
         lcond = "convert_int4(((convert_uint4(((uint4)(((convert_int(get_local_id(0))) == 3), ((convert_int(get_local_id(0))) == 3), ((convert_int(get_local_id(0))) == 3), ((convert_int(get_local_id(0))) == 3)))))"
@@ -211,7 +210,7 @@ def test_opencl_ceil_log2(target):
             (x,) = sch.get_loops(sch.get_block("C"))
             sch.bind(x, "threadIdx.x")
 
-            fun = tvm.build(sch.mod, target=target)
+            fun = tvm.compile(sch.mod, target=target)
             assembly = fun.imported_modules[0].get_source()
             if "adreno" in target:
                 pattern = "convert_float"

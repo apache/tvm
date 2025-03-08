@@ -94,7 +94,7 @@ def build_and_run(inputs, func, target: str, target_host: str, *args, **kwargs):
     """build and run the function func"""
     schedule, placeholders, binds = func(*args, **kwargs)
 
-    func = tvm.build(
+    func = tvm.compile(
         schedule, placeholders, target=tvm.target.Target(target, host=target_host), binds=binds
     )
     dev = tvm.device(target)

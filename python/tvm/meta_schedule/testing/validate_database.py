@@ -554,7 +554,7 @@ def local_build_and_run(
         The running time of running the module
     """
     # potential memory leak https://github.com/apache/tvm/issues/11096
-    lib = tvm.build(mod, target=target)
+    lib = tvm.compile(mod, target=target)
     tvm_inputs = [tvm.nd.array(inp, device=device) for inp in inputs]
     device.sync()
     func = lib.time_evaluator(lib.entry_name, dev=device, number=ARGS.number, repeat=ARGS.repeat)

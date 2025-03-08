@@ -114,7 +114,7 @@ def test_device_module_dump():
             print("Skip because %s is not enabled" % device)
             return
         temp = utils.tempdir()
-        f = tvm.build(sch.mod, target=device)
+        f = tvm.compile(sch.mod, target=device)
 
         path_dso = temp.relpath("dev_lib.so")
         # test cross compiler function
@@ -141,7 +141,7 @@ def test_device_module_dump():
             print("Skip because %s is not enabled" % device)
             return
         temp = utils.tempdir()
-        f = tvm.build(sch.mod, target=tvm.target.Target(device, host="stackvm"))
+        f = tvm.compile(sch.mod, target=tvm.target.Target(device, host="stackvm"))
         path_dso = temp.relpath("dev_lib.stackvm")
         f.export_library(path_dso)
         f1 = tvm.runtime.load_module(path_dso)
@@ -169,8 +169,8 @@ def test_combine_module_llvm():
     def check_llvm():
         dev = tvm.cpu(0)
         temp = utils.tempdir()
-        fadd1 = tvm.build(mod1, "llvm")
-        fadd2 = tvm.build(mod2, "llvm")
+        fadd1 = tvm.compile(mod1, "llvm")
+        fadd2 = tvm.compile(mod2, "llvm")
         path1 = temp.relpath("myadd1.o")
         path2 = temp.relpath("myadd2.o")
         path_dso = temp.relpath("mylib.so")
@@ -195,8 +195,8 @@ def test_combine_module_llvm():
             return
         temp = utils.tempdir()
         print("Running popen check")
-        fadd1 = tvm.build(mod1.with_attr("system_lib_prefix", ""), "llvm")
-        fadd2 = tvm.build(mod2.with_attr("system_lib_prefix", ""), "llvm")
+        fadd1 = tvm.compile(mod1.with_attr("system_lib_prefix", ""), "llvm")
+        fadd2 = tvm.compile(mod2.with_attr("system_lib_prefix", ""), "llvm")
         path1 = temp.relpath("myadd1.o")
         path2 = temp.relpath("myadd2.o")
         path_dso = temp.relpath("mylib.so")
