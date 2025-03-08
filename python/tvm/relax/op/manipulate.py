@@ -667,3 +667,23 @@ def one_hot(
              [0, 0, 1]]
     """
     return _ffi_api.one_hot(indices, on_value, off_value, depth, axis)  # type: ignore
+
+
+def ndarray_size(data: Expr, dtype: str = "int64") -> Expr:
+    """Returns the size of the input tensor.
+
+    Parameters
+    ----------
+    data : relax.Expr
+        The input tensor.
+
+    dtype : str
+        The data type of the output tensor. Default is "int64".
+
+    Returns
+    -------
+    result : relax.Expr
+        The size of the input tensor.
+    """
+    return _ffi_api.ndarray_size(data, dtype)  # type: ignore
+
