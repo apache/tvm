@@ -116,15 +116,10 @@ class ExportedProgramImporter(BaseFXGraphImporter):
     def _upsample_bilinear2d(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         size = node.args[1] if len(node.args) > 1 else node.kwargs.get("size", None)
-        # TODO do we need the condition on size like we have in _upsample_nearest2d?
-
-        # TODO HL: I am doubtful that align_corners is args[2]. The pytorch 
-        # arguments go size, scale_factor, mode, align_corner. See changes I 
-        # made to _upsample_nearest2d. Need to test for _upsample_bilinear2d
         align_corners = (
             node.args[2] if len(node.args) > 2 else node.kwargs.get("align_corners", True)
         )
-        scale_factor = node.args[3] if len(node.args) > 3 else node.kwargs.get("scale_factor", 1) # TODO non-sense to default to 1! Understand why "None" doesn't work!
+        scale_factor = node.args[3] if len(node.args) > 3 else node.kwargs.get("scale_factor", 1)
         return self._upsample_impl(x, size=size, scale_factor=scale_factor, 
                                    method="linear", align_corners=align_corners)
 
@@ -137,9 +132,11 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             align_corners = node.args[2] if len(node.args) > 2 else node.kwargs.get("align_corners", None) 
                 
         else:
-            # TODO figure out why pytorch passes a list [scale_factor,scale_factor] instead of just an int. Passing first element for now
-            scale_factor = node.args[2][0] if len(node.args) > 2 else node.kwargs.get("scale_factor", 1) # TODO non-sense to default to 1! Understand why "None" doesn't work!
-            align_corners = node.args[3] if len(node.args) > 3 else node.kwargs.get("align_corners", None) # TODO pytorch defaults to None
+            # TODO figure out why pytorch export passes a list such as 
+            # [scale_factor,scale_factor] instead of just an int for 
+            # scale_factor. Using first element for now
+            scale_factor = node.args[2][0] if len(node.args) > 2 else node.kwargs.get("scale_factor", 1) 
+            align_corners = node.args[3] if len(node.args) > 3 else node.kwargs.get("align_corners", None)
           
         return self._upsample_impl(x, size=size, scale_factor=scale_factor, 
                                    method="nearest_neighbor", 
