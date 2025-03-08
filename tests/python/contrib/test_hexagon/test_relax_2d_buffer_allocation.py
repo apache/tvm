@@ -79,7 +79,7 @@ def test_alloc_storage_with_scope_global(hexagon_launcher):
     target_hexagon = tvm.target.hexagon("v69", vtcm_capacity=4 * 2**20)
     target = tvm.target.Target(target_hexagon, host=target_hexagon)
     with tvm.transform.PassContext(opt_level=3):
-        lib = relax.build(mod, target, exec_mode="compiled")
+        lib = tvm.compile(mod, target, exec_mode="compiled")
 
     with hexagon_launcher.create_session() as session:
         dev = session.device

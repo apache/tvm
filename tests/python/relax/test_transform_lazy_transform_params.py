@@ -651,7 +651,7 @@ def test_output():
     mod = TransformModule
     mod = relax.transform.LazyTransformParams()(mod)
     mod = relax.transform.LegalizeOps()(mod)
-    built = relax.build(mod, target=target)
+    built = tvm.compile(mod, target=target)
 
     params = [
         np.random.random(size=(3, 64, 3, 3)).astype("float32"),

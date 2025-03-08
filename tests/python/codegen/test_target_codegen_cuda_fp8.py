@@ -670,7 +670,7 @@ class BaseFP8E4M3QuantScaleOnly:
                 dl.gpu.GeneralReduction(),
                 dl.gpu.Fallback(),
             )(quant_mod)
-        ex_1 = relax.build(quant_mod, target=target)
+        ex_1 = tvm.compile(quant_mod, target=target)
         vm_1 = relax.VirtualMachine(ex_1, dev)
 
         dequant_mod = cls.create_dequantize_func(
@@ -694,7 +694,7 @@ class BaseFP8E4M3QuantScaleOnly:
             )(dequant_mod)
         dequant_mod.show()
 
-        ex_2 = relax.build(dequant_mod, target=target)
+        ex_2 = tvm.compile(dequant_mod, target=target)
         vm_2 = relax.VirtualMachine(ex_2, dev)
 
         def print_cuda(target, mod, name=None):
@@ -942,7 +942,7 @@ def test_moe_gemv_shfl_down_illegal_instr():
     target = tvm.target.Target("cuda")
     with tvm.transform.PassContext(config={"relax.backend.use_cuda_graph": False}) and target:
         mod = _pipeline(mod)
-        rt_mod = tvm.relax.build(mod, target=target)
+        rt_mod = tvm.compile(mod, target=target)
     dev = tvm.cuda(0)
 
     x_data = np.zeros((1, reduce_size), dtype=np.float16)

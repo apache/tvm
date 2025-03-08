@@ -229,7 +229,7 @@ def build(
 
         mod = InputModule
         target = tvm.target.Target("llvm", host="llvm")
-        ex = relax.build(mod, target)
+        ex = tvm.compile(mod, target)
     """
 
     def _extract_attrs(mod: tvm.IRModule):

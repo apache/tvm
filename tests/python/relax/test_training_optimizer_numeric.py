@@ -29,7 +29,7 @@ from tvm.testing import assert_allclose
 
 
 def _legalize_and_build(mod: IRModule, target, dev):
-    ex = relax.build(mod, target)
+    ex = tvm.compile(mod, target)
     vm = VirtualMachine(ex, dev)
     return vm
 

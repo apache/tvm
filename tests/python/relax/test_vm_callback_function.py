@@ -37,7 +37,7 @@ def test_pass_tensor_to_function(exec_mode, target, dev):
         _ = callback(B)
         return R.tuple()
 
-    ex = tvm.relax.build(tvm.IRModule.from_expr(relax_func), target=target, exec_mode=exec_mode)
+    ex = tvm.compile(tvm.IRModule.from_expr(relax_func), target=target, exec_mode=exec_mode)
     vm = tvm.relax.VirtualMachine(ex, dev)
 
     from_callback = None
@@ -64,7 +64,7 @@ def test_generate_tensor_in_function(exec_mode, target, dev):
         B = R.multiply(A, R.const(2))
         return B
 
-    ex = tvm.relax.build(
+    ex = tvm.compile(
         tvm.IRModule.from_expr(relax_func),
         target=target,
         exec_mode=exec_mode,
@@ -89,7 +89,7 @@ def test_catch_exception_with_full_stack_trace(exec_mode, target, dev):
         A = callback()
         return A
 
-    ex = tvm.relax.build(
+    ex = tvm.compile(
         tvm.IRModule.from_expr(relax_func),
         target=target,
         exec_mode=exec_mode,

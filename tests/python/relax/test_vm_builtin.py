@@ -40,7 +40,7 @@ def test_multinomial_from_uniform():
 
     mod = CallSample
     target = tvm.target.Target("llvm", host="llvm")
-    ex = relax.build(mod, target)
+    ex = tvm.compile(mod, target)
     np_rand = np.random.rand(3, 5).astype(np.float32)
     # normalize it to get the random prob
     np_prob = np_rand / np_rand.sum(axis=1, keepdims=True)
@@ -73,7 +73,7 @@ def test_alloc_tensor_raises_out_of_memory(target, dev):
             output = R.builtin.alloc_tensor(R.shape([1024, 1024, 1024, 1024, 1024]), "uint8", 0)
             return output
 
-    built = relax.build(Module, target=target)
+    built = tvm.compile(Module, target=target)
     vm = relax.VirtualMachine(built, dev)
 
     with pytest.raises(Exception, match="CUDA: out of memory"):

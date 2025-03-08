@@ -62,7 +62,7 @@ def test_alloc_storage_with_scope_global():
     mod = Module
     target = "llvm"
     with tvm.transform.PassContext(opt_level=3):
-        lib = relax.build(mod, target, exec_mode="compiled")
+        lib = tvm.compile(mod, target, exec_mode="compiled")
 
     dev = tvm.cpu()
     # This is the important line which tests nd allocator
