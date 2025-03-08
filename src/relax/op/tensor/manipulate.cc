@@ -1940,5 +1940,22 @@ TVM_REGISTER_OP("relax.one_hot")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoOneHot)
     .set_attr<Bool>("FPurity", Bool(true));
 
+TVM_REGISTER_GLOBAL("relax.op.ndarray_size").set_body_typed(ndarray_size);
+
+StructInfo InferStructInfoNdarraySize(const Call& call, const BlockBuilder& ctx) {
+  TensorStructInfo data_sinfo = GetUnaryInputTensorStructInfo(call, ctx);
+  const auto* attrs = call->attrs.as<NdarraySizeAttrs>();
+  DataType out_type = attrs->dtype.is_void() ? data_sinfo->dtype : attrs->dtype;
+  return TensorStructInfo(out_type, 1, data_sinfo->vdevice);
+
+}
+
+TVM_REGISTER_OP("relax.ndarray_size")
+    .set_attrs_type<NdarraySizeAttrs>()
+    .set_num_inputs(1)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoNdarraySize)
+    .set_attr<Bool>("FPurity", Bool(true));
+
 }  // namespace relax
 }  // namespace tvm
