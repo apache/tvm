@@ -3554,5 +3554,20 @@ def test_one_hot_infer_struct_info():
         bb.normalize(relax.op.one_hot(i5, relax.PrimValue(1.0), relax.PrimValue(0.0), -1))
 
 
+def test_ndarry_size_infer_struct_info():
+    bb = relax.BlockBuilder()
+    x0 = relax.Var("x", R.Tensor((2, 3, 4), "float32"))
+    x1 = relax.Var("x", R.Tensor("float32", ndim=3))
+    x2 = relax.Var("x", R.Tensor("float32"))
+    x3 = relax.Var("x", R.Tensor((2, 3, 4)))
+    x4 = relax.Var("x", R.Tensor(ndim=3))
+
+    _check_inference(bb, relax.op.ndarry_size(x0), relax.TensorStructInfo(24, "int64"))
+    _check_inference(bb, relax.op.ndarry_size(x1), relax.TensorStructInfo(1, "int64"))
+    _check_inference(bb, relax.op.ndarry_size(x2), relax.TensorStructInfo(1, "int64"))
+    _check_inference(bb, relax.op.ndarry_size(x3), relax.TensorStructInfo(24, "int64"))
+    _check_inference(bb, relax.op.ndarry_size(x4), relax.TensorStructInfo(1, "int64"))
+
+
 if __name__ == "__main__":
     tvm.testing.main()
