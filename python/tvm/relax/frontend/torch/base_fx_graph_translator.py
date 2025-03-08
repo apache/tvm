@@ -862,6 +862,10 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         index = self.env[node.args[2]]
         return self.block_builder.emit(relax.op.gather_elements(x, index, axis=dim))
 
+    def _numel(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        return self.block_builder.emit(relax.op.ndarray_size(x))
+
     def _permute(self, node: fx.Node) -> relax.Var:
         import torch  # type: ignore
 
