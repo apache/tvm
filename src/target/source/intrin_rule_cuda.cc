@@ -53,7 +53,13 @@ struct CUDAMath {
           return "";
       }
     } else if (t.is_bfloat16()) {
-      return 'h' + name;
+      if (name == "fabs") {
+        return "__habs";
+      } else if (name == "round") {
+        return "hrint";
+      } else {
+        return "h" + name;
+      }
     } else if (t.is_int() || t.is_uint()) {
       switch (t.bits()) {
         case 32:
