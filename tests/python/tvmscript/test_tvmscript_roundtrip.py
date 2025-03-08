@@ -3895,6 +3895,7 @@ def undefined_data_ptr_in_decl_buffer():
     Allocate/DeclBuffer pair, performing a round-trip through
     TVMScript should not introduce an Allocate node.
     """
+
     # uninitialized var
     @T.prim_func(check_well_formed=False)
     def func():
