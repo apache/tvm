@@ -82,7 +82,7 @@ def test_vector_comparison(target, dev, dtype):
     sch.vectorize(vx)
 
     # Build
-    f = tvm.compile(sch.mod, target=target)
+    f = tvm.tir.build(sch.mod, target=target)
 
     # Verify we generate the boolx4 type declaration and the OpSelect
     # v4{float,half,int} instruction

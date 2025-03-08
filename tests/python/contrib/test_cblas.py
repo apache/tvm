@@ -230,7 +230,9 @@ def verify_batch_matmul(
             return
         dev = tvm.cpu(0)
         name = "test_batch_matmul"
-        f = tvm.compile(te.create_prim_func([input1_data, input2_data, final_result]), target=target)
+        f = tvm.compile(
+            te.create_prim_func([input1_data, input2_data, final_result]), target=target
+        )
         if target == "c":
             f = compiling(f, name)
         matrix_input1 = tvm.nd.array(np.random.uniform(size=ashape).astype(input1_data.dtype), dev)
