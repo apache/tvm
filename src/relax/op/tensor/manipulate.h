@@ -244,6 +244,14 @@ Expr scatter_nd(Expr data, Expr indices, Expr updates, String reduction);
  */
 Expr one_hot(Expr indices, PrimValue on_value, PrimValue off_value, int depth, int axis);
 
+/*!
+ * \brief Returns the number of elements in the input tensor.
+ * \param x The input tensor.
+ * \param dtype The data type of the output tensor.
+ * \return The number of elements in the input tensor.
+ */
+Expr ndarray_size(Expr x, Datatype dtype);
+
 }  // namespace relax
 }  // namespace tvm
 
