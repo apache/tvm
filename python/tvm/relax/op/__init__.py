@@ -95,6 +95,7 @@ from .manipulate import (
     gather_elements,
     gather_nd,
     layout_transform,
+    ndarray_size,
     one_hot,
     permute_dims,
     repeat,
