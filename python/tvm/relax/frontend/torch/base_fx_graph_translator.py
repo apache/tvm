@@ -226,7 +226,6 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         arg = self.env[node.args[0]]
         return self.block_builder.emit(relax.op.round(arg))
 
-
     def _softmax(self, node: fx.Node) -> relax.Var:
         """
         For large tensors with non-last dimension softmax, we transpose to move 
