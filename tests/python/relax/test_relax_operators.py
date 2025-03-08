@@ -47,7 +47,7 @@ def run_cpu(mod, func_name, *args, exec_mode):
         mod = tvm.IRModule.from_expr(func)
 
     target = tvm.target.Target("llvm")
-    ex = tvm.compile(mod, target, exec_mode=exec_mode)
+    ex = relax.build(mod, target, exec_mode=exec_mode)
     vm = relax.VirtualMachine(ex, tvm.cpu())
 
     return vm[func_name](*args)

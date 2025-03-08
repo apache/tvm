@@ -43,7 +43,7 @@ def test_dltensor_compatible():
     stmt = ib.get()
 
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([Ab], stmt).with_attr("global_symbol", "arange"))
-    f = tvm.compile(mod, target="stackvm")
+    f = tvm.compile(mod, target="llvm")
     a = tvm.nd.array(np.zeros(10, dtype=dtype))
     aview = MyTensorView(a)
     f(aview)
