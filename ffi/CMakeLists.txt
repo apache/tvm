@@ -15,7 +15,7 @@ option(TVM_FFI_BUILD_REGISTRY
   targets linked against `tvm_ffi` will allow objects that comes with non-pre-defined type indices, \
   as well as getting full stacktrace during debugging. \
   so that the object hierarchy could expand without limitation. \
-  This will require the downstream targets to link against target `tvm_ffi_registry` to be effective."
+  This will require the downstream targets to link against target `tvm_ffi` to be effective."
   OFF
 )
 option(TVM_FFI_USE_LIBBRACKTRACE "Enable libbacktrace" ON)
@@ -38,16 +38,16 @@ target_link_libraries(tvm_ffi INTERFACE dlpack_header)
 target_compile_features(tvm_ffi INTERFACE cxx_std_17)
 target_include_directories(tvm_ffi INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/include")
 
-########## Target: `tvm_ffi_registry` ##########
+########## Target: `tvm_ffi` ##########
 
 if (TVM_FFI_BUILD_REGISTRY)
-  add_library(tvm_ffi_registry_objs OBJECT
+  add_library(tvm_ffi_objs OBJECT
     "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/traceback.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/object.cc"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/function.cc"
   )
   set_target_properties(
-    tvm_ffi_registry_objs PROPERTIES
+    tvm_ffi_objs PROPERTIES
     POSITION_INDEPENDENT_CODE ON
     CXX_STANDARD 17
     CXX_EXTENSIONS OFF
@@ -56,34 +56,34 @@ if (TVM_FFI_BUILD_REGISTRY)
     VISIBILITY_INLINES_HIDDEN ON
     PREFIX "lib"
   )
-  add_cxx_warning(tvm_ffi_registry_objs)
-  target_link_libraries(tvm_ffi_registry_objs PRIVATE dlpack_header)
-  target_include_directories(tvm_ffi_registry_objs PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/include")
+  add_cxx_warning(tvm_ffi_objs)
+  target_link_libraries(tvm_ffi_objs PRIVATE dlpack_header)
+  target_include_directories(tvm_ffi_objs PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/include")
 
   if (TVM_FFI_USE_LIBBRACKTRACE)
     message(STATUS "Setting C++ macro TVM_FFI_USE_LIBBRACKTRACE - 1")
-    target_compile_definitions(tvm_ffi_registry_objs PRIVATE TVM_FFI_USE_LIBBRACKTRACE=1)
+    target_compile_definitions(tvm_ffi_objs PRIVATE TVM_FFI_USE_LIBBRACKTRACE=1)
   else()
     message(STATUS "Setting C++ macro TVM_FFI_USE_LIBBRACKTRACE - 0")
-    target_compile_definitions(tvm_ffi_registry_objs PRIVATE TVM_FFI_USE_LIBBRACKTRACE=0)
+    target_compile_definitions(tvm_ffi_objs PRIVATE TVM_FFI_USE_LIBBRACKTRACE=0)
   endif()
 
   if (TVM_FFI_BACKTRACE_ON_SEGFAULT)
     message(STATUS "Setting C++ macro TVM_FFI_BACKTRACE_ON_SEGFAULT - 1")
-    target_compile_definitions(tvm_ffi_registry_objs PRIVATE TVM_FFI_BACKTRACE_ON_SEGFAULT=1)
+    target_compile_definitions(tvm_ffi_objs PRIVATE TVM_FFI_BACKTRACE_ON_SEGFAULT=1)
   else()
     message(STATUS "Setting C++ macro TVM_FFI_BACKTRACE_ON_SEGFAULT - 0")
-    target_compile_definitions(tvm_ffi_registry_objs PRIVATE TVM_FFI_BACKTRACE_ON_SEGFAULT=0)
+    target_compile_definitions(tvm_ffi_objs PRIVATE TVM_FFI_BACKTRACE_ON_SEGFAULT=0)
   endif()
 
-  add_target_from_obj(tvm_ffi_registry tvm_ffi_registry_objs)
+  add_target_from_obj(tvm_ffi tvm_ffi_objs)
   if (TARGET libbacktrace)
-    target_link_libraries(tvm_ffi_registry_objs PRIVATE libbacktrace)
-    target_link_libraries(tvm_ffi_registry_shared PRIVATE libbacktrace)
-    target_link_libraries(tvm_ffi_registry_static PRIVATE libbacktrace)
+    target_link_libraries(tvm_ffi_objs PRIVATE libbacktrace)
+    target_link_libraries(tvm_ffi_shared PRIVATE libbacktrace)
+    target_link_libraries(tvm_ffi_static PRIVATE libbacktrace)
   endif ()
-  install(TARGETS tvm_ffi_registry_static DESTINATION "lib/")
-  install(TARGETS tvm_ffi_registry_shared DESTINATION "lib/")
+  install(TARGETS tvm_ffi_static DESTINATION "lib/")
+  install(TARGETS tvm_ffi_shared DESTINATION "lib/")
 endif (TVM_FFI_BUILD_REGISTRY)
 
 ########## Adding tests ##########

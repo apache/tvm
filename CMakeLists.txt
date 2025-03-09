@@ -131,6 +131,7 @@ include_directories(SYSTEM ${DMLC_PATH})
 include_directories(SYSTEM ${RANG_PATH})
 include_directories(SYSTEM ${COMPILER_RT_PATH})
 include_directories(SYSTEM ${PICOJSON_PATH})
+add_subdirectory(ffi)
 
 # initial variables
 set(TVM_LINKER_LIBS "")
@@ -601,6 +602,8 @@ endif()
 
 target_link_libraries(tvm PRIVATE ${TVM_RUNTIME_LINKER_LIBS})
 target_link_libraries(tvm_runtime PRIVATE ${TVM_RUNTIME_LINKER_LIBS})
+target_link_directories(tvm PRIVATE tvm_ffi)
+target_link_directories(tvm_runtime PRIVATE tvm_ffi)
 
 if(BUILD_FOR_HEXAGON AND DEFINED USE_HEXAGON_GTEST AND EXISTS ${USE_HEXAGON_GTEST})
   include(FetchContent)
