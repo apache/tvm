@@ -64,16 +64,18 @@ class ObjectInternal {
    * \param type_index The type index of interest.
    * \return The derivation checking result.
    */
-  static bool DerivedFrom(const Object* obj, uint32_t type_index) {
-    return obj->DerivedFrom(type_index);
-  }
+  // static bool DerivedFrom(const Object* obj, uint32_t type_index) {
+  //  return obj->DerivedFrom(type_index);
+  // }
   /*!
    * \brief Expose TypeKey2Index
    * \param type_key The original type key.
    * \return the corresponding index.
    */
   static uint32_t ObjectTypeKey2Index(const std::string& type_key) {
-    return Object::TypeKey2Index(type_key);
+    int32_t type_index;
+    TVM_FFI_CHECK_SAFE_CALL(TVMFFITypeKey2Index(type_key.c_str(), &type_index));
+    return static_cast<uint32_t>(type_index);
   }
   /*!
    * \brief Convert ModuleHandle to module node pointer.
