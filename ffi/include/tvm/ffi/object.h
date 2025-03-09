@@ -95,7 +95,7 @@ TVM_FFI_INLINE bool IsObjectInstance(int32_t object_type_index);
  * Which will automatically populate the type_index and deleter of the object.
  */
 class Object {
- private:
+ protected:
   /*! \brief header field that is the common prefix of all objects */
   TVMFFIObject header_;
 

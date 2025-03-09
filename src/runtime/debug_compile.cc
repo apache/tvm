@@ -26,6 +26,7 @@
 #include <tvm/runtime/container/array.h>
 #include <tvm/runtime/container/map.h>
 #include <tvm/runtime/container/variant.h>
+#include <tvm/runtime/ndarray.h>
 
 namespace tvm {
 namespace debug {

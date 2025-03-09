@@ -48,7 +48,7 @@ class ShapeTupleObj : public Object {
 
   static constexpr const uint32_t _type_index = runtime::TypeIndex::kRuntimeShapeTuple;
   static constexpr const char* _type_key = "runtime.ShapeTuple";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ShapeTupleObj, Object);
+  TVM_FFI_DECLARE_STATIC_OBJECT_INFO(ShapeTupleObj, Object);
 
  private:
   /*! \brief ShapeTuple object which is moved from std::vector container. */
