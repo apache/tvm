@@ -18,7 +18,30 @@
 """Start an RPC server"""
 import argparse
 import logging
+import socket
 from .. import rpc
+
+
+def get_local_ip():
+    """
+    Attempt to get the local IP address of the machine.
+
+    Returns:
+    --------
+    str or None
+        The IP address of the machine as a string if successful; None if failed.
+    """
+    try:
+        # create UDP socket
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        # connect to a outer server, but we don't send data
+        s.connect(("8.8.8.8", 80))
+        # get local ip
+        local_ip = s.getsockname()[0]
+        s.close()
+        return local_ip
+    except (socket.error, OSError):
+        return None
 
 
 def main(args):
@@ -37,7 +60,13 @@ def main(args):
             raise RuntimeError("Need key to present type of resource when tracker is available")
     else:
         tracker_addr = None
+    external_ip = get_local_ip()
 
+    #
+    if external_ip and not args.custom_addr:
+        custom_addr = f"{external_ip}"
+    else:
+        custom_addr = args.custom_addr
     server = rpc.Server(
         args.host,
         args.port,
@@ -46,7 +75,7 @@ def main(args):
         key=args.key,
         tracker_addr=tracker_addr,
         load_library=args.load_library,
-        custom_addr=args.custom_addr,
+        custom_addr=custom_addr,
         silent=args.silent,
         no_fork=not args.fork,
     )
