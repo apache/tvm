@@ -638,7 +638,7 @@ Stmt IRTransform(Stmt ir_node, const runtime::PackedFunc& f_preorder,
   std::unordered_set<uint32_t> only_type_index;
   if (only_enable.defined()) {
     for (auto s : only_enable.value()) {
-      only_type_index.insert(Object::TypeKey2Index(s.c_str()));
+      only_type_index.insert(ffi::TypeKey2Index(s.c_str()));
     }
   }
   IRTransformer transform(f_preorder, f_postorder, only_type_index);

@@ -30,7 +30,6 @@ using namespace tvm::runtime;
 class ObjBase : public Object {
  public:
   // dynamically allocate slow
-  static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
   static constexpr const uint32_t _type_child_slots = 1;
   static constexpr const char* _type_key = "test.ObjBase";
   TVM_DECLARE_BASE_OBJECT_INFO(ObjBase, Object);
@@ -38,7 +37,6 @@ class ObjBase : public Object {
 
 class ObjA : public ObjBase {
  public:
-  static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
   static constexpr const uint32_t _type_child_slots = 0;
   static constexpr const char* _type_key = "test.ObjA";
   TVM_DECLARE_BASE_OBJECT_INFO(ObjA, ObjBase);
@@ -46,7 +44,6 @@ class ObjA : public ObjBase {
 
 class ObjB : public ObjBase {
  public:
-  static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
   static constexpr const uint32_t _type_child_slots = 0;
   static constexpr const char* _type_key = "test.ObjB";
   TVM_DECLARE_BASE_OBJECT_INFO(ObjB, ObjBase);
@@ -54,7 +51,6 @@ class ObjB : public ObjBase {
 
 class ObjAA : public ObjA {
  public:
-  static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
   static constexpr const char* _type_key = "test.ObjAA";
   TVM_DECLARE_FINAL_OBJECT_INFO(ObjAA, ObjA);
 };

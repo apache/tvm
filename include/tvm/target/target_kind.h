@@ -92,7 +92,7 @@ class TargetKindNode : public Object {
   /*! \brief Stores the required type_key and type_index of a specific attr of a target */
   struct ValueTypeInfo {
     String type_key;
-    uint32_t type_index;
+    int32_t type_index;
     std::unique_ptr<ValueTypeInfo> key;
     std::unique_ptr<ValueTypeInfo> val;
   };

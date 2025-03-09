@@ -149,6 +149,15 @@ class ReflectionFieldGetter {
 }  // namespace details
 
 /*!
+ * \brief helper function to get type index from key
+ */
+inline int32_t TypeKey2Index(const char* type_key) {
+  int32_t type_index;
+  TVM_FFI_CHECK_SAFE_CALL(TVMFFITypeKey2Index(type_key, &type_index));
+  return type_index;
+}
+
+/*!
  * \brief helper macro to declare a base object type that can be inherited.
  * \param TypeName The name of the current type.
  * \param ParentType The name of the ParentType

@@ -56,6 +56,7 @@ class BaseExprNode : public Object {
   mutable Span span;
 
   static constexpr const char* _type_key = "BaseExpr";
+  static constexpr const bool _type_has_method_visit_attrs = true;
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
   static constexpr const uint32_t _type_child_slots = 64;

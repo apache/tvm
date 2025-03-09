@@ -160,7 +160,7 @@ class Op : public RelaxExpr {
    */
   TVM_DLL static const Op& Get(const String& op_name);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(Op, RelaxExpr, OpNode)
+  TVM_DEFINE_OBJECT_REF_METHODS(Op, RelaxExpr, OpNode);
 
  private:
   /*!
@@ -359,7 +359,7 @@ inline OpRegEntry& OpRegEntry::set_attrs_type() {  // NOLINT(*)
 
 inline OpRegEntry& OpRegEntry::set_attrs_type_key(const String& key) {  // NOLINT(*)
   get()->attrs_type_key = key;
-  get()->attrs_type_index = Object::TypeKey2Index(key);
+  get()->attrs_type_index = tvm::ffi::TypeKey2Index(key.c_str());
   return *this;
 }
 

@@ -222,7 +222,7 @@ class TensorIntrin : public ObjectRef {
    */
   TVM_DLL static Optional<TensorIntrin> Get(String name, bool allow_missing = false);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(TensorIntrin, ObjectRef, TensorIntrinNode)
+  TVM_DEFINE_OBJECT_REF_METHODS(TensorIntrin, ObjectRef, TensorIntrinNode);
 };
 
 /*!
