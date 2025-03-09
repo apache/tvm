@@ -25,6 +25,7 @@
 
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/ffi/object.h>
 
 #include <string>
 #include <type_traits>
