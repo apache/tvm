@@ -147,7 +147,7 @@ class Object {
    */
   static int32_t _GetOrAllocRuntimeTypeIndex() { return TypeIndex::kTVMFFIObject; }
 
- private:
+  private:
   /*! \brief increase reference count */
   void IncRef() { details::AtomicIncrementRelaxed(&(header_.ref_counter)); }
 
@@ -408,6 +408,26 @@ class ObjectRef {
 template <typename BaseType, typename ObjectType>
 inline ObjectPtr<BaseType> GetObjectPtr(ObjectType* ptr);
 
+/*! \brief ObjectRef hash functor */
+struct ObjectPtrHash {
+  size_t operator()(const ObjectRef& a) const { return operator()(a.data_); }
+
+  template <typename T>
+  size_t operator()(const ObjectPtr<T>& a) const {
+    return std::hash<Object*>()(a.get());
+  }
+};
+
+/*! \brief ObjectRef equal functor */
+struct ObjectPtrEqual {
+  bool operator()(const ObjectRef& a, const ObjectRef& b) const { return a.same_as(b); }
+
+  template <typename T>
+  size_t operator()(const ObjectPtr<T>& a, const ObjectPtr<T>& b) const {
+    return a == b;
+  }
+};
+
 /*!
  * \brief Helper macro to declare list of static checks about object meta-data.
  * \param TypeName The name of the current type.
@@ -599,7 +619,13 @@ class ObjectUnsafe {
     *ref = nullptr;
     return ptr;
   }
+
+  // legacy APIs to support migration and can be moved later
+  static TVM_FFI_INLINE void LegacyClearObjectPtrAfterMove(ObjectRef* src) {
+    src->data_.data_ = nullptr;
+  }
 };
+
 }  // namespace details
 }  // namespace ffi
 }  // namespace tvm

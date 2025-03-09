@@ -59,7 +59,7 @@ class StringObj : public Object {
 
   static constexpr const uint32_t _type_index = TypeIndex::kRuntimeString;
   static constexpr const char* _type_key = "runtime.String";
-  TVM_DECLARE_FINAL_OBJECT_INFO(StringObj, Object);
+  TVM_FFI_DECLARE_STATIC_OBJECT_INFO(StringObj, Object);
 
  private:
   /*! \brief String object which is moved from std::string container. */
