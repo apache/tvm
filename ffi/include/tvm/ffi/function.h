@@ -74,7 +74,7 @@ namespace ffi {
       if (ret_code == -2) {                                                            \
         throw ::tvm::ffi::EnvErrorAlreadySet();                                        \
       }                                                                                \
-      Any error_any;                                                                   \
+      ::tvm::ffi::Any error_any;                                                       \
       TVMFFIMoveFromLastError(reinterpret_cast<TVMFFIAny*>(&error_any));               \
       if (std::optional<tvm::ffi::Error> error = error_any.TryAs<tvm::ffi::Error>()) { \
         throw std::move(*error);                                                       \
