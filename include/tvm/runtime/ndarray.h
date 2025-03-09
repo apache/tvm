@@ -308,7 +308,7 @@ class NDArray::Container : public Object, public NDArray::ContainerBase {
   /*! \brief default constructor */
   Container() {
     // Initialize the type index.
-    type_index_ = Container::RuntimeTypeIndex();
+    header_.type_index = Container::RuntimeTypeIndex();
     dl_tensor.data = nullptr;
     dl_tensor.ndim = 0;
     dl_tensor.shape = nullptr;
@@ -318,7 +318,7 @@ class NDArray::Container : public Object, public NDArray::ContainerBase {
 
   Container(void* data, ShapeTuple shape, DLDataType dtype, Device dev) {
     // Initialize the type index.
-    type_index_ = Container::RuntimeTypeIndex();
+    header_.type_index = Container::RuntimeTypeIndex();
     dl_tensor.data = data;
     shape_ = std::move(shape);
     dl_tensor.ndim = static_cast<int>(shape_.size());
@@ -332,19 +332,20 @@ class NDArray::Container : public Object, public NDArray::ContainerBase {
    * \brief Set the deleter field.
    * \param deleter The deleter.
    */
-  void SetDeleter(FDeleter deleter) { deleter_ = deleter; }
+  void SetDeleter(void (*deleter)(void* self)) { header_.deleter = deleter; }
 
   // Expose DecRef and IncRef as public function
   // NOTE: they are only for developer purposes only.
-  using Object::DecRef;
-  using Object::IncRef;
+  // using Object::DecRef;
+  // using Object::IncRef;
 
   // Information for object protocol.
   static constexpr const uint32_t _type_index = TypeIndex::kRuntimeNDArray;
   static constexpr const uint32_t _type_child_slots = 0;
   static constexpr const uint32_t _type_child_slots_can_overflow = true;
   static constexpr const char* _type_key = "runtime.NDArray";
-  TVM_DECLARE_BASE_OBJECT_INFO(NDArray::Container, Object);
+  static const constexpr bool _type_final = true;
+  TVM_FFI_DECLARE_STATIC_OBJECT_INFO(NDArray::Container, Object);
 
  protected:
   friend class RPCWrappedFunc;
@@ -439,12 +440,12 @@ inline TVMArrayHandle NDArray::FFIGetHandle(const ObjectRef& nd) {
   return ptr;
 }
 
-inline void NDArray::FFIDecRef(TVMArrayHandle handle) {
-  static_cast<NDArray::Container*>(reinterpret_cast<NDArray::ContainerBase*>(handle))->DecRef();
-}
-
 inline Object* TVMArrayHandleToObjectHandle(TVMArrayHandle handle) {
   return static_cast<NDArray::Container*>(reinterpret_cast<NDArray::ContainerBase*>(handle));
+}
+
+inline void NDArray::FFIDecRef(TVMArrayHandle handle) {
+  details::ObjectUnsafe::DecRefObjectHandle(TVMArrayHandleToObjectHandle(handle));
 }
 
 /*! \brief Magic number for NDArray file */
