@@ -92,7 +92,12 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         )
 
     def _upsample_impl(
-        self, x: relax.Expr, size, scale_factor, method: str, align_corners: bool,  
+        self,
+        x: relax.Expr,
+        size,
+        scale_factor,
+        method: str,
+        align_corners: bool,
     ) -> relax.Var:
         coord_trans = "align_corners" if align_corners else "half_pixel"
 
@@ -120,28 +125,39 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             node.args[2] if len(node.args) > 2 else node.kwargs.get("align_corners", True)
         )
         scale_factor = node.args[3] if len(node.args) > 3 else node.kwargs.get("scale_factor", 1)
-        return self._upsample_impl(x, size=size, scale_factor=scale_factor, 
-                                   method="linear", align_corners=align_corners)
+        return self._upsample_impl(
+            x, size=size, scale_factor=scale_factor, method="linear", align_corners=align_corners
+        )
 
     def _upsample_nearest2d(self, node: fx.node) -> relax.Var:
         x = self.env[node.args[0]]
         size = node.args[1] if len(node.args) > 1 else node.kwargs.get("size", None)
 
         if size:
-            scale_factor = None # Can only define size or scale_factor, not both
-            align_corners = node.args[2] if len(node.args) > 2 else node.kwargs.get("align_corners", None) 
-                
+            scale_factor = None  # Can only define size or scale_factor, not both
+            align_corners = (
+                node.args[2] if len(node.args) > 2 else node.kwargs.get("align_corners", None)
+            )
+
         else:
-            # TODO figure out why pytorch export passes a list such as 
-            # [scale_factor,scale_factor] instead of just an int for 
+            # TODO figure out why pytorch export passes a list such as
+            # [scale_factor,scale_factor] instead of just an int for
             # scale_factor. Using first element for now
-            scale_factor = node.args[2][0] if len(node.args) > 2 else node.kwargs.get("scale_factor", 1) 
-            align_corners = node.args[3] if len(node.args) > 3 else node.kwargs.get("align_corners", None)
-          
-        return self._upsample_impl(x, size=size, scale_factor=scale_factor, 
-                                   method="nearest_neighbor", 
-                                   align_corners=align_corners)
-    
+            scale_factor = (
+                node.args[2][0] if len(node.args) > 2 else node.kwargs.get("scale_factor", 1)
+            )
+            align_corners = (
+                node.args[3] if len(node.args) > 3 else node.kwargs.get("align_corners", None)
+            )
+
+        return self._upsample_impl(
+            x,
+            size=size,
+            scale_factor=scale_factor,
+            method="nearest_neighbor",
+            align_corners=align_corners,
+        )
+
     ########## Manipulation ##########
 
     def _select(self, node: fx.Node) -> relax.Var:
