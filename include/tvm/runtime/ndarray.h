@@ -445,7 +445,7 @@ inline Object* TVMArrayHandleToObjectHandle(TVMArrayHandle handle) {
 }
 
 inline void NDArray::FFIDecRef(TVMArrayHandle handle) {
-  details::ObjectUnsafe::DecRefObjectHandle(TVMArrayHandleToObjectHandle(handle));
+  ffi::details::ObjectUnsafe::DecRefObjectHandle(TVMArrayHandleToObjectHandle(handle));
 }
 
 /*! \brief Magic number for NDArray file */
