@@ -327,7 +327,7 @@ def check_bool_expr_is_true(bool_expr, vranges, cond=None):
 
         A = tvm.te.compute([r.extent.value for v, r in vranges.items()], _compute_body)
         args = [tvm.nd.empty(A.shape, A.dtype)]
-        mod = tvm.build(tvm.IRModule.from_expr(tvm.te.create_prim_func([A])))
+        mod = tvm.compile(tvm.IRModule.from_expr(tvm.te.create_prim_func([A])))
         mod(*args)
         return args[0].numpy()
 

@@ -49,7 +49,7 @@ def test_llvm_add_pipeline():
     def build_i386():
         temp = utils.tempdir()
         target = "llvm -mtriple=i386-pc-linux-gnu"
-        f = tvm.build(sch.mod, target=target)
+        f = tvm.tir.build(sch.mod, target=target)
         path = temp.relpath("myadd.o")
         f.save(path)
         verify_elf(path, 0x03)
@@ -60,7 +60,7 @@ def test_llvm_add_pipeline():
             print("Skip because %s is not enabled.." % target)
             return
         temp = utils.tempdir()
-        f = tvm.build(sch.mod, target=target)
+        f = tvm.tir.build(sch.mod, target=target)
         path = temp.relpath("myadd.o")
         f.save(path)
         verify_elf(path, 0x28)
