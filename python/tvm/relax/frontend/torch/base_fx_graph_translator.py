@@ -19,6 +19,7 @@
 # pylint: disable=import-outside-toplevel
 """Base class for PyTorch FX Graph importer."""
 import abc
+import math
 from typing import Callable, Dict, Optional, Tuple, Union
 
 from tvm import relax
@@ -141,19 +142,67 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
 
     def _clamp(self, node: fx.Node) -> relax.Expr:
         args = self.retrieve_args(node)
-        a_min = args[1] if len(args) > 1 else node.kwargs["min"]
-        a_max = args[2] if len(args) > 2 else node.kwargs["max"]
+        a_min = args[1] if len(args) > 1 else node.kwargs.get("min", -math.inf)
+        a_max = args[2] if len(args) > 2 else node.kwargs.get("max", math.inf)
+        x = args[0]
+
+        a_min = -math.inf if a_min is None else a_min
+        a_max = math.inf if a_max is None else a_max
+
+        # Handle the case where a_min and/or a_max are tensors
         if not isinstance(a_min, (int, float)):
-            raise ValueError(
-                f"TVM only supports constant min value for torch.clamp/clip, "
-                f"but got {a_min} with type {type(a_min)}"
-            )
+            print("special case of amin!")
+            assert isinstance(a_min, relax.Expr), (f"Unexpected argument type "
+            f"passed to torch.clamp/clip: {a_min} with type {type(a_min)}")
+            a_min = self.block_builder.emit(relax.op.broadcast_to(a_min, self.shape_of(x)))
+            x = self.block_builder.emit(relax.op.maximum(x, a_min))
+            a_min = -math.inf
+        
         if not isinstance(a_max, (int, float)):
-            raise ValueError(
-                f"TVM only supports constant max value for torch.clamp/clip, "
-                f"but got {a_max} with type {type(a_max)}"
-            )
-        return self.block_builder.emit(relax.op.clip(args[0], a_min, a_max))
+            print("special case of amax!")
+            assert isinstance(a_max, relax.Expr), (f"Unexpected argument type "
+            f"passed to torch.clamp/clip: {a_max} with type {type(a_max)}")
+            a_max = self.block_builder.emit(relax.op.broadcast_to(a_max, self.shape_of(x)))
+            x = self.block_builder.emit(relax.op.minimum(x, a_max))
+            a_max = math.inf
+        
+        return self.block_builder.emit(relax.op.clip(x, a_min, a_max))
+
+    def _clamp_min(self, node: fx.Node) -> relax.Expr:
+        args = self.retrieve_args(node)
+        a_min = args[1] if len(args) > 1 else node.kwargs.get("min", -math.inf)
+        a_max = math.inf
+        x = args[0]
+
+        a_min = -math.inf if a_min is None else a_min
+
+        # Handle the case where a_min is a tensor
+        if not isinstance(a_min, (int, float)):
+            assert isinstance(a_min, relax.Expr), (f"Unexpected argument type "
+            f"passed to torch.clamp/clip: {a_min} with type {type(a_min)}")
+            a_min = self.block_builder.emit(relax.op.broadcast_to(a_min, self.shape_of(x)))
+            x = self.block_builder.emit(relax.op.maximum(x, a_min))
+            a_min = -math.inf
+        
+        return self.block_builder.emit(relax.op.clip(x, a_min, a_max))
+
+    def _clamp_max(self, node: fx.Node) -> relax.Expr:
+        args = self.retrieve_args(node)
+        a_min = -math.inf
+        a_max = args[2] if len(args) > 2 else node.kwargs.get("max", math.inf)
+        x = args[0]
+
+        a_max = math.inf if a_max is None else a_max
+
+        # Handle the case where a_max is a tensor
+        if not isinstance(a_max, (int, float)):
+            assert isinstance(a_max, relax.Expr), (f"Unexpected argument type "
+            f"passed to torch.clamp/clip: {a_max} with type {type(a_max)}")
+            a_max = self.block_builder.emit(relax.op.broadcast_to(a_max, self.shape_of(x)))
+            x = self.block_builder.emit(relax.op.minimum(x, a_max))
+            a_max = math.inf
+        
+        return self.block_builder.emit(relax.op.clip(x, a_min, a_max))
 
     def _elu(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
