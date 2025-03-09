@@ -247,7 +247,7 @@ class ArrayNode : public Object, public InplaceArrayBase<ArrayNode, ObjectRef> {
   friend class Array;
 
   // To specialize make_object<ArrayNode>
-  friend ObjectPtr<ArrayNode> make_object<>();
+  friend ObjectPtr<ArrayNode> tvm::ffi::make_object<>();
 };
 
 /*! \brief Helper struct for type-checking

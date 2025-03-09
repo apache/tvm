@@ -320,10 +320,6 @@ class ObjectPtr {
   template <typename>
   friend class ObjectPtr;
   friend class tvm::ffi::details::ObjectUnsafe;
-  template <typename RelayRefType, typename ObjType>
-  friend RelayRefType GetRef(const ObjType* ptr);
-  template <typename BaseType, typename ObjType>
-  friend ObjectPtr<BaseType> GetObjectPtr(ObjType* ptr);
 };
 
 // Forward declaration, to prevent circular includes.
@@ -409,17 +405,6 @@ class ObjectRef {
   friend struct ObjectPtrHash;
   friend class tvm::ffi::details::ObjectUnsafe;
 };
-
-/*!
- * \brief Get an object ptr type from a raw object ptr.
- *
- * \param ptr The object pointer
- * \tparam BaseType The reference type
- * \tparam ObjectType The object type
- * \return The corresponding RefType
- */
-template <typename BaseType, typename ObjectType>
-inline ObjectPtr<BaseType> GetObjectPtr(ObjectType* ptr);
 
 /*! \brief ObjectRef hash functor */
 struct ObjectPtrHash {
@@ -673,12 +658,15 @@ class ObjectUnsafe {
     return ptr;
   }
 
+  static TVM_FFI_INLINE Object** GetObjectRValueRefValue(ObjectRef* ref) {
+    return const_cast<Object**>(&(ref->data_.data_));
+  }
+
   // legacy APIs to support migration and can be moved later
   static TVM_FFI_INLINE void LegacyClearObjectPtrAfterMove(ObjectRef* src) {
     src->data_.data_ = nullptr;
   }
 };
-
 }  // namespace details
 }  // namespace ffi
 }  // namespace tvm

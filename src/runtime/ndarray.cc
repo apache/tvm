@@ -104,7 +104,7 @@ struct NDArray::Internal {
   static void DefaultDeleter(void* ptr_obj) {
     auto* ptr = static_cast<NDArray::Container*>(ptr_obj);
     if (ptr->manager_ctx != nullptr) {
-      details::ObjectUnsafe::DecRefObjectHandle(
+      ffi::details::ObjectUnsafe::DecRefObjectHandle(
         static_cast<NDArray::Container*>(ptr->manager_ctx)
       );
     } else if (ptr->dl_tensor.data != nullptr) {
@@ -179,7 +179,7 @@ struct NDArray::Internal {
   }
   // Delete dlpack object.
   static void NDArrayDLPackDeleter(DLManagedTensor* tensor) {
-    details::ObjectUnsafe::DecRefObjectHandle(static_cast<NDArray::Container*>(tensor->manager_ctx));
+    ffi::details::ObjectUnsafe::DecRefObjectHandle(static_cast<NDArray::Container*>(tensor->manager_ctx));
     delete tensor;
   }
 };

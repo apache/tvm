@@ -25,10 +25,12 @@
 #define TVM_RUNTIME_MINRPC_RPC_REFERENCE_H_
 
 namespace tvm {
-namespace runtime {
-
+namespace ffi {
 // Forward declare TVM Object to use `Object*` in RPC protocol.
-// class Object;
+class Object;
+}  // namespace ffi
+
+namespace runtime {
 
 /*! \brief The current RPC procotol version. */
 constexpr const char* kRPCProtocolVer = "0.8.0";
@@ -206,7 +208,7 @@ struct RPCReference {
       num_bytes_ += sizeof(T) * num;
     }
 
-    void WriteObject(Object* obj) { num_bytes_ += channel_->GetObjectBytes(obj); }
+    void WriteObject(ffi::Object* obj) { num_bytes_ += channel_->GetObjectBytes(obj); }
 
     void ThrowError(RPCServerStatus status) { channel_->ThrowError(status); }
 
@@ -383,7 +385,7 @@ struct RPCReference {
           break;
         }
         case kTVMObjectHandle: {
-          channel->WriteObject(static_cast<Object*>(value.v_handle));
+          channel->WriteObject(static_cast<ffi::Object*>(value.v_handle));
           break;
         }
         default: {

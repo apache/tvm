@@ -1597,7 +1597,6 @@ class PagedAttentionKVCacheObj : public AttentionKVCacheObj {
     ICHECK(false) << "DebugSetKV for PageAttentionKVCache not implemented yet.";
   }
 
-  static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
   static constexpr const char* _type_key = "relax.vm.PagedAttentionKVCache";
   TVM_DECLARE_FINAL_OBJECT_INFO(PagedAttentionKVCacheObj, AttentionKVCacheObj);
 

@@ -33,6 +33,8 @@ if(USE_CUDA AND USE_CUTLASS)
     ${PROJECT_SOURCE_DIR}/3rdparty/cutlass_fpA_intB_gemm
     ${PROJECT_SOURCE_DIR}/3rdparty/cutlass_fpA_intB_gemm/cutlass/include
   )
+  target_link_libraries(fpA_intB_gemm_tvm PRIVATE tvm_ffi_header)
+
   set(CUTLASS_FPA_INTB_RUNTIME_SRCS "")
   list(APPEND CUTLASS_FPA_INTB_RUNTIME_SRCS src/runtime/contrib/cutlass/weight_preprocess.cc)
   add_library(fpA_intB_cutlass_objs OBJECT ${CUTLASS_FPA_INTB_RUNTIME_SRCS})
