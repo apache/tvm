@@ -128,6 +128,15 @@ class Object {
   }
 
   /*!
+   * \return A hash value of the return of GetTypeKey.
+   */
+  uint64_t GetTypeKeyHash() const {
+    // the function checks that the info exists
+    const TypeInfo* type_info = TVMFFIGetTypeInfo(header_.type_index);
+    return type_info->type_key_hash;
+  }
+
+  /*!
    * \brief Get the type key of the corresponding index from runtime.
    * \param tindex The type index.
    * \return the result.
@@ -136,6 +145,8 @@ class Object {
     const TypeInfo* type_info = TVMFFIGetTypeInfo(tindex);
     return type_info->type_key;
   }
+
+  bool unique() const { return use_count() == 1; }
 
   // Information about the object
   static constexpr const char* _type_key = "object.Object";
@@ -148,6 +159,11 @@ class Object {
   static constexpr int32_t _type_index = TypeIndex::kTVMFFIObject;
   // the static type depth of the class
   static constexpr int32_t _type_depth = 0;
+  // extra fields used by plug-ins for attribute visiting
+  // and structural information
+  static constexpr const bool _type_has_method_visit_attrs = true;
+  static constexpr const bool _type_has_method_sequal_reduce = false;
+  static constexpr const bool _type_has_method_shash_reduce = false;
   // The following functions are provided by macro
   // TVM_FFI_DECLARE_BASE_OBJECT_INFO and TVM_DECLARE_FINAL_OBJECT_INFO
   /*!
@@ -449,7 +465,7 @@ struct ObjectPtrEqual {
  */
 #define TVM_FFI_DECLARE_STATIC_OBJECT_INFO(TypeName, ParentType)      \
   static int32_t RuntimeTypeIndex() { return TypeName::_type_index; } \
-  TVM_FFI_REGISTER_STATIC_TYPE_INFO(TypeName, ParentType);
+  TVM_FFI_REGISTER_STATIC_TYPE_INFO(TypeName, ParentType)
 
 /*
  * \brief Define object reference methods.
@@ -649,7 +665,7 @@ class ObjectUnsafe {
     return ptr;
   }
 
-  static TVM_FFI_INLINE Object** GetObjectRValueRefValue(ObjectRef* ref) {
+  static TVM_FFI_INLINE Object** GetObjectRValueRefValue(const ObjectRef* ref) {
     return const_cast<Object**>(&(ref->data_.data_));
   }
 

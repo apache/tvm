@@ -196,7 +196,7 @@ PackedFunc LLVMModuleNode::GetFunction(const String& name, const ObjectPtr<Objec
     faddr = reinterpret_cast<TVMBackendPackedCFunc>(GetFunctionAddr(name, *llvm_target));
   }
   if (faddr == nullptr) return PackedFunc();
-  return WrapPackedFunc(faddr, sptr_to_self);
+  return tvm::runtime::WrapPackedFunc(faddr, sptr_to_self);
 }
 
 namespace {

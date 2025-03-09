@@ -174,7 +174,8 @@ def config_cython():
                     include_dirs=[
                         "../include/",
                         "../3rdparty/dmlc-core/include",
-                        "../3rdparty/dlpack/include",
+                        "../ffi/include/",
+                        "../ffi/3rdparty/dlpack/include",
                     ],
                     extra_compile_args=extra_compile_args,
                     library_dirs=library_dirs,
