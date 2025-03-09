@@ -15,9 +15,8 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# TODO remove
 import sys
-sys.path.append('/ssd1/htalendr/tvm/python')
+sys.path.append('/ssd1/htalendr/tvm/python') # Refer to local TVM build
 
 import tvm
 from tvm import relax
@@ -64,22 +63,53 @@ def assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module):
     np.testing.assert_allclose(actual=actual, desired=desired, rtol=1e-5, 
                                atol=1e-5) 
 
+def test_copy_():
+    class CopyTester(nn.Module):
+        def __init__(self, size):
+            super().__init__()
+            # self.buffer = torch.zeros(size)
+            self.register_buffer("buffer", torch.zeros(size))
 
-def test_detach():
+        def forward(self, x):
+            self.buffer.copy_(x)
+            
+            return x * 3 + self.buffer * 5
+
+    size = (2,2)
+    raw_data = np.random.rand(*size).astype(np.float32)
+    torch_module = CopyTester(size).eval()
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module)
+
+
+def test_detach_no_change():
+    """ Most of the time, in TVM, detach() should basically be identity"""
     class DetachTester(nn.Module):
         def forward(self, x):
             detached = x.detach()
-
-            # Test that detached shares same memory as x
-            x[0][0] = 42.0 
-
             return detached
-    
+
     raw_data = np.ones((2,2)).astype(np.float32)
     torch_module = DetachTester().eval()
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module)
 
-# TODO undo
-test_detach()
-# if __name__ == "__main__":
-#     tvm.testing.main()
+
+# TODO test below fails! Is there a way to implement detach such that the 
+#  memory is shared with the input?
+# def test_detach_with_change():
+#     """ Testing that detach() shares memory with original tensor"""
+#     class DetachTester(nn.Module):
+#         def forward(self, x):
+#             detached = x.detach()
+
+#             # Test that detached shares same memory as x
+#             x[0][0] = 42.0 
+
+#             return detached
+
+#     raw_data = np.ones((2,2)).astype(np.float32)
+#     torch_module = DetachTester().eval()
+#     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module)
+
+
+if __name__ == "__main__":
+    tvm.testing.main()
