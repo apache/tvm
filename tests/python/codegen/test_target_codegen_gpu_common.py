@@ -40,7 +40,7 @@ def test_int_intrin(target, dev, dtype):
         sch = tvm.tir.Schedule(func)
         (x,) = sch.get_loops(sch.get_block("B"))
         sch.bind(x, "threadIdx.x")
-        f = tvm.build(sch.mod, target=target)
+        f = tvm.compile(sch.mod, target=target)
         a = tvm.nd.array(np.random.randint(0, 100000, size=n).astype(A.dtype), dev)
         b = tvm.nd.array(np.zeros(shape=(n,)).astype(B.dtype), dev)
         f(a, b)

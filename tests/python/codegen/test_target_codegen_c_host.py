@@ -33,7 +33,7 @@ def test_add():
     C = te.compute(A.shape, lambda *i: A(*i) + B(*i), name="C")
 
     def check_c():
-        mhost = tvm.build(
+        mhost = tvm.compile(
             tvm.IRModule.from_expr(
                 te.create_prim_func([A, B, C]).with_attr("global_symbol", "test_fadd")
             ),
@@ -65,7 +65,7 @@ def test_reinterpret():
     )
 
     def check_c():
-        mhost = tvm.build(
+        mhost = tvm.compile(
             tvm.IRModule.from_expr(
                 te.create_prim_func([A, B]).with_attr("global_symbol", "test_reinterpret")
             ),
@@ -93,7 +93,7 @@ def test_ceil():
     B = te.compute(A.shape, lambda *i: tvm.tir.call_intrin("float32", "tir.ceil", A(*i)), name="B")
 
     def check_c():
-        mhost = tvm.build(
+        mhost = tvm.compile(
             tvm.IRModule.from_expr(
                 te.create_prim_func([A, B]).with_attr("global_symbol", "test_ceil")
             ),
@@ -121,7 +121,7 @@ def test_floor():
     B = te.compute(A.shape, lambda *i: tvm.tir.call_intrin("float32", "tir.floor", A(*i)), name="B")
 
     def check_c():
-        mhost = tvm.build(
+        mhost = tvm.compile(
             tvm.IRModule.from_expr(
                 te.create_prim_func([A, B]).with_attr("global_symbol", "test_floor")
             ),
@@ -149,7 +149,7 @@ def test_round():
     B = te.compute(A.shape, lambda *i: tvm.tir.call_intrin("float32", "tir.round", A(*i)), name="B")
 
     def check_c():
-        mhost = tvm.build(
+        mhost = tvm.compile(
             tvm.IRModule.from_expr(
                 te.create_prim_func([A, B]).with_attr("global_symbol", "test_round")
             ),
@@ -182,7 +182,7 @@ def test_subroutine_call():
             A = T.decl_buffer(1, dtype="float32", data=A_data)
             A[0] = 42.0
 
-    built = tvm.build(mod, target="c")
+    built = tvm.tir.build(mod, target="c")
 
     func_names = list(built["get_func_names"]())
     assert (

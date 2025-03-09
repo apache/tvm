@@ -52,7 +52,7 @@ def get_module(target, compute):
 @tvm.testing.uses_gpu
 def test_cmp_load_store(target, dev, arr_size, compute, get_module):
     A, B, _, D = compute
-    f = tvm.build(get_module, target=target)
+    f = tvm.compile(get_module, target=target)
 
     a_np = np.random.uniform(size=arr_size).astype(A.dtype)
     b_np = np.random.uniform(size=arr_size).astype(B.dtype)

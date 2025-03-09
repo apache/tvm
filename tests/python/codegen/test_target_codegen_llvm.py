@@ -14,21 +14,18 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import collections
-import ctypes
-import json
 import math
+import re
+
 import numpy as np
 import pytest
-import re
-import sys
 
 import tvm
 import tvm.testing
-from tvm import te
-from tvm import tir
+from tvm import te, tir
 from tvm.contrib import clang, utils
-from tvm.script import tir as T, ir as I
+from tvm.script import ir as I
+from tvm.script import tir as T
 from tvm.target.codegen import llvm_get_intrinsic_name, llvm_lookup_intrinsic_id
 
 
@@ -42,7 +39,7 @@ def test_llvm_intrin():
     body = ib.get()
 
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([A], body).with_attr("global_symbol", "prefetch"))
-    fcode = tvm.build(mod, None)
+    fcode = tvm.compile(mod)
 
 
 @tvm.testing.requires_llvm
@@ -54,7 +51,7 @@ def test_llvm_void_intrin():
     ib.emit(x)
     body = ib.get()
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([A], body).with_attr("global_symbol", "main"))
-    fcode = tvm.build(mod, None)
+    fcode = tvm.compile(mod)
 
 
 @tvm.testing.requires_llvm
@@ -92,7 +89,7 @@ def test_llvm_overloaded_intrin():
     sch = tir.Schedule(mod)
 
     # Build from scheduled TIR
-    f = tvm.build(sch.mod, target="llvm")
+    f = tvm.compile(sch.mod, target="llvm")
 
 
 @tvm.testing.requires_llvm
@@ -106,7 +103,7 @@ def test_llvm_lookup_intrin():
     ib.emit(x)
     body = ib.get()
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([A], body).with_attr("global_symbol", "main"))
-    fcode = tvm.build(mod, None)
+    fcode = tvm.compile(mod, None)
 
 
 @tvm.testing.requires_llvm
@@ -120,7 +117,7 @@ def test_llvm_large_uintimm():
     sch = tir.Schedule(mod)
 
     def check_llvm():
-        f = tvm.build(sch.mod, target="llvm")
+        f = tvm.compile(sch.mod, target="llvm")
         dev = tvm.cpu(0)
         # launch the kernel.
         a = tvm.nd.empty((), dtype=A.dtype, device=dev)
@@ -162,7 +159,7 @@ def test_llvm_multi_parallel():
 
     def check_llvm():
         # BUILD and invoke the kernel.
-        f = tvm.build(sch.mod, target="llvm")
+        f = tvm.compile(sch.mod, target="llvm")
         dev = tvm.cpu(0)
         # launch the kernel.
         a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), dev)
@@ -194,7 +191,7 @@ def test_llvm_flip_pipeline():
         sch.vectorize(xi)
 
         # build and invoke the kernel.
-        f = tvm.build(sch.mod, target="llvm")
+        f = tvm.compile(sch.mod, target="llvm")
         dev = tvm.cpu(0)
         # launch the kernel.
         n = nn
@@ -228,7 +225,7 @@ def test_llvm_vadd_pipeline():
     _, inner = sch.split(loop, factors=[None, 4])
     sch.vectorize(inner)
     # Build and verify
-    f = tvm.build(sch.mod, target="llvm")
+    f = tvm.compile(sch.mod, target="llvm")
     dev = tvm.cpu(0)
     n = 128
     a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), dev)
@@ -259,7 +256,7 @@ def test_llvm_madd_pipeline():
         sch.vectorize(xi)
 
         # build and invoke the kernel.
-        f = tvm.build(sch.mod, target="llvm")
+        f = tvm.compile(sch.mod, target="llvm")
         dev = tvm.cpu(0)
         # launch the kernel.
         n = nn
@@ -289,7 +286,7 @@ def test_llvm_temp_space():
 
     def check_llvm():
         # build and invoke the kernel.
-        f = tvm.build(sch.mod, target="llvm")
+        f = tvm.compile(sch.mod, target="llvm")
         dev = tvm.cpu(0)
         # launch the kernel.
         n = nn
@@ -322,7 +319,7 @@ def test_multiple_func():
     )
 
     # Build and verify
-    f = tvm.build(mod, target="llvm")
+    f = tvm.compile(mod, target="llvm")
     dev = tvm.cpu(0)
     n = 10
     a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), dev)
@@ -347,7 +344,7 @@ def test_llvm_condition():
         sch = tir.Schedule(mod)
 
         # build and invoke the kernel.
-        f = tvm.build(sch.mod, target="llvm")
+        f = tvm.compile(sch.mod, target="llvm")
         dev = tvm.cpu(0)
         # launch the kernel.
         a = tvm.nd.array(np.random.uniform(size=(n,)).astype(A.dtype), dev)
@@ -371,7 +368,7 @@ def test_llvm_bool():
         sch = tir.Schedule(mod)
 
         # build and invoke the kernel.
-        f = tvm.build(sch.mod, target="llvm")
+        f = tvm.compile(sch.mod, target="llvm")
         dev = tvm.cpu(0)
         # launch the kernel.
         a = tvm.nd.array(np.random.randint(0, 2, size=(n,)).astype(A.dtype), dev)
@@ -397,7 +394,7 @@ def test_rank_zero():
         sch = tir.Schedule(mod)
 
         # build and invoke the kernel.
-        f = tvm.build(sch.mod, target="llvm")
+        f = tvm.compile(sch.mod, target="llvm")
         dev = tvm.cpu(0)
         # launch the kernel.
         a = tvm.nd.array(np.random.randint(0, 2, size=(n,)).astype(A.dtype), dev)
@@ -425,7 +422,7 @@ def test_rank_zero_bound_checkers():
             sch = tir.Schedule(mod)
 
             # build and invoke the kernel.
-            f = tvm.build(sch.mod, target="llvm")
+            f = tvm.compile(sch.mod, target="llvm")
             dev = tvm.cpu(0)
             # launch the kernel.
             a = tvm.nd.array(np.random.randint(0, 2, size=(n,)).astype(A.dtype), dev)
@@ -457,7 +454,7 @@ def test_alignment():
     sch.vectorize(tx)
 
     # Build with name
-    f = tvm.build(sch.mod, target="llvm")
+    f = tvm.tir.build(sch.mod, target="llvm")
 
     lines = f.get_source().split("\n")
 
@@ -533,7 +530,7 @@ def test_llvm_div():
         sch = tir.Schedule(mod)
 
         # Build from scheduled TIR
-        f = tvm.build(sch.mod, target="llvm")
+        f = tvm.compile(sch.mod, target="llvm")
 
         # Fill input arrays with values
         A_arr = tvm.nd.empty((end - start + 1,), dtype)
@@ -639,7 +636,7 @@ def test_llvm_fp_math():
         sch = tir.Schedule(mod)
 
         # Build from scheduled TIR
-        f = tvm.build(sch.mod, target="llvm")
+        f = tvm.compile(sch.mod, target="llvm")
 
         a = tvm.nd.array(np.full((n,), 100, "float32"))
         b = tvm.nd.empty((n,), "float32")
@@ -659,7 +656,7 @@ def test_llvm_fp_math():
         sch = tir.Schedule(mod)
 
         # Build from scheduled TIR
-        f = tvm.build(sch.mod, target="llvm")
+        f = tvm.compile(sch.mod, target="llvm")
 
         a = tvm.nd.array(np.full((n,), -1000, "float32"))
         b = tvm.nd.empty((n,), "float32")
@@ -704,7 +701,7 @@ def test_dwarf_debug_information():
                 "fadd2": sch.mod["main"].with_attr("global_symbol", "fadd2"),
             }
         )
-        m = tvm.build(mod, target="llvm")
+        m = tvm.compile(mod, target="llvm")
         temp = utils.tempdir()
         o_path = temp.relpath("temp.o")
         m.save(o_path)
@@ -742,7 +739,7 @@ def test_dwarf_debug_information():
                 "fadd2": sch.mod["main"].with_attr("global_symbol", "fadd2"),
             }
         )
-        m = tvm.build(mod, target="llvm -mtriple=aarch64-linux-gnu")
+        m = tvm.tir.build(mod, target="llvm -mtriple=aarch64-linux-gnu")
         ll = m.get_source("ll")
 
         # On non-Darwin OS, don't explicitly specify DWARF version.
@@ -752,7 +749,7 @@ def test_dwarf_debug_information():
         assert re.search(r"""llvm.dbg.value""", ll)
 
         # Try Darwin, require DWARF-2
-        m = tvm.build(mod, target="llvm -mtriple=x86_64-apple-darwin-macho")
+        m = tvm.tir.build(mod, target="llvm -mtriple=x86_64-apple-darwin-macho")
         ll = m.get_source("ll")
         assert re.search(r"""i32 4, !"Dwarf Version", i32 2""", ll)
         assert re.search(r"""llvm.dbg.value""", ll)
@@ -808,7 +805,7 @@ def test_llvm_bf16():
         if do_vectorize:
             sch.vectorize(loop)
 
-        module = tvm.build(sch.mod, target="llvm")
+        module = tvm.compile(sch.mod, target="llvm")
         npa = np.random.rand(32).astype("float32")
         npb = np.random.rand(32).astype("float32")
         va = np_bf16_cast_and_cast_back(npa)
@@ -830,7 +827,7 @@ def test_llvm_crt_static_lib():
     B = te.placeholder((32,), dtype="bfloat16")
     d = te.compute((32,), lambda x: A[x] + B[x])
     mod = tvm.IRModule.from_expr(te.create_prim_func([A, B, d]))
-    module = tvm.build(
+    module = tvm.tir.build(
         mod.with_attr("system_lib_prefix", ""),
         target=tvm.target.Target("llvm"),
     )
@@ -860,7 +857,7 @@ def test_llvm_order_functions():
         "Kirby": make_call_extern("Kirby", "Fred"),
     }
     mod = tvm.IRModule(functions=functions)
-    ir_text = tvm.build(mod, target="llvm").get_source("ll")
+    ir_text = tvm.tir.build(mod, target="llvm").get_source("ll")
     # Skip functions whose names start with _.
     matches = re.findall(r"^define[^@]*@([a-zA-Z][a-zA-Z0-9_]*)", ir_text, re.MULTILINE)
     assert matches == sorted(matches)
@@ -896,7 +893,7 @@ def test_llvm_import():
         else:
             sch.annotate(sch.get_loops("B")[0], "pragma_import_llvm", ll_code)
         # BUILD and invoke the kernel.
-        f = tvm.build(sch.mod, target="llvm")
+        f = tvm.compile(sch.mod, target="llvm")
         dev = tvm.cpu(0)
         # launch the kernel.
         a = tvm.nd.array(np.random.uniform(size=n).astype(A.dtype), dev)
@@ -921,7 +918,7 @@ def test_llvm_scalar_concat():
     # This will crash in LLVM codegen if CodeGenLLVM::CreateVecConcat doesn't convert
     # scalars to single-lane LLVM vectors.
     with tvm.transform.PassContext(config={"tir.disable_assert": True}):
-        m = tvm.build(mod, target="llvm")
+        m = tvm.compile(mod, target="llvm")
 
 
 @tvm.testing.requires_llvm
@@ -936,7 +933,7 @@ def test_raise_exception_during_codegen():
                 B[i, j] = A[i, j] * 2.0
 
     with pytest.raises(tvm.TVMError) as e:
-        tvm.build(tvm.IRModule.from_expr(threadpool_nested_parallel_loop), target="llvm")
+        tvm.compile(tvm.IRModule.from_expr(threadpool_nested_parallel_loop), target="llvm")
     msg = str(e)
     assert msg.find("Nested parallel loop is not supported") != -1
 
@@ -959,7 +956,7 @@ def test_llvm_target_attributes():
 
     target_llvm = "llvm -mtriple=x86_64-linux-gnu -mcpu=skylake -mattr=+avx512f"
     target = tvm.target.Target(target_llvm, host=target_llvm)
-    module = tvm.build(sch.mod, target=target)
+    module = tvm.tir.build(sch.mod, target=target)
 
     llvm_ir = module.get_source()
     llvm_ir_lines = llvm_ir.split("\n")
@@ -1010,7 +1007,7 @@ def test_llvm_assume():
     mod = tvm.IRModule.from_expr(tir_assume_func)
     inp = te.placeholder((4, 4), name="A", dtype="int32")
     out = te.placeholder((14,), name="B", dtype="int32")
-    m = tvm.build(mod, target="llvm")
+    m = tvm.compile(mod, target="llvm")
 
 
 @tvm.testing.requires_llvm
@@ -1030,7 +1027,7 @@ def test_debug_symbol_for_float64():
         for i in range(n):
             B[i] = A[i]
 
-    tvm.build(func, target="llvm")
+    tvm.compile(func, target="llvm")
 
 
 @tvm.testing.requires_llvm
@@ -1053,7 +1050,7 @@ def test_subroutine_call():
     target = "llvm"
     dev = tvm.cpu()
 
-    built = tvm.build(mod)
+    built = tvm.compile(mod)
 
     arr = tvm.nd.array(np.zeros([1], "float32"), device=dev)
     built["main"](arr)
@@ -1086,7 +1083,7 @@ def test_call_packed_returning_void():
 
     # Error occurred during build, as part of
     # CodeGenCPU::MakeCallPackedLowered.
-    built = tvm.build(func, target="llvm")
+    built = tvm.compile(func, target="llvm")
 
 
 @tvm.testing.requires_llvm
@@ -1105,7 +1102,7 @@ def test_call_packed_without_string_arg():
         T.Call("int32", tvm.ir.Op.get("tir.tvm_call_packed"), [A.data])
 
     with pytest.raises(tvm.TVMError):
-        built = tvm.build(func, target="llvm")
+        built = tvm.compile(func, target="llvm")
 
 
 @tvm.testing.requires_llvm
@@ -1117,7 +1114,7 @@ def test_call_extern_returning_void():
         T.func_attr({"global_symbol": "func"})
         T.Call("void", tvm.ir.Op.get("tir.call_extern"), ["dummy_function_name"])
 
-    built = tvm.build(func, target="llvm")
+    built = tvm.compile(func, target="llvm")
 
 
 def test_invalid_volatile_masked_buffer_load():
@@ -1132,7 +1129,7 @@ def test_invalid_volatile_masked_buffer_load():
     err_msg = "The masked load intrinsic does not support declaring load as volatile."
     with pytest.raises(tvm.TVMError, match=err_msg):
         with tvm.target.Target("llvm"):
-            tvm.build(func)
+            tvm.compile(func)
 
 
 def test_invalid_volatile_masked_buffer_store():
@@ -1146,7 +1143,7 @@ def test_invalid_volatile_masked_buffer_store():
     err_msg = "The masked store intrinsic does not support declaring store as volatile."
     with pytest.raises(tvm.TVMError, match=err_msg):
         with tvm.target.Target("llvm"):
-            tvm.build(func)
+            tvm.compile(func)
 
 
 def test_int_parameter():
@@ -1160,7 +1157,7 @@ def test_int_parameter():
         else:
             return 20
 
-    built = tvm.build(func)
+    built = tvm.compile(func)
     output = built(True)
     assert output == 10
 
@@ -1179,7 +1176,7 @@ def test_bool_parameter():
         else:
             return 20
 
-    built = tvm.build(func)
+    built = tvm.compile(func)
     output = built(1)
     assert output == 10
 
@@ -1198,7 +1195,7 @@ def test_bool_return_value():
         T.func_attr({"target": T.target("llvm")})
         return value < 10
 
-    built = tvm.build(func)
+    built = tvm.compile(func)
     assert isinstance(built(0), bool)
     assert built(0)
 
