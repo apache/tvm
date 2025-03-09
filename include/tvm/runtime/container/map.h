@@ -1251,8 +1251,8 @@ inline void MapNode::InsertMaybeReHash(const KVType& kv, ObjectPtr<Object>* map)
   }
 }
 
-//template <>
-//inline ObjectPtr<MapNode> make_object<>() = delete;
+// template <>
+// inline ObjectPtr<MapNode> make_object<>() = delete;
 
 #endif
 

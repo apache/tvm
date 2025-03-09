@@ -905,13 +905,13 @@ inline Array<T> Concat(Array<T> lhs, const Array<T>& rhs) {
 
 }  // namespace runtime
 
-namespace ffi{
+namespace ffi {
 // Specialize make_object<ArrayNode> to make sure it is correct.
 template <>
 inline ObjectPtr<tvm::runtime::ArrayNode> make_object() {
   return tvm::runtime::ArrayNode::Empty();
 }
-}
+}  // namespace ffi
 // expose the functions to the root namespace.
 using runtime::Array;
 using runtime::ArrayNode;

@@ -641,14 +641,16 @@ class TVMPODValue_ {
       return Module(ObjectPtr<Object>(nullptr));
     }
     TVM_CHECK_TYPE_CODE(type_code_, kTVMModuleHandle);
-    return Module(ffi::details::ObjectUnsafe::ObjectPtrFromUnowned<Object>(static_cast<Object*>(value_.v_handle)));
+    return Module(ffi::details::ObjectUnsafe::ObjectPtrFromUnowned<Object>(
+        static_cast<Object*>(value_.v_handle)));
   }
   operator PackedFunc() const {
     if (type_code_ == kTVMNullptr) {
       return PackedFunc(ObjectPtr<Object>(nullptr));
     }
     TVM_CHECK_TYPE_CODE(type_code_, kTVMPackedFuncHandle);
-    return PackedFunc(ffi::details::ObjectUnsafe::ObjectPtrFromUnowned<Object>(static_cast<Object*>(value_.v_handle)));
+    return PackedFunc(ffi::details::ObjectUnsafe::ObjectPtrFromUnowned<Object>(
+        static_cast<Object*>(value_.v_handle)));
   }
   operator Device() const {
     TVM_CHECK_TYPE_CODE(type_code_, kDLDevice);

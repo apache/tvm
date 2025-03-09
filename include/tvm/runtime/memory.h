@@ -28,8 +28,8 @@
 namespace tvm {
 namespace runtime {
 
-using tvm::ffi::make_object;
 using tvm::ffi::make_inplace_array_object;
+using tvm::ffi::make_object;
 
 }  // namespace runtime
 }  // namespace tvm

@@ -160,7 +160,7 @@ class Object {
    */
   static int32_t _GetOrAllocRuntimeTypeIndex() { return TypeIndex::kTVMFFIObject; }
 
-  private:
+ private:
   /*! \brief increase reference count */
   void IncRef() { details::AtomicIncrementRelaxed(&(header_.ref_counter)); }
 
@@ -426,21 +426,20 @@ struct ObjectPtrEqual {
   }
 };
 
-
 // If dynamic type is enabled, we still need to register the runtime type of parent
-#define TVM_FFI_REGISTER_STATIC_TYPE_INFO(TypeName, ParentType)                \
-  static constexpr int32_t _type_depth = ParentType::_type_depth + 1;            \
-  static int32_t _GetOrAllocRuntimeTypeIndex() {                               \
+#define TVM_FFI_REGISTER_STATIC_TYPE_INFO(TypeName, ParentType)                             \
+  static constexpr int32_t _type_depth = ParentType::_type_depth + 1;                       \
+  static int32_t _GetOrAllocRuntimeTypeIndex() {                                            \
     static_assert(!ParentType::_type_final, "ParentType marked as final");                  \
     static_assert(TypeName::_type_child_slots == 0 || ParentType::_type_child_slots == 0 || \
                       TypeName::_type_child_slots < ParentType::_type_child_slots,          \
                   "Need to set _type_child_slots when parent specifies it.");               \
-    static int32_t tindex = TVMFFIGetOrAllocTypeIndex(                         \
-        TypeName::_type_key, TypeName::_type_index, TypeName::_type_depth,     \
-        TypeName::_type_child_slots, TypeName::_type_child_slots_can_overflow, \
-        ParentType::_GetOrAllocRuntimeTypeIndex());                            \
-    return tindex;                                                             \
-  }                                                                            \
+    static int32_t tindex = TVMFFIGetOrAllocTypeIndex(                                      \
+        TypeName::_type_key, TypeName::_type_index, TypeName::_type_depth,                  \
+        TypeName::_type_child_slots, TypeName::_type_child_slots_can_overflow,              \
+        ParentType::_GetOrAllocRuntimeTypeIndex());                                         \
+    return tindex;                                                                          \
+  }                                                                                         \
   static inline int32_t _register_type_index = _GetOrAllocRuntimeTypeIndex()
 
 /*!
@@ -451,7 +450,6 @@ struct ObjectPtrEqual {
 #define TVM_FFI_DECLARE_STATIC_OBJECT_INFO(TypeName, ParentType)      \
   static int32_t RuntimeTypeIndex() { return TypeName::_type_index; } \
   TVM_FFI_REGISTER_STATIC_TYPE_INFO(TypeName, ParentType);
-
 
 /*
  * \brief Define object reference methods.
@@ -505,13 +503,12 @@ struct ObjectPtrEqual {
  * \param ObjectName The type name of the object.
  */
 #define TVM_FFI_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(TypeName, ParentType, ObjectName) \
-  explicit TypeName(::tvm::ffi::ObjectPtr<::tvm::ffi::Object> n) : ParentType(n) {}         \
-  TVM_DEFINE_DEFAULT_COPY_MOVE_AND_ASSIGN(TypeName);                                        \
-  ObjectName* operator->() const { return static_cast<ObjectName*>(data_.get()); }          \
-  ObjectName* get() const { return operator->(); }                                          \
-  static constexpr bool _type_is_nullable = false;                                          \
+  explicit TypeName(::tvm::ffi::ObjectPtr<::tvm::ffi::Object> n) : ParentType(n) {}             \
+  TVM_DEFINE_DEFAULT_COPY_MOVE_AND_ASSIGN(TypeName);                                            \
+  ObjectName* operator->() const { return static_cast<ObjectName*>(data_.get()); }              \
+  ObjectName* get() const { return operator->(); }                                              \
+  static constexpr bool _type_is_nullable = false;                                              \
   using ContainerType = ObjectName;
-
 
 namespace details {
 template <typename TargetType>

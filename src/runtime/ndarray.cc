@@ -105,8 +105,7 @@ struct NDArray::Internal {
     auto* ptr = static_cast<NDArray::Container*>(ptr_obj);
     if (ptr->manager_ctx != nullptr) {
       ffi::details::ObjectUnsafe::DecRefObjectHandle(
-        static_cast<NDArray::Container*>(ptr->manager_ctx)
-      );
+          static_cast<NDArray::Container*>(ptr->manager_ctx));
     } else if (ptr->dl_tensor.data != nullptr) {
       tvm::runtime::DeviceAPI::Get(ptr->dl_tensor.device)
           ->FreeDataSpace(ptr->dl_tensor.device, ptr->dl_tensor.data);
@@ -179,7 +178,8 @@ struct NDArray::Internal {
   }
   // Delete dlpack object.
   static void NDArrayDLPackDeleter(DLManagedTensor* tensor) {
-    ffi::details::ObjectUnsafe::DecRefObjectHandle(static_cast<NDArray::Container*>(tensor->manager_ctx));
+    ffi::details::ObjectUnsafe::DecRefObjectHandle(
+        static_cast<NDArray::Container*>(tensor->manager_ctx));
     delete tensor;
   }
 };
@@ -368,9 +368,8 @@ void TVMNDArrayDLPackDeleter(DLManagedTensor* tensor) {
 
 int TVMArrayGetTypeIndex(TVMArrayHandle handle, unsigned* out_tindex) {
   API_BEGIN();
-  *out_tindex = tvm::ffi::details::ObjectUnsafe::GetHeader(
-    TVMArrayHandleToObjectHandle(handle)
-  )->type_index;
+  *out_tindex =
+      tvm::ffi::details::ObjectUnsafe::GetHeader(TVMArrayHandleToObjectHandle(handle))->type_index;
   API_END();
 }
 
