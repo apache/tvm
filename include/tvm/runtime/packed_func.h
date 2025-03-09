@@ -641,14 +641,14 @@ class TVMPODValue_ {
       return Module(ObjectPtr<Object>(nullptr));
     }
     TVM_CHECK_TYPE_CODE(type_code_, kTVMModuleHandle);
-    return Module(details::ObjectUnsafe::ObjectPtrFromUnowned<Object>(static_cast<Object*>(value_.v_handle)));
+    return Module(ffi::details::ObjectUnsafe::ObjectPtrFromUnowned<Object>(static_cast<Object*>(value_.v_handle)));
   }
   operator PackedFunc() const {
     if (type_code_ == kTVMNullptr) {
       return PackedFunc(ObjectPtr<Object>(nullptr));
     }
     TVM_CHECK_TYPE_CODE(type_code_, kTVMPackedFuncHandle);
-    return PackedFunc(details::ObjectUnsafe::ObjectPtrFromUnowned<Object>(static_cast<Object*>(value_.v_handle)));
+    return PackedFunc(ffi::details::ObjectUnsafe::ObjectPtrFromUnowned<Object>(static_cast<Object*>(value_.v_handle)));
   }
   operator Device() const {
     TVM_CHECK_TYPE_CODE(type_code_, kDLDevice);
@@ -1199,7 +1199,7 @@ class TVMRetValue : public TVMPODValue_CRTP_<TVMRetValue> {
     if (other != nullptr) {
       this->Clear();
       type_code_ = type_code;
-      value_.v_handle = details::ObjectUnsafe::MoveTVMFFIObjectPtrFromObjectPtr(&other);
+      value_.v_handle = ffi::details::ObjectUnsafe::MoveTVMFFIObjectPtrFromObjectPtr(&other);
     } else {
       SwitchToPOD(kTVMNullptr);
       value_.v_handle = nullptr;
@@ -1213,18 +1213,18 @@ class TVMRetValue : public TVMPODValue_CRTP_<TVMRetValue> {
         delete ptr<std::string>();
         break;
       case kTVMPackedFuncHandle:
-        details::ObjectUnsafe::DecRefObjectHandle(static_cast<Object*>(value_.v_handle));
+        ffi::details::ObjectUnsafe::DecRefObjectHandle(static_cast<Object*>(value_.v_handle));
         break;
       case kTVMNDArrayHandle: {
         NDArray::FFIDecRef(static_cast<TVMArrayHandle>(value_.v_handle));
         break;
       }
       case kTVMModuleHandle: {
-        details::ObjectUnsafe::DecRefObjectHandle(static_cast<Object*>(value_.v_handle));
+        ffi::details::ObjectUnsafe::DecRefObjectHandle(static_cast<Object*>(value_.v_handle));
         break;
       }
       case kTVMObjectHandle: {
-        details::ObjectUnsafe::DecRefObjectHandle(static_cast<Object*>(value_.v_handle));
+        ffi::details::ObjectUnsafe::DecRefObjectHandle(static_cast<Object*>(value_.v_handle));
         break;
       }
     }
@@ -2096,7 +2096,7 @@ inline void TVMArgsSetter::SetObject(size_t i, T&& value) const {
     return;
   }
 
-  Object* ptr = details::ObjectUnsafe::GetRawObjectPtrFromObjectRef(value);
+  Object* ptr = ffi::details::ObjectUnsafe::GetRawObjectPtrFromObjectRef(value);
   if constexpr (std::is_base_of_v<NDArray::ContainerType, ContainerType> ||
                 std::is_base_of_v<ContainerType, NDArray::ContainerType>) {
     if (std::is_base_of_v<NDArray::ContainerType, ContainerType> ||
@@ -2187,7 +2187,7 @@ inline void TVMArgsSetter::SetObject(size_t i, T&& value) const {
     type_codes_[i] = kTVMObjectRValueRefArg;
   } else {
     // value.data_.data_;
-    values_[i].v_handle = details::ObjectUnsafe::GetTVMFFIObjectPtrFromObjectRef(value);
+    values_[i].v_handle = ffi::details::ObjectUnsafe::GetTVMFFIObjectPtrFromObjectRef(value);
     type_codes_[i] = kTVMObjectHandle;
   }
 }
@@ -2439,7 +2439,7 @@ inline TVMMovableArgValue_::operator T() const {
   if (type_code_ == kTVMObjectRValueRefArg) {
     auto** ref = static_cast<Object**>(value_.v_handle);
     if (ObjectTypeChecker<T>::Check(*ref)) {
-      return T(details::ObjectUnsafe::MoveObjectPtrFromRValueRef<Object>(ref));
+      return T(ffi::details::ObjectUnsafe::MoveObjectPtrFromRValueRef<Object>(ref));
     }
   }
   // fallback

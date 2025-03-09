@@ -44,7 +44,8 @@ class ObjectInternal {
    */
   static void ObjectRetain(TVMObjectHandle obj) {
     if (obj != nullptr) {
-      static_cast<Object*>(obj)->IncRef();
+      // static_cast<Object*>(obj)->IncRef();
+      tvm::ffi::details::ObjectUnsafe::IncRefObjectHandle(obj);
     }
   }
 
@@ -53,7 +54,8 @@ class ObjectInternal {
    */
   static void ObjectFree(TVMObjectHandle obj) {
     if (obj != nullptr) {
-      static_cast<Object*>(obj)->DecRef();
+      // static_cast<Object*>(obj)->DecRef();
+      tvm::ffi::details::ObjectUnsafe::DecRefObjectHandle(obj);
     }
   }
   /*!

@@ -33,7 +33,16 @@ namespace runtime {
 
 template<typename T>
 class Optional;
-using namespace tvm::ffi;
+
+using tvm::ffi::Object;
+using tvm::ffi::ObjectPtr;
+using tvm::ffi::ObjectPtrEqual;
+using tvm::ffi::ObjectPtrHash;
+
+using tvm::ffi::Downcast;
+using tvm::ffi::GetRef;
+using tvm::ffi::GetObjectPtr;
+
 
 /*!
  * \brief Namespace for the list of type index.
@@ -113,7 +122,7 @@ class ObjectRef : public tvm::ffi::ObjectRef {
    * \param ref The reference data.
    */
   static void FFIClearAfterMove(ObjectRef* ref) {
-    details::ObjectUnsafe::LegacyClearObjectPtrAfterMove(ref);
+    ffi::details::ObjectUnsafe::LegacyClearObjectPtrAfterMove(ref);
   }
   /*!
    * \brief Internal helper function get data_ as ObjectPtr of ObjectType.
