@@ -53,7 +53,7 @@ def verify_model(torch_model, input_info, opt_config=None):
 
     def _run_relax(relax_mod):
         relax_mod = tvm.relax.transform.LegalizeOps()(relax_mod)
-        relax_exec = tvm.relax.build(relax_mod, target)
+        relax_exec = tvm.compile(relax_mod, target)
         vm_runner = tvm.relax.VirtualMachine(relax_exec, dev)
         res = vm_runner["main"](*args)
         return _tvm_runtime_to_np(res)

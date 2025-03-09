@@ -49,7 +49,7 @@ def build_and_run(mod, inputs_np, target, legalize=False, cuda_graph=False):
             "relax.transform.apply_legalize_ops": legalize,
         }
     ):
-        ex = relax.build(mod, target)
+        ex = tvm.compile(mod, target)
     vm = relax.VirtualMachine(ex, dev)
     f = vm["main"]
     inputs = [tvm.nd.array(inp, dev) for inp in inputs_np]

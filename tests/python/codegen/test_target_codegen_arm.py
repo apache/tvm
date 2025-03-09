@@ -17,8 +17,6 @@
 import tvm
 from tvm import te
 import re
-import os
-import ctypes
 
 
 def test_popcount():
@@ -30,7 +28,7 @@ def test_popcount():
         B = te.compute(A.shape, lambda i: tvm.tir.popcount(A[i]), name="B")
         sch = tvm.tir.Schedule(te.create_prim_func([A, B]))
         sch.vectorize(sch.get_loops("B")[0])
-        f = tvm.build(sch.mod, target=target)
+        f = tvm.tir.build(sch.mod, target=target)
         # Verify we see the correct number of vpaddl and vcnt instructions in the assembly
         assembly = f.get_source("asm")
         matches = re.findall("vpaddl", assembly)
@@ -60,7 +58,7 @@ def test_vmlal_s16():
         )
         sch = tvm.tir.Schedule(te.create_prim_func([A, B, C]))
         sch.vectorize(sch.get_loops("C")[0])
-        f = tvm.build(sch.mod, target=target)
+        f = tvm.tir.build(sch.mod, target=target)
 
         # Verify we see the correct number of vmlal.s16 instructions
         assembly = f.get_source("asm")
@@ -84,7 +82,7 @@ def test_vmlal_s16():
         )
         sch = tvm.tir.Schedule(te.create_prim_func([A, B, C]))
         sch.vectorize(sch.get_loops("C")[0])
-        f = tvm.build(sch.mod, target=target)
+        f = tvm.tir.build(sch.mod, target=target)
 
         # Verify we see the correct number of vmlal.s16 instructions
         assembly = f.get_source("asm")

@@ -46,7 +46,7 @@ def get_exec(data_shape):
     mod = relax.transform.BindParams("main", params)(mod)
 
     target = "llvm"
-    return relax.build(mod, target)
+    return tvm.compile(mod, target)
 
 
 def get_exec_int32(data_shape):
@@ -61,7 +61,7 @@ def get_exec_int32(data_shape):
 
     mod = builder.get()
     target = "llvm"
-    return relax.build(mod, target)
+    return tvm.compile(mod, target)
 
 
 def test_conv2d_cpu():

@@ -31,7 +31,7 @@ def test_rocm_inf_nan():
         xo, xi = sch.split(sch.get_loops("C")[0], factors=[None, 128])
         sch.bind(xo, "blockIdx.x")
         sch.bind(xi, "threadIdx.x")
-        fun = tvm.build(sch.mod, "rocm")
+        fun = tvm.compile(sch.mod, "rocm")
         a = tvm.nd.empty((n,), A.dtype, dev)
         c = tvm.nd.empty((n,), A.dtype, dev)
         # Only need to test compiling here
@@ -76,7 +76,7 @@ def test_rocm_vectorize_add():
         xo, xi = sch.split(sch.get_loops("B")[0], factors=[None, 4])
         sch.bind(xo, "blockIdx.x")
         sch.bind(xi, "threadIdx.x")
-        fun = tvm.build(sch.mod, target="rocm")
+        fun = tvm.compile(sch.mod, target="rocm")
 
         dev = tvm.rocm(0)
         a = tvm.nd.empty((n,), A.dtype, dev).copyfrom(np.random.uniform(size=(n, lanes)))
@@ -107,7 +107,7 @@ def test_rocm_warp_shuffle():
                     A_local[0] = T.tvm_warp_shuffle(mask[0], A_local[0], 0, 32, 32)
                     A[tx] = A_local[0]
 
-    mod = tvm.build(func, target="rocm")
+    mod = tvm.compile(func, target="rocm")
     dev = tvm.rocm(0)
     a = tvm.nd.array(np.random.uniform(size=(32,)).astype("float32"), dev)
     mod(a)
@@ -130,7 +130,7 @@ def test_rocm_vectorized_exp():
                     for i in T.vectorized(0, 4):
                         B[i] = T.exp2(A[i])
 
-    mod = tvm.build(func, target="rocm")
+    mod = tvm.compile(func, target="rocm")
     dev = tvm.rocm(0)
     a = tvm.nd.array(np.ones((4,)).astype("float32"), dev)
     b = tvm.nd.array(np.zeros((4,)).astype("float32"), dev)

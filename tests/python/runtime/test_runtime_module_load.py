@@ -62,7 +62,7 @@ def test_dso_module_load(target):
         mod = tvm.IRModule.from_expr(
             tvm.tir.PrimFunc([Ab], stmt).with_attr("global_symbol", "main")
         )
-        m = tvm.driver.build(mod, target=target)
+        m = tvm.tir.build(mod, target=target)
         for name in names:
             m.save(name)
 
@@ -114,7 +114,7 @@ def test_device_module_dump():
             print("Skip because %s is not enabled" % device)
             return
         temp = utils.tempdir()
-        f = tvm.build(sch.mod, target=device)
+        f = tvm.compile(sch.mod, target=device)
 
         path_dso = temp.relpath("dev_lib.so")
         # test cross compiler function
@@ -122,7 +122,6 @@ def test_device_module_dump():
 
         def popen_check():
             import tvm
-            import sys
 
             f1 = tvm.runtime.load_module(path_dso)
             a = tvm.nd.array(np.random.uniform(size=1024).astype(A.dtype), dev)
@@ -135,24 +134,20 @@ def test_device_module_dump():
         worker.send(popen_check)
         worker.recv()
 
-    def check_stackvm(device):
+    def check_c(device):
         dev = tvm.device(device, 0)
         if not tvm.testing.device_enabled(device):
             print("Skip because %s is not enabled" % device)
             return
-        temp = utils.tempdir()
-        f = tvm.build(sch.mod, target=tvm.target.Target(device, host="stackvm"))
-        path_dso = temp.relpath("dev_lib.stackvm")
-        f.export_library(path_dso)
-        f1 = tvm.runtime.load_module(path_dso)
+        f = tvm.compile(sch.mod, target=tvm.target.Target(device, host="c"))
         a = tvm.nd.array(np.random.uniform(size=1024).astype(A.dtype), dev)
         b = tvm.nd.array(np.zeros(1024, dtype=A.dtype), dev)
-        f(a, b)
+        f["main"](a, b)
         np.testing.assert_equal(b.numpy(), a.numpy() + 1)
 
     for device in ["cuda", "vulkan", "opencl", "metal"]:
         check_device(device)
-        check_stackvm(device)
+        check_c(device)
 
 
 @tvm.testing.requires_llvm
@@ -169,8 +164,8 @@ def test_combine_module_llvm():
     def check_llvm():
         dev = tvm.cpu(0)
         temp = utils.tempdir()
-        fadd1 = tvm.build(mod1, "llvm")
-        fadd2 = tvm.build(mod2, "llvm")
+        fadd1 = tvm.tir.build(mod1, "llvm")
+        fadd2 = tvm.tir.build(mod2, "llvm")
         path1 = temp.relpath("myadd1.o")
         path2 = temp.relpath("myadd2.o")
         path_dso = temp.relpath("mylib.so")
@@ -195,8 +190,8 @@ def test_combine_module_llvm():
             return
         temp = utils.tempdir()
         print("Running popen check")
-        fadd1 = tvm.build(mod1.with_attr("system_lib_prefix", ""), "llvm")
-        fadd2 = tvm.build(mod2.with_attr("system_lib_prefix", ""), "llvm")
+        fadd1 = tvm.tir.build(mod1.with_attr("system_lib_prefix", ""), "llvm")
+        fadd2 = tvm.tir.build(mod2.with_attr("system_lib_prefix", ""), "llvm")
         path1 = temp.relpath("myadd1.o")
         path2 = temp.relpath("myadd2.o")
         path_dso = temp.relpath("mylib.so")

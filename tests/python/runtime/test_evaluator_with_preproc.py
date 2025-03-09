@@ -15,12 +15,12 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import tvm
-from tvm import te
-from tvm.script import tir as T
-import tvm.testing
 import numpy as np
 import pytest
+
+import tvm
+import tvm.testing
+from tvm.script import tir as T
 
 
 @T.prim_func
@@ -45,7 +45,7 @@ def test_time_evalutor_with_preproc(f_preproc: str):
     i, j, k = sch.get_loops(blk)
     sch.bind(i, "blockIdx.x")
     sch.bind(j, "threadIdx.x")
-    f = tvm.build(sch.mod["main"], target="cuda")
+    f = tvm.tir.build(sch.mod["main"], target="cuda")
     dev = tvm.cuda(0)
     evaluator = f.time_evaluator(f.entry_name, dev, repeat=1000, number=1, f_preproc=f_preproc)
 

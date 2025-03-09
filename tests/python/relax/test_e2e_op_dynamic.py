@@ -28,7 +28,7 @@ target, dev = "llvm", tvm.cpu()
 
 
 def build(mod):
-    exe = relax.build(mod, target=target)
+    exe = tvm.compile(mod, target=target)
     return relax.VirtualMachine(exe, dev)
 
 

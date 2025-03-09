@@ -253,7 +253,7 @@ class TestMaxPool2D:
                     block="tensor", buffer="placeholder", index_map=_int8_nhwc_8h8w32c_map
                 )
 
-                built_module = tvm.build(
+                built_module = tvm.compile(
                     sch.mod,
                     target=get_hexagon_target("v69"),
                 )
