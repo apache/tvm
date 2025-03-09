@@ -119,7 +119,7 @@ def check_correctness(
     # "llvm" should be good for this check
     target = tvm.target.Target("llvm", host="llvm")
     # Compile and run
-    ex = relax.build(ir_mod, target)
+    ex = tvm.compile(ir_mod, target)
     vm = relax.VirtualMachine(ex, tvm.cpu())
     vm.set_input("main", *inputs_np)
     vm.invoke_stateful("main")
@@ -156,7 +156,7 @@ def get_vm_res(
     """
     target = tvm.target.Target("llvm", host="llvm")
     # Compile and run
-    ex = relax.build(ir_mod, target)
+    ex = tvm.compile(ir_mod, target)
     vm = relax.VirtualMachine(ex, tvm.cpu())
     vm.set_input("main", *weights)
     vm.invoke_stateful("main")

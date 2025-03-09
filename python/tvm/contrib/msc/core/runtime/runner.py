@@ -1453,14 +1453,14 @@ class BYOCRunner(BaseRunner):
         if self._device == "cpu":
             target = tvm.target.Target("llvm")
             with tvm.transform.PassContext(opt_level=3):
-                self._executable = tvm.relax.build(model, target)
+                self._executable = tvm.compile(model, target)
                 runnable = tvm.relax.VirtualMachine(self._executable, tvm.cpu())
         elif self._device.startswith("cuda"):
             target = tvm.target.Target("cuda")
             with target:
                 model = tvm.tir.transform.DefaultGPUSchedule()(model)
             with tvm.transform.PassContext(opt_level=3):
-                self._executable = tvm.relax.build(model, target)
+                self._executable = tvm.compile(model, target)
                 runnable = tvm.relax.VirtualMachine(self._executable, tvm.cuda())
         else:
             raise NotImplementedError("Unsupported device " + str(self._device))

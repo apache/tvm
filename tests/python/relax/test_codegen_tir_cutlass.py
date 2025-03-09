@@ -54,19 +54,13 @@ def build(mod):
     mod = relax.transform.FuseTIR()(mod)
     mod = relax.transform.SplitCallTIRByPattern(get_tir_pattern(), cutlass_fcodegen())(mod)
     mod = relax.transform.DeadCodeElimination()(mod)
-    print(mod.script())
-    f = tempfile.NamedTemporaryFile(suffix=".so", delete=True)
-    executable = relax_build(mod, target)
-
-    executable.mod.export_library(f.name, **compile_options(target))
-    rt_mod = runtime.load_module(f.name)
-    f.close()
-    return rt_mod
+    executable = tvm.compile(mod, target)
+    return executable.jit(**compile_options(target))
 
 
 def build_and_run_reference(mod, inputs_np):
     dev = tvm.device("llvm", 0)
-    ex = relax.build(mod, "llvm")
+    ex = tvm.compile(mod, "llvm")
     vm = relax.VirtualMachine(ex, dev)
     f = vm["main"]
     inputs = [tvm.nd.array(inp, dev) for inp in inputs_np]

@@ -60,11 +60,11 @@ def test_bind_params(use_np_array):
     assert len(mod["main"].params) == 1
 
     target = tvm.target.Target("llvm")
-    ex_after = relax.build(mod, target)
+    ex_after = tvm.compile(mod, target)
     vm_after = relax.VirtualMachine(ex_after, tvm.cpu())
     res_after = vm_after["main"](x_tvm)
 
-    ex_before = relax.build(InputModule, target)
+    ex_before = tvm.compile(InputModule, target)
     vm_before = relax.VirtualMachine(ex_before, tvm.cpu())
     res_before = vm_before["main"](x_tvm, w_tvm)
 

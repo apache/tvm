@@ -366,7 +366,7 @@ def test_value():
 
         after = generate_take_op.PassReplaceWithTakeOpPrimFuncs()(before)
         target = tvm.target.Target("llvm", host="llvm")
-        ex = relax.build(after, target, exec_mode="compiled")
+        ex = tvm.compile(after, target, exec_mode="compiled")
         vm = relax.VirtualMachine(ex, tvm.cpu())
         res = vm["main"](inp_quant)
 

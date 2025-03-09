@@ -205,7 +205,7 @@ mod.show()
 # --------------------------
 # We can build and deploy the optimized model to the TVM runtime.
 
-ex = relax.build(mod, target="cuda")
+ex = tvm.compile(mod, target="cuda")
 dev = tvm.device("cuda", 0)
 vm = relax.VirtualMachine(ex, dev)
 # Need to allocate data and params on GPU device

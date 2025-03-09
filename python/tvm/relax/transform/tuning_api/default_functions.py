@@ -176,7 +176,7 @@ def default_evaluate(
         ):
             if params:
                 mod = tvm.relax.transform.BindParams("main", params)(mod)
-            relax_exec = tvm.relax.build(mod, target)
+            relax_exec = tvm.compile(mod, target)
             return relax_exec.mod
 
         builder = LocalBuilder(f_build=relax_build)

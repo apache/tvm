@@ -531,7 +531,7 @@ def test_insert_inplace_calls():
     expected = np.zeros((2, 3), dtype="float32")
 
     target = tvm.target.Target("llvm")
-    ex = relax.build(new_mod, target)
+    ex = tvm.compile(new_mod, target)
     vm = relax.VirtualMachine(ex, tvm.cpu())
     res = vm["main"](x, y)
     assert (expected == res.numpy()).all()
@@ -614,7 +614,7 @@ def test_dynamic():
     expected = np.zeros((2, 3), dtype="float32")
 
     target = tvm.target.Target("llvm")
-    ex = relax.build(new_mod, target)
+    ex = tvm.compile(new_mod, target)
     vm = relax.VirtualMachine(ex, tvm.cpu())
     res = vm["main"](x, y)
     assert (expected == res.numpy()).all()

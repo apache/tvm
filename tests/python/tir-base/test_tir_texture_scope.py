@@ -56,7 +56,7 @@ def test_texture_scope():
     schedule_block(sch.get_block("C"))
 
     target = tvm.target.Target("opencl")
-    mod = tvm.build(sch.mod["main"], target=target)
+    mod = tvm.compile(sch.mod["main"], target=target)
 
 
 if __name__ == "__main__":

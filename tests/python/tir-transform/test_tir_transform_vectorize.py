@@ -363,7 +363,7 @@ def test_vectorize_while_fail():
     )
 
     try:
-        tvm.build(te.create_prim_func([A, B, C]), target="llvm")
+        tvm.compile(te.create_prim_func([A, B, C]), target="llvm")
         assert False
     except tvm.error.TVMError as e:
         error_msg = str(e).split("\n")[-1]
@@ -796,7 +796,7 @@ def test_vectorize_llvm_pure_intrin(extent, vec_str, target):
     with tvm.target.Target(target):
         mod = tvm.tir.transform.VectorizeLoop()(Before)
         tvm.ir.assert_structural_equal(mod, After)
-        mod = tvm.build(mod, target=target)
+        mod = tvm.compile(mod, target=target)
 
 
 @pytest.mark.parametrize(
@@ -824,7 +824,7 @@ def test_vectorize_llvm_pure_intrin_fail(extent, vec_str, target):
     with pytest.raises(Exception) as e_info:
         with tvm.target.Target(target):
             mod = tvm.tir.transform.VectorizeLoop()(Before)
-            ex = tvm.build(mod, target=target)
+            ex = tvm.compile(mod, target=target)
     tvm.ir.assert_structural_equal(mod, After)
     assert "Intrinsic does not support vectors" in e_info.value.args[0]
 

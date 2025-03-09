@@ -39,7 +39,7 @@ def test_randint():
             print("skip because extern function is not available")
             return
         dev = tvm.cpu(0)
-        f = tvm.build(te.create_prim_func([A]), target=target)
+        f = tvm.compile(te.create_prim_func([A]), target=target)
         a = tvm.nd.array(np.zeros((m, n), dtype=A.dtype), dev)
         f(a)
         na = a.numpy()
@@ -64,7 +64,7 @@ def test_uniform():
             print("skip because extern function is not available")
             return
         dev = tvm.cpu(0)
-        f = tvm.build(te.create_prim_func([A]), target=target)
+        f = tvm.compile(te.create_prim_func([A]), target=target)
         a = tvm.nd.array(np.zeros((m, n), dtype=A.dtype), dev)
         f(a)
         na = a.numpy()
@@ -89,7 +89,7 @@ def test_normal():
             print("skip because extern function is not available")
             return
         dev = tvm.cpu(0)
-        f = tvm.build(te.create_prim_func([A]), target=target)
+        f = tvm.compile(te.create_prim_func([A]), target=target)
         a = tvm.nd.array(np.zeros((m, n), dtype=A.dtype), dev)
         f(a)
         na = a.numpy()

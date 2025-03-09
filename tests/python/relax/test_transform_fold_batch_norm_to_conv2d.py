@@ -90,14 +90,14 @@ def test_fold_batchnorm_info_conv2d():
 
     # Normal build
     mod = tvm.relax.transform.DecomposeOpsForInference()(mod)
-    ex = relax.build(mod, target)
+    ex = tvm.compile(mod, target)
     vm = relax.VirtualMachine(ex, tvm.cpu())
     out = vm["main"](data_in)
 
     # Fold BN to Conv2D
     mod_fold = relax.transform.FoldBatchnormToConv2D()(mod_fold)
     mod_fold = relax.transform.FoldConstant()(mod_fold)
-    ex_fold = relax.build(mod_fold, target)
+    ex_fold = tvm.compile(mod_fold, target)
     vm_fold = relax.VirtualMachine(ex_fold, tvm.cpu())
     out_fold = vm_fold["main"](data_in)
 

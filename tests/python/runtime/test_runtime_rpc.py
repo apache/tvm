@@ -73,7 +73,7 @@ def test_bigendian_rpc():
     def verify_rpc(remote, target, shape, dtype):
         A = te.placeholder(shape, dtype=dtype)
         B = te.compute(A.shape, lambda i: A[i] + tvm.tir.const(1, A.dtype))
-        f = tvm.build(te.create_prim_func([A, B]), target=target)
+        f = tvm.compile(te.create_prim_func([A, B]), target=target)
 
         dev = remote.cpu(0)
         a = tvm.nd.array(np.random.randint(0, 256, size=shape).astype(A.dtype), device=dev)
@@ -264,7 +264,7 @@ def test_rpc_remote_module():
     def check_remote(remote):
         temp = utils.tempdir()
         dev = remote.cpu(0)
-        f = tvm.build(mod, "llvm")
+        f = tvm.compile(mod, "llvm")
         path_dso = temp.relpath("dev_lib.so")
         f.export_library(path_dso)
         remote.upload(path_dso)
@@ -295,7 +295,7 @@ def test_rpc_remote_module():
         # export to minrpc
         temp = utils.tempdir()
         # system lib prefix will trigger system lib build
-        f = tvm.build(mod.with_attr("system_lib_prefix", ""), "llvm")
+        f = tvm.compile(mod.with_attr("system_lib_prefix", ""), "llvm")
         path_minrpc = temp.relpath("dev_lib.minrpc")
         f.export_library(path_minrpc, fcompile=rpc.with_minrpc(cc.create_executable))
 
@@ -338,7 +338,7 @@ def test_rpc_remote_module():
         xo, xi = s.split(x, factors=[None, 32])
         s.bind(xo, "blockIdx.x")
         s.bind(xi, "threadIdx.x")
-        f = tvm.build(s.mod, "opencl --host=llvm")
+        f = tvm.compile(s.mod, "opencl --host=llvm")
         path_tar = temp.relpath("myadd.tar")
         f.export_library(path_tar)
         remote.upload(path_tar)
@@ -698,7 +698,7 @@ def test_compiled_function_with_zero_arguments(call_with_unused_argument):
         def func_with_arg(unused: T.int64) -> T.int64:
             return T.int64(42)
 
-    built = tvm.build(Module, target="llvm")
+    built = tvm.compile(Module, target="llvm")
 
     server = tvm.rpc.Server(key="x1")
     client = tvm.rpc.connect("127.0.0.1", server.port, key="x1")

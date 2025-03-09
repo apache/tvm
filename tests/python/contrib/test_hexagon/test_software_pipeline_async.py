@@ -183,7 +183,7 @@ class TestAsyncSoftwarePipeline:
                 "tir.experimental_dma_bypass_cache": 1,
             }
         ):
-            func = tvm.build(schedule.mod["main"], target=get_hexagon_target("v68"))
+            func = tvm.compile(schedule.mod["main"], target=get_hexagon_target("v68"))
 
         with hexagon_launcher.create_session() as hexagon_session:
             dev = hexagon_session.device

@@ -133,7 +133,7 @@ def check_correctness(
     tvm_model, params = relax.frontend.detach_params(tvm_model)
     # Compile the relax graph into a VM then run.
     with tvm.transform.PassContext(opt_level=3):
-        ex = relax.build(tvm_model, target="llvm")
+        ex = tvm.compile(tvm_model, target="llvm")
         vm = relax.VirtualMachine(ex, tvm.cpu())
     # Prepare inputs.
     input_list = [

@@ -19,4 +19,4 @@ tvm.driver
 ----------
 .. automodule:: tvm.driver
 
-.. autofunction:: tvm.build
+.. autofunction:: tvm.compile

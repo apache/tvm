@@ -53,12 +53,12 @@ def verify(mod, inputs):
     mod1 = relax.transform.LegalizeOps()(mod1)
     assert relax.analysis.well_formed(mod1)
 
-    ex1 = relax.build(mod1, target=target)
+    ex1 = tvm.compile(mod1, target=target)
     vm1 = relax.VirtualMachine(ex1, dev, profile=True)
     out1 = vm1["main"](*inputs)
 
     mod2 = relax.transform.LegalizeOps()(mod)
-    ex2 = relax.build(mod2, target=target)
+    ex2 = tvm.compile(mod2, target=target)
     vm2 = relax.VirtualMachine(ex2, dev, profile=True)
     out2 = vm2["main"](*inputs)
 

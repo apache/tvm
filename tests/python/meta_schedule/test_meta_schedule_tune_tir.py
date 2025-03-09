@@ -105,7 +105,7 @@ def test_tune_matmul_cuda():
 @pytest.mark.skip("Integration test")
 def test_tune_run_module_via_rpc():
     target = tvm.target.Target("llvm")
-    rt_mod = tvm.build(matmul, target)
+    rt_mod = tvm.compile(matmul, target)
 
     # construct the input
     input_data = {}

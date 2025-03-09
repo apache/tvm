@@ -48,7 +48,7 @@ def test_large_uint_imm():
         if not tvm.testing.device_enabled(device):
             return
         dev = tvm.device(device, 0)
-        f = tvm.build(sch.mod, target=device)
+        f = tvm.compile(sch.mod, target=device)
         # launch the kernel.
         a = tvm.nd.empty((n,), dtype=A.dtype, device=dev)
         f(a)
@@ -94,7 +94,7 @@ def test_add_pipeline():
             return
         dev = tvm.device(device, 0)
         target = tvm.target.Target(device, host)
-        mhost = tvm.build(sch.mod, target=target)
+        mhost = tvm.tir.build(sch.mod, target=target)
         f = mhost.entry_func
         # launch the kernel.
         n = 1027

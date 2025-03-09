@@ -31,7 +31,7 @@ def test_buffer_store_predicate_not_supported(target):
     err_msg = "Predicated buffer store is not supported."
     with pytest.raises(tvm.TVMError, match=err_msg):
         with tvm.target.Target(target):
-            tvm.build(func)
+            tvm.compile(func)
 
 
 @tvm.testing.parametrize_targets("cuda", "opencl", "metal", "rocm", "vulkan -from_device=0")
@@ -49,7 +49,7 @@ def test_buffer_store_predicate_not_supported_gpu(target):
     err_msg = "Predicated buffer store is not supported."
     with pytest.raises(tvm.TVMError, match=err_msg):
         with tvm.target.Target(target):
-            tvm.build(func)
+            tvm.compile(func)
 
 
 @tvm.testing.parametrize_targets("c")
@@ -67,7 +67,7 @@ def test_buffer_load_predicate_not_supported(target):
     err_msg = "Predicated buffer load is not supported."
     with pytest.raises(tvm.TVMError, match=err_msg):
         with tvm.target.Target(target):
-            tvm.build(func)
+            tvm.compile(func)
 
 
 @tvm.testing.parametrize_targets("cuda", "opencl", "metal", "rocm", "vulkan -from_device=0")
@@ -85,7 +85,7 @@ def test_buffer_load_predicate_not_supported_gpu(target):
     err_msg = "Predicated buffer load is not supported."
     with pytest.raises(tvm.TVMError, match=err_msg):
         with tvm.target.Target(target):
-            tvm.build(func)
+            tvm.compile(func)
 
 
 if __name__ == "__main__":

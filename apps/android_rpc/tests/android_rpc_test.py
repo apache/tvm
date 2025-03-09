@@ -64,7 +64,7 @@ def test_rpc_module():
     sch.bind(xi, "threadIdx.x")
 
     if test_opencl:
-        f = tvm.build(sch.mod, target=tvm.target.Target("opencl", host=target))
+        f = tvm.compile(sch.mod, target=tvm.target.Target("opencl", host=target))
         path_dso_cl = temp.relpath("dev_lib_cl.so")
         f.export_library(path_dso_cl, fcompile=ndk.create_shared)
 

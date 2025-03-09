@@ -15,18 +15,15 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import os
-import re
+
+import numpy as np
+import pytest
 
 import tvm
-from tvm import te
-import numpy as np
-from tvm import topi
-from tvm.contrib.nvcc import have_fp16, have_int8, have_bf16
-from tvm.contrib import utils
-from tvm.script import tir as T
 import tvm.testing
-import pytest
+from tvm import te, topi
+from tvm.contrib.nvcc import have_bf16, have_fp16, have_int8
+from tvm.script import tir as T
 
 
 @tvm.testing.requires_gpu
@@ -48,7 +45,7 @@ def test_cuda_vectorize_add():
         xo, xi = sch.split(sch.get_loops("B")[0], factors=[None, num_thread])
         sch.bind(xo, "blockIdx.x")
         sch.bind(xi, "threadIdx.x")
-        fun = tvm.build(sch.mod, target="cuda")
+        fun = tvm.compile(sch.mod, target="cuda")
 
         dev = tvm.cuda(0)
         a = tvm.nd.empty((n,), A.dtype, dev).copyfrom(np.random.uniform(size=(n, lanes)))
@@ -103,7 +100,7 @@ def test_cuda_bf16_vectorize_add():
         with tvm.transform.PassContext(
             disabled_pass=["tir.BF16Promote", "tir.BF16CastElimination", "tir.BF16TypeLowering"]
         ):
-            fun = tvm.build(sch.mod, target="cuda")
+            fun = tvm.compile(sch.mod, target="cuda")
         dev = tvm.cuda(0)
         np_a = np.random.uniform(size=(n, lanes)).astype("float32")
         np_a = np_bf162np_float(np_float2np_bf16(np_a))
@@ -138,7 +135,7 @@ def test_cuda_multiply_add():
         xo, xi = sch.split(sch.get_loops("D")[0], factors=[None, num_thread])
         sch.bind(xo, "blockIdx.x")
         sch.bind(xi, "threadIdx.x")
-        fun = tvm.build(sch.mod, target="cuda")
+        fun = tvm.compile(sch.mod, target="cuda")
 
         np_a = np.random.randint(low=-128, high=127, size=(n, lanes))
         np_b = np.random.randint(low=-128, high=127, size=(n, lanes))
@@ -169,7 +166,7 @@ def test_cuda_vectorize_load():
         xo, xi = sch.split(sch.get_loops("B")[0], factors=[None, num_thread])
         sch.bind(xo, "blockIdx.x")
         sch.bind(xi, "threadIdx.x")
-        fun = tvm.build(sch.mod, target="cuda")
+        fun = tvm.compile(sch.mod, target="cuda")
 
         np_a = np.random.randint(low=-128, high=127, size=(n, lanes))
         a = tvm.nd.empty((n,), A.dtype, dev).copyfrom(np_a)
@@ -196,7 +193,7 @@ def test_cuda_make_int8():
         y, x = sch.get_loops("A")
         sch.vectorize(x)
         sch.bind(y, "blockIdx.x")
-        fun = tvm.build(sch.mod, target="cuda")
+        fun = tvm.compile(sch.mod, target="cuda")
 
         np_a = np.full((n, lanes), value, dtype=dtype)
         a = tvm.nd.empty(np_a.shape, dtype, dev)
@@ -225,7 +222,7 @@ def test_cuda_make_int4():
         y, x = sch.get_loops("A")
         sch.vectorize(x)
         sch.bind(y, "blockIdx.x")
-        fun = tvm.build(sch.mod, target="cuda")
+        fun = tvm.compile(sch.mod, target="cuda")
 
         np_a = np.full((n, lanes), value, dtype="int8")
         a = tvm.nd.empty((n, lanes), dtype, dev)
@@ -256,7 +253,7 @@ def test_cuda_inf_nan():
         xo, xi = sch.split(sch.get_loops("C")[0], factors=[None, 8])
         sch.bind(xo, "blockIdx.x")
         sch.bind(xi, "threadIdx.x")
-        fun = tvm.build(sch.mod, target="cuda")
+        fun = tvm.compile(sch.mod, target="cuda")
 
         a = tvm.nd.empty((n,), A.dtype, dev)
         c = tvm.nd.empty((n,), A.dtype, dev)
@@ -287,7 +284,7 @@ def test_crossthread_reduction1(target, dev):
         ko, _ = sch.split(k, factors=[nthd, None])
         sch.bind(ko, "threadIdx.x")
         sch.bind(x, "blockIdx.x")
-        fun = tvm.build(sch.mod, target="cuda")
+        fun = tvm.compile(sch.mod, target="cuda")
         return fun
 
     def verify(nthd):
@@ -325,7 +322,7 @@ def test_crossthread_reduction2(target, dev):
         sch.bind(k0o, "threadIdx.x")
         sch.bind(k1o, "threadIdx.y")
         sch.bind(x, "blockIdx.x")
-        func = tvm.build(sch.mod, target="cuda")
+        func = tvm.compile(sch.mod, target="cuda")
         return func
 
     def verify(nthdx, nthdy):
@@ -359,7 +356,7 @@ def test_cuda_reduction_binding():
     sch.reorder(k, x)
     mo, _ = sch.split(x, factors=[None, 32])
     sch.bind(mo, "blockIdx.x")
-    func = tvm.build(sch.mod, target="cuda")
+    func = tvm.compile(sch.mod, target="cuda")
 
 
 @tvm.testing.requires_gpu
@@ -377,7 +374,7 @@ def test_cuda_const_float_to_half():
     xo, xi = sch.split(sch.fuse(*sch.get_loops("C")), factors=[None, 64])
     sch.bind(xo, "blockIdx.x")
     sch.bind(xi, "threadIdx.x")
-    func = tvm.build(sch.mod, target="cuda")
+    func = tvm.compile(sch.mod, target="cuda")
 
     dev = tvm.cuda(0)
     a_np = np.random.uniform(size=shape).astype(a.dtype)
@@ -404,7 +401,7 @@ def test_cuda_floordiv_with_vectorization():
         sch.vectorize(xii)
         sch.bind(xo, "blockIdx.x")
         sch.bind(xio, "threadIdx.x")
-        func = tvm.build(sch.mod, target="cuda")
+        func = tvm.compile(sch.mod, target="cuda")
 
         dev = tvm.cuda(0)
         a_np = np.random.uniform(size=(n,)).astype(A.dtype)
@@ -430,7 +427,7 @@ def test_cuda_floormod_with_vectorization():
         sch.vectorize(xii)
         sch.bind(xo, "blockIdx.x")
         sch.bind(xio, "threadIdx.x")
-        func = tvm.build(sch.mod, target="cuda")
+        func = tvm.compile(sch.mod, target="cuda")
 
         dev = tvm.cuda(0)
         a_np = np.random.uniform(size=(n,)).astype(A.dtype)
@@ -460,7 +457,7 @@ def test_vectorized_casts():
         ob, ib = sch.split(sch.get_loops("C")[0], factors=[None, factor])
         sch.vectorize(ib)
         sch.bind(ob, "threadIdx.x")
-        func = tvm.build(sch.mod, target="cuda")
+        func = tvm.compile(sch.mod, target="cuda")
 
         # correctness
         dev = tvm.cuda(0)
@@ -514,7 +511,7 @@ def sched(A, B):
     sch.vectorize(iiii)
     sch.bind(io, "blockIdx.x")
     sch.bind(iio, "threadIdx.x")
-    return tvm.build(sch.mod, target="cuda")
+    return tvm.compile(sch.mod, target="cuda")
 
 
 @tvm.testing.requires_gpu
@@ -650,7 +647,7 @@ def test_cuda_vectorize_load_permute_pad():
         sch.bind(block, "blockIdx.x")
         sch.bind(thread, "threadIdx.x")
         sch.vectorize(vectorize)
-        fun = tvm.build(sch.mod, target="cuda")
+        fun = tvm.compile(sch.mod, target="cuda")
 
         np_a = np.random.randint(low=-128, high=127, size=(n, l)).astype(A.dtype)
         a = tvm.nd.empty((n, l), A.dtype, dev).copyfrom(np_a)
@@ -691,7 +688,7 @@ def test_try_unaligned_vector_load():
         sch.bind(oi, "threadIdx.x")
         sch.vectorize(ii)  # BUG: misalignment
 
-        f = tvm.build(sch.mod, target="cuda")
+        f = tvm.tir.build(sch.mod, target="cuda")
 
         kernel_source = f.imported_modules[0].get_source()
         dev = tvm.cuda()
@@ -757,13 +754,13 @@ def test_cuda_thread_sync_inside_condition():
 
     mod = tvm.IRModule({"main": func1})
     with pytest.raises(tvm.error.InternalError):
-        tvm.build(mod, target="cuda")
+        tvm.compile(mod, target="cuda")
 
     mod = tvm.IRModule({"main": func2})
-    tvm.build(mod, target="cuda")
+    tvm.compile(mod, target="cuda")
 
     mod = tvm.IRModule({"main": func3})
-    tvm.build(mod, target="cuda")
+    tvm.compile(mod, target="cuda")
 
 
 @tvm.testing.requires_cuda
@@ -774,7 +771,7 @@ def test_invalid_reinterpret():
             B[tx] = T.call_intrin("uint8", "tir.reinterpret", A[tx])
 
     with pytest.raises(tvm.error.TVMError):
-        tvm.build(func, target="cuda")
+        tvm.compile(func, target="cuda")
 
 
 if __name__ == "__main__":

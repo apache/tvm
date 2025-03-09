@@ -484,7 +484,7 @@ def test_mlp(session_kind, ccl):  # pylint: disable=too-many-locals
                 dl.gpu.GeneralReduction(),
                 dl.gpu.Fallback(),
             )(mod)
-            return rx.build(mod, target=target)
+            return tvm.compile(mod, target=target)
 
     # pylint: disable=invalid-name
     X = np.random.randn(128, 128).astype("float32")
@@ -623,7 +623,7 @@ def test_attention(session_kind, ccl):  # pylint: disable=too-many-locals,too-ma
                 dl.gpu.GeneralReduction(),
                 dl.gpu.Fallback(),
             )(mod)
-            return rx.build(mod, target=target)
+            return tvm.compile(mod, target=target)
 
     # pylint: disable=invalid-name
     X = np.random.randn(1, 10, 128).astype("float32")

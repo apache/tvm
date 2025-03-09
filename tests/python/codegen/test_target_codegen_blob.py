@@ -57,8 +57,8 @@ def test_cuda_multi_lib():
 
     temp = utils.tempdir()
     target = tvm.target.Target("cuda", host="llvm")
-    libA = tvm.build(ModA, target=target)
-    libB = tvm.build(ModB, target=target)
+    libA = tvm.compile(ModA, target=target)
+    libB = tvm.compile(ModB, target=target)
 
     pathA = temp.relpath("libA.tar")
     pathB = temp.relpath("libB.tar")

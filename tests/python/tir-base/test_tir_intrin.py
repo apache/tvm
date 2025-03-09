@@ -37,7 +37,7 @@ def test_nearbyint():
     sch = tir.Schedule(mod)
 
     # Build from scheduled TIR
-    func = tvm.build(sch.mod, target="llvm")
+    func = tvm.compile(sch.mod, target="llvm")
 
     dev = tvm.cpu(0)
     n = 10
@@ -91,7 +91,7 @@ def test_unary_intrin():
         sch = tir.Schedule(mod)
 
         # Build from scheduled TIR
-        func = tvm.build(sch.mod, target="llvm")
+        func = tvm.compile(sch.mod, target="llvm")
 
         dev = tvm.cpu(0)
         n = 10
@@ -125,7 +125,7 @@ def test_binary_intrin():
         sch = tir.Schedule(mod)
 
         # Build from scheduled TIR
-        func = tvm.build(sch.mod, target="llvm")
+        func = tvm.compile(sch.mod, target="llvm")
 
         dev = tvm.cpu(0)
         n = 10
@@ -152,7 +152,7 @@ def test_ldexp():
     sch = tir.Schedule(mod)
 
     # Build from scheduled TIR
-    func = tvm.build(sch.mod, target="llvm")
+    func = tvm.compile(sch.mod, target="llvm")
 
     dev = tvm.cpu(0)
     n = 10
@@ -200,7 +200,7 @@ def test_clz(target, dev, dtype):
         sch.bind(tx, "threadIdx.x")
 
     # Build from scheduled TIR
-    func = tvm.build(sch.mod, target=target)
+    func = tvm.compile(sch.mod, target=target)
 
     n = 10
     highs = [10, 100, 1000, 10000, 100000, 1000000]

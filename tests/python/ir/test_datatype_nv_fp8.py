@@ -81,7 +81,7 @@ def test_fp8_unary_op(np_dtype, dtype_str):
         """Skip test if ml_dtypes is not installed"""
         return
 
-    f = tvm.build(func, target="llvm")
+    f = tvm.compile(func, target="llvm")
     a = np.random.randn(128).astype(np_dtype)
     b = np.random.randn(128).astype(np_dtype)
     a_add_b = np.zeros(128).astype(np_dtype)

@@ -35,7 +35,7 @@ def test_from_dlpack_shape_one():
     B = te.placeholder((rows, 16), name="B")
     C = te.compute(A.shape, lambda i, j: A[i, j] + B[i, j], name="C")
 
-    fadd = tvm.build(te.create_prim_func([A, B, C]), target=tgt)
+    fadd = tvm.compile(te.create_prim_func([A, B, C]), target=tgt)
 
     dev = tvm.device(tgt.kind.name, 0)
 

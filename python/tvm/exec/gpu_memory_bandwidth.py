@@ -220,7 +220,7 @@ def main():  # pylint: disable=too-many-locals
 
         if rpcConfig is None:
             _, profile_result = local_run(
-                tvm.build(sch.mod, target=target),
+                tvm.compile(sch.mod, target=target),
                 target.kind.name,
                 [a, b],
                 evaluator_config=EvaluatorConfig(
@@ -232,7 +232,7 @@ def main():  # pylint: disable=too-many-locals
             )
         else:
             _, profile_result = rpc_run(
-                tvm.build(sch.mod, target=target),
+                tvm.compile(sch.mod, target=target),
                 target.kind.name,
                 [a, b],
                 evaluator_config=EvaluatorConfig(

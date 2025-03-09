@@ -103,7 +103,7 @@ def argsort(data, valid_count=None, axis=-1, is_ascend=1, dtype="float32"):
         out = argsort(data, axis=axis, is_ascend=is_ascend)
         np_data = np.random.uniform(dshape)
         s = topi.generic.schedule_argsort(out)
-        f = tvm.build(s, [data, out], "llvm")
+        f = tvm.compile(s, [data, out], "llvm")
         dev = tvm.cpu()
         tvm_data = tvm.nd.array(np_data, dev)
         tvm_out = tvm.nd.array(np.zeros(dshape, dtype=data.dtype), dev)

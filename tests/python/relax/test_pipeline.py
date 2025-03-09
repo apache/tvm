@@ -37,7 +37,7 @@ def test_pipeline_compile():
     mod = Mod
     mod = pipeline(mod)
 
-    ex = relax.build(mod, target)
+    ex = tvm.compile(mod, target)
     x_np = np.random.rand(3, 4).astype(np.float32)
     y_np = np.random.rand(3, 4).astype(np.float32)
     x = tvm.nd.array(x_np)
@@ -95,7 +95,7 @@ def test_pipeline_with_kv_cache():
     mod = Mod
     mod = pipeline(mod)
 
-    ex = relax.build(mod, target)
+    ex = tvm.compile(mod, target)
 
     num_steps = 8
     cache_np = np.empty((num_steps, 4), dtype="float32")

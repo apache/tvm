@@ -154,7 +154,7 @@ class TestDMACopyWait:
         target_hexagon = tvm.target.hexagon("v69")
         target = tvm.target.Target(target_hexagon, host=target_hexagon)
         with tvm.transform.PassContext(opt_level=3, config=[]):
-            ex = relax.build(mod=module, target=target, exec_mode=mode)
+            ex = tvm.compile(mod=module, target=target, exec_mode=mode)
         with hexagon_launcher.create_session() as session:
             dev = session.device
             input_arg0_data = np.random.randint(0, 9, size=(12800,), dtype=data_type)

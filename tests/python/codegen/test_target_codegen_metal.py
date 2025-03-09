@@ -36,7 +36,7 @@ def test_metal_inf_nan():
         sch = tvm.tir.Schedule(prim_func)
         (x,) = sch.get_loops(sch.get_block("C"))
         sch.bind(x, "threadIdx.x")
-        fun = tvm.build(sch.mod, target=target)
+        fun = tvm.compile(sch.mod, target=target)
         a = tvm.nd.empty((n,), A.dtype, dev)
         c = tvm.nd.empty((n,), A.dtype, dev)
         # Only need to test compiling here
@@ -72,7 +72,7 @@ def test_unaligned_vectorize():
     a = (np.arange(6).reshape(2, 3)).astype("float32")
     a_nd = tvm.nd.array(a, dev)
     b_nd = tvm.nd.empty((6,), "float32", dev)
-    f = tvm.build(IRModule, target=target)
+    f = tvm.compile(IRModule, target=target)
     f(a_nd, b_nd)
     np.testing.assert_allclose(b_nd.numpy(), a.reshape(6), atol=1e-5, rtol=1e-5)
 
@@ -89,7 +89,7 @@ def test_metal_erf():
         sch = tvm.tir.Schedule(func)
         (x,) = sch.get_loops(sch.get_block("C"))
         sch.bind(x, "threadIdx.x")
-        fun = tvm.build(sch.mod, target=target)
+        fun = tvm.compile(sch.mod, target=target)
         a = tvm.nd.empty((n,), A.dtype, dev)
         c = tvm.nd.empty((n,), A.dtype, dev)
         # Only need to test compiling here
@@ -117,7 +117,7 @@ def test_ramp():
                     r = T.ramp(tx, 3, 2)
                     A[0, T.ramp(0, 1, 2)] = r
 
-    f = tvm.build(IRModule, target=target)
+    f = tvm.compile(IRModule, target=target)
     dev = tvm.metal()
     a_nd = tvm.nd.empty((1, 2), "int32", dev)
     f(a_nd)
@@ -143,7 +143,7 @@ def test_select_vectorize():
     a = np.arange(6).astype("float32")
     a_nd = tvm.nd.array(a, dev)
     b_nd = tvm.nd.empty((6,), "float32", dev)
-    f = tvm.build(IRModule, target=target)
+    f = tvm.compile(IRModule, target=target)
     f(a_nd, b_nd)
     a.reshape(3, 2)[:, 1] = 0
     np.testing.assert_allclose(b_nd.numpy(), a, atol=1e-5, rtol=1e-5)
@@ -164,7 +164,7 @@ def test_vectorized_uint8():
     a = np.arange(16).astype("uint8")
     a_nd = tvm.nd.array(a, dev)
     b_nd = tvm.nd.empty((16,), "float32", dev)
-    f = tvm.build(func, target="metal")
+    f = tvm.compile(func, target="metal")
     f(a_nd, b_nd)
     np.testing.assert_allclose(b_nd.numpy(), a.astype("float32"), atol=1e-5, rtol=1e-5)
 
@@ -186,7 +186,7 @@ def test_func_with_trailing_pod_params():
 
     mod = tvm.IRModule({"main": func})
 
-    f = tvm.build(mod, target="metal")
+    f = tvm.compile(mod, target="metal")
     src: str = f.imported_modules[0].get_source()
     occurrences = src.count("struct func_kernel_args_t")
     assert occurrences == 1, occurrences

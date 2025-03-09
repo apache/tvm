@@ -77,7 +77,7 @@ def zero_pipeline(*, enable_warning: bool = False):
 
 
 def default_build_pipeline():
-    """The default compilation pipeline used in relax.build"""
+    """The default compilation pipeline used in tvm.compile"""
 
     @tvm.transform.module_pass(opt_level=0)
     def _pipeline(mod: tvm.ir.IRModule, _ctx: tvm.transform.PassContext) -> tvm.ir.IRModule:
@@ -144,7 +144,7 @@ def static_shape_tuning_pipeline(
             cpu_weight_prepack=True,
         )(mod)
 
-        ex = relax.build(mod, target=target)
+        ex = tvm.compile(mod, target=target)
         vm = relax.VirtualMachine(ex, device=tvm.cpu())
 
         # Transform the params using the vm function

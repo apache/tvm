@@ -212,7 +212,7 @@ def evaluate_dynamic_shape(lib: tvm.runtime.Module, m: int, n: int, k: int):
 
 
 # Compile lib only once
-dyn_shape_lib = tvm.build(DynamicShapeModule, target="llvm")
+dyn_shape_lib = tvm.compile(DynamicShapeModule, target="llvm")
 # Able to handle different shapes
 print(evaluate_dynamic_shape(dyn_shape_lib, m=4, n=4, k=4))
 print(evaluate_dynamic_shape(dyn_shape_lib, m=64, n=64, k=128))

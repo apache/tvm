@@ -89,7 +89,7 @@ def _build(mod, enable_nnapi):
         mod = partition_for_nnapi(mod)
 
         mod = tvm.relax.transform.RunCodegen()(mod)
-    ex = tvm.relax.build(mod, target="llvm -mtriple=aarch64-linux-android")
+    ex = tvm.compile(mod, target="llvm -mtriple=aarch64-linux-android")
 
     return ex
 

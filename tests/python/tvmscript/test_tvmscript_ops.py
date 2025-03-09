@@ -100,7 +100,7 @@ def test_get_valid_counts_script_func():
     mod = tvm.ir.IRModule({"get_valid_counts": get_valid_counts})
     print(mod.script())
     # check building
-    f = tvm.build(mod["get_valid_counts"], target=device)
+    f = tvm.compile(mod["get_valid_counts"], target=device)
     _check_get_valid_counts_with_numpy(f, (1, 2500, 6), 0.0, 0, 1)
 
 
@@ -154,8 +154,8 @@ def test_alloc_zero_dim_buffer_round_trip():
     func_with_block = alloc_zero_dim_buffer_block
     rt_func = tvm.script.from_source(func.script())
     rt_func_with_block = tvm.script.from_source(func_with_block.script())
-    rt_mod = tvm.build(rt_func, "llvm")
-    rt_mod_with_block = tvm.build(rt_func_with_block, "llvm")
+    rt_mod = tvm.compile(rt_func, "llvm")
+    rt_mod_with_block = tvm.compile(rt_func_with_block, "llvm")
     tvm.ir.assert_structural_equal(
         func.with_attr("global_symbol", "main"), func_with_block.with_attr("global_symbol", "main")
     )
@@ -175,7 +175,7 @@ def ceildiv_test(A: T.Buffer(16, "int32")):
 
 @tvm.testing.requires_llvm
 def test_ceildiv():
-    f = tvm.build(ceildiv_test, "llvm")
+    f = tvm.compile(ceildiv_test, "llvm")
     a = tvm.nd.array(np.arange(16).astype("int32"))
     f(a)
     ref = (np.arange(16) + 3) // 4

@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import tvm
+import tvm.testing
 from tvm.script import tir as T
 from tvm.target.codegen import target_has_features
 
@@ -33,7 +34,7 @@ def test_rvv(target):
             for j in T.vectorized(0, extent):
                 A[j] = 1
 
-        f = tvm.build(load_vec, target)
+        f = tvm.tir.build(load_vec, target)
         # Check RVV `vsetvli` prensence
         assembly = f.get_source("asm")
         if target_has_features("v"):
@@ -46,4 +47,4 @@ def test_rvv(target):
 
 
 if __name__ == "__main__":
-    test_rvv()
+    tvm.testing.main()

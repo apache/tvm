@@ -45,7 +45,7 @@ def test_basic():
         B = tvm.te.placeholder((128,), dtype="uint8", name="A")
         C = tvm.te.compute((128,), lambda i: A[i] + B[i], name="C")
         mod = tvm.IRModule.from_expr(te.create_prim_func([C, A, B]))
-        hexm = tvm.build(mod, target=tvm.target.Target(target, target))
+        hexm = tvm.compile(mod, target=tvm.target.Target(target, target))
         asm = hexm.get_source("s")
         vadds = re.findall(r"v[0-9]+.b = vadd\(v[0-9]+.b,v[0-9]+.b\)", asm)
         assert vadds  # Check that it's non-empty
@@ -60,7 +60,7 @@ def test_llvm_target_features():
     A = tvm.te.placeholder((128,), dtype="uint8", name="A")
     C = tvm.te.compute((128,), lambda i: A[i] + 1, name="C")
     mod = tvm.IRModule.from_expr(te.create_prim_func([C, A]).with_attr("global_symbol", "add_one"))
-    m = tvm.build(mod, target=tvm.target.Target(target, target))
+    m = tvm.compile(mod, target=tvm.target.Target(target, target))
     llvm_ir = m.get_source("ll")
     # Make sure we find +hvx-length128b in "attributes".
     fs = re.findall(r"attributes.*\+hvx-length128b", llvm_ir)
@@ -74,7 +74,7 @@ def test_llvm_options():
     mod = tvm.IRModule.from_expr(te.create_prim_func([Zero]))
     # Check that BuildHexagon hasn't crashed because of target attribute
     # type mismatch.
-    tvm.build(mod, target=tvm.target.Target(target, target))
+    tvm.compile(mod, target=tvm.target.Target(target, target))
     assert re.search("-hexagon-noopt", str(target))
 
 

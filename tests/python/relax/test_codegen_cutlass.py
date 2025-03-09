@@ -89,7 +89,7 @@ def build_and_run(mod, inputs_np, target, legalize=True, cuda_graph=False):
             "relax.transform.apply_legalize_ops": legalize,
         }
     ):
-        ex = relax.build(mod, target)
+        ex = tvm.compile(mod, target)
 
     dev = tvm.device(target, 0)
     vm = relax.VirtualMachine(ex, dev)
@@ -1477,7 +1477,7 @@ def test_fp16A_int4B_gemm():
 
     mod_transform, mod_deploy, transform_func_name = split_transform_deploy_mod(mod)
 
-    ex = relax.build(mod_transform, target="llvm")
+    ex = tvm.compile(mod_transform, target="llvm")
     vm = relax.vm.VirtualMachine(ex, tvm.cpu(0))
 
     packed_weight, scales, bias_trans = vm[transform_func_name](
@@ -1485,7 +1485,7 @@ def test_fp16A_int4B_gemm():
     )
 
     dev = tvm.device("cuda", 0)
-    ex = relax.build(mod_deploy, target="cuda")
+    ex = tvm.compile(mod_deploy, target="cuda")
     vm = relax.vm.VirtualMachine(ex, dev)
 
     x_nd = tvm.nd.array(x, dev)
@@ -1630,7 +1630,7 @@ def test_fp16A_int8B_gemm():
 
     mod_transform, mod_deploy, transform_func_name = split_transform_deploy_mod(mod)
 
-    ex = relax.build(mod_transform, target="llvm")
+    ex = tvm.compile(mod_transform, target="llvm")
     vm = relax.vm.VirtualMachine(ex, tvm.cpu(0))
 
     packed_weight, scales, bias_trans = vm[transform_func_name](
@@ -1638,7 +1638,7 @@ def test_fp16A_int8B_gemm():
     )
 
     dev = tvm.device("cuda", 0)
-    ex = relax.build(mod_deploy, target="cuda")
+    ex = tvm.compile(mod_deploy, target="cuda")
     vm = relax.vm.VirtualMachine(ex, dev)
 
     x_nd = tvm.nd.array(x, dev)
@@ -1906,13 +1906,13 @@ def test_fp16A_int8B_gemm_batched():
 
     mod_transform, mod_deploy, transform_func_name = split_transform_deploy_mod(mod)
 
-    ex = relax.build(mod_transform, target="llvm")
+    ex = tvm.compile(mod_transform, target="llvm")
     vm = relax.vm.VirtualMachine(ex, tvm.cpu(0))
 
     packed_weight, scales = vm[transform_func_name]((tvm.nd.array(y),))
 
     dev = tvm.device("cuda", 0)
-    ex = relax.build(mod_deploy, target="cuda")
+    ex = tvm.compile(mod_deploy, target="cuda")
     vm = relax.vm.VirtualMachine(ex, dev)
 
     x_nd = tvm.nd.array(x, dev)
@@ -2061,13 +2061,13 @@ def test_fp16A_int8B_gemm_batched_finegrained():
 
     mod_transform, mod_deploy, transform_func_name = split_transform_deploy_mod(mod)
 
-    ex = relax.build(mod_transform, target="llvm")
+    ex = tvm.compile(mod_transform, target="llvm")
     vm = relax.vm.VirtualMachine(ex, tvm.cpu(0))
 
     packed_weight, scales = vm[transform_func_name]((tvm.nd.array(y),))
 
     dev = tvm.device("cuda", 0)
-    ex = relax.build(mod_deploy, target="cuda")
+    ex = tvm.compile(mod_deploy, target="cuda")
     vm = relax.vm.VirtualMachine(ex, dev)
 
     x_nd = tvm.nd.array(x, dev)

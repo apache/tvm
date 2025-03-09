@@ -46,7 +46,7 @@ def test_inject_ptx_intrin():
         # Require at least SM80
         return
     with tvm.transform.PassContext(config={"tir.ptx_ldg32": True}):
-        mod = tvm.build(f, target="cuda")
+        mod = tvm.compile(f, target="cuda")
     A_np = np.random.rand(16).astype("float32")
     B_np = np.zeros((32)).astype("float32")
     dev = tvm.cuda(0)

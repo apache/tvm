@@ -137,7 +137,7 @@ mod = relax.get_pipeline("zero")(mod)
 import numpy as np
 
 target = tvm.target.Target("llvm")
-ex = relax.build(mod, target)
+ex = tvm.compile(mod, target)
 device = tvm.cpu()
 vm = relax.VirtualMachine(ex, device)
 data = np.random.rand(1, 784).astype("float32")

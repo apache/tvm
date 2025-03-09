@@ -168,7 +168,7 @@ def test_capture_error_is_recoverable():
         "to have been captured by RewriteCUDAGraph."
     )
 
-    built = tvm.relax.build(Module, target=target)
+    built = tvm.compile(Module, target=target)
     vm = tvm.relax.VirtualMachine(built, dev)
 
     arg = tvm.nd.array(np.arange(16).astype("float16"), dev)

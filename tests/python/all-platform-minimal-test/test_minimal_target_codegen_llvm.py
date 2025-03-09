@@ -46,7 +46,7 @@ def test_llvm_add_pipeline():
 
     def check_llvm():
         # BUILD and invoke the kernel.
-        f = tvm.build(sch.mod, target="llvm")
+        f = tvm.compile(sch.mod, target="llvm")
         dev = tvm.cpu(0)
         # launch the kernel.
         n = nn

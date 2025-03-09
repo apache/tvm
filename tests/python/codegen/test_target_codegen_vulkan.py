@@ -82,7 +82,7 @@ def test_vector_comparison(target, dev, dtype):
     sch.vectorize(vx)
 
     # Build
-    f = tvm.build(sch.mod, target=target)
+    f = tvm.tir.build(sch.mod, target=target)
 
     # Verify we generate the boolx4 type declaration and the OpSelect
     # v4{float,half,int} instruction
@@ -121,7 +121,7 @@ def test_array_vectorize_add(target, dev, dtype):
     xo, xi = sch.split(sch.get_loops("B")[0], factors=[None, 4])
     sch.bind(xo, "blockIdx.x")
     sch.bind(xi, "threadIdx.x")
-    f = tvm.build(sch.mod, target=target)
+    f = tvm.compile(sch.mod, target=target)
 
     a = tvm.nd.empty((arr_size,), A.dtype, dev).copyfrom(np.random.uniform(size=(arr_size, lanes)))
     c = tvm.nd.empty((arr_size,), B.dtype, dev)
@@ -142,7 +142,7 @@ def test_vulkan_bool_load(target, dev):
     sch.bind(xi, "threadIdx.x")
 
     # Build
-    f = tvm.build(sch.mod, target=target)
+    f = tvm.compile(sch.mod, target=target)
 
     a_np = np.random.uniform(size=arr_size) > 0.5
     b_np = np.zeros((arr_size,), dtype="int32")
@@ -194,7 +194,7 @@ def test_vulkan_constant_passing(target, dev, vulkan_parameter_impl, vulkan_para
     xo, xi = sch.split(sch.get_loops("B")[0], factors=[None, 64])
     sch.bind(xo, "blockIdx.x")
     sch.bind(xi, "threadIdx.x")
-    f_add = tvm.build(sch.mod, target=target)
+    f_add = tvm.compile(sch.mod, target=target)
 
     n = 1024
     scalars = np.array([1 for _ in scalars]).astype(dtype)
@@ -242,7 +242,7 @@ def test_vulkan_while_if(target, dev):
     sch = tir.Schedule(mod)
 
     # Build
-    func = tvm.build(sch.mod, target=target)
+    func = tvm.compile(sch.mod, target=target)
 
     a = tvm.nd.array(np.array([5], dtype=A.dtype), dev)
     b = tvm.nd.array(np.zeros(n, dtype=A.dtype), dev)
@@ -290,7 +290,7 @@ def test_vulkan_local_threadidx(target, dev):
     sch = tir.Schedule(mod)
 
     # Build
-    func = tvm.build(sch.mod, target=target)
+    func = tvm.compile(sch.mod, target=target)
 
     n = 32
     a_np = np.arange(n).astype(dtype=A.dtype)
@@ -383,7 +383,7 @@ class TestVectorizedIndices:
         return tvm.IRModule.from_expr(te.create_prim_func([A, R, B]))
 
     def test_ramp_broadcast_index(self, target, dev, mod, ref_data):
-        f = tvm.build(mod, target=target)
+        f = tvm.compile(mod, target=target)
 
         a_np, reorder_np, b_np = ref_data
         a = tvm.nd.array(a_np, dev)
@@ -424,7 +424,7 @@ def test_negative_operand_divmod(target, dev):
         sch.bind(sch.get_loops("A")[0], "threadIdx.x")
         func = sch.mod["main"]
 
-    built = tvm.build(func, target=target)
+    built = tvm.compile(func, target=target)
 
     a_dev = tvm.nd.empty([N, 2], "int32", dev)
     built(a_dev)
@@ -534,7 +534,7 @@ def test_cooperative_matrix(out_dtype):
     tgt_attrs = tvm.target.Target(target).attrs
 
     if tgt_attrs.get("supports_cooperative_matrix"):
-        f = tvm.build(sch.mod, target=target)
+        f = tvm.compile(sch.mod, target=target)
 
         dev = tvm.device(target, 0)
 

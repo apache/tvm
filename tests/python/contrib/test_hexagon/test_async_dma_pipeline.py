@@ -277,7 +277,7 @@ def evaluate(
             "tir.experimental_dma_bypass_cache": 1,
         }
     ):
-        func_tir = tvm.build(
+        func_tir = tvm.compile(
             sch.mod["main"], target=tvm.target.Target(target_hexagon, host=target_hexagon)
         )
     module = hexagon_session.load_module(func_tir)

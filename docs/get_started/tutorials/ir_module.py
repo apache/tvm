@@ -232,7 +232,7 @@ mod.show()
 # ~~~~~~~~~~~~~
 # We can deploy the IRModule on CPU by specifying the target as ``llvm``.
 
-exec = relax.build(mod, target="llvm")
+exec = tvm.compile(mod, target="llvm")
 dev = tvm.cpu()
 vm = relax.VirtualMachine(exec, dev)
 
@@ -263,7 +263,7 @@ with tvm.target.Target("cuda"):
 ######################################################################
 # Now we can compile the IRModule on GPU, the similar way as we did on CPU.
 
-exec = relax.build(gpu_mod, target="cuda")
+exec = tvm.compile(gpu_mod, target="cuda")
 dev = tvm.device("cuda", 0)
 vm = relax.VirtualMachine(exec, dev)
 # Need to allocate data and params on GPU device

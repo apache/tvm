@@ -63,7 +63,7 @@ def verify_matmul_add(
             return
         dev = tvm.cpu(0)
         name = "test_matmul_add"
-        f = tvm.build(
+        f = tvm.compile(
             te.create_prim_func([input1_data, input2_data, final_result, bias]).with_attr(
                 "global_symbol", name
             ),
@@ -146,7 +146,7 @@ def verify_quantized_matmul_add(matrix_m, matrix_l, matrix_n, transa=False, tran
             print("skip because extern function is not available")
             return
         dev = tvm.cpu(0)
-        f = tvm.build(
+        f = tvm.compile(
             te.create_prim_func([input1_data, input2_data, final_result, bias]), target=target
         )
         matrix_input1 = tvm.nd.array(
@@ -230,7 +230,9 @@ def verify_batch_matmul(
             return
         dev = tvm.cpu(0)
         name = "test_batch_matmul"
-        f = tvm.build(te.create_prim_func([input1_data, input2_data, final_result]), target=target)
+        f = tvm.compile(
+            te.create_prim_func([input1_data, input2_data, final_result]), target=target
+        )
         if target == "c":
             f = compiling(f, name)
         matrix_input1 = tvm.nd.array(np.random.uniform(size=ashape).astype(input1_data.dtype), dev)

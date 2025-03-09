@@ -426,7 +426,7 @@ def test_dispatch_cumsum_gpu(target, dev):
     np_cumsum = np.cumsum(np_data, axis=-1)
     with tvm.target.Target(target):
         mod = DispatchSortScan()(Module)
-        ex = tvm.relax.build(mod, target)
+        ex = tvm.compile(mod, target)
         vm = tvm.relax.VirtualMachine(ex, dev)
         tvm_data = tvm.nd.array(np_data, dev)
         cumsum = vm["main"](tvm_data)

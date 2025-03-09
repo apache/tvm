@@ -51,7 +51,7 @@ def verify_torch_dlpack():
         ZZ = te.compute((n, n), lambda i, j: te.sum(XX[i, k] * YY[k, j], axis=k))
         # No need to speficy target_host if it's llvm
         # Otherwise you will need to specify the target and target_host
-        f = tvm.build(te.create_prim_func([XX, YY, ZZ]))
+        f = tvm.compile(te.create_prim_func([XX, YY, ZZ]))
 
         f_pytorch = to_pytorch_func(f)
         zz2 = torch.empty(137, 137)

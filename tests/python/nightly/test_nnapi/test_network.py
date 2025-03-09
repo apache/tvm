@@ -34,7 +34,7 @@ def _build_and_run_network(remote_obj, tracker, mod, input_data):
 
     def execute_on_host(mod, inputs):
         with tvm.transform.PassContext(opt_level=3):
-            ex = tvm.relax.build(mod, target="llvm")
+            ex = tvm.compile(mod, target="llvm")
         dev = tvm.cpu(0)
         vm = tvm.relax.VirtualMachine(ex, device=dev)
         output = vm["main"](*inputs)
