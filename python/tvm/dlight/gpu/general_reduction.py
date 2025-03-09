@@ -90,7 +90,10 @@ class GeneralReduction(GPUScheduleRule):
             sch.transform_block_layout(block_infos[-1].block_rv, index_map)
 
         try:
-            # TODO: fix num_leading_s = 0 case
+            # Handle the case where num_leading_s = 0
+            if num_leading_s == 0:
+                num_leading_s = 1  # Use at least one spatial dimension for blockIdx.x
+            
             assert num_trailing_r > 0
             for block in block_infos[1:-1]:
                 assert block.dom_kind() == dom_kind
@@ -100,7 +103,13 @@ class GeneralReduction(GPUScheduleRule):
             return None
 
         loops = sch.get_loops(block_infos[-1].block_rv)
-        bx = sch.fuse(*loops[:num_leading_s])
+        
+        # Ensure we have at least one spatial dimension for blockIdx.x
+        if num_leading_s > 0:
+            bx = sch.fuse(*loops[:num_leading_s])
+        else:
+            bx = loops[0]  # Use the first loop as blockIdx.x
+            
         r_loop, tx = sch.split(loops[-1], [None, len_tx])
         sch.reorder(tx, r_loop)
         sch.bind(bx, "blockIdx.x")
