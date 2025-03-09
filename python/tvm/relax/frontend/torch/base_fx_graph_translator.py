@@ -141,7 +141,6 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         )
 
     def _clamp(self, node: fx.Node) -> relax.Expr:
-        print("entering _clamp")
         args = self.retrieve_args(node)
         a_min = args[1] if len(args) > 1 else node.kwargs.get("min", -math.inf)
         a_max = args[2] if len(args) > 2 else node.kwargs.get("max", math.inf)
@@ -170,7 +169,6 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         return self.block_builder.emit(relax.op.clip(x, a_min, a_max))
 
     def _clamp_min(self, node: fx.Node) -> relax.Expr:
-        print("entering _clamp_min")
         args = self.retrieve_args(node)
         a_min = args[1] if len(args) > 1 else node.kwargs.get("min", -math.inf)
         a_max = math.inf
@@ -189,7 +187,6 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         return self.block_builder.emit(relax.op.clip(x, a_min, a_max))
 
     def _clamp_max(self, node: fx.Node) -> relax.Expr:
-        print("entering _clamp_max")
         args = self.retrieve_args(node)
         a_min = -math.inf
         a_max = args[2] if len(args) > 2 else node.kwargs.get("max", math.inf)
