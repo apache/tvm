@@ -121,7 +121,7 @@ class ArrayNode : public Object, public InplaceArrayBase<ArrayNode, ObjectRef> {
 
   static constexpr const uint32_t _type_index = TypeIndex::kRuntimeArray;
   static constexpr const char* _type_key = "Array";
-  TVM_DECLARE_FINAL_OBJECT_INFO(ArrayNode, Object);
+  TVM_FFI_DECLARE_STATIC_OBJECT_INFO(ArrayNode, Object);
 
  private:
   /*! \return Size of initialized memory, used by InplaceArrayBase. */
@@ -903,14 +903,15 @@ inline Array<T> Concat(Array<T> lhs, const Array<T>& rhs) {
   return std::move(lhs);
 }
 
-// Specialize make_object<ArrayNode> to make sure it is correct.
-template <>
-inline ObjectPtr<ArrayNode> make_object() {
-  return ArrayNode::Empty();
-}
-
 }  // namespace runtime
 
+namespace ffi{
+// Specialize make_object<ArrayNode> to make sure it is correct.
+template <>
+inline ObjectPtr<tvm::runtime::ArrayNode> make_object() {
+  return tvm::runtime::ArrayNode::Empty();
+}
+}
 // expose the functions to the root namespace.
 using runtime::Array;
 using runtime::ArrayNode;

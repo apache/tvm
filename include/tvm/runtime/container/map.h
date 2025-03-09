@@ -68,7 +68,7 @@ class MapNode : public Object {
 
   static constexpr const uint32_t _type_index = runtime::TypeIndex::kRuntimeMap;
   static constexpr const char* _type_key = "Map";
-  TVM_DECLARE_FINAL_OBJECT_INFO(MapNode, Object);
+  TVM_FFI_DECLARE_STATIC_OBJECT_INFO(MapNode, Object);
 
   /*!
    * \brief Number of elements in the SmallMapNode
@@ -187,7 +187,7 @@ class MapNode : public Object {
 
   static constexpr const uint32_t _type_index = runtime::TypeIndex::kRuntimeMap;
   static constexpr const char* _type_key = "Map";
-  TVM_DECLARE_FINAL_OBJECT_INFO(MapNode, Object);
+  TVM_FFI_DECLARE_STATIC_OBJECT_INFO(MapNode, Object);
 
   /*!
    * \brief Number of elements in the SmallMapNode

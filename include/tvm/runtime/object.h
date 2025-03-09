@@ -30,6 +30,8 @@
 namespace tvm {
 namespace runtime {
 
+template<typename T>
+class Optional;
 using namespace tvm::ffi;
 
 /*!
@@ -38,27 +40,27 @@ using namespace tvm::ffi;
  *       the constant, but still able to use enum.
  */
 enum TypeIndex : int32_t {
-    // Standard static index assignments,
-    // Frontends can take benefit of these constants.
-    kRuntimeString = TVMFFITypeIndex::kTVMFFIStr,
-    kRuntimeMap = TVMFFITypeIndex::kTVMFFIMap,
-    kRuntimeArray = TVMFFITypeIndex::kTVMFFIArray,
-    /*! \brief runtime::Module. */
-    kRuntimeModule = TVMFFITypeIndex::kTVMFFIRuntimeModule,
-    /*! \brief runtime::NDArray. */
-    kRuntimeNDArray = TVMFFITypeIndex::kTVMFFINDArray,
-    /*! \brief runtime::ShapeTuple. */
-    kRuntimeShapeTuple = TVMFFITypeIndex::kTVMFFIShapeTuple,
-    // Extra builtin static index here
-    kCustomStaticIndex = TVMFFITypeIndex::kTVMFFIStaticObjectEnd,
-    /*! \brief runtime::PackedFunc. */
-    kRuntimePackedFunc = kCustomStaticIndex + 1,
-    /*! \brief runtime::DRef for disco distributed runtime */
-    kRuntimeDiscoDRef = kCustomStaticIndex + 2,
-    /*! \brief runtime::RPCObjectRef */
-    kRuntimeRPCObjectRef = kCustomStaticIndex + 3,
-    // static assignments that may subject to change.
-    kStaticIndexEnd
+  // Standard static index assignments,
+  // Frontends can take benefit of these constants.
+  kRuntimeString = TVMFFITypeIndex::kTVMFFIStr,
+  kRuntimeMap = TVMFFITypeIndex::kTVMFFIMap,
+  kRuntimeArray = TVMFFITypeIndex::kTVMFFIArray,
+  /*! \brief runtime::Module. */
+  kRuntimeModule = TVMFFITypeIndex::kTVMFFIRuntimeModule,
+  /*! \brief runtime::NDArray. */
+  kRuntimeNDArray = TVMFFITypeIndex::kTVMFFINDArray,
+  /*! \brief runtime::ShapeTuple. */
+  kRuntimeShapeTuple = TVMFFITypeIndex::kTVMFFIShapeTuple,
+  // Extra builtin static index here
+  kCustomStaticIndex = TVMFFITypeIndex::kTVMFFIStaticObjectEnd,
+  /*! \brief runtime::PackedFunc. */
+  kRuntimePackedFunc = kCustomStaticIndex + 1,
+  /*! \brief runtime::DRef for disco distributed runtime */
+  kRuntimeDiscoDRef = kCustomStaticIndex + 2,
+  /*! \brief runtime::RPCObjectRef */
+  kRuntimeRPCObjectRef = kCustomStaticIndex + 3,
+  // static assignments that may subject to change.
+  kStaticIndexEnd,
 };
 
 class ObjectRef : public tvm::ffi::ObjectRef {
@@ -67,6 +69,29 @@ class ObjectRef : public tvm::ffi::ObjectRef {
   ObjectRef() = default;
   /*! \brief Constructor from existing object ptr */
   explicit ObjectRef(ObjectPtr<Object> data) : tvm::ffi::ObjectRef(data) {}
+
+  using tvm::ffi::ObjectRef::as;
+
+  /*!
+   * \brief Try to downcast the ObjectRef to a
+   *    Optional<T> of the requested type.
+   *
+   *  The function will return a NullOpt if the cast failed.
+   *
+   *      if (Optional<Add> opt = node_ref.as<Add>()) {
+   *        // This is an add node
+   *      }
+   *
+   * \note While this method is declared in <tvm/runtime/object.h>,
+   * the implementation is in <tvm/runtime/container/optional.h> to
+   * prevent circular includes.  This additional include file is only
+   * required in compilation units that uses this method.
+   *
+   * \tparam ObjectRefType the target type, must be a subtype of ObjectRef
+   */
+  template <typename ObjectRefType,
+            typename = std::enable_if_t<std::is_base_of_v<ObjectRef, ObjectRefType>>>
+  inline Optional<ObjectRefType> as() const;
 
  protected:
   /*! \return return a mutable internal ptr, can be used by sub-classes. */
@@ -99,12 +124,23 @@ class ObjectRef : public tvm::ffi::ObjectRef {
   static ObjectPtr<ObjectType> GetDataPtr(const ObjectRef& ref) {
     return ObjectPtr<ObjectType>(ref.data_.data_);
   }
+
   // friend classes.
   friend struct ObjectPtrHash;
   friend class TVMRetValue;
   friend class TVMArgsSetter;
   friend class ObjectInternal;
 };
+
+/*
+ * \brief Define the default copy/move constructor and assign operator
+ * \param TypeName The class typename.
+ */
+#define TVM_DEFINE_DEFAULT_COPY_MOVE_AND_ASSIGN(TypeName) \
+  TypeName(const TypeName& other) = default;              \
+  TypeName(TypeName&& other) = default;                   \
+  TypeName& operator=(const TypeName& other) = default;   \
+  TypeName& operator=(TypeName&& other) = default;
 
 #define TVM_DECLARE_FINAL_OBJECT_INFO TVM_FFI_DECLARE_FINAL_OBJECT_INFO
 #define TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS TVM_FFI_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS
