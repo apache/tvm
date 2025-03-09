@@ -37,9 +37,9 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         self.env: Dict[fx.Node, relax.Expr] = {}
         self.params: Dict[torch.Tensor, relax.Expr] = {}
         self.block_builder: relax.BlockBuilder = None
-        self.convert_map: Dict[
-            Union[torch.nn.Module, str], Callable[[fx.Node], relax.Var]
-        ] = self.create_convert_map()
+        self.convert_map: Dict[Union[torch.nn.Module, str], Callable[[fx.Node], relax.Var]] = (
+            self.create_convert_map()
+        )
 
     ########## Utilities ##########
 
@@ -959,8 +959,8 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
     ########## Creation ##########
 
     def _detach(self, node: fx.Node) -> relax.Var:
-        # TODO found no way to correctly implement this. The output should 
-        # share the same memory as the input. It is not the case right now. 
+        # TODO found no way to correctly implement this. The output should
+        # share the same memory as the input. It is not the case right now.
         # Ideally, this test would pass, but it doesn't :
         # https://github.com/hugolatendresse/tvm/blob/456845811ba01c0bea07737a4f7a333a0b45ea92/tests/python/relax/test_from_exported_to_cuda.py#L98
         return self.env[node.args[0]]
