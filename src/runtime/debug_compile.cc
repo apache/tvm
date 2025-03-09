@@ -22,6 +22,10 @@
  * \brief File used for debug migration
  */
 #include <tvm/runtime/container/string.h>
+#include <tvm/runtime/container/optional.h>
+#include <tvm/runtime/container/array.h>
+#include <tvm/runtime/container/map.h>
+#include <tvm/runtime/container/variant.h>
 
 namespace tvm {
 namespace debug {
