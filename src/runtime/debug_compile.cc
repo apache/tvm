@@ -30,6 +30,8 @@
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/disco/disco_worker.h>
+#include <tvm/ir/expr.h>
+#include <tvm/tir/expr.h>
 
 namespace tvm {
 namespace debug {
