@@ -37,9 +37,9 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         self.env: Dict[fx.Node, relax.Expr] = {}
         self.params: Dict[torch.Tensor, relax.Expr] = {}
         self.block_builder: relax.BlockBuilder = None
-        self.convert_map: Dict[
-            Union[torch.nn.Module, str], Callable[[fx.Node], relax.Var]
-        ] = self.create_convert_map()
+        self.convert_map: Dict[Union[torch.nn.Module, str], Callable[[fx.Node], relax.Var]] = (
+            self.create_convert_map()
+        )
 
     ########## Utilities ##########
 
@@ -305,8 +305,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             return intrinsic_op(lhs, rhs)
 
         return convert
-    
-    
+
     ########## Linear Algebra ##########
 
     def _linalg_vector_norm(self, node: fx.Node) -> relax.Var:
@@ -320,19 +319,14 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         keepdim = args[3] if len(args) > 3 else False
 
         # If ord_val is a Python float/int, wrap it in a Relax const
-        # so that it matches data's dtype. 
+        # so that it matches data's dtype.
         dtype = data.struct_info.dtype
         ord_expr = (
-            ord_val
-            if isinstance(ord_val, relax.Expr)
-            else relax.const(float(ord_val), dtype)
+            ord_val if isinstance(ord_val, relax.Expr) else relax.const(float(ord_val), dtype)
         )
         # Reciprocal
         reci_expr = (
-            relax.op.divide(
-                relax.const(1.0, dtype),
-                ord_expr
-            )
+            relax.op.divide(relax.const(1.0, dtype), ord_expr)
             if isinstance(ord_val, relax.Expr)
             else relax.const(1.0 / float(ord_val), dtype)
         )
@@ -347,7 +341,6 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         norm_val = self.block_builder.emit(relax.op.power(reduced, reci_expr))
 
         return norm_val
-
 
     ########## Neural Network ##########
 
