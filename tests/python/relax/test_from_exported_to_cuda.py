@@ -15,9 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import sys
-sys.path.append('/ssd1/htalendr/tvm/python') # Refer to local TVM build
-
 import tvm
 from tvm import relax
 import tvm.testing
