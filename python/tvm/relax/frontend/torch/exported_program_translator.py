@@ -266,6 +266,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             # tensor manipulation
             "cat.default": self._cat,
             "concat.default": self._cat,
+            "copy_.default": self._copy_,
             "cumsum.default": self._cumsum,
             "expand.default": self._expand,
             "permute.default": self._permute,
@@ -284,6 +285,9 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "reshape.default": self._reshape,
             # tensor creation
             "_to_copy.default": self._to_copy,
+            "lift_fresh_copy.default": self._to_copy,
+            "detach.default": self._detach,
+            "detach_.default": self._detach,
             "arange.start": self._arange,
             "clone.default": lambda node: self.env[node.args[0]],
             "empty.memory_format": self._empty,
