@@ -3,7 +3,7 @@
 # distributed with this work for additional information
 # regarding copyright ownership.  The ASF licenses this file
 # to you under the Apache License, Version 2.0 (the
-# "License"); you may not use this file except in compliance    
+# "License"); you may not use this file except in compliance
 # with the License.  You may obtain a copy of the License at
 #
 #   http://www.apache.org/licenses/LICENSE-2.0
@@ -28,25 +28,22 @@ from torch.nn import Softmax, Upsample
 
 def assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module):
     """
-    This util ensures that a torch module can successfully be exported to TVM 
-    using torch.export and that the resuling IR program gives the same result 
+    This util ensures that a torch module can successfully be exported to TVM
+    using torch.export and that the resuling IR program gives the same result
     as PyTorch when ran on CUDA.
     """
-    raw_data_for_tvm = raw_data.copy() # In case the data is modified
+    raw_data_for_tvm = raw_data.copy()  # In case the data is modified
     torch_data = torch.from_numpy(raw_data)
     example_args = (torch_data,)
 
     with torch.no_grad():
         exported_program = export(torch_module, example_args)
-        mod_from_torch = from_exported_program(
-            exported_program, keep_params_as_input=True
-        )
+        mod_from_torch = from_exported_program(exported_program, keep_params_as_input=True)
 
     tvm_mod, tvm_params = relax.frontend.detach_params(mod_from_torch)
     target = tvm.target.Target.from_device(tvm.cuda())
 
-    ex = relax.build(tvm_mod, target=target, 
-                     relax_pipeline=relax.get_default_pipeline(target))
+    ex = relax.build(tvm_mod, target=target, relax_pipeline=relax.get_default_pipeline(target))
     dev = tvm.device("cuda", 0)
     vm = relax.VirtualMachine(ex, dev)
 
@@ -57,18 +54,17 @@ def assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module):
     pytorch_out = torch_module(torch_data).detach().numpy()
     actual = gpu_out[0].numpy()
     desired = pytorch_out
-    np.testing.assert_allclose(actual=actual, desired=desired, rtol=1e-5, 
-                               atol=1e-5) 
+    np.testing.assert_allclose(actual=actual, desired=desired, rtol=1e-5, atol=1e-5)
 
 
 def test_tensor_clamp():
-    
+
     class ClampBothTensor(torch.nn.Module):
         def __init__(self):
             super().__init__()
             self.register_buffer("min_val", torch.tensor(-1.0))
             self.register_buffer("max_val", torch.tensor(1.0))
-            
+
         def forward(self, x):
             return x.clamp(min=self.min_val, max=self.max_val)
 
@@ -77,7 +73,7 @@ def test_tensor_clamp():
             super().__init__()
             self.min_val = -1
             self.max_val = 1
-            
+
         def forward(self, x):
             return x.clamp(min=self.min_val, max=self.max_val)
 
@@ -85,23 +81,23 @@ def test_tensor_clamp():
         def __init__(self):
             super().__init__()
             self.register_buffer("min_val", torch.tensor(0.0))
-            
+
         def forward(self, x):
             return x.clamp(min=self.min_val)
-        
+
     class ClampMinOnlyInt(torch.nn.Module):
         def __init__(self):
             super().__init__()
             self.min_val = 0
-            
+
         def forward(self, x):
             return x.clamp(min=self.min_val)
-        
+
     class ClampMaxOnlyTensor(torch.nn.Module):
         def __init__(self):
             super().__init__()
             self.register_buffer("max_val", torch.tensor(0.5))
-            
+
         def forward(self, x):
             return x.clamp(max=self.max_val)
 
@@ -109,36 +105,36 @@ def test_tensor_clamp():
         def __init__(self):
             super().__init__()
             self.max_val = 0.5
-            
+
         def forward(self, x):
             return x.clamp(max=self.max_val)
-        
+
     class ClampDifferentValues(torch.nn.Module):
         def __init__(self):
             super().__init__()
             self.min_val = -2
             self.max_val = 2
-            
+
         def forward(self, x):
             return x.clamp(min=self.min_val, max=self.max_val)
-        
+
     # Create random data with values outside our clamp ranges
     raw_data = np.random.uniform(-3.0, 3.0, (2, 3, 4, 5)).astype(np.float32)
 
     torch_module0 = ClampBothTensor().eval()
     torch_module1 = ClampBothInt().eval()
-    torch_module2 = ClampMinOnlyTensor().eval()            
-    torch_module3 = ClampMinOnlyInt().eval()            
+    torch_module2 = ClampMinOnlyTensor().eval()
+    torch_module3 = ClampMinOnlyInt().eval()
     torch_module4 = ClampMaxOnlyTensor().eval()
     torch_module5 = ClampMaxOnlyInt().eval()
     torch_module6 = ClampDifferentValues().eval()
 
-    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module0) 
-    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module1) 
-    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module2) 
-    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module3) 
-    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module4) 
-    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module5) 
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module0)
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module1)
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module2)
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module3)
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module4)
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module5)
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module6)
 
 
