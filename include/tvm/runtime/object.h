@@ -26,6 +26,7 @@
 #include <tvm/ffi/object.h>
 #include <tvm/ffi/cast.h>
 #include <tvm/ffi/reflection.h>
+#include <tvm/runtime/c_runtime_api.h>
 
 namespace tvm {
 namespace runtime {
@@ -146,6 +147,10 @@ class ObjectRef : public tvm::ffi::ObjectRef {
 #define TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS TVM_FFI_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS
 
 #define TVM_DEFINE_OBJECT_REF_METHODS TVM_FFI_DEFINE_NULLABLE_OBJECT_REF_METHODS
+
+#define TVM_STR_CONCAT_(__x, __y) __x##__y
+#define TVM_STR_CONCAT(__x, __y) TVM_STR_CONCAT_(__x, __y)
+
 
 }  // namespace runtime
 }  // namespace tvm
