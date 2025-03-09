@@ -114,6 +114,9 @@ class Object {
     return details::IsObjectInstance<TargetType>(header_.type_index);
   }
 
+  /*! \return The internal runtime type index of the object. */
+  int32_t type_index() const { return header_.type_index; }
+
   /*!
    * \return the type key of the object.
    * \note this operation is expensive, can be used for error reporting.
@@ -121,6 +124,16 @@ class Object {
   std::string GetTypeKey() const {
     // the function checks that the info exists
     const TypeInfo* type_info = TVMFFIGetTypeInfo(header_.type_index);
+    return type_info->type_key;
+  }
+
+  /*!
+   * \brief Get the type key of the corresponding index from runtime.
+   * \param tindex The type index.
+   * \return the result.
+   */
+  static std::string TypeIndex2Key(int32_t tindex) {
+    const TypeInfo* type_info = TVMFFIGetTypeInfo(tindex);
     return type_info->type_key;
   }
 
@@ -464,6 +477,7 @@ struct ObjectPtrEqual {
   static int32_t RuntimeTypeIndex() { return TypeName::_type_index; } \
   TVM_FFI_OBJECT_STATIC_DEFS(TypeName, ParentType)
 
+
 /*
  * \brief Define object reference methods.
  * \param TypeName The object type name
@@ -492,6 +506,37 @@ struct ObjectPtrEqual {
   const ObjectName* get() const { return operator->(); }                                       \
   static constexpr bool _type_is_nullable = false;                                             \
   using ContainerType = ObjectName
+
+/*
+ * \brief Define object reference methods of whose content is mutable.
+ * \param TypeName The object type name
+ * \param ParentType The parent type of the objectref
+ * \param ObjectName The type name of the object.
+ * \note We recommend making objects immutable when possible.
+ *       This macro is only reserved for objects that stores runtime states.
+ */
+#define TVM_DEFINE_MUTABLE_NULLABLE_OBJECT_REF_METHODS(TypeName, ParentType, ObjectName)    \
+  TypeName() = default;                                                                     \
+  TVM_FFI_DEFINE_DEFAULT_COPY_MOVE_AND_ASSIGN(TypeName);                                    \
+  explicit TypeName(::tvm::runtime::ObjectPtr<::tvm::runtime::Object> n) : ParentType(n) {} \
+  ObjectName* operator->() const { return static_cast<ObjectName*>(data_.get()); }          \
+  using ContainerType = ObjectName;
+
+/*
+ * \brief Define object reference methods that is both not nullable and mutable.
+ *
+ * \param TypeName The object type name
+ * \param ParentType The parent type of the objectref
+ * \param ObjectName The type name of the object.
+ */
+#define TVM_FFI_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(TypeName, ParentType, ObjectName) \
+  explicit TypeName(::tvm::ffi::ObjectPtr<::tvm::ffi::Object> n) : ParentType(n) {}         \
+  TVM_DEFINE_DEFAULT_COPY_MOVE_AND_ASSIGN(TypeName);                                        \
+  ObjectName* operator->() const { return static_cast<ObjectName*>(data_.get()); }          \
+  ObjectName* get() const { return operator->(); }                                          \
+  static constexpr bool _type_is_nullable = false;                                          \
+  using ContainerType = ObjectName;
+
 
 namespace details {
 
@@ -585,6 +630,10 @@ class ObjectUnsafe {
 
   static TVM_FFI_INLINE void IncRefObjectInAny(TVMFFIAny* src) {
     reinterpret_cast<Object*>(src->v_obj)->IncRef();
+  }
+
+  static TVM_FFI_INLINE Object* GetRawObjectPtrFromObjectRef(const ObjectRef& src) {
+    return src.data_.data_;
   }
 
   static TVM_FFI_INLINE TVMFFIObject* GetTVMFFIObjectPtrFromObjectRef(const ObjectRef& src) {

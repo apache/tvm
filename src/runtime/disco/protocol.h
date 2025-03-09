@@ -155,7 +155,7 @@ inline void DiscoProtocol<SubClassType>::WriteObject(Object* obj) {
     self->template Write<uint64_t>(shape->size);
     self->template WriteArray<ShapeTupleObj::index_type>(shape->data, shape->size);
   } else if (obj->IsInstance<DiscoDebugObject>()) {
-    self->template Write<uint32_t>(TypeIndex::kRoot);
+    self->template Write<uint32_t>(0);
     std::string str = static_cast<DiscoDebugObject*>(obj)->SaveToStr();
     self->template Write<uint64_t>(str.size());
     self->template WriteArray<char>(str.data(), str.size());
@@ -188,7 +188,7 @@ inline void DiscoProtocol<SubClassType>::ReadObject(int* tcode, TVMValue* value)
     std::vector<ShapeTupleObj::index_type> data(ndim);
     self->template ReadArray<ShapeTupleObj::index_type>(data.data(), ndim);
     result = ShapeTuple(std::move(data));
-  } else if (type_index == TypeIndex::kRoot) {
+  } else if (type_index == 0) {
     uint64_t size = 0;
     self->template Read<uint64_t>(&size);
     std::string data(size, '\0');

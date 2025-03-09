@@ -182,7 +182,6 @@ class StorageObj : public Object {
     }
   }
 
-  static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
   static constexpr const char* _type_key = "vm.Storage";
   TVM_DECLARE_FINAL_OBJECT_INFO(StorageObj, Object);
 };

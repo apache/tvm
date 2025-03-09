@@ -2096,7 +2096,7 @@ inline void TVMArgsSetter::SetObject(size_t i, T&& value) const {
     return;
   }
 
-  Object* ptr = value.data_.data_;
+  Object* ptr = details::ObjectUnsafe::GetRawObjectPtrFromObjectRef(value);
   if constexpr (std::is_base_of_v<NDArray::ContainerType, ContainerType> ||
                 std::is_base_of_v<ContainerType, NDArray::ContainerType>) {
     if (std::is_base_of_v<NDArray::ContainerType, ContainerType> ||
@@ -2186,7 +2186,8 @@ inline void TVMArgsSetter::SetObject(size_t i, T&& value) const {
     values_[i].v_handle = const_cast<Object**>(&(value.data_.data_));
     type_codes_[i] = kTVMObjectRValueRefArg;
   } else {
-    values_[i].v_handle = value.data_.data_;
+    // value.data_.data_;
+    values_[i].v_handle = details::ObjectUnsafe::GetTVMFFIObjectPtrFromObjectRef(value);
     type_codes_[i] = kTVMObjectHandle;
   }
 }
