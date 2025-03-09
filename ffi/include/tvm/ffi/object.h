@@ -426,24 +426,15 @@ struct ObjectPtrEqual {
   }
 };
 
-/*!
- * \brief Helper macro to declare list of static checks about object meta-data.
- * \param TypeName The name of the current type.
- * \param ParentType The name of the ParentType
- */
-#define TVM_FFI_OBJECT_STATIC_DEFS(TypeName, ParentType)                                  \
-  static constexpr int32_t _type_depth = ParentType::_type_depth + 1;                     \
-  static_assert(!ParentType::_type_final, "ParentType marked as final");                  \
-  static_assert(TypeName::_type_child_slots == 0 || ParentType::_type_child_slots == 0 || \
-                    TypeName::_type_child_slots < ParentType::_type_child_slots,          \
-                "Need to set _type_child_slots when parent specifies it.");               \
-  static_assert(TypeName::_type_child_slots == 0 || ParentType::_type_child_slots == 0 || \
-                    TypeName::_type_child_slots < ParentType::_type_child_slots,          \
-                "Need to set _type_child_slots when parent specifies it.")
 
 // If dynamic type is enabled, we still need to register the runtime type of parent
 #define TVM_FFI_REGISTER_STATIC_TYPE_INFO(TypeName, ParentType)                \
+  static constexpr int32_t _type_depth = ParentType::_type_depth + 1;            \
   static int32_t _GetOrAllocRuntimeTypeIndex() {                               \
+    static_assert(!ParentType::_type_final, "ParentType marked as final");                  \
+    static_assert(TypeName::_type_child_slots == 0 || ParentType::_type_child_slots == 0 || \
+                      TypeName::_type_child_slots < ParentType::_type_child_slots,          \
+                  "Need to set _type_child_slots when parent specifies it.");               \
     static int32_t tindex = TVMFFIGetOrAllocTypeIndex(                         \
         TypeName::_type_key, TypeName::_type_index, TypeName::_type_depth,     \
         TypeName::_type_child_slots, TypeName::_type_child_slots_can_overflow, \
@@ -458,9 +449,8 @@ struct ObjectPtrEqual {
  * \param ParentType The name of the ParentType
  */
 #define TVM_FFI_DECLARE_STATIC_OBJECT_INFO(TypeName, ParentType)      \
-  TVM_FFI_REGISTER_STATIC_TYPE_INFO(TypeName, ParentType);            \
   static int32_t RuntimeTypeIndex() { return TypeName::_type_index; } \
-  TVM_FFI_OBJECT_STATIC_DEFS(TypeName, ParentType)
+  TVM_FFI_REGISTER_STATIC_TYPE_INFO(TypeName, ParentType);
 
 
 /*
@@ -524,7 +514,6 @@ struct ObjectPtrEqual {
 
 
 namespace details {
-
 template <typename TargetType>
 TVM_FFI_INLINE bool IsObjectInstance(int32_t object_type_index) {
   static_assert(std::is_base_of_v<Object, TargetType>);
@@ -573,6 +562,11 @@ class ObjectUnsafe {
   static TVM_FFI_INLINE int64_t GetObjectOffsetToSubclass() {
     return (reinterpret_cast<int64_t>(&(static_cast<Class*>(nullptr)->header_)) -
             reinterpret_cast<int64_t>(&(static_cast<Object*>(nullptr)->header_)));
+  }
+
+  template <typename T>
+  static TVM_FFI_INLINE ObjectPtr<T> ObjectPtrFromObjectRef(const ObjectRef& ref) {
+    return tvm::ffi::ObjectPtr<T>(ref.data_.data_);
   }
 
   template <typename T>

@@ -128,11 +128,13 @@ class ObjectRef : public tvm::ffi::ObjectRef {
    * \brief Internal helper function get data_ as ObjectPtr of ObjectType.
    * \note only used for internal dev purpose.
    * \tparam ObjectType The corresponding object type.
+   * \param ref The object reference
    * \return the corresponding type.
    */
   template <typename ObjectType>
   static ObjectPtr<ObjectType> GetDataPtr(const ObjectRef& ref) {
-    return ObjectPtr<ObjectType>(ref.data_.data_);
+    // return ObjectPtr<ObjectType>(ref.data_.data_);
+    return ffi::details::ObjectUnsafe::ObjectPtrFromObjectRef<ObjectType>(ref);
   }
 
   // friend classes.
@@ -151,6 +153,53 @@ class ObjectRef : public tvm::ffi::ObjectRef {
   TypeName(TypeName&& other) = default;                   \
   TypeName& operator=(const TypeName& other) = default;   \
   TypeName& operator=(TypeName&& other) = default;
+
+/*!
+ * \brief Define CopyOnWrite function in an ObjectRef.
+ * \param ObjectName The Type of the Node.
+ *
+ *  CopyOnWrite will generate a unique copy of the internal node.
+ *  The node will be copied if it is referenced by multiple places.
+ *  The function returns the raw pointer to the node to allow modification
+ *  of the content.
+ *
+ * \code
+ *
+ *  MyCOWObjectRef ref, ref2;
+ *  ref2 = ref;
+ *  ref.CopyOnWrite()->value = new_value;
+ *  assert(ref2->value == old_value);
+ *  assert(ref->value == new_value);
+ *
+ * \endcode
+ */
+#define TVM_DEFINE_OBJECT_REF_COW_METHOD(ObjectName)              \
+static_assert(ObjectName::_type_final,                           \
+              "TVM's CopyOnWrite may only be used for "          \
+              "Object types that are declared as final, "        \
+              "using the TVM_DECLARE_FINAL_OBJECT_INFO macro."); \
+ObjectName* CopyOnWrite() {                                      \
+  ICHECK(data_ != nullptr);                                      \
+  if (!data_.unique()) {                                         \
+    auto n = make_object<ObjectName>(*(operator->()));           \
+    ObjectPtr<Object>(std::move(n)).swap(data_);                 \
+  }                                                              \
+  return static_cast<ObjectName*>(data_.get());                  \
+}
+
+/*
+ * \brief Define object reference methods.
+ * \param TypeName The object type name
+ * \param ParentType The parent type of the objectref
+ * \param ObjectName The type name of the object.
+ */
+#define TVM_DEFINE_OBJECT_REF_METHODS_WITHOUT_DEFAULT_CONSTRUCTOR(TypeName, ParentType,        \
+  ObjectName)                  \
+explicit TypeName(::tvm::runtime::ObjectPtr<::tvm::runtime::Object> n) : ParentType(n) {}    \
+TVM_DEFINE_DEFAULT_COPY_MOVE_AND_ASSIGN(TypeName);                                           \
+const ObjectName* operator->() const { return static_cast<const ObjectName*>(data_.get()); } \
+const ObjectName* get() const { return operator->(); }                                       \
+using ContainerType = ObjectName;
 
 
 #define TVM_DECLARE_BASE_OBJECT_INFO TVM_FFI_DECLARE_BASE_OBJECT_INFO
