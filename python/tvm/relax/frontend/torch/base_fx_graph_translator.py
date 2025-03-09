@@ -958,6 +958,9 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
 
     ########## Creation ##########
 
+    def _detach(self, node: fx.Node) -> relax.Var:
+        return self.env[node.args[0]]
+
     def _to_copy(self, node: fx.Node) -> relax.Var:
         import torch  # type: ignore
 
