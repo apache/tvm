@@ -167,6 +167,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "ceil.default": self._unary_op(relax.op.ceil),
             "clamp.default": self._clamp,
             "clamp_min.default": self._clamp_min,
+            "clamp_max.default": self._clamp_max,
             "cos.default": self._unary_op(relax.op.cos),
             "cosh.default": self._unary_op(relax.op.cosh),
             "dropout.default": lambda node: self.env[node.args[0]],
@@ -266,6 +267,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "argmin.default": self._argmax_argmin(relax.op.argmin),
             # tensor manipulation
             "cat.default": self._cat,
+            "clamp.Tensor": self._clamp,
             "concat.default": self._cat,
             "cumsum.default": self._cumsum,
             "expand.default": self._expand,
