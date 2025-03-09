@@ -257,7 +257,7 @@ class TVM_DLL ModuleNode : public Object {
   static constexpr const char* _type_key = "runtime.Module";
   // NOTE: ModuleNode can still be sub-classed
   //
-  TVM_DECLARE_FINAL_OBJECT_INFO(ModuleNode, Object);
+  TVM_FFI_DECLARE_STATIC_OBJECT_INFO(ModuleNode, Object);
 
  protected:
   friend class Module;
