@@ -37,9 +37,9 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         self.env: Dict[fx.Node, relax.Expr] = {}
         self.params: Dict[torch.Tensor, relax.Expr] = {}
         self.block_builder: relax.BlockBuilder = None
-        self.convert_map: Dict[
-            Union[torch.nn.Module, str], Callable[[fx.Node], relax.Var]
-        ] = self.create_convert_map()
+        self.convert_map: Dict[Union[torch.nn.Module, str], Callable[[fx.Node], relax.Var]] = (
+            self.create_convert_map()
+        )
 
     ########## Utilities ##########
 
@@ -228,58 +228,58 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
 
     def _softmax(self, node: fx.Node) -> relax.Var:
         """
-        For large tensors with non-last dimension softmax, we transpose to move 
-        the softmax dimension to the end, apply softmax, and then transpose 
+        For large tensors with non-last dimension softmax, we transpose to move
+        the softmax dimension to the end, apply softmax, and then transpose
         back to the original shape.
         """
         x = self.env[node.args[0]]
         dim = node.args[1] if len(node.args) > 1 else node.kwargs.get("dim", -1)
         input_shape = x.struct_info.shape
         input_ndim = len(input_shape)
-        
+
         if dim < 0:
             # Ensure dim is express as a positive index
             dim = input_ndim + dim
-        
+
         # Check if this is a non-last dimension with large size (> 1024)
-        # The smallest power of 2 that doesn't work on a NVIDIA GeForce RTX 
+        # The smallest power of 2 that doesn't work on a NVIDIA GeForce RTX
         # 4090 if 8192. Using 1024 here to be safe.
         is_large_non_last_dim = False
         large_size_threshold = 1024
-        
+
         if dim != input_ndim - 1:  # Not the last dimension
             try:
                 # Check if any dimension is large
                 for i, size in enumerate(input_shape):
-                    if hasattr(size, 'value') and size.value > large_size_threshold:
+                    if hasattr(size, "value") and size.value > large_size_threshold:
                         is_large_non_last_dim = True
                         break
             except:
                 # If we can't determine the size, play it safe
                 pass
-        
+
         if is_large_non_last_dim:
             # Special handling for large tensors with non-last dimension softmax
-            
+
             # Get dimension ordering for transpose
             dims = list(range(input_ndim))
             dims.append(dims.pop(dim))
-            
+
             # Transpose
             x_transposed = self.block_builder.emit(relax.op.permute_dims(x, dims))
-            
+
             # Apply softmax on last dimension
             softmax_result = self.block_builder.emit(relax.op.nn.softmax(x_transposed, -1))
-            
+
             # Transpose back to original shape
             inv_dims = [-1] * len(dims)
             for i, d in enumerate(dims):
                 inv_dims[d] = i
             return self.block_builder.emit(relax.op.permute_dims(softmax_result, inv_dims))
         else:
-            # Regular softmax 
+            # Regular softmax
             return self.block_builder.emit(relax.op.nn.softmax(x, dim))
-        
+
     def _selu(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         alpha = node.args[1] if len(node.args) > 1 else node.kwargs.get("alpha", 1.6732631921768188)
