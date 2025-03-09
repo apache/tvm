@@ -497,6 +497,9 @@ list(REMOVE_ITEM COMPILER_SRCS ${LIBINFO_FILE})
 add_library(tvm_objs OBJECT ${COMPILER_SRCS})
 add_library(tvm_runtime_objs OBJECT ${RUNTIME_SRCS})
 add_library(tvm_libinfo_objs OBJECT ${LIBINFO_FILE})
+target_link_libraries(tvm_objs PUBLIC tvm_ffi_header)
+target_link_libraries(tvm_runtime_objs PUBLIC tvm_ffi_header)
+target_link_libraries(tvm_libinfo_objs PUBLIC tvm_ffi_header)
 
 include(GNUInstallDirs)
 if(NOT BUILD_DUMMY_LIBTVM)
@@ -602,8 +605,10 @@ endif()
 
 target_link_libraries(tvm PRIVATE ${TVM_RUNTIME_LINKER_LIBS})
 target_link_libraries(tvm_runtime PRIVATE ${TVM_RUNTIME_LINKER_LIBS})
-target_link_directories(tvm PRIVATE tvm_ffi)
-target_link_directories(tvm_runtime PRIVATE tvm_ffi)
+
+target_link_libraries(tvm PUBLIC tvm_ffi_objs)
+target_link_libraries(tvm_runtime PUBLIC tvm_ffi_objs)
+
 
 if(BUILD_FOR_HEXAGON AND DEFINED USE_HEXAGON_GTEST AND EXISTS ${USE_HEXAGON_GTEST})
   include(FetchContent)
@@ -642,6 +647,7 @@ if (HIDE_PRIVATE_SYMBOLS AND NOT ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
   target_link_libraries(tvm_runtime PRIVATE ${HIDE_SYMBOLS_LINKER_FLAGS})
   target_compile_definitions(tvm_allvisible PUBLIC $<TARGET_PROPERTY:tvm,INTERFACE_COMPILE_DEFINITONS>)
   target_compile_definitions(tvm_allvisible PRIVATE $<TARGET_PROPERTY:tvm,COMPILE_DEFINITONS>)
+  target_link_libraries(tvm_allvisible PUBLIC tvm_ffi_objs)
 endif()
 
 # Create the `cpptest` target if we can find GTest.  If not, we create dummy
@@ -699,10 +705,10 @@ if(NOT DEFINED ENV{CONDA_BUILD})
 endif()
 
 # Installation rules
-install(TARGETS tvm EXPORT ${PROJECT_NAME}Targets DESTINATION lib${LIB_SUFFIX})
-install(TARGETS tvm_runtime EXPORT ${PROJECT_NAME}Targets DESTINATION lib${LIB_SUFFIX})
+install(TARGETS tvm DESTINATION lib${LIB_SUFFIX})
+install(TARGETS tvm_runtime DESTINATION lib${LIB_SUFFIX})
 if(BUILD_FOR_HEXAGON AND DEFINED USE_HEXAGON_GTEST AND EXISTS ${USE_HEXAGON_GTEST})
-  install(TARGETS gtest EXPORT ${PROJECT_NAME}Targets DESTINATION lib${LIB_SUFFIX})
+  install(TARGETS gtest DESTINATION lib${LIB_SUFFIX})
 endif()
 
 if (INSTALL_DEV)

@@ -31,60 +31,61 @@ include(cmake/Utils/AddLibbacktrace.cmake)
 add_library(dlpack_header INTERFACE)
 target_include_directories(dlpack_header INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/dlpack/include")
 
+########## Target: `tvm_ffi_header` ##########
+
+add_library(tvm_ffi_header INTERFACE)
+target_include_directories(tvm_ffi_header INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/include")
+target_link_libraries(tvm_ffi_header INTERFACE dlpack_header)
+
 ########## Target: `tvm_ffi` ##########
+add_library(tvm_ffi_objs OBJECT
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/traceback.cc"
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/object.cc"
+  "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/function.cc"
+)
+set_target_properties(
+  tvm_ffi_objs PROPERTIES
+  POSITION_INDEPENDENT_CODE ON
+  CXX_STANDARD 17
+  CXX_EXTENSIONS OFF
+  CXX_STANDARD_REQUIRED ON
+  CXX_VISIBILITY_PRESET hidden
+  VISIBILITY_INLINES_HIDDEN ON
+  PREFIX "lib"
+)
+add_cxx_warning(tvm_ffi_objs)
+target_link_libraries(tvm_ffi_objs PRIVATE dlpack_header)
+target_include_directories(tvm_ffi_objs PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/include")
 
-add_library(tvm_ffi INTERFACE)
-target_link_libraries(tvm_ffi INTERFACE dlpack_header)
-target_compile_features(tvm_ffi INTERFACE cxx_std_17)
-target_include_directories(tvm_ffi INTERFACE "${CMAKE_CURRENT_SOURCE_DIR}/include")
+if (TVM_FFI_USE_LIBBRACKTRACE)
+  message(STATUS "Setting C++ macro TVM_FFI_USE_LIBBRACKTRACE - 1")
+  target_compile_definitions(tvm_ffi_objs PRIVATE TVM_FFI_USE_LIBBRACKTRACE=1)
+else()
+  message(STATUS "Setting C++ macro TVM_FFI_USE_LIBBRACKTRACE - 0")
+  target_compile_definitions(tvm_ffi_objs PRIVATE TVM_FFI_USE_LIBBRACKTRACE=0)
+endif()
 
-########## Target: `tvm_ffi` ##########
+if (TVM_FFI_BACKTRACE_ON_SEGFAULT)
+  message(STATUS "Setting C++ macro TVM_FFI_BACKTRACE_ON_SEGFAULT - 1")
+  target_compile_definitions(tvm_ffi_objs PRIVATE TVM_FFI_BACKTRACE_ON_SEGFAULT=1)
+else()
+  message(STATUS "Setting C++ macro TVM_FFI_BACKTRACE_ON_SEGFAULT - 0")
+  target_compile_definitions(tvm_ffi_objs PRIVATE TVM_FFI_BACKTRACE_ON_SEGFAULT=0)
+endif()
 
-if (TVM_FFI_BUILD_REGISTRY)
-  add_library(tvm_ffi_objs OBJECT
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/traceback.cc"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/object.cc"
-    "${CMAKE_CURRENT_SOURCE_DIR}/src/ffi/function.cc"
-  )
-  set_target_properties(
-    tvm_ffi_objs PROPERTIES
-    POSITION_INDEPENDENT_CODE ON
-    CXX_STANDARD 17
-    CXX_EXTENSIONS OFF
-    CXX_STANDARD_REQUIRED ON
-    CXX_VISIBILITY_PRESET hidden
-    VISIBILITY_INLINES_HIDDEN ON
-    PREFIX "lib"
-  )
-  add_cxx_warning(tvm_ffi_objs)
-  target_link_libraries(tvm_ffi_objs PRIVATE dlpack_header)
-  target_include_directories(tvm_ffi_objs PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/include")
+add_target_from_obj(tvm_ffi tvm_ffi_objs)
 
-  if (TVM_FFI_USE_LIBBRACKTRACE)
-    message(STATUS "Setting C++ macro TVM_FFI_USE_LIBBRACKTRACE - 1")
-    target_compile_definitions(tvm_ffi_objs PRIVATE TVM_FFI_USE_LIBBRACKTRACE=1)
-  else()
-    message(STATUS "Setting C++ macro TVM_FFI_USE_LIBBRACKTRACE - 0")
-    target_compile_definitions(tvm_ffi_objs PRIVATE TVM_FFI_USE_LIBBRACKTRACE=0)
-  endif()
+if (TARGET libbacktrace)
+  target_link_libraries(tvm_ffi_objs PRIVATE libbacktrace)
+  target_link_libraries(tvm_ffi_shared PRIVATE libbacktrace)
+  target_link_libraries(tvm_ffi_static PRIVATE libbacktrace)
+endif ()
+target_link_libraries(tvm_ffi_objs PUBLIC tvm_ffi_header)
+target_link_libraries(tvm_ffi_shared PUBLIC tvm_ffi_header)
+target_link_libraries(tvm_ffi_static PUBLIC tvm_ffi_header)
 
-  if (TVM_FFI_BACKTRACE_ON_SEGFAULT)
-    message(STATUS "Setting C++ macro TVM_FFI_BACKTRACE_ON_SEGFAULT - 1")
-    target_compile_definitions(tvm_ffi_objs PRIVATE TVM_FFI_BACKTRACE_ON_SEGFAULT=1)
-  else()
-    message(STATUS "Setting C++ macro TVM_FFI_BACKTRACE_ON_SEGFAULT - 0")
-    target_compile_definitions(tvm_ffi_objs PRIVATE TVM_FFI_BACKTRACE_ON_SEGFAULT=0)
-  endif()
-
-  add_target_from_obj(tvm_ffi tvm_ffi_objs)
-  if (TARGET libbacktrace)
-    target_link_libraries(tvm_ffi_objs PRIVATE libbacktrace)
-    target_link_libraries(tvm_ffi_shared PRIVATE libbacktrace)
-    target_link_libraries(tvm_ffi_static PRIVATE libbacktrace)
-  endif ()
-  install(TARGETS tvm_ffi_static DESTINATION "lib/")
-  install(TARGETS tvm_ffi_shared DESTINATION "lib/")
-endif (TVM_FFI_BUILD_REGISTRY)
+install(TARGETS tvm_ffi_static DESTINATION lib${LIB_SUFFIX})
+install(TARGETS tvm_ffi_shared DESTINATION lib${LIB_SUFFIX})
 
 ########## Adding tests ##########
 
