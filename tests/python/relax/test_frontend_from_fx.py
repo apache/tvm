@@ -4046,11 +4046,12 @@ def test_one_hot():
     class Expected:
         @R.function
         def main(
-                inp_0: R.Tensor((5,), dtype="int32"),
+            inp_0: R.Tensor((5,), dtype="int32"),
         ) -> R.Tensor((5, 10), dtype="int64"):
             with R.dataflow():
-                lv: R.Tensor((5, 10), dtype="int64") = R.one_hot(inp_0, R.prim_value(1), R.prim_value(0), depth=10,
-                                                                 axis=-1)
+                lv: R.Tensor((5, 10), dtype="int64") = R.one_hot(
+                    inp_0, R.prim_value(1), R.prim_value(0), depth=10, axis=-1
+                )
                 gv: R.Tensor((5, 10), dtype="int64") = lv
                 R.output(gv)
 
