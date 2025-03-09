@@ -732,6 +732,7 @@ class TorchFXImporter(BaseFXGraphImporter):
             "contiguous": lambda node: self.env[node.args[0]],
             "cumsum": self._cumsum,
             "expand": self._expand,
+            "expand_as.default": self._expand_as,
             "flatten": self._flatten,
             "flip": self._flip,
             "gather": self._gather,
