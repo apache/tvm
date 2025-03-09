@@ -526,9 +526,7 @@ class TorchFXImporter(BaseFXGraphImporter):
         axis = node.args[4] if len(node.args) > 4 else node.kwargs.get("axis", -1)
         on_value = relax.PrimValue(on_value)
         off_value = relax.PrimValue(off_value)
-        return self.block_builder.emit(
-            relax.op.one_hot(x, on_value, off_value, num_classes, axis)
-        )
+        return self.block_builder.emit(relax.op.one_hot(x, on_value, off_value, num_classes, axis))
 
     def _tensor(self, node: fx.Node) -> relax.Var:
         dtype = node.kwargs.get("dtype", None)
