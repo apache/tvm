@@ -23,15 +23,15 @@
 #ifndef TVM_RUNTIME_OBJECT_H_
 #define TVM_RUNTIME_OBJECT_H_
 
-#include <tvm/ffi/object.h>
 #include <tvm/ffi/cast.h>
+#include <tvm/ffi/object.h>
 #include <tvm/ffi/reflection.h>
 #include <tvm/runtime/c_runtime_api.h>
 
 namespace tvm {
 namespace runtime {
 
-template<typename T>
+template <typename T>
 class Optional;
 
 using tvm::ffi::Object;
@@ -40,9 +40,8 @@ using tvm::ffi::ObjectPtrEqual;
 using tvm::ffi::ObjectPtrHash;
 
 using tvm::ffi::Downcast;
-using tvm::ffi::GetRef;
 using tvm::ffi::GetObjectPtr;
-
+using tvm::ffi::GetRef;
 
 /*!
  * \brief Namespace for the list of type index.
@@ -173,19 +172,19 @@ class ObjectRef : public tvm::ffi::ObjectRef {
  *
  * \endcode
  */
-#define TVM_DEFINE_OBJECT_REF_COW_METHOD(ObjectName)              \
-static_assert(ObjectName::_type_final,                           \
-              "TVM's CopyOnWrite may only be used for "          \
-              "Object types that are declared as final, "        \
-              "using the TVM_DECLARE_FINAL_OBJECT_INFO macro."); \
-ObjectName* CopyOnWrite() {                                      \
-  ICHECK(data_ != nullptr);                                      \
-  if (!data_.unique()) {                                         \
-    auto n = make_object<ObjectName>(*(operator->()));           \
-    ObjectPtr<Object>(std::move(n)).swap(data_);                 \
-  }                                                              \
-  return static_cast<ObjectName*>(data_.get());                  \
-}
+#define TVM_DEFINE_OBJECT_REF_COW_METHOD(ObjectName)               \
+  static_assert(ObjectName::_type_final,                           \
+                "TVM's CopyOnWrite may only be used for "          \
+                "Object types that are declared as final, "        \
+                "using the TVM_DECLARE_FINAL_OBJECT_INFO macro."); \
+  ObjectName* CopyOnWrite() {                                      \
+    ICHECK(data_ != nullptr);                                      \
+    if (!data_.unique()) {                                         \
+      auto n = make_object<ObjectName>(*(operator->()));           \
+      ObjectPtr<Object>(std::move(n)).swap(data_);                 \
+    }                                                              \
+    return static_cast<ObjectName*>(data_.get());                  \
+  }
 
 /*
  * \brief Define object reference methods.
@@ -194,13 +193,12 @@ ObjectName* CopyOnWrite() {                                      \
  * \param ObjectName The type name of the object.
  */
 #define TVM_DEFINE_OBJECT_REF_METHODS_WITHOUT_DEFAULT_CONSTRUCTOR(TypeName, ParentType,        \
-  ObjectName)                  \
-explicit TypeName(::tvm::runtime::ObjectPtr<::tvm::runtime::Object> n) : ParentType(n) {}    \
-TVM_DEFINE_DEFAULT_COPY_MOVE_AND_ASSIGN(TypeName);                                           \
-const ObjectName* operator->() const { return static_cast<const ObjectName*>(data_.get()); } \
-const ObjectName* get() const { return operator->(); }                                       \
-using ContainerType = ObjectName;
-
+                                                                  ObjectName)                  \
+  explicit TypeName(::tvm::runtime::ObjectPtr<::tvm::runtime::Object> n) : ParentType(n) {}    \
+  TVM_DEFINE_DEFAULT_COPY_MOVE_AND_ASSIGN(TypeName);                                           \
+  const ObjectName* operator->() const { return static_cast<const ObjectName*>(data_.get()); } \
+  const ObjectName* get() const { return operator->(); }                                       \
+  using ContainerType = ObjectName;
 
 #define TVM_DECLARE_BASE_OBJECT_INFO TVM_FFI_DECLARE_BASE_OBJECT_INFO
 #define TVM_DECLARE_FINAL_OBJECT_INFO TVM_FFI_DECLARE_FINAL_OBJECT_INFO
@@ -208,7 +206,8 @@ using ContainerType = ObjectName;
 
 #define TVM_DEFINE_MUTABLE_OBJECT_REF_METHODS TVM_DEFINE_MUTABLE_NULLABLE_OBJECT_REF_METHODS
 #define TVM_DEFINE_OBJECT_REF_METHODS TVM_FFI_DEFINE_NULLABLE_OBJECT_REF_METHODS
-#define TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS TVM_FFI_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS
+#define TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS \
+  TVM_FFI_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS
 
 #define TVM_STR_CONCAT_(__x, __y) __x##__y
 #define TVM_STR_CONCAT(__x, __y) TVM_STR_CONCAT_(__x, __y)

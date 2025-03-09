@@ -71,7 +71,8 @@ int TVMObjectDerivedFrom(uint32_t child_type_index, uint32_t parent_type_index, 
     const TVMFFITypeInfo* child_type_info = TVMFFIGetTypeInfo(child_type_index);
     const TVMFFITypeInfo* parent_type_info = TVMFFIGetTypeInfo(parent_type_index);
     return (child_type_info->type_depth > parent_type_info->type_depth &&
-      child_type_info->type_acenstors[parent_type_info->type_depth] == static_cast<int32_t>(parent_type_index));
+            child_type_info->type_acenstors[parent_type_info->type_depth] ==
+                static_cast<int32_t>(parent_type_index));
   }();
   API_END();
 }

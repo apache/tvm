@@ -155,11 +155,11 @@ class ReflectionFieldGetter {
  */
 #define TVM_FFI_DECLARE_BASE_OBJECT_INFO(TypeName, ParentType)                                \
   static constexpr int32_t _type_depth = ParentType::_type_depth + 1;                         \
-  static int32_t _GetOrAllocRuntimeTypeIndex() {                                           \
-    static_assert(!ParentType::_type_final, "ParentType marked as final");                  \
-    static_assert(TypeName::_type_child_slots == 0 || ParentType::_type_child_slots == 0 || \
-                      TypeName::_type_child_slots < ParentType::_type_child_slots,          \
-                  "Need to set _type_child_slots when parent specifies it.");               \
+  static int32_t _GetOrAllocRuntimeTypeIndex() {                                              \
+    static_assert(!ParentType::_type_final, "ParentType marked as final");                    \
+    static_assert(TypeName::_type_child_slots == 0 || ParentType::_type_child_slots == 0 ||   \
+                      TypeName::_type_child_slots < ParentType::_type_child_slots,            \
+                  "Need to set _type_child_slots when parent specifies it.");                 \
     static int32_t tindex = TVMFFIGetOrAllocTypeIndex(                                        \
         TypeName::_type_key, -1, TypeName::_type_depth, TypeName::_type_child_slots,          \
         TypeName::_type_child_slots_can_overflow, ParentType::_GetOrAllocRuntimeTypeIndex()); \
