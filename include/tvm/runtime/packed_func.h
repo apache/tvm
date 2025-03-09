@@ -2183,7 +2183,8 @@ inline void TVMArgsSetter::SetObject(size_t i, T&& value) const {
   // Final fallback, if the ObjectRef has no special cases that must
   // be expressed within the TVMRetValue.
   if constexpr (std::is_rvalue_reference_v<decltype(value)>) {
-    values_[i].v_handle = const_cast<Object**>(&(value.data_.data_));
+    // values_[i].v_handle = const_cast<Object**>(&(value.data_.data_));
+    values_[i].v_handle = ffi::details::ObjectUnsafe::GetObjectRValueRefValue(&value);
     type_codes_[i] = kTVMObjectRValueRefArg;
   } else {
     // value.data_.data_;

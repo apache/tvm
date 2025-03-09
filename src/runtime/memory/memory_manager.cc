@@ -34,7 +34,7 @@ namespace tvm {
 namespace runtime {
 namespace memory {
 
-static void BufferDeleter(Object* obj) {
+static void BufferDeleter(void* obj) {
   auto* ptr = static_cast<NDArray::Container*>(obj);
   ICHECK(ptr->manager_ctx != nullptr);
   Buffer* buffer = reinterpret_cast<Buffer*>(ptr->manager_ctx);
@@ -50,7 +50,7 @@ Storage::Storage(Buffer buffer, Allocator* allocator) {
   data_ = std::move(n);
 }
 
-void StorageObj::Deleter(Object* obj) {
+void StorageObj::Deleter(void* obj) {
   auto* ptr = static_cast<NDArray::Container*>(obj);
   // When invoking AllocNDArray we don't own the underlying allocation
   // and should not delete the buffer, but instead let it be reclaimed
@@ -62,7 +62,8 @@ void StorageObj::Deleter(Object* obj) {
   // We decrement the object allowing for the buffer to release our
   // reference count from allocation.
   StorageObj* storage = reinterpret_cast<StorageObj*>(ptr->manager_ctx);
-  storage->DecRef();
+  // storage->DecRef();
+  tvm::ffi::details::ObjectUnsafe::DecRefObjectHandle(storage);
   delete ptr;
 }
 
@@ -84,13 +85,14 @@ inline size_t GetDataAlignment(const DLTensor& arr) {
   return align;
 }
 
-void StorageObj::ScopedDeleter(Object* obj) {
+void StorageObj::ScopedDeleter(void* obj) {
   auto* ptr = static_cast<NDArray::Container*>(obj);
   StorageObj* storage = reinterpret_cast<StorageObj*>(ptr->manager_ctx);
 
   // Let the device handle proper cleanup of view
   storage->allocator->FreeView(ptr->dl_tensor.device, ptr->dl_tensor.data);
-  storage->DecRef();
+  // storage->DecRef();
+  tvm::ffi::details::ObjectUnsafe::DecRefObjectHandle(storage);
   delete ptr;
 }
 
@@ -105,7 +107,8 @@ NDArray StorageObj::AllocNDArrayScoped(int64_t offset, ShapeTuple shape, DLDataT
   container->dl_tensor.byte_offset = offset;
   container->SetDeleter(StorageObj::ScopedDeleter);
   size_t needed_size = DeviceAPI::Get(this->buffer.device)->GetDataSize(container->dl_tensor);
-  this->IncRef();
+  // this->IncRef();
+  tvm::ffi::details::ObjectUnsafe::IncRefObjectHandle(this);
   container->manager_ctx = reinterpret_cast<void*>(this);
   NDArray ret(GetObjectPtr<Object>(container));
   // RAII in effect, now run the check.
@@ -125,7 +128,8 @@ NDArray StorageObj::AllocNDArray(int64_t offset, ShapeTuple shape, DLDataType dt
 
   container->SetDeleter(StorageObj::Deleter);
   size_t needed_size = DeviceAPI::Get(this->buffer.device)->GetDataSize(container->dl_tensor);
-  this->IncRef();
+  // this->IncRef();
+  tvm::ffi::details::ObjectUnsafe::IncRefObjectHandle(this);
   // The manager context pointer must continue to point to the storage object
   // which owns the backing memory, and keeps track of the reference count.
   //

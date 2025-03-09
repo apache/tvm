@@ -171,10 +171,10 @@ class StorageObj : public Object {
                                      String scope = "global");
 
   /*! \brief The deleter for an NDArray when allocated from underlying storage. */
-  static void ScopedDeleter(Object* ptr);
+  static void ScopedDeleter(void* ptr);
 
   /*! \brief The deleter for an NDArray when allocated from underlying storage. */
-  static void Deleter(Object* ptr);
+  static void Deleter(void* ptr);
 
   ~StorageObj() {
     if (allocator) {

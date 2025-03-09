@@ -52,6 +52,21 @@ inline RefType GetRef(const ObjectType* ptr) {
 }
 
 /*!
+ * \brief Get an object ptr type from a raw object ptr.
+ *
+ * \param ptr The object pointer
+ * \tparam BaseType The reference type
+ * \tparam ObjectType The object type
+ * \return The corresponding RefType
+ */
+template <typename BaseType, typename ObjectType>
+inline ObjectPtr<BaseType> GetObjectPtr(ObjectType* ptr) {
+  static_assert(std::is_base_of<BaseType, ObjectType>::value,
+    "Can only cast to the ref of same container type");
+  return details::ObjectUnsafe::ObjectPtrFromUnowned<BaseType>(ptr);
+}
+
+/*!
  * \brief Downcast a base reference type to a more specific type.
  *
  * \param ref The input reference

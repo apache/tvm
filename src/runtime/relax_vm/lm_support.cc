@@ -225,7 +225,6 @@ class AttentionKVCacheLegacyObj : public Object {
     this->fill_count += value->shape[0];
   }
 
-  static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
   static constexpr const char* _type_key = "relax.vm.AttentionKVCacheLegacy";
   TVM_DECLARE_FINAL_OBJECT_INFO(AttentionKVCacheLegacyObj, Object);
 };
