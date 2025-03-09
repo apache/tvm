@@ -16,20 +16,20 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-/*!
- * \file tvm/runtime/object.h
- * \brief A managed object in the TVM runtime.
- */
-#ifndef TVM_RUNTIME_MEMORY_H_
-#define TVM_RUNTIME_MEMORY_H_
 
-#include <tvm/ffi/memory.h>
+/*!
+ * \file src/runtime/debug_compile.cc
+ * \brief File used for debug migration
+ */
+#include <tvm/runtime/container/string.h>
 
 namespace tvm {
-namespace runtime {
+namespace debug {
 
-using namespace tvm::ffi;
+String Test() {
+  String value = "xyz";
+  return value;
+}
 
-}  // namespace runtime
-}  // namespace tvm
-#endif  // TVM_RUNTIME_MEMORY_H_
+}
+}

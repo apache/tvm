@@ -85,6 +85,7 @@ typedef enum {
   kTVMFFIShapeTuple = 70,
   kTVMFFINDArray = 71,
   kTVMFFIRuntimeModule = 72,
+  kTVMFFIStaticObjectEnd,
   // [Section] Dynamic Boxed: [kTVMFFIDynObjectBegin, +oo)
   // kTVMFFIDynObject is used to indicate that the type index
   // is dynamic and needs to be looked up at runtime
