@@ -28,7 +28,7 @@ namespace tvm {
 namespace runtime {
 
 // Forward declare TVM Object to use `Object*` in RPC protocol.
-class Object;
+// class Object;
 
 /*! \brief The current RPC procotol version. */
 constexpr const char* kRPCProtocolVer = "0.8.0";

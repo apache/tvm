@@ -29,6 +29,7 @@
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/runtime/disco/disco_worker.h>
 
 namespace tvm {
 namespace debug {
