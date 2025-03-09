@@ -285,6 +285,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             # tensor creation
             "_to_copy.default": self._to_copy,
             "arange.start": self._arange,
+            "contiguous.default": lambda node: self.env[node.args[0]], # no-op
             "clone.default": lambda node: self.env[node.args[0]],
             "empty.memory_format": self._empty,
             "fill.Scalar": self._fill,
