@@ -575,6 +575,10 @@ class ObjectUnsafe {
     reinterpret_cast<Object*>(handle)->DecRef();
   }
 
+  static TVM_FFI_INLINE void IncRefObjectHandle(TVMFFIObjectHandle handle) {
+    reinterpret_cast<Object*>(handle)->IncRef();
+  }
+
   static TVM_FFI_INLINE void DecRefObjectInAny(TVMFFIAny* src) {
     reinterpret_cast<Object*>(src->v_obj)->DecRef();
   }

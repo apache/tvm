@@ -101,10 +101,12 @@ void ArrayCopyToBytes(const DLTensor* handle, void* data, size_t nbytes) {
 
 struct NDArray::Internal {
   // Default deleter for the container
-  static void DefaultDeleter(Object* ptr_obj) {
+  static void DefaultDeleter(void* ptr_obj) {
     auto* ptr = static_cast<NDArray::Container*>(ptr_obj);
     if (ptr->manager_ctx != nullptr) {
-      static_cast<NDArray::Container*>(ptr->manager_ctx)->DecRef();
+      details::ObjectUnsafe::DecRefObjectHandle(
+        static_cast<NDArray::Container*>(ptr->manager_ctx)
+      );
     } else if (ptr->dl_tensor.data != nullptr) {
       tvm::runtime::DeviceAPI::Get(ptr->dl_tensor.device)
           ->FreeDataSpace(ptr->dl_tensor.device, ptr->dl_tensor.data);
@@ -116,7 +118,7 @@ struct NDArray::Internal {
   // that are not allocated inside of TVM.
   // This enables us to create NDArray from memory allocated by other
   // frameworks that are DLPack compatible
-  static void DLPackDeleter(Object* ptr_obj) {
+  static void DLPackDeleter(void* ptr_obj) {
     auto* ptr = static_cast<NDArray::Container*>(ptr_obj);
     DLManagedTensor* tensor = static_cast<DLManagedTensor*>(ptr->manager_ctx);
     if (tensor->deleter != nullptr) {
@@ -127,7 +129,7 @@ struct NDArray::Internal {
   // Deleter for NDArray based on external DLTensor
   // The memory is allocated from outside and it is assumed that
   // responsibility for its freeing is also outside
-  static void SelfDeleter(Object* ptr_obj) {
+  static void SelfDeleter(void* ptr_obj) {
     auto* ptr = static_cast<NDArray::Container*>(ptr_obj);
     delete ptr;
   }
@@ -171,13 +173,13 @@ struct NDArray::Internal {
     DLManagedTensor* ret = new DLManagedTensor();
     ret->dl_tensor = from->dl_tensor;
     ret->manager_ctx = from;
-    from->IncRef();
+    tvm::ffi::details::ObjectUnsafe::IncRefObjectHandle(from);
     ret->deleter = TVMNDArrayDLPackDeleter;
     return ret;
   }
   // Delete dlpack object.
   static void NDArrayDLPackDeleter(DLManagedTensor* tensor) {
-    static_cast<NDArray::Container*>(tensor->manager_ctx)->DecRef();
+    details::ObjectUnsafe::DecRefObjectHandle(static_cast<NDArray::Container*>(tensor->manager_ctx));
     delete tensor;
   }
 };
@@ -224,7 +226,8 @@ NDArray NDArray::CreateView(ShapeTuple shape, DLDataType dtype, uint64_t relativ
       << ", dtype= " << curr_dl_tensor.dtype << ").";
 
   // increase ref count
-  get_mutable()->IncRef();
+  // get_mutable()->IncRef();
+  tvm::ffi::details::ObjectUnsafe::IncRefObjectHandle(get_mutable());
   ret.get_mutable()->manager_ctx = get_mutable();
   ret.get_mutable()->dl_tensor.data = get_mutable()->dl_tensor.data;
   ret.get_mutable()->dl_tensor.byte_offset =
@@ -352,7 +355,7 @@ bool NDArray::IsAligned(const DLTensor& tensor) {
           0);
 }
 
-TVM_REGISTER_OBJECT_TYPE(NDArray::Container);
+// TVM_REGISTER_OBJECT_TYPE(NDArray::Container);
 
 }  // namespace runtime
 }  // namespace tvm
@@ -365,7 +368,9 @@ void TVMNDArrayDLPackDeleter(DLManagedTensor* tensor) {
 
 int TVMArrayGetTypeIndex(TVMArrayHandle handle, unsigned* out_tindex) {
   API_BEGIN();
-  *out_tindex = TVMArrayHandleToObjectHandle(handle)->type_index();
+  *out_tindex = tvm::ffi::details::ObjectUnsafe::GetHeader(
+    TVMArrayHandleToObjectHandle(handle)
+  )->type_index;
   API_END();
 }
 
