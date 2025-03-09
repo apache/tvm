@@ -19,6 +19,7 @@
 # pylint: disable=import-outside-toplevel
 """Base class for PyTorch FX Graph importer."""
 import abc
+import math
 from typing import Callable, Dict, Optional, Tuple, Union
 
 from tvm import relax
@@ -141,18 +142,30 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
 
     def _clamp(self, node: fx.Node) -> relax.Expr:
         args = self.retrieve_args(node)
-        a_min = args[1] if len(args) > 1 else node.kwargs["min"]
-        a_max = args[2] if len(args) > 2 else node.kwargs["max"]
-        if not isinstance(a_min, (int, float)):
+        a_min = args[1] if len(args) > 1 else node.kwargs.get("max", None)
+        a_max = args[2] if len(args) > 2 else node.kwargs.get("max", None)
+        if a_min is not None and not isinstance(a_min, (int, float)):
             raise ValueError(
                 f"TVM only supports constant min value for torch.clamp/clip, "
                 f"but got {a_min} with type {type(a_min)}"
             )
-        if not isinstance(a_max, (int, float)):
+        if (a_max is not None) and (not isinstance(a_max, (int, float))):
             raise ValueError(
                 f"TVM only supports constant max value for torch.clamp/clip, "
                 f"but got {a_max} with type {type(a_max)}"
             )
+        return self.block_builder.emit(relax.op.clip(args[0], a_min, a_max))
+
+    def _clamp_min(self, node: fx.Node) -> relax.Expr:
+        args = self.retrieve_args(node)
+        a_min = args[1] if len(args) > 1 else node.kwargs.get("min", None)
+        a_max = None
+        return self.block_builder.emit(relax.op.clip(args[0], a_min, a_max))
+
+    def _clamp_max(self, node: fx.Node) -> relax.Expr:
+        args = self.retrieve_args(node)
+        a_min = None
+        a_max = args[1] if len(args) > 1 else node.kwargs.get("max", None)
         return self.block_builder.emit(relax.op.clip(args[0], a_min, a_max))
 
     def _elu(self, node: fx.Node) -> relax.Var:
