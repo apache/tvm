@@ -995,10 +995,9 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
     ########## Creation ##########
 
     def _detach(self, node: fx.Node) -> relax.Var:
-        # TODO found no way to correctly implement this. The output should
-        # share the same memory as the input. It is not the case right now.
-        # Ideally, this test would pass, but it doesn't :
-        # https://github.com/hugolatendresse/tvm/blob/456845811ba01c0bea07737a4f7a333a0b45ea92/tests/python/relax/test_from_exported_to_cuda.py#L98
+        # There is no way to implement detach() such that the output shares 
+        # the same memory as the input. In-place operations are not supported 
+        # by the translator, and therefore we just return a copy of the input.
         return self.env[node.args[0]]
 
     def _copy_(self, node: fx.Node) -> relax.Var:
