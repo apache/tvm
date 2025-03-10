@@ -46,6 +46,11 @@ def assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, tar
     tvm_mod, tvm_params = relax.frontend.detach_params(mod_from_torch)
 
     relax_pipeline = relax.get_default_pipeline(tvm.target.Target.from_device(tvm.cuda()))
+    ex = relax.build(tvm_mod, target=target, relax_pipeline=relax_pipeline)
+    vm = relax.VirtualMachine(ex, dev)
+
+    gpu_data = tvm.nd.array(raw_data_for_tvm, dev)
+    gpu_params = [tvm.nd.array(p, dev) for p in tvm_params["main"]]
     gpu_out = vm["main"](gpu_data, *gpu_params)
 
     pytorch_out = torch_module(torch_data).detach().numpy()
