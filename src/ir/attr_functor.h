@@ -139,6 +139,7 @@ class AttrFunctor<R(const ObjectRef& n, Args...)> {
     ATTR_FUNCTOR_DISPATCH(CastNode);
     ATTR_FUNCTOR_DISPATCH(CallNode);
     ATTR_FUNCTOR_DISPATCH(SelectNode);
+    vtable.Finalize();
     return vtable;
   }
 };

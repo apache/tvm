@@ -108,6 +108,7 @@ class StructInfoFunctor<R(const StructInfo& n, Args...)> {
     TVM_STRUCT_INFO_FUNCTOR_DISPATCH(distributed::DTensorStructInfoNode);
     TVM_STRUCT_INFO_FUNCTOR_DISPATCH(TupleStructInfoNode);
     TVM_STRUCT_INFO_FUNCTOR_DISPATCH(FuncStructInfoNode);
+    vtable.Finalize();
     return vtable;
   }
 };
