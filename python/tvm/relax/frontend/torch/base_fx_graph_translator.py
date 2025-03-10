@@ -923,14 +923,6 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
                 broadcast_shape.append(i)
         return self.block_builder.emit(relax.op.broadcast_to(args[0], broadcast_shape))
 
-    def _expand_as(self, node: fx.Node) -> relax.Var:
-        args = self.retrieve_args(node)
-        # args[0] is the 'self' tensor
-        # args[1] is the 'other' tensor
-        data = args[0]
-        other_shape = self.shape_of(args[1])  # the shape of 'other'
-        return self.block_builder.emit(relax.op.broadcast_to(data, other_shape))
-
     def _flip(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         dims = node.args[1] if len(node.args) > 1 else node.kwargs.get("dims", None)
