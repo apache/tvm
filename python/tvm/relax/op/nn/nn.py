@@ -1486,6 +1486,20 @@ def batch_norm(
     result : relax.Expr
         The computed result.
     """
+    print("\n!!The parameters passed to _ffi_api.batch_norm are: !!!!!!!!!")
+    print("data: ", data)
+    print("gamma: ", gamma)
+    print("beta: ", beta)
+    print("moving_mean: ", moving_mean)
+    print(dir(moving_mean)) # TODO find a way to print args
+    print("moving_mean args 0: ", moving_mean.args[0])
+    print("moving_var: ", moving_var)
+    print("moving_var args 0: ", moving_var.args[0])
+    print("axis: ", axis)
+    print("epsilon: ", epsilon)
+    print("center: ", center)
+    print("scale: ", scale)
+    print("momentum: ", momentum)
     return _ffi_api.batch_norm(  # type: ignore
         data, gamma, beta, moving_mean, moving_var, axis, epsilon, center, scale, momentum
     )

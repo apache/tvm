@@ -15,8 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 
+# TODO remove
+import sys
+sys.path.append('/ssd1/htalendr/tvm/python')
+
+
 import numpy as np
 import torch
+from torch import nn
 from torch.export import export
 
 import tvm
@@ -86,6 +92,33 @@ def test_linalg_vector_norm(target, dev):
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module1, target, dev)
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module2, target, dev)
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module3, target, dev)
+
+
+@tvm.testing.parametrize_targets("cuda")
+
+def test_batch_norm(target, dev):
+
+    # TODO no momentum
+    # raw_data = np.random.randn(1,2,1,1).astype(np.float32)
+    raw_data = np.array([[[[10.0]],[[20.0]]]]).astype(np.float32)
+    torch_module0 = nn.BatchNorm2d(2, eps=1e-02, momentum=0.0, 
+                                   affine=False, track_running_stats=True, 
+                                   device=None, dtype=None).eval()
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module0, target, dev)
+    # TODO correct output above should be [9.95, 19.9] https://chatgpt.com/c/67cf1bc1-1934-8006-9b22-8166c46ee1bc
+
+    # TODO with momentum
+    # raw_data = np.random.randn(1,4,2,2).astype(np.float32)
+    # torch_module0 = nn.BatchNorm2d(4, eps=1e-05, momentum=0.0, 
+    #                                affine=False, track_running_stats=True, 
+    #                                device=None, dtype=None).eval()
+    # assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module0, target, dev)
+
+
+    # TODO uncomment this one with simpler arguments?
+    # raw_data = np.random.randn(4,2,2,2).astype(np.float32)
+    # torch_module0 = nn.BatchNorm2d(2).eval()
+    # assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module0, target, dev)
 
 
 if __name__ == "__main__":
