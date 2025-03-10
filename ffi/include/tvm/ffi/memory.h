@@ -33,7 +33,7 @@ namespace tvm {
 namespace ffi {
 
 /*! \brief Deleter function for obeject */
-typedef void (*FObjectDeleter)(void* obj);
+typedef void (*FObjectDeleter)(TVMFFIObject* obj);
 
 /*!
  * \brief Allocate an object using default allocator.
@@ -75,10 +75,10 @@ class ObjAllocatorBase {
     static_assert(std::is_base_of<Object, T>::value, "make can only be used to create Object");
     T* ptr = Handler::New(static_cast<Derived*>(this), std::forward<Args>(args)...);
     TVMFFIObject* ffi_ptr = details::ObjectUnsafe::GetHeader(ptr);
-    // NOTE: ref_counter is initialized in object constructor
+    ffi_ptr->ref_counter = 1;
     ffi_ptr->type_index = T::RuntimeTypeIndex();
     ffi_ptr->deleter = Handler::Deleter();
-    return details::ObjectUnsafe::ObjectPtrFromUnowned<T>(ptr);
+    return details::ObjectUnsafe::ObjectPtrFromOwned<T>(ptr);
   }
 
   /*!
@@ -96,9 +96,10 @@ class ObjAllocatorBase {
     ArrayType* ptr =
         Handler::New(static_cast<Derived*>(this), num_elems, std::forward<Args>(args)...);
     TVMFFIObject* ffi_ptr = details::ObjectUnsafe::GetHeader(ptr);
+    ffi_ptr->ref_counter = 1;
     ffi_ptr->type_index = ArrayType::RuntimeTypeIndex();
     ffi_ptr->deleter = Handler::Deleter();
-    return details::ObjectUnsafe::ObjectPtrFromUnowned<ArrayType>(ptr);
+    return details::ObjectUnsafe::ObjectPtrFromOwned<ArrayType>(ptr);
   }
 };
 
@@ -133,11 +134,8 @@ class SimpleObjAllocator : public ObjAllocatorBase<SimpleObjAllocator> {
     static FObjectDeleter Deleter() { return Deleter_; }
 
    private:
-    static void Deleter_(void* objptr) {
-      // NOTE: this is important to cast back to T*
-      // because objptr and tptr may not be the same
-      // depending on how sub-class allocates the space.
-      T* tptr = static_cast<T*>(objptr);
+    static void Deleter_(TVMFFIObject* objptr) {
+      T* tptr = details::ObjectUnsafe::RawObjectPtrFromUnowned<T>(objptr);
       // It is important to do tptr->T::~T(),
       // so that we explicitly call the specific destructor
       // instead of tptr->~T(), which could mean the intention
@@ -182,11 +180,8 @@ class SimpleObjAllocator : public ObjAllocatorBase<SimpleObjAllocator> {
     static FObjectDeleter Deleter() { return Deleter_; }
 
    private:
-    static void Deleter_(void* objptr) {
-      // NOTE: this is important to cast back to ArrayType*
-      // because objptr and tptr may not be the same
-      // depending on how sub-class allocates the space.
-      ArrayType* tptr = static_cast<ArrayType*>(objptr);
+    static void Deleter_(TVMFFIObject* objptr) {
+      ArrayType* tptr = details::ObjectUnsafe::RawObjectPtrFromUnowned<ArrayType>(objptr);
       // It is important to do tptr->ArrayType::~ArrayType(),
       // so that we explicitly call the specific destructor
       // instead of tptr->~ArrayType(), which could mean the intention

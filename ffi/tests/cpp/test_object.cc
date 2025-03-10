@@ -34,6 +34,10 @@ TEST(Object, RefCounter) {
   EXPECT_EQ(a->value, 11);
 
   EXPECT_EQ(a.use_count(), 2);
+  ObjectPtr<TIntObj> aa = make_object<TIntObj>(*a);
+  EXPECT_EQ(aa.use_count(), 1);
+  EXPECT_EQ(aa->value, 11);
+
   b.reset();
   EXPECT_EQ(a.use_count(), 1);
   EXPECT_TRUE(b == nullptr);

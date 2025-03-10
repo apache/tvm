@@ -28,7 +28,17 @@ namespace tvm {
 namespace ffi {
 namespace testing {
 
-class TNumberObj : public Object {
+// We deliberately pad extra
+// in the header to test cases
+// where the object subclass address
+// do not align with the base object address
+// not handling properly will cause buffer overflow
+class BasePad {
+ public:
+  int64_t extra[4];
+};
+
+class TNumberObj : public BasePad, public Object {
  public:
   // declare as one slot, with float as overflow
   static constexpr uint32_t _type_child_slots = 1;

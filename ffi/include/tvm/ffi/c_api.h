@@ -111,7 +111,7 @@ typedef struct TVMFFIObject {
   /*! \brief Reference counter of the object. */
   int32_t ref_counter;
   /*! \brief Deleter to be invoked when reference counter goes to zero. */
-  void (*deleter)(void* self);
+  void (*deleter)(struct TVMFFIObject* self);
 } TVMFFIObject;
 
 /*!
