@@ -37,9 +37,9 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         self.env: Dict[fx.Node, relax.Expr] = {}
         self.params: Dict[torch.Tensor, relax.Expr] = {}
         self.block_builder: relax.BlockBuilder = None
-        self.convert_map: Dict[Union[torch.nn.Module, str], Callable[[fx.Node], relax.Var]] = (
-            self.create_convert_map()
-        )
+        self.convert_map: Dict[
+            Union[torch.nn.Module, str], Callable[[fx.Node], relax.Var]
+        ] = self.create_convert_map()
 
     ########## Utilities ##########
 

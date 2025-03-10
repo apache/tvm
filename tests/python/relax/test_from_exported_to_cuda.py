@@ -59,7 +59,6 @@ def assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, tar
 
 @tvm.testing.parametrize_targets("cuda")
 def test_tensor_expand_as(target, dev):
-
     class ExpandAs0(torch.nn.Module):
         def __init__(self):
             super().__init__()
