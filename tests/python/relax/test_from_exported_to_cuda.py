@@ -103,6 +103,7 @@ def test_detach_no_change(target, dev):
     torch_module = DetachTester().eval()
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
+
 @tvm.testing.parametrize_targets("cuda")
 def test_upsample_with_scale_factor(target, dev):
     """
