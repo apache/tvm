@@ -51,9 +51,7 @@ using tvm::ffi::GetRef;
 enum TypeIndex : int32_t {
   // Standard static index assignments,
   // Frontends can take benefit of these constants.
-  kRuntimeString = TVMFFITypeIndex::kTVMFFIStr,
-  kRuntimeMap = TVMFFITypeIndex::kTVMFFIMap,
-  kRuntimeArray = TVMFFITypeIndex::kTVMFFIArray,
+
   /*! \brief runtime::Module. */
   kRuntimeModule = TVMFFITypeIndex::kTVMFFIRuntimeModule,
   /*! \brief runtime::NDArray. */
@@ -68,6 +66,10 @@ enum TypeIndex : int32_t {
   kRuntimeDiscoDRef = kCustomStaticIndex + 2,
   /*! \brief runtime::RPCObjectRef */
   kRuntimeRPCObjectRef = kCustomStaticIndex + 3,
+  // custom builtin
+  kRuntimeString,
+  kRuntimeMap,
+  kRuntimeArray,
   // static assignments that may subject to change.
   kStaticIndexEnd,
 };
@@ -194,7 +196,7 @@ class ObjectRef : public tvm::ffi::ObjectRef {
  */
 #define TVM_DEFINE_OBJECT_REF_METHODS_WITHOUT_DEFAULT_CONSTRUCTOR(TypeName, ParentType,        \
                                                                   ObjectName)                  \
-  explicit TypeName(::tvm::runtime::ObjectPtr<::tvm::runtime::Object> n) : ParentType(n) {}    \
+  explicit TypeName(::tvm::ffi::ObjectPtr<::tvm::ffi::Object> n) : ParentType(n) {}            \
   TVM_DEFINE_DEFAULT_COPY_MOVE_AND_ASSIGN(TypeName);                                           \
   const ObjectName* operator->() const { return static_cast<const ObjectName*>(data_.get()); } \
   const ObjectName* get() const { return operator->(); }                                       \

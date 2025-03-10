@@ -332,7 +332,7 @@ class NDArray::Container : public Object, public NDArray::ContainerBase {
    * \brief Set the deleter field.
    * \param deleter The deleter.
    */
-  void SetDeleter(void (*deleter)(void* self)) { header_.deleter = deleter; }
+  void SetDeleter(ffi::FObjectDeleter deleter) { header_.deleter = deleter; }
 
   // Expose DecRef and IncRef as public function
   // NOTE: they are only for developer purposes only.

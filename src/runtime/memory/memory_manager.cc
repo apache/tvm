@@ -34,8 +34,8 @@ namespace tvm {
 namespace runtime {
 namespace memory {
 
-static void BufferDeleter(void* obj) {
-  auto* ptr = static_cast<NDArray::Container*>(obj);
+static void BufferDeleter(TVMFFIObject* ptr_obj) {
+  auto* ptr = ffi::details::ObjectUnsafe::RawObjectPtrFromUnowned<NDArray::Container>(ptr_obj);
   ICHECK(ptr->manager_ctx != nullptr);
   Buffer* buffer = reinterpret_cast<Buffer*>(ptr->manager_ctx);
   MemoryManager::GetAllocator(buffer->device, buffer->alloc_type)->Free(*(buffer));
@@ -50,8 +50,8 @@ Storage::Storage(Buffer buffer, Allocator* allocator) {
   data_ = std::move(n);
 }
 
-void StorageObj::Deleter(void* obj) {
-  auto* ptr = static_cast<NDArray::Container*>(obj);
+void StorageObj::Deleter(TVMFFIObject* ptr_obj) {
+  auto* ptr = ffi::details::ObjectUnsafe::RawObjectPtrFromUnowned<NDArray::Container>(ptr_obj);
   // When invoking AllocNDArray we don't own the underlying allocation
   // and should not delete the buffer, but instead let it be reclaimed
   // by the storage object's destructor.
@@ -85,8 +85,8 @@ inline size_t GetDataAlignment(const DLTensor& arr) {
   return align;
 }
 
-void StorageObj::ScopedDeleter(void* obj) {
-  auto* ptr = static_cast<NDArray::Container*>(obj);
+void StorageObj::ScopedDeleter(TVMFFIObject* ptr_obj) {
+  auto* ptr = ffi::details::ObjectUnsafe::RawObjectPtrFromUnowned<NDArray::Container>(ptr_obj);
   StorageObj* storage = reinterpret_cast<StorageObj*>(ptr->manager_ctx);
 
   // Let the device handle proper cleanup of view

@@ -41,8 +41,8 @@ namespace tvm {
 namespace runtime {
 
 // deleter of RPC remote array
-static void RemoteNDArrayDeleter(void* obj) {
-  auto* ptr = static_cast<NDArray::Container*>(obj);
+static void RemoteNDArrayDeleter(TVMFFIObject* ptr_obj) {
+  auto* ptr = ffi::details::ObjectUnsafe::RawObjectPtrFromUnowned<NDArray::Container>(ptr_obj);
   RemoteSpace* space = static_cast<RemoteSpace*>(ptr->dl_tensor.data);
   if (ptr->manager_ctx != nullptr) {
     space->sess->FreeHandle(ptr->manager_ctx, kTVMNDArrayHandle);
