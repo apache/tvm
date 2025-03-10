@@ -660,7 +660,7 @@ def test_execute_no_op_view(target, dev):
             B = R.memory.view(A)
             return B
 
-    built = tvm.relax.build(Module, target=target)
+    built = tvm.compile(Module, target=target)
     vm = tvm.relax.VirtualMachine(built, device=dev)
 
     np_input = np.random.random([4096]).astype("float32")
@@ -680,7 +680,7 @@ def test_execute_view_with_new_shape(target, dev):
             B = R.memory.view(A, shape=R.shape([64, 64]))
             return B
 
-    built = tvm.relax.build(Module, target=target)
+    built = tvm.compile(Module, target=target)
     vm = tvm.relax.VirtualMachine(built, device=dev)
 
     np_input = np.random.random([4096]).astype("float32")
@@ -704,7 +704,7 @@ def test_execute_view_with_new_byte_offset(target, dev):
             )
             return B
 
-    built = tvm.relax.build(Module, target=target)
+    built = tvm.compile(Module, target=target)
     vm = tvm.relax.VirtualMachine(built, device=dev)
 
     np_input = np.random.random([4096]).astype("float32")
@@ -724,7 +724,7 @@ def test_execute_view_with_new_dtype(target, dev):
             B = R.memory.view(A, dtype="uint32")
             return B
 
-    built = tvm.relax.build(Module, target=target)
+    built = tvm.compile(Module, target=target)
     vm = tvm.relax.VirtualMachine(built, device=dev)
 
     np_input = np.random.random([4096]).astype("float32")
@@ -754,7 +754,7 @@ def test_execute_view_with_multiple_updated_fields(target, dev):
             )
             return (B, C)
 
-    built = tvm.relax.build(Module, target=target)
+    built = tvm.compile(Module, target=target)
     vm = tvm.relax.VirtualMachine(built, device=dev)
 
     np_input = np.random.randint(0, 255, size=[4096]).astype("uint8")

@@ -197,8 +197,11 @@ def build(
     params: Optional[Dict[str, list]]
         Parameters for the input IRModule that will be bound.
 
-    pipeline : str = "default_build"
-        The compilation pipeline to use.
+    relax_pipeline : str = "default"
+        The Relax compilation pipeline to use.
+
+    tir_pipelinie : str = "default"
+        The TIR compilation pipeline to use.
 
     exec_mode: {"bytecode", "compiled"}
         The execution mode.
@@ -226,7 +229,7 @@ def build(
 
         mod = InputModule
         target = tvm.target.Target("llvm", host="llvm")
-        ex = relax.build(mod, target)
+        ex = tvm.compile(mod, target)
     """
 
     def _extract_attrs(mod: tvm.IRModule):

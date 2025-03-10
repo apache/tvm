@@ -431,7 +431,7 @@ class VirtualMachine(object):
         .. code-block:: python
 
             target = tvm.target.Target("llvm", host="llvm")
-            ex = relax.build(TestTimeEvaluator, target)
+            ex = tvm.compile(TestTimeEvaluator, target)
             vm = relax.VirtualMachine(mod, tvm.cpu())
             timing_res = vm.time_evaluator("func_name", tvm.cpu())(arg0, arg1, ..., argn)
 
@@ -440,7 +440,7 @@ class VirtualMachine(object):
         .. code-block:: python
 
             target = tvm.target.Target("llvm", host="llvm")
-            ex = relax.build(TestTimeEvaluator, target)
+            ex = tvm.compile(TestTimeEvaluator, target)
             vm = relax.VirtualMachine(mod, tvm.cpu())
             vm.set_input("func_name", arg0, arg1, ..., argn)
             timing_res = vm.time_evaluator("invoke_stateful", tvm.cpu())("func_name")
@@ -451,7 +451,7 @@ class VirtualMachine(object):
         .. code-block:: python
 
             target = tvm.target.Target("llvm", host="llvm")
-            ex = relax.build(TestTimeEvaluator, target)
+            ex = tvm.compile(TestTimeEvaluator, target)
             vm = relax.VirtualMachine(mod, tvm.cpu())
             vm.save_function("func_name", "func_name_saved", arg0, arg1, ..., argn)
             timing_res = vm.time_evaluator("func_name_saved", tvm.cpu())()

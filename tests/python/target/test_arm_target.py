@@ -82,7 +82,7 @@ def test_scalable_div(sve_device_vector_length):
         T.func_attr({"global_symbol": "my_module", "tir.noalias": True})
         A[0] = T.Div(10000, 4 * T.vscale())
 
-    mod = tvm.build(my_func, target=target)
+    mod = tvm.compile(my_func, target=target)
 
     A_nd = tvm.nd.array(np.empty((1,), dtype="int32"), device=dev)
     mod(A_nd)
@@ -105,7 +105,7 @@ def test_scalable_buffer_load_store(sve_device_vector_length):
         T.func_attr({"global_symbol": "my_module", "tir.noalias": True})
         B[T.ramp(0, 1, 4 * T.vscale())] = A[T.ramp(0, 1, 4 * T.vscale())]
 
-    mod = tvm.build(my_func, target=target)
+    mod = tvm.compile(my_func, target=target)
 
     A_np = np.random.uniform(size=(num_elements,)).astype("float32")
     B_np = np.zeros((num_elements,)).astype("float32")
@@ -133,7 +133,7 @@ def test_scalable_loop_bound(sve_device_vector_length):
         for i in T.serial(0, 4 * T.vscale()):
             B[i] = A[i]
 
-    mod = tvm.build(my_func, target=target)
+    mod = tvm.compile(my_func, target=target)
 
     A_np = np.random.uniform(size=(num_elements,)).astype(dtype)
     B_np = np.zeros((num_elements,)).astype(dtype)
@@ -156,7 +156,7 @@ def test_scalable_broadcast(sve_device_vector_length):
         T.func_attr({"global_symbol": "my_module", "tir.noalias": True})
         A[T.ramp(0, 1, 4 * T.vscale())] = T.broadcast(1, 4 * T.vscale())
 
-    mod = tvm.build(my_func, target=target)
+    mod = tvm.compile(my_func, target=target)
 
     A_np = np.zeros((num_elements,)).astype("float32")
     A_nd = tvm.nd.array(A_np, device=dev)

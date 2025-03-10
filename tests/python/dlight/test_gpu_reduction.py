@@ -1152,5 +1152,31 @@ def test_gemv_output_one_element():
     assert_structural_equal(mod, Expected)
 
 
+def test_no_reduction_loop_check():
+    # The normalized prime func will not contain a reduction loop since its extent is one.
+    # This checks that the Reduction schedule is correctly not applied in this case
+    # fmt: off
+    @I.ir_module
+    class Before:
+        @T.prim_func(private=True)
+        def matmul(lv43: T.Buffer((T.int64(1), T.int64(32), T.int64(1)), "float16"), lv44: T.Buffer((T.int64(1), T.int64(1), T.int64(1)), "float16"), matmul: T.Buffer((T.int64(1), T.int64(32), T.int64(1)), "float16")):
+            T.func_attr({"op_pattern": 4, "tir.noalias": T.bool(True)})
+            # with T.block("root"):
+            for i0, i1, i2, k in T.grid(T.int64(1), T.int64(32), T.int64(1), T.int64(1)):
+                with T.block("matmul"):
+                    v_i0, v_i1, v_i2, v_k = T.axis.remap("SSSR", [i0, i1, i2, k])
+                    T.reads(lv43[v_i0, v_i1, v_k], lv44[v_i0, v_k, v_i2])
+                    T.writes(matmul[v_i0, v_i1, v_i2])
+                    with T.init():
+                        matmul[v_i0, v_i1, v_i2] = T.float16(0.0)
+                    matmul[v_i0, v_i1, v_i2] = matmul[v_i0, v_i1, v_i2] + lv43[v_i0, v_i1, v_k] * lv44[v_i0, v_k, v_i2]
+    # fmt: on
+
+    target = Target("nvidia/geforce-rtx-3090-ti")
+    with target:
+        mod = dl.ApplyDefaultSchedule(dl.gpu.Reduction())(Before)  # pylint: disable=not-callable
+    assert_structural_equal(mod, Before)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

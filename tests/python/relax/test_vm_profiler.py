@@ -47,7 +47,7 @@ def get_exec(data_shape):
     mod = relax.transform.BindParams("main", params)(mod)
 
     target = "llvm"
-    return relax.build(mod, target)
+    return tvm.compile(mod, target)
 
 
 def test_conv2d_cpu():
@@ -115,7 +115,7 @@ def test_tuple():
             return ((x, (x,)), x)
 
     target = "llvm"
-    ex = relax.build(NestedTuple, target)
+    ex = tvm.compile(NestedTuple, target)
 
     data_np = np.random.randn(16).astype("float32")
 
