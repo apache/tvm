@@ -24,9 +24,6 @@ from torch import nn
 from torch.export import export
 from tvm.relax.frontend.torch import from_exported_program
 from torch.nn import Softmax, Upsample
-import numpy as np
-import torch
-from torch.export import export
 
 
 def assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev):
@@ -78,6 +75,23 @@ def test_copy_(target, dev):
 
 
 @tvm.testing.parametrize_targets("cuda")
+def test_upsample_with_size(target, dev):
+    """
+    The Upsample module can be used with the size arugment or the scale
+    factor argument but not both. This tests the former.
+    """
+    batch_size = 1
+    channels = 3
+    height, width = 8, 8
+
+    torch_module = Upsample(size=(64, 64), mode="nearest", recompute_scale_factor=None)
+
+    raw_data = np.random.rand(batch_size, channels, height, width).astype("float32")
+
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
+
+
+@tvm.testing.parametrize_targets("cuda")
 def test_detach_no_change(target, dev):
     # In TVM, detach() is just identity
     class DetachTester(nn.Module):
@@ -87,6 +101,23 @@ def test_detach_no_change(target, dev):
 
     raw_data = np.ones((2, 2)).astype(np.float32)
     torch_module = DetachTester().eval()
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
+
+@tvm.testing.parametrize_targets("cuda")
+def test_upsample_with_scale_factor(target, dev):
+    """
+    The Upsample module can be used with the size arugment or the scale
+    factor argument but not both. This tests the latter.
+    """
+    batch_size = 2
+    channels = 3
+    height, width = 32, 32
+
+    torch_module = Upsample(
+        size=None, scale_factor=7, mode="nearest", align_corners=None, recompute_scale_factor=True
+    )
+
+    raw_data = np.random.rand(batch_size, channels, height, width).astype("float32")
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 
