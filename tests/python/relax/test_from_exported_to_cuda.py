@@ -26,7 +26,7 @@ from tvm.relax.frontend.torch import from_exported_program
 from torch.nn import Softmax, Upsample
 
 
-def assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module):
+def assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev):
     """
     This util ensures that a torch module can successfully be exported to TVM
     using torch.export and that the resuling IR program gives the same result
@@ -41,10 +41,9 @@ def assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module):
         mod_from_torch = from_exported_program(exported_program, keep_params_as_input=True)
 
     tvm_mod, tvm_params = relax.frontend.detach_params(mod_from_torch)
-    target = tvm.target.Target.from_device(tvm.cuda())
 
-    ex = relax.build(tvm_mod, target=target, relax_pipeline=relax.get_default_pipeline(target))
-    dev = tvm.device("cuda", 0)
+    relax_pipeline = relax.get_default_pipeline(tvm.target.Target.from_device(tvm.cuda()))
+    ex = relax.build(tvm_mod, target=target, relax_pipeline=relax_pipeline)
     vm = relax.VirtualMachine(ex, dev)
 
     gpu_data = tvm.nd.array(raw_data_for_tvm, dev)
@@ -57,11 +56,11 @@ def assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module):
     np.testing.assert_allclose(actual=actual, desired=desired, rtol=1e-5, atol=1e-5)
 
 
-def test_copy_():
+@tvm.testing.parametrize_targets("cuda")
+def test_copy_(target, dev):
     class CopyTester(nn.Module):
         def __init__(self, size):
             super().__init__()
-            # self.buffer = torch.zeros(size)
             self.register_buffer("buffer", torch.zeros(size))
 
         def forward(self, x):
@@ -72,10 +71,11 @@ def test_copy_():
     size = (2, 2)
     raw_data = np.random.rand(*size).astype(np.float32)
     torch_module = CopyTester(size).eval()
-    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module)
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 
-def test_detach_no_change():
+@tvm.testing.parametrize_targets("cuda")
+def test_detach_no_change(target, dev):
     """Most of the time, in TVM, detach() should basically be identity"""
 
     class DetachTester(nn.Module):
@@ -85,25 +85,7 @@ def test_detach_no_change():
 
     raw_data = np.ones((2, 2)).astype(np.float32)
     torch_module = DetachTester().eval()
-    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module)
-
-
-# TODO test below fails! Is there a way to implement detach such that the
-#  memory is shared with the input?
-# def test_detach_with_change():
-#     """ Testing that detach() shares memory with original tensor"""
-#     class DetachTester(nn.Module):
-#         def forward(self, x):
-#             detached = x.detach()
-
-#             # Test that detached shares same memory as x
-#             x[0][0] = 42.0
-
-#             return detached
-
-#     raw_data = np.ones((2,2)).astype(np.float32)
-#     torch_module = DetachTester().eval()
-#     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module)
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 
 if __name__ == "__main__":
