@@ -102,8 +102,7 @@ void ArrayCopyToBytes(const DLTensor* handle, void* data, size_t nbytes) {
 struct NDArray::Internal {
   // Default deleter for the container
   static void DefaultDeleter(TVMFFIObject* ptr_obj) {
-    auto* ptr =
-      ffi::details::ObjectUnsafe::RawObjectPtrFromUnowned<NDArray::Container>(ptr_obj);
+    auto* ptr = ffi::details::ObjectUnsafe::RawObjectPtrFromUnowned<NDArray::Container>(ptr_obj);
     if (ptr->manager_ctx != nullptr) {
       ffi::details::ObjectUnsafe::DecRefObjectHandle(
           static_cast<NDArray::Container*>(ptr->manager_ctx));
@@ -119,8 +118,7 @@ struct NDArray::Internal {
   // This enables us to create NDArray from memory allocated by other
   // frameworks that are DLPack compatible
   static void DLPackDeleter(TVMFFIObject* ptr_obj) {
-    auto* ptr =
-      ffi::details::ObjectUnsafe::RawObjectPtrFromUnowned<NDArray::Container>(ptr_obj);
+    auto* ptr = ffi::details::ObjectUnsafe::RawObjectPtrFromUnowned<NDArray::Container>(ptr_obj);
     DLManagedTensor* tensor = static_cast<DLManagedTensor*>(ptr->manager_ctx);
     if (tensor->deleter != nullptr) {
       (*tensor->deleter)(tensor);
@@ -132,7 +130,7 @@ struct NDArray::Internal {
   // responsibility for its freeing is also outside
   static void SelfDeleter(TVMFFIObject* ptr_obj) {
     NDArray::Container* ptr =
-      ffi::details::ObjectUnsafe::RawObjectPtrFromUnowned<NDArray::Container>(ptr_obj);
+        ffi::details::ObjectUnsafe::RawObjectPtrFromUnowned<NDArray::Container>(ptr_obj);
     delete ptr;
   }
   // Local create function which allocates tensor metadata
