@@ -248,15 +248,11 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         large_size_threshold = 1024
 
         if dim != input_ndim - 1:  # Not the last dimension
-            try:
-                # Check if any dimension is large
-                for i, size in enumerate(input_shape):
-                    if hasattr(size, "value") and size.value > large_size_threshold:
-                        is_large_non_last_dim = True
-                        break
-            except:
-                # If we can't determine the size, play it safe
-                pass
+            # Check if any dimension is large
+            for i, size in enumerate(input_shape):
+                if hasattr(size, "value") and size.value > large_size_threshold:
+                    is_large_non_last_dim = True
+                    break
 
         if is_large_non_last_dim:
             # Special handling for large tensors with non-last dimension softmax
