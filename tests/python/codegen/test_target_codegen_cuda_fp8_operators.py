@@ -28,7 +28,7 @@ from tvm import dlight
 
 @tvm.testing.requires_cuda_compute_version(8, 9)
 @pytest.mark.parametrize("original_dtype", ["float16", "float32"])
-@pytest.mark.parametrize("dtype", ["e4m3_float8", "e5m2_float8", "float16"])
+@pytest.mark.parametrize("dtype", ["float8_e4m3fn", "float8_e5m2", "float16"])
 @pytest.mark.parametrize("batch_size", [1, 64])
 def test_fp8_matmul_compile(dtype, original_dtype, batch_size):
     bb = relax.BlockBuilder()
@@ -66,7 +66,7 @@ def test_fp8_matmul_compile(dtype, original_dtype, batch_size):
 
 @tvm.testing.requires_cuda_compute_version(8, 9)
 @pytest.mark.parametrize("original_dtype", ["float16", "float32"])
-@pytest.mark.parametrize("dtype", ["e4m3_float8", "e5m2_float8"])
+@pytest.mark.parametrize("dtype", ["float8_e4m3fn", "float8_e5m2"])
 @pytest.mark.parametrize("batch_size", [1, 64])
 def test_fp8_conv2d_compile(dtype, original_dtype, batch_size):
     bb = relax.BlockBuilder()
@@ -116,7 +116,7 @@ def test_fp8_conv2d_compile(dtype, original_dtype, batch_size):
 
 @tvm.testing.requires_cuda_compute_version(8, 9)
 @pytest.mark.parametrize("original_dtype", ["float16", "float32"])
-@pytest.mark.parametrize("dtype", ["e4m3_float8", "e5m2_float8"])
+@pytest.mark.parametrize("dtype", ["float8_e4m3fn", "float8_e5m2"])
 @pytest.mark.parametrize("batch_size", [1, 64])
 def test_fp8_maxpool2d_compile(dtype, original_dtype, batch_size):
     bb = relax.BlockBuilder()
@@ -164,7 +164,7 @@ def test_fp8_maxpool2d_compile(dtype, original_dtype, batch_size):
 
 @tvm.testing.requires_cuda_compute_version(8, 9)
 @pytest.mark.parametrize("original_dtype", ["float16", "float32"])
-@pytest.mark.parametrize("dtype", ["e4m3_float8", "e5m2_float8"])
+@pytest.mark.parametrize("dtype", ["float8_e4m3fn", "float8_e5m2"])
 @pytest.mark.parametrize("batch_size", [1, 64])
 def test_fp8_add_compile(dtype, original_dtype, batch_size):
     bb = relax.BlockBuilder()
@@ -202,7 +202,7 @@ def test_fp8_add_compile(dtype, original_dtype, batch_size):
 
 @tvm.testing.requires_cuda_compute_version(8, 9)
 @pytest.mark.parametrize("original_dtype", ["float16", "float32"])
-@pytest.mark.parametrize("dtype", ["e4m3_float8", "e5m2_float8"])
+@pytest.mark.parametrize("dtype", ["float8_e4m3fn", "float8_e5m2"])
 @pytest.mark.parametrize("batch_size", [1, 64])
 def test_fp8_relu_compile(dtype, original_dtype, batch_size):
     bb = relax.BlockBuilder()
@@ -238,7 +238,7 @@ def test_fp8_relu_compile(dtype, original_dtype, batch_size):
 
 @tvm.testing.requires_cuda_compute_version(8, 9)
 @pytest.mark.parametrize("original_dtype", ["float16", "float32"])
-@pytest.mark.parametrize("dtype", ["e4m3_float8", "e5m2_float8"])
+@pytest.mark.parametrize("dtype", ["float8_e4m3fn", "float8_e5m2"])
 @pytest.mark.parametrize("batch_size", [1, 64])
 def test_fp8_gelu_compile(dtype, original_dtype, batch_size):
     bb = relax.BlockBuilder()
@@ -274,7 +274,7 @@ def test_fp8_gelu_compile(dtype, original_dtype, batch_size):
 
 @tvm.testing.requires_cuda_compute_version(8, 9)
 @pytest.mark.parametrize("original_dtype", ["float16", "float32"])
-@pytest.mark.parametrize("dtype", ["e4m3_float8", "e5m2_float8"])
+@pytest.mark.parametrize("dtype", ["float8_e4m3fn", "float8_e5m2"])
 @pytest.mark.parametrize("batch_size", [1, 64])
 def test_fp8_gelu_tanh_compile(dtype, original_dtype, batch_size):
     bb = relax.BlockBuilder()
@@ -310,7 +310,7 @@ def test_fp8_gelu_tanh_compile(dtype, original_dtype, batch_size):
 
 @tvm.testing.requires_cuda_compute_version(8, 9)
 @pytest.mark.parametrize("original_dtype", ["float16", "float32"])
-@pytest.mark.parametrize("dtype", ["e4m3_float8", "e5m2_float8"])
+@pytest.mark.parametrize("dtype", ["float8_e4m3fn", "float8_e5m2"])
 @pytest.mark.parametrize("batch_size", [1, 64])
 def test_fp8_sigmoid_compile(dtype, original_dtype, batch_size):
     bb = relax.BlockBuilder()
@@ -346,7 +346,7 @@ def test_fp8_sigmoid_compile(dtype, original_dtype, batch_size):
 
 @tvm.testing.requires_cuda_compute_version(8, 9)
 @pytest.mark.parametrize("original_dtype", ["float16", "float32"])
-@pytest.mark.parametrize("dtype", ["e4m3_float8", "e5m2_float8"])
+@pytest.mark.parametrize("dtype", ["float8_e4m3fn", "float8_e5m2"])
 @pytest.mark.parametrize("batch_size", [1, 64])
 def test_fp8_silu_compile(dtype, original_dtype, batch_size):
     bb = relax.BlockBuilder()
@@ -382,7 +382,7 @@ def test_fp8_silu_compile(dtype, original_dtype, batch_size):
 
 @tvm.testing.requires_cuda_compute_version(8, 9)
 @pytest.mark.parametrize("original_dtype", ["float16", "float32"])
-@pytest.mark.parametrize("dtype", ["e4m3_float8", "e5m2_float8"])
+@pytest.mark.parametrize("dtype", ["float8_e4m3fn", "float8_e5m2"])
 @pytest.mark.parametrize("batch_size", [1, 64])
 def test_fp8_softmax_compile(dtype, original_dtype, batch_size):
     bb = relax.BlockBuilder()

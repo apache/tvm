@@ -879,7 +879,7 @@ void CodeGenC::VisitStmt_(const BufferStoreNode* op) {
         stream << "] = ";
         if (op->value.dtype().is_float8()) {
           ICHECK(value_dtype.lanes() == 2);
-          std::string fp8_type = op->value.dtype().is_e5m2_float8() ? "e5m2" : "e4m3";
+          std::string fp8_type = op->value.dtype().is_float8_e5m2() ? "e5m2" : "e4m3";
           static const char access[] = {'x', 'y'};
           stream << "__nv_fp8_" << fp8_type << "(__half2(";
           PrintVecElemLoad(value, op->value.dtype(), i, stream);
