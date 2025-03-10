@@ -52,8 +52,9 @@ struct Type2FieldStaticTypeIndex<T, std::enable_if_t<TypeTraits<T>::enabled>> {
  * \returns The byteoffset
  */
 template <typename Class, typename T>
-inline int64_t GetFieldByteOffset(T Class::* field_ptr) {
-  return reinterpret_cast<int64_t>(&(static_cast<Class*>(nullptr)->*field_ptr));
+inline int64_t GetFieldByteOffsetToObject(T Class::* field_ptr) {
+  int64_t field_offset_to_class = reinterpret_cast<int64_t>(&(static_cast<Class*>(nullptr)->*field_ptr));
+  return field_offset_to_class - details::ObjectUnsafe::GetObjectOffsetToSubclass<Class>();
 }
 
 class ReflectionDef {
@@ -82,7 +83,7 @@ class ReflectionDef {
     info.field_static_type_index = Type2FieldStaticTypeIndex<T>::value;
     // store byte offset and setter, getter
     // so the same setter can be reused for all the same type
-    info.byte_offset = GetFieldByteOffset<Class, T>(field_ptr);
+    info.byte_offset = GetFieldByteOffsetToObject<Class, T>(field_ptr);
     info.readonly = readonly;
     info.getter = FieldGetter<T>;
     info.setter = FieldSetter<T>;

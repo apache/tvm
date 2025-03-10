@@ -104,7 +104,6 @@ class Object {
     header_.ref_counter = 0;
     header_.deleter = nullptr;
   }
-
   /*!
    * Check if the object is an instance of TargetType.
    * \tparam TargetType The target type to be checked.
@@ -156,7 +155,7 @@ class Object {
   void DecRef() {
     if (details::AtomicDecrementRelAcq(&(header_.ref_counter)) == 1) {
       if (header_.deleter != nullptr) {
-        header_.deleter(this);
+        header_.deleter(&(this->header_));
       }
     }
   }
@@ -520,6 +519,14 @@ class ObjectUnsafe {
     return const_cast<TVMFFIObject*>(&(src->header_));
   }
 
+  template <typename Class>
+  static TVM_FFI_INLINE int64_t GetObjectOffsetToSubclass() {
+    return (
+      reinterpret_cast<int64_t>(&(static_cast<Class*>(nullptr)->header_)) -
+      reinterpret_cast<int64_t>(&(static_cast<Object*>(nullptr)->header_))
+    );
+  }
+
   template <typename T>
   static TVM_FFI_INLINE ObjectPtr<T> ObjectPtrFromOwned(Object* raw_ptr) {
     tvm::ffi::ObjectPtr<T> ptr;
@@ -527,7 +534,15 @@ class ObjectUnsafe {
     return ptr;
   }
 
-  // Create ObjectPtr from unknowned ptr
+  template <typename T>
+  static TVM_FFI_INLINE T* RawObjectPtrFromUnowned(TVMFFIObject* obj_ptr) {
+    // NOTE: this is important to first cast to Object*
+    // then cast back to T* because objptr and tptr may not be the same
+    // depending on how sub-class allocates the space.
+    return static_cast<T*>(reinterpret_cast<Object*>(obj_ptr));
+  }
+
+  // Create ObjectPtr from unowned ptr
   template <typename T>
   static TVM_FFI_INLINE ObjectPtr<T> ObjectPtrFromUnowned(Object* raw_ptr) {
     return tvm::ffi::ObjectPtr<T>(raw_ptr);

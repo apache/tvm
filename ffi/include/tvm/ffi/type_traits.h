@@ -530,7 +530,7 @@ struct TypeTraits<const TObject*, std::enable_if_t<std::is_base_of_v<Object, TOb
   }
 
   static TVM_FFI_INLINE const TObject* CopyFromAnyViewAfterCheck(const TVMFFIAny* src) {
-    return reinterpret_cast<const TObject*>(src->v_obj);
+    return details::ObjectUnsafe::RawObjectPtrFromUnowned<TObject>(src->v_obj);
   }
 
   static TVM_FFI_INLINE std::optional<const TObject*> TryCopyFromAnyView(const TVMFFIAny* src) {
