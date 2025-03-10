@@ -38,9 +38,9 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         self.env: Dict[fx.Node, relax.Expr] = {}
         self.params: Dict[torch.Tensor, relax.Expr] = {}
         self.block_builder: relax.BlockBuilder = None
-        self.convert_map: Dict[
-            Union[torch.nn.Module, str], Callable[[fx.Node], relax.Var]
-        ] = self.create_convert_map()
+        self.convert_map: Dict[Union[torch.nn.Module, str], Callable[[fx.Node], relax.Var]] = (
+            self.create_convert_map()
+        )
 
     ########## Utilities ##########
 
@@ -152,20 +152,50 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         # Handle the case where a_min and/or a_max are tensors
         if not isinstance(a_min, (int, float)):
             print("special case of amin!")
-            assert isinstance(a_min, relax.Expr), (f"Unexpected argument type "
-            f"passed to torch.clamp/clip: {a_min} with type {type(a_min)}")
-            a_min = self.block_builder.emit(relax.op.broadcast_to(a_min, self.shape_of(x)))
-            x = self.block_builder.emit(relax.op.maximum(x, a_min))
-            a_min = -math.inf
-        
+            from torch import fx
+            if isinstance(a_min, relax.Expr):
+                # torch.Export case
+                print("amin has type", type(a_min))
+                # Before this line, with torch.export, amin has type <class 'tvm.relax.expr.Var'>
+                a_min = self.block_builder.emit(relax.op.broadcast_to(a_min, self.shape_of(x)))
+                x = self.block_builder.emit(relax.op.maximum(x, a_min))
+                a_min = -math.inf
+            elif isinstance(a_min, fx.Node):
+                a_min_expr = self.env[a_min]
+                a_min2 = self.block_builder.emit(
+                    relax.op.broadcast_to(a_min_expr, self.shape_of(x))
+                )
+                x = self.block_builder.emit(relax.op.maximum(x, a_min2))
+                a_min = -math.inf
+            else:
+                raise ValueError(
+                    f"Unexpected argument type "
+                    f"passed to torch.clamp/clip: {a_min} with type {type(a_min)}"
+                )
+
         if not isinstance(a_max, (int, float)):
             print("special case of amax!")
-            assert isinstance(a_max, relax.Expr), (f"Unexpected argument type "
-            f"passed to torch.clamp/clip: {a_max} with type {type(a_max)}")
-            a_max = self.block_builder.emit(relax.op.broadcast_to(a_max, self.shape_of(x)))
-            x = self.block_builder.emit(relax.op.minimum(x, a_max))
-            a_max = math.inf
-        
+            from torch import fx
+            if isinstance(a_max, relax.Expr):
+                # torch.Export case
+                print("amax has type", type(a_max))
+                # Before this line, with torch.export, amax has type <class 'tvm.relax.expr.Var'>
+                a_max = self.block_builder.emit(relax.op.broadcast_to(a_max, self.shape_of(x)))
+                x = self.block_builder.emit(relax.op.minimum(x, a_max))
+                a_max = math.inf
+            elif isinstance(a_max, fx.Node):
+                a_max_expr = self.env[a_max]
+                a_max2 = self.block_builder.emit(
+                    relax.op.broadcast_to(a_max_expr, self.shape_of(x))
+                )
+                x = self.block_builder.emit(relax.op.minimum(x, a_max2))
+                a_max = math.inf
+            else:
+                raise ValueError(
+                    f"Unexpected argument type "
+                    f"passed to torch.clamp/clip: {a_max} with type {type(a_max)}"
+                )
+
         return self.block_builder.emit(relax.op.clip(x, a_min, a_max))
 
     def _clamp_min(self, node: fx.Node) -> relax.Expr:
@@ -178,12 +208,14 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
 
         # Handle the case where a_min is a tensor
         if not isinstance(a_min, (int, float)):
-            assert isinstance(a_min, relax.Expr), (f"Unexpected argument type "
-            f"passed to torch.clamp/clip: {a_min} with type {type(a_min)}")
+            assert isinstance(a_min, relax.Expr), (
+                f"Unexpected argument type "
+                f"passed to torch.clamp/clip: {a_min} with type {type(a_min)}"
+            )
             a_min = self.block_builder.emit(relax.op.broadcast_to(a_min, self.shape_of(x)))
             x = self.block_builder.emit(relax.op.maximum(x, a_min))
             a_min = -math.inf
-        
+
         return self.block_builder.emit(relax.op.clip(x, a_min, a_max))
 
     def _clamp_max(self, node: fx.Node) -> relax.Expr:
@@ -196,12 +228,14 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
 
         # Handle the case where a_max is a tensor
         if not isinstance(a_max, (int, float)):
-            assert isinstance(a_max, relax.Expr), (f"Unexpected argument type "
-            f"passed to torch.clamp/clip: {a_max} with type {type(a_max)}")
+            assert isinstance(a_max, relax.Expr), (
+                f"Unexpected argument type "
+                f"passed to torch.clamp/clip: {a_max} with type {type(a_max)}"
+            )
             a_max = self.block_builder.emit(relax.op.broadcast_to(a_max, self.shape_of(x)))
             x = self.block_builder.emit(relax.op.minimum(x, a_max))
             a_max = math.inf
-        
+
         return self.block_builder.emit(relax.op.clip(x, a_min, a_max))
 
     def _elu(self, node: fx.Node) -> relax.Var:
@@ -895,6 +929,14 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             else:
                 broadcast_shape.append(i)
         return self.block_builder.emit(relax.op.broadcast_to(args[0], broadcast_shape))
+
+    def _expand_as(self, node: fx.Node) -> relax.Var:
+        args = self.retrieve_args(node)
+        # args[0] is the 'self' tensor
+        # args[1] is the 'other' tensor
+        data = args[0]
+        other_shape = self.shape_of(args[1])  # the shape of 'other'
+        return self.block_builder.emit(relax.op.broadcast_to(data, other_shape))
 
     def _flip(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]

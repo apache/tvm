@@ -18,8 +18,8 @@
 # pylint: disable=invalid-name, inconsistent-return-statements, unidiomatic-typecheck
 # pylint: disable=import-outside-toplevel
 """PyTorch FX frontend of Relax."""
-from typing import Callable, Dict, List, Tuple, Union
 from functools import partial, reduce
+from typing import Callable, Dict, List, Tuple, Union
 
 import tvm
 from tvm import relax
@@ -491,6 +491,7 @@ class TorchFXImporter(BaseFXGraphImporter):
             gathered_source = self.block_builder.emit(
                 relax.op.reshape(gathered_source, x.struct_info.shape)
             )
+        print("THE TYPE OF MASK IS ", type(mask), "!!!!!!!!!!!!!!!!!!!!!!!!!!")
         if ndim != len(x.struct_info.shape):
             mask = self.block_builder.emit(relax.op.broadcast_to(mask, x.struct_info.shape))
         return self.block_builder.emit(relax.op.where(mask, gathered_source, x))
@@ -581,6 +582,7 @@ class TorchFXImporter(BaseFXGraphImporter):
         self,
     ) -> Dict[Union[torch.nn.Module, str], Callable[[fx.Node], relax.Var]]:
         import operator
+
         from torch import nn
 
         return {

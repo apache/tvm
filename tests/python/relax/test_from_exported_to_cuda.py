@@ -15,16 +15,22 @@
 # specific language governing permissions and limitations
 # under the License.
 
+# TODO remove
+import sys
+
+sys.path.append("/ssd1/htalendr/tvm/python")
+
 import numpy as np
 import torch
+from torch.export import export
+
 import tvm
 import tvm.testing
-from torch.export import export
 from tvm import relax
 from tvm.relax.frontend.torch import from_exported_program
 
 
-def assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module):
+def assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev):
     """
     This util ensures that a torch module can successfully be exported to TVM
     using torch.export and that the resuling IR program gives the same result
@@ -39,10 +45,11 @@ def assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module):
         mod_from_torch = from_exported_program(exported_program, keep_params_as_input=True)
 
     tvm_mod, tvm_params = relax.frontend.detach_params(mod_from_torch)
-    target = tvm.target.Target.from_device(tvm.cuda())
 
-    ex = relax.build(tvm_mod, target=target, relax_pipeline=relax.get_default_pipeline(target))
-    dev = tvm.device("cuda", 0)
+    relax_pipeline = relax.get_default_pipeline(tvm.target.Target.from_device(tvm.cuda()))
+    # TODO try pipeline below?
+    # releax_pipeline = relax.backend.cuda.pipeline.get_default_pipeline(target)
+    ex = relax.build(tvm_mod, target=target, relax_pipeline=relax_pipeline)
     vm = relax.VirtualMachine(ex, dev)
 
     gpu_data = tvm.nd.array(raw_data_for_tvm, dev)
@@ -55,7 +62,8 @@ def assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module):
     np.testing.assert_allclose(actual=actual, desired=desired, rtol=1e-5, atol=1e-5)
 
 
-def test_tensor_clamp():
+@tvm.testing.parametrize_targets("cuda")
+def test_tensor_clamp(target, dev):
 
     class ClampBothTensor(torch.nn.Module):
         def __init__(self):
@@ -127,14 +135,19 @@ def test_tensor_clamp():
     torch_module5 = ClampMaxOnlyInt().eval()
     torch_module6 = ClampDifferentValues().eval()
 
-    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module0)
-    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module1)
-    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module2)
-    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module3)
-    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module4)
-    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module5)
-    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module6)
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module0, target, dev)
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module1, target, dev)
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module2, target, dev)
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module3, target, dev)
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module4, target, dev)
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module5, target, dev)
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module6, target, dev)
 
 
-if __name__ == "__main__":
-    tvm.testing.main()
+test_tensor_clamp(
+    target=tvm.target.Target.from_device(tvm.cuda()), dev=tvm.device("cuda", 0)
+)  # TODO remove
+
+# TODO restore
+# if __name__ == "__main__":
+#     tvm.testing.main()
