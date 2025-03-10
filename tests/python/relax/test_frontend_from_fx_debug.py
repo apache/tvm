@@ -15,8 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# TODO remove 
+# TODO remove
 import sys
+
 sys.path.append("/ssd1/htalendr/tvm/python")  # Refer to local TVM build
 
 import torch
@@ -25,7 +26,7 @@ from torch import fx
 from torch.nn import Module
 
 import tvm
-import math 
+import math
 from tvm import relax
 import tvm.testing
 from tvm.script import ir as I
@@ -42,7 +43,6 @@ def verify_model(torch_model, input_info, binding, expected):
     binding = {k: tvm.nd.array(v) for k, v in binding.items()}
     expected = relax.transform.BindParams("main", binding)(expected)
     tvm.ir.assert_structural_equal(mod, expected)
-
 
 
 def test_extended_unary_ops():
@@ -256,7 +256,6 @@ def test_extended_unary_ops():
 
     verify_model(Gelu(), input_info, {}, expected_gelu)
     verify_model(Gelu2(), input_info, {}, expected_gelu)
-
 
     # hardsigmoid
     class Hardsigmoid(torch.nn.Module):

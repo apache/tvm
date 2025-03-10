@@ -135,6 +135,7 @@ def test_tensor_clamp(target, dev):
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module5, target, dev)
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module6, target, dev)
 
+
 @tvm.testing.parametrize_targets("cuda")
 def test_linalg_vector_norm(target, dev):
     class VectorNorm0(torch.nn.Module):
