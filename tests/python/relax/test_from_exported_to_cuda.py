@@ -15,11 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# TODO remove
-import sys
-
-sys.path.append("/ssd1/htalendr/tvm/python")
-
 import numpy as np
 import torch
 from torch.export import export
@@ -144,10 +139,5 @@ def test_tensor_clamp(target, dev):
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module6, target, dev)
 
 
-test_tensor_clamp(
-    target=tvm.target.Target.from_device(tvm.cuda()), dev=tvm.device("cuda", 0)
-)  # TODO remove
-
-# TODO restore
-# if __name__ == "__main__":
-#     tvm.testing.main()
+if __name__ == "__main__":
+    tvm.testing.main()
