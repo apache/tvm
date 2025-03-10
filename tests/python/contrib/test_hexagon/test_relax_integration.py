@@ -50,7 +50,7 @@ def test_mobilenet_onnx(hexagon_session: Session):
     relax_mod = relay_translator.from_relay(relay_mod["main"], target_hexagon)
 
     # Compile and run on Hexagon.
-    exe = relax.build(relax_mod, target)
+    exe = tvm.compile(relax_mod, target)
     dev = hexagon_session.device
 
     vm_mod = hexagon_session.get_executor_from_factory(exe)
@@ -62,7 +62,7 @@ def test_mobilenet_onnx(hexagon_session: Session):
 
     # Compile and run on LLVM for comparison.
     relax_mod = relay_translator.from_relay(relay_mod["main"], "llvm")
-    exe = relax.build(relax_mod, "llvm")
+    exe = tvm.compile(relax_mod, "llvm")
     dev = tvm.cpu()
     vm_rt = relax.VirtualMachine(exe, dev)
     data = tvm.nd.array(data_np, dev)
@@ -84,7 +84,7 @@ def test_mobilenet(hexagon_session: Session):
     relax_mod = relay_translator.from_relay(relay_mod["main"], target, params)
 
     # Compile and run on Hexagon.
-    exe = relax.build(relax_mod, target)
+    exe = tvm.compile(relax_mod, target)
     dev = hexagon_session.device
 
     vm_mod = hexagon_session.get_executor_from_factory(exe)
@@ -96,7 +96,7 @@ def test_mobilenet(hexagon_session: Session):
 
     # Compile and run on LLVM for comparison.
     relax_mod = relay_translator.from_relay(relay_mod["main"], "llvm", params)
-    exe = relax.build(relax_mod, "llvm")
+    exe = tvm.compile(relax_mod, "llvm")
     dev = tvm.cpu()
     vm_rt = relax.VirtualMachine(exe, dev)
     data = tvm.nd.array(data_np, dev)

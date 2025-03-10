@@ -504,7 +504,7 @@ String ShapeString(NDArray shape, DLDataType dtype);
 String ShapeString(const std::vector<int64_t>& shape, DLDataType dtype);
 
 /*! \brief Collect performance information of a function execution. Usually
- * used with a compiled PrimFunc (via tvm.build).
+ * used with a compiled PrimFunc (via tvm.compile).
  *
  * This information can include performance counters like cache hits and FLOPs
  * that are useful in debugging performance issues of individual PrimFuncs.

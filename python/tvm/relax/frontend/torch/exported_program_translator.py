@@ -258,6 +258,8 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "__or__.Scalar": self._binary_op(relax.op.bitwise_or, operator.or_),
             "__xor__.Tensor": self._binary_op(relax.op.bitwise_xor, operator.xor),
             "__xor__.Scalar": self._binary_op(relax.op.bitwise_xor, operator.xor),
+            # linear algebra
+            "linalg_vector_norm.default": self._linalg_vector_norm,
             # neural network
             "_native_batch_norm_legit_no_training.default": self._batch_norm_legit_no_training,
             "adaptive_avg_pool2d.default": self._adaptive_avg_pool2d,
@@ -312,6 +314,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             # tensor creation
             "_to_copy.default": self._to_copy,
             "arange.start": self._arange,
+            "contiguous.default": lambda node: self.env[node.args[0]],  # no-op
             "clone.default": lambda node: self.env[node.args[0]],
             "empty.memory_format": self._empty,
             "fill.Scalar": self._fill,

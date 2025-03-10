@@ -35,8 +35,8 @@ def test_import_static_library():
         te.create_prim_func([A, B]).with_attr("global_symbol", "myadd1")
     )
 
-    mod0 = tvm.build(irmod0, target="llvm")
-    mod1 = tvm.build(irmod1, target="llvm")
+    mod0 = tvm.tir.build(irmod0, target="llvm")
+    mod1 = tvm.tir.build(irmod1, target="llvm")
 
     assert mod0.implements_function("myadd0")
     assert mod1.implements_function("myadd1")

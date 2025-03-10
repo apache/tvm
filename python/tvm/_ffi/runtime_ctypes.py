@@ -118,6 +118,7 @@ class DataType(ctypes.Structure):
         "float16": {"type_code": DataTypeCode.FLOAT, "bits": 16, "lanes": 1},
         "float32": {"type_code": DataTypeCode.FLOAT, "bits": 32, "lanes": 1},
         "float64": {"type_code": DataTypeCode.FLOAT, "bits": 64, "lanes": 1},
+        "bfloat16": {"type_code": DataTypeCode.BFLOAT, "bits": 16, "lanes": 1},
     }
 
     def __init__(self, type_str):

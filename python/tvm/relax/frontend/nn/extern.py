@@ -156,7 +156,7 @@ class SourceModule(ExternModule):  # pylint: disable=too-few-public-methods
     **A compiler pass `AttachExternModules`.** It is introduced to attach a list of
     `nn.ExternModule`s into an IRModule at any stage of the compilation pipeline,
     and attach the compiled external modules as `runtime.Module`s into IRModule's `external_mods`
-    attribute. It is required by linking in `relax.build`, but with the existence of this pass,
+    attribute. It is required by linking in `tvm.compile`, but with the existence of this pass,
     source compilation can be deferred to arbitrary stage of TVM compilation.
 
     **Caveats.** It is required to call `nn.add_extern` to register external modules exactly once

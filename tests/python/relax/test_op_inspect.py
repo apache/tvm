@@ -53,7 +53,7 @@ def test_tensor_dtype_code(dtype):
         def main(A: R.Tensor):
             return A.dtype.type_code
 
-    built = relax.build(mod)
+    built = tvm.compile(mod)
     vm = relax.VirtualMachine(built, tvm.cpu())
 
     arg = tvm.nd.empty([16], dtype)
@@ -70,7 +70,7 @@ def test_tensor_dtype_bits(dtype):
         def main(A: R.Tensor):
             return A.dtype.bits
 
-    built = relax.build(mod)
+    built = tvm.compile(mod)
     vm = relax.VirtualMachine(built, tvm.cpu())
 
     arg = tvm.nd.empty([16], dtype)
@@ -87,7 +87,7 @@ def test_tensor_dtype_lanes(dtype):
         def main(A: R.Tensor):
             return A.dtype.lanes
 
-    built = relax.build(mod)
+    built = tvm.compile(mod)
     vm = relax.VirtualMachine(built, tvm.cpu())
 
     arg = tvm.nd.empty([16], dtype)
@@ -104,7 +104,7 @@ def test_tensor_ndim(shape):
         def main(A: R.Tensor):
             return A.ndim
 
-    built = relax.build(mod)
+    built = tvm.compile(mod)
     vm = relax.VirtualMachine(built, tvm.cpu())
 
     arg = tvm.nd.empty(shape, "int32")
@@ -120,7 +120,7 @@ def test_tensor_shape(shape):
         def main(A: R.Tensor, axis: R.Prim("int64")):
             return A.shape[axis]
 
-    built = relax.build(mod)
+    built = tvm.compile(mod)
     vm = relax.VirtualMachine(built, tvm.cpu())
 
     arg = tvm.nd.empty(shape, "int32")
@@ -146,7 +146,7 @@ def test_strides_of_compact_tensor(shape):
         def main(A: R.Tensor, axis: R.Prim("int64")):
             return A.strides[axis]
 
-    built = relax.build(mod)
+    built = tvm.compile(mod)
     vm = relax.VirtualMachine(built, tvm.cpu())
 
     arg = tvm.nd.empty(shape, "int32")
@@ -168,7 +168,7 @@ def test_strides_of_non_compact_tensor():
         def main(A: R.Tensor, axis: R.Prim("int64")):
             return A.strides[axis]
 
-    built = relax.build(mod)
+    built = tvm.compile(mod)
     vm = relax.VirtualMachine(built, tvm.cpu())
 
     backing_ndarray = tvm.nd.empty(backing_shape, "int32")
@@ -198,7 +198,7 @@ def test_byte_offset(elem_offset):
         def main(A: R.Tensor):
             return A.byte_offset
 
-    built = relax.build(mod)
+    built = tvm.compile(mod)
     vm = relax.VirtualMachine(built, tvm.cpu())
 
     backing_ndarray = tvm.nd.empty(backing_shape, "int32")
@@ -230,7 +230,7 @@ def test_elem_offset(elem_offset, dtype):
         def main(A: R.Tensor):
             return A.elem_offset
 
-    built = relax.build(mod)
+    built = tvm.compile(mod)
     vm = relax.VirtualMachine(built, tvm.cpu())
 
     backing_ndarray = tvm.nd.empty(backing_shape, dtype)

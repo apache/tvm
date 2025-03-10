@@ -277,7 +277,7 @@ def test_vm_stack_restore_after_failure():
                 R.output(gv)
             return gv
 
-    ex = relax.build(Module, "llvm")
+    ex = tvm.compile(Module, "llvm")
     vm = relax.VirtualMachine(ex, tvm.cpu())
 
     correct_input = tvm.nd.array(np.random.normal(size=(10, 10)).astype("float32"))

@@ -301,14 +301,14 @@ class TestElementWise:
             if uses_2d_memory and not is_hexagon:
                 stack.enter_context(pytest.raises(tvm.TVMError))
 
-            tvm.build(*schedule_args, target=target_host)
+            tvm.compile(*schedule_args, target=target_host)
 
     @tvm.testing.fixture
     def runtime_module(self, schedule_args, target_host):
         if target_host.kind.name != "hexagon":
             pytest.skip("Only running on hexagon")
 
-        return tvm.build(*schedule_args, target=target_host)
+        return tvm.compile(*schedule_args, target=target_host)
 
     @tvm.testing.requires_hexagon
     def test_execute(

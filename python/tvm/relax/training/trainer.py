@@ -57,7 +57,7 @@ class Trainer:
             [pred_sinfo, target_sinfo],
         )
         train_mod = setup_trainer(Backbone)
-        ex = relax.build(train_mod, target)
+        ex = tvm.compile(train_mod, target)
         vm = relax.VirtualMachine(ex, dev)
 
         trainer = training.Trainer(train_mod, vm, dev, False)

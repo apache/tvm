@@ -78,7 +78,7 @@ def gen_ground_truth(mod, target, dev, inputs):
         )
         new_mod = seq(mod)
     assert relax.analysis.well_formed(new_mod)
-    exec = relax.build(new_mod, target, params={})
+    exec = tvm.compile(new_mod, target, params={})
     vm = relax.VirtualMachine(exec, dev)
     return vm["main"](*inputs)
 
@@ -145,7 +145,7 @@ def test_tensorrt_only(entry_func_name):
         ]
     )(mod)
 
-    ex0 = relax.build(new_mod, target, params={})
+    ex0 = tvm.compile(new_mod, target, params={})
     # Sanity check for the correctness and roundtrip
     check_roundtrip(ex0, dev, inputs, expected, entry_func_name)
 
@@ -179,7 +179,7 @@ def test_mix_use_tensorrt_and_tvm():
             )(mod)
     assert relax.analysis.well_formed(new_mod)
     with transform.PassContext(opt_level=0):
-        ex0 = relax.build(new_mod, target, params={})
+        ex0 = tvm.compile(new_mod, target, params={})
 
     # Sanity check for the correctness and roundtrip
     check_roundtrip(ex0, dev, inputs, expected)
