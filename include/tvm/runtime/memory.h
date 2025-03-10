@@ -30,6 +30,7 @@ namespace runtime {
 
 using tvm::ffi::make_inplace_array_object;
 using tvm::ffi::make_object;
+using tvm::ffi::FObjectDeleter;
 
 }  // namespace runtime
 }  // namespace tvm
