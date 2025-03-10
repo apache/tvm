@@ -111,6 +111,9 @@ def batch_norm(
     shape = [1] * len(data.shape)
     shape[axis] = data.shape[axis]
 
+    print("IN BATCH_NORM !!!!!!!!!!!!!!!!!!!!!")
+    print("training: ", training)
+
     if training:
         reduce_axes = list(range(len(data.shape)))
         reduce_axes.remove(axis)
@@ -125,6 +128,15 @@ def batch_norm(
     else:
         moving_mean_rs = topi.reshape(moving_mean, shape)
         moving_var_rs = topi.reshape(moving_var, shape)
+
+        print("CALCULATING OUT FOR BATCH_NORM !!!!!!!!!!!!!!!!!!!!!")
+        print("data shape: ", data.shape)
+        print("data: ", data)
+        print("moving_mean shape ", moving_mean.shape)
+        print("moving_mean: ", moving_mean)
+        print("moving_var shape: ", moving_var.shape)
+        print("moving_var: ", moving_var)
+
         out = (data - moving_mean_rs) / topi.math.sqrt(moving_var_rs + epsilon)
 
     if scale:

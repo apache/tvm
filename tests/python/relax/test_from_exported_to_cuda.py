@@ -48,8 +48,6 @@ def assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, tar
     tvm_mod, tvm_params = relax.frontend.detach_params(mod_from_torch)
 
     relax_pipeline = relax.get_default_pipeline(tvm.target.Target.from_device(tvm.cuda()))
-    # TODO try pipeline below?
-    # releax_pipeline = relax.backend.cuda.pipeline.get_default_pipeline(target)
     ex = relax.build(tvm_mod, target=target, relax_pipeline=relax_pipeline)
     vm = relax.VirtualMachine(ex, dev)
 
@@ -99,11 +97,11 @@ def test_linalg_vector_norm(target, dev):
 def test_batch_norm(target, dev):
 
     # TODO no momentum
-    # raw_data = np.random.randn(1,2,1,1).astype(np.float32)
-    raw_data = np.array([[[[10.0]],[[20.0]]]]).astype(np.float32)
-    torch_module0 = nn.BatchNorm2d(2, eps=1e-02, momentum=0.0, 
+    raw_data = np.random.randn(8,8,4,4).astype(np.float32)
+    # raw_data = np.array([[[[10.0]],[[20.0]]]]).astype(np.float32)
+    torch_module0 = nn.BatchNorm2d(8, eps=1e-02, momentum=0.0, 
                                    affine=False, track_running_stats=True, 
-                                   device=None, dtype=None).eval()
+                                   device=None, dtype=None)
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module0, target, dev)
     # TODO correct output above should be [9.95, 19.9] https://chatgpt.com/c/67cf1bc1-1934-8006-9b22-8166c46ee1bc
 
