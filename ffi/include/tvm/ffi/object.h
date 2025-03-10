@@ -521,10 +521,8 @@ class ObjectUnsafe {
 
   template <typename Class>
   static TVM_FFI_INLINE int64_t GetObjectOffsetToSubclass() {
-    return (
-      reinterpret_cast<int64_t>(&(static_cast<Class*>(nullptr)->header_)) -
-      reinterpret_cast<int64_t>(&(static_cast<Object*>(nullptr)->header_))
-    );
+    return (reinterpret_cast<int64_t>(&(static_cast<Class*>(nullptr)->header_)) -
+            reinterpret_cast<int64_t>(&(static_cast<Object*>(nullptr)->header_)));
   }
 
   template <typename T>
