@@ -995,8 +995,8 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
     ########## Creation ##########
 
     def _detach(self, node: fx.Node) -> relax.Var:
-        # There is no way to implement detach() such that the output shares 
-        # the same memory as the input. In-place operations are not supported 
+        # There is no way to implement detach() such that the output shares
+        # the same memory as the input. In-place operations are not supported
         # by the translator, and therefore we just return a copy of the input.
         return self.env[node.args[0]]
 
