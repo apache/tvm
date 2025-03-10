@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""A rule for reduction. """
+"""A rule for reduction."""
 # TODO: combine reduction rule and general reduction rule into one file.
 from typing import List, Mapping, Optional, Tuple, Union
 
@@ -45,6 +45,10 @@ def _get_reduction_expr(block: tir.Block) -> Optional[tir.PrimExpr]:
     ):
         return None
     return buffer_store.value.b
+
+
+def _has_reduction_loop(block_info):
+    return any([info.kind == "R" for info in block_info.iters])
 
 
 class Reduction(GPUScheduleRule):
@@ -79,6 +83,7 @@ class Reduction(GPUScheduleRule):
         # Step 1. Check reduction block
         if (
             (not block_info.is_reduction())
+            or (not _has_reduction_loop(block_info))
             or len(block_stmt.writes) != 1
             or _get_reduction_expr(block_stmt) is None
         ):

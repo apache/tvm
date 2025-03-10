@@ -2930,6 +2930,26 @@ def test_arange():
     verify_model(Arange(), example_args, {}, Expected)
 
 
+def test_contiguous():
+    class Contiguous(Module):
+        def forward(self, input):
+            return input.contiguous()
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            input: R.Tensor((10, 10), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((10, 10), dtype="float32")):
+            with R.dataflow():
+                gv: R.Tuple(R.Tensor((10, 10), dtype="float32")) = (input,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(10, 10, dtype=torch.float32),)
+    verify_model(Contiguous(), example_args, {}, Expected)
+
+
 def test_clone():
     class Clone(Module):
         def forward(self, input):

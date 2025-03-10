@@ -319,7 +319,7 @@ def evaluate_result(operations, tag, time, result, expected_output):
 
 def setup_and_run(hexagon_session, sch, a, b, c, operations, mem_scope="global"):
     """Setup and run operator."""
-    func_tir = tvm.build(sch.mod["main"], target=get_hexagon_target("v69"))
+    func_tir = tvm.compile(sch.mod["main"], target=get_hexagon_target("v69"))
     module = hexagon_session.load_module(func_tir)
 
     a_hexagon = tvm.runtime.ndarray.array(a, device=hexagon_session.device, mem_scope=mem_scope)
@@ -340,7 +340,7 @@ def setup_and_run(hexagon_session, sch, a, b, c, operations, mem_scope="global")
 
 def setup_and_run_preallocated(hexagon_session, sch, a, b, c, operations):
     """Setup and run for preallocated."""
-    func_tir = tvm.build(sch.mod["main"], target=get_hexagon_target("v69"))
+    func_tir = tvm.compile(sch.mod["main"], target=get_hexagon_target("v69"))
     module = hexagon_session.load_module(func_tir)
 
     a_vtcm = np.zeros((a.size), dtype="uint8")

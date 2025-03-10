@@ -102,5 +102,36 @@ def test_tensor_expand_as(target, dev):
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module3, target, dev)
 
 
+@tvm.testing.parametrize_targets("cuda")
+def test_linalg_vector_norm(target, dev):
+    class VectorNorm0(torch.nn.Module):
+        def forward(self, x):
+            return torch.linalg.vector_norm(x, ord=1, dim=-1)
+
+    class VectorNorm1(torch.nn.Module):
+        def forward(self, x):
+            return torch.linalg.vector_norm(x, ord=2, dim=2)
+
+    class VectorNorm2(torch.nn.Module):
+        def forward(self, x):
+            return torch.linalg.vector_norm(x, ord=1, dim=-1)
+
+    class VectorNorm3(torch.nn.Module):
+        def forward(self, x):
+            return torch.linalg.vector_norm(x, ord=2, dim=2)
+
+    raw_data = np.random.randn(2, 3, 4, 10).astype(np.float32)
+
+    torch_module0 = VectorNorm0().eval()
+    torch_module1 = VectorNorm1().eval()
+    torch_module2 = VectorNorm2().eval()
+    torch_module3 = VectorNorm3().eval()
+
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module0, target, dev)
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module1, target, dev)
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module2, target, dev)
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module3, target, dev)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

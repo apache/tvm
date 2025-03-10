@@ -95,7 +95,7 @@ def evaluate(hexagon_session, sch, size):
     """Evaluate schedule."""
     a_shape = size
 
-    func_tir = tvm.build(sch.mod["main"], target=get_hexagon_target("v69"))
+    func_tir = tvm.compile(sch.mod["main"], target=get_hexagon_target("v69"))
     module = hexagon_session.load_module(func_tir)
 
     a = np.random.randint(-128, 127, a_shape, dtype="int8")

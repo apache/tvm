@@ -113,7 +113,7 @@ if not IS_IN_CI:
 # We skip this step in the CI environment.
 
 if not IS_IN_CI:
-    ex = relax.build(mod, target="cuda")
+    ex = tvm.compile(mod, target="cuda")
     dev = tvm.device("cuda", 0)
     vm = relax.VirtualMachine(ex, dev)
     # Need to allocate data and params on GPU device

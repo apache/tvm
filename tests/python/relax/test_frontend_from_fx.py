@@ -4037,5 +4037,67 @@ def test_take():
     verify_model(Take(), [([5], "float32"), ([3], "int32")], {}, Expected)
 
 
+def test_one_hot():
+    class OneHot(Module):
+        def forward(self, indices):
+            return torch.nn.functional.one_hot(indices, num_classes=10)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            inp_0: R.Tensor((5,), dtype="int32"),
+        ) -> R.Tensor((5, 10), dtype="int64"):
+            with R.dataflow():
+                lv: R.Tensor((5, 10), dtype="int64") = R.one_hot(
+                    inp_0, R.prim_value(1), R.prim_value(0), depth=10, axis=-1
+                )
+                gv: R.Tensor((5, 10), dtype="int64") = lv
+                R.output(gv)
+
+            return gv
+
+    verify_model(OneHot(), [([5], "int32")], {}, Expected)
+
+
+def test_empty_like():
+    class EmptyLike(Module):
+        def forward(self, data):
+            return torch.empty_like(data)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            inp_0: R.Tensor((5,), dtype="float32"),
+        ) -> R.Tensor((5,), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((5,), dtype="float32") = R.zeros_like(inp_0)
+                gv: R.Tensor((5,), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    verify_model(EmptyLike(), [([5], "float32")], {}, Expected)
+
+
+def test_numel():
+    class Numel(Module):
+        def forward(self, data):
+            return torch.numel(data)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            inp_0: R.Tensor((5, 3), dtype="float32"),
+        ) -> R.Tensor((), dtype="int32"):
+            with R.dataflow():
+                gv: R.Tensor((), dtype="int32") = R.const(15, "int32")
+                R.output(gv)
+            return gv
+
+    verify_model(Numel(), [([5, 3], "float32")], {}, Expected)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

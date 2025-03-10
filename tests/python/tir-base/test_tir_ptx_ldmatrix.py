@@ -63,7 +63,7 @@ def test_ptx_ldmatrix():
 
     for num in [1, 2, 4]:
         for trans in [False, True]:
-            mod = tvm.build(f.specialize({param_num: num, param_trans: trans}), target="cuda")
+            mod = tvm.compile(f.specialize({param_num: num, param_trans: trans}), target="cuda")
             A_np = np.random.rand(16, 16).astype("float16")
             A_mask_np = np.zeros_like(A_np)
             if num == 1:
