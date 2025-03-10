@@ -92,5 +92,6 @@ def test_upsample_with_scale_factor(target, dev):
 
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
+
 if __name__ == "__main__":
     tvm.testing.main()
