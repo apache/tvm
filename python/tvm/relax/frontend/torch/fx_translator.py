@@ -491,7 +491,6 @@ class TorchFXImporter(BaseFXGraphImporter):
             gathered_source = self.block_builder.emit(
                 relax.op.reshape(gathered_source, x.struct_info.shape)
             )
-        print("THE TYPE OF MASK IS ", type(mask), "!!!!!!!!!!!!!!!!!!!!!!!!!!")
         if ndim != len(x.struct_info.shape):
             mask = self.block_builder.emit(relax.op.broadcast_to(mask, x.struct_info.shape))
         return self.block_builder.emit(relax.op.where(mask, gathered_source, x))
