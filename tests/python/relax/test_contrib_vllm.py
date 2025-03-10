@@ -43,7 +43,7 @@ def build_and_run(mod, inputs_np, target, legalize=True):
             mod = tvm.tir.transform.DefaultGPUSchedule()(mod)
 
     with tvm.transform.PassContext():
-        ex = relax.build(mod, target)
+        ex = tvm.compile(mod, target)
 
     dev = tvm.device(target, 0)
     vm = relax.VirtualMachine(ex, dev)

@@ -101,14 +101,14 @@ class TVMRunner(ModelRunner):
             if self._device.startswith("cpu"):
                 target = tvm.target.Target("llvm")
                 with tvm.transform.PassContext(opt_level=3):
-                    self._executable = tvm.relax.build(model, target)
+                    self._executable = tvm.compile(model, target)
                     runnable = tvm.relax.VirtualMachine(self._executable, tvm.cpu())
             elif self._device.startswith("cuda"):
                 target = tvm.target.Target("cuda")
                 with target:
                     model = tvm.tir.transform.DefaultGPUSchedule()(model)
                 with tvm.transform.PassContext(opt_level=3):
-                    self._executable = tvm.relax.build(model, target)
+                    self._executable = tvm.compile(model, target)
                     runnable = tvm.relax.VirtualMachine(self._executable, tvm.cuda())
             else:
                 raise NotImplementedError("Unsupported device " + str(self._device))
@@ -248,13 +248,13 @@ class TVMRunner(ModelRunner):
             with target:
                 model = tvm.tir.transform.DefaultGPUSchedule()(model)
             with tvm.transform.PassContext(opt_level=3):
-                relax_exec = tvm.relax.build(model, target)
+                relax_exec = tvm.compile(model, target)
                 runnable = tvm.relax.VirtualMachine(relax_exec, tvm.cuda())
             tvm_inputs = [tvm.nd.array(inputs[i], device=tvm.cuda()) for i in input_names]
         else:
             target = tvm.target.Target("llvm")
             with tvm.transform.PassContext(opt_level=3):
-                relax_exec = tvm.relax.build(model, target)
+                relax_exec = tvm.compile(model, target)
                 runnable = tvm.relax.VirtualMachine(relax_exec, tvm.cpu())
             tvm_inputs = [tvm.nd.array(inputs[i]) for i in input_names]
 

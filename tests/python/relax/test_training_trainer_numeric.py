@@ -64,7 +64,7 @@ def test_execute(target, dev):
     )
 
     train_mod = setup_trainer(backbone)
-    ex = relax.build(train_mod, target)
+    ex = tvm.compile(train_mod, target)
     vm = relax.VirtualMachine(ex, dev, profile=True)
 
     trainer = Trainer(train_mod, vm, dev, False)
@@ -89,7 +89,7 @@ def test_execute_numeric(target, dev):
     )
 
     train_mod = setup_trainer(backbone)
-    ex = relax.build(train_mod, target)
+    ex = tvm.compile(train_mod, target)
     vm = relax.VirtualMachine(ex, dev)
 
     trainer = Trainer(train_mod, vm, dev, False)
@@ -118,7 +118,7 @@ def test_load_export_params(target, dev):
     )
 
     train_mod = setup_trainer(backbone)
-    ex = relax.build(train_mod, target)
+    ex = tvm.compile(train_mod, target)
     vm = relax.VirtualMachine(ex, dev)
 
     trainer = Trainer(train_mod, vm, dev, False)
@@ -153,7 +153,7 @@ def test_setting_error(target, dev):
     )
 
     train_mod = setup_trainer(backbone)
-    ex = relax.build(train_mod, target)
+    ex = tvm.compile(train_mod, target)
     vm = relax.VirtualMachine(ex, dev)
 
     trainer = Trainer(train_mod, vm, dev, False)

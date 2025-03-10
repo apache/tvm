@@ -350,7 +350,7 @@ def test_constant():
     )
 
     func = te.create_prim_func([C, A])
-    func = tvm.build(func)
+    func = tvm.compile(func)
     a_np = np.random.uniform(size=(M,)).astype(A.dtype)
     c = tvm.nd.array(np.zeros(M, dtype=C.dtype))
     x = func(c, tvm.nd.array(a_np))
@@ -363,7 +363,7 @@ def test_data_dependent_access():
     C = te.compute((10,), lambda i: A[B[i]])
 
     func = te.create_prim_func([C, A, B])
-    func = tvm.build(func)
+    func = tvm.compile(func)
 
     a_np = np.random.uniform(size=(10,)).astype(A.dtype)
     b_np = np.arange(10, dtype=B.dtype)

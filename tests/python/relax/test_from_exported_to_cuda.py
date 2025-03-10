@@ -24,6 +24,9 @@ from torch import nn
 from torch.export import export
 from tvm.relax.frontend.torch import from_exported_program
 from torch.nn import Softmax, Upsample
+import numpy as np
+import torch
+from torch.export import export
 
 
 def assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev):
@@ -43,11 +46,6 @@ def assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, tar
     tvm_mod, tvm_params = relax.frontend.detach_params(mod_from_torch)
 
     relax_pipeline = relax.get_default_pipeline(tvm.target.Target.from_device(tvm.cuda()))
-    ex = relax.build(tvm_mod, target=target, relax_pipeline=relax_pipeline)
-    vm = relax.VirtualMachine(ex, dev)
-
-    gpu_data = tvm.nd.array(raw_data_for_tvm, dev)
-    gpu_params = [tvm.nd.array(p, dev) for p in tvm_params["main"]]
     gpu_out = vm["main"](gpu_data, *gpu_params)
 
     pytorch_out = torch_module(torch_data).detach().numpy()
@@ -76,8 +74,7 @@ def test_copy_(target, dev):
 
 @tvm.testing.parametrize_targets("cuda")
 def test_detach_no_change(target, dev):
-    """Most of the time, in TVM, detach() should basically be identity"""
-
+    # In TVM, detach() is just identity
     class DetachTester(nn.Module):
         def forward(self, x):
             detached = x.detach()
@@ -86,6 +83,37 @@ def test_detach_no_change(target, dev):
     raw_data = np.ones((2, 2)).astype(np.float32)
     torch_module = DetachTester().eval()
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
+
+
+@tvm.testing.parametrize_targets("cuda")
+def test_linalg_vector_norm(target, dev):
+    class VectorNorm0(torch.nn.Module):
+        def forward(self, x):
+            return torch.linalg.vector_norm(x, ord=1, dim=-1)
+
+    class VectorNorm1(torch.nn.Module):
+        def forward(self, x):
+            return torch.linalg.vector_norm(x, ord=2, dim=2)
+
+    class VectorNorm2(torch.nn.Module):
+        def forward(self, x):
+            return torch.linalg.vector_norm(x, ord=1, dim=-1)
+
+    class VectorNorm3(torch.nn.Module):
+        def forward(self, x):
+            return torch.linalg.vector_norm(x, ord=2, dim=2)
+
+    raw_data = np.random.randn(2, 3, 4, 10).astype(np.float32)
+
+    torch_module0 = VectorNorm0().eval()
+    torch_module1 = VectorNorm1().eval()
+    torch_module2 = VectorNorm2().eval()
+    torch_module3 = VectorNorm3().eval()
+
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module0, target, dev)
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module1, target, dev)
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module2, target, dev)
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module3, target, dev)
 
 
 if __name__ == "__main__":

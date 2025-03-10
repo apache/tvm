@@ -42,7 +42,7 @@ def build_and_run(
     pipeline = relax.pipeline.get_default_pipeline(tgt)
     mod = pipeline(mod)
     if rpc:
-        ex = relax.build(mod, tgt)
+        ex = tvm.compile(mod, tgt)
         temp = utils.tempdir()
         path = temp.relpath(load_path)
         path = "./" + load_path
@@ -52,7 +52,7 @@ def build_and_run(
         dev = rpc.cl(0)
         vm = relax.VirtualMachine(rexec, dev)
     else:
-        ex = relax.build(mod, target)
+        ex = tvm.compile(mod, target)
         dev = tvm.device(target, 0)
         vm = relax.VirtualMachine(ex, dev)
 

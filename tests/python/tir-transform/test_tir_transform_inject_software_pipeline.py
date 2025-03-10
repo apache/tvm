@@ -1532,7 +1532,7 @@ def get_mma_schedule():
 def build_and_run(sch):
     if tvm.testing.is_ampere_or_newer():
         with tvm.transform.PassContext(config={"tir.use_async_copy": 1}):
-            f = tvm.build(sch.mod["main"], target="cuda")
+            f = tvm.compile(sch.mod["main"], target="cuda")
 
         dev = tvm.device("cuda", 0)
         a_np = np.random.uniform(size=(N, K)).astype("float16")
