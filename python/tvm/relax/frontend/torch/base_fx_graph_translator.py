@@ -38,9 +38,9 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         self.env: Dict[fx.Node, relax.Expr] = {}
         self.params: Dict[torch.Tensor, relax.Expr] = {}
         self.block_builder: relax.BlockBuilder = None
-        self.convert_map: Dict[Union[torch.nn.Module, str], Callable[[fx.Node], relax.Var]] = (
-            self.create_convert_map()
-        )
+        self.convert_map: Dict[
+            Union[torch.nn.Module, str], Callable[[fx.Node], relax.Var]
+        ] = self.create_convert_map()
 
     ########## Utilities ##########
 
@@ -152,6 +152,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         # Handle the case where a_min is a tensor
         if not isinstance(a_min, (int, float)):
             from torch import fx
+
             if isinstance(a_min, fx.Node):
                 # Extract relax Expr (needed for fx.tracer)
                 a_min = self.env[a_min]
@@ -166,6 +167,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         # Handle the case where a_max is a tensor
         if not isinstance(a_max, (int, float)):
             from torch import fx
+
             if isinstance(a_max, fx.Node):
                 # Extract relax Expr (needed for fx.tracer)
                 a_max = self.env[a_max]
@@ -190,6 +192,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         # Handle the case where a_min is a tensor
         if not isinstance(a_min, (int, float)):
             from torch import fx
+
             if isinstance(a_min, fx.Node):
                 # Extract relax Expr (needed for fx.tracer)
                 a_min = self.env[a_min]
@@ -214,6 +217,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         # Handle the case where a_max is a tensor
         if not isinstance(a_max, (int, float)):
             from torch import fx
+
             if isinstance(a_max, fx.Node):
                 # Extract relax Expr (needed for fx.tracer)
                 a_max = self.env[a_max]
