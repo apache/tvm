@@ -90,6 +90,7 @@ def test_upsample_with_scale_factor(target, dev):
 
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
+
 @tvm.testing.parametrize_targets("cuda")
 def test_linalg_vector_norm(target, dev):
     class VectorNorm0(torch.nn.Module):
