@@ -15,14 +15,14 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import tvm
+from tvm import relax
+import tvm.testing
 import numpy as np
 import torch
 from torch.export import export
-
-import tvm
-import tvm.testing
-from tvm import relax
 from tvm.relax.frontend.torch import from_exported_program
+from torch.nn import Softmax, Upsample
 
 
 def assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev):
@@ -42,8 +42,6 @@ def assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, tar
     tvm_mod, tvm_params = relax.frontend.detach_params(mod_from_torch)
 
     relax_pipeline = relax.get_default_pipeline(tvm.target.Target.from_device(tvm.cuda()))
-    # TODO try pipeline below?
-    # releax_pipeline = relax.backend.cuda.pipeline.get_default_pipeline(target)
     ex = relax.build(tvm_mod, target=target, relax_pipeline=relax_pipeline)
     vm = relax.VirtualMachine(ex, dev)
 
@@ -55,6 +53,42 @@ def assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, tar
     actual = gpu_out[0].numpy()
     desired = pytorch_out
     np.testing.assert_allclose(actual=actual, desired=desired, rtol=1e-5, atol=1e-5)
+
+
+@tvm.testing.parametrize_targets("cuda")
+def test_upsample_with_size(target, dev):
+    """
+    The Upsample module can be used with the size arugment or the scale
+    factor argument but not both. This tests the former.
+    """
+    batch_size = 1
+    channels = 3
+    height, width = 8, 8
+
+    torch_module = Upsample(size=(64, 64), mode="nearest", recompute_scale_factor=None)
+
+    raw_data = np.random.rand(batch_size, channels, height, width).astype("float32")
+
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
+
+
+@tvm.testing.parametrize_targets("cuda")
+def test_upsample_with_scale_factor(target, dev):
+    """
+    The Upsample module can be used with the size arugment or the scale
+    factor argument but not both. This tests the latter.
+    """
+    batch_size = 2
+    channels = 3
+    height, width = 32, 32
+
+    torch_module = Upsample(
+        size=None, scale_factor=7, mode="nearest", align_corners=None, recompute_scale_factor=True
+    )
+
+    raw_data = np.random.rand(batch_size, channels, height, width).astype("float32")
+
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 
 @tvm.testing.parametrize_targets("cuda")
