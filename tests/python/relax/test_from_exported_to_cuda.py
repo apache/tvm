@@ -15,22 +15,23 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import tvm
-from tvm import relax
-import tvm.testing
 import numpy as np
 import torch
 from torch.export import export
+
+import tvm
+import tvm.testing
+from tvm import relax
 from tvm.relax.frontend.torch import from_exported_program
-from torch.nn import Softmax, Upsample
 
 
-def assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module):
+def assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev):
     """
     This util ensures that a torch module can successfully be exported to TVM
     using torch.export and that the resuling IR program gives the same result
     as PyTorch when ran on CUDA.
     """
+    raw_data_for_tvm = raw_data.copy()  # In case the data is modified
     torch_data = torch.from_numpy(raw_data)
     example_args = (torch_data,)
 
@@ -39,13 +40,14 @@ def assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module):
         mod_from_torch = from_exported_program(exported_program, keep_params_as_input=True)
 
     tvm_mod, tvm_params = relax.frontend.detach_params(mod_from_torch)
-    target = tvm.target.Target.from_device(tvm.cuda())
 
-    ex = relax.build(tvm_mod, target=target, relax_pipeline=relax.get_default_pipeline(target))
-    dev = tvm.device("cuda", 0)
+    relax_pipeline = relax.get_default_pipeline(tvm.target.Target.from_device(tvm.cuda()))
+    # TODO try pipeline below?
+    # releax_pipeline = relax.backend.cuda.pipeline.get_default_pipeline(target)
+    ex = relax.build(tvm_mod, target=target, relax_pipeline=relax_pipeline)
     vm = relax.VirtualMachine(ex, dev)
 
-    gpu_data = tvm.nd.array(raw_data, dev)
+    gpu_data = tvm.nd.array(raw_data_for_tvm, dev)
     gpu_params = [tvm.nd.array(p, dev) for p in tvm_params["main"]]
     gpu_out = vm["main"](gpu_data, *gpu_params)
 
@@ -55,7 +57,8 @@ def assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module):
     np.testing.assert_allclose(actual=actual, desired=desired, rtol=1e-5, atol=1e-5)
 
 
-def test_linalg_vector_norm():
+@tvm.testing.parametrize_targets("cuda")
+def test_linalg_vector_norm(target, dev):
 
     class VectorNorm0(torch.nn.Module):
         def forward(self, x):
@@ -80,10 +83,10 @@ def test_linalg_vector_norm():
     torch_module2 = VectorNorm2().eval()
     torch_module3 = VectorNorm3().eval()
 
-    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module0)
-    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module1)
-    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module2)
-    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module3)
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module0, target, dev)
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module1, target, dev)
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module2, target, dev)
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module3, target, dev)
 
 
 if __name__ == "__main__":
