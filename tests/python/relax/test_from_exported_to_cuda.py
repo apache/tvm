@@ -59,7 +59,6 @@ def assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, tar
 
 @tvm.testing.parametrize_targets("cuda")
 def test_linalg_vector_norm(target, dev):
-
     class VectorNorm0(torch.nn.Module):
         def forward(self, x):
             return torch.linalg.vector_norm(x, ord=1, dim=-1)
