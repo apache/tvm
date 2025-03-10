@@ -15,15 +15,13 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import tvm
-from tvm import relax
-import tvm.testing
 import numpy as np
 import torch
-from torch import nn
+import tvm
+import tvm.testing
 from torch.export import export
+from tvm import relax
 from tvm.relax.frontend.torch import from_exported_program
-from torch.nn import Softmax, Upsample
 
 
 def assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module):

@@ -709,8 +709,8 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             return self.block_builder.emit(relax.op.reshape(embedding, [*x_shape, emb_size]))
 
     def _layer_norm_impl(self, x, gamma, beta, eps, normalized_shape) -> relax.Var:
-        from torch.fx.immutable_collections import immutable_list
         import numpy as np  # type: ignore
+        from torch.fx.immutable_collections import immutable_list
 
         if isinstance(normalized_shape, (immutable_list, tuple)):
             normalized_shape = tuple(normalized_shape)
