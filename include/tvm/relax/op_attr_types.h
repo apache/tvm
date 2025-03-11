@@ -101,7 +101,7 @@ using FNormalize = runtime::TypedPackedFunc<Expr(const BlockBuilder& bb, Call ca
  *    this delay between generating an ill-formed `relax::Call` and
  *    identifying the ill-formed call may complicate debugging.  If
  *    the validation logic is very fast to check, and doing so would
- *    not introduce a signficant overhead, consider validating as part
+ *    not introduce a significant overhead, consider validating as part
  *    of `FNormalize`, which is applied by the block builder for each
  *    `relax::Call`.
  *

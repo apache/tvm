@@ -44,7 +44,7 @@ namespace relax {
  *
  * \sa tvm/ir_functor.h
  *
- * \tparam FType function signiture
+ * \tparam FType function signature
  *  This type is only defined for FType with function signature R(const Expr&,
  * Args...)
  */
@@ -176,6 +176,7 @@ class ExprFunctor<R(const Expr& n, Args...)> {
     RELAX_EXPR_FUNCTOR_DISPATCH(PrimValueNode);
     RELAX_EXPR_FUNCTOR_DISPATCH(StringImmNode);
     RELAX_EXPR_FUNCTOR_DISPATCH(DataTypeImmNode);
+    vtable.Finalize();
     return vtable;
   }
 };
