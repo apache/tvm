@@ -44,7 +44,7 @@ namespace relax {
  *
  * \sa tvm/ir_functor.h
  *
- * \tparam FType function signiture
+ * \tparam FType function signature
  *  This type is only defined for FType with function signature R(const Expr&,
  * Args...)
  */
