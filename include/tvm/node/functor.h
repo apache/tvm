@@ -26,6 +26,7 @@
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/object.h>
 
+#include <cstring>
 #include <type_traits>
 #include <utility>
 #include <vector>
@@ -72,6 +73,8 @@ class NodeFunctor<R(const ObjectRef& n, Args...)> {
   using TSelf = NodeFunctor<R(const ObjectRef& n, Args...)>;
   /*! \brief internal function table */
   std::vector<FPointer> func_;
+  /*! \brief start range of func index */
+  uint32_t begin_type_index_{0};
 
  public:
   /*! \brief the result type of this functor */
@@ -83,6 +86,8 @@ class NodeFunctor<R(const ObjectRef& n, Args...)> {
    */
   bool can_dispatch(const ObjectRef& n) const {
     uint32_t type_index = n->type_index();
+    if (type_index < begin_type_index_) return false;
+    type_index -= begin_type_index_;
     return type_index < func_.size() && func_[type_index] != nullptr;
   }
   /*!
@@ -94,7 +99,7 @@ class NodeFunctor<R(const ObjectRef& n, Args...)> {
   R operator()(const ObjectRef& n, Args... args) const {
     ICHECK(can_dispatch(n)) << "NodeFunctor calls un-registered function on type "
                             << n->GetTypeKey();
-    return (*func_[n->type_index()])(n, std::forward<Args>(args)...);
+    return (*func_[n->type_index() - begin_type_index_])(n, std::forward<Args>(args)...);
   }
   /*!
    * \brief set the dispatcher for type TNode
@@ -109,6 +114,7 @@ class NodeFunctor<R(const ObjectRef& n, Args...)> {
       func_.resize(tindex + 1, nullptr);
     }
     ICHECK(func_[tindex] == nullptr) << "Dispatch for " << TNode::_type_key << " is already set";
+    ICHECK_EQ(begin_type_index_, 0) << " Cannot call set_dispatch after calling Finalize";
     func_[tindex] = f;
     return *this;
   }
@@ -122,8 +128,28 @@ class NodeFunctor<R(const ObjectRef& n, Args...)> {
   TSelf& clear_dispatch() {  // NOLINT(*)
     uint32_t tindex = TNode::RuntimeTypeIndex();
     ICHECK_LT(tindex, func_.size()) << "clear_dispatch: index out of range";
+    ICHECK_EQ(begin_type_index_, 0) << " Cannot call clear_dispatch after calling Finalize";
     func_[tindex] = nullptr;
     return *this;
+  }
+  /*!
+   * \brief Finalize the functor after calling sequence of set_dispatch
+   * This function will attempt to find the min type index that is not null
+   * and optimize the space of the func table so it is more compact
+   */
+  void Finalize() {
+    ICHECK_EQ(begin_type_index_, 0) << "Can only call Finalize once";
+    while (begin_type_index_ < func_.size() && func_[begin_type_index_] == nullptr) {
+      ++begin_type_index_;
+    }
+    // shift up the function value
+    size_t new_ftable_size = func_.size() - begin_type_index_;
+    if (begin_type_index_ != 0) {
+      std::memmove(func_.data(), func_.data() + begin_type_index_,
+                   new_ftable_size * sizeof(FPointer));
+    }
+    func_.resize(new_ftable_size);
+    func_.shrink_to_fit();
   }
 };
 
