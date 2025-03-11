@@ -513,7 +513,7 @@ TVM_DLL PrimExpr pow(PrimExpr x, PrimExpr y, Span span = Span());
  * \param x The input data
  * \param span The location of this operation in the source.
  *
- * \return The aboslute value of input data x
+ * \return The absolute value of input data x
  */
 TVM_DLL PrimExpr abs(PrimExpr x, Span span = Span());
 /*!
