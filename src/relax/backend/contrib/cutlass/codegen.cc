@@ -95,7 +95,7 @@ class CodegenResult : public ObjectRef {
     data_ = std::move(n);
   }
 
-  TVM_DEFINE_OBJECT_REF_METHODS(CodegenResult, ObjectRef, CodegenResultNode)
+  TVM_DEFINE_OBJECT_REF_METHODS(CodegenResult, ObjectRef, CodegenResultNode);
 };
 
 TVM_REGISTER_NODE_TYPE(CodegenResultNode);
