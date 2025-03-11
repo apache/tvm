@@ -130,7 +130,7 @@ TVM_REGISTER_GLOBAL("testing.wrap_callback").set_body([](TVMArgs args, TVMRetVal
 // internal function used for debug and testing purposes
 TVM_REGISTER_GLOBAL("testing.object_use_count").set_body([](TVMArgs args, TVMRetValue* ret) {
   runtime::ObjectRef obj = args[0];
-  // substract the current one because we always copy
+  // subtract the current one because we always copy
   // and get another value.
   *ret = (obj.use_count() - 1);
 });
