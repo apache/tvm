@@ -611,7 +611,8 @@ void BufferStore(Buffer buffer, PrimExpr value, Array<PrimExpr> indices) {
             rhs_dtype.code() == runtime::DataType::kBFloat))) {
         LOG(WARNING) << "Casting in BufferStore may lose precision"
                      << ": LHS is `" << lhs_dtype << "`, RHS is `" << rhs_dtype
-                     << "`, indexing lanes: " << index_lanes;
+                     << "`, buffer name: `" << buffer->name << "`"
+                     << ", indexing lanes: " << index_lanes;
       }
     }
     value = tvm::cast(lhs_dtype, value);

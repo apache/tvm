@@ -418,7 +418,8 @@ class SharedMemoryRewriter : public StmtExprMutator {
 
   PrimExpr GetBufferOffset(Var buffer_var, DataType dtype) {
     auto it = buffer_byte_offsets_.find(buffer_var.get());
-    ICHECK(it != buffer_byte_offsets_.end());
+    ICHECK(it != buffer_byte_offsets_.end())
+        << "buffer_var = " << buffer_var->name_hint << ", dtype = " << dtype;
     return indexdiv(it->second, dtype.bytes() * dtype.lanes());
   }
 
