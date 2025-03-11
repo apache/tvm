@@ -126,6 +126,7 @@ class StmtFunctor<R(const Stmt& n, Args... args)> {
     IR_STMT_FUNCTOR_DISPATCH(BufferRealizeNode);
     IR_STMT_FUNCTOR_DISPATCH(BlockNode);
     IR_STMT_FUNCTOR_DISPATCH(BlockRealizeNode);
+    vtable.Finalize();
     return vtable;
   }
 };
