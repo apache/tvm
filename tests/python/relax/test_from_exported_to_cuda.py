@@ -20,6 +20,7 @@ from tvm import relax
 import tvm.testing
 import numpy as np
 import torch
+from torch import nn
 from torch.export import export
 from tvm.relax.frontend.torch import from_exported_program
 from torch.nn import Softmax, Upsample
@@ -56,6 +57,24 @@ def assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, tar
 
 
 @tvm.testing.parametrize_targets("cuda")
+def test_copy_(target, dev):
+    class CopyTester(nn.Module):
+        def __init__(self, size):
+            super().__init__()
+            self.register_buffer("buffer", torch.zeros(size))
+
+        def forward(self, x):
+            self.buffer.copy_(x)
+
+            return x * 3 + self.buffer * 5
+
+    size = (2, 2)
+    raw_data = np.random.rand(*size).astype(np.float32)
+    torch_module = CopyTester(size).eval()
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
+
+
+@tvm.testing.parametrize_targets("cuda")
 def test_upsample_with_size(target, dev):
     """
     The Upsample module can be used with the size arugment or the scale
@@ -69,6 +88,19 @@ def test_upsample_with_size(target, dev):
 
     raw_data = np.random.rand(batch_size, channels, height, width).astype("float32")
 
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
+
+
+@tvm.testing.parametrize_targets("cuda")
+def test_detach_no_change(target, dev):
+    # In TVM, detach() is just identity
+    class DetachTester(nn.Module):
+        def forward(self, x):
+            detached = x.detach()
+            return detached
+
+    raw_data = np.ones((2, 2)).astype(np.float32)
+    torch_module = DetachTester().eval()
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 
@@ -87,7 +119,6 @@ def test_upsample_with_scale_factor(target, dev):
     )
 
     raw_data = np.random.rand(batch_size, channels, height, width).astype("float32")
-
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 
