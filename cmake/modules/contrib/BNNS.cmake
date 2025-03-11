@@ -17,9 +17,8 @@
 
 if(USE_BNNS STREQUAL "ON")
   add_definitions(-DUSE_JSON_RUNTIME=1)
-  tvm_file_glob(GLOB BNNS_RELAY_CONTRIB_SRC src/relay/backend/contrib/bnns/*.cc)
+  tvm_file_glob(GLOB BNNS_RELAY_CONTRIB_SRC "")
   list(APPEND COMPILER_SRCS ${BNNS_RELAY_CONTRIB_SRC})
-  list(APPEND COMPILER_SRCS ${JSON_RELAY_CONTRIB_SRC})
 
   list(APPEND TVM_RUNTIME_LINKER_LIBS "-framework Accelerate")
 

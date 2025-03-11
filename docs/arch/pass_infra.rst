@@ -20,7 +20,7 @@
 Pass Infrastructure
 ===================
 
-Both Relay and TVM IR contain a series of optimization passes which improve performance metrics
+Both Relax and TVM IR contain a series of optimization passes which improve performance metrics
 of models such as mean inference, memory footprint, or power consumption for
 specific devices. There is a suite of standard optimizations as well as machine
 learning-specific optimizations including constant folding, dead code
@@ -31,7 +31,7 @@ transformation using the analysis result collected during and/or before traversa
 However, as TVM evolves quickly, the need for a more systematic and efficient
 way to manage these passes is becoming apparent. In addition, a generic
 framework that manages the passes across different layers of the TVM stack (e.g.
-Relay and tir) paves the way for developers to quickly prototype and plug the
+Relax and tir) paves the way for developers to quickly prototype and plug the
 implemented passes into the system.
 
 This doc describes the design of such an infra that takes the advantage of the
@@ -51,7 +51,7 @@ scheme through `Sequential`_ and `Block`_, respectively. With such constructs,
 these modern frameworks are able to conveniently add modules/layers to their
 containers and build up neural networks easily.
 
-The design of the Relay pass infra is largely inspired by the hierarchical
+The design of the TVM pass infra is largely inspired by the hierarchical
 pass manager used in LLVM and the block-style containers used in the popular
 deep learning frameworks. The major goals of the pass infra include:
 
@@ -170,7 +170,7 @@ Pass Constructs
 ^^^^^^^^^^^^^^^
 
 The pass infra is designed in a hierarchical manner, and it could work at
-different granularities of Relay/tir programs. A pure virtual class ``PassNode`` is
+different granularities of Relax/tir programs. A pure virtual class ``PassNode`` is
 introduced to serve as the base of the different optimization passes. This class
 contains several virtual methods that must be implemented by the
 subclasses at the level of modules, functions, or sequences of passes.
@@ -200,7 +200,7 @@ Module-Level Passes
 
 Module level passes are geared mainly for global and inter-procedural
 optimizations (IPO), which are similar to the module pass used in LLVM. Some
-typical passes in Relay that need the global picture of a module, such as
+typical passes in Relax that need the global picture of a module, such as
 A-normal form conversion and lambda lifting, etc., fall into this set. At this
 level, users can even add and/or delete functions in a module. Note that all
 passes
@@ -226,13 +226,13 @@ Function-Level Passes
 ^^^^^^^^^^^^^^^^^^^^^
 
 Function-level passes are used to implement various intra-function level
-optimizations for a given Relay/tir module. It fetches one function at a time from
-the function list of a module for optimization and yields a rewritten Relay
+optimizations for a given Relax/tir module. It fetches one function at a time from
+the function list of a module for optimization and yields a rewritten Relax
 ``Function`` or tir ``PrimFunc``. Most of passes can be classified into this category, such as
-common subexpression elimination and inference simplification in Relay as well as vectorization
+common subexpression elimination and inference simplification in Relax as well as vectorization
 and flattening storage in tir, etc.
 
-Note that the scope of passes at this level is either a Relay function or a tir primitive function.
+Note that the scope of passes at this level is either a Relax function or a tir primitive function.
 Therefore, we cannot add or delete a function through these passes as they are not aware of
 the global information.
 

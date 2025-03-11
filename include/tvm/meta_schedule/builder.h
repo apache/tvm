@@ -40,7 +40,7 @@ class BuilderInputNode : public runtime::Object {
   IRModule mod;
   /*! \brief The target to be built for. */
   Target target;
-  /*! \brief Parameters for Relay build module. */
+  /*! \brief Parameters for Relax build module. */
   Optional<Map<String, runtime::NDArray>> params;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
@@ -63,7 +63,7 @@ class BuilderInput : public runtime::ObjectRef {
    * \brief Constructor of BuilderInput.
    * \param mod The IRModule to be built.
    * \param target The target to be built for.
-   * \param params Parameters for Relay build module.
+   * \param params Parameters for Relax build module.
    */
   TVM_DLL explicit BuilderInput(IRModule mod, Target target,
                                 Optional<Map<String, runtime::NDArray>> params = NullOpt);

@@ -34,7 +34,6 @@ namespace transform {
 
 TVM_REGISTER_PASS_CONFIG_OPTION("relax.fallback_device_type", IntImm);
 
-// TODO(@yuchen): will need to dedup with FunctionPass in Relay when we upstream
 class FunctionPass;
 
 /*!

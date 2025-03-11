@@ -58,7 +58,7 @@ constexpr int kInvalidDeviceType = -1;
  * \brief Describes at compile time the constraints on where data is to be stored at runtime
  * down to the (virtual) device and memory scope level, and how to compile code to compute that
  * data. Used by the \p PlanDevices pass to collect and solve (virtual) device constraints for
- * the whole Relay program.
+ * the whole Relax program.
  *
  * Is a quadruple of:
  * - A \p device_type (\p DLDeviceType). May be \p kInvalidDeviceType if unconstrained.
@@ -79,7 +79,7 @@ constexpr int kInvalidDeviceType = -1;
  * then the function body is also executed on that device.
  *
  *
- * By 'execution' we include both (fused) primitive operators, and all the Relay expressions
+ * By 'execution' we include both (fused) primitive operators, and all the Relax expressions
  * surrounding them which coordinates data and control flow. Again, typically non-primitive
  * operators must be executed on a 'CPU'-like device with good support for control flow.
  *

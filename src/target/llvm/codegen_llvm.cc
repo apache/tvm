@@ -742,7 +742,7 @@ std::unique_ptr<CodeGenLLVM::DebugInfo> CodeGenLLVM::CreateDebugInfo(llvm::Modul
   auto debug_info = llvm::make_unique<CodeGenLLVM::DebugInfo>();
   debug_info->di_builder_ = llvm::make_unique<llvm::DIBuilder>(*module);
 #endif
-  // TODO(tulloch): pass this information through relay::Span classes to the IRModule instance?
+  // TODO(tulloch): pass this information through Span classes to the IRModule instance?
   debug_info->file_ = debug_info->di_builder_->createFile("IRModule.CodeGenLLVM", ".");
   const int runtime_version = 0;
   const bool is_optimized = false;

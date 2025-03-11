@@ -206,11 +206,6 @@ if not CONDA_BUILD and not INPLACE_BUILD:
     setup_kwargs = {"include_package_data": True}
 
 
-def get_package_data_files():
-    # Relay standard libraries
-    return []
-
-
 def long_description_contents():
     with open(pathlib.Path(CURRENT_DIR).resolve().parent / "README.md", encoding="utf-8") as readme:
         description = readme.read()
@@ -255,7 +250,6 @@ setup(
     extras_require=extras_require,
     packages=find_packages(),
     package_dir={"tvm": "tvm"},
-    package_data={"tvm": get_package_data_files()},
     distclass=BinaryDistribution,
     ext_modules=config_cython(),
     **setup_kwargs,
