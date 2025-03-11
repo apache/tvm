@@ -53,7 +53,7 @@ namespace tir {
 class BlockDependenceInfoNode : public Object {
  public:
   /*!
-   * \brief Mapping from a block sref to its correpsonding BlockScope,
+   * \brief Mapping from a block sref to its corresponding BlockScope,
    * tracking the dependency inside the block scope,
    */
   std::unordered_map<StmtSRef, BlockScope, ObjectPtrHash, ObjectPtrEqual> sref2scope;
@@ -66,7 +66,7 @@ class BlockDependenceInfoNode : public Object {
   TVM_DECLARE_FINAL_OBJECT_INFO(BlockDependenceInfoNode, Object);
 
   /*!
-   * \brief Get the BlockScope correpsonding to the sref of scope root block
+   * \brief Get the BlockScope corresponding to the sref of scope root block
    * \param scope_root The block sref to be retrieved
    * \return The corresponding BlockScope
    */

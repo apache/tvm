@@ -301,6 +301,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "copy_.default": self._copy_,
             "cumsum.default": self._cumsum,
             "expand.default": self._expand,
+            "expand_as.default": self._expand_as,
             "permute.default": self._permute,
             "repeat.default": self._repeat,
             "select.int": self._select,

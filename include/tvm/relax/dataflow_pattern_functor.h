@@ -135,12 +135,12 @@ class DFPatternFunctor<R(const DFPattern& n, Args...)> {
     RELAX_DFPATTERN_FUNCTOR_DISPATCH(TypePatternNode);
     RELAX_DFPATTERN_FUNCTOR_DISPATCH(WildcardPatternNode);
     RELAX_DFPATTERN_FUNCTOR_DISPATCH(VarPatternNode);
-
     RELAX_DFPATTERN_FUNCTOR_DISPATCH(DataflowVarPatternNode);
     RELAX_DFPATTERN_FUNCTOR_DISPATCH(GlobalVarPatternNode);
     RELAX_DFPATTERN_FUNCTOR_DISPATCH(ExternFuncPatternNode);
     RELAX_DFPATTERN_FUNCTOR_DISPATCH(PrimArrPatternNode);
     RELAX_DFPATTERN_FUNCTOR_DISPATCH(UnorderedTuplePatternNode);
+    vtable.Finalize();
     return vtable;
   }
 };

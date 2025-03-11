@@ -119,7 +119,7 @@ class StructInfoNode : public Object {
   static constexpr const char* _type_key = "StructInfo";
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
-  static constexpr const uint32_t _type_child_slots = 5;
+  static constexpr const uint32_t _type_child_slots = 7;
   TVM_DECLARE_BASE_OBJECT_INFO(StructInfoNode, Object);
 };
 
@@ -416,7 +416,7 @@ class VarNode : public LeafExprNode {
   static constexpr const char* _type_key = "relax.expr.Var";
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
-  static constexpr const uint32_t _type_child_slots = 2;
+  static constexpr const uint32_t _type_child_slots = 1;
   TVM_DECLARE_BASE_OBJECT_INFO(VarNode, LeafExprNode);
 };
 

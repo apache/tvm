@@ -67,7 +67,7 @@ TVM_REGISTER_GLOBAL("tvm.rpc.server.load_module").set_body([](TVMArgs args, TVMR
     base = [[bundle privateFrameworksPath] stringByAppendingPathComponent:@"tvm"];
 
     if (Registry::Get("runtime.module.loadfile_dylib_custom")) {
-      // Custom dso laoder is present. Will use it.
+      // Custom dso loader is present. Will use it.
       base = NSTemporaryDirectory();
       fmt = "dylib_custom";
     }

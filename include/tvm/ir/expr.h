@@ -58,7 +58,7 @@ class BaseExprNode : public Object {
   static constexpr const char* _type_key = "BaseExpr";
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
-  static constexpr const uint32_t _type_child_slots = 62;
+  static constexpr const uint32_t _type_child_slots = 64;
   TVM_DECLARE_BASE_OBJECT_INFO(BaseExprNode, Object);
 };
 
@@ -104,7 +104,7 @@ class PrimExprNode : public BaseExprNode {
   TVM_OBJECT_ENABLE_SCRIPT_PRINTER();
 
   static constexpr const char* _type_key = "PrimExpr";
-  static constexpr const uint32_t _type_child_slots = 38;
+  static constexpr const uint32_t _type_child_slots = 40;
   TVM_DECLARE_BASE_OBJECT_INFO(PrimExprNode, BaseExprNode);
 };
 
