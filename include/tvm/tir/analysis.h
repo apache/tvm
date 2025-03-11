@@ -271,7 +271,7 @@ struct MemCpyDetails {
 TVM_DLL std::optional<MemCpyDetails> IdentifyMemCpy(const For& loop, arith::Analyzer* analyzer);
 
 /*!
- * \brief Calculate the expresion complexity based on number of symbols it contains.
+ * \brief Calculate the expression complexity based on number of symbols it contains.
  * \param expr The expr to be calculated.
  */
 TVM_DLL size_t CalculateExprComplexity(const PrimExpr& expr);
