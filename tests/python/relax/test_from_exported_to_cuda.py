@@ -57,6 +57,53 @@ def assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, tar
 
 
 @tvm.testing.parametrize_targets("cuda")
+def test_tensor_expand_as(target, dev):
+    class ExpandAs0(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.template = torch.ones((1, 1, 1, 1))
+
+        def forward(self, x):
+            return self.template.expand_as(x)
+
+    class ExpandAs1(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.template = torch.ones((2, 1, 4, 1))
+
+        def forward(self, x):
+            return self.template.expand_as(x)
+
+    class ExpandAs2(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.template = torch.ones((2, 1, 1, 10))
+
+        def forward(self, x):
+            return self.template.expand_as(x)
+
+    class ExpandAs3(torch.nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.template = torch.ones((2, 3, 1, 1))
+
+        def forward(self, x):
+            return self.template.expand_as(x)
+
+    raw_data = np.random.randn(2, 3, 4, 10).astype(np.float32)
+
+    torch_module0 = ExpandAs0().eval()
+    torch_module1 = ExpandAs1().eval()
+    torch_module2 = ExpandAs2().eval()
+    torch_module3 = ExpandAs3().eval()
+
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module0, target, dev)
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module1, target, dev)
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module2, target, dev)
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module3, target, dev)
+
+
+@tvm.testing.parametrize_targets("cuda")
 def test_copy_(target, dev):
     class CopyTester(nn.Module):
         def __init__(self, size):
