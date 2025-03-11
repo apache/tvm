@@ -419,7 +419,7 @@ def test_extended_unary_ops():
                 )
                 lv_add: R.Tensor((1, 3, 10, 10), dtype="float32") = R.add(lv_relu, lv_scaled)
                 lv_selu: R.Tensor((1, 3, 10, 10), dtype="float32") = R.multiply(
-                    R.const(1.0507010221481323, "float32"),lv_add
+                    R.const(1.0507010221481323, "float32"), lv_add
                 )
                 gv: R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")) = (lv_selu,)
                 R.output(gv)
