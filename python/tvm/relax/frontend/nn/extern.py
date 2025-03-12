@@ -309,8 +309,9 @@ class SourceModule(ExternModule):  # pylint: disable=too-few-public-methods
         tvm_home = SourceModule.tvm_home()
         results = [
             tvm_home / "include",
-            tvm_home / "3rdparty/dlpack/include",
             tvm_home / "3rdparty/dmlc-core/include",
+            tvm_home / "ffi/include",
+            tvm_home / "ffi/3rdparty/dlpack/include",
         ]
         if tvm_pkg:
             for relative in tvm_pkg:
