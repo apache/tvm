@@ -758,33 +758,6 @@ def test_dwarf_debug_information():
     check_llvm_ir()
 
 
-def np_float2np_bf16(arr):
-    """Convert a numpy array of float to a numpy array
-    of bf16 in uint16"""
-    orig = arr.view("<u4")
-    bias = np.bitwise_and(np.right_shift(orig, 16), 1) + 0x7FFF
-    return np.right_shift(orig + bias, 16).astype("uint16")
-
-
-def np_float2tvm_bf16(arr):
-    """Convert a numpy array of float to a TVM array
-    of bf16"""
-    nparr = np_float2np_bf16(arr)
-    return tvm.nd.empty(nparr.shape, "bfloat16").copyfrom(nparr)
-
-
-def np_bf162np_float(arr):
-    """Convert a numpy array of bf16 (uint16) to a numpy array
-    of float"""
-    u32 = np.left_shift(arr.astype("uint32"), 16)
-    return u32.view("<f4")
-
-
-def np_bf16_cast_and_cast_back(arr):
-    """Convert a numpy array of float to bf16 and cast back"""
-    return np_bf162np_float(np_float2np_bf16(arr))
-
-
 @tvm.testing.requires_llvm
 def test_llvm_bf16():
     def dotest(do_vectorize):
@@ -806,16 +779,16 @@ def test_llvm_bf16():
             sch.vectorize(loop)
 
         module = tvm.compile(sch.mod, target="llvm")
-        npa = np.random.rand(32).astype("float32")
-        npb = np.random.rand(32).astype("float32")
-        va = np_bf16_cast_and_cast_back(npa)
-        vb = np_bf16_cast_and_cast_back(npb)
-        res = np_bf16_cast_and_cast_back(va + vb)
-        a_ = np_float2tvm_bf16(npa)
-        b_ = np_float2tvm_bf16(npb)
+        npa = np.random.rand(32).astype("bfloat16")
+        npb = np.random.rand(32).astype("bfloat16")
+        res = npa + npb
+        a_ = tvm.nd.array(npa)
+        b_ = tvm.nd.array(npb)
         c_ = tvm.nd.empty((32,), "bfloat16")
         module(a_, b_, c_)
-        tvm.testing.assert_allclose(np_bf162np_float(c_.numpy()), res)
+        # Note: directly compare without casting to float32 should work with the
+        # latest numpy version.
+        tvm.testing.assert_allclose(c_.numpy().astype("float32"), res.astype("float32"))
 
     dotest(True)
     dotest(False)
