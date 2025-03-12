@@ -333,7 +333,7 @@ IRModule Pass::AssertImmutableModule(const IRModule& mod, const PassNode* node,
 /*!
  * \brief Module-level passes are designed to implement global
  * analysis/optimizations, i.e. interprocedural optimizations (IPO), etc. Passes
- * at this level have the full control of a given Relay program including
+ * at this level have the full control of a given Relax program including
  * addition and deletion of functions.
  */
 class ModulePassNode : public PassNode {

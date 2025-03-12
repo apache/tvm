@@ -20,6 +20,7 @@ import numpy as np
 import pytest
 import tvm.testing
 from tvm import relax, runtime
+from tvm.relax.frontend import onnx
 from tvm.relax.testing import relay_translator
 from tvm.contrib.hexagon.session import Session
 
@@ -47,6 +48,7 @@ def test_mobilenet_onnx(hexagon_session: Session):
 
     target_hexagon = tvm.target.hexagon("v68")
     target = tvm.target.Target(target_hexagon, host=target_hexagon)
+    relax_mod = onnx.from_onnx(onnx_model, shape_dict, freeze_params=True)
     relax_mod = relay_translator.from_relay(relay_mod["main"], target_hexagon)
 
     # Compile and run on Hexagon.

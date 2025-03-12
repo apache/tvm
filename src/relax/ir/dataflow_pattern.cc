@@ -19,13 +19,12 @@
 
 /*!
  * \file src/relax/ir/dataflow_pattern.cc
- * \brief The dataflow pattern language for Relax (inherited from Relay).
+ * \brief The dataflow pattern language for Relax
  */
 
 #include <tvm/relax/dataflow_pattern.h>
 #include <tvm/relax/dataflow_pattern_functor.h>
 
-#include <memory>
 #include <stack>
 #include <string>
 

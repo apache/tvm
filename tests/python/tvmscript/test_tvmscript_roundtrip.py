@@ -3946,8 +3946,7 @@ def subroutine_call_without_arguments():
         def main():
             # Should be equivalent to the bare "mod.subroutine()", but
             # that relies on `GlobalVar.__call__` returning the
-            # correct IR type.  Previously, this instead returned a
-            # `relay.Call` object.
+            # correct IR type.
             tir.call_tir(mod.subroutine)
 
         @T.prim_func

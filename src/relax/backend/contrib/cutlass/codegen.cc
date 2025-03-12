@@ -348,7 +348,7 @@ class CutlassModuleCodegen {
  private:
   std::pair<std::string, Array<String>> GenCutlassFunc(const Function& function,
                                                        const Map<String, ObjectRef>& options) {
-    ICHECK(function.defined()) << "Input error: expect a Relay function.";
+    ICHECK(function.defined()) << "Input error: expect a Relax function.";
 
     auto sid = GetExtSymbol(function);
     func_names_.push_back(sid);

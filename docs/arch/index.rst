@@ -114,7 +114,7 @@ Target Translation
 The target translation phase transforms an IRModule to the corresponding target executable format.
 For backends such as x86 and ARM, we use the LLVM IRBuilder to build in-memory LLVM IR.
 We can also generate source-level languages such as CUDA C and OpenCL.
-Finally, we support direct translations of a Relay function (sub-graph) to specific targets via external code generators.
+Finally, we support direct translations of a Relax function (sub-graph) to specific targets via external code generators.
 It is important that the final code generation phase is as lightweight as possible. Vast majority of transformations
 and lowering should be performed before the target translation phase.
 
@@ -175,8 +175,8 @@ In summary, the key data structures in the compilation flows are:
 
 Most parts of the compilation are transformations among the key data structures.
 
-- relay/transform and tir/transform are determinstic rule-based transformations
-- auto_scheduler and autotvm contains the search-based transformations
+- relax/transform and tir/transform are determinstic rule-based transformations
+- meta-schedule contains the search-based transformations
 
 Finally, the compilation flow example is only a typical use-case of the TVM stack.
 We expose these key data structures and transformations to python and C++ APIs. As a result, you can use TVM just like the way you use numpy,
@@ -247,7 +247,7 @@ The ability to save/store, and inspect an IR node provides a foundation for maki
 tvm/ir
 ------
 The `tvm/ir` folder contains the unified data structure and interfaces across for all IR function variants.
-The components in `tvm/ir` are shared by `tvm/relay` and `tvm/tir`, notable ones include
+The components in `tvm/ir` are shared by `tvm/relax` and `tvm/tir`, notable ones include
 
 - IRModule
 - Type

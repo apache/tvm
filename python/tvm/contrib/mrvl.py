@@ -208,7 +208,7 @@ def get_nodes_json_string(graph_json):
 
 @tvm._ffi.register_func("tvm.mrvl.ModifyConstNames")
 def modify_const_names(nodes_json_str, consts_json_str):
-    """This takes the graph module returned by relay.build an generates nodes and constant
+    """This takes the graph module returned by build an generates nodes and constant
        meta data suitable for compilation by the back end.
 
     Parameters
