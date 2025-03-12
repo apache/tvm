@@ -119,7 +119,7 @@ if local_demo:
 else:
     target = "llvm -mtriple=armv7l-linux-gnueabihf"
 
-func = tvm.build(mod, target=target)
+func = tvm.compile(mod, target=target)
 # save the lib at a local temp folder
 temp = utils.tempdir()
 path = temp.relpath("lib.tar")
@@ -234,10 +234,10 @@ def run_opencl():
     mod = tvm.IRModule.from_expr(te.create_prim_func([A, B]))
     sch = tvm.tir.Schedule(mod)
     (x,) = sch.get_loops(block=sch.get_block("B"))
-    xo, xi = sch.split(i, [None, 32])
-    sch.bind(x, "blockIdx.x")
-    sch.bind(x, "threadIdx.x")
-    func = tvm.build(sch.mod, target=target)
+    xo, xi = sch.split(x, [None, 32])
+    sch.bind(xo, "blockIdx.x")
+    sch.bind(xi, "threadIdx.x")
+    func = tvm.compile(sch.mod, target=target)
 
     remote = rpc.connect(opencl_device_host, opencl_device_port)
 
