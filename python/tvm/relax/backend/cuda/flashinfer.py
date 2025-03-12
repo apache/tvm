@@ -45,6 +45,11 @@ def _compile_flashinfer_kernels(
     build_directory = FLASHINFER_JIT_DIR / name
     build_directory.mkdir(parents=True, exist_ok=True)
 
+    def get_object_file_path(src: Path) -> Path:
+        obj_name = src.stem + ".o"
+        obj_path = build_directory / obj_name
+        return obj_path
+
     # Compute latest modification time among all source files
     latest_src_mtime = max(src.stat().st_mtime for src in source_paths)
 
@@ -128,11 +133,6 @@ def _compile_flashinfer_kernels(
         Path(tvm_home).resolve() / "3rdparty" / "dlpack" / "include",
         Path(tvm_home).resolve() / "3rdparty" / "dmlc-core" / "include",
     ] + CUTLASS_INCLUDE_DIRS
-
-    def get_object_file_path(src: Path) -> Path:
-        obj_name = src.stem + ".o"
-        obj_path = build_directory / obj_name
-        return obj_path
 
     # ------------------------------------------------------------------------
     # 3) Function to compile a single source file
