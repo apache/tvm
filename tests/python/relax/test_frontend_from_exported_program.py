@@ -135,18 +135,70 @@ def test_extended_unary_ops():
     class expected_clamp:
         @R.function
         def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
+            input: R.Tensor((1, 3, 10, 10), dtype="float32"),
         ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
-            # block 0
             with R.dataflow():
-                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.clip(input_1, 0.1, 0.5)
+                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.clip(
+                    input,
+                    R.prim_value(T.float64(0.10000000000000001)),
+                    R.prim_value(T.float64(0.5)),
+                )
                 gv: R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")) = (lv,)
                 R.output(gv)
             return gv
 
     verify_model(Clamp(), example_args, {}, expected_clamp)
 
+    class ClampMinOnly(Module):
+        def forward(self, input):
+            return torch.clamp(input, min=0.5, max=None)
+
+    @tvm.script.ir_module
+    class expected_clamp_min_only:
+        @R.function
+        def main(
+            input: R.Tensor((1, 3, 10, 10), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.clip(
+                    input, R.prim_value(T.float64(0.5)), R.prim_value(T.float64("inf"))
+                )
+                gv: R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    verify_model(ClampMinOnly(), example_args, {}, expected_clamp_min_only)
+
+    class ClampTensors(Module):
+        def forward(self, input):
+            return torch.clamp(input, min=input, max=input)
+
+    @tvm.script.ir_module
+    class expected_clamp_tensors:
+        @R.function
+        def main(
+            input: R.Tensor((1, 3, 10, 10), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.broadcast_to(
+                    input, R.shape([1, 3, 10, 10])
+                )
+                lv1: R.Tensor((1, 3, 10, 10), dtype="float32") = R.maximum(input, lv)
+                lv2: R.Tensor((1, 3, 10, 10), dtype="float32") = R.broadcast_to(
+                    input, R.shape([1, 3, 10, 10])
+                )
+                lv3: R.Tensor((1, 3, 10, 10), dtype="float32") = R.minimum(lv1, lv2)
+                lv4: R.Tensor((1, 3, 10, 10), dtype="float32") = R.clip(
+                    lv3, R.prim_value(T.float64("-inf")), R.prim_value(T.float64("inf"))
+                )
+                gv: R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")) = (lv4,)
+                R.output(gv)
+            return gv
+
+    verify_model(ClampTensors(), example_args, {}, expected_clamp_tensors)
+
     # dropout
+
     class Dropout1(Module):
         def __init__(self):
             super().__init__()
@@ -3248,3 +3300,7 @@ def test_no_bind_return_tuple():
     exported_program = export(Identity(), args=example_args)
     mod = from_exported_program(exported_program, no_bind_return_tuple=True)
     tvm.ir.assert_structural_equal(mod, Expected)
+
+
+if __name__ == "__main__":
+    tvm.testing.main()

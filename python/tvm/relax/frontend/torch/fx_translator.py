@@ -18,8 +18,8 @@
 # pylint: disable=invalid-name, inconsistent-return-statements, unidiomatic-typecheck
 # pylint: disable=import-outside-toplevel
 """PyTorch FX frontend of Relax."""
-from typing import Callable, Dict, List, Tuple, Union
 from functools import partial, reduce
+from typing import Callable, Dict, List, Tuple, Union
 
 import tvm
 from tvm import relax
@@ -598,6 +598,7 @@ class TorchFXImporter(BaseFXGraphImporter):
         self,
     ) -> Dict[Union[torch.nn.Module, str], Callable[[fx.Node], relax.Var]]:
         import operator
+
         from torch import nn
 
         return {
