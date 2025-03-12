@@ -134,7 +134,6 @@ def _compile_flashinfer_kernels(
         obj_path = build_directory / obj_name
         return obj_path
 
-
     # ------------------------------------------------------------------------
     # 3) Function to compile a single source file
     # ------------------------------------------------------------------------
@@ -251,11 +250,11 @@ def gen_flashinfer_prefill_module(
     jit_args = {
         "backend": backend,
         "uri": f"batch_prefill_tvm_dtype_q_{dtype_q}_"
-               + f"dtype_kv_{dtype_kv}_"
-               + f"dtype_o_{dtype_o}_"
-               + f"qk_head_dim_{qk_head_dim}_"
-               + f"v_head_dim_{v_head_dim}_"
-               + f"enable_inline_rope_{enable_inline_rope}",
+        + f"dtype_kv_{dtype_kv}_"
+        + f"dtype_o_{dtype_o}_"
+        + f"qk_head_dim_{qk_head_dim}_"
+        + f"v_head_dim_{v_head_dim}_"
+        + f"enable_inline_rope_{enable_inline_rope}",
         "dtype_q": torch_dtype_q,
         "dtype_kv": torch_dtype_kv,
         "dtype_o": torch_dtype_o,
