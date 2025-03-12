@@ -233,7 +233,12 @@ class NDArray(NDArrayBase):
         if dtype == "int4":
             dtype = "int8"
         if dtype == "bfloat16":
-            dtype = "uint16"
+            if ml_dtypes is not None:
+                dtype = ml_dtypes.bfloat16
+            else:
+                raise RuntimeError(
+                    "ml_dtypes is not installed, cannot convert bfloat16 array to numpy."
+                )
         if dtype == "float8_e4m3fn":
             if ml_dtypes is not None:
                 dtype = ml_dtypes.float8_e4m3fn
