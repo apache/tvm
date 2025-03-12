@@ -32,18 +32,18 @@
  *  - Reducing the effort required to implement new passes for compiler
  * developers, etc.
  *
- * Similar to LLVM's pass manager, we designed the Relay/Relax pass manager to work
+ * Similar to LLVM's pass manager, we designed the Relax pass manager to work
  * different granularity, i.e. module level, function level, and even sequential
  * passe that contains a host of passes.
  *
  * However, we also extend the functionality of the traditional pass manager
  * with the consideration of requirements/convention from deep learning
- * frameworks, such as Pytorch and Gluon, etc. Each pass in the Relay/Relax pass
+ * frameworks, such as Pytorch and Gluon, etc. Each pass in the Relax pass
  * manager performs the IRModule -> IRModule transformation. All
  * different types of passes, including the sequential-level pass object, are
  * essentially pass objects. This design, therefore, effectively provides users
  * a consistent and convenient interface, i.e. Pass, to play with. It offers a
- * means to ease the development and testing of Relay/Relax passes. For example, with
+ * means to ease the development and testing of Relax passes. For example, with
  * the pass manager, external users will be able to have custom passes correctly
  * scheduled without having to modify a single handcrafted pass order.
  *
@@ -387,7 +387,7 @@ class PassInfo : public ObjectRef {
 /*!
  * \brief PassNode is the base type of differnt types of optimization passes.
  * It is designed as a pure class and implemented by different pass subclasses
- * at different granularity of Relay/Relax nodes.
+ * at different granularity of Relax nodes.
  */
 class PassNode : public Object {
  public:
@@ -460,7 +460,7 @@ class Pass : public ObjectRef {
 };
 
 /*!
- * \brief The SequentialNode contains a set of passes that transform Relay/Relax
+ * \brief The SequentialNode contains a set of passes that transform Relax
  * programs from one AST to another semantically equivalent one.
  *
  * One example of this level of pass is that the pass manager needs to correctly

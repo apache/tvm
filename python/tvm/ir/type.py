@@ -34,7 +34,7 @@ class Type(Node, Scriptable):
         return not self.__eq__(other)
 
     def same_as(self, other):
-        """Compares two Relay types by referential equality."""
+        """Compares two TVM types by referential equality."""
         return super().__eq__(other)
 
 

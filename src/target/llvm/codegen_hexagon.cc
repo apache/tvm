@@ -575,7 +575,7 @@ runtime::Module BuildHexagon(IRModule mod, Target target) {
 
   for (auto kv : mod->functions) {
     if (!kv.second->IsInstance<PrimFuncNode>()) {
-      // (@jroesch): we relax constraints here, Relay functions will just be ignored.
+      // (@jroesch): we relax constraints here, relax functions will just be ignored.
       DLOG(INFO) << "Can only lower IR Module with PrimFuncs, but got " << kv.second->GetTypeKey();
       continue;
     }

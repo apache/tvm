@@ -38,10 +38,10 @@ runtime::NDArray IntImmToNDArray(const IntImm& int_imm);
 runtime::NDArray FloatImmToNDArray(const FloatImm& float_imm);
 runtime::NDArray BoolToNDArray(bool value);
 
-/*! \brief Returns Relay literal text for NDArray 'scalar'. */
+/*! \brief Returns literal text for NDArray 'scalar'. */
 std::string NDArrayScalarToString(const runtime::NDArray& data);
 
-/*! \brief Returns Relay literal text for given TIR immediate. */
+/*! \brief Returns literal text for given TIR immediate. */
 std::string IntImmToString(const IntImm& int_imm);
 std::string FloatImmToString(const FloatImm& float_imm);
 
