@@ -59,22 +59,31 @@ def _compile_flashinfer_kernels(
         "current_file_mtime": current_file_mtime,
     }
 
-    system_lib_hash_value = hashlib.md5(
+    hash_value = hashlib.md5(
         json.dumps(hash_key, sort_keys=True, indent=2).encode("utf-8")
     ).hexdigest()
 
     # Check if a valid hash exists in the build directory
-    hash_file = build_directory / "hash.txt"
+    hash_file = build_directory / "hash.md5"
     if hash_file.exists():
         with open(hash_file, "r") as f:
             cached_hash = f.read().strip()
-        if cached_hash == system_lib_hash_value:
-            # Cache hit: return all object files in build_directory
-            return list(build_directory.glob("*.o"))
+        if cached_hash == hash_value:
+            # Check that all object files exist
+            object_files = []
+            all_exist = True
+            for src in source_paths:
+                obj_path = get_object_file_path(src)
+                if not obj_path.exists():
+                    all_exist = False
+                    break
+                object_files.append(obj_path)
+            if all_exist:
+                return object_files
 
     # If we are here, cache is missing or outdated. Write the new hash and compile the paths
     with open(hash_file, "w") as f:
-        f.write(system_lib_hash_value)
+        f.write(hash_value)
 
     # ------------------------------------------------------------------------
     # 1) Common CUDA compile flags
@@ -120,14 +129,18 @@ def _compile_flashinfer_kernels(
         Path(tvm_home).resolve() / "3rdparty" / "dmlc-core" / "include",
     ] + CUTLASS_INCLUDE_DIRS
 
+    def get_object_file_path(src: Path) -> Path:
+        obj_name = src.stem + ".o"
+        obj_path = build_directory / obj_name
+        return obj_path
+
 
     # ------------------------------------------------------------------------
     # 3) Function to compile a single source file
     # ------------------------------------------------------------------------
     def compile_single_source(src: Path) -> Path:
         # Derive the .o filename from the source filename
-        obj_name = src.stem + ".o"
-        obj_path = build_directory / obj_name
+        obj_path = get_object_file_path(src)
 
         # Construct the command
         cmd = (
@@ -237,7 +250,12 @@ def gen_flashinfer_prefill_module(
     )
     jit_args = {
         "backend": backend,
-        "uri": f"batch_prefill_tvm_dtype_q_{dtype_q}_dtype_kv_{dtype_kv}_dtype_o_{dtype_o}_qk_head_dim_{qk_head_dim}_v_head_dim_{v_head_dim}_enable_inline_rope_{enable_inline_rope}",
+        "uri": f"batch_prefill_tvm_dtype_q_{dtype_q}_"
+               + f"dtype_kv_{dtype_kv}_"
+               + f"dtype_o_{dtype_o}_"
+               + f"qk_head_dim_{qk_head_dim}_"
+               + f"v_head_dim_{v_head_dim}_"
+               + f"enable_inline_rope_{enable_inline_rope}",
         "dtype_q": torch_dtype_q,
         "dtype_kv": torch_dtype_kv,
         "dtype_o": torch_dtype_o,
