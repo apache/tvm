@@ -21,7 +21,7 @@
  * \file tvm/ir/type.h
  * \brief IR/AST nodes for the unified type system in TVM.
  *
- * We use Relay's type system as the unified type system
+ * We use TVM's type system as the unified type system
  * throughout the stack.
  *
  * This file contains types that are common across IR variants.
@@ -62,7 +62,7 @@ namespace tvm {
 /*!
  * \brief Type is the base type of all types.
  *
- * Relay's type system contains following subclasses:
+ * TVM's type system contains following subclasses:
  *
  * - PrimType: type of primitive type values used in the low-level IR.
  * - FuncType: type of a function.
