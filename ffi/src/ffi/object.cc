@@ -193,12 +193,19 @@ class TypeTable {
 
   void Dump(int min_children_count) {
     std::vector<int> num_children(type_table_.size(), 0);
+    // expected child slots compute the expected slots
+    // based on the current child slot setting
+    std::vector<int> expected_child_slots(type_table_.size(), 0);
     // reverse accumulation so we can get total counts in a bottom-up manner.
     for (auto it = type_table_.rbegin(); it != type_table_.rend(); ++it) {
       const Entry* ptr = it->get();
       if (ptr != nullptr && ptr->type_depth != 0) {
         int parent_index = ptr->type_acenstors[ptr->type_depth - 1];
         num_children[parent_index] += num_children[ptr->type_index] + 1;
+        if (expected_child_slots[ptr->type_index] + 1< ptr->num_slots) {
+          expected_child_slots[ptr->type_index] = ptr->num_slots - 1;
+        }
+        expected_child_slots[parent_index] += expected_child_slots[ptr->type_index] + 1;
       }
     }
 
@@ -212,7 +219,9 @@ class TypeTable {
           std::cerr << "\tparent=root";
         }
         std::cerr << "\tnum_child_slots=" << ptr->num_slots - 1
-                  << "\tnum_children=" << num_children[ptr->type_index] << std::endl;
+                  << "\tnum_children=" << num_children[ptr->type_index]
+                  << "\texpected_child_slots=" << expected_child_slots[ptr->type_index]
+                  << std::endl;
       }
     }
   }
@@ -259,7 +268,6 @@ int TVMFFITypeKey2Index(const char* type_key, int32_t* out_tindex) {
   TVM_FFI_SAFE_CALL_BEGIN();
   out_tindex[0] = tvm::ffi::TypeTable::Global()->TypeKey2Index(type_key);
   TVM_FFI_SAFE_CALL_END();
-
 }
 
 int TVMFFIRegisterTypeField(int32_t type_index, const TVMFFIFieldInfo* info) {

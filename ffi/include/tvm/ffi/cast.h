@@ -26,6 +26,8 @@
 #include <tvm/ffi/error.h>
 #include <tvm/ffi/object.h>
 
+#include <utility>
+
 namespace tvm {
 namespace ffi {
 /*!
