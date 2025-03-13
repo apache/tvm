@@ -235,16 +235,6 @@ Region ConvertRegion(const MatchBufferRegion& match_buffer, const Region& region
 Array<PrimExpr> GetBufferAllocationShape(const Buffer& buffer);
 
 /*!
- * \brief Check if a given PrimFunc originated from a TE schedule.
- *
- * Internally this checks for the `from_legacy_te_schedule` attr of the PrimFunc.
- *
- * \param f PrimFunc to check
- * \return Whether or not the PrimFunc was created from a te schedule
- */
-Bool IsFromLegacyTESchedule(PrimFunc f);
-
-/*!
  * \brief Context helper to update domain map within conditional scope.
  * Assume the condition is `0 <= i && i < 9` and domain of i is [0, 20], Then
  * `With<ConditionalBoundsContext> ctx(condition, &relax_map, &hint_map, &constraints)`

@@ -64,7 +64,7 @@ def test_callback():
     with tvm.target.Target("cuda"):
         mod = tvm.IRModule.from_expr(transform_params)
         mod = pipeline(mod)
-        built = tvm.relax.build(mod, "cuda")
+        built = tvm.compile(mod, "cuda")
 
     num_shards = 2
 

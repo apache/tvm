@@ -122,7 +122,8 @@ disable=
     useless-object-inheritance,
     useless-suppression,
     use-list-literal,
-    arguments-renamed
+    arguments-renamed,
+    super-init-not-called
 
 [REPORTS]
 

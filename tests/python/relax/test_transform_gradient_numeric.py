@@ -28,7 +28,7 @@ def rand(dtype, *shape):
 
 
 def _legalize_and_build(mod, target, dev):
-    ex = relax.build(mod, target)
+    ex = tvm.compile(mod, target)
     vm = relax.VirtualMachine(ex, dev)
     return vm
 

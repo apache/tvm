@@ -22,7 +22,7 @@ set -o pipefail
 
 apt-get update
 # Please do not remove 'curl' package installation from here, as this
-# script runs in some images (e.g. ci_lint) that keep a very mininal
+# script runs in some images (e.g. ci_lint) that keep a very minimal
 # set of packages installed by default.
 apt-install-and-clear -y curl
 

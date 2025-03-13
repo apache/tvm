@@ -77,11 +77,12 @@ struct TypeIndex {
     /*! \brief runtime::RPCObjectRef */
     kRuntimeRPCObjectRef = 9,
     // static assignments that may subject to change.
-    kRuntimeClosure,
-    kRuntimeADT,
-    kStaticIndexEnd,
-    /*! \brief Type index is allocated during runtime. */
-    kDynamic = kStaticIndexEnd
+    kStaticIndexEnd = 10,
+    /*!
+     * \brief Type index is allocated during runtime, keeping it as
+     * constant for now to ensure compatibility across versions
+     */
+    kDynamic = 12
   };
 };  // namespace TypeIndex
 

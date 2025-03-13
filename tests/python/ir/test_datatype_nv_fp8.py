@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 import numpy as np
+
 import tvm
 import tvm.testing
 import tvm.tir as tir
@@ -22,9 +23,10 @@ from tvm import te
 from tvm.script import tir as T
 
 try:
-    from ml_dtypes import float8_e4m3fn as e4m3_float8, float8_e5m2 as e5m2_float8
+    from ml_dtypes import float8_e4m3fn as float8_e4m3fn
+    from ml_dtypes import float8_e5m2 as float8_e5m2
 except ImportError:
-    e4m3_float8, e5m2_float8 = None, None
+    float8_e4m3fn, float8_e5m2 = None, None
 
 
 def fp8_unary(dtype: str):
@@ -58,7 +60,7 @@ def fp8_unary(dtype: str):
 
 
 np_dtype, dtype_str = tvm.testing.parameters(
-    (e4m3_float8, "e4m3_float8"), (e5m2_float8, "e5m2_float8")
+    (float8_e4m3fn, "float8_e4m3fn"), (float8_e5m2, "float8_e5m2")
 )
 
 
@@ -79,7 +81,7 @@ def test_fp8_unary_op(np_dtype, dtype_str):
         """Skip test if ml_dtypes is not installed"""
         return
 
-    f = tvm.build(func, target="llvm")
+    f = tvm.compile(func, target="llvm")
     a = np.random.randn(128).astype(np_dtype)
     b = np.random.randn(128).astype(np_dtype)
     a_add_b = np.zeros(128).astype(np_dtype)

@@ -130,7 +130,7 @@ allowing fast log searches, bisecting, and so on.
    or explanation in the body.
 
 For minor deviations from these guidelines, the community will normally favor
-reminding the contributor of this policy over reverting or blocking a commmit /
+reminding the contributor of this policy over reverting or blocking a commit /
 PR.
 
 Commits and PRs without a title and/or a body are not considered minor

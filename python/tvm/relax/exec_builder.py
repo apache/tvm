@@ -21,7 +21,7 @@ from typing import Optional, Union, List
 import tvm
 from tvm.runtime import Object
 from tvm.runtime.container import ShapeTuple
-from .vm_build import Executable
+from .vm_build import VMExecutable
 from . import _ffi_api
 
 
@@ -142,6 +142,6 @@ class ExecBuilder(Object):
         self._check_scope()
         _ffi_api.ExecBuilderEmitIf(self, cond, false_offset)  # type: ignore
 
-    def get(self) -> Executable:
+    def get(self) -> VMExecutable:
         """return the executable"""
-        return Executable(_ffi_api.ExecBuilderGet(self))  # type: ignore
+        return VMExecutable(_ffi_api.ExecBuilderGet(self))  # type: ignore

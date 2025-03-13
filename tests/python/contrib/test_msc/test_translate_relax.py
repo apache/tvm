@@ -53,7 +53,7 @@ def verify_model(torch_model, input_info, opt_config=None):
 
     def _run_relax(relax_mod):
         relax_mod = tvm.relax.transform.LegalizeOps()(relax_mod)
-        relax_exec = tvm.relax.build(relax_mod, target)
+        relax_exec = tvm.compile(relax_mod, target)
         vm_runner = tvm.relax.VirtualMachine(relax_exec, dev)
         res = vm_runner["main"](*args)
         return _tvm_runtime_to_np(res)
@@ -1214,22 +1214,6 @@ def test_masked_scatter():
 
     verify_model(MaskedScatter1(), [([5], "float32"), ([10], "float32")])
     verify_model(MaskedScatter2(), [([2, 5], "float32"), ([3, 5], "float32")])
-
-
-def test_put():
-    """test relax translator for index_put"""
-
-    class IndexPut(Module):
-        def __init__(self):
-            super().__init__()
-            self.index = msc_utils.random_data([(5), "int64"], MSCFramework.TORCH, max_val=5)
-
-        def forward(self, data, src):
-            data[self.index] = src
-            return data
-
-    input_info = [([10, 20], "float32"), ([5, 20], "float32")]
-    verify_model(IndexPut(), input_info)
 
 
 def test_attention():

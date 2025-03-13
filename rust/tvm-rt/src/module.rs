@@ -57,7 +57,7 @@ crate::external! {
     fn save_to_file(module: Module, name: TString, fmt: TString);
 
     // TODO(@jroesch): we need to refactor this
-    #[name("tvm.relay.module_export_library")]
+    #[name("tvm.relax.module_export_library")]
     fn export_library(module: Module, file_name: TString);
 }
 

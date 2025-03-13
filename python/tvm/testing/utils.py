@@ -67,7 +67,6 @@ import copy
 import copyreg
 import ctypes
 import functools
-import hashlib
 import itertools
 import logging
 import os
@@ -327,7 +326,7 @@ def check_bool_expr_is_true(bool_expr, vranges, cond=None):
 
         A = tvm.te.compute([r.extent.value for v, r in vranges.items()], _compute_body)
         args = [tvm.nd.empty(A.shape, A.dtype)]
-        mod = tvm.build(tvm.IRModule.from_expr(tvm.te.create_prim_func([A])))
+        mod = tvm.compile(tvm.IRModule.from_expr(tvm.te.create_prim_func([A])))
         mod(*args)
         return args[0].numpy()
 
@@ -1876,47 +1875,6 @@ def install_request_hook(depth: int) -> None:
     import request_hook  # pylint: disable=import-outside-toplevel
 
     request_hook.init()
-
-
-def fetch_model_from_url(
-    url: str,
-    model_format: str,
-    sha256: str,
-) -> Tuple[tvm.ir.module.IRModule, dict]:
-    """Testing function to fetch a model from a URL and return it as a Relay
-    model. Downloaded files are cached for future re-use.
-
-    Parameters
-    ----------
-    url : str
-        The URL or list of URLs to try downloading the model from.
-
-    model_format: str
-        The file extension of the model format used.
-
-    sha256 : str
-        The sha256 hex hash to compare the downloaded model against.
-
-    Returns
-    -------
-    (mod, params) : object
-        The Relay representation of the downloaded model.
-    """
-
-    rel_path = f"model_{sha256}.{model_format}"
-    file = tvm.contrib.download.download_testdata(url, rel_path, overwrite=False)
-
-    # Check SHA-256 hash
-    file_hash = hashlib.sha256()
-    with open(file, "rb") as f:
-        for block in iter(lambda: f.read(2**24), b""):
-            file_hash.update(block)
-
-    if file_hash.hexdigest() != sha256:
-        raise FileNotFoundError("SHA-256 hash for model does not match")
-
-    tvmc_model = load_model(file, model_format)
-    return tvmc_model.mod, tvmc_model.params
 
 
 def _mark_parameterizations(*params, marker_fn, reason):

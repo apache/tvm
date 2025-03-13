@@ -273,7 +273,7 @@ def test_mma_sp_m16n8k16_f16():
     for out_dtype in ["float16", "float32"]:
         func = mma_sp_m16n8k16_f16f16f16 if out_dtype == "float16" else mma_sp_m16n8k16_f16f16f32
         sch = tvm.tir.Schedule(func)
-        cuda_mod = tvm.build(sch.mod, target="cuda")
+        cuda_mod = tvm.compile(sch.mod, target="cuda")
 
         A_np = np.random.uniform(-1, 1, [16, 8]).astype("float16")
         B_np = np.random.uniform(-1, 1, [16, 8]).astype("float16")
@@ -312,7 +312,7 @@ def test_mma_sp_m16n8k32_f16():
     for out_dtype in ["float16", "float32"]:
         func = mma_sp_m16n8k32_f16f16f16 if out_dtype == "float16" else mma_sp_m16n8k32_f16f16f32
         sch = tvm.tir.Schedule(func)
-        cuda_mod = tvm.build(sch.mod, target="cuda")
+        cuda_mod = tvm.compile(sch.mod, target="cuda")
 
         A_np = np.random.uniform(-1, 1, [16, 16]).astype("float16")
         B_np = np.random.uniform(-1, 1, [32, 8]).astype("float16")

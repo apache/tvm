@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 # pylint: disable=invalid-name, dangerous-default-value, arguments-differ
-"""Driver for partitioning and building a Relay module for CUTLASS offload."""
+"""Driver for partitioning and building a Relax module for CUTLASS offload."""
 import itertools
 import logging
 import multiprocessing
@@ -298,7 +298,7 @@ def tune_cutlass_kernels(
     Parameters
     ----------
     mod : IRModule
-        The Relay module with cutlass partitions.
+        The IRModule with cutlass partitions.
 
     sm : int
         An integer specifying the compute capability. For example, 75 for Turing and

@@ -17,21 +17,24 @@
 # pylint: disable=missing-docstring
 import numpy as np
 import pytest
+
 import tvm
 import tvm.testing
 from tvm import te
 from tvm.testing.tir import mma_schedule
 from tvm.tir.tensor_intrin.cuda import (
-    LDMATRIX_f16_A_INTRIN,
-    LDMATRIX_f16_B_INTRIN,
-    LDMATRIX_f16_B_TRANS_INTRIN,
-    LDMATRIX_i8_A_INTRIN,
-    LDMATRIX_i8_B_TRANS_INTRIN,
-    LDMATRIX_i8_B_INTRIN,
     LDMATRIX_e4m3_A_INTRIN,
     LDMATRIX_e4m3_B_TRANS_INTRIN,
     LDMATRIX_e5m2_A_INTRIN,
     LDMATRIX_e5m2_B_TRANS_INTRIN,
+    LDMATRIX_f16_A_INTRIN,
+    LDMATRIX_f16_B_INTRIN,
+    LDMATRIX_f16_B_TRANS_INTRIN,
+    LDMATRIX_i8_A_INTRIN,
+    LDMATRIX_i8_B_INTRIN,
+    LDMATRIX_i8_B_TRANS_INTRIN,
+    MMA_e4m3e4m3f32_TRANS_B_INTRIN,
+    MMA_e5m2e5m2f32_TRANS_B_INTRIN,
     MMA_f16f16f16_INTRIN,
     MMA_f16f16f16_TRANS_B_INTRIN,
     MMA_f16f16f32_INTRIN,
@@ -41,8 +44,6 @@ from tvm.tir.tensor_intrin.cuda import (
     MMA_fill_16x16_i32_INTRIN,
     MMA_i8i8i32_INTRIN,
     MMA_i8i8i32_TRANS_B_INTRIN,
-    MMA_e5m2e5m2f32_TRANS_B_INTRIN,
-    MMA_e4m3e4m3f32_TRANS_B_INTRIN,
     MMA_store_16x16_f16_global_INTRIN,
     MMA_store_16x16_f32_global_INTRIN,
     MMA_store_16x16_i32_global_INTRIN,
@@ -117,7 +118,7 @@ def run_test(
         mma_store_intrin,
     )
 
-    f = tvm.build(sch.mod["main"], target="cuda")
+    f = tvm.compile(sch.mod["main"], target="cuda")
 
     dev = tvm.device("cuda", 0)
 
@@ -132,10 +133,10 @@ def run_test(
         else:
             b_np = np.random.normal(size=(K, N)).astype("float16")
             c_np = np.dot(a_np.astype("float32"), b_np.astype("float32")).astype(out_dtype)
-    elif in_dtype in ["e4m3_float8", "e5m2_float8"]:
+    elif in_dtype in ["float8_e4m3fn", "float8_e5m2"]:
         typemap = {
-            "e4m3_float8": "float8_e4m3fn",
-            "e5m2_float8": "float8_e5m2",
+            "float8_e4m3fn": "float8_e4m3fn",
+            "float8_e5m2": "float8_e5m2",
         }
         a_np = (
             np.random.uniform(low=-5, high=5, size=(M * K))
@@ -174,7 +175,7 @@ def run_test(
 
     f(a, b, c)
 
-    if out_dtype != "float16" and in_dtype not in ["e4m3_float8", "e5m2_float8"]:
+    if out_dtype != "float16" and in_dtype not in ["float8_e4m3fn", "float8_e5m2"]:
         # The numpy reference is computed with fp32 precision (otherwise too slow).
         # So there is non-trivial accuracy difference if TVM result is computed with fp16 accumulation.
         tvm.testing.assert_allclose(c.numpy(), c_np, rtol=1e-2, atol=1e-2)
@@ -384,7 +385,7 @@ def test_e4m3e4m3f32_m16n16k32():
         )
 
     k_inner = 32
-    in_dtype = "e4m3_float8"
+    in_dtype = "float8_e4m3fn"
     out_dtype = "float32"
     i_factors, j_factors, k_factors = [1, 32, 1, 4, 2], [8, 4, 4, 2, 1], [32, 2, 2]
 
@@ -427,7 +428,7 @@ def test_e5m2e5m2f32_m16n16k32():
         )
 
     k_inner = 32
-    in_dtype = "e5m2_float8"
+    in_dtype = "float8_e5m2"
     out_dtype = "float32"
     i_factors, j_factors, k_factors = [1, 32, 1, 4, 2], [8, 4, 4, 2, 1], [32, 2, 2]
 

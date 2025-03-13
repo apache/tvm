@@ -511,7 +511,7 @@ TVM_DLL const Op& tvm_storage_sync();
  *  __shfl_down_sync and __activemask.
  *
  *  Parameter warp_size is the size of a warp, which helps a backend
- *  to determine wheter the width paramter is legal.
+ *  to determine whether the width parameter is legal.
  *
  */
 TVM_DLL const Op& tvm_warp_shuffle();

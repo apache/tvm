@@ -341,7 +341,7 @@ def _expected_results(
 ) -> np.ndarray:
     func = _get_single_prim_func(mod)
     func = func.with_attr("global_symbol", "main")
-    rt_mod = tvm.build(func, target="llvm")
+    rt_mod = tvm.compile(func, target="llvm")
     data = [
         tvm.nd.array(x)
         for x in [
@@ -357,7 +357,7 @@ def _actual_results(
     actual: tvm.ir.IRModule, inputs: List[np.ndarray], output_shape: Tuple, output_dtype: str
 ):
     target = _target()
-    actual_rt_mod = tvm.build(actual, target=target)
+    actual_rt_mod = tvm.compile(actual, target=target)
     actual_data = [
         tvm.nd.array(x, device=tvm.cuda() if target.kind.name == "cuda" else tvm.cpu())
         for x in [

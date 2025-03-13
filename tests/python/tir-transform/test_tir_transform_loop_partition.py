@@ -238,7 +238,7 @@ def test_cce_loop_3():
 def partitioned_concat(
     A: T.Buffer((16,), "float32"), B: T.Buffer((16,), "float32"), C: T.Buffer((32,), "float32")
 ) -> None:
-    T.func_attr({"from_legacy_te_schedule": True, "global_symbol": "main", "tir.noalias": True})
+    T.func_attr({"global_symbol": "main", "tir.noalias": True})
     for i in T.serial(0, 16):
         C[i] = A[i]
     for i in T.serial(0, 16):

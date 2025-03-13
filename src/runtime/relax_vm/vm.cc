@@ -70,12 +70,12 @@ PackedFunc VMClosure::BindLastArgs(PackedFunc func, std::vector<TVMRetValue> las
 // Utility functions.
 //-----------------------------------------------------------
 // Use the args after `starting_arg_idx` as a series of indices into `obj`,
-// indexing into nested ADTs and returning the final indexed object.
+// indexing into nested Array and returning the final indexed object.
 ObjectRef IndexIntoNestedObject(ObjectRef obj, TVMArgs args, int starting_arg_idx) {
   for (int i = starting_arg_idx; i < args.size(); i++) {
-    // the object must be an ADT to be able to index into it
+    // the object must be an Array to be able to index into it
     if (!obj.as<ArrayNode>()) {
-      LOG(FATAL) << "ValueError: Attempted to index into an object that is not an ADT.";
+      LOG(FATAL) << "ValueError: Attempted to index into an object that is not an Array.";
     }
     int index = args[i];
     auto arr = Downcast<Array<ObjectRef>>(obj);
@@ -198,7 +198,7 @@ class VirtualMachineImpl : public VirtualMachine {
   //---------------------------------------------------
   // Public facing functions overloading
   //---------------------------------------------------
-  void LoadExecutable(ObjectPtr<Executable> exec) final;
+  void LoadExecutable(ObjectPtr<VMExecutable> exec) final;
   void Init(const std::vector<Device>& devices,
             const std::vector<AllocatorType>& alloc_types) final;
   VMClosure GetClosure(const String& func_name) final {
@@ -283,7 +283,7 @@ class VirtualMachineImpl : public VirtualMachine {
    * \param save_name The saved name of the function.
    * \param include_return Whether forward the return value, set it to false allows
    *        us to ignore forwarding return value, which can be helpful to do benchmarking
-   *        in RPC environment when return value is complicated ADT.
+   *        in RPC environment when return value is complicated Array.
    *
    * \param args The arguments to bound to the function.
    * \note This function is used by RPC server to help benchmarking.
@@ -425,7 +425,7 @@ class VirtualMachineImpl : public VirtualMachine {
   // Internal states for execution.
   //--------------------------------------------------------
   /*! \brief The loaded executable. */
-  ObjectPtr<Executable> exec_;
+  ObjectPtr<VMExecutable> exec_;
   /*! \brief The global constant pool */
   std::vector<TVMRetValue> const_pool_;
   /*!
@@ -462,7 +462,7 @@ class VirtualMachineImpl : public VirtualMachine {
   PackedFunc instrument_ = nullptr;
 };
 
-void VirtualMachineImpl::LoadExecutable(ObjectPtr<Executable> exec) {
+void VirtualMachineImpl::LoadExecutable(ObjectPtr<VMExecutable> exec) {
   this->exec_ = exec;
   this->imports_ = exec_->imports();
 }

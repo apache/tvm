@@ -17,7 +17,6 @@
 """Runtime container structures."""
 import tvm._ffi
 from .object import Object, PyNativeObject
-from .object_generic import ObjectTypes
 from . import _ffi_api
 
 
@@ -58,58 +57,6 @@ def getitem_helper(obj, elem_getter, length, idx):
     if idx < 0:
         idx += length
     return elem_getter(obj, idx)
-
-
-@tvm._ffi.register_object("runtime.ADT")
-class ADT(Object):
-    """Algebatic data type(ADT) object.
-
-    Parameters
-    ----------
-    tag : int
-        The tag of ADT.
-
-    fields : list[Object] or tuple[Object]
-        The source tuple.
-    """
-
-    def __init__(self, tag, fields):
-        for f in fields:
-            assert isinstance(
-                f, ObjectTypes
-            ), f"Expect object or tvm NDArray type, but received : {type(f)}"
-        self.__init_handle_by_constructor__(_ffi_api.ADT, tag, *fields)
-
-    @property
-    def tag(self):
-        return _ffi_api.GetADTTag(self)
-
-    def __getitem__(self, idx):
-        return getitem_helper(self, _ffi_api.GetADTFields, len(self), idx)
-
-    def __len__(self):
-        return _ffi_api.GetADTSize(self)
-
-
-def tuple_object(fields=None):
-    """Create a ADT object from source tuple.
-
-    Parameters
-    ----------
-    fields : list[Object] or tuple[Object]
-        The source tuple.
-
-    Returns
-    -------
-    ret : ADT
-        The created object.
-    """
-    fields = fields if fields else []
-    for f in fields:
-        assert isinstance(
-            f, ObjectTypes
-        ), f"Expect object or tvm NDArray type, but received : {type(f)}"
-    return _ffi_api.Tuple(*fields)
 
 
 @tvm._ffi.register_object("runtime.String")

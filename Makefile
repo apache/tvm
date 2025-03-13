@@ -30,7 +30,7 @@ ROOTDIR = $(CURDIR)
 
 # Specify an alternate output directory relative to ROOTDIR.  Defaults
 # to "build".  Can also be a space-separated list of build
-# directories, each with a different configuation.
+# directories, each with a different configuration.
 TVM_BUILD_PATH ?= build
 TVM_BUILD_PATH := $(abspath $(TVM_BUILD_PATH))
 
@@ -63,7 +63,7 @@ endif
 # Cannot use .PHONY with a pattern rule, using FORCE instead.  For
 # now, force cmake to be re-run with each compile to mimic previous
 # behavior.  This may be relaxed in the future with the
-# CONFIGURE_DEPENDS option for GLOB (requres cmake >= 3.12).
+# CONFIGURE_DEPENDS option for GLOB (requires cmake >= 3.12).
 FORCE:
 %/CMakeCache.txt: %/config.cmake FORCE
 	@cd $(@D) && cmake $(ROOTDIR)

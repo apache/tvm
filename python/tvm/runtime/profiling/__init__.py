@@ -231,7 +231,7 @@ def profile_function(mod, dev, collectors, func_name=None, warmup_iters=10):
 
     .. code-block: python
 
-        f = tvm.build(my_func, target="llvm", name="my_func")
+        f = tvm.compile(my_func, target="llvm", name="my_func")
         prof = tvm.runtime.profiling.profile_function(
             f,
             tvm.cpu(),

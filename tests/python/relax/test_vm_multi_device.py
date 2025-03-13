@@ -37,7 +37,7 @@ def compile(
     mod = relax.transform.LegalizeOps()(mod)
     mod = tvm.tir.transform.DefaultGPUSchedule()(mod)
     # no need to feed target argument for mult-target compilation
-    ex = relax.build(mod)
+    ex = tvm.compile(mod)
 
     return relax.VirtualMachine(ex, device)
 

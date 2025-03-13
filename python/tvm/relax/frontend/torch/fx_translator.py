@@ -18,8 +18,8 @@
 # pylint: disable=invalid-name, inconsistent-return-statements, unidiomatic-typecheck
 # pylint: disable=import-outside-toplevel
 """PyTorch FX frontend of Relax."""
-from typing import Callable, Dict, List, Tuple, Union
 from functools import partial, reduce
+from typing import Callable, Dict, List, Tuple, Union
 
 import tvm
 from tvm import relax
@@ -409,6 +409,11 @@ class TorchFXImporter(BaseFXGraphImporter):
         end_dim = module.end_dim
         return self._flatten_impl(x, start_dim, end_dim)
 
+    def _numel(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        shape = self.shape_of(x)
+        return relax.const(reduce(lambda x, y: x * y, [s.value for s in shape]), "int32")
+
     def _size(self, node: fx.Node) -> relax.Expr:
         x = self.env[node.args[0]]
         shape = self.shape_of(x)
@@ -511,6 +516,18 @@ class TorchFXImporter(BaseFXGraphImporter):
             )
         )
 
+    def _one_hot(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        num_classes = node.args[1] if len(node.args) > 1 else node.kwargs.get("num_classes")
+        if num_classes is None:
+            raise ValueError("num_classes not found in node.args or node.kwargs")
+        on_value = node.args[2] if len(node.args) > 2 else node.kwargs.get("on_value", 1)
+        off_value = node.args[3] if len(node.args) > 3 else node.kwargs.get("off_value", 0)
+        axis = node.args[4] if len(node.args) > 4 else node.kwargs.get("axis", -1)
+        on_value = relax.PrimValue(on_value)
+        off_value = relax.PrimValue(off_value)
+        return self.block_builder.emit(relax.op.one_hot(x, on_value, off_value, num_classes, axis))
+
     def _tensor(self, node: fx.Node) -> relax.Var:
         dtype = node.kwargs.get("dtype", None)
         if isinstance(node.args[0], float):
@@ -526,6 +543,12 @@ class TorchFXImporter(BaseFXGraphImporter):
 
     def _half(self, node: fx.Node) -> relax.Var:
         return self.block_builder.emit(relax.op.astype(self.env[node.args[0]], "float16"))
+
+    def _is_floating_point(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        return relax.const(
+            x.struct_info.dtype in ["float16", "float32", "float64", "bfloat16"], "bool"
+        )
 
     def _to(self, node: fx.Node) -> relax.Var:
         import torch
@@ -575,15 +598,19 @@ class TorchFXImporter(BaseFXGraphImporter):
         self,
     ) -> Dict[Union[torch.nn.Module, str], Callable[[fx.Node], relax.Var]]:
         import operator
+
         from torch import nn
 
         return {
             ## call_module
             # unary
+            nn.CELU: self._celu,
             nn.Dropout: lambda node: self.env[node.args[0]],
+            nn.ELU: self._elu,
             nn.GELU: self._gelu,
             nn.Hardsigmoid: self._hardsigmoid,
             nn.Hardswish: self._hardswish,
+            nn.Hardtanh: self._hardtanh,
             nn.Identity: lambda node: self.env[node.args[0]],
             nn.LeakyReLU: self._leakyrelu_module,
             nn.LogSoftmax: self._log_softmax_module,
@@ -592,6 +619,7 @@ class TorchFXImporter(BaseFXGraphImporter):
                 relax.op.clip(self.env[node.args[0]], 0, 6)
             ),
             nn.Sigmoid: self._unary_op(relax.op.sigmoid),
+            nn.SELU: self._selu,
             nn.SiLU: self._unary_op(relax.op.nn.silu),
             nn.Softmax: self._softmax_module,
             nn.Tanh: self._unary_op(relax.op.tanh),
@@ -623,16 +651,19 @@ class TorchFXImporter(BaseFXGraphImporter):
             "atanh": self._unary_op(relax.op.atanh),
             "bitwise_not": self._unary_op(relax.op.bitwise_not),
             "ceil": self._unary_op(relax.op.ceil),
+            "celu": self._celu,
             "clamp": self._clamp,
             "cos": self._unary_op(relax.op.cos),
             "cosh": self._unary_op(relax.op.cosh),
             "dropout": lambda node: self.env[node.args[0]],
+            "elu": self._elu,
             "erf": self._unary_op(relax.op.erf),
             "exp": self._unary_op(relax.op.exp),
             "floor": self._unary_op(relax.op.floor),
             "gelu": self._gelu,
             "hardsigmoid": self._hardsigmoid,
             "hardswish": self._hardswish,
+            "hardtanh": self._hardtanh,
             "isfinite": self._unary_op(relax.op.isfinite),
             "isinf": self._unary_op(relax.op.isinf),
             "isnan": self._unary_op(relax.op.isnan),
@@ -644,6 +675,7 @@ class TorchFXImporter(BaseFXGraphImporter):
             "relu": self._unary_op(relax.op.nn.relu),
             "round": self._round,
             "rsqrt": self._unary_op(relax.op.rsqrt),
+            "selu": self._selu,
             "sigmoid": self._unary_op(relax.op.sigmoid),
             "sign": self._unary_op(relax.op.sign),
             "silu": self._unary_op(relax.op.nn.silu),
@@ -718,7 +750,11 @@ class TorchFXImporter(BaseFXGraphImporter):
             "contiguous": lambda node: self.env[node.args[0]],
             "cumsum": self._cumsum,
             "expand": self._expand,
+            "expand_as.default": self._expand_as,
             "flatten": self._flatten,
+            "flip": self._flip,
+            "gather": self._gather,
+            "numel": self._numel,
             "permute": self._permute,
             "repeat": self._repeat,
             "reshape": self._reshape,
@@ -727,6 +763,7 @@ class TorchFXImporter(BaseFXGraphImporter):
             "split": self._split,
             "squeeze": self._squeeze,
             "stack": self._stack,
+            "take": self._take,
             "tile": self._tile,
             "transpose": self._transpose,
             "unsqueeze": lambda node: self.block_builder.emit(
@@ -736,6 +773,7 @@ class TorchFXImporter(BaseFXGraphImporter):
             # tensor creation
             "arange": self._arange,
             "empty": self._empty,
+            "empty_like": self._empty_like,
             "fill_": self._inplace_fill,
             "full": self._full,
             "index_select": self._index_select,
@@ -744,11 +782,13 @@ class TorchFXImporter(BaseFXGraphImporter):
             "masked_scatter": self._masked_scatter,
             "new_ones": self._new_ones,
             "ones": self._ones,
+            "one_hot": self._one_hot,
             "tensor": self._tensor,
             # datatype
             "astype": self._type,
             "float": self._float,
             "half": self._half,
+            "is_floating_point": self._is_floating_point,
             "to": self._to,
             "type": self._type,
             # other

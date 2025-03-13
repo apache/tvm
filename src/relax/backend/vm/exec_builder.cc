@@ -33,13 +33,13 @@ TVM_REGISTER_NODE_TYPE(ExecBuilderNode);
 
 ExecBuilder ExecBuilderNode::Create() {
   ExecBuilder ret(make_object<ExecBuilderNode>());
-  ret->exec_ = make_object<Executable>();
+  ret->exec_ = make_object<VMExecutable>();
   return ret;
 }
 
-Executable* ExecBuilderNode::exec() const { return exec_.get(); }
+VMExecutable* ExecBuilderNode::exec() const { return exec_.get(); }
 
-ObjectPtr<Executable> ExecBuilderNode::Get() {
+ObjectPtr<VMExecutable> ExecBuilderNode::Get() {
   this->Formalize();
   this->CheckExecutable();
   return exec_;
@@ -270,7 +270,7 @@ void ExecBuilderNode::CheckExecutable() {
 
 void ExecBuilderNode::Formalize() {
   // a pass to formalize user-specified register indexes in the order of use
-  // and decide the number of registers to allocate for each VMFunction in the Executable
+  // and decide the number of registers to allocate for each VMFunction in the VMExecutable
   for (auto it = this->exec_->func_table.begin(); it != this->exec_->func_table.end(); ++it) {
     if (it->kind == VMFuncInfo::FuncKind::kPackedFunc) continue;
     if (it->kind == VMFuncInfo::FuncKind::kVMTIRFunc) continue;
@@ -395,7 +395,7 @@ TVM_REGISTER_GLOBAL("relax.ExecBuilderF").set_body_typed([](ExecBuilder builder,
 });
 
 TVM_REGISTER_GLOBAL("relax.ExecBuilderGet").set_body_typed([](ExecBuilder builder) {
-  ObjectPtr<Executable> p_exec = builder->Get();
+  ObjectPtr<VMExecutable> p_exec = builder->Get();
   return runtime::Module(p_exec);
 });
 

@@ -33,7 +33,7 @@ def create_csource_module():
 def create_llvm_module():
     A = te.placeholder((1024,), name="A")
     B = te.compute(A.shape, lambda *i: A(*i) + 1.0, name="B")
-    return tvm.build(te.create_prim_func([A, B]), target="llvm")
+    return tvm.tir.build(te.create_prim_func([A, B]), target="llvm")
 
 
 def test_property():

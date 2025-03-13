@@ -16,22 +16,22 @@
 # under the License.
 # pylint: disable=invalid-name, no-member
 """VM build logics"""
-from typing import Any, Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union
 
 import tvm
 from tvm import relax
-from tvm.contrib import utils as _utils
 from tvm.ir.module import IRModule
 from tvm.tir.function import PrimFunc
+from tvm.runtime import Executable
 
 from . import _ffi_api
 
 
-class Executable:
-    """The executable object emitted by the VM compiler or the ExecBuilder."""
+class VMExecutable(Executable):
+    """The virtual machine executable object emitted by the VM compiler or the ExecBuilder."""
 
     def __init__(self, mod: tvm.runtime.Module):
-        self.mod = mod
+        super().__init__(mod)
         self._stats = self.mod["stats"]
         self._as_text = self.mod["as_text"]
         self._as_python = self.mod["as_python"]
@@ -47,105 +47,6 @@ class Executable:
     def as_python(self) -> str:
         """print the instructions as python program."""
         return self._as_python()
-
-    def jit(self, fcompile=None, addons=None, **kwargs) -> tvm.runtime.Module:
-        """Just-in-time compile and link the modules.
-
-        The Executable returned by relax.build may not be directly
-        runnable as they may contain cuda source files and objects that
-        are yet to be compiled and linked.
-        This function helps to create a runtime.Module for these cases.
-
-        Parameters
-        ----------
-        fcompile : function(target, file_list, kwargs), optional
-            The compilation function to use create the final library object during
-
-        kwargs : dict, optional
-            Additional arguments passed to fcompile
-
-        Returns
-        -------
-        rt_mod: tvm.runtime.Module
-            A runnable runtime module that can be passed to VirtualMachine.
-
-        Examples
-        --------
-        .. code:: python
-
-            ex = relax.build(mod, target)
-            # build a runnable module using nvcc to link everything
-            rt_mod = ex.jit()
-            vm = tvm.relax.VirtualMachine(rt_mod, tvm.cuda())
-        """
-
-        # TODO(tvm-team): Update runtime.Module interface
-        # to query these properties as bitmask.
-        def _not_runnable(x):
-            return x.type_key in ("c", "static_library")
-
-        # pylint:disable = protected-access
-        not_runnable_list = self.mod._collect_from_import_tree(_not_runnable)
-
-        # everything is runnable, directly return mod.
-        if len(not_runnable_list) == 0:
-            return self.mod
-
-        # found source module, or other not runnable modules
-        # need to be export and load
-        # TODO(tvm-team): Support runnable but not exportable module.
-        # by collecting the link and allow export_library skip those modules.
-        workspace_dir = _utils.tempdir()
-        dso_path = workspace_dir.relpath("exported.so")
-        self.mod.export_library(dso_path, fcompile=fcompile, addons=addons, **kwargs)
-        return tvm.runtime.load_module(dso_path)
-
-    def export_library(
-        self,
-        file_name: str,
-        fcompile: Optional[Union[str, callable]] = None,
-        workspace_dir: Optional[str] = None,
-        **kwargs,
-    ) -> Any:
-        """Export the executable to a library which can then be loaded back.
-
-        Parameters
-        ----------
-        file_name : str
-            The name of the shared library.
-
-        fcompile : function(target, file_list, kwargs), optional
-            The compilation function to use create the final library object during
-
-        workspace_dir : str, optional
-            The path of the directory used to create the intermediate
-            artifacts when exporting the module.
-            If this is not provided a temporary dir will be created.
-
-        kwargs : dict, optional
-            Additional arguments passed to fcompile
-
-        Returns
-        -------
-        result of fcompile()  : unknown, optional
-            If the compilation function returns an artifact it would be returned via
-            export_library, if any.
-
-        Examples
-        --------
-        .. code:: python
-
-            ex = relax.build(mod, target)
-            # export the library
-            ex.export_library("exported.so")
-
-            # load it back for future uses.
-            rt_mod = tvm.runtime.load_module("exported.so")
-            vm = tvm.relax.VirtualMachine(rt_mod, tvm.cuda())
-        """
-        return self.mod.export_library(
-            file_name=file_name, fcompile=fcompile, workspace_dir=workspace_dir, **kwargs
-        )
 
 
 def _vmcodegen(
@@ -202,6 +103,7 @@ def _vmlink(
     builder: "relax.ExecBuilder",
     target: Optional[Union[str, tvm.target.Target]],
     tir_mod: Optional[tvm.IRModule] = None,
+    tir_pipeline: Optional[Union[str, tvm.transform.Pass]] = "default",
     ext_libs: List[tvm.runtime.Module] = None,
     params: Optional[Dict[str, list]] = None,
     *,
@@ -249,7 +151,7 @@ def _vmlink(
     tir_ext_libs = []
     if tir_mod is not None and len(tir_mod.get_global_vars()) > 0:
         tir_mod = _auto_attach_system_lib_prefix(tir_mod, target, system_lib)
-        lib = tvm.build(tir_mod, target=target)
+        lib = tvm.tir.build(tir_mod, target=target, pipeline=tir_pipeline)
     for ext_mod in ext_libs:
         if ext_mod.is_device_module:
             tir_ext_libs.append(ext_mod)
@@ -260,14 +162,16 @@ def _vmlink(
             lib.import_module(mod)
     elif len(tir_ext_libs) > 0:
         print("Warning: No TIR module is found, but external modules for TIR are provided.")
-    return Executable(_ffi_api.VMLink(builder, target, lib, relax_ext_libs, params))  # type: ignore
+    lib = _ffi_api.VMLink(builder, target, lib, relax_ext_libs, params)  # type: ignore
+    return VMExecutable(lib)
 
 
 def build(
     mod: tvm.IRModule,
     target: Optional[Union[str, tvm.target.Target]] = None,
     params: Optional[Dict[str, list]] = None,
-    pipeline: Union[None, str, tvm.transform.Pass] = "default_build",
+    relax_pipeline: Union[None, str, tvm.transform.Pass] = "default",
+    tir_pipeline: Union[None, str, tvm.transform.Pass] = "default",
     exec_mode: str = "bytecode",
     *,
     system_lib: Optional[bool] = None,
@@ -293,8 +197,11 @@ def build(
     params: Optional[Dict[str, list]]
         Parameters for the input IRModule that will be bound.
 
-    pipeline : str = "default_build"
-        The compilation pipeline to use.
+    relax_pipeline : str = "default"
+        The Relax compilation pipeline to use.
+
+    tir_pipelinie : str = "default"
+        The TIR compilation pipeline to use.
 
     exec_mode: {"bytecode", "compiled"}
         The execution mode.
@@ -322,7 +229,7 @@ def build(
 
         mod = InputModule
         target = tvm.target.Target("llvm", host="llvm")
-        ex = relax.build(mod, target)
+        ex = tvm.compile(mod, target)
     """
 
     def _extract_attrs(mod: tvm.IRModule):
@@ -336,14 +243,14 @@ def build(
     if not params:
         params = {}
 
-    if pipeline is not None:
-        if isinstance(pipeline, str):
-            pipeline = relax.get_pipeline(pipeline)
+    if relax_pipeline is not None:
+        if isinstance(relax_pipeline, str):
+            relax_pipeline = relax.get_pipeline(relax_pipeline)
         if target is None:
-            mod = pipeline(mod)
+            mod = relax_pipeline(mod)
         else:
             with target:
-                mod = pipeline(mod)
+                mod = relax_pipeline(mod)
 
     ext_libs, constants = _extract_attrs(mod)
     params.update(dict(constants))
@@ -353,6 +260,7 @@ def build(
         builder=builder,
         target=target,
         tir_mod=_filter_tir(mod),
+        tir_pipeline=tir_pipeline,
         ext_libs=ext_libs,
         params=params,
         system_lib=system_lib,

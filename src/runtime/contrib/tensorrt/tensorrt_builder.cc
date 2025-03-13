@@ -246,8 +246,8 @@ nvinfer1::ITensor* TensorRTBuilder::GetInputAsTensor(const TensorRTOpInput& inpu
   auto shape = input.weight_shape;
   // Remove batch dim when not in explicit batch mode.
   // Example:
-  // x = Relay dims (1, 32, 224, 224) which becomes TRT Dims (32, 224, 224)
-  // y = Relay dims (1, 32)
+  // x = dims (1, 32, 224, 224) which becomes TRT Dims (32, 224, 224)
+  // y = dims (1, 32)
   // z = add(x, y)
   // y needs to have TRT dims (32,), otherwise broadcasting will result in z having
   // TRT Dims(1, 32, 224, 224) when it should be (32, 224, 224).

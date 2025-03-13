@@ -37,7 +37,11 @@ def test_pass_tensor_to_function(exec_mode, target, dev):
         _ = callback(B)
         return R.tuple()
 
-    ex = tvm.relax.build(tvm.IRModule.from_expr(relax_func), target=target, exec_mode=exec_mode)
+    ex = tvm.relax.build(
+        tvm.IRModule.from_expr(relax_func),
+        target=target,
+        exec_mode=exec_mode,
+    )
     vm = tvm.relax.VirtualMachine(ex, dev)
 
     from_callback = None

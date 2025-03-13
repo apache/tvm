@@ -110,7 +110,7 @@ TVM_REGISTER_NODE_TYPE(IntImmNode);
 FloatImm::FloatImm(DataType dtype, double value, Span span) {
   ICHECK_EQ(dtype.lanes(), 1) << "ValueError: FloatImm can only take scalar.";
 
-  ICHECK(dtype.is_float() || dtype.is_bfloat16() || dtype.is_float8() ||
+  ICHECK(dtype.is_float() || dtype.is_bfloat16() || dtype.is_float8() || dtype.is_float4() ||
          dtype.code() >= DataType::kCustomBegin)
       << "ValueError: FloatImm supports only float, but " << dtype << " was supplied.";
 
@@ -132,11 +132,17 @@ FloatImm::FloatImm(DataType dtype, double value, Span span) {
       ICHECK_LE(value, support::kMaxBFloat16)
           << "ValueError: Literal value " << value << " exceeds maximum of " << dtype;
     } else if (dtype.is_float8()) {
-      double bound = (dtype.code() == DataType::kE4M3Float) ? support::kMaxE4M3 : support::kMaxE5M2;
+      double bound =
+          (dtype.code() == DataType::kFloat8_e4m3fn) ? support::kMaxE4M3FN : support::kMaxE5M2;
       ICHECK_GE(value, -bound) << "ValueError: Literal value " << value << " exceeds minimum of "
                                << dtype;
       ICHECK_LE(value, bound) << "ValueError: Literal vaule " << value << " exceeds maximum of "
                               << dtype;
+    } else if (dtype.is_float4()) {
+      ICHECK_GE(value, -support::kMaxE2M1FN)
+          << "ValueError: Literal value " << value << " exceeds minimum of " << dtype;
+      ICHECK_LE(value, support::kMaxE2M1FN)
+          << "ValueError: Literal value " << value << " exceeds maximum of " << dtype;
     }
   }
   ObjectPtr<FloatImmNode> node = make_object<FloatImmNode>();

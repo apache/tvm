@@ -213,7 +213,7 @@ def pass_instrument(pi_cls=None):
 
         skip_annotate = SkipPass("AnnotateSpans")
         with tvm.transform.PassContext(instruments=[skip_annotate]):
-            tvm.build(mod, "llvm")
+            tvm.compile(mod, "llvm")
     """
 
     def create_pass_instrument(pi_cls):

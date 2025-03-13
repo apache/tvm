@@ -176,7 +176,7 @@ def default_evaluate(
         ):
             if params:
                 mod = tvm.relax.transform.BindParams("main", params)(mod)
-            relax_exec = tvm.relax.build(mod, target)
+            relax_exec = tvm.compile(mod, target)
             return relax_exec.mod
 
         builder = LocalBuilder(f_build=relax_build)
@@ -185,7 +185,7 @@ def default_evaluate(
     if runner is None:
 
         def relax_eval_func(rt_mod, device, evaluator_config, repeated_args):
-            relax_exec = tvm.relax.Executable(rt_mod)
+            relax_exec = tvm.relax.VMExecutable(rt_mod)
             relax_vm = tvm.relax.VirtualMachine(relax_exec, device=device)
 
             evaluator = relax_vm.module.time_evaluator(
