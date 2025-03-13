@@ -454,26 +454,6 @@ struct __align__(8) half4_bfloat164 {
         (static_cast<__uint32_t>(lo_part.__x) | (static_cast<__uint32_t>(hi_part.__x) << 16));
     return result;
   }
-  __device__ __nv_fp8x2_e5m2 make_fp8x2_e5m2(__nv_fp8_storage_t x, __nv_fp8_storage_t y) {
-      __nv_fp8x2_e5m2 result;
-      result.__x = (x) | (y << 8);
-      return result;
-  }
-  __device__ __nv_fp8x4_e5m2 make_fp8x4_e5m2(__nv_fp8_storage_t a, __nv_fp8_storage_t b, __nv_fp8_storage_t c, __nv_fp8_storage_t d) {
-      __nv_fp8x4_e5m2 result;
-      result.__x = (a) | (b << 8) | (c << 16) | (d << 24);
-      return result;
-  }
-  __device__ __nv_fp8x2_e4m3 make_fp8x2_e4m3(__nv_fp8_storage_t x, __nv_fp8_storage_t y) {
-      __nv_fp8x2_e4m3 result;
-      result.__x = (x) | (y << 8);
-      return result;
-  }
-  __device__ __nv_fp8x4_e4m3 make_fp8x4_e4m3(__nv_fp8_storage_t a, __nv_fp8_storage_t b, __nv_fp8_storage_t c, __nv_fp8_storage_t d) {
-      __nv_fp8x4_e4m3 result;
-      result.__x = (a) | (b << 8) | (c << 16) | (d << 24);
-      return result;
-  }
   )";
     }
     if (enable_fp4) {
@@ -541,6 +521,30 @@ __host__ __device__ nv_bfloat162 cast_to_nv_bfloat162(const __nv_fp8x2_e4m3& fp8
 }
 )";
     }
+  }
+  if (enable_fp8) {
+    stream << R"(
+__device__ __nv_fp8x2_e5m2 make___nv_fp8x2_e5m2(__nv_fp8_e5m2 x, __nv_fp8_e5m2 y) {
+    __nv_fp8x2_e5m2 result;
+    result.__x = (x.__x) | (y.__x << 8);
+    return result;
+}
+__device__ __nv_fp8x4_e5m2 make___nv_fp8x4_e5m2(__nv_fp8_e5m2 a, __nv_fp8_e5m2 b, __nv_fp8_e5m2 c, __nv_fp8_e5m2 d) {
+    __nv_fp8x4_e5m2 result;
+    result.__x = (a.__x) | (b.__x << 8) | (c.__x << 16) | (d.__x << 24);
+    return result;
+}
+__device__ __nv_fp8x2_e4m3 make___nv_fp8x2_e4m3(__nv_fp8_e4m3 x, __nv_fp8_e4m3 y) {
+    __nv_fp8x2_e4m3 result;
+    result.__x = (x.__x) | (y.__x << 8);
+    return result;
+}
+__device__ __nv_fp8x4_e4m3 make___nv_fp8x4_e4m3(__nv_fp8_e4m3 a, __nv_fp8_e4m3 b, __nv_fp8_e4m3 c, __nv_fp8_e4m3 d) {
+    __nv_fp8x4_e4m3 result;
+    result.__x = (a.__x) | (b.__x << 8) | (c.__x << 16) | (d.__x << 24);
+    return result;
+}
+)";
   }
   if (enable_fp4) {
     stream << R"(
