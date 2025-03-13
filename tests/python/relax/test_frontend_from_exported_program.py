@@ -3496,7 +3496,7 @@ def test_gather():
 
     example_args = (
         torch.randn(2, 3, dtype=torch.float32),
-        torch.randint(0, 3, (2, 3), dtype=torch.int64)
+        torch.randint(0, 3, (2, 3), dtype=torch.int64),
     )
 
     verify_model(Gather0(), example_args, {}, Expected0)
@@ -3565,7 +3565,7 @@ def test_take():
 
     example_args = (
         torch.randn(5, dtype=torch.float32),
-        torch.randint(0, 5, (3,), dtype=torch.int64)
+        torch.randint(0, 5, (3,), dtype=torch.int64),
     )
 
     verify_model(Take(), example_args, {}, Expected)
