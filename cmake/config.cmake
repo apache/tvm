@@ -248,12 +248,12 @@ set(USE_SORT ON)
 
 # Whether to use Arm Compute Library (ACL) codegen
 # We provide 2 separate flags since we cannot build the ACL runtime on x86.
-# This is useful for cases where you want to cross-compile a relay graph
+# This is useful for cases where you want to cross-compile a graph
 # on x86 then run on AArch.
 #
 # An example of how to use this can be found here: docs/deploy/arm_compute_lib.rst.
 #
-# USE_ARM_COMPUTE_LIB - Support for compiling a relay graph offloading supported
+# USE_ARM_COMPUTE_LIB - Support for compiling a graph offloading supported
 #                       operators to Arm Compute Library. OFF/ON
 # USE_ARM_COMPUTE_LIB_GRAPH_EXECUTOR - Run Arm Compute Library annotated functions via the ACL
 #                                     runtime. OFF/ON/"path/to/ACL"
@@ -263,7 +263,7 @@ set(USE_ARM_COMPUTE_LIB_GRAPH_EXECUTOR OFF)
 # Whether to build with TensorRT codegen or runtime
 # Examples are available here: docs/deploy/tensorrt.rst.
 #
-# USE_TENSORRT_CODEGEN - Support for compiling a relay graph where supported operators are
+# USE_TENSORRT_CODEGEN - Support for compiling a graph where supported operators are
 #                        offloaded to TensorRT. OFF/ON
 # USE_TENSORRT_RUNTIME - Support for running TensorRT compiled modules, requires presence of
 #                        TensorRT library. OFF/ON/"path/to/TensorRT"

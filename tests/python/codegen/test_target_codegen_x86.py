@@ -14,11 +14,10 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-import numpy as np
 import platform
-import pytest
 import re
-import textwrap
+
+import pytest
 
 import tvm
 from tvm import te
@@ -40,7 +39,7 @@ def test_fp16_to_fp32():
         B = te.compute(A.shape, lambda *i: A(*i).astype("float32"), name="B")
         sch = tvm.tir.Schedule(te.create_prim_func([A, B]))
         sch.vectorize(sch.get_loops("B")[1])
-        f = tvm.build(sch.mod, target=target)
+        f = tvm.tir.build(sch.mod, target=target)
 
         assembly = f.get_source("asm").splitlines()
         if match:

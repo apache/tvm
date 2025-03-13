@@ -27,7 +27,7 @@ try:
 except ImportError:
     ml_dtypes = None
 import tvm._ffi
-from tvm._ffi.base import _FFI_MODE, _LIB, c_array, check_call, string_types
+from tvm._ffi.base import _LIB, c_array, check_call, string_types
 from tvm._ffi.runtime_ctypes import (
     DataType,
     DataTypeCode,
@@ -36,29 +36,14 @@ from tvm._ffi.runtime_ctypes import (
     TVMArrayHandle,
     tvm_shape_index_t,
 )
+from tvm._ffi._cy3.core import (
+    NDArrayBase,
+    _from_dlpack,
+    _make_array,
+    _set_class_ndarray,
+)
 
 from . import _ffi_api
-
-try:
-    # pylint: disable=wrong-import-position
-    if _FFI_MODE == "ctypes":
-        raise ImportError()
-    from tvm._ffi._cy3.core import (
-        NDArrayBase,
-        _from_dlpack,
-        _make_array,
-        _set_class_ndarray,
-    )
-except (RuntimeError, ImportError) as error:
-    # pylint: disable=wrong-import-position
-    if _FFI_MODE == "cython":
-        raise error
-    from tvm._ffi._ctypes.ndarray import (
-        NDArrayBase,
-        _from_dlpack,
-        _make_array,
-        _set_class_ndarray,
-    )
 
 
 @tvm._ffi.register_object("runtime.NDArray")
@@ -248,7 +233,12 @@ class NDArray(NDArrayBase):
         if dtype == "int4":
             dtype = "int8"
         if dtype == "bfloat16":
-            dtype = "uint16"
+            if ml_dtypes is not None:
+                dtype = ml_dtypes.bfloat16
+            else:
+                raise RuntimeError(
+                    "ml_dtypes is not installed, cannot convert bfloat16 array to numpy."
+                )
         if dtype == "float8_e4m3fn":
             if ml_dtypes is not None:
                 dtype = ml_dtypes.float8_e4m3fn

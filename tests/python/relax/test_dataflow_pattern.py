@@ -1240,7 +1240,7 @@ def test_combine_matmul_emit_order():
     mod = tvm.IRModule()
     mod["main"] = rewritten
 
-    rx.build(mod, target="llvm")
+    tvm.compile(mod, target="llvm")
 
 
 def test_combine_transposed_matmul_twice():
@@ -1336,7 +1336,7 @@ def test_combine_transposed_matmul_twice():
         mod["main"] = rewritten
         print(mod)
 
-        rx.build(mod, target="llvm")
+        tvm.compile(mod, target="llvm")
 
 
 def test_commutative_pattern_match():

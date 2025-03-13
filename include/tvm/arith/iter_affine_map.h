@@ -69,7 +69,7 @@ class IterMapExprNode : public PrimExprNode {
   void VisitAttrs(tvm::AttrVisitor* v) {}
 
   static constexpr const char* _type_key = "arith.IterMapExpr";
-  static constexpr const uint32_t _type_child_slots = 3;
+  static constexpr const uint32_t _type_child_slots = 2;
   TVM_DECLARE_BASE_OBJECT_INFO(IterMapExprNode, PrimExprNode);
 };
 

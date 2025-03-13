@@ -121,7 +121,7 @@ def benchmark(
     # append scalar input tensors for rotary embedding
     input_tensors.extend(scalar_input_tensors)
     # build locally
-    rt_mod = tvm.build(mod, target=target)
+    rt_mod = tvm.tir.build(mod, target=target)
     # set up evaluator config
     evaluator_config = EvaluatorConfig._normalized(  # pylint: disable=protected-access
         evaluator_config

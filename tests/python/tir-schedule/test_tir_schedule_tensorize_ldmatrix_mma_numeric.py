@@ -118,7 +118,7 @@ def run_test(
         mma_store_intrin,
     )
 
-    f = tvm.build(sch.mod["main"], target="cuda")
+    f = tvm.compile(sch.mod["main"], target="cuda")
 
     dev = tvm.device("cuda", 0)
 

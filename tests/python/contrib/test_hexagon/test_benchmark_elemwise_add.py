@@ -204,7 +204,7 @@ def _benchmark_hexagon_elementwise_add_kernel(
             input2 = tvm.te.placeholder(shape, dtype=dtype)
             output = tvm.te.placeholder(shape, dtype=dtype)
 
-            built_module: tvm.driver.build_module.OperatorModule = tvm.build(
+            built_module: tvm.driver.build_module.OperatorModule = tvm.compile(
                 ns_tir_module,
                 [
                     input1,

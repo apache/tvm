@@ -35,7 +35,7 @@ def test_matmul():
             print("skip because extern function is not available")
             return
         dev = tvm.metal(0)
-        f = tvm.build(te.create_prim_func([A, B, C]), target="metal")
+        f = tvm.compile(te.create_prim_func([A, B, C]), target="metal")
         a = tvm.nd.array(np.random.uniform(size=(n, l)).astype(A.dtype), dev)
         b = tvm.nd.array(np.random.uniform(size=(l, m)).astype(B.dtype), dev)
         c = tvm.nd.array(np.zeros((n, m), dtype=C.dtype), dev)
@@ -64,7 +64,7 @@ def test_conv2d():
             print("skip because extern function is not available")
             return
         dev = tvm.metal(0)
-        f = tvm.build(te.create_prim_func([A, B, C]), target="metal")
+        f = tvm.compile(te.create_prim_func([A, B, C]), target="metal")
         a = tvm.nd.array(np.random.uniform(size=(n, h, w, ci)).astype(A.dtype), dev)
         b = tvm.nd.array(np.random.uniform(size=(co, kh, kw, ci)).astype(B.dtype), dev)
         c = tvm.nd.array(np.zeros((n, h // stride, w // stride, co), dtype=C.dtype), dev)

@@ -20,6 +20,7 @@ import numpy as np
 import pytest
 import tvm.testing
 from tvm import relax, runtime
+from tvm.relax.frontend import onnx
 from tvm.relax.testing import relay_translator
 from tvm.contrib.hexagon.session import Session
 
@@ -47,10 +48,11 @@ def test_mobilenet_onnx(hexagon_session: Session):
 
     target_hexagon = tvm.target.hexagon("v68")
     target = tvm.target.Target(target_hexagon, host=target_hexagon)
+    relax_mod = onnx.from_onnx(onnx_model, shape_dict, freeze_params=True)
     relax_mod = relay_translator.from_relay(relay_mod["main"], target_hexagon)
 
     # Compile and run on Hexagon.
-    exe = relax.build(relax_mod, target)
+    exe = tvm.compile(relax_mod, target)
     dev = hexagon_session.device
 
     vm_mod = hexagon_session.get_executor_from_factory(exe)
@@ -62,7 +64,7 @@ def test_mobilenet_onnx(hexagon_session: Session):
 
     # Compile and run on LLVM for comparison.
     relax_mod = relay_translator.from_relay(relay_mod["main"], "llvm")
-    exe = relax.build(relax_mod, "llvm")
+    exe = tvm.compile(relax_mod, "llvm")
     dev = tvm.cpu()
     vm_rt = relax.VirtualMachine(exe, dev)
     data = tvm.nd.array(data_np, dev)
@@ -84,7 +86,7 @@ def test_mobilenet(hexagon_session: Session):
     relax_mod = relay_translator.from_relay(relay_mod["main"], target, params)
 
     # Compile and run on Hexagon.
-    exe = relax.build(relax_mod, target)
+    exe = tvm.compile(relax_mod, target)
     dev = hexagon_session.device
 
     vm_mod = hexagon_session.get_executor_from_factory(exe)
@@ -96,7 +98,7 @@ def test_mobilenet(hexagon_session: Session):
 
     # Compile and run on LLVM for comparison.
     relax_mod = relay_translator.from_relay(relay_mod["main"], "llvm", params)
-    exe = relax.build(relax_mod, "llvm")
+    exe = tvm.compile(relax_mod, "llvm")
     dev = tvm.cpu()
     vm_rt = relax.VirtualMachine(exe, dev)
     data = tvm.nd.array(data_np, dev)

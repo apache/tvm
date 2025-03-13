@@ -78,7 +78,7 @@ c_nd = tvm.nd.array(np.zeros((128, 128), dtype="float32"))
 
 
 def evaluate(mod: tvm.IRModule):
-    lib = tvm.build(mod, target="llvm")
+    lib = tvm.tir.build(mod, target="llvm")
     # check correctness
     lib(a_nd, b_nd, c_nd)
     np.testing.assert_allclose(c_nd.numpy(), c_np, rtol=1e-5)

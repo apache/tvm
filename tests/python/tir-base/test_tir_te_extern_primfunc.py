@@ -181,7 +181,7 @@ class TestPrimFuncs:
 
     def test_primfunc_call(self, func, verify):
         target = tvm.target.Target("llvm")
-        func = tvm.build(func, target=target)
+        func = tvm.compile(func, target=target)
         verify(func)
 
     def test_te_extern_call(self, func, params, verify):
@@ -194,7 +194,7 @@ class TestPrimFuncs:
         rt_prim_func = te.create_prim_func(tensors_from_extern_op(output, prim_func))
 
         target = tvm.target.Target("llvm")
-        func = tvm.build(rt_prim_func, target=target)
+        func = tvm.compile(rt_prim_func, target=target)
         verify(func)
 
 

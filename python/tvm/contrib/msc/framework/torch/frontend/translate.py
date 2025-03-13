@@ -82,7 +82,7 @@ def from_torch(
     build_config: dict
         The config for build MSCGraph.
     opt_config: dict
-        The config for optimize the relay before translate.
+        The config for optimize before translate.
     as_msc: bool
         Set to to return msc graph, otherwise relax mod
     custom_convert_map: dict

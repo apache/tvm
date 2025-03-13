@@ -3895,6 +3895,7 @@ def undefined_data_ptr_in_decl_buffer():
     Allocate/DeclBuffer pair, performing a round-trip through
     TVMScript should not introduce an Allocate node.
     """
+
     # uninitialized var
     @T.prim_func(check_well_formed=False)
     def func():
@@ -3945,8 +3946,7 @@ def subroutine_call_without_arguments():
         def main():
             # Should be equivalent to the bare "mod.subroutine()", but
             # that relies on `GlobalVar.__call__` returning the
-            # correct IR type.  Previously, this instead returned a
-            # `relay.Call` object.
+            # correct IR type.
             tir.call_tir(mod.subroutine)
 
         @T.prim_func

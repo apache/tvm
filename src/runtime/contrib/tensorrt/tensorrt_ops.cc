@@ -18,7 +18,7 @@
 
 /*!
  * \file runtime/contrib/tensorrt/tensorrt_ops.cc
- * \brief Converters from Relay ops into TensorRT layers. Converters should
+ * \brief Converters from ops into TensorRT layers. Converters should
  * inherit from TensorRTOpConverter and implement the Convert() method.
  */
 
@@ -840,7 +840,7 @@ class UnaryOpConverter : public TensorRTOpConverter {
   ~UnaryOpConverter() = default;
 
   void Convert(TensorRTOpConverterParams* params) const {
-    // The following ops are supported by TRT but don't exist in relay yet:
+    // The following ops are supported by TRT but don't exist in TVM yet:
     // recip, tan, sinh, cosh, asin, acos, asinh, acosh, atanh
     static const std::unordered_map<std::string, nvinfer1::UnaryOperation> op_map = {
       {"exp", nvinfer1::UnaryOperation::kEXP},

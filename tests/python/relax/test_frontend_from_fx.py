@@ -14,6 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+
 import operator
 import pytest
 import torch
@@ -21,6 +22,7 @@ import torch.nn.functional as F
 from torch import fx
 from torch.nn import Module
 import torchvision
+import math
 
 import tvm
 from tvm import relax
@@ -1970,7 +1972,7 @@ def test_extended_unary_ops():
     class expected_clamp:
         @R.function
         def main(
-            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
+            input_1: R.Tensor((1, 3, 10, 10), dtype="float32"),
         ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
             # block 0
             with R.dataflow():
@@ -1981,29 +1983,53 @@ def test_extended_unary_ops():
 
     verify_model(Clamp(), input_info, {}, expected_clamp)
 
-    from tvm.relax.frontend.torch import from_fx
+    class ClampMinOnly(Module):
+        def forward(self, input):
+            return torch.clamp(input, min=0.5, max=None)
 
-    with pytest.raises(
-        ValueError, match="TVM only supports constant max value for torch.clamp/clip"
-    ):
+    @tvm.script.ir_module
+    class expected_clamp_min_only:
+        @R.function
+        def main(
+            input_1: R.Tensor((1, 3, 10, 10), dtype="float32"),
+        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
+            # block 0
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.clip(input_1, 0.5, math.inf)
+                gv: R.Tensor((1, 3, 10, 10), dtype="float32") = lv
+                R.output(gv)
+            return gv
 
-        class Clamp_Error(Module):
-            def forward(self, input):
-                return torch.clamp(input, min=0.5, max=None)
+    verify_model(ClampMinOnly(), input_info, {}, expected_clamp_min_only)
 
-        gm = fx.symbolic_trace(Clamp_Error())
-        from_fx(gm, input_info)
+    class ClampTensors(Module):
+        def forward(self, input):
+            return torch.clamp(input, min=input, max=input)
 
-    with pytest.raises(
-        ValueError, match="TVM only supports constant min value for torch.clamp/clip"
-    ):
+    @tvm.script.ir_module
+    class expected_clamp_tensors:
+        @R.function
+        def main(
+            inp_0: R.Tensor((1, 3, 10, 10), dtype="float32"),
+        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
+            # block 0
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.broadcast_to(
+                    inp_0, R.shape([1, 3, 10, 10])
+                )
+                lv1: R.Tensor((1, 3, 10, 10), dtype="float32") = R.maximum(inp_0, lv)
+                lv2: R.Tensor((1, 3, 10, 10), dtype="float32") = R.broadcast_to(
+                    inp_0, R.shape([1, 3, 10, 10])
+                )
+                lv3: R.Tensor((1, 3, 10, 10), dtype="float32") = R.minimum(lv1, lv2)
+                lv4: R.Tensor((1, 3, 10, 10), dtype="float32") = R.clip(
+                    lv3, R.prim_value(T.float64("-inf")), R.prim_value(T.float64("inf"))
+                )
+                gv: R.Tensor((1, 3, 10, 10), dtype="float32") = lv4
+                R.output(gv)
+            return gv
 
-        class Clamp_Error(Module):
-            def forward(self, input):
-                return torch.clamp(input, min=input, max=input)
-
-        gm = fx.symbolic_trace(Clamp_Error())
-        from_fx(gm, input_info)
+    verify_model(ClampTensors(), input_info, {}, expected_clamp_tensors)
 
     # dropout
     class Dropout1(Module):
@@ -4035,6 +4061,68 @@ def test_take():
             return gv
 
     verify_model(Take(), [([5], "float32"), ([3], "int32")], {}, Expected)
+
+
+def test_one_hot():
+    class OneHot(Module):
+        def forward(self, indices):
+            return torch.nn.functional.one_hot(indices, num_classes=10)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            inp_0: R.Tensor((5,), dtype="int32"),
+        ) -> R.Tensor((5, 10), dtype="int64"):
+            with R.dataflow():
+                lv: R.Tensor((5, 10), dtype="int64") = R.one_hot(
+                    inp_0, R.prim_value(1), R.prim_value(0), depth=10, axis=-1
+                )
+                gv: R.Tensor((5, 10), dtype="int64") = lv
+                R.output(gv)
+
+            return gv
+
+    verify_model(OneHot(), [([5], "int32")], {}, Expected)
+
+
+def test_empty_like():
+    class EmptyLike(Module):
+        def forward(self, data):
+            return torch.empty_like(data)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            inp_0: R.Tensor((5,), dtype="float32"),
+        ) -> R.Tensor((5,), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((5,), dtype="float32") = R.zeros_like(inp_0)
+                gv: R.Tensor((5,), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    verify_model(EmptyLike(), [([5], "float32")], {}, Expected)
+
+
+def test_numel():
+    class Numel(Module):
+        def forward(self, data):
+            return torch.numel(data)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            inp_0: R.Tensor((5, 3), dtype="float32"),
+        ) -> R.Tensor((), dtype="int32"):
+            with R.dataflow():
+                gv: R.Tensor((), dtype="int32") = R.const(15, "int32")
+                R.output(gv)
+            return gv
+
+    verify_model(Numel(), [([5, 3], "float32")], {}, Expected)
 
 
 if __name__ == "__main__":

@@ -114,6 +114,6 @@ def test_tir_triton_integration():
     output_np = x_nd.numpy() + y_nd.numpy()
 
     with tvm.target.Target("cuda"):
-        lib = relax.build(Module)
+        lib = tvm.compile(Module)
         output_nd = tvm.runtime.relax_vm.VirtualMachine(lib, device)["main"](x_nd, y_nd)
         tvm.testing.assert_allclose(output_nd.numpy(), output_np, rtol=1e-5)

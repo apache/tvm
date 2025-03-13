@@ -306,7 +306,6 @@ extern "C" void dnnl_bn(float* data, float* gamma, float* beta, float* mean, flo
   free(weight);
 }
 
-// should comply with src/relay/backend/contrib/dnnl/codegen.cc
 #define DNNL_BINARY_ADD 0
 #define DNNL_BINARY_MUL 1
 
