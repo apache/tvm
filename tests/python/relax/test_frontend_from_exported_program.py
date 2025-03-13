@@ -3425,5 +3425,73 @@ def test_no_bind_return_tuple():
     tvm.ir.assert_structural_equal(mod, Expected)
 
 
+def test_empty_like():
+    class EmptyLike(Module):
+        def forward(self, data):
+            return torch.empty_like(data)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+                inp_0: R.Tensor((5,), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((5,), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((5,), dtype="float32") = R.zeros_like(inp_0, dtype="void")
+                gv: R.Tuple(R.Tensor((5,), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(5, dtype=torch.float32),)
+
+    verify_model(EmptyLike(), example_args, {}, Expected)
+
+
+def test_one_hot():
+    class OneHot(Module):
+        def forward(self, indices):
+            return torch.nn.functional.one_hot(indices, num_classes=10)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            inp_0: R.Tensor((5,), dtype="int64"),
+        ) -> R.Tuple(R.Tensor((5, 10), dtype="int64")):
+            with R.dataflow():
+                lv: R.Tensor((5, 10), dtype="int64") = R.one_hot(
+                    inp_0, R.prim_value(1), R.prim_value(0), depth=10, axis=-1
+                )
+                gv: R.Tuple(R.Tensor((5, 10), dtype="int64")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randint(0, 10, (5,), dtype=torch.int64),)
+
+    verify_model(OneHot(), example_args, {}, Expected)
+
+
+def test_select():
+    class Select(Module):
+        def forward(self, input):
+            return torch.select(input, 0, 1)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            inp_0: R.Tensor((2, 3), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((3,), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((3,), dtype="float32") = R.take(inp_0, R.const(1, "int64"), axis=0)
+                gv: R.Tuple(R.Tensor((3,), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args = (torch.randn(2, 3, dtype=torch.float32),)
+
+    verify_model(Select(), example_args, {}, Expected)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
