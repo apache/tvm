@@ -168,7 +168,7 @@ def set_global_func(dtype):
         mod = tvm.IRModule({"main": tir_func})
         with target:
             mod = dl.ApplyDefaultSchedule(dl.gpu.Fallback())(mod)
-        f = tvm.compile(mod["main"], target=target)
+        f = tvm.tir.build(mod["main"], target=target)
         builts.append(f.entry_func)
 
     (
