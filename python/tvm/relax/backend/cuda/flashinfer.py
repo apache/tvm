@@ -325,7 +325,11 @@ def gen_flashinfer_decode_module(
     torch_dtype_kv = getattr(torch, dtype_kv)
     torch_dtype_o = getattr(torch, dtype_o)
     jit_args = {
-        "uri": f"batch_decode_tvm_dtype_q_{dtype_q}_dtype_kv_{dtype_kv}_dtype_o_{dtype_o}_qk_head_dim_{qk_head_dim}_v_head_dim_{v_head_dim}",
+        "uri": f"batch_decode_tvm_dtype_q_{dtype_q}_"
+        + f"dtype_kv_{dtype_kv}_"
+        + f"dtype_o_{dtype_o}_"
+        + f"qk_head_dim_{qk_head_dim}_"
+        + f"v_head_dim_{v_head_dim}",
         "dtype_q": torch_dtype_q,
         "dtype_kv": torch_dtype_kv,
         "dtype_o": torch_dtype_o,
@@ -395,7 +399,11 @@ def gen_flashinfer_mla_module(
     torch_dtype_kv = getattr(torch, dtype_kv)
     torch_dtype_o = getattr(torch, dtype_o)
     jit_args = {
-        "uri": f"batch_mla_tvm_dtype_q_{dtype_q}_dtype_kv_{dtype_kv}_dtype_o_{dtype_o}_head_dim_ckv_{head_dim_ckv}_head_dim_kpe_{head_dim_kpe}",
+        "uri": f"batch_mla_tvm_dtype_q_{dtype_q}_"
+        + f"dtype_kv_{dtype_kv}_"
+        + f"dtype_o_{dtype_o}_"
+        + f"head_dim_ckv_{head_dim_ckv}_"
+        + f"head_dim_kpe_{head_dim_kpe}",
         "dtype_q": torch_dtype_q,
         "dtype_kv": torch_dtype_kv,
         "dtype_o": torch_dtype_o,
