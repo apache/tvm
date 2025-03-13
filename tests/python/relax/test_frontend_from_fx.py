@@ -4125,5 +4125,66 @@ def test_numel():
     verify_model(Numel(), [([5, 3], "float32")], {}, Expected)
 
 
+def test_select():
+    class Select(Module):
+        def forward(self, data):
+            return torch.select(data, 0, 1)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            inp_0: R.Tensor((5, 3), dtype="float32"),
+        ) -> R.Tensor((3,), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((3,), dtype="float32") = R.take(inp_0, R.const(1, "int64"), axis=0)
+                gv: R.Tensor((3,), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    verify_model(Select(), [([5, 3], "float32")], {}, Expected)
+
+
+def test_clone():
+    class Clone(Module):
+        def forward(self, x):
+            return x.clone()
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            inp_0: R.Tensor((5, 3), dtype="float32"),
+        ) -> R.Tensor((5, 3), dtype="float32"):
+            with R.dataflow():
+                gv: R.Tensor((5, 3), dtype="float32") = inp_0
+                R.output(gv)
+            return gv
+
+    verify_model(Clone(), [([5, 3], "float32")], {}, Expected)
+
+
+def test_lerp():
+    class Lerp(Module):
+        def forward(self, start, end, weight):
+            return torch.lerp(start, end, weight)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            inp_0: R.Tensor((5, 3), dtype="float32"),
+            inp_1: R.Tensor((5, 3), dtype="float32"),
+            inp_2: R.Tensor((5, 3), dtype="float32"),
+        ) -> R.Tensor((5, 3), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((5, 3), dtype="float32") = R.add(inp_0, R.multiply(inp_2, R.subtract(inp_1, inp_0)))
+                gv: R.Tensor((5, 3), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    verify_model(Lerp(), [([5, 3], "float32"), ([5, 3], "float32"), ([5, 3], "float32")], {}, Expected)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
