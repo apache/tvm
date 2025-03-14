@@ -305,6 +305,8 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "cumsum.default": self._cumsum,
             "expand.default": self._expand,
             "expand_as.default": self._expand_as,
+            "flip.default": self._flip,
+            "gather.default": self._gather,
             "permute.default": self._permute,
             "repeat.default": self._repeat,
             "select.int": self._select,
@@ -312,6 +314,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "split.Tensor": self._split,
             "squeeze.default": self._squeeze,
             "squeeze.dim": self._squeeze,
+            "take.default": self._take,
             "tile.default": self._tile,
             "transpose.int": self._transpose,
             "unsqueeze.default": lambda node: self.block_builder.emit(
