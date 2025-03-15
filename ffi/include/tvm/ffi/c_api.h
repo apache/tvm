@@ -73,6 +73,7 @@ typedef enum {
   kTVMFFIDevice = 6,
   kTVMFFIDLTensorPtr = 7,
   kTVMFFIRawStr = 8,
+  kTVMFFIByteArrayPtr = 9,
   // [Section] Static Boxed: [kTVMFFIStaticObjectBegin, kTVMFFIDynObjectBegin)
   // roughly order in terms of their ptential dependencies
   kTVMFFIStaticObjectBegin = 64,
@@ -147,8 +148,8 @@ typedef struct TVMFFIAny {
 
 /*! \brief Safe byte array */
 typedef struct {
-  int64_t num_bytes;
-  const char* bytes;
+  const char* data;
+  int64_t size;
 } TVMFFIByteArray;
 
 /*!

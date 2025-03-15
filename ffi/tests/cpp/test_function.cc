@@ -132,4 +132,32 @@ TEST(Func, Global) {
   EXPECT_TRUE(std::find(names.begin(), names.end(), "testing.add1") != names.end());
 }
 
+TEST(Func, TypedFunction) {
+  TypedFunction<int(int)> fadd1 = [](int a) -> int { return a + 1; };
+  EXPECT_EQ(fadd1(1), 2);
+
+  TypedFunction<int(int)> fadd2([](int a) -> int { return a + 2; });
+  EXPECT_EQ(fadd2(1), 3);
+  EXPECT_EQ(fadd2.packed()(1).operator int(), 3);
+
+  TypedFunction<void(int)> fcheck_int;
+  EXPECT_TRUE(fcheck_int == nullptr);
+  fcheck_int = [](int a) -> void { EXPECT_EQ(a, 1); };
+  fcheck_int(1);
+}
+
+TEST(Func, TypedFunctionAsAny) {
+  TypedFunction<int(int)> fadd1 = [](int a) -> int { return a + 1; };
+  Any fany(std::move(fadd1));
+  EXPECT_TRUE(fadd1 == nullptr);
+  TypedFunction<int(int)> fadd1_dup = fany;
+  EXPECT_EQ(fadd1_dup(1), 2);
+}
+
+TEST(Func, TypedFunctionAsAnyView) {
+  TypedFunction<int(int)> fadd2 = [](int a) -> int { return a + 2; };
+  AnyView fview(fadd2);
+  TypedFunction<int(int)> fadd2_dup = fview;
+  EXPECT_EQ(fadd2_dup(1), 3);
+}
 }  // namespace

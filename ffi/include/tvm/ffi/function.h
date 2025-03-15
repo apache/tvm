@@ -396,6 +396,206 @@ class Function : public ObjectRef {
   class Registry;
 };
 
+/*!
+ * \brief Please refer to \ref TypedFunctionAnchor "TypedFunction<R(Args..)>"
+ */
+template <typename FType>
+class TypedFunction;
+
+/*!
+ * \anchor TypedFunctionAnchor
+ * \brief A PackedFunc wrapper to provide typed function signature.
+ * It is backed by a PackedFunc internally.
+ *
+ * TypedFunction enables compile time type checking.
+ * TypedFunction works with the runtime system:
+ * - It can be passed as an argument of PackedFunc.
+ * - It can be assigned to TVMRetValue.
+ * - It can be directly converted to a type-erased PackedFunc.
+ *
+ * Developers should prefer TypedFunction over PackedFunc in C++ code
+ * as it enables compile time checking.
+ * We can construct a TypedFunction from a lambda function
+ * with the same signature.
+ *
+ * \code
+ *  // user defined lambda function.
+ *  auto addone = [](int x)->int {
+ *    return x + 1;
+ *  };
+ *  // We can directly convert
+ *  // lambda function to TypedFunction
+ *  TypedFunction<int(int)> ftyped(addone);
+ *  // invoke the function.
+ *  int y = ftyped(1);
+ *  // Can be directly converted to PackedFunc
+ *  PackedFunc packed = ftype;
+ * \endcode
+ * \tparam R The return value of the function.
+ * \tparam Args The argument signature of the function.
+ */
+template <typename R, typename... Args>
+class TypedFunction<R(Args...)> {
+ public:
+  /*! \brief short hand for this function type */
+  using TSelf = TypedFunction<R(Args...)>;
+  /*! \brief default constructor */
+  TypedFunction() {}
+  /*! \brief constructor from null */
+  TypedFunction(std::nullptr_t null) {}  // NOLINT(*)
+  /*!
+   * \brief constructor from a function
+   * \param packed The function
+   */
+  TypedFunction(Function packed) : packed_(packed) {}  // NOLINT(*)
+  /*!
+   * \brief construct from a lambda function with the same signature.
+   *
+   * Example usage:
+   * \code
+   * auto typed_lambda = [](int x)->int { return x + 1; }
+   * // construct from packed function
+   * TypedFunction<int(int)> ftyped(typed_lambda, "add_one");
+   * // call the typed version.
+   * CHECK_EQ(ftyped(1), 2);
+   * \endcode
+   *
+   * \param typed_lambda typed lambda function.
+   * \param name the name of the lambda function.
+   * \tparam FLambda the type of the lambda function.
+   */
+  template <typename FLambda, typename = typename std::enable_if<std::is_convertible<
+                                  FLambda, std::function<R(Args...)>>::value>::type>
+  TypedFunction(FLambda typed_lambda, std::string name) {  // NOLINT(*)
+    packed_ = Function::FromUnpacked(typed_lambda, name);
+  }
+  /*!
+   * \brief construct from a lambda function with the same signature.
+   *
+   * This version does not take a name. It is highly recommend you use the
+   * version that takes a name for the lambda.
+   *
+   * Example usage:
+   * \code
+   * auto typed_lambda = [](int x)->int { return x + 1; }
+   * // construct from packed function
+   * TypedFunction<int(int)> ftyped(typed_lambda);
+   * // call the typed version.
+   * CHECK_EQ(ftyped(1), 2);
+   * \endcode
+   *
+   * \param typed_lambda typed lambda function.
+   * \tparam FLambda the type of the lambda function.
+   */
+  template <typename FLambda, typename = typename std::enable_if<std::is_convertible<
+                                  FLambda, std::function<R(Args...)>>::value>::type>
+  TypedFunction(const FLambda& typed_lambda) {  // NOLINT(*)
+    packed_ = Function::FromUnpacked(typed_lambda);
+  }
+  /*!
+   * \brief copy assignment operator from typed lambda
+   *
+   * Example usage:
+   * \code
+   * // construct from packed function
+   * TypedFunction<int(int)> ftyped;
+   * ftyped = [](int x) { return x + 1; }
+   * // call the typed version.
+   * CHECK_EQ(ftyped(1), 2);
+   * \endcode
+   *
+   * \param typed_lambda typed lambda function.
+   * \tparam FLambda the type of the lambda function.
+   * \returns reference to self.
+   */
+  template <typename FLambda, typename = typename std::enable_if<
+                                  std::is_convertible<FLambda,
+                                                      std::function<R(Args...)>>::value>::type>
+  TSelf& operator=(FLambda typed_lambda) {  // NOLINT(*)
+    packed_ = Function::FromUnpacked(typed_lambda);
+    return *this;
+  }
+  /*!
+   * \brief copy assignment operator from PackedFunc.
+   * \param packed The packed function.
+   * \returns reference to self.
+   */
+  TSelf& operator=(Function packed) {
+    packed_ = std::move(packed);
+    return *this;
+  }
+  /*!
+   * \brief Invoke the operator.
+   * \param args The arguments
+   * \returns The return value.
+   */
+  TVM_FFI_INLINE R operator()(Args... args) const {
+    return details::typed_packed_call_dispatcher<R>::run(packed_, std::forward<Args>(args)...);
+  }
+  /*!
+   * \brief convert to PackedFunc
+   * \return the internal PackedFunc
+   */
+  operator Function() const { return packed(); }
+  /*!
+   * \return reference the internal PackedFunc
+   */
+  const Function& packed() const & { return packed_; }
+  /*!
+   * \return r-value reference the internal PackedFunc
+   */
+  constexpr Function&& packed() && {
+    return std::move(packed_);
+  }
+  /*! \return Whether the packed function is nullptr */
+  bool operator==(std::nullptr_t null) const { return packed_ == nullptr; }
+  /*! \return Whether the packed function is not nullptr */
+  bool operator!=(std::nullptr_t null) const { return packed_ != nullptr; }
+
+
+
+ private:
+  /*! \brief The internal packed function */
+  Function packed_;
+};
+
+
+
+template <typename FType>
+inline constexpr bool use_default_type_traits_v<TypedFunction<FType>> = false;
+
+template <typename FType>
+struct TypeTraits<TypedFunction<FType>> : public TypeTraitsBase {
+  static TVM_FFI_INLINE void CopyToAnyView(const TypedFunction<FType>& src, TVMFFIAny* result) {
+    TypeTraits<Function>::CopyToAnyView(src.packed(), result);
+  }
+
+  static TVM_FFI_INLINE void MoveToAny(TypedFunction<FType> src, TVMFFIAny* result) {
+    TypeTraits<Function>::MoveToAny(std::move(src.packed()), result);
+  }
+
+  static TVM_FFI_INLINE bool CheckAnyView(const TVMFFIAny* src) {
+    return src->type_index == TypeIndex::kTVMFFIFunc;
+  }
+
+  static TVM_FFI_INLINE TypedFunction<FType> CopyFromAnyViewAfterCheck(const TVMFFIAny* src) {
+    return TypedFunction(TypeTraits<Function>::CopyFromAnyViewAfterCheck(src));
+  }
+
+  static TVM_FFI_INLINE std::optional<TypedFunction<FType>> TryCopyFromAnyView(const TVMFFIAny* src) {
+    std::optional<Function> opt = TypeTraits<Function>::TryCopyFromAnyView(src);
+    if (opt.has_value()) {
+      return TypedFunction<FType>(std::move(opt.value()));
+    } else {
+      return std::nullopt;
+    }
+  }
+
+  static TVM_FFI_INLINE std::string TypeStr() {
+    return details::FunctionInfo<FType>::Sig();
+  }
+};
+
 /*! \brief Registry for global function */
 class Function::Registry {
  public:
