@@ -31,9 +31,6 @@
 namespace tvm {
 namespace runtime {
 
-template <typename T>
-class Optional;
-
 using tvm::ffi::Object;
 using tvm::ffi::ObjectPtr;
 using tvm::ffi::ObjectPtrEqual;
