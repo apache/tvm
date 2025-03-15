@@ -695,6 +695,30 @@ def BindSymbolicVars(
     return _ffi_api.BindSymbolicVars(binding_map, func_name)  # type: ignore
 
 
+def CheckForSpecialCase(
+    special_case: Mapping[Union[str, tvm.tir.Var, Var], Union[tvm.tir.PrimExpr, Expr]]
+) -> tvm.ir.transform.Pass:
+    """Bind params of function of the module to constant tensors to produce a
+    special case
+
+    Parameters
+    ----------
+    special_case : Mapping[Union[str, tvm.tir.Var, Var], Union[tvm.tir.PrimExpr, Expr]],
+        The map from symbolic varname to integer.
+
+    Returns
+    -------
+    ret: tvm.ir.transform.Pass
+    """
+    # Relax uses int64 for symbolic variables, but the FFI
+    # converts python integers into int32.
+    special_case = {
+        key: tvm.tir.const(value, "int64") if isinstance(value, int) else value
+        for key, value in special_case.items()
+    }
+    return _ffi_api.CheckForSpecialCase(special_case)  # type: ignore
+
+
 def RunCodegen(
     target_options: Optional[dict] = None,
     entry_functions: Optional[List[str]] = None,
