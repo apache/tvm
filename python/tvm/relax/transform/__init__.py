@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""Relax transformations. """
+"""Relax transformations."""
 
 from .transform import (
     AdjustMatmulOrder,
@@ -66,6 +66,7 @@ from .transform import (
     PatternCheckContext,
     RealizeVDevice,
     RemovePurityChecking,
+    RemoveSymbolicExpressionInSubroutine,
     RemoveUnusedOutputs,
     RemoveUnusedParameters,
     ReorderPermuteDimsAfterConcat,
