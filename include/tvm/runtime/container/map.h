@@ -18,30 +18,19 @@
  */
 
 /*!
- * \file src/runtime/debug_compile.cc
- * \brief File used for debug migration
+ * \file tvm/runtime/container/map.h
+ * \brief Runtime Map container types.
  */
-// #include <tvm/ir/expr.h>
-#include <tvm/runtime/container/array.h>
-#include <tvm/runtime/container/map.h>
-#include <tvm/runtime/container/optional.h>
-#include <tvm/runtime/container/string.h>
-#include <tvm/runtime/container/variant.h>
-//#include <tvm/runtime/disco/disco_worker.h>
-//#include <tvm/runtime/ndarray.h>
-#include <tvm/runtime/packed_func.h>
-//#include <tvm/runtime/registry.h>
-//#include <tvm/tir/expr.h>
+#ifndef TVM_RUNTIME_CONTAINER_MAP_H_
+#define TVM_RUNTIME_CONTAINER_MAP_H_
+
+#include <tvm/ffi/container/map.h>
 
 namespace tvm {
-namespace debug {
+namespace runtime {
 
-using namespace tvm::runtime;
+using tvm::ffi::Map;
 
-String Test() {
-  String value = "xyz";
-  return value;
-}
-
-}  // namespace debug
 }  // namespace tvm
+}  // namespace runtime
+#endif  // TVM_RUNTIME_CONTAINER_MAP_H_
