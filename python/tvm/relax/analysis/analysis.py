@@ -372,9 +372,12 @@ def has_reshape_pattern(func: tir.PrimFunc) -> bool:
     return _ffi_api.has_reshape_pattern(func)  # type: ignore
 
 
-def contains_impure_call(expr: Expr, own_name: Optional[Union[Var, GlobalVar]] = None) -> bool:
-    """
-    Check if the given expression (likely a function body) contains any impure calls.
+def contains_impure_call(
+    expr: Expr,
+    own_name: Optional[Union[Var, GlobalVar]] = None,
+    assumed_purity_when_unknown: bool = False,
+) -> bool:
+    """Check if the given expression (likely a function body) contains any impure calls.
 
     Parameters
     ----------
@@ -384,6 +387,10 @@ def contains_impure_call(expr: Expr, own_name: Optional[Union[Var, GlobalVar]] =
     own_name : Var or GlobalVar (optional)
         For a recursive function, the analysis can ignore the self-calls
         for checking purity.
+
+    assumed_purity_when_unknown: bool
+        The purity to assume when not otherwise known.  Defaults to
+        False, treating unknown purity as impure
 
     Returns
     -------
@@ -397,7 +404,7 @@ def contains_impure_call(expr: Expr, own_name: Optional[Union[Var, GlobalVar]] =
     Also, an impure call in a *nested* function does *not* mean that the outer expression contains
     an impure call--it only does if the nested function is *later called*.
     """
-    return _ffi_api.contains_impure_call(expr, own_name)
+    return _ffi_api.contains_impure_call(expr, own_name, assumed_purity_when_unknown)
 
 
 def get_var2val(func: Function) -> Dict[Var, Expr]:

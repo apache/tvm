@@ -136,12 +136,12 @@ def test_closure():
             )
             return res
 
-        @R.function(private=True)
+        @R.function(pure=True, private=True)
         def main_inner_func(x1: R.Tensor((2, 3), "float32"), c1: R.Tensor((2, 3), "float32")):
             r_1: R.Tensor((2, 3), "float32") = R.add(x1, c1)
             return r_1
 
-        @R.function(private=True)
+        @R.function(pure=True, private=True)
         def main_outer_func(y: R.Tensor((2, 3), "float32")) -> R.Object:
             inner_func = R.make_closure(Expected.main_inner_func, (y,))
             return inner_func
@@ -153,11 +153,11 @@ def test_closure():
         def main(
             x: R.Tensor((2, 3), "float32"), y: R.Tensor((2, 3), "float32")
         ) -> R.Tensor((2, 3), "float32"):
-            @R.function
+            @R.function(pure=True)
             def outer_func(
                 c1: R.Tensor((2, 3), "float32")
             ) -> R.Callable((R.Tensor((2, 3), "float32"),), R.Tensor((2, 3), "float32")):
-                @R.function
+                @R.function(pure=True)
                 def inner_func(x1: R.Tensor((2, 3), "float32")) -> R.Tensor((2, 3), "float32"):
                     s: R.Tensor((2, 3), "float32") = R.add(x1, c1)
                     return s
