@@ -141,7 +141,7 @@ class SortScanDispatcher(BackendDispatcher):
                 and call.op.name == "relax.cumsum"
                 and call.attrs.exclusive == 0
             ):
-                from tvm.relax.backend_tir import (  # pylint: disable=import-outside-toplevel
+                from tvm.relax.backend.gpu_generic.tir import (  # pylint: disable=import-outside-toplevel
                     gpu_2d_continuous_cumsum,
                 )
 

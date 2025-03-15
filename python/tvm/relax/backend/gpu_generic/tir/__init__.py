@@ -14,7 +14,7 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
+"""Relax backends, tir based"""
 
-"""External backend codegen modules for Relax, tir based."""
-
-from .cutlass import cutlass_fcodegen
+from .cumsum import gpu_2d_continuous_cumsum
+from .sampling import gpu_multinomial_from_uniform, generic_get_sample_index
