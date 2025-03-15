@@ -189,10 +189,8 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         on_value = relax.PrimValue(on_value)
         off_value = relax.PrimValue(off_value)
 
-        return self.block_builder.emit(
-            relax.op.one_hot(x, on_value, off_value, num_classes, axis)
-        )
-    
+        return self.block_builder.emit(relax.op.one_hot(x, on_value, off_value, num_classes, axis))
+
     ########## Others ##########
 
     def create_convert_map(
