@@ -16,9 +16,10 @@
 # under the License.
 """The Relax Metal backend compilation pipeline and other passes."""
 from .pipeline import (
+    dataflow_lower_passes,
     finalize_passes,
     get_default_pipeline,
     legalize_passes,
-    dataflow_lower_passes,
     library_dispatch_passes,
 )
+from . import tir
