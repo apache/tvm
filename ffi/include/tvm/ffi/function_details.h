@@ -210,7 +210,7 @@ struct unpack_call_dispatcher<R, 0, index, F> {
 template <int index, typename F>
 struct unpack_call_dispatcher<void, 0, index, F> {
   template <typename... Args>
-  TVM_FFI_INLINE static void run(const std::string*, FGetFuncSignature, const F&, int32_t,
+  TVM_FFI_INLINE static void run(const std::string*, FGetFuncSignature, const F& f, int32_t,
                                  const AnyView*, Any*, Args&&... unpacked_args) {
     f(std::forward<Args>(unpacked_args)...);
   }
@@ -243,6 +243,22 @@ struct unpack_call_by_signature<R(Args...)> {
   }
 };
 
+
+template <typename R>
+struct typed_packed_call_dispatcher {
+  template <typename F, typename... Args>
+  TVM_FFI_INLINE static R run(const F& f, Args&&... args) {
+    return f(std::forward<Args>(args)...);
+  }
+};
+
+template <>
+struct typed_packed_call_dispatcher<void> {
+  template <typename F,typename... Args>
+  TVM_FFI_INLINE static void run(const F& f, Args&&... args) {
+    f(std::forward<Args>(args)...);
+  }
+};
 }  // namespace details
 }  // namespace ffi
 }  // namespace tvm
