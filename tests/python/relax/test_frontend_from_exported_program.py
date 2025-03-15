@@ -3434,7 +3434,7 @@ def test_empty_like():
     class Expected:
         @R.function
         def main(
-                inp_0: R.Tensor((5,), dtype="float32"),
+            inp_0: R.Tensor((5,), dtype="float32"),
         ) -> R.Tuple(R.Tensor((5,), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((5,), dtype="float32") = R.zeros_like(inp_0, dtype="void")
@@ -3475,7 +3475,7 @@ def test_select():
     class Select(Module):
         def forward(self, input):
             return torch.select(input, 0, 1)
-   
+
     @tvm.script.ir_module
     class Expected:
         @R.function
@@ -3491,7 +3491,7 @@ def test_select():
     example_args = (torch.randn(2, 3, dtype=torch.float32),)
 
     verify_model(Select(), example_args, {}, Expected)
-    
+
 
 def test_gather():
     class Gather0(Module):
