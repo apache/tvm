@@ -107,11 +107,11 @@ class Tensor(_TensorOp):
         def _check_tensor(expr: rx.Expr) -> None:
             assert expr.struct_info_ is not None
             assert isinstance(expr.struct_info, TensorStructInfo)
-            assert expr.struct_info.ndim != -1
-            assert expr.struct_info.shape is not None
-            assert expr.struct_info.shape.struct_info_ is not None
-            assert isinstance(expr.struct_info.shape.struct_info, ShapeStructInfo)
-            assert expr.struct_info.shape.struct_info.values is not None
+            if expr.struct_info.ndim != -1:
+                assert expr.struct_info.shape is not None
+                assert expr.struct_info.shape.struct_info_ is not None
+                assert isinstance(expr.struct_info.shape.struct_info, ShapeStructInfo)
+                assert expr.struct_info.shape.struct_info.values is not None
 
         _check_tensor(_expr)
         self._expr = _expr
@@ -148,26 +148,28 @@ class Tensor(_TensorOp):
 
         If shape is a string `name`, we create a symbolic shape `tvm.tir.Var(name, "int64")`.
         """
-        new_shape = []
-        for expr in shape:
+
+        def _normalize_dim(expr):
             if isinstance(expr, (int, tir.IntImm)):
                 expr = int(expr)
                 assert expr >= 0
-                new_shape.append(expr)
-                continue
-            if isinstance(expr, str):
-                expr = tir.Var(expr, "int64")
-                new_shape.append(expr)
-                continue
-            if not isinstance(expr, tir.PrimExpr):
+                return expr
+            elif isinstance(expr, str):
+                return tir.Var(expr, "int64")
+            elif isinstance(expr, tir.PrimExpr):
+                assert expr.dtype == "int64"
+                return expr
+            else:
                 raise TypeError(f"Invalid shape: {shape}")
-            assert expr.dtype == "int64"
-            new_shape.append(expr)
+
+        if shape is not None:
+            shape = [_normalize_dim(dim) for dim in shape]
+
         return Tensor(
             _expr=rx.Var(
                 name_hint=name,
                 struct_info=TensorStructInfo(
-                    shape=new_shape,  # type: ignore[arg-type]
+                    shape=shape,  # type: ignore[arg-type]
                     dtype=dtype,
                 ),
             )
