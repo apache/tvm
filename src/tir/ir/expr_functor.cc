@@ -279,10 +279,11 @@ PrimExpr ExprMutator::VisitExpr_(const BroadcastNode* op) {
 PrimExpr ExprMutator::VisitExpr_(const ShuffleNode* op) {
   auto fexpr = [this](const PrimExpr& e) { return this->VisitExpr(e); };
   auto vectors = op->vectors.Map(fexpr);
-  if (vectors.same_as(op->vectors)) {
+  auto indices = op->indices.Map(fexpr);
+  if (vectors.same_as(op->vectors) && indices.same_as(op->indices)) {
     return GetRef<PrimExpr>(op);
   } else {
-    return Shuffle(vectors, op->indices);
+    return Shuffle(vectors, indices);
   }
 }
 
