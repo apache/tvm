@@ -440,6 +440,12 @@ inline TVMArrayHandle NDArray::FFIGetHandle(const ObjectRef& nd) {
   return ptr;
 }
 
+inline TVMArrayHandle ObjectHandleToTVMArrayHandle(Object* handle) {
+  return reinterpret_cast<TVMArrayHandle>(
+    static_cast<NDArray::Container*>(static_cast<NDArray::ContainerBase*>(handle))
+  );
+}
+
 inline Object* TVMArrayHandleToObjectHandle(TVMArrayHandle handle) {
   return static_cast<NDArray::Container*>(reinterpret_cast<NDArray::ContainerBase*>(handle));
 }
