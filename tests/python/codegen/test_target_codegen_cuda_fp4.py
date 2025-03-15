@@ -211,5 +211,84 @@ def test_e2m1_reinterpret():
         )
 
 
+@tvm.testing.requires_cuda_compute_version(10)
+def test_e2m1_dequantize():
+    n = 128
+
+    dev = tvm.device("cuda", 0)
+    target = tvm.target.Target.from_device(dev)
+    num_elem_per_storage = 32 // 4
+
+    def get_reinterpret_mod(func_type, vector_length):
+        @T.prim_func
+        def shuffle_reinterpret(
+            A: T.Buffer((n // num_elem_per_storage,), "uint32"),
+            B: T.Buffer((n,), "float16"),
+        ):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            for i in range(n):
+                with T.block("C"):
+                    v_i = T.axis.spatial(n, i)
+                    T.reads(A[v_i])
+                    T.writes(B[v_i])
+                    B[v_i] = T.Shuffle(
+                        [
+                            T.reinterpret(
+                                "float4_e2m1fnx2",
+                                T.bitwise_and(
+                                    T.shift_right(
+                                        A[v_i // num_elem_per_storage],
+                                        ((v_i % num_elem_per_storage) // 2 * 4 * 2).astype(
+                                            "uint32"
+                                        ),
+                                    ),
+                                    T.uint32((1 << (4 * 2)) - 1),
+                                ).astype("uint8"),
+                            ).astype("float16x2")
+                        ],
+                        indices=[v_i % 2],
+                    )
+
+        @T.prim_func
+        def scalar_reinterpret(
+            A: T.Buffer((n // num_elem_per_storage,), "uint32"),
+            B: T.Buffer((n,), "float16"),
+        ):
+            T.func_attr({"tir.noalias": T.bool(True)})
+            for i in range(n):
+                with T.block("C"):
+                    v_i = T.axis.spatial(n, i)
+                    T.reads(A[v_i])
+                    T.writes(B[v_i])
+                    B[v_i] = T.reinterpret(
+                        "float4_e2m1fn",
+                        T.bitwise_and(
+                            T.shift_right(
+                                A[v_i // num_elem_per_storage],
+                                (v_i % num_elem_per_storage * 4).astype("uint32"),
+                            ),
+                            T.uint32((1 << 4) - 1),
+                        ).astype("uint8"),
+                    ).astype("float16")
+
+        func = shuffle_reinterpret if func_type == "shuffle" else scalar_reinterpret
+        sch = tvm.tir.Schedule(func)
+        block = sch.get_block("C")
+        b = sch.get_loops(block)
+        bx, tx, vec = sch.split(b[0], factors=[None, 32, vector_length])
+        sch.bind(bx, "blockIdx.x")
+        sch.bind(tx, "threadIdx.x")
+        sch.vectorize(vec)
+        return sch.mod
+
+    # We only test the whether the code can be compiled.
+    for func_type, vector_length in product(["shuffle", "scalar"], [1, 2, 4]):
+        if func_type == "shuffle" and vector_length == 1:
+            # Vectorize is necessary for shuffle.
+            continue
+        mod = get_reinterpret_mod(func_type, vector_length)
+        tvm.compile(mod, target=target)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
