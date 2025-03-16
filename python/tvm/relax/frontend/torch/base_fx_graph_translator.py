@@ -1084,8 +1084,40 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         # by the translator, and therefore we just return a copy of the input.
         return self.env[node.args[0]]
 
+    # TODO need to find correct way to implement copy.default. this is just one guess
+    def _copy(self, node: fx.Node) -> relax.Var:
+        # Returns a copy of the input tensor
+        import torch  # type: ignore
+
+        print("node.args[0]: ", node.args[0])
+        print("node.args[1]: ", node.args[1])
+        print("self.env[node.args[0]]", self.env[node.args[0]])
+        print("self.env[node.args[1]]", self.env[node.args[1]])
+
+        print("type(node.args[0]): ", type(node.args[0]))
+        print("type(node.args[1]): ", type(node.args[1]))
+        print("type(self.env[node.args[0]]): ", type(self.env[node.args[0]]))
+        print("type(self.env[node.args[1]]): ", type(self.env[node.args[1]]))
+
+
+        x = self.env[node.args[0]]
+        print('A')
+        if len(node.args) == 2:
+            print('B')
+            if isinstance(node.args[1], torch.dtype):
+                print('C')
+                dtype = self._convert_data_type(node.args[1], self.env)
+                return self.block_builder.emit(relax.op.astype(x, dtype))
+        elif "dtype" in node.kwargs:
+            print('D')
+            dtype = self._convert_data_type(node.kwargs["dtype"], self.env)
+            return self.block_builder.emit(relax.op.astype(x, dtype))
+        print('E')
+        return x
+
+
     def _copy_(self, node: fx.Node) -> relax.Var:
-        # Copies the source tensor's to the destination tensor
+        # Copies the source tensor's into the destination tensor
         # In TVM, that means simply returning the source tensor
         return self.env[node.args[1]]
 
