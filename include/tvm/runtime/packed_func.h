@@ -42,7 +42,7 @@ using ffi::Any;
  * \brief Utility function to convert legacy TVMArgValue to AnyView
  * \note This routine is not fastest, but serves purpose to do transition of ABI.
  */
-inline TVMFFIAny LegacyTVMArgValueToAnyView(int type_code, TVMValue value) {
+inline AnyView LegacyTVMArgValueToAnyView(TVMValue value, int type_code) {
   TVMFFIAny res;
   switch (type_code) {
     case kTVMArgInt: {
@@ -122,7 +122,7 @@ inline TVMFFIAny LegacyTVMArgValueToAnyView(int type_code, TVMValue value) {
       LOG(FATAL) << "Unsupported type code: " << type_code;
     }
   }
-  return res;
+  return AnyView::CopyFromTVMFFIAny(res);
 }
 
 /*
@@ -209,6 +209,20 @@ inline void AnyViewToLegacyTVMArgValue(TVMFFIAny src, TVMValue* value, int* type
   }
 }
 
+
+/*
+ * \brief Move Any to legacy TVMValue and type_code
+ * \param src The Any to move
+ * \param value The TVMValue to store the result
+ * \param type_code The type code to store the result
+ */
+inline void MoveAnyToLegacyTVMValue(Any&& src, TVMValue* value, int* type_code) {
+  TVMFFIAny val;
+  src.MoveToTVMFFIAny(&val);
+  // NOTE: conversion rule is the same as AnyViewToLegacyTVMArgValue
+  AnyViewToLegacyTVMArgValue(val, value, type_code);
+}
+
 /*!
  * \brief Legacy TVM args kept for backward compact
  */
@@ -235,7 +249,7 @@ class TVMArgs {
    * \return the ith argument.
    */
   AnyView operator[](int i) const {
-    return AnyView::CopyFromTVMFFIAny(LegacyTVMArgValueToAnyView(type_codes[i], values[i]));
+    return LegacyTVMArgValueToAnyView(values[i], type_codes[i]);
   }
 };
 
@@ -378,13 +392,21 @@ class PackedFunc : public ffi::Function {
    * \param args The arguments
    * \param rv The return value.
    */
-  TVM_ALWAYS_INLINE void CallPacked(TVMArgs args, Any* rv) const {
+  static TVM_ALWAYS_INLINE void LegacyCallPacked(ffi::FunctionObj* ffi_func, TVMArgs args, Any* rv) {
     std::vector<ffi::AnyView> args_vec(args.size());
     for (int i = 0; i < args.size(); ++i) {
       args_vec[i] = args[i];
     }
     // redirect to the normal call packed.
-    this->CallPacked(args.size(), args_vec.data(), rv);
+    ffi_func->CallPacked(args.size(), args_vec.data(), rv);
+  }
+  /*!
+   * \brief Call the function in legacy packed format.
+   * \param args The arguments
+   * \param rv The return value.
+   */
+  TVM_ALWAYS_INLINE void CallPacked(TVMArgs args, Any* rv) const {
+    LegacyCallPacked(static_cast<ffi::FunctionObj*>(data_.get()), args, rv);
   }
 };
 
