@@ -303,5 +303,11 @@ def test_batch_norm(target, dev):
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module0, target, dev)
 
 
+@tvm.testing.parametrize_targets("cuda")
+def test_dummy(target, dev):
+    version = torch.__version__
+    assert 0, f"Torch version is {version}"
+
+
 if __name__ == "__main__":
     tvm.testing.main()
