@@ -118,6 +118,13 @@ TEST(Func, FromUnpacked) {
   EXPECT_EQ(fconcact("abc", "def").operator String(), "abcdef");
 }
 
+TEST(Func, PassReturnAny) {
+  Function fadd_one = Function::FromUnpacked([](Any a) -> Any {
+    return a.operator int() + 1;
+  });
+  EXPECT_EQ(fadd_one(1).operator int(), 2);
+}
+
 TEST(Func, Global) {
   Function::SetGlobal("testing.add1",
                       Function::FromUnpacked([](const int32_t& a) -> int { return a + 1; }));

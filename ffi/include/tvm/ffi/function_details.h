@@ -36,25 +36,6 @@ namespace tvm {
 namespace ffi {
 namespace details {
 
-template <typename Type>
-struct Type2Str {
-  static std::string v() { return TypeTraitsNoCR<Type>::TypeStr(); }
-};
-
-template <>
-struct Type2Str<Any> {
-  static const char* v() { return "Any"; }
-};
-
-template <>
-struct Type2Str<AnyView> {
-  static const char* v() { return "AnyView"; }
-};
-template <>
-struct Type2Str<void> {
-  static const char* v() { return "void"; }
-};
-
 template <typename ArgType>
 struct Arg2Str {
   template <size_t i>

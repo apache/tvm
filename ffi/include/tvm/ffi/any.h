@@ -281,6 +281,26 @@ static_assert(sizeof(AnyView) == sizeof(TVMFFIAny));
 static_assert(sizeof(Any) == sizeof(TVMFFIAny));
 
 namespace details {
+
+template <typename Type>
+struct Type2Str {
+  static std::string v() { return TypeTraitsNoCR<Type>::TypeStr(); }
+};
+
+template <>
+struct Type2Str<Any> {
+  static std::string v() { return "Any"; }
+};
+
+template <>
+struct Type2Str<AnyView> {
+  static std::string v() { return "AnyView"; }
+};
+template <>
+struct Type2Str<void> {
+  static std::string v() { return "void"; }
+};
+
 // Extra unsafe method to help any manipulation
 struct AnyUnsafe : public ObjectUnsafe {
   /*!

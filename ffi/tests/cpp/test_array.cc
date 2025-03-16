@@ -228,4 +228,11 @@ TEST(Array, InsertEraseRange) {
   }
 }
 
+TEST(Array, FuncArrayAnyArg) {
+  Function fadd_one = Function::FromUnpacked([](Array<Any> a) -> Any {
+    return a[0].operator int() + 1;
+  });
+  EXPECT_EQ(fadd_one(Array<Any>{1}).operator int(), 2);
+}
+
 }  // namespace
