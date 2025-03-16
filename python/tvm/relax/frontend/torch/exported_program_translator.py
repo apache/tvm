@@ -277,6 +277,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             # linear algebra
             "linalg_vector_norm.default": self._linalg_vector_norm,
             # neural network
+            # TODO figure out all calls to batchnorm HERE and in fx_translator 
             "_native_batch_norm_legit_no_training.default": self._batch_norm_legit_no_training,
             "batch_norm.default": self._batch_norm_legit_no_training, # TODO keep or not? 
             "_native_batch_norm_legit_functional.default": self._batch_norm_legit_no_training, # when I don't do eval . TODO doesn't work right now!
@@ -436,6 +437,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                         assert (
                             func_name in self.convert_map
                         ), f"Unsupported function type {func_name}"
+                        print("Found a function called", func_name)
                         self.env[node] = self.convert_map[func_name](node)
                     else:
                         raise ValueError(f"Unsupported op {node.op}")

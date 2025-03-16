@@ -551,9 +551,7 @@ def _nn_batch_norm(bb: BlockBuilder, call: Call) -> Expr:
         epsilon=call.attrs.epsilon,
         center=call.attrs.center,
         scale=call.attrs.scale,
-        # By default relax batch_norm is training mode.
-        # To transform it to inference mode, use DecomposeOpsForInference.
-        training=False, # TODO this is wrong!!
+        training=call.attrs.training, 
         momentum=call.attrs.momentum,
     )
 
