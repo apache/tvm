@@ -263,4 +263,52 @@ TEST(String, Concat) {
   EXPECT_EQ(res4.compare("helloworld"), 0);
   EXPECT_EQ(res5.compare("worldhello"), 0);
 }
+
+TEST(String, Any) {
+  // test anyview promotion to any
+  AnyView view = "hello";
+
+  Any b = view;
+  EXPECT_EQ(b.type_index(), TypeIndex::kTVMFFIStr);
+  EXPECT_EQ(b.TryAs<String>().value(), "hello");
+  EXPECT_EQ(b.TryAs<std::string>().value(), "hello");
+
+  std::string s_world = "world";
+  view = s_world;
+  EXPECT_EQ(view.TryAs<std::string>().value(), "world");
+
+  String s{"hello"};
+  Any a = s;
+  EXPECT_EQ(a.type_index(), TypeIndex::kTVMFFIStr);
+  EXPECT_EQ(a.TryAs<String>().value(), "hello");
+  EXPECT_EQ(a.TryAs<std::string>().value(), "hello");
+}
+
+TEST(String, Bytes) {
+  // explicitly test zero element
+  std::string s = {'\0', 'a', 'b', 'c'};
+  Bytes b = s;
+  EXPECT_EQ(b.size(), 4);
+  EXPECT_EQ(b.operator std::string(), s);
+
+  TVMFFIByteArray arr{s.data(), static_cast<int64_t>(s.size())};
+  Bytes b2 = arr;
+  EXPECT_EQ(b2.size(), 4);
+  EXPECT_EQ(b2.operator std::string(), s);
+}
+
+TEST(String, BytesAny) {
+  std::string s = {'\0', 'a', 'b', 'c'};
+  TVMFFIByteArray arr{s.data(), static_cast<int64_t>(s.size())};
+
+  AnyView view = &arr;
+  EXPECT_EQ(view.type_index(), TypeIndex::kTVMFFIByteArrayPtr);
+  EXPECT_EQ(view.TryAs<Bytes>().value().operator std::string(), s);
+
+  Any b = view;
+  EXPECT_EQ(b.type_index(), TypeIndex::kTVMFFIBytes);
+
+  EXPECT_EQ(b.TryAs<Bytes>().value().operator std::string(), s);
+  EXPECT_EQ(b.TryAs<std::string>().value(), s);
+}
 }  // namespace

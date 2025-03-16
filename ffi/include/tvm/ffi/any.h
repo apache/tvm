@@ -144,9 +144,18 @@ namespace details {
  */
 TVM_FFI_INLINE void InplaceConvertAnyViewToAny(TVMFFIAny* data,
                                                [[maybe_unused]] size_t extra_any_bytes = 0) {
-  // TODO(tqchen): string conversion.
   if (data->type_index >= TVMFFITypeIndex::kTVMFFIStaticObjectBegin) {
     details::ObjectUnsafe::IncRefObjectInAny(data);
+  } else if (data->type_index == TypeIndex::kTVMFFIRawStr) {
+    // convert raw string to owned string object
+    String temp(data->v_c_str);
+    data->type_index = TypeIndex::kTVMFFIStr;
+    data->v_obj = details::ObjectUnsafe::MoveTVMFFIObjectPtrFromObjectRef(&temp);
+  } else if (data->type_index == TypeIndex::kTVMFFIByteArrayPtr) {
+    // convert byte array to owned bytes object
+    Bytes temp(*static_cast<TVMFFIByteArray*>(data->v_ptr));
+    data->type_index = TypeIndex::kTVMFFIBytes;
+    data->v_obj = details::ObjectUnsafe::MoveTVMFFIObjectPtrFromObjectRef(&temp);
   }
 }
 }  // namespace details
@@ -209,7 +218,7 @@ class Any {
     return *this;
   }
   // convert from/to AnyView
-  explicit Any(const AnyView& other) : data_(other.data_) {
+  Any(const AnyView& other) : data_(other.data_) {  // NOLINT(*)
     details::InplaceConvertAnyViewToAny(&data_);
   }
   Any& operator=(const AnyView& other) {
@@ -311,7 +320,7 @@ struct AnyHash {
     uint64_t val_hash = [&]() -> uint64_t {
       if (src.data_.type_index == TypeIndex::kTVMFFIStr) {
         const StringObj* src_str = details::AnyUnsafe::ConvertAfterCheck<const StringObj*>(src);
-        return details::StableHashBytes(src_str->data, src_str->size);
+        return details::StableHashBytes(src_str->bytes.data, src_str->bytes.size);
       } else {
         return std::hash<int64_t>()(src.data_.v_int64);
       }
@@ -333,10 +342,12 @@ struct AnyEqual {
     // byte equivalence
     if (lhs.data_.v_int64 == rhs.data_.v_int64) return true;
     // specialy handle string hash
-    if (lhs.data_.type_index == TypeIndex::kTVMFFIStr) {
-      const StringObj* lhs_str = details::AnyUnsafe::ConvertAfterCheck<const StringObj*>(lhs);
-      const StringObj* rhs_str = details::AnyUnsafe::ConvertAfterCheck<const StringObj*>(rhs);
-      return String::memncmp(lhs_str->data, rhs_str->data, lhs_str->size, rhs_str->size) == 0;
+    if (lhs.data_.type_index == TypeIndex::kTVMFFIStr ||
+        lhs.data_.type_index == TypeIndex::kTVMFFIBytes) {
+      const BytesObjBase* lhs_str = details::AnyUnsafe::ConvertAfterCheck<const BytesObjBase*>(lhs);
+      const BytesObjBase* rhs_str = details::AnyUnsafe::ConvertAfterCheck<const BytesObjBase*>(rhs);
+      return Bytes::memncmp(lhs_str->bytes.data, rhs_str->bytes.data, lhs_str->bytes.size,
+                            rhs_str->bytes.size) == 0;
     }
     return false;
   }
