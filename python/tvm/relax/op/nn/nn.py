@@ -1484,7 +1484,7 @@ def batch_norm(
 
     training : bool
         A boolean value to indicate whether training or in eval mode. By default.
-          relax batch_norm is training mode. To transform it to inference mode, 
+          relax batch_norm is training mode. To transform it to inference mode,
           can use DecomposeOpsForInference.
 
     Returns
