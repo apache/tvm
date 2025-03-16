@@ -824,8 +824,6 @@ TVM_REGISTER_OP("relax.reshape")
 /* relax.split */
 TVM_REGISTER_NODE_TYPE(SplitAttrs);
 
-#include <cassert>
-
 Expr split(Expr x, Variant<IntImm, Array<IntImm>> indices_or_sections, int axis) {
   ObjectPtr<SplitAttrs> attrs = make_object<SplitAttrs>();
   if (const auto* indices = indices_or_sections.as<ArrayNode>()) {
