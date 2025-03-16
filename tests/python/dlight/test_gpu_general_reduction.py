@@ -222,6 +222,97 @@ def test_softmax_2():
     _check(Before, After)
 
 
+def test_softmax_3():
+    # fmt: off
+    @I.ir_module
+    class Before:
+        @T.prim_func
+        def main(input: T.Buffer((T.int64(1), T.int64(4), T.int64(32), T.int64(8192)), "float32"), T_softmax_norm: T.Buffer((T.int64(1), T.int64(4), T.int64(32), T.int64(8192)), "float32")):
+            # with T.block("root"):
+            T_softmax_maxelem = T.alloc_buffer((T.int64(1), T.int64(4), T.int64(8192)))
+            T_softmax_exp = T.alloc_buffer((T.int64(1), T.int64(4), T.int64(32), T.int64(8192)))
+            T_softmax_expsum = T.alloc_buffer((T.int64(1), T.int64(4), T.int64(8192)))
+            for i0, i1, i2, k in T.grid(T.int64(1), T.int64(4), T.int64(8192), T.int64(32)):
+                with T.block("T_softmax_maxelem"):
+                    v_i0, v_i1, v_i2, v_k = T.axis.remap("SSSR", [i0, i1, i2, k])
+                    T.reads(input[v_i0, v_i1, v_k, v_i2])
+                    T.writes(T_softmax_maxelem[v_i0, v_i1, v_i2])
+                    with T.init():
+                        T_softmax_maxelem[v_i0, v_i1, v_i2] = T.float32(-340282346638528859811704183484516925440.0)
+                    T_softmax_maxelem[v_i0, v_i1, v_i2] = T.max(T_softmax_maxelem[v_i0, v_i1, v_i2], input[v_i0, v_i1, v_k, v_i2])
+            for i0, i1, i2, i3 in T.grid(T.int64(1), T.int64(4), T.int64(32), T.int64(8192)):
+                with T.block("T_softmax_exp"):
+                    v_i0, v_i1, v_i2, v_i3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
+                    T.reads(input[v_i0, v_i1, v_i2, v_i3], T_softmax_maxelem[v_i0, v_i1, v_i3])
+                    T.writes(T_softmax_exp[v_i0, v_i1, v_i2, v_i3])
+                    T_softmax_exp[v_i0, v_i1, v_i2, v_i3] = T.exp(input[v_i0, v_i1, v_i2, v_i3] - T_softmax_maxelem[v_i0, v_i1, v_i3])
+            for i0, i1, i2, k in T.grid(T.int64(1), T.int64(4), T.int64(8192), T.int64(32)):
+                with T.block("T_softmax_expsum"):
+                    v_i0, v_i1, v_i2, v_k = T.axis.remap("SSSR", [i0, i1, i2, k])
+                    T.reads(T_softmax_exp[v_i0, v_i1, v_k, v_i2])
+                    T.writes(T_softmax_expsum[v_i0, v_i1, v_i2])
+                    with T.init():
+                        T_softmax_expsum[v_i0, v_i1, v_i2] = T.float32(0.0)
+                    T_softmax_expsum[v_i0, v_i1, v_i2] = T_softmax_expsum[v_i0, v_i1, v_i2] + T_softmax_exp[v_i0, v_i1, v_k, v_i2]
+            for i0, i1, i2, i3 in T.grid(T.int64(1), T.int64(4), T.int64(32), T.int64(8192)):
+                with T.block("T_softmax_norm"):
+                    v_i0, v_i1, v_i2, v_i3 = T.axis.remap("SSSS", [i0, i1, i2, i3])
+                    T.reads(T_softmax_exp[v_i0, v_i1, v_i2, v_i3], T_softmax_expsum[v_i0, v_i1, v_i3])
+                    T.writes(T_softmax_norm[v_i0, v_i1, v_i2, v_i3])
+                    T.block_attr({"axis": 2})
+                    T_softmax_norm[v_i0, v_i1, v_i2, v_i3] = T_softmax_exp[v_i0, v_i1, v_i2, v_i3] / T_softmax_expsum[v_i0, v_i1, v_i3]
+
+
+    @I.ir_module
+    class After:
+        @T.prim_func
+        def main(input: T.Buffer((T.int64(1), T.int64(4), T.int64(32), T.int64(8192)), "float32"), T_softmax_norm: T.Buffer((T.int64(1), T.int64(4), T.int64(32), T.int64(8192)), "float32")):
+            T.func_attr({"tir.is_scheduled": 1})
+            # with T.block("root"):
+            T_softmax_maxelem_shared = T.alloc_buffer((T.int64(1), T.int64(4), T.int64(8192)), scope="shared")
+            T_softmax_expsum_shared = T.alloc_buffer((T.int64(1), T.int64(4), T.int64(8192)), scope="shared")
+            for ax0_ax2_fused in T.thread_binding(T.int64(32768), thread="blockIdx.x"):
+                for ax0, ax1 in T.grid(T.int64(1), T.int64(1)):
+                    for ax2_fused_1 in T.thread_binding(T.int64(256), thread="threadIdx.x"):
+                        for ax2_fused_0 in T.serial(T.int64(1), annotations={"pragma_auto_unroll_max_step": 256, "pragma_unroll_explicit": 1}):
+                            with T.block("T_softmax_maxelem"):
+                                v0 = T.axis.spatial(T.int64(4), ax0_ax2_fused // T.int64(8192) + ax0)
+                                v1 = T.axis.spatial(T.int64(8192), ax0_ax2_fused % T.int64(8192) + ax1)
+                                v2 = T.axis.reduce(T.int64(32), ax2_fused_0 * T.int64(256) + ax2_fused_1)
+                                T.where(ax2_fused_0 * T.int64(256) + ax2_fused_1 < T.int64(32))
+                                T.reads(input[T.int64(0), v0, v2, v1])
+                                T.writes(T_softmax_maxelem_shared[T.int64(0), v0, v1])
+                                with T.init():
+                                    T_softmax_maxelem_shared[T.int64(0), v0, v1] = T.float32(-340282346638528859811704183484516925440.0)
+                                T_softmax_maxelem_shared[T.int64(0), v0, v1] = T.max(T_softmax_maxelem_shared[T.int64(0), v0, v1], input[T.int64(0), v0, v2, v1])
+                for ax0, ax1 in T.grid(T.int64(1), T.int64(1)):
+                    for ax2_fused_1 in T.thread_binding(T.int64(256), thread="threadIdx.x"):
+                        for ax2_fused_0 in T.serial(T.int64(1), annotations={"pragma_auto_unroll_max_step": 256, "pragma_unroll_explicit": 1}):
+                            with T.block("T_softmax_expsum"):
+                                v0 = T.axis.spatial(T.int64(4), ax0_ax2_fused // T.int64(8192) + ax0)
+                                v1 = T.axis.spatial(T.int64(8192), ax0_ax2_fused % T.int64(8192) + ax1)
+                                v2 = T.axis.reduce(T.int64(32), ax2_fused_0 * T.int64(256) + ax2_fused_1)
+                                T.where(ax2_fused_0 * T.int64(256) + ax2_fused_1 < T.int64(32))
+                                T.reads(input[T.int64(0), v0, v2, v1], T_softmax_maxelem_shared[T.int64(0), v0, v1])
+                                T.writes(T_softmax_expsum_shared[T.int64(0), v0, v1])
+                                with T.init():
+                                    T_softmax_expsum_shared[T.int64(0), v0, v1] = T.float32(0.0)
+                                T_softmax_expsum_shared[T.int64(0), v0, v1] = T_softmax_expsum_shared[T.int64(0), v0, v1] + T.exp(input[T.int64(0), v0, v2, v1] - T_softmax_maxelem_shared[T.int64(0), v0, v1])
+                for ax1_1 in T.thread_binding(T.int64(256), thread="threadIdx.x"):
+                    for ax1_0 in T.serial(T.int64(1), annotations={"pragma_auto_unroll_max_step": 256, "pragma_unroll_explicit": 1}):
+                        with T.block("T_softmax_norm"):
+                            v0 = T.axis.spatial(T.int64(4), ax0_ax2_fused // T.int64(8192))
+                            v1 = T.axis.spatial(T.int64(32), ax1_0 * T.int64(256) + ax1_1)
+                            v2 = T.axis.spatial(T.int64(8192), ax0_ax2_fused % T.int64(8192))
+                            T.where(ax1_0 * T.int64(256) + ax1_1 < T.int64(32))
+                            T.reads(input[T.int64(0), v0, v1, v2], T_softmax_maxelem_shared[T.int64(0), v0, v2], T_softmax_expsum_shared[T.int64(0), v0, v2])
+                            T.writes(T_softmax_norm[T.int64(0), v0, v1, v2])
+                            T.block_attr({"axis": 2})
+                            T_softmax_norm[T.int64(0), v0, v1, v2] = T.exp(input[T.int64(0), v0, v1, v2] - T_softmax_maxelem_shared[T.int64(0), v0, v2]) / T_softmax_expsum_shared[T.int64(0), v0, v2]
+    # fmt: on
+    _check(Before, After)
+
+
 def test_layer_norm():
     # fmt: off
     @I.ir_module
