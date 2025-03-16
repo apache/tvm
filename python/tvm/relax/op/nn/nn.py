@@ -1393,6 +1393,7 @@ def batch_norm(
     center: bool = True,
     scale: bool = True,
     momentum: float = 0.1,
+    training: bool = True,
 ) -> Expr:
     r"""
     Batch normalization layer (Ioffe and Szegedy, 2014).
@@ -1481,29 +1482,19 @@ def batch_norm(
     momentum : float
         The value used for the moving_mean and moving_var update.
 
+    training : bool
+        A boolean value to indicate whether training or in eval mode. By default.
+          relax batch_norm is training mode. To transform it to inference mode, 
+          can use DecomposeOpsForInference.
+
+
     Returns
     -------
     result : relax.Expr
         The computed result.
     """
-    print("\n!!The parameters passed to _ffi_api.batch_norm are: !!!!!!!!!")
-    print("data: ", data)
-    print("gamma: ", gamma)
-    print("beta: ", beta)
-    print("moving_mean: ", moving_mean)
-    print(dir(moving_mean)) # TODO find a way to print args
-    # moving_mean.show()
-    # print("moving_mean handle type: ", moving_mean.handle)
-    # print("moving_mean handle: ", type(moving_mean.handle))
-    # print("moving_var: ", moving_var)
-    # print("moving_var args 0: ", moving_var.args[0])
-    # print("axis: ", axis)
-    # print("epsilon: ", epsilon)
-    # print("center: ", center)
-    # print("scale: ", scale)
-    # print("momentum: ", momentum)
     return _ffi_api.batch_norm(  # type: ignore
-        data, gamma, beta, moving_mean, moving_var, axis, epsilon, center, scale, momentum
+        data, gamma, beta, moving_mean, moving_var, axis, epsilon, center, scale, momentum, training
     )
 
 
