@@ -15,11 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-# TODO remove
-import sys
-sys.path.append('/ssd1/htalendr/tvm/python')
-
-
 import tvm
 from tvm import relax
 import tvm.testing

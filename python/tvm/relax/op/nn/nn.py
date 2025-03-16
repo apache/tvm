@@ -1487,7 +1487,6 @@ def batch_norm(
           relax batch_norm is training mode. To transform it to inference mode, 
           can use DecomposeOpsForInference.
 
-
     Returns
     -------
     result : relax.Expr
