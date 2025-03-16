@@ -52,7 +52,7 @@ class PassInfo(tvm.runtime.Object):
 
 @tvm._ffi.register_object("transform.PassContext")
 class PassContext(tvm.runtime.Object):
-    """The basis where a Relay optimization/analysis runs on.
+    """The basis where a TVM optimization/analysis runs on.
     Each pass context contains a number of auxiliary information that is used
     to help an optimization pass. Such information includes the error reporter
     to record the errors of during the optimization, etc.

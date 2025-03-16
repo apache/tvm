@@ -91,6 +91,7 @@ TVM_DLL PatternSeq operator>>(const PatternSeq& lhs, const PatternSeq& rhs);
 class DFPatternNode : public Object {
  public:
   static constexpr const char* _type_key = "DFPatternNode";
+  static constexpr const uint32_t _type_child_slots = 21;
   TVM_DECLARE_BASE_OBJECT_INFO(DFPatternNode, Object);
 };
 
@@ -373,6 +374,7 @@ class VarPatternNode : public DFPatternNode {
   void VisitAttrs(tvm::AttrVisitor* v) { v->Visit("name", &name); }
 
   static constexpr const char* _type_key = "relax.dpl.VarPattern";
+  static constexpr const uint32_t _type_child_slots = 1;
   TVM_DECLARE_BASE_OBJECT_INFO(VarPatternNode, DFPatternNode);
 };
 

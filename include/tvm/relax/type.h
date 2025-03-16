@@ -74,7 +74,7 @@ class ShapeType : public Type {
 class TensorTypeNode : public TypeNode {
  public:
   /*!
-   * \brief The number of dimensions of the tensor, use -1 to denote tensor with unknwon number of
+   * \brief The number of dimensions of the tensor, use -1 to denote tensor with unknown number of
    * dimensions.
    */
   int ndim;

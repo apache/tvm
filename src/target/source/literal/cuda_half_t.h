@@ -385,103 +385,164 @@ static constexpr const char* _cuda_warp_intrinsic_util = R"(
 
 )";
 
-void declare_vector_type_extensions(std::ostringstream& stream, bool enable_fp16, bool enable_fp8,
-                                    bool enable_fp4) {
-  if (enable_fp16 || enable_fp8 || enable_fp4) {
+void declare_vector_type_extensions(std::ostringstream& stream, bool enable_fp16, bool enable_bf16,
+                                    bool enable_fp8, bool enable_fp4) {
+  if (enable_fp16 || enable_bf16) {
     stream << R"(
-struct __align__(8) half4 {
-  __half x, y, z, w;
-  __host__ __device__ half4() : x(__half(0)), y(__half(0)), z(__half(0)), w(__half(0)) {}
-  __host__ __device__ half4(__half x, __half y, __half z, __half w) : x(x), y(y), z(z), w(w) {}
+#include <type_traits>
+template <typename T, typename TVec2>
+struct __align__(8) half4_bfloat164 {
+  T x, y, z, w;
+  __host__ __device__ half4_bfloat164() : x(T(0)), y(T(0)), z(T(0)), w(T(0)) {}
+  __host__ __device__ half4_bfloat164(T x, T y, T z, T w) : x(x), y(y), z(z), w(w) {}
 )";
     if (enable_fp8) {
       stream << R"(
-  __host__ __device__ explicit half4(const __nv_fp8x4_e4m3& fp8x4) {
-    __nv_fp8x2_e4m3 lo_part, hi_part;
-    lo_part.__x = static_cast<__nv_fp8x2_storage_t>(fp8x4.__x & 0xFFFF);
-    hi_part.__x = static_cast<__nv_fp8x2_storage_t>((fp8x4.__x >> 16) & 0xFFFF);
-    __half2 lo_half2 = static_cast<__half2>(lo_part);
-    __half2 hi_half2 = static_cast<__half2>(hi_part);
-    x = reinterpret_cast<__half*>(&lo_half2)[0];
-    y = reinterpret_cast<__half*>(&lo_half2)[1];
-    z = reinterpret_cast<__half*>(&hi_half2)[0];
-    w = reinterpret_cast<__half*>(&hi_half2)[1];
+  __host__ __device__ explicit half4_bfloat164(const __nv_fp8x4_e4m3& fp8x4) {
+    if constexpr (std::is_same_v<T, __half>) {
+      __nv_fp8x2_e4m3 lo_part, hi_part;
+      lo_part.__x = static_cast<__nv_fp8x2_storage_t>(fp8x4.__x & 0xFFFF);
+      hi_part.__x = static_cast<__nv_fp8x2_storage_t>((fp8x4.__x >> 16) & 0xFFFF);
+      TVec2 lo_half2 = static_cast<TVec2>(lo_part);
+      TVec2 hi_half2 = static_cast<TVec2>(hi_part);
+      x = reinterpret_cast<T*>(&lo_half2)[0];
+      y = reinterpret_cast<T*>(&lo_half2)[1];
+      z = reinterpret_cast<T*>(&hi_half2)[0];
+      w = reinterpret_cast<T*>(&hi_half2)[1];
+    } else {
+      __nv_fp8_storage_t elem0_raw = static_cast<__nv_fp8_storage_t>(fp8x4.__x & 0xFF);
+      __nv_fp8_storage_t elem1_raw = static_cast<__nv_fp8_storage_t>((fp8x4.__x >> 8) & 0xFF);
+      __nv_fp8_storage_t elem2_raw = static_cast<__nv_fp8_storage_t>((fp8x4.__x >> 16) & 0xFF);
+      __nv_fp8_storage_t elem3_raw = static_cast<__nv_fp8_storage_t>((fp8x4.__x >> 24) & 0xFF);
+      __nv_fp8_e4m3 elem0, elem1, elem2, elem3;
+      elem0.__x = elem0_raw;
+      elem1.__x = elem1_raw;
+      elem2.__x = elem2_raw;
+      elem3.__x = elem3_raw;
+      x = T(elem0);
+      y = T(elem1);
+      z = T(elem2);
+      w = T(elem3);
+    }
   }
   __host__ __device__ explicit operator __nv_fp8x4_e4m3() const {
     __nv_fp8x4_e4m3 result;
-    __half2 lo_half2 = *reinterpret_cast<const __half2*>(&x);
-    __half2 hi_half2 = *reinterpret_cast<const __half2*>(&z);
+    TVec2 lo_half2 = *reinterpret_cast<const TVec2*>(&x);
+    TVec2 hi_half2 = *reinterpret_cast<const TVec2*>(&z);
     __nv_fp8x2_e4m3 lo_part(lo_half2), hi_part(hi_half2);
     result.__x =
         (static_cast<__uint32_t>(lo_part.__x) | (static_cast<__uint32_t>(hi_part.__x) << 16));
     return result;
   }
-  __host__ __device__ explicit half4(const __nv_fp8x4_e5m2& fp8x4) {
-    __nv_fp8x2_e5m2 lo_part, hi_part;
-    lo_part.__x = static_cast<__nv_fp8x2_storage_t>(fp8x4.__x & 0xFFFF);
-    hi_part.__x = static_cast<__nv_fp8x2_storage_t>((fp8x4.__x >> 16) & 0xFFFF);
-    __half2 lo_half2 = static_cast<__half2>(lo_part);
-    __half2 hi_half2 = static_cast<__half2>(hi_part);
-    x = reinterpret_cast<__half*>(&lo_half2)[0];
-    y = reinterpret_cast<__half*>(&lo_half2)[1];
-    z = reinterpret_cast<__half*>(&hi_half2)[0];
-    w = reinterpret_cast<__half*>(&hi_half2)[1];
+  __host__ __device__ explicit half4_bfloat164(const __nv_fp8x4_e5m2& fp8x4) {
+      __nv_fp8x2_e5m2 lo_part, hi_part;
+      lo_part.__x = static_cast<__nv_fp8x2_storage_t>(fp8x4.__x & 0xFFFF);
+      hi_part.__x = static_cast<__nv_fp8x2_storage_t>((fp8x4.__x >> 16) & 0xFFFF);
+      TVec2 lo_half2 = static_cast<TVec2>(lo_part);
+      TVec2 hi_half2 = static_cast<TVec2>(hi_part);
+      x = reinterpret_cast<T*>(&lo_half2)[0];
+      y = reinterpret_cast<T*>(&lo_half2)[1];
+      z = reinterpret_cast<T*>(&hi_half2)[0];
+      w = reinterpret_cast<T*>(&hi_half2)[1];
   }
   __host__ __device__ explicit operator __nv_fp8x4_e5m2() const {
     __nv_fp8x4_e5m2 result;
-    __half2 lo_half2 = *reinterpret_cast<const __half2*>(&x);
-    __half2 hi_half2 = *reinterpret_cast<const __half2*>(&z);
+    TVec2 lo_half2 = *reinterpret_cast<const TVec2*>(&x);
+    TVec2 hi_half2 = *reinterpret_cast<const TVec2*>(&z);
     __nv_fp8x2_e5m2 lo_part(lo_half2), hi_part(hi_half2);
     result.__x =
         (static_cast<__uint32_t>(lo_part.__x) | (static_cast<__uint32_t>(hi_part.__x) << 16));
     return result;
   }
-  __device__ __nv_fp8x2_e5m2 make_fp8x2_e5m2(__nv_fp8_storage_t x, __nv_fp8_storage_t y) {
-      __nv_fp8x2_e5m2 result;
-      result.__x = (x) | (y << 8);
-      return result;
-  }
-  __device__ __nv_fp8x4_e5m2 make_fp8x4_e5m2(__nv_fp8_storage_t a, __nv_fp8_storage_t b, __nv_fp8_storage_t c, __nv_fp8_storage_t d) {
-      __nv_fp8x4_e5m2 result;
-      result.__x = (a) | (b << 8) | (c << 16) | (d << 24);
-      return result;
-  }
-  __device__ __nv_fp8x2_e4m3 make_fp8x2_e4m3(__nv_fp8_storage_t x, __nv_fp8_storage_t y) {
-      __nv_fp8x2_e4m3 result;
-      result.__x = (x) | (y << 8);
-      return result;
-  }
-  __device__ __nv_fp8x4_e4m3 make_fp8x4_e4m3(__nv_fp8_storage_t a, __nv_fp8_storage_t b, __nv_fp8_storage_t c, __nv_fp8_storage_t d) {
-      __nv_fp8x4_e4m3 result;
-      result.__x = (a) | (b << 8) | (c << 16) | (d << 24);
-      return result;
-  }
   )";
     }
     if (enable_fp4) {
       stream << R"(
-  __host__ __device__ explicit half4(const __nv_fp4x4_e2m1& fp4x4) {
-    __nv_fp4x2_storage_t lo_part, hi_part;
-    lo_part = static_cast<__nv_fp4x2_storage_t>(fp4x4.__x & 0xFF);
-    hi_part = static_cast<__nv_fp4x2_storage_t>((fp4x4.__x >> 8) & 0xFF);
-    __half2 lo_half2 = __half2(__nv_cvt_fp4x2_to_halfraw2(lo_part, __NV_E2M1));
-    __half2 hi_half2 = __half2(__nv_cvt_fp4x2_to_halfraw2(hi_part, __NV_E2M1));
-    x = reinterpret_cast<__half*>(&lo_half2)[0];
-    y = reinterpret_cast<__half*>(&lo_half2)[1];
-    z = reinterpret_cast<__half*>(&hi_half2)[0];
-    w = reinterpret_cast<__half*>(&hi_half2)[1];
+  __host__ __device__ explicit half4_bfloat164(const __nv_fp4x4_e2m1& fp4x4) {
+    if constexpr (std::is_same_v<T, __half>) {
+      __nv_fp4x2_storage_t lo_part = static_cast<__nv_fp4x2_storage_t>(fp4x4.__x & 0xFF);
+      __nv_fp4x2_storage_t hi_part = static_cast<__nv_fp4x2_storage_t>((fp4x4.__x >> 8) & 0xFF);
+      TVec2 lo_half2 = __half2(__nv_cvt_fp4x2_to_halfraw2(lo_part, __NV_E2M1));
+      TVec2 hi_half2 = __half2(__nv_cvt_fp4x2_to_halfraw2(hi_part, __NV_E2M1));
+      x = reinterpret_cast<T*>(&lo_half2)[0];
+      y = reinterpret_cast<T*>(&lo_half2)[1];
+      z = reinterpret_cast<T*>(&hi_half2)[0];
+      w = reinterpret_cast<T*>(&hi_half2)[1];
+    } else {
+      __nv_fp4_e2m1 elem0, elem1, elem2, elem3;
+      elem0.__x = static_cast<__nv_fp4_storage_t>(fp4x4.__x & 0xF);
+      elem1.__x = static_cast<__nv_fp4_storage_t>((fp4x4.__x >> 4) & 0xF);
+      elem2.__x = static_cast<__nv_fp4_storage_t>((fp4x4.__x >> 8) & 0xF);
+      elem3.__x = static_cast<__nv_fp4_storage_t>((fp4x4.__x >> 12) & 0xF);
+      x = T(elem0);
+      y = T(elem1);
+      z = T(elem2);
+      w = T(elem3);
+    }
   }
   __host__ __device__ explicit operator __nv_fp4x4_e2m1() const {
-    __half2 lo_half2 = *reinterpret_cast<const __half2*>(&x);
-    __half2 hi_half2 = *reinterpret_cast<const __half2*>(&z);
+    TVec2 lo_half2 = *reinterpret_cast<const TVec2*>(&x);
+    TVec2 hi_half2 = *reinterpret_cast<const TVec2*>(&z);
     return __nv_fp4x4_e2m1(lo_half2, hi_half2);
   }
   )";
     }
     stream << R"(
 };
+)";
+  }
+  if (enable_fp16) {
+    stream << R"(
+using half4 = half4_bfloat164<__half, __half2>;
 __host__ __device__ half4 make_half4(__half x, __half y, __half z, __half w) {
     return half4(x, y, z, w);
+}
+)";
+  }
+  if (enable_bf16) {
+    stream << R"(
+using nv_bfloat164 = half4_bfloat164<nv_bfloat16, nv_bfloat162>;
+__host__ __device__ nv_bfloat164 make_nv_bfloat164(nv_bfloat16 x, nv_bfloat16 y, nv_bfloat16 z, nv_bfloat16 w) {
+    return nv_bfloat164(x, y, z, w);
+}
+__host__ __device__ nv_bfloat162 make_nv_bfloat162(nv_bfloat16 x, nv_bfloat16 y) {
+    return nv_bfloat162(x, y);
+}
+)";
+    if (enable_fp8) {
+      stream << R"(
+__host__ __device__ nv_bfloat162 cast_to_nv_bfloat162(const __nv_fp8x2_e4m3& fp8x2) {
+    __nv_fp8_e4m3 elem0, elem1;
+    elem0.__x = static_cast<__nv_fp8_storage_t>(fp8x2.__x & 0xFF);
+    elem1.__x = static_cast<__nv_fp8_storage_t>((fp8x2.__x >> 8) & 0xFF);
+    nv_bfloat16 x = nv_bfloat16(elem0);
+    nv_bfloat16 y = nv_bfloat16(elem1);
+    return nv_bfloat162(x, y);
+}
+)";
+    }
+  }
+  if (enable_fp8) {
+    stream << R"(
+__device__ __nv_fp8x2_e5m2 make___nv_fp8x2_e5m2(__nv_fp8_e5m2 x, __nv_fp8_e5m2 y) {
+    __nv_fp8x2_e5m2 result;
+    result.__x = (x.__x) | (y.__x << 8);
+    return result;
+}
+__device__ __nv_fp8x4_e5m2 make___nv_fp8x4_e5m2(__nv_fp8_e5m2 a, __nv_fp8_e5m2 b, __nv_fp8_e5m2 c, __nv_fp8_e5m2 d) {
+    __nv_fp8x4_e5m2 result;
+    result.__x = (a.__x) | (b.__x << 8) | (c.__x << 16) | (d.__x << 24);
+    return result;
+}
+__device__ __nv_fp8x2_e4m3 make___nv_fp8x2_e4m3(__nv_fp8_e4m3 x, __nv_fp8_e4m3 y) {
+    __nv_fp8x2_e4m3 result;
+    result.__x = (x.__x) | (y.__x << 8);
+    return result;
+}
+__device__ __nv_fp8x4_e4m3 make___nv_fp8x4_e4m3(__nv_fp8_e4m3 a, __nv_fp8_e4m3 b, __nv_fp8_e4m3 c, __nv_fp8_e4m3 d) {
+    __nv_fp8x4_e4m3 result;
+    result.__x = (a.__x) | (b.__x << 8) | (c.__x << 16) | (d.__x << 24);
+    return result;
 }
 )";
   }
@@ -496,6 +557,14 @@ __device__ __nv_fp4x4_e2m1 make___nv_fp4x4_e2m1(__nv_fp4_e2m1 a, __nv_fp4_e2m1 b
   __nv_fp4x4_e2m1 result;
   result.__x = (static_cast<__nv_fp4x4_storage_t>(a.__x)) | (static_cast<__nv_fp4x4_storage_t>(b.__x) << 4) | (static_cast<__nv_fp4x4_storage_t>(c.__x) << 8) | (static_cast<__nv_fp4x4_storage_t>(d.__x) << 12);
   return result;
+}
+__host__ __device__ nv_bfloat162 cast_to_nv_bfloat162(const __nv_fp4x2_e2m1& fp4x2) {
+    __nv_fp4_e2m1 elem0, elem1;
+    elem0.__x = static_cast<__nv_fp4_storage_t>(fp4x2.__x & 0xF);
+    elem1.__x = static_cast<__nv_fp4_storage_t>((fp4x2.__x >> 4) & 0xF);
+    nv_bfloat16 x = nv_bfloat16(elem0);
+    nv_bfloat16 y = nv_bfloat16(elem1);
+    return nv_bfloat162(x, y);
 }
 )";
   }

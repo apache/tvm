@@ -93,6 +93,7 @@ class TypeFunctor<R(const Type& n, Args...)> {
     TVM_TYPE_FUNCTOR_DISPATCH(TupleTypeNode);
     TVM_TYPE_FUNCTOR_DISPATCH(PrimTypeNode);
     TVM_TYPE_FUNCTOR_DISPATCH(PointerTypeNode);
+    vtable.Finalize();
     return vtable;
   }
 };

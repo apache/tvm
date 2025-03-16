@@ -15,7 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import sys
+from itertools import product
 from typing import List, Tuple
 
 import numpy as np
@@ -26,13 +26,9 @@ import tvm.testing
 from tvm import DataType, DataTypeCode, IRModule
 from tvm import dlight as dl
 from tvm import relax, te, tir, topi
-from tvm.relax.frontend import nn
-from tvm.runtime import NDArray
 from tvm.script import ir as I
 from tvm.script import relax as R
 from tvm.script import tir as T
-from tvm.target import Target
-from tvm.topi.utils import get_const_tuple
 
 try:
     import ml_dtypes
@@ -67,7 +63,7 @@ def test_e4m3_conversions():
     sch.bind(tx, "threadIdx.x")
 
     target = "cuda"
-    fadd = tvm.compile(sch.mod, target=target)
+    fadd = tvm.tir.build(sch.mod, target=target)
 
     cuda_src = fadd.imported_modules[0].get_source()
     assert "__nv_fp8_e4m3" in cuda_src, "FP8E4M3 (fp8_e4_t) datatype not found in generated CUDA"
@@ -179,7 +175,7 @@ def test_e4m3_vector_conversions(native_dtype, promoted_dtype):
     sch.bind(tx, "threadIdx.x")
 
     target = "cuda"
-    fadd = tvm.compile(sch.mod, target=target)
+    fadd = tvm.tir.build(sch.mod, target=target)
     cuda_src = fadd.imported_modules[0].get_source()
     dev = tvm.device(target, 0)
 
@@ -700,7 +696,7 @@ class BaseFP8E4M3QuantScaleOnly:
         def print_cuda(target, mod, name=None):
             if name:
                 mod = mod[name]
-            f = tvm.compile(mod, target=target)
+            f = tvm.tir.build(mod, target=target)
             cuda_src = f.imported_modules[0].get_source()
             print(cuda_src)
 
@@ -963,6 +959,41 @@ def test_moe_gemv_shfl_down_illegal_instr():
     vm["main"](x, indptr, weight, scale)
 
 
+@tvm.testing.requires_cuda_compute_version(8, 9)
+def test_fp8_fp16_bf16_vectorize_arith():
+    for vec_length, dtype in product([2, 4], ["float16", "bfloat16"]):
+
+        @T.prim_func
+        def func_vectorize(
+            A: T.Buffer((128,), "float8_e4m3fn"),
+            B: T.Buffer((128,), dtype),
+            C: T.Buffer((128,), dtype),
+        ) -> None:
+            for i in T.serial(128):
+                with T.block("compute"):
+                    vi = T.axis.remap("S", [i])
+                    C[vi] = (A[vi].astype(dtype) * B[vi]) + T.bfloat16(3.0)
+
+        sch = tir.Schedule(func_vectorize)
+        (l,) = sch.get_loops(sch.get_block("compute"))
+        lo, li = sch.split(l, [None, vec_length])
+        sch.bind(lo, "threadIdx.x")
+        sch.vectorize(li)
+
+        device = tvm.cuda()
+        target = tvm.target.Target.from_device(device)
+        f = tir.build(sch.mod, target=target)
+
+        a_np = np.random.rand(128).astype("float8_e4m3fn")
+        b_np = np.random.rand(128).astype(dtype)
+        c_np = (a_np.astype(dtype) * b_np) + 3
+        a_tvm = tvm.nd.array(a_np, device=device)
+        b_tvm = tvm.nd.array(b_np, device=device)
+        c_tvm = tvm.nd.empty((128,), dtype=dtype, device=device)
+        f(a_tvm, b_tvm, c_tvm)
+        c_tvm = c_tvm.numpy()
+        np.testing.assert_allclose(c_tvm, c_np, atol=1e-3, rtol=1e-3)
+
+
 if __name__ == "__main__":
-    # test_half_broadcast(6)
     tvm.testing.main()

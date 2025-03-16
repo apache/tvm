@@ -103,7 +103,12 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         )
 
     def _upsample_impl(
-        self, x: relax.Expr, size, align_corners: bool, scale_factor, method: str
+        self,
+        x: relax.Expr,
+        size,
+        scale_factor,
+        method: str,
+        align_corners: bool,
     ) -> relax.Var:
         coord_trans = "align_corners" if align_corners else "half_pixel"
 
@@ -130,17 +135,39 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         align_corners = (
             node.args[2] if len(node.args) > 2 else node.kwargs.get("align_corners", True)
         )
-        scale_factor = node.args[3] if len(node.args) > 3 else node.kwargs.get("scale_factor", None)
-        return self._upsample_impl(x, size, align_corners, scale_factor, "linear")
+        scale_factor = node.args[3] if len(node.args) > 3 else node.kwargs.get("scale_factor", 1)
+        return self._upsample_impl(
+            x, size=size, scale_factor=scale_factor, method="linear", align_corners=align_corners
+        )
 
     def _upsample_nearest2d(self, node: fx.node) -> relax.Var:
         x = self.env[node.args[0]]
         size = node.args[1] if len(node.args) > 1 else node.kwargs.get("size", None)
-        align_corners = (
-            node.args[2] if len(node.args) > 2 else node.kwargs.get("align_corners", True)
+
+        if size:
+            scale_factor = None  # Can only define size or scale_factor, not both
+            align_corners = (
+                node.args[2] if len(node.args) > 2 else node.kwargs.get("align_corners", None)
+            )
+
+        else:
+            # TODO figure out why pytorch export passes a list such as
+            # [scale_factor,scale_factor] instead of just an int for
+            # scale_factor. Using first element for now
+            scale_factor = (
+                node.args[2][0] if len(node.args) > 2 else node.kwargs.get("scale_factor", 1)
+            )
+            align_corners = (
+                node.args[3] if len(node.args) > 3 else node.kwargs.get("align_corners", None)
+            )
+
+        return self._upsample_impl(
+            x,
+            size=size,
+            scale_factor=scale_factor,
+            method="nearest_neighbor",
+            align_corners=align_corners,
         )
-        scale_factor = node.args[3] if len(node.args) > 3 else node.kwargs.get("scale_factor", None)
-        return self._upsample_impl(x, size, align_corners, scale_factor, "nearest_neighbor")
 
     ########## Manipulation ##########
 
@@ -176,10 +203,14 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "atanh.default": self._unary_op(relax.op.atanh),
             "bitwise_not.default": self._unary_op(relax.op.bitwise_not),
             "ceil.default": self._unary_op(relax.op.ceil),
+            "celu.default": self._celu,
             "clamp.default": self._clamp,
+            "clamp_min.default": self._clamp_min,
+            "clamp_max.default": self._clamp_max,
             "cos.default": self._unary_op(relax.op.cos),
             "cosh.default": self._unary_op(relax.op.cosh),
             "dropout.default": lambda node: self.env[node.args[0]],
+            "elu.default": self._elu,
             "erf.default": self._unary_op(relax.op.erf),
             "exp.default": self._unary_op(relax.op.exp),
             "floor.default": self._unary_op(relax.op.floor),
@@ -197,6 +228,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "relu.default": self._unary_op(relax.op.nn.relu),
             "round.default": self._round,
             "rsqrt.default": self._unary_op(relax.op.rsqrt),
+            "selu.default": self._selu,
             "sigmoid.default": self._unary_op(relax.op.sigmoid),
             "sign.default": self._unary_op(relax.op.sign),
             "silu.default": self._unary_op(relax.op.nn.silu),
@@ -280,9 +312,14 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "argmin.default": self._argmax_argmin(relax.op.argmin),
             # tensor manipulation
             "cat.default": self._cat,
+            "clamp.Tensor": self._clamp,
             "concat.default": self._cat,
+            "copy_.default": self._copy_,
             "cumsum.default": self._cumsum,
             "expand.default": self._expand,
+            "expand_as.default": self._expand_as,
+            "flip.default": self._flip,
+            "gather.default": self._gather,
             "permute.default": self._permute,
             "repeat.default": self._repeat,
             "select.int": self._select,
@@ -290,6 +327,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "split.Tensor": self._split,
             "squeeze.default": self._squeeze,
             "squeeze.dim": self._squeeze,
+            "take.default": self._take,
             "tile.default": self._tile,
             "transpose.int": self._transpose,
             "unsqueeze.default": lambda node: self.block_builder.emit(
@@ -299,6 +337,9 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "reshape.default": self._reshape,
             # tensor creation
             "_to_copy.default": self._to_copy,
+            "lift_fresh_copy.default": self._to_copy,
+            "detach.default": self._detach,
+            "detach_.default": self._detach,
             "arange.start": self._arange,
             "contiguous.default": lambda node: self.env[node.args[0]],  # no-op
             "clone.default": lambda node: self.env[node.args[0]],

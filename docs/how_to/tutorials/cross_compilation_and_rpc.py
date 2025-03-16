@@ -234,9 +234,9 @@ def run_opencl():
     mod = tvm.IRModule.from_expr(te.create_prim_func([A, B]))
     sch = tvm.tir.Schedule(mod)
     (x,) = sch.get_loops(block=sch.get_block("B"))
-    xo, xi = sch.split(i, [None, 32])
-    sch.bind(x, "blockIdx.x")
-    sch.bind(x, "threadIdx.x")
+    xo, xi = sch.split(x, [None, 32])
+    sch.bind(xo, "blockIdx.x")
+    sch.bind(xi, "threadIdx.x")
     func = tvm.compile(sch.mod, target=target)
 
     remote = rpc.connect(opencl_device_host, opencl_device_port)

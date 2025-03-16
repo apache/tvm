@@ -422,7 +422,7 @@ class DNNLJSONRuntime : public JSONRuntimeBase {
     // dst_layout == "" means to use data_layout
     if (dst_layout.empty()) dst_layout = src_layout;
 
-    // Minus one for DNNL representation. No dilation for DNNL is 0, for relay is 1.
+    // Minus one for DNNL representation. No dilation for DNNL is 0, for relax is 1.
     for (auto& d : dilates) d--;
 
     // Take into account provided layout strings

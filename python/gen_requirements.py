@@ -26,9 +26,9 @@ TVM's Python dependencies.
 TVM can be roughly broken into these named pieces along the lines of Python dependencies:
 
 - "core": A core piece, which is intended to be buildable with very few external dependencies. Users
-  can use Relay, compile models, and run autotuning with this part.
+  can use Relax, compile models, and run autotuning with this part.
 - "importer-<tool>": Model importers, which convert models defined in various other tools (i.e.
-  TensorFlow, PyTorch, etc) into Relay models.
+  TensorFlow, PyTorch, etc) into Relax models.
 - Extra features (i.e. XGBoost in AutoTVM). These enhance TVM's functionality, but aren't required
   for basic operation.
 
@@ -74,7 +74,7 @@ REQUIREMENTS_BY_PIECE: RequirementsByPieceType = [
             ],
         ),
     ),
-    # Relay frontends.
+    # frontends.
     ("importer-coreml", ("Requirements for the CoreML importer", ["coremltools"])),
     (
         "importer-keras",

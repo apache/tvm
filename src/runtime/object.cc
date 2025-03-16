@@ -170,10 +170,17 @@ class TypeContext {
 
   void Dump(int min_children_count) {
     std::vector<int> num_children(type_table_.size(), 0);
+    // expected child slots compute the expected slots
+    // based on the current child slot setting
+    std::vector<int> expected_child_slots(type_table_.size(), 0);
     // reverse accumulation so we can get total counts in a bottom-up manner.
     for (auto it = type_table_.rbegin(); it != type_table_.rend(); ++it) {
       if (it->index != 0) {
         num_children[it->parent_index] += num_children[it->index] + 1;
+        if (static_cast<uint32_t>(expected_child_slots[it->index] + 1) < it->num_slots) {
+          expected_child_slots[it->index] = it->num_slots - 1;
+        }
+        expected_child_slots[it->parent_index] += expected_child_slots[it->index] + 1;
       }
     }
 
@@ -182,7 +189,8 @@ class TypeContext {
         std::cerr << '[' << info.index << "] " << info.name
                   << "\tparent=" << type_table_[info.parent_index].name
                   << "\tnum_child_slots=" << info.num_slots - 1
-                  << "\tnum_children=" << num_children[info.index] << std::endl;
+                  << "\tnum_children=" << num_children[info.index]
+                  << "\texpected_child_slots=" << expected_child_slots[info.index] << std::endl;
       }
     }
   }

@@ -223,10 +223,6 @@ def estimate_tir_flops(stmt_or_mod: Union[Stmt, IRModule]) -> float:
     return _ffi_api.EstimateTIRFlops(stmt_or_mod)  # type: ignore # pylint: disable=no-member
 
 
-# NOTE: relay_func_type in the following two functions should be relay.FuncType however that would
-# introduce a cycling dependency. We make do with Object.
-
-
 def undefined_vars(node: Union[Stmt, PrimExpr], defs: Optional[List[Var]] = None) -> List[Var]:
     """Find undefined vars in a TIR statement or expression.
 

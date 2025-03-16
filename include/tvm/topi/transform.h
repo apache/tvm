@@ -775,7 +775,7 @@ inline Tensor dynamic_strided_slice(const Tensor& x, const Array<PrimExpr>& begi
 
   arith::Analyzer analyzer;
   for (size_t i = 0; i < num_slice_axes; ++i) {
-    // Check ProducerLoad to keep backward compatibility for Relay.
+    // Check ProducerLoad to keep backward compatibility for Relax.
     if (!begin[i]->IsInstance<ProducerLoadNode>() && !end[i]->IsInstance<ProducerLoadNode>() &&
         !strides[i]->IsInstance<ProducerLoadNode>()) {
       out_shape.push_back(
@@ -840,7 +840,7 @@ inline te::Tensor dynamic_strided_slice(const te::Tensor& x, const te::Tensor& b
 }
 
 /*!
- * \brief Calculate the output shape of strided_slice, the entry point for Relay type relation
+ * \brief Calculate the output shape of strided_slice, the entry point for Relax type relation
  *
  * \param ishape The input tensor shape
  * \param begin The indices to begin with in the slicing

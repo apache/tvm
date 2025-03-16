@@ -993,9 +993,6 @@ def test_merge_producers_cyclic_dep():
 
 
 def test_merge_compiler_regions_example():
-    """
-    A tricky example from https://discuss.tvm.apache.org/t/relay-improved-graph-partitioning-algorithm/5830
-    """
     check(
         MergeCompilerRegionsExample,
         MergeCompilerRegionsExampleRef,

@@ -193,6 +193,7 @@ class ExprFunctor<R(const PrimExpr& n, Args...)> {
     IR_EXPR_FUNCTOR_DISPATCH(FloatImmNode);
     IR_EXPR_FUNCTOR_DISPATCH(StringImmNode);
     IR_EXPR_FUNCTOR_DISPATCH(AnyNode);
+    vtable.Finalize();
     return vtable;
   }
 };
