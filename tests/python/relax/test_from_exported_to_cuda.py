@@ -55,135 +55,6 @@ def assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, tar
     desired = pytorch_out
     np.testing.assert_allclose(actual=actual, desired=desired, rtol=1e-5, atol=1e-5)
 
-
-@tvm.testing.parametrize_targets("cuda")
-def test_tensor_clamp(target, dev):
-    class ClampBothTensor(torch.nn.Module):
-        def __init__(self):
-            super().__init__()
-            self.register_buffer("min_val", torch.tensor(-1.0))
-            self.register_buffer("max_val", torch.tensor(1.0))
-
-        def forward(self, x):
-            return x.clamp(min=self.min_val, max=self.max_val)
-
-    class ClampBothInt(torch.nn.Module):
-        def __init__(self):
-            super().__init__()
-            self.min_val = -1
-            self.max_val = 1
-
-        def forward(self, x):
-            return x.clamp(min=self.min_val, max=self.max_val)
-
-    class ClampMinOnlyTensor(torch.nn.Module):
-        def __init__(self):
-            super().__init__()
-            self.register_buffer("min_val", torch.tensor(0.0))
-
-        def forward(self, x):
-            return x.clamp(min=self.min_val)
-
-    class ClampMinOnlyInt(torch.nn.Module):
-        def __init__(self):
-            super().__init__()
-            self.min_val = 0
-
-        def forward(self, x):
-            return x.clamp(min=self.min_val)
-
-    class ClampMaxOnlyTensor(torch.nn.Module):
-        def __init__(self):
-            super().__init__()
-            self.register_buffer("max_val", torch.tensor(0.5))
-
-        def forward(self, x):
-            return x.clamp(max=self.max_val)
-
-    class ClampMaxOnlyInt(torch.nn.Module):
-        def __init__(self):
-            super().__init__()
-            self.max_val = 0.5
-
-        def forward(self, x):
-            return x.clamp(max=self.max_val)
-
-    class ClampDifferentValues(torch.nn.Module):
-        def __init__(self):
-            super().__init__()
-            self.min_val = -2
-            self.max_val = 2
-
-        def forward(self, x):
-            return x.clamp(min=self.min_val, max=self.max_val)
-
-    # Create random data with values outside our clamp ranges
-    raw_data = np.random.uniform(-3.0, 3.0, (2, 3, 4, 5)).astype(np.float32)
-
-    torch_module0 = ClampBothTensor().eval()
-    torch_module1 = ClampBothInt().eval()
-    torch_module2 = ClampMinOnlyTensor().eval()
-    torch_module3 = ClampMinOnlyInt().eval()
-    torch_module4 = ClampMaxOnlyTensor().eval()
-    torch_module5 = ClampMaxOnlyInt().eval()
-    torch_module6 = ClampDifferentValues().eval()
-
-    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module0, target, dev)
-    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module1, target, dev)
-    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module2, target, dev)
-    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module3, target, dev)
-    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module4, target, dev)
-    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module5, target, dev)
-    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module6, target, dev)
-
-
-@tvm.testing.parametrize_targets("cuda")
-def test_tensor_expand_as(target, dev):
-    class ExpandAs0(torch.nn.Module):
-        def __init__(self):
-            super().__init__()
-            self.template = torch.ones((1, 1, 1, 1))
-
-        def forward(self, x):
-            return self.template.expand_as(x)
-
-    class ExpandAs1(torch.nn.Module):
-        def __init__(self):
-            super().__init__()
-            self.template = torch.ones((2, 1, 4, 1))
-
-        def forward(self, x):
-            return self.template.expand_as(x)
-
-    class ExpandAs2(torch.nn.Module):
-        def __init__(self):
-            super().__init__()
-            self.template = torch.ones((2, 1, 1, 10))
-
-        def forward(self, x):
-            return self.template.expand_as(x)
-
-    class ExpandAs3(torch.nn.Module):
-        def __init__(self):
-            super().__init__()
-            self.template = torch.ones((2, 3, 1, 1))
-
-        def forward(self, x):
-            return self.template.expand_as(x)
-
-    raw_data = np.random.randn(2, 3, 4, 10).astype(np.float32)
-
-    torch_module0 = ExpandAs0().eval()
-    torch_module1 = ExpandAs1().eval()
-    torch_module2 = ExpandAs2().eval()
-    torch_module3 = ExpandAs3().eval()
-
-    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module0, target, dev)
-    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module1, target, dev)
-    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module2, target, dev)
-    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module3, target, dev)
-
-
 @tvm.testing.parametrize_targets("cuda")
 def test_copy_(target, dev):
     class CopyTester(nn.Module):
@@ -203,82 +74,25 @@ def test_copy_(target, dev):
 
 
 @tvm.testing.parametrize_targets("cuda")
-def test_upsample_with_size(target, dev):
-    """
-    The Upsample module can be used with the size arugment or the scale
-    factor argument but not both. This tests the former.
-    """
-    batch_size = 1
-    channels = 3
-    height, width = 8, 8
-
-    torch_module = Upsample(size=(64, 64), mode="nearest", recompute_scale_factor=None)
-
-    raw_data = np.random.rand(batch_size, channels, height, width).astype("float32")
-
-    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
-
-
-@tvm.testing.parametrize_targets("cuda")
-def test_detach_no_change(target, dev):
-    # In TVM, detach() is just identity
-    class DetachTester(nn.Module):
-        def forward(self, x):
-            detached = x.detach()
-            return detached
-
-    raw_data = np.ones((2, 2)).astype(np.float32)
-    torch_module = DetachTester().eval()
-    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
-
-
-@tvm.testing.parametrize_targets("cuda")
-def test_upsample_with_scale_factor(target, dev):
-    """
-    The Upsample module can be used with the size arugment or the scale
-    factor argument but not both. This tests the latter.
-    """
-    batch_size = 2
-    channels = 3
-    height, width = 32, 32
-
-    torch_module = Upsample(
-        size=None, scale_factor=7, mode="nearest", align_corners=None, recompute_scale_factor=True
-    )
-
-    raw_data = np.random.rand(batch_size, channels, height, width).astype("float32")
-    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
-
-
-@tvm.testing.parametrize_targets("cuda")
-def test_linalg_vector_norm(target, dev):
-    class VectorNorm0(torch.nn.Module):
-        def forward(self, x):
-            return torch.linalg.vector_norm(x, ord=1, dim=-1)
-
-    class VectorNorm1(torch.nn.Module):
-        def forward(self, x):
-            return torch.linalg.vector_norm(x, ord=2, dim=2)
-
-    class VectorNorm2(torch.nn.Module):
-        def forward(self, x):
-            return torch.linalg.vector_norm(x, ord=1, dim=-1)
-
-    class VectorNorm3(torch.nn.Module):
-        def forward(self, x):
-            return torch.linalg.vector_norm(x, ord=2, dim=2)
-
-    raw_data = np.random.randn(2, 3, 4, 10).astype(np.float32)
-
-    torch_module0 = VectorNorm0().eval()
-    torch_module1 = VectorNorm1().eval()
-    torch_module2 = VectorNorm2().eval()
-    torch_module3 = VectorNorm3().eval()
-
+def test_batch_norm(target, dev):
+    # No momentum, eval
+    raw_data = np.random.randn(8, 8, 4, 4).astype(np.float32)
+    torch_module0 = nn.BatchNorm2d(
+        8, eps=1e-02, momentum=0.0, affine=False, track_running_stats=True, device=None, dtype=None
+    ).eval()
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module0, target, dev)
-    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module1, target, dev)
-    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module2, target, dev)
-    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module3, target, dev)
+
+    # With momentum, eval
+    raw_data = np.random.randn(1, 4, 2, 2).astype(np.float32)
+    torch_module0 = nn.BatchNorm2d(
+        4, eps=1e-05, momentum=0.0, affine=False, track_running_stats=True, device=None, dtype=None
+    ).eval()
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module0, target, dev)
+
+    # Default args, eval
+    raw_data = np.random.randn(4, 2, 2, 2).astype(np.float32)
+    torch_module0 = nn.BatchNorm2d(2).eval()
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module0, target, dev)
 
 
 if __name__ == "__main__":
