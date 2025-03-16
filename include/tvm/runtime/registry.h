@@ -186,8 +186,7 @@ class Registry {
    */
   template <typename FLambda>
   Registry& set_body_typed(FLambda f) {
-    using FType = typename detail::function_signature<FLambda>::FType;
-    return set_body(TypedPackedFunc<FType>(std::move(f), name_).packed());
+    return set_body(ffi::Function::FromUnpacked(f, name_));
   }
   /*!
    * \brief set the body of the function to be the passed method pointer.
