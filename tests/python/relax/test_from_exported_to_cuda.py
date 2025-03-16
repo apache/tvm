@@ -288,15 +288,16 @@ def test_linalg_vector_norm(target, dev):
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module2, target, dev)
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module3, target, dev)
 
+
 @tvm.testing.parametrize_targets("cuda")
 def test_split_size(target, dev):
-    # Test split using the split_size argument such that it is not a divisor 
+    # Test split using the split_size argument such that it is not a divisor
     # of the dimension to split (the last tensor will be smaller)
     batch = 2
     channels = 7
     height, width = 2, 2
-    split_size = 3 # last tensor will have just 1 element
-    dim = 1 # split across channels 
+    split_size = 3  # last tensor will have just 1 element
+    dim = 1  # split across channels
     raw_data = np.random.rand(batch, channels, height, width).astype("float32")
 
     class SplitModelSplitSize(nn.Module):
@@ -312,6 +313,7 @@ def test_split_size(target, dev):
 
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
+
 @tvm.testing.parametrize_targets("cuda")
 def test_split_sections_list(target, dev):
     # Test split using a list of section sizes
@@ -320,7 +322,7 @@ def test_split_sections_list(target, dev):
     height = 10
     width = 5
     sections = [3, 2, 5]
-    dim = 2 # split across height 
+    dim = 2  # split across height
     raw_data = np.random.rand(batch, channels, height, width).astype("float32")
 
     class SplitModelSectionsList(nn.Module):
@@ -335,7 +337,6 @@ def test_split_sections_list(target, dev):
     torch_module = SplitModelSectionsList(split_size=sections, dim=dim).eval()
 
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
-
 
 
 if __name__ == "__main__":
