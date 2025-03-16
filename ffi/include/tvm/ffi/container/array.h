@@ -1002,7 +1002,7 @@ struct TypeTraits<Array<T>> : public TypeTraitsBase {
     return std::nullopt;
   }
 
-  static TVM_FFI_INLINE std::string TypeStr() { return "Array<" + TypeTraits<T>::TypeStr() + ">"; }
+  static TVM_FFI_INLINE std::string TypeStr() { return "Array<" + details::Type2Str<T>::v() + ">"; }
 };
 
 }  // namespace ffi

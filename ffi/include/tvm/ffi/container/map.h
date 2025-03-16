@@ -1358,6 +1358,83 @@ inline Map<K, V> Merge(Map<K, V> lhs, const Map<K, V>& rhs) {
   return std::move(lhs);
 }
 
+
+// Traits for Map
+template <typename K, typename V>
+inline constexpr bool use_default_type_traits_v<Map<K, V>> = false;
+
+template <typename K, typename V>
+struct TypeTraits<Map<K, V>> : public TypeTraitsBase {
+  static TVM_FFI_INLINE void CopyToAnyView(const Map<K, V>& src, TVMFFIAny* result) {
+    TVMFFIObject* obj_ptr = details::ObjectUnsafe::GetTVMFFIObjectPtrFromObjectRef(src);
+    result->type_index = obj_ptr->type_index;
+    result->v_obj = obj_ptr;
+  }
+
+  static TVM_FFI_INLINE void MoveToAny(Map<K, V> src, TVMFFIAny* result) {
+    TVMFFIObject* obj_ptr = details::ObjectUnsafe::MoveTVMFFIObjectPtrFromObjectRef(&src);
+    result->type_index = obj_ptr->type_index;
+    result->v_obj = obj_ptr;
+  }
+
+  static TVM_FFI_INLINE std::string GetMismatchTypeInfo(const TVMFFIAny* src) {
+    if (src->type_index != TypeIndex::kTVMFFIMap) {
+      return TypeTraitsBase::GetMismatchTypeInfo(src);
+    }
+    if constexpr (!std::is_same_v<K, Any> || !std::is_same_v<V, Any>) {
+      const MapNode* n = reinterpret_cast<const MapNode*>(src->v_obj);
+      for (const auto& kv : *n) {
+        if constexpr (!std::is_same_v<K, Any>) {
+          if (!details::AnyUnsafe::CheckAny<K>(kv.first)) {
+            return "Map[some key is " + details::AnyUnsafe::GetMismatchTypeInfo<K>(kv.first) + ", V]";
+          }
+        }
+        if constexpr (!std::is_same_v<V, Any>) {
+          if (!details::AnyUnsafe::CheckAny<V>(kv.second)) {
+            return "Map[K, some value is " + details::AnyUnsafe::GetMismatchTypeInfo<V>(kv.second) + "]";
+          }
+        }
+      }
+    }
+    TVM_FFI_THROW(InternalError) << "Cannot reach here";
+    TVM_FFI_UNREACHABLE();
+  }
+
+  static TVM_FFI_INLINE bool CheckAnyView(const TVMFFIAny* src) {
+    // for now allow null array, TODO: revisit this
+    if (src->type_index == TypeIndex::kTVMFFINone) return true;
+    if (src->type_index != TypeIndex::kTVMFFIMap) return false;
+    if constexpr (std::is_same_v<K, Any> && std::is_same_v<V, Any>) {
+      return true;
+    } else {
+      const MapNode* n = reinterpret_cast<const MapNode*>(src->v_obj);
+      for (const auto& kv : *n) {
+        if constexpr (!std::is_same_v<K, Any>) {
+          if (!details::AnyUnsafe::CheckAny<K>(kv.first)) return false;
+        }
+        if constexpr (!std::is_same_v<V, Any>) {
+          if (!details::AnyUnsafe::CheckAny<V>(kv.second)) return false;
+        }
+      }
+      return true;
+    }
+  }
+
+  static TVM_FFI_INLINE Map<K, V> CopyFromAnyViewAfterCheck(const TVMFFIAny* src) {
+    if (src->type_index == TypeIndex::kTVMFFINone) return Map<K, V>(nullptr);
+    return Map<K, V>(details::ObjectUnsafe::ObjectPtrFromUnowned<Object>(src->v_obj));
+  }
+
+  static TVM_FFI_INLINE std::optional<Map<K, V>> TryCopyFromAnyView(const TVMFFIAny* src) {
+    if (CheckAnyView(src)) return CopyFromAnyViewAfterCheck(src);
+    return std::nullopt;
+  }
+
+  static TVM_FFI_INLINE std::string TypeStr() {
+    return "Map<" + details::Type2Str<K>::v() + ", " + details::Type2Str<V>::v() + ">";
+  }
+};
+
 }  // namespace ffi
 }  // namespace tvm
 

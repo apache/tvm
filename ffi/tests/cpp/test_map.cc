@@ -150,4 +150,48 @@ TEST(Map, Erase) {
   }
 }
 
+
+TEST(Map, AnyConvertCheck) {
+  Map<Any, Any> map = {{11, 1.1}};
+  EXPECT_EQ(map[11].operator double(), 1.1);
+
+  AnyView view0 = map;
+  Map<int64_t, double> arr1 = view0;
+  EXPECT_EQ(arr1[11], 1.1);
+
+  Any any1 = map;
+  using WrongMap = Map<int64_t, int64_t>;
+
+  EXPECT_THROW(
+      {
+        try {
+          [[maybe_unused]] WrongMap arr2 = any1;
+        } catch (const Error& error) {
+          EXPECT_EQ(error->kind, "TypeError");
+          std::string what = error.what();
+          std::cout << "what: " << what;
+          EXPECT_NE(what.find("Cannot convert from type `Map[K, some value is float]` to `Map<int, int>`"),
+                    std::string::npos);
+          throw;
+        }
+      },
+      ::tvm::ffi::Error);
+
+  using WrongMap2 = Map<TNumber, double>;
+  EXPECT_THROW(
+      {
+        try {
+          [[maybe_unused]] WrongMap2 arr2 = any1;
+        } catch (const Error& error) {
+          EXPECT_EQ(error->kind, "TypeError");
+          std::string what = error.what();
+          std::cout << "what: " << what;
+          EXPECT_NE(what.find("Cannot convert from type `Map[some key is int, V]` to `Map<test.Number, float>`"),
+                    std::string::npos);
+          throw;
+        }
+      },
+      ::tvm::ffi::Error);
+}
+
 }  // namespace
