@@ -484,6 +484,73 @@ struct TypeTraits<std::string> : public TypeTraitsBase {
   static TVM_FFI_INLINE std::string TypeStr() { return "std::string"; }
 };
 
+// const char*, requirement: not nullable, do not retain ownership
+template <>
+struct TypeTraits<const char*> : public TypeTraitsBase {
+  static constexpr int32_t field_static_type_index = TypeIndex::kTVMFFIRawStr;
+
+  static TVM_FFI_INLINE void CopyToAnyView(const char* src, TVMFFIAny* result) {
+    TVM_FFI_ICHECK_NOTNULL(src);
+    result->type_index = TypeIndex::kTVMFFIRawStr;
+    result->v_c_str = src;
+  }
+
+  static TVM_FFI_INLINE void MoveToAny(const char* src, TVMFFIAny* result) {
+    // when we need to move to any, convert to owned object first
+    TypeTraits<String>::MoveToAny(String(src), result);
+  }
+
+  static TVM_FFI_INLINE std::optional<const char*> TryCopyFromAnyView(const TVMFFIAny* src) {
+    if (src->type_index == TypeIndex::kTVMFFIRawStr) {
+      return static_cast<const char*>(src->v_c_str);
+    }
+    return std::nullopt;
+  }
+
+  static TVM_FFI_INLINE bool CheckAnyView(const TVMFFIAny* src) {
+    return src->type_index == TypeIndex::kTVMFFIRawStr;
+  }
+
+  static TVM_FFI_INLINE const char* CopyFromAnyViewAfterCheck(const TVMFFIAny* src) {
+    return static_cast<const char*>(src->v_ptr);
+  }
+
+  static TVM_FFI_INLINE std::string TypeStr() { return "const char*"; }
+};
+
+// TVMFFIByteArray, requirement: not nullable, do not retain ownership
+template <>
+struct TypeTraits<TVMFFIByteArray*> : public TypeTraitsBase {
+  static constexpr int32_t field_static_type_index = TypeIndex::kTVMFFIByteArrayPtr;
+
+  static TVM_FFI_INLINE void CopyToAnyView(TVMFFIByteArray* src, TVMFFIAny* result) {
+    TVM_FFI_ICHECK_NOTNULL(src);
+    result->type_index = TypeIndex::kTVMFFIByteArrayPtr;
+    result->v_ptr = src;
+  }
+
+  static TVM_FFI_INLINE void MoveToAny(TVMFFIByteArray* src, TVMFFIAny* result) {
+    TypeTraits<Bytes>::MoveToAny(Bytes(*src), result);
+  }
+
+  static TVM_FFI_INLINE std::optional<TVMFFIByteArray*> TryCopyFromAnyView(const TVMFFIAny* src) {
+    if (src->type_index == TypeIndex::kTVMFFIByteArrayPtr) {
+      return static_cast<TVMFFIByteArray*>(src->v_ptr);
+    }
+    return std::nullopt;
+  }
+
+  static TVM_FFI_INLINE bool CheckAnyView(const TVMFFIAny* src) {
+    return src->type_index == TypeIndex::kTVMFFIByteArrayPtr;
+  }
+
+  static TVM_FFI_INLINE TVMFFIByteArray* CopyFromAnyViewAfterCheck(const TVMFFIAny* src) {
+    return static_cast<TVMFFIByteArray*>(src->v_ptr);
+  }
+
+  static TVM_FFI_INLINE std::string TypeStr() { return "TVMFFIByteArray*"; }
+};
+
 inline String operator+(const String& lhs, const String& rhs) {
   size_t lhs_size = lhs.size();
   size_t rhs_size = rhs.size();

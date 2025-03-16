@@ -1358,7 +1358,6 @@ inline Map<K, V> Merge(Map<K, V> lhs, const Map<K, V>& rhs) {
   return std::move(lhs);
 }
 
-
 // Traits for Map
 template <typename K, typename V>
 inline constexpr bool use_default_type_traits_v<Map<K, V>> = false;
@@ -1386,12 +1385,14 @@ struct TypeTraits<Map<K, V>> : public TypeTraitsBase {
       for (const auto& kv : *n) {
         if constexpr (!std::is_same_v<K, Any>) {
           if (!details::AnyUnsafe::CheckAny<K>(kv.first)) {
-            return "Map[some key is " + details::AnyUnsafe::GetMismatchTypeInfo<K>(kv.first) + ", V]";
+            return "Map[some key is " + details::AnyUnsafe::GetMismatchTypeInfo<K>(kv.first) +
+                   ", V]";
           }
         }
         if constexpr (!std::is_same_v<V, Any>) {
           if (!details::AnyUnsafe::CheckAny<V>(kv.second)) {
-            return "Map[K, some value is " + details::AnyUnsafe::GetMismatchTypeInfo<V>(kv.second) + "]";
+            return "Map[K, some value is " + details::AnyUnsafe::GetMismatchTypeInfo<V>(kv.second) +
+                   "]";
           }
         }
       }

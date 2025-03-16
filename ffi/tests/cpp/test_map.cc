@@ -18,6 +18,7 @@
  */
 #include <gtest/gtest.h>
 #include <tvm/ffi/container/map.h>
+#include <tvm/ffi/function.h>
 
 #include "./testing_object.h"
 
@@ -150,7 +151,6 @@ TEST(Map, Erase) {
   }
 }
 
-
 TEST(Map, AnyConvertCheck) {
   Map<Any, Any> map = {{11, 1.1}};
   EXPECT_EQ(map[11].operator double(), 1.1);
@@ -170,8 +170,10 @@ TEST(Map, AnyConvertCheck) {
           EXPECT_EQ(error->kind, "TypeError");
           std::string what = error.what();
           std::cout << "what: " << what;
-          EXPECT_NE(what.find("Cannot convert from type `Map[K, some value is float]` to `Map<int, int>`"),
-                    std::string::npos);
+          EXPECT_NE(
+              what.find(
+                  "Cannot convert from type `Map[K, some value is float]` to `Map<int, int>`"),
+              std::string::npos);
           throw;
         }
       },
@@ -186,12 +188,22 @@ TEST(Map, AnyConvertCheck) {
           EXPECT_EQ(error->kind, "TypeError");
           std::string what = error.what();
           std::cout << "what: " << what;
-          EXPECT_NE(what.find("Cannot convert from type `Map[some key is int, V]` to `Map<test.Number, float>`"),
+          EXPECT_NE(what.find("Cannot convert from type `Map[some key is int, V]` to "
+                              "`Map<test.Number, float>`"),
                     std::string::npos);
           throw;
         }
       },
       ::tvm::ffi::Error);
+}
+
+TEST(Map, PackedFuncGetItem) {
+  Function f = Function::FromUnpacked(
+      [](const MapNode* n, const Any& k) -> Any { return n->at(k); }, "map_get_item");
+  Map<String, int64_t> map{{"x", 1}, {"y", 2}};
+  Any k("x");
+  Any v = f(map, k);
+  EXPECT_EQ(v.operator int(), 1);
 }
 
 }  // namespace

@@ -282,6 +282,11 @@ TEST(String, Any) {
   EXPECT_EQ(a.type_index(), TypeIndex::kTVMFFIStr);
   EXPECT_EQ(a.TryAs<String>().value(), "hello");
   EXPECT_EQ(a.TryAs<std::string>().value(), "hello");
+
+  Any c = "helloworld";
+  EXPECT_EQ(c.type_index(), TypeIndex::kTVMFFIStr);
+  EXPECT_EQ(c.TryAs<String>().value(), "helloworld");
+  EXPECT_EQ(c.TryAs<std::string>().value(), "helloworld");
 }
 
 TEST(String, Bytes) {
