@@ -47,7 +47,7 @@ namespace runtime {
 std::string GetCustomTypeName(uint8_t type_code) {
   auto f = tvm::runtime::Registry::Get("runtime._datatype_get_type_name");
   ICHECK(f) << "Function runtime._datatype_get_type_name not found";
-  return (*f)(type_code).operator std::string();
+  return (*f)(type_code).operator String();
 }
 
 uint8_t GetCustomTypeCode(const std::string& type_name) {
@@ -485,12 +485,11 @@ void TVMAPISetLastError(const char* msg) {
 
 int TVMModLoadFromFile(const char* file_name, const char* format, TVMModuleHandle* out) {
   API_BEGIN();
-  TVMRetValue ret;
+  tvm::ffi::Any ret;
   ret = Module::LoadFromFile(file_name, format);
-  TVMValue val;
-  int type_code;
-  ret.MoveToCHost(&val, &type_code);
-  *out = val.v_handle;
+  TVMFFIAny val;
+  ret.MoveToTVMFFIAny(&val);
+  *out = val.v_obj;
   API_END();
 }
 
@@ -505,12 +504,10 @@ int TVMModGetFunction(TVMModuleHandle mod, const char* func_name, int query_impo
   API_BEGIN();
   PackedFunc pf = ObjectInternal::GetModuleNode(mod)->GetFunction(func_name, query_imports != 0);
   if (pf != nullptr) {
-    tvm::runtime::TVMRetValue ret;
-    ret = pf;
-    TVMValue val;
-    int type_code;
-    ret.MoveToCHost(&val, &type_code);
-    *func = val.v_handle;
+    tvm::ffi::Any ret = pf;
+    TVMFFIAny val;
+    ret.MoveToTVMFFIAny(&val);
+    *func = val.v_obj;
   } else {
     *func = nullptr;
   }
@@ -569,28 +566,32 @@ int TVMByteArrayFree(TVMByteArray* arr) {
 int TVMFuncCall(TVMFunctionHandle func, TVMValue* args, int* arg_type_codes, int num_args,
                 TVMValue* ret_val, int* ret_type_code) {
   API_BEGIN();
-  TVMRetValue rv;
-  (static_cast<const PackedFuncObj*>(func))
-      ->CallPacked(TVMArgs(args, arg_type_codes, num_args), &rv);
-  // handle return string.
-  if (rv.type_code() == kTVMStr || rv.type_code() == kTVMDataType || rv.type_code() == kTVMBytes) {
+  tvm::ffi::Any rv;
+  tvm::ffi::FunctionObj* ffi_func = static_cast<tvm::ffi::FunctionObj*>(func);
+  PackedFunc::LegacyCallPacked(ffi_func, TVMArgs(args, arg_type_codes, num_args), &rv);
+  // special handle of certain return types.
+  if (rv.type_index() == tvm::ffi::TypeIndex::kTVMFFIStr ||
+      rv.type_index() == tvm::ffi::TypeIndex::kTVMFFIDataType ||
+      rv.type_index() == tvm::ffi::TypeIndex::kTVMFFIBytes) {
+    // TODO(tvm-team): handle bytes return type here
     TVMRuntimeEntry* e = TVMAPIRuntimeStore::Get();
-    if (rv.type_code() != kTVMDataType) {
-      e->ret_str = *rv.ptr<std::string>();
-    } else {
+    if (rv.type_index() == tvm::ffi::TypeIndex::kTVMFFIStr) {
       e->ret_str = rv.operator std::string();
-    }
-    if (rv.type_code() == kTVMBytes) {
+      *ret_type_code = kTVMStr;
+      ret_val->v_str = e->ret_str.c_str();
+    } else if (rv.type_index() == tvm::ffi::TypeIndex::kTVMFFIDataType) {
+      e->ret_str = DLDataType2String(rv.operator DLDataType());
+      *ret_type_code = kTVMStr;
+      ret_val->v_str = e->ret_str.c_str();
+    } else if (rv.type_index() == tvm::ffi::TypeIndex::kTVMFFIBytes) {
+      e->ret_str = rv.operator std::string();
       e->ret_bytes.data = e->ret_str.c_str();
       e->ret_bytes.size = e->ret_str.length();
       *ret_type_code = kTVMBytes;
       ret_val->v_handle = &(e->ret_bytes);
-    } else {
-      *ret_type_code = kTVMStr;
-      ret_val->v_str = e->ret_str.c_str();
     }
   } else {
-    rv.MoveToCHost(ret_val, ret_type_code);
+    MoveAnyToLegacyTVMValue(std::move(rv), ret_val, ret_type_code);
   }
   API_END();
 }
@@ -599,7 +600,7 @@ int TVMCFuncSetReturn(TVMRetValueHandle ret, TVMValue* value, int* type_code, in
   API_BEGIN();
   ICHECK_EQ(num_ret, 1);
   TVMRetValue* rv = static_cast<TVMRetValue*>(ret);
-  *rv = TVMArgValue(value[0], type_code[0]);
+  *rv = LegacyTVMArgValueToAnyView(value[0], type_code[0]);
   API_END();
 }
 
@@ -617,7 +618,7 @@ int TVMFuncCreateFromCFunc(TVMPackedCFunc func, void* resource_handle, TVMPacked
     });
     TVMValue val;
     int type_code;
-    ret.MoveToCHost(&val, &type_code);
+    MoveAnyToLegacyTVMValue(std::move(ret), &val, &type_code);
     *out = val.v_handle;
   } else {
     // wrap it in a shared_ptr, with fin as deleter.
@@ -633,7 +634,7 @@ int TVMFuncCreateFromCFunc(TVMPackedCFunc func, void* resource_handle, TVMPacked
     });
     TVMValue val;
     int type_code;
-    ret.MoveToCHost(&val, &type_code);
+    MoveAnyToLegacyTVMValue(std::move(ret), &val, &type_code);
     *out = val.v_handle;
   }
   API_END();
@@ -688,8 +689,8 @@ int TVMStreamStreamSynchronize(int device_type, int device_id, TVMStreamHandle s
 int TVMCbArgToReturn(TVMValue* value, int* code) {
   API_BEGIN();
   tvm::runtime::TVMRetValue rv;
-  rv = tvm::runtime::TVMMovableArgValue_(*value, *code);
-  rv.MoveToCHost(value, code);
+  rv = LegacyTVMArgValueToAnyView(*value, *code);
+  MoveAnyToLegacyTVMValue(std::move(rv), value, code);
   API_END();
 }
 

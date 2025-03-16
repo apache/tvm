@@ -263,6 +263,47 @@ class TVM_DLL DeviceAPI {
                               DLDataType type_hint, TVMStreamHandle stream);
 };
 
+/*!
+ * \brief The name of DLDeviceType.
+ * \param type The device type.
+ * \return the device name.
+ */
+inline const char* DLDeviceType2Str(int type) {
+  switch (type) {
+    case kDLCPU:
+      return "cpu";
+    case kDLCUDA:
+      return "cuda";
+    case kDLCUDAHost:
+      return "cuda_host";
+    case kDLCUDAManaged:
+      return "cuda_managed";
+    case kDLOpenCL:
+      return "opencl";
+    case kDLVulkan:
+      return "vulkan";
+    case kDLMetal:
+      return "metal";
+    case kDLVPI:
+      return "vpi";
+    case kDLROCM:
+      return "rocm";
+    case kDLROCMHost:
+      return "rocm_host";
+    case kDLExtDev:
+      return "ext_dev";
+    case kDLOneAPI:
+      return "oneapi";
+    case kDLWebGPU:
+      return "webgpu";
+    case kDLHexagon:
+      return "hexagon";
+    default:
+      LOG(FATAL) << "unknown type = " << type;
+  }
+  throw;
+}
+
 /*! \brief The device type bigger than this is RPC device */
 constexpr int kRPCSessMask = 128;
 static_assert(kRPCSessMask >= TVMDeviceExtType_End);
