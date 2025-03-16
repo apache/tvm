@@ -203,6 +203,11 @@ def test_copy_(target, dev):
 
 
 @tvm.testing.parametrize_targets("cuda")
+def test_copy_fails_(target, dev):
+    assert False, "test_copy_fails_ indeed fails"
+
+
+@tvm.testing.parametrize_targets("cuda")
 def test_upsample_with_size(target, dev):
     """
     The Upsample module can be used with the size arugment or the scale
