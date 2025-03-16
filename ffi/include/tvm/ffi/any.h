@@ -293,9 +293,20 @@ struct Type2Str<Any> {
 };
 
 template <>
+struct Type2Str<const Any&> {
+  static std::string v() { return "Any"; }
+};
+
+template <>
 struct Type2Str<AnyView> {
   static std::string v() { return "AnyView"; }
 };
+
+template <>
+struct Type2Str<const AnyView&> {
+  static std::string v() { return "AnyView"; }
+};
+
 template <>
 struct Type2Str<void> {
   static std::string v() { return "void"; }

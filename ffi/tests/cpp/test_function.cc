@@ -119,9 +119,7 @@ TEST(Func, FromUnpacked) {
 }
 
 TEST(Func, PassReturnAny) {
-  Function fadd_one = Function::FromUnpacked([](Any a) -> Any {
-    return a.operator int() + 1;
-  });
+  Function fadd_one = Function::FromUnpacked([](Any a) -> Any { return a.operator int() + 1; });
   EXPECT_EQ(fadd_one(1).operator int(), 2);
 }
 
