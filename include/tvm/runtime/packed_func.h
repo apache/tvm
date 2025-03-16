@@ -350,6 +350,7 @@ class PackedFunc : public ffi::Function {
   using ffi::Function::operator!=;
   using ffi::Function::CallPacked;
   // default construction from nullptr
+  PackedFunc(std::nullptr_t) : ffi::Function(nullptr) {}
   PackedFunc() = default;
   PackedFunc(const PackedFunc& other) = default;
   PackedFunc(PackedFunc&& other) = default;
@@ -515,6 +516,9 @@ inline void TVMArgsSetter::SetObject(size_t i, T&& value) const {
   type_codes_[i] = kTVMObjectHandle;
 }
 
+inline PackedFunc Module::GetFunction(const String& name, bool query_imports) {
+  return (*this)->GetFunction(name, query_imports);
+}
 }  // namespace runtime
 }  // namespace tvm
 #endif  // TVM_RUNTIME_PACKED_FUNC_H_
