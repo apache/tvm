@@ -31,6 +31,6 @@ namespace runtime {
 
 using tvm::ffi::Map;
 
-}  // namespace tvm
 }  // namespace runtime
+}  // namespace tvm
 #endif  // TVM_RUNTIME_CONTAINER_MAP_H_

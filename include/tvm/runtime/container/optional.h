@@ -33,6 +33,6 @@ using tvm::ffi::Optional;
 
 constexpr inline auto NullOpt = std::nullopt;
 
-}  // namespace tvm
 }  // namespace runtime
+}  // namespace tvm
 #endif  // TVM_RUNTIME_CONTAINER_OPTIONAL_H_

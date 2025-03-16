@@ -27,11 +27,11 @@
 #include <tvm/runtime/container/optional.h>
 #include <tvm/runtime/container/string.h>
 #include <tvm/runtime/container/variant.h>
-//#include <tvm/runtime/disco/disco_worker.h>
-//#include <tvm/runtime/ndarray.h>
+// #include <tvm/runtime/disco/disco_worker.h>
+// #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
-//#include <tvm/runtime/registry.h>
-//#include <tvm/tir/expr.h>
+// #include <tvm/runtime/registry.h>
+// #include <tvm/tir/expr.h>
 
 namespace tvm {
 namespace debug {
@@ -39,7 +39,6 @@ namespace debug {
 using namespace tvm::runtime;
 
 String Test() {
-
   PackedFunc pf([](TVMArgs args, TVMRetValue* rv) {
     String value = args[0];
     *rv = value;
