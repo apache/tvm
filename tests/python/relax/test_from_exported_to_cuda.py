@@ -15,6 +15,9 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import sys
+sys.path.append('/ssd1/htalendr/tvm/python') # Refer to local TVM build
+
 import tvm
 from tvm import relax
 import tvm.testing
@@ -50,10 +53,17 @@ def assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, tar
     gpu_params = [tvm.nd.array(p, dev) for p in tvm_params["main"]]
     gpu_out = vm["main"](gpu_data, *gpu_params)
 
-    pytorch_out = torch_module(torch_data).detach().numpy()
-    actual = gpu_out[0].numpy()
-    desired = pytorch_out
-    np.testing.assert_allclose(actual=actual, desired=desired, rtol=1e-5, atol=1e-5)
+    pytorch_out = torch_module(torch_data)
+
+    if isinstance(pytorch_out, tuple):
+        for i in range(len(pytorch_out)):
+            actual = gpu_out[i].numpy()
+            desired = pytorch_out[i].detach().numpy()
+            np.testing.assert_allclose(actual=actual, desired=desired, rtol=1e-5, atol=1e-5)
+    else:
+        actual = gpu_out[0].numpy()
+        desired = pytorch_out.detach().numpy()
+        np.testing.assert_allclose(actual=actual, desired=desired, rtol=1e-5, atol=1e-5)
 
 
 @tvm.testing.parametrize_targets("cuda")
@@ -203,11 +213,6 @@ def test_copy_(target, dev):
 
 
 @tvm.testing.parametrize_targets("cuda")
-def test_copy_fails_(target, dev):
-    assert False, "test_copy_fails_ indeed fails"
-
-
-@tvm.testing.parametrize_targets("cuda")
 def test_upsample_with_size(target, dev):
     """
     The Upsample module can be used with the size arugment or the scale
@@ -284,6 +289,28 @@ def test_linalg_vector_norm(target, dev):
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module1, target, dev)
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module2, target, dev)
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module3, target, dev)
+
+@tvm.testing.parametrize_targets("cuda")
+def test_split_size(target, dev):
+
+    channels = 7
+    split_size = 3 
+    dim = 0 # TODO try higher dims!
+    raw_data = np.random.rand(channels).astype("float32")
+
+    class SplitModelSplitSize(nn.Module):
+        def __init__(self, split_size, dim):
+            super().__init__()
+            self.split_size = split_size
+            self.dim = dim
+
+        def forward(self, x):
+            return torch.split(x, split_size_or_sections=self.split_size, dim=self.dim)
+
+    torch_module = SplitModelSplitSize(split_size=split_size, dim=dim).eval()
+
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
+
 
 
 if __name__ == "__main__":
