@@ -251,10 +251,9 @@ bool NormCheckDtypeAndShape(const Call& call, const BlockBuilder& ctx,
 /* relax.nn.batch_norm */
 TVM_REGISTER_NODE_TYPE(BatchNormAttrs);
 
-Expr batch_norm(Expr data, Expr gamma, Expr beta, Expr moving_mean, Expr moving_var,  //
-                int axis, double epsilon, bool center, bool scale, double momentum,
-              bool training) {
-                  
+Expr batch_norm_impl(Expr data, Expr gamma, Expr beta, Expr moving_mean, Expr moving_var,  //
+                     int axis, double epsilon, bool center, bool scale, double momentum,
+                     bool training) {
   ObjectPtr<BatchNormAttrs> attrs = make_object<BatchNormAttrs>();
   attrs->axis = axis;
   attrs->epsilon = epsilon;
@@ -269,8 +268,7 @@ Expr batch_norm(Expr data, Expr gamma, Expr beta, Expr moving_mean, Expr moving_
                std::move(moving_var)},
               Attrs{attrs}, {});
 }
-
-TVM_REGISTER_GLOBAL("relax.op.nn.batch_norm").set_body_typed(batch_norm);
+TVM_REGISTER_GLOBAL("relax.op.nn.batch_norm").set_body_typed(batch_norm_impl);
 
 StructInfo InferStructInfoBatchNorm(const Call& call, const BlockBuilder& ctx) {
   Array<TensorStructInfo> input_sinfo = GetInputTensorStructInfo(call, ctx);
