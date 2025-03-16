@@ -243,7 +243,6 @@ struct unpack_call_by_signature<R(Args...)> {
   }
 };
 
-
 template <typename R>
 struct typed_packed_call_dispatcher {
   template <typename F, typename... Args>
@@ -254,7 +253,7 @@ struct typed_packed_call_dispatcher {
 
 template <>
 struct typed_packed_call_dispatcher<void> {
-  template <typename F,typename... Args>
+  template <typename F, typename... Args>
   TVM_FFI_INLINE static void run(const F& f, Args&&... args) {
     f(std::forward<Args>(args)...);
   }

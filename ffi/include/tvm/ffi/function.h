@@ -540,26 +540,20 @@ class TypedFunction<R(Args...)> {
   /*!
    * \return reference the internal PackedFunc
    */
-  const Function& packed() const & { return packed_; }
+  const Function& packed() const& { return packed_; }
   /*!
    * \return r-value reference the internal PackedFunc
    */
-  constexpr Function&& packed() && {
-    return std::move(packed_);
-  }
+  constexpr Function&& packed() && { return std::move(packed_); }
   /*! \return Whether the packed function is nullptr */
   bool operator==(std::nullptr_t null) const { return packed_ == nullptr; }
   /*! \return Whether the packed function is not nullptr */
   bool operator!=(std::nullptr_t null) const { return packed_ != nullptr; }
 
-
-
  private:
   /*! \brief The internal packed function */
   Function packed_;
 };
-
-
 
 template <typename FType>
 inline constexpr bool use_default_type_traits_v<TypedFunction<FType>> = false;
@@ -579,10 +573,11 @@ struct TypeTraits<TypedFunction<FType>> : public TypeTraitsBase {
   }
 
   static TVM_FFI_INLINE TypedFunction<FType> CopyFromAnyViewAfterCheck(const TVMFFIAny* src) {
-    return TypedFunction(TypeTraits<Function>::CopyFromAnyViewAfterCheck(src));
+    return TypedFunction<FType>(TypeTraits<Function>::CopyFromAnyViewAfterCheck(src));
   }
 
-  static TVM_FFI_INLINE std::optional<TypedFunction<FType>> TryCopyFromAnyView(const TVMFFIAny* src) {
+  static TVM_FFI_INLINE std::optional<TypedFunction<FType>> TryCopyFromAnyView(
+      const TVMFFIAny* src) {
     std::optional<Function> opt = TypeTraits<Function>::TryCopyFromAnyView(src);
     if (opt.has_value()) {
       return TypedFunction<FType>(std::move(opt.value()));
@@ -591,9 +586,7 @@ struct TypeTraits<TypedFunction<FType>> : public TypeTraitsBase {
     }
   }
 
-  static TVM_FFI_INLINE std::string TypeStr() {
-    return details::FunctionInfo<FType>::Sig();
-  }
+  static TVM_FFI_INLINE std::string TypeStr() { return details::FunctionInfo<FType>::Sig(); }
 };
 
 /*! \brief Registry for global function */

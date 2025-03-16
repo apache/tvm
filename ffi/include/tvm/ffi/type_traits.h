@@ -391,7 +391,7 @@ struct TypeTraits<const char*> : public TypeTraitsBase {
 
   static TVM_FFI_INLINE void MoveToAny(const char* src, TVMFFIAny* result) {
     TVM_FFI_THROW(RuntimeError)
-        << "const char* cannot be held in Any as it does not retain ownership, use NDArray instead";
+        << "const char* cannot be held in Any as it does not retain ownership, use String instead";
   }
 
   static TVM_FFI_INLINE std::optional<const char*> TryCopyFromAnyView(const TVMFFIAny* src) {
@@ -410,6 +410,40 @@ struct TypeTraits<const char*> : public TypeTraitsBase {
   }
 
   static TVM_FFI_INLINE std::string TypeStr() { return "const char*"; }
+};
+
+// TVMFFIByteArray, requirement: not nullable, do not retain ownership
+template <>
+struct TypeTraits<TVMFFIByteArray*> : public TypeTraitsBase {
+  static constexpr int32_t field_static_type_index = TypeIndex::kTVMFFIByteArrayPtr;
+
+  static TVM_FFI_INLINE void CopyToAnyView(TVMFFIByteArray* src, TVMFFIAny* result) {
+    TVM_FFI_ICHECK_NOTNULL(src);
+    result->type_index = TypeIndex::kTVMFFIByteArrayPtr;
+    result->v_ptr = src;
+  }
+
+  static TVM_FFI_INLINE void MoveToAny(TVMFFIByteArray* src, TVMFFIAny* result) {
+    TVM_FFI_THROW(RuntimeError) << "TVMFFIByteArray* cannot be held in Any as it does not retain "
+                                   "ownership, use Bytes instead";
+  }
+
+  static TVM_FFI_INLINE std::optional<TVMFFIByteArray*> TryCopyFromAnyView(const TVMFFIAny* src) {
+    if (src->type_index == TypeIndex::kTVMFFIByteArrayPtr) {
+      return static_cast<TVMFFIByteArray*>(src->v_ptr);
+    }
+    return std::nullopt;
+  }
+
+  static TVM_FFI_INLINE bool CheckAnyView(const TVMFFIAny* src) {
+    return src->type_index == TypeIndex::kTVMFFIByteArrayPtr;
+  }
+
+  static TVM_FFI_INLINE TVMFFIByteArray* CopyFromAnyViewAfterCheck(const TVMFFIAny* src) {
+    return static_cast<TVMFFIByteArray*>(src->v_ptr);
+  }
+
+  static TVM_FFI_INLINE std::string TypeStr() { return "TVMFFIByteArray*"; }
 };
 
 template <int N>
