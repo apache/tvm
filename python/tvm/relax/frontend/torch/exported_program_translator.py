@@ -53,8 +53,8 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         dtype = x.struct_info.dtype
         weight = self.env.get(node.args[1], relax.const(np.ones(channel), dtype=dtype))
         bias = self.env.get(node.args[2], relax.const(np.zeros(channel), dtype=dtype))
-        # running_mean = self.env.get(node.args[3], relax.const(np.zeros(channel), dtype=dtype))
-        # running_var = self.env.get(node.args[4], relax.const(np.ones(channel), dtype=dtype))
+        running_mean = self.env.get(node.args[3], relax.const(np.zeros(channel), dtype=dtype))
+        running_var = self.env.get(node.args[4], relax.const(np.ones(channel), dtype=dtype))
         momentum = node.args[5] if len(node.args) > 5 else node.kwargs.get("momentum", 0.1)
         eps = node.args[6] if len(node.args) > 6 else node.kwargs.get("eps", 1e-05)
 
@@ -63,42 +63,19 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                 data=x,
                 gamma=weight,
                 beta=bias,
-                # moving_mean=running_mean,
-                # moving_var=running_var,
+                moving_mean=running_mean,
+                moving_var=running_var,
                 axis=1, # Always over channel
                 epsilon=eps,
-                center=False, # TODO
-                scale=False, # TODO 
                 momentum=momentum,
                 training=training,
             )
         )
 
     def _batch_norm_training(self, node: fx.Node) -> relax.Var:
-        import numpy as np
-
-        x = self.env[node.args[0]]
-        channel = int(self.shape_of(x)[1])
-        dtype = x.struct_info.dtype
-        weight = self.env.get(node.args[1], relax.const(np.ones(channel), dtype=dtype))
-        bias = self.env.get(node.args[2], relax.const(np.zeros(channel), dtype=dtype))
-        running_mean = self.env.get(node.args[3], relax.const(np.zeros(channel), dtype=dtype))
-        running_var = self.env.get(node.args[4], relax.const(np.ones(channel), dtype=dtype))
-        momentum = node.args[5] if len(node.args) > 5 else node.kwargs.get("momentum", 0.1)
-        eps = node.args[6] if len(node.args) > 6 else node.kwargs.get("eps", 1e-05)
-
-        return self.block_builder.emit(
-            relax.op.nn.batch_norm(
-                x,
-                weight,
-                bias,
-                running_mean,
-                running_var,
-                axis=1,
-                epsilon=eps,
-                momentum=momentum,
-            )
-        )
+        # This method should only be called for torch exported programs corresponding to training mode
+        training = False
+        return self._batch_norm(node, training)
 
     def _batch_norm_legit_no_training(self, node: fx.Node) -> relax.Var:
         # This method should only be called for torch exported programs corresponding to eval mode
@@ -300,10 +277,10 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             # linear algebra
             "linalg_vector_norm.default": self._linalg_vector_norm,
             # neural network
-            # TODO figure out all calls to batchnorm HERE and in fx_translator 
+            # TODO figure out all calls to batchnorm here AND in fx_translator 
+            # "batch_norm.default": self._batch_norm_legit_no_training, # TODO keep or not? 
             "_native_batch_norm_legit_no_training.default": self._batch_norm_legit_no_training,
-            "batch_norm.default": self._batch_norm_legit_no_training, # TODO keep or not? 
-            "_native_batch_norm_legit_functional.default": self._batch_norm_training, # when I don't do eval . TODO doesn't work right now!
+            "_native_batch_norm_legit_functional.default": self._batch_norm_training,
             "adaptive_avg_pool2d.default": self._adaptive_avg_pool2d,
             "addmm.default": self._addmm,
             "avg_pool2d.default": self._avg_pool2d,

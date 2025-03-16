@@ -293,7 +293,7 @@ def test_batch_norm(target, dev):
     raw_data = np.random.randn(8,8,4,4).astype(np.float32)
     torch_module0 = nn.BatchNorm2d(8, eps=1e-02, momentum=0.0, 
                                    affine=False, track_running_stats=True, 
-                                   device=None, dtype=None)#.eval()
+                                   device=None, dtype=None).eval()
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module0, target, dev)
 
     # With momentum, eval
@@ -302,7 +302,6 @@ def test_batch_norm(target, dev):
                                    affine=False, track_running_stats=True, 
                                    device=None, dtype=None).eval()
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module0, target, dev)
-
 
     # Default args, eval
     raw_data = np.random.randn(4,2,2,2).astype(np.float32)
