@@ -15,6 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 
+# TODO remove
+import sys
+sys.path.append('/ssd1/htalendr/tvm/python') # Refer to local TVM build
+
 import tvm
 from tvm import relax
 import tvm.testing
@@ -281,6 +285,33 @@ def test_linalg_vector_norm(target, dev):
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module3, target, dev)
 
 
+# TODO can combine the tests together (they are separete to know which test fails)
+@tvm.testing.parametrize_targets("cuda")
+def test_batch_norm(target, dev):
+    # No momentum, eval
+    raw_data = np.random.randn(8, 8, 4, 4).astype(np.float32)
+    torch_module0 = nn.BatchNorm2d(
+        8, eps=1e-02, momentum=0.0, affine=False, track_running_stats=True, device=None, dtype=None
+    ).eval()
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module0, target, dev)
+
+@tvm.testing.parametrize_targets("cuda")
+def test_batch_norm(target, dev):
+    # With momentum, eval
+    raw_data = np.random.randn(1, 4, 2, 2).astype(np.float32)
+    torch_module0 = nn.BatchNorm2d(
+        4, eps=1e-05, momentum=0.0, affine=False, track_running_stats=True, device=None, dtype=None
+    ).eval()
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module0, target, dev)
+
+@tvm.testing.parametrize_targets("cuda")
+def test_batch_norm(target, dev):
+    # Default args, eval
+    raw_data = np.random.randn(4, 2, 2, 2).astype(np.float32)
+    torch_module0 = nn.BatchNorm2d(2).eval()
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module0, target, dev)
+
+
 @tvm.testing.parametrize_targets("cuda")
 def test_batch_norm(target, dev):
     # No momentum, eval
@@ -304,9 +335,25 @@ def test_batch_norm(target, dev):
 
 
 @tvm.testing.parametrize_targets("cuda")
-def test_dummy(target, dev):
-    version = torch.__version__
-    assert 0, f"Torch version is {version}"
+def test_batch_norm(target, dev):
+    # No momentum, eval
+    raw_data = np.random.randn(8, 8, 4, 4).astype(np.float32)
+    torch_module0 = nn.BatchNorm2d(
+        8, eps=1e-02, momentum=0.0, affine=False, track_running_stats=True, device=None, dtype=None
+    ).eval()
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module0, target, dev)
+
+    # With momentum, eval
+    raw_data = np.random.randn(1, 4, 2, 2).astype(np.float32)
+    torch_module0 = nn.BatchNorm2d(
+        4, eps=1e-05, momentum=0.0, affine=False, track_running_stats=True, device=None, dtype=None
+    ).eval()
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module0, target, dev)
+
+    # Default args, eval
+    raw_data = np.random.randn(4, 2, 2, 2).astype(np.float32)
+    torch_module0 = nn.BatchNorm2d(2).eval()
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module0, target, dev)
 
 
 if __name__ == "__main__":
