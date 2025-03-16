@@ -308,6 +308,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "cat.default": self._cat,
             "clamp.Tensor": self._clamp,
             "concat.default": self._cat,
+            "copy.default": self._copy_,
             "copy_.default": self._copy_,
             "cumsum.default": self._cumsum,
             "expand.default": self._expand,
