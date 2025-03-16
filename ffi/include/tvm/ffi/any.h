@@ -218,7 +218,7 @@ class Any {
     return *this;
   }
   /*! \brief Any can be converted to AnyView in zero cost. */
-  operator AnyView() { return AnyView::CopyFromTVMFFIAny(data_); }
+  operator AnyView() const { return AnyView::CopyFromTVMFFIAny(data_); }
   // constructor from general types
   template <typename T, typename = std::enable_if_t<TypeTraits<T>::enabled>>
   Any(T other) {  // NOLINT(*)
