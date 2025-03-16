@@ -225,10 +225,6 @@ class NDArray : public ObjectRef {
   TVM_DLL static bool IsAligned(const DLTensor& tensor);
 
  protected:
-  friend class TVMPODValue_;
-  template <typename Derived>
-  friend class TVMPODValue_CRTP_;
-  friend class TVMRetValue;
   friend class TVMArgsSetter;
   /*!
    * \brief Get mutable internal container pointer.
@@ -442,11 +438,11 @@ inline TVMArrayHandle NDArray::FFIGetHandle(const ObjectRef& nd) {
 
 inline TVMArrayHandle ObjectHandleToTVMArrayHandle(Object* handle) {
   return reinterpret_cast<TVMArrayHandle>(
-    static_cast<NDArray::Container*>(static_cast<NDArray::ContainerBase*>(handle))
+    static_cast<NDArray::ContainerBase*>(static_cast<NDArray::Container*>(handle))
   );
 }
 
-inline Object* TVMArrayHandleToObjectHandle(TVMArrayHandle handle) {
+inline Object* TVMArrayHandleToObjectHandle(void* handle) {
   return static_cast<NDArray::Container*>(reinterpret_cast<NDArray::ContainerBase*>(handle));
 }
 

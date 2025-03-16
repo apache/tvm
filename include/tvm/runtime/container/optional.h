@@ -31,6 +31,8 @@ namespace runtime {
 
 using tvm::ffi::Optional;
 
+constexpr inline auto NullOpt = std::nullopt;
+
 }  // namespace tvm
 }  // namespace runtime
 #endif  // TVM_RUNTIME_CONTAINER_OPTIONAL_H_

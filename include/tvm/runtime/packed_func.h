@@ -27,11 +27,16 @@
 #include <tvm/ffi/any.h>
 #include <tvm/ffi/function.h>
 #include <tvm/runtime/logging.h>
+#include <tvm/runtime/ndarray.h>
+#include <tvm/runtime/module.h>
 #include <tvm/runtime/container/boxed_primitive.h>
 #include <tvm/runtime/c_runtime_api.h>
 
 namespace tvm {
 namespace runtime {
+
+using ffi::AnyView;
+using ffi::Any;
 
 /*!
  * \brief Utility function to convert legacy TVMArgValue to AnyView
@@ -52,7 +57,7 @@ inline TVMFFIAny LegacyTVMArgValueToAnyView(int type_code, TVMValue value) {
     }
     case kTVMOpaqueHandle: {
       res.type_index = ffi::TypeIndex::kTVMFFIOpaquePtr;
-      res.v_handle = value.v_handle;
+      res.v_ptr = value.v_handle;
       break;
     }
     case kTVMNullptr: {
@@ -61,7 +66,7 @@ inline TVMFFIAny LegacyTVMArgValueToAnyView(int type_code, TVMValue value) {
     }
     case kTVMDataType: {
       res.type_index = ffi::TypeIndex::kTVMFFIDataType;
-      res.v_type = value.v_type;
+      res.v_dtype = value.v_type;
       break;
     }
     case kDLDevice: {
@@ -80,7 +85,7 @@ inline TVMFFIAny LegacyTVMArgValueToAnyView(int type_code, TVMValue value) {
       break;
     }
     case kTVMModuleHandle: {
-      res.type_index = ffi::TypeIndex::kTVMFFIModule;
+      res.type_index = ffi::TypeIndex::kTVMFFIRuntimeModule;
       res.v_obj = static_cast<TVMFFIObject*>(value.v_handle);
       break;
     }
@@ -96,11 +101,12 @@ inline TVMFFIAny LegacyTVMArgValueToAnyView(int type_code, TVMValue value) {
     }
     case kTVMBytes: {
       res.type_index = ffi::TypeIndex::kTVMFFIByteArrayPtr;
-      res.v_handle = value.v_handle;
+      res.v_ptr = value.v_handle;
+      break;
     }
     case kTVMNDArrayHandle: {
       res.type_index = ffi::TypeIndex::kTVMFFINDArray;
-      res.v_obj = TVMArrayHandleToObjectHandle(value.v_handle);
+      res.v_obj = reinterpret_cast<TVMFFIObject*>(TVMArrayHandleToObjectHandle(value.v_handle));
       break;
     }
     case kTVMArgBool: {
@@ -154,7 +160,7 @@ inline void AnyViewToLegacyTVMArgValue(TVMFFIAny src, TVMValue* value, int* type
     }
     case ffi::TypeIndex::kTVMFFIDataType: {
       type_code[0] = kTVMDataType;
-      value[0].v_type = src.v_type;
+      value[0].v_type = src.v_dtype;
       break;
     }
     case ffi::TypeIndex::kTVMFFIDevice: {
@@ -174,7 +180,7 @@ inline void AnyViewToLegacyTVMArgValue(TVMFFIAny src, TVMValue* value, int* type
     }
     case ffi::TypeIndex::kTVMFFIByteArrayPtr: {
       type_code[0] = kTVMBytes;
-      value[0].v_handle = src.v_handle;
+      value[0].v_handle = src.v_ptr;
       break;
     }
     case ffi::TypeIndex::kTVMFFINDArray: {
@@ -182,7 +188,7 @@ inline void AnyViewToLegacyTVMArgValue(TVMFFIAny src, TVMValue* value, int* type
       value[0].v_handle = ObjectHandleToTVMArrayHandle(reinterpret_cast<Object*>(src.v_obj));
       break;
     }
-    case ffi::TypeIndex::kTVMFFIModule: {
+    case ffi::TypeIndex::kTVMFFIRuntimeModule: {
       type_code[0] = kTVMModuleHandle;
       value[0].v_handle = src.v_obj;
       break;
@@ -260,10 +266,6 @@ class TVMArgsSetter {
     values_[i].v_handle = value;
     type_codes_[i] = kTVMNullptr;
   }
-  TVM_ALWAYS_INLINE void operator()(size_t i, const TVMArgValue& value) const {
-    values_[i] = value.value_;
-    type_codes_[i] = value.type_code_;
-  }
   TVM_ALWAYS_INLINE void operator()(size_t i, void* value) const {
     values_[i].v_handle = value;
     type_codes_[i] = kTVMOpaqueHandle;
@@ -300,7 +302,7 @@ class TVMArgsSetter {
     AnyViewToLegacyTVMArgValue(value.CopyToTVMFFIAny(), &values_[i], &type_codes_[i]);
   }
   void operator()(size_t i, const ffi::Any& value) const {
-    AnyViewToLegacyTVMArgValue(value.operator AnyView(), &values_[i], &type_codes_[i]);
+    AnyViewToLegacyTVMArgValue(value.operator AnyView().CopyToTVMFFIAny(), &values_[i], &type_codes_[i]);
   }
   // ObjectRef handling
   template <typename TObjectRef,
@@ -324,6 +326,67 @@ class TVMArgsSetter {
   /*! \brief The type code fields */
   int* type_codes_;
 };
+
+// redirect to ffi::AnyView and ffi::Any for ArgValue and RetValue
+using TVMArgValue = ffi::AnyView;
+using TVMRetValue = ffi::Any;
+
+// Adapter class to keep common behavior of PackedFunc
+class PackedFunc : public ffi::Function {
+ public:
+  using ffi::Function::operator();
+  using ffi::Function::FromPacked;
+  using ffi::Function::operator==;
+  using ffi::Function::operator!=;
+  using ffi::Function::CallPacked;
+  // default construction from nullptr
+  PackedFunc() = default;
+  PackedFunc(const PackedFunc& other) = default;
+  PackedFunc(PackedFunc&& other) = default;
+  PackedFunc& operator=(PackedFunc&& other) = default;
+  PackedFunc& operator=(const ffi::Function& other) {
+    ffi::Function::operator=(other);
+    return *this;
+  }
+  /*!
+   * \brief Constructing a packed function from a callable type
+   *        whose signature is consistent with `PackedFunc`
+   * \param data the internal container of packed function.
+   */
+  template <typename TCallable,
+            typename = std::enable_if_t<
+                std::is_convertible<TCallable, std::function<void(TVMArgs, Any*)>>::value &&
+                !std::is_base_of<TCallable, PackedFunc>::value>>
+  explicit PackedFunc(TCallable legacy_packed) {
+    PackedFunc ret;
+    auto f = [legacy_packed](int num_args, const ffi::AnyView* args, ffi::Any* rv) {
+      std::vector<TVMValue> values(num_args);
+      std::vector<int> type_codes(num_args);
+      for (int i = 0; i < num_args; ++i) {
+        AnyViewToLegacyTVMArgValue(args[i].CopyToTVMFFIAny(), &values[i], &type_codes[i]);
+      }
+      legacy_packed(TVMArgs(values.data(), type_codes.data(), num_args), rv);
+    };
+    *this = ffi::Function::FromPacked(f);
+  }
+  /*!
+   * \brief Call the function in legacy packed format.
+   * \param args The arguments
+   * \param rv The return value.
+   */
+  TVM_ALWAYS_INLINE void CallPacked(TVMArgs args, Any* rv) const {
+    std::vector<ffi::AnyView> args_vec(args.size());
+    for (int i = 0; i < args.size(); ++i) {
+      args_vec[i] = args[i];
+    }
+    // redirect to the normal call packed.
+    this->CallPacked(args.size(), args_vec.data(), rv);
+  }
+};
+
+template <typename FType>
+using TypedPackedFunc = ffi::TypedFunction<FType>;
+
 
 // ObjectRef related conversion handling
 // Object can have three possible type codes:
@@ -430,55 +493,6 @@ inline void TVMArgsSetter::SetObject(size_t i, T&& value) const {
   type_codes_[i] = kTVMObjectHandle;
 }
 
-// redirect to ffi::AnyView and ffi::Any for ArgValue and RetValue
-using TVMArgValue = ffi::AnyView;
-using TVMRetValue = ffi::Any;
-
-
-// Adapter class to keep common behavior of PackedFunc
-class PackedFunc : public ffi::Function {
- public:
-  using ffi::Function::operator();
-  using ffi::Function::FromPacked;
-  // default construction from nullptr
-  PackedFunc() = default;
-  /*!
-   * \brief Constructing a packed function from a callable type
-   *        whose signature is consistent with `PackedFunc`
-   * \param data the internal container of packed function.
-   */
-  template <typename TCallable,
-            typename = std::enable_if_t<
-                std::is_convertible<TCallable, std::function<void(TVMArgs, TVMRetValue*)>>::value &&
-                !std::is_base_of<TCallable, PackedFunc>::value>>
-  explicit PackedFunc(TCallable legacy_packed) {
-    PackedFunc ret;
-    auto f = [legacy_packed](int num_args, ffi::AnyView* args, ffi::Any* rv) {
-      std::vector<TVMValue> values(num_args);
-      std::vector<int> type_codes(num_args);
-      for (int i = 0; i < num_args; ++i) {
-        AnyViewToLegacyTVMArgValue(args[i], &values[i], &type_codes[i]);
-      }
-      legacy_packed(TVMArgs(values.data(), type_codes.data(), num_args), rv);
-    };
-    data_ = std::move(ffi::Function::FromPacked(f).data_);
-  }
-  /*!
-   * \brief Call the function in legacy packed format.
-   * \param args The arguments
-   * \param rv The return value.
-   */
-  TVM_ALWAYS_INLINE void CallPacked(TVMArgs args, Any* rv) const {
-    std::vector<ffi::AnyView> args_vec(args.size());
-    for (size_t i = 0; i < args.size(); ++i) {
-      args_vec[i] = args[i];
-    }
-    // redirect to the normal call packed.
-    this->CallPacked(args.size(), args_vec.data(), rv);
-  }
-};
-
-using TypedPackedFunc = ffi::TypedFunction;
 
 }  // namespace runtime
 }  // namespace tvm

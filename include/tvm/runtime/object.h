@@ -137,7 +137,6 @@ class ObjectRef : public tvm::ffi::ObjectRef {
 
   // friend classes.
   friend struct ObjectPtrHash;
-  friend class TVMRetValue;
   friend class TVMArgsSetter;
   friend class ObjectInternal;
 };
