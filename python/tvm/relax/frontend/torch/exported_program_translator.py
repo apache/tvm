@@ -57,15 +57,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         running_var = self.env.get(node.args[4], relax.const(np.ones(channel), dtype=dtype))
         momentum = node.args[5] if len(node.args) > 5 else node.kwargs.get("momentum", 0.1)
         eps = node.args[6] if len(node.args) > 6 else node.kwargs.get("eps", 1e-05)
-        
-        print("calling batch_norm with the following parameters:")
-        print("x:", x)
-        print("weight:", weight)
-        print("bias:", bias)
-        print("running_mean:", running_mean)
-        print("running_var:", running_var)
-        print("momentum:", momentum)
-        print("eps:", eps)
+        training = False # This method is only called for eval mode
 
         return self.block_builder.emit(
             relax.op.nn.batch_norm(
@@ -79,6 +71,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                 center=False, # TODO
                 scale=False, # TODO 
                 momentum=momentum,
+                training=training,
             )
         )
 
