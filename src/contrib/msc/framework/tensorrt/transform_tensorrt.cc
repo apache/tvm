@@ -782,6 +782,8 @@ Expr RewriteShapeLike(BlockBuilder builder, const Var& var, const Call& src_call
 
 Expr RewriteSplit(BlockBuilder builder, const Var& var, const Call& src_call,
                   const Map<Expr, Call>& new_calls, const String& config) {
+  printf("INSIDE REWRITESPLIT !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!11\n");
+  std::cout << "Why is this not building?" << std::endl;
   const auto& call = new_calls.count(src_call) ? new_calls[src_call] : src_call;
   const auto& input_shape = ExprUtils::GetShape(call->args[0]);
   const auto* src_attrs = src_call->attrs.as<SplitAttrs>();

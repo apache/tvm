@@ -253,6 +253,7 @@ def split(
     """
     if isinstance(indices_or_sections, int):
         indices_or_sections = IntImm("int64", indices_or_sections)
+    print("CALLING _ffi_api.split !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
     return _ffi_api.split(x, indices_or_sections, axis)  # type: ignore
 
 
