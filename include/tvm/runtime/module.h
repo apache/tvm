@@ -253,7 +253,7 @@ class TVM_DLL ModuleNode : public Object {
   virtual bool ImplementsFunction(const String& name, bool query_imports = false);
 
   // integration with the existing components.
-  static constexpr const uint32_t _type_index = TypeIndex::kRuntimeModule;
+  static constexpr const uint32_t _type_index = ffi::TypeIndex::kTVMFFIRuntimeModule;
   static constexpr const char* _type_key = "runtime.Module";
   // NOTE: ModuleNode can still be sub-classed
   //

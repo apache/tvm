@@ -39,8 +39,14 @@ namespace debug {
 using namespace tvm::runtime;
 
 String Test() {
-  String value = "xyz";
-  return value;
+
+  PackedFunc pf([](TVMArgs args, TVMRetValue* rv) {
+    String value = args[0];
+    *rv = value;
+  });
+  String res = pf("xyz");
+  LOG(INFO) << res;
+  return res;
 }
 
 }  // namespace debug
