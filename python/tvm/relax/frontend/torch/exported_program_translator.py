@@ -74,7 +74,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
 
     def _batch_norm_training(self, node: fx.Node) -> relax.Var:
         # This method should only be called for torch exported programs corresponding to training mode
-        training = False
+        training = True
         return self._batch_norm(node, training)
 
     def _batch_norm_legit_no_training(self, node: fx.Node) -> relax.Var:
@@ -277,8 +277,6 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             # linear algebra
             "linalg_vector_norm.default": self._linalg_vector_norm,
             # neural network
-            # TODO figure out all calls to batchnorm here AND in fx_translator 
-            # "batch_norm.default": self._batch_norm_legit_no_training, # TODO keep or not? 
             "_native_batch_norm_legit_no_training.default": self._batch_norm_legit_no_training,
             "_native_batch_norm_legit_functional.default": self._batch_norm_training,
             "adaptive_avg_pool2d.default": self._adaptive_avg_pool2d,
