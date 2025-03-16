@@ -578,16 +578,6 @@ inline Tensor stack(const Array<Tensor>& inputs, int axis = 0, std::string name 
 inline Array<Tensor> split_indices_array(const Tensor& x, Array<PrimExpr> split_indices, int axis,
                                          std::string name = "T_split",
                                          std::string tag = kInjective) {
-  printf("we are in the transform'h's split\n");
-  // int x11 = 10;
-  // int y11 = 5;
-  // while (y11) {
-  //   x11 -= 2;
-  //   y11--;
-  // }
-  // int z11 = 50 / x11;
-  // printf("z11 is %d\n", z11);
-
   if (axis < 0) {
     axis += static_cast<int>(x->shape.size());
   }

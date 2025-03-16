@@ -1021,7 +1021,6 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         return self.block_builder.emit(relax.op.scatter_elements(x, index, src, axis=dim))
 
     def _split(self, node: fx.Node) -> relax.Var:
-        """ torch.split with split_size passed as an argument"""
         x = self.env[node.args[0]]
         split_size = node.args[1]
         dim = node.args[2] if len(node.args) > 2 else node.kwargs.get("dim", 0)
@@ -1032,25 +1031,6 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
                 n_section.append(s + cum_sum)
         else:
             n_section = (self.shape_of(x)[dim].value + split_size - 1) // split_size
-        print("calling split with n_section", n_section)
-        print("calling split with dim", dim)
-        return self.block_builder.emit(relax.op.split(x, n_section, dim))
-
-    def _split_with_sizes(self, node: fx.Node) -> relax.Var:
-        """ torch.split with a list of section sizes passed as an argument"""
-        # TODO 
-        x = self.env[node.args[0]]
-        split_size = node.args[1]
-        dim = node.args[2] if len(node.args) > 2 else node.kwargs.get("dim", 0)
-        if isinstance(split_size, (list, tuple)):
-            n_section = []
-            for s in split_size[:-1]:
-                cum_sum = 0 if not n_section else n_section[-1]
-                n_section.append(s + cum_sum)
-        else:
-            n_section = (self.shape_of(x)[dim].value + split_size - 1) // split_size
-        print("calling split with n_section", n_section)
-        print("calling split with dim", dim)
         return self.block_builder.emit(relax.op.split(x, n_section, dim))
 
     def _squeeze(self, node: fx.Node) -> relax.Var:
