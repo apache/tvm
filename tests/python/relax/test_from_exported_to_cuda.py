@@ -15,6 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 
+import sys
+
+sys.path.append("/ssd1/htalendr/tvm/python")  # Refer to local TVM build
+
 
 import tvm
 from tvm import relax
@@ -336,6 +340,27 @@ def test_split_sections_list(target, dev):
 
     torch_module = SplitModelSectionsList(split_size=sections, dim=dim).eval()
 
+
+@tvm.testing.parametrize_targets("cuda")
+def test_chunk(target, dev):
+    batch = 3
+    channels = 5
+    height = 7
+    width = 11
+    chunks = 2
+    dim = 1
+    raw_data = np.random.rand(batch, channels, height, width).astype("float32")
+
+    class ChunkModel(nn.Module):
+        def __init__(self, chunks, dim):
+            super().__init__()
+            self.chunks = chunks
+            self.dim = dim
+
+        def forward(self, x):
+            return x.chunk(self.chunks, dim=self.dim)
+
+    torch_module = ChunkModel(chunks=chunks, dim=dim).eval()
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 
