@@ -343,7 +343,11 @@ class PackedFunc : public ffi::Function {
   PackedFunc() = default;
   PackedFunc(const PackedFunc& other) = default;
   PackedFunc(PackedFunc&& other) = default;
+  PackedFunc(const ffi::Function& other) : ffi::Function(other) {}
   PackedFunc& operator=(PackedFunc&& other) = default;
+
+  // explicit interchange with ffi::Function
+  PackedFunc(ffi::Function&& other) : ffi::Function(std::move(other)) {}
   PackedFunc& operator=(const ffi::Function& other) {
     ffi::Function::operator=(other);
     return *this;
