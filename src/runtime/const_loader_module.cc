@@ -29,6 +29,7 @@
  */
 #include <tvm/runtime/container/array.h>
 #include <tvm/runtime/container/string.h>
+#include <tvm/runtime/container/map.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>

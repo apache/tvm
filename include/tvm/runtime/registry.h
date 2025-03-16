@@ -162,6 +162,15 @@ class Registry {
     return set_body(PackedFunc(f));
   }
   /*!
+   * \brief Set body to be to use the new Packed convention.
+   *
+   * \param f The body of the function.
+   */
+  template <typename FLambda>
+  Registry& set_body_packed(FLambda f) {
+    return set_body(ffi::Function::FromPacked(f));
+  }
+  /*!
    * \brief set the body of the function to the given function.
    *        Note that this will ignore default arg values and always require all arguments to be
    * provided.
