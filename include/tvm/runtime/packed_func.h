@@ -26,17 +26,17 @@
 
 #include <tvm/ffi/any.h>
 #include <tvm/ffi/function.h>
-#include <tvm/runtime/logging.h>
-#include <tvm/runtime/ndarray.h>
-#include <tvm/runtime/module.h>
-#include <tvm/runtime/container/boxed_primitive.h>
 #include <tvm/runtime/c_runtime_api.h>
+#include <tvm/runtime/container/boxed_primitive.h>
+#include <tvm/runtime/logging.h>
+#include <tvm/runtime/module.h>
+#include <tvm/runtime/ndarray.h>
 
 namespace tvm {
 namespace runtime {
 
-using ffi::AnyView;
 using ffi::Any;
+using ffi::AnyView;
 
 /*!
  * \brief Utility function to convert legacy TVMArgValue to AnyView
@@ -209,7 +209,6 @@ inline void AnyViewToLegacyTVMArgValue(TVMFFIAny src, TVMValue* value, int* type
   }
 }
 
-
 /*
  * \brief Move Any to legacy TVMValue and type_code
  * \param src The Any to move
@@ -232,25 +231,21 @@ class TVMArgs {
   const int* type_codes;
   int num_args;
   /*!
-  * \brief constructor
-  * \param values The argument values
-  * \param type_codes The argument type codes
-  * \param num_args number of arguments.
-  */
+   * \brief constructor
+   * \param values The argument values
+   * \param type_codes The argument type codes
+   * \param num_args number of arguments.
+   */
   TVMArgs(const TVMValue* values, const int* type_codes, int num_args)
       : values(values), type_codes(type_codes), num_args(num_args) {}
   /*! \return size of the arguments */
-  int size() const {
-    return num_args;
-  }
+  int size() const { return num_args; }
   /*!
    * \brief Get i-th argument
    * \param i the index.
    * \return the ith argument.
    */
-  AnyView operator[](int i) const {
-    return LegacyTVMArgValueToAnyView(values[i], type_codes[i]);
-  }
+  AnyView operator[](int i) const { return LegacyTVMArgValueToAnyView(values[i], type_codes[i]); }
 };
 
 /* \brief argument settter to PackedFunc */
@@ -316,7 +311,8 @@ class TVMArgsSetter {
     AnyViewToLegacyTVMArgValue(value.CopyToTVMFFIAny(), &values_[i], &type_codes_[i]);
   }
   void operator()(size_t i, const ffi::Any& value) const {
-    AnyViewToLegacyTVMArgValue(value.operator AnyView().CopyToTVMFFIAny(), &values_[i], &type_codes_[i]);
+    AnyViewToLegacyTVMArgValue(value.operator AnyView().CopyToTVMFFIAny(), &values_[i],
+                               &type_codes_[i]);
   }
   // ObjectRef handling
   template <typename TObjectRef,
@@ -392,7 +388,8 @@ class PackedFunc : public ffi::Function {
    * \param args The arguments
    * \param rv The return value.
    */
-  static TVM_ALWAYS_INLINE void LegacyCallPacked(ffi::FunctionObj* ffi_func, TVMArgs args, Any* rv) {
+  static TVM_ALWAYS_INLINE void LegacyCallPacked(ffi::FunctionObj* ffi_func, TVMArgs args,
+                                                 Any* rv) {
     std::vector<ffi::AnyView> args_vec(args.size());
     for (int i = 0; i < args.size(); ++i) {
       args_vec[i] = args[i];
@@ -412,7 +409,6 @@ class PackedFunc : public ffi::Function {
 
 template <typename FType>
 using TypedPackedFunc = ffi::TypedFunction<FType>;
-
 
 // ObjectRef related conversion handling
 // Object can have three possible type codes:
@@ -518,7 +514,6 @@ inline void TVMArgsSetter::SetObject(size_t i, T&& value) const {
   values_[i].v_handle = ffi::details::ObjectUnsafe::GetTVMFFIObjectPtrFromObjectRef(value);
   type_codes_[i] = kTVMObjectHandle;
 }
-
 
 }  // namespace runtime
 }  // namespace tvm

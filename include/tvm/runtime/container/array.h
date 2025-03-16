@@ -31,6 +31,6 @@ namespace runtime {
 
 using tvm::ffi::Array;
 
-}  // namespace tvm
 }  // namespace runtime
+}  // namespace tvm
 #endif  // TVM_RUNTIME_CONTAINER_ARRAY_H_
