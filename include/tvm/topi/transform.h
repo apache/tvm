@@ -972,7 +972,6 @@ inline Tensor strided_slice(const Tensor& x, const Array<Integer>& begin, const 
 inline Array<Tensor> split_n_sections(const Tensor& x, int num_sections, int axis,
                                       std::string name = "T_split_sections",
                                       std::string tag = kInjective) {
-  printf("We are in transform.h's splits_sections\n");
   if (axis < 0) {
     axis += static_cast<int>(x->shape.size());
   }

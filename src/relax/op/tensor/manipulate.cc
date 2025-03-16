@@ -827,7 +827,6 @@ TVM_REGISTER_NODE_TYPE(SplitAttrs);
 #include <cassert>
 
 Expr split(Expr x, Variant<IntImm, Array<IntImm>> indices_or_sections, int axis) {
-  printf("INSIDE SPLIT!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
   ObjectPtr<SplitAttrs> attrs = make_object<SplitAttrs>();
   if (const auto* indices = indices_or_sections.as<ArrayNode>()) {
     for (int i = 0; i < static_cast<int>(indices->size()); ++i) {
@@ -851,7 +850,6 @@ Expr split(Expr x, Variant<IntImm, Array<IntImm>> indices_or_sections, int axis)
   attrs->axis = axis;
 
   static const Op& op = Op::Get("relax.split");
-  printf("CALLING OP !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!\n");
   return Call(op, {std::move(x)}, Attrs(attrs), {});
 }
 
