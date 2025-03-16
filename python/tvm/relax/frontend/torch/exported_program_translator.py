@@ -45,7 +45,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
 
     ########## Neural Network ##########
 
-    def _batch_norm_legit_no_training(self, node: fx.Node) -> relax.Var:
+    def _batch_norm(self, node: fx.Node, training) -> relax.Var:
         import numpy as np
 
         x = self.env[node.args[0]]
@@ -60,16 +60,28 @@ class ExportedProgramImporter(BaseFXGraphImporter):
 
         return self.block_builder.emit(
             relax.op.nn.batch_norm(
-                x,
-                weight,
-                bias,
-                running_mean,
-                running_var,
-                axis=1,
+                data=x,
+                gamma=weight,
+                beta=bias,
+                moving_mean=running_mean,
+                moving_var=running_var,
+                axis=1,  # Always over channel
                 epsilon=eps,
                 momentum=momentum,
+                training=training,
             )
         )
+
+    def _batch_norm_legit_functional(self, node: fx.Node) -> relax.Var:
+        # This method is called for batch_norm in training mode
+        # TODO does not have correctness!
+        training = True
+        return self._batch_norm(node, training)
+
+    def _batch_norm_legit_no_training(self, node: fx.Node) -> relax.Var:
+        # This method is called for batch_norm in eval mode
+        training = False
+        return self._batch_norm(node, training)
 
     def _group_norm(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
@@ -283,7 +295,9 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             # linear algebra
             "linalg_vector_norm.default": self._linalg_vector_norm,
             # neural network
+            "_native_batch_norm_legit_functional.default": self._batch_norm_legit_functional,
             "_native_batch_norm_legit_no_training.default": self._batch_norm_legit_no_training,
+            "batch_norm.default": self._batch_norm_legit_no_training,
             "adaptive_avg_pool2d.default": self._adaptive_avg_pool2d,
             "addmm.default": self._addmm,
             "avg_pool2d.default": self._avg_pool2d,

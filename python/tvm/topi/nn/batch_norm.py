@@ -125,6 +125,7 @@ def batch_norm(
     else:
         moving_mean_rs = topi.reshape(moving_mean, shape)
         moving_var_rs = topi.reshape(moving_var, shape)
+
         out = (data - moving_mean_rs) / topi.math.sqrt(moving_var_rs + epsilon)
 
     if scale:
