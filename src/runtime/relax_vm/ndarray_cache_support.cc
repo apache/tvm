@@ -267,14 +267,15 @@ class NDArrayCache {
 };
 
 TVM_REGISTER_GLOBAL("vm.builtin.ndarray_cache.get").set_body_typed(NDArrayCache::Get);
-TVM_REGISTER_GLOBAL("vm.builtin.ndarray_cache.update").set_body([](TVMArgs args, TVMRetValue* rv) {
-  CHECK(args.size() == 2 || args.size() == 3);
+TVM_REGISTER_GLOBAL("vm.builtin.ndarray_cache.update").set_body_packed(
+  [](int num_args, const AnyView* args, Any* rv) {
+  CHECK(num_args == 2 || num_args == 3);
   String name = args[0];
-  bool is_override = args.size() == 2 ? false : args[2];
+  bool is_override = num_args == 2 ? false : args[2].operator bool();
 
   NDArray arr;
-  if (args[1].type_code() == kTVMNDArrayHandle) {
-    arr = args[1];
+  if (auto opt_nd = args[1].TryAs<NDArray>()) {
+    arr = opt_nd.value();
   } else {
     // We support converting DLTensors to NDArrays as RPC references are always DLTensors
     DLTensor* tensor = args[1];
@@ -359,12 +360,13 @@ TVM_REGISTER_GLOBAL("vm.builtin.param_array_from_cache").set_body_typed(ParamMod
 TVM_REGISTER_GLOBAL("vm.builtin.param_array_from_cache_by_name")
     .set_body_typed(ParamModuleNode::GetParamByName);
 TVM_REGISTER_GLOBAL("vm.builtin.param_array_from_cache_by_name_unpacked")
-    .set_body([](TVMArgs args, TVMRetValue* rv) {
+    .set_body_packed([](int num_args, const AnyView* args, Any* rv) {
       Array<String> names;
-      names.reserve(args.size());
-      for (int i = 0; i < args.size(); ++i) {
-        if (args[i].type_code() != kTVMStr) {
-          LOG(FATAL) << "ValueError: Expect string as input, but get " << args[i].type_code()
+      names.reserve(num_args);
+      for (int i = 0; i < num_args; ++i) {
+        if (!args[i].TryAs<String>()) {
+          LOG(FATAL) << "ValueError: Expect string as input, but get "
+                     << ffi::TypeIndex2TypeKey(args[i].type_index())
                      << " at " << i;
         }
         names.push_back(args[i]);

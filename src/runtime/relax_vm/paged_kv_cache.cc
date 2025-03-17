@@ -2279,10 +2279,10 @@ TVM_REGISTER_OBJECT_TYPE(PagedAttentionKVCacheObj);
 //-------------------------------------------------
 
 TVM_REGISTER_GLOBAL("vm.builtin.paged_attention_kv_cache_create")
-    .set_body([](TVMArgs args, TVMRetValue* rv) {
+    .set_body_packed([](int num_args, const AnyView* args, Any* rv) {
       // Todo: cuda graph arg
-      CHECK(args.size() == 28 || args.size() == 29)
-          << "Invalid number of KV cache constructor args: " << args.size();
+      CHECK(num_args == 28 || num_args == 29)
+          << "Invalid number of KV cache constructor args: " << num_args;
       ShapeTuple cache_config = args[0];
       ShapeTuple layer_indptr_tuple = args[1];
       int num_groups = 1;
@@ -2331,12 +2331,12 @@ TVM_REGISTER_GLOBAL("vm.builtin.paged_attention_kv_cache_create")
       PackedFunc f_debug_get_kv = args[26];
       PackedFunc f_compact_copy = args[27];
 
-      if (args[11].IsObjectRef<NDArray>()) {
-        rope_ext_factors = args[11].AsObjectRef<NDArray>();
+      if (auto opt_nd = args[11].TryAs<NDArray>()) {
+        rope_ext_factors = opt_nd.value();
       }
       auto f_convert_optional_packed_func = [&args](int arg_idx) -> Optional<PackedFunc> {
-        if (args[arg_idx].IsObjectRef<PackedFunc>()) {
-          return args[arg_idx].AsObjectRef<PackedFunc>();
+        if (auto opt_func = args[arg_idx].TryAs<PackedFunc>()) {
+          return opt_func.value();
         }
         return NullOpt;
       };
