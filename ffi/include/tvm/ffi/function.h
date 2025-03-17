@@ -309,6 +309,16 @@ class Function : public ObjectRef {
    * \brief Constructing a packed function from a callable type
    *        whose signature is consistent with `PackedFunc`
    * \param packed_call The packed function signature
+   * \note legacy purpose, should change to Function::FromPacked for mostfuture use.
+   */
+  template <typename TCallable>
+  explicit Function(TCallable packed_call) {
+    *this = FromPacked(packed_call);
+  }
+  /*!
+   * \brief Constructing a packed function from a callable type
+   *        whose signature is consistent with `PackedFunc`
+   * \param packed_call The packed function signature
    */
   template <typename TCallable>
   static Function FromPacked(TCallable packed_call) {
