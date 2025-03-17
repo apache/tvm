@@ -71,10 +71,13 @@ PackedFunc WrapPackedFunc(TVMBackendPackedCFunc faddr, const ObjectPtr<Object>& 
   return PackedFunc([faddr, sptr_to_self](TVMArgs args, TVMRetValue* rv) {
     TVMValue ret_value;
     int ret_type_code = kTVMNullptr;
-    auto arg_values = const_cast<TVMValue*>(args.values);
-    auto arg_type_codes = const_cast<int*>(args.type_codes);
+    // Run legacy ABI translation.
+    std::vector<TVMValue> values(args.size());
+    std::vector<int> type_codes(args.size());
+    PackedArgsToLegacyTVMArgs(args.data(), args.size(), values.data(), type_codes.data());
+    // TODO(tqchen): use native convention that do not need ABI translation.
     int ret =
-        (*faddr)(arg_values, arg_type_codes, args.num_args, &ret_value, &ret_type_code, nullptr);
+        (*faddr)(values.data(), type_codes.data(), args.size(), &ret_value, &ret_type_code, nullptr);
     // NOTE: It is important to keep the original error message.
     // Using the `TVMThrowLastError()` function will also preserve the
     // full stack trace for debugging in pdb.

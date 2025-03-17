@@ -49,10 +49,9 @@ TVM_REGISTER_GLOBAL("runtime.disco.SessionSyncWorker")
     .set_body_method<Session>(&SessionObj::SyncWorker);
 TVM_REGISTER_GLOBAL("runtime.disco.SessionInitCCL")  //
     .set_body_method<Session>(&SessionObj::InitCCL);
-TVM_REGISTER_GLOBAL("runtime.disco.SessionCallPacked").set_body([](TVMArgs args, TVMRetValue* rv) {
+TVM_REGISTER_GLOBAL("runtime.disco.SessionCallPacked").set_body_packed([](TVMArgs args, TVMRetValue* rv) {
   Session self = args[0];
-  *rv = SessionObj::FFI::CallWithPacked(
-      self, TVMArgs(args.values + 1, args.type_codes + 1, args.num_args - 1));
+  *rv = SessionObj::FFI::CallWithPacked(self, args.Slice(1));
 });
 TVM_REGISTER_GLOBAL("runtime.disco.SessionShutdown")
     .set_body_method<Session>(&SessionObj::Shutdown);

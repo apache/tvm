@@ -100,11 +100,12 @@ class ProcessSessionObj final : public BcastSessionObj {
       return worker_0_->worker->register_file.at(reg_id);
     }
     {
-      TVMValue values[3];
-      int type_codes[3];
-      PackArgs(values, type_codes, static_cast<int>(DiscoAction::kDebugGetFromRemote), reg_id,
-               worker_id);
-      workers_[worker_id - 1]->Send(TVMArgs(values, type_codes, 3));
+      AnyView packed_args[3];
+      ffi::PackedArgs::Fill(
+        packed_args, static_cast<int>(DiscoAction::kDebugGetFromRemote), reg_id,
+        worker_id
+      );
+      workers_[worker_id - 1]->Send(ffi::PackedArgs(packed_args, 3));
     }
     TVMArgs args = this->RecvReplyPacked(worker_id);
     ICHECK_EQ(args.size(), 2);
@@ -126,11 +127,12 @@ class ProcessSessionObj final : public BcastSessionObj {
       value = wrapped;
     }
     {
-      TVMValue values[4];
-      int type_codes[4];
-      PackArgs(values, type_codes, static_cast<int>(DiscoAction::kDebugSetRegister), reg_id,
-               worker_id, value);
-      SendPacked(worker_id, TVMArgs(values, type_codes, 4));
+      AnyView packed_args[4];
+      ffi::PackedArgs::Fill(
+        packed_args, static_cast<int>(DiscoAction::kDebugSetRegister), reg_id,
+        worker_id, value
+      );
+      SendPacked(worker_id, ffi::PackedArgs(packed_args, 4));
     }
     TVMRetValue result;
     TVMArgs args = this->RecvReplyPacked(worker_id);

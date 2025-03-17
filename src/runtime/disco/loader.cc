@@ -216,18 +216,16 @@ NDArray ShardLoaderObj::ApplyShardFunc(const ShardInfo::ShardFunc& shard_func,
   NDArray o = NDArray::Empty(shard_func.output_info.shape, shard_func.output_info.dtype, device);
   PackedFunc f = this->shard_funcs_.at(shard_func.name);
   int n = static_cast<int>(shard_func.params.size());
-  std::vector<TVMValue> tvm_args(n + 2);
-  std::vector<int> type_codes(n + 2);
-  TVMArgsSetter setter(tvm_args.data(), type_codes.data());
+  std::vector<AnyView> packed_args(n + 2);
   const DLTensor* w_in = param.operator->();
   const DLTensor* w_out = o.operator->();
-  setter(0, const_cast<DLTensor*>(w_in));
+  packed_args[0] = const_cast<DLTensor*>(w_in);
   for (int i = 0; i < n; ++i) {
-    setter(i + 1, shard_func.params[i]);
+    packed_args[i + 1] = shard_func.params[i];
   }
-  setter(n + 1, const_cast<DLTensor*>(w_out));
-  TVMRetValue rv;
-  f.CallPacked(TVMArgs(tvm_args.data(), type_codes.data(), n + 2), &rv);
+  packed_args[n + 1] = const_cast<DLTensor*>(w_out);
+  Any rv;
+  f.CallPacked(ffi::PackedArgs(packed_args.data(), packed_args.size()), &rv);
   return o;
 }
 

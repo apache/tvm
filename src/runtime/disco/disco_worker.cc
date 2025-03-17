@@ -72,8 +72,7 @@ struct DiscoWorker::Impl {
           CHECK_LT(func_reg_id, self->register_file.size());
           PackedFunc func = GetReg(self, func_reg_id);
           CHECK(func.defined());
-          CallPacked(self, reg_id, func,
-                     TVMArgs(args.values + 3, args.type_codes + 3, args.num_args - 3));
+          CallPacked(self, reg_id, func, args.Slice(3));
           break;
         }
         case DiscoAction::kCopyFromWorker0: {
@@ -139,10 +138,9 @@ struct DiscoWorker::Impl {
   static void SyncWorker(DiscoWorker* self, int worker_id) {
     if (worker_id == self->worker_id) {
       ::tvm::runtime::SyncWorker();
-      TVMValue values[2];
-      int type_codes[2];
-      PackArgs(values, type_codes, static_cast<int>(DiscoAction::kSyncWorker), worker_id);
-      self->channel->Reply(TVMArgs(values, type_codes, 2));
+      AnyView packed_args[2];
+      ffi::PackedArgs::Fill(packed_args, static_cast<int>(DiscoAction::kSyncWorker), worker_id);
+      self->channel->Reply(ffi::PackedArgs(packed_args, 2));
     }
   }
 
@@ -152,10 +150,9 @@ struct DiscoWorker::Impl {
       if (rv.TryAs<ObjectRef>()) {
         rv = DiscoDebugObject::Wrap(rv);
       }
-      TVMValue values[2];
-      int type_codes[2];
-      PackArgs(values, type_codes, static_cast<int>(DiscoAction::kDebugGetFromRemote), rv);
-      self->channel->Reply(TVMArgs(values, type_codes, 2));
+      AnyView packed_args[2];
+      ffi::PackedArgs::Fill(packed_args, static_cast<int>(DiscoAction::kDebugGetFromRemote), rv);
+      self->channel->Reply(ffi::PackedArgs(packed_args, 2));
     }
   }
 
@@ -163,28 +160,26 @@ struct DiscoWorker::Impl {
     if (worker_id == self->worker_id) {
       ::tvm::runtime::SyncWorker();
       self->SetRegister(reg_id, value);
-      TVMValue values[1];
-      int type_codes[1];
-      PackArgs(values, type_codes, static_cast<int>(DiscoAction::kDebugSetRegister));
-      self->channel->Reply(TVMArgs(values, type_codes, 1));
+      AnyView packed_args[1];
+      ffi::PackedArgs::Fill(packed_args, static_cast<int>(DiscoAction::kDebugSetRegister));
+      self->channel->Reply(ffi::PackedArgs(packed_args, 1));
     }
   }
 
   static void CallPacked(DiscoWorker* self, int64_t ret_reg_id, PackedFunc func,
                          const TVMArgs& args) {
-    TVMValue* values = const_cast<TVMValue*>(args.values);
-    int* type_codes = const_cast<int*>(args.type_codes);
-    int num_args = args.num_args;
-    TVMArgsSetter setter(values, type_codes);
-    for (int i = 0; i < num_args; ++i) {
-      AnyView val = LegacyTVMArgValueToAnyView(values[i], type_codes[i]);
-      if (auto opt_dref = val.TryAs<DRef>()) {
+    // NOTE: this action is not safe unless we know args is not
+    // used else where in this case it is oK
+    AnyView* args_vec = const_cast<AnyView*>(args.data());
+    // translate args into remote calling convention
+    for (int i = 0; i < args.size(); ++i) {
+      if (auto opt_dref = args_vec[i].TryAs<DRef>()) {
         DRef dref = opt_dref.value();
-        setter(i, GetReg(self, dref->reg_id));
+        args_vec[i] = GetReg(self, dref->reg_id);
       }
     }
     TVMRetValue rv;
-    func.CallPacked(TVMArgs(values, type_codes, num_args), &rv);
+    func.CallPacked(ffi::PackedArgs(args_vec, args.size()), &rv);
     GetReg(self, ret_reg_id) = std::move(rv);
   }
 
