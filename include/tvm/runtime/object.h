@@ -78,6 +78,19 @@ class ObjectRef : public tvm::ffi::ObjectRef {
   ObjectRef() = default;
   /*! \brief Constructor from existing object ptr */
   explicit ObjectRef(ObjectPtr<Object> data) : tvm::ffi::ObjectRef(data) {}
+  /*! \brief move constructor */
+  ObjectRef(ObjectRef&& other) = default;
+  /*! \brief copy constructor */
+  ObjectRef(const ObjectRef& other) = default;
+  /*! \brief move assignment */
+  ObjectRef& operator=(ObjectRef&& other) = default;
+  /*! \brief copy assignment */
+  ObjectRef& operator=(const ObjectRef& other) = default;
+  /*! \brief copy assignment */
+  ObjectRef& operator=(const ffi::ObjectRef& other) {
+    tvm::ffi::ObjectRef::operator=(other);
+    return *this;
+  }
 
   using tvm::ffi::ObjectRef::as;
 

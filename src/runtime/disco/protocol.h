@@ -125,7 +125,7 @@ inline uint64_t DiscoProtocol<SubClassType>::GetObjectBytes(Object* obj) {
   if (obj->IsInstance<DRefObj>()) {
     return sizeof(uint32_t) + sizeof(int64_t);
   } else if (obj->IsInstance<StringObj>()) {
-    uint64_t size = static_cast<StringObj*>(obj)->size;
+    uint64_t size = static_cast<StringObj*>(obj)->bytes.size;
     return sizeof(uint32_t) + sizeof(uint64_t) + size * sizeof(char);
   } else if (obj->IsInstance<ShapeTupleObj>()) {
     uint64_t ndim = static_cast<ShapeTupleObj*>(obj)->size;
@@ -147,8 +147,8 @@ inline void DiscoProtocol<SubClassType>::WriteObject(Object* obj) {
   } else if (obj->IsInstance<StringObj>()) {
     StringObj* str = static_cast<StringObj*>(obj);
     self->template Write<uint32_t>(TypeIndex::kRuntimeString);
-    self->template Write<uint64_t>(str->size);
-    self->template WriteArray<char>(str->data, str->size);
+    self->template Write<uint64_t>(str->bytes.size);
+    self->template WriteArray<char>(str->bytes.data, str->bytes.size);
   } else if (obj->IsInstance<ShapeTupleObj>()) {
     ShapeTupleObj* shape = static_cast<ShapeTupleObj*>(obj);
     self->template Write<uint32_t>(TypeIndex::kRuntimeShapeTuple);
@@ -193,7 +193,7 @@ inline void DiscoProtocol<SubClassType>::ReadObject(int* tcode, TVMValue* value)
     self->template Read<uint64_t>(&size);
     std::string data(size, '\0');
     self->template ReadArray<char>(data.data(), size);
-    result = DiscoDebugObject::LoadFromStr(std::move(data))->data;
+    result = ffi::ObjectRef(DiscoDebugObject::LoadFromStr(std::move(data))->data);
   } else {
     LOG(FATAL) << "ValueError: Object type is not supported in Disco calling convention: "
                << Object::TypeIndex2Key(type_index) << " (type_index = " << type_index << ")";

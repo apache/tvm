@@ -351,6 +351,7 @@ class PackedFunc : public ffi::Function {
   using ffi::Function::CallPacked;
   // default construction from nullptr
   PackedFunc(std::nullptr_t) : ffi::Function(nullptr) {}
+  PackedFunc(ObjectPtr<Object> data) : ffi::Function(data) {}
   PackedFunc() = default;
   PackedFunc(const PackedFunc& other) = default;
   PackedFunc(PackedFunc&& other) = default;
@@ -519,6 +520,227 @@ inline void TVMArgsSetter::SetObject(size_t i, T&& value) const {
 inline PackedFunc Module::GetFunction(const String& name, bool query_imports) {
   return (*this)->GetFunction(name, query_imports);
 }
+
+/*!
+ * \brief Convert argument type code to string.
+ * \param type_code The input type code.
+ * \return The corresponding string repr.
+ */
+inline const char* ArgTypeCode2Str(int type_code) {
+  switch (type_code) {
+    case kDLInt:
+      return "int";
+    case kTVMArgBool:
+      return "bool";
+    case kDLUInt:
+      return "uint";
+    case kDLFloat:
+      return "float";
+    case kTVMStr:
+      return "str";
+    case kTVMBytes:
+      return "bytes";
+    case kTVMOpaqueHandle:
+      return "handle";
+    case kTVMNullptr:
+      return "NULL";
+    case kTVMDLTensorHandle:
+      return "ArrayHandle";
+    case kTVMDataType:
+      return "DLDataType";
+    case kDLDevice:
+      return "DLDevice";
+    case kTVMPackedFuncHandle:
+      return "FunctionHandle";
+    case kTVMModuleHandle:
+      return "ModuleHandle";
+    case kTVMNDArrayHandle:
+      return "NDArrayContainer";
+    case kTVMObjectHandle:
+      return "Object";
+    case kTVMObjectRValueRefArg:
+      return "ObjectRValueRefArg";
+    default:
+      LOG(FATAL) << "unknown type_code=" << static_cast<int>(type_code);
+  }
+  throw;
+}
+
+
+namespace details {
+
+template <typename T>
+struct ModuleVTableEntryHelper {};
+
+template <typename T, typename R, typename... Args>
+struct ModuleVTableEntryHelper<R (T::*)(Args...) const> {
+  using MemFnType = R (T::*)(Args...) const;
+  using IndexSeq = std::index_sequence_for<Args...>;
+  static constexpr const std::size_t LenArgs = sizeof...(Args);
+
+  template <std::size_t... Is>
+  static TVM_ALWAYS_INLINE void Call(TVMRetValue* rv, T* self, MemFnType f, TVMArgs args,
+                                     std::index_sequence<Is...>) {
+    *rv = (self->*f)(args[Is]...);
+  }
+};
+
+template <typename T, typename R, typename... Args>
+struct ModuleVTableEntryHelper<R (T::*)(Args...)> {
+  using MemFnType = R (T::*)(Args...);
+  using IndexSeq = std::index_sequence_for<Args...>;
+  static constexpr const std::size_t LenArgs = sizeof...(Args);
+
+  template <std::size_t... Is>
+  static TVM_ALWAYS_INLINE void Call(TVMRetValue* rv, T* self, MemFnType f, TVMArgs args,
+                                     std::index_sequence<Is...>) {
+    *rv = (self->*f)(args[Is]...);
+  }
+};
+
+template <typename T, typename... Args>
+struct ModuleVTableEntryHelper<void (T::*)(Args...) const> {
+  using MemFnType = void (T::*)(Args...) const;
+  using IndexSeq = std::index_sequence_for<Args...>;
+  static constexpr const std::size_t LenArgs = sizeof...(Args);
+
+  template <std::size_t... Is>
+  static TVM_ALWAYS_INLINE void Call(TVMRetValue* rv, T* self, MemFnType f, TVMArgs args,
+                                     std::index_sequence<Is...>) {
+    (self->*f)(args[Is]...);
+  }
+};
+
+template <typename T, typename... Args>
+struct ModuleVTableEntryHelper<void (T::*)(Args...)> {
+  using MemFnType = void (T::*)(Args...);
+  using IndexSeq = std::index_sequence_for<Args...>;
+  static constexpr const std::size_t LenArgs = sizeof...(Args);
+
+  template <std::size_t... Is>
+  static TVM_ALWAYS_INLINE void Call(TVMRetValue* rv, T* self, MemFnType f, TVMArgs args,
+                                     std::index_sequence<Is...>) {
+    (self->*f)(args[Is]...);
+  }
+};
+
+namespace parameter_pack {
+template <typename... EnumArgs>
+struct EnumeratedParamPack {
+  struct InvokeWithoutArg {
+    template <template <size_t i, typename TArgument> class Functor, typename ExtraParams>
+    static void F(ExtraParams&& extra_params) {
+      using TExpander = int[];
+      (void)TExpander{
+          0,
+          (Functor<EnumArgs::i, typename EnumArgs::T>::F(std::forward<ExtraParams>(extra_params)),
+           0)...,
+      };
+    }
+  };
+  struct InvokeWithArg {
+    template <template <size_t i, typename TArgument> class Functor, typename ExtraParams,
+              typename... Params>
+    static void F(ExtraParams&& extra_params, Params&&... params) {
+      using TExpander = int[];
+      (void)TExpander{
+          0,
+          (Functor<EnumArgs::i, typename EnumArgs::T>::F(std::forward<ExtraParams>(extra_params),
+                                                         std::forward<Params>(params)),
+           0)...,
+      };
+    }
+  };
+};
+
+template <typename... Args>
+struct EnumerateImpl {
+ private:
+  template <size_t _i, typename _T>
+  struct Item {
+    static const constexpr size_t i = _i;
+    using T = _T;
+  };
+
+  template <typename...>
+  struct Zipper;
+
+  template <std::size_t... id>
+  struct Zipper<std::integer_sequence<std::size_t, id...>> {
+    using WithoutArg = typename EnumeratedParamPack<Item<id, Args>...>::InvokeWithoutArg;
+    using WithArg = typename EnumeratedParamPack<Item<id, Args>...>::InvokeWithArg;
+  };
+
+ public:
+  using WithoutArg = typename Zipper<std::index_sequence_for<Args...>>::WithoutArg;
+  using WithArg = typename Zipper<std::index_sequence_for<Args...>>::WithArg;
+};
+
+template <typename... Args>
+using EnumerateWithoutArg = typename EnumerateImpl<Args...>::WithoutArg;
+
+template <typename... Args>
+using EnumerateWithArg = typename EnumerateImpl<Args...>::WithArg;
+
+template <typename... Args>
+struct ParamPack {
+  template <template <size_t i, typename TArgument> class Functor, typename ExtraParams>
+  static void InvokeWithoutArg(ExtraParams&& extra_params) {
+    EnumerateWithoutArg<Args...>::template F<Functor, ExtraParams>(
+        std::forward<ExtraParams>(extra_params));
+  }
+};
+}  // namespace parameter_pack
+}  // namespace details
+
+template <size_t i, typename T>
+struct TVMArgsSetterApply {
+  static TVM_ALWAYS_INLINE void F(TVMArgsSetter* setter, T&& value) {
+    (*setter)(i, std::forward<T>(value));
+  }
+};
+
+template <typename... Args>
+void TVM_ALWAYS_INLINE PackArgs(TVMValue* values, int* type_codes, Args&&... args) {
+  TVMArgsSetter setter(values, type_codes);
+  details::parameter_pack::EnumerateWithArg<Args...>::template F<TVMArgsSetterApply>(
+      &setter, std::forward<Args>(args)...);
+}
+
+
+
+#define TVM_MODULE_VTABLE_BEGIN(TypeKey)                                                 \
+  const char* type_key() const final { return TypeKey; }                                 \
+  PackedFunc GetFunction(const String& _name, const ObjectPtr<Object>& _self) override { \
+    using SelfPtr = std::remove_cv_t<decltype(this)>;
+#define TVM_MODULE_VTABLE_END() \
+  return PackedFunc(nullptr);   \
+  }
+#define TVM_MODULE_VTABLE_END_WITH_DEFAULT(MemFunc) \
+  {                                                 \
+    auto f = (MemFunc);                             \
+    return (this->*f)(_name);                       \
+  }                                                 \
+  }  // NOLINT(*)
+#define TVM_MODULE_VTABLE_ENTRY(Name, MemFunc)                                                    \
+  if (_name == Name) {                                                                            \
+    return PackedFunc([_self](TVMArgs args, TVMRetValue* rv) -> void {                            \
+      using Helper = ::tvm::runtime::details::ModuleVTableEntryHelper<decltype(MemFunc)>;          \
+      SelfPtr self = static_cast<SelfPtr>(_self.get());                                           \
+      CHECK_EQ(args.size(), Helper::LenArgs)                                                      \
+          << "Function `" << self->type_key() << "::" << Name << "` requires " << Helper::LenArgs \
+          << " arguments, but got " << args.size();                                               \
+      Helper::Call(rv, self, MemFunc, args, Helper::IndexSeq{});                                  \
+    });                                                                                           \
+  }
+#define TVM_MODULE_VTABLE_ENTRY_PACKED(Name, MemFunc)                  \
+  if (_name == Name) {                                                 \
+    return PackedFunc([_self](TVMArgs args, TVMRetValue* rv) -> void { \
+      (static_cast<SelfPtr>(_self.get())->*(MemFunc))(args, rv);       \
+    });                                                                \
+  }
+
+
 }  // namespace runtime
 }  // namespace tvm
 #endif  // TVM_RUNTIME_PACKED_FUNC_H_
