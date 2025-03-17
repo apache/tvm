@@ -4178,12 +4178,16 @@ def test_lerp():
             inp_2: R.Tensor((5, 3), dtype="float32"),
         ) -> R.Tensor((5, 3), dtype="float32"):
             with R.dataflow():
-                lv: R.Tensor((5, 3), dtype="float32") = R.add(inp_0, R.multiply(inp_2, R.subtract(inp_1, inp_0)))
+                lv: R.Tensor((5, 3), dtype="float32") = R.add(
+                    inp_0, R.multiply(inp_2, R.subtract(inp_1, inp_0))
+                )
                 gv: R.Tensor((5, 3), dtype="float32") = lv
                 R.output(gv)
             return gv
 
-    verify_model(Lerp(), [([5, 3], "float32"), ([5, 3], "float32"), ([5, 3], "float32")], {}, Expected)
+    verify_model(
+        Lerp(), [([5, 3], "float32"), ([5, 3], "float32"), ([5, 3], "float32")], {}, Expected
+    )
 
 
 if __name__ == "__main__":
