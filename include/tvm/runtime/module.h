@@ -27,6 +27,7 @@
 #define TVM_RUNTIME_MODULE_H_
 
 #include <dmlc/io.h>
+#include <tvm/ffi/function.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/container/string.h>
 #include <tvm/runtime/memory.h>
@@ -40,6 +41,8 @@
 
 namespace tvm {
 namespace runtime {
+
+using PackedFunc = ffi::Function;
 
 /*!
  * \brief Property of runtime module
@@ -71,7 +74,6 @@ enum ModulePropertyMask : int {
 };
 
 class ModuleNode;
-class PackedFunc;
 
 /*!
  * \brief Module container of TVM.
@@ -277,6 +279,11 @@ class TVM_DLL ModuleNode : public Object {
  * \return Whether runtime is enabled.
  */
 TVM_DLL bool RuntimeEnabled(const String& target);
+
+// implementation of Module::GetFunction
+inline PackedFunc Module::GetFunction(const String& name, bool query_imports) {
+  return (*this)->GetFunction(name, query_imports);
+}
 
 /*! \brief namespace for constant symbols */
 namespace symbol {

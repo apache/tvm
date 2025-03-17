@@ -807,7 +807,7 @@ PackedFunc ProfileFunction(Module mod, std::string func_name, int device_type, i
 
     // warmup
     for (int i = 0; i < warmup_iters; i++) {
-      f.CallPacked(num_args, args, ret);
+      f.CallPacked(args, num_args, ret);
     }
 
     for (auto& collector : collectors) {
@@ -826,7 +826,7 @@ PackedFunc ProfileFunction(Module mod, std::string func_name, int device_type, i
     }
 
     // TODO(tkonolige): repeated calls if the runtime is small?
-    f.CallPacked(num_args, args, ret);
+    f.CallPacked(args, num_args, ret);
 
     for (auto& kv : collector_data) {
       results.push_back(kv.first->Stop(kv.second));
@@ -869,7 +869,7 @@ PackedFunc WrapTimeEvaluator(PackedFunc pf, Device dev, int number, int repeat, 
     Any temp;
     std::ostringstream os;
     // skip first time call, to activate lazy compilation components.
-    pf.CallPacked(num_args, args, &temp);
+    pf.CallPacked(args, num_args, &temp);
 
     // allocate two large arrays to flush L2 cache
     NDArray arr1, arr2;
@@ -882,7 +882,7 @@ PackedFunc WrapTimeEvaluator(PackedFunc pf, Device dev, int number, int repeat, 
 
     for (int i = 0; i < repeat; ++i) {
       if (f_preproc != nullptr) {
-        f_preproc.CallPacked(num_args, args, &temp);
+        f_preproc.CallPacked(args, num_args, &temp);
       }
       double duration_ms = 0.0;
       int absolute_zero_times = 0;
@@ -899,7 +899,7 @@ PackedFunc WrapTimeEvaluator(PackedFunc pf, Device dev, int number, int repeat, 
         // start timing
         Timer t = Timer::Start(dev);
         for (int j = 0; j < number; ++j) {
-          pf.CallPacked(num_args, args, &temp);
+          pf.CallPacked(args, num_args, &temp);
         }
         t->Stop();
         int64_t t_nanos = t->SyncAndGetElapsedNanos();

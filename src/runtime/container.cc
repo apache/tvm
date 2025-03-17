@@ -36,9 +36,9 @@ namespace runtime {
 TVM_REGISTER_OBJECT_TYPE(ArrayNode);
 
 TVM_REGISTER_GLOBAL("runtime.Array")
-    .set_body_packed([](int num_args, const AnyView* args, Any* ret) {
+    .set_body_packed([](ffi::PackedArgs args, Any* ret) {
       std::vector<ObjectRef> data;
-      for (int i = 0; i < num_args; ++i) {
+      for (int i = 0; i < args.size(); ++i) {
         data.push_back(args[i].operator ObjectRef());
       }
       *ret = Array<ObjectRef>(data);
@@ -61,10 +61,10 @@ TVM_REGISTER_GLOBAL("runtime.GetFFIString").set_body_typed([](String str) {
 });
 
 // Map
-TVM_REGISTER_GLOBAL("runtime.Map").set_body_packed([](int num_args, const AnyView* args, Any* ret) {
-  ICHECK_EQ(num_args % 2, 0);
+TVM_REGISTER_GLOBAL("runtime.Map").set_body_packed([](ffi::PackedArgs args, Any* ret) {
+  ICHECK_EQ(args.size() % 2, 0);
   Map<Any, Any> data;
-  for (int i = 0; i < num_args; i += 2) {
+  for (int i = 0; i < args.size(); i += 2) {
     data.Set(args[i], args[i + 1]);
   }
   *ret = data;
@@ -93,9 +93,9 @@ TVM_REGISTER_GLOBAL("runtime.MapItems").set_body_typed([](const ffi::MapNode* n)
 TVM_REGISTER_OBJECT_TYPE(ShapeTupleObj);
 
 TVM_REGISTER_GLOBAL("runtime.ShapeTuple")
-    .set_body_packed([](int num_args, const AnyView* args, Any* ret) {
+    .set_body_packed([](ffi::PackedArgs args, Any* ret) {
       std::vector<ShapeTuple::index_type> shape;
-      for (int i = 0; i < num_args; ++i) {
+      for (int i = 0; i < args.size(); ++i) {
         shape.push_back(args[i]);
       }
       *ret = ShapeTuple(shape);

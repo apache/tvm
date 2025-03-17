@@ -159,7 +159,7 @@ class Registry {
                 std::is_convertible<TCallable, std::function<void(TVMArgs, TVMRetValue*)>>::value &&
                 !std::is_base_of<PackedFunc, TCallable>::value>>
   Registry& set_body(TCallable f) {  // NOLINT(*)
-    return set_body(PackedFunc(f));
+    return set_body_packed(f);
   }
   /*!
    * \brief Set body to be to use the new Packed convention.

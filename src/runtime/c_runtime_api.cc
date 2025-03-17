@@ -568,7 +568,7 @@ int TVMFuncCall(TVMFunctionHandle func, TVMValue* args, int* arg_type_codes, int
   API_BEGIN();
   tvm::ffi::Any rv;
   tvm::ffi::FunctionObj* ffi_func = static_cast<tvm::ffi::FunctionObj*>(func);
-  PackedFunc::LegacyCallPacked(ffi_func, TVMArgs(args, arg_type_codes, num_args), &rv);
+  LegacyCallPacked(ffi_func, args, arg_type_codes, num_args, &rv);
   // special handle of certain return types.
   if (rv.type_index() == tvm::ffi::TypeIndex::kTVMFFIStr ||
       rv.type_index() == tvm::ffi::TypeIndex::kTVMFFIDataType ||
@@ -609,9 +609,12 @@ int TVMFuncCreateFromCFunc(TVMPackedCFunc func, void* resource_handle, TVMPacked
   API_BEGIN();
   if (fin == nullptr) {
     tvm::runtime::TVMRetValue ret;
-    ret = PackedFunc([func, resource_handle](TVMArgs args, TVMRetValue* rv) {
-      int ret = func(const_cast<TVMValue*>(args.values), const_cast<int*>(args.type_codes),
-                     args.num_args, rv, resource_handle);
+    ret = tvm::ffi::Function::FromPacked([func, resource_handle](TVMArgs args, TVMRetValue* rv) {
+      // run ABI translation
+      std::vector<TVMValue> values(args.size());
+      std::vector<int> type_codes(args.size());
+      PackedArgsToLegacyTVMArgs(args.data(), args.size(), values.data(), type_codes.data());
+      int ret = func(values.data(), type_codes.data(), args.size(), rv, resource_handle);
       if (ret != 0) {
         TVMThrowLastError();
       }
@@ -626,8 +629,12 @@ int TVMFuncCreateFromCFunc(TVMPackedCFunc func, void* resource_handle, TVMPacked
     std::shared_ptr<void> rpack(resource_handle, fin);
     tvm::runtime::TVMRetValue ret;
     ret = PackedFunc([func, rpack](TVMArgs args, TVMRetValue* rv) {
-      int ret = func(const_cast<TVMValue*>(args.values), const_cast<int*>(args.type_codes),
-                     args.num_args, rv, rpack.get());
+      // run ABI translation
+      std::vector<TVMValue> values(args.size());
+      std::vector<int> type_codes(args.size());
+      PackedArgsToLegacyTVMArgs(args.data(), args.size(), values.data(), type_codes.data());
+      int ret = func(values.data(), type_codes.data(), args.size(), rv, rpack.get());
+
       if (ret != 0) {
         TVMThrowLastError();
       }
