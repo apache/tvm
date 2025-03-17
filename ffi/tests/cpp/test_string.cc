@@ -53,6 +53,10 @@ TEST(String, Assignment) {
   string s2{"world2"};
   s = std::move(s2);
   EXPECT_EQ(s == "world2", true);
+
+  ObjectRef r;
+  r = String("hello");
+  EXPECT_EQ(r.defined(), true);
 }
 
 TEST(String, empty) {
