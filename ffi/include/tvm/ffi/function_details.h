@@ -177,8 +177,8 @@ struct unpack_call_dispatcher {
 template <typename R, int index, typename F>
 struct unpack_call_dispatcher<R, 0, index, F> {
   template <typename... Args>
-  TVM_FFI_INLINE static void run(const std::string*, FGetFuncSignature, const F& f,
-                                 const AnyView*, int32_t, Any* rv, Args&&... unpacked_args) {
+  TVM_FFI_INLINE static void run(const std::string*, FGetFuncSignature, const F& f, const AnyView*,
+                                 int32_t, Any* rv, Args&&... unpacked_args) {
     using RetType = decltype(f(std::forward<Args>(unpacked_args)...));
     if constexpr (std::is_same_v<RetType, R>) {
       *rv = f(std::forward<Args>(unpacked_args)...);
@@ -191,15 +191,15 @@ struct unpack_call_dispatcher<R, 0, index, F> {
 template <int index, typename F>
 struct unpack_call_dispatcher<void, 0, index, F> {
   template <typename... Args>
-  TVM_FFI_INLINE static void run(const std::string*, FGetFuncSignature, const F& f,
-                                 const AnyView*, int32_t, Any*, Args&&... unpacked_args) {
+  TVM_FFI_INLINE static void run(const std::string*, FGetFuncSignature, const F& f, const AnyView*,
+                                 int32_t, Any*, Args&&... unpacked_args) {
     f(std::forward<Args>(unpacked_args)...);
   }
 };
 
 template <typename R, int nargs, typename F>
-TVM_FFI_INLINE void unpack_call(const std::string* optional_name, const F& f,
-                                const AnyView* args, int32_t num_args, Any* rv) {
+TVM_FFI_INLINE void unpack_call(const std::string* optional_name, const F& f, const AnyView* args,
+                                int32_t num_args, Any* rv) {
   using FuncInfo = FunctionInfo<F>;
   FGetFuncSignature f_sig = FuncInfo::Sig;
   static_assert(FuncInfo::unpacked_supported,
