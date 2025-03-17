@@ -113,16 +113,16 @@ TVM_REGISTER_GLOBAL("vm.builtin.match_prim_value").set_body_typed(MatchPrimValue
  *
  * \sa MatchShapeCode
  */
-void MatchShape(TVMArgs args, TVMRetValue* rv) {
+void MatchShape(int num_args, const AnyView* args, Any* rv) {
   // input shape the first argument can take in tensor or shape.
   ShapeTuple input_shape;
-  if (args[0].IsObjectRef<NDArray>()) {
-    input_shape = args[0].operator NDArray().Shape();
+  if (auto opt_nd = args[0].TryAs<NDArray>()) {
+    input_shape = opt_nd.value().Shape();
   } else {
     input_shape = args[0];
   }
-  DLTensor* heap = args[1];
-  int64_t* heap_data = heap == nullptr ? nullptr : static_cast<int64_t*>(heap->data);
+  const NDArray::Container* heap = args[1];
+  int64_t* heap_data = heap == nullptr ? nullptr : static_cast<int64_t*>(heap->dl_tensor.data);
   int64_t size = args[2];
   const int64_t kBeginCode = 3;
   ICHECK_LE(kBeginCode + size * 2, args.size());
@@ -155,7 +155,7 @@ void MatchShape(TVMArgs args, TVMRetValue* rv) {
   }
 }
 
-TVM_REGISTER_GLOBAL("vm.builtin.match_shape").set_body(MatchShape);
+TVM_REGISTER_GLOBAL("vm.builtin.match_shape").set_body_packed(MatchShape);
 
 /*!
  * \brief Builtin make prim value function.
@@ -188,10 +188,10 @@ TVM_REGISTER_GLOBAL("vm.builtin.make_prim_value").set_body_typed(MakePrimValue);
  *
  * \sa MakeShapeCode
  */
-void MakeShape(TVMArgs args, TVMRetValue* rv) {
+void MakeShape(int num_args, const AnyView* args, Any* rv) {
   // NOTE: heap can be nullptr
-  DLTensor* heap = args[0];
-  int64_t* heap_data = heap == nullptr ? nullptr : static_cast<int64_t*>(heap->data);
+  const NDArray::Container* heap = args[0];
+  int64_t* heap_data = heap == nullptr ? nullptr : static_cast<int64_t*>(heap->dl_tensor.data);
   int64_t size = args[1];
   const int64_t kBeginCode = 2;
 
@@ -210,7 +210,7 @@ void MakeShape(TVMArgs args, TVMRetValue* rv) {
   *rv = ShapeTuple(std::move(shape));
 }
 
-TVM_REGISTER_GLOBAL("vm.builtin.make_shape").set_body(MakeShape);
+TVM_REGISTER_GLOBAL("vm.builtin.make_shape").set_body_packed(MakeShape);
 
 /*!
  * \brief Builtin function to check if arg is Tensor(dtype, ndim)
@@ -219,8 +219,8 @@ TVM_REGISTER_GLOBAL("vm.builtin.make_shape").set_body(MakeShape);
  * \param dtype The expected content data type.
  * \param err_ctx Additional context if error occurs.
  */
-void CheckTensorInfo(TVMArgs args, TVMRetValue* rv) {
-  ObjectRef arg = args[0];
+void CheckTensorInfo(int num_args, const AnyView* args, Any* rv) {
+  AnyView arg = args[0];
   int ndim = args[1];
   DataType dtype;
   Optional<String> err_ctx;
@@ -233,8 +233,8 @@ void CheckTensorInfo(TVMArgs args, TVMRetValue* rv) {
     err_ctx = args[3].operator Optional<String>();
   }
 
-  auto* ptr = arg.as<NDArray::ContainerType>();
-  CHECK(ptr != nullptr) << "TypeError: " << err_ctx.value_or("") << " expect a Tensor but get "
+  auto ptr = arg.TryAs<const NDArray::ContainerType*>();
+  CHECK(ptr.has_value()) << "TypeError: " << err_ctx.value_or("") << " expect a Tensor but get "
                         << arg->GetTypeKey();
 
   if (ndim != -1) {
@@ -250,7 +250,7 @@ void CheckTensorInfo(TVMArgs args, TVMRetValue* rv) {
   }
 }
 
-TVM_REGISTER_GLOBAL("vm.builtin.check_tensor_info").set_body(CheckTensorInfo);
+TVM_REGISTER_GLOBAL("vm.builtin.check_tensor_info").set_body_packed(CheckTensorInfo);
 
 /*!
  * \brief Builtin function to check if arg is Shape(ndim)
@@ -362,10 +362,10 @@ TVM_REGISTER_GLOBAL("vm.builtin.alloc_tensor").set_body_method<Storage>(&Storage
 //-------------------------------------------------
 //  Closure function handling, calling convention
 //-------------------------------------------------
-TVM_REGISTER_GLOBAL("vm.builtin.make_closure").set_body([](TVMArgs args, TVMRetValue* rv) {
+TVM_REGISTER_GLOBAL("vm.builtin.make_closure").set_body_packed([](int num_args, const AnyView* args, Any* rv) {
   VMClosure clo = args[0];
-  std::vector<TVMRetValue> saved_args;
-  saved_args.resize(args.size() - 1);
+  std::vector<Any> saved_args;
+  saved_args.resize(num_args - 1);
   for (size_t i = 0; i < saved_args.size(); ++i) {
     saved_args[i] = args[i + 1];
   }
@@ -373,31 +373,25 @@ TVM_REGISTER_GLOBAL("vm.builtin.make_closure").set_body([](TVMArgs args, TVMRetV
   *rv = VMClosure(clo->func_name, impl);
 });
 
-TVM_REGISTER_GLOBAL("vm.builtin.invoke_closure").set_body([](TVMArgs args, TVMRetValue* rv) {
+TVM_REGISTER_GLOBAL("vm.builtin.invoke_closure").set_body_packed([](int num_args, const AnyView* args, Any* rv) {
   // args[0]: vm; args[1]: closure; args[2, 3, ...]: function arguments
   VirtualMachine* vm = VirtualMachine::GetContextPtr(args[0]);
   ObjectRef vm_closure = args[1];
-  vm->InvokeClosurePacked(vm_closure,
-                          TVMArgs(args.values + 2, args.type_codes + 2, args.size() - 2), rv);
+  vm->InvokeClosurePacked(vm_closure, num_args - 2, args + 2, rv);
 });
 
-TVM_REGISTER_GLOBAL("vm.builtin.call_tir_dyn").set_body([](TVMArgs args, TVMRetValue* rv) {
-  PackedFunc func = args[0];
-  ShapeTuple to_unpack = args[args.size() - 1];
-  size_t num_tensor_args = args.size() - 2;
+TVM_REGISTER_GLOBAL("vm.builtin.call_tir_dyn").set_body_packed([](int num_args, const AnyView* args, Any* rv) {
+  ffi::Function func = args[0];
+  ShapeTuple to_unpack = args[num_args - 1];
+  size_t num_tensor_args = num_args - 2;
 
-  std::vector<TVMValue> values(num_tensor_args + to_unpack.size());
-  std::vector<int> tcodes(num_tensor_args + to_unpack.size());
-  runtime::TVMArgsSetter setter(values.data(), tcodes.data());
-
-  std::copy(args.values + 1, args.values + args.size() - 1, values.data());
-  std::copy(args.type_codes + 1, args.type_codes + args.size() - 1, tcodes.data());
+  std::vector<AnyView> values(num_tensor_args + to_unpack.size());
+  std::copy(args + 1, args + args.size() - 1, values.data());
 
   for (size_t i = 0; i < to_unpack.size(); ++i) {
-    setter(i + num_tensor_args, to_unpack[i]);
+    values[i + num_tensor_args] = to_unpack[i];
   }
-  TVMArgs func_args(values.data(), tcodes.data(), values.size());
-  func.CallPacked(func_args, rv);
+  func.CallPacked(static_cast<int>(values.size()), values.data(), rv);
 });
 
 //-------------------------------------
@@ -405,17 +399,16 @@ TVM_REGISTER_GLOBAL("vm.builtin.call_tir_dyn").set_body([](TVMArgs args, TVMRetV
 //-------------------------------------
 TVM_REGISTER_GLOBAL("vm.builtin.shape_of").set_body_method(&NDArray::Shape);
 
-TVM_REGISTER_GLOBAL("vm.builtin.copy").set_body([](TVMArgs args, TVMRetValue* rv) {
-  *rv = args[0];
+TVM_REGISTER_GLOBAL("vm.builtin.copy").set_body_typed(Any a) -> Any {
+  return a;
 });
 
 TVM_REGISTER_GLOBAL("vm.builtin.reshape").set_body_typed([](NDArray data, ShapeTuple new_shape) {
   return data.CreateView(new_shape, data->dtype);
 });
 
-TVM_REGISTER_GLOBAL("vm.builtin.null_value").set_body([](TVMArgs args, TVMRetValue* rv) {
-  CHECK_EQ(args.size(), 0);
-  *rv = nullptr;
+TVM_REGISTER_GLOBAL("vm.builtin.null_value").set_body_typed([]() -> std::nullptr_t {
+  return nullptr;
 });
 
 TVM_REGISTER_GLOBAL("vm.builtin.to_device")
@@ -474,9 +467,8 @@ TVM_REGISTER_GLOBAL("vm.builtin.read_if_cond").set_body_typed(ReadIfCond);
 //-------------------------------------
 
 TVM_REGISTER_GLOBAL("vm.builtin.invoke_debug_func")
-    .set_body([](TVMArgs args, TVMRetValue* rv) -> void {
-      ICHECK_GE(args.size(), 3);
-      int num_args = args.size() - 3;
+    .set_body_packed([](int num_args, const AnyView* args, Any* rv) -> void {
+      ICHECK_GE(num_args, 3);
       ObjectRef io_effect = args[0];
       ICHECK(!io_effect.defined()) << "ValueError: IOEffect is expected to be lowered to None.";
       String debug_func_name = args[1];
@@ -485,16 +477,14 @@ TVM_REGISTER_GLOBAL("vm.builtin.invoke_debug_func")
                         << "Use the decorator `@tvm.register_func(\"" << debug_func_name
                         << "\")` to register it.";
       String line_info = args[2];
-      std::vector<TVMValue> call_args(num_args + 1);
-      std::vector<int> call_type_codes(num_args + 1);
+      std::vector<AnyView> call_args(num_args + 1);
       {
-        TVMArgsSetter setter(call_args.data(), call_type_codes.data());
-        setter(0, line_info);
+        call_args[0] = line_info;
         for (int i = 0; i < num_args; ++i) {
-          setter(i + 1, args[i + 3]);
+          call_args[i+1] = args[i + 3];
         }
       }
-      debug_func->CallPacked(TVMArgs(call_args.data(), call_type_codes.data(), num_args + 1), rv);
+      debug_func->CallPacked(static_cast<int>(call_args.size()), call_args.data(), rv);
       *rv = io_effect;
     });
 
@@ -509,9 +499,9 @@ TVM_REGISTER_GLOBAL("vm.builtin.tuple_reset_item")
       arr.Set(index, ObjectRef(nullptr));
     });
 
-TVM_REGISTER_GLOBAL("vm.builtin.make_tuple").set_body([](TVMArgs args, TVMRetValue* rv) {
+TVM_REGISTER_GLOBAL("vm.builtin.make_tuple").set_body_packed([](int num_args, const AnyView* args, Any* rv) {
   runtime::Array<ObjectRef> arr;
-  for (int i = 0; i < args.num_args; ++i) {
+  for (int i = 0; i < num_args; ++i) {
     arr.push_back(args[i].operator ObjectRef());
   }
   *rv = arr;
