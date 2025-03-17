@@ -41,6 +41,12 @@ TEST(Optional, TInt) {
   EXPECT_TRUE(y.has_value());
   EXPECT_TRUE(y != nullptr);
   EXPECT_EQ(y.value_or(TInt(12))->value, 11);
+
+  Any z_any = std::move(y);
+  EXPECT_TRUE(z_any != nullptr);
+  EXPECT_EQ((z_any.operator TInt())->value, 11);
+  EXPECT_TRUE(!y.has_value());
+  EXPECT_TRUE(y == nullptr);
 }
 
 TEST(Optional, double) {
@@ -69,9 +75,11 @@ TEST(Optional, AnyConvert_int) {
   EXPECT_EQ(view0.operator int(), 1);
 
   Any any1;
-  Optional<int> opt_v1 = any1;
-
+  Optional<int> opt_v1 = std::move(any1);
   EXPECT_TRUE(opt_v1 == nullptr);
+  Optional<int> opt_v2 = 11;
+  Any any2 = std::move(opt_v2);
+  EXPECT_EQ(any2.operator int(), 11);
 }
 
 TEST(Optional, AnyConvert_Array) {
