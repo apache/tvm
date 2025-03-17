@@ -377,12 +377,14 @@ class TorchFXImporter(BaseFXGraphImporter):
         return self._max_pool2d_impl(x, kernel_size, stride, padding, dilation, ceil_mode)
 
     ########## Linear Interpolation ##########
-    
+
     def _lerp(self, node: fx.Node) -> relax.Var:
         start = self.env[node.args[0]]
         end = self.env[node.args[1]]
         weight = self.env[node.args[2]]
-        return self.block_builder.emit(relax.op.add(start, relax.op.multiply(weight, relax.op.subtract(end, start))))
+        return self.block_builder.emit(
+            relax.op.add(start, relax.op.multiply(weight, relax.op.subtract(end, start)))
+        )
 
     ########## Manipulation ##########
 
