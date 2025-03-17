@@ -25,7 +25,6 @@
 #define TVM_RUNTIME_DATA_TYPE_H_
 
 #include <tvm/ffi/type_traits.h>
-
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/logging.h>
 

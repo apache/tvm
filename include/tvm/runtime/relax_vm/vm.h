@@ -155,8 +155,8 @@ class VirtualMachine : public runtime::ModuleNode {
    * \param args The input arguments.
    * \param rv The return value.
    */
-  virtual void InvokeClosurePacked(const ObjectRef& closure_or_packedfunc,
-                                   int num_args, const AnyView* args, Any* rv) = 0;
+  virtual void InvokeClosurePacked(const ObjectRef& closure_or_packedfunc, int num_args,
+                                   const AnyView* args, Any* rv) = 0;
   /*!
    * \brief Set an instrumentation function.
    *
