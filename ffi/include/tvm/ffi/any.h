@@ -271,6 +271,16 @@ class Any {
     data_.v_int64 = 0;
   }
 
+  /*!
+   * \brief Move the current data to FFI any
+   * \param data the input to move from
+   */
+  static Any MoveFromTVMFFIAny(TVMFFIAny data) {
+    Any any;
+    any.data_ = data;
+    return any;
+  }
+
   friend struct details::AnyUnsafe;
   friend struct AnyHash;
   friend struct AnyEqual;
