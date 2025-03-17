@@ -35,14 +35,13 @@ namespace runtime {
 // Array
 TVM_REGISTER_OBJECT_TYPE(ArrayNode);
 
-TVM_REGISTER_GLOBAL("runtime.Array")
-    .set_body_packed([](ffi::PackedArgs args, Any* ret) {
-      std::vector<ObjectRef> data;
-      for (int i = 0; i < args.size(); ++i) {
-        data.push_back(args[i].operator ObjectRef());
-      }
-      *ret = Array<ObjectRef>(data);
-    });
+TVM_REGISTER_GLOBAL("runtime.Array").set_body_packed([](ffi::PackedArgs args, Any* ret) {
+  std::vector<ObjectRef> data;
+  for (int i = 0; i < args.size(); ++i) {
+    data.push_back(args[i].operator ObjectRef());
+  }
+  *ret = Array<ObjectRef>(data);
+});
 
 TVM_REGISTER_GLOBAL("runtime.ArrayGetItem")
     .set_body_typed([](const ffi::ArrayNode* n, int64_t i) -> Any { return n->at(i); });
@@ -92,14 +91,13 @@ TVM_REGISTER_GLOBAL("runtime.MapItems").set_body_typed([](const ffi::MapNode* n)
 // ShapeTuple
 TVM_REGISTER_OBJECT_TYPE(ShapeTupleObj);
 
-TVM_REGISTER_GLOBAL("runtime.ShapeTuple")
-    .set_body_packed([](ffi::PackedArgs args, Any* ret) {
-      std::vector<ShapeTuple::index_type> shape;
-      for (int i = 0; i < args.size(); ++i) {
-        shape.push_back(args[i]);
-      }
-      *ret = ShapeTuple(shape);
-    });
+TVM_REGISTER_GLOBAL("runtime.ShapeTuple").set_body_packed([](ffi::PackedArgs args, Any* ret) {
+  std::vector<ShapeTuple::index_type> shape;
+  for (int i = 0; i < args.size(); ++i) {
+    shape.push_back(args[i]);
+  }
+  *ret = ShapeTuple(shape);
+});
 
 TVM_REGISTER_GLOBAL("runtime.GetShapeTupleSize").set_body_typed([](ShapeTuple shape) {
   return static_cast<int64_t>(shape.size());

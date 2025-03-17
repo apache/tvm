@@ -238,7 +238,6 @@ inline void MoveAnyToLegacyTVMValue(Any&& src, TVMValue* value, int* type_code) 
   AnyViewToLegacyTVMArgValue(val, value, type_code);
 }
 
-
 /*!
  * \brief Legacy TVM args kept for backward compact
  */
@@ -257,7 +256,6 @@ class LegacyTVMArgs {
       : values(values), type_codes(type_codes), num_args(num_args) {}
 };
 
-
 /*!
  * \brief Translate legacy TVMArgs to PackedArgs
  * \param value The TVMValue array
@@ -265,12 +263,8 @@ class LegacyTVMArgs {
  * \param num_args The number of arguments
  * \param dst The destination AnyView array
  */
-inline void LegacyTVMArgsToPackedArgs(
-  const TVMValue* value,
-  const int* type_code,
-  int num_args,
-  AnyView* dst
-) {
+inline void LegacyTVMArgsToPackedArgs(const TVMValue* value, const int* type_code, int num_args,
+                                      AnyView* dst) {
   for (int i = 0; i < num_args; ++i) {
     dst[i] = LegacyTVMArgValueToAnyView(value[i], type_code[i]);
   }
@@ -283,7 +277,8 @@ inline void LegacyTVMArgsToPackedArgs(
  * \param num_args The number of arguments
  * \param dst The destination AnyView array
  */
-inline void PackedArgsToLegacyTVMArgs(const AnyView* args, int num_args, TVMValue* value, int* type_code) {
+inline void PackedArgsToLegacyTVMArgs(const AnyView* args, int num_args, TVMValue* value,
+                                      int* type_code) {
   for (int i = 0; i < num_args; ++i) {
     AnyViewToLegacyTVMArgValue(args[i].CopyToTVMFFIAny(), value + i, type_code + i);
   }
@@ -295,13 +290,8 @@ inline void PackedArgsToLegacyTVMArgs(const AnyView* args, int num_args, TVMValu
  * \param args The arguments
  * \param rv The return value.
  */
-inline void LegacyCallPacked(
-  ffi::FunctionObj* ffi_func,
-  const TVMValue* value,
-  const int* type_code,
-  int num_args,
-  Any* rv
-) {
+inline void LegacyCallPacked(ffi::FunctionObj* ffi_func, const TVMValue* value,
+                             const int* type_code, int num_args, Any* rv) {
   std::vector<ffi::AnyView> args_vec(num_args);
   LegacyTVMArgsToPackedArgs(value, type_code, num_args, args_vec.data());
   // redirect to the normal call packed.
@@ -364,7 +354,6 @@ inline const char* ArgTypeCode2Str(int type_code) {
   }
   throw;
 }
-
 
 namespace details {
 
@@ -440,7 +429,7 @@ struct ModuleVTableEntryHelper<void (T::*)(Args...)> {
 #define TVM_MODULE_VTABLE_ENTRY(Name, MemFunc)                                                    \
   if (_name == Name) {                                                                            \
     return ffi::Function::FromPacked([_self](ffi::PackedArgs args, Any* rv) -> void {             \
-      using Helper = ::tvm::runtime::details::ModuleVTableEntryHelper<decltype(MemFunc)>;          \
+      using Helper = ::tvm::runtime::details::ModuleVTableEntryHelper<decltype(MemFunc)>;         \
       SelfPtr self = static_cast<SelfPtr>(_self.get());                                           \
       CHECK_EQ(args.size(), Helper::LenArgs)                                                      \
           << "Function `" << self->type_key() << "::" << Name << "` requires " << Helper::LenArgs \

@@ -35,8 +35,8 @@
  *
  * We can evolve this implementation as we build more LM verticals.
  */
-#include <tvm/runtime/container/shape_tuple.h>
 #include <tvm/runtime/container/array.h>
+#include <tvm/runtime/container/shape_tuple.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/memory.h>
