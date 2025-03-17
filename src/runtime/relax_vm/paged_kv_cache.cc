@@ -2279,10 +2279,10 @@ TVM_REGISTER_OBJECT_TYPE(PagedAttentionKVCacheObj);
 //-------------------------------------------------
 
 TVM_REGISTER_GLOBAL("vm.builtin.paged_attention_kv_cache_create")
-    .set_body_packed([](int num_args, const AnyView* args, Any* rv) {
+    .set_body_packed([](ffi::PackedArgs args, Any* rv) {
       // Todo: cuda graph arg
-      CHECK(num_args == 28 || num_args == 29)
-          << "Invalid number of KV cache constructor args: " << num_args;
+      CHECK(args.size() == 28 || args.size() == 29)
+          << "Invalid number of KV cache constructor args: " << args.size();
       ShapeTuple cache_config = args[0];
       ShapeTuple layer_indptr_tuple = args[1];
       int num_groups = 1;

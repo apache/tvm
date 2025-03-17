@@ -114,7 +114,7 @@ TVM_REGISTER_GLOBAL("vm.builtin.match_prim_value").set_body_typed(MatchPrimValue
  *
  * \sa MatchShapeCode
  */
-void MatchShape(int num_args, const AnyView* args, Any* rv) {
+void MatchShape(ffi::PackedArgs args, Any* rv) {
   // input shape the first argument can take in tensor or shape.
   ShapeTuple input_shape;
   if (auto opt_nd = args[0].TryAs<NDArray>()) {
@@ -126,7 +126,7 @@ void MatchShape(int num_args, const AnyView* args, Any* rv) {
   int64_t* heap_data = heap == nullptr ? nullptr : static_cast<int64_t*>(heap->dl_tensor.data);
   int64_t size = args[2];
   const int64_t kBeginCode = 3;
-  ICHECK_LE(kBeginCode + size * 2, num_args);
+  ICHECK_LE(kBeginCode + size * 2, args.size());
   // a function that lazily get context for error reporting
   const int64_t kErrorContextOffset = kBeginCode + size * 2;
   Optional<String> err_ctx = args[kErrorContextOffset];
@@ -189,7 +189,7 @@ TVM_REGISTER_GLOBAL("vm.builtin.make_prim_value").set_body_typed(MakePrimValue);
  *
  * \sa MakeShapeCode
  */
-void MakeShape(int num_args, const AnyView* args, Any* rv) {
+void MakeShape(ffi::PackedArgs args, Any* rv) {
   // NOTE: heap can be nullptr
   const NDArray::Container* heap = args[0];
   int64_t* heap_data = heap == nullptr ? nullptr : static_cast<int64_t*>(heap->dl_tensor.data);
@@ -220,13 +220,13 @@ TVM_REGISTER_GLOBAL("vm.builtin.make_shape").set_body_packed(MakeShape);
  * \param dtype The expected content data type.
  * \param err_ctx Additional context if error occurs.
  */
-void CheckTensorInfo(int num_args, const AnyView* args, Any* rv) {
+void CheckTensorInfo(ffi::PackedArgs args, Any* rv) {
   AnyView arg = args[0];
   int ndim = args[1];
   DataType dtype;
   Optional<String> err_ctx;
 
-  if (num_args == 3) {
+  if (args.size() == 3) {
     dtype = DataType::Void();
     err_ctx = args[2].operator Optional<String>();
   } else {
@@ -364,10 +364,10 @@ TVM_REGISTER_GLOBAL("vm.builtin.alloc_tensor").set_body_method<Storage>(&Storage
 //  Closure function handling, calling convention
 //-------------------------------------------------
 TVM_REGISTER_GLOBAL("vm.builtin.make_closure")
-    .set_body_packed([](int num_args, const AnyView* args, Any* rv) {
+    .set_body_packed([](ffi::PackedArgs args, Any* rv) {
       VMClosure clo = args[0];
       std::vector<Any> saved_args;
-      saved_args.resize(num_args - 1);
+      saved_args.resize(args.size() - 1);
       for (size_t i = 0; i < saved_args.size(); ++i) {
         saved_args[i] = args[i + 1];
       }
@@ -376,26 +376,26 @@ TVM_REGISTER_GLOBAL("vm.builtin.make_closure")
     });
 
 TVM_REGISTER_GLOBAL("vm.builtin.invoke_closure")
-    .set_body_packed([](int num_args, const AnyView* args, Any* rv) {
+    .set_body_packed([](ffi::PackedArgs args, Any* rv) {
       // args[0]: vm; args[1]: closure; args[2, 3, ...]: function arguments
       VirtualMachine* vm = VirtualMachine::GetContextPtr(args[0]);
       ObjectRef vm_closure = args[1];
-      vm->InvokeClosurePacked(vm_closure, num_args - 2, args + 2, rv);
+      vm->InvokeClosurePacked(vm_closure, args.Slice(2), rv);
     });
 
 TVM_REGISTER_GLOBAL("vm.builtin.call_tir_dyn")
-    .set_body_packed([](int num_args, const AnyView* args, Any* rv) {
+    .set_body_packed([](ffi::PackedArgs args, Any* rv) {
       ffi::Function func = args[0];
-      ShapeTuple to_unpack = args[num_args - 1];
-      size_t num_tensor_args = num_args - 2;
+      ShapeTuple to_unpack = args[args.size() - 1];
+      size_t num_tensor_args = args.size() - 2;
 
-      std::vector<AnyView> values(num_tensor_args + to_unpack.size());
-      std::copy(args + 1, args + num_args - 1, values.data());
+      std::vector<AnyView> packed_args(num_tensor_args + to_unpack.size());
+      std::copy(args.data() + 1, args.data() + args.size() - 1, packed_args.data());
 
       for (size_t i = 0; i < to_unpack.size(); ++i) {
-        values[i + num_tensor_args] = to_unpack[i];
+        packed_args[i + num_tensor_args] = to_unpack[i];
       }
-      func.CallPacked(static_cast<int>(values.size()), values.data(), rv);
+      func.CallPacked(ffi::PackedArgs(packed_args.data(), packed_args.size()), rv);
     });
 
 //-------------------------------------
@@ -469,8 +469,8 @@ TVM_REGISTER_GLOBAL("vm.builtin.read_if_cond").set_body_typed(ReadIfCond);
 //-------------------------------------
 
 TVM_REGISTER_GLOBAL("vm.builtin.invoke_debug_func")
-    .set_body_packed([](int num_args, const AnyView* args, Any* rv) -> void {
-      ICHECK_GE(num_args, 3);
+    .set_body_packed([](ffi::PackedArgs args, Any* rv) -> void {
+      ICHECK_GE(args.size(), 3);
       ObjectRef io_effect = args[0];
       ICHECK(!io_effect.defined()) << "ValueError: IOEffect is expected to be lowered to None.";
       String debug_func_name = args[1];
@@ -479,14 +479,14 @@ TVM_REGISTER_GLOBAL("vm.builtin.invoke_debug_func")
                         << "Use the decorator `@tvm.register_func(\"" << debug_func_name
                         << "\")` to register it.";
       String line_info = args[2];
-      std::vector<AnyView> call_args(num_args + 1);
+      std::vector<AnyView> call_args(args.size() + 1);
       {
         call_args[0] = line_info;
-        for (int i = 0; i < num_args; ++i) {
+        for (int i = 0; i < args.size(); ++i) {
           call_args[i + 1] = args[i + 3];
         }
       }
-      debug_func->CallPacked(static_cast<int>(call_args.size()), call_args.data(), rv);
+      debug_func->CallPacked(ffi::PackedArgs(call_args.data(), call_args.size()), rv);
       *rv = io_effect;
     });
 
@@ -502,9 +502,9 @@ TVM_REGISTER_GLOBAL("vm.builtin.tuple_reset_item")
     });
 
 TVM_REGISTER_GLOBAL("vm.builtin.make_tuple")
-    .set_body_packed([](int num_args, const AnyView* args, Any* rv) {
+    .set_body_packed([](ffi::PackedArgs args, Any* rv) {
       runtime::Array<ObjectRef> arr;
-      for (int i = 0; i < num_args; ++i) {
+      for (int i = 0; i < args.size(); ++i) {
         arr.push_back(args[i].operator ObjectRef());
       }
       *rv = arr;
@@ -609,8 +609,7 @@ int TVMBackendAnyListSetPackedArg(void* anylist, int index, TVMValue* args, int*
   using namespace tvm::runtime;
   API_BEGIN();
   auto* list = static_cast<Any*>(anylist);
-  TVMArgsSetter setter(args, type_codes);
-  setter(arg_offset, list[index]);
+  list[arg_offset] = LegacyTVMArgValueToAnyView(args[index], type_codes[index]);
   API_END();
 }
 

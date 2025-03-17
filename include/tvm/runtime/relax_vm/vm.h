@@ -151,12 +151,11 @@ class VirtualMachine : public runtime::ModuleNode {
   /*!
    * \brief Invoke closure or packed function using PackedFunc convention.
    * \param closure_or_packedfunc A VM closure or a packed_func.
-   * \param num_args The number of input arguments.
    * \param args The input arguments.
    * \param rv The return value.
    */
-  virtual void InvokeClosurePacked(const ObjectRef& closure_or_packedfunc, int num_args,
-                                   const AnyView* args, Any* rv) = 0;
+  virtual void InvokeClosurePacked(const ObjectRef& closure_or_packedfunc, ffi::PackedArgs args,
+                                   Any* rv) = 0;
   /*!
    * \brief Set an instrumentation function.
    *
