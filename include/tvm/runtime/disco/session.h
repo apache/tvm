@@ -283,7 +283,7 @@ class Session : public ObjectRef {
   TVM_DLL static Session ProcessSession(int num_workers, int num_groups,
                                         String process_pool_creator, String entrypoint);
 
-  TVM_DEFINE_MUTABLE_NOTNULLABLE_OBJECT_REF_METHODS(Session, ObjectRef, SessionObj);
+  TVM_DEFINE_MUTABLE_NULLABLE_OBJECT_REF_METHODS(Session, ObjectRef, SessionObj);
 };
 
 /*!
