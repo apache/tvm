@@ -178,7 +178,7 @@ typedef struct {
  *  As we do not need to propagate error through argument but simply
  *  set them in the runtime environment.
  */
-typedef int (*TVMFFISafeCallType)(void* self, int32_t num_args, const TVMFFIAny* args,
+typedef int (*TVMFFISafeCallType)(void* self, const TVMFFIAny* args, int32_t num_args,
                                   TVMFFIAny* result);
 
 /*!

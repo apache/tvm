@@ -164,12 +164,12 @@ template <typename R, int nleft, int index, typename F>
 struct unpack_call_dispatcher {
   template <typename... Args>
   TVM_FFI_INLINE static void run(const std::string* optional_name, FGetFuncSignature f_sig,
-                                 const F& f, int32_t num_args, const AnyView* args, Any* rv,
+                                 const F& f, const AnyView* args, int32_t num_args, Any* rv,
                                  Args&&... unpacked_args) {
     // construct a movable argument value
     // which allows potential move of argument to the input of F.
     unpack_call_dispatcher<R, nleft - 1, index + 1, F>::run(
-        optional_name, f_sig, f, num_args, args, rv, std::forward<Args>(unpacked_args)...,
+        optional_name, f_sig, f, args, num_args, rv, std::forward<Args>(unpacked_args)...,
         MovableArgValueWithContext(args, index, optional_name, f_sig));
   }
 };
@@ -177,8 +177,8 @@ struct unpack_call_dispatcher {
 template <typename R, int index, typename F>
 struct unpack_call_dispatcher<R, 0, index, F> {
   template <typename... Args>
-  TVM_FFI_INLINE static void run(const std::string*, FGetFuncSignature, const F& f, int32_t,
-                                 const AnyView*, Any* rv, Args&&... unpacked_args) {
+  TVM_FFI_INLINE static void run(const std::string*, FGetFuncSignature, const F& f,
+                                 const AnyView*, int32_t, Any* rv, Args&&... unpacked_args) {
     using RetType = decltype(f(std::forward<Args>(unpacked_args)...));
     if constexpr (std::is_same_v<RetType, R>) {
       *rv = f(std::forward<Args>(unpacked_args)...);
@@ -191,15 +191,15 @@ struct unpack_call_dispatcher<R, 0, index, F> {
 template <int index, typename F>
 struct unpack_call_dispatcher<void, 0, index, F> {
   template <typename... Args>
-  TVM_FFI_INLINE static void run(const std::string*, FGetFuncSignature, const F& f, int32_t,
-                                 const AnyView*, Any*, Args&&... unpacked_args) {
+  TVM_FFI_INLINE static void run(const std::string*, FGetFuncSignature, const F& f,
+                                 const AnyView*, int32_t, Any*, Args&&... unpacked_args) {
     f(std::forward<Args>(unpacked_args)...);
   }
 };
 
 template <typename R, int nargs, typename F>
-TVM_FFI_INLINE void unpack_call(const std::string* optional_name, const F& f, int32_t num_args,
-                                const AnyView* args, Any* rv) {
+TVM_FFI_INLINE void unpack_call(const std::string* optional_name, const F& f,
+                                const AnyView* args, int32_t num_args, Any* rv) {
   using FuncInfo = FunctionInfo<F>;
   FGetFuncSignature f_sig = FuncInfo::Sig;
   static_assert(FuncInfo::unpacked_supported,
@@ -210,7 +210,7 @@ TVM_FFI_INLINE void unpack_call(const std::string* optional_name, const F& f, in
                              << (f_sig == nullptr ? "" : (*f_sig)()) << "`. Expected " << nargs
                              << " but got " << num_args << " arguments";
   }
-  unpack_call_dispatcher<R, nargs, 0, F>::run(optional_name, f_sig, f, num_args, args, rv);
+  unpack_call_dispatcher<R, nargs, 0, F>::run(optional_name, f_sig, f, args, num_args, rv);
 }
 
 template <typename FType>
@@ -219,8 +219,8 @@ struct unpack_call_by_signature {};
 template <typename R, typename... Args>
 struct unpack_call_by_signature<R(Args...)> {
   template <typename F>
-  TVM_FFI_INLINE static void run(const F& f, int32_t num_args, const AnyView* args, Any* rv) {
-    unpack_call<R, sizeof...(Args)>(nullptr, f, num_args, args, rv);
+  TVM_FFI_INLINE static void run(const F& f, const AnyView* args, int32_t num_args, Any* rv) {
+    unpack_call<R, sizeof...(Args)>(nullptr, f, args, num_args, rv);
   }
 };
 

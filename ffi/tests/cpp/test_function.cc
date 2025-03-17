@@ -30,7 +30,7 @@ using namespace tvm::ffi;
 using namespace tvm::ffi::testing;
 
 TEST(Func, FromPacked) {
-  Function fadd1 = Function::FromPacked([](int32_t num_args, const AnyView* args, Any* rv) {
+  Function fadd1 = Function::FromPacked([](const AnyView* args, int32_t num_args, Any* rv) {
     EXPECT_EQ(num_args, 1);
     int32_t a = args[0];
     *rv = a + 1;
@@ -38,13 +38,38 @@ TEST(Func, FromPacked) {
   int b = fadd1(1);
   EXPECT_EQ(b, 2);
 
-  Function fadd2 = Function::FromPacked([](int32_t num_args, const AnyView* args, Any* rv) {
+  Function fadd2 = Function::FromPacked([](const AnyView* args, int32_t num_args, Any* rv) {
     EXPECT_EQ(num_args, 1);
     TInt a = args[0];
     EXPECT_EQ(a.use_count(), 2);
     *rv = a->value + 1;
   });
   EXPECT_EQ(fadd2(TInt(12)).operator int(), 13);
+}
+
+TEST(Func, PackedArgs) {
+  Function fadd1 = Function::FromPacked([](PackedArgs args, Any* rv) {
+    EXPECT_EQ(args.size(), 1);
+    int32_t a = args[0];
+    *rv = a + 1;
+  });
+  int b = fadd1(1);
+  EXPECT_EQ(b, 2);
+
+  Function fadd2 = Function::FromPacked([](PackedArgs args, Any* rv) {
+    EXPECT_EQ(args.size(), 1);
+    TInt a = args[0];
+    EXPECT_EQ(a.use_count(), 2);
+    *rv = a->value + 1;
+  });
+  EXPECT_EQ(fadd2(TInt(12)).operator int(), 13);
+
+  TInt v(12);
+  AnyView data[3];
+  PackedArgs::Fill(data, 3, 1, v);
+  EXPECT_EQ(data[0].operator int(), 3);
+  EXPECT_EQ(data[1].operator int(), 1);
+  EXPECT_EQ(data[2].operator TInt()->value, 12);
 }
 
 TEST(Func, FromUnpacked) {
