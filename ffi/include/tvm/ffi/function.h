@@ -110,7 +110,7 @@ class FunctionObj : public Object {
   FunctionObj() {}
 
   // Implementing safe call style
-  static int SafeCall(void* func, const TVMFFIAny* args, int32_t num_args,  TVMFFIAny* result) {
+  static int SafeCall(void* func, const TVMFFIAny* args, int32_t num_args, TVMFFIAny* result) {
     TVM_FFI_SAFE_CALL_BEGIN();
     FunctionObj* self = static_cast<FunctionObj*>(func);
     self->call(self, reinterpret_cast<const AnyView*>(args), num_args,
@@ -160,11 +160,11 @@ template <typename Derived>
 struct RedirectCallToSafeCall {
   static void Call(const FunctionObj* func, const AnyView* args, int32_t num_args, Any* rv) {
     Derived* self = static_cast<Derived*>(const_cast<FunctionObj*>(func));
-    TVM_FFI_CHECK_SAFE_CALL(self->RedirectSafeCall(
-        reinterpret_cast<const TVMFFIAny*>(args), num_args, reinterpret_cast<TVMFFIAny*>(rv)));
+    TVM_FFI_CHECK_SAFE_CALL(self->RedirectSafeCall(reinterpret_cast<const TVMFFIAny*>(args),
+                                                   num_args, reinterpret_cast<TVMFFIAny*>(rv)));
   }
 
-  static int32_t SafeCall(void* func, const TVMFFIAny* args, int32_t num_args,  TVMFFIAny* rv) {
+  static int32_t SafeCall(void* func, const TVMFFIAny* args, int32_t num_args, TVMFFIAny* rv) {
     Derived* self = reinterpret_cast<Derived*>(func);
     return self->RedirectSafeCall(args, num_args, rv);
   }
@@ -249,7 +249,7 @@ class PackedArgs {
    * \param data The arguments
    * \param size The number of arguments
    */
-  PackedArgs(const AnyView* data, int32_t size) : data_(data),  size_(size) {}
+  PackedArgs(const AnyView* data, int32_t size) : data_(data), size_(size) {}
 
   /*! \return size of the arguments */
   int size() const { return size_; }
@@ -324,7 +324,7 @@ class Function : public ObjectRef {
   static Function FromPacked(TCallable packed_call) {
     static_assert(
         std::is_convertible_v<TCallable, std::function<void(const AnyView*, int32_t, Any*)>> ||
-        std::is_convertible_v<TCallable, std::function<void(PackedArgs args, Any*)>>,
+            std::is_convertible_v<TCallable, std::function<void(PackedArgs args, Any*)>>,
         "tvm::ffi::Function::FromPacked requires input function signature to match packed func "
         "format");
     if constexpr (std::is_convertible_v<TCallable, std::function<void(PackedArgs args, Any*)>>) {
@@ -408,8 +408,8 @@ class Function : public ObjectRef {
   static Function FromUnpacked(TCallable callable) {
     using FuncInfo = details::FunctionInfo<TCallable>;
     auto call_packed = [callable](const AnyView* args, int32_t num_args, Any* rv) -> void {
-      details::unpack_call<typename FuncInfo::RetType, FuncInfo::num_args>(nullptr, callable,
-                                                                           args, num_args, rv);
+      details::unpack_call<typename FuncInfo::RetType, FuncInfo::num_args>(nullptr, callable, args,
+                                                                           num_args, rv);
     };
     return FromPackedInternal(call_packed);
   }
@@ -423,8 +423,8 @@ class Function : public ObjectRef {
   static Function FromUnpacked(TCallable callable, std::string name) {
     using FuncInfo = details::FunctionInfo<TCallable>;
     auto call_packed = [callable, name](const AnyView* args, int32_t num_args, Any* rv) -> void {
-      details::unpack_call<typename FuncInfo::RetType, FuncInfo::num_args>(&name, callable,
-                                                                           args, num_args, rv);
+      details::unpack_call<typename FuncInfo::RetType, FuncInfo::num_args>(&name, callable, args,
+                                                                           num_args, rv);
     };
     return FromPackedInternal(call_packed);
   }
@@ -479,7 +479,7 @@ class Function : public ObjectRef {
 
   class Registry;
 
-private:
+ private:
   /*!
    * \brief Constructing a packed function from a callable type
    *        whose signature is consistent with `PackedFunc`
