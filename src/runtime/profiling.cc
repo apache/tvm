@@ -800,7 +800,7 @@ TVM_REGISTER_GLOBAL("runtime.profiling.DeviceWrapper").set_body_typed([](Device 
 PackedFunc ProfileFunction(Module mod, std::string func_name, int device_type, int device_id,
                            int warmup_iters, Array<MetricCollector> collectors) {
   // Module::GetFunction is not const, so this lambda has to be mutable
-  return PackedFunc::FromPacked([=](int num_args, const AnyView* args, Any* ret) mutable {
+  return PackedFunc::FromPacked([=](const AnyView* args, int32_t num_args, Any* ret) mutable {
     PackedFunc f = mod.GetFunction(func_name);
     CHECK(f.defined()) << "There is no function called \"" << func_name << "\" in the module";
     Device dev{static_cast<DLDeviceType>(device_type), device_id};
@@ -865,7 +865,7 @@ PackedFunc WrapTimeEvaluator(PackedFunc pf, Device dev, int number, int repeat, 
 
   auto ftimer = [pf, dev, number, repeat, min_repeat_ms, limit_zero_time_iterations,
                  cooldown_interval_ms, repeats_to_cooldown, cache_flush_bytes,
-                 f_preproc](int num_args, const AnyView* args, Any* rv) mutable {
+                 f_preproc](const AnyView* args, int num_args, Any* rv) mutable {
     Any temp;
     std::ostringstream os;
     // skip first time call, to activate lazy compilation components.

@@ -32,10 +32,9 @@ struct BcastSessionObj::Internal {
   static void TVM_ALWAYS_INLINE BroadcastUnpacked(BcastSessionObj* self, DiscoAction action,
                                                   int64_t reg_id, Args&&... args) {
     constexpr int kNumArgs = 2 + sizeof...(Args);
-    TVMValue values[kNumArgs];
-    int type_codes[kNumArgs];
-    PackArgs(values, type_codes, static_cast<int>(action), reg_id, std::forward<Args>(args)...);
-    self->BroadcastPacked(TVMArgs(values, type_codes, kNumArgs));
+    AnyView packed_args[kNumArgs];
+    ffi::PackedArgs::Fill(packed_args, static_cast<int>(action), reg_id, std::forward<Args>(args)...);
+    self->BroadcastPacked(ffi::PackedArgs(packed_args, kNumArgs));
   }
 
   static DRef MakeDRef(int reg_id, Session session) {
@@ -86,36 +85,18 @@ void BcastSessionObj::SyncWorker(int worker_id) {
 }
 
 DRef BcastSessionObj::CallWithPacked(const TVMArgs& args) {
-  TVMValue* values = const_cast<TVMValue*>(args.values);
-  int* type_codes = const_cast<int*>(args.type_codes);
-  int num_args = args.num_args;
+  // NOTE: this action is not safe unless we know args is not
+  // used else where in this case it is oK
+  AnyView* args_vec = const_cast<AnyView*>(args.data());
+  // tranlsate args into remote calling convention
   int reg_id = AllocateReg();
   {
-    TVMArgsSetter setter(values, type_codes);
     DRef func = args[2];
-    setter(0, static_cast<int>(DiscoAction::kCallPacked));
-    setter(1, reg_id);
-    setter(2, func->reg_id);
+    args[0] = static_cast<int>(DiscoAction::kCallPacked);
+    args[1] = reg_id;
+    args[2] = func->reg_id;
   }
-  {
-    std::ostringstream os;
-    int cnt = 0;
-    for (int i = 3; i < num_args; ++i) {
-      int type_code = type_codes[i];
-      if (type_code != kDLInt && type_code != kDLUInt && type_code != kTVMArgBool &&
-          type_code != kDLFloat && type_code != kTVMDataType && type_code != kDLDevice &&
-          type_code != kTVMOpaqueHandle && type_code != kTVMStr && type_code != kTVMNullptr &&
-          type_code != kTVMBytes && type_code != kTVMObjectHandle) {
-        os << "\n  Argument #" << i - 3 << " has unsupported type code: " << type_code << " ("
-           << ArgTypeCode2Str(type_code) << ")";
-        cnt += 1;
-      }
-    }
-    if (cnt > 0) {
-      LOG(FATAL) << "CallWithPacked() does not support " << cnt << " argument(s):" << os.str();
-    }
-  }
-  this->BroadcastPacked(TVMArgs(values, type_codes, num_args));
+  this->BroadcastPacked(ffi::PackedArgs(args_vec, args.size()));
   return BcastSessionObj::Internal::MakeDRef(reg_id, GetRef<Session>(this));
 }
 

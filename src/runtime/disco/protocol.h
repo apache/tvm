@@ -198,7 +198,9 @@ inline void DiscoProtocol<SubClassType>::ReadObject(int* tcode, TVMValue* value)
     LOG(FATAL) << "ValueError: Object type is not supported in Disco calling convention: "
                << Object::TypeIndex2Key(type_index) << " (type_index = " << type_index << ")";
   }
-  TVMArgsSetter(value, tcode)(0, result);
+  // translate AnyView to legacy TVMValue and type_code
+  AnyView res_view = result;
+  AnyViewToLegacyTVMArgValue(res_view.CopyToTVMFFIAny(), value, tcode);
   object_arena_.push_back(result);
 }
 
