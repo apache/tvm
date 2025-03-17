@@ -347,6 +347,14 @@ class ObjectRef {
  public:
   /*! \brief default constructor */
   ObjectRef() = default;
+  /*! \brief copy constructor */
+  ObjectRef(const ObjectRef& other) = default;
+  /*! \brief move constructor */
+  ObjectRef(ObjectRef&& other) = default;
+  /*! \brief copy assignment */
+  ObjectRef& operator=(const ObjectRef& other) = default;
+  /*! \brief move assignment */
+  ObjectRef& operator=(ObjectRef&& other) = default;
   /*! \brief Constructor from existing object ptr */
   explicit ObjectRef(ObjectPtr<Object> data) : data_(data) {}
   /*!
