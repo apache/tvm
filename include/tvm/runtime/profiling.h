@@ -26,6 +26,7 @@
 
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/container/map.h>
+#include <tvm/runtime/container/array.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/packed_func.h>

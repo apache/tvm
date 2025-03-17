@@ -114,19 +114,16 @@ class ProcessSessionObj final : public BcastSessionObj {
     return result;
   }
 
-  void DebugSetRegister(int64_t reg_id, TVMArgValue value, int worker_id) {
+  void DebugSetRegister(int64_t reg_id, AnyView value, int worker_id) {
     if (worker_id == 0) {
       this->SyncWorker(worker_id);
       worker_0_->worker->SetRegister(reg_id, value);
       return;
     }
     ObjectRef wrapped{nullptr};
-    if (value.type_code() == kTVMNDArrayHandle || value.type_code() == kTVMObjectHandle) {
+    if (value.TryAs<ObjectRef>()) {
       wrapped = DiscoDebugObject::Wrap(value);
-      TVMValue tvm_value;
-      int type_code = kTVMObjectHandle;
-      tvm_value.v_handle = const_cast<Object*>(wrapped.get());
-      value = TVMArgValue(tvm_value, type_code);
+      value = wrapped;
     }
     {
       TVMValue values[4];

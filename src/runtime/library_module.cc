@@ -82,7 +82,7 @@ PackedFunc WrapPackedFunc(TVMBackendPackedCFunc faddr, const ObjectPtr<Object>& 
       TVMThrowLastError();
     }
     if (ret_type_code != kTVMNullptr) {
-      *rv = TVMRetValue::MoveFromCHost(ret_value, ret_type_code);
+      *rv = MoveLegacyTVMArgValueToAny(ret_value, ret_type_code);
     }
   });
 }

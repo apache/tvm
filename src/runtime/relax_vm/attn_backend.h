@@ -27,6 +27,7 @@
 
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/packed_func.h>
+#include <tvm/runtime/container/array.h>
 
 #include <memory>
 #include <tuple>

@@ -800,14 +800,14 @@ TVM_REGISTER_GLOBAL("runtime.profiling.DeviceWrapper").set_body_typed([](Device 
 PackedFunc ProfileFunction(Module mod, std::string func_name, int device_type, int device_id,
                            int warmup_iters, Array<MetricCollector> collectors) {
   // Module::GetFunction is not const, so this lambda has to be mutable
-  return PackedFunc([=](TVMArgs args, TVMRetValue* ret) mutable {
+  return PackedFunc::FromPacked([=](int num_args, const AnyView* args, Any* ret) mutable {
     PackedFunc f = mod.GetFunction(func_name);
     CHECK(f.defined()) << "There is no function called \"" << func_name << "\" in the module";
     Device dev{static_cast<DLDeviceType>(device_type), device_id};
 
     // warmup
     for (int i = 0; i < warmup_iters; i++) {
-      f.CallPacked(args, ret);
+      f.CallPacked(num_args, args, ret);
     }
 
     for (auto& collector : collectors) {
@@ -826,7 +826,7 @@ PackedFunc ProfileFunction(Module mod, std::string func_name, int device_type, i
     }
 
     // TODO(tkonolige): repeated calls if the runtime is small?
-    f.CallPacked(args, ret);
+    f.CallPacked(num_args, args, ret);
 
     for (auto& kv : collector_data) {
       results.push_back(kv.first->Stop(kv.second));
@@ -865,11 +865,11 @@ PackedFunc WrapTimeEvaluator(PackedFunc pf, Device dev, int number, int repeat, 
 
   auto ftimer = [pf, dev, number, repeat, min_repeat_ms, limit_zero_time_iterations,
                  cooldown_interval_ms, repeats_to_cooldown, cache_flush_bytes,
-                 f_preproc](TVMArgs args, TVMRetValue* rv) mutable {
-    TVMRetValue temp;
+                 f_preproc](int num_args, const AnyView* args, Any* rv) mutable {
+    Any temp;
     std::ostringstream os;
     // skip first time call, to activate lazy compilation components.
-    pf.CallPacked(args, &temp);
+    pf.CallPacked(num_args, args, &temp);
 
     // allocate two large arrays to flush L2 cache
     NDArray arr1, arr2;
@@ -882,7 +882,7 @@ PackedFunc WrapTimeEvaluator(PackedFunc pf, Device dev, int number, int repeat, 
 
     for (int i = 0; i < repeat; ++i) {
       if (f_preproc != nullptr) {
-        f_preproc.CallPacked(args, &temp);
+        f_preproc.CallPacked(num_args, args, &temp);
       }
       double duration_ms = 0.0;
       int absolute_zero_times = 0;
@@ -899,7 +899,7 @@ PackedFunc WrapTimeEvaluator(PackedFunc pf, Device dev, int number, int repeat, 
         // start timing
         Timer t = Timer::Start(dev);
         for (int j = 0; j < number; ++j) {
-          pf.CallPacked(args, &temp);
+          pf.CallPacked(num_args, args, &temp);
         }
         t->Stop();
         int64_t t_nanos = t->SyncAndGetElapsedNanos();
@@ -916,13 +916,10 @@ PackedFunc WrapTimeEvaluator(PackedFunc pf, Device dev, int number, int repeat, 
     }
 
     std::string blob = os.str();
-    TVMByteArray arr;
-    arr.size = blob.length();
-    arr.data = blob.data();
     // return the time.
-    *rv = arr;
+    *rv = ffi::Bytes(std::move(blob));
   };
-  return PackedFunc(ftimer);
+  return ffi::Function::FromPacked(ftimer);
 }
 
 TVM_REGISTER_GLOBAL("runtime.profiling.Report")

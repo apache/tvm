@@ -225,7 +225,7 @@ class Registry {
       // call method pointer
       return (target.*f)(params...);
     };
-    return set_body(TypedPackedFunc<R_(T, Args...)>(fwrap, name_));
+    return set_body(ffi::Function::FromUnpacked(fwrap, name_));
   }
 
   /*!
@@ -255,7 +255,7 @@ class Registry {
       // call method pointer
       return (target.*f)(params...);
     };
-    return set_body(TypedPackedFunc<R(const T, Args...)>(fwrap, name_));
+    return set_body(ffi::Function::FromUnpacked(fwrap, name_));
   }
 
   /*!
@@ -297,7 +297,7 @@ class Registry {
       // call method pointer
       return (target->*f)(params...);
     };
-    return set_body(TypedPackedFunc<R(TObjectRef, Args...)>(fwrap, name_));
+    return set_body(ffi::Function::FromUnpacked(fwrap, name_));
   }
 
   /*!
@@ -339,7 +339,7 @@ class Registry {
       // call method pointer
       return (target->*f)(params...);
     };
-    return set_body(TypedPackedFunc<R(TObjectRef, Args...)>(fwrap, name_));
+    return set_body(ffi::Function::FromUnpacked(fwrap, name_));
   }
 
   /*!
