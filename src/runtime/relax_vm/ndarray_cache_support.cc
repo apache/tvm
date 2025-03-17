@@ -268,10 +268,10 @@ class NDArrayCache {
 
 TVM_REGISTER_GLOBAL("vm.builtin.ndarray_cache.get").set_body_typed(NDArrayCache::Get);
 TVM_REGISTER_GLOBAL("vm.builtin.ndarray_cache.update")
-    .set_body_packed([](int num_args, const AnyView* args, Any* rv) {
-      CHECK(num_args == 2 || num_args == 3);
+    .set_body_packed([](ffi::PackedArgs args, Any* rv) {
+      CHECK(args.size() == 2 || args.size() == 3);
       String name = args[0];
-      bool is_override = num_args == 2 ? false : args[2].operator bool();
+      bool is_override = args.size() == 2 ? false : args[2].operator bool();
 
       NDArray arr;
       if (auto opt_nd = args[1].TryAs<NDArray>()) {
@@ -360,10 +360,10 @@ TVM_REGISTER_GLOBAL("vm.builtin.param_array_from_cache").set_body_typed(ParamMod
 TVM_REGISTER_GLOBAL("vm.builtin.param_array_from_cache_by_name")
     .set_body_typed(ParamModuleNode::GetParamByName);
 TVM_REGISTER_GLOBAL("vm.builtin.param_array_from_cache_by_name_unpacked")
-    .set_body_packed([](int num_args, const AnyView* args, Any* rv) {
+    .set_body_packed([](ffi::PackedArgs args, Any* rv) {
       Array<String> names;
-      names.reserve(num_args);
-      for (int i = 0; i < num_args; ++i) {
+      names.reserve(args.size());
+      for (int i = 0; i < args.size(); ++i) {
         if (!args[i].TryAs<String>()) {
           LOG(FATAL) << "ValueError: Expect string as input, but get "
                      << ffi::TypeIndex2TypeKey(args[i].type_index()) << " at " << i;
