@@ -20,6 +20,7 @@
  * \file src/runtime/relax_vm/builtin.cc
  */
 #include <tvm/runtime/container/shape_tuple.h>
+#include <tvm/runtime/container/array.h>
 #include <tvm/runtime/data_type.h>
 #include <tvm/runtime/device_api.h>
 #include <tvm/runtime/logging.h>
@@ -125,7 +126,7 @@ void MatchShape(int num_args, const AnyView* args, Any* rv) {
   int64_t* heap_data = heap == nullptr ? nullptr : static_cast<int64_t*>(heap->dl_tensor.data);
   int64_t size = args[2];
   const int64_t kBeginCode = 3;
-  ICHECK_LE(kBeginCode + size * 2, args.size());
+  ICHECK_LE(kBeginCode + size * 2, num_args);
   // a function that lazily get context for error reporting
   const int64_t kErrorContextOffset = kBeginCode + size * 2;
   Optional<String> err_ctx = args[kErrorContextOffset];
@@ -225,7 +226,7 @@ void CheckTensorInfo(int num_args, const AnyView* args, Any* rv) {
   DataType dtype;
   Optional<String> err_ctx;
 
-  if (args.size() == 3) {
+  if (num_args == 3) {
     dtype = DataType::Void();
     err_ctx = args[2].operator Optional<String>();
   } else {
@@ -233,10 +234,10 @@ void CheckTensorInfo(int num_args, const AnyView* args, Any* rv) {
     err_ctx = args[3].operator Optional<String>();
   }
 
-  auto ptr = arg.TryAs<const NDArray::ContainerType*>();
-  CHECK(ptr.has_value()) << "TypeError: " << err_ctx.value_or("") << " expect a Tensor but get "
-                        << arg->GetTypeKey();
+  auto opt_ptr = arg.TryAs<const NDArray::ContainerType*>();
+  CHECK(opt_ptr.has_value()) << "TypeError: " << err_ctx.value_or("") << " expect a Tensor but get "                        << ffi::TypeIndex2TypeKey(arg.type_index());
 
+  const NDArray::ContainerType* ptr = opt_ptr.value();
   if (ndim != -1) {
     CHECK(ptr->dl_tensor.ndim == ndim)
         << "ValueError: " << err_ctx.value_or("") << " expect Tensor with ndim " << ndim
@@ -278,11 +279,10 @@ TVM_REGISTER_GLOBAL("vm.builtin.check_shape_info").set_body_typed(CheckShapeInfo
  * \param dtype Expected dtype of the PrimValue.  Can be DataType::Void() for unknown dtype.
  * \param err_ctx Additional context if error occurs.
  */
-void CheckPrimValueInfo(TVMArgValue arg, DataType dtype, Optional<String> err_ctx) {
-  if (arg.IsObjectRef<ObjectRef>()) {
-    ObjectRef obj = arg.AsObjectRef<ObjectRef>();
+void CheckPrimValueInfo(AnyView arg, DataType dtype, Optional<String> err_ctx) {
+  if (auto opt_obj = arg.TryAs<ObjectRef>()) {
     LOG(FATAL) << "TypeError: " << err_ctx.value_or("") << ", expected dtype " << dtype
-               << ", but received ObjectRef of type " << obj->GetTypeKey();
+               << ", but received ObjectRef of type " << opt_obj.value()->GetTypeKey();
   } else if (dtype.is_bool()) {
     arg.operator bool();
   } else if (dtype.is_int()) {
@@ -308,7 +308,7 @@ TVM_REGISTER_GLOBAL("vm.builtin.check_prim_value_info").set_body_typed(CheckPrim
  */
 void CheckTupleInfo(ObjectRef arg, int64_t size, Optional<String> err_ctx) {
   // a function that lazily get context for error reporting
-  auto* ptr = arg.as<runtime::ArrayNode>();
+  auto* ptr = arg.as<ffi::ArrayNode>();
   CHECK(ptr != nullptr) << "TypeError: " << err_ctx.value_or("") << " expect a Tuple but get "
                         << arg->GetTypeKey();
   CHECK(static_cast<int64_t>(ptr->size()) == size)
@@ -386,7 +386,7 @@ TVM_REGISTER_GLOBAL("vm.builtin.call_tir_dyn").set_body_packed([](int num_args, 
   size_t num_tensor_args = num_args - 2;
 
   std::vector<AnyView> values(num_tensor_args + to_unpack.size());
-  std::copy(args + 1, args + args.size() - 1, values.data());
+  std::copy(args + 1, args + num_args - 1, values.data());
 
   for (size_t i = 0; i < to_unpack.size(); ++i) {
     values[i + num_tensor_args] = to_unpack[i];
@@ -399,7 +399,7 @@ TVM_REGISTER_GLOBAL("vm.builtin.call_tir_dyn").set_body_packed([](int num_args, 
 //-------------------------------------
 TVM_REGISTER_GLOBAL("vm.builtin.shape_of").set_body_method(&NDArray::Shape);
 
-TVM_REGISTER_GLOBAL("vm.builtin.copy").set_body_typed(Any a) -> Any {
+TVM_REGISTER_GLOBAL("vm.builtin.copy").set_body_typed([](Any a) -> Any {
   return a;
 });
 
@@ -422,9 +422,9 @@ TVM_REGISTER_GLOBAL("vm.builtin.to_device")
  * \param cond The condition
  * \return Bool
  */
-bool ReadIfCond(TVMArgValue cond) {
-  if (cond.type_code() == kDLInt || cond.type_code() == kTVMArgBool) {
-    return cond.operator bool();
+bool ReadIfCond(AnyView cond) {
+  if (auto opt_int = cond.TryAs<bool>()) {
+    return opt_int.value();
   }
   NDArray arr = cond.operator tvm::runtime::NDArray();
   if (arr->device.device_type != kDLCPU) {
@@ -605,7 +605,7 @@ int TVMBackendAnyListSetPackedArg(void* anylist, int index, TVMValue* args, int*
                                   int arg_offset) {
   using namespace tvm::runtime;
   API_BEGIN();
-  auto* list = static_cast<TVMRetValue*>(anylist);
+  auto* list = static_cast<Any*>(anylist);
   TVMArgsSetter setter(args, type_codes);
   setter(arg_offset, list[index]);
   API_END();
@@ -614,7 +614,7 @@ int TVMBackendAnyListSetPackedArg(void* anylist, int index, TVMValue* args, int*
 int TVMBackendAnyListResetItem(void* anylist, int index) {
   using namespace tvm::runtime;
   API_BEGIN();
-  auto* list = static_cast<TVMRetValue*>(anylist);
+  auto* list = static_cast<Any*>(anylist);
   list[index] = nullptr;
   API_END();
 }
@@ -623,11 +623,11 @@ int TVMBackendAnyListMoveFromPackedReturn(void* anylist, int index, TVMValue* ar
                                           int ret_offset) {
   using namespace tvm::runtime;
   API_BEGIN();
-  auto* list = static_cast<TVMRetValue*>(anylist);
+  auto* list = static_cast<Any*>(anylist);
   if (type_codes[ret_offset] == kTVMStr || type_codes[ret_offset] == kTVMBytes) {
-    list[index] = TVMArgValue(args[ret_offset], type_codes[ret_offset]);
+    list[index] = LegacyTVMArgValueToAnyView(args[ret_offset], type_codes[ret_offset]);
   } else {
-    list[index] = TVMRetValue::MoveFromCHost(args[ret_offset], type_codes[ret_offset]);
+    list[index] = MoveLegacyTVMArgValueToAny(args[ret_offset], type_codes[ret_offset]);
   }
   API_END();
 }
