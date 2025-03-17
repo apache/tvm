@@ -82,6 +82,8 @@ class ObjectRef : public tvm::ffi::ObjectRef {
   ObjectRef(ObjectRef&& other) = default;
   /*! \brief copy constructor */
   ObjectRef(const ObjectRef& other) = default;
+  /*! \brief copy constructor */
+  ObjectRef(const ffi::ObjectRef& other) : tvm::ffi::ObjectRef(other) {}
   /*! \brief move assignment */
   ObjectRef& operator=(ObjectRef&& other) = default;
   /*! \brief copy assignment */
@@ -92,8 +94,10 @@ class ObjectRef : public tvm::ffi::ObjectRef {
     return *this;
   }
 
-  using tvm::ffi::ObjectRef::as;
-
+  template <typename ObjectType, typename = std::enable_if_t<std::is_base_of_v<Object, ObjectType>>>
+  const ObjectType* as() const {
+    return tvm::ffi::ObjectRef::as<ObjectType>();
+  }
   /*!
    * \brief Try to downcast the ObjectRef to a
    *    Optional<T> of the requested type.

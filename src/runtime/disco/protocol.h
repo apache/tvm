@@ -203,15 +203,8 @@ inline void DiscoProtocol<SubClassType>::ReadObject(int* tcode, TVMValue* value)
 }
 
 inline std::string DiscoDebugObject::SaveToStr() const {
-  if (this->data.type_code() == kTVMObjectHandle) {
-    ObjectRef obj = this->data;
-    const PackedFunc* f = runtime::Registry::Get("node.SaveJSON");
-    CHECK(f) << "ValueError: Cannot serialize object in non-debugging mode: " << obj->GetTypeKey();
-    std::string result = (*f)(obj);
-    result.push_back('0');
-    return result;
-  } else if (this->data.type_code() == kTVMNDArrayHandle) {
-    NDArray array = this->data;
+  if (auto opt_nd = this->data.TryAs<NDArray>()) {
+    NDArray array = opt_nd.value();
     std::string result;
     {
       dmlc::MemoryStringStream mstrm(&result);
@@ -221,9 +214,16 @@ inline std::string DiscoDebugObject::SaveToStr() const {
     }
     result.push_back('1');
     return result;
+  } else if (auto opt_obj = this->data.TryAs<ObjectRef>()) {
+    ObjectRef obj = opt_obj.value();
+    const PackedFunc* f = runtime::Registry::Get("node.SaveJSON");
+    CHECK(f) << "ValueError: Cannot serialize object in non-debugging mode: " << obj->GetTypeKey();
+    std::string result = (*f)(obj);
+    result.push_back('0');
+    return result;
   }
   LOG(FATAL) << "ValueError: Cannot serialize the following type code in non-debugging mode: "
-             << this->data.type_code() << "(" << ArgTypeCode2Str(this->data.type_code());
+             << ffi::TypeIndex2TypeKey(this->data.type_index());
 }
 
 inline ObjectPtr<DiscoDebugObject> DiscoDebugObject::LoadFromStr(std::string json_str) {

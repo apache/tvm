@@ -34,10 +34,11 @@ TVM_DLL DiscoWorker* DiscoWorker::ThreadLocal() {
   return ret;
 }
 
-void DiscoWorker::SetRegister(int reg_id, TVMArgValue value) {
+void DiscoWorker::SetRegister(int reg_id, AnyView value) {
   ICHECK(0 <= reg_id && reg_id < static_cast<int>(register_file.size()));
   TVMRetValue& rv = register_file.at(reg_id);
-  if (rv.type_code() == kTVMNDArrayHandle && value.type_code() == kTVMNDArrayHandle) {
+  if (rv.type_index() == ffi::TypeIndex::kTVMFFINDArray &&
+      value.type_index() == ffi::TypeIndex::kTVMFFINDArray) {
     NDArray dst = rv;
     NDArray src = value;
     dst.CopyFrom(src);
@@ -94,7 +95,7 @@ struct DiscoWorker::Impl {
         }
         case DiscoAction::kDebugSetRegister: {
           int worker_id = args[2];
-          TVMArgValue value = args[3];
+          AnyView value = args[3];
           DebugSetRegister(self, reg_id, worker_id, value);
           break;
         }
@@ -148,7 +149,7 @@ struct DiscoWorker::Impl {
   static void DebugGetFromRemote(DiscoWorker* self, int reg_id, int worker_id) {
     if (worker_id == self->worker_id) {
       TVMRetValue rv = GetReg(self, reg_id);
-      if (rv.type_code() == kTVMNDArrayHandle || rv.type_code() == kTVMObjectHandle) {
+      if (rv.TryAs<ObjectRef>()) {
         rv = DiscoDebugObject::Wrap(rv);
       }
       TVMValue values[2];
@@ -158,7 +159,7 @@ struct DiscoWorker::Impl {
     }
   }
 
-  static void DebugSetRegister(DiscoWorker* self, int reg_id, int worker_id, TVMArgValue value) {
+  static void DebugSetRegister(DiscoWorker* self, int reg_id, int worker_id, AnyView value) {
     if (worker_id == self->worker_id) {
       ::tvm::runtime::SyncWorker();
       self->SetRegister(reg_id, value);
@@ -176,9 +177,9 @@ struct DiscoWorker::Impl {
     int num_args = args.num_args;
     TVMArgsSetter setter(values, type_codes);
     for (int i = 0; i < num_args; ++i) {
-      TVMArgValue val = TVMArgValue(values[i], type_codes[i]);
-      if (val.IsObjectRef<DRef>()) {
-        DRef dref = val;
+      AnyView val = LegacyTVMArgValueToAnyView(values[i], type_codes[i]);
+      if (auto opt_dref = val.TryAs<DRef>()) {
+        DRef dref = opt_dref.value();
         setter(i, GetReg(self, dref->reg_id));
       }
     }

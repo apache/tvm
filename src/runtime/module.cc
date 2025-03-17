@@ -202,7 +202,7 @@ TVM_REGISTER_GLOBAL("runtime.ModuleGetFunction")
     });
 
 TVM_REGISTER_GLOBAL("runtime.ModuleSaveToFile")
-    .set_body_typed([](Module mod, String name, tvm::String fmt) { mod->SaveToFile(name, fmt); });
+    .set_body_typed([](Module mod, String name, String fmt) { mod->SaveToFile(name, fmt); });
 
 TVM_REGISTER_GLOBAL("runtime.ModuleGetPropertyMask").set_body_typed([](Module mod) {
   return mod->GetPropertyMask();

@@ -42,7 +42,7 @@ using ffi::AnyView;
  * \brief Utility function to convert legacy TVMArgValue to AnyView
  * \note This routine is not fastest, but serves purpose to do transition of ABI.
  */
-inline AnyView LegacyTVMArgValueToAnyView(TVMValue value, int type_code) {
+inline TVMFFIAny LegacyTVMArgValueToFFIAny(TVMValue value, int type_code) {
   TVMFFIAny res;
   switch (type_code) {
     case kTVMArgInt: {
@@ -122,7 +122,23 @@ inline AnyView LegacyTVMArgValueToAnyView(TVMValue value, int type_code) {
       LOG(FATAL) << "Unsupported type code: " << type_code;
     }
   }
-  return AnyView::CopyFromTVMFFIAny(res);
+  return res;
+}
+
+/*!
+ * \brief Utility function to convert legacy TVMArgValue to AnyView
+ * \note This routine is not fastest, but serves purpose to do transition of ABI.
+ */
+inline AnyView LegacyTVMArgValueToAnyView(TVMValue value, int type_code) {
+  return AnyView::CopyFromTVMFFIAny(LegacyTVMArgValueToFFIAny(value, type_code));
+}
+
+/*!
+ * \brief Utility function to convert legacy TVMArgValue to Any
+ * \note This routine is not fastest, but serves purpose to do transition of ABI.
+ */
+inline Any MoveLegacyTVMArgValueToAny(TVMValue value, int type_code) {
+  return Any::MoveFromTVMFFIAny(LegacyTVMArgValueToFFIAny(value, type_code));
 }
 
 /*
@@ -357,6 +373,7 @@ class PackedFunc : public ffi::Function {
   PackedFunc(PackedFunc&& other) = default;
   PackedFunc(const ffi::Function& other) : ffi::Function(other) {}
   PackedFunc& operator=(PackedFunc&& other) = default;
+  PackedFunc& operator=(const PackedFunc& other) = default;
 
   // explicit interchange with ffi::Function
   PackedFunc(ffi::Function&& other) : ffi::Function(std::move(other)) {}

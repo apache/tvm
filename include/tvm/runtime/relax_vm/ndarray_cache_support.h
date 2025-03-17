@@ -21,6 +21,7 @@
 
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/runtime/container/array.h>
 
 #include <string>
 #include <unordered_map>
