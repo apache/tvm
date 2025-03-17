@@ -90,14 +90,14 @@ namespace ffi {
  */
 class FunctionObj : public Object {
  public:
-  typedef void (*FCall)(const FunctionObj*, int32_t, const AnyView*, Any*);
+  typedef void (*FCall)(const FunctionObj*, const AnyView*, int32_t, Any*);
   /*! \brief A C++ style call implementation */
   FCall call;
   /*! \brief A C API compatible call with exception catching. */
   TVMFFISafeCallType safe_call;
 
-  TVM_FFI_INLINE void CallPacked(int32_t num_args, const AnyView* args, Any* result) const {
-    this->call(this, num_args, args, result);
+  TVM_FFI_INLINE void CallPacked(const AnyView* args, int32_t num_args, Any* result) const {
+    this->call(this, args, num_args, result);
   }
 
   static constexpr const uint32_t _type_index = TypeIndex::kTVMFFIFunc;
@@ -110,10 +110,10 @@ class FunctionObj : public Object {
   FunctionObj() {}
 
   // Implementing safe call style
-  static int SafeCall(void* func, int32_t num_args, const TVMFFIAny* args, TVMFFIAny* result) {
+  static int SafeCall(void* func, const TVMFFIAny* args, int32_t num_args,  TVMFFIAny* result) {
     TVM_FFI_SAFE_CALL_BEGIN();
     FunctionObj* self = static_cast<FunctionObj*>(func);
-    self->call(self, num_args, reinterpret_cast<const AnyView*>(args),
+    self->call(self, reinterpret_cast<const AnyView*>(args), num_args,
                reinterpret_cast<Any*>(result));
     TVM_FFI_SAFE_CALL_END();
   }
@@ -144,8 +144,8 @@ class FunctionObjImpl : public FunctionObj {
 
  private:
   // implementation of call
-  static void Call(const FunctionObj* func, int32_t num_args, const AnyView* args, Any* result) {
-    (static_cast<const TSelf*>(func))->callable_(num_args, args, result);
+  static void Call(const FunctionObj* func, const AnyView* args, int32_t num_args, Any* result) {
+    (static_cast<const TSelf*>(func))->callable_(args, num_args, result);
   }
 
   /*! \brief Type-erased filed for storing callable object*/
@@ -158,15 +158,15 @@ class FunctionObjImpl : public FunctionObj {
  */
 template <typename Derived>
 struct RedirectCallToSafeCall {
-  static void Call(const FunctionObj* func, int32_t num_args, const AnyView* args, Any* rv) {
+  static void Call(const FunctionObj* func, const AnyView* args, int32_t num_args, Any* rv) {
     Derived* self = static_cast<Derived*>(const_cast<FunctionObj*>(func));
     TVM_FFI_CHECK_SAFE_CALL(self->RedirectSafeCall(
-        num_args, reinterpret_cast<const TVMFFIAny*>(args), reinterpret_cast<TVMFFIAny*>(rv)));
+        reinterpret_cast<const TVMFFIAny*>(args), num_args, reinterpret_cast<TVMFFIAny*>(rv)));
   }
 
-  static int32_t SafeCall(void* func, int32_t num_args, const TVMFFIAny* args, TVMFFIAny* rv) {
+  static int32_t SafeCall(void* func, const TVMFFIAny* args, int32_t num_args,  TVMFFIAny* rv) {
     Derived* self = reinterpret_cast<Derived*>(func);
-    return self->RedirectSafeCall(num_args, args, rv);
+    return self->RedirectSafeCall(args, num_args, rv);
   }
 };
 
@@ -186,9 +186,9 @@ class ExternCFunctionObjImpl : public FunctionObj,
 
   ~ExternCFunctionObjImpl() { deleter_(self_); }
 
-  TVM_FFI_INLINE int32_t RedirectSafeCall(int32_t num_args, const TVMFFIAny* args,
+  TVM_FFI_INLINE int32_t RedirectSafeCall(const TVMFFIAny* args, int32_t num_args,
                                           TVMFFIAny* rv) const {
-    return safe_call_(self_, num_args, args, rv);
+    return safe_call_(self_, args, num_args, rv);
   }
 
  private:
@@ -210,10 +210,10 @@ class ImportedFunctionObjImpl : public FunctionObj,
     this->safe_call = RedirectCallToSafeCall<ImportedFunctionObjImpl>::SafeCall;
   }
 
-  TVM_FFI_INLINE int32_t RedirectSafeCall(int32_t num_args, const TVMFFIAny* args,
+  TVM_FFI_INLINE int32_t RedirectSafeCall(const TVMFFIAny* args, int32_t num_args,
                                           TVMFFIAny* rv) const {
     FunctionObj* func = const_cast<FunctionObj*>(static_cast<const FunctionObj*>(data_.get()));
-    return func->safe_call(func, num_args, args, rv);
+    return func->safe_call(func, args, num_args, rv);
   }
 
  private:
@@ -239,6 +239,65 @@ class PackedArgsSetter {
 }  // namespace details
 
 /*!
+ * \brief Represents arguments packed in AnyView array
+ * \note This class represent packed arguments to ffi::Function
+ */
+class PackedArgs {
+ public:
+  /*!
+   * \brief Constructor
+   * \param data The arguments
+   * \param size The number of arguments
+   */
+  PackedArgs(const AnyView* data, int32_t size) : data_(data),  size_(size) {}
+
+  /*! \return size of the arguments */
+  int size() const { return size_; }
+
+  /*! \return The arguments */
+  const AnyView* data() const { return data_; }
+
+  /*!
+   * \brief Slice the arguments
+   * \param begin The begin index
+   * \param end The end index
+   * \return The sliced arguments
+   */
+  PackedArgs Slice(int begin, int end = -1) const {
+    if (end == -1) {
+      end = size_;
+    }
+    return PackedArgs(data_ + begin, end - begin);
+  }
+
+  /*!
+   * \brief Get i-th argument
+   * \param i the index.
+   * \return the ith argument.
+   */
+  AnyView operator[](int i) const { return data_[i]; }
+
+  /*!
+   * \brief Fill the arguments into the AnyView array
+   * \param data The AnyView array to store the packed arguments
+   * \param args The arguments to be packed
+   * \note Caller must ensure all args are alive during lifetime of data.
+   *       A common pitfall is to pass in local variables that are immediately
+   *       destroyed after calling Fill.
+   */
+  template <typename... Args>
+  static void TVM_FFI_INLINE Fill(AnyView* data, Args&&... args) {
+    details::for_each(details::PackedArgsSetter(data), std::forward<Args>(args)...);
+  }
+
+ private:
+  /*! \brief The arguments */
+  const AnyView* data_;
+  /*! \brief The number of arguments */
+  int32_t size_;
+};
+
+/*!
  * \brief ffi::Function  is a type-erased function.
  *  The arguments are passed by packed format.
  */
@@ -254,13 +313,19 @@ class Function : public ObjectRef {
   template <typename TCallable>
   static Function FromPacked(TCallable packed_call) {
     static_assert(
-        std::is_convertible_v<TCallable, std::function<void(int32_t, const AnyView*, Any*)>>,
+        std::is_convertible_v<TCallable, std::function<void(const AnyView*, int32_t, Any*)>> ||
+        std::is_convertible_v<TCallable, std::function<void(PackedArgs args, Any*)>>,
         "tvm::ffi::Function::FromPacked requires input function signature to match packed func "
         "format");
-    using ObjType = typename details::FunctionObjImpl<TCallable>;
-    Function func;
-    func.data_ = make_object<ObjType>(std::forward<TCallable>(packed_call));
-    return func;
+    if constexpr (std::is_convertible_v<TCallable, std::function<void(PackedArgs args, Any*)>>) {
+      auto wrapped_call = [packed_call](const AnyView* args, int32_t num_args, Any* rv) -> void {
+        PackedArgs args_pack(args, num_args);
+        packed_call(args_pack, rv);
+      };
+      return FromPackedInternal(wrapped_call);
+    } else {
+      return FromPackedInternal(packed_call);
+    }
   }
   /*!
    * \brief Import a possibly externally defined function to this dll
@@ -332,11 +397,11 @@ class Function : public ObjectRef {
   template <typename TCallable>
   static Function FromUnpacked(TCallable callable) {
     using FuncInfo = details::FunctionInfo<TCallable>;
-    auto call_packed = [callable](int32_t num_args, const AnyView* args, Any* rv) -> void {
+    auto call_packed = [callable](const AnyView* args, int32_t num_args, Any* rv) -> void {
       details::unpack_call<typename FuncInfo::RetType, FuncInfo::num_args>(nullptr, callable,
-                                                                           num_args, args, rv);
+                                                                           args, num_args, rv);
     };
-    return FromPacked(call_packed);
+    return FromPackedInternal(call_packed);
   }
   /*!
    * \brief Constructing a packed function from a normal function.
@@ -347,11 +412,11 @@ class Function : public ObjectRef {
   template <typename TCallable>
   static Function FromUnpacked(TCallable callable, std::string name) {
     using FuncInfo = details::FunctionInfo<TCallable>;
-    auto call_packed = [callable, name](int32_t num_args, const AnyView* args, Any* rv) -> void {
+    auto call_packed = [callable, name](const AnyView* args, int32_t num_args, Any* rv) -> void {
       details::unpack_call<typename FuncInfo::RetType, FuncInfo::num_args>(&name, callable,
-                                                                           num_args, args, rv);
+                                                                           args, num_args, rv);
     };
-    return FromPacked(call_packed);
+    return FromPackedInternal(call_packed);
   }
   /*!
    * \brief Call function by directly passing in unpacked arguments.
@@ -373,9 +438,9 @@ class Function : public ObjectRef {
     const int kNumArgs = sizeof...(Args);
     const int kArraySize = kNumArgs > 0 ? kNumArgs : 1;
     AnyView args_pack[kArraySize];
-    details::for_each(details::PackedArgsSetter(args_pack), std::forward<Args>(args)...);
+    PackedArgs::Fill(args_pack, std::forward<Args>(args)...);
     Any result;
-    static_cast<FunctionObj*>(data_.get())->CallPacked(kNumArgs, args_pack, &result);
+    static_cast<FunctionObj*>(data_.get())->CallPacked(args_pack, kNumArgs, &result);
     return result;
   }
   /*!
@@ -383,9 +448,18 @@ class Function : public ObjectRef {
    * \param args The arguments
    * \param rv The return value.
    */
-  TVM_FFI_INLINE void CallPacked(int32_t num_args, const AnyView* args, Any* result) const {
-    static_cast<FunctionObj*>(data_.get())->CallPacked(num_args, args, result);
+  TVM_FFI_INLINE void CallPacked(const AnyView* args, int32_t num_args, Any* result) const {
+    static_cast<FunctionObj*>(data_.get())->CallPacked(args, num_args, result);
   }
+  /*!
+   * \brief Call the function in packed format.
+   * \param args The arguments
+   * \param result The return value.
+   */
+  TVM_FFI_INLINE void CallPacked(PackedArgs args, Any* result) const {
+    static_cast<FunctionObj*>(data_.get())->CallPacked(args.data(), args.size(), result);
+  }
+
   /*! \return Whether the packed function is nullptr */
   bool operator==(std::nullptr_t) const { return data_ == nullptr; }
   /*! \return Whether the packed function is not nullptr */
@@ -394,6 +468,20 @@ class Function : public ObjectRef {
   TVM_FFI_DEFINE_NULLABLE_OBJECT_REF_METHODS(Function, ObjectRef, FunctionObj);
 
   class Registry;
+
+private:
+  /*!
+   * \brief Constructing a packed function from a callable type
+   *        whose signature is consistent with `PackedFunc`
+   * \param packed_call The packed function signature
+   */
+  template <typename TCallable>
+  static Function FromPackedInternal(TCallable packed_call) {
+    using ObjType = typename details::FunctionObjImpl<TCallable>;
+    Function func;
+    func.data_ = make_object<ObjType>(std::forward<TCallable>(packed_call));
+    return func;
+  }
 };
 
 /*!

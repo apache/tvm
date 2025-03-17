@@ -169,7 +169,6 @@ TEST(Map, AnyConvertCheck) {
         } catch (const Error& error) {
           EXPECT_EQ(error->kind, "TypeError");
           std::string what = error.what();
-          std::cout << "what: " << what;
           EXPECT_NE(
               what.find(
                   "Cannot convert from type `Map[K, some value is float]` to `Map<int, int>`"),
@@ -187,7 +186,6 @@ TEST(Map, AnyConvertCheck) {
         } catch (const Error& error) {
           EXPECT_EQ(error->kind, "TypeError");
           std::string what = error.what();
-          std::cout << "what: " << what;
           EXPECT_NE(what.find("Cannot convert from type `Map[some key is int, V]` to "
                               "`Map<test.Number, float>`"),
                     std::string::npos);
