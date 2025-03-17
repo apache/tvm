@@ -111,7 +111,7 @@ class Optional<T, std::enable_if_t<!std::is_base_of_v<ObjectRef, T>>> {
   bool operator!=(std::nullptr_t) const { return data_.has_value(); }
 
   // helper function to move out value
-  T&& MoveValueNoCheck() { return std::move(*data_); }
+  T MoveValueNoCheck() { return std::move(data_.value()); }
   // helper function to copy out value
   T CopyValueNoCheck() const { return *data_; }
 
@@ -247,7 +247,7 @@ class Optional<T, std::enable_if_t<std::is_base_of_v<ObjectRef, T>>> : public Ob
   static constexpr bool _type_is_nullable = true;
 
   // helper function to move out value
-  T&& MoveValueNoCheck() { return T(std::move(data_)); }
+  T MoveValueNoCheck() { return T(std::move(data_)); }
   // helper function to copy out value
   T CopyValueNoCheck() const { return T(data_); }
 };
