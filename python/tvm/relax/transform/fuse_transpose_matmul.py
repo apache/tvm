@@ -41,7 +41,8 @@ class FuseTransposeMatmul:  # pylint: disable=too-few-public-methods
                     "transpose_matmul_fuse",
                     *_pattern(),
                 ),
-            ]
+            ],
+            bind_constants=False,
         )(mod)
         transpose_matmul_codegen = _TransposeMatmulFuser(mod)
         for g_var, func in mod.functions_items():
