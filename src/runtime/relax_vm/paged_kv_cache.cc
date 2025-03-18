@@ -36,9 +36,6 @@
 #include "attn_backend.h"
 #include "attn_utils.h"
 #include "kv_state.h"
-#if defined(OPENCL_ENABLE_HOST_PTR)
-#include "../opencl/opencl_common.h"
-#endif
 
 namespace tvm {
 namespace runtime {
