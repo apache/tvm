@@ -2127,7 +2127,7 @@ def test_extended_unary_ops():
 
     verify_model(Gelu(), input_info, {}, expected_gelu)
     verify_model(Gelu2(), input_info, {}, expected_gelu)
-    
+
     # hardsigmoid
     class Hardsigmoid(torch.nn.Module):
         def __init__(self):
