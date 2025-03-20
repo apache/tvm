@@ -30,6 +30,7 @@ from tvm.relax import Expr, Var, StructInfo
 from tvm.relax.dpl import DFPattern
 from tvm.runtime import NDArray, Object
 from tvm.tir import IndexMap, PrimFunc
+from tvm.target import Target
 
 from . import _ffi_api
 from .legalize_ops.common import LegalizeFunc
@@ -1062,7 +1063,9 @@ def BundleModelParams(param_tuple_name: Optional[str] = None) -> tvm.ir.transfor
 
 
 def LegalizeOps(
-    customize_legalize_map: Optional[Dict[str, LegalizeFunc]] = None, enable_warning: bool = False
+    customize_legalize_map: Optional[Dict[str, LegalizeFunc]] = None,
+    skip_ops: Optional[List[str]] = None,
+    enable_warning: bool = False,
 ):
     """Legalize high-level operator calls in Relax functions to call_tir
     with corresponding low-level TIR PrimFuncs.
@@ -1087,6 +1090,9 @@ def LegalizeOps(
     customize_legalize_map : Optional[Dict[str, LegalizeFunc]]
         The customized operator legalization function map. The customized function will override
         the default one.
+
+    skip_ops : Optional,List[str]]
+        List of ops that need to be skipped from legalization
 
     enable_warning : bool
         A boolean value indicating if to print warnings for CallNode whose op's
@@ -1167,7 +1173,7 @@ def LegalizeOps(
                         T_multiply[v_ax0, v_ax1] = A[v_ax0, v_ax1] * B[v_ax0, v_ax1]
     """
 
-    return _ffi_api.LegalizeOps(customize_legalize_map, enable_warning)  # type: ignore
+    return _ffi_api.LegalizeOps(customize_legalize_map, skip_ops, enable_warning)  # type: ignore
 
 
 def RealizeVDevice() -> tvm.ir.transform.Pass:
@@ -1603,6 +1609,58 @@ def AllocateWorkspace() -> tvm.ir.transform.Pass:
         The registered pass for allocating workspace.
     """
     return _ffi_api.AllocateWorkspace()  # type: ignore
+
+
+def AnnotateCustomMemoryScope(target: Optional[Target] = None) -> tvm.ir.transform.Pass:
+    """Allocate the memory scope information. This is Adreno specific pass to annotate
+    The memory scope information and realize the same with RealizeVDevice pass followed by
+    updating the Prim Function var_buffer mapping using SpecializePrimFuncBasedOnCallSite.
+
+    Returns
+    -------
+    ret: tvm.ir.transform.Pass
+        The registered pass for allocating workspace.
+    """
+    return _ffi_api.AnnotateCustomMemoryScope(target)  # type: ignore
+
+
+def SpecializePrimFuncBasedOnCallSite() -> tvm.ir.transform.Pass:
+    """This pass updates the var_buffer mapping of PrimFunctions from the call_tir info.
+    Primarily used to update the VDevice information if any changes occured from the caller.
+    This pass recreates the buffers and updates the map.
+
+    Returns
+    -------
+    ret: tvm.ir.transform.Pass
+        The registered pass for allocating workspace.
+    """
+    return _ffi_api.SpecializePrimFuncBasedOnCallSite()  # type: ignore
+
+
+def OptimizeToVDeviceForScopeChange() -> tvm.ir.transform.Pass:
+    """This pass is a texture specific pass that can optimize unnecessary to_device copies.
+    Like texture_scope -> ToVDevice -> global scope. In this case the producer can directly
+    store into global scope avoiding unnecessary device copy.
+
+    Returns
+    -------
+    ret: tvm.ir.transform.Pass
+        The registered pass for allocating workspace.
+    """
+    return _ffi_api.OptimizeToVDeviceForScopeChange()  # type: ignore
+
+
+def RemoveRedundantAssignments() -> tvm.ir.transform.Pass:
+    """This pass removes redundant assignment statements. These stmts are result of other pass
+    like hint_on_device processed by RealizeVDevice may leave them. The subsequent pass like
+    fuse_ops fail to fuse in this case
+
+    Returns
+    -------
+    ret: tvm.ir.transform.Pass
+        The registered pass for allocating workspace.
+    """
+    return _ffi_api.RemoveRedundantAssignments()  # type: ignore
 
 
 def _wrap_class_function_pass(pass_cls, pass_info):
