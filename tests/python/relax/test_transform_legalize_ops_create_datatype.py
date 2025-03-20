@@ -584,7 +584,6 @@ def test_arange_const():
 
 
 def test_arange_symbolic():
-    # fmt: off
     @tvm.script.ir_module
     class Arange:
         @R.function
@@ -599,18 +598,21 @@ def test_arange_symbolic():
         def main(x: R.Tensor(["n"], "float32")):
             cls = Expected
             n = T.int64()
-            gv = R.call_tir(cls.arange, R.tuple(), out_sinfo=R.Tensor((n // 2,), dtype="int64"), tir_vars=R.shape([n]))
+            gv = R.call_tir(
+                cls.arange,
+                [R.prim_value(n)],
+                out_sinfo=R.Tensor((n // 2,), dtype="int64"),
+            )
             return gv
 
         @T.prim_func(private=True)
-        def arange(var_T_arange: T.handle, n: T.int64):
+        def arange(n: T.int64, var_T_arange: T.handle):
             T.func_attr({"tir.noalias": T.bool(True)})
             T_arange = T.match_buffer(var_T_arange, (n // T.int64(2),), "int64")
             for ax0 in range(n // T.int64(2)):
                 with T.block("T_arange"):
                     v_ax0 = T.axis.spatial(n // T.int64(2), ax0)
                     T_arange[v_ax0] = v_ax0 * T.int64(2) + T.int64(1)
-    # fmt: on
 
     mod = LegalizeOps()(Arange)
     tvm.ir.assert_structural_equal(mod, Expected)
