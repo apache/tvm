@@ -153,7 +153,16 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<relax::FuncStructInfo>(  //
         "", [](relax::FuncStructInfo n, ObjectPath n_p, IRDocsifier d) -> Doc {
           auto ret_doc = d->AsDoc<ExprDoc>(n->ret, n_p->Attr("ret"));
-          auto purity_doc = LiteralDoc::Boolean(n->purity, n_p->Attr("purity"));
+
+          auto purity_doc = [&]() -> ExprDoc {
+            auto path = n_p->Attr("purity");
+            if (n->purity.defined()) {
+              return LiteralDoc::Boolean(n->purity.value()->value, path);
+
+            } else {
+              return LiteralDoc::None(path);
+            }
+          }();
 
           if (n->IsOpaque()) {
             Array<String> keys;
@@ -163,7 +172,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
               keys.push_back("ret");
               values.push_back(ret_doc);
             }
-            if (n->purity) {
+            if (n->purity.defined() || !d->cfg->syntax_sugar) {
               keys.push_back("purity");
               values.push_back(purity_doc);
             }
@@ -181,7 +190,12 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           for (int i = 0, n_params = params.size(); i < n_params; ++i) {
             params_doc.push_back(d->AsDoc<ExprDoc>(params[i], params_p->ArrayIndex(i)));
           }
-          return Relax(d, "Callable")->Call({TupleDoc(params_doc), ret_doc, purity_doc});
+          Array<ExprDoc, void> args = {TupleDoc(params_doc), ret_doc};
+          if (n->purity.defined() || !d->cfg->syntax_sugar) {
+            return Relax(d, "Callable")->Call(args, {"purity"}, {purity_doc});
+          } else {
+            return Relax(d, "Callable")->Call(args);
+          }
         });
 
 TVM_SCRIPT_REPR(relax::ObjectStructInfoNode, ReprPrintRelax);

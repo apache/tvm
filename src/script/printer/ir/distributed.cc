@@ -32,7 +32,7 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           Array<ExprDoc> results;
           results.reserve(s);
           for (int i = 0; i < s; ++i) {
-            results.push_back(d->AsDoc<ExprDoc>(Integer(n[i]), n_p->ArrayIndex(i)));
+            results.push_back(LiteralDoc::Int(n[i], n_p->ArrayIndex(i)));
           }
           return TupleDoc(results);
         });
