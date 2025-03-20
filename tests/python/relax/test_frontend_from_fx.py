@@ -2128,9 +2128,6 @@ def test_extended_unary_ops():
     verify_model(Gelu(), input_info, {}, expected_gelu)
     verify_model(Gelu2(), input_info, {}, expected_gelu)
 
-    # leaky_relu
-    test_leakyrelu()
-
     # hardsigmoid
     class Hardsigmoid(torch.nn.Module):
         def __init__(self):
@@ -2225,6 +2222,74 @@ def test_extended_unary_ops():
 
     verify_model(Hardtanh(), input_info, {}, expected1)
     verify_model(Hardtanh2(), input_info, {}, expected1)
+
+    # leaky_relu
+    test_leakyrelu()
+
+    # log2
+    class Log2(Module):
+        def forward(self, x):
+            return torch.log2(x)
+
+    @tvm.script.ir_module
+    class Expected_log2:
+        @R.function
+        def main(
+            inp_0: R.Tensor((1, 3, 10, 10), dtype="float32"),
+        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.log(inp_0)
+                lv1: R.Tensor((1, 3, 10, 10), dtype="float32") = R.divide(
+                    lv, R.const(0.6931471805599453, "float32")
+                )
+                gv: R.Tensor((1, 3, 10, 10), dtype="float32") = lv1
+                R.output(gv)
+            return gv
+
+    verify_model(Log2(), input_info, {}, Expected_log2)
+
+    # log10
+    class Log10(Module):
+        def forward(self, x):
+            return torch.log10(x)
+
+    @tvm.script.ir_module
+    class Expected_log10:
+        @R.function
+        def main(
+            inp_0: R.Tensor((1, 3, 10, 10), dtype="float32"),
+        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.log(inp_0)
+                lv1: R.Tensor((1, 3, 10, 10), dtype="float32") = R.divide(
+                    lv, R.const(2.302585092994046, "float32")
+                )
+                gv: R.Tensor((1, 3, 10, 10), dtype="float32") = lv1
+                R.output(gv)
+            return gv
+
+    verify_model(Log10(), input_info, {}, Expected_log10)
+
+    # log1p
+    class Log1p(Module):
+        def forward(self, x):
+            return torch.log1p(x)
+
+    @tvm.script.ir_module
+    class Expected_log1p:
+        @R.function
+        def main(
+            inp_0: R.Tensor((1, 3, 10, 10), dtype="float32"),
+        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.log(
+                    R.add(inp_0, R.const(1, "float32"))
+                )
+                gv: R.Tensor((1, 3, 10, 10), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    verify_model(Log1p(), input_info, {}, Expected_log1p)
 
     # logical_not
     class LogicalNot(Module):
