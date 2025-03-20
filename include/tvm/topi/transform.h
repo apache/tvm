@@ -575,8 +575,9 @@ inline Tensor stack(const Array<Tensor>& inputs, int axis = 0, std::string name 
  *
  * \return A Tensor whose op member is the split operation
  */
-inline Array<Tensor> split(const Tensor& x, Array<PrimExpr> split_indices, int axis,
-                           std::string name = "T_split", std::string tag = kInjective) {
+inline Array<Tensor> split_indices_array(const Tensor& x, Array<PrimExpr> split_indices, int axis,
+                                         std::string name = "T_split",
+                                         std::string tag = kInjective) {
   if (axis < 0) {
     axis += static_cast<int>(x->shape.size());
   }
@@ -968,9 +969,9 @@ inline Tensor strided_slice(const Tensor& x, const Array<Integer>& begin, const 
  *
  * \return A Tensor whose op member is the split operation
  */
-inline Array<Tensor> split_sections(const Tensor& x, int num_sections, int axis,
-                                    std::string name = "T_split_sections",
-                                    std::string tag = kInjective) {
+inline Array<Tensor> split_n_sections(const Tensor& x, int num_sections, int axis,
+                                      std::string name = "T_split_sections",
+                                      std::string tag = kInjective) {
   if (axis < 0) {
     axis += static_cast<int>(x->shape.size());
   }
@@ -980,14 +981,8 @@ inline Array<Tensor> split_sections(const Tensor& x, int num_sections, int axis,
 
   ICHECK_GT(num_sections, 0) << "Slice count must be > 0";
 
-  if (auto node = src_axis_size.as<IntImmNode>()) {
-    ICHECK_EQ(node->value % num_sections, 0)
-        << "num_sections must be an integer factor of the size of axis " << axis << " ("
-        << node->value << ")";
-  }
-
   Array<PrimExpr> split_indices;
-  auto seg_size = indexdiv(src_axis_size, num_sections);
+  auto seg_size = indexdiv(src_axis_size + num_sections - 1, num_sections);
   for (int i = 0; i < num_sections; ++i) {
     // region at index 0 is added by split()
     if (i != 0) {
@@ -995,7 +990,7 @@ inline Array<Tensor> split_sections(const Tensor& x, int num_sections, int axis,
     }
   }
 
-  return split(x, split_indices, axis, name, tag);
+  return split_indices_array(x, split_indices, axis, name, tag);
 }
 
 /*!
