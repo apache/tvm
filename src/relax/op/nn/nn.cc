@@ -74,7 +74,8 @@ StructInfo InferStructInfoSoftmax(const Call& call, const BlockBuilder& ctx) {
   if (data_sinfo->IsUnknownNdim()) {
     return data_sinfo;
   }
-  if (!data_sinfo->IsUnknownDtype() && !data_sinfo->dtype.is_float()) {
+  if (!data_sinfo->IsUnknownDtype() && !data_sinfo->dtype.is_float() &&
+      !data_sinfo->dtype.is_float16() && !data_sinfo->dtype.is_float8()) {
     ctx->ReportFatal(Diagnostic::Error(call) << "Softmax requires the input tensor to have float "
                                                 "dtype. However, the given input dtype is "
                                              << data_sinfo->dtype);
