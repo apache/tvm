@@ -129,7 +129,13 @@ inline tvm::relax::SeqExpr GetSeqExprForBranch(const SeqExprFrame& frame, String
                            ? tvm::relax::DataflowBlock(last_block_bindings)
                            : tvm::relax::BindingBlock(last_block_bindings));
 
-  return tvm::relax::SeqExpr(new_blocks, body);
+  tvm::relax::SeqExpr seq_expr(new_blocks, body);
+
+  // Any user-provided annotations for the SeqExpr's StructInfo must
+  // be propagated to the SeqExpr itself.
+  UpdateStructInfo(seq_expr, tvm::relax::GetStructInfo(body));
+
+  return seq_expr;
 }
 
 }  // namespace relax
