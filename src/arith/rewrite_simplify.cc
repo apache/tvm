@@ -1230,7 +1230,8 @@ PrimExpr RewriteSimplifier::Impl::VisitExpr_(const FloorModNode* op) {
     TVM_TRY_REWRITE_IF(floormod(x + y * c1, c2), floormod(x + y * floormod(c1, c2), c2),
                        c2.Eval()->value > 0);
 
-    TVM_TRY_REWRITE_IF(floormod(x * c1, x * c2), x * floormod(c1, c2), c2.Eval()->value != 0);
+    TVM_TRY_REWRITE_IF(matches_one_of(floormod(x * c1, x * c2), floormod(c1 * x, c2 * x)),
+                       floormod(c1, c2), c2.Eval()->value != 0);
 
     TVM_TRY_REWRITE(matches_one_of(floormod(x * y, y), floormod(y * x, y)), ZeroWithTypeLike(y));
 
