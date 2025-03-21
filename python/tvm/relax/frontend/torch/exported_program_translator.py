@@ -70,7 +70,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                 epsilon=eps,
                 momentum=momentum,
                 training=training,
-            )
+            )[0]
         print("type of inside", type(inside)) # <class 'tvm.relax.expr.Call'>
         
         outside = self.block_builder.emit(
@@ -83,6 +83,8 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         print("Inside batch norm functional")
         # This method is called for batch_norm in training mode
         # TODO does not have correctness!
+        # TODO we need to store the running mean and variance returned by the 
+        # previous call to batch_norm and pass it again
         training = True
         return self._batch_norm(node, training)
 
