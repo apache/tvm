@@ -53,11 +53,20 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         channel = int(self.shape_of(x)[1])
         dtype = x.struct_info.dtype
         weight = self.env.get(node.args[1], relax.const(np.ones(channel), dtype=dtype))
+        print("weight", weight)
         bias = self.env.get(node.args[2], relax.const(np.zeros(channel), dtype=dtype))
+        print("bias", bias)
         running_mean = self.env.get(node.args[3], relax.const(np.zeros(channel), dtype=dtype))
+        print("running mean", running_mean)
         running_var = self.env.get(node.args[4], relax.const(np.ones(channel), dtype=dtype))
+        print("running var", running_var)
         momentum = node.args[5] if len(node.args) > 5 else node.kwargs.get("momentum", 0.1)
-        eps = node.args[6] if len(node.args) > 6 else node.kwargs.get("eps", 1e-05)
+        print("momentum", momentum) # TODO is this affine? 
+        whatisThis = node.args[6] if len(node.args) > 6 else node.kwargs.get("??????????", "???????")
+        print("_batch_norm found an whatisThis", whatisThis)
+        eps = node.args[7] if len(node.args) > 7 else node.kwargs.get("eps", 1e-05)
+        print("node.args[7]", node.args[7]) # TODO that's eps !!!!!
+        print("node.args[8]", node.args[8]) # TODO remove
 
         # TODO restore
         inside = relax.op.nn.batch_norm(
