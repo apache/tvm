@@ -68,6 +68,23 @@ class TorchFXImporter(BaseFXGraphImporter):
         alpha = module.negative_slope
         return self.block_builder.emit(relax.op.nn.leakyrelu(x, alpha))
 
+    def _log2(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        return self.block_builder.emit(
+            relax.op.divide(relax.op.log(x), relax.const(0.6931471805599453, x.struct_info.dtype))
+        )
+
+    def _log10(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        return self.block_builder.emit(
+            relax.op.divide(relax.op.log(x), relax.const(2.302585092994046, x.struct_info.dtype))
+        )
+
+    def _log1p(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        one = relax.const(1, x.struct_info.dtype)
+        return self.block_builder.emit(relax.op.log(relax.op.add(x, one)))
+
     def _log_softmax_module(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         module = self.named_modules[node.target]
@@ -376,6 +393,16 @@ class TorchFXImporter(BaseFXGraphImporter):
 
         return self._max_pool2d_impl(x, kernel_size, stride, padding, dilation, ceil_mode)
 
+    ########## Linear Interpolation ##########
+
+    def _lerp(self, node: fx.Node) -> relax.Var:
+        start = self.env[node.args[0]]
+        end = self.env[node.args[1]]
+        weight = self.env[node.args[2]]
+        return self.block_builder.emit(
+            relax.op.add(start, relax.op.multiply(weight, relax.op.subtract(end, start)))
+        )
+
     ########## Manipulation ##########
 
     def _chunk(self, node: fx.Node) -> relax.Var:
@@ -413,6 +440,12 @@ class TorchFXImporter(BaseFXGraphImporter):
         x = self.env[node.args[0]]
         shape = self.shape_of(x)
         return relax.const(reduce(lambda x, y: x * y, [s.value for s in shape]), "int32")
+
+    def _select(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        dim = node.args[1]
+        index = relax.const(node.args[2], "int64")
+        return self.block_builder.emit(relax.op.take(x, index, dim))
 
     def _size(self, node: fx.Node) -> relax.Expr:
         x = self.env[node.args[0]]
@@ -669,6 +702,9 @@ class TorchFXImporter(BaseFXGraphImporter):
             "isnan": self._unary_op(relax.op.isnan),
             "leaky_relu": self._leakyrelu,
             "log": self._unary_op(relax.op.log),
+            "log2": self._log2,
+            "log10": self._log10,
+            "log1p": self._log1p,
             "logical_not": self._unary_op(relax.op.logical_not),
             "log_softmax": self._log_softmax,
             "neg": self._unary_op(relax.op.negative),
@@ -737,6 +773,8 @@ class TorchFXImporter(BaseFXGraphImporter):
             "scaled_dot_product_attention": self._scaled_dot_product_attention,
             "stochastic_depth": lambda node: self.env[node.args[0]],
             "unbind": self._unbind,
+            # linear interpolation
+            "lerp": self._lerp,
             # statistical
             "mean": self._mean,
             "sum": self._sum,
@@ -759,6 +797,7 @@ class TorchFXImporter(BaseFXGraphImporter):
             "repeat": self._repeat,
             "reshape": self._reshape,
             "scatter": self._scatter,
+            "select": self._select,
             "size": self._size,
             "split": self._split,
             "squeeze": self._squeeze,
@@ -772,6 +811,7 @@ class TorchFXImporter(BaseFXGraphImporter):
             "view": self._reshape,
             # tensor creation
             "arange": self._arange,
+            "clone": lambda node: self.env[node.args[0]],
             "empty": self._empty,
             "empty_like": self._empty_like,
             "fill_": self._inplace_fill,
