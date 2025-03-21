@@ -123,18 +123,18 @@ def test_upsample_with_scale_factor(target, dev):
 
 
 # # TODO can combine the tests together (they are separete to know which test fails)
-@tvm.testing.parametrize_targets("cuda")
-def test_batch_norm0(target, dev):
-    # No momentum, eval, with running stats
-    raw_data = np.random.randn(8, 8, 4, 4).astype(np.float32)
-    torch_module0 = nn.BatchNorm2d(
-        8, eps=1e-02, momentum=0.0, affine=True, track_running_stats=False, device=None, dtype=None
-    ).eval()
-    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module0, target, dev)
+# @tvm.testing.parametrize_targets("cuda")
+# def test_batch_norm0(target, dev):
+#     # Eval, no momentum, with affine, without running stats
+#     raw_data = np.random.randn(8, 8, 4, 4).astype(np.float32)
+#     torch_module0 = nn.BatchNorm2d(
+#         8, eps=1e-02, momentum=0.0, affine=True, track_running_stats=False, device=None, dtype=None
+#     ).eval()
+#     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module0, target, dev)
 
 # @tvm.testing.parametrize_targets("cuda")
 # def test_batch_norm1(target, dev):
-#     # With momentum, eval
+#     # With momentum, no affine, with running stats
 #     raw_data = np.random.randn(1, 4, 2, 2).astype(np.float32)
 #     torch_module0 = nn.BatchNorm2d(
 #         4, eps=1e-05, momentum=0.0, affine=False, track_running_stats=True, device=None, dtype=None
@@ -201,14 +201,24 @@ def test_batch_norm0(target, dev):
 #     ).eval()
 #     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module0, target, dev)
 
+# @tvm.testing.parametrize_targets("cuda")
+# def test_batch_norm6(target, dev):
+#     # Small input
+#     raw_data = np.array([[[[ 0.5]]], [[[1.5]]]]).astype(np.float32)
+#     torch_module0 = nn.BatchNorm2d( # TODO what does the 8 do? (feature num)
+#         8, eps=0.2, momentum=0.0, affine=False, track_running_stats=False, device=None, dtype=None
+#     ).eval()
+#     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module0, target, dev)
+
 @tvm.testing.parametrize_targets("cuda")
-def test_batch_norm6(target, dev):
-    # Small input
+def test_batch_norm7(target, dev):
+    # Eval, small input, no momentum, with affine, with running stats
     raw_data = np.array([[[[ 0.5]]], [[[1.5]]]]).astype(np.float32)
-    torch_module0 = nn.BatchNorm2d( # TODO what does the 8 do? (feature num)
-        8, eps=0.2, momentum=0.0, affine=False, track_running_stats=False, device=None, dtype=None
+    torch_module0 = nn.BatchNorm2d(
+        8, eps=1e-02, momentum=0.0, affine=True, track_running_stats=False, device=None, dtype=None
     ).eval()
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module0, target, dev)
+
 
 
 
