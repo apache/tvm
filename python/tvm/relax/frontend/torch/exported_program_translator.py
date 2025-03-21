@@ -46,6 +46,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
     ########## Neural Network ##########
 
     def _batch_norm(self, node: fx.Node, training) -> relax.Var:
+        print("Inside batch norm")
         import numpy as np
 
         x = self.env[node.args[0]]
@@ -58,8 +59,8 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         momentum = node.args[5] if len(node.args) > 5 else node.kwargs.get("momentum", 0.1)
         eps = node.args[6] if len(node.args) > 6 else node.kwargs.get("eps", 1e-05)
 
-        return self.block_builder.emit(
-            relax.op.nn.batch_norm(
+        # TODO restore
+        inside = relax.op.nn.batch_norm(
                 data=x,
                 gamma=weight,
                 beta=bias,
@@ -70,15 +71,23 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                 momentum=momentum,
                 training=training,
             )
+        print("type of inside", type(inside)) # <class 'tvm.relax.expr.Call'>
+        
+        outside = self.block_builder.emit(
+            inside
         )
+        print("type of outside", type(outside)) # <class 'tvm.relax.expr.DataflowVar'>
+        return outside
 
     def _batch_norm_legit_functional(self, node: fx.Node) -> relax.Var:
+        print("Inside batch norm functional")
         # This method is called for batch_norm in training mode
         # TODO does not have correctness!
         training = True
         return self._batch_norm(node, training)
 
     def _batch_norm_legit_no_training(self, node: fx.Node) -> relax.Var:
+        print("Inside batch norm no training")
         # This method is called for batch_norm in eval mode
         training = False
         return self._batch_norm(node, training)
@@ -111,6 +120,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         method: str,
         align_corners: bool,
     ) -> relax.Var:
+        print("Inside upsample impl")
         coord_trans = "align_corners" if align_corners else "half_pixel"
 
         if size is None:
@@ -124,13 +134,31 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             else:
                 size = tuple(int(shape[i].value * scale_factor) for i in range(2, len(shape)))
 
-        return self.block_builder.emit(
-            relax.op.image.resize2d(
+        # TODO restore
+        # return self.block_builder.emit(
+        #     relax.op.image.resize2d(
+        #         x, size, layout="NCHW", method=method, coordinate_transformation_mode=coord_trans
+        #     )
+        # )
+
+        inside =             relax.op.image.resize2d(
                 x, size, layout="NCHW", method=method, coordinate_transformation_mode=coord_trans
             )
+
+        print("type of inside", type(inside)) # <class 'tvm.relax.expr.Call'>
+
+
+        outside = self.block_builder.emit(
+            inside
         )
 
+        print("type of outside", type(outside)) # <class 'tvm.relax.expr.DataflowVar'>
+
+        return outside 
+
+
     def _upsample_bilinear2d(self, node: fx.Node) -> relax.Var:
+        print("Inside upsample bilinear 2d")    
         x = self.env[node.args[0]]
         size = node.args[1] if len(node.args) > 1 else node.kwargs.get("size", None)
         align_corners = (
@@ -142,6 +170,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         )
 
     def _upsample_nearest2d(self, node: fx.node) -> relax.Var:
+        print("Inside upsample nearest 2d")
         x = self.env[node.args[0]]
         size = node.args[1] if len(node.args) > 1 else node.kwargs.get("size", None)
 
