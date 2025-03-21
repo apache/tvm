@@ -112,6 +112,14 @@ def batch_norm(
     shape[axis] = data.shape[axis]
 
     if training:
+        moving_mean_rs = topi.reshape(moving_mean, shape)
+        moving_var_rs = topi.reshape(moving_var, shape)
+
+
+
+        out = (data - moving_mean_rs) / topi.math.sqrt(moving_var_rs + epsilon)
+
+    else:
         reduce_axes = list(range(len(data.shape)))
         reduce_axes.remove(axis)
         shape_prod = reduce(lambda x, y: x * y, [data.shape[ax] for ax in reduce_axes], 1)
@@ -121,12 +129,15 @@ def batch_norm(
             topi.sum((data - data_mean_rs) * (data - data_mean_rs), axis=reduce_axes) / shape_prod
         )
         data_var_rs = topi.reshape(data_var, shape)
-        out = (data - data_mean_rs) / topi.math.sqrt(data_var_rs + epsilon)
-    else:
-        moving_mean_rs = topi.reshape(moving_mean, shape)
-        moving_var_rs = topi.reshape(moving_var, shape)
 
-        out = (data - moving_mean_rs) / topi.math.sqrt(moving_var_rs + epsilon)
+        print("data is", data)
+        print("data_mean_rs is", data_mean_rs)
+        print("data_var_rs is", data_var_rs)
+        print("epsilon is", epsilon)
+        print("sqrt of data_var_rs + epsilon is", topi.math.sqrt(data_var_rs + epsilon))
+
+        out = (data - data_mean_rs) / topi.math.sqrt(data_var_rs + epsilon)
+
 
     if scale:
         out = out * topi.reshape(gamma, shape)
