@@ -60,8 +60,9 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         print("running mean", running_mean)
         running_var = self.env.get(node.args[4], relax.const(np.ones(channel), dtype=dtype))
         print("running var", running_var)
-        whatisThis = node.args[5] if len(node.args) > 5 else node.kwargs.get("??????????", "???????")
-        print("_batch_norm found an whatisThis", whatisThis)
+        ignore_running_stats = node.args[5] if len(node.args) > 5 else node.kwargs.get("track_running_stats", True)
+        track_running_stats = not ignore_running_stats
+        print("_batch_norm found a track_running_stats =", track_running_stats)
         momentum = node.args[6] if len(node.args) > 6 else node.kwargs.get("momentum", 0.1)
         print("momentum", momentum) # TODO is this affine? 
         eps = node.args[7] if len(node.args) > 7 else node.kwargs.get("eps", 1e-05)
