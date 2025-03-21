@@ -127,6 +127,16 @@ def bind_assign_value(self: Parser, node: doc.expr, var_name: str, value: Any) -
     res : Any
         The bound value.
     """
+    if isinstance(value, Buffer) and value.scope() == "local.var":
+        self.local_vars.add(var_name)
+        self.local_var2buffer[var_name] = value
+
+    if var_name in self.local_vars:
+        if not isinstance(value, Buffer):
+            indices = [0]
+            T.buffer_store(self.local_var2buffer[var_name], value, indices)
+            return
+    
     if isinstance(value, T.meta_var):
         return value.value
     elif isinstance(value, (list, tuple)):

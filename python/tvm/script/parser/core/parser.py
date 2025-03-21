@@ -27,6 +27,7 @@ import numpy as np
 from tvm._ffi.base import TVMError
 from tvm.error import DiagnosticError
 from tvm.ir import GlobalVar
+from tvm import tir
 
 from . import dispatch, doc
 from .diagnostics import Diagnostics, Source
@@ -192,8 +193,6 @@ class VarTableFrame:
         var : str
             The name of new variable.
         """
-        if var in self.vars:
-            raise ValueError(f"Variable {var} already defined in current scope")
         self.vars.add(var)
 
     def pop_all(self, fn_pop: Callable[[str], None]):
@@ -343,6 +342,8 @@ class Parser(doc.NodeVisitor):
     dispatch_tokens: List[str]
     function_annotations: Optional[Dict[str, Dict[str, Any]]]
     var_table: VarTable
+    local_vars: Set[str]
+    local_var2buffer: Dict[str, tir.Buffer]
     inside_function: bool  # whether we are within a function
 
     def __init__(
@@ -354,7 +355,9 @@ class Parser(doc.NodeVisitor):
         self.dispatch_tokens = ["default"]
         self.function_annotations = function_annotations
         self.var_table = VarTable()
+        self.local_vars = set()
         self.inside_function = False
+        self.local_var2buffer = {}
 
     def parse(self, extra_vars: Optional[Dict[str, Any]] = None) -> Any:
         """The main parse method for parser.
