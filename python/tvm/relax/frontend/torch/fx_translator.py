@@ -777,7 +777,10 @@ class TorchFXImporter(BaseFXGraphImporter):
             "lerp": self._lerp,
             # statistical
             "mean": self._mean,
+            "prod": self._prod,
+            "std": self._std,
             "sum": self._sum,
+            "var": self._var,
             # search
             "argmax": self._argmax_argmin(relax.op.argmax),
             "argmin": self._argmax_argmin(relax.op.argmin),
