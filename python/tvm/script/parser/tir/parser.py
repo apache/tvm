@@ -22,7 +22,7 @@ from typing import Any
 
 import tvm
 from tvm.ir import GlobalVar, PrimType
-from tvm.tir import Buffer, IterVar, PrimExpr, Var
+from tvm.tir import Buffer, IterVar, PrimExpr, Var, BufferLoad
 
 from ...ir_builder import ir as I
 from ...ir_builder import tir as T
@@ -135,7 +135,7 @@ def bind_assign_value(self: Parser, node: doc.expr, var_name: str, value: Any) -
         if not isinstance(value, Buffer):
             indices = [0]
             T.buffer_store(self.local_var2buffer[var_name], value, indices)
-            return
+            return BufferLoad(self.local_var2buffer[var_name], indices)
     
     if isinstance(value, T.meta_var):
         return value.value
