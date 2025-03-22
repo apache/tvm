@@ -28,10 +28,10 @@ namespace tvm {
 namespace runtime {
 
 size_t CallbackChannel::Send(const void* data, size_t size) {
-  TVMByteArray bytes;
+  TVMFFIByteArray bytes;
   bytes.data = static_cast<const char*>(data);
   bytes.size = size;
-  int64_t n = fsend_(bytes);
+  int64_t n = fsend_(&bytes);
   if (n == -1) {
     LOG(FATAL) << "CallbackChannel::Send";
   }
@@ -39,14 +39,14 @@ size_t CallbackChannel::Send(const void* data, size_t size) {
 }
 
 size_t CallbackChannel::Recv(void* data, size_t size) {
-  TVMRetValue ret = frecv_(size);
+  Any ret = frecv_(size);
 
-  if (ret.type_code() != kTVMBytes) {
-    LOG(FATAL) << "CallbackChannel::Recv";
-  }
-  std::string* bytes = ret.ptr<std::string>();
-  memcpy(static_cast<char*>(data), bytes->c_str(), bytes->length());
-  return bytes->length();
+  auto opt_bytes = ret.TryAs<ffi::Bytes>();
+  CHECK(opt_bytes.has_value()) << "CallbackChannel::Recv";
+
+  ffi::Bytes bytes = std::move(opt_bytes.value());
+  memcpy(static_cast<char*>(data), bytes.data(), bytes.size());
+  return bytes.size();
 }
 
 }  // namespace runtime

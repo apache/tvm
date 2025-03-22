@@ -115,14 +115,11 @@ class RPCSession {
    *    the deleter functions when they are no longer needed.
    *
    * \param func The function handle.
-   * \param arg_values The argument values.
-   * \param arg_type_codes the type codes of the argument.
-   * \param num_args Number of arguments.
+   * \param args The input packed arguments.
    * \param fencode_return The function to set the return value,
    *                       if not called, return value is null.
    */
-  virtual void CallFunc(PackedFuncHandle func, const TVMValue* arg_values,
-                        const int* arg_type_codes, int num_args,
+  virtual void CallFunc(PackedFuncHandle func, ffi::PackedArgs args,
                         const FEncodeReturn& fencode_return) = 0;
 
   /*!
@@ -199,14 +196,11 @@ class RPCSession {
   /*!
    * \brief Asynchrously call func.
    * \param func The function handle.
-   * \param arg_values The argument values.
-   * \param arg_type_codes the type codes of the argument.
-   * \param num_args Number of arguments.
+   * \param args The packed arguments.
    *
    * \param callback The callback to pass the return value or exception.
    */
-  virtual void AsyncCallFunc(PackedFuncHandle func, const TVMValue* arg_values,
-                             const int* arg_type_codes, int num_args, FAsyncCallback callback);
+  virtual void AsyncCallFunc(PackedFuncHandle func, ffi::PackedArgs args, FAsyncCallback callback);
 
   /*!
    * \brief Asynchrous version of CopyToRemote.
