@@ -913,8 +913,8 @@ void VirtualMachineImpl::_SetInstrument(TVMArgs args, TVMRetValue* rv) {
 void VirtualMachineImpl::_GetOutputArity(TVMArgs args, TVMRetValue* rv) {
   std::string func_name = args[0];
   RegType out = LookupVMOutput(func_name);
-  ObjectRef obj = IndexIntoNestedObject(out.AsObjectRef<ObjectRef>(), args, 1);
-  if (const auto* arr = obj.as<ArrayNode>()) {
+  ObjectRef obj = IndexIntoNestedObject(out.operator ObjectRef(), args, 1);
+  if (const auto* arr = obj.as<ffi::ArrayNode>()) {
     *rv = static_cast<int>(arr->size());
   } else {
     *rv = -1;
@@ -924,8 +924,8 @@ void VirtualMachineImpl::_GetOutputArity(TVMArgs args, TVMRetValue* rv) {
 void VirtualMachineImpl::_GetOutput(TVMArgs args, TVMRetValue* rv) {
   std::string func_name = args[0];
   RegType out = LookupVMOutput(func_name);
-  ObjectRef obj = IndexIntoNestedObject(out.AsObjectRef<ObjectRef>(), args, 1);
-  if (obj.as<ArrayNode>()) {
+  ObjectRef obj = IndexIntoNestedObject(out.operator ObjectRef(), args, 1);
+  if (obj.as<ffi::ArrayNode>()) {
     LOG(FATAL) << "ValueError: `get_output` cannot return a tuple for RPC compatibility. "
                   "Please specify another index argument.";
     return;
@@ -935,13 +935,12 @@ void VirtualMachineImpl::_GetOutput(TVMArgs args, TVMRetValue* rv) {
 
 void VirtualMachineImpl::_SetInputWithoutParamModule(TVMArgs args, TVMRetValue* rv) {
   std::string func_name = args[0];
-  this->SetInput(func_name, false,
-                 TVMArgs(args.values + 1, args.type_codes + 1, args.num_args - 1));
+  this->SetInput(func_name, false, args.Slice(1));
 }
 
 void VirtualMachineImpl::_SetInputWithParamModule(TVMArgs args, TVMRetValue* rv) {
   std::string func_name = args[0];
-  this->SetInput(func_name, true, TVMArgs(args.values + 1, args.type_codes + 1, args.num_args - 1));
+  this->SetInput(func_name, true, args.Slice(1));
 }
 
 int VirtualMachineImpl::_GetFunctionArity(std::string func_name) {
@@ -1000,13 +999,12 @@ class VirtualMachineProfiler : public VirtualMachineImpl {
 
         bool clear_inputs = false;
         if (inputs.size() == 0) {
-          ICHECK(args.num_args > 1) << "No input is provided";
-          TVMArgs f_args(args.values + 1, args.type_codes + 1, args.num_args - 1);
-          SetInput(f_name, false, TVMArgs(args.values + 1, args.type_codes + 1, args.num_args - 1));
+          ICHECK(args.size() > 1) << "No input is provided";
+          SetInput(f_name, false, args.Slice(1));
           inputs = GetInputsFor(f_name);
           clear_inputs = true;
         } else {
-          ICHECK_EQ(args.num_args, 1) << "Inputs are already provided by set_input.";
+          ICHECK_EQ(args.size(), 1) << "Inputs are already provided by set_input.";
         }
 
         // warmup
@@ -1040,8 +1038,8 @@ class VirtualMachineProfiler : public VirtualMachineImpl {
       std::vector<NDArray> arrs;
 
       auto f_check_ndarray_arg = [&dev, &arrs](const RegType& arg) {
-        if (arg.type_code() == kTVMNDArrayHandle) {
-          NDArray arr = arg;
+        if (auto opt_nd = arg.TryAs<NDArray>()) {
+          NDArray arr = opt_nd.value();
           dev = arr->device;
           arrs.push_back(arr);
         }

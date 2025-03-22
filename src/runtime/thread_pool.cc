@@ -382,7 +382,7 @@ TVM_REGISTER_GLOBAL("runtime.config_threadpool").set_body([](TVMArgs args, TVMRe
       static_cast<threading::ThreadGroup::AffinityMode>(static_cast<int>(args[0]));
   int nthreads = args[1];
   std::vector<unsigned int> cpus;
-  if (args.num_args >= 3) {
+  if (args.size() >= 3) {
     Array<String> cpu_array = args[2];
     for (auto cpu : cpu_array) {
       ICHECK(IsNumber(cpu)) << "The CPU core information '" << cpu << "' is not a number.";

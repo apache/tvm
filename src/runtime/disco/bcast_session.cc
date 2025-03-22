@@ -33,7 +33,8 @@ struct BcastSessionObj::Internal {
                                                   int64_t reg_id, Args&&... args) {
     constexpr int kNumArgs = 2 + sizeof...(Args);
     AnyView packed_args[kNumArgs];
-    ffi::PackedArgs::Fill(packed_args, static_cast<int>(action), reg_id, std::forward<Args>(args)...);
+    ffi::PackedArgs::Fill(packed_args, static_cast<int>(action), reg_id,
+                          std::forward<Args>(args)...);
     self->BroadcastPacked(ffi::PackedArgs(packed_args, kNumArgs));
   }
 

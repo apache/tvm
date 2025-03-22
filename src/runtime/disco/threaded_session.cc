@@ -170,7 +170,7 @@ class ThreadedSessionObj final : public BcastSessionObj {
     return this->workers_.at(worker_id).worker->register_file.at(reg_id);
   }
 
-  void DebugSetRegister(int64_t reg_id, TVMArgValue value, int worker_id) {
+  void DebugSetRegister(int64_t reg_id, AnyView value, int worker_id) {
     this->SyncWorker(worker_id);
     this->workers_.at(worker_id).worker->SetRegister(reg_id, value);
   }

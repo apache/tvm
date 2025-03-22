@@ -26,6 +26,7 @@
 #ifndef TVM_RUNTIME_STATIC_LIBRARY_H_
 #define TVM_RUNTIME_STATIC_LIBRARY_H_
 
+#include <tvm/runtime/container/array.h>
 #include <tvm/runtime/logging.h>
 #include <tvm/runtime/module.h>
 
