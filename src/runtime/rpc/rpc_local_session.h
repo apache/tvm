@@ -45,8 +45,7 @@ class LocalSession : public RPCSession {
   // function overrides
   PackedFuncHandle GetFunction(const std::string& name) override;
 
-  void CallFunc(PackedFuncHandle func, const TVMValue* arg_values, const int* arg_type_codes,
-                int num_args, const FEncodeReturn& fencode_return) override;
+  void CallFunc(PackedFuncHandle func, ffi::PackedArgs args, const FEncodeReturn& fencode_return) override;
 
   void CopyToRemote(void* from_bytes, DLTensor* to, uint64_t nbytes) override;
 

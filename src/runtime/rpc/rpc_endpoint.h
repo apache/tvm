@@ -133,13 +133,11 @@ class RPCEndpoint {
   /*!
    * \brief Call into remote function
    * \param handle The function handle
-   * \param arg_values The argument values.
-   * \param arg_type_codes the type codes of the argument.
-   * \param num_args Number of arguments.
+   * \param args The argument values.
    * \param fencode_return The function to receive return value encodings.
    */
-  void CallFunc(RPCSession::PackedFuncHandle handle, const TVMValue* arg_values,
-                const int* arg_type_codes, int num_args, RPCSession::FEncodeReturn encode_return);
+  void CallFunc(RPCSession::PackedFuncHandle handle, ffi::PackedArgs args,
+                RPCSession::FEncodeReturn encode_return);
   /*!
    * \brief Copy bytes into remote array content.
    * \param from The source host data.

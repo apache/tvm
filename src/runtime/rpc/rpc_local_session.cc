@@ -35,26 +35,18 @@ namespace runtime {
 RPCSession::PackedFuncHandle LocalSession::GetFunction(const std::string& name) {
   if (auto* fp = tvm::runtime::Registry::Get(name)) {
     // return raw handle because the remote need to explicitly manage it.
-    tvm::runtime::TVMRetValue ret;
-    ret = *fp;
-    TVMValue val;
-    int type_code;
-    ret.MoveToCHost(&val, &type_code);
-    return val.v_handle;
+    Any ret = *fp;
+    TVMFFIAny ret_any;
+    ret.MoveToTVMFFIAny(&ret_any);
+    return ret_any.v_obj;
   } else {
     return nullptr;
   }
 }
 
 void LocalSession::EncodeReturn(TVMRetValue rv, const FEncodeReturn& encode_return) {
-  int rv_tcode = rv.type_code();
-
-  // return value encoding.
-  TVMValue ret_value_pack[3];
-  int ret_tcode_pack[3];
-  TVMArgsSetter set_arg(ret_value_pack, ret_tcode_pack);
-  // first location always encode type code.
-  set_arg(0, rv_tcode);
+  AnyView packed_args[3];
+  packed_args[0] = rv.type_index();
 
   if (rv_tcode == kTVMNDArrayHandle) {
     // We follow a special protocol to return NDArray to client side
