@@ -426,7 +426,7 @@ def gen_sampling_module(target: Target, num_threads: int = 8):
             "FlashInfer is not installed. Please follow instructions "
             "in https://docs.flashinfer.ai to install FlashInfer."
         )
-    uri, source_paths = gen_sampling_tvm_binding()
+    uri, source_paths = gen_sampling_tvm_binding(uri="sampling")
     object_files = _compile_flashinfer_kernels(uri, source_paths, target, num_threads)
     modules = _load_flashinfer_modules(object_files)
     return modules
