@@ -61,7 +61,7 @@ class SocketSessionObj : public BcastSessionObj {
         Registry::Get("runtime.disco.create_socket_session_local_workers");
     ICHECK(f_create_local_session != nullptr)
         << "Cannot find function runtime.disco.create_socket_session_local_workers";
-    local_session_ = ((*f_create_local_session)(num_workers_per_node)).AsObjectRef<BcastSession>();
+    local_session_ = ((*f_create_local_session)(num_workers_per_node)).operator BcastSession();
     DRef f_init_workers =
         local_session_->GetGlobalFunc("runtime.disco.socket_session_init_workers");
     local_session_->CallPacked(f_init_workers, num_nodes_, /*node_id=*/0, num_groups,
@@ -74,24 +74,22 @@ class SocketSessionObj : public BcastSessionObj {
     socket_.Listen();
     LOG(INFO) << "SocketSession controller listening on " << host << ":" << port;
 
-    TVMValue values[4];
-    int type_codes[4];
-    TVMArgsSetter setter(values, type_codes);
-    setter(0, num_nodes);
-    setter(1, num_workers_per_node);
-    setter(2, num_groups);
+    AnyView packed_args[4];
+    packed_args[0] = num_nodes;
+    packed_args[1] = num_workers_per_node;
+    packed_args[2] = num_groups;
 
     for (int i = 0; i + 1 < num_nodes; ++i) {
       SockAddr addr;
       remote_sockets_.push_back(socket_.Accept(&addr));
       remote_channels_.emplace_back(std::make_unique<DiscoSocketChannel>(remote_sockets_.back()));
-      setter(3, i + 1);
+      packed_args[3] = i + 1;
       // Send metadata to each remote node:
       //  - num_nodes
       //  - num_workers_per_node
       //  - num_groups
       //  - node_id
-      remote_channels_.back()->Send(TVMArgs(values, type_codes, 4));
+      remote_channels_.back()->Send(ffi::PackedArgs(packed_args, 4));
       LOG(INFO) << "Remote node " << addr.AsString() << " connected";
     }
   }
@@ -103,12 +101,10 @@ class SocketSessionObj : public BcastSessionObj {
     if (node_id == 0) {
       return local_session_->DebugGetFromRemote(reg_id, worker_id);
     } else {
-      std::vector<TVMValue> values(5);
-      std::vector<int> type_codes(5);
-      PackArgs(values.data(), type_codes.data(), static_cast<int>(DiscoSocketAction::kSend),
-               worker_id, static_cast<int>(DiscoAction::kDebugGetFromRemote), reg_id, worker_id);
-
-      remote_channels_[node_id - 1]->Send(TVMArgs(values.data(), type_codes.data(), values.size()));
+      AnyView packed_args[5];
+      ffi::PackedArgs::Fill(packed_args, static_cast<int>(DiscoSocketAction::kSend), worker_id,
+                            static_cast<int>(DiscoAction::kDebugGetFromRemote), reg_id, worker_id);
+      remote_channels_[node_id - 1]->Send(ffi::PackedArgs(packed_args, 5));
       TVMArgs args = this->RecvReplyPacked(worker_id);
       ICHECK_EQ(args.size(), 2);
       ICHECK(static_cast<DiscoAction>(args[0].operator int()) == DiscoAction::kDebugGetFromRemote);
@@ -118,25 +114,22 @@ class SocketSessionObj : public BcastSessionObj {
     }
   }
 
-  void DebugSetRegister(int64_t reg_id, TVMArgValue value, int worker_id) final {
+  void DebugSetRegister(int64_t reg_id, AnyView value, int worker_id) final {
     int node_id = worker_id / num_workers_per_node_;
     if (node_id == 0) {
       local_session_->DebugSetRegister(reg_id, value, worker_id);
     } else {
       ObjectRef wrapped{nullptr};
-      if (value.type_code() == kTVMNDArrayHandle || value.type_code() == kTVMObjectHandle) {
+      if (auto opt_obj = value.TryAs<ObjectRef>()) {
         wrapped = DiscoDebugObject::Wrap(value);
-        TVMValue tvm_value;
-        int type_code = kTVMObjectHandle;
-        tvm_value.v_handle = const_cast<Object*>(wrapped.get());
-        value = TVMArgValue(tvm_value, type_code);
+        value = wrapped;
       }
       {
-        TVMValue values[6];
-        int type_codes[6];
-        PackArgs(values, type_codes, static_cast<int>(DiscoSocketAction::kSend), worker_id,
-                 static_cast<int>(DiscoAction::kDebugSetRegister), reg_id, worker_id, value);
-        remote_channels_[node_id - 1]->Send(TVMArgs(values, type_codes, 6));
+        AnyView packed_args[6];
+        ffi::PackedArgs::Fill(packed_args, static_cast<int>(DiscoSocketAction::kSend), worker_id,
+                              static_cast<int>(DiscoAction::kDebugSetRegister), reg_id, worker_id,
+                              value);
+        remote_channels_[node_id - 1]->Send(ffi::PackedArgs(packed_args, 6));
       }
       TVMRetValue result;
       TVMArgs args = this->RecvReplyPacked(worker_id);
@@ -147,13 +140,11 @@ class SocketSessionObj : public BcastSessionObj {
 
   void BroadcastPacked(const TVMArgs& args) final {
     local_session_->BroadcastPacked(args);
-    std::vector<TVMValue> values(args.size() + 2);
-    std::vector<int> type_codes(args.size() + 2);
-    PackArgs(values.data(), type_codes.data(), static_cast<int>(DiscoSocketAction::kSend), -1);
-    std::copy(args.values, args.values + args.size(), values.begin() + 2);
-    std::copy(args.type_codes, args.type_codes + args.size(), type_codes.begin() + 2);
+    std::vector<AnyView> packed_args(args.size() + 2);
+    ffi::PackedArgs::Fill(packed_args, static_cast<int>(DiscoSocketAction::kSend), -1);
+    std::copy(args.data(), args.data() + args.size(), packed_args.begin() + 2);
     for (auto& channel : remote_channels_) {
-      channel->Send(TVMArgs(values.data(), type_codes.data(), values.size()));
+      channel->Send(ffi::PackedArgs(packed_args.data(), packed_args.size()));
     }
   }
 
@@ -163,13 +154,10 @@ class SocketSessionObj : public BcastSessionObj {
       local_session_->SendPacked(worker_id, args);
       return;
     }
-    std::vector<TVMValue> values(args.size() + 2);
-    std::vector<int> type_codes(args.size() + 2);
-    PackArgs(values.data(), type_codes.data(), static_cast<int>(DiscoSocketAction::kSend),
-             worker_id);
-    std::copy(args.values, args.values + args.size(), values.begin() + 2);
-    std::copy(args.type_codes, args.type_codes + args.size(), type_codes.begin() + 2);
-    remote_channels_[node_id - 1]->Send(TVMArgs(values.data(), type_codes.data(), values.size()));
+    std::vector<AnyView> packed_args(args.size() + 2);
+    ffi::PackedArgs::Fill(packed_args, static_cast<int>(DiscoSocketAction::kSend), worker_id);
+    std::copy(args.data(), args.data() + args.size(), packed_args.begin() + 2);
+    remote_channels_[node_id - 1]->Send(ffi::PackedArgs(packed_args.data(), packed_args.size()));
   }
 
   TVMArgs RecvReplyPacked(int worker_id) final {
@@ -177,10 +165,9 @@ class SocketSessionObj : public BcastSessionObj {
     if (node_id == 0) {
       return local_session_->RecvReplyPacked(worker_id);
     }
-    TVMValue values[2];
-    int type_codes[2];
-    PackArgs(values, type_codes, static_cast<int>(DiscoSocketAction::kReceive), worker_id);
-    remote_channels_[node_id - 1]->Send(TVMArgs(values, type_codes, 2));
+    AnyView packed_args[2];
+    ffi::PackedArgs::Fill(packed_args, static_cast<int>(DiscoSocketAction::kReceive), worker_id);
+    remote_channels_[node_id - 1]->Send(ffi::PackedArgs(packed_args, 2));
     return remote_channels_[node_id - 1]->Recv();
   }
 
@@ -190,11 +177,10 @@ class SocketSessionObj : public BcastSessionObj {
 
   void Shutdown() final {
     // local session will be implicitly shutdown by its destructor
-    TVMValue values[2];
-    int type_codes[2];
-    PackArgs(values, type_codes, static_cast<int>(DiscoSocketAction::kShutdown), -1);
+    std::vector<AnyView> packed_args(2);
+    ffi::PackedArgs::Fill(packed_args, static_cast<int>(DiscoSocketAction::kShutdown), -1);
     for (auto& channel : remote_channels_) {
-      channel->Send(TVMArgs(values, type_codes, 2));
+      channel->Send(ffi::PackedArgs(packed_args.data(), packed_args.size()));
     }
     for (auto& socket : remote_sockets_) {
       socket.Close();

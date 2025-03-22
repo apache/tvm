@@ -243,7 +243,7 @@ class SessionObj : public Object {
    * \param value The value to be set.
    * \param worker_id The id of the worker to be set.
    */
-  TVM_DLL virtual void DebugSetRegister(int64_t reg_id, TVMArgValue value, int worker_id) = 0;
+  TVM_DLL virtual void DebugSetRegister(int64_t reg_id, AnyView value, int worker_id) = 0;
 
   struct FFI;
   friend struct SessionObj::FFI;

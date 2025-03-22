@@ -363,40 +363,37 @@ TVM_REGISTER_GLOBAL("vm.builtin.alloc_tensor").set_body_method<Storage>(&Storage
 //-------------------------------------------------
 //  Closure function handling, calling convention
 //-------------------------------------------------
-TVM_REGISTER_GLOBAL("vm.builtin.make_closure")
-    .set_body_packed([](ffi::PackedArgs args, Any* rv) {
-      VMClosure clo = args[0];
-      std::vector<Any> saved_args;
-      saved_args.resize(args.size() - 1);
-      for (size_t i = 0; i < saved_args.size(); ++i) {
-        saved_args[i] = args[i + 1];
-      }
-      auto impl = VMClosure::BindLastArgs(clo->impl, saved_args);
-      *rv = VMClosure(clo->func_name, impl);
-    });
+TVM_REGISTER_GLOBAL("vm.builtin.make_closure").set_body_packed([](ffi::PackedArgs args, Any* rv) {
+  VMClosure clo = args[0];
+  std::vector<Any> saved_args;
+  saved_args.resize(args.size() - 1);
+  for (size_t i = 0; i < saved_args.size(); ++i) {
+    saved_args[i] = args[i + 1];
+  }
+  auto impl = VMClosure::BindLastArgs(clo->impl, saved_args);
+  *rv = VMClosure(clo->func_name, impl);
+});
 
-TVM_REGISTER_GLOBAL("vm.builtin.invoke_closure")
-    .set_body_packed([](ffi::PackedArgs args, Any* rv) {
-      // args[0]: vm; args[1]: closure; args[2, 3, ...]: function arguments
-      VirtualMachine* vm = VirtualMachine::GetContextPtr(args[0]);
-      ObjectRef vm_closure = args[1];
-      vm->InvokeClosurePacked(vm_closure, args.Slice(2), rv);
-    });
+TVM_REGISTER_GLOBAL("vm.builtin.invoke_closure").set_body_packed([](ffi::PackedArgs args, Any* rv) {
+  // args[0]: vm; args[1]: closure; args[2, 3, ...]: function arguments
+  VirtualMachine* vm = VirtualMachine::GetContextPtr(args[0]);
+  ObjectRef vm_closure = args[1];
+  vm->InvokeClosurePacked(vm_closure, args.Slice(2), rv);
+});
 
-TVM_REGISTER_GLOBAL("vm.builtin.call_tir_dyn")
-    .set_body_packed([](ffi::PackedArgs args, Any* rv) {
-      ffi::Function func = args[0];
-      ShapeTuple to_unpack = args[args.size() - 1];
-      size_t num_tensor_args = args.size() - 2;
+TVM_REGISTER_GLOBAL("vm.builtin.call_tir_dyn").set_body_packed([](ffi::PackedArgs args, Any* rv) {
+  ffi::Function func = args[0];
+  ShapeTuple to_unpack = args[args.size() - 1];
+  size_t num_tensor_args = args.size() - 2;
 
-      std::vector<AnyView> packed_args(num_tensor_args + to_unpack.size());
-      std::copy(args.data() + 1, args.data() + args.size() - 1, packed_args.data());
+  std::vector<AnyView> packed_args(num_tensor_args + to_unpack.size());
+  std::copy(args.data() + 1, args.data() + args.size() - 1, packed_args.data());
 
-      for (size_t i = 0; i < to_unpack.size(); ++i) {
-        packed_args[i + num_tensor_args] = to_unpack[i];
-      }
-      func.CallPacked(ffi::PackedArgs(packed_args.data(), packed_args.size()), rv);
-    });
+  for (size_t i = 0; i < to_unpack.size(); ++i) {
+    packed_args[i + num_tensor_args] = to_unpack[i];
+  }
+  func.CallPacked(ffi::PackedArgs(packed_args.data(), packed_args.size()), rv);
+});
 
 //-------------------------------------
 //  Builtin runtime operators.
@@ -501,14 +498,13 @@ TVM_REGISTER_GLOBAL("vm.builtin.tuple_reset_item")
       arr.Set(index, ObjectRef(nullptr));
     });
 
-TVM_REGISTER_GLOBAL("vm.builtin.make_tuple")
-    .set_body_packed([](ffi::PackedArgs args, Any* rv) {
-      runtime::Array<ObjectRef> arr;
-      for (int i = 0; i < args.size(); ++i) {
-        arr.push_back(args[i].operator ObjectRef());
-      }
-      *rv = arr;
-    });
+TVM_REGISTER_GLOBAL("vm.builtin.make_tuple").set_body_packed([](ffi::PackedArgs args, Any* rv) {
+  runtime::Array<ObjectRef> arr;
+  for (int i = 0; i < args.size(); ++i) {
+    arr.push_back(args[i].operator ObjectRef());
+  }
+  *rv = arr;
+});
 
 TVM_REGISTER_GLOBAL("vm.builtin.tensor_to_shape").set_body_typed([](NDArray data) {
   NDArray arr = data;
