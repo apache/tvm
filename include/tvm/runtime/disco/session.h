@@ -338,14 +338,13 @@ template <typename... Args>
 DRef SessionObj::CallPacked(const DRef& func, Args&&... args) {
   constexpr int offset = 3;
   constexpr int kNumArgs = offset + sizeof...(Args);
-  TVMValue values[kNumArgs];
-  int type_codes[kNumArgs];
-  PackArgs(values, type_codes,
-           /*.0=*/static_cast<int>(DiscoAction::kCallPacked),  // action
-           /*.1=*/0,     // reg_id, which will be updated by this->CallWithPacked
-           /*.2=*/func,  // the function to be called
-           std::forward<Args>(args)...);
-  return this->CallWithPacked(TVMArgs(values, type_codes, kNumArgs));
+  AnyView packed_args[kNumArgs];
+  ffi::PackedArgs::Fill(packed_args,
+                        /*.0=*/static_cast<int>(DiscoAction::kCallPacked),  // action
+                        /*.1=*/0,     // reg_id, which will be updated by this->CallWithPacked
+                        /*.2=*/func,  // the function to be called
+                        std::forward<Args>(args)...);
+  return this->CallWithPacked(ffi::PackedArgs(packed_args, kNumArgs));
 }
 
 }  // namespace runtime

@@ -141,7 +141,7 @@ class SocketSessionObj : public BcastSessionObj {
   void BroadcastPacked(const TVMArgs& args) final {
     local_session_->BroadcastPacked(args);
     std::vector<AnyView> packed_args(args.size() + 2);
-    ffi::PackedArgs::Fill(packed_args, static_cast<int>(DiscoSocketAction::kSend), -1);
+    ffi::PackedArgs::Fill(packed_args.data(), static_cast<int>(DiscoSocketAction::kSend), -1);
     std::copy(args.data(), args.data() + args.size(), packed_args.begin() + 2);
     for (auto& channel : remote_channels_) {
       channel->Send(ffi::PackedArgs(packed_args.data(), packed_args.size()));
@@ -155,7 +155,7 @@ class SocketSessionObj : public BcastSessionObj {
       return;
     }
     std::vector<AnyView> packed_args(args.size() + 2);
-    ffi::PackedArgs::Fill(packed_args, static_cast<int>(DiscoSocketAction::kSend), worker_id);
+    ffi::PackedArgs::Fill(packed_args.data(), static_cast<int>(DiscoSocketAction::kSend), worker_id);
     std::copy(args.data(), args.data() + args.size(), packed_args.begin() + 2);
     remote_channels_[node_id - 1]->Send(ffi::PackedArgs(packed_args.data(), packed_args.size()));
   }
@@ -178,7 +178,7 @@ class SocketSessionObj : public BcastSessionObj {
   void Shutdown() final {
     // local session will be implicitly shutdown by its destructor
     std::vector<AnyView> packed_args(2);
-    ffi::PackedArgs::Fill(packed_args, static_cast<int>(DiscoSocketAction::kShutdown), -1);
+    ffi::PackedArgs::Fill(packed_args.data(), static_cast<int>(DiscoSocketAction::kShutdown), -1);
     for (auto& channel : remote_channels_) {
       channel->Send(ffi::PackedArgs(packed_args.data(), packed_args.size()));
     }
@@ -237,7 +237,7 @@ class RemoteSocketSession {
       int local_worker_id = worker_id - node_id_ * num_workers_per_node_;
       switch (action) {
         case DiscoSocketAction::kSend: {
-          args = TVMArgs(args.values + 2, args.type_codes + 2, args.size() - 2);
+          args = args.Slice(2);
           if (worker_id == -1) {
             local_session_->BroadcastPacked(args);
           } else {
@@ -270,7 +270,7 @@ class RemoteSocketSession {
   void InitLocalSession() {
     const PackedFunc* f_create_local_session =
         Registry::Get("runtime.disco.create_socket_session_local_workers");
-    local_session_ = ((*f_create_local_session)(num_workers_per_node_)).AsObjectRef<BcastSession>();
+    local_session_ = ((*f_create_local_session)(num_workers_per_node_)).operator BcastSession();
 
     DRef f_init_workers =
         local_session_->GetGlobalFunc("runtime.disco.socket_session_init_workers");
