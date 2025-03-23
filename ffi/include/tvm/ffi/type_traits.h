@@ -363,16 +363,26 @@ struct TypeTraits<DLTensor*> : public TypeTraitsBase {
   static TVM_FFI_INLINE std::optional<DLTensor*> TryCopyFromAnyView(const TVMFFIAny* src) {
     if (src->type_index == TypeIndex::kTVMFFIDLTensorPtr) {
       return static_cast<DLTensor*>(src->v_ptr);
+    } else if (src->type_index == TypeIndex::kTVMFFINDArray) {
+      // Conversion from NDArray pointer to DLTensor
+      // we rely on the fact that NDArray DLTensor field immediately
+      // follows the object header
+      // TODO(tqchen): followup once we bring NDArray related containers to FFI.
+      return reinterpret_cast<DLTensor*>(reinterpret_cast<char*>(src->v_obj) + sizeof(TVMFFIObject));
     }
     return std::nullopt;
   }
 
   static TVM_FFI_INLINE bool CheckAnyView(const TVMFFIAny* src) {
-    return src->type_index == TypeIndex::kTVMFFIDLTensorPtr;
+    return src->type_index == TypeIndex::kTVMFFIDLTensorPtr || src->type_index == TypeIndex::kTVMFFINDArray;
   }
 
   static TVM_FFI_INLINE DLTensor* CopyFromAnyViewAfterCheck(const TVMFFIAny* src) {
-    return static_cast<DLTensor*>(src->v_ptr);
+    if (src->type_index == TypeIndex::kTVMFFIDLTensorPtr) {
+      return static_cast<DLTensor*>(src->v_ptr);
+    } else {
+      return reinterpret_cast<DLTensor*>(reinterpret_cast<char*>(src->v_obj) + sizeof(TVMFFIObject));
+    }
   }
 
   static TVM_FFI_INLINE std::string TypeStr() { return "DLTensor*"; }
