@@ -54,10 +54,10 @@ Workload Workload::FromJSON(const ObjectRef& json_obj) {
     const ArrayNode* json_array = json_obj.as<ArrayNode>();
     CHECK(json_array && json_array->size() == 2);
     // Load json[0] => shash
-    String str_shash = Downcast<String>(json_array->at(0));
+    String str_shash = json_array->at(0);
     // Load json[1] => mod
     {
-      String b64_mod = Downcast<String>(json_array->at(1));
+      String b64_mod = json_array->at(1);
       std::string json_mod = Base64Decode(b64_mod);
       mod = Downcast<IRModule>(LoadJSON(json_mod));
       std::stringstream(str_shash) >> shash;
@@ -137,16 +137,16 @@ TuningRecord TuningRecord::FromJSON(const ObjectRef& json_obj, const Workload& w
     const ArrayNode* json_array = json_obj.as<ArrayNode>();
     CHECK(json_array && json_array->size() == 4);
     // Load json[1] => run_secs
-    if (json_array->at(1).defined()) {
+    if (json_array->at(1) != nullptr) {
       run_secs = AsFloatArray(json_array->at(1));
     }
     // Load json[2] => target
-    if (json_array->at(2).defined()) {
-      target = Target(Downcast<Map<String, ObjectRef>>(json_array->at(2)));
+    if (json_array->at(2) != nullptr) {
+      target = Target(json_array->at(2).operator Map<String, ObjectRef>());
     }
     // Load json[3] => args_info
-    if (json_array->at(3).defined()) {
-      const ArrayNode* json_args_info = json_array->at(3).as<ArrayNode>();
+    if (json_array->at(3) != nullptr) {
+      const ArrayNode* json_args_info = json_array->at(3).operator const ArrayNode*();
       Array<ArgInfo> info;
       info.reserve(json_args_info->size());
       for (const ObjectRef& json_arg_info : *json_args_info) {

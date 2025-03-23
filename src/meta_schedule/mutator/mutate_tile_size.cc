@@ -34,7 +34,7 @@ using tir::Trace;
  * \return The result of downcast
  */
 std::vector<int64_t> DowncastTilingDecision(const ObjectRef& decision) {
-  const auto* arr = TVM_TYPE_AS(decision, runtime::ArrayNode);
+  const auto* arr = TVM_TYPE_AS(decision, ffi::ArrayNode);
   return support::AsVector<ObjectRef, int64_t>(GetRef<Array<ObjectRef>>(arr));
 }
 

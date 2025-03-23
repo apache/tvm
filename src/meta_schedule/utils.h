@@ -423,7 +423,8 @@ inline Array<FloatImm> AsFloatArray(const ObjectRef& obj) {
   ICHECK(arr) << "TypeError: Expect an array, but gets: " << obj->GetTypeKey();
   Array<FloatImm> results;
   results.reserve(arr->size());
-  for (const ObjectRef& elem : *arr) {
+  for (Any val : *arr) {
+    ObjectRef elem = val;
     auto float_value = [&]() -> double {
       if (const auto* int_imm = elem.as<IntImmNode>()) {
         return int_imm->value;
@@ -454,7 +455,8 @@ inline Array<Integer> AsIntArray(const ObjectRef& obj) {
   ICHECK(arr) << "TypeError: Expect an array, but gets: " << obj->GetTypeKey();
   Array<Integer> results;
   results.reserve(arr->size());
-  for (const ObjectRef& elem : *arr) {
+  for (Any val : *arr) {
+    ObjectRef elem = val;
     auto int_value = [&]() -> int64_t {
       if (const auto* int_imm = elem.as<IntImmNode>()) {
         return int_imm->value;

@@ -47,18 +47,18 @@ class ScheduleFnNode : public SpaceGeneratorNode {
         /*error_render_level=*/tir::ScheduleErrorRenderLevel::kDetail);
     runtime::TVMRetValue rv;
     rv = this->schedule_fn_(sch);
-    if (rv.type_code() == kTVMNullptr) {
+    if (rv == nullptr) {
       return {sch};
     }
     ObjectRef obj = rv;
     if (auto sch = obj.as<tir::Schedule>()) {
       return {sch.value()};
     }
-    if (const auto* arr = obj.as<runtime::ArrayNode>()) {
+    if (const auto* arr = obj.as<ffi::ArrayNode>()) {
       Array<tir::Schedule> result;
       result.reserve(arr->size());
-      for (const ObjectRef& obj : *arr) {
-        if (auto sch = obj.as<tir::Schedule>()) {
+      for (Any val: *arr) {
+        if (auto sch = val.TryAs<tir::Schedule>()) {
           result.push_back(sch.value());
         } else {
           LOG(FATAL) << "TypeError: Expect return type of ScheduleFn to be None, Schedule or "

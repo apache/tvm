@@ -30,6 +30,7 @@ namespace tvm {
 namespace runtime {
 
 using tvm::ffi::Array;
+using tvm::ffi::ArrayNode;
 
 }  // namespace runtime
 

@@ -48,8 +48,8 @@ void JSONDumps(ObjectRef json_obj, std::ostringstream& os) {
   } else if (const auto* runtime_float = json_obj.as<runtime::Float::ContainerType>()) {
     os << std::setprecision(20) << runtime_float->value;
   } else if (const auto* str = json_obj.as<runtime::StringObj>()) {
-    os << '"' << support::StrEscape(str->data, str->size) << '"';
-  } else if (const auto* array = json_obj.as<runtime::ArrayNode>()) {
+    os << '"' << support::StrEscape(str->bytes.data, str->bytes.size) << '"';
+  } else if (const auto* array = json_obj.as<ffi::ArrayNode>()) {
     os << "[";
     int n = array->size();
     for (int i = 0; i < n; ++i) {
@@ -59,16 +59,16 @@ void JSONDumps(ObjectRef json_obj, std::ostringstream& os) {
       JSONDumps(array->at(i), os);
     }
     os << "]";
-  } else if (const auto* dict = json_obj.as<runtime::MapNode>()) {
+  } else if (const auto* dict = json_obj.as<ffi::MapNode>()) {
     int n = dict->size();
     std::vector<std::pair<String, ObjectRef>> key_values;
     key_values.reserve(n);
     for (const auto& kv : *dict) {
-      if (auto key = kv.first.as<String>()) {
+      if (auto key = kv.first.TryAs<String>()) {
         key_values.emplace_back(key.value(), kv.second);
       } else {
         LOG(FATAL) << "TypeError: Only string keys are supported in JSON dumps, but got: "
-                   << kv.first->GetTypeKey();
+                   << ffi::TypeIndex2TypeKey(kv.first.type_index());
       }
     }
     std::sort(key_values.begin(), key_values.end());
@@ -78,7 +78,7 @@ void JSONDumps(ObjectRef json_obj, std::ostringstream& os) {
       if (i != 0) {
         os << ",";
       }
-      os << '"' << support::StrEscape(kv.first->data, kv.first->size) << '"';
+      os << '"' << support::StrEscape(kv.first->bytes.data, kv.first->bytes.size) << '"';
       os << ":";
       JSONDumps(kv.second, os);
     }
@@ -374,7 +374,7 @@ class JSONParser {
         }
         // Case 3
         ObjectRef key = ParseObject(std::move(token));
-        ICHECK(key->IsInstance<StringObj>())
+        ICHECK(key->IsInstance<ffi::StringObj>())
             << "ValueError: key must be a string, but gets: " << key;
         token = tokenizer_.Next();
         CHECK(token.type == TokenType::kColon)
