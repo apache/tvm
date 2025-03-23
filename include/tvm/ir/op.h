@@ -372,9 +372,7 @@ template <typename ValueType>
 inline OpRegEntry& OpRegEntry::set_attr(  // NOLINT(*)
     const std::string& attr_name, const ValueType& value, int plevel) {
   ICHECK_GT(plevel, 0) << "plevel in set_attr must be greater than 0";
-  runtime::TVMRetValue rv;
-  rv = value;
-  UpdateAttr(attr_name, rv, plevel);
+  UpdateAttr(attr_name, Any(value), plevel);
   return *this;
 }
 
