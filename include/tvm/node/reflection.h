@@ -62,7 +62,7 @@ class AttrVisitor {
   TVM_DLL virtual void Visit(const char* key, void** value) = 0;
   TVM_DLL virtual void Visit(const char* key, DataType* value) = 0;
   TVM_DLL virtual void Visit(const char* key, runtime::NDArray* value) = 0;
-  TVM_DLL virtual void Visit(const char* key, runtime::ObjectRef* value) = 0;
+  TVM_DLL virtual void Visit(const char* key, ffi::ObjectRef* value) = 0;
   template <typename ENum, typename = typename std::enable_if<std::is_enum<ENum>::value>::type>
   void Visit(const char* key, ENum* ptr) {
     static_assert(std::is_same<int, typename std::underlying_type<ENum>::type>::value,
