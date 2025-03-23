@@ -21,6 +21,7 @@ from tvm import tir
 from tvm.script import relax as R
 import pytest
 
+
 def _check_equal(x, y, map_free_vars=False):
     tvm.ir.assert_structural_equal(x, y, map_free_vars)
     tvm.ir.assert_structural_equal(y, x, map_free_vars)
