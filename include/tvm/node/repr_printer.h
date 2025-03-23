@@ -104,7 +104,7 @@ inline std::string AsLegacyRepr(const ObjectRef& n) {
   ReprLegacyPrinter(os).Print(n);
   return os.str();
 }
-}  // namespace runtime
+}  // namespace ffi
 using ffi::AsLegacyRepr;
 }  // namespace tvm
 #endif  // TVM_NODE_REPR_PRINTER_H_
