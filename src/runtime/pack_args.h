@@ -157,26 +157,29 @@ inline PackedFunc PackFuncVoidAddr_(F f, const std::vector<ArgConvertCode>& code
     TempArray<ArgUnion32, N> holder_(num_args);
     void** addr = addr_.data();
     ArgUnion32* holder = holder_.data();
+    // NOTE: we need the real address of the args.data for some addr translation
+    const TVMFFIAny* raw_args = reinterpret_cast<const TVMFFIAny*>(args.data());
+
     for (int i = 0; i < num_args; ++i) {
       switch (codes[i]) {
         case INT64_TO_INT64:
         case FLOAT64_TO_FLOAT64:
         case HANDLE_TO_HANDLE: {
-          addr[i] = (void*)&(args.values[i]);  // NOLINT(*)
+          addr[i] = (void*)&(raw_args[i].v_ptr);  // NOLINT(*)
           break;
         }
         case INT64_TO_INT32: {
-          holder[i].v_int32 = static_cast<int32_t>(args.values[i].v_int64);
+          holder[i].v_int32 = static_cast<int32_t>(raw_args[i].v_int64);
           addr[i] = &(holder[i]);
           break;
         }
         case INT64_TO_UINT32: {
-          holder[i].v_uint32 = static_cast<uint32_t>(args.values[i].v_int64);
+          holder[i].v_uint32 = static_cast<uint32_t>(raw_args[i].v_int64);
           addr[i] = &(holder[i]);
           break;
         }
         case FLOAT64_TO_FLOAT32: {
-          holder[i].v_float32 = static_cast<float>(args.values[i].v_float64);
+          holder[i].v_float32 = static_cast<float>(raw_args[i].v_float64);
           addr[i] = &(holder[i]);
           break;
         }
@@ -193,26 +196,29 @@ inline PackedFunc PackFuncNonBufferArg_(F f, int base, const std::vector<ArgConv
   auto ret = [f, codes, base, num_args](TVMArgs args, TVMRetValue* ret) {
     TempArray<ArgUnion64, N> holder_(num_args);
     ArgUnion64* holder = holder_.data();
+    // NOTE: we need the real address of the args.data for some addr translation
+    const TVMFFIAny* raw_args = reinterpret_cast<const TVMFFIAny*>(args.data());
+
     for (int i = 0; i < num_args; ++i) {
       switch (codes[i]) {
         case INT64_TO_INT64: {
-          holder[i].v_int64 = args.values[base + i].v_int64;
+          holder[i].v_int64 = raw_args[base + i].v_int64;
           break;
         }
         case FLOAT64_TO_FLOAT64: {
-          holder[i].v_float64 = args.values[base + i].v_float64;
+          holder[i].v_float64 = raw_args[base + i].v_float64;
           break;
         }
         case INT64_TO_INT32: {
-          holder[i].v_int32[0] = static_cast<int32_t>(args.values[base + i].v_int64);
+          holder[i].v_int32[0] = static_cast<int32_t>(raw_args[base + i].v_int64);
           break;
         }
         case INT64_TO_UINT32: {
-          holder[i].v_uint32[0] = static_cast<uint32_t>(args.values[base + i].v_int64);
+          holder[i].v_uint32[0] = static_cast<uint32_t>(raw_args[base + i].v_int64);
           break;
         }
         case FLOAT64_TO_FLOAT32: {
-          holder[i].v_float32[0] = static_cast<float>(args.values[base + i].v_float64);
+          holder[i].v_float32[0] = static_cast<float>(raw_args[base + i].v_float64);
           break;
         }
         case HANDLE_TO_HANDLE: {
@@ -235,6 +241,7 @@ inline PackedFunc PackFuncPackedArgAligned_(F f, const std::vector<ArgConvertCod
     int32_t* ptr = pack;
     static_assert(sizeof(TVMValue) == 8, "invariant");
     static_assert(sizeof(void*) % sizeof(int32_t) == 0, "invariant");
+    const TVMFFIAny* raw_args = reinterpret_cast<const TVMFFIAny*>(args.data());
 
     // function to ensure alignment so fields are properly aligned
     // factor: how many multiple of i32 we need to align to
@@ -248,32 +255,32 @@ inline PackedFunc PackFuncPackedArgAligned_(F f, const std::vector<ArgConvertCod
       switch (codes[i]) {
         case HANDLE_TO_HANDLE: {
           ensure_alignment_to_multiple_of_i32(sizeof(void*) / sizeof(int32_t));
-          std::memcpy(ptr, &(args.values[i].v_handle), sizeof(void*));
+          std::memcpy(ptr, &(raw_args[i].v_ptr), sizeof(void*));
           ptr += sizeof(void*) / sizeof(int32_t);
           break;
         }
         case INT64_TO_INT64:
         case FLOAT64_TO_FLOAT64: {
           ensure_alignment_to_multiple_of_i32(2);
-          std::memcpy(ptr, &args.values[i], sizeof(TVMValue));
+          std::memcpy(ptr, &(raw_args[i].v_int64), sizeof(int64_t));
           ptr += 2;
           break;
         }
         case INT64_TO_INT32: {
           ensure_alignment_to_multiple_of_i32(1);
-          *ptr = static_cast<int32_t>(args.values[i].v_int64);
+          *ptr = static_cast<int32_t>(raw_args[i].v_int64);
           ++ptr;
           break;
         }
         case INT64_TO_UINT32: {
           ensure_alignment_to_multiple_of_i32(1);
-          *reinterpret_cast<uint32_t*>(ptr) = static_cast<uint32_t>(args.values[i].v_int64);
+          *reinterpret_cast<uint32_t*>(ptr) = static_cast<uint32_t>(raw_args[i].v_int64);
           ++ptr;
           break;
         }
         case FLOAT64_TO_FLOAT32: {
           ensure_alignment_to_multiple_of_i32(1);
-          *reinterpret_cast<float*>(ptr) = static_cast<float>(args.values[i].v_float64);
+          *reinterpret_cast<float*>(ptr) = static_cast<float>(raw_args[i].v_float64);
           ++ptr;
           break;
         }
