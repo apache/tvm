@@ -139,10 +139,10 @@ class RPCSession {
 
   /*!
    * \brief Free a remote function.
-   * \param handle The remote handle, can be NDArray/PackedFunc/Module/Object
+   * \param handle The remote object handle.
    * \param type_code The type code of the underlying type.
    */
-  virtual void FreeHandle(void* handle, int type_code) = 0;
+  virtual void FreeHandle(void* handle) = 0;
 
   /*!
    * \brief Get device API that represents the remote
@@ -300,7 +300,7 @@ class RPCObjectRefObj : public Object {
   ~RPCObjectRefObj() {
     if (object_handle_ != nullptr && sess_ != nullptr) {
       try {
-        sess_->FreeHandle(object_handle_, kTVMObjectHandle);
+        sess_->FreeHandle(object_handle_);
       } catch (const Error& e) {
         // fault tolerance to remote close
       }

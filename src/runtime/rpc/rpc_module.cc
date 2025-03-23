@@ -45,7 +45,7 @@ static void RemoteNDArrayDeleter(TVMFFIObject* ptr_obj) {
   auto* ptr = ffi::details::ObjectUnsafe::RawObjectPtrFromUnowned<NDArray::Container>(ptr_obj);
   RemoteSpace* space = static_cast<RemoteSpace*>(ptr->dl_tensor.data);
   if (ptr->manager_ctx != nullptr) {
-    space->sess->FreeHandle(ptr->manager_ctx, kTVMNDArrayHandle);
+    space->sess->FreeHandle(ptr->manager_ctx);
   }
   delete space;
   delete ptr;
@@ -86,52 +86,56 @@ class RPCWrappedFunc : public Object {
   RPCWrappedFunc(void* handle, std::shared_ptr<RPCSession> sess) : handle_(handle), sess_(sess) {}
 
   void operator()(TVMArgs args, TVMRetValue* rv) const {
-    std::vector<TVMValue> values(args.values, args.values + args.size());
-    std::vector<int> type_codes(args.type_codes, args.type_codes + args.size());
+    std::vector<AnyView> packed_args(args.size());
     std::vector<std::unique_ptr<DLTensor>> temp_dltensors;
 
     // scan and check whether we need rewrite these arguments
     // to their remote variant.
     for (int i = 0; i < args.size(); ++i) {
-      if (args[i].IsObjectRef<String>()) {
-        String str = args[i];
-        type_codes[i] = kTVMStr;
-        values[i].v_str = str.c_str();
+      if (auto opt_str = args[i].TryAs<ffi::String>()) {
+        packed_args[i] = opt_str.value().c_str();
         continue;
       }
-      int tcode = type_codes[i];
-      switch (tcode) {
-        case kTVMDLTensorHandle:
-        case kTVMNDArrayHandle: {
-          // Pass NDArray as DLTensor, NDArray and DLTensor
-          // are compatible to each other, just need to change the index.
-          type_codes[i] = kTVMDLTensorHandle;
-          // translate to a remote view of DLTensor
-          auto dptr = std::make_unique<DLTensor>(*static_cast<DLTensor*>(values[i].v_handle));
+      packed_args[i] = args[i];
+      // run a remote translation to translate RPC related objects to
+      // their remote counterparts.
+      switch (args[i].type_index()) {
+        case ffi::TypeIndex::kTVMFFINDArray: {
+          // Pass NDArray as DLTensor
+          auto dptr = std::make_unique<DLTensor>(*args[i].operator NDArray().operator->());
           dptr->device = RemoveSessMask(dptr->device);
           dptr->data = static_cast<RemoteSpace*>(dptr->data)->data;
-          values[i].v_handle = dptr.get();
+          packed_args[i] = dptr.get();
           temp_dltensors.emplace_back(std::move(dptr));
           break;
         }
-        case kDLDevice: {
-          values[i].v_device = RemoveSessMask(values[i].v_device);
+        case ffi::TypeIndex::kTVMFFIDLTensorPtr: {
+          // translate to a remote view of DLTensor
+          auto dptr = std::make_unique<DLTensor>(*args[i].operator DLTensor*());
+          dptr->device = RemoveSessMask(dptr->device);
+          dptr->data = static_cast<RemoteSpace*>(dptr->data)->data;
+          packed_args[i] = dptr.get();
+          temp_dltensors.emplace_back(std::move(dptr));
           break;
         }
-        case kTVMPackedFuncHandle:
-        case kTVMModuleHandle: {
-          values[i].v_handle = UnwrapRemoteValueToHandle(TVMArgValue(values[i], tcode));
+        case ffi::TypeIndex::kTVMFFIDevice: {
+          packed_args[i] = RemoveSessMask(args[i].operator DLDevice());
+          break;
+        }
+        case ffi::TypeIndex::kTVMFFIFunc:
+        case ffi::TypeIndex::kTVMFFIRuntimeModule: {
+          packed_args[i] = UnwrapRemoteValueToHandle(args[i]);
           break;
         }
       }
     }
     auto set_return = [this, rv](TVMArgs args) { this->WrapRemoteReturnToValue(args, rv); };
-    sess_->CallFunc(handle_, values.data(), type_codes.data(), args.size(), set_return);
+    sess_->CallFunc(handle_, ffi::PackedArgs(packed_args.data(), packed_args.size()), set_return);
   }
 
   ~RPCWrappedFunc() {
     try {
-      sess_->FreeHandle(handle_, kTVMPackedFuncHandle);
+      sess_->FreeHandle(handle_);
     } catch (const Error& e) {
       // fault tolerance to remote close
     }
@@ -168,7 +172,7 @@ class RPCModuleNode final : public ModuleNode {
   ~RPCModuleNode() {
     if (module_handle_ != nullptr) {
       try {
-        sess_->FreeHandle(module_handle_, kTVMModuleHandle);
+        sess_->FreeHandle(module_handle_);
       } catch (const Error& e) {
         // fault tolerance to remote close
       }
@@ -266,8 +270,9 @@ class RPCModuleNode final : public ModuleNode {
   TypedPackedFunc<void(Module, Module)> remote_import_module_;
 };
 
-void* RPCWrappedFunc::UnwrapRemoteValueToHandle(const TVMArgValue& arg) const {
-  if (arg.type_code() == kTVMModuleHandle) {
+void* RPCWrappedFunc::UnwrapRemoteValueToHandle(const AnyView& arg) const {
+  // TODO(tqchen): only support Module unwrapping for now.
+  if (arg.type_index() == kTVMModuleHandle) {
     Module mod = arg;
     std::string tkey = mod->type_key();
     ICHECK_EQ(tkey, "rpc") << "ValueError: Cannot pass a non-RPC module to remote";
@@ -276,7 +281,7 @@ void* RPCWrappedFunc::UnwrapRemoteValueToHandle(const TVMArgValue& arg) const {
         << "ValueError: Cannot pass in module into a different remote session";
     return rmod->module_handle();
   } else {
-    LOG(FATAL) << "ValueError: Cannot pass type " << runtime::ArgTypeCode2Str(arg.type_code())
+    LOG(FATAL) << "ValueError: Cannot pass type " << ffi::TypeIndex2TypeKey(arg.type_index())
                << " as an argument to the remote";
     return nullptr;
   }

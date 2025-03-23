@@ -225,7 +225,6 @@ class NDArray : public ObjectRef {
   TVM_DLL static bool IsAligned(const DLTensor& tensor);
 
  protected:
-  friend class TVMArgsSetter;
   /*!
    * \brief Get mutable internal container pointer.
    * \return a mutable container pointer.
@@ -336,7 +335,7 @@ class NDArray::Container : public Object, public NDArray::ContainerBase {
   // using Object::IncRef;
 
   // Information for object protocol.
-  static constexpr const uint32_t _type_index = TypeIndex::kRuntimeNDArray;
+  static constexpr const uint32_t _type_index = ffi::TypeIndex::kTVMFFINDArray;
   static constexpr const uint32_t _type_child_slots = 0;
   static constexpr const uint32_t _type_child_slots_can_overflow = true;
   static constexpr const char* _type_key = "runtime.NDArray";
