@@ -443,10 +443,10 @@ TVM_REGISTER_GLOBAL("tvm.contrib.sort.topk").set_body([](TVMArgs args, TVMRetVal
   DLTensor* input = args[0];
   DLTensor* values_out = nullptr;
   DLTensor* indices_out = nullptr;
-  int k = args[args.num_args - 4];
-  int axis = args[args.num_args - 3];
-  std::string ret_type = args[args.num_args - 2];
-  bool is_ascend = args[args.num_args - 1];
+  int k = args[args.size() - 4];
+  int axis = args[args.size() - 3];
+  std::string ret_type = args[args.size() - 2];
+  bool is_ascend = args[args.size() - 1];
   if (ret_type == "both") {
     values_out = args[1];
     indices_out = args[2];
