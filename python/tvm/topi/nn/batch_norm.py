@@ -111,6 +111,9 @@ def batch_norm(
     shape = [1] * len(data.shape)
     shape[axis] = data.shape[axis]
 
+    reduce_axes = list(range(len(data.shape)))
+    reduce_axes.remove(axis)
+    shape_prod = reduce(lambda x, y: x * y, [data.shape[ax] for ax in reduce_axes], 1)
 
     data_mean = topi.sum(data, axis=reduce_axes) / shape_prod
     data_mean_rs = topi.reshape(data_mean, shape)
@@ -127,9 +130,6 @@ def batch_norm(
         out = (data - moving_mean_rs) / topi.math.sqrt(moving_var_rs + epsilon)
 
     else:
-        reduce_axes = list(range(len(data.shape)))
-        reduce_axes.remove(axis)
-        shape_prod = reduce(lambda x, y: x * y, [data.shape[ax] for ax in reduce_axes], 1)
 
         print("data is", data)
         print("data_mean_rs is", data_mean_rs)
