@@ -328,7 +328,7 @@ class Function : public ObjectRef {
         "tvm::ffi::Function::FromPacked requires input function signature to match packed func "
         "format");
     if constexpr (std::is_convertible_v<TCallable, std::function<void(PackedArgs args, Any*)>>) {
-      auto wrapped_call = [packed_call](const AnyView* args, int32_t num_args, Any* rv) -> void {
+      auto wrapped_call = [packed_call](const AnyView* args, int32_t num_args, Any* rv) mutable -> void  {
         PackedArgs args_pack(args, num_args);
         packed_call(args_pack, rv);
       };
@@ -407,7 +407,7 @@ class Function : public ObjectRef {
   template <typename TCallable>
   static Function FromUnpacked(TCallable callable) {
     using FuncInfo = details::FunctionInfo<TCallable>;
-    auto call_packed = [callable](const AnyView* args, int32_t num_args, Any* rv) -> void {
+    auto call_packed = [callable](const AnyView* args, int32_t num_args, Any* rv) mutable -> void {
       details::unpack_call<typename FuncInfo::RetType, FuncInfo::num_args>(nullptr, callable, args,
                                                                            num_args, rv);
     };
@@ -422,7 +422,7 @@ class Function : public ObjectRef {
   template <typename TCallable>
   static Function FromUnpacked(TCallable callable, std::string name) {
     using FuncInfo = details::FunctionInfo<TCallable>;
-    auto call_packed = [callable, name](const AnyView* args, int32_t num_args, Any* rv) -> void {
+    auto call_packed = [callable, name](const AnyView* args, int32_t num_args, Any* rv) mutable -> void {
       details::unpack_call<typename FuncInfo::RetType, FuncInfo::num_args>(&name, callable, args,
                                                                            num_args, rv);
     };

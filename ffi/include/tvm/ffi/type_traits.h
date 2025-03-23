@@ -428,7 +428,7 @@ struct ObjectRefTypeTraitsBase : public TypeTraitsBase {
 
   static TVM_FFI_INLINE TObjRef CopyFromAnyViewAfterCheck(const TVMFFIAny* src) {
     if constexpr (TObjRef::_type_is_nullable) {
-      if (src->type_index == kTVMFFINone) return TObjRef(nullptr);
+      if (src->type_index == kTVMFFINone) return TObjRef(ObjectPtr<Object>(nullptr));
     }
     return TObjRef(details::ObjectUnsafe::ObjectPtrFromUnowned<Object>(src->v_obj));
   }
@@ -440,7 +440,7 @@ struct ObjectRefTypeTraitsBase : public TypeTraitsBase {
       }
     }
     if constexpr (TObjRef::_type_is_nullable) {
-      if (src->type_index == kTVMFFINone) return TObjRef(nullptr);
+      if (src->type_index == kTVMFFINone) return TObjRef(ObjectPtr<Object>(nullptr));
     }
     return std::nullopt;
   }
