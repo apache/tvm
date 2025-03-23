@@ -670,6 +670,45 @@ class TupleGetItem(ExprWithOp):
         )
 
 
+class TupleWrapper(object):
+    """TupleWrapper.
+
+    This class is a Python wrapper for a Relax tuple of known size.
+    It allows for accessing the fields of the Relax tuple as though
+    it were a Python tuple.
+
+    Parameters
+    ----------
+    tuple_value: tvm.relax.Expr
+        The input tuple
+
+    size: int
+        The size of the tuple.
+    """
+
+    def __init__(self, tuple_value: Expr, size: int):
+        self.tuple_value = tuple_value
+        self.size = size
+
+    def astuple(self):
+        """Returns the underlying Relax tuple if this wrapper is passed
+        as an argument to an FFI function."""
+        return self.tuple_value
+
+    def __len__(self):
+        return self.size
+
+    def __getitem__(self, index: int) -> Expr:
+        if index < -self.size or index >= self.size:
+            raise IndexError(f"Tuple index {index} out of range for tuple of size {self.size}")
+        if index < 0:
+            index += self.size
+        return TupleGetItem(self.tuple_value, index, span=self.tuple_value.span)
+
+    def astype(self,_):
+        raise TypeError("astype cannot be used on TupleWrapper")
+
+
 @tvm._ffi.register_object("relax.expr.ShapeExpr")
 class ShapeExpr(ExprWithOp):
     """A shape expression which allows users to construct a shape containing PrimExpr.
