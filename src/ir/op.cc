@@ -142,14 +142,7 @@ TVM_REGISTER_GLOBAL("ir.RegisterOpAttr")
       } else if (attr_key == "attrs_type_key" && plevel > 128) {
         LOG(FATAL) << "attrs type key no longer supported";
       } else {
-        // normal attr table override.
-        if (value.type_code() == kTVMPackedFuncHandle) {
-          // do an eager copy of the PackedFunc
-          PackedFunc f = value;
-          reg.set_attr(attr_key, f, plevel);
-        } else {
-          reg.set_attr(attr_key, value, plevel);
-        }
+        reg.set_attr(attr_key, value, plevel);
       }
     });
 

@@ -36,16 +36,12 @@ namespace relax {
 TVM_ALWAYS_INLINE TVMRetValue CallPackedWithArgsInArray(const runtime::PackedFunc f,
                                                         const Array<ObjectRef>& args) {
   size_t num_args = args.size();
-  std::vector<TVMValue> values(num_args);
-  std::vector<int> codes(num_args);
-  runtime::TVMArgsSetter setter(values.data(), codes.data());
-  const ObjectRef* ptr = args.template as<ArrayNode>()->begin();
+  std::vector<AnyView> packed_args(num_args);
   for (size_t i = 0; i < num_args; ++i) {
-    setter(i, *(ptr + i));
+    packed_args[i] = args[i];
   }
-
-  TVMRetValue rv;
-  f.CallPacked(TVMArgs(values.data(), codes.data(), num_args), &rv);
+  Any rv;
+  f.CallPacked(ffi::PackedArgs(packed_args.data(), packed_args.size()), &rv);
   return rv;
 }
 

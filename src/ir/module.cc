@@ -25,7 +25,7 @@
 #include <tvm/ir/type_functor.h>
 #include <tvm/node/structural_equal.h>
 #include <tvm/runtime/registry.h>
-
+#include <tvm/runtime/container/variant.h>
 #include <algorithm>
 #include <fstream>
 #include <sstream>
@@ -249,7 +249,7 @@ TVM_REGISTER_GLOBAL("ir.IRModule")
         } else if (auto* as_dict_attrs = attrs.as<tvm::DictAttrsNode>()) {
           return GetRef<tvm::DictAttrs>(as_dict_attrs);
         } else if (attrs.as<tvm::MapNode>()) {
-          return tvm::DictAttrs(Downcast<Map<String, ObjectRef>>(attrs));
+          return tvm::DictAttrs(Downcast<Map<String, Any>>(attrs));
         } else {
           LOG(FATAL) << "Expected attrs argument to be either DictAttrs or Map<String,ObjectRef>";
         }
@@ -274,9 +274,9 @@ TVM_REGISTER_GLOBAL("ir.Module_Add")
 TVM_REGISTER_GLOBAL("ir.Module_Remove")
     .set_body_typed([](IRModule mod, Variant<String, GlobalVar> var) -> IRModule {
       GlobalVar gvar = [&]() {
-        if (auto opt = var.as<GlobalVar>()) {
+        if (auto opt = var.TryAs<GlobalVar>()) {
           return opt.value();
-        } else if (auto opt = var.as<String>()) {
+        } else if (auto opt = var.TryAs<String>()) {
           return mod->GetGlobalVar(opt.value());
         } else {
           LOG(FATAL) << "InternalError: "
@@ -289,9 +289,9 @@ TVM_REGISTER_GLOBAL("ir.Module_Remove")
 
 TVM_REGISTER_GLOBAL("ir.Module_Contains")
     .set_body_typed([](IRModule mod, Variant<String, GlobalVar> var) -> bool {
-      if (auto opt = var.as<GlobalVar>()) {
+      if (auto opt = var.TryAs<GlobalVar>()) {
         return mod->functions.count(opt.value());
-      } else if (auto opt = var.as<String>()) {
+      } else if (auto opt = var.TryAs<String>()) {
         return mod->global_var_map_.count(opt.value());
       } else {
         LOG(FATAL) << "InternalError: "
