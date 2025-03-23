@@ -451,6 +451,10 @@ class ObjectRef {
   friend class tvm::ffi::details::ObjectUnsafe;
 };
 
+// forward delcare variant
+template <typename... V>
+class Variant;
+
 /*! \brief ObjectRef hash functor */
 struct ObjectPtrHash {
   size_t operator()(const ObjectRef& a) const { return operator()(a.data_); }
@@ -459,6 +463,9 @@ struct ObjectPtrHash {
   size_t operator()(const ObjectPtr<T>& a) const {
     return std::hash<Object*>()(a.get());
   }
+
+  template <typename... V>
+  TVM_FFI_INLINE size_t operator()(const Variant<V...>& a) const;
 };
 
 /*! \brief ObjectRef equal functor */
@@ -466,9 +473,12 @@ struct ObjectPtrEqual {
   bool operator()(const ObjectRef& a, const ObjectRef& b) const { return a.same_as(b); }
 
   template <typename T>
-  size_t operator()(const ObjectPtr<T>& a, const ObjectPtr<T>& b) const {
+  bool operator()(const ObjectPtr<T>& a, const ObjectPtr<T>& b) const {
     return a == b;
   }
+
+  template <typename... V>
+  TVM_FFI_INLINE bool operator()(const Variant<V...>& a, const Variant<V...>& b) const;
 };
 
 // If dynamic type is enabled, we still need to register the runtime type of parent

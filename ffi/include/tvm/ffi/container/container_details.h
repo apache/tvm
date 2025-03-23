@@ -27,6 +27,7 @@
 #include <tvm/ffi/memory.h>
 #include <tvm/ffi/object.h>
 
+#include <sstream>
 #include <type_traits>
 #include <utility>
 
@@ -263,6 +264,50 @@ class ReverseIterAdapter {
  private:
   TIter iter_;
 };
+
+/*!
+ * \brief Check if T is compatible with Any.
+ *
+ * \tparam T The type to check.
+ * \return True if T is compatible with Any, false otherwise.
+ */
+template <typename T>
+constexpr bool type_compactible_with_any_v = std::is_same_v<T, Any> || TypeTraits<T>::enabled;
+
+/*!
+ * \brief Create a string of the container type.
+ * \tparam V The types of the elements in the container.
+ * \param name The name of the container type.
+ * \return A string of the container type.
+ */
+template <typename... V>
+std::string ContainerTypeStr(const char* name) {
+  std::stringstream ss;
+  // helper to construct concated string of TypeStr
+  class TypeStrHelper {
+   public:
+    TypeStrHelper(std::stringstream& stream) : stream_(stream) {}  // NOLINT(*)
+
+    TypeStrHelper& operator<<(const std::string& str) {
+      if (counter_ > 0) {
+        stream_ << ", ";
+      }
+      stream_ << str;
+      counter_++;
+      return *this;
+    }
+
+   private:
+    std::stringstream& stream_;  // NOLINT(*)
+    int counter_ = 0;
+  };
+  TypeStrHelper helper(ss);
+  ss << name << '<';
+  (helper << ... << Type2Str<V>::v());
+  ss << '>';
+  return ss.str();
+}
+
 }  // namespace details
 }  // namespace ffi
 }  // namespace tvm
