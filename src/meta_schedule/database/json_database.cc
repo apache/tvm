@@ -192,7 +192,7 @@ Database Database::JSONDatabase(String path_workload, String path_tuning_record,
           try {
             const ArrayNode* arr = json_obj.as<ArrayNode>();
             ICHECK_EQ(arr->size(), 2);
-            int64_t workload_index = Downcast<runtime::Int>(arr->at(0));
+            int64_t workload_index = arr->at(0).operator runtime::Int()->value;
             ICHECK(workload_index >= 0 && static_cast<size_t>(workload_index) < workloads.size());
             workload = workloads[workload_index];
             records[task_id] = TuningRecord::FromJSON(arr->at(1), workload);

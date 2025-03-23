@@ -71,7 +71,7 @@ ArgInfo ArgInfo::FromJSON(const ObjectRef& json_obj) {
   try {
     const ArrayNode* json_array = json_obj.as<ArrayNode>();
     CHECK(json_array && json_array->size() >= 1);
-    tag = Downcast<String>(json_array->at(0));
+    tag = json_array->at(0);
   } catch (const std::runtime_error& e) {  // includes tvm::Error and dmlc::Error
     LOG(FATAL) << "ValueError: Unable to parse the JSON object: " << json_obj
                << "\nThe error is: " << e.what();
@@ -133,7 +133,7 @@ TensorInfo TensorInfo::FromJSON(const ObjectRef& json_obj) {
     CHECK(json_array && json_array->size() == 3);
     // Load json[1] => dtype
     {
-      String dtype_str = Downcast<String>(json_array->at(1));
+      String dtype_str = json_array->at(1);
       dtype = runtime::String2DLDataType(dtype_str);
     }
     // Load json[2] => shape

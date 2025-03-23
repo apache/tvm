@@ -49,8 +49,8 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
         if (it != op->begin()) {
           p->stream << ", ";
         }
-        if (it->first->IsInstance<StringObj>()) {
-          p->stream << '\"' << Downcast<String>(it->first) << "\": ";
+        if (auto opt_str = it->first.TryAs<ffi::String>()) {
+          p->stream << '\"' << opt_str.value() << "\": ";
         } else {
           p->Print(it->first);
           p->stream << ": ";

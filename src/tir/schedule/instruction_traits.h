@@ -172,13 +172,13 @@ struct UnpackedInstTraits {
 
  protected:
   template <size_t index_offset>
-  static TVM_ALWAYS_INLINE void _SetInputs(const runtime::TVMArgsSetter& setter,
+  static TVM_ALWAYS_INLINE void _SetInputs(AnyView* packed_args,
                                            const Array<ObjectRef>& inputs);
   template <size_t index_offset>
-  static TVM_ALWAYS_INLINE void _SetAttrs(const runtime::TVMArgsSetter& setter,
+  static TVM_ALWAYS_INLINE void _SetAttrs(AnyView* packed_args,
                                           const Array<ObjectRef>& attrs);
   template <size_t index_offset>
-  static TVM_ALWAYS_INLINE void _SetDecision(const runtime::TVMArgsSetter& setter,
+  static TVM_ALWAYS_INLINE void _SetDecision(AnyView* packed_args,
                                              const Optional<ObjectRef>& decision);
   static TVM_ALWAYS_INLINE Array<ObjectRef> _ConvertOutputs(const TVMRetValue& rv);
 };
@@ -314,21 +314,18 @@ Array<ObjectRef> UnpackedInstTraits<TTraits>::ApplyToSchedule(const Schedule& sc
   constexpr size_t kNumDecisions = TTraits::kNumDecisions;
   static_assert(kNumArgs == 1 + kNumInputs + kNumAttrs + kNumDecisions,
                 "length of argument list mismatch");
-  TVMValue tvm_values[kNumArgs];
-  int tvm_type_codes[kNumArgs];
-  runtime::TVMArgsSetter setter(tvm_values, tvm_type_codes);
-  setter(0, sch);
-  TTraits::template _SetInputs<1>(setter, inputs);
-  TTraits::template _SetAttrs<1 + kNumInputs>(setter, attrs);
-  TTraits::template _SetDecision<1 + kNumInputs + kNumAttrs>(setter, decision);
+  AnyView packed_args[kNumArgs];
+  packed_args[0] = sch;
+  TTraits::template _SetInputs<1>(packed_args, inputs);
+  TTraits::template _SetAttrs<1 + kNumInputs>(packed_args, attrs);
+  TTraits::template _SetDecision<1 + kNumInputs + kNumAttrs>(packed_args, decision);
   PackedFunc pf([](const TVMArgs& args, TVMRetValue* rv) -> void {
-    using runtime::detail::unpack_call;
     constexpr size_t kNumArgs = details::NumArgs<method_type>;
     ICHECK_EQ(args.size(), kNumArgs);
-    unpack_call<return_type, kNumArgs>(nullptr, TTraits::UnpackedApplyToSchedule, args, rv);
+    ffi::details::unpack_call<return_type, kNumArgs>(nullptr, TTraits::UnpackedApplyToSchedule, args, rv);
   });
-  TVMRetValue rv;
-  pf.CallPacked(TVMArgs(tvm_values, tvm_type_codes, kNumArgs), &rv);
+  ffi::Any rv;
+  pf.CallPacked(ffi::PackedArgs(packed_args.data(), packed_args.size()), &rv);
   return TTraits::_ConvertOutputs(rv);
 }
 
@@ -347,59 +344,55 @@ String UnpackedInstTraits<TTraits>::AsPython(const Array<ObjectRef>& inputs,
   constexpr size_t kNumDecisions = TTraits::kNumDecisions;
   static_assert(kNumArgs == 1 + kNumInputs + kNumAttrs + kNumDecisions,
                 "length of argument list mismatch");
-  TVMValue tvm_values[kNumArgs];
-  int tvm_type_codes[kNumArgs];
-  runtime::TVMArgsSetter setter(tvm_values, tvm_type_codes);
-  setter(0, outputs);
-  TTraits::template _SetInputs<1>(setter, inputs);
-  TTraits::template _SetAttrs<1 + kNumInputs>(setter, attrs);
-  TTraits::template _SetDecision<1 + kNumInputs + kNumAttrs>(setter, decision);
+
+  AnyView packed_args[kNumArgs];
+  packed_args[0] = outputs;
+  TTraits::template _SetInputs<1>(packed_args, inputs);
+  TTraits::template _SetAttrs<1 + kNumInputs>(packed_args, attrs);
+  TTraits::template _SetDecision<1 + kNumInputs + kNumAttrs>(packed_args, decision);
   PackedFunc pf([](const TVMArgs& args, TVMRetValue* rv) -> void {
-    using runtime::detail::unpack_call;
     constexpr size_t kNumArgs = details::NumArgs<method_type>;
     ICHECK_EQ(args.size(), kNumArgs);
-    unpack_call<return_type, kNumArgs>(nullptr, TTraits::UnpackedAsPython, args, rv);
+    ffi::details::unpack_call<return_type, kNumArgs>(nullptr, TTraits::UnpackedAsPython, args, rv);
   });
-  TVMRetValue rv;
-  pf.CallPacked(TVMArgs(tvm_values, tvm_type_codes, kNumArgs), &rv);
+  ffi::Any rv;
+  pf.CallPacked(ffi::PackedArgs(packed_args.data(), packed_args.size()), &rv);
   String result = rv;
   return result;
 }
 
 template <class TTraits>
 template <size_t index_offset>
-TVM_ALWAYS_INLINE void UnpackedInstTraits<TTraits>::_SetInputs(const runtime::TVMArgsSetter& setter,
+TVM_ALWAYS_INLINE void UnpackedInstTraits<TTraits>::_SetInputs(AnyView* packed_args,
                                                                const Array<ObjectRef>& inputs) {
   constexpr size_t kNumInputs = TTraits::kNumInputs;
   ICHECK_EQ(kNumInputs, inputs.size())
       << "ValueError: Incorrect kNumInputs for instruction: " << TTraits::kName;
-  const ObjectRef* ptr = inputs.template as<ArrayNode>()->begin();
   for (size_t i = 0; i < kNumInputs; ++i) {
-    setter(i + index_offset, *(ptr + i));
+    packed_args[i + index_offset] = inputs[i];
   }
 }
 
 template <class TTraits>
 template <size_t index_offset>
-TVM_ALWAYS_INLINE void UnpackedInstTraits<TTraits>::_SetAttrs(const runtime::TVMArgsSetter& setter,
+TVM_ALWAYS_INLINE void UnpackedInstTraits<TTraits>::_SetAttrs(AnyView* packed_args,
                                                               const Array<ObjectRef>& attrs) {
   constexpr size_t kNumAttrs = TTraits::kNumAttrs;
   ICHECK_EQ(kNumAttrs, attrs.size())
       << "ValueError: Incorrect kNumAttrs for instruction: " << TTraits::kName;
-  const ObjectRef* ptr = attrs.as<ArrayNode>()->begin();
   for (size_t i = 0; i < kNumAttrs; ++i) {
-    setter(i + index_offset, *(ptr + i));
+    packed_args[i + index_offset] = attrs[i];
   }
 }
 
 template <class TTraits>
 template <size_t index_offset>
-TVM_ALWAYS_INLINE void UnpackedInstTraits<TTraits>::_SetDecision(
-    const runtime::TVMArgsSetter& setter, const Optional<ObjectRef>& decision) {
+TVM_ALWAYS_INLINE void UnpackedInstTraits<TTraits>::_SetDecision(AnyView* packed_args,
+                                                                 const Optional<ObjectRef>& decision) {
   constexpr size_t kNumDecisions = TTraits::kNumDecisions;
   static_assert(kNumDecisions <= 1, "an instruction is supposed to have at most 1 decision");
   if (kNumDecisions == 1) {
-    setter(index_offset, decision);
+    packed_args[index_offset] = decision;
   } else {
     ICHECK(!decision.defined());
   }
@@ -432,8 +425,8 @@ TVM_ALWAYS_INLINE Array<ObjectRef> UnpackedInstTraits<TTraits>::_ConvertOutputs(
 inline void PythonAPICall::AsPythonString(const ObjectRef& obj, std::ostream& os) {
   if (!obj.defined()) {
     os << "None";
-  } else if (const auto* str = obj.as<runtime::StringObj>()) {
-    os << str->data;
+  } else if (const auto* str = obj.as<ffi::StringObj>()) {
+    os << str->bytes.data;
   } else if (const auto* int_imm = obj.as<IntImmNode>()) {
     os << int_imm->value;
   } else if (const auto* float_imm = obj.as<FloatImmNode>()) {
@@ -447,7 +440,7 @@ inline void PythonAPICall::AsPythonString(const ObjectRef& obj, std::ostream& os
   } else if (const auto* array = obj.as<ArrayNode>()) {
     os << '[';
     bool is_first = true;
-    for (const ObjectRef& e : *array) {
+    for (Any e : *array) {
       if (is_first) {
         is_first = false;
       } else {
