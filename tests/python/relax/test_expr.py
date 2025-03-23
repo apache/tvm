@@ -310,5 +310,50 @@ def test_call_raises_error_for_invalid_function():
         rx.Call(func, [arg])
 
 
+def test_tuple_wrapper():
+    """Test that TupleWrapper behaves like a standard tuple."""
+    v0 = rx.Var("v0")
+    v1 = rx.Var("v1")
+    v2 = rx.Var("v2")
+    t = rx.Tuple((v0, v1, v2))
+
+    wrapper = rx.TupleWrapper(t, 3)
+
+    # Test length
+    assert len(wrapper) == 3
+
+    # Test index access
+    expected_0 = rx.TupleGetItem(t, 0)
+    expected_1 = rx.TupleGetItem(t, 1)
+    expected_2 = rx.TupleGetItem(t, 2)
+
+    assert str(wrapper[0]) == str(expected_0)
+    assert str(wrapper[1]) == str(expected_1)
+    assert str(wrapper[2]) == str(expected_2)
+
+    # Test negative index access
+    expected_neg1 = rx.TupleGetItem(t, 2)
+    expected_neg2 = rx.TupleGetItem(t, 1)
+    expected_neg3 = rx.TupleGetItem(t, 0)
+
+    assert str(wrapper[-1]) == str(expected_neg1)
+    assert str(wrapper[-2]) == str(expected_neg2)
+    assert str(wrapper[-3]) == str(expected_neg3)
+
+    # Test out-of-range index access
+    with pytest.raises(IndexError, match=r"Tuple index [-]?\d+ out of range for tuple of size \d+"):
+        wrapper[3]
+
+    with pytest.raises(IndexError, match=r"Tuple index [-]?\d+ out of range for tuple of size \d+"):
+        wrapper[-4]
+
+    # Test astuple() method
+    assert wrapper.astuple() == t
+
+    # Test astype() method (should raise TypeError)
+    with pytest.raises(TypeError, match="astype cannot be used on TupleWrapper"):
+        wrapper.astype("float32")
+
+
 if __name__ == "__main__":
     tvm.testing.main()
