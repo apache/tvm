@@ -705,7 +705,7 @@ class TupleWrapper(object):
             index += self.size
         return TupleGetItem(self.tuple_value, index, span=self.tuple_value.span)
 
-    def astype(self,_):
+    def astype(self, _):
         raise TypeError("astype cannot be used on TupleWrapper")
 
 
