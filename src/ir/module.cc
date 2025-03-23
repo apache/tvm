@@ -24,8 +24,9 @@
 #include <tvm/ir/module.h>
 #include <tvm/ir/type_functor.h>
 #include <tvm/node/structural_equal.h>
-#include <tvm/runtime/registry.h>
 #include <tvm/runtime/container/variant.h>
+#include <tvm/runtime/registry.h>
+
 #include <algorithm>
 #include <fstream>
 #include <sstream>

@@ -31,7 +31,6 @@ void DictAttrsNode::VisitAttrs(AttrVisitor* v) { v->Visit("__dict__", &dict); }
 
 void DictAttrsNode::VisitNonDefaultAttrs(AttrVisitor* v) { v->Visit("__dict__", &dict); }
 
-
 DictAttrs WithAttrs(DictAttrs attrs, Map<String, ffi::Any> new_attrs) {
   if (new_attrs.empty()) {
     return attrs;

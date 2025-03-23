@@ -93,8 +93,7 @@ class AttrRegistry {
    * \param value The value to be set.
    * \param plevel The support level.
    */
-  void UpdateAttr(const String& attr_name, const KeyType& key, Any value,
-                  int plevel) {
+  void UpdateAttr(const String& attr_name, const KeyType& key, Any value, int plevel) {
     using runtime::TVMRetValue;
     std::lock_guard<std::mutex> lock(mutex_);
     auto& op_map = attrs_[attr_name];
@@ -111,7 +110,7 @@ class AttrRegistry {
     ICHECK(p.second != plevel) << "Attribute " << attr_name << " of " << key->AttrRegistryName()
                                << " is already registered with same plevel=" << plevel;
     ICHECK(value != nullptr) << "Registered packed_func is Null for " << attr_name
-                              << " of operator " << key->AttrRegistryName();
+                             << " of operator " << key->AttrRegistryName();
     if (p.second < plevel && value != nullptr) {
       op_map->data_[index] = std::make_pair(value, plevel);
     }

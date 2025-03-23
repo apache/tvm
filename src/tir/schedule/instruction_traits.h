@@ -172,11 +172,9 @@ struct UnpackedInstTraits {
 
  protected:
   template <size_t index_offset>
-  static TVM_ALWAYS_INLINE void _SetInputs(AnyView* packed_args,
-                                           const Array<ObjectRef>& inputs);
+  static TVM_ALWAYS_INLINE void _SetInputs(AnyView* packed_args, const Array<ObjectRef>& inputs);
   template <size_t index_offset>
-  static TVM_ALWAYS_INLINE void _SetAttrs(AnyView* packed_args,
-                                          const Array<ObjectRef>& attrs);
+  static TVM_ALWAYS_INLINE void _SetAttrs(AnyView* packed_args, const Array<ObjectRef>& attrs);
   template <size_t index_offset>
   static TVM_ALWAYS_INLINE void _SetDecision(AnyView* packed_args,
                                              const Optional<ObjectRef>& decision);
@@ -322,7 +320,8 @@ Array<ObjectRef> UnpackedInstTraits<TTraits>::ApplyToSchedule(const Schedule& sc
   PackedFunc pf([](const TVMArgs& args, TVMRetValue* rv) -> void {
     constexpr size_t kNumArgs = details::NumArgs<method_type>;
     ICHECK_EQ(args.size(), kNumArgs);
-    ffi::details::unpack_call<return_type, kNumArgs>(nullptr, TTraits::UnpackedApplyToSchedule, args, rv);
+    ffi::details::unpack_call<return_type, kNumArgs>(nullptr, TTraits::UnpackedApplyToSchedule,
+                                                     args, rv);
   });
   ffi::Any rv;
   pf.CallPacked(ffi::PackedArgs(packed_args.data(), packed_args.size()), &rv);
@@ -387,8 +386,8 @@ TVM_ALWAYS_INLINE void UnpackedInstTraits<TTraits>::_SetAttrs(AnyView* packed_ar
 
 template <class TTraits>
 template <size_t index_offset>
-TVM_ALWAYS_INLINE void UnpackedInstTraits<TTraits>::_SetDecision(AnyView* packed_args,
-                                                                 const Optional<ObjectRef>& decision) {
+TVM_ALWAYS_INLINE void UnpackedInstTraits<TTraits>::_SetDecision(
+    AnyView* packed_args, const Optional<ObjectRef>& decision) {
   constexpr size_t kNumDecisions = TTraits::kNumDecisions;
   static_assert(kNumDecisions <= 1, "an instruction is supposed to have at most 1 decision");
   if (kNumDecisions == 1) {
