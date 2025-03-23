@@ -773,7 +773,8 @@ class SeqStmt : public Stmt {
   template <typename... Args>
   static Stmt Flatten(Args&&... seq_args) {
     Array<Stmt> seq;
-    runtime::detail::for_each(Flattener(&seq), std::forward<Args>(seq_args)...);
+
+    ffi::details::for_each(Flattener(&seq), std::forward<Args>(seq_args)...);
 
     if (seq.empty()) {
       return Evaluate(0);

@@ -311,8 +311,8 @@ TVM_REGISTER_GLOBAL("arith.CreateAnalyzer").set_body([](TVMArgs args, TVMRetValu
           [self](TVMArgs args, TVMRetValue* ret) { *ret = self->int_set(args[0], args[1]); });
     } else if (name == "bind") {
       return PackedFunc([self](TVMArgs args, TVMRetValue* ret) {
-        if (args[1].IsObjectRef<Range>()) {
-          self->Bind(args[0], args[1].operator Range());
+        if (auto opt_range = args[1].TryAs<Range>()) {
+          self->Bind(args[0], opt_range.value());
         } else {
           self->Bind(args[0], args[1].operator PrimExpr());
         }
@@ -329,7 +329,7 @@ TVM_REGISTER_GLOBAL("arith.CreateAnalyzer").set_body([](TVMArgs args, TVMRetValu
         auto ctx = std::shared_ptr<With<ConstraintContext>>(
             new With<ConstraintContext>(self.get(), args[0]));
         auto fexit = [ctx](TVMArgs, TVMRetValue*) mutable { ctx.reset(); };
-        *ret = PackedFunc(fexit);
+        *ret = ffi::Function::FromPacked(fexit);
       });
     } else if (name == "can_prove_equal") {
       return PackedFunc(
