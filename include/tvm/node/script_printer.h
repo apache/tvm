@@ -27,6 +27,9 @@
 #include <tvm/node/object_path.h>
 #include <tvm/node/reflection.h>
 #include <tvm/runtime/data_type.h>
+#include <tvm/runtime/container/string.h>
+#include <tvm/runtime/container/array.h>
+#include <tvm/runtime/container/map.h>
 
 #include <iostream>
 #include <string>
