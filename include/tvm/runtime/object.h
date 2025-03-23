@@ -34,9 +34,9 @@ namespace runtime {
 
 using tvm::ffi::Object;
 using tvm::ffi::ObjectPtr;
-using tvm::ffi::ObjectRef;
 using tvm::ffi::ObjectPtrEqual;
 using tvm::ffi::ObjectPtrHash;
+using tvm::ffi::ObjectRef;
 
 using tvm::ffi::Downcast;
 using tvm::ffi::GetObjectPtr;
@@ -147,7 +147,7 @@ enum TypeIndex : int32_t {
 
 }  // namespace runtime
 
-using tvm::ffi::ObjectRef;
 using tvm::ffi::ObjectPtr;
+using tvm::ffi::ObjectRef;
 }  // namespace tvm
 #endif  // TVM_RUNTIME_OBJECT_H_
