@@ -622,7 +622,7 @@ class Integer : public IntImm {
    * \param other another expression.
    */
   Integer& operator=(const IntImm& other) {
-    data_ = ObjectRef::GetDataPtr<Object>(other);
+    data_ = ffi::details::ObjectUnsafe::ObjectPtrFromObjectRef<Object>(other);
     return *this;
   }
   /*!

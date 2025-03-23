@@ -325,7 +325,9 @@ struct StringObjTrait {
 };
 
 struct RefToObjectPtr : public ObjectRef {
-  static ObjectPtr<Object> Get(const ObjectRef& ref) { return GetDataPtr<Object>(ref); }
+  static ObjectPtr<Object> Get(const ObjectRef& ref) {
+    return ffi::details::ObjectUnsafe::ObjectPtrFromObjectRef<Object>(ref);
+  }
 };
 
 TVM_REGISTER_REFLECTION_VTABLE(runtime::StringObj, StringObjTrait)

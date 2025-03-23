@@ -318,8 +318,7 @@ IRModule Pass::operator()(IRModule mod, const PassContext& pass_ctx) const {
 IRModule Pass::AssertImmutableModule(const IRModule& mod, const PassNode* node,
                                      const PassContext& pass_ctx) {
   size_t before_pass_hash = tvm::StructuralHash()(mod);
-  ObjectPtr<Object> module_ptr = ObjectRef::GetDataPtr<Object>(mod);
-  IRModule copy_mod = IRModule(module_ptr);
+  IRModule copy_mod = mod;
   IRModule ret = node->operator()(mod, pass_ctx);
   size_t after_pass_hash = tvm::StructuralHash()(copy_mod);
   if (before_pass_hash != after_pass_hash) {

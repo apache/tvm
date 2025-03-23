@@ -34,6 +34,7 @@ namespace runtime {
 
 using tvm::ffi::Object;
 using tvm::ffi::ObjectPtr;
+using tvm::ffi::ObjectRef;
 using tvm::ffi::ObjectPtrEqual;
 using tvm::ffi::ObjectPtrHash;
 
@@ -70,93 +71,6 @@ enum TypeIndex : int32_t {
   kRuntimeArray,
   // static assignments that may subject to change.
   kStaticIndexEnd,
-};
-
-class ObjectRef : public tvm::ffi::ObjectRef {
- public:
-  /*! \brief default constructor */
-  ObjectRef() = default;
-  /*! \brief Constructor from existing object ptr */
-  explicit ObjectRef(ObjectPtr<Object> data) : tvm::ffi::ObjectRef(data) {}
-  /*! \brief move constructor */
-  ObjectRef(ObjectRef&& other) = default;
-  /*! \brief copy constructor */
-  ObjectRef(const ObjectRef& other) = default;
-  /*! \brief copy constructor */
-  ObjectRef(const ffi::ObjectRef& other) : tvm::ffi::ObjectRef(other) {}
-  /*! \brief move assignment */
-  ObjectRef& operator=(ObjectRef&& other) = default;
-  /*! \brief copy assignment */
-  ObjectRef& operator=(const ObjectRef& other) = default;
-  /*! \brief copy assignment */
-  ObjectRef& operator=(const ffi::ObjectRef& other) {
-    tvm::ffi::ObjectRef::operator=(other);
-    return *this;
-  }
-
-  template <typename ObjectType, typename = std::enable_if_t<std::is_base_of_v<Object, ObjectType>>>
-  const ObjectType* as() const {
-    return tvm::ffi::ObjectRef::as<ObjectType>();
-  }
-  /*!
-   * \brief Try to downcast the ObjectRef to a
-   *    Optional<T> of the requested type.
-   *
-   *  The function will return a NullOpt if the cast failed.
-   *
-   *      if (Optional<Add> opt = node_ref.as<Add>()) {
-   *        // This is an add node
-   *      }
-   *
-   * \note While this method is declared in <tvm/runtime/object.h>,
-   * the implementation is in <tvm/runtime/container/optional.h> to
-   * prevent circular includes.  This additional include file is only
-   * required in compilation units that uses this method.
-   *
-   * \tparam ObjectRefType the target type, must be a subtype of ObjectRef
-   */
-  template <typename ObjectRefType,
-            typename = std::enable_if_t<std::is_base_of_v<ObjectRef, ObjectRefType>>>
-  inline Optional<ObjectRefType> as() const;
-
- protected:
-  /*! \return return a mutable internal ptr, can be used by sub-classes. */
-  Object* get_mutable() const { return data_.get(); }
-  /*!
-   * \brief Internal helper function downcast a ref without check.
-   * \note Only used for internal dev purposes.
-   * \tparam T The target reference type.
-   * \return The casted result.
-   */
-  template <typename T>
-  static T DowncastNoCheck(ObjectRef ref) {
-    return T(std::move(ref.data_));
-  }
-  /*!
-   * \brief Clear the object ref data field without DecRef
-   *        after we successfully moved the field.
-   * \param ref The reference data.
-   */
-  static void FFIClearAfterMove(ObjectRef* ref) {
-    ffi::details::ObjectUnsafe::LegacyClearObjectPtrAfterMove(ref);
-  }
-  /*!
-   * \brief Internal helper function get data_ as ObjectPtr of ObjectType.
-   * \note only used for internal dev purpose.
-   * \tparam ObjectType The corresponding object type.
-   * \param ref The object reference
-   * \return the corresponding type.
-   */
-  template <typename ObjectType>
-  static ObjectPtr<ObjectType> GetDataPtr(const ObjectRef& ref) {
-    // return ObjectPtr<ObjectType>(ref.data_.data_);
-    return ffi::details::ObjectUnsafe::ObjectPtrFromObjectRef<ObjectType>(ref);
-  }
-
-  // friend classes.
-  friend struct ObjectPtrHash;
-  friend class TVMArgsSetter;
-  friend class ObjectInternal;
 };
 
 /*
@@ -232,5 +146,8 @@ class ObjectRef : public tvm::ffi::ObjectRef {
 #define TVM_REGISTER_OBJECT_TYPE(x)
 
 }  // namespace runtime
+
+using tvm::ffi::ObjectRef;
+using tvm::ffi::ObjectPtr;
 }  // namespace tvm
 #endif  // TVM_RUNTIME_OBJECT_H_

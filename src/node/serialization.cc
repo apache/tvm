@@ -424,7 +424,7 @@ class JSONAttrSetter : public AttrVisitor {
         container.push_back(ObjectRef(node_list_->at(index)));
       }
       Array<ObjectRef> array(container);
-      *node = runtime::ObjectInternal::MoveObjectPtr(&array);
+      *node = ffi::details::ObjectUnsafe::ObjectPtrFromObjectRef(std::move(array));
       return;
     }
     // handling Map
@@ -443,7 +443,7 @@ class JSONAttrSetter : public AttrVisitor {
         }
       }
       Map<ObjectRef, ObjectRef> map(container);
-      *node = runtime::ObjectInternal::MoveObjectPtr(&map);
+      *node = ffi::details::ObjectUnsafe::ObjectPtrFromObjectRef(std::move(map));
       return;
     }
     jnode_ = jnode;

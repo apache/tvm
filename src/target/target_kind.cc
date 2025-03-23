@@ -37,7 +37,9 @@ namespace tvm {
 
 // helper to get internal dev function in objectref.
 struct TargetKind2ObjectPtr : public ObjectRef {
-  static ObjectPtr<Object> Get(const TargetKind& kind) { return GetDataPtr<Object>(kind); }
+  static ObjectPtr<Object> Get(const TargetKind& kind) {
+    return ffi::details::ObjectUnsafe::ObjectPtrFromObjectRef<Object>(kind);
+  }
 };
 
 TVM_REGISTER_NODE_TYPE(TargetKindNode)

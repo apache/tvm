@@ -157,7 +157,7 @@ struct NDArray::Internal {
   // Implementation of API function
   static DLTensor* MoveToFFIHandle(NDArray arr) {
     DLTensor* handle = NDArray::FFIGetHandle(arr);
-    ObjectRef::FFIClearAfterMove(&arr);
+    ffi::details::ObjectUnsafe::LegacyClearObjectPtrAfterMove(&arr);
     return handle;
   }
   static void FFIDecRef(TVMArrayHandle tensor) { NDArray::FFIDecRef(tensor); }

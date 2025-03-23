@@ -640,6 +640,7 @@ int TVMFuncCreateFromCFunc(TVMPackedCFunc func, void* resource_handle, TVMPacked
       }
     });
     TVMValue val;
+    val.v_handle = nullptr;
     int type_code;
     MoveAnyToLegacyTVMValue(std::move(ret), &val, &type_code);
     *out = val.v_handle;

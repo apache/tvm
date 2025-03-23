@@ -621,16 +621,7 @@ class ObjectRef {
    * \param ref The reference data.
    */
   static void FFIClearAfterMove(ObjectRef* ref) { ref->data_.data_ = nullptr; }
-  /*!
-   * \brief Internal helper function get data_ as ObjectPtr of ObjectType.
-   * \note only used for internal dev purpose.
-   * \tparam ObjectType The corresponding object type.
-   * \return the corresponding type.
-   */
-  template <typename ObjectType>
-  static ObjectPtr<ObjectType> GetDataPtr(const ObjectRef& ref) {
-    return ObjectPtr<ObjectType>(ref.data_.data_);
-  }
+
   // friend classes.
   friend struct ObjectPtrHash;
   friend class TVMRetValue;
