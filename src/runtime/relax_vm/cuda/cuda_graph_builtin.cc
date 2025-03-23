@@ -25,6 +25,7 @@
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/relax_vm/vm.h>
+#include <tvm/runtime/container/array.h>
 
 #include "../../../support/utils.h"
 #include "../../cuda/cuda_common.h"
@@ -161,31 +162,27 @@ class CUDAGraphExtensionNode : public VMExtensionNode {
     // Set up arguments for the graph execution
     Array<ObjectRef> tuple_args = Downcast<Array<ObjectRef>>(args);
     int nargs = static_cast<int>(tuple_args.size());
-    std::vector<TVMValue> values(nargs);
-    std::vector<int> tcodes(nargs);
-    TVMArgsSetter setter(values.data(), tcodes.data());
+
+    std::vector<AnyView> packed_args(nargs);
     for (int i = 0; i < nargs; ++i) {
-      ObjectRef arg = tuple_args[i];
-      setter(i, arg);
+      packed_args[i] = tuple_args[i];
     }
 
     TVMRetValue capture_func_rv;
     // Run the function without CUDA graph. This is a warm up step to do necessary initialization
     // of the CUDA module such as loading module data, setting kernel attributes.
-    vm->InvokeClosurePacked(capture_func, TVMArgs(values.data(), tcodes.data(), nargs),
-                            &capture_func_rv);
+    vm->InvokeClosurePacked(capture_func, TVMArgs(packed_args.data(), nargs), &capture_func_rv);
 
     // Run the graph in capture mode
     cudaGraph_t graph;
 
     {
       CUDACaptureStream capture_stream(&graph);
-      vm->InvokeClosurePacked(capture_func, TVMArgs(values.data(), tcodes.data(), nargs),
-                              &capture_func_rv);
+      vm->InvokeClosurePacked(capture_func, TVMArgs(packed_args.data(), nargs), &capture_func_rv);
     }
 
     CUDAGraphCapturedState entry;
-    entry.states = capture_func_rv;
+    entry.states = capture_func_rv.operator ObjectRef();
     CUDA_CALL(cudaGraphInstantiate(&entry.exec, graph, NULL, NULL, 0));
     CUDA_CALL(cudaGraphDestroy(graph));
 
@@ -209,8 +206,8 @@ class CUDAGraphExtensionNode : public VMExtensionNode {
       return it->second;
     }
     TVMRetValue alloc_func_rv;
-    vm->InvokeClosurePacked(alloc_func, TVMArgs(nullptr, nullptr, 0), &alloc_func_rv);
-    ObjectRef alloc_result = alloc_func_rv;
+    vm->InvokeClosurePacked(alloc_func, TVMArgs(nullptr, 0), &alloc_func_rv);
+    ObjectRef alloc_result = alloc_func_rv.operator ObjectRef();
     alloc_cache_[entry_index] = alloc_result;
     return alloc_result;
   }
@@ -252,7 +249,7 @@ TVM_REGISTER_GLOBAL("vm.builtin.cuda_graph.run_or_capture")
       int64_t entry_index = args[3];
       Optional<ShapeTuple> shape_expr = NullOpt;
       if (args.size() == 5) {
-        shape_expr = args[4].AsObjectRef<ShapeTuple>();
+        shape_expr = args[4].operator ShapeTuple();
       }
       *rv = extension->RunOrCapture(vm, capture_func, func_args, entry_index, shape_expr);
     });

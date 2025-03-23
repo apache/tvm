@@ -76,12 +76,10 @@ class CublasJSONRuntime : public JSONRuntimeBase {
     for (size_t i = 0; i < static_cast<size_t>(args.size()); i++) {
       auto eid = i < input_var_eid_.size() ? input_var_eid_[i]
                                            : EntryID(outputs_[i - input_var_eid_.size()]);
-      ICHECK(args[i].type_code() == kTVMNDArrayHandle || args[i].type_code() == kTVMDLTensorHandle)
-          << "Expect NDArray or DLTensor as inputs";
 
       const DLTensor* arg;
-      if (args[i].IsObjectRef<NDArray>()) {
-        NDArray arr = args[i];
+      if (auto opt_nd = args[i].TryAs<NDArray>()) {
+        NDArray arr = opt_nd.value();
         arg = arr.operator->();
       } else {
         arg = args[i].operator DLTensor*();
