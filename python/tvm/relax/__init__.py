@@ -38,6 +38,7 @@ from .expr import (
     ShapeExpr,
     Tuple,
     TupleGetItem,
+    TupleWrapper,
     Function,
     ExternFunc,
     Call,
