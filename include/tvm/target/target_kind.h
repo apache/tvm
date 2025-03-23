@@ -351,8 +351,7 @@ inline TargetKindRegEntry& TargetKindRegEntry::set_default_keys(std::vector<Stri
 template <typename FLambda>
 inline TargetKindRegEntry& TargetKindRegEntry::set_attrs_preprocessor(FLambda f) {
   LOG(WARNING) << "set_attrs_preprocessor is deprecated please use set_target_parser instead";
-  using FType = typename tvm::runtime::detail::function_signature<FLambda>::FType;
-  kind_->preprocessor = tvm::runtime::TypedPackedFunc<FType>(std::move(f)).packed();
+  kind_->preprocessor = ffi::Function::FromUnpacked(std::move(f));
   return *this;
 }
 

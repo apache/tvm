@@ -31,6 +31,7 @@
 #include <tvm/runtime/ndarray.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/packed_func.h>
+#include <tvm/runtime/container/map.h>
 
 #include <string>
 #include <type_traits>
