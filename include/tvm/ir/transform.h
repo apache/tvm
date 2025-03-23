@@ -276,8 +276,8 @@ class PassContext : public ObjectRef {
     auto* reflection = ReflectionVTable::Global();
 
     auto legalization = [=](ObjectRef obj) -> ObjectRef {
-      if (obj->IsInstance<Map<String, ObjectRef>::ContainerType>()) {
-        return reflection->CreateObject(type_key, Downcast<Map<String, ObjectRef>>(obj));
+      if (obj->IsInstance<Map<String, Any>::ContainerType>()) {
+        return reflection->CreateObject(type_key, Downcast<Map<String, Any>>(obj));
       } else {
         // Backwards compatibility for config options defined prior to
         // https://github.com/apache/tvm/pull/16183.  This commit
