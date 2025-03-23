@@ -792,7 +792,7 @@ void TargetInternal::ConstructorDispatcher(TVMArgs args, TVMRetValue* rv) {
 ObjectPtr<Object> TargetInternal::FromString(const String& tag_or_config_or_target_str) {
   if (Optional<Target> target = TargetTag::Get(tag_or_config_or_target_str)) {
     Target value = target.value();
-    return runtime::ObjectInternal::MoveObjectPtr(&value);
+    return ffi::details::ObjectUnsafe::ObjectPtrFromObjectRef(std::move(value));
   }
   if (!tag_or_config_or_target_str.empty() && tag_or_config_or_target_str.data()[0] == '{') {
     return TargetInternal::FromConfigString(tag_or_config_or_target_str);

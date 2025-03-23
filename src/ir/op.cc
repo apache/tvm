@@ -159,16 +159,11 @@ TVM_REGISTER_GLOBAL("ir.RegisterOpLowerIntrinsic")
                                                                      plevel);
     });
 
-// helper to get internal dev function in objectref.
-struct Op2ObjectPtr : public ObjectRef {
-  static ObjectPtr<Object> Get(const Op& op) { return GetDataPtr<Object>(op); }
-};
-
 ObjectPtr<Object> CreateOp(const std::string& name) {
   // Hack use TVMRetValue as exchange
   auto op = Op::Get(name);
   ICHECK(op.defined()) << "Cannot find op \'" << name << '\'';
-  return Op2ObjectPtr::Get(op);
+  return ffi::details::ObjectUnsafe::ObjectPtrFromObjectRef<Object>(op);
 }
 
 TVM_REGISTER_NODE_TYPE(OpNode).set_creator(CreateOp).set_repr_bytes(

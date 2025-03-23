@@ -92,6 +92,7 @@ inline SubRef Downcast(BaseRef ref) {
   }
   return details::ObjectUnsafe::DowncastRefNoCheck<SubRef>(std::move(ref));
 }
+
 }  // namespace ffi
 }  // namespace tvm
 #endif  // TVM_FFI_CAST_H_

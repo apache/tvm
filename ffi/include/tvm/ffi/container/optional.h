@@ -297,6 +297,16 @@ struct TypeTraits<Optional<T>> : public TypeTraitsBase {
   }
 };
 
+template <typename ObjectRefType, typename>
+inline Optional<ObjectRefType> ObjectRef::as() const {
+  if (auto* ptr = this->as<typename ObjectRefType::ContainerType>()) {
+    return ObjectRefType(details::ObjectUnsafe::ObjectPtrFromUnowned<Object>(
+      const_cast<Object*>(static_cast<const Object*>(ptr))));
+  } else {
+    return std::nullopt;
+  }
+}
+
 }  // namespace ffi
 }  // namespace tvm
 #endif  // TVM_FFI_CONTAINER_OPTIONAL_H_

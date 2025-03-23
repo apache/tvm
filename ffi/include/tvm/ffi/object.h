@@ -415,6 +415,27 @@ class ObjectRef {
     }
   }
 
+  /*!
+   * \brief Try to downcast the ObjectRef to a
+   *    Optional<T> of the requested type.
+   *
+   *  The function will return a NullOpt if the cast failed.
+   *
+   *      if (Optional<Add> opt = node_ref.as<Add>()) {
+   *        // This is an add node
+   *      }
+   *
+   * \note While this method is declared in <tvm/ffi/object.h>,
+   * the implementation is in <tvm/ffi/container/optional.h> to
+   * prevent circular includes.  This additional include file is only
+   * required in compilation units that uses this method.
+   *
+   * \tparam ObjectRefType the target type, must be a subtype of ObjectRef
+   */
+  template <typename ObjectRefType,
+            typename = std::enable_if_t<std::is_base_of_v<ObjectRef, ObjectRefType>>>
+  inline Optional<ObjectRefType> as() const;
+
   /*! \brief type indicate the container type. */
   using ContainerType = Object;
   // Default type properties for the reference class.
@@ -588,6 +609,11 @@ class ObjectUnsafe {
   template <typename T>
   static TVM_FFI_INLINE ObjectPtr<T> ObjectPtrFromObjectRef(const ObjectRef& ref) {
     return tvm::ffi::ObjectPtr<T>(ref.data_.data_);
+  }
+
+  template <typename T>
+  static TVM_FFI_INLINE ObjectPtr<T> ObjectPtrFromObjectRef(ObjectRef&& ref) {
+    return tvm::ffi::ObjectPtr<T>(std::move(ref.data_.data_));
   }
 
   template <typename T>
