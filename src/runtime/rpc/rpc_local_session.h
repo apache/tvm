@@ -51,7 +51,7 @@ class LocalSession : public RPCSession {
 
   void CopyFromRemote(DLTensor* from, void* to_bytes, uint64_t nbytes) override;
 
-  void FreeHandle(void* handle, int type_code) override;
+  void FreeHandle(void* handle) override;
 
   DeviceAPI* GetDeviceAPI(Device dev, bool allow_missing = false) override;
 

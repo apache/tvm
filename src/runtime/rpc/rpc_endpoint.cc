@@ -947,8 +947,7 @@ void RPCGetGlobalFunc(RPCSession* handler, TVMArgs args, TVMRetValue* rv) {
 
 void RPCFreeHandle(RPCSession* handler, TVMArgs args, TVMRetValue* rv) {
   void* handle = args[0];
-  int type_code = args[1];
-  handler->FreeHandle(handle, type_code);
+  handler->FreeHandle(handle);
 }
 
 void RPCDevSetDevice(RPCSession* handler, TVMArgs args, TVMRetValue* rv) {
@@ -1158,8 +1157,8 @@ class RPCClientSession : public RPCSession, public DeviceAPI {
     }
   }
 
-  void FreeHandle(void* handle, int type_code) final {
-    endpoint_->SysCallRemote(RPCCode::kFreeHandle, handle, type_code);
+  void FreeHandle(void* handle) final {
+    endpoint_->SysCallRemote(RPCCode::kFreeHandle, handle);
   }
 
   void SetDevice(Device dev) final { endpoint_->SysCallRemote(RPCCode::kDevSetDevice, dev); }

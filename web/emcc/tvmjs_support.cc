@@ -128,15 +128,15 @@ class AsyncLocalSession : public LocalSession {
     }
   }
 
-  void FreeHandle(void* handle, int type_code) final {
-    if (type_code == kTVMPackedFuncHandle) {
+  void FreeHandle(void* handle) final {
+    {
       auto it = async_func_set_.find(handle);
       if (it != async_func_set_.end()) {
         async_func_set_.erase(it);
       }
     }
     if (handle != get_time_eval_placeholder_.get()) {
-      LocalSession::FreeHandle(handle, type_code);
+      LocalSession::FreeHandle(handle);
     }
   }
 

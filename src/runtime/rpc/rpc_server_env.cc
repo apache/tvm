@@ -45,11 +45,8 @@ TVM_REGISTER_GLOBAL("tvm.rpc.server.download").set_body([](TVMArgs args, TVMRetV
   std::string file_name = RPCGetPath(args[0]);
   std::string data;
   LoadBinaryFromFile(file_name, &data);
-  TVMByteArray arr;
-  arr.data = data.c_str();
-  arr.size = data.length();
-  LOG(INFO) << "Download " << file_name << "... nbytes=" << arr.size;
-  *rv = arr;
+  LOG(INFO) << "Download " << file_name << "... nbytes=" << data.size();
+  *rv = ffi::Bytes(data);
 });
 
 TVM_REGISTER_GLOBAL("tvm.rpc.server.remove").set_body([](TVMArgs args, TVMRetValue* rv) {
