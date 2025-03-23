@@ -121,6 +121,21 @@ TVM_FFI_INLINE std::optional<AnyView> TryAs<AnyView>(AnyView arg) {
   return arg;
 }
 
+template <typename T>
+TVM_FFI_INLINE std::string GetMismatchTypeInfo(const TVMFFIAny* source) {
+  return TypeTraits<T>::GetMismatchTypeInfo(source);
+}
+
+template <>
+TVM_FFI_INLINE std::string GetMismatchTypeInfo<Any>(const TVMFFIAny* source) {
+  return TypeIndex2TypeKey(source->type_index);
+}
+
+template <>
+TVM_FFI_INLINE std::string GetMismatchTypeInfo<AnyView>(const TVMFFIAny* source) {
+  return TypeIndex2TypeKey(source->type_index);
+}
+
 /*!
  * \brief Auxilary argument value with context for error reporting
  */
@@ -146,11 +161,12 @@ class MovableArgValueWithContext {
     if (opt.has_value()) {
       return std::move(*opt);
     }
+    TVMFFIAny any_data = args_[arg_index_].CopyToTVMFFIAny();
     TVM_FFI_THROW(TypeError) << "Mismatched type on argument #" << arg_index_ << " when calling: `"
                              << (optional_name_ == nullptr ? "" : *optional_name_)
                              << (f_sig_ == nullptr ? "" : (*f_sig_)()) << "`. Expected `"
-                             << Type2Str<Type>::v() << "` but got `"
-                             << TypeIndex2TypeKey(args_[arg_index_].type_index()) << "`";
+                             << Type2Str<TypeWithoutCR>::v() << "` but got `"
+                             << GetMismatchTypeInfo<TypeWithoutCR>(&any_data) << '`';
   }
 
  private:

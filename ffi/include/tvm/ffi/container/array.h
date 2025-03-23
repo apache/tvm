@@ -295,8 +295,7 @@ inline constexpr bool is_valid_iterator_v = is_valid_iterator<T, IterType>::valu
  * operator[] only provides const access, use Set to mutate the content.
  * \tparam T The content Value type, must be compatible with tvm::ffi::Any
  */
-template <typename T,
-          typename = typename std::enable_if_t<std::is_same_v<T, Any> || TypeTraits<T>::enabled>>
+template <typename T, typename = typename std::enable_if_t<details::type_compactible_with_any_v<T>>>
 class Array : public ObjectRef {
  public:
   using value_type = T;

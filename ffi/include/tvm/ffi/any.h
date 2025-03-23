@@ -343,6 +343,10 @@ struct AnyUnsafe : public ObjectUnsafe {
     return TypeTraits<T>::CheckAnyView(&(ref.data_));
   }
 
+  static TVM_FFI_INLINE Object* GetObjectPtrFromAny(const Any& ref) {
+    return reinterpret_cast<Object*>(ref.data_.v_obj);
+  }
+
   template <typename T>
   static TVM_FFI_INLINE std::string GetMismatchTypeInfo(const Any& ref) {
     return TypeTraits<T>::GetMismatchTypeInfo(&(ref.data_));

@@ -301,7 +301,7 @@ template <typename ObjectRefType, typename>
 inline Optional<ObjectRefType> ObjectRef::as() const {
   if (auto* ptr = this->as<typename ObjectRefType::ContainerType>()) {
     return ObjectRefType(details::ObjectUnsafe::ObjectPtrFromUnowned<Object>(
-      const_cast<Object*>(static_cast<const Object*>(ptr))));
+        const_cast<Object*>(static_cast<const Object*>(ptr))));
   } else {
     return std::nullopt;
   }
