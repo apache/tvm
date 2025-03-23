@@ -34,5 +34,9 @@ using tvm::ffi::Optional;
 constexpr inline auto NullOpt = std::nullopt;
 
 }  // namespace runtime
+
+// expose class to root namespace
+using tvm::ffi::Optional;
+constexpr inline auto NullOpt = std::nullopt;
 }  // namespace tvm
 #endif  // TVM_RUNTIME_CONTAINER_OPTIONAL_H_

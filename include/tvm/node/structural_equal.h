@@ -257,7 +257,7 @@ class SEqualReducer {
    * \param rhs The right operand.
    * \return the immediate check result.
    */
-  bool operator()(const ObjectRef& lhs, const ObjectRef& rhs) const;
+  bool operator()(const ffi::ObjectRef& lhs, const ffi::ObjectRef& rhs) const;
 
   /*!
    * \brief Reduce condition to comparison of two objects.

@@ -133,7 +133,6 @@ class PrimExpr : public BaseExpr {
 
  private:
   // Internal function for conversion.
-  friend struct runtime::PackedFuncValueConverter<PrimExpr>;
   TVM_DLL static PrimExpr FromObject_(ObjectRef ref);
 };
 
@@ -729,129 +728,6 @@ inline const TTypeNode* RelaxExprNode::type_as() const {
   return node;
 }
 
-}  // namespace tvm
-
-namespace tvm {
-namespace runtime {
-
-// Automatic conversion into IntImm, Integer, and Bool, when called
-// through the FFI.  Automatic conversions into PrimExpr are
-// registered in "tvm/tir/expr.h", as it includes conversions to the
-// TIR-only StringImm.
-//
-// While the FFI only requires the From() method, these
-// implementations also define a TryFrom() method to avoid duplicate
-// logic in the PrimExpr conversion.
-
-template <>
-struct PackedFuncValueConverter<tvm::IntImm> {
-  template <typename PODSubclass>
-  static Optional<tvm::IntImm> TryFrom(const PODSubclass& val) {
-    if (auto opt = val.TryAsInt()) {
-      int64_t value = opt.value();
-      auto dtype =
-          (value > std::numeric_limits<int>::max() || value < std::numeric_limits<int>::min())
-              ? DataType::Int(64)
-              : DataType::Int(32);
-      return IntImm(dtype, value);
-    } else if (auto opt = val.TryAsBool()) {
-      return IntImm(DataType::Int(32), opt.value());
-    } else {
-      return NullOpt;
-    }
-  }
-
-  template <typename PODSubclass>
-  static tvm::IntImm From(const PODSubclass& val) {
-    if (auto opt = TryFrom(val)) {
-      return opt.value();
-    } else {
-      return val.template AsObjectRef<tvm::IntImm>();
-    }
-  }
-};
-
-template <>
-struct PackedFuncValueConverter<tvm::Integer> {
-  template <typename PODSubclass>
-  static tvm::Integer From(const PODSubclass& val) {
-    if (auto opt = PackedFuncValueConverter<tvm::IntImm>::TryFrom(val)) {
-      return Integer(opt.value());
-    } else {
-      return val.template AsObjectRef<tvm::Integer>();
-    }
-  }
-};
-
-template <>
-struct PackedFuncValueConverter<tvm::Bool> {
-  template <typename PODSubclass>
-  static Optional<tvm::Bool> TryFrom(const PODSubclass& val) {
-    if (auto opt = val.TryAsBool()) {
-      return tvm::Bool(opt.value());
-    } else if (auto opt = val.TryAsInt()) {
-      int value = opt.value();
-      ICHECK(value == 0 || value == 1)
-          << "ValueError: boolean value can only be 0 or 1, but get " << value;
-      return tvm::Bool(static_cast<bool>(value));
-    } else {
-      return NullOpt;
-    }
-  }
-
-  template <typename PODSubclass>
-  static tvm::Bool From(const PODSubclass& val) {
-    if (auto opt = TryFrom(val)) {
-      return opt.value();
-    } else {
-      return val.template AsObjectRef<tvm::Bool>();
-    }
-  }
-};
-
-template <>
-struct PackedFuncValueConverter<tvm::FloatImm> {
-  static Optional<tvm::FloatImm> TryFrom(const TVMPODValue_& val) {
-    if (auto opt = val.TryAsFloat()) {
-      return FloatImm(runtime::DataType::Float(32), opt.value());
-    } else {
-      return NullOpt;
-    }
-  }
-
-  template <typename PODSubclass>
-  static tvm::FloatImm From(const PODSubclass& val) {
-    if (auto opt = TryFrom(val)) {
-      return opt.value();
-    } else {
-      return val.template AsObjectRef<tvm::FloatImm>();
-    }
-  }
-};
-
-/* \brief Backwards compatibility wrapper for IntImm arguments
- *
- * In previous versions of TVM, IntImm was the default FFI type for
- * integer arguments, instead of runtime::Int.  For backwards
- * compatibility where the callee has been updated to expected a
- * runtime::Int, the caller has not been updated to provide a
- * runtime::Int, and the auto-unboxing of
- * runtime::Int does not apply (e.g. making an `Array<runtime::Int>`),
- * allow the IntImm to be generated.
- */
-template <>
-struct PackedFuncValueConverter<runtime::Int> {
-  template <typename PODSubclass>
-  static runtime::Int From(const PODSubclass& val) {
-    if (val.template IsObjectRef<tvm::IntImm>()) {
-      return runtime::Int(val.template AsObjectRef<tvm::IntImm>()->value);
-    } else {
-      return val.template AsObjectRef<runtime::Int>();
-    }
-  }
-};
-
-}  // namespace runtime
 }  // namespace tvm
 
 /* \brief Allow tvm.GLobalVar as key in STL tables

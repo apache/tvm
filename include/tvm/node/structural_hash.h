@@ -76,7 +76,7 @@ class BaseValueHash {
     return Reinterpret<int64_t, uint64_t>(static_cast<int64_t>(key));
   }
   uint64_t operator()(const std::string& key) const {
-    return runtime::String::StableHashBytes(key.data(), key.length());
+    return tvm::ffi::details::StableHashBytes(key.data(), key.length());
   }
 };
 
@@ -100,7 +100,7 @@ class StructuralHash : public BaseValueHash {
    * \param key The left operand.
    * \return The hash value.
    */
-  TVM_DLL uint64_t operator()(const ObjectRef& key) const;
+  TVM_DLL uint64_t operator()(const ffi::ObjectRef& key) const;
 };
 
 /*!

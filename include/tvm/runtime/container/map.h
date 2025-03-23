@@ -32,5 +32,9 @@ namespace runtime {
 using tvm::ffi::Map;
 
 }  // namespace runtime
+
+// expose the functions to the root namespace.
+using tvm::ffi::Map;
+using tvm::ffi::MapNode;
 }  // namespace tvm
 #endif  // TVM_RUNTIME_CONTAINER_MAP_H_
