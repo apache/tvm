@@ -22,10 +22,10 @@
  * \brief The CUDA graph related builtin functions for Relax virtual machine.
  */
 
+#include <tvm/runtime/container/array.h>
 #include <tvm/runtime/packed_func.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/runtime/relax_vm/vm.h>
-#include <tvm/runtime/container/array.h>
 
 #include "../../../support/utils.h"
 #include "../../cuda/cuda_common.h"

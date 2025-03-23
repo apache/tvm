@@ -16,11 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include <tvm/ffi/container/map.h>
+#include <tvm/ffi/string.h>
 #include <tvm/runtime/object.h>
 #include <tvm/runtime/registry.h>
-#include <tvm/ffi/string.h>
-#include <tvm/ffi/container/map.h>
-
 
 #ifndef TVM_INFO_GIT_COMMIT_HASH
 #define TVM_INFO_GIT_COMMIT_HASH "NOT-FOUND"

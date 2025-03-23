@@ -155,7 +155,8 @@ class SocketSessionObj : public BcastSessionObj {
       return;
     }
     std::vector<AnyView> packed_args(args.size() + 2);
-    ffi::PackedArgs::Fill(packed_args.data(), static_cast<int>(DiscoSocketAction::kSend), worker_id);
+    ffi::PackedArgs::Fill(packed_args.data(), static_cast<int>(DiscoSocketAction::kSend),
+                          worker_id);
     std::copy(args.data(), args.data() + args.size(), packed_args.begin() + 2);
     remote_channels_[node_id - 1]->Send(ffi::PackedArgs(packed_args.data(), packed_args.size()));
   }
