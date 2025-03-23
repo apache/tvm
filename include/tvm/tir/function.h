@@ -25,12 +25,12 @@
 #define TVM_TIR_FUNCTION_H_
 
 #include <tvm/ir/function.h>
+#include <tvm/runtime/container/map.h>
+#include <tvm/runtime/container/variant.h>
 #include <tvm/runtime/ndarray.h>
 #include <tvm/tir/buffer.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt.h>
-#include <tvm/runtime/container/map.h>
-#include <tvm/runtime/container/variant.h>
 
 #include <string>
 
