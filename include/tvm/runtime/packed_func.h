@@ -444,5 +444,9 @@ struct ModuleVTableEntryHelper<void (T::*)(Args...)> {
     });                                                                \
   }
 }  // namespace runtime
+
+using ffi::Any;
+using ffi::AnyView;
+
 }  // namespace tvm
 #endif  // TVM_RUNTIME_PACKED_FUNC_H_
