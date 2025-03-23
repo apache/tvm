@@ -93,7 +93,7 @@ runtime::TVMRetValue ReflectionVTable::GetAttr(Object* self, const String& field
     success = true;
   } else if (!self->IsInstance<DictAttrsNode>()) {
     VisitAttrs(self, &getter);
-    success = getter.found_ref_object || ret.type_code() != kTVMNullptr;
+    success = getter.found_ref_object || ret != nullptr;
   } else {
     // specially handle dict attr
     DictAttrsNode* dnode = static_cast<DictAttrsNode*>(self);
@@ -225,34 +225,30 @@ ObjectRef ReflectionVTable::CreateObject(const std::string& type_key, const TVMA
 }
 
 ObjectRef ReflectionVTable::CreateObject(const std::string& type_key,
-                                         const Map<String, ObjectRef>& kwargs) {
+                                         const Map<String, Any>& kwargs) {
   // Redirect to the TVMArgs version
   // It is not the most efficient way, but CreateObject is not meant to be used
   // in a fast code-path and is mainly reserved as a flexible API for frontends.
-  std::vector<TVMValue> values(kwargs.size() * 2);
-  std::vector<int32_t> tcodes(kwargs.size() * 2);
-  runtime::TVMArgsSetter setter(values.data(), tcodes.data());
+  std::vector<AnyView> packed_args;
   int index = 0;
 
   for (const auto& kv : *static_cast<const MapNode*>(kwargs.get())) {
-    setter(index, Downcast<String>(kv.first).c_str());
-    setter(index + 1, kv.second);
+    packed_args[index] = kv.first.operator String().c_str();
+    packed_args[index + 1] = kv.second;
     index += 2;
   }
 
-  return CreateObject(type_key, runtime::TVMArgs(values.data(), tcodes.data(), kwargs.size() * 2));
+  return CreateObject(type_key, ffi::PackedArgs(packed_args.data(), packed_args.size()));
 }
 
 // Expose to FFI APIs.
 void NodeGetAttr(TVMArgs args, TVMRetValue* ret) {
-  ICHECK_EQ(args[0].type_code(), kTVMObjectHandle);
-  Object* self = static_cast<Object*>(args[0].value().v_handle);
+  Object* self = const_cast<Object*>(args[0].operator const Object*());
   *ret = ReflectionVTable::Global()->GetAttr(self, args[1]);
 }
 
 void NodeListAttrNames(TVMArgs args, TVMRetValue* ret) {
-  ICHECK_EQ(args[0].type_code(), kTVMObjectHandle);
-  Object* self = static_cast<Object*>(args[0].value().v_handle);
+  Object* self = const_cast<Object*>(args[0].operator const Object*());
 
   auto names =
       std::make_shared<std::vector<std::string>>(ReflectionVTable::Global()->ListAttrNames(self));
@@ -272,9 +268,7 @@ void NodeListAttrNames(TVMArgs args, TVMRetValue* ret) {
 //   key1, value1, ..., key_n, value_n
 void MakeNode(const TVMArgs& args, TVMRetValue* rv) {
   std::string type_key = args[0];
-  std::string empty_str;
-  TVMArgs kwargs(args.values + 1, args.type_codes + 1, args.size() - 1);
-  *rv = ReflectionVTable::Global()->CreateObject(type_key, kwargs);
+  *rv = ReflectionVTable::Global()->CreateObject(type_key, args.Slice(1));
 }
 
 TVM_REGISTER_GLOBAL("node.NodeGetAttr").set_body(NodeGetAttr);

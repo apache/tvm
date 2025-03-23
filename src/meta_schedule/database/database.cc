@@ -149,7 +149,7 @@ TuningRecord TuningRecord::FromJSON(const ObjectRef& json_obj, const Workload& w
       const ArrayNode* json_args_info = json_array->at(3).operator const ArrayNode*();
       Array<ArgInfo> info;
       info.reserve(json_args_info->size());
-      for (const ObjectRef& json_arg_info : *json_args_info) {
+      for (Any json_arg_info : *json_args_info) {
         info.push_back(ArgInfo::FromJSON(json_arg_info));
       }
       args_info = info;

@@ -161,7 +161,7 @@ class ReflectionVTable {
    * \param kwargs The field arguments.
    * \return The created object.
    */
-  TVM_DLL ObjectRef CreateObject(const std::string& type_key, const Map<String, ObjectRef>& kwargs);
+  TVM_DLL ObjectRef CreateObject(const std::string& type_key, const Map<String, Any>& kwargs);
   /*!
    * \brief Get an field object by the attr name.
    * \param self The pointer to the object.
