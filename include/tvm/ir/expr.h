@@ -130,10 +130,6 @@ class PrimExpr : public BaseExpr {
   DataType dtype() const { return static_cast<const PrimExprNode*>(get())->dtype; }
 
   TVM_DEFINE_OBJECT_REF_METHODS(PrimExpr, BaseExpr, PrimExprNode);
-
- private:
-  // Internal function for conversion.
-  TVM_DLL static PrimExpr FromObject_(ObjectRef ref);
 };
 
 /*!

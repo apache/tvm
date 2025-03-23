@@ -36,42 +36,6 @@ PrimExpr::PrimExpr(int32_t value) : PrimExpr(IntImm(DataType::Int(32), value)) {
 
 PrimExpr::PrimExpr(float value) : PrimExpr(FloatImm(DataType::Float(32), value)) {}
 
-PrimExpr PrimExpr::FromObject_(ObjectRef ref) {
-  using runtime::ObjectTypeChecker;
-  if (const auto* ptr = ref.as<tir::IterVarNode>()) {
-    return ptr->var;
-  }
-  if (auto opt = ref.as<te::Tensor>()) {
-    return opt.value()();
-  }
-  if (auto opt = ref.as<runtime::String>()) {
-    return tir::StringImm(opt.value());
-  }
-  if (auto opt = ref.as<runtime::Bool>()) {
-    return Bool(opt.value());
-  }
-  if (auto opt = ref.as<runtime::Int>()) {
-    return Integer(opt.value());
-  }
-  if (const auto* buffer_region = ref.as<tir::BufferRegionNode>()) {
-    Array<PrimExpr> indices;
-    indices.reserve(buffer_region->region.size());
-    for (const Range& r : buffer_region->region) {
-      if (tvm::tir::is_one(r->extent)) {
-        indices.push_back(r->min);
-      } else if (r->extent.as<IntImmNode>()) {
-        indices.push_back(tir::Ramp(r->min, tvm::tir::make_const(r->min->dtype, 1), r->extent));
-      } else {
-        LOG(FATAL) << "ValueError: Cannot convert to BufferLoad: " << ref;
-      }
-    }
-    return tir::BufferLoad(buffer_region->buffer, indices);
-  }
-  Optional<String> actual_type = ObjectTypeChecker<PrimExpr>::CheckAndGetMismatch(ref.get());
-  ICHECK(!actual_type.defined()) << "Expected type " << ObjectTypeChecker<PrimExpr>::TypeName()
-                                 << " but got " << actual_type.value();
-  return Downcast<PrimExpr>(ref);
-}
 
 IntImm::IntImm(DataType dtype, int64_t value, Span span) {
   ICHECK(dtype.is_scalar()) << "ValueError: IntImm can only take scalar, but " << dtype
