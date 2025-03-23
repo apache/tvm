@@ -65,7 +65,7 @@ class OpenCLWrappedFunc {
     // setup arguments.
     for (cl_uint i = 0; i < arg_size_.size(); ++i) {
       void* arg = nullptr;
-      if (args.type_codes[i] == DLDataTypeCode::kDLOpaqueHandle) {
+      if (args[i].TryAs<void*>()) {
         arg = static_cast<cl::BufferDescriptor*>(void_args[i])->buffer;
       } else {
         arg = void_args[i];

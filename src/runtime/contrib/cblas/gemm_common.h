@@ -97,8 +97,8 @@ inline void CallGemm(TVMArgs args, TVMRetValue* ret, TGemmOp op) {
 
   ICHECK(TypeMatch(B->dtype, kDLFloat, bit_depth));
   ICHECK(TypeMatch(C->dtype, kDLFloat, bit_depth));
-  double alpha = args.size() > 5 ? args[5] : 1.0;
-  double beta = args.size() > 6 ? args[6] : 0.0;
+  double alpha = args.size() > 5 ? args[5].operator double() : 1.0;
+  double beta = args.size() > 6 ? args[6].operator double() : 0.0;
   op(transb, transa, ColumnCount(B, transb), RowCount(A, transa), ColumnCount(A, transa),
      static_cast<typename TGemmOp::TDatatype>(alpha),
      reinterpret_cast<typename TGemmOp::TDatatype*>(static_cast<char*>(B->data) + B->byte_offset),
@@ -145,8 +145,8 @@ inline void CallU8S8S32Gemm(TVMArgs args, TVMRetValue* ret, TGemmOp op) {
   ICHECK(TypeMatch(A->dtype, kDLUInt, 8));
   ICHECK(TypeMatch(B->dtype, kDLInt, 8));
   ICHECK(TypeMatch(C->dtype, kDLInt, 32));
-  double alpha = args.size() > 5 ? args[5] : 1.0;
-  double beta = args.size() > 6 ? args[6] : 0.0;
+  double alpha = args.size() > 5 ? args[5].operator double() : 1.0;
+  double beta = args.size() > 6 ? args[6].operator double() : 0.0;
   op(transb, transa, ColumnCount(B, transb), RowCount(A, transa), ColumnCount(A, transa),
      static_cast<float>(alpha),
      reinterpret_cast<void*>(static_cast<char*>(B->data) + B->byte_offset), ColumnStride(B),
@@ -209,8 +209,8 @@ inline void CallBatchGemm(TVMArgs args, TVMRetValue* ret, TBatchGemmOp op) {
   ICHECK(TypeMatch(B->dtype, kDLFloat, bit_depth));
   ICHECK(TypeMatch(C->dtype, kDLFloat, bit_depth));
 
-  double alpha = args.size() > 5 ? args[5] : 1.0;
-  double beta = args.size() > 6 ? args[6] : 0.0;
+  double alpha = args.size() > 5 ? args[5].operator double() : 1.0;
+  double beta = args.size() > 6 ? args[6].operator double() : 0.0;
 
   int A_stride = A->shape[1] * A->shape[2];
   int B_stride = B->shape[1] * B->shape[2];

@@ -337,8 +337,8 @@ inline void CallLtIgemm(TVMArgs args, TVMRetValue* ret, cublasLtHandle_t hdl, cu
   ICHECK(TypeMatch(C->dtype, kDLInt, 32));
 
   ICHECK(CheckMixPrecisionType(A->dtype, C->dtype)) << "Unsupported data type";
-  int32_t alpha = args.size() > 5 ? args[5] : 1;
-  int32_t beta = args.size() > 6 ? args[6] : 0;
+  int32_t alpha = args.size() > 5 ? args[5].operator int32_t() : 1;
+  int32_t beta = args.size() > 6 ? args[6].operator int32_t() : 0;
   cublasLtMatrixLayout_t Adesc = nullptr, Bdesc = nullptr, Cdesc = nullptr;
   auto A_data = reinterpret_cast<void*>(static_cast<char*>(A->data) + A->byte_offset);
   auto B_data = reinterpret_cast<void*>(static_cast<char*>(B->data) + B->byte_offset);
@@ -405,8 +405,8 @@ inline void CallGemmEx(TVMArgs args, TVMRetValue* ret, cublasHandle_t hdl) {
       << "leading dimension must divide 4 for int8 gemm";
   ICHECK(!TypeMatch(B->dtype, kDLInt, 8) || ColumnStride(B) % 4 == 0)
       << "leading dimension must divide 4 for int8 gemm";
-  double alpha = args.size() > 5 ? args[5] : 1.0;
-  double beta = args.size() > 6 ? args[6] : 0.0;
+  double alpha = args.size() > 5 ? args[5].operator double() : 1.0;
+  double beta = args.size() > 6 ? args[6].operator double() : 0.0;
 
   cudaDataType_t cuda_in_type = GetCudaDataType(A->dtype);
   cudaDataType_t cuda_out_type = GetCudaDataType(C->dtype);
@@ -464,8 +464,8 @@ inline void CallBatchGemmEx(TVMArgs args, TVMRetValue* ret, cublasHandle_t hdl) 
       << "leading dimension must divide 4 for int8 gemm";
   ICHECK(!TypeMatch(B->dtype, kDLInt, 8) || ColumnStride3D(B) % 4 == 0)
       << "leading dimension must divide 4 for int8 gemm";
-  double alpha = args.size() > 5 ? args[5] : 1.0;
-  double beta = args.size() > 6 ? args[6] : 0.0;
+  double alpha = args.size() > 5 ? args[5].operator double() : 1.0;
+  double beta = args.size() > 6 ? args[6].operator double() : 0.0;
 
   int A_stride = A->shape[1] * A->shape[2];
   int B_stride = B->shape[1] * B->shape[2];
