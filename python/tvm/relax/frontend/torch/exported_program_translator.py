@@ -69,6 +69,9 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         print("eps", node.args[7]) # TODO that's eps !!!!!
         print("node.args[8]", node.args[8]) # TODO remove
 
+        if track_running_stats:
+            training = True
+
         # TODO restore
         inside = relax.op.nn.batch_norm(
                 data=x,
