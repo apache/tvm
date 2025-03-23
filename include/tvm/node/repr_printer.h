@@ -91,7 +91,7 @@ TVM_DLL void Dump(const runtime::Object* node);
 }  // namespace tvm
 
 namespace tvm {
-namespace runtime {
+namespace ffi {
 // default print function for all objects
 // provide in the runtime namespace as this is where objectref originally comes from.
 inline std::ostream& operator<<(std::ostream& os, const ObjectRef& n) {  // NOLINT(*)
@@ -105,6 +105,6 @@ inline std::string AsLegacyRepr(const ObjectRef& n) {
   return os.str();
 }
 }  // namespace runtime
-using runtime::AsLegacyRepr;
+using ffi::AsLegacyRepr;
 }  // namespace tvm
 #endif  // TVM_NODE_REPR_PRINTER_H_

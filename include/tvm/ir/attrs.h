@@ -49,6 +49,7 @@
 #include <tvm/node/structural_equal.h>
 #include <tvm/node/structural_hash.h>
 #include <tvm/runtime/packed_func.h>
+#include <tvm/runtime/container/map.h>
 
 #include <functional>
 #include <string>
@@ -609,14 +610,14 @@ struct AttrInitEntry {
 // Template function to allow smart conversion
 // from Expr types into the constants.
 template <typename T>
-inline void SetValue(T* ptr, const TVMArgValue& val) {
+inline void SetValue(T* ptr, const ffi::AnyView& val) {
   *ptr = val.operator T();
 }
 
 template <typename T>
-inline void SetIntValue(T* ptr, const TVMArgValue& val) {
-  if (val.type_code() == kDLInt) {
-    *ptr = static_cast<T>(val.value().v_int64);
+inline void SetIntValue(T* ptr, const ffi::AnyView& val) {
+  if (auto opt_int = val.TryAs<int64_t>()) {
+    *ptr = static_cast<T>(opt_int.value());
   } else {
     IntImm expr = val;
     *ptr = static_cast<T>(expr->value);
@@ -625,23 +626,23 @@ inline void SetIntValue(T* ptr, const TVMArgValue& val) {
 
 // Workaround for GCC8.1 / GCC8.2
 template <>
-inline void SetValue<DataType>(DataType* ptr, const TVMArgValue& val) {
-  *ptr = val.operator DataType();
+inline void SetValue<DataType>(DataType* ptr, const ffi::AnyView& val) {
+  *ptr = DataType(val.operator DLDataType());
 }
 
 template <>
-inline void SetValue<std::string>(std::string* ptr, const TVMArgValue& val) {
-  if (String::CanConvertFrom(val)) {
-    *ptr = val.operator std::string();
+inline void SetValue<std::string>(std::string* ptr, const ffi::AnyView& val) {
+  if (auto opt_str = val.TryAs<std::string>()) {
+    *ptr = opt_str.value();
   } else {
     LOG(FATAL) << "Expect str";
   }
 }
 
 template <>
-inline void SetValue<double>(double* ptr, const TVMArgValue& val) {
-  if (val.type_code() == kDLFloat || val.type_code() == kDLInt) {
-    *ptr = val.operator double();
+inline void SetValue<double>(double* ptr, const ffi::AnyView& val) {
+  if (auto opt_double = val.TryAs<double>()) {
+    *ptr = opt_double.value();
   } else {
     ObjectRef expr = val;
     ICHECK(expr.defined());
@@ -655,19 +656,19 @@ inline void SetValue<double>(double* ptr, const TVMArgValue& val) {
   }
 }
 template <>
-inline void SetValue<int>(int* ptr, const TVMArgValue& val) {
+inline void SetValue<int>(int* ptr, const ffi::AnyView& val) {
   SetIntValue(ptr, val);
 }
 template <>
-inline void SetValue<int64_t>(int64_t* ptr, const TVMArgValue& val) {
+inline void SetValue<int64_t>(int64_t* ptr, const ffi::AnyView& val) {
   SetIntValue(ptr, val);
 }
 template <>
-inline void SetValue<uint64_t>(uint64_t* ptr, const TVMArgValue& val) {
+inline void SetValue<uint64_t>(uint64_t* ptr, const ffi::AnyView& val) {
   SetIntValue(ptr, val);
 }
 template <>
-inline void SetValue<bool>(bool* ptr, const TVMArgValue& val) {
+inline void SetValue<bool>(bool* ptr, const ffi::AnyView& val) {
   SetIntValue(ptr, val);
 }
 
@@ -683,7 +684,7 @@ class AttrInitVisitor {
 
   template <typename T>
   AttrInitEntry<T> operator()(const char* key, T* value) {
-    TVMArgValue val;
+    ffi::AnyView val;
     AttrInitEntry<T> opt;
     opt.type_key_ = type_key_;
     opt.key_ = key;
@@ -886,10 +887,9 @@ class AttrsNode : public BaseAttrsNode {
     // applies two strategies to lookup
     if (args.size() < kLinearSearchBound) {
       // linear search.
-      auto ffind = [&args](const char* key, runtime::TVMArgValue* val) {
+      auto ffind = [&args](const char* key, ffi::AnyView* val) {
         for (int i = 0; i < args.size(); i += 2) {
-          ICHECK_EQ(args.type_codes[i], kTVMStr);
-          if (!std::strcmp(key, args.values[i].v_str)) {
+          if (!std::strcmp(key, args[i].operator const char*())) {
             *val = args[i + 1];
             return true;
           }
@@ -903,10 +903,9 @@ class AttrsNode : public BaseAttrsNode {
       // construct a map then do lookup.
       std::unordered_map<std::string, runtime::TVMArgValue> kwargs;
       for (int i = 0; i < args.size(); i += 2) {
-        ICHECK_EQ(args.type_codes[i], kTVMStr);
         kwargs[args[i].operator std::string()] = args[i + 1];
       }
-      auto ffind = [&kwargs](const char* key, runtime::TVMArgValue* val) {
+      auto ffind = [&kwargs](const char* key, ffi::AnyView* val) {
         auto it = kwargs.find(key);
         if (it != kwargs.end()) {
           *val = it->second;
