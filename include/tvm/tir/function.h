@@ -29,6 +29,8 @@
 #include <tvm/tir/buffer.h>
 #include <tvm/tir/expr.h>
 #include <tvm/tir/stmt.h>
+#include <tvm/runtime/container/map.h>
+#include <tvm/runtime/container/variant.h>
 
 #include <string>
 

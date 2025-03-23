@@ -202,7 +202,7 @@ class Attrs : public ObjectRef {
 class DictAttrsNode : public BaseAttrsNode {
  public:
   /*! \brief internal attrs map */
-  Map<String, ObjectRef> dict;
+  Map<String, ffi::Any> dict;
 
   bool SEqualReduce(const DictAttrsNode* other, SEqualReducer equal) const {
     return equal(dict, other->dict);
@@ -231,7 +231,7 @@ class DictAttrs : public Attrs {
    * \brief Consruct a Attrs backed by DictAttrsNode.
    * \param dict The attributes.
    */
-  TVM_DLL explicit DictAttrs(Map<String, ObjectRef> dict = {});
+  TVM_DLL explicit DictAttrs(Map<String, Any> dict = {});
 
   // Utils for accessing attributes
   // This needs to be on DictAttrs, not DictAttrsNode because we return the default
