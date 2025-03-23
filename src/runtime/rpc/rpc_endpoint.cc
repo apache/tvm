@@ -174,8 +174,8 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
       if (auto opt_obj = args[i].TryAs<ObjectRef>()) {
         ObjectRef obj = opt_obj.value();
         if (!obj->IsInstance<RPCObjectRefObj>()) {
-          LOG(FATAL) << "ValueError: Cannot pass argument " << i << ", type "
-                     << obj->GetTypeKey() << " (type_index = " << obj->type_index() << ")";
+          LOG(FATAL) << "ValueError: Cannot pass argument " << i << ", type " << obj->GetTypeKey()
+                     << " (type_index = " << obj->type_index() << ")";
         }
       } else if (auto opt_device = args[i].TryAs<DLDevice>()) {
         DLDevice dev = opt_device.value();
@@ -549,17 +549,16 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
     TVMArgs args = RecvPackedSeq();
 
     this->SwitchToState(kWaitForAsyncCallback);
-    GetServingSession()->AsyncCallFunc(
-        reinterpret_cast<void*>(call_handle), args,
-        [this](RPCCode status, TVMArgs args) {
-          if (status == RPCCode::kException) {
-            this->ReturnException(args[0].operator const char*());
-          } else {
-            ValidateArguments(args);
-            this->ReturnPackedSeq(args);
-          }
-          this->SwitchToState(kRecvPacketNumBytes);
-        });
+    GetServingSession()->AsyncCallFunc(reinterpret_cast<void*>(call_handle), args,
+                                       [this](RPCCode status, TVMArgs args) {
+                                         if (status == RPCCode::kException) {
+                                           this->ReturnException(args[0].operator const char*());
+                                         } else {
+                                           ValidateArguments(args);
+                                           this->ReturnPackedSeq(args);
+                                         }
+                                         this->SwitchToState(kRecvPacketNumBytes);
+                                       });
   }
 
   void HandleInitServer() {
@@ -750,7 +749,8 @@ void RPCEndpoint::Init() {
     PackedArgsToLegacyTVMArgs(args.data(), args.size(), values, tcodes);
 
     // run transmission
-    uint64_t packet_nbytes = sizeof(code) + handler_->PackedSeqGetNumBytes(values, tcodes, args.size(), true);
+    uint64_t packet_nbytes =
+        sizeof(code) + handler_->PackedSeqGetNumBytes(values, tcodes, args.size(), true);
 
     // All packet begins with packet nbytes
     handler_->Write(packet_nbytes);
@@ -853,9 +853,8 @@ void RPCEndpoint::InitRemoteSession(TVMArgs args) {
   PackedArgsToLegacyTVMArgs(args.data(), args.size(), values, tcodes);
 
   // run transmission
-  uint64_t packet_nbytes =
-      sizeof(code) + sizeof(length) + length +
-      handler_->PackedSeqGetNumBytes(values, tcodes, args.size(), true);
+  uint64_t packet_nbytes = sizeof(code) + sizeof(length) + length +
+                           handler_->PackedSeqGetNumBytes(values, tcodes, args.size(), true);
 
   // All packet begins with packet nbytes
   handler_->Write(packet_nbytes);
@@ -884,9 +883,8 @@ void RPCEndpoint::CallFunc(RPCSession::PackedFuncHandle h, ffi::PackedArgs args,
   PackedArgsToLegacyTVMArgs(args.data(), args.size(), values, tcodes);
 
   // run transmission
-  uint64_t packet_nbytes =
-      sizeof(code) + sizeof(handle) +
-      handler_->PackedSeqGetNumBytes(values, tcodes, args.size(), true);
+  uint64_t packet_nbytes = sizeof(code) + sizeof(handle) +
+                           handler_->PackedSeqGetNumBytes(values, tcodes, args.size(), true);
 
   handler_->Write(packet_nbytes);
   handler_->Write(code);
@@ -1101,7 +1099,8 @@ class RPCClientSession : public RPCSession, public DeviceAPI {
     return endpoint_->SysCallRemote(RPCCode::kGetGlobalFunc, name);
   }
 
-  void CallFunc(PackedFuncHandle func, ffi::PackedArgs args, const FEncodeReturn& fencode_return) final {
+  void CallFunc(PackedFuncHandle func, ffi::PackedArgs args,
+                const FEncodeReturn& fencode_return) final {
     endpoint_->CallFunc(func, args, fencode_return);
   }
 
@@ -1157,9 +1156,7 @@ class RPCClientSession : public RPCSession, public DeviceAPI {
     }
   }
 
-  void FreeHandle(void* handle) final {
-    endpoint_->SysCallRemote(RPCCode::kFreeHandle, handle);
-  }
+  void FreeHandle(void* handle) final { endpoint_->SysCallRemote(RPCCode::kFreeHandle, handle); }
 
   void SetDevice(Device dev) final { endpoint_->SysCallRemote(RPCCode::kDevSetDevice, dev); }
 

@@ -57,7 +57,8 @@ void LocalSession::EncodeReturn(TVMRetValue rv, const FEncodeReturn& encode_retu
     rv.MoveToTVMFFIAny(&ret_any);
     void* opaque_handle = ret_any.v_obj;
     packed_args[0] = static_cast<int32_t>(ffi::TypeIndex::kTVMFFINDArray);
-    packed_args[1] = static_cast<DLTensor*>(ObjectHandleToTVMArrayHandle(static_cast<Object*>(opaque_handle)));
+    packed_args[1] =
+        static_cast<DLTensor*>(ObjectHandleToTVMArrayHandle(static_cast<Object*>(opaque_handle)));
     packed_args[2] = opaque_handle;
     encode_return(ffi::PackedArgs(packed_args, 3));
   } else if (auto opt_bytes = rv.TryAs<ffi::Bytes>()) {
