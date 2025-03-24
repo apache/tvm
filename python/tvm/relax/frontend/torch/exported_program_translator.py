@@ -67,16 +67,16 @@ class ExportedProgramImporter(BaseFXGraphImporter):
 
         return self.block_builder.emit(
             relax.op.nn.batch_norm(
-            data=x,
-            gamma=weight,
-            beta=bias,
-            moving_mean=running_mean,
-            moving_var=running_var,
-            axis=1,  # Always over channel
-            epsilon=eps,
-            momentum=momentum,
-            training=training,
-        )[0]
+                data=x,
+                gamma=weight,
+                beta=bias,
+                moving_mean=running_mean,
+                moving_var=running_var,
+                axis=1,  # Always over channel
+                epsilon=eps,
+                momentum=momentum,
+                training=training,
+            )[0]
         )
 
     def _batch_norm_legit_functional(self, node: fx.Node) -> relax.Var:
