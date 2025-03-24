@@ -15,11 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-import sys
-
-sys.path.append("/ssd1/htalendr/tvm/python")  # Refer to local TVM build
-
-
 import tvm
 from tvm import relax
 import tvm.testing
@@ -339,7 +334,6 @@ def test_split_sections_list(target, dev):
             return torch.split(x, split_size_or_sections=self.split_size, dim=self.dim)
 
     torch_module = SplitModelSectionsList(split_size=sections, dim=dim).eval()
-
 
 @tvm.testing.parametrize_targets("cuda")
 def test_chunk(target, dev):
