@@ -960,9 +960,12 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         x = self.env[node.args[0]]
         chunks = node.args[1]
         dim = node.args[2] if len(node.args) > 2 else node.kwargs.get("dim", 0)
-        length_dim = int(self.shape_of(x)[dim])
-        n_section = math.ceil(length_dim / chunks)
-        return self.block_builder.emit(relax.op.split(x, n_section, dim))
+        x_shape = self.shape_of(x)
+        max_chunks = x_shape[dim].value
+        n_sections = min(chunks, max_chunks)
+        return self.block_builder.emit(
+            relax.op.split(x=x, indices_or_sections=n_sections, axis=dim)
+        )
 
     def _cumsum(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
