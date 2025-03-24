@@ -264,7 +264,7 @@ inline std::vector<support::LinearCongruentialEngine::TRandState> ForkSeed(
  * \return The deep copy of the IRModule.
  */
 inline IRModule DeepCopyIRModule(IRModule mod) {
-  return Downcast<IRModule>(LoadJSON(SaveJSON(mod)));
+  return LoadJSON(SaveJSON(mod)).operator IRModule();
 }
 
 /*!
