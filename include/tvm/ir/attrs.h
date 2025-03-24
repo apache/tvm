@@ -321,7 +321,7 @@ template <typename TAttrs>
 inline TAttrs AttrsWithDefaultValues() {
   static_assert(std::is_base_of<Attrs, TAttrs>::value, "Can only take attr nodes");
   auto n = make_object<typename TAttrs::ContainerType>();
-  n->InitByPackedArgs(runtime::TVMArgs(nullptr, nullptr, 0), false);
+  n->InitByPackedArgs(ffi::PackedArgs(nullptr, 0), false);
   return TAttrs(n);
 }
 

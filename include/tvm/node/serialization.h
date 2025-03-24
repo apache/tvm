@@ -36,7 +36,7 @@ namespace tvm {
  *
  * \return the string representation of the node.
  */
-TVM_DLL std::string SaveJSON(const runtime::ObjectRef& node);
+TVM_DLL std::string SaveJSON(Any node);
 
 /*!
  * \brief Internal implementation of LoadJSON
@@ -45,7 +45,7 @@ TVM_DLL std::string SaveJSON(const runtime::ObjectRef& node);
  *
  * \return The shared_ptr of the Node.
  */
-TVM_DLL runtime::ObjectRef LoadJSON(std::string json_str);
+TVM_DLL Any LoadJSON(std::string json_str);
 
 }  // namespace tvm
 #endif  // TVM_NODE_SERIALIZATION_H_
