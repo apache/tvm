@@ -1942,6 +1942,7 @@ def test_cross_entropy_with_logits_batch_symbolic():
     mod = LegalizeOps()(CrossEntropyWithLogits)
     tvm.ir.assert_structural_equal(mod, Expected)
 
+
 def test_batch_norm():
     # fmt: off
     @tvm.script.ir_module
@@ -2232,7 +2233,7 @@ def test_batch_norm():
                         T.reads(T_multiply_3[v_ax0], T_multiply_5[v_ax0])
                         T.writes(T_add_2[v_ax0])
                         T_add_2[v_ax0] = T_multiply_3[v_ax0] + T_multiply_5[v_ax0]
-    
+
         @R.function
         def main(x: R.Tensor((2, 3, 28, 28), dtype="float32"), gamma: R.Tensor((3,), dtype="float32"), beta: R.Tensor((3,), dtype="float32"), moving_mean: R.Tensor((3,), dtype="float32"), moving_var: R.Tensor((3,), dtype="float32")) -> R.Tuple(R.Tensor((2, 3, 28, 28), dtype="float32"), R.Tensor((3,), dtype="float32"), R.Tensor((3,), dtype="float32")):
             cls = Expected
@@ -2242,7 +2243,6 @@ def test_batch_norm():
 
     mod = LegalizeOps()(BatchNorm)
     tvm.ir.assert_structural_equal(mod, Expected)
-
 
 
 def test_batch_norm_symbolic():
@@ -2540,7 +2540,7 @@ def test_batch_norm_symbolic():
                         T.reads(T_multiply_3[v_ax0], T_multiply_5[v_ax0])
                         T.writes(T_add_2[v_ax0])
                         T_add_2[v_ax0] = T_multiply_3[v_ax0] + T_multiply_5[v_ax0]
-    
+
         @R.function
         def main(x: R.Tensor(("n", "h", "w", "c"), dtype="float32"), gamma: R.Tensor(("c",), dtype="float32"), beta: R.Tensor(("c",), dtype="float32"), moving_mean: R.Tensor(("c",), dtype="float32"), moving_var: R.Tensor(("c",), dtype="float32")) -> R.Tuple(R.Tensor(("n", "h", "w", "c"), dtype="float32"), R.Tensor(("T.max(c, h)",), dtype="float32"), R.Tensor(("T.max(c, h)",), dtype="float32")):
             n = T.int64()

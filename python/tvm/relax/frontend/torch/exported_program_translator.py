@@ -60,43 +60,43 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         print("running mean", running_mean)
         running_var = self.env.get(node.args[4], relax.const(np.ones(channel), dtype=dtype))
         print("running var", running_var)
-        ignore_running_stats = node.args[5] if len(node.args) > 5 else node.kwargs.get("track_running_stats", True)
+        ignore_running_stats = (
+            node.args[5] if len(node.args) > 5 else node.kwargs.get("track_running_stats", True)
+        )
         track_running_stats = not ignore_running_stats
         print("_batch_norm found a track_running_stats =", track_running_stats)
         momentum = node.args[6] if len(node.args) > 6 else node.kwargs.get("momentum", 0.1)
-        print("momentum", momentum) # TODO is this affine? 
+        print("momentum", momentum)  # TODO is this affine?
         eps = node.args[7] if len(node.args) > 7 else node.kwargs.get("eps", 1e-05)
-        print("eps", node.args[7]) # TODO that's eps !!!!!
-        print("node.args[8]", node.args[8]) # TODO remove
+        print("eps", node.args[7])  # TODO that's eps !!!!!
+        print("node.args[8]", node.args[8])  # TODO remove
 
         if track_running_stats:
             training = True
 
         # TODO restore
         inside = relax.op.nn.batch_norm(
-                data=x,
-                gamma=weight,
-                beta=bias,
-                moving_mean=running_mean,
-                moving_var=running_var,
-                axis=1,  # Always over channel
-                epsilon=eps,
-                momentum=momentum,
-                training=training,
-            )[0]
-        print("type of inside", type(inside)) # <class 'tvm.relax.expr.Call'>
-        
-        outside = self.block_builder.emit(
-            inside
-        )
-        print("type of outside", type(outside)) # <class 'tvm.relax.expr.DataflowVar'>
+            data=x,
+            gamma=weight,
+            beta=bias,
+            moving_mean=running_mean,
+            moving_var=running_var,
+            axis=1,  # Always over channel
+            epsilon=eps,
+            momentum=momentum,
+            training=training,
+        )[0]
+        print("type of inside", type(inside))  # <class 'tvm.relax.expr.Call'>
+
+        outside = self.block_builder.emit(inside)
+        print("type of outside", type(outside))  # <class 'tvm.relax.expr.DataflowVar'>
         return outside
 
     def _batch_norm_legit_functional(self, node: fx.Node) -> relax.Var:
         print("Inside batch norm functional")
         # This method is called for batch_norm in training mode
         # TODO does not have correctness!
-        # TODO we need to store the running mean and variance returned by the 
+        # TODO we need to store the running mean and variance returned by the
         # previous call to batch_norm and pass it again
         training = True
         return self._batch_norm(node, training)
@@ -156,24 +156,20 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         #     )
         # )
 
-        inside =             relax.op.image.resize2d(
-                x, size, layout="NCHW", method=method, coordinate_transformation_mode=coord_trans
-            )
-
-        print("type of inside", type(inside)) # <class 'tvm.relax.expr.Call'>
-
-
-        outside = self.block_builder.emit(
-            inside
+        inside = relax.op.image.resize2d(
+            x, size, layout="NCHW", method=method, coordinate_transformation_mode=coord_trans
         )
 
-        print("type of outside", type(outside)) # <class 'tvm.relax.expr.DataflowVar'>
+        print("type of inside", type(inside))  # <class 'tvm.relax.expr.Call'>
 
-        return outside 
+        outside = self.block_builder.emit(inside)
 
+        print("type of outside", type(outside))  # <class 'tvm.relax.expr.DataflowVar'>
+
+        return outside
 
     def _upsample_bilinear2d(self, node: fx.Node) -> relax.Var:
-        print("Inside upsample bilinear 2d")    
+        print("Inside upsample bilinear 2d")
         x = self.env[node.args[0]]
         size = node.args[1] if len(node.args) > 1 else node.kwargs.get("size", None)
         align_corners = (
