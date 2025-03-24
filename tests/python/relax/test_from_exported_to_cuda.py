@@ -335,6 +335,7 @@ def test_split_sections_list(target, dev):
 
     torch_module = SplitModelSectionsList(split_size=sections, dim=dim).eval()
 
+
 @tvm.testing.parametrize_targets("cuda")
 def test_chunk(target, dev):
     batch = 3
