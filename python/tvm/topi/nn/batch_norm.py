@@ -129,13 +129,6 @@ def batch_norm(
         out = (data - moving_mean_rs) / topi.math.sqrt(moving_var_rs + epsilon)
 
     else:
-
-        print("data is", data)
-        print("data_mean_rs is", data_mean_rs)
-        print("data_var_rs is", data_var_rs)
-        print("epsilon is", epsilon)
-        print("sqrt of data_var_rs + epsilon is", topi.math.sqrt(data_var_rs + epsilon))
-
         out = (data - data_mean_rs) / topi.math.sqrt(data_var_rs + epsilon)
 
     if scale:
