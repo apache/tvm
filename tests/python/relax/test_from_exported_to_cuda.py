@@ -341,9 +341,9 @@ def test_split_sections_list(target, dev):
 def test_chunk(target, dev):
     batch = 3
     channels = 5
-    height = 7
-    width = 11
-    chunks = 2
+    height = 2
+    width = 7
+    chunks = 11
     dim = 1
     raw_data = np.random.rand(batch, channels, height, width).astype("float32")
 
