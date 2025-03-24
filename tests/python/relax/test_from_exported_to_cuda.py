@@ -300,7 +300,6 @@ def test_batch_norm_prog(target, dev):
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 
-# # TODO can combine the tests together (they are separete to know which test fails)
 @tvm.testing.parametrize_targets("cuda")
 def test_batch_norm0(target, dev):
     # Eval, no momentum, no affine, no running stats
