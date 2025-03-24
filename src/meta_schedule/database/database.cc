@@ -59,7 +59,7 @@ Workload Workload::FromJSON(const ObjectRef& json_obj) {
     {
       String b64_mod = json_array->at(1);
       std::string json_mod = Base64Decode(b64_mod);
-      mod = Downcast<IRModule>(LoadJSON(json_mod));
+      mod = LoadJSON(json_mod).operator IRModule();
       std::stringstream(str_shash) >> shash;
     }
   } catch (const std::runtime_error& e) {  // includes tvm::Error and dmlc::Error

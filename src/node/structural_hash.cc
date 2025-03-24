@@ -312,15 +312,15 @@ struct StringObjTrait {
   static constexpr const std::nullptr_t VisitAttrs = nullptr;
 
   static void SHashReduce(const runtime::StringObj* key, SHashReducer hash_reduce) {
-    hash_reduce->SHashReduceHashedValue(runtime::String::StableHashBytes(key->data, key->size));
+    hash_reduce->SHashReduceHashedValue(ffi::details::StableHashBytes(key->bytes.data, key->bytes.size));
   }
 
   static bool SEqualReduce(const runtime::StringObj* lhs, const runtime::StringObj* rhs,
                            SEqualReducer equal) {
     if (lhs == rhs) return true;
-    if (lhs->size != rhs->size) return false;
-    if (lhs->data == rhs->data) return true;
-    return std::memcmp(lhs->data, rhs->data, lhs->size) == 0;
+    if (lhs->bytes.size != rhs->bytes.size) return false;
+    if (lhs->bytes.data == rhs->bytes.data) return true;
+    return std::memcmp(lhs->bytes.data, rhs->bytes.data, lhs->bytes.size) == 0;
   }
 };
 
@@ -343,7 +343,7 @@ TVM_REGISTER_REFLECTION_VTABLE(runtime::StringObj, StringObjTrait)
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
     .set_dispatch<runtime::StringObj>([](const ObjectRef& node, ReprPrinter* p) {
       auto* op = static_cast<const runtime::StringObj*>(node.get());
-      p->stream << '"' << support::StrEscape(op->data, op->size) << '"';
+      p->stream << '"' << support::StrEscape(op->bytes.data, op->bytes.size) << '"';
     });
 
 struct ModuleNodeTrait {
@@ -373,7 +373,7 @@ void NDArrayHash(const runtime::NDArray::Container* arr, SHashReducer* hash_redu
   }
   if (hash_data) {
     (*hash_reduce)
-        ->SHashReduceHashedValue(runtime::String::StableHashBytes(
+        ->SHashReduceHashedValue(ffi::details::StableHashBytes(
             static_cast<const char*>(arr->dl_tensor.data), runtime::GetDataSize(arr->dl_tensor)));
   }
 }
@@ -628,7 +628,7 @@ struct MapNodeTrait {
 
   static bool IsStringMap(const MapNode* map) {
     return std::all_of(map->begin(), map->end(),
-                       [](const auto& v) { return v.first->template IsInstance<StringObj>(); });
+                       [](const auto& v) { return v.first.TryAs<const ffi::StringObj*>().has_value(); });
   }
 
   static bool SEqualReduceTracedForOMap(const MapNode* lhs, const MapNode* rhs,
