@@ -15,6 +15,7 @@
 # specific language governing permissions and limitations
 # under the License.
 
+
 import tvm
 from tvm import relax
 import tvm.testing
@@ -50,10 +51,17 @@ def assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, tar
     gpu_params = [tvm.nd.array(p, dev) for p in tvm_params["main"]]
     gpu_out = vm["main"](gpu_data, *gpu_params)
 
-    pytorch_out = torch_module(torch_data).detach().numpy()
-    actual = gpu_out[0].numpy()
-    desired = pytorch_out
-    np.testing.assert_allclose(actual=actual, desired=desired, rtol=1e-5, atol=1e-5)
+    pytorch_out = torch_module(torch_data)
+
+    if isinstance(pytorch_out, tuple):
+        for i in range(len(pytorch_out)):
+            actual = gpu_out[i].numpy()
+            desired = pytorch_out[i].detach().numpy()
+            np.testing.assert_allclose(actual=actual, desired=desired, rtol=1e-5, atol=1e-5)
+    else:
+        actual = gpu_out[0].numpy()
+        desired = pytorch_out.detach().numpy()
+        np.testing.assert_allclose(actual=actual, desired=desired, rtol=1e-5, atol=1e-5)
 
 
 @tvm.testing.parametrize_targets("cuda")
@@ -301,6 +309,30 @@ def test_batch_norm_prog(target, dev):
 
 
 @tvm.testing.parametrize_targets("cuda")
+def test_split_size(target, dev):
+    # Test split using the split_size argument such that it is not a divisor
+    # of the dimension to split (the last tensor will be smaller)
+    batch = 2
+    channels = 7
+    height, width = 2, 2
+    split_size = 3  # last tensor will have just 1 element
+    dim = 1  # split across channels
+    raw_data = np.random.rand(batch, channels, height, width).astype("float32")
+
+    class SplitModelSplitSize(nn.Module):
+        def __init__(self, split_size, dim):
+            super().__init__()
+            self.split_size = split_size
+            self.dim = dim
+
+        def forward(self, x):
+            return torch.split(x, split_size_or_sections=self.split_size, dim=self.dim)
+
+    torch_module = SplitModelSplitSize(split_size=split_size, dim=dim).eval()
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
+
+
+@tvm.testing.parametrize_targets("cuda")
 def test_batch_norm0(target, dev):
     # Eval, no momentum, no affine, no running stats
     raw_data = np.random.randn(8, 3, 4, 4).astype(np.float32)
@@ -337,6 +369,30 @@ def test_batch_norm3(target, dev):
     torch_module = nn.BatchNorm2d(
         2, eps=1e-05, momentum=0.0, affine=True, track_running_stats=True
     ).eval()
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
+
+
+@tvm.testing.parametrize_targets("cuda")
+def test_split_sections_list(target, dev):
+    # Test split using a list of section sizes
+    batch = 3
+    channels = 2
+    height = 10
+    width = 5
+    sections = [3, 2, 5]
+    dim = 2  # split across height
+    raw_data = np.random.rand(batch, channels, height, width).astype("float32")
+
+    class SplitModelSectionsList(nn.Module):
+        def __init__(self, split_size, dim):
+            super().__init__()
+            self.split_size = split_size
+            self.dim = dim
+
+        def forward(self, x):
+            return torch.split(x, split_size_or_sections=self.split_size, dim=self.dim)
+
+    torch_module = SplitModelSectionsList(split_size=sections, dim=dim).eval()
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 

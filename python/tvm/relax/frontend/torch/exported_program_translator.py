@@ -352,6 +352,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "select.int": self._select,
             "slice.Tensor": self._slice,
             "split.Tensor": self._split,
+            "split_with_sizes.default": self._split,
             "squeeze.default": self._squeeze,
             "squeeze.dim": self._squeeze,
             "take.default": self._take,
@@ -392,7 +393,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                 torch_dtype = exported_program.tensor_constants[spec.target].dtype
             elif spec.kind is torch.export.graph_signature.InputKind.USER_INPUT:
                 for node in exported_program.graph.find_nodes(op="placeholder", target=spec.target):
-                    if node.name == name_hint:
+                    if node.name == name_hint and "tensor_meta" in node.meta:
                         shape = node.meta["tensor_meta"].shape
                         torch_dtype = node.meta["tensor_meta"].dtype
                         break

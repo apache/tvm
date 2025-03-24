@@ -16,7 +16,6 @@
 # under the License.
 # pylint: disable=invalid-name
 """Default legalization function for manipulate operators."""
-import logging
 from typing import Optional
 
 import tvm
@@ -109,16 +108,6 @@ def _permute_dims(bb: BlockBuilder, call: Call) -> Expr:
 def _split(bb: BlockBuilder, call: Call) -> Expr:
     if isinstance(call.attrs.indices_or_sections, tir.IntImm):
         indices_or_sections = call.attrs.indices_or_sections.value
-        modulo = tvm.arith.Analyzer().simplify(
-            call.args[0].struct_info.shape.values[call.attrs.axis] % indices_or_sections
-        )
-        if isinstance(modulo, tir.IntImm):
-            if modulo != 0:
-                logging.info(
-                    "Split cannot be legalized by TOPI when the axis being split has "
-                    "length that not divisible by the input number of section."
-                )
-                return call
     else:
         indices_or_sections = call.attrs.indices_or_sections
     return bb.call_te(topi.split, call.args[0], indices_or_sections, call.attrs.axis)
