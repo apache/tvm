@@ -46,36 +46,27 @@ class ExportedProgramImporter(BaseFXGraphImporter):
     ########## Neural Network ##########
 
     def _batch_norm(self, node: fx.Node, training) -> relax.Var:
-        print("Inside batch norm")
         import numpy as np
 
         x = self.env[node.args[0]]
         channel = int(self.shape_of(x)[1])
         dtype = x.struct_info.dtype
         weight = self.env.get(node.args[1], relax.const(np.ones(channel), dtype=dtype))
-        print("weight", weight)
         bias = self.env.get(node.args[2], relax.const(np.zeros(channel), dtype=dtype))
-        print("bias", bias)
         running_mean = self.env.get(node.args[3], relax.const(np.zeros(channel), dtype=dtype))
-        print("running mean", running_mean)
         running_var = self.env.get(node.args[4], relax.const(np.ones(channel), dtype=dtype))
-        print("running var", running_var)
         ignore_running_stats = (
             node.args[5] if len(node.args) > 5 else node.kwargs.get("track_running_stats", True)
         )
         track_running_stats = not ignore_running_stats
-        print("_batch_norm found a track_running_stats =", track_running_stats)
         momentum = node.args[6] if len(node.args) > 6 else node.kwargs.get("momentum", 0.1)
-        print("momentum", momentum)  # TODO is this affine?
         eps = node.args[7] if len(node.args) > 7 else node.kwargs.get("eps", 1e-05)
-        print("eps", node.args[7])  # TODO that's eps !!!!!
-        print("node.args[8]", node.args[8])  # TODO remove
 
         if track_running_stats:
             training = True
 
-        # TODO restore
-        inside = relax.op.nn.batch_norm(
+        return self.block_builder.emit(
+            relax.op.nn.batch_norm(
             data=x,
             gamma=weight,
             beta=bias,
@@ -86,14 +77,9 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             momentum=momentum,
             training=training,
         )[0]
-        print("type of inside", type(inside))  # <class 'tvm.relax.expr.Call'>
-
-        outside = self.block_builder.emit(inside)
-        print("type of outside", type(outside))  # <class 'tvm.relax.expr.DataflowVar'>
-        return outside
+        )
 
     def _batch_norm_legit_functional(self, node: fx.Node) -> relax.Var:
-        print("Inside batch norm functional")
         # This method is called for batch_norm in training mode
         # TODO does not have correctness!
         # TODO we need to store the running mean and variance returned by the
@@ -102,7 +88,6 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         return self._batch_norm(node, training)
 
     def _batch_norm_legit_no_training(self, node: fx.Node) -> relax.Var:
-        print("Inside batch norm no training")
         # This method is called for batch_norm in eval mode
         training = False
         return self._batch_norm(node, training)
@@ -135,7 +120,6 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         method: str,
         align_corners: bool,
     ) -> relax.Var:
-        print("Inside upsample impl")
         coord_trans = "align_corners" if align_corners else "half_pixel"
 
         if size is None:
@@ -149,27 +133,13 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             else:
                 size = tuple(int(shape[i].value * scale_factor) for i in range(2, len(shape)))
 
-        # TODO restore
-        # return self.block_builder.emit(
-        #     relax.op.image.resize2d(
-        #         x, size, layout="NCHW", method=method, coordinate_transformation_mode=coord_trans
-        #     )
-        # )
-
-        inside = relax.op.image.resize2d(
-            x, size, layout="NCHW", method=method, coordinate_transformation_mode=coord_trans
+        return self.block_builder.emit(
+            relax.op.image.resize2d(
+                x, size, layout="NCHW", method=method, coordinate_transformation_mode=coord_trans
+            )
         )
 
-        print("type of inside", type(inside))  # <class 'tvm.relax.expr.Call'>
-
-        outside = self.block_builder.emit(inside)
-
-        print("type of outside", type(outside))  # <class 'tvm.relax.expr.DataflowVar'>
-
-        return outside
-
     def _upsample_bilinear2d(self, node: fx.Node) -> relax.Var:
-        print("Inside upsample bilinear 2d")
         x = self.env[node.args[0]]
         size = node.args[1] if len(node.args) > 1 else node.kwargs.get("size", None)
         align_corners = (
@@ -181,7 +151,6 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         )
 
     def _upsample_nearest2d(self, node: fx.node) -> relax.Var:
-        print("Inside upsample nearest 2d")
         x = self.env[node.args[0]]
         size = node.args[1] if len(node.args) > 1 else node.kwargs.get("size", None)
 
