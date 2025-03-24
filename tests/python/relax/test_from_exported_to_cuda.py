@@ -334,6 +334,7 @@ def test_split_sections_list(target, dev):
             return torch.split(x, split_size_or_sections=self.split_size, dim=self.dim)
 
     torch_module = SplitModelSectionsList(split_size=sections, dim=dim).eval()
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 
 @tvm.testing.parametrize_targets("cuda")
