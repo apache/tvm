@@ -334,9 +334,9 @@ def test_batch_norm2(target, dev):
 @tvm.testing.parametrize_targets("cuda")
 def test_batch_norm3(target, dev):
     # Eval, no momentum, affine, with running stats
-    raw_data = np.random.randn(1, 3, 3, 3).astype(np.float32)
+    raw_data = np.random.randn(1, 2, 2, 2).astype(np.float32)
     torch_module0 = nn.BatchNorm2d(
-        3, eps=1e-05, momentum=0.0, affine=True, track_running_stats=True
+        2, eps=1e-05, momentum=0.0, affine=True, track_running_stats=True
     ).eval()
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module0, target, dev)
 
