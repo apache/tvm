@@ -36,6 +36,20 @@ namespace tvm {
 namespace ffi {
 
 /*!
+ * \brief Known type keys for pre-defined types.
+ */
+struct StaticTypeKey {
+  static constexpr const char* kTVMFFINone = "None";
+  static constexpr const char* kTVMFFIBool = "bool";
+  static constexpr const char* kTVMFFIInt = "int";
+  static constexpr const char* kTVMFFIFloat = "float";
+  static constexpr const char* kTVMFFIOpaquePtr = "void*";
+  static constexpr const char* kTVMFFIDataType = "DataType";
+  static constexpr const char* kTVMFFIDevice = "Device";
+  static constexpr const char* kTVMFFIRawStr = "const char*";
+};
+
+/*!
  * \brief Get type key from type index
  * \param type_index The input type index
  * \return the type key
@@ -43,21 +57,21 @@ namespace ffi {
 inline std::string TypeIndex2TypeKey(int32_t type_index) {
   switch (type_index) {
     case TypeIndex::kTVMFFINone:
-      return "None";
+      return StaticTypeKey::kTVMFFINone;
     case TypeIndex::kTVMFFIBool:
-      return "bool";
+      return StaticTypeKey::kTVMFFIBool;
     case TypeIndex::kTVMFFIInt:
-      return "int";
+      return StaticTypeKey::kTVMFFIInt;
     case TypeIndex::kTVMFFIFloat:
-      return "float";
+      return StaticTypeKey::kTVMFFIFloat;
     case TypeIndex::kTVMFFIOpaquePtr:
-      return "void*";
+      return StaticTypeKey::kTVMFFIOpaquePtr;
     case TypeIndex::kTVMFFIDataType:
-      return "DataType";
+      return StaticTypeKey::kTVMFFIDataType;
     case TypeIndex::kTVMFFIDevice:
-      return "Device";
+      return StaticTypeKey::kTVMFFIDevice;
     case TypeIndex::kTVMFFIRawStr:
-      return "const char*";
+      return StaticTypeKey::kTVMFFIRawStr;
     default: {
       TVM_FFI_ICHECK_GE(type_index, TypeIndex::kTVMFFIStaticObjectBegin)
           << "Uknown type_index=" << type_index;
