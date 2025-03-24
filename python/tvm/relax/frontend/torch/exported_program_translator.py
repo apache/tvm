@@ -370,9 +370,6 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             elif spec.kind is torch.export.graph_signature.InputKind.USER_INPUT:
                 for node in exported_program.graph.find_nodes(op="placeholder", target=spec.target):
                     if node.name == name_hint and "tensor_meta" in node.meta:
-                        print("name_hint is ", name_hint)
-                        print("node.meta has type ", type(node.meta))
-                        print("node.meta has the keys", list(node.meta.keys()))
                         shape = node.meta["tensor_meta"].shape
                         torch_dtype = node.meta["tensor_meta"].dtype
                         break
