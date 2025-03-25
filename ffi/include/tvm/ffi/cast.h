@@ -93,6 +93,18 @@ inline SubRef Downcast(BaseRef ref) {
   return details::ObjectUnsafe::DowncastRefNoCheck<SubRef>(std::move(ref));
 }
 
+/*!
+ * \brief Downcast any to a specific type
+ *
+ * \param ref The input reference
+ * \return The corresponding SubRef.
+ * \tparam T The target specific reference type.
+ */
+template <typename T>
+inline T Downcast(const Any& ref) {
+  return ref.operator T();
+}
+
 }  // namespace ffi
 }  // namespace tvm
 #endif  // TVM_FFI_CAST_H_

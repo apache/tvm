@@ -27,6 +27,7 @@
 #include <tvm/ffi/c_api.h>
 
 #include <string>
+#include <optional>
 #include <type_traits>
 #include <utility>
 
@@ -338,9 +339,6 @@ class ObjectPtr {
   friend class tvm::ffi::details::ObjectUnsafe;
 };
 
-// Forward declaration, to prevent circular includes.
-template <typename T, typename = void>
-class Optional;
 
 /*! \brief Base class of all object reference */
 class ObjectRef {
@@ -417,24 +415,29 @@ class ObjectRef {
 
   /*!
    * \brief Try to downcast the ObjectRef to a
-   *    Optional<T> of the requested type.
+   *    std::optional<T> of the requested type.
    *
-   *  The function will return a NullOpt if the cast failed.
-   *
-   *      if (Optional<Add> opt = node_ref.as<Add>()) {
-   *        // This is an add node
-   *      }
-   *
-   * \note While this method is declared in <tvm/ffi/object.h>,
-   * the implementation is in <tvm/ffi/container/optional.h> to
-   * prevent circular includes.  This additional include file is only
-   * required in compilation units that uses this method.
+   *  The function will return a std::nullopt if the cast or if the pointer is nullptr.
    *
    * \tparam ObjectRefType the target type, must be a subtype of ObjectRef
    */
   template <typename ObjectRefType,
             typename = std::enable_if_t<std::is_base_of_v<ObjectRef, ObjectRefType>>>
-  inline Optional<ObjectRefType> as() const;
+  std::optional<ObjectRefType> as() const {
+    if (data_ != nullptr) {
+      if (data_->IsInstance<ObjectRefType>()) {
+        return ObjectRefType(data_);
+      } else {
+        return std::nullopt;
+      }
+    } else {
+      if (ObjectRefType::ContainerType::_type_is_nullable) {
+        return ObjectRefType(nullptr);
+      } else {
+        return std::nullopt;
+      }
+    }
+  }
 
   /*! \brief type indicate the container type. */
   using ContainerType = Object;
