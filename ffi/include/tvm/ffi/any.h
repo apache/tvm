@@ -102,7 +102,7 @@ class AnyView {
   }
 
   template <typename T, typename = std::enable_if_t<TypeTraits<T>::enabled>>
-  std::optional<T> TryAs() const {
+  std::optional<T> as() const {
     return TypeTraits<T>::TryCopyFromAnyView(&data_);
   }
 
@@ -240,7 +240,7 @@ class Any {
     return *this;
   }
   template <typename T, typename = std::enable_if_t<TypeTraits<T>::enabled>>
-  std::optional<T> TryAs() const {
+  std::optional<T> as() const {
     return TypeTraits<T>::TryCopyFromAnyView(&data_);
   }
 

@@ -32,13 +32,13 @@ using namespace tvm::ffi::testing;
 TEST(Variant, Basic) {
   Variant<int, float> v = 1;
   EXPECT_EQ(v.Get<int>(), 1);
-  EXPECT_EQ(v.TryAs<float>().value(), 1.0f);
+  EXPECT_EQ(v.as<float>().value(), 1.0f);
 }
 
 TEST(Variant, AnyConvert) {
   Variant<int, TInt> v = 1;
   AnyView view0 = v;
-  EXPECT_EQ(view0.TryAs<int>().value(), 1);
+  EXPECT_EQ(view0.as<int>().value(), 1);
 }
 TEST(Variant, ObjectPtrHashEqual) {
   TInt x = TInt(1);
@@ -56,7 +56,7 @@ TEST(Variant, ObjectPtrHashEqual) {
 TEST(Variant, FromUnpacked) {
   // try decution
   Function fadd1 = Function::FromUnpacked([](const Variant<int, TInt>& a) -> int {
-    if (auto opt_int = a.TryAs<int>()) {
+    if (auto opt_int = a.as<int>()) {
       return opt_int.value() + 1;
     } else {
       return a.Get<TInt>()->value + 1;
@@ -82,7 +82,7 @@ TEST(Variant, FromUnpacked) {
       ::tvm::ffi::Error);
 
   Function fadd2 = Function::FromUnpacked([](const Array<Variant<int, TInt>>& a) -> int {
-    if (auto opt_int = a[0].TryAs<int>()) {
+    if (auto opt_int = a[0].as<int>()) {
       return opt_int.value() + 1;
     } else {
       return a[0].Get<TInt>()->value + 1;

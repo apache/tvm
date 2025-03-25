@@ -113,7 +113,7 @@ TEST(Func, FromUnpacked) {
       [](TInt x, int value, AnyView z) -> Function {
         EXPECT_EQ(x.use_count(), 2);
         EXPECT_EQ(x->value, value);
-        if (auto opt = z.TryAs<int>()) {
+        if (auto opt = z.as<int>()) {
           EXPECT_EQ(value, *opt);
         }
         return Function::FromUnpacked([value](int x) -> int { return x + value; });

@@ -76,7 +76,7 @@ namespace ffi {
       }                                                                                \
       ::tvm::ffi::Any error_any;                                                       \
       TVMFFIMoveFromLastError(reinterpret_cast<TVMFFIAny*>(&error_any));               \
-      if (std::optional<tvm::ffi::Error> error = error_any.TryAs<tvm::ffi::Error>()) { \
+      if (std::optional<tvm::ffi::Error> error = error_any.as<tvm::ffi::Error>()) { \
         throw std::move(*error);                                                       \
       } else {                                                                         \
         TVM_FFI_THROW(RuntimeError) << "Error encountered";                            \
