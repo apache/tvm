@@ -244,6 +244,17 @@ class Any {
     return TypeTraits<T>::TryCopyFromAnyView(&data_);
   }
 
+  /*
+   * \brief Shortcut of as Object to cast to a const pointer when T is an Object.
+   *
+   * \tparam T The object type.
+   * \return The requested pointer, returns nullptr if type mismatches.
+   */
+  template <typename T, typename = std::enable_if_t<std::is_base_of_v<Object, T>>>
+  const T* as() const {
+    return this->as<const T*>().value_or(nullptr);
+  }
+
   template <typename T, typename = std::enable_if_t<TypeTraits<T>::enabled>>
   operator T() const {
     std::optional<T> opt = TypeTraits<T>::TryCopyFromAnyView(&data_);

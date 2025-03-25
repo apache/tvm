@@ -70,6 +70,17 @@ class Variant {
     return data_.as<T>();
   }
 
+  /*
+   * \brief Shortcut of as Object to cast to a const pointer when T is an Object.
+   *
+   * \tparam T The object type.
+   * \return The requested pointer, returns nullptr if type mismatches.
+   */
+  template <typename T, typename = std::enable_if_t<std::is_base_of_v<Object, T>>>
+  const T* as() const {
+    return data_.as<const T*>().value_or(nullptr);
+  }
+
   template <typename T, typename = enable_if_variant_t<T>>
   T Get() const {
     return data_.operator T();
