@@ -144,7 +144,7 @@ typedef struct TVMFFIAny {
     DLDevice v_device;     // device
     char v_bytes[8];       // small string
     char32_t v_char32[2];  // small UCS4 string and Unicode
-    uint64_t v_uint64;      // uint64 repr mainly used for hashing
+    uint64_t v_uint64;     // uint64 repr mainly used for hashing
   };
 } TVMFFIAny;
 
