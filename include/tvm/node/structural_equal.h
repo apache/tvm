@@ -130,7 +130,8 @@ class StructuralEqual : public BaseValueEqual {
    * \param map_free_params Whether or not to map free variables.
    * \return The comparison result.
    */
-  TVM_FFI_INLINE bool operator()(const ffi::Any& lhs, const ffi::Any& rhs, bool map_free_params) const {
+  TVM_FFI_INLINE bool operator()(const ffi::Any& lhs, const ffi::Any& rhs,
+                                 bool map_free_params) const {
     if (lhs.type_index() != rhs.type_index()) return false;
     if (lhs.type_index() >= ffi::TypeIndex::kTVMFFIStaticObjectBegin) {
       return operator()(lhs.operator ObjectRef(), rhs.operator ObjectRef(), map_free_params);
@@ -316,7 +317,8 @@ class SEqualReducer {
    * \param paths Object paths for `lhs` and `rhs`.
    * \return the immediate check result.
    */
-  bool AnyEqual(const ffi::Any& lhs, const ffi::Any& rhs, Optional<ObjectPathPair> paths = NullOpt) const;
+  bool AnyEqual(const ffi::Any& lhs, const ffi::Any& rhs,
+                Optional<ObjectPathPair> paths = NullOpt) const;
 
   /*!
    * \brief Reduce condition to comparison of two definitions,

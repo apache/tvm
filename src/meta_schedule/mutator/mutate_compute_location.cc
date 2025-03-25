@@ -70,10 +70,10 @@ class MutateComputeLocationNode : public MutatorNode {
  */
 std::vector<MutateComputeLocationNode::Candidate> MutateComputeLocationNode::FindCandidates(
     const Trace& trace, TRandState* rand_state) {
-  tir::Schedule sch = tir::Schedule::Traced(                  //
-      /*mod=*/LoadJSON(this->json_mod_),                      //
-      /*rand_state=*/ForkSeed(rand_state),                    //
-      /*debug_mode=*/0,                                       //
+  tir::Schedule sch = tir::Schedule::Traced(  //
+      /*mod=*/LoadJSON(this->json_mod_),      //
+      /*rand_state=*/ForkSeed(rand_state),    //
+      /*debug_mode=*/0,                       //
       /*error_render_level=*/tir::ScheduleErrorRenderLevel::kNone);
 
   static InstructionKind inst_sample_compute_location =

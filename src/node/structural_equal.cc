@@ -177,7 +177,6 @@ bool SEqualReducer::operator()(const DataType& lhs, const DataType& rhs,
 
 bool SEqualReducer::AnyEqual(const ffi::Any& lhs, const ffi::Any& rhs,
                              Optional<ObjectPathPair> paths) const {
-
   auto record_mismatch = [&]() {
     if (tracing_data_ && !tracing_data_->first_mismatch->defined()) {
       if (paths) {
