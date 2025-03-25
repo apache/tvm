@@ -108,7 +108,7 @@ class DataflowReshapeRewriter : public ExprMutator {
 
   bool IsCallingTIRReshape(const CallNode* call, Expr inp) {
     const GlobalVar& global_var = Downcast<GlobalVar>(call->args[0]);
-    const auto* func = mod_->functions.Get(global_var).as<tir::PrimFuncNode>();
+    const auto* func = mod_->functions.Get(global_var).value().as<tir::PrimFuncNode>();
     ICHECK_NOTNULL(func);
     if (!HasReshapePattern(GetRef<tir::PrimFunc>(func))) {
       return false;

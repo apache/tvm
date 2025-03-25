@@ -161,11 +161,11 @@ class TargetNode : public Object {
   Optional<TObjectRef> GetFeature(
       const std::string& feature_key,
       Optional<TObjectRef> default_value = Optional<TObjectRef>(nullptr)) const {
-    Optional<TObjectRef> feature = Downcast<Optional<TObjectRef>>(features.Get(feature_key));
-    if (!feature) {
+    if (auto feature = features.Get(feature_key)) {
+      return Downcast<TObjectRef>(feature.value());
+    } else {
       return default_value;
     }
-    return feature;
   }
   // variant that uses TObjectRef to enable implicit conversion to default value.
   template <typename TObjectRef>

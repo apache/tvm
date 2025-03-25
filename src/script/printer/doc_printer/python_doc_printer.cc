@@ -350,8 +350,8 @@ void PythonDocPrinter::PrintTypedDoc(const LiteralDoc& doc) {
       output_ << float_imm->value;
     }
 
-  } else if (const auto* string_obj = value.as<StringObj>()) {
-    output_ << "\"" << support::StrEscape(string_obj->data, string_obj->size) << "\"";
+  } else if (const auto* string_obj = value.as<ffi::StringObj>()) {
+    output_ << "\"" << support::StrEscape(string_obj->bytes.data, string_obj->bytes.size) << "\"";
   } else {
     LOG(FATAL) << "TypeError: Unsupported literal value type: " << value->GetTypeKey();
   }
