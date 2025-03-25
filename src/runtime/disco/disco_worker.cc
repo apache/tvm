@@ -147,7 +147,7 @@ struct DiscoWorker::Impl {
   static void DebugGetFromRemote(DiscoWorker* self, int reg_id, int worker_id) {
     if (worker_id == self->worker_id) {
       TVMRetValue rv = GetReg(self, reg_id);
-      if (rv.TryAs<ObjectRef>()) {
+      if (rv.as<ObjectRef>()) {
         rv = DiscoDebugObject::Wrap(rv);
       }
       AnyView packed_args[2];
@@ -173,7 +173,7 @@ struct DiscoWorker::Impl {
     AnyView* args_vec = const_cast<AnyView*>(args.data());
     // translate args into remote calling convention
     for (int i = 0; i < args.size(); ++i) {
-      if (auto opt_dref = args_vec[i].TryAs<DRef>()) {
+      if (auto opt_dref = args_vec[i].as<DRef>()) {
         DRef dref = opt_dref.value();
         args_vec[i] = GetReg(self, dref->reg_id);
       }

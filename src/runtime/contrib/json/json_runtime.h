@@ -124,7 +124,7 @@ class JSONRuntimeBase : public ModuleNode {
         // Bind argument tensors to data entries.
         this->SetInputOutputBuffers(args);
 
-        if (auto opt_str = rv->TryAs<String>()) {
+        if (auto opt_str = rv->as<String>()) {
           String purpose = std::move(opt_str.value());
           if ("debug_dump" == purpose) {
             *rv = this->DebugDump();
@@ -208,7 +208,7 @@ class JSONRuntimeBase : public ModuleNode {
                                            : EntryID(outputs_[i - input_var_eid_.size()]);
 
       const DLTensor* arg;
-      if (auto opt_nd = args[i].TryAs<NDArray>()) {
+      if (auto opt_nd = args[i].as<NDArray>()) {
         NDArray arr = opt_nd.value();
         arg = arr.operator->();
       } else {

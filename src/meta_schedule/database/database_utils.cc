@@ -64,7 +64,7 @@ void JSONDumps(ObjectRef json_obj, std::ostringstream& os) {
     std::vector<std::pair<String, ObjectRef>> key_values;
     key_values.reserve(n);
     for (const auto& kv : *dict) {
-      if (auto key = kv.first.TryAs<String>()) {
+      if (auto key = kv.first.as<String>()) {
         key_values.emplace_back(key.value(), kv.second);
       } else {
         LOG(FATAL) << "TypeError: Only string keys are supported in JSON dumps, but got: "

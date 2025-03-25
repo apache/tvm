@@ -69,18 +69,18 @@ IRModule ModuleReplaceGlobalVars(
   Map<GlobalVar, GlobalVar> gvar_replacements;
   for (const auto& [before, after] : replacements) {
     GlobalVar gvar_before;
-    if (auto gvar = before.TryAs<GlobalVar>()) {
+    if (auto gvar = before.as<GlobalVar>()) {
       gvar_before = gvar.value();
-    } else if (auto str = before.TryAs<String>()) {
+    } else if (auto str = before.as<String>()) {
       gvar_before = mod->GetGlobalVar(str.value());
     } else {
       LOG(FATAL) << "Variant<String,GlobalVar> must contain either String or GlobalVar";
     }
 
     GlobalVar gvar_after;
-    if (auto gvar = after.TryAs<GlobalVar>()) {
+    if (auto gvar = after.as<GlobalVar>()) {
       gvar_after = gvar.value();
-    } else if (auto str = after.TryAs<String>()) {
+    } else if (auto str = after.as<String>()) {
       gvar_after = gvar_before;
       gvar_after.CopyOnWrite()->name_hint = str.value();
     } else {

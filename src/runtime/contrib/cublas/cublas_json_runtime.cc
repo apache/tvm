@@ -78,7 +78,7 @@ class CublasJSONRuntime : public JSONRuntimeBase {
                                            : EntryID(outputs_[i - input_var_eid_.size()]);
 
       const DLTensor* arg;
-      if (auto opt_nd = args[i].TryAs<NDArray>()) {
+      if (auto opt_nd = args[i].as<NDArray>()) {
         NDArray arr = opt_nd.value();
         arg = arr.operator->();
       } else {

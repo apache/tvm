@@ -171,13 +171,13 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
    */
   void ValidateArguments(ffi::PackedArgs args) {
     for (int i = 0; i < args.size(); ++i) {
-      if (auto opt_obj = args[i].TryAs<ObjectRef>()) {
+      if (auto opt_obj = args[i].as<ObjectRef>()) {
         ObjectRef obj = opt_obj.value();
         if (!obj->IsInstance<RPCObjectRefObj>()) {
           LOG(FATAL) << "ValueError: Cannot pass argument " << i << ", type " << obj->GetTypeKey()
                      << " (type_index = " << obj->type_index() << ")";
         }
-      } else if (auto opt_device = args[i].TryAs<DLDevice>()) {
+      } else if (auto opt_device = args[i].as<DLDevice>()) {
         DLDevice dev = opt_device.value();
         ICHECK(!IsRPCSessionDevice(dev)) << "InternalError: cannot pass RPC device in the channel";
       }
@@ -602,7 +602,7 @@ class RPCEndpoint::EventHandler : public dmlc::Stream {
                    << " Error caught from session constructor " << constructor_name << ":\n"
                    << e.what();
       }
-      auto opt_con_ret = con_ret.TryAs<runtime::Module>();
+      auto opt_con_ret = con_ret.as<runtime::Module>();
       // Legacy ABI translation
       ICHECK(opt_con_ret.has_value())
           << "Server[" << name_ << "]:"

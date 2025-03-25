@@ -120,7 +120,7 @@ class SocketSessionObj : public BcastSessionObj {
       local_session_->DebugSetRegister(reg_id, value, worker_id);
     } else {
       ObjectRef wrapped{nullptr};
-      if (auto opt_obj = value.TryAs<ObjectRef>()) {
+      if (auto opt_obj = value.as<ObjectRef>()) {
         wrapped = DiscoDebugObject::Wrap(value);
         value = wrapped;
       }

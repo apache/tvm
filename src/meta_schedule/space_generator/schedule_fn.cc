@@ -58,7 +58,7 @@ class ScheduleFnNode : public SpaceGeneratorNode {
       Array<tir::Schedule> result;
       result.reserve(arr->size());
       for (Any val : *arr) {
-        if (auto sch = val.TryAs<tir::Schedule>()) {
+        if (auto sch = val.as<tir::Schedule>()) {
           result.push_back(sch.value());
         } else {
           LOG(FATAL) << "TypeError: Expect return type of ScheduleFn to be None, Schedule or "
