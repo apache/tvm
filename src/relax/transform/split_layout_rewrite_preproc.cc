@@ -81,7 +81,7 @@ class SplitPrimFuncLayoutRewrite : public StmtMutator {
         Block(/*iter_vars=*/{}, /*reads=*/{}, /*writes=*/{},
               /*name_hint=*/"root", body));
 
-    Map<String, Any> dict;
+    Map<String, ffi::Any> dict;
     for (const auto& [key, original_value] : original_func_->attrs->dict) {
       if (key == "global_symbol") {
         dict.Set(key, Downcast<String>(original_value) + "_weight_prepack");
@@ -127,7 +127,7 @@ class SplitPrimFuncLayoutRewrite : public StmtMutator {
               /*init=*/NullOpt,
               /*alloc_buffers=*/alloc_buffers));
 
-    Map<String, ObjectRef> dict;
+    Map<String, ffi::Any> dict;
     for (const auto& [key, original_value] : original_func_->attrs->dict) {
       if (key == "global_symbol") {
         dict.Set(key, Downcast<String>(original_value) + "_prepacked");

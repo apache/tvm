@@ -913,7 +913,7 @@ void ConcreteScheduleNode::Tensorize(const BlockRV& block_rv, const String& intr
 /******** Schedule: Annotation ********/
 
 ObjectRef ConcreteScheduleNode::CheckAndGetAnnotationValue(const ObjectRef& ann_val) {
-  if (ann_val.as<StringObj>()) {
+  if (ann_val.as<ffi::StringObj>()) {
     return ann_val;
   }
   if (auto* runtime_int = ann_val.as<runtime::Int::ContainerType>()) {

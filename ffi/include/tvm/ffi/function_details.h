@@ -167,6 +167,7 @@ class MovableArgValueWithContext {
                              << (f_sig_ == nullptr ? "" : (*f_sig_)()) << "`. Expected `"
                              << Type2Str<TypeWithoutCR>::v() << "` but got `"
                              << GetMismatchTypeInfo<TypeWithoutCR>(&any_data) << '`';
+    TVM_FFI_UNREACHABLE();
   }
 
  private:

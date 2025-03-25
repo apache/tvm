@@ -181,7 +181,10 @@ class CompositeGroupsBuilder : public MemoizedExprTranslator<Group*> {
   }
 
   Optional<String> GetCodegenName(Group* group) {
-    return Downcast<Optional<String>>(group->attrs.Get(attr::kCodegen));
+    if (auto opt_str = group->attrs.Get(attr::kCodegen)) {
+      return Downcast<String>(opt_str.value());
+    }
+    return std::nullopt;
   }
 
   Group* CreateNewGroup(const CallNode* call) {
