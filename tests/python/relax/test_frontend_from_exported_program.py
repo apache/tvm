@@ -419,8 +419,7 @@ def test_extended_unary_ops():
         @R.function
         def main(
             inp_0: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tuple(
-            R.Tensor((1, 3, 10, 10), dtype="float32")):
+        ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
             with R.dataflow():
                 lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.log(inp_0)
                 lv1: R.Tensor((1, 3, 10, 10), dtype="float32") = R.divide(
