@@ -19,7 +19,6 @@ import pytest
 import torch
 from torch.nn import Module
 from torch.export import export
-
 import tvm
 from tvm import relax
 import tvm.testing
