@@ -142,37 +142,66 @@ template <typename T>
 
 bool SEqualReducer::operator()(const double& lhs, const double& rhs,
                                Optional<ObjectPathPair> paths) const {
-  return CompareAttributeValues(lhs, rhs, tracing_data_);
+  return CompareAttributeValues(lhs, rhs, tracing_data_, paths);
 }
 
 bool SEqualReducer::operator()(const int64_t& lhs, const int64_t& rhs,
                                Optional<ObjectPathPair> paths) const {
-  return CompareAttributeValues(lhs, rhs, tracing_data_);
+  return CompareAttributeValues(lhs, rhs, tracing_data_, paths);
 }
 
 bool SEqualReducer::operator()(const uint64_t& lhs, const uint64_t& rhs,
                                Optional<ObjectPathPair> paths) const {
-  return CompareAttributeValues(lhs, rhs, tracing_data_);
+  return CompareAttributeValues(lhs, rhs, tracing_data_, paths);
 }
 
 bool SEqualReducer::operator()(const int& lhs, const int& rhs,
                                Optional<ObjectPathPair> paths) const {
-  return CompareAttributeValues(lhs, rhs, tracing_data_);
+  return CompareAttributeValues(lhs, rhs, tracing_data_, paths);
 }
 
 bool SEqualReducer::operator()(const bool& lhs, const bool& rhs,
                                Optional<ObjectPathPair> paths) const {
-  return CompareAttributeValues(lhs, rhs, tracing_data_);
+  return CompareAttributeValues(lhs, rhs, tracing_data_, paths);
 }
 
 bool SEqualReducer::operator()(const std::string& lhs, const std::string& rhs,
                                Optional<ObjectPathPair> paths) const {
-  return CompareAttributeValues(lhs, rhs, tracing_data_);
+  return CompareAttributeValues(lhs, rhs, tracing_data_, paths);
 }
 
 bool SEqualReducer::operator()(const DataType& lhs, const DataType& rhs,
                                Optional<ObjectPathPair> paths) const {
-  return CompareAttributeValues(lhs, rhs, tracing_data_);
+  return CompareAttributeValues(lhs, rhs, tracing_data_, paths);
+}
+
+bool SEqualReducer::AnyEqual(const ffi::Any& lhs, const ffi::Any& rhs,
+                             Optional<ObjectPathPair> paths) const {
+
+  auto record_mismatch = [&]() {
+    if (tracing_data_ && !tracing_data_->first_mismatch->defined()) {
+      if (paths) {
+        *tracing_data_->first_mismatch = paths.value();
+      }
+    }
+  };
+  if (lhs.type_index() != rhs.type_index()) {
+    record_mismatch();
+    return false;
+  }
+  if (lhs.type_index() >= ffi::TypeIndex::kTVMFFIStaticObjectBegin) {
+    if (paths) {
+      return operator()(lhs.operator ObjectRef(), rhs.operator ObjectRef(), paths.value());
+    } else {
+      return operator()(lhs.operator ObjectRef(), rhs.operator ObjectRef());
+    }
+  }
+  if (ffi::details::AnyUnsafe::GetTVMFFIAnyPtrFromAny(lhs)->v_uint64 ==
+      ffi::details::AnyUnsafe::GetTVMFFIAnyPtrFromAny(rhs)->v_uint64) {
+    return true;
+  }
+  record_mismatch();
+  return false;
 }
 
 bool SEqualReducer::EnumAttrsEqual(int lhs, int rhs, const void* lhs_address,
@@ -310,7 +339,7 @@ class SEqualHandlerDefault::Impl {
   ObjectRef MapLhsToRhs(const ObjectRef& lhs) {
     auto it = equal_map_lhs_.find(lhs);
     if (it != equal_map_lhs_.end()) return it->second;
-    return ObjectRef(nullptr);
+    return lhs;
   }
 
   // Function that implements actual equality check.

@@ -419,7 +419,7 @@ struct ArrayNodeTrait {
 
     if (lhs->size() != rhs->size()) return false;
     for (uint32_t i = 0; i < lhs->size(); ++i) {
-      if (!equal(lhs->at(i), rhs->at(i))) return false;
+      if (!equal.AnyEqual(lhs->at(i), rhs->at(i))) return false;
     }
     return true;
   }
@@ -433,7 +433,7 @@ struct ArrayNodeTrait {
     for (uint32_t index = 0; index < min_size; ++index) {
       ObjectPathPair element_paths = {array_paths->lhs_path->ArrayIndex(index),
                                       array_paths->rhs_path->ArrayIndex(index)};
-      if (!equal(lhs->at(index), rhs->at(index), element_paths)) {
+      if (!equal.AnyEqual(lhs->at(index), rhs->at(index), element_paths)) {
         return false;
       }
     }
@@ -541,12 +541,15 @@ struct MapNodeTrait {
     // This resolves common use cases where we want to store
     // Map<Var, Value> where Var is defined in the function
     // parameters.
-    using KV = std::pair<uint64_t, ObjectRef>;
+    using KV = std::pair<uint64_t, Any>;
     std::vector<KV> temp;
     for (const auto& kv : *key) {
       uint64_t hashed_value;
-      if (hash_reduce->LookupHashedValue(kv.first, &hashed_value)) {
-        temp.emplace_back(hashed_value, kv.second);
+      // skip non-object keys
+      if (kv.first.type_index() >= ffi::TypeIndex::kTVMFFIStaticObjectBegin) {
+        if (hash_reduce->LookupHashedValue(kv.first, &hashed_value)) {
+          temp.emplace_back(hashed_value, kv.second);
+        }
       }
     }
     // sort by the hash key of the keys.
@@ -573,10 +576,10 @@ struct MapNodeTrait {
     // This resolves common use cases where we want to store
     // Map<Var, Value> where Var is defined in the function
     // parameters.
-    using KV = std::pair<String, ObjectRef>;
+    using KV = std::pair<String, Any>;
     std::vector<KV> temp;
     for (const auto& kv : *key) {
-      temp.push_back(std::make_pair(Downcast<String>(kv.first), kv.second));
+      temp.push_back(std::make_pair(kv.first.operator String(), kv.second));
     }
     // sort by the hash key of the keys.
     std::sort(temp.begin(), temp.end(),
@@ -593,7 +596,7 @@ struct MapNodeTrait {
 
   static void SHashReduce(const MapNode* key, SHashReducer hash_reduce) {
     bool is_str_map = std::all_of(key->begin(), key->end(), [](const auto& v) {
-      return v.first->template IsInstance<StringObj>();
+      return v.first.template TryAs<const ffi::StringObj*>();
     });
     if (is_str_map) {
       SHashReduceForSMap(key, hash_reduce);
@@ -602,99 +605,27 @@ struct MapNodeTrait {
     }
   }
 
-  static bool SEqualReduceForOMap(const MapNode* lhs, const MapNode* rhs, SEqualReducer equal) {
-    for (const auto& kv : *lhs) {
-      // Only allow equal checking if the keys are already mapped
-      // This resolves common use cases where we want to store
-      // Map<Var, Value> where Var is defined in the function
-      // parameters.
-      ObjectRef rhs_key = equal->MapLhsToRhs(kv.first);
-      if (!rhs_key.defined()) return false;
-      auto it = rhs->find(rhs_key);
-      if (it == rhs->end()) return false;
-      if (!equal(kv.second, it->second)) return false;
-    }
-    return true;
-  }
-
-  static bool SEqualReduceForSMap(const MapNode* lhs, const MapNode* rhs, SEqualReducer equal) {
-    for (const auto& kv : *lhs) {
-      auto it = rhs->find(kv.first);
-      if (it == rhs->end()) return false;
-      if (!equal(kv.second, it->second)) return false;
-    }
-    return true;
-  }
-
-  static bool IsStringMap(const MapNode* map) {
-    return std::all_of(map->begin(), map->end(),
-                       [](const auto& v) { return v.first.TryAs<const ffi::StringObj*>().has_value(); });
-  }
-
-  static bool SEqualReduceTracedForOMap(const MapNode* lhs, const MapNode* rhs,
-                                        const SEqualReducer& equal) {
+  static bool SEqualReduceTraced(const MapNode* lhs, const MapNode* rhs,
+                                 const SEqualReducer& equal) {
     const ObjectPathPair& map_paths = equal.GetCurrentObjectPaths();
-
-    std::vector<const Object*> seen_rhs_keys;
-
     // First, check that every key from `lhs` is also in `rhs`,
     // and their values are mapped to each other.
     for (const auto& kv : *lhs) {
       ObjectPath lhs_path = map_paths->lhs_path->MapValue(kv.first);
 
-      ObjectRef rhs_key = equal->MapLhsToRhs(kv.first);
-      if (!rhs_key.defined()) {
-        equal.RecordMismatchPaths({lhs_path, map_paths->rhs_path->MissingMapEntry()});
-        return false;
-      }
-
+      Any rhs_key = equal->MapLhsToRhs(kv.first);
       auto it = rhs->find(rhs_key);
       if (it == rhs->end()) {
         equal.RecordMismatchPaths({lhs_path, map_paths->rhs_path->MissingMapEntry()});
         return false;
       }
 
-      if (!equal(kv.second, it->second, {lhs_path, map_paths->rhs_path->MapValue(it->first)})) {
+      if (!equal.AnyEqual(kv.second, it->second, ObjectPathPair({lhs_path, map_paths->rhs_path->MapValue(it->first)}))) {
         return false;
       }
-
-      seen_rhs_keys.push_back(it->first.get());
     }
-
-    std::sort(seen_rhs_keys.begin(), seen_rhs_keys.end());
 
     // Second, check that we have visited every `rhs` key when iterating over `lhs`.
-    for (const auto& kv : *rhs) {
-      if (!std::binary_search(seen_rhs_keys.begin(), seen_rhs_keys.end(), kv.first.get())) {
-        equal.RecordMismatchPaths(
-            {map_paths->lhs_path->MissingMapEntry(), map_paths->rhs_path->MapValue(kv.first)});
-        return false;
-      }
-    }
-
-    ICHECK(lhs->size() == rhs->size());
-    return true;
-  }
-
-  static bool SEqualReduceTracedForSMap(const MapNode* lhs, const MapNode* rhs,
-                                        const SEqualReducer& equal) {
-    const ObjectPathPair& map_paths = equal.GetCurrentObjectPaths();
-
-    // First, check that every key from `lhs` is also in `rhs`, and their values are equal.
-    for (const auto& kv : *lhs) {
-      ObjectPath lhs_path = map_paths->lhs_path->MapValue(kv.first);
-      auto it = rhs->find(kv.first);
-      if (it == rhs->end()) {
-        equal.RecordMismatchPaths({lhs_path, map_paths->rhs_path->MissingMapEntry()});
-        return false;
-      }
-
-      if (!equal(kv.second, it->second, {lhs_path, map_paths->rhs_path->MapValue(it->first)})) {
-        return false;
-      }
-    }
-
-    // Second, make sure every key from `rhs` is also in `lhs`.
     for (const auto& kv : *rhs) {
       ObjectPath rhs_path = map_paths->rhs_path->MapValue(kv.first);
       if (!lhs->count(kv.first)) {
@@ -707,15 +638,6 @@ struct MapNodeTrait {
     return true;
   }
 
-  static bool SEqualReduceTraced(const MapNode* lhs, const MapNode* rhs,
-                                 const SEqualReducer& equal) {
-    if (IsStringMap(lhs)) {
-      return SEqualReduceTracedForSMap(lhs, rhs, equal);
-    } else {
-      return SEqualReduceTracedForOMap(lhs, rhs, equal);
-    }
-  }
-
   static bool SEqualReduce(const MapNode* lhs, const MapNode* rhs, SEqualReducer equal) {
     if (equal.IsPathTracingEnabled()) {
       return SEqualReduceTraced(lhs, rhs, equal);
@@ -723,12 +645,18 @@ struct MapNodeTrait {
 
     if (rhs->size() != lhs->size()) return false;
     if (rhs->size() == 0) return true;
-    bool ls = IsStringMap(lhs);
-    bool rs = IsStringMap(rhs);
-    if (ls != rs) {
-      return false;
+
+    for (const auto& kv : *lhs) {
+      // Only allow equal checking if the keys are already mapped
+      // This resolves common use cases where we want to store
+      // Map<Var, Value> where Var is defined in the function
+      // parameters.
+      Any rhs_key = equal->MapLhsToRhs(kv.first);
+      auto it = rhs->find(rhs_key);
+      if (it == rhs->end()) return false;
+      if (!equal.AnyEqual(kv.second, it->second)) return false;
     }
-    return (ls && rs) ? SEqualReduceForSMap(lhs, rhs, equal) : SEqualReduceForOMap(lhs, rhs, equal);
+    return true;
   }
 };
 TVM_REGISTER_REFLECTION_VTABLE(MapNode, MapNodeTrait)

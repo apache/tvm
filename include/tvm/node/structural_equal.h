@@ -122,6 +122,23 @@ class StructuralEqual : public BaseValueEqual {
    */
   TVM_DLL bool operator()(const ObjectRef& lhs, const ObjectRef& rhs,
                           const bool map_free_params = false) const;
+
+  /*!
+   * \brief Compare any value via strutural equal.
+   * \param lhs The left operand.
+   * \param rhs The right operand.
+   * \param map_free_params Whether or not to map free variables.
+   * \return The comparison result.
+   */
+  TVM_FFI_INLINE bool operator()(const ffi::Any& lhs, const ffi::Any& rhs, bool map_free_params) const {
+    if (lhs.type_index() != rhs.type_index()) return false;
+    if (lhs.type_index() >= ffi::TypeIndex::kTVMFFIStaticObjectBegin) {
+      return operator()(lhs.operator ObjectRef(), rhs.operator ObjectRef(), map_free_params);
+    }
+    // POD value can always use v_int64 to get the hash value
+    return (ffi::details::AnyUnsafe::GetTVMFFIAnyPtrFromAny(lhs)->v_uint64 ==
+            ffi::details::AnyUnsafe::GetTVMFFIAnyPtrFromAny(rhs)->v_uint64);
+  }
 };
 
 /*!
@@ -184,6 +201,19 @@ class SEqualReducer {
      * \brief Mark current comparison as graph node equal comparison.
      */
     virtual void MarkGraphNode() = 0;
+
+    /*!
+     * \brief Map lhs to rhs.
+     * \param lhs The left operand.
+     * \return The corresponding rhs value if any, nullptr if not available.
+     */
+    TVM_FFI_INLINE ffi::Any MapLhsToRhs(const ffi::Any& lhs) {
+      if (lhs.type_index() >= ffi::TypeIndex::kTVMFFIStaticObjectBegin) {
+        return MapLhsToRhs(lhs.operator ObjectRef());
+      } else {
+        return lhs;
+      }
+    }
 
    protected:
     using PathTracingData = SEqualReducer::PathTracingData;
@@ -278,6 +308,15 @@ class SEqualReducer {
     ICHECK(IsPathTracingEnabled()) << "Path tracing must be enabled when calling this function";
     return ObjectAttrsEqual(lhs, rhs, map_free_vars_, &paths);
   }
+
+  /*
+   * \brief Compare two Any values.
+   * \param lhs The left operand.
+   * \param rhs The right operand.
+   * \param paths Object paths for `lhs` and `rhs`.
+   * \return the immediate check result.
+   */
+  bool AnyEqual(const ffi::Any& lhs, const ffi::Any& rhs, Optional<ObjectPathPair> paths = NullOpt) const;
 
   /*!
    * \brief Reduce condition to comparison of two definitions,

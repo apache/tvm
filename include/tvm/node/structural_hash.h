@@ -101,6 +101,19 @@ class StructuralHash : public BaseValueHash {
    * \return The hash value.
    */
   TVM_DLL uint64_t operator()(const ffi::ObjectRef& key) const;
+
+  /**
+   * \brief Compute structural hashing value for an Any object.
+   * \param key The Any object.
+   * \return The hash value.
+   */
+  TVM_FFI_INLINE uint64_t operator()(const ffi::Any& key) const {
+    if (key.type_index() >= ffi::TypeIndex::kTVMFFIStaticObjectBegin) {
+      return operator()(key.operator ObjectRef());
+    }
+    // POD value can always use v_int64 to get the hash value
+    return ffi::details::AnyUnsafe::GetTVMFFIAnyPtrFromAny(key)->v_uint64;
+  }
 };
 
 /*!
@@ -184,6 +197,17 @@ class SHashReducer {
   void operator()(const T& key) const {
     // handle normal values.
     handler_->SHashReduceHashedValue(BaseValueHash()(key));
+  }
+  /**
+   * \brief Push hash of Any object to the current sequence of hash values.
+   * \param key The Any object.
+   */
+  void operator()(const ffi::Any& key) const {
+    if (key.type_index() >= ffi::TypeIndex::kTVMFFIStaticObjectBegin) {
+      return operator()(key.operator ObjectRef());
+    }
+    // POD value can always use v_int64 to get the hash value
+    handler_->SHashReduceHashedValue(ffi::details::AnyUnsafe::GetTVMFFIAnyPtrFromAny(key)->v_uint64);
   }
   /*!
    * \brief Push hash of key to the current sequence of hash values.
