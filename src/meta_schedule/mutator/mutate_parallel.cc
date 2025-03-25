@@ -253,9 +253,9 @@ Optional<Trace> MutateParallelNode::Apply(const Trace& trace, TRandState* rand_s
     return NullOpt;
   }
   // Step 2. Replay the instructions to recover loop extents
-  tir::Schedule sch = tir::Schedule::Traced(                  //
-      /*mod=*/LoadJSON(this->json_mod_),                      //
-      /*rand_state=*/ForkSeed(rand_state),                    //
+  tir::Schedule sch = tir::Schedule::Traced(  //
+      /*mod=*/LoadJSON(this->json_mod_),      //
+      /*rand_state=*/ForkSeed(rand_state),    //
       /*debug_mode=*/0,
       /*error_render_level=*/tir::ScheduleErrorRenderLevel::kNone);
   trace->ApplyToSchedule(sch, /*remove_postproc=*/true);

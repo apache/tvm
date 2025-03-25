@@ -89,9 +89,7 @@ class NodeIndexer : public AttrVisitor {
     tensor_list_.push_back(ptr);
   }
 
-  void Visit(const char* key, ObjectRef* value) final {
-    MakeIndex(Any(*value));
-  }
+  void Visit(const char* key, ObjectRef* value) final { MakeIndex(Any(*value)); }
 
   void MakeNodeIndex(Any node) {
     if (node == nullptr) return;
@@ -280,7 +278,7 @@ class JSONAttrGetter : public AttrVisitor {
     } else if (auto opt_object = node.TryAs<const Object*>()) {
       Object* n = const_cast<Object*>(opt_object.value());
       // do not need to print additional things once we have repr bytes.
-      if (!reflection_->GetReprBytes(n, &(node_->repr_bytes)))  {
+      if (!reflection_->GetReprBytes(n, &(node_->repr_bytes))) {
         // recursively index normal object.
         reflection_->VisitAttrs(n, this);
       }
@@ -493,7 +491,7 @@ class JSONAttrSetter : public AttrVisitor {
       *node = result;
     } else if (auto opt_object = node->TryAs<const Object*>()) {
       Object* n = const_cast<Object*>(opt_object.value());
-      if (n == nullptr)  return;
+      if (n == nullptr) return;
       // Skip the objects that have their own string repr
       if (jnode->repr_bytes.length() > 0 || reflection_->GetReprBytes(n, nullptr)) {
         return;

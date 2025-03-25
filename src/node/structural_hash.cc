@@ -312,7 +312,8 @@ struct StringObjTrait {
   static constexpr const std::nullptr_t VisitAttrs = nullptr;
 
   static void SHashReduce(const runtime::StringObj* key, SHashReducer hash_reduce) {
-    hash_reduce->SHashReduceHashedValue(ffi::details::StableHashBytes(key->bytes.data, key->bytes.size));
+    hash_reduce->SHashReduceHashedValue(
+        ffi::details::StableHashBytes(key->bytes.data, key->bytes.size));
   }
 
   static bool SEqualReduce(const runtime::StringObj* lhs, const runtime::StringObj* rhs,
@@ -620,7 +621,8 @@ struct MapNodeTrait {
         return false;
       }
 
-      if (!equal.AnyEqual(kv.second, it->second, ObjectPathPair({lhs_path, map_paths->rhs_path->MapValue(it->first)}))) {
+      if (!equal.AnyEqual(kv.second, it->second,
+                          ObjectPathPair({lhs_path, map_paths->rhs_path->MapValue(it->first)}))) {
         return false;
       }
     }
