@@ -28,6 +28,7 @@
 
 #include <tvm/ffi/any.h>
 #include <tvm/ffi/container/container_details.h>
+#include <tvm/ffi/container/optional.h>
 #include <tvm/ffi/memory.h>
 #include <tvm/ffi/object.h>
 
