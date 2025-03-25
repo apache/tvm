@@ -223,7 +223,7 @@ Optional<Array<PrimType>> UnpackTupleOfPrimValue(Optional<StructInfo> sinfo) {
 
     if (!prim_sinfo->value.defined()) return NullOpt;
 
-    Optional<PrimType> element = prim_sinfo->value.as<PrimType>();
+    std::optional<PrimType> element = prim_sinfo->value.as<PrimType>();
     if (!element) return NullOpt;
 
     output.push_back(element.value());

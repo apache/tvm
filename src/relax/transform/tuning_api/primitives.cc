@@ -66,9 +66,9 @@ Choice Choice::FromJSON(const ObjectRef& json) {
   try {
     const ArrayNode* arr = json.as<ArrayNode>();
     ICHECK(arr && arr->size() == 4);
-    const auto* arr0 = arr->at(0).as<StringObj>();
+    const auto* arr0 = arr->at(0).as<ffi::StringObj>();
     const auto* arr1 = arr->at(1).as<ArrayNode>();
-    const auto* arr2 = arr->at(2).as<StringObj>();
+    const auto* arr2 = arr->at(2).as<ffi::StringObj>();
     const auto* arr3 = arr->at(3).as<ArrayNode>();
     ICHECK(arr0 && arr1 && arr2 && arr3);
     transform_func_key = GetRef<String>(arr0);

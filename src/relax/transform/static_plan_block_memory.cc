@@ -384,7 +384,7 @@ void SetTIRVarUpperBound(Function func, arith::Analyzer* ana,
   std::unordered_set<String> non_negative_var_attr;
   // We manually check the value type to ensure the values are all positive IntImm.
   for (auto it : var_upper_bound_attr_raw) {
-    const auto* key = it.first.as<StringObj>();
+    const auto* key = it.first.as<ffi::StringObj>();
     const auto* value = it.second.as<IntImmNode>();
     CHECK(key != nullptr)
         << "The entry key of attr `tir_var_upper_bound` should be string. However "
@@ -398,7 +398,7 @@ void SetTIRVarUpperBound(Function func, arith::Analyzer* ana,
     var_upper_bound_attr[GetRef<String>(key)] = GetRef<IntImm>(value);
   }
   for (ObjectRef var_name : non_negative_var_attr_raw) {
-    const auto* key = var_name.as<StringObj>();
+    const auto* key = var_name.as<ffi::StringObj>();
     CHECK(key != nullptr) << "The element of attr `tir_non_negative_var` should be string. However "
                           << key->GetTypeKey() << " is got.";
     non_negative_var_attr.insert(GetRef<String>(key));
