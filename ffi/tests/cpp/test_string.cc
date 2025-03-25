@@ -274,23 +274,23 @@ TEST(String, Any) {
 
   Any b = view;
   EXPECT_EQ(b.type_index(), TypeIndex::kTVMFFIStr);
-  EXPECT_EQ(b.TryAs<String>().value(), "hello");
-  EXPECT_EQ(b.TryAs<std::string>().value(), "hello");
+  EXPECT_EQ(b.as<String>().value(), "hello");
+  EXPECT_EQ(b.as<std::string>().value(), "hello");
 
   std::string s_world = "world";
   view = s_world;
-  EXPECT_EQ(view.TryAs<std::string>().value(), "world");
+  EXPECT_EQ(view.as<std::string>().value(), "world");
 
   String s{"hello"};
   Any a = s;
   EXPECT_EQ(a.type_index(), TypeIndex::kTVMFFIStr);
-  EXPECT_EQ(a.TryAs<String>().value(), "hello");
-  EXPECT_EQ(a.TryAs<std::string>().value(), "hello");
+  EXPECT_EQ(a.as<String>().value(), "hello");
+  EXPECT_EQ(a.as<std::string>().value(), "hello");
 
   Any c = "helloworld";
   EXPECT_EQ(c.type_index(), TypeIndex::kTVMFFIStr);
-  EXPECT_EQ(c.TryAs<String>().value(), "helloworld");
-  EXPECT_EQ(c.TryAs<std::string>().value(), "helloworld");
+  EXPECT_EQ(c.as<String>().value(), "helloworld");
+  EXPECT_EQ(c.as<std::string>().value(), "helloworld");
 }
 
 TEST(String, Bytes) {
@@ -312,12 +312,12 @@ TEST(String, BytesAny) {
 
   AnyView view = &arr;
   EXPECT_EQ(view.type_index(), TypeIndex::kTVMFFIByteArrayPtr);
-  EXPECT_EQ(view.TryAs<Bytes>().value().operator std::string(), s);
+  EXPECT_EQ(view.as<Bytes>().value().operator std::string(), s);
 
   Any b = view;
   EXPECT_EQ(b.type_index(), TypeIndex::kTVMFFIBytes);
 
-  EXPECT_EQ(b.TryAs<Bytes>().value().operator std::string(), s);
-  EXPECT_EQ(b.TryAs<std::string>().value(), s);
+  EXPECT_EQ(b.as<Bytes>().value().operator std::string(), s);
+  EXPECT_EQ(b.as<std::string>().value(), s);
 }
 }  // namespace

@@ -66,8 +66,8 @@ class Variant {
   }
 
   template <typename T, typename = enable_if_variant_t<T>>
-  std::optional<T> TryAs() const {
-    return data_.TryAs<T>();
+  std::optional<T> as() const {
+    return data_.as<T>();
   }
 
   template <typename T, typename = enable_if_variant_t<T>>

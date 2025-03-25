@@ -109,15 +109,15 @@ struct FunctionInfo<R (*)(Args...)> : FuncFunctorImpl<R, Args...> {};
 typedef std::string (*FGetFuncSignature)();
 
 template <typename T>
-TVM_FFI_INLINE std::optional<T> TryAs(AnyView arg) {
-  return arg.TryAs<T>();
+TVM_FFI_INLINE std::optional<T> as(AnyView arg) {
+  return arg.as<T>();
 }
 template <>
-TVM_FFI_INLINE std::optional<Any> TryAs<Any>(AnyView arg) {
+TVM_FFI_INLINE std::optional<Any> as<Any>(AnyView arg) {
   return Any(arg);
 }
 template <>
-TVM_FFI_INLINE std::optional<AnyView> TryAs<AnyView>(AnyView arg) {
+TVM_FFI_INLINE std::optional<AnyView> as<AnyView>(AnyView arg) {
   return arg;
 }
 
@@ -157,7 +157,7 @@ class MovableArgValueWithContext {
   template <typename Type>
   TVM_FFI_INLINE operator Type() {
     using TypeWithoutCR = std::remove_const_t<std::remove_reference_t<Type>>;
-    std::optional<TypeWithoutCR> opt = TryAs<TypeWithoutCR>(args_[arg_index_]);
+    std::optional<TypeWithoutCR> opt = as<TypeWithoutCR>(args_[arg_index_]);
     if (opt.has_value()) {
       return std::move(*opt);
     }

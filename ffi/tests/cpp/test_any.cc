@@ -31,7 +31,7 @@ TEST(Any, Int) {
   AnyView view0;
   EXPECT_EQ(view0.CopyToTVMFFIAny().type_index, TypeIndex::kTVMFFINone);
 
-  std::optional<int64_t> opt_v0 = view0.TryAs<int64_t>();
+  std::optional<int64_t> opt_v0 = view0.as<int64_t>();
   EXPECT_TRUE(!opt_v0.has_value());
 
   EXPECT_THROW(
@@ -62,7 +62,7 @@ TEST(Any, Int) {
 
 TEST(Any, bool) {
   AnyView view0;
-  std::optional<bool> opt_v0 = view0.TryAs<bool>();
+  std::optional<bool> opt_v0 = view0.as<bool>();
   EXPECT_TRUE(!opt_v0.has_value());
 
   EXPECT_THROW(
@@ -95,7 +95,7 @@ TEST(Any, Float) {
   AnyView view0;
   EXPECT_EQ(view0.CopyToTVMFFIAny().type_index, TypeIndex::kTVMFFINone);
 
-  std::optional<double> opt_v0 = view0.TryAs<double>();
+  std::optional<double> opt_v0 = view0.as<double>();
   EXPECT_TRUE(!opt_v0.has_value());
 
   EXPECT_THROW(
@@ -129,7 +129,7 @@ TEST(Any, DataType) {
   AnyView view0;
   EXPECT_EQ(view0.CopyToTVMFFIAny().type_index, TypeIndex::kTVMFFINone);
 
-  std::optional<DLDataType> opt_v0 = view0.TryAs<DLDataType>();
+  std::optional<DLDataType> opt_v0 = view0.as<DLDataType>();
   EXPECT_TRUE(!opt_v0.has_value());
 
   EXPECT_THROW(
@@ -166,7 +166,7 @@ TEST(Any, Device) {
   AnyView view0;
   EXPECT_EQ(view0.CopyToTVMFFIAny().type_index, TypeIndex::kTVMFFINone);
 
-  std::optional<DLDevice> opt_v0 = view0.TryAs<DLDevice>();
+  std::optional<DLDevice> opt_v0 = view0.as<DLDevice>();
   EXPECT_TRUE(!opt_v0.has_value());
 
   EXPECT_THROW(
@@ -200,7 +200,7 @@ TEST(Any, Device) {
 TEST(Any, DLTensor) {
   AnyView view0;
 
-  std::optional<DLTensor*> opt_v0 = view0.TryAs<DLTensor*>();
+  std::optional<DLTensor*> opt_v0 = view0.as<DLTensor*>();
   EXPECT_TRUE(!opt_v0.has_value());
 
   EXPECT_THROW(
@@ -228,7 +228,7 @@ TEST(Any, Object) {
   EXPECT_EQ(view0.CopyToTVMFFIAny().type_index, TypeIndex::kTVMFFINone);
 
   // int object is not nullable
-  std::optional<TInt> opt_v0 = view0.TryAs<TInt>();
+  std::optional<TInt> opt_v0 = view0.as<TInt>();
   EXPECT_TRUE(!opt_v0.has_value());
 
   TInt v1(11);
@@ -249,19 +249,19 @@ TEST(Any, Object) {
   EXPECT_EQ(v1_ptr->value, 11);
   Any any2 = v1_ptr;
   EXPECT_EQ(v1.use_count(), 3);
-  EXPECT_TRUE(any2.TryAs<TInt>().has_value());
+  EXPECT_TRUE(any2.as<TInt>().has_value());
 
   // convert to raw opaque ptr
   void* raw_v1_ptr = const_cast<TIntObj*>(v1_ptr);
   any2 = raw_v1_ptr;
-  EXPECT_TRUE(any2.TryAs<void*>().value() == v1_ptr);
+  EXPECT_TRUE(any2.as<void*>().value() == v1_ptr);
 
   // convert to ObjectPtr
   ObjectPtr<TNumberObj> v1_obj_ptr = view2;
   EXPECT_EQ(v1.use_count(), 3);
   any2 = v1_obj_ptr;
   EXPECT_EQ(v1.use_count(), 4);
-  EXPECT_TRUE(any2.TryAs<TInt>().has_value());
+  EXPECT_TRUE(any2.as<TInt>().has_value());
   any2.reset();
   v1_obj_ptr.reset();
 
@@ -285,7 +285,7 @@ TEST(Any, Object) {
   EXPECT_EQ(v1.use_count(), 3);
   EXPECT_TRUE(number0.as<TIntObj>());
   EXPECT_EQ(number0.as<TIntObj>()->value, 11);
-  EXPECT_TRUE(!any1.TryAs<int>().has_value());
+  EXPECT_TRUE(!any1.as<int>().has_value());
 
   TInt int1 = view2;
   EXPECT_EQ(v1.use_count(), 4);
