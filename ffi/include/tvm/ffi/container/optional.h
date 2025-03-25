@@ -53,6 +53,7 @@ class Optional<T, std::enable_if_t<!std::is_base_of_v<ObjectRef, T>>> {
   Optional(const Optional<T>& other) : data_(other.data_) {}
   Optional(Optional<T>&& other) : data_(std::move(other.data_)) {}
   Optional(std::optional<T> other) : data_(std::move(other)) {}
+  Optional(std::nullopt_t) {}
   Optional<T>& operator=(const Optional<T>& other) {
     data_ = other.data_;
     return *this;
@@ -72,6 +73,10 @@ class Optional<T, std::enable_if_t<!std::is_base_of_v<ObjectRef, T>>> {
   // disallow implicit conversion as 0 can be implicitly converted to nullptr_t
   explicit Optional(std::nullptr_t) {}
   Optional<T>& operator=(std::nullptr_t) {
+    data_ = std::nullopt;
+    return *this;
+  }
+  Optional<T>& operator=(std::nullopt_t) {
     data_ = std::nullopt;
     return *this;
   }

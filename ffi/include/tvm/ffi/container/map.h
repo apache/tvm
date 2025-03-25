@@ -1265,7 +1265,7 @@ class Map : public ObjectRef {
   /*! \return find the key and returns the associated iterator */
   iterator find(const K& key) const { return iterator(GetMapNode()->find(key)); }
   /*! \return The value associated with the key, NullOpt if not found */
-  Optional<V> Get(const K& key) const {
+  std::optional<V> Get(const K& key) const {
     MapNode::iterator iter = GetMapNode()->find(key);
     if (iter == GetMapNode()->end()) {
       return std::nullopt;
