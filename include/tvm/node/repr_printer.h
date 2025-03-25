@@ -101,6 +101,12 @@ inline std::ostream& operator<<(std::ostream& os, const ObjectRef& n) {  // NOLI
   return os;
 }
 
+// default print function for any
+inline std::ostream& operator<<(std::ostream& os, const Any& n) {  // NOLINT(*)
+  ReprPrinter(os).Print(n);
+  return os;
+}
+
 inline std::string AsLegacyRepr(const ObjectRef& n) {
   std::ostringstream os;
   ReprLegacyPrinter(os).Print(n);
