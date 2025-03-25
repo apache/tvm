@@ -110,7 +110,7 @@ ArgType GetArgStructInfoByIndex(const Call& call, const Op& op, const BlockBuild
   auto sinfo = GetStructInfo(call->args[index]);
   auto typed_sinfo = sinfo.as<ArgType>();
 
-  if (!typed_sinfo.defined()) {
+  if (!typed_sinfo.has_value()) {
     ctx->ReportFatal(Diagnostic::Error(call)
                      << op << " requires that args[" << index << "] be a "
                      << ArgType::ContainerType::_type_key << ", but was instead " << sinfo

@@ -468,7 +468,7 @@ class FunctionCreator : public ExprMutator {
    * It will become the value of the kComposite attribute of the created function.
    * \note The created function won't be returned immediately. It's stored in the `function_` field.
    */
-  void CreateFunction(Map<String, ObjectRef> group_attrs) {
+  void CreateFunction(Map<String, Any> group_attrs) {
     // Step 1. Start constructing a new dataflow block.
     builder_->BeginDataflowBlock();
 

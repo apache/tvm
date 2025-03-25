@@ -856,7 +856,7 @@ class FusedTIRConstructor : public ExprVisitor {
 
       // if this is an inplace output, do not do an intermediate allocation
       if (output_idxs[i].IntValue() < num_inputs) {
-        CHECK(input_buffers.defined()) << "Inplace functions must have some defined input";
+        CHECK(input_buffers.has_value()) << "Inplace functions must have some defined input";
         output_buffers.push_back(input_buffers.value()[output_idxs[i].IntValue()]);
         continue;
       }
@@ -949,7 +949,7 @@ class FusedTIRConstructor : public ExprVisitor {
    * \return The fused TIR
    */
   tir::PrimFunc ConstructFunc() {
-    Map<String, ObjectRef> attr_map;
+    Map<String, Any> attr_map;
     attr_map.Set("tir.noalias", tir::const_true());
     tir::FuseTIRBufferSubstitutor subst(func_info_.buffer_subst_map, func_info_.symbolic_var_remap);
     ICHECK(func_info_.global_name != "fused");

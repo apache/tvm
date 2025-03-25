@@ -396,7 +396,7 @@ class LocalLiftableBindingCollector : public BaseLiftableBindingCollector {
           // In-place update the set in global info by unioning with the local set, variable
           // mappings are applied.
           for (const auto& relax_or_tir_var : source_set) {
-            if (relax_or_tir_var->IsInstance<relax::VarNode>()) {
+            if (relax_or_tir_var.as<relax::VarNode>()) {
               if (auto it = var_remap.find(Downcast<Var>(relax_or_tir_var));
                   it != var_remap.end()) {
                 target_set.insert(Downcast<relax::Var>((*it).second));
@@ -754,7 +754,6 @@ Pass PartitionTransformParams(Variant<Bool, Array<String>> shared_transform) {
   auto pass_func = [=](IRModule mod, PassContext pc) {
     std::optional<GlobalCollectInfo> global_collect_info;
 
-    CHECK(shared_transform.defined()) << "shared_transform is not defined";
     CHECK((shared_transform.as<Bool>() || shared_transform.as<Array<String>>()))
         << "shared_transform should be a boolean or an array of function names";
 

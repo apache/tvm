@@ -47,7 +47,7 @@ class IRModuleFrameNode : public IRBuilderFrameNode {
    */
   Map<GlobalVar, BaseFunc> functions;
   /*! \brief IRModule's attributes. */
-  Map<String, ObjectRef> attrs;
+  Map<String, Any> attrs;
   /*! \brief IRModule's global_infos */
   Map<String, Array<GlobalInfo>> global_infos;
 

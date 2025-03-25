@@ -113,7 +113,7 @@ class DFPattern : public ObjectRef {
   /*! \brief Syntatic Sugar for creating a NotPattern */
   TVM_DLL NotPattern operator~() const;
   /*! \brief Syntatic Sugar for creating an AttrPattern */
-  TVM_DLL AttrPattern HasAttr(const Map<String, ObjectRef>& attrs) const;
+  TVM_DLL AttrPattern HasAttr(const Map<String, Any>& attrs) const;
   /*! \brief Syntatic Sugar for creating a StructInfoPattern */
   TVM_DLL StructInfoPattern HasStructInfo(const StructInfo& struct_info) const;
   /*! \brief Syntatic Sugar for creating a TypePattern */

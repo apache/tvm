@@ -177,7 +177,7 @@ class LegalizeMutator : public ExprMutator {
     }
 
     auto gvar = call->args[0].as<GlobalVar>();
-    if (!gvar.defined()) {
+    if (!gvar.has_value()) {
       // This is not a call into a legalized function within the
       // current IRModule, so no post-processing is required.
       return expr;

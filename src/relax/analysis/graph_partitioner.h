@@ -194,7 +194,7 @@ class GraphPartitioner {
     size_t args_num{0};
 
     /*! \brief Optional attributes to annotate the grouped function. */
-    runtime::Map<runtime::String, ObjectRef> attrs;
+    Map<String, Any> attrs;
     /*!
      * \brief Find the group root, perform path compression
      * \return The root type node.

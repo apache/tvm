@@ -150,8 +150,7 @@ class ConstantFolder : public ExprMutator {
     if (!func) return NullOpt;
 
     // here the vector size has an additional + 1 because we need to put ret_tensor at the end
-    std::vector<TVMValue> values(arr_args.size() + 1);
-    std::vector<int> type_codes(arr_args.size() + 1);
+    std::vector<AnyView> packed_args(arr_args.size() + 1);
 
     DLDevice cpu_dev = {DLDeviceType::kDLCPU, 0};
     runtime::NDArray ret_tensor = runtime::NDArray::Empty(shape, ret_type, cpu_dev);
@@ -162,14 +161,14 @@ class ConstantFolder : public ExprMutator {
 
     size_t arg_offset = 0;
     for (; arg_offset < arr_args.size(); ++arg_offset) {
-      runtime::TVMArgsSetter(values.data(), type_codes.data())(arg_offset, temp_args[arg_offset]);
+      packed_args[arg_offset] = temp_args[arg_offset];
     }
     // set return value
-    runtime::TVMArgsSetter(values.data(), type_codes.data())(arg_offset++, ret_tensor);
+    packed_args[arg_offset++] = ret_tensor;
 
     TVMRetValue ret;
     // invoke
-    func.value().CallPacked(TVMArgs(values.data(), type_codes.data(), values.size()), &ret);
+    func.value().CallPacked(ffi::PackedArgs(packed_args.data(), packed_args.size()), &ret);
     return Constant(ret_tensor);
   }
 

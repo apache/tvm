@@ -54,66 +54,66 @@ bool IsIdentifier(const std::string& name) {
 PrinterConfig::PrinterConfig(Map<String, ObjectRef> config_dict) {
   runtime::ObjectPtr<PrinterConfigNode> n = make_object<PrinterConfigNode>();
   if (auto v = config_dict.Get("name")) {
-    n->binding_names.push_back(Downcast<String>(v));
+    n->binding_names.push_back(Downcast<String>(v.value()));
   }
   if (auto v = config_dict.Get("show_meta")) {
-    n->show_meta = Downcast<runtime::Bool>(v)->value;
+    n->show_meta = Downcast<runtime::Bool>(v.value())->value;
   }
   if (auto v = config_dict.Get("ir_prefix")) {
-    n->ir_prefix = Downcast<String>(v);
+    n->ir_prefix = Downcast<String>(v.value());
   }
   if (auto v = config_dict.Get("tir_prefix")) {
-    n->tir_prefix = Downcast<String>(v);
+    n->tir_prefix = Downcast<String>(v.value());
   }
   if (auto v = config_dict.Get("relax_prefix")) {
-    n->relax_prefix = Downcast<String>(v);
+    n->relax_prefix = Downcast<String>(v.value());
   }
   if (auto v = config_dict.Get("module_alias")) {
-    n->module_alias = Downcast<String>(v);
+    n->module_alias = Downcast<String>(v.value());
   }
   if (auto v = config_dict.Get("buffer_dtype")) {
-    n->buffer_dtype = DataType(runtime::String2DLDataType(Downcast<String>(v)));
+    n->buffer_dtype = DataType(runtime::String2DLDataType(Downcast<String>(v.value())));
   }
   if (auto v = config_dict.Get("int_dtype")) {
-    n->int_dtype = DataType(runtime::String2DLDataType(Downcast<String>(v)));
+    n->int_dtype = DataType(runtime::String2DLDataType(Downcast<String>(v.value())));
   }
   if (auto v = config_dict.Get("float_dtype")) {
-    n->float_dtype = DataType(runtime::String2DLDataType(Downcast<String>(v)));
+    n->float_dtype = DataType(runtime::String2DLDataType(Downcast<String>(v.value())));
   }
   if (auto v = config_dict.Get("verbose_expr")) {
-    n->verbose_expr = Downcast<runtime::Bool>(v)->value;
+    n->verbose_expr = Downcast<runtime::Bool>(v.value())->value;
   }
   if (auto v = config_dict.Get("indent_spaces")) {
-    n->indent_spaces = Downcast<runtime::Int>(v)->value;
+    n->indent_spaces = Downcast<runtime::Int>(v.value())->value;
   }
   if (auto v = config_dict.Get("print_line_numbers")) {
-    n->print_line_numbers = Downcast<runtime::Bool>(v)->value;
+    n->print_line_numbers = Downcast<runtime::Bool>(v.value())->value;
   }
   if (auto v = config_dict.Get("num_context_lines")) {
-    n->num_context_lines = Downcast<runtime::Int>(v)->value;
+    n->num_context_lines = Downcast<runtime::Int>(v.value())->value;
   }
   if (auto v = config_dict.Get("path_to_underline")) {
-    n->path_to_underline = Downcast<Optional<Array<ObjectPath>>>(v).value_or(Array<ObjectPath>());
+    n->path_to_underline = Downcast<Array<ObjectPath>>(v.value());
   }
   if (auto v = config_dict.Get("path_to_annotate")) {
     n->path_to_annotate =
-        Downcast<Optional<Map<ObjectPath, String>>>(v).value_or(Map<ObjectPath, String>());
+        Downcast<Map<ObjectPath, String>>(v.value());
   }
   if (auto v = config_dict.Get("obj_to_underline")) {
-    n->obj_to_underline = Downcast<Optional<Array<ObjectRef>>>(v).value_or(Array<ObjectRef>());
+    n->obj_to_underline = Downcast<Array<ObjectRef>>(v.value());
   }
   if (auto v = config_dict.Get("obj_to_annotate")) {
     n->obj_to_annotate =
-        Downcast<Optional<Map<ObjectRef, String>>>(v).value_or(Map<ObjectRef, String>());
+        Downcast<Map<ObjectRef, String>>(v.value());
   }
   if (auto v = config_dict.Get("syntax_sugar")) {
-    n->syntax_sugar = Downcast<runtime::Bool>(v)->value;
+    n->syntax_sugar = Downcast<runtime::Bool>(v.value())->value;
   }
   if (auto v = config_dict.Get("show_object_address")) {
-    n->show_object_address = Downcast<runtime::Bool>(v)->value;
+    n->show_object_address = Downcast<runtime::Bool>(v.value())->value;
   }
   if (auto v = config_dict.Get("show_all_struct_info")) {
-    n->show_all_struct_info = Downcast<runtime::Bool>(v)->value;
+    n->show_all_struct_info = Downcast<runtime::Bool>(v.value())->value;
   }
 
   // Checking prefixes if they are valid Python identifiers.
