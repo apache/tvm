@@ -25,6 +25,7 @@
 
 #include <tvm/ffi/error.h>
 #include <tvm/ffi/object.h>
+#include <tvm/ffi/any.h>
 
 #include <utility>
 
