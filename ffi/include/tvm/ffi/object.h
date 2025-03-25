@@ -403,6 +403,7 @@ class ObjectRef {
    *      }
    *
    * \tparam ObjectType the target type, must be a subtype of Object
+   * \return The pointer to the requested type.
    */
   template <typename ObjectType, typename = std::enable_if_t<std::is_base_of_v<Object, ObjectType>>>
   const ObjectType* as() const {
@@ -419,20 +420,21 @@ class ObjectRef {
    *
    *  The function will return a std::nullopt if the cast or if the pointer is nullptr.
    *
-   * \tparam ObjectRefType the target type, must be a subtype of ObjectRef
+   * \tparam ObjectRefType the target type, must be a subtype of ObjectRef'
+   * \return The optional value of the requested type.
    */
   template <typename ObjectRefType,
             typename = std::enable_if_t<std::is_base_of_v<ObjectRef, ObjectRefType>>>
   std::optional<ObjectRefType> as() const {
     if (data_ != nullptr) {
-      if (data_->IsInstance<ObjectRefType>()) {
+      if (data_->IsInstance<typename ObjectRefType::ContainerType>()) {
         return ObjectRefType(data_);
       } else {
         return std::nullopt;
       }
     } else {
-      if (ObjectRefType::ContainerType::_type_is_nullable) {
-        return ObjectRefType(nullptr);
+      if constexpr (ObjectRefType::_type_is_nullable) {
+        return ObjectRefType(ObjectPtr<Object>(nullptr));
       } else {
         return std::nullopt;
       }
