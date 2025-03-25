@@ -351,6 +351,11 @@ inline ffi::Optional<VDevice> InferBinaryArithOpOutVDevice(const Call& call,
     }
   };
 
+  /*
+   * This is the case where the output VDevice defined by a customization pass.
+   * Like targets that supports mixed VDevices (like differed by memory_scope for Adreno)
+   * and have specialized derivation for output VDevice.
+   */
   if (call->sinfo_args.size() > 0) {
     return get_vdevice(call->sinfo_args[0]);
   }

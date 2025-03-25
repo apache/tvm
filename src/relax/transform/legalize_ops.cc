@@ -31,6 +31,8 @@
 #include <tvm/relax/transform.h>
 #include <tvm/tir/transform.h>
 
+#include <set>
+
 namespace tvm {
 namespace relax {
 
@@ -68,12 +70,14 @@ class LegalizeMutator : public ExprMutator {
  public:
   explicit LegalizeMutator(const IRModule& mod, const ffi::Optional<ffi::Map<ffi::String, ffi::Function>>& cmap,
                            const ffi::Optional<ffi::Array<ffi::String>> skip_ops, bool enable_warning)
-      : ExprMutator(mod),
-        mod_(std::move(mod)),
-        enable_warning_(enable_warning),
-        skip_ops_(skip_ops) {
+      : ExprMutator(mod), mod_(std::move(mod)), enable_warning_(enable_warning) {
     if (cmap) {
       cmap_ = cmap.value();
+    }
+    if (skip_ops.defined()) {
+      for (const auto name : skip_ops.value()) {
+        skip_ops_.insert(Op::Get(name));
+      }
     }
   }
 
@@ -221,9 +225,6 @@ class LegalizeMutator : public ExprMutator {
       out_sinfo = TupleStructInfo(sinfo_fields);
     }
 
-    if (out_sinfo->IsInstance<TensorStructInfoNode>()) {
-      LOG(WARNING) << "New Struct Info:" << Downcast<TensorStructInfo>(out_sinfo);
-    }
     return Call(call_tir_op, call->args, call->attrs, {out_sinfo});
   }
 
@@ -312,12 +313,8 @@ class LegalizeMutator : public ExprMutator {
     }
     auto op = ffi::GetRef<Op>(op_node);
 
-    if (skip_ops_.defined()) {
-      for (const auto name : skip_ops_.value()) {
-        if (name == op->name) {
-          return visited_call;
-        }
-      }
+    if (skip_ops_.find(op) != skip_ops_.end()) {
+      return visited_call;
     }
 
     bool shapes_are_known_if_required = [&]() -> bool {
@@ -473,7 +470,7 @@ class LegalizeMutator : public ExprMutator {
   /*!
    * \brief List of ops to be skipped from legalization
    */
-  Optional<Array<String>> skip_ops_;
+  std::set<Op> skip_ops_;
 };
 
 namespace transform {

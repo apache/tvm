@@ -85,8 +85,7 @@ from .transform import (
     VMShapeLower,
     AnnotateCustomMemoryScope,
     SpecializePrimFuncBasedOnCallSite,
-    OptimizeToVDeviceForScopeChange,
-    RemoveRedundantAssignments,
+    FoldVDeviceScopeChange,
     dataflowblock_pass,
     function_pass,
 )

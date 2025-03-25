@@ -17,7 +17,7 @@
  * under the License.
  */
 /*!
- * \file src/relax/transform/annotate_texture_storage.cc
+ * \file src/relax/backend/adreno/annotate_texture_storage.cc
  * \brief Texture Storage Annotation Pass for Adreno GPU targets.
  *
  * Texture realization for Adreno GPU targets requires fundamentally follows
@@ -181,7 +181,7 @@
  *
  * What we have above is hint_on_device injections and out_sinfo for all calls.
  * Now, we apply RealizeVDevice to formalize the hints. Follwed by we also call
- * RemoveRedundantAssignments that removes redundant assignments like
+ * CanonicalizeBindings that removes redundant assignments like
  *
  * lv: R.Tensor((2, 64, 56, 56), dtype="float32", vdevice="opencl:1:global") = x
  * lv1: R.Tensor((32, 64, 3, 3), dtype="float32", vdevice="opencl:1:global") = w
@@ -229,7 +229,7 @@
  *   VDevice information to tir_calls
  * - AnnotateTIROpPattern : TIROp Patterns for newly legalizes ops
  * - Fusion
- * - OptimizeToVDeviceForScopeChange: There existed some ToVDevice copies from texture to buffer
+ * - FoldVDeviceScopeChange: There existed some ToVDevice copies from texture to buffer
  *   This pass removes the copes and updates producer scope to global.
  * - SpecializePrimFuncBasedOnCallSite: Finally we updates the Buffer Var maps according to
  *   VDevice scopes.
@@ -247,9 +247,9 @@
 
 #include <tuple>
 
-#include "../op/tensor/manipulate.h"
-#include "infer_layout_utils.h"
-#include "utils.h"
+#include "../../op/tensor/manipulate.h"
+#include "../../transform/infer_layout_utils.h"
+#include "../../transform/utils.h"
 
 namespace tvm {
 namespace relax {
@@ -578,7 +578,7 @@ class DefineVDevice : ExprMutator {
 
     mod_ = relax::transform::DeadCodeElimination()(mod_);
     mod_ = relax::transform::RealizeVDevice()(mod_);
-    mod_ = relax::transform::RemoveRedundantAssignments()(mod_);
+    mod_ = relax::transform::CanonicalizeBindings()(mod_);
 
     return mod_;
   }
