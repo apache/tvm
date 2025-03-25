@@ -40,6 +40,50 @@ void ReprPrinter::Print(const ObjectRef& node) {
   }
 }
 
+void ReprPrinter::Print(const ffi::Any& node) {
+  switch (node.type_index()) {
+    case ffi::TypeIndex::kTVMFFINone: {
+      stream << "(nullptr)";
+      break;
+    }
+    case ffi::TypeIndex::kTVMFFIInt: {
+      stream << node.operator int64_t();
+      break;
+    }
+    case ffi::TypeIndex::kTVMFFIBool: {
+      stream << node.operator bool();
+      break;
+    }
+    case ffi::TypeIndex::kTVMFFIFloat: {
+      stream << node.operator double();
+      break;
+    }
+    case ffi::TypeIndex::kTVMFFIOpaquePtr: {
+      stream << node.operator void*();
+      break;
+    case ffi::TypeIndex::kTVMFFIDataType:
+      stream << node.operator DataType();
+      break;
+    }
+    case ffi::TypeIndex::kTVMFFIDevice: {
+      stream << node.operator Device();
+      break;
+    }
+    case ffi::TypeIndex::kTVMFFIObject: {
+      Print(node.operator ObjectRef());
+      break;
+    }
+    default: {
+      if (auto opt_obj = node.TryAs<ObjectRef>()) {
+        Print(opt_obj.value());
+      } else {
+        stream << "Any(type_key=`" << ffi::TypeIndex2TypeKey(node.type_index()) << "`)";
+      }
+      break;
+    }
+  }
+}
+
 void ReprPrinter::PrintIndent() {
   for (int i = 0; i < indent; ++i) {
     stream << ' ';

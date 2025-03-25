@@ -93,7 +93,7 @@ class ObjectPathNode : public Object {
   ObjectPath MissingArrayElement(int32_t index) const;
 
   /*! \brief Extend this path with access to a map value. */
-  ObjectPath MapValue(ObjectRef key) const;
+  ObjectPath MapValue(ffi::Any key) const;
 
   /*! \brief Extend this path with access to a missing map entry. */
   ObjectPath MissingMapEntry() const;
