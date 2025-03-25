@@ -95,7 +95,7 @@ def verify(mod, expected):
         mod = tvm.relax.transform.FuseOps()(mod)
         mod = tvm.relax.transform.FuseTIR()(mod)
         mod = tvm.relax.transform.DeadCodeElimination()(mod)
-        mod = tvm.relax.transform.OptimizeToVDeviceForScopeChange()(mod)
+        mod = tvm.relax.transform.FoldVDeviceScopeChange()(mod)
         mod = tvm.relax.transform.DeadCodeElimination()(mod)
         mod = tvm.relax.transform.SpecializePrimFuncBasedOnCallSite()(mod)
         mod = tvm.relax.transform.Normalize()(mod)
@@ -1196,4 +1196,3 @@ def test_injective_nwo_inputs2():
 
 if __name__ == "__main__":
     tvm.testing.main()
-    # test_conv2d_relu_sub_indexed()
