@@ -347,6 +347,9 @@ struct AnyUnsafe : public ObjectUnsafe {
     return reinterpret_cast<Object*>(ref.data_.v_obj);
   }
 
+  static TVM_FFI_INLINE const TVMFFIAny* GetTVMFFIAnyPtrFromAny(const Any& ref) {
+    return &(ref.data_);
+  }
   template <typename T>
   static TVM_FFI_INLINE std::string GetMismatchTypeInfo(const Any& ref) {
     return TypeTraits<T>::GetMismatchTypeInfo(&(ref.data_));
@@ -361,16 +364,17 @@ struct AnyHash {
    * \param a The given Any
    * \return Hash code of a, string hash for strings and pointer address otherwise.
    */
-  size_t operator()(const Any& src) const {
+  uint64_t operator()(const Any& src) const {
     uint64_t val_hash = [&]() -> uint64_t {
-      if (src.data_.type_index == TypeIndex::kTVMFFIStr) {
-        const StringObj* src_str = details::AnyUnsafe::ConvertAfterCheck<const StringObj*>(src);
+      if (src.data_.type_index == TypeIndex::kTVMFFIStr ||
+          src.data_.type_index == TypeIndex::kTVMFFIBytes) {
+        const BytesObjBase* src_str = details::AnyUnsafe::ConvertAfterCheck<const BytesObjBase*>(src);
         return details::StableHashBytes(src_str->bytes.data, src_str->bytes.size);
       } else {
-        return std::hash<int64_t>()(src.data_.v_int64);
+        return src.data_.v_uint64;
       }
     }();
-    return static_cast<size_t>(details::StableHashCombine(src.data_.type_index, val_hash));
+    return details::StableHashCombine(src.data_.type_index, val_hash);
   }
 };
 
