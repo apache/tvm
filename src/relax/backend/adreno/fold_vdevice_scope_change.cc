@@ -17,7 +17,7 @@
  * under the License.
  */
 /*!
- * \file src/relax/transform/optimize_to_vdevice_for_scope_change.cc
+ * \file src/relax/backend/adreno/optimize_to_vdevice_for_scope_change.cc
  * \brief This is a texture specific pass that can optimize unnecessary to_device copies.
  * Like texture_scope -> ToVDevice -> global scope. In this case the producer can directly
  * store into global scope avoiding unnecessary device copy.
@@ -34,9 +34,9 @@
 
 #include <tuple>
 
-#include "../op/tensor/manipulate.h"
-#include "infer_layout_utils.h"
-#include "utils.h"
+#include "../../op/tensor/manipulate.h"
+#include "../../transform/infer_layout_utils.h"
+#include "../../transform/utils.h"
 
 namespace tvm {
 namespace relax {
@@ -167,7 +167,7 @@ class CollectConsumerDetails : public ExprVisitor {
 
 namespace transform {
 
-Pass OptimizeToVDeviceForScopeChange() {
+Pass FoldVDeviceScopeChange() {
   auto pass_func = [=](Function func, IRModule mod, PassContext pc) {
     /* here Target doesn't matter as the consumers we use only to find multiple consumers */
     auto consumers =
@@ -175,10 +175,10 @@ Pass OptimizeToVDeviceForScopeChange() {
     auto [pattern, rewriter] = CreatePatterns(consumers);
     return RewriteCall(pattern, rewriter, func);
   };
-  return CreateFunctionPass(pass_func, 1, "OptimizeToVDeviceForScopeChange", {});
+  return CreateFunctionPass(pass_func, 1, "FoldVDeviceScopeChange", {});
 }
-TVM_REGISTER_GLOBAL("relax.transform.OptimizeToVDeviceForScopeChange")
-    .set_body_typed(OptimizeToVDeviceForScopeChange);
+TVM_REGISTER_GLOBAL("relax.transform.FoldVDeviceScopeChange")
+    .set_body_typed(FoldVDeviceScopeChange);
 }  // namespace transform
 }  // namespace relax
 }  // namespace tvm
