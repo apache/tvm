@@ -52,6 +52,7 @@ class Optional<T, std::enable_if_t<!std::is_base_of_v<ObjectRef, T>>> {
   Optional() = default;
   Optional(const Optional<T>& other) : data_(other.data_) {}
   Optional(Optional<T>&& other) : data_(std::move(other.data_)) {}
+  Optional(std::optional<T> other) : data_(std::move(other)) {}
   Optional<T>& operator=(const Optional<T>& other) {
     data_ = other.data_;
     return *this;
@@ -162,6 +163,12 @@ class Optional<T, std::enable_if_t<std::is_base_of_v<ObjectRef, T>>> : public Ob
   Optional<T>& operator=(std::nullptr_t) {
     data_ = nullptr;
     return *this;
+  }
+  // handle conversion from std::optional<T>
+  Optional(std::optional<T> other) {
+    if (other.has_value()) {
+      *this = std::move(other.value());
+    }
   }
   // normal value handling.
   Optional(T other)  // NOLINT(*)
