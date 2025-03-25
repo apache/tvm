@@ -23,6 +23,7 @@
  */
 #include <tvm/node/repr_printer.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/runtime/device_api.h>
 
 namespace tvm {
 
@@ -66,7 +67,7 @@ void ReprPrinter::Print(const ffi::Any& node) {
       break;
     }
     case ffi::TypeIndex::kTVMFFIDevice: {
-      stream << node.operator Device();
+      runtime::operator<<(stream, node.operator Device());
       break;
     }
     case ffi::TypeIndex::kTVMFFIObject: {
