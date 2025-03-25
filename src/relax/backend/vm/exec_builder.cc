@@ -45,22 +45,18 @@ ObjectPtr<VMExecutable> ExecBuilderNode::Get() {
   return exec_;
 }
 
-vm::Instruction::Arg ExecBuilderNode::ConvertConstant_(TVMRetValue cvalue) {
+vm::Instruction::Arg ExecBuilderNode::ConvertConstant_(Any cvalue) {
   // emit constant immediate as immediate.
-  if (cvalue.type_code() == kDLInt) {
-    int64_t val = cvalue.operator int64_t();
+  if (auto opt_int = cvalue.as<int64_t>()) {
+    int64_t val = opt_int.value();
     if (val <= vm::Instruction::kValueMaxLimit && val >= vm::Instruction::kValueMinLimit) {
       return vm::Instruction::Arg::Immediate(val);
     }
   }
-  // convert string to object string
-  if (cvalue.type_code() == kTVMStr) {
-    cvalue = cvalue.operator String();
-  }
 
   // run dedup for object with structural equality
-  if (cvalue.IsObjectRef<ObjectRef>()) {
-    ObjectRef obj = cvalue.operator ObjectRef();
+  if (auto opt_obj = cvalue.as<ObjectRef>()) {
+    ObjectRef obj = opt_obj.value();
     auto it = const_dedup_map_.find(obj);
     if (it != const_dedup_map_.end()) {
       return vm::Instruction::Arg::ConstIdx(it->second);
