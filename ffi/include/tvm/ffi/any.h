@@ -368,7 +368,8 @@ struct AnyHash {
     uint64_t val_hash = [&]() -> uint64_t {
       if (src.data_.type_index == TypeIndex::kTVMFFIStr ||
           src.data_.type_index == TypeIndex::kTVMFFIBytes) {
-        const BytesObjBase* src_str = details::AnyUnsafe::ConvertAfterCheck<const BytesObjBase*>(src);
+        const BytesObjBase* src_str =
+            details::AnyUnsafe::ConvertAfterCheck<const BytesObjBase*>(src);
         return details::StableHashBytes(src_str->bytes.data, src_str->bytes.size);
       } else {
         return src.data_.v_uint64;
