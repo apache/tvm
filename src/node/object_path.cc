@@ -127,7 +127,7 @@ TVM_REGISTER_GLOBAL("node.ObjectPathMissingArrayElement")
 
 // --- MapValue ---
 
-ObjectPath ObjectPathNode::MapValue(ObjectRef key) const {
+ObjectPath ObjectPathNode::MapValue(Any key) const {
   return ObjectPath(make_object<MapValuePathNode>(this, std::move(key)));
 }
 
@@ -291,12 +291,12 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
 
 // ----- MapValue -----
 
-MapValuePathNode::MapValuePathNode(const ObjectPathNode* parent, ObjectRef key)
+MapValuePathNode::MapValuePathNode(const ObjectPathNode* parent, Any key)
     : ObjectPathNode(parent), key(std::move(key)) {}
 
 bool MapValuePathNode::LastNodeEqual(const ObjectPathNode* other) const {
   const auto* otherMapValue = static_cast<const MapValuePathNode*>(other);
-  return ObjectEqual()(key, otherMapValue->key);
+  return ffi::AnyEqual()(key, otherMapValue->key);
 }
 
 std::string MapValuePathNode::LastNodeString() const {
