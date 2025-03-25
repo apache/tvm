@@ -188,7 +188,7 @@ class CodeGenRunner : ExprMutator {
     Array<runtime::Module> ext_mods;
 
     for (const auto& [target, functions] : target_functions) {
-      OptionMap options = target_options.Get(target).value_or({});
+      OptionMap options = target_options.Get(target).value_or(OptionMap());
       // Start the codegen process.
       // Get the codegen with its ffi key.
       String codegen_name = "relax.ext." + target;

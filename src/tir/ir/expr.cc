@@ -129,7 +129,7 @@ Var Var::copy_with_dtype(DataType dtype) const {
 
 TVM_REGISTER_GLOBAL("tir.Var").set_body_typed([](String name_hint, runtime::TVMArgValue type,
                                                  Span span) {
-  if (type.IsObjectRef<Type>()) {
+  if (type.as<Type>()) {
     return Var(name_hint, type.operator Type(), span);
   } else {
     return Var(name_hint, type.operator DataType(), span);
@@ -563,9 +563,6 @@ TVM_REGISTER_GLOBAL("tir.Call")
                        Span span) {
       Array<PrimExpr> prim_expr_args;
       for (const auto& it : args) {
-        ICHECK(it->IsInstance<runtime::StringObj>() || it->IsInstance<PrimExprNode>() ||
-               it->IsInstance<IterVarNode>() || it->IsInstance<BufferRegionNode>())
-            << "Argument " << it << " is not a string or primexpr";
         if (const auto* str = it.as<runtime::StringObj>()) {
           prim_expr_args.push_back(StringImm(str->data));
         } else if (const auto* iter_var = it.as<IterVarNode>()) {

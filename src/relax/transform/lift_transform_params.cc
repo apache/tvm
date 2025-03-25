@@ -710,15 +710,16 @@ std::vector<std::pair<GlobalVar, Function>> GetTargetFunctions(
                   << "However, the IRModule does not contain a function names '" << name << "'";
 
       auto base_func = mod->functions.Get(gvar.value());
-      ICHECK(base_func) << "Ill-formed IRModule.  "
+      ICHECK(base_func.has_value())
+                        << "Ill-formed IRModule.  "
                         << "The map from name to GlobalVar found " << gvar.value()
                         << " for the function name '" << name
                         << "', but this GlobalVar does not appear in the IRModule";
 
-      auto func = base_func.as<Function>();
+      auto func = base_func.value().as<Function>();
       CHECK(func) << "When LiftTransformParams is called with a list of function names, "
                   << "only functions in the list must be relax functions.  "
-                  << "However, the function " << name << " is of type " << base_func->GetTypeKey();
+                  << "However, the function " << name << " is of type " << base_func.value()->GetTypeKey();
       CHECK(func.value()->GetAttr<Integer>(attr::kNumInput))
           << "When LiftTransformParams is called with a list of function names, "
           << "all functions in the list must have the kNumInput ('" << attr::kNumInput

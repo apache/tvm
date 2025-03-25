@@ -74,7 +74,7 @@ Choice Choice::FromJSON(const ObjectRef& json) {
     transform_func_key = GetRef<String>(arr0);
     {
       transform_func_args.reserve(arr1->size());
-      for (const ObjectRef& elem : *arr1) {
+      for (const Any& elem : *arr1) {
         String b64_arg = Downcast<String>(elem);
         std::string json_arg = meta_schedule::Base64Decode(b64_arg);
         ObjectRef arg = LoadJSON(json_arg);
@@ -84,7 +84,7 @@ Choice Choice::FromJSON(const ObjectRef& json) {
     constr_func_key = GetRef<String>(arr2);
     {
       constr_func_args.reserve(arr3->size());
-      for (const ObjectRef& elem : *arr3) {
+      for (const Any& elem : *arr3) {
         String b64_arg = Downcast<String>(elem);
         std::string json_arg = meta_schedule::Base64Decode(b64_arg);
         ObjectRef arg = LoadJSON(json_arg);
@@ -125,7 +125,7 @@ Knob Knob::FromJSON(const ObjectRef& json) {
   try {
     const ArrayNode* arr = json.as<ArrayNode>();
     ICHECK(arr && arr->size() == 2);
-    const auto* arr0 = arr->at(0).as<StringObj>();
+    const auto* arr0 = arr->at(0).as<ffi::StringObj>();
     const auto* arr1 = arr->at(1).as<MapNode>();
     ICHECK(arr0 && arr1);
     name = GetRef<String>(arr0);
@@ -206,17 +206,17 @@ Trace Trace::FromJSON(const ObjectRef& json) {
     const auto* arr1 = arr->at(1).as<ArrayNode>();
     ICHECK(arr0 && arr1);
 
-    for (const ObjectRef& elem : *arr0) {
+    for (const Any& elem : *arr0) {
       knobs.push_back(Knob::FromJSON(elem));
     }
 
-    for (const ObjectRef& elem : *arr1) {
+    for (const Any& elem : *arr1) {
       decisions.push_back(Downcast<String>(elem));
     }
 
     // When `include_irmod = true`
     if (arr->size() == 3) {
-      const auto* arr2 = arr->at(2).as<StringObj>();
+      const auto* arr2 = arr->at(2).as<ffi::StringObj>();
       String b64_mod = GetRef<String>(arr2);
       ICHECK(arr2);
       std::string json_mod = meta_schedule::Base64Decode(b64_mod);

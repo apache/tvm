@@ -95,8 +95,8 @@ TVM_STATIC_IR_FUNCTOR(ReprLegacyPrinter, vtable)
         if (it != op->begin()) {
           (*p) << ", ";
         }
-        if (it->first->IsInstance<StringObj>()) {
-          (*p) << '\"' << Downcast<String>(it->first) << "\": ";
+        if (it->first.as<ffi::StringObj>()) {
+          (*p) << '\"' << Downcast<ffi::String>(it->first) << "\": ";
         } else {
           p->Print(it->first);
           (*p) << ": ";

@@ -437,6 +437,7 @@ inline Array<FloatImm> AsFloatArray(const ObjectRef& obj) {
       } else {
         LOG(FATAL) << "TypeError: Expect an array of float or int, but gets: "
                    << elem->GetTypeKey();
+        TVM_FFI_UNREACHABLE();
       }
     }();
 

@@ -102,7 +102,7 @@ class FunctionFrameNode : public SeqExprFrameNode {
   /*! \brief Whether the function is annotated as private */
   Optional<Bool> is_private;
   /*! \brief The function attributes. */
-  Map<String, ObjectRef> attrs;
+  Map<String, Any> attrs;
   /*! \brief The block builder to create Relax function. */
   tvm::relax::BlockBuilder block_builder;
 

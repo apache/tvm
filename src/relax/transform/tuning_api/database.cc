@@ -66,7 +66,7 @@ TuningRecord TuningRecord::FromJSON(const ObjectRef& json_obj) {
     }
 
     // Load json[1] => run_secs
-    if (json_array->at(1).defined()) {
+    if (json_array->at(1) != nullptr) {
       run_secs = meta_schedule::AsFloatArray(json_array->at(1));
     }
   } catch (const std::runtime_error& e) {  // includes tvm::Error and dmlc::Error

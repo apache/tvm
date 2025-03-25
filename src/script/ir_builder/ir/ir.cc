@@ -88,7 +88,7 @@ void DefFunction(const String& func_name, const BaseFunc& func) {
   gv->checked_type_ = func->checked_type_;
 }
 
-void ModuleAttrs(Map<String, ObjectRef> attrs, bool allow_overwrite) {
+void ModuleAttrs(Map<String, Any> attrs, bool allow_overwrite) {
   if (IRBuilder::IsInScope()) {
     // TODO(hongyi): add comments to explain why we need to check if the module frame is in scope
     IRModuleFrame frame = FindModuleFrame("I.ModuleAttr");

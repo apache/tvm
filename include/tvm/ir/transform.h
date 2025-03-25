@@ -296,6 +296,7 @@ class PassContext : public ObjectRef {
           LOG(FATAL) << "AttributeError: expect config " << key << " to have type " << type_key
                      << ", but received error when converting to this type.\n"
                      << err.what();
+          TVM_FFI_UNREACHABLE();
         }
       }
     };
