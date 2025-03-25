@@ -45,11 +45,15 @@ class ExportedProgramImporter(BaseFXGraphImporter):
 
     def _log2(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
-        return self.block_builder.emit(relax.op.divide(relax.op.log(x), relax.const(0.6931471805599453, x.struct_info.dtype)))
+        return self.block_builder.emit(
+            relax.op.divide(relax.op.log(x), relax.const(0.6931471805599453, x.struct_info.dtype))
+        )
 
     def _log10(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
-        return self.block_builder.emit(relax.op.divide(relax.op.log(x), relax.const(2.302585092994046, x.struct_info.dtype)))
+        return self.block_builder.emit(
+            relax.op.divide(relax.op.log(x), relax.const(2.302585092994046, x.struct_info.dtype))
+        )
 
     def _log1p(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
