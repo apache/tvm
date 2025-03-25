@@ -133,7 +133,7 @@ TVM_REGISTER_GLOBAL("rpc.Connect").set_body([](TVMArgs args, TVMRetValue* rv) {
 });
 
 TVM_REGISTER_GLOBAL("rpc.ServerLoop").set_body([](TVMArgs args, TVMRetValue* rv) {
-  if (auto opt_int = args[0].TryAs<int64_t>()) {
+  if (auto opt_int = args[0].as<int64_t>()) {
     RPCServerLoop(opt_int.value());
   } else {
     RPCServerLoop(args[0].operator tvm::runtime::PackedFunc(),

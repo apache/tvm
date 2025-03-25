@@ -2331,11 +2331,11 @@ TVM_REGISTER_GLOBAL("vm.builtin.paged_attention_kv_cache_create")
       PackedFunc f_debug_get_kv = args[26];
       PackedFunc f_compact_copy = args[27];
 
-      if (auto opt_nd = args[11].TryAs<NDArray>()) {
+      if (auto opt_nd = args[11].as<NDArray>()) {
         rope_ext_factors = opt_nd.value();
       }
       auto f_convert_optional_packed_func = [&args](int arg_idx) -> Optional<PackedFunc> {
-        if (auto opt_func = args[arg_idx].TryAs<PackedFunc>()) {
+        if (auto opt_func = args[arg_idx].as<PackedFunc>()) {
           return opt_func.value();
         }
         return NullOpt;

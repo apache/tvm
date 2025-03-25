@@ -597,7 +597,7 @@ struct MapNodeTrait {
 
   static void SHashReduce(const MapNode* key, SHashReducer hash_reduce) {
     bool is_str_map = std::all_of(key->begin(), key->end(), [](const auto& v) {
-      return v.first.template TryAs<const ffi::StringObj*>();
+      return v.first.template as<const ffi::StringObj*>();
     });
     if (is_str_map) {
       SHashReduceForSMap(key, hash_reduce);

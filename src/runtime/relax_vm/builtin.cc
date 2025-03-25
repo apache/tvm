@@ -117,7 +117,7 @@ TVM_REGISTER_GLOBAL("vm.builtin.match_prim_value").set_body_typed(MatchPrimValue
 void MatchShape(ffi::PackedArgs args, Any* rv) {
   // input shape the first argument can take in tensor or shape.
   ShapeTuple input_shape;
-  if (auto opt_nd = args[0].TryAs<NDArray>()) {
+  if (auto opt_nd = args[0].as<NDArray>()) {
     input_shape = opt_nd.value().Shape();
   } else {
     input_shape = args[0];
@@ -234,7 +234,7 @@ void CheckTensorInfo(ffi::PackedArgs args, Any* rv) {
     err_ctx = args[3].operator Optional<String>();
   }
 
-  auto opt_ptr = arg.TryAs<const NDArray::ContainerType*>();
+  auto opt_ptr = arg.as<const NDArray::ContainerType*>();
   CHECK(opt_ptr.has_value()) << "TypeError: " << err_ctx.value_or("") << " expect a Tensor but get "
                              << ffi::TypeIndex2TypeKey(arg.type_index());
 
@@ -281,7 +281,7 @@ TVM_REGISTER_GLOBAL("vm.builtin.check_shape_info").set_body_typed(CheckShapeInfo
  * \param err_ctx Additional context if error occurs.
  */
 void CheckPrimValueInfo(AnyView arg, DataType dtype, Optional<String> err_ctx) {
-  if (auto opt_obj = arg.TryAs<ObjectRef>()) {
+  if (auto opt_obj = arg.as<ObjectRef>()) {
     LOG(FATAL) << "TypeError: " << err_ctx.value_or("") << ", expected dtype " << dtype
                << ", but received ObjectRef of type " << opt_obj.value()->GetTypeKey();
   } else if (dtype.is_bool()) {
@@ -422,7 +422,7 @@ TVM_REGISTER_GLOBAL("vm.builtin.to_device")
  * \return Bool
  */
 bool ReadIfCond(AnyView cond) {
-  if (auto opt_int = cond.TryAs<bool>()) {
+  if (auto opt_int = cond.as<bool>()) {
     return opt_int.value();
   }
   NDArray arr = cond.operator tvm::runtime::NDArray();

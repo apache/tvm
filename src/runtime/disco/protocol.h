@@ -205,7 +205,7 @@ inline void DiscoProtocol<SubClassType>::ReadObject(int* tcode, TVMValue* value)
 }
 
 inline std::string DiscoDebugObject::SaveToStr() const {
-  if (auto opt_nd = this->data.TryAs<NDArray>()) {
+  if (auto opt_nd = this->data.as<NDArray>()) {
     NDArray array = opt_nd.value();
     std::string result;
     {
@@ -216,7 +216,7 @@ inline std::string DiscoDebugObject::SaveToStr() const {
     }
     result.push_back('1');
     return result;
-  } else if (auto opt_obj = this->data.TryAs<ObjectRef>()) {
+  } else if (auto opt_obj = this->data.as<ObjectRef>()) {
     ObjectRef obj = opt_obj.value();
     const PackedFunc* f = runtime::Registry::Get("node.SaveJSON");
     CHECK(f) << "ValueError: Cannot serialize object in non-debugging mode: " << obj->GetTypeKey();

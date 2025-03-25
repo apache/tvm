@@ -108,15 +108,15 @@ class NodeIndexer : public AttrVisitor {
       return;
     }
     MakeNodeIndex(node);
-    if (auto opt_array = node.TryAs<const ArrayNode*>()) {
+    if (auto opt_array = node.as<const ArrayNode*>()) {
       const ArrayNode* n = opt_array.value();
       for (auto elem : *n) {
         MakeIndex(elem);
       }
-    } else if (auto opt_map = node.TryAs<const MapNode*>()) {
+    } else if (auto opt_map = node.as<const MapNode*>()) {
       const MapNode* n = opt_map.value();
       bool is_str_map = std::all_of(n->begin(), n->end(), [](const auto& v) {
-        return v.first.template TryAs<const ffi::StringObj*>().has_value();
+        return v.first.template as<const ffi::StringObj*>().has_value();
       });
       if (is_str_map) {
         for (const auto& kv : *n) {
@@ -128,7 +128,7 @@ class NodeIndexer : public AttrVisitor {
           MakeIndex(kv.second);
         }
       }
-    } else if (auto opt_object = node.TryAs<const Object*>()) {
+    } else if (auto opt_object = node.as<const Object*>()) {
       Object* n = const_cast<Object*>(opt_object.value());
       // if the node already have repr bytes, no need to visit Attrs.
       if (!reflection_->GetReprBytes(n, nullptr)) {
@@ -254,15 +254,15 @@ class JSONAttrGetter : public AttrVisitor {
     node_->attrs.clear();
     node_->data.clear();
 
-    if (auto opt_array = node.TryAs<const ArrayNode*>()) {
+    if (auto opt_array = node.as<const ArrayNode*>()) {
       const ArrayNode* n = opt_array.value();
       for (size_t i = 0; i < n->size(); ++i) {
         node_->data.push_back(node_index_->at(n->at(i)));
       }
-    } else if (auto opt_map = node.TryAs<const MapNode*>()) {
+    } else if (auto opt_map = node.as<const MapNode*>()) {
       const MapNode* n = opt_map.value();
       bool is_str_map = std::all_of(n->begin(), n->end(), [](const auto& v) {
-        return v.first.template TryAs<const ffi::StringObj*>().has_value();
+        return v.first.template as<const ffi::StringObj*>().has_value();
       });
       if (is_str_map) {
         for (const auto& kv : *n) {
@@ -275,7 +275,7 @@ class JSONAttrGetter : public AttrVisitor {
           node_->data.push_back(node_index_->at(kv.second));
         }
       }
-    } else if (auto opt_object = node.TryAs<const Object*>()) {
+    } else if (auto opt_object = node.as<const Object*>()) {
       Object* n = const_cast<Object*>(opt_object.value());
       // do not need to print additional things once we have repr bytes.
       if (!reflection_->GetReprBytes(n, &(node_->repr_bytes))) {
@@ -361,7 +361,7 @@ class FieldDependencyFinder : public AttrVisitor {
       return;
     }
     jnode_ = jnode;
-    if (auto opt_object = node.TryAs<const Object*>()) {
+    if (auto opt_object = node.as<const Object*>()) {
       Object* n = const_cast<Object*>(opt_object.value());
       reflection_->VisitAttrs(n, this);
     }
@@ -489,7 +489,7 @@ class JSONAttrSetter : public AttrVisitor {
         }
       }
       *node = result;
-    } else if (auto opt_object = node->TryAs<const Object*>()) {
+    } else if (auto opt_object = node->as<const Object*>()) {
       Object* n = const_cast<Object*>(opt_object.value());
       if (n == nullptr) return;
       // Skip the objects that have their own string repr

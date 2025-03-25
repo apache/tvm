@@ -274,7 +274,7 @@ TVM_REGISTER_GLOBAL("vm.builtin.ndarray_cache.update")
       bool is_override = args.size() == 2 ? false : args[2].operator bool();
 
       NDArray arr;
-      if (auto opt_nd = args[1].TryAs<NDArray>()) {
+      if (auto opt_nd = args[1].as<NDArray>()) {
         arr = opt_nd.value();
       } else {
         // We support converting DLTensors to NDArrays as RPC references are always DLTensors
@@ -364,7 +364,7 @@ TVM_REGISTER_GLOBAL("vm.builtin.param_array_from_cache_by_name_unpacked")
       Array<String> names;
       names.reserve(args.size());
       for (int i = 0; i < args.size(); ++i) {
-        if (!args[i].TryAs<String>()) {
+        if (!args[i].as<String>()) {
           LOG(FATAL) << "ValueError: Expect string as input, but get "
                      << ffi::TypeIndex2TypeKey(args[i].type_index()) << " at " << i;
         }

@@ -65,7 +65,7 @@ class OpenCLWrappedFunc {
     // setup arguments.
     for (cl_uint i = 0; i < arg_size_.size(); ++i) {
       void* arg = nullptr;
-      if (args[i].TryAs<void*>()) {
+      if (args[i].as<void*>()) {
         arg = static_cast<cl::BufferDescriptor*>(void_args[i])->buffer;
       } else {
         arg = void_args[i];

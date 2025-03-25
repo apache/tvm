@@ -616,7 +616,7 @@ inline void SetValue(T* ptr, const ffi::AnyView& val) {
 
 template <typename T>
 inline void SetIntValue(T* ptr, const ffi::AnyView& val) {
-  if (auto opt_int = val.TryAs<int64_t>()) {
+  if (auto opt_int = val.as<int64_t>()) {
     *ptr = static_cast<T>(opt_int.value());
   } else {
     IntImm expr = val;
@@ -632,7 +632,7 @@ inline void SetValue<DataType>(DataType* ptr, const ffi::AnyView& val) {
 
 template <>
 inline void SetValue<std::string>(std::string* ptr, const ffi::AnyView& val) {
-  if (auto opt_str = val.TryAs<std::string>()) {
+  if (auto opt_str = val.as<std::string>()) {
     *ptr = opt_str.value();
   } else {
     LOG(FATAL) << "Expect str";
@@ -641,7 +641,7 @@ inline void SetValue<std::string>(std::string* ptr, const ffi::AnyView& val) {
 
 template <>
 inline void SetValue<double>(double* ptr, const ffi::AnyView& val) {
-  if (auto opt_double = val.TryAs<double>()) {
+  if (auto opt_double = val.as<double>()) {
     *ptr = opt_double.value();
   } else {
     ObjectRef expr = val;

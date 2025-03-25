@@ -1072,11 +1072,11 @@ TVM_TIR_REGISTER_OP("TVMBackendFreeWorkspace")
 
 // expose basic functions to node namespace
 TVM_REGISTER_GLOBAL("node._const").set_body([](TVMArgs args, TVMRetValue* ret) {
-  if (auto opt = args[0].TryAsInt()) {
+  if (auto opt = args[0].asInt()) {
     *ret = tir::make_const(args[1], opt.value(), args[2]);
-  } else if (auto opt = args[0].TryAsBool()) {
+  } else if (auto opt = args[0].asBool()) {
     *ret = tir::make_const(args[1], opt.value(), args[2]);
-  } else if (auto opt = args[0].TryAsFloat()) {
+  } else if (auto opt = args[0].asFloat()) {
     *ret = tir::make_const(args[1], opt.value(), args[2]);
   } else {
     LOG(FATAL) << "First argument to tvm.tir.const must be int, float, or bool, "

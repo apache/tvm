@@ -311,7 +311,7 @@ TVM_REGISTER_GLOBAL("arith.CreateAnalyzer").set_body([](TVMArgs args, TVMRetValu
           [self](TVMArgs args, TVMRetValue* ret) { *ret = self->int_set(args[0], args[1]); });
     } else if (name == "bind") {
       return PackedFunc([self](TVMArgs args, TVMRetValue* ret) {
-        if (auto opt_range = args[1].TryAs<Range>()) {
+        if (auto opt_range = args[1].as<Range>()) {
           self->Bind(args[0], opt_range.value());
         } else {
           self->Bind(args[0], args[1].operator PrimExpr());

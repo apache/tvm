@@ -120,7 +120,7 @@ class ProcessSessionObj final : public BcastSessionObj {
       return;
     }
     ObjectRef wrapped{nullptr};
-    if (value.TryAs<ObjectRef>()) {
+    if (value.as<ObjectRef>()) {
       wrapped = DiscoDebugObject::Wrap(value);
       value = wrapped;
     }

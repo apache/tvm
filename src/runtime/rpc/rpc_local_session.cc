@@ -49,7 +49,7 @@ void LocalSession::EncodeReturn(TVMRetValue rv, const FEncodeReturn& encode_retu
   // NOTE: this is the place that we need to handle special RPC-related
   // ABI convention for return value passing that is built on top of Any FFI.
   // We need to encode object pointers as opaque raw pointers for passing
-  if (rv.TryAs<NDArray>()) {
+  if (rv.as<NDArray>()) {
     TVMFFIAny ret_any;
     // We follow a special protocol to return NDArray to client side
     // The first pack value is the NDArray handle as DLTensor
@@ -61,7 +61,7 @@ void LocalSession::EncodeReturn(TVMRetValue rv, const FEncodeReturn& encode_retu
         static_cast<DLTensor*>(ObjectHandleToTVMArrayHandle(static_cast<Object*>(opaque_handle)));
     packed_args[2] = opaque_handle;
     encode_return(ffi::PackedArgs(packed_args, 3));
-  } else if (auto opt_bytes = rv.TryAs<ffi::Bytes>()) {
+  } else if (auto opt_bytes = rv.as<ffi::Bytes>()) {
     // always pass bytes as byte array
     packed_args[0] = static_cast<int32_t>(ffi::TypeIndex::kTVMFFIByteArrayPtr);
     TVMFFIByteArray byte_arr;
@@ -69,12 +69,12 @@ void LocalSession::EncodeReturn(TVMRetValue rv, const FEncodeReturn& encode_retu
     byte_arr.size = opt_bytes->size();
     packed_args[1] = &byte_arr;
     encode_return(ffi::PackedArgs(packed_args, 2));
-  } else if (auto opt_str = rv.TryAs<ffi::String>()) {
+  } else if (auto opt_str = rv.as<ffi::String>()) {
     // always pass bytes as raw string
     packed_args[0] = static_cast<int32_t>(ffi::TypeIndex::kTVMFFIRawStr);
     packed_args[1] = opt_str->data();
     encode_return(ffi::PackedArgs(packed_args, 2));
-  } else if (rv.TryAs<ffi::ObjectRef>()) {
+  } else if (rv.as<ffi::ObjectRef>()) {
     TVMFFIAny ret_any;
     packed_args[0] = rv.type_index();
     rv.MoveToTVMFFIAny(&ret_any);
@@ -98,7 +98,7 @@ void LocalSession::CallFunc(RPCSession::PackedFuncHandle func, ffi::PackedArgs a
 
   // unwrap RPCObjectRef in case we are directly using it to call LocalSession
   for (int i = 0; i < args.size(); ++i) {
-    if (auto opt_rpc_obj = args[i].TryAs<RPCObjectRef>()) {
+    if (auto opt_rpc_obj = args[i].as<RPCObjectRef>()) {
       packed_args[i] = opt_rpc_obj.value()->object_handle();
     } else {
       packed_args[i] = args[i];

@@ -118,13 +118,13 @@ TVMRetValue ConvertArgToDevice(AnyView input, Device dev, Allocator* alloc) {
   // in TVM Native API or NDArray::FromDLPack to regain zero copy behavior.
   Any ret;
 
-  if (auto opt_dltensor = input.TryAs<DLTensor*>()) {
+  if (auto opt_dltensor = input.as<DLTensor*>()) {
     DLTensor* tensor = opt_dltensor.value();
     std::vector<int64_t> shape(tensor->shape, tensor->shape + tensor->ndim);
     auto dst = alloc->Empty(shape, tensor->dtype, dev);
     dst.CopyFrom(tensor);
     ret = dst;
-  } else if (auto opt_obj = input.TryAs<ObjectRef>()) {
+  } else if (auto opt_obj = input.as<ObjectRef>()) {
     ret = ConvertObjectToDevice(opt_obj.value(), dev, alloc);
   } else {
     ret = input;
@@ -134,7 +134,7 @@ TVMRetValue ConvertArgToDevice(AnyView input, Device dev, Allocator* alloc) {
 
 TVMRetValue ConvertRegToDevice(TVMRetValue input, Device dev, Allocator* alloc) {
   Any ret;
-  if (auto opt_obj = input.TryAs<ObjectRef>()) {
+  if (auto opt_obj = input.as<ObjectRef>()) {
     ret = ConvertObjectToDevice(opt_obj.value(), dev, alloc);
   } else {
     ret = input;
@@ -479,7 +479,7 @@ void VirtualMachineImpl::Init(const std::vector<Device>& devices,
   // Setup constant sections.
   this->const_pool_.reserve(exec_->constants.size());
   for (const auto& constant : exec_->constants) {
-    if (auto opt_nd = constant.TryAs<NDArray>()) {
+    if (auto opt_nd = constant.as<NDArray>()) {
       this->const_pool_.push_back(ConvertRegToDevice(opt_nd.value(), devices[0], allocators[0]));
     } else {
       this->const_pool_.push_back(constant);
@@ -780,7 +780,7 @@ void VirtualMachineImpl::RunInstrCall(VMFrame* curr_frame, Instruction instr) {
     // store dtype to str since py callback cannot handle dtype atm.
     std::vector<std::unique_ptr<std::string>> temp_dtype;
     for (int i = 0; i < instr.num_args; ++i) {
-      if (auto opt_dtype = call_args[i + args_begin_offset].TryAs<DataType>()) {
+      if (auto opt_dtype = call_args[i + args_begin_offset].as<DataType>()) {
         std::string str_dtype = DLDataType2String(opt_dtype.value());
         temp_dtype.emplace_back(std::make_unique<std::string>(str_dtype));
         call_args[i + args_begin_offset] = *temp_dtype.back();
@@ -788,7 +788,7 @@ void VirtualMachineImpl::RunInstrCall(VMFrame* curr_frame, Instruction instr) {
     }
     int ret_kind = static_cast<int>(VMInstrumentReturnKind::kNoOp);
     instrument_.CallPacked(call_args.data(), call_args.size(), &rv);
-    if (auto opt_int = rv.TryAs<int64_t>()) {
+    if (auto opt_int = rv.as<int64_t>()) {
       ret_kind = opt_int.value();
     }
     if (ret_kind != static_cast<int>(VMInstrumentReturnKind::kSkipRun)) {
@@ -898,7 +898,7 @@ void VirtualMachineImpl::_InvokeClosureStateful(std::string func_name) {
 }
 
 void VirtualMachineImpl::_SetInstrument(TVMArgs args, TVMRetValue* rv) {
-  if (args[0].TryAs<ffi::Function>()) {
+  if (args[0].as<ffi::Function>()) {
     this->SetInstrument(args[0]);
   } else {
     String func_name = args[0];
@@ -1038,7 +1038,7 @@ class VirtualMachineProfiler : public VirtualMachineImpl {
       std::vector<NDArray> arrs;
 
       auto f_check_ndarray_arg = [&dev, &arrs](const RegType& arg) {
-        if (auto opt_nd = arg.TryAs<NDArray>()) {
+        if (auto opt_nd = arg.as<NDArray>()) {
           NDArray arr = opt_nd.value();
           dev = arr->device;
           arrs.push_back(arr);

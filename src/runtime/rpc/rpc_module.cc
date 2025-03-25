@@ -92,7 +92,7 @@ class RPCWrappedFunc : public Object {
     // scan and check whether we need rewrite these arguments
     // to their remote variant.
     for (int i = 0; i < args.size(); ++i) {
-      if (auto opt_str = args[i].TryAs<ffi::String>()) {
+      if (auto opt_str = args[i].as<ffi::String>()) {
         packed_args[i] = opt_str.value().c_str();
         continue;
       }

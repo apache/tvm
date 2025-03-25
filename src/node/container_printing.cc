@@ -49,7 +49,7 @@ TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)
         if (it != op->begin()) {
           p->stream << ", ";
         }
-        if (auto opt_str = it->first.TryAs<ffi::String>()) {
+        if (auto opt_str = it->first.as<ffi::String>()) {
           p->stream << '\"' << opt_str.value() << "\": ";
         } else {
           p->Print(it->first);

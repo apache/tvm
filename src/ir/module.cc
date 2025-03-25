@@ -275,9 +275,9 @@ TVM_REGISTER_GLOBAL("ir.Module_Add")
 TVM_REGISTER_GLOBAL("ir.Module_Remove")
     .set_body_typed([](IRModule mod, Variant<String, GlobalVar> var) -> IRModule {
       GlobalVar gvar = [&]() {
-        if (auto opt = var.TryAs<GlobalVar>()) {
+        if (auto opt = var.as<GlobalVar>()) {
           return opt.value();
-        } else if (auto opt = var.TryAs<String>()) {
+        } else if (auto opt = var.as<String>()) {
           return mod->GetGlobalVar(opt.value());
         } else {
           LOG(FATAL) << "InternalError: "
@@ -290,9 +290,9 @@ TVM_REGISTER_GLOBAL("ir.Module_Remove")
 
 TVM_REGISTER_GLOBAL("ir.Module_Contains")
     .set_body_typed([](IRModule mod, Variant<String, GlobalVar> var) -> bool {
-      if (auto opt = var.TryAs<GlobalVar>()) {
+      if (auto opt = var.as<GlobalVar>()) {
         return mod->functions.count(opt.value());
-      } else if (auto opt = var.TryAs<String>()) {
+      } else if (auto opt = var.as<String>()) {
         return mod->global_var_map_.count(opt.value());
       } else {
         LOG(FATAL) << "InternalError: "
