@@ -25,7 +25,7 @@ namespace tir {
 void Annotate(ScheduleState self, const StmtSRef& sref, const String& ann_key,
               const ObjectRef& ann_val) {
   // Extract annotation
-  const Map<String, ObjectRef>* annotations = nullptr;
+  const Map<String, Any>* annotations = nullptr;
   if (const auto* loop = sref->StmtAs<ForNode>()) {
     annotations = &loop->annotations;
   } else if (const auto* block = sref->StmtAs<BlockNode>()) {
@@ -58,7 +58,7 @@ void Annotate(ScheduleState self, const StmtSRef& sref, const String& ann_key,
 
 void Unannotate(ScheduleState self, const StmtSRef& sref, const String& ann_key) {
   // Extract annotation
-  const Map<String, ObjectRef>* annotations = nullptr;
+  const Map<String, Any>* annotations = nullptr;
   if (const auto* loop = sref->StmtAs<ForNode>()) {
     annotations = &loop->annotations;
   } else if (const auto* block = sref->StmtAs<BlockNode>()) {

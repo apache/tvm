@@ -784,7 +784,7 @@ TVM_REGISTER_GLOBAL("device_api.opencl.alloc_nd").set_body([](TVMArgs args, TVMR
 
   *rv = OpenCLWorkspace::Global()->AllocDataSpace(dev, static_cast<size_t>(width),
                                                   static_cast<size_t>(height), type_hint,
-                                                  Optional<String>("global.texture"));
+                                                  String("global.texture"));
 });
 
 TVM_REGISTER_GLOBAL("device_api.opencl.free_nd").set_body([](TVMArgs args, TVMRetValue* rv) {
@@ -884,7 +884,7 @@ class OpenCLPooledAllocator final : public memory::PooledAllocator {
                    const std::string& mem_scope) final {
     OpenCLWorkspace* ws_ = OpenCLWorkspace::Global();
     return ws_->AllocDataSpaceView(buffer.device, buffer.data, shape, type_hint,
-                                   Optional<String>(mem_scope));
+                                   String(mem_scope));
   }
 
   void FreeView(Device dev, void* data) final {

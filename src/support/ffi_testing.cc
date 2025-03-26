@@ -195,7 +195,13 @@ TVM_REGISTER_GLOBAL("testing.ReturnsVariant").set_body_typed([](int x) -> Varian
 });
 
 TVM_REGISTER_GLOBAL("testing.AcceptsVariant")
-    .set_body_typed([](Variant<String, Integer> arg) -> String { return arg->GetTypeKey(); });
+    .set_body_typed([](Variant<String, Integer> arg) -> String {
+      if (auto opt_str = arg.as<String>()) {
+        return opt_str.value()->GetTypeKey();
+      } else {
+        return arg.Get<Integer>()->GetTypeKey();
+      }
+    });
 
 TVM_REGISTER_GLOBAL("testing.AcceptsBool").set_body_typed([](bool arg) -> bool { return arg; });
 
@@ -231,10 +237,9 @@ TVM_REGISTER_GLOBAL("testing.AcceptsArrayOfPrimExpr")
 
 TVM_REGISTER_GLOBAL("testing.AcceptsArrayOfVariant")
     .set_body_typed([](Array<Variant<PackedFunc, PrimExpr>> arr) -> ObjectRef {
-      for (ObjectRef item : arr) {
-        CHECK(item->IsInstance<PrimExprNode>() || item->IsInstance<runtime::PackedFuncObj>())
-            << "Array contained " << item->GetTypeKey()
-            << " when it should contain either PrimExpr or PackedFunc";
+      for (auto item : arr) {
+        CHECK(item.as<PrimExpr>() || item.as<ffi::Function>())
+            << "Array should contain either PrimExpr or PackedFunc";
       }
       return arr;
     });
@@ -289,7 +294,7 @@ class TestingEventLogger {
 };
 
 TVM_REGISTER_GLOBAL("testing.record_event").set_body([](TVMArgs args, TVMRetValue* rv) {
-  if (args.size() != 0 && args[0].type_code() == kTVMStr) {
+  if (args.size() != 0 && args[0].as<String>()) {
     TestingEventLogger::ThreadLocal()->Record(args[0]);
   } else {
     TestingEventLogger::ThreadLocal()->Record("X");

@@ -297,7 +297,7 @@ Array<Buffer> GenerateOutputBuffers(const te::ComputeOp& compute_op, CreateFuncI
  **/
 Map<String, ObjectRef> GenerateBlockAnnotations(const te::ComputeOp& compute_op,
                                                 CreateFuncInfo* info) {
-  Map<String, ObjectRef> annotations;
+  Map<String, Any> annotations;
   auto mutate_attr = [&info](const ObjectRef& value) -> ObjectRef {
     if (auto tensor_value = value.as<te::Tensor>()) {
       return info->tensor2buffers.at(tensor_value.value());
@@ -532,7 +532,7 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
   // Step 4. Generate leaf block stmts.
   Array<Stmt> seq_stmt;
   auto leaf = scopes.back();
-  Map<String, ObjectRef> annotations = GenerateBlockAnnotations(compute_op, info);
+  Map<String, Any> annotations = GenerateBlockAnnotations(compute_op, info);
   const ReduceNode* reduce = compute_op->body[0].as<ReduceNode>();
   if (reduce) {
     PrimExpr expr_body = compute_op->body[0];
@@ -788,7 +788,7 @@ TVM_REGISTER_GLOBAL("te.CreatePrimFunc").set_body([](TVMArgs args, TVMRetValue* 
   Array<ObjectRef> arg_list = args[0];
   std::optional<DataType> index_dtype_override{std::nullopt};
   // Add conversion to make std::optional compatible with FFI.
-  if (args[1].type_code() != kTVMNullptr) {
+  if (args[1] != nullptr) {
     index_dtype_override = args[1].operator DataType();
   }
   *ret = CreatePrimFunc(arg_list, index_dtype_override);

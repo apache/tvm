@@ -563,8 +563,8 @@ TVM_REGISTER_GLOBAL("tir.Call")
                        Span span) {
       Array<PrimExpr> prim_expr_args;
       for (const auto& it : args) {
-        if (const auto* str = it.as<runtime::StringObj>()) {
-          prim_expr_args.push_back(StringImm(str->data));
+        if (auto opt_str = it.as<String>()) {
+          prim_expr_args.push_back(StringImm(opt_str.value()));
         } else if (const auto* iter_var = it.as<IterVarNode>()) {
           prim_expr_args.push_back(iter_var->var);
         } else if (const auto* br = it.as<BufferRegionNode>()) {

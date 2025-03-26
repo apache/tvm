@@ -1176,14 +1176,14 @@ struct SplitTraits : public UnpackedInstTraits<SplitTraits> {
   static constexpr size_t kNumDecisions = 0;
 
   template <size_t delta>
-  static TVM_ALWAYS_INLINE void _SetInputs(const runtime::TVMArgsSetter& setter,
+  static TVM_ALWAYS_INLINE void _SetInputs(AnyView* packed_args,
                                            const Array<ObjectRef>& inputs) {
     thread_local ObjectRef loop_rv{nullptr};
     thread_local Array<ObjectRef> factors{nullptr};
     loop_rv = inputs[0];
     factors = Array<ObjectRef>{inputs.begin() + 1, inputs.end()};
-    setter(delta, loop_rv);
-    setter(delta + 1, factors);
+    packed_args[delta] = loop_rv;
+    packed_args[delta + 1] = factors;
   }
 
   static Array<LoopRV> UnpackedApplyToSchedule(Schedule sch, LoopRV loop_rv,
@@ -1218,14 +1218,14 @@ struct LoopPartitionTraits : public UnpackedInstTraits<LoopPartitionTraits> {
   static constexpr size_t kNumDecisions = 0;
 
   template <size_t delta>
-  static TVM_ALWAYS_INLINE void _SetInputs(const runtime::TVMArgsSetter& setter,
+  static TVM_ALWAYS_INLINE void _SetInputs(AnyView* packed_args,
                                            const Array<ObjectRef>& inputs) {
     thread_local ObjectRef loop_rv{nullptr};
     thread_local Array<ObjectRef> factors{nullptr};
     loop_rv = inputs[0];
     factors = Array<ObjectRef>{inputs.begin() + 1, inputs.end()};
-    setter(delta, loop_rv);
-    setter(delta + 1, factors);
+    packed_args[delta] = loop_rv;
+    packed_args[delta + 1] = factors;
   }
 
   static Array<LoopRV> UnpackedApplyToSchedule(Schedule sch, LoopRV loop_rv,
@@ -1258,9 +1258,9 @@ struct MergeTraits : public UnpackedInstTraits<MergeTraits> {
   static constexpr size_t kNumDecisions = 0;
 
   template <size_t delta>
-  static TVM_ALWAYS_INLINE void _SetInputs(const runtime::TVMArgsSetter& setter,
+  static TVM_ALWAYS_INLINE void _SetInputs(AnyView* packed_args,
                                            const Array<ObjectRef>& inputs) {
-    setter(delta, inputs);
+    packed_args[delta] = inputs;
   }
 
   static LoopRV UnpackedApplyToSchedule(Schedule sch, Array<LoopRV> loop_rvs) {
@@ -1325,9 +1325,9 @@ struct ReorderTraits : public UnpackedInstTraits<ReorderTraits> {
   static constexpr size_t kNumDecisions = 0;
 
   template <size_t delta>
-  static TVM_ALWAYS_INLINE void _SetInputs(const runtime::TVMArgsSetter& setter,
+  static TVM_ALWAYS_INLINE void _SetInputs(AnyView* packed_args,
                                            const Array<ObjectRef>& inputs) {
-    setter(delta, inputs);
+    packed_args[delta] = inputs;
   }
 
   static void UnpackedApplyToSchedule(Schedule sch, Array<LoopRV> loop_rvs) {

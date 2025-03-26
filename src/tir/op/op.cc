@@ -1072,15 +1072,15 @@ TVM_TIR_REGISTER_OP("TVMBackendFreeWorkspace")
 
 // expose basic functions to node namespace
 TVM_REGISTER_GLOBAL("node._const").set_body([](TVMArgs args, TVMRetValue* ret) {
-  if (auto opt = args[0].asInt()) {
+  if (auto opt = args[0].as<int>()) {
     *ret = tir::make_const(args[1], opt.value(), args[2]);
-  } else if (auto opt = args[0].asBool()) {
+  } else if (auto opt = args[0].as<bool>()) {
     *ret = tir::make_const(args[1], opt.value(), args[2]);
-  } else if (auto opt = args[0].asFloat()) {
+  } else if (auto opt = args[0].as<float>()) {
     *ret = tir::make_const(args[1], opt.value(), args[2]);
   } else {
     LOG(FATAL) << "First argument to tvm.tir.const must be int, float, or bool, "
-               << "but instead received argument with type code " << args[0].type_code();  // FIXME
+               << "but instead received argument with type code " << args[0].type_index();  // FIXME
   }
 });
 
@@ -1124,8 +1124,8 @@ TVM_REGISTER_GLOBAL("tir.reinterpret").set_body_typed(tvm::reinterpret);
 
 #define REGISTER_MAKE_BIT_OP(Node, Func)                                                \
   TVM_REGISTER_GLOBAL("tir." #Node).set_body([](TVMArgs args, TVMRetValue* ret) {       \
-    bool lhs_is_int = args[0].type_code() == kDLInt;                                    \
-    bool rhs_is_int = args[1].type_code() == kDLInt;                                    \
+    bool lhs_is_int = args[0].type_index() == ffi::TypeIndex::kTVMFFIInt;               \
+    bool rhs_is_int = args[0].type_index() == ffi::TypeIndex::kTVMFFIInt;               \
     if (lhs_is_int) {                                                                   \
       *ret = (Func(args[0].operator int(), args[1].operator PrimExpr(), args[2]));      \
     } else if (rhs_is_int) {                                                            \

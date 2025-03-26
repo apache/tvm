@@ -228,7 +228,7 @@ Array<Var> Remap(String kinds, Array<PrimExpr> bindings, DataType dtype = DataTy
  * \return The ForFrame.
  */
 ForFrame Serial(PrimExpr start, PrimExpr stop,
-                Optional<Map<String, ObjectRef>> annotations = NullOpt);
+                Optional<Map<String, Any>> annotations = NullOpt);
 /*!
  * \brief The parallel For statement.
  * \param start The minimum value of iteration.
@@ -237,7 +237,7 @@ ForFrame Serial(PrimExpr start, PrimExpr stop,
  * \return The ForFrame.
  */
 ForFrame Parallel(PrimExpr start, PrimExpr stop,
-                  Optional<Map<String, ObjectRef>> annotations = NullOpt);
+                  Optional<Map<String, Any>> annotations = NullOpt);
 /*!
  * \brief The vectorized For statement.
  * \param start The minimum value of iteration.
@@ -246,7 +246,7 @@ ForFrame Parallel(PrimExpr start, PrimExpr stop,
  * \return The ForFrame.
  */
 ForFrame Vectorized(PrimExpr start, PrimExpr stop,
-                    Optional<Map<String, ObjectRef>> annotations = NullOpt);
+                    Optional<Map<String, Any>> annotations = NullOpt);
 /*!
  * \brief The unrolled For statement.
  * \param start The minimum value of iteration.
@@ -255,7 +255,7 @@ ForFrame Vectorized(PrimExpr start, PrimExpr stop,
  * \return The ForFrame.
  */
 ForFrame Unroll(PrimExpr start, PrimExpr stop,
-                Optional<Map<String, ObjectRef>> annotations = NullOpt);
+                Optional<Map<String, Any>> annotations = NullOpt);
 /*!
  * \brief The thread-binding For statement.
  * \param start The minimum value of iteration.
@@ -265,7 +265,7 @@ ForFrame Unroll(PrimExpr start, PrimExpr stop,
  * \return The ForFrame.
  */
 ForFrame ThreadBinding(PrimExpr start, PrimExpr stop, String thread,
-                       Optional<Map<String, ObjectRef>> annotations = NullOpt);
+                       Optional<Map<String, Any>> annotations = NullOpt);
 /*!
  * \brief The grid For statement.
  * \param extents The extents of the iteration.
@@ -313,7 +313,7 @@ RealizeFrame Realize(tvm::tir::BufferRegion buffer_slice, String storage_scope, 
  */
 AllocateFrame Allocate(Array<PrimExpr> extents, DataType dtype, String storage_scope = "",
                        Optional<PrimExpr> condition = NullOpt,
-                       Optional<Map<String, ObjectRef>> annotations = NullOpt);
+                       Optional<Map<String, Any>> annotations = NullOpt);
 
 /*!
  * \brief The allocate constant node.
@@ -324,7 +324,7 @@ AllocateFrame Allocate(Array<PrimExpr> extents, DataType dtype, String storage_s
  * \return The created AllocateConstFrame.
  */
 AllocateConstFrame AllocateConst(NDArray data, DataType dtype, Array<PrimExpr> extents,
-                                 Optional<Map<String, ObjectRef>> annotations = NullOpt);
+                                 Optional<Map<String, Any>> annotations = NullOpt);
 
 /*!
  * \brief Create an attribute.

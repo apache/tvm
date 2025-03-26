@@ -124,7 +124,7 @@ struct ReadWriteAtImpl {
   template <bool is_read>
   static StmtSRef Main(ScheduleState self, const StmtSRef& loop_sref, const StmtSRef& block_sref,
                        int buffer_index, const String& storage_scope,
-                       Map<String, ObjectRef> annotations) {
+                       Map<String, Any> annotations) {
     const BlockNode* block = TVM_SREF_TO_BLOCK(block_sref);
     Buffer src = GetNthAccessBuffer(self, GetRef<Block>(block), buffer_index,
                                     is_read ? BufferIndexType::kRead : BufferIndexType::kWrite);
@@ -318,7 +318,7 @@ struct ReadWriteAtImpl {
   }
 
   explicit ReadWriteAtImpl(ScheduleState self, const StmtSRef& loop_sref, const Buffer& src,
-                           const Buffer& dst, Map<String, ObjectRef> annotations)
+                           const Buffer& dst, Map<String, Any> annotations)
       : self_(self),
         loop_sref_(loop_sref),
         loop_(nullptr),
@@ -335,7 +335,7 @@ struct ReadWriteAtImpl {
   const ForNode* loop_;
   const Buffer& src_;
   const Buffer& dst_;
-  Map<String, ObjectRef> annotations_;
+  Map<String, Any> annotations_;
   Map<Block, Block> block_sref_reuse_;
   std::unique_ptr<arith::Analyzer> analyzer_;
 };

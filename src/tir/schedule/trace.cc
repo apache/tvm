@@ -68,7 +68,7 @@ Array<ObjectRef> TranslateInputRVs(const Array<ObjectRef>& inputs,
 
   for (const ObjectRef& input : inputs) {
     if (!input.defined() ||                   // constant: nullptr
-        input->IsInstance<StringObj>() ||     // constant: string
+        input->IsInstance<ffi::StringObj>() ||     // constant: string
         input->IsInstance<IntImmNode>() ||    // constant: integer
         input->IsInstance<FloatImmNode>()) {  // constant: float
       result.push_back(input);
@@ -111,7 +111,7 @@ Array<ObjectRef> TranslateInputRVs(
       results.push_back(it->second);
     } else if (const auto* str_obj = input.as<StringObj>()) {
       // Case 2. string => "content"
-      results.push_back(String('"' + std::string(str_obj->data) + '"'));
+      results.push_back(String('"' + std::string(str_obj->bytes.data) + '"'));
     } else if (input->IsInstance<IntImmNode>() || input->IsInstance<FloatImmNode>() ||
                input->IsInstance<runtime::Int::ContainerType>() ||
                input->IsInstance<runtime::Float::ContainerType>()) {
@@ -167,11 +167,11 @@ Array<ObjectRef> TranslateInputRVs(const Array<ObjectRef>& inputs,
       results.push_back(input);
       continue;
     }
-    const auto* str = input.as<StringObj>();
+    const auto* str = input.as<ffi::StringObj>();
     CHECK(str) << "TypeError: Expect String, but gets: " << input->GetTypeKey();
-    CHECK_GT(str->size, 0) << "ValueError: Empty string is not allowed in input names";
-    const char* name = str->data;
-    int64_t size = str->size;
+    CHECK_GT(str->bytes.size, 0) << "ValueError: Empty string is not allowed in input names";
+    const char* name = str->bytes.data;
+    int64_t size = str->bytes.size;
     if (name[0] == '{' && name[size - 1] == '}') {
       ObjectRef obj = LoadJSON(name);
       // Case 6. IndexMap
@@ -210,10 +210,8 @@ void TranslateAddOutputRVs(const Array<ObjectRef>& old_outputs, const Array<Obje
                            std::unordered_map<const Object*, const Object*>* rv_map) {
   ICHECK_EQ(old_outputs.size(), new_outputs.size());
   int n = old_outputs.size();
-  const ObjectRef* p_old = old_outputs.GetArrayNode()->begin();
-  const ObjectRef* p_new = new_outputs.GetArrayNode()->begin();
   for (int i = 0; i < n; ++i) {
-    (*rv_map)[p_old[i].get()] = p_new[i].get();
+    (*rv_map)[new_outputs[i].get()] = old_outputs[i].get();
   }
 }
 
@@ -250,11 +248,8 @@ void TranslateAddOutputRVs(const Array<String>& old_outputs, const Array<ObjectR
                            std::unordered_map<std::string, ObjectRef>* named_rvs) {
   ICHECK_EQ(old_outputs.size(), new_outputs.size());
   int n = old_outputs.size();
-  const ObjectRef* p_old = old_outputs.GetArrayNode()->begin();
-  const ObjectRef* p_new = new_outputs.GetArrayNode()->begin();
   for (int i = 0; i < n; ++i) {
-    const auto* name = static_cast<const StringObj*>(p_old[i].get());
-    named_rvs->emplace(std::string(name->data, name->size), p_new[i]);
+    named_rvs->emplace(Downcast<String>(old_outputs[i]), new_outputs[i]);
   }
 }
 
@@ -354,7 +349,7 @@ Array<String> TraceNode::AsPython(bool remove_postproc) const {
     attrs.reserve(inst->attrs.size());
     for (const ObjectRef& obj : inst->attrs) {
       if (const auto* str = obj.as<StringObj>()) {
-        attrs.push_back(String('"' + std::string(str->data) + '"'));
+        attrs.push_back(String('"' + std::string(str->bytes.data) + '"'));
       } else {
         attrs.push_back(obj);
       }
@@ -423,10 +418,10 @@ void Trace::ApplyJSONToSchedule(ObjectRef json, Schedule sch) {
       const auto* arr2 = arr->at(2).as<ArrayNode>();
       const auto* arr3 = arr->at(3).as<ArrayNode>();
       ICHECK(arr0 && arr1 && arr2 && arr3);
-      for (const ObjectRef& str : *arr3) {
-        ICHECK(str->IsInstance<StringObj>());
+      for (const Any& str : *arr3) {
+        ICHECK(str.as<StringObj>());
       }
-      kind = InstructionKind::Get(arr0->data);
+      kind = InstructionKind::Get(arr0->bytes.data);
       inputs = GetRef<Array<ObjectRef>>(arr1);
       attrs = GetRef<Array<ObjectRef>>(arr2);
       outputs = GetRef<Array<String>>(arr3);

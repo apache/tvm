@@ -70,7 +70,7 @@ void BlockFrameNode::ExitWithScope() {
   for (const tvm::tir::Buffer& buffer : alloc_buffers) {
     tir_alloc_buffers.push_back(buffer);
   }
-  Map<String, ObjectRef> attrs = annotations.value_or({});
+  Map<String, Any> attrs = annotations.value_or({});
   if (int detect_access = (!reads.defined()) | (!writes.defined() << 1)) {
     attrs.Set("tir.script_parsing_detect_access", tvm::IntImm(DataType::Int(64), detect_access));
   }
