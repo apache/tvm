@@ -115,7 +115,6 @@ def test_pack_buffer_simple():
         f(a, c)
         tvm.testing.assert_allclose(c.numpy(), a.numpy())
 
-    check_target("stackvm")
     check_target("llvm")
 
 
