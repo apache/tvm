@@ -409,6 +409,71 @@ def test_extended_unary_ops():
     # leakyrelu
     test_leakyrelu()
 
+    # log2
+    class Log2(Module):
+        def forward(self, x):
+            return torch.log2(x)
+
+    @tvm.script.ir_module
+    class Expected_log2:
+        @R.function
+        def main(
+            inp_0: R.Tensor((1, 3, 10, 10), dtype="float32")
+        ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.log(inp_0)
+                lv1: R.Tensor((1, 3, 10, 10), dtype="float32") = R.divide(
+                    lv, R.const(0.69314718246459961, "float32")
+                )
+                gv: R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")) = (lv1,)
+                R.output(gv)
+            return gv
+
+    verify_model(Log2(), example_args, {}, Expected_log2)
+
+    # log10
+    class Log10(Module):
+        def forward(self, x):
+            return torch.log10(x)
+
+    @tvm.script.ir_module
+    class Expected_log10:
+        @R.function
+        def main(
+            inp_0: R.Tensor((1, 3, 10, 10), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.log(inp_0)
+                lv1: R.Tensor((1, 3, 10, 10), dtype="float32") = R.divide(
+                    lv, R.const(2.302585092994046, "float32")
+                )
+                gv: R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")) = (lv1,)
+                R.output(gv)
+            return gv
+
+    verify_model(Log10(), example_args, {}, Expected_log10)
+
+    # log1p
+    class Log1p(Module):
+        def forward(self, x):
+            return torch.log1p(x)
+
+    @tvm.script.ir_module
+    class Expected_log1p:
+        @R.function
+        def main(
+            inp_0: R.Tensor((1, 3, 10, 10), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.log(
+                    R.add(inp_0, R.const(1, "float32"))
+                )
+                gv: R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    verify_model(Log1p(), example_args, {}, Expected_log1p)
+
     # log_softmax
     test_logsoftmax()
 

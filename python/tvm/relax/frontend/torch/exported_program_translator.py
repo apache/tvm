@@ -43,9 +43,26 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         max_val = node.args[2] if len(args) > 2 else node.kwargs("max_val", 1.0)
         return self.block_builder.emit(relax.op.clip(x, min_val, max_val))
 
+    def _log2(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        return self.block_builder.emit(
+            relax.op.divide(relax.op.log(x), relax.const(0.6931471805599453, x.struct_info.dtype))
+        )
+
+    def _log10(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        return self.block_builder.emit(
+            relax.op.divide(relax.op.log(x), relax.const(2.302585092994046, x.struct_info.dtype))
+        )
+
+    def _log1p(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        one = relax.const(1, x.struct_info.dtype)
+        return self.block_builder.emit(relax.op.log(relax.op.add(x, one)))
+
     ########## Neural Network ##########
 
-    def _batch_norm_legit_no_training(self, node: fx.Node) -> relax.Var:
+    def _batch_norm(self, node: fx.Node, training) -> relax.Var:
         import numpy as np
 
         x = self.env[node.args[0]]
@@ -55,21 +72,42 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         bias = self.env.get(node.args[2], relax.const(np.zeros(channel), dtype=dtype))
         running_mean = self.env.get(node.args[3], relax.const(np.zeros(channel), dtype=dtype))
         running_var = self.env.get(node.args[4], relax.const(np.ones(channel), dtype=dtype))
-        momentum = node.args[5] if len(node.args) > 5 else node.kwargs.get("momentum", 0.1)
-        eps = node.args[6] if len(node.args) > 6 else node.kwargs.get("eps", 1e-05)
+        ignore_running_stats = (
+            node.args[5] if len(node.args) > 5 else node.kwargs.get("track_running_stats", True)
+        )
+        track_running_stats = not ignore_running_stats
+        momentum = node.args[6] if len(node.args) > 6 else node.kwargs.get("momentum", 0.1)
+        eps = node.args[7] if len(node.args) > 7 else node.kwargs.get("eps", 1e-05)
+
+        if track_running_stats:
+            training = True
 
         return self.block_builder.emit(
             relax.op.nn.batch_norm(
-                x,
-                weight,
-                bias,
-                running_mean,
-                running_var,
-                axis=1,
+                data=x,
+                gamma=weight,
+                beta=bias,
+                moving_mean=running_mean,
+                moving_var=running_var,
+                axis=1,  # Always over channel
                 epsilon=eps,
                 momentum=momentum,
-            )
+                training=training,
+            )[0]
         )
+
+    def _batch_norm_legit_functional(self, node: fx.Node) -> relax.Var:
+        # This method is called for batch_norm in training mode
+        # TODO does not have correctness!
+        # TODO we need to store the running mean and variance returned by the
+        # previous call to batch_norm and pass it again
+        training = True
+        return self._batch_norm(node, training)
+
+    def _batch_norm_legit_no_training(self, node: fx.Node) -> relax.Var:
+        # This method is called for batch_norm in eval mode
+        training = False
+        return self._batch_norm(node, training)
 
     def _group_norm(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
@@ -229,6 +267,9 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "isnan.default": self._unary_op(relax.op.isnan),
             "leaky_relu.default": self._leakyrelu,
             "log.default": self._unary_op(relax.op.log),
+            "log2.default": self._log2,
+            "log10.default": self._log10,
+            "log1p.default": self._log1p,
             "log_softmax.int": self._log_softmax,
             "neg.default": self._unary_op(relax.op.negative),
             "relu.default": self._unary_op(relax.op.nn.relu),
@@ -283,7 +324,9 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             # linear algebra
             "linalg_vector_norm.default": self._linalg_vector_norm,
             # neural network
+            "_native_batch_norm_legit_functional.default": self._batch_norm_legit_functional,
             "_native_batch_norm_legit_no_training.default": self._batch_norm_legit_no_training,
+            "batch_norm.default": self._batch_norm_legit_no_training,
             "adaptive_avg_pool2d.default": self._adaptive_avg_pool2d,
             "addmm.default": self._addmm,
             "avg_pool2d.default": self._avg_pool2d,

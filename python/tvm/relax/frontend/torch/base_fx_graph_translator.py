@@ -1117,7 +1117,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         return self.env[node.args[0]]
 
     def _copy_(self, node: fx.Node) -> relax.Var:
-        # Copies the source tensor's to the destination tensor
+        # Copies the source tensor's into the destination tensor
         # In TVM, that means simply returning the source tensor
         return self.env[node.args[1]]
 
