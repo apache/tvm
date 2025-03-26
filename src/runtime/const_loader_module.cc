@@ -77,7 +77,7 @@ class ConstLoaderModuleNode : public ModuleNode {
 
     if (name == "get_const_var_ndarray") {
       return PackedFunc([sptr_to_self, this](TVMArgs args, TVMRetValue* rv) {
-        Map<String, ObjectRef> ret_map;
+        Map<String, ffi::Any> ret_map;
         for (const auto& kv : const_var_ndarray_) {
           ret_map.Set(kv.first, kv.second);
         }

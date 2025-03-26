@@ -53,9 +53,9 @@ class TargetNode : public Object {
   /*! \brief Keys for this target */
   Array<String> keys;
   /*! \brief Collection of attributes */
-  Map<String, ObjectRef> attrs;
+  Map<String, Any> attrs;
   /*! \brief Target features */
-  Map<String, ObjectRef> features;
+  Map<String, Any> features;
 
   /*!
    * \brief The raw string representation of the target
@@ -64,7 +64,7 @@ class TargetNode : public Object {
    */
   TVM_DLL const std::string& str() const;
   /*! \return Export target to JSON-like configuration */
-  TVM_DLL Map<String, ObjectRef> Export() const;
+  TVM_DLL Map<String, ffi::Any> Export() const;
   /*! \return The Optional<Target> typed target host of the TargetNode */
   TVM_DLL Optional<Target> GetHost() const;
   /*! \return The device type for this target */
@@ -210,7 +210,7 @@ class Target : public ObjectRef {
    * \brief Construct a Target using a JSON-like configuration
    * \param config The JSON-like configuration for target
    */
-  TVM_DLL explicit Target(const Map<String, ObjectRef>& config);
+  TVM_DLL explicit Target(const Map<String, ffi::Any>& config);
   /*!
    * \brief Get the current target context from thread local storage.
    * \param allow_not_defined If the context stack is empty and this is set to true, an
@@ -240,7 +240,7 @@ class Target : public ObjectRef {
 
  private:
   Target(TargetKind kind, Optional<ObjectRef> host, String tag, Array<String> keys,
-         Map<String, ObjectRef> attrs);
+         Map<String, ffi::Any> attrs);
 
   // enable with syntax.
   friend class TargetInternal;

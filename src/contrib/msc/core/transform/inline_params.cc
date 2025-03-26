@@ -87,7 +87,7 @@ class ParamsInliner : public ExprMutator {
           continue;
         }
         const auto& new_func = Downcast<Function>(VisitExpr(func));
-        Map<String, ObjectRef> func_attrs = new_func->attrs->dict;
+        Map<String, ffi::Any> func_attrs = new_func->attrs->dict;
         if (attrs.size() > 0) {
           func_attrs.Set(msc_attr::kOpattrs, attrs);
         }

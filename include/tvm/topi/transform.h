@@ -1754,7 +1754,7 @@ inline Tensor layout_transform(const Tensor& src, const std::string& src_layout,
 
   Array<PrimExpr> dst_shape = layout_converter.ForwardShape(src->shape);
 
-  Map<String, ObjectRef> attrs = {{"schedule_rule", String(schedule_rule)},
+  Map<String, ffi::Any> attrs = {{"schedule_rule", String(schedule_rule)},
                                   // Information about layouts needed for the schedule rule
                                   {"src_layout", String(src_layout)},
                                   {"dst_layout", String(dst_layout)},

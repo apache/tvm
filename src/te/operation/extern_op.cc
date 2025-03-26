@@ -44,11 +44,11 @@ DataType ExternOpNode::output_dtype(size_t i) const { return output_placeholders
 
 Array<PrimExpr> ExternOpNode::output_shape(size_t i) const { return output_placeholders[i]->shape; }
 
-ExternOp::ExternOp(std::string name, std::string tag, Map<String, ObjectRef> attrs,
+ExternOp::ExternOp(std::string name, std::string tag, Map<String, ffi::Any> attrs,
                    Array<Tensor> inputs, Array<Buffer> input_placeholders,
                    Array<Buffer> output_placeholders, Stmt body) {
   if (!attrs.defined()) {
-    attrs = Map<String, ObjectRef>();
+    attrs = Map<String, ffi::Any>();
   }
   auto n = make_object<ExternOpNode>();
   n->name = std::move(name);
@@ -71,7 +71,7 @@ ExternOp::ExternOp(std::string name, std::string tag, Map<String, ObjectRef> att
 }
 
 TVM_REGISTER_GLOBAL("te.ExternOp")
-    .set_body_typed([](std::string name, std::string tag, Map<String, ObjectRef> attrs,
+    .set_body_typed([](std::string name, std::string tag, Map<String, ffi::Any> attrs,
                        Array<Tensor> inputs, Array<Buffer> input_placeholders,
                        Array<Buffer> output_placeholders, Stmt body) {
       return ExternOp(name, tag, attrs, inputs, input_placeholders, output_placeholders, body);

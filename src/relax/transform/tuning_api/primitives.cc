@@ -108,7 +108,7 @@ Knob::Knob(String name, Map<String, Choice> choices) {
 }
 
 ObjectRef KnobNode::AsJSON() const {
-  Map<String, ObjectRef> json_choices;
+  Map<String, ffi::Any> json_choices;
   for (auto const& x : choices) {
     json_choices.Set(x.first, x.second->AsJSON());
   }
@@ -129,7 +129,7 @@ Knob Knob::FromJSON(const ObjectRef& json) {
     const auto* arr1 = arr->at(1).as<MapNode>();
     ICHECK(arr0 && arr1);
     name = GetRef<String>(arr0);
-    for (auto const& x : GetRef<Map<String, ObjectRef>>(arr1)) {
+    for (auto const& x : GetRef<Map<String, ffi::Any>>(arr1)) {
       String decision = x.first;
       Choice choice = Choice::FromJSON(x.second);
       choices.Set(decision, choice);

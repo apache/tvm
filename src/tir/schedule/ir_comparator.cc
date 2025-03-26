@@ -348,8 +348,8 @@ bool TensorizeComparator::DefEqual(const Var& lhs, const Var& rhs) {
   return true;
 }
 
-bool TensorizeComparator::CompareAnnotation(const std::pair<String, ObjectRef>& lhs,
-                                            const std::pair<String, ObjectRef>& rhs) {
+bool TensorizeComparator::CompareAnnotation(const std::pair<String, ffi::Any>& lhs,
+                                            const std::pair<String, ffi::Any>& rhs) {
   if (lhs.first != rhs.first) {
     if (assert_mode_) {
       std::ostringstream os;
@@ -359,11 +359,25 @@ bool TensorizeComparator::CompareAnnotation(const std::pair<String, ObjectRef>& 
     }
     return false;
   }
-  return VisitExpr(Downcast<PrimExpr>(lhs.second), Downcast<PrimExpr>(rhs.second));
+  // handle expr values
+  if (lhs.second.as<PrimExpr>() && rhs.second.as<PrimExpr>()) {
+      return VisitExpr(Downcast<PrimExpr>(lhs.second), Downcast<PrimExpr>(rhs.second));
+  }
+  // handle any other values via any equal
+  if (!ffi::AnyEqual()(lhs.second, rhs.second)) {
+    if (assert_mode_) {
+      std::ostringstream os;
+      os << "CompareAnnotation value mismatch: lhs.second=" << lhs.first
+         << " vs rhs.second=" << rhs.first;
+      EmitError(os.str());
+    }
+    return false;
+  }
+  return true;
 }
 
-bool TensorizeComparator::CompareAnnotationMap(const Map<String, ObjectRef>& lhs,
-                                               const Map<String, ObjectRef>& rhs) {
+bool TensorizeComparator::CompareAnnotationMap(const Map<String, ffi::Any>& lhs,
+                                               const Map<String, ffi::Any>& rhs) {
   if (lhs.same_as(rhs)) return true;
   if (lhs.size() != rhs.size()) {
     if (assert_mode_) {
@@ -376,14 +390,14 @@ bool TensorizeComparator::CompareAnnotationMap(const Map<String, ObjectRef>& lhs
   }
 
   auto sort_map =
-      [](const Map<String, ObjectRef>& map) -> std::vector<std::pair<String, ObjectRef>> {
-    std::vector<std::pair<String, ObjectRef>> ret(map.begin(), map.end());
+      [](const Map<String, ffi::Any>& map) -> std::vector<std::pair<String, ffi::Any>> {
+    std::vector<std::pair<String, ffi::Any>> ret(map.begin(), map.end());
     sort(ret.begin(), ret.end());
     return ret;
   };
 
-  std::vector<std::pair<String, ObjectRef>> lhs_array = sort_map(lhs);
-  std::vector<std::pair<String, ObjectRef>> rhs_array = sort_map(rhs);
+  std::vector<std::pair<String, ffi::Any>> lhs_array = sort_map(lhs);
+  std::vector<std::pair<String, ffi::Any>> rhs_array = sort_map(rhs);
 
   for (size_t i = 0; i < lhs.size(); ++i) {
     if (!CompareAnnotation(lhs_array[i], rhs_array[i])) {

@@ -50,16 +50,16 @@ class TargetInternal {
  public:
   static void EnterScope(Target target) { target.EnterWithScope(); }
   static void ExitScope(Target target) { target.ExitWithScope(); }
-  static Map<String, ObjectRef> Export(Target target) { return target->Export(); }
+  static Map<String, ffi::Any> Export(Target target) { return target->Export(); }
   static const TargetKindNode::ValueTypeInfo& FindTypeInfo(const TargetKind& kind,
                                                            const std::string& key);
-  static Optional<String> StringifyAttrsToRaw(const Map<String, ObjectRef>& attrs);
+  static Optional<String> StringifyAttrsToRaw(const Map<String, ffi::Any>& attrs);
   static ObjectRef ParseType(const std::string& str, const TargetKindNode::ValueTypeInfo& info);
   static ObjectRef ParseType(const ObjectRef& obj, const TargetKindNode::ValueTypeInfo& info);
   static ObjectPtr<Object> FromString(const String& tag_or_config_or_target_str);
   static ObjectPtr<Object> FromConfigString(const String& config_str);
   static ObjectPtr<Object> FromRawString(const String& target_str);
-  static ObjectPtr<Object> FromConfig(Map<String, ObjectRef> config);
+  static ObjectPtr<Object> FromConfig(Map<String, ffi::Any> config);
   static void ConstructorDispatcher(TVMArgs args, TVMRetValue* rv);
   static Target WithHost(const Target& target, const Target& target_host) {
     ObjectPtr<TargetNode> n = make_object<TargetNode>(*target.get());
@@ -68,7 +68,7 @@ class TargetInternal {
   }
 
  private:
-  static std::unordered_map<String, ObjectRef> QueryDevice(int device_id, const TargetNode* target);
+  static std::unordered_map<String, ffi::Any> QueryDevice(int device_id, const TargetNode* target);
   static bool IsQuoted(const std::string& str);
   static std::string Quote(const std::string& str);
   static std::string JoinString(const std::vector<std::string>& array, char separator);
@@ -436,7 +436,7 @@ ObjectRef TargetInternal::ParseType(const ObjectRef& obj,
                       kv.first->GetTypeKey());
         }
       }
-      Map<String, ObjectRef> config = GetRef<Map<String, ObjectRef>>(ptr);
+      Map<String, ffi::Any> config = GetRef<Map<String, ffi::Any>>(ptr);
       return Target(TargetInternal::FromConfig({config.begin(), config.end()}));
     }
     throw Error(": Expect type 'dict' or 'str' to construct Target, but get: " + obj->GetTypeKey());
@@ -523,7 +523,7 @@ std::string TargetInternal::StringifyArray(const ArrayNode& array) {
   return JoinString(elements, ',');
 }
 
-Optional<String> TargetInternal::StringifyAttrsToRaw(const Map<String, ObjectRef>& attrs) {
+Optional<String> TargetInternal::StringifyAttrsToRaw(const Map<String, ffi::Any>& attrs) {
   std::ostringstream os;
   std::vector<String> keys;
   for (const auto& kv : attrs) {
@@ -585,7 +585,7 @@ Target::Target(const String& tag_or_config_or_target_str) {
   data_ = std::move(target);
 }
 
-Target::Target(const Map<String, ObjectRef>& config) {
+Target::Target(const Map<String, ffi::Any>& config) {
   ObjectPtr<Object> target;
   try {
     target = TargetInternal::FromConfig({config.begin(), config.end()});
@@ -603,7 +603,7 @@ Target::Target(Target target, Target host) {
 }
 
 Target::Target(TargetKind kind, Optional<ObjectRef> host, String tag, Array<String> keys,
-               Map<String, ObjectRef> attrs) {
+               Map<String, ffi::Any> attrs) {
   auto data = runtime::make_object<TargetNode>();
   data->kind = std::move(kind);
   data->host = std::move(host);
@@ -633,8 +633,8 @@ std::unordered_set<std::string> TargetNode::GetLibs() const {
   return result;
 }
 
-Map<String, ObjectRef> TargetNode::Export() const {
-  Map<String, ObjectRef> result = {
+Map<String, ffi::Any> TargetNode::Export() const {
+  Map<String, ffi::Any> result = {
       {"kind", this->kind->name},
       {"tag", this->tag},
       {"keys", this->keys},
@@ -765,8 +765,8 @@ void TargetInternal::ConstructorDispatcher(TVMArgs args, TVMRetValue* rv) {
       *rv = Target(arg.AsObjectRef<Target>());
     } else if (String::CanConvertFrom(arg)) {
       *rv = Target(arg.operator String());
-    } else if (arg.IsObjectRef<Map<String, ObjectRef>>()) {
-      *rv = Target(arg.operator Map<String, ObjectRef>());
+    } else if (arg.IsObjectRef<Map<String, ffi::Any>>()) {
+      *rv = Target(arg.operator Map<String, ffi::Any>());
     } else if (arg.type_code() == kTVMObjectHandle) {
       ObjectRef obj = arg;
       LOG(FATAL) << "TypeError: Cannot create target with type: " << obj->GetTypeKey();
@@ -804,7 +804,7 @@ ObjectPtr<Object> TargetInternal::FromConfigString(const String& config_str) {
   const auto* loader = tvm::runtime::Registry::Get("target._load_config_dict");
   ICHECK(loader) << "AttributeError: \"target._load_config_dict\" is not registered. Please check "
                     "if the python module is properly loaded";
-  Optional<Map<String, ObjectRef>> config = (*loader)(config_str);
+  Optional<Map<String, ffi::Any>> config = (*loader)(config_str);
   if (!config.defined()) {
     throw Error(": Cannot load config dict with python JSON loader");
   }
@@ -817,7 +817,7 @@ ObjectPtr<Object> TargetInternal::FromRawString(const String& target_str) {
   std::vector<std::string> options = SplitString(std::string(target_str), ' ');
   std::string name = options[0];
   // Create the target config
-  std::unordered_map<String, ObjectRef> config = {{"kind", String(name)}};
+  std::unordered_map<String, ffi::Any> config = {{"kind", String(name)}};
   TargetKind kind = GetTargetKind(name);
   for (size_t iter = 1, end = options.size(); iter < end;) {
     std::string key, value;
@@ -841,7 +841,7 @@ ObjectPtr<Object> TargetInternal::FromRawString(const String& target_str) {
   return TargetInternal::FromConfig(config);
 }
 
-ObjectPtr<Object> TargetInternal::FromConfig(Map<String, ObjectRef> config) {
+ObjectPtr<Object> TargetInternal::FromConfig(Map<String, ffi::Any> config) {
   const String kKind = "kind";
   const String kTag = "tag";
   const String kKeys = "keys";
@@ -864,7 +864,7 @@ ObjectPtr<Object> TargetInternal::FromConfig(Map<String, ObjectRef> config) {
         VLOG(9) << "TargetInternal::FromConfig - Running target_parser";
         config = target->kind->target_parser(config);
         if (config.count(kFeatures)) {
-          target->features = Downcast<Map<String, ObjectRef>>(config[kFeatures]);
+          target->features = Downcast<Map<String, ffi::Any>>(config[kFeatures]);
           config.erase(kFeatures);
         }
       }
@@ -935,10 +935,10 @@ ObjectPtr<Object> TargetInternal::FromConfig(Map<String, ObjectRef> config) {
     target->host = NullOpt;
   }
   // parse attrs
-  std::unordered_map<String, ObjectRef> attrs;
+  std::unordered_map<String, ffi::Any> attrs;
   for (const auto& cfg_kv : config) {
     const String& key = cfg_kv.first;
-    const ObjectRef& value = cfg_kv.second;
+    const ffi::Any& value = cfg_kv.second;
     try {
       const TargetKindNode::ValueTypeInfo& info = TargetInternal::FindTypeInfo(target->kind, key);
       attrs[key] = TargetInternal::ParseType(value, info);
@@ -969,7 +969,7 @@ ObjectPtr<Object> TargetInternal::FromConfig(Map<String, ObjectRef> config) {
   }
   // do extra pre-processing
   if (target->kind->preprocessor != nullptr) {
-    target->attrs = target->kind->preprocessor(Map<String, ObjectRef>(attrs));
+    target->attrs = target->kind->preprocessor(Map<String, ffi::Any>(attrs));
   } else {
     target->attrs = attrs;
   }
@@ -977,9 +977,9 @@ ObjectPtr<Object> TargetInternal::FromConfig(Map<String, ObjectRef> config) {
   return target;
 }  // namespace tvm
 
-std::unordered_map<String, ObjectRef> TargetInternal::QueryDevice(int device_id,
+std::unordered_map<String, ffi::Any> TargetInternal::QueryDevice(int device_id,
                                                                   const TargetNode* target) {
-  std::unordered_map<String, ObjectRef> output;
+  std::unordered_map<String, ffi::Any> output;
 
   Device device{static_cast<DLDeviceType>(target->GetTargetDeviceType()), device_id};
 

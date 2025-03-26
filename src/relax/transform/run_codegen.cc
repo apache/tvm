@@ -35,7 +35,7 @@ namespace relax {
 
 class CodeGenRunner : ExprMutator {
  public:
-  using OptionMap = Map<String, ObjectRef>;
+  using OptionMap = Map<String, ffi::Any>;
 
   explicit CodeGenRunner(IRModule mod) : ExprMutator(mod) {}
 
@@ -211,7 +211,7 @@ class CodeGenRunner : ExprMutator {
 }  // namespace relax
 
 namespace transform {
-Pass RunCodegen(Optional<Map<String, Map<String, ObjectRef>>> target_options,
+Pass RunCodegen(Optional<Map<String, Map<String, ffi::Any>>> target_options,
                 Array<String> entry_functions) {
   runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func = [=](IRModule m,
                                                                             PassContext pc) {

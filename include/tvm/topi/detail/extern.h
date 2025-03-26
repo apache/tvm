@@ -63,7 +63,7 @@ using FExtern = std::function<PrimExpr(Array<Buffer>, Array<Buffer>)>;
 inline Array<Tensor> make_extern(const Array<Array<PrimExpr>>& out_shapes,
                                  const std::vector<DataType>& out_types,
                                  const Array<Tensor>& inputs, FExtern fextern, std::string name,
-                                 std::string tag, ::tvm::Map<String, ObjectRef> attrs) {
+                                 std::string tag, ::tvm::Map<String, ffi::Any> attrs) {
   ICHECK_EQ(out_shapes.size(), out_types.size())
       << "make_extern: out_shapes and out_types must have equal size";
 

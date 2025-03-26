@@ -76,7 +76,7 @@ tvm::transform::Pass ExtractPrimFuncConstants() {
   auto prim_func_pass = [=](PrimFunc foo, IRModule m, tvm::transform::PassContext ctx) {
     auto* func = foo.CopyOnWrite();
     if (!m->attrs.defined()) {
-      m->attrs = DictAttrs(Map<String, ObjectRef>());
+      m->attrs = DictAttrs(Map<String, ffi::Any>());
     }
     auto* attrs = m->attrs.CopyOnWrite();
     ConstArrayType constant_array_ =

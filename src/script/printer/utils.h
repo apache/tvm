@@ -82,7 +82,7 @@ inline std::string Docsify(const ObjectRef& obj, const IRDocsifier& d, const Fra
     if (d->cfg->show_meta) {
       os << "metadata = tvm.ir.load_json(\"\"\""
          << support::StrEscape(
-                SaveJSON(Map<String, ObjectRef>(d->metadata.begin(), d->metadata.end())), false,
+                SaveJSON(Map<String, ffi::Any>(d->metadata.begin(), d->metadata.end())), false,
                 false)
          << "\"\"\")\n";
     } else {

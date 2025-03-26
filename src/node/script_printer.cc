@@ -51,7 +51,7 @@ bool IsIdentifier(const std::string& name) {
                      [](char c) { return std::isalnum(c) || c == '_'; });
 }
 
-PrinterConfig::PrinterConfig(Map<String, ObjectRef> config_dict) {
+PrinterConfig::PrinterConfig(Map<String, Any> config_dict) {
   runtime::ObjectPtr<PrinterConfigNode> n = make_object<PrinterConfigNode>();
   if (auto v = config_dict.Get("name")) {
     n->binding_names.push_back(Downcast<String>(v.value()));
@@ -135,7 +135,7 @@ Array<String> PrinterConfigNode::GetBuiltinKeywords() {
 }
 
 TVM_REGISTER_NODE_TYPE(PrinterConfigNode);
-TVM_REGISTER_GLOBAL("node.PrinterConfig").set_body_typed([](Map<String, ObjectRef> config_dict) {
+TVM_REGISTER_GLOBAL("node.PrinterConfig").set_body_typed([](Map<String, Any> config_dict) {
   return PrinterConfig(config_dict);
 });
 TVM_REGISTER_GLOBAL("node.TVMScriptPrinterScript").set_body_typed(TVMScriptPrinter::Script);

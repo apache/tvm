@@ -34,7 +34,7 @@ namespace tvm {
 namespace transform {
 
 namespace {
-BaseFunc BaseFuncWithAttr(BaseFunc func, const std::string& attr_key, ObjectRef attr_value) {
+BaseFunc BaseFuncWithAttr(BaseFunc func, const std::string& attr_key, Any attr_value) {
   if (auto tir = func.as<tir::PrimFunc>()) {
     return WithAttr(tir.value(), attr_key, attr_value);
   } else if (auto relax = func.as<relax::Function>()) {

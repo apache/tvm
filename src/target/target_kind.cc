@@ -140,7 +140,7 @@ static bool DetectDeviceFlag(Device device, runtime::DeviceAttrKind flag, TVMRet
   return true;
 }
 
-void CheckOrSetAttr(Map<String, ObjectRef>* attrs, const String& name, const String& value) {
+void CheckOrSetAttr(Map<String, ffi::Any>* attrs, const String& name, const String& value) {
   auto iter = attrs->find(name);
   if (iter == attrs->end()) {
     attrs->Set(name, value);
@@ -258,7 +258,7 @@ TargetJSON UpdateROCmAttrs(TargetJSON target) {
  * \return The updated attributes
  */
 TargetJSON TestTargetParser(TargetJSON target) {
-  Map<String, ObjectRef> features = {{"is_test", runtime::Bool(true)}};
+  Map<String, ffi::Any> features = {{"is_test", runtime::Bool(true)}};
   target.Set("features", features);
   return target;
 }

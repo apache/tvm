@@ -57,7 +57,7 @@ TVM_DLL void FuncName(const String& name);
  * \brief Specify the attrs of the last function frame.
  * \param attrs The function attrs.
  */
-TVM_DLL void FuncAttrs(Map<String, ObjectRef> attrs);
+TVM_DLL void FuncAttrs(Map<String, Any> attrs);
 
 /*!
  * \brief Specify the return struct info of the last function frame.

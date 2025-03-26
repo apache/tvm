@@ -151,9 +151,9 @@ class LayoutFreePlaceholdersNormalizer : public StmtMutator {
   Stmt VisitStmt_(const BlockNode* _block) final {
     Block block = Downcast<Block>(StmtMutator::VisitStmt_(_block));
     BlockNode* n = block.CopyOnWrite();
-    if (Optional<ObjectRef> ann = n->annotations.Get(topi_attr)) {
+    if (auto opt_ann = n->annotations.Get(topi_attr)) {
       Array<Buffer> new_buffers;
-      for (Buffer buffer : Downcast<Array<Buffer>>(ann)) {
+      for (Buffer buffer : Downcast<Array<Buffer>>(opt_ann.value())) {
         auto it = buffer2index_.find(buffer);
         if (it != buffer2index_.end()) {
           layout_free_buffer_indices_.insert(it->second);
@@ -295,10 +295,10 @@ Array<Buffer> GenerateOutputBuffers(const te::ComputeOp& compute_op, CreateFuncI
  * \param info Generation context info.
  * \returns The block annotation dict.
  **/
-Map<String, ObjectRef> GenerateBlockAnnotations(const te::ComputeOp& compute_op,
+Map<String, ffi::Any> GenerateBlockAnnotations(const te::ComputeOp& compute_op,
                                                 CreateFuncInfo* info) {
-  Map<String, Any> annotations;
-  auto mutate_attr = [&info](const ObjectRef& value) -> ObjectRef {
+  Map<String, ffi::Any> annotations;
+  auto mutate_attr = [&info](const ffi::Any& value) -> ffi::Any {
     if (auto tensor_value = value.as<te::Tensor>()) {
       return info->tensor2buffers.at(tensor_value.value());
     } else {
@@ -307,10 +307,10 @@ Map<String, ObjectRef> GenerateBlockAnnotations(const te::ComputeOp& compute_op,
   };
   for (const auto& pair : compute_op->attrs) {
     const String& key = pair.first;
-    const ObjectRef& value = pair.second;
+    const Any& value = pair.second;
     // TensorIR will not allow Tensor data structure
-    if (value->IsInstance<ArrayNode>()) {
-      const auto array_value = Downcast<Array<ObjectRef>>(value);
+    if (value.as<ArrayNode>()) {
+      const auto array_value = Downcast<Array<ffi::Any>>(value);
       annotations.Set(key, array_value.Map(mutate_attr));
     } else {
       annotations.Set(key, mutate_attr(value));
@@ -532,7 +532,7 @@ Stmt GenerateStmtFromCompute(const te::ComputeOp& compute_op, CreateFuncInfo* in
   // Step 4. Generate leaf block stmts.
   Array<Stmt> seq_stmt;
   auto leaf = scopes.back();
-  Map<String, Any> annotations = GenerateBlockAnnotations(compute_op, info);
+  Map<String, ffi::Any> annotations = GenerateBlockAnnotations(compute_op, info);
   const ReduceNode* reduce = compute_op->body[0].as<ReduceNode>();
   if (reduce) {
     PrimExpr expr_body = compute_op->body[0];

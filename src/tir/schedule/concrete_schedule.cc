@@ -938,7 +938,7 @@ ObjectRef ConcreteScheduleNode::CheckAndGetAnnotationValue(const ObjectRef& ann_
     return std::move(result);
   }
   if (const auto* dict = ann_val.as<MapNode>()) {
-    Map<String, ObjectRef> result;
+    Map<String, ffi::Any> result;
     for (auto it = dict->begin(); it != dict->end(); ++it) {
       const auto& key = it->first;
       auto value = CheckAndGetAnnotationValue(it->second);

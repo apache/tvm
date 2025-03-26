@@ -91,7 +91,7 @@ void FuncName(String name) {
   frame->name = name;
 }
 
-void FuncAttrs(Map<String, ObjectRef> new_attrs) {
+void FuncAttrs(Map<String, ffi::Any> new_attrs) {
   using namespace tvm::tir;
   PrimFuncFrame frame = FindPrimFuncFrame("T.func_attr");
   for (const auto& [key, value] : new_attrs) {
@@ -217,7 +217,7 @@ void Writes(Array<ObjectRef> buffer_slices) {
   frame->writes = writes;
 }
 
-void BlockAttrs(Map<String, ObjectRef> attrs) {
+void BlockAttrs(Map<String, Any> attrs) {
   BlockFrame frame = FindBlockFrame("T.block_attr");
   if (frame->annotations.defined()) {
     LOG(FATAL) << "ValueError: Duplicate block annotations, previous one is " << frame->annotations;
@@ -333,7 +333,7 @@ Array<Var> Remap(String kinds, Array<PrimExpr> bindings, DataType dtype) {
       ICHECK_EQ(vars.size(), 1);                                                                  \
       ICHECK_EQ(doms.size(), 1);                                                                  \
       return tvm::tir::For(vars[0], doms[0]->min, doms[0]->extent, Kind, body, NullOpt,           \
-                           annotations.value_or(Map<String, ObjectRef>()));                       \
+                           annotations.value_or(Map<String, Any>()));                       \
     };                                                                                            \
     return ForFrame(n);                                                                           \
   }
@@ -361,7 +361,7 @@ ForFrame ThreadBinding(PrimExpr start, PrimExpr stop, String thread,
     ICHECK_EQ(doms.size(), 1);
     IterVar iter_var(Range(nullptr), Var("iter", dtype), IterVarType::kThreadIndex, thread);
     return For(vars[0], doms[0]->min, doms[0]->extent, ForKind::kThreadBinding, body, iter_var,
-               annotations.value_or(Map<String, ObjectRef>()));
+               annotations.value_or(Map<String, ffi::Any>()));
   };
   return ForFrame(n);
 }
@@ -464,7 +464,7 @@ AllocateFrame Allocate(Array<PrimExpr> extents, DataType dtype, String storage_s
   n->dtype = dtype;
   n->storage_scope = storage_scope;
   n->condition = condition.value_or(tvm::Bool(true));
-  n->annotations = annotations.value_or(Map<String, ObjectRef>());
+  n->annotations = annotations.value_or(Map<String, Any>());
   n->buffer_var = Var("", tvm::PointerType(tvm::PrimType(dtype), storage_scope));
   return AllocateFrame(n);
 }
@@ -476,7 +476,7 @@ AllocateConstFrame AllocateConst(tvm::runtime::NDArray data, DataType dtype,
   n->dtype = dtype;
   n->extents = extents;
   n->data = data;
-  n->annotations = annotations.value_or(Map<String, ObjectRef>());
+  n->annotations = annotations.value_or(Map<String, Any>());
   n->buffer_var = Var("", tvm::PointerType(tvm::PrimType(dtype)));
   return AllocateConstFrame(n);
 }

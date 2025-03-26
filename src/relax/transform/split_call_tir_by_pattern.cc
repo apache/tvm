@@ -667,7 +667,7 @@ tvm::BaseFunc CodegenWithLibrary(const tir::PrimFuncNode* pf, String global_symb
   std::string source = library_code.value();
   StringReplace(&source, "{global_symbol}", global_symbol);
   ExternFunc ret(global_symbol);
-  ret = WithAttrs(std::move(ret), Map<String, ObjectRef>{
+  ret = WithAttrs(std::move(ret), Map<String, ffi::Any>{
                                       {String(kCSource), String(source)},
                                       {String(kCSourceFmt), String(kCSourceFmtCuda)},
                                   });

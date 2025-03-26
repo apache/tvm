@@ -142,7 +142,7 @@ TuningRecord TuningRecord::FromJSON(const ObjectRef& json_obj, const Workload& w
     }
     // Load json[2] => target
     if (json_array->at(2) != nullptr) {
-      target = Target(json_array->at(2).operator Map<String, ObjectRef>());
+      target = Target(json_array->at(2).operator Map<String, ffi::Any>());
     }
     // Load json[3] => args_info
     if (json_array->at(3) != nullptr) {

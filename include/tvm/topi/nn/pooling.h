@@ -350,7 +350,7 @@ inline Tensor adaptive_pool_impl(const Tensor& x, const Array<PrimExpr>& output_
     return std::make_tuple(indices, reduce_axes);
   };
 
-  Map<String, ObjectRef> attrs;
+  Map<String, ffi::Any> attrs;
   if (pool_type == kMaxPool) {
     attrs.Set("schedule_rule", tvm::runtime::String("meta_schedule.adaptive_pool_max"));
     return tvm::te::compute(
@@ -563,7 +563,7 @@ inline Tensor pool_impl_nd(const Tensor& x, const Array<PrimExpr>& kernel_size,
     out_shape.Set(ii, out_dim);
   }
 
-  Map<String, ObjectRef> attrs;
+  Map<String, ffi::Any> attrs;
   if (pool_type == kMaxPool) {
     auto temp = do_pad ? pad(x, pad_before, pad_after, tvm::min_value(x->dtype), "pad_temp") : x;
     attrs.Set("schedule_rule", tvm::runtime::String("meta_schedule.pool_max"));

@@ -118,7 +118,7 @@ class PassConfigManager {
   }
 
   // Trying to validate and legalize a config.
-  void Legalize(Map<String, ObjectRef>* config) {
+  void Legalize(Map<String, ffi::Any>* config) {
     std::vector<std::pair<std::string, ObjectRef>> update;
     for (auto [key, obj] : *config) {
       auto it = key2vtype_.find(key);
@@ -135,7 +135,7 @@ class PassConfigManager {
       }
       const auto& info = it->second;
 
-      ICHECK(obj.defined()) << "AttributeError: " << key << " is None";
+      ICHECK(obj != nullptr) << "AttributeError: " << key << " is None";
 
       ICHECK(info.legalization) << "AttributeError: "
                                 << "Config option \'" << key
@@ -610,7 +610,7 @@ TVM_REGISTER_NODE_TYPE(PassContextNode);
 TVM_REGISTER_GLOBAL("transform.PassContext")
     .set_body_typed([](int opt_level, Array<String> required, Array<String> disabled,
                        Array<instrument::PassInstrument> instruments,
-                       Optional<Map<String, ObjectRef>> config, Array<ObjectRef> trace_stack,
+                       Optional<Map<String, ffi::Any>> config, Array<ObjectRef> trace_stack,
                        Optional<Map<String, Bool>> make_traceable, int num_evals,
                        Optional<ObjectRef> tuning_api_database) {
       auto pctx = PassContext::Create();

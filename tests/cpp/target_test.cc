@@ -39,11 +39,11 @@ TargetJSON TestTargetParser(TargetJSON target) {
   String mcpu = Downcast<String>(target.at("mcpu"));
   target.Set("mcpu", String("super_") + mcpu);
   target.Set("keys", Array<String>({"super"}));
-  target.Set("features", Map<String, ObjectRef>{{"test", runtime::Bool(true)}});
+  target.Set("features", Map<String, ffi::Any>{{"test", runtime::Bool(true)}});
   return target;
 }
 
-Map<String, ObjectRef> TestAttrsPreProcessor(Map<String, ObjectRef> attrs) {
+Map<String, ffi::Any> TestAttrsPreProcessor(Map<String, ffi::Any> attrs) {
   attrs.Set("mattr", String("woof"));
   return attrs;
 }
@@ -74,7 +74,7 @@ TEST(TargetKind, GetAttrMap) {
 }
 
 TEST(TargetCreation, NestedConfig) {
-  Map<String, ObjectRef> config = {
+  Map<String, ffi::Any> config = {
       {"my_bool", runtime::Bool(true)},
       {"your_names", Array<String>{"junru", "jian"}},
       {"kind", String("TestTargetKind")},
@@ -104,7 +104,7 @@ TEST(TargetCreation, NestedConfig) {
 }
 
 TEST(TargetCreationFail, UnrecognizedConfigOption) {
-  Map<String, ObjectRef> config = {
+  Map<String, ffi::Any> config = {
       {"my_bool", runtime::Bool(true)},
       {"your_names", Array<String>{"junru", "jian"}},
       {"kind", String("TestTargetKind")},
@@ -127,7 +127,7 @@ TEST(TargetCreationFail, UnrecognizedConfigOption) {
 }
 
 TEST(TargetCreationFail, TypeMismatch) {
-  Map<String, ObjectRef> config = {
+  Map<String, ffi::Any> config = {
       {"my_bool", String("true")},
       {"your_names", Array<String>{"junru", "jian"}},
       {"kind", String("TestTargetKind")},
@@ -149,7 +149,7 @@ TEST(TargetCreationFail, TypeMismatch) {
 }
 
 TEST(TargetCreationFail, TargetKindNotFound) {
-  Map<String, ObjectRef> config = {
+  Map<String, ffi::Any> config = {
       {"my_bool", runtime::Bool("true")},
       {"your_names", Array<String>{"junru", "jian"}},
       {
@@ -187,8 +187,8 @@ TEST(TargetCreation, TargetFeatures) {
 }
 
 TEST(TargetCreation, TargetFeaturesBeforeParser) {
-  Map<String, ObjectRef> features = {{"test", runtime::Bool(true)}};
-  Map<String, ObjectRef> config = {
+  Map<String, ffi::Any> features = {{"test", runtime::Bool(true)}};
+  Map<String, ffi::Any> config = {
       {"kind", String("TestTargetParser")},
       {"mcpu", String("woof")},
       {"features", features},
@@ -451,7 +451,7 @@ TEST(TargetCreation, LLVMCommandLineSaveRestore) {
 }
 
 TEST(TargetCreation, DetectSystemTriple) {
-  Map<String, ObjectRef> config = {
+  Map<String, ffi::Any> config = {
       {"kind", String("llvm")},
   };
 
@@ -470,7 +470,7 @@ TEST(TargetCreation, DetectSystemTriple) {
 #endif
 
 TEST(TargetCreation, DeduplicateKeys) {
-  Map<String, ObjectRef> config = {
+  Map<String, ffi::Any> config = {
       {"kind", String("llvm")},
       {"keys", Array<String>{"cpu", "arm_cpu"}},
       {"device", String("arm_cpu")},

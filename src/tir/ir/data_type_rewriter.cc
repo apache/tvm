@@ -344,7 +344,7 @@ Stmt IndexDataTypeRewriter::VisitStmt_(const BlockNode* op) {
   if (op->init.defined()) {
     new_init = this->VisitStmt(op->init.value());
   }
-  Map<String, ObjectRef> new_annotations = VisitBlockAnnotations(op->annotations);
+  Map<String, ffi::Any> new_annotations = VisitBlockAnnotations(op->annotations);
   Stmt new_body = this->VisitStmt(op->body);
 
   if (!new_init.same_as(op->init) || !new_body.same_as(op->body) ||
@@ -367,8 +367,8 @@ Stmt IndexDataTypeRewriter::VisitStmt_(const BlockNode* op) {
   return GetRef<Stmt>(op);
 }
 
-Map<String, ObjectRef> IndexDataTypeRewriter::VisitBlockAnnotations(
-    const Map<String, ObjectRef>& annotations) {
+Map<String, ffi::Any> IndexDataTypeRewriter::VisitBlockAnnotations(
+    const Map<String, ffi::Any>& annotations) {
   auto new_annotations = annotations;
 
   std::function<ObjectRef(const ObjectRef&)> f_mutate_obj =

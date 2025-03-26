@@ -214,7 +214,7 @@ void CollectFromCompositeFunctionBody::VisitExpr_(const CallNode* call_node) {
  * \return Runtime modules.
  */
 Array<runtime::Module> TensorRTCompiler(Array<Function> functions,
-                                        Map<String, ObjectRef> /*unused*/,
+                                        Map<String, ffi::Any> /*unused*/,
                                         Map<Constant, String> constant_names) {
   Array<runtime::Module> compiled_functions;
   for (const auto& func : functions) {

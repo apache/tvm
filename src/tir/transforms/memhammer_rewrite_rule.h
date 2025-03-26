@@ -56,7 +56,7 @@ struct ConstraintSet {
                          BufferRegion read_region,            //
                          BufferRegion write_region,           //
                          int data_bits,                       //
-                         const Map<String, ObjectRef>& ann)
+                         const Map<String, ffi::Any>& ann)
       : thread_extent(thread_extent),
         outer_loops(outer_loops),
         read_region(read_region),

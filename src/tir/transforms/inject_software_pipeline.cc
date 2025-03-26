@@ -316,7 +316,7 @@ class PipelineRewriter : public StmtExprMutator {
       const Array<Buffer> pipeline_allocs, const For& pipeline_loop,
       const PipelineInfo& pipeline_info,
       const std::unordered_map<const VarNode*, FragmentInfo>& fragment_info,
-      const Map<String, ObjectRef> preserved_annotations) {
+      const Map<String, ffi::Any> preserved_annotations) {
     PipelineRewriter rewriter(buffer_data_to_buffer, double_buffers, pipeline_allocs, pipeline_loop,
                               pipeline_info, fragment_info, preserved_annotations);
     return rewriter.BuildPipeline();
@@ -328,7 +328,7 @@ class PipelineRewriter : public StmtExprMutator {
                    const Array<Buffer>& pipeline_allocs, const For& pipeline_loop,
                    const PipelineInfo& pipeline_info,
                    const std::unordered_map<const VarNode*, FragmentInfo>& fragment_info,
-                   const Map<String, ObjectRef> preserved_annotations)
+                   const Map<String, ffi::Any> preserved_annotations)
 
       : buffer_data_to_buffer_(std::move(buffer_data_to_buffer)),
         double_buffers_(double_buffers),
@@ -975,7 +975,7 @@ class PipelineRewriter : public StmtExprMutator {
   Map<Buffer, Buffer> buffer_remap_;
   Array<Block> ordered_stmts_;
   std::map<int, AsyncStateGlobal> async_states;
-  Map<String, ObjectRef> preserved_annotations_;
+  Map<String, ffi::Any> preserved_annotations_;
 };
 
 /*!
@@ -1146,7 +1146,7 @@ class PipelineInjector : private StmtExprMutator {
       }
     }
 
-    Map<String, ObjectRef> preserved_annotations;
+    Map<String, ffi::Any> preserved_annotations;
     for (const auto& kv : op->annotations) {
       const String& key = kv.first;
       if (kv.first != attr::software_pipeline_stage && kv.first != attr::software_pipeline_order &&

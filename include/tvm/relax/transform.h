@@ -388,7 +388,7 @@ class FusionPatternNode : public Object {
    * \brief The function to get attributes for fused function
    *
    * It should have signature
-   * Map<String, ObjectRef>(const Map<String, Expr>& context)
+   * Map<String, Any>(const Map<String, Expr>& context)
    */
   Optional<PackedFunc> attrs_getter;
 
@@ -546,7 +546,7 @@ TVM_DLL Pass FuseTIR();
  * \param entry_functions list of entry functions
  * \return The Pass.
  */
-TVM_DLL Pass RunCodegen(Optional<Map<String, Map<String, ObjectRef>>> target_options,
+TVM_DLL Pass RunCodegen(Optional<Map<String, Map<String, ffi::Any>>> target_options,
                         Array<runtime::String> entry_functions);
 
 /*!

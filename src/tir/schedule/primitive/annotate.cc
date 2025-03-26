@@ -25,7 +25,7 @@ namespace tir {
 void Annotate(ScheduleState self, const StmtSRef& sref, const String& ann_key,
               const ObjectRef& ann_val) {
   // Extract annotation
-  const Map<String, Any>* annotations = nullptr;
+  const Map<String, ffi::Any>* annotations = nullptr;
   if (const auto* loop = sref->StmtAs<ForNode>()) {
     annotations = &loop->annotations;
   } else if (const auto* block = sref->StmtAs<BlockNode>()) {
@@ -38,7 +38,7 @@ void Annotate(ScheduleState self, const StmtSRef& sref, const String& ann_key,
     return;
   }
   // Add the new annotation
-  Map<String, ObjectRef> new_ann(*annotations);
+  Map<String, ffi::Any> new_ann(*annotations);
   new_ann.Set(ann_key, ann_val);
   // Create the new stmt
   if (const auto* loop = sref->StmtAs<ForNode>()) {
@@ -58,7 +58,7 @@ void Annotate(ScheduleState self, const StmtSRef& sref, const String& ann_key,
 
 void Unannotate(ScheduleState self, const StmtSRef& sref, const String& ann_key) {
   // Extract annotation
-  const Map<String, Any>* annotations = nullptr;
+  const Map<String, ffi::Any>* annotations = nullptr;
   if (const auto* loop = sref->StmtAs<ForNode>()) {
     annotations = &loop->annotations;
   } else if (const auto* block = sref->StmtAs<BlockNode>()) {
@@ -69,7 +69,7 @@ void Unannotate(ScheduleState self, const StmtSRef& sref, const String& ann_key)
   // Remove the annotation
   ICHECK(annotations->find(ann_key) != annotations->end())
       << "IndexError: Cannot find annotation key: " << ann_key;
-  Map<String, ObjectRef> new_ann(*annotations);
+  Map<String, ffi::Any> new_ann(*annotations);
   new_ann.erase(ann_key);
   // Create the new stmt
   if (const auto* loop = sref->StmtAs<ForNode>()) {
