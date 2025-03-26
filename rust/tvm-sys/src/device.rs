@@ -120,7 +120,6 @@ impl<'a> From<&'a str> for DeviceType {
         match type_str {
             "cpu" => DeviceType::CPU,
             "llvm" => DeviceType::CPU,
-            "stackvm" => DeviceType::CPU,
             "cuda" => DeviceType::CUDA,
             "nvptx" => DeviceType::CUDA,
             "cl" => DeviceType::OpenCL,
@@ -208,7 +207,7 @@ macro_rules! impl_tvm_device {
 }
 
 impl_tvm_device!(
-    DLDeviceType_kDLCPU: [cpu, llvm, stackvm],
+    DLDeviceType_kDLCPU: [cpu, llvm],
     DLDeviceType_kDLCUDA: [cuda, nvptx],
     DLDeviceType_kDLOpenCL: [cl],
     DLDeviceType_kDLMetal: [metal],
