@@ -246,7 +246,7 @@ void CollectFromCompositeFunctionBody::VisitExpr_(const CallNode* call_node) {
   ExprVisitor::VisitExpr_(call_node);
 }
 
-Array<runtime::Module> NNAPICompiler(Array<Function> functions, Map<String, ObjectRef> /*unused*/,
+Array<runtime::Module> NNAPICompiler(Array<Function> functions, Map<String, ffi::Any> /*unused*/,
                                      Map<Constant, String> constant_names) {
   VLOG(1) << "NNAPI Compiler";
 

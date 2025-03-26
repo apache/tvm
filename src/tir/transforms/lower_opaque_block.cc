@@ -58,7 +58,7 @@ class OpaqueBlockLower : public StmtExprMutator {
       const Buffer& buffer = new_block->alloc_buffers[i - 1];
       Array<PrimExpr> allocation_shape = GetBufferAllocationShape(buffer);
       body = DeclBuffer(buffer, std::move(body));
-      Map<String, ObjectRef> allocate_annotations;
+      Map<String, ffi::Any> allocate_annotations;
       auto it = storage_align_.find(buffer->data);
       if (it != storage_align_.end()) {
         StorageAlignAnnotation allocate_aligns;
@@ -94,7 +94,7 @@ class OpaqueBlockLower : public StmtExprMutator {
     Stmt body = this->VisitStmt(op->body);
     // Step 3. Handle annotations
     std::vector<std::pair<std::string, PrimExpr>> pragma_attrs;
-    Map<String, ObjectRef> new_annotations =
+    Map<String, ffi::Any> new_annotations =
         HandleAnnotations(op->annotations, &pragma_attrs, /*is_block=*/false);
     // Step 4. Create new For loop accordingly
     if (op->kind == ForKind::kThreadBinding) {
@@ -170,10 +170,10 @@ class OpaqueBlockLower : public StmtExprMutator {
    * (3) the non-pragma block annotations are dropped
    * \return New annotation dict with preserved keys. Also update pragma attr pairs ordered by key.
    */
-  Map<String, ObjectRef> HandleAnnotations(
-      const Map<String, ObjectRef>& annotations,
+  Map<String, ffi::Any> HandleAnnotations(
+      const Map<String, ffi::Any>& annotations,
       std::vector<std::pair<std::string, PrimExpr>>* pragma_attrs, bool is_block) {
-    Map<String, ObjectRef> preserved_annotations;
+    Map<String, ffi::Any> preserved_annotations;
     pragma_attrs->clear();
     for (const auto& kv : annotations) {
       const String& key = kv.first;

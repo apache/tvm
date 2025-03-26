@@ -344,7 +344,7 @@ TVM_REGISTER_GLOBAL("ir.Module_WithoutAttr")
     .set_body_typed([](IRModule mod, String key) -> IRModule { return WithoutAttr(mod, key); });
 
 TVM_REGISTER_GLOBAL("ir.Module_WithAttrs")
-    .set_body_typed([](IRModule mod, Map<String, ObjectRef> attr_map) -> IRModule {
+    .set_body_typed([](IRModule mod, Map<String, ffi::Any> attr_map) -> IRModule {
       return WithAttrs(mod, attr_map);
     });
 

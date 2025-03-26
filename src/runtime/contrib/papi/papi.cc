@@ -236,11 +236,11 @@ struct PAPIMetricCollectorNode final : public MetricCollectorNode {
    * \param obj `PAPIEventSetNode` created by a call to `Start`.
    * \returns A mapping from metric name to value.
    */
-  Map<String, ObjectRef> Stop(ObjectRef obj) final {
+  Map<String, ffi::Any> Stop(ObjectRef obj) final {
     const PAPIEventSetNode* event_set_node = obj.as<PAPIEventSetNode>();
     std::vector<long_long> end_values(papi_metric_names[event_set_node->dev].size());
     PAPI_CALL(PAPI_read(event_sets[event_set_node->dev], end_values.data()));
-    std::unordered_map<String, ObjectRef> reported_metrics;
+    std::unordered_map<String, ffi::Any> reported_metrics;
     for (size_t i = 0; i < end_values.size(); i++) {
       if (end_values[i] < event_set_node->start_values[i]) {
         LOG(WARNING) << "Detected overflow when reading performance counter, setting value to -1.";

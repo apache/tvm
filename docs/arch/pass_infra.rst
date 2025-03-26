@@ -128,7 +128,7 @@ Python APIs to create a compilation pipeline using pass context.
       tvm::Array<tvm::Expr> required_pass;
       tvm::Array<tvm::Expr> disabled_pass;
       mutable Optional<DiagnosticContext> diag_ctx;
-      Map<String, ObjectRef> config;
+      Map<String, Any> config;
       Array<instrument::PassInstrument> instruments;
     };
 

@@ -47,7 +47,7 @@ class AnnotateRegionRewriter : public StmtExprMutator {
     }
 
     // Annotate the block with explicit_read_region or explicit_write_region
-    Map<String, ObjectRef> new_annotations = n->annotations;
+    Map<String, ffi::Any> new_annotations = n->annotations;
     String annotation_key = buffer_index_type_ == BufferIndexType::kWrite
                                 ? attr::explicit_write_region
                                 : attr::explicit_read_region;

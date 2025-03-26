@@ -745,7 +745,7 @@ TVM_REGISTER_GLOBAL("relax.FuncWithAttr")
     });
 
 TVM_REGISTER_GLOBAL("relax.FuncWithAttrs")
-    .set_body_typed([](BaseFunc func, Map<String, ObjectRef> attr_map) -> Optional<Function> {
+    .set_body_typed([](BaseFunc func, Map<String, ffi::Any> attr_map) -> Optional<Function> {
       if (func->IsInstance<relax::FunctionNode>()) {
         return WithAttrs(Downcast<relax::Function>(std::move(func)), attr_map);
       }

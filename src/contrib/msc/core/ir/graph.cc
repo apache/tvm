@@ -766,11 +766,11 @@ void MSCGraphNode::FromJson(const std::string& json_str) {
 
 const String MSCGraphNode::ToPrototxt() const {
   PrototxtPrinter printer;
-  printer.Append(Map<String, ObjectRef>{{"name", name}});
+  printer.Append(Map<String, ffi::Any>{{"name", name}});
   for (const auto& n : node_names) {
     const auto& node = FindNode(n);
     // define layer
-    std::vector<std::pair<String, ObjectRef>> layer;
+    std::vector<std::pair<String, Any>> layer;
     layer.push_back(std::make_pair("name", node->name));
     layer.push_back(std::make_pair("type", StringUtils::Replace(node->optype, ".", "_")));
     layer.push_back(std::make_pair("top", node->name));
@@ -778,7 +778,7 @@ const String MSCGraphNode::ToPrototxt() const {
       layer.push_back(std::make_pair("bottom", Downcast<BaseJoint>(p)->name));
     }
     // define layer param
-    Map<String, ObjectRef> param;
+    Map<String, ffi::Any> param;
     param.Set("idx", Integer(node->index));
     for (size_t i = 0; i < node->inputs.size(); i++) {
       param.Set("input_" + std::to_string(i), node->InputAt(i));
@@ -794,7 +794,7 @@ const String MSCGraphNode::ToPrototxt() const {
     }
     layer.push_back(std::make_pair("layer_param", PrototxtPrinter::ToDictDoc(param)));
     // Append the layer Map
-    printer.Append(Map<String, ObjectRef>{{"layer", PrototxtPrinter::ToDictDoc(layer)}});
+    printer.Append(Map<String, ffi::Any>{{"layer", PrototxtPrinter::ToDictDoc(layer)}});
   }
   return printer.GetString();
 }
@@ -1196,11 +1196,11 @@ void WeightGraphNode::FromJson(const std::string& json_str) {
 
 const String WeightGraphNode::ToPrototxt() const {
   PrototxtPrinter printer;
-  printer.Append(Map<String, ObjectRef>{{"name", name}});
+  printer.Append(Map<String, ffi::Any>{{"name", name}});
   for (const auto& n : node_names) {
     const auto& node = FindNode(n);
     // define layer
-    std::vector<std::pair<String, ObjectRef>> layer;
+    std::vector<std::pair<String, Any>> layer;
     layer.push_back(std::make_pair("name", node->name));
     layer.push_back(std::make_pair("type", node->weight_type));
     layer.push_back(std::make_pair("top", node->name));
@@ -1208,7 +1208,7 @@ const String WeightGraphNode::ToPrototxt() const {
       layer.push_back(std::make_pair("bottom", Downcast<BaseJoint>(p)->name));
     }
     // define layer param
-    Map<String, ObjectRef> param;
+    Map<String, ffi::Any> param;
     param.Set("idx", Integer(node->index));
     param.Set("weight", node->weight);
     for (size_t i = 0; i < node->friends.size(); i++) {
@@ -1219,7 +1219,7 @@ const String WeightGraphNode::ToPrototxt() const {
     }
     layer.push_back(std::make_pair("layer_param", PrototxtPrinter::ToDictDoc(param)));
     // Append the layer Map
-    printer.Append(Map<String, ObjectRef>{{"layer", PrototxtPrinter::ToDictDoc(layer)}});
+    printer.Append(Map<String, ffi::Any>{{"layer", PrototxtPrinter::ToDictDoc(layer)}});
   }
   return printer.GetString();
 }

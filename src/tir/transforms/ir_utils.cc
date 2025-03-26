@@ -173,7 +173,7 @@ class IRConvertSSA final : public StmtExprMutator {
         return DictAttrs();
       }
 
-      Map<String, ObjectRef> dict;
+      Map<String, ffi::Any> dict;
       bool made_change = false;
 
       for (const auto& [key, old_value] : func->attrs->dict) {

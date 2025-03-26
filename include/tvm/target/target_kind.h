@@ -39,7 +39,7 @@ class Target;
 /*!
  * \brief Map containing parsed features of a specific Target
  */
-using TargetFeatures = Map<String, ObjectRef>;
+using TargetFeatures = Map<String, ffi::Any>;
 
 /*!
  * \brief TargetParser to apply on instantiation of a given TargetKind
@@ -48,7 +48,7 @@ using TargetFeatures = Map<String, ObjectRef>;
  *
  * \return The transformed Target JSON object.
  */
-using TargetJSON = Map<String, ObjectRef>;
+using TargetJSON = Map<String, ffi::Any>;
 using FTVMTargetParser = runtime::TypedPackedFunc<TargetJSON(TargetJSON)>;
 
 namespace detail {
@@ -99,7 +99,7 @@ class TargetKindNode : public Object {
   /*! \brief A hash table that stores the type information of each attr of the target key */
   std::unordered_map<String, ValueTypeInfo> key2vtype_;
   /*! \brief A hash table that stores the default value of each attr of the target key */
-  std::unordered_map<String, ObjectRef> key2default_;
+  std::unordered_map<String, ffi::Any> key2default_;
   /*! \brief Index used for internal lookup of attribute registry */
   uint32_t index_;
 

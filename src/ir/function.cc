@@ -44,7 +44,7 @@ TVM_REGISTER_GLOBAL("ir.BaseFuncWithAttr")
     });
 
 TVM_REGISTER_GLOBAL("ir.BaseFuncWithAttrs")
-    .set_body_typed([](BaseFunc func, Map<String, ObjectRef> attr_map) -> BaseFunc {
+    .set_body_typed([](BaseFunc func, Map<String, ffi::Any> attr_map) -> BaseFunc {
       if (func->IsInstance<tir::PrimFuncNode>()) {
         return WithAttrs(Downcast<tir::PrimFunc>(std::move(func)), attr_map);
       }

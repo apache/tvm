@@ -185,7 +185,7 @@ class ReportNode : public Object {
    * and "Duration (us)". Values are one of `String`, `PercentNode`,
    * `DurationNode`, or `CountNode`.
    */
-  Array<Map<String, ObjectRef>> calls;
+  Array<Map<String, ffi::Any>> calls;
   /*! \brief Metrics collected for the entire run of the model on a per-device basis.
    *
    * `device_metrics` is indexed by device name then metric.
@@ -193,12 +193,12 @@ class ReportNode : public Object {
    * These metrics may be larger than the sum of the same metric in `calls`
    * because these metrics include the overhead of the executor.
    */
-  Map<String, Map<String, ObjectRef>> device_metrics;
+  Map<String, Map<String, ffi::Any>> device_metrics;
   /*! Configuration used for this profiling run. Includes number of threads, executor.
    *
    * Values must be an object type that can be used with device_metrics.
    */
-  Map<String, ObjectRef> configuration;
+  Map<String, ffi::Any> configuration;
   /*! \brief Output `calls` in CSV format.
    *
    * Note that this does not include `device_metrics`, it only includes per-call metrics.
@@ -264,9 +264,9 @@ class Report : public ObjectRef {
    * \param device_metrics Per-device metrics for overall execution.
    * \param configuration Configuration data specific to this profiling run.
    */
-  explicit Report(Array<Map<String, ObjectRef>> calls,
-                  Map<String, Map<String, ObjectRef>> device_metrics,
-                  Map<String, ObjectRef> configuration);
+  explicit Report(Array<Map<String, ffi::Any>> calls,
+                  Map<String, Map<String, ffi::Any>> device_metrics,
+                  Map<String, ffi::Any> configuration);
 
   /*! Deserialize a Report from a JSON object. Needed for sending the report over RPC.
    * \param json Serialized json report from `ReportNode::AsJSON`.
@@ -313,7 +313,7 @@ class MetricCollectorNode : public Object {
    * \returns A set of metric names and the associated values. Values must be
    * one of DurationNode, PercentNode, CountNode, or StringObj.
    */
-  virtual Map<String, ObjectRef> Stop(ObjectRef obj) = 0;
+  virtual Map<String, ffi::Any> Stop(ObjectRef obj) = 0;
 
   virtual ~MetricCollectorNode() {}
 
@@ -378,7 +378,7 @@ class Profiler {
    * \param configuration Additional configuration data to add to the outputted profiling report.
    */
   explicit Profiler(std::vector<Device> devs, std::vector<MetricCollector> metric_collectors,
-                    std::unordered_map<String, ObjectRef> configuration = {});
+                    std::unordered_map<String, ffi::Any> configuration = {});
   /*! \brief Start the profiler.
    *
    * This function should only be called once per object.
@@ -423,7 +423,7 @@ class Profiler {
   std::vector<CallFrame> calls_;
   std::stack<CallFrame> in_flight_;
   std::vector<MetricCollector> collectors_;
-  std::unordered_map<String, ObjectRef> configuration_;
+  std::unordered_map<String, ffi::Any> configuration_;
 };
 
 /* \brief A duration in time. */
@@ -532,7 +532,7 @@ String ShapeString(const std::vector<int64_t>& shape, DLDataType dtype);
  * \param collectors List of different
  *                   ways to collect metrics. See MetricCollector.
  * \returns A PackedFunc which takes the same arguments as the `mod[func_name]`
- *          and returns performance metrics as a `Map<String, ObjectRef>` where
+ *          and returns performance metrics as a `Map<String, ffi::Any>` where
  *          values can be `CountNode`, `DurationNode`, `PercentNode`.
  */
 PackedFunc ProfileFunction(Module mod, std::string func_name, int device_type, int device_id,

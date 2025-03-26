@@ -335,7 +335,7 @@ inline TAttrs AttrsWithDefaultValues() {
  *
  * \returns The new DictAttrs with updated attributes.
  */
-DictAttrs WithAttrs(DictAttrs attrs, Map<String, ObjectRef> new_attrs);
+DictAttrs WithAttrs(DictAttrs attrs, Map<String, Any> new_attrs);
 
 /*!
  * \brief Copy the DictAttrs, but overrides a single attribute.
@@ -348,9 +348,9 @@ DictAttrs WithAttrs(DictAttrs attrs, Map<String, ObjectRef> new_attrs);
  *
  * \returns The new DictAttrs with updated attributes.
  */
-DictAttrs WithAttr(DictAttrs attrs, String key, ObjectRef value);
+DictAttrs WithAttr(DictAttrs attrs, String key, Any value);
 
-inline DictAttrs WithAttr(DictAttrs attrs, const std::string& key, ObjectRef value) {
+inline DictAttrs WithAttr(DictAttrs attrs, const std::string& key, Any value) {
   return WithAttr(std::move(attrs), String(key), std::move(value));
 }
 
@@ -393,7 +393,7 @@ DictAttrs WithoutAttr(DictAttrs attrs, const std::string& key);
  * \endcode
  */
 template <typename TFunc>
-inline TFunc WithAttr(TFunc input, const std::string& attr_key, ObjectRef attr_value) {
+inline TFunc WithAttr(TFunc input, const std::string& attr_key, Any attr_value) {
   using TNode = typename TFunc::ContainerType;
   static_assert(TNode::_type_final, "Can only operate on the leaf nodes");
   TNode* node = input.CopyOnWrite();
@@ -413,7 +413,7 @@ inline TFunc WithAttr(TFunc input, const std::string& attr_key, ObjectRef attr_v
  * \returns The new function or module with updated attributes.
  */
 template <typename TFunc>
-inline TFunc WithAttrs(TFunc input, Map<String, ObjectRef> attrs) {
+inline TFunc WithAttrs(TFunc input, Map<String, Any> attrs) {
   using TNode = typename TFunc::ContainerType;
   static_assert(TNode::_type_final, "Can only operate on the leaf nodes");
   TNode* node = input.CopyOnWrite();

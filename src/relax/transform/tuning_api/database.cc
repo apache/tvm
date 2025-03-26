@@ -266,7 +266,7 @@ Database Database::JSONDatabase(String path_workload, String path_tuning_record,
             const ArrayNode* arr = json_obj.as<ArrayNode>();
             ICHECK_EQ(arr->size(), 3);
             workload_idxs[task_id] = Downcast<Integer>(arr->at(0)).IntValue();
-            targets[task_id] = Target(Downcast<Map<String, ObjectRef>>(arr->at(1)));
+            targets[task_id] = Target(Downcast<Map<String, ffi::Any>>(arr->at(1)));
             records[task_id] = TuningRecord::FromJSON(arr->at(2));
           } catch (std::runtime_error& e) {
             LOG(FATAL) << "ValueError: Unable to parse the JSON object: " << json_obj
@@ -298,7 +298,7 @@ Database Database::JSONDatabase(String path_workload, String path_tuning_record,
             const ArrayNode* arr = json_obj.as<ArrayNode>();
             ICHECK_EQ(arr->size(), 3);
             workload_idxs[task_id] = Downcast<Integer>(arr->at(0)).IntValue();
-            targets[task_id] = Target(Downcast<Map<String, ObjectRef>>(arr->at(1)));
+            targets[task_id] = Target(Downcast<Map<String, ffi::Any>>(arr->at(1)));
             measurements[task_id] = meta_schedule::AsFloatArray(arr->at(2));
           } catch (std::runtime_error& e) {
             LOG(FATAL) << "ValueError: Unable to parse the JSON object: " << json_obj

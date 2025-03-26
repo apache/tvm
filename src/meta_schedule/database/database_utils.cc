@@ -61,7 +61,7 @@ void JSONDumps(ObjectRef json_obj, std::ostringstream& os) {
     os << "]";
   } else if (const auto* dict = json_obj.as<ffi::MapNode>()) {
     int n = dict->size();
-    std::vector<std::pair<String, ObjectRef>> key_values;
+    std::vector<std::pair<String, ffi::Any>> key_values;
     key_values.reserve(n);
     for (const auto& kv : *dict) {
       if (auto key = kv.first.as<String>()) {
@@ -71,7 +71,9 @@ void JSONDumps(ObjectRef json_obj, std::ostringstream& os) {
                    << ffi::TypeIndex2TypeKey(kv.first.type_index());
       }
     }
-    std::sort(key_values.begin(), key_values.end());
+    std::sort(key_values.begin(), key_values.end(), [](const auto& a, const auto& b) {
+      return a.first < b.first;
+    });
     os << "{";
     for (int i = 0; i < n; ++i) {
       const auto& kv = key_values[i];
@@ -350,9 +352,9 @@ class JSONParser {
     return results;
   }
 
-  Map<String, ObjectRef> ParseDict() {
+  Map<String, ffi::Any> ParseDict() {
     bool is_first = true;
-    Map<String, ObjectRef> results;
+    Map<String, ffi::Any> results;
     for (;;) {
       Token token;
       if (is_first) {

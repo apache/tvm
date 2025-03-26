@@ -84,7 +84,7 @@ void FuncName(const String& name) {
   frame->name = name;
 }
 
-void FuncAttrs(Map<String, ObjectRef> attrs) {
+void FuncAttrs(Map<String, ffi::Any> attrs) {
   FunctionFrame frame = FindFunctionFrame("R.func_attr");
   for (const auto& [key, value] : attrs) {
     if (key == tvm::attr::kGlobalSymbol && frame->is_private.value_or(Bool(false))->value) {

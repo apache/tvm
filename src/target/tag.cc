@@ -60,7 +60,7 @@ Map<String, Target> TargetTag::ListTags() {
   return result;
 }
 
-Target TargetTag::AddTag(String name, Map<String, ObjectRef> config, bool override) {
+Target TargetTag::AddTag(String name, Map<String, ffi::Any> config, bool override) {
   TargetTagRegEntry& tag = TargetTagRegEntry::RegisterOrGet(name).set_name();
   ICHECK(override || tag.tag_->config.empty())
       << "Tag \"" << name << "\" has been previously defined as: " << tag.tag_->config;
@@ -77,7 +77,7 @@ TVM_REGISTER_TARGET_TAG("raspberry-pi/4b-aarch64")
                  {"mcpu", String("cortex-a72")},
                  {"mattr", Array<String>{"+neon"}},
                  {"num-cores", runtime::Int(4)},
-                 {"host", Map<String, ObjectRef>{{"kind", String("llvm")},
+                 {"host", Map<String, ffi::Any>{{"kind", String("llvm")},
                                                  {"mtriple", String("aarch64-linux-gnu")},
                                                  {"mcpu", String("cortex-a72")},
                                                  {"mattr", Array<String>{"+neon"}},
@@ -91,7 +91,7 @@ TVM_REGISTER_TARGET_TAG("nvidia/jetson-agx-xavier")
                  {"max_threads_per_block", runtime::Int(1024)},
                  {"thread_warp_size", runtime::Int(32)},
                  {"registers_per_block", runtime::Int(65536)},
-                 {"host", Map<String, ObjectRef>{{"kind", String("llvm")},
+                 {"host", Map<String, ffi::Any>{{"kind", String("llvm")},
                                                  {"mtriple", String("aarch64-linux-gnu")},
                                                  {"mcpu", String("carmel")},
                                                  {"num-cores", runtime::Int(8)}}}});
@@ -103,7 +103,7 @@ TVM_REGISTER_TARGET_TAG("nvidia/jetson-orin-nano")
                  {"max_threads_per_block", runtime::Int(1024)},
                  {"thread_warp_size", runtime::Int(32)},
                  {"registers_per_block", runtime::Int(65536)},
-                 {"host", Map<String, ObjectRef>{{"kind", String("llvm")},
+                 {"host", Map<String, ffi::Any>{{"kind", String("llvm")},
                                                  {"mtriple", String("aarch64-linux-gnu")},
                                                  {"mcpu", String("carmel")},
                                                  {"num-cores", runtime::Int(6)}}}});
@@ -115,7 +115,7 @@ TVM_REGISTER_TARGET_TAG("nvidia/jetson-agx-orin-32gb")
                  {"max_threads_per_block", runtime::Int(1024)},
                  {"thread_warp_size", runtime::Int(32)},
                  {"registers_per_block", runtime::Int(65536)},
-                 {"host", Map<String, ObjectRef>{{"kind", String("llvm")},
+                 {"host", Map<String, ffi::Any>{{"kind", String("llvm")},
                                                  {"mtriple", String("aarch64-linux-gnu")},
                                                  {"mcpu", String("cortex-a78")},
                                                  {"num-cores", runtime::Int(8)}}}});
@@ -127,7 +127,7 @@ TVM_REGISTER_TARGET_TAG("nvidia/jetson-agx-orin-64gb")
                  {"max_threads_per_block", runtime::Int(1024)},
                  {"thread_warp_size", runtime::Int(32)},
                  {"registers_per_block", runtime::Int(65536)},
-                 {"host", Map<String, ObjectRef>{{"kind", String("llvm")},
+                 {"host", Map<String, ffi::Any>{{"kind", String("llvm")},
                                                  {"mtriple", String("aarch64-linux-gnu")},
                                                  {"mcpu", String("cortex-a78")},
                                                  {"num-cores", runtime::Int(12)}}}});
@@ -436,7 +436,7 @@ TVM_REGISTER_TAG_AWS_C5("aws/cpu/c5.24xlarge", 48, "cascadelake");
        {"max_threads_per_block", runtime::Int(ThreadsPerBlock)},                 \
        {"max_shared_memory_per_block", runtime::Int(SharedMem)},                 \
        {"thread_warp_size", runtime::Int(WarpSize)},                             \
-       {"host", Map<String, ObjectRef>{{"kind", String("llvm")},                 \
+       {"host", Map<String, ffi::Any>{{"kind", String("llvm")},                 \
                                        {"mtriple", String("arm64-apple-macos")}, \
                                        {"mcpu", String("apple-m4")}}}});
 #else
@@ -446,7 +446,7 @@ TVM_REGISTER_TAG_AWS_C5("aws/cpu/c5.24xlarge", 48, "cascadelake");
        {"max_threads_per_block", runtime::Int(ThreadsPerBlock)},                 \
        {"max_shared_memory_per_block", runtime::Int(SharedMem)},                 \
        {"thread_warp_size", runtime::Int(WarpSize)},                             \
-       {"host", Map<String, ObjectRef>{{"kind", String("llvm")},                 \
+       {"host", Map<String, ffi::Any>{{"kind", String("llvm")},                 \
                                        {"mtriple", String("arm64-apple-macos")}, \
                                        {"mcpu", String("apple-latest")}}}});
 #endif

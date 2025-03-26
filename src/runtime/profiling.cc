@@ -119,7 +119,7 @@ TVM_REGISTER_GLOBAL("profiling.start_timer").set_body_typed(Timer::Start);
 namespace profiling {
 
 Profiler::Profiler(std::vector<Device> devs, std::vector<MetricCollector> metric_collectors,
-                   std::unordered_map<String, ObjectRef> configuration)
+                   std::unordered_map<String, ffi::Any> configuration)
     : devs_(devs), collectors_(metric_collectors), configuration_(configuration) {
   is_running_ = false;
   std::vector<DeviceWrapper> wrapped_devs;
@@ -470,7 +470,7 @@ static String print_metric(ObjectRef metric) {
 
 String ReportNode::AsTable(bool sort, bool aggregate, bool compute_col_sums) const {
   // aggregate calls by op hash (or op name if hash is not set) + argument shapes
-  std::vector<Map<String, ObjectRef>> aggregated_calls;
+  std::vector<Map<String, ffi::Any>> aggregated_calls;
   if (aggregate) {
     std::unordered_map<std::string, std::vector<size_t>> aggregates;
     for (size_t i = 0; i < calls.size(); i++) {
@@ -494,7 +494,7 @@ String ReportNode::AsTable(bool sort, bool aggregate, bool compute_col_sums) con
       }
     }
     for (const auto& p : aggregates) {
-      std::unordered_map<String, ObjectRef> aggregated;
+      std::unordered_map<String, Any> aggregated;
       std::unordered_set<std::string> metrics;
       for (auto& call : calls) {
         for (auto& metric : call) {
@@ -506,7 +506,7 @@ String ReportNode::AsTable(bool sort, bool aggregate, bool compute_col_sums) con
         for (auto i : p.second) {
           auto& call = calls[i];
           auto it = std::find_if(call.begin(), call.end(),
-                                 [&metric](const std::pair<String, ObjectRef>& call_metric) {
+                                 [&metric](const std::pair<String, ffi::Any>& call_metric) {
                                    return std::string(call_metric.first) == metric;
                                  });
           if (it != call.end()) {
@@ -528,7 +528,7 @@ String ReportNode::AsTable(bool sort, bool aggregate, bool compute_col_sums) con
   // sort rows by duration
   if (sort) {
     std::sort(aggregated_calls.begin(), aggregated_calls.end(),
-              [&](const Map<String, ObjectRef>& a, const Map<String, ObjectRef>& b) {
+              [&](const Map<String, ffi::Any>& a, const Map<String, ffi::Any>& b) {
                 return a.at("Duration (us)").as<DurationNode>()->microseconds >
                        b.at("Duration (us)").as<DurationNode>()->microseconds;
               });
@@ -536,7 +536,7 @@ String ReportNode::AsTable(bool sort, bool aggregate, bool compute_col_sums) con
 
   // compute columnwise sums
   if (compute_col_sums) {
-    std::unordered_map<String, ObjectRef> col_sums;
+    std::unordered_map<String, ffi::Any> col_sums;
     for (auto call : aggregated_calls) {
       for (auto p : call) {
         if (p.second.as<CountNode>()) {
@@ -572,7 +572,7 @@ String ReportNode::AsTable(bool sort, bool aggregate, bool compute_col_sums) con
 
   // per-device metrics
   for (auto p : device_metrics) {
-    Map<String, ObjectRef> metrics = p.second;
+    Map<String, ffi::Any> metrics = p.second;
     metrics.Set("Name", String("Total"));
     aggregated_calls.push_back(metrics);
   }
@@ -657,9 +657,9 @@ std::string DeviceString(Device dev) {
 
 Report Profiler::Report() {
   // sync all timers and normalize rows
-  std::vector<std::unordered_map<String, ObjectRef>> rows;
+  std::vector<std::unordered_map<String, ffi::Any>> rows;
   for (auto& cf : calls_) {
-    std::unordered_map<String, ObjectRef> row;
+    std::unordered_map<String, ffi::Any> row;
     double us = cf.timer->SyncAndGetElapsedNanos() / 1e3;
     row["Duration (us)"] = ObjectRef(make_object<DurationNode>(us));
     row["Count"] = ObjectRef(make_object<CountNode>(1));
@@ -673,7 +673,7 @@ Report Profiler::Report() {
 
   // the last frames are the overall times
   double overall_time_us = 0;
-  std::unordered_map<String, Map<String, ObjectRef>> device_metrics;
+  std::unordered_map<String, Map<String, ffi::Any>> device_metrics;
   for (size_t i = 0; i < devs_.size(); i++) {
     auto row = rows[rows.size() - 1];
     rows.pop_back();
@@ -689,7 +689,7 @@ Report Profiler::Report() {
   }
 
   // convert to map
-  std::vector<Map<String, ObjectRef>> converted_rows;
+  std::vector<Map<String, ffi::Any>> converted_rows;
   for (const auto& row : rows) {
     converted_rows.push_back(row);
   }
@@ -697,9 +697,9 @@ Report Profiler::Report() {
   return profiling::Report(converted_rows, device_metrics, configuration_);
 }
 
-Report::Report(Array<Map<String, ObjectRef>> calls,
-               Map<String, Map<String, ObjectRef>> device_metrics,
-               Map<String, ObjectRef> configuration) {
+Report::Report(Array<Map<String, ffi::Any>> calls,
+               Map<String, Map<String, ffi::Any>> device_metrics,
+               Map<String, ffi::Any> configuration) {
   auto node = make_object<ReportNode>();
   node->calls = std::move(calls);
   node->device_metrics = std::move(device_metrics);
@@ -707,10 +707,10 @@ Report::Report(Array<Map<String, ObjectRef>> calls,
   data_ = std::move(node);
 }
 
-Map<String, ObjectRef> parse_metrics(dmlc::JSONReader* reader) {
+Map<String, ffi::Any> parse_metrics(dmlc::JSONReader* reader) {
   reader->BeginObject();
   std::string metric_name, metric_value_name;
-  Map<String, ObjectRef> metrics;
+  Map<String, ffi::Any> metrics;
   while (reader->NextObjectItem(&metric_name)) {
     ObjectRef o;
     reader->BeginObject();
@@ -753,9 +753,9 @@ Report Report::FromJSON(String json) {
   std::stringstream input(json.operator std::string());
   dmlc::JSONReader reader(&input);
   std::string key;
-  Array<Map<String, ObjectRef>> calls;
-  Map<String, Map<String, ObjectRef>> device_metrics;
-  Map<String, ObjectRef> configuration;
+  Array<Map<String, ffi::Any>> calls;
+  Map<String, Map<String, ffi::Any>> device_metrics;
+  Map<String, ffi::Any> configuration;
 
   reader.BeginObject();
   while (reader.NextObjectItem(&key)) {
@@ -813,7 +813,7 @@ PackedFunc ProfileFunction(Module mod, std::string func_name, int device_type, i
     for (auto& collector : collectors) {
       collector->Init({DeviceWrapper(dev)});
     }
-    std::vector<Map<String, ObjectRef>> results;
+    std::vector<Map<String, ffi::Any>> results;
     results.reserve(collectors.size());
     std::vector<std::pair<MetricCollector, ObjectRef>> collector_data;
     collector_data.reserve(collectors.size());
@@ -831,7 +831,7 @@ PackedFunc ProfileFunction(Module mod, std::string func_name, int device_type, i
     for (auto& kv : collector_data) {
       results.push_back(kv.first->Stop(kv.second));
     }
-    Map<String, ObjectRef> combined_results;
+    Map<String, ffi::Any> combined_results;
     for (auto m : results) {
       for (auto p : m) {
         // assume that there is no shared metric name between collectors
@@ -923,9 +923,9 @@ PackedFunc WrapTimeEvaluator(PackedFunc pf, Device dev, int number, int repeat, 
 }
 
 TVM_REGISTER_GLOBAL("runtime.profiling.Report")
-    .set_body_typed([](Array<Map<String, ObjectRef>> calls,
-                       Map<String, Map<String, ObjectRef>> device_metrics,
-                       Map<String, ObjectRef> configuration) {
+    .set_body_typed([](Array<Map<String, ffi::Any>> calls,
+                       Map<String, Map<String, ffi::Any>> device_metrics,
+                       Map<String, ffi::Any> configuration) {
       return Report(calls, device_metrics, configuration);
     });
 

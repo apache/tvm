@@ -596,7 +596,7 @@ TVM_REGISTER_GLOBAL("msc.framework.tensorrt.GetTensorRTRoot").set_body_typed([](
  * \return Runtime modules.
  */
 Array<runtime::Module> MSCTensorRTCompiler(Array<Function> functions,
-                                           Map<String, ObjectRef> target_option,
+                                           Map<String, ffi::Any> target_option,
                                            Map<Constant, String> constant_names) {
   Array<runtime::Module> compiled_functions;
   for (const auto& func : functions) {

@@ -84,7 +84,7 @@ void FuncName(String name);
  * \brief The PrimFunc annotation statement.
  * \param attrs The annotations of the PrimFunc.
  */
-void FuncAttrs(Map<String, ObjectRef> attrs);
+void FuncAttrs(Map<String, ffi::Any> attrs);
 
 /*!
  * \brief The PrimFunc return type statement.
@@ -150,7 +150,7 @@ void Writes(Array<ObjectRef> buffer_slices);
  * \brief The block annotation statement.
  * \param attrs The annotation of the block.
  */
-void BlockAttrs(Map<String, ObjectRef> attrs);
+void BlockAttrs(Map<String,ffi::Any> attrs);
 
 /*!
  * \brief The buffer allocation function.

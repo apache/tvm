@@ -80,7 +80,7 @@ class DNNLJSONSerializer : public JSONSerializer {
   Map<Var, Expr> bindings_;
 };
 
-Array<runtime::Module> DNNLCompiler(Array<Function> functions, Map<String, ObjectRef> /*unused*/,
+Array<runtime::Module> DNNLCompiler(Array<Function> functions, Map<String, ffi::Any> /*unused*/,
                                     Map<Constant, String> constant_names) {
   Array<runtime::Module> compiled_functions;
 

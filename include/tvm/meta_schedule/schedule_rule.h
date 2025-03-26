@@ -158,8 +158,8 @@ class ScheduleRule : public runtime::ObjectRef {
                                                Optional<Array<String>> tile_binds,           //
                                                Optional<Integer> max_innermost_factor,       //
                                                Optional<Array<Integer>> vector_load_lens,    //
-                                               Optional<Map<String, ObjectRef>> reuse_read,  //
-                                               Optional<Map<String, ObjectRef>> reuse_write,
+                                               Optional<Map<String, ffi::Any>> reuse_read,  //
+                                               Optional<Map<String, ffi::Any>> reuse_write,
                                                Optional<runtime::PackedFunc> filter_fn = NullOpt);
 
   /*!
@@ -182,7 +182,7 @@ class ScheduleRule : public runtime::ObjectRef {
   TVM_DLL static ScheduleRule MultiLevelTilingWithIntrin(
       String intrin_name, String structure, Optional<Array<String>> tile_binds,
       Optional<Integer> max_innermost_factor, Optional<Array<Integer>> vector_load_lens,
-      Optional<Map<String, ObjectRef>> reuse_read, Optional<Map<String, ObjectRef>> reuse_write);
+      Optional<Map<String, ffi::Any>> reuse_read, Optional<Map<String, ffi::Any>> reuse_write);
 
   /*!
    * \brief Extension of MultiLevelTiling for auto-tensorization with multiple groups of candidate
@@ -207,8 +207,8 @@ class ScheduleRule : public runtime::ObjectRef {
   TVM_DLL static ScheduleRule MultiLevelTilingTensorCore(
       Array<Map<String, String>> intrin_groups, String structure,
       Optional<Array<String>> tile_binds, Optional<Integer> max_innermost_factor,
-      Optional<Array<Integer>> vector_load_lens, Optional<Map<String, ObjectRef>> reuse_read,
-      Optional<Map<String, ObjectRef>> reuse_write, bool use_software_pipeline);
+      Optional<Array<Integer>> vector_load_lens, Optional<Map<String, ffi::Any>> reuse_read,
+      Optional<Map<String, ffi::Any>> reuse_write, bool use_software_pipeline);
 
   /*!
    * \brief Extension of MultiLevelTiling for backends with wide vectors.
@@ -223,7 +223,7 @@ class ScheduleRule : public runtime::ObjectRef {
    */
   TVM_DLL static ScheduleRule MultiLevelTilingWideVector(
       String structure, Integer vector_length_in_bits, Optional<Integer> max_innermost_factor,
-      Optional<Map<String, ObjectRef>> reuse_read, Optional<Map<String, ObjectRef>> reuse_write);
+      Optional<Map<String, ffi::Any>> reuse_read, Optional<Map<String, ffi::Any>> reuse_write);
 
   /*!
    * \brief Create a rule: add-rfactor to some blocks if needed

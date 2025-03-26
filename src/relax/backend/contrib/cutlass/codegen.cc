@@ -107,7 +107,7 @@ TVM_REGISTER_GLOBAL("contrib.cutlass.CodegenResult")
 
 GenerateBodyOutput GenerateBody(const std::string& func_name, const std::string& ext_func_id,
                                 const std::vector<std::string>& output_types,
-                                const Array<String>& func_args, const Map<String, ObjectRef>& attrs,
+                                const Array<String>& func_args, const Map<String, ffi::Any>& attrs,
                                 int* buf_idx) {
   // Make function call with input buffers when visiting arguements
   ICHECK_GT(func_args.size(), 0);
@@ -288,7 +288,7 @@ class CodegenCutlass : public relax::MemoizedExprTranslator<OutputType>,
   }
 
   GenerateBodyOutput GenerateBody(const CallNode* call, const std::string& func_name,
-                                  const Map<String, ObjectRef>& attrs) {
+                                  const Map<String, ffi::Any>& attrs) {
     auto func_args = GetArgumentNames(call);
     auto struct_info = GetStructInfo(GetRef<Call>(call));
 
@@ -332,7 +332,7 @@ class CodegenCutlass : public relax::MemoizedExprTranslator<OutputType>,
 class CutlassModuleCodegen {
  public:
   runtime::Module CreateCSourceModule(Array<Function> functions,
-                                      const Map<String, ObjectRef>& options) {
+                                      const Map<String, ffi::Any>& options) {
     std::string headers = "";
     std::string code = "";
     for (const auto& f : functions) {
@@ -347,7 +347,7 @@ class CutlassModuleCodegen {
 
  private:
   std::pair<std::string, Array<String>> GenCutlassFunc(const Function& function,
-                                                       const Map<String, ObjectRef>& options) {
+                                                       const Map<String, ffi::Any>& options) {
     ICHECK(function.defined()) << "Input error: expect a Relax function.";
 
     auto sid = GetExtSymbol(function);
@@ -367,7 +367,7 @@ class CutlassModuleCodegen {
   Array<String> func_names_;
 };
 
-Array<runtime::Module> CUTLASSCompiler(Array<Function> functions, Map<String, ObjectRef> options,
+Array<runtime::Module> CUTLASSCompiler(Array<Function> functions, Map<String, ffi::Any> options,
                                        Map<Constant, String> /*unused*/) {
   const auto* tune_func = runtime::Registry::Get("contrib.cutlass.tune_relax_function");
   ICHECK(tune_func != nullptr)

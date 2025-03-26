@@ -891,7 +891,7 @@ inline std::vector<State> MultiLevelTilingTensorCoreNode::TransformForTensorizat
 ScheduleRule ScheduleRule::MultiLevelTilingTensorCore(
     Array<Map<String, String>> intrin_groups, String structure, Optional<Array<String>> tile_binds,
     Optional<Integer> max_innermost_factor, Optional<Array<Integer>> vector_load_lens,
-    Optional<Map<String, ObjectRef>> reuse_read, Optional<Map<String, ObjectRef>> reuse_write,
+    Optional<Map<String, ffi::Any>> reuse_read, Optional<Map<String, ffi::Any>> reuse_write,
     bool use_software_pipeline) {
   if (tile_binds.defined()) {
     for (const String& tile_bind : tile_binds.value()) {
