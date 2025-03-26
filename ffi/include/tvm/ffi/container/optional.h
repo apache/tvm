@@ -293,7 +293,6 @@ struct TypeTraits<Optional<T>> : public TypeTraitsBase {
   }
 
   static TVM_FFI_INLINE bool CheckAnyView(const TVMFFIAny* src) {
-    std::cout << "CheckAnyView index=" << src->type_index << std::endl;
     if (src->type_index == TypeIndex::kTVMFFINone) return true;
     return TypeTraits<T>::CheckAnyView(src);
   }
@@ -304,8 +303,15 @@ struct TypeTraits<Optional<T>> : public TypeTraitsBase {
   }
 
   static TVM_FFI_INLINE std::optional<Optional<T>> TryCopyFromAnyView(const TVMFFIAny* src) {
-    if (src->type_index == TypeIndex::kTVMFFINone) return Optional<T>(nullptr);
-    return TypeTraits<T>::TryCopyFromAnyView(src);
+    if (src->type_index == TypeIndex::kTVMFFINone) return Optional<T>(std::nullopt);
+    if (std::optional<T> opt = TypeTraits<T>::TryCopyFromAnyView(src)) {
+      return Optional<T>(std::move(opt.value()));
+    } else {
+      // important to be explicit here
+      // because nullopt can convert to Optional<T>(nullopt) which indicate success
+      // return std::optional<Optional<T>>(std::nullopt) to indicate failure
+      return std::optional<Optional<T>>(std::nullopt);
+    }
   }
 
   static TVM_FFI_INLINE std::string TypeStr() {
