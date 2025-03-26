@@ -117,6 +117,20 @@ class AnyView {
                              << TypeTraits<T>::TypeStr() << "`";
     TVM_FFI_UNREACHABLE();
   }
+
+    /*
+   * \brief Shortcut of as Object to cast to a const pointer when T is an Object.
+   *
+   * \tparam T The object type.
+   * \return The requested pointer, returns nullptr if type mismatches.
+   */
+  template <typename T, typename = std::enable_if_t<std::is_base_of_v<Object, T>>>
+  const T* as() const {
+    return this->as<const T*>().value_or(nullptr);
+  }
+  // comparison with nullptr
+  bool operator==(std::nullptr_t) const { return data_.type_index == TypeIndex::kTVMFFINone; }
+  bool operator!=(std::nullptr_t) const { return data_.type_index != TypeIndex::kTVMFFINone; }
   // The following functions are only used for testing purposes
   /*!
    * \return The underlying supporting data of any view

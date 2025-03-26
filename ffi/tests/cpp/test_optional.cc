@@ -105,6 +105,7 @@ TEST(Optional, AnyConvert_Array) {
         } catch (const Error& error) {
           EXPECT_EQ(error->kind, "TypeError");
           std::string what = error.what();
+          std::cout << what << std::endl;
           EXPECT_NE(what.find("to `Optional<Array<Array<int>>>`"), std::string::npos);
           throw;
         }

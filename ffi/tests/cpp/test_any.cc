@@ -91,6 +91,25 @@ TEST(Any, bool) {
   EXPECT_EQ(view0.CopyToTVMFFIAny().v_int64, 0);
 }
 
+TEST(Any, nullptrcmp) {
+  AnyView view0;
+  EXPECT_EQ(view0.CopyToTVMFFIAny().type_index, TypeIndex::kTVMFFINone);
+  EXPECT_TRUE(view0 == nullptr);
+  EXPECT_FALSE(view0 != nullptr);
+
+  view0 = 1;
+  EXPECT_TRUE(view0 != nullptr);
+  EXPECT_FALSE(view0 == nullptr);
+
+  Any any0 = view0;
+  EXPECT_TRUE(any0 != nullptr);
+  EXPECT_FALSE(any0 == nullptr);
+
+  any0 = nullptr;
+  EXPECT_TRUE(any0 == nullptr);
+  EXPECT_FALSE(any0 != nullptr);
+}
+
 TEST(Any, Float) {
   AnyView view0;
   EXPECT_EQ(view0.CopyToTVMFFIAny().type_index, TypeIndex::kTVMFFINone);
