@@ -293,6 +293,7 @@ struct TypeTraits<Optional<T>> : public TypeTraitsBase {
   }
 
   static TVM_FFI_INLINE bool CheckAnyView(const TVMFFIAny* src) {
+    std::cout << "CheckAnyView index=" << src->type_index << std::endl;
     if (src->type_index == TypeIndex::kTVMFFINone) return true;
     return TypeTraits<T>::CheckAnyView(src);
   }
