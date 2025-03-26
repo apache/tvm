@@ -688,16 +688,6 @@ T.comm_reducer(lambda x, y: x + y, [T.float32(0.0)])
     )
 
 
-def test_any():
-    obj = tir.Any()
-    _assert_print(
-        obj,
-        """
-T.Any()
-""",
-    )
-
-
 def test_int_imm():
     obj = T.int16(1)
     _assert_print(

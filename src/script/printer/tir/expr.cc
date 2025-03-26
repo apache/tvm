@@ -297,11 +297,6 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<tir::Any>("", [](tir::Any any, ObjectPath p, IRDocsifier d) -> Doc {
-      return TIR(d, "Any")->Call({});
-    });
-
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<tir::Reduce>("", [](tir::Reduce r, ObjectPath p, IRDocsifier d) -> Doc {
       ExprDoc combiner = d->AsDoc<ExprDoc>(r->combiner, p->Attr("combiner"));
       ExprDoc source = d->AsDoc<ExprDoc>(r->source, p->Attr("source"));
@@ -415,7 +410,6 @@ TVM_SCRIPT_REPR(tir::CallNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tir::ShuffleNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tir::CommReducerNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tir::IndexMapNode, ReprPrintTIR);
-TVM_SCRIPT_REPR(tir::AnyNode, ReprPrintTIR);
 TVM_SCRIPT_REPR(tir::ReduceNode, ReprPrintTIR);
 
 }  // namespace printer

@@ -1100,42 +1100,6 @@ class Reduce : public PrimExpr {
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ReduceNode);
 };
 
-/*! \brief Any shape. */
-class AnyNode : public PrimExprNode {
- public:
-  void VisitAttrs(AttrVisitor* v) {
-    v->Visit("dtype", &dtype);
-    v->Visit("span", &span);
-  }
-
-  bool SEqualReduce(const AnyNode* other, SEqualReducer equal) const {
-    return equal(dtype, other->dtype);
-  }
-
-  void SHashReduce(SHashReducer hash_reduce) const {}
-
-  /*! \brief Convert to var. */
-  Var ToVar() const { return Var("any_dim", DataType::Int(32)); }
-
-  /*! \brief Convert to SizeVar. */
-  SizeVar ToSizeVar() const { return SizeVar("any_dim", DataType::Int(32)); }
-
-  static constexpr const char* _type_key = "tir.Any";
-  TVM_DECLARE_FINAL_OBJECT_INFO(AnyNode, PrimExprNode);
-};
-
-/*!
- * \brief Managed reference to AnyNode
- * \sa AnyNode
- */
-class Any : public PrimExpr {
- public:
-  TVM_DLL Any(Span span = Span());
-
-  TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(Any, PrimExpr, AnyNode);
-  TVM_DEFINE_OBJECT_REF_COW_METHOD(AnyNode);
-};
-
 /*
  * \brief Template function to convert Map to unordered_map
  *  Sometimes useful for API gluing when internal uses unordered_map
