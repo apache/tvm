@@ -321,10 +321,10 @@ Array<ObjectRef> UnpackedInstTraits<TTraits>::ApplyToSchedule(const Schedule& sc
     constexpr size_t kNumArgs = details::NumArgs<method_type>;
     ICHECK_EQ(args.size(), kNumArgs);
     ffi::details::unpack_call<return_type, kNumArgs>(nullptr, TTraits::UnpackedApplyToSchedule,
-                                                     args, rv);
+                                                     args.data(), args.size(), rv);
   });
   ffi::Any rv;
-  pf.CallPacked(ffi::PackedArgs(packed_args.data(), packed_args.size()), &rv);
+  pf.CallPacked(ffi::PackedArgs(packed_args, kNumArgs), &rv);
   return TTraits::_ConvertOutputs(rv);
 }
 
@@ -352,10 +352,12 @@ String UnpackedInstTraits<TTraits>::AsPython(const Array<ObjectRef>& inputs,
   PackedFunc pf([](const TVMArgs& args, TVMRetValue* rv) -> void {
     constexpr size_t kNumArgs = details::NumArgs<method_type>;
     ICHECK_EQ(args.size(), kNumArgs);
-    ffi::details::unpack_call<return_type, kNumArgs>(nullptr, TTraits::UnpackedAsPython, args, rv);
+    ffi::details::unpack_call<return_type, kNumArgs>(
+      nullptr, TTraits::UnpackedAsPython, args.data(),
+      args.size(), rv);
   });
   ffi::Any rv;
-  pf.CallPacked(ffi::PackedArgs(packed_args.data(), packed_args.size()), &rv);
+  pf.CallPacked(ffi::PackedArgs(packed_args, kNumArgs), &rv);
   String result = rv;
   return result;
 }

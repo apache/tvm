@@ -253,7 +253,7 @@ inline Optional<Var> AnalyzeVarWithShift(const PrimExpr& expr, Optional<IntImm>*
  */
 template <class TObjectRef, class TStmtNode>
 inline Optional<TObjectRef> GetAnn(const TStmtNode* stmt, const String& ann_key) {
-  const Map<String, ObjectRef>* annotations = &stmt->annotations;
+  const Map<String, ffi::Any>* annotations = &stmt->annotations;
   for (const auto& ann : *annotations) {
     if (ann.first == ann_key) {
       return Downcast<TObjectRef>(ann.second);

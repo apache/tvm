@@ -35,5 +35,7 @@ using tvm::ffi::StringObj;
 }  // namespace runtime
 
 using tvm::ffi::String;
+using tvm::ffi::StringObj;
+
 }  // namespace tvm
 #endif  // TVM_RUNTIME_CONTAINER_STRING_H_

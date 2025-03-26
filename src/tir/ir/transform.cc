@@ -115,13 +115,11 @@ IRModule PrimFuncPassNode::operator()(IRModule mod, const PassContext& pass_ctx)
   // directly loop over the underlying dict
   for (auto& kv : *func_dict) {
     // only picks up tir::PrimFunc
-    if (kv.second->IsInstance<PrimFuncNode>()) {
+    if (auto func = kv.second.as<PrimFunc>()) {
       // move out the function so that it is the only copy.
-      PrimFunc func = Downcast<PrimFunc>(std::move(kv.second));
-      func = pass_func(std::move(func), mod, pass_ctx);
+      func = pass_func(std::move(func.value()), mod, pass_ctx);
       kv.second = std::move(func);
-
-      if (!kv.second.defined()) {
+      if (kv.second == nullptr) {
         deleted_list.push_back(Downcast<GlobalVar>(kv.first));
       }
     }

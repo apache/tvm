@@ -82,9 +82,6 @@ PrimFunc::PrimFunc(Array<tir::Var> params, Stmt body, Type ret_type,
     ret_type = VoidType();
   }
 
-  if (attrs.defined()) {
-    attrs = Downcast<DictAttrs>(NormalizeAttributeObject(attrs));
-  }
 
   auto n = make_object<PrimFuncNode>();
   n->params = std::move(params);

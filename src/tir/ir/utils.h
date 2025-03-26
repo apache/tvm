@@ -44,7 +44,7 @@ namespace tir {
  *
  * \returns The normalized attribute
  */
-ObjectRef NormalizeAttributeObject(ObjectRef obj);
+ffi::Any NormalizeAttributeObject(ffi::Any obj);
 
 }  // namespace tir
 }  // namespace tvm

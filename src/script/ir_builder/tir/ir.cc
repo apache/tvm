@@ -322,7 +322,7 @@ Array<Var> Remap(String kinds, Array<PrimExpr> bindings, DataType dtype) {
 }  // namespace axis
 
 #define TVM_TIR_IR_BUILDER_FOR_FRAME(Method, Kind)                                                \
-  ForFrame Method(PrimExpr start, PrimExpr stop, Optional<Map<String, ObjectRef>> annotations) {  \
+  ForFrame Method(PrimExpr start, PrimExpr stop, Optional<Map<String, Any>> annotations) {  \
     PrimExpr min = start;                                                                         \
     PrimExpr extent = arith::Analyzer().Simplify(stop - start);                                   \
     ObjectPtr<ForFrameNode> n = make_object<ForFrameNode>();                                      \
@@ -346,7 +346,7 @@ TVM_TIR_IR_BUILDER_FOR_FRAME(Unroll, tvm::tir::ForKind::kUnrolled);
 #undef TVM_TIR_IR_BUILDER_FOR_FRAME
 
 ForFrame ThreadBinding(PrimExpr start, PrimExpr stop, String thread,
-                       Optional<Map<String, ObjectRef>> annotations) {
+                       Optional<Map<String, Any>> annotations) {
   using namespace tvm::tir;
   PrimExpr min = start;
   PrimExpr extent = arith::Analyzer().Simplify(stop - start);
@@ -458,7 +458,7 @@ RealizeFrame Realize(tvm::tir::BufferRegion buffer_slice, String storage_scope,
 }
 
 AllocateFrame Allocate(Array<PrimExpr> extents, DataType dtype, String storage_scope,
-                       Optional<PrimExpr> condition, Optional<Map<String, ObjectRef>> annotations) {
+                       Optional<PrimExpr> condition, Optional<Map<String, Any>> annotations) {
   ObjectPtr<AllocateFrameNode> n = make_object<AllocateFrameNode>();
   n->extents = extents;
   n->dtype = dtype;
@@ -471,7 +471,7 @@ AllocateFrame Allocate(Array<PrimExpr> extents, DataType dtype, String storage_s
 
 AllocateConstFrame AllocateConst(tvm::runtime::NDArray data, DataType dtype,
                                  Array<PrimExpr> extents,
-                                 Optional<Map<String, ObjectRef>> annotations) {
+                                 Optional<Map<String, Any>> annotations) {
   ObjectPtr<AllocateConstFrameNode> n = make_object<AllocateConstFrameNode>();
   n->dtype = dtype;
   n->extents = extents;

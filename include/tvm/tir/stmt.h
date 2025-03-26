@@ -474,7 +474,7 @@ class AllocateNode : public StmtNode {
    *  These annotations can be used as auxiliary hint
    *  to future transformations.
    */
-  Map<String, ObjectRef> annotations;
+  Map<String, ffi::Any> annotations;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("buffer_var", &buffer_var);
@@ -528,7 +528,7 @@ class AllocateNode : public StmtNode {
 class Allocate : public Stmt {
  public:
   TVM_DLL Allocate(Var buffer_var, DataType dtype, Array<PrimExpr> extents, PrimExpr condition,
-                   Stmt body, Map<String, ObjectRef> annotations = Map<String, ObjectRef>(),
+                   Stmt body, Map<String, ffi::Any> annotations = Map<String, ffi::Any>(),
                    Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(Allocate, Stmt, AllocateNode);
@@ -562,7 +562,7 @@ class AllocateConstNode : public StmtNode {
    *  These annotations can be used as auxiliary hint
    *  to future transformations.
    */
-  Map<String, ObjectRef> annotations;
+  Map<String, ffi::Any> annotations;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("buffer_var", &buffer_var);
@@ -622,7 +622,7 @@ class AllocateConst : public Stmt {
    */
   TVM_DLL AllocateConst(Var buffer_var, DataType dtype, Array<PrimExpr> extents,
                         ObjectRef data_or_idx, Stmt body,
-                        Map<String, ObjectRef> annotations = Map<String, ObjectRef>(),
+                        Map<String, ffi::Any> annotations = Map<String, ffi::Any>(),
                         Span span = Span());
   TVM_DEFINE_OBJECT_REF_METHODS(AllocateConst, Stmt, AllocateConstNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(AllocateConstNode);
@@ -990,7 +990,7 @@ class ForNode : public StmtNode {
    *  not change the control flow semantics of the loop
    *  and can be ignored in most passes.
    */
-  Map<String, ObjectRef> annotations;
+  Map<String, ffi::Any> annotations;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("loop_var", &loop_var);
@@ -1031,7 +1031,7 @@ class For : public Stmt {
  public:
   TVM_DLL For(Var loop_var, PrimExpr min, PrimExpr extent, ForKind kind, Stmt body,
               Optional<IterVar> thread_binding = NullOpt,
-              Map<String, ObjectRef> annotations = Map<String, ObjectRef>(), Span span = Span());
+              Map<String, ffi::Any> annotations = Map<String, ffi::Any>(), Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(For, Stmt, ForNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(ForNode);
@@ -1281,7 +1281,7 @@ class BlockNode : public StmtNode {
   /*! \brief The match buffer regions. */
   Array<MatchBufferRegion> match_buffers;
   /*! \brief The annotation of the block. */
-  Map<String, ObjectRef> annotations;
+  Map<String, ffi::Any> annotations;
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("iter_vars", &iter_vars);
@@ -1330,7 +1330,7 @@ class Block : public Stmt {
                          Optional<Stmt> init = NullOpt,
                          Array<Buffer> alloc_buffers = Array<Buffer>(),
                          Array<MatchBufferRegion> match_buffers = Array<MatchBufferRegion>(),
-                         Map<String, ObjectRef> annotations = Map<String, ObjectRef>(),
+                         Map<String, ffi::Any> annotations = Map<String, ffi::Any>(),
                          Span span = Span());
 
   TVM_DEFINE_OBJECT_REF_METHODS(Block, Stmt, BlockNode);

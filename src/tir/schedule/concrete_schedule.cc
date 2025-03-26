@@ -944,8 +944,8 @@ ObjectRef ConcreteScheduleNode::CheckAndGetAnnotationValue(const ObjectRef& ann_
       auto value = CheckAndGetAnnotationValue(it->second);
       if (const StringImmNode* imm = key.as<StringImmNode>()) {
         result.Set(imm->value, value);
-      } else if (key->IsInstance<StringObj>()) {
-        result.Set(Downcast<String>(key), value);
+      } else if (auto opt_str = key.as<ffi::String>()) {
+        result.Set(opt_str.value(), value);
       } else {
         LOG(FATAL) << "TypeError: annotation dict key expect to be String or StringImm";
       }
@@ -997,7 +997,11 @@ void ConcreteScheduleNode::TransformLayout(const BlockRV& block_rv, int buffer_i
                                            bool assume_injective_transform) {
   TVM_TIR_SCHEDULE_BEGIN();
   auto f_subst = [&](const Var& var) -> Optional<PrimExpr> {
-    return Downcast<Optional<PrimExpr>>(symbol_table_.Get(var));
+    if (auto opt_expr = symbol_table_.Get(var)) {
+      return Downcast<PrimExpr>(opt_expr.value());
+    } else {
+      return std::nullopt;
+    }
   };
   auto new_index_map = Substitute(index_map, f_subst);
   tir::TransformLayout(state_, this->GetSRef(block_rv), buffer_index, buffer_index_type,
