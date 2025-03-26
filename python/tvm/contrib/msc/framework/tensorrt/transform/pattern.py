@@ -143,9 +143,7 @@ def _check_expr(expr: relax.Expr, dtypes: Tuple[str] = None) -> bool:
             return False
         unknown_dim = 0
         for s in sinfo.shape.values:
-            if isinstance(s, (tvm.tir.Var, tvm.tir.Any)):
-                unknown_dim += 1
-            elif isinstance(s, tvm.tir.IntImm) and s < 0:
+            if isinstance(s, tvm.tir.IntImm) and s < 0:
                 unknown_dim += 1
         return unknown_dim <= 1
 

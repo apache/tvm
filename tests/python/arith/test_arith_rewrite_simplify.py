@@ -420,7 +420,6 @@ class TestAddIndex(BaseCompare):
 
 class TestSubIndex(BaseCompare):
     x, y, z = te.var("x"), te.var("y"), te.var("z")
-    a, b = tvm.tir.Any(), tvm.tir.Any()
 
     test_case = tvm.testing.parameter(
         TestCase(x + y - y, x),
@@ -437,8 +436,6 @@ class TestSubIndex(BaseCompare):
         TestCase(y - tvm.te.max(x, y), tvm.te.min(y - x, 0)),
         # mul co-efficient foldng
         TestCase(x - x, 0),
-        TestCase(a - a, 0),
-        TestCase(a - b, a - b),
         TestCase(x * y - x, x * (y + (-1))),
         TestCase(x * y - 10 * x, x * (y + (-10))),
         TestCase(y * x - x * z, x * (y - z)),

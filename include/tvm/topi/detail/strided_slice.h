@@ -122,6 +122,7 @@ inline Array<PrimExpr> StridedSliceOutputShape(const Array<PrimExpr>& ishape,
                                                const Array<Integer>& axes, std::string slice_mode,
                                                const Array<PrimExpr>& begin_canonicalized,
                                                bool use_any = false) {
+  ICHECK(!use_any) << "StridedSliceOutputShape does not legacy use_any";
   const size_t src_tensor_dim = ishape.size();
   Array<PrimExpr> out_shape;
   for (size_t i = 0; i < src_tensor_dim; ++i) {
@@ -140,8 +141,6 @@ inline Array<PrimExpr> StridedSliceOutputShape(const Array<PrimExpr>& ishape,
       ICHECK(strides[i] < 0 ? (end_i <= begin_i) : (begin_i <= end_i))
           << ": Input [Begin=" << begin[i] << ", End=" << end[i] << "] is invalid for axis=" << i;
       out_shape.Set(axes[i].IntValue(), cast(out_shape[i].dtype(), PrimExpr(slice_size)));
-    } else if (use_any) {
-      out_shape.Set(axes[i].IntValue(), tvm::tir::Any());
     } else {
       out_shape.Set(axes[i].IntValue(), tvm::tir::Var("dim", out_shape[i]->dtype));
     }

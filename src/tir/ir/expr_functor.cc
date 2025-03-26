@@ -32,8 +32,6 @@ void ExprVisitor::VisitExpr_(const SizeVarNode* op) {
   this->VisitExpr_(static_cast<const VarNode*>(op));
 }
 
-void ExprVisitor::VisitExpr_(const AnyNode* op) {}
-
 void ExprVisitor::VisitExpr_(const BufferLoadNode* op) {
   VisitArray(op->indices, [this](const PrimExpr& e) { this->VisitExpr(e); });
 }
@@ -118,8 +116,6 @@ PrimExpr ExprMutator::VisitExpr_(const VarNode* op) { return GetRef<PrimExpr>(op
 PrimExpr ExprMutator::VisitExpr_(const SizeVarNode* op) {
   return this->VisitExpr_(static_cast<const VarNode*>(op));
 }
-
-PrimExpr ExprMutator::VisitExpr_(const AnyNode* op) { return GetRef<PrimExpr>(op); }
 
 PrimExpr ExprMutator::VisitExpr_(const BufferLoadNode* op) {
   auto fmutate = [this](const PrimExpr& e) { return this->VisitExpr(e); };
