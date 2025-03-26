@@ -516,7 +516,9 @@ void CodeGenCUDA::PrintType(DataType t, std::ostream& os) {  // NOLINT(*)
 }
 
 void CodeGenCUDA::PrintVecConstructor(DataType t, std::ostream& os) {
-  os << "make_";
+  if (!t.is_float8()) {
+    os << "make_";  // There is no make___nv_fp8 (/usr/local/cuda/include/vector_functions.hpp)
+  }
   PrintType(t, os);
 }
 
@@ -533,22 +535,56 @@ void CodeGenCUDA::PrintVecBinaryOp(const std::string& op, DataType t, PrimExpr l
     std::string vlhs = SSAGetID(PrintExpr(lhs), lhs.dtype());
     std::string vrhs = SSAGetID(PrintExpr(rhs), rhs.dtype());
 
-    for (int i = 0, lanes = t.lanes(); i < lanes; ++i) {
+    if (t.is_float8()) {
       std::ostringstream value_temp;
-      if (isalpha(op[0])) {
-        value_temp << op << "(";
-        PrintVecElemLoad(vlhs, lhs.dtype(), i, value_temp);
-        value_temp << ", ";
-        PrintVecElemLoad(vrhs, rhs.dtype(), i, value_temp);
-        value_temp << ")";
+      ICHECK(t.is_float8_e4m3fn() || t.is_float8_e5m2());
+      if (t.lanes() == 2) {
+        value_temp << "__nv_fp8x2_" << (t.is_float8_e5m2() ? "e5m2" : "e4m3") << "(";
       } else {
-        value_temp << "(";
-        PrintVecElemLoad(vlhs, lhs.dtype(), i, value_temp);
-        value_temp << op;
-        PrintVecElemLoad(vrhs, rhs.dtype(), i, value_temp);
-        value_temp << ")";
+        value_temp << "__nv_fp8x4_" << (t.is_float8_e5m2() ? "e5m2" : "e4m3") << "(";
       }
-      PrintVecElemStore(sret, t, i, value_temp.str());
+      for (int i = 0, lanes = t.lanes() / 2; i < lanes; ++i) {
+        if (isalpha(op[0]) || op[0] == '_') {
+          value_temp << op << "2"
+                     << "(__half2(";
+          PrintVecElemLoad(vlhs, lhs.dtype(), i * lanes, value_temp);
+          value_temp << "), __half2(";
+          PrintVecElemLoad(vrhs, rhs.dtype(), i * lanes, value_temp);
+          value_temp << "))";
+        } else {
+          value_temp << "__half2(";
+          PrintVecElemLoad(vlhs, lhs.dtype(), i * lanes, value_temp);
+          value_temp << ") " << op << " __half2(";
+          PrintVecElemLoad(vrhs, rhs.dtype(), i * lanes, value_temp);
+          value_temp << ")";
+        }
+
+        if (i != lanes - 1) {
+          value_temp << ", ";
+        }
+        if (i == lanes - 1) {
+          value_temp << ")";
+          PrintVecElemStore(sret, t, i, value_temp.str());
+        }
+      }
+    } else {
+      for (int i = 0, lanes = t.lanes(); i < lanes; ++i) {
+        std::ostringstream value_temp;
+        if (isalpha(op[0])) {
+          value_temp << op << "(";
+          PrintVecElemLoad(vlhs, lhs.dtype(), i, value_temp);
+          value_temp << ", ";
+          PrintVecElemLoad(vrhs, rhs.dtype(), i, value_temp);
+          value_temp << ")";
+        } else {
+          value_temp << "(";
+          PrintVecElemLoad(vlhs, lhs.dtype(), i, value_temp);
+          value_temp << op;
+          PrintVecElemLoad(vrhs, rhs.dtype(), i, value_temp);
+          value_temp << ")";
+        }
+        PrintVecElemStore(sret, t, i, value_temp.str());
+      }
     }
   }
   EndScope(ssa_scope);
@@ -563,6 +599,7 @@ void CodeGenCUDA::PrintVecElemLoad(const std::string& vec, DataType t, int i,
   }
 
   static const char access[] = {'x', 'y', 'z', 'w'};
+  std::string fp8_type = (t.is_float8()) ? (t.is_float8_e4m3fn() ? "e4m3" : "e5m2") : "";
   ICHECK(i >= 0 && i < (t.bits() == 8 ? 16 : (t.bits() == 16 || t.bits() == 32) ? 8 : 4));
   if (t.bits() == 8 && (t.is_int() || t.is_uint())) {
     std::string type_name = t.is_int() ? "char" : "unsigned char";
@@ -584,6 +621,9 @@ void CodeGenCUDA::PrintVecElemLoad(const std::string& vec, DataType t, int i,
     } else {
       os << "((nv_bfloat162*)(&(" << vec << "." << access[i / 2] << ")))->" << access[i % 2];
     }
+  } else if (t.is_float8()) {
+    os << "__nv_cvt_fp8x2_to_halfraw2(" << vec << ".__x,"
+       << (t.is_float8_e5m2() ? "__NV_E5M2" : "__NV_E4M3") << ")";
   } else if (t.lanes() > 4 && t.lanes() <= 8) {
     std::string type_name;
     if (t.bits() == 16) {
@@ -644,6 +684,10 @@ void CodeGenCUDA::PrintVecElemStore(const std::string& vec, DataType t, int i,
       stream << "((nv_bfloat162*)(&(" << vec << "." << access[i / 2] << ")))->" << access[i % 2]
              << " = " << value << ";\n";
     }
+  } else if (t.is_float8()) {
+    // Since fp8 is a packed type (2 or 4 lanes), we only want call at end.
+    ICHECK(i == (t.lanes() / 2) - 1);
+    stream << vec << " = " << value << ";\n";
   } else if (t.lanes() > 4 && t.lanes() <= 8) {
     std::string type_name;
     if (t.bits() == 16) {
@@ -830,7 +874,24 @@ void CodeGenCUDA::PrintCallExtern(Type ret_type, String global_symbol, const Arr
     }
     os << sret;
   } else {
-    CodeGenC::PrintCallExtern(ret_type, global_symbol, args, skip_first_arg, os);
+    if (ret_dtype.is_float8()) {
+      std::string fp8_type = (ret_dtype.is_float8_e5m2() ? "__NV_E5M2" : "__NV_E4M3");
+      os << "__nv_fp8_" << (ret_dtype.is_float8_e5m2() ? "e5m2" : "e4m3") << "(";
+
+      LOG_INFO << global_symbol;
+      os << global_symbol << "(__half(__nv_cvt_fp8_to_halfraw(";
+      for (size_t i = static_cast<size_t>(skip_first_arg); i < args.size(); ++i) {
+        this->PrintExpr(args[i], os);
+        os << ".__x, " << fp8_type << "))";
+        if (i < args.size() - 1) {
+          os << ", "
+             << "__half(__nv_cvt_fp8_to_halfraw(";
+        }
+      }
+      os << "))";
+    } else {
+      CodeGenC::PrintCallExtern(ret_type, global_symbol, args, skip_first_arg, os);
+    }
   }
 }
 
@@ -1691,6 +1752,19 @@ void CodeGenCUDA::PrintVecElemLoadExpr(DataType t, int i, const std::string& val
     return;
   }
 
+  if (t.is_float8()) {
+    if (i == 0) {
+      PrintVecConstructor(t, os);
+      os << "(make_float" << t.lanes() << "(";
+    }
+    if (i != 0) os << ", ";
+    os << "static_cast<float>(" << value << ")";
+    if (i == t.lanes() - 1) {
+      os << "))";
+    }
+    return;
+  }
+
   if (i == 0) {
     PrintVecConstructor(t, os);
     os << "(";
@@ -1702,6 +1776,116 @@ void CodeGenCUDA::PrintVecElemLoadExpr(DataType t, int i, const std::string& val
     os << ")";
   }
   return;
+}
+
+template <typename T>
+inline void PrintBinaryExpr(const T* op, const char* opstr,
+                            std::ostream& os,  // NOLINT(*)
+                            CodeGenCUDA* p) {
+  if (op->dtype.lanes() == 1) {
+    if (op->dtype.is_float8()) {
+      std::string fp8_type = (op->dtype.is_float8_e5m2() ? "__NV_E5M2" : "__NV_E4M3");
+      if (isalpha(opstr[0]) || opstr[0] == '_') {
+        os << "__nv_fp8_" << (op->dtype.is_float8_e5m2() ? "e5m2" : "e4m3") << "(";
+        os << opstr << "(";
+        os << "__half(__nv_cvt_fp8_to_halfraw(";
+        p->PrintExpr(op->a, os);
+        os << ".__x, " << fp8_type << ")), __half(__nv_cvt_fp8_to_halfraw(";
+        p->PrintExpr(op->b, os);
+        os << ".__x, " << fp8_type << ")))";
+        os << ")";
+      } else {
+        os << "__nv_fp8_" << (op->dtype.is_float8_e5m2() ? "e5m2" : "e4m3") << "(";
+        os << "__half(__nv_cvt_fp8_to_halfraw(";
+        p->PrintExpr(op->a, os);
+        os << ".__x, " << fp8_type << ")) " << opstr << " __half(__nv_cvt_fp8_to_halfraw(";
+        p->PrintExpr(op->b, os);
+        os << ".__x, " << fp8_type << ")))";
+      }
+    } else {
+      if (isalpha(opstr[0])) {
+        os << opstr << '(';
+        p->PrintExpr(op->a, os);
+        os << ", ";
+        p->PrintExpr(op->b, os);
+        os << ')';
+      } else {
+        os << '(';
+        p->PrintExpr(op->a, os);
+        os << ' ' << opstr << ' ';
+        p->PrintExpr(op->b, os);
+        os << ')';
+      }
+    }
+
+  } else {
+    p->PrintVecBinaryOp(opstr, op->dtype, op->a, op->b, os);
+  }
+}
+
+void CodeGenCUDA::VisitExpr_(const AddNode* op, std::ostream& os) {  // NOLINT(*)
+  PrintBinaryExpr(op, "+", os, this);
+}
+void CodeGenCUDA::VisitExpr_(const SubNode* op, std::ostream& os) {  // NOLINT(*)
+  PrintBinaryExpr(op, "-", os, this);
+}
+void CodeGenCUDA::VisitExpr_(const MulNode* op, std::ostream& os) {  // NOLINT(*)
+  PrintBinaryExpr(op, "*", os, this);
+}
+void CodeGenCUDA::VisitExpr_(const DivNode* op, std::ostream& os) {  // NOLINT(*)
+  PrintBinaryExpr(op, "/", os, this);
+}
+void CodeGenCUDA::VisitExpr_(const ModNode* op, std::ostream& os) {  // NOLINT(*)
+  if (op->dtype.is_int() || op->dtype.is_uint()) {
+    PrintBinaryExpr(op, "%", os, this);
+  } else {
+    ICHECK(op->dtype.is_float()) << "Expected floating point or integer dtype in Mod, but got "
+                                 << op->dtype;
+    if (op->dtype.bits() == 32) {
+      PrintBinaryExpr(op, "fmodf", os, this);
+    } else if (op->dtype.bits() == 64) {
+      PrintBinaryExpr(op, "fmod", os, this);
+    } else {
+      ICHECK(false)
+          << "Non single or double precision floating point in Mod, expected 32 or 64 bits but got "
+          << op->dtype.bits() << " bits.";
+    }
+  }
+}
+
+void CodeGenCUDA::VisitExpr_(const MinNode* op, std::ostream& os) {  // NOLINT(*)
+  PrintBinaryExpr(op, op->dtype.is_float8() ? "__hmin" : "min", os, this);
+}
+void CodeGenCUDA::VisitExpr_(const MaxNode* op, std::ostream& os) {  // NOLINT(*)
+  PrintBinaryExpr(op, op->dtype.is_float8() ? "__hmax" : "max", os, this);
+}
+void CodeGenCUDA::VisitExpr_(const EQNode* op, std::ostream& os) {  // NOLINT(*)
+  PrintBinaryExpr(op, "==", os, this);
+}
+void CodeGenCUDA::VisitExpr_(const NENode* op, std::ostream& os) {  // NOLINT(*)
+  PrintBinaryExpr(op, "!=", os, this);
+}
+void CodeGenCUDA::VisitExpr_(const LTNode* op, std::ostream& os) {  // NOLINT(*)
+  PrintBinaryExpr(op, "<", os, this);
+}
+void CodeGenCUDA::VisitExpr_(const LENode* op, std::ostream& os) {  // NOLINT(*)
+  PrintBinaryExpr(op, "<=", os, this);
+}
+void CodeGenCUDA::VisitExpr_(const GTNode* op, std::ostream& os) {  // NOLINT(*)
+  PrintBinaryExpr(op, ">", os, this);
+}
+void CodeGenCUDA::VisitExpr_(const GENode* op, std::ostream& os) {  // NOLINT(*)
+  PrintBinaryExpr(op, ">=", os, this);
+}
+void CodeGenCUDA::VisitExpr_(const AndNode* op, std::ostream& os) {  // NOLINT(*)
+  PrintBinaryExpr(op, "&&", os, this);
+}
+void CodeGenCUDA::VisitExpr_(const OrNode* op, std::ostream& os) {  // NOLINT(*)
+  PrintBinaryExpr(op, "||", os, this);
+}
+void CodeGenCUDA::VisitExpr_(const NotNode* op, std::ostream& os) {  // NOLINT(*)
+  os << '!';
+  PrintExpr(op->a, os);
 }
 
 }  // namespace codegen

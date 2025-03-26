@@ -52,7 +52,7 @@ struct CUDAMath {
         default:
           return "";
       }
-    } else if (t.is_bfloat16()) {
+    } else if (t.is_bfloat16() || t.is_float8()) {
       if (name == "fabs") {
         return "__habs";
       } else if (name == "round") {
