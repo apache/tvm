@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+#include <cuda_bf16.h>
 #include <cuda_fp16.h>
 #include <dlpack/dlpack.h>
 #include <stdint.h>
@@ -69,7 +70,6 @@ struct PackedOn16Bytes<half> {
   using Type = PackedHalf;
 };
 
-#ifdef ENABLE_BF16
 using PackedBFloat16 = union {
   int4 packed;
   __nv_bfloat162 unpacked[4];
@@ -79,7 +79,6 @@ template <>
 struct PackedOn16Bytes<__nv_bfloat16> {
   using Type = PackedBFloat16;
 };
-#endif
 
 // add two 128b data
 template <typename T>
@@ -387,13 +386,9 @@ void customAllReduce(AllReduceParams& params, void* data, size_t elts, DLDataTyp
     invokeOneOrTwoShotAllReduceKernel<float>(params, strat, stream);
   } else if (dataType.code == kDLFloat && dataType.bits == 16) {
     invokeOneOrTwoShotAllReduceKernel<half>(params, strat, stream);
-  }
-#ifdef ENABLE_BF16
-  else if (dataType.code == kDLBfloat && dataType.bits == 16) {
+  } else if (dataType.code == kDLBfloat && dataType.bits == 16) {
     invokeOneOrTwoShotAllReduceKernel<__nv_bfloat16>(params, strat, stream);
-  }
-#endif
-  else {
+  } else {
     LOG(FATAL) << ("Unsupported dataType for customAllReduce");
   }
 }
