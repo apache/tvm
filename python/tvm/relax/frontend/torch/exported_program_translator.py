@@ -43,6 +43,23 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         max_val = node.args[2] if len(args) > 2 else node.kwargs("max_val", 1.0)
         return self.block_builder.emit(relax.op.clip(x, min_val, max_val))
 
+    def _log2(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        return self.block_builder.emit(
+            relax.op.divide(relax.op.log(x), relax.const(0.6931471805599453, x.struct_info.dtype))
+        )
+
+    def _log10(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        return self.block_builder.emit(
+            relax.op.divide(relax.op.log(x), relax.const(2.302585092994046, x.struct_info.dtype))
+        )
+
+    def _log1p(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        one = relax.const(1, x.struct_info.dtype)
+        return self.block_builder.emit(relax.op.log(relax.op.add(x, one)))
+
     ########## Neural Network ##########
 
     def _batch_norm(self, node: fx.Node, training) -> relax.Var:
@@ -250,6 +267,9 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "isnan.default": self._unary_op(relax.op.isnan),
             "leaky_relu.default": self._leakyrelu,
             "log.default": self._unary_op(relax.op.log),
+            "log2.default": self._log2,
+            "log10.default": self._log10,
+            "log1p.default": self._log1p,
             "log_softmax.int": self._log_softmax,
             "neg.default": self._unary_op(relax.op.negative),
             "relu.default": self._unary_op(relax.op.nn.relu),
