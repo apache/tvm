@@ -320,16 +320,49 @@ class FuncStructInfoNode : public StructInfoNode {
   Optional<StructInfoDeriveFunc> derive_func;
   /*!
    * \brief Whether the function is pure.
-   * \note This parameter should be set to true only if the function is pure on all inputs.
-   *   If the function _may_ have visible side effects, set it to false.
+   *
+   * There are three possible state for this value.
+   *
+   *    `Bool(true)`: The function is known to be pure.
+   *    `Bool(false)`: The function is known to be impure.
+   *    `NullOpt`: The function's purity is unknown.
+   *
+   * In most cases `Bool(false)` and `NullOpt` should be treated
+   * equivalently, as they both indicate a function that may contain
+   * side effects.  However, inference of purity may occur when the
+   * purity is `NullOpt`, based on analysis of a function's body.  A
+   * function with purity of `Bool(false)` is known to be impure, and
+   * further analysis is unnecessary.
+   *
+   * \note This parameter should be set to true only if the function
+   *   is pure on all inputs.  If the function _may_ have visible side
+   *   effects, set it to false.
    */
-  bool purity;
+  Optional<Bool> purity;
 
   /*!
    * \return Whether the func struct info is opaque.
    * \note We define a function as opaque we have no constraints on params.
    */
   bool IsOpaque() const { return !params.defined(); }
+
+  /*! \brief Whether the FuncStructInfo is known to be pure */
+  bool IsPure() const {
+    if (purity.defined()) {
+      return purity.value()->value;
+    } else {
+      return false;
+    }
+  }
+
+  /*! \brief Whether the function is known to be impure. */
+  bool IsImpure() const {
+    if (purity.defined()) {
+      return !purity.value()->value;
+    } else {
+      return false;
+    }
+  }
 
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("params", &params);
@@ -365,42 +398,82 @@ class FuncStructInfo : public StructInfo {
    * \brief Constructor from parameter struct info and return value struct info.
    * \param params The struct info of function parameters.
    * \param ret The return value struct info.
-   * \param purity The purity of the function (true by default).
+   * \param purity The purity of the function (unknown by default).
    * \param span The span of the AST.
    *
    * \note If the ret contains variables(tir::Var and relax::Var), they must be deducible from
    * params. If you are unsure, you can always erase ret to static.
    */
-  TVM_DLL FuncStructInfo(Array<StructInfo> params, StructInfo ret, bool purity = true,
+  TVM_DLL FuncStructInfo(Array<StructInfo> params, StructInfo ret, Optional<Bool> purity = NullOpt,
                          Span span = Span());
+
+  /*!
+   * \brief Constructor from parameter struct info and return value struct info.
+   * \param params The struct info of function parameters.
+   * \param ret The return value struct info.
+   * \param purity The purity of the function.
+   * \param span The span of the AST.
+   *
+   * \note If the ret contains variables(tir::Var and relax::Var), they must be deducible from
+   * params. If you are unsure, you can always erase ret to static.
+   */
+  TVM_DLL FuncStructInfo(Array<StructInfo> params, StructInfo ret, bool purity, Span span = Span())
+      : FuncStructInfo(params, ret, Optional<Bool>(Bool(purity)), span) {}
 
   /*!
    * \brief Constructing an opaque function struct info using derive_func.
    *
    * \param derive_func Derivation function.
-   * \param purity The purity of the function
-   *   (false by default: most external functions are not pure).
+   * \param purity The purity of the function (unknown by default).
    * \param span The span of the AST.
    *
    * \return The FuncStructInfo for opaque packedfunc.
    * \note Defaults to an derive func that always return ObjectStructInfo if not specified.
    */
-  TVM_DLL static FuncStructInfo OpaqueFunc(StructInfoDeriveFunc derive_func, bool purity = false,
-                                           Span span = Span());
+  TVM_DLL static FuncStructInfo OpaqueFunc(StructInfoDeriveFunc derive_func,
+                                           Optional<Bool> purity = NullOpt, Span span = Span());
+
+  /*!
+   * \brief Constructing an opaque function struct info using derive_func.
+   *
+   * \param derive_func Derivation function.
+   * \param purity The purity of the function.
+   * \param span The span of the AST.
+   *
+   * \return The FuncStructInfo for opaque packedfunc.
+   * \note Defaults to an derive func that always return ObjectStructInfo if not specified.
+   */
+  TVM_DLL static FuncStructInfo OpaqueFunc(StructInfoDeriveFunc derive_func, bool purity,
+                                           Span span = Span()) {
+    return OpaqueFunc(derive_func, Optional<Bool>(Bool(purity)), span);
+  }
 
   /*!
    * \brief Construct an opaque function using from return struct info.
    *
    * \param ret The struct info of the return value.
-   * \param purity The purity of the function
-   *   (false by default: most external functions are not pure).
+   * \param purity The purity of the function (unknown by default).
    * \param span The span of the AST.
    *
    * \return The FuncStructInfo for opaque packedfunc.
    * \note Defaults to an derive func that always return ObjectStructInfo if not specified.
    */
-  TVM_DLL static FuncStructInfo OpaqueFunc(StructInfo ret = ObjectStructInfo(), bool purity = false,
-                                           Span span = Span());
+  TVM_DLL static FuncStructInfo OpaqueFunc(StructInfo ret = ObjectStructInfo(),
+                                           Optional<Bool> purity = NullOpt, Span span = Span());
+
+  /*!
+   * \brief Construct an opaque function using from return struct info.
+   *
+   * \param ret The struct info of the return value.
+   * \param purity The purity of the function.
+   * \param span The span of the AST.
+   *
+   * \return The FuncStructInfo for opaque packedfunc.
+   * \note Defaults to an derive func that always return ObjectStructInfo if not specified.
+   */
+  TVM_DLL static FuncStructInfo OpaqueFunc(StructInfo ret, bool purity, Span span = Span()) {
+    return OpaqueFunc(ret, Optional<Bool>(Bool(purity)), span);
+  }
 
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(FuncStructInfo, StructInfo, FuncStructInfoNode);
 };
