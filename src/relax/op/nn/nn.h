@@ -68,7 +68,7 @@ Expr log_softmax(Expr data, int axis);
 
 /*! \brief Compute batch normalization. */
 Expr batch_norm(Expr data, Expr gamma, Expr beta, Expr moving_mean, Expr moving_var,  //
-                int axis, double epsilon, bool center, bool scale, double momentum);
+                int axis, double epsilon, bool center, bool scale, double momentum, bool training);
 
 /*! \brief Compute layer normalization. */
 Expr layer_norm(Expr data, Expr gamma, Expr beta, Array<Integer> axes, double epsilon, bool center,
