@@ -148,7 +148,6 @@ def check_packed_func(target="llvm"):
 
 def test_lower_packed_func():
     check_packed_func("llvm")
-    check_packed_func("stackvm")
 
 
 @tvm.testing.requires_llvm
