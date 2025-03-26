@@ -89,7 +89,7 @@ def test_add_pipeline():
     sch.bind(d_xi, "threadIdx.x")
     sch.bind(d_xo, "blockIdx.x")
 
-    def check_target(device, host="stackvm"):
+    def check_target(device, host):
         if not tvm.testing.device_enabled(device) or not tvm.testing.device_enabled(host):
             return
         dev = tvm.device(device, 0)
