@@ -267,6 +267,15 @@ class Any {
     TVM_FFI_UNREACHABLE();
   }
 
+  /*
+   * \brief Check if the two Any are same type and value in shallow comparison.
+   * \param other The other Any
+   * \return True if the two Any are same type and value, false otherwise.
+   */
+  bool same_as(const Any& other) const {
+    return data_.type_index == other.data_.type_index && data_.v_int64 == other.data_.v_int64;
+  }
+
   bool operator==(std::nullptr_t) const { return data_.type_index == TypeIndex::kTVMFFINone; }
 
   bool operator!=(std::nullptr_t) const { return data_.type_index != TypeIndex::kTVMFFINone; }
