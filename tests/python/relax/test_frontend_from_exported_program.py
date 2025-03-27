@@ -3767,6 +3767,5 @@ def test_prod():
     verify_model(Prod(), example_args, {}, Expected)
 
 
-
 if __name__ == "__main__":
     tvm.testing.main()
