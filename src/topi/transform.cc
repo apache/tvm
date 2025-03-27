@@ -83,7 +83,7 @@ TVM_REGISTER_GLOBAL("topi.ndarray_size").set_body([](TVMArgs args, TVMRetValue* 
 });
 
 TVM_REGISTER_GLOBAL("topi.split").set_body([](TVMArgs args, TVMRetValue* rv) {
-  if (args[1].type_code() == kDLInt || args[1].type_code() == kDLUInt) {
+  if (args[1].as<int>()) {
     *rv = split_n_sections(args[0], args[1], args[2]);
   } else {
     *rv = split_indices_array(args[0], args[1], args[2]);

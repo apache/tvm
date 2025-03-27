@@ -281,7 +281,7 @@ void* RPCWrappedFunc::UnwrapRemoteValueToHandle(const AnyView& arg) const {
         << "ValueError: Cannot pass in module into a different remote session";
     return rmod->module_handle();
   } else {
-    LOG(FATAL) << "ValueError: Cannot pass type " << ffi::TypeIndex2TypeKey(arg.type_index())
+    LOG(FATAL) << "ValueError: Cannot pass type " << arg.GetTypeKey()
                << " as an argument to the remote";
     return nullptr;
   }

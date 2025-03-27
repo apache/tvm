@@ -351,16 +351,14 @@ runtime::Module PackImportsToLLVM(const runtime::Module& mod, bool system_lib,
   }
 
   std::string blob = PackImportsToBytes(mod);
-  TVMByteArray blob_byte_array;
-  blob_byte_array.size = blob.length();
-  blob_byte_array.data = blob.data();
+
 
   // Call codegen_blob to generate LLVM module
   std::string codegen_f_name = "codegen.codegen_blob";
   // the codegen function.
   const PackedFunc* codegen_f = runtime::Registry::Get(codegen_f_name);
   ICHECK(codegen_f != nullptr) << "codegen.codegen_blob is not presented.";
-  return (*codegen_f)(blob_byte_array, system_lib, llvm_target_string, c_symbol_prefix);
+  return (*codegen_f)(ffi::Bytes(blob), system_lib, llvm_target_string, c_symbol_prefix);
 }
 
 TVM_REGISTER_GLOBAL("target.Build").set_body_typed(Build);

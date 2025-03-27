@@ -1141,7 +1141,7 @@ class PipelineInjector : private StmtExprMutator {
 
     std::unordered_set<int> pipeline_async_stages;
     if (auto annot = op->annotations.Get(attr::software_pipeline_async_stages)) {
-      for (auto s : Downcast<Array<Integer>>(annot)) {
+      for (auto s : Downcast<Array<Integer>>(annot.value())) {
         pipeline_async_stages.insert(s->value);
       }
     }

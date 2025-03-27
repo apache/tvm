@@ -68,7 +68,7 @@ void JSONDumps(ObjectRef json_obj, std::ostringstream& os) {
         key_values.emplace_back(key.value(), kv.second);
       } else {
         LOG(FATAL) << "TypeError: Only string keys are supported in JSON dumps, but got: "
-                   << ffi::TypeIndex2TypeKey(kv.first.type_index());
+                   << kv.first.GetTypeKey();
       }
     }
     std::sort(key_values.begin(), key_values.end(), [](const auto& a, const auto& b) {

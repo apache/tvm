@@ -236,7 +236,7 @@ void CheckTensorInfo(ffi::PackedArgs args, Any* rv) {
 
   auto opt_ptr = arg.as<const NDArray::ContainerType*>();
   CHECK(opt_ptr.has_value()) << "TypeError: " << err_ctx.value_or("") << " expect a Tensor but get "
-                             << ffi::TypeIndex2TypeKey(arg.type_index());
+                             << arg.GetTypeKey();
 
   const NDArray::ContainerType* ptr = opt_ptr.value();
   if (ndim != -1) {

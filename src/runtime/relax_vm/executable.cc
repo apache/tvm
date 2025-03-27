@@ -96,7 +96,7 @@ std::string VMExecutable::Stats() const {
       oss << dtype;
       oss << ", ";
     } else {
-      LOG(FATAL) << "Unsupported constant pool type " << ffi::TypeIndex2TypeKey(it.type_index());
+      LOG(FATAL) << "Unsupported constant pool type " << it.GetTypeKey();
     }
   }
   if (!constants.empty()) oss.seekp(-2, oss.cur);
@@ -290,7 +290,7 @@ void VMExecutable::SaveConstantSection(dmlc::Stream* strm) {
       strm->Write(ConstantType::kDLDataType);
       strm->Write(opt_dtype.value());
     } else {
-      LOG(FATAL) << "Unsupported constant pool type " << ffi::TypeIndex2TypeKey(it.type_index());
+      LOG(FATAL) << "Unsupported constant pool type " << it.GetTypeKey();
     }
   }
 }

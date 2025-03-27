@@ -137,7 +137,7 @@ inline TargetTagRegEntry& TargetTagRegEntry::set_config(Map<String, Any> config)
   return *this;
 }
 
-inline TargetTagRegEntry& TargetTagRegEntry::with_config(String key, ObjectRef value) {
+inline TargetTagRegEntry& TargetTagRegEntry::with_config(String key, ffi::Any value) {
   tag_->config.Set(key, value);
   return *this;
 }

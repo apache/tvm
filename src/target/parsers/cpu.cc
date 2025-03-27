@@ -39,7 +39,7 @@ Optional<String> DetectSystemTriple() {
 }
 
 TargetJSON ParseTarget(TargetJSON target) {
-  String kind = Downcast<String>(target.Get("kind"));
+  String kind = Downcast<String>(target.Get("kind").value());
   Optional<String> mtriple = Downcast<Optional<String>>(target.Get("mtriple"));
   Optional<String> mcpu = Downcast<Optional<String>>(target.Get("mcpu"));
 

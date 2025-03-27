@@ -249,7 +249,7 @@ class JSONAttrGetter : public AttrVisitor {
       node_->type_key.clear();
       return;
     }
-    node_->type_key = ffi::TypeIndex2TypeKey(node.type_index());
+    node_->type_key = node.GetTypeKey();
     // populates the fields.
     node_->attrs.clear();
     node_->data.clear();
@@ -306,7 +306,7 @@ class JSONAttrGetter : public AttrVisitor {
           break;
         }
         default: {
-          LOG(FATAL) << "Unsupported type: " << ffi::TypeIndex2TypeKey(node.type_index());
+          LOG(FATAL) << "Unsupported type: " << node.GetTypeKey();
         }
       }
     }
