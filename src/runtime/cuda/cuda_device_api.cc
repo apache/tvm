@@ -44,6 +44,9 @@ class CUDADeviceAPI final : public DeviceAPI {
       case kExist: {
         int count;
         auto err = cudaGetDeviceCount(&count);
+        if (err != cudaSuccess) {
+          LOG(FATAL) << "cudaGetDeviceCount: " << cudaGetErrorString(err);
+        }
         value = (err == cudaSuccess && static_cast<int>(dev.device_id < count));
         break;
       }
