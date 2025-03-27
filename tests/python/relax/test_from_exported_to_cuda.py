@@ -15,7 +15,6 @@
 # specific language governing permissions and limitations
 # under the License.
 
-
 import tvm
 from tvm import relax
 import tvm.testing
@@ -333,6 +332,30 @@ def test_split_size(target, dev):
 
 
 @tvm.testing.parametrize_targets("cuda")
+def test_split_sections_list(target, dev):
+    # Test split using a list of section sizes
+    batch = 3
+    channels = 2
+    height = 10
+    width = 5
+    sections = [3, 2, 5]
+    dim = 2  # split across height
+    raw_data = np.random.rand(batch, channels, height, width).astype("float32")
+
+    class SplitModelSectionsList(nn.Module):
+        def __init__(self, split_size, dim):
+            super().__init__()
+            self.split_size = split_size
+            self.dim = dim
+
+        def forward(self, x):
+            return torch.split(x, split_size_or_sections=self.split_size, dim=self.dim)
+
+    torch_module = SplitModelSectionsList(split_size=sections, dim=dim).eval()
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
+
+
+@tvm.testing.parametrize_targets("cuda")
 def test_batch_norm0(target, dev):
     # Eval, no momentum, no affine, no running stats
     raw_data = np.random.randn(8, 3, 4, 4).astype(np.float32)
@@ -373,26 +396,74 @@ def test_batch_norm3(target, dev):
 
 
 @tvm.testing.parametrize_targets("cuda")
-def test_split_sections_list(target, dev):
-    # Test split using a list of section sizes
-    batch = 3
+def test_chunk_even(target, dev):
+    # Chunks is a divisor of the dimension size
+    batch = 6
     channels = 2
-    height = 10
-    width = 5
-    sections = [3, 2, 5]
-    dim = 2  # split across height
+    height = 3
+    width = 4
+    chunks = 3
+    dim = 0
     raw_data = np.random.rand(batch, channels, height, width).astype("float32")
 
-    class SplitModelSectionsList(nn.Module):
-        def __init__(self, split_size, dim):
+    class ChunkModel(nn.Module):
+        def __init__(self, chunks, dim):
             super().__init__()
-            self.split_size = split_size
+            self.chunks = chunks
             self.dim = dim
 
         def forward(self, x):
-            return torch.split(x, split_size_or_sections=self.split_size, dim=self.dim)
+            return x.chunk(self.chunks, dim=self.dim)
 
-    torch_module = SplitModelSectionsList(split_size=sections, dim=dim).eval()
+    torch_module = ChunkModel(chunks=chunks, dim=dim).eval()
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
+
+
+@tvm.testing.parametrize_targets("cuda")
+def test_chunk_uneven(target, dev):
+    # Chunks is not a divisor of the dimension size
+    batch = 2
+    channels = 5
+    height = 4
+    width = 5
+    chunks = 2
+    dim = 1
+    raw_data = np.random.rand(batch, channels, height, width).astype("float32")
+
+    class ChunkModel(nn.Module):
+        def __init__(self, chunks, dim):
+            super().__init__()
+            self.chunks = chunks
+            self.dim = dim
+
+        def forward(self, x):
+            return x.chunk(self.chunks, dim=self.dim)
+
+    torch_module = ChunkModel(chunks=chunks, dim=dim).eval()
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
+
+
+@tvm.testing.parametrize_targets("cuda")
+def test_chunk_too_many(target, dev):
+    # If user asks for more chunks than the size of the dim, pytorch simply splits in sections of size 1
+    batch = 1
+    channels = 3
+    height = 2
+    width = 2
+    chunks = 99
+    dim = 1
+    raw_data = np.random.rand(batch, channels, height, width).astype("float32")
+
+    class ChunkModel(nn.Module):
+        def __init__(self, chunks, dim):
+            super().__init__()
+            self.chunks = chunks
+            self.dim = dim
+
+        def forward(self, x):
+            return x.chunk(self.chunks, dim=self.dim)
+
+    torch_module = ChunkModel(chunks=chunks, dim=dim).eval()
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 
