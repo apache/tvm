@@ -106,6 +106,22 @@ inline T Downcast(const Any& ref) {
   return ref.operator T();
 }
 
+/*!
+ * \brief Downcast std::optional<Any> to Optional<T>
+ *
+ * \param ref The input reference
+ * \return The corresponding SubRef.
+ * \tparam OptionalType The target optional type
+ */
+template <typename OptionalType, typename = std::enable_if_t<is_optional_type_v<OptionalType>>>
+inline OptionalType Downcast(const std::optional<Any>& ref) {
+  if (ref.has_value()) {
+    return ref.value().operator OptionalType();
+  } else {
+    return OptionalType(std::nullopt);
+  }
+}
+
 }  // namespace ffi
 }  // namespace tvm
 #endif  // TVM_FFI_CAST_H_
