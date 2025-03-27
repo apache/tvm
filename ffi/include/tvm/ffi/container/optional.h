@@ -25,6 +25,7 @@
 #define TVM_FFI_CONTAINER_OPTIONAL_H_
 
 #include <tvm/ffi/any.h>
+#include <tvm/ffi/type_traits.h>
 #include <tvm/ffi/object.h>
 
 #include <optional>
@@ -271,6 +272,9 @@ template <typename T>
 inline constexpr bool use_default_type_traits_v<Optional<T>> = false;
 
 template <typename T>
+inline constexpr bool is_optional_type_v<Optional<T>> = true;
+
+template <typename T>
 struct TypeTraits<Optional<T>> : public TypeTraitsBase {
   static TVM_FFI_INLINE void CopyToAnyView(const Optional<T>& src, TVMFFIAny* result) {
     if (src.has_value()) {
@@ -318,7 +322,6 @@ struct TypeTraits<Optional<T>> : public TypeTraitsBase {
     return "Optional<" + TypeTraits<T>::TypeStr() + ">";
   }
 };
-
 }  // namespace ffi
 }  // namespace tvm
 #endif  // TVM_FFI_CONTAINER_OPTIONAL_H_

@@ -131,6 +131,11 @@ class AnyView {
   // comparison with nullptr
   bool operator==(std::nullptr_t) const { return data_.type_index == TypeIndex::kTVMFFINone; }
   bool operator!=(std::nullptr_t) const { return data_.type_index != TypeIndex::kTVMFFINone; }
+   /*!
+   * \brief Get the type key of the Any
+   * \return The type key of the Any
+   */
+  std::string GetTypeKey() const { return TypeIndex2TypeKey(data_.type_index); }
   // The following functions are only used for testing purposes
   /*!
    * \return The underlying supporting data of any view
@@ -291,8 +296,13 @@ class Any {
   }
 
   bool operator==(std::nullptr_t) const { return data_.type_index == TypeIndex::kTVMFFINone; }
-
   bool operator!=(std::nullptr_t) const { return data_.type_index != TypeIndex::kTVMFFINone; }
+
+  /*!
+   * \brief Get the type key of the Any
+   * \return The type key of the Any
+   */
+  std::string GetTypeKey() const { return TypeIndex2TypeKey(data_.type_index); }
 
   // FFI related operations
   /*!

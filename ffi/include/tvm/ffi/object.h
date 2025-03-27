@@ -37,6 +37,53 @@ namespace ffi {
 using TypeIndex = TVMFFITypeIndex;
 using TypeInfo = TVMFFITypeInfo;
 
+/*!
+ * \brief Known type keys for pre-defined types.
+ */
+struct StaticTypeKey {
+  static constexpr const char* kTVMFFIAny = "Any";
+  static constexpr const char* kTVMFFINone = "None";
+  static constexpr const char* kTVMFFIBool = "bool";
+  static constexpr const char* kTVMFFIInt = "int";
+  static constexpr const char* kTVMFFIFloat = "float";
+  static constexpr const char* kTVMFFIOpaquePtr = "void*";
+  static constexpr const char* kTVMFFIDataType = "DataType";
+  static constexpr const char* kTVMFFIDevice = "Device";
+  static constexpr const char* kTVMFFIRawStr = "const char*";
+};
+
+/*!
+ * \brief Get type key from type index
+ * \param type_index The input type index
+ * \return the type key
+ */
+inline std::string TypeIndex2TypeKey(int32_t type_index) {
+  switch (type_index) {
+    case TypeIndex::kTVMFFIAny:
+      return StaticTypeKey::kTVMFFIAny;
+    case TypeIndex::kTVMFFINone:
+      return StaticTypeKey::kTVMFFINone;
+    case TypeIndex::kTVMFFIBool:
+      return StaticTypeKey::kTVMFFIBool;
+    case TypeIndex::kTVMFFIInt:
+      return StaticTypeKey::kTVMFFIInt;
+    case TypeIndex::kTVMFFIFloat:
+      return StaticTypeKey::kTVMFFIFloat;
+    case TypeIndex::kTVMFFIOpaquePtr:
+      return StaticTypeKey::kTVMFFIOpaquePtr;
+    case TypeIndex::kTVMFFIDataType:
+      return StaticTypeKey::kTVMFFIDataType;
+    case TypeIndex::kTVMFFIDevice:
+      return StaticTypeKey::kTVMFFIDevice;
+    case TypeIndex::kTVMFFIRawStr:
+      return StaticTypeKey::kTVMFFIRawStr;
+    default: {
+      const TypeInfo* type_info = TVMFFIGetTypeInfo(type_index);
+      return type_info->type_key;
+    }
+  }
+}
+
 namespace details {
 // Helper to perform
 // unsafe operations related to object
@@ -439,6 +486,22 @@ class ObjectRef {
         return std::nullopt;
       }
     }
+  }
+
+  /*!
+   * \brief Get the type index of the ObjectRef
+   * \return The type index of the ObjectRef
+   */
+  int32_t type_index() const {
+    return data_ != nullptr ? data_->type_index() : TypeIndex::kTVMFFINone;
+  }
+
+  /*!
+   * \brief Get the type key of the ObjectRef
+   * \return The type key of the ObjectRef
+   */
+  std::string GetTypeKey() const {
+    return data_ != nullptr ? data_->GetTypeKey() : StaticTypeKey::kTVMFFINone;
   }
 
   /*! \brief type indicate the container type. */
