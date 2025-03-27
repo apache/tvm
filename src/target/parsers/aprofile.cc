@@ -70,8 +70,8 @@ bool IsAArch64(Optional<String> mtriple) {
 }
 
 bool IsArch(TargetJSON attrs) {
-  Optional<String> mtriple = Downcast<Optional<String>>(attrs.Get("mtriple"));
-  Optional<String> mcpu = Downcast<Optional<String>>(attrs.Get("mcpu"));
+  Optional<String> mtriple = Downcast<Optional<String>>(attrs.Get("mtriple").value_or(nullptr));
+  Optional<String> mcpu = Downcast<Optional<String>>(attrs.Get("mcpu").value_or(nullptr));
 
   return IsAArch32(mtriple, mcpu) || IsAArch64(mtriple);
 }
@@ -82,11 +82,11 @@ bool CheckContains(Array<String> array, String predicate) {
 
 static TargetFeatures GetFeatures(TargetJSON target) {
 #ifdef TVM_LLVM_VERSION
-  String kind = Downcast<String>(target.Get("kind"));
+  String kind = Downcast<String>(target.Get("kind").value());
   ICHECK_EQ(kind, "llvm") << "Expected target kind 'llvm', but got '" << kind << "'";
 
-  Optional<String> mtriple = Downcast<Optional<String>>(target.Get("mtriple"));
-  Optional<String> mcpu = Downcast<Optional<String>>(target.Get("mcpu"));
+  Optional<String> mtriple = Downcast<Optional<String>>(target.Get("mtriple").value_or(nullptr));
+  Optional<String> mcpu = Downcast<Optional<String>>(target.Get("mcpu").value_or(nullptr));
 
   // Check that LLVM has been compiled with the correct target support
   auto llvm_instance = std::make_unique<codegen::LLVMInstance>();

@@ -213,7 +213,7 @@ class PermutedLayoutInjector : private IRMutatorWithAnalyzer {
     return load;
   }
 
-  PrimExpr HandleAccessPtrAndOffset(PrimExpr access_ptr, Optional<PrimExpr> offset = NullOpt) {
+  PrimExpr HandleAccessPtrAndOffset(PrimExpr access_ptr, Optional<PrimExpr> offset = std::nullopt) {
     // The 2th arg of T.tvm_access_ptr call is offset, we set it to 0 and accumulate it to
     // smem_offset
     CHECK(access_ptr->IsInstance<CallNode>())

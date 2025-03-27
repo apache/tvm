@@ -225,7 +225,7 @@ inline std::string DiscoDebugObject::SaveToStr() const {
     return result;
   }
   LOG(FATAL) << "ValueError: Cannot serialize the following type code in non-debugging mode: "
-             << ffi::TypeIndex2TypeKey(this->data.type_index());
+             << this->data.GetTypeKey();
 }
 
 inline ObjectPtr<DiscoDebugObject> DiscoDebugObject::LoadFromStr(std::string json_str) {

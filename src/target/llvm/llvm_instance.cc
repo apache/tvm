@@ -276,7 +276,7 @@ LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance, const TargetJSON& target)
   }
 
   // LLVM JIT engine options
-  if (const auto& v = Downcast<Optional<String>>(target.Get("jit"))) {
+  if (const auto& v = Downcast<Optional<String>>(target.Get("jit").value_or(nullptr))) {
     String value = v.value();
     if ((value == "mcjit") || (value == "orcjit")) {
       jit_engine_ = value;
@@ -286,7 +286,7 @@ LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance, const TargetJSON& target)
   }
 
   // TVM & LLVM vector width options
-  if (const auto& w = Downcast<Optional<runtime::Int>>(target.Get("vector-width"))) {
+  if (const auto& w = Downcast<Optional<runtime::Int>>(target.Get("vector-width").value_or(nullptr))) {
     vector_width_ = w.value();
     if ((vector_width_ <= 0) || (vector_width_ > 65536)) {
       LOG(FATAL) << "Invalid -vector-width value: " << vector_width_;
@@ -385,7 +385,7 @@ LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance, const TargetJSON& target)
 
   auto GetBoolFlag = [&target](llvm::StringRef name) -> bool {
     if (auto flag = target.Get(name.str())) {
-      return Downcast<runtime::Bool>(flag);
+      return Downcast<runtime::Bool>(flag.value());
     } else {
       return false;
     }

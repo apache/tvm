@@ -222,7 +222,7 @@ class InstrBuilder {
   InstrBuilder& AddSeq(Args&&... args) {
     AddSeqHelper helper;
     helper.builder = this;
-    runtime::detail::for_each(helper, std::forward<Args>(args)...);
+    ffi::details::for_each(helper, std::forward<Args>(args)...);
     return *this;
   }
   /*!

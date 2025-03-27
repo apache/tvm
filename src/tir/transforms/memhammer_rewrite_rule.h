@@ -62,10 +62,10 @@ struct ConstraintSet {
         read_region(read_region),
         write_region(write_region),
         data_bits(data_bits) {
-    if (Optional<ObjectRef> add_local_stage = ann.Get("local_stage")) {
+    if (auto add_local_stage = ann.Get("local_stage")) {
       this->add_local_stage = Downcast<Integer>(add_local_stage.value())->value;
     }
-    if (Optional<ObjectRef> vector_bytes = ann.Get("vector_bytes")) {
+    if (auto vector_bytes = ann.Get("vector_bytes")) {
       this->vector_bytes = Downcast<Integer>(vector_bytes.value())->value;
     }
   }

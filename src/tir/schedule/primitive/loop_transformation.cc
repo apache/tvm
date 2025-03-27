@@ -107,7 +107,7 @@ class IterMapSimplifyBlockBinding : public StmtExprMutator {
     if (op->iter_values.empty()) {
       Block block = op->block;
       BlockRealize realize = Downcast<BlockRealize>(StmtMutator::VisitStmt_(op));
-      for (const std::pair<ObjectRef, ObjectRef>& entry : *opaque_blocks_) {
+      for (const auto& entry : *opaque_blocks_) {
         if (entry.second.same_as(block)) {
           opaque_blocks_->at(entry.first) = realize->block;
           break;
@@ -1290,9 +1290,9 @@ struct FuseTraits : public UnpackedInstTraits<FuseTraits> {
   static constexpr size_t kNumDecisions = 0;
 
   template <size_t delta>
-  static TVM_ALWAYS_INLINE void _SetInputs(const runtime::TVMArgsSetter& setter,
+  static TVM_ALWAYS_INLINE void _SetInputs(AnyView* packed_args,
                                            const Array<ObjectRef>& inputs) {
-    setter(delta, inputs);
+    packed_args[delta] = inputs;
   }
 
   static LoopRV UnpackedApplyToSchedule(Schedule sch, Array<LoopRV> loop_rvs,

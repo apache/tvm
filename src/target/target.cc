@@ -431,7 +431,7 @@ ObjectRef TargetInternal::ParseType(const ObjectRef& obj,
       return Target(TargetInternal::FromString(str.value()));
     } else if (const auto* ptr = obj.as<MapNode>()) {
       for (const auto& kv : *ptr) {
-        if (!kv.first->IsInstance<StringObj>()) {
+        if (!kv.first.as<StringObj>()) {
           throw Error(": Target object requires key of dict to be str, but get: " +
                       kv.first->GetTypeKey());
         }
@@ -506,6 +506,7 @@ std::string TargetInternal::StringifyAtomicType(const ObjectRef& obj) {
     return u;
   }
   LOG(FATAL) << "Cannot stringify object of type " << obj->GetTypeKey();
+  TVM_FFI_UNREACHABLE();
 }
 
 std::string TargetInternal::StringifyArray(const ArrayNode& array) {

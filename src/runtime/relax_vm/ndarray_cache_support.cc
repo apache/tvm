@@ -366,7 +366,7 @@ TVM_REGISTER_GLOBAL("vm.builtin.param_array_from_cache_by_name_unpacked")
       for (int i = 0; i < args.size(); ++i) {
         if (!args[i].as<String>()) {
           LOG(FATAL) << "ValueError: Expect string as input, but get "
-                     << ffi::TypeIndex2TypeKey(args[i].type_index()) << " at " << i;
+                     << args[i].GetTypeKey() << " at " << i;
         }
         names.push_back(args[i]);
       }

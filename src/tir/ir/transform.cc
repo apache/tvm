@@ -118,7 +118,7 @@ IRModule PrimFuncPassNode::operator()(IRModule mod, const PassContext& pass_ctx)
     if (auto func = kv.second.as<PrimFunc>()) {
       // move out the function so that it is the only copy.
       func = pass_func(std::move(func.value()), mod, pass_ctx);
-      kv.second = std::move(func);
+      kv.second = std::move(func.value());
       if (kv.second == nullptr) {
         deleted_list.push_back(Downcast<GlobalVar>(kv.first));
       }

@@ -392,7 +392,7 @@ bool TensorizeComparator::CompareAnnotationMap(const Map<String, ffi::Any>& lhs,
   auto sort_map =
       [](const Map<String, ffi::Any>& map) -> std::vector<std::pair<String, ffi::Any>> {
     std::vector<std::pair<String, ffi::Any>> ret(map.begin(), map.end());
-    sort(ret.begin(), ret.end());
+    sort(ret.begin(), ret.end(), [](const auto& a, const auto& b) { return a.first < b.first; });
     return ret;
   };
 

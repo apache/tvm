@@ -78,7 +78,7 @@ void ReprPrinter::Print(const ffi::Any& node) {
       if (auto opt_obj = node.as<ObjectRef>()) {
         Print(opt_obj.value());
       } else {
-        stream << "Any(type_key=`" << ffi::TypeIndex2TypeKey(node.type_index()) << "`)";
+        stream << "Any(type_key=`" << node.GetTypeKey() << "`)";
       }
       break;
     }

@@ -106,7 +106,7 @@ class OpAttrExtractor : public AttrVisitor {
           String s = GetRef<String>(str);
           attr.push_back(s);
         } else {
-          LOG(FATAL) << "Not supported type: " << (*an)[i]->GetTypeKey();
+          LOG(FATAL) << "Not supported type: " << (*an)[i].GetTypeKey();
         }
       }
       SetNodeAttr(key, attr);

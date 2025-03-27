@@ -33,10 +33,10 @@ namespace topi {
 using namespace tvm::runtime;
 
 /*! \brief Canonicalize an argument that may be Array<Expr> or int to Array<Expr> */
-inline Array<Integer> ArrayOrInt(TVMArgValue arg) {
-  if (arg.type_code() == kDLInt || arg.type_code() == kDLUInt) {
+inline Array<Integer> ArrayOrInt(AnyView arg) {
+  if (auto opt_int = arg.as<int>()) {
     Array<Integer> result;
-    result.push_back(arg.operator int());
+    result.push_back(opt_int.value());
     return result;
   } else {
     return arg;
