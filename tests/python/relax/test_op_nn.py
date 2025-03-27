@@ -15,10 +15,10 @@
 # specific language governing permissions and limitations
 # under the License.
 import pytest
+
 import tvm
 import tvm.testing
-from tvm import relax, tir
-from tvm import TVMError
+from tvm import TVMError, relax, tir
 from tvm.ir import Op, VDevice
 from tvm.script import relax as R
 
@@ -143,6 +143,7 @@ def test_softmax_log_softmax_infer_struct_info():
     x3 = relax.Var("x", R.Tensor((2, 3)))
     x4 = relax.Var("x", R.Tensor())
     x5 = relax.Var("x", R.Tensor((2, 3), "float32", vdev0))
+    x6 = relax.Var("x", R.Tensor((2, 3), "bfloat16"))
 
     _check_inference(bb, relax.op.nn.softmax(x0), relax.TensorStructInfo((2, 3), "float32"))
     _check_inference(bb, relax.op.nn.softmax(x5), relax.TensorStructInfo((2, 3), "float32", vdev0))
@@ -164,6 +165,10 @@ def test_softmax_log_softmax_infer_struct_info():
         bb, relax.op.nn.log_softmax(x3, axis=-1), relax.TensorStructInfo((2, 3), dtype="")
     )
     _check_inference(bb, relax.op.nn.log_softmax(x4, axis=-2), relax.TensorStructInfo(dtype=""))
+    _check_inference(bb, relax.op.nn.softmax(x6), relax.TensorStructInfo((2, 3), dtype="bfloat16"))
+    _check_inference(
+        bb, relax.op.nn.log_softmax(x6), relax.TensorStructInfo((2, 3), dtype="bfloat16")
+    )
 
 
 def test_softmax_log_softmax_infer_struct_info_shape_symbolic():
