@@ -129,7 +129,7 @@ class Target(Object):
         if isinstance(host, (dict, str)):
             host = convert(host)
         if target is None or not isinstance(target, (Map, String, Target)):
-            raise ValueError("target has to be a string or dictionary.")
+            raise ValueError(f"target has to be a string or dictionary. instead get {type(target)}")
         if host is not None:
             if not isinstance(host, (Map, String, Target)):
                 raise ValueError("target host has to be a string or dictionary.")
