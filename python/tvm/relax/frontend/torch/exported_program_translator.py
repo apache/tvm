@@ -386,7 +386,6 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "reshape.default": self._reshape,
             # tensor creation
             "_to_copy.default": self._to_copy,
-            "lift_fresh_copy.default": self._to_copy,
             "detach.default": self._detach,
             "detach_.default": self._detach,
             "arange.start": self._arange,
@@ -395,6 +394,8 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "empty.memory_format": self._empty,
             "empty_like.default": self._empty_like,
             "fill.Scalar": self._fill,
+            "index_select.default": self._index_select,
+            "lift_fresh_copy.default": self._to_copy,
             "new_ones.default": self._new_ones,
             "one_hot.default": self._one_hot,
             # other
@@ -484,6 +485,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                         self.env[node] = getattr(exported_program.graph_module, node.target)
                     elif node.op == "call_function":
                         func_name = node.target.__name__
+                        print("unsing function", func_name)
                         assert (
                             func_name in self.convert_map
                         ), f"Unsupported function type {func_name}"
