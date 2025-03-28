@@ -148,7 +148,12 @@ typedef struct TVMFFIAny {
   };
 } TVMFFIAny;
 
-/*! \brief Safe byte array */
+/*!
+ *  \brief Byte array data structure used by String and Bytes.
+ *
+ *  String and bytes follows the layout of C-style string,
+ *  with a null-terminated character array and a size field.
+ */
 typedef struct {
   const char* data;
   int64_t size;
@@ -422,4 +427,46 @@ TVM_FFI_DLL const TVMFFITypeInfo* TVMFFIGetTypeInfo(int32_t type_index);
 #ifdef __cplusplus
 }  // TVM_FFI_EXTERN_C
 #endif
+
+//---------------------------------------------------------------
+// The following API defines static object field accessors
+// for language bindings.
+//
+// They are defined in C++ inline functions for cleaner code.
+// Note that they only have to do with address offset computation.
+// So they can always be reimplemented in bindings when c++ is
+// not available or when binding only wants to refer to the dll.
+//----------------------------------------------------------------
+#ifdef __cplusplus
+/*!
+ * \brief Get the type index of an object.
+ * \param obj The object handle.
+ * \return The type index.
+ */
+inline int32_t TVMFFIObjectGetTypeIndex(TVMFFIObjectHandle obj) {
+  return static_cast<TVMFFIObject*>(obj)->type_index;
+}
+
+/*!
+ * \brief Get the data pointer of a bytearray from a string or bytes object.
+ * \param obj The object handle.
+ * \return The data pointer.
+ */
+inline TVMFFIByteArray* TVMFFIBytesGetByteArrayPtr(TVMFFIObjectHandle obj) {
+  return reinterpret_cast<TVMFFIByteArray*>(
+    reinterpret_cast<char*>(obj) + sizeof(TVMFFIObject)
+  );
+}
+
+/*!
+ * \brief Get the DLTensor pointer from an NDArray object.
+ * \param obj The object handle.
+ * \return The DLTensor pointer.
+ */
+inline DLTensor* TVMFFINDArrayGetDLTensorPtr(TVMFFIObjectHandle obj) {
+  return reinterpret_cast<DLTensor*>(
+    reinterpret_cast<char*>(obj) + sizeof(TVMFFIObject)
+  );
+}
+#endif  // __cplusplus
 #endif  // TVM_FFI_C_API_H_

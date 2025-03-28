@@ -320,4 +320,13 @@ TEST(String, BytesAny) {
   EXPECT_EQ(b.as<Bytes>().value().operator std::string(), s);
   EXPECT_EQ(b.as<std::string>().value(), s);
 }
+
+TEST(String, CAPIAccessor) {
+  using namespace std;
+  String s{"hello"};
+  TVMFFIObjectHandle obj = details::ObjectUnsafe::GetRawObjectPtrFromObjectRef(s);
+  TVMFFIByteArray* arr = TVMFFIBytesGetByteArrayPtr(obj);
+  EXPECT_EQ(arr->size, 5);
+  EXPECT_EQ(std::string(arr->data, arr->size), "hello");
+}
 }  // namespace
