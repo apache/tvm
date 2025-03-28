@@ -401,7 +401,7 @@ struct AnyUnsafe : public ObjectUnsafe {
 };
 }  // namespace details
 
-/*! \brief String-aware ObjectRef equal functor */
+/*! \brief String-aware Any equal functor */
 struct AnyHash {
   /*!
    * \brief Calculate the hash code of an Any
@@ -446,6 +446,7 @@ struct AnyEqual {
     return false;
   }
 };
+
 }  // namespace ffi
 }  // namespace tvm
 #endif  // TVM_FFI_ANY_H_
