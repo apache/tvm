@@ -488,7 +488,6 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                         self.env[node] = getattr(exported_program.graph_module, node.target)
                     elif node.op == "call_function":
                         func_name = node.target.__name__
-                        print("unsing function", func_name)
                         assert (
                             func_name in self.convert_map
                         ), f"Unsupported function type {func_name}"
