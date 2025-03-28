@@ -307,6 +307,39 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         dim = node.args[1] if len(node.args) > 1 else node.kwargs.get("dim", -1)
         return self.block_builder.emit(relax.op.nn.softmax(x, dim))
 
+    def _softshrink(self, node: fx.Node) -> relax.Var:
+        """
+        Applies the Softshrink activation function in Relax.
+
+        Softshrink(x) = 
+            x - λ    if x > λ
+            x + λ    if x < -λ
+            0        otherwise
+
+        Args:
+            node (fx.Node): The input node containing the tensor and lambda value.
+
+        Returns:
+            relax.Var: The resulting tensor after applying Softshrink.
+        """
+        args = self.retrieve_args(node)
+        x = args[0]
+        lambd = relax.const(args[1] if len(args) > 1 else 0.5, x.struct_info.dtype)
+
+        # Apply Softshrink transformation with masking
+        shrink_pos = relax.op.multiply(
+            relax.op.subtract(x, lambd), 
+            relax.op.astype(relax.op.greater(x, lambd), x.struct_info.dtype)
+        )
+
+        shrink_neg = relax.op.multiply(
+            relax.op.add(x, lambd), 
+            relax.op.astype(relax.op.less(x, relax.op.negative(lambd)), x.struct_info.dtype)
+        )
+
+        # Combine the positive and negative shrink results
+        return self.block_builder.emit(relax.op.add(shrink_pos, shrink_neg))
+    
     def _selu(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         alpha = node.args[1] if len(node.args) > 1 else node.kwargs.get("alpha", 1.6732631921768188)
