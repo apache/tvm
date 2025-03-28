@@ -24,8 +24,8 @@
 #ifndef TVM_RUNTIME_DATA_TYPE_H_
 #define TVM_RUNTIME_DATA_TYPE_H_
 
-#include <tvm/ffi/type_traits.h>
 #include <tvm/ffi/string.h>
+#include <tvm/ffi/type_traits.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/logging.h>
 
@@ -587,8 +587,8 @@ struct TypeTraits<runtime::DataType> : public TypeTraitsBase {
       return runtime::DataType(src->v_dtype);
     }
     // enable string to dtype auto conversion
-    return runtime::DataType(runtime::String2DLDataType(
-        TypeTraits<std::string>::CopyFromAnyViewAfterCheck(src)));
+    return runtime::DataType(
+        runtime::String2DLDataType(TypeTraits<std::string>::CopyFromAnyViewAfterCheck(src)));
   }
 
   static TVM_FFI_INLINE std::string TypeStr() { return ffi::StaticTypeKey::kTVMFFIDataType; }
