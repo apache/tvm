@@ -145,7 +145,6 @@ struct TypeTraits<bool> : public TypeTraitsBase {
   static TVM_FFI_INLINE std::string TypeStr() { return StaticTypeKey::kTVMFFIBool; }
 };
 
-
 // Integer POD values
 template <typename Int>
 struct TypeTraits<Int, std::enable_if_t<std::is_integral_v<Int>>> : public TypeTraitsBase {
@@ -250,40 +249,6 @@ struct TypeTraits<void*> : public TypeTraitsBase {
 
   static TVM_FFI_INLINE std::string TypeStr() { return StaticTypeKey::kTVMFFIOpaquePtr; }
 };
-
-// DataType
-template <>
-struct TypeTraits<DLDataType> : public TypeTraitsBase {
-  static constexpr int32_t field_static_type_index = TypeIndex::kTVMFFIDataType;
-
-  static TVM_FFI_INLINE void CopyToAnyView(const DLDataType& src, TVMFFIAny* result) {
-    result->type_index = TypeIndex::kTVMFFIDataType;
-    result->v_dtype = src;
-  }
-
-  static TVM_FFI_INLINE void MoveToAny(DLDataType src, TVMFFIAny* result) {
-    result->type_index = TypeIndex::kTVMFFIDataType;
-    result->v_dtype = src;
-  }
-
-  static TVM_FFI_INLINE std::optional<DLDataType> TryCopyFromAnyView(const TVMFFIAny* src) {
-    if (src->type_index == TypeIndex::kTVMFFIDataType) {
-      return src->v_dtype;
-    }
-    return std::nullopt;
-  }
-
-  static TVM_FFI_INLINE bool CheckAnyView(const TVMFFIAny* src) {
-    return src->type_index == TypeIndex::kTVMFFIDataType;
-  }
-
-  static TVM_FFI_INLINE DLDataType CopyFromAnyViewAfterCheck(const TVMFFIAny* src) {
-    return src->v_dtype;
-  }
-
-  static TVM_FFI_INLINE std::string TypeStr() { return StaticTypeKey::kTVMFFIDataType; }
-};
-
 
 // Device
 template <>
