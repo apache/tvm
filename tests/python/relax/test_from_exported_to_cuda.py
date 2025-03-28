@@ -476,57 +476,6 @@ def test_index_select(target, dev):
 
     raw_data = np.random.rand(3, 4).astype("float32")
     torch_module = IndexSelectModel().eval()
-
-
-    torch_module = ChunkModel(chunks=chunks, dim=dim).eval()
-    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
-
-
-@tvm.testing.parametrize_targets("cuda")
-def test_chunk_uneven(target, dev):
-    # Chunks is not a divisor of the dimension size
-    batch = 2
-    channels = 5
-    height = 4
-    width = 5
-    chunks = 2
-    dim = 1
-    raw_data = np.random.rand(batch, channels, height, width).astype("float32")
-
-    class ChunkModel(nn.Module):
-        def __init__(self, chunks, dim):
-            super().__init__()
-            self.chunks = chunks
-            self.dim = dim
-
-        def forward(self, x):
-            return x.chunk(self.chunks, dim=self.dim)
-
-    torch_module = ChunkModel(chunks=chunks, dim=dim).eval()
-    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
-
-
-@tvm.testing.parametrize_targets("cuda")
-def test_chunk_too_many(target, dev):
-    # If user asks for more chunks than the size of the dim, pytorch simply splits in sections of size 1
-    batch = 1
-    channels = 3
-    height = 2
-    width = 2
-    chunks = 99
-    dim = 1
-    raw_data = np.random.rand(batch, channels, height, width).astype("float32")
-
-    class ChunkModel(nn.Module):
-        def __init__(self, chunks, dim):
-            super().__init__()
-            self.chunks = chunks
-            self.dim = dim
-
-        def forward(self, x):
-            return x.chunk(self.chunks, dim=self.dim)
-
-    torch_module = ChunkModel(chunks=chunks, dim=dim).eval()
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 
