@@ -25,6 +25,7 @@
 #define TVM_RUNTIME_DATA_TYPE_H_
 
 #include <tvm/ffi/type_traits.h>
+#include <tvm/ffi/string.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/logging.h>
 
@@ -569,18 +570,28 @@ struct TypeTraits<runtime::DataType> : public TypeTraitsBase {
     if (src->type_index == TypeIndex::kTVMFFIDataType) {
       return runtime::DataType(src->v_dtype);
     }
+    // enable string to dtype auto conversion
+    if (auto opt_str = TypeTraits<std::string>::TryCopyFromAnyView(src)) {
+      return runtime::DataType(runtime::String2DLDataType(opt_str.value()));
+    }
     return std::nullopt;
   }
 
   static TVM_FFI_INLINE bool CheckAnyView(const TVMFFIAny* src) {
-    return src->type_index == TypeIndex::kTVMFFIDataType;
+    return src->type_index == TypeIndex::kTVMFFIDataType ||
+           TypeTraits<std::string>::CheckAnyView(src);
   }
 
   static TVM_FFI_INLINE runtime::DataType CopyFromAnyViewAfterCheck(const TVMFFIAny* src) {
-    return runtime::DataType(src->v_dtype);
+    if (src->type_index == TypeIndex::kTVMFFIDataType) {
+      return runtime::DataType(src->v_dtype);
+    }
+    // enable string to dtype auto conversion
+    return runtime::DataType(runtime::String2DLDataType(
+        TypeTraits<std::string>::CopyFromAnyViewAfterCheck(src)));
   }
 
-  static TVM_FFI_INLINE std::string TypeStr() { return "DataType"; }
+  static TVM_FFI_INLINE std::string TypeStr() { return ffi::StaticTypeKey::kTVMFFIDataType; }
 };
 
 }  // namespace ffi
