@@ -23,9 +23,10 @@
 #ifndef TVM_FFI_CAST_H_
 #define TVM_FFI_CAST_H_
 
+#include <tvm/ffi/any.h>
+#include <tvm/ffi/dtype.h>
 #include <tvm/ffi/error.h>
 #include <tvm/ffi/object.h>
-#include <tvm/ffi/any.h>
 
 #include <utility>
 

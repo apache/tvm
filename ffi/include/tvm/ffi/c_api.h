@@ -453,9 +453,7 @@ inline int32_t TVMFFIObjectGetTypeIndex(TVMFFIObjectHandle obj) {
  * \return The data pointer.
  */
 inline TVMFFIByteArray* TVMFFIBytesGetByteArrayPtr(TVMFFIObjectHandle obj) {
-  return reinterpret_cast<TVMFFIByteArray*>(
-    reinterpret_cast<char*>(obj) + sizeof(TVMFFIObject)
-  );
+  return reinterpret_cast<TVMFFIByteArray*>(reinterpret_cast<char*>(obj) + sizeof(TVMFFIObject));
 }
 
 /*!
@@ -464,9 +462,7 @@ inline TVMFFIByteArray* TVMFFIBytesGetByteArrayPtr(TVMFFIObjectHandle obj) {
  * \return The DLTensor pointer.
  */
 inline DLTensor* TVMFFINDArrayGetDLTensorPtr(TVMFFIObjectHandle obj) {
-  return reinterpret_cast<DLTensor*>(
-    reinterpret_cast<char*>(obj) + sizeof(TVMFFIObject)
-  );
+  return reinterpret_cast<DLTensor*>(reinterpret_cast<char*>(obj) + sizeof(TVMFFIObject));
 }
 #endif  // __cplusplus
 #endif  // TVM_FFI_C_API_H_

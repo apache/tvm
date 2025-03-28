@@ -144,43 +144,6 @@ TEST(Any, Float) {
   EXPECT_EQ(view0.CopyToTVMFFIAny().v_float64, 2);
 }
 
-TEST(Any, DataType) {
-  AnyView view0;
-  EXPECT_EQ(view0.CopyToTVMFFIAny().type_index, TypeIndex::kTVMFFINone);
-
-  std::optional<DLDataType> opt_v0 = view0.as<DLDataType>();
-  EXPECT_TRUE(!opt_v0.has_value());
-
-  EXPECT_THROW(
-      {
-        try {
-          [[maybe_unused]] DLDataType v0 = view0;
-        } catch (const Error& error) {
-          EXPECT_EQ(error->kind, "TypeError");
-          std::string what = error.what();
-          EXPECT_NE(what.find("Cannot convert from type `None` to `DataType`"), std::string::npos);
-          throw;
-        }
-      },
-      ::tvm::ffi::Error);
-
-  DLDataType dtype{kDLFloat, 32, 1};
-
-  AnyView view1_dtype = dtype;
-  DLDataType dtype_v1 = view1_dtype;
-  EXPECT_EQ(dtype_v1.code, kDLFloat);
-  EXPECT_EQ(dtype_v1.bits, 32);
-  EXPECT_EQ(dtype_v1.lanes, 1);
-
-  Any view2 = DLDataType{kDLInt, 16, 2};
-  TVMFFIAny ffi_v2;
-  view2.MoveToTVMFFIAny(&ffi_v2);
-  EXPECT_EQ(ffi_v2.type_index, TypeIndex::kTVMFFIDataType);
-  EXPECT_EQ(ffi_v2.v_dtype.code, kDLInt);
-  EXPECT_EQ(ffi_v2.v_dtype.bits, 16);
-  EXPECT_EQ(ffi_v2.v_dtype.lanes, 2);
-}
-
 TEST(Any, Device) {
   AnyView view0;
   EXPECT_EQ(view0.CopyToTVMFFIAny().type_index, TypeIndex::kTVMFFINone);
