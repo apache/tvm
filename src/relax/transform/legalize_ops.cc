@@ -22,7 +22,6 @@
  * \brief Legalize high-level operator calls in Relax functions to call_tir
  * with corresponding low-level TIR PrimFuncs.
  */
-
 #include <tvm/relax/analysis.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/op_attr_types.h>
@@ -30,10 +29,18 @@
 #include <tvm/relax/transform.h>
 #include <tvm/tir/transform.h>
 
+#include <set>
+
 namespace tvm {
 namespace relax {
 
 TVM_REGISTER_PASS_CONFIG_OPTION("relax.transform.apply_legalize_ops", Bool);
+
+static Array<PrimExpr> GetShapeFromTensorStructInfo(const TensorStructInfo& tensor_sinfo) {
+  auto shape = tensor_sinfo->GetShape();
+  ICHECK(shape.defined());
+  return shape.value();
+}
 
 /*!
  * \brief Check if a given Tensor/Shape/TupleStructInfo contains shapes whose
@@ -60,10 +67,15 @@ bool KnowAllShapeValues(const StructInfo& sinfo) {
 class LegalizeMutator : public ExprMutator {
  public:
   explicit LegalizeMutator(const IRModule& mod, const Optional<Map<String, PackedFunc>>& cmap,
-                           bool enable_warning)
+                           const Optional<Array<String>> skip_ops, bool enable_warning)
       : ExprMutator(mod), mod_(std::move(mod)), enable_warning_(enable_warning) {
     if (cmap) {
       cmap_ = std::move(cmap.value());
+    }
+    if (skip_ops.defined()) {
+      for (const auto name : skip_ops.value()) {
+        skip_ops_.insert(Op::Get(name));
+      }
     }
   }
 
@@ -152,6 +164,68 @@ class LegalizeMutator : public ExprMutator {
     return NullOpt;
   }
 
+  Expr UpdateVDeviceOutStructInfo(Expr expr, const Call& visited_call) {
+    static const auto& infer_struct_info_map = Op::GetAttrMap<FInferStructInfo>("FInferStructInfo");
+    static const Op& call_tir_op = Op::Get("relax.call_tir");
+    auto* op_node = visited_call->op.as<OpNode>();
+
+    // Not an OpNode
+    if (op_node == nullptr) {
+      return expr;
+    }
+    auto op = GetRef<Op>(op_node);
+
+    if (!infer_struct_info_map.count(op)) {
+      return expr;
+    }
+
+    if (!expr->IsInstance<CallNode>()) {
+      return expr;
+    }
+
+    auto call = Downcast<Call>(expr);
+    if (call->op != call_tir_op) {
+      return expr;
+    }
+
+    StructInfo out_sinfo = call->sinfo_args[0];
+    StructInfo infered_sinfo = infer_struct_info_map[op](visited_call, builder_);
+
+    if (out_sinfo->IsInstance<TensorStructInfoNode>()) {
+      auto out_tsinfo = Downcast<TensorStructInfo>(out_sinfo);
+      auto infered_tsinfo = Downcast<TensorStructInfo>(infered_sinfo);
+      auto shape_arr = GetShapeFromTensorStructInfo(out_tsinfo);
+      if (infered_tsinfo->vdevice.defined()) {
+        out_sinfo = TensorStructInfo(ShapeExpr(shape_arr), out_tsinfo->dtype,
+                                     infered_tsinfo->vdevice.value());
+      }
+    } else if (out_sinfo->IsInstance<TupleStructInfoNode>()) {
+      const auto& tuple_sinfo = Downcast<TupleStructInfo>(out_sinfo);
+      const auto& infered_tuple_sinfo = Downcast<TupleStructInfo>(infered_sinfo);
+      Array<StructInfo> sinfo_fields;
+      int index = 0;
+      for (const auto& si : tuple_sinfo->fields) {
+        ICHECK(si->IsInstance<TensorStructInfoNode>())
+            << "Fields of TupleStructInfo must be TensorStructInfo for call_tir "
+               "output structinfo, but got "
+            << si;
+        auto tsinfo = Downcast<TensorStructInfo>(si);
+        auto shape_arr = GetShapeFromTensorStructInfo(tsinfo);
+        auto infered_tsinfo = Downcast<TensorStructInfo>(infered_tuple_sinfo->fields[index]);
+        if (infered_tsinfo->vdevice.defined()) {
+          sinfo_fields.push_back(TensorStructInfo(ShapeExpr(shape_arr), tsinfo->dtype,
+                                                  infered_tsinfo->vdevice.value()));
+        } else {
+          sinfo_fields.push_back(tsinfo);
+        }
+        ++index;
+      }
+      out_sinfo = TupleStructInfo(sinfo_fields);
+    }
+
+    return Call(call_tir_op, call->args, call->attrs, {out_sinfo});
+  }
+
   Expr BindTarget(Expr expr) {
     if (!expr->IsInstance<CallNode>()) {
       // FLegalize returned something other than a relax::Call.  This
@@ -235,7 +309,12 @@ class LegalizeMutator : public ExprMutator {
     if (op_node == nullptr) {
       return visited_call;
     }
+
     auto op = GetRef<Op>(op_node);
+
+    if (skip_ops_.find(op) != skip_ops_.end()) {
+      return visited_call;
+    }
 
     bool shapes_are_known_if_required = [&]() -> bool {
       bool requires_arg_shapes = requires_arg_shapes_map.get(op, Bool(true))->value;
@@ -342,6 +421,8 @@ class LegalizeMutator : public ExprMutator {
     }
     Expr legalized = legalization_func(builder_, visited_call);
 
+    legalized = UpdateVDeviceOutStructInfo(legalized, visited_call);
+
     // Append the target attribute to any PrimFunc generated in
     // legalization.
     legalized = BindTarget(legalized);
@@ -385,17 +466,22 @@ class LegalizeMutator : public ExprMutator {
    * legalization function is not registered.
    */
   bool enable_warning_;
+  /*!
+   * \brief List of ops to be skipped from legalization
+   */
+  std::set<Op> skip_ops_;
 };
 
 namespace transform {
 
-Pass LegalizeOps(Optional<Map<String, PackedFunc>> cmap, bool enable_warning) {
+Pass LegalizeOps(Optional<Map<String, PackedFunc>> cmap, Optional<Array<String>> skip_ops,
+                 bool enable_warning) {
   runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func = [=](IRModule mod,
                                                                             PassContext pc) {
     bool apply_legalize_ops =
         pc->GetConfig<Bool>("relax.transform.apply_legalize_ops").value_or(Bool(true))->value;
     if (apply_legalize_ops) {
-      mod = LegalizeMutator(mod, cmap, enable_warning).Transform();
+      mod = LegalizeMutator(mod, cmap, skip_ops, enable_warning).Transform();
     }
     return mod;
   };

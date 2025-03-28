@@ -439,5 +439,20 @@ def test_hint_on_device():
     _check(foo, bb.get()["foo"])
 
 
+def test_hint_on_device_scoped():
+    @R.function
+    def foo(x: R.Tensor((), "int32")) -> R.Tensor((), "int32"):
+        r = R.hint_on_device(x, R.device(4, 2), "global.texture")
+        return r
+
+    x = relax.Var("x", R.Tensor((), "int32"))
+    bb = relax.BlockBuilder()
+    with bb.function("foo", (x,)):
+        tensor = bb.emit(relax.op.hint_on_device(x, R.opencl(2), "global.texture"))
+        bb.emit_func_output(tensor)
+
+    _check(foo, bb.get()["foo"])
+
+
 if __name__ == "__main__":
     tvm.testing.main()
