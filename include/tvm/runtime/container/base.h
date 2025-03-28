@@ -35,7 +35,6 @@
 namespace tvm {
 namespace runtime {
 
-
 /*!
  * \brief Base template for classes with array like memory layout.
  *

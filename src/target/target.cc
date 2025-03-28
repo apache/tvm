@@ -356,8 +356,7 @@ const TargetKindNode::ValueTypeInfo& TargetInternal::FindTypeInfo(const TargetKi
 
 /**********  Parsing  **********/
 
-Any TargetInternal::ParseType(const std::string& str,
-                                    const TargetKindNode::ValueTypeInfo& info) {
+Any TargetInternal::ParseType(const std::string& str, const TargetKindNode::ValueTypeInfo& info) {
   std::string interp_str = Interpret(str);
   if (info.type_index == runtime::Int::ContainerType::_GetOrAllocRuntimeTypeIndex() ||
       info.type_index == runtime::Bool::ContainerType::_GetOrAllocRuntimeTypeIndex()) {
@@ -415,8 +414,7 @@ Any TargetInternal::ParseType(const std::string& str,
               "\" for parsing from string: " + interp_str);
 }
 
-Any TargetInternal::ParseType(const Any& obj,
-                                    const TargetKindNode::ValueTypeInfo& info) {
+Any TargetInternal::ParseType(const Any& obj, const TargetKindNode::ValueTypeInfo& info) {
   if (info.type_index == runtime::Int::ContainerType::_GetOrAllocRuntimeTypeIndex()) {
     // Parsing integer
     return GetRef<runtime::Int>(ObjTypeCheck<runtime::Int::ContainerType>(obj, "runtime.BoxInt"));
@@ -782,8 +780,7 @@ void TargetInternal::ConstructorDispatcher(TVMArgs args, TVMRetValue* rv) {
     }
     return;
   }
-  LOG(FATAL) << "ValueError: Invalid number of arguments. Expect 1 or 2, but gets: "
-             << args.size();
+  LOG(FATAL) << "ValueError: Invalid number of arguments. Expect 1 or 2, but gets: " << args.size();
 }
 
 ObjectPtr<Object> TargetInternal::FromString(const String& tag_or_config_or_target_str) {
