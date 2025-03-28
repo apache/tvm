@@ -54,8 +54,8 @@ class TargetInternal {
   static const TargetKindNode::ValueTypeInfo& FindTypeInfo(const TargetKind& kind,
                                                            const std::string& key);
   static Optional<String> StringifyAttrsToRaw(const Map<String, ffi::Any>& attrs);
-  static ObjectRef ParseType(const std::string& str, const TargetKindNode::ValueTypeInfo& info);
-  static ObjectRef ParseType(const ObjectRef& obj, const TargetKindNode::ValueTypeInfo& info);
+  static Any ParseType(const std::string& str, const TargetKindNode::ValueTypeInfo& info);
+  static Any ParseType(const Any& obj, const TargetKindNode::ValueTypeInfo& info);
   static ObjectPtr<Object> FromString(const String& tag_or_config_or_target_str);
   static ObjectPtr<Object> FromConfigString(const String& config_str);
   static ObjectPtr<Object> FromRawString(const String& target_str);
@@ -75,7 +75,7 @@ class TargetInternal {
   static std::vector<std::string> SplitString(const std::string& str, char separator);
   static std::string Interpret(const std::string& str);
   static std::string Uninterpret(const std::string& str);
-  static std::string StringifyAtomicType(const ObjectRef& obj);
+  static std::string StringifyAtomicType(const Any& obj);
   static std::string StringifyArray(const ArrayNode& array);
 
   static constexpr char quote = '\'';
@@ -110,11 +110,11 @@ static std::vector<String> DeduplicateKeys(const std::vector<String>& keys) {
 }
 
 template <class TObj>
-static const TObj* ObjTypeCheck(const ObjectRef& obj, const std::string& expected_type) {
+static const TObj* ObjTypeCheck(const Any& obj, const std::string& expected_type) {
   const TObj* ptr = obj.as<TObj>();
   if (ptr == nullptr) {
     std::ostringstream os;
-    os << ": Expects type \"" << expected_type << "\", but gets \"" << obj->GetTypeKey()
+    os << ": Expects type \"" << expected_type << "\", but gets \"" << obj.GetTypeKey()
        << "\" for object: " << obj;
     throw Error(os.str());
   }
@@ -356,7 +356,7 @@ const TargetKindNode::ValueTypeInfo& TargetInternal::FindTypeInfo(const TargetKi
 
 /**********  Parsing  **********/
 
-ObjectRef TargetInternal::ParseType(const std::string& str,
+Any TargetInternal::ParseType(const std::string& str,
                                     const TargetKindNode::ValueTypeInfo& info) {
   std::string interp_str = Interpret(str);
   if (info.type_index == runtime::Int::ContainerType::_GetOrAllocRuntimeTypeIndex() ||
@@ -415,7 +415,7 @@ ObjectRef TargetInternal::ParseType(const std::string& str,
               "\" for parsing from string: " + interp_str);
 }
 
-ObjectRef TargetInternal::ParseType(const ObjectRef& obj,
+Any TargetInternal::ParseType(const Any& obj,
                                     const TargetKindNode::ValueTypeInfo& info) {
   if (info.type_index == runtime::Int::ContainerType::_GetOrAllocRuntimeTypeIndex()) {
     // Parsing integer
@@ -433,18 +433,18 @@ ObjectRef TargetInternal::ParseType(const ObjectRef& obj,
       for (const auto& kv : *ptr) {
         if (!kv.first.as<StringObj>()) {
           throw Error(": Target object requires key of dict to be str, but get: " +
-                      kv.first->GetTypeKey());
+                      kv.first.GetTypeKey());
         }
       }
       Map<String, ffi::Any> config = GetRef<Map<String, ffi::Any>>(ptr);
       return Target(TargetInternal::FromConfig({config.begin(), config.end()}));
     }
-    throw Error(": Expect type 'dict' or 'str' to construct Target, but get: " + obj->GetTypeKey());
+    throw Error(": Expect type 'dict' or 'str' to construct Target, but get: " + obj.GetTypeKey());
   } else if (info.type_index == ArrayNode::_GetOrAllocRuntimeTypeIndex()) {
     // Parsing array
     const auto* array = ObjTypeCheck<ArrayNode>(obj, "Array");
     std::vector<ObjectRef> result;
-    for (const ObjectRef& e : *array) {
+    for (const Any& e : *array) {
       try {
         result.push_back(TargetInternal::ParseType(e, *info.key));
       } catch (const Error& e) {
@@ -456,9 +456,9 @@ ObjectRef TargetInternal::ParseType(const ObjectRef& obj,
   } else if (info.type_index == MapNode::_GetOrAllocRuntimeTypeIndex()) {
     // Parsing map
     const auto* map = ObjTypeCheck<MapNode>(obj, "Map");
-    std::unordered_map<ObjectRef, ObjectRef, ObjectHash, ObjectEqual> result;
+    std::unordered_map<Any, Any, ffi::AnyHash, ffi::AnyEqual> result;
     for (const auto& kv : *map) {
-      ObjectRef key, val;
+      Any key, val;
       try {
         key = TargetInternal::ParseType(kv.first, *info.key);
       } catch (const Error& e) {
@@ -475,12 +475,12 @@ ObjectRef TargetInternal::ParseType(const ObjectRef& obj,
       }
       result[key] = val;
     }
-    return Map<ObjectRef, ObjectRef>(result);
+    return Map<Any, Any>(result);
   }
-  if (info.type_index != obj->type_index()) {
+  if (info.type_index != obj.type_index()) {
     std::ostringstream os;
     os << ": Parsing type \"" << info.type_key
-       << "\" is not supported for the given object of type \"" << obj->GetTypeKey()
+       << "\" is not supported for the given object of type \"" << obj.GetTypeKey()
        << "\". The object is: " << obj;
     throw Error(os.str());
   }
@@ -489,7 +489,7 @@ ObjectRef TargetInternal::ParseType(const ObjectRef& obj,
 
 /**********  Stringifying  **********/
 
-std::string TargetInternal::StringifyAtomicType(const ObjectRef& obj) {
+std::string TargetInternal::StringifyAtomicType(const Any& obj) {
   if (const auto* p = obj.as<runtime::Int::ContainerType>()) {
     return std::to_string(p->value);
   } else if (const auto* p = obj.as<runtime::Bool::ContainerType>()) {
@@ -505,14 +505,14 @@ std::string TargetInternal::StringifyAtomicType(const ObjectRef& obj) {
     }
     return u;
   }
-  LOG(FATAL) << "Cannot stringify object of type " << obj->GetTypeKey();
+  LOG(FATAL) << "Cannot stringify object of type " << obj.GetTypeKey();
   TVM_FFI_UNREACHABLE();
 }
 
 std::string TargetInternal::StringifyArray(const ArrayNode& array) {
   std::vector<std::string> elements;
 
-  for (const ObjectRef& item : array) {
+  for (const Any& item : array) {
     std::string s = StringifyAtomicType(item);
     std::string u = Uninterpret(s);
     if (u.find_first_of(',') != std::string::npos && !IsQuoted(u)) {
@@ -760,24 +760,20 @@ Target Target::Current(bool allow_not_defined) {
 /**********  Creation  **********/
 
 void TargetInternal::ConstructorDispatcher(TVMArgs args, TVMRetValue* rv) {
-  if (args.num_args == 1) {
+  if (args.size() == 1) {
     const auto& arg = args[0];
-    if (arg.IsObjectRef<Target>()) {
-      *rv = Target(arg.AsObjectRef<Target>());
-    } else if (String::CanConvertFrom(arg)) {
-      *rv = Target(arg.operator String());
-    } else if (arg.IsObjectRef<Map<String, ffi::Any>>()) {
-      *rv = Target(arg.operator Map<String, ffi::Any>());
-    } else if (arg.type_code() == kTVMObjectHandle) {
-      ObjectRef obj = arg;
-      LOG(FATAL) << "TypeError: Cannot create target with type: " << obj->GetTypeKey();
+    if (auto opt_target = arg.as<Target>()) {
+      *rv = Target(opt_target.value());
+    } else if (auto opt_str = arg.as<String>()) {
+      *rv = Target(opt_str.value());
+    } else if (auto opt_map = arg.as<Map<String, ffi::Any>>()) {
+      *rv = Target(opt_map.value());
     } else {
-      LOG(FATAL) << "TypeError: Cannot create target with type: "
-                 << runtime::ArgTypeCode2Str(arg.type_code());
+      LOG(FATAL) << "TypeError: Cannot create target with type: " << args[0].GetTypeKey();
     }
     return;
-  } else if (args.num_args == 2) {
-    if (args[0].IsObjectRef<Target>() && args[1].IsObjectRef<Target>()) {
+  } else if (args.size() == 2) {
+    if (args[0].as<Target>().has_value() && args[1].as<Target>().has_value()) {
       Target target = args[0];
       Target host = args[1];
       *rv = Target(target, host);
@@ -787,13 +783,13 @@ void TargetInternal::ConstructorDispatcher(TVMArgs args, TVMRetValue* rv) {
     return;
   }
   LOG(FATAL) << "ValueError: Invalid number of arguments. Expect 1 or 2, but gets: "
-             << args.num_args;
+             << args.size();
 }
 
 ObjectPtr<Object> TargetInternal::FromString(const String& tag_or_config_or_target_str) {
   if (Optional<Target> target = TargetTag::Get(tag_or_config_or_target_str)) {
     Target value = target.value();
-    return ffi::details::ObjectUnsafe::ObjectPtrFromObjectRef(std::move(value));
+    return ffi::details::ObjectUnsafe::ObjectPtrFromObjectRef<Object>(value);
   }
   if (!tag_or_config_or_target_str.empty() && tag_or_config_or_target_str.data()[0] == '{') {
     return TargetInternal::FromConfigString(tag_or_config_or_target_str);
@@ -873,7 +869,7 @@ ObjectPtr<Object> TargetInternal::FromConfig(Map<String, ffi::Any> config) {
       config.erase(kKind);
     } else {
       throw Error(": Expect type of field \"kind\" is String, but get type: " +
-                  config[kKind]->GetTypeKey());
+                  config[kKind].GetTypeKey());
     }
   } else {
     throw Error(": Field \"kind\" is not found");
@@ -885,7 +881,7 @@ ObjectPtr<Object> TargetInternal::FromConfig(Map<String, ffi::Any> config) {
       config.erase(kTag);
     } else {
       throw Error(": Expect type of field \"tag\" is String, but get type: " +
-                  config[kTag]->GetTypeKey());
+                  config[kTag].GetTypeKey());
     }
   } else {
     target->tag = "";
@@ -897,19 +893,19 @@ ObjectPtr<Object> TargetInternal::FromConfig(Map<String, ffi::Any> config) {
     if (has_user_keys) {
       // user provided keys
       if (const auto* cfg_keys = config[kKeys].as<ArrayNode>()) {
-        for (const ObjectRef& e : *cfg_keys) {
+        for (const Any& e : *cfg_keys) {
           if (auto key = e.as<String>()) {
             keys.push_back(key.value());
           } else {
             throw Error(
                 ": Expect 'keys' to be an array of strings, but it "
                 "contains an element of type: " +
-                e->GetTypeKey());
+                e.GetTypeKey());
           }
         }
       } else {
         throw Error(": Expect type of field \"keys\" is Array, but get type: " +
-                    config[kKeys]->GetTypeKey());
+                    config[kKeys].GetTypeKey());
       }
     }
     // add device name
@@ -930,7 +926,7 @@ ObjectPtr<Object> TargetInternal::FromConfig(Map<String, ffi::Any> config) {
   }
   // parse host
   if (config.count(kHost)) {
-    target->host = PackedFunc(ConstructorDispatcher)(config[kHost]).AsObjectRef<Target>();
+    target->host = PackedFunc(ConstructorDispatcher)(config[kHost]).operator Target();
     config.erase(kHost);
   } else {
     target->host = NullOpt;

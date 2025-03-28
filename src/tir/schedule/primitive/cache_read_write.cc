@@ -80,7 +80,7 @@ struct CacheStageInfo {
   /*! \brief The map used for ScheduleStateNode::Replace. */
   Map<Block, Block> block_reuse;
   /*! \brief A set of blocks that will consume the new cache. */
-  std::unordered_set<StmtSRef, ObjectHash, ObjectEqual> consumer_blocks;
+  std::unordered_set<StmtSRef, ObjectPtrHash, ObjectPtrEqual> consumer_blocks;
   /*! \brief cache region for the buffer to be cached */
   BufferRegion cache_region;
 };
@@ -349,7 +349,7 @@ Block MakeReIndexStage(const Block& block, CacheStageInfo* info,
   // iters of the reindex block
   Array<IterVar> new_block_iters;
   // the substitution map from the original block iter to the iters of the reindex block
-  std::unordered_map<Var, Var, ObjectPtrHash, ObjectEqual> block_var_replace_map;
+  std::unordered_map<Var, Var, ObjectPtrHash, ObjectPtrEqual> block_var_replace_map;
   // indices to access the reindex buffer and the target buffer
   Array<PrimExpr> reindex_indices, target_indices;
 

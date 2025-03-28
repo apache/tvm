@@ -46,7 +46,7 @@ using support::NDIntSet;
 NDIntSet NDIntSetEval(Region region, PrimExpr predicate,
                       const std::unordered_map<const VarNode*, arith::IntSet>& dom_map,
                       arith::Analyzer* analyzer) {
-  std::unordered_map<Var, Range, ObjectPtrHash, ObjectEqual> var_dom;
+  std::unordered_map<Var, Range, ObjectPtrHash, ObjectPtrEqual> var_dom;
   for (const auto& it : dom_map) {
     var_dom[GetRef<Var>(it.first)] = it.second.CoverRange(Range::FromMinExtent(0, 0));
   }

@@ -362,7 +362,7 @@ class ForMatcher : public TensorizeComparator {
   arith::Analyzer analyzer_;
   std::vector<For> loop_stack_lhs_, loop_stack_rhs_;
   tir::PrimFunc pattern_;
-  std::unordered_set<Var, ObjectHash, ObjectEqual> pattern_vars_;
+  std::unordered_set<Var, ObjectPtrHash, ObjectPtrEqual> pattern_vars_;
 };
 
 /*! \brief Analyze the function and match it with a list of patterns */
