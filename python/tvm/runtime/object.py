@@ -23,6 +23,7 @@ from tvm._ffi.runtime_ctypes import ObjectRValueRef
 from tvm._ffi._cy3.core import (
     ObjectBase,
     PyNativeObject,
+    StringGetPyString,
     _set_class_object,
     _set_class_object_generic,
 )

@@ -16,7 +16,7 @@
 # under the License.
 """Runtime container structures."""
 import tvm._ffi
-from .object import Object, PyNativeObject
+from .object import Object, PyNativeObject, StringGetPyString
 from . import _ffi_api
 
 
@@ -80,7 +80,7 @@ class String(str, PyNativeObject):
     # pylint: disable=no-self-argument
     def __from_tvm_object__(cls, obj):
         """Construct from a given tvm object."""
-        content = _ffi_api.GetFFIString(obj)
+        content = StringGetPyString(obj)
         val = str.__new__(cls, content)
         val.__tvm_object__ = obj
         return val

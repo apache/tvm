@@ -570,16 +570,11 @@ int TVMFuncCall(TVMFunctionHandle func, TVMValue* args, int* arg_type_codes, int
   tvm::ffi::FunctionObj* ffi_func = static_cast<tvm::ffi::FunctionObj*>(func);
   LegacyCallPacked(ffi_func, args, arg_type_codes, num_args, &rv);
   // special handle of certain return types.
-  if (rv.type_index() == tvm::ffi::TypeIndex::kTVMFFIStr ||
-      rv.type_index() == tvm::ffi::TypeIndex::kTVMFFIDataType ||
+  if (rv.type_index() == tvm::ffi::TypeIndex::kTVMFFIDataType ||
       rv.type_index() == tvm::ffi::TypeIndex::kTVMFFIBytes) {
     // TODO(tvm-team): handle bytes return type here
     TVMRuntimeEntry* e = TVMAPIRuntimeStore::Get();
-    if (rv.type_index() == tvm::ffi::TypeIndex::kTVMFFIStr) {
-      e->ret_str = rv.operator std::string();
-      *ret_type_code = kTVMStr;
-      ret_val->v_str = e->ret_str.c_str();
-    } else if (rv.type_index() == tvm::ffi::TypeIndex::kTVMFFIDataType) {
+    if (rv.type_index() == tvm::ffi::TypeIndex::kTVMFFIDataType) {
       e->ret_str = DLDataType2String(rv.operator DLDataType());
       *ret_type_code = kTVMStr;
       ret_val->v_str = e->ret_str.c_str();

@@ -286,14 +286,12 @@ cdef inline int FuncCall(void* chandle,
 
 
 cdef inline int ConstructorCall(void* constructor_handle,
-                                int type_code,
                                 tuple args,
                                 void** handle) except -1:
     """Call contructor of a handle function"""
     cdef TVMValue ret_val
     cdef int ret_tcode
     FuncCall(constructor_handle, args, &ret_val, &ret_tcode)
-    assert ret_tcode == type_code
     handle[0] = ret_val.v_handle
     return 0
 
