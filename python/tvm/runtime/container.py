@@ -59,7 +59,7 @@ def getitem_helper(obj, elem_getter, length, idx):
     return elem_getter(obj, idx)
 
 
-@tvm._ffi.register_object("runtime.String")
+@tvm._ffi.register_object("object.String")
 class String(str, PyNativeObject):
     """TVM runtime.String object, represented as a python str.
 

@@ -22,7 +22,7 @@ from tvm.runtime.container import getitem_helper
 from tvm.runtime import _ffi_api
 
 
-@tvm._ffi.register_object("Array")
+@tvm._ffi.register_object("object.Array")
 class Array(Object):
     """Array container of TVM.
 
@@ -49,7 +49,7 @@ class Array(Object):
         raise AttributeError(f"{type(self)} has no attribute {name}")
 
 
-@tvm._ffi.register_object
+@tvm._ffi.register_object("object.Map")
 class Map(Object):
     """Map container of TVM.
 
