@@ -112,37 +112,7 @@ struct TypeTraits<std::nullptr_t> : public TypeTraitsBase {
     return nullptr;
   }
 
-  static TVM_FFI_INLINE std::string TypeStr() { return "None"; }
-};
-
-// Integer POD values
-template <typename Int>
-struct TypeTraits<Int, std::enable_if_t<std::is_integral_v<Int>>> : public TypeTraitsBase {
-  static constexpr int32_t field_static_type_index = TypeIndex::kTVMFFIInt;
-
-  static TVM_FFI_INLINE void CopyToAnyView(const Int& src, TVMFFIAny* result) {
-    result->type_index = TypeIndex::kTVMFFIInt;
-    result->v_int64 = static_cast<int64_t>(src);
-  }
-
-  static TVM_FFI_INLINE void MoveToAny(Int src, TVMFFIAny* result) { CopyToAnyView(src, result); }
-
-  static TVM_FFI_INLINE std::optional<Int> TryCopyFromAnyView(const TVMFFIAny* src) {
-    if (src->type_index == TypeIndex::kTVMFFIInt || src->type_index == TypeIndex::kTVMFFIBool) {
-      return std::make_optional<Int>(src->v_int64);
-    }
-    return std::nullopt;
-  }
-
-  static TVM_FFI_INLINE bool CheckAnyView(const TVMFFIAny* src) {
-    return src->type_index == TypeIndex::kTVMFFIInt || src->type_index == TypeIndex::kTVMFFIBool;
-  }
-
-  static TVM_FFI_INLINE int CopyFromAnyViewAfterCheck(const TVMFFIAny* src) {
-    return static_cast<Int>(src->v_int64);
-  }
-
-  static TVM_FFI_INLINE std::string TypeStr() { return "int"; }
+  static TVM_FFI_INLINE std::string TypeStr() { return StaticTypeKey::kTVMFFINone; }
 };
 
 // Bool type, allow implicit casting from int
@@ -172,7 +142,38 @@ struct TypeTraits<bool> : public TypeTraitsBase {
     return static_cast<bool>(src->v_int64);
   }
 
-  static TVM_FFI_INLINE std::string TypeStr() { return "bool"; }
+  static TVM_FFI_INLINE std::string TypeStr() { return StaticTypeKey::kTVMFFIBool; }
+};
+
+
+// Integer POD values
+template <typename Int>
+struct TypeTraits<Int, std::enable_if_t<std::is_integral_v<Int>>> : public TypeTraitsBase {
+  static constexpr int32_t field_static_type_index = TypeIndex::kTVMFFIInt;
+
+  static TVM_FFI_INLINE void CopyToAnyView(const Int& src, TVMFFIAny* result) {
+    result->type_index = TypeIndex::kTVMFFIInt;
+    result->v_int64 = static_cast<int64_t>(src);
+  }
+
+  static TVM_FFI_INLINE void MoveToAny(Int src, TVMFFIAny* result) { CopyToAnyView(src, result); }
+
+  static TVM_FFI_INLINE std::optional<Int> TryCopyFromAnyView(const TVMFFIAny* src) {
+    if (src->type_index == TypeIndex::kTVMFFIInt || src->type_index == TypeIndex::kTVMFFIBool) {
+      return std::make_optional<Int>(src->v_int64);
+    }
+    return std::nullopt;
+  }
+
+  static TVM_FFI_INLINE bool CheckAnyView(const TVMFFIAny* src) {
+    return src->type_index == TypeIndex::kTVMFFIInt || src->type_index == TypeIndex::kTVMFFIBool;
+  }
+
+  static TVM_FFI_INLINE int CopyFromAnyViewAfterCheck(const TVMFFIAny* src) {
+    return static_cast<Int>(src->v_int64);
+  }
+
+  static TVM_FFI_INLINE std::string TypeStr() { return StaticTypeKey::kTVMFFIInt; }
 };
 
 // Float POD values
@@ -211,7 +212,7 @@ struct TypeTraits<Float, std::enable_if_t<std::is_floating_point_v<Float>>>
     }
   }
 
-  static TVM_FFI_INLINE std::string TypeStr() { return "float"; }
+  static TVM_FFI_INLINE std::string TypeStr() { return StaticTypeKey::kTVMFFIFloat; }
 };
 
 // void*
@@ -247,7 +248,7 @@ struct TypeTraits<void*> : public TypeTraitsBase {
 
   static TVM_FFI_INLINE void* CopyFromAnyViewAfterCheck(const TVMFFIAny* src) { return src->v_ptr; }
 
-  static TVM_FFI_INLINE std::string TypeStr() { return "void*"; }
+  static TVM_FFI_INLINE std::string TypeStr() { return StaticTypeKey::kTVMFFIOpaquePtr; }
 };
 
 // DataType
@@ -280,8 +281,9 @@ struct TypeTraits<DLDataType> : public TypeTraitsBase {
     return src->v_dtype;
   }
 
-  static TVM_FFI_INLINE std::string TypeStr() { return "DataType"; }
+  static TVM_FFI_INLINE std::string TypeStr() { return StaticTypeKey::kTVMFFIDataType; }
 };
+
 
 // Device
 template <>
@@ -313,7 +315,7 @@ struct TypeTraits<DLDevice> : public TypeTraitsBase {
     return src->v_device;
   }
 
-  static TVM_FFI_INLINE std::string TypeStr() { return "Device"; }
+  static TVM_FFI_INLINE std::string TypeStr() { return StaticTypeKey::kTVMFFIDevice; }
 };
 
 // DLTensor*, requirement: not nullable, do not retain ownership
