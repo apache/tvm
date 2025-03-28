@@ -44,7 +44,7 @@ cdef inline object make_ret_object(void* chandle):
     cdef object handle
     object_type = OBJECT_TYPE
     handle = ctypes_handle(chandle)
-    CHECK_CALL(TVMObjectGetTypeIndex(chandle, &tindex))
+    tindex = TVMFFIObjectGetTypeIndex(chandle)
 
     if tindex < len(OBJECT_TYPE):
         cls = OBJECT_TYPE[tindex]
@@ -140,8 +140,7 @@ cdef class ObjectBase:
         self.chandle = NULL
         cdef void* chandle
         ConstructorCall(
-            (<PackedFuncBase>fconstructor).chandle,
-            kTVMObjectHandle, args, &chandle)
+            (<PackedFuncBase>fconstructor).chandle, args, &chandle)
         self.chandle = chandle
 
     def same_as(self, other):
@@ -160,3 +159,7 @@ cdef class ObjectBase:
         if not isinstance(other, ObjectBase):
             return False
         return self.chandle == (<ObjectBase>other).chandle
+
+def StringGetPyString(obj):
+    cdef TVMFFIByteArray* bytes = TVMFFIBytesGetByteArrayPtr((<ObjectBase>obj).chandle)
+    return py_str(bytes.data)

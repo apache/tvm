@@ -154,11 +154,20 @@ cdef extern from "tvm/runtime/c_runtime_api.h":
     int TVMObjectGetTypeIndex(ObjectHandle obj, unsigned* out_index)
 
 
+# the new FFI C API
+cdef extern from "tvm/ffi/c_api.h":
+    ctypedef void* TVMFFIObjectHandle
+
+    ctypedef struct TVMFFIByteArray:
+        const char* data
+        int64_t size
+
+    int TVMFFIObjectGetTypeIndex(TVMFFIObjectHandle obj) nogil
+    TVMFFIByteArray* TVMFFIBytesGetByteArrayPtr(TVMFFIObjectHandle obj) nogil
+
+
 cdef inline py_str(const char* x):
-    if PY_MAJOR_VERSION < 3:
-        return x
-    else:
-        return x.decode("utf-8")
+    return x.decode("utf-8")
 
 
 cdef inline c_str(pystr):
@@ -222,5 +231,6 @@ cdef _init_env_api():
     CHECK_CALL(TVMBackendRegisterEnvCAPI(c_str("PyGILState_Release"), <void*>PyGILState_Release))
     CHECK_CALL(TVMBackendRegisterEnvCAPI(c_str("Py_IncRef"), <void*>Py_IncRef))
     CHECK_CALL(TVMBackendRegisterEnvCAPI(c_str("Py_DecRef"), <void*>Py_DecRef))
+
 
 _init_env_api()
