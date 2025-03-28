@@ -97,4 +97,10 @@ TEST(ObjectRef, as) {
   EXPECT_EQ(b.as<TFloatObj>()->value, 20);
 }
 
+TEST(Object, CAPIAccessor) {
+  ObjectRef a = TInt(10);
+  TVMFFIObjectHandle obj = details::ObjectUnsafe::GetRawObjectPtrFromObjectRef(a);
+  int32_t type_index = TVMFFIObjectGetTypeIndex(obj);
+  EXPECT_EQ(type_index, TIntObj::RuntimeTypeIndex());
+}
 }  // namespace
