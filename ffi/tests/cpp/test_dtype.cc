@@ -21,8 +21,6 @@
 #include <tvm/ffi/dtype.h>
 #include <tvm/ffi/memory.h>
 
-#include "./testing_object.h"
-
 namespace {
 
 using namespace tvm::ffi;
