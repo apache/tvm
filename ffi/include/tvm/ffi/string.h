@@ -667,7 +667,6 @@ inline int Bytes::memncmp(const char* lhs, const char* rhs, size_t lhs_count, si
     return 0;
   }
 }
-
 }  // namespace ffi
 }  // namespace tvm
 
