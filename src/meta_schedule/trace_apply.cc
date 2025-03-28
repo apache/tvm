@@ -110,8 +110,8 @@ std::vector<BlockRV> ApplyAnchorTrace(Schedule sch, Trace anchor_trace) {
 
   std::unordered_map<const Object*, const Object*> rv_map;
   // Blocks and loops that appear in the anchor trace but are not part of the target schedule.
-  std::unordered_set<BlockRV, ObjectHash, ObjectEqual> foreign_blocks;
-  std::unordered_set<LoopRV, ObjectHash, ObjectEqual> foreign_loops;
+  std::unordered_set<BlockRV, ObjectPtrHash, ObjectPtrEqual> foreign_blocks;
+  std::unordered_set<LoopRV, ObjectPtrHash, ObjectPtrEqual> foreign_loops;
 
   // Instructions in the anchor trace can be applied only if all inputs are part of the target
   // schedule.

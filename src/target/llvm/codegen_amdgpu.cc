@@ -346,11 +346,11 @@ runtime::Module BuildAMDGPU(IRModule mod, Target target) {
   const auto* f = tvm::runtime::Registry::Get("tvm_callback_rocm_link");
   ICHECK(f != nullptr) << "Require tvm_callback_rocm_link to exist, do import tvm.contrib.rocm";
 
-  TVMByteArray arr;
+  TVMFFIByteArray arr;
   arr.data = &obj[0];
   arr.size = obj.length();
 
-  std::string hsaco = (*f)(arr);
+  std::string hsaco = (*f)(&arr);
   std::string ll(data_ll.begin(), data_ll.end());
   return ROCMModuleCreate(hsaco, "hsaco", ExtractFuncInfo(mod), ll, assembly);
 }

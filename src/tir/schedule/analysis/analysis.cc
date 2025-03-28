@@ -1941,8 +1941,8 @@ class AutoTensorizeMappingProposer {
     using BufferMask = std::vector<bool>;
 
     // Step 1: Assign an index to each buffer in LHS and RHS
-    std::unordered_map<Buffer, int, ObjectPtrHash, ObjectEqual> rhs_buffer_index;
-    std::unordered_map<Buffer, int, ObjectPtrHash, ObjectEqual> lhs_buffer_index;
+    std::unordered_map<Buffer, int, ObjectPtrHash, ObjectPtrEqual> rhs_buffer_index;
+    std::unordered_map<Buffer, int, ObjectPtrHash, ObjectPtrEqual> lhs_buffer_index;
     {
       int i = 0;
       for (const auto& kv : extractor_->rhs_buffer_map_) {

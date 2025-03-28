@@ -78,7 +78,7 @@ class TensorizeComparator : public ExprComparator, public StmtComparator {
   bool VisitExpr_(const SelectNode* op, const PrimExpr& other) override;
 
   /*! \brief Map from RHS buffer to LHS buffer */
-  std::unordered_map<Buffer, Buffer, ObjectHash, ObjectEqual> rhs_buffer_map_;
+  std::unordered_map<Buffer, Buffer, ObjectPtrHash, ObjectPtrEqual> rhs_buffer_map_;
   /*! \brief Base indices of the LHS buffer. */
   std::unordered_map<Buffer, std::vector<PrimExpr>, ObjectPtrHash, ObjectPtrEqual> buffer_indices_;
 
@@ -157,7 +157,7 @@ class AutoTensorizeComparator : public TensorizeComparator {
   std::unordered_map<Buffer, Array<PrimExpr>, ObjectPtrHash, ObjectPtrEqual>
       rhs_buffer_indices_map_;
   /*! \brief Map from LHS buffer to RHS buffer */
-  std::unordered_map<Buffer, Buffer, ObjectHash, ObjectEqual> lhs_buffer_map_;
+  std::unordered_map<Buffer, Buffer, ObjectPtrHash, ObjectPtrEqual> lhs_buffer_map_;
 
  private:
   /*! \brief The domain of the inner block iters. */

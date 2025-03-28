@@ -227,7 +227,7 @@ LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance, const TargetJSON& target)
     }
   }
   // llvm module target
-  if (Downcast<String>(target.Get("kind")) == "llvm") {
+  if (Downcast<String>(target.Get("kind").value()) == "llvm") {
     // legalize -mcpu with the target -mtriple
     auto arches = GetAllLLVMTargetArches();
     bool has_arch =
@@ -341,13 +341,13 @@ LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance, const TargetJSON& target)
   target_options_.NoNaNsFPMath = true;
   target_options_.FloatABIType = float_abi;
   if (target.find("mabi") != target.end()) {
-    target_options_.MCOptions.ABIName = Downcast<String>(target.Get("mabi"));
+    target_options_.MCOptions.ABIName = Downcast<String>(target.Get("mabi").value());
   }
 
-  auto maybe_level = target.Get("opt-level").as<runtime::Int>();
+  auto maybe_level = target.Get("opt-level");
 #if TVM_LLVM_VERSION <= 170
-  if (maybe_level.defined()) {
-    int level = maybe_level.value()->value;
+  if (maybe_level.has_value()) {
+    int level = maybe_level.value().operator int();
     if (level <= 0) {
       opt_level_ = llvm::CodeGenOpt::None;
     } else if (level == 1) {
