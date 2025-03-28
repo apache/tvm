@@ -31,6 +31,8 @@
 #include <tvm/relax/utils.h>
 #include <tvm/runtime/object.h>
 
+#include <string>
+
 namespace tvm {
 namespace relax {
 
@@ -256,6 +258,12 @@ class BlockBuilderNode : public Object {
    * \return The BlockBuilder's arithmetic analyzer.
    */
   virtual arith::Analyzer* GetAnalyzer() = 0;
+
+  /*!
+   * \brief Returns the analyzer wrapped in a closure, suitable for FFI purposes.
+   * \return A function that exposes the methods of the underlying Analyzer instance.
+   */
+  virtual runtime::TypedPackedFunc<PackedFunc(std::string)> GetAnalyzerAsFunc() = 0;
 
   static constexpr const uint32_t _type_index = TypeIndex::kDynamic;
   static constexpr const char* _type_key = "relax.BlockBuilder";
