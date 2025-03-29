@@ -38,7 +38,7 @@ namespace runtime {
 void FunctionInfo::Save(dmlc::JSONWriter* writer) const {
   std::vector<std::string> sarg_types(arg_types.size());
   for (size_t i = 0; i < arg_types.size(); ++i) {
-    sarg_types[i] = DLDataType2String(arg_types[i]);
+    sarg_types[i] = DLDataTypeToString(arg_types[i]);
   }
   writer->BeginObject();
   writer->WriteObjectKeyValue("name", name);
@@ -58,7 +58,7 @@ void FunctionInfo::Load(dmlc::JSONReader* reader) {
   helper.ReadAllFields(reader);
   arg_types.resize(sarg_types.size());
   for (size_t i = 0; i < arg_types.size(); ++i) {
-    arg_types[i] = String2DLDataType(sarg_types[i]);
+    arg_types[i] = StringToDLDataType(sarg_types[i]);
   }
 }
 

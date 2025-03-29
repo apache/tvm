@@ -318,7 +318,7 @@ class ToMixedPrecisionRewriter : public ExprMutator {
       // We only rewrite the expr if the dtype is fp16 or fp32, dtypes such as int32, float64 is not
       // supported to be rewritten
       if (tensor->dtype != fp16_ && tensor->dtype != fp32_) return expr;
-      return astype(expr, DataType(String2DLDataType(to[0].LeafValue())));
+      return astype(expr, DataType(StringToDLDataType(to[0].LeafValue())));
     };
     return TransformTupleLeaf<String>(expr, std::array<NType, 1>({to}), fvisitleaf);
   }

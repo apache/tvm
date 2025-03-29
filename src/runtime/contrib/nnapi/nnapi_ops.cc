@@ -275,7 +275,7 @@ void CastOpConverter::Convert(NNAPIModelBuilder& builder, const JSONGraphNode& n
   const auto dtype_attr = node.GetAttr<std::vector<std::string>>("astype_dtype");
   ICHECK(dtype_attr.size() == 1);
   const auto dtype_str = dtype_attr[0];
-  const DLDataType dtype = runtime::String2DLDataType(dtype_str);
+  const DLDataType dtype = runtime::StringToDLDataType(dtype_str);
   ICHECK(outputs.size() == 1);
   const auto output_tensor_type = outputs[0].GetTensorType();
   ICHECK(TensorTypeFromDLDataType(dtype) == output_tensor_type)

@@ -227,8 +227,8 @@ TVM_REGISTER_GLOBAL("tvm.contrib.sort.argsort").set_body([](TVMArgs args, TVMRet
                                   "input ndim "
                                << input->ndim;
 
-  auto data_dtype = DLDataType2String(input->dtype);
-  auto out_dtype = DLDataType2String(output->dtype);
+  auto data_dtype = DLDataTypeToString(input->dtype);
+  auto out_dtype = DLDataTypeToString(output->dtype);
 
   if (data_dtype == "float32") {
     if (out_dtype == "int32") {
@@ -322,8 +322,8 @@ TVM_REGISTER_GLOBAL("tvm.contrib.sort.sort").set_body([](TVMArgs args, TVMRetVal
                                   "input ndim "
                                << input->ndim;
 
-  auto data_dtype = DLDataType2String(input->dtype);
-  auto out_dtype = DLDataType2String(output->dtype);
+  auto data_dtype = DLDataTypeToString(input->dtype);
+  auto out_dtype = DLDataTypeToString(output->dtype);
 
   ICHECK_EQ(data_dtype, out_dtype);
 
@@ -462,8 +462,8 @@ TVM_REGISTER_GLOBAL("tvm.contrib.sort.topk").set_body([](TVMArgs args, TVMRetVal
   }
   ICHECK(axis >= 0 && axis < input->ndim) << "Axis out of boundary for input ndim " << input->ndim;
 
-  auto data_dtype = DLDataType2String(input->dtype);
-  auto out_dtype = (indices_out == nullptr) ? "int64" : DLDataType2String(indices_out->dtype);
+  auto data_dtype = DLDataTypeToString(input->dtype);
+  auto out_dtype = (indices_out == nullptr) ? "int64" : DLDataTypeToString(indices_out->dtype);
 
   if (data_dtype == "float32") {
     if (out_dtype == "int32") {

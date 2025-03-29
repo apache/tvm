@@ -70,7 +70,7 @@ class CollectFromCompositeFunctionBody : public ExprVisitor {
     ICHECK(astype_attrs);
 
     std::vector<dmlc::any> dtype_attr;
-    auto dtype_str = runtime::DLDataType2String(astype_attrs->dtype);
+    auto dtype_str = runtime::DLDataTypeToString(astype_attrs->dtype);
     dtype_attr.emplace_back(std::vector<std::string>{dtype_str});
     node_->SetAttr("astype_dtype", dtype_attr);
   }

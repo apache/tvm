@@ -781,7 +781,7 @@ void VirtualMachineImpl::RunInstrCall(VMFrame* curr_frame, Instruction instr) {
     std::vector<std::unique_ptr<std::string>> temp_dtype;
     for (int i = 0; i < instr.num_args; ++i) {
       if (auto opt_dtype = call_args[i + args_begin_offset].as<DataType>()) {
-        std::string str_dtype = DLDataType2String(opt_dtype.value());
+        std::string str_dtype = DLDataTypeToString(opt_dtype.value());
         temp_dtype.emplace_back(std::make_unique<std::string>(str_dtype));
         call_args[i + args_begin_offset] = *temp_dtype.back();
       }

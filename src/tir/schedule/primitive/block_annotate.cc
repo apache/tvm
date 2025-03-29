@@ -367,7 +367,7 @@ void UnsafeSetDType(ScheduleState self, const StmtSRef& block_sref, int buffer_i
   const BlockNode* block = TVM_SREF_TO_BLOCK(block_sref);
   Buffer buffer =
       GetNthAccessBuffer(self, GetRef<Block>(block), buffer_index, BufferIndexType::kWrite);
-  DataType target_dtype(runtime::String2DLDataType(dtype));
+  DataType target_dtype(runtime::StringToDLDataType(dtype));
 
   // Step 1. If `dtype` equals the original data type, just return.
   if (buffer->dtype == target_dtype) {

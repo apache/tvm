@@ -149,7 +149,7 @@ class JSONGraphNode {
         reader->Read(&tmp);
         ICHECK(!reader->NextArrayItem());
         for (const auto& it : tmp) {
-          dtype_.push_back(tvm::runtime::String2DLDataType(it));
+          dtype_.push_back(tvm::runtime::StringToDLDataType(it));
         }
       } else if (key == "shape") {
         reader->BeginArray();

@@ -2309,7 +2309,7 @@ llvm::DIType* CodeGenLLVM::GetDebugType(const Type& ty_tir, llvm::Type* ty_llvm)
       return nullptr;
     }
 
-    return dbg_info_->di_builder_->createBasicType(DLDataType2String(dtype),
+    return dbg_info_->di_builder_->createBasicType(DLDataTypeToString(dtype),
                                                    dtype.bits() * dtype.lanes(), dwarf_type);
 
   } else {

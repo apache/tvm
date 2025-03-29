@@ -62,7 +62,7 @@ const JsonMSCTensor MSCTensorNode::ToJson() const {
   JsonMSCTensor j_tensor;
   j_tensor.name = name;
   j_tensor.alias = alias;
-  j_tensor.dtype = runtime::DLDataType2String(dtype);
+  j_tensor.dtype = runtime::DLDataTypeToString(dtype);
   if (layout.defined()) {
     j_tensor.layout = layout.name();
   }
@@ -78,7 +78,7 @@ const JsonMSCTensor MSCTensorNode::ToJson() const {
 void MSCTensorNode::FromJson(const JsonMSCTensor& j_tensor) {
   name = j_tensor.name;
   alias = j_tensor.alias;
-  dtype = DataType(runtime::String2DLDataType(j_tensor.dtype));
+  dtype = DataType(runtime::StringToDLDataType(j_tensor.dtype));
   if (j_tensor.layout.size() > 0) {
     layout = tvm::tir::Layout(j_tensor.layout);
   }
@@ -133,7 +133,7 @@ const Integer MSCTensorNode::GetSize() const {
   return size;
 }
 
-const String MSCTensorNode::DTypeName() const { return runtime::DLDataType2String(dtype); }
+const String MSCTensorNode::DTypeName() const { return runtime::DLDataTypeToString(dtype); }
 
 size_t BaseJointNode::AddChild(const BaseJoint& child) const {
   for (size_t i = 0; i < children.size(); i++) {

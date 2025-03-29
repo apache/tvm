@@ -120,7 +120,7 @@ void FindAlgo(int format, int dims, int groups, const int pad[], const int strid
     y_dim_int64[i] = y_dim[i];
   }
   SetConvDescriptors(entry_ptr, format, dims, groups, pad, stride, dilation, x_dim_int64.data(),
-                     w_dim_int64.data(), y_dim_int64.data(), String2DLDataType(data_dtype),
+                     w_dim_int64.data(), y_dim_int64.data(), StringToDLDataType(data_dtype),
                      conv_dtype);
 
   int returned_algo_count = 0;

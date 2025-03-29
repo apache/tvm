@@ -453,7 +453,7 @@ bool ReadIfCond(AnyView cond) {
       break;
     }
     default:
-      LOG(FATAL) << "Unknown scalar int type: " << DLDataType2String(arr->dtype);
+      LOG(FATAL) << "Unknown scalar int type: " << DLDataTypeToString(arr->dtype);
       throw;
   }
   return result != 0;
@@ -532,7 +532,7 @@ TVM_REGISTER_GLOBAL("vm.builtin.tensor_to_shape").set_body_typed([](NDArray data
         break;
       }
       default:
-        LOG(FATAL) << "Unknown scalar int type: " << DLDataType2String(arr->dtype);
+        LOG(FATAL) << "Unknown scalar int type: " << DLDataTypeToString(arr->dtype);
         throw;
     }
     out_shape.push_back(result);

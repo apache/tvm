@@ -120,7 +120,7 @@ TensorInfo::TensorInfo(runtime::DataType dtype, runtime::ShapeTuple shape) {
 
 ObjectRef TensorInfoNode::AsJSON() const {
   static String tag = "TENSOR";
-  String dtype = DLDataType2String(this->dtype);
+  String dtype = DLDataTypeToString(this->dtype);
   Array<Integer> shape = support::AsArray(this->shape);
   return Array<ObjectRef>{tag, dtype, shape};
 }
@@ -134,7 +134,7 @@ TensorInfo TensorInfo::FromJSON(const ObjectRef& json_obj) {
     // Load json[1] => dtype
     {
       String dtype_str = json_array->at(1);
-      dtype = runtime::String2DLDataType(dtype_str);
+      dtype = runtime::StringToDLDataType(dtype_str);
     }
     // Load json[2] => shape
     shape = AsIntArray(json_array->at(2));

@@ -24,8 +24,7 @@
 #ifndef TVM_RUNTIME_DATA_TYPE_H_
 #define TVM_RUNTIME_DATA_TYPE_H_
 
-#include <tvm/ffi/string.h>
-#include <tvm/ffi/type_traits.h>
+#include <tvm/ffi/dtype.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/logging.h>
 
@@ -56,7 +55,7 @@ class DataType {
     kInt = kDLInt,
     kUInt = kDLUInt,
     kFloat = kDLFloat,
-    kHandle = TVMArgTypeCode::kTVMOpaqueHandle,
+    kHandle = kDLOpaqueHandle,
     kBFloat = kDLBfloat,
     kFloat8_e3m4 = kDLFloat8_e3m4,
     kFloat8_e4m3 = kDLFloat8_e4m3,
@@ -349,202 +348,12 @@ inline bool TypeEqual(DLDataType lhs, DLDataType rhs) {
   return lhs.code == rhs.code && lhs.bits == rhs.bits && lhs.lanes == rhs.lanes;
 }
 
-/*!
- * \brief Runtime utility for getting custom type name from code
- * \param type_code Custom type code
- * \return Custom type name
- */
-TVM_DLL std::string GetCustomTypeName(uint8_t type_code);
-
-/*!
- * \brief Runtime utility for checking whether custom type is registered
- * \param type_code Custom type code
- * \return Bool representing whether type is registered
- */
-TVM_DLL bool GetCustomTypeRegistered(uint8_t type_code);
-
-/*!
- * \brief Runtime utility for parsing string of the form "custom[<typename>]"
- * \param s String to parse
- * \param scan pointer to parsing pointer, which is scanning across s
- * \return type code of custom type parsed
- */
-TVM_DLL uint8_t ParseCustomDatatype(const std::string& s, const char** scan);
-
-/*!
- * \brief Convert type code to its name
- * \param type_code The type code .
- * \return The name of type code.
- */
-inline const char* DLDataTypeCode2Str(DLDataTypeCode type_code);
-
-/*!
- * \brief convert a string to TVM type.
- * \param s The string to be converted.
- * \return The corresponding tvm type.
- */
-inline DLDataType String2DLDataType(std::string s);
-
-/*!
- * \brief convert a TVM type to string.
- * \param t The type to be converted.
- * \return The corresponding tvm type in string.
- */
-inline std::string DLDataType2String(DLDataType t);
-
-// implementation details
-inline const char* DLDataTypeCode2Str(DLDataTypeCode type_code) {
-  switch (static_cast<int>(type_code)) {
-    case kDLInt:
-      return "int";
-    case kDLUInt:
-      return "uint";
-    case kDLFloat:
-      return "float";
-    case DataType::kHandle:
-      return "handle";
-    case kDLBfloat:
-      return "bfloat";
-    case DataType::kFloat8_e4m3fn:
-      return "float8_e4m3fn";
-    case DataType::kFloat8_e5m2:
-      return "float8_e5m2";
-    case DataType::kFloat4_e2m1fn:
-      return "float4_e2m1fn";
-    default:
-      LOG(FATAL) << "unknown type_code=" << static_cast<int>(type_code);
-  }
-  throw;
-}
-
-inline std::ostream& operator<<(std::ostream& os, DLDataType t) {  // NOLINT(*)
-  if (t.bits == 1 && t.lanes == 1 && t.code == kDLUInt) {
-    os << "bool";
-    return os;
-  }
-  if (DataType(t).is_void()) {
-    return os << "void";
-  }
-  if (t.code < DataType::kCustomBegin) {
-    os << DLDataTypeCode2Str(static_cast<DLDataTypeCode>(t.code));
-  } else {
-    os << "custom[" << GetCustomTypeName(t.code) << "]";
-  }
-  if (t.code == kTVMOpaqueHandle) return os;
-  int16_t lanes = static_cast<int16_t>(t.lanes);
-  if (t.code != DataType::kFloat8_e4m3fn && t.code != DataType::kFloat8_e5m2 &&
-      t.code != DataType::kFloat4_e2m1fn) {
-    os << static_cast<int>(t.bits);
-  }
-  if (lanes > 1) {
-    os << 'x' << lanes;
-  } else if (lanes < -1) {
-    os << "xvscalex" << -lanes;
-  }
-  return os;
-}
+using ffi::StringToDLDataType;
+using ffi::DLDataTypeToString;
 
 inline std::ostream& operator<<(std::ostream& os, const DataType& dtype) {  // NOLINT(*)
   return os << dtype.operator DLDataType();
 }
-
-inline std::string DLDataType2String(DLDataType t) {
-  if (t.bits == 0) return "";
-  std::ostringstream os;
-  os << t;
-  return os.str();
-}
-
-inline DLDataType String2DLDataType(std::string s) {
-  DLDataType t;
-  // handle void type
-  if (s.length() == 0 || s == "void") {
-    t = DataType::Void();
-    return t;
-  }
-  t.bits = 32;
-  t.lanes = 1;
-  const char* scan;
-  if (s.substr(0, 3) == "int") {
-    t.code = kDLInt;
-    scan = s.c_str() + 3;
-  } else if (s.substr(0, 4) == "uint") {
-    t.code = kDLUInt;
-    scan = s.c_str() + 4;
-  } else if (s.substr(0, 13) == "float4_e2m1fn") {
-    // Avoid being treated as "float"
-    t.code = DataType::kFloat4_e2m1fn;
-    t.bits = 4;
-    scan = s.c_str() + 13;
-    char* endpt = nullptr;
-    if (*scan == 'x') {
-      t.lanes = static_cast<uint16_t>(strtoul(scan + 1, &endpt, 10));
-      scan = endpt;
-    }
-    ICHECK(scan == s.c_str() + s.length()) << "unknown type " << s;
-    return t;
-  } else if (s.substr(0, 13) == "float8_e4m3fn") {
-    // Avoid being treated as "float"
-    t.code = DataType::kFloat8_e4m3fn;
-    t.bits = 8;
-    scan = s.c_str() + 13;
-    char* endpt = nullptr;
-    if (*scan == 'x') {
-      t.lanes = static_cast<uint16_t>(strtoul(scan + 1, &endpt, 10));
-      scan = endpt;
-    }
-    ICHECK(scan == s.c_str() + s.length()) << "unknown type " << s;
-    return t;
-  } else if (s.substr(0, 11) == "float8_e5m2") {
-    // Avoid being treated as "float"
-    t.code = DataType::kFloat8_e5m2;
-    t.bits = 8;
-    scan = s.c_str() + 11;
-    char* endpt = nullptr;
-    if (*scan == 'x') {
-      t.lanes = static_cast<uint16_t>(strtoul(scan + 1, &endpt, 10));
-      scan = endpt;
-    }
-    ICHECK(scan == s.c_str() + s.length()) << "unknown type " << s;
-    return t;
-  } else if (s.substr(0, 5) == "float") {
-    t.code = kDLFloat;
-    scan = s.c_str() + 5;
-  } else if (s.substr(0, 6) == "handle") {
-    t.code = kTVMOpaqueHandle;
-    t.bits = 64;  // handle uses 64 bit by default.
-    scan = s.c_str() + 6;
-  } else if (s == "bool") {
-    t.code = kDLUInt;
-    t.bits = 1;
-    t.lanes = 1;
-    return t;
-  } else if (s.substr(0, 6) == "bfloat") {
-    t.code = DataType::kBFloat;
-    t.bits = 16;
-    scan = s.c_str() + 6;
-  } else if (s.substr(0, 6) == "custom") {
-    t.code = ParseCustomDatatype(s, &scan);
-  } else {
-    scan = s.c_str();
-    LOG(FATAL) << "unknown type " << s;
-  }
-  char* xdelim;  // emulate sscanf("%ux%u", bits, lanes)
-  uint8_t bits = static_cast<uint8_t>(strtoul(scan, &xdelim, 10));
-  if (bits != 0) t.bits = bits;
-  int scalable_multiplier = 1;
-  if (strncmp(xdelim, "xvscale", 7) == 0) {
-    scalable_multiplier = -1;
-    xdelim += 7;
-  }
-  char* endpt = xdelim;
-  if (*xdelim == 'x') {
-    t.lanes = static_cast<uint16_t>(scalable_multiplier * strtoul(xdelim + 1, &endpt, 10));
-  }
-  ICHECK(endpt == s.c_str() + s.length()) << "unknown type " << s;
-  return t;
-}
-
 }  // namespace runtime
 
 using DataType = runtime::DataType;
@@ -567,28 +376,19 @@ struct TypeTraits<runtime::DataType> : public TypeTraitsBase {
   }
 
   static TVM_FFI_INLINE std::optional<runtime::DataType> TryCopyFromAnyView(const TVMFFIAny* src) {
-    if (src->type_index == TypeIndex::kTVMFFIDataType) {
-      return runtime::DataType(src->v_dtype);
-    }
-    // enable string to dtype auto conversion
-    if (auto opt_str = TypeTraits<std::string>::TryCopyFromAnyView(src)) {
-      return runtime::DataType(runtime::String2DLDataType(opt_str.value()));
+    auto opt_dtype = TypeTraits<DLDataType>::TryCopyFromAnyView(src);
+    if (opt_dtype) {
+      return runtime::DataType(opt_dtype.value());
     }
     return std::nullopt;
   }
 
   static TVM_FFI_INLINE bool CheckAnyView(const TVMFFIAny* src) {
-    return src->type_index == TypeIndex::kTVMFFIDataType ||
-           TypeTraits<std::string>::CheckAnyView(src);
+    return TypeTraits<DLDataType>::CheckAnyView(src);
   }
 
   static TVM_FFI_INLINE runtime::DataType CopyFromAnyViewAfterCheck(const TVMFFIAny* src) {
-    if (src->type_index == TypeIndex::kTVMFFIDataType) {
-      return runtime::DataType(src->v_dtype);
-    }
-    // enable string to dtype auto conversion
-    return runtime::DataType(
-        runtime::String2DLDataType(TypeTraits<std::string>::CopyFromAnyViewAfterCheck(src)));
+    return runtime::DataType(TypeTraits<DLDataType>::CopyFromAnyViewAfterCheck(src));
   }
 
   static TVM_FFI_INLINE std::string TypeStr() { return ffi::StaticTypeKey::kTVMFFIDataType; }

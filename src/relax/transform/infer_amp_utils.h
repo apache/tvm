@@ -38,9 +38,9 @@
 namespace tvm {
 namespace relax {
 
-using runtime::DLDataType2String;
+using runtime::DLDataTypeToString;
 using runtime::String;
-using runtime::String2DLDataType;
+using runtime::StringToDLDataType;
 
 enum MixedPrecisionPolicyKind : int { kAlways = 0, kFollow = 1, kNever = 2 };
 
