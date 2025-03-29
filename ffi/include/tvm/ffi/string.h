@@ -385,7 +385,6 @@ class String : public ObjectRef {
   friend String operator+(const char* lhs, const String& rhs);
 };
 
-
 // const char*, requirement: not nullable, do not retain ownership
 template <>
 struct TypeTraits<const char*> : public TypeTraitsBase {
@@ -459,9 +458,7 @@ inline constexpr bool use_default_type_traits_v<Bytes> = false;
 // specialize to enable implicit conversion from TVMFFIByteArray*
 template <>
 struct TypeTraits<Bytes> : public ObjectRefWithFallbackTraitsBase<Bytes, TVMFFIByteArray*> {
-  static TVM_FFI_INLINE Bytes ConvertFallbackValue(TVMFFIByteArray* src) {
-    return Bytes(*src);
-  }
+  static TVM_FFI_INLINE Bytes ConvertFallbackValue(TVMFFIByteArray* src) { return Bytes(*src); }
 };
 
 template <>
@@ -470,17 +467,15 @@ inline constexpr bool use_default_type_traits_v<String> = false;
 // specialize to enable implicit conversion from const char*
 template <>
 struct TypeTraits<String> : public ObjectRefWithFallbackTraitsBase<String, const char*> {
-  static TVM_FFI_INLINE String ConvertFallbackValue(const char* src) {
-    return String(src);
-  }
+  static TVM_FFI_INLINE String ConvertFallbackValue(const char* src) { return String(src); }
 };
 
 template <>
 inline constexpr bool use_default_type_traits_v<std::string> = false;
 
 template <>
-struct TypeTraits<std::string> :
-  public FallbackOnlyTraitsBase<std::string, const char*, TVMFFIByteArray*, Bytes, String> {
+struct TypeTraits<std::string>
+    : public FallbackOnlyTraitsBase<std::string, const char*, TVMFFIByteArray*, Bytes, String> {
   static TVM_FFI_INLINE void CopyToAnyView(const std::string& src, TVMFFIAny* result) {
     result->type_index = TypeIndex::kTVMFFIRawStr;
     result->v_c_str = src.c_str();
