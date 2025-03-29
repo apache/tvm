@@ -392,7 +392,6 @@ struct TypeTraits<TObjRef, std::enable_if_t<std::is_base_of_v<ObjectRef, TObjRef
                                             use_default_type_traits_v<TObjRef>>>
     : public ObjectRefTypeTraitsBase<TObjRef> {};
 
-
 /*!
  * \brief Helper class that convert to T only via the FallbackTypes
  *
@@ -440,8 +439,7 @@ struct FallbackOnlyTraitsBase : public TypeTraitsBase {
  * \tparam FallbackTypes The type of the fallback value.
  */
 template <typename ObjectRefType, typename... FallbackTypes>
-struct ObjectRefWithFallbackTraitsBase
-    : public ObjectRefTypeTraitsBase<ObjectRefType> {
+struct ObjectRefWithFallbackTraitsBase : public ObjectRefTypeTraitsBase<ObjectRefType> {
   static TVM_FFI_INLINE bool CheckAnyView(const TVMFFIAny* src) {
     return ObjectRefTypeTraitsBase<ObjectRefType>::CheckAnyView(src) ||
            (TypeTraits<FallbackTypes>::CheckAnyView(src) || ...);
