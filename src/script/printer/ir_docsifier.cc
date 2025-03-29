@@ -109,6 +109,11 @@ void IRDocsifierNode::SetCommonPrefix(const ObjectRef& root,
     inline void operator()(ObjectRef obj) { Visit("", &obj); }
 
    private:
+    void RecursiveVisitAny(ffi::Any* value) {
+      if (std::optional<ObjectRef> opt = value->as<ObjectRef>()) {
+        this->Visit("", &opt.value());
+      }
+    }
     void Visit(const char* key, double* value) final {}
     void Visit(const char* key, int64_t* value) final {}
     void Visit(const char* key, uint64_t* value) final {}
@@ -133,14 +138,14 @@ void IRDocsifierNode::SetCommonPrefix(const ObjectRef& root,
       stack_.push_back(obj);
       if (obj->IsInstance<ArrayNode>()) {
         const ArrayNode* array = static_cast<const ArrayNode*>(obj);
-        for (ObjectRef element : *array) {
-          this->Visit("", &element);
+        for (Any element : *array) {
+          this->RecursiveVisitAny(&element);
         }
       } else if (obj->IsInstance<MapNode>()) {
         const MapNode* map = static_cast<const MapNode*>(obj);
-        for (std::pair<ObjectRef, ObjectRef> kv : *map) {
-          this->Visit("", &kv.first);
-          this->Visit("", &kv.second);
+        for (std::pair<Any, Any> kv : *map) {
+          this->RecursiveVisitAny(&kv.first);
+          this->RecursiveVisitAny(&kv.second);
         }
       } else {
         vtable_->VisitAttrs(const_cast<Object*>(obj), this);

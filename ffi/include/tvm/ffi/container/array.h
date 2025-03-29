@@ -858,7 +858,7 @@ class Array : public ObjectRef {
       bool all_identical = true;
       for (; it != arr->end(); it++) {
         U mapped = fmap(details::AnyUnsafe::ConvertAfterCheck<T>(*it));
-        if (!mapped.same_as(*it)) {
+        if (!(*it).same_as(mapped)) {
           // At least one mapped element is different than the
           // original.  Therefore, prepare the output array,
           // consisting of any previous elements that had mapped to
@@ -883,7 +883,7 @@ class Array : public ObjectRef {
     } else {
       // Path for incompatible types.  The constexpr check for
       // compatible types isn't strictly necessary, as the first
-      // mapped.same_as(*it) would return false, but we might as well
+      // (*it).same_as(mapped) would return false, but we might as well
       // avoid it altogether.
       //
       // We cannot use `U()` as the default object, as `U` may be a

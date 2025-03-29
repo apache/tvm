@@ -46,15 +46,8 @@ namespace debug {
 
 using namespace tvm::runtime;
 
-String Test() {
-  PackedFunc pf([](TVMArgs args, TVMRetValue* rv) {
-    tvm::PrimExpr value = args[0];
-    *rv = value;
-  });
-  String res = pf("xyz");
-  LOG(INFO) << res;
-  return res;
-}
+
+// TVM_REGISTER_GLOBAL("tvm.debug.Test").set_body_typed(Test);
 
 }  // namespace debug
 }  // namespace tvm
