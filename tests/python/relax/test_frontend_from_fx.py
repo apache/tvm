@@ -2351,7 +2351,9 @@ def test_extended_unary_ops():
             input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
         ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
             with R.dataflow():
-                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.divide(R.const(1.0, "float32"), input_1)
+                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.divide(
+                    R.const(1.0, "float32"), input_1
+                )
                 gv: R.Tensor((1, 3, 10, 10), dtype="float32") = lv
                 R.output(gv)
             return gv
@@ -4373,7 +4375,9 @@ def test_where():
                 R.output(gv)
             return gv
 
-    verify_model(Where(), [([5, 3], "bool"), ([5, 3], "float32"), ([5, 3], "float32")], {}, Expected)
+    verify_model(
+        Where(), [([5, 3], "bool"), ([5, 3], "float32"), ([5, 3], "float32")], {}, Expected
+    )
 
 
 if __name__ == "__main__":
