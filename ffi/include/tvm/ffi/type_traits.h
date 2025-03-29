@@ -138,7 +138,9 @@ struct TypeTraits<StrictBool> : public TypeTraitsBase {
     result->v_int64 = static_cast<bool>(src);
   }
 
-  static TVM_FFI_INLINE void MoveToAny(StrictBool src, TVMFFIAny* result) { CopyToAnyView(src, result); }
+  static TVM_FFI_INLINE void MoveToAny(StrictBool src, TVMFFIAny* result) {
+    CopyToAnyView(src, result);
+  }
 
   static TVM_FFI_INLINE std::optional<StrictBool> TryCopyFromAnyView(const TVMFFIAny* src) {
     if (src->type_index == TypeIndex::kTVMFFIBool) {
@@ -461,8 +463,8 @@ struct FallbackOnlyTraitsBase : public TypeTraitsBase {
   template <typename FallbackType, typename... Rest>
   static TVM_FFI_INLINE std::optional<T> TryFallbackTypes(const TVMFFIAny* src) {
     static_assert(!std::is_same_v<bool, FallbackType>,
-      "Using bool as FallbackType can cause bug because int will be detected as bool, "
-      "use tvm::ffi::StrictBool instead");
+                  "Using bool as FallbackType can cause bug because int will be detected as bool, "
+                  "use tvm::ffi::StrictBool instead");
     if (auto opt_fallback = TypeTraits<FallbackType>::TryCopyFromAnyView(src)) {
       return TypeTraits<T>::ConvertFallbackValue(std::move(opt_fallback.value()));
     }
@@ -508,8 +510,8 @@ struct ObjectRefWithFallbackTraitsBase : public ObjectRefTypeTraitsBase<ObjectRe
   template <typename FallbackType, typename... Rest>
   static TVM_FFI_INLINE std::optional<ObjectRefType> TryFallbackTypes(const TVMFFIAny* src) {
     static_assert(!std::is_same_v<bool, FallbackType>,
-      "Using bool as FallbackType can cause bug because int will be detected as bool, "
-      "use tvm::ffi::StrictBool instead");
+                  "Using bool as FallbackType can cause bug because int will be detected as bool, "
+                  "use tvm::ffi::StrictBool instead");
     if (auto opt_fallback = TypeTraits<FallbackType>::TryCopyFromAnyView(src)) {
       return TypeTraits<ObjectRefType>::ConvertFallbackValue(std::move(opt_fallback.value()));
     }
