@@ -88,7 +88,7 @@ using namespace tvm::script::printer;
 
 #define CODEGEN_MEMBERS                                                                           \
  public:                                                                                          \
-  virtual const String DType(const DataType& dtype) { return runtime::DLDataType2String(dtype); } \
+  virtual const String DType(const DataType& dtype) { return runtime::DLDataTypeToString(dtype); } \
                                                                                                   \
  protected:                                                                                       \
   const std::shared_ptr<ConfigType> config() { return config_; }                                  \

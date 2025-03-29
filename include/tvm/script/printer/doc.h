@@ -299,7 +299,7 @@ class LiteralDoc : public ExprDoc {
    * \param p The object path
    */
   static LiteralDoc DataType(const runtime::DataType& v, const Optional<ObjectPath>& p) {
-    std::string dtype = v.is_void() ? "void" : runtime::DLDataType2String(v);
+    std::string dtype = v.is_void() ? "void" : runtime::DLDataTypeToString(v);
     return LiteralDoc::Str(dtype, p);
   }
 

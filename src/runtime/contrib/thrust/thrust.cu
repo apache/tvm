@@ -243,8 +243,8 @@ TVM_REGISTER_GLOBAL("tvm.contrib.thrust.sort").set_body([](TVMArgs args, TVMRetV
     workspace = args[4];
   }
 
-  auto data_dtype = DLDataType2String(input->dtype);
-  auto out_dtype = DLDataType2String(indices_out->dtype);
+  auto data_dtype = DLDataTypeToString(input->dtype);
+  auto out_dtype = DLDataTypeToString(indices_out->dtype);
 
   int n_values = input->shape[input->ndim - 1];
   thrust_sort_common(input, values_out, indices_out, is_ascend, n_values, data_dtype, out_dtype,
@@ -291,8 +291,8 @@ TVM_REGISTER_GLOBAL("tvm.contrib.thrust.stable_sort_by_key")
         workspace = args[5];
       }
 
-      auto key_dtype = DLDataType2String(keys_in->dtype);
-      auto value_dtype = DLDataType2String(values_in->dtype);
+      auto key_dtype = DLDataTypeToString(keys_in->dtype);
+      auto value_dtype = DLDataTypeToString(values_in->dtype);
 
       if (key_dtype == "int32") {
         if (value_dtype == "int32") {
@@ -408,8 +408,8 @@ TVM_REGISTER_GLOBAL("tvm.contrib.thrust.sum_scan").set_body([](TVMArgs args, TVM
     workspace = args[3];
   }
 
-  auto in_dtype = DLDataType2String(data->dtype);
-  auto out_dtype = DLDataType2String(output->dtype);
+  auto in_dtype = DLDataTypeToString(data->dtype);
+  auto out_dtype = DLDataTypeToString(output->dtype);
 
   if (in_dtype == "bool") {
     if (out_dtype == "int32") {

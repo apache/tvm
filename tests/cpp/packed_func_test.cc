@@ -63,7 +63,7 @@ TEST(PackedFunc, Node) {
 TEST(PackedFunc, NDArray) {
   using namespace tvm;
   using namespace tvm::runtime;
-  auto x = NDArray::Empty({}, String2DLDataType("float32"), Device{kDLCPU, 0});
+  auto x = NDArray::Empty({}, StringToDLDataType("float32"), Device{kDLCPU, 0});
   reinterpret_cast<float*>(x->data)[0] = 10.0f;
   ICHECK(x.use_count() == 1);
 
@@ -211,7 +211,7 @@ TEST(PackedFunc, ObjectConversion) {
   using namespace tvm::tir;
   using namespace tvm::runtime;
   TVMRetValue rv;
-  auto x = NDArray::Empty({}, String2DLDataType("float32"), Device{kDLCPU, 0});
+  auto x = NDArray::Empty({}, StringToDLDataType("float32"), Device{kDLCPU, 0});
   // assign null
   rv = ObjectRef();
   ICHECK_EQ(rv.type_code(), kTVMNullptr);

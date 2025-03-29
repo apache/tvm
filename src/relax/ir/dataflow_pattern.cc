@@ -424,7 +424,7 @@ DataTypePattern DFPattern::HasDtype(const DataType& dtype) const {
   return DataTypePattern(*this, dtype);
 }
 DataTypePattern DFPattern::HasDtype(const std::string& dtype) const {
-  return HasDtype(DataType(runtime::String2DLDataType(dtype)));
+  return HasDtype(DataType(runtime::StringToDLDataType(dtype)));
 }
 ShapePattern DFPattern::HasShape(const Array<PrimExpr>& shape) const {
   return ShapePattern(*this, shape);

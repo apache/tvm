@@ -824,7 +824,7 @@ class TVMArgValue : public TVMPODValue_CRTP_<TVMArgValue> {
   // conversion operator.
   operator std::string() const {
     if (type_code_ == kTVMDataType) {
-      return DLDataType2String(operator DLDataType());
+      return DLDataTypeToString(operator DLDataType());
     } else if (type_code_ == kTVMBytes) {
       TVMByteArray* arr = static_cast<TVMByteArray*>(value_.v_handle);
       return std::string(arr->data, arr->size);
@@ -979,7 +979,7 @@ class TVMRetValue : public TVMPODValue_CRTP_<TVMRetValue> {
   // conversion operators
   operator std::string() const {
     if (type_code_ == kTVMDataType) {
-      return DLDataType2String(operator DLDataType());
+      return DLDataTypeToString(operator DLDataType());
     } else if (type_code_ == kTVMBytes) {
       return *ptr<std::string>();
     }
@@ -988,7 +988,7 @@ class TVMRetValue : public TVMPODValue_CRTP_<TVMRetValue> {
   }
   operator DLDataType() const {
     if (type_code_ == kTVMStr) {
-      return String2DLDataType(operator std::string());
+      return StringToDLDataType(operator std::string());
     }
     TVM_CHECK_TYPE_CODE(type_code_, kTVMDataType);
     return value_.v_type;
@@ -2681,7 +2681,7 @@ inline bool String::CanConvertFrom(const TVMArgValue& val) {
 
 inline TVMArgValue::operator DLDataType() const {
   if (String::CanConvertFrom(*this)) {
-    return String2DLDataType(PackedFuncValueConverter<String>::From(*this).operator std::string());
+    return StringToDLDataType(PackedFuncValueConverter<String>::From(*this).operator std::string());
   }
   // None type
   if (type_code_ == kTVMNullptr) {

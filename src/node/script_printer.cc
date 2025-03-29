@@ -72,13 +72,13 @@ PrinterConfig::PrinterConfig(Map<String, Any> config_dict) {
     n->module_alias = Downcast<String>(v.value());
   }
   if (auto v = config_dict.Get("buffer_dtype")) {
-    n->buffer_dtype = DataType(runtime::String2DLDataType(Downcast<String>(v.value())));
+    n->buffer_dtype = DataType(runtime::StringToDLDataType(Downcast<String>(v.value())));
   }
   if (auto v = config_dict.Get("int_dtype")) {
-    n->int_dtype = DataType(runtime::String2DLDataType(Downcast<String>(v.value())));
+    n->int_dtype = DataType(runtime::StringToDLDataType(Downcast<String>(v.value())));
   }
   if (auto v = config_dict.Get("float_dtype")) {
-    n->float_dtype = DataType(runtime::String2DLDataType(Downcast<String>(v.value())));
+    n->float_dtype = DataType(runtime::StringToDLDataType(Downcast<String>(v.value())));
   }
   if (auto v = config_dict.Get("verbose_expr")) {
     n->verbose_expr = Downcast<runtime::Bool>(v.value())->value;

@@ -39,9 +39,9 @@
 
 namespace tvm {
 
-inline std::string Type2String(const DataType& t) { return runtime::DLDataType2String(t); }
+inline std::string Type2String(const DataType& t) { return runtime::DLDataTypeToString(t); }
 
-inline DataType String2Type(std::string s) { return DataType(runtime::String2DLDataType(s)); }
+inline DataType String2Type(std::string s) { return DataType(runtime::StringToDLDataType(s)); }
 
 inline std::string Base64Decode(std::string s) {
   dmlc::MemoryStringStream mstrm(&s);

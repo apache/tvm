@@ -119,7 +119,7 @@ inline ExprDoc Relax(const IRDocsifier& d, const String& attr) {
 }
 
 inline std::string DType2Str(const runtime::DataType& dtype) {
-  return dtype.is_void() ? "void" : runtime::DLDataType2String(dtype);
+  return dtype.is_void() ? "void" : runtime::DLDataTypeToString(dtype);
 }
 
 /*! \brief Add headers as comments to doc if needed */

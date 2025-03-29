@@ -27,9 +27,9 @@ NType NTypeFrom(const StructInfo& sinfo, DataType dtype) {
     const auto* tensor = sinfo.as<TensorStructInfoNode>();
     ICHECK(tensor) << "Expected TensorStructInfo, but got " << sinfo;
     if (dtype == DataType::Void())
-      return NType(DLDataType2String(tensor->dtype));
+      return NType(DLDataTypeToString(tensor->dtype));
     else
-      return NType(DLDataType2String(dtype));
+      return NType(DLDataTypeToString(dtype));
   };
   return MapToNestedMsg<String>(sinfo, fmapleaf);
 }
@@ -44,8 +44,8 @@ NType NTypeMerge(const NType& a, const NType& b) {
       return a_str;
     }
 
-    DataType a = DataType(String2DLDataType(a_str));
-    DataType b = DataType(String2DLDataType(b_str));
+    DataType a = DataType(StringToDLDataType(a_str));
+    DataType b = DataType(StringToDLDataType(b_str));
     ICHECK_EQ(a.code(), b.code());
     ICHECK_EQ(a.lanes(), b.lanes());
     return a.bits() > b.bits() ? a_str : b_str;

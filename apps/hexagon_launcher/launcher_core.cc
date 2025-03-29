@@ -37,7 +37,7 @@ const std::string TensorConfig::dtype_key = "dtype";  // NOLINT(runtime/string)
 
 std::string tensor_meta::to_string() const {
   std::stringstream out;
-  out << "ndim=" << ndim << ", dtype=" << tvm::runtime::DLDataType2String(dtype) << ", shape=";
+  out << "ndim=" << ndim << ", dtype=" << tvm::runtime::DLDataTypeToString(dtype) << ", shape=";
   for (int i = 0; i != ndim; ++i) {
     out << shape[i];
     if (i + 1 < ndim) {

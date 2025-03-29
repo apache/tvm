@@ -76,7 +76,7 @@ NDArrayCacheMetadata::FileRecord::ParamRecord JSONAsParamRecord(const picojson::
   NDArrayCacheMetadata::FileRecord::ParamRecord result;
   std::string dtype = GetValue<std::string>(json, "dtype");
   result.name = GetValue<std::string>(json, "name");
-  result.dtype = DataType(String2DLDataType(dtype));
+  result.dtype = DataType(StringToDLDataType(dtype));
   result.format = GetValue<std::string>(json, "format");
   result.nbytes = GetValue<int64_t>(json, "nbytes");
   result.byte_offset = GetValue<int64_t>(json, "byteOffset");

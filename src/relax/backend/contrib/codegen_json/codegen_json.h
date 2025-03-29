@@ -88,7 +88,7 @@ class OpAttrExtractor : public AttrVisitor {
 
   void Visit(const char* key, DataType* value) final {
     if (!value->is_void()) {
-      SetNodeAttr(key, {runtime::DLDataType2String(*value)});
+      SetNodeAttr(key, {runtime::DLDataTypeToString(*value)});
     } else {
       SetNodeAttr(key, {""});
     }

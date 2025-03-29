@@ -575,7 +575,7 @@ int TVMFuncCall(TVMFunctionHandle func, TVMValue* args, int* arg_type_codes, int
     // TODO(tvm-team): handle bytes return type here
     TVMRuntimeEntry* e = TVMAPIRuntimeStore::Get();
     if (rv.type_index() == tvm::ffi::TypeIndex::kTVMFFIDataType) {
-      e->ret_str = DLDataType2String(rv.operator DLDataType());
+      e->ret_str = DLDataTypeToString(rv.operator DLDataType());
       *ret_type_code = kTVMStr;
       ret_val->v_str = e->ret_str.c_str();
     } else if (rv.type_index() == tvm::ffi::TypeIndex::kTVMFFIBytes) {

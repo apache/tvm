@@ -78,7 +78,7 @@ ShardInfo::TensorInfo LoadTensorInfoFromJSON(const picojson::array& json_tensor_
     shape.push_back(AsType<int64_t>(shape_json[i]));
   }
   std::string dtype = AsType<std::string>(json_tensor_info[1]);
-  return ShardInfo::TensorInfo{ShapeTuple(std::move(shape)), DataType(String2DLDataType(dtype))};
+  return ShardInfo::TensorInfo{ShapeTuple(std::move(shape)), DataType(StringToDLDataType(dtype))};
 }
 
 ShardInfo::ShardFunc LoadShardFuncFromJSON(const picojson::array& json_shard_func) {

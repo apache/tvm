@@ -553,7 +553,7 @@ const MSCJoint GraphBuilder::AddNode(const Expr& expr, const Optional<Expr>& bin
   } else if (const auto* s_sinfo = sinfo.as<ShapeStructInfoNode>()) {
     Array<Integer> shape{s_sinfo->ndim};
     const auto& t_name = node_name + ":" + std::to_string(0);
-    const auto& dtype = DataType(runtime::String2DLDataType("int32"));
+    const auto& dtype = DataType(runtime::StringToDLDataType("int32"));
     outputs.push_back(MSCTensor(t_name, dtype, layouts[0], shape));
   } else if (const auto* tuple_sinfo = sinfo.as<TupleStructInfoNode>()) {
     size_t field_size = optype == "nn.batch_norm" ? 1 : num_output;
