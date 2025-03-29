@@ -105,10 +105,10 @@ struct CutlassGroupGemmRunner {
 
   using Gemm = cutlass::gemm::device::GemmUniversalAdapter<GemmKernel>;
 
-  using StrideA = typename Gemm::GemmKernel::UnderlyingStrideA;
-  using StrideB = typename Gemm::GemmKernel::UnderlyingStrideB;
-  using StrideC = typename Gemm::GemmKernel::UnderlyingStrideC;
-  using StrideD = typename Gemm::GemmKernel::UnderlyingStrideD;
+  using StrideA = typename Gemm::GemmKernel::InternalStrideA;
+  using StrideB = typename Gemm::GemmKernel::InternalStrideB;
+  using StrideC = typename Gemm::GemmKernel::InternalStrideC;
+  using StrideD = typename Gemm::GemmKernel::InternalStrideD;
 
   void run_group_gemm(const ElementA** ptr_A, const ElementB** ptr_B, const ElementC** ptr_C,
                       ElementC** ptr_D,
@@ -163,9 +163,9 @@ __global__ void prepare_group_gemm_arguments(
   ptr_D[group_id] = out + prev_rows * n;
   problem_sizes[group_id] = {static_cast<int>(indptr[group_id] - prev_rows), static_cast<int>(n),
                              static_cast<int>(k)};
-  stride_A[group_id] = cute::make_stride(k, Int<1>{}, int64_t{0});
-  stride_B[group_id] = cute::make_stride(k, Int<1>{}, int64_t{0});
-  stride_D[group_id] = cute::make_stride(n, Int<1>{}, int64_t{0});
+  stride_A[group_id] = cute::make_stride(k, Int<1>{}, Int<0>{});
+  stride_B[group_id] = cute::make_stride(k, Int<1>{}, Int<0>{});
+  stride_D[group_id] = cute::make_stride(n, Int<1>{}, Int<0>{});
 }
 
 template <typename ElementA, typename ElementB, typename ElementC>
