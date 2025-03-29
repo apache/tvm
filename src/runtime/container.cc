@@ -36,11 +36,11 @@ namespace runtime {
 TVM_REGISTER_OBJECT_TYPE(ArrayNode);
 
 TVM_REGISTER_GLOBAL("runtime.Array").set_body_packed([](ffi::PackedArgs args, Any* ret) {
-  std::vector<ObjectRef> data;
+  Array<Any> result;
   for (int i = 0; i < args.size(); ++i) {
-    data.push_back(args[i].operator ObjectRef());
+    result.push_back(args[i]);
   }
-  *ret = Array<ObjectRef>(data);
+  *ret = result;
 });
 
 TVM_REGISTER_GLOBAL("runtime.ArrayGetItem")
