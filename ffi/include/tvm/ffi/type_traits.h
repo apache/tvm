@@ -392,6 +392,87 @@ struct TypeTraits<TObjRef, std::enable_if_t<std::is_base_of_v<ObjectRef, TObjRef
                                             use_default_type_traits_v<TObjRef>>>
     : public ObjectRefTypeTraitsBase<TObjRef> {};
 
+
+/*!
+ * \brief Helper class that convert to T only via the FallbackTypes
+ *
+ * The conversion will go through the FallbackTypes in the order
+ * specified in the template parameter.
+ * \tparam T The type of the target value.
+ * \tparam FallbackTypes The type of the fallback value.
+ * \note TypeTraits<T> must be derived from this class and define
+ *     ConvertFallbackValue(FallbackType)->T for each FallbackType
+ */
+template <typename T, typename... FallbackTypes>
+struct FallbackOnlyTraitsBase : public TypeTraitsBase {
+  static TVM_FFI_INLINE bool CheckAnyView(const TVMFFIAny* src) {
+    return (TypeTraits<FallbackTypes>::CheckAnyView(src) || ...);
+  }
+  static TVM_FFI_INLINE T CopyFromAnyViewAfterCheck(const TVMFFIAny* src) {
+    return TryFallbackTypes<FallbackTypes...>(src).value();
+  }
+
+  static TVM_FFI_INLINE std::optional<T> TryCopyFromAnyView(const TVMFFIAny* src) {
+    return TryFallbackTypes<FallbackTypes...>(src);
+  }
+
+  template <typename FallbackType, typename... Rest>
+  static TVM_FFI_INLINE std::optional<T> TryFallbackTypes(const TVMFFIAny* src) {
+    if (auto opt_fallback = TypeTraits<FallbackType>::TryCopyFromAnyView(src)) {
+      return TypeTraits<T>::ConvertFallbackValue(std::move(opt_fallback.value()));
+    }
+    if constexpr (sizeof...(Rest) > 0) {
+      return TryFallbackTypes<Rest...>(src);
+    }
+    return std::nullopt;
+  }
+};
+
+/*!
+ * \brief Helper class to define ObjectRef that can be auto-converted from a
+ *        fallback type, the Traits<ObjectRefType> must be derived from it
+ *        and define a static methods named ConvertFallbackValue for each
+ *        FallbackType
+ *
+ *        The conversion will go through the FallbackTypes in the order
+ *        specified in the template parameter.
+ * \tparam ObjectRefType The type of the ObjectRef.
+ * \tparam FallbackTypes The type of the fallback value.
+ */
+template <typename ObjectRefType, typename... FallbackTypes>
+struct ObjectRefWithFallbackTraitsBase
+    : public ObjectRefTypeTraitsBase<ObjectRefType> {
+  static TVM_FFI_INLINE bool CheckAnyView(const TVMFFIAny* src) {
+    return ObjectRefTypeTraitsBase<ObjectRefType>::CheckAnyView(src) ||
+           (TypeTraits<FallbackTypes>::CheckAnyView(src) || ...);
+  }
+
+  static TVM_FFI_INLINE ObjectRefType CopyFromAnyViewAfterCheck(const TVMFFIAny* src) {
+    if (auto opt = ObjectRefTypeTraitsBase<ObjectRefType>::TryCopyFromAnyView(src)) {
+      return opt.value();
+    }
+    return TryFallbackTypes<FallbackTypes...>(src).value();
+  }
+
+  static TVM_FFI_INLINE std::optional<ObjectRefType> TryCopyFromAnyView(const TVMFFIAny* src) {
+    if (auto opt_obj = ObjectRefTypeTraitsBase<ObjectRefType>::TryCopyFromAnyView(src)) {
+      return opt_obj.value();
+    }
+    return TryFallbackTypes<FallbackTypes...>(src);
+  }
+
+  template <typename FallbackType, typename... Rest>
+  static TVM_FFI_INLINE std::optional<ObjectRefType> TryFallbackTypes(const TVMFFIAny* src) {
+    if (auto opt_fallback = TypeTraits<FallbackType>::TryCopyFromAnyView(src)) {
+      return TypeTraits<ObjectRefType>::ConvertFallbackValue(std::move(opt_fallback.value()));
+    }
+    if constexpr (sizeof...(Rest) > 0) {
+      return TryFallbackTypes<Rest...>(src);
+    }
+    return std::nullopt;
+  }
+};
+
 // Traits for ObjectPtr
 template <typename T>
 struct TypeTraits<ObjectPtr<T>> : public TypeTraitsBase {
