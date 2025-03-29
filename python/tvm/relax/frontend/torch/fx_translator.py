@@ -62,6 +62,10 @@ class TorchFXImporter(BaseFXGraphImporter):
 
     ########## Unary Ops ##########
 
+    def _reciprocal(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        return self.block_builder.emit(relax.op.divide(relax.const(1.0, x.struct_info.dtype), x))
+
     def _leakyrelu_module(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         module = self.named_modules[node.target]
@@ -708,6 +712,7 @@ class TorchFXImporter(BaseFXGraphImporter):
             "logical_not": self._unary_op(relax.op.logical_not),
             "log_softmax": self._log_softmax,
             "neg": self._unary_op(relax.op.negative),
+            "reciprocal": self._reciprocal,
             "relu": self._unary_op(relax.op.nn.relu),
             "round": self._round,
             "rsqrt": self._unary_op(relax.op.rsqrt),
@@ -784,11 +789,13 @@ class TorchFXImporter(BaseFXGraphImporter):
             # search
             "argmax": self._argmax_argmin(relax.op.argmax),
             "argmin": self._argmax_argmin(relax.op.argmin),
+            "where": self._where,
             # tensor manipulation
             "cat": self._cat,
             "chunk": self._chunk,
             "concat": self._cat,
             "contiguous": lambda node: self.env[node.args[0]],
+            "cumprod": self._cumprod,
             "cumsum": self._cumsum,
             "expand": self._expand,
             "expand_as.default": self._expand_as,
