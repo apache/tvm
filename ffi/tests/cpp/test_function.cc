@@ -190,4 +190,43 @@ TEST(Func, TypedFunctionAsAnyView) {
   TypedFunction<int(int)> fadd2_dup = fview;
   EXPECT_EQ(fadd2_dup(1), 3);
 }
+
+TEST(Func, ObjectRefWithFallbackTraits) {
+  // test cases to test automatic type conversion via ObjectRefWithFallbackTraits
+  // through TPrimExpr
+  Function freturn_primexpr = Function::FromUnpacked([](TPrimExpr a) -> TPrimExpr { return a; });
+
+  TPrimExpr result_int = freturn_primexpr(1);
+  EXPECT_EQ(result_int->dtype, "int64");
+  EXPECT_EQ(result_int->value, 1);
+
+  // Test case for float
+  TPrimExpr result_float = freturn_primexpr(2.5);
+  EXPECT_EQ(result_float->dtype, "float32");
+  EXPECT_EQ(result_float->value, 2.5);
+
+  // Test case for bool
+  TPrimExpr result_bool = freturn_primexpr(true);
+  EXPECT_EQ(result_bool->dtype, "bool");
+  EXPECT_EQ(result_bool->value, 1);
+
+  // Test case for string
+  TPrimExpr result_string = freturn_primexpr("test_string");
+  EXPECT_EQ(result_string->dtype, "test_string");
+  EXPECT_EQ(result_string->value, 0);
+
+   EXPECT_THROW(
+      {
+        try {
+          freturn_primexpr(TInt(1));
+        } catch (const Error& error) {
+          EXPECT_EQ(error->kind, "TypeError");
+          EXPECT_STREQ(error->message.c_str(),
+                       "Mismatched type on argument #0 when calling: `(0: test.PrimExpr) -> test.PrimExpr`. "
+                       "Expected `test.PrimExpr` but got `test.Int`");
+          throw;
+        }
+      },
+      ::tvm::ffi::Error);
+}
 }  // namespace
