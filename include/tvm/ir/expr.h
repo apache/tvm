@@ -748,9 +748,7 @@ inline constexpr bool use_default_type_traits_v<Integer> = false;
 
 template <>
 struct TypeTraits<Integer> : public ObjectRefWithFallbackTraitsBase<Integer, int64_t> {
-  static TVM_FFI_INLINE Integer ConvertFallbackValue(int64_t value) {
-    return Integer(value);
-  }
+  static TVM_FFI_INLINE Integer ConvertFallbackValue(int64_t value) { return Integer(value); }
 };
 
 template <>
@@ -768,9 +766,7 @@ inline constexpr bool use_default_type_traits_v<Bool> = false;
 
 template <>
 struct TypeTraits<Bool> : public ObjectRefWithFallbackTraitsBase<Bool, bool> {
-  static TVM_FFI_INLINE Bool ConvertFallbackValue(bool value) {
-    return Bool(value);
-  }
+  static TVM_FFI_INLINE Bool ConvertFallbackValue(bool value) { return Bool(value); }
 };
 
 template <>
