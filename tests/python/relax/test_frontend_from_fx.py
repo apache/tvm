@@ -2339,6 +2339,25 @@ def test_extended_unary_ops():
     verify_model(LogSoftmax(), input_info, {}, expected_log_softmax)
     verify_model(LogSoftmax2(), input_info, {}, expected_log_softmax)
 
+    # reciprocal
+    class Reciprocal(Module):
+        def forward(self, input):
+            return torch.reciprocal(input)
+
+    @tvm.script.ir_module
+    class expected_reciprocal:
+        @R.function
+        def main(
+            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
+        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.divide(R.const(1.0, "float32"), input_1)
+                gv: R.Tensor((1, 3, 10, 10), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    verify_model(Reciprocal(), input_info, {}, expected_reciprocal)
+
     # relu
     class ReLU0(Module):
         def __init__(self):
@@ -4313,6 +4332,48 @@ def test_prod():
             return gv
 
     verify_model(Prod(), [([5, 3], "float32")], {}, Expected)
+
+
+def test_cumprod():
+    class Cumprod(Module):
+        def forward(self, x):
+            return torch.cumprod(x, 0)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            inp_0: R.Tensor((5, 3), dtype="float32"),
+        ) -> R.Tensor((5, 3), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((5, 3), dtype="float32") = R.cumprod(inp_0, axis=0, exclusive=False)
+                gv: R.Tensor((5, 3), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    verify_model(Cumprod(), [([5, 3], "float32")], {}, Expected)
+
+
+def test_where():
+    class Where(Module):
+        def forward(self, condition, x, y):
+            return torch.where(condition, x, y)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            inp_0: R.Tensor((5, 3), dtype="bool"),
+            inp_1: R.Tensor((5, 3), dtype="float32"),
+            inp_2: R.Tensor((5, 3), dtype="float32"),
+        ) -> R.Tensor((5, 3), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((5, 3), dtype="float32") = R.where(inp_0, inp_1, inp_2)
+                gv: R.Tensor((5, 3), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    verify_model(Where(), [([5, 3], "bool"), ([5, 3], "float32"), ([5, 3], "float32")], {}, Expected)
 
 
 if __name__ == "__main__":
