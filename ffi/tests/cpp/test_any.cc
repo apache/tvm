@@ -275,4 +275,62 @@ TEST(Any, Object) {
   EXPECT_EQ(v1.use_count(), 3);
 }
 
+
+TEST(Any, ObjectRefWithFallbackTraits) {
+  // Test case for TPrimExpr fallback from Any
+  Any any1 = TPrimExpr("float32", 3.14);
+  TPrimExpr v0 = any1;
+  EXPECT_EQ(v0->value, 3.14);
+  EXPECT_EQ(v0->dtype, "float32");
+
+  any1 = true;
+  TPrimExpr v1 = any1;
+  EXPECT_EQ(v1->value, 1);
+  EXPECT_EQ(v1->dtype, "bool");
+
+  any1 = int64_t(42);
+  TPrimExpr v2 = any1;
+  EXPECT_EQ(v2->value, 42);
+  EXPECT_EQ(v2->dtype, "int64");
+
+  any1 = 2.718;
+  TPrimExpr v3 = any1;
+  EXPECT_EQ(v3->value, 2.718);
+  EXPECT_EQ(v3->dtype, "float32");
+
+  // Test case for TPrimExpr fallback from AnyView
+  TPrimExpr texpr1("float32", 3.14);
+  AnyView view1 = texpr1;
+  TPrimExpr v4 = view1;
+  EXPECT_EQ(v4->value, 3.14);
+  EXPECT_EQ(v4->dtype, "float32");
+
+  view1 = true;
+  TPrimExpr v5 = view1;
+  EXPECT_EQ(v5->value, 1);
+  EXPECT_EQ(v5->dtype, "bool");
+
+  view1 = int64_t(42);
+  TPrimExpr v6 = view1;
+  EXPECT_EQ(v6->value, 42);
+  EXPECT_EQ(v6->dtype, "int64");
+
+  view1 = 2.718;
+  TPrimExpr v7 = view1;
+  EXPECT_EQ(v7->value, 2.718);
+  EXPECT_EQ(v7->dtype, "float32");
+
+  // Test case for TPrimExpr fallback from Any with String
+  any1 = std::string("test_string");
+  TPrimExpr v8 = any1;
+  EXPECT_EQ(v8->dtype, "test_string");
+  EXPECT_EQ(v8->value, 0);
+
+  // Test case for TPrimExpr fallback from AnyView with String
+  view1 = "test_string";
+  TPrimExpr v9 = view1;
+  EXPECT_EQ(v9->dtype, "test_string");
+  EXPECT_EQ(v9->value, 0);
+}
+
 }  // namespace

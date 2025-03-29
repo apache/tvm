@@ -23,6 +23,8 @@
 #include <tvm/ffi/memory.h>
 #include <tvm/ffi/object.h>
 #include <tvm/ffi/reflection.h>
+#include <tvm/ffi/string.h>
+
 
 namespace tvm {
 namespace ffi {
@@ -85,7 +87,49 @@ class TFloat : public TNumber {
 
   TVM_FFI_DEFINE_NULLABLE_OBJECT_REF_METHODS(TFloat, TNumber, TFloatObj);
 };
+
+// TPrimExpr is used for testing FallbackTraits
+class TPrimExprObj : public Object {
+ public:
+  std::string dtype;
+  double value;
+
+  TPrimExprObj(std::string dtype, double value) : dtype(dtype), value(value) {}
+
+  static constexpr const char* _type_key = "test.PrimExpr";
+  TVM_FFI_DECLARE_FINAL_OBJECT_INFO(TPrimExprObj, Object);
+};
+
+class TPrimExpr : public ObjectRef {
+ public:
+  explicit TPrimExpr(std::string dtype, double value) { data_ = make_object<TPrimExprObj>(dtype, value); }
+
+  TVM_FFI_DEFINE_NULLABLE_OBJECT_REF_METHODS(TPrimExpr, ObjectRef, TPrimExprObj);
+};
 }  // namespace testing
+
+template <>
+inline constexpr bool use_default_type_traits_v<testing::TPrimExpr> = true;
+
+template <>
+struct TypeTraits<testing::TPrimExpr> :
+  public ObjectRefWithFallbackTraitsBase<testing::TPrimExpr, StrictBool, int64_t, double, String> {
+  static TVM_FFI_INLINE testing::TPrimExpr ConvertFallbackValue(StrictBool value) {
+    return testing::TPrimExpr("bool", value);
+  }
+
+  static TVM_FFI_INLINE testing::TPrimExpr ConvertFallbackValue(int64_t value) {
+    return testing::TPrimExpr("int64", value);
+  }
+
+  static TVM_FFI_INLINE testing::TPrimExpr ConvertFallbackValue(double value) {
+    return testing::TPrimExpr("float32", value);
+  }
+  // hack into the dtype to store string
+  static TVM_FFI_INLINE testing::TPrimExpr ConvertFallbackValue(String value) {
+    return testing::TPrimExpr(value, 0);
+  }
+};
 }  // namespace ffi
 }  // namespace tvm
 #endif  // TVM_FFI_TESTING_OBJECT_H_
