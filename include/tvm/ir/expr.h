@@ -132,7 +132,6 @@ class PrimExpr : public BaseExpr {
   TVM_DEFINE_OBJECT_REF_METHODS(PrimExpr, BaseExpr, PrimExprNode);
 };
 
-
 namespace ffi {
 // define automatic conversion from bool, int64_t, double, String to PrimExpr
 // These functions are declared early to avoid circular dependency
@@ -141,12 +140,8 @@ inline constexpr bool use_default_type_traits_v<PrimExpr> = false;
 
 template <>
 struct TypeTraits<PrimExpr>
-  : public ObjectRefWithFallbackTraitsBase<PrimExpr,
-                                         bool,
-                                         int64_t,
-                                         double,
-                                         String> {
-  static TVM_FFI_INLINE PrimExpr ConvertFallbackValue(bool value);
+    : public ObjectRefWithFallbackTraitsBase<PrimExpr, StrictBool, int64_t, double, String> {
+  static TVM_FFI_INLINE PrimExpr ConvertFallbackValue(StrictBool value);
   static TVM_FFI_INLINE PrimExpr ConvertFallbackValue(int64_t value);
   static TVM_FFI_INLINE PrimExpr ConvertFallbackValue(double value);
   static TVM_FFI_INLINE PrimExpr ConvertFallbackValue(String value);
@@ -785,8 +780,8 @@ template <>
 inline constexpr bool use_default_type_traits_v<Bool> = false;
 
 template <>
-struct TypeTraits<Bool> : public ObjectRefWithFallbackTraitsBase<Bool, bool> {
-  static TVM_FFI_INLINE Bool ConvertFallbackValue(bool value) { return Bool(value); }
+struct TypeTraits<Bool> : public ObjectRefWithFallbackTraitsBase<Bool, int64_t> {
+  static TVM_FFI_INLINE Bool ConvertFallbackValue(int64_t value) { return Bool(value != 0); }
 };
 
 template <>
@@ -813,14 +808,14 @@ template <>
 inline constexpr bool use_default_type_traits_v<runtime::Bool> = false;
 
 template <>
-struct TypeTraits<runtime::Bool> : public ObjectRefWithFallbackTraitsBase<runtime::Bool, bool> {
-  static TVM_FFI_INLINE runtime::Bool ConvertFallbackValue(bool value) {
-    return runtime::Bool(value);
+struct TypeTraits<runtime::Bool> : public ObjectRefWithFallbackTraitsBase<runtime::Bool, int64_t> {
+  static TVM_FFI_INLINE runtime::Bool ConvertFallbackValue(int64_t value) {
+    return runtime::Bool(value != 0);
   }
 };
 
 // define automatic conversion from bool, int64_t, double to PrimExpr
-TVM_FFI_INLINE PrimExpr TypeTraits<PrimExpr>::ConvertFallbackValue(bool value) {
+TVM_FFI_INLINE PrimExpr TypeTraits<PrimExpr>::ConvertFallbackValue(StrictBool value) {
   return IntImm(DataType::Bool(), value, Span());
 }
 

@@ -295,6 +295,20 @@ class Any {
     return data_.type_index == other.data_.type_index && data_.v_int64 == other.data_.v_int64;
   }
 
+  /*
+   * \brief Check if any and ObjectRef are same type and value in shallow comparison.
+   * \param other The other ObjectRef
+   * \return True if the two Any are same type and value, false otherwise.
+   */
+  bool same_as(const ObjectRef& other) const {
+    if (other.get() != nullptr) {
+      return (data_.type_index == other->type_index() &&
+              reinterpret_cast<Object*>(data_.v_obj) == other.get());
+    } else {
+      return data_.type_index == TypeIndex::kTVMFFINone;
+    }
+  }
+
   bool operator==(std::nullptr_t) const { return data_.type_index == TypeIndex::kTVMFFINone; }
   bool operator!=(std::nullptr_t) const { return data_.type_index != TypeIndex::kTVMFFINone; }
 
