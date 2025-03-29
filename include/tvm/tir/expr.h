@@ -1117,6 +1117,21 @@ inline std::unordered_map<K, V> as_unordered_map(const Map<K, V>& dmap) {
   return ret;
 }
 }  // namespace tir
+
+namespace ffi {
+
+// Type traits to enable automatic conversion into StringImm, PrimExpr
+template <>
+inline constexpr bool use_default_type_traits_v<tvm::tir::StringImm> = false;
+
+template <>
+struct TypeTraits<tvm::tir::StringImm> : public ObjectRefWithFallbackTraitsBase<tvm::tir::StringImm, String> {
+  static TVM_FFI_INLINE tvm::tir::StringImm ConvertFallbackValue(String value) {
+    return tvm::tir::StringImm(value);
+  }
+};
+
+}  // namespace ffi
 }  // namespace tvm
 
 namespace std {
