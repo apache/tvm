@@ -348,8 +348,8 @@ inline bool TypeEqual(DLDataType lhs, DLDataType rhs) {
   return lhs.code == rhs.code && lhs.bits == rhs.bits && lhs.lanes == rhs.lanes;
 }
 
-using ffi::StringToDLDataType;
 using ffi::DLDataTypeToString;
+using ffi::StringToDLDataType;
 
 inline std::ostream& operator<<(std::ostream& os, const DataType& dtype) {  // NOLINT(*)
   return os << dtype.operator DLDataType();

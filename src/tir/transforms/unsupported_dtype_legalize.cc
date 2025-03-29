@@ -780,7 +780,8 @@ Pass FP8ComputeLegalize(String promote_dtype_str) {
     if (CheckDataTypeSupport(target, "tvm.contrib.nvcc.supports_fp8")) {
       return f;
     }
-    return FP8ComputeLegalizer(DataType(runtime::StringToDLDataType(promote_dtype_str))).Legalize(f);
+    return FP8ComputeLegalizer(DataType(runtime::StringToDLDataType(promote_dtype_str)))
+        .Legalize(f);
   };
   return CreatePrimFuncPass(pass_func, 0, "tir.FP8ComputeLegalize", {});
 }
