@@ -86,39 +86,39 @@ using namespace tvm::script::printer;
            this->DescribePrim(prim->ParentAt(1)) + ")";                                \
   }
 
-#define CODEGEN_MEMBERS                                                                           \
- public:                                                                                          \
+#define CODEGEN_MEMBERS                                                                            \
+ public:                                                                                           \
   virtual const String DType(const DataType& dtype) { return runtime::DLDataTypeToString(dtype); } \
-                                                                                                  \
- protected:                                                                                       \
-  const std::shared_ptr<ConfigType> config() { return config_; }                                  \
-  const Map<String, String> prims() { return prims_; }                                            \
-  const String IdxNodeBase(const MSCJoint& node) {                                                \
-    return helper_.IdxNodeBase(node, config()->prefix, "");                                       \
-  }                                                                                               \
-  const String IdxInputBase(const MSCJoint& node, int idx = 0, bool process = true) {             \
-    return helper_.IdxInputBase(node, config()->prefix, idx, "", process && config()->use_tools); \
-  }                                                                                               \
-  const String IdxOutputBase(const MSCJoint& node, int idx = 0, bool mark_exit = false) {         \
-    return helper_.IdxOutputBase(node, config()->prefix, idx, "",                                 \
-                                 mark_exit && config()->use_tools);                               \
-  }                                                                                               \
-  const String IdxWeightBase(const MSCJoint& node, const String& wtype, bool process = true) {    \
-    return helper_.IdxWeightBase(node, wtype, "", process && config()->use_tools);                \
-  }                                                                                               \
-  const Array<String> GetPrims(const MSCTensor& tensor) {                                         \
-    return CodeGenUtils::GetPrims(tensor, prims_);                                                \
-  }                                                                                               \
-  const String Comment(const MSCJoint& node) {                                                    \
-    return helper_.Comment(node, config()->prefix, prims_);                                       \
-  }                                                                                               \
-  int CompareVersion(size_t major, size_t minor, size_t patch) {                                  \
-    return CommonUtils::CompareVersion(config()->version, {major, minor, patch});                 \
-  }                                                                                               \
-                                                                                                  \
- private:                                                                                         \
-  std::shared_ptr<ConfigType> config_;                                                            \
-  Map<String, String> prims_;                                                                     \
+                                                                                                   \
+ protected:                                                                                        \
+  const std::shared_ptr<ConfigType> config() { return config_; }                                   \
+  const Map<String, String> prims() { return prims_; }                                             \
+  const String IdxNodeBase(const MSCJoint& node) {                                                 \
+    return helper_.IdxNodeBase(node, config()->prefix, "");                                        \
+  }                                                                                                \
+  const String IdxInputBase(const MSCJoint& node, int idx = 0, bool process = true) {              \
+    return helper_.IdxInputBase(node, config()->prefix, idx, "", process && config()->use_tools);  \
+  }                                                                                                \
+  const String IdxOutputBase(const MSCJoint& node, int idx = 0, bool mark_exit = false) {          \
+    return helper_.IdxOutputBase(node, config()->prefix, idx, "",                                  \
+                                 mark_exit && config()->use_tools);                                \
+  }                                                                                                \
+  const String IdxWeightBase(const MSCJoint& node, const String& wtype, bool process = true) {     \
+    return helper_.IdxWeightBase(node, wtype, "", process && config()->use_tools);                 \
+  }                                                                                                \
+  const Array<String> GetPrims(const MSCTensor& tensor) {                                          \
+    return CodeGenUtils::GetPrims(tensor, prims_);                                                 \
+  }                                                                                                \
+  const String Comment(const MSCJoint& node) {                                                     \
+    return helper_.Comment(node, config()->prefix, prims_);                                        \
+  }                                                                                                \
+  int CompareVersion(size_t major, size_t minor, size_t patch) {                                   \
+    return CommonUtils::CompareVersion(config()->version, {major, minor, patch});                  \
+  }                                                                                                \
+                                                                                                   \
+ private:                                                                                          \
+  std::shared_ptr<ConfigType> config_;                                                             \
+  Map<String, String> prims_;                                                                      \
   HelperType helper_;
 
 /*!
