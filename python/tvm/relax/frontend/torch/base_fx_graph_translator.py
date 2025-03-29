@@ -949,6 +949,12 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
 
         return convert
 
+    def _where(self, node: fx.Node) -> relax.Var:
+        condition = self.env[node.args[0]]
+        x = self.env[node.args[1]]
+        y = self.env[node.args[2]]
+        return self.block_builder.emit(relax.op.where(condition, x, y))
+
     ########## Manipulation ##########
 
     def _cat(self, node: fx.Node) -> relax.Var:
@@ -966,6 +972,17 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         return self.block_builder.emit(
             relax.op.split(x=x, indices_or_sections=n_sections, axis=dim)
         )
+
+    def _cumprod(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+
+        dim = node.args[1] if len(node.args) > 1 else node.kwargs.get("dim", None)
+        if "dtype" in node.kwargs:
+            dtype = self._convert_data_type(str(node.kwargs["dtype"]), self.env)
+        else:
+            dtype = None
+
+        return self.block_builder.emit(relax.op.cumprod(x, dim, dtype))
 
     def _cumsum(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
