@@ -57,7 +57,7 @@ struct StaticTypeKey {
  * \param type_index The input type index
  * \return the type key
  */
-inline std::string TypeIndex2TypeKey(int32_t type_index) {
+inline std::string TypeIndexToTypeKey(int32_t type_index) {
   switch (type_index) {
     case TypeIndex::kTVMFFIAny:
       return StaticTypeKey::kTVMFFIAny;

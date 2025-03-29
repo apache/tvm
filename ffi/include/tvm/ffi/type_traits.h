@@ -74,7 +74,7 @@ struct TypeTraitsBase {
   // to get more detailed type information in runtime
   // especially when the error involves nested container type
   static TVM_FFI_INLINE std::string GetMismatchTypeInfo(const TVMFFIAny* source) {
-    return TypeIndex2TypeKey(source->type_index);
+    return TypeIndexToTypeKey(source->type_index);
   }
 };
 
