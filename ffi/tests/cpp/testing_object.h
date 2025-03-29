@@ -25,7 +25,6 @@
 #include <tvm/ffi/reflection.h>
 #include <tvm/ffi/string.h>
 
-
 namespace tvm {
 namespace ffi {
 namespace testing {
@@ -102,7 +101,9 @@ class TPrimExprObj : public Object {
 
 class TPrimExpr : public ObjectRef {
  public:
-  explicit TPrimExpr(std::string dtype, double value) { data_ = make_object<TPrimExprObj>(dtype, value); }
+  explicit TPrimExpr(std::string dtype, double value) {
+    data_ = make_object<TPrimExprObj>(dtype, value);
+  }
 
   TVM_FFI_DEFINE_NULLABLE_OBJECT_REF_METHODS(TPrimExpr, ObjectRef, TPrimExprObj);
 };
@@ -112,8 +113,9 @@ template <>
 inline constexpr bool use_default_type_traits_v<testing::TPrimExpr> = true;
 
 template <>
-struct TypeTraits<testing::TPrimExpr> :
-  public ObjectRefWithFallbackTraitsBase<testing::TPrimExpr, StrictBool, int64_t, double, String> {
+struct TypeTraits<testing::TPrimExpr>
+    : public ObjectRefWithFallbackTraitsBase<testing::TPrimExpr, StrictBool, int64_t, double,
+                                             String> {
   static TVM_FFI_INLINE testing::TPrimExpr ConvertFallbackValue(StrictBool value) {
     return testing::TPrimExpr("bool", value);
   }

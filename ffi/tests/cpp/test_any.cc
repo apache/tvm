@@ -275,7 +275,6 @@ TEST(Any, Object) {
   EXPECT_EQ(v1.use_count(), 3);
 }
 
-
 TEST(Any, ObjectRefWithFallbackTraits) {
   // Test case for TPrimExpr fallback from Any
   Any any1 = TPrimExpr("float32", 3.14);
