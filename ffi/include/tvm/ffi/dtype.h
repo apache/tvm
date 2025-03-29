@@ -185,7 +185,7 @@ inline std::ostream& operator<<(std::ostream& os, DLDataType dtype) {  // NOLINT
  * \param dtype The DLDataType to convert.
  * \return The corresponding DLDataType in string.
  */
-inline std::string DLDataType2String(DLDataType dtype) {
+inline std::string DLDataTypeToString(DLDataType dtype) {
   std::ostringstream oss;
   oss << dtype;
   return oss.str();
@@ -196,7 +196,7 @@ inline std::string DLDataType2String(DLDataType dtype) {
  * \param str The string to convert.
  * \return The corresponding DLDataType.
  */
-inline DLDataType String2DLDataType(const std::string& str) {
+inline DLDataType StringToDLDataType(const std::string& str) {
   DLDataType dtype;
   // handle void type
   if (str.length() == 0 || str == "void") {
@@ -297,7 +297,7 @@ struct TypeTraits<DLDataType> : public TypeTraitsBase {
     }
     // enable string to dtype auto conversion
     if (auto opt_str = TypeTraits<std::string>::TryCopyFromAnyView(src)) {
-      return String2DLDataType(opt_str.value());
+      return StringToDLDataType(opt_str.value());
     }
     return std::nullopt;
   }
@@ -314,7 +314,7 @@ struct TypeTraits<DLDataType> : public TypeTraitsBase {
     // enable string to dtype auto conversion
     // as many machine learning frameworks accept string as dtype
     // TODO(tqchen): revisit this decision
-    return String2DLDataType(TypeTraits<std::string>::CopyFromAnyViewAfterCheck(src));
+    return StringToDLDataType(TypeTraits<std::string>::CopyFromAnyViewAfterCheck(src));
   }
 
   static TVM_FFI_INLINE std::string TypeStr() { return ffi::StaticTypeKey::kTVMFFIDataType; }

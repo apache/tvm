@@ -28,26 +28,26 @@ using namespace tvm::ffi::testing;
 
 TEST(DType, StringConversion) {
   DLDataType dtype = DLDataType{kDLFloat, 32, 1};
-  EXPECT_EQ(DLDataType2String(dtype), "float32");
-  EXPECT_EQ(String2DLDataType("float32"), dtype);
+  EXPECT_EQ(DLDataTypeToString(dtype), "float32");
+  EXPECT_EQ(StringToDLDataType("float32"), dtype);
 
   dtype = DLDataType{kDLInt, 16, 2};
-  EXPECT_EQ(DLDataType2String(dtype), "int16x2");
-  EXPECT_EQ(String2DLDataType("int16x2"), dtype);
+  EXPECT_EQ(DLDataTypeToString(dtype), "int16x2");
+  EXPECT_EQ(StringToDLDataType("int16x2"), dtype);
 
   dtype = DLDataType{kDLOpaqueHandle, 0, 0};
-  EXPECT_EQ(DLDataType2String(dtype), "void");
-  EXPECT_EQ(String2DLDataType("void"), dtype);
+  EXPECT_EQ(DLDataTypeToString(dtype), "void");
+  EXPECT_EQ(StringToDLDataType("void"), dtype);
 
   // test bfloat with lanes
   dtype = DLDataType{kDLBfloat, 16, 2};
-  EXPECT_EQ(DLDataType2String(dtype), "bfloat16x2");
-  EXPECT_EQ(String2DLDataType("bfloat16x2"), dtype);
+  EXPECT_EQ(DLDataTypeToString(dtype), "bfloat16x2");
+  EXPECT_EQ(StringToDLDataType("bfloat16x2"), dtype);
 
   // test float8
   dtype = DLDataType{kDLExtFloat8_e4m3fn, 8, 2};
-  EXPECT_EQ(DLDataType2String(dtype), "float8_e4m3fnx2");
-  EXPECT_EQ(String2DLDataType("float8_e4m3fnx2"), dtype);
+  EXPECT_EQ(DLDataTypeToString(dtype), "float8_e4m3fnx2");
+  EXPECT_EQ(StringToDLDataType("float8_e4m3fnx2"), dtype);
 }
 
 TEST(DataType, AnyConversion) {

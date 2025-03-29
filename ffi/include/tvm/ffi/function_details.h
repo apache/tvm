@@ -128,12 +128,12 @@ TVM_FFI_INLINE std::string GetMismatchTypeInfo(const TVMFFIAny* source) {
 
 template <>
 TVM_FFI_INLINE std::string GetMismatchTypeInfo<Any>(const TVMFFIAny* source) {
-  return TypeIndex2TypeKey(source->type_index);
+  return TypeIndexToTypeKey(source->type_index);
 }
 
 template <>
 TVM_FFI_INLINE std::string GetMismatchTypeInfo<AnyView>(const TVMFFIAny* source) {
-  return TypeIndex2TypeKey(source->type_index);
+  return TypeIndexToTypeKey(source->type_index);
 }
 
 /*!

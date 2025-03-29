@@ -135,7 +135,7 @@ class AnyView {
    * \brief Get the type key of the Any
    * \return The type key of the Any
    */
-  std::string GetTypeKey() const { return TypeIndex2TypeKey(data_.type_index); }
+  std::string GetTypeKey() const { return TypeIndexToTypeKey(data_.type_index); }
   // The following functions are only used for testing purposes
   /*!
    * \return The underlying supporting data of any view
@@ -302,7 +302,7 @@ class Any {
    * \brief Get the type key of the Any
    * \return The type key of the Any
    */
-  std::string GetTypeKey() const { return TypeIndex2TypeKey(data_.type_index); }
+  std::string GetTypeKey() const { return TypeIndexToTypeKey(data_.type_index); }
 
   // FFI related operations
   /*!
