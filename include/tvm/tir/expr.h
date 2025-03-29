@@ -1120,7 +1120,7 @@ inline std::unordered_map<K, V> as_unordered_map(const Map<K, V>& dmap) {
 
 namespace ffi {
 
-// Type traits to enable automatic conversion into StringImm, PrimExpr
+// auto convert String to StringImm
 template <>
 inline constexpr bool use_default_type_traits_v<tvm::tir::StringImm> = false;
 
@@ -1132,6 +1132,10 @@ struct TypeTraits<tvm::tir::StringImm>
   }
 };
 
+// auto convert String to PrimExpr
+TVM_FFI_INLINE PrimExpr TypeTraits<PrimExpr>::ConvertFallbackValue(String value) {
+  return TypeTraits<tvm::tir::StringImm>::ConvertFallbackValue(value);
+}
 }  // namespace ffi
 }  // namespace tvm
 

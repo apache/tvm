@@ -35,6 +35,7 @@
 //  #include <tvm/runtime/profiling.h>
 //  #include <tvm/runtime/registry.h>
 #include <tvm/ir/expr.h>
+#include <tvm/tir/expr.h>
 
 // #include <tvm/runtime/packed_func.h>
 // #include <tvm/runtime/registry.h>
@@ -47,7 +48,7 @@ using namespace tvm::runtime;
 
 String Test() {
   PackedFunc pf([](TVMArgs args, TVMRetValue* rv) {
-    String value = args[0];
+    tvm::PrimExpr value = args[0];
     *rv = value;
   });
   String res = pf("xyz");
