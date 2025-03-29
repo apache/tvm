@@ -724,6 +724,85 @@ inline const TTypeNode* RelaxExprNode::type_as() const {
   return node;
 }
 
+namespace ffi {
+
+// Type traits to enable automatic conversion into IntImm, Integer, and Bool
+// when called through the FFI
+template <>
+inline constexpr bool use_default_type_traits_v<IntImm> = false;
+
+// specialize to enable implicit conversion from const char*
+template <>
+struct TypeTraits<IntImm> : public ObjectRefWithFallbackTraitsBase<IntImm, int64_t> {
+  static TVM_FFI_INLINE IntImm ConvertFallbackValue(int64_t value) {
+    auto dtype =
+        (value > std::numeric_limits<int>::max() || value < std::numeric_limits<int>::min())
+            ? DataType::Int(64)
+            : DataType::Int(32);
+    return IntImm(dtype, value);
+  }
+};
+
+template <>
+inline constexpr bool use_default_type_traits_v<Integer> = false;
+
+template <>
+struct TypeTraits<Integer> : public ObjectRefWithFallbackTraitsBase<Integer, int64_t> {
+  static TVM_FFI_INLINE Integer ConvertFallbackValue(int64_t value) {
+    return Integer(value);
+  }
+};
+
+template <>
+inline constexpr bool use_default_type_traits_v<FloatImm> = false;
+
+template <>
+struct TypeTraits<FloatImm> : public ObjectRefWithFallbackTraitsBase<FloatImm, double> {
+  static TVM_FFI_INLINE FloatImm ConvertFallbackValue(double value) {
+    return FloatImm(runtime::DataType::Float(32), value);
+  }
+};
+
+template <>
+inline constexpr bool use_default_type_traits_v<Bool> = false;
+
+template <>
+struct TypeTraits<Bool> : public ObjectRefWithFallbackTraitsBase<Bool, bool> {
+  static TVM_FFI_INLINE Bool ConvertFallbackValue(bool value) {
+    return Bool(value);
+  }
+};
+
+template <>
+inline constexpr bool use_default_type_traits_v<runtime::Int> = false;
+
+template <>
+struct TypeTraits<runtime::Int> : public ObjectRefWithFallbackTraitsBase<runtime::Int, int64_t> {
+  static TVM_FFI_INLINE runtime::Int ConvertFallbackValue(int64_t value) {
+    return runtime::Int(value);
+  }
+};
+
+template <>
+inline constexpr bool use_default_type_traits_v<runtime::Float> = false;
+
+template <>
+struct TypeTraits<runtime::Float> : public ObjectRefWithFallbackTraitsBase<runtime::Float, double> {
+  static TVM_FFI_INLINE runtime::Float ConvertFallbackValue(double value) {
+    return runtime::Float(value);
+  }
+};
+
+template <>
+inline constexpr bool use_default_type_traits_v<runtime::Bool> = false;
+
+template <>
+struct TypeTraits<runtime::Bool> : public ObjectRefWithFallbackTraitsBase<runtime::Bool, bool> {
+  static TVM_FFI_INLINE runtime::Bool ConvertFallbackValue(bool value) {
+    return runtime::Bool(value);
+  }
+};
+}  // namespace ffi
 }  // namespace tvm
 
 /* \brief Allow tvm.GLobalVar as key in STL tables
