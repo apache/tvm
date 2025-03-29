@@ -24,7 +24,6 @@
 namespace {
 
 using namespace tvm::ffi;
-using namespace tvm::ffi::testing;
 
 TEST(DType, StringConversion) {
   DLDataType dtype = DLDataType{kDLFloat, 32, 1};

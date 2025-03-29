@@ -321,6 +321,45 @@ TEST(String, BytesAny) {
   EXPECT_EQ(b.as<std::string>().value(), s);
 }
 
+TEST(String, StdString) {
+  std::string s1 = "test_string";
+  AnyView view1 = s1;
+  EXPECT_EQ(view1.type_index(), TypeIndex::kTVMFFIRawStr);
+  EXPECT_EQ(view1.as<std::string>().value(), s1);
+
+  TVMFFIByteArray arr1{s1.data(), static_cast<int64_t>(s1.size())};
+  AnyView view2 = &arr1;
+  EXPECT_EQ(view2.type_index(), TypeIndex::kTVMFFIByteArrayPtr);
+  EXPECT_EQ(view2.as<std::string>().value(), s1);
+
+  Bytes bytes1 = s1;
+  AnyView view3 = bytes1;
+  EXPECT_EQ(view3.type_index(), TypeIndex::kTVMFFIBytes);
+  EXPECT_EQ(view3.as<std::string>().value(), s1);
+
+  String string1 = s1;
+  AnyView view4 = string1;
+  EXPECT_EQ(view4.type_index(), TypeIndex::kTVMFFIStr);
+  EXPECT_EQ(view4.as<std::string>().value(), s1);
+
+  // Test with Any
+  Any any1 = s1;
+  EXPECT_EQ(any1.type_index(), TypeIndex::kTVMFFIStr);
+  EXPECT_EQ(any1.as<std::string>().value(), s1);
+
+  Any any2 = &arr1;
+  EXPECT_EQ(any2.type_index(), TypeIndex::kTVMFFIBytes);
+  EXPECT_EQ(any2.as<std::string>().value(), s1);
+
+  Any any3 = bytes1;
+  EXPECT_EQ(any3.type_index(), TypeIndex::kTVMFFIBytes);
+  EXPECT_EQ(any3.as<std::string>().value(), s1);
+
+  Any any4 = string1;
+  EXPECT_EQ(any4.type_index(), TypeIndex::kTVMFFIStr);
+  EXPECT_EQ(any4.as<std::string>().value(), s1);
+}
+
 TEST(String, CAPIAccessor) {
   using namespace std;
   String s{"hello"};
