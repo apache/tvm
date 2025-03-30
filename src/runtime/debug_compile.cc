@@ -46,7 +46,6 @@ namespace debug {
 
 using namespace tvm::runtime;
 
-
 // TVM_REGISTER_GLOBAL("tvm.debug.Test").set_body_typed(Test);
 
 }  // namespace debug
