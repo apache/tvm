@@ -147,7 +147,8 @@ class NDArray : public ObjectRef {
    *       outside the bounds of the current array, this function will
    *       raise an exception.
    */
-  TVM_DLL NDArray CreateView(ShapeTuple shape, DLDataType dtype, uint64_t relative_byte_offset = 0) const;
+  TVM_DLL NDArray CreateView(ShapeTuple shape, DLDataType dtype,
+                             uint64_t relative_byte_offset = 0) const;
 
   /*!
    * \brief Create a reference view of NDArray that

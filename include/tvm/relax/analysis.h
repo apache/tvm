@@ -541,8 +541,8 @@ TVM_DLL bool HasReshapePattern(const tir::PrimFunc& func);
  *   Also, an impure call in a *nested* function does *not* mean that the outer expression contains
  *   an impure call--it only does if the nested function is *later called*.
  */
-TVM_DLL Optional<Expr> FindImpureCall(const Expr& expr,
-                                      const Optional<Expr>& own_name = Optional<Expr>(std::nullopt));
+TVM_DLL Optional<Expr> FindImpureCall(
+    const Expr& expr, const Optional<Expr>& own_name = Optional<Expr>(std::nullopt));
 
 /*!
  * \brief Check if the given expression (likely a function body) contains any impure calls.
