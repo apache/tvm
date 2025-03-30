@@ -46,7 +46,10 @@ namespace debug {
 
 using namespace tvm::runtime;
 
-// TVM_REGISTER_GLOBAL("tvm.debug.Test").set_body_typed(Test);
+TVM_REGISTER_GLOBAL("tvm.debug.Test").set_body_typed([](PrimExpr value) {
+  LOG(INFO) << value;
+  return value;
+});
 
 }  // namespace debug
 }  // namespace tvm

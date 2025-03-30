@@ -1071,16 +1071,14 @@ TVM_TIR_REGISTER_OP("TVMBackendFreeWorkspace")
     .set_attr<TCallEffectKind>("TCallEffectKind", Integer(CallEffectKind::kOpaque));
 
 // expose basic functions to node namespace
-TVM_REGISTER_GLOBAL("node._const").set_body([](TVMArgs args, TVMRetValue* ret) {
-  if (auto opt = args[0].as<int>()) {
+TVM_REGISTER_GLOBAL("node._const").set_body_packed([](TVMArgs args, TVMRetValue* ret) {
+  if (auto opt = args[0].as<int64_t>()) {
     *ret = tir::make_const(args[1], opt.value(), args[2]);
-  } else if (auto opt = args[0].as<bool>()) {
-    *ret = tir::make_const(args[1], opt.value(), args[2]);
-  } else if (auto opt = args[0].as<float>()) {
+  } else if (auto opt = args[0].as<double>()) {
     *ret = tir::make_const(args[1], opt.value(), args[2]);
   } else {
     LOG(FATAL) << "First argument to tvm.tir.const must be int, float, or bool, "
-               << "but instead received argument with type code " << args[0].type_index();  // FIXME
+               << "but instead received argument with type code " << args[0].GetTypeKey();
   }
 });
 

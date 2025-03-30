@@ -577,6 +577,22 @@ TVM_REGISTER_GLOBAL("tir.BufferRealize")
 TVM_REGISTER_NODE_TYPE(BufferRealizeNode);
 
 // BufferRegion
+PrimExpr BufferRegionNode::ToPrimExpr() const {
+  // Auto convert to PrimExpr if it is a single point load
+   Array<PrimExpr> indices;
+  indices.reserve(this->region.size());
+  for (const Range& r : this->region) {
+    if (tvm::tir::is_one(r->extent)) {
+      indices.push_back(r->min);
+    } else if (r->extent.as<IntImmNode>()) {
+      indices.push_back(tir::Ramp(r->min, tvm::tir::make_const(r->min->dtype, 1), r->extent));
+    } else {
+      LOG(FATAL) << "ValueError: Cannot convert to BufferLoad: " << GetRef<BufferRegion>(this);
+    }
+  }
+  return tir::BufferLoad(this->buffer, indices);
+}
+
 BufferRegion::BufferRegion(Buffer buffer, Array<Range> region) {
   CHECK_EQ(buffer->shape.size(), region.size())
       << "The dimension between " << buffer << " and region " << region
