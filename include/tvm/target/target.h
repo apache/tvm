@@ -160,7 +160,7 @@ class TargetNode : public Object {
   template <typename TObjectRef>
   Optional<TObjectRef> GetFeature(
       const std::string& feature_key,
-      Optional<TObjectRef> default_value = Optional<TObjectRef>(nullptr)) const {
+      Optional<TObjectRef> default_value = std::nullopt) const {
     if (auto feature = features.Get(feature_key)) {
       return Downcast<TObjectRef>(feature.value());
     } else {

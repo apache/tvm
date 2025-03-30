@@ -173,7 +173,6 @@ class Add : public PrimExpr {
 /*! \brief a - b */
 class SubNode : public BinaryOpNode<SubNode> {
  public:
-  SubNode(PrimExpr a, PrimExpr b, Optional<Span> span) : BinaryOpNode(a, b, span) {}
   static constexpr const char* _type_key = "tir.Sub";
 };
 
