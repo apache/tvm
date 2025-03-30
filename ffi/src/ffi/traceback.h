@@ -57,13 +57,13 @@ inline bool ShouldExcludeFrame(const char* filename, const char* symbol) {
     if (strstr(filename, "include/tvm/ffi/error.h")) {
       return true;
     }
-    if (strstr(filename, "include/tvm/ffi/any.h")) {
-      return true;
-    }
     if (strstr(filename, "include/tvm/ffi/function_details.h")) {
       return true;
     }
     if (strstr(filename, "include/tvm/ffi/function.h")) {
+      return true;
+    }
+    if (strstr(filename, "include/tvm/ffi/any.h")) {
       return true;
     }
     if (strstr(filename, "src/ffi/traceback.cc")) {
@@ -94,7 +94,7 @@ inline bool ShouldExcludeFrame(const char* filename, const char* symbol) {
   // addresses with no symbol name.  This could be improved in the
   // future by using dladdr() to check whether an address is contained
   // in libffi.so
-  if (filename == nullptr && strstr(symbol, "ffi_call_")) {
+  if (strstr(symbol, "ffi_call_")) {
     return true;
   }
   return false;
@@ -109,6 +109,8 @@ struct TracebackStorage {
   size_t max_frame_size = GetTracebackLimit();
 
   void Append(const char* filename, const char* func, int lineno) {
+    // skip frames with empty filename
+    if (filename == nullptr) return;
     std::ostringstream trackeback_stream;
     trackeback_stream << "  " << filename;
     if (lineno != 0) {
