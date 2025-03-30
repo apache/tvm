@@ -293,7 +293,7 @@ struct TypeTraits<DLDataType> : public TypeTraitsBase {
     result->v_dtype = src;
   }
 
-  static TVM_FFI_INLINE Optional<DLDataType> TryCopyFromAnyView(const TVMFFIAny* src) {
+  static TVM_FFI_INLINE std::optional<DLDataType> TryCopyFromAnyView(const TVMFFIAny* src) {
     if (src->type_index == TypeIndex::kTVMFFIDataType) {
       return src->v_dtype;
     }

@@ -44,7 +44,7 @@ namespace ffi {
  *
  *   Convert a value to AnyView
  *
- * - Optional<T> TryCopyFromAnyView(const TVMFFIAny* src);
+ * - std::optional<T> TryCopyFromAnyView(const TVMFFIAny* src);
  *
  *   Try convert AnyView to a value type.
  */
@@ -94,7 +94,7 @@ struct TypeTraits<std::nullptr_t> : public TypeTraitsBase {
     result->v_int64 = 0;
   }
 
-  static TVM_FFI_INLINE Optional<std::nullptr_t> TryCopyFromAnyView(const TVMFFIAny* src) {
+  static TVM_FFI_INLINE std::optional<std::nullptr_t> TryCopyFromAnyView(const TVMFFIAny* src) {
     if (src->type_index == TypeIndex::kTVMFFINone) {
       return nullptr;
     }
@@ -139,7 +139,7 @@ struct TypeTraits<StrictBool> : public TypeTraitsBase {
     CopyToAnyView(src, result);
   }
 
-  static TVM_FFI_INLINE Optional<StrictBool> TryCopyFromAnyView(const TVMFFIAny* src) {
+  static TVM_FFI_INLINE std::optional<StrictBool> TryCopyFromAnyView(const TVMFFIAny* src) {
     if (src->type_index == TypeIndex::kTVMFFIBool) {
       return StrictBool(static_cast<bool>(src->v_int64));
     }
@@ -169,7 +169,7 @@ struct TypeTraits<bool> : public TypeTraitsBase {
 
   static TVM_FFI_INLINE void MoveToAny(bool src, TVMFFIAny* result) { CopyToAnyView(src, result); }
 
-  static TVM_FFI_INLINE Optional<bool> TryCopyFromAnyView(const TVMFFIAny* src) {
+  static TVM_FFI_INLINE std::optional<bool> TryCopyFromAnyView(const TVMFFIAny* src) {
     if (src->type_index == TypeIndex::kTVMFFIInt || src->type_index == TypeIndex::kTVMFFIBool) {
       return static_cast<bool>(src->v_int64);
     }
@@ -199,7 +199,7 @@ struct TypeTraits<Int, std::enable_if_t<std::is_integral_v<Int>>> : public TypeT
 
   static TVM_FFI_INLINE void MoveToAny(Int src, TVMFFIAny* result) { CopyToAnyView(src, result); }
 
-  static TVM_FFI_INLINE Optional<Int> TryCopyFromAnyView(const TVMFFIAny* src) {
+  static TVM_FFI_INLINE std::optional<Int> TryCopyFromAnyView(const TVMFFIAny* src) {
     if (src->type_index == TypeIndex::kTVMFFIInt || src->type_index == TypeIndex::kTVMFFIBool) {
       return Int(src->v_int64);
     }
@@ -230,7 +230,7 @@ struct TypeTraits<Float, std::enable_if_t<std::is_floating_point_v<Float>>>
 
   static TVM_FFI_INLINE void MoveToAny(Float src, TVMFFIAny* result) { CopyToAnyView(src, result); }
 
-  static TVM_FFI_INLINE Optional<Float> TryCopyFromAnyView(const TVMFFIAny* src) {
+  static TVM_FFI_INLINE std::optional<Float> TryCopyFromAnyView(const TVMFFIAny* src) {
     if (src->type_index == TypeIndex::kTVMFFIFloat) {
       return Float(src->v_float64);
     } else if (src->type_index == TypeIndex::kTVMFFIInt ||
@@ -272,7 +272,7 @@ struct TypeTraits<void*> : public TypeTraitsBase {
 
   static TVM_FFI_INLINE void MoveToAny(void* src, TVMFFIAny* result) { CopyToAnyView(src, result); }
 
-  static TVM_FFI_INLINE Optional<void*> TryCopyFromAnyView(const TVMFFIAny* src) {
+  static TVM_FFI_INLINE std::optional<void*> TryCopyFromAnyView(const TVMFFIAny* src) {
     if (src->type_index == TypeIndex::kTVMFFIOpaquePtr) {
       return static_cast<void*>(src->v_ptr);
     }
@@ -307,7 +307,7 @@ struct TypeTraits<DLDevice> : public TypeTraitsBase {
     result->v_device = src;
   }
 
-  static TVM_FFI_INLINE Optional<DLDevice> TryCopyFromAnyView(const TVMFFIAny* src) {
+  static TVM_FFI_INLINE std::optional<DLDevice> TryCopyFromAnyView(const TVMFFIAny* src) {
     if (src->type_index == TypeIndex::kTVMFFIDevice) {
       return src->v_device;
     }
@@ -341,7 +341,7 @@ struct TypeTraits<DLTensor*> : public TypeTraitsBase {
         << "DLTensor* cannot be held in Any as it does not retain ownership, use NDArray instead";
   }
 
-  static TVM_FFI_INLINE Optional<DLTensor*> TryCopyFromAnyView(const TVMFFIAny* src) {
+  static TVM_FFI_INLINE std::optional<DLTensor*> TryCopyFromAnyView(const TVMFFIAny* src) {
     if (src->type_index == TypeIndex::kTVMFFIDLTensorPtr) {
       return static_cast<DLTensor*>(src->v_ptr);
     } else if (src->type_index == TypeIndex::kTVMFFINDArray) {
@@ -384,36 +384,59 @@ struct TypeTraits<char[N]> : public TypeTraitsBase {
 };
 
 // Traits for ObjectRef, None to ObjectRef will always fail.
-// use Optional<ObjectRef> instead for nullable references.
+// use std::optional<ObjectRef> instead for nullable references.
 template <typename TObjRef>
 struct ObjectRefTypeTraitsBase : public TypeTraitsBase {
   static constexpr int32_t field_static_type_index = TypeIndex::kTVMFFIObject;
   using ContainerType = typename TObjRef::ContainerType;
 
   static TVM_FFI_INLINE void CopyToAnyView(const TObjRef& src, TVMFFIAny* result) {
-    TVM_FFI_ICHECK(src.defined()) << "Use Optional<ObjectRef> for nullable references";
+    if constexpr (TObjRef::_type_is_nullable) {
+      if (!src.defined()) {
+        TypeTraits<std::nullptr_t>::CopyToAnyView(nullptr, result);
+        return;
+      }
+    }
     TVMFFIObject* obj_ptr = details::ObjectUnsafe::GetTVMFFIObjectPtrFromObjectRef(src);
     result->type_index = obj_ptr->type_index;
     result->v_obj = obj_ptr;
   }
 
   static TVM_FFI_INLINE void MoveToAny(TObjRef src, TVMFFIAny* result) {
-    TVM_FFI_ICHECK(src.defined()) << "Use Optional<ObjectRef> for nullable references";
+    if constexpr (TObjRef::_type_is_nullable) {
+      if (!src.defined()) {
+        TypeTraits<std::nullptr_t>::CopyToAnyView(nullptr, result);
+        return;
+      }
+    }
     TVMFFIObject* obj_ptr = details::ObjectUnsafe::MoveTVMFFIObjectPtrFromObjectRef(&src);
     result->type_index = obj_ptr->type_index;
     result->v_obj = obj_ptr;
   }
 
   static TVM_FFI_INLINE bool CheckAnyView(const TVMFFIAny* src) {
+    if constexpr (TObjRef::_type_is_nullable) {
+      if (src->type_index == TypeIndex::kTVMFFINone) return true;
+    }
     return (src->type_index >= TypeIndex::kTVMFFIStaticObjectBegin &&
             details::IsObjectInstance<ContainerType>(src->type_index));
   }
 
   static TVM_FFI_INLINE TObjRef CopyFromAnyViewAfterCheck(const TVMFFIAny* src) {
+    if constexpr (TObjRef::_type_is_nullable) {
+      if (src->type_index == TypeIndex::kTVMFFINone) {
+        return TObjRef(ObjectPtr<Object>(nullptr));
+      }
+    }
     return TObjRef(details::ObjectUnsafe::ObjectPtrFromUnowned<Object>(src->v_obj));
   }
 
-  static TVM_FFI_INLINE Optional<TObjRef> TryCopyFromAnyView(const TVMFFIAny* src) {
+  static TVM_FFI_INLINE std::optional<TObjRef> TryCopyFromAnyView(const TVMFFIAny* src) {
+    if constexpr (TObjRef::_type_is_nullable) {
+      if (src->type_index == TypeIndex::kTVMFFINone) {
+        return TObjRef(ObjectPtr<Object>(nullptr));
+      }
+    }
     if (src->type_index >= TypeIndex::kTVMFFIStaticObjectBegin) {
       if (details::IsObjectInstance<ContainerType>(src->type_index)) {
         return TObjRef(details::ObjectUnsafe::ObjectPtrFromUnowned<Object>(src->v_obj));
@@ -449,12 +472,12 @@ struct FallbackOnlyTraitsBase : public TypeTraitsBase {
     return TryFallbackTypes<FallbackTypes...>(src).value();
   }
 
-  static TVM_FFI_INLINE Optional<T> TryCopyFromAnyView(const TVMFFIAny* src) {
+  static TVM_FFI_INLINE std::optional<T> TryCopyFromAnyView(const TVMFFIAny* src) {
     return TryFallbackTypes<FallbackTypes...>(src);
   }
 
   template <typename FallbackType, typename... Rest>
-  static TVM_FFI_INLINE Optional<T> TryFallbackTypes(const TVMFFIAny* src) {
+  static TVM_FFI_INLINE std::optional<T> TryFallbackTypes(const TVMFFIAny* src) {
     static_assert(!std::is_same_v<bool, FallbackType>,
                   "Using bool as FallbackType can cause bug because int will be detected as bool, "
                   "use tvm::ffi::StrictBool instead");
@@ -493,7 +516,7 @@ struct ObjectRefWithFallbackTraitsBase : public ObjectRefTypeTraitsBase<ObjectRe
     return TryFallbackTypes<FallbackTypes...>(src).value();
   }
 
-  static TVM_FFI_INLINE Optional<ObjectRefType> TryCopyFromAnyView(const TVMFFIAny* src) {
+  static TVM_FFI_INLINE std::optional<ObjectRefType> TryCopyFromAnyView(const TVMFFIAny* src) {
     if (auto opt_obj = ObjectRefTypeTraitsBase<ObjectRefType>::TryCopyFromAnyView(src)) {
       return opt_obj.value();
     }
@@ -501,7 +524,7 @@ struct ObjectRefWithFallbackTraitsBase : public ObjectRefTypeTraitsBase<ObjectRe
   }
 
   template <typename FallbackType, typename... Rest>
-  static TVM_FFI_INLINE Optional<ObjectRefType> TryFallbackTypes(const TVMFFIAny* src) {
+  static TVM_FFI_INLINE std::optional<ObjectRefType> TryFallbackTypes(const TVMFFIAny* src) {
     static_assert(!std::is_same_v<bool, FallbackType>,
                   "Using bool as FallbackType can cause bug because int will be detected as bool, "
                   "use tvm::ffi::StrictBool instead");
@@ -543,7 +566,7 @@ struct TypeTraits<const TObject*, std::enable_if_t<std::is_base_of_v<Object, TOb
     return details::ObjectUnsafe::RawObjectPtrFromUnowned<TObject>(src->v_obj);
   }
 
-  static TVM_FFI_INLINE Optional<const TObject*> TryCopyFromAnyView(const TVMFFIAny* src) {
+  static TVM_FFI_INLINE std::optional<const TObject*> TryCopyFromAnyView(const TVMFFIAny* src) {
     if (CheckAnyView(src)) return CopyFromAnyViewAfterCheck(src);
     return std::nullopt;
   }
@@ -582,19 +605,21 @@ struct TypeTraits<Optional<T>> : public TypeTraitsBase {
   }
 
   static TVM_FFI_INLINE Optional<T> CopyFromAnyViewAfterCheck(const TVMFFIAny* src) {
-    if (src->type_index == TypeIndex::kTVMFFINone) return Optional<T>(nullptr);
+    if (src->type_index == TypeIndex::kTVMFFINone) {
+      return Optional<T>(std::nullopt);
+    }
     return TypeTraits<T>::CopyFromAnyViewAfterCheck(src);
   }
 
-  static TVM_FFI_INLINE Optional<Optional<T>> TryCopyFromAnyView(const TVMFFIAny* src) {
+  static TVM_FFI_INLINE std::optional<Optional<T>> TryCopyFromAnyView(const TVMFFIAny* src) {
     if (src->type_index == TypeIndex::kTVMFFINone) return Optional<T>(std::nullopt);
-    if (Optional<T> opt = TypeTraits<T>::TryCopyFromAnyView(src)) {
+    if (std::optional<T> opt = TypeTraits<T>::TryCopyFromAnyView(src)) {
       return Optional<T>(*std::move(opt));
     } else {
       // important to be explicit here
-      // because nullopt can convert to Optional<T>(nullopt) which indicate success
-      // return Optional<Optional<T>>(std::nullopt) to indicate failure
-      return Optional<Optional<T>>(std::nullopt);
+      // because nullopt can convert to std::optional<T>(nullopt) which indicate success
+      // return std::optional<Optional<T>>(std::nullopt) to indicate failure
+      return std::optional<Optional<T>>(std::nullopt);
     }
   }
 

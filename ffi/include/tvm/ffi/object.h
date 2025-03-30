@@ -437,10 +437,6 @@ class ObjectRef {
   bool operator<(const ObjectRef& other) const { return data_.get() < other.data_.get(); }
   /*!
    * \return whether the object is defined.
-   *
-   * \note undefined ObjectRef cannot be passed to Any/AnyView.
-   *       It only represents an initial state
-   *       We encourage explicitly use Optional<ObjectRef> nullable
    */
   bool defined() const { return data_ != nullptr; }
   /*! \return the internal object pointer */
@@ -484,8 +480,17 @@ class ObjectRef {
    */
   template <typename ObjectRefType,
             typename = std::enable_if_t<std::is_base_of_v<ObjectRef, ObjectRefType>>>
-  TVM_FFI_INLINE Optional<ObjectRefType> as() const;
-
+  TVM_FFI_INLINE std::optional<ObjectRefType> as() const {
+    if (data_ != nullptr) {
+      if (data_->IsInstance<typename ObjectRefType::ContainerType>()) {
+        return ObjectRefType(data_);
+      } else {
+        return std::nullopt;
+      }
+    } else {
+      return std::nullopt;
+    }
+  }
   /*!
    * \brief Get the type index of the ObjectRef
    * \return The type index of the ObjectRef
