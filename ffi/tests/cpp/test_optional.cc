@@ -147,4 +147,17 @@ TEST(Optional, ValueMove) {
   EXPECT_EQ(moved_tint->value, 21);
   EXPECT_TRUE(!opt_tint.has_value());
 }
+
+TEST(Optional, OptionalInArray) {
+  // This pattern plus iteration may cause memory leak
+  // this is because arr[0] returns a temporary object
+  // and further call arr[0].value() may return a reference to
+  // the temporary object
+  Array<Optional<Array<TInt>>> arr = {Array<TInt>({TInt(0), TInt(1)})};
+  int counter = 0;
+
+  for (const auto& x : arr[0].value()) {
+    EXPECT_EQ(x->value, counter++);
+  }
+}
 }  // namespace
