@@ -94,8 +94,8 @@ MeasureCandidate TuningRecordNode::AsMeasureCandidate() const {
 }
 
 ObjectRef TuningRecordNode::AsJSON() const {
-  Optional<Array<ObjectRef>> json_args_info{nullptr};
-  Optional<ObjectRef> json_target{nullptr};
+  Optional<Array<ObjectRef>> json_args_info;
+  Optional<ObjectRef> json_target;
   if (args_info.defined()) {
     Array<ObjectRef> info;
     info.reserve(args_info.value().size());
@@ -130,9 +130,9 @@ bool TuningRecordNode::IsValid() const {
 
 TuningRecord TuningRecord::FromJSON(const ObjectRef& json_obj, const Workload& workload) {
   tir::Trace trace{nullptr};
-  Optional<Array<FloatImm>> run_secs{nullptr};
-  Optional<Target> target{nullptr};
-  Optional<Array<ArgInfo>> args_info{nullptr};
+  Optional<Array<FloatImm>> run_secs;
+  Optional<Target> target;
+  Optional<Array<ArgInfo>> args_info;
   try {
     const ArrayNode* json_array = json_obj.as<ArrayNode>();
     CHECK(json_array && json_array->size() == 4);

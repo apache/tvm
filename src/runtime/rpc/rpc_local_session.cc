@@ -65,14 +65,14 @@ void LocalSession::EncodeReturn(TVMRetValue rv, const FEncodeReturn& encode_retu
     // always pass bytes as byte array
     packed_args[0] = static_cast<int32_t>(ffi::TypeIndex::kTVMFFIByteArrayPtr);
     TVMFFIByteArray byte_arr;
-    byte_arr.data = opt_bytes->data();
-    byte_arr.size = opt_bytes->size();
+    byte_arr.data = (*opt_bytes).data();
+    byte_arr.size = (*opt_bytes).size();
     packed_args[1] = &byte_arr;
     encode_return(ffi::PackedArgs(packed_args, 2));
   } else if (auto opt_str = rv.as<ffi::String>()) {
     // always pass bytes as raw string
     packed_args[0] = static_cast<int32_t>(ffi::TypeIndex::kTVMFFIRawStr);
-    packed_args[1] = opt_str->data();
+    packed_args[1] = (*opt_str).data();
     encode_return(ffi::PackedArgs(packed_args, 2));
   } else if (rv.as<ffi::ObjectRef>()) {
     TVMFFIAny ret_any;

@@ -80,7 +80,6 @@ class Doc : public ObjectRef {
   Doc() = default;
 
  public:
-  virtual ~Doc() = default;
   TVM_DEFINE_NOTNULLABLE_OBJECT_REF_METHODS(Doc, ObjectRef, DocNode);
 };
 

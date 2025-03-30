@@ -108,7 +108,7 @@ class TargetNode : public Object {
   template <typename TObjectRef>
   Optional<TObjectRef> GetAttr(
       const std::string& attr_key,
-      Optional<TObjectRef> default_value = Optional<TObjectRef>(nullptr)) const {
+      Optional<TObjectRef> default_value = Optional<TObjectRef>(std::nullopt)) const {
     static_assert(std::is_base_of<ObjectRef, TObjectRef>::value,
                   "Can only call GetAttr with ObjectRef types.");
     auto it = attrs.find(attr_key);
