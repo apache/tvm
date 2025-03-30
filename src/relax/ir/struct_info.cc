@@ -114,7 +114,7 @@ TensorStructInfo::TensorStructInfo(Expr shape, DataType dtype, Optional<VDevice>
   ICHECK(shape.defined()) << "Must provide a shape in this constructor";
   ICHECK(shape->IsInstance<ShapeExprNode>() || shape->IsInstance<VarNode>())
       << "We require shape to be normalized when constructing TensorStructInfo";
-  n->ndim = sinfo.get()->ndim;
+  n->ndim = sinfo.value()->ndim;
   // assign rest of the fields.
   n->shape = std::move(shape);
   n->dtype = dtype;

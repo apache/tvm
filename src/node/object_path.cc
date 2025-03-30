@@ -37,11 +37,7 @@ ObjectPathNode::ObjectPathNode(const ObjectPathNode* parent)
 // --- GetParent ---
 
 Optional<ObjectPath> ObjectPathNode::GetParent() const {
-  if (parent_ == nullptr) {
-    return NullOpt;
-  } else {
-    return Downcast<ObjectPath>(parent_);
-  }
+  return Downcast<Optional<ObjectPath>>(parent_);
 }
 
 TVM_REGISTER_GLOBAL("node.ObjectPathGetParent")

@@ -2208,7 +2208,7 @@ Array<StmtSRef> CacheInplace(ScheduleState self, const StmtSRef& block_sref, int
   // Create the corresponding buffer to be written, i.e. result of cache_write
   info.write_buffer = buffer;
   // Create the corresponding buffer allocation
-  info.alloc = nullptr;
+  info.alloc = std::nullopt;
   info.consumer_blocks.clear();
 
   // Cache write step 1. Detect insert position

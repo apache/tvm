@@ -258,7 +258,7 @@ class DictAttrs : public Attrs {
   template <typename TObjectRef>
   Optional<TObjectRef> GetAttr(
       const std::string& attr_key,
-      Optional<TObjectRef> default_value = Optional<TObjectRef>(nullptr)) const {
+      Optional<TObjectRef> default_value = Optional<TObjectRef>(std::nullopt)) const {
     static_assert(std::is_base_of<ObjectRef, TObjectRef>::value,
                   "Can only call GetAttr with ObjectRef types.");
     if (!defined()) return default_value;

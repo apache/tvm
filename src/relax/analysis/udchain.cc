@@ -59,7 +59,7 @@ class UDChain : relax::ExprVisitor {
   std::unordered_map<Var, support::OrderedSet<Var>> usage_map;
   support::OrderedSet<Var> outputs;
 
-  Optional<Var> cur_user_{nullptr};
+  Optional<Var> cur_user_;
 
   void VisitBinding_(const VarBindingNode* binding) override {
     CHECK(!bound_values.count(binding->var))
@@ -98,7 +98,7 @@ class UDChain : relax::ExprVisitor {
   }
 
   void VisitExpr_(const FunctionNode* op) override {
-    cur_user_ = nullptr;
+    cur_user_ = std::nullopt;
     ExprVisitor::VisitExpr_(op);
   }
 

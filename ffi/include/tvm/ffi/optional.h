@@ -88,6 +88,13 @@ class Optional<T, std::enable_if_t<!use_ptr_based_optional_v<T>>> {
     return *data_;
   }
 
+  TVM_FFI_INLINE T& value() & {
+    if (!data_.has_value()) {
+      TVM_FFI_THROW(RuntimeError) << "Back optional access";
+    }
+    return *data_;
+  }
+
   TVM_FFI_INLINE T&& value() && {
     if (!data_.has_value()) {
       TVM_FFI_THROW(RuntimeError) << "Back optional access";
@@ -143,6 +150,7 @@ class Optional<T, std::enable_if_t<use_ptr_based_optional_v<T>>> : public Object
   Optional() = default;
   Optional(const Optional<T>& other) : ObjectRef(other.data_) {}
   Optional(Optional<T>&& other) : ObjectRef(std::move(other.data_)) {}
+  explicit Optional(ObjectPtr<Object> ptr) : ObjectRef(ptr) {}
   // nullopt hanlding
   Optional(std::nullopt_t) {}  // NOLINT(*)
 
@@ -166,6 +174,11 @@ class Optional<T, std::enable_if_t<use_ptr_based_optional_v<T>>> : public Object
     return *this;
   }
 
+  TVM_FFI_INLINE Optional<T>& operator=(std::nullptr_t) {
+    data_ = nullptr;
+    return *this;
+  }
+
   TVM_FFI_INLINE Optional<T>& operator=(Optional<T>&& other) {
     data_ = std::move(other.data_);
     return *this;
@@ -177,6 +190,14 @@ class Optional<T, std::enable_if_t<use_ptr_based_optional_v<T>>> : public Object
     }
     // safe to reinterpret_cast ObjectPtr<Object>& to ObjectRef&.
     return reinterpret_cast<const T&>(data_);
+  }
+
+  TVM_FFI_INLINE T& value() & {
+    if (data_ == nullptr) {
+      TVM_FFI_THROW(RuntimeError) << "Back optional access";
+    }
+    // safe to reinterpret_cast ObjectPtr<Object>& to ObjectRef&.
+    return reinterpret_cast<T&>(data_);
   }
 
   TVM_FFI_INLINE T&& value() && {
@@ -216,10 +237,8 @@ class Optional<T, std::enable_if_t<use_ptr_based_optional_v<T>>> : public Object
     return reinterpret_cast<T&&>(std::move(data_));
   }
 
-  // explicit disable nullptr comparison
-  // so we can canonically always access optional via has_value() and value()
-  bool operator==(std::nullptr_t) = delete;
-  bool operator!=(std::nullptr_t) = delete;
+  TVM_FFI_INLINE bool operator==(std::nullptr_t) const noexcept { return !has_value(); }
+  TVM_FFI_INLINE bool operator!=(std::nullptr_t) const noexcept { return has_value(); }
 
   // operator overloadings
   TVM_FFI_INLINE auto operator==(const Optional<T>& other) const {
@@ -259,15 +278,13 @@ class Optional<T, std::enable_if_t<use_ptr_based_optional_v<T>>> : public Object
     return operator*() != other;
   }
 
- private:
-  template <typename, typename>
-  friend struct TypeTraits;
-  // hide the object ptr constructor and make it only accessible
-  // to friend TypeTraits
-  explicit Optional(ObjectPtr<Object> ptr) : ObjectRef(ptr) {}
-  // inherit get method as private
-  using ObjectRef::get;
+  /*!
+   * \return The internal object pointer with container type of T.
+   * \note This function do not perform not-null checking.
+   */
+  TVM_FFI_INLINE const ContainerType* get() const { return static_cast<ContainerType*>(data_.get()); }
 
+ private:
   template <typename U>
   TVM_FFI_INLINE auto EQToOptional(const U& other) const {
     // support case where sub-class returns a symbolic ref type.

@@ -219,7 +219,7 @@ class RPCModuleNode final : public ModuleNode {
           repeats_to_cooldown, cache_flush_bytes, f_preproc_name);
     } else {
       return remote_get_time_evaluator_(
-          Optional<Module>(nullptr), name, static_cast<int>(dev.device_type), dev.device_id, number,
+          Optional<Module>(std::nullopt), name, static_cast<int>(dev.device_type), dev.device_id, number,
           repeat, min_repeat_ms, limit_zero_time_iterations, cooldown_interval_ms,
           repeats_to_cooldown, cache_flush_bytes, f_preproc_name);
     }
