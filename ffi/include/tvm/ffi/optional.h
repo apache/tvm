@@ -88,13 +88,6 @@ class Optional<T, std::enable_if_t<!use_ptr_based_optional_v<T>>> {
     return *data_;
   }
 
-  TVM_FFI_INLINE T& value() & {
-    if (!data_.has_value()) {
-      TVM_FFI_THROW(RuntimeError) << "Back optional access";
-    }
-    return *data_;
-  }
-
   TVM_FFI_INLINE T&& value() && {
     if (!data_.has_value()) {
       TVM_FFI_THROW(RuntimeError) << "Back optional access";
@@ -184,28 +177,18 @@ class Optional<T, std::enable_if_t<use_ptr_based_optional_v<T>>> : public Object
     return *this;
   }
 
-  TVM_FFI_INLINE const T& value() const& {
+  TVM_FFI_INLINE T value() const & {
     if (data_ == nullptr) {
       TVM_FFI_THROW(RuntimeError) << "Back optional access";
     }
-    // safe to reinterpret_cast ObjectPtr<Object>& to ObjectRef&.
-    return reinterpret_cast<const T&>(data_);
+    return T(data_);
   }
 
-  TVM_FFI_INLINE T& value() & {
+  TVM_FFI_INLINE T value() && {
     if (data_ == nullptr) {
       TVM_FFI_THROW(RuntimeError) << "Back optional access";
     }
-    // safe to reinterpret_cast ObjectPtr<Object>& to ObjectRef&.
-    return reinterpret_cast<T&>(data_);
-  }
-
-  TVM_FFI_INLINE T&& value() && {
-    if (data_ == nullptr) {
-      TVM_FFI_THROW(RuntimeError) << "Back optional access";
-    }
-    // safe to reinterpret_cast ObjectPtr<Object>&& to ObjectRef&&.
-    return reinterpret_cast<T&&>(std::move(data_));
+    return T(std::move(data_));
   }
 
   template <typename U = std::remove_cv_t<T>>
@@ -220,11 +203,10 @@ class Optional<T, std::enable_if_t<use_ptr_based_optional_v<T>>> : public Object
   /*!
    * \brief Direct access to the value.
    * \return the const reference to the stored value.
-   * \note only use this function  after checking has_value()
+   * \note only use this function after checking has_value()
    */
-  TVM_FFI_INLINE const T& operator*() const& noexcept {
-    // safe to reinterpret_cast ObjectPtr<Object>& to ObjectRef&.
-    return reinterpret_cast<const T&>(data_);
+  TVM_FFI_INLINE T operator*() const& noexcept {
+    return T(data_);
   }
 
   /*!
@@ -232,9 +214,8 @@ class Optional<T, std::enable_if_t<use_ptr_based_optional_v<T>>> : public Object
    * \return the const reference to the stored value.
    * \note only use this function  after checking has_value()
    */
-  TVM_FFI_INLINE T&& operator*() && noexcept {
-    // safe to reinterpret_cast ObjectPtr<Object>&& to ObjectRef&&.
-    return reinterpret_cast<T&&>(std::move(data_));
+  TVM_FFI_INLINE T operator*() && noexcept {
+    return T(std::move(data_));
   }
 
   TVM_FFI_INLINE bool operator==(std::nullptr_t) const noexcept { return !has_value(); }
