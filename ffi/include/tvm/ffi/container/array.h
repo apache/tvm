@@ -296,7 +296,7 @@ inline constexpr bool is_valid_iterator_v = is_valid_iterator<T, IterType>::valu
  * operator[] only provides const access, use Set to mutate the content.
  * \tparam T The content Value type, must be compatible with tvm::ffi::Any
  */
-template <typename T, typename = typename std::enable_if_t<details::type_compactible_with_any_v<T>>>
+template <typename T, typename = typename std::enable_if_t<details::container_enabled_v<T>>>
 class Array : public ObjectRef {
  public:
   using value_type = T;
@@ -388,7 +388,9 @@ class Array : public ObjectRef {
   // iterators
   struct ValueConverter {
     using ResultType = T;
-    static T convert(const Any& n) { return details::AnyUnsafe::ConvertAfterCheck<T>(n); }
+    static T convert(const Any& n) {
+      return details::AnyUnsafe::CopyFromAnyStorageAfterCheck<T>(n);
+    }
   };
 
   using iterator = details::IterAdapter<ValueConverter, const Any*>;
@@ -427,7 +429,7 @@ class Array : public ObjectRef {
     if (i < 0 || i >= p->size_) {
       TVM_FFI_THROW(IndexError) << "indexing " << i << " on an array of size " << p->size_;
     }
-    return details::AnyUnsafe::ConvertAfterCheck<T>(*(p->begin() + i));
+    return details::AnyUnsafe::CopyFromAnyStorageAfterCheck<T>(*(p->begin() + i));
   }
 
   /*! \return The size of the array */
@@ -451,7 +453,7 @@ class Array : public ObjectRef {
     if (p == nullptr || p->size_ == 0) {
       TVM_FFI_THROW(IndexError) << "cannot index a empty array";
     }
-    return details::AnyUnsafe::ConvertAfterCheck<T>(*(p->begin()));
+    return details::AnyUnsafe::CopyFromAnyStorageAfterCheck<T>(*(p->begin()));
   }
 
   /*! \return The last element of the array */
@@ -460,7 +462,7 @@ class Array : public ObjectRef {
     if (p == nullptr || p->size_ == 0) {
       TVM_FFI_THROW(IndexError) << "cannot index a empty array";
     }
-    return details::AnyUnsafe::ConvertAfterCheck<T>(*(p->end() - 1));
+    return details::AnyUnsafe::CopyFromAnyStorageAfterCheck<T>(*(p->end() - 1));
   }
 
  public:
@@ -835,7 +837,7 @@ class Array : public ObjectRef {
         // no other shared copies of the array.
         auto arr = static_cast<ArrayNode*>(data.get());
         for (auto it = arr->MutableBegin(); it != arr->MutableEnd(); it++) {
-          T mapped = fmap(details::AnyUnsafe::ConvertAfterCheck<T>(std::move(*it)));
+          T mapped = fmap(details::AnyUnsafe::CopyFromAnyStorageAfterCheck<T>(std::move(*it)));
           *it = std::move(mapped);
         }
         return data;
@@ -857,7 +859,7 @@ class Array : public ObjectRef {
       // `T`.
       bool all_identical = true;
       for (; it != arr->end(); it++) {
-        U mapped = fmap(details::AnyUnsafe::ConvertAfterCheck<T>(*it));
+        U mapped = fmap(details::AnyUnsafe::CopyFromAnyStorageAfterCheck<T>(*it));
         if (!(*it).same_as(mapped)) {
           // At least one mapped element is different than the
           // original.  Therefore, prepare the output array,
@@ -911,7 +913,7 @@ class Array : public ObjectRef {
     // so we can either start or resume the iteration from that point,
     // with no further checks on the result.
     for (; it != arr->end(); it++) {
-      U mapped = fmap(details::AnyUnsafe::ConvertAfterCheck<T>(*it));
+      U mapped = fmap(details::AnyUnsafe::CopyFromAnyStorageAfterCheck<T>(*it));
       output->SetItem(it - arr->begin(), std::move(mapped));
     }
 
@@ -945,18 +947,8 @@ template <typename T>
 inline constexpr bool use_default_type_traits_v<Array<T>> = false;
 
 template <typename T>
-struct TypeTraits<Array<T>> : public TypeTraitsBase {
-  static TVM_FFI_INLINE void CopyToAnyView(const Array<T>& src, TVMFFIAny* result) {
-    TVMFFIObject* obj_ptr = details::ObjectUnsafe::GetTVMFFIObjectPtrFromObjectRef(src);
-    result->type_index = obj_ptr->type_index;
-    result->v_obj = obj_ptr;
-  }
-
-  static TVM_FFI_INLINE void MoveToAny(Array<T> src, TVMFFIAny* result) {
-    TVMFFIObject* obj_ptr = details::ObjectUnsafe::MoveTVMFFIObjectPtrFromObjectRef(&src);
-    result->type_index = obj_ptr->type_index;
-    result->v_obj = obj_ptr;
-  }
+struct TypeTraits<Array<T>> : public ObjectRefTypeTraitsBase<Array<T>> {
+  using ObjectRefTypeTraitsBase<Array<T>>::CopyFromAnyStorageAfterCheck;
 
   static TVM_FFI_INLINE std::string GetMismatchTypeInfo(const TVMFFIAny* src) {
     if (src->type_index != TypeIndex::kTVMFFIArray) {
@@ -965,41 +957,65 @@ struct TypeTraits<Array<T>> : public TypeTraitsBase {
     if constexpr (!std::is_same_v<T, Any>) {
       const ArrayNode* n = reinterpret_cast<const ArrayNode*>(src->v_obj);
       for (size_t i = 0; i < n->size(); i++) {
-        const Any& p = (*n)[i];
-        if (!details::AnyUnsafe::CheckAny<T>(p)) {
-          return "Array[index " + std::to_string(i) + ": " +
-                 details::AnyUnsafe::GetMismatchTypeInfo<T>(p) + "]";
-        }
+        const Any& any_v = (*n)[i];
+        // CheckAnyStorage is cheaper than as<T>
+        if (details::AnyUnsafe::CheckAnyStorage<T>(any_v)) continue;
+        // try see if p is convertible to T
+        if (any_v.as<T>()) continue;
+        // now report the accurate mismatch information
+        return "Array[index " + std::to_string(i) + ": " +
+               details::AnyUnsafe::GetMismatchTypeInfo<T>(any_v) + "]";
       }
     }
     TVM_FFI_THROW(InternalError) << "Cannot reach here";
     TVM_FFI_UNREACHABLE();
   }
 
-  static TVM_FFI_INLINE bool CheckAnyView(const TVMFFIAny* src) {
-    // for now allow null array, TODO: revisit this
-    if (src->type_index == TypeIndex::kTVMFFINone) return true;
+  static TVM_FFI_INLINE bool CheckAnyStorage(const TVMFFIAny* src) {
     if (src->type_index != TypeIndex::kTVMFFIArray) return false;
     if constexpr (std::is_same_v<T, Any>) {
       return true;
     } else {
       const ArrayNode* n = reinterpret_cast<const ArrayNode*>(src->v_obj);
       for (size_t i = 0; i < n->size(); i++) {
-        const Any& p = (*n)[i];
-        if (!details::AnyUnsafe::CheckAny<T>(p)) return false;
+        const Any& any_v = (*n)[i];
+        if (!details::AnyUnsafe::CheckAnyStorage<T>(any_v)) return false;
       }
       return true;
     }
   }
 
-  static TVM_FFI_INLINE Array<T> CopyFromAnyViewAfterCheck(const TVMFFIAny* src) {
-    if (src->type_index == TypeIndex::kTVMFFINone) return Array<T>(nullptr);
-    return Array<T>(details::ObjectUnsafe::ObjectPtrFromUnowned<Object>(src->v_obj));
-  }
-
-  static TVM_FFI_INLINE std::optional<Array<T>> TryCopyFromAnyView(const TVMFFIAny* src) {
-    if (CheckAnyView(src)) return CopyFromAnyViewAfterCheck(src);
-    return std::nullopt;
+  static TVM_FFI_INLINE std::optional<Array<T>> TryConvertFromAnyView(const TVMFFIAny* src) {
+    // try to run conversion.
+    if (src->type_index != TypeIndex::kTVMFFIArray) return std::nullopt;
+    if constexpr (!std::is_same_v<T, Any>) {
+      const ArrayNode* n = reinterpret_cast<const ArrayNode*>(src->v_obj);
+      bool storage_check = [&]() {
+        for (size_t i = 0; i < n->size(); i++) {
+          const Any& any_v = (*n)[i];
+          if (!details::AnyUnsafe::CheckAnyStorage<T>(any_v)) return false;
+        }
+        return true;
+      }();
+      // fast path, if storage check passes, we can return the array directly.
+      if (storage_check) {
+        return CopyFromAnyStorageAfterCheck(src);
+      }
+      // slow path, try to run a conversion to Array<T>
+      Array<T> result;
+      result.reserve(n->size());
+      for (size_t i = 0; i < n->size(); i++) {
+        const Any& any_v = (*n)[i];
+        if (auto opt_v = any_v.as<T>()) {
+          result.push_back(*std::move(opt_v));
+        } else {
+          return std::nullopt;
+        }
+      }
+      return result;
+    } else {
+      return CopyFromAnyStorageAfterCheck(src);
+    }
   }
 
   static TVM_FFI_INLINE std::string TypeStr() { return "Array<" + details::Type2Str<T>::v() + ">"; }

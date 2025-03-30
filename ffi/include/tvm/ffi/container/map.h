@@ -1147,8 +1147,8 @@ inline ObjectPtr<MapNode> make_object<>() = delete;
  * \tparam V The value NodeRef type.
  */
 template <typename K, typename V,
-          typename = typename std::enable_if_t<(std::is_same_v<K, Any> || TypeTraits<K>::enabled) &&
-                                               (std::is_same_v<V, Any> || TypeTraits<V>::enabled)>>
+          typename = typename std::enable_if_t<details::container_enabled_v<K> &&
+                                               details::container_enabled_v<V>>>
 class Map : public ObjectRef {
  public:
   using key_type = K;
@@ -1222,7 +1222,7 @@ class Map : public ObjectRef {
    * \return the corresonding element.
    */
   const V at(const K& key) const {
-    return details::AnyUnsafe::ConvertAfterCheck<V>(GetMapNode()->at(key));
+    return details::AnyUnsafe::CopyFromAnyStorageAfterCheck<V>(GetMapNode()->at(key));
   }
   /*!
    * \brief Read element from map.
@@ -1270,7 +1270,7 @@ class Map : public ObjectRef {
     if (iter == GetMapNode()->end()) {
       return std::nullopt;
     }
-    return details::AnyUnsafe::ConvertAfterCheck<V>(iter->second);
+    return details::AnyUnsafe::CopyFromAnyStorageAfterCheck<V>(iter->second);
   }
   void erase(const K& key) { CopyOnWrite()->erase(key); }
 
@@ -1313,8 +1313,8 @@ class Map : public ObjectRef {
     /*! \brief De-reference iterators */
     reference operator*() const {
       auto& kv = *itr;
-      return std::make_pair(details::AnyUnsafe::ConvertAfterCheck<K>(kv.first),
-                            details::AnyUnsafe::ConvertAfterCheck<V>(kv.second));
+      return std::make_pair(details::AnyUnsafe::CopyFromAnyStorageAfterCheck<K>(kv.first),
+                            details::AnyUnsafe::CopyFromAnyStorageAfterCheck<V>(kv.second));
     }
     /*! \brief Prefix self increment, e.g. ++iter */
     iterator& operator++() {
@@ -1350,8 +1350,8 @@ class Map : public ObjectRef {
  * @return The merged Array. Original Maps are kept unchanged.
  */
 template <typename K, typename V,
-          typename = typename std::enable_if_t<(std::is_same_v<K, Any> || TypeTraits<K>::enabled) &&
-                                               (std::is_same_v<V, Any> || TypeTraits<V>::enabled)>>
+          typename = typename std::enable_if_t<details::container_enabled_v<K> &&
+                                               details::container_enabled_v<V>>>
 inline Map<K, V> Merge(Map<K, V> lhs, const Map<K, V>& rhs) {
   for (const auto& p : rhs) {
     lhs.Set(p.first, p.second);
@@ -1364,18 +1364,8 @@ template <typename K, typename V>
 inline constexpr bool use_default_type_traits_v<Map<K, V>> = false;
 
 template <typename K, typename V>
-struct TypeTraits<Map<K, V>> : public TypeTraitsBase {
-  static TVM_FFI_INLINE void CopyToAnyView(const Map<K, V>& src, TVMFFIAny* result) {
-    TVMFFIObject* obj_ptr = details::ObjectUnsafe::GetTVMFFIObjectPtrFromObjectRef(src);
-    result->type_index = obj_ptr->type_index;
-    result->v_obj = obj_ptr;
-  }
-
-  static TVM_FFI_INLINE void MoveToAny(Map<K, V> src, TVMFFIAny* result) {
-    TVMFFIObject* obj_ptr = details::ObjectUnsafe::MoveTVMFFIObjectPtrFromObjectRef(&src);
-    result->type_index = obj_ptr->type_index;
-    result->v_obj = obj_ptr;
-  }
+struct TypeTraits<Map<K, V>> : public ObjectRefTypeTraitsBase<Map<K, V>> {
+  using ObjectRefTypeTraitsBase<Map<K, V>>::CopyFromAnyStorageAfterCheck;
 
   static TVM_FFI_INLINE std::string GetMismatchTypeInfo(const TVMFFIAny* src) {
     if (src->type_index != TypeIndex::kTVMFFIMap) {
@@ -1385,13 +1375,14 @@ struct TypeTraits<Map<K, V>> : public TypeTraitsBase {
       const MapNode* n = reinterpret_cast<const MapNode*>(src->v_obj);
       for (const auto& kv : *n) {
         if constexpr (!std::is_same_v<K, Any>) {
-          if (!details::AnyUnsafe::CheckAny<K>(kv.first)) {
+          if (!details::AnyUnsafe::CheckAnyStorage<K>(kv.first) && !kv.first.as<K>().has_value()) {
             return "Map[some key is " + details::AnyUnsafe::GetMismatchTypeInfo<K>(kv.first) +
                    ", V]";
           }
         }
         if constexpr (!std::is_same_v<V, Any>) {
-          if (!details::AnyUnsafe::CheckAny<V>(kv.second)) {
+          if (!details::AnyUnsafe::CheckAnyStorage<V>(kv.second) &&
+              !kv.second.as<V>().has_value()) {
             return "Map[K, some value is " + details::AnyUnsafe::GetMismatchTypeInfo<V>(kv.second) +
                    "]";
           }
@@ -1402,9 +1393,7 @@ struct TypeTraits<Map<K, V>> : public TypeTraitsBase {
     TVM_FFI_UNREACHABLE();
   }
 
-  static TVM_FFI_INLINE bool CheckAnyView(const TVMFFIAny* src) {
-    // for now allow null array, TODO: revisit this
-    if (src->type_index == TypeIndex::kTVMFFINone) return true;
+  static TVM_FFI_INLINE bool CheckAnyStorage(const TVMFFIAny* src) {
     if (src->type_index != TypeIndex::kTVMFFIMap) return false;
     if constexpr (std::is_same_v<K, Any> && std::is_same_v<V, Any>) {
       return true;
@@ -1412,24 +1401,45 @@ struct TypeTraits<Map<K, V>> : public TypeTraitsBase {
       const MapNode* n = reinterpret_cast<const MapNode*>(src->v_obj);
       for (const auto& kv : *n) {
         if constexpr (!std::is_same_v<K, Any>) {
-          if (!details::AnyUnsafe::CheckAny<K>(kv.first)) return false;
+          if (!details::AnyUnsafe::CheckAnyStorage<K>(kv.first)) return false;
         }
         if constexpr (!std::is_same_v<V, Any>) {
-          if (!details::AnyUnsafe::CheckAny<V>(kv.second)) return false;
+          if (!details::AnyUnsafe::CheckAnyStorage<V>(kv.second)) return false;
         }
       }
       return true;
     }
   }
 
-  static TVM_FFI_INLINE Map<K, V> CopyFromAnyViewAfterCheck(const TVMFFIAny* src) {
-    if (src->type_index == TypeIndex::kTVMFFINone) return Map<K, V>(nullptr);
-    return Map<K, V>(details::ObjectUnsafe::ObjectPtrFromUnowned<Object>(src->v_obj));
-  }
-
-  static TVM_FFI_INLINE std::optional<Map<K, V>> TryCopyFromAnyView(const TVMFFIAny* src) {
-    if (CheckAnyView(src)) return CopyFromAnyViewAfterCheck(src);
-    return std::nullopt;
+  static TVM_FFI_INLINE std::optional<Map<K, V>> TryConvertFromAnyView(const TVMFFIAny* src) {
+    if (src->type_index != TypeIndex::kTVMFFIMap) return std::nullopt;
+    if constexpr (!std::is_same_v<K, Any> || !std::is_same_v<V, Any>) {
+      const MapNode* n = reinterpret_cast<const MapNode*>(src->v_obj);
+      bool storage_check = [&]() {
+        for (const auto& kv : *n) {
+          if constexpr (!std::is_same_v<K, Any>) {
+            if (!details::AnyUnsafe::CheckAnyStorage<K>(kv.first)) return false;
+          }
+          if constexpr (!std::is_same_v<V, Any>) {
+            if (!details::AnyUnsafe::CheckAnyStorage<V>(kv.second)) return false;
+          }
+        }
+        return true;
+      }();
+      // fast path, if storage check passes, we can return the array directly.
+      if (storage_check) return CopyFromAnyStorageAfterCheck(src);
+      // slow path, we need to create a new map and convert to the target type.
+      Map<K, V> ret;
+      for (const auto& kv : *n) {
+        auto k = kv.first.as<K>();
+        auto v = kv.second.as<V>();
+        if (!k.has_value() || !v.has_value()) return std::nullopt;
+        ret.Set(std::move(k.value()), std::move(v.value()));
+      }
+      return ret;
+    } else {
+      return CopyFromAnyStorageAfterCheck(src);
+    }
   }
 
   static TVM_FFI_INLINE std::string TypeStr() {

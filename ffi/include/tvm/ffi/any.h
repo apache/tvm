@@ -101,12 +101,12 @@ class AnyView {
 
   template <typename T, typename = std::enable_if_t<TypeTraits<T>::enabled>>
   TVM_FFI_INLINE std::optional<T> as() const {
-    return TypeTraits<T>::TryCopyFromAnyView(&data_);
+    return TypeTraits<T>::TryConvertFromAnyView(&data_);
   }
 
   template <typename T, typename = std::enable_if_t<TypeTraits<T>::enabled>>
   TVM_FFI_INLINE operator T() const {
-    std::optional<T> opt = TypeTraits<T>::TryCopyFromAnyView(&data_);
+    std::optional<T> opt = TypeTraits<T>::TryConvertFromAnyView(&data_);
     if (!opt.has_value()) {
       TVM_FFI_THROW(TypeError) << "Cannot convert from type `"
                                << TypeTraits<T>::GetMismatchTypeInfo(&data_) << "` to `"
@@ -258,9 +258,14 @@ class Any {
     return *this;
   }
 
-  template <typename T, typename = std::enable_if_t<TypeTraits<T>::enabled>>
+  template <typename T,
+            typename = std::enable_if_t<TypeTraits<T>::enabled || std::is_same_v<T, Any>>>
   TVM_FFI_INLINE std::optional<T> as() const {
-    return TypeTraits<T>::TryCopyFromAnyView(&data_);
+    if constexpr (std::is_same_v<T, Any>) {
+      return *this;
+    } else {
+      return TypeTraits<T>::TryConvertFromAnyView(&data_);
+    }
   }
 
   /*
@@ -276,7 +281,7 @@ class Any {
 
   template <typename T, typename = std::enable_if_t<TypeTraits<T>::enabled>>
   TVM_FFI_INLINE operator T() const {
-    std::optional<T> opt = TypeTraits<T>::TryCopyFromAnyView(&data_);
+    std::optional<T> opt = TypeTraits<T>::TryConvertFromAnyView(&data_);
     if (!opt.has_value()) {
       TVM_FFI_THROW(TypeError) << "Cannot convert from type `"
                                << TypeTraits<T>::GetMismatchTypeInfo(&data_) << "` to `"
@@ -385,23 +390,18 @@ struct AnyUnsafe : public ObjectUnsafe {
     return any;
   }
 
-  /*!
-   * \brief Internal helper function downcast a any that already passes check.
-   * \note Only used for internal dev purposes.
-   * \tparam T The target reference type.
-   * \return The casted result.
-   */
   template <typename T>
-  static TVM_FFI_INLINE T ConvertAfterCheck(const Any& ref) {
+  static TVM_FFI_INLINE bool CheckAnyStorage(const Any& ref) {
+    return TypeTraits<T>::CheckAnyStorage(&(ref.data_));
+  }
+
+  template <typename T>
+  static TVM_FFI_INLINE T CopyFromAnyStorageAfterCheck(const Any& ref) {
     if constexpr (!std::is_same_v<T, Any>) {
-      return TypeTraits<T>::CopyFromAnyViewAfterCheck(&(ref.data_));
+      return TypeTraits<T>::CopyFromAnyStorageAfterCheck(&(ref.data_));
     } else {
       return ref;
     }
-  }
-  template <typename T>
-  static TVM_FFI_INLINE bool CheckAny(const Any& ref) {
-    return TypeTraits<T>::CheckAnyView(&(ref.data_));
   }
 
   static TVM_FFI_INLINE Object* GetObjectPtrFromAny(const Any& ref) {
@@ -430,7 +430,7 @@ struct AnyHash {
       if (src.data_.type_index == TypeIndex::kTVMFFIStr ||
           src.data_.type_index == TypeIndex::kTVMFFIBytes) {
         const BytesObjBase* src_str =
-            details::AnyUnsafe::ConvertAfterCheck<const BytesObjBase*>(src);
+            details::AnyUnsafe::CopyFromAnyStorageAfterCheck<const BytesObjBase*>(src);
         return details::StableHashBytes(src_str->bytes.data, src_str->bytes.size);
       } else {
         return src.data_.v_uint64;
@@ -455,8 +455,10 @@ struct AnyEqual {
     // specialy handle string hash
     if (lhs.data_.type_index == TypeIndex::kTVMFFIStr ||
         lhs.data_.type_index == TypeIndex::kTVMFFIBytes) {
-      const BytesObjBase* lhs_str = details::AnyUnsafe::ConvertAfterCheck<const BytesObjBase*>(lhs);
-      const BytesObjBase* rhs_str = details::AnyUnsafe::ConvertAfterCheck<const BytesObjBase*>(rhs);
+      const BytesObjBase* lhs_str =
+          details::AnyUnsafe::CopyFromAnyStorageAfterCheck<const BytesObjBase*>(lhs);
+      const BytesObjBase* rhs_str =
+          details::AnyUnsafe::CopyFromAnyStorageAfterCheck<const BytesObjBase*>(rhs);
       return Bytes::memncmp(lhs_str->bytes.data, rhs_str->bytes.data, lhs_str->bytes.size,
                             rhs_str->bytes.size) == 0;
     }

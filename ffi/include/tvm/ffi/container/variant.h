@@ -91,7 +91,7 @@ class Variant {
   friend struct ObjectPtrHash;
   friend struct ObjectPtrEqual;
   // constructor from any
-  Variant(Any data) : data_(std::move(data)) {}
+  explicit Variant(Any data) : data_(std::move(data)) {}
   // internal data is backed by Any
   Any data_;
   /*!
@@ -125,20 +125,32 @@ struct TypeTraits<Variant<V...>> : public TypeTraitsBase {
     return TypeTraitsBase::GetMismatchTypeInfo(src);
   }
 
-  static TVM_FFI_INLINE bool CheckAnyView(const TVMFFIAny* src) {
-    return (TypeTraits<V>::CheckAnyView(src) || ...);
+  static TVM_FFI_INLINE bool CheckAnyStorage(const TVMFFIAny* src) {
+    return (TypeTraits<V>::CheckAnyStorage(src) || ...);
   }
 
-  static TVM_FFI_INLINE Variant<V...> CopyFromAnyViewAfterCheck(const TVMFFIAny* src) {
+  static TVM_FFI_INLINE Variant<V...> CopyFromAnyStorageAfterCheck(const TVMFFIAny* src) {
     return Variant<V...>(Any(AnyView::CopyFromTVMFFIAny(*src)));
   }
 
-  static TVM_FFI_INLINE std::optional<Variant<V...>> TryCopyFromAnyView(const TVMFFIAny* src) {
-    if (CheckAnyView(src)) {
-      return CopyFromAnyViewAfterCheck(src);
-    } else {
-      return std::nullopt;
+  static TVM_FFI_INLINE std::optional<Variant<V...>> TryConvertFromAnyView(const TVMFFIAny* src) {
+    // fast path, storage is already in the right type
+    if (CheckAnyStorage(src)) {
+      return CopyFromAnyStorageAfterCheck(src);
     }
+    // More expensive path, try to convert to each type, in order of declaration
+    return TryVariantTypes<V...>(src);
+  }
+
+  template <typename VariantType, typename... Rest>
+  static TVM_FFI_INLINE std::optional<Variant<V...>> TryVariantTypes(const TVMFFIAny* src) {
+    if (auto opt_convert = TypeTraits<VariantType>::TryConvertFromAnyView(src)) {
+      return Variant<V...>(*std::move(opt_convert));
+    }
+    if constexpr (sizeof...(Rest) > 0) {
+      return TryVariantTypes<Rest...>(src);
+    }
+    return std::nullopt;
   }
 
   static TVM_FFI_INLINE std::string TypeStr() { return details::ContainerTypeStr<V...>("Variant"); }

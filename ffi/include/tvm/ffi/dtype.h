@@ -293,30 +293,23 @@ struct TypeTraits<DLDataType> : public TypeTraitsBase {
     result->v_dtype = src;
   }
 
-  static TVM_FFI_INLINE std::optional<DLDataType> TryCopyFromAnyView(const TVMFFIAny* src) {
+  static TVM_FFI_INLINE bool CheckAnyStorage(const TVMFFIAny* src) {
+    return src->type_index == TypeIndex::kTVMFFIDataType;
+  }
+
+  static TVM_FFI_INLINE DLDataType CopyFromAnyStorageAfterCheck(const TVMFFIAny* src) {
+    return src->v_dtype;
+  }
+
+  static TVM_FFI_INLINE std::optional<DLDataType> TryConvertFromAnyView(const TVMFFIAny* src) {
     if (src->type_index == TypeIndex::kTVMFFIDataType) {
       return src->v_dtype;
     }
     // enable string to dtype auto conversion
-    if (auto opt_str = TypeTraits<std::string>::TryCopyFromAnyView(src)) {
+    if (auto opt_str = TypeTraits<std::string>::TryConvertFromAnyView(src)) {
       return StringToDLDataType(*opt_str);
     }
     return std::nullopt;
-  }
-
-  static TVM_FFI_INLINE bool CheckAnyView(const TVMFFIAny* src) {
-    return src->type_index == TypeIndex::kTVMFFIDataType ||
-           TypeTraits<std::string>::CheckAnyView(src);
-  }
-
-  static TVM_FFI_INLINE DLDataType CopyFromAnyViewAfterCheck(const TVMFFIAny* src) {
-    if (src->type_index == TypeIndex::kTVMFFIDataType) {
-      return src->v_dtype;
-    }
-    // enable string to dtype auto conversion
-    // as many machine learning frameworks accept string as dtype
-    // TODO(tqchen): revisit this decision
-    return StringToDLDataType(TypeTraits<std::string>::CopyFromAnyViewAfterCheck(src));
   }
 
   static TVM_FFI_INLINE std::string TypeStr() { return ffi::StaticTypeKey::kTVMFFIDataType; }

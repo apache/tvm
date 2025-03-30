@@ -44,51 +44,6 @@ TEST(Array, COWSet) {
   EXPECT_EQ(arr2[1]->value, 12);
 }
 
-TEST(Array, AnyConvertCheck) {
-  Array<Any> arr = {11.1, 1};
-  EXPECT_EQ(arr[1].operator int(), 1);
-
-  AnyView view0 = arr;
-  Array<double> arr1 = view0;
-  EXPECT_EQ(arr1[0], 11.1);
-  EXPECT_EQ(arr1[1], 1.0);
-
-  Any any1 = arr;
-
-  EXPECT_THROW(
-      {
-        try {
-          [[maybe_unused]] Array<int> arr2 = any1;
-        } catch (const Error& error) {
-          EXPECT_EQ(error->kind, "TypeError");
-          std::string what = error.what();
-          EXPECT_NE(what.find("Cannot convert from type `Array[index 0: float]` to `Array<int>`"),
-                    std::string::npos);
-          throw;
-        }
-      },
-      ::tvm::ffi::Error);
-
-  Array<Array<TNumber>> arr_nested = {{}, {TInt(1), TFloat(2)}};
-  any1 = arr_nested;
-  Array<Array<TNumber>> arr1_nested = any1;
-  EXPECT_EQ(arr1_nested.use_count(), 3);
-
-  EXPECT_THROW(
-      {
-        try {
-          [[maybe_unused]] Array<Array<int>> arr2 = any1;
-        } catch (const Error& error) {
-          EXPECT_EQ(error->kind, "TypeError");
-          std::string what = error.what();
-          EXPECT_NE(what.find("`Array[index 1: Array[index 0: test.Int]]` to `Array<Array<int>>`"),
-                    std::string::npos);
-          throw;
-        }
-      },
-      ::tvm::ffi::Error);
-}
-
 TEST(Array, MutateInPlaceForUniqueReference) {
   TInt x(1);
   Array<TInt> arr{x, x};
@@ -232,6 +187,75 @@ TEST(Array, FuncArrayAnyArg) {
   Function fadd_one =
       Function::FromUnpacked([](Array<Any> a) -> Any { return a[0].operator int() + 1; });
   EXPECT_EQ(fadd_one(Array<Any>{1}).operator int(), 2);
+}
+
+TEST(Array, AnyImplicitConversion) {
+  Array<Any> arr0_mixed = {11.1, 1};
+  EXPECT_EQ(arr0_mixed[1].operator int(), 1);
+
+  AnyView view0 = arr0_mixed;
+  Array<double> arr0_float = view0;
+  // they are not the same because arr_mixed
+  // stores arr_mixed[1] as int but we need to convert to float
+  EXPECT_TRUE(!arr0_float.same_as(arr0_mixed));
+  EXPECT_EQ(arr0_float[1], 1.0);
+
+  Any any1 = arr0_float;
+  // if storage check passes, the same array get returned
+  Array<double> arr1_float = any1;
+  EXPECT_TRUE(arr1_float.same_as(arr0_float));
+  // total count equals 3 include any1
+  EXPECT_EQ(arr1_float.use_count(), 3);
+
+  // convert to Array<Any> do not need any conversion
+  Array<Any> arr1_mixed = any1;
+  EXPECT_TRUE(arr1_mixed.same_as(arr1_float));
+  EXPECT_EQ(arr1_float.use_count(), 4);
+}
+
+TEST(Array, AnyConvertCheck) {
+  Array<Any> arr = {11.1, 1};
+  EXPECT_EQ(arr[1].operator int(), 1);
+
+  AnyView view0 = arr;
+  Array<double> arr1 = view0;
+  EXPECT_EQ(arr1[0], 11.1);
+  EXPECT_EQ(arr1[1], 1.0);
+
+  Any any1 = arr;
+
+  EXPECT_THROW(
+      {
+        try {
+          [[maybe_unused]] Array<int> arr2 = any1;
+        } catch (const Error& error) {
+          EXPECT_EQ(error->kind, "TypeError");
+          std::string what = error.what();
+          EXPECT_NE(what.find("Cannot convert from type `Array[index 0: float]` to `Array<int>`"),
+                    std::string::npos);
+          throw;
+        }
+      },
+      ::tvm::ffi::Error);
+
+  Array<Array<TNumber>> arr_nested = {{}, {TInt(1), TFloat(2)}};
+  any1 = arr_nested;
+  Array<Array<TNumber>> arr1_nested = any1;
+  EXPECT_EQ(arr1_nested.use_count(), 3);
+
+  EXPECT_THROW(
+      {
+        try {
+          [[maybe_unused]] Array<Array<int>> arr2 = any1;
+        } catch (const Error& error) {
+          EXPECT_EQ(error->kind, "TypeError");
+          std::string what = error.what();
+          EXPECT_NE(what.find("`Array[index 1: Array[index 0: test.Int]]` to `Array<Array<int>>`"),
+                    std::string::npos);
+          throw;
+        }
+      },
+      ::tvm::ffi::Error);
 }
 
 }  // namespace
