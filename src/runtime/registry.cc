@@ -300,7 +300,7 @@ int TVMFuncGetGlobal(const char* name, TVMFunctionHandle* out) {
   const tvm::runtime::PackedFunc* fp = tvm::runtime::Registry::Get(name);
   if (fp != nullptr) {
     TVMFFIAny val;
-    tvm::ffi::Any(*fp).MoveToTVMFFIAny(&val);
+    tvm::ffi::details::AnyUnsafe::MoveAnyToTVMFFIAny(tvm::ffi::Any(*fp), (&val));
     *out = val.v_obj;
   } else {
     *out = nullptr;

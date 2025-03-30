@@ -138,7 +138,7 @@ inline AnyView LegacyTVMArgValueToAnyView(TVMValue value, int type_code) {
  * \note This routine is not fastest, but serves purpose to do transition of ABI.
  */
 inline Any MoveLegacyTVMArgValueToAny(TVMValue value, int type_code) {
-  return Any::MoveFromTVMFFIAny(LegacyTVMArgValueToFFIAny(value, type_code));
+  return ffi::details::AnyUnsafe::MoveTVMFFIAnyToAny(LegacyTVMArgValueToFFIAny(value, type_code));
 }
 
 /*
@@ -233,7 +233,7 @@ inline void AnyViewToLegacyTVMArgValue(TVMFFIAny src, TVMValue* value, int* type
  */
 inline void MoveAnyToLegacyTVMValue(Any&& src, TVMValue* value, int* type_code) {
   TVMFFIAny val;
-  src.MoveToTVMFFIAny(&val);
+  ffi::details::AnyUnsafe::MoveAnyToTVMFFIAny(std::move(src), &val);
   // NOTE: conversion rule is the same as AnyViewToLegacyTVMArgValue
   AnyViewToLegacyTVMArgValue(val, value, type_code);
 }
