@@ -76,7 +76,6 @@ class TensorNode : public DataProducerNode {
   /*! \brief the output index from source operation */
   int value_index{0};
 
-
   void VisitAttrs(AttrVisitor* v) {
     v->Visit("shape", &shape);
     v->Visit("dtype", &dtype);

@@ -579,7 +579,7 @@ TVM_REGISTER_NODE_TYPE(BufferRealizeNode);
 // BufferRegion
 PrimExpr BufferRegionNode::ToPrimExpr() const {
   // Auto convert to PrimExpr if it is a single point load
-   Array<PrimExpr> indices;
+  Array<PrimExpr> indices;
   indices.reserve(this->region.size());
   for (const Range& r : this->region) {
     if (tvm::tir::is_one(r->extent)) {

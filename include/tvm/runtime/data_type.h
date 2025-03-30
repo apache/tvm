@@ -375,20 +375,21 @@ struct TypeTraits<runtime::DataType> : public TypeTraitsBase {
     result->v_dtype = src;
   }
 
-  static TVM_FFI_INLINE std::optional<runtime::DataType> TryCopyFromAnyView(const TVMFFIAny* src) {
-    auto opt_dtype = TypeTraits<DLDataType>::TryCopyFromAnyView(src);
+  static TVM_FFI_INLINE std::optional<runtime::DataType> TryConvertFromAnyView(
+      const TVMFFIAny* src) {
+    auto opt_dtype = TypeTraits<DLDataType>::TryConvertFromAnyView(src);
     if (opt_dtype) {
       return runtime::DataType(opt_dtype.value());
     }
     return std::nullopt;
   }
 
-  static TVM_FFI_INLINE bool CheckAnyView(const TVMFFIAny* src) {
-    return TypeTraits<DLDataType>::CheckAnyView(src);
+  static TVM_FFI_INLINE bool CheckAnyStorage(const TVMFFIAny* src) {
+    return TypeTraits<DLDataType>::CheckAnyStorage(src);
   }
 
-  static TVM_FFI_INLINE runtime::DataType CopyFromAnyViewAfterCheck(const TVMFFIAny* src) {
-    return runtime::DataType(TypeTraits<DLDataType>::CopyFromAnyViewAfterCheck(src));
+  static TVM_FFI_INLINE runtime::DataType CopyFromAnyStorageAfterCheck(const TVMFFIAny* src) {
+    return runtime::DataType(TypeTraits<DLDataType>::CopyFromAnyStorageAfterCheck(src));
   }
 
   static TVM_FFI_INLINE std::string TypeStr() { return ffi::StaticTypeKey::kTVMFFIDataType; }
