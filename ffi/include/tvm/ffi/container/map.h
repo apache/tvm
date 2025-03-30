@@ -26,9 +26,9 @@
 
 #include <tvm/ffi/any.h>
 #include <tvm/ffi/container/container_details.h>
-#include <tvm/ffi/optional.h>
 #include <tvm/ffi/memory.h>
 #include <tvm/ffi/object.h>
+#include <tvm/ffi/optional.h>
 
 #include <algorithm>
 #include <type_traits>
@@ -1265,7 +1265,7 @@ class Map : public ObjectRef {
   /*! \return find the key and returns the associated iterator */
   iterator find(const K& key) const { return iterator(GetMapNode()->find(key)); }
   /*! \return The value associated with the key, NullOpt if not found */
-  std::optional<V> Get(const K& key) const {
+  Optional<V> Get(const K& key) const {
     MapNode::iterator iter = GetMapNode()->find(key);
     if (iter == GetMapNode()->end()) {
       return std::nullopt;
@@ -1427,7 +1427,7 @@ struct TypeTraits<Map<K, V>> : public TypeTraitsBase {
     return Map<K, V>(details::ObjectUnsafe::ObjectPtrFromUnowned<Object>(src->v_obj));
   }
 
-  static TVM_FFI_INLINE std::optional<Map<K, V>> TryCopyFromAnyView(const TVMFFIAny* src) {
+  static TVM_FFI_INLINE Optional<Map<K, V>> TryCopyFromAnyView(const TVMFFIAny* src) {
     if (CheckAnyView(src)) return CopyFromAnyViewAfterCheck(src);
     return std::nullopt;
   }

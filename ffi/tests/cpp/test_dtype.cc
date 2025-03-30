@@ -53,7 +53,7 @@ TEST(DataType, AnyConversion) {
   AnyView view0;
   EXPECT_EQ(view0.CopyToTVMFFIAny().type_index, TypeIndex::kTVMFFINone);
 
-  std::optional<DLDataType> opt_v0 = view0.as<DLDataType>();
+  Optional<DLDataType> opt_v0 = view0.as<DLDataType>();
   EXPECT_TRUE(!opt_v0.has_value());
 
   EXPECT_THROW(
@@ -90,14 +90,14 @@ TEST(DataType, AnyConversion) {
 TEST(DataType, AnyConversionWithString) {
   AnyView view0 = "float32";
 
-  std::optional<DLDataType> opt_v0 = view0.as<DLDataType>();
+  Optional<DLDataType> opt_v0 = view0.as<DLDataType>();
   DLDataType dtype_v0 = opt_v0.value();
   EXPECT_EQ(dtype_v0.code, kDLFloat);
   EXPECT_EQ(dtype_v0.bits, 32);
   EXPECT_EQ(dtype_v0.lanes, 1);
 
   Any any = String("bfloat16x2");
-  std::optional<DLDataType> opt_v1 = any.as<DLDataType>();
+  Optional<DLDataType> opt_v1 = any.as<DLDataType>();
   EXPECT_EQ(opt_v1.value().code, kDLBfloat);
   EXPECT_EQ(opt_v1.value().bits, 16);
   EXPECT_EQ(opt_v1.value().lanes, 2);

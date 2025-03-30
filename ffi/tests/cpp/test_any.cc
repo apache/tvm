@@ -31,7 +31,7 @@ TEST(Any, Int) {
   AnyView view0;
   EXPECT_EQ(view0.CopyToTVMFFIAny().type_index, TypeIndex::kTVMFFINone);
 
-  std::optional<int64_t> opt_v0 = view0.as<int64_t>();
+  Optional<int64_t> opt_v0 = view0.as<int64_t>();
   EXPECT_TRUE(!opt_v0.has_value());
 
   EXPECT_THROW(
@@ -62,7 +62,7 @@ TEST(Any, Int) {
 
 TEST(Any, bool) {
   AnyView view0;
-  std::optional<bool> opt_v0 = view0.as<bool>();
+  Optional<bool> opt_v0 = view0.as<bool>();
   EXPECT_TRUE(!opt_v0.has_value());
 
   EXPECT_THROW(
@@ -114,7 +114,7 @@ TEST(Any, Float) {
   AnyView view0;
   EXPECT_EQ(view0.CopyToTVMFFIAny().type_index, TypeIndex::kTVMFFINone);
 
-  std::optional<double> opt_v0 = view0.as<double>();
+  Optional<double> opt_v0 = view0.as<double>();
   EXPECT_TRUE(!opt_v0.has_value());
 
   EXPECT_THROW(
@@ -148,7 +148,7 @@ TEST(Any, Device) {
   AnyView view0;
   EXPECT_EQ(view0.CopyToTVMFFIAny().type_index, TypeIndex::kTVMFFINone);
 
-  std::optional<DLDevice> opt_v0 = view0.as<DLDevice>();
+  Optional<DLDevice> opt_v0 = view0.as<DLDevice>();
   EXPECT_TRUE(!opt_v0.has_value());
 
   EXPECT_THROW(
@@ -182,7 +182,7 @@ TEST(Any, Device) {
 TEST(Any, DLTensor) {
   AnyView view0;
 
-  std::optional<DLTensor*> opt_v0 = view0.as<DLTensor*>();
+  Optional<DLTensor*> opt_v0 = view0.as<DLTensor*>();
   EXPECT_TRUE(!opt_v0.has_value());
 
   EXPECT_THROW(
@@ -210,7 +210,7 @@ TEST(Any, Object) {
   EXPECT_EQ(view0.CopyToTVMFFIAny().type_index, TypeIndex::kTVMFFINone);
 
   // int object is not nullable
-  std::optional<TInt> opt_v0 = view0.as<TInt>();
+  Optional<TInt> opt_v0 = view0.as<TInt>();
   EXPECT_TRUE(!opt_v0.has_value());
 
   TInt v1(11);

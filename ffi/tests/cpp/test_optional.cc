@@ -19,8 +19,8 @@
 #include <gtest/gtest.h>
 #include <tvm/ffi/any.h>
 #include <tvm/ffi/container/array.h>
-#include <tvm/ffi/optional.h>
 #include <tvm/ffi/memory.h>
+#include <tvm/ffi/optional.h>
 
 #include "./testing_object.h"
 
@@ -108,4 +108,43 @@ TEST(Optional, AnyConvert_Array) {
       ::tvm::ffi::Error);
 }
 
+TEST(Optional, OptionalOfOptional) {
+  // testcase of optional<optional>
+  Optional<Optional<int>> opt_opt_int;
+  EXPECT_TRUE(!opt_opt_int.has_value());
+
+  Optional<Optional<int>> opt_opt_int2 = Optional<int>(std::nullopt);
+  EXPECT_TRUE(opt_opt_int2.has_value());
+  EXPECT_TRUE(!opt_opt_int2.value().has_value());
+
+  // Optional<Optional<ObjectRef>>
+  Optional<Optional<TInt>> opt_opt_tint;
+  EXPECT_TRUE(!opt_opt_tint.has_value());
+
+  Optional<Optional<TInt>> opt_opt_tint2 = Optional<TInt>(std::nullopt);
+  EXPECT_TRUE(opt_opt_tint2.has_value());
+  EXPECT_TRUE(!opt_opt_tint2.value().has_value());
+  opt_opt_tint2 = std::nullopt;
+  EXPECT_TRUE(!opt_opt_tint2.has_value());
+
+  Optional<Optional<TInt>> opt_opt_tint3 = Optional<TInt>(TInt(42));
+  EXPECT_TRUE(opt_opt_tint3.has_value());
+  EXPECT_TRUE(opt_opt_tint3.value().has_value());
+  EXPECT_EQ(opt_opt_tint3.value().value()->value, 42);
+}
+
+TEST(Optional, ValueMove) {
+  Optional<TInt> y = TInt(11);
+  TInt x = std::move(y).value();
+  EXPECT_TRUE(!y.has_value());
+  EXPECT_EQ(x->value, 11);
+
+  Optional<TInt> opt_tint = TInt(21);
+  EXPECT_TRUE(opt_tint.has_value());
+  EXPECT_EQ((*opt_tint)->value, 21);
+
+  TInt moved_tint = *std::move(opt_tint);
+  EXPECT_EQ(moved_tint->value, 21);
+  EXPECT_TRUE(!opt_tint.has_value());
+}
 }  // namespace

@@ -67,21 +67,21 @@ namespace ffi {
   }                                                                                 \
   TVM_FFI_UNREACHABLE()
 
-#define TVM_FFI_CHECK_SAFE_CALL(func)                                                  \
-  {                                                                                    \
-    int ret_code = (func);                                                             \
-    if (ret_code != 0) {                                                               \
-      if (ret_code == -2) {                                                            \
-        throw ::tvm::ffi::EnvErrorAlreadySet();                                        \
-      }                                                                                \
-      ::tvm::ffi::Any error_any;                                                       \
-      TVMFFIMoveFromLastError(reinterpret_cast<TVMFFIAny*>(&error_any));               \
-      if (std::optional<tvm::ffi::Error> error = error_any.as<tvm::ffi::Error>()) { \
-        throw std::move(*error);                                                       \
-      } else {                                                                         \
-        TVM_FFI_THROW(RuntimeError) << "Error encountered";                            \
-      }                                                                                \
-    }                                                                                  \
+#define TVM_FFI_CHECK_SAFE_CALL(func)                                          \
+  {                                                                            \
+    int ret_code = (func);                                                     \
+    if (ret_code != 0) {                                                       \
+      if (ret_code == -2) {                                                    \
+        throw ::tvm::ffi::EnvErrorAlreadySet();                                \
+      }                                                                        \
+      ::tvm::ffi::Any error_any;                                               \
+      TVMFFIMoveFromLastError(reinterpret_cast<TVMFFIAny*>(&error_any));       \
+      if (Optional<tvm::ffi::Error> error = error_any.as<tvm::ffi::Error>()) { \
+        throw *std::move(error);                                               \
+      } else {                                                                 \
+        TVM_FFI_THROW(RuntimeError) << "Error encountered";                    \
+      }                                                                        \
+    }                                                                          \
   }
 
 /*!
@@ -381,7 +381,7 @@ class Function : public ObjectRef {
    * \param allow_missing Whether to allow missing function
    * \return The global function.
    */
-  static std::optional<Function> GetGlobal(const char* name, bool allow_missing = true) {
+  static Optional<Function> GetGlobal(const char* name, bool allow_missing = true) {
     TVMFFIObjectHandle handle;
     TVM_FFI_CHECK_SAFE_CALL(TVMFFIFuncGetGlobal(name, &handle));
     if (handle != nullptr) {
@@ -680,11 +680,10 @@ struct TypeTraits<TypedFunction<FType>> : public TypeTraitsBase {
     return TypedFunction<FType>(TypeTraits<Function>::CopyFromAnyViewAfterCheck(src));
   }
 
-  static TVM_FFI_INLINE std::optional<TypedFunction<FType>> TryCopyFromAnyView(
-      const TVMFFIAny* src) {
-    std::optional<Function> opt = TypeTraits<Function>::TryCopyFromAnyView(src);
+  static TVM_FFI_INLINE Optional<TypedFunction<FType>> TryCopyFromAnyView(const TVMFFIAny* src) {
+    Optional<Function> opt = TypeTraits<Function>::TryCopyFromAnyView(src);
     if (opt.has_value()) {
-      return TypedFunction<FType>(std::move(opt.value()));
+      return TypedFunction<FType>(*std::move(opt));
     } else {
       return std::nullopt;
     }

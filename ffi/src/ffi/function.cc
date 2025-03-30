@@ -38,7 +38,7 @@ class SafeCallContext {
   void SetLastError(const TVMFFIAny* error_view) {
     last_error_ = Any(AnyView::CopyFromTVMFFIAny(error_view[0]));
     // turn string into formal error.
-    if (std::optional<String> opt_str = last_error_.as<String>()) {
+    if (Optional<String> opt_str = last_error_.as<String>()) {
       last_error_ = ::tvm::ffi::Error("RuntimeError", *opt_str, "");
     }
   }
