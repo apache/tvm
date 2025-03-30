@@ -17,9 +17,9 @@
  * under the License.
  */
 #include <gtest/gtest.h>
+#include <tvm/ffi/any.h>
 #include <tvm/ffi/error.h>
 #include <tvm/ffi/optional.h>
-#include <tvm/ffi/any.h>
 
 namespace {
 
