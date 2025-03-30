@@ -238,14 +238,15 @@ TEST(Any, Object) {
   any2 = raw_v1_ptr;
   EXPECT_TRUE(any2.as<void*>().value() == v1_ptr);
 
-  // convert to ObjectPtr
-  ObjectPtr<TNumberObj> v1_obj_ptr = view2;
-  EXPECT_EQ(v1.use_count(), 3);
-  any2 = v1_obj_ptr;
-  EXPECT_EQ(v1.use_count(), 4);
-  EXPECT_TRUE(any2.as<TInt>().has_value());
-  any2.reset();
-  v1_obj_ptr.reset();
+  // convert to ObjectRef
+  {
+    TNumber v1_obj_ref = view2;
+    EXPECT_EQ(v1.use_count(), 3);
+    any2 = v1_obj_ref;
+    EXPECT_EQ(v1.use_count(), 4);
+    EXPECT_TRUE(any2.as<TInt>().has_value());
+    any2.reset();
+  }
 
   // convert that triggers error
   EXPECT_THROW(

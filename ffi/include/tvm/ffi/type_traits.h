@@ -83,14 +83,14 @@ struct TypeTraits<std::nullptr_t> : public TypeTraitsBase {
   static TVM_FFI_INLINE void CopyToAnyView(const std::nullptr_t&, TVMFFIAny* result) {
     result->type_index = TypeIndex::kTVMFFINone;
     // invariant: the pointer field also equals nullptr
-    // this will simplify the recovery of nullable object from the any
+    // this will simplify same_as comparisons and hash
     result->v_int64 = 0;
   }
 
   static TVM_FFI_INLINE void MoveToAny(std::nullptr_t, TVMFFIAny* result) {
     result->type_index = TypeIndex::kTVMFFINone;
     // invariant: the pointer field also equals nullptr
-    // this will simplify the recovery of nullable object from the any
+    // this will simplify same_as comparisons and hash
     result->v_int64 = 0;
   }
 
@@ -383,29 +383,25 @@ struct TypeTraits<char[N]> : public TypeTraitsBase {
   }
 };
 
-// Traits for ObjectRef
-// NOTE: we always does null check when convert to ObjectRef
-// If we anticipate a potentilaly nullable ObjectRef, use Optional<ObjectRef> instead
+// Traits for ObjectRef, None to ObjectRef will always fail.
+// use Optional<ObjectRef> instead for nullable references.
 template <typename TObjRef>
 struct ObjectRefTypeTraitsBase : public TypeTraitsBase {
   static constexpr int32_t field_static_type_index = TypeIndex::kTVMFFIObject;
   using ContainerType = typename TObjRef::ContainerType;
 
   static TVM_FFI_INLINE void CopyToAnyView(const TObjRef& src, TVMFFIAny* result) {
+    TVM_FFI_ICHECK(src.defined()) << "Use Optional<ObjectRef> for nullable references";
     TVMFFIObject* obj_ptr = details::ObjectUnsafe::GetTVMFFIObjectPtrFromObjectRef(src);
     result->type_index = obj_ptr->type_index;
     result->v_obj = obj_ptr;
   }
 
   static TVM_FFI_INLINE void MoveToAny(TObjRef src, TVMFFIAny* result) {
-    if (src.defined()) {
-      TVMFFIObject* obj_ptr = details::ObjectUnsafe::MoveTVMFFIObjectPtrFromObjectRef(&src);
-      result->type_index = obj_ptr->type_index;
-      result->v_obj = obj_ptr;
-    } else {
-      result->type_index = TypeIndex::kTVMFFINone;
-      result->v_obj = nullptr;
-    }
+    TVM_FFI_ICHECK(src.defined()) << "Use Optional<ObjectRef> for nullable references";
+    TVMFFIObject* obj_ptr = details::ObjectUnsafe::MoveTVMFFIObjectPtrFromObjectRef(&src);
+    result->type_index = obj_ptr->type_index;
+    result->v_obj = obj_ptr;
   }
 
   static TVM_FFI_INLINE bool CheckAnyView(const TVMFFIAny* src) {
@@ -519,39 +515,8 @@ struct ObjectRefWithFallbackTraitsBase : public ObjectRefTypeTraitsBase<ObjectRe
   }
 };
 
-// Traits for ObjectPtr
-template <typename T>
-struct TypeTraits<ObjectPtr<T>> : public TypeTraitsBase {
-  static TVM_FFI_INLINE void CopyToAnyView(const ObjectPtr<T>& src, TVMFFIAny* result) {
-    TVMFFIObject* obj_ptr = details::ObjectUnsafe::GetTVMFFIObjectPtrFromObjectPtr(src);
-    result->type_index = obj_ptr->type_index;
-    result->v_obj = obj_ptr;
-  }
-
-  static TVM_FFI_INLINE void MoveToAny(ObjectPtr<T> src, TVMFFIAny* result) {
-    TVMFFIObject* obj_ptr = details::ObjectUnsafe::MoveTVMFFIObjectPtrFromObjectPtr(&src);
-    result->type_index = obj_ptr->type_index;
-    result->v_obj = obj_ptr;
-  }
-
-  static TVM_FFI_INLINE bool CheckAnyView(const TVMFFIAny* src) {
-    return src->type_index >= TypeIndex::kTVMFFIStaticObjectBegin &&
-           details::IsObjectInstance<T>(src->type_index);
-  }
-
-  static TVM_FFI_INLINE ObjectPtr<T> CopyFromAnyViewAfterCheck(const TVMFFIAny* src) {
-    return details::ObjectUnsafe::ObjectPtrFromUnowned<T>(src->v_obj);
-  }
-
-  static TVM_FFI_INLINE Optional<ObjectPtr<T>> TryCopyFromAnyView(const TVMFFIAny* src) {
-    if (CheckAnyView(src)) return CopyFromAnyViewAfterCheck(src);
-    return std::nullopt;
-  }
-
-  static TVM_FFI_INLINE std::string TypeStr() { return T::_type_key; }
-};
-
 // Traits for weak pointer of object
+// NOTE: we require the weak pointer cast from
 template <typename TObject>
 struct TypeTraits<const TObject*, std::enable_if_t<std::is_base_of_v<Object, TObject>>>
     : public TypeTraitsBase {
