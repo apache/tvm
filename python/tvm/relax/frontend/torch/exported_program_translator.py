@@ -390,7 +390,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             # tensor creation
             "_to_copy.default": self._to_copy,
             "arange.default": self._arange,
-            "arange.start": self._arange, # TODO test
+            "arange.start": self._arange,
             "arange.start_step": self._arange,
             "detach.default": self._detach,
             "detach_.default": self._detach,
@@ -492,7 +492,6 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                         assert (
                             func_name in self.convert_map
                         ), f"Unsupported function type {func_name}"
-                        print('found function!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!', func_name)
                         self.env[node] = self.convert_map[func_name](node)
                     else:
                         raise ValueError(f"Unsupported op {node.op}")
