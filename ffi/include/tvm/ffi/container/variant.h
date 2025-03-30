@@ -66,7 +66,7 @@ class Variant {
   }
 
   template <typename T, typename = enable_if_variant_t<T>>
-  TVM_FFI_INLINE Optional<T> as() const {
+  TVM_FFI_INLINE std::optional<T> as() const {
     return data_.as<T>();
   }
 
@@ -133,7 +133,7 @@ struct TypeTraits<Variant<V...>> : public TypeTraitsBase {
     return Variant<V...>(Any(AnyView::CopyFromTVMFFIAny(*src)));
   }
 
-  static TVM_FFI_INLINE Optional<Variant<V...>> TryCopyFromAnyView(const TVMFFIAny* src) {
+  static TVM_FFI_INLINE std::optional<Variant<V...>> TryCopyFromAnyView(const TVMFFIAny* src) {
     if (CheckAnyView(src)) {
       return CopyFromAnyViewAfterCheck(src);
     } else {

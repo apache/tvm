@@ -159,5 +159,9 @@ TEST(Optional, OptionalInArray) {
   for (const auto& x : arr[0].value()) {
     EXPECT_EQ(x->value, counter++);
   }
+
+  Any any = arr;
+  Array<Optional<Array<TInt>>> opt_arr = any;
+  EXPECT_EQ(opt_arr[0].value()[0]->value, 0);
 }
 }  // namespace

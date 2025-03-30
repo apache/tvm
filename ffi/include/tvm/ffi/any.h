@@ -100,13 +100,13 @@ class AnyView {
   }
 
   template <typename T, typename = std::enable_if_t<TypeTraits<T>::enabled>>
-  TVM_FFI_INLINE Optional<T> as() const {
+  TVM_FFI_INLINE std::optional<T> as() const {
     return TypeTraits<T>::TryCopyFromAnyView(&data_);
   }
 
   template <typename T, typename = std::enable_if_t<TypeTraits<T>::enabled>>
   TVM_FFI_INLINE operator T() const {
-    Optional<T> opt = TypeTraits<T>::TryCopyFromAnyView(&data_);
+    std::optional<T> opt = TypeTraits<T>::TryCopyFromAnyView(&data_);
     if (!opt.has_value()) {
       TVM_FFI_THROW(TypeError) << "Cannot convert from type `"
                                << TypeTraits<T>::GetMismatchTypeInfo(&data_) << "` to `"
@@ -259,7 +259,7 @@ class Any {
   }
 
   template <typename T, typename = std::enable_if_t<TypeTraits<T>::enabled>>
-  TVM_FFI_INLINE Optional<T> as() const {
+  TVM_FFI_INLINE std::optional<T> as() const {
     return TypeTraits<T>::TryCopyFromAnyView(&data_);
   }
 
@@ -276,7 +276,7 @@ class Any {
 
   template <typename T, typename = std::enable_if_t<TypeTraits<T>::enabled>>
   TVM_FFI_INLINE operator T() const {
-    Optional<T> opt = TypeTraits<T>::TryCopyFromAnyView(&data_);
+    std::optional<T> opt = TypeTraits<T>::TryCopyFromAnyView(&data_);
     if (!opt.has_value()) {
       TVM_FFI_THROW(TypeError) << "Cannot convert from type `"
                                << TypeTraits<T>::GetMismatchTypeInfo(&data_) << "` to `"

@@ -44,7 +44,7 @@ inline constexpr bool is_optional_type_v<Optional<T>> = true;
 // that do not have additional data members and virtual functions.
 template <typename T>
 inline constexpr bool use_ptr_based_optional_v =
-    (std::is_base_of_v<ObjectRef, T> && !is_optional_type_v<T> && sizeof(T) == sizeof(ObjectRef));
+    (std::is_base_of_v<ObjectRef, T> && !is_optional_type_v<T>);
 
 // Specialization for non-ObjectRef types.
 // simply fallback to std::optional
@@ -177,7 +177,7 @@ class Optional<T, std::enable_if_t<use_ptr_based_optional_v<T>>> : public Object
     return *this;
   }
 
-  TVM_FFI_INLINE T value() const & {
+  TVM_FFI_INLINE T value() const& {
     if (data_ == nullptr) {
       TVM_FFI_THROW(RuntimeError) << "Back optional access";
     }
@@ -205,18 +205,14 @@ class Optional<T, std::enable_if_t<use_ptr_based_optional_v<T>>> : public Object
    * \return the const reference to the stored value.
    * \note only use this function after checking has_value()
    */
-  TVM_FFI_INLINE T operator*() const& noexcept {
-    return T(data_);
-  }
+  TVM_FFI_INLINE T operator*() const& noexcept { return T(data_); }
 
   /*!
    * \brief Direct access to the value.
    * \return the const reference to the stored value.
    * \note only use this function  after checking has_value()
    */
-  TVM_FFI_INLINE T operator*() && noexcept {
-    return T(std::move(data_));
-  }
+  TVM_FFI_INLINE T operator*() && noexcept { return T(std::move(data_)); }
 
   TVM_FFI_INLINE bool operator==(std::nullptr_t) const noexcept { return !has_value(); }
   TVM_FFI_INLINE bool operator!=(std::nullptr_t) const noexcept { return has_value(); }
@@ -263,7 +259,9 @@ class Optional<T, std::enable_if_t<use_ptr_based_optional_v<T>>> : public Object
    * \return The internal object pointer with container type of T.
    * \note This function do not perform not-null checking.
    */
-  TVM_FFI_INLINE const ContainerType* get() const { return static_cast<ContainerType*>(data_.get()); }
+  TVM_FFI_INLINE const ContainerType* get() const {
+    return static_cast<ContainerType*>(data_.get());
+  }
 
  private:
   template <typename U>
@@ -292,20 +290,6 @@ class Optional<T, std::enable_if_t<use_ptr_based_optional_v<T>>> : public Object
     }
   }
 };
-
-template <typename ObjectRefType, typename>
-TVM_FFI_INLINE Optional<ObjectRefType> ObjectRef::as() const {
-  if (data_ != nullptr) {
-    if (data_->IsInstance<typename ObjectRefType::ContainerType>()) {
-      return ObjectRefType(data_);
-    } else {
-      return std::nullopt;
-    }
-  } else {
-    return std::nullopt;
-  }
-}
-
 }  // namespace ffi
 }  // namespace tvm
 #endif  // TVM_FFI_OPTIONAL_H_

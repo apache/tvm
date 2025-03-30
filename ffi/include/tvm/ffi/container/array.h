@@ -997,7 +997,7 @@ struct TypeTraits<Array<T>> : public TypeTraitsBase {
     return Array<T>(details::ObjectUnsafe::ObjectPtrFromUnowned<Object>(src->v_obj));
   }
 
-  static TVM_FFI_INLINE Optional<Array<T>> TryCopyFromAnyView(const TVMFFIAny* src) {
+  static TVM_FFI_INLINE std::optional<Array<T>> TryCopyFromAnyView(const TVMFFIAny* src) {
     if (CheckAnyView(src)) return CopyFromAnyViewAfterCheck(src);
     return std::nullopt;
   }
