@@ -427,7 +427,11 @@ class ObjectRef {
    */
   bool operator<(const ObjectRef& other) const { return data_.get() < other.data_.get(); }
   /*!
-   * \return whether the object is defined(not null).
+   * \return whether the object is defined.
+   *
+   * \note undefined ObjectRef cannot be passed to Any/AnyView.
+   *       It only represents an initial state
+   *       We encourage explicitly use Optional<ObjectRef> nullable
    */
   bool defined() const { return data_ != nullptr; }
   /*! \return the internal object pointer */
@@ -480,11 +484,7 @@ class ObjectRef {
         return std::nullopt;
       }
     } else {
-      if constexpr (ObjectRefType::_type_is_nullable) {
-        return ObjectRefType(ObjectPtr<Object>(nullptr));
-      } else {
-        return std::nullopt;
-      }
+      return std::nullopt;
     }
   }
 

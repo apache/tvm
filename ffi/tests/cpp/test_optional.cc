@@ -19,7 +19,7 @@
 #include <gtest/gtest.h>
 #include <tvm/ffi/any.h>
 #include <tvm/ffi/container/array.h>
-#include <tvm/ffi/container/optional.h>
+#include <tvm/ffi/optional.h>
 #include <tvm/ffi/memory.h>
 
 #include "./testing_object.h"
@@ -35,18 +35,15 @@ TEST(Optional, TInt) {
   static_assert(sizeof(Optional<TInt>) == sizeof(ObjectRef));
 
   EXPECT_TRUE(!x.has_value());
-  EXPECT_TRUE(x == nullptr);
   EXPECT_EQ(x.value_or(TInt(12))->value, 12);
 
   EXPECT_TRUE(y.has_value());
-  EXPECT_TRUE(y != nullptr);
   EXPECT_EQ(y.value_or(TInt(12))->value, 11);
 
   Any z_any = std::move(y);
   EXPECT_TRUE(z_any != nullptr);
   EXPECT_EQ((z_any.operator TInt())->value, 11);
   EXPECT_TRUE(!y.has_value());
-  EXPECT_TRUE(y == nullptr);
 }
 
 TEST(Optional, double) {
@@ -55,12 +52,10 @@ TEST(Optional, double) {
   static_assert(sizeof(Optional<double>) > sizeof(ObjectRef));
 
   EXPECT_TRUE(!x.has_value());
-  EXPECT_TRUE(x == nullptr);
   EXPECT_EQ(x.value_or(12), 12);
   EXPECT_TRUE(x != 12);
 
   EXPECT_TRUE(y.has_value());
-  EXPECT_TRUE(y != nullptr);
   EXPECT_EQ(y.value_or(12), 11);
   EXPECT_TRUE(y == 11);
   EXPECT_TRUE(y != 12);
@@ -69,14 +64,14 @@ TEST(Optional, double) {
 TEST(Optional, AnyConvert_int) {
   Optional<int> opt_v0 = 1;
   EXPECT_EQ(opt_v0.value(), 1);
-  EXPECT_TRUE(opt_v0 != nullptr);
+  EXPECT_TRUE(opt_v0.has_value());
 
   AnyView view0 = opt_v0;
   EXPECT_EQ(view0.operator int(), 1);
 
   Any any1;
   Optional<int> opt_v1 = std::move(any1);
-  EXPECT_TRUE(opt_v1 == nullptr);
+  EXPECT_TRUE(!opt_v1.has_value());
   Optional<int> opt_v2 = 11;
   Any any2 = std::move(opt_v2);
   EXPECT_EQ(any2.operator int(), 11);
@@ -96,7 +91,7 @@ TEST(Optional, AnyConvert_Array) {
 
   Any any1;
   Optional<Array<Array<TNumber>>> arr2 = any1;
-  EXPECT_TRUE(arr2 == nullptr);
+  EXPECT_TRUE(!arr2.has_value());
 
   EXPECT_THROW(
       {

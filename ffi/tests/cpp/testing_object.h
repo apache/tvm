@@ -132,6 +132,7 @@ struct TypeTraits<testing::TPrimExpr>
     return testing::TPrimExpr(value, 0);
   }
 };
+
 }  // namespace ffi
 }  // namespace tvm
 #endif  // TVM_FFI_TESTING_OBJECT_H_

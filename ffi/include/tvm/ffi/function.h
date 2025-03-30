@@ -381,7 +381,7 @@ class Function : public ObjectRef {
    * \param allow_missing Whether to allow missing function
    * \return The global function.
    */
-  static Function GetGlobal(const char* name, bool allow_missing = true) {
+  static std::optional<Function> GetGlobal(const char* name, bool allow_missing = true) {
     TVMFFIObjectHandle handle;
     TVM_FFI_CHECK_SAFE_CALL(TVMFFIFuncGetGlobal(name, &handle));
     if (handle != nullptr) {
@@ -391,7 +391,7 @@ class Function : public ObjectRef {
       if (!allow_missing) {
         TVM_FFI_THROW(ValueError) << "Function " << name << " not found";
       }
-      return Function();
+      return std::nullopt;
     }
   }
   /*!
