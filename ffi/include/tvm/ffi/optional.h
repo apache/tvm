@@ -40,9 +40,11 @@ inline constexpr bool is_optional_type_v = false;
 template <typename T>
 inline constexpr bool is_optional_type_v<Optional<T>> = true;
 
+// we can safely used ptr based optional for ObjectRef types
+// that do not have additional data members and virtual functions.
 template <typename T>
 inline constexpr bool use_ptr_based_optional_v =
-    (std::is_base_of_v<ObjectRef, T> && !is_optional_type_v<T>);
+    (std::is_base_of_v<ObjectRef, T> && !is_optional_type_v<T> && sizeof(T) == sizeof(ObjectRef));
 
 // Specialization for non-ObjectRef types.
 // simply fallback to std::optional
@@ -55,65 +57,82 @@ class Optional<T, std::enable_if_t<!use_ptr_based_optional_v<T>>> {
   Optional(Optional<T>&& other) : data_(std::move(other.data_)) {}
   Optional(std::optional<T> other) : data_(std::move(other)) {}
   Optional(std::nullopt_t) {}
-  Optional<T>& operator=(const Optional<T>& other) {
-    data_ = other.data_;
-    return *this;
-  }
-  Optional<T>& operator=(Optional<T>&& other) {
-    data_ = std::move(other.data_);
-    return *this;
-  }
   // normal value handling.
   Optional(T other)  // NOLINT(*)
       : data_(std::move(other)) {}
-  Optional<T>& operator=(T other) {
+
+  TVM_FFI_INLINE Optional<T>& operator=(const Optional<T>& other) {
+    data_ = other.data_;
+    return *this;
+  }
+
+  TVM_FFI_INLINE Optional<T>& operator=(Optional<T>&& other) {
+    data_ = std::move(other.data_);
+    return *this;
+  }
+
+  TVM_FFI_INLINE Optional<T>& operator=(T other) {
     data_ = std::move(other);
     return *this;
   }
-  Optional<T>& operator=(std::nullopt_t) {
+
+  TVM_FFI_INLINE Optional<T>& operator=(std::nullopt_t) {
     data_ = std::nullopt;
     return *this;
   }
 
-  const T& value() const& {
+  TVM_FFI_INLINE const T& value() const& {
     if (!data_.has_value()) {
       TVM_FFI_THROW(RuntimeError) << "Back optional access";
     }
     return *data_;
   }
 
-  T&& value() && {
+  TVM_FFI_INLINE T&& value() && {
     if (!data_.has_value()) {
       TVM_FFI_THROW(RuntimeError) << "Back optional access";
     }
     return std::move(*data_);
   }
 
-  T value_or(T default_value) const { return data_.value_or(default_value); }
+  template<typename U = std::remove_cv_t<T>>
+  TVM_FFI_INLINE T value_or(U&& default_value) const {
+    return data_.value_or(std::forward<U>(default_value));
+  }
 
-  explicit operator bool() const { return data_.has_value(); }
+  TVM_FFI_INLINE explicit operator bool() const noexcept { return data_.has_value(); }
 
-  bool has_value() const { return data_.has_value(); }
+  TVM_FFI_INLINE bool has_value() const noexcept { return data_.has_value(); }
 
-  bool operator==(const Optional<T>& other) const { return data_ == other.data_; }
+  TVM_FFI_INLINE bool operator==(const Optional<T>& other) const { return data_ == other.data_; }
 
-  bool operator!=(const Optional<T>& other) const { return data_ != other.data_; }
+  TVM_FFI_INLINE bool operator!=(const Optional<T>& other) const { return data_ != other.data_; }
 
   template <typename U>
-  bool operator==(const U& other) const {
+  TVM_FFI_INLINE bool operator==(const U& other) const {
     return data_ == other;
   }
-
   template <typename U>
-  bool operator!=(const U& other) const {
+  TVM_FFI_INLINE bool operator!=(const U& other) const {
     return data_ != other;
   }
-  const T operator*() const& noexcept {
-    // it is OK to reinterpret_cast ObjectPtr<Object>& to ObjectRef&.
+
+  /*!
+   * \brief Direct access to the value.
+   * \return the xvalue reference to the stored value.
+   * \note only use this function after checking has_value()
+   */
+  TVM_FFI_INLINE T&& operator*() && noexcept {
+    return *std::move(data_);
+  }
+  /*!
+   * \brief Direct access to the value.
+   * \return the const reference to the stored value.
+   * \note only use this function  after checking has_value()
+   */
+  TVM_FFI_INLINE const T& operator*() const& noexcept {
     return *data_;
   }
-  T operator*() && noexcept { return T(std::move(*data_)); }
-
  private:
   std::optional<T> data_;
 };
@@ -127,15 +146,6 @@ class Optional<T, std::enable_if_t<use_ptr_based_optional_v<T>>> : public Object
   Optional() = default;
   Optional(const Optional<T>& other) : ObjectRef(other.data_) {}
   Optional(Optional<T>&& other) : ObjectRef(std::move(other.data_)) {}
-  Optional<T>& operator=(const Optional<T>& other) {
-    data_ = other.data_;
-    return *this;
-  }
-  Optional<T>& operator=(Optional<T>&& other) {
-    data_ = std::move(other.data_);
-    return *this;
-  }
-
   // nullopt hanlding
   Optional(std::nullopt_t) {}  // NOLINT(*)
 
@@ -149,12 +159,22 @@ class Optional<T, std::enable_if_t<use_ptr_based_optional_v<T>>> : public Object
   Optional(T other)  // NOLINT(*)
       : ObjectRef(std::move(other)) {}
 
-  Optional<T>& operator=(T other) {
+  TVM_FFI_INLINE Optional<T>& operator=(T other) {
     ObjectRef::operator=(std::move(other));
     return *this;
   }
 
-  const T& value() const& {
+  TVM_FFI_INLINE Optional<T>& operator=(const Optional<T>& other) {
+    data_ = other.data_;
+    return *this;
+  }
+
+  TVM_FFI_INLINE Optional<T>& operator=(Optional<T>&& other) {
+    data_ = std::move(other.data_);
+    return *this;
+  }
+
+  TVM_FFI_INLINE const T& value() const& {
     if (data_ == nullptr) {
       TVM_FFI_THROW(RuntimeError) << "Back optional access";
     }
@@ -162,7 +182,7 @@ class Optional<T, std::enable_if_t<use_ptr_based_optional_v<T>>> : public Object
     return reinterpret_cast<const T&>(data_);
   }
 
-  T&& value() && {
+  TVM_FFI_INLINE T&& value() && {
     if (data_ == nullptr) {
       TVM_FFI_THROW(RuntimeError) << "Back optional access";
     }
@@ -170,11 +190,34 @@ class Optional<T, std::enable_if_t<use_ptr_based_optional_v<T>>> : public Object
     return reinterpret_cast<T&&>(std::move(data_));
   }
 
-  T value_or(T default_value) const { return data_ != nullptr ? T(data_) : default_value; }
+  template<typename U = std::remove_cv_t<T>>
+  TVM_FFI_INLINE T value_or(U&& default_value) const {
+    return data_ != nullptr ? T(data_) : T(std::forward<U>(default_value));
+  }
 
-  explicit operator bool() const { return data_ != nullptr; }
+  TVM_FFI_INLINE explicit operator bool() const { return data_ != nullptr; }
 
-  bool has_value() const { return data_ != nullptr; }
+  TVM_FFI_INLINE bool has_value() const { return data_ != nullptr; }
+
+  /*!
+   * \brief Direct access to the value.
+   * \return the const reference to the stored value.
+   * \note only use this function  after checking has_value()
+   */
+  TVM_FFI_INLINE const T& operator*() const& noexcept {
+    // safe to reinterpret_cast ObjectPtr<Object>& to ObjectRef&.
+    return reinterpret_cast<const T&>(data_);
+  }
+
+  /*!
+   * \brief Direct access to the value.
+   * \return the const reference to the stored value.
+   * \note only use this function  after checking has_value()
+   */
+  TVM_FFI_INLINE T&& operator*() && noexcept {
+    // safe to reinterpret_cast ObjectPtr<Object>&& to ObjectRef&&.
+    return reinterpret_cast<T&&>(std::move(data_));
+  }
 
   // explicit disable nullptr comparison
   // so we can canonically always access optional via has_value() and value()
@@ -182,52 +225,40 @@ class Optional<T, std::enable_if_t<use_ptr_based_optional_v<T>>> : public Object
   bool operator!=(std::nullptr_t) = delete;
 
   // operator overloadings
-  auto operator==(const Optional<T>& other) const {
+  TVM_FFI_INLINE auto operator==(const Optional<T>& other) const {
     // support case where sub-class returns a symbolic ref type.
     return EQToOptional(other);
   }
-  auto operator!=(const Optional<T>& other) const { return NEToOptional(other); }
+  TVM_FFI_INLINE auto operator!=(const Optional<T>& other) const { return NEToOptional(other); }
 
-  auto operator==(const std::optional<T>& other) const {
+  TVM_FFI_INLINE auto operator==(const std::optional<T>& other) const {
     // support case where sub-class returns a symbolic ref type.
     return EQToOptional(other);
   }
-  auto operator!=(const std::optional<T>& other) const { return NEToOptional(other); }
+  TVM_FFI_INLINE auto operator!=(const std::optional<T>& other) const { return NEToOptional(other); }
 
-  auto operator==(const T& other) const {
+  TVM_FFI_INLINE auto operator==(const T& other) const {
     using RetType = decltype(value() == other);
     if (same_as(other)) return RetType(true);
     if (has_value()) return operator*() == other;
     return RetType(false);
   }
 
-  auto operator!=(const T& other) const { return !(*this == other); }
+  TVM_FFI_INLINE auto operator!=(const T& other) const { return !(*this == other); }
 
   template <typename U>
-  auto operator==(const U& other) const {
+  TVM_FFI_INLINE auto operator==(const U& other) const {
     using RetType = decltype(value() == other);
     if (!has_value()) return RetType(false);
     return operator*() == other;
   }
 
   template <typename U>
-  auto operator!=(const U& other) const {
+  TVM_FFI_INLINE auto operator!=(const U& other) const {
     using RetType = decltype(value() != other);
     if (!has_value()) return RetType(true);
     return operator*() != other;
   }
-
-  // keep unsafe dereference private
-  TVM_FFI_INLINE const T& operator*() const& noexcept {
-    // safe to reinterpret_cast ObjectPtr<Object>& to ObjectRef&.
-    return reinterpret_cast<const T&>(data_);
-  }
-  TVM_FFI_INLINE T&& operator*() && noexcept {
-    // safe to reinterpret_cast ObjectPtr<Object>&& to ObjectRef&&.
-    return reinterpret_cast<T&&>(std::move(data_));
-  }
-
-  static constexpr bool _type_is_nullable = true;
 
  private:
   template <typename, typename>
@@ -236,7 +267,6 @@ class Optional<T, std::enable_if_t<use_ptr_based_optional_v<T>>> : public Object
   // to friend TypeTraits
   explicit Optional(ObjectPtr<Object> ptr) : ObjectRef(ptr) {}
   // inherit get method as private
-  using ObjectRef::defined;
   using ObjectRef::get;
 
   template <typename U>

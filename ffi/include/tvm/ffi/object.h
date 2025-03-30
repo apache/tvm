@@ -574,11 +574,15 @@ struct ObjectPtrEqual {
 
 /*
  * \brief Define object reference methods.
+ *
  * \param TypeName The object type name
  * \param ParentType The parent type of the objectref
  * \param ObjectName The type name of the object.
+ *
+ * \note This macro also defines the default constructor that puts the ObjectRef
+ *       in undefined state initially.
  */
-#define TVM_FFI_DEFINE_NULLABLE_OBJECT_REF_METHODS(TypeName, ParentType, ObjectName)           \
+#define TVM_FFI_DEFINE_OBJECT_REF_METHODS(TypeName, ParentType, ObjectName)                    \
   TypeName() = default;                                                                        \
   explicit TypeName(::tvm::ffi::ObjectPtr<::tvm::ffi::Object> n) : ParentType(n) {}            \
   TVM_FFI_DEFINE_DEFAULT_COPY_MOVE_AND_ASSIGN(TypeName)                                        \
@@ -587,7 +591,7 @@ struct ObjectPtrEqual {
   using ContainerType = ObjectName
 
 /*
- * \brief Define object reference methods that is not nullable.
+ * \brief Define object reference methods do not have undefined state.
  *
  * \param TypeName The object type name
  * \param ParentType The parent type of the objectref
@@ -609,7 +613,7 @@ struct ObjectPtrEqual {
  * \note We recommend making objects immutable when possible.
  *       This macro is only reserved for objects that stores runtime states.
  */
-#define TVM_DEFINE_MUTABLE_NULLABLE_OBJECT_REF_METHODS(TypeName, ParentType, ObjectName)    \
+#define TVM_FFI_DEFINE_MUTABLE_OBJECT_REF_METHODS(TypeName, ParentType, ObjectName)         \
   TypeName() = default;                                                                     \
   TVM_FFI_DEFINE_DEFAULT_COPY_MOVE_AND_ASSIGN(TypeName);                                    \
   explicit TypeName(::tvm::runtime::ObjectPtr<::tvm::runtime::Object> n) : ParentType(n) {} \

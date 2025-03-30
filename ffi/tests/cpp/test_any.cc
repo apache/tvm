@@ -171,9 +171,9 @@ TEST(Any, Device) {
   EXPECT_EQ(dtype_v1.device_type, kDLCUDA);
   EXPECT_EQ(dtype_v1.device_id, 1);
 
-  Any view2 = DLDevice{kDLCPU, 0};
+  Any any2 = DLDevice{kDLCPU, 0};
   TVMFFIAny ffi_v2;
-  view2.MoveToTVMFFIAny(&ffi_v2);
+  details::AnyUnsafe::MoveAnyToTVMFFIAny(std::move(any2), &ffi_v2);
   EXPECT_EQ(ffi_v2.type_index, TypeIndex::kTVMFFIDevice);
   EXPECT_EQ(ffi_v2.v_device.device_type, kDLCPU);
   EXPECT_EQ(ffi_v2.v_device.device_id, 0);

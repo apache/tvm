@@ -481,7 +481,7 @@ class Function : public ObjectRef {
   /*! \return Whether the packed function is not nullptr */
   bool operator!=(std::nullptr_t) const { return data_ != nullptr; }
 
-  TVM_FFI_DEFINE_NULLABLE_OBJECT_REF_METHODS(Function, ObjectRef, FunctionObj);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS(Function, ObjectRef, FunctionObj);
 
   class Registry;
 

@@ -18,6 +18,8 @@
  */
 #include <gtest/gtest.h>
 #include <tvm/ffi/error.h>
+#include <tvm/ffi/optional.h>
+#include <tvm/ffi/any.h>
 
 namespace {
 
@@ -57,5 +59,12 @@ TEST(CheckError, Traceback) {
         }
       },
       ::tvm::ffi::Error);
+}
+
+TEST(Error, AnyConvert) {
+  Any any = Error("TypeError", "here", "test0");
+  Optional<Error> opt_err = any.as<Error>();
+  EXPECT_EQ(opt_err.value()->kind, "TypeError");
+  EXPECT_EQ(opt_err.value()->message, "here");
 }
 }  // namespace
