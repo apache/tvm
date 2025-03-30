@@ -24,7 +24,7 @@
 #ifndef TVM_RUNTIME_CONTAINER_OPTIONAL_H_
 #define TVM_RUNTIME_CONTAINER_OPTIONAL_H_
 
-#include <tvm/ffi/container/optional.h>
+#include <tvm/ffi/optional.h>
 
 namespace tvm {
 namespace runtime {

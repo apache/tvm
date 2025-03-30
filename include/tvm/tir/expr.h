@@ -173,6 +173,7 @@ class Add : public PrimExpr {
 /*! \brief a - b */
 class SubNode : public BinaryOpNode<SubNode> {
  public:
+  SubNode(PrimExpr a, PrimExpr b, Optional<Span> span) : BinaryOpNode(a, b, span) {}
   static constexpr const char* _type_key = "tir.Sub";
 };
 
@@ -183,6 +184,7 @@ class SubNode : public BinaryOpNode<SubNode> {
 class Sub : public PrimExpr {
  public:
   TVM_DLL Sub(PrimExpr a, PrimExpr b, Span span = Span());
+
   TVM_DEFINE_OBJECT_REF_METHODS(Sub, PrimExpr, SubNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(SubNode);
 };

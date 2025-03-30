@@ -132,6 +132,28 @@ class PrimExpr : public BaseExpr {
   TVM_DEFINE_OBJECT_REF_METHODS(PrimExpr, BaseExpr, PrimExprNode);
 };
 
+/*!
+ * \brief Base class for other IR constructs that can be converted to PrimExpr.
+ * This is useful for the FFI to convert the expressions to PrimExpr.
+ * \sa PrimExpr
+ */
+class PrimExprConvertibleNode : public Object {
+ public:
+  virtual PrimExpr ToPrimExpr() const = 0;
+
+  static constexpr const char* _type_key = "PrimExprConvertible";
+  TVM_DECLARE_BASE_OBJECT_INFO(PrimExprConvertibleNode, Object);
+};
+
+/*!
+ * \brief Managed reference to PrimExprConvertibleNode.
+ * \sa PrimExprConvertibleNode
+ */
+class PrimExprConvertible : public ObjectRef {
+ public:
+  TVM_DEFINE_OBJECT_REF_METHODS(PrimExprConvertible, ObjectRef, PrimExprConvertibleNode);
+};
+
 namespace ffi {
 // define automatic conversion from bool, int64_t, double, String to PrimExpr
 // These functions are declared early to avoid circular dependency
