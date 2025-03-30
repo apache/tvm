@@ -535,8 +535,7 @@ std::optional<std::vector<Expr>> TupleRewriterNode::TryMatchByBindingIndex(
 
   Map<DFPattern, Expr> merged_matches = info_vec[indices[0]].matches[0].value();
   for (size_t i = 1; i < indices.size(); i++) {
-    auto matches = info_vec[indices[i]].matches[i].value();
-    for (const auto& [pat, expr] : matches) {
+    for (const auto& [pat, expr] : info_vec[indices[i]].matches[i].value()) {
       if (auto it = merged_matches.find(pat); it != merged_matches.end()) {
         if (!StructuralEqual()(expr, (*it).second)) {
           return std::nullopt;

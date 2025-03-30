@@ -114,8 +114,9 @@ class PassContextNode : public Object {
    * \throw Error if the key exists but the value does not match TObjectRef.
    */
   template <typename TObjectRef>
-  Optional<TObjectRef> GetConfig(const std::string& key, Optional<TObjectRef> default_value =
-                                                             Optional<TObjectRef>(std::nullopt)) const {
+  Optional<TObjectRef> GetConfig(
+      const std::string& key,
+      Optional<TObjectRef> default_value = Optional<TObjectRef>(std::nullopt)) const {
     static_assert(std::is_base_of<ObjectRef, TObjectRef>::value,
                   "Can only call GetAttr with ObjectRef types.");
     if (!config.defined()) return default_value;
