@@ -43,7 +43,9 @@ class SafeCallContext {
     }
   }
 
-  void MoveFromLastError(TVMFFIAny* result) { last_error_.MoveToTVMFFIAny(result); }
+  void MoveFromLastError(TVMFFIAny* result) {
+    details::AnyUnsafe::MoveAnyToTVMFFIAny(std::move(last_error_), result);
+  }
 
   static SafeCallContext* ThreadLocal() {
     static thread_local SafeCallContext ctx;

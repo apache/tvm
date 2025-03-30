@@ -77,9 +77,9 @@ TEST(DataType, AnyConversion) {
   EXPECT_EQ(dtype_v1.bits, 32);
   EXPECT_EQ(dtype_v1.lanes, 1);
 
-  Any view2 = DLDataType{kDLInt, 16, 2};
+  Any any2 = DLDataType{kDLInt, 16, 2};
   TVMFFIAny ffi_v2;
-  view2.MoveToTVMFFIAny(&ffi_v2);
+  details::AnyUnsafe::MoveAnyToTVMFFIAny(std::move(any2), &ffi_v2);
   EXPECT_EQ(ffi_v2.type_index, TypeIndex::kTVMFFIDataType);
   EXPECT_EQ(ffi_v2.v_dtype.code, kDLInt);
   EXPECT_EQ(ffi_v2.v_dtype.bits, 16);

@@ -60,13 +60,13 @@ class Variant {
   Variant(T other) : data_(std::move(other)) {}
 
   template <typename T, typename = enable_if_variant_t<T>>
-  Variant& operator=(T other) {
+  TVM_FFI_INLINE Variant& operator=(T other) {
     data_ = std::move(other);
     return *this;
   }
 
   template <typename T, typename = enable_if_variant_t<T>>
-  Optional<T> as() const {
+  TVM_FFI_INLINE Optional<T> as() const {
     return data_.as<T>();
   }
 
@@ -77,12 +77,12 @@ class Variant {
    * \return The requested pointer, returns nullptr if type mismatches.
    */
   template <typename T, typename = std::enable_if_t<std::is_base_of_v<Object, T>>>
-  const T* as() const {
+  TVM_FFI_INLINE const T* as() const {
     return data_.as<const T*>().value_or(nullptr);
   }
 
   template <typename T, typename = enable_if_variant_t<T>>
-  T Get() const {
+  TVM_FFI_INLINE T Get() const {
     return data_.operator T();
   }
 
@@ -99,7 +99,7 @@ class Variant {
    * \note This function is only available if all types used in Variant<...> are derived from
    * ObjectRef
    */
-  Object* GetObjectPtrForHashEqual() const {
+  TVM_FFI_INLINE Object* GetObjectPtrForHashEqual() const {
     constexpr bool all_object_v = (std::is_base_of_v<ObjectRef, V> && ...);
     static_assert(all_object_v,
                   "All types used in Variant<...> must be derived from ObjectRef "
@@ -118,7 +118,7 @@ struct TypeTraits<Variant<V...>> : public TypeTraitsBase {
   }
 
   static TVM_FFI_INLINE void MoveToAny(Variant<V...> src, TVMFFIAny* result) {
-    src.data_.MoveToTVMFFIAny(result);
+    details::AnyUnsafe::MoveAnyToTVMFFIAny(std::move(src.data_), result);
   }
 
   static TVM_FFI_INLINE std::string GetMismatchTypeInfo(const TVMFFIAny* src) {

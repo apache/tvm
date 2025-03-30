@@ -45,10 +45,15 @@ namespace ffi {
  * \return The corresponding RefType
  */
 template <typename RefType, typename ObjectType>
-inline RefType GetRef(const ObjectType* ptr) {
+TVM_FFI_INLINE RefType GetRef(const ObjectType* ptr) {
   static_assert(std::is_base_of_v<typename RefType::ContainerType, ObjectType>,
                 "Can only cast to the ref of same container type");
-  if (!RefType::_type_is_nullable) {
+
+  if constexpr (is_optional_type_v<RefType>) {
+    if (ptr == nullptr) {
+      return RefType(std::nullopt);
+    }
+  } else {
     TVM_FFI_ICHECK_NOTNULL(ptr);
   }
   return RefType(details::ObjectUnsafe::ObjectPtrFromUnowned<Object>(
@@ -81,18 +86,21 @@ inline ObjectPtr<BaseType> GetObjectPtr(ObjectType* ptr) {
 template <typename SubRef, typename BaseRef,
           typename = std::enable_if_t<std::is_base_of_v<ObjectRef, BaseRef>>>
 inline SubRef Downcast(BaseRef ref) {
-  if (ref.defined()) {
+  if(ref.defined()) {
     if (!ref->template IsInstance<typename SubRef::ContainerType>()) {
       TVM_FFI_THROW(TypeError) << "Downcast from " << ref->GetTypeKey() << " to "
                                << SubRef::ContainerType::_type_key << " failed.";
     }
+    return details::ObjectUnsafe::DowncastRefNoCheck<SubRef>(std::move(ref));
   } else {
-    if (!SubRef::_type_is_nullable) {
-      TVM_FFI_THROW(TypeError) << "Downcast from nullptr to not nullable reference of "
-                               << SubRef::ContainerType::_type_key;
+    if constexpr (is_optional_type_v<SubRef>) {
+      return SubRef(std::nullopt);
     }
+    TVM_FFI_THROW(TypeError) << "Downcast from undefined(nullptr) to `"
+                               << SubRef::ContainerType::_type_key
+                               << "` is not allowed. Use Downcast<Optional<T>> instead.";
+    TVM_FFI_UNREACHABLE();
   }
-  return details::ObjectUnsafe::DowncastRefNoCheck<SubRef>(std::move(ref));
 }
 
 /*!

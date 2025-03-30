@@ -49,7 +49,7 @@ class TNumberObj : public BasePad, public Object {
 
 class TNumber : public ObjectRef {
  public:
-  TVM_FFI_DEFINE_NULLABLE_OBJECT_REF_METHODS(TNumber, ObjectRef, TNumberObj);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS(TNumber, ObjectRef, TNumberObj);
 };
 
 class TIntObj : public TNumberObj {
@@ -84,7 +84,7 @@ class TFloat : public TNumber {
  public:
   explicit TFloat(double value) { data_ = make_object<TFloatObj>(value); }
 
-  TVM_FFI_DEFINE_NULLABLE_OBJECT_REF_METHODS(TFloat, TNumber, TFloatObj);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS(TFloat, TNumber, TFloatObj);
 };
 
 // TPrimExpr is used for testing FallbackTraits
@@ -105,7 +105,7 @@ class TPrimExpr : public ObjectRef {
     data_ = make_object<TPrimExprObj>(dtype, value);
   }
 
-  TVM_FFI_DEFINE_NULLABLE_OBJECT_REF_METHODS(TPrimExpr, ObjectRef, TPrimExprObj);
+  TVM_FFI_DEFINE_OBJECT_REF_METHODS(TPrimExpr, ObjectRef, TPrimExprObj);
 };
 }  // namespace testing
 

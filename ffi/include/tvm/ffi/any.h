@@ -66,11 +66,11 @@ class AnyView {
    * \brief Swap this array with another Object
    * \param other The other Object
    */
-  void swap(AnyView& other) {  // NOLINT(*)
+  TVM_FFI_INLINE void swap(AnyView& other) noexcept {
     std::swap(data_, other.data_);
   }
   /*! \return the internal type index */
-  int32_t type_index() const { return data_.type_index; }
+  TVM_FFI_INLINE int32_t type_index() const noexcept { return data_.type_index; }
   // default constructors
   AnyView() {
     data_.type_index = TypeIndex::kTVMFFINone;
@@ -84,7 +84,7 @@ class AnyView {
     other.data_.type_index = TypeIndex::kTVMFFINone;
     other.data_.v_int64 = 0;
   }
-  AnyView& operator=(AnyView&& other) {
+  TVM_FFI_INLINE AnyView& operator=(AnyView&& other) {
     // copy-and-swap idiom
     AnyView(std::move(other)).swap(*this);  // NOLINT(*)
     return *this;
@@ -95,27 +95,26 @@ class AnyView {
     TypeTraits<T>::CopyToAnyView(other, &data_);
   }
   template <typename T, typename = std::enable_if_t<TypeTraits<T>::enabled>>
-  AnyView& operator=(const T& other) {  // NOLINT(*)
+  TVM_FFI_INLINE AnyView& operator=(const T& other) {  // NOLINT(*)
     // copy-and-swap idiom
     AnyView(other).swap(*this);  // NOLINT(*)
     return *this;
   }
 
   template <typename T, typename = std::enable_if_t<TypeTraits<T>::enabled>>
-  Optional<T> as() const {
+  TVM_FFI_INLINE Optional<T> as() const {
     return TypeTraits<T>::TryCopyFromAnyView(&data_);
   }
 
   template <typename T, typename = std::enable_if_t<TypeTraits<T>::enabled>>
-  operator T() const {
+  TVM_FFI_INLINE operator T() const {
     Optional<T> opt = TypeTraits<T>::TryCopyFromAnyView(&data_);
-    if (opt.has_value()) {
-      return *std::move(opt);
+    if (!opt.has_value()) {
+      TVM_FFI_THROW(TypeError) << "Cannot convert from type `"
+                          << TypeTraits<T>::GetMismatchTypeInfo(&data_) << "` to `"
+                          << TypeTraits<T>::TypeStr() << "`";
     }
-    TVM_FFI_THROW(TypeError) << "Cannot convert from type `"
-                             << TypeTraits<T>::GetMismatchTypeInfo(&data_) << "` to `"
-                             << TypeTraits<T>::TypeStr() << "`";
-    TVM_FFI_UNREACHABLE();
+    return *std::move(opt);
   }
 
     /*
@@ -125,28 +124,28 @@ class AnyView {
    * \return The requested pointer, returns nullptr if type mismatches.
    */
   template <typename T, typename = std::enable_if_t<std::is_base_of_v<Object, T>>>
-  const T* as() const {
+  TVM_FFI_INLINE const T* as() const {
     return this->as<const T*>().value_or(nullptr);
   }
   // comparison with nullptr
-  bool operator==(std::nullptr_t) const { return data_.type_index == TypeIndex::kTVMFFINone; }
-  bool operator!=(std::nullptr_t) const { return data_.type_index != TypeIndex::kTVMFFINone; }
+  TVM_FFI_INLINE bool operator==(std::nullptr_t) const noexcept { return data_.type_index == TypeIndex::kTVMFFINone; }
+  TVM_FFI_INLINE bool operator!=(std::nullptr_t) const noexcept { return data_.type_index != TypeIndex::kTVMFFINone; }
    /*!
    * \brief Get the type key of the Any
    * \return The type key of the Any
    */
-  std::string GetTypeKey() const { return TypeIndexToTypeKey(data_.type_index); }
+  TVM_FFI_INLINE std::string GetTypeKey() const { return TypeIndexToTypeKey(data_.type_index); }
   // The following functions are only used for testing purposes
   /*!
    * \return The underlying supporting data of any view
    * \note This function is used only for testing purposes.
    */
-  TVMFFIAny CopyToTVMFFIAny() const { return data_; }
+  TVM_FFI_INLINE TVMFFIAny CopyToTVMFFIAny() const { return data_; }
   /*!
    * \return Create an AnyView from TVMFFIAny
    * \param data the underlying ffi data.
    */
-  static AnyView CopyFromTVMFFIAny(TVMFFIAny data) {
+  static TVM_FFI_INLINE AnyView CopyFromTVMFFIAny(TVMFFIAny data) {
     AnyView view;
     view.data_ = data;
     return view;
@@ -194,7 +193,7 @@ class Any {
   /*!
    * \brief Reset any to None
    */
-  void reset() {
+  TVM_FFI_INLINE void reset() {
     if (data_.type_index >= TVMFFITypeIndex::kTVMFFIStaticObjectBegin) {
       details::ObjectUnsafe::DecRefObjectInAny(&data_);
     }
@@ -205,11 +204,11 @@ class Any {
    * \brief Swap this array with another Object
    * \param other The other Object
    */
-  void swap(Any& other) {  // NOLINT(*)
+  TVM_FFI_INLINE void swap(Any& other) noexcept {
     std::swap(data_, other.data_);
   }
   /*! \return the internal type index */
-  int32_t type_index() const { return data_.type_index; }
+  TVM_FFI_INLINE int32_t type_index() const noexcept { return data_.type_index; }
   // default constructors
   Any() {
     data_.type_index = TypeIndex::kTVMFFINone;
@@ -226,12 +225,12 @@ class Any {
     other.data_.type_index = TypeIndex::kTVMFFINone;
     other.data_.v_int64 = 0;
   }
-  Any& operator=(const Any& other) {
+  TVM_FFI_INLINE Any& operator=(const Any& other) {
     // copy-and-swap idiom
     Any(other).swap(*this);  // NOLINT(*)
     return *this;
   }
-  Any& operator=(Any&& other) {
+  TVM_FFI_INLINE Any& operator=(Any&& other) {
     // copy-and-swap idiom
     Any(std::move(other)).swap(*this);  // NOLINT(*)
     return *this;
@@ -240,7 +239,7 @@ class Any {
   Any(const AnyView& other) : data_(other.data_) {  // NOLINT(*)
     details::InplaceConvertAnyViewToAny(&data_);
   }
-  Any& operator=(const AnyView& other) {
+  TVM_FFI_INLINE Any& operator=(const AnyView& other) {
     // copy-and-swap idiom
     Any(other).swap(*this);  // NOLINT(*)
     return *this;
@@ -253,14 +252,14 @@ class Any {
     TypeTraits<T>::MoveToAny(std::move(other), &data_);
   }
   template <typename T, typename = std::enable_if_t<TypeTraits<T>::enabled>>
-  Any& operator=(T other) {  // NOLINT(*)
+  TVM_FFI_INLINE Any& operator=(T other) {  // NOLINT(*)
     // copy-and-swap idiom
     Any(std::move(other)).swap(*this);  // NOLINT(*)
     return *this;
   }
 
   template <typename T, typename = std::enable_if_t<TypeTraits<T>::enabled>>
-  Optional<T> as() const {
+  TVM_FFI_INLINE Optional<T> as() const {
     return TypeTraits<T>::TryCopyFromAnyView(&data_);
   }
 
@@ -271,20 +270,19 @@ class Any {
    * \return The requested pointer, returns nullptr if type mismatches.
    */
   template <typename T, typename = std::enable_if_t<std::is_base_of_v<Object, T>>>
-  const T* as() const {
+  TVM_FFI_INLINE const T* as() const {
     return this->as<const T*>().value_or(nullptr);
   }
 
   template <typename T, typename = std::enable_if_t<TypeTraits<T>::enabled>>
-  operator T() const {
+  TVM_FFI_INLINE operator T() const {
     Optional<T> opt = TypeTraits<T>::TryCopyFromAnyView(&data_);
-    if (opt.has_value()) {
-      return *std::move(opt);
+    if (!opt.has_value()) {
+      TVM_FFI_THROW(TypeError) << "Cannot convert from type `"
+                               << TypeTraits<T>::GetMismatchTypeInfo(&data_) << "` to `"
+                               << TypeTraits<T>::TypeStr() << "`";
     }
-    TVM_FFI_THROW(TypeError) << "Cannot convert from type `"
-                             << TypeTraits<T>::GetMismatchTypeInfo(&data_) << "` to `"
-                             << TypeTraits<T>::TypeStr() << "`";
-    TVM_FFI_UNREACHABLE();
+    return *std::move(opt);
   }
 
   /*
@@ -292,7 +290,7 @@ class Any {
    * \param other The other Any
    * \return True if the two Any are same type and value, false otherwise.
    */
-  bool same_as(const Any& other) const {
+  TVM_FFI_INLINE bool same_as(const Any& other) const noexcept {
     return data_.type_index == other.data_.type_index && data_.v_int64 == other.data_.v_int64;
   }
 
@@ -301,7 +299,7 @@ class Any {
    * \param other The other ObjectRef
    * \return True if the two Any are same type and value, false otherwise.
    */
-  bool same_as(const ObjectRef& other) const {
+  TVM_FFI_INLINE bool same_as(const ObjectRef& other) const noexcept {
     if (other.get() != nullptr) {
       return (data_.type_index == other->type_index() &&
               reinterpret_cast<Object*>(data_.v_obj) == other.get());
@@ -310,35 +308,14 @@ class Any {
     }
   }
 
-  bool operator==(std::nullptr_t) const { return data_.type_index == TypeIndex::kTVMFFINone; }
-  bool operator!=(std::nullptr_t) const { return data_.type_index != TypeIndex::kTVMFFINone; }
+  TVM_FFI_INLINE bool operator==(std::nullptr_t) const noexcept { return data_.type_index == TypeIndex::kTVMFFINone; }
+  TVM_FFI_INLINE bool operator!=(std::nullptr_t) const noexcept { return data_.type_index != TypeIndex::kTVMFFINone; }
 
   /*!
    * \brief Get the type key of the Any
    * \return The type key of the Any
    */
-  std::string GetTypeKey() const { return TypeIndexToTypeKey(data_.type_index); }
-
-  // FFI related operations
-  /*!
-   * Move the current data to FFI any
-   * \param result the output to nmove to
-   */
-  void MoveToTVMFFIAny(TVMFFIAny* result) {
-    *result = data_;
-    data_.type_index = TypeIndex::kTVMFFINone;
-    data_.v_int64 = 0;
-  }
-
-  /*!
-   * \brief Move the current data to FFI any
-   * \param data the input to move from
-   */
-  static Any MoveFromTVMFFIAny(TVMFFIAny data) {
-    Any any;
-    any.data_ = data;
-    return any;
-  }
+  TVM_FFI_INLINE std::string GetTypeKey() const { return TypeIndexToTypeKey(data_.type_index); }
 
   friend struct details::AnyUnsafe;
   friend struct AnyHash;
@@ -383,6 +360,27 @@ struct Type2Str<void> {
 
 // Extra unsafe method to help any manipulation
 struct AnyUnsafe : public ObjectUnsafe {
+  // FFI related operations
+  /*!
+   * Move the current data to FFI any
+   * \param result the output to nmove to
+   */
+  static TVM_FFI_INLINE void MoveAnyToTVMFFIAny(Any&& any, TVMFFIAny* result) {
+    *result = any.data_;
+    any.data_.type_index = TypeIndex::kTVMFFINone;
+    any.data_.v_int64 = 0;
+  }
+
+  /*!
+   * \brief Move the current data to FFI any
+   * \param data the input to move from
+   */
+  static TVM_FFI_INLINE Any MoveTVMFFIAnyToAny(TVMFFIAny data) {
+    Any any;
+    any.data_ = data;
+    return any;
+  }
+
   /*!
    * \brief Internal helper function downcast a any that already passes check.
    * \note Only used for internal dev purposes.

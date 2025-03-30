@@ -139,7 +139,7 @@ TVM_FFI_INLINE std::string GetMismatchTypeInfo<AnyView>(const TVMFFIAny* source)
 /*!
  * \brief Auxilary argument value with context for error reporting
  */
-class MovableArgValueWithContext {
+class ArgValueWithContext {
  public:
   /*!
    * \brief move constructor from another return value.
@@ -149,7 +149,7 @@ class MovableArgValueWithContext {
    * \param f_sig Pointer to static function outputting signature of the function being called.
    * named.
    */
-  TVM_FFI_INLINE MovableArgValueWithContext(const AnyView* args, int32_t arg_index,
+  TVM_FFI_INLINE ArgValueWithContext(const AnyView* args, int32_t arg_index,
                                             const std::string* optional_name,
                                             FGetFuncSignature f_sig)
       : args_(args), arg_index_(arg_index), optional_name_(optional_name), f_sig_(f_sig) {}
@@ -158,16 +158,15 @@ class MovableArgValueWithContext {
   TVM_FFI_INLINE operator Type() {
     using TypeWithoutCR = std::remove_const_t<std::remove_reference_t<Type>>;
     Optional<TypeWithoutCR> opt = as<TypeWithoutCR>(args_[arg_index_]);
-    if (opt.has_value()) {
-      return *std::move(opt);
+    if (!opt.has_value()) {
+      TVMFFIAny any_data = args_[arg_index_].CopyToTVMFFIAny();
+      TVM_FFI_THROW(TypeError) << "Mismatched type on argument #" << arg_index_ << " when calling: `"
+                              << (optional_name_ == nullptr ? "" : *optional_name_)
+                              << (f_sig_ == nullptr ? "" : (*f_sig_)()) << "`. Expected `"
+                              << Type2Str<TypeWithoutCR>::v() << "` but got `"
+                              << GetMismatchTypeInfo<TypeWithoutCR>(&any_data) << '`';
     }
-    TVMFFIAny any_data = args_[arg_index_].CopyToTVMFFIAny();
-    TVM_FFI_THROW(TypeError) << "Mismatched type on argument #" << arg_index_ << " when calling: `"
-                             << (optional_name_ == nullptr ? "" : *optional_name_)
-                             << (f_sig_ == nullptr ? "" : (*f_sig_)()) << "`. Expected `"
-                             << Type2Str<TypeWithoutCR>::v() << "` but got `"
-                             << GetMismatchTypeInfo<TypeWithoutCR>(&any_data) << '`';
-    TVM_FFI_UNREACHABLE();
+    return *std::move(opt);
   }
 
  private:
@@ -187,7 +186,7 @@ struct unpack_call_dispatcher {
     // which allows potential move of argument to the input of F.
     unpack_call_dispatcher<R, nleft - 1, index + 1, F>::run(
         optional_name, f_sig, f, args, num_args, rv, std::forward<Args>(unpacked_args)...,
-        MovableArgValueWithContext(args, index, optional_name, f_sig));
+        ArgValueWithContext(args, index, optional_name, f_sig));
   }
 };
 
