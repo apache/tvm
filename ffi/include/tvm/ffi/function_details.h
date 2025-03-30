@@ -150,8 +150,7 @@ class ArgValueWithContext {
    * named.
    */
   TVM_FFI_INLINE ArgValueWithContext(const AnyView* args, int32_t arg_index,
-                                            const std::string* optional_name,
-                                            FGetFuncSignature f_sig)
+                                     const std::string* optional_name, FGetFuncSignature f_sig)
       : args_(args), arg_index_(arg_index), optional_name_(optional_name), f_sig_(f_sig) {}
 
   template <typename Type>
@@ -160,11 +159,12 @@ class ArgValueWithContext {
     Optional<TypeWithoutCR> opt = as<TypeWithoutCR>(args_[arg_index_]);
     if (!opt.has_value()) {
       TVMFFIAny any_data = args_[arg_index_].CopyToTVMFFIAny();
-      TVM_FFI_THROW(TypeError) << "Mismatched type on argument #" << arg_index_ << " when calling: `"
-                              << (optional_name_ == nullptr ? "" : *optional_name_)
-                              << (f_sig_ == nullptr ? "" : (*f_sig_)()) << "`. Expected `"
-                              << Type2Str<TypeWithoutCR>::v() << "` but got `"
-                              << GetMismatchTypeInfo<TypeWithoutCR>(&any_data) << '`';
+      TVM_FFI_THROW(TypeError) << "Mismatched type on argument #" << arg_index_
+                               << " when calling: `"
+                               << (optional_name_ == nullptr ? "" : *optional_name_)
+                               << (f_sig_ == nullptr ? "" : (*f_sig_)()) << "`. Expected `"
+                               << Type2Str<TypeWithoutCR>::v() << "` but got `"
+                               << GetMismatchTypeInfo<TypeWithoutCR>(&any_data) << '`';
     }
     return *std::move(opt);
   }

@@ -66,9 +66,7 @@ class AnyView {
    * \brief Swap this array with another Object
    * \param other The other Object
    */
-  TVM_FFI_INLINE void swap(AnyView& other) noexcept {
-    std::swap(data_, other.data_);
-  }
+  TVM_FFI_INLINE void swap(AnyView& other) noexcept { std::swap(data_, other.data_); }
   /*! \return the internal type index */
   TVM_FFI_INLINE int32_t type_index() const noexcept { return data_.type_index; }
   // default constructors
@@ -111,8 +109,8 @@ class AnyView {
     Optional<T> opt = TypeTraits<T>::TryCopyFromAnyView(&data_);
     if (!opt.has_value()) {
       TVM_FFI_THROW(TypeError) << "Cannot convert from type `"
-                          << TypeTraits<T>::GetMismatchTypeInfo(&data_) << "` to `"
-                          << TypeTraits<T>::TypeStr() << "`";
+                               << TypeTraits<T>::GetMismatchTypeInfo(&data_) << "` to `"
+                               << TypeTraits<T>::TypeStr() << "`";
     }
     return *std::move(opt);
   }
@@ -128,8 +126,12 @@ class AnyView {
     return this->as<const T*>().value_or(nullptr);
   }
   // comparison with nullptr
-  TVM_FFI_INLINE bool operator==(std::nullptr_t) const noexcept { return data_.type_index == TypeIndex::kTVMFFINone; }
-  TVM_FFI_INLINE bool operator!=(std::nullptr_t) const noexcept { return data_.type_index != TypeIndex::kTVMFFINone; }
+  TVM_FFI_INLINE bool operator==(std::nullptr_t) const noexcept {
+    return data_.type_index == TypeIndex::kTVMFFINone;
+  }
+  TVM_FFI_INLINE bool operator!=(std::nullptr_t) const noexcept {
+    return data_.type_index != TypeIndex::kTVMFFINone;
+  }
    /*!
    * \brief Get the type key of the Any
    * \return The type key of the Any
@@ -204,9 +206,7 @@ class Any {
    * \brief Swap this array with another Object
    * \param other The other Object
    */
-  TVM_FFI_INLINE void swap(Any& other) noexcept {
-    std::swap(data_, other.data_);
-  }
+  TVM_FFI_INLINE void swap(Any& other) noexcept { std::swap(data_, other.data_); }
   /*! \return the internal type index */
   TVM_FFI_INLINE int32_t type_index() const noexcept { return data_.type_index; }
   // default constructors
@@ -308,8 +308,12 @@ class Any {
     }
   }
 
-  TVM_FFI_INLINE bool operator==(std::nullptr_t) const noexcept { return data_.type_index == TypeIndex::kTVMFFINone; }
-  TVM_FFI_INLINE bool operator!=(std::nullptr_t) const noexcept { return data_.type_index != TypeIndex::kTVMFFINone; }
+  TVM_FFI_INLINE bool operator==(std::nullptr_t) const noexcept {
+    return data_.type_index == TypeIndex::kTVMFFINone;
+  }
+  TVM_FFI_INLINE bool operator!=(std::nullptr_t) const noexcept {
+    return data_.type_index != TypeIndex::kTVMFFINone;
+  }
 
   /*!
    * \brief Get the type key of the Any

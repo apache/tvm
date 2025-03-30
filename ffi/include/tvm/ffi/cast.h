@@ -86,7 +86,7 @@ inline ObjectPtr<BaseType> GetObjectPtr(ObjectType* ptr) {
 template <typename SubRef, typename BaseRef,
           typename = std::enable_if_t<std::is_base_of_v<ObjectRef, BaseRef>>>
 inline SubRef Downcast(BaseRef ref) {
-  if(ref.defined()) {
+  if (ref.defined()) {
     if (!ref->template IsInstance<typename SubRef::ContainerType>()) {
       TVM_FFI_THROW(TypeError) << "Downcast from " << ref->GetTypeKey() << " to "
                                << SubRef::ContainerType::_type_key << " failed.";
@@ -97,8 +97,8 @@ inline SubRef Downcast(BaseRef ref) {
       return SubRef(std::nullopt);
     }
     TVM_FFI_THROW(TypeError) << "Downcast from undefined(nullptr) to `"
-                               << SubRef::ContainerType::_type_key
-                               << "` is not allowed. Use Downcast<Optional<T>> instead.";
+                             << SubRef::ContainerType::_type_key
+                             << "` is not allowed. Use Downcast<Optional<T>> instead.";
     TVM_FFI_UNREACHABLE();
   }
 }

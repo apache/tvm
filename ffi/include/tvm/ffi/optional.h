@@ -95,7 +95,7 @@ class Optional<T, std::enable_if_t<!use_ptr_based_optional_v<T>>> {
     return std::move(*data_);
   }
 
-  template<typename U = std::remove_cv_t<T>>
+  template <typename U = std::remove_cv_t<T>>
   TVM_FFI_INLINE T value_or(U&& default_value) const {
     return data_.value_or(std::forward<U>(default_value));
   }
@@ -122,17 +122,14 @@ class Optional<T, std::enable_if_t<!use_ptr_based_optional_v<T>>> {
    * \return the xvalue reference to the stored value.
    * \note only use this function after checking has_value()
    */
-  TVM_FFI_INLINE T&& operator*() && noexcept {
-    return *std::move(data_);
-  }
+  TVM_FFI_INLINE T&& operator*() && noexcept { return *std::move(data_); }
   /*!
    * \brief Direct access to the value.
    * \return the const reference to the stored value.
    * \note only use this function  after checking has_value()
    */
-  TVM_FFI_INLINE const T& operator*() const& noexcept {
-    return *data_;
-  }
+  TVM_FFI_INLINE const T& operator*() const& noexcept { return *data_; }
+
  private:
   std::optional<T> data_;
 };
@@ -190,7 +187,7 @@ class Optional<T, std::enable_if_t<use_ptr_based_optional_v<T>>> : public Object
     return reinterpret_cast<T&&>(std::move(data_));
   }
 
-  template<typename U = std::remove_cv_t<T>>
+  template <typename U = std::remove_cv_t<T>>
   TVM_FFI_INLINE T value_or(U&& default_value) const {
     return data_ != nullptr ? T(data_) : T(std::forward<U>(default_value));
   }
@@ -235,7 +232,9 @@ class Optional<T, std::enable_if_t<use_ptr_based_optional_v<T>>> : public Object
     // support case where sub-class returns a symbolic ref type.
     return EQToOptional(other);
   }
-  TVM_FFI_INLINE auto operator!=(const std::optional<T>& other) const { return NEToOptional(other); }
+  TVM_FFI_INLINE auto operator!=(const std::optional<T>& other) const {
+    return NEToOptional(other);
+  }
 
   TVM_FFI_INLINE auto operator==(const T& other) const {
     using RetType = decltype(value() == other);
