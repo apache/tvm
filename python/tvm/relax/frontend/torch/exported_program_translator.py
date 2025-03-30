@@ -390,7 +390,8 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             # tensor creation
             "_to_copy.default": self._to_copy,
             "arange.default": self._arange,
-            "arange.start": self._arange,
+            "arange.start": self._arange, # TODO test
+            "arange.start_step": self._arange,
             "detach.default": self._detach,
             "detach_.default": self._detach,
             "contiguous.default": lambda node: self.env[node.args[0]],  # no-op

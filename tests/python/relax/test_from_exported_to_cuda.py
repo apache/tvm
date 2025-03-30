@@ -468,7 +468,7 @@ def test_chunk_too_many(target, dev):
 
 @tvm.testing.parametrize_targets("cuda")
 def test_arange_default(target, dev):
-    raw_data = np.random.rand(5).astype("int64")
+    raw_data = np.array([0,0,0,0,0])
 
     class ArangeModel(nn.Module):
         def forward(self, x):
@@ -478,19 +478,30 @@ def test_arange_default(target, dev):
 
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
+@tvm.testing.parametrize_targets("cuda")
+def test_arange_start(target, dev):
+    raw_data = np.array([0,0,0])
 
-# TODO
-# @tvm.testing.parametrize_targets("cuda")
-# def test_arange_start_step(target, dev):
-#     raw_data = np.random.rand(3).astype("int64")
+    class ArangeModel(nn.Module):
+        def forward(self, x):
+            return x + torch.arange(1, 4)
 
-#     class ArangeModel(nn.Module):
-#         def forward(self, x):
-#             return x + torch.arange(1, 2.5, 0.5)
+    torch_module = ArangeModel().eval()
 
-#     torch_module = ArangeModel().eval()
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
-#     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
+
+@tvm.testing.parametrize_targets("cuda")
+def test_arange_start_step(target, dev):
+    raw_data = np.array([0.0,0.0,0.0], dtype=np.float32)
+
+    class ArangeModel(nn.Module):
+        def forward(self, x):
+            return x + torch.arange(1, 2.5, 0.5, dtype=torch.float32)
+
+    torch_module = ArangeModel().eval()
+
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 
 if __name__ == "__main__":
