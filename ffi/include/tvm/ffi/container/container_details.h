@@ -272,7 +272,7 @@ class ReverseIterAdapter {
  * \return True if T is compatible with Any, false otherwise.
  */
 template <typename T>
-constexpr bool type_compactible_with_any_v = std::is_same_v<T, Any> || TypeTraits<T>::enabled;
+constexpr bool container_enabled_v = std::is_same_v<T, Any> || TypeTraits<T>::container_enabled;
 
 /*!
  * \brief Create a string of the container type.

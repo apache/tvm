@@ -151,6 +151,53 @@ TEST(Map, Erase) {
   }
 }
 
+TEST(Map, AnyImplicitConversion) {
+  Map<Any, Any> map0;
+  map0.Set(1, 2);
+  map0.Set(2, 3.1);
+  EXPECT_EQ(map0.size(), 2);
+
+  // check will trigger copy
+  AnyView view0 = map0;
+  Map<int, double> map1 = view0;
+  EXPECT_TRUE(!map1.same_as(map0));
+  EXPECT_EQ(map1[1], 2);
+  EXPECT_EQ(map1[2], 3.1);
+  EXPECT_EQ(map1.use_count(), 1);
+
+  Map<int, Any> map2 = view0;
+  EXPECT_TRUE(map2.same_as(map0));
+  EXPECT_EQ(map2.use_count(), 2);
+
+  Map<Any, double> map3 = view0;
+  EXPECT_TRUE(!map3.same_as(map0));
+  EXPECT_EQ(map3.use_count(), 1);
+
+  Map<Any, Any> map4{{"yes", 1.1}, {"no", 2.2}};
+  Any any1 = map4;
+
+  Map<String, double> map5 = any1;
+  EXPECT_TRUE(map5.same_as(map4));
+  EXPECT_EQ(map5.use_count(), 3);
+
+  Map<String, Any> map6 = any1;
+  EXPECT_TRUE(map6.same_as(map4));
+  EXPECT_EQ(map6.use_count(), 4);
+
+  EXPECT_EQ(map6["yes"].operator double(), 1.1);
+  EXPECT_EQ(map6["no"].operator double(), 2.2);
+
+  Map<Any, Any> map7 = any1;
+  EXPECT_TRUE(map7.same_as(map4));
+  EXPECT_EQ(map7.use_count(), 5);
+
+  Map<Any, TPrimExpr> map8 = any1;
+  EXPECT_TRUE(!map8.same_as(map4));
+  EXPECT_EQ(map8.use_count(), 1);
+  EXPECT_EQ(map8["yes"]->value, 1.1);
+  EXPECT_EQ(map8["no"]->value, 2.2);
+}
+
 TEST(Map, AnyConvertCheck) {
   Map<Any, Any> map = {{11, 1.1}};
   EXPECT_EQ(map[11].operator double(), 1.1);

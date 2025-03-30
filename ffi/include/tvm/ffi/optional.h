@@ -92,7 +92,7 @@ class Optional<T, std::enable_if_t<!use_ptr_based_optional_v<T>>> {
     if (!data_.has_value()) {
       TVM_FFI_THROW(RuntimeError) << "Back optional access";
     }
-    return std::move(*data_);
+    return *std::move(data_);
   }
 
   template <typename U = std::remove_cv_t<T>>
@@ -150,7 +150,7 @@ class Optional<T, std::enable_if_t<use_ptr_based_optional_v<T>>> : public Object
   // handle conversion from std::optional<T>
   Optional(std::optional<T> other) {
     if (other.has_value()) {
-      *this = std::move(*other);
+      *this = *std::move(other);
     }
   }
   // normal value handling.

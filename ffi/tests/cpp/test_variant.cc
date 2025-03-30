@@ -39,7 +39,13 @@ TEST(Variant, AnyConvert) {
   Variant<int, TInt> v = 1;
   AnyView view0 = v;
   EXPECT_EQ(view0.as<int>().value(), 1);
+
+  // implicit convert to variant
+  Any any0 = 1;
+  Variant<TPrimExpr, Array<TPrimExpr>> v1 = any0;
+  EXPECT_EQ(v1.Get<TPrimExpr>()->value, 1);
 }
+
 TEST(Variant, ObjectPtrHashEqual) {
   TInt x = TInt(1);
   TFloat y = TFloat(1.0f);
