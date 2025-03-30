@@ -104,7 +104,6 @@ int BacktraceFullCallback(void* data, uintptr_t pc, const char* filename, int li
   if (ShouldExcludeFrame(filename, symbol)) {
     return 0;
   }
-
   stack_trace->Append(filename, symbol, lineno);
   return 0;
 }

@@ -27,7 +27,7 @@
 #include <tvm/ffi/c_api.h>
 #include <tvm/ffi/error.h>
 #include <tvm/ffi/object.h>
-
+#include <tvm/ffi/optional.h>
 #include <optional>
 #include <string>
 #include <type_traits>
@@ -62,9 +62,6 @@ using TypeTraitsNoCR = TypeTraits<std::remove_const_t<std::remove_reference_t<T>
 
 template <typename T>
 inline constexpr bool use_default_type_traits_v = true;
-
-template <typename T>
-inline constexpr bool is_optional_type_v = false;
 
 struct TypeTraitsBase {
   static constexpr bool enabled = true;
@@ -387,6 +384,8 @@ struct TypeTraits<char[N]> : public TypeTraitsBase {
 };
 
 // Traits for ObjectRef
+// NOTE: we always does null check when convert to ObjectRef
+// If we anticipate a potentilaly nullable ObjectRef, use Optional<ObjectRef> instead
 template <typename TObjRef>
 struct ObjectRefTypeTraitsBase : public TypeTraitsBase {
   static constexpr int32_t field_static_type_index = TypeIndex::kTVMFFIObject;
@@ -399,21 +398,22 @@ struct ObjectRefTypeTraitsBase : public TypeTraitsBase {
   }
 
   static TVM_FFI_INLINE void MoveToAny(TObjRef src, TVMFFIAny* result) {
-    TVMFFIObject* obj_ptr = details::ObjectUnsafe::MoveTVMFFIObjectPtrFromObjectRef(&src);
-    result->type_index = obj_ptr->type_index;
-    result->v_obj = obj_ptr;
+    if (src.defined()) {
+      TVMFFIObject* obj_ptr = details::ObjectUnsafe::MoveTVMFFIObjectPtrFromObjectRef(&src);
+      result->type_index = obj_ptr->type_index;
+      result->v_obj = obj_ptr;
+    } else {
+      result->type_index = TypeIndex::kTVMFFINone;
+      result->v_obj = nullptr;
+    }
   }
 
   static TVM_FFI_INLINE bool CheckAnyView(const TVMFFIAny* src) {
     return (src->type_index >= TypeIndex::kTVMFFIStaticObjectBegin &&
-            details::IsObjectInstance<ContainerType>(src->type_index)) ||
-           (src->type_index == kTVMFFINone && TObjRef::_type_is_nullable);
+            details::IsObjectInstance<ContainerType>(src->type_index));
   }
 
   static TVM_FFI_INLINE TObjRef CopyFromAnyViewAfterCheck(const TVMFFIAny* src) {
-    if constexpr (TObjRef::_type_is_nullable) {
-      if (src->type_index == kTVMFFINone) return TObjRef(ObjectPtr<Object>(nullptr));
-    }
     return TObjRef(details::ObjectUnsafe::ObjectPtrFromUnowned<Object>(src->v_obj));
   }
 
@@ -422,9 +422,6 @@ struct ObjectRefTypeTraitsBase : public TypeTraitsBase {
       if (details::IsObjectInstance<ContainerType>(src->type_index)) {
         return TObjRef(details::ObjectUnsafe::ObjectPtrFromUnowned<Object>(src->v_obj));
       }
-    }
-    if constexpr (TObjRef::_type_is_nullable) {
-      if (src->type_index == kTVMFFINone) return TObjRef(ObjectPtr<Object>(nullptr));
     }
     return std::nullopt;
   }
@@ -589,6 +586,58 @@ struct TypeTraits<const TObject*, std::enable_if_t<std::is_base_of_v<Object, TOb
   static TVM_FFI_INLINE std::string TypeStr() { return TObject::_type_key; }
 };
 
+template <typename T>
+inline constexpr bool use_default_type_traits_v<Optional<T>> = false;
+
+
+template <typename T>
+struct TypeTraits<Optional<T>> : public TypeTraitsBase {
+  static TVM_FFI_INLINE void CopyToAnyView(const Optional<T>& src, TVMFFIAny* result) {
+    if (src.has_value()) {
+      TypeTraits<T>::CopyToAnyView(*src, result);
+    } else {
+      TypeTraits<std::nullptr_t>::CopyToAnyView(nullptr, result);
+    }
+  }
+
+  static TVM_FFI_INLINE void MoveToAny(Optional<T> src, TVMFFIAny* result) {
+    if (src.has_value()) {
+      TypeTraits<T>::MoveToAny(std::move(*src), result);
+    } else {
+      TypeTraits<std::nullptr_t>::CopyToAnyView(nullptr, result);
+    }
+  }
+
+  static TVM_FFI_INLINE std::string GetMismatchTypeInfo(const TVMFFIAny* src) {
+    return TypeTraits<T>::GetMismatchTypeInfo(src);
+  }
+
+  static TVM_FFI_INLINE bool CheckAnyView(const TVMFFIAny* src) {
+    if (src->type_index == TypeIndex::kTVMFFINone) return true;
+    return TypeTraits<T>::CheckAnyView(src);
+  }
+
+  static TVM_FFI_INLINE Optional<T> CopyFromAnyViewAfterCheck(const TVMFFIAny* src) {
+    if (src->type_index == TypeIndex::kTVMFFINone) return Optional<T>(nullptr);
+    return TypeTraits<T>::CopyFromAnyViewAfterCheck(src);
+  }
+
+  static TVM_FFI_INLINE std::optional<Optional<T>> TryCopyFromAnyView(const TVMFFIAny* src) {
+    if (src->type_index == TypeIndex::kTVMFFINone) return Optional<T>(std::nullopt);
+    if (std::optional<T> opt = TypeTraits<T>::TryCopyFromAnyView(src)) {
+      return Optional<T>(std::move(opt.value()));
+    } else {
+      // important to be explicit here
+      // because nullopt can convert to Optional<T>(nullopt) which indicate success
+      // return std::optional<Optional<T>>(std::nullopt) to indicate failure
+      return std::optional<Optional<T>>(std::nullopt);
+    }
+  }
+
+  static TVM_FFI_INLINE std::string TypeStr() {
+    return "Optional<" + TypeTraits<T>::TypeStr() + ">";
+  }
+};
 }  // namespace ffi
 }  // namespace tvm
 #endif  // TVM_FFI_TYPE_TRAITS_H_

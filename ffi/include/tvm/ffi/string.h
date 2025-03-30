@@ -19,7 +19,7 @@
 
 /*!
  * \file tvm/ffi/string.h
- * \brief Runtime String type.
+ * \brief Runtime Bytes and String types.
  */
 #ifndef TVM_FFI_STRING_H_
 #define TVM_FFI_STRING_H_
@@ -38,11 +38,11 @@
 #include <type_traits>
 #include <utility>
 
-// NOTE: We place string in tvm/ffi instead of tvm/ffi/container
+// Note: We place string in tvm/ffi instead of tvm/ffi/container
 // because string itself needs special handling and is an inherent
 // core component for return string handling.
 // The following dependency relation holds
-// containers -> any -> string -> object
+// any -> string -> object
 
 namespace tvm {
 namespace ffi {
