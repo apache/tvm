@@ -1133,7 +1133,7 @@ class Prefetch : public Stmt {
 /*!
  * \brief Representing the region of multi-dimensional buffer access.
  */
-class BufferRegionNode : public Object {
+class BufferRegionNode : public PrimExprConvertibleNode {
  public:
   /*! \brief The buffer of the buffer region. */
   Buffer buffer;
@@ -1154,17 +1154,19 @@ class BufferRegionNode : public Object {
     hash_reduce(region);
   }
 
+  TVM_DLL PrimExpr ToPrimExpr() const final;
+
   static constexpr const char* _type_key = "tir.BufferRegion";
   static constexpr const bool _type_has_method_sequal_reduce = true;
   static constexpr const bool _type_has_method_shash_reduce = true;
-  TVM_DECLARE_FINAL_OBJECT_INFO(BufferRegionNode, Object);
+  TVM_DECLARE_FINAL_OBJECT_INFO(BufferRegionNode, PrimExprConvertibleNode);
 };
 
 /*!
  * \brief Managed reference to BufferRegionNode.
  * \sa BufferRegionNode
  */
-class BufferRegion : public ObjectRef {
+class BufferRegion : public PrimExprConvertible {
  public:
   TVM_DLL explicit BufferRegion(Buffer buffer, Array<Range> region);
 
@@ -1183,7 +1185,7 @@ class BufferRegion : public ObjectRef {
    */
   TVM_DLL static BufferRegion FromPoint(Buffer buffer, Array<PrimExpr> indices);
 
-  TVM_DEFINE_OBJECT_REF_METHODS(BufferRegion, ObjectRef, BufferRegionNode);
+  TVM_DEFINE_OBJECT_REF_METHODS(BufferRegion, PrimExprConvertible, BufferRegionNode);
   TVM_DEFINE_OBJECT_REF_COW_METHOD(BufferRegionNode);
 };
 

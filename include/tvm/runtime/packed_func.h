@@ -52,7 +52,7 @@ inline TVMFFIAny LegacyTVMArgValueToFFIAny(TVMValue value, int type_code) {
     }
     case kTVMArgFloat: {
       res.type_index = ffi::TypeIndex::kTVMFFIFloat;
-      res.v_int64 = value.v_float64;
+      res.v_float64 = value.v_float64;
       break;
     }
     case kTVMOpaqueHandle: {

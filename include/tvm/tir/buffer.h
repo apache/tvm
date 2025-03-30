@@ -273,7 +273,7 @@ TVM_DLL Buffer decl_buffer(Array<PrimExpr> shape, DataType dtype = DataType::Flo
  *
  * \sa tvm::te::Tensor
  */
-class DataProducerNode : public Object {
+class DataProducerNode : public PrimExprConvertibleNode {
  public:
   /*! \brief destructor. */
   virtual ~DataProducerNode() {}
@@ -310,9 +310,9 @@ class DataProducerNode : public Object {
  * \brief Managed reference to DataProducerNode.
  * \sa DataProducerNode
  */
-class DataProducer : public ObjectRef {
+class DataProducer : public PrimExprConvertible {
  public:
-  TVM_DEFINE_OBJECT_REF_METHODS(DataProducer, ObjectRef, DataProducerNode);
+  TVM_DEFINE_OBJECT_REF_METHODS(DataProducer, PrimExprConvertible, DataProducerNode);
 };
 
 /*!

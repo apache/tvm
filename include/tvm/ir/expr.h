@@ -139,6 +139,7 @@ class PrimExpr : public BaseExpr {
  */
 class PrimExprConvertibleNode : public Object {
  public:
+  virtual ~PrimExprConvertibleNode() {}
   virtual PrimExpr ToPrimExpr() const = 0;
 
   static constexpr const char* _type_key = "PrimExprConvertible";
@@ -162,11 +163,15 @@ inline constexpr bool use_default_type_traits_v<PrimExpr> = false;
 
 template <>
 struct TypeTraits<PrimExpr>
-    : public ObjectRefWithFallbackTraitsBase<PrimExpr, StrictBool, int64_t, double, String> {
+    : public ObjectRefWithFallbackTraitsBase<PrimExpr, StrictBool, int64_t, double, String,
+                                             PrimExprConvertible> {
   static TVM_FFI_INLINE PrimExpr ConvertFallbackValue(StrictBool value);
   static TVM_FFI_INLINE PrimExpr ConvertFallbackValue(int64_t value);
   static TVM_FFI_INLINE PrimExpr ConvertFallbackValue(double value);
   static TVM_FFI_INLINE PrimExpr ConvertFallbackValue(String value);
+  static TVM_FFI_INLINE PrimExpr ConvertFallbackValue(PrimExprConvertible value) {
+    return value->ToPrimExpr();
+  }
 };
 }  // namespace ffi
 

@@ -78,6 +78,10 @@ String TensorNode::GetNameHint() const {
   return op->num_outputs() == 1 ? op->name : (op->name + ".v" + std::to_string(value_index));
 }
 
+PrimExpr TensorNode::ToPrimExpr() const {
+  return GetRef<Tensor>(this)();
+}
+
 Tensor Operation::output(size_t i) const {
   auto node = make_object<TensorNode>();
   node->op = *this;
