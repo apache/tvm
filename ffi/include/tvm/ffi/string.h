@@ -401,7 +401,7 @@ struct TypeTraits<const char*> : public TypeTraitsBase {
     ObjectRefTypeTraitsBase<String>::MoveToAny(String(src), result);
   }
 
-  static TVM_FFI_INLINE std::optional<const char*> TryCopyFromAnyView(const TVMFFIAny* src) {
+  static TVM_FFI_INLINE Optional<const char*> TryCopyFromAnyView(const TVMFFIAny* src) {
     if (src->type_index == TypeIndex::kTVMFFIRawStr) {
       return static_cast<const char*>(src->v_c_str);
     }
@@ -434,7 +434,7 @@ struct TypeTraits<TVMFFIByteArray*> : public TypeTraitsBase {
     ObjectRefTypeTraitsBase<Bytes>::MoveToAny(Bytes(*src), result);
   }
 
-  static TVM_FFI_INLINE std::optional<TVMFFIByteArray*> TryCopyFromAnyView(const TVMFFIAny* src) {
+  static TVM_FFI_INLINE Optional<TVMFFIByteArray*> TryCopyFromAnyView(const TVMFFIAny* src) {
     if (src->type_index == TypeIndex::kTVMFFIByteArrayPtr) {
       return static_cast<TVMFFIByteArray*>(src->v_ptr);
     }

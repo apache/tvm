@@ -28,9 +28,9 @@
 
 #include <tvm/ffi/any.h>
 #include <tvm/ffi/container/container_details.h>
-#include <tvm/ffi/optional.h>
 #include <tvm/ffi/memory.h>
 #include <tvm/ffi/object.h>
+#include <tvm/ffi/optional.h>
 
 #include <algorithm>
 #include <string>
@@ -997,7 +997,7 @@ struct TypeTraits<Array<T>> : public TypeTraitsBase {
     return Array<T>(details::ObjectUnsafe::ObjectPtrFromUnowned<Object>(src->v_obj));
   }
 
-  static TVM_FFI_INLINE std::optional<Array<T>> TryCopyFromAnyView(const TVMFFIAny* src) {
+  static TVM_FFI_INLINE Optional<Array<T>> TryCopyFromAnyView(const TVMFFIAny* src) {
     if (CheckAnyView(src)) return CopyFromAnyViewAfterCheck(src);
     return std::nullopt;
   }

@@ -386,6 +386,15 @@ class ObjectPtr {
   friend class tvm::ffi::details::ObjectUnsafe;
 };
 
+/*!
+ * \brief Optional data type in FFI.
+ * \tparam T The underlying type of the optional.
+ *
+ * \note Compared to std::optional, Optional<ObjectRef>
+ *   akes less storage as it used nullptr to represent nullopt.
+ */
+template <typename T, typename = void>
+class Optional;
 
 /*! \brief Base class of all object reference */
 class ObjectRef {
@@ -466,8 +475,7 @@ class ObjectRef {
   }
 
   /*!
-   * \brief Try to downcast the ObjectRef to a
-   *    std::optional<T> of the requested type.
+   * \brief Try to downcast the ObjectRef to Optional<T> of the requested type.
    *
    *  The function will return a std::nullopt if the cast or if the pointer is nullptr.
    *
@@ -476,17 +484,7 @@ class ObjectRef {
    */
   template <typename ObjectRefType,
             typename = std::enable_if_t<std::is_base_of_v<ObjectRef, ObjectRefType>>>
-  std::optional<ObjectRefType> as() const {
-    if (data_ != nullptr) {
-      if (data_->IsInstance<typename ObjectRefType::ContainerType>()) {
-        return ObjectRefType(data_);
-      } else {
-        return std::nullopt;
-      }
-    } else {
-      return std::nullopt;
-    }
-  }
+  TVM_FFI_INLINE Optional<ObjectRefType> as() const;
 
   /*!
    * \brief Get the type index of the ObjectRef

@@ -53,10 +53,11 @@ namespace details {
  * \brief Get the custom type name for a given type code.
  */
 inline String DLDataTypeCodeGetCustomTypeName(DLDataTypeCode type_code) {
-  static Function fget_custom_type_name = Function::GetGlobal(  //
-      "dtype.get_custom_type_name",                             //
-      /*allow_missing=*/false                                   //
-  ).value();
+  static Function fget_custom_type_name = Function::GetGlobal(               //
+                                              "dtype.get_custom_type_name",  //
+                                              /*allow_missing=*/false        //
+                                              )
+                                              .value();
   return fget_custom_type_name(static_cast<int>(type_code)).operator String();
 }
 
@@ -92,10 +93,11 @@ inline int ParseCustomDataTypeCode(const std::string& str, const char** scan) {
   TVM_FFI_ICHECK(str.c_str() == tmp);
   auto type_name = str.substr(7, custom_name_len);
   TVM_FFI_ICHECK(str.c_str() == tmp);
-  static Function fget_custom_type_code = Function::GetGlobal(  //
-      "dtype.get_custom_type_code",                             //
-      /*allow_missing=*/false                                   //
-  ).value();
+  static Function fget_custom_type_code = Function::GetGlobal(               //
+                                              "dtype.get_custom_type_code",  //
+                                              /*allow_missing=*/false        //
+                                              )
+                                              .value();
   return fget_custom_type_code(type_name);
 }
 /*
@@ -291,13 +293,13 @@ struct TypeTraits<DLDataType> : public TypeTraitsBase {
     result->v_dtype = src;
   }
 
-  static TVM_FFI_INLINE std::optional<DLDataType> TryCopyFromAnyView(const TVMFFIAny* src) {
+  static TVM_FFI_INLINE Optional<DLDataType> TryCopyFromAnyView(const TVMFFIAny* src) {
     if (src->type_index == TypeIndex::kTVMFFIDataType) {
       return src->v_dtype;
     }
     // enable string to dtype auto conversion
     if (auto opt_str = TypeTraits<std::string>::TryCopyFromAnyView(src)) {
-      return StringToDLDataType(opt_str.value());
+      return StringToDLDataType(*opt_str);
     }
     return std::nullopt;
   }

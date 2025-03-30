@@ -215,15 +215,16 @@ TEST(Func, ObjectRefWithFallbackTraits) {
   EXPECT_EQ(result_string->dtype, "test_string");
   EXPECT_EQ(result_string->value, 0);
 
-   EXPECT_THROW(
+  EXPECT_THROW(
       {
         try {
           freturn_primexpr(TInt(1));
         } catch (const Error& error) {
           EXPECT_EQ(error->kind, "TypeError");
-          EXPECT_STREQ(error->message.c_str(),
-                       "Mismatched type on argument #0 when calling: `(0: test.PrimExpr) -> test.PrimExpr`. "
-                       "Expected `test.PrimExpr` but got `test.Int`");
+          EXPECT_STREQ(
+              error->message.c_str(),
+              "Mismatched type on argument #0 when calling: `(0: test.PrimExpr) -> test.PrimExpr`. "
+              "Expected `test.PrimExpr` but got `test.Int`");
           throw;
         }
       },

@@ -108,14 +108,14 @@ inline T Downcast(const Any& ref) {
 }
 
 /*!
- * \brief Downcast std::optional<Any> to Optional<T>
+ * \brief Downcast Optional<Any> to Optional<T>
  *
  * \param ref The input reference
  * \return The corresponding SubRef.
  * \tparam OptionalType The target optional type
  */
 template <typename OptionalType, typename = std::enable_if_t<is_optional_type_v<OptionalType>>>
-inline OptionalType Downcast(const std::optional<Any>& ref) {
+inline OptionalType Downcast(const Optional<Any>& ref) {
   if (ref.has_value()) {
     return ref.value().operator OptionalType();
   } else {

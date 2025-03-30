@@ -34,16 +34,6 @@
 namespace tvm {
 namespace ffi {
 
-/*!
- * \brief Optional data type in FFI.
- * \tparam T The underlying type of the optional.
- *
- * \note Compared to std::optional, Optional<ObjectRef>
- *       takes less storage as it used nullptr to represent nullopt.
- */
-template <typename T, typename = void>
-class Optional;
-
 template <typename T>
 inline constexpr bool is_optional_type_v = false;
 
@@ -51,9 +41,8 @@ template <typename T>
 inline constexpr bool is_optional_type_v<Optional<T>> = true;
 
 template <typename T>
-inline constexpr bool use_ptr_based_optional_v = (
-  std::is_base_of_v<ObjectRef, T> && !is_optional_type_v<T>
-);
+inline constexpr bool use_ptr_based_optional_v =
+    (std::is_base_of_v<ObjectRef, T> && !is_optional_type_v<T>);
 
 // Specialization for non-ObjectRef types.
 // simply fallback to std::optional
@@ -86,7 +75,7 @@ class Optional<T, std::enable_if_t<!use_ptr_based_optional_v<T>>> {
     return *this;
   }
 
-  const T& value() const & {
+  const T& value() const& {
     if (!data_.has_value()) {
       TVM_FFI_THROW(RuntimeError) << "Back optional access";
     }
@@ -119,20 +108,14 @@ class Optional<T, std::enable_if_t<!use_ptr_based_optional_v<T>>> {
   bool operator!=(const U& other) const {
     return data_ != other;
   }
-
- private:
-  std::optional<T> data_;
-
-  template <typename, typename>
-  friend struct TypeTraits;
-  // keep unsafe dereference private
-  const T operator*() const & noexcept {
+  const T operator*() const& noexcept {
     // it is OK to reinterpret_cast ObjectPtr<Object>& to ObjectRef&.
     return *data_;
   }
-  T operator*() && noexcept {
-     return T(std::move(*data_));
-  }
+  T operator*() && noexcept { return T(std::move(*data_)); }
+
+ private:
+  std::optional<T> data_;
 };
 
 // Specialization for ObjectRef types.
@@ -171,18 +154,20 @@ class Optional<T, std::enable_if_t<use_ptr_based_optional_v<T>>> : public Object
     return *this;
   }
 
-  const T& value() const & {
+  const T& value() const& {
     if (data_ == nullptr) {
       TVM_FFI_THROW(RuntimeError) << "Back optional access";
     }
-    return operator*();
+    // safe to reinterpret_cast ObjectPtr<Object>& to ObjectRef&.
+    return reinterpret_cast<const T&>(data_);
   }
 
   T&& value() && {
     if (data_ == nullptr) {
       TVM_FFI_THROW(RuntimeError) << "Back optional access";
     }
-    return std::move(operator*());
+    // safe to reinterpret_cast ObjectPtr<Object>&& to ObjectRef&&.
+    return reinterpret_cast<T&&>(std::move(data_));
   }
 
   T value_or(T default_value) const { return data_ != nullptr ? T(data_) : default_value; }
@@ -201,17 +186,13 @@ class Optional<T, std::enable_if_t<use_ptr_based_optional_v<T>>> : public Object
     // support case where sub-class returns a symbolic ref type.
     return EQToOptional(other);
   }
-  auto operator!=(const Optional<T>& other) const {
-    return NEToOptional(other);
-  }
+  auto operator!=(const Optional<T>& other) const { return NEToOptional(other); }
 
   auto operator==(const std::optional<T>& other) const {
     // support case where sub-class returns a symbolic ref type.
     return EQToOptional(other);
   }
-  auto operator!=(const std::optional<T>& other) const {
-    return NEToOptional(other);
-  }
+  auto operator!=(const std::optional<T>& other) const { return NEToOptional(other); }
 
   auto operator==(const T& other) const {
     using RetType = decltype(value() == other);
@@ -236,6 +217,16 @@ class Optional<T, std::enable_if_t<use_ptr_based_optional_v<T>>> : public Object
     return operator*() != other;
   }
 
+  // keep unsafe dereference private
+  TVM_FFI_INLINE const T& operator*() const& noexcept {
+    // safe to reinterpret_cast ObjectPtr<Object>& to ObjectRef&.
+    return reinterpret_cast<const T&>(data_);
+  }
+  TVM_FFI_INLINE T&& operator*() && noexcept {
+    // safe to reinterpret_cast ObjectPtr<Object>&& to ObjectRef&&.
+    return reinterpret_cast<T&&>(std::move(data_));
+  }
+
   static constexpr bool _type_is_nullable = true;
 
  private:
@@ -245,17 +236,10 @@ class Optional<T, std::enable_if_t<use_ptr_based_optional_v<T>>> : public Object
   // to friend TypeTraits
   explicit Optional(ObjectPtr<Object> ptr) : ObjectRef(ptr) {}
   // inherit get method as private
-  using ObjectRef::get;
   using ObjectRef::defined;
-  // keep unsafe dereference private
-  TVM_FFI_INLINE const T& operator*() const & noexcept {
-    // safe to reinterpret_cast ObjectPtr<Object>& to ObjectRef&.
-    return reinterpret_cast<const T&>(data_);
-  }
-  TVM_FFI_INLINE T operator*() && noexcept {
-     return T(std::move(data_));
-  }
-  template<typename U>
+  using ObjectRef::get;
+
+  template <typename U>
   TVM_FFI_INLINE auto EQToOptional(const U& other) const {
     // support case where sub-class returns a symbolic ref type.
     using RetType = decltype(value() == other.value());
@@ -268,7 +252,7 @@ class Optional<T, std::enable_if_t<use_ptr_based_optional_v<T>>> : public Object
     }
   }
 
-  template<typename U>
+  template <typename U>
   TVM_FFI_INLINE auto NEToOptional(const U& other) const {
     // support case where sub-class returns a symbolic ref type.
     using RetType = decltype(value() != other.value());
@@ -281,6 +265,19 @@ class Optional<T, std::enable_if_t<use_ptr_based_optional_v<T>>> : public Object
     }
   }
 };
+
+template <typename ObjectRefType, typename>
+TVM_FFI_INLINE Optional<ObjectRefType> ObjectRef::as() const {
+  if (data_ != nullptr) {
+    if (data_->IsInstance<typename ObjectRefType::ContainerType>()) {
+      return ObjectRefType(data_);
+    } else {
+      return std::nullopt;
+    }
+  } else {
+    return std::nullopt;
+  }
+}
 
 }  // namespace ffi
 }  // namespace tvm
