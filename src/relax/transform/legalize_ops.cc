@@ -166,8 +166,8 @@ class LegalizeMutator : public ExprMutator {
     return std::nullopt;
   }
 
-  Expr UpdateVDeviceOutStructInfo(Expr expr, const Call& visited_call) {
-    static const auto& infer_struct_info_map = Op::GetAttrMap<FInferStructInfo>("FInferStructInfo");
+  Expr UpdateVDeviceOutStructInfo(Expr expr, const Call& visited_call,
+                                  const StructInfo& infered_sinfo) {
     static const Op& call_tir_op = Op::Get("relax.call_tir");
     auto* op_node = visited_call->op.as<OpNode>();
 
@@ -176,10 +176,6 @@ class LegalizeMutator : public ExprMutator {
       return expr;
     }
     auto op = GetRef<Op>(op_node);
-
-    if (!infer_struct_info_map.count(op)) {
-      return expr;
-    }
 
     if (!expr->IsInstance<CallNode>()) {
       return expr;
@@ -191,7 +187,6 @@ class LegalizeMutator : public ExprMutator {
     }
 
     StructInfo out_sinfo = call->sinfo_args[0];
-    StructInfo infered_sinfo = infer_struct_info_map[op](visited_call, builder_);
 
     if (out_sinfo->IsInstance<TensorStructInfoNode>()) {
       auto out_tsinfo = Downcast<TensorStructInfo>(out_sinfo);
@@ -299,6 +294,7 @@ class LegalizeMutator : public ExprMutator {
 
   Expr VisitExpr_(const CallNode* call) final {
     Call visited_call = Downcast<Call>(this->VisitExprPostOrder_(call));
+    static const auto& infer_struct_info_map = Op::GetAttrMap<FInferStructInfo>("FInferStructInfo");
     static const auto& legalize_map = Op::GetAttrMap<FLegalize>("FLegalize");
     static const auto& call_packed_map = Op::GetAttrMap<FCallPacked>("FCallPacked");
     static const auto& requires_arg_shapes_map = Op::GetAttrMap<Bool>("RequiresArgumentShapes");
@@ -422,7 +418,8 @@ class LegalizeMutator : public ExprMutator {
     }
     Expr legalized = legalization_func(builder_, visited_call);
 
-    legalized = UpdateVDeviceOutStructInfo(legalized, visited_call);
+    StructInfo infered_sinfo = infer_struct_info_map[op](GetRef<Call>(call), builder_);
+    legalized = UpdateVDeviceOutStructInfo(legalized, visited_call, infered_sinfo);
 
     // Append the target attribute to any PrimFunc generated in
     // legalization.

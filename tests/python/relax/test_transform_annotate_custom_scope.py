@@ -83,7 +83,7 @@ def verify(mod, expected):
         mod = tvm.relax.transform.FoldConstant()(mod)
         mod = tvm.relax.transform.LegalizeOps(skip_ops=skip_ops)(mod)
         mod = tvm.relax.transform.AnnotateTIROpPattern()(mod)
-        mod = tvm.relax.transform.AnnotateCustomMemoryScope(tgt)(mod)
+        mod = tvm.relax.backend.adreno.transform.AnnotateCustomMemoryScope(tgt)(mod)
         # There is a possibility of some skipped ops above might not use 5D layouts.
         mod = tvm.relax.transform.LegalizeOps()(mod)
         mod = tvm.relax.transform.LegalizeOps(
@@ -95,7 +95,7 @@ def verify(mod, expected):
         mod = tvm.relax.transform.FuseOps()(mod)
         mod = tvm.relax.transform.FuseTIR()(mod)
         mod = tvm.relax.transform.DeadCodeElimination()(mod)
-        mod = tvm.relax.transform.FoldVDeviceScopeChange()(mod)
+        mod = tvm.relax.backend.adreno.transform.FoldVDeviceScopeChange()(mod)
         mod = tvm.relax.transform.DeadCodeElimination()(mod)
         mod = tvm.relax.transform.SpecializePrimFuncBasedOnCallSite()(mod)
         mod = tvm.relax.transform.Normalize()(mod)

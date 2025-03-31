@@ -14,14 +14,9 @@
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
 # under the License.
-"""The Relax Adreno backend compilation pipeline and other passes."""
+"""Adreno Relax transformations. """
 
-from . import transform
-
-from .pipeline import (
-    finalize_passes,
-    get_default_pipeline,
-    dataflow_lower_passes,
-    legalize_passes,
-    library_dispatch_passes,
+from .transform import (
+    AnnotateCustomMemoryScope,
+    FoldVDeviceScopeChange,
 )

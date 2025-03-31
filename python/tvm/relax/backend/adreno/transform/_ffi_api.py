@@ -13,15 +13,7 @@
 # "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
 # KIND, either express or implied.  See the License for the
 # specific language governing permissions and limitations
-# under the License.
-"""The Relax Adreno backend compilation pipeline and other passes."""
+"""FFI APIs for Adreno transform"""
+import tvm._ffi
 
-from . import transform
-
-from .pipeline import (
-    finalize_passes,
-    get_default_pipeline,
-    dataflow_lower_passes,
-    legalize_passes,
-    library_dispatch_passes,
-)
+tvm._ffi._init_api("relax.backend.adreno.transform", __name__)

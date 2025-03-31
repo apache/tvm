@@ -238,11 +238,11 @@
 
 #include <tvm/node/serialization.h>
 #include <tvm/relax/attrs/op.h>
+#include <tvm/relax/backend/adreno/transform.h>
 #include <tvm/relax/dataflow_matcher.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/nested_msg.h>
 #include <tvm/relax/op_attr_types.h>
-#include <tvm/relax/transform.h>
 #include <tvm/tir/index_map.h>
 
 #include <tuple>
@@ -253,6 +253,8 @@
 
 namespace tvm {
 namespace relax {
+namespace backend {
+namespace adreno {
 
 using tvm::tir::Buffer;
 
@@ -730,17 +732,21 @@ class DefineVDevice : ExprMutator {
 namespace transform {
 
 Pass AnnotateCustomMemoryScope(Target target) {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
-      [=](IRModule mod, PassContext pc) { return relax::DefineVDevice(target).Run(mod); };
+  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func = [=](IRModule mod,
+                                                                            PassContext pc) {
+    return tvm::relax::backend::adreno::DefineVDevice(target).Run(mod);
+  };
   return CreateModulePass(/*pass_function=*/pass_func,
                           /*opt_level=*/0,
                           /*pass_name=*/"AnnotateCustomMemoryScope",
                           /*required=*/{});
 }
 
-TVM_REGISTER_GLOBAL("relax.transform.AnnotateCustomMemoryScope")
+TVM_REGISTER_GLOBAL("relax.backend.adreno.transform.AnnotateCustomMemoryScope")
     .set_body_typed(AnnotateCustomMemoryScope);
 
 }  // namespace transform
+}  // namespace adreno
+}  // namespace backend
 }  // namespace relax
 }  // namespace tvm

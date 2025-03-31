@@ -17,7 +17,7 @@
  * under the License.
  */
 /*!
- * \file src/relax/backend/adreno/optimize_to_vdevice_for_scope_change.cc
+ * \file src/relax/backend/adreno/fold_vdevice_scope_change.cc
  * \brief This is a texture specific pass that can optimize unnecessary to_device copies.
  * Like texture_scope -> ToVDevice -> global scope. In this case the producer can directly
  * store into global scope avoiding unnecessary device copy.
@@ -25,11 +25,11 @@
 
 #include <tvm/node/serialization.h>
 #include <tvm/relax/attrs/op.h>
+#include <tvm/relax/backend/adreno/transform.h>
 #include <tvm/relax/dataflow_matcher.h>
 #include <tvm/relax/expr_functor.h>
 #include <tvm/relax/nested_msg.h>
 #include <tvm/relax/op_attr_types.h>
-#include <tvm/relax/transform.h>
 #include <tvm/tir/index_map.h>
 
 #include <tuple>
@@ -40,6 +40,8 @@
 
 namespace tvm {
 namespace relax {
+namespace backend {
+namespace adreno {
 
 namespace {
 std::tuple<DFPattern, TypedPackedFunc<Expr(Expr, Map<DFPattern, Expr>)>> CreatePatterns(
@@ -175,10 +177,12 @@ Pass FoldVDeviceScopeChange() {
     auto [pattern, rewriter] = CreatePatterns(consumers);
     return RewriteCall(pattern, rewriter, func);
   };
-  return CreateFunctionPass(pass_func, 1, "FoldVDeviceScopeChange", {});
+  return tvm::relax::transform::CreateFunctionPass(pass_func, 1, "FoldVDeviceScopeChange", {});
 }
-TVM_REGISTER_GLOBAL("relax.transform.FoldVDeviceScopeChange")
+TVM_REGISTER_GLOBAL("relax.backend.adreno.transform.FoldVDeviceScopeChange")
     .set_body_typed(FoldVDeviceScopeChange);
 }  // namespace transform
+}  // namespace adreno
+}  // namespace backend
 }  // namespace relax
 }  // namespace tvm
