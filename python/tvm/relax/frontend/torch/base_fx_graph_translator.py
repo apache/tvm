@@ -311,7 +311,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         """
         Applies the Softshrink activation function in Relax.
 
-        Softshrink(x) = 
+        Softshrink(x) =
             x - λ    if x > λ
             x + λ    if x < -λ
             0        otherwise
@@ -328,13 +328,15 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
 
         # Apply Softshrink transformation with masking
         shrink_pos = relax.op.multiply(
-            relax.op.subtract(x, lambd), 
-            relax.op.astype(relax.op.greater(x, lambd), x.struct_info.dtype)
+            relax.op.subtract(x, lambd),
+            relax.op.astype(relax.op.greater(x, lambd), x.struct_info.dtype),
         )
 
         shrink_neg = relax.op.multiply(
-            relax.op.add(x, lambd), 
-            relax.op.astype(relax.op.less(x, relax.op.negative(lambd)), x.struct_info.dtype)
+            relax.op.add(x, lambd),
+            relax.op.astype(
+                relax.op.less(x, relax.op.negative(lambd)), x.struct_info.dtype
+            ),
         )
 
         # Combine the positive and negative shrink results

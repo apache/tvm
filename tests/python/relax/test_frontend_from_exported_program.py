@@ -751,27 +751,37 @@ def test_softshrink():
 
         def forward(self, input):
             return self.softshrink(input)
-    
+
     class Softshrink2(Module):
         def forward(self, input):
             return torch.nn.functional.softshrink(input, lambd=0.5)
-    
+
     @tvm.script.ir_module
     class expected_softshrink:
         @R.function
         def main(
-            input: R.Tensor((1, 3, 10, 10), dtype="float32")
+            input: R.Tensor((1, 3, 10, 10), dtype="float32"),
         ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
             with R.dataflow():
-                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.subtract(input, R.const(0.5, "float32"))
-                lv1: R.Tensor((1, 3, 10, 10), dtype="bool") = R.greater(input, R.const(0.5, "float32"))
-                lv2: R.Tensor((1, 3, 10, 10), dtype="float32") = R.astype(lv1, "float32")
+                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.subtract(
+                    input, R.const(0.5, "float32")
+                )
+                lv1: R.Tensor((1, 3, 10, 10), dtype="bool") = R.greater(
+                    input, R.const(0.5, "float32")
+                )
+                lv2: R.Tensor((1, 3, 10, 10), dtype="float32") = R.astype(
+                    lv1, "float32"
+                )
                 lv3: R.Tensor((1, 3, 10, 10), dtype="float32") = R.multiply(lv, lv2)
 
-                lv4: R.Tensor((1, 3, 10, 10), dtype="float32") = R.add(input, R.const(0.5, "float32"))
+                lv4: R.Tensor((1, 3, 10, 10), dtype="float32") = R.add(
+                    input, R.const(0.5, "float32")
+                )
                 lv5: R.Tensor((), dtype="float32") = R.negative(R.const(0.5, "float32"))
                 lv6: R.Tensor((1, 3, 10, 10), dtype="bool") = R.less(input, lv5)
-                lv7: R.Tensor((1, 3, 10, 10), dtype="float32") = R.astype(lv6, "float32")
+                lv7: R.Tensor((1, 3, 10, 10), dtype="float32") = R.astype(
+                    lv6, "float32"
+                )
                 lv8: R.Tensor((1, 3, 10, 10), dtype="float32") = R.multiply(lv4, lv7)
 
                 lv9: R.Tensor((1, 3, 10, 10), dtype="float32") = R.add(lv3, lv8)
@@ -779,7 +789,7 @@ def test_softshrink():
                 gv: R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")) = (lv9,)
                 R.output(gv)
             return gv
-        
+
     example_args = (torch.randn(1, 3, 10, 10, dtype=torch.float32),)
     verify_model(Softshrink(), example_args, {}, expected_softshrink)
     verify_model(Softshrink2(), example_args, {}, expected_softshrink)
