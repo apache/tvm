@@ -1071,8 +1071,8 @@ def index_tensor(data, indices):
     3. Flatten -> fix negative indices -> index_select -> reshape.
     """
 
-    print("we have reached index_tensor in topi !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-    return topi.sum(data, axis=[0]) # TODO remove   
+    print("we have reached index_tensor in topi !")
+    return topi.sum(data, axis=[0]) # TODO used for debugging, remove   
 
     # TODO convert everything below in topi-syntax 
 
