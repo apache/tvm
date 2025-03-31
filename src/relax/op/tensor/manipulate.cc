@@ -493,52 +493,53 @@ StructInfo InferStructInfoIndexTensor(const Call& call, const BlockBuilder& ctx)
   CheckNumArguments(call, ctx);
   TensorStructInfo data_sinfo = GetInputTensorStructInfo(call, 0, ctx);
 
-  // StructInfo inference when the index is a PrimValue is equivalent
-  // to that of a scalar (0-d) tensor.
-  TensorStructInfo indices_sinfo = [&]() {
-    auto arg = call->args[1];
-    auto sinfo = GetStructInfo(arg);
-    // TODO update the condition below. The indices argument should always be a tensor, it cannot be
-    // a scalar value
-    if (auto tensor_sinfo = sinfo.as<TensorStructInfo>()) {
-      return tensor_sinfo.value();
-    } else if (auto prim_sinfo = sinfo.as<PrimStructInfoNode>()) {
-      return TensorStructInfo(ShapeExpr(Array<PrimExpr>{}), prim_sinfo->dtype);
-    } else {
-      ctx->ReportFatal(Diagnostic::Error(call)
-                       << "Operator " << call->op << " requires the indices argument to be "
-                       << "either a tensor or a scalar value.  "
-                       << "However, argument " << arg << " has struct info " << sinfo);
-      // Unreachable, but [[noreturn]] attribute on virtual function
-      // `ReportFatal` is insufficient to silence -Wreturn-type, as
-      // child class might not be [[noreturn]].
-      return TensorStructInfo();
-    }
-  }();
+  // TODO the commented out checks below fail, understand why! 
+  // // StructInfo inference when the index is a PrimValue is equivalent
+  // // to that of a scalar (0-d) tensor.
+  // TensorStructInfo indices_sinfo = [&]() {
+  //   auto arg = call->args[0]; // TODO changed this from 1 to 0, is that ok?
+  //   auto sinfo = GetStructInfo(arg);
+  //   // TODO update the condition below. The indices argument should always be a tensor, it cannot be
+  //   // a scalar value
+  //   if (auto tensor_sinfo = sinfo.as<TensorStructInfo>()) {
+  //     return tensor_sinfo.value();
+  //   } else if (auto prim_sinfo = sinfo.as<PrimStructInfoNode>()) {
+  //     return TensorStructInfo(ShapeExpr(Array<PrimExpr>{}), prim_sinfo->dtype);
+  //   } else {
+  //     ctx->ReportFatal(Diagnostic::Error(call)
+  //                      << "Operator " << call->op << " requires the indices argument to be "
+  //                      << "either a tensor or a scalar value.  "
+  //                      << "However, argument " << arg << " has struct info " << sinfo);
+  //     // Unreachable, but [[noreturn]] attribute on virtual function
+  //     // `ReportFatal` is insufficient to silence -Wreturn-type, as
+  //     // child class might not be [[noreturn]].
+  //     return TensorStructInfo();
+  //   }
+  // }();
 
-  if (indices_sinfo->IsUnknownDtype()) {
-    // TODO(tvm-team): Do we have an equivalent of `ctx->ReportFatal` for warning?
-    LOG(WARNING) << "Data type of indice has not been specified. Assume it has an integer type.";
-  } else if (!(indices_sinfo->dtype.is_int() || indices_sinfo->dtype.is_uint())) {
-    ctx->ReportFatal(
-        Diagnostic::Error(call)
-        << "Index Tensor op requires the input indices to have integer dtype. However, the "
-           "given indices dtype is "
-        << indices_sinfo->dtype);
-  }
+  // if (indices_sinfo->IsUnknownDtype()) {
+  //   // TODO(tvm-team): Do we have an equivalent of `ctx->ReportFatal` for warning?
+  //   LOG(WARNING) << "Data type of indice has not been specified. Assume it has an integer type.";
+  // } else if (!(indices_sinfo->dtype.is_int() || indices_sinfo->dtype.is_uint())) {
+  //   ctx->ReportFatal(
+  //       Diagnostic::Error(call)
+  //       << "Index Tensor op requires the input indices to have integer dtype. However, the "
+  //          "given indices dtype is "
+  //       << indices_sinfo->dtype);
+  // }
 
-  if (data_sinfo->IsUnknownNdim() || indices_sinfo->IsUnknownNdim()) {
-    return TensorStructInfo(data_sinfo->dtype, kUnknownNDim, data_sinfo->vdevice);
-  }
+  // if (data_sinfo->IsUnknownNdim() || indices_sinfo->IsUnknownNdim()) {
+  //   return TensorStructInfo(data_sinfo->dtype, kUnknownNDim, data_sinfo->vdevice);
+  // }
 
-  const auto* attrs = call->attrs.as<IndexTensorAttrs>();
+  // const auto* attrs = call->attrs.as<IndexTensorAttrs>();
 
-  const auto* data_shape = data_sinfo->shape.as<ShapeExprNode>();
-  const auto* indices_shape = indices_sinfo->shape.as<ShapeExprNode>();
-  if (data_shape == nullptr || indices_shape == nullptr) {
-    return TensorStructInfo(data_sinfo->dtype, indices_sinfo->ndim + data_sinfo->ndim - 1,
-                            data_sinfo->vdevice);
-  }
+  // const auto* data_shape = data_sinfo->shape.as<ShapeExprNode>();
+  // const auto* indices_shape = indices_sinfo->shape.as<ShapeExprNode>();
+  // if (data_shape == nullptr || indices_shape == nullptr) {
+  //   return TensorStructInfo(data_sinfo->dtype, indices_sinfo->ndim + data_sinfo->ndim - 1,
+  //                           data_sinfo->vdevice);
+  // }
 
   // TODO can we do better than kUnknownNDim, and instead do something like this for the output
   // shape? Array<PrimExpr> output_shape; for (int i = 0; i < data_sinfo->ndim; i++) {
