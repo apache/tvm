@@ -1083,6 +1083,27 @@ def index_tensor(data, indices):
             out *= s
         return out
 
+    def _broadcast_shapes(shapes):
+        # equivalent to  `return torch.broadcast_shapes(*shapes)`, but can't find how to have broadcast_shapes in TVM. 
+        # TODO Try to understand what exported translator does when I pass broadcast_shapes, since cuda_export_index_broadcat_shape
+        """
+        Re-implementation of torch.broadcast_shapes since not sure how to call torch.broadcast_shapes(*shapes) in topi
+        """
+        max_ndim = max(len(s) for s in shapes)
+        rev_shapes = [s[::-1] for s in shapes]
+        out = []
+        for i in range(max_ndim):
+            dim_size = 1
+            for rsh in rev_shapes:
+                if i < len(rsh):
+                    s_ = rsh[i]
+                    if s_ != 1 and dim_size != 1 and s_ != dim_size:
+                        raise ValueError(f"Incompatible shapes for broadcast: {shapes}")
+                    dim_size = max(dim_size, s_)
+            out.append(dim_size)
+        out.reverse()
+        return tuple(out)
+        
     def _is_multiple_indices(indices):
         """
         Decide if 'indices' is multiple parallel indices vs. a single advanced index.
@@ -1106,8 +1127,8 @@ def index_tensor(data, indices):
 
         # 1) Broadcast them to a common shape B
         shapes = [x.shape for x in idx_list]
-        B = torch.broadcast_shapes(*shapes)
-
+        B = _broadcast_shapes(shapes)
+        
         # 2) Expand each index to that shape
         for i in range(len(idx_list)):
             idx_list[i] = idx_list[i].expand(B)
