@@ -478,11 +478,12 @@ TVM_REGISTER_OP("relax.flatten")
 /* relax.index_tensor */
 TVM_REGISTER_NODE_TYPE(IndexTensorAttrs);
 
-Expr index_tensor(Expr x, Expr indices) {
-  ObjectPtr<IndexTensorAttrs> attrs = make_object<IndexTensorAttrs>();
+Expr index_tensor(Expr x, Array<Integer> indices) {
+  auto attrs = make_object<IndexTensorAttrs>();
+  attrs->indices = std::move(indices);
 
   static const Op& op = Op::Get("relax.index_tensor");
-  return Call(op, {std::move(x), std::move(indices)}, Attrs(attrs), {});
+  return Call(op, {std::move(x)}, Attrs(attrs), {});
 }
 
 TVM_REGISTER_GLOBAL("relax.op.index_tensor").set_body_typed(index_tensor);
@@ -553,9 +554,8 @@ StructInfo InferStructInfoIndexTensor(const Call& call, const BlockBuilder& ctx)
 
 TVM_REGISTER_OP("relax.index_tensor")
     .set_attrs_type<IndexTensorAttrs>()
-    .set_num_inputs(2)
+    .set_num_inputs(1)
     .add_argument("x", "Tensor", "The input tensor.")
-    .add_argument("indices", "Tensor", "The indices of the values to extract.")
     .set_attr<FInferStructInfo>("FInferStructInfo", InferStructInfoIndexTensor)
     .set_attr<Bool>("FPurity", Bool(true));
 

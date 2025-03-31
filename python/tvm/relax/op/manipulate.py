@@ -507,10 +507,15 @@ def gather_nd(data: Expr, indices: Expr, batch_dims: int = 0) -> Expr:
     """
     return _ffi_api.gather_nd(data, indices, batch_dims)  # type: ignore
 
-def index_tensor(data: Expr, indices: Expr) -> Expr:
+def index_tensor(data: Expr, indices: List[int]) -> Expr:
     """
     TODO docstring
     """
+    # TODO loosen those assertions! Need to handler lists of lists of lists etc. 
+    assert isinstance(indices, list), "indices should be a list"
+    assert all(isinstance(i, int) for i in indices), "indices should be a list of integers, but got {}".format(
+        [type(i) for i in indices]
+    )
     return _ffi_api.index_tensor(data, indices)  # type: ignore
 
 

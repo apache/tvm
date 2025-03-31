@@ -1018,9 +1018,17 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
 # ?        x = self.env[node.args[0]]
         # indices = node.args[1]
         args = self.retrieve_args(node)
+        print("len of args", len(args))
+        print("type of args[0]", type(args[0]))
+        print("args[0]", args[0])
+        print("type of args[1]", type(args[1])) # Is a list no matter what!!! Like even if we pass a torch.tensor 
+        print("args[1]", args[1])
+
+        # indices = args[1] # TODO do something like this!
+        indices = [2,3]
 
         # index = self.env[node.args[1]] # TODO
-        return self.block_builder.emit(relax.op.index_tensor(args[0], args[1]))
+        return self.block_builder.emit(relax.op.index_tensor(args[0], indices))
         # return self.block_builder.emit(relax.op.index_tensor(x, indices))
 
     def _permute(self, node: fx.Node) -> relax.Var:
