@@ -182,3 +182,10 @@ class EinsumAttrs(Attrs):
 @tvm._ffi.register_object("relax.attrs.FlipAttrs")
 class FlipAttrs(Attrs):
     """Attributes for flip operator"""
+
+
+# TODO is this needed? It looks like not all ops are here
+@tvm._ffi.register_object("relax.attrs.IndexTensorAttrs")
+class IndexTensorAttrs(Attrs):
+    """Attributes used in index_tensor operator"""
+

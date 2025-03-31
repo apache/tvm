@@ -507,6 +507,12 @@ def gather_nd(data: Expr, indices: Expr, batch_dims: int = 0) -> Expr:
     """
     return _ffi_api.gather_nd(data, indices, batch_dims)  # type: ignore
 
+def index_tensor(data: Expr, indices: Expr) -> Expr:
+    """
+    TODO docstring
+    """
+    return _ffi_api.index_tensor(data, indices)  # type: ignore
+
 
 def scatter_elements(
     data: Expr, indices: Expr, updates: Expr, axis: int = 0, reduction: str = "update"

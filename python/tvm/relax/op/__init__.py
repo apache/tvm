@@ -94,6 +94,7 @@ from .manipulate import (
     flip,
     gather_elements,
     gather_nd,
+    index_tensor,
     layout_transform,
     one_hot,
     permute_dims,

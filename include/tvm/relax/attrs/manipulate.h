@@ -169,6 +169,12 @@ struct GatherNDAttrs : public tvm::AttrsNode<GatherNDAttrs> {
   }
 };  // struct GatherNDAttrs
 
+/*! \brief Attributes used in index_tensor operators */
+struct IndexTensorAttrs : public tvm::AttrsNode<IndexTensorAttrs> {
+  // TODO is this needed if we just don't have arguments?
+  TVM_DECLARE_ATTRS(IndexTensorAttrs, "relax.attrs.IndexTensorAttrs") {}
+};  // struct IndexTensorAttrs
+
 /*! \brief Attributes used in scatter_elements operators */
 struct ScatterElementsAttrs : public tvm::AttrsNode<ScatterElementsAttrs> {
   Integer axis;

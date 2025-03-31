@@ -1052,3 +1052,11 @@ def trilu(data, k, upper):
         return tvm.tir.Select(check_position, value, tvm.tir.const(0, data.dtype))
 
     return te.compute(data.shape, _apply_trilu, name="trilu", tag=topi.tag.ELEMWISE)
+
+
+def index_tensor(data, indices):
+    """ TODO docstring   """
+    # TODO actually implement!
+    print("we have reached index_tensor in topi !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
+    return topi.sum(data, axis=[0])
+

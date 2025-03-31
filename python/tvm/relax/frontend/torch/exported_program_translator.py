@@ -493,6 +493,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
                         assert (
                             func_name in self.convert_map
                         ), f"Unsupported function type {func_name}"
+                        print("found function", func_name, "!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
                         self.env[node] = self.convert_map[func_name](node)
                     else:
                         raise ValueError(f"Unsupported op {node.op}")
