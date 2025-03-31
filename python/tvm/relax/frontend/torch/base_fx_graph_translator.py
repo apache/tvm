@@ -334,9 +334,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
 
         shrink_neg = relax.op.multiply(
             relax.op.add(x, lambd),
-            relax.op.astype(
-                relax.op.less(x, relax.op.negative(lambd)), x.struct_info.dtype
-            ),
+            relax.op.astype(relax.op.less(x, relax.op.negative(lambd)), x.struct_info.dtype),
         )
 
         # Combine the positive and negative shrink results

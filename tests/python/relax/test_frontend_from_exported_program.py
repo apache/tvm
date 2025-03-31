@@ -769,9 +769,7 @@ def test_softshrink():
                 lv1: R.Tensor((1, 3, 10, 10), dtype="bool") = R.greater(
                     input, R.const(0.5, "float32")
                 )
-                lv2: R.Tensor((1, 3, 10, 10), dtype="float32") = R.astype(
-                    lv1, "float32"
-                )
+                lv2: R.Tensor((1, 3, 10, 10), dtype="float32") = R.astype(lv1, "float32")
                 lv3: R.Tensor((1, 3, 10, 10), dtype="float32") = R.multiply(lv, lv2)
 
                 lv4: R.Tensor((1, 3, 10, 10), dtype="float32") = R.add(
@@ -779,9 +777,7 @@ def test_softshrink():
                 )
                 lv5: R.Tensor((), dtype="float32") = R.negative(R.const(0.5, "float32"))
                 lv6: R.Tensor((1, 3, 10, 10), dtype="bool") = R.less(input, lv5)
-                lv7: R.Tensor((1, 3, 10, 10), dtype="float32") = R.astype(
-                    lv6, "float32"
-                )
+                lv7: R.Tensor((1, 3, 10, 10), dtype="float32") = R.astype(lv6, "float32")
                 lv8: R.Tensor((1, 3, 10, 10), dtype="float32") = R.multiply(lv4, lv7)
 
                 lv9: R.Tensor((1, 3, 10, 10), dtype="float32") = R.add(lv3, lv8)
