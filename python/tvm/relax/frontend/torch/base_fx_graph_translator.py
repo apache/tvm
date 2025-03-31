@@ -339,7 +339,7 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
 
         # Combine the positive and negative shrink results
         return self.block_builder.emit(relax.op.add(shrink_pos, shrink_neg))
-    
+
     def _selu(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         alpha = node.args[1] if len(node.args) > 1 else node.kwargs.get("alpha", 1.6732631921768188)

@@ -743,6 +743,7 @@ def test_softmax():
     verify_model(Softmax(), example_args, {}, expected1)
     verify_model(Softmax2(), example_args, {}, expected1)
 
+
 def test_softshrink():
     class Softshrink(Module):
         def __init__(self):
@@ -789,6 +790,7 @@ def test_softshrink():
     example_args = (torch.randn(1, 3, 10, 10, dtype=torch.float32),)
     verify_model(Softshrink(), example_args, {}, expected_softshrink)
     verify_model(Softshrink2(), example_args, {}, expected_softshrink)
+
 
 def test_tril_triu():
     example_args = (torch.randn(10, 10, dtype=torch.float32),)
