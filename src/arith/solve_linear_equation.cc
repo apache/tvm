@@ -458,7 +458,10 @@ TVM_REGISTER_GLOBAL("arith.SolveLinearEquations").set_body([](TVMArgs args, TVMR
   if (args.size() == 1) {
     *ret = SolveLinearEquations(args[0]);
   } else if (args.size() == 3) {
-    IntConstraints problem(args[0], args[1], args[2]);
+    Optional<Array<Var>> opt_vars = args[0];
+    Optional<Map<Var, Range>> opt_map = args[1];
+    Optional<Array<PrimExpr>> opt_relations = args[2];
+    IntConstraints problem(opt_vars.value_or({}), opt_map.value_or({}), opt_relations.value_or({}));
     *ret = SolveLinearEquations(problem);
   } else {
     LOG(FATAL) << "arith.SolveLinearEquations expects 1 or 3 arguments, gets " << args.size();
