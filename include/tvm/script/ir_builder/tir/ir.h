@@ -112,7 +112,7 @@ Buffer MatchBuffer(ObjectRef param, Array<PrimExpr> shape, DataType dtype = Data
                    Optional<Var> data = NullOpt, Array<PrimExpr> strides = {},
                    PrimExpr elem_offset = PrimExpr(), String storage_scope = "global",
                    int align = -1, int offset_factor = 0, String buffer_type = "default",
-                   Array<IntImm> axis_separators = {});
+                   Optional<Array<IntImm>> axis_separators = std::nullopt);
 
 /*!
  * \brief The block declaration statement.

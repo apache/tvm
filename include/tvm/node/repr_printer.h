@@ -107,6 +107,12 @@ inline std::ostream& operator<<(std::ostream& os, const Any& n) {  // NOLINT(*)
   return os;
 }
 
+template <typename... V>
+inline std::ostream& operator<<(std::ostream& os, const Variant<V...>& n) {  // NOLINT(*)
+  ReprPrinter(os).Print(Any(n));
+  return os;
+}
+
 inline std::string AsLegacyRepr(const ObjectRef& n) {
   std::ostringstream os;
   ReprLegacyPrinter(os).Print(n);

@@ -149,9 +149,10 @@ ComputeOp::ComputeOp(std::string name, std::string tag, Map<String, ffi::Any> at
 }
 
 TVM_REGISTER_GLOBAL("te.ComputeOp")
-    .set_body_typed([](std::string name, std::string tag, Map<String, ffi::Any> attrs,
-                       Array<IterVar> axis,
-                       Array<PrimExpr> body) { return ComputeOp(name, tag, attrs, axis, body); });
+    .set_body_typed([](std::string name, std::string tag, Optional<Map<String, ffi::Any>> attrs,
+                       Array<IterVar> axis, Array<PrimExpr> body) {
+      return ComputeOp(name, tag, attrs.value_or({}), axis, body);
+    });
 
 // The schedule related logics
 Array<Tensor> ComputeOpNode::InputTensors() const {

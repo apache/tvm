@@ -556,7 +556,8 @@ TVM_REGISTER_GLOBAL("arith.SolveInequalitiesToRange").set_body([](TVMArgs args, 
   if (args.size() == 1) {
     *ret = SolveInequalitiesToRange(args[0]);
   } else if (args.size() == 3) {
-    IntConstraints problem(args[0], args[1], args[2]);
+    Optional<Map<Var, Range>> opt_map = args[1];
+    IntConstraints problem(args[0], opt_map.value_or({}), args[2]);
     *ret = SolveInequalitiesToRange(problem);
   } else {
     LOG(FATAL) << "arith.SolveInequalitiesToRange expects 1 or 3 arguments, gets " << args.size();
@@ -568,7 +569,8 @@ TVM_REGISTER_GLOBAL("arith.SolveInequalitiesDeskewRange")
       if (args.size() == 1) {
         *ret = SolveInequalitiesDeskewRange(args[0]);
       } else if (args.size() == 3) {
-        IntConstraints problem(args[0], args[1], args[2]);
+        Optional<Map<Var, Range>> opt_map = args[1];
+        IntConstraints problem(args[0], opt_map.value_or({}), args[2]);
         *ret = SolveInequalitiesDeskewRange(problem);
       } else {
         LOG(FATAL) << "arith.SolveInequalitiesDeskewRange expects 1 or 3 arguments, gets "
