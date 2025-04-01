@@ -34,8 +34,8 @@
 // #include <tvm/node/structural_hash.h>
 //  #include <tvm/runtime/profiling.h>
 //  #include <tvm/runtime/registry.h>
-#include <tvm/ir/expr.h>
-#include <tvm/tir/expr.h>
+// #include <tvm/ir/expr.h>
+// #include <tvm/tir/expr.h>
 
 // #include <tvm/runtime/packed_func.h>
 // #include <tvm/runtime/registry.h>
@@ -46,10 +46,10 @@ namespace debug {
 
 using namespace tvm::runtime;
 
-TVM_REGISTER_GLOBAL("tvm.debug.Test").set_body_typed([](PrimExpr value) {
-  LOG(INFO) << value;
-  return value;
-});
+// TVM_REGISTER_GLOBAL("tvm.debug.Test").set_body_typed([](PrimExpr value) {
+//   LOG(INFO) << value;
+//   return value;
+// });
 
 }  // namespace debug
 }  // namespace tvm

@@ -195,8 +195,8 @@ bool SEqualReducer::AnyEqual(const ffi::Any& lhs, const ffi::Any& rhs,
       return operator()(lhs.operator ObjectRef(), rhs.operator ObjectRef());
     }
   }
-  if (ffi::details::AnyUnsafe::GetTVMFFIAnyPtrFromAny(lhs)->v_uint64 ==
-      ffi::details::AnyUnsafe::GetTVMFFIAnyPtrFromAny(rhs)->v_uint64) {
+  if (ffi::details::AnyUnsafe::TVMFFIAnyPtrFromAny(lhs)->v_uint64 ==
+      ffi::details::AnyUnsafe::TVMFFIAnyPtrFromAny(rhs)->v_uint64) {
     return true;
   }
   record_mismatch();

@@ -232,8 +232,7 @@ inline void AnyViewToLegacyTVMArgValue(TVMFFIAny src, TVMValue* value, int* type
  * \param type_code The type code to store the result
  */
 inline void MoveAnyToLegacyTVMValue(Any&& src, TVMValue* value, int* type_code) {
-  TVMFFIAny val;
-  ffi::details::AnyUnsafe::MoveAnyToTVMFFIAny(std::move(src), &val);
+  TVMFFIAny val = ffi::details::AnyUnsafe::MoveAnyToTVMFFIAny(std::move(src));
   // NOTE: conversion rule is the same as AnyViewToLegacyTVMArgValue
   AnyViewToLegacyTVMArgValue(val, value, type_code);
 }

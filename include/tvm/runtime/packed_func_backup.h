@@ -1201,7 +1201,8 @@ class TVMRetValue : public TVMPODValue_CRTP_<TVMRetValue> {
     if (other != nullptr) {
       this->Clear();
       type_code_ = type_code;
-      value_.v_handle = ffi::details::ObjectUnsafe::MoveTVMFFIObjectPtrFromObjectPtr(&other);
+      value_.v_handle =
+          ffi::details::ObjectUnsafe::MoveObjectPtrToTVMFFIObjectPtr(std::move(other));
     } else {
       SwitchToPOD(kTVMNullptr);
       value_.v_handle = nullptr;
@@ -2098,7 +2099,7 @@ inline void TVMArgsSetter::SetObject(size_t i, T&& value) const {
     return;
   }
 
-  Object* ptr = ffi::details::ObjectUnsafe::GetRawObjectPtrFromObjectRef(value);
+  Object* ptr = ffi::details::ObjectUnsafe::RawObjectPtrFromObjectRef(value);
   if constexpr (std::is_base_of_v<NDArray::ContainerType, ContainerType> ||
                 std::is_base_of_v<ContainerType, NDArray::ContainerType>) {
     if (std::is_base_of_v<NDArray::ContainerType, ContainerType> ||
@@ -2190,7 +2191,7 @@ inline void TVMArgsSetter::SetObject(size_t i, T&& value) const {
     type_codes_[i] = kTVMObjectRValueRefArg;
   } else {
     // value.data_.data_;
-    values_[i].v_handle = ffi::details::ObjectUnsafe::GetTVMFFIObjectPtrFromObjectRef(value);
+    values_[i].v_handle = ffi::details::ObjectUnsafe::TVMFFIObjectPtrFromObjectRef(value);
     type_codes_[i] = kTVMObjectHandle;
   }
 }

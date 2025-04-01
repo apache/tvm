@@ -137,8 +137,8 @@ class StructuralEqual : public BaseValueEqual {
       return operator()(lhs.operator ObjectRef(), rhs.operator ObjectRef(), map_free_params);
     }
     // POD value can always use v_int64 to get the hash value
-    return (ffi::details::AnyUnsafe::GetTVMFFIAnyPtrFromAny(lhs)->v_uint64 ==
-            ffi::details::AnyUnsafe::GetTVMFFIAnyPtrFromAny(rhs)->v_uint64);
+    return (ffi::details::AnyUnsafe::TVMFFIAnyPtrFromAny(lhs)->v_uint64 ==
+            ffi::details::AnyUnsafe::TVMFFIAnyPtrFromAny(rhs)->v_uint64);
   }
 };
 
