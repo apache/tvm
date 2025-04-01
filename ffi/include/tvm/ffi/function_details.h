@@ -108,34 +108,6 @@ struct FunctionInfo<R (*)(Args...)> : FuncFunctorImpl<R, Args...> {};
 /*! \brief Using static function to output TypedPackedFunc signature */
 typedef std::string (*FGetFuncSignature)();
 
-template <typename T>
-TVM_FFI_INLINE std::optional<T> as(AnyView arg) {
-  return arg.as<T>();
-}
-template <>
-TVM_FFI_INLINE std::optional<Any> as<Any>(AnyView arg) {
-  return Any(arg);
-}
-template <>
-TVM_FFI_INLINE std::optional<AnyView> as<AnyView>(AnyView arg) {
-  return arg;
-}
-
-template <typename T>
-TVM_FFI_INLINE std::string GetMismatchTypeInfo(const TVMFFIAny* source) {
-  return TypeTraits<T>::GetMismatchTypeInfo(source);
-}
-
-template <>
-TVM_FFI_INLINE std::string GetMismatchTypeInfo<Any>(const TVMFFIAny* source) {
-  return TypeIndexToTypeKey(source->type_index);
-}
-
-template <>
-TVM_FFI_INLINE std::string GetMismatchTypeInfo<AnyView>(const TVMFFIAny* source) {
-  return TypeIndexToTypeKey(source->type_index);
-}
-
 /*!
  * \brief Auxilary argument value with context for error reporting
  */
@@ -156,17 +128,25 @@ class ArgValueWithContext {
   template <typename Type>
   TVM_FFI_INLINE operator Type() {
     using TypeWithoutCR = std::remove_const_t<std::remove_reference_t<Type>>;
-    std::optional<TypeWithoutCR> opt = as<TypeWithoutCR>(args_[arg_index_]);
-    if (!opt.has_value()) {
-      TVMFFIAny any_data = args_[arg_index_].CopyToTVMFFIAny();
-      TVM_FFI_THROW(TypeError) << "Mismatched type on argument #" << arg_index_
-                               << " when calling: `"
-                               << (optional_name_ == nullptr ? "" : *optional_name_)
-                               << (f_sig_ == nullptr ? "" : (*f_sig_)()) << "`. Expected `"
-                               << Type2Str<TypeWithoutCR>::v() << "` but got `"
-                               << GetMismatchTypeInfo<TypeWithoutCR>(&any_data) << '`';
+
+    if constexpr (std::is_same_v<TypeWithoutCR, AnyView>) {
+      return args_[arg_index_];
+    } else if constexpr (std::is_same_v<TypeWithoutCR, Any>) {
+      return Any(args_[arg_index_]);
+    } else {
+      std::optional<TypeWithoutCR> opt = args_[arg_index_].as<TypeWithoutCR>();
+      if (!opt.has_value()) {
+        TVMFFIAny any_data = args_[arg_index_].CopyToTVMFFIAny();
+        TVM_FFI_THROW(TypeError) << "Mismatched type on argument #" << arg_index_
+                                 << " when calling: `"
+                                 << (optional_name_ == nullptr ? "" : *optional_name_)
+                                 << (f_sig_ == nullptr ? "" : (*f_sig_)()) << "`. Expected `"
+                                 << Type2Str<TypeWithoutCR>::v() << "` but got `"
+                                 << TypeTraits<TypeWithoutCR>::GetMismatchTypeInfo(&any_data)
+                                 << '`';
+      }
+      return *std::move(opt);
     }
-    return *std::move(opt);
   }
 
  private:

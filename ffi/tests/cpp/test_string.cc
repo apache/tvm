@@ -363,7 +363,7 @@ TEST(String, StdString) {
 TEST(String, CAPIAccessor) {
   using namespace std;
   String s{"hello"};
-  TVMFFIObjectHandle obj = details::ObjectUnsafe::GetRawObjectPtrFromObjectRef(s);
+  TVMFFIObjectHandle obj = details::ObjectUnsafe::RawObjectPtrFromObjectRef(s);
   TVMFFIByteArray* arr = TVMFFIBytesGetByteArrayPtr(obj);
   EXPECT_EQ(arr->size, 5);
   EXPECT_EQ(std::string(arr->data, arr->size), "hello");

@@ -94,7 +94,7 @@ class ReflectionDef {
   template <typename T>
   static int FieldGetter(void* field, TVMFFIAny* result) {
     TVM_FFI_SAFE_CALL_BEGIN();
-    details::AnyUnsafe::MoveAnyToTVMFFIAny(Any(*reinterpret_cast<T*>(field)), result);
+    *result = details::AnyUnsafe::MoveAnyToTVMFFIAny(Any(*reinterpret_cast<T*>(field)));
     TVM_FFI_SAFE_CALL_END();
   }
 

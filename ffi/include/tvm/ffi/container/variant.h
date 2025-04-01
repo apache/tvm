@@ -104,7 +104,7 @@ class Variant {
     static_assert(all_object_v,
                   "All types used in Variant<...> must be derived from ObjectRef "
                   "to enable ObjectPtrHash/ObjectPtrEqual");
-    return details::AnyUnsafe::GetObjectPtrFromAny(data_);
+    return details::AnyUnsafe::ObjectPtrFromAnyAfterCheck(data_);
   }
 };
 
@@ -118,7 +118,7 @@ struct TypeTraits<Variant<V...>> : public TypeTraitsBase {
   }
 
   static TVM_FFI_INLINE void MoveToAny(Variant<V...> src, TVMFFIAny* result) {
-    details::AnyUnsafe::MoveAnyToTVMFFIAny(std::move(src.data_), result);
+    *result = details::AnyUnsafe::MoveAnyToTVMFFIAny(std::move(src.data_));
   }
 
   static TVM_FFI_INLINE std::string GetMismatchTypeInfo(const TVMFFIAny* src) {

@@ -99,7 +99,7 @@ TEST(ObjectRef, as) {
 
 TEST(Object, CAPIAccessor) {
   ObjectRef a = TInt(10);
-  TVMFFIObjectHandle obj = details::ObjectUnsafe::GetRawObjectPtrFromObjectRef(a);
+  TVMFFIObjectHandle obj = details::ObjectUnsafe::RawObjectPtrFromObjectRef(a);
   int32_t type_index = TVMFFIObjectGetTypeIndex(obj);
   EXPECT_EQ(type_index, TIntObj::RuntimeTypeIndex());
 }

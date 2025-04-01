@@ -44,7 +44,7 @@ class SafeCallContext {
   }
 
   void MoveFromLastError(TVMFFIAny* result) {
-    details::AnyUnsafe::MoveAnyToTVMFFIAny(std::move(last_error_), result);
+    *result = details::AnyUnsafe::MoveAnyToTVMFFIAny(std::move(last_error_));
   }
 
   static SafeCallContext* ThreadLocal() {
@@ -124,7 +124,7 @@ int TVMFFIFuncCreate(void* self, TVMFFISafeCallType safe_call, void (*deleter)(v
   using namespace tvm::ffi;
   TVM_FFI_SAFE_CALL_BEGIN();
   Function func = Function::FromExternC(self, safe_call, deleter);
-  *out = details::ObjectUnsafe::MoveTVMFFIObjectPtrFromObjectRef(&func);
+  *out = details::ObjectUnsafe::MoveObjectRefToTVMFFIObjectPtr(std::move(func));
   TVM_FFI_SAFE_CALL_END();
 }
 
@@ -142,7 +142,7 @@ int TVMFFIFuncGetGlobal(const char* name, TVMFFIObjectHandle* out) {
   const Function* fp = GlobalFunctionTable::Global()->Get(name);
   if (fp != nullptr) {
     Function func(*fp);
-    *out = details::ObjectUnsafe::MoveTVMFFIObjectPtrFromObjectRef(&func);
+    *out = details::ObjectUnsafe::MoveObjectRefToTVMFFIObjectPtr(std::move(func));
   } else {
     *out = nullptr;
   }

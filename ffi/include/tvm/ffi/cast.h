@@ -91,7 +91,7 @@ inline SubRef Downcast(BaseRef ref) {
       TVM_FFI_THROW(TypeError) << "Downcast from " << ref->GetTypeKey() << " to "
                                << SubRef::ContainerType::_type_key << " failed.";
     }
-    return details::ObjectUnsafe::DowncastRefNoCheck<SubRef>(std::move(ref));
+    return SubRef(details::ObjectUnsafe::ObjectPtrFromObjectRef<Object>(std::move(ref)));
   } else {
     if constexpr (is_optional_type_v<SubRef> || SubRef::_type_is_nullable) {
       return SubRef(ObjectPtr<Object>(nullptr));
