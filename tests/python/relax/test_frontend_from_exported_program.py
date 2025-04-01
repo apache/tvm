@@ -518,7 +518,7 @@ def test_extended_unary_ops():
     class Selu2(Module):
         def forward(self, input):
             return torch.nn.functional.selu(input)
-    
+
     @tvm.script.ir_module
     class expected_selu:
         @R.function
