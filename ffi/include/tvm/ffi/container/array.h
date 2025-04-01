@@ -254,6 +254,12 @@ class ArrayNode : public Object, public details::InplaceArrayBase<ArrayNode, Any
   template <typename, typename>
   friend class Array;
 
+  template <typename... Types>
+  friend class Tuple;
+
+  template <typename, typename>
+  friend struct TypeTraits;
+
   // To specialize make_object<ArrayNode>
   friend ObjectPtr<ArrayNode> make_object<>();
 };

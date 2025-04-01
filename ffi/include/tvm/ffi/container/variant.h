@@ -41,7 +41,7 @@ namespace ffi {
 template <typename... V>
 class Variant {
  public:
-  static constexpr bool all_compatible_with_any_v = (TypeTraits<V>::enabled && ...);
+  static constexpr bool all_compatible_with_any_v = (TypeTraits<V>::container_enabled && ...);
   static_assert(all_compatible_with_any_v,
                 "All types used in Variant<...> must be compatible with Any");
 
