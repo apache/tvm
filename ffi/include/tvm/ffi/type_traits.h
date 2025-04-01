@@ -395,7 +395,7 @@ struct ObjectRefTypeTraitsBase : public TypeTraitsBase {
         return;
       }
     }
-    TVMFFIObject* obj_ptr = details::ObjectUnsafe::GetTVMFFIObjectPtrFromObjectRef(src);
+    TVMFFIObject* obj_ptr = details::ObjectUnsafe::TVMFFIObjectPtrFromObjectRef(src);
     result->type_index = obj_ptr->type_index;
     result->v_obj = obj_ptr;
   }
@@ -407,7 +407,7 @@ struct ObjectRefTypeTraitsBase : public TypeTraitsBase {
         return;
       }
     }
-    TVMFFIObject* obj_ptr = details::ObjectUnsafe::MoveTVMFFIObjectPtrFromObjectRef(&src);
+    TVMFFIObject* obj_ptr = details::ObjectUnsafe::MoveObjectRefToTVMFFIObjectPtr(std::move(src));
     result->type_index = obj_ptr->type_index;
     result->v_obj = obj_ptr;
   }
@@ -537,7 +537,7 @@ struct TypeTraits<const TObject*, std::enable_if_t<std::is_base_of_v<Object, TOb
     result->type_index = obj_ptr->type_index;
     result->v_obj = obj_ptr;
     // needs to increase ref because original weak ptr do not own the code
-    details::ObjectUnsafe::IncRefObjectInAny(result);
+    details::ObjectUnsafe::IncRefObjectHandle(result->v_obj);
   }
 
   static TVM_FFI_INLINE bool CheckAnyStorage(const TVMFFIAny* src) {

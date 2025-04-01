@@ -165,17 +165,17 @@ namespace details {
 TVM_FFI_INLINE void InplaceConvertAnyViewToAny(TVMFFIAny* data,
                                                [[maybe_unused]] size_t extra_any_bytes = 0) {
   if (data->type_index >= TVMFFITypeIndex::kTVMFFIStaticObjectBegin) {
-    details::ObjectUnsafe::IncRefObjectInAny(data);
+    details::ObjectUnsafe::IncRefObjectHandle(data->v_obj);
   } else if (data->type_index == TypeIndex::kTVMFFIRawStr) {
     // convert raw string to owned string object
     String temp(data->v_c_str);
     data->type_index = TypeIndex::kTVMFFIStr;
-    data->v_obj = details::ObjectUnsafe::MoveTVMFFIObjectPtrFromObjectRef(&temp);
+    data->v_obj = details::ObjectUnsafe::MoveObjectRefToTVMFFIObjectPtr(std::move(temp));
   } else if (data->type_index == TypeIndex::kTVMFFIByteArrayPtr) {
     // convert byte array to owned bytes object
     Bytes temp(*static_cast<TVMFFIByteArray*>(data->v_ptr));
     data->type_index = TypeIndex::kTVMFFIBytes;
-    data->v_obj = details::ObjectUnsafe::MoveTVMFFIObjectPtrFromObjectRef(&temp);
+    data->v_obj = details::ObjectUnsafe::MoveObjectRefToTVMFFIObjectPtr(std::move(temp));
   }
 }
 }  // namespace details
@@ -197,7 +197,7 @@ class Any {
    */
   TVM_FFI_INLINE void reset() {
     if (data_.type_index >= TVMFFITypeIndex::kTVMFFIStaticObjectBegin) {
-      details::ObjectUnsafe::DecRefObjectInAny(&data_);
+      details::ObjectUnsafe::DecRefObjectHandle(data_.v_obj);
     }
     data_.type_index = TVMFFITypeIndex::kTVMFFINone;
     data_.v_int64 = 0;
@@ -218,7 +218,7 @@ class Any {
   // constructors from Any
   Any(const Any& other) : data_(other.data_) {
     if (data_.type_index >= TypeIndex::kTVMFFIStaticObjectBegin) {
-      details::ObjectUnsafe::IncRefObjectInAny(&data_);
+      details::ObjectUnsafe::IncRefObjectHandle(data_.v_obj);
     }
   }
   Any(Any&& other) : data_(other.data_) {
@@ -370,20 +370,13 @@ struct Type2Str<void> {
 // Extra unsafe method to help any manipulation
 struct AnyUnsafe : public ObjectUnsafe {
   // FFI related operations
-  /*!
-   * Move the current data to FFI any
-   * \param result the output to nmove to
-   */
-  static TVM_FFI_INLINE void MoveAnyToTVMFFIAny(Any&& any, TVMFFIAny* result) {
-    *result = any.data_;
+  static TVM_FFI_INLINE TVMFFIAny MoveAnyToTVMFFIAny(Any&& any) {
+    TVMFFIAny result = any.data_;
     any.data_.type_index = TypeIndex::kTVMFFINone;
     any.data_.v_int64 = 0;
+    return result;
   }
 
-  /*!
-   * \brief Move the current data to FFI any
-   * \param data the input to move from
-   */
   static TVM_FFI_INLINE Any MoveTVMFFIAnyToAny(TVMFFIAny data) {
     Any any;
     any.data_ = data;
@@ -404,13 +397,14 @@ struct AnyUnsafe : public ObjectUnsafe {
     }
   }
 
-  static TVM_FFI_INLINE Object* GetObjectPtrFromAny(const Any& ref) {
+  static TVM_FFI_INLINE Object* ObjectPtrFromAnyAfterCheck(const Any& ref) {
     return reinterpret_cast<Object*>(ref.data_.v_obj);
   }
 
-  static TVM_FFI_INLINE const TVMFFIAny* GetTVMFFIAnyPtrFromAny(const Any& ref) {
+  static TVM_FFI_INLINE const TVMFFIAny* TVMFFIAnyPtrFromAny(const Any& ref) {
     return &(ref.data_);
   }
+
   template <typename T>
   static TVM_FFI_INLINE std::string GetMismatchTypeInfo(const Any& ref) {
     return TypeTraits<T>::GetMismatchTypeInfo(&(ref.data_));
