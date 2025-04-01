@@ -418,6 +418,21 @@ def gen_flashinfer_mla_module(
 
 
 def gen_sampling_module(target: Target, num_threads: int = 8):
+    """
+    Generate a FlashInfer module for sampling kernels.
+
+    Parameters
+    ----------
+    target : Target
+        The target device for which the module will be compiled.
+    num_threads : int, optional
+        The number of threads to use during compilation (default is 8).
+
+    Returns
+    -------
+    List[tvm.runtime.Module]
+        A list of compiled static library modules for the FlashInfer sampling kernels.
+    """
     try:
         from flashinfer.jit import (  # pylint: disable=import-outside-toplevel
             gen_sampling_tvm_binding,
