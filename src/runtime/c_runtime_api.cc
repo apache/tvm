@@ -487,8 +487,7 @@ int TVMModLoadFromFile(const char* file_name, const char* format, TVMModuleHandl
   API_BEGIN();
   tvm::ffi::Any ret;
   ret = Module::LoadFromFile(file_name, format);
-  TVMFFIAny val;
-  tvm::ffi::details::AnyUnsafe::MoveAnyToTVMFFIAny(std::move(ret), &val);
+  TVMFFIAny val = tvm::ffi::details::AnyUnsafe::MoveAnyToTVMFFIAny(std::move(ret));
   *out = val.v_obj;
   API_END();
 }
@@ -505,8 +504,7 @@ int TVMModGetFunction(TVMModuleHandle mod, const char* func_name, int query_impo
   PackedFunc pf = ObjectInternal::GetModuleNode(mod)->GetFunction(func_name, query_imports != 0);
   if (pf != nullptr) {
     tvm::ffi::Any ret = pf;
-    TVMFFIAny val;
-    tvm::ffi::details::AnyUnsafe::MoveAnyToTVMFFIAny(std::move(ret), &val);
+    TVMFFIAny val = tvm::ffi::details::AnyUnsafe::MoveAnyToTVMFFIAny(std::move(ret));
     *func = val.v_obj;
   } else {
     *func = nullptr;

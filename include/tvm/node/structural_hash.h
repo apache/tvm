@@ -112,7 +112,7 @@ class StructuralHash : public BaseValueHash {
       return operator()(key.operator ObjectRef());
     }
     // POD value can always use v_int64 to get the hash value
-    return ffi::details::AnyUnsafe::GetTVMFFIAnyPtrFromAny(key)->v_uint64;
+    return ffi::details::AnyUnsafe::TVMFFIAnyPtrFromAny(key)->v_uint64;
   }
 };
 
@@ -207,8 +207,7 @@ class SHashReducer {
       return operator()(key.operator ObjectRef());
     }
     // POD value can always use v_int64 to get the hash value
-    handler_->SHashReduceHashedValue(
-        ffi::details::AnyUnsafe::GetTVMFFIAnyPtrFromAny(key)->v_uint64);
+    handler_->SHashReduceHashedValue(ffi::details::AnyUnsafe::TVMFFIAnyPtrFromAny(key)->v_uint64);
   }
   /*!
    * \brief Push hash of key to the current sequence of hash values.

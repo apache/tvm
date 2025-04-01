@@ -362,8 +362,8 @@ LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance, const TargetJSON& target)
     opt_level_ = defaults::opt_level;
   }
 #else
-  if (maybe_level.defined()) {
-    int level = maybe_level.value()->value;
+  if (maybe_level.has_value()) {
+    int level = maybe_level.value().operator int();
     if (level <= 0) {
       opt_level_ = llvm::CodeGenOptLevel::None;
     } else if (level == 1) {

@@ -36,8 +36,7 @@ RPCSession::PackedFuncHandle LocalSession::GetFunction(const std::string& name) 
   if (auto* fp = tvm::runtime::Registry::Get(name)) {
     // return raw handle because the remote need to explicitly manage it.
     Any ret = *fp;
-    TVMFFIAny ret_any;
-    ffi::details::AnyUnsafe::MoveAnyToTVMFFIAny(std::move(ret), &ret_any);
+    TVMFFIAny ret_any = ffi::details::AnyUnsafe::MoveAnyToTVMFFIAny(std::move(ret));
     return ret_any.v_obj;
   } else {
     return nullptr;
@@ -50,11 +49,10 @@ void LocalSession::EncodeReturn(TVMRetValue rv, const FEncodeReturn& encode_retu
   // ABI convention for return value passing that is built on top of Any FFI.
   // We need to encode object pointers as opaque raw pointers for passing
   if (rv.as<NDArray>()) {
-    TVMFFIAny ret_any;
     // We follow a special protocol to return NDArray to client side
     // The first pack value is the NDArray handle as DLTensor
     // The second pack value is a customized deleter that deletes the NDArray.
-    ffi::details::AnyUnsafe::MoveAnyToTVMFFIAny(std::move(rv), &ret_any);
+    TVMFFIAny ret_any = ffi::details::AnyUnsafe::MoveAnyToTVMFFIAny(std::move(rv));
     void* opaque_handle = ret_any.v_obj;
     packed_args[0] = static_cast<int32_t>(ffi::TypeIndex::kTVMFFINDArray);
     packed_args[1] =
@@ -75,9 +73,8 @@ void LocalSession::EncodeReturn(TVMRetValue rv, const FEncodeReturn& encode_retu
     packed_args[1] = (*opt_str).data();
     encode_return(ffi::PackedArgs(packed_args, 2));
   } else if (rv.as<ffi::ObjectRef>()) {
-    TVMFFIAny ret_any;
     packed_args[0] = rv.type_index();
-    ffi::details::AnyUnsafe::MoveAnyToTVMFFIAny(std::move(rv), &ret_any);
+    TVMFFIAny ret_any = ffi::details::AnyUnsafe::MoveAnyToTVMFFIAny(std::move(rv));
     void* opaque_handle = ret_any.v_obj;
     packed_args[1] = opaque_handle;
     encode_return(ffi::PackedArgs(packed_args, 2));
