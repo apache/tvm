@@ -57,6 +57,9 @@ Expr gelu(Expr data);
 /*! \brief Gaussian Error Linear Units function approximated by tanh. */
 Expr gelu_tanh(Expr data);
 
+/*! \brief Scaled Exponential Linear Unit function. */
+Expr selu(Expr data);
+
 /*! \brief Sigmoid Linear Unit function. */
 Expr silu(Expr data);
 

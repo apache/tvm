@@ -340,37 +340,6 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         # Combine the positive and negative shrink results
         return self.block_builder.emit(relax.op.add(shrink_pos, shrink_neg))
 
-    def _selu(self, node: fx.Node) -> relax.Var:
-        x = self.env[node.args[0]]
-        alpha = node.args[1] if len(node.args) > 1 else node.kwargs.get("alpha", 1.6732631921768188)
-        gamma = node.args[2] if len(node.args) > 2 else node.kwargs.get("gamma", 1.0507009873554805)
-        dtype = x.struct_info.dtype
-
-        if isinstance(alpha, (int, float)):
-            alpha = relax.const(alpha, dtype)
-        else:
-            if not isinstance(alpha, relax.Var):
-                alpha = self.block_builder.emit(relax.const(alpha, dtype))
-
-        if isinstance(gamma, (int, float)):
-            gamma = relax.const(gamma, dtype)
-        else:
-            if not isinstance(gamma, relax.Var):
-                gamma = self.block_builder.emit(relax.const(gamma, dtype))
-
-        # gamma * (ReLU(x) + alpha * (exp(x) - 1))
-        return self.block_builder.emit(
-            relax.op.multiply(
-                gamma,
-                relax.op.add(
-                    relax.op.nn.relu(x),
-                    relax.op.multiply(
-                        alpha, relax.op.subtract(relax.op.exp(x), relax.const(1, dtype))
-                    ),
-                ),
-            )
-        )
-
     def _tril_triu(self, op: Callable) -> Callable:
         from torch import fx
 

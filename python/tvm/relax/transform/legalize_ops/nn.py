@@ -505,6 +505,22 @@ def _nn_gelu_tanh(bb: BlockBuilder, call: Call) -> Expr:
     return bb.call_te(te_gelu_tanh, call.args[0], primfunc_name_hint="gelu_tanh")
 
 
+@register_legalize("relax.nn.selu")
+def _nn_selu(bb: BlockBuilder, call: Call) -> Expr:
+    def te_selu(x: te.Tensor):
+        dtype = x.dtype
+        alpha = tir.const(1.6732632423543772848170429916717, dtype)
+        scale = tir.const(1.0507009873554804934193349852946, dtype)
+
+        # Compute SELU
+        # SELU(x)=scale∗(max(0,x)+min(0,α∗(exp(x)−1)))
+        positive_part = topi.maximum(x, tir.const(0, dtype))
+        negative_part = topi.minimum(tir.const(0, dtype), alpha * (topi.exp(x) - tir.const(1, dtype)))
+        return scale * (positive_part + negative_part)
+
+    return bb.call_te(te_selu, call.args[0], primfunc_name_hint="selu")
+
+
 @register_legalize("relax.nn.silu")
 def _nn_silu(bb: BlockBuilder, call: Call) -> Expr:
     def te_silu(x: te.Tensor):
