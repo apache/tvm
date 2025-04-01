@@ -500,5 +500,17 @@ def test_arange(target, dev):
     assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
 
 
+@tvm.testing.parametrize_targets("cuda")
+def test_index_select(target, dev):
+    class IndexSelectModel(nn.Module):
+        def forward(self, x):
+            indices = torch.tensor([0, 2])
+            return torch.index_select(x, 0, indices)
+
+    raw_data = np.random.rand(3, 4).astype("float32")
+    torch_module = IndexSelectModel().eval()
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
+
+
 if __name__ == "__main__":
     tvm.testing.main()

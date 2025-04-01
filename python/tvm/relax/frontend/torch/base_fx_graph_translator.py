@@ -307,6 +307,39 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         dim = node.args[1] if len(node.args) > 1 else node.kwargs.get("dim", -1)
         return self.block_builder.emit(relax.op.nn.softmax(x, dim))
 
+    def _softshrink(self, node: fx.Node) -> relax.Var:
+        """
+        Applies the Softshrink activation function in Relax.
+
+        Softshrink(x) =
+            x - λ    if x > λ
+            x + λ    if x < -λ
+            0        otherwise
+
+        Args:
+            node (fx.Node): The input node containing the tensor and lambda value.
+
+        Returns:
+            relax.Var: The resulting tensor after applying Softshrink.
+        """
+        args = self.retrieve_args(node)
+        x = args[0]
+        lambd = relax.const(args[1] if len(args) > 1 else 0.5, x.struct_info.dtype)
+
+        # Apply Softshrink transformation with masking
+        shrink_pos = relax.op.multiply(
+            relax.op.subtract(x, lambd),
+            relax.op.astype(relax.op.greater(x, lambd), x.struct_info.dtype),
+        )
+
+        shrink_neg = relax.op.multiply(
+            relax.op.add(x, lambd),
+            relax.op.astype(relax.op.less(x, relax.op.negative(lambd)), x.struct_info.dtype),
+        )
+
+        # Combine the positive and negative shrink results
+        return self.block_builder.emit(relax.op.add(shrink_pos, shrink_neg))
+
     def _selu(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         alpha = node.args[1] if len(node.args) > 1 else node.kwargs.get("alpha", 1.6732631921768188)
@@ -949,6 +982,12 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
 
         return convert
 
+    def _where(self, node: fx.Node) -> relax.Var:
+        condition = self.env[node.args[0]]
+        x = self.env[node.args[1]]
+        y = self.env[node.args[2]]
+        return self.block_builder.emit(relax.op.where(condition, x, y))
+
     ########## Manipulation ##########
 
     def _cat(self, node: fx.Node) -> relax.Var:
@@ -966,6 +1005,17 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         return self.block_builder.emit(
             relax.op.split(x=x, indices_or_sections=n_sections, axis=dim)
         )
+
+    def _cumprod(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+
+        dim = node.args[1] if len(node.args) > 1 else node.kwargs.get("dim", None)
+        if "dtype" in node.kwargs:
+            dtype = self._convert_data_type(str(node.kwargs["dtype"]), self.env)
+        else:
+            dtype = None
+
+        return self.block_builder.emit(relax.op.cumprod(x, dim, dtype))
 
     def _cumsum(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
@@ -1192,6 +1242,12 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         dtype = x.struct_info.dtype
         value = args[1] if isinstance(args[1], relax.Expr) else relax.const(args[1], dtype)
         return self.block_builder.emit(relax.op.full(x.struct_info.shape, value, dtype))
+
+    def _index_select(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        dim = node.args[1]
+        index = self.env[node.args[2]]
+        return self.block_builder.emit(relax.op.take(x, index, dim))
 
     def _new_ones(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
