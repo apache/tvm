@@ -43,6 +43,7 @@ def _is_supported_dtype(lhs_dtype, rhs_dtype, out_dtype):
         (lhs_dtype == "float16" and rhs_dtype == "float16")
         or (lhs_dtype == "float32" and rhs_dtype == "float32")
         or (lhs_dtype == "int8" and rhs_dtype == "int8")
+        or (lhs_dtype == "bfloat16" and rhs_dtype == "bfloat16")
     )
 
 
