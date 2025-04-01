@@ -515,7 +515,9 @@ def _nn_selu(bb: BlockBuilder, call: Call) -> Expr:
         # Compute SELU
         # SELU(x)=scale∗(max(0,x)+min(0,α∗(exp(x)−1)))
         positive_part = topi.maximum(x, tir.const(0, dtype))
-        negative_part = topi.minimum(tir.const(0, dtype), alpha * (topi.exp(x) - tir.const(1, dtype)))
+        negative_part = topi.minimum(
+            tir.const(0, dtype), alpha * (topi.exp(x) - tir.const(1, dtype))
+        )
         return scale * (positive_part + negative_part)
 
     return bb.call_te(te_selu, call.args[0], primfunc_name_hint="selu")
