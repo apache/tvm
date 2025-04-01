@@ -23,7 +23,7 @@ from tvm.ir.module import IRModule
 
 
 def verify(input, expected):
-    mod = tvm.relax.transform.FoldVDeviceScopeChange()(input)
+    mod = tvm.relax.backend.adreno.transform.FoldVDeviceScopeChange()(input)
     tvm.ir.assert_structural_equal(mod, expected)
 
 
