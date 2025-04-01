@@ -28,7 +28,6 @@ from typing import List
 
 @pytest.mark.skip(reason="Requires FlashInfer enabled and proper setup")
 def test_sampling():
-
     def load_module(name: str, static_modules: List[tvm.runtime.Module]):
         assert len(static_modules) > 0
         if len(static_modules) == 1:
