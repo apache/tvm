@@ -258,6 +258,22 @@ TOPI_DEFINE_BCAST_OP(floor_divide, {
 });
 
 /*!
+ * \fn log_add_exp
+ * \brief Compute log(exp(A) + exp(B)) with auto-broadcasting.
+ *
+ * This operation is useful for numerically stable log-sum-exp computations,
+ * which frequently appear in probabilistic and statistical models.
+ *
+ * \param A The first input tensor, or Expr.
+ * \param B The second input tensor, or Expr.
+ * \param name The name of the operation.
+ * \param tag The tag to mark the operation.
+ *
+ * \return The computed log-sum-exp result.
+ */
+TOPI_DEFINE_BCAST_OP(log_add_exp, { return tvm::logaddexp(a, b); });
+
+/*!
  * \fn trunc divide
  * \brief Compute trunc(A / B) with auto-broadcasting.
  *

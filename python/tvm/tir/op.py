@@ -3221,6 +3221,50 @@ def floordiv(a, b, span=None):
     return _ffi_api._OpFloorDiv(a, b, span)  # type: ignore
 
 
+def floordiv(a, b, span=None):
+    """Compute the floordiv of two expressions.
+
+    Parameters
+    ----------
+    a : PrimExpr
+        The left hand operand
+
+    b : PrimExpr
+        The right hand operand
+
+    span : Optional[Span]
+        The location of this operator in the source.
+
+    Returns
+    -------
+    res : PrimExpr
+        The result expression.
+    """
+    return _ffi_api._OpFloorDiv(a, b, span)  # type: ignore
+
+
+def logaddexp(a, b, span=None):
+    """Compute the logaddexp of two expressions.
+
+    Parameters
+    ----------
+    a : PrimExpr
+        The left hand operand
+
+    b : PrimExpr
+        The right hand operand
+
+    span : Optional[Span]
+        The location of this operator in the source.
+
+    Returns
+    -------
+    res : PrimExpr
+        The result expression.
+    """
+    return _ffi_api._OpLogAddExp(a, b, span)  # type: ignore
+
+
 def floormod(a, b, span=None):
     """Compute the floormod of two expressions.
 

@@ -85,6 +85,25 @@ def floor_divide(x1: Expr, x2: Expr) -> Expr:
     return _ffi_api.floor_divide(x1, x2)  # type: ignore
 
 
+def log_add_exp(x1: Expr, x2: Expr) -> Expr:
+    """
+    Compute the log of the sum of exponentials of the inputs, element-wise.
+    
+    Parameters
+    ----------
+    x1 : Expr
+        The first input tensor.
+    x2 : Expr
+        The second input tensor.
+
+    Returns
+    -------
+    Expr
+        The element-wise log-sum-exp of `x1` and `x2`.
+    """
+    return _ffi_api.log_add_exp(x1, x2)
+
+
 def multiply(x1: Expr, x2: Expr) -> Expr:
     """Multiplication with numpy-style broadcasting.
 

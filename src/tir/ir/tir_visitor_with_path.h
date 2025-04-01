@@ -131,6 +131,7 @@ class TIRVisitorWithPath : protected ExprFunctor<void(const PrimExpr&, ObjectPat
   void VisitExpr_(const DivNode* op, ObjectPath path) override;
   void VisitExpr_(const ModNode* op, ObjectPath path) override;
   void VisitExpr_(const FloorDivNode* op, ObjectPath path) override;
+  void VisitExpr_(const LogAddExpNode* op, ObjectPath path) override;
   void VisitExpr_(const FloorModNode* op, ObjectPath path) override;
   void VisitExpr_(const MinNode* op, ObjectPath path) override;
   void VisitExpr_(const MaxNode* op, ObjectPath path) override;

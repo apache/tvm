@@ -507,6 +507,13 @@ PrimExpr floordiv(PrimExpr a, PrimExpr b, Span span) {
   return tir::FloorDiv(a, b, span);
 }
 
+PrimExpr logaddexp(PrimExpr a, PrimExpr b, Span span) {
+  ICHECK(a.dtype().is_float()) << a;
+  ICHECK(b.dtype().is_float()) << b;
+  BinaryOpMatchTypes(a, b, span);
+  return tir::LogAddExp(a, b, span);
+}
+
 PrimExpr ceildiv(PrimExpr a, PrimExpr b, Span span) {
   ICHECK(a.dtype().is_int() || a.dtype().is_uint()) << a;
   ICHECK(b.dtype().is_int() || b.dtype().is_uint()) << b;
@@ -1134,6 +1141,7 @@ REGISTER_MAKE_BINARY_OP(_OpMod, truncmod);
 REGISTER_MAKE_BINARY_OP(_OpIndexDiv, indexdiv);
 REGISTER_MAKE_BINARY_OP(_OpIndexMod, indexmod);
 REGISTER_MAKE_BINARY_OP(_OpFloorDiv, floordiv);
+REGISTER_MAKE_BINARY_OP(_OpLogAddExp, logaddexp);
 REGISTER_MAKE_BINARY_OP(_OpFloorMod, floormod);
 REGISTER_MAKE_BINARY_OP(_OpTruncDiv, truncdiv);
 REGISTER_MAKE_BINARY_OP(_OpTruncMod, truncmod);

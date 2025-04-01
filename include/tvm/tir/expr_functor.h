@@ -128,6 +128,7 @@ class ExprFunctor<R(const PrimExpr& n, Args...)> {
   virtual R VisitExpr_(const DivNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const ModNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const FloorDivNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
+  virtual R VisitExpr_(const LogAddExpNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const FloorModNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const MinNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
   virtual R VisitExpr_(const MaxNode* op, Args... args) EXPR_FUNCTOR_DEFAULT;
@@ -170,6 +171,7 @@ class ExprFunctor<R(const PrimExpr& n, Args...)> {
     IR_EXPR_FUNCTOR_DISPATCH(DivNode);
     IR_EXPR_FUNCTOR_DISPATCH(ModNode);
     IR_EXPR_FUNCTOR_DISPATCH(FloorDivNode);
+    IR_EXPR_FUNCTOR_DISPATCH(LogAddExpNode);
     IR_EXPR_FUNCTOR_DISPATCH(FloorModNode);
     IR_EXPR_FUNCTOR_DISPATCH(MinNode);
     IR_EXPR_FUNCTOR_DISPATCH(MaxNode);
@@ -221,6 +223,7 @@ class TVM_DLL ExprVisitor : public ExprFunctor<void(const PrimExpr&)> {
   void VisitExpr_(const DivNode* op) override;
   void VisitExpr_(const ModNode* op) override;
   void VisitExpr_(const FloorDivNode* op) override;
+  void VisitExpr_(const LogAddExpNode* op) override;
   void VisitExpr_(const FloorModNode* op) override;
   void VisitExpr_(const MinNode* op) override;
   void VisitExpr_(const MaxNode* op) override;
@@ -266,6 +269,7 @@ class TVM_DLL ExprMutator : protected ExprFunctor<PrimExpr(const PrimExpr&)> {
   PrimExpr VisitExpr_(const DivNode* op) override;
   PrimExpr VisitExpr_(const ModNode* op) override;
   PrimExpr VisitExpr_(const FloorDivNode* op) override;
+  PrimExpr VisitExpr_(const LogAddExpNode* op) override;
   PrimExpr VisitExpr_(const FloorModNode* op) override;
   PrimExpr VisitExpr_(const MinNode* op) override;
   PrimExpr VisitExpr_(const MaxNode* op) override;

@@ -801,6 +801,25 @@ class FloorDiv(BinaryOpExpr):
         self.__init_handle_by_constructor__(_ffi_api.FloorDiv, a, b, span)  # type: ignore
 
 
+@tvm._ffi.register_object("tir.LogAddExp")
+class LogAddExp(BinaryOpExpr):
+    """LogAddExp node.
+
+    Parameters
+    ----------
+    a : PrimExpr
+        The left hand operand.
+
+    b : PrimExpr
+        The right hand operand.
+
+    span : Optional[Span]
+        The location of this expression in the source code.
+    """
+    def __init__(self, a: PrimExpr, b: PrimExpr, span: Optional[Span] = None) -> None:
+        self.__init_handle_by_constructor__(_ffi_api.LogAddExp, a, b, span)  # type: ignore
+
+
 @tvm._ffi.register_object("tir.FloorMod")
 class FloorMod(BinaryOpExpr):
     """FloorMod node.
