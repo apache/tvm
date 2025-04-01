@@ -416,6 +416,7 @@ def gen_flashinfer_mla_module(
     modules = _load_flashinfer_modules(object_files)
     return modules
 
+
 def gen_sampling_module(target: Target, num_threads: int = 8):
     try:
         from flashinfer.jit import (  # pylint: disable=import-outside-toplevel

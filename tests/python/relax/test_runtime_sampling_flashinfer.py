@@ -26,8 +26,6 @@ from tvm.contrib import utils
 from typing import List
 
 
-
-
 @pytest.mark.skip(reason="Requires FlashInfer enabled and proper setup")
 def test_sampling():
 
@@ -46,17 +44,17 @@ def test_sampling():
     # Test configuration
     batch_size = 10
     vocab_size = 5
-    num_iterations = 1000  
+    num_iterations = 1000
     tol_atol = 0.02
     tol_rtol = 0.05  # relative tolerance
 
     # Probability tensor (each row sums to 1)
     probs_np = np.array([[0.1, 0.2, 0.3, 0.2, 0.2] for _ in range(batch_size)], dtype="float32")
-    
+
     dev = tvm.cuda(0)
     prob_tvm = tvm.nd.array(probs_np, device=dev)
     output_tvm = tvm.nd.empty((batch_size,), "int32", device=dev)
-    
+
     device = tvm.cuda()
     target = tvm.target.Target.from_device(device)
     sampling_mod = load_module(
@@ -68,7 +66,7 @@ def test_sampling():
     sampling_func = sampling_mod["sampling_from_probs"]
 
     counts = np.zeros((batch_size, vocab_size), dtype="int32")
-    
+
     for _ in range(num_iterations):
         deterministic = False
         # Generate seed and a random offset.
@@ -76,9 +74,8 @@ def test_sampling():
         philox_offset = np.uint64(random.getrandbits(63) % 1000)
 
         # the kernel expects (probs, output, maybe_indices, deterministic, philox_seed, philox_offset, cuda_stream)
-        sampling_func(prob_tvm, output_tvm, None, deterministic, 
-                      philox_seed, philox_offset, 0)
-        
+        sampling_func(prob_tvm, output_tvm, None, deterministic, philox_seed, philox_offset, 0)
+
         out = output_tvm.asnumpy()
         for i in range(batch_size):
             sampled_token = out[i]
@@ -86,18 +83,12 @@ def test_sampling():
 
     # Convert counts to frequencies.
     frequencies = counts / float(num_iterations)
-    
+
     # For each row, check that the empirical frequency is close to the input probability.
     for row in range(batch_size):
-        tvm.testing.assert_allclose(
-            frequencies[row],
-            probs_np[row],
-            rtol=tol_rtol,
-            atol=tol_atol
-        )
+        tvm.testing.assert_allclose(frequencies[row], probs_np[row], rtol=tol_rtol, atol=tol_atol)
+
 
 if __name__ == "__main__":
     # Run the test standalone (if not using pytest)
     test_sampling()
-
-
