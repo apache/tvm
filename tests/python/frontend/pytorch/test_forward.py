@@ -830,14 +830,14 @@ def test_forward_gelu():
     input_shape = [1, 3, 10, 10]
     input_data = torch.rand(input_shape).float()
     verify_model(torch.nn.GELU().eval(), input_data=input_data)
-    
+
 
 @tvm.testing.uses_gpu
 def test_forward_rrelu():
     torch.set_grad_enabled(False)
     input_shape = [10, 10]
     input_data = torch.rand(input_shape).float()
-    verify_model(torch.nn.RReLU(0.1, 0.3).eval(), input_data=input_data)    
+    verify_model(torch.nn.RReLU(0.1, 0.3).eval(), input_data=input_data)
 
 
 @tvm.testing.uses_gpu

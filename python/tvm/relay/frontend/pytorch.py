@@ -991,7 +991,7 @@ class PyTorchOpConverter:
     def rrelu(self, inputs, input_types):
         """
         Computes the Randomized ReLU (RReLU) activation function.
-        
+
         The RReLU function is defined as:
 
         RReLU(x) =
@@ -1002,7 +1002,7 @@ class PyTorchOpConverter:
         During evaluation, 'a' is fixed and calculated as:
 
         a = (lower + upper) / 2
-        
+
         Args:
             inputs (list): A list containing [data, lower, upper].
                 - data: The input tensor.
@@ -1020,12 +1020,12 @@ class PyTorchOpConverter:
 
         # Compute fixed 'a' as (lower + upper) / 2
         a = _op.divide(_op.add(lower, upper), _expr.const(2.0, dtype=dtype))
-        
+
         # Define zero constant for comparison
         zero = _expr.const(0.0, dtype=dtype)
 
-        # RReLU activation: x if x >= 0 else a * x 
-        return _op.where(_op.greater_equal(data, zero), data, _op.multiply(data, a))    
+        # RReLU activation: x if x >= 0 else a * x
+        return _op.where(_op.greater_equal(data, zero), data, _op.multiply(data, a))
 
     def selu(self, inputs, input_types):
         data = inputs[0]
