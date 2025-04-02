@@ -2429,11 +2429,11 @@ def test_extended_unary_ops():
     class expected_selu:
         @R.function
         def main(
-            input: R.Tensor((1, 3, 10, 10), dtype="float32")
-        ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
+            inp_0: R.Tensor((1, 3, 10, 10), dtype="float32")
+        ) -> R.Tensor((1, 3, 10, 10), dtype="float32"):
             with R.dataflow():
-                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.nn.selu(input)
-                gv: R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")) = (lv,)
+                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.nn.selu(inp_0)
+                gv: R.Tensor((1, 3, 10, 10), dtype="float32") = lv
                 R.output(gv)
             return gv
 
