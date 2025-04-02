@@ -115,7 +115,8 @@ inline TVMFFIAny LegacyTVMArgValueToFFIAny(TVMValue value, int type_code) {
       break;
     }
     case kTVMObjectRValueRefArg: {
-      LOG(FATAL) << "Do not support kTVMObjectRValueRefArg";
+      res.type_index = ffi::TypeIndex::kTVMFFIObjectRValueRef;
+      res.v_ptr = value.v_handle;
       break;
     }
     default: {

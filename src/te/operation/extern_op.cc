@@ -71,10 +71,11 @@ ExternOp::ExternOp(std::string name, std::string tag, Map<String, ffi::Any> attr
 }
 
 TVM_REGISTER_GLOBAL("te.ExternOp")
-    .set_body_typed([](std::string name, std::string tag, Map<String, ffi::Any> attrs,
+    .set_body_typed([](std::string name, std::string tag, Optional<Map<String, ffi::Any>> attrs,
                        Array<Tensor> inputs, Array<Buffer> input_placeholders,
                        Array<Buffer> output_placeholders, Stmt body) {
-      return ExternOp(name, tag, attrs, inputs, input_placeholders, output_placeholders, body);
+      return ExternOp(name, tag, attrs.value_or({}), inputs, input_placeholders,
+                      output_placeholders, body);
     });
 
 Array<Tensor> ExternOpNode::InputTensors() const { return inputs; }
