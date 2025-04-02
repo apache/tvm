@@ -60,6 +60,10 @@ class ExportedProgramImporter(BaseFXGraphImporter):
         one = relax.const(1, x.struct_info.dtype)
         return self.block_builder.emit(relax.op.log(relax.op.add(x, one)))
 
+    def _reciprocal(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        return self.block_builder.emit(relax.op.divide(relax.const(1.0, x.struct_info.dtype), x))
+
     ########## Neural Network ##########
 
     def _batch_norm(self, node: fx.Node, training) -> relax.Var:
@@ -272,6 +276,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "log1p.default": self._log1p,
             "log_softmax.int": self._log_softmax,
             "neg.default": self._unary_op(relax.op.negative),
+            "reciprocal.default": self._reciprocal,
             "relu.default": self._unary_op(relax.op.nn.relu),
             "round.default": self._round,
             "rsqrt.default": self._unary_op(relax.op.rsqrt),
@@ -361,6 +366,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             # search
             "argmax.default": self._argmax_argmin(relax.op.argmax),
             "argmin.default": self._argmax_argmin(relax.op.argmin),
+            "where.self": self._where,
             # tensor manipulation
             "cat.default": self._cat,
             "chunk.default": self._chunk,
@@ -368,6 +374,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "concat.default": self._cat,
             "copy_.default": self._copy_,
             "cumsum.default": self._cumsum,
+            "cumprod.default": self._cumprod,
             "expand.default": self._expand,
             "expand_as.default": self._expand_as,
             "flip.default": self._flip,
