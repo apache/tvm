@@ -121,6 +121,7 @@ inline TVMFFIAny LegacyTVMArgValueToFFIAny(TVMValue value, int type_code) {
     }
     default: {
       LOG(FATAL) << "Unsupported type code: " << type_code;
+      TVM_FFI_UNREACHABLE();
     }
   }
   return res;

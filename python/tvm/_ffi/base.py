@@ -320,7 +320,7 @@ def get_last_ffi_error():
     err : object
         The error object based on the err_msg
     """
-    c_err_msg = py_str(_LIB.TVMGetLastError())
+    c_err_msg = legacy_ensure_cerror(py_str(_LIB.TVMGetLastError()))
     py_err_msg, err_type = c2pyerror(c_err_msg)
     if err_type is not None and err_type.startswith("tvm.error."):
         err_type = err_type[10:]
@@ -388,6 +388,18 @@ def _filter_traceback_frames(tb, filter_funcs: Sequence[Callable[[types.CodeType
 
     return new_tb
 
+def legacy_ensure_cerror(c_err_msg):
+    """Detect if the error message is in python style and convert it to C style.
+
+    Parameters
+    ----------
+    c_err_msg : str
+        The error message.
+    """
+    if c_err_msg.find("Traceback (most recent call last)") != -1:
+        c_err_msg = py2cerror(c_err_msg)
+    return c_err_msg
+
 
 def raise_last_ffi_error():
     """Raise the previous error from FFI
@@ -404,7 +416,7 @@ def raise_last_ffi_error():
     _LIB.TVMGetLastBacktrace.restype = ctypes.c_char_p
     py_err = _LIB.TVMGetLastPythonError()
     if py_err is None:
-        c_err_msg = py_str(_LIB.TVMGetLastError())
+        c_err_msg = legacy_ensure_cerror(py_str(_LIB.TVMGetLastError()))
         py_err_msg, err_type = c2pyerror(c_err_msg)
         if err_type is not None and err_type.startswith("tvm.error."):
             err_type = err_type[10:]

@@ -259,6 +259,12 @@ std::string NormalizeError(std::string err_msg) {
   //   {stack trace 0}
   //   {stack trace 1}
   //-------------------------------------------------------------------------
+  // LEGACY-COMPACT:
+  // skip python-style error style
+  // TODO(tqchen) move to new FFI handling
+  if (err_msg.find("Traceback (most recent call last)") != std::string::npos) {
+    return err_msg;
+  }
   int line_number = 0;
   std::istringstream is(err_msg);
   std::string line, file_name, error_type, check_msg;
