@@ -189,7 +189,7 @@ class EnvCAPIRegistry {
       if ((*pyerr_check_signals)() != 0) {
         // The error will let FFI know that the frontend environment
         // already set an error.
-        throw EnvErrorAlreadySet("");
+        throw EnvErrorAlreadySet();
       }
     }
   }

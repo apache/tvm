@@ -62,7 +62,7 @@ class PooledAllocator : public Allocator {
     try {
       buf.data = DeviceAllocDataSpace(dev, size, alignment, type_hint);
     } catch (InternalError& err) {
-      LOG(WARNING) << "PooledAllocator got InternalError during allocation: " << err.message();
+      LOG(WARNING) << "PooledAllocator got InternalError during allocation: " << err.what();
       LOG(WARNING) << "Trying to release all unused memory and reallocate...";
       ReleaseAll();
       buf.data = DeviceAllocDataSpace(dev, size, alignment, type_hint);
