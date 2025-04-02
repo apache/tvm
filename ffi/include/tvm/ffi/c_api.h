@@ -382,15 +382,15 @@ TVM_FFI_DLL int TVMFFIRegisterTypeMethod(int32_t type_index, const TVMFFIMethodI
 //------------------------------------------------------------
 /*!
  * \brief Get stack traceback in a string.
- * \param filaname The current file name.
- * \param func The current function
+ * \param filename The current file name.
  * \param lineno The current line number
+ * \param func The current function
  * \return The traceback string
  *
  * \note filename func and lino are only used as a backup info, most cases they are not needed.
  *  The return value is set to const char* to be more compatible across dll boundaries.
  */
-TVM_FFI_DLL const char* TVMFFITraceback(const char* filename, const char* func, int lineno);
+TVM_FFI_DLL const char* TVMFFITraceback(const char* filename, int lineno, const char* func);
 
 /*!
  * \brief Initialize the type info during runtime.

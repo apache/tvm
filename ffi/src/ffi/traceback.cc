@@ -148,14 +148,14 @@ __attribute__((constructor)) void install_signal_handler(void) {
 }  // namespace ffi
 }  // namespace tvm
 
-const char* TVMFFITraceback(const char*, const char*, int) {
+const char* TVMFFITraceback(const char*, int, const char*) {
   static thread_local std::string traceback_str;
   traceback_str = ::tvm::ffi::Traceback();
   return traceback_str.c_str();
 }
 #else
 // fallback implementation simply print out the last trace
-const char* TVMFFITraceback(const char* filename, const char* func, int lineno) {
+const char* TVMFFITraceback(const char* filename, int lineno, const char* func) {
   static thread_local std::string traceback_str;
   std::ostringstream traceback_stream;
   // python style backtrace
