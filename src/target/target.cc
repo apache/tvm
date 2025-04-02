@@ -113,10 +113,9 @@ template <class TObj>
 static const TObj* ObjTypeCheck(const Any& obj, const std::string& expected_type) {
   const TObj* ptr = obj.as<TObj>();
   if (ptr == nullptr) {
-    std::ostringstream os;
-    os << ": Expects type \"" << expected_type << "\", but gets \"" << obj.GetTypeKey()
-       << "\" for object: " << obj;
-    throw Error(os.str());
+    TVM_FFI_THROW(TypeError)
+      << "Expects type \"" << expected_type << "\", but gets \"" << obj.GetTypeKey()
+      << "\" for object: " << obj;
   }
   return ptr;
 }
@@ -124,7 +123,7 @@ static const TObj* ObjTypeCheck(const Any& obj, const std::string& expected_type
 static TargetKind GetTargetKind(const String& name) {
   Optional<TargetKind> kind = TargetKind::Get(name);
   if (!kind.defined()) {
-    throw Error(": Target kind \"" + name + "\" is not defined");
+    TVM_FFI_THROW(TypeError) << "Target kind \"" + name + "\" is not defined";
   }
   return kind.value();
 }
@@ -135,10 +134,10 @@ static std::string RemovePrefixDashes(const std::string& s) {
   for (; n_dashes < len && s[n_dashes] == '-'; ++n_dashes) {
   }
   if (n_dashes == 0) {
-    throw Error(": Attribute keys should start with '-', not an attribute key: " + s);
+    TVM_FFI_THROW(ValueError) << "Attribute keys should start with '-', not an attribute key: " + s;
   }
   if (n_dashes >= len) {
-    throw Error(": Not an attribute key: " + s);
+    TVM_FFI_THROW(ValueError) << "Not an attribute key: " + s;
   }
   return s.substr(n_dashes);
 }
@@ -319,7 +318,7 @@ static int ParseKVPair(const std::string& s, const std::string& s_next, std::str
     result_k = s.substr(0, pos);
     result_v = s.substr(pos + 1);
     if (result_k.empty() || result_v.empty()) {
-      throw Error(": Empty attribute key or value in \"" + s + "\"");
+      TVM_FFI_THROW(ValueError) << "Empty attribute key or value in \"" + s + "\"";
     }
     return 1;
   } else if (!s_next.empty() && s_next[0] != '-') {
@@ -349,7 +348,7 @@ const TargetKindNode::ValueTypeInfo& TargetInternal::FindTypeInfo(const TargetKi
       }
       os << kv.first;
     }
-    throw Error(os.str());
+    TVM_FFI_THROW(TypeError) << os.str();
   }
   return it->second;
 }
@@ -374,7 +373,7 @@ Any TargetInternal::ParseType(const std::string& str, const TargetKindNode::Valu
       } else if (lower == "false") {
         v = 0;
       } else {
-        throw Error(": Cannot parse integer from string: " + interp_str);
+        TVM_FFI_THROW(ValueError) << "Cannot parse integer from string: " + interp_str;
       }
     }
 
@@ -410,8 +409,9 @@ Any TargetInternal::ParseType(const std::string& str, const TargetKindNode::Valu
     }
     return Array<ObjectRef>(result);
   }
-  throw Error(": Unsupported type \"" + info.type_key +
-              "\" for parsing from string: " + interp_str);
+  TVM_FFI_THROW(TypeError)
+    << "Unsupported type \"" + info.type_key
+    << "\" for parsing from string: " + interp_str;
 }
 
 Any TargetInternal::ParseType(const Any& obj, const TargetKindNode::ValueTypeInfo& info) {
@@ -430,14 +430,16 @@ Any TargetInternal::ParseType(const Any& obj, const TargetKindNode::ValueTypeInf
     } else if (const auto* ptr = obj.as<MapNode>()) {
       for (const auto& kv : *ptr) {
         if (!kv.first.as<StringObj>()) {
-          throw Error(": Target object requires key of dict to be str, but get: " +
-                      kv.first.GetTypeKey());
+          TVM_FFI_THROW(TypeError)
+            << "Target object requires key of dict to be str, but get: "
+            << kv.first.GetTypeKey();
         }
       }
       Map<String, ffi::Any> config = GetRef<Map<String, ffi::Any>>(ptr);
       return Target(TargetInternal::FromConfig({config.begin(), config.end()}));
     }
-    throw Error(": Expect type 'dict' or 'str' to construct Target, but get: " + obj.GetTypeKey());
+    TVM_FFI_THROW(TypeError)
+      << "Expect type 'dict' or 'str' to construct Target, but get: " + obj.GetTypeKey();
   } else if (info.type_index == ArrayNode::_GetOrAllocRuntimeTypeIndex()) {
     // Parsing array
     const auto* array = ObjTypeCheck<ArrayNode>(obj, "Array");
@@ -447,7 +449,7 @@ Any TargetInternal::ParseType(const Any& obj, const TargetKindNode::ValueTypeInf
         result.push_back(TargetInternal::ParseType(e, *info.key));
       } catch (const Error& e) {
         std::string index = '[' + std::to_string(result.size()) + ']';
-        throw Error(index + e.what());
+        throw Error(e->kind, index + e->message, e->backtrace);
       }
     }
     return Array<ObjectRef>(result);

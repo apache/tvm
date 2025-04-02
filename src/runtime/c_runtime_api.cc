@@ -393,12 +393,11 @@ std::string NormalizeError(std::string err_msg) {
 using namespace tvm::runtime;
 
 struct WrappedPythonError : Error {
-  WrappedPythonError() : Error("") {}
+  WrappedPythonError() : Error("WrappedPythonError", "", TVM_FFI_TRACEBACK_HERE) {}
   explicit WrappedPythonError(WrappedPythonObject obj)
-      : Error(""), obj(std::move(obj)), cpp_backtrace(tvm::runtime::Backtrace()) {}
+      : Error("WrappedPythonError", "", TVM_FFI_TRACEBACK_HERE), obj(std::move(obj)) {}
 
   WrappedPythonObject obj;
-  std::string cpp_backtrace;
 };
 
 struct TVMRuntimeEntry {
@@ -419,7 +418,7 @@ const char* TVMGetLastError() {
   } else if (const auto* internal = std::get_if<InternalError>(&last_error)) {
     // Use last_error_formatted to store the formatted error message, to avoid
     // dangling pointer.
-    store->last_error_formatted = NormalizeError(internal->full_message());
+    store->last_error_formatted = internal->what();
     return store->last_error_formatted.c_str();
   } else {
     return nullptr;
@@ -438,9 +437,9 @@ void* TVMGetLastPythonError() {
 const char* TVMGetLastBacktrace() {
   const auto& last_error = TVMAPIRuntimeStore::Get()->last_error;
   if (const auto* wrapped = std::get_if<WrappedPythonError>(&last_error)) {
-    return wrapped->cpp_backtrace.data();
+    return (*wrapped)->backtrace.c_str();
   } else if (const auto* wrapped = std::get_if<InternalError>(&last_error)) {
-    return wrapped->backtrace().data();
+    return (*wrapped)->backtrace.c_str();
   } else {
     return nullptr;
   }
@@ -479,8 +478,15 @@ void TVMThrowLastError() {
     throw wrapped_err;
   } else if (auto* internal = std::get_if<InternalError>(&last_error)) {
     throw *internal;
-  } else if (auto* message = std::get_if<std::string>(&last_error)) {
-    throw tvm::Error(NormalizeError(*message) + tvm::runtime::Backtrace());
+  } else {
+    // redirect to tvm-ffi error handling.
+    ::tvm::ffi::Any error_any;
+    TVMFFIMoveFromLastError(reinterpret_cast<TVMFFIAny*>(&error_any));
+    if (std::optional<tvm::ffi::Error> error = error_any.as<tvm::ffi::Error>()) {
+      throw *std::move(error);
+    } else {
+      TVM_FFI_THROW(RuntimeError) << "Error encountered";
+    }
   }
 }
 

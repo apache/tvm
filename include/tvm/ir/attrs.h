@@ -98,7 +98,7 @@ struct AttrError : public Error {
    * \brief constructor
    * \param msg error message
    */
-  explicit AttrError(std::string msg) : Error("AttributeError:" + msg) {}
+  explicit AttrError(std::string msg) : Error("AttributeError", msg, TVM_FFI_TRACEBACK_HERE) {}
 };
 
 /*!
