@@ -486,10 +486,12 @@ def test_extended_unary_ops():
     class expected_reciprocal:
         @R.function
         def main(
-                input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
+            input_1: R.Tensor((1, 3, 10, 10), dtype="float32")
         ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
             with R.dataflow():
-                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.divide(R.const(1.0, "float32"), input_1)
+                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.divide(
+                    R.const(1.0, "float32"), input_1
+                )
                 gv: R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")) = (lv,)
                 R.output(gv)
             return gv
