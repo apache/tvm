@@ -48,10 +48,11 @@ Array<PrimExpr> SimplifyArray(arith::Analyzer* ana, Array<PrimExpr> array) {
 }
 
 Buffer decl_buffer(Array<PrimExpr> shape, DataType dtype, String name, String storage_scope,
-                   Array<IntImm> axis_separators, Span span) {
+                   Optional<Array<IntImm>> axis_separators, Span span) {
   DataType storage_dtype = (dtype == DataType::Bool() ? DataType::Int(8) : dtype);
   return Buffer(Var(name, PointerType(PrimType(storage_dtype), storage_scope), span), dtype, shape,
-                Array<PrimExpr>(), PrimExpr(), name, 0, 0, kDefault, axis_separators, span);
+                Array<PrimExpr>(), PrimExpr(), name, 0, 0, kDefault,
+                axis_separators.value_or(Array<IntImm>()), span);
 }
 
 // Split the given expression w.r.t the add operator

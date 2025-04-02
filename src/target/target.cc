@@ -1000,11 +1000,7 @@ std::unordered_map<String, ffi::Any> TargetInternal::QueryDevice(int device_id,
 
     TVMRetValue ret;
     api->GetTargetProperty(device, key, &ret);
-
-    // Delegate conversion from TVMRetValue to the FFI's default conversions.
-    if (Optional<ObjectRef> opt = ret) {
-      output[key] = opt.value();
-    }
+    output[key] = ret;
   }
 
   return output;
