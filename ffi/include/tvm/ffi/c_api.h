@@ -74,6 +74,7 @@ typedef enum {
   kTVMFFIDLTensorPtr = 7,
   kTVMFFIRawStr = 8,
   kTVMFFIByteArrayPtr = 9,
+  kTVMFFIObjectRValueRef = 10,
   // [Section] Static Boxed: [kTVMFFIStaticObjectBegin, kTVMFFIDynObjectBegin)
   // roughly order in terms of their ptential dependencies
   kTVMFFIStaticObjectBegin = 64,
