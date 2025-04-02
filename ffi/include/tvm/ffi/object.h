@@ -50,6 +50,7 @@ struct StaticTypeKey {
   static constexpr const char* kTVMFFIDataType = "DataType";
   static constexpr const char* kTVMFFIDevice = "Device";
   static constexpr const char* kTVMFFIRawStr = "const char*";
+  static constexpr const char* kTVMFFIObjectRValueRef = "ObjectRValueRef";
 };
 
 /*!
@@ -77,6 +78,8 @@ inline std::string TypeIndexToTypeKey(int32_t type_index) {
       return StaticTypeKey::kTVMFFIDevice;
     case TypeIndex::kTVMFFIRawStr:
       return StaticTypeKey::kTVMFFIRawStr;
+    case TypeIndex::kTVMFFIObjectRValueRef:
+      return StaticTypeKey::kTVMFFIObjectRValueRef;
     default: {
       const TypeInfo* type_info = TVMFFIGetTypeInfo(type_index);
       return type_info->type_key;
@@ -673,6 +676,7 @@ TVM_FFI_INLINE bool IsObjectInstance(int32_t object_type_index) {
   return (type_info->type_depth > TargetType::_type_depth &&
           type_info->type_acenstors[TargetType::_type_depth] == target_type_index);
 }
+
 /*!
  * \brief Namespace to internally manipulate object class.
  * \note These functions are only supposed to be used by internal
