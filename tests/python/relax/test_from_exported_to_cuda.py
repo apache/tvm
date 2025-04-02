@@ -468,6 +468,39 @@ def test_chunk_too_many(target, dev):
 
 
 @tvm.testing.parametrize_targets("cuda")
+def test_arange(target, dev):
+    # arange.default
+    raw_data = np.array([0, 0, 0, 0, 0])
+
+    class ArangeDefaultModel(nn.Module):
+        def forward(self, x):
+            return x + torch.arange(5)
+
+    torch_module = ArangeDefaultModel().eval()
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
+
+    # arange.start
+    raw_data = np.array([0, 0, 0])
+
+    class ArangeStartModel(nn.Module):
+        def forward(self, x):
+            return x + torch.arange(1, 4)
+
+    torch_module = ArangeStartModel().eval()
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
+
+    # arange.start_step
+    raw_data = np.array([0.0, 0.0, 0.0], dtype=np.float32)
+
+    class ArangeStartStopModel(nn.Module):
+        def forward(self, x):
+            return x + torch.arange(1, 2.5, 0.5, dtype=torch.float32)
+
+    torch_module = ArangeStartStopModel().eval()
+    assert_torch_output_vs_tvm_from_exported_to_cuda(raw_data, torch_module, target, dev)
+
+
+@tvm.testing.parametrize_targets("cuda")
 def test_index_select(target, dev):
     class IndexSelectModel(nn.Module):
         def forward(self, x):

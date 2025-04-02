@@ -397,9 +397,11 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "reshape.default": self._reshape,
             # tensor creation
             "_to_copy.default": self._to_copy,
+            "arange.default": self._arange,
+            "arange.start": self._arange,
+            "arange.start_step": self._arange,
             "detach.default": self._detach,
             "detach_.default": self._detach,
-            "arange.start": self._arange,
             "contiguous.default": lambda node: self.env[node.args[0]],  # no-op
             "clone.default": lambda node: self.env[node.args[0]],
             "empty.memory_format": self._empty,
