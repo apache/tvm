@@ -140,7 +140,7 @@ class ErrorBuilder {
 };
 
 // define traceback here as call into traceback function
-#define TVM_FFI_TRACEBACK_HERE TVMFFITraceback(__FILE__, TVM_FFI_FUNC_SIG, __LINE__)
+#define TVM_FFI_TRACEBACK_HERE TVMFFITraceback(__FILE__, __LINE__, TVM_FFI_FUNC_SIG)
 }  // namespace details
 
 /*!
