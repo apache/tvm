@@ -170,7 +170,7 @@ Buffer AllocBuffer(Array<PrimExpr> shape, DataType dtype = DataType::Float(32),
                    Optional<Var> data = NullOpt, Array<PrimExpr> strides = {},
                    PrimExpr elem_offset = PrimExpr(), String storage_scope = "", int align = -1,
                    int offset_factor = 0, String buffer_type = "default",
-                   Array<IntImm> axis_separators = {});
+                   Optional<Array<IntImm>> axis_separators = std::nullopt);
 namespace axis {
 
 /*!
