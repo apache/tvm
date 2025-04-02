@@ -228,7 +228,8 @@ void BlockAttrs(Map<String, Any> attrs) {
 
 Buffer AllocBuffer(Array<PrimExpr> shape, DataType dtype, Optional<Var> data,
                    Array<PrimExpr> strides, PrimExpr elem_offset, String storage_scope, int align,
-                   int offset_factor, String buffer_type_str, Optional<Array<IntImm>> axis_separators) {
+                   int offset_factor, String buffer_type_str,
+                   Optional<Array<IntImm>> axis_separators) {
   Buffer buffer = BufferDecl(shape, dtype, "", data, strides, elem_offset, storage_scope, align,
                              offset_factor, buffer_type_str, axis_separators);
   IRBuilder builder = IRBuilder::Current();
