@@ -404,7 +404,7 @@ Any TargetInternal::ParseType(const std::string& str, const TargetKindNode::Valu
         result.push_back(parsed);
       } catch (const Error& e) {
         std::string index = "[" + std::to_string(result.size()) + "]";
-        throw Error(index + e.what());
+        throw Error(e->kind, index + e->message, e->backtrace);
       }
     }
     return Array<ObjectRef>(result);
@@ -462,27 +462,24 @@ Any TargetInternal::ParseType(const Any& obj, const TargetKindNode::ValueTypeInf
       try {
         key = TargetInternal::ParseType(kv.first, *info.key);
       } catch (const Error& e) {
-        std::ostringstream os;
-        os << "'s key \"" << key << "\"" << e.what();
-        throw Error(os.str());
+        throw Error(e->kind, e->message + ", during parse key of map", e->backtrace);
       }
       try {
         val = TargetInternal::ParseType(kv.second, *info.val);
       } catch (const Error& e) {
         std::ostringstream os;
-        os << "[\"" << key << "\"]" << e.what();
-        throw Error(os.str());
+        os << ", during parseing value of map[\"" << key << "\"]";
+        throw Error(e->kind, e->message + os.str(), e->backtrace);
       }
       result[key] = val;
     }
     return Map<Any, Any>(result);
   }
   if (info.type_index != obj.type_index()) {
-    std::ostringstream os;
-    os << ": Parsing type \"" << info.type_key
-       << "\" is not supported for the given object of type \"" << obj.GetTypeKey()
-       << "\". The object is: " << obj;
-    throw Error(os.str());
+    TVM_FFI_THROW(TypeError)
+      << "Parsing type \"" << info.type_key
+      << "\" is not supported for the given object of type \"" << obj.GetTypeKey()
+      << "\". The object is: " << obj;
   }
   return obj;
 }
@@ -802,7 +799,7 @@ ObjectPtr<Object> TargetInternal::FromConfigString(const String& config_str) {
                     "if the python module is properly loaded";
   Optional<Map<String, ffi::Any>> config = (*loader)(config_str);
   if (!config.defined()) {
-    throw Error(": Cannot load config dict with python JSON loader");
+    TVM_FFI_THROW(ValueError) << "Cannot load config dict with python JSON loader";
   }
   return TargetInternal::FromConfig({config.value().begin(), config.value().end()});
 }
@@ -822,16 +819,16 @@ ObjectPtr<Object> TargetInternal::FromRawString(const String& target_str) {
       std::string s_next = (iter + 1 < options.size()) ? options[iter + 1] : "";
       iter += ParseKVPair(RemovePrefixDashes(options[iter]), s_next, &key, &value);
     } catch (const Error& e) {
-      throw Error(": Error when parsing target" + std::string(e.what()));
+      throw Error(e->kind, e->message +", during parsing target `" + target_str + "`", e->backtrace);
     }
     try {
       // check if `key` has been used
       if (config.count(key)) {
-        throw Error(": The key \"" + key + "\" appears more than once");
+        TVM_FFI_THROW(ValueError) << "The key \"" + key + "\" appears more than once";
       }
       config[key] = TargetInternal::ParseType(value, TargetInternal::FindTypeInfo(kind, key));
     } catch (const Error& e) {
-      throw Error(": Error when parsing target[\"" + key + "\"]" + e.what());
+      throw Error(e->kind, e->message + ", during parsing target[\"" + key + "\"]", e->backtrace);
     }
   }
   return TargetInternal::FromConfig(config);
@@ -867,11 +864,12 @@ ObjectPtr<Object> TargetInternal::FromConfig(Map<String, ffi::Any> config) {
 
       config.erase(kKind);
     } else {
-      throw Error(": Expect type of field \"kind\" is String, but get type: " +
-                  config[kKind].GetTypeKey());
+      TVM_FFI_THROW(TypeError)
+        << "Expect type of field \"kind\" is String, but get type: "
+        << config[kKind].GetTypeKey();
     }
   } else {
-    throw Error(": Field \"kind\" is not found");
+    TVM_FFI_THROW(ValueError) << "Field \"kind\" is not found";
   }
   // parse "tag"
   if (config.count(kTag)) {
@@ -879,8 +877,9 @@ ObjectPtr<Object> TargetInternal::FromConfig(Map<String, ffi::Any> config) {
       target->tag = tag.value();
       config.erase(kTag);
     } else {
-      throw Error(": Expect type of field \"tag\" is String, but get type: " +
-                  config[kTag].GetTypeKey());
+      TVM_FFI_THROW(TypeError)
+        << "Expect type of field \"tag\" is String, but get type: "
+        << config[kTag].GetTypeKey();
     }
   } else {
     target->tag = "";
@@ -896,15 +895,15 @@ ObjectPtr<Object> TargetInternal::FromConfig(Map<String, ffi::Any> config) {
           if (auto key = e.as<String>()) {
             keys.push_back(key.value());
           } else {
-            throw Error(
-                ": Expect 'keys' to be an array of strings, but it "
-                "contains an element of type: " +
-                e.GetTypeKey());
+            TVM_FFI_THROW(TypeError)
+              << "Expect 'keys' to be an array of strings, but it "
+              << "contains an element of type: " << e.GetTypeKey();
           }
         }
       } else {
-        throw Error(": Expect type of field \"keys\" is Array, but get type: " +
-                    config[kKeys].GetTypeKey());
+        TVM_FFI_THROW(TypeError)
+          << "Expect type of field \"keys\" is Array, but get type: "
+          << config[kKeys].GetTypeKey();
       }
     }
     // add device name
@@ -939,7 +938,7 @@ ObjectPtr<Object> TargetInternal::FromConfig(Map<String, ffi::Any> config) {
       const TargetKindNode::ValueTypeInfo& info = TargetInternal::FindTypeInfo(target->kind, key);
       attrs[key] = TargetInternal::ParseType(value, info);
     } catch (const Error& e) {
-      throw Error(": Error when parsing target[\"" + key + "\"]" + e.what());
+      throw Error(e->kind, e->message + ", during parsing target[\"" + key + "\"]", e->backtrace);
     }
   }
 
