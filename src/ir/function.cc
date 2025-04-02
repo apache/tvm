@@ -25,6 +25,7 @@
 #include <tvm/relax/expr.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/function.h>
+#include <tvm/ffi/rvalue_ref.h>
 
 namespace tvm {
 
@@ -33,7 +34,8 @@ TVM_REGISTER_GLOBAL("ir.BaseFunc_Attrs").set_body_typed([](BaseFunc func) { retu
 TVM_REGISTER_GLOBAL("ir.BaseFuncCopy").set_body_typed([](BaseFunc func) { return func; });
 
 TVM_REGISTER_GLOBAL("ir.BaseFuncWithAttr")
-    .set_body_typed([](BaseFunc func, String key, ObjectRef value) -> BaseFunc {
+    .set_body_typed([](ffi::RValueRef<BaseFunc> func_ref, String key, Any value) -> BaseFunc {
+      BaseFunc func = *std::move(func_ref);
       if (func->IsInstance<tir::PrimFuncNode>()) {
         return WithAttr(Downcast<tir::PrimFunc>(std::move(func)), key, value);
       } else if (func->IsInstance<relax::FunctionNode>()) {
@@ -44,7 +46,8 @@ TVM_REGISTER_GLOBAL("ir.BaseFuncWithAttr")
     });
 
 TVM_REGISTER_GLOBAL("ir.BaseFuncWithAttrs")
-    .set_body_typed([](BaseFunc func, Map<String, ffi::Any> attr_map) -> BaseFunc {
+    .set_body_typed([](ffi::RValueRef<BaseFunc> func_ref, Map<String, ffi::Any> attr_map) -> BaseFunc {
+      BaseFunc func = *std::move(func_ref);
       if (func->IsInstance<tir::PrimFuncNode>()) {
         return WithAttrs(Downcast<tir::PrimFunc>(std::move(func)), attr_map);
       }
@@ -57,7 +60,8 @@ TVM_REGISTER_GLOBAL("ir.BaseFuncWithAttrs")
     });
 
 TVM_REGISTER_GLOBAL("ir.BaseFuncWithoutAttr")
-    .set_body_typed([](BaseFunc func, String key) -> BaseFunc {
+    .set_body_typed([](ffi::RValueRef<BaseFunc> func_ref, String key) -> BaseFunc {
+      BaseFunc func = *std::move(func_ref);
       if (func->IsInstance<tir::PrimFuncNode>()) {
         return WithoutAttr(Downcast<tir::PrimFunc>(std::move(func)), key);
       } else if (func->IsInstance<relax::FunctionNode>()) {
