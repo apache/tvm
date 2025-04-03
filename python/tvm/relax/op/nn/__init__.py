@@ -48,5 +48,5 @@ from .nn import (
     selu,
     silu,
     softmax,
-    softplus
+    softplus,
 )
