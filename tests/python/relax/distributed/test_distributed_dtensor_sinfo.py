@@ -19,8 +19,9 @@ import tvm
 import tvm.testing
 import pytest
 
-from tvm import relax as rx, TVMError, tir
-from tvm.ir import structural_equal, Range
+from tvm import relax as rx, tir
+from tvm.ir import Range
+from tvm.script import tir as T
 
 
 def _check_equal(x, y, map_free_vars=False):
@@ -66,7 +67,7 @@ def test_dtensor_struct_info():
     assert s0 == s1
     tvm.ir.assert_structural_equal(s0.device_mesh, device_mesh0)
     assert s0.device_mesh.shape == (2, 2)
-    tvm.ir.assert_structural_equal(s0.device_mesh.device_range, Range(0, 4))
+    tvm.ir.assert_structural_equal(s0.device_mesh.device_range, Range(T.int64(0), T.int64(4)))
     tvm.ir.assert_structural_equal(s0.placement, placement0)
     assert len(s0.placement.dim_specs) == 2
     assert s0.placement.dim_specs[0] == shard0

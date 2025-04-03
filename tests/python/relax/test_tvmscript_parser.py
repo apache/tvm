@@ -1948,7 +1948,7 @@ def test_impure_inner_function():
 
         return x
 
-    assert f.is_pure
+    assert f.is_pure is None
     # definition of g
     assert not f.body.blocks[0].bindings[0].value.is_pure
 
@@ -1969,7 +1969,7 @@ def test_impure_inner_function_in_class():
 
             return x
 
-    assert ImpureInner["main"].is_pure
+    assert ImpureInner["main"].is_pure is None
     # definition of g
     assert not ImpureInner["main"].body.blocks[0].bindings[0].value.is_pure
 
@@ -2007,7 +2007,7 @@ def test_parse_multiple_pure_and_impure_funcs():
 
     assert not Mixture["print"].is_pure
     assert not Mixture["assert_func"].is_pure
-    assert Mixture["main"].is_pure
+    assert Mixture["main"].is_pure is None
     _check(Mixture)
 
 

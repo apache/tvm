@@ -161,7 +161,8 @@ TVM_REGISTER_GLOBAL("relax.TupleStructInfo")
     });
 
 // Func
-FuncStructInfo::FuncStructInfo(Array<StructInfo> params, StructInfo ret, bool purity, Span span) {
+FuncStructInfo::FuncStructInfo(Array<StructInfo> params, StructInfo ret, Optional<Bool> purity,
+                               Span span) {
   ObjectPtr<FuncStructInfoNode> n = make_object<FuncStructInfoNode>();
   n->params = std::move(params);
   n->ret = std::move(ret);
@@ -170,7 +171,7 @@ FuncStructInfo::FuncStructInfo(Array<StructInfo> params, StructInfo ret, bool pu
   data_ = std::move(n);
 }
 
-FuncStructInfo FuncStructInfo::OpaqueFunc(StructInfoDeriveFunc derive_func, bool purity,
+FuncStructInfo FuncStructInfo::OpaqueFunc(StructInfoDeriveFunc derive_func, Optional<Bool> purity,
                                           Span span) {
   ObjectPtr<FuncStructInfoNode> n = make_object<FuncStructInfoNode>();
   n->derive_func = std::move(derive_func);
@@ -180,7 +181,7 @@ FuncStructInfo FuncStructInfo::OpaqueFunc(StructInfoDeriveFunc derive_func, bool
   return FuncStructInfo(n);
 }
 
-FuncStructInfo FuncStructInfo::OpaqueFunc(StructInfo ret, bool purity, Span span) {
+FuncStructInfo FuncStructInfo::OpaqueFunc(StructInfo ret, Optional<Bool> purity, Span span) {
   ObjectPtr<FuncStructInfoNode> n = make_object<FuncStructInfoNode>();
   n->ret = std::move(ret);
   n->purity = std::move(purity);
@@ -191,13 +192,13 @@ FuncStructInfo FuncStructInfo::OpaqueFunc(StructInfo ret, bool purity, Span span
 TVM_REGISTER_NODE_TYPE(FuncStructInfoNode);
 
 TVM_REGISTER_GLOBAL("relax.FuncStructInfo")
-    .set_body_typed([](Array<StructInfo> params, StructInfo ret, bool purity, Span span) {
+    .set_body_typed([](Array<StructInfo> params, StructInfo ret, Optional<Bool> purity, Span span) {
       return FuncStructInfo(params, ret, purity, span);
     });
 
 TVM_REGISTER_GLOBAL("relax.FuncStructInfoOpaqueFunc")
     .set_body_typed([](Optional<StructInfo> ret, Optional<StructInfoDeriveFunc> derive_func,
-                       bool purity, Span span) {
+                       Optional<Bool> purity, Span span) {
       if (derive_func.defined()) {
         ICHECK(!ret.defined()) << "ValueError: Cannot specify both ret and derive_func";
         return FuncStructInfo::OpaqueFunc(derive_func.value(), purity, span);
