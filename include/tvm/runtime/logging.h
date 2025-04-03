@@ -187,10 +187,8 @@
 namespace tvm {
 namespace runtime {
 
-
-using ffi::Error;
 using ffi::EnvErrorAlreadySet;
-
+using ffi::Error;
 
 /*!
  * \brief Error type for errors from CHECK, ICHECK, and LOG(FATAL). This error
@@ -207,8 +205,8 @@ class InternalError : public Error {
    * \param backtrace Backtrace from when the error occurred.
    */
   InternalError(std::string file, int lineno, std::string message)
-      : Error(DetectKind(message), DetectMessage(message), TVMFFITraceback(file.c_str(), lineno, "")) {
-  }
+      : Error(DetectKind(message), DetectMessage(message),
+              TVMFFITraceback(file.c_str(), lineno, "")) {}
 
  private:
   // try to detect the kind of error from the message when the error type
@@ -218,7 +216,8 @@ class InternalError : public Error {
     if (pos != std::string::npos) {
       size_t end = pos + 6;
       size_t begin = pos;
-      for (;begin >= 0 && message[begin] != ' '; --begin);
+      for (; begin >= 0 && message[begin] != ' '; --begin)
+        ;
       return message.substr(begin + 1, end - begin - 2);
     } else {
       return "InternalError";
@@ -230,7 +229,8 @@ class InternalError : public Error {
     if (pos != std::string::npos) {
       size_t end = pos + 6;
       size_t begin = pos;
-      for (;begin >= 0 && message[begin] != ' '; --begin);
+      for (; begin >= 0 && message[begin] != ' '; --begin)
+        ;
       return message.substr(0, begin) + message.substr(end);
     } else {
       return message;

@@ -21,11 +21,11 @@
  * \file src/ir/function.cc
  * \brief The function data structure.
  */
+#include <tvm/ffi/rvalue_ref.h>
 #include <tvm/ir/function.h>
 #include <tvm/relax/expr.h>
 #include <tvm/runtime/registry.h>
 #include <tvm/tir/function.h>
-#include <tvm/ffi/rvalue_ref.h>
 
 namespace tvm {
 
@@ -46,7 +46,8 @@ TVM_REGISTER_GLOBAL("ir.BaseFuncWithAttr")
     });
 
 TVM_REGISTER_GLOBAL("ir.BaseFuncWithAttrs")
-    .set_body_typed([](ffi::RValueRef<BaseFunc> func_ref, Map<String, ffi::Any> attr_map) -> BaseFunc {
+    .set_body_typed([](ffi::RValueRef<BaseFunc> func_ref,
+                       Map<String, ffi::Any> attr_map) -> BaseFunc {
       BaseFunc func = *std::move(func_ref);
       if (func->IsInstance<tir::PrimFuncNode>()) {
         return WithAttrs(Downcast<tir::PrimFunc>(std::move(func)), attr_map);
