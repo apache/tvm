@@ -270,8 +270,8 @@ class LogAddExpNode : public BinaryOpNode<LogAddExpNode> {
 };
 
 /*!
-  * \brief Managed reference to LogAddExpNode.
-  * \sa LogAddExpNode
+ * \brief Managed reference to LogAddExpNode.
+ * \sa LogAddExpNode
  */
 class LogAddExp : public PrimExpr {
  public:
