@@ -455,6 +455,17 @@ struct LeakyReluAttrs : public tvm::AttrsNode<LeakyReluAttrs> {
   }
 };
 
+/*! \brief Attributes used in softplus operators */
+struct SoftplusAttrs : public tvm::AttrsNode<SoftplusAttrs> {
+  double beta;
+  double threshold;
+
+  TVM_DECLARE_ATTRS(SoftplusAttrs, "relax.attrs.SoftplusAttrs") {
+    TVM_ATTR_FIELD(beta).describe("It controls the curvature; higher values make the transition sharper.");
+    TVM_ATTR_FIELD(threshold).describe("It defines when to approximate the function linearly for numerical stability.");
+  }
+};
+
 /*! \brief Attributes used in batch_norm operator */
 struct BatchNormAttrs : public tvm::AttrsNode<BatchNormAttrs> {
   int axis;

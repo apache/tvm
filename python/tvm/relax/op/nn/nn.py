@@ -1378,6 +1378,32 @@ def softmax(data: Expr, axis: int = -1) -> Expr:
     return _ffi_api.softmax(data, axis)  # type: ignore
 
 
+def softplus(data: Expr, beta: float = 1.0, threshold: float = 20.0) -> Expr:
+    """Softplus activation function.
+
+    .. math::
+        \text{Softplus}(x) = \frac{1}{\beta} \log(1 + e^{\beta x})
+
+    Parameters
+    ----------
+    data : relax.Expr
+        The input data.
+
+    beta : float, optional
+        Controls the smoothness of the transition. Default is 1.0.
+
+    threshold : float, optional
+        The value beyond which the function is approximated as linear
+        to avoid numerical instability. Default is 20.0.
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+    """
+    return _ffi_api.softplus(data, beta, threshold)
+
+
 def log_softmax(data: Expr, axis: int = -1) -> Expr:
     r"""Computes log softmax.
 
