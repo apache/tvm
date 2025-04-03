@@ -44,7 +44,7 @@ def _binary(te_func: TEFunc) -> LegalizeFunc:
 register_legalize("relax.add", _binary(topi.add))
 register_legalize("relax.divide", _binary(topi.divide))
 register_legalize("relax.floor_divide", _binary(topi.floor_divide))
-register_legalize("relax.log_add_exp",_binary(topi.log_add_exp))
+register_legalize("relax.log_add_exp", _binary(topi.log_add_exp))
 register_legalize("relax.multiply", _binary(topi.multiply))
 register_legalize("relax.power", _binary(topi.power))
 register_legalize("relax.subtract", _binary(topi.subtract))

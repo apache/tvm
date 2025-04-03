@@ -135,7 +135,7 @@ def floor_divide(lhs, rhs):
     return _cpp.floor_divide(lhs, rhs)
 
 
-def log_add_exp(lhs,rhs):
+def log_add_exp(lhs, rhs):
     """Log-sum-exp operation with auto-broadcasting.
 
     Parameters
@@ -151,7 +151,7 @@ def log_add_exp(lhs,rhs):
         Returns an Expr if both operands are Expr.
         Otherwise, returns a Tensor.
     """
-    return _cpp.log_add_exp(lhs,rhs)
+    return _cpp.log_add_exp(lhs, rhs)
 
 
 def mod(lhs, rhs):
