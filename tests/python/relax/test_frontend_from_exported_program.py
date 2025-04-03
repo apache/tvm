@@ -840,6 +840,7 @@ operator_binary_1 = [
     (operator.mul, R.multiply),
     (operator.truediv, R.divide),
     (operator.floordiv, R.floor_divide),
+    (torch.logaddexp, R.log_add_exp),
     (operator.pow, R.power),
     (operator.mod, R.mod),
     (operator.and_, R.bitwise_and),

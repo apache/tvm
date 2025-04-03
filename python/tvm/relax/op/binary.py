@@ -88,7 +88,7 @@ def floor_divide(x1: Expr, x2: Expr) -> Expr:
 def log_add_exp(x1: Expr, x2: Expr) -> Expr:
     """
     Compute the log of the sum of exponentials of the inputs, element-wise.
-    
+
     Parameters
     ----------
     x1 : Expr

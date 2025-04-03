@@ -268,7 +268,7 @@ class LogAddExpNode : public BinaryOpNode<LogAddExpNode> {
   public:
    static constexpr const char* _type_key = "tir.LogAddExp";
  };
- 
+
  /*!
   * \brief Managed reference to LogAddExpNode.
   * \sa LogAddExpNode
