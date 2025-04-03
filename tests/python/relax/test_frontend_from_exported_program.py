@@ -692,7 +692,7 @@ def test_logaddexp():
         @R.function
         def main(
             input_1: R.Tensor((1, 3, 10, 10), dtype="float32"),
-            input_2: R.Tensor((1, 3, 10, 10), dtype="float32")
+            input_2: R.Tensor((1, 3, 10, 10), dtype="float32"),
         ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
             # block 0
             with R.dataflow():
@@ -703,7 +703,7 @@ def test_logaddexp():
 
     example_args = (
         torch.randn(1, 3, 10, 10, dtype=torch.float32),
-        torch.randn(1, 3, 10, 10, dtype=torch.float32)
+        torch.randn(1, 3, 10, 10, dtype=torch.float32),
     )
     verify_model(LogAddExp(), example_args, {}, expected)
 
