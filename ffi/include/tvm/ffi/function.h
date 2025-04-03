@@ -378,21 +378,31 @@ class Function : public ObjectRef {
   /*!
    * \brief Get global function by name
    * \param name The function name
-   * \param allow_missing Whether to allow missing function
    * \return The global function.
+   * \note This function will return std::nullopt if the function is not found.
    */
-  static std::optional<Function> GetGlobal(const char* name, bool allow_missing = true) {
+  static std::optional<Function> GetGlobal(const char* name) {
     TVMFFIObjectHandle handle;
     TVM_FFI_CHECK_SAFE_CALL(TVMFFIFuncGetGlobal(name, &handle));
     if (handle != nullptr) {
       return Function(
           details::ObjectUnsafe::ObjectPtrFromOwned<Object>(static_cast<Object*>(handle)));
     } else {
-      if (!allow_missing) {
-        TVM_FFI_THROW(ValueError) << "Function " << name << " not found";
-      }
       return std::nullopt;
     }
+  }
+  /*!
+   * \brief Get global function by name and throw an error if it is not found.
+   * \param name The name of the function
+   * \return The global function
+   * \note This function will throw an error if the function is not found.
+   */
+  static Function GetGlobalRequired(const char* name) {
+    std::optional<Function> res = GetGlobal(name);
+    if (!res.has_value()) {
+      TVM_FFI_THROW(ValueError) << "Function " << name << " not found";
+    }
+    return res.value();
   }
   /*!
    * \brief Set global function by name
@@ -698,6 +708,17 @@ class Function::Registry {
  public:
   /*! \brief constructor */
   explicit Registry(const char* name) : name_(name) {}
+
+  /*!
+   * \brief Set body to be to use the packed convention.
+   *
+   * \tparam FLambda The signature of the function.
+   * \param f The body of the function.
+   */
+  template <typename FLambda>
+  Registry& set_body_packed(FLambda f) {
+    return set_body(ffi::Function::FromPacked(f));
+  }
   /*!
    * \brief set the body of the function to the given function.
    *        Note that this will ignore default arg values and always require all arguments to be
@@ -709,7 +730,7 @@ class Function::Registry {
    *   return x * y;
    * }
    *
-   * TVM_REGISTER_GLOBAL("multiply")
+   * TVM_FFI_REGISTER_GLOBAL("multiply")
    * .set_body_typed(multiply); // will have type int(int, int)
    *
    * // will have type int(int, int)
@@ -723,7 +744,7 @@ class Function::Registry {
    */
   template <typename FLambda>
   Registry& set_body_typed(FLambda f) {
-    return Register(Function::FromUnpacked(f));
+    return Register(Function::FromUnpacked(f, name_));
   }
 
  protected:
