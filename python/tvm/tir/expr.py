@@ -816,7 +816,7 @@ class LogAddExp(BinaryOpExpr):
     span : Optional[Span]
         The location of this expression in the source code.
     """
-    
+
     def __init__(self, a: PrimExpr, b: PrimExpr, span: Optional[Span] = None) -> None:
         self.__init_handle_by_constructor__(_ffi_api.LogAddExp, a, b, span)  # type: ignore
 
