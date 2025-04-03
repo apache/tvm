@@ -63,7 +63,9 @@ def bind_with_value(self: Parser, node: doc.expr, var_name: str, value: Any) -> 
         IRBuilder.name(var_name, value)
         return value
     else:
-        self.report_error(node, f"Do not know how to bind type: {type(value)} in with statement")
+        self.report_error(
+            node, f"Do not know how to bind type: {type(value)} in with statement"
+        )
         raise NotImplementedError
 
 
@@ -99,7 +101,9 @@ def bind_for_value(self: Parser, node: doc.expr, var_name: str, value: Any) -> A
         IRBuilder.name(var_name, value)
         return value
     else:
-        self.report_error(node, f"Do not know how to bind type: {type(value)} in for statement")
+        self.report_error(
+            node, f"Do not know how to bind type: {type(value)} in for statement"
+        )
         raise NotImplementedError
 
 
@@ -153,7 +157,9 @@ def bind_assign_value(self: Parser, node: doc.expr, var_name: str, value: Any) -
         return var
 
 
-def find_decorator_annotation(node: doc.FunctionDef, annotation: str, default: bool = True) -> bool:
+def find_decorator_annotation(
+    node: doc.FunctionDef, annotation: str, default: bool = True
+) -> bool:
     """
     Check the value of given annotation (argument name) in the prim_func decorator.
     Returns the value of the annotation if present, otherwise giving the default value.
@@ -189,7 +195,9 @@ def visit_for(self: Parser, node: doc.For) -> None:
         )
     with self.var_table.with_frame():
         with for_frame as iters:
-            self.eval_assign(target=node.target, source=iters, bind_value=bind_for_value)
+            self.eval_assign(
+                target=node.target, source=iters, bind_value=bind_for_value
+            )
             self.visit_body(node.body)
 
 
@@ -224,7 +232,9 @@ def visit_assign(self: Parser, node: doc.Assign) -> None:
         The doc AST assign node.
     """
     if len(node.targets) != 1:
-        self.report_error(node, "Consequential assignments like 'a = b = c' are not supported.")
+        self.report_error(
+            node, "Consequential assignments like 'a = b = c' are not supported."
+        )
     lhs = node.targets[0]
 
     if isinstance(node.value, doc.Subscript):
@@ -353,11 +363,14 @@ def visit_with(self: Parser, node: doc.With) -> None:
             frame = self.eval_expr(item.context_expr)
             if not isinstance(frame, Frame):
                 self.report_error(
-                    item.context_expr, "Invalid context expression in the with-statement."
+                    item.context_expr,
+                    "Invalid context expression in the with-statement.",
                 )
             rhs = stack.enter_context(frame)
             if item.optional_vars is not None:
-                self.eval_assign(target=item.optional_vars, source=rhs, bind_value=bind_with_value)
+                self.eval_assign(
+                    target=item.optional_vars, source=rhs, bind_value=bind_with_value
+                )
         self.visit_body(node.body)
 
 
@@ -396,7 +409,9 @@ def visit_function_def(self: Parser, node: doc.FunctionDef) -> None:
                 # - posonlyargs: list[arg]
                 for arg in node.args.args:
                     if arg.annotation is None:
-                        self.report_error(arg, "Type annotation required for function parameters.")
+                        self.report_error(
+                            arg, "Type annotation required for function parameters."
+                        )
                     try:
                         ann = self.eval_expr(arg.annotation)
                         if callable(ann):
@@ -498,7 +513,8 @@ def visit_if(self: Parser, node: doc.If) -> None:
                     self.visit_body(node.orelse)
         else:
             self.report_error(
-                node.test, f"If condition must be a boolean expression, but got {predicate}"
+                node.test,
+                f"If condition must be a boolean expression, but got {predicate}",
             )
 
 
@@ -539,6 +555,36 @@ def visit_return(self: Parser, node: doc.Return) -> None:
     T.evaluate(tvm.tir.ret(value))
 
 
+@dispatch.register(token="tir", type_name="Continue")
+def visit_continue(self: Parser, node: doc.Continue) -> None:
+    """The continue visiting method for tir.
+
+    Parameters
+    ----------
+    self : Parser
+        The visiting parser.
+
+    node : doc.Continue
+        The doc AST continue node.
+    """
+    T.evaluate(tvm.tir.continue_loop())
+
+
+@dispatch.register(token="tir", type_name="Break")
+def visit_break(self: Parser, node: doc.Break) -> None:
+    """The continue visiting method for tir.
+
+    Parameters
+    ----------
+    self : Parser
+        The visiting parser.
+
+    node : doc.Break
+        The doc AST break node.
+    """
+    T.evaluate(tvm.tir.break_loop())
+
+
 @dispatch.register(token="tir", type_name="tvm_declare_function")
 def visit_tvm_declare_function(self: Parser, node: doc.FunctionDef) -> GlobalVar:
     """The function declaration step for tir
@@ -565,7 +611,9 @@ def visit_tvm_declare_function(self: Parser, node: doc.FunctionDef) -> GlobalVar
         arg_annotations = []
         for arg in node.args.args:
             if arg.annotation is None:
-                self.report_error(arg, "Type annotation required for function parameters.")
+                self.report_error(
+                    arg, "Type annotation required for function parameters."
+                )
             try:
                 ann = self.eval_expr(arg.annotation)
                 if callable(ann):
