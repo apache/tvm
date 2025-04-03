@@ -617,6 +617,13 @@ class CodeGenLLVM : public ExprFunctor<llvm::Value*(const PrimExpr&)>,
    *  initializes file and compilation_unit_ to TVM defaults.
    */
   static std::unique_ptr<DebugInfo> CreateDebugInfo(llvm::Module* module);
+
+  void PushLoopFrame(llvm::BasicBlock* backedge_tgt, llvm::BasicBlock* exit_tgt);
+  void PopLoopFrame();
+
+  // loop frame's jump target for continue and break generation
+  // store basic block pair (blk to backedge, blk to exit) for each frame.
+  std::vector<std::pair<llvm::BasicBlock*, llvm::BasicBlock*>> loop_frame_jump_tgts_;
 };
 
 inline int CodeGenLLVM::GetVectorNumElements(llvm::Value* vec) {
