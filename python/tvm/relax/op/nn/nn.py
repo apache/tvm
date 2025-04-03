@@ -1304,6 +1304,30 @@ def gelu_tanh(data: Expr) -> Expr:
     return _ffi_api.gelu_tanh(data)  # type: ignore
 
 
+def selu(data: Expr) -> Expr:
+    r"""Scaled Exponential Linear Unit (SELU).
+
+    .. math::
+        \text{SELU}(x) = \lambda \begin{cases}
+            x & \text{if } x > 0 \\
+            \alpha (e^x - 1) & \text{if } x \leq 0
+        \end{cases}
+
+    where :math:`\lambda \approx 1.0507` and :math:`\alpha \approx 1.6733`.
+
+    Parameters
+    ----------
+    data : relax.Expr
+        The input data.
+
+    Returns
+    -------
+    result : relax.Expr
+        The computed result.
+    """
+    return _ffi_api.selu(data)
+
+
 def silu(data: Expr) -> Expr:
     r"""Sigmoid Linear Unit function
 
