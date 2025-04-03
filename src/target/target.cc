@@ -113,9 +113,8 @@ template <class TObj>
 static const TObj* ObjTypeCheck(const Any& obj, const std::string& expected_type) {
   const TObj* ptr = obj.as<TObj>();
   if (ptr == nullptr) {
-    TVM_FFI_THROW(TypeError)
-      << "Expects type \"" << expected_type << "\", but gets \"" << obj.GetTypeKey()
-      << "\" for object: " << obj;
+    TVM_FFI_THROW(TypeError) << "Expects type \"" << expected_type << "\", but gets \""
+                             << obj.GetTypeKey() << "\" for object: " << obj;
   }
   return ptr;
 }
@@ -409,9 +408,8 @@ Any TargetInternal::ParseType(const std::string& str, const TargetKindNode::Valu
     }
     return Array<ObjectRef>(result);
   }
-  TVM_FFI_THROW(TypeError)
-    << "Unsupported type \"" + info.type_key
-    << "\" for parsing from string: " + interp_str;
+  TVM_FFI_THROW(TypeError) << "Unsupported type \"" + info.type_key
+                           << "\" for parsing from string: " + interp_str;
 }
 
 Any TargetInternal::ParseType(const Any& obj, const TargetKindNode::ValueTypeInfo& info) {
@@ -431,15 +429,14 @@ Any TargetInternal::ParseType(const Any& obj, const TargetKindNode::ValueTypeInf
       for (const auto& kv : *ptr) {
         if (!kv.first.as<StringObj>()) {
           TVM_FFI_THROW(TypeError)
-            << "Target object requires key of dict to be str, but get: "
-            << kv.first.GetTypeKey();
+              << "Target object requires key of dict to be str, but get: " << kv.first.GetTypeKey();
         }
       }
       Map<String, ffi::Any> config = GetRef<Map<String, ffi::Any>>(ptr);
       return Target(TargetInternal::FromConfig({config.begin(), config.end()}));
     }
-    TVM_FFI_THROW(TypeError)
-      << "Expect type 'dict' or 'str' to construct Target, but get: " + obj.GetTypeKey();
+    TVM_FFI_THROW(TypeError) << "Expect type 'dict' or 'str' to construct Target, but get: " +
+                                    obj.GetTypeKey();
   } else if (info.type_index == ArrayNode::_GetOrAllocRuntimeTypeIndex()) {
     // Parsing array
     const auto* array = ObjTypeCheck<ArrayNode>(obj, "Array");
@@ -476,10 +473,9 @@ Any TargetInternal::ParseType(const Any& obj, const TargetKindNode::ValueTypeInf
     return Map<Any, Any>(result);
   }
   if (info.type_index != obj.type_index()) {
-    TVM_FFI_THROW(TypeError)
-      << "Parsing type \"" << info.type_key
-      << "\" is not supported for the given object of type \"" << obj.GetTypeKey()
-      << "\". The object is: " << obj;
+    TVM_FFI_THROW(TypeError) << "Parsing type \"" << info.type_key
+                             << "\" is not supported for the given object of type \""
+                             << obj.GetTypeKey() << "\". The object is: " << obj;
   }
   return obj;
 }
@@ -819,7 +815,8 @@ ObjectPtr<Object> TargetInternal::FromRawString(const String& target_str) {
       std::string s_next = (iter + 1 < options.size()) ? options[iter + 1] : "";
       iter += ParseKVPair(RemovePrefixDashes(options[iter]), s_next, &key, &value);
     } catch (const Error& e) {
-      throw Error(e->kind, e->message +", during parsing target `" + target_str + "`", e->backtrace);
+      throw Error(e->kind, e->message + ", during parsing target `" + target_str + "`",
+                  e->backtrace);
     }
     try {
       // check if `key` has been used
@@ -864,9 +861,8 @@ ObjectPtr<Object> TargetInternal::FromConfig(Map<String, ffi::Any> config) {
 
       config.erase(kKind);
     } else {
-      TVM_FFI_THROW(TypeError)
-        << "Expect type of field \"kind\" is String, but get type: "
-        << config[kKind].GetTypeKey();
+      TVM_FFI_THROW(TypeError) << "Expect type of field \"kind\" is String, but get type: "
+                               << config[kKind].GetTypeKey();
     }
   } else {
     TVM_FFI_THROW(ValueError) << "Field \"kind\" is not found";
@@ -877,9 +873,8 @@ ObjectPtr<Object> TargetInternal::FromConfig(Map<String, ffi::Any> config) {
       target->tag = tag.value();
       config.erase(kTag);
     } else {
-      TVM_FFI_THROW(TypeError)
-        << "Expect type of field \"tag\" is String, but get type: "
-        << config[kTag].GetTypeKey();
+      TVM_FFI_THROW(TypeError) << "Expect type of field \"tag\" is String, but get type: "
+                               << config[kTag].GetTypeKey();
     }
   } else {
     target->tag = "";
@@ -895,15 +890,13 @@ ObjectPtr<Object> TargetInternal::FromConfig(Map<String, ffi::Any> config) {
           if (auto key = e.as<String>()) {
             keys.push_back(key.value());
           } else {
-            TVM_FFI_THROW(TypeError)
-              << "Expect 'keys' to be an array of strings, but it "
-              << "contains an element of type: " << e.GetTypeKey();
+            TVM_FFI_THROW(TypeError) << "Expect 'keys' to be an array of strings, but it "
+                                     << "contains an element of type: " << e.GetTypeKey();
           }
         }
       } else {
-        TVM_FFI_THROW(TypeError)
-          << "Expect type of field \"keys\" is Array, but get type: "
-          << config[kKeys].GetTypeKey();
+        TVM_FFI_THROW(TypeError) << "Expect type of field \"keys\" is Array, but get type: "
+                                 << config[kKeys].GetTypeKey();
       }
     }
     // add device name
