@@ -159,7 +159,7 @@ const char* TVMFFITraceback(const char* filename, int lineno, const char* func) 
   static thread_local std::string traceback_str;
   std::ostringstream traceback_stream;
   // python style backtrace
-  traceback_stream << "  " << filename << ", line " << lineno << ", in " << func << '\n';
+  traceback_stream << "  File \"" << filename << "\", line " << lineno << ", in " << func << '\n';
   traceback_str = traceback_stream.str();
   return traceback_str.c_str();
 }
