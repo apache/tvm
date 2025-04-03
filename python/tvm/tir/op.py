@@ -32,7 +32,11 @@ from .expr import Call, CommReducer, IntImm, PrimExprWithOp, Var
 def _pack_buffer(buf, span=None):
     """Build intrinsics that packs the buffer."""
     shape = Call("handle", "tir.tvm_stack_make_shape", buf.shape, span)
-    strides = Call("handle", "tir.tvm_stack_make_shape", buf.strides, span) if buf.strides else 0
+    strides = (
+        Call("handle", "tir.tvm_stack_make_shape", buf.strides, span)
+        if buf.strides
+        else 0
+    )
     pack_args = [
         buf.data,
         shape,
@@ -334,7 +338,9 @@ def tvm_check_return(expected, return_unexpected, nested_call):
     call : PrimExpr
         The call expression.
     """
-    return call_intrin("int32", "tir.tvm_check_return", expected, return_unexpected, nested_call)
+    return call_intrin(
+        "int32", "tir.tvm_check_return", expected, return_unexpected, nested_call
+    )
 
 
 def tvm_stack_alloca(dtype_str, num):
@@ -401,7 +407,14 @@ def tvm_stack_make_array(data, shape, strides, ndim, arr_dtype, elem_offset):
         The call expression.
     """
     return call_intrin(
-        "handle", "tir.tvm_stack_make_array", data, shape, strides, ndim, arr_dtype, elem_offset
+        "handle",
+        "tir.tvm_stack_make_array",
+        data,
+        shape,
+        strides,
+        ndim,
+        arr_dtype,
+        elem_offset,
     )
 
 
@@ -653,7 +666,9 @@ def tvm_warp_shuffle(mask, value, warp_id, width, warp_size):
     call : PrimExpr
         The call expression.
     """
-    return call_intrin(value.dtype, "tir.tvm_warp_shuffle", mask, value, warp_id, width, warp_size)
+    return call_intrin(
+        value.dtype, "tir.tvm_warp_shuffle", mask, value, warp_id, width, warp_size
+    )
 
 
 def tvm_warp_shuffle_up(mask, value, offset, width, warp_size):
@@ -762,7 +777,9 @@ def tvm_access_ptr(ptype, data, offset, extent, rw_mask):
     call : PrimExpr
         The call expression.
     """
-    return call_intrin("handle", "tir.tvm_access_ptr", ptype, data, offset, extent, rw_mask)
+    return call_intrin(
+        "handle", "tir.tvm_access_ptr", ptype, data, offset, extent, rw_mask
+    )
 
 
 def tvm_throw_last_error():
@@ -1298,7 +1315,9 @@ def mma_fill(dtype, local_size, local_ptr, offset):
     )
 
 
-def ptx_ldmatrix(dtype, trans, num, type, local_ptr, local_offset, smem_ptr, smem_offset):
+def ptx_ldmatrix(
+    dtype, trans, num, type, local_ptr, local_offset, smem_ptr, smem_offset
+):
     """TVM intrinsic for ptx load matrix from shared memory
     https://docs.nvidia.com/cuda/parallel-thread-execution/index.html#warp-level-matrix-instructions-ldmatrix
 
@@ -1376,7 +1395,13 @@ def ptx_cp_async(dtype, shared_ptr, shared_offset, global_ptr, global_offset, by
         The call expression.
     """
     return call_intrin(
-        dtype, "tir.ptx_cp_async", shared_ptr, shared_offset, global_ptr, global_offset, bytes
+        dtype,
+        "tir.ptx_cp_async",
+        shared_ptr,
+        shared_offset,
+        global_ptr,
+        global_offset,
+        bytes,
     )
 
 
@@ -1489,7 +1514,9 @@ def ptx_init_barrier_thread_count(barrier_id, thread_count):
     call : PrimExpr
         The call expression.
     """
-    return call_intrin("", "tir.ptx_init_barrier_thread_count", barrier_id, thread_count)
+    return call_intrin(
+        "", "tir.ptx_init_barrier_thread_count", barrier_id, thread_count
+    )
 
 
 def ptx_arrive_barrier(barrier_id):
@@ -1595,7 +1622,9 @@ def make_filled_simdgroup_matrix(
     call : PrimExpr
         The call expression.
     """
-    return call_intrin("handle", "tir.make_filled_simdgroup_matrix", d, index, value, col, row)
+    return call_intrin(
+        "handle", "tir.make_filled_simdgroup_matrix", d, index, value, col, row
+    )
 
 
 def simdgroup_load(
@@ -1691,7 +1720,15 @@ def simdgroup_store(
         The call expression.
     """
     return call_intrin(
-        "handle", "tir.simdgroup_store", d, index, ptr, stride, col, row, transpose_matrix
+        "handle",
+        "tir.simdgroup_store",
+        d,
+        index,
+        ptr,
+        stride,
+        col,
+        row,
+        transpose_matrix,
     )
 
 
@@ -1850,6 +1887,40 @@ def ret(val, span=None):
     """
 
     return _ffi_api.ret(val, span)
+
+
+def continue_loop(span=None):
+    """Create a tir intrinsic call to represent continue expression
+
+    Parameters
+    ----------
+    span : Optional[Span]
+        The location of this operator in the source code.
+
+    Returns
+    -------
+    ret : PrimExpr
+        The continue expression
+    """
+
+    return _ffi_api.continue_loop(span)
+
+
+def break_loop(span=None):
+    """Create a tir intrinsic call to represent break expression
+
+    Parameters
+    ----------
+    span : Optional[Span]
+        The location of this operator in the source code.
+
+    Returns
+    -------
+    ret : PrimExpr
+        The break expression
+    """
+
+    return _ffi_api.break_loop(span)
 
 
 def any(*args, span=None):
@@ -3370,10 +3441,13 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
         if where is None:
             where = tir.convert(True)
         if init is None:
-            outputs = tuple(tvm.tir.Reduce(combiner, expr, axis, where, i, []) for i in range(size))
+            outputs = tuple(
+                tvm.tir.Reduce(combiner, expr, axis, where, i, []) for i in range(size)
+            )
         else:
             outputs = tuple(
-                tvm.tir.Reduce(combiner, expr, axis, where, i, init) for i in range(size)
+                tvm.tir.Reduce(combiner, expr, axis, where, i, init)
+                for i in range(size)
             )
         return outputs[0] if size == 1 else outputs
 
@@ -3429,7 +3503,9 @@ def comm_reducer(fcombine, fidentity, name="reduce"):
     return reducer
 
 
-def TVMBackendAllocWorkspace(device_type, device_id, nbytes, dtype_code_hint, dtype_bits_hint):
+def TVMBackendAllocWorkspace(
+    device_type, device_id, nbytes, dtype_code_hint, dtype_bits_hint
+):
     """Backend function to allocate temporal workspace
 
     Parameters
@@ -3484,7 +3560,9 @@ def TVMBackendFreeWorkspace(device_type, device_id, ptr):
     call : PrimExpr
         The call expression.
     """
-    return call_intrin("int32", "tir.TVMBackendFreeWorkspace", device_type, device_id, ptr)
+    return call_intrin(
+        "int32", "tir.TVMBackendFreeWorkspace", device_type, device_id, ptr
+    )
 
 
 def anylist_getitem(list_handle, index):
