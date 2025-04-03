@@ -48,83 +48,84 @@ inline TVMFFIAny LegacyTVMArgValueToFFIAny(TVMValue value, int type_code) {
     case kTVMArgInt: {
       res.type_index = ffi::TypeIndex::kTVMFFIInt;
       res.v_int64 = value.v_int64;
-      break;
+      return res;
     }
     case kTVMArgFloat: {
       res.type_index = ffi::TypeIndex::kTVMFFIFloat;
       res.v_float64 = value.v_float64;
-      break;
+      return res;
     }
     case kTVMOpaqueHandle: {
       res.type_index = ffi::TypeIndex::kTVMFFIOpaquePtr;
       res.v_ptr = value.v_handle;
-      break;
+      return res;
     }
     case kTVMNullptr: {
       res.type_index = ffi::TypeIndex::kTVMFFINone;
-      break;
+      res.v_int64 = 0;
+      return res;
     }
     case kTVMDataType: {
       res.type_index = ffi::TypeIndex::kTVMFFIDataType;
+      res.v_int64 = 0;
       res.v_dtype = value.v_type;
-      break;
+      return res;
     }
     case kDLDevice: {
       res.type_index = ffi::TypeIndex::kTVMFFIDevice;
       res.v_device = value.v_device;
-      break;
+      return res;
     }
     case kTVMDLTensorHandle: {
       res.type_index = ffi::TypeIndex::kTVMFFIDLTensorPtr;
       res.v_ptr = value.v_handle;
-      break;
+      return res;
     }
     case kTVMObjectHandle: {
       res.v_obj = static_cast<TVMFFIObject*>(value.v_handle);
       res.type_index = res.v_obj->type_index;
-      break;
+      return res;
     }
     case kTVMModuleHandle: {
       res.type_index = ffi::TypeIndex::kTVMFFIRuntimeModule;
       res.v_obj = static_cast<TVMFFIObject*>(value.v_handle);
-      break;
+      return res;
     }
     case kTVMPackedFuncHandle: {
       res.type_index = ffi::TypeIndex::kTVMFFIFunc;
       res.v_obj = static_cast<TVMFFIObject*>(value.v_handle);
-      break;
+      return res;
     }
     case kTVMStr: {
       res.type_index = ffi::TypeIndex::kTVMFFIRawStr;
       res.v_c_str = value.v_str;
-      break;
+      return res;
     }
     case kTVMBytes: {
       res.type_index = ffi::TypeIndex::kTVMFFIByteArrayPtr;
       res.v_ptr = value.v_handle;
-      break;
+      return res;
     }
     case kTVMNDArrayHandle: {
       res.type_index = ffi::TypeIndex::kTVMFFINDArray;
       res.v_obj = reinterpret_cast<TVMFFIObject*>(TVMArrayHandleToObjectHandle(value.v_handle));
-      break;
+      return res;
     }
     case kTVMArgBool: {
       res.type_index = ffi::TypeIndex::kTVMFFIBool;
       res.v_int64 = value.v_int64;
-      break;
+      return res;
     }
     case kTVMObjectRValueRefArg: {
       res.type_index = ffi::TypeIndex::kTVMFFIObjectRValueRef;
       res.v_ptr = value.v_handle;
-      break;
+      return res;
     }
     default: {
       LOG(FATAL) << "Unsupported type code: " << type_code;
       TVM_FFI_UNREACHABLE();
     }
   }
-  return res;
 }
 
 /*!
