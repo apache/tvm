@@ -66,6 +66,9 @@ inline bool ShouldExcludeFrame(const char* filename, const char* symbol) {
     if (strstr(filename, "include/tvm/ffi/any.h")) {
       return true;
     }
+    if (strstr(filename, "include/tvm/runtime/logging.h")) {
+      return true;
+    }
     if (strstr(filename, "src/ffi/traceback.cc")) {
       return true;
     }
@@ -112,7 +115,7 @@ struct TracebackStorage {
     // skip frames with empty filename
     if (filename == nullptr) return;
     std::ostringstream trackeback_stream;
-    trackeback_stream << "  " << filename;
+    trackeback_stream << "  File \"" << filename << "\"";
     if (lineno != 0) {
       trackeback_stream << ", line " << lineno;
     }
