@@ -214,18 +214,24 @@ class InternalError : public Error {
   // try to detect the kind of error from the message when the error type
   // is folded into the text message
   static std::string DetectKind(const std::string& message) {
-    auto pos = message.find("Error:");
+    size_t pos = message.find("Error:");
     if (pos != std::string::npos) {
-      return message.substr(0, pos);
+      size_t end = pos + 6;
+      size_t begin = pos;
+      for (;begin >= 0 && message[begin] != ' '; --begin);
+      return message.substr(begin + 1, end - begin - 2);
     } else {
       return "InternalError";
     }
   }
 
   static std::string DetectMessage(const std::string& message) {
-    auto pos = message.find("Error:");
+    size_t pos = message.find("Error:");
     if (pos != std::string::npos) {
-      return message.substr(pos + 6);
+      size_t end = pos + 6;
+      size_t begin = pos;
+      for (;begin >= 0 && message[begin] != ' '; --begin);
+      return message.substr(0, begin) + message.substr(end);
     } else {
       return message;
     }
