@@ -785,6 +785,7 @@ class TorchFXImporter(BaseFXGraphImporter):
             "argmin": self._argmax_argmin(relax.op.argmin),
             "where": self._where,
             # tensor manipulation
+            "argsort": self._argsort,
             "cat": self._cat,
             "chunk": self._chunk,
             "concat": self._cat,
@@ -803,11 +804,13 @@ class TorchFXImporter(BaseFXGraphImporter):
             "scatter": self._scatter,
             "select": self._select,
             "size": self._size,
+            "sort": self._sort,
             "split": self._split,
             "squeeze": self._squeeze,
             "stack": self._stack,
             "take": self._take,
             "tile": self._tile,
+            "topk": self._topk,
             "transpose": self._transpose,
             "unsqueeze": lambda node: self.block_builder.emit(
                 relax.op.expand_dims(self.env[node.args[0]], node.args[1])
