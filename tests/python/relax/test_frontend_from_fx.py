@@ -4368,5 +4368,69 @@ def test_where():
     )
 
 
+def test_argsort():
+    class Argsort(Module):
+        def forward(self, x):
+            return torch.argsort(x, dim=1, descending=True)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            inp_0: R.Tensor((5, 3), dtype="float32"),
+        ) -> R.Tensor((5, 3), dtype="int32"):
+            with R.dataflow():
+                lv: R.Tensor((5, 3), dtype="int32") = R.argsort(inp_0, axis=1, descending=True)
+                gv: R.Tensor((5, 3), dtype="int32") = lv
+                R.output(gv)
+            return gv
+
+    verify_model(Argsort(), [([5, 3], "float32")], {}, Expected)
+
+
+def test_sort():
+    class Sort(Module):
+        def forward(self, x):
+            return torch.sort(x, dim=1, descending=True)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+            inp_0: R.Tensor((5, 3), dtype="float32"),
+        ) -> R.Tensor((5, 3), dtype="float32"):
+            with R.dataflow():
+                lv: R.Tensor((5, 3), dtype="float32") = R.sort(inp_0, axis=1, descending=True)
+                gv: R.Tensor((5, 3), dtype="float32") = lv
+                R.output(gv)
+            return gv
+
+    verify_model(Sort(), [([5, 3], "float32")], {}, Expected)
+
+
+def test_topk():
+    class Topk(Module):
+        def forward(self, x):
+            return torch.topk(x, k=2, dim=1, largest=True, sorted=True)
+
+    @tvm.script.ir_module
+    class Expected:
+        @R.function
+        def main(
+                inp_0: R.Tensor((5, 3), dtype="float32"),
+        ) -> R.Tuple(R.Tensor((5, 2), dtype="float32"), R.Tensor((5, 2), dtype="int64")):
+            with R.dataflow():
+                lv: R.Tuple(R.Tensor((5, 2), dtype="float32"), R.Tensor((5, 2), dtype="int64")) = R.topk(inp_0, k=2,
+                                                                                                         axis=1,
+                                                                                                         ret_type="both",
+                                                                                                         largest=True,
+                                                                                                         dtype="int64")
+                gv: R.Tuple(R.Tensor((5, 2), dtype="float32"), R.Tensor((5, 2), dtype="int64")) = lv
+                R.output(gv)
+            return gv
+
+    verify_model(Topk(), [([5, 3], "float32")], {}, Expected)
+
+
 if __name__ == "__main__":
     tvm.testing.main()
