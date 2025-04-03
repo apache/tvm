@@ -682,6 +682,32 @@ def test_leakyrelu():
     verify_model(LeakyReLU1(), example_args, {}, expected)
 
 
+def test_logaddexp():
+    class LogAddExp(Module):
+        def forward(self, input1, input2):
+            return torch.logaddexp(input1, input2)
+
+    @tvm.script.ir_module
+    class expected:
+        @R.function
+        def main(
+            input_1: R.Tensor((1, 3, 10, 10), dtype="float32"),
+            input_2: R.Tensor((1, 3, 10, 10), dtype="float32")
+        ) -> R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")):
+            # block 0
+            with R.dataflow():
+                lv: R.Tensor((1, 3, 10, 10), dtype="float32") = R.log_add_exp(input_1, input_2)
+                gv: R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")) = (lv,)
+                R.output(gv)
+            return gv
+
+    example_args = (
+        torch.randn(1, 3, 10, 10, dtype=torch.float32),
+        torch.randn(1, 3, 10, 10, dtype=torch.float32)
+    )
+    verify_model(LogAddExp(), example_args, {}, expected)
+
+
 def test_logsoftmax():
     class LogSoftmax(Module):
         def __init__(self):
@@ -840,7 +866,6 @@ operator_binary_1 = [
     (operator.mul, R.multiply),
     (operator.truediv, R.divide),
     (operator.floordiv, R.floor_divide),
-    (torch.logaddexp, R.log_add_exp),
     (operator.pow, R.power),
     (operator.mod, R.mod),
     (operator.and_, R.bitwise_and),
