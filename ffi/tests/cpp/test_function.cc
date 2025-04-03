@@ -151,8 +151,8 @@ TEST(Func, PassReturnAny) {
 TEST(Func, Global) {
   Function::SetGlobal("testing.add1",
                       Function::FromUnpacked([](const int32_t& a) -> int { return a + 1; }));
-  auto fadd1 = Function::GetGlobal("testing.add1");
-  int b = fadd1.value()(1);
+  auto fadd1 = Function::GetGlobalRequired("testing.add1");
+  int b = fadd1(1);
   EXPECT_EQ(b, 2);
   auto fnot_exist = Function::GetGlobal("testing.not_existing_func");
   EXPECT_TRUE(!fnot_exist);
