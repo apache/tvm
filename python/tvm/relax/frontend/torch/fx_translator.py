@@ -71,7 +71,7 @@ class TorchFXImporter(BaseFXGraphImporter):
         module = self.named_modules[node.target]
         alpha = module.negative_slope
         return self.block_builder.emit(relax.op.nn.leakyrelu(x, alpha))
-    
+
     def _softplus_module(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         module = self.named_modules[node.target]

@@ -88,7 +88,7 @@ def softplus(x, beta=1.0):
         b = tvm.tir.const(beta, value.dtype)
         return (1 / b) * tvm.tir.log(1 + tvm.tir.exp(b * value))
 
-    return te.compute(x.shape, _compute) 
+    return te.compute(x.shape, _compute)
 
 
 @tvm.te.tag_scope(tag=tag.BROADCAST)
