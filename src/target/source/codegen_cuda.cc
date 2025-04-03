@@ -58,9 +58,9 @@ std::string GetFP8Type(DataType type) {
   } else {
     LOG(FATAL) << "Only support scalar and vector types of width (2, 4, 8, 16) for FP8";
   }
-  if (type.code() == DataType::kE4M3Float) {
+  if (type.code() == DataType::kFloat8_e4m3fn) {
     stream << "fp8_e4" << vec << "_t";
-  } else if (type.code() == DataType::kE5M2Float) {
+  } else if (type.code() == DataType::kFloat8_e5m2) {
     stream << "fp8_e5" << vec << "_t";
   } else {
     LOG(FATAL) << "Unsupported FP8 type in CUDA codegen";
@@ -690,8 +690,8 @@ void CodeGenCUDA::VisitExpr_(const CastNode* op, std::ostream& os) {
   // Emit simple C-style type conversion.
   if (from_ty.is_scalar()) return CodeGenC::VisitExpr_(op, os);
 
-  if (target_ty.code() == DataType::kE4M3Float || target_ty.code() == DataType::kE5M2Float ||
-      from_ty.code() == DataType::kE4M3Float || from_ty.code() == DataType::kE5M2Float) {
+  if (target_ty.code() == DataType::kFloat8_e4m3fn || target_ty.code() == DataType::kFloat8_e5m2 ||
+      from_ty.code() == DataType::kFloat8_e4m3fn || from_ty.code() == DataType::kFloat8_e5m2) {
     std::ostringstream val;
     val << "(";
     PrintType(target_ty, val);
@@ -1406,7 +1406,7 @@ inline void PrintConst(const FloatImmNode* op, std::ostream& os, CodeGenCUDA* p)
     os << '(' << std::scientific << op->value << 'f' << ')';
     return;
   }
-  // Type code is kE5M2Float or kE4M4Float
+  // Type code is kFloat8_e5m2 or kE4M4Float
   if (op->dtype.is_float8()) {
     p->PrintType(op->dtype, os);
     os << '(' << std::scientific << op->value << 'f' << ')';

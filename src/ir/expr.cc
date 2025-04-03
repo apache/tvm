@@ -126,7 +126,7 @@ FloatImm::FloatImm(DataType dtype, double value, Span span) {
       ICHECK_LE(value, support::kMaxBFloat16)
           << "ValueError: Literal value " << value << " exceeds maximum of " << dtype;
     } else if (dtype.is_float8()) {
-      double bound = (dtype.code() == DataType::kE4M3Float) ? support::kMaxE4M3 : support::kMaxE5M2;
+      double bound = (dtype.code() == DataType::kFloat8_e4m3fn) ? support::kMaxE4M3 : support::kMaxE5M2;
       ICHECK_GE(value, -bound) << "ValueError: Literal value " << value << " exceeds minimum of "
                                << dtype;
       ICHECK_LE(value, bound) << "ValueError: Literal vaule " << value << " exceeds maximum of "

@@ -121,7 +121,7 @@ class FloatConfig {
       // NVIDIA/Arm/Intel's FP8 formats for Deep Learning
       // Reference: https://arxiv.org/abs/2209.05433
       switch (dtype.code()) {
-        case DataType::kE4M3Float:
+        case DataType::kFloat8_e4m3fn:
           // E4M3 format, not consistent with IEEE-754
           return FloatConfig(4, 3, 7, InftyStyle::kNone, NaNStyle::kAllOnes);
         default:

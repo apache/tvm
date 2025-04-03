@@ -124,7 +124,7 @@ class MixedPrecisionPass : public MixedModeMutator {
         min_bound = -support::kMaxBFloat16;
         max_bound = support::kMaxBFloat16;
       } else if (mixed_precision_type_.is_float8()) {
-        double bound = (mixed_precision_type_.code() == DataType::kE4M3Float) ? support::kMaxE4M3
+        double bound = (mixed_precision_type_.code() == DataType::kFloat8_e4m3fn) ? support::kMaxE4M3
                                                                               : support::kMaxE5M2;
         min_bound = -bound;
         max_bound = bound;
