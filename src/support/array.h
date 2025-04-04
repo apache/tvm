@@ -167,7 +167,7 @@ struct AsVectorImpl<TSrcObjectRef, int> {
   inline std::vector<int> operator()(const Array<TSrcObjectRef>& array) const {
     TVMRetValue ret_value;
     ret_value = array;
-    Array<runtime::Int> as_int_vec = ret_value;
+    Array<IntImm> as_int_vec = ret_value;
 
     std::vector<int> results;
     for (const auto& value : as_int_vec) {
@@ -182,7 +182,7 @@ struct AsVectorImpl<TSrcObjectRef, int64_t> {
   inline std::vector<int64_t> operator()(const Array<TSrcObjectRef>& array) const {
     TVMRetValue ret_value;
     ret_value = array;
-    Array<runtime::Int> as_int_vec = ret_value;
+    Array<IntImm> as_int_vec = ret_value;
 
     std::vector<int64_t> results;
     for (const auto& value : as_int_vec) {
@@ -197,7 +197,7 @@ struct AsVectorImpl<TSrcObjectRef, double> {
   inline std::vector<double> operator()(const Array<TSrcObjectRef>& array) const {
     TVMRetValue ret_value;
     ret_value = array;
-    Array<runtime::Float> as_int_vec = ret_value;
+    Array<FloatImm> as_int_vec = ret_value;
 
     std::vector<double> results;
     for (const auto& value : as_int_vec) {

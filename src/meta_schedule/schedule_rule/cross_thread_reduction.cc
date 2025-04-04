@@ -73,7 +73,7 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
 
     // Step 3. Try block fusion.
     int n_candidate = static_cast<int>(thread_extents.size());
-    Array<runtime::Float> probs(n_candidate, 1.0 / n_candidate);
+    Array<FloatImm> probs(n_candidate, FloatImm(DataType::Float(32), 1.0 / n_candidate));
     tir::ExprRV thread_extent = tmp_sch->SampleCategorical(thread_extents, probs);
     if (fusible) {
       ICHECK(target_block.defined());
@@ -267,7 +267,7 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
   /*! \brief The number of threads per warp */
   int warp_size;
   /*! \brief Candidates of thread axis extent (values are required to be positive). */
-  Array<runtime::Int> thread_extents;
+  Array<Integer> thread_extents;
 
   void VisitAttrs(tvm::AttrVisitor* v) {
     v->Visit("max_threads_per_block", &max_threads_per_block);
@@ -279,7 +279,7 @@ class CrossThreadReductionNode : public ScheduleRuleNode {
   TVM_DECLARE_FINAL_OBJECT_INFO(CrossThreadReductionNode, ScheduleRuleNode);
 };
 
-ScheduleRule ScheduleRule::CrossThreadReduction(Array<runtime::Int> thread_extents) {
+ScheduleRule ScheduleRule::CrossThreadReduction(Array<Integer> thread_extents) {
   for (const auto& extent : thread_extents) {
     CHECK(extent->value > 0) << "ValueError: The candidates of thread extent must be positive";
   }

@@ -47,9 +47,9 @@ class TracedScheduleNode : public ConcreteScheduleNode {
 
  public:
   /******** Schedule: Sampling ********/
-  ExprRV SampleCategorical(const Array<runtime::Int>& candidates,
-                           const Array<runtime::Float>& probs,
-                           Optional<runtime::Int> decision = NullOpt) final;
+  ExprRV SampleCategorical(const Array<Integer>& candidates,
+                           const Array<FloatImm>& probs,
+                           Optional<Integer> decision = NullOpt) final;
   Array<ExprRV> SamplePerfectTile(const LoopRV& loop_rv, int n, int max_innermost_factor,
                                   Optional<Array<Integer>> decision = NullOpt) final;
   Array<ExprRV> SamplePartitionedTile(const LoopRV& loop_rv, int n, int partition_pos,

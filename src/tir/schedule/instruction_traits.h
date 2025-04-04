@@ -433,11 +433,6 @@ inline void PythonAPICall::AsPythonString(const ObjectRef& obj, std::ostream& os
   } else if (const auto* float_imm = obj.as<FloatImmNode>()) {
     os.precision(17);
     os << float_imm->value;
-  } else if (const auto* runtime_int = obj.as<runtime::Int::ContainerType>()) {
-    os << runtime_int->value;
-  } else if (const auto* runtime_float = obj.as<runtime::Float::ContainerType>()) {
-    os.precision(17);
-    os << runtime_float->value;
   } else if (const auto* array = obj.as<ArrayNode>()) {
     os << '[';
     bool is_first = true;

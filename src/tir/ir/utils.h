@@ -36,10 +36,6 @@ namespace tir {
  * attributes, this is not always possible, as attributes may refer to
  * non-IR objects.
  *
- * This function normalizes any `runtime::Int`, `runtime::Bool`,
- * `runtime::Float`, or containers of those types to the corresponding
- * IR type.
- *
  * \param obj The attribute object to be normalized
  *
  * \returns The normalized attribute

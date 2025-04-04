@@ -428,12 +428,8 @@ inline Array<FloatImm> AsFloatArray(const ObjectRef& obj) {
     auto float_value = [&]() -> double {
       if (const auto* int_imm = elem.as<IntImmNode>()) {
         return int_imm->value;
-      } else if (const auto* runtime_int = elem.as<runtime::Int::ContainerType>()) {
-        return runtime_int->value;
       } else if (const auto* float_imm = elem.as<FloatImmNode>()) {
         return float_imm->value;
-      } else if (const auto* runtime_float = elem.as<runtime::Float::ContainerType>()) {
-        return runtime_float->value;
       } else {
         LOG(FATAL) << "TypeError: Expect an array of float or int, but gets: "
                    << elem->GetTypeKey();
@@ -461,8 +457,6 @@ inline Array<Integer> AsIntArray(const ObjectRef& obj) {
     auto int_value = [&]() -> int64_t {
       if (const auto* int_imm = elem.as<IntImmNode>()) {
         return int_imm->value;
-      } else if (const auto* runtime_int = elem.as<runtime::Int::ContainerType>()) {
-        return runtime_int->value;
       } else {
         LOG(FATAL) << "TypeError: Expect an array of integers, but gets: " << elem->GetTypeKey();
       }

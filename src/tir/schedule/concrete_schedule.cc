@@ -233,9 +233,9 @@ support::LinearCongruentialEngine::TRandState ConcreteScheduleNode::ForkSeed() {
   return support::LinearCongruentialEngine(&rand_state_).ForkSeed();
 }
 
-ExprRV ConcreteScheduleNode::SampleCategorical(const Array<runtime::Int>& candidates,
-                                               const Array<runtime::Float>& probs,
-                                               Optional<runtime::Int> decision) {
+ExprRV ConcreteScheduleNode::SampleCategorical(const Array<Integer>& candidates,
+                                               const Array<FloatImm>& probs,
+                                               Optional<Integer> decision) {
   TVM_TIR_SCHEDULE_BEGIN();
   return CreateRV(tir::SampleCategorical(&this->rand_state_, candidates, probs, &decision));
   TVM_TIR_SCHEDULE_END("sample-categorical", this->error_render_level_);
@@ -915,13 +915,6 @@ void ConcreteScheduleNode::Tensorize(const BlockRV& block_rv, const String& intr
 ObjectRef ConcreteScheduleNode::CheckAndGetAnnotationValue(const ObjectRef& ann_val) {
   if (ann_val.as<ffi::StringObj>()) {
     return ann_val;
-  }
-  if (auto* runtime_int = ann_val.as<runtime::Int::ContainerType>()) {
-    return IntImm(DataType::Int(32), runtime_int->value);
-  } else if (auto* runtime_float = ann_val.as<runtime::Float::ContainerType>()) {
-    return FloatImm(DataType::Float(32), runtime_float->value);
-  } else if (auto* runtime_bool = ann_val.as<runtime::Bool::ContainerType>()) {
-    return Bool(runtime_bool->value);
   }
 
   if (const auto* expr = ann_val.as<PrimExprNode>()) {

@@ -112,9 +112,7 @@ Array<ObjectRef> TranslateInputRVs(
     } else if (const auto* str_obj = input.as<StringObj>()) {
       // Case 2. string => "content"
       results.push_back(String('"' + std::string(str_obj->bytes.data) + '"'));
-    } else if (input->IsInstance<IntImmNode>() || input->IsInstance<FloatImmNode>() ||
-               input->IsInstance<runtime::Int::ContainerType>() ||
-               input->IsInstance<runtime::Float::ContainerType>()) {
+    } else if (input->IsInstance<IntImmNode>() || input->IsInstance<FloatImmNode>()) {
       // Case 3. integer or floating-point number
       results.push_back(input);
     } else if (input->IsInstance<ArrayNode>()) {
@@ -151,9 +149,7 @@ Array<ObjectRef> TranslateInputRVs(const Array<ObjectRef>& inputs,
   results.reserve(inputs.size());
   for (const ObjectRef& input : inputs) {
     // Case 3. integer or floating-point number
-    if (input->IsInstance<IntImmNode>() || input->IsInstance<FloatImmNode>() ||
-        input->IsInstance<runtime::Int::ContainerType>() ||
-        input->IsInstance<runtime::Float::ContainerType>()) {
+    if (input->IsInstance<IntImmNode>() || input->IsInstance<FloatImmNode>()) {
       results.push_back(input);
       continue;
     }
@@ -389,9 +385,9 @@ void Trace::ApplyJSONToSchedule(ObjectRef json, Schedule sch) {
     try {
       const ArrayNode* arr = decision_entry.as<ArrayNode>();
       ICHECK(arr && arr->size() == 2);
-      auto arr0 = arr->at(0).as<runtime::Int>();
+      auto arr0 = arr->at(0).as<IntImm>();
       ICHECK(arr0);
-      index = arr0.value();
+      index = arr0.value()->value;
       decision = arr->at(1);
     } catch (const tvm::Error& e) {
       LOG(FATAL) << "ValueError: Each entry of a json decision should be a tuple [index, "

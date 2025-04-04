@@ -39,14 +39,10 @@ void JSONDumps(ObjectRef json_obj, std::ostringstream& os) {
     } else {
       os << int_imm->value;
     }
-  } else if (const auto* runtime_bool = json_obj.as<runtime::Bool::ContainerType>()) {
-    os << (runtime_bool->value ? "true" : "false");
-  } else if (const auto* runtime_int = json_obj.as<runtime::Int::ContainerType>()) {
-    os << runtime_int->value;
+  } else if (const auto* int_imm = json_obj.as<IntImmNode>()) {
+    os << int_imm->value;
   } else if (const auto* float_imm = json_obj.as<FloatImmNode>()) {
     os << std::setprecision(20) << float_imm->value;
-  } else if (const auto* runtime_float = json_obj.as<runtime::Float::ContainerType>()) {
-    os << std::setprecision(20) << runtime_float->value;
   } else if (const auto* str = json_obj.as<runtime::StringObj>()) {
     os << '"' << support::StrEscape(str->bytes.data, str->bytes.size) << '"';
   } else if (const auto* array = json_obj.as<ffi::ArrayNode>()) {
@@ -173,7 +169,7 @@ class JSONTokenizer {
     std::string to_parse(st, cur_);
     if (!is_float) {
       try {
-        *token = Token{TokenType::kInteger, runtime::Int(std::stoll(to_parse))};
+        *token = Token{TokenType::kInteger, Integer(std::stoll(to_parse))};
       } catch (const std::invalid_argument& e) {
         LOG(WARNING) << "ValueError: Invalid argument to std::stoll: " << to_parse
                      << ". Details: " << e.what() << ". Switching to std::stod now.";
@@ -186,7 +182,7 @@ class JSONTokenizer {
     }
     if (is_float) {
       try {
-        *token = Token{TokenType::kFloat, runtime::Float(std::stod(to_parse))};
+        *token = Token{TokenType::kFloat, FloatImm(DataType::Float(32), std::stod(to_parse))};
       } catch (const std::invalid_argument& e) {
         LOG(INFO) << "ValueError: Invalid argument to std::stod: " << to_parse
                   << ". Details: " << e.what();
