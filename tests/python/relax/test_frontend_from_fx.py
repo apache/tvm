@@ -771,12 +771,12 @@ def test_softplus():
     @tvm.script.ir_module
     class expected:
         @R.function
-        def main(
-            inp_0: R.Tensor((10, 10), dtype="float32")
-        ) -> R.Tensor((10, 10), dtype="float32"):
+        def main(inp_0: R.Tensor((10, 10), dtype="float32")) -> R.Tensor((10, 10), dtype="float32"):
             # block 0
             with R.dataflow():
-                lv: R.Tensor((10, 10), dtype="float32") = R.nn.softplus(inp_0, beta=1.0, threshold=20.0)
+                lv: R.Tensor((10, 10), dtype="float32") = R.nn.softplus(
+                    inp_0, beta=1.0, threshold=20.0
+                )
                 gv: R.Tensor((10, 10), dtype="float32") = lv
                 R.output(gv)
             return gv
