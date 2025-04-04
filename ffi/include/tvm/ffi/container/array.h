@@ -843,7 +843,10 @@ class Array : public ObjectRef {
         // no other shared copies of the array.
         auto arr = static_cast<ArrayNode*>(data.get());
         for (auto it = arr->MutableBegin(); it != arr->MutableEnd(); it++) {
-          T mapped = fmap(details::AnyUnsafe::CopyFromAnyStorageAfterCheck<T>(std::move(*it)));
+          T value = details::AnyUnsafe::CopyFromAnyStorageAfterCheck<T>(*it);
+          // reset the original value to nullptr, to ensure unique ownership
+          it->reset();
+          T mapped = fmap(std::move(value));
           *it = std::move(mapped);
         }
         return data;

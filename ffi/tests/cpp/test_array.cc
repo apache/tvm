@@ -189,6 +189,15 @@ TEST(Array, FuncArrayAnyArg) {
   EXPECT_EQ(fadd_one(Array<Any>{1}).operator int(), 2);
 }
 
+TEST(Array, MapUniquePropogation) {
+  // Basic functionality
+  Array<TInt> var_arr{TInt(1), TInt(2)};
+  var_arr.MutateByApply([](TInt x) -> TInt {
+    EXPECT_TRUE(x.unique());
+    return x;
+  });
+}
+
 TEST(Array, AnyImplicitConversion) {
   Array<Any> arr0_mixed = {11.1, 1};
   EXPECT_EQ(arr0_mixed[1].operator int(), 1);
