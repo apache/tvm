@@ -92,9 +92,7 @@ def softplus(x, beta=1.0, threshold=20.0):
         t = tvm.tir.const(threshold, value.dtype)
 
         return tvm.tir.Select(
-            b * value > t,
-            value,
-            (1 / b) * tvm.tir.log(1 + tvm.tir.exp(b * value))
+            b * value > t, value, (1 / b) * tvm.tir.log(1 + tvm.tir.exp(b * value))
         )
 
     return te.compute(x.shape, _compute)
