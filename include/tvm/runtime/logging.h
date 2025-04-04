@@ -216,9 +216,8 @@ class InternalError : public Error {
     if (pos != std::string::npos) {
       size_t end = pos + 6;
       size_t begin = pos;
-      for (; begin >= 0 && message[begin] != ' '; --begin)
-        ;
-      return message.substr(begin + 1, end - begin - 2);
+      for (; begin != 0 && message[begin - 1] != ' '; --begin) {}
+      return message.substr(begin, end - begin - 1);
     } else {
       return "InternalError";
     }
@@ -229,8 +228,7 @@ class InternalError : public Error {
     if (pos != std::string::npos) {
       size_t end = pos + 6;
       size_t begin = pos;
-      for (; begin >= 0 && message[begin] != ' '; --begin)
-        ;
+      for (; begin != 0 && message[begin - 1] != ' '; --begin) {}
       return message.substr(0, begin) + message.substr(end);
     } else {
       return message;
