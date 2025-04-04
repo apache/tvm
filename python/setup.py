@@ -129,6 +129,12 @@ def _remove_path(path):
 LIB_LIST, __version__ = get_lib_path()
 __version__ = git_describe_version(__version__)
 
+if not CONDA_BUILD and not INPLACE_BUILD:
+    # Wheel cleanup
+    for path in LIB_LIST:
+        libname = os.path.basename(path)
+        _remove_path(f"tvm/{libname}")
+
 
 def config_cython():
     """Try to configure cython and return cython configuration"""
@@ -260,5 +266,5 @@ if not CONDA_BUILD and not INPLACE_BUILD:
     # Wheel cleanup
     os.remove("MANIFEST.in")
     for path in LIB_LIST:
-        _, libname = os.path.split(path)
+        libname = os.path.basename(path)
         _remove_path(f"tvm/{libname}")
