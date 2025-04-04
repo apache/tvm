@@ -674,6 +674,8 @@ inline constexpr bool use_default_type_traits_v<TypedFunction<FType>> = false;
 
 template <typename FType>
 struct TypeTraits<TypedFunction<FType>> : public TypeTraitsBase {
+  static constexpr int32_t field_static_type_index = TypeIndex::kTVMFFIFunc;
+
   static TVM_FFI_INLINE void CopyToAnyView(const TypedFunction<FType>& src, TVMFFIAny* result) {
     TypeTraits<Function>::CopyToAnyView(src.packed(), result);
   }
