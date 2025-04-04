@@ -1139,9 +1139,9 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         k = args[1] if len(args) > 1 else node.kwargs.get("k", 1)
         dim = args[2] if len(args) > 2 else node.kwargs.get("dim", -1)
         largest = args[3] if len(args) > 3 else node.kwargs.get("largest", True)
-        sorted = args[4] if len(args) > 4 else node.kwargs.get("sorted", True)
+        _sorted = args[4] if len(args) > 4 else node.kwargs.get("_sorted", True)
 
-        if not sorted:
+        if not _sorted:
             msg = "Currently supports only sorted output for topk operator."
             raise AssertionError(msg)
 
