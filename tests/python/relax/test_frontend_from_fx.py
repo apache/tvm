@@ -4417,14 +4417,12 @@ def test_topk():
     class Expected:
         @R.function
         def main(
-                inp_0: R.Tensor((5, 3), dtype="float32"),
+            inp_0: R.Tensor((5, 3), dtype="float32"),
         ) -> R.Tuple(R.Tensor((5, 2), dtype="float32"), R.Tensor((5, 2), dtype="int64")):
             with R.dataflow():
-                lv: R.Tuple(R.Tensor((5, 2), dtype="float32"), R.Tensor((5, 2), dtype="int64")) = R.topk(inp_0, k=2,
-                                                                                                         axis=1,
-                                                                                                         ret_type="both",
-                                                                                                         largest=True,
-                                                                                                         dtype="int64")
+                lv: R.Tuple(
+                    R.Tensor((5, 2), dtype="float32"), R.Tensor((5, 2), dtype="int64")
+                ) = R.topk(inp_0, k=2, axis=1, ret_type="both", largest=True, dtype="int64")
                 gv: R.Tuple(R.Tensor((5, 2), dtype="float32"), R.Tensor((5, 2), dtype="int64")) = lv
                 R.output(gv)
             return gv
