@@ -55,9 +55,9 @@ std::vector<int32_t> SampleWithoutReplacement(
  * \return The random variable sampled from candidates
  */
 TVM_DLL int64_t SampleCategorical(support::LinearCongruentialEngine::TRandState* rand_state,
-                                  const Array<runtime::Int>& candidates,
-                                  const Array<runtime::Float>& probs,
-                                  Optional<runtime::Int>* decision);
+                                  const Array<Integer>& candidates,
+                                  const Array<FloatImm>& probs,
+                                  Optional<Integer>* decision);
 /*!
  * \brief Create a sampling function that does multinomial sampling.
  * \param rand_state The random state.

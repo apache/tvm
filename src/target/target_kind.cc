@@ -258,7 +258,7 @@ TargetJSON UpdateROCmAttrs(TargetJSON target) {
  * \return The updated attributes
  */
 TargetJSON TestTargetParser(TargetJSON target) {
-  Map<String, ffi::Any> features = {{"is_test", runtime::Bool(true)}};
+  Map<String, ffi::Any> features = {{"is_test", true}};
   target.Set("features", features);
   return target;
 }
@@ -273,13 +273,13 @@ TVM_REGISTER_TARGET_KIND("llvm", kDLCPU)
     .add_attr_option<String>("mabi")
     .add_attr_option<int64_t>("num-cores")
     // Fast math flags, see https://llvm.org/docs/LangRef.html#fast-math-flags
-    .add_attr_option<runtime::Bool>("fast-math")  // implies all the below
-    .add_attr_option<runtime::Bool>("fast-math-nnan")
-    .add_attr_option<runtime::Bool>("fast-math-ninf")
-    .add_attr_option<runtime::Bool>("fast-math-nsz")
-    .add_attr_option<runtime::Bool>("fast-math-arcp")
-    .add_attr_option<runtime::Bool>("fast-math-contract")
-    .add_attr_option<runtime::Bool>("fast-math-reassoc")
+    .add_attr_option<bool>("fast-math")  // implies all the below
+    .add_attr_option<bool>("fast-math-nnan")
+    .add_attr_option<bool>("fast-math-ninf")
+    .add_attr_option<bool>("fast-math-nsz")
+    .add_attr_option<bool>("fast-math-arcp")
+    .add_attr_option<bool>("fast-math-contract")
+    .add_attr_option<bool>("fast-math-reassoc")
     .add_attr_option<int64_t>("opt-level")
     // LLVM command line flags, see below
     .add_attr_option<Array<String>>("cl-opt")
@@ -330,8 +330,7 @@ TVM_REGISTER_TARGET_KIND("cuda", kDLCUDA)
     .add_attr_option<int64_t>("thread_warp_size", 32)
     .add_attr_option<int64_t>("registers_per_block")
     .add_attr_option<int64_t>("l2_cache_size_bytes")
-    .add_attr_option<int64_t>("max_num_threads",
-                                   1024)  // TODO(@zxybazh): deprecate it
+    .add_attr_option<int64_t>("max_num_threads", 1024)  // TODO(@zxybazh): deprecate it
     .set_default_keys({"cuda", "gpu"})
     .set_target_parser(UpdateCUDAAttrs);
 
@@ -386,20 +385,20 @@ TVM_REGISTER_TARGET_KIND("metal", kDLMetal)
 TVM_REGISTER_TARGET_KIND("vulkan", kDLVulkan)
     .add_attr_option<Array<String>>("mattr")
     // Feature support
-    .add_attr_option<runtime::Bool>("supports_float16")
-    .add_attr_option<runtime::Bool>("supports_float32", runtime::Bool(true))
-    .add_attr_option<runtime::Bool>("supports_float64")
-    .add_attr_option<runtime::Bool>("supports_int8")
-    .add_attr_option<runtime::Bool>("supports_int16")
-    .add_attr_option<runtime::Bool>("supports_int32", runtime::Bool(true))
-    .add_attr_option<runtime::Bool>("supports_int64")
-    .add_attr_option<runtime::Bool>("supports_8bit_buffer")
-    .add_attr_option<runtime::Bool>("supports_16bit_buffer")
-    .add_attr_option<runtime::Bool>("supports_storage_buffer_storage_class")
-    .add_attr_option<runtime::Bool>("supports_push_descriptor")
-    .add_attr_option<runtime::Bool>("supports_dedicated_allocation")
-    .add_attr_option<runtime::Bool>("supports_integer_dot_product")
-    .add_attr_option<runtime::Bool>("supports_cooperative_matrix")
+    .add_attr_option<bool>("supports_float16")
+    .add_attr_option<bool>("supports_float32", true)
+    .add_attr_option<bool>("supports_float64")
+    .add_attr_option<bool>("supports_int8")
+    .add_attr_option<bool>("supports_int16")
+    .add_attr_option<bool>("supports_int32", true)
+    .add_attr_option<bool>("supports_int64")
+    .add_attr_option<bool>("supports_8bit_buffer")
+    .add_attr_option<bool>("supports_16bit_buffer")
+    .add_attr_option<bool>("supports_storage_buffer_storage_class")
+    .add_attr_option<bool>("supports_push_descriptor")
+    .add_attr_option<bool>("supports_dedicated_allocation")
+    .add_attr_option<bool>("supports_integer_dot_product")
+    .add_attr_option<bool>("supports_cooperative_matrix")
     .add_attr_option<int64_t>("supported_subgroup_operations")
     // Physical device limits
     .add_attr_option<int64_t>("max_num_threads", 256)

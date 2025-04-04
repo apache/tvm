@@ -109,19 +109,9 @@ class TargetNode : public Object {
   Optional<TObjectRef> GetAttr(
       const std::string& attr_key,
       Optional<TObjectRef> default_value = Optional<TObjectRef>(std::nullopt)) const {
-    static_assert(std::is_base_of<ObjectRef, TObjectRef>::value,
-                  "Can only call GetAttr with ObjectRef types.");
     auto it = attrs.find(attr_key);
     if (it != attrs.end()) {
-      // For backwards compatibility, return through TVMRetValue.
-      // This triggers any automatic conversions registered with
-      // PackedFuncValueConverter.  Importantly, this allows use of
-      // `GetAttr<Integer>` and `GetAttr<Bool>` for properties that
-      // are stored internally as `runtime::Box<int64_t>` and
-      // `runtime::Box<bool>`.
-      TVMRetValue ret;
-      ret = (*it).second;
-      return ret;
+      return Downcast<TObjectRef>((*it).second);
     } else {
       return default_value;
     }

@@ -79,7 +79,7 @@ Array<ScheduleRule> ScheduleRule::DefaultLLVM() {
       ScheduleRule::ParallelizeVectorizeUnroll(
           /*max_jobs_per_core=*/16,
           /*max_vectorize_extent=*/64,
-          /*unroll_max_steps=*/Array<runtime::Int>{0, 16, 64, 512},
+          /*unroll_max_steps=*/Array<Integer>{0, 16, 64, 512},
           /*unroll_explicit=*/true),
       ScheduleRule::RandomComputeLocation(),
   };
@@ -126,7 +126,7 @@ Array<ScheduleRule> ScheduleRule::DefaultX86(const String& type) {
       ScheduleRule::ParallelizeVectorizeUnroll(
           /*max_jobs_per_core=*/16,
           /*max_vectorize_extent=*/64,
-          /*unroll_max_steps=*/Array<runtime::Int>{0, 16, 64, 512},
+          /*unroll_max_steps=*/Array<Integer>{0, 16, 64, 512},
           /*unroll_explicit=*/true),
       ScheduleRule::RandomComputeLocation(),
   };
@@ -158,11 +158,11 @@ Array<ScheduleRule> ScheduleRule::DefaultCUDA() {
           /*require_ordered=*/false,
           /*disallow_op=*/Array<String>{}),
       ScheduleRule::CrossThreadReduction(
-          /*thread_extents=*/Array<runtime::Int>{4, 8, 16, 32, 64, 128, 256, 512}),
+          /*thread_extents=*/Array<Integer>{4, 8, 16, 32, 64, 128, 256, 512}),
       ScheduleRule::ParallelizeVectorizeUnroll(
           /*max_jobs_per_core=*/-1,
           /*max_vectorize_extent=*/-1,
-          /*unroll_max_steps=*/Array<runtime::Int>{0, 16, 64, 512, 1024},
+          /*unroll_max_steps=*/Array<Integer>{0, 16, 64, 512, 1024},
           /*unroll_explicit=*/true),
       ScheduleRule::AutoBind(
           /*max_threadblocks=*/256,
@@ -297,7 +297,7 @@ Array<ScheduleRule> ScheduleRule::DefaultHexagon() {
       ScheduleRule::ParallelizeVectorizeUnroll(
           /*max_jobs_per_core=*/16,
           /*max_vectorize_extent=*/128,
-          /*unroll_max_steps=*/Array<runtime::Int>{0, 16, 64, 512},
+          /*unroll_max_steps=*/Array<Integer>{0, 16, 64, 512},
           /*unroll_explicit=*/true),
   };
 }
@@ -385,7 +385,7 @@ Array<ScheduleRule> ScheduleRule::DefaultARM(const String& type) {
       ScheduleRule::ParallelizeVectorizeUnroll(
           /*max_jobs_per_core=*/8,
           /*max_vectorize_extent=*/32,
-          /*unroll_max_steps=*/Array<runtime::Int>{0, 8, 32, 256},
+          /*unroll_max_steps=*/Array<Integer>{0, 8, 32, 256},
           /*unroll_explicit=*/true),
       ScheduleRule::RandomComputeLocation());
 }

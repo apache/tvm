@@ -218,7 +218,7 @@ class TargetKindRegEntry {
    * \tparam ValueType The value type to be registered
    */
   template <typename ValueType>
-  inline TargetKindRegEntry& add_attr_option(const String& key, ObjectRef default_value);
+  inline TargetKindRegEntry& add_attr_option(const String& key, ffi::Any default_value);
   /*! \brief Set name of the TargetKind to be the same as registry if it is empty */
   inline TargetKindRegEntry& set_name();
   /*!
@@ -370,7 +370,7 @@ inline TargetKindRegEntry& TargetKindRegEntry::add_attr_option(const String& key
 
 template <typename ValueType>
 inline TargetKindRegEntry& TargetKindRegEntry::add_attr_option(const String& key,
-                                                               ObjectRef default_value) {
+                                                               Any default_value) {
   add_attr_option<ValueType>(key);
   kind_->key2default_[key] = default_value;
   return *this;

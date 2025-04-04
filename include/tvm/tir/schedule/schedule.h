@@ -224,9 +224,9 @@ class ScheduleNode : public runtime::Object {
    * \param decision The sampling decision
    * \return The random variable sampled from candidates
    */
-  virtual ExprRV SampleCategorical(const Array<runtime::Int>& candidates,
-                                   const Array<runtime::Float>& probs,
-                                   Optional<runtime::Int> decision = NullOpt) = 0;
+  virtual ExprRV SampleCategorical(const Array<Integer>& candidates,
+                                   const Array<FloatImm>& probs,
+                                   Optional<Integer> decision = NullOpt) = 0;
   /*!
    * \brief Sample the factors to perfect tile a specific loop
    * \param loop_rv The loop to be tiled

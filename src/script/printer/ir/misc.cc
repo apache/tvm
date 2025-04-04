@@ -30,20 +30,6 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
       return LiteralDoc::Str(s, p);
     });
 
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<runtime::Bool>("", [](runtime::Bool obj, ObjectPath p, IRDocsifier d) -> Doc {
-      return LiteralDoc::Boolean(obj->value, p);
-    });
-
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<runtime::Int>("", [](runtime::Int obj, ObjectPath p, IRDocsifier d) -> Doc {
-      return LiteralDoc::Int(obj->value, p);
-    });
-
-TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<runtime::Float>("", [](runtime::Float obj, ObjectPath p, IRDocsifier d) -> Doc {
-      return LiteralDoc::Float(obj->value, p);
-    });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
     .set_dispatch<Array<ObjectRef>>(  //

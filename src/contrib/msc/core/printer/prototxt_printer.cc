@@ -33,10 +33,6 @@ namespace msc {
 LiteralDoc PrototxtPrinter::ToLiteralDoc(const ObjectRef& obj) {
   if (obj.as<StringObj>()) {
     return LiteralDoc::Str(Downcast<String>(obj), NullOpt);
-  } else if (auto ptr = obj.as<runtime::Int::ContainerType>()) {
-    return LiteralDoc::Int(ptr->value, NullOpt);
-  } else if (auto ptr = obj.as<runtime::Float::ContainerType>()) {
-    return LiteralDoc::Float(ptr->value, NullOpt);
   } else if (obj.as<IntImmNode>()) {
     return LiteralDoc::Int(Downcast<IntImm>(obj)->value, NullOpt);
   } else if (obj.as<FloatImmNode>()) {

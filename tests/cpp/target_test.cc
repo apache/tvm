@@ -31,15 +31,15 @@ using namespace tvm;
 
 TVM_REGISTER_TARGET_KIND("TestTargetKind", kDLCPU)
     .set_attr<std::string>("Attr1", "Value1")
-    .add_attr_option<runtime::Bool>("my_bool")
+    .add_attr_option<bool>("my_bool")
     .add_attr_option<Array<String>>("your_names")
-    .add_attr_option<Map<String, runtime::Int>>("her_maps");
+    .add_attr_option<Map<String, int64_t>>("her_maps");
 
 TargetJSON TestTargetParser(TargetJSON target) {
   String mcpu = Downcast<String>(target.at("mcpu"));
   target.Set("mcpu", String("super_") + mcpu);
   target.Set("keys", Array<String>({"super"}));
-  target.Set("features", Map<String, ffi::Any>{{"test", runtime::Bool(true)}});
+  target.Set("features", Map<String, ffi::Any>{{"test", true}});
   return target;
 }
 
@@ -75,14 +75,14 @@ TEST(TargetKind, GetAttrMap) {
 
 TEST(TargetCreation, NestedConfig) {
   Map<String, ffi::Any> config = {
-      {"my_bool", runtime::Bool(true)},
+      {"my_bool", true},
       {"your_names", Array<String>{"junru", "jian"}},
       {"kind", String("TestTargetKind")},
       {
           "her_maps",
-          Map<String, runtime::Int>{
-              {"a", runtime::Int(1)},
-              {"b", runtime::Int(2)},
+          Map<String, int64_t>{
+              {"a", 1},
+              {"b", 2},
           },
       },
   };
@@ -90,14 +90,13 @@ TEST(TargetCreation, NestedConfig) {
   ICHECK_EQ(target->kind, TargetKind::Get("TestTargetKind").value());
   ICHECK_EQ(target->tag, "");
   ICHECK(target->keys.empty());
-  runtime::Bool my_bool = target->GetAttr<runtime::Bool>("my_bool").value();
-  ICHECK_EQ(my_bool.operator bool(), true);
+  bool my_bool = target->GetAttr<bool>("my_bool").value();
+  ICHECK_EQ(my_bool, true);
   Array<String> your_names = target->GetAttr<Array<String>>("your_names").value();
   ICHECK_EQ(your_names.size(), 2U);
   ICHECK_EQ(your_names[0], "junru");
   ICHECK_EQ(your_names[1], "jian");
-  Map<String, runtime::Int> her_maps =
-      target->GetAttr<Map<String, runtime::Int>>("her_maps").value();
+  Map<String, int64_t> her_maps = target->GetAttr<Map<String, int64_t>>("her_maps").value();
   ICHECK_EQ(her_maps.size(), 2U);
   ICHECK_EQ(her_maps["a"], 1);
   ICHECK_EQ(her_maps["b"], 2);
@@ -105,15 +104,15 @@ TEST(TargetCreation, NestedConfig) {
 
 TEST(TargetCreationFail, UnrecognizedConfigOption) {
   Map<String, ffi::Any> config = {
-      {"my_bool", runtime::Bool(true)},
+      {"my_bool", true},
       {"your_names", Array<String>{"junru", "jian"}},
       {"kind", String("TestTargetKind")},
       {"bad", ObjectRef(nullptr)},
       {
           "her_maps",
-          Map<String, runtime::Int>{
-              {"a", runtime::Int(1)},
-              {"b", runtime::Int(2)},
+          Map<String, int64_t>{
+              {"a", 1},
+              {"b", 2},
           },
       },
   };
@@ -133,9 +132,9 @@ TEST(TargetCreationFail, TypeMismatch) {
       {"kind", String("TestTargetKind")},
       {
           "her_maps",
-          Map<String, runtime::Int>{
-              {"a", runtime::Int(1)},
-              {"b", runtime::Int(2)},
+          Map<String, int64_t>{
+              {"a", 1},
+              {"b", 2},
           },
       },
   };
@@ -150,13 +149,13 @@ TEST(TargetCreationFail, TypeMismatch) {
 
 TEST(TargetCreationFail, TargetKindNotFound) {
   Map<String, ffi::Any> config = {
-      {"my_bool", runtime::Bool("true")},
+      {"my_bool", "true"},
       {"your_names", Array<String>{"junru", "jian"}},
       {
           "her_maps",
-          Map<String, runtime::Int>{
-              {"a", runtime::Int(1)},
-              {"b", runtime::Int(2)},
+          Map<String, int64_t>{
+              {"a", 1},
+              {"b", 2},
           },
       },
   };
@@ -178,16 +177,15 @@ TEST(TargetCreation, TargetParser) {
 
 TEST(TargetCreation, TargetFeatures) {
   Target test_target_with_parser("TestTargetParser -mcpu=woof");
-  ASSERT_EQ(test_target_with_parser->GetFeature<runtime::Bool>("test").value(), true);
+  ASSERT_EQ(test_target_with_parser->GetFeature<bool>("test").value(), true);
 
   Target test_target_no_parser("TestTargetKind");
-  ASSERT_EQ(test_target_no_parser->GetFeature<runtime::Bool>("test"), nullptr);
-  ASSERT_EQ(test_target_no_parser->GetFeature<runtime::Bool>("test", runtime::Bool(true)).value(),
-            true);
+  ASSERT_EQ(test_target_no_parser->GetFeature<bool>("test"), std::nullopt);
+  ASSERT_EQ(test_target_no_parser->GetFeature<bool>("test", true).value(), true);
 }
 
 TEST(TargetCreation, TargetFeaturesBeforeParser) {
-  Map<String, ffi::Any> features = {{"test", runtime::Bool(true)}};
+  Map<String, ffi::Any> features = {{"test", true}};
   Map<String, ffi::Any> config = {
       {"kind", String("TestTargetParser")},
       {"mcpu", String("woof")},

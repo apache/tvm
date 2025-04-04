@@ -68,7 +68,7 @@ class ParallelizeVectorizeUnrollNode : public ScheduleRuleNode {
     if (!unroll_max_steps.empty() && !tir::CheckSpatialPrimFunc(sch, root_rv)) {
       int n = unroll_max_steps.size();
       double prob = 1.0 / n;
-      Array<runtime::Float> probs(n, runtime::Float(prob));
+      Array<FloatImm> probs(n, FloatImm(DataType::Float(32), prob));
       PrimExpr max_step = sch->SampleCategorical(unroll_max_steps, probs);
       if (unroll_explicit) {
         sch->Annotate(root_rv, tir::attr::meta_schedule_unroll_explicit, max_step);
@@ -102,7 +102,7 @@ class ParallelizeVectorizeUnrollNode : public ScheduleRuleNode {
    * \brief The options of the maximum number of unroll steps to be done.
    * Use an empty array to disable unroll.
    */
-  Array<runtime::Int> unroll_max_steps;
+  Array<Integer> unroll_max_steps;
   /*! \brief Whether to explicitly unroll the loop, or just add an "unroll" pragma. */
   bool unroll_explicit;
   /*! \brief The number of maximum available jobs in CPU. */
@@ -122,7 +122,7 @@ class ParallelizeVectorizeUnrollNode : public ScheduleRuleNode {
 
 ScheduleRule ScheduleRule::ParallelizeVectorizeUnroll(int max_jobs_per_core,
                                                       int max_vectorize_extent,
-                                                      Array<runtime::Int> unroll_max_steps,
+                                                      Array<Integer> unroll_max_steps,
                                                       bool unroll_explicit) {
   ObjectPtr<ParallelizeVectorizeUnrollNode> n = make_object<ParallelizeVectorizeUnrollNode>();
   n->max_jobs_per_core = max_jobs_per_core;

@@ -114,9 +114,9 @@ bool FindUnrollDecision(const Trace& trace, TRandState* rand_state,
   ICHECK_EQ(sample_inst->attrs.size(), 2);
   candidate->inst = GetRef<Instruction>(sample_inst);
   candidate->decision =
-      Downcast<runtime::Int>(trace->decisions[GetRef<Instruction>(sample_inst)])->value;
-  candidate->probs = support::AsVector<runtime::Float, double>(
-      Downcast<Array<runtime::Float>>(sample_inst->attrs[1]));
+      Downcast<IntImm>(trace->decisions[GetRef<Instruction>(sample_inst)])->value;
+  candidate->probs = support::AsVector<FloatImm, double>(
+      Downcast<Array<FloatImm>>(sample_inst->attrs[1]));
   return true;
 }
 

@@ -385,7 +385,7 @@ LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance, const TargetJSON& target)
 
   auto GetBoolFlag = [&target](llvm::StringRef name) -> bool {
     if (auto flag = target.Get(name.str())) {
-      return Downcast<runtime::Bool>(flag.value());
+      return flag.value().operator bool();
     } else {
       return false;
     }

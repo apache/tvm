@@ -39,6 +39,7 @@ using namespace tvm;
 using namespace tvm::runtime;
 using namespace tvm::relax;
 
+
 TEST(NestedMsg, Basic) {
   // start with no annotation
   relax::Var x("x", NullOpt), y("y", NullOpt);
@@ -295,7 +296,7 @@ TEST(NestedMsg, TransformTupleLeaf) {
 
   PrimStructInfo s = PrimStructInfo(runtime::DataType::Int(32));
   relax::Var x("x", s), y("y", s), z("z", s);
-  BlockBuilder bb = BlockBuilder::Create(NullOpt);
+  BlockBuilder bb = BlockBuilder::Create(std::nullopt);
   Expr expr = bb->Normalize(Tuple({x, Tuple({x, x}), x, Tuple({x, Tuple({x, x})})}));
 
   auto ftransleaf = [&](Expr value, std::array<NInt, 2> msgs) -> Expr {

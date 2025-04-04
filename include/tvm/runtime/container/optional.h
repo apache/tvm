@@ -30,9 +30,6 @@ namespace tvm {
 namespace runtime {
 
 using tvm::ffi::Optional;
-
-constexpr inline auto NullOpt = std::nullopt;
-
 }  // namespace runtime
 
 // expose class to root namespace
