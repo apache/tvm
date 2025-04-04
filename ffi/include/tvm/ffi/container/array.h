@@ -954,6 +954,7 @@ inline constexpr bool use_default_type_traits_v<Array<T>> = false;
 
 template <typename T>
 struct TypeTraits<Array<T>> : public ObjectRefTypeTraitsBase<Array<T>> {
+  static constexpr int32_t field_static_type_index = TypeIndex::kTVMFFIArray;
   using ObjectRefTypeTraitsBase<Array<T>>::CopyFromAnyStorageAfterCheck;
 
   static TVM_FFI_INLINE std::string GetMismatchTypeInfo(const TVMFFIAny* src) {

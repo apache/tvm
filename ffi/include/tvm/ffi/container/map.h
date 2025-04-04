@@ -1365,6 +1365,7 @@ inline constexpr bool use_default_type_traits_v<Map<K, V>> = false;
 
 template <typename K, typename V>
 struct TypeTraits<Map<K, V>> : public ObjectRefTypeTraitsBase<Map<K, V>> {
+  static constexpr int32_t field_static_type_index = TypeIndex::kTVMFFIMap;
   using ObjectRefTypeTraitsBase<Map<K, V>>::CopyFromAnyStorageAfterCheck;
 
   static TVM_FFI_INLINE std::string GetMismatchTypeInfo(const TVMFFIAny* src) {

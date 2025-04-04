@@ -462,6 +462,7 @@ inline constexpr bool use_default_type_traits_v<Bytes> = false;
 // specialize to enable implicit conversion from TVMFFIByteArray*
 template <>
 struct TypeTraits<Bytes> : public ObjectRefWithFallbackTraitsBase<Bytes, TVMFFIByteArray*> {
+  static constexpr int32_t field_static_type_index = TypeIndex::kTVMFFIBytes;
   static TVM_FFI_INLINE Bytes ConvertFallbackValue(TVMFFIByteArray* src) { return Bytes(*src); }
 };
 
@@ -471,6 +472,7 @@ inline constexpr bool use_default_type_traits_v<String> = false;
 // specialize to enable implicit conversion from const char*
 template <>
 struct TypeTraits<String> : public ObjectRefWithFallbackTraitsBase<String, const char*> {
+  static constexpr int32_t field_static_type_index = TypeIndex::kTVMFFIStr;
   static TVM_FFI_INLINE String ConvertFallbackValue(const char* src) { return String(src); }
 };
 
