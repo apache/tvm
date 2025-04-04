@@ -279,7 +279,7 @@ struct ValueTypeInfoMaker<ValueType, std::false_type, std::false_type> {
   using ValueTypeInfo = TargetKindNode::ValueTypeInfo;
 
   ValueTypeInfo operator()() const {
-    uint32_t tindex = ValueType::ContainerType::_GetOrAllocRuntimeTypeIndex();
+    int32_t tindex = ffi::Type2FieldStaticTypeIndex<ValueType::ContainerType>::value;
     ValueTypeInfo info;
     info.type_index = tindex;
     info.type_key = runtime::Object::TypeIndex2Key(tindex);
@@ -414,8 +414,8 @@ inline TargetKindRegEntry& TargetKindRegEntry::set_name() {
           .add_attr_option<String>("model")                       \
           .add_attr_option<Array<String>>("libs")                 \
           .add_attr_option<Target>("host")                        \
-          .add_attr_option<runtime::Int>("from_device")           \
-          .add_attr_option<runtime::Int>("target_device_type")
+          .add_attr_option<int64_t>("from_device")           \
+          .add_attr_option<int64_t>("target_device_type")
 
 }  // namespace tvm
 
