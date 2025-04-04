@@ -112,7 +112,7 @@ static std::vector<String> DeduplicateKeys(const std::vector<String>& keys) {
 template <class T>
 static T ObjTypeCheck(const Any& obj, const std::string& expected_type) {
   auto opt = obj.as<T>();
-  if (!opt.defined()) {
+  if (!opt.has_value()) {
     TVM_FFI_THROW(TypeError) << "Expects type \"" << expected_type << "\", but gets \""
                              << obj.GetTypeKey() << "\" for object: " << obj;
   }
@@ -938,7 +938,7 @@ ObjectPtr<Object> TargetInternal::FromConfig(Map<String, ffi::Any> config) {
   // If requested, query attributes from the device.  User-specified
   // parameters take precedence over queried parameters.
   if (attrs.count("from_device")) {
-    int device_id = Downcast<int64_t>(attrs.at("from_device"))->value;
+    int device_id = attrs.at("from_device").as<int64_t>().value();
     attrs.erase("from_device");
     auto device_params = QueryDevice(device_id, target.get());
 
