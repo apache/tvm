@@ -109,14 +109,14 @@ static std::vector<String> DeduplicateKeys(const std::vector<String>& keys) {
   return new_keys;
 }
 
-template <class TObj>
-static const TObj* ObjTypeCheck(const Any& obj, const std::string& expected_type) {
-  const TObj* ptr = obj.as<TObj>();
-  if (ptr == nullptr) {
+template <class T>
+static T ObjTypeCheck(const Any& obj, const std::string& expected_type) {
+  auto opt = obj.as<T>();
+  if (!opt.defined()) {
     TVM_FFI_THROW(TypeError) << "Expects type \"" << expected_type << "\", but gets \""
                              << obj.GetTypeKey() << "\" for object: " << obj;
   }
-  return ptr;
+  return opt.value();
 }
 
 static TargetKind GetTargetKind(const String& name) {
@@ -356,11 +356,11 @@ const TargetKindNode::ValueTypeInfo& TargetInternal::FindTypeInfo(const TargetKi
 
 Any TargetInternal::ParseType(const std::string& str, const TargetKindNode::ValueTypeInfo& info) {
   std::string interp_str = Interpret(str);
-  if (info.type_index == runtime::Int::ContainerType::_GetOrAllocRuntimeTypeIndex() ||
-      info.type_index == runtime::Bool::ContainerType::_GetOrAllocRuntimeTypeIndex()) {
+  if (info.type_index == ffi::TypeIndex::kTVMFFIInt ||
+      info.type_index == ffi::TypeIndex::kTVMFFIBool) {
     // Parsing integer or boolean
     std::istringstream is(interp_str);
-    int v;
+    int64_t v;
     if (!(is >> v)) {
       std::string lower(interp_str.size(), '\x0');
       std::transform(interp_str.begin(), interp_str.end(), lower.begin(),
@@ -376,12 +376,12 @@ Any TargetInternal::ParseType(const std::string& str, const TargetKindNode::Valu
       }
     }
 
-    if (info.type_index == runtime::Int::ContainerType::_GetOrAllocRuntimeTypeIndex()) {
-      return runtime::Int(v);
+    if (info.type_index == ffi::TypeIndex::kTVMFFIInt) {
+      return static_cast<int64_t>(v);
     } else {
-      return runtime::Bool(v);
+      return static_cast<bool>(v);
     }
-  } else if (info.type_index == String::ContainerType::_GetOrAllocRuntimeTypeIndex()) {
+  } else if (info.type_index == ffi::TypeIndex::kTVMFFIStr) {
     // Parsing string, strip leading/trailing spaces, and enclosing quotes if any
     auto start = interp_str.find_first_not_of(' ');
     auto end = interp_str.find_last_not_of(' ');
@@ -391,10 +391,10 @@ Any TargetInternal::ParseType(const std::string& str, const TargetKindNode::Valu
     }
     return String(interp_str.substr(start, (end - start + 1)));
 
-  } else if (info.type_index == Target::ContainerType::_GetOrAllocRuntimeTypeIndex()) {
+  } else if (info.type_index == Target::ContainerType::RuntimeTypeIndex()) {
     // Parsing target
     return Target(TargetInternal::FromString(interp_str));
-  } else if (info.type_index == ArrayNode::_GetOrAllocRuntimeTypeIndex()) {
+  } else if (info.type_index == ArrayNode::RuntimeTypeIndex()) {
     // Parsing array
     std::vector<ObjectRef> result;
     for (const std::string& substr : SplitString(interp_str, ',')) {
@@ -413,12 +413,15 @@ Any TargetInternal::ParseType(const std::string& str, const TargetKindNode::Valu
 }
 
 Any TargetInternal::ParseType(const Any& obj, const TargetKindNode::ValueTypeInfo& info) {
-  if (info.type_index == runtime::Int::ContainerType::_GetOrAllocRuntimeTypeIndex()) {
+  if (info.type_index == ffi::TypeIndex::kTVMFFIInt) {
     // Parsing integer
-    return GetRef<runtime::Int>(ObjTypeCheck<runtime::Int::ContainerType>(obj, "runtime.BoxInt"));
-  } else if (info.type_index == String::ContainerType::RuntimeTypeIndex()) {
+    return ObjTypeCheck<int64_t>(obj, "int64_t");
+  } else if (info.type_index == ffi::TypeIndex::kTVMFFIBool) {
+    // Parsing boolean
+    return ObjTypeCheck<bool>(obj, "bool");
+  } else if (info.type_index == ffi::TypeIndex::kTVMFFIStr) {
     // Parsing string
-    return GetRef<String>(ObjTypeCheck<StringObj>(obj, "String"));
+    return ObjTypeCheck<String>(obj, "String");
   } else if (info.type_index == Target::ContainerType::RuntimeTypeIndex()) {
     // Parsing target
     if (auto opt = obj.as<Target>()) {
@@ -437,9 +440,9 @@ Any TargetInternal::ParseType(const Any& obj, const TargetKindNode::ValueTypeInf
     }
     TVM_FFI_THROW(TypeError) << "Expect type 'dict' or 'str' to construct Target, but get: " +
                                     obj.GetTypeKey();
-  } else if (info.type_index == ArrayNode::_GetOrAllocRuntimeTypeIndex()) {
+  } else if (info.type_index == ArrayNode::RuntimeTypeIndex()) {
     // Parsing array
-    const auto* array = ObjTypeCheck<ArrayNode>(obj, "Array");
+    const auto* array = ObjTypeCheck<const ArrayNode*>(obj, "Array");
     std::vector<ObjectRef> result;
     for (const Any& e : *array) {
       try {
@@ -450,9 +453,9 @@ Any TargetInternal::ParseType(const Any& obj, const TargetKindNode::ValueTypeInf
       }
     }
     return Array<ObjectRef>(result);
-  } else if (info.type_index == MapNode::_GetOrAllocRuntimeTypeIndex()) {
+  } else if (info.type_index == MapNode::RuntimeTypeIndex()) {
     // Parsing map
-    const auto* map = ObjTypeCheck<MapNode>(obj, "Map");
+    const auto* map = ObjTypeCheck<const MapNode*>(obj, "Map");
     std::unordered_map<Any, Any, ffi::AnyHash, ffi::AnyEqual> result;
     for (const auto& kv : *map) {
       Any key, val;
@@ -483,15 +486,12 @@ Any TargetInternal::ParseType(const Any& obj, const TargetKindNode::ValueTypeInf
 /**********  Stringifying  **********/
 
 std::string TargetInternal::StringifyAtomicType(const Any& obj) {
-  if (const auto* p = obj.as<runtime::Int::ContainerType>()) {
-    return std::to_string(p->value);
-  } else if (const auto* p = obj.as<runtime::Bool::ContainerType>()) {
-    return std::to_string(p->value);
-  } else if (const auto* p = obj.as<IntImmNode>()) {
-    return std::to_string(p->value);
-  }
-  if (auto tvm_str = obj.as<String>()) {
-    std::string s = tvm_str.value();
+  if (obj.type_index() == ffi::TypeIndex::kTVMFFIBool) {
+    return std::to_string(obj.as<bool>().value());
+  } else if (obj.type_index() == ffi::TypeIndex::kTVMFFIInt) {
+    return std::to_string(obj.as<int64_t>().value());
+  } else if (auto opt_str = obj.as<String>()) {
+    std::string s = opt_str.value();
     auto u = Uninterpret(s);
     if (u.find_first_of(' ') != std::string::npos && !IsQuoted(u)) {
       u = Quote(u);
@@ -938,7 +938,7 @@ ObjectPtr<Object> TargetInternal::FromConfig(Map<String, ffi::Any> config) {
   // If requested, query attributes from the device.  User-specified
   // parameters take precedence over queried parameters.
   if (attrs.count("from_device")) {
-    int device_id = Downcast<runtime::Int>(attrs.at("from_device"))->value;
+    int device_id = Downcast<int64_t>(attrs.at("from_device"))->value;
     attrs.erase("from_device");
     auto device_params = QueryDevice(device_id, target.get());
 
