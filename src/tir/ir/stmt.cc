@@ -62,15 +62,6 @@ TVM_REGISTER_NODE_TYPE(LetStmtNode);
 
 // AttrStmt
 AttrStmt::AttrStmt(ObjectRef node, String attr_key, PrimExpr value, Stmt body, Span span) {
-  // The nodes are not required to be a TIR type, and may legally
-  // contain any ObjectRef.  However, normalizing to an IR type if
-  // possible prevents spurious discrepancies in StructuralEqual().
-  if (auto opt = node.as<runtime::Bool>()) {
-    node = Bool(opt.value());
-  } else if (auto opt = node.as<runtime::Int>()) {
-    node = Integer(opt.value());
-  }
-
   auto n = make_object<AttrStmtNode>();
   n->node = node;
   n->attr_key = std::move(attr_key);
@@ -81,8 +72,14 @@ AttrStmt::AttrStmt(ObjectRef node, String attr_key, PrimExpr value, Stmt body, S
 }
 
 TVM_REGISTER_GLOBAL("tir.AttrStmt")
-    .set_body_typed([](ObjectRef node, String attr_key, PrimExpr value, Stmt body, Span span) {
-      return AttrStmt(node, attr_key, value, body, span);
+    .set_body_typed([](Any node, String attr_key, PrimExpr value, Stmt body, Span span) {
+      // The nodes are not required to be a TIR type, and may legally
+      // contain any ObjectRef.  However, normalizing to an IR type if
+      // possible prevents spurious discrepancies in StructuralEqual().
+      if (auto opt_expr = node.as<PrimExpr>()) {
+        return AttrStmt(opt_expr.value(), attr_key, value, body, span);
+      }
+      return AttrStmt(node.as<ObjectRef>().value(), attr_key, value, body, span);
     });
 
 TVM_REGISTER_NODE_TYPE(AttrStmtNode);
