@@ -57,7 +57,7 @@ PrinterConfig::PrinterConfig(Map<String, Any> config_dict) {
     n->binding_names.push_back(Downcast<String>(v.value()));
   }
   if (auto v = config_dict.Get("show_meta")) {
-    n->show_meta = Downcast<runtime::Bool>(v.value())->value;
+    n->show_meta = v.value();
   }
   if (auto v = config_dict.Get("ir_prefix")) {
     n->ir_prefix = Downcast<String>(v.value());
@@ -81,16 +81,16 @@ PrinterConfig::PrinterConfig(Map<String, Any> config_dict) {
     n->float_dtype = DataType(runtime::StringToDLDataType(Downcast<String>(v.value())));
   }
   if (auto v = config_dict.Get("verbose_expr")) {
-    n->verbose_expr = Downcast<runtime::Bool>(v.value())->value;
+    n->verbose_expr = v.value();
   }
   if (auto v = config_dict.Get("indent_spaces")) {
-    n->indent_spaces = Downcast<runtime::Int>(v.value())->value;
+    n->indent_spaces = v.value();
   }
   if (auto v = config_dict.Get("print_line_numbers")) {
-    n->print_line_numbers = Downcast<runtime::Bool>(v.value())->value;
+    n->print_line_numbers = v.value();
   }
   if (auto v = config_dict.Get("num_context_lines")) {
-    n->num_context_lines = Downcast<runtime::Int>(v.value())->value;
+    n->num_context_lines = v.value();
   }
   if (auto v = config_dict.Get("path_to_underline")) {
     n->path_to_underline = Downcast<Array<ObjectPath>>(v.value());
@@ -107,13 +107,13 @@ PrinterConfig::PrinterConfig(Map<String, Any> config_dict) {
         Downcast<Map<ObjectRef, String>>(v.value());
   }
   if (auto v = config_dict.Get("syntax_sugar")) {
-    n->syntax_sugar = Downcast<runtime::Bool>(v.value())->value;
+    n->syntax_sugar = v.value();
   }
   if (auto v = config_dict.Get("show_object_address")) {
-    n->show_object_address = Downcast<runtime::Bool>(v.value())->value;
+    n->show_object_address = v.value();
   }
   if (auto v = config_dict.Get("show_all_struct_info")) {
-    n->show_all_struct_info = Downcast<runtime::Bool>(v.value())->value;
+    n->show_all_struct_info = v.value();
   }
 
   // Checking prefixes if they are valid Python identifiers.
