@@ -533,7 +533,12 @@ def _nn_silu(bb: BlockBuilder, call: Call) -> Expr:
 
 @register_legalize("relax.nn.softplus")
 def _nn_softplus(bb: BlockBuilder, call: Call) -> Expr:
-    return bb.call_te(topi.nn.softplus, call.args[0], call.attrs.beta)
+    return bb.call_te(
+        topi.nn.softplus, 
+        call.args[0], 
+        call.attrs.beta, 
+        call.attrs.threshold,
+    )
 
 
 @register_legalize("relax.nn.softmax")

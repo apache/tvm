@@ -461,8 +461,10 @@ struct SoftplusAttrs : public tvm::AttrsNode<SoftplusAttrs> {
   double threshold;
 
   TVM_DECLARE_ATTRS(SoftplusAttrs, "relax.attrs.SoftplusAttrs") {
-    TVM_ATTR_FIELD(beta).describe("It controls the curvature");
-    TVM_ATTR_FIELD(threshold).describe("It specifies when to use a linear approximation");
+    TVM_ATTR_FIELD(beta).describe(
+      "Scaling factor controlling the sharpness of the Softplus transition.");
+    TVM_ATTR_FIELD(threshold).describe(
+      "Value determining when to use linear approximation for numerical stability.");
   }
 };
 
