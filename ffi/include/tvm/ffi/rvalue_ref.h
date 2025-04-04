@@ -116,16 +116,16 @@ struct TypeTraits<RValueRef<TObjRef>> : public TypeTraitsBase {
     // first try rvalue conversion
     if (src->type_index == TypeIndex::kTVMFFIObjectRValueRef) {
       ObjectPtr<Object>* rvalue_ref = reinterpret_cast<ObjectPtr<Object>*>(src->v_ptr);
-      // object type does not match up, we need to try to convert the object
-      // in this case we do not move the original rvalue ref since conversion creates a copy
       TVMFFIAny tmp_any;
       tmp_any.type_index = rvalue_ref->get()->type_index();
-      ;
       tmp_any.v_obj = reinterpret_cast<TVMFFIObject*>(rvalue_ref->get());
+      // fast path, storage type matches, direct move the rvalue ref
+      if (TypeTraits<TObjRef>::CheckAnyStorage(&tmp_any)) {
+        return TObjRef(std::move(*rvalue_ref));
+      }
       if (std::optional<TObjRef> opt = TypeTraits<TObjRef>::TryConvertFromAnyView(&tmp_any)) {
-        // conversion succeeded, we can return the rvalue ref
-        // reset the original rvalue ref to nullptr, to ensure unique ownership
-        rvalue_ref->reset();
+        // object type does not match up, we need to try to convert the object
+        // in this case we do not move the original rvalue ref since conversion creates a copy
         return RValueRef<TObjRef>(*std::move(opt));
       }
       return std::nullopt;
