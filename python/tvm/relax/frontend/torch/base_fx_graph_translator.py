@@ -960,6 +960,12 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
 
     ########## Manipulation ##########
 
+    def _argsort(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        dim = node.args[1] if len(node.args) > 1 else node.kwargs.get("dim", -1)
+        descending = node.args[2] if len(node.args) > 2 else node.kwargs.get("descending", False)
+        return self.block_builder.emit(relax.op.argsort(x, dim, descending))
+
     def _cat(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
         axis = args[1] if len(node.args) > 1 else node.kwargs.get("dim", 0)
@@ -1090,6 +1096,12 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
             raise Exception("Unexpected args " + str(node.args))
         return self.block_builder.emit(relax.op.scatter_elements(x, index, src, axis=dim))
 
+    def _sort(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        dim = node.args[1] if len(node.args) > 1 else node.kwargs.get("dim", -1)
+        descending = node.args[2] if len(node.args) > 2 else node.kwargs.get("descending", False)
+        return self.block_builder.emit(relax.op.sort(x, dim, descending))
+
     def _split(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         split_size = node.args[1]
@@ -1139,6 +1151,22 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         x = args[0]
         dims = args[1] if isinstance(args[1], (torch.Size, tuple, list)) else args[1:]
         return self.block_builder.emit(relax.op.tile(x, dims))
+
+    def _topk(self, node: fx.Node) -> relax.Var:
+        args = self.retrieve_args(node)
+        x = args[0]
+        k = args[1] if len(args) > 1 else node.kwargs.get("k", 1)
+        dim = args[2] if len(args) > 2 else node.kwargs.get("dim", -1)
+        largest = args[3] if len(args) > 3 else node.kwargs.get("largest", True)
+        _sorted = args[4] if len(args) > 4 else node.kwargs.get("_sorted", True)
+
+        if not _sorted:
+            msg = "Currently supports only sorted output for topk operator."
+            raise AssertionError(msg)
+
+        return self.block_builder.emit(
+            relax.op.topk(x, k=k, axis=dim, largest=largest, ret_type="both", dtype="int64")
+        )
 
     def _transpose(self, node: fx.Node) -> relax.Var:
         args = self.retrieve_args(node)
