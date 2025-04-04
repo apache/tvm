@@ -279,7 +279,7 @@ struct ValueTypeInfoMaker<ValueType, std::false_type, std::false_type> {
   using ValueTypeInfo = TargetKindNode::ValueTypeInfo;
 
   ValueTypeInfo operator()() const {
-    int32_t tindex = ffi::Type2FieldStaticTypeIndex<ValueType::ContainerType>::value;
+    int32_t tindex = ffi::details::Type2FieldStaticTypeIndex<ValueType>::value;
     ValueTypeInfo info;
     info.type_index = tindex;
     info.type_key = runtime::Object::TypeIndex2Key(tindex);
