@@ -2702,10 +2702,6 @@ def test_expand():
     verify_model(Expand2(), example_args, {}, expected1)
 
 
-@pytest.mark.skipif(
-    version.parse(torch_version) >= version.parse("2.6.0"),
-    reason="Tests not compatible with PyTorch >= 2.6",
-)
 def test_flatten():
     class Flatten(Module):
         def __init__(self):

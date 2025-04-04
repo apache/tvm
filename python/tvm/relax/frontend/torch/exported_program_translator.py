@@ -377,6 +377,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "cumprod.default": self._cumprod,
             "expand.default": self._expand,
             "expand_as.default": self._expand_as,
+            "flatten.using_ints": self._flatten,
             "flip.default": self._flip,
             "gather.default": self._gather,
             "permute.default": self._permute,
