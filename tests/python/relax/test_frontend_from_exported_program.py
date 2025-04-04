@@ -687,7 +687,7 @@ def test_softplus():
                 gv: R.Tuple(R.Tensor((1, 3, 10, 10), dtype="float32")) = (lv,)
                 R.output(gv)
             return gv
-    
+
     example_args = (torch.randn(1, 3, 10, 10, dtype=torch.float32),)
     verify_model(Softplus0(), example_args, {}, expected)
     verify_model(Softplus1(), example_args, {}, expected)
