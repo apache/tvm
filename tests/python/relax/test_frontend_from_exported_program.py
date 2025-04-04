@@ -1021,10 +1021,6 @@ def test_binary3():
     verify_model(Min1(), example_args1, {}, expected_min1)
 
 
-@pytest.mark.skipif(
-    version.parse(torch_version) >= version.parse("2.6.0"),
-    reason="Tests not compatible with PyTorch >= 2.6",
-)
 def test_batchnorm2d():
     class BatchNorm2d(Module):
         def __init__(self):
@@ -2702,10 +2698,6 @@ def test_expand():
     verify_model(Expand2(), example_args, {}, expected1)
 
 
-@pytest.mark.skipif(
-    version.parse(torch_version) >= version.parse("2.6.0"),
-    reason="Tests not compatible with PyTorch >= 2.6",
-)
 def test_flatten():
     class Flatten(Module):
         def __init__(self):
@@ -2907,10 +2899,6 @@ def test_select_slice():
     verify_model(Slice2(), example_args, {}, expected2)
 
 
-@pytest.mark.skipif(
-    version.parse(torch_version) >= version.parse("2.6.0"),
-    reason="Tests not compatible with PyTorch >= 2.6",
-)
 def test_split():
     class Chunk(Module):
         def forward(self, input):
@@ -3340,10 +3328,6 @@ def test_new_ones():
     verify_model(NewOnes(), example_args, {}, expected1)
 
 
-@pytest.mark.skipif(
-    version.parse(torch_version) >= version.parse("2.6.0"),
-    reason="Tests not compatible with PyTorch >= 2.6",
-)
 def test_to_copy():
     # float
     class ToFloat(Module):
@@ -3394,7 +3378,8 @@ def test_to_copy():
         ) -> R.Tuple(R.Tensor((1, 2, 3, 4), dtype="float32")):
             # block 0
             with R.dataflow():
-                gv: R.Tuple(R.Tensor((1, 2, 3, 4), dtype="float32")) = (x,)
+                lv: R.Tensor((1, 2, 3, 4), dtype="float32") = R.astype(x, dtype="float32")
+                gv: R.Tuple(R.Tensor((1, 2, 3, 4), dtype="float32")) = (lv,)
                 R.output(gv)
             return gv
 

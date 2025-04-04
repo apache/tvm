@@ -19,6 +19,7 @@
 # pylint: disable=import-outside-toplevel
 """Base class for PyTorch FX Graph importer."""
 import abc
+from functools import reduce
 import math
 from typing import Callable, Dict, Optional, Tuple, Union
 
@@ -1018,6 +1019,24 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
         other_shape = self.shape_of(args[1])  # the shape of 'other'
         return self.block_builder.emit(relax.op.broadcast_to(data, other_shape))
 
+    def _flatten_impl(self, x, start_dim, end_dim) -> relax.Var:
+        shape = self.shape_of(x)
+        start_dim = start_dim if start_dim >= 0 else len(shape) + start_dim
+        end_dim = end_dim if end_dim >= 0 else len(shape) + end_dim
+        flattened = reduce(lambda x, y: x * y, [shape[i] for i in range(start_dim, end_dim + 1)])
+        new_shape = (
+            [shape[i] for i in range(0, start_dim)]
+            + [flattened]
+            + [shape[i] for i in range(end_dim + 1, len(shape))]
+        )
+        return self.block_builder.emit(relax.op.reshape(x, new_shape))
+
+    def _flatten(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        start_dim = node.args[1] if len(node.args) >= 2 else node.kwargs.get("start_dim", 0)
+        end_dim = node.args[2] if len(node.args) == 3 else node.kwargs.get("end_dim", -1)
+        return self._flatten_impl(x, start_dim, end_dim)
+
     def _flip(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         dims = node.args[1] if len(node.args) > 1 else node.kwargs.get("dims", None)
@@ -1232,6 +1251,21 @@ class BaseFXGraphImporter(metaclass=abc.ABCMeta):
                 self_var.struct_info.dtype,
             )
         )
+
+    ########## DataType ##########
+
+    def _to(self, node: fx.Node) -> relax.Var:
+        import torch
+
+        x = self.env[node.args[0]]
+        if len(node.args) == 2:
+            if isinstance(node.args[1], torch.dtype):
+                dtype = BaseFXGraphImporter._convert_data_type(node.args[1], self.env)
+                return self.block_builder.emit(relax.op.astype(x, dtype))
+        elif "dtype" in node.kwargs:
+            dtype = BaseFXGraphImporter._convert_data_type(node.kwargs["dtype"], self.env)
+            return self.block_builder.emit(relax.op.astype(x, dtype))
+        return x
 
     ########## Others ##########
 

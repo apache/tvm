@@ -415,24 +415,6 @@ class TorchFXImporter(BaseFXGraphImporter):
         dim = node.args[2] if len(node.args) > 2 else node.kwargs.get("dim", 0)
         return self.block_builder.emit(relax.op.split(x, chunks, dim))
 
-    def _flatten_impl(self, x, start_dim, end_dim) -> relax.Var:
-        shape = self.shape_of(x)
-        start_dim = start_dim if start_dim >= 0 else len(shape) + start_dim
-        end_dim = end_dim if end_dim >= 0 else len(shape) + end_dim
-        flattened = reduce(lambda x, y: x * y, [shape[i] for i in range(start_dim, end_dim + 1)])
-        new_shape = (
-            [shape[i] for i in range(0, start_dim)]
-            + [flattened]
-            + [shape[i] for i in range(end_dim + 1, len(shape))]
-        )
-        return self.block_builder.emit(relax.op.reshape(x, new_shape))
-
-    def _flatten(self, node: fx.Node) -> relax.Var:
-        x = self.env[node.args[0]]
-        start_dim = node.args[1] if len(node.args) >= 2 else node.kwargs.get("start_dim", 0)
-        end_dim = node.args[2] if len(node.args) == 3 else node.kwargs.get("end_dim", -1)
-        return self._flatten_impl(x, start_dim, end_dim)
-
     def _flatten_module(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         module = self.named_modules[node.target]
