@@ -2903,10 +2903,6 @@ def test_select_slice():
     verify_model(Slice2(), example_args, {}, expected2)
 
 
-@pytest.mark.skipif(
-    version.parse(torch_version) >= version.parse("2.6.0"),
-    reason="Tests not compatible with PyTorch >= 2.6",
-)
 def test_split():
     class Chunk(Module):
         def forward(self, input):
