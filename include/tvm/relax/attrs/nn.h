@@ -462,9 +462,9 @@ struct SoftplusAttrs : public tvm::AttrsNode<SoftplusAttrs> {
 
   TVM_DECLARE_ATTRS(SoftplusAttrs, "relax.attrs.SoftplusAttrs") {
     TVM_ATTR_FIELD(beta).describe(
-      "Scaling factor controlling the sharpness of the Softplus transition.");
+        "Scaling factor controlling the sharpness of the Softplus transition.");
     TVM_ATTR_FIELD(threshold).describe(
-      "Value determining when to use linear approximation for numerical stability.");
+        "Value determining when to use linear approximation for numerical stability.");
   }
 };
 
