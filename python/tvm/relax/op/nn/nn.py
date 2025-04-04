@@ -1379,10 +1379,9 @@ def softmax(data: Expr, axis: int = -1) -> Expr:
 
 
 def softplus(data: Expr, beta: float = 1.0, threshold: float = 20.0) -> Expr:
-    """Softplus activation function.
+    r"""Softplus activation function.
 
-    .. math::
-        \text{Softplus}(x) = \frac{1}{\beta} \log(1 + e^{\beta x})
+    .. math:: \text{Softplus}(x) = \frac{1}{\beta} \log(1 + e^{\beta x})
 
     Parameters
     ----------
