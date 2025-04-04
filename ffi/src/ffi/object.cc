@@ -241,6 +241,19 @@ class TypeTable {
     this->GetOrAllocTypeIndex(Object::_type_key, Object::_type_index, Object::_type_depth,
                               Object::_type_child_slots, Object::_type_child_slots_can_overflow,
                               -1);
+    // reserve the static types
+    ReserveBuiltinTypeIndex(StaticTypeKey::kTVMFFIInt, TypeIndex::kTVMFFIInt);
+    ReserveBuiltinTypeIndex(StaticTypeKey::kTVMFFIFloat, TypeIndex::kTVMFFIFloat);
+    ReserveBuiltinTypeIndex(StaticTypeKey::kTVMFFIBool, TypeIndex::kTVMFFIBool);
+    ReserveBuiltinTypeIndex(StaticTypeKey::kTVMFFIRawStr, TypeIndex::kTVMFFIRawStr);
+    ReserveBuiltinTypeIndex(StaticTypeKey::kTVMFFIOpaquePtr, TypeIndex::kTVMFFIOpaquePtr);
+    ReserveBuiltinTypeIndex(StaticTypeKey::kTVMFFIDataType, TypeIndex::kTVMFFIDataType);
+    ReserveBuiltinTypeIndex(StaticTypeKey::kTVMFFIDevice, TypeIndex::kTVMFFIDevice);
+    ReserveBuiltinTypeIndex(StaticTypeKey::kTVMFFIObjectRValueRef, TypeIndex::kTVMFFIObjectRValueRef);
+  }
+
+  void ReserveBuiltinTypeIndex(const char* type_key, int32_t static_type_index) {
+    this->GetOrAllocTypeIndex(type_key, static_type_index, 0, 0, false, -1);
   }
 
   const char* CopyString(const char* c_str) {
