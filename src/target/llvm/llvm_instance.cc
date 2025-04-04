@@ -286,7 +286,7 @@ LLVMTargetInfo::LLVMTargetInfo(LLVMInstance& instance, const TargetJSON& target)
   }
 
   // TVM & LLVM vector width options
-  if (const auto& w = Downcast<Optional<runtime::Int>>(target.Get("vector-width").value_or(nullptr))) {
+  if (const auto& w = Downcast<Optional<int64_t>>(target.Get("vector-width").value_or(nullptr))) {
     vector_width_ = w.value();
     if ((vector_width_ <= 0) || (vector_width_ > 65536)) {
       LOG(FATAL) << "Invalid -vector-width value: " << vector_width_;

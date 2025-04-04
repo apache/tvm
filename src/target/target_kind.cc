@@ -271,7 +271,7 @@ TVM_REGISTER_TARGET_KIND("llvm", kDLCPU)
     .add_attr_option<String>("mtriple")
     .add_attr_option<String>("mfloat-abi")
     .add_attr_option<String>("mabi")
-    .add_attr_option<runtime::Int>("num-cores")
+    .add_attr_option<int64_t>("num-cores")
     // Fast math flags, see https://llvm.org/docs/LangRef.html#fast-math-flags
     .add_attr_option<runtime::Bool>("fast-math")  // implies all the below
     .add_attr_option<runtime::Bool>("fast-math-nnan")
@@ -280,13 +280,13 @@ TVM_REGISTER_TARGET_KIND("llvm", kDLCPU)
     .add_attr_option<runtime::Bool>("fast-math-arcp")
     .add_attr_option<runtime::Bool>("fast-math-contract")
     .add_attr_option<runtime::Bool>("fast-math-reassoc")
-    .add_attr_option<runtime::Int>("opt-level")
+    .add_attr_option<int64_t>("opt-level")
     // LLVM command line flags, see below
     .add_attr_option<Array<String>>("cl-opt")
     // LLVM JIT engine mcjit/orcjit
     .add_attr_option<String>("jit")
     // TVM & LLVM custom vector bit width
-    .add_attr_option<runtime::Int>("vector-width")
+    .add_attr_option<int64_t>("vector-width")
     .set_default_keys({"cpu"})
     // Force the external codegen kind attribute to be registered, even if no external
     // codegen targets are enabled by the TVM build.
@@ -317,29 +317,29 @@ TVM_REGISTER_TARGET_KIND("llvm", kDLCPU)
 TVM_REGISTER_TARGET_KIND("c", kDLCPU)
     .add_attr_option<String>("mcpu")
     .add_attr_option<String>("march")
-    .add_attr_option<runtime::Int>("workspace-byte-alignment")
-    .add_attr_option<runtime::Int>("constants-byte-alignment")
+    .add_attr_option<int64_t>("workspace-byte-alignment")
+    .add_attr_option<int64_t>("constants-byte-alignment")
     .set_default_keys({"cpu"})
     .set_target_parser(tvm::target::parsers::cpu::ParseTarget);
 
 TVM_REGISTER_TARGET_KIND("cuda", kDLCUDA)
     .add_attr_option<String>("mcpu")
     .add_attr_option<String>("arch")
-    .add_attr_option<runtime::Int>("max_shared_memory_per_block")
-    .add_attr_option<runtime::Int>("max_threads_per_block")
-    .add_attr_option<runtime::Int>("thread_warp_size", runtime::Int(32))
-    .add_attr_option<runtime::Int>("registers_per_block")
-    .add_attr_option<runtime::Int>("l2_cache_size_bytes")
-    .add_attr_option<runtime::Int>("max_num_threads",
-                                   runtime::Int(1024))  // TODO(@zxybazh): deprecate it
+    .add_attr_option<int64_t>("max_shared_memory_per_block")
+    .add_attr_option<int64_t>("max_threads_per_block")
+    .add_attr_option<int64_t>("thread_warp_size", 32)
+    .add_attr_option<int64_t>("registers_per_block")
+    .add_attr_option<int64_t>("l2_cache_size_bytes")
+    .add_attr_option<int64_t>("max_num_threads",
+                                   1024)  // TODO(@zxybazh): deprecate it
     .set_default_keys({"cuda", "gpu"})
     .set_target_parser(UpdateCUDAAttrs);
 
 TVM_REGISTER_TARGET_KIND("nvptx", kDLCUDA)
     .add_attr_option<String>("mcpu")
     .add_attr_option<String>("mtriple")
-    .add_attr_option<runtime::Int>("max_num_threads", runtime::Int(1024))
-    .add_attr_option<runtime::Int>("thread_warp_size", runtime::Int(32))
+    .add_attr_option<int64_t>("max_num_threads", 1024)
+    .add_attr_option<int64_t>("thread_warp_size", 32)
     .set_default_keys({"cuda", "gpu"})
     .set_target_parser(UpdateNVPTXAttrs);
 
@@ -349,25 +349,25 @@ TVM_REGISTER_TARGET_KIND("rocm", kDLROCM)
     .add_attr_option<Array<String>>("mattr")
     // TODO(masahi): Support querying from a target device
     // On RDNA cards, thread_warp_size should be 32
-    .add_attr_option<runtime::Int>("max_num_threads", runtime::Int(256))
-    .add_attr_option<runtime::Int>("max_threads_per_block", runtime::Int(256))
-    .add_attr_option<runtime::Int>("max_shared_memory_per_block", runtime::Int(65536))
-    .add_attr_option<runtime::Int>("thread_warp_size", runtime::Int(64))
+    .add_attr_option<int64_t>("max_num_threads", 256)
+    .add_attr_option<int64_t>("max_threads_per_block", 256)
+    .add_attr_option<int64_t>("max_shared_memory_per_block", 65536)
+    .add_attr_option<int64_t>("thread_warp_size", 64)
     .set_default_keys({"rocm", "gpu"})
     .set_target_parser(UpdateROCmAttrs);
 
 TVM_REGISTER_TARGET_KIND("opencl", kDLOpenCL)
-    .add_attr_option<runtime::Int>("max_threads_per_block", runtime::Int(256))
-    .add_attr_option<runtime::Int>("max_shared_memory_per_block", runtime::Int(16384))
-    .add_attr_option<runtime::Int>("max_num_threads", runtime::Int(256))
-    .add_attr_option<runtime::Int>("thread_warp_size", runtime::Int(1))
-    .add_attr_option<runtime::Int>("texture_spatial_limit", runtime::Int(16384))
+    .add_attr_option<int64_t>("max_threads_per_block", 256)
+    .add_attr_option<int64_t>("max_shared_memory_per_block", 16384)
+    .add_attr_option<int64_t>("max_num_threads", 256)
+    .add_attr_option<int64_t>("thread_warp_size", 1)
+    .add_attr_option<int64_t>("texture_spatial_limit", 16384)
     // Faced that Qualcomm OpenCL runtime crashed without any error message in
     // the case when the number of kernel arguments was pretty big. OpenCL doesn't
     // specify any limitations on the number of kernel arguments. max_function_args
     // equals to 128 looks like a reasonable number of kernel arguments.
-    .add_attr_option<runtime::Int>("max_function_args", runtime::Int(128))
-    .add_attr_option<runtime::Int>("image_base_address_alignment", runtime::Int(64))
+    .add_attr_option<int64_t>("max_function_args", 128)
+    .add_attr_option<int64_t>("image_base_address_alignment", 64)
     .set_default_keys({"opencl", "gpu"});
 
 // The metal has some limitations on the number of input parameters. This is why attribute
@@ -376,11 +376,11 @@ TVM_REGISTER_TARGET_KIND("opencl", kDLOpenCL)
 // https://developer.apple.com/documentation/metal/buffers/about_argument_buffers?language=objc
 // See also https://developer.apple.com/metal/Metal-Feature-Set-Tables.pdf
 TVM_REGISTER_TARGET_KIND("metal", kDLMetal)
-    .add_attr_option<runtime::Int>("max_num_threads", runtime::Int(256))
-    .add_attr_option<runtime::Int>("max_threads_per_block", runtime::Int(256))
-    .add_attr_option<runtime::Int>("max_shared_memory_per_block", runtime::Int(32768))
-    .add_attr_option<runtime::Int>("thread_warp_size", runtime::Int(16))
-    .add_attr_option<runtime::Int>("max_function_args", runtime::Int(31))
+    .add_attr_option<int64_t>("max_num_threads", 256)
+    .add_attr_option<int64_t>("max_threads_per_block", 256)
+    .add_attr_option<int64_t>("max_shared_memory_per_block", 32768)
+    .add_attr_option<int64_t>("thread_warp_size", 16)
+    .add_attr_option<int64_t>("max_function_args", 31)
     .set_default_keys({"metal", "gpu"});
 
 TVM_REGISTER_TARGET_KIND("vulkan", kDLVulkan)
@@ -400,31 +400,31 @@ TVM_REGISTER_TARGET_KIND("vulkan", kDLVulkan)
     .add_attr_option<runtime::Bool>("supports_dedicated_allocation")
     .add_attr_option<runtime::Bool>("supports_integer_dot_product")
     .add_attr_option<runtime::Bool>("supports_cooperative_matrix")
-    .add_attr_option<runtime::Int>("supported_subgroup_operations")
+    .add_attr_option<int64_t>("supported_subgroup_operations")
     // Physical device limits
-    .add_attr_option<runtime::Int>("max_num_threads", runtime::Int(256))
-    .add_attr_option<runtime::Int>("max_threads_per_block", runtime::Int(256))
-    .add_attr_option<runtime::Int>("thread_warp_size", runtime::Int(1))
-    .add_attr_option<runtime::Int>("max_block_size_x")
-    .add_attr_option<runtime::Int>("max_block_size_y")
-    .add_attr_option<runtime::Int>("max_block_size_z")
-    .add_attr_option<runtime::Int>("max_push_constants_size")
-    .add_attr_option<runtime::Int>("max_uniform_buffer_range")
-    .add_attr_option<runtime::Int>("max_storage_buffer_range")
-    .add_attr_option<runtime::Int>("max_per_stage_descriptor_storage_buffer")
-    .add_attr_option<runtime::Int>("max_shared_memory_per_block")
+    .add_attr_option<int64_t>("max_num_threads", 256)
+    .add_attr_option<int64_t>("max_threads_per_block", 256)
+    .add_attr_option<int64_t>("thread_warp_size", 1)
+    .add_attr_option<int64_t>("max_block_size_x")
+    .add_attr_option<int64_t>("max_block_size_y")
+    .add_attr_option<int64_t>("max_block_size_z")
+    .add_attr_option<int64_t>("max_push_constants_size")
+    .add_attr_option<int64_t>("max_uniform_buffer_range")
+    .add_attr_option<int64_t>("max_storage_buffer_range")
+    .add_attr_option<int64_t>("max_per_stage_descriptor_storage_buffer")
+    .add_attr_option<int64_t>("max_shared_memory_per_block")
     // Other device properties
     .add_attr_option<String>("device_type")
     .add_attr_option<String>("device_name")
     .add_attr_option<String>("driver_name")
-    .add_attr_option<runtime::Int>("driver_version")
-    .add_attr_option<runtime::Int>("vulkan_api_version")
-    .add_attr_option<runtime::Int>("max_spirv_version")
+    .add_attr_option<int64_t>("driver_version")
+    .add_attr_option<int64_t>("vulkan_api_version")
+    .add_attr_option<int64_t>("max_spirv_version")
     // Tags
     .set_default_keys({"vulkan", "gpu"});
 
 TVM_REGISTER_TARGET_KIND("webgpu", kDLWebGPU)
-    .add_attr_option<runtime::Int>("max_num_threads", runtime::Int(256))
+    .add_attr_option<int64_t>("max_num_threads", 256)
     .set_default_keys({"webgpu", "gpu"});
 
 TVM_REGISTER_TARGET_KIND("hexagon", kDLHexagon)
@@ -432,8 +432,8 @@ TVM_REGISTER_TARGET_KIND("hexagon", kDLHexagon)
     .add_attr_option<String>("mcpu")
     .add_attr_option<String>("mtriple")
     .add_attr_option<Array<String>>("llvm-options")
-    .add_attr_option<runtime::Int>("num-cores")
-    .add_attr_option<runtime::Int>("vtcm-capacity")
+    .add_attr_option<int64_t>("num-cores")
+    .add_attr_option<int64_t>("vtcm-capacity")
     .set_default_keys({"hexagon", "cpu"});
 
 TVM_REGISTER_TARGET_KIND("ext_dev", kDLExtDev);
