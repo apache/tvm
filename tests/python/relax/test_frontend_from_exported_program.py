@@ -1021,10 +1021,6 @@ def test_binary3():
     verify_model(Min1(), example_args1, {}, expected_min1)
 
 
-@pytest.mark.skipif(
-    version.parse(torch_version) >= version.parse("2.6.0"),
-    reason="Tests not compatible with PyTorch >= 2.6",
-)
 def test_batchnorm2d():
     class BatchNorm2d(Module):
         def __init__(self):
