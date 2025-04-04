@@ -811,35 +811,6 @@ struct TypeTraits<Bool> : public ObjectRefWithFallbackTraitsBase<Bool, int64_t> 
   static TVM_FFI_INLINE Bool ConvertFallbackValue(int64_t value) { return Bool(value != 0); }
 };
 
-template <>
-inline constexpr bool use_default_type_traits_v<runtime::Int> = false;
-
-template <>
-struct TypeTraits<runtime::Int> : public ObjectRefWithFallbackTraitsBase<runtime::Int, int64_t> {
-  static TVM_FFI_INLINE runtime::Int ConvertFallbackValue(int64_t value) {
-    return runtime::Int(value);
-  }
-};
-
-template <>
-inline constexpr bool use_default_type_traits_v<runtime::Float> = false;
-
-template <>
-struct TypeTraits<runtime::Float> : public ObjectRefWithFallbackTraitsBase<runtime::Float, double> {
-  static TVM_FFI_INLINE runtime::Float ConvertFallbackValue(double value) {
-    return runtime::Float(value);
-  }
-};
-
-template <>
-inline constexpr bool use_default_type_traits_v<runtime::Bool> = false;
-
-template <>
-struct TypeTraits<runtime::Bool> : public ObjectRefWithFallbackTraitsBase<runtime::Bool, int64_t> {
-  static TVM_FFI_INLINE runtime::Bool ConvertFallbackValue(int64_t value) {
-    return runtime::Bool(value != 0);
-  }
-};
 
 // define automatic conversion from bool, int64_t, double to PrimExpr
 TVM_FFI_INLINE PrimExpr TypeTraits<PrimExpr>::ConvertFallbackValue(StrictBool value) {
