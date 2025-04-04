@@ -98,12 +98,12 @@ TEST(ScalableDataType, TestInvalidStringToScalableDataType) {
       {
         try {
           tvm::runtime::StringToDLDataType(scalable_type_str);
-        } catch (const tvm::InternalError& e) {
-          EXPECT_THAT(e.what(), HasSubstr("unknown type int32x4xvscale"));
+        } catch (const tvm::ffi::Error& e) {
+          EXPECT_THAT(e.what(), HasSubstr("unknown dtype int32x4xvscale"));
           throw;
         }
       },
-      tvm::InternalError);
+      tvm::ffi::Error);
 }
 
 TEST(ScalableDataType, TestGetScalableVectorBytes) {

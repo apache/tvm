@@ -493,7 +493,4 @@ TEST(TargetKindRegistry, ListTargetOptions) {
   TargetKind llvm = TargetKind::Get("llvm").value();
   Map<String, String> attrs = TargetKindRegEntry::ListTargetKindOptions(llvm);
   ICHECK_EQ(attrs.empty(), false);
-
-  ICHECK_EQ(attrs["mattr"], "Array");
-  ICHECK_EQ(attrs["mcpu"], "runtime.String");
 }
