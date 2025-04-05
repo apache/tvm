@@ -50,6 +50,7 @@ from .binary import (
     divide,
     equal,
     floor_divide,
+    log_add_exp,
     floor_mod,
     greater,
     greater_equal,
