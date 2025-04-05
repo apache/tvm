@@ -529,6 +529,8 @@ Optional<String> TargetInternal::StringifyAttrsToRaw(const Map<String, ffi::Any>
   for (const auto& key : keys) {
     const Any& obj = attrs[key];
     std::string value;
+    // skip undefined attrs
+    if (obj == nullptr) continue;
     if (const auto* array = obj.as<ArrayNode>()) {
       value = String(StringifyArray(*array));
     } else {
@@ -573,8 +575,9 @@ Target::Target(const String& tag_or_config_or_target_str) {
   try {
     target = TargetInternal::FromString(tag_or_config_or_target_str);
   } catch (const Error& e) {
-    LOG(FATAL) << "ValueError" << e.what()
-               << ". Target creation from string failed: " << tag_or_config_or_target_str;
+    std::ostringstream os;
+    os << ". Target creation from string failed: " << tag_or_config_or_target_str;
+    throw Error("ValueError", e->message + os.str(), e->backtrace);
   }
   data_ = std::move(target);
 }
