@@ -112,7 +112,11 @@ inline SubRef Downcast(BaseRef ref) {
  */
 template <typename T>
 inline T Downcast(const Any& ref) {
-  return ref.operator T();
+  if constexpr (std::is_same_v<T, Any>) {
+    return ref;
+  } else {
+    return ref.operator T();
+  }
 }
 
 /*!
@@ -125,7 +129,11 @@ inline T Downcast(const Any& ref) {
 template <typename OptionalType, typename = std::enable_if_t<is_optional_type_v<OptionalType>>>
 inline OptionalType Downcast(const std::optional<Any>& ref) {
   if (ref.has_value()) {
-    return ref.value().operator OptionalType();
+    if constexpr (std::is_same_v<OptionalType, Any>) {
+      return ref.value();
+    } else {
+      return ref.value().operator OptionalType();
+    }
   } else {
     return OptionalType(std::nullopt);
   }
