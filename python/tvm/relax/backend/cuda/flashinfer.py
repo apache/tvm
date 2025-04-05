@@ -415,3 +415,34 @@ def gen_flashinfer_mla_module(
     object_files = _compile_flashinfer_kernels(uri, source_paths, target, num_threads)
     modules = _load_flashinfer_modules(object_files)
     return modules
+
+
+def gen_sampling_module(target: Target, num_threads: int = 8):
+    """
+    Generate a FlashInfer module for sampling kernels.
+
+    Parameters
+    ----------
+    target : Target
+        The target device for which the module will be compiled.
+    num_threads : int, optional
+        The number of threads to use during compilation (default is 8).
+
+    Returns
+    -------
+    List[tvm.runtime.Module]
+        A list of compiled static library modules for the FlashInfer sampling kernels.
+    """
+    try:
+        from flashinfer.jit import (  # pylint: disable=import-outside-toplevel
+            gen_sampling_tvm_binding,
+        )
+    except ImportError:
+        raise ImportError(
+            "FlashInfer is not installed. Please follow instructions "
+            "in https://docs.flashinfer.ai to install FlashInfer."
+        )
+    uri, source_paths = gen_sampling_tvm_binding(uri="sampling")
+    object_files = _compile_flashinfer_kernels(uri, source_paths, target, num_threads)
+    modules = _load_flashinfer_modules(object_files)
+    return modules
