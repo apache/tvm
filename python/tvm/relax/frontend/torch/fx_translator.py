@@ -72,6 +72,13 @@ class TorchFXImporter(BaseFXGraphImporter):
         alpha = module.negative_slope
         return self.block_builder.emit(relax.op.nn.leakyrelu(x, alpha))
 
+    def _softplus_module(self, node: fx.Node) -> relax.Var:
+        x = self.env[node.args[0]]
+        module = self.named_modules[node.target]
+        beta = module.beta
+        threshold = module.threshold
+        return self.block_builder.emit(relax.op.nn.softplus(x, beta, threshold))
+
     def _log2(self, node: fx.Node) -> relax.Var:
         x = self.env[node.args[0]]
         return self.block_builder.emit(
@@ -622,6 +629,7 @@ class TorchFXImporter(BaseFXGraphImporter):
             nn.SELU: self._unary_op(relax.op.nn.selu),
             nn.SiLU: self._unary_op(relax.op.nn.silu),
             nn.Softmax: self._softmax_module,
+            nn.Softplus: self._softplus_module,
             nn.Tanh: self._unary_op(relax.op.tanh),
             # neural network
             nn.AdaptiveAvgPool2d: self._adaptive_avg_pool2d_module,
@@ -686,6 +694,7 @@ class TorchFXImporter(BaseFXGraphImporter):
             "sin": self._unary_op(relax.op.sin),
             "sinh": self._unary_op(relax.op.sinh),
             "softmax": self._softmax,
+            "softplus": self._softplus,
             "sqrt": self._unary_op(relax.op.sqrt),
             "square": self._unary_op(relax.op.square),
             "tan": self._unary_op(relax.op.tan),

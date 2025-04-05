@@ -66,6 +66,9 @@ Expr silu(Expr data);
 /*! \brief Softmax function. */
 Expr softmax(Expr data, int axis);
 
+/*! \brief Softplus function. */
+Expr softplus(Expr data, double beta, double threshold);
+
 /*! \brief LogSoftmax function. */
 Expr log_softmax(Expr data, int axis);
 

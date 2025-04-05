@@ -60,6 +60,27 @@ TVM_REGISTER_OP("relax.nn.leakyrelu")
                                 InferStructInfoUnaryArith</*require_float_dtype=*/true>)
     .set_attr<Bool>("FPurity", Bool(true));
 
+/* relax.nn.softplus */
+TVM_REGISTER_NODE_TYPE(SoftplusAttrs);
+
+Expr softplus(Expr data, double beta, double threshold) {
+  auto attrs = make_object<SoftplusAttrs>();
+  attrs->beta = beta;
+  attrs->threshold = threshold;
+  static const Op& op = Op::Get("relax.nn.softplus");
+  return Call(op, {data}, Attrs(attrs), {});
+}
+
+TVM_REGISTER_GLOBAL("relax.op.nn.softplus").set_body_typed(softplus);
+
+TVM_REGISTER_OP("relax.nn.softplus")
+    .set_num_inputs(1)
+    .add_argument("data", "Tensor", "The input tensor.")
+    .set_attrs_type<SoftplusAttrs>()
+    .set_attr<FInferStructInfo>("FInferStructInfo",
+                                InferStructInfoUnaryArith</*require_float_dtype=*/true>)
+    .set_attr<Bool>("FPurity", Bool(true));
+
 /* relax.nn.softmax */
 TVM_REGISTER_NODE_TYPE(SoftmaxAttrs);
 
