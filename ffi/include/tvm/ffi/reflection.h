@@ -33,13 +33,27 @@ namespace ffi {
 namespace details {
 
 template <typename T, typename = void>
-struct Type2FieldStaticTypeIndex {
+struct TypeToFieldStaticTypeIndex {
   static constexpr int32_t value = TypeIndex::kTVMFFIAny;
 };
 
 template <typename T>
-struct Type2FieldStaticTypeIndex<T, std::enable_if_t<TypeTraits<T>::enabled>> {
+struct TypeToFieldStaticTypeIndex<T, std::enable_if_t<TypeTraits<T>::enabled>> {
   static constexpr int32_t value = TypeTraits<T>::field_static_type_index;
+};
+
+template <typename T, typename = void>
+struct TypeToRuntimeTypeIndex {
+  static int32_t v() {
+    return TypeToFieldStaticTypeIndex<T>::value;
+  }
+};
+
+template <typename T>
+struct TypeToRuntimeTypeIndex<T, std::enable_if_t<std::is_base_of_v<ObjectRef, T>>> {
+  static int32_t v() {
+    return T::ContainerType::RuntimeTypeIndex();
+  }
 };
 
 /*!
@@ -81,7 +95,7 @@ class ReflectionDef {
   void RegisterField(const char* name, T Class::* field_ptr, bool readonly) {
     TVMFFIFieldInfo info;
     info.name = name;
-    info.field_static_type_index = Type2FieldStaticTypeIndex<T>::value;
+    info.field_static_type_index = TypeToFieldStaticTypeIndex<T>::value;
     // store byte offset and setter, getter
     // so the same setter can be reused for all the same type
     info.byte_offset = GetFieldByteOffsetToObject<Class, T>(field_ptr);
