@@ -92,6 +92,20 @@ TVM_DLL runtime::DataType GetRuntimeDataType(const Type& type);
 TVM_DLL PrimExpr ret(PrimExpr value, Span span = Span());
 
 /*!
+ * \brief Continue current loop.
+ * \param span The location of this operation in the source.
+ * \return The continue loop expression.
+ */
+TVM_DLL PrimExpr continue_loop(Span span = Span());
+
+/*!
+ * \brief Break current loop.
+ * \param span The location of this operation in the source.
+ * \return The break loop expression.
+ */
+TVM_DLL PrimExpr break_loop(Span span = Span());
+
+/*!
  * Query the maximum possible value of dtype.
  * \param dtype The data type.
  * \param span The location of this operation in the source.

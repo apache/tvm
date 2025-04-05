@@ -241,6 +241,18 @@ PrimExpr ret(PrimExpr value, Span span) {
 
 TVM_REGISTER_GLOBAL("tir.ret").set_body_typed(ret);
 
+PrimExpr continue_loop(Span span) {
+  return tir::Call(DataType::Void(), tir::builtin::continue_loop(), {}, span);
+}
+
+TVM_REGISTER_GLOBAL("tir.continue_loop").set_body_typed(continue_loop);
+
+PrimExpr break_loop(Span span) {
+  return tir::Call(DataType::Void(), tir::builtin::break_loop(), {}, span);
+}
+
+TVM_REGISTER_GLOBAL("tir.break_loop").set_body_typed(break_loop);
+
 // maximum and min limits
 PrimExpr max_value(const DataType& dtype, Span span) {
   using namespace tir;
