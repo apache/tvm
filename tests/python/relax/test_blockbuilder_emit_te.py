@@ -48,7 +48,7 @@ def test_emit_te_with_symbolic_arg():
             B: T.Buffer((T.int64(10),), "float32"),
             m: T.int64,
         ):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             for i in range(T.int64(10)):
                 with T.block("B"):
                     v_i = T.axis.spatial(T.int64(10), i)
@@ -98,7 +98,7 @@ def test_symbolic_shape_in_prim_value():
             Output: T.Buffer(T.int64(16), "float32"),
             row_index: T.int64,
         ):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
 
             for i in range(A.shape[1]):
                 with T.block("slice"):

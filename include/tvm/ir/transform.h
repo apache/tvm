@@ -117,8 +117,6 @@ class PassContextNode : public Object {
   Optional<TObjectRef> GetConfig(
       const std::string& key,
       Optional<TObjectRef> default_value = Optional<TObjectRef>(std::nullopt)) const {
-    static_assert(std::is_base_of<ObjectRef, TObjectRef>::value,
-                  "Can only call GetAttr with ObjectRef types.");
     if (!config.defined()) return default_value;
     auto it = config.find(key);
     if (it != config.end()) {

@@ -747,7 +747,7 @@ def te_slice_with_var_input():
 
 @T.prim_func
 def tir_slice_with_var_input(var_tensor: T.handle, idx: T.int64, var_slice: T.handle):
-    T.func_attr({"tir.noalias": T.bool(True), "global_symbol": "main"})
+    T.func_attr({"tir.noalias": True, "global_symbol": "main"})
     m, n = T.int64(), T.int64()
     tensor = T.match_buffer(var_tensor, (m, n))
     slice = T.match_buffer(var_slice, (idx, n))
@@ -770,7 +770,7 @@ def test_loop_aware_initial_value():
 
     @T.prim_func
     def tir_workload(var_a: T.handle, var_b: T.handle, var_sum_red: T.handle):
-        T.func_attr({"tir.noalias": T.bool(True), "global_symbol": "main"})
+        T.func_attr({"tir.noalias": True, "global_symbol": "main"})
         a = T.match_buffer(var_a, (5, 5))
         b = T.match_buffer(var_b, (5,))
         sum_red = T.match_buffer(var_sum_red, (5,))
@@ -805,7 +805,7 @@ def test_loop_aware_reducer_combiner():
 
     @T.prim_func
     def tir_workload(var_a: T.handle, var_b: T.handle, var_sum_red: T.handle):
-        T.func_attr({"tir.noalias": T.bool(True), "global_symbol": "main"})
+        T.func_attr({"tir.noalias": True, "global_symbol": "main"})
         a = T.match_buffer(var_a, (5, 5))
         b = T.match_buffer(var_b, (5,))
         sum_red = T.match_buffer(var_sum_red, (5,))
@@ -844,7 +844,7 @@ def test_adaptive_pooling_window():
         x: T.Buffer((1, 1024, 16, 40), "float32"),
         adaptive_pool_avg: T.Buffer((1, 1024, 12, 30), "float32"),
     ):
-        T.func_attr({"tir.noalias": T.bool(True), "global_symbol": "main"})
+        T.func_attr({"tir.noalias": True, "global_symbol": "main"})
         # fmt: off
         adaptive_pool_sum = T.alloc_buffer((1, 1024, 12, 30))
         for ax0, ax1, ax2, ax3 in T.grid(1, 1024, 12, 30):
@@ -887,7 +887,7 @@ def test_nested_reduce_domain_dependency():
     def tir_workload(
         x: T.Buffer((8, 8, 8, 8, 8), "float32"), compute: T.Buffer((8, 8, 8), "float32")
     ):
-        T.func_attr({"tir.noalias": T.bool(True), "global_symbol": "main"})
+        T.func_attr({"tir.noalias": True, "global_symbol": "main"})
         for i0, i1, i2 in T.grid(8, 8, 8):
             with T.block("compute_2"):
                 v_i0, v_i1, v_i2 = T.axis.remap("SSS", [i0, i1, i2])

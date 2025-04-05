@@ -581,7 +581,7 @@ def test_tensor_expr_op():
     class Expected:
         @T.prim_func(private=True)
         def add_one(A: T.Buffer((T.int64(10), T.int64(10)), "float32"), T_add: T.Buffer((T.int64(10), T.int64(10)), "float32")):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             # with T.block("root"):
             for ax0, ax1 in T.grid(T.int64(10), T.int64(10)):
                 with T.block("T_add"):
@@ -713,7 +713,7 @@ def test_tensor_ir_inplace_op():
     def inplace_take(
         var_weight: T.handle, var_pos: T.handle, var_embeddings: T.handle, offset: T.int64
     ):
-        T.func_attr({"tir.noalias": T.bool(True)})
+        T.func_attr({"tir.noalias": True})
         vocab_size = T.int64()
         weight = T.match_buffer(var_weight, (vocab_size, hidden_size), dtype)
         seq_len = T.int64()
@@ -746,7 +746,7 @@ def test_tensor_ir_inplace_op():
         def inplace_take(
             var_weight: T.handle, var_pos: T.handle, var_embeddings: T.handle, offset: T.int64
         ):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             vocab_size = T.int64()
             weight = T.match_buffer(var_weight, (vocab_size, hidden_size), dtype)
             seq_len = T.int64()
@@ -1137,7 +1137,7 @@ def test_renormalize_top_p_top_k_prob():
     class Expected:
         @T.prim_func(private=True)
         def filter_with_top_p_top_k(A: T.Buffer((T.int64(2), T.int64(3)), "float32"), B: T.Buffer((T.int64(2), T.int64(1)), "float32"), filter_with_top_p_top_k: T.Buffer((T.int64(2), T.int64(3)), "float32")):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             # with T.block("root"):
             for i, j in T.grid(T.int64(2), T.int64(3)):
                 with T.block("filter_with_top_p_top_k"):

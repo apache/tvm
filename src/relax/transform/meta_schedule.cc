@@ -159,7 +159,7 @@ Pass MetaScheduleApplyDatabase(Optional<String> work_dir, bool enable_warning = 
                                                       /*ret_type=*/tuned_prim_func->ret_type,
                                                       /*buffer_map=*/tuned_prim_func->buffer_map,
                                                       /*attrs=*/prim_func->attrs);
-          new_prim_func = WithAttr(std::move(new_prim_func), tir::attr::kIsScheduled, Bool(true));
+          new_prim_func = WithAttr(std::move(new_prim_func), tir::attr::kIsScheduled, true);
           result.Set(gv, new_prim_func);
           continue;
         } else if (enable_warning) {

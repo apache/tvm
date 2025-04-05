@@ -226,7 +226,7 @@ def test_reshape_dynamic_shape():
     class Module:
         @T.prim_func(private=True)
         def reshape(var_A: T.handle, var_T_reshape: T.handle):
-            T.func_attr({"tir.is_scheduled": 1, "tir.noalias": T.bool(True)})
+            T.func_attr({"tir.is_scheduled": 1, "tir.noalias": True})
             n = T.int32()
             A = T.match_buffer(var_A, (n, 16, 128), "float16")
             T_reshape = T.match_buffer(var_T_reshape, (1, n, 16, 128), "float16")
@@ -268,7 +268,7 @@ def test_reshape_dynamic_shape():
     class Expected:
         @T.prim_func(private=True)
         def reshape(var_A: T.handle, var_T_reshape: T.handle):
-            T.func_attr({"tir.is_scheduled": 1, "tir.noalias": T.bool(True)})
+            T.func_attr({"tir.is_scheduled": 1, "tir.noalias": True})
             n = T.int32()
             A = T.match_buffer(var_A, (n, 16, 128), "float16")
             T_reshape = T.match_buffer(var_T_reshape, (1, n, 16, 128), "float16")
@@ -357,7 +357,7 @@ def test_tuple_get_reshape():
                 (T.int64(2), T.int64(4096), T.int64(8), T.int64(40)), "float16"
             ),
         ):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             # with T.block("root"):
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(2), T.int64(4096), T.int64(8), T.int64(40)):
                 with T.block("T_reshape"):
@@ -418,7 +418,7 @@ def test_tuple_get_reshape():
                 (T.int64(2), T.int64(4096), T.int64(8), T.int64(40)), "float16"
             ),
         ):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             # with T.block("root"):
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(2), T.int64(4096), T.int64(8), T.int64(40)):
                 with T.block("T_reshape"):
@@ -480,7 +480,7 @@ def test_invalid_reshape():
             A: T.Buffer((T.int64(1), T.int64(1024)), "int32"),
             T_strided_slice: T.Buffer((T.int64(1), T.int64(1000)), "int32"),
         ):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             for ax0, ax1 in T.grid(T.int64(1), T.int64(1000)):
                 with T.block("T_strided_slice"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
@@ -554,7 +554,7 @@ def test_reshape_scalar():
             B: T.Buffer((T.int64(1),), "float32"),
             T_add: T.Buffer((T.int64(1),), "float32"),
         ):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             # with T.block("root"):
             for ax0 in range(T.int64(1)):
                 with T.block("T_add"):
@@ -565,7 +565,7 @@ def test_reshape_scalar():
 
         @T.prim_func(private=True)
         def reshape(A: T.Buffer((), "float32"), T_reshape: T.Buffer((T.int64(1),), "float32")):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             # with T.block("root"):
             for ax0 in range(T.int64(1)):
                 with T.block("T_reshape"):
@@ -618,7 +618,7 @@ def test_rewrite_static_reshape():
             y2: T.Buffer((T.int64(64), T.int64(4)), "float32"),
             z: T.Buffer((T.int64(64), T.int64(4)), "float32"),
         ):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
 
             for iters in T.grid(T.int64(64), T.int64(4)):
                 with T.block("T_add"):
@@ -683,7 +683,7 @@ def test_rewrite_static_reshape():
 #             y2 = T.match_buffer(y2_handle, [N // 4, 4], "float32")
 #             z = T.match_buffer(z_handle, [N // 4, 4], "float32")
 
-#             T.func_attr({"tir.noalias": T.bool(True)})
+#             T.func_attr({"tir.noalias": True})
 
 #             for iters in T.grid(T.int64(64), T.int64(4)):
 #                 with T.block("T_add"):
@@ -747,7 +747,7 @@ def test_rewrite_dynamic_reshape():
             y2 = T.match_buffer(y2_handle, [N * 4, T.int64(4)], "float32")
             z = T.match_buffer(z_handle, [N * 4, T.int64(4)], "float32")
 
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
 
             for iters in T.grid(N * 4, T.int64(4)):
                 with T.block("T_add"):

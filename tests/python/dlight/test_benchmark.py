@@ -44,7 +44,7 @@ import tvm.testing
 class Module:
     @T.prim_func
     def full1(var_T_full: T.handle):
-        T.func_attr({"op_pattern": 0, "tir.noalias": T.bool(True)})
+        T.func_attr({"op_pattern": 0, "tir.noalias": True})
         n = T.int64()
         T_full = T.match_buffer(var_T_full, (T.int64(1), T.int64(32), T.int64(1), n), "float16")
         # with T.block("root"):
@@ -57,7 +57,7 @@ class Module:
 
     @T.prim_func
     def full2(var_T_full: T.handle):
-        T.func_attr({"op_pattern": 0, "tir.noalias": T.bool(True)})
+        T.func_attr({"op_pattern": 0, "tir.noalias": True})
         n = T.int64()
         T_full = T.match_buffer(var_T_full, (T.int64(1), T.int64(32), n, T.int64(128)), "float16")
         # with T.block("root"):
@@ -70,7 +70,7 @@ class Module:
 
     @T.prim_func
     def matmul1(var_A: T.handle, var_B: T.handle, matmul: T.Buffer((T.int64(1), T.int64(32), T.int64(1), T.int64(128)), "float16")):
-        T.func_attr({"op_pattern": 4, "tir.noalias": T.bool(True)})
+        T.func_attr({"op_pattern": 4, "tir.noalias": True})
         n = T.int64()
         A = T.match_buffer(var_A, (T.int64(1), T.int64(32), T.int64(1), n), "float16")
         B = T.match_buffer(var_B, (T.int64(1), T.int64(32), n, T.int64(128)), "float16")
