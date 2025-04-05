@@ -1123,7 +1123,7 @@ TVM_REGISTER_GLOBAL("tir.reinterpret").set_body_typed(tvm::reinterpret);
 #define REGISTER_MAKE_BIT_OP(Node, Func)                                                \
   TVM_REGISTER_GLOBAL("tir." #Node).set_body([](TVMArgs args, TVMRetValue* ret) {       \
     bool lhs_is_int = args[0].type_index() == ffi::TypeIndex::kTVMFFIInt;               \
-    bool rhs_is_int = args[0].type_index() == ffi::TypeIndex::kTVMFFIInt;               \
+    bool rhs_is_int = args[1].type_index() == ffi::TypeIndex::kTVMFFIInt;               \
     if (lhs_is_int) {                                                                   \
       *ret = (Func(args[0].operator int(), args[1].operator PrimExpr(), args[2]));      \
     } else if (rhs_is_int) {                                                            \
