@@ -17,6 +17,7 @@
 
 import pytest
 import tvm
+import tvm.testing
 from tvm import relax
 
 import tvm.script
