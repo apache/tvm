@@ -527,7 +527,7 @@ def test_multi_level_tiling_hexagon():
         weight: T.Buffer((3, 3, 64, 64), "float16"),
         conv2d_nhwc: T.Buffer((1, 56, 56, 64), "float16"),
     ) -> None:
-        T.func_attr({"global_symbol": "main", "tir.noalias": T.bool(True)})
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
         PadInput = T.alloc_buffer((1, 58, 58, 64), "float16")
         for i0, i1, i2, i3 in T.grid(1, 58, 58, 64):
             with T.block("PadInput"):
@@ -741,7 +741,7 @@ def test_max_pool_blocked():
         X: T.Buffer((1, 2, 8, 8, 8, 8, 32), "uint8"),
         pool: T.Buffer((1, 2, 4, 4, 8, 8, 32), "uint8"),
     ):
-        T.func_attr({"global_symbol": "main", "tir.noalias": T.bool(True)})
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
         pool_global = T.alloc_buffer((1, 2, 4, 4, 8, 8, 32), "uint8")
         X_global = T.alloc_buffer((1, 2, 8, 8, 8, 8, 32), "uint8")
         for b_0, c_o_0, h_o_0, w_o_0, h_i_0, w_i_0, c_i_0 in T.grid(1, 2, 4, 1, 8, 1, 4):

@@ -39,7 +39,7 @@ def test_softmax_1():
     class Before:
         @T.prim_func
         def main(p_lv44: T.handle, p_output0: T.handle):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             n, m = T.int64(), T.int64()
             lv44 = T.match_buffer(p_lv44, (T.int64(1), T.int64(32), n, m))
             var_compute_intermediate = T.match_buffer(p_output0, (T.int64(1), T.int64(32), n, m), "float16")
@@ -88,7 +88,7 @@ def test_softmax_1():
     class After:
         @T.prim_func
         def main(p_lv44: T.handle, p_output0: T.handle):
-            T.func_attr({"tir.is_scheduled": 1, "tir.noalias": T.bool(True)})
+            T.func_attr({"tir.is_scheduled": 1, "tir.noalias": True})
             n, m = T.int64(), T.int64()
             lv44 = T.match_buffer(p_lv44, (T.int64(1), T.int64(32), n, m))
             var_compute_intermediate = T.match_buffer(p_output0, (T.int64(1), T.int64(32), n, m), "float16")
@@ -319,7 +319,7 @@ def test_layer_norm():
     class Before:
         @T.prim_func
         def main(p_lv6: T.handle, weight1: T.Buffer((T.int64(2560),), "float32"), bias: T.Buffer((T.int64(2560),), "float32"), p_output0: T.handle):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             n = T.int64()
             lv6 = T.match_buffer(p_lv6, (T.int64(1), n, T.int64(2560)))
             var_compute_intermediate = T.match_buffer(p_output0, (T.int64(1), n, T.int64(2560)), "float16")
@@ -356,7 +356,7 @@ def test_layer_norm():
     class After:
         @T.prim_func
         def main(p_lv6: T.handle, weight1: T.Buffer((T.int64(2560),), "float32"), bias: T.Buffer((T.int64(2560),), "float32"), p_output0: T.handle):
-            T.func_attr({"tir.is_scheduled": 1, "tir.noalias": T.bool(True)})
+            T.func_attr({"tir.is_scheduled": 1, "tir.noalias": True})
             n = T.int64()
             lv6 = T.match_buffer(p_lv6, (T.int64(1), n, T.int64(2560)))
             var_compute_intermediate = T.match_buffer(p_output0, (T.int64(1), n, T.int64(2560)), "float16")
@@ -397,7 +397,7 @@ def test_rms_norm():
     class Before:
         @T.prim_func
         def main(var_A: T.handle, B: T.Buffer((T.int64(4096),), "float16"), var_rms_norm: T.handle):
-            T.func_attr({"op_pattern": 4, "tir.noalias": T.bool(True)})
+            T.func_attr({"op_pattern": 4, "tir.noalias": True})
             n = T.int64()
             A = T.match_buffer(var_A, (T.int64(1), n, T.int64(4096)), "float16")
             rms_norm_1 = T.match_buffer(var_rms_norm, (T.int64(1), n, T.int64(4096)), "float16")
@@ -422,7 +422,7 @@ def test_rms_norm():
     class After:
         @T.prim_func
         def main(var_A: T.handle, B: T.Buffer((T.int64(4096),), "float16"), var_rms_norm: T.handle):
-            T.func_attr({"op_pattern": 4, "tir.is_scheduled": 1, "tir.noalias": T.bool(True)})
+            T.func_attr({"op_pattern": 4, "tir.is_scheduled": 1, "tir.noalias": True})
             n = T.int64()
             A = T.match_buffer(var_A, (T.int64(1), n, T.int64(4096)), "float16")
             rms_norm_1 = T.match_buffer(var_rms_norm, (T.int64(1), n, T.int64(4096)), "float16")
@@ -458,7 +458,7 @@ def test_group_norm():
     class Before:
         @T.prim_func
         def main(A: T.Buffer((1, 2048), "float32"), B: T.Buffer((2048,), "float32"), C: T.Buffer((2048,), "float32"), T_reshape: T.Buffer((1, 2048), "float32")):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             T_reshape_1 = T.alloc_buffer((1, 32, 64))
             A_red_temp_v0 = T.alloc_buffer((1, 32))
             A_red_temp_v1 = T.alloc_buffer((1, 32))
@@ -512,7 +512,7 @@ def test_group_norm():
     class After:
         @T.prim_func
         def main(A: T.Buffer((1, 2048), "float32"), B: T.Buffer((2048,), "float32"), C: T.Buffer((2048,), "float32"), T_reshape: T.Buffer((1, 2048), "float32")):
-            T.func_attr({"tir.is_scheduled": 1, "tir.noalias": T.bool(True)})
+            T.func_attr({"tir.is_scheduled": 1, "tir.noalias": True})
             # with T.block("root"):
             A_red_temp_v0_shared = T.alloc_buffer((1, 32), scope="shared")
             A_red_temp_v1_shared = T.alloc_buffer((1, 32), scope="shared")
@@ -549,7 +549,7 @@ def test_logsumexp():
     class Before:
         @T.prim_func
         def compute_lse(var_A: T.handle, var_blocked_lse: T.handle):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             batch_size = T.int64(is_size_var=True)
             vocab_size = T.int64(is_size_var=True)
             num_chunks = T.int64(is_size_var=True)
@@ -595,7 +595,7 @@ def test_logsumexp():
     class After:
         @T.prim_func
         def compute_lse(var_A: T.handle, var_blocked_lse: T.handle):
-            T.func_attr({"tir.is_scheduled": 1, "tir.noalias": T.bool(True)})
+            T.func_attr({"tir.is_scheduled": 1, "tir.noalias": True})
             batch_size, vocab_size = T.int64(is_size_var=True), T.int64(is_size_var=True)
             A = T.match_buffer(var_A, (batch_size, vocab_size))
             num_chunks = T.int64(is_size_var=True)

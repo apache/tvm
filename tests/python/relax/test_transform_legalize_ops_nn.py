@@ -217,7 +217,7 @@ def test_conv1d_transpose():
     class Expected:
         @T.prim_func(private=True)
         def conv1d_transpose(x: T.Buffer((T.int64(2), T.int64(128), T.int64(28)), "float32"), w: T.Buffer((T.int64(128), T.int64(16), T.int64(3)), "float32"), compute: T.Buffer((T.int64(2), T.int64(128), T.int64(56)), "float32")):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             data_dilate = T.alloc_buffer((T.int64(2), T.int64(128), T.int64(55)))
             data_pad = T.alloc_buffer((T.int64(2), T.int64(128), T.int64(58)))
             kernel = T.alloc_buffer((T.int64(16), T.int64(128), T.int64(3)))
@@ -1303,7 +1303,7 @@ def test_gelu_tanh():
 
         @T.prim_func(private=True)
         def gelu_tanh(A: T.Buffer((T.int64(2), T.int64(3)), "float32"), T_multiply: T.Buffer((T.int64(2), T.int64(3)), "float32")):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             T_multiply_1 = T.alloc_buffer((T.int64(2), T.int64(3)))
             T_multiply_2 = T.alloc_buffer((T.int64(2), T.int64(3)))
             T_multiply_3 = T.alloc_buffer((T.int64(2), T.int64(3)))
@@ -1393,7 +1393,7 @@ def test_gelu_tanh_symbolic():
 
         @T.prim_func(private=True)
         def gelu_tanh(var_A: T.handle, var_T_multiply: T.handle):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             m, n = T.int64(), T.int64()
             A = T.match_buffer(var_A, (m, n))
             T_multiply = T.match_buffer(var_T_multiply, (m, n))
@@ -1956,7 +1956,7 @@ def test_batch_norm():
     class Expected:
         @T.prim_func(private=True)
         def batch_norm(var_x: T.handle, var_gamma: T.handle, var_beta: T.handle, var_moving_mean: T.handle, var_moving_var: T.handle, var_T_add: T.handle, var_T_add_1: T.handle, var_T_add_2: T.handle):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             x = T.match_buffer(var_x, (T.int64(2), T.int64(3), T.int64(28), T.int64(28)))
             gamma = T.match_buffer(var_gamma, (T.int64(3),))
             beta = T.match_buffer(var_beta, (T.int64(3),))
@@ -2262,7 +2262,7 @@ def test_batch_norm_symbolic():
     class Expected:
         @T.prim_func(private=True)
         def batch_norm(var_x: T.handle, var_gamma: T.handle, var_beta: T.handle, var_moving_mean: T.handle, var_moving_var: T.handle, var_T_add: T.handle, var_T_add_1: T.handle, var_T_add_2: T.handle):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             n, h, w, c = T.int64(), T.int64(), T.int64(), T.int64()
             x = T.match_buffer(var_x, (n, h, w, c))
             gamma = T.match_buffer(var_gamma, (c,))
@@ -2973,7 +2973,7 @@ def test_rms_norm():
     class Expected:
         @T.prim_func(private=True)
         def rms_norm(A: T.Buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float32"), B: T.Buffer((T.int64(4), T.int64(5)), "float32"), T_cast: T.Buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float32")):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             # with T.block("root"):
             T_cast_1 = T.alloc_buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(5)))
             T_multiply = T.alloc_buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(5)))
@@ -3049,7 +3049,7 @@ def test_rms_norm_fp16():
     class Expected:
         @T.prim_func(private=True)
         def rms_norm(A: T.Buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float16"), B: T.Buffer((T.int64(4), T.int64(5)), "float16"), T_cast: T.Buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float16")):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             # with T.block("root"):
             T_cast_1 = T.alloc_buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(5)))
             T_multiply = T.alloc_buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(5)))
@@ -3128,7 +3128,7 @@ def test_rms_norm_symbolic():
     class Expected:
         @T.prim_func(private=True)
         def rms_norm(var_A: T.handle, var_B: T.handle, var_T_cast: T.handle):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             n, s, f = T.int64(), T.int64(), T.int64()
             A = T.match_buffer(var_A, (n, s, f))
             B = T.match_buffer(var_B, (s, f))
@@ -3211,7 +3211,7 @@ def test_rms_norm_no_bias():
     class Expected:
         @T.prim_func(private=True)
         def rms_norm(A: T.Buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float32"), B: T.Buffer((T.int64(4), T.int64(5)), "float32"), T_cast: T.Buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(5)), "float32")):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             # with T.block("root"):
             T_cast_1 = T.alloc_buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(5)))
             T_multiply = T.alloc_buffer((T.int64(2), T.int64(3), T.int64(4), T.int64(5)))
@@ -3288,7 +3288,7 @@ def test_attention():
     class Expected:
         @T.prim_func(private=True)
         def attention_bias(A: T.Buffer((T.int64(4), T.int64(16), T.int64(32), T.int64(8)), "float32"), B: T.Buffer((T.int64(4), T.int64(8), T.int64(32), T.int64(8)), "float32"), C: T.Buffer((T.int64(4), T.int64(8), T.int64(32), T.int64(16)), "float32"), D: T.Buffer((T.int64(4), T.int64(32), T.int64(16), T.int64(8)), "float32"), T_transpose: T.Buffer((T.int64(4), T.int64(16), T.int64(32), T.int64(16)), "float32")):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             # with T.block("root"):
             T_transpose_1 = T.alloc_buffer((T.int64(4), T.int64(32), T.int64(16), T.int64(8)))
             T_reshape = T.alloc_buffer((T.int64(128), T.int64(16), T.int64(8)))
@@ -3773,7 +3773,7 @@ def test_pad():
             A: T.Buffer((T.int64(2), T.int64(128), T.int64(28)), "float32"),
             PadInput: T.Buffer((T.int64(2), T.int64(130), T.int64(30)), "float32"),
         ):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             # with T.block("root"):
             for i0, i1, i2 in T.grid(T.int64(2), T.int64(130), T.int64(30)):
                 with T.block("PadInput"):

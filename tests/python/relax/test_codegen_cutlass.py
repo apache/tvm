@@ -1262,7 +1262,7 @@ def test_fp16A_int4B_gemm():
             B: T.Buffer((T.int64(128),), "float16"),
             decode_1: T.Buffer((T.int64(64), T.int64(128)), "float16"),
         ):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             # with T.block("root"):
             for i, j in T.grid(T.int64(64), T.int64(128)):
                 with T.block("decode"):
@@ -1295,7 +1295,7 @@ def test_fp16A_int4B_gemm():
             w_gathered: T.Buffer((T.int64(64), T.int64(64)), "int8"),
             compute: T.Buffer((T.int64(128),), "float16"),
         ):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             # with T.block("root"):
             max_abs_value = T.alloc_buffer((T.int64(128),), "float16")
             scale = T.alloc_buffer((T.int64(128),))
@@ -1519,7 +1519,7 @@ def test_fp16A_int8B_gemm():
             B: T.Buffer((T.int64(64),), "float16"),
             decode_1: T.Buffer((T.int64(64), T.int64(64)), "float16"),
         ):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             # with T.block("root"):
             for i, j in T.grid(T.int64(64), T.int64(64)):
                 with T.block("decode"):
@@ -1534,7 +1534,7 @@ def test_fp16A_int8B_gemm():
             w_gathered: T.Buffer((T.int64(64), T.int64(64)), "int8"),
             compute: T.Buffer((T.int64(64),), "float16"),
         ):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             # with T.block("root"):
             max_abs_value = T.alloc_buffer((T.int64(64),), "float16")
             scale = T.alloc_buffer((T.int64(64),))
@@ -1665,7 +1665,7 @@ def test_rms_norm():
             B: T.Buffer((T.int64(4096),), "float16"),
             rms_norm: T.Buffer((T.int64(1), T.int64(1), T.int64(4096)), "float16"),
         ):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             # with T.block("root"):
             Ared_temp = T.alloc_buffer((T.int64(1), T.int64(1)))
             for bsz, i, k in T.grid(T.int64(1), T.int64(1), T.int64(4096)):
@@ -1798,7 +1798,7 @@ def test_fp16A_int8B_gemm_batched():
             B: T.Buffer((T.int64(64),), "float16"),
             decode_1: T.Buffer((T.int64(64), T.int64(64)), "float16"),
         ):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             # with T.block("root"):
             for i, j in T.grid(T.int64(64), T.int64(64)):
                 with T.block("decode"):
@@ -1813,7 +1813,7 @@ def test_fp16A_int8B_gemm_batched():
             w_gathered: T.Buffer((T.int64(64), T.int64(64)), "int8"),
             compute: T.Buffer((T.int64(64),), "float16"),
         ):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             # with T.block("root"):
             max_abs_value = T.alloc_buffer((T.int64(64),), "float16")
             scale = T.alloc_buffer((T.int64(64),))
@@ -1931,7 +1931,7 @@ def test_fp16A_int8B_gemm_batched_finegrained():
             B: T.Buffer((T.int64(2), T.int64(128)), "float16"),
             decode_1: T.Buffer((T.int64(128), T.int64(128)), "float16"),
         ):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             for i, j in T.grid(T.int64(128), T.int64(128)):
                 with T.block("decode"):
                     v_i, v_j = T.axis.remap("SS", [i, j])
@@ -1951,7 +1951,7 @@ def test_fp16A_int8B_gemm_batched_finegrained():
                 "float16",
             ),
         ):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             max_abs_value = T.alloc_buffer(
                 (
                     T.int64(2),

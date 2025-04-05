@@ -48,7 +48,7 @@ class MyModule:
         B: T.Buffer((128, 128), "float32"),
         C: T.Buffer((128, 128), "float32"),
     ):
-        T.func_attr({"tir.noalias": T.bool(True)})
+        T.func_attr({"tir.noalias": True})
         Y = T.alloc_buffer((128, 128))
         for i, j, k in T.grid(128, 128, 128):
             with T.block("Y"):

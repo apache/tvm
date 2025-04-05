@@ -327,7 +327,7 @@ def llama_rope(  # pylint: disable=too-many-arguments
         T.func_attr(
             {
                 "op_pattern": 8,  # 2 means injective, 8 means opaque
-                "tir.noalias": T.bool(True),
+                "tir.noalias": True,
             }
         )
         batch_size = T.int64()
@@ -456,7 +456,7 @@ def llama_rope_with_position_map(  # pylint: disable=too-many-arguments
         T.func_attr(
             {
                 "op_pattern": 8,  # 2 means injective, 8 means opaque
-                "tir.noalias": T.bool(True),
+                "tir.noalias": True,
             }
         )
         seq_len = T.int32()
@@ -498,7 +498,7 @@ def llama_rope_with_position_map(  # pylint: disable=too-many-arguments
         T.func_attr(
             {
                 "op_pattern": 8,  # 2 means injective, 8 means opaque
-                "tir.noalias": T.bool(True),
+                "tir.noalias": True,
             }
         )
         seq_len = T.int64()

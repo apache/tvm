@@ -1510,7 +1510,7 @@ def test_call_tir_inplace():
             B: T.Buffer((), "float32"),
             Out: T.Buffer((T.int64(10), T.int64(20)), "float32"),
         ):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             for ax0, ax1 in T.grid(T.int64(10), T.int64(20)):
                 with T.block("T_add"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
@@ -1520,7 +1520,7 @@ def test_call_tir_inplace():
 
         @T.prim_func(private=True)
         def exp_inplace(A: T.Buffer((T.int64(10), T.int64(20)), "float32")):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             for i0, i1 in T.grid(T.int64(10), T.int64(20)):
                 with T.block("compute"):
                     v_i0, v_i1 = T.axis.remap("SS", [i0, i1])
@@ -1530,7 +1530,7 @@ def test_call_tir_inplace():
 
         @T.prim_func(private=True)
         def squeeze_inplace(A: T.Buffer((T.int64(10), T.int64(20)), "float32")):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             for ax0, ax1 in T.grid(T.int64(10), T.int64(20)):
                 with T.block("T_squeeze"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
@@ -1572,7 +1572,7 @@ def test_call_tir_inplace():
             B: T.Buffer((), "float32"),
             Out: T.Buffer((T.int64(10), T.int64(20)), "float32"),
         ):
-            T.func_attr({"tir.noalias": T.bool(True), "op_pattern": 0})
+            T.func_attr({"tir.noalias": True, "op_pattern": 0})
             for ax0, ax1 in T.grid(T.int64(10), T.int64(20)):
                 with T.block("T_add"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
@@ -1582,7 +1582,7 @@ def test_call_tir_inplace():
 
         @T.prim_func(private=True)
         def exp_inplace(A: T.Buffer((T.int64(10), T.int64(20)), "float32")):
-            T.func_attr({"tir.noalias": T.bool(True), "op_pattern": 0})
+            T.func_attr({"tir.noalias": True, "op_pattern": 0})
             for i0, i1 in T.grid(T.int64(10), T.int64(20)):
                 with T.block("compute"):
                     v_i0, v_i1 = T.axis.remap("SS", [i0, i1])
@@ -1592,7 +1592,7 @@ def test_call_tir_inplace():
 
         @T.prim_func(private=True)
         def squeeze_inplace(A: T.Buffer((T.int64(10), T.int64(20)), "float32")):
-            T.func_attr({"tir.noalias": T.bool(True), "op_pattern": 0})
+            T.func_attr({"tir.noalias": True, "op_pattern": 0})
             for ax0, ax1 in T.grid(T.int64(10), T.int64(20)):
                 with T.block("T_squeeze"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
@@ -1648,7 +1648,7 @@ def test_packed_params():
     class Before:
         @T.prim_func(private=True)
         def cast(lv: T.Buffer((T.int64(16), T.int64(16)), "float16"), compute: T.Buffer((T.int64(16), T.int64(16)), "float32")):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             # with T.block("root"):
             for i0, i1 in T.grid(T.int64(16), T.int64(16)):
                 with T.block("compute"):
@@ -1659,7 +1659,7 @@ def test_packed_params():
 
         @T.prim_func(private=True)
         def matmul(x: T.Buffer((T.int64(16), T.int64(16)), "float32"), lv2: T.Buffer((T.int64(16), T.int64(16)), "float32"), T_matmul: T.Buffer((T.int64(16), T.int64(16)), "float32")):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             # with T.block("root"):
             for ax0, ax1, k in T.grid(T.int64(16), T.int64(16), T.int64(16)):
                 with T.block("T_matmul"):

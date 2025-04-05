@@ -42,7 +42,7 @@ def matmul(a: T.handle, b: T.handle, c: T.handle) -> None:
 
 @T.prim_func
 def two_kernels(var_A: T.handle, var_B: T.handle, seq_len: T.int32):
-    T.func_attr({"tir.noalias": T.bool(True)})
+    T.func_attr({"tir.noalias": True})
     A = T.match_buffer(var_A, (1, seq_len * 8), "int32")
     B = T.match_buffer(var_B, (1, seq_len * 8), "int32", align=8)
     with T.block("exclusive_scan"):

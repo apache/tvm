@@ -209,7 +209,7 @@ class DeviceKernelMutator : public StmtExprMutator {
         << "This case is not yet supported.";
 
     if (is_kernel_launch || is_call_extern) {
-      func = WithAttr(std::move(func), tvm::tir::attr::kIsGlobalFunc, Bool(true));
+      func = WithAttr(std::move(func), tvm::tir::attr::kIsGlobalFunc, true);
     }
 
     if (is_kernel_launch) {

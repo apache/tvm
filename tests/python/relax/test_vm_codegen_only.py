@@ -365,7 +365,7 @@ def test_vm_kill_object(exec_mode):
     class TestKillObject:
         @T.prim_func
         def full(T_full: T.Buffer((T.int64(4),), "float32")):
-            T.func_attr({"global_symbol": "full", "tir.noalias": T.bool(True)})
+            T.func_attr({"global_symbol": "full", "tir.noalias": True})
             for ax0 in range(T.int64(4)):
                 with T.block("T_full"):
                     v_ax0 = T.axis.spatial(T.int64(4), ax0)
@@ -375,7 +375,7 @@ def test_vm_kill_object(exec_mode):
 
         @T.prim_func
         def full1(T_full: T.Buffer((T.int64(4),), "float32")):
-            T.func_attr({"global_symbol": "full1", "tir.noalias": T.bool(True)})
+            T.func_attr({"global_symbol": "full1", "tir.noalias": True})
             for ax0 in range(T.int64(4)):
                 with T.block("T_full"):
                     v_ax0 = T.axis.spatial(T.int64(4), ax0)

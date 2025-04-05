@@ -548,7 +548,7 @@ def test_vectorize_and_predicate_all_buffer_loads_stores():
     def expected(a: T.handle, b: T.handle):
         A = T.match_buffer(a, (16,), "float32")
         B = T.match_buffer(b, (16,), "float32")
-        T.func_attr({"global_symbol": "main", "tir.noalias": T.bool(True)})
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
         for i_0 in range(4):
             load_a = T.meta_var(
                 A.vload(
@@ -586,7 +586,7 @@ def test_vectorize_and_predicate_some_buffer_loads_stores():
     def expected(a: T.handle, b: T.handle):
         A = T.match_buffer(a, (16,), "float32")
         B = T.match_buffer(b, (16,), "float32")
-        T.func_attr({"global_symbol": "main", "tir.noalias": T.bool(True)})
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
         for i_0, i_1_s in T.grid(4, 4):
             if i_0 * 4 + i_1_s < 14:
                 B[i_0 * 4 + i_1_s] = A[i_0] + T.float32(1)
@@ -613,7 +613,7 @@ def test_vectorize_and_predicate_multiple_access_statements():
     def expected(a: T.handle, b: T.handle):
         A = T.match_buffer(a, (16,), "float32")
         B = T.match_buffer(b, (16,), "float32")
-        T.func_attr({"global_symbol": "main", "tir.noalias": T.bool(True)})
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
         for i_0 in range(4):
             A.vstore(
                 [T.Ramp(i_0 * 4, 1, 4)],
@@ -651,7 +651,7 @@ def test_vectorize_and_predicate_invalid_conditions():
     def expected(a: T.handle, b: T.handle):
         A = T.match_buffer(a, (16,), "float32")
         B = T.match_buffer(b, (16,), "float32")
-        T.func_attr({"global_symbol": "main", "tir.noalias": T.bool(True)})
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
         for i_0 in range(4):
             for i_1_s in range(4):
                 if i_0 * 4 + i_1_s > 14:
@@ -714,7 +714,7 @@ def test_vectorize_and_predicate_buffer_load_stores_with_sve_func_attr_target():
     def expected(a: T.handle, b: T.handle):
         A = T.match_buffer(a, (16,), "float32")
         B = T.match_buffer(b, (16,), "float32")
-        T.func_attr({"global_symbol": "main", "tir.noalias": T.bool(True), "target": sve_target})
+        T.func_attr({"global_symbol": "main", "tir.noalias": True, "target": sve_target})
         for i_0 in range(4):
             load_a = T.meta_var(
                 A.vload(
@@ -750,7 +750,7 @@ def test_vectorize_and_predicate_buffer_load_stores_with_sve_attr_scope_target()
     def expected(a: T.handle, b: T.handle):
         A = T.match_buffer(a, (16,), "float32")
         B = T.match_buffer(b, (16,), "float32")
-        T.func_attr({"global_symbol": "main", "tir.noalias": T.bool(True)})
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
         with T.attr(sve_target, "target", 0):
             for i_0 in range(4):
                 load_a = T.meta_var(

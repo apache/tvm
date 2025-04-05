@@ -604,7 +604,7 @@ def test_arange_symbolic():
 
         @T.prim_func(private=True)
         def arange(var_T_arange: T.handle, n: T.int64):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             T_arange = T.match_buffer(var_T_arange, (n // T.int64(2),), "int64")
             for ax0 in range(n // T.int64(2)):
                 with T.block("T_arange"):

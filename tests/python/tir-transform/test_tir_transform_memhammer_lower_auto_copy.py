@@ -1003,7 +1003,7 @@ class TransformedMmaToGlobal:
     @T.prim_func
     def main(C: T.Buffer((1024, 1024), "float32")):
         with T.block("root"):
-            T.block_attr({"warp_execution": T.bool(True)})
+            T.block_attr({"warp_execution": True})
             for bx in T.thread_binding(8, thread="blockIdx.x"):
                 for by in T.thread_binding(8, thread="blockIdx.y"):
                     for ty in T.thread_binding(8, thread="threadIdx.y"):

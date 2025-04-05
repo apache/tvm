@@ -182,9 +182,9 @@ class VerifyGPUCodeNode : public PostprocNode {
           tir::PrimFunc f = WithAttr(GetRef<tir::PrimFunc>(prim_func), "global_symbol",
                                      runtime::String(g_var->name_hint));
           f = WithAttr(f, tvm::attr::kTarget, this->target_);  // Required for LowerIntrin
-          bool noalias = pass_ctx->GetConfig<Bool>("tir.noalias", Bool(true)).value();
+          bool noalias = pass_ctx->GetConfig<bool>("tir.noalias", true).value();
           if (noalias) {
-            f = WithAttr(std::move(f), "tir.noalias", Bool(true));
+            f = WithAttr(std::move(f), "tir.noalias", true);
           }
           IRModule mod = IRModule(Map<GlobalVar, BaseFunc>({{GlobalVar(g_var->name_hint), f}}));
           lowered = tvm::transform::Sequential(pass_list)(std::move(mod));

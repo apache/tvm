@@ -1308,7 +1308,7 @@ def test_flip():
             rxplaceholder: T.Buffer((T.int64(2), T.int64(3)), "float32"),
             T_reverse_sequence: T.Buffer((T.int64(2), T.int64(3)), "float32"),
         ):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             for ax0, ax1 in T.grid(T.int64(2), T.int64(3)):
                 with T.block("T_reverse_sequence"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
@@ -1347,7 +1347,7 @@ def test_flip_symbolic():
 
         @T.prim_func(private=True)
         def flip(var_rxplaceholder: T.handle, var_T_reverse_sequence: T.handle):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             a, b = T.int64(), T.int64()
             rxplaceholder = T.match_buffer(var_rxplaceholder, (a, b))
             T_reverse_sequence = T.match_buffer(var_T_reverse_sequence, (a, b))
@@ -1383,7 +1383,7 @@ def test_scatter_elements():
             var_rxplaceholder_2: T.handle,
             out_buf: T.Buffer((T.int64(4), T.int64(4)), "float32"),
         ):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             rxplaceholder = T.match_buffer(
                 var_rxplaceholder, (T.int64(4), T.int64(4)), offset_factor=1
             )
@@ -1479,7 +1479,7 @@ def test_scatter_elements_symbolic():
             var_rxplaceholder_2: T.handle,
             var_scatter_elements_generic: T.handle,
         ):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             a, b = T.int64(), T.int64()
             rxplaceholder = T.match_buffer(var_rxplaceholder, (a, b), offset_factor=1)
             m, n = T.int64(), T.int64()
@@ -1569,7 +1569,7 @@ def test_layout_transform():
     class Expected:
         @T.prim_func(private=True)
         def te_layout_transform(A: T.Buffer((T.int64(10), T.int64(21), T.int64(30)), "float32"), te_layout_transform_1: T.Buffer((T.int64(10), T.int64(30), T.int64(7), T.int64(3)), "float32")):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             # with T.block("root"):
             for i0, i1, i2 in T.grid(T.int64(10), T.int64(21), T.int64(30)):
                 with T.block("te_layout_transform"):
@@ -1606,7 +1606,7 @@ def test_layout_transform_with_pad():
     class Expected:
         @T.prim_func(private=True)
         def te_layout_transform_with_pad(A: T.Buffer((T.int64(10), T.int64(20), T.int64(30)), "float32"), te_layout_transform_with_pad_1: T.Buffer((T.int64(10), T.int64(30), T.int64(7), T.int64(3)), "float32")):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             # with T.block("root"):
             for axis0, axis1, axis2, axis3 in T.grid(T.int64(10), T.int64(30), T.int64(7), T.int64(3)):
                 with T.block("te_layout_transform_with_pad"):
@@ -1643,7 +1643,7 @@ def test_layout_transform_symbolic():
     class Expected:
         @T.prim_func(private=True)
         def te_layout_transform_with_pad(var_A: T.handle, var_te_layout_transform_with_pad: T.handle):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             a, b, c = T.int64(), T.int64(), T.int64()
             A = T.match_buffer(var_A, (a, b, c))
             te_layout_transform_with_pad_1 = T.match_buffer(var_te_layout_transform_with_pad, (a, c, (b - b % T.int64(-3)) // T.int64(3), T.int64(3)))
@@ -1687,7 +1687,7 @@ def test_layout_transform_with_pad_axis_sep():
     class Expected:
         @T.prim_func(private=True)
         def te_layout_transform_with_pad_axis_separator(A: T.Buffer((T.int64(10), T.int64(20), T.int64(30)), "float32"), var_te_layout_transform_with_pad_axis_separator: T.handle):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             te_layout_transform_with_pad_axis_separator_1 = T.match_buffer(var_te_layout_transform_with_pad_axis_separator, (T.int64(10), T.int64(30), T.int64(7), T.int64(3)), axis_separators=[3])
             # with T.block("root"):
             for axis0, axis1, axis2, axis3 in T.grid(T.int64(10), T.int64(30), T.int64(7), T.int64(3)):
@@ -1763,7 +1763,7 @@ def test_func_struct_info_of_legalized_layout_transform():
             A: T.Buffer((T.int64(16),), "float32"),
             te_layout_transform: T.Buffer((T.int64(4), T.int64(4)), "float32"),
         ):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             for i in range(T.int64(16)):
                 with T.block("te_layout_transform"):
                     vi = T.axis.spatial(T.int64(16), i)
@@ -1803,7 +1803,7 @@ def test_scatter_nd():
 
         @T.prim_func(private=True)
         def scatter_nd(var_data: T.handle, var_indices: T.handle, var_updates: T.handle, var_scatter_nd_generic: T.handle):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             data = T.match_buffer(var_data, (T.int64(8),), offset_factor=1)
             indices = T.match_buffer(var_indices, (T.int64(4), T.int64(1)), "int64")
             updates = T.match_buffer(var_updates, (T.int64(4),), offset_factor=1)

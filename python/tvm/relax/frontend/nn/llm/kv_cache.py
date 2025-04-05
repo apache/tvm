@@ -675,7 +675,7 @@ def _kv_cache_transpose_append(num_key_value_heads, head_dim, dtype, page_size: 
         var_v_data: T.handle,
         var_position_map: T.handle,
     ):
-        T.func_attr({"tir.noalias": T.bool(True)})
+        T.func_attr({"tir.noalias": True})
         ntoken = T.SizeVar("num_tokens_excluding_cache", "int64")
         num_pages = T.int64()
         pages_elem_offset = T.int64()
@@ -717,7 +717,7 @@ def _kv_cache_transpose_append_mla(d_qk: int, dtype, page_size: int = 16):
         var_kv_data: T.handle,
         var_position_map: T.handle,
     ):
-        T.func_attr({"tir.noalias": T.bool(True)})
+        T.func_attr({"tir.noalias": True})
         ntoken = T.SizeVar("num_tokens_excluding_cache", "int64")
         num_pages = T.int64()
         pages_elem_offset = T.int64()
@@ -754,7 +754,7 @@ def _kv_cache_debug_get_kv(num_hidden_layers, num_key_value_heads, head_dim, dty
         var_v_data: T.handle,
         layer_id: T.int64,
     ):
-        T.func_attr({"tir.noalias": T.bool(True)})
+        T.func_attr({"tir.noalias": True})
         seqlen = T.SizeVar("num_tokens_including_cache", "int64")
         page_size = T.SizeVar("page_size", "int64")
         num_pages = T.int64()
@@ -792,7 +792,7 @@ def _kv_cache_debug_get_kv_mla(num_hidden_layers, d_qk, dtype):
         var_compressed_kv_with_k_pe_data: T.handle,
         layer_id: T.int64,
     ):
-        T.func_attr({"tir.noalias": T.bool(True)})
+        T.func_attr({"tir.noalias": True})
         seqlen = T.SizeVar("num_tokens_including_cache", "int64")
         page_size = T.SizeVar("page_size", "int64")
         num_pages = T.int64()

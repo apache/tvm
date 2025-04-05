@@ -862,7 +862,7 @@ def test_fuse_of_dynamic_kernel_with_expression_params_and_static_args():
             C: T.Buffer(T.int64(32), "float32"),
             Z: T.Buffer(T.int64(512), "float32"),
         ):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             Y = T.alloc_buffer((T.int64(512),))
             for i, j in T.grid(T.int64(16), T.int64(32)):
                 with T.block("compute"):
@@ -1004,7 +1004,7 @@ def test_symbolic_var_in_call_tir_args():
             rotary: T.Buffer((T.int64(1), T.int64(1), T.int64(32), T.int64(128)), "float32"),
             m: T.int64,
         ):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             T_add = T.alloc_buffer((T.int64(1), T.int64(1), T.int64(32), T.int64(128)))
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(1), T.int64(1), T.int64(32), T.int64(128)):
                 with T.block("T_add"):
@@ -1049,7 +1049,7 @@ def test_same_buffer_multiple_read():
             ),
             T_concat: T.Buffer((T.int64(2), T.int64(4), T.int64(64), T.int64(64)), "float32"),
         ):
-            T.func_attr({"op_pattern": 2, "tir.noalias": T.bool(True)})
+            T.func_attr({"op_pattern": 2, "tir.noalias": True})
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(2), T.int64(4), T.int64(64), T.int64(64)):
                 with T.block("T_concat"):
                     v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
@@ -1069,7 +1069,7 @@ def test_same_buffer_multiple_read():
             rxplaceholder: T.Buffer((T.int64(2), T.int64(4), T.int64(64), T.int64(64)), "float32"),
             T_transpose: T.Buffer((T.int64(2), T.int64(64), T.int64(64), T.int64(4)), "float32"),
         ):
-            T.func_attr({"op_pattern": 2, "tir.noalias": T.bool(True)})
+            T.func_attr({"op_pattern": 2, "tir.noalias": True})
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(2), T.int64(64), T.int64(64), T.int64(4)):
                 with T.block("T_transpose"):
                     v_ax0, v_ax1, v_ax2, v_ax3 = T.axis.remap("SSSS", [ax0, ax1, ax2, ax3])
@@ -1117,7 +1117,7 @@ def test_same_buffer_multiple_read():
                 (T.int64(2), T.int64(64), T.int64(64), T.int64(4)), "float32"
             ),
         ):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             T_concat_handle_intermediate = T.alloc_buffer(
                 (T.int64(2), T.int64(4), T.int64(64), T.int64(64))
             )
@@ -1195,7 +1195,7 @@ def test_tir_expression_in_shape():
             p_output0: T.handle,
             n: T.int64,
         ):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             y = T.match_buffer(p_y, (n - T.int64(1), T.int64(4)))
             var_T_matmul_intermediate = T.match_buffer(p_output0, (n - T.int64(1), T.int64(3)))
             var_T_transpose_intermediate = T.alloc_buffer((T.int64(4), T.int64(3)))
@@ -1242,7 +1242,7 @@ def test_tuple_input_unused_field():
             A: T.Buffer((T.int64(4), T.int64(8), T.int64(2048)), "float32"),
             T_reshape: T.Buffer((T.int64(4), T.int64(8), T.int64(32), T.int64(64)), "float32"),
         ):
-            T.func_attr({"op_pattern": 2, "tir.noalias": T.bool(True)})
+            T.func_attr({"op_pattern": 2, "tir.noalias": True})
             # with T.block("root"):
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(4), T.int64(8), T.int64(32), T.int64(64)):
                 with T.block("T_reshape"):
@@ -1307,7 +1307,7 @@ def test_tuple_input_unused_field():
                 (T.int64(4), T.int64(8), T.int64(32), T.int64(64)), "float32"
             ),
         ):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             # with T.block("root"):
             for ax0, ax1, ax2, ax3 in T.grid(T.int64(4), T.int64(8), T.int64(32), T.int64(64)):
                 with T.block("T_reshape"):
@@ -1407,7 +1407,7 @@ def test_unique_duplicated_buffer_allocation():
             input_embeds: T.Buffer((T.int64(4096), T.int64(4096)), "float16"),
             Out_intermediate_1: T.Buffer((T.int64(4096), T.int64(4096)), "float16"),
         ):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             Out_intermediate = T.alloc_buffer((T.int64(4096), T.int64(4096)), "float16")
             for i, j in T.grid(T.int64(4096), T.int64(4096)):
                 with T.block("add"):
@@ -1521,7 +1521,7 @@ def test_symbolic_var_in_buffer_shape():
             rotary_handle: T.handle,
             m: T.int64,
         ):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
 
             sequence_length = T.int64()
 
@@ -1903,7 +1903,7 @@ def test_gather():
             input_embeds: T.Buffer((T.int64(4096), T.int64(4096)), "float16"),
             T_take: T.Buffer((T.int64(1), T.int64(4096)), "float16"),
         ):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             Out_handle_intermediate = T.alloc_buffer((T.int64(4096), T.int64(4096)), "float16")
             for i, j in T.grid(T.int64(4096), T.int64(4096)):
                 with T.block("add"):
@@ -1941,7 +1941,7 @@ def test_inplace_simple():
         def add_inplace(
             A: T.Buffer((T.int64(10), T.int64(20)), "float32"), B: T.Buffer((), "float32")
         ):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             for ax0, ax1 in T.grid(T.int64(10), T.int64(20)):
                 with T.block("T_add"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
@@ -1951,7 +1951,7 @@ def test_inplace_simple():
 
         @T.prim_func(private=True)
         def exp_inplace(A: T.Buffer((T.int64(10), T.int64(20)), "float32")):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             for i0, i1 in T.grid(T.int64(10), T.int64(20)):
                 with T.block("compute"):
                     v_i0, v_i1 = T.axis.remap("SS", [i0, i1])
@@ -1961,7 +1961,7 @@ def test_inplace_simple():
 
         @T.prim_func(private=True)
         def squeeze_inplace(A: T.Buffer((T.int64(10), T.int64(20)), "float32")):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             for ax0, ax1 in T.grid(T.int64(10), T.int64(20)):
                 with T.block("T_squeeze"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
@@ -2020,7 +2020,7 @@ def test_inplace_simple():
         def fused_add_exp_squeeze(
             x: T.Buffer((T.int64(10), T.int64(20)), "float32"), p0: T.Buffer((), "float32")
         ):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             for ax0, ax1 in T.grid(T.int64(10), T.int64(20)):
                 with T.block("T_add"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
@@ -2064,7 +2064,7 @@ def test_fuse_inplace_and_non_inplace():
             B: T.Buffer((), "float32"),
             Out: T.Buffer((T.int64(10), T.int64(20)), "float32"),
         ):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             for ax0, ax1 in T.grid(T.int64(10), T.int64(20)):
                 with T.block("T_add"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
@@ -2072,7 +2072,7 @@ def test_fuse_inplace_and_non_inplace():
 
         @T.prim_func(private=True)
         def exp_inplace(A: T.Buffer((T.int64(10), T.int64(20)), "float32")):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             for i0, i1 in T.grid(T.int64(10), T.int64(20)):
                 with T.block("compute"):
                     v_i0, v_i1 = T.axis.remap("SS", [i0, i1])
@@ -2080,7 +2080,7 @@ def test_fuse_inplace_and_non_inplace():
 
         @T.prim_func(private=True)
         def squeeze_inplace(A: T.Buffer((T.int64(10), T.int64(20)), "float32")):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             for ax0, ax1 in T.grid(T.int64(10), T.int64(20)):
                 with T.block("T_squeeze"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
@@ -2133,7 +2133,7 @@ def test_fuse_inplace_and_non_inplace():
             p0: T.Buffer((), "float32"),
             p_output0: T.Buffer((T.int64(10), T.int64(20)), "float32"),
         ):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             for ax0, ax1 in T.grid(T.int64(10), T.int64(20)):
                 with T.block("T_add"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
@@ -2174,7 +2174,7 @@ def test_use_as_inplace_and_dps():
             B: T.Buffer((), "float32"),
             Out: T.Buffer((T.int64(10), T.int64(20)), "float32"),
         ):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             for ax0, ax1 in T.grid(T.int64(10), T.int64(20)):
                 with T.block("T_add"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
@@ -2225,7 +2225,7 @@ def test_use_as_inplace_and_dps():
             p0: T.Buffer((), "float32"),
             p_output0: T.Buffer((T.int64(10), T.int64(20)), "float32"),
         ):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             for ax0, ax1 in T.grid(T.int64(10), T.int64(20)):
                 with T.block("T_add"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])

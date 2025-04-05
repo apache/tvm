@@ -315,7 +315,7 @@ class TestSkipGEMV(BaseBeforeAfter):
 
     @T.prim_func
     def before(W: T.Buffer((T.int64(512), T.int64(4096)), "uint32"), S: T.Buffer((T.int64(128), T.int64(4096)), "uint32"), A: T.Buffer((T.int64(1), T.int64(1), T.int64(4096)), "float32"), C: T.Buffer((T.int64(1), T.int64(1), T.int64(4096)), "float32"), Out: T.Buffer((T.int64(1), T.int64(1), T.int64(4096)), "float32")):
-        T.func_attr({"tir.noalias": T.bool(True)})
+        T.func_attr({"tir.noalias": True})
         var_decode_intermediate = T.alloc_buffer((T.int64(4096), T.int64(4096)))
         var_matmul_intermediate = T.alloc_buffer((T.int64(1), T.int64(1), T.int64(4096)))
         for i, j in T.grid(T.int64(4096), T.int64(4096)):
@@ -349,7 +349,7 @@ class TestOutputFP32(BaseBeforeAfter):
 
     @T.prim_func
     def before(lv13: T.Buffer((T.int64(4096), T.int64(512)), "uint32"), lv14: T.Buffer((T.int64(4096), T.int64(128)), "float16"), p_lv48: T.handle, lv13_1: T.Buffer((T.int64(4096),), "float16"), p_lv3: T.handle, p_output0: T.handle):
-        T.func_attr({"tir.noalias": T.bool(True)})
+        T.func_attr({"tir.noalias": True})
         n = T.int64()
         lv48 = T.match_buffer(p_lv48, (T.int64(1), n, T.int64(4096)), "float16")
         lv3 = T.match_buffer(p_lv3, (T.int64(1), n, T.int64(4096)), "float16")
@@ -401,7 +401,7 @@ class TestOutputFP32(BaseBeforeAfter):
 
     @T.prim_func
     def expected(lv13: T.Buffer((T.int64(4096), T.int64(512)), "uint32"), lv14: T.Buffer((T.int64(4096), T.int64(128)), "float16"), p_lv48: T.handle, lv13_1: T.Buffer((T.int64(4096),), "float16"), p_lv3: T.handle, p_output0: T.handle):
-        T.func_attr({"tir.is_scheduled": 1, "tir.noalias": T.bool(True)})
+        T.func_attr({"tir.is_scheduled": 1, "tir.noalias": True})
         n = T.int64()
         lv48 = T.match_buffer(p_lv48, (T.int64(1), n, T.int64(4096)), "float16")
         lv3 = T.match_buffer(p_lv3, (T.int64(1), n, T.int64(4096)), "float16")
@@ -478,7 +478,7 @@ class TestInlineConsumerChain(BaseBeforeAfter):
     # fmt: off
     @T.prim_func(private=True)
     def before(p_lv26: T.handle, lv9: T.Buffer((T.int64(2048), T.int64(2048)), "float16"), p_lv52: T.handle, p_output0: T.handle):
-        T.func_attr({"tir.noalias": T.bool(True)})
+        T.func_attr({"tir.noalias": True})
         n = T.int64()
         lv26 = T.match_buffer(p_lv26, (n, T.int64(2048)), "float16")
         lv52 = T.match_buffer(p_lv52, (T.int64(1), n, T.int64(2048)))
@@ -530,7 +530,7 @@ class TestInlineConsumerChain(BaseBeforeAfter):
 
     @T.prim_func
     def expected(p_lv26: T.handle, lv9: T.Buffer((T.int64(2048), T.int64(2048)), "float16"), p_lv52: T.handle, p_output0: T.handle):
-        T.func_attr({"global_symbol": "main", "tir.is_scheduled": 1, "tir.noalias": T.bool(True)})
+        T.func_attr({"global_symbol": "main", "tir.is_scheduled": 1, "tir.noalias": True})
         n = T.int64()
         lv26 = T.match_buffer(p_lv26, (n, T.int64(2048)), "float16")
         lv52 = T.match_buffer(p_lv52, (T.int64(1), n, T.int64(2048)))
@@ -705,7 +705,7 @@ class TestFusedDequantMatmulAndroid(AndroidBeforeAfter):
     # fmt: off
     @T.prim_func
     def before(lv452: T.Buffer((T.int64(512), T.int64(12288)), "uint32"), lv453: T.Buffer((T.int64(128), T.int64(12288)), "float16"), p_rms_norm130: T.handle, transformer_h_0_attn_c_attn_bias3: T.Buffer((T.int64(12288),), "float16"), p_output0: T.handle):
-        T.func_attr({"tir.noalias": T.bool(True)})
+        T.func_attr({"tir.noalias": True})
         seq_len = T.int64()
         rms_norm130 = T.match_buffer(p_rms_norm130, (T.int64(1), seq_len, T.int64(4096)), "float16")
         T_add_intermediate_intermediate = T.match_buffer(p_output0, (T.int64(1), seq_len, T.int64(12288)), "float16")
@@ -742,7 +742,7 @@ class TestFusedDequantMatmulAndroid(AndroidBeforeAfter):
 
     @T.prim_func
     def expected(lv452: T.Buffer((T.int64(512), T.int64(12288)), "uint32"), lv453: T.Buffer((T.int64(128), T.int64(12288)), "float16"), p_rms_norm130: T.handle, transformer_h_0_attn_c_attn_bias3: T.Buffer((T.int64(12288),), "float16"), p_output0: T.handle):
-        T.func_attr({"global_symbol": "main", "tir.is_scheduled": 1, "tir.noalias": T.bool(True)})
+        T.func_attr({"global_symbol": "main", "tir.is_scheduled": 1, "tir.noalias": True})
         seq_len = T.int64()
         rms_norm130 = T.match_buffer(p_rms_norm130, (T.int64(1), seq_len, T.int64(4096)), "float16")
         T_add_intermediate_intermediate = T.match_buffer(p_output0, (T.int64(1), seq_len, T.int64(12288)), "float16")

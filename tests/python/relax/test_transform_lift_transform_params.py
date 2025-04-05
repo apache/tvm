@@ -1436,7 +1436,7 @@ def test_symbolic_var_2():
     class Before:
         @T.prim_func
         def zeros(var_T_full: T.handle):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             n = T.int64()
             T_full = T.match_buffer(var_T_full, (n, n))
             for ax0, ax1 in T.grid(n, n):
@@ -1462,7 +1462,7 @@ def test_symbolic_var_2():
     class Expected:
         @T.prim_func
         def zeros(var_T_full: T.handle):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             n = T.int64()
             T_full = T.match_buffer(var_T_full, (n, n))
             # with T.block("root"):
@@ -1530,7 +1530,7 @@ def test_symbolic_var_from_shape():
             Output_Slice: T.Buffer(shape=[16], dtype="int32"),
             slice_index: T.int64,
         ):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             for j in range(16):
                 with T.block("T_full"):
                     vj = T.axis.remap("S", [j])
@@ -1584,7 +1584,7 @@ def test_symbolic_var_from_shape():
             Output_Slice: T.Buffer(shape=[16], dtype="int32"),
             slice_index: T.int64,
         ):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             for j in range(16):
                 with T.block("T_full"):
                     vj = T.axis.remap("S", [j])

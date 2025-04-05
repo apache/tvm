@@ -1140,7 +1140,7 @@ def test_handle_existence_of_call_tir():
             Input: T.Buffer(T.int64(10), "float32"),
             Output: T.Buffer(T.int64(10), "float32"),
         ):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             for i in range(T.int64(10)):
                 with T.block("compute"):
                     vi = T.axis.remap("S", [i])
@@ -1192,7 +1192,7 @@ def test_handle_existence_of_call_tir():
             Input: T.Buffer(T.int64(10), "float32"),
             Output: T.Buffer(T.int64(10), "float32"),
         ):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             for i in range(T.int64(10)):
                 with T.block("compute"):
                     vi = T.axis.remap("S", [i])

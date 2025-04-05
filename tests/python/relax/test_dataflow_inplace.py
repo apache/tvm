@@ -377,7 +377,7 @@ def test_inplace_single_call():
         A: T.Buffer((T.int64(2), T.int64(3)), "float32"),
         B: T.Buffer((T.int64(2), T.int64(3)), "float32"),
     ):
-        T.func_attr({"tir.noalias": T.bool(True)})
+        T.func_attr({"tir.noalias": True})
         for ax0, ax1 in T.grid(T.int64(2), T.int64(3)):
             with T.block("T_add"):
                 v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
@@ -394,7 +394,7 @@ def test_inplace_single_call():
 
     @T.prim_func(private=True)
     def expected_silu(A: T.Buffer((T.int64(2), T.int64(3)), "float32")):
-        T.func_attr({"tir.noalias": T.bool(True)})
+        T.func_attr({"tir.noalias": True})
         compute = T.alloc_buffer((T.int64(2), T.int64(3)))
         for i0, i1 in T.grid(T.int64(2), T.int64(3)):
             with T.block("compute"):
@@ -445,7 +445,7 @@ def test_insert_inplace_calls():
             A: T.Buffer((T.int64(2), T.int64(3)), "float32"),
             B: T.Buffer((T.int64(1), T.int64(3)), "float32"),
         ):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             for ax0, ax1 in T.grid(T.int64(2), T.int64(3)):
                 with T.block("T_add"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
@@ -458,7 +458,7 @@ def test_insert_inplace_calls():
             A: T.Buffer((T.int64(2), T.int64(3)), "float32"),
             B: T.Buffer((T.int64(1), T.int64(3)), "float32"),
         ):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             for ax0, ax1 in T.grid(T.int64(2), T.int64(3)):
                 with T.block("T_multiply"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
@@ -471,7 +471,7 @@ def test_insert_inplace_calls():
             A: T.Buffer((T.int64(1), T.int64(3)), "float32"),
             B: T.Buffer((T.int64(1), T.int64(3)), "float32"),
         ):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             for ax0, ax1 in T.grid(T.int64(1), T.int64(3)):
                 with T.block("T_subtract"):
                     v_ax0, v_ax1 = T.axis.remap("SS", [ax0, ax1])
@@ -560,7 +560,7 @@ def test_dynamic():
     class Expected:
         @T.prim_func(private=True)
         def add_inplace(var_A: T.handle, var_B: T.handle):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             a, b = T.int64(), T.int64()
             A = T.match_buffer(var_A, (a, b))
             B = T.match_buffer(var_B, (a, b))
@@ -573,7 +573,7 @@ def test_dynamic():
 
         @T.prim_func(private=True)
         def subtract_inplace(var_A: T.handle, var_B: T.handle):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             a, b = T.int64(), T.int64()
             A = T.match_buffer(var_A, (a, b))
             B = T.match_buffer(var_B, (a, b))

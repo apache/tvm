@@ -1097,7 +1097,7 @@ def test_transform_layout_with_symbolic_bound():
     # pylint: disable=invalid-name,line-too-long,too-many-locals
     @T.prim_func
     def before(a: T.handle, b: T.handle, c: T.handle):
-        T.func_attr({"global_symbol": "main", "tir.noalias": T.bool(True)})
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
         n = T.int64()
         A = T.match_buffer(a, (T.int64(1), T.int64(32), T.int64(1), T.int64(128)), "float16")
         B = T.match_buffer(b, (T.int64(1), T.int64(32), n, T.int64(128)), "float16")
@@ -1113,7 +1113,7 @@ def test_transform_layout_with_symbolic_bound():
 
     @T.prim_func
     def after(a: T.handle, b: T.handle, c: T.handle):
-        T.func_attr({"global_symbol": "main", "tir.noalias": T.bool(True)})
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
         n = T.int64()
         A = T.match_buffer(a, (T.int64(1), T.int64(32), T.int64(1), T.int64(128)), "float16")
         B = T.match_buffer(b, (T.int64(1), T.int64(32), n, T.int64(128)), "float16")
@@ -1147,7 +1147,7 @@ def test_transform_block_layout_with_symbolic_bound():
     # pylint: disable=invalid-name,line-too-long,too-many-locals
     @T.prim_func
     def before(a: T.handle, b: T.handle, c: T.handle):
-        T.func_attr({"global_symbol": "main", "tir.noalias": T.bool(True)})
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
         n = T.int64()
         A = T.match_buffer(a, (T.int64(1), T.int64(32), T.int64(1), T.int64(128)), "float16")
         B = T.match_buffer(b, (T.int64(1), T.int64(32), n, T.int64(128)), "float16")
@@ -1163,7 +1163,7 @@ def test_transform_block_layout_with_symbolic_bound():
 
     @T.prim_func
     def after(a: T.handle, b: T.handle, c: T.handle):
-        T.func_attr({"global_symbol": "main", "tir.noalias": T.bool(True)})
+        T.func_attr({"global_symbol": "main", "tir.noalias": True})
         n = T.int64()
         A = T.match_buffer(a, (T.int64(1), T.int64(32), T.int64(1), T.int64(128)), "float16")
         B = T.match_buffer(b, (T.int64(1), T.int64(32), n, T.int64(128)), "float16")

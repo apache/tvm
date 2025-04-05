@@ -741,7 +741,7 @@ PrimFunc GenerateAndCompletePrimFunc(const Array<te::Tensor>& arg_list,
                                      /*body=*/SeqStmt::Flatten(root_stmts),
                                      /*ret_type=*/VoidType(),
                                      /*buffer_map=*/std::move(buffer_map)),
-                            {{"global_symbol", String("main")}, {"tir.noalias", Bool(true)}});
+                            {{"global_symbol", String("main")}, {"tir.noalias", true}});
   const auto* complete = runtime::Registry::Get("script.Complete");
   ICHECK(complete);
   func = (*complete)(std::move(func), info->root_alloc);
@@ -815,7 +815,7 @@ PrimFunc GenerateAndCompletePrimFunc(const Array<ObjectRef>& arg_tir_var_list,
                                      /*body=*/SeqStmt::Flatten(root_stmts),
                                      /*ret_type=*/VoidType(),
                                      /*buffer_map=*/std::move(buffer_map)),
-                            {{"global_symbol", String("main")}, {"tir.noalias", Bool(true)}});
+                            {{"global_symbol", String("main")}, {"tir.noalias", true}});
 
   const auto* complete = runtime::Registry::Get("script.Complete");
   ICHECK(complete);

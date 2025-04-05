@@ -37,7 +37,7 @@ def test_redistribute_replica_to_shard():
     class Expected:
         @T.prim_func(private=True)
         def strided_slice(A: T.Buffer((T.int64(10), T.int64(10)), "float32"), redistribute_replica_to_shard: T.Buffer((T.int64(10), T.int64(5)), "float32"), worker_id: T.int64):
-            T.func_attr({"tir.noalias": T.bool(True)})
+            T.func_attr({"tir.noalias": True})
             # with T.block("root"):
             for i0, i1 in T.grid(T.int64(10), T.int64(5)):
                 with T.block("redistribute_replica_to_shard"):
