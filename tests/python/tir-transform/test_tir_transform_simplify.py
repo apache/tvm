@@ -693,7 +693,7 @@ class TestRewriteAsAndOfOrsWithSimplificationBetweenGroups(BaseBeforeAfter):
     """Apply rewrite rules between OR groups that differ by a single element
 
     The expression `(k==20 and k!=30)` could be rewritten into `(k==20)`.
-    However, by default these two terms must appear as part of an explict part
+    However, by default these two terms must appear as part of an explicit part
     of the simplified expression.  The AndOfOr simplification checks for
     rewrite patterns of the form `(A or B) and (A or C)`, where `(B and C)` can
     simplify to a single expression `D`.  These can be rewritten to `(A or D)`.
