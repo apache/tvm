@@ -33,6 +33,7 @@ def test_dltensor_compatible():
     mod = tvm.IRModule.from_expr(tvm.tir.PrimFunc([Ab], stmt).with_attr("global_symbol", "arange"))
     f = tvm.compile(mod, target="llvm")
     a = tvm.nd.array(np.zeros(10, dtype=dtype))
+    f(a)
     np.testing.assert_equal(a.numpy(), np.arange(a.shape[0]))
 
 
