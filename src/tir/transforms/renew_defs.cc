@@ -82,7 +82,7 @@ class RenewDefMutator : public StmtExprMutator {
  private:
   Stmt operator()(Stmt stmt) {
     // override StmtMutator::operator() to disable copy_on_write
-    // Since this pass tries to explict create a new function rather than update the existing one
+    // Since this pass tries to explicit create a new function rather than update the existing one
     allow_copy_on_write_ = false;
     return VisitStmt(stmt);
   }
