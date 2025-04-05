@@ -44,9 +44,9 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
         });
 
 TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
-    .set_dispatch<Map<ObjectRef, ObjectRef>>(  //
-        "", [](Map<ObjectRef, ObjectRef> dict, ObjectPath p, IRDocsifier d) -> Doc {
-          using POO = std::pair<ObjectRef, ObjectRef>;
+    .set_dispatch<Map<Any, Any>>(  //
+        "", [](Map<Any, Any> dict, ObjectPath p, IRDocsifier d) -> Doc {
+          using POO = std::pair<Any, Any>;
           std::vector<POO> items{dict.begin(), dict.end()};
           bool is_str_map = true;
           for (const auto& kv : items) {
@@ -58,10 +58,6 @@ TVM_STATIC_IR_FUNCTOR(IRDocsifier, vtable)
           if (is_str_map) {
             std::sort(items.begin(), items.end(), [](const POO& lhs, const POO& rhs) {
               return Downcast<String>(lhs.first) < Downcast<String>(rhs.first);
-            });
-          } else {
-            std::sort(items.begin(), items.end(), [](const POO& lhs, const POO& rhs) {
-              return lhs.first.get() < rhs.first.get();
             });
           }
           int n = dict.size();
