@@ -111,7 +111,7 @@ class TargetNode : public Object {
       Optional<TObjectRef> default_value = Optional<TObjectRef>(std::nullopt)) const {
     auto it = attrs.find(attr_key);
     if (it != attrs.end()) {
-      return Downcast<TObjectRef>((*it).second);
+      return Downcast<Optional<TObjectRef>>((*it).second);
     } else {
       return default_value;
     }
