@@ -236,7 +236,7 @@ class IRDocsifierNode : public Object {
    * \return The Doc object.
    */
   template <class TDoc = Doc>
-  inline TDoc AsDoc(const ObjectRef& obj, const ObjectPath& path) const;
+  inline TDoc AsDoc(const Any& obj, const ObjectPath& path) const;
 };
 
 /*!
@@ -310,14 +310,34 @@ inline static void AddDocDecoration(const Doc& d, const ObjectRef& obj, const Ob
 }
 
 template <class TDoc>
-inline TDoc IRDocsifierNode::AsDoc(const ObjectRef& obj, const ObjectPath& path) const {
-  if (obj.defined()) {
-    Doc d = IRDocsifier::vtable()(dispatch_tokens.back(), obj, path, GetRef<IRDocsifier>(this));
-    d->source_paths.push_back(path);
-    AddDocDecoration<TDoc>(d, obj, path, cfg);
-    return Downcast<TDoc>(d);
+inline TDoc IRDocsifierNode::AsDoc(const Any& value, const ObjectPath& path) const {
+  switch (value.type_index()) {
+    case ffi::TypeIndex::kTVMFFINone:
+      return Downcast<TDoc>(LiteralDoc::None(path));
+    case ffi::TypeIndex::kTVMFFIBool:
+      return Downcast<TDoc>(LiteralDoc::Boolean(value.as<bool>().value(), path));
+    case ffi::TypeIndex::kTVMFFIInt:
+      return Downcast<TDoc>(LiteralDoc::Int(value.as<int64_t>().value(), path));
+    case ffi::TypeIndex::kTVMFFIFloat:
+      return Downcast<TDoc>(LiteralDoc::Float(value.as<double>().value(), path));
+    case ffi::TypeIndex::kTVMFFIStr:
+      return Downcast<TDoc>(LiteralDoc::Str(value.as<String>().value(), path));
+    case ffi::TypeIndex::kTVMFFIDataType:
+      return Downcast<TDoc>(LiteralDoc::DataType(value.as<runtime::DataType>().value(), path));
+    case ffi::TypeIndex::kTVMFFIDevice:
+      return Downcast<TDoc>(LiteralDoc::Device(value.as<DLDevice>().value(), path));
+    default: {
+      if (auto opt_obj = value.as<ObjectRef>()) {
+        ObjectRef obj = opt_obj.value();
+        Doc d = IRDocsifier::vtable()(dispatch_tokens.back(), obj, path, GetRef<IRDocsifier>(this));
+        d->source_paths.push_back(path);
+        AddDocDecoration<TDoc>(d, obj, path, cfg);
+        return Downcast<TDoc>(d);
+      } else {
+        LOG(FATAL) << "TypeError: Cannot handle Any type: `" << value.GetTypeKey() << "`";
+      }
+    }
   }
-  return Downcast<TDoc>(LiteralDoc::None(path));
 }
 
 inline void FrameNode::AddDispatchToken(const IRDocsifier& d, const String& token) {

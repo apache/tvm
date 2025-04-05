@@ -93,14 +93,13 @@ PrinterConfig::PrinterConfig(Map<String, Any> config_dict) {
     n->num_context_lines = v.value();
   }
   if (auto v = config_dict.Get("path_to_underline")) {
-    n->path_to_underline = Downcast<Array<ObjectPath>>(v.value());
+    n->path_to_underline = v.value_or(Array<ObjectPath>());
   }
   if (auto v = config_dict.Get("path_to_annotate")) {
-    n->path_to_annotate =
-        Downcast<Map<ObjectPath, String>>(v.value());
+    n->path_to_annotate = v.value_or(Map<ObjectPath, String>());
   }
   if (auto v = config_dict.Get("obj_to_underline")) {
-    n->obj_to_underline = Downcast<Array<ObjectRef>>(v.value());
+    n->obj_to_underline = v.value_or(Array<ObjectRef>());
   }
   if (auto v = config_dict.Get("obj_to_annotate")) {
     n->obj_to_annotate =
