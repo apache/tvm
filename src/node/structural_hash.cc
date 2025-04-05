@@ -613,7 +613,6 @@ struct MapNodeTrait {
     // and their values are mapped to each other.
     for (const auto& kv : *lhs) {
       ObjectPath lhs_path = map_paths->lhs_path->MapValue(kv.first);
-
       Any rhs_key = equal->MapLhsToRhs(kv.first);
       auto it = rhs->find(rhs_key);
       if (it == rhs->end()) {
@@ -626,18 +625,25 @@ struct MapNodeTrait {
         return false;
       }
     }
-
+    // fast path, lhs equals rhs
+    if (lhs->size() == rhs->size()) return true;
+    // slow path check what rhs keys are missing in lhs
+    std::unordered_set<Any, ffi::AnyHash, ffi::AnyEqual> seen_rhs_keys;
+    for (const auto& kv : *lhs) {
+      ObjectPath lhs_path = map_paths->lhs_path->MapValue(kv.first);
+      Any rhs_key = equal->MapLhsToRhs(kv.first);
+      seen_rhs_keys.insert(rhs_key);
+    }
     // Second, check that we have visited every `rhs` key when iterating over `lhs`.
     for (const auto& kv : *rhs) {
-      ObjectPath rhs_path = map_paths->rhs_path->MapValue(kv.first);
-      if (!lhs->count(kv.first)) {
-        equal.RecordMismatchPaths({map_paths->lhs_path->MissingMapEntry(), rhs_path});
+      if (!seen_rhs_keys.count(kv.first)) {
+        equal.RecordMismatchPaths({map_paths->lhs_path->MissingMapEntry(),
+                                   map_paths->rhs_path->MapValue(kv.first)});
         return false;
       }
     }
-
-    ICHECK(lhs->size() == rhs->size());
-    return true;
+    LOG(FATAL) << "not reached";
+    TVM_FFI_UNREACHABLE();
   }
 
   static bool SEqualReduce(const MapNode* lhs, const MapNode* rhs, SEqualReducer equal) {
