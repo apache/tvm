@@ -527,7 +527,7 @@ Optional<String> TargetInternal::StringifyAttrsToRaw(const Map<String, ffi::Any>
   std::vector<std::string> result;
 
   for (const auto& key : keys) {
-    const ObjectRef& obj = attrs[key];
+    const Any& obj = attrs[key];
     std::string value;
     if (const auto* array = obj.as<ArrayNode>()) {
       value = String(StringifyArray(*array));
@@ -584,8 +584,9 @@ Target::Target(const Map<String, ffi::Any>& config) {
   try {
     target = TargetInternal::FromConfig({config.begin(), config.end()});
   } catch (const Error& e) {
-    LOG(FATAL) << "ValueError" << e.what()
-               << ". Target creation from config dict failed: " << config;
+    std::ostringstream os;
+    os << ". Target creation from config dict failed: " << config;
+    throw Error("ValueError", e->message + os.str(), e->backtrace);
   }
   data_ = std::move(target);
 }
@@ -1012,8 +1013,12 @@ TVM_REGISTER_GLOBAL("target.TargetGetDeviceType").set_body_typed([](const Target
   return target->GetTargetDeviceType();
 });
 TVM_REGISTER_GLOBAL("target.TargetGetFeature")
-    .set_body_typed([](const Target& target, const String& feature_key) {
-      return target->GetFeature<ObjectRef>(feature_key);
+    .set_body_typed([](const Target& target, const String& feature_key) -> Any {
+      if (auto opt_any = target->GetFeature<Any>(feature_key)) {
+        return opt_any.value();
+      } else {
+        return Any();
+      }
     });
 
 TVM_STATIC_IR_FUNCTOR(ReprPrinter, vtable)

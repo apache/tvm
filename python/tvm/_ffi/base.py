@@ -240,7 +240,6 @@ def c2pyerror(err_msg):
     err_type : str
         Detected error type.
     """
-    print("err_msg", err_msg)
     arr = err_msg.split("\n")
     if arr[-1] == "":
         arr.pop()
@@ -419,7 +418,6 @@ def raise_last_ffi_error():
     if py_err is None:
         c_err_msg = legacy_ensure_cerror(py_str(_LIB.TVMGetLastError()))
         py_err_msg, err_type = c2pyerror(c_err_msg)
-        print("err_type", err_type)
         if err_type is not None and err_type.startswith("tvm.error."):
             err_type = err_type[10:]
         py_err = ERROR_TYPE.get(err_type, TVMError)(py_err_msg)
