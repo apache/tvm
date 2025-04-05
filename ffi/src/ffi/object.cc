@@ -168,7 +168,7 @@ class TypeTable {
 
   int32_t TypeKey2Index(const std::string& type_key) {
     auto it = type_key2index_.find(type_key);
-    TVM_FFI_ICHECK(it != type_key2index_.end()) << "Cannot find type " << type_key;
+    TVM_FFI_ICHECK(it != type_key2index_.end()) << "Cannot find type `" << type_key << "`";
     return it->second;
   }
 
