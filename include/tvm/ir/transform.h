@@ -270,7 +270,7 @@ class PassContext : public ObjectRef {
   template <typename ValueType>
   static int32_t RegisterConfigOption(const char* key) {
     // NOTE: we could further update the function later.
-    int32_t tindex = ffi::details::Type2FieldStaticTypeIndex<ValueType>::value;
+    int32_t tindex = ffi::details::TypeToRuntimeTypeIndex<ValueType>::v();
     RegisterConfigOption(key, tindex);
     return tindex;
   }
