@@ -48,7 +48,7 @@ def _json_from_tvm(obj):
     elif isinstance(obj, String):
         return str(obj)
     elif isinstance(obj, (IntImm, FloatImm)):
-        return obj.value
+        return obj
     elif isinstance(obj, IndexMap):
         return save_json(obj)
     else:
