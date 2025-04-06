@@ -483,7 +483,11 @@ AllocateConstFrame AllocateConst(tvm::runtime::NDArray data, DataType dtype,
   return AllocateConstFrame(n);
 }
 
-AttrFrame Attr(ObjectRef node, String attr_key, PrimExpr value) {
+AttrFrame Attr(ffi::Any node, String attr_key, PrimExpr value) {
+  // convert POD value to PrimExpr
+  if (node.type_index() < ffi::TypeIndex::kTVMFFIStaticObjectBegin) {
+    node = node.as<PrimExpr>().value();
+  }
   ObjectPtr<AttrFrameNode> n = make_object<AttrFrameNode>();
   n->node = node;
   n->attr_key = attr_key;

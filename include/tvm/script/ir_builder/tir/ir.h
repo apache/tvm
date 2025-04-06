@@ -333,7 +333,7 @@ AllocateConstFrame AllocateConst(NDArray data, DataType dtype, Array<PrimExpr> e
  * \param value The value of the attribute.
  * \return The result AttrFrame.
  */
-AttrFrame Attr(ObjectRef node, String attr_key, PrimExpr value);
+AttrFrame Attr(ffi::Any node, String attr_key, PrimExpr value);
 
 /*!
  * \brief Create a while loop.
