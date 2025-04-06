@@ -368,6 +368,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "argmin.default": self._argmax_argmin(relax.op.argmin),
             "where.self": self._where,
             # tensor manipulation
+            "argsort.default": self._argsort,
             "cat.default": self._cat,
             "chunk.default": self._chunk,
             "clamp.Tensor": self._clamp,
@@ -390,6 +391,7 @@ class ExportedProgramImporter(BaseFXGraphImporter):
             "squeeze.dim": self._squeeze,
             "take.default": self._take,
             "tile.default": self._tile,
+            "topk.default": self._topk,
             "transpose.int": self._transpose,
             "unsqueeze.default": lambda node: self.block_builder.emit(
                 relax.op.expand_dims(self.env[node.args[0]], node.args[1])
