@@ -33,7 +33,7 @@ ffi::Any NormalizeAttributeObject(ffi::Any obj) {
     return Bool(obj.operator bool());
   } else if (auto opt_int = obj.as<int>()) {
     return Integer(opt_int.value());
-  } else if (auto opt_float = obj.as<float>()) {
+  } else if (auto opt_float = obj.as<double>()) {
     return FloatImm(DataType::Float(32), opt_float.value());
   } else if (auto opt_array = obj.as<Array<ffi::Any>>()) {
     return opt_array.value().Map(NormalizeAttributeObject);

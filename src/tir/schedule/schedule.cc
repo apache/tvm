@@ -16,8 +16,8 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+#include "../ir/utils.h"
 #include "./utils.h"
-
 namespace tvm {
 namespace tir {
 
@@ -254,8 +254,8 @@ TVM_REGISTER_GLOBAL("tir.schedule.ScheduleTensorize")
 
 /******** (FFI) Annotation ********/
 TVM_REGISTER_GLOBAL("tir.schedule.ScheduleAnnotate")
-    .set_body_typed([](Schedule self, ObjectRef rv, const String& ann_key,
-                       const ObjectRef& ann_val) {
+    .set_body_typed([](Schedule self, ObjectRef rv, const String& ann_key, ObjectRef ann_val) {
+      ann_val = NormalizeAttributeObject(ann_val);
       if (auto block_rv = rv.as<BlockRV>()) {
         return self->Annotate(block_rv.value(), ann_key, ann_val);
       }
