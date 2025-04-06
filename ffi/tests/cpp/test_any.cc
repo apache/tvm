@@ -332,4 +332,11 @@ TEST(Any, ObjectRefWithFallbackTraits) {
   EXPECT_EQ(v9->value, 0);
 }
 
+TEST(Any, ObjectMove) {
+  Any any1 = TPrimExpr("float32", 3.14);
+  TPrimExpr v0 = std::move(any1);
+  EXPECT_EQ(v0->value, 3.14);
+  EXPECT_EQ(v0.use_count(), 1);
+}
+
 }  // namespace

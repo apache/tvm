@@ -120,6 +120,22 @@ inline T Downcast(const Any& ref) {
 }
 
 /*!
+ * \brief Downcast any to a specific type
+ *
+ * \param ref The input reference
+ * \return The corresponding SubRef.
+ * \tparam T The target specific reference type.
+ */
+template <typename T>
+inline T Downcast(Any&& ref) {
+  if constexpr (std::is_same_v<T, Any>) {
+    return std::move(ref);
+  } else {
+    return std::move(ref).operator T();
+  }
+}
+
+/*!
  * \brief Downcast std::optional<Any> to std::optional<T>
  *
  * \param ref The input reference

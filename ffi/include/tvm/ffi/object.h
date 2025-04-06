@@ -720,6 +720,11 @@ struct ObjectUnsafe {
   }
 
   template <typename T>
+  static TVM_FFI_INLINE ObjectPtr<T> ObjectPtrFromOwned(TVMFFIObject* obj_ptr) {
+    return ObjectPtrFromOwned<T>(reinterpret_cast<Object*>(obj_ptr));
+  }
+
+  template <typename T>
   static TVM_FFI_INLINE T* RawObjectPtrFromUnowned(TVMFFIObject* obj_ptr) {
     // NOTE: this is important to first cast to Object*
     // then cast back to T* because objptr and tptr may not be the same

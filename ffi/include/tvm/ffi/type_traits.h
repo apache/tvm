@@ -44,6 +44,7 @@ namespace ffi {
  * - MoveToAny: Move a value to Any
  * - CheckAnyStorage: Check if a Any stores a result of MoveToAny of current T.
  * - CopyFromAnyStorageAfterCheck: Copy a value T from Any storage after we pass CheckAnyStorage.
+ * - MoveFromAnyStorageAfterCheck: Move a value T from Any storage after we pass CheckAnyStorage.
  * - TryConvertFromAnyView: Convert a AnyView to a T, we may apply type conversion.
  * - GetMismatchTypeInfo: Get the type key of a type when TryConvertFromAnyView fails.
  * - TypeStr: Get the type key of a type
@@ -118,6 +119,10 @@ struct TypeTraits<std::nullptr_t> : public TypeTraitsBase {
     return nullptr;
   }
 
+  static TVM_FFI_INLINE std::nullptr_t MoveFromAnyStorageAfterCheck(TVMFFIAny* src) {
+    return nullptr;
+  }
+
   static TVM_FFI_INLINE std::optional<std::nullptr_t> TryConvertFromAnyView(const TVMFFIAny* src) {
     if (src->type_index == TypeIndex::kTVMFFINone) {
       return nullptr;
@@ -155,19 +160,24 @@ struct TypeTraits<StrictBool> : public TypeTraitsBase {
     CopyToAnyView(src, result);
   }
 
-  static TVM_FFI_INLINE std::optional<StrictBool> TryConvertFromAnyView(const TVMFFIAny* src) {
-    if (src->type_index == TypeIndex::kTVMFFIBool) {
-      return StrictBool(static_cast<bool>(src->v_int64));
-    }
-    return std::nullopt;
-  }
-
   static TVM_FFI_INLINE bool CheckAnyStorage(const TVMFFIAny* src) {
     return src->type_index == TypeIndex::kTVMFFIBool;
   }
 
   static TVM_FFI_INLINE StrictBool CopyFromAnyStorageAfterCheck(const TVMFFIAny* src) {
     return static_cast<bool>(src->v_int64);
+  }
+
+  static TVM_FFI_INLINE StrictBool MoveFromAnyStorageAfterCheck(TVMFFIAny* src) {
+    // POD type, we can just copy the value
+    return CopyFromAnyStorageAfterCheck(src);
+  }
+
+  static TVM_FFI_INLINE std::optional<StrictBool> TryConvertFromAnyView(const TVMFFIAny* src) {
+    if (src->type_index == TypeIndex::kTVMFFIBool) {
+      return StrictBool(static_cast<bool>(src->v_int64));
+    }
+    return std::nullopt;
   }
 
   static TVM_FFI_INLINE std::string TypeStr() { return StaticTypeKey::kTVMFFIBool; }
@@ -185,19 +195,24 @@ struct TypeTraits<bool> : public TypeTraitsBase {
 
   static TVM_FFI_INLINE void MoveToAny(bool src, TVMFFIAny* result) { CopyToAnyView(src, result); }
 
-  static TVM_FFI_INLINE std::optional<bool> TryConvertFromAnyView(const TVMFFIAny* src) {
-    if (src->type_index == TypeIndex::kTVMFFIInt || src->type_index == TypeIndex::kTVMFFIBool) {
-      return static_cast<bool>(src->v_int64);
-    }
-    return std::nullopt;
-  }
-
   static TVM_FFI_INLINE bool CheckAnyStorage(const TVMFFIAny* src) {
     return src->type_index == TypeIndex::kTVMFFIBool;
   }
 
   static TVM_FFI_INLINE bool CopyFromAnyStorageAfterCheck(const TVMFFIAny* src) {
     return static_cast<bool>(src->v_int64);
+  }
+
+  static TVM_FFI_INLINE bool MoveFromAnyStorageAfterCheck(TVMFFIAny* src) {
+    // POD type, we can just copy the value
+    return CopyFromAnyStorageAfterCheck(src);
+  }
+
+  static TVM_FFI_INLINE std::optional<bool> TryConvertFromAnyView(const TVMFFIAny* src) {
+    if (src->type_index == TypeIndex::kTVMFFIInt || src->type_index == TypeIndex::kTVMFFIBool) {
+      return static_cast<bool>(src->v_int64);
+    }
+    return std::nullopt;
   }
 
   static TVM_FFI_INLINE std::string TypeStr() { return StaticTypeKey::kTVMFFIBool; }
@@ -222,6 +237,11 @@ struct TypeTraits<Int, std::enable_if_t<std::is_integral_v<Int>>> : public TypeT
 
   static TVM_FFI_INLINE int CopyFromAnyStorageAfterCheck(const TVMFFIAny* src) {
     return static_cast<Int>(src->v_int64);
+  }
+
+  static TVM_FFI_INLINE Int MoveFromAnyStorageAfterCheck(TVMFFIAny* src) {
+    // POD type, we can just copy the value
+    return CopyFromAnyStorageAfterCheck(src);
   }
 
   static TVM_FFI_INLINE std::optional<Int> TryConvertFromAnyView(const TVMFFIAny* src) {
@@ -254,6 +274,11 @@ struct TypeTraits<Float, std::enable_if_t<std::is_floating_point_v<Float>>>
 
   static TVM_FFI_INLINE Float CopyFromAnyStorageAfterCheck(const TVMFFIAny* src) {
     return static_cast<Float>(src->v_float64);
+  }
+
+  static TVM_FFI_INLINE Float MoveFromAnyStorageAfterCheck(TVMFFIAny* src) {
+    // POD type, we can just copy the value
+    return CopyFromAnyStorageAfterCheck(src);
   }
 
   static TVM_FFI_INLINE std::optional<Float> TryConvertFromAnyView(const TVMFFIAny* src) {
@@ -294,6 +319,11 @@ struct TypeTraits<void*> : public TypeTraitsBase {
     return src->v_ptr;
   }
 
+  static TVM_FFI_INLINE void* MoveFromAnyStorageAfterCheck(TVMFFIAny* src) {
+    // POD type, we can just copy the value
+    return CopyFromAnyStorageAfterCheck(src);
+  }
+
   static TVM_FFI_INLINE std::optional<void*> TryConvertFromAnyView(const TVMFFIAny* src) {
     if (src->type_index == TypeIndex::kTVMFFIOpaquePtr) {
       return static_cast<void*>(src->v_ptr);
@@ -330,6 +360,11 @@ struct TypeTraits<DLDevice> : public TypeTraitsBase {
     return src->v_device;
   }
 
+  static TVM_FFI_INLINE DLDevice MoveFromAnyStorageAfterCheck(TVMFFIAny* src) {
+    // POD type, we can just copy the value
+    return CopyFromAnyStorageAfterCheck(src);
+  }
+
   static TVM_FFI_INLINE std::optional<DLDevice> TryConvertFromAnyView(const TVMFFIAny* src) {
     if (src->type_index == TypeIndex::kTVMFFIDevice) {
       return src->v_device;
@@ -343,6 +378,7 @@ struct TypeTraits<DLDevice> : public TypeTraitsBase {
 // DLTensor*, requirement: not nullable, do not retain ownership
 template <>
 struct TypeTraits<DLTensor*> : public TypeTraitsBase {
+  static constexpr bool container_enabled = false;
   static constexpr int32_t field_static_type_index = TypeIndex::kTVMFFIDLTensorPtr;
 
   static TVM_FFI_INLINE void CopyToAnyView(DLTensor* src, TVMFFIAny* result) {
@@ -354,14 +390,6 @@ struct TypeTraits<DLTensor*> : public TypeTraitsBase {
   static TVM_FFI_INLINE void MoveToAny(DLTensor* src, TVMFFIAny* result) {
     TVM_FFI_THROW(RuntimeError)
         << "DLTensor* cannot be held in Any as it does not retain ownership, use NDArray instead";
-  }
-
-  static TVM_FFI_INLINE bool CheckAnyStorage(const TVMFFIAny* src) {
-    return src->type_index == TypeIndex::kTVMFFIDLTensorPtr;
-  }
-
-  static TVM_FFI_INLINE DLTensor* CopyFromAnyStorageAfterCheck(const TVMFFIAny* src) {
-    return static_cast<DLTensor*>(src->v_ptr);
   }
 
   static TVM_FFI_INLINE std::optional<DLTensor*> TryConvertFromAnyView(const TVMFFIAny* src) {
@@ -427,6 +455,19 @@ struct ObjectRefTypeTraitsBase : public TypeTraitsBase {
       }
     }
     return TObjRef(details::ObjectUnsafe::ObjectPtrFromUnowned<Object>(src->v_obj));
+  }
+
+  static TVM_FFI_INLINE TObjRef MoveFromAnyStorageAfterCheck(TVMFFIAny* src) {
+    if constexpr (TObjRef::_type_is_nullable) {
+      if (src->type_index == TypeIndex::kTVMFFINone) {
+        return TObjRef(ObjectPtr<Object>(nullptr));
+      }
+    }
+    // move out the object pointer
+    ObjectPtr<Object> obj_ptr = details::ObjectUnsafe::ObjectPtrFromOwned<Object>(src->v_obj);
+    // reset the src to nullptr
+    TypeTraits<std::nullptr_t>::MoveToAny(nullptr, src);
+    return TObjRef(std::move(obj_ptr));
   }
 
   static TVM_FFI_INLINE std::optional<TObjRef> TryConvertFromAnyView(const TVMFFIAny* src) {
@@ -588,6 +629,13 @@ struct TypeTraits<Optional<T>> : public TypeTraitsBase {
       return Optional<T>(std::nullopt);
     }
     return TypeTraits<T>::CopyFromAnyStorageAfterCheck(src);
+  }
+
+  static TVM_FFI_INLINE Optional<T> MoveFromAnyStorageAfterCheck(TVMFFIAny* src) {
+    if (src->type_index == TypeIndex::kTVMFFINone) {
+      return Optional<T>(std::nullopt);
+    }
+    return TypeTraits<T>::MoveFromAnyStorageAfterCheck(src);
   }
 
   static TVM_FFI_INLINE std::optional<Optional<T>> TryConvertFromAnyView(const TVMFFIAny* src) {
