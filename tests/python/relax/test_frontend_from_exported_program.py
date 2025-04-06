@@ -3899,7 +3899,7 @@ def test_topk():
                 lv2: R.Tensor((5, 2), dtype="int64") = lv[1]
                 gv: R.Tuple(R.Tensor((5, 2), dtype="float32"), R.Tensor((5, 2), dtype="int64")) = (
                     lv1,
-                    lv2
+                    lv2,
                 )
                 R.output(gv)
             return gv
