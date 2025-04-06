@@ -200,6 +200,19 @@ Expr gather_elements(Expr data, Expr indices, int axis = 0);
  */
 Expr gather_nd(Expr data, Expr indices, int batch_dims = 0);
 
+/*! // TODO update this comment
+ * \brief Gather values from a tensor using N-dimensional indices.
+ * \param data The input tensor.
+ * \param indices The indices tensor, must have integer type.
+ * \return The computed result.
+ *
+ * \note For batch_dims > 0, the first batch_dims dimensions of data and indices must be equal.
+ *       The last dimension of indices indicates the depth of each index vector.
+ *       The output shape is batch_dims + indices.shape[:-1] + data.shape[batch_dims +
+ * indices.shape[-1]:]
+ */
+Expr index_tensor(Expr data, Array<Integer> indices);
+
 /*!
  * \brief Scatter updates into an array according to indices.
  * \param data The input tensor.
