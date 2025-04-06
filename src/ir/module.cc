@@ -26,6 +26,7 @@
 #include <tvm/node/structural_equal.h>
 #include <tvm/runtime/container/variant.h>
 #include <tvm/runtime/registry.h>
+#include <tvm/ffi/rvalue_ref.h>
 
 #include <algorithm>
 #include <fstream>
@@ -336,16 +337,18 @@ TVM_REGISTER_GLOBAL("ir.Module_GetAttrs").set_body_typed([](IRModule mod) -> Obj
 });
 
 TVM_REGISTER_GLOBAL("ir.Module_WithAttr")
-    .set_body_typed([](IRModule mod, String key, ObjectRef value) -> IRModule {
-      return WithAttr(mod, key, value);
+    .set_body_typed([](ffi::RValueRef<IRModule> mod, String key, ffi::Any value) -> IRModule {
+      return WithAttr(*std::move(mod), key, value);
     });
 
 TVM_REGISTER_GLOBAL("ir.Module_WithoutAttr")
-    .set_body_typed([](IRModule mod, String key) -> IRModule { return WithoutAttr(mod, key); });
+    .set_body_typed([](ffi::RValueRef<IRModule> mod, String key) -> IRModule {
+      return WithoutAttr(*std::move(mod), key);
+    });
 
 TVM_REGISTER_GLOBAL("ir.Module_WithAttrs")
-    .set_body_typed([](IRModule mod, Map<String, ffi::Any> attr_map) -> IRModule {
-      return WithAttrs(mod, attr_map);
+    .set_body_typed([](ffi::RValueRef<IRModule> mod, Map<String, ffi::Any> attr_map) -> IRModule {
+      return WithAttrs(*std::move(mod), attr_map);
     });
 
 TVM_REGISTER_GLOBAL("ir.Module_GetAttr").set_body_typed([](IRModule mod, String key) -> ObjectRef {
