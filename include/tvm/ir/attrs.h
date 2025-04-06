@@ -579,7 +579,7 @@ struct AttrInitEntry {
     const T& val = *value_;
     if (begin > val) {
       std::ostringstream os;
-      os << type_key_ << "." << key_ << ": "
+      os << type_key_ << "." << key_ << "'s "
          << "value " << val << " is smaller than the lower bound " << begin;
       throw AttrError(os.str());
     }
@@ -591,7 +591,7 @@ struct AttrInitEntry {
     const T& val = *value_;
     if (val > end) {
       std::ostringstream os;
-      os << type_key_ << "." << key_ << ": "
+      os << type_key_ << "." << key_ << "'s "
          << "value " << val << " is bigger than the upper bound " << end;
       throw AttrError(os.str());
     }
@@ -925,7 +925,7 @@ class AttrsNode : public BaseAttrsNode {
         self()->_tvm_VisitAttrs(visitor);
         if (!visitor.exist_) {
           std::ostringstream os;
-          os << DerivedType::_type_key << ": does not have field \'" << visitor.key_
+          os << DerivedType::_type_key << " does not have field \'" << visitor.key_
              << "\', Possible fields:\n";
           os << "----------------\n";
           this->PrintDocString(os);

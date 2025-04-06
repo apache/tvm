@@ -45,7 +45,7 @@ def test_dir_array():
 
 def test_getattr_array():
     a = tvm.runtime.convert([1, 2, 3])
-    assert getattr(a, "type_key") == "Array"
+    assert getattr(a, "type_key") == "object.Array"
     assert not hasattr(a, "test_key")
 
 
@@ -96,7 +96,7 @@ def test_getattr_map():
     a = te.var("a")
     b = te.var("b")
     amap = tvm.runtime.convert({a: 2, b: 3})
-    assert getattr(amap, "type_key") == "Map"
+    assert getattr(amap, "type_key") == "object.Map"
     assert not hasattr(amap, "test_key")
 
 
@@ -129,7 +129,7 @@ def test_return_variant_type():
 def test_pass_variant_type():
     func = tvm.get_global_func("testing.AcceptsVariant")
 
-    assert func("string arg") == "runtime.String"
+    assert func("string arg") == "object.String"
     assert func(17) == "IntImm"
 
 

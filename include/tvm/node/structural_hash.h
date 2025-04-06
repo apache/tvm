@@ -78,6 +78,14 @@ class BaseValueHash {
   uint64_t operator()(const std::string& key) const {
     return tvm::ffi::details::StableHashBytes(key.data(), key.length());
   }
+  /*!
+   * \brief Compute structural hash value for a POD value in Any.
+   * \param key The Any object.
+   * \return The hash value.
+   */
+  TVM_FFI_INLINE uint64_t HashPODValueInAny(const ffi::Any& key) const {
+    return ffi::details::AnyUnsafe::TVMFFIAnyPtrFromAny(key)->v_uint64;
+  }
 };
 
 /*!
@@ -111,8 +119,7 @@ class StructuralHash : public BaseValueHash {
     if (key.type_index() >= ffi::TypeIndex::kTVMFFIStaticObjectBegin) {
       return operator()(key.operator ObjectRef());
     }
-    // POD value can always use v_int64 to get the hash value
-    return ffi::details::AnyUnsafe::TVMFFIAnyPtrFromAny(key)->v_uint64;
+    return HashPODValueInAny(key);
   }
 };
 
@@ -207,7 +214,7 @@ class SHashReducer {
       return operator()(key.operator ObjectRef());
     }
     // POD value can always use v_int64 to get the hash value
-    handler_->SHashReduceHashedValue(ffi::details::AnyUnsafe::TVMFFIAnyPtrFromAny(key)->v_uint64);
+    handler_->SHashReduceHashedValue(BaseValueHash().HashPODValueInAny(key));
   }
   /*!
    * \brief Push hash of key to the current sequence of hash values.
@@ -264,7 +271,7 @@ class SHashHandlerDefault : public SHashReducer::Handler {
    * \param map_free_vars Whether or not to remap variables if possible.
    * \return The hash result.
    */
-  virtual uint64_t Hash(const ObjectRef& object, bool map_free_vars);
+  virtual uint64_t Hash(const ffi::Any& object, bool map_free_vars);
 
  protected:
   /*!
