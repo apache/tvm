@@ -148,7 +148,7 @@ tir::PrimFunc FewShotTunePrimFunc(const tir::PrimFunc& prim_func, const Target& 
 }
 
 Pass FewShotTuning(int valid_count, bool benchmark) {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =  //
+  auto pass_func =  //
       [=](IRModule m, PassContext pc) {
         // input check
         CHECK(valid_count > 0) << "Valid_count must be positive.";

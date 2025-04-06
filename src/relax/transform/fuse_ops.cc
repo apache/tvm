@@ -1422,7 +1422,7 @@ PatternCheckContext::PatternCheckContext(Expr matched_expr, Map<String, Expr> an
 TVM_REGISTER_NODE_TYPE(PatternCheckContextNode);
 
 Pass FuseOps(int fuse_opt_level) {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =  //
+  auto pass_func =  //
       [=](IRModule m, PassContext pc) {
         int opt_level = fuse_opt_level == -1 ? pc->opt_level : fuse_opt_level;
         auto max_fuse_depth = pc->GetConfig("relax.FuseOps.max_depth", Integer(kMaxFusedOps));
@@ -1438,7 +1438,7 @@ TVM_REGISTER_GLOBAL("relax.transform.FuseOps").set_body_typed(FuseOps);
 
 Pass FuseOpsByPattern(const tvm::Array<FusionPattern>& patterns, bool bind_constants,
                       bool annotate_codegen, const Array<String>& entry_function_names) {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =  //
+  auto pass_func =  //
       [=](IRModule m, PassContext pc) {
         return relax::FuseOpsByPattern(patterns, m, bind_constants, annotate_codegen,
                                        entry_function_names);

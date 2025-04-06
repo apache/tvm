@@ -32,8 +32,7 @@ namespace relax {
 namespace transform {
 
 Pass AttachGlobalSymbol() {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func = [=](IRModule mod,
-                                                                            PassContext pc) {
+  auto pass_func = [=](IRModule mod, PassContext pc) {
     String c_prefix = mod->GetAttr<String>(tvm::attr::kSystemLibPrefix).value_or("");
     IRModule updates;
     Map<GlobalVar, GlobalVar> gvar_updates;

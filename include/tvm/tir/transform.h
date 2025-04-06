@@ -36,6 +36,7 @@ namespace tvm {
 namespace tir {
 namespace transform {
 
+using tvm::transform::CreateModulePass;
 using tvm::transform::Pass;
 using tvm::transform::PassContext;
 using tvm::transform::PassContextNode;
@@ -54,9 +55,9 @@ using tvm::transform::Sequential;
  *
  * \return The created function pass.
  */
-TVM_DLL Pass CreatePrimFuncPass(
-    const runtime::TypedPackedFunc<PrimFunc(PrimFunc, IRModule, PassContext)>& pass_func,
-    int opt_level, String name, tvm::Array<String> required, bool traceable = false);
+TVM_DLL Pass CreatePrimFuncPass(std::function<PrimFunc(PrimFunc, IRModule, PassContext)> pass_func,
+                                int opt_level, String name, tvm::Array<String> required,
+                                bool traceable = false);
 
 /*!
  * \brief partition loops in the stmt.

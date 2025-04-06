@@ -41,6 +41,8 @@ using PassInfo = tvm::transform::PassInfo;
 using PassContext = tvm::transform::PassContext;
 using Function = tvm::relax::Function;
 using DataflowBlock = tvm::relax::DataflowBlock;
+using tvm::transform::CreateModulePass;
+
 /*!
  * \brief Propagate sharding information.
  *

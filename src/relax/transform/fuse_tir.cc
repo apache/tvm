@@ -1246,7 +1246,7 @@ IRModule FuseTIR(IRModule mod) {
 namespace transform {
 
 Pass FuseTIR() {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =  //
+  auto pass_func =  //
       [=](IRModule m, PassContext pc) { return relax::FuseTIR(m); };
   auto inner_pass = CreateModulePass(/*pass_function=*/pass_func,   //
                                      /*opt_level=*/0,               //

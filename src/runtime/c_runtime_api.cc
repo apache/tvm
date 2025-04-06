@@ -22,6 +22,7 @@
  * \brief Device specific implementations
  */
 #include <dmlc/thread_local.h>
+#include <tvm/ffi/rvalue_ref.h>
 #include <tvm/runtime/c_backend_api.h>
 #include <tvm/runtime/c_runtime_api.h>
 #include <tvm/runtime/device_api.h>
@@ -701,8 +702,13 @@ int TVMStreamStreamSynchronize(int device_type, int device_id, TVMStreamHandle s
 
 int TVMCbArgToReturn(TVMValue* value, int* code) {
   API_BEGIN();
-  tvm::runtime::TVMRetValue rv;
-  rv = LegacyTVMArgValueToAnyView(*value, *code);
+  AnyView arg = LegacyTVMArgValueToAnyView(*value, *code);
+  Any rv;
+  if (auto opt_rv = arg.as<tvm::ffi::RValueRef<tvm::ffi::ObjectRef>>()) {
+    rv = *std::move(*std::move(opt_rv));
+  } else {
+    rv = arg;
+  }
   MoveAnyToLegacyTVMValue(std::move(rv), value, code);
   API_END();
 }

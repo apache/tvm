@@ -777,8 +777,7 @@ class GradientMutator : private ExprMutator {
 namespace transform {
 
 Pass Gradient(String func_name, Optional<Array<Var>> require_grads, int target_index) {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func = [=](IRModule mod,
-                                                                            PassContext pc) {
+  auto pass_func = [=](IRModule mod, PassContext pc) {
     return relax::GradientMutator::Transform(mod, func_name, require_grads, target_index);
   };
   return CreateModulePass(/*pass_function=*/pass_func,

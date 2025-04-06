@@ -390,8 +390,7 @@ class LegalizeMutator : public ExprMutator {
 namespace transform {
 
 Pass LegalizeOps(Optional<Map<String, PackedFunc>> cmap, bool enable_warning) {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func = [=](IRModule mod,
-                                                                            PassContext pc) {
+  auto pass_func = [=](IRModule mod, PassContext pc) {
     bool apply_legalize_ops =
         pc->GetConfig<Bool>("relax.transform.apply_legalize_ops").value_or(Bool(true))->value;
     if (apply_legalize_ops) {

@@ -413,7 +413,7 @@ IRModule MergeCompositeFunctions(IRModule mod) {
 namespace transform {
 
 Pass MergeCompositeFunctions() {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =  //
+  auto pass_func =  //
       [=](IRModule mod, PassContext pc) { return relax::MergeCompositeFunctions(mod); };
   return CreateModulePass(/*pass_function=*/pass_func,              //
                           /*opt_level=*/0,                          //

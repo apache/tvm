@@ -767,7 +767,7 @@ class SplitMutator : public ExprMutator {
 
 namespace transform {
 Pass SplitCallTIRByPattern(Array<TIRPattern> patterns, FCodegen fcodegen) {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =  //
+  auto pass_func =  //
       [=](IRModule m, PassContext pc) { return SplitMutator::Transform(m, patterns, fcodegen); };
   return CreateModulePass(/*pass_function=*/pass_func,            //
                           /*opt_level=*/0,                        //

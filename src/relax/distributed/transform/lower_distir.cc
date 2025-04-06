@@ -259,8 +259,7 @@ class DistIRSharder : public ExprMutator {
 namespace transform {
 
 Pass LowerDistIR() {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
-      [=](IRModule m, PassContext pc) { return DistIRSharder::LowerDistIR(m); };
+  auto pass_func = [=](IRModule m, PassContext pc) { return DistIRSharder::LowerDistIR(m); };
   return CreateModulePass(pass_func, 1, "LowerDistIR", {});
 }
 TVM_REGISTER_GLOBAL("relax.distributed.transform.LowerDistIR").set_body_typed(LowerDistIR);

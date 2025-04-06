@@ -213,8 +213,7 @@ class CodeGenRunner : ExprMutator {
 namespace transform {
 Pass RunCodegen(Optional<Map<String, Map<String, ffi::Any>>> target_options,
                 Array<String> entry_functions) {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func = [=](IRModule m,
-                                                                            PassContext pc) {
+  auto pass_func = [=](IRModule m, PassContext pc) {
     return relax::CodeGenRunner(m).Run(target_options, entry_functions);
   };
   return CreateModulePass(pass_func, 0, "RunCodegen", {});

@@ -225,10 +225,9 @@ Expr LowerRuntimeBuiltin(const Expr& e) { return LowerRuntimeBuiltinMutator().Vi
 namespace transform {
 
 Pass LowerRuntimeBuiltin() {
-  runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
-      [=](Function f, IRModule m, PassContext pc) {
-        return Downcast<Function>(LowerRuntimeBuiltin(f));
-      };
+  auto pass_func = [=](Function f, IRModule m, PassContext pc) {
+    return Downcast<Function>(LowerRuntimeBuiltin(f));
+  };
   return CreateFunctionPass(pass_func, 0, "LowerRuntimeBuiltin", {});
 }
 

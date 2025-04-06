@@ -273,16 +273,18 @@ class GlobalVarNormalizer : private ExprMutator {
 namespace transform {
 
 Pass Normalize() {
-  runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
-      [=](Function f, IRModule m, PassContext pc) { return Downcast<Function>(Normalize(f)); };
+  auto pass_func = [=](Function f, IRModule m, PassContext pc) {
+    return Downcast<Function>(Normalize(f));
+  };
   return CreateFunctionPass(pass_func, 1, "Normalize", {});
 }
 
 TVM_REGISTER_GLOBAL("relax.transform.Normalize").set_body_typed(Normalize);
 
 Pass NormalizeGlobalVar() {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
-      [=](IRModule mod, PassContext pc) { return GlobalVarNormalizer::Normalize(mod); };
+  auto pass_func = [=](IRModule mod, PassContext pc) {
+    return GlobalVarNormalizer::Normalize(mod);
+  };
   return CreateModulePass(/*pass_function=*/pass_func,
                           /*opt_level=*/0,
                           /*pass_name=*/"NormalizeGlobalVar",

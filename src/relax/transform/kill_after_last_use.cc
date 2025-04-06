@@ -259,10 +259,9 @@ Expr KillAfterLastUse(Expr expr) {
 namespace transform {
 
 Pass KillAfterLastUse() {
-  runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
-      [=](Function func, IRModule m, PassContext pc) {
-        return Downcast<Function>(relax::KillAfterLastUse(std::move(func)));
-      };
+  auto pass_func = [=](Function func, IRModule m, PassContext pc) {
+    return Downcast<Function>(relax::KillAfterLastUse(std::move(func)));
+  };
   return CreateFunctionPass(pass_func, /*opt_level=*/0, "KillAfterLastUse", {});
 }
 

@@ -977,8 +977,9 @@ IRModule StaticPlanBlockMemory(IRModule mod) {
 namespace transform {
 
 Pass StaticPlanBlockMemory() {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
-      [=](IRModule m, PassContext pc) { return relax::StaticPlanBlockMemory(std::move(m)); };
+  auto pass_func = [=](IRModule m, PassContext pc) {
+    return relax::StaticPlanBlockMemory(std::move(m));
+  };
   return CreateModulePass(pass_func, /*opt_level=*/0, "StaticPlanBlockMemory", {});
 }
 

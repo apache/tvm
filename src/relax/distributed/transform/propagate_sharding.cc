@@ -610,8 +610,9 @@ class DistributedIRBuilder : public ExprMutator {
 namespace transform {
 
 Pass PropagateSharding() {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =
-      [=](IRModule m, PassContext pc) { return DistributedIRBuilder(m).BuildDistributedIR(); };
+  auto pass_func = [=](IRModule m, PassContext pc) {
+    return DistributedIRBuilder(m).BuildDistributedIR();
+  };
   return CreateModulePass(pass_func, 1, "PropagateSharding", {});
 }
 TVM_REGISTER_GLOBAL("relax.distributed.transform.PropagateSharding")

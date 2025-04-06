@@ -82,10 +82,9 @@ Function RemovePurityChecking(const Function& f) { return PurityRemover().Remove
 namespace transform {
 
 Pass RemovePurityChecking() {
-  runtime::TypedPackedFunc<Function(Function, IRModule, PassContext)> pass_func =
-      [=](const Function& f, IRModule mod, PassContext pc) {
-        return relax::RemovePurityChecking(f);
-      };
+  auto pass_func = [=](const Function& f, IRModule mod, PassContext pc) {
+    return relax::RemovePurityChecking(f);
+  };
   return CreateFunctionPass(pass_func, 0, "RemovePurityChecking", {});
 }
 

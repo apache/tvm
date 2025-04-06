@@ -427,8 +427,7 @@ Pass AlterOpImpl(const Map<String, tir::PrimFunc>& op_impl_map,
                  const Map<String, Array<IndexMap>>& op_buffer_transforms_,
                  const Map<String, Array<Array<IntImm>>>& axis_separators_,
                  const Map<String, Array<Array<IntImm>>>& input_axis_separators_) {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func = [=](IRModule mod,
-                                                                            PassContext pc) {
+  auto pass_func = [=](IRModule mod, PassContext pc) {
     return AlterOpImplMutator(mod, op_impl_map, op_buffer_transforms_, axis_separators_,
                               input_axis_separators_)
         .Run();

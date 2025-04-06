@@ -120,7 +120,7 @@ bool IsScheduledOnGPU(const BaseFunc& func) {
 }
 
 Pass DefaultGPUSchedule() {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =  //
+  auto pass_func =  //
       [=](IRModule m, PassContext pc) {
         tir::Schedule sch = tir::Schedule::Traced(m, /*seed=*/-1, /*debug_mask=*/0,
                                                   tir::ScheduleErrorRenderLevel::kDetail);

@@ -107,8 +107,7 @@ Pass MetaScheduleApplyDatabase(Optional<String> work_dir, bool enable_warning = 
       runtime::Registry::Get("tvm.meta_schedule.normalize_mod");
   ICHECK(normalize_mod_func_) << "Normalization function is not found.";
 
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func = [=](IRModule mod,
-                                                                            PassContext ctx) {
+  auto pass_func = [=](IRModule mod, PassContext ctx) {
     Database database{nullptr};
     if (Database::Current().defined()) {
       database = Database::Current().value();
@@ -180,8 +179,7 @@ Pass MetaScheduleTuneIRMod(Map<String, runtime::NDArray> params, String work_dir
                            Optional<Integer> max_trials_per_task = NullOpt,
                            Optional<Array<String>> op_names = NullOpt) {
   Target target = Target::Current(false);
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func = [=](IRModule m,
-                                                                            PassContext ctx) {
+  auto pass_func = [=](IRModule m, PassContext ctx) {
     auto max_trials_task = max_trials_per_task.value_or(max_trials_global);
     return MetaScheduleTuner(target, work_dir, max_trials_global, max_trials_task, op_names, params)
         .TuneIRMod(m, ctx);

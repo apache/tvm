@@ -884,7 +884,7 @@ IRModule RewriteCUDAGraph(IRModule mod) {
 namespace transform {
 
 Pass RewriteCUDAGraph() {
-  runtime::TypedPackedFunc<IRModule(IRModule, PassContext)> pass_func =  //
+  auto pass_func =  //
       [=](IRModule mod, PassContext pc) {
         bool use_cuda_graph =
             pc->GetConfig<Bool>("relax.backend.use_cuda_graph").value_or(Bool(false))->value;
