@@ -154,7 +154,7 @@ def _make_trace_4(b0, l1, l2, l3):  # pylint: disable=invalid-name
         insts=[
             _make_get_block(name="B", output=b0),
             _make_get_loops(input=b0, outputs=[l1]),
-            _make_split([l1, None, 32], [l2, l3]),
+            _make_split([l1, None, T.int32(32)], [l2, l3]),
         ],
         decisions={},
     )
