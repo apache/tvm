@@ -269,7 +269,18 @@ class PassContext : public ObjectRef {
   static int32_t RegisterConfigOption(const char* key) {
     // NOTE: we could further update the function later.
     int32_t tindex = ffi::details::TypeToRuntimeTypeIndex<ValueType>::v();
-    RegisterConfigOption(key, tindex);
+    auto* reflection = ReflectionVTable::Global();
+    auto type_key = ffi::TypeIndexToTypeKey(tindex);
+
+    auto legalization = [=](ffi::Any value) -> ffi::Any {
+      if (auto opt_map = value.as<Map<String, ffi::Any>>()) {
+        return reflection->CreateObject(type_key, opt_map.value());
+      } else {
+        return value;
+      }
+    };
+
+    RegisterConfigOption(key, tindex, legalization);
     return tindex;
   }
 
@@ -283,7 +294,8 @@ class PassContext : public ObjectRef {
   // The exit of a pass context scope.
   TVM_DLL void ExitWithScope();
   // Register configuration key value type.
-  TVM_DLL static void RegisterConfigOption(const char* key, uint32_t value_type_index);
+  TVM_DLL static void RegisterConfigOption(const char* key, uint32_t value_type_index,
+                                           std::function<ffi::Any(ffi::Any)> legalization);
 
   // Classes to get the Python `with` like syntax.
   friend class Internal;

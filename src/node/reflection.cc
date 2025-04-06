@@ -229,7 +229,7 @@ ObjectRef ReflectionVTable::CreateObject(const std::string& type_key,
   // Redirect to the TVMArgs version
   // It is not the most efficient way, but CreateObject is not meant to be used
   // in a fast code-path and is mainly reserved as a flexible API for frontends.
-  std::vector<AnyView> packed_args;
+  std::vector<AnyView> packed_args(kwargs.size() * 2);
   int index = 0;
 
   for (const auto& kv : *static_cast<const MapNode*>(kwargs.get())) {
