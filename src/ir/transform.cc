@@ -107,13 +107,50 @@ bool PassContext::PassEnabled(const PassInfo& info) const {
 
 class PassConfigManager {
  public:
-  void Register(std::string key, uint32_t value_type_index) {
+  void Register(std::string key, uint32_t value_type_index,
+                std::function<ffi::Any(ffi::Any)> legalization) {
     ICHECK_EQ(key2vtype_.count(key), 0U);
     ValueTypeInfo info;
     info.type_index = value_type_index;
     info.type_key = runtime::Object::TypeIndex2Key(value_type_index);
+    info.legalization = legalization;
     key2vtype_[key] = info;
   }
+
+  // Trying to validate and legalize a config.
+  void Legalize(Map<String, ffi::Any>* config) {
+    std::vector<std::pair<std::string, ffi::Any>> update;
+    for (auto [key, value] : *config) {
+      auto it = key2vtype_.find(key);
+      if (it == key2vtype_.end()) {
+        std::ostringstream os;
+        os << "AttributeError: Invalid config option \'" << key << "\' candidates are:";
+        int counter = 0;
+        for (const auto& [key, value] : key2vtype_) {
+          os << ' ';
+          if (counter++ != 0) os << ',';
+          os << key;
+        }
+        LOG(FATAL) << os.str();
+      }
+      const auto& info = it->second;
+
+      ICHECK(value != nullptr) << "AttributeError: " << key << " is None";
+
+      ICHECK(info.legalization) << "AttributeError: "
+                                << "Config option \'" << key
+                                << "\' was defined without a legalization function.";
+      auto legalized = info.legalization(value);
+      if (!legalized.same_as(value)) {
+        update.emplace_back(key, legalized);
+      }
+    }
+    for (auto&& kv : update) {
+      config->Set(kv.first, kv.second);
+    }
+  }
+
+
 
   Map<String, Map<String, String>> ListConfigs() {
     Map<String, Map<String, String>> configs;
@@ -134,13 +171,15 @@ class PassConfigManager {
   struct ValueTypeInfo {
     std::string type_key;
     uint32_t type_index;
+    std::function<ffi::Any(ffi::Any)> legalization;
   };
 
   std::unordered_map<std::string, ValueTypeInfo> key2vtype_;
 };
 
-void PassContext::RegisterConfigOption(const char* key, uint32_t value_type_index) {
-  PassConfigManager::Global()->Register(key, value_type_index);
+void PassContext::RegisterConfigOption(const char* key, uint32_t value_type_index,
+                                       std::function<ffi::Any(ffi::Any)> legalization) {
+  PassConfigManager::Global()->Register(key, value_type_index, legalization);
 }
 
 Map<String, Map<String, String>> PassContext::ListConfigs() {
@@ -582,6 +621,8 @@ TVM_REGISTER_GLOBAL("transform.PassContext")
       pctx->required_pass = std::move(required);
       pctx->disabled_pass = std::move(disabled);
       pctx->instruments = std::move(instruments);
+
+
       if (config.defined()) {
         pctx->config = config.value();
       }
@@ -589,6 +630,7 @@ TVM_REGISTER_GLOBAL("transform.PassContext")
       pctx->make_traceable = std::move(make_traceable);
       pctx->num_evals = std::move(num_evals);
       pctx->tuning_api_database = std::move(tuning_api_database);
+      PassConfigManager::Global()->Legalize(&(pctx->config));
       return pctx;
     });
 
