@@ -912,15 +912,12 @@ void ConcreteScheduleNode::Tensorize(const BlockRV& block_rv, const String& intr
 
 /******** Schedule: Annotation ********/
 
-ObjectRef ConcreteScheduleNode::CheckAndGetAnnotationValue(const ObjectRef& ann_val) {
+ObjectRef ConcreteScheduleNode::CheckAndGetAnnotationValue(const ffi::Any& ann_val) {
   if (ann_val.as<ffi::StringObj>()) {
     return ann_val;
   }
-
-  if (const auto* expr = ann_val.as<PrimExprNode>()) {
-    ICHECK(!ann_val->IsInstance<StringImmNode>())
-        << "TypeError: runtime::String is expected, but gets StringImm";
-    return this->Get(GetRef<PrimExpr>(expr));
+  if (const auto opt_expr = ann_val.as<PrimExpr>()) {
+    return opt_expr.value();
   }
   if (const auto* arr = ann_val.as<ArrayNode>()) {
     Array<ObjectRef> result;
@@ -947,7 +944,7 @@ ObjectRef ConcreteScheduleNode::CheckAndGetAnnotationValue(const ObjectRef& ann_
   }
   LOG(FATAL)
       << "TypeError: Only strings, integers, floats, ExprRVs and Arrays are supported for now, but "
-      << "gets: " << ann_val->GetTypeKey();
+      << "gets: " << ann_val.GetTypeKey();
   throw;
 }
 

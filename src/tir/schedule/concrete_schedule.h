@@ -233,7 +233,7 @@ class ConcreteScheduleNode : public ScheduleNode {
    * \param The annotation value.
    * \return The annotation value with random variables substituted with their values.
    */
-  ObjectRef CheckAndGetAnnotationValue(const ObjectRef& ann_val);
+  ObjectRef CheckAndGetAnnotationValue(const ffi::Any& ann_val);
 };
 
 // implementations
