@@ -117,7 +117,7 @@ Array<ObjectRef> TranslateInputRVs(
       results.push_back(input);
     } else if (input->IsInstance<ArrayNode>()) {
       // Case 4: array
-      results.push_back(TranslateInputRVs(Downcast<Array<ObjectRef>>(input), rv_names));
+      results.push_back(TranslateInputRVs(Downcast<Array<ObjectRef>>(Any(input)), rv_names));
     } else if (input->IsInstance<MapNode>()) {
       // Case 5: dict
       results.push_back(input);

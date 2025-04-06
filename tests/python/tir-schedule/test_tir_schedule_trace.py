@@ -88,7 +88,7 @@ def _make_split(inputs, outputs):  # pylint: disable=redefined-builtin
     return Instruction(
         kind=InstructionKind.get("Split"),
         inputs=inputs,
-        attrs=[True, False],
+        attrs=[T.bool(True), T.bool(False)],
         outputs=outputs,
     )
 
@@ -331,7 +331,7 @@ def test_apply_json_to_schedule_sample_categorical():
         decisions={},
     )
     json = trace1.as_json()
-    assert json == [[["SampleCategorical", [], [[3], [1]], ["v0"]]], []]
+    assert str(json) == "[[['SampleCategorical', [], [[3], [T.float32(1.0)]], ['v0']]], []]"
 
     sch = tir.Schedule(elementwise, debug_mask="all")
     # As long as the application does not fail, it is fine.
