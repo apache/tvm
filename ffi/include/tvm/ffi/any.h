@@ -280,7 +280,7 @@ class Any {
   }
 
   template <typename T, typename = std::enable_if_t<TypeTraits<T>::enabled>>
-  TVM_FFI_INLINE operator T() const {
+  TVM_FFI_INLINE operator T() const& {
     std::optional<T> opt = TypeTraits<T>::TryConvertFromAnyView(&data_);
     if (!opt.has_value()) {
       TVM_FFI_THROW(TypeError) << "Cannot convert from type `"
@@ -290,6 +290,20 @@ class Any {
     return *std::move(opt);
   }
 
+  template <typename T, typename = std::enable_if_t<TypeTraits<T>::container_enabled>>
+  TVM_FFI_INLINE operator T() && {
+    if (TypeTraits<T>::CheckAnyStorage(&data_)) {
+      return TypeTraits<T>::MoveFromAnyStorageAfterCheck(&data_);
+    }
+    // slow path, try to do fallback convert
+    std::optional<T> opt = TypeTraits<T>::TryConvertFromAnyView(&data_);
+    if (!opt.has_value()) {
+      TVM_FFI_THROW(TypeError) << "Cannot convert from type `"
+                               << TypeTraits<T>::GetMismatchTypeInfo(&data_) << "` to `"
+                               << TypeTraits<T>::TypeStr() << "`";
+    }
+    return *std::move(opt);
+  }
   /*
    * \brief Check if the two Any are same type and value in shallow comparison.
    * \param other The other Any
@@ -377,9 +391,11 @@ struct AnyUnsafe : public ObjectUnsafe {
     return result;
   }
 
-  static TVM_FFI_INLINE Any MoveTVMFFIAnyToAny(TVMFFIAny data) {
+  static TVM_FFI_INLINE Any MoveTVMFFIAnyToAny(TVMFFIAny&& data) {
     Any any;
     any.data_ = data;
+    data.type_index = TypeIndex::kTVMFFINone;
+    data.v_int64 = 0;
     return any;
   }
 

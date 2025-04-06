@@ -44,6 +44,12 @@ TEST(Optional, TInt) {
   EXPECT_TRUE(z_any != nullptr);
   EXPECT_EQ((z_any.operator TInt())->value, 11);
   EXPECT_TRUE(!y.has_value());
+
+  // move from any to optional
+  Optional<TInt> y2 = std::move(z_any);
+  EXPECT_EQ(y2.use_count(), 1);
+  EXPECT_TRUE(y2.has_value());
+  EXPECT_EQ(y2.value_or(TInt(12))->value, 11);
 }
 
 TEST(Optional, double) {

@@ -82,8 +82,13 @@ class Variant {
   }
 
   template <typename T, typename = enable_if_variant_t<T>>
-  TVM_FFI_INLINE T Get() const {
+  TVM_FFI_INLINE T Get() const& {
     return data_.operator T();
+  }
+
+  template <typename T, typename = enable_if_variant_t<T>>
+  TVM_FFI_INLINE T Get() && {
+    return std::move(data_).operator T();
   }
 
  private:
@@ -131,6 +136,10 @@ struct TypeTraits<Variant<V...>> : public TypeTraitsBase {
 
   static TVM_FFI_INLINE Variant<V...> CopyFromAnyStorageAfterCheck(const TVMFFIAny* src) {
     return Variant<V...>(Any(AnyView::CopyFromTVMFFIAny(*src)));
+  }
+
+  static TVM_FFI_INLINE Variant<V...> MoveFromAnyStorageAfterCheck(TVMFFIAny* src) {
+    return Variant<V...>(details::AnyUnsafe::MoveTVMFFIAnyToAny(std::move(*src)));
   }
 
   static TVM_FFI_INLINE std::optional<Variant<V...>> TryConvertFromAnyView(const TVMFFIAny* src) {

@@ -44,6 +44,14 @@ TEST(Variant, AnyConvert) {
   Any any0 = 1;
   Variant<TPrimExpr, Array<TPrimExpr>> v1 = any0;
   EXPECT_EQ(v1.Get<TPrimExpr>()->value, 1);
+
+  // move from any to variant
+  Variant<TInt, int> v2 = TInt(1);
+  Any any1 = std::move(v2);
+  Variant<TInt, int> v3 = std::move(any1);
+  TInt v4 = std::move(v3).Get<TInt>();
+  EXPECT_EQ(v4->value, 1);
+  EXPECT_EQ(v4.use_count(), 1);
 }
 
 TEST(Variant, ObjectPtrHashEqual) {
