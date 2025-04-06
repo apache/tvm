@@ -3858,6 +3858,7 @@ def test_where():
 
     verify_model(Where(), (condition, x, y), {}, Expected)
 
+
 def test_argsort():
     class Argsort(Module):
         def forward(self, x):
@@ -3868,7 +3869,9 @@ def test_argsort():
         @R.function
         def main(x: R.Tensor((5, 3), dtype="float32")) -> R.Tuple(R.Tensor((5, 3), dtype="int32")):
             with R.dataflow():
-                lv: R.Tensor((5, 3), dtype="int32") = R.argsort(x, axis=1, descending=True, dtype="int32")
+                lv: R.Tensor((5, 3), dtype="int32") = R.argsort(
+                    x, axis=1, descending=True, dtype="int32"
+                )
                 gv: R.Tuple(R.Tensor((5, 3), dtype="int32")) = (lv,)
                 R.output(gv)
             return gv
@@ -3885,16 +3888,19 @@ def test_topk():
     @tvm.script.ir_module
     class Expected:
         @R.function
-        def main(x: R.Tensor((5, 3), dtype="float32")) -> R.Tuple(R.Tensor((5, 2), dtype="float32"),
-                                                                  R.Tensor((5, 2), dtype="int64")):
+        def main(
+            x: R.Tensor((5, 3), dtype="float32")
+        ) -> R.Tuple(R.Tensor((5, 2), dtype="float32"), R.Tensor((5, 2), dtype="int64")):
             with R.dataflow():
-                lv: R.Tuple(R.Tensor((5, 2), dtype="float32"), R.Tensor((5, 2), dtype="int64")) = R.topk(x, k=2, axis=1,
-                                                                                                         ret_type="both",
-                                                                                                         largest=True,
-                                                                                                         dtype="int64")
+                lv: R.Tuple(
+                    R.Tensor((5, 2), dtype="float32"), R.Tensor((5, 2), dtype="int64")
+                ) = R.topk(x, k=2, axis=1, ret_type="both", largest=True, dtype="int64")
                 lv1: R.Tensor((5, 2), dtype="float32") = lv[0]
                 lv2: R.Tensor((5, 2), dtype="int64") = lv[1]
-                gv: R.Tuple(R.Tensor((5, 2), dtype="float32"), R.Tensor((5, 2), dtype="int64")) = (lv1, lv2)
+                gv: R.Tuple(R.Tensor((5, 2), dtype="float32"), R.Tensor((5, 2), dtype="int64")) = (
+                    lv1,
+                    lv2
+                )
                 R.output(gv)
             return gv
 
